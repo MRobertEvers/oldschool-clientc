@@ -598,6 +598,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	ui/uitree_if_events.c \
 	ui/uitree_if_store.c \
 	ui/uitree_canvas_floor.c \
+	ui/settings_pickers.c \
 	ui/uitree_keyboard_owner.c \
 	ui/uitree_popup_place.c \
 	engine/async_pending.c \
@@ -1646,6 +1647,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-async-pending
 	$(MAKE) test-ground-items-dirty
 	$(MAKE) test-uitree-popup-place
+	$(MAKE) test-settings-pickers
 	$(MAKE) test-uitree-if-store
 	$(MAKE) test-minimap-mapscene
 	$(MAKE) test-viewport-projection
@@ -1694,6 +1696,22 @@ test-uitree-if-store: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX) \
 		ui/test/uitree_if_store_test.c ui/uitree_if_store.c $(LDFLAGS)
 	./$(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX)
+
+# The two All Settings pickers the client builds itself. The cache's op script
+# for a colour swatch or a number field plays a click and returns -- in the
+# reference the picker is the ENGINE's -- so this IS the row's apply, and every
+# rule in it is invisible when it breaks: the wrong commit encoding writes a
+# colour one off the one chosen, and draining the chrome's shared activation
+# latch instead of peeking eats the panel next door's click.
+.PHONY: test-settings-pickers
+test-settings-pickers: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/settings_pickers_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/settings_pickers_test.c ui/settings_pickers.c \
+		ui/uitree_popup_place.c ui/uitree.c ui/uitree_hook.c \
+		ui/uitree_component_options.c engine/torirs_component_hook.c \
+		ui/uitree_layout.c ui/uitree_debug_overlay.c ui/torirs_chrome_rail.c ui/uitree_frame.c \
+		perf/torirs_perf.c $(LDFLAGS)
+	./$(OBJ_DIR)/settings_pickers_test$(PLATFORM_EXE_SUFFIX)
 
 # Where a settings popup goes beside the row that opened it. Obviously right
 # until a row is near an edge, and then the popup is half off screen or sitting

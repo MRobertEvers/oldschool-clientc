@@ -14,6 +14,7 @@
 #include "features/features.h"
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
+#include "ui/settings_pickers.h"
 #include "game/rs_ground_items_dirty.h"
 #include "engine/title_flames.h"
 #include "game/rs_login_replies.h"
@@ -1920,39 +1921,17 @@ struct App
      * client-side only via App_WorldLocChange, so the readout gives exact
      * scene coords to hand-copy into a script without a server round trip. */
     /**
-     * The All Settings colour picker: a window panel in the same dbg_ui
-     * instance, opened when a colour row's swatch is clicked.
+     * The two All Settings pickers: the colour swatch editor and the number
+     * entry, as panels in the same dbg_ui instance.
      *
-     * A panel here rather than a chrome instance of its own for the same
-     * reason the loc editor is one: it is in-canvas, short-lived and shares
-     * the frame-time panel's Build/Prims/emit plumbing for free. The cache
-     * has no picker to open -- its op script for that swatch plays a click and
-     * returns -- so this IS the row's apply, and the value it commits goes
-     * straight into the row's varp. See RS_CS2SettingsColourRequest.
+     * Panels here rather than a chrome instance of their own for the same
+     * reason the loc editor is one: they are in-canvas, short-lived and share
+     * the frame-time panel's Build/Prims/emit plumbing for free. The cache has
+     * no picker to open -- its op script for a swatch or a field plays a click
+     * and returns -- so these ARE the rows' apply, and the value each commits
+     * goes straight into the row's varp. See ui/settings_pickers.h.
      */
-    int settings_colour_panel;
-    int settings_colour_pick;
-    int settings_colour_default_btn;
-    int settings_colour_close_btn;
-    int settings_colour_visible;
-    /** The row the open picker belongs to, so a commit knows which varp to
-     *  write and a closed All Settings knows to take the picker with it. */
-    struct RS_CS2SettingsColourRequest settings_colour_req;
-    /**
-     * The All Settings NUMBER entry, the same arrangement one row down.
-     *
-     * The five ground-items price tiers, the overlay's line limit and the
-     * handful of other rows built by `settings_create_input_setting` are the
-     * rows this serves. Their op script is as empty as the colour swatch's --
-     * `settings_input_op` plays the click and returns -- because the reference
-     * opens a numeric entry of its own here. The value commits on Enter, which
-     * is when a chrome text input activates.
-     */
-    int settings_number_panel;
-    int settings_number_input;
-    int settings_number_close_btn;
-    int settings_number_visible;
-    struct RS_CS2SettingsNumberRequest settings_number_req;
+    struct UISettingsPickers settings_pickers;
     int locedit_panel;
     int locedit_visible;
     int locedit_row_target; /* "loc <id> shape <n>" or "no loc selected" */

@@ -6051,26 +6051,10 @@ app_debug_overlay_init(struct App* app)
     ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
     app->locedit_visible = 0;
 
-    /* The All Settings colour picker. Built empty and hidden: its rows are the
-     * ROW's -- title, default swatch -- and are only known once a swatch has
-     * been clicked, so every open clears and rebuilds them. Declared here all
-     * the same, so the handle is valid from the first frame and no path has to
-     * test for a panel that does not exist yet. */
-    app->settings_colour_panel =
-        ToriRSChrome_PanelAdd(&app->dbg_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 40, 0, "Colour");
-    ToriRSChrome_PanelSetFramed(&app->dbg_ui, app->settings_colour_panel, 1);
-    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_colour_panel, 0);
-    app->settings_colour_visible = 0;
-    app->settings_colour_pick = -1;
-    app->settings_colour_default_btn = -1;
-    app->settings_colour_close_btn = -1;
-    app->settings_number_panel =
-        ToriRSChrome_PanelAdd(&app->dbg_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 40, 0, "Value");
-    ToriRSChrome_PanelSetFramed(&app->dbg_ui, app->settings_number_panel, 1);
-    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_number_panel, 0);
-    app->settings_number_visible = 0;
-    app->settings_number_input = -1;
-    app->settings_number_close_btn = -1;
+    /* The two All Settings pickers, in this same instance for the same reason
+     * the loc editor's panel is: they are in-canvas, short-lived, and share
+     * the frame-time panel's Build/Prims/emit plumbing for free. */
+    UISettingsPickers_Init(&app->settings_pickers, &app->dbg_ui);
     app->locedit_loc_id = -1;
     app->locedit_shape = -1;
     app->locedit_angle = 0;
@@ -6277,7 +6261,69 @@ app_debug_overlay_tick(
 
 #include "app_loc_editor.u.c"
 
-#include "app_settings_pickers.u.c"
+/*
+ * What a picker's chosen value means: the varp the row stores it in.
+ *
+ * The pickers know a varp id and an integer and nothing about either, which is
+ * what lets them be tested without a CS2 host. This is the half that needs
+ * one.
+ */
+static void
+app_settings_picker_commit(
+    void* userdata,
+    int varp_id,
+    int value)
+{
+    struct App* app = (struct App*)userdata;
+
+    assert(app);
+    RS_CS2Host_ScriptWriteVarp(&app->host, varp_id, value);
+}
+
+/* Open the colour picker when a row asked for one, then drive it. The Take is
+ * here because the request comes off the CS2 host; everything it opens is
+ * UISettingsPickers'. */
+static void
+app_settings_colour_tick(struct App* app)
+{
+    struct RS_CS2SettingsColourRequest request;
+
+    assert(app);
+    if( RS_CS2Host_TakeSettingsColourRequest(&app->host, &request) )
+    {
+        UISettingsPickers_OpenColour(
+            &app->settings_pickers, &app->dbg_ui, app->tree, &request);
+        app->need_redraw = 1;
+    }
+    if( UISettingsPickers_ColourTick(
+            &app->settings_pickers,
+            &app->dbg_ui,
+            app->tree,
+            app_settings_picker_commit,
+            app) )
+        app->need_redraw = 1;
+}
+
+static void
+app_settings_number_tick(struct App* app)
+{
+    struct RS_CS2SettingsNumberRequest request;
+
+    assert(app);
+    if( RS_CS2Host_TakeSettingsNumberRequest(&app->host, &request) )
+    {
+        UISettingsPickers_OpenNumber(
+            &app->settings_pickers, &app->dbg_ui, app->tree, &request);
+        app->need_redraw = 1;
+    }
+    if( UISettingsPickers_NumberTick(
+            &app->settings_pickers,
+            &app->dbg_ui,
+            app->tree,
+            app_settings_picker_commit,
+            app) )
+        app->need_redraw = 1;
+}
 
 void
 App_SetWorldRenderMode(

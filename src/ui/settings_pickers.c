@@ -1,20 +1,61 @@
-/*
- * The two settings PICKERS the client builds itself: the colour swatch editor
- * and the number-input row. Neither exists in the cache -- the rows that open
- * them are cache-authored, but what they open is this.
- *
- * A unity fragment of app.c, not a module. It is textually part of app.c's
- * translation unit and included at exactly the point it was cut from, so every
- * helper here stays static and every App field it reads stays where it was.
- * The split is for the reader.
- *
- * Where the popup goes is not here -- both pickers now ask
- * UITree_PlacePopupBesideAnchor, which is why they agree about it. What stays
- * is the part that needs an App: which row opened, what it is bound to, and
- * what to write back when the picker closes.
- *
- * @see src/app.c, src/ui/uitree_popup_place.h
- */
+#include "ui/settings_pickers.h"
+
+#include "log/torirs_log.h"
+#include "ui/uitree.h"
+#include "ui/uitree_debug_overlay.h"
+#include "ui/uitree_layout.h"
+#include "ui/uitree_popup_place.h"
+
+#include <assert.h>
+#include <limits.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void
+UISettingsPickers_Init(
+    struct UISettingsPickers* pickers,
+    struct ToriRSChrome* chrome)
+{
+    assert(pickers);
+    assert(chrome);
+
+    /* Built empty and hidden. A picker's rows are the ROW's -- title, default
+     * swatch -- and are only known once a control has been clicked, so every
+     * open clears and rebuilds them. Declared here all the same, so the handles
+     * are valid from the first frame and no path has to test for a panel that
+     * does not exist yet. */
+    memset(pickers, 0, sizeof(*pickers));
+    pickers->colour_panel =
+        ToriRSChrome_PanelAdd(chrome, TORIRS_CHROME_PANEL_WINDOW, 8, 40, 0, "Colour");
+    ToriRSChrome_PanelSetFramed(chrome, pickers->colour_panel, 1);
+    ToriRSChrome_PanelSetVisible(chrome, pickers->colour_panel, 0);
+    pickers->colour_pick = -1;
+    pickers->colour_default_button = -1;
+    pickers->colour_close_button = -1;
+
+    pickers->number_panel =
+        ToriRSChrome_PanelAdd(chrome, TORIRS_CHROME_PANEL_WINDOW, 8, 40, 0, "Value");
+    ToriRSChrome_PanelSetFramed(chrome, pickers->number_panel, 1);
+    ToriRSChrome_PanelSetVisible(chrome, pickers->number_panel, 0);
+    pickers->number_input = -1;
+    pickers->number_close_button = -1;
+}
+
+bool
+UISettingsPickers_ColourVisible(struct UISettingsPickers const* pickers)
+{
+    assert(pickers);
+    return pickers->colour_visible != 0;
+}
+
+bool
+UISettingsPickers_NumberVisible(struct UISettingsPickers const* pickers)
+{
+    assert(pickers);
+    return pickers->number_visible != 0;
+}
 
 /* =========================================================================
  * All Settings: the colour rows
@@ -53,12 +94,13 @@
  * ========================================================================= */
 
 static void
-app_settings_colour_close(struct App* app)
+settings_colour_close(struct UISettingsPickers* pickers, struct ToriRSChrome* chrome)
 {
-    assert(app);
-    app->settings_colour_visible = 0;
-    if( app->settings_colour_panel >= 0 )
-        ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_colour_panel, 0);
+    assert(pickers);
+    assert(chrome);
+    pickers->colour_visible = 0;
+    if( pickers->colour_panel >= 0 )
+        ToriRSChrome_PanelSetVisible(chrome, pickers->colour_panel, 0);
 }
 
 /**
@@ -69,24 +111,27 @@ app_settings_colour_close(struct App* app)
  * than "black".
  */
 static void
-app_settings_colour_commit(
-    struct App* app,
+settings_colour_commit(
+    struct UISettingsPickers* pickers,
+    UISettingsPickerCommitFn commit,
+    void* userdata,
     uint32_t rgb)
 {
-    assert(app);
+    assert(pickers);
+    assert(commit);
     /* A picker is only ever opened for a row whose varp is known, so this is a
      * contract and not a state to tolerate: a commit with nowhere to go would
      * be a picker the user is dragging that changes nothing. */
-    assert(app->settings_colour_req.varp_id >= 0);
-    RS_CS2Host_ScriptWriteVarp(
-        &app->host, app->settings_colour_req.varp_id, (int)(rgb & 0xFFFFFFu) + 1);
-    app->need_redraw = 1;
+    assert(pickers->colour_request.varp_id >= 0);
+    commit(userdata, pickers->colour_request.varp_id, (int)(rgb & 0xFFFFFFu) + 1);
 }
 
 /** Put the picker beside the swatch that opened it, clamped onto the canvas. */
 static void
-app_settings_colour_place(
-    struct App* app,
+settings_colour_place(
+    struct UISettingsPickers* pickers,
+    struct ToriRSChrome* chrome,
+    struct UITree const* tree,
     int component_id)
 {
     int scale;
@@ -95,12 +140,13 @@ app_settings_colour_place(
     struct UITreeComponent const* anchor = NULL;
     struct UIPopupPlacement placement;
 
-    assert(app);
-    scale = ToriRSChrome_Scale(&app->dbg_ui);
+    assert(pickers);
+    assert(chrome);
+    scale = ToriRSChrome_Scale(chrome);
     width = 230 * scale;
-    idx = app->tree && component_id >= 0 ? UITree_FindByComponentId(app->tree, component_id) : -1;
+    idx = tree && component_id >= 0 ? UITree_FindByComponentId(tree, component_id) : -1;
     if( idx >= 0 )
-        anchor = &app->tree->components[idx];
+        anchor = &tree->components[idx];
 
     /* Two thirds: the colour picker's axis popup drops BELOW the panel, so it
      * needs room under itself as well as for itself. */
@@ -115,19 +161,22 @@ app_settings_colour_place(
         2,
         3);
 
-    ToriRSChrome_PanelSetFixedWidth(&app->dbg_ui, app->settings_colour_panel, width);
-    ToriRSChrome_PanelMove(&app->dbg_ui, app->settings_colour_panel, placement.x, placement.y);
+    ToriRSChrome_PanelSetFixedWidth(chrome, pickers->colour_panel, width);
+    ToriRSChrome_PanelMove(chrome, pickers->colour_panel, placement.x, placement.y);
 }
 
-static void
-app_settings_colour_open(
-    struct App* app,
+void
+UISettingsPickers_OpenColour(
+    struct UISettingsPickers* pickers,
+    struct ToriRSChrome* chrome,
+    struct UITree const* tree,
     struct RS_CS2SettingsColourRequest const* req)
 {
-    assert(app);
+    assert(pickers);
+    assert(chrome);
     assert(req);
 
-    if( app->settings_colour_panel < 0 )
+    if( pickers->colour_panel < 0 )
         return;
     if( req->varp_id < 0 )
     {
@@ -141,28 +190,27 @@ app_settings_colour_open(
         return;
     }
 
-    app->settings_colour_req = *req;
-    ToriRSChrome_PanelClearWidgets(&app->dbg_ui, app->settings_colour_panel);
+    pickers->colour_request = *req;
+    ToriRSChrome_PanelClearWidgets(chrome, pickers->colour_panel);
     ToriRSChrome_PanelSetTitle(
-        &app->dbg_ui, app->settings_colour_panel, req->label[0] ? req->label : "Colour");
+        chrome, pickers->colour_panel, req->label[0] ? req->label : "Colour");
     /* Seeded through NearestRgb, not the reference quantiser: this value is
      * read back and re-shown every time the row is opened, and the reference
      * round trip moves nearly every entry by a shade each pass. */
-    app->settings_colour_pick = ToriRSChrome_ColorPick(
-        &app->dbg_ui,
-        app->settings_colour_panel,
+    pickers->colour_pick = ToriRSChrome_ColorPick(
+        chrome,
+        pickers->colour_panel,
         "Colour",
         ToriRSChrome_Hsl16NearestRgb((uint32_t)req->colour & 0xFFFFFFu));
-    app->settings_colour_default_btn =
-        ToriRSChrome_Button(&app->dbg_ui, app->settings_colour_panel, "Default");
-    app->settings_colour_close_btn =
-        ToriRSChrome_Button(&app->dbg_ui, app->settings_colour_panel, "Done");
-    ToriRSChrome_PanelSetClosable(&app->dbg_ui, app->settings_colour_panel, 1);
+    pickers->colour_default_button =
+        ToriRSChrome_Button(chrome, pickers->colour_panel, "Default");
+    pickers->colour_close_button =
+        ToriRSChrome_Button(chrome, pickers->colour_panel, "Done");
+    ToriRSChrome_PanelSetClosable(chrome, pickers->colour_panel, 1);
 
-    app_settings_colour_place(app, req->component_id);
-    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_colour_panel, 1);
-    app->settings_colour_visible = 1;
-    app->need_redraw = 1;
+    settings_colour_place(pickers, chrome, tree, req->component_id);
+    ToriRSChrome_PanelSetVisible(chrome, pickers->colour_panel, 1);
+    pickers->colour_visible = 1;
 }
 
 /*
@@ -175,29 +223,33 @@ app_settings_colour_open(
  * editor's clicks -- a dropdown that showed the new value while nothing
  * changed. Peeking costs nothing and cannot do that to anyone.
  */
-static void
-app_settings_colour_tick(struct App* app)
+int
+UISettingsPickers_ColourTick(
+    struct UISettingsPickers* pickers,
+    struct ToriRSChrome* chrome,
+    struct UITree const* tree,
+    UISettingsPickerCommitFn commit,
+    void* userdata)
 {
-    struct RS_CS2SettingsColourRequest req;
     int activated;
+    int changed = 0;
 
-    assert(app);
+    assert(pickers);
+    assert(chrome);
+    assert(commit);
 
-    if( RS_CS2Host_TakeSettingsColourRequest(&app->host, &req) )
-        app_settings_colour_open(app, &req);
-
-    if( !app->settings_colour_visible )
-        return;
+    if( !pickers->colour_visible )
+        return 0;
 
     /*
      * The panel's own Close button hid it; the flag above is this side's idea
      * of whether the picker is up, and left unreconciled the next click on the
      * same swatch would "reopen" something that is already open.
      */
-    if( app->settings_colour_panel >= 0 && !app->dbg_ui.panels[app->settings_colour_panel].visible )
+    if( pickers->colour_panel >= 0 && !chrome->panels[pickers->colour_panel].visible )
     {
-        app->settings_colour_visible = 0;
-        return;
+        pickers->colour_visible = 0;
+        return 1;
     }
 
     /*
@@ -215,25 +267,28 @@ app_settings_colour_tick(struct App* app)
      * left the picker over the world after the panel had gone. The group is
      * the question actually being asked -- is the panel still open.
      */
-    if( app->settings_colour_req.component_id >= 0 && app->tree &&
-        !UITree_GroupPresent(app->tree, app->settings_colour_req.component_id >> 16) )
+    if( pickers->colour_request.component_id >= 0 && tree &&
+        !UITree_GroupPresent(tree, pickers->colour_request.component_id >> 16) )
     {
-        app_settings_colour_close(app);
-        return;
+        settings_colour_close(pickers, chrome);
+        return 1;
     }
 
-    activated = app->dbg_ui.activated;
+    activated = chrome->activated;
     if( activated < 0 )
-        return;
-    if( activated == app->settings_colour_pick )
+        return changed;
+    if( activated == pickers->colour_pick )
     {
-        (void)ToriRSChrome_TakeActivated(&app->dbg_ui);
-        app_settings_colour_commit(
-            app,
+        (void)ToriRSChrome_TakeActivated(chrome);
+        changed = 1;
+        settings_colour_commit(
+            pickers,
+            commit,
+            userdata,
             ToriRSChrome_Hsl16ToRgb(
-                ToriRSChrome_ColorPickValue(&app->dbg_ui, app->settings_colour_pick)));
+                ToriRSChrome_ColorPickValue(chrome, pickers->colour_pick)));
     }
-    else if( activated == app->settings_colour_default_btn )
+    else if( activated == pickers->colour_default_button )
     {
         /* The DEFAULT is committed verbatim, not as the palette entry nearest
          * to it. `param_1230` is a colour the cache authored and the row draws
@@ -242,23 +297,26 @@ app_settings_colour_tick(struct App* app)
          * The picker still shows the nearest entry, because that is the only
          * thing its axes can hold -- and what it shows is honestly what the
          * next pick would produce. */
-        uint32_t const rgb = (uint32_t)app->settings_colour_req.default_colour & 0xFFFFFFu;
-        (void)ToriRSChrome_TakeActivated(&app->dbg_ui);
+        uint32_t const rgb = (uint32_t)pickers->colour_request.default_colour & 0xFFFFFFu;
+        (void)ToriRSChrome_TakeActivated(chrome);
+        changed = 1;
         ToriRSChrome_ColorPickSet(
-            &app->dbg_ui, app->settings_colour_pick, ToriRSChrome_Hsl16NearestRgb(rgb));
-        app_settings_colour_commit(app, rgb);
+            chrome, pickers->colour_pick, ToriRSChrome_Hsl16NearestRgb(rgb));
+        settings_colour_commit(pickers, commit, userdata, rgb);
     }
-    else if( activated == app->settings_colour_close_btn )
+    else if( activated == pickers->colour_close_button )
     {
-        (void)ToriRSChrome_TakeActivated(&app->dbg_ui);
-        app_settings_colour_close(app);
+        (void)ToriRSChrome_TakeActivated(chrome);
+        changed = 1;
+        settings_colour_close(pickers, chrome);
     }
 
-    if( ToriRSChrome_Build(&app->dbg_ui) )
+    if( ToriRSChrome_Build(chrome) )
     {
-        app->need_redraw = 1;
-        ToriRSChrome_DamageClear(&app->dbg_ui);
+        changed = 1;
+        ToriRSChrome_DamageClear(chrome);
     }
+    return changed;
 }
 
 /* =========================================================================
@@ -294,12 +352,13 @@ app_settings_colour_tick(struct App* app)
  * ========================================================================= */
 
 static void
-app_settings_number_close(struct App* app)
+settings_number_close(struct UISettingsPickers* pickers, struct ToriRSChrome* chrome)
 {
-    assert(app);
-    app->settings_number_visible = 0;
-    if( app->settings_number_panel >= 0 )
-        ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_number_panel, 0);
+    assert(pickers);
+    assert(chrome);
+    pickers->number_visible = 0;
+    if( pickers->number_panel >= 0 )
+        ToriRSChrome_PanelSetVisible(chrome, pickers->number_panel, 0);
 }
 
 /*
@@ -316,15 +375,21 @@ app_settings_number_close(struct App* app)
  * word it draws for it.
  */
 static void
-app_settings_number_commit(struct App* app)
+settings_number_commit(
+    struct UISettingsPickers* pickers,
+    struct ToriRSChrome* chrome,
+    UISettingsPickerCommitFn commit,
+    void* userdata)
 {
     char const* text;
     long value;
 
-    assert(app);
+    assert(pickers);
+    assert(chrome);
+    assert(commit);
     /* A box is only ever opened for a row whose varp is known. */
-    assert(app->settings_number_req.varp_id >= 0);
-    text = ToriRSChrome_Text(&app->dbg_ui, app->settings_number_input);
+    assert(pickers->number_request.varp_id >= 0);
+    text = ToriRSChrome_Text(chrome, pickers->number_input);
     value = strtol(text, NULL, 10);
     /* Clamped rather than asserted: this is a number a person typed, and
      * "2000000000000" is a typo and not a caller's bug. The floor is zero
@@ -334,14 +399,15 @@ app_settings_number_commit(struct App* app)
         value = 0;
     if( value > INT_MAX )
         value = INT_MAX;
-    RS_CS2Host_ScriptWriteVarp(&app->host, app->settings_number_req.varp_id, (int)value);
-    app->need_redraw = 1;
+    commit(userdata, pickers->number_request.varp_id, (int)value);
 }
 
 /** Put the box beside the field that opened it, clamped onto the canvas. */
 static void
-app_settings_number_place(
-    struct App* app,
+settings_number_place(
+    struct UISettingsPickers* pickers,
+    struct ToriRSChrome* chrome,
+    struct UITree const* tree,
     int component_id)
 {
     int scale;
@@ -350,12 +416,13 @@ app_settings_number_place(
     struct UITreeComponent const* anchor = NULL;
     struct UIPopupPlacement placement;
 
-    assert(app);
-    scale = ToriRSChrome_Scale(&app->dbg_ui);
+    assert(pickers);
+    assert(chrome);
+    scale = ToriRSChrome_Scale(chrome);
     width = 200 * scale;
-    idx = app->tree && component_id >= 0 ? UITree_FindByComponentId(app->tree, component_id) : -1;
+    idx = tree && component_id >= 0 ? UITree_FindByComponentId(tree, component_id) : -1;
     if( idx >= 0 )
-        anchor = &app->tree->components[idx];
+        anchor = &tree->components[idx];
 
     /* Three quarters, not two thirds: a number entry has no axis popup under
      * it, so it may sit lower than the colour picker. */
@@ -370,22 +437,25 @@ app_settings_number_place(
         3,
         4);
 
-    ToriRSChrome_PanelSetFixedWidth(&app->dbg_ui, app->settings_number_panel, width);
-    ToriRSChrome_PanelMove(&app->dbg_ui, app->settings_number_panel, placement.x, placement.y);
+    ToriRSChrome_PanelSetFixedWidth(chrome, pickers->number_panel, width);
+    ToriRSChrome_PanelMove(chrome, pickers->number_panel, placement.x, placement.y);
 }
 
-static void
-app_settings_number_open(
-    struct App* app,
+void
+UISettingsPickers_OpenNumber(
+    struct UISettingsPickers* pickers,
+    struct ToriRSChrome* chrome,
+    struct UITree const* tree,
     struct RS_CS2SettingsNumberRequest const* req)
 {
     char value[32];
     char label[128];
 
-    assert(app);
+    assert(pickers);
+    assert(chrome);
     assert(req);
 
-    if( app->settings_number_panel < 0 )
+    if( pickers->number_panel < 0 )
         return;
     if( req->varp_id < 0 )
     {
@@ -399,7 +469,7 @@ app_settings_number_open(
         return;
     }
 
-    app->settings_number_req = *req;
+    pickers->number_request = *req;
     snprintf(value, sizeof(value), "%d", req->value);
     /* The row's own suffix on the box's label, so the two agree about what is
      * being typed -- "Value (gp)" over a field the panel prints as "20,000 gp".
@@ -414,19 +484,18 @@ app_settings_number_open(
     else
         snprintf(label, sizeof(label), "Value");
 
-    ToriRSChrome_PanelClearWidgets(&app->dbg_ui, app->settings_number_panel);
+    ToriRSChrome_PanelClearWidgets(chrome, pickers->number_panel);
     ToriRSChrome_PanelSetTitle(
-        &app->dbg_ui, app->settings_number_panel, req->label[0] ? req->label : "Value");
-    app->settings_number_input =
-        ToriRSChrome_TextInput(&app->dbg_ui, app->settings_number_panel, label, value);
-    app->settings_number_close_btn =
-        ToriRSChrome_Button(&app->dbg_ui, app->settings_number_panel, "Done");
-    ToriRSChrome_PanelSetClosable(&app->dbg_ui, app->settings_number_panel, 1);
+        chrome, pickers->number_panel, req->label[0] ? req->label : "Value");
+    pickers->number_input =
+        ToriRSChrome_TextInput(chrome, pickers->number_panel, label, value);
+    pickers->number_close_button =
+        ToriRSChrome_Button(chrome, pickers->number_panel, "Done");
+    ToriRSChrome_PanelSetClosable(chrome, pickers->number_panel, 1);
 
-    app_settings_number_place(app, req->component_id);
-    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_number_panel, 1);
-    app->settings_number_visible = 1;
-    app->need_redraw = 1;
+    settings_number_place(pickers, chrome, tree, req->component_id);
+    ToriRSChrome_PanelSetVisible(chrome, pickers->number_panel, 1);
+    pickers->number_visible = 1;
 
     /* fprintf, and gated on its own name: a dbg_ui panel reaches the platform
      * renderer as ToriRSChrome_Prims and is invisible to every BMP path this
@@ -445,58 +514,65 @@ app_settings_number_open(
 
 /* Open, drive and commit the entry. The activation is PEEKED and only taken
  * when it belongs to this panel, for the same reason the colour tick peeks. */
-static void
-app_settings_number_tick(struct App* app)
+int
+UISettingsPickers_NumberTick(
+    struct UISettingsPickers* pickers,
+    struct ToriRSChrome* chrome,
+    struct UITree const* tree,
+    UISettingsPickerCommitFn commit,
+    void* userdata)
 {
-    struct RS_CS2SettingsNumberRequest req;
     int activated;
+    int changed = 0;
 
-    assert(app);
+    assert(pickers);
+    assert(chrome);
+    assert(commit);
 
-    if( RS_CS2Host_TakeSettingsNumberRequest(&app->host, &req) )
-        app_settings_number_open(app, &req);
-
-    if( !app->settings_number_visible )
-        return;
+    if( !pickers->number_visible )
+        return 0;
 
     /* The panel's own Close button hid it. */
-    if( app->settings_number_panel >= 0 && !app->dbg_ui.panels[app->settings_number_panel].visible )
+    if( pickers->number_panel >= 0 && !chrome->panels[pickers->number_panel].visible )
     {
-        app->settings_number_visible = 0;
-        return;
+        pickers->number_visible = 0;
+        return 1;
     }
 
     /* Follow All Settings out. Asked of the GROUP, not the component: the
      * field is a dynamic child whose component id names its container, which
      * outlives the row. Same trap as the colour picker's. */
-    if( app->settings_number_req.component_id >= 0 && app->tree &&
-        !UITree_GroupPresent(app->tree, app->settings_number_req.component_id >> 16) )
+    if( pickers->number_request.component_id >= 0 && tree &&
+        !UITree_GroupPresent(tree, pickers->number_request.component_id >> 16) )
     {
-        app_settings_number_close(app);
-        return;
+        settings_number_close(pickers, chrome);
+        return 1;
     }
 
-    activated = app->dbg_ui.activated;
+    activated = chrome->activated;
     if( activated < 0 )
-        return;
-    if( activated == app->settings_number_input )
+        return changed;
+    if( activated == pickers->number_input )
     {
         /* Enter, which is when a chrome text input activates. The box stays up
          * so a mistyped threshold can be corrected without clicking the row
          * again. */
-        (void)ToriRSChrome_TakeActivated(&app->dbg_ui);
-        app_settings_number_commit(app);
+        (void)ToriRSChrome_TakeActivated(chrome);
+        changed = 1;
+        settings_number_commit(pickers, chrome, commit, userdata);
     }
-    else if( activated == app->settings_number_close_btn )
+    else if( activated == pickers->number_close_button )
     {
-        (void)ToriRSChrome_TakeActivated(&app->dbg_ui);
-        app_settings_number_commit(app);
-        app_settings_number_close(app);
+        (void)ToriRSChrome_TakeActivated(chrome);
+        changed = 1;
+        settings_number_commit(pickers, chrome, commit, userdata);
+        settings_number_close(pickers, chrome);
     }
 
-    if( ToriRSChrome_Build(&app->dbg_ui) )
+    if( ToriRSChrome_Build(chrome) )
     {
-        app->need_redraw = 1;
-        ToriRSChrome_DamageClear(&app->dbg_ui);
+        changed = 1;
+        ToriRSChrome_DamageClear(chrome);
     }
+    return changed;
 }
