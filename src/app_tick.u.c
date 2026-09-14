@@ -392,10 +392,10 @@ app_logic_tick(struct App* app)
         int dest_coord = -1;
         int hover_coord = -1;
 
-        if( app->world && app->world->load_complete && app->minimap_flag_x >= 0 )
+        if( app->world && app->world->load_complete && app->minimap.flag_tile_x >= 0 )
         {
-            int const x = app->world->_base_tile_x + app->minimap_flag_x;
-            int const z = app->world->_base_tile_z + app->minimap_flag_z;
+            int const x = app->world->_base_tile_x + app->minimap.flag_tile_x;
+            int const z = app->world->_base_tile_z + app->minimap.flag_tile_z;
             struct WorldEntity_Player* self =
                 World_PlayerGetByServerPid(app->world, app->world->local_pid);
             int const level = self ? (self->grid_position.level & 3) : 0;

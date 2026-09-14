@@ -599,6 +599,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	ui/uitree_if_store.c \
 	ui/uitree_canvas_floor.c \
 	ui/inv_drag.c \
+	ui/minimap_view.c \
 	ui/settings_pickers.c \
 	ui/uitree_keyboard_owner.c \
 	ui/uitree_popup_place.c \
@@ -1656,6 +1657,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-uitree-popup-place
 	$(MAKE) test-settings-pickers
 	$(MAKE) test-inv-drag
+	$(MAKE) test-minimap-view
 	$(MAKE) test-net-link-watch
 	$(MAKE) test-clientscript-queue
 	$(MAKE) test-editor-ghost
@@ -1771,6 +1773,17 @@ test-settings-pickers: $(OBJ_DIR)
 		ui/uitree_layout.c ui/uitree_debug_overlay.c ui/torirs_chrome_rail.c ui/uitree_frame.c \
 		perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/settings_pickers_test$(PLATFORM_EXE_SUFFIX)
+
+# The minimap's geometry: where a thing in the world lands on the map, and
+# where on the ground a click on the map points. They are inverses at two
+# different scales and they have to agree, which nothing on screen can tell
+# you: a dot placed by one convention and a click resolved by another draws a
+# map that looks right and walks you somewhere else.
+.PHONY: test-minimap-view
+test-minimap-view: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/minimap_view_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/minimap_view_test.c ui/minimap_view.c $(LDFLAGS)
+	./$(OBJ_DIR)/minimap_view_test$(PLATFORM_EXE_SUFFIX)
 
 # When a press on an inventory slot becomes a drag. Two gates -- leave a dead
 # ZONE, and stay down for a dead TIME -- and dropping either one misreads whole

@@ -5,6 +5,7 @@
 /* Leaf header: `static const` advance tables plus POD structs, no includes of
  * its own. It is here so the emit desc can carry a typed display-list pointer. */
 #include "uitree_debug_overlay.h"
+#include "uitree_minimap_dot.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -51,24 +52,6 @@ typedef uint32_t UITreeHostInputMask;
 #define UITREE_HOST_INPUT_ALL                                                                    \
     ((UITreeHostInputMask)((1u << UITREE_HOST_INPUT_DOMAIN_COUNT) - 1u))
 
-/** Minimap overlay dot (reference minimapDrawDot output), host-computed and
- * already rotated: sprite top-left goes at (box_center_x + dx,
- * box_center_y + dy), drawn w*h. scene_id <= 0 draws a filled rect of
- * `color` instead (the local-player white square). */
-struct UITreeMinimapDot
-{
-    int dx;
-    int dy;
-    int w;
-    int h;
-    int scene_id;
-    int atlas_index;
-    uint32_t color;
-    /** Sprite-content rotation in 2048-per-turn units, pivoted at the icon
-     * centre (a sailing hull's minimap icon turns with its yaw — deob
-     * client.method2412). 0 = plain blit. */
-    int rotate;
-};
 
 /** One screen-space primitive of the entity overlay pass (reference
  * drawEntities' health bars + hitmarks, Client.ts:4897-4932). The host

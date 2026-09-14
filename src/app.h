@@ -21,6 +21,7 @@
 #include "perf/frame_time_ring.h"
 #include "net/net_link_watch.h"
 #include "ui/inv_drag.h"
+#include "ui/minimap_view.h"
 #include "ui/settings_pickers.h"
 #include "game/rs_ground_items_dirty.h"
 #include "engine/title_flames.h"
@@ -1057,17 +1058,13 @@ struct App
      *  app_plugin_slot_node_cached. */
     int32_t plugin_slot_node[TORIRS_HOST_SURFACE_PLACEABLE_COUNT];
     uint32_t plugin_slot_node_gen;
-    /* Minimap widget: cached emit desc (on-screen box + the rotation/anchor
-     * the blit drew with) for click-to-walk, and the destination flag tile
-     * (scene coords, -1 = none; reference minimapFlagX/Z). */
-    struct UITreeEmitDesc minimap_emit_desc;
-    int minimap_view_valid;
-    int minimap_flag_x;
-    int minimap_flag_z;
+    /* Minimap widget: where the last emit walk drew the map, the angle it
+     * blitted with, and the destination flag tile (reference minimapFlagX/Z).
+     * The geometry those three answer is ui/minimap_view.h. */
+    struct MinimapView minimap;
     /* Per-frame minimap overlay dots, filled by the GET_MINIMAP_DOTS host
      * request during the emit walk and consumed by the same frame's draw. */
-    struct UITreeMinimapDot minimap_dots[256];
-    int minimap_dot_count;
+    struct MinimapDots minimap_dots;
     /* Per-frame entity overlay primitives (health bars + hitsplats), filled
      * by the GET_ENTITY_OVERLAYS host request and consumed by the same
      * frame's draw. Reference drawEntities budget: each entity contributes at

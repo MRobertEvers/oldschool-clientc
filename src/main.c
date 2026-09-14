@@ -3858,13 +3858,13 @@ frame_loop_teardown(void)
                     "exit: scene_font %d has=%d\n", f, (int)ToriDraw_SceneFontHas(app.scene, f));
             TORIRS_LOG("exit: hover_com_id=%d\n", app.hover_com_id);
             TORIRS_LOG(
-                "exit: minimap_view valid=%d box=%d,%d %dx%d com=%d\n",
-                app.minimap_view_valid,
-                app.minimap_emit_desc.x,
-                app.minimap_emit_desc.y,
-                app.minimap_emit_desc.w,
-                app.minimap_emit_desc.h,
-                app.minimap_emit_desc.component_id);
+                "exit: minimap_view valid=%d box=%d,%d %dx%d yaw=%d\n",
+                (int)app.minimap.valid,
+                app.minimap.x,
+                app.minimap.y,
+                app.minimap.w,
+                app.minimap.h,
+                MinimapView_Yaw(&app.minimap));
             /* TORIRS_DUMP_COM=id: dump every live node carrying that
              * component id (duplicate-id / ApplyText-target debugging). */
             if( getenv("TORIRS_DUMP_COM") )

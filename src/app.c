@@ -1241,23 +1241,12 @@ app_minimap_push_dot(
     int scene_id,
     int atlas_index)
 {
-    int dx = rel_fx / 32;
-    int dy = rel_fz / 32;
-    int yaw, x, y;
+    int yaw;
     int w = 4, h = 4;
+    int dx = 0, dy = 0;
+    struct MinimapRotation rotation;
     struct UITreeMinimapDot* dot;
 
-    if( app->minimap_dot_count >= (int)(sizeof(app->minimap_dots) / sizeof(app->minimap_dots[0])) )
-        return;
-    if( dx * dx + dy * dy > 6400 )
-        return;
-    yaw = ToriDraw_NormalizeAngle(app->world_camera.yaw);
-    {
-        int sin = ToriDraw_Sin(yaw);
-        int cos = ToriDraw_Cos(yaw);
-        x = (dy * sin + dx * cos) >> 16;
-        y = (dy * cos - dx * sin) >> 16;
-    }
     {
         int count = 0;
         struct ToriDraw_Sprite** frames = ToriDraw_SceneSpriteGet(app->scene, scene_id, &count);
@@ -1267,9 +1256,16 @@ app_minimap_push_dot(
             h = frames[atlas_index]->height;
         }
     }
-    dot = &app->minimap_dots[app->minimap_dot_count++];
-    dot->dx = x - w / 2;
-    dot->dy = -y - h / 2;
+    yaw = ToriDraw_NormalizeAngle(app->world_camera.yaw);
+    rotation.sin = ToriDraw_Sin(yaw);
+    rotation.cos = ToriDraw_Cos(yaw);
+    if( !MinimapView_PlaceDot(&rotation, rel_fx, rel_fz, w, h, &dx, &dy) )
+        return;
+    dot = MinimapDots_Push(&app->minimap_dots);
+    if( !dot )
+        return;
+    dot->dx = dx;
+    dot->dy = dy;
     dot->w = w;
     dot->h = h;
     dot->scene_id = scene_id;
@@ -1439,8 +1435,8 @@ App_MinimapBuildDots(
     int cull_level;
     int dots_scene, marker_scene;
 
-    app->minimap_dot_count = 0;
-    *out_dots = app->minimap_dots;
+    MinimapDots_Reset(&app->minimap_dots);
+    *out_dots = app->minimap_dots.dots;
     if( !world || !world->load_complete || !local )
         return 0;
     /* Aboard, the rider's own level is a deck plane — the ROOT things this
@@ -1493,7 +1489,7 @@ App_MinimapBuildDots(
             if( scene_id <= 0 )
                 continue;
             {
-                int before = app->minimap_dot_count;
+                int before = app->minimap_dots.count;
 
                 app_minimap_push_dot(
                     app,
@@ -1506,8 +1502,8 @@ App_MinimapBuildDots(
                  * bow-up, and yaw 0 sails south = bow down-screen). Set on
                  * the dot the push actually produced — the cull ring may
                  * have swallowed it. */
-                if( app->minimap_dot_count > before )
-                    app->minimap_dots[app->minimap_dot_count - 1].rotate =
+                if( app->minimap_dots.count > before )
+                    app->minimap_dots.dots[app->minimap_dots.count - 1].rotate =
                         (ToriDraw_NormalizeAngle(app->world_camera.yaw) - wev->angle + 1024) &
                         0x7ff;
             }
@@ -1623,28 +1619,27 @@ App_MinimapBuildDots(
         }
     }
 
-    if( marker_scene > 0 && app->minimap_flag_x >= 0 )
+    if( marker_scene > 0 && MinimapView_HasFlag(&app->minimap) )
         app_minimap_push_dot(
             app,
-            app->minimap_flag_x * 128 + 64 - px,
-            app->minimap_flag_z * 128 + 64 - pz,
+            app->minimap.flag_tile_x * 128 + 64 - px,
+            app->minimap.flag_tile_z * 128 + 64 - pz,
             marker_scene,
             0);
 
     /* Local player: white 3x3 square at the widget center (fillRect 97,78). */
-    if( app->minimap_dot_count < (int)(sizeof(app->minimap_dots) / sizeof(app->minimap_dots[0])) )
     {
-        struct UITreeMinimapDot* dot = &app->minimap_dots[app->minimap_dot_count++];
-        dot->dx = -1;
-        dot->dy = -1;
-        dot->w = 3;
-        dot->h = 3;
-        dot->scene_id = 0;
-        dot->atlas_index = 0;
-        dot->color = 0xFFFFFFFFu;
-        dot->rotate = 0; /* persistent array — see app_minimap_push_dot */
+        struct UITreeMinimapDot* dot = MinimapDots_Push(&app->minimap_dots);
+        if( dot )
+        {
+            dot->dx = -1;
+            dot->dy = -1;
+            dot->w = 3;
+            dot->h = 3;
+            dot->color = 0xFFFFFFFFu;
+        }
     }
-    return app->minimap_dot_count;
+    return app->minimap_dots.count;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -7501,7 +7496,7 @@ app_update_world_viewport(struct App* app)
     app_debug_tile_project(app);
     app_debug_tile_flags(app);
     app->world_view_valid = 0;
-    app->minimap_view_valid = 0;
+    MinimapView_Invalidate(&app->minimap);
     if( torirs_env_world_view_debug() )
     {
         int kinds[24] = { 0 };
@@ -7559,8 +7554,13 @@ app_update_world_viewport(struct App* app)
         }
         else if( app->emit.cmds[i].kind == UITREE_EMIT_MINIMAP )
         {
-            app->minimap_emit_desc = app->emit.cmds[i];
-            app->minimap_view_valid = 1;
+            MinimapView_Publish(
+                &app->minimap,
+                app->emit.cmds[i].x,
+                app->emit.cmds[i].y,
+                app->emit.cmds[i].w,
+                app->emit.cmds[i].h,
+                app->emit.cmds[i].rotation_r2pi2048);
         }
     }
     /* Recomputes the projection scale from the world viewport height, the
@@ -7913,10 +7913,10 @@ App_LocalPlayerTiles(
         *true_z = base_z + player->grid_position.z;
     }
     *level = player->grid_position.level;
-    if( app->minimap_flag_x >= 0 )
+    if( app->minimap.flag_tile_x >= 0 )
     {
-        *flag_x = base_x + app->minimap_flag_x;
-        *flag_z = base_z + app->minimap_flag_z;
+        *flag_x = base_x + app->minimap.flag_tile_x;
+        *flag_z = base_z + app->minimap.flag_tile_z;
         *dest_x = *flag_x;
         *dest_z = *flag_z;
     }
@@ -11019,8 +11019,8 @@ app_try_move(
         if( !online && head != WORLD_ENTITY_NIL )
         {
             World_PlayerPathJump(world, head, false, dst_x, dst_z);
-            app->minimap_flag_x = dst_x;
-            app->minimap_flag_z = dst_z;
+            app->minimap.flag_tile_x = dst_x;
+            app->minimap.flag_tile_z = dst_z;
             return 1;
         }
         return 0;
@@ -11161,8 +11161,8 @@ app_try_move(
      * wants the UI mark. */
     if( app->features->pathing_mode != TORIRS_PATHING_SERVER_AUTHORITATIVE || !online )
     {
-        app->minimap_flag_x = route_x[0];
-        app->minimap_flag_z = route_z[0];
+        app->minimap.flag_tile_x = route_x[0];
+        app->minimap.flag_tile_z = route_z[0];
         app->need_redraw = 1;
     }
     return 1;
@@ -11263,8 +11263,8 @@ app_try_move_op(
             route_len,
             ctrl_held));
 
-    app->minimap_flag_x = route_x[0];
-    app->minimap_flag_z = route_z[0];
+    app->minimap.flag_tile_x = route_x[0];
+    app->minimap.flag_tile_z = route_z[0];
     app->need_redraw = 1;
     return 1;
 }
@@ -11452,32 +11452,26 @@ app_minimap_click(
     int mouse_y,
     int ctrl_held)
 {
-    struct UITreeEmitDesc const* desc = &app->minimap_emit_desc;
     struct WorldEntity_Player* player;
+    struct MinimapRotation rotation;
     int center_x, center_y, yaw, rel_x, rel_y;
     int tile_x, tile_z;
 
-    if( !app->minimap_view_valid || !app->world || !app->world->load_complete )
+    if( !app->world || !app->world->load_complete )
         return 0;
     /* Native permission, independent of whether the map is currently painted. */
     if( !(RS_MinimapPermissions(app->minimap_state) & RS_MINIMAP_WALK) )
         return 0;
-    if( mouse_x < desc->x || mouse_x >= desc->x + desc->w || mouse_y < desc->y ||
-        mouse_y >= desc->y + desc->h )
+    yaw = MinimapView_Yaw(&app->minimap);
+    rotation.sin = ToriDraw_Sin(yaw);
+    rotation.cos = ToriDraw_Cos(yaw);
+    if( !MinimapView_ClickToFineOffset(
+            &app->minimap, &rotation, mouse_x, mouse_y, &center_x, &center_y, &rel_x, &rel_y) )
         return 0;
     player = app_local_player(app);
     if( !player )
         return 0;
 
-    center_x = mouse_x - (desc->x + desc->w / 2);
-    center_y = mouse_y - (desc->y + desc->h / 2);
-    yaw = desc->rotation_r2pi2048 & 0x7ff;
-    {
-        int sin = ToriDraw_Sin(yaw);
-        int cos = ToriDraw_Cos(yaw);
-        rel_x = (center_y * sin + center_x * cos) >> 11;
-        rel_y = (center_y * cos - center_x * sin) >> 11;
-    }
     if( app_sailing_can_steer(app) )
     {
         if( rel_x == 0 && rel_y == 0 )
@@ -17547,17 +17541,7 @@ App_WorldRebuildShift(
     }
 
     /* Destination flag (reference minimapFlagX -= dx). */
-    if( app->minimap_flag_x >= 0 )
-    {
-        app->minimap_flag_x -= base_dx;
-        app->minimap_flag_z -= base_dz;
-        if( app->minimap_flag_x < 0 || app->minimap_flag_z < 0 ||
-            app->minimap_flag_x >= world->_scene_size || app->minimap_flag_z >= world->_scene_size )
-        {
-            app->minimap_flag_x = -1;
-            app->minimap_flag_z = -1;
-        }
-    }
+    MinimapView_RebaseFlag(&app->minimap, base_dx, base_dz, world->_scene_size);
 
     /* Camera position + orbit focus (deob field3239/field161/field1545/field73
      * -= dx<<7). Fine coords move with the scene base. */

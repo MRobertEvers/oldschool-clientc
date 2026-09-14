@@ -433,8 +433,7 @@ App_Init(
     app->worldmap_render = RS_WorldMapRender_New();
     app->worldmap_overview_scene_id = 0;
     app->worldmap_overview_area_id = -1;
-    app->minimap_flag_x = -1;
-    app->minimap_flag_z = -1;
+    MinimapView_Reset(&app->minimap);
     /*
      * The plugin host.
      *
