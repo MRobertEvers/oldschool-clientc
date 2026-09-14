@@ -800,3 +800,61 @@ RS_Chat_HandleKey(
     }
     return 0;
 }
+
+uint32_t
+RS_Chat_EffectColourArgb(int chat_colour, int timer, int cycle)
+{
+    static const int CHAT_COLOURS[6] = {
+        0xffff00, /* YELLOW */
+        0xff0000, /* RED */
+        0x00ff00, /* GREEN */
+        0x00ffff, /* CYAN */
+        0xff00ff, /* MAGENTA */
+        0xffffff, /* WHITE */
+    };
+    int rgb = 0xffff00;
+    /* How far through its 150-cycle life the message is. The glow effects ramp
+     * on this rather than on the timer directly, so they run forwards. */
+    int delta = 150 - timer;
+
+    if( chat_colour >= 0 && chat_colour < 6 )
+        rgb = CHAT_COLOURS[chat_colour];
+    else if( chat_colour == 6 )
+        rgb = (cycle % 20 < 10) ? 0xff0000 : 0xffff00;
+    else if( chat_colour == 7 )
+        rgb = (cycle % 20 < 10) ? 0x0000ff : 0x00ffff;
+    else if( chat_colour == 8 )
+        rgb = (cycle % 20 < 10) ? 0x00b000 : 0x80ff80;
+    else if( chat_colour == 9 )
+    {
+        if( delta < 50 )
+            rgb = delta * 1280 + 0xff0000;
+        else if( delta < 100 )
+            rgb = 0xffff00 - (delta - 50) * 327680;
+        else if( delta < 150 )
+            rgb = (delta - 100) * 5 + 0x00ff00;
+    }
+    else if( chat_colour == 10 )
+    {
+        if( delta < 50 )
+            rgb = delta * 5 + 0xff0000;
+        else if( delta < 100 )
+            rgb = 0xff00ff - (delta - 50) * 327680;
+        else if( delta < 150 )
+            rgb = (delta - 100) * 327680 + 0x0000ff - (delta - 100) * 5;
+    }
+    else if( chat_colour == 11 )
+    {
+        if( delta < 50 )
+            rgb = 0xffffff - delta * 327685;
+        else if( delta < 100 )
+            rgb = (delta - 50) * 327685 + 0x00ff00;
+        else if( delta < 150 )
+            rgb = 0xffffff - (delta - 100) * 327680;
+    }
+    /* No mask. Every leg of every effect lands inside 0x000000..0xffffff for
+     * the only timer range a caller has -- the client sets 150 on arrival and
+     * counts down -- so masking here would hide an overflowing ramp rather
+     * than prevent one. The test sweeps the whole range and says so. */
+    return 0xff000000u | (uint32_t)rgb;
+}

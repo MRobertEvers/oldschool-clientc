@@ -1658,6 +1658,7 @@ test-app-extracted: check-app-boundary
 	# Likewise the deck transform and the view-rectangle lookup: their fixtures
 	# are a WevConfig and a Worldview registry, so they live in test-wev.
 	$(MAKE) test-wev
+	$(MAKE) test-chat-store
 
 # Choosing the world camera's projection from the viewport height. The 2004
 # client has no viewport-derived zoom; recomputing one for it halves the scale,

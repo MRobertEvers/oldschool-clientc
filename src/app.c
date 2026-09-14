@@ -2757,63 +2757,17 @@ app_overlay_count(struct App const* app)
 /* One entity's overlay set. combat/damage state lives on the shared facet, so
  * players and NPCs go through the same body (reference drawEntities treats
  * them identically). */
-/* Resolve a reference chatColour/chatTimer pair to an ARGB colour. Static
- * palette entries (< 6) map straight through; flashing/rainbow effects (6-11)
- * animate off the scene cycle / remaining timer (reference Client.ts:4962). */
+/* The overhead chat effect colours are RS_Chat_EffectColourArgb's; this is the
+ * spelling that reads the scene cycle they flash on. */
 static uint32_t
 app_overlay_chat_colour(
     struct App* app,
     int chat_colour,
     int timer)
 {
-    static const int CHAT_COLOURS[6] = {
-        0xffff00, /* YELLOW */
-        0xff0000, /* RED */
-        0x00ff00, /* GREEN */
-        0x00ffff, /* CYAN */
-        0xff00ff, /* MAGENTA */
-        0xffffff, /* WHITE */
-    };
-    int cyc = app->world ? app->world->cycle : 0;
-    int rgb = 0xffff00;
-    int delta = 150 - timer;
-
-    if( chat_colour >= 0 && chat_colour < 6 )
-        rgb = CHAT_COLOURS[chat_colour];
-    else if( chat_colour == 6 )
-        rgb = (cyc % 20 < 10) ? 0xff0000 : 0xffff00;
-    else if( chat_colour == 7 )
-        rgb = (cyc % 20 < 10) ? 0x0000ff : 0x00ffff;
-    else if( chat_colour == 8 )
-        rgb = (cyc % 20 < 10) ? 0x00b000 : 0x80ff80;
-    else if( chat_colour == 9 )
-    {
-        if( delta < 50 )
-            rgb = delta * 1280 + 0xff0000;
-        else if( delta < 100 )
-            rgb = 0xffff00 - (delta - 50) * 327680;
-        else if( delta < 150 )
-            rgb = (delta - 100) * 5 + 0x00ff00;
-    }
-    else if( chat_colour == 10 )
-    {
-        if( delta < 50 )
-            rgb = delta * 5 + 0xff0000;
-        else if( delta < 100 )
-            rgb = 0xff00ff - (delta - 50) * 327680;
-        else if( delta < 150 )
-            rgb = (delta - 100) * 327680 + 0x0000ff - (delta - 100) * 5;
-    }
-    else if( chat_colour == 11 )
-    {
-        if( delta < 50 )
-            rgb = 0xffffff - delta * 327685;
-        else if( delta < 100 )
-            rgb = (delta - 50) * 327685 + 0x00ff00;
-        else if( delta < 150 )
-            rgb = 0xffffff - (delta - 100) * 327680;
-    }
-    return 0xff000000u | (uint32_t)(rgb & 0xffffff);
+    assert(app);
+    return RS_Chat_EffectColourArgb(
+        chat_colour, timer, app->world ? app->world->cycle : 0);
 }
 
 /* Overhead chat: a black shadow then the (colour-resolved) message, centred
