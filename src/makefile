@@ -607,6 +607,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	render/torirs_frame.c render/torirs_pick.c \
 	render/torirs_damage_region.c \
 	render/torirs_wedge_camera_path.c \
+	render/torirs_viewport_projection.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
 	input/torirs_touch.c \
@@ -1646,9 +1647,21 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-uitree-popup-place
 	$(MAKE) test-uitree-if-store
 	$(MAKE) test-minimap-mapscene
+	$(MAKE) test-viewport-projection
 	$(MAKE) test-inv
 	$(MAKE) test-client-trigger
 	$(MAKE) test-world
+
+# Choosing the world camera's projection from the viewport height. The 2004
+# client has no viewport-derived zoom; recomputing one for it halves the scale,
+# which reads as the camera being twice as far out -- and that is exactly what
+# was reported against rev 289. The order of authority is the fix.
+.PHONY: test-viewport-projection
+test-viewport-projection: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/viewport_projection_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/viewport_projection_test.c render/torirs_viewport_projection.c \
+		torirs_env_values.c $(LDFLAGS)
+	./$(OBJ_DIR)/viewport_projection_test$(PLATFORM_EXE_SUFFIX)
 
 # Plotting a loc's mapscene icon into the baked minimap. Three coordinate
 # conventions meet in one expression -- minimap y grows south, a loc extends

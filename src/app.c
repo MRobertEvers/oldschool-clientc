@@ -128,6 +128,7 @@ EM_JS(
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
 #include "render/torirs_wedge_camera_path.h"
+#include "render/torirs_viewport_projection.h"
 #include "render/torirs_world_projection.h"
 #include "toridraw.h"
 #include "toridraw_model_transform.h"
@@ -12547,19 +12548,41 @@ app_wedge_scale_mode(void)
 static void
 app_apply_wedge_scale(struct App* app)
 {
-    int mode = app_wedge_scale_mode();
-    int fov_override = app_world_fov_override();
-    int vp_h;
-    int near_zoom;
-    int far_zoom;
-    int d;
-    int zoom;
-    int scale;
+    int near_zoom = app->host.viewport_zoom_near;
+    int far_zoom = app->host.viewport_zoom_far;
+    struct ToriRS_ViewportProjection projection;
 
-    if( fov_override > 0 )
+    /* TORIRS_WEDGE_ZOOM=<near>,<far> overrides the cache's SETFOV endpoints,
+     * which is how the band itself gets bisected. */
     {
+        char const* zoom_spec = torirs_env_wedge_zoom();
+        int spec_near;
+        int spec_far;
+
+        if( zoom_spec && sscanf(zoom_spec, "%d,%d", &spec_near, &spec_far) == 2 )
+        {
+            near_zoom = spec_near;
+            far_zoom = spec_far;
+        }
+    }
+
+    projection = ToriRS_ProjectionForViewport(
+        app_wedge_scale_mode(),
+        app_world_fov_override(),
+        app->revconfig_profile.camera.viewport_zoom,
+        app->world_view_valid,
+        app->world_emit_desc.h,
+        near_zoom,
+        far_zoom);
+
+    switch( projection.action )
+    {
+    case TORIRS_VIEWPORT_PROJECTION_KEEP:
+        return;
+
+    case TORIRS_VIEWPORT_PROJECTION_FOV:
         app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_FOV;
-        app->world_camera.fov_rpi2048 = fov_override;
+        app->world_camera.fov_rpi2048 = projection.fov_rpi2048;
         if( torirs_env_wedge_fov_debug() )
         {
             static int logged = 0;
@@ -12568,126 +12591,37 @@ app_apply_wedge_scale(struct App* app)
                 logged = 1;
                 TORIRS_LOG(
                     "wedge: fov mode fov_rpi2048=%d -> realised scale %d\n",
-                    fov_override,
+                    projection.fov_rpi2048,
                     toridraw_projection_scale_from_cot16(
-                        toridraw_projection_cot16_from_fov(fov_override)));
+                        toridraw_projection_cot16_from_fov(projection.fov_rpi2048)));
             }
         }
         return;
-    }
-    if( mode < 0 )
-        return;
-    /*
-     * A revision that states `[camera] viewport_zoom=no` has no
-     * viewport-derived projection either, and for the same reason the follow
-     * distance skips the interpolation (app_world_camera_follow):
-     * class159.method5357 IS the later client's zoom, and the 2004 client does
-     * not have it. One key, both halves -- they are one client era.
-     *
-     * Asked of `viewport_zoom` and not of the live wheel, because the
-     * settings page can flip that one: reading wheel here meant switching
-     * the wheel ON halved the scale under the player, and no wheel band could
-     * put it back. @see RevConfigCameraItem::viewport_zoom. Its projection is the
-     * bare `<< 9` in Model.project / Model.draw (Client-TS dash3d/Model.ts) --
-     * scale 512, whatever the viewport measures.
-     *
-     * Recomputing it here is what drew the 2004-era frame at HALF the reference
-     * magnification: the world viewport is 335 high, the SETFOV endpoints this
-     * era never writes default to 256, and `335 * 256 / 334` lands on 256. Half
-     * the scale reads as an eye at twice the distance -- the "camera is too far
-     * out" report against rev 289, whose `[camera]` is the shared
-     * revconfig/rs245_2lc one.
-     *
-     * An explicitly forced scale (TORIRS_WEDGE_SCALE=<n>) still wins, since it
-     * exists to bisect exactly this.
-     */
-    if( mode == 0 && !app->revconfig_profile.camera.viewport_zoom )
-    {
+
+    case TORIRS_VIEWPORT_PROJECTION_SCALE:
+        /* Exact: the kernels multiply by projection_scale directly. */
         app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
-        app->world_camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
+        app->world_camera.projection_scale = projection.scale;
         if( torirs_env_wedge_fov_debug() )
         {
-            static int logged = 0;
-            if( !logged )
+            static int last = -1;
+            if( projection.scale != last )
             {
-                logged = 1;
-                TORIRS_LOG(
-                    "wedge: fixed camera -> constant scale=%d (no viewport "
-                    "recompute)\n",
-                    TORIDRAW_PROJECTION_SCALE_DEFAULT);
+                last = projection.scale;
+                TORIRS_ERR(
+                    "wedge: vp_h=%d zoom(near=%d far=%d)=%d -> scale=%d realised=%d\n",
+                    app->world_emit_desc.h,
+                    projection.near_zoom,
+                    projection.far_zoom,
+                    projection.zoom,
+                    projection.scale,
+                    toridraw_projection_scale_from_cot16(toridraw_projection_cot16(
+                        app->world_camera.projection_mode,
+                        app->world_camera.projection_scale,
+                        app->world_camera.fov_rpi2048)));
             }
         }
         return;
-    }
-    if( !app->world_view_valid )
-        return;
-
-    vp_h = app->world_emit_desc.h;
-    if( vp_h < 1 )
-        return;
-
-    if( mode > 0 )
-    {
-        scale = mode;
-        zoom = 0;
-        near_zoom = 0;
-        far_zoom = 0;
-    }
-    else
-    {
-        near_zoom = app->host.viewport_zoom_near;
-        far_zoom = app->host.viewport_zoom_far;
-        {
-            char const* z = torirs_env_wedge_zoom();
-            int zn, zf;
-            if( z && sscanf(z, "%d,%d", &zn, &zf) == 2 )
-            {
-                near_zoom = zn;
-                far_zoom = zf;
-            }
-        }
-        if( near_zoom < 1 )
-            near_zoom = 256;
-        if( far_zoom < 1 )
-            far_zoom = 256;
-
-        d = vp_h - 334;
-        if( d < 0 )
-            zoom = near_zoom;
-        else if( d >= 100 )
-            zoom = far_zoom;
-        else
-            zoom = (far_zoom - near_zoom) * d / 100 + near_zoom;
-
-        scale = (int)((double)vp_h * (double)zoom / 334.0);
-    }
-    if( scale < 1 )
-        scale = 1;
-
-    /* Exact: the kernels multiply by projection_scale directly. */
-    app->world_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
-    app->world_camera.projection_scale = scale;
-
-    if( torirs_env_wedge_fov_debug() )
-    {
-        static int last = -1;
-        if( scale != last )
-        {
-            last = scale;
-            TORIRS_ERR(
-                "wedge: scale mode=%d vp_h=%d zoom(near=%d far=%d)=%d -> scale=%d "
-                "realised=%d\n",
-                mode,
-                vp_h,
-                near_zoom,
-                far_zoom,
-                zoom,
-                scale,
-                toridraw_projection_scale_from_cot16(toridraw_projection_cot16(
-                    app->world_camera.projection_mode,
-                    app->world_camera.projection_scale,
-                    app->world_camera.fov_rpi2048)));
-        }
     }
 }
 
