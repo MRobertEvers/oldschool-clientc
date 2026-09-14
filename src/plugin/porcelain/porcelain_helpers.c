@@ -1,0 +1,886 @@
+/*
+ * Porcelain's shared helpers: the things the per-plugin ledger proved every
+ * plugin needed and every plugin implemented differently.
+ *
+ * Each one exists because a specific pair of shipped plugins disagreed about
+ * it. The tier operator is the clearest: RuneLite is strictly greater at all
+ * three of its sites and skips a tier whose threshold is at or below zero;
+ * loot-beam used >= and ground-items used >, and neither had the zero gate,
+ * so a zero threshold meant "everything qualifies" here and "this tier is
+ * off" in the reference. One helper, one operator, one gate.
+ */
+
+#include "plugin/porcelain/porcelain_internal.h"
+
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* ------------------------------------------------------------------------ */
+/* Capabilities                                                             */
+/* ------------------------------------------------------------------------ */
+
+bool
+Porcelain_Has(struct Porcelain* porcelain, char const* capability)
+{
+    assert(porcelain);
+    assert(capability);
+    porcelain->counters.engine_calls++;
+    return porcelain->api->core.capability(porcelain->api, capability);
+}
+
+bool
+Porcelain_Require(struct Porcelain* porcelain, char const* capability, char const* feature)
+{
+    assert(porcelain);
+    assert(capability);
+    assert(feature);
+    if( Porcelain_Has(porcelain, capability) )
+        return true;
+    /* The feature turns itself off and SAYS SO. A capability that answers
+     * false and a feature that silently never runs are the same picture, and
+     * the record says the second one cost weeks. */
+    Porcelain_RecordFinding(porcelain, "require", PORCELAIN_EL(NONE),
+                            PORCELAIN_FINDING_UNSUPPORTED, feature);
+    return false;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Tiers                                                                    */
+/* ------------------------------------------------------------------------ */
+
+int
+Porcelain_Tier(struct PorcelainTiers const* tiers, int64_t value)
+{
+    assert(tiers);
+    /* Walked from the top, strictly greater: an item worth exactly the low
+     * threshold is NOT a low-value item. A threshold at or below zero
+     * disables its tier rather than matching everything. */
+    if( tiers->insane > 0 && value > tiers->insane )
+        return PORCELAIN_TIER_INSANE;
+    if( tiers->high > 0 && value > tiers->high )
+        return PORCELAIN_TIER_HIGH;
+    if( tiers->medium > 0 && value > tiers->medium )
+        return PORCELAIN_TIER_MEDIUM;
+    if( tiers->low > 0 && value > tiers->low )
+        return PORCELAIN_TIER_LOW;
+    return PORCELAIN_TIER_NONE;
+}
+
+bool
+Porcelain_TiersFromConfig(struct Porcelain* porcelain, struct PorcelainTiers* out)
+{
+    static char const* const KEYS[4] = {"low_value", "medium_value", "high_value",
+                                        "insane_value"};
+    int64_t values[4] = {0, 0, 0, 0};
+    bool any = false;
+
+    assert(porcelain);
+    assert(out);
+    for( int i = 0; i < 4; i++ )
+    {
+        int value = 0;
+        porcelain->counters.engine_calls++;
+        /* The CALLER's own keys. A cross-plugin config read would make one
+         * plugin's disable change the other's picture, and the two plugins
+         * that share these nine spellings share them on purpose, never by
+         * reading each other. */
+        if( porcelain->api->config.get_int(porcelain->api, KEYS[i], &value) )
+        {
+            values[i] = value;
+            any = true;
+        }
+    }
+    out->low = values[0];
+    out->medium = values[1];
+    out->high = values[2];
+    out->insane = values[3];
+    return any;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Config lists                                                             */
+/* ------------------------------------------------------------------------ */
+
+static bool
+porcelain_list_contains(char const* list, char const* item)
+{
+    size_t const length = strlen(item);
+    char const* cursor = list;
+
+    while( cursor && *cursor )
+    {
+        char const* comma = strchr(cursor, ',');
+        size_t span = comma ? (size_t)(comma - cursor) : strlen(cursor);
+        char const* start = cursor;
+        while( span > 0 && *start == ' ' )
+        {
+            start++;
+            span--;
+        }
+        while( span > 0 && start[span - 1] == ' ' )
+            span--;
+        if( span == length )
+        {
+            size_t i = 0;
+            for( ; i < span; i++ )
+            {
+                char const a = start[i] >= 'A' && start[i] <= 'Z' ? (char)(start[i] + 32) : start[i];
+                char const b = item[i] >= 'A' && item[i] <= 'Z' ? (char)(item[i] + 32) : item[i];
+                if( a != b )
+                    break;
+            }
+            if( i == span )
+                return true;
+        }
+        cursor = comma ? comma + 1 : NULL;
+    }
+    return false;
+}
+
+bool
+Porcelain_ConfigListAdd(struct Porcelain* porcelain, char const* key, char const* item)
+{
+    char joined[PORCELAIN_CONFIG_VALUE_MAX];
+    char const* current = NULL;
+    size_t needed;
+
+    assert(porcelain);
+    assert(key);
+    assert(item);
+    assert(item[0]);
+
+    porcelain->counters.engine_calls++;
+    if( !porcelain->api->config.get_string(porcelain->api, key, &current) )
+        current = NULL;
+    if( current && porcelain_list_contains(current, item) )
+        return true;
+
+    /* MEASURE BEFORE JOINING. The host's own setter snprintf-truncates and
+     * the validator then accepts the fragment, so a list cut mid-name stores
+     * a WRONG species and reads back as one. Refusing leaves the stored list
+     * exactly as it was. */
+    needed = strlen(item) + 1;
+    if( current && current[0] )
+        needed += strlen(current) + 1;
+    if( needed > sizeof(joined) )
+    {
+        Porcelain_RecordFinding(porcelain, "config_list_add", PORCELAIN_EL(NONE),
+                                PORCELAIN_FINDING_BUDGET, item);
+        return false;
+    }
+    if( current && current[0] )
+    {
+        size_t const length = strlen(current);
+        memcpy(joined, current, length);
+        joined[length] = ',';
+        memcpy(joined + length + 1, item, strlen(item) + 1);
+    }
+    else
+    {
+        memcpy(joined, item, strlen(item) + 1);
+    }
+    porcelain->counters.engine_calls++;
+    if( porcelain->api->config.set(porcelain->api, key, joined) != TORIRS_RESULT_OK )
+    {
+        Porcelain_RecordFinding(porcelain, "config_list_add", PORCELAIN_EL(NONE),
+                                PORCELAIN_FINDING_REFUSED, key);
+        return false;
+    }
+    return true;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Menu tags                                                                */
+/* ------------------------------------------------------------------------ */
+
+uint32_t
+Porcelain_MenuTag(int subject, int op)
+{
+    /*
+     * Subject and intended operation both frozen at build time. The server
+     * may reuse a slot while the menu is open, and re-resolving state at
+     * select time is exactly what made a retained Tag row retarget a
+     * different species.
+     *
+     * Sixteen operations per subject, not the two and four the two shipped
+     * plugins each picked, so one encoding serves both and a third plugin
+     * does not need a fifth.
+     */
+    assert(subject >= 0);
+    assert(op >= 0);
+    assert(op < PORCELAIN_MENU_TAG_OPS);
+    return (uint32_t)subject * (uint32_t)PORCELAIN_MENU_TAG_OPS + (uint32_t)op;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Settings                                                                 */
+/* ------------------------------------------------------------------------ */
+
+bool
+Porcelain_Setting(struct Porcelain* porcelain, char const* varbit_name, unsigned flags)
+{
+    int id = -1;
+    int value;
+
+    assert(porcelain);
+    assert(varbit_name);
+
+    /*
+     * ONE lookup, not two. `varbit:<name>` as a capability and `named_id`
+     * over the same name are the same profile row read twice; asking the
+     * capability first would be an engine call that could never change the
+     * answer, and a rule no test could turn red.
+     *
+     * Absent is OFF, with ONE finding across many reads -- the finding table
+     * coalesces on (verb, element, result), so a per-row read does not flood.
+     * A multiplier read off a var that does not exist would be a silent 1.0.
+     */
+    porcelain->counters.engine_calls++;
+    if( !porcelain->api->cache.named_id(porcelain->api, "varbit", varbit_name, &id) || id < 0 )
+    {
+        Porcelain_RecordFinding(porcelain, "setting", PORCELAIN_ROLE_EL(varbit_name),
+                                PORCELAIN_FINDING_ABSENT, varbit_name);
+        return false;
+    }
+    porcelain->counters.engine_calls++;
+    value = porcelain->api->cache.varbit(porcelain->api, id);
+    if( flags & PORCELAIN_SETTING_INVERTED )
+        return value == 0;
+    return value != 0;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Key edges                                                                */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * The three modifiers a reveal key can be, and "off". Nothing else is
+ * offered: LibToriRS_KeyCode carries the modifiers a plugin gates on, and a
+ * larger table here would be a second copy of the client's keymap to keep
+ * true.
+ */
+static int
+porcelain_key_code(char const* name)
+{
+    if( !name || !name[0] || strcmp(name, "off") == 0 || strcmp(name, "none") == 0 )
+        return -1;
+    if( strcmp(name, "shift") == 0 )
+        return TORIRS_KEY_SHIFT;
+    if( strcmp(name, "ctrl") == 0 || strcmp(name, "control") == 0 )
+        return TORIRS_KEY_CTRL;
+    if( strcmp(name, "escape") == 0 )
+        return TORIRS_KEY_ESCAPE;
+    if( strcmp(name, "tab") == 0 )
+        return TORIRS_KEY_TAB;
+    if( strcmp(name, "space") == 0 )
+        return TORIRS_KEY_SPACE;
+    return -1;
+}
+
+bool
+Porcelain_KeyEdge(struct Porcelain* porcelain, char const* config_key, PorcelainEdgeFn fn,
+                  void* user)
+{
+    assert(porcelain);
+    assert(config_key);
+    assert(fn);
+
+    /* input.key_held can never be true on a touch lane -- there is no
+     * keyboard frame -- so a feature gated on one is silently unreachable
+     * there. ABSENT with one finding is the honest answer. */
+    if( Porcelain_Has(porcelain, "touch") )
+    {
+        Porcelain_RecordFinding(porcelain, "key_edge", PORCELAIN_ROLE_EL(config_key),
+                                PORCELAIN_FINDING_ABSENT, "touch lane has no key");
+        return false;
+    }
+    for( int i = 0; i < PORCELAIN_KEY_EDGES_MAX; i++ )
+    {
+        struct PorcelainKeyEdgeWatch* watch = &porcelain->key_edges[i];
+        if( watch->used )
+            continue;
+        memset(watch, 0, sizeof(*watch));
+        watch->used = true;
+        Porcelain_CopyString(watch->config_key, sizeof(watch->config_key), config_key);
+        watch->fn = fn;
+        watch->user = user;
+        return true;
+    }
+    Porcelain_RecordFinding(porcelain, "key_edge", PORCELAIN_ROLE_EL(config_key),
+                            PORCELAIN_FINDING_BUDGET, "key edge table full");
+    return false;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Images, models and derived images                                        */
+/* ------------------------------------------------------------------------ */
+
+static enum PorcelainAssetState
+porcelain_map_asset_state(enum ToriRS_AssetState state)
+{
+    switch( state )
+    {
+    case TORIRS_ASSET_READY:
+        return PORCELAIN_ASSET_READY;
+    case TORIRS_ASSET_PENDING:
+        return PORCELAIN_ASSET_PENDING;
+    case TORIRS_ASSET_MISSING:
+        return PORCELAIN_ASSET_MISSING;
+    default:
+        break;
+    }
+    /* INVALID, BUDGET and ERROR are all terminal and all mean the picture
+     * will never arrive. The budget one is the interesting case: over the
+     * ceiling the host returns -1 with one log line and the plugin's refresh
+     * silently returns early, so the orb simply never appears. */
+    return PORCELAIN_ASSET_ERROR;
+}
+
+static void
+porcelain_report_terminal_asset(struct Porcelain* porcelain, char const* verb, char const* name,
+                                enum PorcelainAssetState state, bool* reported)
+{
+    if( state != PORCELAIN_ASSET_MISSING && state != PORCELAIN_ASSET_ERROR )
+        return;
+    if( *reported )
+        return;
+    *reported = true;
+    Porcelain_RecordFinding(porcelain, verb, PORCELAIN_ROLE_EL(name),
+                            state == PORCELAIN_ASSET_MISSING ? PORCELAIN_FINDING_ASSET_MISSING
+                                                             : PORCELAIN_FINDING_ASSET_ERROR,
+                            name);
+}
+
+struct ToriRS_ImageRef
+Porcelain_Image(struct Porcelain* porcelain, char const* name, enum PorcelainAssetState* out_state)
+{
+    struct PorcelainImageSlot* free_slot = NULL;
+    struct ToriRS_ImageRef ref;
+
+    assert(porcelain);
+    assert(name);
+    assert(out_state);
+    memset(&ref, 0, sizeof(ref));
+
+    for( int i = 0; i < PORCELAIN_IMAGES_MAX; i++ )
+    {
+        struct PorcelainImageSlot* slot = &porcelain->images[i];
+        if( !slot->used )
+        {
+            if( !free_slot )
+                free_slot = slot;
+            continue;
+        }
+        if( strcmp(slot->name.text, name) != 0 )
+            continue;
+        slot->last_used_run = porcelain->run;
+        /* A terminal state is REMEMBERED. Re-asking every frame is how a
+         * missing model became "not asked" and was re-asked for ever with no
+         * line anywhere. */
+        if( slot->state == PORCELAIN_ASSET_PENDING )
+        {
+            porcelain->counters.engine_calls++;
+            slot->state = porcelain_map_asset_state(
+                porcelain->api->assets.image(porcelain->api, name, &slot->ref));
+            if( slot->state != PORCELAIN_ASSET_PENDING )
+                porcelain->stamp[PORCELAIN_INPUT_ASSET]++;
+            porcelain_report_terminal_asset(porcelain, "image", name, slot->state,
+                                            &slot->terminal_reported);
+        }
+        *out_state = slot->state;
+        return slot->ref;
+    }
+    if( !free_slot )
+    {
+        Porcelain_RecordFinding(porcelain, "image", PORCELAIN_ROLE_EL(name),
+                                PORCELAIN_FINDING_BUDGET, name);
+        *out_state = PORCELAIN_ASSET_ERROR;
+        return ref;
+    }
+    memset(free_slot, 0, sizeof(*free_slot));
+    free_slot->used = true;
+    Porcelain_CopyString(free_slot->name.text, sizeof(free_slot->name.text), name);
+    free_slot->last_used_run = porcelain->run;
+    porcelain->counters.engine_calls++;
+    free_slot->state = porcelain_map_asset_state(
+        porcelain->api->assets.image(porcelain->api, name, &free_slot->ref));
+    porcelain_report_terminal_asset(porcelain, "image", name, free_slot->state,
+                                    &free_slot->terminal_reported);
+    *out_state = free_slot->state;
+    return free_slot->ref;
+}
+
+struct ToriRS_ModelRef
+Porcelain_Model(struct Porcelain* porcelain, char const* name, enum PorcelainAssetState* out_state)
+{
+    struct PorcelainModelSlot* free_slot = NULL;
+    struct ToriRS_ModelRef ref;
+
+    assert(porcelain);
+    assert(name);
+    assert(out_state);
+    memset(&ref, 0, sizeof(ref));
+
+    for( int i = 0; i < PORCELAIN_MODELS_MAX; i++ )
+    {
+        struct PorcelainModelSlot* slot = &porcelain->models[i];
+        if( !slot->used )
+        {
+            if( !free_slot )
+                free_slot = slot;
+            continue;
+        }
+        if( strcmp(slot->name.text, name) != 0 )
+            continue;
+        if( slot->state == PORCELAIN_ASSET_PENDING )
+        {
+            porcelain->counters.engine_calls++;
+            slot->state = porcelain_map_asset_state(
+                porcelain->api->assets.model(porcelain->api, name, &slot->ref));
+            if( slot->state != PORCELAIN_ASSET_PENDING )
+                porcelain->stamp[PORCELAIN_INPUT_ASSET]++;
+            porcelain_report_terminal_asset(porcelain, "model", name, slot->state,
+                                            &slot->terminal_reported);
+        }
+        *out_state = slot->state;
+        return slot->ref;
+    }
+    if( !free_slot )
+    {
+        Porcelain_RecordFinding(porcelain, "model", PORCELAIN_ROLE_EL(name),
+                                PORCELAIN_FINDING_BUDGET, name);
+        *out_state = PORCELAIN_ASSET_ERROR;
+        return ref;
+    }
+    memset(free_slot, 0, sizeof(*free_slot));
+    free_slot->used = true;
+    Porcelain_CopyString(free_slot->name.text, sizeof(free_slot->name.text), name);
+    porcelain->counters.engine_calls++;
+    free_slot->state = porcelain_map_asset_state(
+        porcelain->api->assets.model(porcelain->api, name, &free_slot->ref));
+    porcelain_report_terminal_asset(porcelain, "model", name, free_slot->state,
+                                    &free_slot->terminal_reported);
+    *out_state = free_slot->state;
+    return free_slot->ref;
+}
+
+struct ToriRS_ImageRef
+Porcelain_Derived(struct Porcelain* porcelain, char const* key, void const* inputs,
+                  size_t inputs_len, int width, int height, PorcelainPaintFn paint, void* user,
+                  enum PorcelainDerivedState* out_state)
+{
+    uint64_t const hash = Porcelain_HashBytes(Porcelain_HashString(0, key), inputs, inputs_len);
+    struct PorcelainDerivedSlot* free_slot = NULL;
+    struct PorcelainDerivedSlot* slot = NULL;
+    struct ToriRS_ImageRef ref;
+    uint32_t* pixels;
+
+    assert(porcelain);
+    assert(key);
+    assert(paint);
+    assert(out_state);
+    assert(width > 0);
+    assert(height > 0);
+    assert(inputs || inputs_len == 0);
+    memset(&ref, 0, sizeof(ref));
+
+    for( int i = 0; i < PORCELAIN_DERIVED_MAX; i++ )
+    {
+        if( !porcelain->derived[i].used )
+        {
+            if( !free_slot )
+                free_slot = &porcelain->derived[i];
+            continue;
+        }
+        if( strcmp(porcelain->derived[i].key.text, key) == 0 )
+        {
+            slot = &porcelain->derived[i];
+            break;
+        }
+    }
+    if( slot && slot->inputs_hash == hash && slot->width == width && slot->height == height )
+    {
+        /* Painted at most once per (key, hash of inputs). The key never
+         * includes a host revision: an icon_revision that bumps on every miss
+         * means a derived hash that never settles. */
+        *out_state = slot->state;
+        return slot->ref;
+    }
+    if( !slot )
+    {
+        if( !free_slot )
+        {
+            Porcelain_RecordFinding(porcelain, "derived", PORCELAIN_ROLE_EL(key),
+                                    PORCELAIN_FINDING_BUDGET, key);
+            *out_state = PORCELAIN_DERIVED_FAILED;
+            return ref;
+        }
+        slot = free_slot;
+        memset(slot, 0, sizeof(*slot));
+        slot->used = true;
+        Porcelain_CopyString(slot->key.text, sizeof(slot->key.text), key);
+    }
+    if( slot->state == PORCELAIN_DERIVED_FAILED && slot->inputs_hash == hash )
+    {
+        /* FAILED is terminal for these inputs. Retrying for ever is how the
+         * masks that never built left a square minimap in a round window. */
+        *out_state = PORCELAIN_DERIVED_FAILED;
+        return slot->ref;
+    }
+
+    pixels = malloc((size_t)width * (size_t)height * sizeof(*pixels));
+    assert(pixels);
+    porcelain->counters.allocations++;
+    memset(pixels, 0, (size_t)width * (size_t)height * sizeof(*pixels));
+    slot->inputs_hash = hash;
+    slot->width = width;
+    slot->height = height;
+    if( !paint(porcelain->api, user, pixels, width, height) )
+    {
+        free(pixels);
+        slot->state = PORCELAIN_DERIVED_FAILED;
+        if( !slot->terminal_reported )
+        {
+            slot->terminal_reported = true;
+            Porcelain_RecordFinding(porcelain, "derived", PORCELAIN_ROLE_EL(key),
+                                    PORCELAIN_FINDING_DERIVED_FAILED, key);
+        }
+        *out_state = PORCELAIN_DERIVED_FAILED;
+        return slot->ref;
+    }
+    porcelain->counters.engine_calls++;
+    {
+        enum ToriRS_AssetState const state =
+            porcelain->api->assets.image_compose(porcelain->api, key, width, height, pixels,
+                                                 &slot->ref);
+        free(pixels);
+        if( state == TORIRS_ASSET_READY )
+            slot->state = PORCELAIN_DERIVED_READY;
+        else if( state == TORIRS_ASSET_PENDING )
+            slot->state = PORCELAIN_DERIVED_PENDING;
+        else
+        {
+            slot->state = PORCELAIN_DERIVED_FAILED;
+            if( !slot->terminal_reported )
+            {
+                slot->terminal_reported = true;
+                Porcelain_RecordFinding(porcelain, "derived", PORCELAIN_ROLE_EL(key),
+                                        PORCELAIN_FINDING_DERIVED_FAILED, key);
+            }
+        }
+    }
+    porcelain->stamp[PORCELAIN_INPUT_ASSET]++;
+    *out_state = slot->state;
+    return slot->ref;
+}
+
+void
+Porcelain_ImageTouch(struct Porcelain* porcelain, char const* name)
+{
+    assert(porcelain);
+    assert(name);
+    for( int i = 0; i < PORCELAIN_IMAGES_MAX; i++ )
+        if( porcelain->images[i].used && strcmp(porcelain->images[i].name.text, name) == 0 )
+        {
+            porcelain->images[i].last_used_run = porcelain->run;
+            return;
+        }
+}
+
+void
+Porcelain_ReleaseAllAssets(struct Porcelain* porcelain)
+{
+    assert(porcelain);
+    for( int i = 0; i < PORCELAIN_IMAGES_MAX; i++ )
+        if( porcelain->images[i].used && porcelain->images[i].state == PORCELAIN_ASSET_READY )
+        {
+            porcelain->counters.engine_calls++;
+            porcelain->api->assets.image_release(porcelain->api, porcelain->images[i].ref);
+            memset(&porcelain->images[i], 0, sizeof(porcelain->images[i]));
+        }
+    for( int i = 0; i < PORCELAIN_MODELS_MAX; i++ )
+        if( porcelain->models[i].used && porcelain->models[i].state == PORCELAIN_ASSET_READY )
+        {
+            porcelain->counters.engine_calls++;
+            porcelain->api->assets.model_release(porcelain->api, porcelain->models[i].ref);
+            memset(&porcelain->models[i], 0, sizeof(porcelain->models[i]));
+        }
+    for( int i = 0; i < PORCELAIN_DERIVED_MAX; i++ )
+        if( porcelain->derived[i].used && porcelain->derived[i].state == PORCELAIN_DERIVED_READY )
+        {
+            porcelain->counters.engine_calls++;
+            porcelain->api->assets.image_release(porcelain->api, porcelain->derived[i].ref);
+            memset(&porcelain->derived[i], 0, sizeof(porcelain->derived[i]));
+        }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Readiness and cadence                                                    */
+/* ------------------------------------------------------------------------ */
+
+void
+Porcelain_WhenReady(struct Porcelain* porcelain, unsigned what, PorcelainReadyFn fn, void* user)
+{
+    assert(porcelain);
+    assert(fn);
+    for( int i = 0; i < PORCELAIN_READY_MAX; i++ )
+    {
+        struct PorcelainReadyWatch* watch = &porcelain->ready[i];
+        if( watch->used )
+            continue;
+        memset(watch, 0, sizeof(*watch));
+        watch->used = true;
+        watch->what = what;
+        watch->fn = fn;
+        watch->user = user;
+        return;
+    }
+    Porcelain_RecordFinding(porcelain, "when_ready", PORCELAIN_EL(NONE), PORCELAIN_FINDING_BUDGET,
+                            "ready table full");
+}
+
+void
+Porcelain_Every(struct Porcelain* porcelain, enum PorcelainCadence cadence, PorcelainTickFn fn,
+                void* user)
+{
+    assert(porcelain);
+    assert(fn);
+    assert(cadence >= 0 && cadence < PORCELAIN_CADENCE_COUNT);
+    for( int i = 0; i < PORCELAIN_TIMERS_MAX; i++ )
+    {
+        struct PorcelainTimer* timer = &porcelain->timers[i];
+        if( timer->used )
+            continue;
+        memset(timer, 0, sizeof(*timer));
+        timer->used = true;
+        timer->cadence = cadence;
+        timer->fn = fn;
+        timer->user = user;
+        return;
+    }
+    Porcelain_RecordFinding(porcelain, "every", PORCELAIN_EL(NONE), PORCELAIN_FINDING_BUDGET,
+                            "timer table full");
+}
+
+void
+Porcelain_EveryServerTick(struct Porcelain* porcelain, PorcelainTickFn fn, void* user)
+{
+    /* The server tick fires on EVERY lane now: after the end-of-tick packet
+     * where the wire has it, after player info elsewhere, never both. The
+     * synthesised 600 ms cadence the sketch proposed is deleted. */
+    Porcelain_Every(porcelain, PORCELAIN_SERVER_TICK, fn, user);
+}
+
+void
+Porcelain_EveryMs(struct Porcelain* porcelain, int milliseconds, PorcelainTickFn fn, void* user)
+{
+    assert(porcelain);
+    assert(fn);
+    assert(milliseconds > 0);
+    for( int i = 0; i < PORCELAIN_TIMERS_MAX; i++ )
+    {
+        struct PorcelainTimer* timer = &porcelain->timers[i];
+        if( timer->used )
+            continue;
+        memset(timer, 0, sizeof(*timer));
+        timer->used = true;
+        timer->is_ms = true;
+        timer->milliseconds = milliseconds;
+        timer->fn = fn;
+        timer->user = user;
+        return;
+    }
+    Porcelain_RecordFinding(porcelain, "every_ms", PORCELAIN_EL(NONE), PORCELAIN_FINDING_BUDGET,
+                            "timer table full");
+}
+
+void
+Porcelain_Tick(struct Porcelain* porcelain, enum PorcelainCadence cadence)
+{
+    assert(porcelain);
+    assert(cadence >= 0 && cadence < PORCELAIN_CADENCE_COUNT);
+    for( int i = 0; i < PORCELAIN_TIMERS_MAX; i++ )
+    {
+        struct PorcelainTimer* timer = &porcelain->timers[i];
+        if( !timer->used || timer->is_ms || timer->cadence != cadence )
+            continue;
+        timer->fn(porcelain->api, timer->user);
+    }
+}
+
+static unsigned
+porcelain_ready_bits(struct Porcelain* porcelain)
+{
+    unsigned bits = 0;
+    struct ToriRS_PlayerSnapshot player;
+
+    porcelain->counters.engine_calls++;
+    if( porcelain->api->core.screen(porcelain->api) == TORIRS_SCREEN_GAME )
+        bits |= PORCELAIN_READY_GAME;
+    memset(&player, 0, sizeof(player));
+    porcelain->counters.engine_calls++;
+    if( porcelain->api->world.local_player(porcelain->api, &player) )
+        bits |= PORCELAIN_READY_PLAYER | PORCELAIN_READY_WORLD;
+    if( porcelain->api->game && porcelain->api->game->skill )
+    {
+        struct ToriRS_SkillSnapshot skill;
+        memset(&skill, 0, sizeof(skill));
+        skill.struct_size = sizeof(skill);
+        porcelain->counters.engine_calls++;
+        /* The STATED bit, not "the table is populated": the pre-login table
+         * is a fresh account's, and a tracker that seeded itself from it took
+         * the login burst for one enormous gain. */
+        if( porcelain->api->game->skill(porcelain->api, 0, &skill) && skill.stated )
+            bits |= PORCELAIN_READY_STATS;
+    }
+    {
+        bool derived_ready = true;
+        for( int i = 0; i < PORCELAIN_DERIVED_MAX; i++ )
+            if( porcelain->derived[i].used &&
+                porcelain->derived[i].state == PORCELAIN_DERIVED_PENDING )
+                derived_ready = false;
+        if( derived_ready )
+            bits |= PORCELAIN_READY_DERIVED;
+    }
+    return bits;
+}
+
+/* ------------------------------------------------------------------------ */
+/* The per-fence helper pass                                                */
+/* ------------------------------------------------------------------------ */
+
+void
+Porcelain_HelpersFence(struct Porcelain* porcelain)
+{
+    unsigned ready;
+    uint64_t now_ms;
+
+    assert(porcelain);
+
+    /* 1. Images still pending. A transition is an INPUT: it re-runs the
+     *    describe, which is how "asset before bind" and "bind before asset"
+     *    converge on the same tree. */
+    for( int i = 0; i < PORCELAIN_IMAGES_MAX; i++ )
+    {
+        struct PorcelainImageSlot* slot = &porcelain->images[i];
+        if( !slot->used || slot->state != PORCELAIN_ASSET_PENDING )
+            continue;
+        porcelain->counters.engine_calls++;
+        slot->state = porcelain_map_asset_state(
+            porcelain->api->assets.image(porcelain->api, slot->name.text, &slot->ref));
+        if( slot->state != PORCELAIN_ASSET_PENDING )
+            porcelain->stamp[PORCELAIN_INPUT_ASSET]++;
+        porcelain_report_terminal_asset(porcelain, "image", slot->name.text, slot->state,
+                                        &slot->terminal_reported);
+    }
+
+    /* 2. Images nothing has asked for in several runs. Lazy request, lazy
+     *    release: eleven of the fifteen orb source images are never read
+     *    through a handle again after the pixel copy. */
+    for( int i = 0; i < PORCELAIN_IMAGES_MAX; i++ )
+    {
+        struct PorcelainImageSlot* slot = &porcelain->images[i];
+        if( !slot->used || slot->state != PORCELAIN_ASSET_READY )
+            continue;
+        if( porcelain->run < slot->last_used_run + PORCELAIN_IMAGE_IDLE_RUNS )
+            continue;
+        porcelain->counters.engine_calls++;
+        porcelain->api->assets.image_release(porcelain->api, slot->ref);
+        memset(slot, 0, sizeof(*slot));
+    }
+
+    /* 3. Frame cadence and millisecond timers. The clock is read only when a
+     *    millisecond timer exists: a handle with no timers must make NO
+     *    engine call at a fence, or "an unchanged description costs nothing"
+     *    is one core.frame_ms short of true. */
+    now_ms = 0;
+    for( int i = 0; i < PORCELAIN_TIMERS_MAX; i++ )
+        if( porcelain->timers[i].used && porcelain->timers[i].is_ms )
+        {
+            porcelain->counters.engine_calls++;
+            now_ms = porcelain->api->core.frame_ms(porcelain->api);
+            break;
+        }
+    for( int i = 0; i < PORCELAIN_TIMERS_MAX; i++ )
+    {
+        struct PorcelainTimer* timer = &porcelain->timers[i];
+        if( !timer->used )
+            continue;
+        if( timer->is_ms )
+        {
+            if( now_ms < timer->next_due_ms )
+                continue;
+            timer->next_due_ms = now_ms + (uint64_t)timer->milliseconds;
+            timer->fn(porcelain->api, timer->user);
+        }
+        else if( timer->cadence == PORCELAIN_FRAME )
+        {
+            timer->fn(porcelain->api, timer->user);
+        }
+    }
+
+    /* 4. Key edges. */
+    for( int i = 0; i < PORCELAIN_KEY_EDGES_MAX; i++ )
+    {
+        struct PorcelainKeyEdgeWatch* watch = &porcelain->key_edges[i];
+        char const* name = NULL;
+        int code;
+        bool down;
+        if( !watch->used )
+            continue;
+        porcelain->counters.engine_calls++;
+        if( !porcelain->api->config.get_string(porcelain->api, watch->config_key, &name) )
+            name = NULL;
+        code = porcelain_key_code(name);
+        if( code < 0 )
+        {
+            if( !watch->absent_reported )
+            {
+                watch->absent_reported = true;
+                Porcelain_RecordFinding(porcelain, "key_edge",
+                                        PORCELAIN_ROLE_EL(watch->config_key),
+                                        PORCELAIN_FINDING_ABSENT, name ? name : "off");
+            }
+            continue;
+        }
+        porcelain->counters.engine_calls++;
+        down = porcelain->api->input.key_held(porcelain->api, code);
+        if( down == watch->down )
+            continue;
+        watch->down = down;
+        watch->fn(porcelain->api, watch->user, down);
+    }
+
+    /* 5. Readiness. Fires once when every named bit holds, and again after a
+     *    re-login, because a latch that never re-arms is the claim that
+     *    answered -1 for ever. */
+    {
+        bool any_ready_watch = false;
+        for( int i = 0; i < PORCELAIN_READY_MAX; i++ )
+            if( porcelain->ready[i].used )
+                any_ready_watch = true;
+        if( !any_ready_watch )
+            return;
+        ready = porcelain_ready_bits(porcelain);
+        for( int i = 0; i < PORCELAIN_READY_MAX; i++ )
+        {
+            struct PorcelainReadyWatch* watch = &porcelain->ready[i];
+            if( !watch->used )
+                continue;
+            if( (ready & watch->what) == watch->what )
+            {
+                if( !watch->fired )
+                {
+                    watch->fired = true;
+                    watch->fn(porcelain->api, watch->user, watch->what);
+                }
+            }
+            else if( !(ready & PORCELAIN_READY_GAME) )
+            {
+                watch->fired = false;
+            }
+        }
+    }
+}

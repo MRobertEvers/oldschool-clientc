@@ -3083,6 +3083,19 @@ static enum ToriRS_ContractResult widget_watch_state(void* u,char const* role,To
     return widget_subscribe(u,role,listener,user,true);
 }
 
+/*
+ * The Porcelain verb table, or NULL. A pointer and not a link dependency:
+ * Porcelain is a plugin-side library, and eight test binaries compile this
+ * host without it. @see PluginHost_SetPorcelain
+ */
+static struct ToriRS_PorcelainApi const* g_plugin_porcelain_table;
+
+void
+PluginHost_SetPorcelain(struct ToriRS_PorcelainApi const* table)
+{
+    g_plugin_porcelain_table = table;
+}
+
 static bool
 v2_runtime_init(
     struct PluginV2Runtime* runtime,
@@ -3278,6 +3291,8 @@ v2_runtime_init(
         },
         .client = &runtime->client_api,
         .game = &runtime->game_api,
+        /* NULL until the client installs the layer. @see PluginHost_SetPorcelain */
+        .porcelain = g_plugin_porcelain_table,
     };
     return true;
 }

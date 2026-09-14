@@ -402,7 +402,12 @@
         cw: integer(raw && raw.cw, 0), ch: integer(raw && raw.ch, 0),
         label: boundedText(raw && raw.label, 63), text: boundedText(raw && raw.text, 191),
         detail: boundedText(raw && raw.detail, 191),
-        s: unsigned(raw && raw.s)
+        s: unsigned(raw && raw.s),
+        /* WIDGET_ADD's insertion anchor -- the handle the new row goes before,
+         * -1 (and an absent field) meaning append. Dropping it here would put
+         * a re-identified middle row at the bottom of the page, because this
+         * whitelist, not the runtime, decides what reaches the frame. */
+        b: integer(raw && raw.b, -1)
       };
     }
 

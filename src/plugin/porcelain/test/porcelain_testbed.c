@@ -1,0 +1,1008 @@
+/*
+ * The shared fake engine. @see porcelain_testbed.h
+ *
+ * Every entry point records a line before it does anything, so a test's
+ * assertion about engine traffic reads like the call it is asserting about.
+ * Nothing here models the real widget tree: the point is the CONTRACT, not
+ * the raster.
+ */
+
+#include "plugin/porcelain/test/porcelain_testbed.h"
+
+#include <assert.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct Testbed g_testbed;
+
+/* ------------------------------------------------------------------------ */
+/* The log                                                                  */
+/* ------------------------------------------------------------------------ */
+
+static void
+testbed_log(char const* format, ...)
+{
+    va_list args;
+
+    g_testbed.calls++;
+    if( g_testbed.log_count >= TESTBED_LOG_MAX )
+        return;
+    va_start(args, format);
+    vsnprintf(g_testbed.log[g_testbed.log_count], TESTBED_LOG_LINE, format, args);
+    va_end(args);
+    g_testbed.log_count++;
+}
+
+void
+Testbed_ClearLog(void)
+{
+    g_testbed.log_count = 0;
+    g_testbed.calls = 0;
+}
+
+int
+Testbed_LogCount(void)
+{
+    return g_testbed.log_count;
+}
+
+char const*
+Testbed_LogLine(int index)
+{
+    assert(index >= 0);
+    assert(index < g_testbed.log_count);
+    return g_testbed.log[index];
+}
+
+int
+Testbed_LogCountWith(char const* prefix)
+{
+    size_t const length = strlen(prefix);
+    int count = 0;
+
+    assert(prefix);
+    for( int i = 0; i < g_testbed.log_count; i++ )
+        if( strncmp(g_testbed.log[i], prefix, length) == 0 )
+            count++;
+    return count;
+}
+
+int
+Testbed_LogFind(char const* prefix)
+{
+    size_t const length = strlen(prefix);
+
+    assert(prefix);
+    for( int i = 0; i < g_testbed.log_count; i++ )
+        if( strncmp(g_testbed.log[i], prefix, length) == 0 )
+            return i;
+    return -1;
+}
+
+void
+Testbed_PrintLog(void)
+{
+    for( int i = 0; i < g_testbed.log_count; i++ )
+        fprintf(stderr, "  [%02d] %s\n", i, g_testbed.log[i]);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Elements                                                                 */
+/* ------------------------------------------------------------------------ */
+
+struct TestbedElement*
+Testbed_Element(char const* role)
+{
+    assert(role);
+    for( int i = 0; i < TESTBED_ELEMENTS_MAX; i++ )
+        if( g_testbed.elements[i].used && strcmp(g_testbed.elements[i].role, role) == 0 )
+            return &g_testbed.elements[i];
+    return NULL;
+}
+
+static struct ToriRS_WidgetRef
+testbed_mint_ref(void)
+{
+    struct ToriRS_WidgetRef ref;
+
+    g_testbed.next_ref++;
+    ref.opaque[0] = 0x900d;
+    ref.opaque[1] = (uint64_t)g_testbed.next_ref;
+    ref.opaque[2] = 1;
+    return ref;
+}
+
+struct TestbedElement*
+Testbed_DeclareElement(char const* role, int x, int y, int width, int height)
+{
+    assert(role);
+    for( int i = 0; i < TESTBED_ELEMENTS_MAX; i++ )
+    {
+        struct TestbedElement* element = &g_testbed.elements[i];
+        if( element->used )
+            continue;
+        memset(element, 0, sizeof(*element));
+        element->used = true;
+        snprintf(element->role, sizeof(element->role), "%s", role);
+        element->local = (struct ToriRS_WidgetBounds){x, y, width, height};
+        element->bounds = element->local;
+        element->presented = true;
+        element->input_present = true;
+        element->incarnation = 1;
+        element->ref = testbed_mint_ref();
+        /* Every declared element hangs off one shared parent, which is also
+         * what the frame-root walk finds. */
+        element->parent.opaque[0] = 0x900d;
+        element->parent.opaque[1] = 1;
+        element->parent.opaque[2] = 1;
+        return element;
+    }
+    assert(0 && "testbed element table full");
+    return NULL;
+}
+
+static void
+testbed_raise(char const* role, enum ToriRS_WidgetEventType type)
+{
+    struct TestbedElement const* element = Testbed_Element(role);
+    struct ToriRS_WidgetEvent event;
+
+    memset(&event, 0, sizeof(event));
+    event.type = type;
+    event.role = role;
+    if( element )
+        event.widget = element->ref;
+    for( int i = 0; i < TESTBED_WATCHES_MAX; i++ )
+    {
+        if( !g_testbed.watches[i].used || strcmp(g_testbed.watches[i].role, role) != 0 )
+            continue;
+        g_testbed.watches[i].fn(&g_testbed.api, g_testbed.watches[i].user, &event);
+    }
+}
+
+void
+Testbed_BindElement(char const* role)
+{
+    struct TestbedElement* element = Testbed_Element(role);
+
+    assert(element);
+    element->bound = true;
+    testbed_raise(role, TORIRS_WIDGET_BOUND);
+}
+
+void
+Testbed_UnbindElement(char const* role)
+{
+    struct TestbedElement* element = Testbed_Element(role);
+
+    assert(element);
+    element->bound = false;
+    testbed_raise(role, TORIRS_WIDGET_UNBOUND);
+}
+
+void
+Testbed_MoveElement(char const* role, int x, int y)
+{
+    struct TestbedElement* element = Testbed_Element(role);
+
+    assert(element);
+    element->local.x = x;
+    element->local.y = y;
+    element->bounds.x = x;
+    element->bounds.y = y;
+    if( element->bound )
+        testbed_raise(role, TORIRS_WIDGET_STATE_CHANGED);
+}
+
+void
+Testbed_PresentElement(char const* role, bool presented)
+{
+    struct TestbedElement* element = Testbed_Element(role);
+
+    assert(element);
+    element->presented = presented;
+    element->own_hidden = !presented;
+    if( element->bound )
+        testbed_raise(role, TORIRS_WIDGET_STATE_CHANGED);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Assets                                                                   */
+/* ------------------------------------------------------------------------ */
+
+static struct TestbedAsset*
+testbed_asset(char const* name)
+{
+    for( int i = 0; i < TESTBED_ASSETS_MAX; i++ )
+        if( g_testbed.assets[i].used && strcmp(g_testbed.assets[i].name, name) == 0 )
+            return &g_testbed.assets[i];
+    return NULL;
+}
+
+void
+Testbed_DeclareAsset(char const* name, enum ToriRS_AssetState state)
+{
+    assert(name);
+    for( int i = 0; i < TESTBED_ASSETS_MAX; i++ )
+    {
+        struct TestbedAsset* asset = &g_testbed.assets[i];
+        if( asset->used )
+            continue;
+        memset(asset, 0, sizeof(*asset));
+        asset->used = true;
+        snprintf(asset->name, sizeof(asset->name), "%s", name);
+        asset->state = state;
+        asset->value = i + 1;
+        return;
+    }
+    assert(0 && "testbed asset table full");
+}
+
+void
+Testbed_LandAsset(char const* name)
+{
+    struct TestbedAsset* asset = testbed_asset(name);
+
+    assert(asset);
+    asset->state = TORIRS_ASSET_READY;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Config                                                                   */
+/* ------------------------------------------------------------------------ */
+
+static struct TestbedConfigRow*
+testbed_config(char const* key, bool create)
+{
+    struct TestbedConfigRow* free_row = NULL;
+
+    for( int i = 0; i < TESTBED_CONFIG_MAX; i++ )
+    {
+        struct TestbedConfigRow* row = &g_testbed.config[i];
+        if( !row->used )
+        {
+            if( !free_row )
+                free_row = row;
+            continue;
+        }
+        if( strcmp(row->key, key) == 0 )
+            return row;
+    }
+    if( !create )
+        return NULL;
+    assert(free_row);
+    memset(free_row, 0, sizeof(*free_row));
+    free_row->used = true;
+    snprintf(free_row->key, sizeof(free_row->key), "%s", key);
+    return free_row;
+}
+
+void
+Testbed_SetConfigString(char const* key, char const* value)
+{
+    struct TestbedConfigRow* row = testbed_config(key, true);
+
+    assert(key);
+    assert(value);
+    snprintf(row->value, sizeof(row->value), "%s", value);
+}
+
+void
+Testbed_SetConfigInt(char const* key, int value)
+{
+    struct TestbedConfigRow* row = testbed_config(key, true);
+
+    assert(key);
+    row->number = value;
+    row->has_number = true;
+}
+
+char const*
+Testbed_ConfigString(char const* key)
+{
+    struct TestbedConfigRow const* row = testbed_config(key, false);
+
+    assert(key);
+    return row ? row->value : NULL;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Controls                                                                 */
+/* ------------------------------------------------------------------------ */
+
+struct TestbedControl*
+Testbed_Control(char const* key)
+{
+    assert(key);
+    for( int i = 0; i < TESTBED_CONTROLS_MAX; i++ )
+        if( g_testbed.controls[i].live && strcmp(g_testbed.controls[i].key, key) == 0 )
+            return &g_testbed.controls[i];
+    return NULL;
+}
+
+int
+Testbed_LiveControls(void)
+{
+    int count = 0;
+
+    for( int i = 0; i < TESTBED_CONTROLS_MAX; i++ )
+        if( g_testbed.controls[i].live )
+            count++;
+    return count;
+}
+
+static struct TestbedControl*
+testbed_control_by_ref(struct ToriRS_WidgetRef ref)
+{
+    for( int i = 0; i < TESTBED_CONTROLS_MAX; i++ )
+        if( g_testbed.controls[i].live && ToriRS_WidgetRefEqual(g_testbed.controls[i].ref, ref) )
+            return &g_testbed.controls[i];
+    return NULL;
+}
+
+/* ------------------------------------------------------------------------ */
+/* The widget namespace                                                     */
+/* ------------------------------------------------------------------------ */
+
+static enum ToriRS_ContractResult
+fake_find(void* context, char const* role, struct ToriRS_WidgetRef* out)
+{
+    struct TestbedElement const* element;
+
+    (void)context;
+    testbed_log("find %s", role);
+    element = Testbed_Element(role);
+    if( !element || !element->bound )
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    *out = element->ref;
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_watch_state(void* context, char const* role, ToriRS_WidgetListener listener, void* user)
+{
+    (void)context;
+    testbed_log("watch_state %s", role);
+    for( int i = 0; i < TESTBED_WATCHES_MAX; i++ )
+    {
+        if( g_testbed.watches[i].used )
+            continue;
+        g_testbed.watches[i].used = true;
+        snprintf(g_testbed.watches[i].role, sizeof(g_testbed.watches[i].role), "%s", role);
+        g_testbed.watches[i].fn = listener;
+        g_testbed.watches[i].user = user;
+        /* "A new subscription receives BOUND when available." */
+        if( Testbed_Element(role) && Testbed_Element(role)->bound )
+        {
+            struct ToriRS_WidgetEvent event;
+            memset(&event, 0, sizeof(event));
+            event.type = TORIRS_WIDGET_BOUND;
+            event.role = g_testbed.watches[i].role;
+            event.widget = Testbed_Element(role)->ref;
+            listener(&g_testbed.api, user, &event);
+        }
+        return TORIRS_CONTRACT_OK;
+    }
+    return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+}
+
+static struct TestbedElement*
+testbed_element_by_ref(struct ToriRS_WidgetRef ref)
+{
+    for( int i = 0; i < TESTBED_ELEMENTS_MAX; i++ )
+        if( g_testbed.elements[i].used && ToriRS_WidgetRefEqual(g_testbed.elements[i].ref, ref) )
+            return &g_testbed.elements[i];
+    return NULL;
+}
+
+static enum ToriRS_ContractResult
+fake_state(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetState* out)
+{
+    struct TestbedElement const* element = testbed_element_by_ref(ref);
+
+    (void)context;
+    testbed_log("state %llu", (unsigned long long)ref.opaque[1]);
+    if( !element )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
+    out->bounds = element->bounds;
+    out->local = element->local;
+    out->presented = element->presented;
+    out->own_hidden = element->own_hidden;
+    out->native_hidden = element->native_hidden;
+    out->input_present = element->input_present;
+    out->graphic_token = element->graphic_token;
+    out->facets = element->facets;
+    out->incarnation = element->incarnation;
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_parent(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetRef* out)
+{
+    struct TestbedElement const* element = testbed_element_by_ref(ref);
+
+    (void)context;
+    testbed_log("parent %llu", (unsigned long long)ref.opaque[1]);
+    if( element )
+    {
+        *out = element->parent;
+        return TORIRS_CONTRACT_OK;
+    }
+    /* The shared parent has no parent of its own: the walk stops there. */
+    return TORIRS_CONTRACT_UNAVAILABLE;
+}
+
+static enum ToriRS_ContractResult
+fake_bounds(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetBounds* out)
+{
+    struct TestbedElement const* element = testbed_element_by_ref(ref);
+
+    (void)context;
+    testbed_log("bounds %llu", (unsigned long long)ref.opaque[1]);
+    if( element )
+    {
+        *out = element->bounds;
+        return TORIRS_CONTRACT_OK;
+    }
+    *out = (struct ToriRS_WidgetBounds){0, 0, 800, 500};
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+testbed_create(char const* what, struct ToriRS_WidgetRef parent, char const* key,
+               struct ToriRS_WidgetRef* out)
+{
+    testbed_log("%s %s", what, key);
+    for( int i = 0; i < TESTBED_CONTROLS_MAX; i++ )
+    {
+        struct TestbedControl* control = &g_testbed.controls[i];
+        if( control->live && strcmp(control->key, key) == 0 )
+        {
+            *out = control->ref;
+            return TORIRS_CONTRACT_OK;
+        }
+    }
+    for( int i = 0; i < TESTBED_CONTROLS_MAX; i++ )
+    {
+        struct TestbedControl* control = &g_testbed.controls[i];
+        if( control->live )
+            continue;
+        memset(control, 0, sizeof(*control));
+        control->live = true;
+        snprintf(control->key, sizeof(control->key), "%s", key);
+        control->parent = parent;
+        control->ref = testbed_mint_ref();
+        control->opacity = 255;
+        *out = control->ref;
+        return TORIRS_CONTRACT_OK;
+    }
+    return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+}
+
+static enum ToriRS_ContractResult
+fake_create_image(void* context, struct ToriRS_WidgetRef parent, char const* key,
+                  struct ToriRS_WidgetRef* out)
+{
+    (void)context;
+    return testbed_create("create_image", parent, key, out);
+}
+
+static enum ToriRS_ContractResult
+fake_create_text(void* context, struct ToriRS_WidgetRef parent, char const* key,
+                 struct ToriRS_WidgetRef* out)
+{
+    (void)context;
+    return testbed_create("create_text", parent, key, out);
+}
+
+static enum ToriRS_ContractResult
+fake_set_position(void* context, struct ToriRS_WidgetRef ref, int32_t x, int32_t y)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+    struct TestbedElement* element = testbed_element_by_ref(ref);
+
+    (void)context;
+    testbed_log("set_position %s %d,%d", control ? control->key : (element ? element->role : "?"),
+                (int)x, (int)y);
+    if( control )
+    {
+        control->x = x;
+        control->y = y;
+    }
+    else if( element )
+    {
+        element->local.x = x;
+        element->local.y = y;
+    }
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_set_size(void* context, struct ToriRS_WidgetRef ref, int32_t width, int32_t height)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+    struct TestbedElement* element = testbed_element_by_ref(ref);
+
+    (void)context;
+    testbed_log("set_size %s %dx%d", control ? control->key : (element ? element->role : "?"),
+                (int)width, (int)height);
+    if( control )
+    {
+        control->width = width;
+        control->height = height;
+    }
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_set_hidden(void* context, struct ToriRS_WidgetRef ref, bool hidden)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+    struct TestbedElement* element = testbed_element_by_ref(ref);
+
+    (void)context;
+    testbed_log("set_hidden %s %d", control ? control->key : (element ? element->role : "?"),
+                hidden ? 1 : 0);
+    if( control )
+        control->hidden = hidden;
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_set_image(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_ImageRef image,
+               int width, int height)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+    struct TestbedElement* element = testbed_element_by_ref(ref);
+
+    (void)context;
+    testbed_log("set_image %s #%d %dx%d", control ? control->key : (element ? element->role : "?"),
+                image.value, width, height);
+    if( control )
+    {
+        control->width = width;
+        control->height = height;
+    }
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_set_mask(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_ImageRef image)
+{
+    struct TestbedElement* element = testbed_element_by_ref(ref);
+
+    (void)context;
+    testbed_log("set_mask %s #%d", element ? element->role : "?", image.value);
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_set_opacity(void* context, struct ToriRS_WidgetRef ref, int opacity)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+    struct TestbedElement* element = testbed_element_by_ref(ref);
+
+    (void)context;
+    testbed_log("set_opacity %s %d", control ? control->key : (element ? element->role : "?"),
+                opacity);
+    if( control )
+        control->opacity = opacity;
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_set_anchor(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetRef target,
+                enum ToriRS_WidgetRelation relation)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+    struct TestbedElement const* element = testbed_element_by_ref(target);
+
+    (void)context;
+    testbed_log("set_anchor %s -> %s rel=%d", control ? control->key : "?",
+                element ? element->role : "?", (int)relation);
+    if( control )
+    {
+        control->anchor = target;
+        control->relation = relation;
+    }
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_set_on_op(void* context, struct ToriRS_WidgetRef ref, char const* label,
+               ToriRS_WidgetListener listener, void* user)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+
+    (void)context;
+    testbed_log("set_on_op %s %s", control ? control->key : "?", label ? label : "(none)");
+    if( control )
+    {
+        control->armed = label != NULL;
+        snprintf(control->label, sizeof(control->label), "%s", label ? label : "");
+        control->op = listener;
+        control->op_user = user;
+    }
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_set_text(void* context, struct ToriRS_WidgetRef ref, char const* text)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+
+    (void)context;
+    testbed_log("set_text %s %s", control ? control->key : "?", text ? text : "");
+    if( control )
+        snprintf(control->text, sizeof(control->text), "%s", text ? text : "");
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_set_text_color(void* context, struct ToriRS_WidgetRef ref, uint32_t rgb)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+
+    (void)context;
+    testbed_log("set_text_color %s %06x", control ? control->key : "?", rgb);
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_set_text_align(void* context, struct ToriRS_WidgetRef ref, int horizontal, int vertical)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+
+    (void)context;
+    testbed_log("set_text_align %s %d,%d", control ? control->key : "?", horizontal, vertical);
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_set_text_outline(void* context, struct ToriRS_WidgetRef ref, bool outline)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+
+    (void)context;
+    testbed_log("set_text_outline %s %d", control ? control->key : "?", outline ? 1 : 0);
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_remove(void* context, struct ToriRS_WidgetRef ref)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+
+    (void)context;
+    testbed_log("remove %s", control ? control->key : "?");
+    if( control )
+        control->live = false;
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_reset(void* context, struct ToriRS_WidgetRef ref)
+{
+    struct TestbedElement const* element = testbed_element_by_ref(ref);
+
+    (void)context;
+    testbed_log("reset %s", element ? element->role : "?");
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_revalidate(void* context, struct ToriRS_WidgetRef ref)
+{
+    (void)context;
+    (void)ref;
+    testbed_log("revalidate");
+    return TORIRS_CONTRACT_OK;
+}
+
+/* ------------------------------------------------------------------------ */
+/* The other namespaces                                                     */
+/* ------------------------------------------------------------------------ */
+
+static void
+fake_log(struct ToriRS_Api* api, char const* format, ...)
+{
+    (void)api;
+    (void)format;
+}
+
+static int
+fake_screen(struct ToriRS_Api* api)
+{
+    (void)api;
+    return g_testbed.screen;
+}
+
+static uint64_t
+fake_frame_ms(struct ToriRS_Api* api)
+{
+    (void)api;
+    return g_testbed.frame_ms;
+}
+
+static bool
+testbed_list_has(char const* list, char const* name)
+{
+    char const* cursor = list;
+    size_t const length = strlen(name);
+
+    while( cursor && *cursor )
+    {
+        char const* comma = strchr(cursor, ',');
+        size_t const span = comma ? (size_t)(comma - cursor) : strlen(cursor);
+        if( span == length && strncmp(cursor, name, span) == 0 )
+            return true;
+        cursor = comma ? comma + 1 : NULL;
+    }
+    return false;
+}
+
+static bool
+fake_capability(struct ToriRS_Api* api, char const* name)
+{
+    (void)api;
+    testbed_log("capability %s", name);
+    if( strcmp(name, "touch") == 0 )
+        return g_testbed.touch;
+    return testbed_list_has(g_testbed.capabilities, name);
+}
+
+static char const*
+fake_plugin_id(struct ToriRS_Api* api)
+{
+    (void)api;
+    return "testbed";
+}
+
+static bool
+fake_config_get_int(struct ToriRS_Api* api, char const* key, int* out)
+{
+    struct TestbedConfigRow const* row;
+
+    (void)api;
+    testbed_log("config_get_int %s", key);
+    row = testbed_config(key, false);
+    if( !row || !row->has_number )
+        return false;
+    *out = row->number;
+    return true;
+}
+
+static bool
+fake_config_get_string(struct ToriRS_Api* api, char const* key, char const** out)
+{
+    struct TestbedConfigRow const* row;
+
+    (void)api;
+    testbed_log("config_get_string %s", key);
+    row = testbed_config(key, false);
+    if( !row || !row->value[0] )
+        return false;
+    *out = row->value;
+    return true;
+}
+
+static enum ToriRS_Result
+fake_config_set(struct ToriRS_Api* api, char const* key, char const* value)
+{
+    struct TestbedConfigRow* row;
+
+    (void)api;
+    testbed_log("config_set %s=%s", key, value);
+    /* The real host truncates over the ceiling and the validator accepts the
+     * fragment. Refuse here instead, so a test that proves Porcelain measured
+     * first cannot pass because the fake was kinder than the host. */
+    if( strlen(value) + 1 > PORCELAIN_CONFIG_VALUE_MAX )
+        return TORIRS_RESULT_INVALID;
+    row = testbed_config(key, true);
+    snprintf(row->value, sizeof(row->value), "%s", value);
+    return TORIRS_RESULT_OK;
+}
+
+static bool
+fake_config_has(struct ToriRS_Api* api, char const* key)
+{
+    (void)api;
+    return testbed_config(key, false) != NULL;
+}
+
+static enum ToriRS_AssetState
+fake_asset_image(struct ToriRS_Api* api, char const* name, struct ToriRS_ImageRef* out)
+{
+    struct TestbedAsset const* asset;
+
+    (void)api;
+    testbed_log("assets_image %s", name);
+    asset = testbed_asset(name);
+    memset(out, 0, sizeof(*out));
+    if( !asset )
+        return TORIRS_ASSET_MISSING;
+    if( asset->state == TORIRS_ASSET_READY )
+        out->value = asset->value;
+    return asset->state;
+}
+
+static enum ToriRS_AssetState
+fake_asset_model(struct ToriRS_Api* api, char const* name, struct ToriRS_ModelRef* out)
+{
+    struct TestbedAsset const* asset;
+
+    (void)api;
+    testbed_log("assets_model %s", name);
+    asset = testbed_asset(name);
+    memset(out, 0, sizeof(*out));
+    if( !asset )
+        return TORIRS_ASSET_MISSING;
+    if( asset->state == TORIRS_ASSET_READY )
+        out->value = asset->value;
+    return asset->state;
+}
+
+static void
+fake_image_release(struct ToriRS_Api* api, struct ToriRS_ImageRef image)
+{
+    (void)api;
+    testbed_log("image_release #%d", image.value);
+}
+
+static void
+fake_model_release(struct ToriRS_Api* api, struct ToriRS_ModelRef model)
+{
+    (void)api;
+    testbed_log("model_release #%d", model.value);
+}
+
+static enum ToriRS_AssetState
+fake_image_compose(struct ToriRS_Api* api, char const* name, int width, int height,
+                   uint32_t const* argb, struct ToriRS_ImageRef* out)
+{
+    (void)api;
+    (void)argb;
+    testbed_log("image_compose %s %dx%d", name, width, height);
+    out->value = 900 + (int)strlen(name);
+    return TORIRS_ASSET_READY;
+}
+
+static bool
+fake_named_id(struct ToriRS_Api* api, char const* kind, char const* name, int* out)
+{
+    char needle[128];
+    char const* found;
+
+    (void)api;
+    testbed_log("named_id %s:%s", kind, name);
+    snprintf(needle, sizeof(needle), "%s:%s=", kind, name);
+    found = strstr(g_testbed.named_ids, needle);
+    if( !found )
+        return false;
+    *out = atoi(found + strlen(needle));
+    return true;
+}
+
+static int
+fake_varbit(struct ToriRS_Api* api, int id)
+{
+    (void)api;
+    testbed_log("varbit %d", id);
+    return id;
+}
+
+static bool
+fake_key_held(struct ToriRS_Api* api, int key)
+{
+    (void)api;
+    testbed_log("key_held %d", key);
+    return g_testbed.key_held == key;
+}
+
+static bool
+fake_local_player(struct ToriRS_Api* api, struct ToriRS_PlayerSnapshot* out)
+{
+    (void)api;
+    (void)out;
+    testbed_log("local_player");
+    return g_testbed.player_present;
+}
+
+static bool
+fake_skill(struct ToriRS_Api* api, int index, struct ToriRS_SkillSnapshot* out)
+{
+    (void)api;
+    testbed_log("skill %d", index);
+    out->index = index;
+    out->stated = g_testbed.skill_stated;
+    return true;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Assembly                                                                 */
+/* ------------------------------------------------------------------------ */
+
+void
+Testbed_Reset(void)
+{
+    memset(&g_testbed, 0, sizeof(g_testbed));
+    g_testbed.screen = TORIRS_SCREEN_GAME;
+    g_testbed.next_ref = 100;
+
+    g_testbed.api.struct_size = sizeof(g_testbed.api);
+    g_testbed.api.major_version = TORIRS_PLUGIN_API_MAJOR;
+    g_testbed.api.minor_version = TORIRS_PLUGIN_API_MINOR;
+    g_testbed.api.instance = &g_testbed;
+
+    g_testbed.api.widgets.context = &g_testbed;
+    g_testbed.api.widgets.find = fake_find;
+    g_testbed.api.widgets.watch_state = fake_watch_state;
+    g_testbed.api.widgets.state = fake_state;
+    g_testbed.api.widgets.parent = fake_parent;
+    g_testbed.api.widgets.bounds = fake_bounds;
+    g_testbed.api.widgets.position = fake_bounds;
+    g_testbed.api.widgets.create_image = fake_create_image;
+    g_testbed.api.widgets.create_text = fake_create_text;
+    g_testbed.api.widgets.set_position = fake_set_position;
+    g_testbed.api.widgets.set_size = fake_set_size;
+    g_testbed.api.widgets.set_hidden = fake_set_hidden;
+    g_testbed.api.widgets.set_image = fake_set_image;
+    g_testbed.api.widgets.set_mask = fake_set_mask;
+    g_testbed.api.widgets.set_opacity = fake_set_opacity;
+    g_testbed.api.widgets.set_anchor = fake_set_anchor;
+    g_testbed.api.widgets.set_on_op = fake_set_on_op;
+    g_testbed.api.widgets.set_text = fake_set_text;
+    g_testbed.api.widgets.set_text_color = fake_set_text_color;
+    g_testbed.api.widgets.set_text_align = fake_set_text_align;
+    g_testbed.api.widgets.set_text_outline = fake_set_text_outline;
+    g_testbed.api.widgets.remove = fake_remove;
+    g_testbed.api.widgets.reset = fake_reset;
+    g_testbed.api.widgets.revalidate = fake_revalidate;
+
+    g_testbed.api.core.struct_size = sizeof(g_testbed.api.core);
+    g_testbed.api.core.log = fake_log;
+    g_testbed.api.core.screen = fake_screen;
+    g_testbed.api.core.frame_ms = fake_frame_ms;
+    g_testbed.api.core.capability = fake_capability;
+    g_testbed.api.core.plugin_id = fake_plugin_id;
+
+    g_testbed.api.config.struct_size = sizeof(g_testbed.api.config);
+    g_testbed.api.config.has = fake_config_has;
+    g_testbed.api.config.get_int = fake_config_get_int;
+    g_testbed.api.config.get_string = fake_config_get_string;
+    g_testbed.api.config.set = fake_config_set;
+
+    g_testbed.api.assets.struct_size = sizeof(g_testbed.api.assets);
+    g_testbed.api.assets.image = fake_asset_image;
+    g_testbed.api.assets.model = fake_asset_model;
+    g_testbed.api.assets.image_release = fake_image_release;
+    g_testbed.api.assets.model_release = fake_model_release;
+    g_testbed.api.assets.image_compose = fake_image_compose;
+
+    g_testbed.api.cache.struct_size = sizeof(g_testbed.api.cache);
+    g_testbed.api.cache.named_id = fake_named_id;
+    g_testbed.api.cache.varbit = fake_varbit;
+
+    g_testbed.api.input.struct_size = sizeof(g_testbed.api.input);
+    g_testbed.api.input.key_held = fake_key_held;
+
+    g_testbed.api.world.struct_size = sizeof(g_testbed.api.world);
+    g_testbed.api.world.local_player = fake_local_player;
+
+    g_testbed.game.struct_size = sizeof(g_testbed.game);
+    g_testbed.game.skill = fake_skill;
+    g_testbed.api.game = &g_testbed.game;
+
+    g_testbed.api.porcelain = ToriRS_PorcelainApiTable();
+
+    Porcelain_ResetForTesting();
+    Testbed_ClearLog();
+}
+
+struct ToriRS_Api*
+Testbed_Api(void)
+{
+    return &g_testbed.api;
+}

@@ -116,6 +116,7 @@ EM_JS(
 #include "perf/torirs_perf.h"
 #include "platform/platform_memory.h"
 #include "platform/platform_sdl2_renderer_soft3d.h"
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/task_plugin_io.h"
 #include "plugin/torirs_plugin_lua.h"
 #include "plugin/torirs_plugin_registry.h"
@@ -10468,6 +10469,9 @@ App_Init(
             struct ToriRS_PluginEngine engine = app_plugin_engine(app);
             app->plugin_panel = -1;
             app->plugin_panel_built_for = 0;
+            /* The client is what LINKS Porcelain; the host only carries the
+             * pointer, so the host's own test binaries stay free of it. */
+            PluginHost_SetPorcelain(ToriRS_PorcelainApiTable());
             app->plugins = PluginHost_New(&engine);
             app->plugin_prefs_path = PluginPrefs_Path();
             PluginRegistry_RegisterAll(app->plugins);

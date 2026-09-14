@@ -33,6 +33,14 @@ function node(tag) {
     value.firstChild = value.children[0] || null;
     return child;
   };
+  value.insertBefore = (child, reference) => {
+    const at = value.children.indexOf(reference);
+    if (at < 0) return value.appendChild(child);
+    child.parentNode = value;
+    value.children.splice(at, 0, child);
+    value.firstChild = value.children[0] || null;
+    return child;
+  };
   value.setAttribute = (key, item) => { value._attrs[key] = String(item); };
   value.getAttribute = key => Object.prototype.hasOwnProperty.call(value._attrs, key)
     ? value._attrs[key] : null;
@@ -626,6 +634,66 @@ while (runtime.takeMessage()) {}
 runtime.receive({ protocol: 1, type: 'page.close', pageGeneration: 0 });
 assert.strictEqual(runtime.takeMessage(), '',
   'a closed page does not retain an unrouteable generation-zero layout');
+
+/*
+ * A row given a new identity keeps its place.
+ *
+ * `panel.reidentify` replaces one row's identity without rebuilding the page,
+ * and the host states that as REMOVE then ADD between unchanged neighbours.
+ * An ADD that could only append moved such a row to the bottom -- invisible in
+ * the tracker that happens to re-identify its first row, wrong everywhere else.
+ */
+runtime.receive({
+  protocol: 1, type: 'page.snapshot', pageGeneration: 40, panel: 5,
+  title: 'Loot Tracker', commands: [
+    command(3, { p: 5, text: 'Loot Tracker' }),
+    command(8, { p: 5, w: 1, v: 0, text: 'Session', s: 401 }),
+    command(8, { p: 5, w: 2, v: 0, text: 'Coins', s: 402 }),
+    command(8, { p: 5, w: 3, v: 0, text: 'Bones', s: 403 }),
+    command(8, { p: 5, w: 4, v: 0, text: 'Total', s: 404 })
+  ]
+});
+const pageOrder = () => ids['tpc-content'].children
+  .filter(item => item._tpcRecord).map(item => item._tpcRecord.handle);
+assert.deepStrictEqual(pageOrder(), [1, 2, 3, 4],
+  'a snapshot carries no positions and mounts in the order it arrives');
+
+runtime.receive({
+  protocol: 1, type: 'page.delta', pageGeneration: 40, commands: [
+    command(9, { p: 5, w: 2 }),
+    command(8, { p: 5, w: 2, v: 0, text: 'Coins', s: 412, b: 3 })
+  ]
+});
+assert.deepStrictEqual(pageOrder(), [1, 2, 3, 4],
+  're-identifying a MIDDLE row leaves the page in the same order');
+assert.strictEqual(
+  ids['tpc-content'].children.filter(item => item._tpcRecord)[1]._tpcRecord.serial, 412,
+  'and the row that stayed put is the new identity, not the old one');
+
+runtime.receive({
+  protocol: 1, type: 'page.delta', pageGeneration: 40, commands: [
+    command(8, { p: 5, w: 9, v: 0, text: 'Footer', s: 420 })
+  ]
+});
+assert.deepStrictEqual(pageOrder(), [1, 2, 3, 4, 9],
+  'an ADD with no position still appends, so an older stream is still valid');
+
+runtime.receive({
+  protocol: 1, type: 'page.delta', pageGeneration: 40, commands: [
+    command(8, { p: 5, w: 10, v: 0, text: 'Stray', s: 421, b: 77 })
+  ]
+});
+assert.deepStrictEqual(pageOrder(), [1, 2, 3, 4, 9, 10],
+  'an anchor this page does not hold appends rather than throwing');
+
+runtime.receive({
+  protocol: 1, type: 'page.delta', pageGeneration: 40, commands: [
+    command(9, { p: 5, w: 10 }),
+    command(8, { p: 5, w: 10, v: 0, text: 'Stray', s: 422, b: 1 })
+  ]
+});
+assert.deepStrictEqual(pageOrder(), [10, 1, 2, 3, 4, 9],
+  'naming the first row moves the re-added one to the top, not merely near it');
 
 assert.strictEqual(runtime.receive('{bad json'), false, 'malformed host input is ignored');
 console.log('modern plugin chrome runtime: ok');

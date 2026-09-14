@@ -190,6 +190,24 @@ assert.strictEqual(message.pageGeneration, 20);
 assert.strictEqual(message.checkStyle, 1);
 assert.strictEqual(message.commands.find(command => command.w === 5).s, 501,
   'widget semantic serial crosses unchanged');
+assert.strictEqual(message.commands.find(command => command.w === 5).b, -1,
+  'an ADD that stated no position crosses as append');
+
+/* A re-identified row is a REMOVE and an ADD between unchanged neighbours, so
+ * the ADD's anchor is the only thing keeping it off the bottom of the page.
+ * This adapter is a whitelist: a field it forgets is a field the frame never
+ * sees, and nothing anywhere reports the loss. */
+assert.strictEqual(global_.torirsChromeApplyBatch([
+  { k: exported.CMD.SYNC_BEGIN },
+  { k: exported.CMD.WIDGET_REMOVE, p: 3, w: 12 },
+  { k: exported.CMD.WIDGET_ADD, p: 3, w: 12, tab: -1, v: exported.W.CHECKBOX,
+    label: 'Verbose', s: 511, b: 5 },
+  { k: exported.CMD.SYNC_END }
+]), true);
+message = received[received.length - 1];
+assert.strictEqual(
+  message.commands.find(command => command.k === exported.CMD.WIDGET_ADD).b, 5,
+  'the insertion anchor crosses the one-frame host boundary unchanged');
 
 assert.strictEqual(global_.torirsChromeApplyBatch([
   { k: exported.CMD.SYNC_BEGIN },

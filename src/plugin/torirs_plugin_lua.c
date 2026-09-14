@@ -1,3 +1,4 @@
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_lua.h"
 
 #include "plugin/torirs_plugin_host.h"
@@ -130,6 +131,21 @@ struct LuaWidgetWatch
 /* One armed owned-control operation. The same per-owner budget as the C
  * runtime, so a Lua plugin is not silently limited to fewer controls. */
 #define LUA_WIDGET_OP_MAX 128
+struct LuaScript;
+
+#define LUA_PORCELAIN_CALLBACK_MAX 48
+#define LUA_PORCELAIN_NAME_RING 16
+/* One function a Lua plugin handed to Porcelain. The entry's ADDRESS is the
+ * `user` pointer every Porcelain trampoline receives, so no dispatch searches
+ * a table -- the table is fixed, so the address is stable. */
+struct LuaPorcelainCallback
+{
+    struct LuaScript* script;
+    int ref;
+    bool used;
+    char key[PORCELAIN_KEY_MAX];
+};
+
 struct LuaWidgetOp
 {
     struct LuaScript* script;
@@ -151,6 +167,7 @@ struct LuaScript
     int api_ref;
     int draw_ref;
     int panel_builder_ref;
+    int porcelain_builder_ref;
     int handler_ref[LUA_HANDLER_COUNT];
 
     char name[TORIRS_PLUGIN_NAME_MAX];
@@ -168,11 +185,24 @@ struct LuaScript
     struct LuaWidgetWatch widget_watches[LUA_WIDGET_WATCH_MAX];
     struct LuaWidgetOp widget_ops[LUA_WIDGET_OP_MAX];
 
+    /* The Porcelain layer, or NULL until api.porcelain.open is called. A Lua
+     * script is one plugin, so the handle is the script's and never an
+     * argument -- the same shortening api.widgets.get already takes. */
+    struct Porcelain* porcelain;
+    int porcelain_describe_ref;
+    struct LuaPorcelainCallback porcelain_callbacks[LUA_PORCELAIN_CALLBACK_MAX];
+    /* Element suffixes ("tab:inventory") interned for the length of the call
+     * that parsed them; a Lua string's bytes may be collected the moment the
+     * stack slot goes. */
+    char porcelain_names[LUA_PORCELAIN_NAME_RING][PORCELAIN_NAME_MAX];
+    int porcelain_name_next;
+
     /* Callback-scoped native values. Lua closures only read these while the
      * corresponding callback is armed. */
     struct ToriRS_Api* cur_api;
     struct ToriRS_Graphics* cur_draw;
     struct ToriRS_PanelBuilder* cur_panel;
+    struct ToriRS_PorcelainDescribe* cur_describe;
     struct ToriRS_MenuBuildEvent* cur_menu;
     struct LuaCallbackScope callback_scopes[PLUGIN_LUA_CALLBACK_DEPTH_MAX];
     int callback_depth;
@@ -1690,6 +1720,841 @@ lua_surface_from_arg(lua_State* L, int index)
 }
 
 
+static int64_t
+lua_table_int64(lua_State* L, int index, char const* key)
+{
+    int64_t out;
+    index = lua_absindex(L, index);
+    lua_raw_getfield(L, index, key);
+    out = lua_isnumber(L, -1) ? (int64_t)lua_tointeger(L, -1) : 0;
+    lua_pop(L, 1);
+    return out;
+}
+
+/* ------------------------------------------------------- porcelain layer */
+
+/*
+ * api.porcelain.* is the same verb table a C plugin reaches through
+ * api->porcelain, with the same names, so the inventory test compares the two
+ * field for field. Only the ARITY differs: a Lua script is one plugin, so the
+ * handle is the script's and never an argument -- the same shortening
+ * api.widgets.get already takes.
+ *
+ * An element is named by a small grammar rather than a table, because a
+ * plugin writes one on nearly every line: "minimap", "orb:run",
+ * "chat_filter:3", "tab:inventory", "panel:inventory", "role:my_role".
+ */
+static struct
+{
+    char const* name;
+    enum PorcelainElementKind kind;
+} const LUA_PORCELAIN_ELEMENTS[] = {
+    {"viewport", PORCELAIN_EL_VIEWPORT},
+    {"minimap", PORCELAIN_EL_MINIMAP},
+    {"compass", PORCELAIN_EL_COMPASS},
+    {"orbs", PORCELAIN_EL_ORBS},
+    {"orb", PORCELAIN_EL_ORB},
+    {"chat", PORCELAIN_EL_CHAT},
+    {"chat_bar", PORCELAIN_EL_CHAT_BAR},
+    {"chat_backing", PORCELAIN_EL_CHAT_BACKING},
+    {"chat_input", PORCELAIN_EL_CHAT_INPUT},
+    {"chat_filter", PORCELAIN_EL_CHAT_FILTER},
+    {"report_button", PORCELAIN_EL_REPORT_BUTTON},
+    {"public_chat_button", PORCELAIN_EL_PUBLIC_CHAT_BUTTON},
+    {"sidebar", PORCELAIN_EL_SIDEBAR},
+    {"tab", PORCELAIN_EL_TAB},
+    {"panel", PORCELAIN_EL_PANEL},
+    {"modal", PORCELAIN_EL_MODAL},
+    {"lane_chrome", PORCELAIN_EL_LANE_CHROME},
+    {"frame_root", PORCELAIN_EL_FRAME_ROOT},
+    {"canvas", PORCELAIN_EL_CANVAS},
+    {"safe", PORCELAIN_EL_SAFE},
+    {"usable", PORCELAIN_EL_USABLE},
+    {"role", PORCELAIN_EL_ROLE},
+    {NULL, PORCELAIN_EL_NONE}};
+
+static char const* const LUA_PORCELAIN_ORBS[PORCELAIN_ORB_COUNT] = {"hitpoints", "prayer", "run",
+                                                                    "spec"};
+
+/* The element's `role` string must outlive the call, so each parsed element
+ * keeps its suffix in the script's own scratch ring rather than in the Lua
+ * stack slot the collector may reclaim. */
+static char const*
+lua_porcelain_intern(struct LuaScript* script, char const* text)
+{
+    char* slot;
+    if( !text || !text[0] ) return NULL;
+    slot = script->porcelain_names[script->porcelain_name_next];
+    script->porcelain_name_next =
+        (script->porcelain_name_next + 1) % LUA_PORCELAIN_NAME_RING;
+    snprintf(slot, PORCELAIN_NAME_MAX, "%s", text);
+    return slot;
+}
+
+static struct PorcelainElement
+lua_porcelain_element_arg(lua_State* L, int index)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    struct PorcelainElement element;
+    char const* spec = luaL_checkstring(L, index);
+    char const* colon = strchr(spec, ':');
+    char head[PORCELAIN_NAME_MAX];
+    size_t head_len = colon ? (size_t)(colon - spec) : strlen(spec);
+
+    memset(&element, 0, sizeof(element));
+    if( head_len >= sizeof(head) ) head_len = sizeof(head) - 1;
+    memcpy(head, spec, head_len);
+    head[head_len] = '\0';
+    for( int i = 0; LUA_PORCELAIN_ELEMENTS[i].name; i++ )
+    {
+        if( strcmp(LUA_PORCELAIN_ELEMENTS[i].name, head) != 0 ) continue;
+        element.kind = LUA_PORCELAIN_ELEMENTS[i].kind;
+        break;
+    }
+    if( element.kind == PORCELAIN_EL_NONE )
+        luaL_error(L, "unknown porcelain element '%s'", spec);
+    if( !colon ) return element;
+    switch( element.kind )
+    {
+    case PORCELAIN_EL_ORB:
+        for( int i = 0; i < PORCELAIN_ORB_COUNT; i++ )
+            if( strcmp(LUA_PORCELAIN_ORBS[i], colon + 1) == 0 ) element.member = i;
+        break;
+    case PORCELAIN_EL_CHAT_FILTER:
+    case PORCELAIN_EL_LANE_CHROME:
+        element.member = atoi(colon + 1);
+        break;
+    default:
+        element.role = lua_porcelain_intern(script, colon + 1);
+        break;
+    }
+    return element;
+}
+
+static struct PorcelainElement
+lua_porcelain_element_field(lua_State* L, int table, char const* key)
+{
+    struct PorcelainElement element;
+    memset(&element, 0, sizeof(element));
+    lua_raw_getfield(L, table, key);
+    if( !lua_isnoneornil(L, -1) )
+    {
+        lua_pushvalue(L, -1);
+        element = lua_porcelain_element_arg(L, lua_gettop(L));
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+    return element;
+}
+
+static struct Porcelain*
+lua_porcelain(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    if( !script || !script->porcelain )
+        return (void*)(intptr_t)luaL_error(L, "api.porcelain.open has not been called");
+    return script->porcelain;
+}
+
+/* Callbacks the script handed to Porcelain: one fixed table, each entry the
+ * `user` pointer the trampoline receives, so no ref is looked up by search. */
+static struct LuaPorcelainCallback*
+lua_porcelain_callback_alloc(lua_State* L, int index, char const* key)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    for( int i = 0; i < LUA_PORCELAIN_CALLBACK_MAX; i++ )
+    {
+        struct LuaPorcelainCallback* slot = &script->porcelain_callbacks[i];
+        if( slot->used && key && slot->key[0] && strcmp(slot->key, key) == 0 )
+        {
+            luaL_unref(L, LUA_REGISTRYINDEX, slot->ref);
+            lua_pushvalue(L, index);
+            slot->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+            return slot;
+        }
+    }
+    for( int i = 0; i < LUA_PORCELAIN_CALLBACK_MAX; i++ )
+    {
+        struct LuaPorcelainCallback* slot = &script->porcelain_callbacks[i];
+        if( slot->used ) continue;
+        memset(slot, 0, sizeof(*slot));
+        slot->used = true;
+        slot->script = script;
+        if( key ) snprintf(slot->key, sizeof(slot->key), "%s", key);
+        lua_pushvalue(L, index);
+        slot->ref = luaL_ref(L, LUA_REGISTRYINDEX);
+        return slot;
+    }
+    return (void*)(intptr_t)luaL_error(L, "porcelain callback table is full");
+}
+
+static void lua_porcelain_callbacks_clear(struct LuaScript* script)
+{
+    for( int i = 0; i < LUA_PORCELAIN_CALLBACK_MAX; i++ )
+    {
+        if( !script->porcelain_callbacks[i].used ) continue;
+        luaL_unref(script->L, LUA_REGISTRYINDEX, script->porcelain_callbacks[i].ref);
+        memset(&script->porcelain_callbacks[i], 0, sizeof(script->porcelain_callbacks[i]));
+    }
+    script->porcelain_name_next = 0;
+}
+
+static bool
+lua_porcelain_begin(struct LuaPorcelainCallback* slot, struct ToriRS_Api* api)
+{
+    if( !slot || !slot->used || !slot->script || !slot->script->alive || !slot->script->L )
+        return false;
+    if( !lua_callback_scope_push(slot->script, api) ) return false;
+    lua_rawgeti(slot->script->L, LUA_REGISTRYINDEX, slot->ref);
+    return true;
+}
+
+static void
+lua_porcelain_end(struct LuaPorcelainCallback* slot, struct ToriRS_Api* api, int args,
+                  int results, char const* where)
+{
+    struct LuaScript* script = slot->script;
+    int rc = lua_callback_pcall(script, args, results);
+    if( rc != LUA_OK )
+    {
+        char error[128];
+        snprintf(error, sizeof(error), "%s", lua_tostring(script->L, -1)
+                                                 ? lua_tostring(script->L, -1) : "error");
+        lua_pop(script->L, 1);
+        lua_script_fault(script, api, where, error);
+    }
+}
+
+static void
+lua_porcelain_op(struct ToriRS_Api* api, void* user, char const* key)
+{
+    struct LuaPorcelainCallback* slot = user;
+    if( !lua_porcelain_begin(slot, api) ) return;
+    lua_pushstring(slot->script->L, key);
+    lua_porcelain_end(slot, api, 1, 0, "porcelain.control.on_op");
+}
+
+static void
+lua_porcelain_tick_cb(struct ToriRS_Api* api, void* user)
+{
+    struct LuaPorcelainCallback* slot = user;
+    if( !lua_porcelain_begin(slot, api) ) return;
+    lua_porcelain_end(slot, api, 0, 0, "porcelain.every");
+}
+
+static void
+lua_porcelain_ready_cb(struct ToriRS_Api* api, void* user, unsigned what)
+{
+    struct LuaPorcelainCallback* slot = user;
+    if( !lua_porcelain_begin(slot, api) ) return;
+    lua_pushinteger(slot->script->L, (lua_Integer)what);
+    lua_porcelain_end(slot, api, 1, 0, "porcelain.when_ready");
+}
+
+static void
+lua_porcelain_edge_cb(struct ToriRS_Api* api, void* user, bool down)
+{
+    struct LuaPorcelainCallback* slot = user;
+    if( !lua_porcelain_begin(slot, api) ) return;
+    lua_pushboolean(slot->script->L, down);
+    lua_porcelain_end(slot, api, 1, 0, "porcelain.key_edge");
+}
+
+static bool
+lua_porcelain_paint_cb(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, int height)
+{
+    struct LuaPorcelainCallback* slot = user;
+    lua_State* L;
+    bool painted = false;
+
+    if( !lua_porcelain_begin(slot, api) ) return false;
+    L = slot->script->L;
+    lua_pushinteger(L, width);
+    lua_pushinteger(L, height);
+    lua_porcelain_end(slot, api, 2, 1, "porcelain.derived");
+    if( lua_type(L, -1) == LUA_TTABLE )
+    {
+        lua_Integer const cells = (lua_Integer)width * (lua_Integer)height;
+        for( lua_Integer i = 0; i < cells; i++ )
+        {
+            lua_rawgeti(L, -1, i + 1);
+            argb[i] = (uint32_t)luaL_optinteger(L, -1, 0);
+            lua_pop(L, 1);
+        }
+        painted = true;
+    }
+    lua_pop(L, 1);
+    return painted;
+}
+
+/* The describe builder, handed to the describe function the way the panel
+ * builder is handed to on_ui_build. */
+static struct ToriRS_PorcelainDescribe*
+lua_porcelain_describe_object(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    if( !script || !script->cur_describe )
+        return (void*)(intptr_t)luaL_error(L, "porcelain describe builder used outside describe");
+    return script->cur_describe;
+}
+
+static struct PorcelainPlacement
+lua_porcelain_place_field(lua_State* L, int table)
+{
+    struct PorcelainPlacement place;
+    char const* kind;
+
+    memset(&place, 0, sizeof(place));
+    lua_raw_getfield(L, table, "place");
+    if( lua_type(L, -1) != LUA_TTABLE )
+    {
+        lua_pop(L, 1);
+        luaL_error(L, "a porcelain item needs a place");
+        return place;
+    }
+    {
+        int const at = lua_gettop(L);
+        lua_raw_getfield(L, at, "kind");
+        kind = luaL_optstring(L, -1, "at_element");
+        if( strcmp(kind, "replace") == 0 ) place.kind = PORCELAIN_REPLACE;
+        else if( strcmp(kind, "inside") == 0 ) place.kind = PORCELAIN_INSIDE;
+        else if( strcmp(kind, "beside") == 0 ) place.kind = PORCELAIN_BESIDE;
+        else if( strcmp(kind, "at_canvas") == 0 ) place.kind = PORCELAIN_AT_CANVAS;
+        else if( strcmp(kind, "at_usable") == 0 ) place.kind = PORCELAIN_AT_USABLE;
+        else place.kind = PORCELAIN_AT_ELEMENT;
+        lua_pop(L, 1);
+        place.on = lua_porcelain_element_field(L, at, "on");
+        place.depth = lua_porcelain_element_field(L, at, "depth");
+        place.dx = lua_table_int(L, at, "dx", 0);
+        place.dy = lua_table_int(L, at, "dy", 0);
+        lua_raw_getfield(L, at, "behind");
+        place.behind = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+        lua_raw_getfield(L, at, "corner");
+        if( !lua_isnoneornil(L, -1) )
+        {
+            char const* corner = lua_tostring(L, -1);
+            if( corner )
+            {
+                if( strcmp(corner, "top_right") == 0 ) place.corner_or_side = PORCELAIN_TOP_RIGHT;
+                else if( strcmp(corner, "bottom_left") == 0 ) place.corner_or_side = PORCELAIN_BOTTOM_LEFT;
+                else if( strcmp(corner, "bottom_right") == 0 ) place.corner_or_side = PORCELAIN_BOTTOM_RIGHT;
+                else if( strcmp(corner, "centre") == 0 || strcmp(corner, "center") == 0 )
+                    place.corner_or_side = PORCELAIN_CENTRE;
+                else place.corner_or_side = PORCELAIN_TOP_LEFT;
+            }
+        }
+        lua_pop(L, 1);
+        lua_raw_getfield(L, at, "side");
+        if( !lua_isnoneornil(L, -1) )
+        {
+            char const* side = lua_tostring(L, -1);
+            if( side )
+            {
+                if( strcmp(side, "left") == 0 ) place.corner_or_side = PORCELAIN_LEFT;
+                else if( strcmp(side, "above") == 0 ) place.corner_or_side = PORCELAIN_ABOVE;
+                else if( strcmp(side, "below") == 0 ) place.corner_or_side = PORCELAIN_BELOW;
+                else place.corner_or_side = PORCELAIN_RIGHT;
+            }
+        }
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+    return place;
+}
+
+static void
+lua_porcelain_item_arg(lua_State* L, int index, struct PorcelainItem* out, char const** out_key)
+{
+    luaL_checktype(L, index, LUA_TTABLE);
+    memset(out, 0, sizeof(*out));
+    out->key = lua_table_string(L, index, "key");
+    luaL_argcheck(L, out->key != NULL, index, "a porcelain item needs a key");
+    out->image = lua_table_string(L, index, "image");
+    out->place = lua_porcelain_place_field(L, index);
+    out->w = lua_table_int(L, index, "w", 0);
+    out->h = lua_table_int(L, index, "h", 0);
+    out->opacity = lua_table_int(L, index, "opacity", PORCELAIN_OPACITY_DEFAULT);
+    out->text = lua_table_string(L, index, "text");
+    out->rgb = (uint32_t)lua_table_int(L, index, "rgb", 0xffffff);
+    out->align = lua_table_int(L, index, "align", 1);
+    lua_raw_getfield(L, index, "outline");
+    out->outline = lua_toboolean(L, -1) != 0;
+    lua_pop(L, 1);
+    out->op_label = lua_table_string(L, index, "op_label");
+    lua_raw_getfield(L, index, "hit");
+    out->hit = lua_isnoneornil(L, -1) ? false : lua_toboolean(L, -1) != 0;
+    lua_pop(L, 1);
+    lua_raw_getfield(L, index, "enabled");
+    out->enabled = lua_isnoneornil(L, -1) ? true : lua_toboolean(L, -1) != 0;
+    lua_pop(L, 1);
+    out->visible_with = lua_porcelain_element_field(L, index, "visible_with");
+    lua_raw_getfield(L, index, "on_op");
+    if( lua_type(L, -1) == LUA_TFUNCTION )
+    {
+        struct LuaPorcelainCallback* slot =
+            lua_porcelain_callback_alloc(L, lua_gettop(L), out->key);
+        out->on_op = lua_porcelain_op;
+        out->user = slot;
+    }
+    lua_pop(L, 1);
+    *out_key = out->key;
+}
+
+static int lua_porcelain_control(lua_State* L)
+{
+    struct ToriRS_PorcelainDescribe* d = lua_porcelain_describe_object(L);
+    struct PorcelainItem item; char const* key;
+    lua_porcelain_item_arg(L, 1, &item, &key);
+    d->control(d, &item);
+    return 0;
+}
+static int lua_porcelain_piece(lua_State* L)
+{
+    struct ToriRS_PorcelainDescribe* d = lua_porcelain_describe_object(L);
+    struct PorcelainItem item; char const* key;
+    lua_porcelain_item_arg(L, 1, &item, &key);
+    d->piece(d, &item);
+    return 0;
+}
+static int lua_porcelain_text(lua_State* L)
+{
+    struct ToriRS_PorcelainDescribe* d = lua_porcelain_describe_object(L);
+    struct PorcelainItem item; char const* key;
+    lua_porcelain_item_arg(L, 1, &item, &key);
+    d->text(d, &item);
+    return 0;
+}
+static int lua_porcelain_blocker(lua_State* L)
+{
+    struct ToriRS_PorcelainDescribe* d = lua_porcelain_describe_object(L);
+    struct PorcelainItem item; char const* key;
+    lua_porcelain_item_arg(L, 1, &item, &key);
+    d->blocker(d, item.key, item.op_label ? item.op_label : "Continue", item.place, item.w,
+               item.h, item.on_op, item.user);
+    return 0;
+}
+static int lua_porcelain_move(lua_State* L)
+{
+    struct ToriRS_PorcelainDescribe* d = lua_porcelain_describe_object(L);
+    struct PorcelainElement element = lua_porcelain_element_arg(L, 1);
+    struct ToriRS_WidgetBounds box;
+    luaL_checktype(L, 2, LUA_TTABLE);
+    box.x = (int32_t)lua_table_int(L, 2, "x", PORCELAIN_KEEP_RELATIVE);
+    box.y = (int32_t)lua_table_int(L, 2, "y", PORCELAIN_KEEP_RELATIVE);
+    box.width = (int32_t)lua_table_int(L, 2, "width", 0);
+    box.height = (int32_t)lua_table_int(L, 2, "height", 0);
+    d->move(d, element, box, (int)luaL_optinteger(L, 3, 0));
+    return 0;
+}
+static int lua_porcelain_hide(lua_State* L)
+{
+    struct ToriRS_PorcelainDescribe* d = lua_porcelain_describe_object(L);
+    d->hide(d, lua_porcelain_element_arg(L, 1));
+    return 0;
+}
+static int lua_porcelain_skin(lua_State* L)
+{
+    struct ToriRS_PorcelainDescribe* d = lua_porcelain_describe_object(L);
+    struct PorcelainElement element = lua_porcelain_element_arg(L, 1);
+    d->skin(d, element, luaL_optstring(L, 2, NULL), luaL_optstring(L, 3, NULL));
+    return 0;
+}
+static int lua_porcelain_opacity(lua_State* L)
+{
+    struct ToriRS_PorcelainDescribe* d = lua_porcelain_describe_object(L);
+    struct PorcelainElement element = lua_porcelain_element_arg(L, 1);
+    d->opacity(d, element, (int)luaL_checkinteger(L, 2));
+    return 0;
+}
+static int lua_porcelain_unsupported(lua_State* L)
+{
+    struct ToriRS_PorcelainDescribe* d = lua_porcelain_describe_object(L);
+    d->unsupported(d, luaL_checkstring(L, 1));
+    return 0;
+}
+
+static void
+lua_porcelain_describe_trampoline(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct LuaPorcelainCallback* slot = user;
+    struct LuaScript* script;
+    struct ToriRS_Api* api;
+
+    if( !slot || !slot->used || !slot->script ) return;
+    script = slot->script;
+    api = script->cur_api;
+    if( !api ) return;
+    if( !lua_porcelain_begin(slot, api) ) return;
+    script->cur_describe = describe;
+    /* The builder object, the way on_ui_build is handed the panel builder. */
+    lua_rawgeti(script->L, LUA_REGISTRYINDEX, script->porcelain_builder_ref);
+    lua_porcelain_end(slot, api, 1, 0, "porcelain.describe");
+    script->cur_describe = NULL;
+}
+
+/* ---------------------------------------------------------- the namespace */
+
+static int lua_porcelain_open(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    struct ToriRS_Api* api = lua_current_api(L);
+    if( !script ) return luaL_error(L, "no script");
+    if( !api->porcelain ) { lua_pushboolean(L, 0); return 1; }
+    if( !script->porcelain )
+        script->porcelain = api->porcelain->open(api, &script->def, script);
+    lua_pushboolean(L, script->porcelain != NULL);
+    return 1;
+}
+static int lua_porcelain_close(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    struct ToriRS_Api* api = lua_current_api(L);
+    if( script && script->porcelain && api->porcelain )
+    {
+        api->porcelain->close(script->porcelain);
+        script->porcelain = NULL;
+    }
+    return 0;
+}
+static int lua_porcelain_describe(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    struct ToriRS_Api* api = lua_current_api(L);
+    struct LuaPorcelainCallback* slot;
+    luaL_checktype(L, 1, LUA_TFUNCTION);
+    (void)lua_porcelain(L);
+    if( script->porcelain_describe_ref != LUA_NOREF )
+        luaL_unref(L, LUA_REGISTRYINDEX, script->porcelain_describe_ref);
+    lua_pushvalue(L, 1);
+    script->porcelain_describe_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    lua_pushvalue(L, 1);
+    slot = lua_porcelain_callback_alloc(L, lua_gettop(L), "@describe");
+    lua_pop(L, 1);
+    api->porcelain->describe(script->porcelain, lua_porcelain_describe_trampoline, slot);
+    return 0;
+}
+static int lua_porcelain_invalidate(lua_State* L)
+{
+    lua_current_api(L)->porcelain->invalidate(lua_porcelain(L));
+    return 0;
+}
+static int lua_porcelain_note(lua_State* L)
+{
+    static char const* const NAMES[PORCELAIN_INPUT_COUNT] = {"element", "asset", "config",
+                                                             "screen", "canvas", "explicit"};
+    char const* name = luaL_checkstring(L, 1);
+    struct Porcelain* porcelain = lua_porcelain(L);
+    for( int i = 0; i < PORCELAIN_INPUT_COUNT; i++ )
+        if( strcmp(NAMES[i], name) == 0 )
+        {
+            lua_current_api(L)->porcelain->note(porcelain, (enum PorcelainInput)i);
+            return 0;
+        }
+    return luaL_error(L, "unknown porcelain input '%s'", name);
+}
+static int lua_porcelain_fence(lua_State* L)
+{
+    lua_current_api(L)->porcelain->fence(lua_porcelain(L));
+    return 0;
+}
+static int lua_porcelain_commit(lua_State* L)
+{
+    struct ToriRS_Api* api = lua_current_api(L);
+    if( api->porcelain ) api->porcelain->commit(api);
+    return 0;
+}
+static int lua_porcelain_relinquish(lua_State* L)
+{
+    lua_current_api(L)->porcelain->relinquish(lua_porcelain(L));
+    return 0;
+}
+static int lua_porcelain_element(lua_State* L)
+{
+    struct PorcelainElementState state;
+    struct PorcelainElement element = lua_porcelain_element_arg(L, 1);
+    bool bound = lua_current_api(L)->porcelain->element(lua_porcelain(L), element, &state);
+    lua_createtable(L, 0, 10);
+    lua_pushstring(L, state.bind == PORCELAIN_BOUND ? "bound"
+                      : state.bind == PORCELAIN_ABSENT ? "absent" : "pending");
+    lua_setfield(L, -2, "bind");
+    lua_pushboolean(L, bound); lua_setfield(L, -2, "ok");
+    lua_pushboolean(L, state.presented); lua_setfield(L, -2, "presented");
+    lua_pushboolean(L, state.own_hidden); lua_setfield(L, -2, "own_hidden");
+    lua_pushboolean(L, state.native_hidden); lua_setfield(L, -2, "native_hidden");
+    lua_pushboolean(L, state.input_present); lua_setfield(L, -2, "input_present");
+    lua_pushinteger(L, (lua_Integer)state.graphic_token); lua_setfield(L, -2, "graphic_token");
+    lua_pushinteger(L, (lua_Integer)state.facets); lua_setfield(L, -2, "facets");
+    lua_pushinteger(L, (lua_Integer)state.incarnation); lua_setfield(L, -2, "incarnation");
+    lua_createtable(L, 0, 4);
+    lua_pushinteger(L, state.box.x); lua_setfield(L, -2, "x");
+    lua_pushinteger(L, state.box.y); lua_setfield(L, -2, "y");
+    lua_pushinteger(L, state.box.width); lua_setfield(L, -2, "width");
+    lua_pushinteger(L, state.box.height); lua_setfield(L, -2, "height");
+    lua_setfield(L, -2, "box");
+    lua_createtable(L, 0, 4);
+    lua_pushinteger(L, state.local.x); lua_setfield(L, -2, "x");
+    lua_pushinteger(L, state.local.y); lua_setfield(L, -2, "y");
+    lua_pushinteger(L, state.local.width); lua_setfield(L, -2, "width");
+    lua_pushinteger(L, state.local.height); lua_setfield(L, -2, "height");
+    lua_setfield(L, -2, "local_box");
+    return 1;
+}
+static int lua_porcelain_count(lua_State* L)
+{
+    struct PorcelainElement element = lua_porcelain_element_arg(L, 1);
+    lua_pushinteger(L, lua_current_api(L)->porcelain->count(lua_porcelain(L), element.kind));
+    return 1;
+}
+static int lua_porcelain_set(lua_State* L)
+{
+    struct PorcelainMotion motion;
+    char const* key = luaL_checkstring(L, 1);
+    luaL_checktype(L, 2, LUA_TTABLE);
+    memset(&motion, 0, sizeof(motion));
+    lua_raw_getfield(L, 2, "x");
+    if( !lua_isnoneornil(L, -1) ) { motion.x = (int32_t)lua_tointeger(L, -1); motion.mask |= PORCELAIN_MOTION_X; }
+    lua_pop(L, 1);
+    lua_raw_getfield(L, 2, "y");
+    if( !lua_isnoneornil(L, -1) ) { motion.y = (int32_t)lua_tointeger(L, -1); motion.mask |= PORCELAIN_MOTION_Y; }
+    lua_pop(L, 1);
+    lua_raw_getfield(L, 2, "opacity");
+    if( !lua_isnoneornil(L, -1) ) { motion.opacity = (int)lua_tointeger(L, -1); motion.mask |= PORCELAIN_MOTION_OPACITY; }
+    lua_pop(L, 1);
+    /* The image name is borrowed for the call only, so the value stays on the
+     * stack until after it. */
+    lua_raw_getfield(L, 2, "image");
+    if( !lua_isnoneornil(L, -1) ) { motion.image = lua_tostring(L, -1); motion.mask |= PORCELAIN_MOTION_IMAGE; }
+    {
+        enum ToriRS_Result const result =
+            lua_current_api(L)->porcelain->set(lua_porcelain(L), key, &motion);
+        lua_pop(L, 1);
+        lua_push_result(L, result);
+    }
+    return 2;
+}
+static int lua_porcelain_findings(lua_State* L)
+{
+    struct PorcelainFinding findings[PORCELAIN_FINDINGS_MAX];
+    int count = lua_current_api(L)->porcelain->findings(lua_porcelain(L), findings,
+                                                        PORCELAIN_FINDINGS_MAX);
+    lua_createtable(L, count, 0);
+    for( int i = 0; i < count; i++ )
+    {
+        lua_createtable(L, 0, 6);
+        lua_pushstring(L, findings[i].verb); lua_setfield(L, -2, "verb");
+        lua_pushinteger(L, findings[i].result); lua_setfield(L, -2, "result");
+        lua_pushstring(L, findings[i].detail ? findings[i].detail : ""); lua_setfield(L, -2, "detail");
+        lua_pushboolean(L, findings[i].expected); lua_setfield(L, -2, "expected");
+        lua_pushinteger(L, (lua_Integer)findings[i].first_frame); lua_setfield(L, -2, "first_frame");
+        lua_pushinteger(L, (lua_Integer)findings[i].count); lua_setfield(L, -2, "count");
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 1;
+}
+static int lua_porcelain_expect_absent(lua_State* L)
+{
+    struct PorcelainElement element = lua_porcelain_element_arg(L, 1);
+    lua_current_api(L)->porcelain->expect_absent(lua_porcelain(L), element,
+                                                 luaL_checkstring(L, 2));
+    return 0;
+}
+static int lua_porcelain_has(lua_State* L)
+{
+    lua_pushboolean(L, lua_current_api(L)->porcelain->has(lua_porcelain(L),
+                                                          luaL_checkstring(L, 1)));
+    return 1;
+}
+static int lua_porcelain_require(lua_State* L)
+{
+    lua_pushboolean(L, lua_current_api(L)->porcelain->require(lua_porcelain(L),
+                                                              luaL_checkstring(L, 1),
+                                                              luaL_checkstring(L, 2)));
+    return 1;
+}
+static struct PorcelainTiers
+lua_porcelain_tiers_arg(lua_State* L, int index)
+{
+    struct PorcelainTiers tiers;
+    luaL_checktype(L, index, LUA_TTABLE);
+    /* Read as 64-bit: a RuneLite insane threshold is well past 2^31 on a
+     * lane whose prices are in coins. */
+    tiers.low = lua_table_int64(L, index, "low");
+    tiers.medium = lua_table_int64(L, index, "medium");
+    tiers.high = lua_table_int64(L, index, "high");
+    tiers.insane = lua_table_int64(L, index, "insane");
+    return tiers;
+}
+static int lua_porcelain_tier(lua_State* L)
+{
+    struct PorcelainTiers tiers = lua_porcelain_tiers_arg(L, 1);
+    struct ToriRS_Api* api = lua_current_api(L);
+    lua_pushinteger(L, api->porcelain->tier(&tiers, (int64_t)luaL_checkinteger(L, 2)));
+    return 1;
+}
+static int lua_porcelain_tiers_from_config(lua_State* L)
+{
+    struct PorcelainTiers tiers;
+    memset(&tiers, 0, sizeof(tiers));
+    if( !lua_current_api(L)->porcelain->tiers_from_config(lua_porcelain(L), &tiers) )
+    { lua_pushnil(L); return 1; }
+    lua_createtable(L, 0, 4);
+    lua_pushinteger(L, (lua_Integer)tiers.low); lua_setfield(L, -2, "low");
+    lua_pushinteger(L, (lua_Integer)tiers.medium); lua_setfield(L, -2, "medium");
+    lua_pushinteger(L, (lua_Integer)tiers.high); lua_setfield(L, -2, "high");
+    lua_pushinteger(L, (lua_Integer)tiers.insane); lua_setfield(L, -2, "insane");
+    return 1;
+}
+static int lua_porcelain_config_list_add(lua_State* L)
+{
+    lua_pushboolean(L, lua_current_api(L)->porcelain->config_list_add(
+                           lua_porcelain(L), luaL_checkstring(L, 1), luaL_checkstring(L, 2)));
+    return 1;
+}
+static int lua_porcelain_menu_tag(lua_State* L)
+{
+    struct ToriRS_Api* api = lua_current_api(L);
+    lua_pushinteger(L, (lua_Integer)api->porcelain->menu_tag((int)luaL_checkinteger(L, 1),
+                                                             (int)luaL_checkinteger(L, 2)));
+    return 1;
+}
+static int lua_porcelain_setting(lua_State* L)
+{
+    unsigned flags = lua_toboolean(L, 2) ? PORCELAIN_SETTING_INVERTED : 0u;
+    lua_pushboolean(L, lua_current_api(L)->porcelain->setting(lua_porcelain(L),
+                                                              luaL_checkstring(L, 1), flags));
+    return 1;
+}
+static int lua_porcelain_key_edge(lua_State* L)
+{
+    char const* key = luaL_checkstring(L, 1);
+    struct LuaPorcelainCallback* slot;
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    slot = lua_porcelain_callback_alloc(L, 2, key);
+    lua_pushboolean(L, lua_current_api(L)->porcelain->key_edge(lua_porcelain(L), key,
+                                                               lua_porcelain_edge_cb, slot));
+    return 1;
+}
+static char const*
+lua_porcelain_asset_state_name(enum PorcelainAssetState state)
+{
+    return state == PORCELAIN_ASSET_READY ? "ready"
+           : state == PORCELAIN_ASSET_PENDING ? "pending"
+           : state == PORCELAIN_ASSET_MISSING ? "missing" : "error";
+}
+static int lua_porcelain_image(lua_State* L)
+{
+    enum PorcelainAssetState state = PORCELAIN_ASSET_PENDING;
+    struct ToriRS_ImageRef ref = lua_current_api(L)->porcelain->image(
+        lua_porcelain(L), luaL_checkstring(L, 1), &state);
+    if( state == PORCELAIN_ASSET_READY ) lua_pushinteger(L, ref.value); else lua_pushnil(L);
+    lua_pushstring(L, lua_porcelain_asset_state_name(state));
+    return 2;
+}
+static int lua_porcelain_model(lua_State* L)
+{
+    enum PorcelainAssetState state = PORCELAIN_ASSET_PENDING;
+    (void)lua_current_api(L)->porcelain->model(lua_porcelain(L), luaL_checkstring(L, 1), &state);
+    /* (nil, state): a model handle has no Lua representation, and MISSING
+     * must not read to a script as "not asked". */
+    lua_pushnil(L);
+    lua_pushstring(L, lua_porcelain_asset_state_name(state));
+    return 2;
+}
+static int lua_porcelain_derived(lua_State* L)
+{
+    char const* key = luaL_checkstring(L, 1);
+    size_t inputs_len = 0;
+    char const* inputs = luaL_checklstring(L, 2, &inputs_len);
+    int width = (int)luaL_checkinteger(L, 3);
+    int height = (int)luaL_checkinteger(L, 4);
+    enum PorcelainDerivedState state = PORCELAIN_DERIVED_PENDING;
+    struct LuaPorcelainCallback* slot;
+    struct ToriRS_ImageRef ref;
+    luaL_checktype(L, 5, LUA_TFUNCTION);
+    slot = lua_porcelain_callback_alloc(L, 5, key);
+    ref = lua_current_api(L)->porcelain->derived(lua_porcelain(L), key, inputs, inputs_len, width,
+                                                 height, lua_porcelain_paint_cb, slot, &state);
+    if( state == PORCELAIN_DERIVED_READY ) lua_pushinteger(L, ref.value); else lua_pushnil(L);
+    lua_pushstring(L, state == PORCELAIN_DERIVED_READY ? "ready"
+                      : state == PORCELAIN_DERIVED_PENDING ? "pending" : "failed");
+    return 2;
+}
+static unsigned
+lua_porcelain_ready_bits(lua_State* L, int index)
+{
+    static struct { char const* name; unsigned bit; } const BITS[] = {
+        {"game", PORCELAIN_READY_GAME},   {"world", PORCELAIN_READY_WORLD},
+        {"stats", PORCELAIN_READY_STATS}, {"player", PORCELAIN_READY_PLAYER},
+        {"derived", PORCELAIN_READY_DERIVED}, {NULL, 0}};
+    unsigned bits = 0;
+    char const* name = luaL_checkstring(L, index);
+    char const* cursor = name;
+    while( cursor && *cursor )
+    {
+        char const* comma = strchr(cursor, ',');
+        size_t span = comma ? (size_t)(comma - cursor) : strlen(cursor);
+        for( int i = 0; BITS[i].name; i++ )
+            if( strlen(BITS[i].name) == span && strncmp(BITS[i].name, cursor, span) == 0 )
+                bits |= BITS[i].bit;
+        cursor = comma ? comma + 1 : NULL;
+    }
+    if( !bits ) luaL_error(L, "unknown porcelain readiness '%s'", name);
+    return bits;
+}
+static int lua_porcelain_when_ready(lua_State* L)
+{
+    unsigned bits = lua_porcelain_ready_bits(L, 1);
+    struct LuaPorcelainCallback* slot;
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    slot = lua_porcelain_callback_alloc(L, 2, NULL);
+    lua_current_api(L)->porcelain->when_ready(lua_porcelain(L), bits, lua_porcelain_ready_cb,
+                                              slot);
+    return 0;
+}
+static enum PorcelainCadence
+lua_porcelain_cadence_arg(lua_State* L, int index)
+{
+    char const* name = luaL_checkstring(L, index);
+    if( strcmp(name, "logic_tick") == 0 ) return PORCELAIN_LOGIC_TICK;
+    if( strcmp(name, "server_tick") == 0 ) return PORCELAIN_SERVER_TICK;
+    if( strcmp(name, "frame") == 0 ) return PORCELAIN_FRAME;
+    luaL_error(L, "unknown porcelain cadence '%s'", name);
+    return PORCELAIN_FRAME;
+}
+static int lua_porcelain_every(lua_State* L)
+{
+    enum PorcelainCadence cadence = lua_porcelain_cadence_arg(L, 1);
+    struct LuaPorcelainCallback* slot;
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    slot = lua_porcelain_callback_alloc(L, 2, NULL);
+    lua_current_api(L)->porcelain->every(lua_porcelain(L), cadence, lua_porcelain_tick_cb, slot);
+    return 0;
+}
+static int lua_porcelain_every_server_tick(lua_State* L)
+{
+    struct LuaPorcelainCallback* slot;
+    luaL_checktype(L, 1, LUA_TFUNCTION);
+    slot = lua_porcelain_callback_alloc(L, 1, NULL);
+    lua_current_api(L)->porcelain->every_server_tick(lua_porcelain(L), lua_porcelain_tick_cb,
+                                                     slot);
+    return 0;
+}
+static int lua_porcelain_every_ms(lua_State* L)
+{
+    int ms = (int)luaL_checkinteger(L, 1);
+    struct LuaPorcelainCallback* slot;
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    slot = lua_porcelain_callback_alloc(L, 2, NULL);
+    lua_current_api(L)->porcelain->every_ms(lua_porcelain(L), ms, lua_porcelain_tick_cb, slot);
+    return 0;
+}
+static int lua_porcelain_tick(lua_State* L)
+{
+    lua_current_api(L)->porcelain->tick(lua_porcelain(L), lua_porcelain_cadence_arg(L, 1));
+    return 0;
+}
+
 /* Registration arrays are the runtime inventory.  The Python contract test
  * reads these exact arrays and compares them bidirectionally with LuaLS. */
 static struct LuaFn const LUA_SCRIPTS_FNS[] = {
@@ -1774,6 +2639,32 @@ static struct LuaFn const LUA_GRAPHICS_FNS[] = {
     {"image",lua_builder_image},{"world_tile",lua_builder_world_tile},{"world_hull",lua_builder_world_hull},
     {"image_clip",lua_builder_image_clip},{"context",lua_builder_context},{NULL,NULL}
 };
+static struct LuaFn const LUA_PORCELAIN_FNS[] = {
+    {"open",lua_porcelain_open},{"close",lua_porcelain_close},
+    {"describe",lua_porcelain_describe},{"invalidate",lua_porcelain_invalidate},
+    {"note",lua_porcelain_note},{"fence",lua_porcelain_fence},
+    {"commit",lua_porcelain_commit},{"relinquish",lua_porcelain_relinquish},
+    {"element",lua_porcelain_element},{"count",lua_porcelain_count},
+    {"set",lua_porcelain_set},{"findings",lua_porcelain_findings},
+    {"expect_absent",lua_porcelain_expect_absent},{"has",lua_porcelain_has},
+    {"require",lua_porcelain_require},{"tier",lua_porcelain_tier},
+    {"tiers_from_config",lua_porcelain_tiers_from_config},
+    {"config_list_add",lua_porcelain_config_list_add},{"menu_tag",lua_porcelain_menu_tag},
+    {"setting",lua_porcelain_setting},{"key_edge",lua_porcelain_key_edge},
+    {"image",lua_porcelain_image},{"model",lua_porcelain_model},
+    {"derived",lua_porcelain_derived},{"when_ready",lua_porcelain_when_ready},
+    {"every",lua_porcelain_every},{"every_server_tick",lua_porcelain_every_server_tick},
+    {"every_ms",lua_porcelain_every_ms},{"tick",lua_porcelain_tick},{NULL,NULL}
+};
+
+static struct LuaFn const LUA_PORCELAIN_DESCRIBE_FNS[] = {
+    {"control",lua_porcelain_control},{"piece",lua_porcelain_piece},
+    {"text",lua_porcelain_text},{"blocker",lua_porcelain_blocker},
+    {"move",lua_porcelain_move},{"hide",lua_porcelain_hide},
+    {"skin",lua_porcelain_skin},{"opacity",lua_porcelain_opacity},
+    {"unsupported",lua_porcelain_unsupported},{NULL,NULL}
+};
+
 static struct LuaFn const LUA_PANEL_BUILDER_FNS[] = {
     {"heading",lua_panel_builder_heading},{"paragraph",lua_panel_builder_paragraph},
     {"toggle",lua_panel_builder_toggle},{"select",lua_panel_builder_select},
@@ -1793,7 +2684,8 @@ static struct LuaModuleRegistration const LUA_API_MODULES[] = {
     {"scripts",LUA_SCRIPTS_FNS},{"input",LUA_INPUT_FNS},{"menu",LUA_MENU_FNS},
     {"frame",LUA_FRAME_FNS},{"draw",LUA_DRAW_API_FNS},{"assets",LUA_ASSETS_FNS},
     {"scene",LUA_SCENE_FNS},{"panel",LUA_PANEL_FNS},{"cache",LUA_CACHE_FNS},
-    {"client",LUA_CLIENT_FNS},{"game",LUA_GAME_FNS},{NULL,NULL}
+    {"client",LUA_CLIENT_FNS},{"game",LUA_GAME_FNS},
+    {"porcelain",LUA_PORCELAIN_FNS},{NULL,NULL}
 };
 
 static void
@@ -1834,6 +2726,7 @@ lua_build_api_table(struct LuaScript* script)
     script->api_ref=luaL_ref(L,LUA_REGISTRYINDEX);
     lua_register_functions(L,script,LUA_GRAPHICS_FNS);script->draw_ref=luaL_ref(L,LUA_REGISTRYINDEX);
     lua_register_functions(L,script,LUA_PANEL_BUILDER_FNS);script->panel_builder_ref=luaL_ref(L,LUA_REGISTRYINDEX);
+    lua_register_functions(L,script,LUA_PORCELAIN_DESCRIBE_FNS);script->porcelain_builder_ref=luaL_ref(L,LUA_REGISTRYINDEX);
 }
 
 static void
@@ -1938,16 +2831,43 @@ lua_cb_start(struct ToriRS_Api* api, void* state)
         (void)lua_call_end(script, LUA_ON_START, 1, false);
 }
 
+/*
+ * Closing the handle here is what makes "a plugin being stopped relinquishes
+ * every claim" true for a Lua plugin: close removes the owned controls,
+ * releases the images, resets the edits and drops the claims, so the next
+ * claimer gets the element at the following fence rather than eight findings.
+ */
+static void
+lua_porcelain_stop(struct LuaScript* script, struct ToriRS_Api* api)
+{
+    if( !script ) return;
+    if( script->porcelain && api && api->porcelain )
+        api->porcelain->close(script->porcelain);
+    script->porcelain = NULL;
+    script->cur_describe = NULL;
+    if( script->porcelain_describe_ref != LUA_NOREF && script->L )
+        luaL_unref(script->L, LUA_REGISTRYINDEX, script->porcelain_describe_ref);
+    script->porcelain_describe_ref = LUA_NOREF;
+    if( script->L ) lua_porcelain_callbacks_clear(script);
+}
+
 static void
 lua_cb_stop(struct ToriRS_Api* api, void* state)
 {
     struct LuaScript* script = lua_script_for_api(api);
     (void)state;
-    if( script && script->reload_failed ) { lua_widget_watches_clear(script); lua_widget_ops_clear(script); return; }
+    if( script && script->reload_failed )
+    {
+        lua_widget_watches_clear(script);
+        lua_widget_ops_clear(script);
+        lua_porcelain_stop(script, api);
+        return;
+    }
     if( lua_call_begin(script, api, LUA_ON_STOP) )
         (void)lua_call_end(script, LUA_ON_STOP, 1, false);
     lua_widget_watches_clear(script);
     lua_widget_ops_clear(script);
+    lua_porcelain_stop(script, api);
 }
 #define SIMPLE_EVENT_CB(fn,handler,type,push) static void fn(struct ToriRS_Api*a,void*state,type const*e){(void)state;struct LuaScript*s=lua_script_for_api(a);if(lua_call_begin(s,a,handler)){push(s->L,e);lua_call_end(s,handler,2,false);}}
 SIMPLE_EVENT_CB(lua_cb_frame,LUA_ON_FRAME_START,struct ToriRS_FrameEvent,lua_push_frame_event)
@@ -2344,6 +3264,8 @@ lua_script_build(
     script->api_ref = LUA_NOREF;
     script->draw_ref = LUA_NOREF;
     script->panel_builder_ref = LUA_NOREF;
+    script->porcelain_builder_ref = LUA_NOREF;
+    script->porcelain_describe_ref = LUA_NOREF;
     for( int i = 0; i < LUA_HANDLER_COUNT; i++ )
         script->handler_ref[i] = LUA_NOREF;
     script->config_count = 0;

@@ -92,6 +92,10 @@ def main() -> int:
         "LUA_WIDGET_METHOD_FNS",
         "LUA_GRAPHICS_FNS",
         "LUA_PANEL_BUILDER_FNS",
+        # The Porcelain describe builder is an object handed to the describe
+        # callback, exactly like the panel builder, so it is inventoried the
+        # same way rather than as a namespace.
+        "LUA_PORCELAIN_DESCRIBE_FNS",
     }
     errors += difference("registration arrays", set(arrays), expected_array_names)
 
@@ -104,6 +108,7 @@ def main() -> int:
         "assets": "ToriRS_AssetsApi", "scene": "ToriRS_SceneApi",
         "panel": "ToriRS_PanelApi", "cache": "ToriRS_CacheApi",
         "client": "ToriRS_ClientApi", "game": "ToriRS_GameApi",
+        "porcelain": "ToriRS_PorcelainApi",
     }
     errors += difference("canonical module set", set(modules), set(module_structs))
     for module, struct_name in module_structs.items():
@@ -136,6 +141,7 @@ def main() -> int:
     for array, class_name in (
         ("LUA_GRAPHICS_FNS", "torirs.Graphics"),
         ("LUA_PANEL_BUILDER_FNS", "torirs.PanelBuilder"),
+        ("LUA_PORCELAIN_DESCRIBE_FNS", "torirs.PorcelainDescribe"),
     ):
         errors += difference(
             class_name,
@@ -151,6 +157,11 @@ def main() -> int:
         "panel builder versus API header",
         arrays.get("LUA_PANEL_BUILDER_FNS", set()),
         struct_callables(api_source, "ToriRS_PanelBuilder"),
+    )
+    errors += difference(
+        "porcelain describe builder versus API header",
+        arrays.get("LUA_PORCELAIN_DESCRIBE_FNS", set()),
+        struct_callables(api_source, "ToriRS_PorcelainDescribe"),
     )
 
     handler_match = re.search(

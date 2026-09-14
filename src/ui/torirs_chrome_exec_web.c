@@ -595,7 +595,7 @@ chrome_web_batch_command(
         s->json,
         sizeof(s->json),
         "%s{\"k\":%d,\"p\":%d,\"w\":%d,\"tab\":%d,\"v\":%d,\"c\":%u,"
-        "\"x\":%d,\"y\":%d,\"cw\":%d,\"ch\":%d,\"s\":%u,"
+        "\"x\":%d,\"y\":%d,\"cw\":%d,\"ch\":%d,\"s\":%u,\"b\":%d,"
         "\"label\":\"%s\",\"text\":\"%s\",\"detail\":\"%s\"}",
         s->batch_commands ? "," : "",
         cmd->kind,
@@ -609,6 +609,7 @@ chrome_web_batch_command(
         cmd->w,
         cmd->h,
         (unsigned)cmd->serial,
+        cmd->before_widget,
         label,
         text,
         detail);

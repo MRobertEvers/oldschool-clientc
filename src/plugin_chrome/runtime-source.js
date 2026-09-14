@@ -722,7 +722,11 @@
       cw: integer(input && input.cw, 0), ch: integer(input && input.ch, 0),
       label: text(input && input.label, 63), text: text(input && input.text),
       detail: text(input && input.detail),
-      s: unsigned(input && input.s)
+      s: unsigned(input && input.s),
+      /* WIDGET_ADD's insertion anchor: the handle the new row goes before.
+       * -1 -- and an absent field, which is every stream authored before this
+       * one -- means append. */
+      b: integer(input && input.b, -1)
     };
   }
 
@@ -1084,7 +1088,19 @@
         hidden(row, true);
         break;
     }
-    content.appendChild(row);
+    /*
+     * WHERE, not just what. The command's "b" names the row this one must go
+     * before, by handle -- the same handle space "w" uses -- because an ADD is
+     * not always an append: a row can be given a new identity between
+     * unchanged neighbours, and the host states that as REMOVE then ADD.
+     *
+     * Absent, -1, or a handle this page does not hold means append. The first
+     * keeps a stream authored before this field valid; the last is what the
+     * in-order snapshot carries, where a row's successor does not exist yet.
+     */
+    const before = state.widgets.get(integer(command.b, -1));
+    if (before && before.row.parentNode === content) content.insertBefore(row, before.row);
+    else content.appendChild(row);
     state.widgets.set(record.handle, record);
     indexWidget(record);
     queueWidgetRender(record, RENDER.FULL);

@@ -163,6 +163,21 @@ void PluginHost_WidgetsChanged(struct ToriRS_PluginHost*, uint64_t instance, uin
  * generation) is exactly the bug this pass exists to fix. */
 void PluginHost_WidgetStates(struct ToriRS_PluginHost*);
 
+/*
+ * Install the Porcelain verb table, which every api this host mints then
+ * carries as `api->porcelain`.
+ *
+ * The host does not LINK Porcelain. Porcelain is a plugin-side library -- a
+ * client of struct ToriRS_Api and nothing else -- so a host that referenced
+ * ToriRS_PorcelainApiTable() directly would drag the library into every one
+ * of the eight test binaries that compile torirs_plugin_host.c, for a layer
+ * none of them uses. The client installs it once at startup; a host that
+ * never does answers NULL, and a plugin that needs the layer checks once.
+ *
+ * NULL clears it.
+ */
+void PluginHost_SetPorcelain(struct ToriRS_PorcelainApi const* table);
+
 /* Internal native adapter. No VM pointer or borrowed stack slot reaches a
  * plugin. The adapter and its strings live only through this dispatch. */
 struct PluginScriptStack

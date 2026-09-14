@@ -609,6 +609,139 @@ warn = nil
 ---@field get_string fun(ref:torirs.ScriptRef,index:integer):string
 ---@field set_string fun(ref:torirs.ScriptRef,index:integer,value:string):boolean At most 16384 bytes, no embedded NUL.
 
+---@alias torirs.PorcelainInput 'element'|'asset'|'config'|'screen'|'canvas'|'explicit'
+---@alias torirs.PorcelainCadence 'logic_tick'|'server_tick'|'frame'
+---@alias torirs.PorcelainBind 'bound'|'absent'|'pending'
+---@alias torirs.PorcelainPlacementKind 'replace'|'inside'|'beside'|'at_element'|'at_canvas'|'at_usable'
+---@alias torirs.PorcelainCorner 'top_left'|'top_right'|'bottom_left'|'bottom_right'|'centre'
+---@alias torirs.PorcelainSide 'left'|'right'|'above'|'below'
+---@alias torirs.PorcelainDerivedState 'ready'|'pending'|'failed'
+
+
+--- The Porcelain layer: describe what should exist relative to NAMED ELEMENTS
+--- of the game UI, and the client keeps that description true as the cache's
+--- scripts, the server and the engine change those elements.
+---
+--- Every verb has the same NAME as its C counterpart on `api->porcelain`.
+--- Only the arity is shorter: a Lua script is one plugin, so the handle is the
+--- script's own and never an argument -- the same shortening `api.widgets.get`
+--- already takes. Call `open` once from `on_start`.
+---
+--- An element is named by a small grammar: "minimap", "orb:run",
+--- "chat_filter:3", "tab:inventory", "panel:inventory", "role:my_role".
+--- An element a lane does not have answers `bind == 'absent'` with one
+--- finding; it is never a guess and never a lineage test.
+---@class torirs.PorcelainApi
+---@field open fun(): boolean Open the layer for this plugin. False when the host did not install it.
+---@field close fun() Remove every owned control, release every image, reset every edit, drop every claim.
+---@field describe fun(fn: fun(d: torirs.PorcelainDescribe)) The one describe function. Re-run only when an input moved.
+---@field invalidate fun() Re-run describe at the next fence.
+---@field note fun(input: torirs.PorcelainInput) One of this plugin's inputs moved.
+---@field fence fun() Reconcile this plugin. Call once a frame, from on_frame_start.
+---@field commit fun() Flush every fenced plugin with EXACTLY ONE layout resolve.
+---@field relinquish fun() Drop every claim, before arbitration runs again.
+---@field element fun(element: string): torirs.PorcelainElementState
+---@field count fun(family: string): integer How many members this LANE has. Never a picked number.
+---@field set fun(key: string, motion: torirs.PorcelainMotion): boolean, torirs.ResultName The direct per-frame path.
+---@field findings fun(): torirs.PorcelainFinding[]
+---@field expect_absent fun(element: string, why: string) on_start only. Fails loudly in BOTH directions.
+---@field has fun(capability: string): boolean
+---@field require fun(capability: string, feature: string): boolean False turns the feature off and records one finding.
+---@field tier fun(tiers: torirs.PorcelainTiers, value: integer): integer Strictly greater; a threshold at or below zero disables its tier.
+---@field tiers_from_config fun(): torirs.PorcelainTiers? This plugin's own four keys.
+---@field config_list_add fun(key: string, item: string): boolean Measures before joining; refuses rather than truncating.
+---@field menu_tag fun(subject: integer, op: integer): integer Subject and intent frozen into the retained row.
+---@field setting fun(varbit_name: string, inverted?: boolean): boolean Absent is OFF, with one finding across many reads.
+---@field key_edge fun(config_key: string, fn: fun(down: boolean)): boolean False on a touch lane, with one finding.
+---@field image fun(name: string): integer?, torirs.AssetStateName
+---@field model fun(name: string): nil, torirs.AssetStateName A model handle has no Lua representation; the STATE is the answer.
+---@field derived fun(key: string, inputs: string, width: integer, height: integer, paint: fun(w: integer, h: integer): integer[]?): integer?, torirs.PorcelainDerivedState
+---@field when_ready fun(what: string, fn: fun(what: integer)) Comma-separated: game, world, stats, player, derived.
+---@field every fun(cadence: torirs.PorcelainCadence, fn: fun())
+---@field every_server_tick fun(fn: fun()) Fires on EVERY lane; there is no synthesised cadence.
+---@field every_ms fun(milliseconds: integer, fn: fun())
+---@field tick fun(cadence: torirs.PorcelainCadence) Forward this plugin's own tick callback.
+
+--- The describe builder, handed to the describe function and legal only
+--- inside it. Items are applied in DESCRIPTION ORDER and a later item is over
+--- an earlier one by default.
+---@class torirs.PorcelainDescribe
+---@field control fun(item: torirs.PorcelainItem) Picture, operation and hit box. `image = nil` is an invisible hit box.
+---@field piece fun(item: torirs.PorcelainItem) Picture only: no operation, no hit box.
+---@field text fun(item: torirs.PorcelainItem) Text in an EXPLICIT box: nothing measures a string.
+---@field blocker fun(item: torirs.PorcelainItem) An invisible, armed hit box.
+---@field move fun(element: string, box: torirs.PorcelainBox, anchor_modes?: integer) Omit x or y to keep it block-relative.
+---@field hide fun(element: string) A presentation hide. Never an unhide.
+---@field skin fun(element: string, image?: string, mask?: string) Independent halves.
+---@field opacity fun(element: string, opacity: integer)
+---@field unsupported fun(reason: string) This feature cannot run on this lane. One finding, no items.
+
+---@class torirs.PorcelainItem
+---@field key string Stable identity. A key not re-described is removed.
+---@field image? string Asset or derived key. nil means "exists, draws nothing".
+---@field place torirs.PorcelainPlace
+---@field w? integer
+---@field h? integer
+---@field opacity? integer
+---@field text? string
+---@field rgb? integer
+---@field align? integer 0 left, 1 centre (the default), 2 right.
+---@field outline? boolean
+---@field op_label? string
+---@field on_op? fun(key: string)
+---@field hit? boolean
+---@field enabled? boolean False is drawn, inert, no menu row.
+---@field visible_with? string An extra presented-gate: OVER inherits nothing.
+
+---@class torirs.PorcelainPlace
+---@field kind torirs.PorcelainPlacementKind
+---@field on? string The element this item belongs to.
+---@field depth? string Sit over (or behind) THIS element instead.
+---@field behind? boolean
+---@field corner? torirs.PorcelainCorner For kind 'inside'.
+---@field side? torirs.PorcelainSide For kind 'beside'.
+---@field dx? integer
+---@field dy? integer
+
+---@class torirs.PorcelainBox
+---@field x? integer
+---@field y? integer
+---@field width? integer
+---@field height? integer
+
+---@class torirs.PorcelainElementState
+---@field bind torirs.PorcelainBind
+---@field ok boolean
+---@field presented boolean Every veto folded in.
+---@field own_hidden boolean The node's own hide bit.
+---@field native_hidden boolean The engine's native suppression.
+---@field input_present boolean
+---@field graphic_token integer A CHANGE token, never an identity.
+---@field facets integer
+---@field incarnation integer
+---@field box torirs.PorcelainBox Canvas space.
+---@field local_box torirs.PorcelainBox Parent-local, unscrolled.
+
+---@class torirs.PorcelainMotion
+---@field x? integer
+---@field y? integer
+---@field opacity? integer
+---@field image? string
+
+---@class torirs.PorcelainFinding
+---@field verb string
+---@field result integer
+---@field detail string
+---@field expected boolean
+---@field first_frame integer
+---@field count integer
+
+---@class torirs.PorcelainTiers
+---@field low integer
+---@field medium integer
+---@field high integer
+---@field insane integer
+
 ---@class torirs.Api
 ---@field widgets torirs.WidgetsApi
 ---@field scripts torirs.ScriptsApi
@@ -625,6 +758,7 @@ warn = nil
 ---@field cache torirs.CacheApi
 ---@field client torirs.ClientApi
 ---@field game torirs.GameApi
+---@field porcelain torirs.PorcelainApi
 
 ---@class torirs.Plugin
 ---@field id string Stable plugin id.

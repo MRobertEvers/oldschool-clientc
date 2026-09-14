@@ -383,7 +383,8 @@ static void append_command(
     json_string(json, cmd->text);
     json_append(json, ",\"detail\":");
     json_string(json, cmd->detail);
-    json_appendf(json, ",\"s\":%u}", (unsigned)cmd->serial);
+    json_appendf(
+        json, ",\"s\":%u,\"b\":%d}", (unsigned)cmd->serial, cmd->before_widget);
 }
 
 static int send_batch(struct WinBrowserExec* s)

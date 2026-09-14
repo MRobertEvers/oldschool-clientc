@@ -83,6 +83,9 @@ static struct ToriRSChromeCmd command(int kind, int panel, int widget)
     cmd.panel = panel;
     cmd.widget = widget;
     cmd.tab = -1;
+    /* Mirrors the executor's own cmd_init: zero is a real widget handle, so
+     * the neutral "no insertion anchor stated" value has to be -1. */
+    cmd.before_widget = -1;
     return cmd;
 }
 
@@ -139,6 +142,9 @@ int main(void)
     cmd = command(TORIRS_CHROME_CMD_WIDGET_ADD, 2, 10);
     cmd.value = TORIRS_CHROME_W_DROPDOWN;
     cmd.serial = 490;
+    /* Stated for a middle row: this one has to land in front of widget 9,
+     * not wherever the page happens to end. */
+    cmd.before_widget = 9;
     snprintf(cmd.label, sizeof(cmd.label), "Gameframe");
     exec.apply(exec.user, &cmd);
     cmd = command(TORIRS_CHROME_CMD_WIDGET_OPTIONS, 2, 10);
@@ -169,6 +175,11 @@ int main(void)
     CHECK(strstr(sent[2], "\"type\":\"page.snapshot\"") != NULL);
     CHECK(strstr(sent[2], "\"pageGeneration\":11") != NULL);
     CHECK(strstr(sent[2], "\"s\":481") != NULL);
+    /* The ADD that stated no anchor says so, and the one that stated an anchor
+     * carries the handle. Without both, a re-identified row is appended and
+     * the page silently reorders itself. */
+    CHECK(strstr(sent[2], "\"s\":481,\"b\":-1") != NULL);
+    CHECK(strstr(sent[2], "\"s\":490,\"b\":9") != NULL);
     CHECK(strstr(sent[2], "\"x\":1") != NULL &&
           strstr(sent[2], "\"text\":\"ready/frame\"") != NULL &&
           strstr(sent[2], "\"label\":\"Same|label\"") != NULL &&

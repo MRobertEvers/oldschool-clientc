@@ -744,6 +744,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_highlight.c game/rs_clientop.c game/rs_entity_overlay.c \
 	game/rs_client_trigger.c \
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+	plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
 	plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/client_settings.c \
@@ -2356,6 +2357,22 @@ test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_fr
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/plugin_host_test
+
+# The Porcelain layer, against ONE shared fake engine. The record's seventh
+# bug class is that every unit test shipped its own fake, 1,256 to 3,382 lines
+# of it, so a new engine callback had to be added to all of them; there is one
+# here, it records every call in order, and the recorded log is the
+# hand-expansion into raw api-> calls that the layer promises. Every rule the
+# cases pin names, in a comment above itself, the mutation that turns it red.
+.PHONY: test-porcelain
+test-porcelain: $(OBJ_DIR) plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+		plugin/porcelain/test/porcelain_testbed.c plugin/porcelain/test/porcelain_test.c \
+		$(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/porcelain_test \
+		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+		plugin/porcelain/test/porcelain_testbed.c plugin/porcelain/test/porcelain_test.c \
+		$(LDFLAGS)
+	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/porcelain_test
 
 # Public major-3 source contract. This target stays parse/type-check only so an API
 # header regression is reported directly; runtime registration and behavior
