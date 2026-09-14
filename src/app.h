@@ -26,6 +26,7 @@
 #include "game/rs_ground_items_dirty.h"
 #include "engine/title_flames.h"
 #include "game/rs_login_replies.h"
+#include "game/rs_title_session.h"
 #include "game/rs_preload.h"
 #include "game/rs_title.h"
 #include "net/rev/revpacket.h"
@@ -742,10 +743,6 @@ struct App
      *  every anim, model and map square there would put a second loading
      *  screen after the login this boot just performed. */
     int dat1_prefetch_queued;
-    /** 1 while the warm gameframe bake of App_BootGameframeThenTitle is in
-     *  flight: the title screen is opened the moment it settles, before any
-     *  frame can render the gameframe it baked. */
-    int title_pending_after_boot;
 
     /* Phase 2: asset pipeline. The build cache matching the live disk backs
      * `provider`; everything downstream sees only the provider. */
@@ -1361,16 +1358,11 @@ struct App
      *  its fields, and the reply lines the login response filled in.
      *  @see AppScreen for how it relates to the session as a whole. */
     struct RS_Title title;
-    /**
-     * Per-frame scratch the title host requests hand out, ONE SLOT PER FIELD.
-     *
-     * Frame-lifetime pointers, the same contract as the hovertext and
-     * reboot-timer strings -- but unlike those there are two live at once, and
-     * a single shared buffer makes the second compose overwrite the first
-     * while the emit list still points at it. Both rows then draw the
-     * password, which is exactly as bad as it sounds.
-     */
-    char title_field_line[RS_TITLE_FIELD_COUNT][RS_TITLE_FIELD_LEN + 64];
+    /** Getting from that screen to the world, once: the credentials, the
+     *  one automatic submit, the frame between a submit and its dial, and
+     *  the per-field scratch the host requests hand out. @see
+     *  game/rs_title_session.h for why each of those is a rule. */
+    struct RS_TitleSession title_session;
 
     /** What each login rejection means, in this revision's words. Loaded from
      *  the profile beside RevConfigRefs and alive for the whole session. */
@@ -1416,34 +1408,6 @@ struct App
      *  pointer so app.h need not include the net headers. */
     struct ToriRS_Network* net;
     int net_enabled;
-    /**
-     * Credentials to submit, from --user/--pass or the manifest's [net:boot].
-     *
-     * Kept rather than dialled with: the connect happens on submit now, so
-     * these prefill the form and drive the one automatic submit. Empty means
-     * an interactive login -- the old "guest"/"" defaults went with the call
-     * that used them.
-     */
-    char autologin_user[64];
-    char autologin_pass[64];
-    /** [net:boot] address, kept for the same reason. */
-    char connect_target[256];
-    /** Cleared once the automatic submit has fired, so a failed login returns
-     *  to the form instead of retrying by itself forever. */
-    int autologin_done;
-    /**
-     * A submitted login, waiting for the frame that says so to reach the
-     * screen before it dials.
-     *
-     * The submit changes what the player is looking at -- the message line
-     * becomes "Connecting to server...", and the Login and Cancel buttons are
-     * withdrawn (title_form_buttons) -- and then the connect begins a stretch
-     * of work with no frame in it. Dialling in the same tick means the screen
-     * still shows an untouched form throughout: the click reads as ignored,
-     * and the client looks hung rather than busy. So the submit ends the tick
-     * here, and the next one connects, with the frame in between.
-     */
-    int title_connect_pending;
 
     /*
      * Connection loss and re-establishment (reference `lostCon`, Client-TS

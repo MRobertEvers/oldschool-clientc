@@ -598,6 +598,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	ui/uitree_if_events.c \
 	ui/uitree_if_store.c \
 	ui/uitree_canvas_floor.c \
+	game/rs_title_session.c \
 	ui/inv_drag.c \
 	ui/minimap_view.c \
 	ui/settings_pickers.c \
@@ -1658,6 +1659,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-settings-pickers
 	$(MAKE) test-inv-drag
 	$(MAKE) test-minimap-view
+	$(MAKE) test-title-session
 	$(MAKE) test-net-link-watch
 	$(MAKE) test-clientscript-queue
 	$(MAKE) test-editor-ghost
@@ -1773,6 +1775,18 @@ test-settings-pickers: $(OBJ_DIR)
 		ui/uitree_layout.c ui/uitree_debug_overlay.c ui/torirs_chrome_rail.c ui/uitree_frame.c \
 		perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/settings_pickers_test$(PLATFORM_EXE_SUFFIX)
+
+# Getting from the title screen to the world, once. An automatic submit that
+# fires twice reads as a server that keeps dropping you; a connect in the same
+# tick as its submit reads as a client that ignored the click; and a link that
+# has not been dialled yet sits in exactly the state a refused one does, so
+# without the pending arm the session shows a login failure on the way to a
+# login that succeeds. None of the three leaves anything in a log.
+.PHONY: test-title-session
+test-title-session: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_title_session_test$(PLATFORM_EXE_SUFFIX) \
+		game/test/rs_title_session_test.c game/rs_title_session.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_title_session_test$(PLATFORM_EXE_SUFFIX)
 
 # The minimap's geometry: where a thing in the world lands on the map, and
 # where on the ground a click on the map points. They are inverses at two

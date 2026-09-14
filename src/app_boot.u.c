@@ -737,7 +737,7 @@ App_BootGameframeThenTitle(struct App* app)
      * settles, and the post-login rebake redoes only the CPU half against
      * warm caches. */
     app->screen = APP_SCREEN_BOOT;
-    app->title_pending_after_boot = 1;
+    app->title_session.pending_after_boot = true;
     app_open_tree(app, -1, NULL, APP_TITLE_LAYOUT_GROUP);
 }
 
@@ -749,9 +749,9 @@ static void
 app_title_swap_if_pending(struct App* app)
 {
     assert(app);
-    if( !app->title_pending_after_boot || app->app_state != APP_STATE_READY )
+    if( !app->title_session.pending_after_boot || app->app_state != APP_STATE_READY )
         return;
-    app->title_pending_after_boot = 0;
+    app->title_session.pending_after_boot = false;
     App_OpenTitleScreen(app);
 }
 

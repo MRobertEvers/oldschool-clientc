@@ -1047,17 +1047,9 @@ App_Init(
          * "guest"/"" defaults are gone with the call: absent credentials now
          * mean an interactive login form, which is the point.
          */
-        snprintf(
-            app->autologin_user,
-            sizeof(app->autologin_user),
-            "%s",
-            cfg->connect_user ? cfg->connect_user : "");
-        snprintf(
-            app->autologin_pass,
-            sizeof(app->autologin_pass),
-            "%s",
-            cfg->connect_pass ? cfg->connect_pass : "");
-        snprintf(app->connect_target, sizeof(app->connect_target), "%s", cfg->connect_target);
+        RS_TitleSession_SetCredentials(
+            &app->title_session, cfg->connect_user, cfg->connect_pass);
+        RS_TitleSession_SetConnectTarget(&app->title_session, cfg->connect_target);
     }
 }
 

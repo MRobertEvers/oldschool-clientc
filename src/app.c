@@ -4059,8 +4059,8 @@ app_title_field_line(
                 : 1;
 
     snprintf(
-        app->title_field_line[cfg->field],
-        sizeof(app->title_field_line[cfg->field]),
+        app->title_session.field_line[cfg->field],
+        sizeof(app->title_session.field_line[cfg->field]),
         "%s%s%s",
         cfg->prefix,
         value,
@@ -4068,7 +4068,7 @@ app_title_field_line(
 
     if( req->u.get_title_field.out_focused )
         *req->u.get_title_field.out_focused = focused;
-    *req->u.get_title_field.out_text = app->title_field_line[cfg->field];
+    *req->u.get_title_field.out_text = app->title_session.field_line[cfg->field];
     return 1;
 }
 
@@ -8651,9 +8651,8 @@ App_Logout(struct App* app)
     RS_Title_SetScreen(&app->title, RS_TITLE_MAIN_MENU);
     /* The one automatic submit has already been spent on the session that just
      * ended; re-arming it here would dial straight back into the world the
-     * player asked to leave. @see App::autologin_done. */
-    app->autologin_done = 1;
-    app->title_connect_pending = 0;
+     * player asked to leave. @see RS_TitleSession_Abandon. */
+    RS_TitleSession_Abandon(&app->title_session);
     TORIRS_LOG("logout: session ended; back to the title screen\n");
     App_OpenTitleScreen(app);
 }
@@ -9157,6 +9156,36 @@ app_login_refresh_jag_checksums(struct App* app)
 #endif
 }
 
+/* The session machine works in phases and link states rather than in this
+ * client's screens and socket states, because the rules it owns are the same
+ * whether the screen is a cache-built title or a headless boot. These two say
+ * which is which. */
+static enum RS_TitleScreenPhase
+app_title_phase(struct App const* app)
+{
+    assert(app);
+    switch( app->screen )
+    {
+    case APP_SCREEN_TITLE: return RS_TITLE_PHASE_TITLE;
+    case APP_SCREEN_CONNECTING: return RS_TITLE_PHASE_CONNECTING;
+    case APP_SCREEN_GAME: return RS_TITLE_PHASE_GAME;
+    default: return RS_TITLE_PHASE_OTHER;
+    }
+}
+
+static enum RS_TitleLinkState
+app_title_link_state(struct App const* app)
+{
+    assert(app);
+    if( !app->net )
+        return RS_TITLE_LINK_ABSENT;
+    if( app->net->state == TORIRS_NET_GAME )
+        return RS_TITLE_LINK_IN_GAME;
+    if( app->net->state == TORIRS_NET_DISCONNECTED )
+        return RS_TITLE_LINK_DOWN;
+    return RS_TITLE_LINK_BUSY;
+}
+
 static void
 app_title_submit(struct App* app)
 {
@@ -9165,16 +9194,11 @@ app_title_submit(struct App* app)
     assert(app);
     app->title.submit_requested = 0;
 
-    if( !app->net_enabled || !app->net )
-        return;
-
     /* The password is not read here: the connect happens a tick later and
-     * takes both straight off the form -- see App::title_connect_pending. */
+     * takes both straight off the form -- see RS_TitleSession. */
     user = RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME);
-    /* Nothing to send. Left on the form rather than dialled with an empty
-     * name, which every server answers with a rejection the player then has
-     * to read as if it meant something. */
-    if( user[0] == '\0' )
+    if( !RS_TitleSession_Submit(
+            &app->title_session, app->net_enabled && app->net != NULL, user[0] != '\0') )
         return;
 
     /* The client knows WHEN to say this; the revision says what. */
@@ -9194,9 +9218,8 @@ app_title_submit(struct App* app)
      * the screen. The player clicks Login and watches nothing happen.
      *
      * The tick ends instead, the frame goes out, and app_title_tick dials on
-     * the next one -- see App::title_connect_pending.
+     * the next one -- RS_TitleSession_Submit has already armed that.
      */
-    app->title_connect_pending = 1;
 }
 
 /*
@@ -9222,14 +9245,16 @@ app_title_tick(struct App* app)
      * show progress on -- but the credentials still have to reach the server,
      * which is what App_Init used to do before the connect moved to submit.
      */
-    if( app->net_enabled && app->net && !app->autologin_done && app->screen == APP_SCREEN_GAME &&
-        app->autologin_user[0] )
+    if( RS_TitleSession_TakeHeadlessLogin(
+            &app->title_session, app->net_enabled && app->net != NULL, app_title_phase(app)) )
     {
-        app->autologin_done = 1;
         app_login_refresh_jag_checksums(app);
         app_login_set_client_identity(app);
         ToriRS_Network_ConnectLogin(
-            app->net, app->connect_target, app->autologin_user, app->autologin_pass);
+            app->net,
+            app->title_session.connect_target,
+            app->title_session.user,
+            app->title_session.password);
         return 0;
     }
 
@@ -9239,16 +9264,15 @@ app_title_tick(struct App* app)
     if( app->app_state != APP_STATE_READY )
         return 0;
 
-    /*
-     * Credentials from the command line or the manifest: prefill and submit
-     * once. Once, because a rejected login must land back on the form rather
-     * than dial again forever.
-     */
-    if( !app->autologin_done && app->autologin_user[0] && app->screen == APP_SCREEN_TITLE )
+    /* Credentials from the command line or the manifest: prefill and submit
+     * once. */
+    if( RS_TitleSession_TakePrefill(
+            &app->title_session, app->app_state == APP_STATE_READY, app_title_phase(app)) )
     {
-        app->autologin_done = 1;
-        RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_USERNAME, app->autologin_user);
-        RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, app->autologin_pass);
+        RS_Title_SetFieldText(
+            &app->title, RS_TITLE_FIELD_USERNAME, app->title_session.user);
+        RS_Title_SetFieldText(
+            &app->title, RS_TITLE_FIELD_PASSWORD, app->title_session.password);
         RS_Title_SetScreen(&app->title, RS_TITLE_LOGIN_FORM);
         app->title.submit_requested = 1;
         redraw = 1;
@@ -9265,14 +9289,13 @@ app_title_tick(struct App* app)
      * IS the state -- nothing can have edited it in between, and a copy would
      * be a second place for the credentials to live.
      */
-    else if( app->title_connect_pending )
+    else if( RS_TitleSession_TakePendingConnect(&app->title_session) )
     {
-        app->title_connect_pending = 0;
         app_login_refresh_jag_checksums(app);
         app_login_set_client_identity(app);
         ToriRS_Network_ConnectLogin(
             app->net,
-            app->connect_target,
+            app->title_session.connect_target,
             RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME),
             RS_Title_FieldText(&app->title, RS_TITLE_FIELD_PASSWORD));
         redraw = 1;
@@ -9280,7 +9303,7 @@ app_title_tick(struct App* app)
 
     /* The handshake finished: the server's IF_OPENTOP roots the gameframe,
      * exactly as a networked boot used to do straight out of App_Init. */
-    if( app->screen == APP_SCREEN_CONNECTING && app->net && app->net->state == TORIRS_NET_GAME )
+    if( RS_TitleSession_LoginSucceeded(app_title_phase(app), app_title_link_state(app)) )
     {
         App_OpenRootInterface(app, -1);
         return 1;
@@ -9296,15 +9319,15 @@ app_title_tick(struct App* app)
      * rather than inventing a sentence.
      *
      * Not while the dial is still queued. app_title_submit puts the screen on
-     * APP_SCREEN_CONNECTING one tick BEFORE it connects (App::title_connect_pending),
+     * APP_SCREEN_CONNECTING one tick BEFORE it connects (RS_TitleSession),
      * and TORIRS_NET_DISCONNECTED is also the state a network that has never
      * been dialled sits in -- so without this the submit tick reads its own
      * not-yet-started handshake as a failure, and the player is shown
      * [login_reply:default] ("Unexpected server response") on the way to a
      * login that then succeeds.
      */
-    if( app->screen == APP_SCREEN_CONNECTING && !app->title_connect_pending && app->net &&
-        app->net->state == TORIRS_NET_DISCONNECTED )
+    if( RS_TitleSession_LoginFailed(
+            &app->title_session, app_title_phase(app), app_title_link_state(app)) )
     {
         struct RS_LoginReply const* reply =
             RS_LoginReplies_Get(&app->login_replies, app->net->login_reply);
