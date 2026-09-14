@@ -41,6 +41,49 @@ those readouts print frame times and a comparator that failed on them would
 fail every port for ever. A key nobody declared volatile that changes its text
 still fails.
 
+## Declaring a difference the port is supposed to make
+
+Some ports are meant to change what the client shows. The ledger row a port
+exists to satisfy sometimes says today's output is the defect: a skill with no
+reading used to get an empty zero-by-zero orb, and "no reading, no orb" is the
+behaviour the row asks for. Without a way to say that, such a port can never
+pass this gate, and its verdict becomes an argument in prose -- which is the
+thing the comparator was built to replace.
+
+So a port may declare what it changes:
+
+```
+python3 tools/porcelain_gate/gate_diff.py --expect port.expect <pairs...>
+```
+
+One declaration per line, `kind target = reason`:
+
+```
+owned-drop  orb_hitpoints = a skill with no reading gets no orb; the empty
+                            control was the defect the ledger names
+only-before BOUNDS com=0x02240015 = the same row, said about the capture line
+normalise   scene = the image slot is an internal handle, and handing back the
+                    write-once source art renumbers what comes after it
+```
+
+`only-before` matches a whole capture line by substring. `owned-drop` names an
+owned control that must disappear. `normalise` strips `<name>=<value>` from
+every tail before comparing.
+
+A declaration is not a suppression, and three rules keep it from becoming one:
+
+- **Every declaration carries a reason**, and one with an empty reason is
+  refused outright rather than ignored.
+- **Every declaration is printed with the number of times it fired**, so a
+  reader sees what was excused and why.
+- **A declaration that never fires fails the gate.** A stale claim about what a
+  port changes is as wrong as an undeclared change, and this is the same
+  bidirectional rule the layer applies to a declared absence: a declaration has
+  to be true in both directions or it is not evidence.
+
+Write the reason for someone deciding whether to believe you. "internal handle"
+is a claim a reader can disagree with; "expected" is not.
+
 ## The baseline
 
 There is no baseline checked in. It is 22 MB of captures and it is a function
