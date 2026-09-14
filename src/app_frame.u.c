@@ -1961,45 +1961,48 @@ App_RunOnce(
         /* Mounts/bakes bump tree->generation; server texts that landed while
          * the target interface was unmounted re-apply onto the fresh nodes
          * (reference: IF_SETTEXT persists on IfType.list). */
-        if( app->if_text_count > 0 && app->tree->generation != app->if_text_applied_gen )
+        if( app->if_texts.count > 0 &&
+            app->tree->generation != app->if_texts.applied_generation )
         {
-            app->if_text_applied_gen = app->tree->generation;
-            for( int i = 0; i < app->if_text_count; i++ )
+            app->if_texts.applied_generation = app->tree->generation;
+            for( int i = 0; i < app->if_texts.count; i++ )
             {
-                bool ok =
-                    UITree_ApplyText(app->tree, app->if_texts[i].com_id, app->if_texts[i].text);
+                bool ok = UITree_ApplyText(
+                    app->tree, app->if_texts.entries[i].com_id, app->if_texts.entries[i].text);
                 if( !ok && torirs_env_net_debug() )
                     TORIRS_LOG(
                         "if_settext: reapply com=%d gen=%u missed\n",
-                        app->if_texts[i].com_id,
+                        app->if_texts.entries[i].com_id,
                         app->tree->generation);
             }
         }
-        if( app->if_hide_count > 0 && app->tree->generation != app->if_hide_applied_gen )
+        if( app->if_hides.count > 0 &&
+            app->tree->generation != app->if_hides.applied_generation )
         {
-            app->if_hide_applied_gen = app->tree->generation;
-            for( int i = 0; i < app->if_hide_count; i++ )
+            app->if_hides.applied_generation = app->tree->generation;
+            for( int i = 0; i < app->if_hides.count; i++ )
             {
-                bool ok =
-                    UITree_ApplyHide(app->tree, app->if_hides[i].com_id, app->if_hides[i].hide);
+                bool ok = UITree_ApplyHide(
+                    app->tree, app->if_hides.entries[i].com_id, app->if_hides.entries[i].value);
                 if( !ok && torirs_env_net_debug() )
                     TORIRS_LOG(
                         "if_sethide: reapply com=%d gen=%u missed\n",
-                        app->if_hides[i].com_id,
+                        app->if_hides.entries[i].com_id,
                         app->tree->generation);
             }
         }
-        if( app->if_colour_count > 0 && app->tree->generation != app->if_colour_applied_gen )
+        if( app->if_colours.count > 0 &&
+            app->tree->generation != app->if_colours.applied_generation )
         {
-            app->if_colour_applied_gen = app->tree->generation;
-            for( int i = 0; i < app->if_colour_count; i++ )
+            app->if_colours.applied_generation = app->tree->generation;
+            for( int i = 0; i < app->if_colours.count; i++ )
             {
                 bool ok = UITree_ApplyColour(
-                    app->tree, app->if_colours[i].com_id, app->if_colours[i].colour);
+                    app->tree, app->if_colours.entries[i].com_id, app->if_colours.entries[i].value);
                 if( !ok && torirs_env_net_debug() )
                     TORIRS_LOG(
                         "if_setcolour: reapply com=%d gen=%u missed\n",
-                        app->if_colours[i].com_id,
+                        app->if_colours.entries[i].com_id,
                         app->tree->generation);
             }
         }

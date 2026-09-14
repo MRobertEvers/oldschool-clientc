@@ -1183,7 +1183,12 @@ App_Shutdown(struct App* app)
     Task_EntityInfoScratchFree(app);
     free(app->if_heads);
     free(app->if_player_models);
-    free(app->if_hides);
+    /* All three of these were leaked. Only the hide array was freed, and its
+     * two siblings -- plus every string the text store strdup'd -- were not.
+     * They have owners now. */
+    UIIfIntStore_Free(&app->if_hides);
+    UIIfIntStore_Free(&app->if_colours);
+    UIIfTextStore_Free(&app->if_texts);
     /* The IF_SETEVENTS store was never released here; it had no owner to ask.
      * It does now, so it is freed with the rest of the if_* tables. */
     UIIfEventTable_Free(&app->if_events);

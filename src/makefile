@@ -596,6 +596,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_ground_items_dirty.c \
 	game/rs_worldmap_drag.c \
 	ui/uitree_if_events.c \
+	ui/uitree_if_store.c \
 	ui/uitree_keyboard_owner.c \
 	ui/uitree_popup_place.c \
 	engine/async_pending.c \
@@ -1643,8 +1644,20 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-async-pending
 	$(MAKE) test-ground-items-dirty
 	$(MAKE) test-uitree-popup-place
+	$(MAKE) test-uitree-if-store
+	$(MAKE) test-inv
 	$(MAKE) test-client-trigger
 	$(MAKE) test-world
+
+# The persistent IF_SET* stores. Keyed, not appended: a component's value is a
+# state, so appending would re-apply an old caption after a new one at the next
+# generation bump -- a quest panel reverting one line on a mount, with nothing
+# in between to blame.
+.PHONY: test-uitree-if-store
+test-uitree-if-store: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/uitree_if_store_test.c ui/uitree_if_store.c $(LDFLAGS)
+	./$(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX)
 
 # Where a settings popup goes beside the row that opened it. Obviously right
 # until a row is near an edge, and then the popup is half off screen or sitting

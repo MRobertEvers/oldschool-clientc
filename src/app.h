@@ -39,6 +39,7 @@
 #include "plugin/torirs_plugin_mesh.h"
 #include "ui/uitree_frame.h"
 #include "ui/uitree_if_events.h"
+#include "ui/uitree_if_store.h"
 #include "ui/uitree_role.h"
 #include "ui/uitree_scroll.h"
 #include "revconfig/revconfig_profile.h"
@@ -1264,14 +1265,7 @@ struct App
      * IfType.list config): the server sends journal/bonus texts BEFORE the
      * owning interface mounts, so they must survive and re-apply whenever
      * tree topology changes (tree->generation). */
-    struct AppIfText
-    {
-        int com_id;
-        char* text;
-    }* if_texts;
-    int if_text_count;
-    int if_text_cap;
-    uint32_t if_text_applied_gen;
+    struct UIIfTextStore if_texts;
 
     /* Persistent IF_SETHIDE store, same reasoning as if_texts (the reference
      * keeps `hide` on the shared IfType.list, so a hide sent before the owning
@@ -1279,14 +1273,7 @@ struct App
      * dialogs ship two sword-decoration layers — a narrow centred pair and a
      * wide corner pair — and the server picks one with IF_SETHIDE right after
      * IF_OPENCHAT; dropping it left the cache default (narrow) on screen. */
-    struct AppIfHide
-    {
-        int com_id;
-        int hide;
-    }* if_hides;
-    int if_hide_count;
-    int if_hide_cap;
-    uint32_t if_hide_applied_gen;
+    struct UIIfIntStore if_hides;
 
     /* Persistent IF_SETCOLOUR store, for the reason the two above exist: a
      * colour written before its interface has mounted has no node to land on,
@@ -1295,14 +1282,7 @@ struct App
      * card is what found it — server mounts the overlay and writes the red in
      * the same tick, and the red never arrived, so the card came up in the
      * cache's authored black. */
-    struct AppIfColour
-    {
-        int com_id;
-        int colour;
-    }* if_colours;
-    int if_colour_count;
-    int if_colour_cap;
-    uint32_t if_colour_applied_gen;
+    struct UIIfIntStore if_colours;
 
     /* Persistent IF_SETEVENTS store. At rev 230 nothing is clickable by
      * default — the server declares which slots of which component accept

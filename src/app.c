@@ -136,6 +136,7 @@ EM_JS(
 #include "ui/uitree_frame.h"
 #include "ui/uitree_input_signature.h"
 #include "ui/uitree_if_events.h"
+#include "ui/uitree_if_store.h"
 #include "ui/uitree_keyboard_owner.h"
 #include "ui/uitree_popup_place.h"
 #include "ui/uitree_iface_stats.h"
@@ -24198,26 +24199,8 @@ App_IfTextSet(
     int com_id,
     char const* text)
 {
-    int i;
     assert(app);
-    for( i = 0; i < app->if_text_count; i++ )
-        if( app->if_texts[i].com_id == com_id )
-            break;
-    if( i == app->if_text_count )
-    {
-        if( app->if_text_count == app->if_text_cap )
-        {
-            int cap = app->if_text_cap ? app->if_text_cap * 2 : 64;
-            app->if_texts = realloc(app->if_texts, (size_t)cap * sizeof(*app->if_texts));
-            assert(app->if_texts);
-            app->if_text_cap = cap;
-        }
-        app->if_texts[i].com_id = com_id;
-        app->if_texts[i].text = NULL;
-        app->if_text_count++;
-    }
-    free(app->if_texts[i].text);
-    app->if_texts[i].text = strdup(text ? text : "");
+    UIIfTextStore_Set(&app->if_texts, com_id, text);
     {
         bool applied = UITree_ApplyText(app->tree, com_id, text);
         if( torirs_env_net_debug() )
@@ -24236,24 +24219,8 @@ App_IfColourSet(
     int com_id,
     int colour)
 {
-    int i;
     assert(app);
-    for( i = 0; i < app->if_colour_count; i++ )
-        if( app->if_colours[i].com_id == com_id )
-            break;
-    if( i == app->if_colour_count )
-    {
-        if( app->if_colour_count == app->if_colour_cap )
-        {
-            int cap = app->if_colour_cap ? app->if_colour_cap * 2 : 64;
-            app->if_colours = realloc(app->if_colours, (size_t)cap * sizeof(*app->if_colours));
-            assert(app->if_colours);
-            app->if_colour_cap = cap;
-        }
-        app->if_colours[i].com_id = com_id;
-        app->if_colour_count++;
-    }
-    app->if_colours[i].colour = colour;
+    UIIfIntStore_Set(&app->if_colours, com_id, colour);
     {
         bool applied = UITree_ApplyColour(app->tree, com_id, colour);
         if( torirs_env_net_debug() )
@@ -24269,24 +24236,8 @@ App_IfHideSet(
     int com_id,
     int hide)
 {
-    int i;
     assert(app);
-    for( i = 0; i < app->if_hide_count; i++ )
-        if( app->if_hides[i].com_id == com_id )
-            break;
-    if( i == app->if_hide_count )
-    {
-        if( app->if_hide_count == app->if_hide_cap )
-        {
-            int cap = app->if_hide_cap ? app->if_hide_cap * 2 : 64;
-            app->if_hides = realloc(app->if_hides, (size_t)cap * sizeof(*app->if_hides));
-            assert(app->if_hides);
-            app->if_hide_cap = cap;
-        }
-        app->if_hides[i].com_id = com_id;
-        app->if_hide_count++;
-    }
-    app->if_hides[i].hide = hide ? 1 : 0;
+    UIIfIntStore_Set(&app->if_hides, com_id, hide ? 1 : 0);
     {
         bool applied = UITree_ApplyHide(app->tree, com_id, hide);
         if( torirs_env_net_debug() )
