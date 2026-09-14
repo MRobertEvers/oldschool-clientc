@@ -90,4 +90,34 @@ int RS_ClientTriggerHashGlobal(int trigger);
  */
 int RS_ClientTriggerNameHash(int trigger_hash);
 
+/**
+ * Look one clientscript group up by its name hash. -1 when the cache has none.
+ *
+ * A callback so that the walk below can live here with the three hash forms it
+ * walks, without this header reaching for the cache provider -- which would
+ * cost the standalone test the whole module exists to be able to have.
+ */
+typedef int (*RS_ClientTriggerScriptLookupFn)(void* user, int name_hash);
+
+/**
+ * The clientscript bound to `trigger` for this subject, or -1.
+ *
+ * Walks the three forms NARROWEST FIRST, exactly as `ClientScript::Get` does:
+ * this exact subject, then its category, then any subject at all. The order is
+ * the whole of the behaviour -- a global handler that ran in place of a
+ * subject-specific one would be a fishing spot drawing the generic marker
+ * instead of its own, which looks like the script being wrong rather than the
+ * lookup.
+ *
+ * The category form is skipped for a non-positive `category`, because 0 is
+ * "uncategorised" rather than "category zero" and the bias would turn it into
+ * a hash that collides with nothing but is asked for on every lookup.
+ */
+int RS_ClientTriggerScriptFor(
+    int trigger,
+    int subject,
+    int category,
+    RS_ClientTriggerScriptLookupFn lookup,
+    void* user);
+
 #endif /* RS_CLIENT_TRIGGER_H */

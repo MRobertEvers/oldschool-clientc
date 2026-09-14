@@ -4461,6 +4461,15 @@ app_client_trigger_queue(
     RS_CS2_RunScript(&app->host, &app->runner, script_id, NULL, 0, 0, NULL, 0);
 }
 
+/* RS_ClientTriggerScriptLookupFn over the cache provider. */
+static int
+app_client_trigger_lookup_script(
+    void* user,
+    int name_hash)
+{
+    return CacheProvider_ClientScriptIdByNameHash((struct CacheProvider*)user, name_hash);
+}
+
 /** The clientscript bound to `trigger` for this subject, or -1. Narrowest form
  *  first, exactly as `ClientScript::Get` walks them. */
 static int
@@ -4470,22 +4479,13 @@ app_client_trigger_script(
     int subject,
     int category)
 {
-    int id;
-
     assert(app);
 
+    /* "Is there a cache yet" is this caller's question. */
     if( !app->provider )
         return -1;
-    id = CacheProvider_ClientScriptIdByNameHash(
-        app->provider, RS_ClientTriggerNameHash(RS_ClientTriggerHashSubject(trigger, subject)));
-    if( id < 0 && category > 0 )
-        id = CacheProvider_ClientScriptIdByNameHash(
-            app->provider,
-            RS_ClientTriggerNameHash(RS_ClientTriggerHashCategory(trigger, category)));
-    if( id < 0 )
-        id = CacheProvider_ClientScriptIdByNameHash(
-            app->provider, RS_ClientTriggerNameHash(RS_ClientTriggerHashGlobal(trigger)));
-    return id;
+    return RS_ClientTriggerScriptFor(
+        trigger, subject, category, app_client_trigger_lookup_script, app->provider);
 }
 
 static void
