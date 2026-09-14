@@ -120,6 +120,7 @@ EM_JS(
 #include "plugin/torirs_plugin_registry.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
+#include "render/torirs_wedge_camera_path.h"
 #include "render/torirs_world_projection.h"
 #include "toridraw.h"
 #include "toridraw_model_transform.h"
@@ -19516,320 +19517,6 @@ app_update_painter_cull(
     (void)center_sx;
 }
 
-/* Camera paths -- TORIRS_WEDGE_CAM_PATH.
- *
- *   TORIRS_WEDGE_CAM_PATH=<mode>,<frames>,<wrap>;x,y,z,pitch,yaw;x,y,z,...
- *
- * <mode> is `linear` (straight legs between waypoints) or `spline` (a
- * Catmull-Rom curve THROUGH them). <frames> is how many frames one full
- * traversal takes. <wrap> is `loop` (waypoint N joins back to waypoint 0),
- * `pingpong` (walk it back the way it came) or `hold` (stop at the end).
- * Two waypoints and up; one waypoint is TORIRS_WEDGE_CAM with extra syntax.
- *
- * The phase is a function of the FRAME ORDINAL, never of the clock. A camera
- * driven by elapsed time would make the geometry depend on how fast the
- * machine drew it, so a slower renderer would be measured over a different
- * scene than the faster one it is being compared against -- and the counter
- * columns would stop being the cross-check they exist to be. Frame-indexed,
- * two runs of a scene traverse it identically whatever they cost.
- */
-#define APP_WEDGE_CAM_PATH_MAX 32
-
-enum
-{
-    APP_WEDGE_CAM_LINEAR = 0,
-    APP_WEDGE_CAM_SPLINE = 1
-};
-
-enum
-{
-    APP_WEDGE_CAM_LOOP = 0,
-    APP_WEDGE_CAM_PINGPONG = 1,
-    APP_WEDGE_CAM_HOLD = 2
-};
-
-struct AppWedgeCamKey
-{
-    int x;
-    int y;
-    int z;
-    int pitch;
-    int yaw;
-};
-
-struct AppWedgeCamPath
-{
-    int mode;
-    int wrap;
-    int count;
-    long frames;
-    /* Net yaw carried by one full traversal, so a looping orbit keeps turning
-     * the same way across the seam instead of unwinding at it. Zero for a path
-     * that ends facing where it started. */
-    long turn;
-    struct AppWedgeCamKey keys[APP_WEDGE_CAM_PATH_MAX];
-};
-
-/* Returns 1 only if the whole spec parsed. Never a partial path: half a route
- * read as a whole one is a camera that quietly measures somewhere else. */
-static int
-app_wedge_cam_path_parse(
-    char const* spec,
-    struct AppWedgeCamPath* out_path)
-{
-    char mode[16];
-    char wrap[16];
-    long frames = 0;
-    int consumed = 0;
-    int count = 0;
-    int i;
-    char const* cursor = spec;
-
-    assert(spec);
-    assert(out_path);
-
-    if( sscanf(cursor, " %15[^, ] , %ld , %15[^, ;]%n", mode, &frames, wrap, &consumed) != 3 )
-        return 0;
-    cursor += consumed;
-
-    if( strcmp(mode, "linear") == 0 )
-        out_path->mode = APP_WEDGE_CAM_LINEAR;
-    else if( strcmp(mode, "spline") == 0 )
-        out_path->mode = APP_WEDGE_CAM_SPLINE;
-    else
-        return 0;
-
-    if( strcmp(wrap, "loop") == 0 )
-        out_path->wrap = APP_WEDGE_CAM_LOOP;
-    else if( strcmp(wrap, "pingpong") == 0 )
-        out_path->wrap = APP_WEDGE_CAM_PINGPONG;
-    else if( strcmp(wrap, "hold") == 0 )
-        out_path->wrap = APP_WEDGE_CAM_HOLD;
-    else
-        return 0;
-
-    if( frames <= 0 )
-        return 0;
-    out_path->frames = frames;
-
-    while( count < APP_WEDGE_CAM_PATH_MAX )
-    {
-        struct AppWedgeCamKey key;
-
-        while( *cursor == ' ' )
-            cursor++;
-        if( *cursor != ';' )
-            break;
-        cursor++;
-        consumed = 0;
-        if( sscanf(
-                cursor,
-                " %d , %d , %d , %d , %d%n",
-                &key.x,
-                &key.y,
-                &key.z,
-                &key.pitch,
-                &key.yaw,
-                &consumed) != 5 )
-            return 0;
-        out_path->keys[count] = key;
-        count++;
-        cursor += consumed;
-    }
-    while( *cursor == ' ' )
-        cursor++;
-    if( *cursor != '\0' )
-        return 0;
-    if( count < 2 )
-        return 0;
-    out_path->count = count;
-
-    /* Unwrap yaw into a monotone sequence before anything interpolates it.
-     * 2048 units is a full turn, so 1900 -> 100 is +248, not -1800:
-     * interpolating the raw pair would spin the camera almost the whole way
-     * round to reach somewhere it was already next to. A deliberate orbit
-     * still works -- give it four waypoints a quarter turn apart and every hop
-     * is an unambiguous +512. */
-    for( i = 1; i < count; i++ )
-    {
-        int delta = (out_path->keys[i].yaw - out_path->keys[i - 1].yaw) % 2048;
-        if( delta > 1024 )
-            delta -= 2048;
-        if( delta < -1024 )
-            delta += 2048;
-        out_path->keys[i].yaw = out_path->keys[i - 1].yaw + delta;
-    }
-
-    out_path->turn = 0;
-    if( out_path->wrap == APP_WEDGE_CAM_LOOP )
-    {
-        /* The closing leg gets the same shortest-arc treatment, and what it
-         * adds is what one lap is worth in yaw. */
-        int delta = (out_path->keys[0].yaw - out_path->keys[count - 1].yaw) % 2048;
-        if( delta > 1024 )
-            delta -= 2048;
-        if( delta < -1024 )
-            delta += 2048;
-        out_path->turn = (out_path->keys[count - 1].yaw + delta) - out_path->keys[0].yaw;
-    }
-    return 1;
-}
-
-/* Waypoint by index, with the index allowed to run off both ends -- Catmull-Rom
- * needs the neighbours of the leg it is on. A loop wraps and carries the lap's
- * worth of yaw with it; the others clamp, which duplicates the endpoint and is
- * the usual way to terminate a Catmull-Rom. */
-static void
-app_wedge_cam_path_key(
-    struct AppWedgeCamPath const* path,
-    int index,
-    struct AppWedgeCamKey* out_key)
-{
-    int wrapped;
-    long laps = 0;
-
-    assert(path);
-    assert(out_key);
-    assert(path->count > 0);
-
-    if( path->wrap == APP_WEDGE_CAM_LOOP )
-    {
-        wrapped = index % path->count;
-        laps = (index - wrapped) / path->count;
-        if( wrapped < 0 )
-        {
-            wrapped += path->count;
-            laps -= 1;
-        }
-    }
-    else
-    {
-        wrapped = index;
-        if( wrapped < 0 )
-            wrapped = 0;
-        if( wrapped > path->count - 1 )
-            wrapped = path->count - 1;
-    }
-    *out_key = path->keys[wrapped];
-    out_key->yaw = (int)(out_key->yaw + laps * path->turn);
-}
-
-/* Fixed point rather than float, all the way through: the phase has to be a
- * bit-exact function of the frame ordinal on every build this suite compares. */
-static int
-app_wedge_cam_lerp(
-    int p0,
-    int p1,
-    int64_t t)
-{
-    return (int)((int64_t)p0 + ((((int64_t)p1 - (int64_t)p0) * t) >> 12));
-}
-
-static int
-app_wedge_cam_spline(
-    int p0,
-    int p1,
-    int p2,
-    int p3,
-    int64_t t)
-{
-    int64_t t2 = (t * t) >> 12;
-    int64_t t3 = (t2 * t) >> 12;
-    int64_t a = 2 * (int64_t)p1;
-    int64_t b = (int64_t)p2 - (int64_t)p0;
-    int64_t c = 2 * (int64_t)p0 - 5 * (int64_t)p1 + 4 * (int64_t)p2 - (int64_t)p3;
-    int64_t d = -(int64_t)p0 + 3 * (int64_t)p1 - 3 * (int64_t)p2 + (int64_t)p3;
-
-    return (int)((a + ((b * t) >> 12) + ((c * t2) >> 12) + ((d * t3) >> 12)) >> 1);
-}
-
-static void
-app_wedge_cam_path_eval(
-    struct AppWedgeCamPath const* path,
-    long frame,
-    struct AppWedgeCamKey* out_key)
-{
-    struct AppWedgeCamKey k0;
-    struct AppWedgeCamKey k1;
-    struct AppWedgeCamKey k2;
-    struct AppWedgeCamKey k3;
-    int64_t segments;
-    int64_t phase;
-    int64_t step;
-    int64_t t;
-    int index;
-
-    assert(path);
-    assert(out_key);
-    assert(path->count >= 2);
-    assert(path->frames > 0);
-
-    segments = (path->wrap == APP_WEDGE_CAM_LOOP) ? path->count : path->count - 1;
-
-    phase = frame;
-    if( path->wrap == APP_WEDGE_CAM_PINGPONG )
-    {
-        int64_t span = (int64_t)path->frames * 2;
-        phase = frame % span;
-        if( phase < 0 )
-            phase += span;
-        if( phase > path->frames )
-            phase = span - phase;
-    }
-    else if( path->wrap == APP_WEDGE_CAM_LOOP )
-    {
-        phase = frame % path->frames;
-        if( phase < 0 )
-            phase += path->frames;
-    }
-    else
-    {
-        if( phase < 0 )
-            phase = 0;
-        if( phase > path->frames )
-            phase = path->frames;
-    }
-
-    /* Position along the whole path in Q12, so an uneven frames/segments split
-     * does not park the camera on a waypoint for a frame and then jump. */
-    step = (phase * segments * 4096) / path->frames;
-    index = (int)(step >> 12);
-    t = step & 4095;
-    if( index >= segments )
-    {
-        index = (int)segments - 1;
-        t = 4096;
-    }
-
-    app_wedge_cam_path_key(path, index - 1, &k0);
-    app_wedge_cam_path_key(path, index, &k1);
-    app_wedge_cam_path_key(path, index + 1, &k2);
-    app_wedge_cam_path_key(path, index + 2, &k3);
-
-    if( path->mode == APP_WEDGE_CAM_SPLINE )
-    {
-        out_key->x = app_wedge_cam_spline(k0.x, k1.x, k2.x, k3.x, t);
-        out_key->y = app_wedge_cam_spline(k0.y, k1.y, k2.y, k3.y, t);
-        out_key->z = app_wedge_cam_spline(k0.z, k1.z, k2.z, k3.z, t);
-        out_key->pitch = app_wedge_cam_spline(k0.pitch, k1.pitch, k2.pitch, k3.pitch, t);
-        out_key->yaw = app_wedge_cam_spline(k0.yaw, k1.yaw, k2.yaw, k3.yaw, t);
-    }
-    else
-    {
-        out_key->x = app_wedge_cam_lerp(k1.x, k2.x, t);
-        out_key->y = app_wedge_cam_lerp(k1.y, k2.y, t);
-        out_key->z = app_wedge_cam_lerp(k1.z, k2.z, t);
-        out_key->pitch = app_wedge_cam_lerp(k1.pitch, k2.pitch, t);
-        out_key->yaw = app_wedge_cam_lerp(k1.yaw, k2.yaw, t);
-    }
-
-    /* Back into 0..2047. The unwrapped yaw above can be many turns from there,
-     * and a Catmull-Rom overshoots its control points -- so normalise both
-     * angles rather than hand a trig table an index it never expected. */
-    out_key->pitch = ((out_key->pitch % 2048) + 2048) % 2048;
-    out_key->yaw = ((out_key->yaw % 2048) + 2048) % 2048;
-}
-
 static void
 app_world_paint(struct App* app)
 {
@@ -19847,7 +19534,7 @@ app_world_paint(struct App* app)
         static int have = 0;
         static int have_path = 0;
         static int px, py, pz, ppitch, pyaw;
-        static struct AppWedgeCamPath path;
+        static struct ToriRS_WedgeCameraPath path;
         if( !resolved )
         {
             char const* wc = getenv("TORIRS_WEDGE_CAM");
@@ -19858,7 +19545,7 @@ app_world_paint(struct App* app)
              * thing being measured. */
             if( wp && wp[0] )
             {
-                if( app_wedge_cam_path_parse(wp, &path) )
+                if( ToriRS_WedgeCameraPathParse(wp, &path) )
                     have_path = 1;
                 else
                     /* Once, at resolve time, never per frame. Loud because the
@@ -19874,8 +19561,8 @@ app_world_paint(struct App* app)
         }
         if( have_path )
         {
-            struct AppWedgeCamKey key;
-            app_wedge_cam_path_eval(&path, g_torirs_frame_no, &key);
+            struct ToriRS_WedgeCameraKey key;
+            ToriRS_WedgeCameraPathEval(&path, g_torirs_frame_no, &key);
             app->world_camera_pos.x = key.x;
             app->world_camera_pos.y = key.y;
             app->world_camera_pos.z = key.z;

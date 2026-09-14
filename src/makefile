@@ -594,6 +594,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	$(PLATFORM_EXTRA_SRCS) \
 	$(JS5_SRCS) \
 	render/torirs_frame.c render/torirs_pick.c \
+	render/torirs_wedge_camera_path.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
 	input/torirs_touch.c \
@@ -1610,6 +1611,15 @@ test-cs2-opcode-groups: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_opcode_group_test \
 		cs2vm2/test/opcode_group_test.c cs2vm2/cs2_opcode_meta.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_opcode_group_test
+
+# The scripted capture camera (TORIRS_WEDGE_CAM_PATH): a route parses whole or
+# not at all, the three wrap modes behave at the seam, yaw takes the short way
+# round, and both angles come back inside [0,2048) even out of a spline.
+.PHONY: test-wedge-camera-path
+test-wedge-camera-path: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/wedge_camera_path_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/wedge_camera_path_test.c render/torirs_wedge_camera_path.c $(LDFLAGS)
+	./$(OBJ_DIR)/wedge_camera_path_test$(PLATFORM_EXE_SUFFIX)
 
 .PHONY: test-pacer
 test-pacer: $(OBJ_DIR)
