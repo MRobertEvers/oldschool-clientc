@@ -15,7 +15,9 @@
 -- STAGING-ABSOLUTE addresses (the boat instance's own tiles), and draw.world_tile
 -- recognises that band and draws the marker through the hull's live
 -- transform -- position, yaw and bob -- so every marker rides the boat.
--- Nothing in this file has to know any of that.
+-- Nothing in this file has to know any of that: the three addresses it is
+-- handed are the three addresses it passes on, untouched, and that is exactly
+-- why the staging band survives the trip.
 --
 -- The C twin of this file is src/plugin/plugins/tileind.c, which registers as
 -- "tile-indicator-c". Both are built on the same api and draw the same thing,
@@ -24,12 +26,53 @@
 -- plugins cannot share a name: it is the ini section and the panel row, and
 -- the host refuses the second one outright.
 --
+-- WHAT PORCELAIN IS HERE FOR, AND WHAT IT IS NOT
+--
+-- Not the picture. Three primitives, the same order, the same colours, the
+-- same tiles, on every lane. The ledger calls this plugin the yardstick and
+-- every one of its rows is SUPPORTED; a port that moved a pixel of it would be
+-- a defect, not a port.
+--
+-- It does not ask for porcelain.draw_context. That verb answers the pass's
+-- drawable rectangle and whether that rectangle IS the canvas, and a world
+-- tile is named in SCENE terms: v2_builder_world_tile hands the address
+-- straight to api_draw_tile without the scope's origin or clip touching it, so
+-- the pass region is not an input to a single one of these three calls.
+-- Returning early on the false it can answer would SUPPRESS three markers that
+-- would have drawn correctly -- which is a behaviour change dressed as a
+-- check. Its sibling overlay, entity-highlighter, declines the same verb for
+-- the same reason.
+--
+-- What the layer IS opened for is the refusal channel, and this plugin has
+-- exactly one refusal to put on it -- the one it cannot see:
+--
+--   draw.world_tile returns (ok, result) and the ledger reads that pair as "a
+--   refused draw is visible to the script". It is not. v2_builder_world_tile
+--   returns TORIRS_RESULT_OK unconditionally, and api_draw_tile -- which is
+--   where the per-frame draw-budget gate actually lives -- returns void and
+--   swallows the refusal. Reading the pair here would pin a constant while
+--   reading like a check that bites, so it is not read; the gap is DECLARED
+--   instead, with porcelain.expect_unsupported, so it is one expected finding
+--   in every capture rather than a sentence in a commit message. When the
+--   engine half lands, the declaration comes out and a real refusal becomes an
+--   unexpected finding on the same channel.
+--
+-- One more verb that does not fit, for the record: porcelain.hover answers the
+-- hovered container CELL -- an obj, a slot, which panel it belongs to -- and
+-- there is no tile anywhere in it. The hovered TILE is still
+-- api.input.hover_tile(), which is the scene pick, at the level the pick
+-- landed on.
+--
+-- There is no describe, no fence and no commit: nothing here is retained, so
+-- there is nothing to reconcile, and the steady state costs zero engine
+-- setters and zero revalidates because it makes no layer call at all.
+--
 
 ---@type torirs.Plugin
 local plugin = {
   id      = "tile-indicator-lua",
   title   = "Tile Indicator (Lua)",
-  version = "1.0.0",
+  version = "2.0.0",
   config  = {
     -- Every marker is an outline colour, a fill colour and the fill's
     -- opacity. The fill used to be the opacity alone, washed in the outline's
@@ -135,6 +178,18 @@ local function plugin_draw_player(api, draw)
     draw.world_tile(me.dest_x, me.dest_z, me.level,
       api.config.dest_fill_color, api.config.dest_color, api.config.dest_fill_alpha)
   end
+end
+
+function plugin.on_start(api)
+  if not api.porcelain.open() then
+    -- Out loud: without the layer there is no refusal channel at all, so the
+    -- one thing this plugin knows it cannot report goes unsaid. The markers
+    -- outrank the declaration and still draw.
+    api.core.log("tile-indicator-lua: no porcelain layer -- the draw refusal gap is unsaid")
+    return
+  end
+  api.porcelain.expect_unsupported("draw_refusal_readout",
+    "world_tile answers OK even when the budget refused it: api_draw_tile returns void")
 end
 
 function plugin.on_draw_world(api, draw)
