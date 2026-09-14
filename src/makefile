@@ -2532,9 +2532,12 @@ test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 
 .PHONY: test-minimap-orbs-v2
 test-minimap-orbs-v2: $(OBJ_DIR) $(ASAN_DYLD_SHIM) plugin/plugins/minimap_orbs.c \
-		plugin/test/minimap_orbs_v2_test.c
+		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+		plugin/porcelain/test/porcelain_testbed.c plugin/test/minimap_orbs_v2_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/minimap_orbs_v2_test \
-		plugin/plugins/minimap_orbs.c plugin/test/minimap_orbs_v2_test.c $(LDFLAGS)
+		plugin/plugins/minimap_orbs.c plugin/porcelain/porcelain.c \
+		plugin/porcelain/porcelain_helpers.c plugin/porcelain/test/porcelain_testbed.c \
+		plugin/test/minimap_orbs_v2_test.c $(LDFLAGS)
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/minimap_orbs_v2_test
 
 test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c \
