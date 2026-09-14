@@ -406,6 +406,52 @@ node_native_available(struct UITree const* tree, struct UITreeHost const* host,
     return node < 0;
 }
 
+/*
+ * Deliberately a SECOND statement of the conditions above rather than a
+ * refactor of `node_native_available` into a shared helper: the two must agree,
+ * and the only thing that can prove they do is a test that can break one
+ * without breaking the other (ui/test/uitree_test_input_walk.c compares the
+ * walks built on each). Fold them together and that proof evaporates.
+ */
+struct UITreeNativeGate
+UITree_NodeNativeGate(struct UITreeComponent const* component, int hovered_component_id,
+                      struct UITreeHost const* host)
+{
+    assert(component);
+
+    struct NativeAvailability availability = component_native_availability(component, host);
+    bool const visible_by_id = UITree_ComponentVisibleById(component, hovered_component_id);
+    /* The flag half of node_native_available's loop body, shared by both the
+     * self and the ancestor condition. */
+    bool const base = !component->freed && !component->screen_hidden &&
+                      !component->projection_hidden && !component->widget_hidden && visible_by_id;
+    struct UITreeNativeGate gate;
+    gate.self_input = base && availability.input;
+    gate.children_input = base && availability.paint && availability.input;
+    gate.visible = base && availability.paint;
+    gate.hit_visible = visible_by_id && availability.input;
+    return gate;
+}
+
+bool
+UITree_NodeNativeChainPresent(struct UITree const* tree, struct UITreeHost const* host,
+                              int32_t node, int hovered_component_id, bool input)
+{
+    assert(tree);
+
+    int guard = 0;
+    while( node >= 0 && (uint32_t)node < tree->component_count &&
+           guard++ < (int)tree->component_count )
+    {
+        struct UITreeComponent const* component = &tree->components[node];
+        struct UITreeNativeGate gate = UITree_NodeNativeGate(component, hovered_component_id, host);
+        if( !(input ? gate.children_input : gate.visible) )
+            return false;
+        node = component->parent;
+    }
+    return node < 0;
+}
+
 bool
 UITree_NodeNativeVisible(struct UITree const* tree, struct UITreeHost const* host,
                          int32_t node, int hovered_component_id)

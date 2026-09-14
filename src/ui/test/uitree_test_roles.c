@@ -150,6 +150,31 @@ test_role_table(void)
     TEST_ASSERT(strcmp(UITree_RoleName(&table, a), "report_button") == 0, "name round-trips");
     TEST_ASSERT(UITree_RoleName(&table, 0) == NULL, "role 0 has no name");
 
+    /* The name index survives its own rebuilds: interning past several
+     * doublings keeps every earlier name findable and every unknown name 0. */
+    {
+        struct UITreeRoleTable many = { 0 };
+        char name[UITREE_ROLE_NAME_MAX];
+        int all_found = 1, none_bogus = 1;
+        for( int i = 0; i < 300; i++ )
+        {
+            snprintf(name, sizeof(name), "indexed_role_%d", i);
+            TEST_ASSERT(UITree_RoleIntern(&many, name) == (uint16_t)(i + 1), "ids stay dense across index rebuilds");
+        }
+        for( int i = 0; i < 300; i++ )
+        {
+            snprintf(name, sizeof(name), "indexed_role_%d", i);
+            if( UITree_RoleFind(&many, name) != (uint16_t)(i + 1) ) all_found = 0;
+            snprintf(name, sizeof(name), "indexed_role_%d_", i);
+            if( UITree_RoleFind(&many, name) != 0 ) none_bogus = 0;
+        }
+        TEST_ASSERT(all_found, "every interned name is found through the index after rebuilds");
+        TEST_ASSERT(none_bogus, "a near-miss name is role 0");
+        TEST_ASSERT(many.name_index_capacity >= 600, "the index is kept at most half full");
+        UITree_RoleTableFree(&many);
+        TEST_ASSERT(many.name_index == NULL, "free drops the index");
+    }
+
     /* A chain is capped, and the rung past the cap is refused rather than
      * quietly dropped -- the caller is the one that must report it. */
     for( int i = 0; i < UITREE_ROLE_MAX_MATCHERS; i++ )

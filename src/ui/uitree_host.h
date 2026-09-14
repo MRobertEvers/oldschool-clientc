@@ -755,6 +755,57 @@ bool UITree_NodeNativeVisible(struct UITree const* tree, struct UITreeHost const
 bool UITree_NodeNativeInputPresent(struct UITree const* tree, struct UITreeHost const* host,
                                    int32_t node);
 
+/**
+ * Everything `node_native_available` asks about ONE node, answered in one pass.
+ *
+ * The walks used to ask it a node at a time through UITree_NodeNativeVisible /
+ * UITree_NodeNativeInputPresent, and each of those re-walks the whole ancestor
+ * chain issuing a host request per ancestor -- O(n x depth) per walk, and
+ * `collect_nodes_recursive` asked TWICE per node. A recursive walk already
+ * knows its ancestors passed (it only descends through nodes that did), so it
+ * needs the per-node half only, plus the fact to pass down.
+ *
+ * `self_input` is the self condition of node_native_available(input=true);
+ * `children_input` is the ANCESTOR condition, which additionally demands paint.
+ * They differ, and the difference matters: a hidden MINIMAP or an unlit
+ * REDSTONE_TAB keeps input while losing paint, so it is present for input
+ * itself but must NOT let its children through.
+ *
+ * `visible` is both halves of node_native_available(input=false) -- there the
+ * self and ancestor conditions are the same test.
+ *
+ * `hit_visible` is UITree_ComponentHitTestVisibleHost(component, hovered, host),
+ * folded in because it shares the availability lookup.
+ */
+struct UITreeNativeGate
+{
+    bool self_input;
+    bool children_input;
+    bool visible;
+    bool hit_visible;
+};
+
+struct UITreeNativeGate
+UITree_NodeNativeGate(
+    struct UITreeComponent const* component,
+    int hovered_component_id,
+    struct UITreeHost const* host);
+
+/**
+ * The ancestor condition of node_native_available applied to `node` and every
+ * node above it, ending at the root. `node < 0` is the empty chain and passes.
+ *
+ * A walk calls this once, for the parent of the node it starts at, and then
+ * carries the answer down itself.
+ */
+bool
+UITree_NodeNativeChainPresent(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int32_t node,
+    int hovered_component_id,
+    bool input);
+
 bool
 UITree_ComponentVisibleHost(
     struct UITreeComponent const* component,

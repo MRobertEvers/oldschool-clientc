@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "uitree_input.h"
+#include "perf_audit.h"
 
 #include "perf/torirs_perf.h"
 #include "uitree_inv_view.h"
@@ -303,7 +304,8 @@ hit_test_interactive_recursive(
     struct UITreeScrollClip const* clip,
     struct UITreeScrollClip const* surface,
     int* out_blocks,
-    int* out_blocks_world)
+    int* out_blocks_world,
+    int ancestors_present)
 {
     assert(tree);
     if( out_blocks )
@@ -314,6 +316,14 @@ hit_test_interactive_recursive(
         return -1;
 
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_HIT, 1);
+    UITree_WalkCountNodeVisit(tree);
+
+    /* Some ancestor is not present for input, so neither is anything under it.
+     * The caller carries that fact down (UITree_NodeNativeGate.children_input);
+     * node_native_available used to rediscover it by re-walking the whole chain
+     * from every node, which is what made this walk O(n x depth). */
+    if( !ancestors_present )
+        return -1;
 
     if( clip && clip->clip_w > 0 && clip->clip_h > 0 && !UITree_PointInClip(px, py, clip) )
         return -1;
@@ -346,7 +356,10 @@ hit_test_interactive_recursive(
             return -1;
     }
 
-    if( !UITree_NodeNativeInputPresent(tree, host, node_index) ) return -1;
+    /* Availability for THIS node only: the ancestors' half arrived as
+     * `ancestors_present` above. */
+    struct UITreeNativeGate const gate = UITree_NodeNativeGate(component, -1, host);
+    if( !gate.self_input ) return -1;
     int bx = 0;
     int by = 0;
     int bw = 0;
@@ -386,12 +399,12 @@ hit_test_interactive_recursive(
             bx, by, bw, bh,
             (int)point_in_self,
             (int)UITree_ComponentIsPassThrough(component, host),
-            (int)UITree_ComponentHitTestVisibleHost(component, -1, host));
+            (int)gate.hit_visible);
 
     int32_t hit = -1;
     if( point_in_self &&
         !UITree_ComponentIsPassThrough(component, host) &&
-        UITree_ComponentHitTestVisibleHost(component, -1, host) )
+        gate.hit_visible )
         hit = node_index;
 
     /* A no_click_through node covering the point blocks click-through to nodes
@@ -484,7 +497,8 @@ hit_test_interactive_recursive(
                 &child_clip,
                 &child_surface,
                 &child_blocks,
-                &child_blocks_world);
+                &child_blocks_world,
+                gate.children_input);
             /* Later siblings render on top. A blocking child also discards this
              * node's own hit and earlier siblings. */
             if( child_blocks )
@@ -599,10 +613,18 @@ collect_nodes_recursive(
     int scroll_off_y,
     struct UITreeScrollClip const* clip,
     struct UITreeScrollClip const* surface,
-    struct collect_nodes_ctx* ctx)
+    struct collect_nodes_ctx* ctx,
+    int ancestors_present)
 {
     assert(tree);
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return;
+
+    UITree_WalkCountNodeVisit(tree);
+
+    /* See hit_test_interactive_recursive: an ancestor that is not present for
+     * input hides everything below it, and the caller already knows. */
+    if( !ancestors_present )
         return;
 
     bool const clipped = clip && clip->clip_w > 0 && clip->clip_h > 0 && !UITree_PointInClip(px, py, clip);
@@ -612,7 +634,12 @@ collect_nodes_recursive(
 
     if( component->behavior.hide || component->mount_hidden || component->screen_hidden || (component->projection_hidden || component->widget_hidden) ||
         component->frame_hidden ) return;
-    if( !UITree_NodeNativeInputPresent(tree, host, node_index) ) return;
+    /* Availability for THIS node only, evaluated ONCE. It used to be two
+     * UITree_NodeNativeInputPresent calls straddling the sidebar gate below,
+     * each re-walking the ancestor chain and issuing a host request per
+     * ancestor, so the collection cost O(n x depth x 2). */
+    struct UITreeNativeGate const gate = UITree_NodeNativeGate(component, -1, host);
+    if( !gate.self_input ) return;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
      * walk), before the no_click_through barrier below. Otherwise an inactive
@@ -625,7 +652,9 @@ collect_nodes_recursive(
             return;
     }
 
-    if( !UITree_NodeNativeInputPresent(tree, host, node_index) ) return;
+    /* (The second availability test that used to stand here is gone: it asked
+     * the same pure question of the same (component, host) pair as the one
+     * above, which the sidebar gate cannot have changed.) */
     int bx = 0;
     int by = 0;
     int bw = 0;
@@ -653,15 +682,24 @@ collect_nodes_recursive(
     bool const inv_slot_hit =
         !clipped && collect_inv_grid_slot_hit(component, bx, by, px, py, scroll_off_x, scroll_off_y);
 
+    /* UITree_ComponentIsPassThrough issues a host request for every ordinary
+     * graphic/text/rect (GET_IF_EVENTS), and this node asks it twice — once for
+     * `interactive`, once for `menu`. Memoised, not hoisted: the lazy form keeps
+     * the old short-circuit exactly, which matters because the MINIMENU arm of
+     * that function asserts a host is present. */
+    int passthrough = -1;
+#define COLLECT_PASSTHROUGH()                                                                      \
+    (passthrough >= 0 ? passthrough                                                                \
+                      : (passthrough = UITree_ComponentIsPassThrough(component, host) ? 1 : 0))
+
     struct FrameInputEvent event = { .node_plus_one = node_index + 1 };
     event.barrier = point_in_self && component->no_click_through;
     event.world = node_index == tree->world_index && point_in_self;
     event.geometric = point_in_self && component->type != UIELEM_RS_LAYER;
     event.interactive = point_in_self &&
-                        !UITree_ComponentIsPassThrough(component, host) &&
-                        UITree_ComponentHitTestVisibleHost(component, -1, host);
-    if( (point_in_self || inv_slot_hit) &&
-        UITree_ComponentHitTestVisibleHost(component, -1, host) )
+                        !COLLECT_PASSTHROUGH() &&
+                        gate.hit_visible;
+    if( (point_in_self || inv_slot_hit) && gate.hit_visible )
     {
         bool const inv_grid =
             component->type == UIELEM_RS_INV || component->type == UIELEM_RS_INV_TEXT;
@@ -678,10 +716,11 @@ collect_nodes_recursive(
          * child — so every other test here calls it pass-through chrome and
          * drops it, and the equipment slots become unclickable. */
         bool const has_obj = component->item_id > 0;
-        event.menu = inv_grid || has_ops || has_obj || !UITree_ComponentIsPassThrough(component, host);
+        event.menu = inv_grid || has_ops || has_obj || !COLLECT_PASSTHROUGH();
         if( event.menu && !ctx->events && ctx->count < ctx->max )
             ctx->out[ctx->count++] = node_index;
     }
+#undef COLLECT_PASSTHROUGH
 
     if( ctx->events && ctx->count < ctx->max ) ctx->events[ctx->count++] = event;
 
@@ -749,24 +788,47 @@ collect_nodes_recursive(
                 is_mount ? scroll_off_y : child_scroll_y,
                 &child_clip,
                 &child_surface,
-                ctx);
+                ctx,
+                gate.children_input);
         }
     }
 }
 
+/*
+ * The ordered event collection every depth-path entry point shares.
+ *
+ * The buffer is the tree's own walk scratch, borrowed for the length of the
+ * walk and handed back by frame_input_events_done — NOT malloc'd and freed per
+ * call, which is what six of these a frame used to cost (1,037,160 bytes a
+ * frame on rev239 root 548). Its contents are undefined on entry; every entry
+ * up to ctx.count is fully assigned before anything reads it.
+ */
 static struct FrameInputEvent*
 frame_input_events(struct UITree const* tree, struct UITreeHost const* host,
                    int px, int py, int* count)
 {
     struct collect_nodes_ctx ctx = { .max = (int)tree->component_count * 2 + 1 };
-    ctx.events = calloc((size_t)ctx.max, sizeof(*ctx.events));
-    assert(ctx.events);
+    ctx.events = UITree_WalkScratchAcquire(
+        tree, UITREE_WALK_SCRATCH_INPUT, (size_t)ctx.max * sizeof(*ctx.events));
     for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
         if( UITree_RootIsDisplayable(tree, root) )
-            collect_nodes_recursive(tree, host, root, px, py, 0, 0, NULL, NULL, &ctx);
+            collect_nodes_recursive(
+                tree, host, root, px, py, 0, 0, NULL, NULL, &ctx,
+                /* A root's chain is normally empty, so this costs nothing; it is
+                 * here because "root" means "walk start", not "parentless". */
+                UITree_NodeNativeChainPresent(
+                    tree, host, tree->components[root].parent, -1, true));
+    g_pa_site = 1;
+    PA_INC(input_events_calls);
     *count = UITree_FrameReorder(tree, host, ctx.events, ctx.count, sizeof(*ctx.events),
                                 offsetof(struct FrameInputEvent, node_plus_one));
     return ctx.events;
+}
+
+static void
+frame_input_events_done(struct UITree const* tree)
+{
+    UITree_WalkScratchRelease(tree, UITREE_WALK_SCRATCH_INPUT);
 }
 
 static int32_t
@@ -781,7 +843,7 @@ frame_ordered_hit(struct UITree const* tree, struct UITreeHost const* host,
         if( events[i].barrier || events[i].world ) hit = -1;
         if( geometric ? events[i].geometric : events[i].interactive ) hit = events[i].node_plus_one - 1;
     }
-    free(events);
+    frame_input_events_done(tree);
     return hit;
 }
 
@@ -807,7 +869,7 @@ UITree_CollectNodesAt(
             if( events[i].barrier || events[i].world ) barrier = i;
         for( int i = count - 1; i >= barrier && kept < max_nodes; i-- )
             if( events[i].menu ) out_nodes[kept++] = events[i].node_plus_one - 1;
-        free(events);
+        frame_input_events_done(tree);
         return kept;
     }
 
@@ -815,7 +877,9 @@ UITree_CollectNodesAt(
     {
         if( !UITree_RootIsDisplayable(tree, root) )
             continue;
-        collect_nodes_recursive(tree, host, root, px, py, 0, 0, NULL, NULL, &ctx);
+        collect_nodes_recursive(
+            tree, host, root, px, py, 0, 0, NULL, NULL, &ctx,
+            UITree_NodeNativeChainPresent(tree, host, tree->components[root].parent, -1, true));
     }
 
     /* Slice below the top-most blocking panel, then reverse to top-most-first. */
@@ -853,7 +917,8 @@ UITree_HitTestInteractive(
         if( !UITree_RootIsDisplayable(tree, root) )
             continue;
         root_hit = hit_test_interactive_recursive(
-            tree, host, root, px, py, 0, 0, NULL, NULL, &root_blocks, NULL);
+            tree, host, root, px, py, 0, 0, NULL, NULL, &root_blocks, NULL,
+            UITree_NodeNativeChainPresent(tree, host, tree->components[root].parent, -1, true));
         /* Later roots render on top. A no_click_through root captures the point
          * and discards hits from roots underneath (even if it has no hit itself). */
         if( root_blocks )
@@ -885,7 +950,7 @@ UITree_PointBlocksWorld(
             if( events[i].world ) blocked = 0;
             else if( events[i].barrier ) blocked = 1;
         }
-        free(events);
+        frame_input_events_done(tree);
         return blocked;
     }
 
@@ -896,12 +961,76 @@ UITree_PointBlocksWorld(
         if( !UITree_RootIsDisplayable(tree, root) )
             continue;
         (void)hit_test_interactive_recursive(
-            tree, host, root, px, py, 0, 0, NULL, NULL, &root_blocks, &root_blocks_world);
+            tree, host, root, px, py, 0, 0, NULL, NULL, &root_blocks, &root_blocks_world,
+            UITree_NodeNativeChainPresent(tree, host, tree->components[root].parent, -1, true));
         if( root_blocks_world )
             return 1;
     }
 
     return 0;
+}
+
+void
+UITree_PointQuery(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py,
+    int* out_blocks_world,
+    int32_t* out_interactive_hit)
+{
+    assert(tree);
+    assert(out_blocks_world);
+    assert(out_interactive_hit);
+
+    *out_blocks_world = 0;
+    *out_interactive_hit = -1;
+
+    if( UITree_FrameHasDepth(tree) )
+    {
+        int count;
+        int blocked = 0;
+        int32_t hit = -1;
+        struct FrameInputEvent* events = frame_input_events(tree, host, px, py, &count);
+        /* Byte for byte the two loops UITree_PointBlocksWorld and
+         * UITree_HitTestInteractive each ran over their own copy of this list. */
+        for( int i = 0; i < count; i++ )
+        {
+            if( events[i].barrier || events[i].world ) hit = -1;
+            if( events[i].interactive ) hit = events[i].node_plus_one - 1;
+            if( events[i].world ) blocked = 0;
+            else if( events[i].barrier ) blocked = 1;
+        }
+        frame_input_events_done(tree);
+        *out_blocks_world = blocked;
+        *out_interactive_hit = hit;
+        return;
+    }
+
+    if( tree->root_index < 0 )
+        return;
+
+    for( int32_t root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
+    {
+        int root_blocks = 0;
+        int root_blocks_world = 0;
+        int32_t root_hit;
+        if( !UITree_RootIsDisplayable(tree, root) )
+            continue;
+        root_hit = hit_test_interactive_recursive(
+            tree, host, root, px, py, 0, 0, NULL, NULL, &root_blocks, &root_blocks_world,
+            UITree_NodeNativeChainPresent(tree, host, tree->components[root].parent, -1, true));
+        /* Later roots render on top; a no_click_through root captures the point
+         * and discards hits from roots underneath. */
+        if( root_blocks )
+            *out_interactive_hit = root_hit;
+        else if( root_hit >= 0 )
+            *out_interactive_hit = root_hit;
+        /* PointBlocksWorld returned on the first blocking root. Blocking only
+         * ever accumulates, so finishing the loop gives the same answer. */
+        if( root_blocks_world )
+            *out_blocks_world = 1;
+    }
 }
 
 static int

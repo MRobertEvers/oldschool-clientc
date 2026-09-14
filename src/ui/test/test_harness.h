@@ -66,6 +66,8 @@ struct TestHostState
      * with no session is actually in. */
     int minimap_hidden;
     int compass_hidden;
+    /** > 0: GET_IF_EVENTS answers 1 for every com_id divisible by it. */
+    int if_events_every;
     /** Scene id GET_MINIMAP_STATE answers with; 0 leaves it at "no baked map",
      *  which the emit treats the same as any other not-ready asset. */
     int minimap_scene_id;
@@ -134,6 +136,15 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
             return 0;
         *req->u.get_entity_overlays.out_items = st->canvas_overlays;
         return st->canvas_overlay_count;
+    /* IF_SETEVENTS mask, the one host answer that can make a plain
+     * graphic/text/rect a click target (UITree_ComponentIsPassThrough). The
+     * fixture answers for one component id in `if_events_every`, so a walk over
+     * a generated tree sees both answers. 0 (the memset default) keeps every
+     * other test on the "no events armed" answer this host gave before. */
+    case UITREE_HOST_GET_IF_EVENTS:
+        if( st->if_events_every <= 0 )
+            return 0;
+        return (req->u.get_if_events.com_id % st->if_events_every) == 0 ? 1 : 0;
     case UITREE_HOST_GET_MINIMAP_HIDDEN:
         return st->minimap_hidden;
     case UITREE_HOST_GET_COMPASS_HIDDEN:
@@ -246,7 +257,9 @@ void test_scripted_entity_overlay_clipped(void);
 void test_scripted_overlay_arc(void);
 void test_dirty_marking(void);
 void test_widget_anchor_depth(void);
+void test_input_walk_equivalence(void);
 void test_widget_skin(void);
+void test_widget_idempotent_edits(void);
 void test_frame_provide(void);
 void test_walk_topology(void);
 void test_mounted_world_resize(void);

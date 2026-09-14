@@ -16,6 +16,7 @@ void test_owned_control_click_reports_node(void);
 void test_plugin_contract_copy(void);
 
 int g_failures;
+void test_anchor_reorder(void);
 void test_canvas_queries(void);
 void test_overlay_retention(void);
 
@@ -37,7 +38,9 @@ main(void)
     test_owned_widget_operations();
     test_owned_image_widgets();
     test_widget_anchor_depth();
+    test_input_walk_equivalence();
     test_widget_skin();
+    test_widget_idempotent_edits();
     test_frame_provide();
         test_plugin_contract_copy();
         return g_failures ? 1 : 0;
@@ -54,7 +57,10 @@ main(void)
     test_owned_widget_operations();
     test_owned_image_widgets();
     test_widget_anchor_depth();
+    test_input_walk_equivalence();
+    test_anchor_reorder();
     test_widget_skin();
+    test_widget_idempotent_edits();
     test_frame_provide();
     test_plugin_contract_copy();
     test_canvas_queries();

@@ -68,6 +68,20 @@ int UITree_FrameHasDepth(struct UITree const* tree);
 int UITree_FrameReorder(struct UITree const* tree, struct UITreeHost const* host, void* records, int count,
                        size_t stride, size_t node_offset);
 
+/** Release the reorder's retained plan and scratch. Called from UITree_Free. */
+void UITree_FrameAnchorPlanFree(struct UITree* tree);
+
+/**
+ * Reorder accounting, for tests only -- never a lever and never read by the
+ * pass itself.
+ *
+ * `out_allocations` is the number of heap allocations the plan has ever made:
+ * a steady frame must not move it. `out_iterations` is the loop-step count of
+ * the LAST call, the guard on the pass staying linear.
+ */
+void UITree_FrameReorderStats(struct UITree const* tree, unsigned long* out_allocations,
+                              unsigned long* out_iterations);
+
 /**
  * The number `node` answers to WITHIN its role, or -1 when the role has no
  * numbering of its own.
