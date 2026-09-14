@@ -1645,9 +1645,22 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-ground-items-dirty
 	$(MAKE) test-uitree-popup-place
 	$(MAKE) test-uitree-if-store
+	$(MAKE) test-minimap-mapscene
 	$(MAKE) test-inv
 	$(MAKE) test-client-trigger
 	$(MAKE) test-world
+
+# Plotting a loc's mapscene icon into the baked minimap. Three coordinate
+# conventions meet in one expression -- minimap y grows south, a loc extends
+# north over its length, and a cache sprite is stored cropped -- and getting
+# any of them wrong puts a bank symbol over the building next door.
+.PHONY: test-minimap-mapscene
+test-minimap-mapscene: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/world_builder \
+		-o $(OBJ_DIR)/minimap_mapscene_test$(PLATFORM_EXE_SUFFIX) \
+		engine/world_builder/test/minimap_mapscene_test.c engine/world_builder/minimap.c \
+		$(LDFLAGS)
+	./$(OBJ_DIR)/minimap_mapscene_test$(PLATFORM_EXE_SUFFIX)
 
 # The persistent IF_SET* stores. Keyed, not appended: a component's value is a
 # state, so appending would re-apply an old caption after a new one at the next

@@ -872,3 +872,50 @@ minimap_compute_camera_src_anchor(
     *out_src_anchor_x = (camera_world_x * px_per_tile_x) / 128;
     *out_src_anchor_y = sprite_h - (camera_world_z * px_per_tile_z) / 128;
 }
+
+void
+minimap_plot_mapscene(
+    uint32_t* destination,
+    int destination_w,
+    int destination_h,
+    uint32_t const* sprite_argb,
+    int sprite_w,
+    int sprite_h,
+    int sprite_crop_x,
+    int sprite_crop_y,
+    int tile_x,
+    int tile_z,
+    int map_height,
+    int loc_w,
+    int loc_l)
+{
+    int base_x;
+    int base_y;
+
+    assert(destination);
+    assert(sprite_argb);
+
+    base_x = tile_x * 4 + (loc_w * 4 - sprite_w) / 2 + sprite_crop_x;
+    base_y = (map_height - tile_z - (loc_l - 1)) * 4 + (loc_l * 4 - sprite_h) / 2 + sprite_crop_y;
+
+    for( int y = 0; y < sprite_h; y++ )
+    {
+        int destination_y = base_y + y;
+        uint32_t const* source_row;
+        uint32_t* destination_row;
+
+        if( destination_y < 0 || destination_y >= destination_h )
+            continue;
+        source_row = sprite_argb + (size_t)y * sprite_w;
+        destination_row = destination + (size_t)destination_y * destination_w;
+        for( int x = 0; x < sprite_w; x++ )
+        {
+            int destination_x = base_x + x;
+            uint32_t pixel = source_row[x];
+
+            if( destination_x < 0 || destination_x >= destination_w || (pixel >> 24) == 0 )
+                continue;
+            destination_row[destination_x] = pixel;
+        }
+    }
+}

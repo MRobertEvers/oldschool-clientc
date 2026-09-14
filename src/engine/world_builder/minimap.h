@@ -136,6 +136,43 @@ minimap_commands_reset(struct MinimapRenderCommandBuffer* command_buffer);
 void
 minimap_free(struct Minimap* minimap);
 
+/**
+ * Plot one loc's mapscene icon into a baked minimap (reference drawDetail +
+ * Pix8.plotSprite).
+ *
+ * Three coordinate conventions meet here, which is the whole difficulty:
+ *
+ *   - the bake places tile (x, z)'s top-left at (x*4, (height - z)*4), because
+ *     minimap y grows SOUTH while scene z grows north.
+ *   - a loc extends north over `loc_l` tiles, so its footprint's TOP pixel row
+ *     is (height - z - (loc_l - 1))*4, not (height - z)*4. Getting this wrong
+ *     puts a multi-tile icon one or more tiles south of its building.
+ *   - the icon is centred in the loc_w x loc_l footprint (reference
+ *     offsetX/offsetY) and then shifted by its own crop origin, because a
+ *     cache sprite is stored cropped to its ink with the offset recorded.
+ *
+ * Fully clipped on both axes, and source pixels with zero alpha are skipped --
+ * palette index 0 in the cache's Pix8, which is transparent rather than black.
+ *
+ * Takes the sprite as plain arrays so this stays a leaf: the mapscene atlas
+ * lives in the scene, and the caller is what knows how to reach into it.
+ */
+void
+minimap_plot_mapscene(
+    uint32_t* destination,
+    int destination_w,
+    int destination_h,
+    uint32_t const* sprite_argb,
+    int sprite_w,
+    int sprite_h,
+    int sprite_crop_x,
+    int sprite_crop_y,
+    int tile_x,
+    int tile_z,
+    int map_height,
+    int loc_w,
+    int loc_l);
+
 void
 minimap_add_loc(
     struct Minimap* minimap,

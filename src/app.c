@@ -11051,48 +11051,6 @@ app_wev_advance_bobs(struct App* app)
     }
 }
 
-/* Plot one loc mapscene Pix8 into the baked minimap ARGB (reference drawDetail
- * + Pix8.plotSprite). The C bake places tile (sx,sz)'s top-left at
- * (sx*4, (height-sz)*4) and a loc extends north (+z) over `loc_l` tiles, so the
- * footprint's top pixel row is (height - sz - (loc_l-1))*4. The sprite is
- * centered in the loc_w x loc_l footprint (reference offsetX/offsetY) and shifted
- * by its own crop origin (Pix8.xof/yof). Transparent (alpha 0) source pixels,
- * i.e. palette index 0, are skipped like the reference plot. */
-static void
-app_plot_mapscene_sprite(
-    uint32_t* dst,
-    int pw,
-    int ph,
-    struct ToriDraw_Sprite const* spr,
-    int sx,
-    int sz,
-    int map_height,
-    int loc_w,
-    int loc_l)
-{
-    int base_x = sx * 4 + (loc_w * 4 - spr->width) / 2 + spr->crop_x;
-    int base_y = (map_height - sz - (loc_l - 1)) * 4 + (loc_l * 4 - spr->height) / 2 + spr->crop_y;
-
-    for( int y = 0; y < spr->height; y++ )
-    {
-        int dy = base_y + y;
-        uint32_t const* src_row;
-        uint32_t* dst_row;
-        if( dy < 0 || dy >= ph )
-            continue;
-        src_row = spr->pixels_argb + (size_t)y * spr->width;
-        dst_row = dst + (size_t)dy * pw;
-        for( int x = 0; x < spr->width; x++ )
-        {
-            int dx = base_x + x;
-            uint32_t px = src_row[x];
-            if( dx < 0 || dx >= pw || (px >> 24) == 0 )
-                continue;
-            dst_row[dx] = px;
-        }
-    }
-}
-
 /* Reference drawDetail's mapscene pass: after the tile/wall bake, plot each loc
  * mapscene sprite gathered at scene build (world->mapscenes) for the level being
  * baked. The mapscene atlas lives in the scene, so this runs in app.c rather than
@@ -11154,8 +11112,20 @@ app_bake_mapscenes(
         if( !draw )
             continue;
 
-        app_plot_mapscene_sprite(
-            argb, pw, ph, spr, icon->x, icon->z, world->minimap->height, icon->width, icon->length);
+        minimap_plot_mapscene(
+            argb,
+            pw,
+            ph,
+            spr->pixels_argb,
+            spr->width,
+            spr->height,
+            spr->crop_x,
+            spr->crop_y,
+            icon->x,
+            icon->z,
+            world->minimap->height,
+            icon->width,
+            icon->length);
     }
 }
 
