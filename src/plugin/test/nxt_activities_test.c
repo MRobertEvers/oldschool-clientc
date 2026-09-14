@@ -1081,7 +1081,7 @@ main(void)
         g_engine.highlights[0].flags = 1 | 4;
 
         draw_reset();
-        PluginHost_DrawWorld(host);
+        PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.hulls == 1, "a model-flagged item is outlined");
         CHECK(g_engine.tiles == 0, "and its tile is not marked -- no tile flag");
 
@@ -1096,7 +1096,7 @@ main(void)
         g_engine.highlights[0].flags = 2 | 8;
 
         draw_reset();
-        PluginHost_DrawWorld(host);
+        PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.hulls == 0, "a tile item has no model to outline");
         CHECK(g_engine.tiles == 1, "its tile is marked");
         CHECK(g_engine.last_tile_rgb == 0xBEBA6E, "in the colour the script chose");
@@ -1109,7 +1109,7 @@ main(void)
          * is clientscript 5198's hovered tile exactly. */
         g_engine.highlights[0].outline_width = 0;
         draw_reset();
-        PluginHost_DrawWorld(host);
+        PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.tiles == 1, "a fill with no border still draws its tile");
         CHECK(
             g_engine.last_tile_fill_alpha == 70,
@@ -1121,14 +1121,14 @@ main(void)
          * fill every outline-only group in the cache. */
         g_engine.highlights[0].flags = 2;
         draw_reset();
-        PluginHost_DrawWorld(host);
+        PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.last_tile_fill_alpha == 0, "no tile-fill flag means no wash");
 
         /* ...and an outline flag whose thickness is zero draws nothing at all,
          * so the item stops producing a tile. */
         g_engine.highlights[0].outline_width = 0;
         draw_reset();
-        PluginHost_DrawWorld(host);
+        PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.tiles == 0, "an outline flag with no thickness draws nothing");
         g_engine.highlights[0].outline_width = 1;
 
@@ -1136,7 +1136,7 @@ main(void)
         g_engine.highlights[0].size_x = 2;
         g_engine.highlights[0].size_z = 2;
         draw_reset();
-        PluginHost_DrawWorld(host);
+        PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.tiles == 4, "a 2x2 footprint is four tiles, not one");
 
         /* The walk restarts each frame, which is what makes the engine
@@ -1144,14 +1144,14 @@ main(void)
          * and then nothing. */
         g_engine.highlight_walks = 0;
         draw_reset();
-        PluginHost_DrawWorld(host);
+        PluginHost_DrawWorld(host, 765, 503);
         draw_reset();
-        PluginHost_DrawWorld(host);
+        PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.highlight_walks == 2, "the list is walked from the top each frame");
 
         g_engine.highlight_count = 0;
         draw_reset();
-        PluginHost_DrawWorld(host);
+        PluginHost_DrawWorld(host, 765, 503);
         CHECK(g_engine.tiles == 0 && g_engine.hulls == 0, "an empty list draws nothing");
     }
 

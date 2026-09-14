@@ -789,6 +789,19 @@ CacheProvider_ObjtypeSearchByName(
     char const* lower_query,
     int** out_ids);
 
+/** The id of the first RESIDENT objtype `match` accepts, or -1 when none does.
+ *
+ *  Residency is the whole point: this asks what the cache HAS ALREADY LOADED,
+ *  never starting IO of its own, so a caller wanting to know whether this
+ *  cache's records carry some field asks it of the records in hand. Iteration
+ *  order is the hash map's, so with several matches the id is any one of
+ *  them -- callers use it as a predicate, not a lookup. */
+int
+CacheProvider_ObjtypeFindResident(
+    struct CacheProvider* provider,
+    bool (*match)(struct ToriRS_Objtype const* objtype, void* user),
+    void* user);
+
 void
 CacheProvider_NpctypeAdd(
     struct CacheProvider* provider,

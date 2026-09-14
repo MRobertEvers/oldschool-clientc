@@ -122,6 +122,19 @@ struct ToriRS_SkillSnapshot
     int level_xp;
     /** Zero when this client has no further level threshold. */
     int next_level_xp;
+    /**
+     * True when the server has STATED this skill: every number above is a
+     * reading it sent. False means there is no reading yet -- the pre-login
+     * table is a fresh account's, not an empty one, so a tracker that seeded
+     * itself from it would take the login burst for one enormous gain.
+     *
+     * `skill()` still answers false for an unstated skill, as it always has.
+     * The two false answers are told apart by this snapshot: an unstated
+     * skill comes back with its own `index` and `name` and `stated` false,
+     * while a skill index this client does not have comes back zeroed with
+     * `index` -1.
+     */
+    bool stated;
 };
 
 #define TORIRS_SKILL_SNAPSHOT_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))
@@ -419,11 +432,28 @@ struct ToriRS_CoreApi
         struct ToriRS_Api* api,
         struct ToriRS_LaneInfo* out);
     /**
-     * Query a host/platform fact by stable name. Defined names are:
+     * Query a host/platform/engine fact by stable name. Defined names are:
      *
      * - `touch`: the application is currently using touch UI/input policy;
      * - `web`: this is the Emscripten web lane;
-     * - `browser`: this build supports the embedded BROWSER chrome transport.
+     * - `browser`: this build supports the embedded BROWSER chrome transport;
+     * - `widgets.geometry`: the widget API reports live geometry;
+     * - `scripts.callbacks`, `cs2_scripts`: this client runs CS2 UI logic;
+     * - `highlight_groups`: CS2 UI logic AND the profile declares the
+     *   hover-tile highlight script;
+     * - `varbit:<name>`, `varp:<name>`: this revision declares that var;
+     * - `server_tick`: on_server_tick is raised (every lane);
+     * - `server_tick.fenced`: the wire carries an end-of-tick packet, so the
+     *   tick is a real fence rather than the player-info edge;
+     * - `loot_events`: loot/ground-item events are raised;
+     * - `item_bonuses`: the loaded item records carry equipment-bonus params;
+     * - `native_orbs`: the live interface resolves the native run orb;
+     * - `if_settab`: the wire carries the server's set-tab packet;
+     * - `tab_select`: `frame`/sidebar tab selection can act on this lane.
+     *
+     * Every answer is one expression over an ENGINE FACT -- a packet the wire
+     * table carries, a ref the profile declares, a role the tree resolves, a
+     * param the loaded cache carries -- never a revision or lane name.
      *
      * Unknown names and unavailable capabilities return false. Plugins do not
      * infer these answers from platform preprocessor symbols.

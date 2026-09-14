@@ -706,7 +706,15 @@ static int lua_config_set(lua_State* L)
 {
     struct ToriRS_Api* a=lua_current_api(L); char value[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
     if( lua_isboolean(L,2) ) snprintf(value,sizeof(value),"%d",lua_toboolean(L,2)?1:0);
-    else snprintf(value,sizeof(value),"%s",luaL_tolstring(L,2,NULL));
+    else
+    {
+        /* Refuse a value the store cannot hold instead of truncating it: a
+         * cut list of ids validates as a shorter list and stores a wrong
+         * entry silently. The caller sees INVALID and keeps the old value. */
+        size_t n=0; char const* text=luaL_tolstring(L,2,&n);
+        if( n>=sizeof(value) ) { lua_pop(L,1); lua_push_result(L,TORIRS_RESULT_INVALID); return 2; }
+        memcpy(value,text,n+1); lua_pop(L,1);
+    }
     lua_push_result(L,a->config.set(a,luaL_checkstring(L,1),value)); return 2;
 }
 
@@ -885,6 +893,29 @@ static int lua_widget_box(lua_State* L, bool local)
     lua_pushinteger(L,box.height);lua_setfield(L,-2,"height");
     return 1;
 }
+static int lua_widget_state(lua_State* L)
+{
+    struct ToriRS_WidgetApi* ui = &lua_current_api(L)->widgets;
+    struct ToriRS_WidgetState v;
+    memset(&v,0,sizeof(v));
+    v.struct_size = (uint32_t)sizeof(v);
+    if( ui->state(ui->context, lua_widget_arg(L), &v) != TORIRS_CONTRACT_OK )
+    { lua_pushnil(L); return 1; }
+    lua_createtable(L,0,16);
+#define WS_I(k,x) lua_pushinteger(L,(lua_Integer)(x));lua_setfield(L,-2,(k))
+#define WS_B(k,x) lua_pushboolean(L,(x));lua_setfield(L,-2,(k))
+    WS_I("x",v.bounds.x); WS_I("y",v.bounds.y);
+    WS_I("width",v.bounds.width); WS_I("height",v.bounds.height);
+    WS_I("local_x",v.local.x); WS_I("local_y",v.local.y);
+    WS_I("local_width",v.local.width); WS_I("local_height",v.local.height);
+    WS_B("presented",v.presented); WS_B("own_hidden",v.own_hidden);
+    WS_B("native_hidden",v.native_hidden); WS_B("input_present",v.input_present);
+    WS_I("graphic_token",v.graphic_token); WS_I("text_hash",v.text_hash);
+    WS_I("facets",v.facets); WS_I("incarnation",v.incarnation);
+#undef WS_B
+#undef WS_I
+    return 1;
+}
 static int lua_widget_position(lua_State* L) { return lua_widget_box(L, true); }
 static int lua_widget_bounds(lua_State* L) { return lua_widget_box(L, false); }
 static int lua_widget_set_geometry(lua_State* L, bool size)
@@ -922,10 +953,16 @@ static int lua_widget_collection(lua_State* L, bool all)
     { lua_pushnil(L); return 1; }
     if( count > INT_MAX || count > SIZE_MAX / sizeof(struct ToriRS_WidgetRef) )
         return luaL_error(L, "widget collection exceeds runtime capacity");
+    size_t const capacity_hint = count;
     struct ToriRS_WidgetRef* refs = lua_newuserdatauv(L, count * sizeof(*refs), 0);
     result = all ? ui->find_all(ui->context,role,refs,count,&count)
         : ui->children(ui->context, ref, refs, count, &count);
-    if( result != TORIRS_CONTRACT_OK ) { lua_pop(L,1); lua_pushnil(L); return 1; }
+    /* A collection past the host budget comes back PARTIAL, never nil: the
+     * caller gets what fits and a second return value `true` saying it was
+     * clipped, so "no captions" and "too many captions" stay distinct. */
+    bool const clipped = result == TORIRS_CONTRACT_BUDGET_EXCEEDED;
+    if( result != TORIRS_CONTRACT_OK && !clipped ) { lua_pop(L,1); lua_pushnil(L); return 1; }
+    if( clipped && count > capacity_hint ) count = capacity_hint;
     /* find_all answers a role in its own numbering: t[m+1] is member m, and a
      * member the frame does not have is `false` there -- a hole would stop
      * ipairs at it and renumber everything after. */
@@ -936,7 +973,8 @@ static int lua_widget_collection(lua_State* L, bool all)
         lua_rawseti(L,-2,(lua_Integer)i+1);
     }
     lua_remove(L,-2);
-    return 1;
+    lua_pushboolean(L, clipped);
+    return 2;
 }
 static int lua_widget_children(lua_State* L) { return lua_widget_collection(L,false); }
 static int lua_widget_find_all(lua_State* L) { return lua_widget_collection(L,true); }
@@ -1028,7 +1066,9 @@ static void lua_widget_binding_callback(struct ToriRS_Api* api, void* user, stru
     if( event->type==TORIRS_WIDGET_TREE_CHANGED ) lua_pushnil(L);
     else lua_push_widget(L,event->widget);
     lua_createtable(L,0,3);
-    lua_pushstring(L,event->type==TORIRS_WIDGET_TREE_CHANGED ? "tree_changed" : event->type == TORIRS_WIDGET_BOUND ? "bound" : "unbound");lua_setfield(L,-2,"kind");
+    lua_pushstring(L,event->type==TORIRS_WIDGET_TREE_CHANGED ? "tree_changed"
+        : event->type==TORIRS_WIDGET_STATE_CHANGED ? "state_changed"
+        : event->type == TORIRS_WIDGET_BOUND ? "bound" : "unbound");lua_setfield(L,-2,"kind");
     lua_pushstring(L,event->role);lua_setfield(L,-2,"role");
     lua_pushinteger(L,(lua_Integer)event->native_revision);lua_setfield(L,-2,"native_revision");
     int result = lua_callback_pcall(script,2,0);
@@ -1041,7 +1081,7 @@ static void lua_widget_binding_callback(struct ToriRS_Api* api, void* user, stru
     }
     (void)lua_script_flush_disable(script,api);
 }
-static int lua_widget_watch_impl(lua_State* L,bool tree)
+static int lua_widget_watch_impl(lua_State* L,bool tree,bool wants_state)
 {
     struct LuaScript* script = lua_upvalue_script(L);
     struct ToriRS_WidgetApi* ui = &lua_current_api(L)->widgets;
@@ -1062,7 +1102,7 @@ static int lua_widget_watch_impl(lua_State* L,bool tree)
     if( !remove ) { lua_pushvalue(L,callback_arg); next_ref=luaL_ref(L,LUA_REGISTRYINDEX); }
     enum ToriRS_ContractResult result = tree
         ? ui->watch_tree(ui->context,remove ? NULL : lua_widget_binding_callback,watch)
-        : ui->watch(ui->context,role,remove ? NULL : lua_widget_binding_callback,watch);
+        : (wants_state ? ui->watch_state : ui->watch)(ui->context,role,remove ? NULL : lua_widget_binding_callback,watch);
     if( result == TORIRS_CONTRACT_OK )
     {
         if( watch->role[0] ) luaL_unref(L,LUA_REGISTRYINDEX,watch->function_ref);
@@ -1076,8 +1116,9 @@ static int lua_widget_watch_impl(lua_State* L,bool tree)
     else if( next_ref != LUA_NOREF ) luaL_unref(L,LUA_REGISTRYINDEX,next_ref);
     return lua_widget_result(L,result);
 }
-static int lua_widget_watch(lua_State* L) { return lua_widget_watch_impl(L,false); }
-static int lua_widget_watch_tree(lua_State* L) { return lua_widget_watch_impl(L,true); }
+static int lua_widget_watch(lua_State* L) { return lua_widget_watch_impl(L,false,false); }
+static int lua_widget_watch_state(lua_State* L) { return lua_widget_watch_impl(L,false,true); }
+static int lua_widget_watch_tree(lua_State* L) { return lua_widget_watch_impl(L,true,false); }
 static void lua_widget_watches_clear(struct LuaScript* script)
 {
     if( !script || !script->L ) return;
@@ -1255,10 +1296,11 @@ static int lua_widget_remove(lua_State* L)
     return lua_widget_result(L,ui->remove(ui->context,lua_widget_arg(L)));
 }
 static struct LuaFn const LUA_WIDGET_FNS[] = {
-    {"invoke",lua_widget_invoke},{"find",lua_widget_find},{"find_all",lua_widget_find_all},{"watch_tree",lua_widget_watch_tree},{"get",lua_widget_get},{"watch",lua_widget_watch},{NULL,NULL}
+    {"invoke",lua_widget_invoke},{"find",lua_widget_find},{"find_all",lua_widget_find_all},{"watch_tree",lua_widget_watch_tree},{"get",lua_widget_get},{"watch",lua_widget_watch},{"watch_state",lua_widget_watch_state},{NULL,NULL}
 };
 static struct LuaFn const LUA_WIDGET_METHOD_FNS[] = {
     {"visible",lua_widget_visible},{"actions",lua_widget_actions},{"position",lua_widget_position},{"bounds",lua_widget_bounds},
+    {"state",lua_widget_state},
     {"children",lua_widget_children},{"text",lua_widget_text},
     {"set_text_outline",lua_widget_text_outline},{"parent",lua_widget_parent},{"set_projection_height",lua_widget_projection_height},{"set_hidden",lua_widget_set_hidden},{"set_position",lua_widget_set_position},{"set_size",lua_widget_set_size},
     {"revalidate",lua_widget_revalidate},{"reset",lua_widget_reset},
@@ -1513,7 +1555,11 @@ lua_client_disable_self(lua_State* L)
 static struct ToriRS_GameApi const* lua_game(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);if(!a->game)luaL_error(L,"game module is unavailable on this API minor version");return a->game; }
 static int lua_game_skill(lua_State* L)
 {
-    struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_SkillSnapshot v;memset(&v,0,sizeof(v));v.struct_size=sizeof(v);if(!lua_game(L)->skill(a,(int)luaL_checkinteger(L,1),&v)){lua_pushnil(L);return 1;}lua_createtable(L,0,8);lua_pushinteger(L,v.index);lua_setfield(L,-2,"index");lua_pushstring(L,v.name);lua_setfield(L,-2,"name");lua_pushinteger(L,v.current_level);lua_setfield(L,-2,"current_level");lua_pushinteger(L,v.base_level);lua_setfield(L,-2,"base_level");lua_pushinteger(L,v.xp);lua_setfield(L,-2,"xp");lua_pushinteger(L,v.level_xp);lua_setfield(L,-2,"level_xp");lua_pushinteger(L,v.next_level_xp);lua_setfield(L,-2,"next_level_xp");return 1;
+    /* nil for "no reading", exactly as before -- a Lua script that asked for
+     * an unstated skill has always seen nil and still does. `stated` rides
+     * along on the table so a script reading a snapshot never has to guess
+     * whether its numbers are readings. */
+    struct ToriRS_Api* a=lua_current_api(L);struct ToriRS_SkillSnapshot v;memset(&v,0,sizeof(v));v.struct_size=sizeof(v);if(!lua_game(L)->skill(a,(int)luaL_checkinteger(L,1),&v)){lua_pushnil(L);return 1;}lua_createtable(L,0,9);lua_pushboolean(L,v.stated);lua_setfield(L,-2,"stated");lua_pushinteger(L,v.index);lua_setfield(L,-2,"index");lua_pushstring(L,v.name);lua_setfield(L,-2,"name");lua_pushinteger(L,v.current_level);lua_setfield(L,-2,"current_level");lua_pushinteger(L,v.base_level);lua_setfield(L,-2,"base_level");lua_pushinteger(L,v.xp);lua_setfield(L,-2,"xp");lua_pushinteger(L,v.level_xp);lua_setfield(L,-2,"level_xp");lua_pushinteger(L,v.next_level_xp);lua_setfield(L,-2,"next_level_xp");return 1;
 }
 static int lua_game_run_energy(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushinteger(L,lua_game(L)->run_energy(a));return 1; }
 static int lua_game_inventory_size(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushinteger(L,lua_game(L)->inventory_size(a,lua_enum_integer(L,1,TORIRS_INVENTORY_BACKPACK,TORIRS_INVENTORY_BANK,"inventory")));return 1; }

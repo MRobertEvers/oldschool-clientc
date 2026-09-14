@@ -376,6 +376,7 @@ warn = nil
 ---@field xp integer
 ---@field level_xp integer
 ---@field next_level_xp integer
+---@field stated boolean True when the server has stated this skill, so every number above is a reading. api.game.skill returns nil while a skill has no reading, so a snapshot you hold is stated.
 
 ---@class torirs.ItemInfo
 ---@field obj_id integer
@@ -513,6 +514,7 @@ warn = nil
 ---@field remove fun(self:torirs.Widget):boolean,string Removes only this owner's widget.
 ---@field position fun(self:torirs.Widget):torirs.Rect? Native-parent-local, unscrolled geometry.
 ---@field bounds fun(self:torirs.Widget):torirs.Rect? Drawn canvas geometry, including scroll/drag.
+---@field state fun(self:torirs.Widget):torirs.WidgetState? Everything a follower needs in one read; the host also raises 'state_changed' on a watch when any of it moves.
 ---@field children fun(self:torirs.Widget):torirs.Widget[]?
 ---@field parent fun(self:torirs.Widget):torirs.Widget? Native parent; not a presentation reparent.
 ---@field set_projection_height fun(self:torirs.Widget,height:integer):boolean,string World-unit lift for an anchored overlay layer; camera projection stays native.
@@ -523,8 +525,26 @@ warn = nil
 ---@field revalidate fun(self:torirs.Widget):boolean,string
 ---@field reset fun(self:torirs.Widget):boolean,string Releases only this plugin's edits.
 
+---@class torirs.WidgetState
+---@field x integer Drawn canvas geometry.
+---@field y integer
+---@field width integer
+---@field height integer
+---@field local_x integer Native-parent-local, unscrolled geometry.
+---@field local_y integer
+---@field local_width integer
+---@field local_height integer
+---@field presented boolean Paints this frame; the same answer as :visible().
+---@field own_hidden boolean The node's own hide bit: a CS2 if_sethide or a dat1 IF_SETTAB.
+---@field native_hidden boolean The engine's native suppression, not the script's.
+---@field input_present boolean Reachable by the native hit test.
+---@field graphic_token integer Change token for a node that carries art, 0 for one that does not. Never an identity.
+---@field text_hash integer FNV-1a 64 of a text node's string, 0 for a non-text node.
+---@field facets integer Reserved for lane-derived facets; 0 from every current adapter.
+---@field incarnation integer The reference's incarnation.
+
 ---@class torirs.WidgetBindingEvent
----@field kind 'bound'|'unbound'|'tree_changed'
+---@field kind 'bound'|'unbound'|'tree_changed'|'state_changed'
 ---@field role string
 ---@field native_revision integer
 
@@ -536,6 +556,7 @@ warn = nil
 ---@class torirs.WidgetsApi
 ---@field invoke fun(action:torirs.WidgetActionRef):boolean, string? Rechecks current native visibility, masks and widget identity.
 ---@field watch fun(role:string,callback:fun(widget:torirs.Widget,event:torirs.WidgetBindingEvent)?):boolean,string Follows native binding identity; nil removes this subscription.
+---@field watch_state fun(role:string,callback:fun(widget:torirs.Widget,event:torirs.WidgetBindingEvent)?):boolean,string As watch, and also raises 'state_changed' once per fence in which the bound widget's native state moved (read it with widget:state()); a plain watch never does.
 ---@field find fun(role:string):torirs.Widget?
 ---@field find_all fun(role:string):(torirs.Widget|false)[]? All current matches in the role's own numbering: t[m+1] is member m, false where this frame has no member m; count is one past the highest present. Skip false entries when iterating. ground_item_labels is unavailable without the native CS2 overlay adapter.
 ---@field watch_tree fun(callback:fun(widget:torirs.Widget?,event:torirs.WidgetBindingEvent)?):boolean,string Initial and topology-change publication notifications; nil unregisters. The callback receives nil widget and queries current references.

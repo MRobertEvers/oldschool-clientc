@@ -72,7 +72,7 @@
  * it can know -- a plugin may legitimately hold both. Slots are cheap; the
  * guess would not be.
  */
-#define TORIRS_PLUGIN_ASSETS_MAX 128
+#define TORIRS_PLUGIN_ASSETS_MAX 256
 /** Resident shipped MODELS, across every plugin. Each holds decoded geometry
  *  the host keeps for as long as the plugin runs, so the ceiling is what stops
  *  a plugin from loading a folder of art nothing stands on. */
@@ -90,7 +90,7 @@
  * At ~40 bytes a slot the whole table is under 8 KB either way, so the number
  * is bounded by what is reasonable to draw rather than by what it costs.
  */
-#define TORIRS_PLUGIN_IMAGES_MAX 192
+#define TORIRS_PLUGIN_IMAGES_MAX 255 /* the encoded resource slot is 8 bits: 255 is the ceiling without widening it */
 /**
  * Item icons the host keeps rasterised, across every plugin.
  *
@@ -124,6 +124,9 @@ enum PluginWidgetRequestKind
 {
     PLUGIN_WIDGET_FIND, PLUGIN_WIDGET_FIND_ALL, PLUGIN_WIDGET_GET, PLUGIN_WIDGET_CHILDREN,
     PLUGIN_WIDGET_BOUNDS, PLUGIN_WIDGET_LOCAL_BOUNDS, PLUGIN_WIDGET_TEXT, PLUGIN_WIDGET_PARENT, PLUGIN_WIDGET_ACTIONS, PLUGIN_WIDGET_VISIBLE,
+    /* A read: it must stay BELOW PLUGIN_WIDGET_POSITION, which is where the
+     * adapter starts refusing another owner's widget. */
+    PLUGIN_WIDGET_STATE,
     PLUGIN_WIDGET_POSITION, PLUGIN_WIDGET_SIZE,
     PLUGIN_WIDGET_REVALIDATE, PLUGIN_WIDGET_RESET, PLUGIN_WIDGET_RESET_OWNER,
     PLUGIN_WIDGET_CREATE_TEXT, PLUGIN_WIDGET_SET_TEXT, PLUGIN_WIDGET_TEXT_COLOR, PLUGIN_WIDGET_TEXT_ALIGN, PLUGIN_WIDGET_REMOVE,
@@ -139,6 +142,7 @@ struct PluginWidgetRequest
     int id, a, b;
     struct ToriRS_WidgetRef* refs;
     struct ToriRS_WidgetBounds* bounds;
+    struct ToriRS_WidgetState* state; /* STATE: filled by the adapter. */
     bool* flag;
     struct ToriRS_WidgetAction* actions;
     struct ToriRS_WidgetActionRef action;
@@ -152,6 +156,12 @@ struct PluginWidgetRequest
  * publication fence. A zero instance means no ready native tree. */
 bool PluginHost_WidgetOperation(struct ToriRS_PluginHost*,uint64_t owner,struct ToriRS_WidgetRef,uint64_t registration);
 void PluginHost_WidgetsChanged(struct ToriRS_PluginHost*, uint64_t instance, uint64_t generation);
+/* Stamp every bound watch's ToriRS_WidgetState and raise
+ * TORIRS_WIDGET_STATE_CHANGED where it moved. Called every layout tick right
+ * after PluginHost_WidgetsChanged, UNCONDITIONALLY: a hide, a move, a re-skin
+ * or a retype bumps no tree generation, so an early-out on (instance,
+ * generation) is exactly the bug this pass exists to fix. */
+void PluginHost_WidgetStates(struct ToriRS_PluginHost*);
 
 /* Internal native adapter. No VM pointer or borrowed stack slot reaches a
  * plugin. The adapter and its strings live only through this dispatch. */
@@ -953,7 +963,7 @@ PluginHost_Key(
 
 /** Opens the draw window, dispatches on_draw_world, closes it. */
 void
-PluginHost_DrawWorld(struct ToriRS_PluginHost* host);
+PluginHost_DrawWorld(struct ToriRS_PluginHost* host, int width, int height);
 
 /** The same, for on_draw_canvas: a different surface token, a different
  *  overlay list, and the canvas rather than the world viewport as the clip. */

@@ -1384,6 +1384,111 @@ static void app_script_callback(void* user,struct CS2VM2_Thread* thread,char con
     PluginHost_ScriptCallback(app->plugins,name,CS2VM_FRAME(thread)->script->script_id,&stack);
 }
 
+/*
+ * The twelve bonuses out of a record's own param table. Ids 0..11 are the
+ * equipment bonuses and 14 is the attack rate in ticks -- an OldSchool
+ * convention (OpenRune's ParamMapper documents it, and the server reads the
+ * same table through read_combat_params) -- so a client running an OldSchool
+ * cache answers a weapon's stats with no hand-written bonus table anywhere.
+ * A string param's value is a `char*`, so reading one as an int would be a
+ * wild dereference and not a wrong number: those are skipped by kind.
+ *
+ * Non-zero when this record carried ANY of them, which is both the item's
+ * `has_bonuses` and the engine fact behind the `item_bonuses` capability.
+ */
+static int
+app_plugin_objtype_fill_bonuses(
+    struct ToriRS_Objtype const* type,
+    struct ToriRS_ItemInfo* out)
+{
+    int found = 0;
+
+    assert(type);
+    assert(out);
+    for( int i = 0; i < type->param_count; i++ )
+    {
+        struct ToriRS_Param const* param = &type->params[i];
+        if( param->string_value )
+            continue;
+        if( param->key >= 0 && param->key < TORIRS_EQUIPMENT_BONUS_COUNT )
+        {
+            out->bonus[param->key] = param->int_value;
+            found = 1;
+        }
+        else if( param->key == 14 )
+        {
+            out->attack_rate = param->int_value;
+            found = 1;
+        }
+        /* Ranged strength, from whichever of the two ids this record uses. */
+        else if( param->key == 12 || param->key == 189 )
+        {
+            out->ranged_strength += param->int_value;
+            found = 1;
+        }
+    }
+    return found;
+}
+
+/* CacheProvider_ObjtypeFindResident's predicate: the same fill, over a
+ * scratch record nobody reads, asked only for its answer. */
+static bool
+app_plugin_objtype_has_bonuses(struct ToriRS_Objtype const* type, void* user)
+{
+    struct ToriRS_ItemInfo scratch;
+
+    assert(type);
+    (void)user;
+    memset(&scratch, 0, sizeof(scratch));
+    scratch.attack_rate = -1;
+    return app_plugin_objtype_fill_bonuses(type, &scratch) != 0;
+}
+
+/* The wire opcode this revision gives a canonical packet name, or -1 when the
+ * table has no row for it -- which is how every other caller asks whether a
+ * lane carries a packet at all. @see GameProtoRevTable::packetin_wire. */
+static int
+app_plugin_packet_wire(struct App const* app, int pkt_name)
+{
+    assert(app);
+    if( !app->net || !app->net->rev || !app->net->rev->packetin_wire )
+        return -1;
+    return app->net->rev->packetin_wire(pkt_name);
+}
+
+/*
+ * One host/platform/engine fact per name, and every one of them is an
+ * EXPRESSION OVER AN ENGINE FACT: a packet this revision's wire table
+ * carries, a ref the profile declares, a role the live tree resolves, a param
+ * the loaded cache carries. Never a lane, revision or lineage name -- a
+ * plugin that asked "is this osrs239" would be carrying a copy of a decision
+ * this client already made, and it would be wrong on the next profile that
+ * declares the same thing.
+ *
+ *   widgets.geometry     always: the widget API reports geometry everywhere
+ *   scripts.callbacks    CS2 ui logic               (kept: the old spelling)
+ *   cs2_scripts          CS2 ui logic               (the same fact, named)
+ *   highlight_groups     CS2 ui logic && [script:highlight_hover_tile]
+ *   varbit:<name>        [varbit:<name>] declared by this profile
+ *   varp:<name>          [varp:<name>] declared by this profile
+ *   server_tick          always: the tick is raised on every lane now
+ *   server_tick.fenced   the wire carries SERVER_TICK_END, so the tick is a
+ *                        real end-of-tick fence and not PLAYER_INFO's edge
+ *   loot_events          CS2 ui logic
+ *   item_bonuses         a resident objtype carries equipment-bonus params
+ *   native_orbs          the live tree resolves the `orb_run` role
+ *   if_settab            the wire carries IF_SETTAB
+ *   tab_select           app_plugin_tab_select can act: the cache lane needs
+ *                        [script:sidebar_switch], the dat1 lane owns the slots
+ *   touch                the application is on the touch UI/input policy
+ *   web                  the Emscripten lane
+ *   browser              this build has the embedded BROWSER transport
+ *
+ * `native_chat_filters` is deliberately NOT here: how many filters a lane's
+ * chat bar carries is a COUNT and not a bool, and a plugin already counts
+ * them -- widgets.find_all("chat_buttons", NULL, 0, &count) answers the
+ * count alone, one past the highest member this frame has.
+ */
 static int
 app_plugin_capability(void* user, char const* name)
 {
@@ -1393,6 +1498,41 @@ app_plugin_capability(void* user, char const* name)
     assert(name);
     if( strcmp(name, "widgets.geometry") == 0 ) return 1;
     if( strcmp(name,"scripts.callbacks")==0 ) return App_UiLogic(app)==APP_UI_LOGIC_CS2;
+    if( strcmp(name, "cs2_scripts") == 0 )
+        return App_UiLogic(app) == APP_UI_LOGIC_CS2;
+    if( strcmp(name, "highlight_groups") == 0 )
+        return App_UiLogic(app) == APP_UI_LOGIC_CS2 &&
+               RevConfigRefs_Get(
+                   &app->revconfig_refs, "script", "highlight_hover_tile") >= 0;
+    if( strncmp(name, "varbit:", 7) == 0 )
+        return RevConfigRefs_Get(&app->revconfig_refs, "varbit", name + 7) >= 0;
+    if( strncmp(name, "varp:", 5) == 0 )
+        return RevConfigRefs_Get(&app->revconfig_refs, "varp", name + 5) >= 0;
+    if( strcmp(name, "server_tick") == 0 )
+        return 1;
+    if( strcmp(name, "server_tick.fenced") == 0 )
+        return app_plugin_packet_wire(app, PKT_NAME_SERVER_TICK_END) >= 0;
+    if( strcmp(name, "loot_events") == 0 )
+        return App_UiLogic(app) == APP_UI_LOGIC_CS2;
+    if( strcmp(name, "item_bonuses") == 0 )
+        return app->provider &&
+               CacheProvider_ObjtypeFindResident(
+                   app->provider, app_plugin_objtype_has_bonuses, NULL) >= 0;
+    if( strcmp(name, "native_orbs") == 0 )
+        return app->tree &&
+               UITree_RoleNodeByName(app->tree, &app->ui_roles, "orb_run") >= 0;
+    if( strcmp(name, "if_settab") == 0 )
+        return app_plugin_packet_wire(app, PKT_NAME_IF_SETTAB) >= 0;
+    if( strcmp(name, "tab_select") == 0 )
+    {
+        /* app_plugin_tab_select's own condition, said once: the cache lane
+         * flips a tab by running the profile's switch script and refuses
+         * without it, while the dat1 lane owns the slot table itself. */
+        if( App_UiLogic(app) == APP_UI_LOGIC_CS2 )
+            return RevConfigRefs_Get(
+                       &app->revconfig_refs, "script", "sidebar_switch") > 0;
+        return 1;
+    }
     if( strcmp(name, "touch") == 0 )
         return app->touch_ui != 0;
     if( strcmp(name, "web") == 0 )
@@ -2681,13 +2821,8 @@ app_plugin_lane(void* user, struct ToriRS_LaneInfo* out)
  * inside a frame -- a hover, a draw -- and a snapshot verb that started IO
  * would stall the one thing it is supposed to be cheap enough for.
  *
- * The twelve bonuses come out of the record's own param table. Ids 0..11 are
- * the equipment bonuses and 14 is the attack rate in ticks -- an OldSchool
- * convention (OpenRune's ParamMapper documents it, and the server reads the
- * same table through read_combat_params) -- so a client running an OldSchool
- * cache answers a weapon's stats with no hand-written bonus table anywhere.
- * A string param's value is a `char*`, so reading one as an int would be a
- * wild dereference and not a wrong number: those are skipped by kind.
+ * The twelve bonuses come out of the record's own param table.
+ * @see app_plugin_objtype_fill_bonuses.
  */
 static int
 app_plugin_obj_info(void* user, int obj_id, struct ToriRS_ItemInfo* out)
@@ -2715,28 +2850,7 @@ app_plugin_obj_info(void* user, int obj_id, struct ToriRS_ItemInfo* out)
     out->wearpos3 = type->wearpos3;
     out->attack_rate = -1;
 
-    for( int i = 0; i < type->param_count; i++ )
-    {
-        struct ToriRS_Param const* param = &type->params[i];
-        if( param->string_value )
-            continue;
-        if( param->key >= 0 && param->key < TORIRS_EQUIPMENT_BONUS_COUNT )
-        {
-            out->bonus[param->key] = param->int_value;
-            out->has_bonuses = 1;
-        }
-        else if( param->key == 14 )
-        {
-            out->attack_rate = param->int_value;
-            out->has_bonuses = 1;
-        }
-        /* Ranged strength, from whichever of the two ids this record uses. */
-        else if( param->key == 12 || param->key == 189 )
-        {
-            out->ranged_strength += param->int_value;
-            out->has_bonuses = 1;
-        }
-    }
+    out->has_bonuses = app_plugin_objtype_fill_bonuses(type, out) ? 1 : 0;
     return 1;
 }
 
@@ -3775,6 +3889,7 @@ app_plugin_trace_find_all(
 
     assert(app);
     assert(role);
+    PA_INC(getenv_calls);
     if( !getenv("TORIRS_TRACE_PLUGIN_WORLD") )
         return;
     for( at = 0; at < seen_count; at++ )
@@ -3800,11 +3915,31 @@ app_plugin_trace_find_all(
         role, count, list);
 }
 
+/*
+ * Lane-derived facets for one node: the single place the revconfig/CS2 lane
+ * will later answer "what KIND of thing is this" (a tab stone, an orb, a chat
+ * filter) for a plugin that dresses it.
+ *
+ * Zero today, and deliberately a function rather than a literal: when the
+ * facet table lands it lands HERE, not spread over the state reader, the
+ * watch pass and whatever else wants to ask.
+ */
+static uint32_t
+app_plugin_widget_facets(struct App const* app, int32_t idx)
+{
+    assert(app);
+    assert(idx >= 0);
+    (void)app;
+    (void)idx;
+    return 0;
+}
+
 static enum ToriRS_ContractResult
 app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
 {
     struct App* app = user;
     struct UITree* tree = app->tree;
+    PA_INC(widget_request_calls);
     if( r->kind == PLUGIN_WIDGET_RESET_OWNER )
     {
         UITree_WidgetResetOwner(tree, owner);
@@ -3841,6 +3976,8 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     }
     if( r->kind==PLUGIN_WIDGET_FIND_ALL )
     {
+        PA_INC(find_all_calls);
+        uint64_t const pa_fa0 = PerfAudit_Now();
         /* A frame role spread over MEMBERS -- the four chat filters, the
          * fourteen side panels, the orb block's children -- answers them in
          * the role's own numbering: slot m IS member m, a member this frame
@@ -3855,6 +3992,7 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         {
             uint32_t missing=0;
             UITree_FrameBind(tree);
+            PA_ADD(find_all_iters, UITREE_FRAME_SLOT_NODES_MAX);
             for( int member=0; member<UITREE_FRAME_SLOT_NODES_MAX; ++member )
             {
                 int32_t node=UITree_FrameSlotMemberNode(tree,slot,member);
@@ -3866,12 +4004,14 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
             if( *r->count )
             {
                 app_plugin_trace_find_all(app,owner,r->name,*r->count,missing&((1u<<*r->count)-1));
+                PA_ADD(find_all_ns, PerfAudit_Now() - pa_fa0);
                 return *r->count>r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
             }
         }
         int32_t idx=app_plugin_role_node(app,r->name);
         if( strcmp(r->name,"sidebar")==0 && App_UiLogic(app)==APP_UI_LOGIC_CS2 )
             idx=UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR);
+        PA_ADD(find_all_ns, PerfAudit_Now() - pa_fa0);
         if( idx<0 ) return TORIRS_CONTRACT_UNAVAILABLE;
         *r->count=1;
         app_plugin_trace_find_all(app,owner,r->name,1,0);
@@ -3968,6 +4108,46 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
             r->bounds->y -= tree->components[c->parent].position.abs_y;
         }
         return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_STATE:
+    {
+        /* One read of every answer a follower would otherwise poll for. The
+         * geometry pair is BOUNDS and LOCAL_BOUNDS verbatim (layout first, as
+         * they do); `presented` is the VISIBLE answer verbatim. The two hide
+         * bits stay APART: `own_hidden` is what a script or the cache said,
+         * `native_hidden` is what the engine said, and a plugin that means to
+         * un-hide a stone has to know which one refused. */
+        UITree_EnsureLayoutFor(tree, idx);
+        struct ToriRS_WidgetState* state = r->state;
+        int32_t scene_id = 0, atlas_index = 0;
+        bool const display_hidden = UITree_NodeOrAncestorDisplayHidden(tree, idx) != 0;
+        UITree_NodeDrawnBounds(tree, idx, &state->bounds.x, &state->bounds.y,
+                               &state->bounds.width, &state->bounds.height);
+        state->local = (struct ToriRS_WidgetBounds){
+            c->position.abs_x, c->position.abs_y, c->position.abs_w, c->position.abs_h};
+        if( c->parent >= 0 )
+        {
+            state->local.x -= tree->components[c->parent].position.abs_x;
+            state->local.y -= tree->components[c->parent].position.abs_y;
+        }
+        state->presented = !display_hidden &&
+            UITree_NodeNativeVisible(tree, &app->ui_host, idx, app->hover_com_id);
+        state->own_hidden = c->behavior.hide != 0;
+        state->native_hidden = c->native_hide != 0;
+        state->input_present = UITree_NodeNativeInputPresent(tree, &app->ui_host, idx) &&
+            !display_hidden;
+        if( c->type == UIELEM_RS_GRAPHIC )
+        { scene_id = c->u.rs_graphic.scene_id; atlas_index = c->u.rs_graphic.atlas_index; }
+        else if( c->type == UIELEM_BUILTIN_SPRITE || c->type == UIELEM_BUILTIN_COMPASS )
+        { scene_id = c->u.sprite.scene_id; atlas_index = c->u.sprite.atlas_index; }
+        /* A CHANGE token and nothing else: art that differs gives a different
+         * number, and no caller may read a scene id back out of it. */
+        state->graphic_token =
+            (uint32_t)(((uint32_t)scene_id << 8) ^ ((uint32_t)atlas_index & 0xFFu));
+        state->text_hash = UITree_NodeTextHash(tree, idx);
+        state->facets = app_plugin_widget_facets(app, idx);
+        state->incarnation = r->ref.opaque[2];
+        return TORIRS_CONTRACT_OK;
+    }
     case PLUGIN_WIDGET_TEXT:
     {
         if( c->type != UIELEM_RS_TEXT ) return TORIRS_CONTRACT_UNAVAILABLE;
@@ -4134,21 +4314,20 @@ static void
 app_plugin_frame_stamp_role(
     struct App* app,
     struct UITree* tree,
-    char const* role,
+    uint16_t role_id,
     uint8_t tag,
     int member,
     int32_t* next,
     int* next_count)
 {
-    uint16_t const role_id = UITree_RoleFind(&app->ui_roles, role);
     int32_t node;
     struct UITreeComponent* c;
 
     assert(app);
     assert(tree);
-    assert(role);
     assert(next);
     assert(next_count);
+    PA_INC(frame_bind_stamp_calls);
     if( role_id == 0 || *next_count >= APP_FRAME_STAMP_MAX )
         return;
     node = UITree_RoleNode(tree, &app->ui_roles, role_id);
@@ -4397,24 +4576,61 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
         app->ui_roles.fallback = app_plugin_frame_role_fallback;
         app->ui_roles.fallback_user = app;
         for( int i = 0; i < app->ui_roles.count; i++ ) app->ui_roles.entries[i].memo_valid = 0;
+        app->plugin_frame_bound_valid = 0;
+    }
+
+    /* Every answer below is a function of the role memo's two keys: a role
+     * can only move when the tree is rebuilt (`generation`) or a node is
+     * pushed or recycled (`id_generation`). When neither has moved since the
+     * last pass the stamps are already right; running the pass again would
+     * recompute 106 constants with 7,000 string compares to reach the same
+     * table. A role interned after the last pass (the table grew) is the one
+     * other input, and it re-arms the pass through the intern table below. */
+    if( app->plugin_frame_bound_valid && app->plugin_frame_bound_tree == tree &&
+        app->plugin_frame_bound_generation == tree->generation &&
+        app->plugin_frame_bound_id_generation == tree->id_generation &&
+        app->plugin_frame_role_ids_for_count == app->ui_roles.count )
+        return;
+
+    /* The frame role names are compile-time constants; intern them once per
+     * role table and stamp by id. Rebuilt when the table grows, since a role
+     * a later profile line declares must start answering. */
+    _Static_assert(UITREE_FRAME_SLOT_COUNT <= APP_FRAME_ROLE_SLOTS, "frame slot table too small");
+    if( app->plugin_frame_role_ids_for_count != app->ui_roles.count )
+    {
+        for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
+        {
+            char const* name = UITree_RoleSlotName(slot);
+            char role[UITREE_ROLE_NAME_MAX];
+            uint16_t* ids = app->plugin_frame_role_id[slot];
+
+            memset(ids, 0, sizeof(app->plugin_frame_role_id[slot]));
+            if( app_plugin_frame_slot_tag(slot) == UITREE_SLOT_NONE || !name )
+                continue;
+            snprintf(role, sizeof(role), "frame_%s", name);
+            ids[0] = UITree_RoleFind(&app->ui_roles, role);
+            if( !app_plugin_frame_slot_has_members(slot) )
+                continue;
+            for( int member = 0; member < UITREE_FRAME_SLOT_NODES_MAX; member++ )
+            {
+                snprintf(role, sizeof(role), "frame_%s_%d", name, member);
+                ids[1 + member] = UITree_RoleFind(&app->ui_roles, role);
+            }
+        }
+        app->plugin_frame_role_ids_for_count = app->ui_roles.count;
     }
     for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
     {
         uint8_t const tag = app_plugin_frame_slot_tag(slot);
-        char const* name = UITree_RoleSlotName(slot);
-        char role[UITREE_ROLE_NAME_MAX];
+        uint16_t const* ids = app->plugin_frame_role_id[slot];
 
-        if( tag == UITREE_SLOT_NONE || !name )
+        if( tag == UITREE_SLOT_NONE || !ids[0] )
             continue;
-        snprintf(role, sizeof(role), "frame_%s", name);
-        app_plugin_frame_stamp_role(app, tree, role, tag, -1, next, &next_count);
+        app_plugin_frame_stamp_role(app, tree, ids[0], tag, -1, next, &next_count);
         if( !app_plugin_frame_slot_has_members(slot) )
             continue;
         for( int member = 0; member < UITREE_FRAME_SLOT_NODES_MAX; member++ )
-        {
-            snprintf(role, sizeof(role), "frame_%s_%d", name, member);
-            app_plugin_frame_stamp_role(app, tree, role, tag, member, next, &next_count);
-        }
+            app_plugin_frame_stamp_role(app, tree, ids[1 + member], tag, member, next, &next_count);
     }
 
     /* One audit per root, when asked for: the rungs are hand-copied from a
@@ -4466,6 +4682,21 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
         app->plugin_frame_stamp[n].incarnation = tree->components[next[n]].incarnation;
     }
     app->plugin_frame_stamp_count = next_count;
+    /* One line per pass the guard let through. The matrix counts them
+     * against the distinct (generation, id_generation) pairs of the run: a
+     * guard that stops working shows as one line per layout tick. */
+    {
+        static int trace = -1;
+        if( trace < 0 )
+            trace = getenv("TORIRS_TRACE_NATIVE_UI") != NULL;
+        if( trace )
+            TORIRS_REPORT("PLUGIN_FRAME_BIND generation=%u id_generation=%u stamps=%d\n",
+                          tree->generation, tree->id_generation, next_count);
+    }
+    app->plugin_frame_bound_tree = tree;
+    app->plugin_frame_bound_generation = tree->generation;
+    app->plugin_frame_bound_id_generation = tree->id_generation;
+    app->plugin_frame_bound_valid = 1;
 }
 
 /**

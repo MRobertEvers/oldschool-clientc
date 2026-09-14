@@ -1281,6 +1281,17 @@ struct App
         uint64_t incarnation;
     } plugin_frame_stamp[64];
     int plugin_frame_stamp_count;
+    /** The frame roles' interned ids, [slot][0] the group and [slot][1+m]
+     *  member m; 0 = no such role. Built once per role-table size. */
+#define APP_FRAME_ROLE_SLOTS 32
+    uint16_t plugin_frame_role_id[APP_FRAME_ROLE_SLOTS][1 + 16];
+    int plugin_frame_role_ids_for_count;
+    /** The tree generations the stamps above were computed against; the
+     *  binder returns early while neither has moved. */
+    struct UITree const* plugin_frame_bound_tree;
+    uint32_t plugin_frame_bound_generation;
+    uint32_t plugin_frame_bound_id_generation;
+    uint8_t plugin_frame_bound_valid;
     /** Set when the tree is rebuilt or the canvas changes under an active
      * frame; the next safe layout pass rebuilds before applying anything. */
     uint8_t plugin_layout_dirty;

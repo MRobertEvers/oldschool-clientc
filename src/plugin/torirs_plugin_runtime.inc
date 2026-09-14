@@ -1686,6 +1686,22 @@ v2_client_disable_self(
         api_disable_self(runtime->context, reason);
 }
 
+/*
+ * One skill, and whether the server has STATED it.
+ *
+ * The return value is unchanged and deliberately so: false for a skill with
+ * no reading yet is what xp_orbs sizes its tables on ("before the server has
+ * stated a single stat there is no table to size"), so answering true there
+ * would seed every tracker with 25 fictional skills on the title screen. What
+ * is new is that the OUT snapshot is filled on both false paths, and tells
+ * them apart:
+ *
+ *   no such skill index -> zeroed, index -1, stated false
+ *   stated, no reading  -> index and name, zero readings, stated false
+ *   a real reading      -> everything, stated true (and returns true)
+ *
+ * @see ToriRS_SkillSnapshot::stated, RS_PlayerStats::last_seen_level.
+ */
 static bool
 v2_game_skill(
     struct ToriRS_Api* api,
@@ -1699,13 +1715,17 @@ v2_game_skill(
 
     assert(out);
     capacity = out->struct_size;
-    if( capacity < TORIRS_SKILL_SNAPSHOT_REQUIRED_SIZE || index < 0 )
-        return false;
-    name = api_skill_name(runtime->context, index);
-    if( !name )
+    if( capacity < TORIRS_SKILL_SNAPSHOT_REQUIRED_SIZE )
         return false;
     memset(&snapshot, 0, sizeof(snapshot));
     snapshot.struct_size = capacity < sizeof(snapshot) ? capacity : sizeof(snapshot);
+    snapshot.index = -1;
+    name = index >= 0 ? api_skill_name(runtime->context, index) : NULL;
+    if( !name )
+    {
+        (void)v2_output_copy(out, capacity, &snapshot, sizeof(snapshot));
+        return false;
+    }
     snapshot.index = index;
     (void)snprintf(snapshot.name, sizeof(snapshot.name), "%s", name);
     if( !api_stat(
@@ -1716,7 +1736,18 @@ v2_game_skill(
             &snapshot.xp,
             &snapshot.level_xp,
             &snapshot.next_level_xp) )
+    {
+        /* The levels api_stat may have written are the fresh-account seed and
+         * not a reading, so they go back to zero with the rest. */
+        snapshot.current_level = 0;
+        snapshot.base_level = 0;
+        snapshot.xp = 0;
+        snapshot.level_xp = 0;
+        snapshot.next_level_xp = 0;
+        (void)v2_output_copy(out, capacity, &snapshot, sizeof(snapshot));
         return false;
+    }
+    snapshot.stated = true;
     return v2_output_copy(out, capacity, &snapshot, sizeof(snapshot));
 }
 
@@ -2807,6 +2838,17 @@ static enum ToriRS_ContractResult widget_text(void* u, struct ToriRS_WidgetRef r
     struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_TEXT, .ref=ref, .text=out, .capacity=cap, .count=count};
     return plugin_widget_request(u, &r);
 }
+static enum ToriRS_ContractResult widget_state(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetState* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    /* The caller's struct_size is the only field it owns; everything else is
+     * this answer, so a stale read cannot survive a failed request. */
+    uint32_t const declared = out->struct_size;
+    memset(out, 0, sizeof(*out));
+    out->struct_size = declared;
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_STATE, .ref=ref, .state=out};
+    return plugin_widget_request(u, &r);
+}
 static enum ToriRS_ContractResult widget_local_bounds(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetBounds* out)
 {
     if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
@@ -2978,7 +3020,7 @@ static enum ToriRS_ContractResult widget_remove(void* u, struct ToriRS_WidgetRef
 }
 
 static enum ToriRS_ContractResult
-widget_subscribe(void* user, char const* role, ToriRS_WidgetListener listener, void* listener_user)
+widget_subscribe(void* user, char const* role, ToriRS_WidgetListener listener, void* listener_user, bool wants_state)
 {
     struct PluginV2Runtime* runtime = user;
     struct PluginContext* ctx = runtime ? runtime->context : NULL;
@@ -3010,17 +3052,23 @@ widget_subscribe(void* user, char const* role, ToriRS_WidgetListener listener, v
         watch->listener = listener;
         watch->user = listener_user;
         watch->serial = ++ctx->host->widget_watch_serial;
+        watch->wants_state = wants_state;
         ctx->host->widget_watch_pending = true;
     }
     return TORIRS_CONTRACT_OK;
 }
 
 static enum ToriRS_ContractResult widget_watch_tree(void* u,ToriRS_WidgetListener listener,void* user)
-{ return widget_subscribe(u,"@tree",listener,user); }
+{ return widget_subscribe(u,"@tree",listener,user,false); }
 static enum ToriRS_ContractResult widget_watch(void* u,char const* role,ToriRS_WidgetListener listener,void* user)
 {
     if( role && role[0]=='@' ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
-    return widget_subscribe(u,role,listener,user);
+    return widget_subscribe(u,role,listener,user,false);
+}
+static enum ToriRS_ContractResult widget_watch_state(void* u,char const* role,ToriRS_WidgetListener listener,void* user)
+{
+    if( role && role[0]=='@' ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    return widget_subscribe(u,role,listener,user,true);
 }
 
 static bool
@@ -3094,9 +3142,10 @@ v2_runtime_init(
             .find_all = widget_find_all, .set_hidden = widget_set_hidden, .watch_tree = widget_watch_tree,
             .set_on_op=widget_set_on_op,.create_image=widget_create_image,.set_image=widget_set_image,.set_opacity=widget_set_opacity,.set_anchor=widget_set_anchor,.set_mask=widget_set_mask,.visible=widget_visible,.actions=widget_actions,.invoke=widget_invoke,.parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
             .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
+            .state = widget_state,
             .position = widget_local_bounds,
             .set_position = widget_position, .set_size = widget_size,
-            .revalidate = widget_revalidate, .reset = widget_reset, .watch = widget_watch,
+            .revalidate = widget_revalidate, .reset = widget_reset, .watch = widget_watch, .watch_state = widget_watch_state,
             .create_text=widget_create_text,.set_text=widget_set_text,.set_text_color=widget_text_color,.set_text_align=widget_text_align,.remove=widget_remove,
         },
         .core = {

@@ -7,6 +7,7 @@
 #include "bmp.h"
 #include "game/rs_minimap_state.h"
 #include "log/torirs_log.h"
+#include "perf_audit.h"
 #include "torirs_env.h"
 /* Screenshot encoding. Already linked for the cache codecs; the PNG writer
  * rides along, so a plugin capture costs no new dependency. */
@@ -5871,7 +5872,7 @@ app_build_entity_overlays(
      * taken what they need from -- so a crowded scene clips the plugin, never
      * a health bar.
      */
-    PluginHost_DrawWorld(app->plugins);
+    PluginHost_DrawWorld(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 
     /* TORIRS_OVERLAY_DEBUG=1: the primitives this frame, plus the two assets
      * they need — a missing p11 (font -1) or hitmarks pack is the usual
@@ -8562,6 +8563,7 @@ App_NoteFrameTime(
 {
     assert(app);
 
+    PerfAudit_EndFrame(frame_us);
     app->dbg_frame_us[app->dbg_frame_head] =
         frame_us > UINT32_MAX ? UINT32_MAX : (uint32_t)frame_us;
     app->dbg_frame_head = (app->dbg_frame_head + 1) % APP_DEBUG_FRAME_SAMPLES;
@@ -20323,12 +20325,22 @@ app_world_mouse_gate(
      * while a `noClickThrough` layer owns its own bounds. Overlay/tab mounts
      * stay transparent unless their own records raise that flag.
      */
-    if( app->tree && UITree_PointBlocksWorld(app->tree, &app->ui_host, mouse_x, mouse_y) )
-        return 0;
-    /* Clickable UI wins over the world; pass-through layers with hover scripts
-     * do not. */
-    if( app->tree && UITree_HitTestInteractive(app->tree, &app->ui_host, mouse_x, mouse_y) >= 0 )
-        return 0;
+    if( app->tree )
+    {
+        int ui_blocks_world = 0;
+        int32_t ui_interactive_hit = -1;
+        /* One collection, both answers. These are asked back to back at the same
+         * point, and with any plugin widget anchor present each of the two entry
+         * points is a whole ordered walk of the tree. */
+        UITree_PointQuery(
+            app->tree, &app->ui_host, mouse_x, mouse_y, &ui_blocks_world, &ui_interactive_hit);
+        if( ui_blocks_world )
+            return 0;
+        /* Clickable UI wins over the world; pass-through layers with hover
+         * scripts do not. */
+        if( ui_interactive_hit >= 0 )
+            return 0;
+    }
     /* Gate on the world WIDGET rect, not just its clip: an unclipped world
      * node inherits a full-canvas clip, which let sidebar/chat clicks count
      * as "in world" — right-clicking an inventory item offered "Walk here"
@@ -31124,6 +31136,7 @@ App_PluginLayoutTick(struct App* app)
 
     assert(app);
 
+    PA_INC(layout_tick_calls);
     if( !app->plugins )
         return;
     /*
@@ -31142,6 +31155,11 @@ App_PluginLayoutTick(struct App* app)
         app->plugins,
         widgets_ready ? app->tree->instance_id : 0,
         widgets_ready ? app->tree->generation : 0);
+    /* Unconditional, and that is the point: a hide, a move, a re-skin or a
+     * retype bumps no tree generation, so the bindings pass above cannot see
+     * them. Every bound watch is stamped here and told when its widget moved
+     * underneath it. */
+    PluginHost_WidgetStates(app->plugins);
     frame_candidate = PluginHost_FrameNeedsLayout(app->plugins) ? 1 : 0;
     if( !app->plugin_frame_active )
     {
@@ -31245,7 +31263,9 @@ candidate_layout:
         app->plugin_layout_w != UITREE_LAYOUT_ROOT_W ||
         app->plugin_layout_h != UITREE_LAYOUT_ROOT_H )
     {
+        { uint64_t const pa_h0 = PerfAudit_Now();
         PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        PA_ADD(plugin_host_layout_ns, PerfAudit_Now() - pa_h0); }
         /* A provider may change selection from inside on_gameframe. The host
          * correctly abandons that transaction (its selection epoch moved),
          * which leaves dirty set and the effective frame released. Give the
@@ -32156,7 +32176,7 @@ App_RunOnce(
      * is complete. Applying it at the head of App_RunOnce made every later
      * CC_DELETEALL/CC_CREATE hand interaction a tree one generation newer
      * than the semantic bindings it was using. */
-    App_PluginLayoutTick(app);
+    { uint64_t const pa_w0 = PerfAudit_Now(); App_PluginLayoutTick(app); PA_ADD(layout_tick_ns, PerfAudit_Now() - pa_w0); }
     /* A popup retained from the previous frame must not keep native rows live
      * after that reconciliation suppressed or rebuilt their component. */
     app_minimenu_close_if_stale(app);
@@ -33392,7 +33412,7 @@ App_RunOnce(
          * second CS2/topology transaction. This is the publication fence: the
          * standing semantic declaration must name the exact incarnations the
          * emit walk is about to commit, never the tree from frame start. */
-        App_PluginLayoutTick(app);
+        { uint64_t const pa_w0 = PerfAudit_Now(); App_PluginLayoutTick(app); PA_ADD(layout_tick_ns, PerfAudit_Now() - pa_w0); }
         app_minimenu_close_if_stale(app);
         /* Publication invariant: an emit list is a frame commit, not a view of
          * whatever intermediate state the cooperative schedulers reached. */

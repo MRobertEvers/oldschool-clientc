@@ -1030,7 +1030,11 @@ app_plugin_panel_patch_row(
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
         break;
     case TORIRS_PANEL_WIDGET_BUTTON:
-        /* Button captions are declaration identity in ABI-21. */
+        /* A caption set through panel.set_text lands on the button: the
+         * tracker's Pause/Unpause flips here. The host journals the change
+         * and used to apply nothing, reporting OK. */
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
+            ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
         break;
     case TORIRS_PANEL_WIDGET_LIST_ROW:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )

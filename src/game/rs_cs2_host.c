@@ -6403,6 +6403,11 @@ rs_cs2_clear_hooks_subtree(
              child = tree->components[child].next_sibling )
         {
             int child_cid = tree->components[child].component_id;
+            /* Plugin-owned controls sit at id -1 under cache nodes; the
+             * group filter below would walk into them and clear hooks they
+             * never had. They are the plugin's to remove, not the group's. */
+            if( tree->components[child].plugin_owner )
+                continue;
             if( child_cid >= 0 && ((child_cid >> 16) & 0xffff) != group_id )
                 continue;
             if( sp >= cap )

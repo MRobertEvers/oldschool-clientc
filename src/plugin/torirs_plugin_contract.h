@@ -97,6 +97,49 @@ struct ToriRS_PluginRequirement
 
 struct ToriRS_WidgetBounds { int32_t x, y, width, height; };
 
+/*
+ * Everything a plugin that REPLACES or DECORATES a native widget has to
+ * follow: where the widget is, whether it paints, who hid it, whether it can
+ * still be clicked, and whether its art or caption changed underneath.
+ *
+ * Read it with ToriRS_WidgetApi::state, or take it for granted: the host
+ * stamps it once a frame for every bound watch and raises
+ * TORIRS_WIDGET_STATE_CHANGED when any field below moves. That is the whole
+ * point of the struct -- without it a tab stone or a compass plate has to poll
+ * the individual getters every frame to notice a CS2 if_sethide or a move.
+ */
+struct ToriRS_WidgetState
+{
+    uint32_t struct_size;
+    /** Drawn canvas space, as ToriRS_WidgetApi::bounds answers it. */
+    struct ToriRS_WidgetBounds bounds;
+    /** Native-parent-local, unscrolled, as ToriRS_WidgetApi::position. */
+    struct ToriRS_WidgetBounds local;
+    /** Paints this frame: exactly the ToriRS_WidgetApi::visible answer. */
+    bool presented;
+    /** The node's OWN hide bit -- a CS2 if_sethide or a dat1 IF_SETTAB.
+     *  Separate from native_hidden because a plugin that un-hides a stone
+     *  needs to know which of the two said no. */
+    bool own_hidden;
+    /** The engine's native suppression bits, not the script's. */
+    bool native_hidden;
+    /** Present to the native hit test: a decoration that must stay clickable
+     *  follows this and not `presented`. */
+    bool input_present;
+    /** A CHANGE token for a node that carries art, zero for one that does
+     *  not. NEVER an identity: equal tokens mean "the art did not change",
+     *  and nothing may be decoded back out of it. */
+    uint32_t graphic_token;
+    /** FNV-1a 64 of a text node's current string; zero for a non-text node.
+     *  A text node with an empty string hashes to the FNV basis, not zero. */
+    uint64_t text_hash;
+    /** Reserved for lane-derived facets. Zero from every current adapter. */
+    uint32_t facets;
+    /** The reference's incarnation, so a state that arrived for a replaced
+     *  node can be told from one for the node the plugin still holds. */
+    uint64_t incarnation;
+};
+
 /* Event payload strings and argument views are borrowed for the callback.
  * Widget references can be retained, but must still be live when next used. */
 enum ToriRS_WidgetEventType
@@ -187,6 +230,11 @@ struct ToriRS_WidgetApi
     /* Native-parent-local, unscrolled geometry; bounds is drawn canvas space. */
     enum ToriRS_ContractResult (*position)(void*, struct ToriRS_WidgetRef, struct ToriRS_WidgetBounds*);
     enum ToriRS_ContractResult (*get_text)(void*, struct ToriRS_WidgetRef, char*, size_t capacity, size_t* required);
+    /* One read of everything a follower needs; see ToriRS_WidgetState. Set
+     * `out->struct_size` before the call. The host stamps the same answer once
+     * a frame for every bound watch and raises TORIRS_WIDGET_STATE_CHANGED on
+     * a difference, so a plugin that only wants to REACT need never call it. */
+    enum ToriRS_ContractResult (*state)(void*, struct ToriRS_WidgetRef, struct ToriRS_WidgetState* out);
     enum ToriRS_ContractResult (*set_position)(void*, struct ToriRS_WidgetRef, int32_t x, int32_t y);
     enum ToriRS_ContractResult (*set_size)(void*, struct ToriRS_WidgetRef, int32_t width, int32_t height);
     enum ToriRS_ContractResult (*set_hidden)(void*, struct ToriRS_WidgetRef, bool hidden);
@@ -236,6 +284,13 @@ struct ToriRS_WidgetApi
      * for the old incarnation then BOUND for the new one. Hidden is still
      * bound. NULL listener unregisters this owner's subscription for the role. */
     enum ToriRS_ContractResult (*watch)(void*, char const* role, ToriRS_WidgetListener, void* user);
+    /* As `watch`, and additionally raises TORIRS_WIDGET_STATE_CHANGED once per
+     * publication fence in which the bound widget's native state (box,
+     * presented, own and native hides, input presence, graphic token, text)
+     * moved; read it with `state`. Opt-in: a plain `watch` never receives
+     * STATE_CHANGED, so a listener written for BOUND/UNBOUND alone keeps its
+     * meaning. */
+    enum ToriRS_ContractResult (*watch_state)(void*, char const* role, ToriRS_WidgetListener, void* user);
     /* Initial notification and subsequent topology publications. Geometry or
      * hiding alone do not trigger this. Event widget is empty; query live refs.
      * A replacement subscription starts at the next publication fence. */

@@ -720,7 +720,7 @@ enum ToriRS_PanelActionKind
 /** Bounded logical height of one custom drawing well. */
 #define TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT 120
 #define TORIRS_PANEL_CUSTOM_HEIGHT_MIN 48
-#define TORIRS_PANEL_CUSTOM_HEIGHT_MAX 512
+#define TORIRS_PANEL_CUSTOM_HEIGHT_MAX 2048
 
 /** Inert rail metadata copied by panel_request during on_start. */
 struct ToriRS_PanelDescriptor

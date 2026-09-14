@@ -1091,6 +1091,9 @@ fake_stat(
 }
 /* Level 10 with 1154 xp: the hitpoints a fresh account starts on, so the
  * thresholds either side of it are real numbers rather than zeroes. */
+/* The skill this engine has no reading for, the way RS_PlayerStats answers a
+ * skill the server has not stated yet. -1 when every skill is stated. */
+static int g_stat_xp_unstated = -1;
 static int
 fake_stat_xp(
     void* u,
@@ -1100,7 +1103,7 @@ fake_stat_xp(
     int* next_xp)
 {
     (void)u;
-    if( skill < 0 || skill >= 25 )
+    if( skill < 0 || skill >= 25 || skill == g_stat_xp_unstated )
         return 0;
     if( xp )
         *xp = 1154;
@@ -1480,6 +1483,16 @@ static int g_v2_started_with_saved_config;
 static char g_v2_option_label_a[] = "Same|label";
 static char g_v2_option_label_missing[] = "Same|label";
 static char g_v2_option_detail_missing[] = "Provider is not installed";
+static struct ToriRS_SelectOption const V2_PANEL_OPTIONS_SECOND[] = {
+    { .struct_size = sizeof(struct ToriRS_SelectOption), .value = "one", .label = "One", .enabled = true },
+    { .struct_size = sizeof(struct ToriRS_SelectOption), .value = "two", .label = "Two", .enabled = true },
+};
+static struct ToriRS_SelectOption const V2_PANEL_OPTIONS_FOUR[] = {
+    { .struct_size = sizeof(struct ToriRS_SelectOption), .value = "auto", .label = "Auto", .enabled = true },
+    { .struct_size = sizeof(struct ToriRS_SelectOption), .value = "a/frame", .label = "A", .enabled = true },
+    { .struct_size = sizeof(struct ToriRS_SelectOption), .value = "b/frame", .label = "B", .enabled = false },
+    { .struct_size = sizeof(struct ToriRS_SelectOption), .value = "c/frame", .label = "C", .enabled = true },
+};
 static struct ToriRS_SelectOption const V2_PANEL_OPTIONS[] = {
     { .struct_size = sizeof(struct ToriRS_SelectOption),
       .value = "auto",
@@ -1611,6 +1624,16 @@ v2_probe_ui_build(
         (int)(sizeof(V2_PANEL_OPTIONS) / sizeof(V2_PANEL_OPTIONS[0])));
     panel->custom(panel, "chart", 96);
     (void)panel->node(panel, &labelled_custom);
+    /* A second structured select AFTER the first: its option slice sits
+     * behind "frame"'s in the host pool, so a count change on "frame" has
+     * to slide it and keep its owner's pointer right. */
+    panel->select(
+        panel,
+        "second",
+        "Second",
+        "two",
+        V2_PANEL_OPTIONS_SECOND,
+        (int)(sizeof(V2_PANEL_OPTIONS_SECOND) / sizeof(V2_PANEL_OPTIONS_SECOND[0])));
     g_v2_panel_builds++;
 }
 
@@ -1842,6 +1865,14 @@ struct V2SeamResults
     struct ToriRS_ImageRef image;
     struct ToriRS_ModelRef model;
     int bytes_ready;
+    /* The three answers of game.skill: a reading, a skill with no reading
+     * yet, and an index this client has no skill for. */
+    bool skill_stated_returned;
+    bool skill_unstated_returned;
+    bool skill_missing_returned;
+    struct ToriRS_SkillSnapshot skill_stated;
+    struct ToriRS_SkillSnapshot skill_unstated;
+    struct ToriRS_SkillSnapshot skill_missing;
 };
 
 static struct V2SeamResults g_v2_seam;
@@ -1855,6 +1886,15 @@ v2_seam_start(struct ToriRS_Api* api, void* state)
     g_v2_seam.browser = api->core.capability(api, "browser");
     g_v2_seam.web = api->core.capability(api, "web");
     g_v2_seam.unknown = api->core.capability(api, "telepathy");
+    g_v2_seam.skill_stated.struct_size = sizeof(g_v2_seam.skill_stated);
+    g_v2_seam.skill_unstated.struct_size = sizeof(g_v2_seam.skill_unstated);
+    g_v2_seam.skill_missing.struct_size = sizeof(g_v2_seam.skill_missing);
+    g_v2_seam.skill_stated_returned =
+        api->game->skill(api, 0, &g_v2_seam.skill_stated);
+    g_v2_seam.skill_unstated_returned =
+        api->game->skill(api, 1, &g_v2_seam.skill_unstated);
+    g_v2_seam.skill_missing_returned =
+        api->game->skill(api, 9, &g_v2_seam.skill_missing);
     g_v2_seam.raw_initial = api->assets.request(api, "raw.bin");
     g_v2_seam.image_initial = api->assets.image(api, "image.bin", &g_v2_seam.image);
     g_v2_seam.model_initial = api->assets.model(api, "model.bin", &g_v2_seam.model);
@@ -2251,6 +2291,33 @@ static int op_requests;
 static int anchor_relation,anchor_sets;
 static int mask_slot,mask_sets;
 static struct ToriRS_WidgetRef anchor_target;
+/*
+ * The engine's answer to PLUGIN_WIDGET_STATE, as a table the test writes.
+ * Keyed by the reference's NODE slot rather than the whole reference, so a
+ * test that bumps the incarnation (a native replacement) keeps writing to the
+ * same row -- which is what the real adapter does too.
+ */
+#define FAKE_WIDGET_STATE_MAX 4
+static struct
+{
+    uint64_t node;
+    struct ToriRS_WidgetState state;
+} fake_states[FAKE_WIDGET_STATE_MAX];
+static int fake_state_count;
+static struct ToriRS_WidgetState* fake_state_row(uint64_t node)
+{
+    for( int i = 0; i < fake_state_count; ++i )
+        if( fake_states[i].node == node ) return &fake_states[i].state;
+    CHECK(fake_state_count < FAKE_WIDGET_STATE_MAX, "the fake state table has room");
+    fake_states[fake_state_count].node = node;
+    return &fake_states[fake_state_count++].state;
+}
+static void fake_states_reset(void)
+{
+    memset(fake_states, 0, sizeof(fake_states));
+    fake_state_count = 0;
+}
+
 static enum ToriRS_ContractResult fake_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
 {
     (void)user;
@@ -2280,6 +2347,13 @@ static enum ToriRS_ContractResult fake_widget_request(void* user, uint64_t owner
         else return TORIRS_CONTRACT_BUDGET_EXCEEDED;
     }
     if( r->kind == PLUGIN_WIDGET_RESET_OWNER ) ++widget_resets;
+    if( r->kind == PLUGIN_WIDGET_STATE )
+    {
+        uint32_t const declared = r->state->struct_size;
+        *r->state = *fake_state_row(r->ref.opaque[1]);
+        r->state->struct_size = declared;
+        r->state->incarnation = r->ref.opaque[2];
+    }
     return TORIRS_CONTRACT_OK;
 }
 static void widget_probe_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* graphics)
@@ -2588,6 +2662,35 @@ static void test_widget_images(void)
     PluginHost_Free(host);
 }
 
+/* The world pass must hand its overlays a valid draw context: six of the
+ * seven overlay plugins draw there, and before the pass carried a region the
+ * context answered false to every one of them. */
+static int world_ctx_calls, world_ctx_valid, world_ctx_w, world_ctx_h, world_ctx_x, world_ctx_y;
+static void world_ctx_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* graphics)
+{
+    (void)api;(void)state;
+    struct ToriRS_DrawContext context={.struct_size=sizeof(context)};
+    world_ctx_calls++;
+    world_ctx_valid=graphics->context(graphics,&context);
+    if( world_ctx_valid ){ world_ctx_x=context.bounds.x; world_ctx_y=context.bounds.y; world_ctx_w=context.bounds.width; world_ctx_h=context.bounds.height; }
+}
+static void test_world_draw_context(void)
+{
+    struct ToriRS_PluginEngine engine=fake_engine();
+    struct ToriRS_PluginHost* host=PluginHost_New(&engine);
+    struct ToriRS_PluginDef def={.struct_size=sizeof(def),.id="world-ctx",.title="World ctx",.version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_draw_world=world_ctx_draw}};
+    world_ctx_calls=world_ctx_valid=0;
+    CHECK(PluginHost_Register(host,&def)>=0,"world context fixture registers");
+    PluginHost_Start(host);
+    PluginHost_DrawWorld(host,765,503);
+    CHECK(world_ctx_calls==1,"the world pass ran the overlay once");
+    CHECK(world_ctx_valid,"the world pass hands its overlay a valid draw context");
+    CHECK(world_ctx_x==0 && world_ctx_y==0 && world_ctx_w==765 && world_ctx_h==503,
+          "the world context is the whole canvas at origin zero (no coordinate shift)");
+    PluginHost_Free(host);
+}
+
 static void test_widget_operations(void)
 {
     struct ToriRS_PluginEngine engine=fake_engine();engine.widget_request=fake_widget_request;
@@ -2757,6 +2860,158 @@ static void script_test_callback(struct ToriRS_Api* api,void* state,struct ToriR
         PluginHost_SetEnabled(script_test_host,script_test_b,true);
     }
 }
+/* ------------------------------------------------------------------------ *
+ * Native state on a watched element.
+ *
+ * A hide, a move, a re-skin or a retype bumps no tree generation, so the
+ * bindings pass cannot see any of it. PluginHost_WidgetStates stamps every
+ * bound watch every frame and raises TORIRS_WIDGET_STATE_CHANGED on a
+ * difference -- which is what a tab stone, a camera over the report button or
+ * a plate over the compass follows instead of polling.
+ * ------------------------------------------------------------------------ */
+static struct ToriRS_PluginHost* state_host;
+static int state_events, state_binds, state_unbinds, state_self_replace;
+static bool state_read_ok;
+static struct ToriRS_WidgetState state_last_read;
+static void record_state(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    (void)user;
+    if( event->type == TORIRS_WIDGET_BOUND ) { ++state_binds; return; }
+    if( event->type == TORIRS_WIDGET_UNBOUND ) { ++state_unbinds; return; }
+    CHECK(event->type == TORIRS_WIDGET_STATE_CHANGED, "the state pass raises only state changes");
+    CHECK(strcmp(event->role, "sidebar") == 0, "a state event identifies its subscription");
+    ++state_events;
+    memset(&state_last_read, 0, sizeof(state_last_read));
+    state_last_read.struct_size = (uint32_t)sizeof(state_last_read);
+    state_read_ok = api->widgets.state(api->widgets.context, event->widget, &state_last_read)
+        == TORIRS_CONTRACT_OK;
+    if( state_self_replace )
+    {
+        state_self_replace = 0;
+        CHECK(api->widgets.watch_state(api->widgets.context, "sidebar", record_state, NULL)
+                  == TORIRS_CONTRACT_OK,
+              "a state callback may replace its own watch");
+    }
+}
+static int plain_binds, plain_state_events;
+static void record_plain(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    (void)api; (void)user;
+    if( event->type == TORIRS_WIDGET_BOUND || event->type == TORIRS_WIDGET_UNBOUND ) { ++plain_binds; return; }
+    /* The regression this pins: minimap-orbs and xp-drop-orbs compute their ref
+     * as "the widget if BOUND, else empty", so an unexpected kind made them drop
+     * their controls in the client. A plain watch is BOUND/UNBOUND only. */
+    ++plain_state_events;
+}
+static void plain_watch_start(struct ToriRS_Api* api, void* plugin_state)
+{
+    (void)plugin_state;
+    CHECK(api->widgets.watch(api->widgets.context, "sidebar", record_plain, NULL) == TORIRS_CONTRACT_OK,
+          "the plain fixture subscribes at startup");
+}
+static void state_watch_start(struct ToriRS_Api* api, void* plugin_state)
+{
+    (void)plugin_state;
+    CHECK(api->widgets.watch_state(api->widgets.context, "sidebar", record_state, NULL)
+              == TORIRS_CONTRACT_OK,
+          "the state fixture subscribes at startup");
+}
+static void test_widget_states(void)
+{
+    memset(&g_engine, 0, sizeof(g_engine));
+    fake_states_reset();
+    struct ToriRS_PluginEngine engine = fake_engine();
+    engine.widget_request = fake_widget_request;
+    state_host = PluginHost_New(&engine);
+    struct ToriRS_PluginDef def = {
+        .struct_size = sizeof(def), .id = "state-a", .title = "State", .version = "3",
+        .callbacks = {.struct_size = sizeof(struct ToriRS_PluginCallbacks),
+                      .on_start = state_watch_start}};
+    CHECK(PluginHost_Register(state_host, &def) >= 0, "the state fixture registers");
+    struct ToriRS_PluginDef plain = {
+        .struct_size = sizeof(plain), .id = "state-plain", .title = "Plain", .version = "3",
+        .callbacks = {.struct_size = sizeof(struct ToriRS_PluginCallbacks),
+                      .on_start = plain_watch_start}};
+    plain_binds = plain_state_events = 0;
+    CHECK(PluginHost_Register(state_host, &plain) >= 0, "the plain-watch fixture registers");
+    watched_native = (struct ToriRS_WidgetRef){{77, 2, 3}};
+    struct ToriRS_WidgetState* row = fake_state_row(watched_native.opaque[1]);
+    row->bounds = (struct ToriRS_WidgetBounds){10, 20, 30, 40};
+    row->local = (struct ToriRS_WidgetBounds){1, 2, 30, 40};
+    row->presented = true;
+    row->input_present = true;
+    state_events = 0; state_binds = 0; state_unbinds = 0; state_self_replace = 0;
+    PluginHost_Start(state_host);
+    PluginHost_WidgetsChanged(state_host, 77, 1);
+    CHECK(state_binds == 1, "the state fixture's watch binds");
+
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 0, "the first stamp after a binding is a baseline, not a change");
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 0, "an unchanged pass raises nothing");
+
+    row->presented = false;
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 1, "a presentation change raises exactly one state event");
+    CHECK(state_read_ok, "the callback can read the state that produced its event");
+    CHECK(!state_last_read.presented, "the event's own state read shows the new value");
+
+    /* Fourteen writes and one pass: the pass reports the WIDGET moving, not
+     * each write, so a plugin that reacts does it once. */
+    for( int i = 0; i < 14; ++i ) row->bounds.x = 100 + i;
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 2, "fourteen writes between two passes raise one event");
+    CHECK(state_last_read.bounds.x == 113, "the event carries the last value written");
+
+    row->own_hidden = true;
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 3, "a script hide raises a state event");
+    CHECK(state_last_read.own_hidden, "the node's own hide bit is reported");
+    CHECK(!state_last_read.native_hidden, "a script hide is not reported as native suppression");
+    row->native_hidden = true;
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 4, "native suppression raises a state event of its own");
+    CHECK(state_last_read.own_hidden, "the script hide still stands");
+    CHECK(state_last_read.native_hidden, "native suppression is reported separately");
+
+    row->bounds.y += 7;
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 5, "a move alone raises one state event");
+    CHECK(plain_binds == 1 && plain_state_events == 0,
+          "a plain watch on the same role saw its bind and never a state change");
+    CHECK(state_last_read.bounds.y == 27, "the move is the one the adapter answered");
+
+    /* The widget goes away and comes back: the stored state goes with it, so
+     * the rebind opens on a baseline instead of a difference between two
+     * different widgets. */
+    watched_native.opaque[2] = 0;
+    PluginHost_WidgetsChanged(state_host, 77, 2);
+    CHECK(state_unbinds == 1, "closing the native widget unbinds the watch");
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 5, "an unbound watch has no widget to stamp");
+    watched_native.opaque[2] = 3;
+    PluginHost_WidgetsChanged(state_host, 77, 3);
+    CHECK(state_binds == 2, "the watch rebinds when the widget returns");
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 5, "a rebind starts fresh, with no spurious state event");
+
+    /* A callback that replaces its own subscription mid-dispatch. */
+    state_self_replace = 1;
+    row->bounds.width += 3;
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 6, "the replacing pass still delivered its event");
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 6, "the replacement subscription has no binding to stamp yet");
+    PluginHost_WidgetsChanged(state_host, 77, 3);
+    CHECK(state_binds == 3, "the replacement subscription binds in the next publication");
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 6, "the replacement subscription's first stamp is a baseline");
+    row->bounds.height += 5;
+    PluginHost_WidgetStates(state_host);
+    CHECK(state_events == 7, "the replacement subscription follows its widget from then on");
+    PluginHost_Free(state_host);
+}
+
 static void test_script_callbacks(void)
 {
     struct ToriRS_PluginEngine engine=fake_engine();engine.capability=script_test_capability;
@@ -2996,7 +3251,7 @@ main(void)
         CHECK(PluginHost_PanelSelect(hv2, a2), "v2 panel can be selected");
         generation = PluginHost_PanelSelectionGeneration(hv2);
         CHECK(
-            g_v2_panel_builds == 1 && PluginHost_PanelWidgetCount(hv2, generation) == 5,
+            g_v2_panel_builds == 1 && PluginHost_PanelWidgetCount(hv2, generation) == 6,
             "v2 on_ui_build receives the semantic panel builder");
         CHECK(
             PluginHost_PanelLayout(
@@ -3036,6 +3291,43 @@ main(void)
             "structured option strings are copied rather than borrowed from plugin storage");
         g_v2_option_label_missing[0] = 'S';
         g_v2_option_detail_missing[0] = 'P';
+        /* A changed option COUNT applies in place: the catalogue a settings
+         * page offers grows and shrinks (a provider appears, a lane lacks
+         * one) and used to force a full rebuild through INVALID. */
+        {
+            struct ToriRS_PanelWidget const* second = PluginHost_PanelWidgetAt(hv2, generation, 5);
+            CHECK(second && second->structured_select && second->select_option_count == 2 &&
+                      strcmp(second->select_options[1].value, "two") == 0,
+                  "the second select holds its own two-option slice behind the first");
+            CHECK(g_v2_api[1]->panel.set_options(g_v2_api[1], "frame", "c/frame", V2_PANEL_OPTIONS_FOUR, 4) ==
+                      TORIRS_RESULT_OK,
+                  "a select grows from three options to four in place");
+            widget = PluginHost_PanelWidgetAt(hv2, generation, 2);
+            CHECK(widget && widget->select_option_count == 4 && widget->selected == 3 &&
+                      strcmp(widget->select_options[3].value, "c/frame") == 0 &&
+                      !widget->select_options[2].enabled,
+                  "the grown slice carries all four options and the selection");
+            second = PluginHost_PanelWidgetAt(hv2, generation, 5);
+            CHECK(second && second->select_option_count == 2 &&
+                      strcmp(second->select_options[0].value, "one") == 0 &&
+                      strcmp(second->select_options[1].value, "two") == 0 &&
+                      second->select_options == widget->select_options + 4,
+                  "the slice behind it slid by one and its owner still points at it");
+            CHECK(g_v2_api[1]->panel.set_options(g_v2_api[1], "frame", "two", V2_PANEL_OPTIONS_SECOND, 2) ==
+                      TORIRS_RESULT_OK,
+                  "a select shrinks from four options to two in place");
+            widget = PluginHost_PanelWidgetAt(hv2, generation, 2);
+            second = PluginHost_PanelWidgetAt(hv2, generation, 5);
+            CHECK(widget && widget->select_option_count == 2 && widget->selected == 1 &&
+                      second && strcmp(second->select_options[1].value, "two") == 0 &&
+                      second->select_options == widget->select_options + 2,
+                  "the shrunk slice and the slid neighbour are both intact");
+            CHECK(g_v2_api[1]->panel.set_options(g_v2_api[1], "frame", "auto", V2_PANEL_OPTIONS, 3) ==
+                      TORIRS_RESULT_OK &&
+                      PluginHost_PanelWidgetAt(hv2, generation, 2)->select_option_count == 3,
+                  "the original three come back");
+            widget = PluginHost_PanelWidgetAt(hv2, generation, 2);
+        }
         CHECK(
             widget && !PluginHost_PanelDispatch(
                           hv2,
@@ -3130,6 +3422,7 @@ main(void)
         g_capability_touch = 1;
         g_capability_browser = 1;
         g_capability_web = 0;
+        g_stat_xp_unstated = 1;
         engine = fake_engine();
         seam_host = PluginHost_New(&engine);
         CHECK(
@@ -3140,6 +3433,28 @@ main(void)
             g_v2_seam.touch && g_v2_seam.browser && !g_v2_seam.web &&
                 !g_v2_seam.unknown,
             "core.capability forwards the engine bridge's named truth and rejects unknowns");
+        CHECK(
+            g_v2_seam.skill_stated_returned && g_v2_seam.skill_stated.stated &&
+                g_v2_seam.skill_stated.index == 0 &&
+                strcmp(g_v2_seam.skill_stated.name, "Attack") == 0 &&
+                g_v2_seam.skill_stated.xp == 1154,
+            "a stated skill answers true and says so in the snapshot");
+        CHECK(
+            !g_v2_seam.skill_unstated_returned &&
+                !g_v2_seam.skill_unstated.stated &&
+                g_v2_seam.skill_unstated.index == 1 &&
+                strcmp(g_v2_seam.skill_unstated.name, "Defence") == 0 &&
+                g_v2_seam.skill_unstated.xp == 0 &&
+                g_v2_seam.skill_unstated.current_level == 0 &&
+                g_v2_seam.skill_unstated.base_level == 0,
+            "a skill with no reading yet names itself and states nothing");
+        CHECK(
+            !g_v2_seam.skill_missing_returned &&
+                !g_v2_seam.skill_missing.stated &&
+                g_v2_seam.skill_missing.index == -1 &&
+                g_v2_seam.skill_missing.name[0] == '\0',
+            "an index this client has no skill for is told apart from no reading");
+        g_stat_xp_unstated = -1;
         CHECK(
             g_v2_seam.raw_initial == TORIRS_ASSET_PENDING &&
                 g_v2_seam.image_initial == TORIRS_ASSET_PENDING &&
@@ -3374,8 +3689,10 @@ main(void)
         PluginHost_Free(watched_host);
     }
     test_script_callbacks();
+    test_widget_states();
     test_widget_operations();
     test_widget_images();
+    test_world_draw_context();
     test_gameframe_provider();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

@@ -6,7 +6,9 @@
 #include "revconfig/revconfig.h"
 #include "ui/uitree_minimenu.h"
 
+#include "perf_audit.h"
 #include <assert.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdatomic.h>
@@ -123,6 +125,15 @@ struct PluginWidgetWatch
     uint64_t tree_instance, tree_generation;
     bool tree_notified;
     struct ToriRS_WidgetRef current;
+    /* The last state PluginHost_WidgetStates stamped for `current`, and
+     * whether there IS one. Cleared whenever `current` changes, so a rebind
+     * starts fresh instead of reporting the old node's geometry as a change.
+     * Inline, never allocated: the pass runs every frame for every watch. */
+    struct ToriRS_WidgetState last_state;
+    bool has_last_state;
+    /** Registered through watch_state: the fence stamps it and raises
+     *  STATE_CHANGED. A plain watch is never stamped. */
+    bool wants_state;
     ToriRS_WidgetListener listener;
     void* user;
 };
@@ -337,6 +348,9 @@ struct ToriRS_PluginHost
     /* Menu routes live for one build. The hover pass rebuilds the menu every
      * frame, so they are reset per build rather than accumulated. */
     struct PluginMenuRoute routes[TORIRS_PLUGIN_MENU_ROUTES_MAX];
+    /** The host-wide route budget was hit at least once this process; the
+     *  refusal is reported once so it cannot flood, and never silently. */
+    bool menu_routes_reported;
     int route_count;
     int next_action;
 
@@ -1903,7 +1917,18 @@ api_menu_add(
     assert(host->menu_cursor);
 
     if( host->route_count >= TORIRS_PLUGIN_MENU_ROUTES_MAX )
+    {
+        if( !host->menu_routes_reported )
+        {
+            host->menu_routes_reported = true;
+            TORIRS_ERR(
+                "plugin: %s asked for a menu row past the host-wide budget of %d routes "
+                "in one build; this and later rows are refused (reported once)\n",
+                ctx->name,
+                TORIRS_PLUGIN_MENU_ROUTES_MAX);
+        }
         return 0;
+    }
 
     int const action = PLUGIN_MENU_ACTION_BASE + host->route_count;
     if( !host->engine.menu_add(host->engine.user, host->menu_cursor, text, action) )
@@ -2436,7 +2461,10 @@ api_asset_load(
     slot = plugin_asset_claim(host, ctx->index, name);
     if( !slot )
     {
-        TORIRS_LOG(
+        /* TORIRS_ERR, not TORIRS_LOG: the two frame providers alone held 165
+         * assets against the old ceiling of 128 during a provider switch, and
+         * a shipping build compiled the only line about it away. */
+        TORIRS_ERR(
             "plugin: %s asset '%s' not loaded, the resident asset table is full (%d)\n",
             ctx->name,
             name,
@@ -2491,7 +2519,7 @@ api_asset_save(
     struct PluginAsset* slot = plugin_asset_claim(host, ctx->index, name);
     if( !slot )
     {
-        TORIRS_LOG(
+        TORIRS_ERR(
             "plugin: %s asset '%s' not saved, the resident asset table is full (%d)\n",
             ctx->name,
             name,
@@ -3548,7 +3576,10 @@ plugin_draw_allow(
         if( !ctx->draw_clipped )
         {
             ctx->draw_clipped = true;
-            TORIRS_LOG(
+            /* TORIRS_ERR, not TORIRS_LOG: a shipping build compiles TORIRS_LOG
+             * out, and a truncated overlay with no line is the class of
+             * silence the audit found last. Once per frame per plugin. */
+            TORIRS_ERR(
                 "plugin: %s hit its %d-item draw budget this frame; "
                 "the rest of its overlay was dropped\n",
                 ctx->name,
@@ -5317,14 +5348,13 @@ plugin_v2_panel_set_options(
         return TORIRS_RESULT_NOT_FOUND;
     widget = &host->panel_widgets[slot];
     if( widget->kind != TORIRS_PANEL_WIDGET_DROPDOWN || !widget->structured_select ||
-        option_count < 0 || option_count != widget->select_option_count ||
-        (option_count > 0 && !options) ||
+        option_count < 0 || (option_count > 0 && !options) ||
         strlen(value) >= TORIRS_PLUGIN_SELECT_VALUE_MAX )
         return TORIRS_RESULT_INVALID;
+    /* Validate every option before touching the pool, so a refused call
+     * leaves the widget exactly as it was. */
     for( int i = 0; i < option_count; i++ )
     {
-        struct ToriRS_PluginSelectOption* destination = &widget->select_options[i];
-        char const* detail;
         if( options[i].struct_size < TORIRS_SELECT_OPTION_REQUIRED_SIZE ||
             !options[i].value || !options[i].value[0] || !options[i].label ||
             strlen(options[i].value) >= TORIRS_PLUGIN_SELECT_VALUE_MAX )
@@ -5332,6 +5362,43 @@ plugin_v2_panel_set_options(
         for( int j = 0; j < i; j++ )
             if( strcmp(options[i].value, options[j].value) == 0 )
                 return TORIRS_RESULT_INVALID;
+    }
+    if( option_count != widget->select_option_count )
+    {
+        /* A changed option COUNT used to be refused, and every consumer then
+         * invalidated the page and rebuilt it (a flash, a lost scroll, a
+         * retired custom well). The pool holds each widget's options as one
+         * contiguous slice; resize this slice in place and slide the slices
+         * after it, fixing their owners' pointers. */
+        int const first = (int)(widget->select_options - host->panel_select_options);
+        int const old_count = widget->select_option_count;
+        int const delta = option_count - old_count;
+        int const tail = host->panel_select_option_count - (first + old_count);
+        assert(first >= 0);
+        assert(tail >= 0);
+        if( host->panel_select_option_count + delta > TORIRS_PLUGIN_SELECT_OPTIONS_MAX )
+            return TORIRS_RESULT_BUDGET;
+        memmove(&host->panel_select_options[first + option_count],
+                &host->panel_select_options[first + old_count],
+                (size_t)tail * sizeof(host->panel_select_options[0]));
+        for( int w = 0; w < host->panel_widget_count; w++ )
+        {
+            struct ToriRS_PanelWidget* other = &host->panel_widgets[w];
+            if( other == widget || !other->structured_select || !other->select_options )
+                continue;
+            if( other->select_options > widget->select_options )
+                other->select_options += delta;
+        }
+        host->panel_select_option_count += delta;
+        for( int i = old_count; i < option_count; i++ )
+            memset(&widget->select_options[i], 0, sizeof(widget->select_options[i]));
+        widget->select_option_count = option_count;
+        changed = true;
+    }
+    for( int i = 0; i < option_count; i++ )
+    {
+        struct ToriRS_PluginSelectOption* destination = &widget->select_options[i];
+        char const* detail;
         detail = options[i].detail ? options[i].detail : "";
         if( strcmp(destination->value, options[i].value) != 0 ||
             strcmp(destination->label, options[i].label) != 0 ||
@@ -5769,9 +5836,11 @@ plugin_v2_event(
                    : TORIRS_CALLBACK_CONTINUE;
     case PLUGIN_CALLBACK_DRAW_WORLD:
     {
+        struct PluginCanvasDispatch const* world = event;
         struct PluginV2DrawScope scope;
         struct ToriRS_Graphics builder;
-        plugin_v2_runtime_draw_begin(&v2->runtime, event, &scope, &builder);
+        plugin_v2_runtime_draw_begin(&v2->runtime, world->surface, &scope, &builder);
+        plugin_v2_runtime_draw_region(&scope, world->bounds);
         v2->definition->callbacks.on_draw_world(api, state, &builder);
         plugin_v2_runtime_draw_end(&scope, &builder);
         break;
@@ -6682,9 +6751,12 @@ void
 PluginHost_WidgetsChanged(struct ToriRS_PluginHost* host, uint64_t instance, uint64_t generation)
 {
     if( !host ) return;
+    PA_INC(widgets_changed_calls);
+    uint64_t const pa_t0 = PerfAudit_Now();
     if( host->widget_watch_dispatching ) { host->widget_watch_pending = true; return; }
     if( !host->widget_watch_pending && host->widget_tree_instance == instance &&
-        host->widget_tree_generation == generation ) return;
+        host->widget_tree_generation == generation )
+    { PA_ADD(widgets_changed_ns, PerfAudit_Now() - pa_t0); return; }
     host->widget_tree_instance = instance;
     host->widget_tree_generation = generation;
     host->widget_watch_pending = false;
@@ -6738,6 +6810,11 @@ PluginHost_WidgetsChanged(struct ToriRS_PluginHost* host, uint64_t instance, uin
         }
         if( memcmp(&previous, &current, sizeof(current)) == 0 ) continue;
         watch->current = current;
+        /* The stamped state described the node that just went away. Dropping
+         * it here is what keeps a rebind from opening with a STATE_CHANGED
+         * for a difference between two different widgets. */
+        watch->has_last_state = false;
+        memset(&watch->last_state, 0, sizeof(watch->last_state));
         struct ToriRS_WidgetEvent event = {.native_revision=generation, .role=role};
         if( previous.opaque[2] )
         {
@@ -6749,6 +6826,107 @@ PluginHost_WidgetsChanged(struct ToriRS_PluginHost* host, uint64_t instance, uin
             event.type = TORIRS_WIDGET_BOUND; event.widget = current;
             plugin_widget_watch_call(host, item.owner, item.slot, item.serial, &event);
         }
+    }
+    host->widget_watch_dispatching = false;
+}
+
+/*
+ * Field by field, and struct_size deliberately NOT among them: the size is the
+ * caller's declaration of its own build, not an observation about the widget,
+ * and a memcmp over the whole struct would also compare whatever padding the
+ * compiler put between the four bools and `graphic_token`.
+ */
+static bool
+plugin_widget_state_equal(
+    struct ToriRS_WidgetState const* a,
+    struct ToriRS_WidgetState const* b)
+{
+    assert(a);
+    assert(b);
+    return a->bounds.x == b->bounds.x && a->bounds.y == b->bounds.y &&
+           a->bounds.width == b->bounds.width && a->bounds.height == b->bounds.height &&
+           a->local.x == b->local.x && a->local.y == b->local.y &&
+           a->local.width == b->local.width && a->local.height == b->local.height &&
+           a->presented == b->presented && a->own_hidden == b->own_hidden &&
+           a->native_hidden == b->native_hidden && a->input_present == b->input_present &&
+           a->graphic_token == b->graphic_token && a->text_hash == b->text_hash &&
+           a->facets == b->facets && a->incarnation == b->incarnation;
+}
+
+void
+PluginHost_WidgetStates(struct ToriRS_PluginHost* host)
+{
+    static int trace = -1;
+    if( !host ) return;
+    if( !host->engine.widget_request ) return;
+    /* Re-entered from a watch callback: the outer pass owns the walk, and the
+     * callback's own edits are picked up on the next frame's stamp. */
+    if( host->widget_watch_dispatching ) return;
+    if( trace < 0 ) trace = getenv("TORIRS_TRACE_NATIVE_UI") ? 1 : 0;
+    host->widget_watch_dispatching = true;
+    /* Same snapshot shape as PluginHost_WidgetsChanged: a callback may
+     * replace, remove, disable or reload any watch here, so every entry is
+     * re-validated through plugin_widget_watch_current before it is used. */
+    struct WatchDispatch { int owner, slot; uint64_t serial; };
+    struct WatchDispatch snapshot[TORIRS_PLUGIN_MAX * PLUGIN_WIDGET_WATCH_MAX];
+    int count = 0;
+    for( int order = 0; order < host->plugin_count; ++order )
+    {
+        int owner = host->event_order[order];
+        struct PluginContext* ctx = &host->plugins[owner];
+        if( !ctx->running || !ctx->enabled || !ctx->widget_watches ) continue;
+        int const first = count;
+        for( int slot = 0; slot < PLUGIN_WIDGET_WATCH_MAX; ++slot )
+            if( ctx->widget_watches[slot].serial )
+            {
+                struct WatchDispatch item = {owner, slot, ctx->widget_watches[slot].serial};
+                int at = count++;
+                while( at > first && snapshot[at - 1].serial > item.serial )
+                { snapshot[at] = snapshot[at - 1]; --at; }
+                snapshot[at] = item;
+            }
+    }
+    for( int i = 0; i < count; ++i )
+    {
+        struct WatchDispatch item = snapshot[i];
+        struct PluginWidgetWatch* watch =
+            plugin_widget_watch_current(host, item.owner, item.slot, item.serial);
+        if( !watch ) continue;
+        /* @tree subscribes to topology, which is what WidgetsChanged already
+         * publishes; it names no widget to have a state. */
+        if( strcmp(watch->role, "@tree") == 0 ) continue;
+        struct ToriRS_WidgetRef current = watch->current;
+        if( !current.opaque[2] ) continue;
+        char role[TORIRS_UI_NAME_MAX];
+        if( !watch->wants_state ) continue;
+        snprintf(role, sizeof(role), "%s", watch->role);
+        struct ToriRS_WidgetState state;
+        memset(&state, 0, sizeof(state));
+        state.struct_size = (uint32_t)sizeof(state);
+        struct PluginWidgetRequest request = {
+            .kind = PLUGIN_WIDGET_STATE, .ref = current, .state = &state};
+        if( host->engine.widget_request(
+                host->engine.user, (uint64_t)item.owner + 1, &request) != TORIRS_CONTRACT_OK )
+            continue;
+        bool const had = watch->has_last_state;
+        struct ToriRS_WidgetState const previous = watch->last_state;
+        watch->last_state = state;
+        watch->has_last_state = true;
+        /* The first stamp after a binding is a baseline, not a change: a plugin
+         * that just heard BOUND already knows to read the widget. */
+        if( !had ) continue;
+        if( plugin_widget_state_equal(&previous, &state) ) continue;
+        if( trace )
+            TORIRS_REPORT(
+                "PLUGIN_STATE owner=%d role=%s box=%d,%d,%d,%d presented=%d own_hidden=%d "
+                "native_hidden=%d input=%d art=%08x text=%016" PRIx64 "\n",
+                item.owner, role, state.bounds.x, state.bounds.y, state.bounds.width,
+                state.bounds.height, state.presented, state.own_hidden, state.native_hidden,
+                state.input_present, state.graphic_token, state.text_hash);
+        struct ToriRS_WidgetEvent event = {
+            .type = TORIRS_WIDGET_STATE_CHANGED, .widget = current,
+            .native_revision = host->widget_tree_generation, .role = role};
+        plugin_widget_watch_call(host, item.owner, item.slot, item.serial, &event);
     }
     host->widget_watch_dispatching = false;
 }
@@ -6939,14 +7117,19 @@ PluginHost_Key(
 }
 
 void
-PluginHost_DrawWorld(struct ToriRS_PluginHost* host)
+PluginHost_DrawWorld(struct ToriRS_PluginHost* host, int width, int height)
 {
+    struct PluginCanvasDispatch canvas;
+
     if( !host )
         return;
+    assert(width > 0);
+    assert(height > 0);
 
     /* Entity claims bind to this frame's elements before anybody draws, so
      * the draw_hull gate and the standing looks below agree about which
      * element is whose. */
+    PA_INC(draw_world_calls);
     plugin_entity_resolve_all(host);
 
     /* The surface token is the host's own address: it is not dereferenced,
@@ -6955,8 +7138,15 @@ PluginHost_DrawWorld(struct ToriRS_PluginHost* host)
     host->draw_surface = host;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
+    /* The world pass draws in canvas coordinates (projected points carry the
+     * viewport offset), so its region is the whole canvas at origin zero:
+     * the context becomes valid without moving a single coordinate. Before
+     * this the world pass never set a region, so draw->context answered
+     * false to six of the seven overlay plugins. */
+    canvas.surface = host->draw_surface;
+    canvas.bounds = (struct ToriRS_Rect){ 0, 0, width, height };
     if( host->callback_count[PLUGIN_CALLBACK_DRAW_WORLD] > 0 )
-        plugin_dispatch(host, PLUGIN_CALLBACK_DRAW_WORLD, host->draw_surface);
+        plugin_dispatch(host, PLUGIN_CALLBACK_DRAW_WORLD, &canvas);
     /* The declared looks, after the imperative drawing: a holder's standing
      * hull goes over whatever anyone else marked around it. */
     plugin_entity_paint_looks(host);
@@ -6980,6 +7170,8 @@ PluginHost_DrawCanvas(
      * there is all it takes for a handler that kept the wrong event's surface
      * to be caught by the same assert that catches drawing outside a window.
      */
+    PA_INC(draw_canvas_calls);
+    uint64_t const pa_t0 = PerfAudit_Now();
     host->draw_surface = host;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_CANVAS;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_CANVAS);
@@ -6990,6 +7182,7 @@ PluginHost_DrawCanvas(
     host->draw_surface = NULL;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
+    PA_ADD(draw_canvas_ns, PerfAudit_Now() - pa_t0);
 }
 
 static struct ToriRS_FrameOffer const*
@@ -7038,6 +7231,7 @@ PluginHost_Layout(
 
     if( !host )
         return;
+    PA_INC(plugin_host_layout_calls);
     transitioning = host->frame_layout_requested && host->frame_target_entry >= 0 &&
                     host->frame_target_entry != host->frame_active_entry;
     build_entry = transitioning ? host->frame_target_entry : host->frame_active_entry;
