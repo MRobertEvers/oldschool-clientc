@@ -3147,8 +3147,19 @@ is_start(struct ToriRS_Api* api, void* state_ptr)
 
     Porcelain_ExpectUnsupported(g_porcelain, "item weight",
         "no cache this client boots states an item weight");
-    /* Trimmed to the detail ceiling: the occult necklace is the whole argument
-     * and the conclusion is in the ledger row, not in a finding. */
+    /*
+     * Both of the reasons below were over the ninety-six bytes a declared
+     * limitation may carry, and Porcelain_CopyString asserted rather than
+     * truncating -- so an OPT=0 client aborted during plugin start, which is
+     * every capture the native-contract matrix takes. Two people found that
+     * independently, from opposite ends: one running the unit suite with
+     * assertions live, one watching all eleven matrix groups read NO ROOT.
+     *
+     * Said shorter, keeping the fact that IDENTIFIES each case -- the occult
+     * necklace reading 50 where the game shows +10% is the whole argument --
+     * because the conclusion is in the ledger row and the long form is in the
+     * comment above each row's own code.
+     */
     Porcelain_ExpectUnsupported(g_porcelain, "magic damage",
         "param 299 reads 50 on the occult necklace where the game shows +10%");
     Porcelain_ExpectUnsupported(g_porcelain, "potion durations",

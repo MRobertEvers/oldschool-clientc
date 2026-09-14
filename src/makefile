@@ -2978,12 +2978,14 @@ test-touch: $(OBJ_DIR) input/torirs_touch.c input/test/torirs_touch_test.c
 	./$(OBJ_DIR)/torirs_touch_test
 
 test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
-		plugin/plugins/mobile_gameframe.c plugin/test/mobile_gameframe_test.c
+		plugin/plugins/mobile_gameframe.c $(PORCELAIN_SRCS) \
+		plugin/test/mobile_gameframe_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mobile_gameframe_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 			ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c \
 		plugin/plugins/mobile_gameframe.c \
+		$(PORCELAIN_SRCS) \
 		plugin/test/mobile_gameframe_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/mobile_gameframe_test
 

@@ -31,6 +31,7 @@
  */
 
 #include "engine/png_decode.h"
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_api.h"
 
@@ -42,6 +43,9 @@
 #include <string.h>
 
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MOBILE_GAMEFRAME;
+/** @see mobile_gameframe.c: the one thing this test knows about the plugin's
+ *  private state, and what lets the counters be read at all. */
+extern struct Porcelain* ToriRS_MobileGameframePorcelainForTesting(void);
 
 static int g_checks;
 static int g_failures;
@@ -78,6 +82,10 @@ static int g_draw_surface;
  *  buttons need and nothing here has more. */
 /** Public, private, trade, report. */
 #define FRAME_CHAT_BUTTON_COUNT 4
+
+/** MOBILE_MARGIN, mirrored: the test file cannot include the plugin's own
+ *  private header because there is not one. @see mobile_gameframe.c. */
+#define MOBILE_TEST_MARGIN 4
 
 /* Fourteen sidebar mounts and four chat buttons: a member number is the
  * role's OWN numbering, so the table has to be as wide as the widest role. */
@@ -281,6 +289,11 @@ fake_loot_row_next(
     return -1;
 }
 
+/** One shipped file this run pretends never arrives. @see the switch-art case:
+ *  a frame whose switch plate has not decoded must still have a switch, or the
+ *  chat becomes undismissable in the off state. */
+static char const* g_stub_asset;
+
 static int
 fake_asset_read(void* u, char const* plugin, char const* name)
 {
@@ -289,6 +302,11 @@ fake_asset_read(void* u, char const* plugin, char const* name)
     long size;
     void* data;
 
+    /* Read and dropped rather than refused: a file the IO queue has not
+     * finished with is the ORDINARY state for the first frames of a session,
+     * and it is the state the plugin has to keep a switch through. */
+    if( g_stub_asset && strcmp(name, g_stub_asset) == 0 )
+        return 1;
     snprintf(path, sizeof(path), "../script/plugins/assets/%s/%s", plugin, name);
     f = fopen(path, "rb");
     if( !f )
@@ -516,10 +534,31 @@ static struct ToriRS_PluginHost* g_host;
 static int g_plugin;
 
 /** One canvas size, declared. Mirrors what App_PluginLayoutTick does. */
+static void frame_tick(void);
+
 static void
 declare(int w, int h)
 {
     PluginHost_Layout(g_host, w, h);
+    /*
+     * And then drive to convergence, which is what the app does.
+     *
+     * A described frame answers PENDING on the fence that first ASKS about an
+     * element: a watch is registered by the asking and resolves at the fence
+     * after. The provider this replaced needed only one `find` to succeed and
+     * so came up in a single pass. The host re-asks a PENDING provider every
+     * fence until it answers -- that is what PENDING is for.
+     *
+     * Twenty fences, because a surface the lane does not have at all is only
+     * called absent after the provider's grace -- PORCELAIN_ABSENT_FENCES times
+     * PORCELAIN_ABSENT_FRAME_GRACE, sixteen -- and the frame is PENDING until
+     * it is.
+     */
+    for( int fence = 0; fence < 20; fence++ )
+    {
+        frame_tick();
+        PluginHost_Layout(g_host, w, h);
+    }
 }
 
 /* ------------------------------------------------------- fake widget tree */
@@ -545,6 +584,10 @@ struct FakeWidget
     int moved;
     int image, img_w, img_h; /* owned: the picture shown; -1 none */
     int art;                 /* native: retained re-skin slot, -1 none */
+    /** native: does the LANE draw a picture on this node at all? The mobile
+     *  toplevel's chat backing is a plain layer and carries none, which is why
+     *  a re-skin of it is refused there and nowhere else. */
+    int graphic;
     int mask;                /* native: retained mask slot, -2 unset, -1 unmasked */
     int opacity;
     char op[32];
@@ -591,6 +634,14 @@ static void fw_clear_edits(struct FakeWidget* n)
 /* Build a lane. Every lane has the seven surfaces and fourteen side panels;
  * a 2004 lane has four chat buttons, an OldSchool one the orb block with its
  * three profile-numbered children and the chat pack's decoration roles. */
+/** One tab this lane does not mount at all -- rs289lc has no clan chat -- or
+ *  -1. A cache's own fact, and the only thing that can tell a tab the lane
+ *  puts somewhere else from one it does not have. */
+static int g_missing_sidetab = -1;
+
+/** Whether the lane's chat backing draws a picture of its own. @see fw_build. */
+static int g_backing_has_art = 1;
+
 static void
 fw_build(int oldschool)
 {
@@ -604,7 +655,8 @@ fw_build(int oldschool)
     fw_add(root, "compass", -1, 550, 4, 33, 33);
     fw_add(root, "chat", -1, 0, 338, 519, 165);
     fw_add(root, "sidebar", -1, 553, 205, 190, 261);
-    for( int i = 0; i < 14; i++ ) fw_add(root, "sidebar", i, 553, 205, 190, 261);
+    for( int i = 0; i < 14; i++ )
+        if( i != g_missing_sidetab ) fw_add(root, "sidebar", i, 553, 205, 190, 261);
     fw_add(root, "main_modal", -1, 4, 4, 512, 334);
     if( !oldschool )
         for( int i = 0; i < 4; i++ ) fw_add(root, "chat_buttons", i, 6 + i * 130, 467, 100, 32);
@@ -612,7 +664,10 @@ fw_build(int oldschool)
     {
         fw_add(root, "orbs", -1, 521, 4, 236, 163);
         for( int i = 0; i < 3; i++ ) fw_add(root, "orbs", i, 700 + i, 50, 34, 34);
-        fw_add(root, "chat_backing", -1, 0, 338, 519, 142);
+        /* The desktop toplevels draw a parchment here; the mobile one does
+         * not, and that is the whole of why a re-skin lands on one and is
+         * refused on the other. @see g_backing_has_art. */
+        g_w[fw_add(root, "chat_backing", -1, 0, 338, 519, 142)].graphic = g_backing_has_art;
         fw_add(root, "chat_bar", -1, 0, 480, 519, 23);
         for( int i = 0; i < 8; i++ ) fw_add(root, "chat_plate", i, 5 + i * 62, 480, 56, 22);
     }
@@ -620,9 +675,24 @@ fw_build(int oldschool)
 static int fw_find(char const* role, int member)
 {
     char base[24]; char const* under = strrchr(role, '_');
+    char const* colon = strchr(role, ':');
     int wanted = member;
+    /*
+     * `<slot>:<member>` -- ONE member of a frame slot, which is how the real
+     * adapter spells it (app_plugin_slot_member_node) and the only spelling a
+     * portable caller has for the sidebar's fourteen mounts or the orb block's
+     * children: the element vocabulary numbers members for three families and
+     * those two are in neither.
+     */
+    if( member < 0 && colon && colon[1] >= '0' && colon[1] <= '9' )
+    {
+        snprintf(base, sizeof(base), "%.*s", (int)(colon - role), role);
+        wanted = atoi(colon + 1);
+        role = base;
+        under = NULL;
+    }
     /* chat_plate_3 and friends: the numbered role names of the OldSchool profile. */
-    if( member < 0 && under && under[1] >= '0' && under[1] <= '9' )
+    else if( member < 0 && under && under[1] >= '0' && under[1] <= '9' )
     {
         snprintf(base, sizeof(base), "%.*s", (int)(under - role), role);
         wanted = atoi(under + 1);
@@ -689,6 +759,40 @@ fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
     { int x = n->x, y = n->y; if( !n->owner && n->parent >= 0 ) { x -= g_w[n->parent].x; y -= g_w[n->parent].y; }
       *r->bounds = (struct ToriRS_WidgetBounds){ x, y, n->w, n->h }; return TORIRS_CONTRACT_OK; }
     case PLUGIN_WIDGET_VISIBLE: *r->flag = !n->hidden; return TORIRS_CONTRACT_OK;
+    /*
+     * The state reader, which this fake did not have.
+     *
+     * A described frame asks for ELEMENTS, not for nodes: Porcelain watches a
+     * role, reads this once per fence and hands the plugin a stamped copy.
+     * Without it every element binds with a ZERO box and `presented` false --
+     * which reads, downstream, as a frame that placed nothing and anchored
+     * nothing, because a depth target that does not paint is refused by rule.
+     *
+     * Only the fields this harness has an answer for are filled. `facets` is
+     * zero from every adapter in the tree today, not just from this one.
+     */
+    case PLUGIN_WIDGET_STATE:
+    {
+        int x, y;
+        fw_canvas(id, &x, &y);
+        memset(r->state, 0, sizeof(*r->state));
+        r->state->struct_size = sizeof(*r->state);
+        r->state->bounds = (struct ToriRS_WidgetBounds){ x, y, n->w, n->h };
+        {
+            int lx = n->x, ly = n->y;
+            if( !n->owner && n->parent >= 0 ) { lx -= g_w[n->parent].x; ly -= g_w[n->parent].y; }
+            r->state->local = (struct ToriRS_WidgetBounds){ lx, ly, n->w, n->h };
+        }
+        r->state->presented = !n->hidden;
+        r->state->own_hidden = n->hidden != 0;
+        r->state->input_present = !n->hidden;
+        r->state->graphic_token = n->owner
+                                      ? (n->image >= 0 ? (uint32_t)(n->image + 1) : 0u)
+                                      : (n->art >= 0 ? (uint32_t)(n->art + 1)
+                                                     : (uint32_t)n->graphic);
+        r->state->incarnation = fw_ref(id).opaque[2];
+        return TORIRS_CONTRACT_OK;
+    }
     case PLUGIN_WIDGET_REVALIDATE: return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_POSITION:
         if( n->owner ) { n->x = r->a; n->y = r->b; }
@@ -753,6 +857,34 @@ static int owned_at(char const* key, int x, int y)
     fw_canvas((int)(n - g_w), &cx, &cy);
     return cx == x && cy == y;
 }
+/*
+ * Is this cell's stone SHOWING?
+ *
+ * Not `hidden`, and that is the shape the port changed: the apply pass created
+ * fourteen stone images and hid thirteen of them, and a description has no verb
+ * for hiding a control it owns -- `visible_with` gates on an ELEMENT, and
+ * "which tab is open" is not one. So every cell wears a picture at the stone's
+ * own box and the unlit ones wear the 1x1 blank, which draws exactly what a
+ * hidden control drew: nothing, in the same rectangle.
+ *
+ * The CELL is the reference, because the cell always wears the blank -- it is
+ * the hit box and the Select operation and nothing to stretch. A `lit.NN`
+ * showing a different picture from its `tab.NN` is a lit stone.
+ */
+static struct FakeWidget* owned(char const* key);
+static int stone_lit(int tab)
+{
+    char lit_key[16];
+    char cell_key[16];
+    struct FakeWidget const* lit;
+    struct FakeWidget const* cell;
+
+    snprintf(lit_key, sizeof(lit_key), "lit.%02d", tab);
+    snprintf(cell_key, sizeof(cell_key), "tab.%02d", tab);
+    lit = owned(lit_key);
+    cell = owned(cell_key);
+    return lit && cell && lit->image >= 0 && lit->image != cell->image;
+}
 static int anchored(struct FakeWidget const* n, char const* role, int relation)
 {
     return n && n->anchor_relation == relation && n->anchor_target == fw_find(role, -1);
@@ -774,7 +906,24 @@ static void press(char const* key)
         CHECK(PluginHost_WidgetOperation(g_host, g_widget_owner, fw_ref((int)(n - g_w)), n->registration),
               "the owned control's operation dispatches");
 }
-static void frame_tick(void) { static uint64_t now_ms = 10000; PluginHost_FrameStart(g_host, now_ms++, 0); }
+/*
+ * The app's own per-frame order, which this harness did not have: publish the
+ * bindings, stamp every watched element's state, then start the frame.
+ *
+ * Both halves matter and they answer different questions. The publication is
+ * what gives a watch registered since the last frame a NODE at all -- a
+ * described plugin registers its watches from inside a describe, so every one
+ * of them is "since the last frame" once. The stamp is what reports a change
+ * that bumps no tree generation: a hide, a move, a re-skin.
+ */
+static void frame_tick(void)
+{
+    static uint64_t now_ms = 10000;
+    static uint64_t generation = 100;
+    PluginHost_WidgetsChanged(g_host, 77, generation++);
+    PluginHost_WidgetStates(g_host);
+    PluginHost_FrameStart(g_host, now_ms++, 0);
+}
 
 static struct ToriRS_Api* g_frame_settings_api;
 
@@ -982,23 +1131,28 @@ main(void)
           "fourteen rock cells with thirteen 2004 icons and a lit stone each");
     CHECK(owned("tab.03") && strcmp(owned("tab.03")->op, "Select") == 0, "every rock carries the Select operation");
     {
-        /* World, chrome, rocks and switches, surfaces: the first rock is over
-         * a piece, every later child over the one before, and the modal over
-         * the last of them rather than under a rock. */
+        /*
+         * World, chrome, surfaces -- in two sentences instead of eighty links.
+         *
+         * The apply pass chained every owned child over the one before it and
+         * anchored each live surface over the last of all of them. A described
+         * frame cannot state that chain: a depth target is an ELEMENT and an
+         * owned control is not in the element vocabulary. What it states
+         * instead is that every child sits over the SCENE, in description
+         * order, and that each live surface is RAISED over everything this
+         * plugin owns -- which is the same stack.
+         */
         struct FakeWidget const* first = owned("tab.00");
         struct FakeWidget const* modal = native("main_modal", -1);
         struct FakeWidget const* on = modal && modal->anchor_target >= 0 ? &g_w[modal->anchor_target] : NULL;
-        int hops = 0;
-        for( struct FakeWidget const* n = on; n && n != first && hops < 64; hops++ )
-            n = n->anchor_relation == TORIRS_WIDGET_RELATION_OVER && n->anchor_target >= 0 ? &g_w[n->anchor_target] : NULL;
-        CHECK(first && first->anchor_relation == TORIRS_WIDGET_RELATION_OVER && first->anchor_target >= 0 &&
-                  g_w[first->anchor_target].owner && strncmp(g_w[first->anchor_target].key, "piece.", 6) == 0,
-              "the first rock cell is anchored over the last piece of chrome");
+        CHECK(first && anchored(first, "viewport", TORIRS_WIDGET_RELATION_OVER),
+              "the first rock cell is anchored over the scene, like every other piece of chrome");
         CHECK(modal && modal->anchor_relation == TORIRS_WIDGET_RELATION_OVER && on && on->owner &&
-                  strncmp(on->key, "piece.", 6) != 0 && hops > 0 && hops < 64,
-              "the modal sits over the last rock or switch, whose chain leads back to the first cell");
+                  on->alive && strncmp(on->key, "tab.", 4) != 0 &&
+                  strncmp(on->key, "lit.", 4) != 0 && strncmp(on->key, "icon.", 5) != 0,
+              "and the modal is raised above every rock, stone and icon this plugin owns");
     }
-    CHECK(owned("lit.03")->hidden, "no stone is lit while the drawer is shut");
+    CHECK(!stone_lit(3), "no stone is lit while the drawer is shut");
     CHECK(owned("chat-toggle") && strcmp(owned("chat-toggle")->op, "Hide chat") == 0 && owned_at("chat-toggle", 4, 410),
           "the chat switch sits above the sheet");
     CHECK(owned("keyboard-toggle") && strcmp(owned("keyboard-toggle")->op, "Keyboard") == 0 && owned_at("keyboard-toggle", 44, 410),
@@ -1018,7 +1172,7 @@ main(void)
     g_frame.active_tab = 3;
     declare_after_press(M_W, M_H);
     CHECK(placed("sidebar", -1, 740, 335, 190, 261) && !native("sidebar", -1)->hidden, "the drawer opens on that panel");
-    CHECK(!owned("lit.03")->hidden && owned("lit.00")->hidden, "the open tab's stone is lit and no other");
+    CHECK(stone_lit(3) && !stone_lit(0), "the open tab's stone is lit and no other");
     {
         int blockers = 0;
         for( int i = 0; i < g_w_count; i++ )
@@ -1035,13 +1189,31 @@ main(void)
     press("tab.05");
     CHECK(g_frame.select_calls == 0, "tapping the open tab does not re-select it");
     declare_after_press(M_W, M_H);
-    CHECK(native("sidebar", -1)->hidden && owned("lit.05")->hidden, "and shuts the drawer");
+    CHECK(native("sidebar", -1)->hidden && !stone_lit(5), "and shuts the drawer");
+    /*
+     * A tab the server has not handed over is a bare rock -- and now an INERT
+     * one.
+     *
+     * The handler used to check cache.tab_enabled and return, which is a
+     * refusal inside the callback rather than a disarmed control: the rock
+     * still offered a "Select" row and a tap on it did nothing. The ledger's
+     * row states the behaviour explicitly -- `enabled` false is drawn, inert,
+     * no menu row -- and this is the assertion that pins it.
+     *
+     * MUTATION: set `item.enabled = true` unconditionally in
+     * mobile_describe_chrome. Red: the rock keeps its Select row.
+     */
     g_frame.ungiven_tab = 4;
-    frame_tick();
-    CHECK(owned("icon.04")->hidden, "a tab the server has not handed over is a bare rock");
-    press("tab.04");
-    CHECK(g_frame.select_calls == 0 && native("sidebar", -1)->hidden, "and a tap on it does nothing");
+    g_frame.select_calls = 0;
+    declare_after_press(M_W, M_H);
+    CHECK(owned("icon.04") == NULL, "a tab the server has not handed over wears no icon");
+    CHECK(owned("tab.04") && owned("tab.04")->op[0] == '\0',
+          "and its rock carries no Select row at all");
+    CHECK(g_frame.select_calls == 0 && native("sidebar", -1)->hidden, "so a tap on it does nothing");
     g_frame.ungiven_tab = -1;
+    declare_after_press(M_W, M_H);
+    CHECK(owned("icon.04") != NULL && owned("tab.04") && strcmp(owned("tab.04")->op, "Select") == 0,
+          "and the icon and the row come back when the server hands it over");
 
     /* ---- 3. the chat switch --------------------------------------------- */
     press("chat-toggle");
@@ -1085,7 +1257,252 @@ main(void)
           "the torn sheet is an owned image directly behind the pack");
     CHECK(native("chat_plate", 0)->hidden && native("chat_plate", 7)->hidden, "the eight OldSchool plates are hidden under the lane's captions");
 
+    /*
+     * And a backing with no picture of its own is left alone.
+     *
+     * The mobile toplevel's chat backing is a plain LAYER: the transparent
+     * re-skin the desktop toplevels take was refused there, on every frame the
+     * apply pass ran, and swallowed -- a `(void)ui->set_image` whose result
+     * nobody read. The layer reports it, which is how it was found; a node that
+     * draws nothing already shows the sheet behind it, so the honest answer is
+     * not to ask.
+     *
+     * MUTATION: drop the `backing.graphic_token != 0` guard in
+     * mobile_describe_chat_dress. Red: the re-skin is asked for again.
+     */
+    {
+        g_backing_has_art = 0;
+        fw_build(/*oldschool=*/1);
+        PluginHost_WidgetsChanged(g_host, 77, 6);
+        declare(M_W, M_H);
+        CHECK(native("chat_backing", -1) && native("chat_backing", -1)->art < 0,
+              "a backing that draws no picture of its own is not re-skinned");
+        CHECK(owned("pack-sheet") != NULL, "and the torn sheet behind it is still there");
+        g_backing_has_art = 1;
+    }
+
+    /* ---- 7. the things the apply pass could not see --------------------- */
+    /*
+     * The lane's own docked STRIP moves the frame's right edge in.
+     *
+     * It used to be found by a hand-spelled `lane_chrome_0`, asked whether it
+     * was visible and asked for its box, inline in on_gameframe and watched by
+     * NOTHING -- so a strip that mounted after login never re-planned. As an
+     * ELEMENT the asking IS the watch.
+     *
+     * MUTATION: delete the Porcelain_Count/Porcelain_Element loop in
+     * mobile_lane_area. Red: the housing does not move.
+     */
+    {
+        int strip;
+        struct FakeWidget const* housing;
+        int before_x = 0;
+        int after_x = 0;
+        int cy = 0;
+
+        declare(M_W, M_H);
+        housing = owned("housing");
+        CHECK(housing != NULL, "the housing is up before the strip mounts");
+        if( housing )
+            fw_canvas((int)(housing - g_w), &before_x, &cy);
+        /* Right-docked, full height, and mounted AFTER the frame came up. */
+        strip = fw_add(0, "lane_chrome", 0, M_W - 40, 0, 40, M_H);
+        declare(M_W, M_H);
+        housing = owned("housing");
+        if( housing )
+            fw_canvas((int)(housing - g_w), &after_x, &cy);
+        CHECK(housing && after_x == before_x - 40,
+              "a lane strip mounting after login moves the frame's right edge in");
+        g_w[strip].hidden = 1;
+        declare(M_W, M_H);
+        housing = owned("housing");
+        if( housing )
+            fw_canvas((int)(housing - g_w), &after_x, &cy);
+        CHECK(housing && after_x == before_x,
+              "and a strip that is not PRESENTED gives the columns back");
+        /* Left MOUNTED and hidden rather than removed: an element that stops
+         * resolving keeps its watch, and the layer re-asks the engine for it
+         * once a fence for ever after -- which is the layer's answer and not
+         * this plugin's, and it would show up in the steady-state counters
+         * below as an engine call a frame that nothing here made. */
+    }
+
+    /*
+     * The orb block's other two children keep their place in it.
+     *
+     * The globe and the wiki banner used to fall into an "unplaced ORBS
+     * member" branch that HID them, so a frame that moved the block as one box
+     * lost two of its children -- and 601 shows both.
+     *
+     * MUTATION: put the `describe->hide` back in place of the KEEP_RELATIVE
+     * move. Red: the two members are hidden.
+     */
+    CHECK(native("orbs", 1) && !native("orbs", 1)->hidden && native("orbs", 1)->moved,
+          "the world-map globe keeps its place in the block instead of being hidden");
+    CHECK(native("orbs", 2) && !native("orbs", 2)->hidden && native("orbs", 2)->moved,
+          "and so does the wiki banner");
+
+    /*
+     * The torn sheet is gated on the BACKING, not on the pack.
+     *
+     * It is positioned from the backing's box and anchored behind the pack, and
+     * it used to inherit the CHAT's presented state -- so a script that hid the
+     * backing left the sheet painting on its own.
+     *
+     * MUTATION: drop `item.visible_with = PORCELAIN_EL(CHAT_BACKING)` in
+     * mobile_describe_chat_dress. Red: the sheet goes on painting.
+     */
+    {
+        int const backing = fw_find("chat_backing", -1);
+        CHECK(backing >= 0 && owned("pack-sheet") && !owned("pack-sheet")->hidden,
+              "the sheet is up while the backing is");
+        if( backing >= 0 )
+            g_w[backing].hidden = 1;
+        declare(M_W, M_H);
+        CHECK(owned("pack-sheet") && owned("pack-sheet")->hidden,
+              "and goes away with the backing rather than with the pack");
+        if( backing >= 0 )
+            g_w[backing].hidden = 0;
+        declare(M_W, M_H);
+    }
+
+    /* ---- 8. the safe rect's ORIGIN, not only its bottom ---------------- */
+    /*
+     * A notch or a status bar states a safe rect whose ORIGIN is not zero, and
+     * every piece of this frame has to move with it. The apply pass read only
+     * the bottom: MobileCall::origin_x and origin_y were declared and never
+     * read, so a non-zero origin left the rail, the housing and the sheet at
+     * the physical corner with the platform's own chrome over them.
+     *
+     * MUTATION: drop the `area.x = safe.x; area.y = safe.y;` pair in
+     * mobile_lane_area. Red: the housing stays at the canvas corner.
+     */
+    {
+        struct FakeWidget const* housing_at_origin;
+        int shifted_x;
+        int shifted_y;
+
+        declare(M_W, M_H);
+        housing_at_origin = owned("housing");
+        CHECK(housing_at_origin != NULL, "the housing is up before the band moves");
+        g_safe.present = 1;
+        g_safe.x = 40;
+        g_safe.y = 30;
+        g_safe.w = M_W - 80;
+        g_safe.h = M_H - 60;
+        declare(M_W, M_H);
+        {
+            struct FakeWidget const* housing = owned("housing");
+            int cx = 0;
+            int cy = 0;
+            CHECK(housing != NULL, "and still up after it");
+            if( housing )
+                fw_canvas((int)(housing - g_w), &cx, &cy);
+            shifted_x = cx;
+            shifted_y = cy;
+        }
+        /* The housing hangs from the usable box's TOP-RIGHT: the right edge
+         * moved in by 40 and the top down by 30. */
+        CHECK(shifted_x == M_W - 40 - MOBILE_TEST_MARGIN - 233 && shifted_y == 30 + MOBILE_TEST_MARGIN,
+              "a safe rect with a non-zero origin moves the housing off the physical corner");
+        CHECK(placed("viewport", -1, 40, 30, M_W - 80, M_H - 60),
+              "and the scene is the USABLE box rather than the whole canvas");
+        g_safe.present = 0;
+        declare(M_W, M_H);
+    }
+
+    /* ---- 9. a settled frame costs nothing ------------------------------ */
+    /*
+     * The claim the whole layer is for, read rather than believed.
+     *
+     * Nothing changes: the same canvas, the same lane, the same shut drawer,
+     * the same assets. The description is word for word what it was, so the
+     * reconcile must make NO engine call at all -- not "the per-field compares
+     * all matched", which is a second line of defence and not the rule, but one
+     * hash compare per key and nothing else.
+     *
+     * MUTATION: drop the `applied->item.hash == wanted->hash` fast path in
+     * porcelain_reconcile and property_applies climbs with every frame. Drop
+     * the `moved` test in mobile_poll_tabs and the frame re-describes for ever,
+     * which shows up here as describe_runs.
+     */
+    {
+        struct PorcelainCounters counters;
+        struct Porcelain* const porcelain = ToriRS_MobileGameframePorcelainForTesting();
+        CHECK(porcelain != NULL, "the provider's layer handle is reachable");
+        declare(M_W, M_H);
+        Porcelain_CountersReset(porcelain);
+        for( int frame = 0; frame < 8; frame++ )
+            frame_tick();
+        Porcelain_CountersRead(porcelain, &counters);
+        CHECK(counters.describe_runs == 0, "a settled frame re-describes not once in eight frames");
+        CHECK(counters.setters == 0, "and writes no setter");
+        CHECK(counters.creates == 0 && counters.removes == 0, "and creates and removes nothing");
+        CHECK(counters.reparents == 0, "and re-parents nothing: the tree is settled");
+        CHECK(counters.revalidates == 0, "and costs no full-tree resolve");
+        CHECK(counters.property_applies == 0, "an unchanged hash walks no property");
+        CHECK(counters.allocations == 0, "and allocates nothing");
+        printf("MOBILE steady engine_calls=%u setters=%u describes=%u props=%u allocs=%u\n",
+               counters.engine_calls, counters.setters, counters.describe_runs,
+               counters.property_applies, counters.allocations);
+    }
+
     PluginHost_Free(g_host);
+
+    /* ---- 10. a switch with no art is not a missing switch --------------- */
+    /*
+     * The apply pass returned without describing EITHER child when image_size
+     * on the switch plate failed, so a frame whose switch art had not landed --
+     * or had failed outright -- had no way to bring the chat back: the chat
+     * became undismissable in the off state. The plate falls back to the blank
+     * at the box the layout stated, which draws nothing and still carries the
+     * operation.
+     *
+     * A fresh host, because the plate is resident by now in the one above and a
+     * plugin cannot be made to forget a picture from outside.
+     *
+     * MUTATION: delete the `face = mobile_blank(ctx)` fallback in
+     * mobile_describe_toggle. Red: there is no chat switch at all.
+     */
+    /*
+     * And a tab this cache does not have at all loses its rock.
+     *
+     * `tab_present[]` was set true and never set false, so the three guards
+     * that read it were unreachable and rs289lc's missing clan tab was never
+     * detected -- the rail wore a stone for a panel that cannot open, which
+     * invites the tap that does nothing. The element answers it, drawer open or
+     * shut.
+     *
+     * MUTATION: make mobile_tab_present return true unconditionally. Red: the
+     * rail keeps fourteen cells.
+     */
+    g_missing_sidetab = 7;
+    g_stub_asset = "switch.png";
+    g_lane_game = TORIRS_GAME_RS2;
+    g_chat_native_w = 0;
+    g_chat_native_h = 0;
+    fw_build(/*oldschool=*/0);
+    snprintf(g_frame_preference, sizeof(g_frame_preference), "%s", "mobile-gameframe/stone-drawer");
+    g_host = PluginHost_New(&e);
+    e.user = g_host;
+    g_plugin = PluginHost_Register(g_host, &TORIRS_PLUGIN_MOBILE_GAMEFRAME);
+    CHECK(PluginHost_Register(g_host, &FRAME_SETTINGS) >= 0, "the frame settings client re-registers");
+    PluginHost_Start(g_host);
+    PluginHost_WidgetsChanged(g_host, 77, 11);
+    declare(M_W, M_H);
+    CHECK(owned("chat-toggle") && strcmp(owned("chat-toggle")->op, "Hide chat") == 0,
+          "a switch whose plate never decoded is still a switch that can bring the chat back");
+    CHECK(owned("chat-glyph") != NULL, "and the glyph that DID decode is still on it");
+    /* Thirteen rocks and not fourteen, and the keys are the rail's own indices:
+     * a tab the cache does not mount takes no cell, so the twelfth index is the
+     * last one there is. The one ABSENT finding this raises is the price of the
+     * answer, and it is the price the ledger row quotes. */
+    CHECK(owned_count("tab.") == 13 && owned("tab.12") != NULL && owned("tab.13") == NULL,
+          "a tab this cache does not mount loses its rock");
+    PluginHost_Free(g_host);
+    g_stub_asset = NULL;
+    g_missing_sidetab = -1;
+
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }
