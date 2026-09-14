@@ -14,6 +14,7 @@
 #include "features/features.h"
 #include "game/rs_audio.h"
 #include "editor/editor_preview_camera.h"
+#include "render/world_camera_orbit.h"
 #include "editor/map_editor_ghost.h"
 #include "game/rs_chat.h"
 #include "game/rs_clientscript_queue.h"
@@ -876,13 +877,9 @@ struct App
      * to 15 the truncated step is 0, so the anchor parks a permanent ~15
      * units short on each axis and the camera orbits a point beside the
      * player instead of the player. */
-    int orbit_yaw;
-    int orbit_pitch;
-    int orbit_yaw_vel;
-    int orbit_pitch_vel;
-    float orbit_x;
-    float orbit_z;
-    int camera_pitch_clamp;
+    /** The follow camera's anchor, angles and terrain clamp. See
+     *  render/world_camera_orbit.h. */
+    struct WorldCameraOrbit orbit;
     int cam_key_left;
     int cam_key_right;
     int cam_key_up;
@@ -944,23 +941,9 @@ struct App
      *  follow's own >500-unit teleport snap handles the return). */
     int camera_unlocked;
 
-    /**
-     * Camera hold across an offline world reload.
-     *
-     * Captured in ABSOLUTE fine coordinates at load begin, restored at load
-     * finish if the new scene contains the point. Absolute, because the scene
-     * window can move: a rebuild of the same region has the same base tile and
-     * the camera lands exactly where it was, while opening a distant square
-     * shifts the base until the held point falls outside the new scene -- and
-     * then recentring is the right thing, which is why the restore is a
-     * containment test rather than a flag.
-     */
-    int cam_keep_valid;
-    int cam_keep_abs_x;
-    int cam_keep_abs_z;
-    int cam_keep_y;
-    int cam_keep_pitch;
-    int cam_keep_yaw;
+    /** Camera hold across an offline world reload. See
+     *  render/world_camera_orbit.h. */
+    struct WorldCameraHold cam_hold;
 
     /**
      * The Place-loc tool's hover ghost: a REAL loc placed at the hovered tile

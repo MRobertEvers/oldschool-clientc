@@ -977,7 +977,7 @@ RS_CS2Host_Init(
     host->ui_scale_dirty = false;
     /* Facing north; overwritten every logic tick by RS_CS2Host_SetCameraAngles
      * once a world is up, so this only covers the pre-login window. The pitch
-     * default matches app.c's orbit_pitch (the reference orbitCameraPitch). */
+     * default matches the follow camera's own pitch (the reference orbitCameraPitch). */
     host->cam_yaw = 0;
     host->cam_angle_x = 128;
     host->cam_angle_y = 0;

@@ -406,8 +406,8 @@ App_Init(
      * default IS its own lower bound, so a lane that states a different range
      * boots at the bottom of the range it stated rather than at a 128 that no
      * longer means anything there. */
-    app->orbit_pitch = app->revconfig_profile.camera.pitch_flattest;
-    app->orbit_yaw = 0;
+    app->orbit.pitch = app->revconfig_profile.camera.pitch_flattest;
+    app->orbit.yaw = 0;
     /* Where the profile says this camera sits before anyone touches it.
      * `[camera] rest=`, and the band is around it, not the other way up. */
     app->world_cam_zoom = app->revconfig_profile.camera.rest;

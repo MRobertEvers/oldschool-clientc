@@ -290,17 +290,28 @@ app_chat_filters(struct App const* app)
  * profile that moved the range would have moved one of the five.
  * @see RevConfigCameraItem::pitch_flattest.
  */
+/*
+ * What this revision says its camera may do, in the form the orbit arithmetic
+ * takes it.
+ *
+ * Gathered rather than reached for, because two lanes of this client disagree
+ * about every one of these numbers and a rule that read them itself would have
+ * to know which lane it was on. `viewport_zoom_256` is 0 for a revision whose
+ * camera has no viewport zoom -- a 2004 client has none, and applying one
+ * halves its scale, which reads as the camera being twice as far out.
+ */
+static struct WorldCameraLimits
+app_world_camera_limits(struct App const* app);
+
 static int
 app_world_clamp_pitch(
     struct App const* app,
     int pitch)
 {
+    struct WorldCameraLimits const limits = app_world_camera_limits(app);
+
     assert(app);
-    if( pitch < app->revconfig_profile.camera.pitch_flattest )
-        return app->revconfig_profile.camera.pitch_flattest;
-    if( pitch > app->revconfig_profile.camera.pitch_steepest )
-        return app->revconfig_profile.camera.pitch_steepest;
-    return pitch;
+    return WorldCameraLimits_ClampPitch(&limits, pitch);
 }
 
 /* Resolve a component id at the point an app-owned action is about to use it.
@@ -6860,16 +6871,19 @@ app_world_load_begin(
      * rebuild, and without this each paint click snapped the eye back to the
      * scene centre -- the finish path places the camera for a FIRST look at a
      * scene, and a rebuild is not a first look. Absolute coordinates, so the
-     * restore survives the scene window moving; see cam_keep_valid in app.h.
+     * restore survives the scene window moving; see WorldCameraHold.
      */
     if( app->world && app->world_active )
     {
-        app->cam_keep_valid = 1;
-        app->cam_keep_abs_x = app->world->_base_tile_x * 128 + app->world_camera_pos.x;
-        app->cam_keep_abs_z = app->world->_base_tile_z * 128 + app->world_camera_pos.z;
-        app->cam_keep_y = app->world_camera_pos.y;
-        app->cam_keep_pitch = app->world_camera.pitch;
-        app->cam_keep_yaw = app->world_camera.yaw;
+        WorldCameraHold_Capture(
+            &app->cam_hold,
+            app->world->_base_tile_x,
+            app->world->_base_tile_z,
+            app->world_camera_pos.x,
+            app->world_camera_pos.y,
+            app->world_camera_pos.z,
+            app->world_camera.pitch,
+            app->world_camera.yaw);
     }
 
     app->world_load_attempted = 1;
@@ -7089,23 +7103,16 @@ App_WorldLoadFinish(struct App* app)
              * scene contains it. Outside the scene (the square browser opened
              * somewhere distant) the hold is meaningless and the first-look
              * centre below is correct. */
-            if( app->cam_keep_valid )
-            {
-                int const sx = app->cam_keep_abs_x - app->world->_base_tile_x * 128;
-                int const sz = app->cam_keep_abs_z - app->world->_base_tile_z * 128;
-                int const max = app->world->_scene_size * 128;
-
-                app->cam_keep_valid = 0;
-                if( sx >= 0 && sx < max && sz >= 0 && sz < max )
-                {
-                    app->world_camera_pos.x = sx;
-                    app->world_camera_pos.z = sz;
-                    app->world_camera_pos.y = app->cam_keep_y;
-                    app->world_camera.pitch = app->cam_keep_pitch;
-                    app->world_camera.yaw = app->cam_keep_yaw;
-                    restored = 1;
-                }
-            }
+            restored = WorldCameraHold_Restore(
+                &app->cam_hold,
+                app->world->_base_tile_x,
+                app->world->_base_tile_z,
+                app->world->_scene_size,
+                &app->world_camera_pos.x,
+                &app->world_camera_pos.y,
+                &app->world_camera_pos.z,
+                &app->world_camera.pitch,
+                &app->world_camera.yaw);
 
             if( !restored )
             {
@@ -10183,10 +10190,10 @@ app_update_painter_cull(
     {
         /* (int) then >>7, as the reference does: field2354 is `(int) field917`
          * and the camera tile is that mirror shifted (client.java:9373). */
-        center_sx = (int)app->orbit_x >> 7;
-        center_sz = (int)app->orbit_z >> 7;
-        anchor_x = (int)app->orbit_x;
-        anchor_z = (int)app->orbit_z;
+        center_sx = (int)app->orbit.anchor_x >> 7;
+        center_sz = (int)app->orbit.anchor_z >> 7;
+        anchor_x = (int)app->orbit.anchor_x;
+        anchor_z = (int)app->orbit.anchor_z;
         painter_set_draw_center(painter, center_sx, center_sz);
     }
     else
@@ -11957,8 +11964,8 @@ app_debug_log_camera(
         "cam_%s: %s yaw=%d pitch=%d height=%d eye=%d,%d,%d\n",
         what,
         follow_cam ? "orbit" : "free",
-        follow_cam ? app->orbit_yaw : app->world_camera.yaw,
-        follow_cam ? app->orbit_pitch : app->world_camera.pitch,
+        follow_cam ? app->orbit.yaw : app->world_camera.yaw,
+        follow_cam ? app->orbit.pitch : app->world_camera.pitch,
         app->world_cam_zoom,
         app->world_camera_pos.x,
         app->world_camera_pos.y,
@@ -12030,11 +12037,11 @@ app_world_camera_mouse(
                     /* The key path eases through a velocity; a drag is already
                      * a position delta, so it writes the angle and zeroes the
                      * velocity rather than fighting the decay next frame. */
-                    app->orbit_yaw = (app->orbit_yaw - dx * APP_WORLD_MMB_YAW_PER_PX) & 0x7ff;
-                    app->orbit_pitch = app_world_clamp_pitch(
-                        app, app->orbit_pitch + dy * APP_WORLD_MMB_PITCH_PER_PX);
-                    app->orbit_yaw_vel = 0;
-                    app->orbit_pitch_vel = 0;
+                    app->orbit.yaw = (app->orbit.yaw - dx * APP_WORLD_MMB_YAW_PER_PX) & 0x7ff;
+                    app->orbit.pitch = app_world_clamp_pitch(
+                        app, app->orbit.pitch + dy * APP_WORLD_MMB_PITCH_PER_PX);
+                    app->orbit.yaw_velocity = 0;
+                    app->orbit.pitch_velocity = 0;
                 }
                 else
                 {
@@ -15136,6 +15143,24 @@ app_world_cam_dist_zoom(struct App* app)
  * a terrain scan raises pitch so the eye stays above nearby ground, then the
  * eye is placed `pitch*3+600` behind the anchor along pitch/yaw. Sin/cos are
  * 16.16 (same tables as Pix3D). */
+static struct WorldCameraLimits
+app_world_camera_limits(struct App const* app)
+{
+    struct WorldCameraLimits limits;
+
+    assert(app);
+    memset(&limits, 0, sizeof(limits));
+    limits.pitch_flattest = app->revconfig_profile.camera.pitch_flattest;
+    limits.pitch_steepest = app->revconfig_profile.camera.pitch_steepest;
+    limits.pitch_distance = app->revconfig_profile.camera.pitch_distance;
+    limits.rest_zoom = app->world_cam_zoom;
+    limits.viewport_zoom_256 =
+        app->revconfig_profile.camera.viewport_zoom ? app_world_cam_dist_zoom((struct App*)app) : 0;
+    limits.distance_scale_percent = app->revconfig_profile.camera.distance_scale;
+    limits.near_plane_z = app->world_camera.near_plane_z;
+    return limits;
+}
+
 static void
 app_world_camera_follow(struct App* app)
 {
@@ -15197,12 +15222,12 @@ app_world_camera_follow(struct App* app)
         cam_yaw += cam_spin;
         if( have )
         {
-            app->orbit_yaw = cam_yaw & 0x7ff;
-            app->orbit_yaw_vel = 0;
+            app->orbit.yaw = cam_yaw & 0x7ff;
+            app->orbit.yaw_velocity = 0;
             if( cam_pitch >= 0 )
             {
-                app->orbit_pitch = app_world_clamp_pitch(app, cam_pitch);
-                app->orbit_pitch_vel = 0;
+                app->orbit.pitch = app_world_clamp_pitch(app, cam_pitch);
+                app->orbit.pitch_velocity = 0;
             }
             if( cam_zoom > 0 )
                 /* A percentage of THIS revision's rest, not of the reference
@@ -15271,25 +15296,18 @@ app_world_camera_follow(struct App* app)
      * direction the player last walked. The eye is built around that anchor, so
      * the player model swung round a point beside itself while orbiting — the
      * camera appeared to orbit the tile rather than the player. */
-    Wev_SmoothCameraFocus(&app->orbit_x, &app->orbit_z, target_x, target_z);
+    Wev_SmoothCameraFocus(&app->orbit.anchor_x, &app->orbit.anchor_z, target_x, target_z);
 
-    /* Arrow keys -> yaw/pitch velocity (impulse 24/12, halved decay). */
-    if( app->cam_key_left )
-        app->orbit_yaw_vel += (-app->orbit_yaw_vel - 24) / 2;
-    else if( app->cam_key_right )
-        app->orbit_yaw_vel += (24 - app->orbit_yaw_vel) / 2;
-    else
-        app->orbit_yaw_vel = app->orbit_yaw_vel / 2;
+    /* Arrow keys -> yaw/pitch velocity. @see WorldCameraOrbit_StepAngles. */
+    {
+        struct WorldCameraLimits const limits = app_world_camera_limits(app);
+        struct WorldCameraKeys const keys = { .left = app->cam_key_left != 0,
+                                              .right = app->cam_key_right != 0,
+                                              .up = app->cam_key_up != 0,
+                                              .down = app->cam_key_down != 0 };
 
-    if( app->cam_key_up )
-        app->orbit_pitch_vel += (12 - app->orbit_pitch_vel) / 2;
-    else if( app->cam_key_down )
-        app->orbit_pitch_vel += (-app->orbit_pitch_vel - 12) / 2;
-    else
-        app->orbit_pitch_vel = app->orbit_pitch_vel / 2;
-
-    app->orbit_yaw = (app->orbit_yaw + app->orbit_yaw_vel / 2) & 0x7ff;
-    app->orbit_pitch = app_world_clamp_pitch(app, app->orbit_pitch + app->orbit_pitch_vel / 2);
+        WorldCameraOrbit_StepAngles(&app->orbit, &keys, &limits);
+    }
 
     /* Terrain pitch clamp: scan the 9x9 tile block around the anchor for
      * ground higher than the anchor's; raise the minimum pitch so the eye
@@ -15297,13 +15315,13 @@ app_world_camera_follow(struct App* app)
     {
         struct Heightmap* hm = app->world ? app->world->heightmap : NULL;
         int level = player->grid_position.level;
-        int orbit_ix = (int)app->orbit_x;
-        int orbit_iz = (int)app->orbit_z;
+        int orbit_ix = (int)app->orbit.anchor_x;
+        int orbit_iz = (int)app->orbit.anchor_z;
         int orbit_tile_x = orbit_ix >> 7;
         int orbit_tile_z = orbit_iz >> 7;
         int orbit_y = app_world_height(app, orbit_ix, orbit_iz, level);
         int max_y = 0;
-        int clamp;
+        struct WorldCameraLimits const limits = app_world_camera_limits(app);
 
         if( hm && orbit_tile_x > 3 && orbit_tile_z > 3 && orbit_tile_x < hm->size_x - 4 &&
             orbit_tile_z < hm->size_z - 4 )
@@ -15319,28 +15337,14 @@ app_world_camera_follow(struct App* app)
                         max_y = y;
                 }
         }
-        clamp = max_y * 192;
-        /* The same range the drag and the keys respect, in the 256ths this
-         * clamp eases in -- `98048` and `32768` were exactly these two
-         * products, written out. */
-        if( clamp >
-            app->revconfig_profile.camera.pitch_steepest * REVCONFIG_CAMERA_PITCH_CLAMP_SCALE )
-            clamp =
-                app->revconfig_profile.camera.pitch_steepest * REVCONFIG_CAMERA_PITCH_CLAMP_SCALE;
-        if( clamp <
-            app->revconfig_profile.camera.pitch_flattest * REVCONFIG_CAMERA_PITCH_CLAMP_SCALE )
-            clamp =
-                app->revconfig_profile.camera.pitch_flattest * REVCONFIG_CAMERA_PITCH_CLAMP_SCALE;
-        if( clamp > app->camera_pitch_clamp )
-            app->camera_pitch_clamp += (clamp - app->camera_pitch_clamp) / 24;
-        else if( clamp < app->camera_pitch_clamp )
-            app->camera_pitch_clamp += (clamp - app->camera_pitch_clamp) / 80;
+        /* 192 pitch units per unit of height above the anchor -- the
+         * reference's own figure, and the reason a ridge raises the eye
+         * rather than the eye sinking into it. */
+        WorldCameraOrbit_EaseTerrainClamp(&app->orbit, &limits, max_y * 192 / 256);
     }
 
-    pitch = app->orbit_pitch;
-    if( app->camera_pitch_clamp / REVCONFIG_CAMERA_PITCH_CLAMP_SCALE > pitch )
-        pitch = app->camera_pitch_clamp / REVCONFIG_CAMERA_PITCH_CLAMP_SCALE;
-    yaw = app->orbit_yaw & 0x7ff;
+    pitch = WorldCameraOrbit_EffectivePitch(&app->orbit);
+    yaw = app->orbit.yaw & 0x7ff;
     /*
      * Reference distance is `pitch * 3 + 600` (Client-TS camFollow) -- here
      * `pitch * pitch_distance + rest`, both stated by the profile -- later
@@ -15357,25 +15361,10 @@ app_world_camera_follow(struct App* app)
      * on in the settings moves world_cam_zoom inside its band and leaves this
      * term exactly as the revision left it.
      */
-    distance = pitch * app->revconfig_profile.camera.pitch_distance + app->world_cam_zoom;
-    if( app->revconfig_profile.camera.viewport_zoom )
-        distance = distance * app_world_cam_dist_zoom(app) / 256;
-    /*
-     * The device's own dolly, last, over the whole distance -- pitch term
-     * included, which is the point of it. The band under `world_cam_zoom`
-     * moves the additive term only, so it buys less and less as the camera
-     * tips over: overhead, `pitch * 3` is 1149 of the distance and no floor
-     * the band can state is worth more than a few percent of it.
-     * @see RevConfigCameraItem::distance_scale.
-     */
-    if( app->revconfig_profile.camera.distance_scale != REVCONFIG_CAMERA_DISTANCE_SCALE_DEFAULT )
-        distance = distance * app->revconfig_profile.camera.distance_scale / 100;
-    /* Not past the near plane. Anything closer than it is not a closer view,
-     * it is a dropped one -- the anchor itself fails the `dz < near_plane_z`
-     * test in ToriRS_WorldProject. The camera's own field, so TORIRS_NEAR_PLANE
-     * moves both together. */
-    if( distance < app->world_camera.near_plane_z )
-        distance = app->world_camera.near_plane_z;
+    {
+        struct WorldCameraLimits const limits = app_world_camera_limits(app);
+        distance = WorldCameraOrbit_Distance(&limits, pitch);
+    }
     /* Look-at height: the reference samples the ground under the ACTOR (not
      * under the eased anchor), takes the minimum over its footprint, then
      * drops 8, then the camera's own 50 — client.method1605:
@@ -15387,8 +15376,8 @@ app_world_camera_follow(struct App* app)
         aboard_y_valid
             ? aboard_y
             : app_world_height(app, target_x, target_z, player->grid_position.level) - 8 - 50;
-    target_x = (int)app->orbit_x;
-    target_z = (int)app->orbit_z;
+    target_x = (int)app->orbit.anchor_x;
+    target_z = (int)app->orbit.anchor_z;
 
     ToriRS_OrbitCameraEye(
         target_x, target_y, target_z, pitch, yaw, distance, &app->world_camera_pos);
@@ -15404,12 +15393,12 @@ app_world_camera_follow(struct App* app)
         TORIRS_LOG(
             "orbit: anchor=(%.3f,%.3f) player=(%d,%d) residual=(%.3f,%.3f) "
             "pitch=%d yaw=%d dist=%d look_y=%d eye=(%d,%d,%d)\n",
-            (double)app->orbit_x,
-            (double)app->orbit_z,
+            (double)app->orbit.anchor_x,
+            (double)app->orbit.anchor_z,
             (int)player->draw_position.x,
             (int)player->draw_position.z,
-            (double)((float)(int)player->draw_position.x - app->orbit_x),
-            (double)((float)(int)player->draw_position.z - app->orbit_z),
+            (double)((float)(int)player->draw_position.x - app->orbit.anchor_x),
+            (double)((float)(int)player->draw_position.z - app->orbit.anchor_z),
             pitch,
             yaw,
             distance,
@@ -15605,18 +15594,18 @@ app_world_frame(
     /* Publish the orbit angles to the CS2 host (CAM_GETANGLE_XA/YA, CAM_GETYAW)
      * and take back anything CAM_FORCEANGLE snapped since the last tick. Both
      * sides speak the reference's orbitCameraPitch/Yaw units, which is what
-     * app->orbit_pitch/orbit_yaw already hold, so no conversion is involved.
+     * app->orbit.pitch and app->orbit.yaw already hold, so no conversion is involved.
      * Order matters: mirror first, then apply a force, so a snap issued this
      * tick is not read back as "the camera moved there on its own". */
-    RS_CS2Host_SetCameraAngles(&app->host, app->orbit_pitch, app->orbit_yaw);
+    RS_CS2Host_SetCameraAngles(&app->host, app->orbit.pitch, app->orbit.yaw);
     {
         int forced_pitch, forced_yaw;
         if( RS_CS2Host_TakeCameraForce(&app->host, &forced_pitch, &forced_yaw) )
         {
-            app->orbit_pitch = forced_pitch;
-            app->orbit_yaw = forced_yaw & 0x7ff;
-            app->orbit_pitch_vel = 0;
-            app->orbit_yaw_vel = 0;
+            app->orbit.pitch = forced_pitch;
+            app->orbit.yaw = forced_yaw & 0x7ff;
+            app->orbit.pitch_velocity = 0;
+            app->orbit.yaw_velocity = 0;
         }
     }
     app_world_sync_entity_animations(app);
@@ -17571,8 +17560,8 @@ App_WorldRebuildShift(
     {
         app->world_camera_pos.x -= base_dx * 128;
         app->world_camera_pos.z -= base_dz * 128;
-        app->orbit_x -= base_dx * 128;
-        app->orbit_z -= base_dz * 128;
+        app->orbit.anchor_x -= base_dx * 128;
+        app->orbit.anchor_z -= base_dz * 128;
     }
 
     /* Cutscene camera (deob field706 = false / Client-TS cinemaCam = false). */

@@ -732,6 +732,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	perf/frame_time_ring.c \
 	editor/editor_preview_camera.c \
 	editor/map_editor_ghost.c \
+	render/world_camera_orbit.c \
 	net/rev/gameproto_parse.c net/rev/packets/pkt_player_info.c net/rev/packets/pkt_npc_info.c \
 	net/rev/packets/pkt_player_appearance.c net/rev/packets/pkt_rebuild_normal.c \
 	net/rev/packets/pkt_rebuild_region.c \
@@ -1656,6 +1657,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-net-link-watch
 	$(MAKE) test-clientscript-queue
 	$(MAKE) test-editor-ghost
+	$(MAKE) test-world-camera
 	$(MAKE) test-uitree-if-store
 	$(MAKE) test-minimap-mapscene
 	$(MAKE) test-viewport-projection
@@ -1704,6 +1706,17 @@ test-uitree-if-store: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX) \
 		ui/test/uitree_if_store_test.c ui/uitree_if_store.c $(LDFLAGS)
 	./$(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX)
+
+# The follow camera's arithmetic: the pitch band, the key velocities, the
+# terrain clamp's asymmetric ease, the distance terms and the camera held
+# across a world reload. Every one is a rule a still frame cannot check -- a
+# camera at the wrong distance looks like a different zoom, a clamp easing the
+# wrong way looks like terrain popping, and wrong velocities just feel heavy.
+.PHONY: test-world-camera
+test-world-camera: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/world_camera_orbit_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/world_camera_orbit_test.c render/world_camera_orbit.c $(LDFLAGS)
+	./$(OBJ_DIR)/world_camera_orbit_test$(PLATFORM_EXE_SUFFIX)
 
 # The map editor's hover ghost and the editor's model-view camera. The ghost is
 # a REAL scene placement, so it evicts whatever held the tile -- forget the
