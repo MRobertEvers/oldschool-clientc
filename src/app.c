@@ -17889,111 +17889,21 @@ app_warn_once_npc(int npc_id)
     return 0;
 }
 
-/*
- * The entity's own facts, for a multinpc, are the RUNG's where it states them
- * and the SHELL's where it does not.
- *
- * A multinpc is one shell record plus a rung per state, and this client
- * resolves the rung BEFORE it spawns anything (Task_AppSpawn,
- * Task_ExecNpcInfo) -- so without this the whole entity was built out of the
- * rung, defaults and all. Rungs are not authored to stand alone: they are
- * deltas. `verzik_initial_base` states a name, a model, a chathead, two ops and
- * nothing else, while its shell `verzik_initial` carries `size=5` and
- * `readyanim=verzik_phase1_idle`. Read straight off the rung, Verzik was size
- * 1 -- which puts her draw origin at `tile * 128 + 64` instead of
- * `tile * 128 + 5 * 64`, two tiles south-west of her own dais -- and readyanim
- * -1, so no sequence ever bound to the element and she sat in the model's bind
- * pose for the whole of phase one. One record's absent fields, two bugs that
- * looked unrelated.
- *
- * Across this cache the gap is 102 rungs silently size 1 under a shell that
- * states a size, and 526 silently animation-less under a shell that states a
- * readyanim. NOTHING here changes a rung that states the field itself: the 49
- * records whose readyanim genuinely disagrees with their shell keep the rung's,
- * and no rung anywhere disagrees about size.
- *
- * That last point is a deliberate deviation, flagged rather than hidden. The
- * reference reads these off ONE record -- `npc.type`, the id the WIRE sent,
- * i.e. the shell -- at both the NPC add and the CHANGETYPE mask (Client.ts
- * 8344-8353, 8455-8464), and `transform()` is called later and only where the
- * MODEL, the name and the ops are chosen. By that rule the shell would win
- * outright and those 49 rungs' readyanims would be dead data. There is no
- * revision-239 client in this tree to confirm it against, and taking the shell
- * outright would silently restyle the 674 rungs whose shell states nothing, so
- * this fills gaps and never overrides. Revisit with a rev-239 deob in hand.
- *
- * `turn_speed` is deliberately absent: its default is 32 rather than a
- * sentinel, so "absent" and "authored 32" are the same value and gap-filling
- * cannot be expressed for it.
- */
-struct AppNpcEntityFacts
-{
-    int size;
-    int readyanim;
-    int walkanim;
-    int walkanim_b;
-    int walkanim_l;
-    int walkanim_r;
-    int turnanim;
-    int runanim;
-    int runanim_b;
-    int runanim_l;
-    int runanim_r;
-};
-
+/* The rung/shell gap-fill is ToriRS_NpctypeEntityFacts'. This is the spelling
+ * that resolves the shell: the wire sends the multinpc's own id, and the cache
+ * is where the record for it lives. */
 static void
 app_npc_entity_facts(
     struct App* app,
     int base_npc_id,
     struct ToriRS_Npctype const* drawn,
-    struct AppNpcEntityFacts* out)
+    struct ToriRS_NpcEntityFacts* out)
 {
-    struct ToriRS_Npctype* shell;
-
     assert(app);
-    assert(drawn);
-    assert(out);
-
-    out->size = drawn->size > 0 ? drawn->size : 1;
-    out->readyanim = drawn->readyanim;
-    out->walkanim = drawn->walkanim;
-    out->walkanim_b = drawn->walkanim_b;
-    out->walkanim_l = drawn->walkanim_l;
-    out->walkanim_r = drawn->walkanim_r;
-    out->turnanim = drawn->turnanim_l;
-    out->runanim = drawn->runanim;
-    out->runanim_b = drawn->runanim_b;
-    out->runanim_l = drawn->runanim_l;
-    out->runanim_r = drawn->runanim_r;
-
-    if( base_npc_id < 0 )
-        return;
-    shell = CacheProvider_NpctypeGet(app->provider, base_npc_id);
-    if( !shell || shell == drawn )
-        return;
-
-    if( out->size <= 1 && shell->size > 1 )
-        out->size = shell->size;
-    if( out->readyanim < 0 )
-        out->readyanim = shell->readyanim;
-    if( out->walkanim < 0 )
-        out->walkanim = shell->walkanim;
-    if( out->walkanim_b < 0 )
-        out->walkanim_b = shell->walkanim_b;
-    if( out->walkanim_l < 0 )
-        out->walkanim_l = shell->walkanim_l;
-    if( out->turnanim < 0 )
-        out->turnanim = shell->turnanim_l;
-    if( out->runanim < 0 )
-        out->runanim = shell->runanim;
-    if( out->runanim_b < 0 )
-        out->runanim_b = shell->runanim_b;
-    if( out->runanim_l < 0 )
-        out->runanim_l = shell->runanim_l;
-    if( out->runanim_r < 0 )
-        out->runanim_r = shell->runanim_r;
-    if( out->walkanim_r < 0 )
-        out->walkanim_r = shell->walkanim_r;
+    ToriRS_NpctypeEntityFacts(
+        drawn,
+        base_npc_id >= 0 ? CacheProvider_NpctypeGet(app->provider, base_npc_id) : NULL,
+        out);
 }
 
 /* Hotkey 8 body: npc on the hovered tile. SYNCHRONOUS — the npc config and
@@ -18014,7 +17924,7 @@ app_world_spawn_npc_now(
     int tile_z,
     int level)
 {
-    struct AppNpcEntityFacts facts;
+    struct ToriRS_NpcEntityFacts facts;
     struct ToriRS_Npctype* npctype;
     struct ToriDraw_Model* model;
     int size;
@@ -25169,7 +25079,7 @@ App_WorldApplyNpcType(
     int base_npc_type)
 {
     struct ToriRS_Npctype* npctype;
-    struct AppNpcEntityFacts facts;
+    struct ToriRS_NpcEntityFacts facts;
     struct ToriDraw_Model* model;
 
     assert(app);
@@ -25254,7 +25164,7 @@ App_WorldApplyNpcType(
              * shell the way size and readyanim are: it is a bare boolean whose
              * absent value and whose authored-false value are the same bit, so
              * "the rung did not state it" cannot be expressed. Same reason
-             * `turn_speed` is left out of AppNpcEntityFacts. */
+             * `turn_speed` is left out of ToriRS_NpcEntityFacts. */
             .idle_anim_restart = npctype->idle_anim_restart ? 1 : 0,
         };
         World_NpcSetType(app->world, world_idx, npc_type, facts.size, &idle);

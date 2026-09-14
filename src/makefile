@@ -1659,6 +1659,7 @@ test-app-extracted: check-app-boundary
 	# are a WevConfig and a Worldview registry, so they live in test-wev.
 	$(MAKE) test-wev
 	$(MAKE) test-chat-store
+	$(MAKE) test-npctype-multi
 
 # Choosing the world camera's projection from the viewport height. The 2004
 # client has no viewport-derived zoom; recomputing one for it halves the scale,
@@ -2838,7 +2839,7 @@ test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-drop
 test-npctype-multi: $(OBJ_DIR) engine/torirs_npctype_from_rscache.c \
 		engine/test/torirs_npctype_from_rscache_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_npctype_from_rscache_test \
-		engine/torirs_npctype_from_rscache.c \
+		engine/torirs_npctype_from_rscache.c engine/torirs_types.c \
 		engine/test/torirs_npctype_from_rscache_test.c
 	./$(OBJ_DIR)/torirs_npctype_from_rscache_test
 
