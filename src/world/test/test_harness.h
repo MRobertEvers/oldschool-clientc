@@ -124,6 +124,7 @@ void test_spotanim(void);
 void test_spotanim_immediate_activation(void);
 void test_spotanim_catchup_activation(void);
 void test_scenery(void);
+void test_scenery_placement_ops(void);
 void test_bridge_levels(void);
 void test_height_at(void);
 void test_coord_to_scene_tile(void);

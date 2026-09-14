@@ -3,7 +3,10 @@
 #include "test_harness.h"
 #include "world_pickset.h"
 
+#include "entity_scenery.h"
+
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 void
@@ -1859,4 +1862,162 @@ test_npc_retype_keeps_animation(void)
                 "and keeps its place rather than restarting");
 
     World_Free(world);
+}
+
+/*
+ * The placement menu a LOC_ADD_CHANGE_V2 dresses a spawned loc with.
+ *
+ * This is what makes one cache record behave like several. A door's loctype
+ * ships "Open"; the zone change that swings it open spawns the open-door loc
+ * and hands it a menu saying slot 0 is now "Close". Get it wrong and the door
+ * offers both, or offers neither, or offers the right word on the wrong row --
+ * and the row is what the click reports, so the last one sends the server an
+ * op the player did not pick.
+ *
+ * Three rules, and each is only visible in a case the other two do not cover:
+ * a slot the mask CLEARS is gone whatever either side calls it, a replacement
+ * beats the loctype INCLUDING on a slot the loctype left empty, and `code` is
+ * never touched because renaming a row must not move it.
+ */
+
+static void
+set_action(struct WorldEntity_SceneryInfo* info, int slot, uint16_t code, char const* name)
+{
+    info->actions[slot].code = code;
+    memset(info->actions[slot].name, 0, sizeof(info->actions[slot].name));
+    snprintf(info->actions[slot].name, sizeof(info->actions[slot].name), "%s", name);
+}
+
+void
+test_scenery_placement_ops(void)
+{
+    struct WorldEntity_SceneryInfo info;
+    char const* replacements[5] = { "", "", "", "", "" };
+    bool has_action = false;
+    uint8_t overrides;
+
+    printf("TEST: placement op menu\n");
+
+    /* A loctype with two options of its own. */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 0, 11, "Open");
+    set_action(&info, 1, 12, "Study");
+
+    /* A menu that keeps both slots and renames neither: nothing moves, and
+     * nothing is claimed as an override. */
+    replacements[0] = "";
+    replacements[1] = "";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x03, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[0].name, "Open") == 0, "a kept slot lost the loctype's label");
+    TEST_ASSERT(strcmp(info.actions[1].name, "Study") == 0, "the second kept slot changed");
+    TEST_ASSERT(
+        overrides == 0x1c,
+        "a menu that renames nothing should still claim the four slots it drops");
+    TEST_ASSERT(has_action, "a loc with two options reported nothing to click");
+
+    /* The mask says what the placement SPEAKS FOR, which is not the same as
+     * what it changed: the three slots this menu drops are claimed too, because
+     * the placement is the reason they are empty. Only a slot that is kept and
+     * unnamed inherits, and those are the two that stay out of the mask. */
+
+    /* A replacement wins over the loctype's own label, on its own slot only. */
+    replacements[0] = "Close";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x03, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[0].name, "Close") == 0, "the replacement label did not win");
+    TEST_ASSERT(strcmp(info.actions[1].name, "Study") == 0, "the replacement reached another slot");
+    TEST_ASSERT(overrides == 0x1d, "the replaced slot is not marked overridden");
+
+    /*
+     * A slot the mask CLEARS is gone, and gone BEFORE its label is read. This
+     * is the swung door: the change keeps slot 0 and drops slot 1, and a
+     * reader that looks at the label first leaves "Study" beside "Close".
+     * The dropped slot counts as an override -- the placement is speaking for
+     * it, by saying it has nothing.
+     */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 0, 11, "Open");
+    set_action(&info, 1, 12, "Study");
+    replacements[0] = "Close";
+    replacements[1] = "Peer";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x01, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[0].name, "Close") == 0, "the kept slot lost its replacement");
+    TEST_ASSERT(info.actions[1].name[0] == '\0', "a cleared slot kept a label");
+    TEST_ASSERT(overrides == 0x1f, "a cleared slot is not marked as overridden");
+
+    /*
+     * A replacement on a slot the loctype left EMPTY. This is the whole
+     * mechanism -- it is how a record grows an option it never declared -- and
+     * it is the case a reader that only ever REPLACES existing labels gets
+     * wrong while every renamed door still works.
+     */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 3, 44, "");
+    replacements[0] = "";
+    replacements[1] = "";
+    replacements[3] = "Board";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x08, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[3].name, "Board") == 0, "an empty slot did not grow its option");
+    TEST_ASSERT(overrides == 0x1f, "the grown slot is not marked as overridden");
+    TEST_ASSERT(has_action, "a loc whose only option came from the placement reported nothing");
+
+    /*
+     * A menu with nothing in it at all. The masts ship with no name and no
+     * cache ops, and a placement that adds none has nothing to click -- which
+     * is what the caller reads to decide whether to override the loctype's own
+     * `active` flag.
+     */
+    memset(&info, 0, sizeof(info));
+    replacements[3] = "";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x00, replacements, &has_action);
+    TEST_ASSERT(!has_action, "an empty menu reported something to click");
+    TEST_ASSERT(overrides == 0x1f, "an all-clearing mask did not claim every slot");
+
+    /*
+     * `code` is the op slot a click reports, and a rename must not move it.
+     * Every slot keeps the code it had, including the one whose label was
+     * cleared -- the row is gone from the menu, not renumbered.
+     */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 0, 11, "Open");
+    set_action(&info, 1, 12, "Study");
+    set_action(&info, 2, 13, "Search");
+    replacements[0] = "Close";
+    replacements[1] = "";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x05, replacements, &has_action);
+    TEST_ASSERT(info.actions[0].code == 11, "the renamed slot's op code moved");
+    TEST_ASSERT(info.actions[1].code == 12, "the cleared slot's op code moved");
+    TEST_ASSERT(info.actions[2].code == 13, "an untouched slot's op code moved");
+    TEST_ASSERT(strcmp(info.actions[2].name, "Search") == 0, "slot 2 was kept and lost its label");
+
+    /*
+     * A shortened label leaves no tail behind. Interned blocks are compared
+     * byte for byte, so a name written over a longer one with only a NUL
+     * between them interns as a second, identical-looking entry -- and every
+     * placement that "shares" it then gets its own copy.
+     */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 0, 11, "Investigate");
+    replacements[0] = "Use";
+    replacements[1] = "";
+    WorldEntity_SceneryApplyPlacementOps(&info, 0x01, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[0].name, "Use") == 0, "the short label did not take");
+    {
+        struct WorldEntity_SceneryInfo fresh;
+        memset(&fresh, 0, sizeof(fresh));
+        set_action(&fresh, 0, 11, "Use");
+        TEST_ASSERT(
+            memcmp(&fresh, &info, sizeof(fresh)) == 0,
+            "the overwritten label left a tail past its terminator");
+    }
+
+    /* All five slots, so nothing is a four-slot loop in disguise. */
+    memset(&info, 0, sizeof(info));
+    replacements[0] = "a";
+    replacements[1] = "b";
+    replacements[2] = "c";
+    replacements[3] = "d";
+    replacements[4] = "e";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x1f, replacements, &has_action);
+    TEST_ASSERT(overrides == 0x1f, "not every slot was reached");
+    TEST_ASSERT(strcmp(info.actions[4].name, "e") == 0, "the fifth slot was not written");
 }

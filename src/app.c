@@ -19121,20 +19121,12 @@ struct Task_AppSpawn
 };
 
 /*
- * Apply a LOC_ADD_CHANGE_V2 placement menu onto the scenery entity the change
- * just spawned.
+ * Find the scenery entity a LOC_ADD_CHANGE_V2 just spawned and dress it with
+ * the placement menu the change carried.
  *
- * Order is the reference's (deob class108), and each step matters:
- *
- *   1. a slot the mask clears is GONE, whatever either side calls it. The
- *      reference `continue`s before it has read a label at all, so a swung
- *      door does not keep offering "Open" beside its "Close".
- *   2. a replacement label wins over the loctype's, and wins on a slot the
- *      loctype left EMPTY too — which is the whole mechanism: it is how a
- *      single cache record grows an option it never declared.
- *
- * `code` is left alone. It is the op slot the click reports, and the override
- * renames a row rather than moving it.
+ * Which labels survive is WorldEntity_SceneryApplyPlacementOps'. This is the
+ * part that needs a scene: which placement the change is talking about, and
+ * the interning that keeps one label block per distinct menu.
  */
 static void
 app_loc_change_apply_ops(
@@ -19159,40 +19151,19 @@ app_loc_change_apply_ops(
         return;
 
     /* The label block is shared, so the override is not written in place: the
-     * edited copy is interned and the placement repointed. Every slot is
-     * rewritten from zero rather than truncated with a NUL, because entries are
-     * compared byte for byte and a shortened name that left its old tail behind
-     * would intern as a second, identical-looking label. */
+     * edited copy is interned and the placement repointed. */
     {
         struct WorldEntity_SceneryInfo probe = *sc->info;
-        int has_action = 0;
+        char const* replacements[5];
+        bool has_action = false;
+
+        for( int i = 0; i < 5; i++ )
+            replacements[i] = self->loc_ops[i];
 
         sc->placement_op_mask = (uint8_t)self->loc_op_flags;
-        sc->placement_op_overrides = 0;
-        for( int i = 0; i < 5; i++ )
-        {
-            if( !(self->loc_op_flags & (1 << i)) || self->loc_ops[i][0] )
-                sc->placement_op_overrides |= (uint8_t)(1 << i);
-            char const* label = NULL;
-
-            if( (self->loc_op_flags & (1 << i)) == 0 )
-                label = "";
-            else if( self->loc_ops[i][0] != '\0' )
-                label = self->loc_ops[i];
-            if( label )
-            {
-                memset(probe.actions[i].name, 0, sizeof(probe.actions[i].name));
-                snprintf(probe.actions[i].name, sizeof(probe.actions[i].name), "%s", label);
-            }
-            if( probe.actions[i].name[0] != '\0' )
-                has_action = 1;
-        }
+        sc->placement_op_overrides = WorldEntity_SceneryApplyPlacementOps(
+            &probe, (unsigned)self->loc_op_flags, replacements, &has_action);
         sc->info = World_SceneryInfoIntern(world, &probe);
-        /* A placement the server gave a MENU is clickable by definition —
-         * that is what LOC_ADD_CHANGE_V2's op strings exist for. The
-         * loctype's own `active` default can say no (the sailing masts ship
-         * with no name and no cache ops), and the pick's interactive gate
-         * would then refuse a loc whose whole point is its one op. */
         if( has_action )
             sc->interactive = 1;
     }
