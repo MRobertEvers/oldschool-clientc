@@ -134,6 +134,26 @@ Capture the baseline with **your own** binary, not one somebody else built.
 A baseline from a different build of a different tree turns every unrelated
 difference into your port's failure.
 
+## Run the unit suites once with assertions LIVE
+
+Every target here builds at `OPT=1`, which defines `NDEBUG`, which deletes
+every `assert`. So a contract violation the project's own conventions say must
+abort loudly does not abort at all in any build the gate or the matrix runs.
+
+One of them was a buffer overflow. `Porcelain_CopyString` asserted that a
+string fits and then copied it regardless, so in a release build an over-long
+reason wrote past the end of the struct holding it. A 145-character declaration
+found it, in a debug build, by accident, weeks after it landed.
+
+So before you call a port done:
+
+```
+make -C src test-porcelain OPT=0 PLATFORM_OBJ_BASE=build_dbg
+```
+
+and the same for your own plugin's suite. It is one extra build and it is the
+only thing in this harness that can see an assert at all.
+
 ## Two traps that cost real time
 
 **Absolute paths.** Both scripts resolve every path they are given to an

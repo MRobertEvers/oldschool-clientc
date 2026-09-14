@@ -106,17 +106,35 @@ Porcelain_CopyString(char* destination, size_t capacity, char const* source)
 
     assert(destination);
     assert(capacity > 0);
-    (void)capacity; /* Read only by the assert below, which NDEBUG removes. */
     if( !source )
     {
         destination[0] = '\0';
         return;
     }
     length = strlen(source);
-    /* An over-long key, role or caption is a caller bug: it would silently
-     * alias a different identity if it were truncated here. */
-    assert(length < capacity);
-    memcpy(destination, source, length + 1);
+    /*
+     * An over-long key, role or caption is a caller bug: truncated, it would
+     * silently alias a different identity. So it asserts -- and the assert
+     * carries the string, because "length < capacity" on its own tells you
+     * nothing about WHICH of a plugin's forty strings was too long, and two
+     * people have now spent a debug cycle finding that out by hand.
+     */
+    assert(length < capacity && source);
+    /*
+     * And it must not run off the end when NDEBUG has removed that assert.
+     *
+     * This used to copy length + 1 bytes unconditionally. In a release build,
+     * which is every build the gate and the matrix run, that is not a
+     * truncation -- it is a buffer overflow, past the end of whatever struct
+     * holds the destination, with the caller's own string as the payload. A
+     * 145-character reason found it. Clamping is the lesser evil by a wide
+     * margin, and the assert above is what stops an aliasing truncation ever
+     * reaching a release build in the first place.
+     */
+    if( length >= capacity )
+        length = capacity - 1;
+    memcpy(destination, source, length);
+    destination[length] = '\0';
 }
 
 uint64_t

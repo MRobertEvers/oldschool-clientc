@@ -3146,14 +3146,14 @@ is_start(struct ToriRS_Api* api, void* state_ptr)
     assert(state->porcelain);
 
     Porcelain_ExpectUnsupported(g_porcelain, "item weight",
-        "no cache this client boots states an item weight, so the row would be a column "
-        "of zeroes");
+        "no cache this client boots states an item weight");
+    /* Trimmed to the detail ceiling: the occult necklace is the whole argument
+     * and the conclusion is in the ledger row, not in a finding. */
     Porcelain_ExpectUnsupported(g_porcelain, "magic damage",
-        "param 299 reads 50 on the occult necklace where the game shows +10%, so the param "
-        "is not the whole number and the row would be confidently wrong");
+        "param 299 reads 50 on the occult necklace where the game shows +10%");
     Porcelain_ExpectUnsupported(g_porcelain, "potion durations",
-        "the durations and the leagues combat-mastery multipliers are varbits no revision "
-        "here declares, and a multiplier read off an absent var is a silent 1.0");
+        "the durations and the combat-mastery multipliers are varbits no "
+        "revision here declares");
     Porcelain_ExpectUnsupported(g_porcelain, "spicy stew boost",
         "the boost is four quest varbits no revision here declares");
 
