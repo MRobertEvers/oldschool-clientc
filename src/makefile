@@ -1613,6 +1613,15 @@ test-cs2-opcode-groups: $(OBJ_DIR)
 		cs2vm2/test/opcode_group_test.c cs2vm2/cs2_opcode_meta.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_opcode_group_test
 
+# The retained tree's compare-before-bump signatures. The retain mechanism
+# rests on "a value changed => the word changed", and a signature that misses a
+# change leaves a stale descriptor on screen without anything looking wrong.
+.PHONY: test-uitree-input-signature
+test-uitree-input-signature: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_input_signature_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/uitree_input_signature_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/uitree_input_signature_test$(PLATFORM_EXE_SUFFIX)
+
 # What a retained frame still has to present: the box is the union and clamps
 # onto the canvas, a box that IS the canvas is dropped, rects fold when they
 # touch, and overflowing four poisons the list rather than truncating it.

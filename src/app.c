@@ -127,6 +127,7 @@ EM_JS(
 #include "ui/torirs_chrome_panel_draw.h"
 #include "ui/uitree_build.h"
 #include "ui/uitree_frame.h"
+#include "ui/uitree_input_signature.h"
 #include "ui/uitree_iface_stats.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_obj_cell.h"
@@ -6882,74 +6883,6 @@ app_host_request(
  * snapshots of the values host requests can expose. Event-driven sources such
  * as InvManager also bump their domain directly, while the snapshot closes
  * over local selection state which is not owned by that manager. */
-#define APP_UI_INPUT_HASH_OFFSET 1469598103934665603ull
-#define APP_UI_INPUT_HASH_PRIME 1099511628211ull
-
-/*
- * Eight bytes per multiply, not one. This runs every frame over sizeof(slots),
- * chat_view, the IF_SETEVENTS table and the minimenu, and a 64-bit multiply is
- * three 32-bit ones on armv7 -- per BYTE, that was ~0.08 ms a frame on the
- * Moto X. The semantics the callers rely on are unchanged: the signature is
- * compared against last frame's and any byte that changed changes it (each
- * xor-multiply step is a bijection in the word, so a single-word difference
- * can never cancel). The values themselves are not persisted anywhere.
- */
-static uint64_t
-app_ui_input_hash_bytes(
-    uint64_t hash,
-    void const* data,
-    size_t size)
-{
-    unsigned char const* bytes = (unsigned char const*)data;
-    size_t i = 0;
-
-    while( i + sizeof(uint64_t) <= size )
-    {
-        uint64_t word;
-        memcpy(&word, bytes + i, sizeof(word));
-        hash ^= word;
-        hash *= APP_UI_INPUT_HASH_PRIME;
-        i += sizeof(word);
-    }
-    if( i < size )
-    {
-        uint64_t word = 0;
-        memcpy(&word, bytes + i, size - i);
-        hash ^= word;
-        hash *= APP_UI_INPUT_HASH_PRIME;
-    }
-    return hash;
-}
-
-static uint64_t
-app_ui_input_hash_int(
-    uint64_t hash,
-    int value)
-{
-    return app_ui_input_hash_bytes(hash, &value, sizeof(value));
-}
-
-static uint64_t
-app_ui_input_hash_u64(
-    uint64_t hash,
-    uint64_t value)
-{
-    return app_ui_input_hash_bytes(hash, &value, sizeof(value));
-}
-
-static uint64_t
-app_ui_input_hash_string(
-    uint64_t hash,
-    char const* value)
-{
-    size_t length = value ? strlen(value) : 0;
-
-    hash = app_ui_input_hash_bytes(hash, &length, sizeof(length));
-    if( length )
-        hash = app_ui_input_hash_bytes(hash, value, length);
-    return hash;
-}
-
 static void
 app_ui_host_publish_inputs(struct App* app)
 {
@@ -6961,64 +6894,64 @@ app_ui_host_publish_inputs(struct App* app)
 
     assert(app);
     for( int domain = 0; domain < UITREE_HOST_INPUT_DOMAIN_COUNT; domain++ )
-        signature[domain] = app_ui_input_hash_int(APP_UI_INPUT_HASH_OFFSET, domain + 1);
+        signature[domain] = UITree_InputSignatureInt(UITREE_INPUT_SIGNATURE_OFFSET, domain + 1);
 
     /* CAMERA: everything used by yaw-based chrome and world projection. The
      * local player is the minimap anchor when present; free camera position is
      * the fallback. */
-    signature[UITREE_HOST_INPUT_CAMERA] = app_ui_input_hash_int(
+    signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
         signature[UITREE_HOST_INPUT_CAMERA], ToriDraw_NormalizeAngle(app->world_camera.yaw));
     signature[UITREE_HOST_INPUT_CAMERA] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera.pitch);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera.pitch);
     signature[UITREE_HOST_INPUT_CAMERA] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.x);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.x);
     signature[UITREE_HOST_INPUT_CAMERA] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.y);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.y);
     signature[UITREE_HOST_INPUT_CAMERA] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.z);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], app->world_camera_pos.z);
     local = app_local_player(app);
     signature[UITREE_HOST_INPUT_CAMERA] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], local != NULL);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], local != NULL);
     if( local )
     {
         signature[UITREE_HOST_INPUT_CAMERA] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], (int)local->draw_position.x);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], (int)local->draw_position.x);
         signature[UITREE_HOST_INPUT_CAMERA] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CAMERA], (int)local->draw_position.z);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], (int)local->draw_position.z);
     }
 
     /* POINTER: hash only visible/observable phases. Inactive cross/menu/hover
      * scratch may move without changing a descriptor and should not defeat a
      * quiet retained frame. */
     signature[UITREE_HOST_INPUT_POINTER] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], UICross_IsActive(&app->cross));
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], UICross_IsActive(&app->cross));
     if( UICross_IsActive(&app->cross) )
     {
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->cross.x);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->cross.x);
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->cross.y);
-        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_int(
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->cross.y);
+        signature[UITREE_HOST_INPUT_POINTER] = UITree_InputSignatureInt(
             signature[UITREE_HOST_INPUT_POINTER], UICross_AtlasFrame(&app->cross));
     }
     menu = &app->interact.minimenu;
     signature[UITREE_HOST_INPUT_POINTER] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->visible);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], menu->visible);
     if( menu->visible )
     {
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->x);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], menu->x);
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->y);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], menu->y);
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->width);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], menu->width);
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->height);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], menu->height);
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->hovered_option);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], menu->hovered_option);
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu->font_id);
-        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], menu->font_id);
+        signature[UITREE_HOST_INPUT_POINTER] = UITree_InputSignatureBytes(
             signature[UITREE_HOST_INPUT_POINTER], &menu->layout, sizeof(menu->layout));
         menu_count = menu->option_count;
         if( menu_count < 0 )
@@ -7026,71 +6959,71 @@ app_ui_host_publish_inputs(struct App* app)
         if( menu_count > UITREE_MINIMENU_MAX_OPTIONS )
             menu_count = UITREE_MINIMENU_MAX_OPTIONS;
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], menu_count);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], menu_count);
         for( int i = 0; i < menu_count; i++ )
         {
             struct UIMinimenuOption const* option = &menu->options[i];
             signature[UITREE_HOST_INPUT_POINTER] =
-                app_ui_input_hash_string(signature[UITREE_HOST_INPUT_POINTER], option->text);
-            signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+                UITree_InputSignatureString(signature[UITREE_HOST_INPUT_POINTER], option->text);
+            signature[UITREE_HOST_INPUT_POINTER] = UITree_InputSignatureBytes(
                 signature[UITREE_HOST_INPUT_POINTER], &option->action, sizeof(option->action));
-            signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+            signature[UITREE_HOST_INPUT_POINTER] = UITree_InputSignatureBytes(
                 signature[UITREE_HOST_INPUT_POINTER],
                 &option->action_index,
                 sizeof(option->action_index));
-            signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+            signature[UITREE_HOST_INPUT_POINTER] = UITree_InputSignatureBytes(
                 signature[UITREE_HOST_INPUT_POINTER], &option->pick, sizeof(option->pick));
         }
     }
     signature[UITREE_HOST_INPUT_POINTER] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->hover_text.visible);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->hover_text.visible);
     if( app->hover_text.visible )
     {
-        signature[UITREE_HOST_INPUT_POINTER] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_POINTER] = UITree_InputSignatureBytes(
             signature[UITREE_HOST_INPUT_POINTER],
             &app->hover_text.x,
             sizeof(app->hover_text.x) * 5);
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_string(signature[UITREE_HOST_INPUT_POINTER], app->hover_text.text);
+            UITree_InputSignatureString(signature[UITREE_HOST_INPUT_POINTER], app->hover_text.text);
     }
     ghosting = app_inv_drag_ghosting(app);
     signature[UITREE_HOST_INPUT_POINTER] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], ghosting);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], ghosting);
     if( ghosting )
     {
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_com_id);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_com_id);
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_source_id);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_source_id);
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_from_slot);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_from_slot);
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_dx);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_dx);
         signature[UITREE_HOST_INPUT_POINTER] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_dy);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_POINTER], app->inv_drag_dy);
     }
 
     /* CLIENT_STATE: selected/available tabs, chat presentation and the server
      * IF_SETEVENTS overrides copied into host-produced menu descriptors. */
-    signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_bytes(
+    signature[UITREE_HOST_INPUT_CLIENT_STATE] = UITree_InputSignatureBytes(
         signature[UITREE_HOST_INPUT_CLIENT_STATE], &app->slots, sizeof(app->slots));
-    signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_bytes(
+    signature[UITREE_HOST_INPUT_CLIENT_STATE] = UITree_InputSignatureBytes(
         signature[UITREE_HOST_INPUT_CLIENT_STATE], &app->chat_view, sizeof(app->chat_view));
     signature[UITREE_HOST_INPUT_CLIENT_STATE] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_CLIENT_STATE], app->if_event_count);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CLIENT_STATE], app->if_event_count);
     if( app->if_event_count > 0 )
-        signature[UITREE_HOST_INPUT_CLIENT_STATE] = app_ui_input_hash_bytes(
+        signature[UITREE_HOST_INPUT_CLIENT_STATE] = UITree_InputSignatureBytes(
             signature[UITREE_HOST_INPUT_CLIENT_STATE],
             app->if_events,
             (size_t)app->if_event_count * sizeof(*app->if_events));
 
     /* INVENTORY: container contents publish through the InvManager callback;
      * selection and drag addressing live on App and need this small snapshot. */
-    signature[UITREE_HOST_INPUT_INVENTORY] = app_ui_input_hash_bytes(
+    signature[UITREE_HOST_INPUT_INVENTORY] = UITree_InputSignatureBytes(
         signature[UITREE_HOST_INPUT_INVENTORY], &app->invs.selection, sizeof(app->invs.selection));
-    signature[UITREE_HOST_INPUT_INVENTORY] = app_ui_input_hash_bytes(
+    signature[UITREE_HOST_INPUT_INVENTORY] = UITree_InputSignatureBytes(
         signature[UITREE_HOST_INPUT_INVENTORY], &app->objsel, sizeof(app->objsel));
-    signature[UITREE_HOST_INPUT_INVENTORY] = app_ui_input_hash_bytes(
+    signature[UITREE_HOST_INPUT_INVENTORY] = UITree_InputSignatureBytes(
         signature[UITREE_HOST_INPUT_INVENTORY],
         &app->inv_drag_com_id,
         sizeof(app->inv_drag_com_id) * 4);
@@ -7100,46 +7033,46 @@ app_ui_host_publish_inputs(struct App* app)
      * replacements which map cardinality cannot see. Provider model/sprite
      * streaming may conservatively cause an extra full UI walk; three scalar
      * reads are still cheaper and more reliable than scanning the registries. */
-    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_u64(
+    signature[UITREE_HOST_INPUT_ASSETS] = UITree_InputSignatureU64(
         signature[UITREE_HOST_INPUT_ASSETS],
         app->provider ? CacheProvider_UIAssetRevision(app->provider) : 0);
-    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_u64(
+    signature[UITREE_HOST_INPUT_ASSETS] = UITree_InputSignatureU64(
         signature[UITREE_HOST_INPUT_ASSETS], UITreeSceneBridge_AssetRevision(&app->bridge));
-    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_u64(
+    signature[UITREE_HOST_INPUT_ASSETS] = UITree_InputSignatureU64(
         signature[UITREE_HOST_INPUT_ASSETS],
         app->scene ? ToriDraw_SceneUIAssetRevision(app->scene) : 0);
 
     signature[UITREE_HOST_INPUT_WORLD] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->minimap_state);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], app->minimap_state);
     signature[UITREE_HOST_INPUT_WORLD] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->multiway);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], app->multiway);
     signature[UITREE_HOST_INPUT_WORLD] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->world_map_scene_id);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], app->world_map_scene_id);
     signature[UITREE_HOST_INPUT_WORLD] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->world_map_w);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], app->world_map_w);
     signature[UITREE_HOST_INPUT_WORLD] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->world_map_h);
-    signature[UITREE_HOST_INPUT_WORLD] = app_ui_input_hash_int(
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], app->world_map_h);
+    signature[UITREE_HOST_INPUT_WORLD] = UITree_InputSignatureInt(
         signature[UITREE_HOST_INPUT_WORLD], app->world && app->world->load_complete);
     if( app->world && app->world->minimap )
     {
         signature[UITREE_HOST_INPUT_WORLD] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->world->minimap->width);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], app->world->minimap->width);
         signature[UITREE_HOST_INPUT_WORLD] =
-            app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->world->minimap->height);
+            UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_WORLD], app->world->minimap->height);
     }
 
     /* Hash visible animation phases, not raw clocks: an inactive cross and a
      * non-flashing tab do not change their descriptors as cycles advance. */
-    signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+    signature[UITREE_HOST_INPUT_ANIMATION] = UITree_InputSignatureInt(
         signature[UITREE_HOST_INPUT_ANIMATION], UICross_IsActive(&app->cross));
     if( UICross_IsActive(&app->cross) )
-        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_ANIMATION] = UITree_InputSignatureInt(
             signature[UITREE_HOST_INPUT_ANIMATION], UICross_AtlasFrame(&app->cross));
     signature[UITREE_HOST_INPUT_ANIMATION] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_ANIMATION], app->reboot_timer != 0);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_ANIMATION], app->reboot_timer != 0);
     if( app->reboot_timer != 0 )
-        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_ANIMATION] = UITree_InputSignatureInt(
             signature[UITREE_HOST_INPUT_ANIMATION],
             app->reboot_timer / APP_LOGIC_CYCLES_PER_SECOND);
     /*
@@ -7154,7 +7087,7 @@ app_ui_host_publish_inputs(struct App* app)
     if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
     {
         int blink = app_title_caret_blink(app);
-        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_ANIMATION] = UITree_InputSignatureInt(
             signature[UITREE_HOST_INPUT_ANIMATION],
             blink > 0 ? (int)(app->logic_cycle % (uint64_t)blink) < blink / 2 : 0);
     }
@@ -7174,23 +7107,23 @@ app_ui_host_publish_inputs(struct App* app)
      * the epoch flips exactly when the pixels do rather than every frame.
      */
     if( app->flames )
-        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_ANIMATION] = UITree_InputSignatureInt(
             signature[UITREE_HOST_INPUT_ANIMATION], app->flames->update_index);
     signature[UITREE_HOST_INPUT_ANIMATION] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_ANIMATION], app->slots.flash_tab);
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_ANIMATION], app->slots.flash_tab);
     if( app->slots.flash_tab >= 0 )
-        signature[UITREE_HOST_INPUT_ANIMATION] = app_ui_input_hash_int(
+        signature[UITREE_HOST_INPUT_ANIMATION] = UITree_InputSignatureInt(
             signature[UITREE_HOST_INPUT_ANIMATION],
             RS_UISlots_TabFlashHidden(&app->slots, app->slots.flash_tab, app->logic_cycle));
 
     /* Same-frame world/plugin overlay arrays are refreshed by source-tagged
      * standing records, including sources currently returning zero items.
      * Chrome is retained data, so its exact build serials participate here. */
-    signature[UITREE_HOST_INPUT_OVERLAYS] = app_ui_input_hash_bytes(
+    signature[UITREE_HOST_INPUT_OVERLAYS] = UITree_InputSignatureBytes(
         signature[UITREE_HOST_INPUT_OVERLAYS],
         &app->dbg_ui.build_serial,
         sizeof(app->dbg_ui.build_serial));
-    signature[UITREE_HOST_INPUT_OVERLAYS] = app_ui_input_hash_bytes(
+    signature[UITREE_HOST_INPUT_OVERLAYS] = UITree_InputSignatureBytes(
         signature[UITREE_HOST_INPUT_OVERLAYS],
         &app->plugin_ui.build_serial,
         sizeof(app->plugin_ui.build_serial));
