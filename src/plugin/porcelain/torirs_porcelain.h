@@ -63,6 +63,39 @@ extern "C" {
  */
 #define PORCELAIN_MENU_PICK_INV_SLOT 2
 
+/*
+ * Panel capacities. Rows match the host's own control budget
+ * (TORIRS_PLUGIN_WIDGETS_MAX) and the option pool matches its select pool
+ * (TORIRS_PLUGIN_SELECT_OPTIONS_MAX), so a description that fits here is one
+ * the host will accept: a ceiling that is lower than the engine's would
+ * refuse pages the engine can present, and a higher one would push the
+ * refusal past the frame that caused it.
+ *
+ * The pool is per PANEL and not per handle: six plugins mount the shared
+ * pane, so a per-handle pool would be 32 copies of a table 26 of them never
+ * touch.
+ */
+#define PORCELAIN_PANELS_MAX 8
+#define PORCELAIN_ROWS_MAX 48
+#define PORCELAIN_ROW_OPTIONS_MAX 128
+#define PORCELAIN_OPTION_VALUE_MAX 96
+#define PORCELAIN_OPTION_LABEL_MAX 96
+#define PORCELAIN_OPTION_DETAIL_MAX 96
+/*
+ * A row's label and text, at the host's own config-value ceiling. Porcelain
+ * REFUSES a string that does not fit and never truncates one: a truncated
+ * stable value picks a different option and reads back as if the person had
+ * chosen it, which is the defect config_list_add already exists to refuse.
+ */
+#define PORCELAIN_ROW_TEXT_MAX 192
+/*
+ * A row's key, at the HOST's own row-id ceiling and not at Porcelain's
+ * element-key one, which is wider. A key the layer accepted and the host then
+ * refused would be a finding per row per build, arriving a page late; at the
+ * narrower ceiling the refusal lands on the describe that wrote it.
+ */
+#define PORCELAIN_ROW_KEY_MAX TORIRS_PLUGIN_WIDGET_ID_MAX
+
 /** Handles alive at once. Also the arbitration order: open order. */
 #define PORCELAIN_HANDLES_MAX 32
 /** Claims across every handle: elements times aspects, bounded. */
@@ -215,6 +248,66 @@ void Porcelain_Opacity(struct ToriRS_PorcelainDescribe* describe, struct Porcela
 void Porcelain_Unsupported(struct ToriRS_PorcelainDescribe* describe, char const* reason);
 
 /* ------------------------------------------------------------------------ */
+/* Panels                                                                   */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * The row model is its own reconciler over `api->panel`, and it answers one
+ * question the element reconciler does not have to: what is a REBUILD.
+ *
+ * The host's page reconciler validates by IDENTITY ONLY -- serial, kind, id,
+ * count -- and three separate shipped bugs came from a property check inside
+ * its validate loop, which turns a caption into a rebuild and a rebuild into
+ * a flicker. So the rule here is the same rule, stated from the plugin's
+ * side: the ordered sequence of (key, kind, identity label) IS the
+ * declaration, a change to it is the page's one legitimate rebuild, and
+ * every other difference is a setter on the row it names.
+ */
+
+/** on_start only. `icon_asset` NULL asks for the baked wrench, which is a
+ *  meaning and not an absence. A refused registration is a finding. */
+void Porcelain_Panel(struct Porcelain* porcelain, char const* icon_asset, int width,
+                     unsigned faces);
+/** Describe-only. Rows are emitted in description order. */
+void Porcelain_Row(struct ToriRS_PorcelainDescribe* describe, struct PorcelainRow const* row);
+/** Describe-only. Force ONE described row a fresh serial at this fence, for
+ *  an identity input that is not expressible as PorcelainRow::hit_key. */
+void Porcelain_Reidentify(struct ToriRS_PorcelainDescribe* describe, char const* key);
+
+/* The three host callbacks a panel plugin forwards. Porcelain installs no
+ * callbacks of its own: the definition belongs to the plugin and the host
+ * already registered it. */
+void Porcelain_PanelBuild(struct Porcelain* porcelain, struct ToriRS_PanelBuilder* builder,
+                          int view);
+bool Porcelain_PanelAction(struct Porcelain* porcelain,
+                           struct ToriRS_PanelActionEvent const* event);
+bool Porcelain_PanelDraw(struct Porcelain* porcelain, char const* node,
+                         struct ToriRS_Graphics* draw);
+
+/**
+ * What the row reconciler did, for the tests that pin the rules above.
+ *
+ * `rebuilds` is the number the whole family exists to keep at zero: the plan
+ * says growth, a changed option count and a changed caption must each cost a
+ * setter, and without this counter "it did not rebuild" is a belief.
+ */
+struct PorcelainPanelCounters
+{
+    uint32_t builds;
+    uint32_t rebuilds;
+    uint32_t reidentifies;
+    uint32_t redraws;
+    uint32_t setters;
+    /** Rows whose property set was walked at all. An unchanged hash must not
+     *  reach a single per-field compare. */
+    uint32_t row_applies;
+    uint32_t actions;
+    uint32_t paints;
+};
+void Porcelain_PanelCountersRead(struct Porcelain* porcelain,
+                                 struct PorcelainPanelCounters* out);
+
+/* ------------------------------------------------------------------------ */
 /* Not implemented yet                                                      */
 /* ------------------------------------------------------------------------ */
 
@@ -231,11 +324,16 @@ void Porcelain_Unsupported(struct ToriRS_PorcelainDescribe* describe, char const
  *   read-out of work that exists; the rest needs
  *   UITree_FrameSlotMemberNativeBox and the [tabs:<root>] override first.
  *
- * TODO(plan #api "Panels"): Porcelain_Panel, Porcelain_Row,
- *   Porcelain_Reidentify. The row model is its own reconciler over
- *   api->panel, and it depends on the host fixes the plan's "Engine changes"
- *   lists as H1..H5 (BUTTON caption by patch, the dropped same-count rule,
- *   the per-row re-identity verb, the 2048 well ceiling).
+ * TODO(plan #api "Panels"): what the row model still cannot express, because
+ *   the engine half is not there. A CUSTOM well has no secondary-click
+ *   channel, so PorcelainRow has no `on_menu` and the loot tracker's band and
+ *   cell ops stay buttons under a selected row (needs
+ *   TORIRS_PANEL_ACTION_MENU carrying well-local x/y under the existing
+ *   generation/serial fence). A row cannot be scrolled to, and nothing
+ *   answers where a well's scroll sits. `label` is declaration identity for
+ *   KEY_VALUE, TOGGLE, SELECT and ACTION_ROW because the host's patch path
+ *   has no arm for it; a plugin that renames one of those rows pays a
+ *   rebuild.
  *
  * TODO(plan #api "Data helpers"): Porcelain_MenuSubjects -- the distinct
  *   subjects of a menu build, yielded once each with a resolved snapshot.

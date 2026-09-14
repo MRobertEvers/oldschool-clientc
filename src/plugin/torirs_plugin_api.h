@@ -1498,6 +1498,124 @@ enum PorcelainNativeOverlayState
     PORCELAIN_NATIVE_OVERLAY_FORMATTING
 };
 
+/* ------------------------------------------------------------------------ */
+/* Panels: the row model                                                    */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Which of a plugin's two faces one description covers.
+ *
+ * The page and the settings form are two destinations, and the host clears
+ * and re-declares when it changes which one it is showing. A description that
+ * covers a face is emitted there; a face it does not cover is left to the
+ * host, which presents the form generated from the plugin's config schema --
+ * exactly what a plugin with no settings handler has always got.
+ */
+enum PorcelainFace
+{
+    PORCELAIN_FACE_PAGE = 1u << 0,
+    PORCELAIN_FACE_SETTINGS = 1u << 1
+};
+#define PORCELAIN_FACE_BOTH (PORCELAIN_FACE_PAGE | PORCELAIN_FACE_SETTINGS)
+
+/*
+ * A row kind. This is the panel vocabulary every executor presents natively,
+ * named once here so a Porcelain plugin never reaches for the host's widget
+ * enum and never picks between `builder->node` and the eight shorthands.
+ */
+enum PorcelainRowKind
+{
+    PORCELAIN_ROW_HEADING = 0,
+    PORCELAIN_ROW_PARAGRAPH,
+    PORCELAIN_ROW_LABEL,
+    PORCELAIN_ROW_KEY_VALUE,
+    PORCELAIN_ROW_TOGGLE,
+    PORCELAIN_ROW_SELECT,
+    PORCELAIN_ROW_BUTTON,
+    PORCELAIN_ROW_ACTION_ROW,
+    PORCELAIN_ROW_SEPARATOR,
+    PORCELAIN_ROW_PROGRESS,
+    PORCELAIN_ROW_CUSTOM,
+    PORCELAIN_ROW_KIND_COUNT
+};
+
+/** What a person did to one row. `kind` is a ToriRS_PanelActionKind. */
+struct PorcelainRowAction
+{
+    char const* key;
+    int kind;
+    int value;
+    /** Never NULL. For a SELECT pick this is the stable VALUE, not a label. */
+    char const* text;
+    /** CUSTOM-well-local logical coordinates; 0 for an ordinary row. */
+    int x, y;
+};
+
+typedef void (*PorcelainRowActionFn)(struct ToriRS_Api* api, void* user,
+                                     struct PorcelainRowAction const* action);
+/** One CUSTOM well's paint pass, routed by key from the plugin's on_ui_draw. */
+typedef void (*PorcelainRowPaintFn)(struct ToriRS_Api* api, void* user, char const* key,
+                                    struct ToriRS_Graphics* draw);
+
+/*
+ * One described row.
+ *
+ * A zeroed PorcelainRow is a legal, live HEADING with no text -- which is why
+ * the inert spelling is `disabled` and not the plan's `enabled`. A row model
+ * whose zero value is an inert button would have reproduced, in the verb that
+ * replaces it, exactly the silent no-op the host fix H2 had to remove.
+ *
+ * `label` is DECLARATION IDENTITY for KEY_VALUE, TOGGLE, SELECT and
+ * ACTION_ROW, because the host builds those from `label` and its patch path
+ * cannot restate one; changing it is a rebuild and Porcelain says so. For
+ * HEADING, PARAGRAPH, LABEL and BUTTON the string travels as the row's text,
+ * which IS patched, so either spelling works and neither costs a rebuild.
+ */
+struct PorcelainRow
+{
+    /** Stable identity, and the id every action and setter names. */
+    char const* key;
+    enum PorcelainRowKind kind;
+    char const* label;
+    char const* text;
+    /** TOGGLE: the checked state. PROGRESS: the bar. Unread elsewhere. */
+    int value;
+    /** SELECT. Copied: the caller's array may be a stack local. */
+    struct ToriRS_SelectOption const* options;
+    int option_count;
+    /** CUSTOM: the well's logical height. */
+    int height;
+    /** BUTTON: drawn dim, and the HOST refuses the activation -- which is
+     *  the half that holds for every presenter rather than only the one that
+     *  draws, so Porcelain states the flag and does not gate the route. */
+    bool disabled;
+    /**
+     * CUSTOM: the y-to-item identity.
+     *
+     * The strip is ONE control, so a click is arithmetic on the order that
+     * was PAINTED. When that order changes, the row takes a new input
+     * identity and a click queued against the old picture is refused --
+     * without the page, the scroll, or any other row's retained run moving.
+     * A value change must NOT be in this hash, or every readout costs an
+     * identity.
+     */
+    uint64_t hit_key;
+    /**
+     * CUSTOM: what the next paint will draw.
+     *
+     * A well is one control and its picture is retained, so a readout that
+     * changed inside it moves no property the host can see: the height is the
+     * same, the identity is the same, and nothing repaints. This is the hash
+     * of whatever the paint reads, and a change to it is one panel.redraw on
+     * that row -- which is how a tracker restates six figures twice a second
+     * without touching the page.
+     */
+    uint64_t paint_key;
+    PorcelainRowActionFn on_action;
+    PorcelainRowPaintFn paint;
+    void* user;
+};
+
 typedef void (*PorcelainDescribeFn)(struct ToriRS_PorcelainDescribe* describe, void* user);
 /*
  * `elapsed_ms` is the REAL time since this timer last fired, not the interval
@@ -1557,6 +1675,14 @@ struct ToriRS_PorcelainDescribe
                     int opacity);
     /** This plugin's feature cannot run on this lane. One finding, no items. */
     void (*unsupported)(struct ToriRS_PorcelainDescribe* describe, char const* reason);
+
+    /* Panel rows. Described in order; the ordered (key, kind, identity label)
+     * sequence IS the page's declaration, and a change to it is the one
+     * legitimate rebuild. Everything else is a setter on the row it names. */
+    void (*row)(struct ToriRS_PorcelainDescribe* describe, struct PorcelainRow const* row);
+    /** Mint ONE row a new serial: growth without a page rebuild. Legal only
+     *  for a key described in this same run. */
+    void (*reidentify)(struct ToriRS_PorcelainDescribe* describe, char const* key);
 };
 
 /*
@@ -1715,6 +1841,22 @@ struct ToriRS_PorcelainApi
     /** One announcement per (kind, subject) per frame: a stack of twelve
      *  bones spawning is one line, not twelve. */
     void (*notify)(struct Porcelain* porcelain, char const* kind, int subject, char const* text);
+    /* --------------------------------------------------------------- panels */
+    /** on_start ONLY: register the shared pane and say which faces this
+     *  plugin's description covers. A refused registration is a finding. */
+    void (*panel)(struct Porcelain* porcelain, char const* icon_asset, int width,
+                  unsigned faces);
+    /** The plugin forwarding on_ui_build. Emits the described rows for this
+     *  face, or nothing at all where the face is not one it covers. */
+    void (*panel_build)(struct Porcelain* porcelain, struct ToriRS_PanelBuilder* builder,
+                        int view);
+    /** The plugin forwarding on_ui_action. True when a described row took it. */
+    bool (*panel_action)(struct Porcelain* porcelain,
+                         struct ToriRS_PanelActionEvent const* event);
+    /** The plugin forwarding on_ui_draw. True when a described CUSTOM row
+     *  painted it. */
+    bool (*panel_draw)(struct Porcelain* porcelain, char const* node,
+                       struct ToriRS_Graphics* draw);
 
     TORIRS_API_V2_MODULE_RESERVED;
 };

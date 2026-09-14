@@ -300,6 +300,119 @@ struct PorcelainNativeOverlay
     bool handoff_reported;
 };
 
+/* ----------------------------------------------------------------- rows */
+
+/** One copied select option. Nothing here is the caller's memory. */
+struct PorcelainOption
+{
+    char value[PORCELAIN_OPTION_VALUE_MAX];
+    char label[PORCELAIN_OPTION_LABEL_MAX];
+    char detail[PORCELAIN_OPTION_DETAIL_MAX];
+    bool enabled;
+};
+
+/*
+ * A described row, normalised.
+ *
+ * Two hashes and not one, because the row model has two questions where the
+ * element model has one. `identity` is the part the host builds a row FROM
+ * and cannot restate afterwards -- a change to it is a rebuild. `properties`
+ * is everything its patch path can apply. Folding them together would make
+ * every caption a rebuild, which is the exact defect the host fix H1 removed.
+ */
+struct PorcelainNormalRow
+{
+    struct PorcelainKey key;
+    enum PorcelainRowKind kind;
+    char label[PORCELAIN_ROW_TEXT_MAX];
+    char text[PORCELAIN_ROW_TEXT_MAX];
+    int value;
+    int height;
+    bool disabled;
+    uint64_t hit_key;
+    uint64_t paint_key;
+    /** Porcelain_Reidentify named this key inside the run that made it. */
+    bool force_reidentify;
+    int option_first;
+    int option_count;
+    PorcelainRowActionFn on_action;
+    PorcelainRowPaintFn paint;
+    void* user;
+    uint64_t identity;
+    uint64_t properties;
+    /* The property hash, split by the setter that carries each part, so a
+     * caption change costs a set_text and NOT also the set_value that says
+     * the button is still available. */
+    uint64_t text_hash;
+    uint64_t options_hash;
+    /* The int this kind actually pushes: a BUTTON's availability, a TOGGLE's
+     * checked state, a PROGRESS bar. */
+    int pushed_value;
+};
+
+/*
+ * What the HOST holds for one row.
+ *
+ * Only the key and the three hashes, because every string the reconciler
+ * would push is read from the live description and never from here. A second
+ * copy of every caption and every option would be 40 KB a panel to answer a
+ * question two 64-bit compares already answer.
+ */
+struct PorcelainDeclaredRow
+{
+    struct PorcelainKey key;
+    enum PorcelainRowKind kind;
+    uint64_t identity;
+    uint64_t properties;
+    uint64_t hit_key;
+    uint64_t paint_key;
+    uint64_t text_hash;
+    uint64_t options_hash;
+    int pushed_value;
+    int height;
+};
+
+/*
+ * One plugin's panel. Claimed by Porcelain_Panel and released by
+ * Porcelain_Close; `declared` is what the HOST has, `rows` is what the last
+ * describe said, and the difference between the two is the whole reconcile.
+ */
+struct PorcelainPanel
+{
+    bool used;
+    struct Porcelain* owner;
+    unsigned faces;
+    int width;
+    char icon[PORCELAIN_NAME_MAX];
+    bool registered;
+
+    struct PorcelainNormalRow rows[PORCELAIN_ROWS_MAX];
+    int row_count;
+    struct PorcelainOption options[PORCELAIN_ROW_OPTIONS_MAX];
+    int option_count;
+    /** The run that filled `rows`; a build older than this replays nothing. */
+    bool row_set_ready;
+    /** A describe overran a row or option capacity: the last good
+     *  description stands, exactly as a poisoned item run leaves it. */
+    bool row_scratch_poisoned;
+
+    struct PorcelainDeclaredRow declared[PORCELAIN_ROWS_MAX];
+    int declared_count;
+    /** The host holds this declaration and it is ours. */
+    bool built;
+    int built_view;
+    /*
+     * The host asked for a declaration on a face we cover and got nothing,
+     * because that run's rows had overrun a capacity. The host will not ask
+     * again by itself, so the first fence with a description that fits owes
+     * it an invalidate -- once, and never on a face that is not ours, which
+     * would be a rebuild every fence for the life of the session.
+     */
+    bool declaration_owed;
+
+    struct PorcelainPanelCounters counters;
+};
+
 /* ---------------------------------------------------------------- handle */
 
 struct Porcelain
@@ -374,6 +487,8 @@ struct Porcelain
     uint32_t fenced_epoch;
 
     struct PorcelainCounters counters;
+    /** This handle's panel, or NULL until Porcelain_Panel claims one. */
+    struct PorcelainPanel* panel;
     struct ToriRS_PorcelainDescribe builder;
     /** One element of this lane has resolved at least once, so its interface
      *  exists and an element that still will not resolve is absent rather than
@@ -432,5 +547,26 @@ void Porcelain_ReleaseAllAssets(struct Porcelain* porcelain);
 void Porcelain_ImageTouch(struct Porcelain* porcelain, char const* name);
 /** Drop this owner's claims that the run just finished did not re-assert. */
 void Porcelain_ClaimDropStale(struct Porcelain* porcelain);
+
+/* ------------------------------------------------------------- the panel */
+
+/** Run the describe function once, outside a fence. The panel build callback
+ *  can arrive before this plugin has ever fenced, and declaring an empty page
+ *  there and filling it a frame later is a flicker with a rebuild in it. */
+void Porcelain_DescribeNow(struct Porcelain* porcelain);
+/** Start a describe run's row scratch. Called from porcelain_run_describe. */
+void Porcelain_PanelRunBegin(struct Porcelain* porcelain);
+/** Diff the described rows against what the host holds. Called from the
+ *  reconcile, after the poisoned check: half a description is the flicker
+ *  class here for exactly the reason it is there. */
+void Porcelain_PanelReconcile(struct Porcelain* porcelain);
+/** Release this handle's panel. Called from Porcelain_Close. */
+void Porcelain_PanelClose(struct Porcelain* porcelain);
+/** Drop every panel. Called from Porcelain_ResetForTesting. */
+void Porcelain_PanelResetForTesting(void);
+/** Zero this handle's panel counters, or do nothing where it has no panel.
+ *  Called from Porcelain_CountersReset: a test that resets the counters and
+ *  then reads a rebuild count wants the window it just opened. */
+void Porcelain_PanelCountersReset(struct Porcelain* porcelain);
 
 #endif /* TORIRS_PORCELAIN_INTERNAL_H */

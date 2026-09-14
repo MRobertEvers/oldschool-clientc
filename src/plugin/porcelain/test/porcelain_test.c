@@ -2497,6 +2497,1038 @@ test_a_clock_is_measured_and_re_intervalled(void)
 }
 
 /* ------------------------------------------------------------------------ */
+/* Panels: the row model                                                    */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * One fixture drives every panel case. The row SET it describes is fixed --
+ * heading, select, button, well -- unless a field asks for more, so a case
+ * that changes one property is changing exactly one thing and the rebuild
+ * counter is a real answer rather than a coincidence.
+ */
+struct PanelFixture
+{
+    char const* heading;
+    char const* select_label;
+    char const* selected;
+    int option_count;
+    char const* caption;
+    bool button_disabled;
+    int well_height;
+    uint64_t well_hit_key;
+
+    /* Shapes a case asks for. */
+    uint64_t well_paint_key;
+    bool extra_row;
+    bool rename_heading;
+    bool force_reidentify;
+    bool reidentify_unknown;
+    bool duplicate_key;
+    bool long_option_value;
+    int flood_rows;
+
+    /* What the handlers saw. */
+    int actions;
+    int action_kind;
+    int action_value;
+    char action_text[64];
+    char action_key[64];
+    int paints;
+};
+
+static char const* const PANEL_OPTION_VALUES[5] = {"auto", "classic", "modern", "stone", "native"};
+static char PANEL_LONG_VALUE[PORCELAIN_OPTION_VALUE_MAX + 8];
+static char PANEL_FLOOD_KEYS[PORCELAIN_ROWS_MAX + 4][8];
+
+static void
+panel_fixture_action(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    struct PanelFixture* fixture = user;
+    (void)api;
+    fixture->actions++;
+    fixture->action_kind = action->kind;
+    fixture->action_value = action->value;
+    snprintf(fixture->action_text, sizeof(fixture->action_text), "%s", action->text);
+    snprintf(fixture->action_key, sizeof(fixture->action_key), "%s", action->key);
+}
+
+static void
+panel_fixture_paint(struct ToriRS_Api* api, void* user, char const* key,
+                    struct ToriRS_Graphics* draw)
+{
+    struct PanelFixture* fixture = user;
+    (void)api;
+    (void)key;
+    (void)draw;
+    fixture->paints++;
+}
+
+static void
+panel_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct PanelFixture* fixture = user;
+    struct ToriRS_SelectOption options[5];
+    struct PorcelainRow row;
+
+    if( fixture->flood_rows > 0 )
+    {
+        for( int i = 0; i < fixture->flood_rows; i++ )
+        {
+            snprintf(PANEL_FLOOD_KEYS[i], sizeof(PANEL_FLOOD_KEYS[i]), "r%d", i);
+            memset(&row, 0, sizeof(row));
+            row.key = PANEL_FLOOD_KEYS[i];
+            row.kind = PORCELAIN_ROW_LABEL;
+            row.text = "flood";
+            describe->row(describe, &row);
+        }
+        return;
+    }
+
+    memset(&row, 0, sizeof(row));
+    row.key = "head";
+    row.kind = PORCELAIN_ROW_HEADING;
+    row.label = fixture->rename_heading ? "Renamed" : fixture->heading;
+    describe->row(describe, &row);
+
+    for( int i = 0; i < fixture->option_count; i++ )
+    {
+        memset(&options[i], 0, sizeof(options[i]));
+        options[i].struct_size = sizeof(options[i]);
+        options[i].value = (fixture->long_option_value && i == 0) ? PANEL_LONG_VALUE
+                                                                 : PANEL_OPTION_VALUES[i];
+        options[i].label = PANEL_OPTION_VALUES[i];
+        options[i].enabled = true;
+    }
+    memset(&row, 0, sizeof(row));
+    row.key = "frame";
+    row.kind = PORCELAIN_ROW_SELECT;
+    row.label = fixture->select_label;
+    row.text = fixture->selected;
+    row.options = options;
+    row.option_count = fixture->option_count;
+    row.on_action = panel_fixture_action;
+    row.user = fixture;
+    describe->row(describe, &row);
+
+    memset(&row, 0, sizeof(row));
+    row.key = "pause";
+    row.kind = PORCELAIN_ROW_BUTTON;
+    row.label = fixture->caption;
+    row.disabled = fixture->button_disabled;
+    row.on_action = panel_fixture_action;
+    row.user = fixture;
+    describe->row(describe, &row);
+
+    memset(&row, 0, sizeof(row));
+    row.key = "boxes";
+    row.kind = PORCELAIN_ROW_CUSTOM;
+    row.height = fixture->well_height;
+    row.hit_key = fixture->well_hit_key;
+    row.paint_key = fixture->well_paint_key;
+    row.paint = panel_fixture_paint;
+    row.on_action = panel_fixture_action;
+    row.user = fixture;
+    describe->row(describe, &row);
+
+    if( fixture->extra_row )
+    {
+        memset(&row, 0, sizeof(row));
+        row.key = "detail";
+        row.kind = PORCELAIN_ROW_KEY_VALUE;
+        row.label = "Kills";
+        row.text = "7";
+        describe->row(describe, &row);
+    }
+    if( fixture->duplicate_key )
+    {
+        memset(&row, 0, sizeof(row));
+        row.key = "head";
+        row.kind = PORCELAIN_ROW_LABEL;
+        row.text = "twice";
+        describe->row(describe, &row);
+    }
+    if( fixture->force_reidentify )
+        describe->reidentify(describe, "boxes");
+    if( fixture->reidentify_unknown )
+        describe->reidentify(describe, "nothing_here");
+}
+
+static void
+panel_fixture_init(struct PanelFixture* fixture)
+{
+    memset(fixture, 0, sizeof(*fixture));
+    fixture->heading = "Rendering";
+    fixture->select_label = "Gameframe";
+    fixture->selected = "auto";
+    fixture->option_count = 3;
+    fixture->caption = "Pause";
+    fixture->well_height = 120;
+    fixture->well_hit_key = 0x1111;
+    fixture->well_paint_key = 0x9001;
+}
+
+/**
+ * The declared row, or a zeroed stand-in.
+ *
+ * Only so that a rule that BROKE reads as a failed check rather than as a
+ * crash in the assertion that was about to report it. Nothing here tolerates
+ * an absent row in the library: `Testbed_PanelRow` itself still answers NULL
+ * and the cases that care assert on it directly.
+ */
+static struct TestbedPanelRow*
+panel_row(char const* id)
+{
+    static struct TestbedPanelRow absent;
+    struct TestbedPanelRow* row = Testbed_PanelRow(id);
+    if( row )
+        return row;
+    memset(&absent, 0, sizeof(absent));
+    return &absent;
+}
+
+/** Open, register, describe, fence and open the page: the settled start. */
+static struct Porcelain*
+panel_start(struct PanelFixture* fixture, unsigned faces)
+{
+    struct Porcelain* porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Panel(porcelain, "panel_icon.png", 320, faces);
+    Porcelain_Describe(porcelain, panel_describe, fixture);
+    fence(porcelain);
+    Testbed_PanelBuild(porcelain, TORIRS_PANEL_VIEW_PAGE);
+    return porcelain;
+}
+
+/** Restate the description and reconcile it, as a config change would. */
+static void
+panel_restate(struct Porcelain* porcelain)
+{
+    Porcelain_Invalidate(porcelain);
+    fence(porcelain);
+}
+
+static int
+panel_findings_with(struct Porcelain* porcelain, int result)
+{
+    struct PorcelainFinding found[PORCELAIN_FINDINGS_MAX];
+    int const count = Porcelain_Findings(porcelain, found, PORCELAIN_FINDINGS_MAX);
+    int matching = 0;
+    for( int i = 0; i < count; i++ )
+        if( found[i].result == result )
+            matching++;
+    return matching;
+}
+
+/*
+ * MUTATION: in Porcelain_Panel, pass `panel->icon` unconditionally as
+ * descriptor.icon_asset -- "panel_request  320" replaces the NULL spelling and
+ * the baked-wrench assertion goes red.
+ * MUTATION: register twice -- the assert(!porcelain->panel) fires.
+ */
+static void
+test_panel_registers_once(void)
+{
+    struct PanelFixture fixture;
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Panel(porcelain, "panel_icon.png", 320, PORCELAIN_FACE_BOTH);
+    CHECK(g_testbed.panel_requests == 1, "Porcelain_Panel registers the shared pane exactly once");
+    CHECK(Testbed_LogCountWith("panel_request panel_icon.png 320") == 1,
+          "with the icon and the width it was given");
+    Porcelain_Close(porcelain);
+
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Panel(porcelain, NULL, 320, PORCELAIN_FACE_BOTH);
+    CHECK(Testbed_LogCountWith("panel_request - 320") == 1,
+          "a NULL icon asks for the baked wrench, which is a meaning and not an absence");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * MUTATION: drop the `if( !(panel->faces & panel_face_of_view(view)) ) return`
+ * in Porcelain_PanelBuild -- the settings face declares the page's four rows
+ * and "a face the description does not cover declares nothing" goes red.
+ */
+static void
+test_panel_faces(void)
+{
+    struct PanelFixture fixture;
+    struct Porcelain* porcelain;
+    char first_face[8][64];
+    int first_count;
+
+    /* PAGE only: the settings face is left to the generated form. */
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_PAGE);
+    CHECK(Testbed_PanelRowCount() == 4, "the page face declares the described rows");
+    Testbed_PanelBuild(porcelain, TORIRS_PANEL_VIEW_SETTINGS);
+    CHECK(Testbed_PanelRowCount() == 0,
+          "a face the description does not cover declares nothing");
+    /* And no setter chases the rows that are no longer there. */
+    panel_restate(porcelain);
+    CHECK(g_testbed.panel_orphan_setters == 0,
+          "and no setter is aimed at a page the host is no longer holding");
+    CHECK(g_testbed.panel_invalidates == 0,
+          "nor is a rebuild asked for on a face that is not ours");
+    Porcelain_Close(porcelain);
+
+    /* BOTH: the same key sequence on either face. */
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    first_count = Testbed_PanelRowCount();
+    for( int i = 0; i < first_count; i++ )
+        snprintf(first_face[i], sizeof(first_face[i]), "%s", Testbed_PanelRowAt(i)->id);
+    Testbed_PanelBuild(porcelain, TORIRS_PANEL_VIEW_SETTINGS);
+    CHECK(Testbed_PanelRowCount() == first_count,
+          "faces = PAGE | SETTINGS is the same description on both faces");
+    for( int i = 0; i < first_count && i < Testbed_PanelRowCount(); i++ )
+        CHECK(strcmp(first_face[i], Testbed_PanelRowAt(i)->id) == 0,
+              "in the same key order");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * MUTATION: delete the `if( wanted->properties == have->properties ) continue`
+ * early-out -- row_applies rises to four and "an unchanged description walks
+ * no row's properties" goes red while the setter counts stay zero, which is
+ * precisely the difference the counter exists to show.
+ */
+static void
+test_panel_steady_state_costs_nothing(void)
+{
+    struct PanelFixture fixture;
+    struct PorcelainPanelCounters counters;
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    Testbed_ClearLog();
+    Porcelain_CountersReset(porcelain);
+
+    for( int i = 0; i < 4; i++ )
+        panel_restate(porcelain);
+
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.setters == 0, "an unchanged description makes no panel setter call");
+    CHECK(counters.rebuilds == 0, "and asks for no rebuild");
+    CHECK(counters.reidentifies == 0, "and mints no identity");
+    CHECK(counters.row_applies == 0, "an unchanged description walks no row's properties");
+    CHECK(Testbed_LogCountWith("panel_") == 0, "nothing at all reaches the panel API");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * The host fix H1, from the plugin's side. Before it, panel.set_text on a
+ * BUTTON returned OK and applied nothing, so Pause never became Unpause.
+ *
+ * MUTATION: put PORCELAIN_ROW_BUTTON into panel_label_is_identity -- the
+ * caption becomes declaration identity, one rebuild is counted and "a changed
+ * caption is a setter" goes red.
+ * MUTATION: drop the `if( text_moved )` guard in the BUTTON arm -- the second
+ * assertion ("and its availability is not restated") goes red at two setters.
+ */
+static void
+test_panel_caption_is_a_setter(void)
+{
+    struct PanelFixture fixture;
+    struct PorcelainPanelCounters counters;
+    struct Porcelain* porcelain;
+    uint32_t serial;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    CHECK(strcmp(panel_row("pause")->text, "Pause") == 0,
+          "a button is declared with its caption");
+    serial = panel_row("pause")->serial;
+    Testbed_ClearLog();
+    Porcelain_CountersReset(porcelain);
+
+    fixture.caption = "Unpause";
+    panel_restate(porcelain);
+
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.rebuilds == 0, "a changed caption is a setter, never a rebuild");
+    CHECK(counters.setters == 1, "and its availability is not restated alongside it");
+    CHECK(Testbed_LogCountWith("panel_set_text pause Unpause") == 1,
+          "the caption reaches the row the page already has");
+    CHECK(strcmp(panel_row("pause")->text, "Unpause") == 0, "and the row now reads it");
+    CHECK(panel_row("pause")->serial == serial,
+          "with the row keeping the identity a click was authored against");
+    CHECK(panel_row("pause")->declared == 1, "and never being declared a second time");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * The host fix H2. `enabled` was stored by the builder and read by nobody.
+ *
+ * MUTATION: make panel_pushed_value return row->value for BUTTON too -- the
+ * declared availability is 0 for a live button and "a button is declared
+ * available" goes red.
+ * MUTATION: drop the `if( value_moved )` guard's else-arm by returning early
+ * in the BUTTON case -- "disabling a button is a setter" goes red at zero.
+ */
+static void
+test_panel_button_availability(void)
+{
+    struct PanelFixture fixture;
+    struct PorcelainPanelCounters counters;
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    CHECK(panel_row("pause")->value == 1,
+          "a button is declared available unless the row says otherwise");
+    Testbed_ClearLog();
+    Porcelain_CountersReset(porcelain);
+
+    fixture.button_disabled = true;
+    panel_restate(porcelain);
+
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.setters == 1, "disabling a button is one setter");
+    CHECK(counters.rebuilds == 0, "and not a rebuild");
+    CHECK(Testbed_LogCountWith("panel_set_value pause 0") == 1,
+          "carried as the value the host draws dim from");
+    CHECK(Testbed_LogCountWith("panel_set_text pause") == 0,
+          "with the caption it did not change left alone");
+
+    /* And a fresh declaration keeps it disabled: the build half and the patch
+     * half have to agree, or a rebuild would silently re-arm the command. */
+    fixture.extra_row = true;
+    panel_restate(porcelain);
+    Testbed_PanelBuild(porcelain, TORIRS_PANEL_VIEW_PAGE);
+    CHECK(panel_row("pause")->value == 0,
+          "and a rebuild declares it disabled rather than re-arming it");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * The host fix H3. A changed option COUNT used to be refused, and both
+ * settings pages answered the refusal by rebuilding the whole page.
+ *
+ * MUTATION: fold row->options_hash into panel_identity_hash -- the option
+ * count becomes declaration identity, one rebuild is counted and "a changed
+ * option count is a setter" goes red.
+ */
+static void
+test_panel_option_count_is_a_setter(void)
+{
+    struct PanelFixture fixture;
+    struct PorcelainPanelCounters counters;
+    struct Porcelain* porcelain;
+    uint32_t serial;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    CHECK(panel_row("frame")->option_count == 3, "a select is declared with its options");
+    serial = panel_row("frame")->serial;
+    Testbed_ClearLog();
+    Porcelain_CountersReset(porcelain);
+
+    /* A provider became available: the catalogue GREW. */
+    fixture.option_count = 4;
+    panel_restate(porcelain);
+
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.rebuilds == 0, "a changed option count is a setter, never a rebuild");
+    CHECK(counters.setters == 1, "one setter, and only on the row that changed");
+    CHECK(Testbed_LogCountWith("panel_set_options frame auto 4") == 1,
+          "carrying the whole list and the selection together");
+    CHECK(panel_row("frame")->option_count == 4, "the row now holds four");
+    CHECK(panel_row("frame")->serial == serial, "and keeps its identity");
+
+    /* And shrinking is the same answer: a saved-but-unavailable row went. */
+    Porcelain_CountersReset(porcelain);
+    fixture.option_count = 2;
+    fixture.selected = "classic";
+    panel_restate(porcelain);
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.rebuilds == 0, "and so is a catalogue that shrank");
+    CHECK(panel_row("frame")->option_count == 2, "down to two");
+    CHECK(strcmp(panel_row("frame")->selected, "classic") == 0,
+          "with the selection the description named");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * MUTATION: compare only panel->row_count in panel_sequence_matches -- the
+ * renamed SELECT no longer rebuilds, the row keeps a label the host cannot
+ * restate, and "renaming a select is a rebuild" goes red.
+ * MUTATION: add every kind to panel_label_is_identity -- the renamed HEADING
+ * rebuilds too and "renaming a heading is a setter" goes red.
+ */
+static void
+test_panel_label_identity_split(void)
+{
+    struct PanelFixture fixture;
+    struct PorcelainPanelCounters counters;
+    struct Porcelain* porcelain;
+
+    /* A HEADING's string is patched: the host draws it from a readout that
+     * the text half feeds. */
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    Porcelain_CountersReset(porcelain);
+    fixture.rename_heading = true;
+    panel_restate(porcelain);
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.rebuilds == 0, "renaming a heading is a setter");
+    CHECK(strcmp(panel_row("head")->text, "Renamed") == 0, "and the row reads it");
+    Porcelain_Close(porcelain);
+
+    /* A SELECT's label is what the host BUILT the row from and its patch path
+     * has no arm for: the only honest answer is a rebuild. */
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    Porcelain_CountersReset(porcelain);
+    fixture.select_label = "Game frame";
+    panel_restate(porcelain);
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.rebuilds == 1, "renaming a select is a rebuild, and is said to be one");
+    Testbed_PanelBuild(porcelain, TORIRS_PANEL_VIEW_PAGE);
+    CHECK(strcmp(panel_row("frame")->label, "Game frame") == 0,
+          "and the fresh declaration carries the new name");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * MUTATION: return true unconditionally from panel_sequence_matches -- the
+ * new row is never declared, every later setter lands on a page that does not
+ * hold it, and both the rebuild count and panel_orphan_setters go red.
+ */
+static void
+test_panel_row_set_is_the_one_rebuild(void)
+{
+    struct PanelFixture fixture;
+    struct PorcelainPanelCounters counters;
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    Porcelain_CountersReset(porcelain);
+
+    /* A detail block opened: the page HAS a row it did not have. */
+    fixture.extra_row = true;
+    panel_restate(porcelain);
+
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.rebuilds == 1, "a changed row set is the page's one legitimate rebuild");
+    CHECK(Testbed_PanelRowCount() == 0, "the host clears the page it was holding");
+    Testbed_PanelBuild(porcelain, TORIRS_PANEL_VIEW_PAGE);
+    CHECK(Testbed_PanelRowCount() == 5, "and the next declaration carries the new row");
+    CHECK(Testbed_PanelRow("detail") != NULL, "which is the one that arrived");
+
+    /* Closing it again is the same answer, and nothing is left dangling. */
+    Porcelain_CountersReset(porcelain);
+    fixture.extra_row = false;
+    panel_restate(porcelain);
+    Testbed_PanelBuild(porcelain, TORIRS_PANEL_VIEW_PAGE);
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.rebuilds == 1, "and so is closing it");
+    CHECK(Testbed_PanelRow("detail") == NULL, "with the row gone");
+    CHECK(g_testbed.panel_orphan_setters == 0,
+          "and no setter ever aimed at a row the page does not hold");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * Host fix H4 from the plugin's side: the well reaches past the 512 that
+ * shipped, and growing it is a property of a widget the page already has.
+ *
+ * MUTATION: put row->height into panel_identity_hash -- growth becomes a
+ * rebuild and "growth without a rebuild" goes red.
+ */
+static void
+test_panel_well_grows_without_a_rebuild(void)
+{
+    struct PanelFixture fixture;
+    struct PorcelainPanelCounters counters;
+    struct Porcelain* porcelain;
+    uint32_t serial;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    serial = panel_row("boxes")->serial;
+    Porcelain_CountersReset(porcelain);
+    Testbed_ClearLog();
+
+    /* Overview plus twelve skill boxes: past the ceiling that shipped. */
+    fixture.well_height = 650;
+    panel_restate(porcelain);
+
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.rebuilds == 0, "a well that grew is a setter, never a rebuild");
+    CHECK(counters.setters == 1, "one setter, on the well alone");
+    CHECK(Testbed_LogCountWith("panel_set_height boxes 650") == 1,
+          "carrying a height past the 512 that used to clip the tenth box away");
+    /* And the ceiling it is carried to is real. Porcelain cannot see the
+     * host's constant from its own sources -- it is a plugin-side library --
+     * so the pin lives here, where the test can see both. Its twin is
+     * TORIRS_CHROME_M_CUSTOM_H_MAX in ui/torirs_chrome_metrics.h; the two
+     * were raised together and a well is clipped by whichever is lower. */
+    CHECK(TORIRS_PANEL_CUSTOM_HEIGHT_MAX >= 650,
+          "and the host's own ceiling reaches it: 512 stopped the page growing at box ten");
+    CHECK(panel_row("boxes")->height == 650, "and the row is that tall");
+    CHECK(panel_row("boxes")->serial == serial,
+          "with no identity minted: the y-to-item mapping did not move");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * Host fix H5. The well is ONE control, so a click is arithmetic on the order
+ * that was painted; when that order changes the row must take a new input
+ * identity, and the page, the scroll and every other row must not.
+ *
+ * MUTATION: fold row->hit_key into panel_property_hash and delete the
+ * hit_key compare -- no identity is minted, the well keeps the serial a stale
+ * click was authored against, and "a changed hit key re-identifies" goes red.
+ * MUTATION: call api->panel.invalidate instead of reidentify -- the rebuild
+ * count and the neighbours' serials both go red.
+ */
+static void
+test_panel_hit_key_reidentifies_one_row(void)
+{
+    struct PanelFixture fixture;
+    struct PorcelainPanelCounters counters;
+    struct Porcelain* porcelain;
+    uint32_t well_serial;
+    uint32_t button_serial;
+    uint32_t select_serial;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    well_serial = panel_row("boxes")->serial;
+    button_serial = panel_row("pause")->serial;
+    select_serial = panel_row("frame")->serial;
+    Porcelain_CountersReset(porcelain);
+    Testbed_ClearLog();
+
+    /* A band arrived: every later y means a different source now. */
+    fixture.well_hit_key = 0x2222;
+    fixture.well_height = 157;
+    panel_restate(porcelain);
+
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.reidentifies == 1, "a changed hit key mints one row a new identity");
+    CHECK(counters.rebuilds == 0, "and never a rebuild");
+    CHECK(Testbed_LogCountWith("panel_reidentify boxes") == 1, "naming the row that moved");
+    CHECK(panel_row("boxes")->serial != well_serial,
+          "so a click queued against the old picture is refused");
+    CHECK(panel_row("pause")->serial == button_serial,
+          "while every other row keeps its identity");
+    CHECK(panel_row("frame")->serial == select_serial, "and its retained state");
+    CHECK(Testbed_PanelRowCount() == 4, "and the page keeps every row it had");
+
+    /* A readout changing is NOT an identity: this is the half that made a
+     * tracker rebuild its page twice a second. */
+    Porcelain_CountersReset(porcelain);
+    fixture.caption = "Unpause";
+    panel_restate(porcelain);
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.reidentifies == 0, "a value change mints no identity at all");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A well is ONE retained control with a retained picture, so a readout that
+ * changed inside it moves nothing the host can see -- not its height, not its
+ * identity, not a property. Without a redraw it keeps the bitmap it staged.
+ *
+ * MUTATION: delete the `else if( wanted->paint_key != have->paint_key )` arm
+ * -- "a changed picture is one redraw" goes red at zero.
+ * MUTATION: delete the `have->paint_key = wanted->paint_key` inside the
+ * reidentify arm -- a re-identified well takes a redraw on top of the
+ * invalidation the remint already gave it, and "a re-identified well is not
+ * also redrawn" goes red at one.
+ */
+static void
+test_panel_paint_key_redraws_one_row(void)
+{
+    struct PanelFixture fixture;
+    struct PorcelainPanelCounters counters;
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    Porcelain_CountersReset(porcelain);
+    Testbed_ClearLog();
+
+    /* Six figures inside the well moved. The page did not. */
+    fixture.well_paint_key = 0x9002;
+    panel_restate(porcelain);
+
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.redraws == 1, "a changed picture is one redraw");
+    CHECK(counters.setters == 0, "and no setter at all");
+    CHECK(counters.rebuilds == 0, "and never a rebuild");
+    CHECK(counters.reidentifies == 0, "and no identity: the y-to-item mapping did not move");
+    CHECK(Testbed_LogCountWith("panel_redraw boxes") == 1, "naming the well that changed");
+
+    /* A well that re-identifies is dirty by construction -- the old bitmap
+     * belonged to the old identity -- so it must not also be redrawn. */
+    Porcelain_CountersReset(porcelain);
+    fixture.well_hit_key = 0x2222;
+    fixture.well_paint_key = 0x9003;
+    panel_restate(porcelain);
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.reidentifies == 1, "a changed hit key still mints an identity");
+    CHECK(counters.redraws == 0, "and a re-identified well is not also redrawn");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * MUTATION: delete the `|| wanted->force_reidentify` term -- the explicit
+ * verb does nothing and "Porcelain_Reidentify mints the row it names" goes
+ * red.
+ * MUTATION: make Porcelain_Reidentify assert instead of recording a finding
+ * for an undescribed key -- the process aborts and the refusal assertion
+ * never runs.
+ */
+static void
+test_panel_explicit_reidentify(void)
+{
+    struct PanelFixture fixture;
+    struct PorcelainPanelCounters counters;
+    struct Porcelain* porcelain;
+    uint32_t well_serial;
+    uint32_t button_serial;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    well_serial = panel_row("boxes")->serial;
+    button_serial = panel_row("pause")->serial;
+    Porcelain_CountersReset(porcelain);
+
+    fixture.force_reidentify = true;
+    panel_restate(porcelain);
+
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.reidentifies == 1, "Porcelain_Reidentify mints the row it names");
+    CHECK(counters.rebuilds == 0, "without rebuilding the page");
+    CHECK(panel_row("boxes")->serial != well_serial, "the named row takes a new serial");
+    CHECK(panel_row("pause")->serial == button_serial, "and nothing else does");
+    Porcelain_Close(porcelain);
+
+    /* A key this run did not describe is a refusal with a finding: the
+     * identity the plugin asked to retire is NOT retired, and a click
+     * authored against the old picture would otherwise be delivered. */
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    fixture.reidentify_unknown = true;
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    CHECK(panel_findings_with(porcelain, PORCELAIN_FINDING_REFUSED) == 1,
+          "reidentifying a key this run did not describe is one finding");
+    CHECK(Testbed_LogCountWith("panel_reidentify") == 0, "and reaches no engine call");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * MUTATION: drop the duplicate-key scan in Porcelain_Row -- the second row
+ * under "head" is silently dropped by the host's idempotent declaration, the
+ * page holds four rows instead of five, and "a duplicate key refuses the run"
+ * goes red.
+ * MUTATION: stop setting row_scratch_poisoned in panel_poison -- the page is
+ * declared from a half-built description and the retained-declaration
+ * assertion goes red.
+ */
+static void
+test_panel_duplicate_key_refuses_the_run(void)
+{
+    struct PanelFixture fixture;
+    struct PorcelainPanelCounters counters;
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    Porcelain_CountersReset(porcelain);
+
+    fixture.duplicate_key = true;
+    panel_restate(porcelain);
+
+    CHECK(panel_findings_with(porcelain, PORCELAIN_FINDING_REFUSED) == 1,
+          "a duplicate key refuses the run with one finding");
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.rebuilds == 0, "the applied declaration stands: half a page is the flicker");
+    CHECK(counters.setters == 0, "and nothing is patched from a description that was refused");
+    CHECK(Testbed_PanelRowCount() == 4, "the page the host holds is untouched");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * MUTATION: replace the length test in panel_copy_or_refuse with a truncating
+ * copy -- the option's stable value becomes a prefix, the row publishes a
+ * choice nobody offered, and the refusal assertion goes red.
+ * MUTATION: raise PORCELAIN_ROWS_MAX above the flood count -- the overrun
+ * assertion goes red because nothing overruns.
+ */
+static void
+test_panel_refuses_rather_than_truncates(void)
+{
+    struct PanelFixture fixture;
+    struct Porcelain* porcelain;
+
+    memset(PANEL_LONG_VALUE, 'v', sizeof(PANEL_LONG_VALUE) - 1);
+    PANEL_LONG_VALUE[sizeof(PANEL_LONG_VALUE) - 1] = '\0';
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    Porcelain_CountersReset(porcelain);
+    fixture.long_option_value = true;
+    panel_restate(porcelain);
+    CHECK(panel_findings_with(porcelain, PORCELAIN_FINDING_REFUSED) == 1,
+          "an option value over the ceiling is refused, never truncated");
+    CHECK(Testbed_LogCountWith("panel_set_options") == 0, "and never reaches the row");
+    CHECK(panel_row("frame")->option_count == 3,
+          "the row keeps the list it was declared with");
+    Porcelain_Close(porcelain);
+
+    /* And the key ceiling the refusal uses is the HOST's own row-id ceiling,
+     * not Porcelain's wider element key: a key the layer took and the host
+     * then refused would be a finding per row per build, a page late. */
+    CHECK(PORCELAIN_ROW_KEY_MAX == TORIRS_PLUGIN_WIDGET_ID_MAX,
+          "a row key is refused at the ceiling the host will refuse it at");
+    CHECK(PORCELAIN_ROW_KEY_MAX <= PORCELAIN_KEY_MAX,
+          "and it fits in the copy Porcelain keeps of it");
+
+    /* And a description with more rows than the layer holds is the same
+     * answer: the last good page stands and the budget is a finding. */
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    fixture.flood_rows = PORCELAIN_ROWS_MAX + 2;
+    panel_restate(porcelain);
+    CHECK(panel_findings_with(porcelain, PORCELAIN_FINDING_BUDGET) == 1,
+          "a description over the row budget is one budget finding");
+    CHECK(Testbed_PanelRowCount() == 4, "with the page the host holds left alone");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * MUTATION: route on `row->kind` instead of the key in panel_row_by_key --
+ * the pick lands on the wrong row and the key assertion goes red.
+ * MUTATION: record a finding for an unknown id in Porcelain_PanelAction --
+ * the generated settings form's own rows each become a refusal and "an id
+ * Porcelain did not choose is not a finding" goes red.
+ */
+static void
+test_panel_actions_route_by_key(void)
+{
+    struct PanelFixture fixture;
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+
+    CHECK(Testbed_PanelAction(porcelain, "frame", TORIRS_PANEL_ACTION_PICK, 1, "classic"),
+          "a pick on a described row is routed");
+    CHECK(fixture.actions == 1, "exactly once");
+    CHECK(strcmp(fixture.action_key, "frame") == 0, "to the row whose key the host named");
+    CHECK(strcmp(fixture.action_text, "classic") == 0,
+          "carrying the option's stable value, never its label");
+    CHECK(fixture.action_kind == TORIRS_PANEL_ACTION_PICK, "and the kind that happened");
+
+    CHECK(Testbed_PanelAction(porcelain, "pause", TORIRS_PANEL_ACTION_ACTIVATE, 0, ""),
+          "and a button press is routed too");
+    CHECK(strcmp(fixture.action_key, "pause") == 0, "to the button");
+
+    /* The generated settings form's rows arrive under ids Porcelain never
+     * chose. Calling each of them a refusal would fill the findings table
+     * with the host's own correct behaviour. */
+    CHECK(!Testbed_PanelAction(porcelain, "generated_colour", TORIRS_PANEL_ACTION_TEXT, 0, "#fff"),
+          "an id Porcelain did not choose is not routed");
+    CHECK(panel_findings_with(porcelain, PORCELAIN_FINDING_REFUSED) == 0,
+          "and is not a finding: the settings face adds to the host's generated form");
+    CHECK(fixture.actions == 2, "and reaches no handler");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * MUTATION: drop the `!row->paint` term in Porcelain_PanelDraw -- a paintless
+ * row claims the pass and the "only a described well paints" assertion goes
+ * red.
+ */
+static void
+test_panel_draw_routes_by_node(void)
+{
+    struct PanelFixture fixture;
+    struct ToriRS_Graphics* draw = (struct ToriRS_Graphics*)&fixture;
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+
+    CHECK(Porcelain_PanelDraw(porcelain, "boxes", draw), "a described well takes its draw pass");
+    CHECK(fixture.paints == 1, "exactly once");
+    CHECK(!Porcelain_PanelDraw(porcelain, "pause", draw),
+          "and a row with no paint does not claim one");
+    CHECK(!Porcelain_PanelDraw(porcelain, "nothing_here", draw),
+          "nor does a node this description never declared");
+    CHECK(fixture.paints == 1, "so only a described well paints");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * MUTATION: ignore the result in panel_note_result -- the refused set_options
+ * is silent and "a refused setter is a finding" goes red. Silence is the class
+ * the record says hurt most.
+ */
+static void
+test_panel_refused_setter_is_a_finding(void)
+{
+    struct PanelFixture fixture;
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_BOTH);
+    g_testbed.panel_refuse_options = true;
+
+    fixture.option_count = 4;
+    panel_restate(porcelain);
+
+    CHECK(panel_findings_with(porcelain, PORCELAIN_FINDING_REFUSED) == 1,
+          "a refused setter is a finding with the row it named");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * MUTATION: delete the `if( !panel->row_set_ready ) Porcelain_DescribeNow`
+ * arm -- the page opens empty, the next fence rebuilds it, and both the row
+ * count and the rebuild assertion go red.
+ */
+static void
+test_panel_opened_before_the_first_fence(void)
+{
+    struct PanelFixture fixture;
+    struct PorcelainPanelCounters counters;
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Panel(porcelain, NULL, 320, PORCELAIN_FACE_BOTH);
+    Porcelain_Describe(porcelain, panel_describe, &fixture);
+
+    /* The page is opened before this plugin has ever fenced. */
+    Testbed_PanelBuild(porcelain, TORIRS_PANEL_VIEW_PAGE);
+    CHECK(Testbed_PanelRowCount() == 4,
+          "a page opened before the first fence declares the description, not an empty page");
+
+    fence(porcelain);
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.rebuilds == 0, "and the first fence after it asks for no rebuild");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A page that opened while the description was refused.
+ *
+ * Nothing else will ask for a declaration again -- a build callback arrives
+ * when the host clears the page, and it already has -- so the first describe
+ * that fits owes one invalidate, once.
+ *
+ * MUTATION: delete the `panel->declaration_owed = true` line -- the page
+ * stays empty for the life of the session and "the first description that
+ * fits asks for the declaration it owes" goes red at zero rebuilds.
+ * MUTATION: delete the `panel->declaration_owed = false` at the top of
+ * Porcelain_PanelBuild -- a flag left standing from the refused build
+ * survives the face switch below and "a face that is not ours is never asked
+ * for a rebuild" goes red.
+ */
+static void
+test_panel_declaration_owed_after_a_refusal(void)
+{
+    struct PanelFixture fixture;
+    struct PorcelainPanelCounters counters;
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+    fixture.flood_rows = PORCELAIN_ROWS_MAX + 2;
+    porcelain = panel_start(&fixture, PORCELAIN_FACE_PAGE);
+    CHECK(Testbed_PanelRowCount() == 0, "a page whose description was refused declares nothing");
+    CHECK(panel_findings_with(porcelain, PORCELAIN_FINDING_BUDGET) >= 1, "and says so");
+
+    Porcelain_CountersReset(porcelain);
+    fixture.flood_rows = 0;
+    panel_restate(porcelain);
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.rebuilds == 1, "the first description that fits asks for the declaration it owes");
+    Testbed_PanelBuild(porcelain, TORIRS_PANEL_VIEW_PAGE);
+    CHECK(Testbed_PanelRowCount() == 4, "and the page arrives");
+
+    Porcelain_CountersReset(porcelain);
+    for( int i = 0; i < 3; i++ )
+        panel_restate(porcelain);
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.rebuilds == 0, "and it is owed exactly once, not on every fence after it");
+
+    /* A face this description does not cover clears the debt as surely as a
+     * good declaration does: the page it would rebuild is not ours. */
+    Porcelain_CountersReset(porcelain);
+    fixture.flood_rows = PORCELAIN_ROWS_MAX + 2;
+    panel_restate(porcelain);
+    Testbed_PanelBuild(porcelain, TORIRS_PANEL_VIEW_PAGE);
+    Testbed_PanelBuild(porcelain, TORIRS_PANEL_VIEW_SETTINGS);
+    Porcelain_CountersReset(porcelain);
+    fixture.flood_rows = 0;
+    panel_restate(porcelain);
+    Porcelain_PanelCountersRead(porcelain, &counters);
+    CHECK(counters.rebuilds == 0, "a face that is not ours is never asked for a rebuild");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * MUTATION: stop clearing the slot in Porcelain_PanelClose -- the pool is
+ * exhausted part-way through the loop and Porcelain_Panel's assert(panel)
+ * aborts the run, which is the loud answer a leaked slot deserves.
+ */
+static void
+test_panel_close_releases_the_pane(void)
+{
+    struct PanelFixture fixture;
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    panel_fixture_init(&fixture);
+
+    /* More opens than the pool holds, so a slot that is not released is a
+     * pool that runs out rather than a leak nobody notices. */
+    for( int i = 0; i < PORCELAIN_PANELS_MAX + 2; i++ )
+    {
+        porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+        Porcelain_Panel(porcelain, NULL, 320, PORCELAIN_FACE_PAGE);
+        Porcelain_Describe(porcelain, panel_describe, &fixture);
+        fence(porcelain);
+        Testbed_PanelBuild(porcelain, TORIRS_PANEL_VIEW_PAGE);
+        CHECK(Testbed_PanelRowCount() == 4, "a reopened handle declares its own page");
+        Porcelain_Close(porcelain);
+    }
+    CHECK(g_testbed.panel_requests == PORCELAIN_PANELS_MAX + 2,
+          "a closed panel releases its slot, so the pool is a capacity and not a lifetime");
+}
+
+/* ------------------------------------------------------------------------ */
 
 int
 main(void)
@@ -2544,6 +3576,27 @@ main(void)
     test_within_is_a_child_with_no_anchor();
     test_the_direct_path_carries_text();
     test_a_clock_is_measured_and_re_intervalled();
+
+    test_panel_registers_once();
+    test_panel_faces();
+    test_panel_steady_state_costs_nothing();
+    test_panel_caption_is_a_setter();
+    test_panel_button_availability();
+    test_panel_option_count_is_a_setter();
+    test_panel_label_identity_split();
+    test_panel_row_set_is_the_one_rebuild();
+    test_panel_well_grows_without_a_rebuild();
+    test_panel_hit_key_reidentifies_one_row();
+    test_panel_paint_key_redraws_one_row();
+    test_panel_explicit_reidentify();
+    test_panel_duplicate_key_refuses_the_run();
+    test_panel_refuses_rather_than_truncates();
+    test_panel_actions_route_by_key();
+    test_panel_draw_routes_by_node();
+    test_panel_refused_setter_is_a_finding();
+    test_panel_opened_before_the_first_fence();
+    test_panel_declaration_owed_after_a_refusal();
+    test_panel_close_releases_the_pane();
 
     printf("porcelain: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

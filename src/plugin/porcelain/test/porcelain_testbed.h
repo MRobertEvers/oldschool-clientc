@@ -90,10 +90,57 @@ struct TestbedConfigRow
     bool has_number;
 };
 
+/*
+ * One row of the fake host's page model.
+ *
+ * The host's own model is what the reconciler is talking to, so the fake
+ * keeps the parts the rules are about: the id, the kind, the serial that a
+ * reidentify mints, and the strings a patch writes. `declared` is how many
+ * times this row has been built from scratch, which is how a test tells a
+ * patch from a rebuild without reading the log.
+ */
+struct TestbedPanelRow
+{
+    bool used;
+    char id[64];
+    int kind;
+    char label[192];
+    char text[192];
+    int value;
+    int height;
+    int option_count;
+    char option_value[16][96];
+    char option_label[16][96];
+    bool option_enabled[16];
+    char selected[96];
+    uint32_t serial;
+    int declared;
+};
+
 struct Testbed
 {
     struct ToriRS_Api api;
     struct ToriRS_GameApi game;
+
+    /* The fake page model. */
+    struct TestbedPanelRow panel_rows[64];
+    int panel_row_count;
+    /* Rises on every panel.request. */
+    int panel_requests;
+    char panel_icon[64];
+    int panel_width;
+    /* Rises on every panel.invalidate: the number the row model exists to
+     * keep at zero for anything short of a changed row SET. */
+    int panel_invalidates;
+    uint32_t panel_next_serial;
+    /* The view the last Testbed_PanelBuild drove. */
+    int panel_view;
+    /* A setter naming an id the model does not hold. The host answers those
+     * NOT_FOUND, and a reconciler that leaked one would be writing into a
+     * page that is not there. */
+    int panel_orphan_setters;
+    /* Refuse the next set_options, whatever it says. */
+    bool panel_refuse_options;
 
     struct TestbedElement elements[TESTBED_ELEMENTS_MAX];
     struct
@@ -197,5 +244,17 @@ struct TestbedControl* Testbed_Control(char const* key);
 int Testbed_LiveControls(void);
 /** Subscriptions the host still holds. A re-spelled element must not grow it. */
 int Testbed_LiveWatches(void);
+
+/* The panel ------------------------------------------------------------- */
+
+/** Drive one on_ui_build for `view`, as the host's page selection does. */
+void Testbed_PanelBuild(struct Porcelain* porcelain, int view);
+/** Drive one on_ui_action. */
+bool Testbed_PanelAction(struct Porcelain* porcelain, char const* id, int action, int value,
+                         char const* text);
+struct TestbedPanelRow* Testbed_PanelRow(char const* id);
+/** The row at `index` in declaration order, or NULL. */
+struct TestbedPanelRow* Testbed_PanelRowAt(int index);
+int Testbed_PanelRowCount(void);
 
 #endif /* TORIRS_PORCELAIN_TESTBED_H */

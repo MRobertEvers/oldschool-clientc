@@ -2206,6 +2206,149 @@ static int lua_porcelain_unsupported(lua_State* L)
     return 0;
 }
 
+
+/** The kind name a row action reports. Same spelling as on_ui_action's. */
+static char const*
+lua_porcelain_action_name(int action)
+{
+    static char const* const names[] = {"activate", "toggle", "text",
+                                        "pick",     "drag",   "scroll", "key"};
+    return action >= 0 && action < 7 ? names[action] : "unknown";
+}
+
+/* ------------------------------------------------------------ panel rows */
+
+/*
+ * A row is named by its kind, the same way an element is named by a string:
+ * a page plugin writes one on nearly every line, and a numeric enum in a Lua
+ * table is a number nobody can read back in a diff.
+ */
+static char const* const LUA_PORCELAIN_ROW_KINDS[PORCELAIN_ROW_KIND_COUNT] = {
+    "heading", "paragraph", "label",     "key_value", "toggle", "select",
+    "button",  "action_row", "separator", "progress",  "custom"};
+
+static enum PorcelainRowKind
+lua_porcelain_row_kind(lua_State* L, int table)
+{
+    char const* name;
+    lua_raw_getfield(L, table, "kind");
+    name = lua_tostring(L, -1);
+    if( name )
+        for( int i = 0; i < PORCELAIN_ROW_KIND_COUNT; i++ )
+            if( strcmp(name, LUA_PORCELAIN_ROW_KINDS[i]) == 0 )
+            {
+                lua_pop(L, 1);
+                return (enum PorcelainRowKind)i;
+            }
+    lua_pop(L, 1);
+    /* Guessing a kind would declare a row of the wrong shape under the
+     * plugin's own key, which is a page that looks built and is not. */
+    return (enum PorcelainRowKind)luaL_error(
+        L, "porcelain row needs a kind: heading, paragraph, label, key_value, toggle, "
+           "select, button, action_row, separator, progress or custom");
+}
+
+static void
+lua_porcelain_row_action(struct ToriRS_Api* api, void* user,
+                         struct PorcelainRowAction const* action)
+{
+    struct LuaPorcelainCallback* slot = user;
+    if( !lua_porcelain_begin(slot, api) ) return;
+    lua_pushstring(slot->script->L, action->key);
+    lua_createtable(slot->script->L, 0, 6);
+    lua_pushstring(slot->script->L, action->key);
+    lua_setfield(slot->script->L, -2, "key");
+    lua_pushstring(slot->script->L, lua_porcelain_action_name(action->kind));
+    lua_setfield(slot->script->L, -2, "action");
+    lua_pushinteger(slot->script->L, action->value);
+    lua_setfield(slot->script->L, -2, "value");
+    lua_pushboolean(slot->script->L, action->value != 0);
+    lua_setfield(slot->script->L, -2, "on");
+    lua_pushstring(slot->script->L, action->text);
+    lua_setfield(slot->script->L, -2, "text");
+    lua_pushinteger(slot->script->L, action->x);
+    lua_setfield(slot->script->L, -2, "x");
+    lua_pushinteger(slot->script->L, action->y);
+    lua_setfield(slot->script->L, -2, "y");
+    lua_porcelain_end(slot, api, 2, 0, "porcelain.row.on_action");
+}
+
+static void
+lua_porcelain_row_paint(struct ToriRS_Api* api, void* user, char const* key,
+                        struct ToriRS_Graphics* draw)
+{
+    struct LuaPorcelainCallback* slot = user;
+    if( !lua_porcelain_begin(slot, api) ) return;
+    slot->script->cur_draw = draw;
+    lua_pushstring(slot->script->L, key);
+    lua_rawgeti(slot->script->L, LUA_REGISTRYINDEX, slot->script->draw_ref);
+    lua_porcelain_end(slot, api, 2, 0, "porcelain.row.paint");
+    slot->script->cur_draw = NULL;
+}
+
+static int lua_porcelain_row(lua_State* L)
+{
+    struct ToriRS_PorcelainDescribe* d = lua_porcelain_describe_object(L);
+    struct ToriRS_SelectOption options[PLUGIN_LUA_OPTIONS_MAX];
+    struct PorcelainRow row;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    memset(&row, 0, sizeof(row));
+    row.key = lua_table_string(L, 1, "key");
+    luaL_argcheck(L, row.key != NULL, 1, "a porcelain row needs a key");
+    row.kind = lua_porcelain_row_kind(L, 1);
+    row.label = lua_table_string(L, 1, "label");
+    row.text = lua_table_string(L, 1, "text");
+    row.value = lua_table_int(L, 1, "value", 0);
+    row.height = lua_table_int(L, 1, "height", 0);
+    row.hit_key = (uint64_t)lua_table_int(L, 1, "hit_key", 0);
+    row.paint_key = (uint64_t)lua_table_int(L, 1, "paint_key", 0);
+    lua_raw_getfield(L, 1, "disabled");
+    row.disabled = lua_toboolean(L, -1) != 0;
+    lua_pop(L, 1);
+    lua_raw_getfield(L, 1, "options");
+    if( lua_istable(L, -1) )
+    {
+        row.option_count = lua_select_options_arg(L, -1, options, PLUGIN_LUA_OPTIONS_MAX);
+        row.options = options;
+    }
+    else if( !lua_isnil(L, -1) )
+        return luaL_error(L, "porcelain row options must be an array");
+    lua_raw_getfield(L, 1, "on_action");
+    if( lua_type(L, -1) == LUA_TFUNCTION )
+    {
+        struct LuaPorcelainCallback* slot =
+            lua_porcelain_callback_alloc(L, lua_gettop(L), row.key);
+        row.on_action = lua_porcelain_row_action;
+        row.user = slot;
+    }
+    lua_pop(L, 1);
+    lua_raw_getfield(L, 1, "paint");
+    if( lua_type(L, -1) == LUA_TFUNCTION )
+    {
+        struct LuaPorcelainCallback* slot =
+            lua_porcelain_callback_alloc(L, lua_gettop(L), row.key);
+        row.paint = lua_porcelain_row_paint;
+        /* One `user` for both, so a well that paints AND takes clicks keeps
+         * whichever callback it declared second; a row that wants both hands
+         * them the same closure. */
+        row.user = slot;
+    }
+    lua_pop(L, 1);
+    d->row(d, &row);
+    /* The options table stays on the stack until here: the copies Porcelain
+     * made are its own, but the strings it copied FROM are these. */
+    lua_pop(L, 1);
+    return 0;
+}
+
+static int lua_porcelain_reidentify(lua_State* L)
+{
+    struct ToriRS_PorcelainDescribe* d = lua_porcelain_describe_object(L);
+    d->reidentify(d, luaL_checkstring(L, 1));
+    return 0;
+}
+
 static void
 lua_porcelain_describe_trampoline(struct ToriRS_PorcelainDescribe* describe, void* user)
 {
@@ -2828,6 +2971,91 @@ static struct LuaFn const LUA_GRAPHICS_FNS[] = {
     {"image",lua_builder_image},{"world_tile",lua_builder_world_tile},{"world_hull",lua_builder_world_hull},
     {"image_clip",lua_builder_image_clip},{"context",lua_builder_context},{NULL,NULL}
 };
+
+/*
+ * The three host callbacks a Lua panel plugin forwards. A script's on_ui_build
+ * already holds the builder the host handed it, so panel_build takes only the
+ * view -- the same shortening every other Lua verb takes for the handle.
+ */
+static int lua_porcelain_panel(lua_State* L)
+{
+    struct Porcelain* porcelain = lua_porcelain(L);
+    char const* icon = NULL;
+    int width = TORIRS_PANEL_WIDTH_DEFAULT;
+    unsigned faces = PORCELAIN_FACE_BOTH;
+
+    if( lua_istable(L, 1) )
+    {
+        char const* word;
+        icon = lua_table_string(L, 1, "icon_asset");
+        width = lua_table_int(L, 1, "width", TORIRS_PANEL_WIDTH_DEFAULT);
+        lua_raw_getfield(L, 1, "faces");
+        word = lua_tostring(L, -1);
+        if( word )
+        {
+            if( strcmp(word, "page") == 0 ) faces = PORCELAIN_FACE_PAGE;
+            else if( strcmp(word, "settings") == 0 ) faces = PORCELAIN_FACE_SETTINGS;
+            else if( strcmp(word, "both") == 0 ) faces = PORCELAIN_FACE_BOTH;
+            else return luaL_error(L, "porcelain panel faces must be page, settings or both");
+        }
+        lua_pop(L, 1);
+    }
+    lua_current_api(L)->porcelain->panel(porcelain, icon, width, faces);
+    return 0;
+}
+
+static int lua_porcelain_panel_build(lua_State* L)
+{
+    struct Porcelain* porcelain = lua_porcelain(L);
+    struct ToriRS_PanelBuilder* builder = lua_panel_builder(L);
+    char const* view = luaL_optstring(L, 1, "page");
+    lua_current_api(L)->porcelain->panel_build(
+        porcelain, builder,
+        strcmp(view, "settings") == 0 ? TORIRS_PANEL_VIEW_SETTINGS : TORIRS_PANEL_VIEW_PAGE);
+    return 0;
+}
+
+static int lua_porcelain_panel_action(lua_State* L)
+{
+    struct Porcelain* porcelain = lua_porcelain(L);
+    struct ToriRS_PanelActionEvent event;
+    char const* name;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    memset(&event, 0, sizeof(event));
+    event.id = lua_table_string(L, 1, "id");
+    luaL_argcheck(L, event.id != NULL, 1, "a panel action event needs an id");
+    event.value = lua_table_int(L, 1, "value", 0);
+    event.x = lua_table_int(L, 1, "x", 0);
+    event.y = lua_table_int(L, 1, "y", 0);
+    event.selection_generation = (uint32_t)lua_table_int(L, 1, "generation", 0);
+    event.widget_serial = (uint32_t)lua_table_int(L, 1, "serial", 0);
+    lua_raw_getfield(L, 1, "text");
+    event.text = lua_isnoneornil(L, -1) ? "" : lua_tostring(L, -1);
+    lua_raw_getfield(L, 1, "action");
+    name = lua_tostring(L, -1);
+    for( int i = 0; name && i < 7; i++ )
+        if( strcmp(name, lua_porcelain_action_name(i)) == 0 )
+            event.action = i;
+    lua_pushboolean(L, lua_current_api(L)->porcelain->panel_action(porcelain, &event));
+    /* The text field's string stays alive until here. */
+    lua_remove(L, -2);
+    lua_remove(L, -2);
+    return 1;
+}
+
+static int lua_porcelain_panel_draw(lua_State* L)
+{
+    struct Porcelain* porcelain = lua_porcelain(L);
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* node = luaL_checkstring(L, 1);
+    if( !script || !script->cur_draw )
+        return luaL_error(L, "porcelain.panel_draw used outside a draw callback");
+    lua_pushboolean(
+        L, lua_current_api(L)->porcelain->panel_draw(porcelain, node, script->cur_draw));
+    return 1;
+}
+
 static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"open",lua_porcelain_open},{"close",lua_porcelain_close},
     {"describe",lua_porcelain_describe},{"invalidate",lua_porcelain_invalidate},
@@ -2851,7 +3079,9 @@ static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"draw_context",lua_porcelain_draw_context},{"menu_add",lua_porcelain_menu_add},
     {"note_menu",lua_porcelain_note_menu},{"hover",lua_porcelain_hover},
     {"native_overlay",lua_porcelain_native_overlay},{"note_script",lua_porcelain_note_script},
-    {"table",lua_porcelain_table},{"notify",lua_porcelain_notify},{NULL,NULL}
+    {"table",lua_porcelain_table},{"notify",lua_porcelain_notify},
+    {"panel",lua_porcelain_panel},{"panel_build",lua_porcelain_panel_build},
+    {"panel_action",lua_porcelain_panel_action},{"panel_draw",lua_porcelain_panel_draw},{NULL,NULL}
 };
 
 static struct LuaFn const LUA_PORCELAIN_DESCRIBE_FNS[] = {
@@ -2859,7 +3089,8 @@ static struct LuaFn const LUA_PORCELAIN_DESCRIBE_FNS[] = {
     {"text",lua_porcelain_text},{"blocker",lua_porcelain_blocker},
     {"move",lua_porcelain_move},{"hide",lua_porcelain_hide},
     {"skin",lua_porcelain_skin},{"opacity",lua_porcelain_opacity},
-    {"unsupported",lua_porcelain_unsupported},{NULL,NULL}
+    {"unsupported",lua_porcelain_unsupported},
+    {"row",lua_porcelain_row},{"reidentify",lua_porcelain_reidentify},{NULL,NULL}
 };
 
 static struct LuaFn const LUA_PANEL_BUILDER_FNS[] = {

@@ -1159,6 +1159,251 @@ Testbed_Graphics(struct ToriRS_Rect region, bool valid)
 
 /* ------------------------------------------------------------------------ */
 /* Assembly                                                                 */
+
+/* ------------------------------------------------------------------------ */
+/* The panel: a fake page model with the host's own identity rules          */
+/* ------------------------------------------------------------------------ */
+
+struct TestbedPanelRow*
+Testbed_PanelRow(char const* id)
+{
+    assert(id);
+    for( int i = 0; i < g_testbed.panel_row_count; i++ )
+        if( g_testbed.panel_rows[i].used && strcmp(g_testbed.panel_rows[i].id, id) == 0 )
+            return &g_testbed.panel_rows[i];
+    return NULL;
+}
+
+struct TestbedPanelRow*
+Testbed_PanelRowAt(int index)
+{
+    if( index < 0 || index >= g_testbed.panel_row_count )
+        return NULL;
+    return &g_testbed.panel_rows[index];
+}
+
+int
+Testbed_PanelRowCount(void)
+{
+    return g_testbed.panel_row_count;
+}
+
+/** The setter fence the host applies: a row that is not declared takes none. */
+static struct TestbedPanelRow*
+testbed_panel_mutable(char const* id)
+{
+    struct TestbedPanelRow* row = Testbed_PanelRow(id);
+    if( !row )
+        g_testbed.panel_orphan_setters++;
+    return row;
+}
+
+static enum ToriRS_Result
+fake_panel_request(struct ToriRS_Api* api, struct ToriRS_PanelDescriptor const* description)
+{
+    (void)api;
+    assert(description);
+    testbed_log("panel_request %s %d", description->icon_asset ? description->icon_asset : "-",
+                description->preferred_width);
+    g_testbed.panel_requests++;
+    g_testbed.panel_width = description->preferred_width;
+    snprintf(g_testbed.panel_icon, sizeof(g_testbed.panel_icon), "%s",
+             description->icon_asset ? description->icon_asset : "");
+    return TORIRS_RESULT_OK;
+}
+
+static void
+fake_panel_invalidate(struct ToriRS_Api* api)
+{
+    (void)api;
+    testbed_log("panel_invalidate");
+    g_testbed.panel_invalidates++;
+    /* Exactly what the buffer executor does: the whole page goes, the scroll
+     * with it, and every retained custom run is retired. */
+    memset(g_testbed.panel_rows, 0, sizeof(g_testbed.panel_rows));
+    g_testbed.panel_row_count = 0;
+}
+
+static void
+fake_panel_attention(struct ToriRS_Api* api, bool wanted)
+{
+    (void)api;
+    testbed_log("panel_attention %d", wanted ? 1 : 0);
+}
+
+static enum ToriRS_Result
+fake_panel_set_text(struct ToriRS_Api* api, char const* id, char const* text)
+{
+    struct TestbedPanelRow* row;
+    (void)api;
+    assert(id);
+    testbed_log("panel_set_text %s %s", id, text ? text : "");
+    row = testbed_panel_mutable(id);
+    if( !row )
+        return TORIRS_RESULT_NOT_FOUND;
+    snprintf(row->text, sizeof(row->text), "%s", text ? text : "");
+    return TORIRS_RESULT_OK;
+}
+
+static enum ToriRS_Result
+fake_panel_set_value(struct ToriRS_Api* api, char const* id, int value)
+{
+    struct TestbedPanelRow* row;
+    (void)api;
+    assert(id);
+    testbed_log("panel_set_value %s %d", id, value);
+    row = testbed_panel_mutable(id);
+    if( !row )
+        return TORIRS_RESULT_NOT_FOUND;
+    row->value = value;
+    return TORIRS_RESULT_OK;
+}
+
+static enum ToriRS_Result
+fake_panel_set_height(struct ToriRS_Api* api, char const* id, int preferred_height)
+{
+    struct TestbedPanelRow* row;
+    (void)api;
+    assert(id);
+    testbed_log("panel_set_height %s %d", id, preferred_height);
+    row = testbed_panel_mutable(id);
+    if( !row )
+        return TORIRS_RESULT_NOT_FOUND;
+    row->height = preferred_height;
+    return TORIRS_RESULT_OK;
+}
+
+static void
+testbed_panel_store_options(struct TestbedPanelRow* row, char const* value,
+                            struct ToriRS_SelectOption const* options, int option_count)
+{
+    row->option_count = option_count > 16 ? 16 : option_count;
+    for( int i = 0; i < row->option_count; i++ )
+    {
+        snprintf(row->option_value[i], sizeof(row->option_value[i]), "%s", options[i].value);
+        snprintf(row->option_label[i], sizeof(row->option_label[i]), "%s", options[i].label);
+        row->option_enabled[i] = options[i].enabled;
+    }
+    snprintf(row->selected, sizeof(row->selected), "%s", value ? value : "");
+}
+
+static enum ToriRS_Result
+fake_panel_set_options(struct ToriRS_Api* api, char const* id, char const* value,
+                       struct ToriRS_SelectOption const* options, int option_count)
+{
+    struct TestbedPanelRow* row;
+    (void)api;
+    assert(id);
+    testbed_log("panel_set_options %s %s %d", id, value ? value : "", option_count);
+    row = testbed_panel_mutable(id);
+    if( !row )
+        return TORIRS_RESULT_NOT_FOUND;
+    if( g_testbed.panel_refuse_options )
+        return TORIRS_RESULT_INVALID;
+    testbed_panel_store_options(row, value, options, option_count);
+    return TORIRS_RESULT_OK;
+}
+
+static void
+fake_panel_redraw(struct ToriRS_Api* api, char const* id)
+{
+    (void)api;
+    testbed_log("panel_redraw %s", id ? id : "");
+}
+
+static enum ToriRS_Result
+fake_panel_reidentify(struct ToriRS_Api* api, char const* id)
+{
+    struct TestbedPanelRow* row;
+    (void)api;
+    assert(id);
+    testbed_log("panel_reidentify %s", id);
+    row = testbed_panel_mutable(id);
+    if( !row )
+        return TORIRS_RESULT_NOT_FOUND;
+    /* A fresh serial and nothing else: the node stays between the same
+     * neighbours and no other row is touched. */
+    row->serial = ++g_testbed.panel_next_serial;
+    return TORIRS_RESULT_OK;
+}
+
+/* The builder ------------------------------------------------------------ */
+
+static enum ToriRS_Result
+fake_builder_node(struct ToriRS_PanelBuilder* builder, struct ToriRS_PanelNode const* node)
+{
+    struct TestbedPanelRow* row;
+
+    (void)builder;
+    assert(node);
+    if( node->struct_size < TORIRS_PANEL_NODE_REQUIRED_SIZE || !node->id || !node->id[0] )
+        return TORIRS_RESULT_INVALID;
+    if( g_testbed.panel_row_count >=
+        (int)(sizeof(g_testbed.panel_rows) / sizeof(g_testbed.panel_rows[0])) )
+        return TORIRS_RESULT_BUDGET;
+    testbed_log("panel_node %d %s", node->kind, node->id);
+    /* The host's declaration is idempotent on a repeated id. */
+    row = Testbed_PanelRow(node->id);
+    if( !row )
+    {
+        row = &g_testbed.panel_rows[g_testbed.panel_row_count++];
+        memset(row, 0, sizeof(*row));
+        row->used = true;
+        snprintf(row->id, sizeof(row->id), "%s", node->id);
+        row->serial = ++g_testbed.panel_next_serial;
+    }
+    row->declared++;
+    row->kind = node->kind;
+    snprintf(row->label, sizeof(row->label), "%s", node->label ? node->label : "");
+    if( node->text )
+        snprintf(row->text, sizeof(row->text), "%s", node->text);
+    row->value = node->value;
+    row->height = node->preferred_height;
+    if( node->kind == TORIRS_PANEL_SELECT )
+    {
+        if( !node->text )
+            return TORIRS_RESULT_INVALID;
+        testbed_panel_store_options(row, node->text, node->options, node->option_count);
+    }
+    return TORIRS_RESULT_OK;
+}
+
+void
+Testbed_PanelBuild(struct Porcelain* porcelain, int view)
+{
+    struct ToriRS_PanelBuilder builder;
+
+    assert(porcelain);
+    /* A build IS the page having been cleared: the host frees the widget list
+     * before it asks for a declaration. */
+    memset(g_testbed.panel_rows, 0, sizeof(g_testbed.panel_rows));
+    g_testbed.panel_row_count = 0;
+    g_testbed.panel_view = view;
+    memset(&builder, 0, sizeof(builder));
+    builder.struct_size = sizeof(builder);
+    builder.node = fake_builder_node;
+    Porcelain_PanelBuild(porcelain, &builder, view);
+}
+
+bool
+Testbed_PanelAction(struct Porcelain* porcelain, char const* id, int action, int value,
+                    char const* text)
+{
+    struct ToriRS_PanelActionEvent event;
+    struct TestbedPanelRow const* row;
+
+    assert(porcelain);
+    assert(id);
+    memset(&event, 0, sizeof(event));
+    event.id = id;
+    event.action = action;
+    event.value = value;
+    event.text = text ? text : "";
+    row = Testbed_PanelRow(id);
+    event.widget_serial = row ? row->serial : 0;
+    return Porcelain_PanelAction(porcelain, &event);
+}
+
 /* ------------------------------------------------------------------------ */
 
 void
@@ -1249,6 +1494,17 @@ Testbed_Reset(void)
     g_testbed.game.struct_size = sizeof(g_testbed.game);
     g_testbed.game.skill = fake_skill;
     g_testbed.api.game = &g_testbed.game;
+
+    g_testbed.api.panel.struct_size = sizeof(g_testbed.api.panel);
+    g_testbed.api.panel.request = fake_panel_request;
+    g_testbed.api.panel.invalidate = fake_panel_invalidate;
+    g_testbed.api.panel.attention = fake_panel_attention;
+    g_testbed.api.panel.set_text = fake_panel_set_text;
+    g_testbed.api.panel.set_value = fake_panel_set_value;
+    g_testbed.api.panel.set_height = fake_panel_set_height;
+    g_testbed.api.panel.set_options = fake_panel_set_options;
+    g_testbed.api.panel.redraw = fake_panel_redraw;
+    g_testbed.api.panel.reidentify = fake_panel_reidentify;
 
     g_testbed.api.porcelain = ToriRS_PorcelainApiTable();
 

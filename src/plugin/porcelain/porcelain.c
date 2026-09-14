@@ -2061,6 +2061,7 @@ porcelain_run_describe(struct Porcelain* porcelain)
     porcelain->scratch_item_count = 0;
     porcelain->scratch_edit_count = 0;
     porcelain->scratch_poisoned = false;
+    Porcelain_PanelRunBegin(porcelain);
     porcelain->describing = true;
     porcelain->describe_fn(&porcelain->builder, porcelain->describe_user);
     porcelain->describing = false;
@@ -2213,6 +2214,10 @@ porcelain_reconcile(struct Porcelain* porcelain)
     }
     porcelain->applied_item_count = porcelain->scratch_item_count;
     porcelain->applied_edit_count = porcelain->scratch_edit_count;
+
+    /* 4. Rows, against api->panel. Its own reconciler: the element diff above
+     *    owns controls, this one owns a declaration the host holds. */
+    Porcelain_PanelReconcile(porcelain);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -2552,6 +2557,8 @@ porcelain_builder_init(struct Porcelain* porcelain)
     porcelain->builder.skin = Porcelain_Skin;
     porcelain->builder.opacity = Porcelain_Opacity;
     porcelain->builder.unsupported = Porcelain_Unsupported;
+    porcelain->builder.row = Porcelain_Row;
+    porcelain->builder.reidentify = Porcelain_Reidentify;
 }
 
 struct Porcelain*
@@ -2600,11 +2607,21 @@ Porcelain_Close(struct Porcelain* porcelain)
         porcelain_release_edit(porcelain, &porcelain->applied_edits[i]);
     Porcelain_OverlayRelease(porcelain);
     Porcelain_ReleaseAllAssets(porcelain);
+    Porcelain_PanelClose(porcelain);
     /* Relinquish BEFORE the handle dies: the host keeps both frame providers
      * alive for one fence by design, so an outgoing provider that kept its
      * claims would hand the incoming one eight findings instead of a frame. */
     Porcelain_ClaimDropAll(porcelain);
     memset(porcelain, 0, sizeof(*porcelain));
+}
+
+void
+Porcelain_DescribeNow(struct Porcelain* porcelain)
+{
+    assert(porcelain);
+    assert(porcelain->used);
+    assert(porcelain->describe_fn);
+    porcelain_run_describe(porcelain);
 }
 
 void
@@ -2644,6 +2661,7 @@ Porcelain_CountersReset(struct Porcelain* porcelain)
 {
     assert(porcelain);
     memset(&porcelain->counters, 0, sizeof(porcelain->counters));
+    Porcelain_PanelCountersReset(porcelain);
 }
 
 void
@@ -2651,6 +2669,7 @@ Porcelain_ResetForTesting(void)
 {
     memset(g_handles, 0, sizeof(g_handles));
     memset(g_claims, 0, sizeof(g_claims));
+    Porcelain_PanelResetForTesting();
     g_handle_count = 0;
     g_epoch = 1;
     g_epoch_dirty = false;
@@ -2705,6 +2724,10 @@ static struct ToriRS_PorcelainApi const PORCELAIN_TABLE = {
     .note_script = Porcelain_NoteScript,
     .table = Porcelain_Table,
     .notify = Porcelain_Notify,
+    .panel = Porcelain_Panel,
+    .panel_build = Porcelain_PanelBuild,
+    .panel_action = Porcelain_PanelAction,
+    .panel_draw = Porcelain_PanelDraw,
 };
 
 struct ToriRS_PorcelainApi const*

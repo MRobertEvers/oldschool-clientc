@@ -745,6 +745,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_client_trigger.c \
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 	plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+	plugin/porcelain/porcelain_panel.c \
 	plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/client_settings.c \
@@ -2366,10 +2367,12 @@ test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_fr
 # cases pin names, in a comment above itself, the mutation that turns it red.
 .PHONY: test-porcelain
 test-porcelain: $(OBJ_DIR) plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+	plugin/porcelain/porcelain_panel.c \
 		plugin/porcelain/test/porcelain_testbed.c plugin/porcelain/test/porcelain_test.c \
 		$(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/porcelain_test \
 		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+	plugin/porcelain/porcelain_panel.c \
 		plugin/porcelain/test/porcelain_testbed.c plugin/porcelain/test/porcelain_test.c \
 		$(LDFLAGS)
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/porcelain_test
@@ -2428,10 +2431,14 @@ test-client-settings: $(OBJ_DIR) plugin/plugins/client_settings.c \
 .PHONY: test-feature-flags
 test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/feature_flags.c \
+		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+		plugin/porcelain/porcelain_panel.c \
 		plugin/test/feature_flags_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/feature_flags_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 			ui/uitree_minimenu.c revconfig/revconfig.c \
+		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+		plugin/porcelain/porcelain_panel.c \
 		plugin/plugins/feature_flags.c \
 		plugin/test/feature_flags_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/feature_flags_test

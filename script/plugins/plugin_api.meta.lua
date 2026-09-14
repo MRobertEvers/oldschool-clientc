@@ -616,6 +616,8 @@ warn = nil
 ---@alias torirs.PorcelainCorner 'top_left'|'top_right'|'bottom_left'|'bottom_right'|'centre'
 ---@alias torirs.PorcelainSide 'left'|'right'|'above'|'below'
 ---@alias torirs.PorcelainDerivedState 'ready'|'pending'|'failed'
+---@alias torirs.PorcelainFace 'page'|'settings'|'both'
+---@alias torirs.PorcelainRowKind 'heading'|'paragraph'|'label'|'key_value'|'toggle'|'select'|'button'|'action_row'|'separator'|'progress'|'custom'
 
 
 --- The Porcelain layer: describe what should exist relative to NAMED ELEMENTS
@@ -673,6 +675,10 @@ warn = nil
 ---@field note_script fun() From on_script_callback: drives the latch and routes the caption.
 ---@field table fun(asset: string, parse: fun(bytes: string): boolean?): boolean Read, parse and release a shipped data file, once.
 ---@field notify fun(kind: string, subject: integer, text: string) One announcement per (kind, subject) per frame.
+---@field panel fun(descriptor?: torirs.PorcelainPanel) on_start only. Register the shared pane and say which faces the description covers.
+---@field panel_build fun(view?: 'page'|'settings') Forward on_ui_build. Declares nothing on a face the description does not cover.
+---@field panel_action fun(event: torirs.PanelAction): boolean Forward on_ui_action. False when no described row owns the id.
+---@field panel_draw fun(node: string): boolean Forward on_ui_draw. False when no described CUSTOM row paints it.
 
 --- The describe builder, handed to the describe function and legal only
 --- inside it. Items are applied in DESCRIPTION ORDER and a later item is over
@@ -687,6 +693,8 @@ warn = nil
 ---@field skin fun(element: string, image?: string, mask?: string) Independent halves.
 ---@field opacity fun(element: string, opacity: integer)
 ---@field unsupported fun(reason: string) This feature cannot run on this lane. One finding, no items.
+---@field row fun(row: torirs.PorcelainRow) One panel row. The ordered (key, kind, identity label) sequence IS the declaration.
+---@field reidentify fun(key: string) Mint ONE described row a new serial: growth without a page rebuild.
 
 ---@class torirs.PorcelainItem
 ---@field key string Stable identity. A key not re-described is removed.
@@ -704,6 +712,37 @@ warn = nil
 ---@field hit? boolean
 ---@field enabled? boolean False is drawn, inert, no menu row.
 ---@field visible_with? string An extra presented-gate: OVER inherits nothing.
+
+--- What Porcelain_Panel registers. `icon_asset` nil asks for the baked
+--- wrench, which is a meaning and not an absence.
+---@class torirs.PorcelainPanel
+---@field icon_asset? string
+---@field width? integer Default 320.
+---@field faces? torirs.PorcelainFace Default 'both'.
+
+--- One described panel row.
+---
+--- A zeroed row is a legal, live heading, which is why the inert spelling is
+--- `disabled` rather than `enabled`.
+---
+--- `label` is DECLARATION IDENTITY for key_value, toggle, select and
+--- action_row -- the host builds those from it and its patch path cannot
+--- restate one -- so renaming one of those rows is a rebuild. For heading,
+--- paragraph, label and button the string travels as the row's text, which IS
+--- patched, so either spelling works and neither costs a rebuild.
+---@class torirs.PorcelainRow
+---@field key string Stable identity, and the id every action and setter names.
+---@field kind torirs.PorcelainRowKind
+---@field label? string
+---@field text? string
+---@field value? integer toggle: the checked state. progress: the bar.
+---@field options? torirs.SelectOption[] select only. Copied: a stack local is fine.
+---@field height? integer custom: the well's logical height.
+---@field disabled? boolean button: drawn dim, pressing it does nothing.
+---@field hit_key? integer custom: the y-to-item identity. A VALUE change must not be in it.
+---@field paint_key? integer custom: what the next paint will draw. A change to it is one redraw.
+---@field on_action? fun(key: string, action: torirs.PanelAction)
+---@field paint? fun(key: string, draw: torirs.Graphics) custom only.
 
 ---@class torirs.PorcelainPlace
 ---@field kind torirs.PorcelainPlacementKind
