@@ -783,6 +783,8 @@ main(void)
         "plugin/test/entity_highlighter_behavior.lua","entity-behavior");
     test_product_behavior(&host,"../script/plugins/ground_items.lua",
         "plugin/test/ground_items_behavior.lua","ground-behavior");
+    test_product_behavior(&host,"../script/plugins/loot_beam.lua",
+        "plugin/test/loot_beam_behavior.lua","loot-beam-behavior");
     test_product_behavior(&host,"../script/plugins/_beamprobe.lua",
         "plugin/test/overlay_probe_behavior.lua","overlay-probe-behavior-beam-probe");
     test_product_behavior(&host,"../script/plugins/_gicount.lua",
