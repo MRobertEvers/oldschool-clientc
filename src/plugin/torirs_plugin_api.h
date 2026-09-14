@@ -20,7 +20,17 @@
 #define TORIRS_UI_NAME_MAX 128
 #define TORIRS_UI_LABEL_MAX 128
 #define TORIRS_FRAME_REASON_MAX 160
-#define TORIRS_API_V2_MODULE_RESERVED_SLOTS 8
+/*
+ * Spare function slots every module carries.
+ *
+ * Twelve and not eight. The panel module grew three verbs this round --
+ * set_label, scroll and scroll_to -- and at eight the subtraction that spends
+ * this budget went negative, which the compiler reports as "array with a
+ * negative size" on the reserved member and not as "you are out of slots".
+ * Raising it once is cheaper than having the next module to grow read that
+ * message and think the struct is corrupt.
+ */
+#define TORIRS_API_V2_MODULE_RESERVED_SLOTS 12
 #define TORIRS_DESCRIPTOR_V2_RESERVED_WORDS 8
 
 /* Existing module padding remains during the coordinated source migration.
@@ -806,6 +816,24 @@ struct ToriRS_PanelApi
         struct ToriRS_Api* api,
         char const* id,
         char const* text);
+    /**
+     * The row's NAME, not its value.
+     *
+     * KEY_VALUE, TOGGLE, SELECT and ACTION_ROW are built from a label and
+     * carry their value in a second string, so `set_text` cannot restate one:
+     * on those four it is the reading, the chosen entry or the summary. Until
+     * this existed there was no arm for their label at all, and renaming one
+     * cost a whole page rebuild -- which throws the scroll away and retires
+     * every retained custom run on the page.
+     *
+     * On a kind whose single string already travels as `text` this is refused
+     * rather than silently aliased: two spellings for one string is how a
+     * later set_text reverts a rename nobody can see happen.
+     */
+    enum ToriRS_Result (*set_label)(
+        struct ToriRS_Api* api,
+        char const* id,
+        char const* label);
     enum ToriRS_Result (*set_value)(
         struct ToriRS_Api* api,
         char const* id,
@@ -841,7 +869,25 @@ struct ToriRS_PanelApi
     enum ToriRS_Result (*reidentify)(
         struct ToriRS_Api* api,
         char const* id);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 6])(void);
+    /**
+     * The reader's place, in logical pixels of page scrolled past the top.
+     *
+     * Readable as well as writable, and that is the point: the number is the
+     * PRESENTER's and nothing else knows it, so a plugin that has to
+     * re-declare its page -- the one legitimate rebuild the row model still
+     * has -- could not put the reader back where they were. The host now
+     * carries it across a rebuild of the same page by itself; these two are
+     * for the plugin that wants to MOVE it, which is a different intent.
+     *
+     * Negative when there is no page of this plugin's up.
+     */
+    int (*scroll)(struct ToriRS_Api* api);
+    /** Clamped by the next layout, never here: the content to clamp against
+     *  may be a page that has not been laid out yet. */
+    enum ToriRS_Result (*scroll_to)(
+        struct ToriRS_Api* api,
+        int scroll);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 9])(void);
 };
 
 /* Explicit escape hatch for lane-specific plugins. Nothing in the widget or
@@ -1339,7 +1385,22 @@ enum PorcelainFindingResult
     /** Declared absent through expect_absent, and it BOUND. A failure: a stale
      *  declaration must fail loudly in both directions. */
     PORCELAIN_FINDING_ABSENT_UNEXPECTEDLY_PRESENT,
-    /** An engine setter answered something that was not OK or PENDING. */
+    /**
+     * An engine setter answered something that was not OK or PENDING.
+     *
+     * A refusal is reported only where the PLUGIN could have done otherwise.
+     * A refusal that is structurally not the plugin's fault is the LAYER's to
+     * absorb, and the rule is not a courtesy: a plugin cannot declare one of
+     * those away, because it has no element to key an absence on, the refusal
+     * is transient rather than a lane fact, and declaring it unconditionally
+     * would be a stale declaration on every lane where it never happens.
+     * Reporting it anyway makes the findings channel say "your plugin has a
+     * problem" about something the plugin did exactly right.
+     *
+     * The one absorbed today: a control the engine freed under a frame root
+     * that survived. The layer re-creates it rather than writing to the dead
+     * handle and reporting what comes back. @see PorcelainCounters::recreates.
+     */
     PORCELAIN_FINDING_REFUSED,
     /** Another plugin owns this aspect of this element. `detail` names it. */
     PORCELAIN_FINDING_ARBITRATION_LOST,
@@ -1653,6 +1714,22 @@ struct PorcelainRow
      */
     uint64_t paint_key;
     PorcelainRowActionFn on_action;
+    /**
+     * CUSTOM: a SECONDARY click in the well, at `action->x`/`y`.
+     *
+     * Its own slot and not a kind `on_action` has to switch on, because the
+     * two are different questions about the same control and a row that wants
+     * only clicks must not silently treat a right click as one -- which is
+     * exactly what folding MENU into on_action would do to every row already
+     * written. A row with no on_menu declines the click; the host swallows it
+     * either way, so nothing underneath the page sees it.
+     *
+     * This is the channel the loot tracker's band operations (collapse,
+     * expand, clear, ignore) and cell operations (check, ignore) had no home
+     * for: a well is ONE control, so without a button in the event they had
+     * to be buttons standing under a selected row.
+     */
+    PorcelainRowActionFn on_menu;
     PorcelainRowPaintFn paint;
     void* user;
 };
@@ -1758,7 +1835,15 @@ struct ToriRS_PorcelainApi
     void (*close)(struct Porcelain* porcelain);
     /** One describe function per plugin. Replacing it invalidates. */
     void (*describe)(struct Porcelain* porcelain, PorcelainDescribeFn fn, void* user);
-    /** Re-run describe at the next fence. == note(PORCELAIN_INPUT_EXPLICIT). */
+    /**
+     * Re-run describe at the NEXT fence. == note(PORCELAIN_INPUT_EXPLICIT).
+     *
+     * Legal from inside a describe, and it means there exactly what it means
+     * outside one: the description being written is still the description
+     * this fence reconciles, and the re-run happens at the next fence. It
+     * used to re-run the describe inside the SAME fence and reconcile that
+     * second pass instead, which discarded the description that asked.
+     */
     void (*invalidate)(struct Porcelain* porcelain);
     /** One of this plugin's inputs moved. @see PorcelainInput */
     void (*note)(struct Porcelain* porcelain, enum PorcelainInput input);
@@ -1921,6 +2006,14 @@ struct ToriRS_PorcelainApi
      *  painted it. */
     bool (*panel_draw)(struct Porcelain* porcelain, char const* node,
                        struct ToriRS_Graphics* draw);
+    /** The HOST's copy of ONE row drifted from the description -- a refused
+     *  pick, which the host committed before it dispatched. That row's
+     *  setters, and nothing else: no page, no serial, no scroll. */
+    void (*panel_restate)(struct Porcelain* porcelain, char const* key);
+    /** The reader's place. -1 when no page of this plugin's is up, which is
+     *  distinct from 0 -- the top of one that is. */
+    int (*panel_scroll)(struct Porcelain* porcelain);
+    void (*panel_scroll_to)(struct Porcelain* porcelain, int scroll);
 
     /* ------------------------------------- the refusals and the partners */
     /** draw->world_hull with both of its refusals made loud. The engine's

@@ -3653,6 +3653,96 @@ main(void)
                 "while the same click against the new serial is delivered");
         }
 
+        /* ---- the row's NAME, and the reader's place ------------------- */
+        {
+            struct ToriRS_PluginPanelChange change;
+
+            PluginHost_PanelChangesAcknowledge(hv2, generation);
+
+            /*
+             * Renaming a row that HAS a name is a setter.
+             *
+             * KEY_VALUE, TOGGLE, SELECT and ACTION_ROW are built from `label`
+             * and carry their value in a second string, and the patch path had
+             * no arm for one at all -- so renaming one cost a whole page
+             * rebuild, which throws the scroll away and retires every retained
+             * custom run. It was the last unnecessary rebuild in the row model.
+             */
+            CHECK(
+                g_v2_api[1]->panel.set_label(g_v2_api[1], "frame", "Game frame") ==
+                    TORIRS_RESULT_OK,
+                "a SELECT takes a new name");
+            widget = PluginHost_PanelWidgetAt(hv2, generation, 2);
+            CHECK(
+                widget && strcmp(widget->label, "Game frame") == 0,
+                "which lands on the row the host already holds");
+            CHECK(
+                PluginHost_PanelChangeNext(hv2, generation, &change) == 1 &&
+                    change.widget_index == 2 &&
+                    change.flags == TORIRS_PLUGIN_PANEL_CHANGE_LABEL,
+                "journalled as a LABEL change and not as a rebuild");
+            CHECK(
+                PluginHost_PanelChangeNext(hv2, generation, &change) == 0,
+                "and as nothing else: a name is not a value");
+
+            /*
+             * And a kind whose ONE string already travels as `text` is refused
+             * rather than silently given a second spelling -- two spellings for
+             * one string is how a later set_text reverts a rename with nothing
+             * to say it happened.
+             */
+            CHECK(
+                g_v2_api[1]->panel.set_label(g_v2_api[1], "commit", "Send") !=
+                    TORIRS_RESULT_OK,
+                "a BUTTON, whose caption is its text, refuses a label");
+            CHECK(
+                PluginHost_PanelChangeNext(hv2, generation, &change) == 0,
+                "and journals nothing for the refusal");
+
+            /*
+             * The reader's place. -1 and not 0 with no page up, because 0 IS
+             * an answer -- the top of one -- and a plugin that could not tell
+             * the two apart would restore a place nobody ever took.
+             */
+            PluginHost_PanelSetScroll(hv2, generation, 48);
+            CHECK(
+                g_v2_api[1]->panel.scroll(g_v2_api[1]) == 48,
+                "a plugin reads where its page is scrolled to");
+            {
+                int wanted = -1;
+                CHECK(
+                    g_v2_api[1]->panel.scroll_to(g_v2_api[1], 96) == TORIRS_RESULT_OK,
+                    "and can ask for it to move");
+                CHECK(
+                    PluginHost_PanelTakeScrollRequest(hv2, generation, &wanted) &&
+                        wanted == 96,
+                    "which the presenter picks up exactly once");
+                CHECK(
+                    !PluginHost_PanelTakeScrollRequest(hv2, generation, &wanted),
+                    "and not twice");
+                CHECK(
+                    !PluginHost_PanelTakeScrollRequest(hv2, generation + 1000, &wanted),
+                    "a request for a selection that is gone is dropped, not kept");
+            }
+            /*
+             * With no page up the answer is -1, not 0.
+             *
+             * 0 is a legitimate answer -- the top of a page that IS up -- so a
+             * plugin that could not tell the two apart would restore a place
+             * nobody ever took, on a page nobody is reading.
+             */
+            (void)PluginHost_PanelLayout(
+                hv2, generation, 0, 0, 1000, TORIRS_PANEL_SIZE_MEDIUM, false, true);
+            CHECK(
+                g_v2_api[1]->panel.scroll(g_v2_api[1]) == -1,
+                "no page up is -1, not the top of one that is");
+            CHECK(
+                g_v2_api[1]->panel.scroll_to(g_v2_api[1], 10) != TORIRS_RESULT_OK,
+                "and a reader who is not there cannot be moved");
+            (void)PluginHost_PanelLayout(
+                hv2, generation, 320, 400, 1000, TORIRS_PANEL_SIZE_MEDIUM, true, true);
+        }
+
         PluginHost_SetEnabled(hv2, a2, false);
         CHECK(
             g_v2_stops[1] == 1 && g_engine.objects_live == 2,

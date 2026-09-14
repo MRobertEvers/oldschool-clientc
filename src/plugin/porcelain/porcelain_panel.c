@@ -20,13 +20,19 @@
  *   - a changed y-to-item mapping is neither: it is a new INPUT identity for
  *     that one row, which is what panel.reidentify exists for.
  *
- * `label` is part of the identity for KEY_VALUE, TOGGLE, SELECT and
- * ACTION_ROW and not for the others, and that split is the host's, not a
- * choice: those four are built from `label` and the host's patch path has no
- * arm that restates one. The four kinds whose string travels as `text` --
- * HEADING, PARAGRAPH, LABEL and BUTTON -- are patched, so Porcelain routes
- * the caller's `label` into the row's text for them and a rename costs a
- * setter instead of a page.
+ * The identity is (key, kind). Nothing else -- not even the row's name.
+ *
+ * `label` WAS part of it for KEY_VALUE, TOGGLE, SELECT and ACTION_ROW, and
+ * that was the host's constraint rather than a choice: those four are built
+ * from `label` and the patch path had no arm that restated one, so renaming
+ * one cost the page. It has `set_label` now, so a rename is a setter on the
+ * row it names like every other property. The four kinds whose one string
+ * travels as `text` -- HEADING, PARAGRAPH, LABEL and BUTTON -- still have it
+ * routed into the row's text, which is what makes either spelling work.
+ *
+ * And one drift the diff cannot see: the host commits a result BEFORE it
+ * dispatches, so a refused pick leaves the host's copy moved and the
+ * description unmoved. @see Porcelain_Restate.
  */
 
 #include "plugin/porcelain/porcelain_internal.h"
@@ -43,13 +49,19 @@ static struct PorcelainPanel g_panels[PORCELAIN_PANELS_MAX];
 /* ------------------------------------------------------------------------ */
 
 /**
- * Is this kind's `label` declaration identity?
+ * Does this kind carry a LABEL as a second string beside its value?
  *
- * True where the host reads `label` at build time and its patch path has no
- * arm for it, so the only way to change one is to declare the row again.
+ * These four are built from `label` and hold their reading, their chosen
+ * entry or their summary in `text`. `label` used to be part of their
+ * DECLARATION IDENTITY, because the host's patch path had no arm for it and
+ * the only way to change one was to declare the row again -- so renaming a
+ * key/value row cost a page rebuild, which is a flash with the scroll thrown
+ * away and every retained custom run on the page retired. The host has
+ * `set_label` now, so a rename is a setter and the identity is just (key,
+ * kind).
  */
 static bool
-panel_label_is_identity(enum PorcelainRowKind kind)
+panel_kind_has_label(enum PorcelainRowKind kind)
 {
     return kind == PORCELAIN_ROW_KEY_VALUE || kind == PORCELAIN_ROW_TOGGLE ||
            kind == PORCELAIN_ROW_SELECT || kind == PORCELAIN_ROW_ACTION_ROW;
@@ -100,13 +112,19 @@ panel_node_kind(enum PorcelainRowKind kind)
 /* Hashing                                                                  */
 /* ------------------------------------------------------------------------ */
 
+/*
+ * (key, kind). Nothing else.
+ *
+ * The label was in here until the host grew a patch arm for it, and that is
+ * the whole of what the row model's declaration identity is now: the ordered
+ * sequence of these IS the declaration, and every difference that is not one
+ * of these is a setter on the row it names.
+ */
 static uint64_t
 panel_identity_hash(struct PorcelainNormalRow const* row)
 {
     uint64_t hash = Porcelain_HashString(0, row->key.text);
     hash = Porcelain_HashBytes(hash, &row->kind, sizeof(row->kind));
-    if( panel_label_is_identity(row->kind) )
-        hash = Porcelain_HashString(hash, row->label);
     return hash;
 }
 
@@ -144,6 +162,7 @@ static uint64_t
 panel_property_hash(struct PorcelainNormalRow const* row)
 {
     uint64_t hash = Porcelain_HashBytes(0, &row->text_hash, sizeof(row->text_hash));
+    hash = Porcelain_HashBytes(hash, &row->label_hash, sizeof(row->label_hash));
     hash = Porcelain_HashBytes(hash, &row->options_hash, sizeof(row->options_hash));
     hash = Porcelain_HashBytes(hash, &row->pushed_value, sizeof(row->pushed_value));
     hash = Porcelain_HashBytes(hash, &row->height, sizeof(row->height));
@@ -177,10 +196,17 @@ panel_of_describe(struct ToriRS_PorcelainDescribe* describe)
 /**
  * Refuse this describe run's rows and keep the last good declaration.
  *
- * Half a description is the flicker class: the page would lose the rows the
+ * ONLY for a CAPACITY overrun -- a full row table, an exhausted option pool.
+ * There, every row after the one that overran is dropped too, so what would
+ * reach the host is half a description: the page would lose the rows the
  * overrun cut, the sequence would differ, and the reconciler would call that
  * a rebuild. So an overrun leaves the applied declaration exactly as it was,
  * and says so once.
+ *
+ * A row the LAYER refused -- an over-long string, a duplicate key, an option
+ * with no stable value -- is not that, and must not come here. @see
+ * panel_refuse_row: the rest of the description is intact, and discarding it
+ * meant one bad provider id blanked an entire settings page.
  */
 static void
 panel_poison(struct Porcelain* porcelain, int result, char const* detail)
@@ -192,31 +218,56 @@ panel_poison(struct Porcelain* porcelain, int result, char const* detail)
 }
 
 /**
+ * Drop ONE row and tell the plugin which. The description stands.
+ *
+ * The row being built is at panel->rows[panel->row_count] and has not been
+ * counted yet, so dropping it is a matter of not counting it -- but its
+ * options are already in the shared pool, and leaving them there would make
+ * every later row's option_first wrong by however many this one wrote. The
+ * pool is rewound to where the row started, which is why option_first is
+ * assigned before the first string is copied rather than after.
+ */
+static void
+panel_refuse_row(struct Porcelain* porcelain, struct PorcelainNormalRow const* row,
+                 char const* detail)
+{
+    struct PorcelainPanel* panel;
+
+    assert(porcelain);
+    assert(porcelain->panel);
+    assert(row);
+    assert(detail);
+    panel = porcelain->panel;
+    panel->option_count = row->option_first;
+    panel->counters.dropped_rows++;
+    Porcelain_RecordFinding(porcelain, "row", PORCELAIN_EL(NONE), PORCELAIN_FINDING_REFUSED,
+                            detail);
+}
+
+/**
  * Copy a borrowed string, or refuse the row if it does not fit.
  *
  * Never truncates. A truncated stable value names a different option and
  * reads back as though the person had picked it; a truncated key aliases
  * another row's identity. Both are the silent-wrong-answer class, so the
  * ceiling is a refusal with a finding and not a memcpy with a shorter length.
+ *
+ * The refusal is the CALLER's to act on, because only the caller knows which
+ * row is being built and therefore what has to be rewound. This used to
+ * poison the whole run from in here.
  */
 static bool
-panel_copy_or_refuse(struct Porcelain* porcelain, char* destination, size_t capacity,
-                     char const* source, char const* what)
+panel_copy_or_refuse(char* destination, size_t capacity, char const* source)
 {
-    assert(porcelain);
     assert(destination);
     assert(capacity > 0);
-    assert(what);
     if( !source )
     {
         destination[0] = '\0';
         return true;
     }
     if( strlen(source) >= capacity )
-    {
-        panel_poison(porcelain, PORCELAIN_FINDING_REFUSED, what);
         return false;
-    }
     memcpy(destination, source, strlen(source) + 1);
     return true;
 }
@@ -245,25 +296,37 @@ Porcelain_Row(struct ToriRS_PorcelainDescribe* describe, struct PorcelainRow con
         return;
     if( panel->row_count >= PORCELAIN_ROWS_MAX )
     {
+        /* A CAPACITY overrun: every row after this one is lost too, so what
+         * would reach the host is half a description. @see panel_poison. */
         panel_poison(porcelain, PORCELAIN_FINDING_BUDGET, row->key);
         return;
     }
+
+    normal = &panel->rows[panel->row_count];
+    memset(normal, 0, sizeof(*normal));
+    /* FIRST, before a single string is copied, because every refusal below
+     * rewinds the option pool to it. @see panel_refuse_row. */
+    normal->option_first = panel->option_count;
+    normal->option_count = 0;
+
     for( int i = 0; i < panel->row_count; i++ )
         if( strcmp(panel->rows[i].key.text, row->key) == 0 )
         {
             /* Two rows under one key: the host's declaration is idempotent on
              * a repeated id, so the second would vanish and every setter
-             * aimed at it would land on the first. */
-            panel_poison(porcelain, PORCELAIN_FINDING_REFUSED, row->key);
+             * aimed at it would land on the first. Dropping the second is what
+             * the host would do anyway; discarding the PAGE for it was the
+             * layer punishing every other row for one bad key. */
+            panel_refuse_row(porcelain, normal, row->key);
             return;
         }
 
-    normal = &panel->rows[panel->row_count];
-    memset(normal, 0, sizeof(*normal));
     /* The HOST's ceiling, which is narrower than Porcelain's own key. */
-    if( !panel_copy_or_refuse(porcelain, normal->key.text, PORCELAIN_ROW_KEY_MAX, row->key,
-                              row->key) )
+    if( !panel_copy_or_refuse(normal->key.text, PORCELAIN_ROW_KEY_MAX, row->key) )
+    {
+        panel_refuse_row(porcelain, normal, row->key);
         return;
+    }
     normal->kind = row->kind;
     normal->value = row->value;
     normal->height = row->height;
@@ -271,6 +334,7 @@ Porcelain_Row(struct ToriRS_PorcelainDescribe* describe, struct PorcelainRow con
     normal->hit_key = row->hit_key;
     normal->paint_key = row->paint_key;
     normal->on_action = row->on_action;
+    normal->on_menu = row->on_menu;
     normal->paint = row->paint;
     normal->user = row->user;
 
@@ -282,22 +346,22 @@ Porcelain_Row(struct ToriRS_PorcelainDescribe* describe, struct PorcelainRow con
     if( panel_text_carries_the_string(row->kind) )
     {
         string = row->text && row->text[0] ? row->text : row->label;
-        if( !panel_copy_or_refuse(porcelain, normal->text, sizeof(normal->text), string,
-                                  row->key) )
+        if( !panel_copy_or_refuse(normal->text, sizeof(normal->text), string) )
+        {
+            panel_refuse_row(porcelain, normal, row->key);
             return;
+        }
     }
     else
     {
-        if( !panel_copy_or_refuse(porcelain, normal->label, sizeof(normal->label), row->label,
-                                  row->key) )
+        if( !panel_copy_or_refuse(normal->label, sizeof(normal->label), row->label) ||
+            !panel_copy_or_refuse(normal->text, sizeof(normal->text), row->text) )
+        {
+            panel_refuse_row(porcelain, normal, row->key);
             return;
-        if( !panel_copy_or_refuse(porcelain, normal->text, sizeof(normal->text), row->text,
-                                  row->key) )
-            return;
+        }
     }
 
-    normal->option_first = panel->option_count;
-    normal->option_count = 0;
     for( int i = 0; i < row->option_count; i++ )
     {
         struct ToriRS_SelectOption const* wanted = &row->options[i];
@@ -305,33 +369,31 @@ Porcelain_Row(struct ToriRS_PorcelainDescribe* describe, struct PorcelainRow con
 
         if( panel->option_count >= PORCELAIN_ROW_OPTIONS_MAX )
         {
+            /* The shared pool, not this row's own ceiling: the rows after
+             * this one have nowhere to put their options either. */
             panel_poison(porcelain, PORCELAIN_FINDING_BUDGET, row->key);
-            return;
-        }
-        /* The host refuses an option with no stable value, and a row that
-         * silently lost one of its choices is a row whose selection moved. */
-        if( !wanted->value || !wanted->value[0] || !wanted->label )
-        {
-            panel_poison(porcelain, PORCELAIN_FINDING_REFUSED, row->key);
             return;
         }
         option = &panel->options[panel->option_count];
         memset(option, 0, sizeof(*option));
-        if( !panel_copy_or_refuse(porcelain, option->value, sizeof(option->value), wanted->value,
-                                  row->key) )
+        /* The host refuses an option with no stable value, and a row that
+         * silently lost one of its choices is a row whose selection moved --
+         * so the ROW goes, and the page it was on does not. */
+        if( !wanted->value || !wanted->value[0] || !wanted->label ||
+            !panel_copy_or_refuse(option->value, sizeof(option->value), wanted->value) ||
+            !panel_copy_or_refuse(option->label, sizeof(option->label), wanted->label) ||
+            !panel_copy_or_refuse(option->detail, sizeof(option->detail), wanted->detail) )
+        {
+            panel_refuse_row(porcelain, normal, row->key);
             return;
-        if( !panel_copy_or_refuse(porcelain, option->label, sizeof(option->label), wanted->label,
-                                  row->key) )
-            return;
-        if( !panel_copy_or_refuse(porcelain, option->detail, sizeof(option->detail),
-                                  wanted->detail, row->key) )
-            return;
+        }
         option->enabled = wanted->enabled;
         panel->option_count++;
         normal->option_count++;
     }
 
     normal->text_hash = Porcelain_HashString(0, normal->text);
+    normal->label_hash = Porcelain_HashString(0, normal->label);
     normal->options_hash = panel_options_hash(panel, normal);
     normal->pushed_value = panel_pushed_value(normal);
     normal->identity = panel_identity_hash(normal);
@@ -367,6 +429,113 @@ Porcelain_Reidentify(struct ToriRS_PorcelainDescribe* describe, char const* key)
      */
     Porcelain_RecordFinding(porcelain, "reidentify", PORCELAIN_EL(NONE),
                             PORCELAIN_FINDING_REFUSED, key);
+}
+
+/**
+ * Say one row again, because the HOST moved it and the description did not.
+ *
+ * This is the one drift the reconciler cannot see. The host commits a result
+ * to its widget model and bumps its model revision BEFORE it dispatches the
+ * action, so a plugin that REFUSES a pick the host accepted is looking at a
+ * control which already shows the value nobody could honour -- while its own
+ * description, which is the thing the reconciler diffs, has not moved at all.
+ * Every hash matches, no setter fires, and the row keeps showing a choice
+ * that was never saved.
+ *
+ * The two verbs that existed are both the wrong instrument:
+ * Porcelain_Invalidate says it by rebuilding the whole page, which is the
+ * flash this family exists to remove, and Porcelain_Reidentify mints a fresh
+ * serial and leaves the wrong value in place.
+ *
+ * It is worth being clear about why most rows never need this, because the
+ * difference IS the design. A feature pick writes to CONFIG, and config is an
+ * INPUT to the layer: the next describe reads the value back, sees the
+ * refusal, and describes the row differently, so the description genuinely
+ * moves and the ordinary per-property compare carries it. A refusal that
+ * writes nothing anywhere moves no input, and there is nothing for a describe
+ * to notice. So this verb is not "push the row again" -- it is "the host's
+ * copy of this row is not what I last described, and my description is the
+ * one that is right".
+ *
+ * Callable from anywhere, and an action handler is where it belongs, because
+ * that is the frame that KNOWS a refusal happened. It costs the whole of that
+ * kind's setters at the next reconcile and nothing else: no rebuild, no
+ * serial, no scroll, no retired custom run.
+ *
+ * A key the HOST does not hold is a finding and not an assert, for the same
+ * reason Porcelain_Reidentify's is: a page rebuilt between the action and the
+ * next fence legitimately holds no such row, and aborting there would kill a
+ * plugin for the host's timing.
+ */
+void
+Porcelain_Restate(struct Porcelain* porcelain, char const* key)
+{
+    struct PorcelainPanel* panel;
+
+    assert(porcelain);
+    assert(porcelain->used);
+    assert(key);
+    assert(key[0]);
+    /* A restate from a plugin that never registered a pane is a plugin that
+     * believes it has a page. @see Porcelain_Row's own assert. */
+    assert(porcelain->panel);
+
+    panel = porcelain->panel;
+    for( int i = 0; i < panel->declared_count; i++ )
+        if( strcmp(panel->declared[i].key.text, key) == 0 )
+        {
+            panel->declared[i].restate = true;
+            /*
+             * The row reconciler runs inside the element reconcile, which the
+             * fence runs only when an input moved -- and a refusal that wrote
+             * nothing moved none, which is the whole reason this verb exists.
+             * So say one moved. It costs a describe, which is pure, and NOT a
+             * page: the row sequence is unchanged, so the reconcile below
+             * takes the setter arm and this one row's setters are all that
+             * fire.
+             */
+            Porcelain_Invalidate(porcelain);
+            return;
+        }
+    Porcelain_RecordFinding(porcelain, "restate", PORCELAIN_EL(NONE),
+                            PORCELAIN_FINDING_REFUSED, key);
+}
+
+/**
+ * Where the page is scrolled to, or -1 when no page of ours is up.
+ *
+ * -1 and not 0, because 0 IS an answer -- the top -- and a plugin that could
+ * not tell it from "there is no page" would restore a place nobody took.
+ */
+int
+Porcelain_PanelScroll(struct Porcelain* porcelain)
+{
+    assert(porcelain);
+    assert(porcelain->used);
+    assert(porcelain->panel);
+    porcelain->counters.engine_calls++;
+    return porcelain->api->panel.scroll(porcelain->api);
+}
+
+/**
+ * Put the reader somewhere. Clamped by the presenter's next layout.
+ *
+ * The host already carries the place across the one legitimate rebuild by
+ * itself, so this is for MOVING it -- scrolling a row that has just arrived
+ * into view -- which is a different intent and a rarer one.
+ */
+void
+Porcelain_PanelScrollTo(struct Porcelain* porcelain, int scroll)
+{
+    assert(porcelain);
+    assert(porcelain->used);
+    assert(porcelain->panel);
+    porcelain->counters.engine_calls++;
+    if( porcelain->api->panel.scroll_to(porcelain->api, scroll) != TORIRS_RESULT_OK )
+        /* No page of ours is up. Not an assert: the page can close between the
+         * frame that decided to scroll and the one that says so. */
+        Porcelain_RecordFinding(porcelain, "scroll_to", PORCELAIN_EL(NONE),
+                                PORCELAIN_FINDING_REFUSED, porcelain->plugin_id);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -513,6 +682,7 @@ panel_record_declaration(struct PorcelainPanel* panel)
         declared->hit_key = panel->rows[i].hit_key;
         declared->paint_key = panel->rows[i].paint_key;
         declared->text_hash = panel->rows[i].text_hash;
+        declared->label_hash = panel->rows[i].label_hash;
         declared->options_hash = panel->rows[i].options_hash;
         declared->pushed_value = panel->rows[i].pushed_value;
         declared->height = panel->rows[i].height;
@@ -647,6 +817,14 @@ panel_apply_options(struct Porcelain* porcelain, struct PorcelainNormalRow const
 }
 
 static void
+panel_apply_label(struct Porcelain* porcelain, struct PorcelainNormalRow const* row)
+{
+    struct ToriRS_Api* api = porcelain->api;
+    panel_note_result(porcelain, "set_label", row->key.text,
+                      api->panel.set_label(api, row->key.text, row->label));
+}
+
+static void
 panel_apply_height(struct Porcelain* porcelain, struct PorcelainNormalRow const* row)
 {
     struct ToriRS_Api* api = porcelain->api;
@@ -664,12 +842,24 @@ panel_apply_height(struct Porcelain* porcelain, struct PorcelainNormalRow const*
  */
 static void
 panel_apply_properties(struct Porcelain* porcelain, struct PorcelainNormalRow const* row,
-                       struct PorcelainDeclaredRow const* have)
+                       struct PorcelainDeclaredRow const* have, bool force)
 {
-    bool const text_moved = row->text_hash != have->text_hash;
-    bool const value_moved = row->pushed_value != have->pushed_value;
+    /*
+     * `force` is a restate: the host's copy of this row moved without the
+     * description moving, so every per-property compare below would match and
+     * push nothing, which is the exact shape of the defect Porcelain_Restate
+     * exists to fix. A restate therefore states the whole kind, unconditionally.
+     */
+    bool const text_moved = force || row->text_hash != have->text_hash;
+    bool const value_moved = force || row->pushed_value != have->pushed_value;
 
     porcelain->panel->counters.row_applies++;
+    /* The NAME, on the four kinds that carry one, and separately from every
+     * value below: a key/value row whose reading moved must not also restate
+     * its key, which is a call that says nothing on the path this family
+     * exists to keep free. */
+    if( panel_kind_has_label(row->kind) && (force || row->label_hash != have->label_hash) )
+        panel_apply_label(porcelain, row);
     switch( row->kind )
     {
     case PORCELAIN_ROW_HEADING:
@@ -703,7 +893,7 @@ panel_apply_properties(struct Porcelain* porcelain, struct PorcelainNormalRow co
             panel_apply_options(porcelain, row);
         break;
     case PORCELAIN_ROW_CUSTOM:
-        if( row->height != have->height )
+        if( force || row->height != have->height )
             panel_apply_height(porcelain, row);
         break;
     case PORCELAIN_ROW_SEPARATOR:
@@ -814,12 +1004,20 @@ Porcelain_PanelReconcile(struct Porcelain* porcelain)
             have->paint_key = wanted->paint_key;
         }
         /* One 64-bit compare, and nothing else. Not "every per-field compare
-         * happened to match" -- the row_applies counter tells the two apart. */
-        if( wanted->properties == have->properties )
+         * happened to match" -- the row_applies counter tells the two apart.
+         * A restate is the one thing that gets past an equal hash, because an
+         * equal hash is exactly its symptom. @see Porcelain_Restate. */
+        if( wanted->properties == have->properties && !have->restate )
             continue;
-        panel_apply_properties(porcelain, wanted, have);
+        panel_apply_properties(porcelain, wanted, have, have->restate);
+        if( have->restate )
+        {
+            have->restate = false;
+            panel->counters.restates++;
+        }
         have->properties = wanted->properties;
         have->text_hash = wanted->text_hash;
+        have->label_hash = wanted->label_hash;
         have->options_hash = wanted->options_hash;
         have->pushed_value = wanted->pushed_value;
         have->height = wanted->height;
@@ -844,6 +1042,7 @@ Porcelain_PanelAction(struct Porcelain* porcelain, struct ToriRS_PanelActionEven
 {
     struct PorcelainNormalRow const* row;
     struct PorcelainRowAction action;
+    PorcelainRowActionFn handler;
 
     assert(porcelain);
     assert(porcelain->used);
@@ -861,7 +1060,17 @@ Porcelain_PanelAction(struct Porcelain* porcelain, struct ToriRS_PanelActionEven
      */
     if( !row )
         return false;
-    if( !row->on_action )
+    /*
+     * A secondary click is its OWN callback and never falls through to
+     * on_action. A row written before this channel existed handles only
+     * clicks, and handing it a right click as though it were one would make
+     * every such row do the wrong thing at once -- which is the failure a
+     * kind-flag on a shared callback guarantees and a separate slot cannot
+     * have. A row with no on_menu declines it; the click is already swallowed
+     * by the presenter, so nothing under the page sees it either way.
+     */
+    handler = event->action == TORIRS_PANEL_ACTION_MENU ? row->on_menu : row->on_action;
+    if( !handler )
         return true;
 
     memset(&action, 0, sizeof(action));
@@ -872,7 +1081,7 @@ Porcelain_PanelAction(struct Porcelain* porcelain, struct ToriRS_PanelActionEven
     action.x = event->x;
     action.y = event->y;
     porcelain->panel->counters.actions++;
-    row->on_action(porcelain->api, row->user, &action);
+    handler(porcelain->api, row->user, &action);
     return true;
 }
 

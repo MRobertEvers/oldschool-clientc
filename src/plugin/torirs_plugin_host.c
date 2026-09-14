@@ -560,6 +560,19 @@ struct ToriRS_PluginHost
     int panel_size_class;
     bool panel_visible;
     bool panel_game_visible;
+    /*
+     * The reader's place in the active page, and a plugin's request to move it.
+     *
+     * Two numbers and not one because they travel in opposite directions and
+     * at different moments: the presenter publishes where the page IS with the
+     * rest of its layout facts, and a plugin asks for where it should GO,
+     * which the presenter picks up on its next sync and clamps against a page
+     * it may not have laid out yet. Collapsing them into one field would make
+     * a publish silently cancel a request made in the same frame.
+     */
+    int panel_scroll;
+    int panel_scroll_wanted;
+    bool panel_scroll_request;
 
     bool config_dirty;
 };
@@ -3375,6 +3388,49 @@ api_panel_set_text(
     return true;
 }
 
+/**
+ * Which kinds are BUILT from `label`, and so can have one patched.
+ *
+ * The four here carry a name and a value as two separate strings. Every other
+ * kind's single string already travels as `text`, and accepting a label for
+ * one of those would give it two spellings -- so a later set_text would
+ * revert a rename with nothing to say it had happened.
+ */
+static bool
+plugin_panel_kind_has_label(int kind)
+{
+    return kind == TORIRS_PANEL_WIDGET_KEY_VALUE ||
+           kind == TORIRS_PANEL_WIDGET_CHECKBOX ||
+           kind == TORIRS_PANEL_WIDGET_TOGGLE ||
+           kind == TORIRS_PANEL_WIDGET_DROPDOWN ||
+           kind == TORIRS_PANEL_WIDGET_ACTION_ROW;
+}
+
+static bool
+api_panel_set_label(
+    struct PluginContext* ctx,
+    char const* id,
+    char const* label)
+{
+    struct ToriRS_PanelWidget* widget;
+    char const* next = label ? label : "";
+    int slot;
+
+    assert(ctx);
+    if( !plugin_panel_mutable(ctx, id, &slot) )
+        return false;
+    widget = &ctx->host->panel_widgets[slot];
+    if( !plugin_panel_kind_has_label(widget->kind) )
+        return false;
+    if( !plugin_copy_str_would_change(widget->label, sizeof(widget->label), next) )
+        return true;
+    plugin_copy_str(widget->label, sizeof(widget->label), next);
+    plugin_panel_bump(&ctx->host->panel_model_revision);
+    plugin_panel_change_widget(
+        ctx->host, slot, TORIRS_PLUGIN_PANEL_CHANGE_LABEL);
+    return true;
+}
+
 static bool
 api_panel_set_value(
     struct PluginContext* ctx,
@@ -3478,6 +3534,35 @@ api_panel_reidentify(
     plugin_panel_bump(&ctx->host->panel_model_revision);
     plugin_panel_change_widget(
         ctx->host, slot, TORIRS_PLUGIN_PANEL_CHANGE_IDENTITY);
+    return true;
+}
+
+/**
+ * Where the active page is scrolled to, or -1 when none of ours is up.
+ *
+ * -1 and not 0, because 0 is a legitimate answer -- the top of the page -- and
+ * a plugin that could not tell "at the top" from "there is no page" would
+ * restore a place that was never taken.
+ */
+static int
+api_panel_scroll(struct PluginContext* ctx)
+{
+    assert(ctx);
+    if( ctx->host->panel_active != ctx->index || !ctx->host->panel_visible )
+        return -1;
+    return ctx->host->panel_scroll;
+}
+
+static bool
+api_panel_scroll_to(struct PluginContext* ctx, int scroll)
+{
+    assert(ctx);
+    if( ctx->host->panel_active != ctx->index || !ctx->host->panel_visible )
+        return false;
+    if( scroll < 0 )
+        scroll = 0;
+    ctx->host->panel_scroll_wanted = scroll;
+    ctx->host->panel_scroll_request = true;
     return true;
 }
 
@@ -8268,6 +8353,48 @@ PluginHost_PanelLayout(
     return 1;
 }
 
+/*
+ * The scroll, on its own and not with the layout facts above.
+ *
+ * PanelLayout early-returns when nothing in it moved, and it is RIGHT to: it
+ * dispatches a callback, and a page whose allocation did not change must not
+ * wake every plugin every frame. The scroll moves under a finger on frames
+ * where none of those facts do, so riding it in there would either be dropped
+ * by that early-out or destroy it -- and it raises no event, because where the
+ * page is scrolled is a thing a plugin ASKS, not a thing it is told.
+ */
+void
+PluginHost_PanelSetScroll(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    int scroll)
+{
+    assert(host);
+    if( selection_generation == 0 || selection_generation != host->panel_selection_generation )
+        return;
+    host->panel_scroll = scroll < 0 ? 0 : scroll;
+}
+
+int
+PluginHost_PanelTakeScrollRequest(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    int* out_scroll)
+{
+    assert(host);
+    assert(out_scroll);
+    if( !host->panel_scroll_request )
+        return 0;
+    /* Cleared whether or not it is delivered: a request authored against a
+     * page that has since been replaced names a place in a page nobody is
+     * reading, and leaving it queued would apply it to the next one. */
+    host->panel_scroll_request = false;
+    if( selection_generation == 0 || selection_generation != host->panel_selection_generation )
+        return 0;
+    *out_scroll = host->panel_scroll_wanted;
+    return 1;
+}
+
 int
 PluginHost_PanelDispatch(
     struct ToriRS_PluginHost* host,
@@ -8301,7 +8428,7 @@ PluginHost_PanelDispatch(
     slot = plugin_panel_find_serial(host, widget_serial);
     if( slot < 0 || strcmp(host->panel_widgets[slot].id, widget_id) != 0 )
         return 0;
-    if( action < TORIRS_PANEL_ACTION_ACTIVATE || action > TORIRS_PANEL_ACTION_KEY )
+    if( action < TORIRS_PANEL_ACTION_ACTIVATE || action > TORIRS_PANEL_ACTION_MENU )
         return 0;
     widget = &host->panel_widgets[slot];
     if( action >= TORIRS_PANEL_ACTION_DRAG && widget->kind != TORIRS_PANEL_WIDGET_CUSTOM )

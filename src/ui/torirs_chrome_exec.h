@@ -326,6 +326,15 @@ enum ToriRSChromeIntentKind
     TORIRS_CHROME_INTENT_CLOSE,
     /** A CUSTOM well was released: `x`/`y` are content-local logical units. */
     TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE,
+    /**
+     * A CUSTOM well was SECONDARY-clicked; `x`/`y` as above.
+     *
+     * Its own kind and not a flag on ACTIVATE, because every executor
+     * switches on this enum and a flag on a kind is a field three of them
+     * would forget to carry -- which is the same reason ACTION is not a flag
+     * on ACTIVATE. @see TORIRS_PANEL_ACTION_MENU for what a well does with it.
+     */
+    TORIRS_CHROME_INTENT_CUSTOM_MENU,
 };
 
 /*

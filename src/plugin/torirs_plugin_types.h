@@ -706,6 +706,23 @@ enum ToriRS_PanelActionKind
     TORIRS_PANEL_ACTION_SCROLL,
     /** A custom region received a key. `value` is a TORIRS_KEY_* code. */
     TORIRS_PANEL_ACTION_KEY,
+    /**
+     * A custom region was SECONDARY-clicked. `x`/`y` are its own logical
+     * coordinates, exactly as ACTIVATE carries them.
+     *
+     * A well is one control, so everything inside it is arithmetic on a
+     * coordinate -- and without this a well could be told where it was clicked
+     * but never which button did it. A plugin whose strip has per-band and
+     * per-cell operations therefore had nowhere to put them and left them as
+     * buttons standing under a selected row, which is the loot tracker's page
+     * and the one thing that blocked its port outright.
+     *
+     * It commits no result state. There is nothing in the widget model a
+     * secondary click MEANS -- no value moved, no text, no selection -- and a
+     * kind that wrote one would be inventing a semantic the presenters do not
+     * share.
+     */
+    TORIRS_PANEL_ACTION_MENU,
 };
 
 

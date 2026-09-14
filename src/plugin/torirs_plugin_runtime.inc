@@ -1426,6 +1426,38 @@ v2_panel_set_text(
                : TORIRS_RESULT_NOT_FOUND;
 }
 
+static int
+v2_panel_scroll(struct ToriRS_Api* api)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    return api_panel_scroll(runtime->context);
+}
+
+static enum ToriRS_Result
+v2_panel_scroll_to(
+    struct ToriRS_Api* api,
+    int scroll)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    return api_panel_scroll_to(runtime->context, scroll)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
+}
+
+static enum ToriRS_Result
+v2_panel_set_label(
+    struct ToriRS_Api* api,
+    char const* id,
+    char const* label)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    assert(id);
+    assert(label);
+    return api_panel_set_label(runtime->context, id, label)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
+}
+
 static enum ToriRS_Result
 v2_panel_set_value(
     struct ToriRS_Api* api,
@@ -3297,11 +3329,14 @@ v2_runtime_init(
             .invalidate = v2_panel_invalidate,
             .attention = v2_panel_attention,
             .set_text = v2_panel_set_text,
+            .set_label = v2_panel_set_label,
             .set_value = v2_panel_set_value,
             .set_height = v2_panel_set_height,
             .set_options = v2_panel_set_options,
             .redraw = v2_panel_redraw,
             .reidentify = v2_panel_reidentify,
+            .scroll = v2_panel_scroll,
+            .scroll_to = v2_panel_scroll_to,
         },
         .cache = {
             .struct_size = sizeof(runtime->api.cache),

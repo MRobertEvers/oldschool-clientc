@@ -1313,6 +1313,17 @@ struct ToriRSChrome
     int activated_action;
     /** CUSTOM activation, in plugin-local logical coordinates. */
     int activated_custom;
+    /**
+     * That CUSTOM activation was a SECONDARY click, not a primary one.
+     *
+     * Its own flag beside `activated_custom` and not a second latch, because
+     * the two are the same event with a different button and every fence the
+     * primary one carries -- same widget for press and release, the region
+     * clip, the generation and serial -- applies identically. A separate latch
+     * would let a primary and a secondary click be live at once, which is a
+     * state no pointer can be in.
+     */
+    int activated_menu;
     int activated_x;
     int activated_y;
     uint32_t activated_selection_generation;
@@ -1322,6 +1333,7 @@ struct ToriRSChrome
      *  live flag, and asking after the drain is the only order a caller has. */
     int taken_action;
     int taken_custom;
+    int taken_menu;
     int taken_x;
     int taken_y;
     uint32_t taken_selection_generation;
@@ -1666,6 +1678,30 @@ ToriRSChrome_CustomRegion(
 int
 ToriRSChrome_CustomActivate(
     struct ToriRSChrome* ui, int widget, int local_x, int local_y);
+
+/**
+ * The same, for a SECONDARY click.
+ *
+ * A CUSTOM well is ONE control, so everything inside it is arithmetic on the
+ * coordinates -- and until this existed a well could be told where it was
+ * clicked but never that the click was the other button, so a plugin whose
+ * strip has per-band and per-cell operations had nowhere to put them and left
+ * them as buttons under a selected row.
+ */
+int
+ToriRSChrome_CustomMenu(
+    struct ToriRSChrome* ui, int widget, int local_x, int local_y);
+
+/**
+ * A secondary click at a point, hit-tested like a release.
+ *
+ * Separate from ToriRSChrome_MouseUp because a secondary click has no press
+ * half here: the routing feeds only the LEFT button's press/release into this
+ * library, so there is no `press` for a right button to be matched against and
+ * requiring one would make the channel dead. Returns 1 when a well took it.
+ */
+int
+ToriRSChrome_SecondaryClick(struct ToriRSChrome* ui, int x, int y);
 
 /** Mark one widget dirty without changing its semantic value. */
 void
@@ -2084,6 +2120,26 @@ ToriRSChrome_SetLabel(struct ToriRSChrome* ui, int widget, char const* label);
 void
 ToriRSChrome_SetColor(struct ToriRSChrome* ui, int widget, uint32_t color);
 
+/**
+ * How far a panel is scrolled, in logical pixels of content past the top.
+ *
+ * Read and written rather than only written, because the number is the
+ * READER'S PLACE and the only thing that knows it is this library. A page
+ * rebuild clears the widget list, which takes the scroll back to the top with
+ * it -- so anything that legitimately re-declares a page has to carry the
+ * place across, and could not before these existed.
+ */
+int
+ToriRSChrome_PanelScroll(struct ToriRSChrome const* ui, int panel);
+
+/**
+ * Put it back. The value is NOT clamped here: the content it would be clamped
+ * against is the page that has just been thrown away, and the next Build
+ * clamps against the page that replaced it, which is the one that matters.
+ */
+void
+ToriRSChrome_PanelSetScroll(struct ToriRSChrome* ui, int panel, int scroll);
+
 void
 ToriRSChrome_SetChecked(struct ToriRSChrome* ui, int widget, int checked);
 
@@ -2182,6 +2238,16 @@ ToriRSChrome_TakeActivated(struct ToriRSChrome* ui);
  */
 int
 ToriRSChrome_ActivationWasAction(struct ToriRSChrome const* ui);
+
+/**
+ * Was the CUSTOM activation just drained a SECONDARY click?
+ *
+ * Valid immediately after ToriRSChrome_TakeActivated, exactly like
+ * ToriRSChrome_ActivationWasAction, and 0 for a primary click and for every
+ * non-custom widget.
+ */
+int
+ToriRSChrome_ActivationWasMenu(struct ToriRSChrome const* ui);
 
 /** Whether the activation just drained was a CUSTOM well and its coordinates. */
 int

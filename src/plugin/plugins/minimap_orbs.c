@@ -322,18 +322,21 @@ struct OrbsState
     /**
      * A re-create is owed, and it takes TWO fences.
      *
-     * "A key not re-described is removed" is a rule of the RECONCILE, and the
-     * reconcile runs once per fence, on the LAST describe pass. A describe
-     * that calls Porcelain_Invalidate forces a second pass inside that same
-     * fence, and it is the second pass which is reconciled -- so a run that
-     * described nothing in order to have its controls removed is discarded,
-     * the keys are still in the final scratch, and nothing is removed at all.
+     * "A key not re-described is removed" is a rule of the RECONCILE, so the
+     * wipe has to be a describe that states nothing AND reaches the reconcile.
+     * The second half used to be the hard part: Porcelain_Invalidate called
+     * from inside a describe bumped an input, the fence re-ran the describe,
+     * and it was that SECOND pass which was reconciled -- so the empty
+     * description was discarded, the keys were still in the final scratch, and
+     * nothing was removed at all. Silently. This plugin therefore split the
+     * drop across two fences: wipe without invalidating, then invalidate from
+     * outside the fence.
      *
-     * So the wipe describes nothing and does NOT invalidate: this fence
-     * reconciles the empty description and the stale controls go. The flag is
-     * consumed AFTER the fence, which invalidates for the next one, and that
-     * is where the column is created again under the parent it now belongs
-     * to. One frame without it, and correct on the other side of the switch.
+     * Porcelain defers an invalidate made inside a describe to the end of the
+     * fence now, so the description that asked is the one reconciled, and the
+     * wipe says so where it happens. The flag is still two fences, because
+     * that is a property of remove-then-create and not of the verb: the
+     * controls go this fence and come back under their new parent on the next.
      */
     bool recreate;
     /**
@@ -1437,7 +1440,17 @@ orbs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
                 state->described[i] = false;
                 state->reported_live[i] = false;
             }
+            /*
+             * Say it HERE, in the run that describes nothing.
+             *
+             * This fence reconciles the empty description and the stale
+             * controls go; the next one is asked again and creates them under
+             * the parent they now belong to. It used to have to be said after
+             * the fence instead, because the verb re-ran the describe inside
+             * this one and threw this description away. @see OrbsState::recreate.
+             */
             state->recreate = true;
+            Porcelain_Invalidate(porcelain);
             return;
         }
     }
@@ -1671,15 +1684,11 @@ orbs_frame(struct ToriRS_Api* api, void* plugin_state, struct ToriRS_FrameEvent 
     Porcelain_Fence(state->porcelain);
     Porcelain_Commit(api);
     /*
-     * AFTER the fence, never from inside the describe. @see
-     * OrbsState::recreate: invalidating from in there re-runs the describe in
-     * the same fence, and the empty description never reaches the reconcile.
+     * The wipe asks to be asked again from inside the describe that wipes,
+     * which is where it belongs and where it now works. Only the flag is
+     * cleared here. @see OrbsState::recreate.
      */
-    if( state->recreate )
-    {
-        state->recreate = false;
-        Porcelain_Invalidate(state->porcelain);
-    }
+    state->recreate = false;
     orbs_log_controls(state);
 }
 

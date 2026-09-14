@@ -1299,6 +1299,22 @@ enum ToriRS_PluginPanelChangeFlags
      * other rows all survive. @see ToriRS_PanelApi::reidentify.
      */
     TORIRS_PLUGIN_PANEL_CHANGE_IDENTITY = 1u << 4,
+    /**
+     * The row's LABEL moved -- its name, not its value.
+     *
+     * Its own flag and not TEXT, because on four kinds the two are different
+     * strings on the same row: a KEY_VALUE has a name and a value, a SELECT a
+     * caption and a chosen entry, and a TOGGLE and an ACTION_ROW a name beside
+     * their state. Folding them together would make renaming a key/value row
+     * overwrite its reading.
+     *
+     * KEY_VALUE, CHECKBOX/TOGGLE, DROPDOWN and ACTION_ROW are built from
+     * `label` and had no patch arm at all before this, so renaming one cost a
+     * page rebuild -- the last unnecessary rebuild left in the row model, and
+     * a rebuild is a flash with the scroll thrown away and every retained
+     * custom run retired.
+     */
+    TORIRS_PLUGIN_PANEL_CHANGE_LABEL = 1u << 5,
 };
 
 /**
@@ -1340,6 +1356,27 @@ PluginHost_PanelChangeVisits(struct ToriRS_PluginHost const* host);
 /** Changes on every active model mutation, including result-state changes. */
 uint32_t
 PluginHost_PanelModelRevision(struct ToriRS_PluginHost const* host);
+
+/**
+ * Publish where the active page is scrolled to, in logical pixels.
+ *
+ * Separate from PanelLayout because it moves on frames where no layout fact
+ * does, and because it raises no callback: where a page is scrolled is
+ * something a plugin asks for, not something it is woken about.
+ */
+void
+PluginHost_PanelSetScroll(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    int scroll);
+
+/** Take a plugin's pending scroll_to, if it made one for THIS selection.
+ *  Returns 1 and writes `out_scroll`; a stale request is dropped, not kept. */
+int
+PluginHost_PanelTakeScrollRequest(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    int* out_scroll);
 
 /** Publish neutral layout facts for the current selection. Returns 0 for a
  *  stale generation or invalid allocation. */

@@ -1032,7 +1032,11 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
                 s->widget_serial[intent.widget] != intent.widget_serial )
                 continue;
         }
-        if( intent.kind == TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE &&
+        /* A secondary click is fenced against the published bitmap exactly as
+         * a primary one is: the coordinates are the same coordinates, and a
+         * well that grew between the paint and the click must refuse both. */
+        if( (intent.kind == TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE ||
+             intent.kind == TORIRS_CHROME_INTENT_CUSTOM_MENU) &&
             (s->custom_panel[intent.widget] != intent.panel ||
              s->custom_generation[intent.widget] != intent.selection_generation ||
              s->custom_serial[intent.widget] != intent.widget_serial ||

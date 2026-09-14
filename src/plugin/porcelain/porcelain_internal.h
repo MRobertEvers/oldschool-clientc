@@ -371,6 +371,7 @@ struct PorcelainNormalRow
     int option_first;
     int option_count;
     PorcelainRowActionFn on_action;
+    PorcelainRowActionFn on_menu;
     PorcelainRowPaintFn paint;
     void* user;
     uint64_t identity;
@@ -379,6 +380,9 @@ struct PorcelainNormalRow
      * caption change costs a set_text and NOT also the set_value that says
      * the button is still available. */
     uint64_t text_hash;
+    /* The row's NAME, on the four kinds that have one beside their value. It
+     * was part of the identity hash until the host grew a patch arm for it. */
+    uint64_t label_hash;
     uint64_t options_hash;
     /* The int this kind actually pushes: a BUTTON's availability, a TOGGLE's
      * checked state, a PROGRESS bar. */
@@ -402,9 +406,19 @@ struct PorcelainDeclaredRow
     uint64_t hit_key;
     uint64_t paint_key;
     uint64_t text_hash;
+    uint64_t label_hash;
     uint64_t options_hash;
     int pushed_value;
     int height;
+    /**
+     * The HOST moved this row behind the description's back.
+     *
+     * Set by Porcelain_Restate and cleared by the reconcile that honours it.
+     * It lives on the DECLARED row and not on the scratch one because that is
+     * what it is about: the plugin's description is unchanged and correct, and
+     * it is the host's copy that drifted. @see Porcelain_Restate.
+     */
+    bool restate;
 };
 
 /*
@@ -469,6 +483,15 @@ struct Porcelain
     bool ever_described;
     /** Inside a describe run: the builder verbs assert on this. */
     bool describing;
+    /**
+     * Porcelain_Invalidate was called from INSIDE a describe.
+     *
+     * The bump is held here until the fence is over. @see Porcelain_Invalidate
+     * for why: bumping the stamp from inside the run makes the fence re-run
+     * the describe and reconcile the SECOND pass, so the description that was
+     * being written when the plugin asked to be asked again is discarded.
+     */
+    bool invalidate_after_fence;
     /** The run counter, for image idling and watch liveness. */
     uint32_t run;
     /** Porcelain's own frame counter, stamped into findings and states. */

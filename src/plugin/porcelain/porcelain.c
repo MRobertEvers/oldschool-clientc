@@ -1812,6 +1812,32 @@ porcelain_item_target_moved(struct Porcelain const* porcelain,
     return applied->target_element_stamp != porcelain->stamp[PORCELAIN_INPUT_ELEMENT];
 }
 
+/**
+ * Does this control still exist?
+ *
+ * There is no verb that asks -- so this asks the cheapest read there is and
+ * reads only the RESULT: a ref whose node the engine has freed answers
+ * STALE_REFERENCE from every entry point, which is how the two shipped Lua
+ * op tables already detect a retired control. The visibility itself is
+ * discarded.
+ *
+ * Asked ONLY where the target moved and the parent did not, which is the one
+ * case that can be wrong: everywhere else either the control was just created,
+ * or the parent changed and it is being re-made anyway, or nothing about the
+ * tree moved at all. Asking unconditionally would be one engine call per item
+ * per reconcile for an answer that is almost always yes.
+ */
+static bool
+porcelain_item_alive(struct Porcelain* porcelain, struct PorcelainAppliedItem const* applied)
+{
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+    bool visible = false;
+
+    porcelain->counters.engine_calls++;
+    return widgets->visible(widgets->context, applied->ref, &visible) !=
+           TORIRS_CONTRACT_STALE_REFERENCE;
+}
+
 static bool
 porcelain_create_item(struct Porcelain* porcelain, struct PorcelainAppliedItem* applied,
                       struct PorcelainElementState const* target)
@@ -2271,6 +2297,37 @@ porcelain_reconcile(struct Porcelain* porcelain)
                 porcelain_remove_item(porcelain, applied);
                 applied = NULL;
             }
+            else if( !porcelain_item_alive(porcelain, applied) )
+            {
+                /*
+                 * Same parent NODE, and the control under it is gone anyway.
+                 *
+                 * A `layout` verb rebuilds the whole HUD, and the frame root
+                 * can be the SAME node on the other side of that while
+                 * everything under it -- the owned controls included -- has
+                 * been torn down. The parent compare above then says nothing
+                 * moved, the control is kept, and the setters below write to
+                 * a handle the engine has already freed: every one of them
+                 * comes back STALE_REFERENCE and files a finding the plugin
+                 * can neither prevent nor declare. That is what the seventh
+                 * gate lane was reporting against performance-display, at a
+                 * frame that moved with the readout's one-second timer --
+                 * intermittent because it needed a fence that BOTH re-applied
+                 * a property and followed the remount.
+                 *
+                 * So the existence question is asked in the same place as the
+                 * parent question, because both are about the same event, and
+                 * the answer is a re-create rather than a refusal: the layer's
+                 * promise is that a described control exists, and absorbing
+                 * this is what makes that true.
+                 */
+                porcelain->counters.recreates++;
+                if( porcelain_trace_enabled() )
+                    fprintf(stderr, "PORCELAIN_RECREATE plugin=%s key=%s frame=%u\n",
+                            porcelain->plugin_id, wanted->key.text, porcelain->frame);
+                porcelain_remove_item(porcelain, applied);
+                applied = NULL;
+            }
             else
             {
                 /* Asked and answered: do not ask again until the target moves
@@ -2576,6 +2633,16 @@ Porcelain_Fence(struct Porcelain* porcelain)
                                      porcelain_place_box(porcelain, &applied->item, &target));
         }
     }
+    /*
+     * A describe asked to be described again. The reconcile above has already
+     * taken the description that asked, which is the whole point; the bump
+     * lands here so the NEXT fence re-runs it. @see Porcelain_Invalidate.
+     */
+    if( porcelain->invalidate_after_fence )
+    {
+        porcelain->invalidate_after_fence = false;
+        Porcelain_Note(porcelain, PORCELAIN_INPUT_EXPLICIT);
+    }
     porcelain_mark_epoch(porcelain);
 }
 
@@ -2807,9 +2874,42 @@ Porcelain_Note(struct Porcelain* porcelain, enum PorcelainInput input)
     porcelain->stamp[input]++;
 }
 
+/**
+ * Ask for a fresh description at the NEXT fence.
+ *
+ * Called from outside a describe, that is one stamp bump and nothing else.
+ *
+ * Called from INSIDE one it used to be the same bump, and the bump was read
+ * by the fence's own two-pass loop: the inputs had moved, so the describe ran
+ * a second time and it was the SECOND pass's scratch that reached the
+ * reconcile. The description being written when the plugin asked to be asked
+ * again was therefore thrown away -- silently, and with no counter, finding or
+ * assert to say so. A describe that stated nothing in order to have its
+ * controls removed removed nothing at all, because the keys were still in the
+ * final scratch; that cost the minimap-orbs port a regression that reached
+ * the integration branch, and the plugin had to span its drop across two
+ * fences and explain why in a comment.
+ *
+ * So the bump is DEFERRED to the end of the fence. The description the plugin
+ * was writing is the one that is reconciled -- which is what "invalidate"
+ * plainly reads as -- and the re-describe happens at the next fence.
+ *
+ * The two-pass loop is untouched, because it is not for this: it exists so a
+ * watch that binds synchronously inside a describe (an ELEMENT or ASSET stamp
+ * moved by the engine DURING the run that meant to consume it) is consumed in
+ * the same fence rather than re-describing for ever. Those bumps are the
+ * engine answering a question the run asked; this one is the plugin stating
+ * an intent about the NEXT run, and conflating them is what made it silent.
+ */
 void
 Porcelain_Invalidate(struct Porcelain* porcelain)
 {
+    assert(porcelain);
+    if( porcelain->describing )
+    {
+        porcelain->invalidate_after_fence = true;
+        return;
+    }
     Porcelain_Note(porcelain, PORCELAIN_INPUT_EXPLICIT);
 }
 
@@ -2895,6 +2995,9 @@ static struct ToriRS_PorcelainApi const PORCELAIN_TABLE = {
     .panel_action = Porcelain_PanelAction,
     .panel_draw = Porcelain_PanelDraw,
     .setting_value = Porcelain_SettingValue,
+    .panel_restate = Porcelain_Restate,
+    .panel_scroll = Porcelain_PanelScroll,
+    .panel_scroll_to = Porcelain_PanelScrollTo,
     /* round three */
     .hull = Porcelain_Hull,
     .tile = Porcelain_Tile,

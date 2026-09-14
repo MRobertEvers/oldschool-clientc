@@ -1210,6 +1210,18 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
         ui->activated_widget_serial = intent->widget_serial;
         return 1;
 
+    case TORIRS_CHROME_INTENT_CUSTOM_MENU:
+        /* The same fences as above, and deliberately the same order: the
+         * generation and serial are stamped AFTER the latch, because the latch
+         * zeroes them and a presentation's own identity must outrank the
+         * library's default of "this frame". */
+        if( !ToriRSChrome_CustomMenu(
+                ui, intent->widget, intent->x, intent->y) )
+            return 0;
+        ui->activated_selection_generation = intent->selection_generation;
+        ui->activated_widget_serial = intent->widget_serial;
+        return 1;
+
     default:
         return 0;
     }

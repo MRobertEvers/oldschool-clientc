@@ -110,10 +110,12 @@ struct TestbedPanelRow
     int value;
     int height;
     int option_count;
-    char option_value[16][96];
-    char option_label[16][96];
+    /* At PORCELAIN_OPTION_*_MAX, which is the HOST's own ceiling: a fake
+     * narrower than the real thing turns a legal string into a test failure. */
+    char option_value[16][192];
+    char option_label[16][192];
     bool option_enabled[16];
-    char selected[96];
+    char selected[192];
     uint32_t serial;
     int declared;
 };
@@ -150,6 +152,10 @@ struct Testbed
      * keep at zero for anything short of a changed row SET. */
     int panel_invalidates;
     uint32_t panel_next_serial;
+    /** Where the fake page is scrolled to, for the scroll verbs. */
+    int panel_scroll;
+    /** No page of this plugin's is up: panel.scroll answers -1. */
+    bool panel_no_page;
     /* The view the last Testbed_PanelBuild drove. */
     int panel_view;
     /* A setter naming an id the model does not hold. The host answers those
@@ -286,6 +292,18 @@ int Testbed_LogCountWith(char const* prefix);
 int Testbed_LogFind(char const* prefix);
 void Testbed_PrintLog(void);
 
+/**
+ * Free every owned control the way a root rebuild does: the controls go, the
+ * element they hung under stays bound, and its parent ref does not change.
+ *
+ * That combination is the whole point of the seam and the reason the layer's
+ * parent compare was not enough -- a `layout` verb can rebuild everything
+ * under a frame root that is still the same node. Nothing tells the plugin,
+ * because no verb asks whether an owned control still exists; every setter
+ * aimed at one afterwards answers STALE_REFERENCE.
+ */
+void Testbed_DestroyOwnedControls(void);
+
 struct TestbedControl* Testbed_Control(char const* key);
 int Testbed_LiveControls(void);
 /** Subscriptions the host still holds. A re-spelled element must not grow it. */
@@ -295,6 +313,18 @@ int Testbed_LiveWatches(void);
 
 /** Drive one on_ui_build for `view`, as the host's page selection does. */
 void Testbed_PanelBuild(struct Porcelain* porcelain, int view);
+/**
+ * Move the HOST's copy of one SELECT's chosen value, behind the layer's back.
+ *
+ * Which is exactly what the host does before it dispatches a pick: it commits
+ * the result to its own widget model and only then tells the plugin, so a
+ * plugin that refuses is looking at a control already showing the value.
+ * Nothing about the plugin's description moved, which is why the reconciler
+ * cannot see it and why Porcelain_Restate has to exist.
+ */
+void Testbed_PanelSetSelected(char const* id, char const* value);
+/** No page of this plugin's is up: the scroll verbs answer accordingly. */
+void Testbed_SetPanelAbsent(bool absent);
 /** Drive one on_ui_action. */
 bool Testbed_PanelAction(struct Porcelain* porcelain, char const* id, int action, int value,
                          char const* text);

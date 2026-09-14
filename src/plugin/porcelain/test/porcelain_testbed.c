@@ -359,6 +359,40 @@ Testbed_Control(char const* key)
     return NULL;
 }
 
+void
+Testbed_PanelSetSelected(char const* id, char const* value)
+{
+    assert(id);
+    assert(value);
+    for( int i = 0; i < g_testbed.panel_row_count; i++ )
+        if( strcmp(g_testbed.panel_rows[i].id, id) == 0 )
+        {
+            snprintf(g_testbed.panel_rows[i].selected,
+                     sizeof(g_testbed.panel_rows[i].selected), "%s", value);
+            return;
+        }
+}
+
+void
+Testbed_SetPanelAbsent(bool absent)
+{
+    g_testbed.panel_no_page = absent;
+}
+
+void
+Testbed_DestroyOwnedControls(void)
+{
+    for( int i = 0; i < TESTBED_CONTROLS_MAX; i++ )
+        if( g_testbed.controls[i].live )
+        {
+            testbed_log("destroy_owned %s", g_testbed.controls[i].key);
+            /* Forgotten outright, not marked hidden: the ref has to stop
+             * RESOLVING, which is what makes every setter aimed at it answer
+             * STALE_REFERENCE the way the engine does. */
+            memset(&g_testbed.controls[i], 0, sizeof(g_testbed.controls[i]));
+        }
+}
+
 int
 Testbed_LiveControls(void)
 {
@@ -726,6 +760,35 @@ fake_set_text_outline(void* context, struct ToriRS_WidgetRef ref, bool outline)
     (void)context;
     testbed_log("set_text_outline %s %d", control ? control->key : "?", outline ? 1 : 0);
     return TORIRS_CONTRACT_OK;
+}
+
+/**
+ * The engine's cheapest read, and the one the layer asks a ref's LIVENESS
+ * with: a freed node answers STALE_REFERENCE from every entry point.
+ *
+ * A control this fake has forgotten is therefore stale, not merely invisible,
+ * which is exactly what Testbed_DestroyControl leaves behind.
+ */
+static enum ToriRS_ContractResult
+fake_widget_visible(void* context, struct ToriRS_WidgetRef ref, bool* out)
+{
+    struct TestbedControl const* control = testbed_control_by_ref(ref);
+    struct TestbedElement const* element = testbed_element_by_ref(ref);
+
+    (void)context;
+    if( control )
+    {
+        if( out )
+            *out = !control->hidden;
+        return TORIRS_CONTRACT_OK;
+    }
+    if( element )
+    {
+        if( out )
+            *out = element->presented;
+        return TORIRS_CONTRACT_OK;
+    }
+    return TORIRS_CONTRACT_STALE_REFERENCE;
 }
 
 static enum ToriRS_ContractResult
@@ -1380,6 +1443,39 @@ fake_panel_set_text(struct ToriRS_Api* api, char const* id, char const* text)
 }
 
 static enum ToriRS_Result
+fake_panel_set_label(struct ToriRS_Api* api, char const* id, char const* label)
+{
+    struct TestbedPanelRow* row;
+    (void)api;
+    assert(id);
+    testbed_log("panel_set_label %s %s", id, label ? label : "");
+    row = testbed_panel_mutable(id);
+    if( !row )
+        return TORIRS_RESULT_NOT_FOUND;
+    snprintf(row->label, sizeof(row->label), "%s", label ? label : "");
+    return TORIRS_RESULT_OK;
+}
+
+static int
+fake_panel_scroll(struct ToriRS_Api* api)
+{
+    (void)api;
+    /* -1 is "no page", which is NOT 0 -- the top of one there is. */
+    return g_testbed.panel_no_page ? -1 : g_testbed.panel_scroll;
+}
+
+static enum ToriRS_Result
+fake_panel_scroll_to(struct ToriRS_Api* api, int scroll)
+{
+    (void)api;
+    testbed_log("panel_scroll_to %d", scroll);
+    if( g_testbed.panel_no_page )
+        return TORIRS_RESULT_NOT_FOUND;
+    g_testbed.panel_scroll = scroll < 0 ? 0 : scroll;
+    return TORIRS_RESULT_OK;
+}
+
+static enum ToriRS_Result
 fake_panel_set_value(struct ToriRS_Api* api, char const* id, int value)
 {
     struct TestbedPanelRow* row;
@@ -1588,6 +1684,7 @@ Testbed_Reset(void)
     g_testbed.api.widgets.set_text_color = fake_set_text_color;
     g_testbed.api.widgets.set_text_align = fake_set_text_align;
     g_testbed.api.widgets.set_text_outline = fake_set_text_outline;
+    g_testbed.api.widgets.visible = fake_widget_visible;
     g_testbed.api.widgets.remove = fake_remove;
     g_testbed.api.widgets.reset = fake_reset;
     g_testbed.api.widgets.revalidate = fake_revalidate;
@@ -1649,11 +1746,14 @@ Testbed_Reset(void)
     g_testbed.api.panel.invalidate = fake_panel_invalidate;
     g_testbed.api.panel.attention = fake_panel_attention;
     g_testbed.api.panel.set_text = fake_panel_set_text;
+    g_testbed.api.panel.set_label = fake_panel_set_label;
     g_testbed.api.panel.set_value = fake_panel_set_value;
     g_testbed.api.panel.set_height = fake_panel_set_height;
     g_testbed.api.panel.set_options = fake_panel_set_options;
     g_testbed.api.panel.redraw = fake_panel_redraw;
     g_testbed.api.panel.reidentify = fake_panel_reidentify;
+    g_testbed.api.panel.scroll = fake_panel_scroll;
+    g_testbed.api.panel.scroll_to = fake_panel_scroll_to;
 
     g_testbed.api.porcelain = ToriRS_PorcelainApiTable();
 

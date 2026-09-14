@@ -70,6 +70,16 @@ static int g_plugin_panel_ticks;
 int g_plugin_page = -1;
 /** The page the widgets on screen were built for; a mismatch rebuilds. */
 int g_plugin_page_built = -1;
+/**
+ * The page the scroll offset belongs to.
+ *
+ * Separate from `g_plugin_page_built`, which is about the WIDGETS: the scroll
+ * survives a rebuild of the same page and must not survive a move to another
+ * one, and those two questions are answered at different moments. Carrying a
+ * place across a page change would drop the reader half way down a list they
+ * had not opened yet.
+ */
+static int g_plugin_page_scrolled = -1;
 /** Handle of the page's Back button, or -1 on the roster. It belongs to no
  *  plugin, so it is remembered here rather than tracked as a row. */
 static int g_plugin_back_widget = -1;
@@ -1087,6 +1097,12 @@ app_plugin_panel_patch_row(
     case TORIRS_PANEL_WIDGET_ERROR:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
+        /* The NAME half. A key/value row is two strings, and before this only
+         * the reading could be patched: renaming the key rebuilt the page. */
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_LABEL )
+            ToriRSChrome_SetLabel(
+                &app->plugin_ui, row->widget,
+                model->label[0] ? model->label : model->id);
         break;
     case TORIRS_PANEL_WIDGET_IMAGE:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
@@ -1117,6 +1133,10 @@ app_plugin_panel_patch_row(
             ToriRSChrome_SetChecked(
                 &app->plugin_ui, row->widget,
                 model->value ? 1 : model->checked);
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_LABEL )
+            ToriRSChrome_SetLabel(
+                &app->plugin_ui, row->widget,
+                model->label[0] ? model->label : model->id);
         break;
     case TORIRS_PANEL_WIDGET_INPUT:
     case TORIRS_PANEL_WIDGET_TEXTAREA:
@@ -1157,6 +1177,13 @@ app_plugin_panel_patch_row(
         }
         else if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
+        /* Outside the structured/legacy split above, because a dropdown's
+         * CAPTION is the same string whichever way its options are carried,
+         * and the degraded field the option pool falls back to still has one. */
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_LABEL )
+            ToriRSChrome_SetLabel(
+                &app->plugin_ui, row->widget,
+                model->label[0] ? model->label : model->id);
         break;
     case TORIRS_PANEL_WIDGET_BUTTON:
         /* A caption set through panel.set_text lands on the button: the
@@ -1186,6 +1213,10 @@ app_plugin_panel_patch_row(
     case TORIRS_PANEL_WIDGET_ACTION_ROW:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_LABEL )
+            ToriRSChrome_SetLabel(
+                &app->plugin_ui, row->widget,
+                model->label[0] ? model->label : model->id);
         break;
     case TORIRS_PANEL_WIDGET_SEPARATOR:
     default:
@@ -1353,7 +1384,28 @@ app_plugin_panel_sync(struct App* app)
      * the generation-only reset in the draw pass. */
     app_plugin_panel_overlay_reset(
         app, panel_active >= 0 ? panel_generation : 0);
-    ToriRSChrome_PanelClearWidgets(&app->plugin_ui, app->plugin_panel);
+    /*
+     * The READER'S PLACE, carried across the rebuild.
+     *
+     * ClearWidgets takes the scroll to the top with the widget list, because
+     * for a page that CHANGED that is right. But the one legitimate rebuild
+     * the row model still has -- a detail block opened, a flag list grew, a
+     * heading arrived -- re-declares the SAME page, and sending it back to the
+     * top under whoever was reading it is the last piece of the flash the
+     * reconciler exists to remove. Restored only when the page is the same
+     * page: a different plugin's page, or the roster, has no place to keep.
+     */
+    {
+        int const keep_scroll =
+            g_plugin_page == g_plugin_page_scrolled
+                ? ToriRSChrome_PanelScroll(&app->plugin_ui, app->plugin_panel)
+                : 0;
+        ToriRSChrome_PanelClearWidgets(&app->plugin_ui, app->plugin_panel);
+        /* Not clamped here: the content it would be clamped against is the
+         * page just thrown away. The next Build clamps against the new one. */
+        ToriRSChrome_PanelSetScroll(&app->plugin_ui, app->plugin_panel, keep_scroll);
+        g_plugin_page_scrolled = g_plugin_page;
+    }
     g_plugin_back_widget = -1;
     g_plugin_fullscreen_widget = -1;
 
@@ -2086,6 +2138,12 @@ app_plugin_panel_apply(struct App* app, int widget)
                      custom_generation != app->plugin_panel_built_generation) ||
                     (custom_serial != 0 && custom_serial != row->widget_serial) )
                     return;
+                /* Same event, same fences, same coordinates -- the BUTTON is
+                 * the only difference, so it is the only thing decided here.
+                 * A well is one control, and a plugin whose strip has per-band
+                 * operations had no channel for them at all before this. */
+                if( ToriRSChrome_ActivationWasMenu(&app->plugin_ui) )
+                    action = TORIRS_PANEL_ACTION_MENU;
                 break;
 
             /* Readouts have no interactive ToriRSChrome primitive. */
@@ -3784,6 +3842,24 @@ app_plugin_panel_publish_layout(struct App* app)
      * plugins to stand down from duplicate game work. */
     game_visible = !(g_plugin_fullscreen &&
                      app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER);
+    /*
+     * Where the page is scrolled to, and any request to move it.
+     *
+     * Here rather than in the sync, because this is the function that already
+     * knows the selection generation both halves are fenced on -- and the
+     * publish happens BEFORE the take so a plugin reading `scroll` inside the
+     * callback its own scroll_to came from sees the place it was, not a
+     * half-applied one.
+     */
+    {
+        int wanted = 0;
+        PluginHost_PanelSetScroll(
+            app->plugins, generation,
+            ToriRSChrome_PanelScroll(&app->plugin_ui, app->plugin_panel) / scale);
+        if( PluginHost_PanelTakeScrollRequest(app->plugins, generation, &wanted) )
+            ToriRSChrome_PanelSetScroll(
+                &app->plugin_ui, app->plugin_panel, wanted * scale);
+    }
     return PluginHost_PanelLayout(
         app->plugins,
         generation,

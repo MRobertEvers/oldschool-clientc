@@ -2613,9 +2613,9 @@ ToriRSChrome_CustomRegion(
     return 1;
 }
 
-int
-ToriRSChrome_CustomActivate(
-    struct ToriRSChrome* ui, int widget, int local_x, int local_y)
+static int
+dbg_custom_latch(
+    struct ToriRSChrome* ui, int widget, int local_x, int local_y, int secondary)
 {
     struct ToriRSChromeWidget const* w;
     int scale;
@@ -2635,11 +2635,53 @@ ToriRSChrome_CustomActivate(
     ui->activated = widget;
     ui->activated_action = 0;
     ui->activated_custom = 1;
+    /* The button, and nothing else about the event, is what these two verbs
+     * differ by -- so they are one body with a flag rather than two that
+     * would drift apart at the next bounds fix. */
+    ui->activated_menu = secondary;
     ui->activated_x = local_x;
     ui->activated_y = local_y;
     ui->activated_selection_generation = 0;
     ui->activated_widget_serial = 0;
     return 1;
+}
+
+int
+ToriRSChrome_CustomActivate(
+    struct ToriRSChrome* ui, int widget, int local_x, int local_y)
+{
+    return dbg_custom_latch(ui, widget, local_x, local_y, 0);
+}
+
+int
+ToriRSChrome_CustomMenu(
+    struct ToriRSChrome* ui, int widget, int local_x, int local_y)
+{
+    return dbg_custom_latch(ui, widget, local_x, local_y, 1);
+}
+
+int
+ToriRSChrome_SecondaryClick(struct ToriRSChrome* ui, int x, int y)
+{
+    struct ToriRSChromeRect region;
+    struct ToriRSChromeRect clip;
+    int scale;
+    int hit;
+
+    assert(ui);
+    /* A popup is modal to the pointer: a secondary click while a list or a
+     * picker is up belongs to dismissing it, not to whatever is underneath. */
+    if( ui->dropdown_open >= 0 || ui->colorpick_open >= 0 )
+        return 0;
+    hit = ToriRSChrome_HitTest(ui, x, y);
+    if( hit < 0 || ui->widgets[hit].kind != TORIRS_CHROME_W_CUSTOM )
+        return 0;
+    scale = ui->scale > 0 ? ui->scale : 1;
+    if( !ToriRSChrome_CustomRegion(ui, hit, &region, &clip) ||
+        !dbg_point_in_rect(x, y, clip) )
+        return 0;
+    return ToriRSChrome_CustomMenu(
+        ui, hit, (x - region.x) / scale, (y - region.y) / scale);
 }
 
 void
@@ -3494,6 +3536,29 @@ ToriRSChrome_SetLabel(struct ToriRSChrome* ui, int widget, char const* label)
             dbg_dirty_widget(ui, widget);
         }
     }
+}
+
+int
+ToriRSChrome_PanelScroll(struct ToriRSChrome const* ui, int panel)
+{
+    assert(ui);
+    if( panel < 0 || panel >= ui->panel_count )
+        return 0;
+    return ui->panels[panel].scroll_y;
+}
+
+void
+ToriRSChrome_PanelSetScroll(struct ToriRSChrome* ui, int panel, int scroll)
+{
+    assert(ui);
+    if( panel < 0 || panel >= ui->panel_count )
+        return;
+    if( scroll < 0 )
+        scroll = 0;
+    if( ui->panels[panel].scroll_y == scroll )
+        return;
+    ui->panels[panel].scroll_y = scroll;
+    dbg_dirty_panel(ui, panel);
 }
 
 void
@@ -8234,6 +8299,7 @@ ToriRSChrome_TakeActivated(struct ToriRSChrome* ui)
         ui->taken_custom =
             ui->activated_custom && dbg_valid_widget(ui, fired) &&
             ui->widgets[fired].kind == TORIRS_CHROME_W_CUSTOM;
+        ui->taken_menu = ui->taken_custom && ui->activated_menu;
         ui->taken_x = ui->activated_x;
         ui->taken_y = ui->activated_y;
         ui->taken_selection_generation = ui->activated_selection_generation;
@@ -8241,8 +8307,16 @@ ToriRSChrome_TakeActivated(struct ToriRSChrome* ui)
         ui->activated = -1;
         ui->activated_action = 0;
         ui->activated_custom = 0;
+        ui->activated_menu = 0;
     }
     return fired;
+}
+
+int
+ToriRSChrome_ActivationWasMenu(struct ToriRSChrome const* ui)
+{
+    assert(ui);
+    return ui->taken_menu;
 }
 
 int

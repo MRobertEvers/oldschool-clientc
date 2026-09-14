@@ -179,7 +179,7 @@ warn = nil
 
 ---@class torirs.PanelActionEvent
 ---@field id string
----@field action 'activate'|'toggle'|'text'|'pick'|'drag'|'scroll'|'key'|'unknown'
+---@field action 'activate'|'toggle'|'text'|'pick'|'drag'|'scroll'|'key'|'menu'|'unknown'
 ---@field value integer
 ---@field on boolean
 ---@field text string Stable option value for a select action, never its label.
@@ -329,6 +329,12 @@ warn = nil
 ---@field invalidate fun()
 ---@field attention fun(wanted: boolean)
 ---@field set_text fun(id: string, text: string): boolean, torirs.ResultName
+--- The row's NAME, not its value. key_value, toggle, select and action_row are
+--- built from a label and carry their value in a second string, so set_text
+--- cannot restate one -- on those four it is the reading, the chosen entry or
+--- the summary. A kind whose single string already travels as `text` refuses
+--- this rather than taking a second spelling for it.
+---@field set_label fun(id: string, label: string): boolean, torirs.ResultName
 ---@field set_value fun(id: string, value: integer|boolean): boolean, torirs.ResultName
 ---@field set_height fun(id: string, preferred_height: integer): boolean, torirs.ResultName
 ---@field set_options fun(id: string, value: string, options: torirs.SelectOption[]): boolean, torirs.ResultName
@@ -338,6 +344,12 @@ warn = nil
 --- page's row sequence did not -- a custom well whose y-to-item mapping moved.
 --- Changing only a caption or a value is set_text/set_value, not this.
 ---@field reidentify fun(id: string): boolean, torirs.ResultName
+--- The reader's place, in logical pixels of page scrolled past the top.
+--- -1 when no page of this plugin's is up, which is NOT 0 -- the top of one
+--- that is. The host carries the place across a rebuild of the same page by
+--- itself; these are for MOVING it.
+---@field scroll fun(): integer
+---@field scroll_to fun(scroll: integer): boolean, torirs.ResultName
 
 ---@class torirs.CacheApi
 ---@field frame_root fun(): integer
@@ -703,6 +715,9 @@ warn = nil
 ---@field panel_build fun(view?: 'page'|'settings') Forward on_ui_build. Declares nothing on a face the description does not cover.
 ---@field panel_action fun(event: torirs.PanelAction): boolean Forward on_ui_action. False when no described row owns the id.
 ---@field panel_draw fun(node: string): boolean Forward on_ui_draw. False when no described CUSTOM row paints it.
+---@field panel_restate fun(key: string) The HOST's copy of ONE row drifted -- a refused pick, which the host commits before it dispatches. That row's setters, and not the page.
+---@field panel_scroll fun(): integer The reader's place; -1 when no page of this plugin's is up.
+---@field panel_scroll_to fun(scroll: integer) Move it. Clamped by the presenter's next layout, never here.
 ---@field hull fun(element_id: integer, rgb: integer|string, alpha?: integer, shape?: 'bounds'|'mesh'): boolean draw.world_hull with both refusals recorded: false means nothing was drawn.
 ---@field tile fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: integer|string, outline_rgb?: integer|string, alpha?: integer): boolean draw.world_tile with its budget refusal recorded: false means the footprint was cut short.
 ---@field finding fun(verb: string, element: string|nil, result: torirs.PorcelainFindingName|integer, detail?: string) This plugin's OWN finding, in the channel Porcelain's verbs already use.
@@ -764,11 +779,12 @@ warn = nil
 --- A zeroed row is a legal, live heading, which is why the inert spelling is
 --- `disabled` rather than `enabled`.
 ---
---- `label` is DECLARATION IDENTITY for key_value, toggle, select and
---- action_row -- the host builds those from it and its patch path cannot
---- restate one -- so renaming one of those rows is a rebuild. For heading,
---- paragraph, label and button the string travels as the row's text, which IS
---- patched, so either spelling works and neither costs a rebuild.
+--- The declaration identity is (key, kind). `label` USED to be part of it for
+--- key_value, toggle, select and action_row, because the host's patch path had
+--- no arm that restated one and renaming one cost a page rebuild; panel
+--- set_label exists now, so a rename is a setter like any other property. For
+--- heading, paragraph, label and button the string travels as the row's text,
+--- so either spelling works there.
 ---@class torirs.PorcelainRow
 ---@field key string Stable identity, and the id every action and setter names.
 ---@field kind torirs.PorcelainRowKind
@@ -781,6 +797,10 @@ warn = nil
 ---@field hit_key? integer custom: the y-to-item identity. A VALUE change must not be in it.
 ---@field paint_key? integer custom: what the next paint will draw. A change to it is one redraw.
 ---@field on_action? fun(key: string, action: torirs.PanelAction)
+--- custom only: a SECONDARY click in the well, at `action.x`/`y`. Its own slot
+--- and never a fall-through from on_action -- a row that asked for clicks only
+--- must not be handed a right click as one.
+---@field on_menu? fun(key: string, action: torirs.PanelAction)
 ---@field paint? fun(key: string, draw: torirs.Graphics) custom only.
 
 ---@class torirs.PorcelainPlace

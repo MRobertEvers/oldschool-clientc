@@ -58,6 +58,23 @@
 #define CS_SCALE_ROWS 13
 #define CS_FILTER_ROWS 3
 
+/*
+ * Every string this page puts in a row option fits, by construction.
+ *
+ * Asserted here rather than tested per row, because it is a question about
+ * two constants with one answer for the life of the build. It used to be
+ * false -- the layer's option strings stopped at 96 while the host accepted
+ * 192 -- and the way it was false was a runtime drop plus a declared
+ * limitation, both of which went stale the moment the ceilings were fixed.
+ * Narrow one of these again and this stops the build instead.
+ */
+_Static_assert(TORIRS_PLUGIN_FRAME_ID_MAX <= PORCELAIN_OPTION_VALUE_MAX,
+               "a frame id must fit a row option's stable value");
+_Static_assert(TORIRS_UI_LABEL_MAX <= PORCELAIN_OPTION_LABEL_MAX,
+               "a frame title must fit a row option's label");
+_Static_assert(TORIRS_FRAME_REASON_MAX <= PORCELAIN_OPTION_DETAIL_MAX,
+               "a frame status reason must fit a row option's detail");
+
 struct CsFrameRow
 {
     char id[TORIRS_PLUGIN_FRAME_ID_MAX];
@@ -155,19 +172,21 @@ cs_frame_row(
     snprintf(row->title, sizeof(row->title), "%s", title && title[0] ? title : row->id);
     snprintf(row->label, sizeof(row->label), "%s", row->title);
     snprintf(row->detail, sizeof(row->detail), "%s", detail ? detail : "");
-    if( strlen(row->id) >= PORCELAIN_OPTION_VALUE_MAX ||
-        strlen(row->label) >= PORCELAIN_OPTION_LABEL_MAX )
-    {
-        api->core.log(
-            api,
-            "client-settings: gameframe '%s' is past the row model's %d-byte ceiling",
-            row->id,
-            PORCELAIN_OPTION_VALUE_MAX - 1);
-        memset(row, 0, sizeof(*row));
-        return;
-    }
-    if( strlen(row->detail) >= PORCELAIN_OPTION_DETAIL_MAX )
-        row->detail[0] = '\0';
+    /*
+     * No length test here any more, and the static assertions above are why.
+     *
+     * The row model's option strings used to stop at 96 while the host
+     * accepted 192, so a provider id of the frame API's own maximum was
+     * refused -- by the LIBRARY, about itself, with nothing about this lane to
+     * justify it -- and the refusal poisoned the whole describe, so one long
+     * id blanked the settings page. The ceilings agree now and every string
+     * that can reach this function is narrower than both.
+     *
+     * A compile-time check and not a runtime one, because that is what the
+     * question actually is: it is about two constants, it has one answer for
+     * the life of the build, and a runtime guard for it could only ever be a
+     * branch that never runs behind a declaration that is no longer true.
+     */
     row->option.struct_size = sizeof(row->option);
     row->option.value = row->id;
     row->option.label = row->label;
@@ -285,43 +304,6 @@ cs_static_options(
     }
 }
 
-/*
- * Restate the gameframe row after a pick nobody could honour.
- *
- * The host commits a PICK to its widget model before it dispatches, so by the
- * time this plugin says no the control already shows the value it asked for.
- * The description has not moved -- the live selection is the same as it was --
- * so the reconciler correctly makes no call, and the row would stay wrong.
- *
- * This is the one thing the row model cannot express: there is no verb for
- * "the host's copy of this row drifted, say it again". Porcelain_Invalidate
- * would say it by rebuilding the whole page, which is the flash the layer
- * exists to remove, and Porcelain_Reidentify only mints a serial.
- *
- * So the restatement goes straight at api->panel, carrying EXACTLY the
- * catalogue and selection the last describe produced -- which is what
- * Porcelain's mirror already believes, so the mirror stays true and the next
- * reconcile still makes no call.
- */
-static void
-cs_restate_frame_row(
-    struct ToriRS_Api* api,
-    struct ClientSettingsState* state)
-{
-    struct ToriRS_SelectOption options[CS_FRAME_ROWS_MAX];
-    struct ToriRS_FrameSelection selection = { .struct_size = sizeof(selection) };
-
-    assert(api);
-    assert(state);
-    api->frame.selection(api, &selection);
-    for( int i = 0; i < state->frame_row_count; i++ )
-        options[i] = state->frame_rows[i].option;
-    if( api->panel.set_options(
-            api, CS_ID_FRAME, selection.requested_id, options,
-            state->frame_row_count) != TORIRS_RESULT_OK )
-        api->core.log(api, "client-settings: could not restate the gameframe row");
-}
-
 static bool
 cs_frame_known(struct ClientSettingsState const* state, char const* id)
 {
@@ -349,16 +331,30 @@ cs_pick_frame(struct ToriRS_Api* api, void* user, struct PorcelainRowAction cons
     assert(action);
     if( action->kind != TORIRS_PANEL_ACTION_PICK )
         return;
+    /*
+     * A refusal restates the row, and that is a LAYER verb now.
+     *
+     * The host commits a PICK to its widget model before it dispatches, so by
+     * the time this plugin says no the control already shows the value it
+     * asked for -- while this plugin's description has not moved, because
+     * nothing it describes from has. There used to be no verb for that, so the
+     * restatement reached around the layer to api->panel.set_options with
+     * exactly the catalogue and selection the mirror already held: shipped
+     * code going around the library on purpose, with a comment saying so.
+     *
+     * Porcelain_Restate says the same thing to the reconciler that was meant
+     * to be doing it, and costs the same one call.
+     */
     if( !cs_frame_known(state, action->text) )
     {
         api->core.log(api, "client-settings: ignored unknown gameframe '%s'", action->text);
-        cs_restate_frame_row(api, state);
+        Porcelain_Restate(state->porcelain, CS_ID_FRAME);
         return;
     }
     if( api->frame.select(api, action->text) != TORIRS_RESULT_OK )
     {
         api->core.log(api, "client-settings: could not save gameframe '%s'", action->text);
-        cs_restate_frame_row(api, state);
+        Porcelain_Restate(state->porcelain, CS_ID_FRAME);
         return;
     }
     /* The resolver IS the description's input, and it has just moved. Saying
@@ -507,13 +503,14 @@ cs_on_start(struct ToriRS_Api* api, void* state_ptr)
     state->api = api;
     state->porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_CLIENT_SETTINGS, state);
     Porcelain_Panel(state->porcelain, NULL, TORIRS_PANEL_WIDTH_DEFAULT, PORCELAIN_FACE_BOTH);
-    /* The row model is narrower than the host it writes to. Declared once, so
-     * a dropped catalogue row reads as a stated limitation rather than a
-     * provider that silently went missing. */
-    Porcelain_ExpectUnsupported(
-        state->porcelain,
-        "gameframe_id_ceiling",
-        "a frame id may be 127 bytes and a row option stops at 96");
+    /*
+     * There was a Porcelain_ExpectUnsupported("gameframe_id_ceiling") here,
+     * and it is gone with the limitation it declared. A declaration has to be
+     * true in both directions or it is not evidence: the row model's option
+     * strings reach the host's own 192 now, which is wider than any id, label
+     * or reason the frame API can carry, so nothing is ever dropped for it.
+     * @see the static assertions at the top of this file.
+     */
     Porcelain_Describe(state->porcelain, cs_describe, state);
 }
 

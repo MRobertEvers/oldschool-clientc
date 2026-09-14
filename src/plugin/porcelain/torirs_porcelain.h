@@ -84,9 +84,6 @@ extern "C" {
 #define PORCELAIN_PANELS_MAX 8
 #define PORCELAIN_ROWS_MAX 48
 #define PORCELAIN_ROW_OPTIONS_MAX 128
-#define PORCELAIN_OPTION_VALUE_MAX 96
-#define PORCELAIN_OPTION_LABEL_MAX 96
-#define PORCELAIN_OPTION_DETAIL_MAX 96
 /*
  * A row's label and text, at the host's own config-value ceiling. Porcelain
  * REFUSES a string that does not fit and never truncates one: a truncated
@@ -94,6 +91,18 @@ extern "C" {
  * chosen it, which is the defect config_list_add already exists to refuse.
  */
 #define PORCELAIN_ROW_TEXT_MAX 192
+/*
+ * An option's three strings, at the SAME ceiling and by the same name.
+ *
+ * They were 96 while the host accepted 192, so Porcelain refused strings the
+ * host would have taken -- and until this round a refusal poisoned the run,
+ * so one over-long provider id blanked a whole settings page. A layer ceiling
+ * below the host's is a refusal that is about the layer and not about the
+ * lane, which is the one thing a portability library must not invent.
+ */
+#define PORCELAIN_OPTION_VALUE_MAX PORCELAIN_ROW_TEXT_MAX
+#define PORCELAIN_OPTION_LABEL_MAX PORCELAIN_ROW_TEXT_MAX
+#define PORCELAIN_OPTION_DETAIL_MAX PORCELAIN_ROW_TEXT_MAX
 /*
  * A row's key, at the HOST's own row-id ceiling and not at Porcelain's
  * element-key one, which is wider. A key the layer accepted and the host then
@@ -340,6 +349,21 @@ void Porcelain_Row(struct ToriRS_PorcelainDescribe* describe, struct PorcelainRo
 /** Describe-only. Force ONE described row a fresh serial at this fence, for
  *  an identity input that is not expressible as PorcelainRow::hit_key. */
 void Porcelain_Reidentify(struct ToriRS_PorcelainDescribe* describe, char const* key);
+/**
+ * The HOST's copy of ONE row drifted; state it again.
+ *
+ * For a refusal: the host commits a result before it dispatches, so a plugin
+ * that says no is looking at a control showing a value nobody saved, while
+ * its own description -- the thing the reconciler diffs -- has not moved.
+ * Callable from anywhere, and an action handler is where it belongs. Costs
+ * that row's setters and nothing else. @see the definition for why a feature
+ * pick, which writes to config, never needs it.
+ */
+void Porcelain_Restate(struct Porcelain* porcelain, char const* key);
+/** The reader's place, in logical pixels past the top; -1 with no page up. */
+int Porcelain_PanelScroll(struct Porcelain* porcelain);
+/** Move it. Clamped by the presenter's next layout, never here. */
+void Porcelain_PanelScrollTo(struct Porcelain* porcelain, int scroll);
 
 /* The three host callbacks a panel plugin forwards. Porcelain installs no
  * callbacks of its own: the definition belongs to the plugin and the host
@@ -363,6 +387,16 @@ struct PorcelainPanelCounters
     uint32_t builds;
     uint32_t rebuilds;
     uint32_t reidentifies;
+    /** Rows restated because the HOST moved them. @see Porcelain_Restate */
+    uint32_t restates;
+    /**
+     * Rows the LAYER refused and dropped, leaving the rest of the description.
+     *
+     * A refusal used to discard the whole run, so one over-long provider id
+     * blanked an entire settings page. This counter is what makes "the row
+     * went and the page did not" a measurement rather than a belief.
+     */
+    uint32_t dropped_rows;
     uint32_t redraws;
     uint32_t setters;
     /** Rows whose property set was walked at all. An unchanged hash must not
@@ -421,16 +455,17 @@ char const* const* Porcelain_TabNames(void);
  *   on until UITree_ScrollbarSkin exists. The rest of the Frames block is
  *   built -- @see the frames section above.
  *
- * TODO(plan #api "Panels"): what the row model still cannot express, because
- *   the engine half is not there. A CUSTOM well has no secondary-click
- *   channel, so PorcelainRow has no `on_menu` and the loot tracker's band and
- *   cell ops stay buttons under a selected row (needs
- *   TORIRS_PANEL_ACTION_MENU carrying well-local x/y under the existing
- *   generation/serial fence). A row cannot be scrolled to, and nothing
- *   answers where a well's scroll sits. `label` is declaration identity for
- *   KEY_VALUE, TOGGLE, SELECT and ACTION_ROW because the host's patch path
- *   has no arm for it; a plugin that renames one of those rows pays a
- *   rebuild.
+ * TODO(plan #api "Panels"): what the row model still cannot express.
+ *   A ROW cannot be scrolled to. The page's scroll is readable and writable
+ *   (@see Porcelain_PanelScroll), but turning a key into a pixel offset needs
+ *   the presenter to answer where a row sits, and no verb asks.
+ *
+ *   The three that were here are built: the secondary-click channel is
+ *   TORIRS_PANEL_ACTION_MENU plus PorcelainRow::on_menu, the page's scroll is
+ *   the two verbs above, and `label` is a patched property on all four kinds
+ *   that carry one rather than declaration identity -- so the row model's
+ *   identity is now (key, kind) and nothing else, and the only rebuild left
+ *   is a changed row SET.
  *
  * TODO(plan #api "Data helpers"): Porcelain_MenuSubjects -- the distinct
  *   subjects of a menu build, yielded once each with a resolved snapshot.
@@ -478,6 +513,18 @@ struct PorcelainCounters
      *  must stay at zero on a settled tree, and a number that climbs every
      *  frame is a target that is remounting, not a bug in this counter. */
     uint32_t reparents;
+    /**
+     * Controls re-made because the control ITSELF was destroyed, with the
+     * node it hung under surviving.
+     *
+     * Distinct from `reparents`, and the distinction is the bug: a `layout`
+     * verb can rebuild everything under a frame root that is still the same
+     * node, so the parent compare says nothing moved while the control is
+     * already freed. The layer then wrote to a dead handle and reported a
+     * refusal the plugin could neither prevent nor declare. Zero on a settled
+     * tree; one per owned control per root rebuild.
+     */
+    uint32_t recreates;
 };
 void Porcelain_CountersRead(struct Porcelain* porcelain, struct PorcelainCounters* out);
 void Porcelain_CountersReset(struct Porcelain* porcelain);

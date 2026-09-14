@@ -666,10 +666,17 @@ case_compass_state_keeps_the_discs(void)
  * controls. A description that quietly kept the old refs looks identical from
  * here and is exactly the regression -- four dead handles and an empty screen.
  *
- * Mutation: invalidate from inside the describe instead of setting `recreate`
- * (which is what the first attempt at this fix did) -> the wipe is
- * re-described inside the same fence, the reconcile never sees the empty
- * description, the refs below are carried over and this case goes red.
+ * Mutation: drop the `recreate` flag and simply keep describing -> the wipe
+ * never happens, the refs below are carried over and this case goes red.
+ *
+ * The mutation that used to be written here was "invalidate from inside the
+ * describe instead of setting `recreate`", and it no longer bites, because the
+ * defect it named has been fixed in the layer: Porcelain_Invalidate called
+ * inside a describe used to re-run that describe in the same fence and
+ * reconcile the SECOND pass, throwing away the empty description that asked.
+ * It defers the re-describe to the next fence now, so the wipe says so where
+ * it happens. A mutation that no longer bites is not evidence, so it is gone
+ * rather than left standing as one.
  */
 static void
 case_root_switch_recreates_the_column(void)

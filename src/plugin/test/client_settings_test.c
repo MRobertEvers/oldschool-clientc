@@ -57,6 +57,8 @@ struct Fake
     int invalidates;
     int option_sets;
     int text_sets;
+    int label_sets;
+    int scroll;
     int value_sets;
     int height_sets;
     int reidentifies;
@@ -144,6 +146,27 @@ fake_panel_set_text(struct ToriRS_Api* api, char const* id, char const* text)
     snprintf(row->text, sizeof(row->text), "%s", text ? text : "");
     return TORIRS_RESULT_OK;
 }
+
+static enum ToriRS_Result
+fake_panel_set_label(struct ToriRS_Api* api, char const* id, char const* label)
+{
+    struct FakeRow* row = fake_row(id);
+    (void)api;
+    fake.label_sets++;
+    if( !row ) return TORIRS_RESULT_NOT_FOUND;
+    snprintf(row->label, sizeof(row->label), "%s", label ? label : "");
+    return TORIRS_RESULT_OK;
+}
+
+/* The page is at the top and stays there: nothing in this plugin scrolls, and
+ * a fake that answered 0 for "no page" would make the two indistinguishable. */
+static int
+fake_panel_scroll(struct ToriRS_Api* api)
+{ (void)api; return fake.scroll; }
+
+static enum ToriRS_Result
+fake_panel_scroll_to(struct ToriRS_Api* api, int scroll)
+{ (void)api; fake.scroll = scroll; return TORIRS_RESULT_OK; }
 
 static enum ToriRS_Result
 fake_panel_set_value(struct ToriRS_Api* api, char const* id, int value)
@@ -378,11 +401,14 @@ main(void)
     api.panel.request = fake_panel_request;
     api.panel.invalidate = fake_panel_invalidate;
     api.panel.set_text = fake_panel_set_text;
+    api.panel.set_label = fake_panel_set_label;
     api.panel.set_value = fake_panel_set_value;
     api.panel.set_height = fake_panel_set_height;
     api.panel.set_options = fake_panel_set_options;
     api.panel.redraw = fake_panel_redraw;
     api.panel.reidentify = fake_panel_reidentify;
+    api.panel.scroll = fake_panel_scroll;
+    api.panel.scroll_to = fake_panel_scroll_to;
     api.config.set = fake_config_set;
     api.config.has = fake_config_has;
     api.client = &client;
@@ -454,11 +480,26 @@ main(void)
 
     /* ---------------------------------------- an unknown value is refused */
 
+    /*
+     * The restatement is the LAYER's, so it lands on the next fence and not
+     * inside the action.
+     *
+     * This plugin used to do it by hand, reaching past Porcelain to
+     * api->panel.set_options with the values the mirror already held, because
+     * there was no verb for "the host's copy of this row drifted". There is
+     * now: Porcelain_Restate marks the row and the reconciler states it, which
+     * is one call on the row and not a page -- the same cost the hand-written
+     * one paid, from the code that was supposed to be paying it.
+     */
     option_sets = fake.option_sets;
+    invalidates = fake.invalidates;
     pick(state, "gameframe", "forged/frame");
     CHECK(fake.selects == 1, "an unknown stable value is refused");
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
     CHECK(fake.option_sets == option_sets + 1,
         "the refused row is restated from the live selection");
+    CHECK(fake.invalidates == invalidates,
+        "by a setter on that row, not by rebuilding the page");
     row = fake_row("gameframe");
     CHECK(row && strcmp(row->selected_value, "gameframe-layout/classic-fixed") == 0,
         "the restatement snaps the control back to what is live");
@@ -466,12 +507,15 @@ main(void)
     /* ------------------------- a save the client refuses snaps back too */
 
     option_sets = fake.option_sets;
+    invalidates = fake.invalidates;
     fake.select_fails = true;
     pick(state, "gameframe", "mobile-gameframe/stone-drawer");
     fake.select_fails = false;
     CHECK(fake.selects == 1, "a refused save writes nothing");
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
     CHECK(fake.option_sets == option_sets + 1,
         "a refused save restates the row rather than leaving it wrong");
+    CHECK(fake.invalidates == invalidates, "and still without a rebuild");
     row = fake_row("gameframe");
     CHECK(row && strcmp(row->selected_value, "gameframe-layout/classic-fixed") == 0,
         "the control does not keep a gameframe that was never saved");
@@ -653,7 +697,23 @@ main(void)
     CHECK(fake_row("gameframe") && fake_row("note"),
         "and still declares the gameframe row and the note");
 
-    /* ------------------- an id past the row model's ceiling costs one row */
+    /* ------------------------ the widest id the frame API can carry fits */
+
+    /*
+     * This used to be the opposite test.
+     *
+     * Porcelain's option ceiling was 96 while the host accepted 192, so a
+     * provider id of the frame API's own maximum was refused by the LAYER --
+     * a refusal about the library and not about the lane, which is the one
+     * thing a portability layer must not invent. Worse, the refusal poisoned
+     * the whole describe, so one over-long id blanked the entire settings
+     * page. The ceilings agree now, and the widest id that can reach this
+     * plugin is narrower than both.
+     */
+    CHECK(TORIRS_PLUGIN_FRAME_ID_MAX <= PORCELAIN_OPTION_VALUE_MAX,
+        "no id the frame API can carry is past the row model's option ceiling");
+    CHECK(TORIRS_UI_LABEL_MAX <= PORCELAIN_OPTION_LABEL_MAX,
+        "and no label it can carry is past the label one");
 
     free(state);
     memset(&fake, 0, sizeof(fake));
@@ -665,7 +725,7 @@ main(void)
         long_id[sizeof(long_id) - 1] = '\0';
         memcpy(long_id, "provider/", 9);
         offer(0, "gameframe-layout/classic-fixed", "Classic Fixed", true);
-        offer(1, long_id, "Too long to name", true);
+        offer(1, long_id, "As long as an id can be", true);
         fake.offer_count = 2;
     }
     fake.selection.struct_size = sizeof(fake.selection);
@@ -677,11 +737,11 @@ main(void)
     TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_start(&api, state);
     build_page(state, TORIRS_PANEL_VIEW_PAGE);
     row = fake_row("gameframe");
-    CHECK(row && row->option_count == 2,
-        "an id past the option ceiling costs its own row and no other");
+    CHECK(row && row->option_count == 3,
+        "the longest id the frame API allows is offered, not dropped");
     CHECK(fake_row("gameframe_detail") && fake_row("note"),
-        "and the rest of the page is still declared");
-    CHECK(fake.logs > 0, "the dropped gameframe is said out loud");
+        "and the rest of the page is declared with it");
+    CHECK(fake.logs == 0, "with nothing to say, because nothing was refused");
 
     free(state);
     printf("client_settings_test: %d checks, %d failed\n", checks, failures);

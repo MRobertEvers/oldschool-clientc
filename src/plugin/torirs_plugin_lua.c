@@ -1522,6 +1522,11 @@ static int lua_panel_attention(lua_State* L) { struct ToriRS_Api* a=lua_current_
 static int lua_panel_set_text(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->panel.set_text(a,luaL_checkstring(L,1),luaL_tolstring(L,2,NULL)));return 2; }
 static int lua_panel_set_value(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);int v=lua_isboolean(L,2)?(lua_toboolean(L,2)?1:0):(int)luaL_checkinteger(L,2);lua_push_result(L,a->panel.set_value(a,luaL_checkstring(L,1),v));return 2; }
 static int lua_panel_set_height(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->panel.set_height(a,luaL_checkstring(L,1),(int)luaL_checkinteger(L,2)));return 2; }
+/* The row's NAME, on the four kinds that carry one beside their value. */
+static int lua_panel_set_label(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->panel.set_label(a,luaL_checkstring(L,1),luaL_tolstring(L,2,NULL)));return 2; }
+/* -1 is "no page of mine is up", which is NOT 0 -- the top of one that is. */
+static int lua_panel_scroll(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushinteger(L,a->panel.scroll(a));return 1; }
+static int lua_panel_scroll_to(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->panel.scroll_to(a,(int)luaL_checkinteger(L,1)));return 2; }
 
 static int
 lua_select_options_arg(
@@ -2219,9 +2224,11 @@ static int lua_porcelain_unsupported(lua_State* L)
 static char const*
 lua_porcelain_action_name(int action)
 {
-    static char const* const names[] = {"activate", "toggle", "text",
-                                        "pick",     "drag",   "scroll", "key"};
-    return action >= 0 && action < 7 ? names[action] : "unknown";
+    static char const* const names[] = {"activate", "toggle", "text", "pick",
+                                        "drag",     "scroll", "key",  "menu"};
+    return action >= 0 && action < (int)(sizeof(names) / sizeof(names[0]))
+               ? names[action]
+               : "unknown";
 }
 
 /* ------------------------------------------------------------ panel rows */
@@ -2328,6 +2335,18 @@ static int lua_porcelain_row(lua_State* L)
         struct LuaPorcelainCallback* slot =
             lua_porcelain_callback_alloc(L, lua_gettop(L), row.key);
         row.on_action = lua_porcelain_row_action;
+        row.user = slot;
+    }
+    lua_pop(L, 1);
+    /* A SECONDARY click in a CUSTOM well, at the well's own coordinates. Its
+     * own field and never a fall-through from on_action: a row written before
+     * this channel existed must not be handed a right click as a press. */
+    lua_raw_getfield(L, 1, "on_menu");
+    if( lua_type(L, -1) == LUA_TFUNCTION )
+    {
+        struct LuaPorcelainCallback* slot =
+            lua_porcelain_callback_alloc(L, lua_gettop(L), row.key);
+        row.on_menu = lua_porcelain_row_action;
         row.user = slot;
     }
     lua_pop(L, 1);
@@ -3150,9 +3169,11 @@ static struct LuaFn const LUA_SCENE_FNS[] = {
 };
 static struct LuaFn const LUA_PANEL_FNS[] = {
     {"request",lua_panel_request},{"invalidate",lua_panel_invalidate},{"attention",lua_panel_attention},
-    {"set_text",lua_panel_set_text},{"set_value",lua_panel_set_value},{"set_height",lua_panel_set_height},
+    {"set_text",lua_panel_set_text},{"set_label",lua_panel_set_label},
+    {"set_value",lua_panel_set_value},{"set_height",lua_panel_set_height},
     {"set_options",lua_panel_set_options},{"redraw",lua_panel_redraw},
-    {"reidentify",lua_panel_reidentify},{NULL,NULL}
+    {"reidentify",lua_panel_reidentify},
+    {"scroll",lua_panel_scroll},{"scroll_to",lua_panel_scroll_to},{NULL,NULL}
 };
 static struct LuaFn const LUA_CACHE_FNS[] = {
     {"frame_root",lua_cache_frame_root},{"varbit",lua_cache_varbit},{"varp",lua_cache_varp},
@@ -3250,6 +3271,33 @@ static int lua_porcelain_panel_action(lua_State* L)
     lua_remove(L, -2);
     lua_remove(L, -2);
     return 1;
+}
+
+/*
+ * The host's copy of ONE row drifted from the description -- a refused pick,
+ * which the host commits before it dispatches. That row's setters and nothing
+ * else: no page, no serial, no scroll.
+ */
+static int lua_porcelain_panel_restate(lua_State* L)
+{
+    struct Porcelain* porcelain = lua_porcelain(L);
+    lua_current_api(L)->porcelain->panel_restate(porcelain, luaL_checkstring(L, 1));
+    return 0;
+}
+
+static int lua_porcelain_panel_scroll(lua_State* L)
+{
+    struct Porcelain* porcelain = lua_porcelain(L);
+    lua_pushinteger(L, lua_current_api(L)->porcelain->panel_scroll(porcelain));
+    return 1;
+}
+
+static int lua_porcelain_panel_scroll_to(lua_State* L)
+{
+    struct Porcelain* porcelain = lua_porcelain(L);
+    lua_current_api(L)->porcelain->panel_scroll_to(
+        porcelain, (int)luaL_checkinteger(L, 1));
+    return 0;
 }
 
 static int lua_porcelain_panel_draw(lua_State* L)
@@ -3410,6 +3458,9 @@ static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"table",lua_porcelain_table},{"notify",lua_porcelain_notify},
     {"panel",lua_porcelain_panel},{"panel_build",lua_porcelain_panel_build},
     {"panel_action",lua_porcelain_panel_action},{"panel_draw",lua_porcelain_panel_draw},
+    {"panel_restate",lua_porcelain_panel_restate},
+    {"panel_scroll",lua_porcelain_panel_scroll},
+    {"panel_scroll_to",lua_porcelain_panel_scroll_to},
     /* round three */
     {"hull",lua_porcelain_hull},{"tile",lua_porcelain_tile},
     {"finding",lua_porcelain_finding},

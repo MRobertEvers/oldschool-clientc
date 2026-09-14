@@ -37,7 +37,7 @@
     };
     var INTENT = {
         ACTIVATE: 1, ACTION: 2, TOGGLE: 3, TEXT: 4, PICK: 5, TAB: 6,
-        CLOSE: 7, CUSTOM_ACTIVATE: 8
+        CLOSE: 7, CUSTOM_ACTIVATE: 8, CUSTOM_MENU: 9
     };
     var ROW_ACTION = 0x1;
     var ROW_LOCKED = 0x2;
@@ -782,6 +782,20 @@
             return null;
         return { x: x, y: y, width: width, height: height };
     }
+    // A well's point in the LOGICAL units the plugin painted in.
+    //
+    // One place, because the primary and secondary click must map a point the
+    // same way or a band would be picked by one button and missed by the other:
+    // through the published bitmap first (which is what the host fences the
+    // coordinates against) and then back out of the well's own scale.
+    function customLocalX(record, point) {
+        var px = Math.max(0, Math.min(record.bitmapWidth - 1, Math.floor(point.x * record.bitmapWidth / point.width)));
+        return Math.floor(px * 1000 / Math.max(1, record.customScale));
+    }
+    function customLocalY(record, point) {
+        var py = Math.max(0, Math.min(record.bitmapHeight - 1, Math.floor(point.y * record.bitmapHeight / point.height)));
+        return Math.floor(py * 1000 / Math.max(1, record.customScale));
+    }
     function createWidget(command) {
         if (command.p !== state.panel || command.w < 0 || command.v < 0 || command.v > W.FREE)
             return;
@@ -1104,9 +1118,24 @@
                     var point = customContentPoint(custom_1, event);
                     if (!point)
                         return;
-                    var px = Math.max(0, Math.min(record.bitmapWidth - 1, Math.floor(point.x * record.bitmapWidth / point.width)));
-                    var py = Math.max(0, Math.min(record.bitmapHeight - 1, Math.floor(point.y * record.bitmapHeight / point.height)));
-                    postWidget(record, INTENT.CUSTOM_ACTIVATE, 0, '', Math.floor(px * 1000 / Math.max(1, record.customScale)), Math.floor(py * 1000 / Math.max(1, record.customScale)));
+                    postWidget(record, INTENT.CUSTOM_ACTIVATE, 0, '', customLocalX(record, point), customLocalY(record, point));
+                });
+                // The secondary click, with the SAME coordinate mapping as the
+                // release above: a well is one control, so where it was clicked is
+                // the whole of what it is told, and a menu click that arrived without
+                // coordinates would name no band. The browser's own context menu is
+                // suppressed here and only here, so the page's menu still works
+                // everywhere a well is not.
+                bind(custom_1, 'contextmenu', function (event) {
+                    var point = customContentPoint(custom_1, event);
+                    if (!point)
+                        return;
+                    if (event.preventDefault)
+                        event.preventDefault();
+                    else
+                        event.returnValue = false;
+                    record.pointer = null;
+                    postWidget(record, INTENT.CUSTOM_MENU, 0, '', customLocalX(record, point), customLocalY(record, point));
                 });
                 bind(custom_1, 'keydown', function (event) {
                     var code = event.keyCode || event.which || 0;

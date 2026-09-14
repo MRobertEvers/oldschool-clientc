@@ -447,6 +447,26 @@ app_chrome_route_input(
         ToriRSChrome_MouseUp(ui, input->curr.mouse_x, input->curr.mouse_y) )
         app->input_frame_consumed = 1;
 
+    /*
+     * The SECONDARY button, on the DOWN edge and with no release half.
+     *
+     * The rest of this library only ever sees the left button, so a right
+     * button has no `press` to be matched a release against; requiring one
+     * would make the channel dead. The down edge is also where every other
+     * secondary click in the client fires -- the world's minimenu opens on
+     * mouse-down -- so a well and the game agree about when a right click
+     * happened.
+     *
+     * Nothing but a CUSTOM well answers it, and the world's own minimenu is
+     * already suppressed over this window by app_chrome_wants_pointer, so a
+     * click a well declines is swallowed rather than opening a game menu
+     * through the panel.
+     */
+    if( input->curr.mouse_button_down[TORIRSM_RIGHT] &&
+        ToriRSChrome_SecondaryClick(
+            ui, input->press_origin_x[TORIRSM_RIGHT], input->press_origin_y[TORIRSM_RIGHT]) )
+        app->input_frame_consumed = 1;
+
     /* The wheel, so an open dropdown or a scrolling panel moves. Consumed when
      * the chrome takes it, or the camera would zoom behind it at the same time. */
     if( input->curr.mouse_wheel_y != 0 &&
