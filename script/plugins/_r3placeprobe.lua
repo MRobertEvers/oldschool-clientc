@@ -57,10 +57,11 @@ local function report(api, at)
     end
 end
 
+-- No fence and no commit: open() installs the pump and calls this between
+-- them, so this handler runs exactly where the hand-written pair used to put
+-- it.
 function plugin.on_frame_start(api)
     frames = frames + 1
-    api.porcelain.fence()
-    api.porcelain.commit()
     if frames == 120 or frames == 300 or frames == 600 then
         report(api, "frame" .. frames)
     end

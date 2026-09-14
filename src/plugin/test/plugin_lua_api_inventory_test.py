@@ -243,17 +243,23 @@ def main() -> int:
     for forbidden in ("ui_contributions", "on_ui_node_draw", "on_ui_node_action", "on_canvas_action", "api.ui.", "api.placement."):
         if forbidden in screenshot:
             errors.append(f"screenshot.lua: superseded execution API still used: {forbidden}")
-    # The pump is the layer's. A plugin that spells it again can half-spell it,
-    # and half of it is a `fence without commit` finding rather than a crash --
-    # which is why this is checked and not merely recommended.
-    performance = (SCRIPT_DIR / "performance_display.lua").read_text(encoding="utf-8")
-    for ported in ("screenshot.lua", "performance_display.lua"):
-        source = screenshot if ported == "screenshot.lua" else performance
+    # The pump is the layer's, for EVERY Lua plugin and not just the ported two.
+    # `open` installs it, so a plugin that spells it again fences twice in one
+    # frame -- and the second fence finds the epoch already fenced, records a
+    # `fence without commit` budget finding and flushes. That finding is an
+    # undeclared PORCELAIN_FINDING line, which is a gate failure on every lane
+    # the plugin runs on, so this is checked rather than recommended.
+    for path in sorted(SCRIPT_DIR.glob("*.lua")):
+        if path == META_SOURCE:
+            continue
+        source = strip_line_comments(path.read_text(encoding="utf-8"))
         for hand_written in ("porcelain.fence(", "porcelain.commit(",
-                             'porcelain.note("config")', 'porcelain.tick("server_tick")'):
+                             'porcelain.note("config")', "porcelain.note('config')",
+                             'porcelain.tick("server_tick")', "porcelain.tick('server_tick')"):
             if hand_written in source:
                 errors.append(
-                    f"{ported}: hand-written porcelain pump is back: {hand_written}")
+                    f"{path.name}: hand-written porcelain pump is back: {hand_written}; "
+                    "open() installs it")
     # The raw retained verbs are the shape the port replaced. A regression to
     # any of them is a plugin doing the layer's bookkeeping again: watching
     # widgets, remembering which control is alive, and re-placing by hand --
@@ -285,10 +291,10 @@ def main() -> int:
         # An edge nothing forwards is an edge that never fires. porcelain
         # .note_key has no caller in the host at all, so the plugin's own
         # on_key is the whole mechanism; without it the reveal key could never
-        # go down and the Tag rows were unreachable on every lane.
+        # go down and the Tag rows were unreachable on every lane. The fence
+        # and the commit are NOT listed beside it any more: open() installs
+        # those, and this same file now forbids a plugin from spelling them.
         "api.porcelain.note_key(",
-        "api.porcelain.fence(",
-        "api.porcelain.commit(",
     ):
         if required not in highlighter:
             errors.append(f"entity_highlighter.lua: missing reported refusal: {required}")

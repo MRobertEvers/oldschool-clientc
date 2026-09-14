@@ -929,6 +929,74 @@ test_real_porcelain_pump(struct ToriRS_PluginHost* host)
 }
 
 /*
+ * What the pump costs a plugin that has nothing to reconcile.
+ *
+ * Two of the four ported Lua plugins are deliberately minimal: tile_indicator
+ * opens the layer for its refusal channel and never speaks to it again, and
+ * entity_highlighter has no description at all -- it used to guard its own
+ * fence with "only when the reveal key armed, so a lane that answered ABSENT
+ * pays nothing per frame". `open` now installs the pump for both, so that
+ * claim stops being the plugin's to make and becomes the layer's to answer.
+ *
+ * This is the answer, read off the handle rather than argued: a plugin that
+ * opens the layer, describes nothing, registers no timer, holds no asset and
+ * arms no key edge is pumped for 200 frames and makes ZERO engine calls and
+ * ZERO allocations. Nothing had to be opted out of.
+ */
+static char const IDLE_PROBE[] =
+    "local p={id='idle-probe'}\n"
+    "local opened=false\n"
+    "function p.on_start(api) opened=api.porcelain.open() end\n"
+    "function p.on_frame_start(api)\n"
+    "  if not opened then return end\n"
+    "  local c=api.porcelain.counters_read()\n"
+    "  assert(c.engine_calls==0,'an idle pumped handle makes no engine call')\n"
+    "  assert(c.allocations==0,'and allocates nothing')\n"
+    "  assert(c.describe_runs==0,'and runs no describe: there is none')\n"
+    "  assert(c.revalidates==0,'and costs no layout resolve')\n"
+    "end\n"
+    "return p\n";
+
+static void
+test_pump_costs_an_idle_plugin_nothing(struct ToriRS_PluginHost* host)
+{
+    static struct ToriRS_Api api;
+    struct FakeInstance instance = {"idle-probe", ""};
+    int index;
+    int disables_before;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+
+    api = *Testbed_Api();
+    api.instance = &instance;
+    api.core.plugin_id = fake_plugin_id;
+    api.core.log = counters_log;
+
+    index = PluginLua_AddScript(host, "idle-probe", IDLE_PROBE, (int)strlen(IDLE_PROBE));
+    CHECK(index >= 0, "idle probe registers");
+    if( index < 0 ) return;
+    disables_before = g_disabled_self;
+    g_defs[index]->callbacks.on_start(&api, NULL);
+    for( int i = 1; i <= 200; i++ )
+    {
+        struct ToriRS_FrameEvent event;
+        memset(&event, 0, sizeof(event));
+        event.now_ms = (uint64_t)i * 20u;
+        event.drawn_frames = (uint32_t)i;
+        g_defs[index]->callbacks.on_frame_start(&api, NULL, &event);
+    }
+    if( g_disabled_self != disables_before )
+        fprintf(stderr, "idle-probe: %s\n", g_disable_reason);
+    CHECK(g_disabled_self == disables_before,
+        "200 pumped frames cost a plugin with nothing to reconcile nothing at all");
+    CHECK(Testbed_LogCount() == 0,
+        "and reach the engine not once");
+    g_defs[index]->callbacks.on_stop(&api, NULL);
+}
+
+/*
  * The Lua word "within" reaches PORCELAIN_WITHIN, and what that costs.
  *
  * The behaviour tests read `item.place.kind` straight off the Lua table, so
@@ -1065,6 +1133,7 @@ main(void)
         "plugin/test/overlay_probe_behavior.lua","overlay-probe-behavior-drawprobe");
     test_real_porcelain_pump(&host);
     test_lua_within_placement(&host);
+    test_pump_costs_an_idle_plugin_nothing(&host);
     PluginLua_Shutdown();
     if( g_failures )
     {

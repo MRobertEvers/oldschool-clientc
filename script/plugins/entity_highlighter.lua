@@ -194,15 +194,13 @@ function plugin.on_key(api, event)
     api.porcelain.note_key(event.key, event.down)
 end
 
-function plugin.on_frame_start(api)
-    -- Nothing else in this plugin has a cadence: no description to reconcile,
-    -- no timer, no asset. The fence is here for the reveal key's BINDING --
-    -- so a rebind takes effect without a reload -- and nothing else, so a lane
-    -- that answered ABSENT for it pays nothing per frame.
-    if not reveal_armed then return end
-    api.porcelain.fence()
-    api.porcelain.commit()
-end
+-- No on_frame_start. Nothing in this plugin has a cadence except the reveal
+-- key, and the fence that polls its BINDING is the layer's own now: open()
+-- installs the pump. The guard this handler used to carry -- fence only when
+-- the edge armed, so a lane that answered ABSENT pays nothing -- is not lost,
+-- it is answered differently: a handle with no description, no timer, no asset
+-- and no armed edge makes ZERO engine calls at a fence, which test-plugin-lua
+-- reads off the layer's own counters rather than asserting in prose here.
 
 function plugin.on_config_changed(api, key)
     -- Covers the panel, a hand-edited ini, and our own save alike.

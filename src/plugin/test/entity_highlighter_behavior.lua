@@ -206,9 +206,21 @@ return { id = 'entity-behavior', on_start = function(host)
             error('a hull is named in scene terms: there is no rect here to derive')
         end,
     }
-    local function frame() product.on_frame_start(api) end
+    -- The host's pump, modelled. This plugin declares no on_frame_start at all
+    -- now: `api.porcelain.open()` installs the fence and the commit, and the
+    -- fence is the only thing this plugin ever needed per frame -- the reveal
+    -- key's edge is polled there. What used to be a hand-written pair guarded
+    -- by "only when the edge armed" is the runtime's, and a handle with no
+    -- description pays nothing for it (test_pump_costs_an_idle_plugin_nothing
+    -- in plugin_lua_test.c reads that off the real layer's counters).
+    local function frame()
+        porcelain.fence()
+        if product.on_frame_start then product.on_frame_start(api) end
+        porcelain.commit()
+    end
     -- A key event the way the host delivers one. It reaches the layer only if
-    -- the plugin forwards it, which is the thing this file exists to pin.
+    -- the plugin forwards it, which is the thing this file exists to pin: the
+    -- pump above fences, but nothing in the host forwards a key.
     local function press(key, down) product.on_key(api, { key = key, down = down }) end
     local menu = { hover_pass = false, rows = { { npc_slot = 7 }, { npc_slot = 7 } } }
 

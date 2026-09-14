@@ -58,15 +58,16 @@ function plugin.on_start(api)
     api.core.log("PORCELAIN_PROBE_OPEN", tostring(opened))
 end
 
+-- open() installs the pump, so this handler already runs between the layer's
+-- fence and its commit -- which is exactly where the hand-written pair used to
+-- put `ask`.
 function plugin.on_frame_start(api)
     if not opened then return end
     frames = frames + 1
-    api.porcelain.fence()
     ask(api)
     -- Late, not early: the interesting answer is what the vocabulary says
     -- once the lane has finished mounting its frame, not during the boot.
     if frames > 1400 then report(api) end
-    api.porcelain.commit()
 end
 
 return plugin
