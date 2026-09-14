@@ -153,12 +153,47 @@ frame_node_alive(
  * on a dat1 frame the chat REGION is a tagged mount and the chat itself is a
  * builtin, and both are legitimate answers to "where does chat go".
  */
+/*
+ * Could this node carry ANY slot's role?
+ *
+ * Every arm of frame_node_is_slot below answers yes only for one of these six
+ * builtin types or for a node the profile tagged, so this is that switch's
+ * precondition, factored out. The collection walk uses it to skip the
+ * thousands of plain layers and graphics in one test instead of asking each of
+ * them eight questions, and frame_node_is_slot calls it first so the two can
+ * never disagree about what a candidate is.
+ *
+ * If you add an arm below that keys on something else, add its shape here in
+ * the same commit, or the arm is dead.
+ */
+static int
+frame_node_may_be_slot(struct UITreeComponent const* c)
+{
+    assert(c);
+    if( c->slot_tag != UITREE_SLOT_NONE )
+        return 1;
+    switch( c->type )
+    {
+    case UIELEM_BUILTIN_WORLD:
+    case UIELEM_BUILTIN_MINIMAP:
+    case UIELEM_BUILTIN_COMPASS:
+    case UIELEM_BUILTIN_CHAT:
+    case UIELEM_BUILTIN_SIDEBAR:
+    case UIELEM_BUILTIN_CHAT_BUTTON:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 static int
 frame_node_is_slot(
     struct UITreeComponent const* c,
     int slot)
 {
     assert(c);
+    if( !frame_node_may_be_slot(c) )
+        return 0;
     switch( slot )
     {
     case UITREE_FRAME_SLOT_VIEWPORT:
@@ -636,12 +671,12 @@ frame_collect_slots(
     assert(fl);
 
     PA_INC(collect_slots_calls);
-    PA_ADD(collect_slots_iters, (uint64_t)tree->component_count * UITREE_FRAME_SLOT_COUNT);
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];
 
-        if( c->freed )
+        PA_INC(collect_slots_iters);
+        if( c->freed || !frame_node_may_be_slot(c) )
             continue;
         for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
         {
