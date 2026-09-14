@@ -1,4 +1,97 @@
 /*
+ * The frame: App_RunOnce and the command drain, input ownership, and the frame-time accessors.
+ *
+ * One translation unit of the App layer. Everything here may read and write
+ * `struct App`; what crosses to another unit of the layer is declared in
+ * app/app_internal.h, and nothing outside the layer may include either.
+ */
+
+#include "app/app_internal.h"
+
+/* Private to this unit, declared up front so definition order is free. */
+static void
+app_frame_latch_note(
+    struct App* app,
+    char const* reason);
+
+/* Did the last App_RunOnce leave async work queued?
+ *
+ * The frame loop asks so it can decline to sleep. See app.h for why the frame
+ * cap must not pace the pipeline. */
+int
+App_AsyncPending(const struct App* app)
+{
+    assert(app);
+    return app->async_pending;
+}
+
+void
+App_NoteFrameTime(
+    struct App* app,
+    uint64_t frame_us)
+{
+    assert(app);
+
+    FrameTimeRing_Add(&app->dbg_frame_times, frame_us);
+}
+
+uint64_t
+App_LastFrameUs(struct App const* app)
+{
+    assert(app);
+
+    return FrameTimeRing_NewestUs(&app->dbg_frame_times);
+}
+
+int
+App_InputFrameConsumed(struct App const* app)
+{
+    assert(app);
+    return app->input_frame_consumed;
+}
+
+int
+App_PointerOwnedByUi(
+    struct App* app,
+    int x,
+    int y)
+{
+    assert(app);
+    /*
+     * Everything drawn over the 3D world that owns what lands on it: the
+     * client's own chrome, AND the game's interfaces, which
+     * App_ChromePointerOwned knows nothing about.
+     *
+     * The touch layer asks this to decide whether a one-finger drag turns the
+     * CAMERA or presses a widget. Chrome alone was not enough: a finger that
+     * came down on the All Settings window, an inventory list or a dropdown
+     * still started a camera drag, because the interface it landed on is not
+     * chrome -- so the widget never saw a press and nothing could be dragged
+     * or swiped anywhere over the viewport.
+     *
+     * The question "is this point the world" already has one answer in this
+     * file, and it is the one the click-to-walk and the minimenu use; asking
+     * it here is what keeps the drag and the click agreeing about who owns a
+     * pixel.
+     */
+    if( app_chrome_wants_pointer(app, x, y) )
+        return 1;
+    return !app_world_mouse_gate(app, x, y);
+}
+
+int
+App_ChromePointerOwned(
+    struct App const* app,
+    int x,
+    int y)
+{
+    assert(app);
+    /* Asked LIVE rather than answered from app->chrome_pointer_owned: that
+     * field is this frame's pointer, latched once, and the caller here is the
+     * touch layer asking about a point of its own. */
+    return app_chrome_wants_pointer(app, x, y);
+}
+/*
  * The frame: draining the command bus, and one pass of App_RunOnce.
  *
  * Included into app.c rather than compiled on its own. This is the client's
@@ -2390,3 +2483,4 @@ App_RunOnce(
     }
     return 0;
 }
+

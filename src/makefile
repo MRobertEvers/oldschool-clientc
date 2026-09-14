@@ -585,6 +585,56 @@ endif
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
 SRCS = main.c executor_config.c app.c pacer.c \
+	app/app_audio.c \
+	app/app_boot.c \
+	app/app_camera.c \
+	app/app_canvas_layout.c \
+	app/app_chat_focus.c \
+	app/app_chrome.c \
+	app/app_client_trigger.c \
+	app/app_cs2_flush.c \
+	app/app_cs2_scene.c \
+	app/app_debug_ui.c \
+	app/app_entity_sync.c \
+	app/app_frame.c \
+	app/app_host_request.c \
+	app/app_hotkeys.c \
+	app/app_if_events.c \
+	app/app_if_models.c \
+	app/app_loc_editor.c \
+	app/app_lookup.c \
+	app/app_map_editor.c \
+	app/app_minimap.c \
+	app/app_minimenu.c \
+	app/app_net.c \
+	app/app_overlay.c \
+	app/app_overlay_entities.c \
+	app/app_plugin_api.c \
+	app/app_plugin_assets.c \
+	app/app_plugin_bridge.c \
+	app/app_plugin_object.c \
+	app/app_plugin_panel.c \
+	app/app_render.c \
+	app/app_textures.c \
+	app/app_tick.c \
+	app/app_title.c \
+	app/app_ui_host.c \
+	app/app_varp_transforms.c \
+	app/app_viewport.c \
+	app/app_wev.c \
+	app/app_world_apply.c \
+	app/app_world_click.c \
+	app/app_world_edit.c \
+	app/app_world_frame.c \
+	app/app_world_load.c \
+	app/app_world_paint.c \
+	app/app_world_project.c \
+	app/app_world_query.c \
+	app/app_world_rebuild.c \
+	app/app_world_seq.c \
+	app/app_world_spawn.c \
+	app/app_world_sync.c \
+	app/app_worldmap.c \
 	$(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
 	platform/platform_app_icon.c \
 	platform/platform_memory.c \
@@ -6137,20 +6187,25 @@ check-kernel-names:
 
 # What may reach into `struct App`, as a check.
 #
-# app.c is the orchestrator translation unit and it is large for real reasons
-# -- App_Init, the frame, the tick and the minimenu verb table belong there.
-# What does NOT belong there is a field family plus the dozen functions that
-# own it, and the way that keeps happening is a module being "extracted" while
-# it still takes a `struct App*`, which is a rename.
+# The APP LAYER is src/app.c plus every unit under src/app/. Its units share
+# `struct App` by design: each is a subsystem of the orchestrator, not a module
+# lifted out of it, and what crosses from one unit to another is declared in
+# app/app_internal.h -- which is the layer's map, and which nothing outside the
+# layer may include.
 #
-# This fails on a .c outside app.c that names App and is not recorded in
+# This fails on a .c outside the layer that names App and is not recorded in
 # tools/appc_map_baseline.txt, and equally on a baseline line that has become
-# clean -- so the baseline only shrinks. `.u.c` unity fragments are exempt:
-# they are textually part of whatever includes them.
+# clean -- so the baseline only shrinks. `.u.c` unity files are exempt: they
+# are textually part of whatever includes them.
 #
 # It also fails when `struct App` has more top-level fields than the baseline
 # records, and when it has fewer -- the list of files cannot see a module that
 # forward-declares App and keeps a pointer, and the field count can.
+#
+# And it fails when app.c itself grows. app.c is the layer's COMPOSITION ROOT:
+# construction, teardown, and the globals main.c shares. A subsystem put there
+# is a subsystem nobody will find, which is how the file reached 36,000 lines
+# the first time.
 #
 # `make -C src appc-map` prints the per-slice coupling table and the field
 # families beneath it: the first is how the extraction order WAS chosen, the

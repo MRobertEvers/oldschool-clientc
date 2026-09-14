@@ -1,4 +1,103 @@
 /*
+ * The spawn machinery: model build, lighting, and the spawn task.
+ *
+ * One translation unit of the App layer. Everything here may read and write
+ * `struct App`; what crosses to another unit of the layer is declared in
+ * app/app_internal.h, and nothing outside the layer may include either.
+ */
+
+#include "app/app_internal.h"
+
+/* Has this npc id already been reported as unavailable?  16384 bits is 2KB and
+ * covers the whole npc id space of every revision here (osrs239 tops out near
+ * 13000); an id past the end warns every time rather than being dropped. */
+enum
+{
+    APP_NPC_WARN_BITS = 16384
+};
+
+/* Private to this unit, declared up front so definition order is free. */
+static bool
+app_model_zbuffer_kernels_enabled(void);
+static int
+app_warn_once_npc(int npc_id);
+static void
+app_world_spawn_projectile_now(
+    struct App* app,
+    struct World* world,
+    int model_id,
+    int seq_id,
+    int src_tile_x,
+    int src_tile_z,
+    int src_level,
+    int tile_x,
+    int tile_z,
+    int target);
+static int
+app_world_ground_composed(
+    struct App* app,
+    int fine_x,
+    int fine_z,
+    int level);
+static void
+app_world_spawn_projectile_spot_now(
+    struct App* app,
+    struct World* world,
+    int spotanim_id,
+    int src_tile_x,
+    int src_tile_z,
+    int src_level,
+    int dst_tile_x,
+    int dst_tile_z,
+    int dst_level,
+    int src_height,
+    int dst_height,
+    int start_delay,
+    int end_delay,
+    int peak,
+    int arc,
+    int target);
+static void
+app_loc_change_apply_ops(
+    struct App* app,
+    struct World* world,
+    const struct Task_AppSpawn* self);
+static int
+Task_AppSpawn_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io);
+static void
+Task_AppSpawn_Free(struct ToriRS_Task* base);
+
+static struct ToriRS_TaskVTable Task_AppSpawn_VTable = {
+    .run = Task_AppSpawn_Run,
+    .free = Task_AppSpawn_Free,
+};
+
+struct Task_AppSpawn*
+app_spawn_task_new(
+    struct App* app,
+    enum AppSpawnKind kind,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    struct Task_AppSpawn* task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_AppSpawn_VTable;
+    strncpy(task->task.name, "AppSpawn", sizeof(task->task.name) - 1);
+    task->app = app;
+    /* Single capture point for every spawn kind: the enqueue happens while the
+     * addressing SET_ACTIVE_WORLD is still in force. */
+    task->view = app->active_world;
+    task->kind = kind;
+    task->tile_x = tile_x;
+    task->tile_z = tile_z;
+    task->level = level;
+    PT_INIT(&task->pt);
+    return task;
+}
+/*
  * SPAWNING things into the world -- building the model an entity will be drawn
  * with, putting the entity in the scene, and the task that waits for whatever
  * the cache has not handed over yet.
@@ -53,7 +152,7 @@
  * dropped by the sort -- see the flag's own comment. The two cannot both decide
  * a pixel, and a priority would win.
  */
-static bool
+bool
 app_npc_wants_zbuffer(
     int npc_id,
     struct ToriRS_Npctype const* npctype)
@@ -92,7 +191,7 @@ app_model_zbuffer_kernels_enabled(void)
  * Written both ways because the model may be a cache copy of one that was
  * stamped under a different npc id.
  */
-static void
+void
 app_model_apply_import_render_flags(
     struct ToriDraw_Model* model,
     bool imported)
@@ -108,7 +207,7 @@ app_model_apply_import_render_flags(
         model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
 }
 
-static struct ToriDraw_Model*
+struct ToriDraw_Model*
 app_world_build_model(
     struct App* app,
     const int* model_ids,
@@ -219,7 +318,7 @@ app_world_build_model(
  * deliberately left off the cached base; the callers set TORIDRAW_MODEL_FLAG_
  * ZBUFFER per npc id after this returns.
  */
-static struct ToriDraw_Model*
+struct ToriDraw_Model*
 app_world_build_npc_model(
     struct App* app,
     int npc_id,
@@ -277,7 +376,7 @@ app_world_build_npc_model(
  * app_world_tick_animations (the projectile path), so only the static
  * transforms are baked here. SYNCHRONOUS — the model must already be resident.
  * Returns an owned model or NULL. */
-static struct ToriDraw_Model*
+struct ToriDraw_Model*
 app_world_build_spotanim_model(
     struct App* app,
     const struct ToriRS_Spotanimtype* spot)
@@ -354,7 +453,7 @@ app_world_build_spotanim_model(
 /* Hotkey 9 body: default player model on the hovered tile. SYNCHRONOUS —
  * the appearance kit + ready seq must be resident (Task_AppSpawn awaits).
  * Returns the world player-pool index, or -1. */
-static int
+int
 app_world_spawn_player_now(
     struct App* app,
     int tile_x,
@@ -422,14 +521,6 @@ app_world_spawn_player_now(
     return idx;
 }
 
-/* Has this npc id already been reported as unavailable?  16384 bits is 2KB and
- * covers the whole npc id space of every revision here (osrs239 tops out near
- * 13000); an id past the end warns every time rather than being dropped. */
-enum
-{
-    APP_NPC_WARN_BITS = 16384
-};
-
 static int
 app_warn_once_npc(int npc_id)
 {
@@ -446,7 +537,7 @@ app_warn_once_npc(int npc_id)
 /* The rung/shell gap-fill is ToriRS_NpctypeEntityFacts'. This is the spelling
  * that resolves the shell: the wire sends the multinpc's own id, and the cache
  * is where the record for it lives. */
-static void
+void
 app_npc_entity_facts(
     struct App* app,
     int base_npc_id,
@@ -469,7 +560,7 @@ app_npc_entity_facts(
  * shell.
  *
  * Returns the world npc-pool index, or -1. */
-static int
+int
 app_world_spawn_npc_now(
     struct App* app,
     int npc_id,
@@ -980,7 +1071,7 @@ app_world_spawn_projectile_spot_now(
  * awaits them). Builds the transformed model, spawns the world entity with a
  * single-shot lifetime equal to one seq loop, and binds the seq so the element
  * animates per-tick. */
-static void
+void
 app_world_spawn_spotanim_now(
     struct App* app,
     struct World* world,
@@ -1084,7 +1175,7 @@ app_world_spawn_spotanim_now(
  * api ceilings are a limit and not a size.
  */
 
-static struct AppPluginAssetModel*
+struct AppPluginAssetModel*
 app_plugin_asset_model_at(
     struct App* app,
     int handle)
@@ -1097,7 +1188,7 @@ app_plugin_asset_model_at(
     return &app->plugin_asset_models[handle];
 }
 
-static struct ToriRS_PluginMesh*
+struct ToriRS_PluginMesh*
 app_plugin_mesh_at(
     struct App* app,
     int handle)
@@ -1109,107 +1200,6 @@ app_plugin_mesh_at(
         return NULL;
     return &app->plugin_meshes[handle];
 }
-
-/* ----------------------------------------------- plugin-owned world objects */
-
-#include "app_plugin_object.u.c"
-
-/* Async spawn driver for the three debug hotkeys: awaits the cache loads the
- * synchronous spawn bodies assume, then runs them. Enqueued on the serial
- * exec pipeline so spawns interleave cleanly with packet exec + mounts. */
-/* Defined with the other world-entity appliers, far below; the LOC_ANIM task
- * body needs it here. */
-static void
-app_world_scenery_anim_apply(
-    struct App* app,
-    struct World* world,
-    int scene_x,
-    int scene_z,
-    int level,
-    int loc_shape,
-    int seq_id);
-
-enum AppSpawnKind
-{
-    APP_SPAWN_PLAYER = 0,
-    APP_SPAWN_NPC,
-    APP_SPAWN_PROJECTILE,
-    APP_SPAWN_PROJECTILE_SPOT,
-    APP_SPAWN_OBJ,
-    APP_SPAWN_SPOTANIM,
-    APP_SPAWN_ENTITY_SPOTANIM,
-    APP_SPAWN_LOC_CHANGE,
-    APP_SPAWN_LOC_ANIM,
-    APP_SPAWN_PLUGIN_OBJECT,
-};
-
-struct Task_AppSpawn
-{
-    struct ToriRS_Task task;
-    struct pt pt;
-    struct App* app;
-    /* The worldview cursor AS OF ENQUEUE (app->active_world). Spawn tasks run
-     * at the END of the exec FIFO, behind later packets — including the
-     * SERVER_TICK_END that resets the live cursor — so the apply cannot read
-     * app->active_world when it finally runs; it must carry its own copy. The
-     * view can legitimately die while the task is parked (a boat despawns
-     * mid-flight), so applies guard on WorldviewRegistry_IsLive rather than
-     * asserting. */
-    int view;
-    enum AppSpawnKind kind;
-    int tile_x;
-    int tile_z;
-    int level;
-    int npc_id;
-    int obj_id;
-    int model_id;
-    int seq_id;
-    int src_tile_x;
-    int src_tile_z;
-    int src_level;
-    int model_i;
-    int spotanim_id;
-    int spotanim_height;
-    int spotanim_delay;
-    /* APP_SPAWN_ENTITY_SPOTANIM: the body scene element of the player/npc the
-     * attached graphic belongs to (stable, scene-unique key to re-find the live
-     * entity when the async load lands). */
-    int entity_element_id;
-    /* APP_SPAWN_LOC_CHANGE: the placement's own right-click menu, carried
-     * across the async model wait because the scenery entity it lands on does
-     * not exist until then. `loc_op_flags` is the 5-bit shown mask and
-     * `loc_ops[i]` the replacement label for slot i ("" = keep the loctype's).
-     * See App_WorldLocChangeOps. */
-    int loc_op_flags;
-    char loc_ops[5][32];
-    /* MAP_PROJANIM (spotanim-based projectile) trajectory params. Source and
-     * destination tiles reuse src_tile_x/z and tile_x/z; src_level and level
-     * carry the source and destination levels. */
-    int proj_src_height;
-    int proj_dst_height;
-    int proj_start_delay;
-    int proj_end_delay;
-    int proj_peak;
-    int proj_arc;
-    int proj_target;
-    /* APP_SPAWN_LOC_CHANGE (zone LOC_ADD_CHANGE / LOC_DEL): the replacement loc
-     * (-1 = pure delete), its map shape/angle, and the nested model-list cursor
-     * (loc models are [shape_entry][model]; both indices must survive awaits). */
-    int loc_id;
-    int loc_shape;
-    int loc_angle;
-    int loc_model_j;
-    int loc_resolved_id;
-    int loc_resolve_depth;
-    int loc_base_seq;
-    /** APP_SPAWN_LOC_CHANGE: the loc's models and sequence, fanned out and not yet ended. */
-    int pending;
-    /* APP_SPAWN_PLUGIN_OBJECT: the plugin object handle whose assets this task
-     * is waiting on. Not a pointer -- the record can be destroyed while the
-     * task is parked, and the handle re-resolves to NULL rather than to freed
-     * memory. */
-    int plugin_object;
-};
 
 /*
  * Find the scenery entity a LOC_ADD_CHANGE_V2 just spawned and dress it with
@@ -1635,3 +1625,4 @@ Task_AppSpawn_Free(struct ToriRS_Task* base)
 {
     free(base);
 }
+

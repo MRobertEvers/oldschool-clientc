@@ -25,10 +25,10 @@
  * of which live down with the client's own graphics. Only the vtable is
  * assembled here.
  */
-static int app_plugin_asset_read(void* user, char const* plugin, char const* name);
-static int
+int app_plugin_asset_read(void* user, char const* plugin, char const* name);
+int
 app_plugin_asset_write(void* user, char const* plugin, char const* name, void const* data, int size);
-static int
+int
 app_plugin_screenshot(
     void* user,
     char const* plugin,
@@ -36,20 +36,20 @@ app_plugin_screenshot(
     char const* name,
     char* out_path,
     int out_path_size);
-static int app_plugin_model_publish(void* user, int model, void const* data, int size);
-static void app_plugin_model_release(void* user, int model);
-static int app_plugin_mesh_create(void* user);
-static void app_plugin_mesh_destroy(void* user, int mesh);
-static int app_plugin_mesh_vertex(void* user, int mesh, int x, int y, int z);
-static int app_plugin_mesh_face(void* user, int mesh, int a, int b, int c, int hsl, int alpha);
-static int app_plugin_object_create(void* user);
-static void app_plugin_object_destroy(void* user, int handle);
-static void app_plugin_object_set_model(void* user, int handle, int source, int id);
-static void app_plugin_object_recolor(void* user, int handle, int hsl_from, int hsl_to);
-static void app_plugin_object_clear_recolors(void* user, int handle);
-static void app_plugin_object_set_anim(void* user, int handle, int seq_id, int loop);
-static void app_plugin_object_set_light(void* user, int handle, int ambient, int contrast);
-static void app_plugin_object_set_position(
+int app_plugin_model_publish(void* user, int model, void const* data, int size);
+void app_plugin_model_release(void* user, int model);
+int app_plugin_mesh_create(void* user);
+void app_plugin_mesh_destroy(void* user, int mesh);
+int app_plugin_mesh_vertex(void* user, int mesh, int x, int y, int z);
+int app_plugin_mesh_face(void* user, int mesh, int a, int b, int c, int hsl, int alpha);
+int app_plugin_object_create(void* user);
+void app_plugin_object_destroy(void* user, int handle);
+void app_plugin_object_set_model(void* user, int handle, int source, int id);
+void app_plugin_object_recolor(void* user, int handle, int hsl_from, int hsl_to);
+void app_plugin_object_clear_recolors(void* user, int handle);
+void app_plugin_object_set_anim(void* user, int handle, int seq_id, int loop);
+void app_plugin_object_set_light(void* user, int handle, int ambient, int contrast);
+void app_plugin_object_set_position(
     void* user,
     int handle,
     int tile_x,
@@ -57,11 +57,11 @@ static void app_plugin_object_set_position(
     int level,
     int height,
     int yaw);
-static void app_plugin_object_set_active(void* user, int handle, int active);
-static int app_plugin_object_ready(void* user, int handle);
+void app_plugin_object_set_active(void* user, int handle, int active);
+int app_plugin_object_ready(void* user, int handle);
 /* Re-place every plugin object after a scene rebuild. Called from the
  * world-loaded seam, which runs long before the definition. */
-static void app_plugin_objects_rebuild(struct App* app);
+void app_plugin_objects_rebuild(struct App* app);
 
 static size_t
 app_plugin_memory_bytes(void* user)
@@ -162,7 +162,7 @@ app_plugin_fill_player(
     snprintf(out->name, sizeof(out->name), "%s", player->name);
 }
 
-static void
+void
 app_plugin_fill_npc_for_world(
     struct App* app,
     struct World const* world,
@@ -235,7 +235,7 @@ app_plugin_fill_npc_for_world(
     snprintf(out->name, sizeof(out->name), "%s", npc->name);
 }
 
-static void
+void
 app_plugin_fill_npc(
     struct App* app,
     struct WorldEntity_NPC const* npc,
@@ -246,7 +246,7 @@ app_plugin_fill_npc(
     app_plugin_fill_npc_for_world(app, app->world, npc, out);
 }
 
-static void
+void
 app_plugin_fill_obj(
     struct App* app,
     struct WorldEntity_ObjStack const* stack,
@@ -1309,7 +1309,7 @@ app_plugin_frame_work_us(void* user)
 }
 
 #include "plugin/native_script_hooks.gen.h"
-static struct ToriRS_WidgetRef app_widget_ref(struct UITree const*,int32_t);
+struct ToriRS_WidgetRef app_widget_ref(struct UITree const*,int32_t);
 static void app_script_hash_word(uint64_t* hash,uint32_t value)
 {
     for( int i=0;i<4;++i ) { *hash=(*hash^(value&255))*UINT64_C(1099511628211);value>>=8; }
@@ -1363,7 +1363,7 @@ static bool app_script_set_string(void* user,size_t index,char const* value)
     thread->strs_stack[thread->strs_stack_top-1-(int)index]=copy;
     return true;
 }
-static void app_script_callback(void* user,struct CS2VM2_Thread* thread,char const* name)
+void app_script_callback(void* user,struct CS2VM2_Thread* thread,char const* name)
 {
     struct App* app=user;
     if( !app->plugins || App_UiLogic(app)!=APP_UI_LOGIC_CS2 || thread->frame_sp<=0 ) return;
@@ -1642,7 +1642,7 @@ app_plugin_hover_tile(void* user, int* out_tile_x, int* out_tile_z, int* out_lev
  * entity would make an arrow in flight steal the highlight off the npc it is
  * flying at.
  */
-static int
+int
 app_plugin_hover_entity(void* user, struct ToriRS_HoverTarget* out)
 {
     struct App* app = (struct App*)user;
@@ -3732,7 +3732,7 @@ _Static_assert((int)TORIRS_WIDGET_RELATION_NATIVE==(int)UITREE_WIDGET_RELATION_N
 _Static_assert(TORIRS_WIDGET_OP_LABEL_MAX==UITREE_MENU_OPTION_LEN,
     "public owned-control label capacity must match native menu option storage");
 
-static struct ToriRS_WidgetRef
+struct ToriRS_WidgetRef
 app_widget_ref(struct UITree const* tree, int32_t index)
 {
     struct UITreeNodeRef ref = UITree_RefAt(tree, index);
@@ -4377,7 +4377,7 @@ app_plugin_frame_role_audit(struct App* app, struct UITree* tree)
     return 1;
 }
 
-static void
+void
 app_plugin_frame_bind(struct UITree* tree, void* user)
 {
     struct App* app = (struct App*)user;
@@ -4524,7 +4524,7 @@ app_plugin_platform_safe_rect(void* user, int* out_x, int* out_y, int* out_w, in
     return 1;
 }
 
-static void
+void
 app_plugin_frame_activate(void* user, int active, int canvas, int fixed_w, int fixed_h)
 {
     struct App* app = (struct App*)user;
@@ -4826,7 +4826,7 @@ app_plugin_menu_drop(void* user, void* cursor, int index)
  * its place. Appending after the engine's own sort and not re-running it lands
  * plugin rows in the wrong half of the menu.
  */
-static void
+void
 app_plugin_menu_build(struct App* app, struct UIMinimenu* menu, int hover_pass)
 {
     struct ToriRS_MenuBuildEvent ev;
@@ -4899,7 +4899,7 @@ app_plugin_menu_build(struct App* app, struct UIMinimenu* menu, int hover_pass)
     UIMinimenu_SortPriorityActions(menu);
 }
 
-static struct ToriRS_PluginEngine
+struct ToriRS_PluginEngine
 app_plugin_engine(struct App* app)
 {
     struct ToriRS_PluginEngine engine;

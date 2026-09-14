@@ -1,22 +1,333 @@
 /*
- * The async boot, and opening interfaces into the tree.
+ * Boot sequencing: the warm gameframe bake, the title swap, boot-bar captions, and the async polls that gate readiness.
  *
- * Included into app.c rather than compiled on its own. The boot protothread
- * builds the root tree, awaits the overlay font, runs the seeding steps and
- * flips the app READY -- it is a SEQUENCE over most of App, and the sequence is
- * the contract. The split is for READING; the translation unit is unchanged.
+ * One translation unit of the App layer. Everything here may read and write
+ * `struct App`; what crosses to another unit of the layer is declared in
+ * app/app_internal.h, and nothing outside the layer may include either.
  */
 
-/* The async boot protothread: builds the root tree (RevConfig or cache
- * interface open), awaits the overlay font, then runs the synchronous
- * seeding steps and flips the app READY. All IO flows through the platform
- * pump via the per-frame task stepping — nothing here blocks the frame loop. */
-struct Task_AppBoot
+#include "app/app_internal.h"
+
+/* IF_OPENSUB wrapper: mount a cache interface pack under a component slot of an
+ * already-open root, then relayout + re-request CS1 over the new subtree. Runs
+ * on the serial exec pipeline so a mount a packet triggers completes before the
+ * next packet is popped (packet order holds), mirroring rs_ui_slots' slot mount.
+ * type -1 means close (unmount via CreateTask_InterfaceOpenSub with iface<=0). */
+struct Task_OpenSubRefresh
 {
     struct ToriRS_Task task;
     struct pt pt;
     struct App* app;
+    int target_uid;
+    int interface_id;
+    int type;
 };
+
+/* Private to this unit, declared up front so definition order is free. */
+static int
+app_boot_bake_is_quiet(struct App const* app);
+static int
+app_boot_bar_font_scene_id(struct App* app);
+static int
+Task_AppBoot_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io);
+static void
+Task_AppBoot_Free(struct ToriRS_Task* base);
+static void
+app_open_tree(
+    struct App* app,
+    int interface_id,
+    char const* layout_group,
+    char const* layout_group_exclude);
+static int
+Task_OpenSubRefresh_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io);
+static void
+Task_OpenSubRefresh_Free(struct ToriRS_Task* base);
+static void
+app_enqueue_open_sub(
+    struct App* app,
+    int target_uid,
+    int interface_id,
+    int type);
+
+/**
+ * Tell the provider which cache it is reading.
+ *
+ * The profile is what rscache's decoders consult instead of a bare revision number.
+ * Resolving it here, once, is the point: era information used to reach decoders as
+ * whichever JS5 archive counter the record happened to come from — a per-archive value
+ * whose units differ between eras — or as a flag constant spelled out at the call site.
+ *
+ * The manifest states all four identity fields (game, epoch, revision, quirks).
+ * RSCache_ProfileForIdentity returns them verbatim and borrows codec pins from the
+ * revision registry on an exact match. There is no nearest-lower fallback and no
+ * guessing from the container alone.
+ */
+void
+app_provider_set_cache_profile(
+    struct App* app,
+    struct AppConfig const* cfg)
+{
+    assert(app);
+    assert(app->provider);
+    assert(cfg->cache_identity_set && "manifest must state [cache:boot] identity");
+
+    struct RSCache profile = RSCache_ProfileForIdentity(
+        cfg->cache_game, cfg->cache_epoch, cfg->cache_revision, cfg->cache_quirks);
+
+    char quirks_buf[32];
+    RSCache_QuirksName(profile.quirks, quirks_buf, (int)sizeof(quirks_buf));
+    TORIRS_LOG(
+        "app: cache profile epoch=%s game=%s revision=%d quirks=%s\n",
+        RSCache_EpochName(profile.epoch),
+        RSCache_GameName(profile.game),
+        profile.revision,
+        quirks_buf);
+    if( getenv("TORIRS_TRACE_NATIVE_UI") )
+        TORIRS_REPORT(
+            "NATIVE_REVISION epoch=%s game=%s revision=%d\n",
+            RSCache_EpochName(profile.epoch),
+            RSCache_GameName(profile.game),
+            profile.revision);
+
+    /* The disk resolves logical table names to ids and decides map XTEA, so it
+     * needs the same identity the decoders got. Without this it answers as
+     * unset, which on a 643 cache means every logical table is ABSENT. */
+    if( app->dat2_disk )
+        RSCache_Dat2DiskSetProfile(app->dat2_disk, &profile);
+
+    CacheProvider_SetProfile(app->provider, &profile);
+}
+
+/*
+ * The boot cannot proceed, for a reason the person running this can fix.
+ *
+ * A missing cache and a cache server that is not up are DEPLOYMENT states, not
+ * contract violations: an assert would name the wrong culprit, and carrying on
+ * is worse than either -- that is what this client used to do, limping past a
+ * failed on-demand enable with no cache provider at all and taking SIGSEGV in
+ * the first buildcache lookup, a mile from the cause.
+ *
+ * So it refuses, loudly, in one sentence addressed to whoever has to act on it.
+ * WHERE that sentence has to land is the platform's business and not this
+ * function's: a desktop run prints it to the terminal the command was typed in
+ * and exits, and on Android there is no such terminal -- exit() there kills the
+ * process, the activity vanishes to the launcher, and the diagnosis sits in
+ * logcat where nobody holding a phone will read it. Which is to say it reads
+ * exactly like a crash. @see PlatformAndroid_BootFailed.
+ */
+void
+app_boot_refuse(char const* message)
+{
+    assert(message);
+    TORIRS_ERR("app: %s\n", message);
+#if defined(TORIRS_PLATFORM_ANDROID)
+    /* Hands the message to the boot menu and ends the frame thread; the process
+     * survives, so the gear can fix the profile and the next run is a new run
+     * rather than a new launch. Does not return. */
+    PlatformAndroid_BootFailed(message);
+#endif
+    exit(1);
+}
+
+/* A bake that must not replay the loading screen's staged captions or walk
+ * the bar back: everything after the session's first. On a profile with a
+ * title screen the loading ran once, at boot (App_BootGameframeThenTitle,
+ * screen still APP_SCREEN_BOOT); the title bake that follows it, the
+ * post-login gameframe rebake and any in-game display-mode remount all cross
+ * caches that bake warmed, and replaying 10..100 with captions over them
+ * would put a second loading sequence after the first -- or worse, after the
+ * login screen. A quiet bake leaves the bar where the loud one parked it
+ * (100) and App_Render's caption fallback says "loading" / "entering world".
+ * The lanes with no title screen or no net keep announcing: their startup
+ * bake is the only loading they have. */
+static int
+app_boot_bake_is_quiet(struct App const* app)
+{
+    assert(app);
+    return app->net_enabled && App_HasTitleScreen(app) && app->screen != APP_SCREEN_BOOT;
+}
+
+int
+App_BootTextOnly(struct App const* app)
+{
+    assert(app);
+    /* GAME only: the startup title bake is also quiet, but it belongs to the
+     * boot's loading screen and holds the bar at 100 instead -- text-only is
+     * the POST-LOGIN picture. */
+    return app->app_state == APP_STATE_BOOTING && app->screen == APP_SCREEN_GAME &&
+           app_boot_bake_is_quiet(app);
+}
+
+/* Shared per-frame completion polls for async work (world load, textures,
+ * deferred seq binds, tree refresh). Not run while BOOTING. */
+void
+app_async_polls(struct App* app)
+{
+    /* World-load completion is no longer polled here: Task_WorldLoad runs
+     * App_WorldLoadFinish itself at its synchronous tail (via on_done, or the
+     * REBUILD_NORMAL path's inline call after it awaits the load). */
+    if( app_tex_trace_enabled() )
+        TORIRS_LOG("tex_trace: --- frame %d ---\n", ++g_tex_trace_frame);
+    app_world_map_poll(app);
+    app_sync_textures_poll(app);
+    app_world_bind_pending_seqs(app);
+
+    if( app->pending_tree_refresh )
+    {
+        app->pending_tree_refresh = 0;
+        UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        app_request_cs1_eval(app);
+        app->need_redraw = 1;
+    }
+}
+
+void
+App_BootWait(struct App* app)
+{
+    /* Headless harnesses/tests only: step both pipelines until the boot task
+     * AND every load it queued (world, anims, textures) settle. IO still runs
+     * exclusively inside the platform pump; the interactive loop never calls
+     * this — it renders the loading state instead. */
+    long guard = 1000000;
+
+    assert(app);
+    while( guard-- > 0 )
+    {
+        enum TaskRunnerStat main_stat;
+        enum TaskRunnerStat exec_stat;
+        app->boot_steps += 2;
+        main_stat = TaskRunner_Step(&app->runner);
+        exec_stat = TaskRunner_Step(&app->exec_runner);
+        app_title_swap_if_pending(app);
+        if( app->app_state == APP_STATE_READY )
+            app_async_polls(app);
+        if( main_stat == TASK_RUNNER_IDLE && exec_stat == TASK_RUNNER_IDLE &&
+            app->app_state == APP_STATE_READY && !app->pending_tree_refresh &&
+            !app->world_load_inflight )
+            break;
+    }
+    if( guard <= 0 )
+        TORIRS_LOG("app: boot wait exceeded step guard\n");
+}
+
+/*
+ * The face the boot bar's caption is drawn with, on every lane.
+ *
+ * ONE face for the whole boot, and a baked one: ToriRSChromeFont_Menu is cache
+ * archive 496 (b12) baked into .rdata (engine/torirs_debug_font_baked.h),
+ * needing no cache and no IO.
+ *
+ * The alternative -- resolve the profile's p12 when the cache has handed it
+ * over and fall back to the baked face until then -- is what this used to do,
+ * and it is wrong twice. It changes face mid-boot, so the same bar draws its
+ * sentences in two or three different hands as the archives land; and it makes
+ * the caption depend on cache state that the GPU lanes, which draw the bar
+ * before any frame is built, have no path to wait for.
+ *
+ * The reference has neither problem because it has one face for the whole
+ * screen and always has it: an AWT `java.awt.Font("Helvetica", BOLD, 13)`
+ * (deob class510; Client-TS GameShell.messageBox draws `bold 13px helvetica`).
+ * A software rasteriser has no system face, so a baked one is the same answer
+ * to the same question -- and the BOLD one, for the same reason.
+ *
+ * At 1x, because this lands in canvas pixels on every lane: the boot bar is
+ * placed in canvas coordinates, and a chrome-scaled face would paint
+ * double-size text into them.
+ *
+ * The Ensure is what puts the font IN the scene -- ToriDraw_SceneFontAdd emits
+ * TORIDRAW_EVENT_FONT_LOAD -- and the GPU backends resolve a font id by
+ * looking it up there (d3d9_ui_ensure_font, gl3_ensure_font_slot). A lane that
+ * never called this would find no font under the id and draw nothing, which is
+ * exactly what the D3D9 boot screen did while the caption lived in App_Render.
+ */
+static int
+app_boot_bar_font_scene_id(struct App* app)
+{
+    assert(app);
+    return UITreeSceneBridge_EnsureDebugFont1x(&app->bridge, TORIRS_CHROME_FONT_MENU);
+}
+
+char const*
+App_BootBarCaption(
+    struct App* app,
+    int* out_font_scene_id)
+{
+    char const* caption = NULL;
+    int font_scene_id;
+
+    assert(app);
+    assert(out_font_scene_id);
+
+    /*
+     * What the boot task asked for, when it asked for anything; otherwise the
+     * profile's own word for the phase.
+     *
+     * The render step does not decide what a load looks like: the task that
+     * knows which stage it is at says so, and this obeys. A task which never
+     * asks gets the standing sentence rather than silence.
+     */
+    if( app->runner.render.intent == TORIRS_RENDER_BOOT_BAR && app->runner.render.caption &&
+        app->runner.render.caption[0] )
+        caption = app->runner.render.caption;
+    else
+        caption = RS_LoginReplies_String(
+            &app->login_replies, app->screen == APP_SCREEN_GAME ? "entering_world" : "loading");
+    if( !caption || !caption[0] )
+        return NULL;
+
+    font_scene_id = app_boot_bar_font_scene_id(app);
+    if( font_scene_id < 0 )
+        return NULL;
+    *out_font_scene_id = font_scene_id;
+    return caption;
+}
+
+/*
+ * The bar's caption, centred on `center_x` with its baseline at `baseline_y`.
+ *
+ * The software lane's half of App_BootBarCaption: the GPU lanes draw the same
+ * two facts (`text`, `font_scene_id`) through their own text paths.
+ */
+void
+app_boot_bar_caption(
+    struct App* app,
+    int* pixels,
+    int width,
+    int height,
+    int center_x,
+    int baseline_y,
+    char const* text,
+    int font_scene_id)
+{
+    struct ToriDraw_Font* font;
+    struct ToriDraw_ViewPort vp;
+
+    assert(app);
+    assert(pixels);
+    assert(text);
+    assert(font_scene_id >= 0);
+
+    font = ToriDraw_SceneFontGet(app->scene, font_scene_id);
+    if( !font )
+        return;
+
+    vp.width = width;
+    vp.height = height;
+    vp.stride = width;
+    vp.x_center = width / 2;
+    vp.y_center = height / 2;
+    vp.clip_left = 0;
+    vp.clip_top = 0;
+    vp.clip_right = width;
+    vp.clip_bottom = height;
+
+    (void)ToriDraw2D_DrawString(
+        font, &vp, center_x, baseline_y, text, 0xFFFFFF, true, false, pixels);
+}
 
 static int
 Task_AppBoot_Run(
@@ -745,7 +1056,7 @@ App_BootGameframeThenTitle(struct App* app)
  * two places that observe the bake finishing -- App_RunOnce before it can
  * render a frame of the gameframe, and App_BootWait so headless harnesses
  * return with the title (not the warm-up tree) as the settled state. */
-static void
+void
 app_title_swap_if_pending(struct App* app)
 {
     assert(app);
@@ -754,21 +1065,6 @@ app_title_swap_if_pending(struct App* app)
     app->title_session.pending_after_boot = false;
     App_OpenTitleScreen(app);
 }
-
-/* IF_OPENSUB wrapper: mount a cache interface pack under a component slot of an
- * already-open root, then relayout + re-request CS1 over the new subtree. Runs
- * on the serial exec pipeline so a mount a packet triggers completes before the
- * next packet is popped (packet order holds), mirroring rs_ui_slots' slot mount.
- * type -1 means close (unmount via CreateTask_InterfaceOpenSub with iface<=0). */
-struct Task_OpenSubRefresh
-{
-    struct ToriRS_Task task;
-    struct pt pt;
-    struct App* app;
-    int target_uid;
-    int interface_id;
-    int type;
-};
 
 static int
 Task_OpenSubRefresh_Run(
@@ -974,3 +1270,4 @@ App_MoveSubInterface(
     App_CloseSubInterface(app, source_uid);
     App_OpenSubInterface(app, dest_uid, group_id, type);
 }
+

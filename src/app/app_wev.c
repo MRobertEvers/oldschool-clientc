@@ -1,4 +1,565 @@
 /*
+ * World-entity views: decks, hulls, the sailing helm, and the actors aboard.
+ *
+ * One translation unit of the App layer. Everything here may read and write
+ * `struct App`; what crosses to another unit of the layer is declared in
+ * app/app_internal.h, and nothing outside the layer may include either.
+ */
+
+#include "app/app_internal.h"
+#include "game/sailing_paint_order.u.h"
+
+struct WevDeckBox;
+
+/* Private to this unit, declared up front so definition order is free. */
+static int
+app_sailing_at_helm(struct App* app);
+static int
+app_sailing_heading_at(
+    struct App* app,
+    int mouse_x,
+    int mouse_y,
+    int* heading);
+static void
+app_sailing_register_arrows(
+    struct App* app,
+    struct World* world);
+static int
+app_wev_debug_enabled(void);
+static bool
+app_wev_ground_below(
+    void* userdata,
+    const struct SailingPaintSpan* span,
+    int x,
+    int z,
+    int level);
+static bool
+app_wev_actor_overlaps(
+    void* userdata,
+    const struct Wev* wev);
+static void
+app_wev_decide_flatten(struct App* app);
+static void
+app_wev_apply_placement(
+    struct App* app,
+    struct WorldEntityFacet_ViewPlacement* placement,
+    int element_id,
+    int view_id,
+    int x,
+    int z);
+static void
+app_wev_register_deck_actors(
+    void* userdata,
+    struct World* world);
+static void
+app_wev_evict_view_actors(
+    struct App* app,
+    int view_id);
+
+/**
+ * An aboard actor's position pushed out through its hull into ROOT scene-local
+ * fine units — the transform the deob applies before anything main-world reads
+ * an aboard actor's position (camera focus, minimap centre, minimap dots:
+ * Statics.method8690). Returns 0 (out untouched) when the actor is not in a
+ * live, root-parented view — the caller keeps its root-space position.
+ */
+int
+app_wev_actor_root_fine(
+    struct App* app,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int* out_fx,
+    int* out_fz)
+{
+    struct Wev* wev;
+    struct WevDeckBox box;
+
+    assert(app);
+    assert(placement);
+    assert(out_fx);
+    assert(out_fz);
+
+    if( placement->view_id == WORLDVIEW_ROOT || !Wevs_IsLive(&app->wevs, placement->view_id) ||
+        !WorldviewRegistry_IsLive(&app->worldviews, placement->view_id) )
+        return 0;
+    wev = Wevs_Get(&app->wevs, placement->view_id);
+    if( wev->parent_view_id != WORLDVIEW_ROOT )
+        return 0;
+    app_wev_deck_box(app, wev, app->world, &box);
+    Wev_ParentFromDeck(&box, placement->x, placement->z, out_fx, out_fz);
+    return 1;
+}
+
+static int
+app_sailing_at_helm(struct App* app)
+{
+    int id = app->sailing_at_helm_varbit;
+    return id >= 0 && id < app->varps.varbit_count && app->aboard_view != WORLDVIEW_ROOT &&
+           Wevs_IsLive(&app->wevs, app->aboard_view) &&
+           WorldviewRegistry_IsLive(&app->worldviews, app->aboard_view) &&
+           VarPManager_GetVarbit(&app->varps, id) != 0;
+}
+
+int
+app_sailing_can_steer(struct App* app)
+{
+    if( app_sailing_at_helm(app) )
+        return 1;
+    int role = app->sailing_captain_role_varbit;
+    if( app->aboard_view == WORLDVIEW_ROOT || !Wevs_IsLive(&app->wevs, app->aboard_view) ||
+        !WorldviewRegistry_IsLive(&app->worldviews, app->aboard_view) || role < 0 ||
+        role >= app->varps.varbit_count || VarPManager_GetVarbit(&app->varps, role) != 10 )
+        return 0;
+    for( int slot = 0; slot < 5; ++slot )
+    {
+        int duty = app->sailing_crew_duty_varbit[slot];
+        int roster = app->sailing_crew_roster_varbit[slot];
+        if( duty >= 0 && duty < app->varps.varbit_count && roster >= 0 &&
+            roster < app->varps.varbit_count &&
+            (VarPManager_GetVarbit(&app->varps, duty) == 3 ||
+             VarPManager_GetVarbit(&app->varps, duty) == 4) &&
+            VarPManager_GetVarbit(&app->varps, roster) > 0 )
+            return 1;
+    }
+    return 0;
+}
+
+/* The native selector intersects the pointer ray with the boat's horizontal
+ * plane (class108.method3786), so it works over deck geometry and open sea. */
+static int
+app_sailing_heading_at(
+    struct App* app,
+    int mouse_x,
+    int mouse_y,
+    int* heading)
+{
+    assert(heading);
+    if( !app_sailing_can_steer(app) || !app->world_view_valid )
+        return 0;
+    struct Wev* vessel = Wevs_Get(&app->wevs, app->aboard_view);
+    if( vessel->parent_view_id != WORLDVIEW_ROOT )
+        return 0;
+    double x, z;
+    if( !ToriRS_WorldUnprojectPlane(
+            &app->world_camera,
+            &app->world_camera_pos,
+            app->world_emit_desc.x,
+            app->world_emit_desc.y,
+            app->world_emit_desc.w,
+            app->world_emit_desc.h,
+            mouse_x,
+            mouse_y,
+            vessel->y,
+            &x,
+            &z) )
+        return 0;
+    x -= vessel->x - app->world->_base_tile_x * 128;
+    z -= vessel->z - app->world->_base_tile_z * 128;
+    if( fabs(x) < 0.001 && fabs(z) < 0.001 )
+        return 0;
+    *heading = SailingNavigation_Heading(x, z);
+    return 1;
+}
+
+void
+app_sailing_menu_context(
+    struct App* app,
+    struct RS_MinimenuBuildCtx* ctx,
+    int mouse_x,
+    int mouse_y)
+{
+    ctx->sailing_navigating = app_sailing_can_steer(app) != 0;
+    /* With crew at the helm the captain is free to walk and work on deck.
+     * Only open-water/root picks become bearings; a held player helm keeps
+     * the native all-directions selector. */
+    if( ctx->sailing_navigating && !app_sailing_at_helm(app) && ctx->world_pickset )
+        for( int i = 0; i < ctx->world_pickset->count; ++i )
+            if( ctx->world_pickset->items[i].type == WORLD_PICK_TERRAIN &&
+                ctx->world_pickset->items[i].view_id == app->aboard_view )
+                ctx->sailing_navigating = false;
+    ctx->sailing_heading_valid =
+        ctx->sailing_navigating &&
+        app_sailing_heading_at(app, mouse_x, mouse_y, &ctx->sailing_heading);
+}
+
+int
+app_sailing_send_heading(
+    struct App* app,
+    int heading)
+{
+    if( !app_sailing_can_steer(app) || !app->net || app->net->state != TORIRS_NET_GAME )
+        return 0;
+    APP_NET_SEND(
+        app,
+        net_out_set_heading(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), heading));
+    app->sailing_selected_heading = heading;
+    app->sailing_selected_until = app->logic_cycle + 30;
+    app->need_redraw = 1;
+    return 1;
+}
+
+/* The two native defaults meshes render through the world painter, including
+ * perspective, terrain occlusion, and GPU depth. They have no interaction row.
+ * Statics.method8694 places each four or more tiles along its chosen bearing. */
+static void
+app_sailing_register_arrows(
+    struct App* app,
+    struct World* world)
+{
+    if( world != app->world || !app_sailing_can_steer(app) )
+        return;
+    struct Wev* vessel = Wevs_Get(&app->wevs, app->aboard_view);
+    if( vessel->parent_view_id != WORLDVIEW_ROOT )
+        return;
+    int hover = -1;
+    if( app->world_mouse_in_viewport && !app->pointer_absent && !app->interact.minimenu.visible &&
+        !strcmp(app->host.clientop.mouseover_op, "Set heading") )
+        app_sailing_heading_at(app, app->world_mouse_x, app->world_mouse_y, &hover);
+    int selected =
+        app->logic_cycle < app->sailing_selected_until ? app->sailing_selected_heading : -1;
+    int scale = app->world_camera.projection_mode == TORIDRAW_PROJECTION_MODE_FOV
+                    ? toridraw_projection_scale_from_fov(app->world_camera.fov_rpi2048)
+                    : app->world_camera.projection_scale;
+    if( scale <= 0 )
+        scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
+    int distance = app->world_emit_desc.h > 0
+                       ? (int)(1400.0 - scale * 4.0 * 334.0 / app->world_emit_desc.h)
+                       : 512;
+    if( distance < 512 )
+        distance = 512;
+    for( int i = 0; i < 2; ++i )
+    {
+        int heading = i == 0 ? hover : selected;
+        if( heading < 0 || (i == 0 && heading == selected) )
+            continue;
+        int model_id = app->sailing_arrow_model[i];
+        if( model_id < 0 )
+            continue;
+        if( !CacheProvider_ModelHas(app->provider, model_id) )
+        {
+            if( !app->sailing_arrow_loading[i] )
+            {
+                ToriRS_TaskQueue_Add(
+                    app->runner.queue, CreateTask_ModelLoad(app->provider, model_id));
+                app->sailing_arrow_loading[i] = 1;
+            }
+            continue;
+        }
+        int element = app->sailing_arrow_element[i];
+        if( element < 0 )
+        {
+            struct ToriRS_Model* source = CacheProvider_ModelGet(app->provider, model_id);
+            assert(source);
+            struct ToriDraw_Model* model = ToriDraw_ModelFromToriRS(source);
+            assert(model);
+            struct ToriDraw_ModelHandle handle = { .kind = TORIDRAWMK_MODEL };
+            handle.u.model.model = model;
+            ToriDraw_ModelSetBoundsCylinder(model);
+            ToriDraw_LightModelScene(handle, 0, 0);
+            element = ToriDraw_SceneElementAddPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC);
+            assert(element >= 0);
+            ToriDraw_SceneElementSetModel(app->scene, element, handle);
+            app->sailing_arrow_element[i] = element;
+        }
+        int angle = heading * 128;
+        int x = vessel->x - world->_base_tile_x * 128 -
+                (int)((int64_t)ToriDraw_Sin(angle) * distance / 65536);
+        int z = vessel->z - world->_base_tile_z * 128 -
+                (int)((int64_t)ToriDraw_Cos(angle) * distance / 65536);
+        int gx = x >> 7, gz = z >> 7;
+        if( gx < 0 || gz < 0 || gx >= world->_scene_size || gz >= world->_scene_size )
+            continue;
+        ToriDraw_SceneElementSetPosition(app->scene, element, x, vessel->y - 8, z, angle);
+        painter_add_normal_scenery(
+            world->painter,
+            gx,
+            gz,
+            World_LocPaintLevel(world, gx, gz, vessel->parent_level),
+            element,
+            1,
+            1,
+            0);
+    }
+}
+
+/*
+ * World_ActorRootFrameFn: the facing math's cross-frame answer — an aboard
+ * actor's position pushed out through the hull (app_wev_actor_root_fine) plus
+ * the frame's yaw offset, the hull's live angle: a homed actor's element yaw
+ * is deck-frame and the descent adds the hull's yaw at draw, so a direction
+ * computed in the root must have it taken back out.
+ */
+int
+app_wev_actor_root_frame(
+    void* userdata,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int* io_fine_x,
+    int* io_fine_z,
+    int* out_frame_yaw)
+{
+    struct App* app = (struct App*)userdata;
+
+    assert(app);
+    assert(placement);
+    assert(io_fine_x);
+    assert(io_fine_z);
+    assert(out_frame_yaw);
+
+    *out_frame_yaw = 0;
+    if( !app_wev_actor_root_fine(app, placement, io_fine_x, io_fine_z) )
+        return 0;
+    *out_frame_yaw = Wevs_Get(&app->wevs, placement->view_id)->angle & 0x7ff;
+    return 1;
+}
+
+/* WevHeightFn: terrain under a hull, for the world-entity interpolator.
+ *
+ * Two things separate this from app_world_height. The sample belongs to the
+ * view the boat floats IN (the root for a boat, a carrier's deck later), not
+ * to app->world by assumption. And a Wev transform is absolute root-world fine
+ * units off the wire, while every World samples its heightmap in scene-local
+ * units — feeding the absolute value straight in puts every real boat outside
+ * [0,scene_size) and the out-of-scene guard flattens it to y 0. */
+int
+app_wev_terrain_height(
+    void* userdata,
+    int view_id,
+    int world_x,
+    int world_z,
+    int level)
+{
+    struct App* app = (struct App*)userdata;
+    struct Worldview* view;
+
+    assert(app);
+    view = WorldviewRegistry_Get(&app->worldviews, view_id);
+    /* Every live view owns a World (WorldviewRegistry_Register asserts it);
+     * whether that World has a heightmap yet is the loaded-or-not question
+     * World_HeightAt answers. */
+    assert(view->world);
+    return World_HeightAt(
+        view->world,
+        world_x - (view->world->_base_tile_x << 7),
+        world_z - (view->world->_base_tile_z << 7),
+        level);
+}
+
+/* --- SAILING_PLAN C3: world entities in the painter ---------------------- */
+
+/**
+ * `TORIRS_WEV_DEBUG=1` — trace every world entity the client is told about and
+ * every frame's painter insertion.
+ *
+ * A boat that does not appear has one of three causes, and they are
+ * indistinguishable from a blank patch of water: the spawn never arrived, the
+ * spawn arrived but its own view never came live (no REBUILD_WORLDENTITY, so
+ * there is no deck to descend into), or the hull's tile falls outside the
+ * observer's scene. Each of those prints its own line here.
+ *
+ * Off by default and read once: this sits inside the per-frame painter
+ * registration, where an unconditional write costs whole milliseconds
+ * (docs — one stderr write per spawn was the entire "laggy scene" stutter).
+ */
+static int
+app_wev_debug_enabled(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_WEV_DEBUG");
+
+        cached = (v && v[0] && v[0] != '0') ? 1 : 0;
+    }
+    return cached;
+}
+
+struct Wev*
+App_WevSpawn(
+    struct App* app,
+    int id,
+    int config_id,
+    int size_x_tiles,
+    int size_z_tiles,
+    int priority_group,
+    int x,
+    int z,
+    int angle,
+    unsigned op_mask)
+{
+    struct World* world;
+    struct WorldBuilder* builder;
+    struct WevConfig const* config;
+
+    assert(app);
+    if( app_wev_debug_enabled() )
+        fprintf(
+            stderr,
+            "wev: SPAWN id=%d config=%d size=%dx%d prio=%d fine=%d,%d angle=%d "
+            "op_mask=0x%x\n",
+            id,
+            config_id,
+            size_x_tiles,
+            size_z_tiles,
+            priority_group,
+            x,
+            z,
+            angle,
+            op_mask);
+    /* A spawn needs the full boot substrate: the shared scene the view's
+     * builder writes into and the cache provider it reads from. A harness App
+     * without them cannot spawn a boat — stop here, loudly. These two are
+     * caller contracts and stay asserts. */
+    assert(app->scene);
+    assert(app->provider);
+    /* Everything below is WIRE data: id, config and sizes come straight off
+     * a packet, so a value the client cannot honour is a malformed or
+     * lagging server, guarded, not asserted — the deob throws here, but our
+     * NDEBUG release lane compiles an assert into nothing and then indexes
+     * the config table (or the rebuild's 13x13 descriptor grid, one packet
+     * later) out of bounds. Refusing returns NULL; the exec skips the
+     * spawn. */
+    if( id <= WORLDVIEW_ROOT || id >= WORLDVIEW_MAX ||
+        !WevConfigTable_Has(&app->wev_configs, config_id) || size_x_tiles <= 0 ||
+        size_z_tiles <= 0 || size_x_tiles / 8 > WORLD_INSTANCE_ZONES ||
+        size_z_tiles / 8 > WORLD_INSTANCE_ZONES )
+    {
+        fprintf(
+            stderr,
+            "wev: SPAWN refused id=%d config=%d size=%dx%d (bad wire values)\n",
+            id,
+            config_id,
+            size_x_tiles,
+            size_z_tiles);
+        return NULL;
+    }
+    config = WevConfigTable_Get(&app->wev_configs, config_id);
+
+    /*
+     * Recon OQ4: element ids are scene-global — every view's terrain and
+     * scenery draws from the root's one element pool, so a deck's terrain
+     * spends the root's headroom. Assert it now, at spawn, instead of
+     * overflowing in the middle of the deck rebuild.
+     *
+     * Two separate claims, split so a failure names which one broke, and
+     * counting terrain only: one element per tile per level. Scenery is
+     * bounded by the deck's loc count, not by its tile count, so the old
+     * doubling was arithmetic, not a bound — and with it a maximum view
+     * needed 104*104*4*2 = 86,528 of a 65,536 pool, which no scene state
+     * whatsoever could satisfy. The undoubled figure is 43,264: one
+     * maximum-size view fits and two do not, so the old note about "~15 max-
+     * size views" was wrong in the same direction.
+     */
+    assert(size_x_tiles * size_z_tiles * WORLD_MAP_TERRAIN_LEVELS <= TORIDRAW_SCENE_MAX_ELEMENTS);
+    /* ...and the pool must still have that much left, which is the leak
+     * check: a session that has been sailing all day should not have drifted
+     * upward. A failure HERE means the scene is leaking elements. */
+    assert(
+        ToriDraw_SceneElementSlotCount(app->scene) +
+            size_x_tiles * size_z_tiles * WORLD_MAP_TERRAIN_LEVELS <=
+        TORIDRAW_SCENE_MAX_ELEMENTS);
+
+    /* The entity's own simulation pair, same shape as the root's (Phase 4b
+     * above): a World over the shared scene plus the builder that keeps it in
+     * sync. The registry takes ownership and frees both on despawn. */
+    world = World_New();
+    assert(world);
+    World_SetScene(world, app->scene);
+    builder = WorldBuilder_New(world, app->provider, app->scene, &app->varps);
+    assert(builder);
+    /* One scene, one element namespace, one pool pair per view: the deck's
+     * terrain and scenery are allocated in view `id`'s static pool, so its
+     * rebuild frees the deck and nothing else, and the root's rebuild sweeps
+     * only the root's. Bound before the first build — elements keep the pool
+     * they were allocated in. */
+    WorldBuilder_SetSceneView(builder, id);
+
+    /* Eager scene allocation (plan C2, deob class100 allocating its heights
+     * at construction): the boat's heightmap, collision maps, minimap and its
+     * own Painter exist from spawn, so an entity can enter the view before
+     * the first deck rebuild lands. Square scene of the larger side; parked
+     * at base (0,0) — REBUILD_WORLDENTITY re-runs this reset with the wire's
+     * staging base (base = (center - size/16)*8). */
+    {
+        int scene_size = size_x_tiles > size_z_tiles ? size_x_tiles : size_z_tiles;
+
+        World_ResetScene(world, scene_size / 16, scene_size / 16, scene_size);
+    }
+
+    /* Nested entities ride this deck and register into ITS painter, so the boat
+     * world carries the same hook the root does (SAILING_PLAN C3). */
+    World_SetWorldEntityRegisterFn(world, app_wev_register_pseudo_locs, app);
+    /* Actors standing on this deck are owned by the world that carries the
+     * boat, so the deck needs both halves of the borrowing arrangement: who to
+     * draw each frame, and whose elements its rebuild must not sweep
+     * (SAILING_PLAN C5.1). */
+    World_SetForeignActorRegisterFn(world, app_wev_register_deck_actors, app);
+    World_SetForeignDynamicClaimFn(world, app_wev_claim_deck_actors, app);
+
+    /* The per-view rebuild (REBUILD_WORLDENTITY, task_gameproto_exec.c) —
+     * staging the deck map into the off-map rectangle this registers — fills
+     * in base_x/base_z. Until then the view's membership box sits at (0,0)
+     * with only its size known. */
+    WorldviewRegistry_Register(
+        &app->worldviews, id, world, builder, 0, 0, size_x_tiles, size_z_tiles, app->active_world);
+
+    return Wevs_Spawn(
+        &app->wevs, id, app->active_world, config, config_id, x, z, angle, priority_group, op_mask);
+}
+
+void
+App_WevDespawn(
+    struct App* app,
+    int id)
+{
+    struct Worldview* view;
+
+    assert(app);
+    assert(app->scene);
+    /* Leaves first: Wevs_Despawn contracts that the departing view hosts no
+     * children, and a server despawning a carrier before its nested entities
+     * (legal on the wire) must not turn that contract into an abort — or,
+     * under NDEBUG, an orphaned child list entry. Children recurse through
+     * this same function so their own decks unwind fully. */
+    while( Wevs_ViewListCount(&app->wevs, id) > 0 )
+        App_WevDespawn(app, Wevs_ViewListAt(&app->wevs, id, 0)->id);
+    /* If this view is the tick's zone/rebuild cursor, the cursor is now a
+     * dangling address — point it back at the root, exactly what the tick
+     * fence would do. */
+    if( app->active_world == id )
+    {
+        app->active_world = WORLDVIEW_ROOT;
+        app->active_world_level = 0;
+    }
+    /* Entity first (asserts its own list is empty — nested entities despawn
+     * leaves-first), then its view: Release frees the owned world/builder
+     * pair the spawn built. */
+    /* Anyone standing on the deck goes back to the root FIRST: the pool clear
+     * below frees this view's dynamic elements, and an aboard actor's element
+     * is one of them while the root world still holds its id (SAILING_PLAN
+     * C5.1). */
+    app_wev_evict_view_actors(app, id);
+
+    Wevs_Despawn(&app->wevs, id);
+
+    view = WorldviewRegistry_Get(&app->worldviews, id);
+    /* The scene outlives the view. Freeing the World reclaims the deck's
+     * entity records, not the SHARED scene's elements the builder placed for
+     * them — so the view's two pools are swept here, at the one place a view
+     * stops existing. Without it a boat that sails out of range leaves its
+     * whole deck in the element pool, and the spawn-time headroom assert is
+     * what eventually reports it, a dozen boats too late.
+     *
+     * Drain first: the departing world's EntityRemoved queue still names
+     * DYNAMIC elements whose owner is already gone, and the drain is what
+     * hands them to the plugins before they are freed. */
+    App_WorldDrainEntityRemovedFor(app, view->world);
+    ToriDraw_SceneClearPool(app->scene, TORIDRAW_SCENE_POOL_STATIC_VIEW(id));
+    ToriDraw_SceneClearPool(app->scene, TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(id));
+
+    WorldviewRegistry_Release(&app->worldviews, id);
+    app->need_redraw = 1;
+}
+/*
  * World ENTITIES -- the sailing hulls that carry a world view around the map,
  * and everything the client has to do per frame to draw one inside another.
  *
@@ -31,7 +592,7 @@
  * Painter-correct ordering against real locs, actors and projectiles then comes
  * for free.
  */
-static void
+void
 app_wev_register_pseudo_locs(
     void* userdata,
     struct World* world)
@@ -181,7 +742,7 @@ app_wev_register_pseudo_locs(
  * `T = (-size_x*64 - pivot_x, 0, -size_z*64 - pivot_z)`, so
  * `deck = R(-angle) * (root - pos) - T`.
  */
-static void
+void
 app_wev_bind_view_cameras(
     struct App* app,
     int pitch,
@@ -309,7 +870,7 @@ app_wev_bind_view_cameras(
  * them; nothing here needs the tree order, because each entry is expressed
  * purely in its own PARENT's space.
  */
-static void
+void
 app_wev_bind_frame_xforms(
     struct App* app,
     struct ToriRS_Frame* frame)
@@ -378,7 +939,6 @@ app_wev_bind_frame_xforms(
 
 /* Native actor overlaps use the drawn root position and nearest-16 oriented
  * hull bounds. NPCs opt in only when their resolved type exposes an action. */
-#include "game/sailing_paint_order.u.h"
 
 static bool
 app_wev_ground_below(
@@ -404,7 +964,7 @@ app_wev_ground_below(
     return true;
 }
 
-static void
+void
 app_wev_order_parent_ground(struct App* app)
 {
     assert(app);
@@ -544,7 +1104,7 @@ app_wev_decide_flatten(struct App* app)
  * fine units. The arithmetic is Wev_DeckBoxInParent's; this is the spelling
  * that looks the view up, which is the only part of it that needs an App.
  */
-static void
+void
 app_wev_deck_box(
     struct App* app,
     struct Wev const* wev,
@@ -584,7 +1144,7 @@ app_wev_deck_box(
  * deck at plane 1 and the quarterdeck at plane 2, so a level-0 actor stood
  * below the planking with the ship's own geometry drawn over them.
  */
-static int
+int
 app_wev_deck_level(
     struct App* app,
     int view_id)
@@ -664,7 +1224,7 @@ app_wev_apply_placement(
  * knows to skip whoever just boarded. A tick's lag either way would draw a
  * boarding player twice or not at all for a frame.
  */
-static void
+void
 app_wev_route_actors(struct App* app)
 {
     struct World* world;
@@ -925,7 +1485,7 @@ app_wev_register_deck_actors(
  * root rebuild frees them (model and all) while the Wev still holds the id
  * and pointer. @see World_ForeignDynamicClaimFn.
  */
-static int
+int
 app_wev_claim_deck_actors(
     void* userdata,
     struct World* world,
@@ -1055,7 +1615,7 @@ app_wev_evict_view_actors(
  * and nested hulls off a deck's painter, so a view that never gets this pass
  * accumulates every actor that ever stood on it.
  */
-static void
+void
 app_wev_cycle_views(struct App* app)
 {
     assert(app);
@@ -1074,12 +1634,6 @@ app_wev_cycle_views(struct App* app)
     }
 }
 
-/* Defined with the seq loader further down. */
-static void
-app_request_entity_seq(
-    struct App* app,
-    int seq_id);
-
 /**
  * The hull bob, per frame (deob class467.method10419 + the client-tick
  * advance at client.java:9218-9241): pick each hull's ACTIVE seq — the wire
@@ -1095,7 +1649,7 @@ app_request_entity_seq(
  * until the load lands. Native class467.method10419 applies its current
  * animation matrix to both full and flattened scenes.
  */
-static void
+void
 app_wev_advance_bobs(struct App* app)
 {
     assert(app);
@@ -1185,3 +1739,4 @@ app_wev_advance_bobs(struct App* app)
                 wev->bob_y);
     }
 }
+

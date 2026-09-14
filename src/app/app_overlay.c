@@ -1,4 +1,50 @@
 /*
+ * The overlay stage: where a primitive goes, and the per-surface windows.
+ *
+ * One translation unit of the App layer. Everything here may read and write
+ * `struct App`; what crosses to another unit of the layer is declared in
+ * app/app_internal.h, and nothing outside the layer may include either.
+ */
+
+#include "app/app_internal.h"
+
+/**
+ * Directions sampled around a projected mesh when reducing it to a hull.
+ *
+ * The reduction is what makes a mesh outline affordable. The exact hull of a
+ * few thousand screen points costs an angular sort over all of them; the
+ * extreme point along a FIXED direction is one multiply-add and one compare
+ * per vertex. Every such extreme is a vertex of the true hull, so the polygon
+ * built from them is inscribed in it — tighter than the real silhouette by at
+ * most the sagitta of a 360/(2*N) degree arc, never looser — and it is capped
+ * at 2*N points, which is what keeps a highlight's cost to the overlay budget
+ * bounded no matter how detailed the model is.
+ *
+ * 16 directions is an 11.25 degree gap between samples: under half a percent
+ * of the silhouette's radius, which is sub-pixel on anything short of a boss
+ * filling the viewport.
+ */
+#define APP_OUTLINE_HULL_MESH_DIRECTIONS 16
+
+/* Private to this unit, declared up front so definition order is free. */
+static enum OverlaySurface
+app_overlay_surface(struct App const* app);
+static uint32_t
+app_overlay_chat_colour(
+    struct App* app,
+    int chat_colour,
+    int timer);
+static int
+app_overlay_outline_element_model(
+    struct App* app,
+    int element_id,
+    uint32_t color);
+static void
+app_overlay_outline_scenery(
+    struct App* app,
+    struct WorldEntity_Scenery const* scenery);
+
+/*
  * The entity overlay STAGE -- everything drawn over the world that is not part
  * of the world: overhead chat, hitsplats, health bars, headicons, the outline
  * pass, and the plugin-authored polygons and labels that share the same list.
@@ -33,7 +79,7 @@ app_overlay_surface(struct App const* app)
     }
 }
 
-static void
+void
 app_overlay_push(
     struct App* app,
     struct UITreeEntityOverlay const* item)
@@ -81,7 +127,7 @@ app_overlay_push(
 
 /** How many items the open draw window has pushed, so a draw verb can report
  *  its own cost without knowing which list it landed in. */
-static int
+int
 app_overlay_count(struct App const* app)
 {
     assert(app);
@@ -111,7 +157,7 @@ app_overlay_chat_colour(
  * above the model top (reference drawEntities, Client.ts:4871/4958). Effects
  * (wave/scroll) fall back to plain centred text — the styled variants need
  * per-glyph font passes the overlay descs don't carry yet. */
-static void
+void
 app_overlay_build_chat(
     struct App* app,
     int element_id,
@@ -164,7 +210,7 @@ app_overlay_build_chat(
  * Ancient Curses lane's six overheads appended (Deflect ×4, Wrath, Soul Split
  * at 24..29). A loop that stops at 8 does not draw a smaller icon for those —
  * it draws nothing, and the curse reads as having no overhead at all. */
-static void
+void
 app_overlay_build_player_headicons(
     struct App* app,
     int element_id,
@@ -239,7 +285,7 @@ app_overlay_build_player_headicons(
  * walk behind the camera and come back. It simply does not project this frame,
  * which is the same distinction the scripted-overlay reaper had to learn.
  */
-static void
+void
 app_overlay_build_hint_arrow(struct App* app)
 {
     int const type = app->hint_arrow.type;
@@ -356,24 +402,6 @@ app_overlay_build_hint_arrow(struct App* app)
 }
 
 /*
- * The sprite-group id of `headicons_prayer`.
- *
- * An npc's opcode-102 icon names its group as a NUMBER, and the client
- * resolves that pack by NAME (static_sprites.c, STATIC_SPRITE_HEADICONS_PRAYER)
- * — the provider offers no synchronous name -> group-id lookup to close the
- * gap with, only an async load task. So the number is stated here, from
- * `OSRS-Content/osrs239-content/pack/8_sprites.pack` line 441, where it is the
- * only group any of this cache's 77 headicon-bearing npc records names.
- *
- * Failure mode if a future cache renumbers it: npcs stop drawing overheads.
- * That is the deliberate direction — a record naming an unrecognised group is
- * skipped rather than drawn out of the prayer pack, because an icon that says
- * "Protect from Magic" when the record meant something else is worse than no
- * icon at all.
- */
-#define APP_HEADICONS_PRAYER_GROUP 440
-
-/*
  * Overhead prayer icon for an NPC (reference drawEntities, NpcType.headicon).
  *
  * Where a player carries an eight-bit MASK and stacks every set bit, an npc
@@ -389,7 +417,7 @@ app_overlay_build_hint_arrow(struct App* app)
  * record naming any other group draws nothing rather than drawing the wrong
  * pack's frame.
  */
-static void
+void
 app_overlay_build_npc_headicon(
     struct App* app,
     int element_id,
@@ -433,7 +461,7 @@ app_overlay_build_npc_headicon(
 }
 
 /* Push one projected world segment as a LINE overlay (box + diagonal). */
-static void
+void
 app_overlay_push_segment(
     struct App* app,
     int screen_x0,
@@ -497,7 +525,7 @@ app_overlay_push_segment(
  * @param trans 0 opaque .. 255 invisible. A highlight is a wash over the model
  *        it marks, so an opaque fill would hide the thing being highlighted.
  */
-static void
+void
 app_overlay_push_polygon_filled(
     struct App* app,
     const int* points_x,
@@ -537,7 +565,7 @@ app_overlay_push_polygon_filled(
     app_overlay_push(app, &item);
 }
 
-static void
+void
 app_overlay_push_polygon(
     struct App* app,
     const int* points_x,
@@ -598,7 +626,7 @@ app_overlay_push_polygon(
  *        than one over a single latched selection -- or absent entirely.
  * @return 1 when an outline was emitted.
  */
-static int
+int
 app_overlay_outline_element_model_trans(
     struct App* app,
     int element_id,
@@ -673,24 +701,6 @@ app_overlay_outline_element_model_trans(
 }
 
 /**
- * Directions sampled around a projected mesh when reducing it to a hull.
- *
- * The reduction is what makes a mesh outline affordable. The exact hull of a
- * few thousand screen points costs an angular sort over all of them; the
- * extreme point along a FIXED direction is one multiply-add and one compare
- * per vertex. Every such extreme is a vertex of the true hull, so the polygon
- * built from them is inscribed in it — tighter than the real silhouette by at
- * most the sagitta of a 360/(2*N) degree arc, never looser — and it is capped
- * at 2*N points, which is what keeps a highlight's cost to the overlay budget
- * bounded no matter how detailed the model is.
- *
- * 16 directions is an 11.25 degree gap between samples: under half a percent
- * of the silhouette's radius, which is sub-pixel on anything short of a boss
- * filling the viewport.
- */
-#define APP_OUTLINE_HULL_MESH_DIRECTIONS 16
-
-/**
  * Outline the MESH of a scene element: the model's own posed vertices, rather
  * than the box that contains them.
  *
@@ -717,7 +727,7 @@ app_overlay_outline_element_model_trans(
  * @param fill_trans 0 opaque .. 255 invisible, or -1 for no fill at all.
  * @return 1 when an outline was emitted.
  */
-static int
+int
 app_overlay_outline_element_mesh_trans(
     struct App* app,
     int element_id,
@@ -1021,7 +1031,7 @@ app_overlay_outline_scenery(
     }
 }
 
-static void
+void
 app_overlay_build_hover_footprint(struct App* app)
 {
     /* 0 = off; 1 = the hovered loc; >1 = every instance of that LOC ID.
@@ -1098,7 +1108,7 @@ app_overlay_build_hover_footprint(struct App* app)
  * on what was latched even after the cursor moves off it, matching what
  * panel_refresh (editor_panel.c) is reading for the readout at the same time.
  */
-static void
+void
 app_overlay_build_editor_selection(struct App* app)
 {
     struct Editor_Panel const* panel = &app->editor_panel;
@@ -1221,3 +1231,4 @@ app_overlay_build_editor_selection(struct App* app)
         app_overlay_push_polygon(app, hull_x, hull_y, hull_size, APP_OUTLINE_COLOR_EDITOR_SELECT);
     }
 }
+

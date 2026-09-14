@@ -1,4 +1,156 @@
 /*
+ * The full-screen world map surface: tiles, icons, overview, and the drag.
+ *
+ * One translation unit of the App layer. Everything here may read and write
+ * `struct App`; what crosses to another unit of the layer is declared in
+ * app/app_internal.h, and nothing outside the layer may include either.
+ */
+
+#include "app/app_internal.h"
+
+/* Private to this unit, declared up front so definition order is free. */
+static int
+app_worldmap_flash_marker_scene(struct App* app);
+static bool
+app_worldmap_push_icon(
+    struct App* app,
+    int element_id,
+    int screen_x,
+    int screen_y);
+static int
+app_worldmap_ensure_overview_scene(
+    struct App* app,
+    struct ToriRS_WorldMapArea const* area);
+static void
+app_worldmap_build_icons(
+    struct App* app,
+    struct ToriRS_WorldMapArea const* area,
+    int centre_x,
+    int centre_y,
+    int display_x,
+    int display_y,
+    int region_px);
+static void
+app_worldmap_click(
+    struct App* app,
+    int mouse_x,
+    int mouse_y);
+
+/*
+ * One map element icon at a screen position, loading its config and sprite on
+ * demand. Both loads are lazy, so an icon appears a frame or two after the
+ * region under it — the same order the reference fills a cold cache in.
+ *
+ * Returns false when it could not be drawn (yet), which the callers ignore: the
+ * next frame asks again.
+ */
+/*
+ * The flash marker drawn behind a flashing icon: a translucent yellow disc with
+ * an opaque white core, 30x30, built once and parked at a reserved scene id.
+ *
+ * It is synthesised rather than resolved by name because the cache has no flash
+ * marker to resolve. The `worldmap_marker_0..8` / `worldmap_marker_mini_0..2`
+ * packs are the *player-placed* map markers (marker_0 measures 37x37 and is the
+ * yellow X), not this. Nothing else in the sprite index names a flash asset, so
+ * there is no id to look up — and inventing one would be worse than drawing the
+ * shape. This mirrors the reference client wrapper, which composites the same
+ * disc itself for the same reason (widgets-gl.ts getWorldMapFlashTexture).
+ */
+static int
+app_worldmap_flash_marker_scene(struct App* app)
+{
+    enum
+    {
+        MARKER_SIZE = 30
+    };
+    uint32_t* argb;
+    struct ToriDraw_Sprite* sprite;
+    struct ToriDraw_Sprite** sprites;
+    int const radius = MARKER_SIZE / 2;
+    int const core = 7;
+
+    if( app->worldmap.flash_scene_id != 0 )
+        return app->worldmap.flash_scene_id;
+
+    app->worldmap.flash_scene_id = -1;
+    argb = calloc((size_t)MARKER_SIZE * MARKER_SIZE, sizeof(*argb));
+    assert(argb);
+
+    for( int y = 0; y < MARKER_SIZE; y++ )
+    {
+        int dy = y - radius;
+        for( int x = 0; x < MARKER_SIZE; x++ )
+        {
+            int dx = x - radius;
+            int d2 = dx * dx + dy * dy;
+            if( d2 <= core * core )
+                argb[y * MARKER_SIZE + x] = 0xFFFFFFFFu; /* opaque white core */
+            else if( d2 <= radius * radius )
+                argb[y * MARKER_SIZE + x] = 0x80FFFF00u; /* half-alpha yellow halo */
+        }
+    }
+
+    sprite = ToriDraw_SpriteNewFromArgbOwned(argb, MARKER_SIZE, MARKER_SIZE);
+    if( !sprite )
+    {
+        free(argb);
+        return -1;
+    }
+    sprites = malloc(sizeof(*sprites));
+    assert(sprites);
+    sprites[0] = sprite;
+    ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID, sprites, 1);
+    app->worldmap.flash_scene_id = UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID;
+    return app->worldmap.flash_scene_id;
+}
+
+/* Loc mapfunction / worldmap icon: mapelement id → sprite scene id (dat2).
+ * Queues MapElementLoad / SpriteLoad when cold; returns <= 0 until ready.
+ * Label-only elements (sprite_id < 0) return 0. If out_element is non-NULL and
+ * the config is loaded, it is filled (even when the sprite is not ready). */
+int
+app_mapfunction_scene_id(
+    struct App* app,
+    int element_id,
+    struct ToriRS_MapElement** out_element)
+{
+    struct ToriRS_MapElement* element;
+    struct ToriRS_Sprite* sprite;
+    int scene_id;
+
+    assert(app);
+    assert(app->provider);
+    if( out_element )
+        *out_element = NULL;
+    if( element_id < 0 )
+        return 0;
+
+    element = CacheProvider_MapElementGet(app->provider, element_id);
+    if( !element )
+    {
+        struct ToriRS_Task* task = CreateTask_MapElementLoad(app->provider, element_id);
+        if( task )
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        return 0;
+    }
+    if( out_element )
+        *out_element = element;
+    if( element->sprite_id < 0 )
+        return 0;
+
+    sprite = CacheProvider_SpriteGet(app->provider, element->sprite_id);
+    if( !sprite || sprite->frame_count <= 0 )
+    {
+        struct ToriRS_Task* task = CreateTask_SpriteLoad(app->provider, element->sprite_id);
+        if( task )
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        return 0;
+    }
+
+    scene_id = UITreeSceneBridge_EnsureSprite(&app->bridge, element->sprite_id);
+    return scene_id > 0 ? scene_id : 0;
+}
+/*
  * The WORLD MAP -- the full-screen map the cache's scripts open, as opposed to
  * the minimap. Building its tile raster from the loaded geography, placing the
  * icons the mapelement configs name, and answering what the CS2 world-map
@@ -107,7 +259,7 @@ app_worldmap_push_icon(
     return true;
 }
 
-static int
+int
 app_worldmap_build_tiles(
     struct App* app,
     struct UITreeHostRequest* req)
@@ -509,7 +661,7 @@ app_worldmap_ensure_overview_scene(
     return app->worldmap.overview_scene_id;
 }
 
-static int
+int
 app_worldmap_build_overview(
     struct App* app,
     struct UITreeHostRequest* req)
@@ -680,7 +832,7 @@ app_worldmap_click(
  * sets hide only on the group roots (not on the builtin surface node itself),
  * so the ancestor walk and RootIsDisplayable are both required.
  */
-static int
+int
 app_worldmap_surface_live(struct App* app)
 {
     struct UITree* tree;
@@ -708,7 +860,7 @@ app_worldmap_surface_live(struct App* app)
  * the half that needs an App: gathering this frame's pointer facts, and
  * turning the result back into a click or a redraw.
  */
-static void
+void
 app_worldmap_drag_tick(
     struct App* app,
     struct LibToriRS_Input* input,
@@ -736,3 +888,4 @@ app_worldmap_drag_tick(
     else if( result == UI_WORLDMAP_DRAG_PANNED )
         app->need_redraw = 1;
 }
+

@@ -1,4 +1,14 @@
 /*
+ * The logic tick.
+ *
+ * One translation unit of the App layer. Everything here may read and write
+ * `struct App`; what crosses to another unit of the layer is declared in
+ * app/app_internal.h, and nothing outside the layer may include either.
+ */
+
+#include "app/app_internal.h"
+
+/*
  * The 20 ms client tick.
  *
  * Included into app.c rather than compiled on its own. One tick touches the
@@ -8,7 +18,7 @@
  */
 
 /* One 20ms client tick: clock, widget timers, animation loads + advance. */
-static int
+int
 app_logic_tick(struct App* app)
 {
     int redraw = 0;
@@ -1037,3 +1047,4 @@ app_logic_tick(struct App* app)
 
     return redraw;
 }
+

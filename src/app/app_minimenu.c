@@ -1,4 +1,83 @@
 /*
+ * The right-click menu: build, open, run, inventory drag, and hover text.
+ *
+ * One translation unit of the App layer. Everything here may read and write
+ * `struct App`; what crosses to another unit of the layer is declared in
+ * app/app_internal.h, and nothing outside the layer may include either.
+ */
+
+#include "app/app_internal.h"
+
+/* Private to this unit, declared up front so definition order is free. */
+static void
+app_minimenu_entry_publish(
+    struct App* app,
+    struct UIMinimenu const* menu);
+static bool
+app_clientop_armed(struct App const* app);
+static void
+app_clientop_add_rows(
+    struct App* app,
+    struct UIMinimenu* menu,
+    enum RS_ClientOpKind kind,
+    char const* subject,
+    struct UIMinimenuPick pick);
+static void
+app_clientop_menu_build(
+    struct App* app,
+    struct UIMinimenu* menu,
+    int hover_pass);
+static int
+app_clientop_run(
+    struct App* app,
+    struct UIMinimenuOption const* opt);
+static void
+app_inv_cell_op_flash(
+    struct App* app,
+    int com_id,
+    int slot,
+    int op_index);
+static void
+app_targetsel_dispatch_hook(
+    struct App* app,
+    int entering);
+static void
+app_targetsel_clear(struct App* app);
+static int
+app_minimenu_inv_action(
+    struct App* app,
+    struct UIMinimenuOption const* opt);
+static void
+app_run_default_ui_row(
+    struct App* app,
+    int click_x,
+    int click_y);
+static int
+app_inv_resolve_drop(
+    struct App* app,
+    int mouse_x,
+    int mouse_y,
+    int* out_com,
+    int* out_slot,
+    int* out_obj,
+    int32_t* out_node);
+static void
+app_inv_drag_drop(
+    struct App* app,
+    int mouse_x,
+    int mouse_y);
+static int
+app_inv_drag_promoted(struct App const* app);
+static int
+app_inv_drag_source_live(struct App const* app);
+static void
+app_inv_drag_cancel(struct App* app);
+static int
+app_minimenu_ui_pick_live(
+    struct App const* app,
+    struct UIMinimenuPick const* pick);
+
+/*
  * The right-click menu: building the rows, and running the one that was
  * clicked.
  *
@@ -11,7 +90,7 @@
 /* Snapshot the armed use/target selection for the minimenu builder (reference
  * useMode/targetMode). objsel and targetsel are mutually exclusive — arming one
  * clears the other. */
-static struct RS_MinimenuSelection
+struct RS_MinimenuSelection
 app_minimenu_selection(struct App const* app)
 {
     struct RS_MinimenuSelection sel = { .mode = RS_MINIMENU_SELECT_NONE };
@@ -36,7 +115,7 @@ app_minimenu_selection(struct App const* app)
  * resolves through its view's OWN world, which the root tables cannot see
  * (SAILING_PLAN C5.2's non-terrain half). NULL for a dead view — the row is
  * then dropped, like every other dead-view pick. */
-static struct World*
+struct World*
 app_minimenu_view_world(
     void* user,
     int view_id)
@@ -100,7 +179,7 @@ app_minimenu_entry_publish(
  * the same menu the right click would show is exactly what those opcodes
  * report, so both the line drawn here and the CS2 snapshot come from one pass.
  */
-static void
+void
 app_hover_text_update(
     struct App* app,
     int mouse_x,
@@ -200,7 +279,7 @@ app_hover_text_update(
  * not depend on the tile. A pickset that DOES hold terrain is left alone — the
  * row targets the picked tile there, exactly as before.
  */
-static void
+void
 app_minimenu_ctx_ground_fallback(
     struct App* app,
     struct RS_MinimenuBuildCtx* mctx,
@@ -507,7 +586,7 @@ app_clientop_run(
 /* Stamp the exact tree occupant behind every retained native UI row. Scratch
  * menus are consumed synchronously, but a popup can stay open while an earlier
  * hook deletes/rebuilds the same component id into the same array slot. */
-static void
+void
 app_minimenu_stamp_node_identities(
     struct App const* app,
     struct UIMinimenu* menu)
@@ -548,7 +627,7 @@ app_minimenu_stamp_node_identities(
 /* Build + show the minimenu for a right click (reference openMenu: width from
  * the widest row, centered on the click, clamped to the canvas). The tree
  * node stays unpositioned — emit and the interact gesture read the model. */
-static void
+void
 app_minimenu_open(
     struct App* app,
     int click_x,
@@ -798,7 +877,7 @@ app_targetsel_clear(struct App* app)
  * leaving the other lit. Every "clicked off" site funnels through here so a new
  * armed mode added later cannot be forgotten at one of them. Returns nonzero
  * when something was actually armed. */
-static int
+int
 app_selection_clear(struct App* app)
 {
     int was_armed;
@@ -1007,15 +1086,12 @@ app_minimenu_inv_action(
     }
 }
 
-#include "ui/uitree_inv_view.h"
-#include "ui/uitree_scroll.h"
-
 /* Filled item cell under a canvas point, of either shape the tree can express
  * one in — a TYPE_INV grid slot or a rev-230 CS2 item child. Resolution and
  * the obj lookup both live in UITree_ObjCellForNode / InvManager so the drag
  * machine and the right-click builder cannot disagree about which slot was
  * pressed. Returns false when the point is over no filled cell. */
-static bool
+bool
 app_obj_cell_at(
     struct App* app,
     int px,
@@ -1039,20 +1115,6 @@ app_obj_cell_at(
     UITree_ObjCellApplyEvents(out, App_IfEventsGetAt(app, out->component_id, out->slot));
     return true;
 }
-
-static int
-app_minimenu_run_option(
-    struct App* app,
-    int option_index,
-    int click_x,
-    int click_y);
-
-static int
-app_minimenu_use_option(
-    struct App* app,
-    int option_index,
-    int click_x,
-    int click_y);
 
 /* Run the default (top) menu row for a click at (x, y) — the reference
  * doAction(menuNumEntries - 1) short-click path. UI rows only (no world
@@ -1470,7 +1532,7 @@ app_inv_drag_cancel(struct App* app)
  * no drag feedback at all. At IF3 that flag is the IF_SETEVENTS drag depth, so
  * a worn slot stays solid while a backpack or bank cell fades.
  */
-static int
+int
 app_inv_drag_ghosting(struct App const* app)
 {
     enum UIInvDragLane const lane = App_UiLogic(app) == APP_UI_LOGIC_CS1
@@ -1497,7 +1559,7 @@ app_inv_drag_ghosting(struct App const* app)
  * (tree->anti_drag; the reference freezes mouseLoop/buildMinimenu during
  * objDragArea != 0) so the grid's ancestors can never pick the press up as
  * a whole-panel drag. */
-static void
+void
 app_inv_drag_tick(
     struct App* app,
     struct LibToriRS_Input* input,
@@ -1663,7 +1725,7 @@ app_minimenu_ui_pick_live(
     return 1;
 }
 
-static void
+void
 app_minimenu_close_if_stale(struct App* app)
 {
     struct UIMinimenu* menu = &app->interact.minimenu;
@@ -1680,7 +1742,7 @@ app_minimenu_close_if_stale(struct App* app)
     }
 }
 
-static int
+int
 app_minimenu_run_option(
     struct App* app,
     int option_index,
@@ -2804,7 +2866,7 @@ app_minimenu_run_option(
  * plain op, a UI button, Cancel — i.e. clicking off anything that can't be a use
  * target drops the white outline. The arming rows set the selection inside
  * run_option and must survive; they alone skip the clear. */
-static int
+int
 app_minimenu_use_option(
     struct App* app,
     int option_index,
@@ -2824,3 +2886,4 @@ app_minimenu_use_option(
         app_selection_clear(app);
     return result;
 }
+

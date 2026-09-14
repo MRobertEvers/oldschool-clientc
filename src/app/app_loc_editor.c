@@ -1,4 +1,31 @@
 /*
+ * The loc editor panel: rows, buttons, and the chrome input routing shared by every developer panel.
+ *
+ * One translation unit of the App layer. Everything here may read and write
+ * `struct App`; what crosses to another unit of the layer is declared in
+ * app/app_internal.h, and nothing outside the layer may include either.
+ */
+
+#include "app/app_internal.h"
+
+/* Private to this unit, declared up front so definition order is free. */
+static void
+app_loc_editor_refresh_labels(struct App* app);
+static void
+app_loc_editor_reselect(struct App* app);
+static void
+app_loc_editor_deselect(struct App* app);
+static void
+app_loc_editor_nudge(
+    struct App* app,
+    int dx,
+    int dz);
+static void
+app_loc_editor_rotate(struct App* app);
+static int
+app_dbgui_key_edit_from_osrs(int osrs_key);
+
+/*
  * The LOC EDITOR's client half -- selecting a placed loc in the world, showing
  * what it is, and driving the edits the tool makes to it.
  *
@@ -194,7 +221,7 @@ app_loc_editor_deselect(struct App* app)
  * itself uses, via the row's UIMinimenuPick.id, so it disambiguates a tile
  * with a wall AND a wall-decor AND a ground loc on it exactly the way a
  * player reading the right-click menu would. */
-static void
+void
 app_loc_editor_select_element(
     struct App* app,
     int element_id)
@@ -226,7 +253,7 @@ app_loc_editor_select_element(
 /* Select the GROUND at a scene tile. `cache_level` is the picked mesh level —
  * the plane the map authored that floor on — which the panel then reads the
  * draw and paint levels off, since those are derived and not stored. */
-static void
+void
 app_loc_editor_select_terrain(
     struct App* app,
     int scene_x,
@@ -360,7 +387,7 @@ app_dbgui_key_edit_from_osrs(int osrs_key)
  * out with. That geometry is a ghost: hit-testable at a floating position
  * nothing draws, so honouring it would punch an invisible hole in the game.
  */
-static int
+int
 app_chrome_wants_pointer(
     struct App const* app,
     int x,
@@ -387,7 +414,7 @@ app_chrome_wants_pointer(
  * that lands on a panel must not also reach the world's click-to-walk
  * underneath it, which is what `input_frame_consumed` says.
  */
-static void
+void
 app_chrome_route_input(
     struct App* app,
     struct ToriRSChrome* ui,
@@ -445,7 +472,7 @@ app_chrome_route_input(
  * neither, so a panel that is merely on screen -- the developer readout, say
  * -- never swallows a keystroke meant for the game.
  */
-static void
+void
 app_chrome_route_keys(
     struct App* app,
     struct ToriRSChrome* ui,
@@ -473,7 +500,7 @@ app_chrome_route_keys(
     }
 }
 
-static void
+void
 app_loc_editor_tick(
     struct App* app,
     struct LibToriRS_Input* input)
@@ -720,3 +747,4 @@ app_loc_editor_tick(
         ToriRSChrome_DamageClear(&app->dbg_ui);
     }
 }
+

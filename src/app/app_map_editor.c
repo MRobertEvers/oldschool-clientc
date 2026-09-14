@@ -1,4 +1,129 @@
 /*
+ * The map editor: ghost placement, the preview, square loads, and the editor panel drain.
+ *
+ * One translation unit of the App layer. Everything here may read and write
+ * `struct App`; what crosses to another unit of the layer is declared in
+ * app/app_internal.h, and nothing outside the layer may include either.
+ */
+
+#include "app/app_internal.h"
+
+/* Private to this unit, declared up front so definition order is free. */
+static void
+app_map_editor_ghost_forget(struct App* app);
+static void
+app_map_editor_ghost_remove(struct App* app);
+static struct ToriDraw_Sprite*
+app_preview_raster(
+    struct App* app,
+    struct ToriDraw_ModelHandle hnd);
+
+/**
+ * Whether the map editor's SELECT tool is the thing the minimenu should be
+ * offering "Select wall/object/decor/terrain" rows for -- panel closed or a
+ * paint tool active both mean no such row belongs on the menu, same as
+ * `app->locedit.visible` gates the loc editor's own Select row.
+ */
+bool
+app_mapedit_select_active(struct App const* app)
+{
+    assert(app);
+    return app->editor_panel.visible && app->editor_panel.tool == EDITOR_TOOL_SELECT;
+}
+
+/** Keyboard belongs to the catalog's model view? (Focused via a click; the
+ *  chrome holds the focus, the app routes the keys.) */
+int
+app_modelview_focused(struct App const* app)
+{
+    int const f = app->dbg_ui.focus;
+    return f >= 0 && f < app->dbg_ui.widget_count &&
+           app->dbg_ui.widgets[f].kind == TORIRS_CHROME_W_MODELVIEW;
+}
+
+void
+App_EditorPlaceSpawn(
+    struct App* app,
+    int is_obj,
+    int id,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    char args[32];
+
+    assert(app);
+
+    snprintf(args, sizeof(args), "id=%d", id);
+    if( is_obj )
+        app_world_spawn_obj(app, scene_x, scene_z, level, args);
+    else
+        app_world_spawn_npc(app, scene_x, scene_z, level, args);
+}
+
+/** Start a load the square browser asked for. Runs on the frame boundary with
+ *  the other editor drains, so a panel click never loads a world mid-tick. */
+void
+app_map_editor_open_pending_square(struct App* app)
+{
+    int chunks[2];
+
+    assert(app);
+
+    if( !app->editor || !app->editor_panel.sq_open_pending )
+        return;
+    app->editor_panel.sq_open_pending = 0;
+    if( app->world_load_inflight )
+        return;
+
+    chunks[0] = app->editor_panel.sq_open_x;
+    chunks[1] = app->editor_panel.sq_open_z;
+    TORIRS_LOG("editor: opening m%d_%d\n", chunks[0], chunks[1]);
+    app_world_load_begin(app, chunks, 1);
+}
+
+/** Shared-state facts from this connection's Client land on the panel — the
+ *  receiving half of the selection relay. Registered at editor construction;
+ *  fires from Editor_PumpFacts inside the per-frame drain below, and for the
+ *  common single-connection boot that includes this panel's own echoes,
+ *  which apply idempotently. */
+void
+app_editor_on_state(
+    void* user_data,
+    uint32_t key,
+    const int32_t* values,
+    int count)
+{
+    struct App* app = user_data;
+
+    assert(app);
+    Editor_PanelApplySharedState(&app->editor_panel, app, key, values, count);
+}
+
+void
+app_map_editor_drain(struct App* app)
+{
+    int squares[EDITOR_REBUILD_QUEUE_MAX * 2];
+    int count;
+
+    assert(app);
+
+    if( !app->editor || app->editor->rebuild_count == 0 )
+        return;
+    if( app->world_load_inflight )
+        return; /* A load is already rewriting the scene; let it land first. */
+
+    count = Editor_DrainRebuilds(app->editor, app->provider, squares, EDITOR_REBUILD_QUEUE_MAX);
+    if( count <= 0 )
+        return;
+
+    /* The chunklist rebuild path -- the same one an offline world load uses,
+     * given only the squares whose meshes the edit invalidated. */
+    app->world_load_attempted = 0;
+    app_world_load_begin(app, squares, count);
+    app->need_redraw = 1;
+}
+/*
  * The MAP EDITOR's client half -- placing and previewing map edits against the
  * live scene, and the ghost placements that show what an edit will look like
  * before it is committed.
@@ -48,7 +173,7 @@
  * refreshed by the render pass, so they are at most one frame stale, which at
  * mouse speed is the tile the user is looking at.
  */
-static void
+void
 app_map_editor_world_click(
     struct App* app,
     struct LibToriRS_Input* input)
@@ -227,7 +352,7 @@ app_map_editor_ghost_remove(struct App* app)
  * Keep the Place-loc hover ghost current. Once per frame, with the other
  * editor drains.
  */
-static void
+void
 app_map_editor_ghost_update(struct App* app)
 {
     int want;
@@ -414,7 +539,7 @@ app_preview_raster(
         false);
 }
 
-static void
+void
 app_map_editor_preview_update(struct App* app)
 {
     static int last_kind = -1;
@@ -694,3 +819,4 @@ app_map_editor_preview_update(struct App* app)
     last_kind = panel->cat_kind;
     last_id = preview_id;
 }
+

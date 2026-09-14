@@ -46,6 +46,12 @@ Two things it does:
             `struct App` and keeps a pointer; the field count can see the state
             that module would have taken with it.
 
+            It records a third number: how many lines src/app.c may be. The
+            APP LAYER is app.c plus every unit under src/app/, and app.c is its
+            COMPOSITION ROOT -- construction, teardown, and the globals main.c
+            shares. A subsystem written there is a subsystem nobody will find,
+            which is how the file reached 36,000 lines the first time.
+
 Usage:
     python3 tools/appc_map.py summary [--source src/app.c] [--json]
     python3 tools/appc_map.py check   [--root src] [--baseline FILE]
@@ -292,7 +298,7 @@ SHARED_STATE = SHARED_HANDLES | {
 
 # Construction touches everything by definition, so a field it shares with one
 # other unit is still that unit's own.
-CONSTRUCTION_UNITS = {"app_construct.u.c", "app_boot.u.c"}
+CONSTRUCTION_UNITS = {"app.c", "app_boot.c"}
 
 FIELD_DECL_RE = re.compile(
     r"^\s{4}(?:struct |enum |union |const |unsigned |signed |volatile )*"
@@ -397,11 +403,13 @@ def translation_units(root):
     largest single block of App is actually read.
     """
     units = [os.path.join(root, "app.c")]
-    units += sorted(
-        os.path.join(root, name)
-        for name in os.listdir(root)
-        if name.startswith("app_") and name.endswith(".u.c")
-    )
+    layer = os.path.join(root, "app")
+    if os.path.isdir(layer):
+        units += sorted(
+            os.path.join(layer, name)
+            for name in os.listdir(layer)
+            if name.endswith(".c")
+        )
     for extra in ("plugin/torirs_plugin_bridge.u.c", "plugin/torirs_plugin_panel.u.c"):
         path = os.path.join(root, extra)
         if os.path.exists(path):
@@ -540,20 +548,23 @@ def command_fields(args):
 
 
 FIELD_CEILING_RE = re.compile(r"^struct-App-fields:\s*(\d+)\s*$")
+LINES_CEILING_RE = re.compile(r"^app\.c-lines:\s*(\d+)\s*$")
 
 
 def read_baseline(path):
-    """The recorded reach-ins and the field ceiling.
+    """The recorded reach-ins and the two ceilings.
 
     Missing file means an empty baseline, which is the strict reading: every
-    reach-in is then new, and there is no ceiling to hold the struct under.
+    reach-in is then new, and there is no ceiling to hold anything under.
     Comments and blank lines are ignored. A `struct-App-fields: N` line is the
-    ceiling rather than a path.
+    field ceiling and an `app.c-lines: N` line the size ceiling of the
+    composition root; anything else is a path.
     """
     recorded = set()
     ceiling = None
+    lines_ceiling = None
     if not os.path.exists(path):
-        return recorded, ceiling
+        return recorded, ceiling, lines_ceiling
     with open(path, encoding="utf-8") as handle:
         for line in handle:
             line = line.split("#", 1)[0].strip()
@@ -563,8 +574,17 @@ def read_baseline(path):
             if match:
                 ceiling = int(match.group(1))
                 continue
+            match = LINES_CEILING_RE.match(line)
+            if match:
+                lines_ceiling = int(match.group(1))
+                continue
             recorded.add(os.path.normpath(line))
-    return recorded, ceiling
+    return recorded, ceiling, lines_ceiling
+
+
+def count_lines(path):
+    with open(path, encoding="utf-8", errors="replace") as handle:
+        return sum(1 for _ in handle)
 
 
 def find_reach_ins(root):
@@ -578,6 +598,9 @@ def find_reach_ins(root):
                 continue
             path = os.path.join(directory, filename)
             if os.path.normpath(path) == os.path.normpath(os.path.join(root, "app.c")):
+                continue
+            # The App layer: app.c plus src/app/. Its units share App by design.
+            if os.path.normpath(directory) == os.path.normpath(os.path.join(root, "app")):
                 continue
             with open(path, encoding="utf-8", errors="replace") as handle:
                 text = handle.read()
@@ -606,7 +629,7 @@ def command_check(args):
     and it only ever goes down.
     """
     found = find_reach_ins(args.root)
-    recorded, ceiling = read_baseline(args.baseline)
+    recorded, ceiling, lines_ceiling = read_baseline(args.baseline)
 
     added = sorted(path for path in found if path not in recorded)
     cleared = sorted(path for path in recorded if path not in found)
@@ -615,13 +638,34 @@ def command_check(args):
     grown = ceiling is not None and len(fields) > ceiling
     shrunk = ceiling is not None and len(fields) < ceiling
 
-    if not added and not cleared and not grown and not shrunk:
+    app_c_lines = count_lines(os.path.join(args.root, "app.c"))
+    lines_grown = lines_ceiling is not None and app_c_lines > lines_ceiling
+    lines_shrunk = lines_ceiling is not None and app_c_lines < lines_ceiling
+
+    if not added and not cleared and not grown and not shrunk and not lines_grown and not lines_shrunk:
         print(
             f"appc_map check: {len(found)} recorded reach-ins, no new ones; "
-            f"struct App at its recorded {len(fields)} fields "
+            f"struct App at its recorded {len(fields)} fields; "
+            f"app.c at its recorded {app_c_lines} lines "
             f"({args.root}, baseline {args.baseline})"
         )
         return 0
+
+    if lines_grown:
+        print(
+            f"\nappc_map check FAILED -- app.c is {app_c_lines} lines and the baseline "
+            f"records {lines_ceiling}.\n"
+            "app.c is the composition root of the App layer: construction, teardown and\n"
+            "the globals main.c shares. A subsystem belongs in its own unit under src/app/,\n"
+            "declared in app/app_internal.h where it crosses to another.",
+            file=sys.stderr,
+        )
+    if lines_shrunk:
+        print(
+            f"\nappc_map check FAILED -- app.c is down to {app_c_lines} lines and the\n"
+            f"baseline still records {lines_ceiling}. Lower it to {app_c_lines}.",
+            file=sys.stderr,
+        )
 
     if added:
         print("appc_map check FAILED -- these reach into App and are not in the baseline:", file=sys.stderr)
