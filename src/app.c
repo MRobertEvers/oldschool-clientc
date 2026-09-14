@@ -10073,18 +10073,10 @@ app_wev_bind_view_cameras(
             struct Wev* wev = Wevs_ViewListAt(&app->wevs, parent_view_id, i);
             int id;
             struct Worldview* view;
-            int boat_x;
-            int boat_z;
-            int dx;
+            struct WevDeckBox box;
             int dy;
-            int dz;
-            int inv_angle;
-            int cs;
-            int sn;
             int deck_x;
             int deck_z;
-            int recenter_x;
-            int recenter_z;
             int boat_yaw;
             int sx;
             int sz;
@@ -10100,22 +10092,19 @@ app_wev_bind_view_cameras(
             if( !view->world->painter )
                 continue;
 
-            boat_x = wev->x - (parent_world->_base_tile_x << 7);
-            boat_z = wev->z - (parent_world->_base_tile_z << 7);
-            dx = cam_x - boat_x;
+            /* The eye, put through the transform an actor standing on this
+             * deck goes through. Height is not in it: the deck is a plane and
+             * the camera rides above the hull, not above the deck's own
+             * heightmap. */
+            Wev_DeckBoxInParent(
+                wev,
+                view->size_x_tiles,
+                view->size_z_tiles,
+                parent_world->_base_tile_x,
+                parent_world->_base_tile_z,
+                &box);
             dy = cam_y - wev->y;
-            dz = cam_z - boat_z;
-
-            inv_angle = (2048 - (wev->angle & 0x7ff)) & 0x7ff;
-            cs = ToriDraw_Cos(inv_angle);
-            sn = ToriDraw_Sin(inv_angle);
-            deck_x = (dx * cs + dz * sn) >> 16;
-            deck_z = (dz * cs - dx * sn) >> 16;
-
-            recenter_x = -(view->size_x_tiles * 64) - wev->config->pivot_x;
-            recenter_z = -(view->size_z_tiles * 64) - wev->config->pivot_z;
-            deck_x -= recenter_x;
-            deck_z -= recenter_z;
+            Wev_DeckFromParent(&box, cam_x, cam_z, &deck_x, &deck_z);
 
             boat_yaw = (parent_yaw - wev->angle) & 0x7ff;
             painter_set_camera_angles(view->world->painter, pitch, boat_yaw);
@@ -10181,6 +10170,7 @@ app_wev_bind_frame_xforms(
         {
             struct Wev* wev = Wevs_ViewListAt(&app->wevs, parent, i);
             struct Worldview* view;
+            struct WevDeckBox box;
 
             assert(wev);
             assert(wev->config);
@@ -10189,20 +10179,27 @@ app_wev_bind_frame_xforms(
             view = WorldviewRegistry_Get(&app->worldviews, wev->id);
             assert(view->world);
 
+            Wev_DeckBoxInParent(
+                wev,
+                view->size_x_tiles,
+                view->size_z_tiles,
+                parent_world->_base_tile_x,
+                parent_world->_base_tile_z,
+                &box);
             ToriRS_FrameSetViewXform(
                 frame,
                 wev->id,
                 view->world,
-                -(view->size_x_tiles * 64) - wev->config->pivot_x,
-                -(view->size_z_tiles * 64) - wev->config->pivot_z,
-                wev->x - (parent_world->_base_tile_x << 7),
+                box.recenter_x,
+                box.recenter_z,
+                box.pos_x,
                 /* + the bob: the animaya root-bone Y multiplied into the
                  * whole sub-scene (app_wev_advance_bobs), the deob's
                  * class112.method4034 matrix chain reduced to its
                  * translation term. */
                 wev->y + wev->bob_y,
-                wev->z - (parent_world->_base_tile_z << 7),
-                wev->angle);
+                box.pos_z,
+                box.angle);
             if( wev->flattened )
             {
                 frame->views[wev->id].flatten_scale = 0.01f;
@@ -10380,9 +10377,8 @@ app_wev_decide_flatten(struct App* app)
 
 /**
  * The deck box of one live entity, expressed in `parent_world`'s scene-local
- * fine units. Mirrors app_wev_bind_view_cameras' arithmetic exactly — same
- * recenter, same base-tile subtraction — because a disagreement between the
- * two is an actor drawn somewhere the camera is not looking.
+ * fine units. The arithmetic is Wev_DeckBoxInParent's; this is the spelling
+ * that looks the view up, which is the only part of it that needs an App.
  */
 static void
 app_wev_deck_box(
@@ -10401,13 +10397,13 @@ app_wev_deck_box(
     assert(WorldviewRegistry_IsLive(&app->worldviews, wev->id));
 
     view = WorldviewRegistry_Get(&app->worldviews, wev->id);
-    out_box->pos_x = wev->x - (parent_world->_base_tile_x << 7);
-    out_box->pos_z = wev->z - (parent_world->_base_tile_z << 7);
-    out_box->angle = wev->angle;
-    out_box->recenter_x = -(view->size_x_tiles * 64) - wev->config->pivot_x;
-    out_box->recenter_z = -(view->size_z_tiles * 64) - wev->config->pivot_z;
-    out_box->size_x_tiles = view->size_x_tiles;
-    out_box->size_z_tiles = view->size_z_tiles;
+    Wev_DeckBoxInParent(
+        wev,
+        view->size_x_tiles,
+        view->size_z_tiles,
+        parent_world->_base_tile_x,
+        parent_world->_base_tile_z,
+        out_box);
 }
 
 /**
@@ -10454,35 +10450,8 @@ App_WevHomeViewForAbsTile(
     int* out_local_z)
 {
     assert(app);
-    assert(out_local_x);
-    assert(out_local_z);
-
-    for( int id = 1; id < WORLDVIEW_MAX; id++ )
-    {
-        struct Worldview const* view;
-
-        if( !WorldviewRegistry_IsLive(&app->worldviews, id) )
-            continue;
-        view = WorldviewRegistry_Get(&app->worldviews, id);
-        /* base 0,0 is the registration default until REBUILD_WORLDENTITY
-         * names the staging square; a real deck base is never the map
-         * origin. Reservations do not overlap, so first match is only
-         * match. */
-        if( view->base_x == 0 && view->base_z == 0 )
-            continue;
-        if( view->size_x_tiles <= 0 || view->size_z_tiles <= 0 )
-            continue;
-        if( abs_tile_x < view->base_x || abs_tile_x >= view->base_x + view->size_x_tiles )
-            continue;
-        if( abs_tile_z < view->base_z || abs_tile_z >= view->base_z + view->size_z_tiles )
-            continue;
-        *out_local_x = abs_tile_x - view->base_x;
-        *out_local_z = abs_tile_z - view->base_z;
-        return id;
-    }
-    *out_local_x = abs_tile_x;
-    *out_local_z = abs_tile_z;
-    return 0;
+    return WorldviewRegistry_HomeViewForAbsTile(
+        &app->worldviews, abs_tile_x, abs_tile_z, out_local_x, out_local_z);
 }
 
 /**

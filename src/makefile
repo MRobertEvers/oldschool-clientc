@@ -1655,6 +1655,9 @@ test-app-extracted: check-app-boundary
 	# The canvas-floor measurements cannot stand alone -- they walk a real
 	# component array -- so they live in the uitree suite.
 	$(MAKE) test-uitree
+	# Likewise the deck transform and the view-rectangle lookup: their fixtures
+	# are a WevConfig and a Worldview registry, so they live in test-wev.
+	$(MAKE) test-wev
 
 # Choosing the world camera's projection from the viewport height. The 2004
 # client has no viewport-derived zoom; recomputing one for it halves the scale,
