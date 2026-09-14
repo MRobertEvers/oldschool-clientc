@@ -18,6 +18,21 @@
  * @see src/app.c
  */
 
+/* The stage works in surfaces; this client's draw window is a plugin-facing
+ * enum. One translation, here, so nothing below has to know they are the same
+ * three values in the same order -- which they need not stay. */
+static enum OverlaySurface
+app_overlay_surface(struct App const* app)
+{
+    assert(app);
+    switch( app->plugin_draw_canvas )
+    {
+    case APP_PLUGIN_SURFACE_CANVAS: return OVERLAY_SURFACE_CANVAS;
+    case APP_PLUGIN_SURFACE_PANEL: return OVERLAY_SURFACE_PANEL;
+    default: return OVERLAY_SURFACE_WORLD;
+    }
+}
+
 static void
 app_overlay_push(
     struct App* app,
@@ -61,19 +76,7 @@ app_overlay_push(
      * an explicit plugin draw event flips it; PANEL returned above and can
      * never enter one of these game lists.
      */
-    if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_CANVAS )
-    {
-        int cap = (int)(sizeof(app->canvas_overlays) / sizeof(app->canvas_overlays[0]));
-        if( app->canvas_overlay_count >= cap )
-            return;
-        app->canvas_overlays[app->canvas_overlay_count++] = *item;
-        return;
-    }
-
-    int cap = (int)(sizeof(app->entity_overlays) / sizeof(app->entity_overlays[0]));
-    if( app->entity_overlay_count >= cap )
-        return;
-    app->entity_overlays[app->entity_overlay_count++] = *item;
+    OverlayStage_Push(&app->overlays, app_overlay_surface(app), item);
 }
 
 /** How many items the open draw window has pushed, so a draw verb can report
@@ -82,15 +85,10 @@ static int
 app_overlay_count(struct App const* app)
 {
     assert(app);
-    switch( app->plugin_draw_canvas )
-    {
-    case APP_PLUGIN_SURFACE_CANVAS:
-        return app->canvas_overlay_count;
-    case APP_PLUGIN_SURFACE_PANEL:
+    /* The panel's staging is not the stage's, so its count is not either. */
+    if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_PANEL )
         return app->panel_overlay_stage_active ? app->panel_overlay_stage_count : 0;
-    default:
-        return app->entity_overlay_count;
-    }
+    return OverlayStage_Count(&app->overlays, app_overlay_surface(app));
 }
 
 /* One entity's overlay set. combat/damage state lives on the shared facet, so

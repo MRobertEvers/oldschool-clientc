@@ -3999,9 +3999,9 @@ frame_loop_teardown(void)
                     live_buttons);
             }
         if( getenv("TORIRS_TRACE_NATIVE_UI") )
-            for( int i = 0; i < app.entity_overlay_count; ++i )
+            for( int i = 0; i < app.overlays.world_count; ++i )
             {
-                struct UITreeEntityOverlay const* entry = &app.entity_overlays[i];
+                struct UITreeEntityOverlay const* entry = &app.overlays.world[i];
                 if( entry->kind != UITREE_ENTITY_OVERLAY_TEXT )
                     continue;
                 uint64_t hash = UINT64_C(14695981039346656037);

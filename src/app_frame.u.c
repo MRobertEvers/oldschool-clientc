@@ -304,7 +304,7 @@ App_RunOnce(
     /* Plugins before the built-in developer tools, for the same reason those
      * run first: a plugin panel's toggle has to latch during a boot, and
      * anything it changes has to be visible to this frame's emit rebuild. */
-    app->plugin_overlay_batch_started = 0;
+    app->overlays.batch_started = false;
     PluginHost_FrameStart(app->plugins, now_ms, app->frames_rendered);
     /* After the frame handlers, not before: a plugin that re-authors its
      * geometry from on_frame gets it on screen this frame rather than next. */

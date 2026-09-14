@@ -600,6 +600,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	ui/uitree_canvas_floor.c \
 	game/rs_title_session.c \
 	editor/loc_editor_selection.c \
+	render/overlay_stage.c \
 	game/rs_worldmap_view.c \
 	ui/inv_drag.c \
 	ui/minimap_view.c \
@@ -1664,6 +1665,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-title-session
 	$(MAKE) test-worldmap-view
 	$(MAKE) test-loc-editor-selection
+	$(MAKE) test-overlay-stage
 	$(MAKE) test-net-link-watch
 	$(MAKE) test-clientscript-queue
 	$(MAKE) test-editor-ghost
@@ -1779,6 +1781,17 @@ test-settings-pickers: $(OBJ_DIR)
 		ui/uitree_layout.c ui/uitree_debug_overlay.c ui/torirs_chrome_rail.c ui/uitree_frame.c \
 		perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/settings_pickers_test$(PLATFORM_EXE_SUFFIX)
+
+# Where an overlay primitive goes. Every push in the client arrives at one
+# function and the open draw window decides the list, so getting it wrong
+# paints a plugin's panel drawing across the game world in panel coordinates,
+# or a health bar above the interfaces instead of under them. Both read as a
+# rendering bug in something else.
+.PHONY: test-overlay-stage
+test-overlay-stage: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/overlay_stage_test$(PLATFORM_EXE_SUFFIX) \
+		render/test/overlay_stage_test.c render/overlay_stage.c $(LDFLAGS)
+	./$(OBJ_DIR)/overlay_stage_test$(PLATFORM_EXE_SUFFIX)
 
 # What the loc editor is pointed at, and what moving it means. These are
 # editing rules, so a wrong one is a map saved with the wrong thing in it: a

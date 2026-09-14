@@ -28,6 +28,7 @@
 #include "game/rs_login_replies.h"
 #include "game/rs_title_session.h"
 #include "editor/loc_editor_selection.h"
+#include "render/overlay_stage.h"
 #include "game/rs_worldmap_view.h"
 #include "game/rs_preload.h"
 #include "game/rs_title.h"
@@ -1106,36 +1107,18 @@ struct App
     /* Per-frame minimap overlay dots, filled by the GET_MINIMAP_DOTS host
      * request during the emit walk and consumed by the same frame's draw. */
     struct MinimapDots minimap_dots;
-    /* Per-frame entity overlay primitives (health bars + hitsplats), filled
-     * by the GET_ENTITY_OVERLAYS host request and consumed by the same
-     * frame's draw. Reference drawEntities budget: each entity contributes at
-     * most 2 bar rects + 4 hitsplats x 3 primitives. */
-    /* 2048, not 512: a filled polygon is a begin/point.../end RUN of items, so
-     * one highlighted entity now costs a dozen entries rather than one. At 512
-     * the fill runs starved the outlines that follow them -- the buffer filled
-     * and every later push was dropped, which looks like a broken outline
-     * rather than a full buffer. */
-    struct UITreeEntityOverlay entity_overlays[2048];
-    int entity_overlay_count;
     /*
-     * The plugin CANVAS overlay: the same primitives, in canvas space, drawn
-     * above the interfaces (UITREE_HOST_GET_CANVAS_OVERLAYS).
+     * Per-frame overlay primitives for the two GAME surfaces: the world list
+     * the health bars, hitsplats and editor marks land in, and the canvas list
+     * a plugin's own drawing goes to above the interfaces.
      *
-     * A list of its own rather than a flag per item, because the two are cut
-     * to different boxes and the clip travels on the DESC rather than on the
-     * item -- one desc carries one clip, so two clips need two descs and two
-     * descs need two lists. Far smaller than the world list: nothing here is
-     * per-entity, it is a handful of orbs and bars, and a plugin is held to
-     * TORIRS_PLUGIN_DRAW_BUDGET on top of that.
+     * Two lists rather than one with a flag, because the two are cut to
+     * different boxes and the clip travels on the DESC rather than on the item
+     * -- one desc carries one clip, so two clips need two descs. Which list a
+     * push lands in, and why a panel's drawing lands in neither, is
+     * render/overlay_stage.h.
      */
-    struct UITreeEntityOverlay canvas_overlays[512];
-    int canvas_overlay_count;
-    /** UITREE_HOST_BEGIN_OVERLAYS has already opened this App_RunOnce's
-     * overlay batch. A retained refresh can discover a new role anchor and
-     * immediately fall back to a full walk; the second BEGIN must reuse the
-     * first Canvas dispatch rather than consuming plugin draw budget twice. */
-    int plugin_overlay_batch_started;
-    int plugin_canvas_overlay_prepared;
+    struct OverlayStage overlays;
     /**
      * Retained custom-page drawing, isolated from all three game lists.
      *

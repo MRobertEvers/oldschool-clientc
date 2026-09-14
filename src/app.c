@@ -3346,20 +3346,17 @@ app_build_canvas_overlays(
     assert(app);
     assert(out_items);
 
-    if( app->plugin_canvas_overlay_prepared )
-    {
-        *out_items = app->canvas_overlays;
-        return app->canvas_overlay_count;
-    }
+    *out_items = OverlayStage_Items(&app->overlays, OVERLAY_SURFACE_CANVAS);
+    if( app->overlays.canvas_prepared )
+        return OverlayStage_Count(&app->overlays, OVERLAY_SURFACE_CANVAS);
 
-    app->plugin_canvas_overlay_prepared = 1;
-    app->canvas_overlay_count = 0;
-    *out_items = app->canvas_overlays;
+    app->overlays.canvas_prepared = true;
+    OverlayStage_ResetCanvas(&app->overlays);
     if( !app->plugins )
         return 0;
 
     PluginHost_DrawCanvas(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    return app->canvas_overlay_count;
+    return OverlayStage_Count(&app->overlays, OVERLAY_SURFACE_CANVAS);
 }
 
 static int
@@ -3372,8 +3369,8 @@ app_build_entity_overlays(
     int font_id;
     int hitmarks_scene;
 
-    app->entity_overlay_count = 0;
-    *out_items = app->entity_overlays;
+    OverlayStage_ResetWorld(&app->overlays);
+    *out_items = OverlayStage_Items(&app->overlays, OVERLAY_SURFACE_WORLD);
     if( !world || !world->load_complete || !app->world_view_valid )
         return 0;
 
@@ -3522,16 +3519,16 @@ app_build_entity_overlays(
     /* TORIRS_OVERLAY_DEBUG=1: the primitives this frame, plus the two assets
      * they need — a missing p11 (font -1) or hitmarks pack is the usual
      * reason a hit lands but nothing is drawn. */
-    if( torirs_env_overlay_debug() && app->entity_overlay_count > 0 )
+    if( torirs_env_overlay_debug() && app->overlays.world_count > 0 )
     {
         TORIRS_LOG(
             "overlay: %d items font=%d hitmarks=%d\n",
-            app->entity_overlay_count,
+            app->overlays.world_count,
             font_id,
             hitmarks_scene);
-        for( int i = 0; i < app->entity_overlay_count; i++ )
+        for( int i = 0; i < app->overlays.world_count; i++ )
         {
-            struct UITreeEntityOverlay const* item = &app->entity_overlays[i];
+            struct UITreeEntityOverlay const* item = &app->overlays.world[i];
             /* scene/clip/trans are printed because a SPRITE primitive carries
              * no w/h -- it blits at the sprite's own size -- so without them a
              * health bar's line says nothing about how wide it came out. */
@@ -3553,7 +3550,7 @@ app_build_entity_overlays(
                 item->text);
         }
     }
-    return app->entity_overlay_count;
+    return app->overlays.world_count;
 }
 
 /* Forward decls: UITREE_HOST_GET_INV_DRAG asks whether the armed press is
@@ -4091,10 +4088,10 @@ app_host_request(
          * same App_RunOnce; preserve the already-built Canvas list across the
          * fallback so plugin callbacks and their per-frame draw budget run
          * exactly once. App_RunOnce clears this latch for the next frame. */
-        if( !app->plugin_overlay_batch_started )
+        if( !app->overlays.batch_started )
         {
-            app->plugin_overlay_batch_started = 1;
-            app->plugin_canvas_overlay_prepared = 0;
+            app->overlays.batch_started = 1;
+            app->overlays.canvas_prepared = 0;
         }
         return 0;
     case UITREE_HOST_GET_SCROLLBAR_SCENE:
