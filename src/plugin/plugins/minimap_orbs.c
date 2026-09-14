@@ -320,6 +320,23 @@ struct OrbsState
     uint64_t incarnation[ORB_COUNT];
     bool described[ORB_COUNT];
     /**
+     * A re-create is owed, and it takes TWO fences.
+     *
+     * "A key not re-described is removed" is a rule of the RECONCILE, and the
+     * reconcile runs once per fence, on the LAST describe pass. A describe
+     * that calls Porcelain_Invalidate forces a second pass inside that same
+     * fence, and it is the second pass which is reconciled -- so a run that
+     * described nothing in order to have its controls removed is discarded,
+     * the keys are still in the final scratch, and nothing is removed at all.
+     *
+     * So the wipe describes nothing and does NOT invalidate: this fence
+     * reconciles the empty description and the stale controls go. The flag is
+     * consumed AFTER the fence, which invalidates for the next one, and that
+     * is where the column is created again under the parent it now belongs
+     * to. One frame without it, and correct on the other side of the switch.
+     */
+    bool recreate;
+    /**
      * The frame root the controls were created under.
      *
      * Same rule as the incarnation above, one level up: a root switch (the
@@ -1364,33 +1381,6 @@ orbs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
     if( have_map )
         screen_facets = map.facets;
 
-    /* @see OrbsState::root. */
-    {
-        struct PorcelainElementState root;
-        bool rebuilt = false;
-        if( Porcelain_Element(porcelain, PORCELAIN_EL(FRAME_ROOT), &root) )
-        {
-            rebuilt = ToriRS_WidgetRefValid(state->root) &&
-                      !ToriRS_WidgetRefEqual(state->root, root.ref);
-            state->root = root.ref;
-        }
-        if( have_map )
-        {
-            rebuilt = rebuilt || (state->map_incarnation != 0 &&
-                                  state->map_incarnation != map.incarnation);
-            state->map_incarnation = map.incarnation;
-        }
-        if( rebuilt )
-        {
-            for( int i = 0; i < ORB_COUNT; i++ )
-            {
-                state->described[i] = false;
-                state->reported_live[i] = false;
-            }
-            Porcelain_Invalidate(porcelain);
-            return;
-        }
-    }
     /*
      * How many orbs the LANE has, by data and without a watch. A lane with
      * none never asks for an ORB element, so it never files four absences for
@@ -1400,6 +1390,57 @@ orbs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
     state->native_count = native_count;
     if( have_map && state->settled < PORCELAIN_ABSENT_FENCES )
         state->settled++;
+
+    /*
+     * Has the tree this column hangs on been rebuilt under us?
+     *
+     * Porcelain creates a control under its target's parent ONCE and never
+     * moves it: a control whose parent was torn down is gone, with the
+     * description still believing it is there, and no verb asks whether an
+     * owned control still exists. So the rebuild is inferred from the three
+     * elements that DO report one -- the frame root the canvas placement
+     * parents to, the minimap, and each orb's own incarnation -- and the
+     * column is dropped for one fence so that it is created again, under the
+     * parent it now belongs to, on the next.
+     *
+     * @see OrbsState::recreate for why that takes two fences and not one.
+     */
+    {
+        struct PorcelainElementState root;
+        bool rebuilt = false;
+
+        if( Porcelain_Element(porcelain, PORCELAIN_EL(FRAME_ROOT), &root) )
+        {
+            rebuilt = ToriRS_WidgetRefValid(state->root) &&
+                      !ToriRS_WidgetRefEqual(state->root, root.ref);
+            state->root = root.ref;
+        }
+        if( have_map )
+        {
+            rebuilt = rebuilt ||
+                      (state->map_incarnation != 0 && state->map_incarnation != map.incarnation);
+            state->map_incarnation = map.incarnation;
+        }
+        for( int i = 0; native_count > 0 && i < ORB_COUNT; i++ )
+        {
+            struct PorcelainElementState orb;
+            if( !Porcelain_Element(porcelain, PORCELAIN_ORB_EL(i), &orb) )
+                continue;
+            rebuilt = rebuilt || (state->described[i] && state->incarnation[i] != 0 &&
+                                  state->incarnation[i] != orb.incarnation);
+            state->incarnation[i] = orb.incarnation;
+        }
+        if( rebuilt )
+        {
+            for( int i = 0; i < ORB_COUNT; i++ )
+            {
+                state->described[i] = false;
+                state->reported_live[i] = false;
+            }
+            state->recreate = true;
+            return;
+        }
+    }
     replace_native = orbs_cfg_bool(api, "replace_native");
     /*
      * Nothing is described before the plate art is decoded. Porcelain's
@@ -1446,14 +1487,6 @@ orbs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         if( native_count > 0 )
             orb_bound = Porcelain_Element(porcelain, PORCELAIN_ORB_EL(i), &orb);
         state->bound[i] = orb_bound;
-        /* @see OrbsState::incarnation. */
-        if( orb_bound && state->described[i] && orb.incarnation != state->incarnation[i] )
-        {
-            state->incarnation[i] = orb.incarnation;
-            state->described[i] = false;
-            Porcelain_Invalidate(porcelain);
-            continue;
-        }
         /*
          * A cutscene hides the cache's own orbs. The facet is reported on
          * every node because it is a fact about the SCREEN, so any bound
@@ -1529,7 +1562,6 @@ orbs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         }
         describe->control(describe, &item);
         state->described[i] = true;
-        state->incarnation[i] = orb.incarnation;
     }
 }
 
@@ -1638,6 +1670,16 @@ orbs_frame(struct ToriRS_Api* api, void* plugin_state, struct ToriRS_FrameEvent 
         Porcelain_Invalidate(state->porcelain);
     Porcelain_Fence(state->porcelain);
     Porcelain_Commit(api);
+    /*
+     * AFTER the fence, never from inside the describe. @see
+     * OrbsState::recreate: invalidating from in there re-runs the describe in
+     * the same fence, and the empty description never reaches the reconcile.
+     */
+    if( state->recreate )
+    {
+        state->recreate = false;
+        Porcelain_Invalidate(state->porcelain);
+    }
     orbs_log_controls(state);
 }
 

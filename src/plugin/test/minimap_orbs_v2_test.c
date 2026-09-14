@@ -650,7 +650,81 @@ case_compass_state_keeps_the_discs(void)
 }
 
 /* ------------------------------------------------------------------------ */
-/* 5. Steady state costs nothing                                            */
+/* 5. A root switch rebuilds the tree under the column                      */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * The matrix's `remount` scenario: `layout 2` tears the HUD down and builds
+ * it again. The canvas placement parents to the frame root, so every control
+ * the plugin owns dies with the old tree -- and Porcelain neither notices nor
+ * re-creates it, because it has no re-parent arm and no verb asks whether an
+ * owned control still exists.
+ *
+ * The plugin therefore infers the rebuild from the elements that DO report
+ * one, drops the column for a fence, and describes it again on the next. The
+ * rule is not "the controls are still there": it is that they are NEW
+ * controls. A description that quietly kept the old refs looks identical from
+ * here and is exactly the regression -- four dead handles and an empty screen.
+ *
+ * Mutation: invalidate from inside the describe instead of setting `recreate`
+ * (which is what the first attempt at this fix did) -> the wipe is
+ * re-described inside the same fence, the reconcile never sees the empty
+ * description, the refs below are carried over and this case goes red.
+ */
+static void
+case_root_switch_recreates_the_column(void)
+{
+    struct ToriRS_WidgetRef before[4];
+    int carried = 0;
+
+    reset();
+    declare_native_lane();
+    start_plugin();
+    frame(8);
+    CHECK(live_orbs() == 4, "four before the switch");
+    for( int i = 0; i < 4; i++ )
+    {
+        struct TestbedControl const* control = Testbed_Control(ORB_KEY[i]);
+        memset(&before[i], 0, sizeof(before[i]));
+        if( control )
+            before[i] = control->ref;
+    }
+
+    /* The HUD is rebuilt: same roles, same boxes, new incarnations. */
+    for( int i = 0; i < 4; i++ )
+    {
+        struct TestbedElement* element = Testbed_Element(ORB_ROLE[i]);
+        CHECK(element != NULL, "the orb element is declared");
+        if( !element )
+            continue;
+        element->incarnation++;
+        Testbed_MoveElement(ORB_ROLE[i], element->local.x, element->local.y);
+    }
+    {
+        struct TestbedElement* element = Testbed_Element("minimap");
+        CHECK(element != NULL, "the minimap is declared");
+        if( element )
+        {
+            element->incarnation++;
+            Testbed_MoveElement("minimap", element->local.x, element->local.y);
+        }
+    }
+
+    frame(4);
+    CHECK(live_orbs() == 4, "and four after it");
+    for( int i = 0; i < 4; i++ )
+    {
+        struct TestbedControl const* control = Testbed_Control(ORB_KEY[i]);
+        if( control && ToriRS_WidgetRefEqual(control->ref, before[i]) )
+            carried++;
+    }
+    CHECK(carried == 0, "every control is a NEW one, not the handle the old tree took");
+    CHECK(undeclared_findings(handle()) == 0, "and the rebuild files no finding");
+    stop_plugin();
+}
+
+/* ------------------------------------------------------------------------ */
+/* 6. Steady state costs nothing                                            */
 /* ------------------------------------------------------------------------ */
 
 /*
@@ -713,7 +787,7 @@ case_steady_state_costs_nothing(void)
 }
 
 /* ------------------------------------------------------------------------ */
-/* 6. The lane's own facts                                                  */
+/* 7. The lane's own facts                                                  */
 /* ------------------------------------------------------------------------ */
 
 /*
@@ -814,7 +888,7 @@ case_cutscene_removes_the_covers(void)
 }
 
 /* ------------------------------------------------------------------------ */
-/* 7. A lane with no orbs at all                                            */
+/* 8. A lane with no orbs at all                                            */
 /* ------------------------------------------------------------------------ */
 
 /*
@@ -873,7 +947,7 @@ case_lane_without_orbs(void)
 }
 
 /* ------------------------------------------------------------------------ */
-/* 8. Configuration                                                         */
+/* 9. Configuration                                                         */
 /* ------------------------------------------------------------------------ */
 
 /*
@@ -974,6 +1048,7 @@ main(void)
     case_cover_is_on_the_canvas();
     case_no_orb_before_its_plate();
     case_compass_state_keeps_the_discs();
+    case_root_switch_recreates_the_column();
     case_steady_state_costs_nothing();
     case_run_orb_follows_the_active_facet();
     case_blocked_action_presses_nothing();
