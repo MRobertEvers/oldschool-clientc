@@ -567,6 +567,17 @@ struct Porcelain
      *  exists and an element that still will not resolve is absent rather than
      *  early. @see porcelain_resolve_pending. */
     bool any_element_bound;
+
+    /**
+     * The one `@tree` subscription this handle takes, and what it is for.
+     *
+     * An element that is not in the tree can only appear when the tree
+     * changes, so that -- and not a clock -- is when an unresolved watch is
+     * worth re-asking about. @see porcelain_resolve_pending.
+     */
+    bool tree_subscribed;
+    /** A topology publication has landed since the last pending poll. */
+    bool tree_moved;
 };
 
 /* ----------------------------------------------------------- arbitration */

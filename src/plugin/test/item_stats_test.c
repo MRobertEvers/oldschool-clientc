@@ -533,10 +533,42 @@ fake_widget_watch_state(
     return TORIRS_CONTRACT_OK;
 }
 
+/*
+ * The `@tree` subscription, and this lane never publishes again.
+ *
+ * Which is the whole point of the cost cases below: this fake's tree is a
+ * constant, so after the opening notification the layer has no reason to
+ * re-ask about anything and every settled frame here is what a settled frame
+ * in the client is -- nothing happening. A layer that polled on a clock
+ * instead would show up as four role lookups a frame.
+ */
+static ToriRS_WidgetListener g_tree_listener;
+static void* g_tree_user;
+static int g_tree_subscribes;
+
+static enum ToriRS_ContractResult
+fake_widget_watch_tree(void* ctx, ToriRS_WidgetListener listener, void* user)
+{
+    struct ToriRS_WidgetEvent event;
+    (void)ctx;
+    g_tree_listener = listener;
+    g_tree_user = user;
+    if( !listener )
+        return TORIRS_CONTRACT_OK;
+    g_tree_subscribes++;
+    memset(&event, 0, sizeof(event));
+    event.type = TORIRS_WIDGET_TREE_CHANGED;
+    listener(&g_api, user, &event);
+    return TORIRS_CONTRACT_OK;
+}
+
 static void
 fake_watches_reset(void)
 {
     memset(g_watch, 0, sizeof(g_watch));
+    g_tree_listener = NULL;
+    g_tree_user = NULL;
+    g_tree_subscribes = 0;
 }
 
 /*
@@ -681,6 +713,7 @@ api_init(void)
     g_api.widgets.bounds = fake_widget_bounds;
     g_api.widgets.state = fake_widget_state;
     g_api.widgets.watch_state = fake_widget_watch_state;
+    g_api.widgets.watch_tree = fake_widget_watch_tree;
     g_api.core.capability = fake_capability;
     g_game_api.struct_size = sizeof(g_game_api);
     g_game_api.skill = v2_skill;
@@ -1321,54 +1354,36 @@ test_steady_state_costs_nothing(void)
         "and allocates nothing once the picture is painted (allocated %u)",
         counters.allocations);
     /*
-     * FOUR engine calls per frame while a tooltip is up, and the number is
-     * written out rather than bounded so that a fifth is a decision.
+     * THREE engine calls per frame while a tooltip is up, and the number is
+     * written out rather than bounded so that a fourth is a decision.
      *
      *   1  draw->context      -- the pass's own drawable rect, which is the
      *                            one call the plugin made before the port too
-     *   2  widgets.bounds x2  -- Porcelain_DrawContext derives CANVAS and
-     *                            USABLE off the frame root whether the caller
-     *                            wanted them or not, and this caller wants
-     *                            neither: a tooltip clamps to the pass, not
-     *                            to a placement area
+     *   1  widgets.bounds     -- the CANVAS box, which is what decides
+     *                            `canvas_space`: a tooltip clamped against a
+     *                            panel well's local rectangle is the retired
+     *                            placement bug that flipped it over the
+     *                            minimap
      *   1  widgets.get_widget -- the hovered cell, for the container question
      *
      * A frame with nothing hovered costs none of them: the menu note returns
      * before the container walk and the draw callback returns before the
      * context.
-     */
-    /*
-     * THESE FOUR NUMBERS ARE A RECORDED REGRESSION, NOT A COST THIS PLUGIN
-     * CHOSE. They were 4, 0, 0 and 20 when this port landed, and every one of
-     * them grew by four per frame when Porcelain_Usable was fixed to CREATE
-     * its lane-chrome watch instead of doing a read-only lookup that always
-     * answered nothing. The fix is right -- a frame provider could not
-     * subtract a docked strip without it -- but Porcelain_DrawContext derives
-     * the usable rect for every caller, and an absent watch is re-asked by
-     * porcelain_resolve_pending on EVERY fence, for ever.
      *
-     * So a plugin that never reads the usable rect, and is not hovering
-     * anything, now pays four role lookups a frame to keep asking about a
-     * strip this lane does not have. That contradicts the layer's central
-     * claim, and the fix is to poll an absent watch when the TREE changes
-     * rather than on a clock -- the host already raises TORIRS_WIDGET_TREE
-     * _CHANGED to a watch whose role is "@tree", which is exactly that signal.
-     *
-     * Pinned at the wrong number on purpose: an assertion that says 4 when the
-     * answer is 8 gets edited to 8 and forgotten, and one that says 0 when the
-     * answer is 4 fails every run until somebody argues with it. This says 8
-     * and 4 and explains why, so the day it goes back to 4 and 0 this test
-     * fails and whoever fixed it gets to delete this comment.
-     *
-     * The hovering figure is 8 a frame plus 2, not a round multiple: the first
-     * hovering frame resolves the strip watch once more than the rest. That
-     * the number is ugly is part of the evidence -- a cost nobody designed
-     * rarely lands on a round number.
+     * It was FOUR when this port landed, plus two for a one-off frame-root
+     * walk, and the fourth was a second widgets.bounds: Porcelain_DrawContext
+     * derived the USABLE rect for every caller as well. This caller wants a
+     * pass to clamp to, not a placement area to lay out in, and so does every
+     * other caller of the verb -- nothing in the tree read that field. It is
+     * gone from the struct rather than left answering zero, and with it goes
+     * the reason a tooltip ever asked whether this lane has a docked strip.
+     * The stray two went with it: they were the frame-root cache being
+     * invalidated when the four strip watches settled to ABSENT.
      */
     TEST_ASSERT(
-        counters.engine_calls == 60 * 8 + 2,
-        "a settled hovering frame costs the draw region, the layer's two "
-        "derived boxes and one cell lookup -- nothing else (%u over 60 frames)",
+        counters.engine_calls == 60 * 3,
+        "a settled hovering frame costs the draw region, the canvas box and "
+        "one cell lookup -- nothing else (%u over 60 frames)",
         counters.engine_calls);
 
     Porcelain_CountersReset(handle());
@@ -1376,10 +1391,32 @@ test_steady_state_costs_nothing(void)
     for( int i = 0; i < 60; i++ )
         frame(-1);
     Porcelain_CountersRead(handle(), &counters);
+    /*
+     * ZERO, and this is the layer's central claim stated as a number.
+     *
+     * It was four a frame for one release: Porcelain_Usable was fixed to
+     * CREATE its lane-chrome watches rather than do a read-only lookup that
+     * always answered nothing -- which it had to be, a frame provider cannot
+     * subtract a docked strip without it -- and Porcelain_DrawContext derived
+     * the usable rect for every caller. So every plugin that took a draw
+     * context left four unresolved watches behind on a lane with no docked
+     * strip, and porcelain_resolve_pending re-asked all four on every fence
+     * for the rest of the session.
+     *
+     * Two halves to the fix, and only the second one is general. This plugin
+     * no longer creates those four watches at all, because the usable rect
+     * left the draw context. The one below is the half that holds for a
+     * plugin which really does leave an unresolved watch behind:
+     * An element that is not in the tree can only appear when the tree
+     * changes, so that is when the layer re-asks now. This fake's tree never
+     * publishes after the opening notification, which is exactly a client
+     * with nothing happening in it.
+     */
     TEST_ASSERT(
-        counters.engine_calls == 60 * 4,
-        "and a frame with nothing hovered costs only the absent strip watch "
-        "being re-asked (%u over 60)",
+        counters.engine_calls == 0,
+        "and a frame with nothing hovered costs nothing at all -- an "
+        "unresolved watch is re-asked when the TREE moves, not on a clock "
+        "(%u over 60)",
         counters.engine_calls);
     TEST_ASSERT(
         g_game_reads == 0,
@@ -1418,9 +1455,11 @@ test_steady_state_costs_nothing(void)
  * so that it is something a reader can weigh rather than a sentence in a
  * report. An INVENTORY hover is cheap because the inventory is the first
  * panel the walk asks about. A BANK hover walks past `panel_equipment` on the
- * way, and an element the lane does not resolve is re-asked at every fence --
- * an element that comes back has to be able to bind -- so from the first bank
- * hover of a session this plugin pays one role lookup a frame for ever.
+ * way and leaves an unresolved watch behind. That watch is re-asked for
+ * exactly as long as the layer is still waiting on it -- the two fences of
+ * the absence clock -- and then never again: once an element is ABSENT the
+ * only thing that can change the answer is a new tree, and this lane does not
+ * publish one. TWO role lookups for the life of the session, not one a frame.
  */
 static void
 test_what_the_container_question_costs(void)
@@ -1440,7 +1479,7 @@ test_what_the_container_question_costs(void)
         "an inventory hover is one component lookup a frame (%d over 20)",
         g_widget_gets);
     TEST_ASSERT(
-        g_widget_finds == 20 * 4,
+        g_widget_finds == 0,
         "and no role lookup for the CONTAINER: the panel that answers is the "
         "first one "
         "the walk asks about (%d)",
@@ -1454,9 +1493,10 @@ test_what_the_container_question_costs(void)
     for( int i = 0; i < 20; i++ )
         frame_in(385, FAKE_COMPONENT_BANK);
     TEST_ASSERT(
-        g_widget_finds == 20 * 5,
-        "a bank hover leaves one unresolved panel watch behind, and it is "
-        "re-asked once per fence from then on (%d over 20)",
+        g_widget_finds == 2,
+        "a bank hover leaves an unresolved panel watch behind, and it costs "
+        "the two fences of the absence clock and then nothing at all -- not "
+        "one role lookup a frame for ever (%d over 20)",
         g_widget_finds);
 }
 

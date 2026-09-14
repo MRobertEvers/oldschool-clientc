@@ -1421,8 +1421,6 @@ Porcelain_DrawContext(struct Porcelain* porcelain, struct ToriRS_Graphics* draw,
                         context.bounds.height == (int)canvas.box.height;
     if( !out->canvas_space )
         return true;
-    (void)Porcelain_Element(porcelain, PORCELAIN_EL(USABLE), &state);
-    out->usable = porcelain_rect_of(state.box);
     if( element.kind == PORCELAIN_EL_NONE )
         return true;
     out->element_bound = Porcelain_Element(porcelain, element, &state);

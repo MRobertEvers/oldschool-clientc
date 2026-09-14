@@ -143,6 +143,36 @@ Testbed_DeclareElement(char const* role, int x, int y, int width, int height)
     return NULL;
 }
 
+/*
+ * A topology publication, and what raises one.
+ *
+ * The host raises TREE_CHANGED for a structural move only -- a widget
+ * appearing or going away -- and never for geometry or a hide. Modelled
+ * exactly here, because the layer now decides when to re-ask about an
+ * unresolved element off this signal, and a fake that published on every
+ * mutation would hide a poll that still runs on a clock.
+ */
+static void
+testbed_publish_tree(void)
+{
+    struct ToriRS_WidgetEvent event;
+
+    g_testbed.tree_generation++;
+    if( !g_testbed.tree_watch.fn )
+        return;
+    memset(&event, 0, sizeof(event));
+    event.type = TORIRS_WIDGET_TREE_CHANGED;
+    event.native_revision = g_testbed.tree_generation;
+    event.role = "";
+    g_testbed.tree_watch.fn(&g_testbed.api, g_testbed.tree_watch.user, &event);
+}
+
+void
+Testbed_PublishTree(void)
+{
+    testbed_publish_tree();
+}
+
 static void
 testbed_raise(char const* role, enum ToriRS_WidgetEventType type)
 {
@@ -169,6 +199,7 @@ Testbed_BindElement(char const* role)
 
     assert(element);
     element->bound = true;
+    testbed_publish_tree();
     testbed_raise(role, TORIRS_WIDGET_BOUND);
 }
 
@@ -179,6 +210,7 @@ Testbed_UnbindElement(char const* role)
 
     assert(element);
     element->bound = false;
+    testbed_publish_tree();
     testbed_raise(role, TORIRS_WIDGET_UNBOUND);
 }
 
@@ -495,6 +527,30 @@ fake_watch_state(void* context, char const* role, ToriRS_WidgetListener listener
         return TORIRS_CONTRACT_OK;
     }
     return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+}
+
+/* "Initial notification and subsequent topology publications." The opening
+ * one is part of the contract and the layer must not read it as news. */
+static enum ToriRS_ContractResult
+fake_watch_tree(void* context, ToriRS_WidgetListener listener, void* user)
+{
+    struct ToriRS_WidgetEvent event;
+
+    (void)context;
+    testbed_log("watch_tree");
+    if( !listener )
+    {
+        memset(&g_testbed.tree_watch, 0, sizeof(g_testbed.tree_watch));
+        return TORIRS_CONTRACT_OK;
+    }
+    g_testbed.tree_watch.fn = listener;
+    g_testbed.tree_watch.user = user;
+    memset(&event, 0, sizeof(event));
+    event.type = TORIRS_WIDGET_TREE_CHANGED;
+    event.native_revision = g_testbed.tree_generation;
+    event.role = "";
+    listener(&g_testbed.api, user, &event);
+    return TORIRS_CONTRACT_OK;
 }
 
 static struct TestbedElement*
@@ -1704,6 +1760,7 @@ Testbed_Reset(void)
     g_testbed.api.widgets.find_all = fake_find_all;
     g_testbed.api.widgets.get_widget = fake_get_widget;
     g_testbed.api.widgets.watch_state = fake_watch_state;
+    g_testbed.api.widgets.watch_tree = fake_watch_tree;
     g_testbed.api.widgets.state = fake_state;
     g_testbed.api.widgets.parent = fake_parent;
     g_testbed.api.widgets.bounds = fake_bounds;

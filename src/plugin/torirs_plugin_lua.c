@@ -2678,10 +2678,12 @@ static int lua_porcelain_draw_context(lua_State* L)
     memset(&context, 0, sizeof(context));
     if( !lua_current_api(L)->porcelain->draw_context(lua_porcelain(L), draw, element, &context) )
     { lua_pushnil(L); return 1; }
-    lua_createtable(L, 0, 6);
+    /* Five, and no `usable`: the field is gone from the struct rather than
+     * left answering zero. porcelain.usable() is the verb for that question,
+     * and it is a frame provider's question. */
+    lua_createtable(L, 0, 5);
     lua_push_rect(L, context.bounds); lua_setfield(L, -2, "bounds");
     lua_push_rect(L, context.clip); lua_setfield(L, -2, "clip");
-    lua_push_rect(L, context.usable); lua_setfield(L, -2, "usable");
     lua_push_rect(L, context.element); lua_setfield(L, -2, "element");
     lua_pushboolean(L, context.element_bound); lua_setfield(L, -2, "element_bound");
     lua_pushboolean(L, context.canvas_space); lua_setfield(L, -2, "canvas_space");

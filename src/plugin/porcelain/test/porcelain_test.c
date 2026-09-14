@@ -54,6 +54,7 @@ struct Fixture
     char const* image;
     char const* caption;
     int gap;
+    int opacity;
     bool with_second;
     bool replace;
     bool enabled;
@@ -80,6 +81,7 @@ fixture_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
     item.on_op = fixture_op;
     item.hit = true;
     item.enabled = fixture->enabled;
+    item.opacity = fixture->opacity;
     if( fixture->visible_with_bar )
         item.visible_with = PORCELAIN_EL(CHAT_BAR);
     describe->control(describe, &item);
@@ -923,6 +925,156 @@ test_direct_path(void)
 }
 
 /*
+ * A Set is not undone by the next fence, and a target that moves still drags
+ * the control with it.
+ *
+ * The fence's no-input-moved branch re-asserts every live item's geometry
+ * from the description, which is what makes a control follow its target. It
+ * also wrote over the direct path: a Set that moved a control was reverted on
+ * the very next fence and had to be re-applied, so motion cost TWO
+ * set_position calls per control per frame through a verb that exists to cost
+ * one. xp-drop-orbs -- the one shipped plugin whose whole subject is motion
+ * -- could not use the verb at all and drove its animation through the
+ * description plus an invalidate, which is a whole reconcile pass per frame.
+ *
+ * The two boxes were always meant to say this: `desired` is what the
+ * description asks for, `live_*` is what was written, and the fence has
+ * nothing to say while the first of them has not moved.
+ *
+ * MUTATION: delete the equal-desired early return in porcelain_apply_geometry.
+ * Red: "the fence does not write over it".
+ * SECOND MUTATION: drop the box compare from that return and keep only
+ * `desired_written`, so geometry is placed once and never re-asserted. Red:
+ * "and a target that moved drags it along" -- which is the requirement the
+ * re-assert exists for and the half a naive fix loses.
+ */
+static void
+test_a_set_survives_the_next_fence(void)
+{
+    struct Fixture fixture = {.image = "camera.png", .gap = 4, .enabled = true};
+    struct Porcelain* porcelain;
+    struct PorcelainMotion motion;
+    struct TestbedControl const* camera;
+
+    Testbed_Reset();
+    declare_chrome();
+    Testbed_BindElement("report_button");
+    Testbed_BindElement("chat_bar");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, fixture_describe, &fixture);
+    fence(porcelain);
+
+    memset(&motion, 0, sizeof(motion));
+    motion.mask = PORCELAIN_MOTION_X | PORCELAIN_MOTION_Y;
+    motion.x = 500;
+    motion.y = 300;
+    Porcelain_Fence(porcelain);
+    CHECK(Porcelain_Set(porcelain, "camera", &motion) == TORIRS_RESULT_OK, "the direct path moves it");
+    Porcelain_Commit(Testbed_Api());
+    camera = Testbed_Control("camera");
+    CHECK(camera && camera->x == 500 && camera->y == 300, "the control is where the Set put it");
+
+    /* The frame the plugin does NOT set: nothing described moved, so the
+     * layer has nothing to write. */
+    Testbed_ClearLog();
+    fence(porcelain);
+    camera = Testbed_Control("camera");
+    CHECK(camera && camera->x == 500 && camera->y == 300, "the fence does not write over it");
+    CHECK(Testbed_LogCountWith("set_position") == 0, "and costs no setter to leave it alone");
+
+    /* One animated frame end to end: ONE set_position, not two. */
+    Testbed_ClearLog();
+    motion.x = 501;
+    Porcelain_Fence(porcelain);
+    CHECK(Porcelain_Set(porcelain, "camera", &motion) == TORIRS_RESULT_OK, "the next step sets");
+    Porcelain_Commit(Testbed_Api());
+    CHECK(Testbed_LogCountWith("set_position") == 1,
+          "an animated frame costs one set_position, which is what the direct path is for");
+
+    /*
+     * And the requirement the re-assert exists for, which had to survive: the
+     * control is placed BESIDE report_button, so moving that moves it.
+     */
+    Testbed_MoveElement("report_button", 400, 200);
+    fence(porcelain);
+    camera = Testbed_Control("camera");
+    CHECK(camera && camera->y == 200, "and a target that moved drags it along");
+    CHECK(camera->x == 400 + 60 + 4, "to the box the description states for the new target");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A fade that reaches the floor is SAID, and there is a value that means it.
+ *
+ * `opacity` 0 in a described item is the unset field of a zeroed struct --
+ * the layer's own idiom, and the reason a zeroed PorcelainItem plus three
+ * fields is a legal item -- so it means opaque. A plugin fading a control out
+ * with `item.opacity = alpha` therefore had its control SNAP BACK TO FULLY
+ * PAINTED on the step alpha reached zero, silently, and xp-drop-orbs fences
+ * its fade at 1 with a note rather than hit it.
+ *
+ * Zero cannot be made to mean invisible without changing what a zeroed struct
+ * means to every describe there is. So invisible got a name, and the fall to
+ * zero got a finding: the one thing the layer must not do is quietly answer
+ * the opposite of what the field reads as.
+ *
+ * MUTATION: delete the PORCELAIN_OPACITY_INVISIBLE arm in
+ * porcelain_apply_properties. Red: "invisible is a value this field can
+ * carry".
+ * SECOND MUTATION: delete the fell-to-zero finding beside it. Red: "and a
+ * fade that reached zero is reported".
+ */
+static void
+test_a_fade_to_zero_is_not_silently_opaque(void)
+{
+    struct Fixture fixture = {.image = "camera.png", .gap = 4, .enabled = true};
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[4];
+    struct TestbedControl const* camera;
+
+    Testbed_Reset();
+    declare_chrome();
+    Testbed_BindElement("report_button");
+    Testbed_BindElement("chat_bar");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, fixture_describe, &fixture);
+    fence(porcelain);
+    camera = Testbed_Control("camera");
+    CHECK(camera && camera->opacity == 255, "an item that never mentions opacity is opaque");
+    CHECK(Porcelain_Findings(porcelain, findings, 4) == 0, "and says nothing about it");
+
+    /* The fade, one step above the floor. */
+    fixture.opacity = 64;
+    Porcelain_Invalidate(porcelain);
+    fence(porcelain);
+    camera = Testbed_Control("camera");
+    CHECK(camera && camera->opacity == 64, "a stated opacity reaches the engine");
+
+    /* And the floor, said the way the field can carry it. */
+    fixture.opacity = PORCELAIN_OPACITY_INVISIBLE;
+    Porcelain_Invalidate(porcelain);
+    fence(porcelain);
+    camera = Testbed_Control("camera");
+    CHECK(camera && camera->opacity == 0, "invisible is a value this field can carry");
+    CHECK(Porcelain_Findings(porcelain, findings, 4) == 0, "and needs no explaining");
+
+    /* The loop written the obvious way, which is the defect. It still reads
+     * as opaque -- that cannot change without changing what a zeroed item
+     * means -- but it is no longer silent. */
+    fixture.opacity = 64;
+    Porcelain_Invalidate(porcelain);
+    fence(porcelain);
+    fixture.opacity = 0;
+    Porcelain_Invalidate(porcelain);
+    fence(porcelain);
+    camera = Testbed_Control("camera");
+    CHECK(camera && camera->opacity == 255, "a described zero is still the unset field");
+    CHECK(Porcelain_Findings(porcelain, findings, 4) == 1,
+          "and a fade that reached zero is reported");
+    Porcelain_Close(porcelain);
+}
+
+/*
  * MUTATION: in porcelain_flush_epoch, issue the revalidate once per handle
  * instead of once per epoch. Red here.
  */
@@ -1591,6 +1743,156 @@ test_spelling_is_re_asked(void)
 }
 
 /*
+ * An element the lane has NOT GOT costs nothing per frame.
+ *
+ * This is the layer's central claim, and for one release it was false. An
+ * unresolved watch was re-asked by porcelain_resolve_pending on every fence
+ * for ever -- which was tolerable while few plugins left one behind, and
+ * stopped being tolerable the moment Porcelain_Usable was fixed to CREATE its
+ * four lane-chrome watches: every caller that took a draw context then left
+ * four unresolved watches on any lane with no docked strip and paid four role
+ * lookups a frame, for ever, to keep asking about a strip that is not there.
+ *
+ * The line is PENDING against ABSENT, which is what the two words already
+ * mean. A PENDING element may still be mounting and the re-ask is what makes
+ * a provider come up cleanly; the absence clock bounds that window at two
+ * fences. An ABSENT one is settled, and the only thing that can unsettle it
+ * is a new tree -- so a `@tree` subscription, one for the whole handle, is
+ * what a re-ask hangs off from then on.
+ *
+ * MUTATION: drop the `tree_moved ||` from the re-ask gate in
+ * porcelain_resolve_pending so it runs on every fence again. Red: "twenty
+ * fences with nothing publishing make zero engine calls".
+ * SECOND MUTATION: drop the `tree_moved ||` half instead, so an ABSENT watch
+ * is never re-asked at all. Red: "a publication re-asks the one watch that
+ * has not resolved".
+ * THIRD MUTATION: drop the `|| watch->state.bind != PORCELAIN_ABSENT` half,
+ * so a PENDING watch waits for a publication too. Red: "a PENDING element is
+ * re-asked while the lane may still be mounting it".
+ */
+static void
+test_an_unresolved_element_costs_nothing_at_rest(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainElementState state;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    /* Declared and NOT bound: the lane knows the name and has not mounted it,
+     * which is exactly the shape of a strip a lane has no room for. */
+    Testbed_DeclareElement("chat", 17, 357, 519, 165);
+
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(Porcelain_Element(porcelain, PORCELAIN_EL(VIEWPORT), &state),
+          "the viewport is bound");
+    CHECK(!Porcelain_Element(porcelain, PORCELAIN_EL(CHAT), &state),
+          "and the chat is not");
+    CHECK(Testbed_LogCountWith("watch_tree") == 1,
+          "one @tree subscription for the whole handle, taken beside the first watch");
+
+    /* While it is PENDING the lane may still be arriving, so it IS re-asked:
+     * one find, for the one watch that has not resolved. */
+    Testbed_ClearLog();
+    fence(porcelain);
+    CHECK(Testbed_LogCountWith("find chat") == 1,
+          "a PENDING element is re-asked while the lane may still be mounting it");
+    CHECK(Testbed_LogCount() == 1, "and the bound one is not re-asked at all");
+
+    /* Past the absence clock, so the watch is settled rather than early. */
+    for( int i = 0; i < PORCELAIN_ABSENT_FENCES + 2; i++ )
+        fence(porcelain);
+
+    Testbed_ClearLog();
+    for( int i = 0; i < 20; i++ )
+        fence(porcelain);
+    if( Testbed_LogCount() != 0 )
+    {
+        fprintf(stderr, "an unresolved watch made engine calls at rest:\n");
+        Testbed_PrintLog();
+    }
+    CHECK(Testbed_LogCount() == 0,
+          "twenty fences with nothing publishing make zero engine calls");
+
+    /*
+     * And the other half, or the line above would pass on a layer that had
+     * simply stopped asking: a publication IS re-asked, and the number is one
+     * per unresolved watch and not one per anything else.
+     *
+     * MUTATION: make porcelain_resolve_pending ignore tree_moved entirely.
+     * Red: the publication buys no re-ask and the chat never binds below.
+     */
+    Testbed_ClearLog();
+    Testbed_PublishTree();
+    fence(porcelain);
+    CHECK(Testbed_LogCountWith("find chat") == 1,
+          "a publication re-asks the one watch that has not resolved");
+    CHECK(Testbed_LogCount() == 1, "and nothing else at all");
+
+    /* And it binds, on the publication that brings it. */
+    Testbed_BindElement("chat");
+    fence(porcelain);
+    CHECK(Porcelain_Element(porcelain, PORCELAIN_EL(CHAT), &state),
+          "an element that arrives late still binds");
+
+    Testbed_ClearLog();
+    for( int i = 0; i < 20; i++ )
+        fence(porcelain);
+    CHECK(Testbed_LogCount() == 0, "and the settled pair costs nothing again");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A draw context does not ask whether this lane has a docked strip.
+ *
+ * Porcelain_DrawContext used to derive the USABLE rect for every caller
+ * alongside the canvas box. The canvas one is load-bearing -- it decides
+ * `canvas_space`, which is the difference between a tooltip clamped to the
+ * canvas and one flipped up over the minimap. The usable one was read by
+ * nobody: every caller of this verb is an overlay clamping to the pass it was
+ * handed, and the usable canvas is a PLACEMENT area, which is a frame
+ * provider's question and has its own verb.
+ *
+ * It was not free. Subtracting a strip means asking whether there IS one, and
+ * that CREATES four lane-chrome watches -- charged to a caller that never
+ * mentioned them, on a lane that mostly has no strip at all.
+ *
+ * MUTATION: put `Porcelain_Element(porcelain, PORCELAIN_EL(USABLE), ...)`
+ * back into Porcelain_DrawContext. Red: the draw context opens four watches
+ * on lane_chrome roles.
+ */
+static void
+test_a_draw_context_does_not_ask_about_lane_chrome(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainDrawContext context;
+    struct PorcelainElementState state;
+    struct ToriRS_WidgetBounds usable;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(Porcelain_Element(porcelain, PORCELAIN_EL(VIEWPORT), &state), "the viewport is bound");
+
+    Testbed_ClearLog();
+    CHECK(Porcelain_DrawContext(porcelain,
+                                Testbed_Graphics((struct ToriRS_Rect){0, 0, 800, 500}, true),
+                                PORCELAIN_EL(NONE), &context),
+          "the canvas pass answers a context");
+    CHECK(context.canvas_space, "which is canvas space, so the canvas box was derived");
+    CHECK(Testbed_LogCountWith("watch_state lane_chrome") == 0,
+          "and not one lane_chrome role was watched for it");
+
+    /* The verb that DOES own the question still asks it. */
+    Testbed_ClearLog();
+    CHECK(Porcelain_Usable(porcelain, &usable), "Porcelain_Usable answers the placement area");
+    CHECK(Testbed_LogCountWith("watch_state lane_chrome") == 4,
+          "by watching all four strip members, which is its job and not a draw's");
+    Porcelain_Close(porcelain);
+}
+
+/*
  * A lane that authored a `tab_<name>` builtin AND numbers its sidebar answers
  * the builtin. Both facts are true on the 2004 lane -- `panel_inventory =
  * slot(sidebar, 3)` makes the profile answer a tab number there too -- so a
@@ -1753,7 +2055,6 @@ test_draw_context_says_which_space(void)
     CHECK(context.bounds.width == 800 && context.bounds.height == 500,
           "whose drawable rect is the pass's own");
     CHECK(context.canvas_space, "and which IS canvas space");
-    CHECK(context.usable.width == 800, "so the usable canvas is answered");
     CHECK(context.element_bound && context.element.x == 4 && context.element.width == 512,
           "and the element's box is usable in it");
 
@@ -1766,7 +2067,6 @@ test_draw_context_says_which_space(void)
     CHECK(!context.canvas_space, "but it is not canvas space");
     CHECK(!context.element_bound && context.element.width == 0,
           "so no canvas-space element box is handed out");
-    CHECK(context.usable.width == 0, "and neither is the usable canvas");
     Porcelain_Close(porcelain);
 
     /*
@@ -5855,6 +6155,8 @@ main(void)
     test_config_list_refusal();
     test_description_total_order();
     test_direct_path();
+    test_a_set_survives_the_next_fence();
+    test_a_fade_to_zero_is_not_silently_opaque();
     test_one_revalidate_for_every_plugin();
     test_visibility_and_enablement();
     test_blocker_needs_no_picture();
@@ -5870,6 +6172,8 @@ main(void)
     test_counts_are_lane_data();
     test_tab_resolves_by_data();
     test_spelling_is_re_asked();
+    test_an_unresolved_element_costs_nothing_at_rest();
+    test_a_draw_context_does_not_ask_about_lane_chrome();
     test_tab_prefers_the_spelling_that_answers();
     test_chat_filter_resolves_on_both_shapes();
     test_count_spans_a_hole();

@@ -181,6 +181,20 @@ struct Testbed
         ToriRS_WidgetListener fn;
         void* user;
     } watches[TESTBED_WATCHES_MAX];
+    /*
+     * The `@tree` subscription, kept OUT of the role table on purpose: it is
+     * keyed by no role, it must not answer a role-keyed raise, and it must
+     * not show up in Testbed_LiveWatches, which exists to catch a re-spelled
+     * element leaking a subscription.
+     */
+    struct
+    {
+        ToriRS_WidgetListener fn;
+        void* user;
+    } tree_watch;
+    /* Topology publications. Declaring, binding and unbinding an element move
+     * it; MOVING one does not, which is the host's own rule. */
+    uint64_t tree_generation;
     struct TestbedControl controls[TESTBED_CONTROLS_MAX];
     struct TestbedAsset assets[TESTBED_ASSETS_MAX];
     struct TestbedConfigRow config[TESTBED_CONFIG_MAX];
@@ -334,6 +348,14 @@ struct TestbedControl* Testbed_Control(char const* key);
 int Testbed_LiveControls(void);
 /** Subscriptions the host still holds. A re-spelled element must not grow it. */
 int Testbed_LiveWatches(void);
+/**
+ * Publish a topology change with no element moving.
+ *
+ * The signal the layer polls its unresolved watches on. A test that wants to
+ * say "and the poll does NOT run when nothing published" needs its opposite,
+ * which is simply not calling this.
+ */
+void Testbed_PublishTree(void);
 
 /* The panel ------------------------------------------------------------- */
 

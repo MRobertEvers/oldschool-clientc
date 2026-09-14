@@ -901,6 +901,66 @@ Porcelain_WatchFor(struct Porcelain* porcelain, struct PorcelainElement element,
     return free_slot;
 }
 
+/*
+ * The tree listener: one subscription for the whole handle.
+ *
+ * TREE_CHANGED is topology and only topology -- a move, a hide or a re-skin
+ * raises nothing here -- which makes it the exact signal a SETTLED unresolved
+ * watch needs, and nothing a bound one does.
+ *
+ * The contract's opening notification is taken as news like any other, and
+ * that costs nothing rather than needing a guard: a watch is only ABSENT
+ * after the absence clock has run, which takes fences, and every PENDING
+ * watch is re-asked on those fences anyway.
+ */
+static void
+porcelain_tree_listener(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+{
+    struct Porcelain* porcelain = user;
+
+    assert(api);
+    (void)api;
+    assert(porcelain);
+    assert(event);
+    if( event->type != TORIRS_WIDGET_TREE_CHANGED )
+        return;
+    porcelain->tree_moved = true;
+}
+
+/*
+ * Taken beside the first role watch and never again.
+ *
+ * Here rather than in Porcelain_Open because a subscription is only legal
+ * inside this plugin's own non-draw callback, which is exactly the context
+ * `porcelain_watch_subscribe` has already proved it is in -- and a handle
+ * that never watches a role has nothing to poll and owes the host nothing.
+ */
+static void
+porcelain_tree_subscribe(struct Porcelain* porcelain)
+{
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+
+    assert(porcelain);
+    if( porcelain->tree_subscribed )
+        return;
+    assert(widgets->watch_tree);
+    porcelain->tree_subscribed = true;
+    porcelain->counters.engine_calls++;
+    if( widgets->watch_tree(widgets->context, porcelain_tree_listener, porcelain) !=
+        TORIRS_CONTRACT_OK )
+    {
+        /*
+         * Without it there is no signal, and a settled absence would stay
+         * settled for the life of the session rather than quietly costing a
+         * role lookup a frame. Say so once: a silent downgrade here is the
+         * kind of thing that reads as "the lane does not have that element".
+         */
+        porcelain->tree_subscribed = false;
+        Porcelain_RecordFinding(porcelain, "element", PORCELAIN_EL(NONE),
+                                PORCELAIN_FINDING_REFUSED, "@tree");
+    }
+}
+
 /* watch_state and not watch: a plain watch never receives STATE_CHANGED, and
  * a follower written against BOUND/UNBOUND alone drops its controls the first
  * time a hide moves. */
@@ -912,6 +972,7 @@ porcelain_watch_subscribe(struct Porcelain* porcelain, struct PorcelainWatch* wa
     assert(porcelain);
     assert(watch);
     assert(watch->role[0]);
+    porcelain_tree_subscribe(porcelain);
     porcelain->counters.engine_calls++;
     if( widgets->watch_state(widgets->context, watch->role, porcelain_watch_listener, watch) !=
         TORIRS_CONTRACT_OK )
@@ -1297,6 +1358,11 @@ porcelain_push_item(struct ToriRS_PorcelainDescribe* describe, enum PorcelainIte
         /* A duplicate key would make the diff ambiguous and the later item
          * silently win. The plan's identity rule is one key, one item. */
         assert(strcmp(porcelain->scratch_items[i].key.text, source->key) != 0);
+
+    /* -1 is PORCELAIN_OPACITY_INVISIBLE; 0 is the unset field of a zeroed
+     * struct. Anything below that is a plugin computing into the field. */
+    assert(source->opacity >= PORCELAIN_OPACITY_INVISIBLE);
+    assert(source->opacity <= 255);
 
     item = &porcelain->scratch_items[porcelain->scratch_item_count];
     memset(item, 0, sizeof(*item));
@@ -1797,9 +1863,34 @@ porcelain_apply_geometry(struct Porcelain* porcelain, struct PorcelainAppliedIte
 {
     struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
 
-    /* No early return on an unchanged box: each write below compares for
-     * itself, which is what makes "zero engine calls" true without also
-     * making a picture that changed under an unmoved box unreachable. */
+    /*
+     * THE DESCRIPTION SAYS THE SAME THING IT SAID LAST TIME: write nothing.
+     *
+     * This is the arm that makes Porcelain_Set usable, and its absence made
+     * the verb unusable by the one plugin whose subject is motion. The fence
+     * re-asserts every live item's geometry from the description on the
+     * no-input-moved branch -- which it must, or a control whose target moved
+     * stops following it -- and the direct path writes `live_*` and leaves
+     * `desired` alone. So a Set that moved a control was undone on the very
+     * next fence: two set_position calls per moving control per frame, where
+     * the direct path exists to cost one, and xp-drop-orbs drove its motion
+     * through the description plus an invalidate instead.
+     *
+     * The rule the two boxes were built for, finally written down: if nothing
+     * the DESCRIPTION says has changed, the layer has nothing to say. A
+     * target that moved changes `box`, and then the animation IS rebased --
+     * which is the right way round, because a control whose parent moved and
+     * kept its old offset is drift, and drift survives every screenshot.
+     *
+     * `image_dirty` is the exception, and it is why this is not simply an
+     * early return on an equal box: an owned image control takes its picture
+     * through the same set_image as its size, so a picture that changed under
+     * an unmoved box has to reach the engine.
+     */
+    if( applied->desired_written && !applied->image_dirty && applied->desired.x == box.x &&
+        applied->desired.y == box.y && applied->desired.width == box.width &&
+        applied->desired.height == box.height )
+        return;
     applied->desired = box;
     applied->desired_written = true;
     if( applied->live_x != box.x || applied->live_y != box.y )
@@ -2100,7 +2191,21 @@ porcelain_apply_properties(struct Porcelain* porcelain, struct PorcelainAppliedI
 
     if( fresh || previous.opacity != wanted->opacity )
     {
-        int const opacity = wanted->opacity == PORCELAIN_OPACITY_DEFAULT ? 255 : wanted->opacity;
+        int const opacity = wanted->opacity == PORCELAIN_OPACITY_DEFAULT      ? 255
+                            : wanted->opacity == PORCELAIN_OPACITY_INVISIBLE ? 0
+                                                                             : wanted->opacity;
+        /*
+         * A described opacity that FELL to zero is a fade that reached its
+         * floor, and zero is the one value this field cannot carry: it is the
+         * unset field of a zeroed struct. Inverting it into "fully painted"
+         * without a word is the class this layer exists to remove, so say it.
+         * PORCELAIN_OPACITY_INVISIBLE is the value that means what the author
+         * of such a loop meant.
+         */
+        if( !fresh && wanted->opacity == PORCELAIN_OPACITY_DEFAULT &&
+            previous.opacity != PORCELAIN_OPACITY_DEFAULT )
+            Porcelain_RecordFinding(porcelain, "opacity", wanted->place.on,
+                                    PORCELAIN_FINDING_REFUSED, wanted->key.text);
         porcelain->counters.engine_calls++;
         porcelain->counters.setters++;
         porcelain_note_result(porcelain, "set_opacity", wanted->place.on,
@@ -2832,7 +2937,30 @@ static void
 porcelain_resolve_pending(struct Porcelain* porcelain)
 {
     struct ToriRS_WidgetRef ref;
+    /*
+     * ONE read of the tree flag for the whole sweep, taken and cleared here.
+     *
+     * Re-asking is what this function used to do on every fence FOR EVER, and
+     * the "for ever" is the whole of the layer's rest cost: four role lookups
+     * a frame on any lane with no docked strip, because Porcelain_Usable
+     * CREATES four lane-chrome watches and nothing ever resolved them.
+     *
+     * The line this draws is PENDING against ABSENT, and the two words
+     * already mean it. PENDING is "the lane may still be mounting this and
+     * the layer has not finished waiting" -- a window the absence clock
+     * bounds at PORCELAIN_ABSENT_FENCES, during which a re-ask every fence is
+     * what makes a provider come up cleanly. ABSENT is "the wait is over",
+     * and it is unbounded: nothing the lane does short of publishing a new
+     * tree can change that answer, so nothing short of a publication is worth
+     * asking about.
+     *
+     * The clock below is not the expensive half and still runs every fence:
+     * counting is free, and an element the lane has not got has to be able to
+     * become ABSENT whether or not the tree ever moves again.
+     */
+    bool const tree_moved = porcelain->tree_moved;
 
+    porcelain->tree_moved = false;
     for( int i = 0; i < PORCELAIN_WATCHES_MAX; i++ )
     {
         struct PorcelainWatch* watch = &porcelain->watches[i];
@@ -2843,34 +2971,49 @@ porcelain_resolve_pending(struct Porcelain* porcelain)
             watch->pending_fences = 0;
             continue;
         }
-        porcelain_watch_respell(porcelain, watch);
-        if( watch->state.bind == PORCELAIN_ABSENT )
+        /*
+         * A re-ask: every fence while PENDING, and after that only when the
+         * topology published.
+         *
+         * Two things can turn an unresolved watch into a bound one. The
+         * element can APPEAR, which the host reports to the watch itself --
+         * it re-resolves every subscription by name on a publication, a watch
+         * that has never resolved included -- so this find is a second
+         * opinion rather than the only route. The element can also appear
+         * under the OTHER SPELLING, which the host cannot report because the
+         * subscription is on a name the lane does not use; that one is only
+         * reachable from here. @see porcelain_watch_respell.
+         *
+         * Both are tree changes, which is why a publication is enough. The
+         * PENDING half is not there because it is needed, it is there because
+         * it is what a mounting lane already gets and a re-ask in a window two
+         * fences long is not a cost: dropping it moved a provider's first
+         * describe by a fence, which is a plugin placing its controls at a
+         * fallback box one fewer time. Better, and not this change's to make.
+         */
+        if( tree_moved || watch->state.bind != PORCELAIN_ABSENT )
         {
-            /* An element that comes back binds through the watch listener, so
-             * ABSENT is never permanent -- only quiet. */
+            porcelain_watch_respell(porcelain, watch);
             if( porcelain_engine_find(porcelain, watch->role, &ref) == TORIRS_CONTRACT_OK )
             {
+                bool const was_absent = watch->state.bind == PORCELAIN_ABSENT;
                 watch->state.bind = PORCELAIN_BOUND;
                 porcelain->any_element_bound = true;
                 porcelain_forget_absence(porcelain, watch->element);
                 watch->state.ref = ref;
-                watch->absence_reported = false;
+                watch->pending_fences = 0;
+                if( was_absent )
+                    watch->absence_reported = false;
                 porcelain_note_new_binding(porcelain);
                 porcelain_read_state(porcelain, watch);
                 porcelain->stamp[PORCELAIN_INPUT_ELEMENT]++;
+                continue;
             }
-            continue;
         }
-        if( porcelain_engine_find(porcelain, watch->role, &ref) == TORIRS_CONTRACT_OK )
+        if( watch->state.bind == PORCELAIN_ABSENT )
         {
-            watch->state.bind = PORCELAIN_BOUND;
-            porcelain->any_element_bound = true;
-            porcelain_forget_absence(porcelain, watch->element);
-            watch->state.ref = ref;
-            watch->pending_fences = 0;
-            porcelain_note_new_binding(porcelain);
-            porcelain_read_state(porcelain, watch);
-            porcelain->stamp[PORCELAIN_INPUT_ELEMENT]++;
+            /* An element that comes back binds through the watch listener, so
+             * ABSENT is never permanent -- only quiet. */
             continue;
         }
         if( !porcelain->any_element_bound )

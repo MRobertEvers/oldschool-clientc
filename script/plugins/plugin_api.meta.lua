@@ -757,7 +757,7 @@ warn = nil
 ---@field place torirs.PorcelainPlace
 ---@field w? integer
 ---@field h? integer
----@field opacity? integer
+---@field opacity? integer 255 opaque .. 1 barely there. NOT 0: an absent field reads as 0, so 0 is UNSET and means opaque; pass -1 for invisible. A fade that counts down to 0 is reported as a finding rather than silently snapping back to fully painted.
 ---@field text? string
 ---@field rgb? integer
 ---@field align? integer 0 left, 1 centre (the default), 2 right.
@@ -821,13 +821,14 @@ warn = nil
 ---@field height? integer
 
 --- What the pass now running may draw on. `bounds` and `clip` are the
---- callback's own, pass-local; `usable` and `element` are canvas-space
---- answers and are filled only when `canvas_space` is true, which the world
---- and canvas passes are and a panel well is not.
+--- callback's own, pass-local; `element` is a canvas-space answer and is
+--- filled only when `canvas_space` is true, which the world and canvas
+--- passes are and a panel well is not. For the usable canvas -- a frame
+--- provider's question, and a cost every other caller used to pay -- ask
+--- porcelain.usable().
 ---@class torirs.PorcelainDrawContext
 ---@field bounds torirs.Rect
 ---@field clip torirs.Rect
----@field usable torirs.Rect
 ---@field element torirs.Rect
 ---@field element_bound boolean
 ---@field canvas_space boolean

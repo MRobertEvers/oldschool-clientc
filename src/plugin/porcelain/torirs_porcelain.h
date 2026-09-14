@@ -274,6 +274,19 @@ int Porcelain_SettingValue(struct Porcelain* porcelain, char const* name, int ab
 bool Porcelain_KeyEdge(struct Porcelain* porcelain, char const* config_key, PorcelainEdgeFn fn,
                        void* user);
 void Porcelain_NoteKey(struct Porcelain* porcelain, int key, bool down);
+/**
+ * A handle for a shipped picture, requested on first ask and cached.
+ *
+ * WHEN a plugin first asks is observable, so ask at a fixed point.
+ *
+ * The engine hands out image slots in allocation order and a capture prints
+ * the slot id. Moving two of these calls out of on_start and into a describe
+ * shifted every slot allocated after them and reddened the `scene` field on
+ * all seven gate lanes for no behaviour change whatever -- a gate cycle spent
+ * on a renumbering. A slot id is an internal handle and nothing reads it, but
+ * it IS captured, so claim every picture a plugin knows it needs from
+ * on_start and let the describes ask for handles that already exist.
+ */
 struct ToriRS_ImageRef Porcelain_Image(struct Porcelain* porcelain, char const* name,
                                        enum PorcelainAssetState* out_state);
 bool Porcelain_ImageSize(struct Porcelain* porcelain, char const* name, int* out_width,

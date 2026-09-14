@@ -1312,7 +1312,10 @@ struct PorcelainItem
     /** 0 = natural (the target's size). MANDATORY on Text: no verb measures a
      *  string in the widget's face, so a text box cannot be derived. */
     int w, h;
-    /** 255 opaque .. 0 invisible. @see PORCELAIN_OPACITY_DEFAULT */
+    /** 255 opaque .. 1 barely there. NOT 0: a zeroed struct is the layer's
+     *  idiom for "this item does not state that field", so 0 here is UNSET
+     *  and means opaque. Say PORCELAIN_OPACITY_INVISIBLE when you mean
+     *  invisible. @see PORCELAIN_OPACITY_DEFAULT */
     int opacity;
     char const* text;
     uint32_t rgb;
@@ -1332,8 +1335,23 @@ struct PorcelainItem
     struct PorcelainElement visible_with;
 };
 
-/** `opacity` 0 in a zeroed item means opaque, not invisible. */
+/**
+ * `opacity` 0 in a zeroed item means opaque, not invisible.
+ *
+ * Which is the trap, and it is why there is a second constant. A fade written
+ * the obvious way -- `item.opacity = alpha` with alpha counting down --
+ * SNAPS BACK TO FULLY PAINTED on the step that reaches zero, silently,
+ * because the layer cannot tell that zero from the zero of a struct that
+ * never mentioned opacity at all. xp-drop-orbs fences its fade at 1 with a
+ * note rather than hit it.
+ *
+ * So: zero is unset, invisible has a name of its own, and a described opacity
+ * that FALLS to zero from something else is reported rather than silently
+ * inverted. @see porcelain_apply_properties.
+ */
 #define PORCELAIN_OPACITY_DEFAULT 0
+/** Invisible, said so it cannot be confused with an unset field. */
+#define PORCELAIN_OPACITY_INVISIBLE (-1)
 
 /** A member keeps its block-relative offset when the block moves. */
 #define PORCELAIN_KEEP_RELATIVE INT32_MIN
@@ -1533,18 +1551,26 @@ enum PorcelainSettingFlags
  * draw region for all three passes (DRAW_WORLD, DRAW_CANVAS, PANEL_DRAW), and
  * a builder coordinate is relative to it.
  *
- * `usable` and `element` are CANVAS-space answers, and they are only in the
- * pass's own coordinates when the pass IS the canvas -- which the world and
- * canvas passes are, at origin zero, and a panel well is not. `canvas_space`
- * says which, rather than leaving a caller to clamp a canvas rectangle
- * against a well's local one and flip its tooltip over the minimap.
+ * `element` is a CANVAS-space answer, and it is only in the pass's own
+ * coordinates when the pass IS the canvas -- which the world and canvas
+ * passes are, at origin zero, and a panel well is not. `canvas_space` says
+ * which, rather than leaving a caller to clamp a canvas rectangle against a
+ * well's local one and flip its tooltip over the minimap.
+ *
+ * There is deliberately NO `usable` here, and there was for one release.
+ *
+ * Nothing read it. Every caller of this verb is an overlay clamping a drawing
+ * to the pass it was handed, and the usable canvas is a PLACEMENT area -- the
+ * frame root less a docked lane strip -- which is a frame provider's
+ * question, asked with Porcelain_Usable. Deriving it here charged that
+ * question to every caller of a verb they took for `bounds`: subtracting a
+ * strip means asking whether there IS one, which means four lane-chrome
+ * watches this caller never mentioned, on a lane that mostly has none.
  */
 struct PorcelainDrawContext
 {
     struct ToriRS_Rect bounds;
     struct ToriRS_Rect clip;
-    /** The usable canvas. Zero when this pass is not in canvas space. */
-    struct ToriRS_Rect usable;
     /** The stated element's box. Zero when none was stated, it is not bound,
      *  or this pass is not in canvas space. */
     struct ToriRS_Rect element;
