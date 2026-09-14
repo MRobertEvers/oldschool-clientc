@@ -595,6 +595,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	$(JS5_SRCS) \
 	game/rs_worldmap_drag.c \
 	ui/uitree_if_events.c \
+	ui/uitree_keyboard_owner.c \
 	engine/toridraw_element_anim.c \
 	torirs_env_values.c \
 	engine/world_seq_source_toridraw.c \
@@ -1635,7 +1636,19 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-env-values
 	$(MAKE) test-uitree-if-events
 	$(MAKE) test-worldmap-drag
+	$(MAKE) test-uitree-keyboard-owner
 	$(MAKE) test-world
+
+# Who has the keyboard. Every hotkey asks this, and the failure is always a
+# text input the rule does not know about leaving the hotkeys live underneath
+# it -- four times so far, each looking like a different bug. States which
+# sources count, and pins the two traps: stale chat flags on a lane with no
+# chat line, and the interface varc whose UNSET value is -1.
+.PHONY: test-uitree-keyboard-owner
+test-uitree-keyboard-owner: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_keyboard_owner_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/uitree_keyboard_owner_test.c ui/uitree_keyboard_owner.c $(LDFLAGS)
+	./$(OBJ_DIR)/uitree_keyboard_owner_test$(PLATFORM_EXE_SUFFIX)
 
 # Drag to pan the world map. The pan is anchored to where the view was at the
 # grab, not accumulated -- accumulating truncates the sub-tile remainder every

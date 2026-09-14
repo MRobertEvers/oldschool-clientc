@@ -134,6 +134,7 @@ EM_JS(
 #include "ui/uitree_frame.h"
 #include "ui/uitree_input_signature.h"
 #include "ui/uitree_if_events.h"
+#include "ui/uitree_keyboard_owner.h"
 #include "ui/uitree_iface_stats.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_obj_cell.h"
@@ -527,24 +528,24 @@ app_chrome_holds_keyboard(struct App const* app);
 static int
 app_text_input_focused(struct App const* app)
 {
+    struct UIKeyboardOwners owners;
+    struct VarCIds const* ids;
+
     assert(app);
-    /* A ToriRSChrome text field under the caret, in EITHER instance -- set by
-     * ToriRSChrome_MouseDown and cleared by a click elsewhere, so this is
-     * exactly "a chrome panel has a field being typed into" (the map editor's
-     * Height field; a plugin's colour or note field). Without it, typing a
-     * height value like "8" both edited the field AND fired the
-     * map-editor-toggle hotkey on the same keystroke -- one more instance of
-     * the bug this function exists to kill everywhere at once. */
-    return (app_chat_node_index(app) >= 0 &&
-            (app->chat_input_active || app->chat.social_input_open ||
-             app->chat.dialog_input_open)) ||
-           app_iface_text_input_focused(app) ||
-           /* An IF3 text-entry field with the caret in it. The third kind of
-            * text input in this client and the newest, which is exactly the
-            * case this function's own header warns about: a list of the inputs
-            * that existed when it was written leaves the hotkeys live under the
-            * one added next. @see UITree_InputFocusId. */
-           (app->tree && UITree_InputFocusId(app->tree) >= 0) || app_chrome_holds_keyboard(app);
+    ids = varc_ids_for_revision(app->net && app->net->rev ? (int)app->net->rev->revision : 0);
+
+    owners.chat_line_present = app_chat_node_index(app) >= 0;
+    owners.chat_input_active = app->chat_input_active != 0;
+    owners.chat_social_input_open = app->chat.social_input_open != 0;
+    owners.chat_dialog_input_open = app->chat.dialog_input_open != 0;
+    owners.interface_input_active_varc =
+        ids->interface_input_active >= 0
+            ? VarCManager_GetInt((struct VarCManager*)&app->varcs, ids->interface_input_active)
+            : -1;
+    owners.tree_input_focus_id = app->tree ? UITree_InputFocusId(app->tree) : -1;
+    owners.chrome_field_focused = app_chrome_holds_keyboard(app) != 0;
+
+    return UIKeyboard_TextInputFocused(&owners) ? 1 : 0;
 }
 
 /*
