@@ -208,4 +208,30 @@ VarPManager_ResolveTransform(
     int transform_varbit,
     int transform_varp);
 
+/**
+ * Whether a transform table would resolve differently if `varp_id` changed.
+ *
+ * A multiloc or multinpc picks its child from one of two keys: a varp
+ * directly, or a VARBIT -- which is a field packed inside some varp, and it is
+ * that BASE varp the wire actually carries. So a table keyed on a varbit still
+ * depends on a varp, just not one it names anywhere, and a reader that only
+ * compares `transform_varp` sees no dependency at all.
+ *
+ * That is the failure this exists to prevent, and its symptom is a door that
+ * never opens or an npc that never changes state while every packet involved
+ * arrives correctly: the varp lands, nothing thinks it is interested, and the
+ * placement keeps the child it resolved at scene build.
+ *
+ * A table with no entries depends on nothing -- that is a record with no
+ * transform at all, not one whose key is missing.
+ */
+bool
+VarPManager_TransformDependsOnVarp(
+    const struct VarPManager* mgr,
+    const int* transforms,
+    int transform_count,
+    int transform_varbit,
+    int transform_varp,
+    int varp_id);
+
 #endif /* VARP_MANAGER_H */

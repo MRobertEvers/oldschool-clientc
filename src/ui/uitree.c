@@ -1459,6 +1459,28 @@ UITree_HotkeyEffectFromName(char const* name)
     return 0;
 }
 
+int
+UITree_ComponentHiddenOrOrphaned(
+    struct UITree const* tree,
+    int32_t idx)
+{
+    int guard;
+
+    assert(tree);
+    for( guard = 0; idx >= 0 && guard < 256; guard++ )
+    {
+        struct UITreeComponent const* component;
+
+        assert((uint32_t)idx < tree->component_count);
+        component = &tree->components[idx];
+        if( component->freed || component->behavior.hide || component->mount_hidden ||
+            component->frame_hidden )
+            return 1;
+        idx = component->parent;
+    }
+    return 0;
+}
+
 char const*
 UITree_ComponentTypeStr(enum UITreeComponentType type)
 {

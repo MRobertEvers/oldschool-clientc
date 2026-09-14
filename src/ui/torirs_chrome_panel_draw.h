@@ -19,6 +19,30 @@ ToriRSChromePanelDraw_Transform(
     struct ToriRSChromeRect visible_clip,
     struct UITreeEntityOverlay* out);
 
+/**
+ * Translate one retained panel primitive into a chrome primitive, for the
+ * in-canvas fallback -- the path that draws a plugin panel with the client's
+ * own chrome renderer when there is no separate window to put it in.
+ *
+ * Returns zero for a primitive that has nothing to draw, and that is per kind
+ * rather than a shared test: a rect or a line always draws, a text with an
+ * empty string draws nothing, and a sprite whose scene id is not yet resolved
+ * draws nothing YET -- it is an asset that has not arrived. All three would
+ * otherwise emit an item the renderer has to make its own decision about, and
+ * the empty-text one shows up as a stray background block.
+ *
+ * A world polygon returns zero too. The panel API exposes rect, line, text and
+ * image; a polygon in a panel's list came from somewhere else.
+ *
+ * `color` is masked to its low 24 bits. The overlay's alpha byte is not the
+ * chrome's: chrome carries transparency in `trans`, which is copied
+ * separately, so leaving the byte in would multiply one by the other.
+ */
+int
+ToriRSChromePanelDraw_ToChromePrim(
+    struct UITreeEntityOverlay const* item,
+    struct ToriRSChromePrim* out);
+
 /** How a retained custom surface changed between two layout passes. SIZE is
  * the only bit that requires invoking the plugin again; ORIGIN and CLIP can be
  * applied to its retained primitive run. */

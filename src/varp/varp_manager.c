@@ -627,3 +627,38 @@ VarPManager_ResolveTransform(
 
     return transforms[transform_count - 1];
 }
+
+
+bool
+VarPManager_TransformDependsOnVarp(
+    const struct VarPManager* mgr,
+    const int* transforms,
+    int transform_count,
+    int transform_varbit,
+    int transform_varp,
+    int varp_id)
+{
+    assert(mgr);
+
+    /* No table is no dependency: the record has no transform at all, which is
+     * a different thing from one whose key is missing. */
+    if( transform_count <= 0 || !transforms )
+        return false;
+
+    if( transform_varp == varp_id )
+        return true;
+
+    /* The indirect key. A varbit is a field packed inside some varp, and the
+     * wire carries that BASE varp -- so a table keyed on a varbit depends on a
+     * varp it names nowhere. Dropping this is a door that never opens while
+     * every packet involved arrives correctly. */
+    if( transform_varbit >= 0 && transform_varbit < mgr->varbit_count )
+    {
+        struct VarBitType const* varbit = &mgr->varbit_types[transform_varbit];
+
+        if( varbit->basevar == varp_id )
+            return true;
+    }
+
+    return false;
+}

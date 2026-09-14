@@ -18,7 +18,12 @@ main(void)
     test_spotanim_immediate_activation();
     test_spotanim_catchup_activation();
     test_scenery();
+    test_scenery_placement_ops();
+    test_obj_stack_count_at();
     test_bridge_levels();
+    test_height_at();
+    test_coord_to_scene_tile();
+    test_roof_level_along_line();
     test_cycle_movers();
     test_delaymove_gate();
     test_walk_keeps_up();

@@ -67,9 +67,9 @@ static int g_plugin_panel_ticks;
  * state: nothing outside these functions can act on it, and the plugin host
  * has no opinion about which page is up.
  */
-static int g_plugin_page = -1;
+int g_plugin_page = -1;
 /** The page the widgets on screen were built for; a mismatch rebuilds. */
-static int g_plugin_page_built = -1;
+int g_plugin_page_built = -1;
 /** Handle of the page's Back button, or -1 on the roster. It belongs to no
  *  plugin, so it is remembered here rather than tracked as a row. */
 static int g_plugin_back_widget = -1;
@@ -217,9 +217,9 @@ app_plugin_page_select(struct App* app, int page, int view)
  * the same panel with the canvas for its box -- no second layout, no second
  * widget set, and the rows grow with the panel because they always did.
  */
-static int g_plugin_fullscreen;
+int g_plugin_fullscreen;
 /** The state the current display list was built for, so a toggle rebuilds. */
-static int g_plugin_fullscreen_built = -1;
+int g_plugin_fullscreen_built = -1;
 /*
  * The scale and canvas the panel's BOX was last placed against.
  *
@@ -2157,7 +2157,7 @@ app_plugin_button_mount_com(struct App const* app)
  * the client and its disk -- so nothing below this line ever fires there. See
  * Platform_IO_ServerReachable.
  */
-static int
+int
 app_plugin_io_down(struct App const* app)
 {
     assert(app);
@@ -2549,7 +2549,7 @@ app_plugin_button_follow(struct App* app)
     UITree_MarkAllDirty(app->tree);
 }
 
-static void
+void
 app_plugin_button_sync(struct App* app)
 {
     struct RevConfigChromeItem const* chrome;
@@ -2677,7 +2677,7 @@ app_plugin_button_sync(struct App* app)
 static void
 app_plugin_exec_bind(struct App* app);
 
-static void
+void
 app_plugin_window_set_open(struct App* app, int open)
 {
     if( getenv("TORIRS_CHROME_DEBUG") )
@@ -2934,7 +2934,7 @@ app_plugin_rail_drain(struct App* app)
     app_plugin_rail_select(app, drained.select.plugin_index);
 }
 
-static int
+int
 app_plugin_button_click(struct App* app, int component_id)
 {
     int const opening = !app->plugin_panel_visible;
@@ -3021,7 +3021,7 @@ app_plugin_exec_bind(struct App* app)
 }
 
 /** Copy one retained item with the row's current visible scroll clip. */
-static int
+int
 app_plugin_panel_overlay_visible(
     struct App const* app,
     int index,
@@ -3663,7 +3663,7 @@ app_plugin_panel_publish_layout(struct App* app)
  * BOOTING early-out, so the window is usable while a cache is still loading --
  * which is exactly when someone wants to switch a misbehaving plugin off.
  */
-static void
+void
 app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
 {
     assert(app);

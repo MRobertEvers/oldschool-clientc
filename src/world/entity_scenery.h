@@ -132,6 +132,51 @@ struct WorldEntity_SceneryInfo
     struct WorldEntityFacet_Action actions[5];
 };
 
+/**
+ * Apply a LOC_ADD_CHANGE_V2 placement menu onto a copy of a loctype's actions.
+ *
+ * `op_mask` is the five-bit slot mask off the wire and `replacements[i]` the
+ * label the server sent for slot i, empty for "keep whatever the loctype
+ * says". `info` is edited in place -- the caller hands in a COPY, because the
+ * real block is interned and shared with every other placement of the type
+ * (see World_SceneryInfoIntern).
+ *
+ * Returns the overrides mask: the slots whose label came from the PLACEMENT
+ * rather than from the loctype. That is every slot the mask drops -- the
+ * placement said that slot has nothing -- plus every slot the placement named.
+ * The one kind that does not appear is a slot that is kept and unnamed, which
+ * is the only kind that inherits.
+ *
+ * Order is the reference's (deob class108), and each step matters:
+ *
+ *   1. a slot the mask CLEARS is gone, whatever either side calls it. The
+ *      reference bails before it has even read a label, so a swung door does
+ *      not keep offering "Open" beside its "Close".
+ *   2. a replacement wins over the loctype's label -- and wins on a slot the
+ *      loctype left EMPTY too, which is the whole mechanism: it is how one
+ *      cache record grows an option it never declared.
+ *
+ * `code` is left alone. It is the op slot a click reports, so an override
+ * renames a row rather than moving it.
+ *
+ * Each slot is rewritten from zero rather than truncated with a NUL, because
+ * interned blocks are compared byte for byte: a shortened name that left its
+ * old tail behind past the terminator would intern as a second,
+ * identical-looking entry.
+ *
+ * `out_has_action` reports whether anything is left to click. A placement the
+ * server gave a menu is clickable by definition -- that is what the op strings
+ * are for -- and the loctype's own `active` default can say otherwise (the
+ * sailing masts ship with no name and no cache ops), which would then have the
+ * pick refuse a loc whose whole point is its one op.
+ */
+uint8_t
+WorldEntity_SceneryApplyPlacementOps(
+    struct WorldEntity_SceneryInfo* info,
+    unsigned op_mask,
+    char const* const* replacements,
+    bool* out_has_action);
+
 struct WorldEntity_Scenery
 {
     int element_id;

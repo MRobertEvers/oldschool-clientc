@@ -90,6 +90,19 @@ struct InvManager
     void* change_userdata;
 };
 
+/**
+ * Does any slot hold an item whose icon has not been baked yet?
+ *
+ * `obj_id > 0` with `scene_id == INV_MANAGER_NO_SCENE_ID` is an item the
+ * container knows about and the scene cannot draw. The client polls for this
+ * rather than being told, because an icon is baked asynchronously and the
+ * container is filled by a packet -- neither side knows when the other is
+ * finished, and an inventory that is silently one icon short looks like a
+ * cache problem rather than a reconcile that has not run.
+ */
+int
+InvManager_HasUnbakedIcon(struct InvManager const* mgr);
+
 void
 InvManager_Init(struct InvManager* mgr);
 

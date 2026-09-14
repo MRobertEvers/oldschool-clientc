@@ -146,4 +146,31 @@ WorldviewRegistry_IsLive(
     struct WorldviewRegistry const* reg,
     int id);
 
+/**
+ * Which view's staging rectangle holds an absolute root tile, and where the
+ * tile lands inside it.
+ *
+ * This is the registry's half of actor membership: every spawned view reserves
+ * a rectangle of off-map map square, and a wire coordinate that falls in one of
+ * them names a spot on that view's deck rather than a spot on the open map. An
+ * entity's HOME view is the answer, which is what a spawn or an entity-info
+ * update needs before it can decide which world to put the actor in.
+ *
+ * The root is the answer for everything unclaimed, and then the outputs are the
+ * input: the root's "rectangle" is whatever no sub-view took, so a tile out on
+ * the real map is already in root-local terms. Both outputs are required.
+ *
+ * Reservations do not overlap, so the first match is the only match. This is
+ * the rectangle test alone -- the deck's own geometry (a hull is not its whole
+ * rectangle) is Wev_DeckContainsParentPoint's question, asked later and in the
+ * parent's fine units rather than in absolute tiles.
+ */
+int
+WorldviewRegistry_HomeViewForAbsTile(
+    struct WorldviewRegistry const* reg,
+    int abs_tile_x,
+    int abs_tile_z,
+    int* out_local_x,
+    int* out_local_z);
+
 #endif

@@ -170,6 +170,159 @@ World_TileFlagGet(
 /* Same values RSCACHE_FLOFLAG_LINK_BELOW / _VIS_BELOW carry, redeclared so this
  * stays leaf — minimap.h does the same for the two flags its bake reads. */
 #define WORLD_TILE_FLAG_LINK_BELOW 0x02
+
+/* Terrain height under a fine-unit position. Line port of Client-TS getAvH
+ * (Client.ts:5288), bridge clause included: the scene push-down moves a bridge
+ * column's *geometry* from cache level 1 into paint level 0
+ * (WorldBuilder_RebuildCenterzoneEnd, reference World.pushDown), but the
+ * heightmap keeps raw cache levels. So a mover standing on a LinkBelow column
+ * has to sample level+1 or it sinks to the underpass floor -- the "player walks
+ * under the bridge" symptom.
+ *
+ * A world with no heightmap is a world that has not loaded one yet, which is a
+ * legitimate state and answers flat 0. A NULL world is not: every caller knows
+ * which world it is asking about. */
+#define WORLD_TILE_FLAG_ROOF 0x04
+
+int
+World_RoofLevelAlongLine(
+    struct World const* world,
+    int level,
+    int from_tile_x,
+    int from_tile_z,
+    int to_tile_x,
+    int to_tile_z)
+{
+    int top = WORLD_ROOF_LEVEL_SHOW_ALL;
+    int tile_x = from_tile_x;
+    int tile_z = from_tile_z;
+    int delta_x = to_tile_x > tile_x ? to_tile_x - tile_x : tile_x - to_tile_x;
+    int delta_z = to_tile_z > tile_z ? to_tile_z - tile_z : tile_z - to_tile_z;
+
+    assert(world);
+
+    if( World_TileFlagGet(world, tile_x, tile_z, level) & WORLD_TILE_FLAG_ROOF )
+        top = level;
+
+    if( delta_x > delta_z )
+    {
+        int step = delta_x ? (delta_z * 65536) / delta_x : 0;
+        /* Half a step, so the line runs through the middle of the tiles rather
+         * than hugging one side of them. */
+        int accumulator = 32768;
+
+        while( tile_x != to_tile_x )
+        {
+            tile_x += tile_x < to_tile_x ? 1 : -1;
+            if( World_TileFlagGet(world, tile_x, tile_z, level) & WORLD_TILE_FLAG_ROOF )
+                top = level;
+            accumulator += step;
+            if( accumulator >= 65536 )
+            {
+                accumulator -= 65536;
+                if( tile_z != to_tile_z )
+                    tile_z += tile_z < to_tile_z ? 1 : -1;
+                if( World_TileFlagGet(world, tile_x, tile_z, level) & WORLD_TILE_FLAG_ROOF )
+                    top = level;
+            }
+        }
+    }
+    else if( delta_z > 0 )
+    {
+        int step = (delta_x * 65536) / delta_z;
+        int accumulator = 32768;
+
+        while( tile_z != to_tile_z )
+        {
+            tile_z += tile_z < to_tile_z ? 1 : -1;
+            if( World_TileFlagGet(world, tile_x, tile_z, level) & WORLD_TILE_FLAG_ROOF )
+                top = level;
+            accumulator += step;
+            if( accumulator >= 65536 )
+            {
+                accumulator -= 65536;
+                if( tile_x != to_tile_x )
+                    tile_x += tile_x < to_tile_x ? 1 : -1;
+                if( World_TileFlagGet(world, tile_x, tile_z, level) & WORLD_TILE_FLAG_ROOF )
+                    top = level;
+            }
+        }
+    }
+
+    if( World_TileFlagGet(world, to_tile_x, to_tile_z, level) & WORLD_TILE_FLAG_ROOF )
+        top = level;
+    return top;
+}
+
+bool
+World_CoordToSceneTile(
+    struct World const* world,
+    int coord,
+    int* out_x,
+    int* out_z,
+    int* out_level)
+{
+    int level;
+    int absolute_x;
+    int absolute_z;
+    int tile_x;
+    int tile_z;
+
+    assert(world);
+    assert(out_x);
+    assert(out_z);
+    assert(out_level);
+
+    if( coord < 0 )
+        return false;
+
+    level = (coord >> 28) & 0x3;
+    absolute_x = (coord >> 14) & 0x3fff;
+    absolute_z = coord & 0x3fff;
+    tile_x = absolute_x - world->_base_tile_x;
+    tile_z = absolute_z - world->_base_tile_z;
+
+    if( tile_x < 0 || tile_z < 0 || tile_x >= world->_scene_size || tile_z >= world->_scene_size )
+        return false;
+    *out_x = tile_x;
+    *out_z = tile_z;
+    *out_level = level;
+    return true;
+}
+
+int
+World_HeightAt(
+    struct World const* world,
+    int world_x,
+    int world_z,
+    int level)
+{
+    int real_level = level;
+
+    assert(world);
+    if( !world->heightmap )
+        return 0;
+
+    /* getAvH out-of-scene guard (Client.ts:5296): a tile outside [0,scene_size)
+     * has no heightmap column, so the reference returns a flat 0 rather than
+     * sampling. Without this an entity spawned/projected past the scene edge
+     * (e.g. a border NPC at tile 105 in a 104-wide scene) drives an unguarded
+     * base-corner read in heightmap_get_interpolated straight off the array. */
+    {
+        int tile_x = world_x >> 7;
+        int tile_z = world_z >> 7;
+        int scene_size = world->_scene_size;
+        if( tile_x < 0 || tile_z < 0 || tile_x >= scene_size || tile_z >= scene_size )
+            return 0;
+    }
+
+    if( level < WORLD_MAP_TERRAIN_LEVELS - 1 &&
+        (World_TileFlagGet(world, world_x >> 7, world_z >> 7, 1) & WORLD_TILE_FLAG_LINK_BELOW) != 0 )
+        real_level = level + 1;
+    return heightmap_get_interpolated(world->heightmap, world_x, world_z, real_level);
+}
+
+
 #define WORLD_TILE_FLAG_VIS_BELOW 0x08
 
 /* LINK_BELOW is a property of the whole column and is read at cache level 1,
@@ -2869,6 +3022,46 @@ World_ObjStackFind(
             return i;
     }
     return -1;
+}
+
+int
+World_ObjStackCountAt(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int index,
+    struct WorldEntity_ObjStack const** out_stack)
+{
+    struct World_EntityPool* pool;
+    int count = 0;
+
+    assert(world);
+    assert(out_stack);
+
+    pool = &world->entities.obj_stack;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_ObjStack const* stack = World_EntityPoolGet(pool, i);
+
+        /* No element-id test. A stack in this pool has a scene element by
+         * construction -- World_ObjStackAdd takes one, and the one caller
+         * refuses to add without it -- and World_ObjStackFind beside this does
+         * not test for one either. Two walks over the same pool disagreeing
+         * about what is in it is worse than a guard that cannot fire. */
+        if( !stack )
+            continue;
+        if( stack->grid_position.x != scene_x || stack->grid_position.z != scene_z ||
+            stack->grid_position.level != level )
+            continue;
+        if( count == index )
+            *out_stack = stack;
+        /* No break. The return value is the tile's total, and the caller asks
+         * for it with the same call that asks for one entry. */
+        count++;
+    }
+    return count;
 }
 
 struct WorldEntity_ObjStack*

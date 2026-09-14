@@ -1,5 +1,6 @@
 #include "game/rs_client_trigger.h"
 
+#include <assert.h>
 #include <stdio.h>
 
 int
@@ -32,4 +33,25 @@ RS_ClientTriggerNameHash(int trigger_hash)
     for( int i = 0; name[i] != '\0'; i++ )
         hash = (int)((unsigned)hash * 31u + (unsigned)(unsigned char)name[i]);
     return hash;
+}
+
+int
+RS_ClientTriggerScriptFor(
+    int trigger,
+    int subject,
+    int category,
+    RS_ClientTriggerScriptLookupFn lookup,
+    void* user)
+{
+    int id;
+
+    assert(lookup);
+
+    id = lookup(user, RS_ClientTriggerNameHash(RS_ClientTriggerHashSubject(trigger, subject)));
+    if( id < 0 && category > 0 )
+        id = lookup(
+            user, RS_ClientTriggerNameHash(RS_ClientTriggerHashCategory(trigger, category)));
+    if( id < 0 )
+        id = lookup(user, RS_ClientTriggerNameHash(RS_ClientTriggerHashGlobal(trigger)));
+    return id;
 }

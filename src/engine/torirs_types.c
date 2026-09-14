@@ -896,3 +896,52 @@ ToriRS_ComponentPackSizeOf(const struct ToriRS_ComponentPack* pack)
     }
     return bytes;
 }
+
+void
+ToriRS_NpctypeEntityFacts(
+    struct ToriRS_Npctype const* drawn,
+    struct ToriRS_Npctype const* shell,
+    struct ToriRS_NpcEntityFacts* out)
+{
+    assert(drawn);
+    assert(out);
+
+    out->size = drawn->size > 0 ? drawn->size : 1;
+    out->readyanim = drawn->readyanim;
+    out->walkanim = drawn->walkanim;
+    out->walkanim_b = drawn->walkanim_b;
+    out->walkanim_l = drawn->walkanim_l;
+    out->walkanim_r = drawn->walkanim_r;
+    out->turnanim = drawn->turnanim_l;
+    out->runanim = drawn->runanim;
+    out->runanim_b = drawn->runanim_b;
+    out->runanim_l = drawn->runanim_l;
+    out->runanim_r = drawn->runanim_r;
+
+    /* No shell, or a rung that IS its own shell, has nothing to fill from. */
+    if( !shell || shell == drawn )
+        return;
+
+    if( out->size <= 1 && shell->size > 1 )
+        out->size = shell->size;
+    if( out->readyanim < 0 )
+        out->readyanim = shell->readyanim;
+    if( out->walkanim < 0 )
+        out->walkanim = shell->walkanim;
+    if( out->walkanim_b < 0 )
+        out->walkanim_b = shell->walkanim_b;
+    if( out->walkanim_l < 0 )
+        out->walkanim_l = shell->walkanim_l;
+    if( out->turnanim < 0 )
+        out->turnanim = shell->turnanim_l;
+    if( out->runanim < 0 )
+        out->runanim = shell->runanim;
+    if( out->runanim_b < 0 )
+        out->runanim_b = shell->runanim_b;
+    if( out->runanim_l < 0 )
+        out->runanim_l = shell->runanim_l;
+    if( out->runanim_r < 0 )
+        out->runanim_r = shell->runanim_r;
+    if( out->walkanim_r < 0 )
+        out->walkanim_r = shell->walkanim_r;
+}
