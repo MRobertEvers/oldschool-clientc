@@ -597,6 +597,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_worldmap_drag.c \
 	ui/uitree_if_events.c \
 	ui/uitree_if_store.c \
+	ui/uitree_canvas_floor.c \
 	ui/uitree_keyboard_owner.c \
 	ui/uitree_popup_place.c \
 	engine/async_pending.c \
@@ -1651,6 +1652,9 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-inv
 	$(MAKE) test-client-trigger
 	$(MAKE) test-world
+	# The canvas-floor measurements cannot stand alone -- they walk a real
+	# component array -- so they live in the uitree suite.
+	$(MAKE) test-uitree
 
 # Choosing the world camera's projection from the viewport height. The 2004
 # client has no viewport-derived zoom; recomputing one for it halves the scale,
@@ -3231,7 +3235,7 @@ test-uitree: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
-		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_frame_provide.c \
+		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_canvas_floor.c ui/uitree_canvas_floor.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_frame_provide.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_mounted_world.c \
 		ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \
