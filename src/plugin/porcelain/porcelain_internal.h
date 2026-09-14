@@ -235,6 +235,47 @@ struct PorcelainKeyEdgeWatch
     bool absent_reported;
 };
 
+/* ------------------------------------------------------------- overlays */
+
+/** One shipped data file, read and parsed exactly once. */
+struct PorcelainTableSlot
+{
+    bool used;
+    struct PorcelainName asset;
+    bool parsed;
+    /** Terminal: absent, errored, or the parse refused the bytes. */
+    bool failed;
+    bool reported;
+};
+
+/** One announcement, so a repeat within the frame is one line. */
+struct PorcelainNotifySlot
+{
+    bool used;
+    char kind[PORCELAIN_NAME_MAX];
+    int subject;
+    uint32_t frame;
+};
+
+/*
+ * The CS2 caption hook's latch. Registration decides ABSENT once, from the
+ * capability and from whether the label role resolves; after that the only
+ * transition is SUPPRESSING -> FORMATTING, on the first callback.
+ */
+struct PorcelainNativeOverlay
+{
+    bool used;
+    enum PorcelainNativeOverlayState state;
+    char labels_role[PORCELAIN_NAME_MAX];
+    char callback[PORCELAIN_NAME_MAX];
+    PorcelainScriptFn fn;
+    void* user;
+    /** The natives this latch hid, so the handoff can hand each one back. */
+    struct ToriRS_WidgetRef hidden[PORCELAIN_OVERLAY_LABELS_MAX];
+    int hidden_count;
+    bool handoff_reported;
+};
+
 /* ---------------------------------------------------------------- handle */
 
 struct Porcelain
@@ -292,6 +333,16 @@ struct Porcelain
     struct PorcelainReadyWatch ready[PORCELAIN_READY_MAX];
     struct PorcelainKeyEdgeWatch key_edges[PORCELAIN_KEY_EDGES_MAX];
 
+    struct PorcelainTableSlot tables[PORCELAIN_TABLES_MAX];
+    struct PorcelainNotifySlot notifies[PORCELAIN_NOTIFY_MAX];
+    struct PorcelainNativeOverlay overlay;
+    /** The last hovered cell and the frame it was stamped in. A hover older
+     *  than one frame is not a hover: the right-click menu stops the rebuild,
+     *  and a tooltip that kept following the pointer under an open menu is
+     *  what this window exists to prevent. */
+    struct PorcelainHover hover;
+    bool hover_live;
+
     /** Something was written this epoch, so the commit owes a revalidate. */
     bool dirty;
     /** The epoch this handle last fenced in. */
@@ -343,6 +394,10 @@ void Porcelain_ClaimDropAll(struct Porcelain* porcelain);
 /** Per-fence helper work: asset state transitions, timers, readiness, key
  *  edges. Separated from the reconcile because none of it touches the tree. */
 void Porcelain_HelpersFence(struct Porcelain* porcelain);
+/** Hand every native this handle's overlay latch suppressed back to its own
+ *  visibility. A handle that closed while suppressing would otherwise leave
+ *  the cache's own captions hidden until the next tree rebuild. */
+void Porcelain_OverlayRelease(struct Porcelain* porcelain);
 /** Release every image, model and derived image this handle holds. */
 void Porcelain_ReleaseAllAssets(struct Porcelain* porcelain);
 /** Mark an image as still wanted by this run, without an engine call. The

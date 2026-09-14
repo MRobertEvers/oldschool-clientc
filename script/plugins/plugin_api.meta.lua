@@ -661,6 +661,14 @@ warn = nil
 ---@field every_server_tick fun(fn: fun()) Fires on EVERY lane; there is no synthesised cadence.
 ---@field every_ms fun(milliseconds: integer, fn: fun())
 ---@field tick fun(cadence: torirs.PorcelainCadence) Forward this plugin's own tick callback.
+---@field draw_context fun(element?: string): torirs.PorcelainDrawContext? The drawable rect of the pass now running, and an element's box on it.
+---@field menu_add fun(text: string, action_id: integer): boolean menu.add, with the refusal recorded as a finding.
+---@field note_menu fun() From on_menu_build: stamps the hovered cell on the hover pass.
+---@field hover fun(): torirs.PorcelainHover? The hovered cell, while it is still live.
+---@field native_overlay fun(labels_role: string, callback: string, fn: fun(name: string): boolean?) The suppress-then-format latch over a lane's own caption script.
+---@field note_script fun() From on_script_callback: drives the latch and routes the caption.
+---@field table fun(asset: string, parse: fun(bytes: string): boolean?): boolean Read, parse and release a shipped data file, once.
+---@field notify fun(kind: string, subject: integer, text: string) One announcement per (kind, subject) per frame.
 
 --- The describe builder, handed to the describe function and legal only
 --- inside it. Items are applied in DESCRIPTION ORDER and a later item is over
@@ -708,6 +716,29 @@ warn = nil
 ---@field y? integer
 ---@field width? integer
 ---@field height? integer
+
+--- What the pass now running may draw on. `bounds` and `clip` are the
+--- callback's own, pass-local; `usable` and `element` are canvas-space
+--- answers and are filled only when `canvas_space` is true, which the world
+--- and canvas passes are and a panel well is not.
+---@class torirs.PorcelainDrawContext
+---@field bounds torirs.Rect
+---@field clip torirs.Rect
+---@field usable torirs.Rect
+---@field element torirs.Rect
+---@field element_bound boolean
+---@field canvas_space boolean
+
+--- The hovered container cell, from the menu build's hover pass. `container`
+--- is 'inv', 'worn', 'bank', 'other' or 'none'; `container_id` is the cell's
+--- own `(interface << 16) | component`, so two containers this vocabulary
+--- cannot name are still two keys.
+---@class torirs.PorcelainHover
+---@field obj integer
+---@field container string
+---@field container_id integer
+---@field slot integer
+---@field frame integer
 
 ---@class torirs.PorcelainElementState
 ---@field bind torirs.PorcelainBind

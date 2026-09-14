@@ -43,6 +43,23 @@ extern "C" {
 #define PORCELAIN_TIMERS_MAX 16
 #define PORCELAIN_READY_MAX 8
 #define PORCELAIN_KEY_EDGES_MAX 4
+/** Shipped data files one plugin reads. Two: prices.txt and items.txt is the
+ *  widest any of the seven overlay ports wanted. */
+#define PORCELAIN_TABLES_MAX 4
+/** Announcements remembered for coalescing. @see Porcelain_Notify */
+#define PORCELAIN_NOTIFY_MAX 16
+/** Native label widgets one overlay latch suppresses. @see find_all */
+#define PORCELAIN_OVERLAY_LABELS_MAX 32
+
+/*
+ * `ToriRS_MenuRow::pick_kind` for a container cell -- the engine's
+ * UI_MINIMENU_PICK_INV_SLOT, mirrored because Porcelain is a plugin-side
+ * library and may not include the engine's header. The two are pinned equal
+ * by a _Static_assert in the adapter (torirs_plugin_bridge.u.c), which is the
+ * one translation unit that sees both; the shipped tooltip plugin spells this
+ * as a bare `2` with the name in a comment.
+ */
+#define PORCELAIN_MENU_PICK_INV_SLOT 2
 
 /** Handles alive at once. Also the arbitration order: open order. */
 #define PORCELAIN_HANDLES_MAX 32
@@ -153,6 +170,26 @@ void Porcelain_EveryMs(struct Porcelain* porcelain, int milliseconds, PorcelainT
                        void* user);
 void Porcelain_Tick(struct Porcelain* porcelain, enum PorcelainCadence cadence);
 
+/* The overlay verbs. An overlay plugin draws, adds menu rows, follows the
+ * pointer and reads a shipped table; these are the six shapes the ledger's
+ * seven overlay ports each wrote for themselves. */
+bool Porcelain_DrawContext(struct Porcelain* porcelain, struct ToriRS_Graphics* draw,
+                           struct PorcelainElement element, struct PorcelainDrawContext* out);
+bool Porcelain_MenuAdd(struct Porcelain* porcelain, struct ToriRS_MenuBuildEvent* menu,
+                       char const* text, uint32_t action_id);
+void Porcelain_NoteMenu(struct Porcelain* porcelain, struct ToriRS_MenuBuildEvent const* menu);
+bool Porcelain_Hover(struct Porcelain* porcelain, struct PorcelainHover* out);
+void Porcelain_NativeOverlay(struct Porcelain* porcelain, char const* labels_role,
+                             char const* callback, PorcelainScriptFn fn, void* user);
+void Porcelain_NoteScript(struct Porcelain* porcelain, struct ToriRS_ScriptEvent const* event);
+bool Porcelain_Table(struct Porcelain* porcelain, char const* asset, PorcelainParseFn parse,
+                     void* user);
+void Porcelain_Notify(struct Porcelain* porcelain, char const* kind, int subject,
+                      char const* text);
+
+/** The latch's state, for a test and for a plugin that reports its own. */
+enum PorcelainNativeOverlayState Porcelain_NativeOverlayState(struct Porcelain* porcelain);
+
 /* The describe-builder verbs. Legal only inside a describe run. */
 void Porcelain_Control(struct ToriRS_PorcelainDescribe* describe, struct PorcelainItem const* item);
 void Porcelain_Piece(struct ToriRS_PorcelainDescribe* describe, struct PorcelainItem const* item);
@@ -192,10 +229,10 @@ void Porcelain_Unsupported(struct ToriRS_PorcelainDescribe* describe, char const
  *   lists as H1..H5 (BUTTON caption by patch, the dropped same-count rule,
  *   the per-row re-identity verb, the 2048 well ceiling).
  *
- * TODO(plan #api "Data helpers"): Porcelain_Hover (needs the container kind
- *   on the menu build), Porcelain_NativeOverlay (the three-state latch),
- *   Porcelain_DrawContext (needs the engine to set the draw region for
- *   DRAW_WORLD), Porcelain_MenuAdd, Porcelain_Table, Porcelain_Notify.
+ * TODO(plan #api "Data helpers"): Porcelain_MenuSubjects -- the distinct
+ *   subjects of a menu build, yielded once each with a resolved snapshot.
+ *   The other six data helpers are built; this one needs an engine half that
+ *   resolves an npc or loc snapshot from a menu row, which does not exist.
  *
  * TODO(plan #gaps-absorbed): Porcelain_ElementInkEdge, Porcelain_ControlHover,
  *   Porcelain_TextSize, Porcelain_SkillIcon, Porcelain_SkillCount,

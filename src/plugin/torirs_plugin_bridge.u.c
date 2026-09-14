@@ -3816,9 +3816,57 @@ app_plugin_role_slot(char const* role)
     return UITree_RoleSlotFromName(role);
 }
 
+/*
+ * `<slot>:<member>` -- ONE member of a frame slot, spelled the way a profile
+ * already spells it in `match=slot(chat_buttons, report)`.
+ *
+ * find_all has answered a slot's members since the frame binder learned to
+ * number them, but find and watch_state could not name one, and a watch is
+ * the only way to follow an element's geometry. That gap is why a portable
+ * caller could reach the four 2004 chat filters and the fourteen 2004 tab
+ * stones only through an authored role NAME, which two of the four filters
+ * do not have: `slot(chat_buttons, private)` is declared by nobody, because
+ * nothing had a reason to name it until now.
+ *
+ * The member is written either way the role grammar writes it -- a name for
+ * the slots whose members have names, a number for the rest -- so
+ * `chat_buttons:private` and `chat_buttons:1` are the same element, and
+ * `sidebar:3` is the tab-3 mount on whichever lane is up.
+ */
+static int32_t
+app_plugin_slot_member_node(struct App* app, char const* role)
+{
+    char slot_name[TORIRS_UI_NAME_MAX];
+    char const* colon;
+    size_t length;
+    int slot;
+    int member;
+
+    assert(app);
+    assert(app->tree);
+    assert(role);
+
+    colon = strchr(role, ':');
+    if( !colon || colon == role || colon[1] == '\0' )
+        return -1;
+    length = (size_t)(colon - role);
+    if( length >= sizeof(slot_name) )
+        return -1;
+    memcpy(slot_name, role, length);
+    slot_name[length] = '\0';
+    slot = UITree_RoleSlotFromName(slot_name);
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
+        return -1;
+    member = UITree_RoleSlotMemberFromName(slot, colon + 1);
+    if( member < 0 || member >= UITREE_FRAME_SLOT_NODES_MAX )
+        return -1;
+    UITree_FrameBind(app->tree);
+    return UITree_FrameSlotMemberNode(app->tree, slot, member);
+}
+
 /* The node a semantic role resolves to for the widget API's find: a frame
- * slot's bound node, or the profile role's. CANVAS is a rectangle and not a
- * node, so it has no answer here. */
+ * slot's bound node, one member of one, or the profile role's. CANVAS is a
+ * rectangle and not a node, so it has no answer here. */
 static int32_t
 app_plugin_role_node(struct App* app, char const* role)
 {
@@ -3835,7 +3883,15 @@ app_plugin_role_node(struct App* app, char const* role)
     if( slot >= 0 )
         return -1;
 
-    return UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
+    /* A profile role first: the name a profile declared wins over the
+     * positional spelling, the way a declaration wins over a derivation
+     * everywhere else in this table. */
+    {
+        int32_t const node = UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
+        if( node >= 0 )
+            return node;
+    }
+    return app_plugin_slot_member_node(app, role);
 }
 
 _Static_assert((int)TORIRS_WIDGET_RELATION_NATIVE==(int)UITREE_WIDGET_RELATION_NATIVE &&
@@ -3845,6 +3901,11 @@ _Static_assert((int)TORIRS_WIDGET_RELATION_NATIVE==(int)UITREE_WIDGET_RELATION_N
                "public widget relations must match the tree's anchor relations");
 _Static_assert(TORIRS_WIDGET_OP_LABEL_MAX==UITREE_MENU_OPTION_LEN,
     "public owned-control label capacity must match native menu option storage");
+/* Porcelain is a plugin-side library and cannot see uitree_minimenu.h, so it
+ * mirrors the one pick kind it reads. This is the translation unit that sees
+ * both, and the only thing that keeps the mirror honest. */
+_Static_assert((int)PORCELAIN_MENU_PICK_INV_SLOT==(int)UI_MINIMENU_PICK_INV_SLOT,
+    "Porcelain's mirrored container-cell pick kind must match the tree's");
 
 static struct ToriRS_WidgetRef
 app_widget_ref(struct UITree const* tree, int32_t index)

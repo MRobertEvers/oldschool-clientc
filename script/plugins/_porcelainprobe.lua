@@ -40,8 +40,13 @@ local function report(api)
                 "facets=" .. tostring(state.facets or 0))
         end
     end
+    -- A family's COUNT is lane data, and a lane that answers zero for a
+    -- family it visibly has is the same mapping gap an ABSENT element is.
+    for _, family in ipairs({ "chat_filter", "tab", "orb", "lane_chrome" }) do
+        api.core.log("PORCELAIN_PROBE_COUNT", family, api.porcelain.count(family))
+    end
     local findings = api.porcelain.findings()
-    api.core.log("PORCELAIN_PROBE_FINDINGS", #(findings or {}))
+    api.core.log("PORCELAIN_PROBE_FINDINGS", #(findings or {}), "frames=" .. tostring(frames))
     for _, f in ipairs(findings or {}) do
         api.core.log("PORCELAIN_PROBE_FINDING", f.verb or "?", f.element or "?",
                      f.result or "?", "expected=" .. tostring(f.expected))
@@ -60,7 +65,7 @@ function plugin.on_frame_start(api)
     ask(api)
     -- Late, not early: the interesting answer is what the vocabulary says
     -- once the lane has finished mounting its frame, not during the boot.
-    if frames > 560 then report(api) end
+    if frames > 1400 then report(api) end
     api.porcelain.commit()
 end
 

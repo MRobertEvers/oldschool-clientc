@@ -1399,12 +1399,100 @@ enum PorcelainSettingFlags
     PORCELAIN_SETTING_INVERTED = 1u << 0
 };
 
+/* ------------------------------------------------------------------------ */
+/* The overlay verbs                                                        */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * What one draw callback may draw on, and where an element sits on it.
+ *
+ * `bounds` and `clip` are the callback's own, pass-local: the engine sets a
+ * draw region for all three passes (DRAW_WORLD, DRAW_CANVAS, PANEL_DRAW), and
+ * a builder coordinate is relative to it.
+ *
+ * `usable` and `element` are CANVAS-space answers, and they are only in the
+ * pass's own coordinates when the pass IS the canvas -- which the world and
+ * canvas passes are, at origin zero, and a panel well is not. `canvas_space`
+ * says which, rather than leaving a caller to clamp a canvas rectangle
+ * against a well's local one and flip its tooltip over the minimap.
+ */
+struct PorcelainDrawContext
+{
+    struct ToriRS_Rect bounds;
+    struct ToriRS_Rect clip;
+    /** The usable canvas. Zero when this pass is not in canvas space. */
+    struct ToriRS_Rect usable;
+    /** The stated element's box. Zero when none was stated, it is not bound,
+     *  or this pass is not in canvas space. */
+    struct ToriRS_Rect element;
+    bool element_bound;
+    bool canvas_space;
+};
+
+/*
+ * Which container a hovered cell belongs to.
+ *
+ * An inventory cell, a worn slot and a bank cell are three different hovers,
+ * and a key built from the obj alone makes a bank tooltip out of an inventory
+ * one. The three named rungs are the ones the portable vocabulary can answer
+ * -- PANEL("inventory"), PANEL("equipment"), PANEL("bank") -- and a lane
+ * whose profile declares no such panel answers OTHER, carrying
+ * `container_id`, so two containers this vocabulary cannot name are still two
+ * keys.
+ */
+enum PorcelainContainer
+{
+    /** The row is not about a container cell at all. */
+    PORCELAIN_CONTAINER_NONE = 0,
+    PORCELAIN_CONTAINER_INV,
+    PORCELAIN_CONTAINER_WORN,
+    PORCELAIN_CONTAINER_BANK,
+    PORCELAIN_CONTAINER_OTHER
+};
+
+/** The hovered cell, as the menu build answered it. @see PorcelainContainer */
+struct PorcelainHover
+{
+    int obj;
+    enum PorcelainContainer container;
+    /** The cell's own `(interface << 16) | component`. Part of every key. */
+    int container_id;
+    int slot;
+    /** The Porcelain frame this was stamped in. */
+    uint32_t frame;
+};
+
+/*
+ * The CS2 caption hook's three states.
+ *
+ * SUPPRESSING: the lane has the hook, the cache's own label widgets are being
+ * hidden, and the plugin's own captions stand in for them.
+ * FORMATTING: the hook has fired once, so the natives carry the plugin's
+ * fields and the suppression is handed back.
+ * ABSENT: this lane has no such hook. ONE finding, and the callback never
+ * fires -- an overlay that quietly did nothing is the class this replaces.
+ */
+enum PorcelainNativeOverlayState
+{
+    PORCELAIN_NATIVE_OVERLAY_ABSENT = 0,
+    PORCELAIN_NATIVE_OVERLAY_SUPPRESSING,
+    PORCELAIN_NATIVE_OVERLAY_FORMATTING
+};
+
 typedef void (*PorcelainDescribeFn)(struct ToriRS_PorcelainDescribe* describe, void* user);
 typedef void (*PorcelainTickFn)(struct ToriRS_Api* api, void* user);
 typedef void (*PorcelainReadyFn)(struct ToriRS_Api* api, void* user, unsigned what);
 typedef void (*PorcelainEdgeFn)(struct ToriRS_Api* api, void* user, bool down);
 /** Fill `argb` (w*h pixels) and return true. False is a terminal FAILED. */
 typedef bool (*PorcelainPaintFn)(struct ToriRS_Api* api, void* user, uint32_t* argb, int w, int h);
+/** The lane's own caption script, once the latch has handed the natives back.
+ *  False is a parse refusal: one finding, the latch unchanged. */
+typedef bool (*PorcelainScriptFn)(struct ToriRS_Api* api, void* user,
+                                  struct ToriRS_ScriptEvent const* event);
+/** Parse a shipped data file. False is one finding; the bytes are released
+ *  either way, because a table is read once and lives in the plugin. */
+typedef bool (*PorcelainParseFn)(struct ToriRS_Api* api, void* user, void const* data,
+                                 size_t size);
 
 /*
  * The describe builder. Handed to the describe function and legal only inside
@@ -1549,6 +1637,34 @@ struct ToriRS_PorcelainApi
     /** The plugin forwarding its own tick callback. FRAME fires from `fence`
      *  and needs no forwarding. */
     void (*tick)(struct Porcelain* porcelain, enum PorcelainCadence cadence);
+
+    /* ------------------------------------------------------- the overlays */
+    /** The drawable rect of the pass now running, plus one element's box in
+     *  the pass's own coordinates. False when the pass set no region. */
+    bool (*draw_context)(struct Porcelain* porcelain, struct ToriRS_Graphics* draw,
+                         struct PorcelainElement element, struct PorcelainDrawContext* out);
+    /** menu.add, with the refusal turned into a finding. The bool is still
+     *  returned, because a caller that must stop adding rows still may. */
+    bool (*menu_add)(struct Porcelain* porcelain, struct ToriRS_MenuBuildEvent* menu,
+                     char const* text, uint32_t action_id);
+    /** From on_menu_build. Stamps the hovered cell on the hover pass, and
+     *  arms the menu budget. A right-click pass is not a hover. */
+    void (*note_menu)(struct Porcelain* porcelain, struct ToriRS_MenuBuildEvent const* menu);
+    /** The hovered cell, if the last menu build was this frame or the last.
+     *  The one-frame liveness window, written once. */
+    bool (*hover)(struct Porcelain* porcelain, struct PorcelainHover* out);
+    /** The suppress-then-format latch over a lane's own caption script. */
+    void (*native_overlay)(struct Porcelain* porcelain, char const* labels_role,
+                           char const* callback, PorcelainScriptFn fn, void* user);
+    /** From on_script_callback. Drives the latch and routes to the plugin. */
+    void (*note_script)(struct Porcelain* porcelain, struct ToriRS_ScriptEvent const* event);
+    /** Read, parse and release a shipped data file, once. One finding when it
+     *  is absent, errored, or the parse refuses it. */
+    bool (*table)(struct Porcelain* porcelain, char const* asset, PorcelainParseFn parse,
+                  void* user);
+    /** One announcement per (kind, subject) per frame: a stack of twelve
+     *  bones spawning is one line, not twelve. */
+    void (*notify)(struct Porcelain* porcelain, char const* kind, int subject, char const* text);
 
     TORIRS_API_V2_MODULE_RESERVED;
 };

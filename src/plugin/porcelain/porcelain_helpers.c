@@ -748,6 +748,461 @@ porcelain_ready_bits(struct Porcelain* porcelain)
 }
 
 /* ------------------------------------------------------------------------ */
+/* The overlay verbs                                                        */
+/* ------------------------------------------------------------------------ */
+
+static struct ToriRS_Rect
+porcelain_rect_of(struct ToriRS_WidgetBounds box)
+{
+    struct ToriRS_Rect rect;
+
+    rect.x = (int)box.x;
+    rect.y = (int)box.y;
+    rect.width = (int)box.width;
+    rect.height = (int)box.height;
+    return rect;
+}
+
+/*
+ * The drawable rect of the pass now running, and one element's box on it.
+ *
+ * All three passes set a region now -- the world pass was the last to get
+ * one, and until it did this verb's premise was false for six of the seven
+ * overlay plugins, every one of which had written its own `draw->context`
+ * call and its own fallback for the false it got back.
+ */
+bool
+Porcelain_DrawContext(struct Porcelain* porcelain, struct ToriRS_Graphics* draw,
+                      struct PorcelainElement element, struct PorcelainDrawContext* out)
+{
+    struct ToriRS_DrawContext context;
+    struct PorcelainElementState canvas;
+    struct PorcelainElementState state;
+
+    assert(porcelain);
+    assert(draw);
+    assert(draw->context);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    memset(&context, 0, sizeof(context));
+    context.struct_size = sizeof(context);
+    porcelain->counters.engine_calls++;
+    if( !draw->context(draw, &context) )
+    {
+        Porcelain_RecordFinding(porcelain, "draw_context", element, PORCELAIN_FINDING_REFUSED,
+                                "the pass set no draw region");
+        return false;
+    }
+    out->bounds = context.bounds;
+    out->clip = context.clip;
+
+    /*
+     * A canvas-space answer is only usable where the pass IS the canvas. The
+     * world and canvas passes are, at origin zero; a panel well is not, and a
+     * tooltip clamped against a well's local rectangle is the retired
+     * placement bug that flipped it up over the minimap. Said as data: the
+     * pass is canvas space when its drawable rect is the canvas's size.
+     */
+    if( !Porcelain_Element(porcelain, PORCELAIN_EL(CANVAS), &canvas) )
+        return true;
+    out->canvas_space = context.bounds.width == (int)canvas.box.width &&
+                        context.bounds.height == (int)canvas.box.height;
+    if( !out->canvas_space )
+        return true;
+    (void)Porcelain_Element(porcelain, PORCELAIN_EL(USABLE), &state);
+    out->usable = porcelain_rect_of(state.box);
+    if( element.kind == PORCELAIN_EL_NONE )
+        return true;
+    out->element_bound = Porcelain_Element(porcelain, element, &state);
+    if( out->element_bound )
+        out->element = porcelain_rect_of(state.box);
+    return true;
+}
+
+/*
+ * menu.add, with the refusal made loud.
+ *
+ * The host's route table is bounded and shared; over it, `add` answers false.
+ * Both shipped overlays dropped that bool -- one kept adding rows that would
+ * never appear, the other broke out of its loop -- and in neither case did
+ * anybody, plugin or user, learn that a row was missing.
+ */
+bool
+Porcelain_MenuAdd(struct Porcelain* porcelain, struct ToriRS_MenuBuildEvent* menu,
+                  char const* text, uint32_t action_id)
+{
+    assert(porcelain);
+    assert(menu);
+    assert(text);
+
+    porcelain->counters.engine_calls++;
+    if( porcelain->api->menu.add(porcelain->api, menu, text, action_id) )
+        return true;
+    Porcelain_RecordFinding(porcelain, "menu_add", PORCELAIN_ROLE_EL("menu"),
+                            PORCELAIN_FINDING_REFUSED, text);
+    return false;
+}
+
+/*
+ * Which container a hovered cell belongs to.
+ *
+ * Answered by walking the cell up to a panel this vocabulary can name. The
+ * panels are asked through the watch table directly rather than through
+ * Porcelain_Element, because "this lane has no bank panel" is a fact the
+ * hover does not depend on: it answers OTHER and carries the container id,
+ * and an ABSENT finding for it on every lane would be noise.
+ */
+static enum PorcelainContainer
+porcelain_container_of(struct Porcelain* porcelain, int component_id)
+{
+    static char const* const PANEL_NAMES[] = {"inventory", "equipment", "bank"};
+    static enum PorcelainContainer const PANEL_KINDS[] = {
+        PORCELAIN_CONTAINER_INV, PORCELAIN_CONTAINER_WORN, PORCELAIN_CONTAINER_BANK};
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+    struct ToriRS_WidgetRef cursor;
+
+    if( component_id < 0 )
+        return PORCELAIN_CONTAINER_NONE;
+    porcelain->counters.engine_calls++;
+    if( widgets->get_widget(widgets->context, component_id, &cursor) != TORIRS_CONTRACT_OK )
+        return PORCELAIN_CONTAINER_OTHER;
+    for( int hop = 0; hop < 32; hop++ )
+    {
+        struct ToriRS_WidgetRef parent;
+        for( int i = 0; i < 3; i++ )
+        {
+            struct PorcelainWatch const* watch =
+                Porcelain_WatchFor(porcelain, PORCELAIN_PANEL_EL(PANEL_NAMES[i]), true);
+            if( !watch || watch->state.bind != PORCELAIN_BOUND )
+                continue;
+            if( ToriRS_WidgetRefEqual(watch->state.ref, cursor) )
+                return PANEL_KINDS[i];
+        }
+        porcelain->counters.engine_calls++;
+        if( widgets->parent(widgets->context, cursor, &parent) != TORIRS_CONTRACT_OK )
+            break;
+        if( !ToriRS_WidgetRefValid(parent) )
+            break;
+        cursor = parent;
+    }
+    return PORCELAIN_CONTAINER_OTHER;
+}
+
+/*
+ * The hover pass of the menu build is the client's ONE answer to "what is
+ * under the pointer", and it runs every frame. A right-click build is not a
+ * hover: while the menu is open the rebuild stops, the stash goes stale
+ * within a frame, and the tooltip stops drawing -- which is the reference
+ * client's isMenuOpen() gate, for free.
+ */
+void
+Porcelain_NoteMenu(struct Porcelain* porcelain, struct ToriRS_MenuBuildEvent const* menu)
+{
+    assert(porcelain);
+    assert(menu);
+
+    if( !menu->hover_pass )
+        return;
+    for( int i = 0; i < menu->row_count && i < TORIRS_PLUGIN_MENU_ROWS_MAX; i++ )
+    {
+        struct ToriRS_MenuRow const* row = &menu->rows[i];
+        if( row->pick_kind != PORCELAIN_MENU_PICK_INV_SLOT || row->target_id < 0 )
+            continue;
+        memset(&porcelain->hover, 0, sizeof(porcelain->hover));
+        porcelain->hover.obj = row->target_id;
+        porcelain->hover.slot = row->slot;
+        porcelain->hover.container_id = row->component_id;
+        porcelain->hover.container = porcelain_container_of(porcelain, row->component_id);
+        porcelain->hover.frame = porcelain->frame;
+        porcelain->hover_live = true;
+        return;
+    }
+    porcelain->hover_live = false;
+}
+
+bool
+Porcelain_Hover(struct Porcelain* porcelain, struct PorcelainHover* out)
+{
+    assert(porcelain);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    if( !porcelain->hover_live )
+        return false;
+    /* One frame of liveness. The menu build and the draw pass are not in the
+     * same frame on every lane, so the window is "this frame or the last" and
+     * not "this frame"; anything older is a pointer that has stopped being
+     * answered for. */
+    if( porcelain->frame - porcelain->hover.frame > 1 )
+    {
+        porcelain->hover_live = false;
+        return false;
+    }
+    *out = porcelain->hover;
+    return true;
+}
+
+/* Hand every suppressed native back to its own visibility. */
+static void
+porcelain_overlay_handoff(struct Porcelain* porcelain)
+{
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+    struct PorcelainNativeOverlay* overlay = &porcelain->overlay;
+
+    for( int i = 0; i < overlay->hidden_count; i++ )
+    {
+        porcelain->counters.engine_calls++;
+        (void)widgets->reset(widgets->context, overlay->hidden[i]);
+    }
+    overlay->hidden_count = 0;
+    overlay->state = PORCELAIN_NATIVE_OVERLAY_FORMATTING;
+}
+
+void
+Porcelain_NativeOverlay(struct Porcelain* porcelain, char const* labels_role,
+                        char const* callback, PorcelainScriptFn fn, void* user)
+{
+    struct PorcelainNativeOverlay* overlay;
+
+    assert(porcelain);
+    assert(labels_role);
+    assert(callback);
+    assert(fn);
+
+    overlay = &porcelain->overlay;
+    memset(overlay, 0, sizeof(*overlay));
+    overlay->used = true;
+    Porcelain_CopyString(overlay->labels_role, sizeof(overlay->labels_role), labels_role);
+    Porcelain_CopyString(overlay->callback, sizeof(overlay->callback), callback);
+    overlay->fn = fn;
+    overlay->user = user;
+
+    /* ABSENT is decided once, here. A lane with no script VM never raises the
+     * callback, and an overlay that sat in SUPPRESSING for ever -- hiding
+     * natives it would never replace -- is worse than one that stands down. */
+    if( !Porcelain_Has(porcelain, "cs2_scripts") )
+    {
+        overlay->state = PORCELAIN_NATIVE_OVERLAY_ABSENT;
+        Porcelain_RecordFinding(porcelain, "native_overlay", PORCELAIN_ROLE_EL(callback),
+                                PORCELAIN_FINDING_UNSUPPORTED, "no native caption hook here");
+        return;
+    }
+    overlay->state = PORCELAIN_NATIVE_OVERLAY_SUPPRESSING;
+    porcelain->counters.engine_calls++;
+    if( porcelain->api->scripts.invalidate(porcelain->api->scripts.context, callback) !=
+        TORIRS_CONTRACT_OK )
+        Porcelain_RecordFinding(porcelain, "native_overlay", PORCELAIN_ROLE_EL(callback),
+                                PORCELAIN_FINDING_REFUSED, "invalidate refused");
+}
+
+void
+Porcelain_NoteScript(struct Porcelain* porcelain, struct ToriRS_ScriptEvent const* event)
+{
+    struct PorcelainNativeOverlay* overlay;
+
+    assert(porcelain);
+    assert(event);
+
+    overlay = &porcelain->overlay;
+    if( !overlay->used || overlay->state == PORCELAIN_NATIVE_OVERLAY_ABSENT )
+        return;
+    if( !event->name || strcmp(event->name, overlay->callback) != 0 )
+        return;
+    /* The FIRST callback is the handoff: from here the cache's own captions
+     * carry the plugin's fields, so the plugin's stand-ins come down and the
+     * natives go back to their own visibility. */
+    if( overlay->state == PORCELAIN_NATIVE_OVERLAY_SUPPRESSING )
+        porcelain_overlay_handoff(porcelain);
+    if( !overlay->fn(porcelain->api, overlay->user, event) )
+        Porcelain_RecordFinding(porcelain, "native_overlay", PORCELAIN_ROLE_EL(overlay->callback),
+                                PORCELAIN_FINDING_REFUSED, "the caption was refused");
+}
+
+void
+Porcelain_OverlayRelease(struct Porcelain* porcelain)
+{
+    assert(porcelain);
+    if( !porcelain->overlay.used ||
+        porcelain->overlay.state != PORCELAIN_NATIVE_OVERLAY_SUPPRESSING )
+        return;
+    porcelain_overlay_handoff(porcelain);
+}
+
+enum PorcelainNativeOverlayState
+Porcelain_NativeOverlayState(struct Porcelain* porcelain)
+{
+    assert(porcelain);
+    return porcelain->overlay.used ? porcelain->overlay.state : PORCELAIN_NATIVE_OVERLAY_ABSENT;
+}
+
+/* Hide whatever the labels role currently matches. Runs per fence while the
+ * latch is SUPPRESSING and not at all afterwards. */
+static void
+porcelain_overlay_fence(struct Porcelain* porcelain)
+{
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+    struct PorcelainNativeOverlay* overlay = &porcelain->overlay;
+    struct ToriRS_WidgetRef refs[PORCELAIN_OVERLAY_LABELS_MAX];
+    size_t count = 0;
+
+    if( !overlay->used || overlay->state != PORCELAIN_NATIVE_OVERLAY_SUPPRESSING )
+        return;
+    porcelain->counters.engine_calls++;
+    if( widgets->find_all(widgets->context, overlay->labels_role, refs,
+                          PORCELAIN_OVERLAY_LABELS_MAX, &count) != TORIRS_CONTRACT_OK )
+        return;
+    if( count > PORCELAIN_OVERLAY_LABELS_MAX )
+    {
+        Porcelain_RecordFinding(porcelain, "native_overlay",
+                                PORCELAIN_ROLE_EL(overlay->labels_role),
+                                PORCELAIN_FINDING_BUDGET, "more labels than the latch holds");
+        count = PORCELAIN_OVERLAY_LABELS_MAX;
+    }
+    overlay->hidden_count = 0;
+    for( size_t i = 0; i < count; i++ )
+    {
+        if( !ToriRS_WidgetRefValid(refs[i]) )
+            continue;
+        porcelain->counters.engine_calls++;
+        if( widgets->set_hidden(widgets->context, refs[i], true) != TORIRS_CONTRACT_OK )
+            continue;
+        overlay->hidden[overlay->hidden_count++] = refs[i];
+    }
+}
+
+/*
+ * A shipped data file, read once.
+ *
+ * The bytes are released the moment the parse returns: the parsed form lives
+ * in the plugin, and the two shipped overlays that each held their own copy
+ * of prices.txt held it for the life of the process for nothing.
+ */
+bool
+Porcelain_Table(struct Porcelain* porcelain, char const* asset, PorcelainParseFn parse,
+                void* user)
+{
+    struct PorcelainTableSlot* slot = NULL;
+    enum ToriRS_AssetState state;
+    void const* data = NULL;
+    size_t size = 0;
+    bool parsed;
+
+    assert(porcelain);
+    assert(asset);
+    assert(parse);
+
+    for( int i = 0; i < PORCELAIN_TABLES_MAX && !slot; i++ )
+        if( porcelain->tables[i].used &&
+            strcmp(porcelain->tables[i].asset.text, asset) == 0 )
+            slot = &porcelain->tables[i];
+    for( int i = 0; i < PORCELAIN_TABLES_MAX && !slot; i++ )
+        if( !porcelain->tables[i].used )
+        {
+            slot = &porcelain->tables[i];
+            memset(slot, 0, sizeof(*slot));
+            slot->used = true;
+            Porcelain_CopyString(slot->asset.text, sizeof(slot->asset.text), asset);
+        }
+    if( !slot )
+    {
+        Porcelain_RecordFinding(porcelain, "table", PORCELAIN_ROLE_EL(asset),
+                                PORCELAIN_FINDING_BUDGET, "table slots full");
+        return false;
+    }
+    if( slot->parsed )
+        return true;
+    if( slot->failed )
+        return false;
+
+    porcelain->counters.engine_calls++;
+    state = porcelain->api->assets.request(porcelain->api, asset);
+    /* PENDING is the web lane fetching it; retried, never a finding. */
+    if( state == TORIRS_ASSET_PENDING )
+        return false;
+    if( state != TORIRS_ASSET_READY )
+    {
+        slot->failed = true;
+        Porcelain_RecordFinding(porcelain, "table", PORCELAIN_ROLE_EL(asset),
+                                state == TORIRS_ASSET_MISSING ? PORCELAIN_FINDING_ASSET_MISSING
+                                                              : PORCELAIN_FINDING_ASSET_ERROR,
+                                asset);
+        return false;
+    }
+    porcelain->counters.engine_calls++;
+    if( !porcelain->api->assets.bytes(porcelain->api, asset, &data, &size) )
+    {
+        slot->failed = true;
+        Porcelain_RecordFinding(porcelain, "table", PORCELAIN_ROLE_EL(asset),
+                                PORCELAIN_FINDING_ASSET_ERROR, asset);
+        return false;
+    }
+    parsed = parse(porcelain->api, user, data, size);
+    porcelain->counters.engine_calls++;
+    porcelain->api->assets.release(porcelain->api, asset);
+    if( !parsed )
+    {
+        slot->failed = true;
+        Porcelain_RecordFinding(porcelain, "table", PORCELAIN_ROLE_EL(asset),
+                                PORCELAIN_FINDING_REFUSED, "the parse refused the bytes");
+        return false;
+    }
+    slot->parsed = true;
+    return true;
+}
+
+/*
+ * One announcement per (kind, subject) per frame.
+ *
+ * A stack of twelve bones reaching the ground is twelve spawn events and one
+ * line; a tier announcement and a highlight announcement about the same obj
+ * are two different things and stay two lines. Both shipped overlays wrote
+ * theirs to the log, where nobody playing the game could see them.
+ */
+void
+Porcelain_Notify(struct Porcelain* porcelain, char const* kind, int subject, char const* text)
+{
+    struct PorcelainNotifySlot* oldest = NULL;
+
+    assert(porcelain);
+    assert(kind);
+    assert(text);
+
+    if( !porcelain->api->core.notify )
+    {
+        Porcelain_RecordFinding(porcelain, "notify", PORCELAIN_ROLE_EL(kind),
+                                PORCELAIN_FINDING_UNSUPPORTED, "this host has no notifier");
+        return;
+    }
+    for( int i = 0; i < PORCELAIN_NOTIFY_MAX; i++ )
+    {
+        struct PorcelainNotifySlot* slot = &porcelain->notifies[i];
+        if( !slot->used )
+        {
+            oldest = slot;
+            break;
+        }
+        if( slot->subject == subject && strcmp(slot->kind, kind) == 0 )
+        {
+            if( slot->frame == porcelain->frame )
+                return;
+            oldest = slot;
+            break;
+        }
+        if( !oldest || slot->frame < oldest->frame )
+            oldest = slot;
+    }
+    assert(oldest);
+    memset(oldest, 0, sizeof(*oldest));
+    oldest->used = true;
+    Porcelain_CopyString(oldest->kind, sizeof(oldest->kind), kind);
+    oldest->subject = subject;
+    oldest->frame = porcelain->frame;
+    porcelain->counters.engine_calls++;
+    porcelain->api->core.notify(porcelain->api, text);
+}
+
+/* ------------------------------------------------------------------------ */
 /* The per-fence helper pass                                                */
 /* ------------------------------------------------------------------------ */
 
@@ -758,6 +1213,10 @@ Porcelain_HelpersFence(struct Porcelain* porcelain)
     uint64_t now_ms;
 
     assert(porcelain);
+
+    /* 0. The native-overlay latch, while it is suppressing. Nothing after the
+     *    handoff, which is why this is a state and not a flag. */
+    porcelain_overlay_fence(porcelain);
 
     /* 1. Images still pending. A transition is an INPUT: it re-runs the
      *    describe, which is how "asset before bind" and "bind before asset"

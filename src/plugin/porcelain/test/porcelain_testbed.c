@@ -249,6 +249,30 @@ Testbed_LandAsset(char const* name)
     asset->state = TORIRS_ASSET_READY;
 }
 
+void
+Testbed_DeclareFile(char const* name, char const* body)
+{
+    struct TestbedAsset* asset;
+
+    assert(name);
+    assert(body);
+    Testbed_DeclareAsset(name, TORIRS_ASSET_READY);
+    asset = testbed_asset(name);
+    assert(asset);
+    snprintf(asset->body, sizeof(asset->body), "%s", body);
+    asset->has_body = true;
+}
+
+bool
+Testbed_AssetHeld(char const* name)
+{
+    struct TestbedAsset const* asset = testbed_asset(name);
+
+    assert(name);
+    assert(asset);
+    return asset->held;
+}
+
 /* ------------------------------------------------------------------------ */
 /* Config                                                                   */
 /* ------------------------------------------------------------------------ */
@@ -333,6 +357,16 @@ Testbed_LiveControls(void)
     return count;
 }
 
+int
+Testbed_LiveWatches(void)
+{
+    int count = 0;
+    for( int i = 0; i < TESTBED_WATCHES_MAX; i++ )
+        if( g_testbed.watches[i].used )
+            count++;
+    return count;
+}
+
 static struct TestbedControl*
 testbed_control_by_ref(struct ToriRS_WidgetRef ref)
 {
@@ -365,6 +399,16 @@ fake_watch_state(void* context, char const* role, ToriRS_WidgetListener listener
 {
     (void)context;
     testbed_log("watch_state %s", role);
+    /* The host keys a subscription by ROLE NAME and a NULL listener drops it.
+     * Modelled here because a library that re-spells an element has to give
+     * the old name back, and a fake that kept it would hide the leak. */
+    if( !listener )
+    {
+        for( int i = 0; i < TESTBED_WATCHES_MAX; i++ )
+            if( g_testbed.watches[i].used && strcmp(g_testbed.watches[i].role, role) == 0 )
+                memset(&g_testbed.watches[i], 0, sizeof(g_testbed.watches[i]));
+        return TORIRS_CONTRACT_OK;
+    }
     for( int i = 0; i < TESTBED_WATCHES_MAX; i++ )
     {
         if( g_testbed.watches[i].used )
@@ -921,6 +965,163 @@ fake_skill(struct ToriRS_Api* api, int index, struct ToriRS_SkillSnapshot* out)
 }
 
 /* ------------------------------------------------------------------------ */
+/* The overlay surfaces                                                     */
+/* ------------------------------------------------------------------------ */
+
+/* A role spread over members answers them in the role's own numbering:
+ * `<role>#<n>` here, so a test can declare a hole. */
+static enum ToriRS_ContractResult
+fake_find_all(void* context, char const* role, struct ToriRS_WidgetRef* refs, size_t capacity,
+              size_t* count)
+{
+    char member[96];
+
+    (void)context;
+    testbed_log("find_all %s", role);
+    *count = 0;
+    for( int i = 0; i < 16; i++ )
+    {
+        struct TestbedElement const* element;
+        snprintf(member, sizeof(member), "%s#%d", role, i);
+        element = Testbed_Element(member);
+        if( !element || !element->bound )
+            continue;
+        if( (size_t)i < capacity )
+            refs[i] = element->ref;
+        *count = (size_t)i + 1;
+    }
+    if( *count )
+        return *count > capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+    {
+        struct TestbedElement const* element = Testbed_Element(role);
+        if( !element || !element->bound )
+            return TORIRS_CONTRACT_UNAVAILABLE;
+        *count = 1;
+        if( capacity == 0 )
+            return TORIRS_CONTRACT_BUDGET_EXCEEDED;
+        refs[0] = element->ref;
+        return TORIRS_CONTRACT_OK;
+    }
+}
+
+/* A component id is modelled as the element declared under the role
+ * "component:<id>", which is what makes a hover's container walkable. */
+static enum ToriRS_ContractResult
+fake_get_widget(void* context, int32_t component_id, struct ToriRS_WidgetRef* out)
+{
+    char role[64];
+    struct TestbedElement const* element;
+
+    (void)context;
+    testbed_log("get_widget %d", component_id);
+    snprintf(role, sizeof(role), "component:%d", component_id);
+    element = Testbed_Element(role);
+    if( !element || !element->bound )
+        return TORIRS_CONTRACT_UNAVAILABLE;
+    *out = element->ref;
+    return TORIRS_CONTRACT_OK;
+}
+
+static bool
+fake_menu_add(struct ToriRS_Api* api, struct ToriRS_MenuBuildEvent* menu, char const* text,
+              uint32_t action_id)
+{
+    (void)api;
+    (void)menu;
+    testbed_log("menu_add %s %u", text, action_id);
+    if( g_testbed.menu_routes_left <= 0 )
+        return false;
+    g_testbed.menu_routes_left--;
+    return true;
+}
+
+static void
+fake_notify(struct ToriRS_Api* api, char const* text)
+{
+    (void)api;
+    testbed_log("notify %s", text);
+    if( g_testbed.notify_count >= (int)(sizeof(g_testbed.notified) / sizeof(g_testbed.notified[0])) )
+        return;
+    snprintf(g_testbed.notified[g_testbed.notify_count], sizeof(g_testbed.notified[0]), "%s", text);
+    g_testbed.notify_count++;
+}
+
+static enum ToriRS_AssetState
+fake_asset_request(struct ToriRS_Api* api, char const* name)
+{
+    struct TestbedAsset* asset = testbed_asset(name);
+
+    (void)api;
+    testbed_log("assets_request %s", name);
+    if( !asset )
+        return TORIRS_ASSET_MISSING;
+    if( asset->state == TORIRS_ASSET_READY )
+        asset->held = true;
+    return asset->state;
+}
+
+static bool
+fake_asset_bytes(struct ToriRS_Api* api, char const* name, void const** data, size_t* size)
+{
+    struct TestbedAsset const* asset = testbed_asset(name);
+
+    (void)api;
+    testbed_log("assets_bytes %s", name);
+    if( !asset || !asset->has_body )
+        return false;
+    *data = asset->body;
+    *size = strlen(asset->body);
+    return true;
+}
+
+static void
+fake_asset_release(struct ToriRS_Api* api, char const* name)
+{
+    struct TestbedAsset* asset = testbed_asset(name);
+
+    (void)api;
+    testbed_log("assets_release %s", name);
+    if( asset )
+        asset->held = false;
+}
+
+static enum ToriRS_ContractResult
+fake_script_invalidate(void* context, char const* callback)
+{
+    (void)context;
+    testbed_log("script_invalidate %s", callback);
+    return TORIRS_CONTRACT_OK;
+}
+
+/* The graphics builder a draw pass hands a callback. Only `context` is
+ * modelled: Porcelain draws nothing itself. */
+static struct ToriRS_Graphics g_testbed_graphics;
+
+static bool
+fake_graphics_context(struct ToriRS_Graphics* draw, struct ToriRS_DrawContext* out)
+{
+    (void)draw;
+    testbed_log("draw_context");
+    if( !g_testbed.draw_region_valid )
+        return false;
+    out->bounds = (struct ToriRS_Rect){0, 0, g_testbed.draw_region.width,
+                                       g_testbed.draw_region.height};
+    out->clip = out->bounds;
+    return true;
+}
+
+struct ToriRS_Graphics*
+Testbed_Graphics(struct ToriRS_Rect region, bool valid)
+{
+    memset(&g_testbed_graphics, 0, sizeof(g_testbed_graphics));
+    g_testbed_graphics.struct_size = sizeof(g_testbed_graphics);
+    g_testbed_graphics.context = fake_graphics_context;
+    g_testbed.draw_region = region;
+    g_testbed.draw_region_valid = valid;
+    return &g_testbed_graphics;
+}
+
+/* ------------------------------------------------------------------------ */
 /* Assembly                                                                 */
 /* ------------------------------------------------------------------------ */
 
@@ -936,8 +1137,14 @@ Testbed_Reset(void)
     g_testbed.api.minor_version = TORIRS_PLUGIN_API_MINOR;
     g_testbed.api.instance = &g_testbed;
 
+    /* The host's route table is shared and bounded; a test that wants the
+     * refusal turns this down. */
+    g_testbed.menu_routes_left = 24;
+
     g_testbed.api.widgets.context = &g_testbed;
     g_testbed.api.widgets.find = fake_find;
+    g_testbed.api.widgets.find_all = fake_find_all;
+    g_testbed.api.widgets.get_widget = fake_get_widget;
     g_testbed.api.widgets.watch_state = fake_watch_state;
     g_testbed.api.widgets.state = fake_state;
     g_testbed.api.widgets.parent = fake_parent;
@@ -974,7 +1181,18 @@ Testbed_Reset(void)
     g_testbed.api.config.get_string = fake_config_get_string;
     g_testbed.api.config.set = fake_config_set;
 
+    g_testbed.api.core.notify = fake_notify;
+
+    g_testbed.api.menu.struct_size = sizeof(g_testbed.api.menu);
+    g_testbed.api.menu.add = fake_menu_add;
+
+    g_testbed.api.scripts.context = &g_testbed;
+    g_testbed.api.scripts.invalidate = fake_script_invalidate;
+
     g_testbed.api.assets.struct_size = sizeof(g_testbed.api.assets);
+    g_testbed.api.assets.request = fake_asset_request;
+    g_testbed.api.assets.bytes = fake_asset_bytes;
+    g_testbed.api.assets.release = fake_asset_release;
     g_testbed.api.assets.image = fake_asset_image;
     g_testbed.api.assets.model = fake_asset_model;
     g_testbed.api.assets.image_release = fake_image_release;

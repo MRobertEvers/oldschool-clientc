@@ -70,6 +70,11 @@ struct TestbedAsset
     char name[64];
     enum ToriRS_AssetState state;
     int value;
+    /** Bytes an assets.bytes read answers, for a shipped table. */
+    char body[256];
+    bool has_body;
+    /** Still held by the plugin: a table that forgot to release shows here. */
+    bool held;
 };
 
 struct TestbedConfigRow
@@ -115,6 +120,17 @@ struct Testbed
     char named_ids[256];
     int key_held;
     int next_ref;
+
+    /* The overlay surfaces. */
+    /** Rows menu.add will still accept before it refuses, as the host's route
+     *  table does. */
+    int menu_routes_left;
+    /** What core.notify was handed, in order. */
+    char notified[8][128];
+    int notify_count;
+    /** The region the fake graphics context answers, and whether it has one. */
+    struct ToriRS_Rect draw_region;
+    bool draw_region_valid;
 };
 
 /** The single instance. Reset it between scenarios. */
@@ -143,6 +159,16 @@ struct TestbedElement* Testbed_Element(char const* role);
 void Testbed_DeclareAsset(char const* name, enum ToriRS_AssetState state);
 /** Land a pending asset, as the loader would. */
 void Testbed_LandAsset(char const* name);
+/** A shipped data file with bytes behind it. */
+void Testbed_DeclareFile(char const* name, char const* body);
+/** True while a plugin still holds the file: a table must release it. */
+bool Testbed_AssetHeld(char const* name);
+
+/* The draw pass ----------------------------------------------------------- */
+
+/** A graphics builder whose context answers `region`, or nothing when
+ *  `valid` is false -- the world pass before it set one. */
+struct ToriRS_Graphics* Testbed_Graphics(struct ToriRS_Rect region, bool valid);
 
 /* Config ------------------------------------------------------------------ */
 
@@ -163,5 +189,7 @@ void Testbed_PrintLog(void);
 
 struct TestbedControl* Testbed_Control(char const* key);
 int Testbed_LiveControls(void);
+/** Subscriptions the host still holds. A re-spelled element must not grow it. */
+int Testbed_LiveWatches(void);
 
 #endif /* TORIRS_PORCELAIN_TESTBED_H */

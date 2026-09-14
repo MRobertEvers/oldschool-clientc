@@ -118,6 +118,7 @@ struct LuaCallbackScope
     struct ToriRS_Graphics* draw;
     struct ToriRS_PanelBuilder* panel;
     struct ToriRS_MenuBuildEvent* menu;
+    struct ToriRS_ScriptEvent const* script_event;
     size_t memory_limit;
 };
 
@@ -204,6 +205,8 @@ struct LuaScript
     struct ToriRS_PanelBuilder* cur_panel;
     struct ToriRS_PorcelainDescribe* cur_describe;
     struct ToriRS_MenuBuildEvent* cur_menu;
+    /** The script callback now running, for porcelain.note_script. */
+    struct ToriRS_ScriptEvent const* cur_script;
     struct LuaCallbackScope callback_scopes[PLUGIN_LUA_CALLBACK_DEPTH_MAX];
     int callback_depth;
 
@@ -366,12 +369,14 @@ lua_callback_scope_push(struct LuaScript* script, struct ToriRS_Api* api)
     saved->draw = script->cur_draw;
     saved->panel = script->cur_panel;
     saved->menu = script->cur_menu;
+    saved->script_event = script->cur_script;
     saved->memory_limit = script->memory_limit;
     script->memory_limit = PLUGIN_LUA_HARD_MEM_CAP_BYTES;
     script->cur_api = api;
     script->cur_draw = NULL;
     script->cur_panel = NULL;
     script->cur_menu = NULL;
+    script->cur_script = NULL;
     return true;
 }
 
@@ -385,6 +390,7 @@ lua_callback_scope_pop(struct LuaScript* script)
     script->cur_draw = saved->draw;
     script->cur_panel = saved->panel;
     script->cur_menu = saved->menu;
+    script->cur_script = saved->script_event;
     script->memory_limit = saved->memory_limit;
 }
 
@@ -1925,6 +1931,30 @@ lua_porcelain_end(struct LuaPorcelainCallback* slot, struct ToriRS_Api* api, int
     }
 }
 
+/* A handler whose answer MEANS something: a caption the plugin refused, a
+ * table it could not parse. Nothing returned is acceptance, so a handler
+ * written without a `return` is not read as a refusal. */
+static bool
+lua_porcelain_end_bool(struct LuaPorcelainCallback* slot, struct ToriRS_Api* api, int args,
+                       char const* where)
+{
+    struct LuaScript* script = slot->script;
+    bool accepted;
+    int rc = lua_callback_pcall(script, args, 1);
+    if( rc != LUA_OK )
+    {
+        char error[128];
+        snprintf(error, sizeof(error), "%s", lua_tostring(script->L, -1)
+                                                 ? lua_tostring(script->L, -1) : "error");
+        lua_pop(script->L, 1);
+        lua_script_fault(script, api, where, error);
+        return false;
+    }
+    accepted = lua_isnoneornil(script->L, -1) ? true : lua_toboolean(script->L, -1) != 0;
+    lua_pop(script->L, 1);
+    return accepted;
+}
+
 static void
 lua_porcelain_op(struct ToriRS_Api* api, void* user, char const* key)
 {
@@ -2425,6 +2455,122 @@ static int lua_porcelain_setting(lua_State* L)
                                                               luaL_checkstring(L, 1), flags));
     return 1;
 }
+/* ------------------------------------------------------- the overlay verbs */
+
+static int lua_porcelain_draw_context(lua_State* L)
+{
+    struct ToriRS_Graphics* draw = lua_draw_builder(L);
+    struct PorcelainElement element;
+    struct PorcelainDrawContext context;
+    memset(&element, 0, sizeof(element));
+    if( !lua_isnoneornil(L, 1) ) element = lua_porcelain_element_arg(L, 1);
+    memset(&context, 0, sizeof(context));
+    if( !lua_current_api(L)->porcelain->draw_context(lua_porcelain(L), draw, element, &context) )
+    { lua_pushnil(L); return 1; }
+    lua_createtable(L, 0, 6);
+    lua_push_rect(L, context.bounds); lua_setfield(L, -2, "bounds");
+    lua_push_rect(L, context.clip); lua_setfield(L, -2, "clip");
+    lua_push_rect(L, context.usable); lua_setfield(L, -2, "usable");
+    lua_push_rect(L, context.element); lua_setfield(L, -2, "element");
+    lua_pushboolean(L, context.element_bound); lua_setfield(L, -2, "element_bound");
+    lua_pushboolean(L, context.canvas_space); lua_setfield(L, -2, "canvas_space");
+    return 1;
+}
+static int lua_porcelain_menu_add(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    if( !script->cur_menu ) return luaL_error(L, "porcelain.menu_add is only valid in on_menu_build");
+    lua_pushboolean(L, lua_current_api(L)->porcelain->menu_add(
+                           lua_porcelain(L), script->cur_menu, luaL_checkstring(L, 1),
+                           (uint32_t)luaL_checkinteger(L, 2)));
+    return 1;
+}
+static int lua_porcelain_note_menu(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    if( !script->cur_menu ) return luaL_error(L, "porcelain.note_menu is only valid in on_menu_build");
+    lua_current_api(L)->porcelain->note_menu(lua_porcelain(L), script->cur_menu);
+    return 0;
+}
+static char const*
+lua_porcelain_container_name(enum PorcelainContainer container)
+{
+    switch( container )
+    {
+    case PORCELAIN_CONTAINER_INV: return "inv";
+    case PORCELAIN_CONTAINER_WORN: return "worn";
+    case PORCELAIN_CONTAINER_BANK: return "bank";
+    case PORCELAIN_CONTAINER_OTHER: return "other";
+    default: break;
+    }
+    return "none";
+}
+static int lua_porcelain_hover(lua_State* L)
+{
+    struct PorcelainHover hover;
+    if( !lua_current_api(L)->porcelain->hover(lua_porcelain(L), &hover) )
+    { lua_pushnil(L); return 1; }
+    lua_createtable(L, 0, 5);
+    lua_pushinteger(L, hover.obj); lua_setfield(L, -2, "obj");
+    lua_pushstring(L, lua_porcelain_container_name(hover.container));
+    lua_setfield(L, -2, "container");
+    lua_pushinteger(L, hover.container_id); lua_setfield(L, -2, "container_id");
+    lua_pushinteger(L, hover.slot); lua_setfield(L, -2, "slot");
+    lua_pushinteger(L, (lua_Integer)hover.frame); lua_setfield(L, -2, "frame");
+    return 1;
+}
+static bool
+lua_porcelain_script_cb(struct ToriRS_Api* api, void* user, struct ToriRS_ScriptEvent const* event)
+{
+    struct LuaPorcelainCallback* slot = user;
+    if( !lua_porcelain_begin(slot, api) ) return false;
+    lua_pushstring(slot->script->L, event->name ? event->name : "");
+    return lua_porcelain_end_bool(slot, api, 1, "porcelain.native_overlay");
+}
+static int lua_porcelain_native_overlay(lua_State* L)
+{
+    char const* labels_role = luaL_checkstring(L, 1);
+    char const* callback = luaL_checkstring(L, 2);
+    struct LuaPorcelainCallback* slot;
+    luaL_checktype(L, 3, LUA_TFUNCTION);
+    slot = lua_porcelain_callback_alloc(L, 3, callback);
+    lua_current_api(L)->porcelain->native_overlay(lua_porcelain(L), labels_role, callback,
+                                                  lua_porcelain_script_cb, slot);
+    return 0;
+}
+static int lua_porcelain_note_script(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    if( !script->cur_script )
+        return luaL_error(L, "porcelain.note_script is only valid in on_script_callback");
+    lua_current_api(L)->porcelain->note_script(lua_porcelain(L), script->cur_script);
+    return 0;
+}
+static bool
+lua_porcelain_parse_cb(struct ToriRS_Api* api, void* user, void const* data, size_t size)
+{
+    struct LuaPorcelainCallback* slot = user;
+    if( !lua_porcelain_begin(slot, api) ) return false;
+    lua_pushlstring(slot->script->L, (char const*)data, size);
+    return lua_porcelain_end_bool(slot, api, 1, "porcelain.table");
+}
+static int lua_porcelain_table(lua_State* L)
+{
+    char const* asset = luaL_checkstring(L, 1);
+    struct LuaPorcelainCallback* slot;
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    slot = lua_porcelain_callback_alloc(L, 2, asset);
+    lua_pushboolean(L, lua_current_api(L)->porcelain->table(lua_porcelain(L), asset,
+                                                            lua_porcelain_parse_cb, slot));
+    return 1;
+}
+static int lua_porcelain_notify(lua_State* L)
+{
+    lua_current_api(L)->porcelain->notify(lua_porcelain(L), luaL_checkstring(L, 1),
+                                          (int)luaL_checkinteger(L, 2), luaL_checkstring(L, 3));
+    return 0;
+}
+
 static int lua_porcelain_key_edge(lua_State* L)
 {
     char const* key = luaL_checkstring(L, 1);
@@ -2654,7 +2800,11 @@ static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"image",lua_porcelain_image},{"model",lua_porcelain_model},
     {"derived",lua_porcelain_derived},{"when_ready",lua_porcelain_when_ready},
     {"every",lua_porcelain_every},{"every_server_tick",lua_porcelain_every_server_tick},
-    {"every_ms",lua_porcelain_every_ms},{"tick",lua_porcelain_tick},{NULL,NULL}
+    {"every_ms",lua_porcelain_every_ms},{"tick",lua_porcelain_tick},
+    {"draw_context",lua_porcelain_draw_context},{"menu_add",lua_porcelain_menu_add},
+    {"note_menu",lua_porcelain_note_menu},{"hover",lua_porcelain_hover},
+    {"native_overlay",lua_porcelain_native_overlay},{"note_script",lua_porcelain_note_script},
+    {"table",lua_porcelain_table},{"notify",lua_porcelain_notify},{NULL,NULL}
 };
 
 static struct LuaFn const LUA_PORCELAIN_DESCRIBE_FNS[] = {
@@ -2895,6 +3045,7 @@ static void lua_cb_script(struct ToriRS_Api* api,void* state,struct ToriRS_Scrip
 {
     (void)state;struct LuaScript* script=lua_script_for_api(api);
     if( !lua_call_begin(script,api,LUA_ON_SCRIPT_CALLBACK) ) return;
+    script->cur_script=event;
     lua_State* L=script->L;
     lua_createtable(L,0,3);
     lua_pushstring(L,event->name);lua_setfield(L,-2,"name");
@@ -2957,6 +3108,7 @@ lua_script_release(struct LuaScript* script)
     script->cur_draw = NULL;
     script->cur_panel = NULL;
     script->cur_menu = NULL;
+    script->cur_script = NULL;
     script->callback_depth = 0;
     memset(script->callback_scopes, 0, sizeof(script->callback_scopes));
 }

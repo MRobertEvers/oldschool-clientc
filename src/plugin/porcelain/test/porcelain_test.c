@@ -1395,6 +1395,624 @@ test_tab_resolves_by_data(void)
     Porcelain_Close(porcelain);
 }
 
+/*
+ * The spelling is re-asked until something binds.
+ *
+ * Resolution runs the first time a plugin asks for an element, and the first
+ * ask of a session runs before any tree has published: NEITHER spelling
+ * answers, and a library that froze its choice there would watch the wrong
+ * name for the rest of the run. That is precisely what happened live --
+ * `tab:inventory` absent on the 2004 lane with the role `tab_inventory` bound
+ * beside it.
+ *
+ * MUTATION: delete the porcelain_watch_respell() call in
+ * porcelain_resolve_pending. Red: the element never binds.
+ */
+static void
+test_spelling_is_re_asked(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainElementState state;
+    int watches_before;
+
+    /* A numbered sidebar whose stones publish LATE. Neither spelling answers
+     * at the first ask, so the fallback is the authored one -- wrong here. */
+    Testbed_Reset();
+    Testbed_DeclareElement("sidetab_3", 660, 200, 30, 30);
+    snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids), "tab:inventory=3");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, tab_describe, NULL);
+    fence(porcelain);
+    CHECK(!Porcelain_Element(porcelain, PORCELAIN_TAB_EL("inventory"), &state),
+          "an element neither spelling answers yet is not bound");
+    CHECK(Testbed_LogCountWith("watch_state tab_inventory") == 1,
+          "and the watch opens on the name the plugin would have used by hand");
+    watches_before = Testbed_LiveWatches();
+
+    Testbed_BindElement("sidetab_3");
+    fence(porcelain);
+    fence(porcelain);
+    CHECK(Porcelain_Element(porcelain, PORCELAIN_TAB_EL("inventory"), &state),
+          "the stone binding under the OTHER spelling still reaches the element");
+    CHECK(Testbed_LogCountWith("watch_state sidetab_3") == 1,
+          "because the spelling is re-asked while the element is unresolved");
+    CHECK(Testbed_LiveWatches() == watches_before,
+          "and the name it gave up is handed back, not leaked");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A lane that authored a `tab_<name>` builtin AND numbers its sidebar answers
+ * the builtin. Both facts are true on the 2004 lane -- `panel_inventory =
+ * slot(sidebar, 3)` makes the profile answer a tab number there too -- so a
+ * resolver that took the number the moment it was offered watched a
+ * `sidetab_3` the lane does not have.
+ *
+ * MUTATION: in porcelain_spellings, put the sidetab spelling first for TAB.
+ * Red: the watch opens on sidetab_3 and the builtin is never reached.
+ */
+static void
+test_tab_prefers_the_spelling_that_answers(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainElementState state;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("tab_inventory", 660, 200, 30, 30);
+    /* The profile answers a number as well: this lane has both. */
+    snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids), "tab:inventory=3");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, tab_describe, NULL);
+    fence(porcelain);
+    Testbed_BindElement("tab_inventory");
+    fence(porcelain);
+    fence(porcelain);
+    CHECK(Porcelain_Element(porcelain, PORCELAIN_TAB_EL("inventory"), &state),
+          "the authored builtin binds the element");
+    CHECK(Testbed_LogCountWith("watch_state sidetab_") == 0,
+          "and no numbered spelling is ever watched on a lane that answers the name");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * CHAT_FILTER has the same two shapes. Where the cache enumerates its plates
+ * the element is `chat_plate_<n>`; where it does not, a filter is member <n>
+ * of the frame's chat-buttons slot, which two of the four 2004 filters have
+ * no authored role name for at all.
+ *
+ * MUTATION: drop the `chat_buttons:%d` spelling from porcelain_spellings.
+ * Red: the member lane binds nothing and counts zero.
+ */
+static void
+chat_filter_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct PorcelainElementState state;
+
+    (void)user;
+    (void)Porcelain_Element(describe->porcelain, PORCELAIN_CHAT_FILTER_EL(3), &state);
+}
+
+static void
+test_chat_filter_resolves_on_both_shapes(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainElementState state;
+
+    /* The enumerated-plate shape. */
+    Testbed_Reset();
+    for( int i = 0; i < 8; i++ )
+    {
+        char role[32];
+        snprintf(role, sizeof(role), "chat_plate_%d", i);
+        Testbed_DeclareElement(role, i * 60, 480, 56, 22);
+        Testbed_BindElement(role);
+    }
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, chat_filter_describe, NULL);
+    fence(porcelain);
+    CHECK(Porcelain_Element(porcelain, PORCELAIN_CHAT_FILTER_EL(3), &state),
+          "a plate lane binds CHAT_FILTER(3)");
+    CHECK(Testbed_LogCountWith("watch_state chat_plate_3") == 1, "under the plate spelling");
+    CHECK(Porcelain_Count(porcelain, PORCELAIN_EL_CHAT_FILTER) == 8, "and counts its eight");
+    Porcelain_Close(porcelain);
+
+    /* The slot-member shape: four filters, and no plate anywhere. */
+    Testbed_Reset();
+    for( int i = 0; i < 4; i++ )
+    {
+        char role[32];
+        snprintf(role, sizeof(role), "chat_buttons:%d", i);
+        Testbed_DeclareElement(role, i * 100, 467, 100, 32);
+        Testbed_BindElement(role);
+    }
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, chat_filter_describe, NULL);
+    fence(porcelain);
+    CHECK(Porcelain_Element(porcelain, PORCELAIN_CHAT_FILTER_EL(3), &state),
+          "a slot-member lane binds the same element");
+    CHECK(state.box.x == 300, "at the member's own box");
+    CHECK(Testbed_LogCountWith("watch_state chat_buttons:3") == 1, "under the member spelling");
+    CHECK(Porcelain_Count(porcelain, PORCELAIN_EL_CHAT_FILTER) == 4,
+          "and counts four, which is this lane's real number");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A count is ONE PAST THE HIGHEST MEMBER PRESENT -- find_all's own contract --
+ * and not "however many answered before the first miss". The 2004 sidebar's
+ * tab 7 carries no interface, so a count that stopped at the first hole would
+ * report seven stones on a lane that has fourteen.
+ *
+ * MUTATION: break out of porcelain_count_members' loops at the first member
+ * that does not resolve. Red: 7 instead of 14.
+ */
+static void
+test_count_spans_a_hole(void)
+{
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    for( int i = 0; i < 14; i++ )
+    {
+        char role[32];
+        if( i == 7 )
+            continue; /* the unused 2004 slot */
+        snprintf(role, sizeof(role), "sidebar:%d", i);
+        Testbed_DeclareElement(role, 660, 200 + i * 10, 30, 30);
+        Testbed_BindElement(role);
+    }
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(Porcelain_Count(porcelain, PORCELAIN_EL_TAB) == 14,
+          "a family with a hole still counts one past its highest member");
+    Porcelain_Close(porcelain);
+}
+
+/* ------------------------------------------------------------------------ */
+/* The overlay verbs                                                        */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * The drawable rect of a pass, and an element's box on it.
+ *
+ * Only the passes that ARE the canvas can answer a canvas-space box. A panel
+ * well's drawable rect has its own origin, and a tooltip clamped against the
+ * wrong rectangle is the retired placement bug that flipped it up over the
+ * minimap.
+ *
+ * MUTATION: set out->canvas_space = true unconditionally. Red: the well pass
+ * reports a viewport box it cannot use.
+ */
+static void
+test_draw_context_says_which_space(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainElementState state;
+    struct PorcelainDrawContext context;
+    struct PorcelainFinding findings[4];
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(Porcelain_Element(porcelain, PORCELAIN_EL(VIEWPORT), &state), "the viewport is bound");
+
+    /* The world pass: the whole canvas, at origin zero. */
+    CHECK(Porcelain_DrawContext(porcelain,
+                                Testbed_Graphics((struct ToriRS_Rect){0, 0, 800, 500}, true),
+                                PORCELAIN_EL(VIEWPORT), &context),
+          "the world pass answers a context");
+    CHECK(context.bounds.width == 800 && context.bounds.height == 500,
+          "whose drawable rect is the pass's own");
+    CHECK(context.canvas_space, "and which IS canvas space");
+    CHECK(context.usable.width == 800, "so the usable canvas is answered");
+    CHECK(context.element_bound && context.element.x == 4 && context.element.width == 512,
+          "and the element's box is usable in it");
+
+    /* A panel well: its own origin, its own size. */
+    CHECK(Porcelain_DrawContext(porcelain,
+                                Testbed_Graphics((struct ToriRS_Rect){20, 40, 200, 120}, true),
+                                PORCELAIN_EL(VIEWPORT), &context),
+          "a well answers a context too");
+    CHECK(context.bounds.width == 200, "at the well's size");
+    CHECK(!context.canvas_space, "but it is not canvas space");
+    CHECK(!context.element_bound && context.element.width == 0,
+          "so no canvas-space element box is handed out");
+    CHECK(context.usable.width == 0, "and neither is the usable canvas");
+    Porcelain_Close(porcelain);
+
+    /*
+     * A pass that set no region at all -- which is what the world pass did
+     * until the engine learned to set one.
+     *
+     * MUTATION: return true from Porcelain_DrawContext when context() is
+     * false. Red: the caller draws against a zeroed rectangle and no finding
+     * says so.
+     */
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(!Porcelain_DrawContext(porcelain,
+                                 Testbed_Graphics((struct ToriRS_Rect){0, 0, 800, 500}, false),
+                                 PORCELAIN_EL(VIEWPORT), &context),
+          "a pass with no region answers nothing");
+    CHECK(Porcelain_Findings(porcelain, findings, 4) == 1, "with exactly one finding");
+    CHECK(findings[0].result == PORCELAIN_FINDING_REFUSED, "a refusal, not silence");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A refused menu route is a finding, never a dropped false. The host's route
+ * table is shared and bounded; over it, `add` answers false, and both shipped
+ * overlays threw that answer away.
+ *
+ * MUTATION: return api->menu.add's bool from Porcelain_MenuAdd without
+ * recording anything. Red: no finding.
+ */
+static void
+test_menu_add_refusal_is_a_finding(void)
+{
+    struct Porcelain* porcelain;
+    struct ToriRS_MenuBuildEvent menu;
+    struct PorcelainFinding findings[4];
+
+    Testbed_Reset();
+    memset(&menu, 0, sizeof(menu));
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    g_testbed.menu_routes_left = 1;
+    CHECK(Porcelain_MenuAdd(porcelain, &menu, "Examine", 7u), "the first row is routed");
+    CHECK(!Porcelain_MenuAdd(porcelain, &menu, "Drop", 8u), "the second is refused");
+    CHECK(Porcelain_Findings(porcelain, findings, 4) == 1, "and the refusal is one finding");
+    CHECK(findings[0].result == PORCELAIN_FINDING_REFUSED, "a refusal");
+    CHECK(strcmp(findings[0].detail, "Drop") == 0, "whose detail names the row that was lost");
+    Porcelain_Close(porcelain);
+}
+
+static void
+hover_menu_row(struct ToriRS_MenuBuildEvent* menu, bool hover_pass, int obj, int slot,
+               int component_id)
+{
+    memset(menu, 0, sizeof(*menu));
+    menu->hover_pass = hover_pass;
+    menu->row_count = 1;
+    menu->rows[0].text = "Use";
+    menu->rows[0].pick_kind = PORCELAIN_MENU_PICK_INV_SLOT;
+    menu->rows[0].target_id = obj;
+    menu->rows[0].slot = slot;
+    menu->rows[0].component_id = component_id;
+    menu->rows[0].npc_slot = -1;
+    menu->rows[0].player_pid = -1;
+}
+
+/*
+ * The hovered cell carries the container it came out of.
+ *
+ * The same obj hovered in the bank and in the inventory are two different
+ * questions, and the shipped tooltip captured `component_id` and `slot` and
+ * then never read either -- so a bank hover keyed identically to an inventory
+ * one and the tooltip said the wrong thing.
+ *
+ * MUTATION: return PORCELAIN_CONTAINER_INV from porcelain_container_of
+ * unconditionally. Red: the two hovers agree.
+ */
+static void
+test_hover_carries_the_container(void)
+{
+    struct Porcelain* porcelain;
+    struct ToriRS_MenuBuildEvent menu;
+    struct PorcelainHover inventory;
+    struct PorcelainHover elsewhere;
+    struct TestbedElement* cell;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("panel_inventory", 547, 205, 190, 261);
+    Testbed_BindElement("panel_inventory");
+    Testbed_DeclareElement("panel_equipment", 547, 205, 190, 261);
+    Testbed_BindElement("panel_equipment");
+    cell = Testbed_DeclareElement("component:1001", 560, 220, 36, 32);
+    cell->parent = Testbed_Element("panel_inventory")->ref;
+    Testbed_BindElement("component:1001");
+    cell = Testbed_DeclareElement("component:1500", 560, 220, 36, 32);
+    cell->parent = Testbed_Element("panel_equipment")->ref;
+    Testbed_BindElement("component:1500");
+    /* A cell in a container this vocabulary cannot name: it hangs off the
+     * shared root, not off a declared panel. */
+    Testbed_DeclareElement("component:2002", 100, 100, 36, 32);
+    Testbed_BindElement("component:2002");
+
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    hover_menu_row(&menu, true, 995, 3, 1001);
+    Porcelain_NoteMenu(porcelain, &menu);
+    CHECK(Porcelain_Hover(porcelain, &inventory), "the hover pass answers a hovered cell");
+    CHECK(inventory.obj == 995, "with the item in the cell");
+    CHECK(inventory.slot == 3, "and its slot");
+    CHECK(inventory.container == PORCELAIN_CONTAINER_INV, "and the container it belongs to");
+
+    hover_menu_row(&menu, true, 995, 3, 1500);
+    Porcelain_NoteMenu(porcelain, &menu);
+    CHECK(Porcelain_Hover(porcelain, &elsewhere), "the same obj worn is still a hover");
+    CHECK(elsewhere.container == PORCELAIN_CONTAINER_WORN,
+          "and a worn slot is a worn slot, not an inventory cell");
+
+    hover_menu_row(&menu, true, 995, 3, 2002);
+    Porcelain_NoteMenu(porcelain, &menu);
+    CHECK(Porcelain_Hover(porcelain, &elsewhere), "the same obj elsewhere is still a hover");
+    CHECK(elsewhere.container != PORCELAIN_CONTAINER_INV,
+          "a cell in a container this vocabulary cannot name is not an inventory cell");
+    CHECK(elsewhere.container_id != inventory.container_id,
+          "and it carries its own container id, so a key built from it cannot collide");
+
+    /*
+     * A right-click build is not a hover.
+     *
+     * MUTATION: delete the `if( !menu->hover_pass ) return;` guard in
+     * Porcelain_NoteMenu. Red: the stash follows the pointer under an open
+     * menu.
+     */
+    hover_menu_row(&menu, false, 1337, 9, 1001);
+    Porcelain_NoteMenu(porcelain, &menu);
+    CHECK(Porcelain_Hover(porcelain, &elsewhere) && elsewhere.obj == 995,
+          "a right-click build leaves the hover where it was");
+
+    /*
+     * And a hover is live for one frame.
+     *
+     * MUTATION: widen the liveness window in Porcelain_Hover. Red: a stale
+     * hover keeps answering.
+     */
+    fence(porcelain);
+    fence(porcelain);
+    fence(porcelain);
+    CHECK(!Porcelain_Hover(porcelain, &elsewhere),
+          "a hover nothing has restated is not a hover");
+    Porcelain_Close(porcelain);
+}
+
+static int g_overlay_calls;
+
+static bool
+overlay_caption(struct ToriRS_Api* api, void* user, struct ToriRS_ScriptEvent const* event)
+{
+    (void)api;
+    (void)user;
+    (void)event;
+    g_overlay_calls++;
+    return true;
+}
+
+/*
+ * The suppress-then-format latch, in three states.
+ *
+ * While the lane's own captions do not yet carry the plugin's fields the
+ * natives are hidden and the plugin's stand-ins are what is seen; the FIRST
+ * callback is the handoff, and from there the natives are handed back to
+ * their own visibility. A lane with no script VM never raises the callback at
+ * all, and an overlay that sat suppressing there would hide captions it was
+ * never going to replace.
+ *
+ * MUTATION: start the latch in FORMATTING. Red: nothing is ever suppressed.
+ */
+static void
+test_native_overlay_latch(void)
+{
+    struct Porcelain* porcelain;
+    struct ToriRS_ScriptEvent event;
+    struct PorcelainFinding findings[4];
+
+    Testbed_Reset();
+    snprintf(g_testbed.capabilities, sizeof(g_testbed.capabilities), "cs2_scripts");
+    for( int i = 0; i < 3; i++ )
+    {
+        char role[64];
+        snprintf(role, sizeof(role), "ground_item_labels#%d", i);
+        Testbed_DeclareElement(role, 100, 100 + i * 12, 80, 12);
+        Testbed_BindElement(role);
+    }
+    g_overlay_calls = 0;
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_NativeOverlay(porcelain, "ground_item_labels", "groundItemCaption",
+                            overlay_caption, NULL);
+    CHECK(Porcelain_NativeOverlayState(porcelain) == PORCELAIN_NATIVE_OVERLAY_SUPPRESSING,
+          "a lane with the hook starts by suppressing the natives");
+    Testbed_ClearLog();
+    fence(porcelain);
+    CHECK(Testbed_LogCountWith("set_hidden ground_item_labels") == 3,
+          "every native label the role matches is hidden");
+
+    memset(&event, 0, sizeof(event));
+    event.name = "groundItemCaption";
+    Testbed_ClearLog();
+    Porcelain_NoteScript(porcelain, &event);
+    CHECK(Porcelain_NativeOverlayState(porcelain) == PORCELAIN_NATIVE_OVERLAY_FORMATTING,
+          "the first callback is the handoff");
+    CHECK(Testbed_LogCountWith("reset ground_item_labels") == 3,
+          "which hands every suppressed native back to its own visibility");
+    CHECK(g_overlay_calls == 1, "and routes the caption to the plugin");
+    Testbed_ClearLog();
+    fence(porcelain);
+    CHECK(Testbed_LogCountWith("set_hidden") == 0, "nothing is suppressed after the handoff");
+    Porcelain_Close(porcelain);
+
+    /*
+     * A handle that CLOSES while it is still suppressing hands the natives
+     * back itself: a plugin stopped before the cache's captions ever carried
+     * its fields must not leave them hidden.
+     *
+     * MUTATION: delete the Porcelain_OverlayRelease call in Porcelain_Close.
+     * Red: the labels stay hidden after the plugin is gone.
+     */
+    Testbed_Reset();
+    snprintf(g_testbed.capabilities, sizeof(g_testbed.capabilities), "cs2_scripts");
+    for( int i = 0; i < 3; i++ )
+    {
+        char role[64];
+        snprintf(role, sizeof(role), "ground_item_labels#%d", i);
+        Testbed_DeclareElement(role, 100, 100 + i * 12, 80, 12);
+        Testbed_BindElement(role);
+    }
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_NativeOverlay(porcelain, "ground_item_labels", "groundItemCaption",
+                            overlay_caption, NULL);
+    fence(porcelain);
+    Testbed_ClearLog();
+    Porcelain_Close(porcelain);
+    CHECK(Testbed_LogCountWith("reset ground_item_labels") == 3,
+          "closing while suppressing hands every native back");
+
+    /*
+     * A lane without the hook.
+     *
+     * MUTATION: delete the capability gate in Porcelain_NativeOverlay. Red:
+     * the latch suppresses natives on a lane whose callback never fires, and
+     * nothing reports it.
+     */
+    Testbed_Reset();
+    for( int i = 0; i < 3; i++ )
+    {
+        char role[64];
+        snprintf(role, sizeof(role), "ground_item_labels#%d", i);
+        Testbed_DeclareElement(role, 100, 100 + i * 12, 80, 12);
+        Testbed_BindElement(role);
+    }
+    g_overlay_calls = 0;
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_NativeOverlay(porcelain, "ground_item_labels", "groundItemCaption",
+                            overlay_caption, NULL);
+    CHECK(Porcelain_NativeOverlayState(porcelain) == PORCELAIN_NATIVE_OVERLAY_ABSENT,
+          "a lane with no script VM answers ABSENT");
+    CHECK(Porcelain_Findings(porcelain, findings, 4) == 1, "with one finding");
+    CHECK(findings[0].result == PORCELAIN_FINDING_UNSUPPORTED, "an unsupported capability");
+    Testbed_ClearLog();
+    fence(porcelain);
+    CHECK(Testbed_LogCountWith("set_hidden") == 0, "and nothing native is touched");
+    memset(&event, 0, sizeof(event));
+    event.name = "groundItemCaption";
+    Porcelain_NoteScript(porcelain, &event);
+    CHECK(g_overlay_calls == 0, "the callback never fires there");
+    Porcelain_Close(porcelain);
+}
+
+static int g_parse_calls;
+static char g_parsed[64];
+
+static bool
+table_parse(struct ToriRS_Api* api, void* user, void const* data, size_t size)
+{
+    (void)api;
+    (void)user;
+    g_parse_calls++;
+    snprintf(g_parsed, sizeof(g_parsed), "%.*s", (int)size, (char const*)data);
+    return true;
+}
+
+static bool
+table_refuse(struct ToriRS_Api* api, void* user, void const* data, size_t size)
+{
+    (void)api;
+    (void)user;
+    (void)data;
+    (void)size;
+    g_parse_calls++;
+    return false;
+}
+
+/*
+ * A shipped table is read once, parsed once, and released.
+ *
+ * Two shipped overlays each opened prices.txt and each held its bytes for the
+ * life of the process.
+ *
+ * MUTATION: delete the `slot->parsed` early return. Red: parsed on every
+ * call.
+ */
+static void
+test_table_is_read_once(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[8];
+
+    Testbed_Reset();
+    Testbed_DeclareFile("prices.txt", "995=1");
+    g_parse_calls = 0;
+    g_parsed[0] = '\0';
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(Porcelain_Table(porcelain, "prices.txt", table_parse, NULL), "a shipped table parses");
+    CHECK(g_parse_calls == 1, "once");
+    CHECK(strcmp(g_parsed, "995=1") == 0, "over the file's own bytes");
+    /* MUTATION: drop the assets.release call. Red: the bytes stay resident. */
+    CHECK(!Testbed_AssetHeld("prices.txt"), "and the bytes are released, not held");
+    CHECK(Porcelain_Table(porcelain, "prices.txt", table_parse, NULL), "asking again succeeds");
+    CHECK(g_parse_calls == 1, "without a second parse");
+
+    /* Absent: one finding, and it is remembered. */
+    CHECK(!Porcelain_Table(porcelain, "nowhere.txt", table_parse, NULL),
+          "a table this build does not ship is not available");
+    CHECK(!Porcelain_Table(porcelain, "nowhere.txt", table_parse, NULL), "and stays so");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 1, "with exactly one finding");
+    CHECK(findings[0].result == PORCELAIN_FINDING_ASSET_MISSING, "naming the absence");
+    Porcelain_Close(porcelain);
+
+    /* A parse that refuses the bytes is a finding too, and terminal. */
+    Testbed_Reset();
+    Testbed_DeclareFile("bonuses.txt", "junk");
+    g_parse_calls = 0;
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    CHECK(!Porcelain_Table(porcelain, "bonuses.txt", table_refuse, NULL),
+          "a parse that refuses the bytes fails the table");
+    CHECK(!Testbed_AssetHeld("bonuses.txt"), "the bytes are released either way");
+    CHECK(!Porcelain_Table(porcelain, "bonuses.txt", table_refuse, NULL), "and it is terminal");
+    CHECK(g_parse_calls == 1, "so the refusing parse runs once");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 1, "with one finding");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * One announcement per (kind, subject) per frame.
+ *
+ * A stack of twelve bones landing is twelve spawn events and one line; the
+ * highlight announcement and the tier announcement about the same obj are two
+ * different things and stay two lines.
+ *
+ * MUTATION: drop the (kind, subject) compare in Porcelain_Notify. Red: the
+ * repeat is announced again.
+ */
+static void
+test_notify_coalesces_per_subject(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[4];
+
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Notify(porcelain, "drop", 995, "drop: bones");
+    CHECK(g_testbed.notify_count == 1, "an announcement reaches the player");
+    Porcelain_Notify(porcelain, "drop", 995, "drop: bones");
+    CHECK(g_testbed.notify_count == 1, "and the same one again in the same frame does not");
+    Porcelain_Notify(porcelain, "drop", 996, "drop: coins");
+    CHECK(g_testbed.notify_count == 2, "a different subject is a different line");
+    Porcelain_Notify(porcelain, "highlight", 995, "highlighted drop: bones");
+    CHECK(g_testbed.notify_count == 3, "and so is a different kind about the same subject");
+    fence(porcelain);
+    Porcelain_Notify(porcelain, "drop", 995, "drop: bones");
+    CHECK(g_testbed.notify_count == 4, "a later frame re-arms it");
+    Porcelain_Close(porcelain);
+
+    /*
+     * A host with no notifier at all.
+     *
+     * MUTATION: call api->core.notify without testing it. Red: a crash rather
+     * than a finding.
+     */
+    Testbed_Reset();
+    g_testbed.api.core.notify = NULL;
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Notify(porcelain, "drop", 995, "drop: bones");
+    CHECK(Porcelain_Findings(porcelain, findings, 4) == 1,
+          "a host with no notifier answers one finding");
+    CHECK(findings[0].result == PORCELAIN_FINDING_UNSUPPORTED, "an unsupported route");
+    Porcelain_Close(porcelain);
+}
+
 /* ------------------------------------------------------------------------ */
 
 int
@@ -1426,6 +2044,16 @@ main(void)
     test_require_reports_the_feature();
     test_counts_are_lane_data();
     test_tab_resolves_by_data();
+    test_spelling_is_re_asked();
+    test_tab_prefers_the_spelling_that_answers();
+    test_chat_filter_resolves_on_both_shapes();
+    test_count_spans_a_hole();
+    test_draw_context_says_which_space();
+    test_menu_add_refusal_is_a_finding();
+    test_hover_carries_the_container();
+    test_native_overlay_latch();
+    test_table_is_read_once();
+    test_notify_coalesces_per_subject();
 
     printf("porcelain: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

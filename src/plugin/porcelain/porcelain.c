@@ -487,31 +487,126 @@ porcelain_engine_find(struct Porcelain* porcelain, char const* role,
 }
 
 /*
- * TAB is the one element with two spellings, and the choice is DATA both
- * ways: a lane that authored a `tab_<name>` builtin answers the first probe,
- * and a lane whose tabs are a numbered sidebar answers through the profile's
- * own [tabs] map. Neither branch reads a lineage.
+ * The two elements the lanes spell differently, and the rule that picks
+ * between the spellings.
+ *
+ * A tab stone is a `tab_<name>` builtin on a lane that authored one and a
+ * numbered `sidetab_<n>` on a lane whose sidebar is numbered; a chat filter
+ * is a `chat_plate_<n>` where the cache enumerates its plates and member
+ * <n> of the frame's chat-buttons slot where it does not. Both pairs are
+ * DATA: the spelling that the host ANSWERS is this lane's, and neither arm
+ * names a lane, a revision or a lineage.
+ *
+ * It is not enough to ask once. Resolution happens the first time a plugin
+ * asks for the element, and the first ask of a session runs before any tree
+ * has published -- so NEITHER spelling resolves, the fallback is frozen in,
+ * and an element whose other spelling binds two hundred frames later is
+ * absent for the rest of the run. That is exactly what TAB and CHAT_FILTER
+ * did on the 2004 lane: `tab_inventory` is a real role there, and the watch
+ * was on `sidetab_3`. @see porcelain_watch_respell.
  */
-static bool
-porcelain_resolve_tab(struct Porcelain* porcelain, char const* name, char* out, size_t capacity)
+#define PORCELAIN_SPELLINGS_MAX 2
+/** Members probed when a family is counted or numbered. */
+#define PORCELAIN_FAMILY_MEMBERS_MAX 16
+
+static int
+porcelain_spellings(struct Porcelain* porcelain, struct PorcelainElement element,
+                    char out[PORCELAIN_SPELLINGS_MAX][TORIRS_UI_NAME_MAX])
 {
-    struct ToriRS_WidgetRef ref;
     struct ToriRS_CacheApi* cache = &porcelain->api->cache;
     int number = -1;
 
-    assert(name);
-    snprintf(out, capacity, "tab_%s", name);
-    if( porcelain_engine_find(porcelain, out, &ref) == TORIRS_CONTRACT_OK )
-        return true;
-    if( cache->named_id && cache->named_id(porcelain->api, "tab", name, &number) && number >= 0 )
+    assert(porcelain);
+    assert(out);
+    switch( element.kind )
     {
-        snprintf(out, capacity, "sidetab_%d", number);
+    case PORCELAIN_EL_TAB:
+        assert(element.role);
+        snprintf(out[0], TORIRS_UI_NAME_MAX, "tab_%s", element.role);
+        if( cache->named_id &&
+            cache->named_id(porcelain->api, "tab", element.role, &number) && number >= 0 )
+        {
+            snprintf(out[1], TORIRS_UI_NAME_MAX, "sidetab_%d", number);
+            return 2;
+        }
+        return 1;
+    case PORCELAIN_EL_CHAT_FILTER:
+        assert(element.member >= 0);
+        snprintf(out[0], TORIRS_UI_NAME_MAX, "chat_plate_%d", element.member);
+        snprintf(out[1], TORIRS_UI_NAME_MAX, "chat_buttons:%d", element.member);
+        return 2;
+    default:
+        break;
+    }
+    return 0;
+}
+
+/** True for the families porcelain_spellings answers. */
+static bool
+porcelain_has_spellings(enum PorcelainElementKind kind)
+{
+    return kind == PORCELAIN_EL_TAB || kind == PORCELAIN_EL_CHAT_FILTER;
+}
+
+static bool
+porcelain_resolve_spelled(struct Porcelain* porcelain, struct PorcelainElement element, char* out,
+                          size_t capacity)
+{
+    char candidates[PORCELAIN_SPELLINGS_MAX][TORIRS_UI_NAME_MAX];
+    int const count = porcelain_spellings(porcelain, element, candidates);
+    struct ToriRS_WidgetRef ref;
+
+    assert(count > 0);
+    for( int i = 0; i < count; i++ )
+    {
+        if( porcelain_engine_find(porcelain, candidates[i], &ref) != TORIRS_CONTRACT_OK )
+            continue;
+        Porcelain_CopyString(out, capacity, candidates[i]);
         return true;
     }
-    /* Leave the authored spelling in `out`: the watch will report it ABSENT
-     * under the name the plugin would have looked for by hand. */
-    snprintf(out, capacity, "tab_%s", name);
+    /* Nothing answers yet. Keep the first spelling -- the name the plugin
+     * would have looked for by hand -- so an absence is reported under a name
+     * its author recognises, and re-ask at every fence until one binds. */
+    Porcelain_CopyString(out, capacity, candidates[0]);
     return false;
+}
+
+/*
+ * How many members of a family this lane HAS.
+ *
+ * One rule for both spellings, and it is the engine's own: count is ONE PAST
+ * THE HIGHEST MEMBER PRESENT (`find_all`'s contract, torirs_plugin_contract.h),
+ * so a lane with a hole in the middle -- the 2004 sidebar's unused tab 7 --
+ * still answers fourteen rather than seven.
+ *
+ * The primary spelling wins outright when any member answers it: that is the
+ * plan's `native_chat_filters` rule said once. Eight when the cache
+ * enumerated eight plates, else however many members the slot carries.
+ */
+static int
+porcelain_count_members(struct Porcelain* porcelain, char const* primary, char const* fallback)
+{
+    struct ToriRS_WidgetRef ref;
+    char role[TORIRS_UI_NAME_MAX];
+    int count = 0;
+
+    assert(primary);
+    assert(fallback);
+    for( int member = 0; member < PORCELAIN_FAMILY_MEMBERS_MAX; member++ )
+    {
+        snprintf(role, sizeof(role), primary, member);
+        if( porcelain_engine_find(porcelain, role, &ref) == TORIRS_CONTRACT_OK )
+            count = member + 1;
+    }
+    if( count > 0 )
+        return count;
+    for( int member = 0; member < PORCELAIN_FAMILY_MEMBERS_MAX; member++ )
+    {
+        snprintf(role, sizeof(role), fallback, member);
+        if( porcelain_engine_find(porcelain, role, &ref) == TORIRS_CONTRACT_OK )
+            count = member + 1;
+    }
+    return count;
 }
 
 bool
@@ -531,16 +626,12 @@ Porcelain_ResolveRole(struct Porcelain* porcelain, struct PorcelainElement eleme
         Porcelain_CopyString(out, capacity, PORCELAIN_ORB_ROLES[element.member]);
         return true;
     case PORCELAIN_EL_CHAT_FILTER:
-        assert(element.member >= 0);
-        snprintf(out, capacity, "chat_plate_%d", element.member);
-        return true;
+    case PORCELAIN_EL_TAB:
+        return porcelain_resolve_spelled(porcelain, element, out, capacity);
     case PORCELAIN_EL_LANE_CHROME:
         assert(element.member >= 0);
         snprintf(out, capacity, "lane_chrome_%d", element.member);
         return true;
-    case PORCELAIN_EL_TAB:
-        assert(element.role);
-        return porcelain_resolve_tab(porcelain, element.role, out, capacity);
     case PORCELAIN_EL_PANEL:
         assert(element.role);
         snprintf(out, capacity, "panel_%s", element.role);
@@ -632,12 +723,13 @@ porcelain_watch_listener(struct ToriRS_Api* api, void* user, struct ToriRS_Widge
     porcelain->stamp[PORCELAIN_INPUT_ELEMENT]++;
 }
 
+static void porcelain_watch_subscribe(struct Porcelain* porcelain, struct PorcelainWatch* watch);
+
 struct PorcelainWatch*
 Porcelain_WatchFor(struct Porcelain* porcelain, struct PorcelainElement element, bool create)
 {
     uint64_t const key = Porcelain_ElementKey(element);
     struct PorcelainWatch* free_slot = NULL;
-    struct ToriRS_WidgetApi const* widgets;
 
     assert(porcelain);
     for( int i = 0; i < PORCELAIN_WATCHES_MAX; i++ )
@@ -684,16 +776,68 @@ Porcelain_WatchFor(struct Porcelain* porcelain, struct PorcelainElement element,
         return free_slot;
     }
 
-    /* watch_state and not watch: a plain watch never receives
-     * STATE_CHANGED, and a follower written against BOUND/UNBOUND alone drops
-     * its controls the first time a hide moves. */
-    widgets = &porcelain->api->widgets;
-    porcelain->counters.engine_calls++;
-    if( widgets->watch_state(widgets->context, free_slot->role, porcelain_watch_listener,
-                             free_slot) != TORIRS_CONTRACT_OK )
-        Porcelain_RecordFinding(porcelain, "element", free_slot->element,
-                                PORCELAIN_FINDING_REFUSED, free_slot->role);
+    porcelain_watch_subscribe(porcelain, free_slot);
     return free_slot;
+}
+
+/* watch_state and not watch: a plain watch never receives STATE_CHANGED, and
+ * a follower written against BOUND/UNBOUND alone drops its controls the first
+ * time a hide moves. */
+static void
+porcelain_watch_subscribe(struct Porcelain* porcelain, struct PorcelainWatch* watch)
+{
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+
+    assert(porcelain);
+    assert(watch);
+    assert(watch->role[0]);
+    porcelain->counters.engine_calls++;
+    if( widgets->watch_state(widgets->context, watch->role, porcelain_watch_listener, watch) !=
+        TORIRS_CONTRACT_OK )
+        Porcelain_RecordFinding(porcelain, "element", watch->element, PORCELAIN_FINDING_REFUSED,
+                                watch->role);
+}
+
+/* The host keys a subscription by ROLE NAME, so a re-spelling that did not
+ * drop the old name would leave a dead watch in a 32-slot table. */
+static void
+porcelain_watch_unsubscribe(struct Porcelain* porcelain, struct PorcelainWatch* watch)
+{
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+
+    assert(porcelain);
+    assert(watch);
+    assert(watch->role[0]);
+    porcelain->counters.engine_calls++;
+    (void)widgets->watch_state(widgets->context, watch->role, NULL, NULL);
+}
+
+/*
+ * Re-ask the SPELLING, not just the binding.
+ *
+ * An element with more than one spelling is resolved by which one the host
+ * answers, and on the first fence of a session it answers neither. A watch
+ * frozen on the spelling that happened to be wrong at boot stays absent for
+ * the whole run -- the 2004 lane's `tab:inventory` watching `sidetab_3` while
+ * the role `tab_inventory` sat bound beside it. Only unresolved watches pay
+ * for this: a bound element is never re-spelled.
+ */
+static void
+porcelain_watch_respell(struct Porcelain* porcelain, struct PorcelainWatch* watch)
+{
+    char role[TORIRS_UI_NAME_MAX];
+
+    assert(porcelain);
+    assert(watch);
+    if( !porcelain_has_spellings(watch->element.kind) )
+        return;
+    (void)Porcelain_ResolveRole(porcelain, watch->element, role, sizeof(role));
+    if( role[0] == '\0' || strcmp(role, watch->role) == 0 )
+        return;
+    porcelain_watch_unsubscribe(porcelain, watch);
+    Porcelain_CopyString(watch->role, sizeof(watch->role), role);
+    watch->absence_reported = false;
+    porcelain_watch_subscribe(porcelain, watch);
 }
 
 /*
@@ -866,14 +1010,7 @@ Porcelain_Count(struct Porcelain* porcelain, enum PorcelainElementKind family)
     switch( family )
     {
     case PORCELAIN_EL_CHAT_FILTER:
-        for( int i = 0; i < 16; i++ )
-        {
-            snprintf(role, sizeof(role), "chat_plate_%d", i);
-            if( porcelain_engine_find(porcelain, role, &ref) != TORIRS_CONTRACT_OK )
-                break;
-            count++;
-        }
-        return count;
+        return porcelain_count_members(porcelain, "chat_plate_%d", "chat_buttons:%d");
     case PORCELAIN_EL_LANE_CHROME:
         for( int i = 0; i < 4; i++ )
         {
@@ -890,13 +1027,10 @@ Porcelain_Count(struct Porcelain* porcelain, enum PorcelainElementKind family)
                 count++;
         return count;
     case PORCELAIN_EL_TAB:
-        for( int i = 0; i < 16; i++ )
-        {
-            snprintf(role, sizeof(role), "sidetab_%d", i);
-            if( porcelain_engine_find(porcelain, role, &ref) == TORIRS_CONTRACT_OK )
-                count++;
-        }
-        return count;
+        /* The stones, not the mounts: a lane that numbers its sidebar answers
+         * `sidetab_<n>`, and a lane whose stones are authored builtins carries
+         * one sidebar member per stone. */
+        return porcelain_count_members(porcelain, "sidetab_%d", "sidebar:%d");
     default:
         break;
     }
@@ -2022,6 +2156,7 @@ porcelain_resolve_pending(struct Porcelain* porcelain)
             watch->pending_fences = 0;
             continue;
         }
+        porcelain_watch_respell(porcelain, watch);
         if( watch->state.bind == PORCELAIN_ABSENT )
         {
             /* An element that comes back binds through the watch listener, so
@@ -2320,6 +2455,7 @@ Porcelain_Close(struct Porcelain* porcelain)
         porcelain_remove_item(porcelain, &porcelain->applied_items[i]);
     for( int i = 0; i < PORCELAIN_EDITS_MAX; i++ )
         porcelain_release_edit(porcelain, &porcelain->applied_edits[i]);
+    Porcelain_OverlayRelease(porcelain);
     Porcelain_ReleaseAllAssets(porcelain);
     /* Relinquish BEFORE the handle dies: the host keeps both frame providers
      * alive for one fence by design, so an outgoing provider that kept its
@@ -2414,6 +2550,14 @@ static struct ToriRS_PorcelainApi const PORCELAIN_TABLE = {
     .every_server_tick = Porcelain_EveryServerTick,
     .every_ms = Porcelain_EveryMs,
     .tick = Porcelain_Tick,
+    .draw_context = Porcelain_DrawContext,
+    .menu_add = Porcelain_MenuAdd,
+    .note_menu = Porcelain_NoteMenu,
+    .hover = Porcelain_Hover,
+    .native_overlay = Porcelain_NativeOverlay,
+    .note_script = Porcelain_NoteScript,
+    .table = Porcelain_Table,
+    .notify = Porcelain_Notify,
 };
 
 struct ToriRS_PorcelainApi const*
