@@ -3035,7 +3035,7 @@ test-uitree: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
-		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_frame_provide.c \
+		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_anchor_reorder.c ui/test/uitree_test_widget_idempotent.c ui/test/uitree_test_input_walk.c ui/test/uitree_test_frame_provide.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_mounted_world.c \
 		ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \
@@ -3221,6 +3221,23 @@ bench-uitree: $(OBJ_DIR)
 		perf/torirs_perf.c \
 		ui/test/uitree_bench.c -lm
 	./$(OBJ_DIR)/uitree_bench
+
+# TEMPORARY (perf audit): the anchor-reorder microbenchmark.
+BENCH_NODES ?= 7202
+BENCH_RECORDS ?= 677
+BENCH_ANCHORS ?= 1
+bench-uitree-anchor: $(OBJ_DIR)
+	$(CC) -std=c11 -O2 -g -I$(SRC_DIR) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -I$(REPO_ROOT) \
+		-I$(RSCACHE_DIR)/include -I$(TORIDRAW_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) \
+		-DBENCH_NODES=$(BENCH_NODES) -DBENCH_RECORDS=$(BENCH_RECORDS) \
+		-DBENCH_ANCHORS=$(BENCH_ANCHORS) -DBENCH_ITERS=$(BENCH_ITERS) \
+		-o $(OBJ_DIR)/uitree_bench_anchor \
+		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c \
+		ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
+		ui/uitree_input.c ui/uitree_minimenu.c ui/uitree_hover.c ui/uitree_inv_view.c ui/uitree_obj_cell.c \
+		perf/torirs_perf.c \
+		ui/test/uitree_bench_anchor.c -lm
+	./$(OBJ_DIR)/uitree_bench_anchor
 
 test-uitree-builder: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/engine/uitree_builder -o $(OBJ_DIR)/uitree_builder_test \
@@ -3777,7 +3794,8 @@ test-revconfig: $(OBJ_DIR)
 		revconfig/test/revconfig_test_main.c revconfig/test/revconfig_test_buffer.c \
 		revconfig/test/revconfig_test_items.c revconfig/test/revconfig_test_load.c \
 		revconfig/test/revconfig_test_parse.c revconfig/test/revconfig_test_refs.c \
-		revconfig/test/revconfig_test_profile.c revconfig/test/revconfig_test_roles.c
+		revconfig/test/revconfig_test_profile.c revconfig/test/revconfig_test_roles.c \
+		revconfig/test/revconfig_test_tabs.c
 	./$(OBJ_DIR)/revconfig_test
 
 # Standalone TCP mock server for the OSRS rev-230 protocol: login handshake,
