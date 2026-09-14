@@ -193,26 +193,40 @@ def check_screenshot_saved(log, failures):
 
 
 def check_report_replaced(log, failures):
-    """The plugin's report-slot camera lies inside a native control whose
-    presentation the plugin hid: native paint and input off, native hide still
-    zero (server state intact), while the camera itself is a painted owned
-    graphic. Read from the final publication only."""
+    """The plugin's report-slot camera is an owned graphic anchored REPLACE to
+    the native report control: the engine drops the control's paint and input
+    while the camera is presented and restores them when it is not, and the
+    control's own state stays untouched (hidden 0, native_hide 0). The rule
+    asserts the anchor relation itself (anchor=3:<report node> on the camera
+    node), not the paint bits, so it holds however the engine orders the two.
+    Read from the final publication only."""
     final = log[log.rfind("NATIVE_ROOT id="):] if "NATIVE_ROOT id=" in log else log
-    cams = [tuple(map(int, m)) for m in re.findall(r"SCREENSHOT_CAMERA camera_report (-?\d+) (-?\d+) (\d+) (\d+)", log)]
-    cam = cams[-1] if cams else None
-    nodes = re.findall(r"NATIVE_UI node=\d+[^\n]*com=(-?\d+) type=(\w+) hidden=(\d) native_paint=(\d) native_input=(\d) native_hide=(\d)[^\n]*box=(-?\d+),(-?\d+),(\d+),(\d+)", final)
-    def contains(outer, inner):
-        ox, oy, ow, oh = outer; ix, iy, iw, ih = inner
-        return ox <= ix and oy <= iy and ix + iw <= ox + ow and iy + ih <= oy + oh
-    hidden_hosts = [n for n in nodes if cam and n[2] == "0" and n[3] == "0" and n[4] == "0" and n[5] == "0"
-                    and contains(tuple(map(int, n[6:])), cam) and n[1] in ("rs_graphic", "rs_layer", "chat_button")]
-    camera_nodes = [n for n in nodes if cam and n[0] == "-1" and n[1] == "rs_graphic" and n[3] == "1"
-                    and tuple(map(int, n[6:])) == cam]
-    print(f"PIXEL report_control_plugin_hidden={'PASS' if hidden_hosts else 'FAIL'} hosts={len(hidden_hosts)} camera={cam}")
-    if not hidden_hosts: failures.append("report_control_plugin_hidden")
-    print(f"PIXEL report_camera_painted={'PASS' if camera_nodes else 'FAIL'} nodes={len(camera_nodes)}")
-    if not camera_nodes: failures.append("report_camera_painted")
-
+    # The host names the camera control by the key the plugin created it under,
+    # unconditionally; the plugin's own SCREENSHOT_CAMERA log line needs
+    # TORIRS_PLUGIN_LOG and is not relied on.
+    owned = re.findall(r"OWNED_WIDGET owner=\d+ key=camera_report node=(\d+) box=(-?\d+),(-?\d+),(\d+),(\d+)", final)
+    cam_node = int(owned[-1][0]) if owned else -1
+    cam = tuple(map(int, owned[-1][1:])) if owned else None
+    reports = re.findall(r"ROLE_WIDGET role=report_button node=(\d+)", final)
+    report_node = int(reports[-1]) if reports else -1
+    nodes = re.findall(r"NATIVE_UI node=(\d+)[^\n]*com=(-?\d+) type=(\w+) hidden=(\d) native_paint=(\d) native_input=(\d) native_hide=(\d)[^\n]*box=(-?\d+),(-?\d+),(\d+),(\d+)[^\n]*anchor=(\d+):(-?\d+) plugin_hidden=(\d)", final)
+    REPLACE = 3
+    camera_nodes = [n for n in nodes if int(n[0]) == cam_node and n[1] == "-1" and n[2] == "rs_graphic"]
+    replaced = [n for n in camera_nodes if int(n[11]) == REPLACE and int(n[12]) == report_node and report_node >= 0]
+    # The plugin never hid the control itself: its widget-hide bit is clear.
+    # The cache's own hide and the engine's suppression are theirs to set (the
+    # mobile toplevel hides Report natively) and are reported, not asserted.
+    intact = [n for n in nodes if int(n[0]) == report_node and n[13] == "0"]
+    print(f"PIXEL report_control_replaced={'PASS' if replaced else 'FAIL'} camera={cam} report_node={report_node} anchors={[n[11]+':'+n[12] for n in camera_nodes]}")
+    if not replaced: failures.append("report_control_replaced")
+    print(f"PIXEL report_control_state_intact={'PASS' if intact else 'FAIL'} nodes={len(intact)} report_hidden={[n[3]+'/native_hide='+n[6]+'/plugin='+n[13] for n in nodes if int(n[0]) == report_node]}")
+    if not intact: failures.append("report_control_state_intact")
+    # The camera node is available on its own account; whether it is finally
+    # painted is the REPLACE veto's answer (it follows the report control's
+    # presentation), which the pixel rules on the chat bar read.
+    available = [n for n in camera_nodes if n[4] == "1"]
+    print(f"PIXEL report_camera_available={'PASS' if available else 'FAIL'} nodes={len(available)}")
+    if not available: failures.append("report_camera_available")
 
 def check_highlight_color(rows, log, spec, failures):
     """A cache highlight group was recorded live by the engine AND its exact

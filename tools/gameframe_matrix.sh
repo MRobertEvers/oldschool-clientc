@@ -321,8 +321,8 @@ while IFS='|' read tag m f s; do
   [[ -n "${GF_MATRIX_SCENE_OBJECTS:-}" ]] && widget_args+=(--scene-objects "$GF_MATRIX_SCENE_OBJECTS")
   # GF_MATRIX_SCREENSHOT_SAVED=1: a plugin "captured <path>" line whose file exists.
   [[ "${GF_MATRIX_SCREENSHOT_SAVED:-0}" == 1 ]] && widget_args+=(--screenshot-saved)
-  # GF_MATRIX_REPORT_REPLACED=1: the native report control is plugin-hidden (native
-  # hide untouched) and the plugin's camera control sits inside its slot.
+  # GF_MATRIX_REPORT_REPLACED=1: the plugin's camera control is anchored REPLACE to
+  # the native report control (the control's own state untouched).
   [[ "${GF_MATRIX_REPORT_REPLACED:-0}" == 1 ]] && widget_args+=(--report-replaced)
   if [[ "$m" == R ]]; then
     python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$f" \

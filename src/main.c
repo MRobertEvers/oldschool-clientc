@@ -3547,12 +3547,18 @@ frame_loop_teardown(void)
                     c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_height : -1,
                     c->scroll_x,
                     c->scroll_y);
+                /* The plugin anchor this node carries, so a capture rule can
+                 * assert "the camera REPLACES the report button" instead of
+                 * inferring it from paint bits. 0:-1 when none. */
+                int32_t anchor_target = -1;
+                enum UITreeWidgetRelation const anchor_relation =
+                    UITree_WidgetAnchorAt(app.tree, (int32_t)i, &anchor_target);
                 if( getenv("TORIRS_TRACE_NATIVE_UI") )
                     TORIRS_REPORT(
                         "NATIVE_UI node=%u incarnation=%" PRIu64 " parent=%d com=%d "
                         "type=%s hidden=%d native_paint=%d native_input=%d native_hide=%u slot=%u "
                         "member=%u role=%u "
-                        "box=%d,%d,%d,%d cs1_scripts=%d active=%d\n",
+                        "box=%d,%d,%d,%d cs1_scripts=%d active=%d anchor=%d:%d plugin_hidden=%d\n",
                         i,
                         c->incarnation,
                         c->parent,
@@ -3571,7 +3577,10 @@ frame_loop_teardown(void)
                         c->position.abs_w,
                         c->position.abs_h,
                         c->behavior.scripts_count,
-                        c->cs1_active);
+                        c->cs1_active,
+                        (int)anchor_relation,
+                        anchor_target,
+                        (int)c->widget_hidden);
                 /* Every widget a plugin OWNS, by the key it created it under:
                  * a text's length and hash, so a caption's content can be
                  * checked; an image's scene id, so its draw command can be
@@ -3581,9 +3590,7 @@ frame_loop_teardown(void)
                     c->type == UIELEM_RS_TEXT )
                 {
                     char const* text = c->u.rs_text.text ? c->u.rs_text.text : "";
-                    uint64_t hash = UINT64_C(14695981039346656037);
-                    for( unsigned char const* p = (unsigned char const*)text; *p; ++p )
-                        hash = (hash ^ *p) * UINT64_C(1099511628211);
+                    uint64_t hash = UITree_NodeTextHash(app.tree, (int32_t)i);
                     TORIRS_REPORT(
                         "OWNED_WIDGET owner=%" PRIu64
                         " key=%s node=%u box=%d,%d,%d,%d len=%zu hash=%016" PRIx64 " hidden=%d\n",
@@ -3618,9 +3625,7 @@ frame_loop_teardown(void)
                     c->u.rs_text.input )
                 {
                     char const* text = c->u.rs_text.text ? c->u.rs_text.text : "";
-                    uint64_t hash = UINT64_C(14695981039346656037);
-                    for( unsigned char const* p = (unsigned char const*)text; *p; ++p )
-                        hash = (hash ^ *p) * UINT64_C(1099511628211);
+                    uint64_t hash = UITree_NodeTextHash(app.tree, (int32_t)i);
                     TORIRS_REPORT(
                         "NATIVE_INPUT parent=%d com=%d focused=%d len=%zu hash=%016" PRIx64 "\n",
                         c->parent >= 0 ? app.tree->components[c->parent].component_id : -1,
