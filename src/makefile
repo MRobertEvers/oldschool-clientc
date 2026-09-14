@@ -1655,10 +1655,11 @@ test-uitree-keyboard-owner: $(OBJ_DIR)
 # frame and the map slides out from under the pointer over a long drag. Also
 # the click/drag split, and the map's own chrome keeping its clicks.
 .PHONY: test-worldmap-drag
-test-worldmap-drag: $(OBJ_DIR)
+test-worldmap-drag: $(OBJ_DIR) $(OBJ_DIR)/hmap.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/worldmap_drag_test$(PLATFORM_EXE_SUFFIX) \
 		game/test/rs_worldmap_drag_test.c game/rs_worldmap_drag.c game/rs_worldmap.c \
-		$(LDFLAGS)
+		engine/cache_provider.c engine/torirs_worldmap_from_rscache.c \
+		$(OBJ_DIR)/hmap.o $(LDFLAGS)
 	./$(OBJ_DIR)/worldmap_drag_test$(PLATFORM_EXE_SUFFIX)
 
 # The server's IF_SETEVENTS store: the arming gate for every click. Its failure
