@@ -584,6 +584,21 @@ endif
 
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
+# The Porcelain layer, as one name.
+#
+# Adding a file to the layer has broken the build twice: once for the panel
+# reconciler, once for the frame verbs. Both times the break surfaced as an
+# undefined symbol while linking some unrelated plugin's test, a long way from
+# the file that was added, and both times the fix was to find every rule that
+# had spelled the list out and add one more path to it. Spell it once instead.
+#
+# Defined ABOVE SRCS on purpose: the object list is expanded from SRCS with a
+# simply-expanded assignment, so a name defined further down the file expands
+# to nothing there and the layer silently drops out of the client binary --
+# which is a link error naming four .o files and no source at all.
+PORCELAIN_SRCS = plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+	plugin/porcelain/porcelain_panel.c plugin/porcelain/porcelain_frames.c
+
 SRCS = main.c executor_config.c app.c pacer.c \
 	$(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
 	platform/platform_app_icon.c \
@@ -2265,8 +2280,7 @@ test-nxt-plugins: $(OBJ_DIR) \
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 			ui/uitree_minimenu.c revconfig/revconfig.c \
-		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-		plugin/porcelain/porcelain_panel.c \
+		$(PORCELAIN_SRCS) \
 		plugin/plugins/nxt_highlight.c \
 		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 		plugin/test/nxt_activities_test.c $(LDFLAGS)
@@ -2366,16 +2380,6 @@ test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_fr
 # here, it records every call in order, and the recorded log is the
 # hand-expansion into raw api-> calls that the layer promises. Every rule the
 # cases pin names, in a comment above itself, the mutation that turns it red.
-# The Porcelain layer, as one name.
-#
-# Adding a file to the layer has broken the build twice: once for the panel
-# reconciler, once for the frame verbs. Both times the break surfaced as an
-# undefined symbol while linking some unrelated plugin's test, a long way from
-# the file that was added, and both times the fix was to find every rule that
-# had spelled the list out and add one more path to it. Spell it once instead.
-PORCELAIN_SRCS = plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-	plugin/porcelain/porcelain_panel.c plugin/porcelain/porcelain_frames.c
-
 .PHONY: test-porcelain
 test-porcelain: $(OBJ_DIR) $(PORCELAIN_SRCS) \
 		plugin/porcelain/test/porcelain_testbed.c plugin/porcelain/test/porcelain_test.c \

@@ -47,7 +47,19 @@ before you read the verdict.
 - **OWNED_WIDGET** by the key the plugin created it under, not by node index —
   so a control that legitimately moves in the tree is not a failure but a
   control that moves on screen is.
-- **PORCELAIN_FINDING** lines the plugin did not declare expected.
+- **PORCELAIN_FINDING** lines the plugin did not declare expected, compared
+  before against after like everything else. A finding the port INTRODUCED
+  fails; one that was already there is reported and does not. The frame a
+  finding was first raised on and the number of times it coalesced are a
+  function of when it happened rather than what happened, so they are not part
+  of its identity: two runs of the same binary disagree about both.
+
+  This is not a loophole, it is the only workable rule. A readout's
+  one-second timer racing the layout switch on `remount164` raises an
+  undeclared refusal on some runs and not others, and under the old rule that
+  failed every port on that lane for ever -- two in a row had to argue their
+  way past a red lane they had not caused, which is precisely the prose this
+  comparator exists to replace.
 
 Text that is a measurement is compared as measurement: a key beginning
 `performance_` is allowed to differ in its string but not in its box, because

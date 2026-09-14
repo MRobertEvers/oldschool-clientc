@@ -152,8 +152,31 @@ def hidden_of(tail):
     m = re.search(r"hidden=(\d)", tail)
     return m.group(1) if m else "?"
 
+# A finding line carries two fields that are a function of WHEN it happened,
+# not of what happened: the frame it was first raised on and how many times it
+# coalesced. Two runs of the same binary disagree about both.
+FINDING_VOLATILE = re.compile(r"\s*\b(?:first_frame|count)=\S+")
+
+def finding_key(line):
+    return FINDING_VOLATILE.sub("", line)
+
 def findings(path):
-    return [l for l in lines(path, "PORCELAIN_FINDING") or [] if "expected=1" not in l]
+    """Undeclared findings, keyed so two runs of the same tree agree.
+
+    Compared BEFORE against AFTER, like everything else here. A finding the
+    port introduced is a failure; one that was already there is the tree's
+    problem and not this port's, and failing a port for it makes the gate
+    unusable on that lane for ever -- which is exactly what happened: a
+    readout's one-second timer racing a layout switch raised an undeclared
+    refusal on some runs and not others, and two ports in a row had to argue
+    their way past a red lane they had not caused.
+    """
+    out = {}
+    for l in lines(path, "PORCELAIN_FINDING") or []:
+        if "expected=1" in l:
+            continue
+        out.setdefault(finding_key(l), l)
+    return out
 
 def compare(before, after, label, expect):
     bad = []
@@ -191,10 +214,14 @@ def compare(before, after, label, expect):
     for k in movedc[:6]: print("    ~ ", k, ob[k], "->", oa[k])
     for k in measured[:6]: print("    = ", k, "same box, measured text differs")
     if gone or new or movedc: bad.append("owned")
-    f = findings(after + "/log.txt")
-    print(f"{label}: unexpected findings {len(f)}")
-    for l in f[:4]: print("    !", l[:150])
-    if f: bad.append("findings")
+    fb, fa = findings(before + "/log.txt"), findings(after + "/log.txt")
+    introduced = [fa[k] for k in fa if k not in fb]
+    carried = [fa[k] for k in fa if k in fb]
+    print(f"{label}: unexpected findings {len(introduced)} introduced, "
+          f"{len(carried)} already there")
+    for l in introduced[:4]: print("    !", l[:150])
+    for l in carried[:4]: print("    ~ already before this port:", l[:130])
+    if introduced: bad.append("findings")
     return bad
 
 if __name__ == "__main__":
