@@ -1,4 +1,5 @@
 #include "plugin/plugins/plugin_draw.h"
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
@@ -213,21 +214,32 @@ struct LtPending
     bool confirmed;
 };
 
+/** What the secondary-click channel has open over the well. */
+enum LtMenuKind
+{
+    LT_MENU_NONE = 0,
+    /** script2907's own three: Collapse/Expand, Clear data, Ignore. */
+    LT_MENU_BAND,
+    /** script3042's two: Check and Ignore. */
+    LT_MENU_CELL
+};
+
 struct LootTrackerState
 {
     struct LtSource source[LT_SOURCES_MAX];
     int source_count;
-    int detail;
-    int built_detail;
-    int built_detail_source_id;
-    int built_rows;
-    int built_source_count;
-    int built_source_id[LT_SOURCES_MAX];
-    int built_source_items[LT_SOURCES_MAX];
+    /**
+     * The selected source, as the store's own ID and not an array index.
+     *
+     * Zero is "nothing selected". A resync reorders or drops rows, so an index
+     * remembered across one points at whatever moved into that slot; the id
+     * re-finds the source or clears the selection, which is the only answer
+     * that survives the store rewriting itself twice a second.
+     */
+    int detail_source_id;
     struct LtPending pending[LT_PENDING_MAX];
     int pending_count;
     int next_fallback_source_id;
-    bool page_built;
     bool page_visible;
 
     struct PluginDraw_Atlas bold;
@@ -285,18 +297,43 @@ struct LootTrackerState
     int ignored_hide_w;
     int ignored_hide_h;
 
-    uint32_t* compose;
-    int compose_w;
-    int compose_h;
-    struct ToriRS_ImageRef strip_image;
-    uint64_t compose_key;
     int well_w;
     uint64_t next_panel_ms;
     long long session_value;
     int session_kills;
-    bool dirty;
-    bool redraw_pending;
     uint64_t loot_revision;
+    /** Whether the store has been read once. The first read is not a set of
+     *  new kills; announcing it would greet a person opening the page with
+     *  one chat line per source the session already held. */
+    bool synced_once;
+    /**
+     * A compose that could not finish -- the art still in flight, or an obj
+     * icon the host answered PENDING.
+     *
+     * Retried at the REFRESH cadence and never per frame. Zeroing the picture
+     * key on a pending icon is the unbounded per-frame recompose the ledger
+     * names (H7); a counter that moves twice a second is bounded by
+     * construction, and stops moving the moment the last icon is resident.
+     */
+    bool paint_incomplete;
+    uint32_t paint_retry;
+    /* What the secondary click opened, and where. @see enum LtMenuKind. */
+    int menu_kind;
+    int menu_source_id;
+    int menu_obj_id;
+    /** The CELL the menu was opened over, as it read at that moment. The ops
+     *  are about the item a person right-clicked, and the store rewrites its
+     *  rows twice a second underneath the open menu. */
+    char menu_item_name[64];
+    int menu_item_quantity;
+    int menu_item_cost;
+    int menu_x;
+    int menu_y;
+    /** The lane HAS a loot store, so the inference path must never run.
+     *  Answered once, by capability, at on_start. */
+    bool store_lane;
+    struct ToriRS_Api* api;
+    struct Porcelain* porcelain;
 };
 
 struct LootTrackerRuntime
@@ -308,18 +345,24 @@ struct LootTrackerRuntime
 #define g_api (rt->api)
 #define g_source (rt->state->source)
 #define g_source_count (rt->state->source_count)
-#define g_detail (rt->state->detail)
-#define g_built_detail (rt->state->built_detail)
-#define g_built_detail_source_id (rt->state->built_detail_source_id)
-#define g_built_rows (rt->state->built_rows)
-#define g_built_source_count (rt->state->built_source_count)
-#define g_built_source_id (rt->state->built_source_id)
-#define g_built_source_items (rt->state->built_source_items)
+#define g_detail_source_id (rt->state->detail_source_id)
 #define g_pending (rt->state->pending)
 #define g_pending_count (rt->state->pending_count)
 #define g_next_fallback_source_id (rt->state->next_fallback_source_id)
-#define g_page_built (rt->state->page_built)
 #define g_page_visible (rt->state->page_visible)
+#define g_porcelain (rt->state->porcelain)
+#define g_store_lane (rt->state->store_lane)
+#define g_synced_once (rt->state->synced_once)
+#define g_paint_incomplete (rt->state->paint_incomplete)
+#define g_paint_retry (rt->state->paint_retry)
+#define g_menu_kind (rt->state->menu_kind)
+#define g_menu_source_id (rt->state->menu_source_id)
+#define g_menu_obj_id (rt->state->menu_obj_id)
+#define g_menu_item_name (rt->state->menu_item_name)
+#define g_menu_item_quantity (rt->state->menu_item_quantity)
+#define g_menu_item_cost (rt->state->menu_item_cost)
+#define g_menu_x (rt->state->menu_x)
+#define g_menu_y (rt->state->menu_y)
 #define g_bold (rt->state->bold)
 #define g_text (rt->state->text)
 #define g_img_spine (rt->state->img_spine)
@@ -373,18 +416,28 @@ struct LootTrackerRuntime
 #define g_ignored_hide_px (rt->state->ignored_hide_px)
 #define g_ignored_hide_w (rt->state->ignored_hide_w)
 #define g_ignored_hide_h (rt->state->ignored_hide_h)
-#define g_compose (rt->state->compose)
-#define g_compose_w (rt->state->compose_w)
-#define g_compose_h (rt->state->compose_h)
-#define g_strip_image (rt->state->strip_image)
-#define g_compose_key (rt->state->compose_key)
 #define g_well_w (rt->state->well_w)
 #define g_next_panel_ms (rt->state->next_panel_ms)
 #define g_session_value (rt->state->session_value)
 #define g_session_kills (rt->state->session_kills)
-#define g_dirty (rt->state->dirty)
-#define g_redraw_pending (rt->state->redraw_pending)
 #define g_loot_revision (rt->state->loot_revision)
+
+/**
+ * Something the description reads has moved.
+ *
+ * The whole page -- the well's height, its identity, its picture, the detail
+ * block's readouts and its caption -- is one describe function over the plugin
+ * state, so there is nothing to push: the layer re-runs the describe at the
+ * next fence, diffs it, and pays for exactly what differs. This is the only
+ * "the page is out of date" flag left, and it replaces `dirty`,
+ * `redraw_pending`, the built-topology tables and every invalidate call site.
+ */
+static void
+lt_changed(struct LootTrackerRuntime* rt)
+{
+    assert(rt);
+    Porcelain_Note(g_porcelain, PORCELAIN_INPUT_EXPLICIT);
+}
 
 /* ------------------------------------------------------------------------ */
 /* Names and numbers                                                         */
@@ -589,64 +642,6 @@ lt_listed(char const* list, char const* name)
     return false;
 }
 
-/** Add or remove one whole CSV entry without manufacturing empty commas. */
-static void
-lt_list_toggle(
-    char const* list,
-    char const* name,
-    char* out,
-    size_t out_size)
-{
-    bool const remove = lt_listed(list, name);
-    size_t used = 0;
-
-    assert(name);
-    assert(out);
-    assert(out_size > 0);
-    out[0] = '\0';
-    if( list )
-        while( *list )
-        {
-            char const* end = strchr(list, ',');
-            size_t len = end ? (size_t)(end - list) : strlen(list);
-            size_t start = 0;
-
-            while( start < len && (list[start] == ' ' || list[start] == '\t') )
-                start++;
-            while( len > start && (list[len - 1] == ' ' || list[len - 1] == '\t') )
-                len--;
-            if( len > start )
-            {
-                char entry[64];
-                size_t const copy = len - start < sizeof(entry) - 1
-                                        ? len - start
-                                        : sizeof(entry) - 1;
-                memcpy(entry, list + start, copy);
-                entry[copy] = '\0';
-                if( !(remove && lt_name_eq(entry, name)) )
-                {
-                    int const written = snprintf(
-                        out + used,
-                        out_size - used,
-                        "%s%s",
-                        used ? "," : "",
-                        entry);
-                    if( written < 0 || (size_t)written >= out_size - used )
-                    {
-                        out[out_size - 1] = '\0';
-                        return;
-                    }
-                    used += (size_t)written;
-                }
-            }
-            if( !end )
-                break;
-            list = end + 1;
-        }
-    if( !remove && name[0] && used < out_size - 1 )
-        (void)snprintf(out + used, out_size - used, "%s%s", used ? "," : "", name);
-}
-
 /** What one of `item` is worth, through the configured price source. */
 static char const*
 lt_config_string(struct LootTrackerRuntime* rt, char const* key)
@@ -672,17 +667,47 @@ lt_config_int(struct LootTrackerRuntime* rt, char const* key)
     return value;
 }
 
-/** RS2/dat1 has no LOOT_ADD producer; OldSchool does and must never also run
- * the inference path over the same spawn stream. */
+/**
+ * Add or remove one whole entry of a stored list.
+ *
+ * Porcelain measures before it joins and REFUSES a list that would not fit
+ * the host's value ceiling, leaving the stored list exactly as it was and
+ * recording one finding. The hand-rolled version this replaces joined into a
+ * 192-byte local with snprintf, so the 193rd byte of an ignore list was
+ * silently dropped -- a truncated last entry that then matched nothing and
+ * could never be removed, because the name a person typed was no longer in
+ * the store.
+ */
+static void
+lt_list_toggle(struct LootTrackerRuntime* rt, char const* key, char const* name)
+{
+    assert(rt);
+    assert(key);
+    assert(name);
+    assert(name[0]);
+    if( lt_listed(lt_config_string(rt, key), name) )
+        (void)Porcelain_ConfigListRemove(g_porcelain, key, name);
+    else
+        (void)Porcelain_ConfigListAdd(g_porcelain, key, name);
+}
+
+/**
+ * Does this lane have to INFER loot from despawns and spawns?
+ *
+ * The gate used to be `core.lane()->game == TORIRS_GAME_RS2` -- a lineage
+ * read, per despawn, per spawn, per tick and per action, and the wrong shape
+ * twice over: the loot store exists on every lane and answers revision 1 on
+ * all of them, so neither its presence nor its revision separates the two.
+ * The producers are the CS2 host's, so the question is "does this lane raise
+ * loot events", which is a capability, answered once at on_start.
+ *
+ * @see the ledger's "Lane gate" row and host fix H6.
+ */
 static bool
 lt_infers_loot(struct LootTrackerRuntime* rt)
 {
-    struct ToriRS_LaneInfo lane;
-
     assert(rt);
-    memset(&lane, 0, sizeof(lane));
-    return g_api->core.lane && g_api->core.lane(g_api, &lane) &&
-           lane.game == TORIRS_GAME_RS2;
+    return !g_store_lane;
 }
 
 static long long
@@ -810,6 +835,36 @@ lt_display_totals(
 /* ------------------------------------------------------------------------ */
 
 static int
+lt_source_index_by_id(struct LootTrackerRuntime* rt, int source_id)
+{
+    assert(rt);
+    for( int i = 0; i < g_source_count; i++ )
+        if( g_source[i].id == source_id )
+            return i;
+    return -1;
+}
+
+/** Where the SELECTED source sits now, or -1 for no selection and for one the
+ *  store has since dropped. @see LootTrackerState::detail_source_id. */
+static int
+lt_detail_index(struct LootTrackerRuntime* rt)
+{
+    assert(rt);
+    if( g_detail_source_id <= 0 )
+        return -1;
+    return lt_source_index_by_id(rt, g_detail_source_id);
+}
+
+/** Is a detail block declared at all: a selected source that is also VISIBLE
+ *  under the current filters. */
+static int
+lt_detail_visible_index(struct LootTrackerRuntime* rt)
+{
+    int const index = lt_detail_index(rt);
+    return index >= 0 && lt_source_visible(rt, index) ? index : -1;
+}
+
+static int
 lt_source_find(struct LootTrackerRuntime* rt, char const* name, bool create)
 {
     int poorest = -1;
@@ -841,8 +896,6 @@ lt_source_find(struct LootTrackerRuntime* rt, char const* name, bool create)
     g_source[poorest].id = ++g_next_fallback_source_id;
     snprintf(g_source[poorest].name, sizeof(g_source[poorest].name), "%s", name);
     g_expanded[poorest] = true;
-    if( g_detail == poorest )
-        g_detail = -1;
     return poorest;
 }
 
@@ -875,12 +928,35 @@ lt_source_remove(struct LootTrackerRuntime* rt, int index)
     memset(&g_source[g_source_count - 1], 0, sizeof(g_source[0]));
     g_expanded[g_source_count - 1] = true;
     g_source_count--;
-    if( g_detail == index )
-        g_detail = -1;
-    else if( g_detail > index )
-        g_detail--;
     lt_revalue(rt);
-    g_dirty = true;
+    lt_changed(rt);
+}
+
+/**
+ * "Goblin x12 loot: 1,204 gp", when the kill was worth announcing.
+ *
+ * Shared by both lanes, which it was not: this lived inside the INFERENCE
+ * path's settle, so on every CS2 lane -- where the store runs and the
+ * inference path never fires -- the `kill_chat_message` row was dead. Setting
+ * it did nothing, ever. The store's per-source kill-count delta raises the
+ * same line now. @see lt_sync_store.
+ */
+static void
+lt_announce(
+    struct LootTrackerRuntime* rt, char const* name, int kills, long long value)
+{
+    char line[200];
+    char amount[32];
+
+    assert(rt);
+    assert(name);
+    if( !lt_config_bool(rt, "kill_chat_message") )
+        return;
+    if( value < lt_config_int(rt, "chat_value_threshold") )
+        return;
+    lt_commas(value, amount, sizeof(amount));
+    snprintf(line, sizeof(line), "%s x%d loot: %s gp", name, kills, amount);
+    g_api->core.notify(g_api, line);
 }
 
 static void
@@ -908,18 +984,8 @@ lt_pending_settle(struct LootTrackerRuntime* rt, int index)
                          pending->items[i].quantity;
             }
             lt_revalue(rt);
-            g_dirty = true;
-            if( lt_config_bool(rt, "kill_chat_message") &&
-                value >= lt_config_int(rt, "chat_value_threshold") )
-            {
-                char line[200];
-                char amount[32];
-                lt_commas(value, amount, sizeof(amount));
-                snprintf(
-                    line, sizeof(line), "%s x%d loot: %s gp",
-                    source->name, source->kills, amount);
-                g_api->core.notify(g_api, line);
-            }
+            lt_changed(rt);
+            lt_announce(rt, source->name, source->kills, value);
         }
     }
     g_pending[index] = g_pending[--g_pending_count];
@@ -1423,8 +1489,15 @@ lt_draw_cell(
             TORIRS_ITEM_ICON_BORDERED, &image) != TORIRS_ASSET_READY ||
         !g_api->assets.image_size(g_api, image, &iw, &ih) )
     {
-        g_redraw_pending = true;
-        g_compose_key = 0;
+        /*
+         * The icon is not resident yet. The picture KEEPS the plate it just
+         * drew and the compose is marked incomplete; the refresh cadence
+         * retries it. Zeroing the picture key here -- which is what this did
+         * -- made every later frame miss the cache and recompose the whole
+         * strip, for ever, because one PENDING icon can stay pending.
+         * @see LootTrackerState::paint_incomplete and host fix H7.
+         */
+        g_paint_incomplete = true;
         if( image.value ) g_api->assets.image_release(g_api, image);
         return;
     }
@@ -1611,53 +1684,159 @@ lt_compose_key(struct LootTrackerRuntime* rt, int width)
                 LT_MIX((unsigned char)*at);
         }
     }
+    /*
+     * The band or cell MENU, which is part of the picture: it is painted into
+     * the same well, so a menu that opened without moving this hash would not
+     * appear until something else changed.
+     */
+    LT_MIX(g_menu_kind);
+    LT_MIX(g_menu_source_id);
+    LT_MIX(g_menu_obj_id);
+    LT_MIX(g_menu_x);
+    LT_MIX(g_menu_y);
+    /* And the retry, which is how an icon that arrived late gets drawn: the
+     * inputs are otherwise identical, so nothing would ask for the compose
+     * that would now succeed. It moves at the refresh cadence and only while
+     * a compose is incomplete. */
+    LT_MIX(g_paint_retry);
 #undef LT_MIX
     return k;
 }
 
-static void
-lt_compose(struct LootTrackerRuntime* rt, int width)
+/* ------------------------------------------------------------------------ */
+/* The band and cell menus                                                   */
+/*                                                                           */
+/* script2907 offers Collapse/Expand, Clear data and Ignore on a category     */
+/* header, and script3042 offers Check and Ignore on an item cell. Both are   */
+/* SECONDARY-click menus in the cache's own tracker, and a CUSTOM well had no */
+/* secondary-click channel at all until this round: every one of these ops    */
+/* had to stand as a button under a selected row, which is why selecting was  */
+/* a separate gesture from expanding.                                        */
+/*                                                                           */
+/* The channel exists now -- PorcelainRow::on_menu, with well-local x and y   */
+/* under the same generation and serial fences a click carries. What it does  */
+/* NOT carry is a chooser: the panel presenters have no popup of their own,   */
+/* and the world's minimenu is suppressed over the plugin window by           */
+/* app_chrome_wants_pointer, so a right click that reaches a well is the LAST */
+/* thing the client will do about it. The list is therefore painted into the  */
+/* well, which is what a well is for, and picked by the next primary click.   */
+/* @see the report's note on the shape of this channel.                       */
+/* ------------------------------------------------------------------------ */
+
+#define LT_MENU_W 108
+#define LT_MENU_ROW_H 15
+#define LT_MENU_PAD 2
+#define LT_MENU_ROWS_MAX 3
+
+/** The ops this menu offers, in the cache's own order. @see LtMenuKind. */
+static int
+lt_menu_rows(struct LootTrackerRuntime* rt, char rows[LT_MENU_ROWS_MAX][32])
 {
-    int const height = lt_strip_h(rt);
-    size_t const pixels = (size_t)width * (size_t)height;
-    uint64_t const key = lt_compose_key(rt, width);
+    assert(rt);
+    assert(rows);
+
+    if( g_menu_kind == LT_MENU_BAND )
+    {
+        int const index = lt_source_index_by_id(rt, g_menu_source_id);
+        if( index < 0 )
+            return 0;
+        snprintf(
+            rows[0], sizeof(rows[0]), "%s",
+            g_expanded[index] ? "Collapse" : "Expand");
+        snprintf(rows[1], sizeof(rows[1]), "Clear data");
+        snprintf(
+            rows[2], sizeof(rows[2]), "%s",
+            lt_source_ignored(rt, &g_source[index]) ? "Stop ignoring" : "Ignore");
+        return 3;
+    }
+    if( g_menu_kind == LT_MENU_CELL )
+    {
+        snprintf(rows[0], sizeof(rows[0]), "Check");
+        snprintf(
+            rows[1], sizeof(rows[1]), "%s",
+            lt_listed(lt_config_string(rt, "ignored_items"), g_menu_item_name)
+                ? "Stop ignoring"
+                : "Ignore");
+        return 2;
+    }
+    return 0;
+}
+
+static int
+lt_menu_h(int rows)
+{
+    return rows * LT_MENU_ROW_H + LT_MENU_PAD * 2;
+}
+
+/** The menu, over everything: it is the last thing the compose draws. */
+static void
+lt_draw_menu(struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h)
+{
+    char rows[LT_MENU_ROWS_MAX][32];
+    int const count = lt_menu_rows(rt, rows);
+    int height;
+
+    assert(rt);
+    assert(buf);
+    if( count <= 0 )
+        return;
+    height = lt_menu_h(count);
+
+    lt_thinbox(buf, w, h, g_menu_x, g_menu_y, LT_MENU_W, height);
+    if( g_spine_px )
+        PluginDraw_Tile(
+            buf, w, h, g_menu_x + LT_PLATE_INSET, g_menu_y + LT_PLATE_INSET,
+            LT_MENU_W - LT_PLATE_INSET * 2, height - LT_PLATE_INSET * 2,
+            g_spine_px, g_spine_w, g_spine_h, 0);
+    for( int i = 0; i < count; i++ )
+        PluginDraw_Text(
+            buf, w, h, g_menu_x + 5,
+            g_menu_y + LT_MENU_PAD + i * LT_MENU_ROW_H + 3, &g_text, rows[i],
+            LT_INK_HEAD);
+}
+
+/* ------------------------------------------------------------------------ */
+/* The picture                                                               */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Rasterise the whole strip.
+ *
+ * This is a `PorcelainPaintFn`: the layer calls it at most once per (key,
+ * inputs) and publishes what it fills, so the "has anything moved" test that
+ * used to live at the top of this function -- and the malloc'd buffer it kept
+ * to answer it -- are the layer's now. @see Porcelain_Derived.
+ *
+ * It returns true even when a cell's icon was not resident, because false is
+ * TERMINAL for these inputs: a strip that failed once because one obj icon was
+ * a frame late would never be drawn again. The incomplete flag and the retry
+ * counter are what bring it back. @see lt_draw_cell.
+ */
+static bool
+lt_paint_strip(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, int height)
+{
+    struct LootTrackerRuntime runtime = { api, user };
+    struct LootTrackerRuntime* rt = &runtime;
     int top = 0;
     int visible_sources = 0;
 
-    assert(rt);
-    if( width <= 0 || height <= 0 )
-        return;
-    /*
-     * Nothing moved, so the published picture is still the right one. An icon
-     * that was not resident when it was composed is the one thing this would
-     * miss, and lt_art_ready gates the whole draw on the art rather than on
-     * any one cell, so a late icon arrives with the next real change.
-     */
-    if( key == g_compose_key && g_compose && g_compose_w == width &&
-        g_compose_h == height )
-        return;
-    g_compose_key = key;
+    assert(api);
+    assert(user);
+    assert(argb);
 
-    if( !g_compose || g_compose_w != width || g_compose_h != height )
-    {
-        free(g_compose);
-        g_compose = malloc(pixels * sizeof(*g_compose));
-        assert(g_compose);
-        g_compose_w = width;
-        g_compose_h = height;
-    }
     /* Transparent, so the panel's own backing shows through exactly as the
      * interface's does behind its bands. */
-    memset(g_compose, 0, pixels * sizeof(*g_compose));
+    memset(argb, 0, (size_t)width * (size_t)height * sizeof(*argb));
+    g_paint_incomplete = false;
 
-    lt_draw_totals(rt, g_compose, width, height);
+    lt_draw_totals(rt, argb, width, height);
     top = LT_TOTALS_H + LT_HEAD_GAP;
     for( int i = 0; i < g_source_count; i++ )
         visible_sources += lt_source_visible(rt, i) ? 1 : 0;
 
     if( visible_sources == 0 )
         PluginDraw_Text(
-            g_compose, width, height, 4, top + 3, &g_text, "No loot to display.",
+            argb, width, height, 4, top + 3, &g_text, "No loot to display.",
             LT_INK_HEAD);
     else if( g_drop_view )
     {
@@ -1667,11 +1846,11 @@ lt_compose(struct LootTrackerRuntime* rt, int width)
 
         if( n == 0 )
             PluginDraw_Text(
-                g_compose, width, height, 4, top + 3,
+                argb, width, height, 4, top + 3,
                 &g_text, "No loot to display.", LT_INK_HEAD);
         for( int i = 0; i < n; i++ )
             lt_draw_cell(
-                rt, g_compose, width, height,
+                rt, argb, width, height,
                 lt_grid_x(width, i % LT_GRID_COLS),
                 top + (i / LT_GRID_COLS) * LT_CELL_H, &drops[i],
                 lt_item_ignored(rt, &drops[i]));
@@ -1682,29 +1861,77 @@ lt_compose(struct LootTrackerRuntime* rt, int width)
             int const source_h = lt_source_h(rt, i);
             if( source_h <= 0 )
                 continue;
-            lt_draw_source(rt, g_compose, width, height, top, i);
+            lt_draw_source(rt, argb, width, height, top, i);
             top += source_h;
         }
 
-    (void)g_api->assets.image_compose(
-        g_api, "strip", width, height, g_compose, &g_strip_image);
+    lt_draw_menu(rt, argb, width, height);
+    return true;
 }
 
 /**
- * Ask for a redraw of the strip only when the picture would differ.
+ * The well's own draw pass: hand the layer the picture's inputs and blit what
+ * comes back.
  *
- * The refresh runs on a timer, and an unconditional invalidate would put the
- * well through a full draw pass twice a second for a picture that is already
- * on screen -- every one of those passes a chance to catch the art or an obj
- * icon mid-flight and publish a frame that is missing one. Composing is keyed
- * on the drawn values; so is asking for the pass at all.
+ * The compose is keyed on everything a reader can SEE, so an unchanged strip
+ * costs one hash compare and no rasterisation -- and, because the row's
+ * `paint_key` is that same number, an unchanged strip is not even asked to
+ * draw. The 2 Hz unconditional redraw the ledger calls SUPPORTED-SLOW is
+ * gone with it.
  */
 static void
-lt_strip_invalidate(struct LootTrackerRuntime* rt)
+lt_paint(
+    struct ToriRS_Api* api, void* user, char const* key, struct ToriRS_Graphics* draw)
 {
-    assert(rt);
-    g_api->panel.redraw(g_api, "strip");
+    struct LootTrackerRuntime runtime = { api, user };
+    struct LootTrackerRuntime* rt = &runtime;
+    struct ToriRS_DrawContext context = { .struct_size = sizeof(context) };
+    enum PorcelainDerivedState state = PORCELAIN_DERIVED_FAILED;
+    struct ToriRS_ImageRef image;
+    uint64_t inputs;
+    int height;
+
+    assert(api);
+    assert(user);
+    assert(key);
+    assert(draw);
+    (void)key;
+
+    if( !draw->context(draw, &context) || context.bounds.width <= 0 )
+        return;
+    /*
+     * The art crosses the IO queue, so the first passes after a start have
+     * nothing to draw with. A CUSTOM paint that stages nothing keeps the last
+     * picture, which for the first pass is nothing at all; the retry brings
+     * it back. @see LootTrackerState::paint_incomplete.
+     */
+    if( !lt_art_ready(rt) )
+    {
+        g_paint_incomplete = true;
+        return;
+    }
+
+    /* The picture and the right-anchored hit boxes are measured against the
+     * SAME width, which is what keeps them from disagreeing. */
+    if( g_well_w != context.bounds.width )
+    {
+        g_well_w = context.bounds.width;
+        lt_changed(rt);
+    }
+    height = lt_strip_h(rt);
+    if( height <= 0 )
+        return;
+    inputs = lt_compose_key(rt, context.bounds.width);
+    image = Porcelain_Derived(
+        g_porcelain, "strip", &inputs, sizeof(inputs), context.bounds.width,
+        height, lt_paint_strip, rt->state, &state);
+    if( state == PORCELAIN_DERIVED_READY && image.value )
+        draw->image(draw, image, 0, 0, 255);
 }
+
+/* ------------------------------------------------------------------------ */
+/* The store                                                                 */
+/* ------------------------------------------------------------------------ */
 
 /**
  * Pull the client's own loot record into the page's tables.
@@ -1719,18 +1946,8 @@ lt_strip_invalidate(struct LootTrackerRuntime* rt)
  * one tile apart. Reading the store gets the game's answer instead of an
  * approximation of it.
  *
- * @return true when anything changed, which is what decides a rebuild.
+ * @return true when anything changed, which is what decides a re-describe.
  */
-static int
-lt_source_index_by_id(struct LootTrackerRuntime* rt, int source_id)
-{
-    assert(rt);
-    for( int i = 0; i < g_source_count; i++ )
-        if( g_source[i].id == source_id )
-            return i;
-    return -1;
-}
-
 static bool
 lt_sync_store(struct LootTrackerRuntime* rt)
 {
@@ -1738,9 +1955,9 @@ lt_sync_store(struct LootTrackerRuntime* rt)
     int before = g_source_count;
     int count = 0;
     bool changed = false;
-    bool had_detail = false;
-    int selected_source_id = 0;
     int old_id[LT_SOURCES_MAX];
+    int old_kills[LT_SOURCES_MAX];
+    long long old_value[LT_SOURCES_MAX];
     bool old_expanded[LT_SOURCES_MAX];
 
     assert(rt);
@@ -1748,14 +1965,9 @@ lt_sync_store(struct LootTrackerRuntime* rt)
     for( int i = 0; i < before; i++ )
     {
         old_id[i] = g_source[i].id;
+        old_kills[i] = g_source[i].kills;
+        old_value[i] = lt_source_value_visible(rt, &g_source[i], true);
         old_expanded[i] = g_expanded[i];
-    }
-    if( g_detail >= 0 && g_detail < before )
-    {
-        had_detail = true;
-        selected_source_id = g_page_built && g_built_detail >= 0
-                                 ? g_built_detail_source_id
-                                 : g_source[g_detail].id;
     }
 
     g_session_kills = 0;
@@ -1768,6 +1980,7 @@ lt_sync_store(struct LootTrackerRuntime* rt)
         struct LtSource previous;
         struct ToriRS_LootRow row;
         char name[64];
+        int was = -1;
 
         lt_clean_name(src.name, name, sizeof(name));
         if( !name[0] )
@@ -1786,6 +1999,7 @@ lt_sync_store(struct LootTrackerRuntime* rt)
             if( old_id[old] == src.id )
             {
                 g_expanded[count] = old_expanded[old];
+                was = old;
                 break;
             }
 
@@ -1810,14 +2024,29 @@ lt_sync_store(struct LootTrackerRuntime* rt)
         }
         if( count >= before || memcmp(&previous, dst, sizeof(*dst)) != 0 )
             changed = true;
+        /*
+         * The kill announcement, on the lane that HAS the store.
+         *
+         * The delta and not the total: what a person wants told is what this
+         * kill was worth. The first sync of a session announces nothing --
+         * every source is new there, and greeting somebody who opened the
+         * page with one line per source it already held is not the feature.
+         */
+        if( g_synced_once && dst->kills > (was >= 0 ? old_kills[was] : 0) )
+            lt_announce(
+                rt, dst->name, dst->kills,
+                lt_source_value_visible(rt, dst, true) -
+                    (was >= 0 ? old_value[was] : 0));
         count++;
     }
 
     g_source_count = count;
     if( before != count )
         changed = true;
-    g_detail = had_detail ? lt_source_index_by_id(rt, selected_source_id) : -1;
+    /* The selection is an ID, so a reorder re-finds it and a drop clears it
+     * without anything here having to say so. */
     lt_revalue(rt);
+    g_synced_once = true;
     return changed;
 }
 
@@ -1841,148 +2070,84 @@ lt_sync_changed(struct LootTrackerRuntime* rt, bool force)
     return changed;
 }
 
-/* Does the current store still have the exact vertical/identity topology
- * painted into this CUSTOM widget? A different source order or item-row count
- * must receive a new widget serial before pointer input is accepted. */
-static bool
-lt_page_topology_stale(struct LootTrackerRuntime* rt)
-{
-    int visible = 0;
-
-    assert(rt);
-    if( !g_page_built )
-        return false;
-    for( int i = 0; i < g_source_count; i++ )
-    {
-        if( !lt_source_visible(rt, i) )
-            continue;
-        if( visible >= g_built_source_count ||
-            g_source[i].id != g_built_source_id[visible] ||
-            lt_source_visible_items(rt, &g_source[i]) !=
-                g_built_source_items[visible] )
-            return true;
-        visible++;
-    }
-    return g_page_built && visible != g_built_source_count;
-}
-
-static void
-lt_page_topology_remember(struct LootTrackerRuntime* rt)
-{
-    assert(rt);
-    g_built_source_count = 0;
-    for( int i = 0; i < g_source_count; i++ )
-    {
-        if( !lt_source_visible(rt, i) )
-            continue;
-        g_built_source_id[g_built_source_count] = g_source[i].id;
-        g_built_source_items[g_built_source_count] =
-            lt_source_visible_items(rt, &g_source[i]);
-        g_built_source_count++;
-    }
-}
-
-/** Rewrite every readout on the built page. */
-static void
-lt_page_refresh(struct LootTrackerRuntime* rt)
-{
-    char text[128];
-
-    assert(rt);
-    if( !g_page_built )
-        return;
-
-    /*
-     * A band arriving, or a drop grid growing a row, makes the well TALLER.
-     * That is a property of a widget the page already has, so the retained
-     * page states it in place -- the same call the build makes. This used to
-     * be a panel_clear, and re-declaring the whole page every time a kill
-     * landed is what the list flashed on.
-     */
-    g_built_rows = lt_strip_h(rt);
-    (void)g_api->panel.set_height(g_api, "strip", g_built_rows);
-
-    /* The bands are pixels and redraw themselves. */
-    lt_strip_invalidate(rt);
-
-    if( g_detail >= 0 && g_detail < g_source_count &&
-        lt_source_visible(rt, g_detail) )
-    {
-        struct LtSource const* src = &g_source[g_detail];
-
-        (void)g_api->panel.set_text(g_api, "sec_detail", src->name);
-        lt_commas(src->kills, text, sizeof(text));
-        (void)g_api->panel.set_text(g_api, "d_kills", text);
-        lt_commas(
-            lt_source_value_visible(rt, src, g_show_ignored), text, sizeof(text));
-        (void)g_api->panel.set_text(g_api, "d_value", text);
-        if( src->kills > 0 )
-        {
-            lt_commas(
-                lt_source_value_visible(rt, src, g_show_ignored) / src->kills,
-                text,
-                sizeof(text));
-            (void)g_api->panel.set_text(g_api, "d_per_kill", text);
-        }
-        else
-            (void)g_api->panel.set_text(g_api, "d_per_kill", "0");
-        g_built_detail = g_detail;
-        g_built_detail_source_id = src->id;
-    }
-}
+/* ------------------------------------------------------------------------ */
+/* The description                                                           */
+/* ------------------------------------------------------------------------ */
 
 /**
- * The well's y-to-source mapping moved; the page's row set did not.
+ * The well's INPUT identity: what a click at a given y means.
  *
- * A band arriving, or a drop grid growing a row, means a click queued against
- * the picture that was there has to be refused -- and that is an IDENTITY
- * change on ONE well, not a page. It used to be panel.invalidate, which
- * re-declares every row: the page went back to the top of its scroll and the
- * well blanked on any pass that had nothing staged yet. The page's rows here
- * are the strip and the optional detail block, and neither of those changes
- * because a source appeared.
- *
- * Remembering the topology is part of it: without that the next tick would
- * see the same staleness and remint the identity again, every tick.
+ * The ordered list of (visible source id, visible item count), the view, the
+ * expansion state and whatever menu is open -- everything that decides which
+ * thing lies under a coordinate, and nothing that does not. A value change is
+ * deliberately absent: a band whose gp figure moved is the same band in the
+ * same place, and putting the figure in here would retire the well's retained
+ * run twice a second for a picture whose geometry never moved.
  */
-static void
-lt_strip_reidentify(struct LootTrackerRuntime* rt)
+static uint64_t
+lt_hit_key(struct LootTrackerRuntime* rt)
 {
+    uint64_t k = 1469598103934665603ull;
+
+#define LT_MIX(v)                                                                        \
+    do                                                                                   \
+    {                                                                                    \
+        k ^= (uint64_t)(v);                                                              \
+        k *= 1099511628211ull;                                                           \
+    } while( 0 )
+
     assert(rt);
-    (void)g_api->panel.reidentify(g_api, "strip");
-    lt_page_topology_remember(rt);
-    lt_page_refresh(rt);
+    LT_MIX(g_drop_view ? 1 : 0);
+    LT_MIX(g_show_ignored ? 1 : 0);
+    LT_MIX(g_menu_kind);
+    LT_MIX(g_menu_x);
+    LT_MIX(g_menu_y);
+    for( int i = 0; i < g_source_count; i++ )
+    {
+        if( !lt_source_visible(rt, i) )
+            continue;
+        LT_MIX(g_source[i].id);
+        LT_MIX(lt_source_visible_items(rt, &g_source[i]));
+        LT_MIX(g_expanded[i] ? 1 : 0);
+    }
+#undef LT_MIX
+    return k;
 }
 
+static void lt_strip_click(
+    struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action);
+static void lt_strip_menu(
+    struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action);
+static void lt_detail_action(
+    struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action);
+
+/**
+ * The page, described.
+ *
+ * One well and, when a source is selected, the detail block. The ordered
+ * (key, kind) sequence IS the declaration: opening or closing the detail block
+ * is the page's one legitimate rebuild, and everything else a kill can do --
+ * a taller strip, a new band, a bigger number, a caption that flipped from
+ * Ignore to Stop ignoring -- is a property of a row the page already has.
+ *
+ * What is NOT here is the bookkeeping that used to be: built_rows,
+ * built_detail, built_detail_source_id, built_source_id[], built_source_items[]
+ * and page_built existed to answer "does the host's copy still match mine",
+ * which is the question the reconciler is.
+ */
 static void
-lt_panel_build(
-    struct ToriRS_Api* api,
-    void* state_ptr,
-    struct ToriRS_PanelBuilder* panel,
-    int view)
+lt_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
 {
-    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime runtime = { ((struct LootTrackerState*)user)->api, user };
     struct LootTrackerRuntime* rt = &runtime;
+    struct PorcelainRow row;
+    int const detail = lt_detail_visible_index(rt);
+    char kills[64];
+    char value[64];
+    char per_kill[64];
 
-    assert(api);
-    assert(panel);
-
-    /* The SETTINGS face is the generated form and nothing else -- every knob
-     * here is a config key. @see enum ToriRS_PanelView. */
-    if( view != TORIRS_PANEL_VIEW_PAGE )
-    {
-        g_page_built = false;
-        return;
-    }
-
-    if( !lt_infers_loot(rt) )
-        (void)lt_sync_changed(rt, true);
-    lt_page_topology_remember(rt);
-    g_built_rows = lt_strip_h(rt);
-
-    /* No Session rows: the strip's own totals band carries them, exactly as
-     * the game's tracker does, and two readouts of one number that round
-     * differently is how they come to disagree. */
+    assert(describe);
+    assert(user);
 
     /*
      * ONE drawing well for every band, which is what the CS2 tracker is: a
@@ -1990,303 +2155,516 @@ lt_panel_build(
      * it would be a header plus a control per item and would run out of the
      * 48-control budget inside one boss trip.
      */
-    panel->custom(panel, "strip", lt_strip_h(rt));
+    memset(&row, 0, sizeof(row));
+    row.key = "strip";
+    row.kind = PORCELAIN_ROW_CUSTOM;
+    row.height = lt_strip_h(rt);
+    row.hit_key = lt_hit_key(rt);
+    row.paint_key = lt_compose_key(rt, g_well_w);
+    row.paint = lt_paint;
+    row.on_action = lt_strip_click;
+    row.on_menu = lt_strip_menu;
+    row.user = user;
+    Porcelain_Row(describe, &row);
 
     /*
-     * The header's own ops, as buttons under the source they act on. The CS2
-     * header offers Collapse/Expand, Clear data and Ignore/Stop ignoring, and
-     * an item cell offers Ignore -- the same set, reached the only way a
-     * drawing well can offer one, because a panel has no secondary-click
-     * channel to hang a menu on.
+     * No Session rows: the strip's own totals band carries them, exactly as
+     * the game's tracker does, and two readouts of one number that round
+     * differently is how they come to disagree.
+     *
+     * No "clear all" row either. The tracker this is a port of has no such
+     * control: its clears are ops on a BAND -- one source at a time -- and a
+     * page-wide button was this port's invention.
      */
-    g_built_detail = g_detail;
-    if( g_detail >= 0 && g_detail < g_source_count &&
-        lt_source_visible(rt, g_detail) )
-    {
-        struct ToriRS_PanelNode heading = {
-            .struct_size = sizeof(heading),
-            .kind = TORIRS_PANEL_HEADING,
-            .id = "sec_detail",
-            .text = g_source[g_detail].name,
-        };
-        char text[64];
-        g_built_detail_source_id = g_source[g_detail].id;
-        (void)panel->node(panel, &heading);
-        lt_commas(g_source[g_detail].kills, text, sizeof(text));
-        panel->key_value(panel, "d_kills", "Kills", text);
-        lt_commas(
-            lt_source_value_visible(rt, &g_source[g_detail], g_show_ignored),
-            text,
-            sizeof(text));
-        panel->key_value(panel, "d_value", "Value", text);
-        if( g_source[g_detail].kills > 0 )
-            lt_commas(
-                lt_source_value_visible(
-                    rt, &g_source[g_detail], g_show_ignored) /
-                    g_source[g_detail].kills,
-                text, sizeof(text));
-        else
-            snprintf(text, sizeof(text), "0");
-        panel->key_value(panel, "d_per_kill", "Value per kill", text);
-        panel->button(panel, "d_clear", "Clear data", true);
-        panel->button(
-            panel,
-            "d_ignore",
-            lt_source_ignored(rt, &g_source[g_detail]) ? "Stop ignoring" : "Ignore",
-            true);
-    }
-    else
-    {
-        g_built_detail = -1;
-        g_built_detail_source_id = 0;
-    }
+    if( detail < 0 )
+        return;
 
-    /*
-     * No "clear all" row. The tracker this is a port of has no such control:
-     * its clears are ops on a BAND -- the detail block's own Clear data, one
-     * source at a time -- and a page-wide button was this port's invention.
-     * @see the same note on the xp tracker's page.
-     */
+    {
+        struct LtSource const* src = &g_source[detail];
+        long long const total = lt_source_value_visible(rt, src, g_show_ignored);
 
-    g_page_built = true;
-    lt_page_refresh(rt);
+        lt_commas(src->kills, kills, sizeof(kills));
+        lt_commas(total, value, sizeof(value));
+        lt_commas(src->kills > 0 ? total / src->kills : 0, per_kill, sizeof(per_kill));
+
+        memset(&row, 0, sizeof(row));
+        row.key = "sec_detail";
+        row.kind = PORCELAIN_ROW_HEADING;
+        row.text = src->name;
+        Porcelain_Row(describe, &row);
+
+        memset(&row, 0, sizeof(row));
+        row.key = "d_kills";
+        row.kind = PORCELAIN_ROW_KEY_VALUE;
+        row.label = "Kills";
+        row.text = kills;
+        Porcelain_Row(describe, &row);
+
+        memset(&row, 0, sizeof(row));
+        row.key = "d_value";
+        row.kind = PORCELAIN_ROW_KEY_VALUE;
+        row.label = "Value";
+        row.text = value;
+        Porcelain_Row(describe, &row);
+
+        memset(&row, 0, sizeof(row));
+        row.key = "d_per_kill";
+        row.kind = PORCELAIN_ROW_KEY_VALUE;
+        row.label = "Value per kill";
+        row.text = per_kill;
+        Porcelain_Row(describe, &row);
+
+        memset(&row, 0, sizeof(row));
+        row.key = "d_clear";
+        row.kind = PORCELAIN_ROW_BUTTON;
+        row.text = "Clear data";
+        row.on_action = lt_detail_action;
+        row.user = user;
+        Porcelain_Row(describe, &row);
+
+        /*
+         * The caption is the state the press will LEAVE, so it has to flip the
+         * moment the list changes. It is a patched property of this row now;
+         * before host fix H1 a caption set on its own reported OK and applied
+         * nothing, and this one only ever changed because the action that
+         * wrote the list also re-declared the whole page.
+         */
+        memset(&row, 0, sizeof(row));
+        row.key = "d_ignore";
+        row.kind = PORCELAIN_ROW_BUTTON;
+        row.text = lt_source_ignored(rt, src) ? "Stop ignoring" : "Ignore";
+        row.on_action = lt_detail_action;
+        row.user = user;
+        Porcelain_Row(describe, &row);
+    }
+}
+
+/* ------------------------------------------------------------------------ */
+/* What a person did                                                         */
+/* ------------------------------------------------------------------------ */
+
+/** The item cell at a well-local point, and the source it belongs to.
+ *  False for a point that is not over one. */
+static bool
+lt_cell_at(
+    struct LootTrackerRuntime* rt, int x, int y, struct LtItem* out_item)
+{
+    int const top = LT_TOTALS_H + LT_HEAD_GAP;
+    int column = -1;
+    int index;
+
+    assert(rt);
+    assert(out_item);
+
+    for( int c = 0; c < LT_GRID_COLS; c++ )
+    {
+        int const at = lt_grid_x(g_well_w, c);
+        if( x >= at && x < at + LT_CELL_W )
+            column = c;
+    }
+    if( column < 0 )
+        return false;
+
+    if( g_drop_view )
+    {
+        struct LtItem drops[LT_SOURCES_MAX * 4];
+        int const n = lt_collect_drops(
+            rt, drops, (int)(sizeof(drops) / sizeof(drops[0])));
+        if( y < top )
+            return false;
+        index = (y - top) / LT_CELL_H * LT_GRID_COLS + column;
+        if( index < 0 || index >= n )
+            return false;
+        *out_item = drops[index];
+        return true;
+    }
+    {
+        int local_y = 0;
+        int const source = lt_source_at(rt, y, &local_y);
+        int seen = 0;
+        if( source < 0 || !g_expanded[source] || local_y < LT_GRID_TOP )
+            return false;
+        index = (local_y - LT_GRID_TOP) / LT_CELL_H * LT_GRID_COLS + column;
+        for( int i = 0; i < g_source[source].item_count; i++ )
+        {
+            if( !lt_item_visible(rt, &g_source[source].items[i]) )
+                continue;
+            if( seen++ != index )
+                continue;
+            *out_item = g_source[source].items[i];
+            return true;
+        }
+    }
+    return false;
+}
+
+static void
+lt_menu_close(struct LootTrackerRuntime* rt)
+{
+    assert(rt);
+    if( g_menu_kind == LT_MENU_NONE )
+        return;
+    g_menu_kind = LT_MENU_NONE;
+    g_menu_source_id = 0;
+    g_menu_obj_id = 0;
+    g_menu_item_name[0] = '\0';
+    lt_changed(rt);
+}
+
+/** Clear one source's record: the store's own op on the store lane, and this
+ *  plugin's record on the lane that has none. A refusal is logged and the page
+ *  is left alone rather than clearing locally. */
+static void
+lt_clear_source(struct LootTrackerRuntime* rt, int source_id)
+{
+    int const source = lt_source_index_by_id(rt, source_id);
+
+    assert(rt);
+    if( source < 0 )
+        return;
+    if( lt_infers_loot(rt) )
+    {
+        lt_source_remove(rt, source);
+        if( g_detail_source_id == source_id )
+            g_detail_source_id = 0;
+        return;
+    }
+    if( !g_api->game->loot_source_clear ||
+        !g_api->game->loot_source_clear(g_api, source_id) )
+    {
+        Porcelain_Finding(
+            g_porcelain, "loot_source_clear", PORCELAIN_EL(NONE),
+            PORCELAIN_FINDING_REFUSED, "clear data");
+        g_api->core.log(g_api, "loot-tracker: could not clear loot source %d", source_id);
+        return;
+    }
+    if( g_detail_source_id == source_id )
+        g_detail_source_id = 0;
+    (void)lt_sync_changed(rt, true);
+    lt_changed(rt);
 }
 
 /**
- * Draw the selected source's drops.
+ * Ignore or stop ignoring one source.
  *
- * Every icon is asked for again, on every pass, and that is the contract
- * rather than an oversight: `obj_image` hands back a handle out of a
- * host-owned evicting cache, and a plugin that remembered one across frames
- * would eventually draw nothing. @see ToriRS_GameApi::item_image.
+ * Config callbacks are synchronous in the host, so the detail block is closed
+ * BEFORE the filter is published or the re-entrant reconciliation would index
+ * a row it just removed.
  */
 static void
-lt_panel_draw(
-    struct ToriRS_Api* api,
-    void* state_ptr,
-    char const* node,
-    struct ToriRS_Graphics* draw)
+lt_ignore_source(struct LootTrackerRuntime* rt, int source_id)
 {
-    struct LootTrackerRuntime runtime = { api, state_ptr };
-    struct LootTrackerRuntime* rt = &runtime;
-    struct ToriRS_DrawContext context = { .struct_size = sizeof(context) };
+    int const source = lt_source_index_by_id(rt, source_id);
+    char name[sizeof(g_source[0].name)];
 
-    assert(api);
-    assert(node);
-    assert(draw);
-
-    if( strcmp(node, "strip") != 0 || !draw->context(draw, &context) ||
-        context.bounds.width <= 0 )
+    assert(rt);
+    if( source < 0 )
         return;
-    /* The art crosses the IO queue, so the first passes after a start have
-     * nothing to draw with. The next invalidate fills it -- the same state the
-     * client's own inventory icons are in for a frame or two. */
-    if( !lt_art_ready(rt) )
-    {
-        g_redraw_pending = true;
-        return;
-    }
-
-    g_well_w = context.bounds.width;
-    g_redraw_pending = false;
-    lt_compose(rt, context.bounds.width);
-    if( g_strip_image.value )
-        draw->image(draw, g_strip_image, 0, 0, 255);
+    snprintf(name, sizeof(name), "%s", g_source[source].name);
+    g_detail_source_id = 0;
+    lt_list_toggle(rt, "ignored_sources", name);
+    if( !lt_infers_loot(rt) )
+        (void)lt_sync_changed(rt, true);
+    lt_changed(rt);
 }
 
+/**
+ * The band's own menu, and the cell's, as a picked row.
+ *
+ * The ops are exactly script2907's and script3042's, in their order, and the
+ * FIRST of each is what a primary click already does -- Collapse/Expand on a
+ * header -- which is the rule every minimenu in this game follows.
+ */
 static void
-lt_panel_action(
-    struct ToriRS_Api* api,
-    void* state_ptr,
-    struct ToriRS_PanelActionEvent const* ev)
+lt_menu_pick(struct LootTrackerRuntime* rt, int picked)
 {
-    struct LootTrackerRuntime runtime = { api, state_ptr };
+    int const kind = g_menu_kind;
+    int const source_id = g_menu_source_id;
+    char item[sizeof(g_menu_item_name)];
+    int const quantity = g_menu_item_quantity;
+    long long unit;
+
+    assert(rt);
+    snprintf(item, sizeof(item), "%s", g_menu_item_name);
+    {
+        struct LtItem snapshot;
+        memset(&snapshot, 0, sizeof(snapshot));
+        snapshot.cost = g_menu_item_cost;
+        unit = lt_unit_value(rt, &snapshot);
+    }
+    lt_menu_close(rt);
+
+    if( kind == LT_MENU_BAND )
+    {
+        int const source = lt_source_index_by_id(rt, source_id);
+        if( source < 0 )
+            return;
+        if( picked == 0 )
+        {
+            g_expanded[source] = !g_expanded[source];
+            lt_changed(rt);
+            return;
+        }
+        if( picked == 1 )
+        {
+            lt_clear_source(rt, source_id);
+            return;
+        }
+        lt_ignore_source(rt, source_id);
+        return;
+    }
+    if( kind != LT_MENU_CELL || !item[0] )
+        return;
+    if( picked == 0 )
+    {
+        /* Check: what this stack is worth through the configured basis, which
+         * is the one number the cell itself has no room to print. */
+        char line[200];
+        char amount[32];
+        lt_commas(unit * quantity, amount, sizeof(amount));
+        snprintf(line, sizeof(line), "%s x%d: %s gp", item, quantity, amount);
+        g_api->core.notify(g_api, line);
+        return;
+    }
+    lt_list_toggle(rt, "ignored_items", item);
+    lt_changed(rt);
+}
+
+/** A SECONDARY click in the well: open the band's or the cell's menu. */
+static void
+lt_strip_menu(
+    struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    struct LootTrackerRuntime runtime = { api, user };
     struct LootTrackerRuntime* rt = &runtime;
+    struct LtItem item;
+    char rows[LT_MENU_ROWS_MAX][32];
+    int count;
+    int height;
 
     assert(api);
-    assert(ev);
-    assert(ev->id);
+    assert(user);
+    assert(action);
+
+    g_api->panel.attention(g_api, false);
+    lt_menu_close(rt);
+    /* The totals band's four controls are not a subject, so a right click
+     * there means nothing, exactly as it does in the cache's own band. */
+    if( action->y < LT_TOTALS_H )
+        return;
+
+    if( lt_cell_at(rt, action->x, action->y, &item) )
+    {
+        g_menu_kind = LT_MENU_CELL;
+        g_menu_obj_id = item.obj_id;
+        g_menu_item_quantity = item.quantity;
+        g_menu_item_cost = item.cost;
+        snprintf(g_menu_item_name, sizeof(g_menu_item_name), "%s", item.name);
+    }
+    else if( !g_drop_view )
+    {
+        int local_y = 0;
+        int const source = lt_source_at(rt, action->y, &local_y);
+        if( source < 0 )
+            return;
+        g_menu_kind = LT_MENU_BAND;
+        g_menu_source_id = g_source[source].id;
+    }
+    else
+        return;
+
+    count = lt_menu_rows(rt, rows);
+    if( count <= 0 )
+    {
+        g_menu_kind = LT_MENU_NONE;
+        return;
+    }
+    height = lt_menu_h(count);
+    /* Placed where the click was, and clamped so the whole list is inside the
+     * well: the well is the only surface this plugin can draw on, and a menu
+     * hanging off the bottom of it is a menu whose last op cannot be reached. */
+    g_menu_x = action->x;
+    if( g_menu_x > g_well_w - LT_MENU_W )
+        g_menu_x = g_well_w - LT_MENU_W;
+    if( g_menu_x < 0 )
+        g_menu_x = 0;
+    g_menu_y = action->y;
+    if( g_menu_y > lt_strip_h(rt) - height )
+        g_menu_y = lt_strip_h(rt) - height;
+    if( g_menu_y < 0 )
+        g_menu_y = 0;
+    lt_changed(rt);
+}
+
+/**
+ * A primary click in the well.
+ *
+ * The bands are variable height -- an expanded one carries its grid -- so the
+ * source is found by walking them rather than by dividing, and the header's
+ * own first op decides what the click means: inside the 33-tall band it
+ * EXPANDS or collapses, which is script2907's Collapse/Expand, and it also
+ * selects the source so the detail block has something to act on.
+ */
+static void
+lt_strip_click(
+    struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    struct LootTrackerRuntime runtime = { api, user };
+    struct LootTrackerRuntime* rt = &runtime;
+    int local_y = 0;
+    int source;
+
+    assert(api);
+    assert(user);
+    assert(action);
 
     g_api->panel.attention(g_api, false);
 
-    if( strcmp(ev->id, "d_close") == 0 )
+    /* An open menu is modal to the well: the click that follows one belongs to
+     * picking from it or to dismissing it, never to what is underneath. */
+    if( g_menu_kind != LT_MENU_NONE )
     {
-        g_detail = -1;
-        g_api->panel.invalidate(g_api);
-        return;
-    }
-    if( strcmp(ev->id, "d_clear") == 0 && g_built_detail_source_id > 0 )
-    {
-        int const source_id = g_built_detail_source_id;
-        int const source = lt_source_index_by_id(rt, source_id);
-        if( source < 0 )
+        char rows[LT_MENU_ROWS_MAX][32];
+        int const count = lt_menu_rows(rt, rows);
+        int const height = lt_menu_h(count);
+        if( count > 0 && action->x >= g_menu_x && action->x < g_menu_x + LT_MENU_W &&
+            action->y >= g_menu_y && action->y < g_menu_y + height )
         {
-            g_api->panel.invalidate(g_api);
+            int picked = (action->y - g_menu_y - LT_MENU_PAD) / LT_MENU_ROW_H;
+            if( picked < 0 )
+                picked = 0;
+            if( picked >= count )
+                picked = count - 1;
+            lt_menu_pick(rt, picked);
             return;
         }
-        if( lt_infers_loot(rt) )
-            lt_source_remove(rt, source);
-        else if( !g_api->game->loot_source_clear ||
-                 !g_api->game->loot_source_clear(g_api, source_id) )
-        {
-            g_api->core.log(api, "loot-tracker: could not clear loot source %d", source_id);
-            return;
-        }
-        g_detail = -1;
-        if( !lt_infers_loot(rt) )
-            (void)lt_sync_changed(rt, true);
-        g_dirty = true;
-        g_api->panel.invalidate(g_api);
-        return;
-    }
-
-    if( strcmp(ev->id, "d_ignore") == 0 && g_built_detail_source_id > 0 )
-    {
-        /* The header's third op. The list is the config key a person can also
-         * type into, so both ways of saying it end up in one place. */
-        char list[LT_CONFIG_VALUE_MAX];
-        char const* existing = lt_config_string(rt, "ignored_sources");
-        char source_name[sizeof(g_source[0].name)];
-        int const source = lt_source_index_by_id(rt, g_built_detail_source_id);
-
-        if( source < 0 )
-        {
-            g_api->panel.invalidate(g_api);
-            return;
-        }
-        snprintf(source_name, sizeof(source_name), "%s", g_source[source].name);
-        lt_list_toggle(existing, source_name, list, sizeof(list));
-        /* Config callbacks are synchronous in the host. Close the detail
-         * before publishing the filter so re-entrant reconciliation cannot
-         * leave this action indexing a row it just removed. */
-        g_detail = -1;
-        (void)g_api->config.set(g_api, "ignored_sources", list);
-        if( !lt_infers_loot(rt) )
-            (void)lt_sync_changed(rt, true);
-        g_dirty = true;
-        g_api->panel.invalidate(g_api);
+        lt_menu_close(rt);
         return;
     }
 
     /*
-     * A click in the strip. The bands are variable height -- an expanded one
-     * carries its grid -- so the source is found by walking them rather than
-     * by dividing, and the header's own first op decides what the click means:
-     * inside the 33-tall band it EXPANDS or collapses, which is
-     * script2907's Collapse/Expand, and it also selects the source so the
-     * other two ops have something to act on.
+     * The TOTALS band's own four controls first, because they sit above every
+     * source and a click there is not a click on a band.
+     *
+     * Same four the cache offers, in the same places: the view toggle at the
+     * left, then value-basis, collapse-all and the ignore list at the right.
+     * `g_well_w` is the width the strip was last COMPOSED at, which is what
+     * the right-anchored three were placed against.
      */
-    if( strcmp(ev->id, "strip") == 0 )
+    if( action->y < LT_TOTALS_H )
     {
-        int local_y = 0;
-        int source;
-
-        /*
-         * The TOTALS band's own four controls first, because they sit above
-         * every source and a click there is not a click on a band.
-         *
-         * Same four the cache offers, in the same places: the view toggle at
-         * the left, then value-basis, collapse-all and the ignore list at the
-         * right. `g_well_w` is the width the strip was last composed at, which
-         * is what the right-anchored three were placed against.
-         */
-        if( ev->y < LT_TOTALS_H )
+        int const w = g_well_w;
+        if( action->x >= LT_BTN_LEFT_X && action->x < LT_BTN_LEFT_X + LT_BTN )
+            g_drop_view = !g_drop_view;
+        else if( action->x >= w - LT_BTN_R0 - LT_BTN && action->x < w - LT_BTN_R0 )
         {
-            int const w = g_well_w;
-            bool rebuild = false;
-            if( ev->x >= LT_BTN_LEFT_X && ev->x < LT_BTN_LEFT_X + LT_BTN )
-            {
-                g_drop_view = !g_drop_view;
-                rebuild = true;
-            }
-            else if( ev->x >= w - LT_BTN_R0 - LT_BTN && ev->x < w - LT_BTN_R0 )
-            {
-                /* Same show/hide ignored mode as interface 650:59. Data is
-                 * retained while hidden, so the opposite icon and the exact
-                 * ignored source/item plates can be shown immediately. */
-                g_show_ignored = !g_show_ignored;
-                if( !g_show_ignored && g_detail >= 0 && g_detail < g_source_count &&
-                    lt_source_ignored(rt, &g_source[g_detail]) )
-                    g_detail = -1;
-                rebuild = true;
-            }
-            else if( ev->x >= w - LT_BTN_R1 - LT_BTN && ev->x < w - LT_BTN_R1 )
-            {
-                /* Collapse all -- or expand all when everything is already
-                 * shut, which is what makes one button enough. */
-                bool any = false;
-                for( int i = 0; i < g_source_count; i++ )
-                    any = any || (lt_source_visible(rt, i) && g_expanded[i]);
-                for( int i = 0; i < g_source_count; i++ )
-                    if( lt_source_visible(rt, i) )
-                        g_expanded[i] = !any;
-                rebuild = true;
-            }
-            else if( ev->x >= w - LT_BTN_R2 - LT_BTN && ev->x < w - LT_BTN_R2 )
-            {
-                /* The value basis, which is the same config key the settings
-                 * form offers as a dropdown. */
-                char const* now = lt_config_string(rt, "price_source");
-                (void)g_api->config.set(
-                    g_api, "price_source",
-                    now && lt_name_eq(now, "High alchemy") ? "Cache value"
-                                                           : "High alchemy");
-            }
-            else
-                return;
-            if( rebuild || (g_built_detail >= 0 && g_detail < 0) )
-                g_api->panel.invalidate(g_api);
-            else
-                lt_page_refresh(rt);
-            return;
+            /* Same show/hide ignored mode as interface 650:59. Data is
+             * retained while hidden, so the opposite icon and the exact
+             * ignored source/item plates can be shown immediately. */
+            int detail;
+            g_show_ignored = !g_show_ignored;
+            detail = lt_detail_index(rt);
+            if( !g_show_ignored && detail >= 0 &&
+                lt_source_ignored(rt, &g_source[detail]) )
+                g_detail_source_id = 0;
         }
-
-        /* The flat drop grid has no bands to open. */
-        if( g_drop_view )
+        else if( action->x >= w - LT_BTN_R1 - LT_BTN && action->x < w - LT_BTN_R1 )
+        {
+            /* Collapse all -- or expand all when everything is already shut,
+             * which is what makes one button enough. */
+            bool const any = lt_any_expanded(rt);
+            for( int i = 0; i < g_source_count; i++ )
+                if( lt_source_visible(rt, i) )
+                    g_expanded[i] = !any;
+        }
+        else if( action->x >= w - LT_BTN_R2 - LT_BTN && action->x < w - LT_BTN_R2 )
+        {
+            /* The value basis, which is the same config key the settings form
+             * offers as a dropdown. */
+            char const* now = lt_config_string(rt, "price_source");
+            (void)g_api->config.set(
+                g_api, "price_source",
+                now && lt_name_eq(now, "High alchemy") ? "Cache value"
+                                                       : "High alchemy");
+        }
+        else
             return;
-
-        source = lt_source_at(rt, ev->y, &local_y);
-        if( source < 0 )
-            return;
-        if( local_y < LT_HEAD_H )
-            g_expanded[source] = !g_expanded[source];
-        g_detail = g_detail == source && local_y >= LT_HEAD_H ? -1 : source;
-        /* Expansion changes later hit bands, and selecting changes the detail
-         * controls. Both are a new CUSTOM input identity. */
-        g_api->panel.invalidate(g_api);
+        lt_changed(rt);
         return;
     }
+
+    /* The flat drop grid has no bands to open. */
+    if( g_drop_view )
+        return;
+
+    source = lt_source_at(rt, action->y, &local_y);
+    if( source < 0 )
+        return;
+    if( local_y < LT_HEAD_H )
+        g_expanded[source] = !g_expanded[source];
+    g_detail_source_id =
+        g_detail_source_id == g_source[source].id && local_y >= LT_HEAD_H
+            ? 0
+            : g_source[source].id;
+    lt_changed(rt);
 }
 
+/** The detail block's two buttons, which are ops on the BAND they sit under.
+ *  The `d_close` branch that used to be here is gone with the row that never
+ *  existed: keys are declared once, in the description, so an action for a key
+ *  nobody described cannot arrive. */
+static void
+lt_detail_action(
+    struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    struct LootTrackerRuntime runtime = { api, user };
+    struct LootTrackerRuntime* rt = &runtime;
+
+    assert(api);
+    assert(user);
+    assert(action);
+    assert(action->key);
+
+    g_api->panel.attention(g_api, false);
+    if( strcmp(action->key, "d_clear") == 0 )
+        lt_clear_source(rt, g_detail_source_id);
+    else
+        lt_ignore_source(rt, g_detail_source_id);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Lifecycle                                                                 */
+/* ------------------------------------------------------------------------ */
+
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LOOT_TRACKER;
 
 static void
 lt_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct LootTrackerRuntime runtime = { api, state_ptr };
     struct LootTrackerRuntime* rt = &runtime;
-    struct ToriRS_PanelDescriptor desc;
 
     assert(api);
+    assert(state_ptr);
+    /* A page with no layer is a page that cannot be described. */
+    assert(api->porcelain);
 
+    rt->state->api = api;
     g_source_count = 0;
     g_session_value = 0;
     g_session_kills = 0;
-    g_detail = -1;
-    g_built_detail = -1;
-    g_built_detail_source_id = 0;
-    g_built_rows = 0;
-    g_built_source_count = 0;
+    g_detail_source_id = 0;
     g_pending_count = 0;
     g_next_fallback_source_id = 0;
-    g_page_built = false;
     g_page_visible = false;
     g_next_panel_ms = 0;
-    g_dirty = false;
-    g_redraw_pending = false;
     g_loot_revision = 0;
+    g_synced_once = false;
+    g_paint_incomplete = false;
+    g_paint_retry = 0;
+    g_menu_kind = LT_MENU_NONE;
     g_well_w = TORIRS_PANEL_WIDTH_DEFAULT;
     g_show_ignored = false;
-    g_strip_image.value = 0;
     /*
      * OPEN by default, which is what the game's own tracker does: a band with
      * its drops under it is the thing a person opened the panel to see, and a
@@ -2295,46 +2673,32 @@ lt_start(struct ToriRS_Api* api, void* state_ptr)
      */
     for( size_t i = 0; i < sizeof(g_expanded) / sizeof(g_expanded[0]); i++ )
         g_expanded[i] = true;
-    g_compose_key = 0;
 
-    memset(&desc, 0, sizeof(desc));
-    /* The cache popout's own Loot Tools icon (graphic 4900), matching the
-     * CS2 panel this page reproduces. */
-    desc.icon_asset = "panel_icon.png";
-    desc.preferred_width = TORIRS_PANEL_WIDTH_DEFAULT;
-    (void)g_api->panel.request(g_api, &desc);
-}
-
-/** The shell moved, showed or hid this page. */
-static void
-lt_panel_layout(
-    struct ToriRS_Api* api,
-    void* state_ptr,
-    struct ToriRS_PanelLayoutEvent const* ev)
-{
-    struct LootTrackerRuntime runtime = { api, state_ptr };
-    struct LootTrackerRuntime* rt = &runtime;
-
-    assert(api);
-    assert(ev);
-
-    g_page_visible = ev->visible;
-    if( ev->width > 0 )
-        g_well_w = ev->width;
-    if( g_page_visible )
-    {
-        if( !lt_infers_loot(rt) )
-            (void)lt_sync_changed(rt, false);
-        if( (g_built_detail >= 0) != (g_detail >= 0) )
-            g_api->panel.invalidate(g_api);
-        else if( lt_page_topology_stale(rt) )
-            lt_strip_reidentify(rt);
-        else
-        {
-            lt_page_refresh(rt);
-            g_api->panel.redraw(g_api, "strip");
-        }
-    }
+    g_porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_LOOT_TRACKER, state_ptr);
+    /*
+     * The lane gate, asked ONCE. `loot_events` is App_UiLogic == CS2, which is
+     * a boot fact: the producers are the CS2 host's. @see lt_infers_loot.
+     */
+    g_store_lane = Porcelain_Has(g_porcelain, "loot_events");
+    /*
+     * Event loot -- barrows, raid chests, clue caskets -- is inventory-diff
+     * work needing a reliable "this interface just opened" fence per revision,
+     * and PVP loot needs a player-death signal the bus does not raise. Declared
+     * rather than left as a silence, so the clean-findings gate is satisfiable
+     * and the absence is a decision somebody can read.
+     */
+    Porcelain_ExpectUnsupported(
+        g_porcelain, "event_loot",
+        "no per-revision interface-open edge to diff an inventory against");
+    Porcelain_ExpectUnsupported(
+        g_porcelain, "pvp_loot", "the bus raises no player-death event");
+    /* The cache popout's own Loot Tools icon (graphic 4900), matching the CS2
+     * panel this page reproduces. The PAGE face only: every knob this plugin
+     * has is a config key, so its settings face is the generated form. */
+    Porcelain_Panel(
+        g_porcelain, "panel_icon.png", TORIRS_PANEL_WIDTH_DEFAULT,
+        PORCELAIN_FACE_PAGE);
+    Porcelain_Describe(g_porcelain, lt_describe, state_ptr);
 }
 
 static void
@@ -2344,14 +2708,11 @@ lt_stop(struct ToriRS_Api* api, void* state_ptr)
     struct LootTrackerRuntime* rt = &runtime;
 
     assert(api);
-    g_page_built = false;
     g_page_visible = false;
     g_pending_count = 0;
-    free(g_compose);
-    g_compose = NULL;
-    g_compose_w = 0;
-    g_compose_h = 0;
-    if( g_strip_image.value ) g_api->assets.image_release(g_api, g_strip_image);
+    /* Porcelain releases the derived picture with everything else it holds. */
+    Porcelain_Close(g_porcelain);
+    g_porcelain = NULL;
     PluginDraw_AtlasFree(g_api, &g_bold);
     PluginDraw_AtlasFree(g_api, &g_text);
     PluginDraw_ImageFree(g_api, &g_spine_px, &g_img_spine);
@@ -2371,6 +2732,110 @@ lt_stop(struct ToriRS_Api* api, void* state_ptr)
         g_api, &g_ignored_hide_px, &g_img_ignored_hide);
 }
 
+/**
+ * The fence, once a frame, and only while the page is on screen.
+ *
+ * Nothing runs while the page is hidden: no sync, no describe, no reconcile
+ * and no compose. The state still advances -- the store keeps recording and
+ * the inference candidates keep expiring -- and the work happens when the page
+ * is selected again.
+ */
+static void
+lt_frame_start(
+    struct ToriRS_Api* api,
+    void* state_ptr,
+    struct ToriRS_FrameEvent const* event)
+{
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
+    (void)event;
+
+    assert(api);
+    assert(state_ptr);
+    if( !g_page_visible )
+        return;
+    Porcelain_Fence(g_porcelain);
+    Porcelain_Commit(api);
+}
+
+static void
+lt_panel_build(
+    struct ToriRS_Api* api,
+    void* state_ptr,
+    struct ToriRS_PanelBuilder* panel,
+    int view)
+{
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
+
+    assert(api);
+    assert(panel);
+
+    /* The store is read before the first declaration so the page arrives whole
+     * rather than empty and then grown, which would be a rebuild for nothing. */
+    if( view == TORIRS_PANEL_VIEW_PAGE && !lt_infers_loot(rt) )
+        (void)lt_sync_changed(rt, true);
+    Porcelain_PanelBuild(g_porcelain, panel, view);
+}
+
+static void
+lt_panel_draw(
+    struct ToriRS_Api* api,
+    void* state_ptr,
+    char const* node,
+    struct ToriRS_Graphics* draw)
+{
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
+
+    assert(api);
+    assert(node);
+    assert(draw);
+    (void)Porcelain_PanelDraw(g_porcelain, node, draw);
+}
+
+static void
+lt_panel_action(
+    struct ToriRS_Api* api,
+    void* state_ptr,
+    struct ToriRS_PanelActionEvent const* ev)
+{
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
+
+    assert(api);
+    assert(ev);
+    (void)Porcelain_PanelAction(g_porcelain, ev);
+}
+
+/** The shell moved, showed or hid this page. */
+static void
+lt_panel_layout(
+    struct ToriRS_Api* api,
+    void* state_ptr,
+    struct ToriRS_PanelLayoutEvent const* ev)
+{
+    struct LootTrackerRuntime runtime = { api, state_ptr };
+    struct LootTrackerRuntime* rt = &runtime;
+
+    assert(api);
+    assert(ev);
+
+    g_page_visible = ev->visible;
+    if( ev->width > 0 )
+        g_well_w = ev->width;
+    if( !g_page_visible )
+    {
+        /* A menu nobody can see is a menu whose next click lands somewhere
+         * else entirely. */
+        g_menu_kind = LT_MENU_NONE;
+        return;
+    }
+    if( !lt_infers_loot(rt) )
+        (void)lt_sync_changed(rt, false);
+    lt_changed(rt);
+}
+
 static void
 lt_tick(
     struct ToriRS_Api* api,
@@ -2379,9 +2844,8 @@ lt_tick(
 {
     struct LootTrackerRuntime runtime = { api, state_ptr };
     struct LootTrackerRuntime* rt = &runtime;
-    (void)event;
-
     uint64_t const now = g_api->core.frame_ms(g_api);
+    (void)event;
 
     assert(api);
 
@@ -2398,25 +2862,15 @@ lt_tick(
     /* OldSchool mirrors its authoritative store; RS2 was updated directly by
      * the inference callbacks above. */
     if( !lt_infers_loot(rt) && lt_sync_changed(rt, false) )
-        g_dirty = true;
+        lt_changed(rt);
 
-    /*
-     * Opening or closing the detail block changes WHICH widgets the page has,
-     * and that is the only thing a rebuild is for. Everything else a kill can
-     * do -- a new band, a taller drop grid, a bigger number -- the refresh
-     * states on the page that is already there. Neither is worth doing for a
-     * page nobody is looking at; the rebuild happens when it is selected
-     * again.
-     */
-    if( g_dirty || g_redraw_pending )
+    /* The art, or an obj icon, was not resident when the picture was last
+     * composed. This is the ONLY thing that retries it, and it runs at the
+     * refresh cadence rather than per frame. */
+    if( g_paint_incomplete )
     {
-        if( g_page_built && ((g_built_detail >= 0) != (g_detail >= 0)) )
-            g_api->panel.invalidate(g_api);
-        else if( lt_page_topology_stale(rt) )
-            lt_strip_reidentify(rt);
-        else
-            lt_page_refresh(rt);
-        g_dirty = false;
+        g_paint_retry++;
+        lt_changed(rt);
     }
 }
 
@@ -2428,20 +2882,6 @@ static struct ToriRS_ConfigItem const LT_CONFIG[] = {
     { "ignored_sources",   TORIRS_CONFIG_TEXT, "Ignored sources",                "", 0, 0, NULL, 4 },
     { NULL,                TORIRS_CONFIG_BOOL, NULL,                             NULL, 0, 0, NULL, 0 },
 };
-
-static void
-lt_filters_changed(struct LootTrackerRuntime* rt)
-{
-    assert(rt);
-    /* Ignoring is a VIEW over retained loot, not deletion. That is what makes
-     * interface 650's Show/Hide ignored button reversible on both the CS2
-     * store lane and rs289's inferred-store lane. */
-    if( !g_show_ignored && g_detail >= 0 && g_detail < g_source_count &&
-        lt_source_ignored(rt, &g_source[g_detail]) )
-        g_detail = -1;
-    lt_revalue(rt);
-    g_dirty = true;
-}
 
 static void
 lt_config_changed(
@@ -2457,23 +2897,28 @@ lt_config_changed(
     bool const affects_picture = filtered ||
                                  (key && strcmp(key, "price_source") == 0);
 
+    assert(api);
     if( filtered )
     {
-        lt_filters_changed(rt);
-        /* Filtering changes which source/item identity lies under every
-         * later y coordinate. Retire the old CUSTOM serial, even if the total
-         * height happened to remain equal. */
-        if( g_page_visible )
-            g_api->panel.invalidate(g_api);
-        return;
+        /*
+         * Ignoring is a VIEW over retained loot, not deletion. That is what
+         * makes interface 650's Show/Hide ignored button reversible on both
+         * the CS2 store lane and rs289's inferred-store lane.
+         *
+         * A filter change also moves which source or item lies under every
+         * later y, so the well takes a new input identity -- which the hit key
+         * states by construction, because the visible list IS the hit key.
+         */
+        int const detail = lt_detail_index(rt);
+        if( !g_show_ignored && detail >= 0 &&
+            lt_source_ignored(rt, &g_source[detail]) )
+            g_detail_source_id = 0;
     }
-    if( affects_picture ) lt_revalue(rt);
-    if( !g_page_visible || !affects_picture ) return;
-    if( lt_page_topology_stale(rt) ||
-        (g_built_detail >= 0) != (g_detail >= 0) )
-        g_api->panel.invalidate(g_api);
-    else
-        lt_page_refresh(rt);
+    if( affects_picture )
+        lt_revalue(rt);
+    /* Config is one of the layer's own inputs; saying so is the whole of the
+     * routing that used to be here. */
+    Porcelain_Note(g_porcelain, PORCELAIN_INPUT_CONFIG);
 }
 
 static struct ToriRS_ConfigSchema const LT_SCHEMA = {
@@ -2485,13 +2930,14 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_LOOT_TRACKER = {
     .struct_size = sizeof(TORIRS_PLUGIN_LOOT_TRACKER),
     .id = "loot-tracker",
     .title = "Loot Tracker",
-    .version = "2.0.0",
+    .version = "3.0.0",
     .state_size = sizeof(struct LootTrackerState),
     .config = &LT_SCHEMA,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = lt_start,
         .on_stop = lt_stop,
+        .on_frame_start = lt_frame_start,
         .on_logic_tick = lt_tick,
         .on_world_loaded = lt_world_loaded,
         .on_npc_despawn = lt_npc_despawn,

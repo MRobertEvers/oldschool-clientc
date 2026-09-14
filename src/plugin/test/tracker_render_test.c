@@ -19,6 +19,7 @@
  * so the two pictures can be put beside the captures they are trying to match.
  */
 
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_api.h"
 
 #include "engine/png_decode.h"
@@ -111,6 +112,8 @@ static struct
     uint32_t* comp_px;
     int compose_calls;
     int obj_image_calls;
+    /** Wells given a fresh input identity. @see v2_panel_reidentify. */
+    int reidentifies;
 
     /** What the plugin registered for its popout-rail entry. */
     char panel_icon[64];
@@ -660,6 +663,14 @@ static int v2_loot_row_next(
 { (void)api; return fake_loot_row_next(NULL, source, iter, out); }
 static uint64_t v2_loot_revision(struct ToriRS_Api* api)
 { (void)api; return g_loot_revision; }
+/* This fixture is the OldSchool lane: the client's own loot store is where a
+ * record comes from, which is what `loot_events` states. */
+static bool v2_capability(struct ToriRS_Api* api, char const* name)
+{
+    (void)api;
+    assert(name);
+    return strcmp(name, "loot_events") == 0;
+}
 static bool v2_loot_source_clear(struct ToriRS_Api* api, int source)
 { (void)api; (void)source; return false; }
 
@@ -681,6 +692,15 @@ static enum ToriRS_Result v2_panel_height(
 { (void)api; return fake_panel_set_height(NULL, id, height) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
 static void v2_panel_redraw(struct ToriRS_Api* api, char const* id)
 { (void)api; fake_panel_invalidate(NULL, id); }
+/* The two verbs the row reconciler reaches for that this fixture never had: a
+ * caption restated in place, and a well whose y-mapping moved. Both are now
+ * the ordinary path for a page that grows, so a NULL here is a crash rather
+ * than an unexercised branch. */
+static enum ToriRS_Result v2_panel_label(
+    struct ToriRS_Api* api, char const* id, char const* label)
+{ (void)api; return fake_panel_set_text(NULL, id, label) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
+static enum ToriRS_Result v2_panel_reidentify(struct ToriRS_Api* api, char const* id)
+{ (void)api; (void)id; g_c.reidentifies++; return TORIRS_RESULT_OK; }
 static void v2_build_heading(struct ToriRS_PanelBuilder* panel, char const* text)
 { (void)panel; (void)text; }
 static void v2_build_paragraph(struct ToriRS_PanelBuilder* panel, char const* text)
@@ -730,6 +750,8 @@ api_init(void)
     g_api.core.log = v2_log;
     g_api.core.notify = v2_notify;
     g_api.core.frame_ms = v2_frame_ms;
+    g_api.core.capability = v2_capability;
+    g_api.porcelain = ToriRS_PorcelainApiTable();
     g_api.config.has = v2_cfg_has;
     g_api.config.get_bool = v2_cfg_bool;
     g_api.config.get_int = v2_cfg_int;
@@ -752,6 +774,8 @@ api_init(void)
     g_api.panel.set_value = v2_panel_value;
     g_api.panel.set_height = v2_panel_height;
     g_api.panel.redraw = v2_panel_redraw;
+    g_api.panel.set_label = v2_panel_label;
+    g_api.panel.reidentify = v2_panel_reidentify;
     g_game_api.struct_size = sizeof(g_game_api);
     g_game_api.skill = v2_skill;
     g_game_api.item_info = v2_item_info;
@@ -903,6 +927,16 @@ dispatch_panel_layout(struct ToriRS_PanelLayoutEvent const* event)
 }
 
 static void
+dispatch_frame_start(void)
+{
+    struct ToriRS_FrameEvent ev;
+    assert(g_plugin && g_plugin_state);
+    memset(&ev, 0, sizeof(ev));
+    if( g_plugin->callbacks.on_frame_start )
+        g_plugin->callbacks.on_frame_start(&g_api, g_plugin_state, &ev);
+}
+
+static void
 panel_build(void)
 {
     struct ToriRS_PanelLayoutEvent lay;
@@ -935,6 +969,7 @@ panel_build(void)
     lay.game_visible = true;
     lay.selection_generation = 1;
     dispatch_panel_layout(&lay);
+    dispatch_frame_start();
 }
 
 static void
@@ -944,6 +979,7 @@ tick(uint64_t ms)
     memset(&ev, 0, sizeof(ev));
     g_c.now_ms += ms;
     dispatch_logic_tick(&ev);
+    dispatch_frame_start();
 }
 
 /** Run one draw pass over the named custom well and keep what it composed. */
@@ -974,12 +1010,14 @@ activate_well(char const* id, int x, int y)
     event.selection_generation = 1;
     if( g_plugin->callbacks.on_ui_action )
         g_plugin->callbacks.on_ui_action(&g_api, g_plugin_state, &event);
+    dispatch_frame_start();
 }
 
 static void
 reset(char const* asset_dir)
 {
     if( g_plugin_state ) dispatch_stop();
+    Porcelain_ResetForTesting();
     for( int i = 0; i < g_c.asset_count; i++ )
         free(g_c.asset[i].bytes);
     for( int i = 0; i < FAKE_IMAGES; i++ )
@@ -1459,6 +1497,82 @@ test_loot_stateful_controls(void)
         "ignored sources and items use their exact alternate cache plates");
 }
 
+
+/*
+ * An obj icon that is not resident does NOT recompose the strip every frame.
+ *
+ * The cell failure path used to set `g_compose_key = 0`, which says "nothing I
+ * have drawn is valid": every later frame then missed the cache and rasterised
+ * the whole strip again -- a plate, a text pass and an icon read-back per band
+ * -- for as long as one icon stayed PENDING, which can be for ever. The
+ * picture is kept now and the retry runs at the REFRESH cadence, which is
+ * bounded by construction.
+ *
+ * Red against `g_compose_key = 0`: sixty frames would be sixty composes.
+ */
+static void
+test_loot_a_pending_icon_does_not_recompose_every_frame(void)
+{
+    /* Under a hundred is the fixture's "no such icon", which is what an obj
+     * whose sprite has not arrived answers. */
+    static int const obj[] = { 526 };
+    static int const qty[] = { 1 };
+    static int const val[] = { 60 };
+    int composes;
+    int filled = 0;
+
+    reset("loot-tracker");
+    cfg_set("price_source", "Cache value");
+    cfg_set("kill_chat_message", "0");
+    cfg_set("chat_value_threshold", "0");
+    cfg_set("ignored_items", "");
+    cfg_set("ignored_sources", "");
+    g_loot_count = 0;
+    loot_add("Goblin", 1, obj, qty, val, 1);
+
+    plugin_prepare(&TORIRS_PLUGIN_LOOT_TRACKER);
+    dispatch_start();
+    panel_build();
+    tick(1000);
+    panel_build();
+    /* One ordinary pass first, so the plugin's own art is resident: what is
+     * under test is a missing OBJ ICON, not a plugin that never started. */
+    draw_well("strip", 264);
+    CHECK(g_c.compose_calls > 0, "the strip composed with its art");
+
+    /*
+     * Now the image table, FULL of somebody else's pictures. That is the
+     * hazard the record names: obj_image answers -1, the cell has no icon to
+     * draw, nothing is wrong anywhere, and this plugin cannot know when it
+     * will clear.
+     */
+    while( image_alloc(1, 1) >= 0 )
+        filled++;
+    CHECK(filled > 0, "the fixture's image table is full");
+
+    /* A second kill, so the picture legitimately has to be redrawn -- and this
+     * time the cell cannot have its icon. */
+    loot_add("Guard", 1, obj, qty, val, 2);
+    tick(600);
+    draw_well("strip", 264);
+    composes = g_c.compose_calls;
+
+    for( int i = 0; i < 60; i++ )
+        draw_well("strip", 264);
+    CHECK(
+        g_c.compose_calls == composes,
+        "sixty draw passes over a strip with a missing icon rasterise nothing "
+        "(%d)", g_c.compose_calls - composes);
+
+    /* And the retry, which is the only thing that brings a late icon in. */
+    tick(600);
+    draw_well("strip", 264);
+    CHECK(
+        g_c.compose_calls == composes + 1,
+        "the refresh cadence retries it exactly once (%d)",
+        g_c.compose_calls - composes);
+}
+
 int
 main(void)
 {
@@ -1467,6 +1581,7 @@ main(void)
     test_xp_ttl_advances_inside_rate_floor();
     render_loot();
     test_loot_stateful_controls();
+    test_loot_a_pending_icon_does_not_recompose_every_frame();
     if( g_plugin_state ) dispatch_stop();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

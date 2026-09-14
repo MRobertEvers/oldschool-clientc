@@ -2776,20 +2776,23 @@ ifneq ($(strip $(ASAN_DYLD_SHIM)),)
 TRACKER_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
 endif
 test-tracker-render: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
-		plugin/plugins/plugin_draw.c plugin/test/tracker_render_test.c $(ASAN_DYLD_SHIM)
+		plugin/plugins/plugin_draw.c $(PORCELAIN_SRCS) \
+		plugin/test/tracker_render_test.c $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tracker_render_test \
 		plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
-		plugin/plugins/plugin_draw.c engine/png_decode.c \
+		plugin/plugins/plugin_draw.c engine/png_decode.c $(PORCELAIN_SRCS) \
 		$(REPO_ROOT)/3rd/miniz/miniz.c plugin/test/tracker_render_test.c $(LDFLAGS)
 	$(TRACKER_TEST_ENV) TRACKER_RENDER_XP_PNG=$(OBJ_DIR)/xp_strip.png \
 		TRACKER_RENDER_LOOT_PNG=$(OBJ_DIR)/loot_strip.png \
 		./$(OBJ_DIR)/tracker_render_test
 
 test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
-		plugin/plugins/plugin_draw.c plugin/test/tracker_test.c $(ASAN_DYLD_SHIM)
+		plugin/plugins/plugin_draw.c $(PORCELAIN_SRCS) \
+		plugin/test/tracker_test.c $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/tracker_test \
 		plugin/plugins/xp_tracker.c plugin/plugins/loot_tracker.c \
-		plugin/plugins/plugin_draw.c plugin/test/tracker_test.c $(LDFLAGS)
+		plugin/plugins/plugin_draw.c $(PORCELAIN_SRCS) \
+		plugin/test/tracker_test.c $(LDFLAGS)
 	$(TRACKER_TEST_ENV) ./$(OBJ_DIR)/tracker_test
 
 test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
