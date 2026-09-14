@@ -231,6 +231,14 @@ void Porcelain_Notify(struct Porcelain* porcelain, char const* kind, int subject
 /** The latch's state, for a test and for a plugin that reports its own. */
 enum PorcelainNativeOverlayState Porcelain_NativeOverlayState(struct Porcelain* porcelain);
 
+/* --- round three: the refusal a port could not read. --- */
+
+/** draw->world_hull with its two refusals made loud: BUDGET when the frame's
+ *  allotment ran out, ARBITRATION_LOST when another plugin holds the entity's
+ *  APPEARANCE. False means nothing was drawn. */
+bool Porcelain_Hull(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int element_id,
+                    uint32_t rgb, int alpha, int shape);
+
 /* The describe-builder verbs. Legal only inside a describe run. */
 void Porcelain_Control(struct ToriRS_PorcelainDescribe* describe, struct PorcelainItem const* item);
 void Porcelain_Piece(struct ToriRS_PorcelainDescribe* describe, struct PorcelainItem const* item);
@@ -376,6 +384,11 @@ struct PorcelainCounters
      * from "every per-field compare happened to match", which is a second
      * line of defence and not the rule. */
     uint32_t property_applies;
+    /** Controls re-made because the node they belonged under changed. The
+     *  engine has no re-parent verb, so this is a remove plus a create; it
+     *  must stay at zero on a settled tree, and a number that climbs every
+     *  frame is a target that is remounting, not a bug in this counter. */
+    uint32_t reparents;
 };
 void Porcelain_CountersRead(struct Porcelain* porcelain, struct PorcelainCounters* out);
 void Porcelain_CountersReset(struct Porcelain* porcelain);

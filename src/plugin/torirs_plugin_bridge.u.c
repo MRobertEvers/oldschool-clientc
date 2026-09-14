@@ -1533,6 +1533,29 @@ app_plugin_capability(void* user, char const* name)
                        &app->revconfig_refs, "script", "sidebar_switch") > 0;
         return 1;
     }
+    /*
+     * A BOOT fact, and it must be answerable at on_start.
+     *
+     * App.touch_ui used to be written from frame_loop_step, which runs after
+     * PluginHost_Start: a plugin asking here at on_start -- the only place a
+     * key declaration can be made, and the only place ExpectAbsent used to be
+     * legal -- was told false on every lane and true from frame one, with
+     * nobody listening by then. Measured before the move:
+     *
+     *     CAPPROBE at=start    touch=0
+     *     CAPPROBE at=frame60  touch=1
+     *
+     * It is resolved in App_Init now, beside the clientscript identity it
+     * follows. @see App.touch_ui.
+     *
+     * THE SHAPE TO WATCH FOR. A capability answered from a field the BOOT
+     * fills lies at on_start if the boot fills it late. The two answers above
+     * that still change -- `item_bonuses` and `native_orbs` -- are not that
+     * shape: they are facts about state that ARRIVES (an objtype resident in
+     * the cache, a published tree), so false at on_start is the honest
+     * answer and a plugin that needs them asks again at a fence. Anything
+     * else that moves between at=start and at=frame60 is this defect again.
+     */
     if( strcmp(name, "touch") == 0 )
         return app->touch_ui != 0;
     if( strcmp(name, "web") == 0 )

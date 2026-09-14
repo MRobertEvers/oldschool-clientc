@@ -1000,6 +1000,55 @@ Porcelain_MenuAdd(struct Porcelain* porcelain, struct ToriRS_MenuBuildEvent* men
 }
 
 /*
+ * draw->world_hull, with the two refusals turned into findings.
+ *
+ * Both were dropped end to end until this existed: the host answered void,
+ * the v2 builder answered OK unconditionally, and every shipped highlighter
+ * spells the call `(void)draw->world_hull(...)` because there was nothing to
+ * read. What that cost is not an error message -- it is half the outlines in
+ * a mass of tagged npcs, gone, with the plugin still reporting itself armed.
+ *
+ * The two reasons are different findings on purpose. BUDGET is this plugin's
+ * own frame allotment and is a bug in what it asked for; CONFLICT is another
+ * plugin holding the entity's APPEARANCE, which is arbitration working, and
+ * the loser is entitled to know it lost. Both coalesce on (verb, element,
+ * result) at element NONE, so a thousand refused entities are one line each
+ * and not a thousand.
+ */
+bool
+Porcelain_Hull(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int element_id,
+               uint32_t rgb, int alpha, int shape)
+{
+    enum ToriRS_Result result;
+
+    assert(porcelain);
+    assert(draw);
+    assert(draw->world_hull);
+
+    porcelain->counters.engine_calls++;
+    result = draw->world_hull(draw, element_id, rgb, alpha, shape);
+    if( result == TORIRS_RESULT_OK )
+        return true;
+    if( result == TORIRS_RESULT_BUDGET )
+    {
+        Porcelain_RecordFinding(porcelain, "world_hull", PORCELAIN_EL(NONE),
+                                PORCELAIN_FINDING_BUDGET,
+                                "the frame's draw budget; the rest of the outlines were dropped");
+        return false;
+    }
+    if( result == TORIRS_RESULT_CONFLICT )
+    {
+        Porcelain_RecordFinding(porcelain, "world_hull", PORCELAIN_EL(NONE),
+                                PORCELAIN_FINDING_ARBITRATION_LOST,
+                                "another plugin holds this entity's appearance");
+        return false;
+    }
+    Porcelain_RecordFinding(porcelain, "world_hull", PORCELAIN_EL(NONE),
+                            PORCELAIN_FINDING_REFUSED, "the hull shape is not one of the two");
+    return false;
+}
+
+/*
  * Which container a hovered cell belongs to.
  *
  * Answered by walking the cell up to a panel this vocabulary can name. The

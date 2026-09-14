@@ -3056,6 +3056,30 @@ static int lua_porcelain_panel_draw(lua_State* L)
     return 1;
 }
 
+/* ---- round three: the refusals a port could not read, and the partners ---- */
+
+static int lua_porcelain_hull_shape(lua_State* L, int index)
+{
+    if( lua_type(L, index) == LUA_TSTRING )
+    {
+        char const* name = lua_tostring(L, index);
+        if( strcmp(name, "mesh") == 0 ) return TORIRS_HULL_MESH;
+        if( strcmp(name, "bounds") == 0 ) return TORIRS_HULL_BOUNDS;
+        return luaL_error(L, "unknown hull shape '%s'", name);
+    }
+    if( lua_isnoneornil(L, index) ) return TORIRS_HULL_BOUNDS;
+    return lua_enum_integer(L, index, TORIRS_HULL_BOUNDS, TORIRS_HULL_MESH, "hull shape");
+}
+static int lua_porcelain_hull(lua_State* L)
+{
+    struct ToriRS_Graphics* draw = lua_draw_builder(L);
+    lua_pushboolean(L, lua_current_api(L)->porcelain->hull(
+                           lua_porcelain(L), draw, (int)luaL_checkinteger(L, 1),
+                           lua_color_arg(L, 2), (int)luaL_optinteger(L, 3, 0),
+                           lua_porcelain_hull_shape(L, 4)));
+    return 1;
+}
+
 static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"open",lua_porcelain_open},{"close",lua_porcelain_close},
     {"describe",lua_porcelain_describe},{"invalidate",lua_porcelain_invalidate},
@@ -3081,7 +3105,10 @@ static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"native_overlay",lua_porcelain_native_overlay},{"note_script",lua_porcelain_note_script},
     {"table",lua_porcelain_table},{"notify",lua_porcelain_notify},
     {"panel",lua_porcelain_panel},{"panel_build",lua_porcelain_panel_build},
-    {"panel_action",lua_porcelain_panel_action},{"panel_draw",lua_porcelain_panel_draw},{NULL,NULL}
+    {"panel_action",lua_porcelain_panel_action},{"panel_draw",lua_porcelain_panel_draw},
+    /* round three */
+    {"hull",lua_porcelain_hull},
+    {NULL,NULL}
 };
 
 static struct LuaFn const LUA_PORCELAIN_DESCRIBE_FNS[] = {

@@ -182,6 +182,16 @@ struct Testbed
     /** The region the fake graphics context answers, and whether it has one. */
     struct ToriRS_Rect draw_region;
     bool draw_region_valid;
+    /*
+     * The world-hull draw, modelled with BOTH of its refusals -- the host's
+     * per-frame allotment and the per-entity APPEARANCE claim. A testbed that
+     * only ever answered OK is what let the engine's own `return OK` stand
+     * under a declared result type for as long as it did.
+     */
+    int hull_budget;
+    int hull_used;
+    /** The one element another plugin is holding, or -1. */
+    int hull_claimed_element;
 };
 
 /** The single instance. Reset it between scenarios. */

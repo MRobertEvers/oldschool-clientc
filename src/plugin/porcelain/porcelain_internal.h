@@ -121,6 +121,20 @@ struct PorcelainAppliedItem
     int applied_opacity;
     bool applied_hidden;
     bool hidden_written;
+    /*
+     * The TARGET this control's parent was derived from, and the value of the
+     * ELEMENT input stamp when it was asked.
+     *
+     * The parent is re-derived only when one of these says it could have
+     * changed, because asking the engine for it unconditionally would cost a
+     * call per item per reconcile and break the rule that an identical
+     * re-description costs nothing at all. The element stamp and not the
+     * fence counter: a widget event raised BETWEEN two fences is stamped with
+     * the fence that has not ended yet, so a fence counter cannot tell that
+     * move apart from the create it followed.
+     */
+    struct ToriRS_WidgetRef target_ref;
+    uint32_t target_element_stamp;
 };
 
 /* ----------------------------------------------------------------- edits */

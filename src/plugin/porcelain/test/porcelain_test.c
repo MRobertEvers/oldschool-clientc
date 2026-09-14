@@ -1700,6 +1700,167 @@ test_menu_add_refusal_is_a_finding(void)
     Porcelain_Close(porcelain);
 }
 
+/*
+ * The world hull's TWO refusals reach the plugin.
+ *
+ * `ToriRS_Graphics::world_hull` is declared to answer a result and the engine
+ * answered TORIRS_RESULT_OK unconditionally: the host's api_draw_hull was
+ * void, so the per-frame draw budget and the per-entity APPEARANCE claim were
+ * both thrown away between them. What it cost on screen is not an error --
+ * it is half the outlines in a mass of tagged npcs, with the plugin, the
+ * layer and the player all unable to tell.
+ *
+ * MUTATION 1: make api_draw_hull's budget arm `return TORIRS_RESULT_OK`.
+ *   Red: "the draw over the allotment is refused".
+ * MUTATION 2: make its claim arm `return TORIRS_RESULT_OK`.
+ *   Red: "a claimed entity's outline is refused".
+ * MUTATION 3: make v2_builder_world_hull ignore api_draw_hull's answer and
+ *   return TORIRS_RESULT_OK, which is the shipped defect exactly.
+ *   Red: both of the above.
+ * MUTATION 4: drop the BUDGET arm in Porcelain_Hull.
+ *   Red: "the finding names the budget".
+ */
+static void
+test_world_hull_refusals_reach_the_plugin(void)
+{
+    struct Porcelain* porcelain;
+    struct ToriRS_Graphics* draw;
+    struct PorcelainFinding findings[8];
+    int count;
+    bool budget = false;
+    bool lost = false;
+
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    draw = Testbed_Graphics((struct ToriRS_Rect){0, 0, 800, 500}, true);
+
+    g_testbed.hull_budget = 2;
+    CHECK(Porcelain_Hull(porcelain, draw, 11, 0xff0000u, 0, TORIRS_HULL_MESH),
+          "a draw inside the allotment is drawn");
+    CHECK(Porcelain_Hull(porcelain, draw, 12, 0xff0000u, 0, TORIRS_HULL_MESH),
+          "and so is the last one in it");
+    CHECK(!Porcelain_Hull(porcelain, draw, 13, 0xff0000u, 0, TORIRS_HULL_MESH),
+          "the draw over the allotment is refused");
+    /* Twenty more entities in the same frame are the SAME finding: a mass of
+     * npcs must not flood a fixed table with one row each. */
+    for( int at = 0; at < 20; at++ )
+        (void)Porcelain_Hull(porcelain, draw, 100 + at, 0xff0000u, 0, TORIRS_HULL_MESH);
+    count = Porcelain_Findings(porcelain, findings, 8);
+    CHECK(count == 1, "twenty-one refusals in one frame are ONE finding");
+    for( int at = 0; at < count; at++ )
+        if( findings[at].result == PORCELAIN_FINDING_BUDGET &&
+            strcmp(findings[at].verb, "world_hull") == 0 &&
+            strstr(findings[at].detail, "budget") != NULL )
+            budget = true;
+    CHECK(budget, "the finding names the budget");
+    CHECK(findings[0].count == 21, "and counts every draw it swallowed");
+    Porcelain_Close(porcelain);
+
+    /*
+     * The other refusal, which is not a bug in what the plugin asked for: an
+     * entity whose APPEARANCE another plugin holds is that plugin's to
+     * outline. The loser is still entitled to know it lost.
+     */
+    Testbed_Reset();
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    draw = Testbed_Graphics((struct ToriRS_Rect){0, 0, 800, 500}, true);
+    g_testbed.hull_claimed_element = 42;
+    CHECK(Porcelain_Hull(porcelain, draw, 41, 0x00ff00u, 128, TORIRS_HULL_BOUNDS),
+          "an unclaimed entity is everybody's");
+    CHECK(!Porcelain_Hull(porcelain, draw, 42, 0x00ff00u, 128, TORIRS_HULL_BOUNDS),
+          "a claimed entity's outline is refused");
+    count = Porcelain_Findings(porcelain, findings, 8);
+    for( int at = 0; at < count; at++ )
+        if( findings[at].result == PORCELAIN_FINDING_ARBITRATION_LOST &&
+            strcmp(findings[at].verb, "world_hull") == 0 )
+            lost = true;
+    CHECK(lost, "and says it was an arbitration, not a budget");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A control whose TARGET moved to another parent is re-made under it.
+ *
+ * The parent was asked for once, at create, and never again: a frame provider
+ * that rebuilds a subtree leaves the control a child of the node it was born
+ * under, and every fence after that writes the target's new parent-local box
+ * into a control whose origin is somewhere else. That is not a missing
+ * control and not an error -- it is a constant, lane-dependent offset, which
+ * is exactly the shape that survives every screenshot. The minimap-orbs port
+ * carries a settle counter, a per-orb incarnation guard and a frame-root
+ * rebuild guard to work around it.
+ *
+ * MUTATION: delete the re-parent arm in porcelain_reconcile. Red: "the
+ * control is a child of the parent the target moved to".
+ * SECOND MUTATION: make porcelain_item_target_moved return false always.
+ * Red: the same line -- the cheap trigger is load-bearing, not an
+ * optimisation.
+ */
+static void
+reparent_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct PorcelainItem item;
+
+    (void)user;
+    memset(&item, 0, sizeof(item));
+    item.key = "cover";
+    item.image = "camera.png";
+    item.place.kind = PORCELAIN_REPLACE;
+    item.place.on = PORCELAIN_ROLE_EL("orb_run");
+    /* Stated, so the settled fences below do not pay an image_size lookup for
+     * a natural size the description could have said. */
+    item.w = 57;
+    item.h = 34;
+    item.enabled = true;
+    Porcelain_Control(describe, &item);
+}
+
+static void
+test_a_moved_target_takes_its_control_with_it(void)
+{
+    struct Porcelain* porcelain;
+    struct ToriRS_WidgetRef second_parent;
+    struct PorcelainCounters counters;
+
+    Testbed_Reset();
+    Testbed_DeclareAsset("camera.png", TORIRS_ASSET_READY);
+    Testbed_DeclareElement("orb_run", 10, 103, 57, 34);
+    Testbed_BindElement("orb_run");
+
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, reparent_describe, NULL);
+    fence(porcelain);
+    CHECK(Testbed_LiveControls() == 1, "the cover is created beside its target");
+    CHECK(ToriRS_WidgetRefEqual(Testbed_Control("cover")->parent,
+                                Testbed_Element("orb_run")->parent),
+          "under the target's parent");
+
+    /* The provider rebuilds the orb block: same element, new parent, and the
+     * re-place that comes with it is what the layer actually sees. */
+    second_parent = Testbed_Element("orb_run")->parent;
+    second_parent.opaque[1] = 77;
+    Testbed_Element("orb_run")->parent = second_parent;
+    Porcelain_CountersReset(porcelain);
+    Testbed_MoveElement("orb_run", 10, 140);
+    fence(porcelain);
+
+    Porcelain_CountersRead(porcelain, &counters);
+    CHECK(Testbed_LiveControls() == 1, "there is still exactly one cover");
+    CHECK(ToriRS_WidgetRefEqual(Testbed_Control("cover")->parent, second_parent),
+          "and the control is a child of the parent the target moved to");
+    CHECK(counters.reparents == 1, "counted once, as a remove and a create");
+
+    /* And it settles: a target that stops moving stops costing anything. */
+    Porcelain_CountersReset(porcelain);
+    Testbed_ClearLog();
+    for( int at = 0; at < 4; at++ )
+        fence(porcelain);
+    Porcelain_CountersRead(porcelain, &counters);
+    CHECK(counters.reparents == 0, "a settled tree re-parents nothing");
+    CHECK(counters.engine_calls == 0, "and asks the engine nothing at all");
+    Porcelain_Close(porcelain);
+}
+
 static void
 hover_menu_row(struct ToriRS_MenuBuildEvent* menu, bool hover_pass, int obj, int slot,
                int component_id)
@@ -3565,6 +3726,8 @@ main(void)
     test_count_spans_a_hole();
     test_draw_context_says_which_space();
     test_menu_add_refusal_is_a_finding();
+    test_a_moved_target_takes_its_control_with_it();
+    test_world_hull_refusals_reach_the_plugin();
     test_hover_carries_the_container();
     test_native_overlay_latch();
     test_table_is_read_once();

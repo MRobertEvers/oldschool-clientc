@@ -1858,6 +1858,15 @@ struct ToriRS_PorcelainApi
     bool (*panel_draw)(struct Porcelain* porcelain, char const* node,
                        struct ToriRS_Graphics* draw);
 
+    /* ------------------------------------- the refusals and the partners */
+    /** draw->world_hull with both of its refusals made loud. The engine's
+     *  world_hull was declared to answer a result and answered OK
+     *  unconditionally; what that cost was half the outlines in a mass of
+     *  tagged npcs, gone, with the plugin still reporting itself armed.
+     *  False means nothing was drawn and a finding says which refusal. */
+    bool (*hull)(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int element_id,
+                 uint32_t rgb, int alpha, int shape);
+
     TORIRS_API_V2_MODULE_RESERVED;
 };
 

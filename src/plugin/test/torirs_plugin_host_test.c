@@ -2700,6 +2700,78 @@ static void test_world_draw_context(void)
     PluginHost_Free(host);
 }
 
+/*
+ * The world hull ANSWERS its two refusals.
+ *
+ * `ToriRS_Graphics::world_hull` is declared to return a result; api_draw_hull
+ * was void and v2_builder_world_hull answered TORIRS_RESULT_OK
+ * unconditionally, so the per-frame draw budget and the per-entity APPEARANCE
+ * claim were both dropped between the two. What that costs is not an error
+ * message: it is half the outlines in a mass of tagged npcs, gone, with the
+ * plugin still reporting itself armed.
+ *
+ * MUTATION 1: `return TORIRS_RESULT_OK` from api_draw_hull's budget arm.
+ *   Red: "the draw past the budget answers BUDGET".
+ * MUTATION 2: the same on its claim arm.
+ *   Red: "a claimed entity answers CONFLICT".
+ * MUTATION 3: make v2_builder_world_hull ignore api_draw_hull and return OK,
+ *   which is the shipped defect exactly. Red: both.
+ */
+static int hull_budget_first, hull_budget_last, hull_claimed_result, hull_free_result;
+static void hull_budget_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* graphics)
+{
+    (void)api;(void)state;
+    /* Each fake hull costs 3 against the budget, so this runs well past it. */
+    hull_budget_first = (int)graphics->world_hull(graphics, 5, 0xff0000u, 0, TORIRS_HULL_MESH);
+    for( int i = 0; i < TORIRS_PLUGIN_DRAW_BUDGET; i++ )
+        hull_budget_last = (int)graphics->world_hull(graphics, 5, 0xff0000u, 0, TORIRS_HULL_MESH);
+}
+static void hull_claim_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* graphics)
+{
+    (void)api;(void)state;
+    /* fake_npc_by_slot answers element_id 0 for every slot, so "npc:1" is
+     * element 0 and anything else is unclaimed. */
+    hull_claimed_result = (int)graphics->world_hull(graphics, 0, 0x00ff00u, 0, TORIRS_HULL_BOUNDS);
+    hull_free_result = (int)graphics->world_hull(graphics, 9, 0x00ff00u, 0, TORIRS_HULL_BOUNDS);
+}
+static void hull_claim_start(struct ToriRS_Api* api,void* state)
+{
+    struct ToriRS_EntityAppearance look;
+    (void)state;
+    memset(&look, 0, sizeof(look));
+    look.shape = TORIRS_HULL_BOUNDS;
+    (void)api->game->entity_look(api, "npc:1", &look);
+}
+static void test_world_hull_answers_its_refusals(void)
+{
+    struct ToriRS_PluginEngine engine=fake_engine();
+    struct ToriRS_PluginHost* host=PluginHost_New(&engine);
+    struct ToriRS_PluginDef budget={.struct_size=sizeof(budget),.id="hull-budget",.title="Hull",.version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_draw_world=hull_budget_draw}};
+    struct ToriRS_PluginDef holder={.struct_size=sizeof(holder),.id="hull-holder",.title="Holder",.version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_start=hull_claim_start}};
+    struct ToriRS_PluginDef loser={.struct_size=sizeof(loser),.id="hull-loser",.title="Loser",.version="3",
+        .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_draw_world=hull_claim_draw}};
+
+    hull_budget_first=hull_budget_last=-1;
+    CHECK(PluginHost_Register(host,&budget)>=0,"the budget fixture registers");
+    PluginHost_Start(host);
+    PluginHost_DrawWorld(host,765,503);
+    CHECK(hull_budget_first==(int)TORIRS_RESULT_OK,"a draw inside the budget answers OK");
+    CHECK(hull_budget_last==(int)TORIRS_RESULT_BUDGET,"the draw past the budget answers BUDGET");
+    PluginHost_Free(host);
+
+    hull_claimed_result=hull_free_result=-1;
+    host=PluginHost_New(&engine);
+    CHECK(PluginHost_Register(host,&holder)>=0,"the claim holder registers");
+    CHECK(PluginHost_Register(host,&loser)>=0,"and so does the plugin that will lose");
+    PluginHost_Start(host);
+    PluginHost_DrawWorld(host,765,503);
+    CHECK(hull_claimed_result==(int)TORIRS_RESULT_CONFLICT,"a claimed entity answers CONFLICT");
+    CHECK(hull_free_result==(int)TORIRS_RESULT_OK,"an unclaimed one is still everybody's");
+    PluginHost_Free(host);
+}
+
 static void test_widget_operations(void)
 {
     struct ToriRS_PluginEngine engine=fake_engine();engine.widget_request=fake_widget_request;
@@ -3827,6 +3899,7 @@ main(void)
     test_widget_operations();
     test_widget_images();
     test_world_draw_context();
+    test_world_hull_answers_its_refusals();
     test_gameframe_provider();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

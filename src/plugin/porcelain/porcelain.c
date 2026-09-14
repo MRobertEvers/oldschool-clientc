@@ -1700,6 +1700,68 @@ porcelain_refresh_image(struct Porcelain* porcelain, struct PorcelainAppliedItem
     applied->image_dirty = true;
 }
 
+/*
+ * WHICH node a described item belongs under, by placement kind alone.
+ *
+ * Factored out because the answer has to be asked twice: once at create, and
+ * once at every reconcile, to find out that it has CHANGED. It was only asked
+ * at create, and a control whose target remounted under a different parent
+ * stayed a child of the parent it was born under -- moved by the setters into
+ * coordinates that mean something else, which is the defect the minimap-orbs
+ * port carries about a hundred lines of settle counters and incarnation
+ * guards to work around.
+ */
+static bool
+porcelain_item_parent(struct Porcelain* porcelain, struct PorcelainNormalItem const* item,
+                      struct PorcelainElementState const* target, struct ToriRS_WidgetRef* out)
+{
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+
+    assert(item);
+    assert(target);
+    assert(out);
+    if( item->place.kind == PORCELAIN_AT_CANVAS || item->place.kind == PORCELAIN_AT_USABLE ||
+        item->place.kind == PORCELAIN_WITHIN )
+    {
+        *out = target->ref;
+        return true;
+    }
+    porcelain->counters.engine_calls++;
+    if( widgets->parent(widgets->context, target->ref, out) != TORIRS_CONTRACT_OK ||
+        !ToriRS_WidgetRefValid(*out) )
+        return false;
+    return true;
+}
+
+/*
+ * Could this item's parent have changed since it was created?
+ *
+ * Asked before the engine is, because `widgets.parent` is an engine call and
+ * the layer's whole claim is that an identical re-description costs nothing.
+ * Three things can move the answer and all three are already in hand: the
+ * placement kind (which decides WHICH node is the parent), the target's
+ * reference (a remount is a new node), and the ELEMENT input stamp (a
+ * re-place or a rebuild reaches this library only as a widget event, and
+ * every one of those bumps it).
+ *
+ * The element stamp and NOT the state's own `stamp` field: that one is the
+ * fence counter, and a widget event raised between two fences carries the
+ * fence that has not ended yet -- the same number the create recorded. It
+ * reads like a fine trigger and never fires.
+ */
+static bool
+porcelain_item_target_moved(struct Porcelain const* porcelain,
+                            struct PorcelainAppliedItem const* applied,
+                            struct PorcelainNormalItem const* wanted,
+                            struct PorcelainElementState const* target)
+{
+    if( applied->item.place.kind != wanted->place.kind )
+        return true;
+    if( !ToriRS_WidgetRefEqual(applied->target_ref, target->ref) )
+        return true;
+    return applied->target_element_stamp != porcelain->stamp[PORCELAIN_INPUT_ELEMENT];
+}
+
 static bool
 porcelain_create_item(struct Porcelain* porcelain, struct PorcelainAppliedItem* applied,
                       struct PorcelainElementState const* target)
@@ -1708,24 +1770,13 @@ porcelain_create_item(struct Porcelain* porcelain, struct PorcelainAppliedItem* 
     struct ToriRS_WidgetRef parent;
     enum ToriRS_ContractResult result;
 
-    if( applied->item.place.kind == PORCELAIN_AT_CANVAS ||
-        applied->item.place.kind == PORCELAIN_AT_USABLE ||
-        applied->item.place.kind == PORCELAIN_WITHIN )
+    if( !porcelain_item_parent(porcelain, &applied->item, target, &parent) )
     {
-        parent = target->ref;
-    }
-    else
-    {
-        porcelain->counters.engine_calls++;
-        if( widgets->parent(widgets->context, target->ref, &parent) != TORIRS_CONTRACT_OK ||
-            !ToriRS_WidgetRefValid(parent) )
-        {
-            /* Without the target's parent there is no sibling to create, and
-             * a control parented to the target itself cannot take REPLACE. */
-            Porcelain_RecordFinding(porcelain, "create", applied->item.place.on,
-                                    PORCELAIN_FINDING_REFUSED, "no parent");
-            return false;
-        }
+        /* Without the target's parent there is no sibling to create, and a
+         * control parented to the target itself cannot take REPLACE. */
+        Porcelain_RecordFinding(porcelain, "create", applied->item.place.on,
+                                PORCELAIN_FINDING_REFUSED, "no parent");
+        return false;
     }
 
     porcelain->counters.engine_calls++;
@@ -1743,6 +1794,8 @@ porcelain_create_item(struct Porcelain* porcelain, struct PorcelainAppliedItem* 
         return false;
     }
     applied->parent = parent;
+    applied->target_ref = target->ref;
+    applied->target_element_stamp = porcelain->stamp[PORCELAIN_INPUT_ELEMENT];
     applied->live = true;
     porcelain->dirty = true;
     return true;
@@ -2114,6 +2167,47 @@ porcelain_reconcile(struct Porcelain* porcelain)
             if( applied )
                 porcelain_remove_item(porcelain, applied);
             continue;
+        }
+        /*
+         * A live control whose parent is no longer the right one is RE-MADE,
+         * not moved.
+         *
+         * The engine has no re-parent verb, and a control left under the
+         * parent it was born under is being positioned in coordinates that
+         * belong to a different node -- which looks like drift, not like a
+         * missing control, so it survives every screenshot. Remove-then-
+         * create is the only expression the engine has, and it is free in the
+         * steady state: reconcile runs only when an input moved.
+         */
+        if( applied && porcelain_item_target_moved(porcelain, applied, wanted, &target) )
+        {
+            struct ToriRS_WidgetRef parent;
+            if( !porcelain_item_parent(porcelain, wanted, &target, &parent) )
+            {
+                porcelain_remove_item(porcelain, applied);
+                Porcelain_RecordFinding(porcelain, "reparent", wanted->place.on,
+                                        PORCELAIN_FINDING_REFUSED, "no parent");
+                continue;
+            }
+            if( !ToriRS_WidgetRefEqual(parent, applied->parent) )
+            {
+                porcelain->counters.reparents++;
+                if( porcelain_trace_enabled() )
+                    fprintf(stderr,
+                            "PORCELAIN_REPARENT plugin=%s key=%s frame=%u was=%llu now=%llu\n",
+                            porcelain->plugin_id, wanted->key.text, porcelain->frame,
+                            (unsigned long long)applied->parent.opaque[1],
+                            (unsigned long long)parent.opaque[1]);
+                porcelain_remove_item(porcelain, applied);
+                applied = NULL;
+            }
+            else
+            {
+                /* Asked and answered: do not ask again until the target moves
+                 * again. */
+                applied->target_ref = target.ref;
+                applied->target_element_stamp = porcelain->stamp[PORCELAIN_INPUT_ELEMENT];
+            }
         }
         if( !applied )
         {
@@ -2728,6 +2822,8 @@ static struct ToriRS_PorcelainApi const PORCELAIN_TABLE = {
     .panel_build = Porcelain_PanelBuild,
     .panel_action = Porcelain_PanelAction,
     .panel_draw = Porcelain_PanelDraw,
+    /* round three */
+    .hull = Porcelain_Hull,
 };
 
 struct ToriRS_PorcelainApi const*

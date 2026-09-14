@@ -10641,6 +10641,38 @@ App_Init(
             CS2VM2_SetClientIdentity(clienttype, on_mobile);
             TORIRS_REPORT(
                 "app: clientscript identity: clienttype %d, on_mobile %d\n", clienttype, on_mobile);
+            /*
+             * The touch UI/input policy, resolved HERE and not in the frame
+             * loop.
+             *
+             * It is what core.capability("touch") answers, and the frame loop
+             * runs after PluginHost_Start: a plugin asking at on_start -- the
+             * only place a key declaration can be made -- was told false on
+             * every lane, measured, and then told true at frame 60 where
+             * nothing was listening. A statement about the BOOT belongs at
+             * boot.
+             *
+             * It follows the client IDENTITY, not just the platform: a run
+             * that has told the cache's scripts it is the mobile client
+             * (clienttype 7, or on_mobile) is running the phone's interface,
+             * and a `touch` capability that answered false there made every
+             * rule written against that lane measure nothing.
+             *
+             * TORIRS_TOUCH_UI is read as a NUMBER and outranks all of it, so
+             * `=0` can take a mobile-identity run back to the desktop popup;
+             * as a presence test it could only ever turn the policy on, which
+             * left no way to say no.
+             */
+            {
+                char const* const env_touch = torirs_env_touch_ui();
+                app->touch_ui = (clienttype == 7 || on_mobile) ? 1 : 0;
+#if defined(TORIRS_PLATFORM_ANDROID)
+                app->touch_ui = 1;
+#endif
+                if( env_touch && env_touch[0] )
+                    app->touch_ui = atoi(env_touch) != 0;
+                app->interact.touch_scroll = app->touch_ui;
+            }
         }
         if( !era_name || !era_name[0] )
             era_name = getenv("TORIRS_FEATURES_ERA");

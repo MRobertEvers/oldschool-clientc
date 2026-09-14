@@ -982,6 +982,12 @@ struct App
      * Stated by the platform at boot, like touch_camera, and for the same
      * reason: a desktop run can turn it on (TORIRS_TOUCH_UI=1) to look at the
      * touch popup without a phone attached.
+     *
+     * Resolved in App_Init, beside the clientscript identity it follows, and
+     * NOT from the frame loop. It is what `core.capability("touch")` answers,
+     * and the frame loop runs after PluginHost_Start -- so every plugin that
+     * asked at on_start, which is the only place a key declaration can be
+     * made, was told false on a lane where it is true.
      */
     int touch_ui;
     /* Keys a revconfig hotkey binding acted on this frame, indexed by OSRS key

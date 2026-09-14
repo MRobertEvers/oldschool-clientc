@@ -2259,9 +2259,12 @@ v2_builder_world_hull(
 
     if( shape != TORIRS_HULL_BOUNDS && shape != TORIRS_HULL_MESH )
         return TORIRS_RESULT_INVALID;
-    api_draw_hull(
+    /* The host's answer, not OK-regardless. BUDGET says the frame's allotment
+     * ran out; CONFLICT says another plugin holds this entity's APPEARANCE.
+     * Returning OK over either is what made a dropped outline invisible to
+     * the plugin that asked for it. */
+    return api_draw_hull(
         scope->runtime->context, scope->surface_token, element_id, rgb, v2_alpha(alpha), shape);
-    return TORIRS_RESULT_OK;
 }
 
 static bool

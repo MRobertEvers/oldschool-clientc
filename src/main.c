@@ -2931,17 +2931,17 @@ frame_loop_step(void)
          */
 #if defined(TORIRS_PLATFORM_ANDROID)
         app.touch_camera = 1;
-        app.touch_ui = 1;
 #endif
-        /* The touch-sized interface on a desktop, to look at it. @see
-         * App.touch_ui. */
-        if( torirs_env_touch_ui() )
-            app.touch_ui = 1;
-        /* A finger scrolls a list by dragging it; a mouse has the bar and the
-         * wheel. Mirrored here, beside the flag it follows, rather than after
-         * App_Init -- this block is what sets touch_ui, and it runs from the
-         * frame loop, so anything read at init time is still zero. */
-        app.interact.touch_scroll = app.touch_ui;
+        /*
+         * touch_ui is NOT set here any more, and neither is touch_scroll.
+         *
+         * Both are resolved in App_Init, beside the clientscript identity
+         * they follow. This block runs from the frame loop, which is after
+         * PluginHost_Start, so the capability a plugin reads at on_start --
+         * the only place a key declaration can be made -- was false on every
+         * lane and true from frame one onwards, with nobody listening by
+         * then. Measured: CAPPROBE at=start touch=0, at=frame60 touch=1.
+         */
 
         /* Cheap and unconditional: a window dragged from a Retina display to
          * an ordinary one changes density with no event that says so, and

@@ -1146,12 +1146,38 @@ fake_graphics_context(struct ToriRS_Graphics* draw, struct ToriRS_DrawContext* o
     return true;
 }
 
+/*
+ * The world hull, with BOTH refusals the host has.
+ *
+ * The budget is the plugin's per-frame allotment and is checked first,
+ * because the host checks it first: a claim it never got as far as testing is
+ * not the reason the outline is missing.
+ */
+static enum ToriRS_Result
+fake_graphics_world_hull(struct ToriRS_Graphics* draw, int element_id, uint32_t rgb, int alpha,
+                         int shape)
+{
+    (void)draw;
+    (void)rgb;
+    (void)alpha;
+    testbed_log("world_hull %d shape=%d", element_id, shape);
+    if( shape != TORIRS_HULL_BOUNDS && shape != TORIRS_HULL_MESH )
+        return TORIRS_RESULT_INVALID;
+    if( g_testbed.hull_used >= g_testbed.hull_budget )
+        return TORIRS_RESULT_BUDGET;
+    if( element_id == g_testbed.hull_claimed_element )
+        return TORIRS_RESULT_CONFLICT;
+    g_testbed.hull_used++;
+    return TORIRS_RESULT_OK;
+}
+
 struct ToriRS_Graphics*
 Testbed_Graphics(struct ToriRS_Rect region, bool valid)
 {
     memset(&g_testbed_graphics, 0, sizeof(g_testbed_graphics));
     g_testbed_graphics.struct_size = sizeof(g_testbed_graphics);
     g_testbed_graphics.context = fake_graphics_context;
+    g_testbed_graphics.world_hull = fake_graphics_world_hull;
     g_testbed.draw_region = region;
     g_testbed.draw_region_valid = valid;
     return &g_testbed_graphics;
@@ -1421,6 +1447,11 @@ Testbed_Reset(void)
     /* The host's route table is shared and bounded; a test that wants the
      * refusal turns this down. */
     g_testbed.menu_routes_left = 24;
+
+    /* The draw allotment, and nothing claimed. A test that wants either
+     * refusal turns the budget down or names the claimed element. */
+    g_testbed.hull_budget = 64;
+    g_testbed.hull_claimed_element = -1;
 
     g_testbed.api.widgets.context = &g_testbed;
     g_testbed.api.widgets.find = fake_find;

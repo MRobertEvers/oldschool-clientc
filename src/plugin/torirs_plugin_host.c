@@ -3667,7 +3667,19 @@ api_draw_tile(
         ctx->host->engine.user, tile_x, tile_z, level, rgb, fill_rgb, fill_alpha);
 }
 
-static void
+/*
+ * The one draw verb that ANSWERS, because it is the one with a refusal a
+ * caller cannot otherwise see.
+ *
+ * Every other api_draw_* stays void: their only refusal is the budget, and
+ * the budget already announces itself once per frame per plugin. This one
+ * also refuses on a CLAIM -- an entity whose APPEARANCE facet another plugin
+ * holds -- and that refusal is per entity, not per frame. Tag a species in a
+ * mass of npcs with a claim-holding plugin loaded and half the outlines go
+ * missing with nobody, plugin or player, able to tell. So both refusals are
+ * returned: BUDGET for the allotment, CONFLICT for the claim.
+ */
+static enum ToriRS_Result
 api_draw_hull(
     struct PluginContext* ctx,
     void* surface,
@@ -3679,13 +3691,12 @@ api_draw_hull(
     assert(shape == TORIRS_HULL_BOUNDS || shape == TORIRS_HULL_MESH);
     plugin_draw_require_world(ctx);
     if( !plugin_draw_allow(ctx, surface) )
-        return;
-    /* An entity whose APPEARANCE facet another plugin owns is that plugin's to
-     * outline. Refusal is silent, like an element that is not on screen. */
+        return TORIRS_RESULT_BUDGET;
     if( !plugin_entity_hull_allowed(ctx->host, ctx->index, element_id) )
-        return;
+        return TORIRS_RESULT_CONFLICT;
     ctx->draw_used +=
         ctx->host->engine.draw_hull(ctx->host->engine.user, element_id, rgb, fill_alpha, shape);
+    return TORIRS_RESULT_OK;
 }
 
 static void
