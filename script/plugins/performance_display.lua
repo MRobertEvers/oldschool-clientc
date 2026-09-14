@@ -27,6 +27,14 @@
 -- you have stopped looking for. Averaging FRAME_WINDOW frames is what keeps
 -- them readable.
 --
+-- The picture is Porcelain's. This plugin owns no widget, no watch and no
+-- geometry repair: it states the four rows it wants, and re-states them only
+-- when a string or a setting moved. Everything that used to be bookkeeping
+-- here -- create on BOUND, remove on UNBOUND, re-run the layout after a
+-- config change, write four positions and four sizes that were already right
+-- -- is the reconciler's, and the reconciler compares before it writes. That
+-- comparison is what keeps the layout calls at four for the life of a bind.
+--
 
 ---@type torirs.Plugin
 local plugin = {
@@ -98,59 +106,104 @@ local function format_memory(bytes)
     return string.format("%.0f KiB", bytes / 1024)
 end
 
--- Owned native text widgets share the viewport's layout and visibility.
--- Native remounts rebind them; no draw builder or per-frame geometry repair.
-local labels = {}
-local metrics = {
+-- The four rows, in the order they stack. A metric whose switch is off keeps
+-- its row -- same key, empty string -- and yields its slot, so turning FPS off
+-- moves Frame up to the top rather than leaving a hole.
+local METRICS = {
     { key = "fps", visible = "show_fps" },
     { key = "frame", visible = "show_frame_time" },
     { key = "effective", visible = "show_effective_fps" },
     { key = "memory", visible = "show_memory" },
 }
-local function update_text(api)
+
+-- The box is stated, not measured: nothing in the api answers how wide a
+-- string is in the widget's face, so a row that overruns is clipped at 132 and
+-- says nothing. Porcelain makes w,h mandatory on a text item for exactly that
+-- reason.
+local ROW_WIDTH, ROW_HEIGHT, FIRST_ROW_TOP = 132, 15, 3
+
+-- What each row says right now, keyed the way the controls are. This is the
+-- whole of the description that moves between frames.
+local readout = {}
+-- The describe callback is handed the builder and nothing else, so the api
+-- table -- which is one table for the life of the script -- is held here.
+local host = nil
+local live = false
+
+-- Refresh `readout` from the current samples and settings. Answers whether any
+-- row's string actually moved: a describe that would say what the applied
+-- description already says is a describe not worth running.
+local function compose(api)
     local work_us = recent_mean_us()
-    local text = {
+    local wanted = {
         fps = string.format("FPS: %.1f", sampled_fps),
         frame = string.format("Frame: %.2f ms", work_us / 1000),
         effective = string.format("Effective FPS: %.1f", work_us > 0 and 1000000 / work_us or 0),
         memory = "Memory: " .. format_memory(sampled_memory),
     }
-    for _, metric in ipairs(metrics) do
-        local label = labels[metric.key]
-        if label then label:set_text(api.config[metric.visible] and text[metric.key] or "") end
+    local moved = false
+    for _, metric in ipairs(METRICS) do
+        local text = api.config[metric.visible] and wanted[metric.key] or ""
+        if readout[metric.key] ~= text then
+            readout[metric.key] = text
+            moved = true
+        end
     end
+    return moved
 end
-local function layout_labels(api)
+
+-- Alignment 1 is CENTRE. Every row is a 132 px box with its text centred in
+-- it, which is what this readout has always looked like; left would be a
+-- silent change of appearance.
+local function describe(build)
+    local config = host.config
     local row = 0
-    for _, metric in ipairs(metrics) do
-        local label = labels[metric.key]
-        if label then
-            label:set_position(api.config.x, api.config.y + 3 + row * 15)
-            label:set_size(132, 15)
-            label:set_text_align(1, 0)
-            label:set_text_color(api.config.text_color)
-            label:revalidate()
-        end
-        if api.config[metric.visible] then row = row + 1 end
+    for _, metric in ipairs(METRICS) do
+        build.text({
+            key = "performance_" .. metric.key,
+            text = readout[metric.key],
+            place = {
+                kind = "inside",
+                on = "viewport",
+                corner = "top_left",
+                dx = config.x,
+                dy = config.y + FIRST_ROW_TOP + row * ROW_HEIGHT,
+            },
+            w = ROW_WIDTH,
+            h = ROW_HEIGHT,
+            rgb = config.text_color,
+            align = 1,
+        })
+        if config[metric.visible] then row = row + 1 end
     end
-    update_text(api)
 end
+
 function plugin.on_start(api)
-    assert(api.widgets.watch("viewport", function(viewport, event)
-        if event.kind == "unbound" then
-            for _, label in pairs(labels) do label:remove() end
-            labels = {}
-            return
-        end
-        for _, metric in ipairs(metrics) do
-            labels[metric.key] = assert(viewport:create_text("performance_" .. metric.key))
-        end
-        layout_labels(api)
-    end))
+    host = api
+    for _, metric in ipairs(METRICS) do readout[metric.key] = "" end
+    compose(api)
+    live = api.porcelain.open()
+    if not live then
+        -- Out loud: a client with no Porcelain has nowhere to put this, and a
+        -- blank corner reads exactly like a working readout of zero.
+        api.core.log("performance-display: no porcelain layer -- no readout")
+        return
+    end
+    api.porcelain.describe(describe)
 end
-function plugin.on_config_changed(api) layout_labels(api) end
+
+function plugin.on_config_changed(api)
+    host = api
+    if not live then return end
+    -- The switches gate the strings as well as the rows, so the description
+    -- has to be recomposed before the config stamp moves.
+    compose(api)
+    api.porcelain.note("config")
+end
 
 function plugin.on_frame_start(api, ev)
+    host = api
+
     -- 0 means the host measured no frame -- a headless run reports nothing, and
     -- so does the first frame. Recording it would drag the mean toward a work
     -- time no frame took.
@@ -163,27 +216,37 @@ function plugin.on_frame_start(api, ev)
         sample_started_ms = ev.now_ms
         sample_drawn_at_start = ev.drawn_frames
         sampled_memory = api.client.memory_bytes()
-        update_text(api)
-        return
+    else
+        -- Frames DRAWN, not on_frame_start calls: the loop runs at the pacer's
+        -- rate whether or not it draws, so counting calls reads 50 while the
+        -- screen is capped at 15.
+        sample_frames = ev.drawn_frames - sample_drawn_at_start
+        local elapsed = ev.now_ms - sample_started_ms
+        if elapsed >= api.config.refresh_ms then
+            sampled_fps = sample_frames * 1000 / elapsed
+            sampled_memory = api.client.memory_bytes()
+            sample_frames = 0
+            sample_started_ms = ev.now_ms
+            sample_drawn_at_start = ev.drawn_frames
+        end
     end
 
-    -- Frames DRAWN, not on_frame_start calls: the loop runs at the pacer's rate
-    -- whether or not it draws, so counting calls reads 50 while the screen
-    -- is capped at 15.
-    sample_frames = ev.drawn_frames - sample_drawn_at_start
-    local elapsed = ev.now_ms - sample_started_ms
-    if elapsed < api.config.refresh_ms then update_text(api); return end
-
-    sampled_fps = sample_frames * 1000 / elapsed
-    sampled_memory = api.client.memory_bytes()
-    sample_frames = 0
-    sample_started_ms = ev.now_ms
-    sample_drawn_at_start = ev.drawn_frames
-    update_text(api)
+    if not live then return end
+    -- Re-describe only for a string that moved. A frame that says nothing new
+    -- costs one hash compare per row inside the fence and no engine call at
+    -- all, which is the whole reason the description is retained.
+    if compose(api) then api.porcelain.invalidate() end
+    api.porcelain.fence()
+    api.porcelain.commit()
 end
 
 function plugin.on_stop(api)
-    labels = {}
+    -- Close drops the four controls with the handle; the ring, the window and
+    -- the latched values are cleared here so a re-enable starts from
+    -- "Frame: 0.00 ms" rather than from a stale mean.
+    if live then api.porcelain.close() end
+    live = false
+    host = nil
     sample_started_ms = nil
     sample_frames = 0
     sampled_fps = 0
