@@ -247,49 +247,10 @@ enum
      * client that looks merely slow for a reason nothing reports.
      */
     APP_ASYNC_STEP_LIMIT = 5000,
-    /*
-     * Connection-loss thresholds. See the `net_lost` block in app.h.
-     *
-     * APP_NET_TIMEOUT_MS is the reference's own: Client-TS gives up 15s after
-     * the last packet (Client.ts:2443), and the server sends often enough that
-     * a healthy link never comes close.
-     *
-     * APP_NET_STALL_MS answers a different question — not "has the server gone
-     * quiet" but "was this client running". A frame gap that large means the
-     * process was not scheduled (a hidden or frozen browser tab, a suspended
-     * machine), so whatever is queued behind the socket is a backlog to
-     * abandon, not a stream to replay.
-     *
-     * The gap it tests is now_ms - last_frame_ms, and last_frame_ms is stamped
-     * at the TOP of App_RunOnce — so the quantity is the previous frame's whole
-     * wall duration, work included, not the time the process spent descheduled.
-     * That conflation is harmless where a frame is always short. It is not
-     * harmless on the Windows XP lane: the earlier value, 4000, assumed "a slow
-     * map load is hundreds of milliseconds, not seconds", and on that hardware
-     * it is seconds. Measured worst legitimate frame, hydrating the sparse
-     * cache over JS5 while rebuilding the world:
-     *
-     *   docs/winxp_profiles/baseline-winxp-soft3d-torirs-perf.csv   6.73s
-     *   docs/winxp_profiles/new-run1.csv                           11.04s
-     *
-     * A client working flat out therefore concluded twelve times in one
-     * thousand frames that it had not been running, and dropped a healthy
-     * session — each drop costing a reconnect and a fresh login, which is what
-     * made the profile unusable. 30000 clears the worst measured frame by
-     * ~2.7x while staying far below any real suspend, which is minutes.
-     */
-    APP_NET_TIMEOUT_MS = 15000,
-    APP_NET_STALL_MS = 30000,
     /* Outbound silence that has to pass before the NO_TIMEOUT keepalive goes
      * out. The reference's own figure (Client.ts:2181), and far below the
      * server's idle cutoff, so one late tick cannot cost the session. */
     APP_NET_KEEPALIVE_MS = 1000,
-    /* Wait between re-establish attempts, and how many to make before giving
-     * up and saying so. The reference retries once and falls back to the login
-     * screen; a browser client that a phone backgrounded deserves more than
-     * one try, but not an unbounded loop against a server that is gone. */
-    APP_NET_RECONNECT_DELAY_MS = 2000,
-    APP_NET_RECONNECT_MAX_ATTEMPTS = 5,
     /* Mouseover text origin inside the viewport. The reference container puts
      * its text child at (0,0); the classic client drew the same line at
      * (4, 15) — one padded cell in, with the baseline a line down. Ours is a
@@ -8670,11 +8631,7 @@ App_Logout(struct App* app)
      * lost, and the client would spend its way back to the title screen
      * redialling the world the player just left.
      */
-    app->net_last_recv_ms = 0;
-    app->net_first_recv_ms = 0;
-    app->net_lost = 0;
-    app->net_reconnect_attempts = 0;
-    app->net_reconnect_failed = 0;
+    NetLinkWatch_Reset(&app->net_link);
 
     if( !App_HasTitleScreen(app) )
     {
@@ -8705,27 +8662,53 @@ App_Logout(struct App* app)
 }
 
 /*
- * Declare the session dead and start trying to get it back.
+ * TORIRS_NET_DROP_MS=<ms>: sever the connection this long after the first
+ * packet of the session. The headless equivalent of the reference's
+ * `::clientdrop` -- a harness has no chat box to type into, and the path it
+ * exercises is otherwise reached only by genuinely losing a socket.
  *
- * Idempotent: every detector below can fire in the same frame as another (a
- * stalled tab both misses packets and reports a huge frame gap), and the
- * first one to arrive owns the transition.
+ * Fires once. Read once, because this sits inside the per-frame watch.
+ */
+static bool
+app_net_drop_requested(
+    struct App const* app,
+    uint64_t now_ms)
+{
+    static long drop_ms = -2;
+
+    assert(app);
+    if( drop_ms == -2 )
+    {
+        char const* value = getenv("TORIRS_NET_DROP_MS");
+        drop_ms = value && *value ? strtol(value, NULL, 0) : -1;
+    }
+    if( drop_ms <= 0 || !app->net_link.first_recv_ms )
+        return false;
+    if( now_ms - app->net_link.first_recv_ms < (uint64_t)drop_ms )
+        return false;
+    drop_ms = -1;
+    return true;
+}
+
+/*
+ * What a lost session costs, once the watch has decided it is lost.
+ *
+ * Separate from the decision so that `::clientdrop` -- which severs the
+ * connection from the chat handler, between frames -- pays the same price by
+ * the same route.
  */
 static void
-app_net_lost(
+app_net_tear_down_session(
     struct App* app,
     char const* why)
 {
-    if( !app->net || app->net_lost )
-        return;
+    assert(app);
+    assert(app->net);
 
     TORIRS_LOG("net: connection lost (%s) — attempting to reestablish\n", why);
-    app->net_lost = 1;
-    app->net_reconnect_attempts = 0;
-    app->net_reconnect_failed = 0;
-    /* Immediately: the first attempt is the one most likely to work, and the
-     * delay below exists to space out *retries*. */
-    app->net_reconnect_at_ms = 0;
+    /* The next REBUILD must run even if it names the zone the client is
+     * already standing in: it is the server's whole world state arriving
+     * again, and its acknowledgement is what releases the rest of the burst. */
     app->net_force_rebuild = 1;
     /* Pushes NET_OUT_DISCONNECT, so the peer sees the FIN before the
      * re-established session asks for the character back. */
@@ -8733,8 +8716,23 @@ app_net_lost(
     App_NetSessionReset(app);
 }
 
+/* Sever the session on demand, from outside the per-frame watch. */
+static void
+app_net_lost(
+    struct App* app,
+    char const* why)
+{
+    assert(app);
+    if( !app->net || !NetLinkWatch_Drop(&app->net_link) )
+        return;
+    app_net_tear_down_session(app, why);
+}
+
 /*
  * Watch a live session, and drive the re-establishment of a dead one.
+ *
+ * The policy is NetLinkWatch's. This is the half that has a socket: what the
+ * transport can be seen to be doing, and what each answer costs.
  *
  * Called once per App_RunOnce with the wall clock, ahead of the logic ticks:
  * a frame that decides the backlog is stale must not first spend five ticks
@@ -8745,116 +8743,50 @@ app_net_link_watch(
     struct App* app,
     uint64_t now_ms)
 {
-    uint64_t gap;
+    struct NetLinkSighting seen;
+    char const* why = NULL;
 
+    assert(app);
     if( !app->net || !app->net_enabled )
         return;
 
-    gap = app->last_frame_ms && now_ms > app->last_frame_ms ? now_ms - app->last_frame_ms : 0;
+    memset(&seen, 0, sizeof(seen));
+    seen.now_ms = now_ms;
+    seen.frame_gap_ms =
+        app->last_frame_ms && now_ms > app->last_frame_ms ? now_ms - app->last_frame_ms : 0;
+    seen.in_game = app->net->state == TORIRS_NET_GAME;
+    seen.logging_in = app->net->state == TORIRS_NET_LOGIN;
+    seen.socket_closed = (app->net->conn_status == TORIRS_NET_STATUS_DISCONNECTED ||
+                          app->net->conn_status == TORIRS_NET_STATUS_FAILED) &&
+                         app->net->state == TORIRS_NET_DISCONNECTED;
+    seen.drop_requested = app_net_drop_requested(app, now_ms);
 
-    if( !app->net_lost )
+    switch( NetLinkWatch_Step(&app->net_link, &seen, &why) )
     {
-        /*
-         * TORIRS_NET_DROP_MS=<ms>: sever the connection this long after the
-         * first packet. The headless equivalent of the reference's
-         * `::clientdrop` — a harness has no chat box to type into, and the
-         * whole point of this path is that it is otherwise reached only by
-         * genuinely losing a socket.
-         */
-        {
-            static long drop_ms = -2;
-            if( drop_ms == -2 )
-            {
-                char const* env = getenv("TORIRS_NET_DROP_MS");
-                drop_ms = env && *env ? strtol(env, NULL, 0) : -1;
-            }
-            if( drop_ms > 0 && app->net_last_recv_ms &&
-                now_ms - app->net_first_recv_ms >= (uint64_t)drop_ms )
-            {
-                drop_ms = -1; /* once */
-                app_net_lost(app, "TORIRS_NET_DROP_MS");
-                return;
-            }
-        }
-        /*
-         * 1. This process stopped running.
-         *
-         * The browser stops calling a hidden tab's animation frame, so the
-         * client stops draining a socket the server keeps writing to. Coming
-         * back and replaying that backlog is what made a returning tab spend
-         * seconds fast-forwarding with input ignored — and, before the
-         * transports learned back-pressure, silently truncated the stream.
-         * Neither is worth having: the session is stale, so drop it.
-         *
-         * Gated on having heard from the server at least once: a boot frame
-         * can legitimately run long (a cold cache, a browser IO round trip),
-         * and there is no session to lose yet.
-         */
-        if( app->net_last_recv_ms && gap >= (uint64_t)APP_NET_STALL_MS )
-        {
-            app_net_lost(app, "client was not running");
-            return;
-        }
-        /*
-         * 2. The server stopped speaking. The reference's own 15s bound; only
-         * armed once in the game world, since the login handshake legitimately
-         * sits quiet while a proof-of-work is solved.
-         */
-        if( app->net->state == TORIRS_NET_GAME && app->net_last_recv_ms &&
-            now_ms - app->net_last_recv_ms >= (uint64_t)APP_NET_TIMEOUT_MS )
-        {
-            app_net_lost(app, "no packets for 15s");
-            return;
-        }
-        /*
-         * 3. The transport says the socket is gone. Only meaningful once the
-         * session was up: before that, DISCONNECTED is just the initial state.
-         */
-        if( app->net_last_recv_ms &&
-            (app->net->conn_status == TORIRS_NET_STATUS_DISCONNECTED ||
-             app->net->conn_status == TORIRS_NET_STATUS_FAILED) &&
-            app->net->state == TORIRS_NET_DISCONNECTED )
-        {
-            app_net_lost(app, "socket closed");
-        }
-        return;
-    }
-
-    /* Re-established: the handshake reached the game stream again. */
-    if( app->net->state == TORIRS_NET_GAME )
-    {
+    case NET_LINK_LOST:
+        app_net_tear_down_session(app, why);
+        break;
+    case NET_LINK_REESTABLISHED:
         TORIRS_LOG(
-            "net: session re-established after %d attempt(s)\n", app->net_reconnect_attempts);
-        app->net_lost = 0;
-        app->net_reconnect_attempts = 0;
-        app->net_last_recv_ms = now_ms;
+            "net: session re-established after %d attempt(s)\n",
+            app->net_link.reconnect_attempts);
         app->need_redraw = 1;
-        return;
-    }
-
-    /* An attempt is still in flight while the login machine runs; only a
-     * machine that fell back to DISCONNECTED has failed. */
-    if( app->net->state == TORIRS_NET_LOGIN )
-        return;
-    if( app->net_reconnect_failed )
-        return;
-    if( now_ms < app->net_reconnect_at_ms )
-        return;
-    if( app->net_reconnect_attempts >= APP_NET_RECONNECT_MAX_ATTEMPTS )
-    {
-        TORIRS_LOG("net: giving up after %d reconnect attempts\n", app->net_reconnect_attempts);
-        app->net_reconnect_failed = 1;
+        break;
+    case NET_LINK_RECONNECT:
+        TORIRS_LOG("net: reconnect attempt %d\n", app->net_link.reconnect_attempts);
+        if( !ToriRS_Network_Reconnect(app->net) )
+        {
+            NetLinkWatch_NoteReconnectRefused(&app->net_link);
+            app->need_redraw = 1;
+        }
+        break;
+    case NET_LINK_GAVE_UP:
+        TORIRS_LOG(
+            "net: giving up after %d reconnect attempts\n", app->net_link.reconnect_attempts);
         app->need_redraw = 1;
-        return;
-    }
-
-    app->net_reconnect_attempts++;
-    app->net_reconnect_at_ms = now_ms + APP_NET_RECONNECT_DELAY_MS;
-    TORIRS_LOG("net: reconnect attempt %d\n", app->net_reconnect_attempts);
-    if( !ToriRS_Network_Reconnect(app->net) )
-    {
-        app->net_reconnect_failed = 1;
-        app->need_redraw = 1;
+        break;
+    case NET_LINK_IDLE:
+        break;
     }
 }
 
@@ -9116,9 +9048,7 @@ app_pump_net_packets(struct App* app)
             /* Liveness, for app_net_link_watch's 15s bound. Stamped on the
              * packet rather than on the byte read: a socket that delivers
              * bytes the framer never completes is not a live session. */
-            app->net_last_recv_ms = app->last_frame_ms;
-            if( !app->net_first_recv_ms )
-                app->net_first_recv_ms = app->last_frame_ms;
+            NetLinkWatch_NotePacket(&app->net_link, app->last_frame_ms);
 
             /* Once a revision has demonstrated explicit tick fences,
              * retain only packets that participate in an atomic UI/CS2
@@ -10111,7 +10041,7 @@ app_draw_connection_lost_overlay(
         width,
         height,
         "Connection lost",
-        app->net_reconnect_failed ? "Unable to reestablish - please reload"
+        NetLinkWatch_GaveUp(&app->net_link) ? "Unable to reestablish - please reload"
                                   : "Please wait - attempting to reestablish",
         /* fill_black */ 0);
 }
@@ -18791,7 +18721,7 @@ App_Render(
     /* And over the top of either: the session is gone. Last, so it is not the
      * thing a rebuild overlay covers — a reconnect drives a rebuild, and the
      * two would otherwise overlap with the wrong one winning. */
-    if( app->net_lost )
+    if( NetLinkWatch_Lost(&app->net_link) )
         app_draw_connection_lost_overlay(app, pixels, width, height);
 
     if( torirs_env_frame_debug() )

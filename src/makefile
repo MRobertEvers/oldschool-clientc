@@ -727,6 +727,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	cmd/cmdring.c cmd/cmdbus.c \
 	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c \
 	net/loginproto.c net/packetbuffer.c net/net.c net/net_out.c net/bitbuffer.c \
+	net/net_link_watch.c \
 	net/rev/gameproto_parse.c net/rev/packets/pkt_player_info.c net/rev/packets/pkt_npc_info.c \
 	net/rev/packets/pkt_player_appearance.c net/rev/packets/pkt_rebuild_normal.c \
 	net/rev/packets/pkt_rebuild_region.c \
@@ -1648,6 +1649,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-ground-items-dirty
 	$(MAKE) test-uitree-popup-place
 	$(MAKE) test-settings-pickers
+	$(MAKE) test-net-link-watch
 	$(MAKE) test-uitree-if-store
 	$(MAKE) test-minimap-mapscene
 	$(MAKE) test-viewport-projection
@@ -1696,6 +1698,17 @@ test-uitree-if-store: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX) \
 		ui/test/uitree_if_store_test.c ui/uitree_if_store.c $(LDFLAGS)
 	./$(OBJ_DIR)/uitree_if_store_test$(PLATFORM_EXE_SUFFIX)
+
+# When a session is dead, when to dial again, and when to stop. None of it is
+# observable after the fact -- a session that ends and comes back looks exactly
+# like one that was never lost, and one that is dropped while healthy looks
+# like a bad connection, which this client already shipped once when the stall
+# threshold was four seconds. No socket: the policy is run against a clock.
+.PHONY: test-net-link-watch
+test-net-link-watch: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/net_link_watch_test$(PLATFORM_EXE_SUFFIX) \
+		net/test/net_link_watch_test.c net/net_link_watch.c $(LDFLAGS)
+	./$(OBJ_DIR)/net_link_watch_test$(PLATFORM_EXE_SUFFIX)
 
 # The two All Settings pickers the client builds itself. The cache's op script
 # for a colour swatch or a number field plays a click and returns -- in the

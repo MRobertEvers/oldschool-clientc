@@ -14,6 +14,7 @@
 #include "features/features.h"
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
+#include "net/net_link_watch.h"
 #include "ui/settings_pickers.h"
 #include "game/rs_ground_items_dirty.h"
 #include "engine/title_flames.h"
@@ -1519,23 +1520,18 @@ struct App
      */
     /** Wall clock at the last completed App_RunOnce; 0 before the first. */
     uint64_t last_frame_ms;
-    /** Wall clock when a server packet last arrived. */
-    uint64_t net_last_recv_ms;
     /** Wall clock when we last put bytes on the wire. Drives the NO_TIMEOUT
      * keepalive, which the reference sends only after a full second of
      * outbound silence -- any real packet resets the wait. */
     uint64_t net_last_send_ms;
-    /** Wall clock when the first packet of the current session arrived; the
-     * origin the TORIRS_NET_DROP_MS test hook measures from. */
-    uint64_t net_first_recv_ms;
-    /** Non-zero while the connection is gone and being re-established. */
-    int net_lost;
-    /** Re-establish attempts made since the connection was lost. */
-    int net_reconnect_attempts;
-    /** Wall clock at which the next attempt may be made. */
-    uint64_t net_reconnect_at_ms;
-    /** Set once the attempts are exhausted: lost, and not coming back. */
-    int net_reconnect_failed;
+    /**
+     * When the session is dead, when to dial again, and when to stop.
+     *
+     * The three ways a session can end are not interchangeable and none of
+     * them is observable after the fact -- a session that ends and comes back
+     * looks exactly like one that was never lost. See net/net_link_watch.h.
+     */
+    struct NetLinkWatch net_link;
     /** One-shot: the next REBUILD must run even if it names the zone the
      * client is already standing in. Raised when a session is re-established,
      * because that rebuild is the server's whole world state arriving again

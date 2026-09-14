@@ -20,7 +20,7 @@
 # sees that. `check` fails when the struct grows past it AND when it has shrunk
 # below it, so a field cannot creep back in on the space a subsystem freed.
 
-struct-App-fields: 433
+struct-App-fields: 428
 
 src/main.c
 src/executor_config.c
