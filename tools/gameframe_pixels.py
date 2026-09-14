@@ -192,6 +192,24 @@ def check_screenshot_saved(log, failures):
     if not ok: failures.append("screenshot_saved")
 
 
+def check_porcelain_clean(log, failures):
+    """No refusal the plugin did not declare.
+
+    A Porcelain plugin reports every result that is not OK or PENDING as a
+    finding, and a finding it expects (an element this lane does not have,
+    declared through ExpectAbsent) carries expected=1. Anything else in the
+    log is a refusal nobody planned for, which is the class of defect the
+    record says hurt most and was found last."""
+    found = re.findall(r"^PORCELAIN_FINDING .*$", log, re.M)
+    unexpected = [l for l in found if "expected=1" not in l]
+    print(f"PIXEL porcelain_clean={'PASS' if not unexpected else 'FAIL'} "
+          f"findings={len(found)} unexpected={len(unexpected)}")
+    for l in unexpected[:6]:
+        print("    !", l[:160])
+    if unexpected:
+        failures.append("porcelain_clean")
+
+
 def check_report_replaced(log, failures):
     """The plugin's report-slot camera is an owned graphic anchored REPLACE to
     the native report control: the engine drops the control's paint and input
@@ -460,7 +478,7 @@ def check_native_caption(rows,log,text,failures):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None, dest_tile=False, menu_row=None, overlay_text_absent=None, native_caption_absent=None, scene_objects=None, find_all_holes=None):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None, dest_tile=False, menu_row=None, overlay_text_absent=None, native_caption_absent=None, scene_objects=None, find_all_holes=None, porcelain_clean=False):
     width, height, rows = read_bmp(path)
     failures = []
     if public_chat_mode=="friends":
@@ -590,6 +608,8 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         valid = observed == (count, missing)
         print(f"PIXEL find_all_holes={'PASS' if valid else 'FAIL'} role={role} expected={count}:{missing} observed={observed}")
         if not valid: failures.append(f"find_all_holes:{spec}")
+    if porcelain_clean:
+        check_porcelain_clean(Path(bounds_path).read_text() if bounds_path else "", failures)
     if report_replaced:
         check_report_replaced(Path(bounds_path).read_text() if bounds_path else "", failures)
     if highlight_color:
@@ -746,6 +766,8 @@ if __name__ == "__main__":
     parser.add_argument("--widget-op", action="store_true", help="the simulated click must press the demo's owned control")
     parser.add_argument("--expect-log", action="append", default=[], help="regex the client log must contain (repeatable)")
     parser.add_argument("--screenshot-saved", action="store_true", help="a plugin 'captured <path>' line names an existing PNG")
+    parser.add_argument("--porcelain-clean", action="store_true",
+                        help="fail on any PORCELAIN_FINDING the plugin did not declare expected")
     parser.add_argument("--report-replaced", action="store_true", help="the native report control is plugin-hidden and the camera sits in its slot")
     parser.add_argument("--forbid-log", action="append", default=[], help="regex the client log must NOT contain (repeatable)")
     parser.add_argument("--highlight-color", help="RRGGBB[:min] a live cache highlight group of this colour has members and its exact colour is painted")
@@ -775,7 +797,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log, args.highlight_color, args.panel_custom_ink, args.dest_tile, args.menu_row, args.overlay_text_absent, args.native_caption_absent, args.scene_objects, args.find_all_holes)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log, args.highlight_color, args.panel_custom_ink, args.dest_tile, args.menu_row, args.overlay_text_absent, args.native_caption_absent, args.scene_objects, args.find_all_holes, args.porcelain_clean)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

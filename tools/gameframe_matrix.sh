@@ -321,6 +321,10 @@ while IFS='|' read tag m f s; do
   [[ -n "${GF_MATRIX_SCENE_OBJECTS:-}" ]] && widget_args+=(--scene-objects "$GF_MATRIX_SCENE_OBJECTS")
   # GF_MATRIX_SCREENSHOT_SAVED=1: a plugin "captured <path>" line whose file exists.
   [[ "${GF_MATRIX_SCREENSHOT_SAVED:-0}" == 1 ]] && widget_args+=(--screenshot-saved)
+  # GF_MATRIX_PORCELAIN_CLEAN=1: no PORCELAIN_FINDING the plugin did not declare
+  # expected. A Porcelain plugin reports every refusal, so this is the gate that
+  # says a port did not go quiet about one.
+  [[ "${GF_MATRIX_PORCELAIN_CLEAN:-0}" == 1 ]] && widget_args+=(--porcelain-clean)
   # GF_MATRIX_REPORT_REPLACED=1: the plugin's camera control is anchored REPLACE to
   # the native report control (the control's own state untouched).
   [[ "${GF_MATRIX_REPORT_REPLACED:-0}" == 1 ]] && widget_args+=(--report-replaced)
