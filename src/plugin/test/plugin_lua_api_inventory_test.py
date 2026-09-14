@@ -273,6 +273,11 @@ def main() -> int:
         'api.porcelain.config_list_add("tags"',
         'api.porcelain.key_edge("reveal_key"',
         'api.porcelain.expect_absent("role:reveal_key"',
+        # An edge nothing forwards is an edge that never fires. porcelain
+        # .note_key has no caller in the host at all, so the plugin's own
+        # on_key is the whole mechanism; without it the reveal key could never
+        # go down and the Tag rows were unreachable on every lane.
+        "api.porcelain.note_key(",
         "api.porcelain.fence(",
         "api.porcelain.commit(",
     ):
@@ -284,6 +289,55 @@ def main() -> int:
     for forbidden in ("api.menu.add(", "api.input.key_held("):
         if forbidden in highlighter:
             errors.append(f"entity_highlighter.lua: raw verb whose refusal is silent: {forbidden}")
+
+    ground = (SCRIPT_DIR / "ground_items.lua").read_text(encoding="utf-8")
+    # The widest lane surface of the four overlays, and most of it was
+    # bookkeeping around a refusal the plugin then dropped: a hand-rolled
+    # suppress-then-format latch over the lane's caption widgets, a copied
+    # 192-byte config ceiling, a hand-rolled retained-row encoding, a key poll
+    # that cannot answer on a touch lane, and a price file requested, read and
+    # released by hand. Each has a verb now, and the verb is what reports it.
+    for required in (
+        "api.porcelain.open(",
+        'api.porcelain.native_overlay("ground_item_labels", "groundItemCaption"',
+        "api.porcelain.note_script(",
+        'api.porcelain.require("cs2_scripts", "native captions")',
+        'api.porcelain.expect_unsupported("native captions"',
+        'api.porcelain.expect_unsupported("draw_refusal_readout"',
+        'api.porcelain.expect_absent("role:reveal_key"',
+        'api.porcelain.key_edge("reveal_key"',
+        "api.porcelain.note_key(",
+        "api.porcelain.menu_add(",
+        "api.porcelain.menu_tag(",
+        "api.porcelain.menu_untag(",
+        "api.porcelain.config_list_add(",
+        "api.porcelain.config_list_remove(",
+        "api.porcelain.tiers_from_config(",
+        "api.porcelain.tier(",
+        "api.porcelain.table(",
+        "api.porcelain.notify(",
+        "api.porcelain.fence(",
+        "api.porcelain.commit(",
+    ):
+        if required not in ground:
+            errors.append(f"ground_items.lua: missing reported refusal: {required}")
+    # Every one of these is a value this plugin used to drop or a constant it
+    # used to copy. watch_tree/find_all/set_hidden/reset WERE the latch;
+    # `find_all(...) or {}` read a truncated collection as "no captions".
+    # assets.request/bytes/release held prices.txt resident for the session.
+    # key_held answers 0 for "up" and for "no keyboard" alike. menu.add's bool
+    # was dropped. core.log is where the notifications went to die.
+    for forbidden in ("api.widgets.", "api.assets.", "api.input.key_held(",
+                      "api.menu.add(", "CONFIG_VALUE_MAX", "watch_tree("):
+        if forbidden in ground:
+            errors.append(f"ground_items.lua: raw verb whose refusal is silent: {forbidden}")
+    # Two verbs this plugin declines on purpose, with the reason in the header.
+    # Calling either would be an engine call a frame for an answer about a
+    # different subject, so a regression to one is not an improvement.
+    for forbidden in ("porcelain.draw_context(", "porcelain.hover(", "porcelain.note_menu(",
+                      "draw.context("):
+        if forbidden in ground:
+            errors.append(f"ground_items.lua: scene-addressed overlay called a canvas verb: {forbidden}")
 
     if errors:
         for error in errors:

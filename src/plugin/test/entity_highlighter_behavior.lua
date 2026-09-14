@@ -9,13 +9,21 @@
 --     and leaves the stored list exactly as it was;
 --   * key_edge answers false on a lane with no keyboard frame, with one
 --     finding, at the moment it is asked and not at some later fence;
+--   * the edge itself is moved by note_key and NEVER by a fence poll, because
+--     a poll cannot see a press that opens and closes inside one frame -- and
+--     nothing in the host forwards a key into the layer, so the plugin has to
+--     forward its own on_key. This fake used to poll a `held` table at the
+--     fence, which is precisely why it could not see that this plugin never
+--     forwarded anything: from its port until now the reveal key could not go
+--     down and Tag/Untag were unreachable on every lane;
 --   * a finding whose element was declared through expect_absent reads as
 --     expected, and one that was not does not.
 --
--- Those four are the port. Each of the first three used to be a value this
--- plugin dropped -- a `false` from menu.add, a truncated `set`, a `0` from
--- key_held that means "not held" and "there is no keyboard" alike -- so each
--- is pinned here twice: that the refusal happened, and that it was reported.
+-- Each of the first three used to be a value this plugin dropped -- a `false`
+-- from menu.add, a truncated `set`, a `0` from key_held that means "not held"
+-- and "there is no keyboard" alike -- so each is pinned here twice: that the
+-- refusal happened, and that it was reported. The fourth is pinned the same
+-- way: that the forward happens, and that the edge moved because of it.
 --
 -- What this file must NOT grow back: api.menu.add, api.input.key_held, a tag
 -- encoding written out by hand, or a describe. The fake refuses all four.
@@ -24,14 +32,16 @@ return { id = 'entity-behavior', on_start = function(host)
     -- here for the same reason the plugin spells TAG_OPS: neither reaches Lua.
     local CONFIG_VALUE_MAX = 192   -- TORIRS_PLUGIN_CONFIG_VALUE_MAX
     local TAG_OPS = 16             -- PORCELAIN_MENU_TAG_OPS
-    -- The five modifiers porcelain_key_code knows, and nothing else: a name
-    -- outside this set is ABSENT, which is what "off" is.
-    local MODIFIERS = { shift = true, ctrl = true, escape = true, tab = true, space = true }
+    -- The five modifiers porcelain_key_code knows and the codes it maps them
+    -- to; a name outside this set is ABSENT, which is what "off" is. They are
+    -- CODES and not a set because the edge is driven by note_key, which is
+    -- handed the same integer the host puts in a ToriRS_KeyEvent.
+    local KEY_CODE = { shift = 42, ctrl = 43, escape = 37, tab = 36, space = 57 }
 
     local api                                       -- forward: the fake reaches it
     local npc = { slot = 7, base_npc_id = 42, npc_id = 100, name = 'Guard', element_id = 123 }
     local added, drawn = {}, {}
-    local touch, held = false, {}
+    local touch = false
     local routes_left = 24                          -- TORIRS_PLUGIN_MENU_ROUTES_MAX
 
     -- ------------------------------------------------------------- findings
@@ -82,22 +92,39 @@ return { id = 'entity-behavior', on_start = function(host)
                 finding('key_edge', 'role:' .. config_key, 'absent', 'touch lane has no key')
                 return false
             end
-            edges[#edges + 1] = { key = config_key, fn = fn, down = false }
+            edges[#edges + 1] = { key = config_key, fn = fn, down = false, code = -1 }
             return true
         end,
+        -- The plugin forwarding its own on_key. This is the ONLY thing that
+        -- moves an edge; there is no poll anywhere in the layer, and there is
+        -- no caller of this in the host, so a plugin that does not forward has
+        -- a key that can never go down.
+        note_key = function(key, down)
+            for _, edge in ipairs(edges) do
+                if edge.code == key and down ~= edge.down then
+                    edge.down = down
+                    edge.fn(down)
+                end
+            end
+        end,
         fence = function()
+            -- The BINDING is re-read here, so a rebind takes effect without a
+            -- reload; the edge is not. A binding that changes while its old key
+            -- is down releases it, because the old key cannot stay held
+            -- through a rebind.
             for _, edge in ipairs(edges) do
                 local name = api.config[edge.key]
-                if not MODIFIERS[name] then
-                    if not edge.absent then
-                        edge.absent = true
-                        finding('key_edge', 'role:' .. edge.key, 'absent', name or 'off')
-                    end
-                else
-                    edge.absent = false
-                    local down = held[name] == true
-                    if down ~= edge.down then edge.down = down; edge.fn(down) end
+                local code = KEY_CODE[name] or -1
+                if code ~= edge.code and edge.down then
+                    edge.down = false
+                    edge.fn(false)
                 end
+                edge.code = code
+                if code < 0 and not edge.absent then
+                    edge.absent = true
+                    finding('key_edge', 'role:' .. edge.key, 'absent', name or 'off')
+                end
+                if code >= 0 then edge.absent = false end
             end
         end,
         commit = function()
@@ -180,6 +207,9 @@ return { id = 'entity-behavior', on_start = function(host)
         end,
     }
     local function frame() product.on_frame_start(api) end
+    -- A key event the way the host delivers one. It reaches the layer only if
+    -- the plugin forwards it, which is the thing this file exists to pin.
+    local function press(key, down) product.on_key(api, { key = key, down = down }) end
     local menu = { hover_pass = false, rows = { { npc_slot = 7 }, { npc_slot = 7 } } }
 
     -- ------------------------------------------------------------ lifecycle
@@ -195,7 +225,15 @@ return { id = 'entity-behavior', on_start = function(host)
     frame()
     product.on_menu_build(api, menu)
     assert(#added == 0, 'the rows are not offered while the reveal key is up')
-    held.shift = true; frame()
+    -- The press reaches the layer only because the plugin forwards its own
+    -- on_key. Nothing in the host does it, and there is no poll: without the
+    -- forward this edge can never go down, and Tag/Untag are unreachable on
+    -- every lane rather than only on the touch one.
+    press(KEY_CODE.ctrl, true)
+    assert(not edges[1].down, 'a key that is not the bound one moves nothing')
+    press(KEY_CODE.shift, true)
+    assert(edges[1].down,
+        'the reveal key edge is moved by the plugin forwarding its own on_key')
     product.on_menu_build(api, { hover_pass = true, rows = { { npc_slot = 7 } } })
     assert(#added == 0, 'the hover pass is left on the first statement')
 
@@ -306,10 +344,10 @@ return { id = 'entity-behavior', on_start = function(host)
     -- behaviour and it is pinned here rather than papered over: a release and
     -- a press is what re-arms it.
     config.set('reveal_key', 'shift')
-    held.shift = true; frame(); added = {}
+    frame(); added = {}
     product.on_menu_build(api, menu)
     assert(#added == 0, 'a key still held across an absence does not re-arm itself')
-    held.shift = false; frame(); held.shift = true; frame(); added = {}
+    press(KEY_CODE.shift, false); press(KEY_CODE.shift, true); added = {}
     product.on_menu_build(api, menu)
     assert(#added == 1, 'a press after the absence brings the rows back')
 
@@ -318,9 +356,13 @@ return { id = 'entity-behavior', on_start = function(host)
     -- callback and that drops the edge, which is done here in its place.
     assert(product.on_stop == nil, 'the host closes the handle; the plugin does not')
     porcelain.close()
-    touch = true; findings = {}; held.shift = true
+    touch = true; findings = {}
     product.on_start(api)
     assert(#edges == 0, 'a touch lane registers no edge at all')
+    -- And the forward stands down with the edge: a plugin whose key answered
+    -- ABSENT has nothing to forward to, and calling the layer without a
+    -- registered edge would be one call per key per frame for nothing.
+    press(KEY_CODE.shift, true)
     local absent = found('key_edge', 'absent')
     assert(absent and absent.element == 'role:reveal_key' and absent.expected,
         'a lane with no keyboard frame is one declared absence, not silence')

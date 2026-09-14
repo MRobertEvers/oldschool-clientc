@@ -37,6 +37,19 @@
 -- they were before the port. The plugin half is here and tested; the fix is to
 -- set touch_ui before plugins start, or to re-ask the capability at the fence.
 --
+-- AND THE EDGE HAS TO BE FORWARDED, WHICH THIS FILE DID NOT DO.
+--
+-- porcelain.note_key is what moves a key edge, and NOTHING in the host calls
+-- it: the only caller in the tree was the layer's own unit test. A plugin has
+-- to forward its own on_key. This one did not, so from the day it was ported
+-- until now its reveal key could never go down, reveal_down was false for the
+-- life of every session, and Tag/Untag were unreachable on EVERY lane -- not
+-- just the touch lane the comment above worries about. The four lines in
+-- plugin.on_key below are the whole fix; the behaviour test pins that the
+-- forward happens, and there is a negative control that reddens when it is
+-- taken away. Measured end to end with a probe under TORIRS_SIM_KEYHOLD=42:
+-- on_key arrives, note_key moves the edge, the callback fires.
+--
 -- It owns no widget and describes no control: everything it puts on screen is
 -- a scene primitive in the world pass. There is therefore no describe
 -- callback, and the steady state costs no engine setter and no revalidate at
@@ -170,10 +183,22 @@ function plugin.on_start(api)
     end)
 end
 
+-- The edge arrives HERE, not at a fence poll: a poll cannot see a press that
+-- opens and closes inside one frame, and no part of the host forwards a key
+-- into the layer on a plugin's behalf. reveal_armed is false both where there
+-- is no layer and where this lane answered ABSENT for the key, which is
+-- exactly when there is nothing to forward it to. Nothing is consumed -- the
+-- reveal key is a modifier the client is still entitled to.
+function plugin.on_key(api, event)
+    if not reveal_armed then return end
+    api.porcelain.note_key(event.key, event.down)
+end
+
 function plugin.on_frame_start(api)
     -- Nothing else in this plugin has a cadence: no description to reconcile,
-    -- no timer, no asset. The fence is here for the reveal key alone, so a
-    -- lane that answered ABSENT for it pays nothing per frame.
+    -- no timer, no asset. The fence is here for the reveal key's BINDING --
+    -- so a rebind takes effect without a reload -- and nothing else, so a lane
+    -- that answered ABSENT for it pays nothing per frame.
     if not reveal_armed then return end
     api.porcelain.fence()
     api.porcelain.commit()

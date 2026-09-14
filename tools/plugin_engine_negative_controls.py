@@ -51,6 +51,13 @@ def run_lua_controls(src, out, make_args, selected):
             "a value past the ceiling must never reach the store"),
         "entity_hover":("entity_highlighter.lua",[("if menu.hover_pass then return end",
             "if false then return end")],"the hover pass is left on the first statement"),
+        # The one nothing in the host does for a plugin. porcelain.note_key had no
+        # caller in the tree outside the layer's own unit test, so this plugin's
+        # reveal key could never go down and Tag/Untag were unreachable on EVERY
+        # lane -- not just the touch one its header worries about.
+        "entity_key_forward":("entity_highlighter.lua",[
+            ("    api.porcelain.note_key(event.key, event.down)\n","")],
+            "the reveal key edge is moved by the plugin forwarding its own on_key"),
         # The raw verb the layer replaced: menu.add answers false when the
         # host-wide route table is full, and this plugin dropped that bool.
         "entity_menu_verb":("entity_highlighter.lua",[("api.porcelain.menu_add(",
@@ -58,11 +65,54 @@ def run_lua_controls(src, out, make_args, selected):
             "a Porcelain plugin adds rows through the layer, which reports a refusal"),
         "ground_origin":("ground_items.lua",[("local base_x, base_z = api.world.scene_origin()",
             "local base_x, base_z = nil, nil")],"mid-session enable while moving must immediately draw ground labels"),
-        "ground_intent":("ground_items.lua",[("local value = list_set(api.config[key], name, false)",
-            "enabled = not (hide and is_hidden(name) or not hide and is_highlighted(name))\n    local value = list_set(api.config[key], name, false)")],
+        # The Porcelain port moved the retained-row encoding into the library.
+        # Spelling it in the plugin again -- which is exactly what the two
+        # shipped plugins each did, with two DIFFERENT constants -- retargets
+        # every retained row the moment the library's number moves.
+        "ground_intent":("ground_items.lua",[("local id, op = api.porcelain.menu_untag(sel.tag)",
+            "local id, op = sel.tag // 4, sel.tag % 4")],
             "retained Highlight survives despawn and remains idempotent"),
-        "ground_exceptions":("ground_items.lua",[("not enabled and matches(compile_list(value), name)",
-            "false")],"Unhide one item must preserve wildcard rules and unrelated data"),
+        "ground_exceptions":("ground_items.lua",[("local covered = matches(compile_entries(rest), name)",
+            "local covered = false")],"Unhide one item must preserve wildcard rules and unrelated data"),
+        # Eight more the port added, one per refusal or rule it now owns.
+        "ground_latch":("ground_items.lua",[("    api.porcelain.note_script()\n","")],
+            "the first caption callback hands every suppressed native back"),
+        "ground_reveal":("ground_items.lua",[("if not reveal_armed or not reveal_down then return end",
+            "if false then return end")],"the rows are not offered while the reveal key is up"),
+        "ground_tier_zero":("ground_items.lua",[("    return api.porcelain.tier(tiers, price)",
+            "    if price > tiers.insane then return 4 end\n"
+            "    if price > tiers.high then return 3 end\n"
+            "    if price > tiers.medium then return 2 end\n"
+            "    if price > tiers.low then return 1 end\n    return 0")],
+            "a threshold at or below zero disables its tier, it does not match everything"),
+        "ground_ceiling":("ground_items.lua",[("        if not stored then return \"consume\" end\n","")],
+            "and leaves the OTHER list it would have edited unchanged too"),
+        "ground_name_lookup":("ground_items.lua",[("    local info = api.game.item_info(obj_id)",
+            "    local info = nil")],
+            "one Highlight row and one Hide row per distinct ground obj"),
+        "ground_native_gate":("ground_items.lua",[
+            ('if api.porcelain.require("cs2_scripts", "native captions") then',"if true then")],
+            "no CS2 means no latch and nothing suppressed"),
+        # expect_unsupported does NOT relabel a finding already recorded, so a
+        # declaration that arrives after the call it excuses is no declaration
+        # at all -- and the clean gate is unsatisfiable on every CS1 lane.
+        "ground_declaration_order":("ground_items.lua",[
+            ('    api.porcelain.expect_unsupported("native captions",\n'
+             '        "a CS1 lane runs no CS2, so the cache\'s own ground-item caption script does not exist")\n',""),
+            ('        api.porcelain.native_overlay("ground_item_labels", "groundItemCaption", on_caption)\n'
+             '    end\n',
+             '        api.porcelain.native_overlay("ground_item_labels", "groundItemCaption", on_caption)\n'
+             '    end\n'
+             '    api.porcelain.expect_unsupported("native captions",\n'
+             '        "a CS1 lane runs no CS2, so the cache\'s own ground-item caption script does not exist")\n')],
+            "the CS1 lane limitation is one finding, declared before it was raised"),
+        "ground_under_value":("ground_items.lua",[
+            ("if under > 0 and exchange < under and alch < under",
+             "if under > 0 and alch < under")],
+            'one price over the threshold is not "under value"'),
+        "ground_pool_stale":("ground_items.lua",[
+            ("        for at = #tile.items, tile.count + 1, -1 do tile.items[at] = nil end\n","")],
+            "a tile that loses a line draws one line, not one left over from last frame"),
         "beam_tick":("_beamprobe.lua",[("function plugin.on_logic_tick(api)",
             "function plugin.on_server_tick(api)")],"beam creation must use the common logic tick"),
         # The plugin no longer hides the native button: it asks for a REPLACE
