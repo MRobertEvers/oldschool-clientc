@@ -1615,16 +1615,31 @@ test-cs2-opcode-groups: $(OBJ_DIR)
 		cs2vm2/test/opcode_group_test.c cs2vm2/cs2_opcode_meta.c $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_opcode_group_test
 
+# Everything lifted out of app.c so far, plus the boundary gate.
+#
+# Each of these modules exists because it was a self-contained piece of app.c
+# that no test could reach while it was in there. This target is the reason
+# that is now false, and check-app-boundary is what stops it becoming true
+# again. `make -C src appc-map` prints the size and the per-slice table.
+.PHONY: test-app-extracted
+test-app-extracted: check-app-boundary
+	$(MAKE) test-wedge-camera-path
+	$(MAKE) test-damage-region
+	$(MAKE) test-uitree-input-signature
+	$(MAKE) test-plugin-mesh
+	$(MAKE) test-world-seq-source
+	$(MAKE) test-world
+
 # The seq source World reads animation timing through. The defaults decide
 # whether a not-yet-loaded track freezes and waits or races; and the loop length
 # is sum(delay) + 1, not sum(delay + 1) -- the difference is a spotanim that
 # plays, freezes in its base pose, and only then disappears.
 .PHONY: test-world-seq-source
-test-world-seq-source: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+test-world-seq-source: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/hmap.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/world_seq_source_test \
 		engine/test/world_seq_source_toridraw_test.c engine/world_seq_source_toridraw.c \
 		engine/cache_provider.c world/world.c world/entity_pathing.c world/entity_pool.c \
-		$(TORIDRAW_UNITY_LINK_OBJS)
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/hmap.o
 	./$(OBJ_DIR)/world_seq_source_test
 
 # A plugin-authored mesh: the two halves grow independently and keep what was
