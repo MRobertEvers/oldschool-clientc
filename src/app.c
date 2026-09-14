@@ -15249,59 +15249,17 @@ app_world_roof_check(struct App* app)
         return level;
     }
 
+    /* Below this pitch the camera is low enough to be looking THROUGH the
+     * scene rather than down onto it, so the sightline decides. Above it,
+     * only the tile the player is standing on does. */
     if( app->world_camera.pitch < 310 )
-    {
-        int cam_tx = app->world_camera_pos.x >> 7;
-        int cam_tz = app->world_camera_pos.z >> 7;
-        int ply_tx = (int)player->draw_position.x >> 7;
-        int ply_tz = (int)player->draw_position.z >> 7;
-        int delta_x = ply_tx > cam_tx ? ply_tx - cam_tx : cam_tx - ply_tx;
-        int delta_z = ply_tz > cam_tz ? ply_tz - cam_tz : cam_tz - ply_tz;
-
-        if( World_TileFlagGet(world, cam_tx, cam_tz, level) & 0x4 )
-            top = level;
-
-        if( delta_x > delta_z )
-        {
-            int delta = delta_x ? (delta_z * 65536) / delta_x : 0;
-            int accumulator = 32768;
-            while( cam_tx != ply_tx )
-            {
-                cam_tx += cam_tx < ply_tx ? 1 : -1;
-                if( World_TileFlagGet(world, cam_tx, cam_tz, level) & 0x4 )
-                    top = level;
-                accumulator += delta;
-                if( accumulator >= 65536 )
-                {
-                    accumulator -= 65536;
-                    if( cam_tz != ply_tz )
-                        cam_tz += cam_tz < ply_tz ? 1 : -1;
-                    if( World_TileFlagGet(world, cam_tx, cam_tz, level) & 0x4 )
-                        top = level;
-                }
-            }
-        }
-        else if( delta_z > 0 )
-        {
-            int delta = (delta_x * 65536) / delta_z;
-            int accumulator = 32768;
-            while( cam_tz != ply_tz )
-            {
-                cam_tz += cam_tz < ply_tz ? 1 : -1;
-                if( World_TileFlagGet(world, cam_tx, cam_tz, level) & 0x4 )
-                    top = level;
-                accumulator += delta;
-                if( accumulator >= 65536 )
-                {
-                    accumulator -= 65536;
-                    if( cam_tx != ply_tx )
-                        cam_tx += cam_tx < ply_tx ? 1 : -1;
-                    if( World_TileFlagGet(world, cam_tx, cam_tz, level) & 0x4 )
-                        top = level;
-                }
-            }
-        }
-    }
+        top = World_RoofLevelAlongLine(
+            world,
+            level,
+            app->world_camera_pos.x >> 7,
+            app->world_camera_pos.z >> 7,
+            (int)player->draw_position.x >> 7,
+            (int)player->draw_position.z >> 7);
 
     if( World_TileFlagGet(
             world, (int)player->draw_position.x >> 7, (int)player->draw_position.z >> 7, level) &

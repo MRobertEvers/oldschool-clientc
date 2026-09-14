@@ -182,6 +182,78 @@ World_TileFlagGet(
  * A world with no heightmap is a world that has not loaded one yet, which is a
  * legitimate state and answers flat 0. A NULL world is not: every caller knows
  * which world it is asking about. */
+#define WORLD_TILE_FLAG_ROOF 0x04
+
+int
+World_RoofLevelAlongLine(
+    struct World const* world,
+    int level,
+    int from_tile_x,
+    int from_tile_z,
+    int to_tile_x,
+    int to_tile_z)
+{
+    int top = WORLD_ROOF_LEVEL_SHOW_ALL;
+    int tile_x = from_tile_x;
+    int tile_z = from_tile_z;
+    int delta_x = to_tile_x > tile_x ? to_tile_x - tile_x : tile_x - to_tile_x;
+    int delta_z = to_tile_z > tile_z ? to_tile_z - tile_z : tile_z - to_tile_z;
+
+    assert(world);
+
+    if( World_TileFlagGet(world, tile_x, tile_z, level) & WORLD_TILE_FLAG_ROOF )
+        top = level;
+
+    if( delta_x > delta_z )
+    {
+        int step = delta_x ? (delta_z * 65536) / delta_x : 0;
+        /* Half a step, so the line runs through the middle of the tiles rather
+         * than hugging one side of them. */
+        int accumulator = 32768;
+
+        while( tile_x != to_tile_x )
+        {
+            tile_x += tile_x < to_tile_x ? 1 : -1;
+            if( World_TileFlagGet(world, tile_x, tile_z, level) & WORLD_TILE_FLAG_ROOF )
+                top = level;
+            accumulator += step;
+            if( accumulator >= 65536 )
+            {
+                accumulator -= 65536;
+                if( tile_z != to_tile_z )
+                    tile_z += tile_z < to_tile_z ? 1 : -1;
+                if( World_TileFlagGet(world, tile_x, tile_z, level) & WORLD_TILE_FLAG_ROOF )
+                    top = level;
+            }
+        }
+    }
+    else if( delta_z > 0 )
+    {
+        int step = (delta_x * 65536) / delta_z;
+        int accumulator = 32768;
+
+        while( tile_z != to_tile_z )
+        {
+            tile_z += tile_z < to_tile_z ? 1 : -1;
+            if( World_TileFlagGet(world, tile_x, tile_z, level) & WORLD_TILE_FLAG_ROOF )
+                top = level;
+            accumulator += step;
+            if( accumulator >= 65536 )
+            {
+                accumulator -= 65536;
+                if( tile_x != to_tile_x )
+                    tile_x += tile_x < to_tile_x ? 1 : -1;
+                if( World_TileFlagGet(world, tile_x, tile_z, level) & WORLD_TILE_FLAG_ROOF )
+                    top = level;
+            }
+        }
+    }
+
+    if( World_TileFlagGet(world, to_tile_x, to_tile_z, level) & WORLD_TILE_FLAG_ROOF )
+        top = level;
+    return top;
+}
+
 bool
 World_CoordToSceneTile(
     struct World const* world,

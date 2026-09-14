@@ -127,6 +127,7 @@ void test_scenery(void);
 void test_bridge_levels(void);
 void test_height_at(void);
 void test_coord_to_scene_tile(void);
+void test_roof_level_along_line(void);
 void test_cycle_movers(void);
 void test_delaymove_gate(void);
 void test_walk_keeps_up(void);

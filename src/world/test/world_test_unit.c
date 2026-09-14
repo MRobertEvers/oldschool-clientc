@@ -887,6 +887,157 @@ test_coord_to_scene_tile(void)
     World_Free(world);
 }
 
+/*
+ * World_RoofLevelAlongLine: which roofs come off so the player can be seen.
+ *
+ * The reference removes roofs SELECTIVELY -- only along the sightline from the
+ * camera to the player -- and the alternative it offers is removing all of
+ * them. There is no third option, and the difference between the two is
+ * exactly this walk. Replace the line with its bounding box and every building
+ * either side of the sightline loses its lid too, which looks like the "hide
+ * all roofs" setting turning itself on.
+ */
+void
+test_roof_level_along_line(void)
+{
+    printf("TEST: World_RoofLevelAlongLine\n");
+
+    struct World* world = World_TestMakeReady(64);
+    int const level = 0;
+    int const roof = 0x04;
+    int const stride = 64;
+
+    /* Nothing roofed anywhere: every roof stays on. */
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "an unroofed line removes nothing");
+
+    /* A roof at the FROM end -- the camera is under one. */
+    world->tile_flags[10 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == level,
+        "a roof on the camera's own tile was missed");
+    world->tile_flags[10 + 10 * stride] = 0;
+
+    /* A roof at the TO end -- the player is under one. */
+    world->tile_flags[20 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == level,
+        "a roof on the player's own tile was missed");
+    world->tile_flags[20 + 10 * stride] = 0;
+
+    /* A roof in the MIDDLE of a horizontal run. */
+    world->tile_flags[15 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == level,
+        "a roof crossed on the way was missed");
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 20, 10, 10, 10) == level,
+        "the same roof was missed walking the other way");
+    world->tile_flags[15 + 10 * stride] = 0;
+
+    /* The same, on the z axis, which is the other branch of the walk. */
+    world->tile_flags[10 + 15 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 10, 20) == level,
+        "a roof on a vertical run was missed");
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 20, 10, 10) == level,
+        "the same vertical roof was missed walking south");
+    world->tile_flags[10 + 15 * stride] = 0;
+
+    /* A diagonal, where the minor axis steps when the accumulator wraps. */
+    world->tile_flags[15 + 15 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 20) == level,
+        "a roof on the diagonal was missed");
+    world->tile_flags[15 + 15 * stride] = 0;
+
+    /*
+     * WHICH tiles a shallow diagonal crosses, which is where the walk's two
+     * biases live and where an "obvious" rewrite silently moves the line by
+     * one tile for its whole length.
+     *
+     * The line (10,10) -> (18,14) crosses (11,11) and NOT (12,10). Both of
+     * these change if the accumulator starts at 0 instead of half a step, and
+     * both change again if the wrap tests `>` instead of `>=`. The half step
+     * is what centres the line on the tiles rather than hugging one side of
+     * them, and a line one tile off for its whole length takes the roof off
+     * the building next to the one you are walking past.
+     */
+    world->tile_flags[11 + 11 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 18, 14) == level,
+        "the shallow diagonal missed (11,11); the walk's half-step bias is gone");
+    world->tile_flags[11 + 11 * stride] = 0;
+
+    world->tile_flags[12 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 18, 14) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "the shallow diagonal crossed (12,10), which is one tile off its line");
+    world->tile_flags[12 + 10 * stride] = 0;
+
+    /*
+     * An EXACT diagonal takes the z-major branch, because the major-axis test
+     * is a strict `>`. The two branches visit mirror-image sets -- x-major
+     * would cross (11,10), z-major crosses (10,11) -- so which one runs is
+     * observable, and pinning it keeps the tie-break where the reference has
+     * it.
+     */
+    world->tile_flags[10 + 11 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 20) == level,
+        "the exact diagonal missed (10,11); it is no longer taking the z-major branch");
+    world->tile_flags[10 + 11 * stride] = 0;
+
+    world->tile_flags[11 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 20) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "the exact diagonal crossed (11,10); the major-axis tie-break flipped");
+    world->tile_flags[11 + 10 * stride] = 0;
+
+    /*
+     * The selectivity itself, and the reason this is a line.
+     *
+     * A roof well off the sightline but inside its bounding box must NOT come
+     * off. Walk (10,10) -> (20,10), a straight horizontal run, and put a roof
+     * at (15,18) -- eight tiles north of it. A bounding-box test would take the
+     * lid off that building; the line does not.
+     */
+    world->tile_flags[15 + 18 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "a roof off the sightline was removed; this is a line, not a box");
+    world->tile_flags[15 + 18 * stride] = 0;
+
+    /* Camera and player on the same tile: still checks that tile. */
+    world->tile_flags[12 + 12 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 12, 12, 12, 12) == level,
+        "a zero-length line missed the tile it stands on");
+    world->tile_flags[12 + 12 * stride] = 0;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 12, 12, 12, 12) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "a zero-length line on an unroofed tile removed roofs");
+
+    /* Another level's roof is not this level's business. */
+    world->tile_flags[15 + 10 * stride + 1 * stride * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, 0, 10, 10, 20, 10) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "a roof on level 1 was removed while walking level 0");
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, 1, 10, 10, 20, 10) == 1,
+        "the level-1 roof was missed while walking level 1");
+    world->tile_flags[15 + 10 * stride + 1 * stride * stride] = 0;
+
+    /* Off-scene endpoints read as unflagged rather than off the array. */
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, -5, -5, 3, 3) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "an off-scene line did not read as unroofed");
+
+    World_Free(world);
+}
+
 void
 test_bridge_levels(void)
 {

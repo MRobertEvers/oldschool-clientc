@@ -21,6 +21,7 @@ main(void)
     test_bridge_levels();
     test_height_at();
     test_coord_to_scene_tile();
+    test_roof_level_along_line();
     test_cycle_movers();
     test_delaymove_gate();
     test_walk_keeps_up();

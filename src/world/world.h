@@ -579,6 +579,37 @@ World_HeightAt(
  * caller that treats "outside" as an error draws a stale row instead of
  * dropping it.
  */
+/** Every level's roofs are shown. What "do not remove any" answers with. */
+#define WORLD_ROOF_LEVEL_SHOW_ALL 3
+
+/**
+ * The level whose roofs must be removed to see one tile from another.
+ *
+ * Answers `level` when ANY tile on the line from (from) to (to) carries a
+ * roof, and WORLD_ROOF_LEVEL_SHOW_ALL when none does. Both endpoints count:
+ * standing under a roof and looking in from under one are both cases where it
+ * has to go.
+ *
+ * The walk is the reference's own -- a 16.16 fixed-point raster line, stepping
+ * the major axis one tile at a time and the minor axis when the accumulator
+ * wraps, starting at half a step so the line is centred on the tiles rather
+ * than biased to one side. It matters that it is a LINE and not a rectangle:
+ * removing every roof in the bounding box takes the lid off buildings either
+ * side of the sightline, which is the whole difference between "roofs are
+ * removed selectively" and "roofs are all hidden".
+ *
+ * Coordinates are scene tiles. A tile outside the scene reads as unflagged,
+ * which World_TileFlagGet already answers.
+ */
+int
+World_RoofLevelAlongLine(
+    struct World const* world,
+    int level,
+    int from_tile_x,
+    int from_tile_z,
+    int to_tile_x,
+    int to_tile_z);
+
 bool
 World_CoordToSceneTile(
     struct World const* world,
