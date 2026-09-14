@@ -243,6 +243,9 @@ fi
 
 fail=0
 checks=0
+# How many runs actually reached a toplevel. A set where this is zero rendered
+# nothing at all, and says so loudly at the end rather than reading as a result.
+rooted=0
 printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" TAG TOP FRAME SIZE ROOT FILTERS VERDICT
 while IFS='|' read tag m f s; do
   L=$OUT/$tag/log.txt
@@ -360,6 +363,7 @@ while IFS='|' read tag m f s; do
     v="FRAME NOT ACTIVE"; checks=$((checks+1))
   fi
   [ -z "$rt" ] && { v="NO ROOT"; checks=$((checks+1)); }
+  [ -n "$rt" ] && rooted=$((rooted+1))
   [ -n "$rt" ] && [ "$n" != "$want" ] && { v="FILTERS $n want $want"; checks=$((checks+1)); }
   if [[ -n "${GF_MATRIX_EXPECT_IFACE:-}" ]]; then
     grep -q "EMIT_EXIT.*($GF_MATRIX_EXPECT_IFACE|" "$L" || { v="NO SELECTED TAB PAINT"; checks=$((checks+1)); }
@@ -381,7 +385,29 @@ while IFS='|' read tag m f s; do
   [[ "$checks" != "$before" ]] && fail=$((fail+1))
   printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" "$tag" "$m" "$f" "$s" "${rt:--}" "$n" "$v"
 done < "$OUT/index.txt"
-echo "--- $fail failures ($checks checks) / $(wc -l < "$OUT/index.txt" | tr -d ' ') --- captures in $OUT"
+runs=$(wc -l < "$OUT/index.txt" | tr -d ' ')
+echo "--- $fail failures ($checks checks) / $runs --- captures in $OUT"
+echo "--- $rooted of $runs runs reached a toplevel ---"
+#
+# A set that rendered NOTHING is worthless, and it does not look worthless.
+#
+# When the embedded server refuses a stale script pack the client never gets a
+# root, every run exits cleanly, and the table above is a wall of NO ROOT that
+# scrolls past as if it were a result. Three separate agents spent a run each
+# on that before anyone said it out loud, because the one harness that catches
+# this -- the port gate -- prints a tally per lane and this one did not.
+#
+# It is not this script's place to decide the freshness policy, so it does not
+# set TORIRSSERVER_ALLOW_STALE_SCRIPTS itself. It just refuses to let a set
+# that measured nothing be mistaken for a set that measured something.
+if [[ "$rooted" == 0 && "$runs" != 0 ]]; then
+  echo 'EVERY RUN RENDERED NOTHING. This set measures nothing at all.'
+  grep -h 'refusing to run on a stale script pack' "$OUT"/*/log.txt 2>/dev/null | head -1
+  echo 'If the fixture is blocked and you meant to capture anyway, the client'
+  echo 'still needs TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 to boot -- the port'
+  echo 'gate lane runner sets it and this harness deliberately does not.'
+  exit 2
+fi
 [[ -s "$OUT/index.txt" ]] || { echo 'no captures selected'; exit 2; }
 if [[ "${GF_MATRIX_DIAGNOSTIC:-0}" == 1 ]]; then
   echo 'DIAGNOSTIC ONLY: fixture acceptance not established'
