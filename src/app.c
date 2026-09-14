@@ -137,6 +137,7 @@ EM_JS(
 #include "ui/uitree_input_signature.h"
 #include "ui/uitree_if_events.h"
 #include "ui/uitree_keyboard_owner.h"
+#include "ui/uitree_popup_place.h"
 #include "ui/uitree_iface_stats.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_obj_cell.h"
@@ -9137,39 +9138,32 @@ app_settings_colour_place(
 {
     int scale;
     int width;
-    int x;
-    int y;
     int32_t idx;
+    struct UITreeComponent const* anchor = NULL;
+    struct UIPopupPlacement placement;
 
     assert(app);
     scale = ToriRSChrome_Scale(&app->dbg_ui);
     width = 230 * scale;
-    x = (UITREE_LAYOUT_ROOT_W - width) / 2;
-    y = UITREE_LAYOUT_ROOT_H / 4;
     idx = app->tree && component_id >= 0 ? UITree_FindByComponentId(app->tree, component_id) : -1;
     if( idx >= 0 )
-    {
-        struct UITreeComponent const* c = &app->tree->components[idx];
-        /* LEFT of the swatch: a colour row's swatch is docked on the panel's
-         * right edge, and a picker that covered it would hide the one thing
-         * the player is watching change. */
-        x = c->position.abs_x - width - 8 * scale;
-        y = c->position.abs_y - 8 * scale;
-    }
+        anchor = &app->tree->components[idx];
 
-    if( x < 0 )
-        x = 0;
-    if( y < 0 )
-        y = 0;
-    if( x + width > UITREE_LAYOUT_ROOT_W )
-        x = UITREE_LAYOUT_ROOT_W - width;
-    /* The axis popup drops BELOW the row, so the panel needs room under it as
-     * well as for itself; two thirds down is as low as it may sit. */
-    if( y > UITREE_LAYOUT_ROOT_H * 2 / 3 )
-        y = UITREE_LAYOUT_ROOT_H * 2 / 3;
+    /* Two thirds: the colour picker's axis popup drops BELOW the panel, so it
+     * needs room under itself as well as for itself. */
+    placement = UITree_PlacePopupBesideAnchor(
+        UITREE_LAYOUT_ROOT_W,
+        UITREE_LAYOUT_ROOT_H,
+        width,
+        anchor != NULL,
+        anchor ? anchor->position.abs_x : 0,
+        anchor ? anchor->position.abs_y : 0,
+        8 * scale,
+        2,
+        3);
 
     ToriRSChrome_PanelSetFixedWidth(&app->dbg_ui, app->settings_colour_panel, width);
-    ToriRSChrome_PanelMove(&app->dbg_ui, app->settings_colour_panel, x, y);
+    ToriRSChrome_PanelMove(&app->dbg_ui, app->settings_colour_panel, placement.x, placement.y);
 }
 
 static void
@@ -9399,37 +9393,32 @@ app_settings_number_place(
 {
     int scale;
     int width;
-    int x;
-    int y;
     int32_t idx;
+    struct UITreeComponent const* anchor = NULL;
+    struct UIPopupPlacement placement;
 
     assert(app);
     scale = ToriRSChrome_Scale(&app->dbg_ui);
     width = 200 * scale;
-    x = (UITREE_LAYOUT_ROOT_W - width) / 2;
-    y = UITREE_LAYOUT_ROOT_H / 4;
     idx = app->tree && component_id >= 0 ? UITree_FindByComponentId(app->tree, component_id) : -1;
     if( idx >= 0 )
-    {
-        struct UITreeComponent const* c = &app->tree->components[idx];
-        /* LEFT of the field, for the same reason the picker sits left of the
-         * swatch: the field is docked on the panel's right edge and is the one
-         * thing the player is watching change. */
-        x = c->position.abs_x - width - 8 * scale;
-        y = c->position.abs_y - 8 * scale;
-    }
+        anchor = &app->tree->components[idx];
 
-    if( x < 0 )
-        x = 0;
-    if( y < 0 )
-        y = 0;
-    if( x + width > UITREE_LAYOUT_ROOT_W )
-        x = UITREE_LAYOUT_ROOT_W - width;
-    if( y > UITREE_LAYOUT_ROOT_H * 3 / 4 )
-        y = UITREE_LAYOUT_ROOT_H * 3 / 4;
+    /* Three quarters, not two thirds: a number entry has no axis popup under
+     * it, so it may sit lower than the colour picker. */
+    placement = UITree_PlacePopupBesideAnchor(
+        UITREE_LAYOUT_ROOT_W,
+        UITREE_LAYOUT_ROOT_H,
+        width,
+        anchor != NULL,
+        anchor ? anchor->position.abs_x : 0,
+        anchor ? anchor->position.abs_y : 0,
+        8 * scale,
+        3,
+        4);
 
     ToriRSChrome_PanelSetFixedWidth(&app->dbg_ui, app->settings_number_panel, width);
-    ToriRSChrome_PanelMove(&app->dbg_ui, app->settings_number_panel, x, y);
+    ToriRSChrome_PanelMove(&app->dbg_ui, app->settings_number_panel, placement.x, placement.y);
 }
 
 static void

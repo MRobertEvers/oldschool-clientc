@@ -597,6 +597,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_worldmap_drag.c \
 	ui/uitree_if_events.c \
 	ui/uitree_keyboard_owner.c \
+	ui/uitree_popup_place.c \
 	engine/async_pending.c \
 	engine/toridraw_element_anim.c \
 	torirs_env_values.c \
@@ -1641,7 +1642,19 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-uitree-keyboard-owner
 	$(MAKE) test-async-pending
 	$(MAKE) test-ground-items-dirty
+	$(MAKE) test-uitree-popup-place
+	$(MAKE) test-client-trigger
 	$(MAKE) test-world
+
+# Where a settings popup goes beside the row that opened it. Obviously right
+# until a row is near an edge, and then the popup is half off screen or sitting
+# on the swatch being edited. Both pickers did this inline, identically, with
+# two different numbers -- so neither could be checked.
+.PHONY: test-uitree-popup-place
+test-uitree-popup-place: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_popup_place_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/uitree_popup_place_test.c ui/uitree_popup_place.c $(LDFLAGS)
+	./$(OBJ_DIR)/uitree_popup_place_test$(PLATFORM_EXE_SUFFIX)
 
 # The ground-items overlay's dirty set. Its two ways in look the same and are
 # not: overflowing a per-tile mark PROMOTES to a whole-scene walk, while
