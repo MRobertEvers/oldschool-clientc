@@ -56,7 +56,10 @@ So a port may declare what it changes:
 python3 tools/porcelain_gate/gate_diff.py --expect port.expect <pairs...>
 ```
 
-One declaration per line, `kind target = reason`:
+One declaration per line, `kind target = reason`. The equals must have spaces
+around it: a capture line is full of `key=value` with none, so splitting on a
+bare equals would truncate the target at its first field and leave a pattern
+that matches every line there is.
 
 ```
 owned-drop  orb_hitpoints = a skill with no reading gets no orb; the empty

@@ -58,9 +58,16 @@ class Expectations:
             line = raw.split("#", 1)[0].strip()
             if not line:
                 continue
-            if "=" not in line:
-                raise SystemExit(f"{path}:{lineno}: a declaration needs `= <reason>`: {line}")
-            decl, reason = (p.strip() for p in line.split("=", 1))
+            # The separator is a SPACED equals, and that is load-bearing. A
+            # capture line is full of `key=value` with no spaces, so splitting
+            # on the first bare `=` truncates the target at the first field --
+            # `only-before BOUNDS com=0x...` becomes the target `BOUNDS com`,
+            # which matches every bounds line there is. A declaration that
+            # excuses everything is worse than no declaration at all.
+            if " = " not in line:
+                raise SystemExit(f"{path}:{lineno}: a declaration needs ` = <reason>`, "
+                                 f"with spaces around the equals: {line}")
+            decl, reason = (p.strip() for p in line.split(" = ", 1))
             if not reason:
                 raise SystemExit(f"{path}:{lineno}: a declaration with no reason is a suppression")
             kind, _, target = decl.partition(" ")

@@ -1,0 +1,38 @@
+# What the minimap-orbs port changes on purpose, and why.
+#
+# Run it as:
+#   gate_diff.py --expect tools/porcelain_gate/expect/minimap-orbs.expect <pairs...>
+#
+# Every line here is a claim a reader is meant to be able to disagree with. If
+# you think one of them is wrong, the argument is with the reason, not with the
+# tool.
+
+# --------------------------------------------------------------------------
+# 1. A skill with no reading gets no orb at all.
+#
+# Before the port, an unstated skill created the control and returned before
+# publishing an image, leaving an empty zero-by-zero graphic in the tree. The
+# ledger rows "Hitpoints value" and "'No reading' is three causes in one false"
+# say that empty control WAS the defect and that no reading means no orb. So
+# these two vanishing is what the port was written to do.
+#
+# Only the dat1 lane has an unstated skill, which is why these fire once each.
+owned-drop orb_hitpoints = a skill with no reading gets no orb; the empty 0x0 control was the defect the ledger names
+owned-drop orb_prayer = the same row: no reading, no orb
+only-before BOUNDS com=0xffffffff (65535|65535) type=15 graphic=-1 hidden=0 abs=518,43 0x0 = the hitpoints orb's own empty box, gone with the control
+only-before BOUNDS com=0xffffffff (65535|65535) type=15 graphic=-1 hidden=0 abs=518,77 0x0 = the prayer orb's own empty box, gone with the control
+
+# --------------------------------------------------------------------------
+# 2. The composed orbs land in different image slots.
+#
+# Every box, size and hidden bit is identical on every lane. What moved is the
+# internal slot number the client hands a composed picture, because the port
+# gives back the eleven write-once source images once they have been composed
+# and everything allocated afterwards renumbers.
+#
+# THE CLAIM, stated so it can be argued with: a slot id is an internal handle
+# and not behaviour. Nothing reads it, nothing persists it, and no two runs of
+# the same binary are obliged to agree on it. Byte-identity is available by
+# keeping all fifteen images alive for the life of the client, and that is a
+# worse trade than this line.
+normalise scene = the image slot is an internal handle, and handing back the write-once source art renumbers what is allocated after it
