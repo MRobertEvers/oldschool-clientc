@@ -744,8 +744,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	game/rs_highlight.c game/rs_clientop.c game/rs_entity_overlay.c \
 	game/rs_client_trigger.c \
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-	plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-	plugin/porcelain/porcelain_panel.c plugin/porcelain/porcelain_frames.c \
+	$(PORCELAIN_SRCS) \
 	plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/client_settings.c \
@@ -2365,14 +2364,22 @@ test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_fr
 # here, it records every call in order, and the recorded log is the
 # hand-expansion into raw api-> calls that the layer promises. Every rule the
 # cases pin names, in a comment above itself, the mutation that turns it red.
+# The Porcelain layer, as one name.
+#
+# Adding a file to the layer has broken the build twice: once for the panel
+# reconciler, once for the frame verbs. Both times the break surfaced as an
+# undefined symbol while linking some unrelated plugin's test, a long way from
+# the file that was added, and both times the fix was to find every rule that
+# had spelled the list out and add one more path to it. Spell it once instead.
+PORCELAIN_SRCS = plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
+	plugin/porcelain/porcelain_panel.c plugin/porcelain/porcelain_frames.c
+
 .PHONY: test-porcelain
-test-porcelain: $(OBJ_DIR) plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-	plugin/porcelain/porcelain_panel.c plugin/porcelain/porcelain_frames.c \
+test-porcelain: $(OBJ_DIR) $(PORCELAIN_SRCS) \
 		plugin/porcelain/test/porcelain_testbed.c plugin/porcelain/test/porcelain_test.c \
 		$(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/porcelain_test \
-		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-	plugin/porcelain/porcelain_panel.c plugin/porcelain/porcelain_frames.c \
+		$(PORCELAIN_SRCS) \
 		plugin/porcelain/test/porcelain_testbed.c plugin/porcelain/test/porcelain_test.c \
 		$(LDFLAGS)
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/porcelain_test
@@ -2419,12 +2426,10 @@ test-plugin-panel-route: $(OBJ_DIR) plugin/test/plugin_panel_route_test.c \
 # because it is the half under test.
 .PHONY: test-client-settings
 test-client-settings: $(OBJ_DIR) plugin/plugins/client_settings.c \
-		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-		plugin/porcelain/porcelain_panel.c \
+		$(PORCELAIN_SRCS) \
 		plugin/test/client_settings_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/client_settings_test \
-		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-		plugin/porcelain/porcelain_panel.c \
+		$(PORCELAIN_SRCS) \
 		plugin/plugins/client_settings.c plugin/test/client_settings_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/client_settings_test
 
@@ -2438,14 +2443,12 @@ test-client-settings: $(OBJ_DIR) plugin/plugins/client_settings.c \
 .PHONY: test-feature-flags
 test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/plugins/feature_flags.c \
-		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-		plugin/porcelain/porcelain_panel.c \
+		$(PORCELAIN_SRCS) \
 		plugin/test/feature_flags_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/feature_flags_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 			ui/uitree_minimenu.c revconfig/revconfig.c \
-		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-		plugin/porcelain/porcelain_panel.c \
+		$(PORCELAIN_SRCS) \
 		plugin/plugins/feature_flags.c \
 		plugin/test/feature_flags_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/feature_flags_test
@@ -2539,12 +2542,10 @@ test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 
 .PHONY: test-minimap-orbs-v2
 test-minimap-orbs-v2: $(OBJ_DIR) $(ASAN_DYLD_SHIM) plugin/plugins/minimap_orbs.c \
-		plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-		plugin/porcelain/porcelain_panel.c \
+		$(PORCELAIN_SRCS) \
 		plugin/porcelain/test/porcelain_testbed.c plugin/test/minimap_orbs_v2_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/minimap_orbs_v2_test \
-		plugin/plugins/minimap_orbs.c plugin/porcelain/porcelain.c \
-		plugin/porcelain/porcelain_helpers.c plugin/porcelain/porcelain_panel.c \
+		plugin/plugins/minimap_orbs.c $(PORCELAIN_SRCS) \
 		plugin/porcelain/test/porcelain_testbed.c \
 		plugin/test/minimap_orbs_v2_test.c $(LDFLAGS)
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/minimap_orbs_v2_test
