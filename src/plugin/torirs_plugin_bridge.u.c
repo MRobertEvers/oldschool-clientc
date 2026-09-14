@@ -2896,7 +2896,7 @@ app_plugin_draw_tile(
             app_wev_deck_box(app, wev, app->world, &box);
             plane_y =
                 (view->world
-                     ? app_world_height_in(view->world, local_x * 128, local_z * 128, level)
+                     ? World_HeightAt(view->world, local_x * 128, local_z * 128, level)
                      : 0) +
                 wev->y + wev->bob_y;
             for( int c = 0; c < 4; c++ )

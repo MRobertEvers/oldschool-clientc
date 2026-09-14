@@ -365,7 +365,7 @@ int ContentTestSailing_PrimaryProc(struct ToriRSServerEmbed* embed, const char* 
     return 1;
 }
 
-/* app_world_height_in's rule, for the harness only: an out-of-scene column has
+/* World_HeightAt's rule, for the harness only: an out-of-scene column has
  * no heightmap and a LINK_BELOW tile samples the level under it. */
 static int sailing_ground_height(struct World* world, int fine_x, int fine_z, int level)
 {

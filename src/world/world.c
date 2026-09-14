@@ -170,6 +170,51 @@ World_TileFlagGet(
 /* Same values RSCACHE_FLOFLAG_LINK_BELOW / _VIS_BELOW carry, redeclared so this
  * stays leaf — minimap.h does the same for the two flags its bake reads. */
 #define WORLD_TILE_FLAG_LINK_BELOW 0x02
+
+/* Terrain height under a fine-unit position. Line port of Client-TS getAvH
+ * (Client.ts:5288), bridge clause included: the scene push-down moves a bridge
+ * column's *geometry* from cache level 1 into paint level 0
+ * (WorldBuilder_RebuildCenterzoneEnd, reference World.pushDown), but the
+ * heightmap keeps raw cache levels. So a mover standing on a LinkBelow column
+ * has to sample level+1 or it sinks to the underpass floor -- the "player walks
+ * under the bridge" symptom.
+ *
+ * A world with no heightmap is a world that has not loaded one yet, which is a
+ * legitimate state and answers flat 0. A NULL world is not: every caller knows
+ * which world it is asking about. */
+int
+World_HeightAt(
+    struct World const* world,
+    int world_x,
+    int world_z,
+    int level)
+{
+    int real_level = level;
+
+    assert(world);
+    if( !world->heightmap )
+        return 0;
+
+    /* getAvH out-of-scene guard (Client.ts:5296): a tile outside [0,scene_size)
+     * has no heightmap column, so the reference returns a flat 0 rather than
+     * sampling. Without this an entity spawned/projected past the scene edge
+     * (e.g. a border NPC at tile 105 in a 104-wide scene) drives an unguarded
+     * base-corner read in heightmap_get_interpolated straight off the array. */
+    {
+        int tile_x = world_x >> 7;
+        int tile_z = world_z >> 7;
+        int scene_size = world->_scene_size;
+        if( tile_x < 0 || tile_z < 0 || tile_x >= scene_size || tile_z >= scene_size )
+            return 0;
+    }
+
+    if( level < WORLD_MAP_TERRAIN_LEVELS - 1 &&
+        (World_TileFlagGet(world, world_x >> 7, world_z >> 7, 1) & WORLD_TILE_FLAG_LINK_BELOW) != 0 )
+        real_level = level + 1;
+    return heightmap_get_interpolated(world->heightmap, world_x, world_z, real_level);
+}
+
+
 #define WORLD_TILE_FLAG_VIS_BELOW 0x08
 
 /* LINK_BELOW is a property of the whole column and is read at cache level 1,

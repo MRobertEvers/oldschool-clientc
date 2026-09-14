@@ -1156,15 +1156,6 @@ app_wev_deck_box(
     struct Wev const* wev,
     struct World const* parent_world,
     struct WevDeckBox* out_box);
-/* Defined with the world helpers further down; the plugin bridge (included
- * mid-file) samples deck heights through it for boat-aware tile markers. */
-static int
-app_world_height_in(
-    struct World* world,
-    int world_x,
-    int world_z,
-    int level);
-
 /**
  * An aboard actor's position pushed out through its hull into ROOT scene-local
  * fine units — the transform the deob applies before anything main-world reads
@@ -2854,7 +2845,7 @@ app_world_project_actor(
         deck_level = app_wev_deck_level(app, placement->view_id);
     if( deck_level >= COLLISION_LEVELS )
         deck_level = COLLISION_LEVELS - 1;
-    ground_y = wev->y + wev->bob_y + app_world_height_in(view->world, fine_x, fine_z, deck_level);
+    ground_y = wev->y + wev->bob_y + World_HeightAt(view->world, fine_x, fine_z, deck_level);
     return app_world_project_at(
         app, root_fx, root_fz, ground_y - height_above_ground, out_x, out_y);
 }
@@ -11344,46 +11335,7 @@ app_bind_configured_overlays(struct App* app)
     }
 }
 
-/* World_HeightFn: projectiles/movers track terrain height (world units).
- *
- * Line port of Client-TS getAvH (Client.ts:5288), bridge clause included: the
- * scene push-down moves a bridge column's *geometry* from cache level 1 into
- * paint level 0 (WorldBuilder_RebuildCenterzoneEnd, reference World.pushDown),
- * but the heightmap keeps raw cache levels. So a mover standing on a
- * LinkBelow column has to sample level+1 or it sinks to the underpass floor —
- * the "player walks under the bridge" symptom. */
-static int
-app_world_height_in(
-    struct World* world,
-    int world_x,
-    int world_z,
-    int level)
-{
-    int real_level = level;
-
-    if( !world || !world->heightmap )
-        return 0;
-
-    /* getAvH out-of-scene guard (Client.ts:5296): a tile outside [0,scene_size)
-     * has no heightmap column, so the reference returns a flat 0 rather than
-     * sampling. Without this an entity spawned/projected past the scene edge
-     * (e.g. a border NPC at tile 105 in a 104-wide scene) drives an unguarded
-     * base-corner read in heightmap_get_interpolated straight off the array. */
-    {
-        int tile_x = world_x >> 7;
-        int tile_z = world_z >> 7;
-        int scene_size = world->_scene_size;
-        if( tile_x < 0 || tile_z < 0 || tile_x >= scene_size || tile_z >= scene_size )
-            return 0;
-    }
-
-    if( level < WORLD_MAP_TERRAIN_LEVELS - 1 &&
-        (World_TileFlagGet(world, world_x >> 7, world_z >> 7, 1) & RSCACHE_FLOFLAG_LINK_BELOW) !=
-            0 )
-        real_level = level + 1;
-    return heightmap_get_interpolated(world->heightmap, world_x, world_z, real_level);
-}
-
+/* World_HeightFn: projectiles/movers track terrain height (world units). */
 static int
 app_world_height(
     void* userdata,
@@ -11394,7 +11346,7 @@ app_world_height(
     struct App* app = (struct App*)userdata;
 
     assert(app);
-    return app_world_height_in(app->world, world_x, world_z, level);
+    return World_HeightAt(app->world, world_x, world_z, level);
 }
 
 /* WevHeightFn: terrain under a hull, for the world-entity interpolator.
@@ -11420,9 +11372,9 @@ app_wev_terrain_height(
     view = WorldviewRegistry_Get(&app->worldviews, view_id);
     /* Every live view owns a World (WorldviewRegistry_Register asserts it);
      * whether that World has a heightmap yet is the loaded-or-not question
-     * app_world_height_in answers. */
+     * World_HeightAt answers. */
     assert(view->world);
-    return app_world_height_in(
+    return World_HeightAt(
         view->world,
         world_x - (view->world->_base_tile_x << 7),
         world_z - (view->world->_base_tile_z << 7),
@@ -18519,7 +18471,7 @@ app_world_sync_placement(
             deck_level = app_wev_deck_level(app, placement->view_id);
         if( deck_level >= COLLISION_LEVELS )
             deck_level = COLLISION_LEVELS - 1;
-        deck_y = app_world_height_in(view->world, placement->x, placement->z, deck_level);
+        deck_y = World_HeightAt(view->world, placement->x, placement->z, deck_level);
     }
     ToriDraw_SceneElementSetPosition(
         app->scene, element_id, placement->x, deck_y, placement->z, deck_yaw);
@@ -22522,7 +22474,7 @@ app_world_ground_composed(
         deck_level = app_wev_deck_level(app, view_id);
         if( deck_level >= COLLISION_LEVELS )
             deck_level = COLLISION_LEVELS - 1;
-        return wev->y + wev->bob_y + app_world_height_in(view->world, deck_x, deck_z, deck_level);
+        return wev->y + wev->bob_y + World_HeightAt(view->world, deck_x, deck_z, deck_level);
     }
     return app_world_height(app, fine_x, fine_z, level);
 }
@@ -26755,7 +26707,7 @@ app_world_camera_follow(struct App* app)
         if( cam_level >= COLLISION_LEVELS )
             cam_level = COLLISION_LEVELS - 1;
         aboard_y = wev->y +
-                   app_world_height_in(
+                   World_HeightAt(
                        view->world, player->view_placement.x, player->view_placement.z, cam_level) -
                    8 - 50;
         aboard_y_valid = 1;

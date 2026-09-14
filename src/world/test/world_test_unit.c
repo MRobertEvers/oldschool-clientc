@@ -706,6 +706,104 @@ test_scenery(void)
  * all three spaces onto one number. So the bridged column is the whole test and
  * the flat one is only there to say the helpers are inert off a bridge.
  */
+/*
+ * World_HeightAt: the terrain sample every mover, projectile and overlay
+ * anchor is placed against (the reference's getAvH).
+ *
+ * Three things about it are invisible until something floats or sinks. It
+ * interpolates between tile corners rather than stepping per tile; a position
+ * outside the scene answers flat 0 instead of reading off the end of the
+ * array; and a column carrying LINK_BELOW is sampled one level UP, because
+ * the scene push-down moved the deck's geometry down a plane while the
+ * heightmap kept raw cache levels. Without that last clause a player on a
+ * bridge deck stands at the underpass floor.
+ */
+void
+test_height_at(void)
+{
+    printf("TEST: World_HeightAt\n");
+
+    struct World* world = World_TestMakeReady(64);
+    int const tile_x = 20;
+    int const tile_z = 30;
+
+    /* A world that has not loaded terrain yet answers flat, not garbage. */
+    {
+        struct World* bare = World_New();
+        TEST_ASSERT(World_HeightAt(bare, 10 * 128, 10 * 128, 0) == 0, "no heightmap reads 0");
+        World_Free(bare);
+    }
+
+    /* heightmap_set takes tile corners; the four corners of one tile at level 0
+     * are flat at -500 and the tile beyond it rises, so the seam interpolates. */
+    for( int x = tile_x; x <= tile_x + 2; x++ )
+        for( int z = tile_z; z <= tile_z + 2; z++ )
+            heightmap_set(world->heightmap, x, z, 0, -500);
+    heightmap_set(world->heightmap, tile_x + 1, tile_z, 0, -1000);
+    heightmap_set(world->heightmap, tile_x + 1, tile_z + 1, 0, -1000);
+
+    TEST_ASSERT(
+        World_HeightAt(world, tile_x * 128, tile_z * 128, 0) == -500,
+        "flat corner samples its own height");
+    TEST_ASSERT(
+        World_HeightAt(world, tile_x * 128 + 64, tile_z * 128, 0) == -750,
+        "halfway across a sloped tile is halfway between its corners");
+
+    /* Outside [0, scene_size): flat 0, and no read off the end of the array.
+     * A border NPC at tile 65 of a 64-wide scene is the case that found this.
+     *
+     * Tile 64 is the interesting one, and it is why these corners are given a
+     * height first. The heightmap is (scene_size + 1) square, so column 64
+     * EXISTS and holds the far edge of the last tile -- an unguarded sample
+     * there reads a real, in-bounds value rather than crashing. Assert against
+     * zeroed memory instead and the guard can be deleted without the test
+     * noticing, which is exactly what it must not allow. */
+    heightmap_set(world->heightmap, 64, 10, 0, -2000);
+    heightmap_set(world->heightmap, 64, 11, 0, -2000);
+    heightmap_set(world->heightmap, 10, 64, 0, -3000);
+    heightmap_set(world->heightmap, 11, 64, 0, -3000);
+    TEST_ASSERT(
+        World_HeightAt(world, 64 * 128, 10 * 128, 0) == 0,
+        "the column past the east edge is not sampled even though it exists");
+    TEST_ASSERT(
+        World_HeightAt(world, 10 * 128, 64 * 128, 0) == 0,
+        "the column past the north edge is not sampled even though it exists");
+    TEST_ASSERT(World_HeightAt(world, 65 * 128, 10 * 128, 0) == 0, "well past the east edge reads 0");
+    TEST_ASSERT(World_HeightAt(world, -1 * 128, 10 * 128, 0) == 0, "west of the scene reads 0");
+
+    /* The bridge clause. LINK_BELOW is read at cache level 1 and speaks for the
+     * whole column, so a sample asking for level 0 gets level 1's height. */
+    {
+        int const bridge_x = 40;
+        int const bridge_z = 41;
+
+        for( int x = bridge_x; x <= bridge_x + 1; x++ )
+            for( int z = bridge_z; z <= bridge_z + 1; z++ )
+            {
+                heightmap_set(world->heightmap, x, z, 0, -100); /* underpass floor */
+                heightmap_set(world->heightmap, x, z, 1, -900); /* the deck */
+            }
+
+        TEST_ASSERT(
+            World_HeightAt(world, bridge_x * 128, bridge_z * 128, 0) == -100,
+            "an ordinary column samples the level it was asked for");
+
+        world->tile_flags[bridge_x + bridge_z * 64 + 1 * 64 * 64] = 0x02; /* LINK_BELOW */
+
+        TEST_ASSERT(
+            World_HeightAt(world, bridge_x * 128, bridge_z * 128, 0) == -900,
+            "a bridge column sampled at level 0 stands on the deck, not the floor");
+
+        /* The top level has nowhere to climb to, so the clause must not run
+         * there and read a level that does not exist. */
+        TEST_ASSERT(
+            World_HeightAt(world, bridge_x * 128, bridge_z * 128, WORLD_MAP_TERRAIN_LEVELS - 1) == 0,
+            "the top level does not climb past the heightmap");
+    }
+
+    World_Free(world);
+}
+
 void
 test_bridge_levels(void)
 {
@@ -741,7 +839,7 @@ test_bridge_levels(void)
     /* Pick: a terrain hit carries the mesh level, and coming back down is what
      * lets it be handed to anything that speaks the wire. The deck's mesh is
      * cache 1 and the player standing on it is level 0 — get this backwards and
-     * app_world_height adds the bridge's +1 to an already-shifted level and
+     * World_HeightAt adds the bridge's +1 to an already-shifted level and
      * samples cache 2, a whole storey of air above the deck. */
     TEST_ASSERT(World_TerrainWalkLevel(world, bx, bz, 1) == 0, "the deck mesh is walked from 0");
     TEST_ASSERT(World_TerrainWalkLevel(world, bx, bz, 3) == 2, "bridge mesh 3 is walked from 2");

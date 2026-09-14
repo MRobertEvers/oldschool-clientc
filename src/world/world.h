@@ -546,6 +546,26 @@ World_TileFlagGet(
     int level);
 
 /**
+ * Terrain height under a fine-unit position, in world units.
+ *
+ * The reference's getAvH, bridge clause included: a column carrying LINK_BELOW
+ * is sampled one level up, because the scene push-down moved its geometry down
+ * a plane while the heightmap kept raw cache levels. Without that, a mover on a
+ * bridge deck sinks to the underpass floor.
+ *
+ * 0 for a world with no heightmap loaded yet, and for a position outside
+ * [0, scene_size) -- the reference returns flat 0 there rather than sampling,
+ * and an entity projected past the scene edge would otherwise drive an
+ * unguarded base-corner read off the array.
+ */
+int
+World_HeightAt(
+    struct World const* world,
+    int world_x,
+    int world_z,
+    int level);
+
+/**
  * Bridge columns: the three level spaces a loc lives in, and how to travel
  * between them.
  *
