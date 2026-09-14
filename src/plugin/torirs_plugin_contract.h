@@ -193,14 +193,18 @@ struct ToriRS_WidgetState
  * Widget references can be retained, but must still be live when next used. */
 enum ToriRS_WidgetEventType
 {
+    /** The mount seam: a widget's interface was opened or closed. NOT RAISED
+     *  YET -- the seam is task_slot_mount, and until something raises them a
+     *  plugin should watch BOUND and UNBOUND, which carry the same news about
+     *  the element it actually asked for. They are declared because the seam
+     *  is the one place that can tell an interface CHANGING from a widget
+     *  merely being rebound, which BOUND cannot. */
     TORIRS_WIDGET_LOADED,
     TORIRS_WIDGET_CLOSED,
+    /** The element moved, was hidden, was re-skinned or retyped. Raised once
+     *  per publication fence per watch registered through `watch_state`. */
     TORIRS_WIDGET_STATE_CHANGED,
-    TORIRS_WIDGET_BEFORE_LAYOUT,
-    TORIRS_WIDGET_AFTER_LAYOUT,
     TORIRS_WIDGET_OPERATION,
-    TORIRS_SCRIPT_PRE_FIRED,
-    TORIRS_SCRIPT_POST_FIRED,
     TORIRS_SCRIPT_CALLBACK,
     TORIRS_WIDGET_BOUND,
     TORIRS_WIDGET_UNBOUND,
