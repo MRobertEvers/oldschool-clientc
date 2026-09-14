@@ -2840,7 +2840,7 @@ test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-drop
 test-npctype-multi: $(OBJ_DIR) engine/torirs_npctype_from_rscache.c \
 		engine/test/torirs_npctype_from_rscache_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_npctype_from_rscache_test \
-		engine/torirs_npctype_from_rscache.c engine/torirs_types.c \
+		engine/torirs_npctype_from_rscache.c engine/torirs_types.c engine/torirs_component_hook.c \
 		engine/test/torirs_npctype_from_rscache_test.c
 	./$(OBJ_DIR)/torirs_npctype_from_rscache_test
 
@@ -3407,6 +3407,9 @@ test-chat-store: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/chat_store_test \
 		game/rs_chat.c game/rs_social.c net/jbase37.c \
 		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
+		ui/uitree_frame.c ui/uitree_input.c ui/uitree_minimenu.c ui/uitree_cross.c ui/uitree_hover.c \
+		ui/uitree_ink.c ui/torirs_chrome_inkwell.c ui/uitree_emit.c ui/uitree_inv_view.c ui/uitree_obj_cell.c \
+		ui/uitree_build.c ui/uitree_role.c ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
 		game/test/rs_chat_store_test.c -lm
 	./$(OBJ_DIR)/chat_store_test
