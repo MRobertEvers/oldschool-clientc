@@ -6864,22 +6864,6 @@ app_inv_ui_host_change(
  * two-second ceiling on a cache that answers over the network. */
 #define APP_INV_ICON_ATTEMPT_MAX 100
 
-/* True while any item slot still needs a first rasterization attempt. */
-static int
-app_inv_needs_icons(struct App const* app)
-{
-    for( int ci = 0; ci < app->invs.container_count; ci++ )
-    {
-        struct InvContainer const* c = &app->invs.containers[ci];
-        if( !c->slots )
-            continue;
-        for( int s = 0; s < c->slot_count; s++ )
-            if( c->slots[s].obj_id > 0 && c->slots[s].scene_id == INV_MANAGER_NO_SCENE_ID )
-                return 1;
-    }
-    return 0;
-}
-
 struct Task_InvIconReconcile
 {
     struct ToriRS_Task task;
@@ -7010,7 +6994,7 @@ app_inv_icon_reconcile_tick(struct App* app)
 {
     struct Task_InvIconReconcile* task;
 
-    if( app->inv_icon_reconcile_inflight || !app_inv_needs_icons(app) )
+    if( app->inv_icon_reconcile_inflight || !InvManager_HasUnbakedIcon(&app->invs) )
         return;
 
     task = calloc(1, sizeof(*task));
