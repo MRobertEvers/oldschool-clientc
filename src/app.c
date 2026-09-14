@@ -132,6 +132,7 @@ EM_JS(
 #include "ui/uitree_build.h"
 #include "ui/uitree_frame.h"
 #include "ui/uitree_input_signature.h"
+#include "ui/uitree_if_events.h"
 #include "ui/uitree_iface_stats.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_obj_cell.h"
@@ -732,18 +733,6 @@ app_chat_line_at(
         &app->chat, &filters, x - rx, y - ry, out_sender, sender_cap, out_chat_type);
 }
 
-static unsigned
-app_if_events_for_node(
-    struct App const* app,
-    int com_id);
-
-static int
-app_if_events_override_get(
-    struct App const* app,
-    int com_id,
-    int sub_id,
-    unsigned* out_events);
-
 /* Adapter so rs_minimenu_build can ask about server-declared events without
  * knowing what an App is. Uses the node-aware lookup so a dynamic child
  * inherits its parent's IF_SETEVENTS range (popout:buttons, bank items, …). */
@@ -755,7 +744,7 @@ app_minimenu_events_for_component(
 {
     if( sub_id >= 0 )
         return App_IfEventsGetAt((struct App const*)user, com_id, sub_id);
-    return (int)app_if_events_for_node((struct App const*)user, com_id);
+    return (int)App_IfEventsGetEffective((struct App const*)user, com_id);
 }
 
 /* The CS2 host's twin of the above, for IF/CC_GETTARGETMASK. It reports
@@ -771,7 +760,7 @@ app_cs2_events_override_for_component(
     int* out_events)
 {
     unsigned events = 0;
-    if( !app_if_events_override_get((struct App const*)user, com_id, -1, &events) )
+    if( !UIIfEventTable_Lookup(&((struct App const*)user)->if_events, com_id, -1, &events) )
         return 0;
     if( out_events )
         *out_events = (int)events;
@@ -786,57 +775,8 @@ App_IfEventsSet(
     int to,
     int events)
 {
-    struct AppIfEvents* replacement;
-    int replacement_count = 0;
-    int replacement_cap;
-
     assert(app);
-    if( from > to )
-    {
-        int swap = from;
-        from = to;
-        to = swap;
-    }
-
-    /* IfSetEventsV2 replaces only the addressed interval. Preserve the pieces
-     * on either side of an overlap; one component may have many independently
-     * armed dynamic-child ranges. */
-    replacement_cap = app->if_event_count + 3;
-    replacement = malloc((size_t)replacement_cap * sizeof(*replacement));
-    assert(replacement);
-    for( int i = 0; i < app->if_event_count; i++ )
-    {
-        struct AppIfEvents old = app->if_events[i];
-        int old_from = old.from;
-        int old_to = old.to;
-
-        if( old.com_id != com_id || old.to < from || old.from > to )
-        {
-            replacement[replacement_count++] = old;
-            continue;
-        }
-        if( old_from < from )
-        {
-            old.from = old_from;
-            old.to = from - 1;
-            replacement[replacement_count++] = old;
-        }
-        if( old_to > to )
-        {
-            old.to = old_to;
-            old.from = to + 1;
-            replacement[replacement_count++] = old;
-        }
-    }
-    replacement[replacement_count].com_id = com_id;
-    replacement[replacement_count].from = from;
-    replacement[replacement_count].to = to;
-    replacement[replacement_count].events = events;
-    replacement_count++;
-    free(app->if_events);
-    app->if_events = replacement;
-    app->if_event_count = replacement_count;
-    app->if_event_cap = replacement_cap;
+    UIIfEventTable_Set(&app->if_events, com_id, from, to, events);
 
     if( torirs_env_net_debug() )
         TORIRS_LOG(
@@ -853,16 +793,8 @@ App_IfEventsSet(
 void
 App_IfEventsClear(struct App* app)
 {
-    /*
-     * Everything IF_SETEVENTS armed, dropped.
-     *
-     * Called on IF_OPENTOP, because that is when the real client drops it: the
-     * root change rebuilds the widget state and the events map is part of it.
-     * The table is not freed, only emptied — the next root re-arms into the
-     * same allocation.
-     */
-    if( app )
-        app->if_event_count = 0;
+    assert(app);
+    UIIfEventTable_Clear(&app->if_events);
 }
 
 int
@@ -880,89 +812,7 @@ App_IfEventsGetAt(
     int sub_id)
 {
     assert(app);
-    for( int i = 0; i < app->if_event_count; i++ )
-    {
-        if( app->if_events[i].com_id == com_id && app->if_events[i].from <= sub_id &&
-            app->if_events[i].to >= sub_id )
-            return app->if_events[i].events;
-    }
-    return 0;
-}
-
-static int
-app_if_events_override_get(
-    struct App const* app,
-    int com_id,
-    int sub_id,
-    unsigned* out_events)
-{
-    assert(app);
-    for( int i = 0; i < app->if_event_count; i++ )
-    {
-        if( app->if_events[i].com_id == com_id && app->if_events[i].from <= sub_id &&
-            app->if_events[i].to >= sub_id )
-        {
-            if( out_events )
-                *out_events = (unsigned)app->if_events[i].events;
-            return 1;
-        }
-    }
-    return 0;
-}
-
-/*
- * The events governing a node, including the ones armed on its container.
- *
- * `IF_SETEVENTS` carries a sub-id RANGE, and that is not decoration: it is how
- * the server arms a list whose entries do not exist yet. The emotes tab is the
- * clearest case — interface 216's onload `cc_create`s one cell per emote, so at
- * login there is nothing to address but the container, and the server says
- * "slots 0..55 of `emote:contents` have op 1".
- *
- * `App_IfEventsGet` matches a component id exactly, so a dynamic child found
- * nothing and every emote click was dropped by the arming gate. The right-click
- * menu still offered "Perform Bow", because the row comes from the cache's own
- * op list — so the tab hovered, highlighted and named the verb, and clicking did
- * nothing at all.
- *
- * A dynamic child therefore asks its parent, and the sub-id has to fall inside
- * the declared range: a container armed for slots 0..27 must not arm slot 30.
- * A static component is unchanged — it has no parent range to inherit and its
- * own entry is the answer.
- */
-static void
-app_if_button_target(
-    struct App const* app,
-    int com_id,
-    int* out_com,
-    int* out_sub)
-{
-    int32_t idx;
-    struct UITreeComponent const* node;
-    int32_t parent;
-
-    *out_com = com_id;
-    *out_sub = -1;
-    assert(app);
-    if( !app->tree )
-        return;
-
-    idx = UITree_FindByComponentId(app->tree, com_id);
-    if( idx < 0 )
-        return;
-    node = &app->tree->components[idx];
-    if( !node->dynamic )
-        return;
-
-    /* A dynamic child is addressed as (container, index within it) — the two
-     * fields RSProt's If3Button carries as `combinedId` and `sub`, and the whole
-     * reason `sub` exists. Its own component id is a runtime allocation the
-     * server has never heard of. */
-    parent = node->parent;
-    if( parent < 0 || (uint32_t)parent >= app->tree->component_count )
-        return;
-    *out_com = app->tree->components[parent].component_id;
-    *out_sub = node->dynamic_child_index;
+    return UIIfEventTable_At(&app->if_events, com_id, sub_id);
 }
 
 unsigned
@@ -970,39 +820,8 @@ App_IfEventsGetEffective(
     struct App const* app,
     int com_id)
 {
-    int target;
-    int sub;
-    unsigned events;
-    int32_t idx;
-
     assert(app);
-
-    /* rev239 class545.method12093 first consults the server's per-widget /
-     * per-child override table and falls back to the widget's decoded flags
-     * when no entry exists. An override whose value is zero is therefore
-     * meaningful: it disables cache-authored ops and must not be confused
-     * with an absent entry. */
-    if( app_if_events_override_get(app, com_id, -1, &events) )
-        return events;
-
-    app_if_button_target(app, com_id, &target, &sub);
-    if( target != com_id && app_if_events_override_get(app, target, sub, &events) )
-        return events;
-
-    if( !app->tree )
-        return 0;
-    idx = UITree_FindByComponentId(app->tree, com_id);
-    if( idx >= 0 )
-        return (unsigned)app->tree->components[idx].behavior.click_mask;
-    return 0;
-}
-
-static unsigned
-app_if_events_for_node(
-    struct App const* app,
-    int com_id)
-{
-    return App_IfEventsGetEffective(app, com_id);
+    return UIIfEventTable_Effective(&app->if_events, app->tree, com_id);
 }
 
 /*
@@ -1072,7 +891,7 @@ app_targetsel_wire_component(struct App const* app)
     int sub;
 
     assert(app);
-    app_if_button_target(app, app->targetsel.component_id, &com, &sub);
+    UIIfEventTable_ButtonTarget(app->tree, app->targetsel.component_id, &com, &sub);
     return com;
 }
 
@@ -6845,7 +6664,7 @@ app_host_request(
             req->u.get_obj_icon_bordered.obj_id,
             req->u.get_obj_icon_bordered.count > 0 ? req->u.get_obj_icon_bordered.count : 1);
     case UITREE_HOST_GET_IF_EVENTS:
-        return (int)app_if_events_for_node(app, req->u.get_if_events.com_id);
+        return (int)App_IfEventsGetEffective(app, req->u.get_if_events.com_id);
     /* The developer overlay's display list, handed over by pointer — the array
      * is owned by app->dbg_ui and outlives the frame. With the panel hidden the
      * list is empty and this returns 0, which is the whole cost of a declared
@@ -7013,13 +6832,13 @@ app_ui_host_publish_inputs(struct App* app)
         signature[UITREE_HOST_INPUT_CLIENT_STATE], &app->slots, sizeof(app->slots));
     signature[UITREE_HOST_INPUT_CLIENT_STATE] = UITree_InputSignatureBytes(
         signature[UITREE_HOST_INPUT_CLIENT_STATE], &app->chat_view, sizeof(app->chat_view));
-    signature[UITREE_HOST_INPUT_CLIENT_STATE] =
-        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CLIENT_STATE], app->if_event_count);
-    if( app->if_event_count > 0 )
+    signature[UITREE_HOST_INPUT_CLIENT_STATE] = UITree_InputSignatureInt(
+        signature[UITREE_HOST_INPUT_CLIENT_STATE], app->if_events.count);
+    if( app->if_events.count > 0 )
         signature[UITREE_HOST_INPUT_CLIENT_STATE] = UITree_InputSignatureBytes(
             signature[UITREE_HOST_INPUT_CLIENT_STATE],
-            app->if_events,
-            (size_t)app->if_event_count * sizeof(*app->if_events));
+            app->if_events.ranges,
+            (size_t)app->if_events.count * sizeof(*app->if_events.ranges));
 
     /* INVENTORY: container contents publish through the InvManager callback;
      * selection and drag addressing live on App and need this small snapshot. */
@@ -11136,6 +10955,9 @@ App_Shutdown(struct App* app)
     free(app->if_heads);
     free(app->if_player_models);
     free(app->if_hides);
+    /* The IF_SETEVENTS store was never released here; it had no owner to ask.
+     * It does now, so it is freed with the rest of the if_* tables. */
+    UIIfEventTable_Free(&app->if_events);
     RevConfigRefs_Free(&app->revconfig_refs);
     UITree_RoleTableFree(&app->ui_roles);
 }
@@ -16193,12 +16015,12 @@ app_cs2_enqueue_followups(struct App* app)
              * real op. Clicking it ran the script and sent nothing.
              */
             if( trig.op_index >= 1 && trig.op_index <= 10 &&
-                (app_if_events_for_node(app, trig.component_id) & (1u << trig.op_index)) )
+                (App_IfEventsGetEffective(app, trig.component_id) & (1u << trig.op_index)) )
             {
                 int target = trig.component_id;
                 int sub = -1;
                 int obj_id = app->tree->components[idx].item_id;
-                app_if_button_target(app, trig.component_id, &target, &sub);
+                UIIfEventTable_ButtonTarget(app->tree, trig.component_id, &target, &sub);
                 if( obj_id > 0 )
                     APP_NET_SEND(
                         app,
@@ -27579,7 +27401,7 @@ app_minimenu_inv_action(
         {
             unsigned events = 0;
             int const op_num = opt->action_index + 1;
-            if( !app_if_events_override_get(app, com_id, slot, &events) )
+            if( !UIIfEventTable_Lookup(&app->if_events, com_id, slot, &events) )
                 events = App_IfEventsGetEffective(app, com_id);
             if( events & (1u << op_num) )
             {
@@ -27842,10 +27664,10 @@ app_inv_resolve_drop(
     }
 
     /* Empty CS2 slots: walk every IF_SETEVENTS entry with bit 20. */
-    for( i = 0; i < app->if_event_count; i++ )
+    for( i = 0; i < app->if_events.count; i++ )
     {
-        int com = app->if_events[i].com_id;
-        int events = app->if_events[i].events;
+        int com = app->if_events.ranges[i].com_id;
+        int events = app->if_events.ranges[i].events;
         int32_t parent;
         int32_t node = -1;
         int slot;
@@ -27868,8 +27690,8 @@ app_inv_resolve_drop(
              UITree_NodeOrAncestorDisplayHidden(app->tree, app->tree->components[node].parent)) )
             continue;
         /* from/to of -1 mean a plain widget (not a sub-id range). */
-        if( app->if_events[i].from >= 0 && app->if_events[i].to >= 0 &&
-            (slot < app->if_events[i].from || slot > app->if_events[i].to) )
+        if( app->if_events.ranges[i].from >= 0 && app->if_events.ranges[i].to >= 0 &&
+            (slot < app->if_events.ranges[i].from || slot > app->if_events.ranges[i].to) )
             continue;
         *out_com = com;
         *out_slot = slot;
@@ -29008,7 +28830,7 @@ app_minimenu_run_option(
                 opt.action_index < 10 && app->net )
             {
                 int const op_num = opt.action_index + 1;
-                unsigned const events = app_if_events_for_node(app, opt.pick.id);
+                unsigned const events = App_IfEventsGetEffective(app, opt.pick.id);
                 /* The events mask is the whole of "is this op the server's", so it
                  * is the one number worth printing beside the row that carries it —
                  * a component the server never armed produces a perfectly good menu
@@ -29018,7 +28840,7 @@ app_minimenu_run_option(
                     int dbg_target;
                     int dbg_sub;
 
-                    app_if_button_target(app, opt.pick.id, &dbg_target, &dbg_sub);
+                    UIIfEventTable_ButtonTarget(app->tree, opt.pick.id, &dbg_target, &dbg_sub);
                     TORIRS_LOG(
                         "clickdbg: op%d on com=0x%x events=0x%x net=%d "
                         "target=0x%x (%d:%d) sub=%d\n",
@@ -29036,7 +28858,7 @@ app_minimenu_run_option(
                     int target;
                     int sub;
 
-                    app_if_button_target(app, opt.pick.id, &target, &sub);
+                    UIIfEventTable_ButtonTarget(app->tree, opt.pick.id, &target, &sub);
                     if( getenv("TORIRS_CLICK_DEBUG") )
                         TORIRS_LOG(
                             "clickdbg: send op%d target=0x%x sub=%d state=%d\n",
@@ -29070,7 +28892,7 @@ app_minimenu_run_option(
                     int target;
                     int sub;
 
-                    app_if_button_target(app, opt.pick.id, &target, &sub);
+                    UIIfEventTable_ButtonTarget(app->tree, opt.pick.id, &target, &sub);
                     if( sub >= 0 )
                     {
                         if( getenv("TORIRS_CLICK_DEBUG") )
@@ -33075,7 +32897,7 @@ app_send_if_button(
      * runtime id is a client allocation the server has never heard of. EVENT_CLICK
      * on chatmenu rows (and any other IF_SETEVENTS-armed list) must use that
      * pair, which is IF_BUTTON1 with the sub-id, not plain IF_BUTTON. */
-    app_if_button_target(app, com_id, &target, &sub);
+    UIIfEventTable_ButtonTarget(app->tree, com_id, &target, &sub);
     if( torirs_env_net_debug() )
         TORIRS_LOG("if_button: com=%d target=%d sub=%d\n", com_id, target, sub);
     if( sub >= 0 )
@@ -33103,7 +32925,7 @@ app_send_resume_pausebutton(
     /* Rev 239 action 30 and CC_RESUME_PAUSEBUTTON both write the static parent
      * uid plus the dynamic child's sub-id. The child runtime uid exists only
      * in this client, so resolve it at the wire boundary. */
-    app_if_button_target(app, com_id, &target, &sub);
+    UIIfEventTable_ButtonTarget(app->tree, com_id, &target, &sub);
     if( torirs_env_net_debug() )
         TORIRS_LOG("resume_pausebutton: com=%d target=%d sub=%d\n", com_id, target, sub);
     APP_NET_SEND(

@@ -35,6 +35,7 @@
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_mesh.h"
 #include "ui/uitree_frame.h"
+#include "ui/uitree_if_events.h"
 #include "ui/uitree_role.h"
 #include "ui/uitree_scroll.h"
 #include "revconfig/revconfig_profile.h"
@@ -1339,15 +1340,7 @@ struct App
      * input, and it does so before the interface finishes mounting, so the
      * masks have to survive until there is a tree to apply them to. Without
      * this a dialogue renders correctly and swallows every click. */
-    struct AppIfEvents
-    {
-        int com_id;
-        int from;
-        int to;
-        int events;
-    }* if_events;
-    int if_event_count;
-    int if_event_cap;
+    struct UIIfEventTable if_events;
 
     /* Persistent interface-model store (reference keeps
      * model1Type/model1Id on IfType.list and re-resolves getModel every draw):

@@ -593,6 +593,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	$(PLATFORM_SRCS) \
 	$(PLATFORM_EXTRA_SRCS) \
 	$(JS5_SRCS) \
+	ui/uitree_if_events.c \
 	engine/toridraw_element_anim.c \
 	torirs_env_values.c \
 	engine/world_seq_source_toridraw.c \
@@ -1631,7 +1632,19 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-plugin-mesh
 	$(MAKE) test-world-seq-source
 	$(MAKE) test-env-values
+	$(MAKE) test-uitree-if-events
 	$(MAKE) test-world
+
+# The server's IF_SETEVENTS store: the arming gate for every click. Its failure
+# mode always looks like a different bug -- the interface renders, the
+# right-click row is there (it comes from the cache), and the click does
+# nothing. Covers all five overlap shapes and the dynamic-child addressing.
+.PHONY: test-uitree-if-events
+test-uitree-if-events: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_if_events_test$(PLATFORM_EXE_SUFFIX) \
+		ui/test/uitree_if_events_test.c ui/uitree_if_events.c ui/uitree.c \
+		perf/torirs_perf.c $(LDFLAGS)
+	./$(OBJ_DIR)/uitree_if_events_test$(PLATFORM_EXE_SUFFIX)
 
 # The runtime knobs that carry a value. Every way of getting one of these
 # grammars wrong is silent: the wrong spawn id, half a world meshed, a mirrored
