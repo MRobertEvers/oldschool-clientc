@@ -1320,11 +1320,33 @@ enum UITreeWalkScratchSlot
     UITREE_WALK_SCRATCH_COUNT = 2
 };
 
+/** @see UITree::owned_counts. */
+#define UITREE_OWNED_OWNERS_MAX 64
+struct UITreeOwnedCount
+{
+    uint64_t owner;
+    int32_t live;
+};
+
 struct UITree
 {
     struct UITreeGeometryAudit* geometry_audit;
     struct UITreeComponent* components;
     uint32_t component_count;
+    /**
+     * Live owned-control count per plugin owner, so the per-owner cap is an
+     * O(1) question at create time instead of a sweep of every component. It
+     * is maintained at the only two places an owner can appear or leave: the
+     * push that stamps `plugin_owner`, and uitree_component_free_owned, which
+     * every reclaim goes through before the component is memset.
+     *
+     * A reconciler creates on a new key and only then, so this is not a hot
+     * path today; it is O(1) so that it cannot become one when a description
+     * grows. The table cannot run out for the host's plugin budget, and the
+     * create path counts by hand if it ever does.
+     */
+    struct UITreeOwnedCount owned_counts[UITREE_OWNED_OWNERS_MAX];
+    int owned_count_entries;
     uint32_t component_capacity;
     int32_t root_index;
     /** Tail of root sibling list — O(1) append while baking large packs. */

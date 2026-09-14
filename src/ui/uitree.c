@@ -1674,11 +1674,38 @@ UITree_ModelRenderCacheMut(struct UITreeComponent* component)
 
 /* Free a component's heap-owned resources and NULL the pointers so the slot is
  * safe to reuse and UITree_Free cannot double-free. */
+static struct UITreeOwnedCount*
+uitree_owned_count_find(struct UITree* tree, uint64_t owner, bool create)
+{
+    assert(tree);
+    assert(owner);
+    for( int i = 0; i < tree->owned_count_entries; i++ )
+        if( tree->owned_counts[i].owner == owner )
+            return &tree->owned_counts[i];
+    if( !create || tree->owned_count_entries >= UITREE_OWNED_OWNERS_MAX )
+        return NULL;
+    struct UITreeOwnedCount* slot = &tree->owned_counts[tree->owned_count_entries++];
+    slot->owner = owner;
+    slot->live = 0;
+    return slot;
+}
+
 static void
 uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
 {
     assert(tree);
     assert(c);
+    if( c->plugin_owner )
+    {
+        struct UITreeOwnedCount* owned = uitree_owned_count_find(tree, c->plugin_owner, false);
+        /* No slot only when the owner table overflowed, which also makes the
+         * create path count by hand; a slot that exists must not go negative. */
+        if( owned )
+        {
+            assert(owned->live > 0);
+            owned->live--;
+        }
+    }
     free(c->plugin_key);
     c->plugin_key = NULL;
     while( c->widget_geometry )
@@ -2613,6 +2640,13 @@ UITree_Push(
     struct UITreeComponent* component = &tree->components[idx];
     component->type = spec->type;
     component->plugin_owner = spec->plugin_owner;
+    if( component->plugin_owner )
+    {
+        struct UITreeOwnedCount* owned =
+            uitree_owned_count_find(tree, component->plugin_owner, true);
+        if( owned )
+            owned->live++;
+    }
     component->component_id = spec->component_id;
     component->dynamic = spec->dynamic ? 1 : 0;
     uitree_id_index_note_added(tree, idx);
@@ -4605,10 +4639,15 @@ int32_t UITree_WidgetCreateText(struct UITree* tree, struct UITreeNodeRef parent
     {   PA_INC(create_sibling_iters);
         if( tree->components[child].plugin_owner == owner && tree->components[child].plugin_key &&
             strcmp(tree->components[child].plugin_key,key)==0 ) { PA_INC(create_hits); return child; } }
-    int count=0;
-    PA_ADD(create_cap_iters, tree->component_count);
-    for( uint32_t i=0; i<tree->component_count; ++i )
-        if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count;
+    struct UITreeOwnedCount const* owned=uitree_owned_count_find(tree,owner,true);
+    int count;
+    if( owned ) count=owned->live;
+    else
+    {   /* The owner table is full: count the way this always did. */
+        count=0;
+        PA_ADD(create_cap_iters, tree->component_count);
+        for( uint32_t i=0; i<tree->component_count; ++i )
+            if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count; }
     if( count>=128 ) return -1;
     char* saved_key=strdup(key);
     if( !saved_key ) return -1;
@@ -4637,10 +4676,15 @@ static int32_t uitree_widget_create_owned(struct UITree* tree, struct UITreeNode
     {   PA_INC(create_sibling_iters);
         if( tree->components[child].plugin_owner == owner && tree->components[child].plugin_key &&
             strcmp(tree->components[child].plugin_key,key)==0 ) { PA_INC(create_hits); return child; } }
-    int count=0;
-    PA_ADD(create_cap_iters, tree->component_count);
-    for( uint32_t i=0; i<tree->component_count; ++i )
-        if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count;
+    struct UITreeOwnedCount const* owned=uitree_owned_count_find(tree,owner,true);
+    int count;
+    if( owned ) count=owned->live;
+    else
+    {   /* The owner table is full: count the way this always did. */
+        count=0;
+        PA_ADD(create_cap_iters, tree->component_count);
+        for( uint32_t i=0; i<tree->component_count; ++i )
+            if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count; }
     if( count>=128 ) return -1;
     char* saved_key=strdup(key);
     assert(saved_key);

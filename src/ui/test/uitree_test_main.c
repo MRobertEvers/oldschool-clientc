@@ -41,6 +41,7 @@ main(void)
     test_input_walk_equivalence();
     test_widget_skin();
     test_widget_idempotent_edits();
+    test_owned_budget();
     test_frame_provide();
         test_plugin_contract_copy();
         return g_failures ? 1 : 0;
@@ -61,6 +62,7 @@ main(void)
     test_anchor_reorder();
     test_widget_skin();
     test_widget_idempotent_edits();
+    test_owned_budget();
     test_frame_provide();
     test_plugin_contract_copy();
     test_canvas_queries();
