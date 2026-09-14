@@ -2273,10 +2273,10 @@ editor_clear_tile_locs(
     struct Editor_Panel* panel,
     struct App* app)
 {
-    int const sx =
-        panel->sel_kind != EDITOR_SELECTION_NONE ? panel->sel_scene_x : app->locedit_hover_x;
-    int const sz =
-        panel->sel_kind != EDITOR_SELECTION_NONE ? panel->sel_scene_z : app->locedit_hover_z;
+    int const sx = panel->sel_kind != EDITOR_SELECTION_NONE ? panel->sel_scene_x
+                                                            : app->locedit_selection.hover_x;
+    int const sz = panel->sel_kind != EDITOR_SELECTION_NONE ? panel->sel_scene_z
+                                                            : app->locedit_selection.hover_z;
 
     if( sx < 0 || sz < 0 )
         return;

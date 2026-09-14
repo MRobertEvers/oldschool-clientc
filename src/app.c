@@ -600,7 +600,7 @@ app_chat_focus_tick(
     }
     /* The loc editor took W/A/S/D/R/Space/Backspace for the frame and has
      * already forced the focus flags off; do not hand them back under it. */
-    if( app->locedit_visible )
+    if( app->locedit.visible )
         return 0;
     /* An IF3 text-entry field has the caret. Enter belongs to that field (it
      * submits), and without this the chat line would claim the same press and
@@ -5991,55 +5991,42 @@ app_debug_overlay_init(struct App* app)
     app->dbg_frame_row = ToriRSChrome_MenuItem(&app->dbg_ui, app->dbg_panel, "--");
     ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->dbg_panel, 0);
 
-    app->locedit_panel =
+    app->locedit.panel =
         ToriRSChrome_PanelAdd(&app->dbg_ui, TORIRS_CHROME_PANEL_MENU, 8, 40, 0, "Loc Editor");
-    app->locedit_row_target =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "nothing selected");
-    app->locedit_row_pos = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "");
-    app->locedit_row_size = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "");
-    app->locedit_row_extra = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "");
-    ToriRSChrome_Separator(&app->dbg_ui, app->locedit_panel);
+    app->locedit.row_target =
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "nothing selected");
+    app->locedit.row_pos = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "");
+    app->locedit.row_size = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "");
+    app->locedit.row_extra = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "");
+    ToriRSChrome_Separator(&app->dbg_ui, app->locedit.panel);
     /* Rows double as the key reference: chat input is forced off while this
      * panel is open (below), so these letters are always free to use without
      * a message box eating them. Still clickable too -- the key is the fast
      * path, the click is the discoverable one. */
-    app->locedit_item_xplus =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X+1  [D]");
-    app->locedit_item_xminus =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X-1  [A]");
-    app->locedit_item_zplus =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z+1  [W]");
-    app->locedit_item_zminus =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z-1  [S]");
-    app->locedit_item_rotate =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Rotate  [R]");
-    app->locedit_item_reselect =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Reselect (under cursor)  [Space]");
-    app->locedit_item_deselect =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Deselect  [Backspace]");
-    app->locedit_item_close =
-        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Close  [9 / Esc]");
-    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
-    app->locedit_visible = 0;
+    app->locedit.item_xplus =
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Move X+1  [D]");
+    app->locedit.item_xminus =
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Move X-1  [A]");
+    app->locedit.item_zplus =
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Move Z+1  [W]");
+    app->locedit.item_zminus =
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Move Z-1  [S]");
+    app->locedit.item_rotate =
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Rotate  [R]");
+    app->locedit.item_reselect =
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Reselect (under cursor)  [Space]");
+    app->locedit.item_deselect =
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Deselect  [Backspace]");
+    app->locedit.item_close =
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit.panel, "Close  [9 / Esc]");
+    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->locedit.panel, 0);
+    app->locedit.visible = 0;
 
     /* The two All Settings pickers, in this same instance for the same reason
      * the loc editor's panel is: they are in-canvas, short-lived, and share
      * the frame-time panel's Build/Prims/emit plumbing for free. */
     UISettingsPickers_Init(&app->settings_pickers, &app->dbg_ui);
-    app->locedit_loc_id = -1;
-    app->locedit_shape = -1;
-    app->locedit_angle = 0;
-    app->locedit_size_x = 0;
-    app->locedit_size_z = 0;
-    app->locedit_interactive = 0;
-    app->locedit_name[0] = '\0';
-    app->locedit_scene_x = -1;
-    app->locedit_scene_z = -1;
-    app->locedit_level = 0;
-    app->locedit_terrain = 0;
-    app->locedit_terrain_level = 0;
-    app->locedit_hover_x = -1;
-    app->locedit_hover_z = -1;
+    LocEditorSelection_Reset(&app->locedit_selection);
 
     /* Footprint outline: the env var picks the mode AND the starting state, so
      * an existing `TORIRS_HOVER_FOOTPRINT=1` run is unchanged and the hotkey
@@ -6928,7 +6915,7 @@ app_world_load_begin(
  * Whether the map editor's SELECT tool is the thing the minimenu should be
  * offering "Select wall/object/decor/terrain" rows for -- panel closed or a
  * paint tool active both mean no such row belongs on the menu, same as
- * `app->locedit_visible` gates the loc editor's own Select row.
+ * `app->locedit.visible` gates the loc editor's own Select row.
  */
 static bool
 app_mapedit_select_active(struct App const* app)

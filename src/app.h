@@ -27,6 +27,7 @@
 #include "engine/title_flames.h"
 #include "game/rs_login_replies.h"
 #include "game/rs_title_session.h"
+#include "editor/loc_editor_selection.h"
 #include "game/rs_worldmap_view.h"
 #include "game/rs_preload.h"
 #include "game/rs_title.h"
@@ -615,6 +616,25 @@ enum AppScreen
 
 /** One visible map surface region, with its distance from the view centre. */
 /** Everything the world map surface owns for the length of a session. */
+/** The loc editor panel's chrome handles. */
+struct App_LocEditorWidgets
+{
+    int panel;
+    int visible;
+    int row_target; /* "loc <id> shape <n>" or "no loc selected" */
+    int row_pos;    /* "x=.. z=.. level=.." */
+    int row_size;   /* "size AxB angle=N" */
+    int row_extra;  /* loc name, or "interactive=0/1" when unnamed */
+    int item_xplus;
+    int item_xminus;
+    int item_zplus;
+    int item_zminus;
+    int item_rotate;
+    int item_reselect;
+    int item_deselect;
+    int item_close;
+};
+
 struct App_WorldMapView
 {
     /* Per-frame blits, filled by the GET_WORLDMAP_TILES host request and
@@ -1832,50 +1852,13 @@ struct App
      * goes straight into the row's varp. See ui/settings_pickers.h.
      */
     struct UISettingsPickers settings_pickers;
-    int locedit_panel;
-    int locedit_visible;
-    int locedit_row_target; /* "loc <id> shape <n>" or "no loc selected" */
-    int locedit_row_pos;    /* "x=.. z=.. level=.." */
-    int locedit_row_size;   /* "size AxB angle=N" */
-    int locedit_row_extra;  /* loc name, or "interactive=0/1" when unnamed */
-    int locedit_item_xplus;
-    int locedit_item_xminus;
-    int locedit_item_zplus;
-    int locedit_item_zminus;
-    int locedit_item_rotate;
-    int locedit_item_reselect;
-    int locedit_item_deselect;
-    int locedit_item_close;
-    /** Selected loc, or loc_id -1 for "nothing selected". Set only by an
-     * explicit Reselect/Deselect click -- opening or closing the panel never
-     * changes it, so a target stays active across a toggle, a camera move, or
-     * a string of nudges until the user picks a different one. scene_x/z/level
-     * are the loc's CURRENT placement, kept in sync with every move/rotate so
-     * the next one starts from the right tile. */
-    int locedit_loc_id;
-    int locedit_shape;
-    int locedit_angle;
-    int locedit_size_x;
-    int locedit_size_z;
-    int locedit_interactive;
-    char locedit_name[64];
-    int locedit_scene_x;
-    int locedit_scene_z;
-    int locedit_level;
-    /** 1 = the selection is a TILE, not a loc: locedit_loc_id stays -1 and
-     * scene_x/z/level name the ground instead. The move/rotate rows already
-     * guard on `locedit_loc_id < 0`, so a tile selection cannot be nudged —
-     * it is a readout, which is the whole of what a tile can offer. */
-    int locedit_terrain;
-    /** Cache (mesh) level of the selected tile — the plane the map authored
-     * that floor on, which on a bridge deck is not the plane it draws at. */
-    int locedit_terrain_level;
-    /** The last world tile the cursor hovered while NOT over the panel itself
-     * -- Reselect targets this, not the live world_hover_tile_x/z, because by
-     * the time a menu click on "Reselect" lands the cursor has necessarily
-     * moved onto the panel, which invalidates the live hover. -1 = none yet. */
-    int locedit_hover_x;
-    int locedit_hover_z;
+    /** The loc editor's chrome handles: the panel, its four readout rows and
+     *  its eight buttons. Ids the chrome hands back, nothing more. */
+    struct App_LocEditorWidgets locedit;
+    /** What the panel is pointed at, and what moving it means. Set only by an
+     *  explicit Reselect/Deselect: opening or closing the panel never changes
+     *  it. @see editor/loc_editor_selection.h */
+    struct LocEditorSelection locedit_selection;
     /** Footprint outline (app_overlay_build_hover_footprint): the live mode —
      * 0 off, 1 the hovered loc, >1 every instance of that loc id — and the
      * non-zero mode the toggle restores. Seeded from TORIRS_HOVER_FOOTPRINT so

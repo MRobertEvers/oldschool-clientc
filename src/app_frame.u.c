@@ -1087,7 +1087,7 @@ App_RunOnce(
              * row matches the right-click menu (reference doAction runs the
              * same chooseDefaultMenuEntry over the useMode/targetMode menu). */
             .selection = app_minimenu_selection(app),
-            .locedit_active = app->locedit_visible != 0,
+            .locedit_active = app->locedit.visible != 0,
             .mapedit_select_active = app_mapedit_select_active(app),
             .plugin_io_down = app_plugin_io_down(app) != 0,
             .wevs = &app->wevs,
@@ -1215,7 +1215,7 @@ App_RunOnce(
              * on an NPC with a spell armed built the plain ops and defaulted to
              * Attack (walk-to-melee "run up"), while the right-click menu cast. */
             .selection = app_minimenu_selection(app),
-            .locedit_active = app->locedit_visible != 0,
+            .locedit_active = app->locedit.visible != 0,
             .mapedit_select_active = app_mapedit_select_active(app),
             .plugin_io_down = app_plugin_io_down(app) != 0,
             .wevs = &app->wevs,
@@ -1593,7 +1593,7 @@ App_RunOnce(
         }
     }
 
-    if( !title_captures_keys && app_chat_node_index(app) >= 0 && !app->locedit_visible )
+    if( !title_captures_keys && app_chat_node_index(app) >= 0 && !app->locedit.visible )
     {
         int chat_captures =
             app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open;

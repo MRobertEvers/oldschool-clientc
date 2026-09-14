@@ -599,6 +599,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	ui/uitree_if_store.c \
 	ui/uitree_canvas_floor.c \
 	game/rs_title_session.c \
+	editor/loc_editor_selection.c \
 	game/rs_worldmap_view.c \
 	ui/inv_drag.c \
 	ui/minimap_view.c \
@@ -1662,6 +1663,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-minimap-view
 	$(MAKE) test-title-session
 	$(MAKE) test-worldmap-view
+	$(MAKE) test-loc-editor-selection
 	$(MAKE) test-net-link-watch
 	$(MAKE) test-clientscript-queue
 	$(MAKE) test-editor-ghost
@@ -1777,6 +1779,17 @@ test-settings-pickers: $(OBJ_DIR)
 		ui/uitree_layout.c ui/uitree_debug_overlay.c ui/torirs_chrome_rail.c ui/uitree_frame.c \
 		perf/torirs_perf.c $(LDFLAGS)
 	./$(OBJ_DIR)/settings_pickers_test$(PLATFORM_EXE_SUFFIX)
+
+# What the loc editor is pointed at, and what moving it means. These are
+# editing rules, so a wrong one is a map saved with the wrong thing in it: a
+# move recorded from the tile it landed on replays as nothing, and a Reselect
+# that reads the LIVE hover targets whatever the panel is sitting on top of,
+# because reaching the menu row is what moved the cursor there.
+.PHONY: test-loc-editor-selection
+test-loc-editor-selection: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/loc_editor_selection_test$(PLATFORM_EXE_SUFFIX) \
+		editor/test/loc_editor_selection_test.c editor/loc_editor_selection.c $(LDFLAGS)
+	./$(OBJ_DIR)/loc_editor_selection_test$(PLATFORM_EXE_SUFFIX)
 
 # Which regions of the world map are on screen, and in what order. The set
 # failing leaves a map that ends in a hard line one region short of its own

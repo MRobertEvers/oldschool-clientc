@@ -154,7 +154,7 @@ app_hover_text_update(
                 .wevs = &app->wevs,
                 .view_world_fn = app_minimenu_view_world,
                 .view_world_user = app,
-                .locedit_active = app->locedit_visible != 0,
+                .locedit_active = app->locedit.visible != 0,
                 .mapedit_select_active = app_mapedit_select_active(app),
                 .plugin_io_down = app_plugin_io_down(app) != 0,
             };
@@ -576,7 +576,7 @@ app_minimenu_open(
         .wevs = &app->wevs,
         .view_world_fn = app_minimenu_view_world,
         .view_world_user = app,
-        .locedit_active = app->locedit_visible != 0,
+        .locedit_active = app->locedit.visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
         .plugin_io_down = app_plugin_io_down(app) != 0,
     };
@@ -1081,7 +1081,7 @@ app_run_default_ui_row(
         .world = app->world,
         .world_pickset = NULL,
         .click_in_world = false,
-        .locedit_active = app->locedit_visible != 0,
+        .locedit_active = app->locedit.visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
         .plugin_io_down = app_plugin_io_down(app) != 0,
     };
@@ -1941,7 +1941,7 @@ app_minimenu_run_option(
      * re-check guards a row clicked in the one frame the tool closed on. */
     if( opt.action == RS_MINIMENU_ACTION_LOCEDIT_SELECT )
     {
-        if( app->locedit_visible )
+        if( app->locedit.visible )
             app_loc_editor_select_element(app, opt.pick.id);
         return 0; /* handled locally; no CS2 task was dispatched */
     }
@@ -1952,7 +1952,7 @@ app_minimenu_run_option(
      * tile than the row that was clicked. */
     if( opt.action == RS_MINIMENU_ACTION_LOCEDIT_SELECT_TERRAIN )
     {
-        if( app->locedit_visible )
+        if( app->locedit.visible )
             app_loc_editor_select_terrain(
                 app, opt.pick.secondary_id, opt.pick.tertiary_id, opt.pick.quaternary_id);
         return 0; /* handled locally; no CS2 task was dispatched */
