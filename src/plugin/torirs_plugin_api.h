@@ -1177,10 +1177,33 @@ enum PorcelainPlacementKind
      *
      * INSIDE makes a sibling under the target's parent and anchors it OVER,
      * which REPLACE needs and a corner ornament does not. One live anchor is
-     * what makes UITree_FrameHasDepth true, and the ledger prices that at
-     * 13.5 ms a frame on osrs239 -- so a mode that cost no anchor before the
-     * layer existed must still cost none through it. Corner and offsets are
-     * read exactly as INSIDE reads them.
+     * what makes UITree_FrameHasDepth true, so a mode that cost no anchor
+     * before the layer existed should still cost none through it. Corner and
+     * offsets are read exactly as INSIDE reads them.
+     *
+     * THE 13.5 ms FIGURE THIS USED TO QUOTE DOES NOT REPRODUCE, and it should
+     * stop being quoted. It is in uitree_frame.c, where it is attributed --
+     * correctly -- to the FIRST anchor implementation, the one that was
+     * O(records x nodes) and allocated eight times a call. That was replaced
+     * by UITreeAnchorPlan plus a per-call pass that allocates nothing, and
+     * with it the price of one anchor.
+     *
+     * MEASURED, on the classic548 gate lane with the shipped screenshot
+     * camera in a corner, same binary, `--uncapped` so wall clock is frame
+     * work and not the 20 ms pacer, five repetitions at 620 and at 3620
+     * frames so boot cancels in the slope:
+     *
+     *     no camera   21.00 ms/frame marginal
+     *     WITHIN      20.65
+     *     INSIDE      20.97      -> INSIDE - WITHIN = +0.32 ms/frame
+     *
+     * The spread across all fifteen long runs was 2.19 s over 3000 marginal
+     * frames, which is 0.73 ms/frame of noise: the anchor's cost is under the
+     * noise floor. 13.5 ms would have shown as 40 seconds.
+     *
+     * WITHIN is still right, and for the reason it always was -- an ornament
+     * that needs no ordering should not state one -- but not for a frame time
+     * nobody can measure.
      */
     PORCELAIN_WITHIN
 };

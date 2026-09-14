@@ -286,9 +286,10 @@ return { id = 'screenshot-behavior', on_start = function(host)
         'bottom-right corner keeps the margin, in the viewport\'s OWN coordinates')
     assert(camera.armed == 'Take screenshot' and camera.opacity == 170 and camera.relation == 'within',
         'control is armed with the capture operation: a hit box, enabled, and a handler')
-    -- WITHIN, and the whole reason for it. One live anchor makes
-    -- UITree_FrameHasDepth true for the entire frame; a corner ornament that
-    -- cost no anchor before the layer existed must still cost none through it.
+    -- WITHIN, and the whole reason for it: a corner ornament that cost no
+    -- anchor before the layer existed still costs none through it. What it is
+    -- NOT is a frame-time win -- measured at 0.32 ms under a 0.73 ms noise
+    -- floor, see PORCELAIN_WITHIN in torirs_plugin_api.h.
     assert(camera.parent == 'viewport', 'the corner camera is a CHILD of the viewport')
     assert(camera.anchor == nil, 'and takes NO anchor')
     assert(anchors == 0, 'so the corner camera costs the frame no anchor at all')

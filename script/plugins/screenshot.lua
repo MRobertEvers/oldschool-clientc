@@ -139,8 +139,13 @@ end
 
 -- WITHIN, not INSIDE: a CHILD of the viewport in the viewport's own
 -- coordinates, reading corner and offsets identically but taking NO anchor.
--- INSIDE's sibling-plus-anchor is what REPLACE needs and an ornament does not,
--- and one live anchor makes UITree_FrameHasDepth true for the whole frame.
+-- INSIDE's sibling-plus-anchor is what REPLACE needs and an ornament does not.
+-- The resolved box is the same either way -- 482,306,28,26 on classic548 --
+-- and so, MEASURED, is the frame time: the difference is 0.32 ms under a
+-- 0.73 ms noise floor. The 13.5 ms this mode used to be justified by belongs
+-- to an anchor implementation that no longer exists; see PORCELAIN_WITHIN in
+-- torirs_plugin_api.h. An ornament that needs no ordering should still not
+-- state one.
 local function corner_item(where)
     return camera("camera", "camera.png",
         { kind = "within", on = "viewport", corner = CORNERS[where], dx = MARGIN, dy = MARGIN })

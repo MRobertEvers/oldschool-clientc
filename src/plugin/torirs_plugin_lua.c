@@ -3663,9 +3663,25 @@ SIMPLE_EVENT_CB(lua_cb_game_event,LUA_ON_GAME_EVENT,struct ToriRS_GameEvent,lua_
  * This runtime can, because this runtime IS the definition every Lua plugin is
  * registered under: the callbacks the host calls are the functions below, and
  * the plugin's own handler is a table field this file decides when to call. So
- * the three lines both ported plugins hand-wrote -- fence/commit,
+ * the three lines every ported plugin hand-wrote -- fence/commit,
  * note("config"), tick("server_tick") -- live here, gated on the handle being
  * open, which is exactly what "open installs the pump" means.
+ *
+ * It is gated on OPEN and nothing finer, and there is no opt-out. Two of the
+ * ported plugins have nothing to reconcile -- tile_indicator opens the layer
+ * for its refusal channel alone, entity_highlighter has no description -- and
+ * the argument for letting them skip the fence is that it costs them something
+ * they did not ask for. It does not: a handle with no description, no timer,
+ * no asset and no armed key edge makes zero engine calls and zero allocations
+ * at a fence, which test_pump_costs_an_idle_plugin_nothing reads off the
+ * handle. A knob would be a per-plugin special case in the one place this
+ * exists to remove one.
+ *
+ * A plugin that spells the pump ANYWAY fences twice in one frame; the second
+ * fence finds the epoch already fenced, records a `fence without commit`
+ * budget finding and flushes. The API inventory test refuses any
+ * script/plugins/*.lua that spells one, because that finding is an undeclared
+ * PORCELAIN_FINDING line and therefore a port-gate failure on every lane.
  *
  * ORDER, and why the frame pump brackets rather than precedes:
  *

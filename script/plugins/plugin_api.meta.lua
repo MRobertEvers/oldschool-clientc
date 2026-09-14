@@ -640,6 +640,16 @@ warn = nil
 --- made possible. `on_asset` is NOT pumped: the layer polls its own pending
 --- images at every fence and stamps the asset input itself.
 ---
+--- So do NOT call `fence`, `commit`, `note('config')` or `tick('server_tick')`
+--- from a Lua plugin. Fencing twice in one frame is what the finding above
+--- names, and the API inventory test refuses any script/plugins/*.lua that
+--- spells one. The verbs remain on this table because the C library has no
+--- pump and reaches them by hand.
+---
+--- The pump costs a plugin with nothing to reconcile nothing at all: no
+--- description, no timer, no asset and no armed key edge is ZERO engine calls
+--- and ZERO allocations per frame, which is why there is no opt-out.
+---
 --- An element is named by a small grammar: "minimap", "orb:run",
 --- "chat_filter:3", "tab:inventory", "panel:inventory", "role:my_role".
 --- An element a lane does not have answers `bind == 'absent'` with one
