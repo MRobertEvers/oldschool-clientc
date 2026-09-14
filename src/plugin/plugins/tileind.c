@@ -1,3 +1,4 @@
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
@@ -21,7 +22,103 @@
  * The C twin of script/plugins/tile_indicator.lua: same inputs and same
  * output. Keeping both is what proves the contract is language-agnostic
  * rather than Lua-shaped.
+ *
+ * WHAT PORCELAIN IS HERE FOR, AND WHAT IT IS NOT
+ *
+ * Not the picture. Three primitives, in one order, with the same six
+ * arguments each, on every lane. The ledger calls this plugin the yardstick
+ * and every one of its behaviour rows is SUPPORTED; a port that moved a pixel
+ * of it would be a defect and not a port. So the draw path below is untouched,
+ * and it is untouched on purpose.
+ *
+ * It does not ask for Porcelain_DrawContext. That verb answers the pass's
+ * drawable rectangle and whether that rectangle IS the canvas, and a world
+ * tile is named in SCENE terms: v2_builder_world_tile hands the address
+ * straight to api_draw_tile without the scope's origin or clip touching it, so
+ * the pass region is not an input to a single one of these three calls.
+ * Returning early on the false it can answer would SUPPRESS three markers that
+ * would have drawn correctly, which is a behaviour change dressed as a check.
+ *
+ * It does not ask Porcelain_Has("map_flag") either: the destination is always
+ * answered by the snapshot, so that capability could never be false, and a
+ * capability that cannot answer no is not a capability.
+ *
+ * What the layer IS opened for is the refusal channel, and this plugin has
+ * exactly one refusal to put on it -- the one it cannot see. @see
+ * tileind_on_start.
+ *
+ * There is no describe, no fence and no commit: nothing here is retained, so
+ * there is nothing to reconcile. After on_start this plugin makes no layer
+ * call at all, and tileind_v2_test.c reads the counters to say so.
  */
+
+struct TileindState
+{
+    /*
+     * The handle exists only to carry the declaration in on_start and to be
+     * closed in on_stop. It is per-instance rather than file-scope because a
+     * handle is a slot in the layer's fixed table, and a disable/enable round
+     * trip through the settings panel would otherwise leak one every time.
+     */
+    struct Porcelain* porcelain;
+};
+
+/* Named by tileind_on_start, which opens the layer against this plugin's own
+ * definition; the definition itself is at the foot of the file. */
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND;
+
+/*
+ * The one thing this plugin knows it cannot report.
+ *
+ * draw->world_tile is declared to answer `enum ToriRS_Result` and the ledger
+ * reads that as "a refused draw is visible to the plugin". It is not.
+ * v2_builder_world_tile returns TORIRS_RESULT_OK unconditionally, and
+ * api_draw_tile -- which is where the per-frame draw-budget gate actually
+ * lives -- returns void and swallows the refusal. Round three fixed exactly
+ * this shape for the SIBLING verb, world_hull, because that one also refuses
+ * per ENTITY on an APPEARANCE claim and printed nothing at all; api_draw_tile
+ * was deliberately left void there, on the ground that its only refusal is the
+ * budget and the budget already announces itself once per frame per plugin.
+ * Reading the pair here would therefore pin a constant while reading like a
+ * check that bites.
+ *
+ * So it is not read. The gap is DECLARED, in the same words the Lua twin
+ * declares it, which makes it one EXPECTED finding in every capture rather
+ * than a sentence in a commit message -- and makes a stale claim fail loudly
+ * from the other side the day the engine half lands.
+ *
+ * Unlike the Lua twin there is no "no layer" arm: Lua reaches these verbs
+ * through api->porcelain, which a host may not have installed, while a C
+ * plugin calls the library directly and Porcelain_Open cannot fail.
+ */
+static void
+tileind_on_start(
+    struct ToriRS_Api* api,
+    void* state_ptr)
+{
+    struct TileindState* state = state_ptr;
+
+    assert(api);
+    assert(state_ptr);
+    state->porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_TILEIND, state);
+    Porcelain_ExpectUnsupported(
+        state->porcelain,
+        "draw_refusal_readout",
+        "world_tile answers OK even when the budget refused it: api_draw_tile returns void");
+}
+
+static void
+tileind_on_stop(
+    struct ToriRS_Api* api,
+    void* state_ptr)
+{
+    struct TileindState* state = state_ptr;
+
+    (void)api;
+    assert(state_ptr);
+    Porcelain_Close(state->porcelain);
+    state->porcelain = NULL;
+}
 
 static bool
 tileind_config_bool(
@@ -192,10 +289,12 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND = {
      * Indicator" twice would leave the reader to guess which switch is which. */
     .title = "Tile Indicator (C)",
     .version = "1.0.0",
-    .state_size = 0,
+    .state_size = sizeof(struct TileindState),
     .config = &TILEIND_SCHEMA,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
+        .on_start = tileind_on_start,
+        .on_stop = tileind_on_stop,
         .on_draw_world = tileind_draw,
     },
 };

@@ -1,4 +1,37 @@
-/* Native widget probe, registered only with TORIRS_WIDGET_DEMO. */
+/*
+ * Native widget probe, registered only with TORIRS_WIDGET_DEMO.
+ *
+ * NOT PORTED TO PORCELAIN, AND NOT AN OVERSIGHT.
+ *
+ * This file is the raw widget contract's control. It is the only thing in the
+ * tree that calls actions/invoke on a RETAINED action ref after the widget it
+ * came from has gone, that arms the same owned control twice to watch the
+ * first registration's menu rows die, that reads a native box, writes it back
+ * twelve pixels left and reads it AGAIN, and that walks a live CS2 stack by
+ * index inside the callback. Those calls are the demonstration; a port would
+ * replace every one of them with a description and delete the thing the file
+ * exists to show.
+ *
+ * Worse than useless, it would be misleading. Run a probe of the raw contract
+ * THROUGH a reconciler and it stops measuring the contract: every assertion
+ * the matrix makes about it (--widget-offset 12 --widget-moves 1,
+ * owned_widget_armed, WIDGET_DEMO_OLD_ACTION result=) would then be evidence
+ * about Porcelain rather than about the host underneath it, with Porcelain as
+ * both the subject and the instrument. The -12 nudge is the clearest case: the
+ * layer's first rule is that an unchanged description costs no setter, so the
+ * second nudge would correctly be a no-op and the probe would be measuring the
+ * hash compare it was written to see past.
+ *
+ * Two of its rows are invariants the LAYER has to preserve, which is the other
+ * half of the reason: "retained action refs expire" and "widget requests
+ * inside an op callback are allowed" are facts about the host gate that
+ * Porcelain inherits unchanged and cannot restate.
+ *
+ * The Porcelain-side demonstrations are their own files and always were --
+ * script/plugins/_porcelainprobe.lua, _porcelainframeprobe.lua,
+ * _r3placeprobe.lua. If a third is wanted, it is a new sibling, never a
+ * conversion of this one.
+ */
 #include "plugin/torirs_plugin_api.h"
 #include <stdio.h>
 #include <string.h>
