@@ -1,4 +1,4 @@
-#include "plugin/torirs_plugin_api.h"
+#include "plugin/porcelain/torirs_porcelain.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -638,10 +638,30 @@ enum
 /** Members one role may be spread across; the sidebar's fourteen is the most. */
 #define FRAME_MEMBER_MAX 16
 
+/*
+ * A picture this frame can both READ and DESCRIBE.
+ *
+ * The two halves want different things from one picture and neither can
+ * derive the other's. The composers read PIXELS, so they need the handle; a
+ * Porcelain description names an asset by NAME and never takes a handle, so a
+ * plan built out of handles cannot be described at all. Carrying the pair
+ * together is what lets `classic_backtop1.png` and a chat bar this frame cut
+ * for itself ten milliseconds ago sit in the same field.
+ *
+ * A zero `ref` beside a live `name` is the ordinary state for the first frames
+ * after start: the name comes from the table and the bytes are still crossing
+ * the IO queue.
+ */
+struct FrameArt
+{
+    char const* name;
+    struct ToriRS_ImageRef ref;
+};
+
 /** One picture to blit, in canvas coordinates. Built by the layout pass. */
 struct FrameBlit
 {
-    struct ToriRS_ImageRef image;
+    struct FrameArt image;
     int x;
     int y;
     /**
@@ -689,9 +709,9 @@ struct FrameTab
     int icon_x;
     int icon_y;
     int tabno;
-    struct ToriRS_ImageRef stone;
-    struct ToriRS_ImageRef stone_pressed;
-    struct ToriRS_ImageRef icon;
+    struct FrameArt stone;
+    struct FrameArt stone_pressed;
+    struct FrameArt icon;
 };
 
 /* Chrome blits one layout may declare. The OldSchool fixed frame is the
@@ -707,8 +727,8 @@ struct FrameSurfaceRect
 struct FrameSkin
 {
     int placed;
-    struct ToriRS_ImageRef art;  /* empty keeps the native picture */
-    struct ToriRS_ImageRef mask; /* empty with `placed` removes the native mask */
+    struct FrameArt art;  /* empty keeps the native picture */
+    struct FrameArt mask; /* empty with `placed` removes the native mask */
 };
 
 /*
@@ -729,7 +749,7 @@ struct FramePlan
     struct FrameBlit blit[FRAME_BLIT_MAX];
     int blit_count;
     int housing_placed;
-    struct ToriRS_ImageRef housing_image;
+    struct FrameArt housing_image;
     struct ToriRS_Rect housing_rect;
     struct FrameTab tab[FRAME_TAB_COUNT];
     int tab_count;
@@ -746,7 +766,12 @@ struct FramePlan
  *  the picture depends on -- for the chat bar, the hollows cut into it. */
 struct FrameSized
 {
-    struct ToriRS_ImageRef art;
+    struct FrameArt art;
+    /* The characters `art.name` points at. A composed picture's name is built
+     * from the box it was composed for, so it cannot be a literal and it has
+     * to outlive the call that made it: a description holds the NAME and
+     * re-reads it at every fence. */
+    char name[64];
     int w;
     int h;
     uint32_t key;
@@ -758,13 +783,6 @@ enum
     FRAME_C_MASK_MAP,
     FRAME_C_MASK_COMPASS,
     FRAME_C_MASK_COUNT,
-};
-
-/** One owned widget this frame keeps across passes, by key. */
-struct FrameOwned
-{
-    struct ToriRS_WidgetRef ref;
-    int live;
 };
 
 struct FrameState;
@@ -784,13 +802,19 @@ struct FrameSwitchHandle
 struct FrameState
 {
     struct ToriRS_Api* api;
-    struct ToriRS_ImageRef image_token[FRAME_IMG_COUNT];
-    struct ToriRS_ImageRef image[FRAME_IMG_COUNT];
-    struct ToriRS_ImageRef redstone_flip[3][REDSTONE_FLIP_COUNT];
-    bool image_ready[FRAME_IMG_COUNT];
+    struct Porcelain* porcelain;
+    /* Every shipped PNG, by name from the table and by handle on first use.
+     * Porcelain owns the loading now: a name is resolved on the describe that
+     * first asks for it and the slot goes back when no description has named
+     * it for several runs. That is the lifetime this frame wants -- one
+     * layout is live at a time and the other two layouts' art is dead weight,
+     * and all ninety-seven at once would not fit the layer's table.
+     * @see frame_image. */
+    struct FrameArt image[FRAME_IMG_COUNT];
+    struct FrameArt redstone_flip[3][REDSTONE_FLIP_COUNT];
     /* The two windows of the 2004 housing, cut out of its own art.
      * @see frame_build_classic_masks. */
-    struct ToriRS_ImageRef classic_mask[FRAME_C_MASK_COUNT];
+    struct FrameArt classic_mask[FRAME_C_MASK_COUNT];
     bool classic_masks_built;
     bool redstone_flipped;
     /* The resizable frame's chatbox switch and the filter it shows. Held by
@@ -803,7 +827,7 @@ struct FrameState
     bool sidebar_open;
     /** A 1x1 transparent picture: the stone a 2004 tab wears when it is not
      *  pressed, and the face of the owned chat switches. */
-    struct ToriRS_ImageRef blank;
+    struct FrameArt blank;
     struct FrameSized chat_paper;
     struct FrameSized chat_bar;
     /** The OldSchool band, backing lip and bar sprite stacked, before this
@@ -821,27 +845,95 @@ struct FrameState
     struct FramePlan plan;
     /** The plan is applied and the host has our answer READY. */
     int provided;
-    /* The owned children, by role in the plan. */
-    struct FrameOwned piece[FRAME_BLIT_MAX];
-    struct FrameOwned housing;
-    struct FrameOwned tab[FRAME_TAB_COUNT];
-    /** The picture a stone wears -- bare, or the redstone while pressed --
-     *  at the art's own size on the plate's origin. @see frame_apply_tabs */
-    struct FrameOwned face[FRAME_TAB_COUNT];
-    struct FrameOwned icon[FRAME_TAB_COUNT];
-    struct FrameOwned chat_switch[3];
+
+    /*
+     * The frame event's own four numbers, carried by hand.
+     *
+     * Porcelain_FrameEvent takes the canvas, compares it, stores it and notes
+     * an input when it moves -- and then calls the description with nothing
+     * but this pointer. A layout has no other input, so a provider has to keep
+     * its own copy. @see the port report.
+     */
+    int layout;
+    int canvas;
+    int canvas_w;
+    int canvas_h;
+    struct ToriRS_Rect safe;
+
+    /*
+     * The keys the description names its own children by, built once at start.
+     *
+     * A key has to outlive the describe that stated it -- the layer holds the
+     * string, compares against it at the next fence and removes what is not
+     * re-described -- so these cannot be a `char[24]` on the describe's stack
+     * the way the old apply pass's `snprintf` into a local was.
+     */
+    char piece_key[FRAME_BLIT_MAX][12];
+    char tab_key[FRAME_TAB_COUNT][12];
+    char face_key[FRAME_TAB_COUNT][12];
+    char icon_key[FRAME_TAB_COUNT][12];
+    char switch_key[3][12];
+    /** `<slot>:<member>` for every member this frame can place. @see
+     *  frame_member_element. */
+    char member_role[FRAME_SURFACE_COUNT][FRAME_MEMBER_MAX][32];
+
     struct FrameTabHandle tab_handle[FRAME_TAB_COUNT];
     struct FrameSwitchHandle switch_handle[3];
-    /* What each stone showed last, so a frame-start refresh writes only on
-     * change: the pressed stone and whether the icon was given. */
-    int tab_pressed_shown[FRAME_TAB_COUNT];
-    int tab_icon_shown[FRAME_TAB_COUNT];
-    /* Whether the OldSchool chat pack currently wears this frame's dressing. */
-    int chat_dressed;
+    /* Which stone is lit and which the server has handed over. Neither is one
+     * of the layer's inputs, so this plugin polls them per frame and says when
+     * they moved; the describe is what decides what that means. */
+    int tab_active_shown;
+    uint32_t tab_given_shown;
+    /*
+     * The viewport's incarnation, and whether it moved since the last
+     * description.
+     *
+     * A remount replaces the lane's nodes. Porcelain re-describes onto the new
+     * ones by itself, and the HOST is the half it cannot tell: the host owns
+     * the frame record and is otherwise left holding the plan it was given for
+     * nodes that no longer exist. There is no verb for "my frame changed" --
+     * frame.invalidate is the host's own and takes no Porcelain handle -- and
+     * a widget watch of this plugin's own cannot be kept beside the layer's.
+     * @see frame_on_start.
+     */
+    uint64_t viewport_incarnation;
+    bool remounted;
+    /*
+     * The root this frame DECLINED, or -1.
+     *
+     * A declined provider is never asked again until something tells the host
+     * to retry, and the only thing that ever did was one of this plugin's own
+     * widget watches -- which it can no longer keep beside the layer's.
+     * Nothing in the description can notice, because while the frame is
+     * declined there IS no description. So the one fact that could change the
+     * answer is polled: the root. @see frame_on_frame_start.
+     */
+    int declined_root;
     /* The last plan line logged, so a PENDING re-ask every fence stays quiet. */
     int logged_layout;
     int logged_pending;
 };
+
+/** Defined at the foot of this file; Porcelain_Open names it at on_start. */
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME;
+
+/*
+ * The layer handle this provider opened, for the test that reads the
+ * steady-state counters.
+ *
+ * A test seam and nothing else: the host hands a test no way to reach a
+ * plugin's instance state, and "a settled frame costs no engine call" is a
+ * belief until something reads the counters. At most one gameframe provider
+ * runs in a process -- the host arbitrates the frame -- so one pointer is the
+ * whole of it. NULL between on_stop and the next on_start.
+ */
+static struct Porcelain* g_frame_porcelain_for_testing;
+
+struct Porcelain*
+ToriRS_GameframePorcelainForTesting(void)
+{
+    return g_frame_porcelain_for_testing;
+}
 
 /** Callback-scoped native V2 services threaded through layout helpers. */
 struct FrameCall
@@ -869,6 +961,136 @@ struct FrameCall
 #define g_api (ctx->api)
 
 /* ------------------------------------------------------------------ helpers */
+
+/*
+ * One shipped picture, by table index.
+ *
+ * Porcelain requests it on the describe that first names it and hands the
+ * slot back after several describes that did not, so this is where the
+ * loading happens now -- there is no on_start that claims ninety-seven files
+ * and no on_asset that re-asks for them, because the layer re-asks for a
+ * PENDING picture by itself and remembers a terminal answer once.
+ *
+ * The NAME is filled in at start from the table and never changes; only the
+ * handle arrives late. A composer calls this for the handle, and the plan
+ * carries the whole pair so that a description can be written from it.
+ */
+static struct FrameArt
+frame_art(struct FrameCall* ctx, int which)
+{
+    struct FrameArt* art;
+    enum ToriRS_AssetState state = TORIRS_ASSET_PENDING;
+
+    assert(ctx);
+    assert(which >= 0);
+    assert(which < FRAME_IMG_COUNT);
+    art = &ctx->state->image[which];
+    /* A gap in the table is a picture no layout ships; it is not a name that
+     * failed to load, and asking for it would be an asset read per fence for
+     * a file that does not exist. */
+    if( !art->name )
+        return *art;
+    /*
+     * The HOST is asked, not the layer, and it is asked EVERY time.
+     *
+     * Which of the two owns a picture's lifetime is decided by who NAMES it.
+     * Porcelain owns the pictures a DESCRIPTION names: it requests one on the
+     * describe that first names it and hands the slot back after several runs
+     * that did not, which is exactly right for art that is on screen.
+     *
+     * A composition SOURCE is named by no description. `classic_chatback` is
+     * read for its pixels and never blitted; the composed parchment is what
+     * goes on screen, under a different name. Routed through the layer, every
+     * one of those was released four runs after the composition that read it,
+     * and the next recomposition got no pixels -- measured on remount164 as a
+     * chat backing with no parchment texture at all, a flat fill where the
+     * 2004 mottling should be, because the composer falls back to a flat one
+     * when its source has none.
+     *
+     * So the source art is the PLUGIN's, the way the decoded pixel copies are
+     * the minimap orbs' own. Asked every time rather than cached because the
+     * same slot may ALSO be a described name -- `classic_backbase1` is both
+     * blitted and read -- and then the layer's release takes the plugin's
+     * handle with it. The host answers a name it already holds from its own
+     * table without touching the disk. @see the port report.
+     */
+    (void)state;
+    (void)g_api->assets.image(g_api, art->name, &art->ref);
+    return *art;
+}
+
+/** The same picture's handle, for the composers that read its pixels. */
+static struct ToriRS_ImageRef
+frame_image(struct FrameCall* ctx, int which)
+{
+    return frame_art(ctx, which).ref;
+}
+
+/* Recompose the 1x1 transparent picture if the layer has released it.
+ * @see frame_blank. */
+static struct FrameArt frame_blank(struct FrameCall* ctx);
+
+/*
+ * Is a picture this frame COMPOSED still alive?
+ *
+ * The composed art is published under a name and then named by the
+ * description, which means the layer takes an image slot for it -- and the
+ * layer hands a slot back after several describe runs that did not name it.
+ * A layout that stops using one (the two wide chat pieces are a dat1-lane
+ * layout's, and the flat rock strip an OldSchool one's) has its picture
+ * released underneath it, and the cache that composed it is still holding the
+ * handle and still believes it is good. What follows is an asset READ for a
+ * file that does not exist, because a composed name is nobody's file.
+ *
+ * Asking the size is the cheapest liveness test there is, and it is the same
+ * call the caller was about to make anyway. @see the port report.
+ */
+static bool
+frame_art_alive(struct FrameCall* ctx, struct FrameArt art)
+{
+    int w = 0;
+    int h = 0;
+
+    assert(ctx);
+    if( !art.name || art.ref.value == 0 )
+        return false;
+    return g_api->assets.image_size(g_api, art.ref, &w, &h) && w > 0 && h > 0;
+}
+
+/*
+ * The 1x1 transparent picture, composed again if it is gone.
+ *
+ * It is a composed picture like any other and the layer releases a composed
+ * picture that no description has named for several runs -- and the classic
+ * rail's thirteen unlit faces are exactly a set of names a layout switch can
+ * stop stating for longer than that. Every other composed picture in this
+ * file already re-derives itself when its handle dies; this one was the
+ * exception, for no reason but that it is made once at start.
+ *
+ * NOT MEASURED. The refusal on the gate's remount lane that this was written
+ * to fix (`set_image face.03`) turned out to be STALE_REFERENCE on the
+ * CONTROL and not on the picture -- the engine had destroyed the node, not
+ * the art -- and porcelain_note_item_result is what removed it. This stays
+ * because the inconsistency is real and the test is one call on the fence a
+ * face changes, but it is hygiene and not a fix, and saying otherwise would
+ * be the kind of claim this file's comments are for catching.
+ *
+ * The same shape as frame_build_redstones and frame_build_classic_masks.
+ */
+static struct FrameArt
+frame_blank(struct FrameCall* ctx)
+{
+    uint32_t const clear = 0;
+    struct FrameState* state;
+
+    assert(ctx);
+    state = ctx->state;
+    if( frame_art_alive(ctx, state->blank) )
+        return state->blank;
+    (void)g_api->assets.image_compose(g_api, state->blank.name, 1, 1, &clear, &state->blank.ref);
+    Porcelain_ImageForget(state->porcelain, state->blank.name);
+    return state->blank;
+}
 
 /*
  * Is this an OldSchool lane -- one whose chat, orbs and sidebar are packs
@@ -901,7 +1123,50 @@ static int
 frame_sidebar_open(struct FrameCall* ctx)
 {
     assert(ctx);
-    return g_api->cache.tab_active(g_api) >= 0;
+    return ctx->state->tab_active_shown >= 0;
+}
+
+/*
+ * The two lane reads this file cannot get from an element, in ONE place.
+ *
+ * Which tab is open and which tabs the server has given out are the only
+ * facts the frame needs that the layer cannot answer: PorcelainElementState
+ * carries a `facets` word for exactly this and every adapter reads ZERO into
+ * it today, so SELECTED and ENABLED do not exist to be asked for. @see the
+ * port report's verb list.
+ *
+ * So they are read here and nowhere else, and everything downstream --  the
+ * layout's collapsed-sidebar test, the lit face, the icon, the arming of the
+ * stone -- reads the stash. That is one site per fact instead of one per
+ * consumer, which is the only part of the budget rule this file can honour
+ * while the facet is unimplemented.
+ *
+ * Keyed by TABNO and not by plan index, because this runs before the plan
+ * does on the fence a frame is first asked for, and a bit that means a
+ * different tab depending on when it was written is a bug waiting for a
+ * layout switch. Fourteen reads a frame is what the provider this replaced
+ * did, to the call.
+ *
+ * Returns whether either answer MOVED, which is what the caller turns into an
+ * invalidation.
+ */
+static bool
+frame_poll_tabs(struct ToriRS_Api* api, struct FrameState* state)
+{
+    int active;
+    uint32_t given = 0;
+    bool moved;
+
+    assert(api);
+    assert(state);
+    active = api->cache.tab_active(api);
+    for( int tabno = 0; tabno < FRAME_TAB_COUNT; tabno++ )
+        if( api->cache.tab_enabled(api, tabno) )
+            given |= 1u << tabno;
+    moved = active != state->tab_active_shown || given != state->tab_given_shown;
+    state->tab_active_shown = active;
+    state->tab_given_shown = given;
+    return moved;
 }
 
 /* ---------------------------------------------------- recording the plan */
@@ -1001,12 +1266,15 @@ frame_place_orbs(
 
 static void
 frame_blit_into(
-    struct FrameCall* ctx, struct ToriRS_ImageRef image, int x, int y, int tile_w, int tile_h,
+    struct FrameCall* ctx, struct FrameArt image, int x, int y, int tile_w, int tile_h,
     int trans)
 {
     struct FrameBlit* b;
     assert(ctx);
-    if( image.value == 0 )
+    /* A picture with no name is a layout asking for art it does not ship; a
+     * named one whose bytes have not landed is still described, and the
+     * describe leaves it out until the size is known. @see frame_describe. */
+    if( !image.name )
         return;
     if( g_plan.blit_count >= FRAME_BLIT_MAX )
     {
@@ -1026,14 +1294,14 @@ frame_blit_into(
 
 /** Chrome behind the live surfaces. */
 static void
-frame_blit(struct FrameCall* ctx, struct ToriRS_ImageRef image, int x, int y)
+frame_blit(struct FrameCall* ctx, struct FrameArt image, int x, int y)
 {
     frame_blit_into(ctx, image, x + ctx->origin_x, y + ctx->origin_y, 0, 0, 0);
 }
 
 /** Chrome behind them, REPEATED over a box. @see FrameBlit::tile_w. */
 static void
-frame_blit_tiled(struct FrameCall* ctx, struct ToriRS_ImageRef image, int x, int y, int w, int h, int trans)
+frame_blit_tiled(struct FrameCall* ctx, struct FrameArt image, int x, int y, int w, int h, int trans)
 {
     frame_blit_into(ctx, image, x + ctx->origin_x, y + ctx->origin_y, w, h, trans);
 }
@@ -1046,7 +1314,7 @@ frame_blit_tiled(struct FrameCall* ctx, struct ToriRS_ImageRef image, int x, int
 static void
 frame_tab(
     struct FrameCall* ctx, int tabno, struct FrameBox box, int icon_x, int icon_y,
-    struct ToriRS_ImageRef stone, struct ToriRS_ImageRef stone_pressed, struct ToriRS_ImageRef icon)
+    struct FrameArt stone, struct FrameArt stone_pressed, struct FrameArt icon)
 {
     struct FrameTab* t;
     assert(ctx);
@@ -1113,8 +1381,8 @@ frame_chat_cells_across(int width, int height, struct FrameChatCell* out)
  * rs289lc has thirteen. The apply pass answers whether the member exists and
  * shows the icon only for a panel that can open.
  */
-static struct ToriRS_ImageRef
-frame_tab_icon(struct FrameCall* ctx, int tabno, struct ToriRS_ImageRef icon, int x, int y, int w, int h)
+static struct FrameArt
+frame_tab_icon(struct FrameCall* ctx, int tabno, struct FrameArt icon, int x, int y, int w, int h)
 {
     assert(ctx);
     frame_surface_member(ctx, FRAME_SURFACE_SIDEBAR, tabno, x, y, w, h);
@@ -1133,9 +1401,9 @@ static void
 frame_skin_map(struct FrameCall* ctx, int map_mask, int compass_mask)
 {
     assert(ctx);
-    g_plan.skin[FRAME_SURFACE_MINIMAP] = (struct FrameSkin){ 1, { 0 }, g_image[map_mask] };
+    g_plan.skin[FRAME_SURFACE_MINIMAP] = (struct FrameSkin){ 1, { 0 }, frame_art(ctx, map_mask) };
     g_plan.skin[FRAME_SURFACE_COMPASS] =
-        (struct FrameSkin){ 1, g_image[IMG_O_COMPASS], g_image[compass_mask] };
+        (struct FrameSkin){ 1, frame_art(ctx, IMG_O_COMPASS), frame_art(ctx, compass_mask) };
 }
 
 /*
@@ -1176,10 +1444,10 @@ frame_skin_scrollbar(struct FrameCall* ctx)
  * readout beside the map still paints over it in turn.
  */
 static void
-frame_housing_node(struct FrameCall* ctx, struct ToriRS_ImageRef image, struct ToriRS_Rect bounds)
+frame_housing_node(struct FrameCall* ctx, struct FrameArt image, struct ToriRS_Rect bounds)
 {
     assert(ctx);
-    if( image.value == 0 )
+    if( !image.name )
         return;
     bounds.x += ctx->origin_x;
     bounds.y += ctx->origin_y;
@@ -1194,6 +1462,42 @@ frame_housing_node(struct FrameCall* ctx, struct ToriRS_ImageRef image, struct T
  * image api meeting, which is what lets a plugin build art out of art it
  * shipped without carrying a decoder.
  */
+/*
+ * Compose a picture, and tell the layer the name means a new one.
+ *
+ * Every composer in this file is a CACHE keyed on the name: the mirrored
+ * redstones, the two classic window masks and the six sized-art caches all
+ * rebuild under the name they were first published as. The layer caches
+ * name -> handle and never re-asks once a picture is READY -- which is right
+ * for a file and wrong for this, because the handle it holds was released by
+ * the rebuild that made the new one.
+ *
+ * Measured on the gate's remount lane before this existed:
+ * `skin chat_backing classic_chat_paper_519x73.png`, once per layout switch.
+ * The layer wrote a dead handle, the engine refused it, the picture already
+ * on the widget stayed, and the only trace was the finding. (The other
+ * refusal on that lane, `set_image face.03`, LOOKS like this one and is not:
+ * it was a stale CONTROL, not a stale picture. @see
+ * porcelain_note_item_result -- two different faults with one symptom is
+ * exactly why the probe was worth building.)
+ *
+ * @see Porcelain_ImageForget.
+ */
+static enum ToriRS_AssetState
+frame_compose(struct FrameCall* ctx, char const* name, int width, int height,
+              uint32_t const* argb, struct ToriRS_ImageRef* out)
+{
+    enum ToriRS_AssetState state;
+
+    assert(ctx);
+    assert(name);
+    assert(argb);
+    assert(out);
+    state = g_api->assets.image_compose(g_api, name, width, height, argb, out);
+    Porcelain_ImageForget(ctx->state->porcelain, name);
+    return state;
+}
+
 static struct ToriRS_ImageRef
 frame_compose_flip(
     struct FrameCall* ctx,
@@ -1234,7 +1538,7 @@ frame_compose_flip(
             out[y * w + x] = px[sy * w + sx];
         }
     }
-    (void)g_api->assets.image_compose(g_api, name, w, h, out, &handle);
+    (void)frame_compose(ctx, name, w, h, out, &handle);
     free(px);
     free(out);
     return handle;
@@ -1353,7 +1657,7 @@ frame_compose_window(
     free(keep);
     free(stack);
 
-    (void)g_api->assets.image_compose(g_api, name, width, height, out, &handle);
+    (void)frame_compose(ctx, name, width, height, out, &handle);
     free(out);
     return handle;
 }
@@ -1418,7 +1722,7 @@ frame_chat_strip_pixels(struct FrameCall* ctx, int* out_w, int* out_h)
     assert(ctx);
     assert(out_w);
     assert(out_h);
-    if( !g_api->assets.image_size(g_api, g_image[IMG_C_BACKBASE1], &w, &h) ||
+    if( !g_api->assets.image_size(g_api, frame_image(ctx, IMG_C_BACKBASE1), &w, &h) ||
         w < FRAME_C_ROCK_X + FRAME_C_ROCK_W ||
         h < FRAME_C_STRIP_BAND_Y + FRAME_CHAT_BUTTON_H )
         return NULL;
@@ -1426,7 +1730,7 @@ frame_chat_strip_pixels(struct FrameCall* ctx, int* out_w, int* out_h)
     strip = malloc((size_t)w * (size_t)h * sizeof(*strip));
     assert(strip);
     if( !g_api->assets.image_pixels(
-            g_api, g_image[IMG_C_BACKBASE1], strip, (size_t)w * (size_t)h, &copied) ||
+            g_api, frame_image(ctx, IMG_C_BACKBASE1), strip, (size_t)w * (size_t)h, &copied) ||
         copied != (size_t)w * (size_t)h )
     {
         free(strip);
@@ -1549,7 +1853,7 @@ frame_compose_chat_bar(
             }
         }
     }
-    (void)g_api->assets.image_compose(g_api, name, width, height, out, &handle);
+    (void)frame_compose(ctx, name, width, height, out, &handle);
     free(out);
     free(under);
     free(strip);
@@ -1597,7 +1901,7 @@ frame_compose_chat_backing(
     assert(name);
     assert(width > 0);
     assert(height > 0);
-    if( !g_api->assets.image_size(g_api, g_image[IMG_C_CHATBACK], &w, &h) || w <= 0 ||
+    if( !g_api->assets.image_size(g_api, frame_image(ctx, IMG_C_CHATBACK), &w, &h) || w <= 0 ||
         h <= 0 )
         return handle;
     /* The lip is the band's and the rock it is cut from is the bar's source,
@@ -1610,7 +1914,7 @@ frame_compose_chat_backing(
 
     px = malloc((size_t)w * (size_t)h * sizeof(*px));
     assert(px);
-    if( !g_api->assets.image_pixels(g_api, g_image[IMG_C_CHATBACK], px, (size_t)w * (size_t)h, &copied) ||
+    if( !g_api->assets.image_pixels(g_api, frame_image(ctx, IMG_C_CHATBACK), px, (size_t)w * (size_t)h, &copied) ||
         copied != (size_t)w * (size_t)h )
     {
         free(px);
@@ -1642,7 +1946,7 @@ frame_compose_chat_backing(
                 strip[(size_t)sy * (size_t)strip_w +
                       (size_t)(FRAME_C_ROCK_X + (x % FRAME_C_ROCK_W))];
     }
-    (void)g_api->assets.image_compose(g_api, name, width, height, out, &handle);
+    (void)frame_compose(ctx, name, width, height, out, &handle);
     free(strip);
     free(px);
     free(out);
@@ -1693,7 +1997,7 @@ frame_compose_osrs_band(
         size_t copied = 0;
 
         if( !g_api->assets.image_size(
-                g_api, g_image[part[i].image], &part[i].w, &part[i].h) ||
+                g_api, frame_image(ctx, part[i].image), &part[i].w, &part[i].h) ||
             part[i].w <= 0 || part[i].h < part[i].rows )
         {
             for( int j = 0; j < i; j++ )
@@ -1705,7 +2009,7 @@ frame_compose_osrs_band(
         assert(part[i].px);
         if( !g_api->assets.image_pixels(
                 g_api,
-                g_image[part[i].image],
+                frame_image(ctx, part[i].image),
                 part[i].px,
                 (size_t)part[i].w * (size_t)part[i].h,
                 &copied) ||
@@ -1728,7 +2032,7 @@ frame_compose_osrs_band(
                 out[(size_t)at * (size_t)width + (size_t)x] =
                     part[i].px[(size_t)(part[i].from + y) * (size_t)part[i].w +
                                (size_t)(x % part[i].w)];
-    (void)g_api->assets.image_compose(g_api, name, width, height, out, &handle);
+    (void)frame_compose(ctx, name, width, height, out, &handle);
     for( int i = 0; i < 2; i++ )
         free(part[i].px);
     free(out);
@@ -1736,7 +2040,7 @@ frame_compose_osrs_band(
 }
 
 /** One composed picture per size, kept until the size changes. */
-static struct ToriRS_ImageRef
+static struct FrameArt
 frame_sized_art(
     struct FrameCall* ctx,
     struct FrameSized* cache,
@@ -1745,8 +2049,9 @@ frame_sized_art(
     int width,
     int height)
 {
-    char name[64];
+    char name[sizeof(cache->name)];
     struct ToriRS_ImageRef art;
+    struct FrameArt const nothing = { NULL, { 0 } };
 
     assert(ctx);
     assert(cache);
@@ -1754,19 +2059,39 @@ frame_sized_art(
     assert(prefix);
     assert(width > 0);
     assert(height > 0);
-    if( cache->art.value != 0 && cache->w == width && cache->h == height )
+    if( frame_art_alive(ctx, cache->art) && cache->w == width && cache->h == height )
         return cache->art;
 
     (void)snprintf(name, sizeof(name), "%s_%dx%d.png", prefix, width, height);
     art = compose(ctx, name, width, height);
     if( art.value == 0 )
-        return cache->art;
-    if( cache->art.value != 0 )
-        g_api->assets.image_release(g_api, cache->art);
-    cache->art = art;
+        /*
+         * The compose could not run: one of its SOURCE sprites has not
+         * decoded yet. The cached picture is an answer only while it is still
+         * ALIVE -- the layer releases a composed picture no description has
+         * named for several runs, and handing back the name of one it has
+         * released describes a picture the host does not hold.
+         *
+         * NOT MEASURED, and said so rather than credited with a fix it did
+         * not make: the refusal this shape would produce
+         * (`skin chat_backing classic_chat_paper_519x73.png` on the gate's
+         * remount lane) was caused by the layer caching name -> handle across
+         * a rebuild, and Porcelain_ImageForget is what removed it. This is the
+         * same class stated on the plugin's own side, where the cache is.
+         * @see frame_art_alive.
+         */
+        return frame_art_alive(ctx, cache->art) ? cache->art : nothing;
+    if( cache->art.ref.value != 0 )
+        g_api->assets.image_release(g_api, cache->art.ref);
+    /* The name is copied INTO the cache, and `art.name` points at the copy:
+     * a description holds the name across fences and the buffer above is
+     * gone at the return. */
+    (void)snprintf(cache->name, sizeof(cache->name), "%s", name);
+    cache->art.name = cache->name;
+    cache->art.ref = art;
     cache->w = width;
     cache->h = height;
-    return art;
+    return cache->art;
 }
 
 /*
@@ -1777,7 +2102,7 @@ frame_sized_art(
  * matters is only that a moved filter re-cuts the bar and an unmoved one does
  * not re-cut it sixty times a second.
  */
-static struct ToriRS_ImageRef
+static struct FrameArt
 frame_chat_bar_art(
     struct FrameCall* ctx,
     struct FrameSized* cache,
@@ -1790,8 +2115,9 @@ frame_chat_bar_art(
     int band_y,
     int band_h)
 {
-    char name[64];
+    char name[sizeof(cache->name)];
     struct ToriRS_ImageRef art;
+    struct FrameArt const nothing = { NULL, { 0 } };
     uint32_t key = (uint32_t)cell_count * 2654435761u;
 
     assert(ctx);
@@ -1806,7 +2132,7 @@ frame_chat_bar_art(
         key = (key * 16777619u) ^
               (uint32_t)((cell[i].x * 31 + cell[i].y) * 31 + cell[i].w * 31 +
                          cell[i].h);
-    if( cache->art.value != 0 && cache->w == width && cache->h == height &&
+    if( frame_art_alive(ctx, cache->art) && cache->w == width && cache->h == height &&
         cache->key == key )
         return cache->art;
 
@@ -1814,14 +2140,17 @@ frame_chat_bar_art(
     art = frame_compose_chat_bar(
         ctx, name, width, height, base, cell, cell_count, band_y, band_h);
     if( art.value == 0 )
-        return cache->art;
-    if( cache->art.value != 0 )
-        g_api->assets.image_release(g_api, cache->art);
-    cache->art = art;
+        /* Alive or nothing, for the reason frame_sized_art gives. */
+        return frame_art_alive(ctx, cache->art) ? cache->art : nothing;
+    if( cache->art.ref.value != 0 )
+        g_api->assets.image_release(g_api, cache->art.ref);
+    (void)snprintf(cache->name, sizeof(cache->name), "%s", name);
+    cache->art.name = cache->name;
+    cache->art.ref = art;
     cache->w = width;
     cache->h = height;
     cache->key = key;
-    return art;
+    return cache->art;
 }
 /*
  * The picture for one tab, from the set the LANE numbers its panels by.
@@ -1839,15 +2168,15 @@ frame_chat_bar_art(
  * lane still gets -- the 2004 frame's thirteen-over-fourteen sideicons for the
  * classic layout, the OldSchool surround's for the other two.
  */
-static struct ToriRS_ImageRef
+static struct FrameArt
 frame_sideicon(struct FrameCall* ctx, int tabno, int era_base)
 {
     assert(ctx);
     assert(tabno >= 0);
     assert(tabno < FRAME_TAB_COUNT);
     if( frame_lane_oldschool(ctx) )
-        return g_image[IMG_OSRS239_SIDEICON_0 + tabno];
-    return g_image[era_base + tabno];
+        return frame_art(ctx, IMG_OSRS239_SIDEICON_0 + tabno);
+    return frame_art(ctx, era_base + tabno);
 }
 
 /**
@@ -1867,7 +2196,7 @@ static void
 frame_tab_centre(
     struct FrameCall* ctx,
     struct FrameBox box,
-    struct ToriRS_ImageRef icon,
+    struct FrameArt icon,
     int* out_x,
     int* out_y)
 {
@@ -1878,13 +2207,13 @@ frame_tab_centre(
     assert(out_x);
     assert(out_y);
 
-    if( icon.value == 0 || !g_api->assets.image_size(g_api, icon, &iw, &ih) )
+    if( icon.ref.value == 0 || !g_api->assets.image_size(g_api, icon.ref, &iw, &ih) )
         return;
     *out_x = box.x + (box.w - iw) / 2;
     *out_y = box.y + (box.h - ih) / 2;
 }
 /* Re-cut a surround piece for the pack's width, keeping its vertical rows. */
-static struct ToriRS_ImageRef
+static struct FrameArt
 frame_surround_piece(struct FrameCall* ctx, struct FrameSized* cache,
                      int source, int width, int height, char const* name)
 {
@@ -1893,32 +2222,37 @@ frame_surround_piece(struct FrameCall* ctx, struct FrameSized* cache,
     uint32_t* input;
     uint32_t* output;
     struct ToriRS_ImageRef art = { 0 };
-    if( cache->art.value && cache->w == width && cache->h == height )
+    struct FrameArt const nothing = { NULL, { 0 } };
+    if( frame_art_alive(ctx, cache->art) && cache->w == width && cache->h == height )
         return cache->art;
-    if( !g_api->assets.image_size(g_api, g_image[source], &sw, &sh) ||
+    if( !g_api->assets.image_size(g_api, frame_image(ctx, source), &sw, &sh) ||
         sw <= 0 || sh != height )
-        return art;
+        return nothing;
     input = malloc((size_t)sw * sh * sizeof(*input));
     output = malloc((size_t)width * height * sizeof(*output));
     assert(input && output);
-    if( g_api->assets.image_pixels(g_api, g_image[source], input,
+    if( g_api->assets.image_pixels(g_api, frame_image(ctx, source), input,
                                    (size_t)sw * sh, &copied) && copied == (size_t)sw * sh )
     {
         for( int y = 0; y < height; y++ )
             for( int x = 0; x < width; x++ )
                 output[y * width + x] = input[y * sw + x * sw / width];
-        (void)g_api->assets.image_compose(g_api, name, width, height, output, &art);
+        (void)frame_compose(ctx, name, width, height, output, &art);
     }
     free(output);
     free(input);
-    if( art.value )
-    {
-        if( cache->art.value ) g_api->assets.image_release(g_api, cache->art);
-        cache->art = art;
-        cache->w = width;
-        cache->h = height;
-    }
-    return art;
+    if( !art.value )
+        return nothing;
+    if( cache->art.ref.value )
+        g_api->assets.image_release(g_api, cache->art.ref);
+    /* `name` is a literal at every call site, so the cache points straight at
+     * it: unlike the sized art above, this picture's name does not carry its
+     * box and does not have to be built. */
+    cache->art.name = name;
+    cache->art.ref = art;
+    cache->w = width;
+    cache->h = height;
+    return cache->art;
 }
 
 /* --------------------------------------------------------- classic fixed */
@@ -1941,13 +2275,13 @@ frame_surround_piece(struct FrameCall* ctx, struct FrameSized* cache,
  * state for the first frames after start, and is why the callers blit what
  * this returns rather than assuming a picture.
  */
-static struct ToriRS_ImageRef
+static struct FrameArt
 frame_chat_stones(struct FrameCall* ctx)
 {
     struct FrameChatCell cell[FRAME_CHAT_BUTTON_COUNT];
     int count;
-    struct ToriRS_ImageRef band;
-    struct ToriRS_ImageRef art;
+    struct FrameArt band;
+    struct FrameArt art;
 
     assert(ctx);
     band = frame_sized_art(
@@ -1957,7 +2291,7 @@ frame_chat_stones(struct FrameCall* ctx)
         "osrs_chat_band",
         FRAME_O_CHAT_W,
         FRAME_O_CHAT_BAND_H);
-    if( band.value == 0 )
+    if( band.ref.value == 0 )
         return band;
     count = frame_chat_cells_across(FRAME_O_CHAT_W, FRAME_O_CHAT_BAND_H, cell);
     art = frame_chat_bar_art(
@@ -1966,12 +2300,12 @@ frame_chat_stones(struct FrameCall* ctx)
         "osrs_chat_stones_cut",
         FRAME_O_CHAT_W,
         FRAME_O_CHAT_BAND_H,
-        band,
+        band.ref,
         cell,
         count,
         /*band_y=*/0,
         /*band_h=*/FRAME_O_CHAT_BAND_H);
-    return art.value != 0 ? art : band;
+    return art.ref.value != 0 ? art : band;
 }
 
 /* ---------------------------------------------------------- modern fixed */
@@ -1999,23 +2333,31 @@ frame_build_redstones(struct FrameCall* ctx)
 
     assert(ctx);
     if( g_redstone_flipped )
-        return;
+    {
+        /* Still alive? The layer releases an image no description has named
+         * for several runs, and a layout that shows no redstone for a few
+         * fences is the ordinary state. @see frame_art_alive. */
+        if( frame_art_alive(ctx, g_redstone_flip[0][REDSTONE_FLIP_H]) )
+            return;
+        g_redstone_flipped = 0;
+    }
     for( int i = 0; i < 3; i++ )
-        if( !g_api->assets.image_size(g_api, g_image[SRC[i]], &width, &height) )
+        if( !g_api->assets.image_size(g_api, frame_image(ctx, SRC[i]), &width, &height) )
             return;
 
     for( int i = 0; i < 3; i++ )
     {
-        g_redstone_flip[i][REDSTONE_FLIP_H] =
-            frame_compose_flip(ctx, NAME[i][REDSTONE_FLIP_H], g_image[SRC[i]], 1, 0);
-        g_redstone_flip[i][REDSTONE_FLIP_V] =
-            frame_compose_flip(ctx, NAME[i][REDSTONE_FLIP_V], g_image[SRC[i]], 0, 1);
-        g_redstone_flip[i][REDSTONE_FLIP_HV] =
-            frame_compose_flip(ctx, NAME[i][REDSTONE_FLIP_HV], g_image[SRC[i]], 1, 1);
+        for( int f = 0; f < REDSTONE_FLIP_COUNT; f++ )
+        {
+            g_redstone_flip[i][f].name = NAME[i][f];
+            g_redstone_flip[i][f].ref = frame_compose_flip(
+                ctx, NAME[i][f], frame_image(ctx, SRC[i]), f != REDSTONE_FLIP_V,
+                f != REDSTONE_FLIP_H);
+        }
     }
     for( int i = 0; i < 3; i++ )
         for( int f = 0; f < REDSTONE_FLIP_COUNT; f++ )
-            if( g_redstone_flip[i][f].value == 0 )
+            if( g_redstone_flip[i][f].ref.value == 0 )
                 return;
     g_redstone_flipped = 1;
 }
@@ -2036,28 +2378,34 @@ frame_build_classic_masks(struct FrameCall* ctx)
 
     assert(ctx);
     if( g_classic_masks_built )
-        return;
-    if( !g_api->assets.image_size(g_api, g_image[IMG_C_MAPBACK], &width, &height) )
+    {
+        if( frame_art_alive(ctx, g_classic_mask[FRAME_C_MASK_MAP]) )
+            return;
+        g_classic_masks_built = 0;
+    }
+    if( !g_api->assets.image_size(g_api, frame_image(ctx, IMG_C_MAPBACK), &width, &height) )
         return;
 
-    g_classic_mask[FRAME_C_MASK_MAP] = frame_compose_window(
+    g_classic_mask[FRAME_C_MASK_MAP].name = "classic_map_mask.png";
+    g_classic_mask[FRAME_C_MASK_MAP].ref = frame_compose_window(
         ctx,
         "classic_map_mask.png",
-        g_image[IMG_C_MAPBACK],
+        frame_image(ctx, IMG_C_MAPBACK),
         FRAME_C_HOLE_MAP_DX,
         FRAME_C_HOLE_MAP_DY,
         FRAME_C_HOLE_MAP_W,
         FRAME_C_HOLE_MAP_H);
-    g_classic_mask[FRAME_C_MASK_COMPASS] = frame_compose_window(
+    g_classic_mask[FRAME_C_MASK_COMPASS].name = "classic_compass_mask.png";
+    g_classic_mask[FRAME_C_MASK_COMPASS].ref = frame_compose_window(
         ctx,
         "classic_compass_mask.png",
-        g_image[IMG_C_MAPBACK],
+        frame_image(ctx, IMG_C_MAPBACK),
         FRAME_C_HOLE_COMPASS_DX,
         FRAME_C_HOLE_COMPASS_DY,
         FRAME_C_HOLE_COMPASS_W,
         FRAME_C_HOLE_COMPASS_H);
     for( int i = 0; i < FRAME_C_MASK_COUNT; i++ )
-        if( g_classic_mask[i].value == 0 )
+        if( g_classic_mask[i].ref.value == 0 )
             return;
     g_classic_masks_built = 1;
 }
@@ -2129,9 +2477,9 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
 
     /* Declared in paint order, back to front: the surround, then the panels
      * that sit in it. */
-    frame_blit(ctx, g_image[IMG_C_BACKTOP1], 0, 0);
-    frame_blit(ctx, g_image[IMG_C_BACKLEFT1], 0, 4);
-    frame_blit(ctx, g_image[IMG_C_BACKVMID1], 516, 4);
+    frame_blit(ctx, frame_art(ctx, IMG_C_BACKTOP1), 0, 0);
+    frame_blit(ctx, frame_art(ctx, IMG_C_BACKLEFT1), 0, 4);
+    frame_blit(ctx, frame_art(ctx, IMG_C_BACKVMID1), 516, 4);
     /*
      * The housing: PROVIDED under its name where the lane has one, and only
      * otherwise blitted. @see frame_housing_claim.
@@ -2148,23 +2496,23 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
      */
     frame_housing_node(
         ctx,
-        g_image[IMG_C_MAPBACK],
+        frame_art(ctx, IMG_C_MAPBACK),
         (struct ToriRS_Rect){ FRAME_C_HOUSING_X,
                               FRAME_C_HOUSING_Y,
                               FRAME_C_HOUSING_W,
                               FRAME_C_HOUSING_H });
-    frame_blit(ctx, g_image[IMG_C_BACKRIGHT1], 722, 4);
-    frame_blit(ctx, g_image[IMG_C_BACKHMID1], 516, 160);
-    frame_blit(ctx, g_image[IMG_C_BACKVMID2], 516, 205);
-    frame_blit(ctx, g_image[IMG_C_INVBACK], 553, 205);
-    frame_blit(ctx, g_image[IMG_C_BACKRIGHT2], 743, 205);
-    frame_blit(ctx, g_image[IMG_C_BACKHMID2], 0, 338);
-    frame_blit(ctx, g_image[IMG_C_BACKLEFT2], 0, 357);
+    frame_blit(ctx, frame_art(ctx, IMG_C_BACKRIGHT1), 722, 4);
+    frame_blit(ctx, frame_art(ctx, IMG_C_BACKHMID1), 516, 160);
+    frame_blit(ctx, frame_art(ctx, IMG_C_BACKVMID2), 516, 205);
+    frame_blit(ctx, frame_art(ctx, IMG_C_INVBACK), 553, 205);
+    frame_blit(ctx, frame_art(ctx, IMG_C_BACKRIGHT2), 743, 205);
+    frame_blit(ctx, frame_art(ctx, IMG_C_BACKHMID2), 0, 338);
+    frame_blit(ctx, frame_art(ctx, IMG_C_BACKLEFT2), 0, 357);
     /* The 2004 chat backing only where the chat is the 2004 builtin: an
      * OldSchool chat pack brings its own and is a different size, so the
      * classic parchment under it would show at two edges. */
     if( !oldschool )
-        frame_blit(ctx, g_image[IMG_C_CHATBACK], 17, 357);
+        frame_blit(ctx, frame_art(ctx, IMG_C_CHATBACK), 17, 357);
     if( oldschool )
     {
         frame_blit(ctx, frame_surround_piece(ctx, &ctx->state->chat_rail,
@@ -2174,10 +2522,10 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
     }
     else
     {
-        frame_blit(ctx, g_image[IMG_C_BACKVMID3], 496, 357);
-        frame_blit(ctx, g_image[IMG_C_BACKBASE1], 0, 453);
+        frame_blit(ctx, frame_art(ctx, IMG_C_BACKVMID3), 496, 357);
+        frame_blit(ctx, frame_art(ctx, IMG_C_BACKBASE1), 0, 453);
     }
-    frame_blit(ctx, g_image[IMG_C_BACKBASE2], 496, 466);
+    frame_blit(ctx, frame_art(ctx, IMG_C_BACKBASE2), 496, 466);
     /* The CS2 pack carries every live filter above this strip. Leaving the
      * four dat1 recesses here makes a second, captionless row. Fill only
      * that band from the source rock; preserve the surrounding frame. */
@@ -2193,8 +2541,8 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
         int const base = REDSTONE_BASE[TAB[i].stone];
-        struct ToriRS_ImageRef const pressed =
-            TAB[i].flip < 0 ? g_image[base] : g_redstone_flip[TAB[i].stone][TAB[i].flip];
+        struct FrameArt const pressed =
+            TAB[i].flip < 0 ? frame_art(ctx, base) : g_redstone_flip[TAB[i].stone][TAB[i].flip];
         /*
          * Which tab this box stands for: its own index on a 2004 lane, screen
          * order on an OldSchool one.
@@ -2210,7 +2558,7 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
          * already spends the thirteen frames of `sideicons.dat` over the
          * fourteen tab slots, giving the unused seventh no art at all -- a
          * slot that IS a panel on an OldSchool lane. @see frame_sideicon. */
-        struct ToriRS_ImageRef const art = frame_sideicon(ctx, tab, IMG_C_SIDEICON_0);
+        struct FrameArt const art = frame_sideicon(ctx, tab, IMG_C_SIDEICON_0);
         /*
          * A 2004 icon is drawn at a stated origin because it carries its own
          * offset inside `sideicons.dat`; a lane icon carries none, so it is
@@ -2228,7 +2576,7 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
             TAB[i].box,
             icon_x,
             icon_y,
-            /*stone=*/(struct ToriRS_ImageRef){ 0 },
+            /*stone=*/(struct FrameArt){ NULL, { 0 } },
             pressed,
             frame_tab_icon(ctx, tab, art, 553, 205, 190, 261));
     }
@@ -2278,11 +2626,28 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
          * @see ToriRS_FrameApi::surface_native_size, mobile_chat_native.
          */
         int native_w = FRAME_O_CHAT_PACK_W;
-        int native_h = FRAME_O_CHAT_PACK_H;
         int mobile_top = 0;
 
-        (void)g_api->frame.surface_native_size(
-            g_api, FRAME_SURFACE_CHAT, &native_w, &native_h);
+        /*
+         * Asked by ELEMENT, which is the whole of the G55 fix.
+         *
+         * This used to pass FRAME_SURFACE_CHAT -- this file's own private
+         * enum -- straight into the api as though it were TORIRS_SURFACE_*.
+         * The two numberings disagree (this file's COMPASS is 2, SIDEBAR 5 and
+         * MODAL 6 against the api's SIDEBAR 2, MODAL 5 and COMPASS 6) and CHAT
+         * matched by luck, which is the only reason the call worked at all.
+         * Naming an element cannot make that mistake, and the next surface
+         * this frame asks about is not going to be the lucky one.
+         */
+        {
+            struct ToriRS_WidgetBounds native;
+            /* The WIDTH only. The height the classic layout gives a chat is
+             * its own -- FRAME_C_CHAT_H, the 2004 pack's 165 -- and the pack's
+             * own height is read here for nothing. */
+            if( Porcelain_NativeSize(ctx->state->porcelain, PORCELAIN_EL(CHAT), &native) &&
+                native.width > 0 && native.height > 0 )
+                native_w = native.width;
+        }
         /* By the TOPLEVEL and not by the size: the mobile top mounts the same
          * 519-wide interface 162 and reports the same native size, and lays it
          * out with the bar ABOVE the message area. The size cannot tell the
@@ -2376,33 +2741,33 @@ frame_layout_modern_fixed(struct FrameCall* ctx)
 
     assert(ctx);
 
-    frame_blit(ctx, g_image[IMG_O_BACKTOP1], 0, 0);
-    frame_blit(ctx, g_image[IMG_O_BACKTOP_RIGHT], 717, 0);
-    frame_blit(ctx, g_image[IMG_O_BACKLEFT1], 0, 4);
-    frame_blit(ctx, g_image[IMG_O_BACKVMID1], 516, 4);
+    frame_blit(ctx, frame_art(ctx, IMG_O_BACKTOP1), 0, 0);
+    frame_blit(ctx, frame_art(ctx, IMG_O_BACKTOP_RIGHT), 717, 0);
+    frame_blit(ctx, frame_art(ctx, IMG_O_BACKLEFT1), 0, 4);
+    frame_blit(ctx, frame_art(ctx, IMG_O_BACKVMID1), 516, 4);
     /* This frame publishes its own housing picture inside the map boundary. */
     frame_housing_node(
-        ctx, g_image[IMG_O_MAPBACK], (struct ToriRS_Rect){ 545, 4, 172, 156 });
-    frame_blit(ctx, g_image[IMG_O_BACKRIGHT_TOP], 717, 4);
-    frame_blit(ctx, g_image[IMG_O_BACKHMID1], 516, 160);
-    frame_blit(ctx, g_image[IMG_O_TABS_TOP], 516, 167);
-    frame_blit(ctx, g_image[IMG_O_BACKVMID2], 516, 205);
-    frame_blit(ctx, g_image[IMG_O_SIDE_PANEL], 547, 205);
-    frame_blit(ctx, g_image[IMG_O_BACKRIGHT1], 737, 205);
+        ctx, frame_art(ctx, IMG_O_MAPBACK), (struct ToriRS_Rect){ 545, 4, 172, 156 });
+    frame_blit(ctx, frame_art(ctx, IMG_O_BACKRIGHT_TOP), 717, 4);
+    frame_blit(ctx, frame_art(ctx, IMG_O_BACKHMID1), 516, 160);
+    frame_blit(ctx, frame_art(ctx, IMG_O_TABS_TOP), 516, 167);
+    frame_blit(ctx, frame_art(ctx, IMG_O_BACKVMID2), 516, 205);
+    frame_blit(ctx, frame_art(ctx, IMG_O_SIDE_PANEL), 547, 205);
+    frame_blit(ctx, frame_art(ctx, IMG_O_BACKRIGHT1), 737, 205);
     /* The chat backing and its stone bar belong to the chat PACK on an
      * OldSchool lane, which draws both itself. @see frame_place_chat. */
     if( !oldschool )
     {
-        frame_blit(ctx, g_image[IMG_O_CHATBACK], 0, 338);
+        frame_blit(ctx, frame_art(ctx, IMG_O_CHATBACK), 0, 338);
         frame_blit(ctx, frame_chat_stones(ctx), 0, 338 + FRAME_O_CHAT_BODY_H);
     }
-    frame_blit(ctx, g_image[IMG_O_BACKLEFT2], 519, 338);
-    frame_blit(ctx, g_image[IMG_O_TABS_BOTTOM], 519, 466);
+    frame_blit(ctx, frame_art(ctx, IMG_O_BACKLEFT2), 519, 338);
+    frame_blit(ctx, frame_art(ctx, IMG_O_TABS_BOTTOM), 519, 466);
 
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
         int const tab = FRAME_TAB_SCREEN_ORDER[i];
-        struct ToriRS_ImageRef const art = frame_sideicon(ctx, tab, IMG_O_SIDEICON_0);
+        struct FrameArt const art = frame_sideicon(ctx, tab, IMG_O_SIDEICON_0);
         /* The icon centres on the stone it sits on, which is what a uniform
          * grid of stones means -- and this frame's icons carry no offset to
          * honour, so the centre IS the answer. @see FrameTab::icon_x. */
@@ -2417,8 +2782,8 @@ frame_layout_modern_fixed(struct FrameCall* ctx)
             box,
             icon_x,
             icon_y,
-            /*stone=*/(struct ToriRS_ImageRef){ 0 },
-            g_image[TAB[i].stone],
+            /*stone=*/(struct FrameArt){ NULL, { 0 } },
+            frame_art(ctx, TAB[i].stone),
             frame_tab_icon(ctx, tab, art, 547, 205, 190, 261));
     }
 
@@ -2620,7 +2985,7 @@ frame_layout_modern_resizable(
 
     frame_housing_node(
         ctx,
-        g_image[IMG_O_MAPBACK_R],
+        frame_art(ctx, IMG_O_MAPBACK_R),
         (struct ToriRS_Rect){ map_x, 0, FRAME_R_MAP_W, FRAME_R_MAP_H });
     /*
      * The panel backing FIRST, and larger than the panel.
@@ -2641,13 +3006,13 @@ frame_layout_modern_resizable(
     if( sidebar_open )
         frame_blit_tiled(
             ctx,
-            g_image[IMG_O_SIDE_PANEL_R],
+            frame_art(ctx, IMG_O_SIDE_PANEL_R),
             panel_x - FRAME_R_PANEL_BLEED_X,
             panel_y - FRAME_R_PANEL_BLEED_Y,
             FRAME_R_PANEL_W + 2 * FRAME_R_PANEL_BLEED_X,
             FRAME_R_PANEL_H + 2 * FRAME_R_PANEL_BLEED_Y,
             FRAME_R_PANEL_TRANS);
-    frame_blit(ctx, g_image[IMG_O_TABS_TOP_R], row_x, top_row_y);
+    frame_blit(ctx, frame_art(ctx, IMG_O_TABS_TOP_R), row_x, top_row_y);
     /* The pillars either side of the panel, which the fixed frame gets from
      * its surround (`backvmid2`/`backright1`) and this one has nothing to get
      * them from -- a floating panel has no surround, only its own edges. And
@@ -2655,10 +3020,10 @@ frame_layout_modern_resizable(
      * nothing, so they go away with it. */
     if( sidebar_open )
     {
-        frame_blit(ctx, g_image[IMG_O_SIDE_COLUMN_L], panel_x - FRAME_R_COL_W, panel_y);
-        frame_blit(ctx, g_image[IMG_O_SIDE_COLUMN_R], panel_x + FRAME_R_PANEL_W, panel_y);
+        frame_blit(ctx, frame_art(ctx, IMG_O_SIDE_COLUMN_L), panel_x - FRAME_R_COL_W, panel_y);
+        frame_blit(ctx, frame_art(ctx, IMG_O_SIDE_COLUMN_R), panel_x + FRAME_R_PANEL_W, panel_y);
     }
-    frame_blit(ctx, g_image[IMG_O_TABS_BOTTOM_R], row_x, bottom_row_y);
+    frame_blit(ctx, frame_art(ctx, IMG_O_TABS_BOTTOM_R), row_x, bottom_row_y);
     /*
      * The backing only when the chatbox is up. The stone BAR always: it is
      * what the filter buttons stand on, and putting it away with the chat
@@ -2667,7 +3032,7 @@ frame_layout_modern_resizable(
     if( !oldschool )
     {
         if( g_chat_open )
-            frame_blit(ctx, g_image[IMG_O_CHATBACK], 0, chat_y);
+            frame_blit(ctx, frame_art(ctx, IMG_O_CHATBACK), 0, chat_y);
         frame_blit(ctx, frame_chat_stones(ctx), 0, chat_y + FRAME_O_CHAT_BODY_H);
     }
 
@@ -2718,7 +3083,7 @@ frame_layout_modern_resizable(
          * where friends belongs. @see FRAME_TAB_SCREEN_ORDER.
          */
         int const tab = FRAME_TAB_SCREEN_ORDER[i];
-        struct ToriRS_ImageRef const art = frame_sideicon(ctx, tab, IMG_O_SIDEICON_0);
+        struct FrameArt const art = frame_sideicon(ctx, tab, IMG_O_SIDEICON_0);
         /* Centred on the stone, as on the fixed OldSchool frame and for the
          * same reason. @see FrameTab::icon_x. */
         struct FrameBox const box = { row_x + TAB[i].x,
@@ -2735,8 +3100,8 @@ frame_layout_modern_resizable(
             box,
             icon_x,
             icon_y,
-            /*stone=*/(struct ToriRS_ImageRef){ 0 },
-            g_image[TAB[i].stone],
+            /*stone=*/(struct FrameArt){ NULL, { 0 } },
+            frame_art(ctx, TAB[i].stone),
             frame_tab_icon(
                 ctx,
                 tab,
@@ -2862,112 +3227,13 @@ frame_layout_modern_resizable(
 
 /* -------------------------------------------------------------- the events */
 
-/* ------------------------------------------------------- applying the plan */
-
-/*
- * Everything below is the widget API: the plan is turned into retained edits
- * on the tree -- owned images anchored behind the scene, owned controls for the
- * stones, moves and masks on the role widgets -- and the host's chrome
- * suppression (the frame is PROVIDED, @see ToriRS_GameframeEvent) does the
- * rest. Every edit is idempotent, so a repeat pass against the same owned
- * children costs a few setters and no rebuild.
- */
-
-/* Where a canvas rectangle lands as a parent-local position. A widget with no
- * parent is a root and already in canvas coordinates. */
-static bool
-frame_parent_origin(struct FrameCall* ctx, struct ToriRS_WidgetRef widget, int* out_x, int* out_y)
-{
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
-    struct ToriRS_WidgetRef parent;
-    struct ToriRS_WidgetBounds box;
-
-    assert(ctx);
-    assert(out_x);
-    assert(out_y);
-    *out_x = 0;
-    *out_y = 0;
-    if( ui->parent(ui->context, widget, &parent) != TORIRS_CONTRACT_OK )
-        return true;
-    if( ui->bounds(ui->context, parent, &box) != TORIRS_CONTRACT_OK )
-        return false;
-    *out_x = box.x;
-    *out_y = box.y;
-    return true;
-}
-
-/* Move a native widget to a canvas rectangle, and keep it over `base`: the
- * last piece of the frame's own chrome, or the scene when there is none. */
-static bool
-frame_place_widget(
-    struct FrameCall* ctx, struct ToriRS_WidgetRef widget, struct ToriRS_Rect rect,
-    struct ToriRS_WidgetRef base, bool over_base)
-{
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
-    int px;
-    int py;
-
-    assert(ctx);
-    if( !frame_parent_origin(ctx, widget, &px, &py) )
-        return false;
-    if( ui->set_position(ui->context, widget, rect.x - px, rect.y - py) != TORIRS_CONTRACT_OK )
-        return false;
-    if( ui->set_size(ui->context, widget, rect.width, rect.height) != TORIRS_CONTRACT_OK )
-        return false;
-    (void)ui->set_hidden(ui->context, widget, false);
-    if( over_base && ToriRS_WidgetRefValid(base) )
-        (void)ui->set_anchor(ui->context, widget, base, TORIRS_WIDGET_RELATION_OVER);
-    return true;
-}
-
-/* One owned image child of `parent`, by key: created once, then re-shown. */
-static bool
-frame_owned_image(
-    struct FrameCall* ctx, struct FrameOwned* owned, struct ToriRS_WidgetRef parent, char const* key,
-    struct ToriRS_ImageRef image, int width, int height, int canvas_x, int canvas_y, int trans)
-{
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
-    int px;
-    int py;
-
-    assert(ctx);
-    assert(owned);
-    assert(key);
-    if( ui->create_image(ui->context, parent, key, &owned->ref) != TORIRS_CONTRACT_OK )
-    {
-        owned->live = 0;
-        return false;
-    }
-    owned->live = 1;
-    if( ui->set_image(ui->context, owned->ref, image, width, height) != TORIRS_CONTRACT_OK )
-        return false;
-    if( !frame_parent_origin(ctx, owned->ref, &px, &py) )
-        return false;
-    (void)ui->set_position(ui->context, owned->ref, canvas_x - px, canvas_y - py);
-    (void)ui->set_opacity(ui->context, owned->ref, 255 - trans);
-    (void)ui->set_hidden(ui->context, owned->ref, false);
-    return true;
-}
-
-static void
-frame_owned_drop(struct FrameCall* ctx, struct FrameOwned* owned)
-{
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
-    assert(ctx);
-    assert(owned);
-    if( owned->live )
-        (void)ui->remove(ui->context, owned->ref);
-    owned->live = 0;
-    owned->ref = (struct ToriRS_WidgetRef){ { 0, 0, 0 } };
-}
-
 /*
  * A swatch REPEATED over a box, as one picture. The tile is the plugin's own
  * loaded image, so the copy is the same trick as the redstone flips: pixels
  * out, arranged, published back in. Every copy carries the whole box as its
  * clip, so the row and column that overhang are cut at the panel's edge.
  */
-static struct ToriRS_ImageRef
+static struct FrameArt
 frame_tiled_art(struct FrameCall* ctx, struct FrameSized* cache, struct ToriRS_ImageRef tile, int w, int h)
 {
     int tw = 0;
@@ -2976,16 +3242,18 @@ frame_tiled_art(struct FrameCall* ctx, struct FrameSized* cache, struct ToriRS_I
     uint32_t* in;
     uint32_t* out;
     struct ToriRS_ImageRef art = { 0 };
-    char name[64];
+    struct FrameArt const nothing = { NULL, { 0 } };
+    char name[sizeof(cache->name)];
 
     assert(ctx);
     assert(cache);
     if( tile.value == 0 || w <= 0 || h <= 0 )
-        return art;
-    if( cache->art.value != 0 && cache->w == w && cache->h == h && cache->key == (uint32_t)tile.value )
+        return nothing;
+    if( frame_art_alive(ctx, cache->art) && cache->w == w && cache->h == h &&
+        cache->key == (uint32_t)tile.value )
         return cache->art;
     if( !g_api->assets.image_size(g_api, tile, &tw, &th) || tw <= 0 || th <= 0 )
-        return art;
+        return nothing;
     in = malloc((size_t)tw * (size_t)th * sizeof(*in));
     out = malloc((size_t)w * (size_t)h * sizeof(*out));
     assert(in);
@@ -2997,257 +3265,48 @@ frame_tiled_art(struct FrameCall* ctx, struct FrameSized* cache, struct ToriRS_I
             for( int x = 0; x < w; x++ )
                 out[y * w + x] = in[(y % th) * tw + (x % tw)];
         (void)snprintf(name, sizeof(name), "frame_tiled_%d_%dx%d.png", tile.value, w, h);
-        (void)g_api->assets.image_compose(g_api, name, w, h, out, &art);
+        (void)frame_compose(ctx, name, w, h, out, &art);
     }
     free(out);
     free(in);
-    if( art.value != 0 )
-    {
-        if( cache->art.value != 0 )
-            g_api->assets.image_release(g_api, cache->art);
-        cache->art = art;
-        cache->w = w;
-        cache->h = h;
-        cache->key = (uint32_t)tile.value;
-    }
-    return art;
-}
-
-/*
- * The surround: every blit an owned image, anchored directly OVER the scene in
- * the order the layout stated them, and the live surfaces are then anchored
- * over the LAST of them (@see frame_apply_surfaces). That is the stacking a
- * frame is: world, then its chrome, then the chat, the map, the panels on the
- * chrome. Behind the scene would do for a fixed frame, whose pieces never
- * overlap the world, but a resizable frame's scene is the whole canvas and
- * everything behind it is simply not seen. Unused children from a larger
- * layout are removed. Returns the last live piece, or `viewport` when none.
- */
-static struct ToriRS_WidgetRef
-frame_apply_pieces(struct FrameCall* ctx, struct ToriRS_WidgetRef parent, struct ToriRS_WidgetRef viewport)
-{
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
-    struct FrameState* state = ctx->state;
-    struct ToriRS_WidgetRef last = viewport;
-    char key[24];
-
-    assert(ctx);
-    for( int i = 0; i < FRAME_BLIT_MAX; i++ )
-    {
-        struct FrameBlit const* b = &g_plan.blit[i];
-        struct ToriRS_ImageRef image = b->image;
-        int w = 0;
-        int h = 0;
-
-        if( i >= g_plan.blit_count )
-        {
-            frame_owned_drop(ctx, &state->piece[i]);
-            continue;
-        }
-        if( b->tile_w > 0 && b->tile_h > 0 )
-        {
-            image = frame_tiled_art(ctx, &state->side_tiled, b->image, b->tile_w, b->tile_h);
-            w = b->tile_w;
-            h = b->tile_h;
-        }
-        else if( !g_api->assets.image_size(g_api, image, &w, &h) )
-            image.value = 0;
-        if( image.value == 0 )
-        {
-            frame_owned_drop(ctx, &state->piece[i]);
-            continue;
-        }
-        (void)snprintf(key, sizeof(key), "piece.%02d", i);
-        if( frame_owned_image(ctx, &state->piece[i], parent, key, image, w, h, b->x, b->y, b->trans) &&
-            ui->set_anchor(ui->context, state->piece[i].ref, viewport, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
-            last = state->piece[i].ref;
-    }
-    return last;
-}
-
-/* The housing, directly over the compass -- the later of the two live
- * surfaces the plate frames -- or over the map on a lane with no compass. */
-static void
-frame_apply_housing(struct FrameCall* ctx, struct ToriRS_WidgetRef parent)
-{
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
-    struct FrameState* state = ctx->state;
-    struct ToriRS_WidgetRef anchor;
-    int w = 0;
-    int h = 0;
-
-    assert(ctx);
-    if( !g_plan.housing_placed || !g_api->assets.image_size(g_api, g_plan.housing_image, &w, &h) )
-    {
-        frame_owned_drop(ctx, &state->housing);
-        return;
-    }
-    if( !frame_owned_image(
-            ctx, &state->housing, parent, "housing", g_plan.housing_image, w, h, g_plan.housing_rect.x,
-            g_plan.housing_rect.y, 0) )
-        return;
-    if( ui->find(ui->context, FRAME_SURFACE_ROLE[FRAME_SURFACE_COMPASS], &anchor) != TORIRS_CONTRACT_OK &&
-        ui->find(ui->context, FRAME_SURFACE_ROLE[FRAME_SURFACE_MINIMAP], &anchor) != TORIRS_CONTRACT_OK )
-        return;
-    (void)ui->set_anchor(ui->context, state->housing.ref, anchor, TORIRS_WIDGET_RELATION_OVER);
+    if( art.value == 0 )
+        return nothing;
+    if( cache->art.ref.value != 0 )
+        g_api->assets.image_release(g_api, cache->art.ref);
+    (void)snprintf(cache->name, sizeof(cache->name), "%s", name);
+    cache->art.name = cache->name;
+    cache->art.ref = art;
+    cache->w = w;
+    cache->h = h;
+    cache->key = (uint32_t)tile.value;
+    return cache->art;
 }
 
 /* A stone was pressed: open the panel it stands for. The lane's own switch
  * script runs on a CS2 toplevel; the client's selection on a 2004 one. */
 static void
-frame_tab_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+frame_tab_pressed(struct ToriRS_Api* api, void* user, char const* key)
 {
     struct FrameTabHandle const* handle = user;
     assert(api);
     assert(handle);
-    assert(event);
-    if( event->type != TORIRS_WIDGET_OPERATION )
-        return;
+    assert(key);
+    (void)key;
     (void)api->cache.tab_select(api, handle->tabno);
-}
-
-/*
- * The stones, as owned controls over the surround.
- *
- * Three children per tab. The CONTROL is the plate's box wearing a 1x1 blank:
- * the hit area and the Select operation, and nothing to stretch. The FACE is
- * the picture the stone wears -- bare, or the redstone while pressed -- as its
- * own image at the art's NATURAL size on the plate's origin, which is where
- * the draw pass blitted it: the 2004 redstones are three sizes on one grid of
- * boxes, and the OldSchool mid stone is 38 wide on a 33 pitch, so a face cut
- * to the box squashed both. The ICON goes over the face.
- *
- * Every one of them is anchored over the previous, starting at `base` (the
- * last piece of chrome), in the tabs' own order: the overlapping OldSchool
- * stones paint left to right whatever order their nodes were created in, and
- * the caller puts the live surfaces over the LAST of them, so a centred modal
- * or the panel is never under a stone. Returns that last one. Which stone is
- * lit and whether an icon is given change per frame; @see frame_refresh_tabs,
- * which writes only what moved.
- */
-static struct ToriRS_WidgetRef
-frame_apply_tabs(struct FrameCall* ctx, struct ToriRS_WidgetRef parent, struct ToriRS_WidgetRef base)
-{
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
-    struct FrameState* state = ctx->state;
-    struct ToriRS_WidgetRef last = base;
-    char key[24];
-
-    assert(ctx);
-    for( int i = 0; i < FRAME_TAB_COUNT; i++ )
-    {
-        struct FrameTab const* t = &g_plan.tab[i];
-        struct ToriRS_ImageRef face;
-        int iw = 0;
-        int ih = 0;
-
-        if( i >= g_plan.tab_count )
-        {
-            frame_owned_drop(ctx, &state->tab[i]);
-            frame_owned_drop(ctx, &state->face[i]);
-            frame_owned_drop(ctx, &state->icon[i]);
-            continue;
-        }
-        (void)snprintf(key, sizeof(key), "tab.%02d", i);
-        if( !frame_owned_image(ctx, &state->tab[i], parent, key, state->blank, t->box.w, t->box.h, t->box.x, t->box.y, 0) )
-            continue;
-        state->tab_handle[i] = (struct FrameTabHandle){ state, t->tabno };
-        (void)ui->set_on_op(ui->context, state->tab[i].ref, "Select", frame_tab_pressed, &state->tab_handle[i]);
-        if( ui->set_anchor(ui->context, state->tab[i].ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
-            last = state->tab[i].ref;
-        state->tab_pressed_shown[i] = -1;
-        state->tab_icon_shown[i] = -1;
-        /* Created on whichever picture the tab has and hidden until the
-         * refresh says which; a 2004 tab has only its redstone. */
-        face = t->stone.value != 0 ? t->stone : t->stone_pressed;
-        (void)snprintf(key, sizeof(key), "face.%02d", i);
-        if( face.value == 0 || !g_api->assets.image_size(g_api, face, &iw, &ih) )
-            frame_owned_drop(ctx, &state->face[i]);
-        else if( frame_owned_image(ctx, &state->face[i], parent, key, face, iw, ih, t->box.x, t->box.y, 0) )
-        {
-            (void)ui->set_hidden(ui->context, state->face[i].ref, true);
-            if( ui->set_anchor(ui->context, state->face[i].ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
-                last = state->face[i].ref;
-        }
-        (void)snprintf(key, sizeof(key), "icon.%02d", i);
-        if( t->icon.value == 0 || !g_api->assets.image_size(g_api, t->icon, &iw, &ih) )
-        {
-            frame_owned_drop(ctx, &state->icon[i]);
-            continue;
-        }
-        if( !frame_owned_image(ctx, &state->icon[i], parent, key, t->icon, iw, ih, t->icon_x, t->icon_y, 0) )
-            continue;
-        (void)ui->set_hidden(ui->context, state->icon[i].ref, true);
-        if( ui->set_anchor(ui->context, state->icon[i].ref, last, TORIRS_WIDGET_RELATION_OVER) == TORIRS_CONTRACT_OK )
-            last = state->icon[i].ref;
-    }
-    return last;
-}
-
-/*
- * Which stone is lit and which icons are given, written when they change.
- *
- * A tab the SERVER has not handed over wears neither its icon nor its
- * highlight -- the tutorial gives the fourteen out one at a time, and a frame
- * that recorded the answer once would draw a new character's empty rail an
- * hour later. Compared against the tab NUMBER, not the box index: on 548 they
- * differ.
- */
-static void
-frame_refresh_tabs(struct FrameCall* ctx)
-{
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
-    struct FrameState* state = ctx->state;
-    int const active = g_api->cache.tab_active(g_api);
-
-    assert(ctx);
-    for( int i = 0; i < g_plan.tab_count; i++ )
-    {
-        struct FrameTab const* t = &g_plan.tab[i];
-        bool const given = g_api->cache.tab_enabled(g_api, t->tabno);
-        int const pressed = given && t->tabno == active;
-
-        if( !state->tab[i].live )
-            continue;
-        if( pressed != state->tab_pressed_shown[i] )
-        {
-            /* The face at its own size; a tab with no picture for this state
-             * (a 2004 stone not pressed) shows nothing. */
-            struct ToriRS_ImageRef const face = pressed && t->stone_pressed.value != 0 ? t->stone_pressed : t->stone;
-            enum ToriRS_ContractResult written = TORIRS_CONTRACT_OK;
-            int fw = 0;
-            int fh = 0;
-
-            if( !state->face[i].live )
-                ;
-            else if( face.value == 0 || !g_api->assets.image_size(g_api, face, &fw, &fh) )
-                written = ui->set_hidden(ui->context, state->face[i].ref, true);
-            else if( (written = ui->set_image(ui->context, state->face[i].ref, face, fw, fh)) == TORIRS_CONTRACT_OK )
-                written = ui->set_hidden(ui->context, state->face[i].ref, false);
-            if( written == TORIRS_CONTRACT_OK )
-                state->tab_pressed_shown[i] = pressed;
-        }
-        if( state->icon[i].live && (int)given != state->tab_icon_shown[i] )
-        {
-            if( ui->set_hidden(ui->context, state->icon[i].ref, !given) == TORIRS_CONTRACT_OK )
-                state->tab_icon_shown[i] = given;
-        }
-    }
 }
 
 /* The resizable frame's chatbox switch: a press on one of the first three
  * 2004 filters puts the chatbox away, or brings it back showing that filter. */
 static void
-frame_chat_switch_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
+frame_chat_switch_pressed(struct ToriRS_Api* api, void* user, char const* key)
 {
     struct FrameSwitchHandle const* handle = user;
     struct FrameState* state;
 
     assert(api);
     assert(handle);
-    assert(event);
-    if( event->type != TORIRS_WIDGET_OPERATION )
-        return;
+    assert(key);
+    (void)key;
     state = handle->state;
     if( state->chat_open && state->chat_filter == handle->filter )
         state->chat_open = false;
@@ -3256,295 +3315,678 @@ frame_chat_switch_pressed(struct ToriRS_Api* api, void* user, struct ToriRS_Widg
         state->chat_open = true;
         state->chat_filter = handle->filter;
     }
+    /*
+     * The HOST's invalidate and not the layer's.
+     *
+     * Porcelain_Invalidate re-runs the description, which is enough to move
+     * the pixels -- but the chatbox going away changes the frame the host
+     * believes this plugin is providing, and the host learns that only through
+     * frame.invalidate, which re-asks on_gameframe with the canvas. The layer
+     * has no channel to the host's frame record, and a provider that used only
+     * its own invalidate left the host one plan behind.
+     */
     api->frame.invalidate(api);
 }
 
+/* ------------------------------------------------------ describing the plan */
+
+static void frame_call_init(struct FrameCall* call, struct ToriRS_Api* api,
+                            struct FrameState* state);
+
+/** @see the definition beside the events: it reads the canvas the frame event
+ *  carried, which is state the description cannot ask the layer for. */
+static void frame_usable_canvas(struct FrameCall* ctx, int* width, int* height);
+
 /*
- * The live surfaces, moved to the plan's rectangles. A role the plan did not
- * place is hidden, the way an undeclared slot was: a frame with no chatbox in
- * it is how the resizable switch works. A role the lane does not have is left
- * alone. Members follow: each chat filter, side panel and orb-block child at
- * its own box, or hidden when the plan left it out.
+ * Everything below is the DESCRIPTION: the plan is stated to Porcelain by key
+ * and the layer makes the tree match. Nothing here creates, moves or removes a
+ * widget, keeps a handle, counts a member or asks whether a picture changed --
+ * the reconcile does all of it, and the diff between one run's description and
+ * the last is the only thing that undoes a move.
+ *
+ * What that replaced, and why each one was a place to get it wrong:
+ *
+ *   - `struct FrameOwned` times sixty-three, each a ref plus a live flag, and
+ *     the `frame_owned_drop` that had to be called on exactly the ones a
+ *     smaller layout no longer wanted. A key not re-described is removed.
+ *   - The four-deep anchor chain, re-stated on every pass, whose only record
+ *     of "the last live piece" was a local passed from one apply to the next.
+ *   - `tab_pressed_shown` / `tab_icon_shown`, the two arrays that existed so
+ *     that a per-frame refresh wrote only what moved. An unchanged item's
+ *     property hash matches and costs no engine call at all.
+ *   - `frame_reset_surfaces`, which reset every role before every plan
+ *     because the setters only ever added.
+ *   - The thirty-two-parent walk for the clipping root.
+ *
+ * What it could NOT replace is one thing, and it is the only place this file
+ * now differs from what it did: the frame's own stacking. @see
+ * frame_describe_piece.
+ */
+
+/*
+ * The portable element for one of this frame's surfaces, and for a numbered
+ * member of one.
+ *
+ * Six of the eight surfaces are first-class elements. The two that are not are
+ * exactly the two whose MEMBERS this frame places, and there the vocabulary
+ * runs out: `struct PorcelainElement` numbers members for three families --
+ * ORB, CHAT_FILTER and LANE_CHROME -- and the sidebar's fourteen mounts and
+ * the orb block's three children are in none of them. ORBS does carry a member
+ * field, but only Porcelain_NativeSize reads it; Porcelain_Element ignores it
+ * and hands back the block itself, which is stated as deliberate in
+ * porcelain_surface_member.
+ *
+ * So those go through PORCELAIN_EL_ROLE and the engine's own `<slot>:<member>`
+ * spelling. It resolves to exactly the node `find_all` used to answer with,
+ * and it is also precisely the hand-spelled role the element table exists to
+ * delete -- @see the port report's verb list.
+ */
+static struct PorcelainElement const FRAME_SURFACE_ELEMENT[FRAME_SURFACE_COUNT] = {
+    { PORCELAIN_EL_VIEWPORT, 0, NULL }, { PORCELAIN_EL_MINIMAP, 0, NULL },
+    { PORCELAIN_EL_COMPASS, 0, NULL },  { PORCELAIN_EL_CHAT, 0, NULL },
+    { PORCELAIN_EL_CHAT_BAR, 0, NULL }, { PORCELAIN_EL_SIDEBAR, 0, NULL },
+    { PORCELAIN_EL_MODAL, 0, NULL },    { PORCELAIN_EL_ORBS, 0, NULL },
+};
+
+/**
+ * Member `m` of surface `s`, as an element.
+ *
+ * CHAT_FILTER is the one family the vocabulary already numbers, and it is
+ * preferred over the spelled role for the reason the layer prefers it: the
+ * element carries both of the lane's two spellings and picks whichever binds.
+ * The rest are spelled, into a buffer the plugin owns, because the element a
+ * description holds must outlive the describe that stated it.
+ */
+static struct PorcelainElement
+frame_member_element(struct FrameCall* ctx, int surface, int member)
+{
+    assert(ctx);
+    assert(surface >= 0 && surface < FRAME_SURFACE_COUNT);
+    assert(member >= 0 && member < FRAME_MEMBER_MAX);
+    if( surface == FRAME_SURFACE_CHAT_BUTTONS )
+        return PORCELAIN_CHAT_FILTER_EL(member);
+    return PORCELAIN_ROLE_EL(ctx->state->member_role[surface][member]);
+}
+
+/*
+ * The natural size of a picture this frame is about to describe.
+ *
+ * Asked here rather than left to the layer, and that is a behaviour decision
+ * and not an optimisation: `PorcelainItem::w` of zero means "the picture's own
+ * size", and a picture still crossing the IO queue has no size -- so a zero-by
+ * -zero control would exist in the tree until the bytes landed. The frame has
+ * never drawn one of those, and the minimap-orbs port had to declare exactly
+ * that empty control as a difference at the gate. A piece with no size yet is
+ * simply not described, and the describe runs again when the asset lands.
+ */
+static bool
+frame_art_size(struct FrameCall* ctx, struct FrameArt art, int* out_w, int* out_h)
+{
+    assert(ctx);
+    assert(out_w);
+    assert(out_h);
+    *out_w = 0;
+    *out_h = 0;
+    if( !art.name )
+        return false;
+    return Porcelain_ImageSize(ctx->state->porcelain, art.name, out_w, out_h) && *out_w > 0 &&
+           *out_h > 0;
+}
+
+/**
+ * One owned picture of this frame's chrome, at a canvas coordinate, OVER
+ * `depth`.
+ *
+ * The canvas placement parents to the clipping root, which is the only parent
+ * that will hold a surround piece beside the scene rather than clipped inside
+ * it. The depth target is what keeps it UNDER the lane's own surfaces: a
+ * child of the root is otherwise after every subtree the lane mounted in it,
+ * so the surround paints over the inventory's contents, over the orb block
+ * and over the XP button -- all three measured, on classic548, by the first
+ * cut of this port, which stated no depth because the layer refused one.
+ *
+ * Every piece anchors over the SCENE and not over the piece before it. The
+ * old apply pass chained them -- each piece over the last, each stone over
+ * the last piece, each face over its stone -- and the layer cannot state that
+ * chain at all, because a depth target is an ELEMENT and an owned control is
+ * not in the vocabulary. It does not need to: they are all children of one
+ * parent and the layer creates them in description order, which is the same
+ * relative order the chain produced. @see the port report.
  */
 static void
-frame_apply_surfaces(struct FrameCall* ctx, struct ToriRS_WidgetRef viewport, struct ToriRS_WidgetRef base)
+frame_describe_piece(
+    struct ToriRS_PorcelainDescribe* describe, char const* key, struct FrameArt art, int x, int y,
+    int w, int h, int trans, struct PorcelainElement depth)
 {
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
+    struct PorcelainItem item;
+
+    assert(describe);
+    assert(key);
+    memset(&item, 0, sizeof(item));
+    item.key = key;
+    item.image = art.name;
+    item.w = w;
+    item.h = h;
+    item.place.kind = PORCELAIN_AT_CANVAS;
+    item.place.dx = x;
+    item.place.dy = y;
+    item.place.depth = depth;
+    /*
+     * `trans` is the client's own sense: 0 opaque, 255 invisible. Porcelain's
+     * is the other way up AND reserves zero for "unstated, therefore opaque",
+     * so a fully transparent piece cannot be described. No layout ships one --
+     * the resizable panel backing is the only tiled blit and it is 0 -- and a
+     * piece nobody can see would be a piece nobody should describe.
+     */
+    item.opacity = 255 - trans;
+    describe->piece(describe, &item);
+}
+
+/*
+ * The surround, the housing, the stones, their faces and their icons.
+ *
+ * One key per thing, stable across passes and across layouts, so a layout with
+ * fewer pieces than the last drops exactly the surplus and moves nothing else.
+ */
+static void
+frame_describe_chrome(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* describe)
+{
+    struct FrameState* state = ctx->state;
+    int const active = state->tab_active_shown;
+
+    assert(ctx);
+    for( int i = 0; i < g_plan.blit_count; i++ )
+    {
+        struct FrameBlit const* b = &g_plan.blit[i];
+        struct FrameArt art = b->image;
+        int w = 0;
+        int h = 0;
+
+        if( b->tile_w > 0 && b->tile_h > 0 )
+        {
+            art = frame_tiled_art(ctx, &state->side_tiled, b->image.ref, b->tile_w, b->tile_h);
+            w = b->tile_w;
+            h = b->tile_h;
+            if( !art.name )
+                continue;
+        }
+        else if( !frame_art_size(ctx, art, &w, &h) )
+            continue;
+        frame_describe_piece(describe, state->piece_key[i], art, b->x, b->y, w, h, b->trans,
+                             PORCELAIN_EL(VIEWPORT));
+    }
+
+    if( g_plan.housing_placed )
+    {
+        int w = 0;
+        int h = 0;
+        /*
+         * The housing over the COMPASS -- the later of the two live surfaces
+         * its plate frames -- and the layer checks that the compass PAINTS
+         * before anchoring to it.
+         *
+         * That check is the ledger's defect, fixed. The old apply pass took
+         * whichever of compass or minimap merely RESOLVED, and on the three
+         * minimap states that suppress the compass it anchored to a node that
+         * emits nothing -- which leaves the plate at its own native draw
+         * index, the end of the tree, painting over the whole orb column and
+         * the lane's own orb art with it. Porcelain falls back to the
+         * placement's element and records a finding, so the provider is told
+         * it lost instead of being shown a rendering bug.
+         */
+        if( frame_art_size(ctx, g_plan.housing_image, &w, &h) )
+            frame_describe_piece(
+                describe, "housing", g_plan.housing_image, g_plan.housing_rect.x,
+                g_plan.housing_rect.y, w, h, 0, PORCELAIN_EL(COMPASS));
+    }
+
+    for( int i = 0; i < g_plan.tab_count; i++ )
+    {
+        struct FrameTab const* t = &g_plan.tab[i];
+        bool const given = (state->tab_given_shown >> t->tabno) & 1u;
+        bool const pressed = given && t->tabno == active;
+        struct FrameArt face;
+        struct PorcelainItem item;
+        int w = 0;
+        int h = 0;
+
+        /*
+         * The CONTROL is the plate's box wearing a 1x1 blank: the hit area and
+         * the Select operation, and nothing to stretch.
+         */
+        memset(&item, 0, sizeof(item));
+        item.key = state->tab_key[i];
+        item.image = frame_blank(ctx).name;
+        item.w = t->box.w;
+        item.h = t->box.h;
+        item.place.kind = PORCELAIN_AT_CANVAS;
+        item.place.dx = t->box.x;
+        item.place.dy = t->box.y;
+        item.place.depth = PORCELAIN_EL(VIEWPORT);
+        item.op_label = "Select";
+        item.on_op = frame_tab_pressed;
+        state->tab_handle[i] = (struct FrameTabHandle){ state, t->tabno };
+        item.user = &state->tab_handle[i];
+        item.hit = true;
+        item.enabled = true;
+        describe->control(describe, &item);
+
+        /*
+         * The FACE is the picture the stone wears -- bare, or the redstone
+         * while pressed -- at the art's NATURAL size on the plate's origin,
+         * which is where the draw pass blitted it: the 2004 redstones are
+         * three sizes on one grid of boxes and the OldSchool mid stone is 38
+         * wide on a 33 pitch, so a face cut to the box squashed both.
+         *
+         * Described whether or not it has a picture FOR THIS STATE, and that
+         * is the faithful shape rather than the tidy one. A 2004 stone that is
+         * not pressed has no picture, and the control it gets is one that
+         * EXISTS and draws nothing -- `image` NULL, which the layer spells out
+         * as exactly that. The provider this replaces created the same control
+         * and left it graphic-less, and thirteen of the fourteen are in that
+         * state at any moment; describing only the lit one would be a
+         * behaviour change with no row behind it.
+         *
+         * The BOX is the art the stone has at all, pressed or not, because
+         * that is the size the control was made at before anything was lit.
+         *
+         * A tab the SERVER has not handed over wears neither its icon nor its
+         * highlight: the tutorial gives the fourteen out one at a time. That
+         * used to be two arrays of last-written state and a refresh pass; it
+         * is a key that is described or is not.
+         */
+        face = pressed && t->stone_pressed.name ? t->stone_pressed : t->stone;
+        /*
+         * The 1x1 transparent picture, and not a NULL image.
+         *
+         * `PorcelainItem::image` of NULL is documented as "exists, draws
+         * nothing -- on a Control and a Blocker that is an invisible hit box,
+         * which is what the two frame providers ship a 1x1 transparent PNG to
+         * fake today". It does not carry a BOX. An owned image control takes
+         * its size through set_image, which is also where the picture lives,
+         * and the engine refuses a zero image ref outright -- so the size is
+         * never written and the control sits at 0x0. Measured: thirteen faces
+         * at 0,0 and one REFUSED set_image per lane.
+         *
+         * So the blank stays, and the header's parenthesis is the contract
+         * rather than the thing the layer replaced. @see the port report.
+         */
+        if( !face.name )
+            face = frame_blank(ctx);
+        if( frame_art_size(ctx, t->stone.name ? t->stone : t->stone_pressed, &w, &h) )
+            frame_describe_piece(describe, state->face_key[i], face, t->box.x, t->box.y, w, h, 0,
+                                 PORCELAIN_EL(VIEWPORT));
+        if( given && frame_art_size(ctx, t->icon, &w, &h) )
+            frame_describe_piece(describe, state->icon_key[i], t->icon, t->icon_x, t->icon_y, w, h,
+                                 0, PORCELAIN_EL(VIEWPORT));
+    }
+}
+
+/*
+ * The live surfaces, moved to the plan's rectangles.
+ *
+ * A role the plan did not place is hidden, the way an undeclared slot was: a
+ * frame with no chatbox in it is how the resizable switch works. A role the
+ * lane does not have is left alone, which is now the layer's answer rather
+ * than a `find` that failed. Members follow: each chat filter, side panel and
+ * orb-block child at its own box, or hidden when the plan left it out.
+ *
+ * Porcelain_Move takes a PARENT-LOCAL box and the plan is in canvas
+ * coordinates, so the translation is the element's own two boxes subtracted --
+ * `box` is where the node draws and `local` where its parent thinks it is, and
+ * the difference is the parent's origin. That is the same arithmetic
+ * frame_parent_origin did with a `parent` call and a `bounds` call per
+ * surface per pass; here both numbers are already in the state the watch
+ * stamped.
+ */
+static void
+frame_describe_surfaces(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* describe)
+{
     struct FrameState* state = ctx->state;
 
     assert(ctx);
     for( int s = 0; s < FRAME_SURFACE_COUNT; s++ )
     {
-        struct ToriRS_WidgetRef members[FRAME_MEMBER_MAX];
-        size_t member_count = 0;
-        struct ToriRS_WidgetRef widget;
+        struct PorcelainElementState native;
         bool has_members = false;
+        bool surface_bound;
 
         for( int m = 0; m < FRAME_MEMBER_MAX; m++ )
             if( g_plan.member[s][m].placed )
                 has_members = true;
-        if( ui->find(ui->context, FRAME_SURFACE_ROLE[s], &widget) == TORIRS_CONTRACT_OK &&
-            s != FRAME_SURFACE_CHAT_BUTTONS )
+
+        /*
+         * The chat FILTERS hang off the chat, not off the bar.
+         *
+         * FRAME_SURFACE_ELEMENT maps the chat-button slot to CHAT_BAR, which
+         * is the strip they stand on and the right thing to re-skin -- but a
+         * 2004 lane has filters and no bar at all, so gating their placement
+         * on the bar is gating it on the wrong container. The pack, or the
+         * builtin chatbox, is what has to exist first either way.
+         */
+        surface_bound = Porcelain_Element(
+            state->porcelain,
+            s == FRAME_SURFACE_CHAT_BUTTONS ? PORCELAIN_EL(CHAT) : FRAME_SURFACE_ELEMENT[s],
+            &native);
+        /* The chat buttons are placed only as members: the strip as a whole is
+         * the frame's own art and the buttons on it are the player's. */
+        if( s != FRAME_SURFACE_CHAT_BUTTONS && surface_bound )
         {
             if( g_plan.surface[s].placed )
-                (void)frame_place_widget(ctx, widget, g_plan.surface[s].rect, base, s != FRAME_SURFACE_VIEWPORT);
+            {
+                struct ToriRS_WidgetBounds box;
+                box.x = g_plan.surface[s].rect.x - (native.box.x - native.local.x);
+                box.y = g_plan.surface[s].rect.y - (native.box.y - native.local.y);
+                box.width = g_plan.surface[s].rect.width;
+                box.height = g_plan.surface[s].rect.height;
+                describe->move(describe, FRAME_SURFACE_ELEMENT[s], box, 0);
+                /*
+                 * And OVER this frame's own chrome.
+                 *
+                 * The surround is drawn at canvas coordinates under the
+                 * clipping root, which puts it after the lane subtree the
+                 * scene, the map, the chat and the panels all live in. Without
+                 * this the surround paints over every one of them -- measured
+                 * on classic548 as the inventory contents, the orb block and
+                 * the XP button all vanishing under the plate beside the map.
+                 *
+                 * The viewport is the exception and it is the same exception
+                 * the old apply pass made: it is what the chrome is drawn ON
+                 * TOP OF, and raising it would put the world over the frame.
+                 */
+                if( s != FRAME_SURFACE_VIEWPORT )
+                    describe->raise(describe, FRAME_SURFACE_ELEMENT[s], PORCELAIN_EL(NONE), false);
+            }
             else if( !has_members )
-                (void)ui->set_hidden(ui->context, widget, true);
+                describe->hide(describe, FRAME_SURFACE_ELEMENT[s]);
         }
-        if( !has_members )
+        /*
+         * The CONTAINER before its members.
+         *
+         * A member is a child of the surface, and the server mounts the
+         * surface first: asking about `orbs:1` before interface 160 exists
+         * gets it called ABSENT -- the layer allows an element two fences of
+         * failed resolution before it says so -- and an absence recorded for
+         * something that binds four frames later is a finding nobody can act
+         * on. One ask answers for all of them, and it is an ask this loop
+         * already made.
+         */
+        if( !has_members || !surface_bound )
             continue;
-        if( ui->find_all(ui->context, FRAME_SURFACE_ROLE[s], members, FRAME_MEMBER_MAX, &member_count) != TORIRS_CONTRACT_OK )
-            continue;
-        for( size_t m = 0; m < member_count && m < FRAME_MEMBER_MAX; m++ )
+        for( int m = 0; m < FRAME_MEMBER_MAX; m++ )
         {
             struct FrameSurfaceRect const* at = &g_plan.member[s][m];
-            /* find_all answers the role's own numbering, so m IS the member;
-             * a member this frame does not have is an invalid slot. */
-            if( !ToriRS_WidgetRefValid(members[m]) )
+            struct PorcelainElement element;
+            struct PorcelainElementState member;
+
+            /*
+             * Only a member this frame has something to SAY about.
+             *
+             * Asking is what registers a watch, and there are eight surfaces
+             * times sixteen members against a watch table of forty-eight, so
+             * asking about all of them is not a wasted call -- it is a budget
+             * overrun that costs the frame the watches it actually needs. The
+             * first cut of this port did exactly that and filed thirty-seven
+             * findings on one lane.
+             *
+             * The orb block is the one place an UNPLACED member is still
+             * described, because the plan cuts the adviser away on the
+             * toplevels that have no alcove for it. The block's own three are
+             * all this frame knows; asking how many the LANE has is a question
+             * with no verb -- Porcelain_Count answers for the three families
+             * it names and hands back 1 for ORBS, meaning "the block binds".
+             * @see the port report.
+             */
+            if( !at->placed && !(s == FRAME_SURFACE_ORBS && m <= FRAME_ORBS_MEMBER_WIKI) )
                 continue;
-            /* The sidebar's members are its mounts, all at one box; a member
-             * the plan did not seat is hidden -- the adviser cut away, or a
-             * panel this lane has and this frame does not show. */
+            element = frame_member_element(ctx, s, m);
+            if( !Porcelain_Element(state->porcelain, element, &member) )
+                continue;
             if( at->placed )
-                (void)frame_place_widget(ctx, members[m], at->rect, base, true);
-            else if( s == FRAME_SURFACE_ORBS )
-                (void)ui->set_hidden(ui->context, members[m], true);
-        }
-        if( s == FRAME_SURFACE_CHAT_BUTTONS )
-        {
-            for( int i = 0; i < 3; i++ )
             {
-                struct FrameSurfaceRect const* at = &g_plan.member[s][i];
-                char key[24];
-                if( !g_plan.chat_switch || !at->placed || (size_t)i >= member_count ||
-                    !ToriRS_WidgetRefValid(members[i]) )
-                {
-                    frame_owned_drop(ctx, &state->chat_switch[i]);
-                    continue;
-                }
-                (void)snprintf(key, sizeof(key), "chatsw.%d", i);
-                if( !frame_owned_image(
-                        ctx, &state->chat_switch[i], members[i], key, state->blank, at->rect.width,
-                        at->rect.height, at->rect.x, at->rect.y, 0) )
-                    continue;
-                state->switch_handle[i] = (struct FrameSwitchHandle){ state, i };
-                (void)ui->set_on_op(
-                    ui->context, state->chat_switch[i].ref, state->chat_open ? "Hide chat" : "Show chat",
-                    frame_chat_switch_pressed, &state->switch_handle[i]);
+                struct ToriRS_WidgetBounds box;
+                box.x = at->rect.x - (member.box.x - member.local.x);
+                box.y = at->rect.y - (member.box.y - member.local.y);
+                box.width = at->rect.width;
+                box.height = at->rect.height;
+                /* No raise here: a member is a CHILD of the surface, and the
+                 * surface was raised above the chrome a few lines up, which
+                 * carries its whole subtree with it. One raise per surface
+                 * instead of one per member is also the difference between
+                 * forty-two edits and fifty-nine. */
+                describe->move(describe, element, box, 0);
             }
+            /* A member the plan did not seat is hidden only in the orb block:
+             * the adviser this frame cuts away, or a globe it has no alcove
+             * for. A sidebar mount it did not seat belongs to the lane. */
+            else if( s == FRAME_SURFACE_ORBS )
+                describe->hide(describe, element);
         }
+    }
+
+    /*
+     * The resizable frame's chatbox switch: an owned control over each of the
+     * first three filters, whose press puts the chatbox away or brings it back
+     * showing that filter.
+     *
+     * REPLACE would be the true description -- the control stands in for the
+     * filter and wants its box -- and it is not used, for the reason the
+     * minimap-orbs port gives at length: the parent-local placements derive
+     * their box from the target's NATIVE origin rather than the one it draws
+     * at, and under a frame provider those differ. The plan already holds the
+     * canvas box this frame put the filter at, so the control is described
+     * there and gated on the filter being present.
+     */
+    for( int i = 0; i < 3; i++ )
+    {
+        struct FrameSurfaceRect const* at = &g_plan.member[FRAME_SURFACE_CHAT_BUTTONS][i];
+        struct PorcelainElement const element = PORCELAIN_CHAT_FILTER_EL(i);
+        struct PorcelainElementState filter;
+        struct PorcelainItem item;
+
+        if( !g_plan.chat_switch || !at->placed ||
+            !Porcelain_Element(state->porcelain, element, &filter) )
+            continue;
+        memset(&item, 0, sizeof(item));
+        item.key = state->switch_key[i];
+        item.image = frame_blank(ctx).name;
+        item.w = at->rect.width;
+        item.h = at->rect.height;
+        item.place.kind = PORCELAIN_AT_CANVAS;
+        item.place.dx = at->rect.x;
+        item.place.dy = at->rect.y;
+        item.place.depth = element;
+        item.op_label = state->chat_open ? "Hide chat" : "Show chat";
+        item.on_op = frame_chat_switch_pressed;
+        state->switch_handle[i] = (struct FrameSwitchHandle){ state, i };
+        item.user = &state->switch_handle[i];
+        item.hit = true;
+        item.enabled = true;
+        item.visible_with = element;
+        describe->control(describe, &item);
     }
 }
 
-/* Masks and the compass rose: retained re-skins on the two round windows. */
+/* Masks and the compass rose: re-skins on the two round windows, stated as
+ * NAMES because that is what a description carries. An empty half leaves that
+ * half of the native picture alone. */
 static void
-frame_apply_skins(struct FrameCall* ctx)
+frame_describe_skins(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* describe)
 {
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
-
     assert(ctx);
     for( int s = 0; s < FRAME_SURFACE_COUNT; s++ )
     {
         struct FrameSkin const* skin = &g_plan.skin[s];
-        struct ToriRS_WidgetRef widget;
-
-        if( !skin->placed || ui->find(ui->context, FRAME_SURFACE_ROLE[s], &widget) != TORIRS_CONTRACT_OK )
+        if( !skin->placed )
             continue;
-        if( skin->art.value != 0 )
-            (void)ui->set_image(ui->context, widget, skin->art, 0, 0);
-        (void)ui->set_mask(ui->context, widget, skin->mask);
+        describe->skin(describe, FRAME_SURFACE_ELEMENT[s], skin->art.name, skin->mask.name);
     }
 }
 
 /*
- * Dress the OldSchool chat pack in 2004 furniture, or take the dressing off.
+ * Dress the OldSchool chat pack in 2004 furniture.
  *
  * Only Classic Fixed, and only while it is the frame this plugin provides: the
  * two Modern layouts are OldSchool's own frames. The pack keeps its message
  * text, its input line, its scrollbar, its eight FILTERS and every action
  * inside them. What changes is the picture: parchment on the backing, and 2004
- * rock on the bar with a hollow cut for each of the eight -- at the eight boxes
- * the plate roles report, so a caption always lands on a hollow. The plates
- * themselves are hidden: a 2004 chat filter is a caption on a hollow with
- * nothing between the rock and the text, and the captions are the LANE's.
+ * rock on the bar with a hollow cut for each of the eight -- at the eight
+ * boxes the filter elements report, so a caption always lands on a hollow. The
+ * plates themselves are hidden: a 2004 chat filter is a caption on a hollow
+ * with nothing between the rock and the text, and the captions are the LANE's.
  *
- * Re-read every frame because the pack is mounted and rebuilt on the lane's
- * schedule; unchanged pictures are retained-edit no-ops.
+ * The UNDRESSING is gone, and that is the port's clearest single win. There
+ * used to be a `chat_dressed` flag, and a branch that found the backing, the
+ * bar and all eight plates and `reset` each one when the frame stopped being
+ * this plugin's -- a whole second code path, reached on a provider switch,
+ * that could and did leave dressing behind when it was not. Now the dressing
+ * is simply not described, and the diff takes it off.
  */
 static void
-frame_chat_dress(struct FrameCall* ctx)
+frame_describe_chat_dress(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* describe)
 {
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
     struct FrameState* state = ctx->state;
-    struct ToriRS_WidgetRef backing;
-    struct ToriRS_WidgetRef bar;
-    struct ToriRS_WidgetBounds backing_box;
-    struct ToriRS_WidgetBounds bar_box;
+    struct PorcelainElementState bar;
+    struct PorcelainElementState backing;
     struct FrameChatCell cell[FRAME_CHAT_CELL_MAX];
     int cell_count = 0;
-    struct ToriRS_ImageRef paper;
-    struct ToriRS_ImageRef rock;
-    char role[32];
+    struct FrameArt rock;
 
     assert(ctx);
-    if( !state->provided || g_plan.layout != FRAME_CLASSIC_FIXED || !frame_lane_oldschool(ctx) )
-    {
-        /* Not this frame's chatbox to dress. A dressing left from a frame
-         * this plugin no longer provides goes with the plugin's edits. */
-        if( state->chat_dressed )
-        {
-            if( ui->find(ui->context, "chat_backing", &backing) == TORIRS_CONTRACT_OK )
-                (void)ui->reset(ui->context, backing);
-            if( ui->find(ui->context, "chat_bar", &bar) == TORIRS_CONTRACT_OK )
-                (void)ui->reset(ui->context, bar);
-            for( int i = 0; i < FRAME_CHAT_CELL_MAX; i++ )
-            {
-                struct ToriRS_WidgetRef plate;
-                (void)snprintf(role, sizeof(role), "chat_plate_%d", i);
-                if( ui->find(ui->context, role, &plate) == TORIRS_CONTRACT_OK )
-                    (void)ui->reset(ui->context, plate);
-            }
-            state->chat_dressed = 0;
-        }
+    if( g_plan.layout != FRAME_CLASSIC_FIXED || !frame_lane_oldschool(ctx) )
         return;
-    }
-    /* The BAR's box first: every hollow is measured from its left edge, and a
-     * bar with no box is a pack the server has not mounted yet. */
-    if( ui->find(ui->context, "chat_bar", &bar) != TORIRS_CONTRACT_OK ||
-        ui->bounds(ui->context, bar, &bar_box) != TORIRS_CONTRACT_OK || bar_box.width <= 0 || bar_box.height <= 0 )
+    /*
+     * The PACK before its parts.
+     *
+     * The bar, the backing and the eight plates are all children of interface
+     * 162, which the server mounts several frames after the toplevel. Asking
+     * about a child before the pack exists gets it called ABSENT -- the layer
+     * gives an element two fences of failed resolution before it says so --
+     * and an absence recorded for something that binds a frame later is a
+     * finding nobody can act on. The container is one ask that answers for
+     * all ten.
+     */
+    if( !Porcelain_Element(state->porcelain, PORCELAIN_EL(CHAT), &bar) )
+        return;
+    /* The BAR's box: every hollow is measured from its left edge, and a bar
+     * with no box is a pack whose layout has not run yet. */
+    if( !Porcelain_Element(state->porcelain, PORCELAIN_EL(CHAT_BAR), &bar) || bar.box.width <= 0 ||
+        bar.box.height <= 0 )
         return;
     for( int i = 0; i < FRAME_CHAT_CELL_MAX; i++ )
     {
-        struct ToriRS_WidgetRef plate;
-        struct ToriRS_WidgetBounds box;
-        (void)snprintf(role, sizeof(role), "chat_plate_%d", i);
-        if( ui->find(ui->context, role, &plate) != TORIRS_CONTRACT_OK ||
-            ui->bounds(ui->context, plate, &box) != TORIRS_CONTRACT_OK || box.width <= 0 || box.height <= 0 )
+        struct PorcelainElementState plate;
+        if( !Porcelain_Element(state->porcelain, PORCELAIN_CHAT_FILTER_EL(i), &plate) ||
+            plate.box.width <= 0 || plate.box.height <= 0 )
             continue;
-        cell[cell_count++] = (struct FrameChatCell){ box.x - bar_box.x, box.y - bar_box.y, box.width, box.height };
+        cell[cell_count++] = (struct FrameChatCell){ plate.box.x - bar.box.x,
+                                                     plate.box.y - bar.box.y, plate.box.width,
+                                                     plate.box.height };
     }
     rock = frame_chat_bar_art(
-        ctx, &g_chat_bar, "classic_chat_bar", bar_box.width, bar_box.height, (struct ToriRS_ImageRef){ 0 }, cell,
-        cell_count, /*band_y=*/FRAME_O_CHAT_BAND_LIP, /*band_h=*/bar_box.height + FRAME_O_CHAT_BAND_LIP);
-    if( rock.value == 0 )
+        ctx, &g_chat_bar, "classic_chat_bar", bar.box.width, bar.box.height,
+        (struct ToriRS_ImageRef){ 0 }, cell, cell_count, /*band_y=*/FRAME_O_CHAT_BAND_LIP,
+        /*band_h=*/bar.box.height + FRAME_O_CHAT_BAND_LIP);
+    if( !rock.name )
         return;
-    (void)ui->set_image(ui->context, bar, rock, 0, 0);
-    if( ui->find(ui->context, "chat_backing", &backing) == TORIRS_CONTRACT_OK &&
-        ui->bounds(ui->context, backing, &backing_box) == TORIRS_CONTRACT_OK && backing_box.width > 0 &&
-        backing_box.height > 0 )
+    describe->skin(describe, PORCELAIN_EL(CHAT_BAR), rock.name, NULL);
+    if( Porcelain_Element(state->porcelain, PORCELAIN_EL(CHAT_BACKING), &backing) &&
+        backing.box.width > 0 && backing.box.height > 0 )
     {
-        paper = frame_sized_art(
-            ctx, &g_chat_paper, frame_compose_chat_backing, "classic_chat_paper", backing_box.width,
-            backing_box.height);
-        if( paper.value != 0 )
-            (void)ui->set_image(ui->context, backing, paper, 0, 0);
+        struct FrameArt const paper = frame_sized_art(
+            ctx, &g_chat_paper, frame_compose_chat_backing, "classic_chat_paper",
+            backing.box.width, backing.box.height);
+        if( paper.name )
+            describe->skin(describe, PORCELAIN_EL(CHAT_BACKING), paper.name, NULL);
     }
     /* The eight plates, hidden: the caption above each is the lane's own and
      * stays, mode line and all, straight on the rock. */
     for( int i = 0; i < FRAME_CHAT_CELL_MAX; i++ )
     {
-        struct ToriRS_WidgetRef plate;
-        (void)snprintf(role, sizeof(role), "chat_plate_%d", i);
-        if( ui->find(ui->context, role, &plate) == TORIRS_CONTRACT_OK )
-            (void)ui->set_hidden(ui->context, plate, true);
-    }
-    state->chat_dressed = 1;
-}
-
-/*
- * Drop this plugin's retained edits on the live surfaces and their members
- * before the next plan writes its own. The setters only ever ADD: a layout
- * that re-skins the compass followed by one that does not would leave the
- * rose behind, and a member one plan hid stays hidden for the next.
- */
-static void
-frame_reset_surfaces(struct FrameCall* ctx)
-{
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
-
-    assert(ctx);
-    for( int s = 0; s < FRAME_SURFACE_COUNT; s++ )
-    {
-        struct ToriRS_WidgetRef members[FRAME_MEMBER_MAX];
-        size_t member_count = 0;
-        struct ToriRS_WidgetRef widget;
-
-        if( ui->find(ui->context, FRAME_SURFACE_ROLE[s], &widget) == TORIRS_CONTRACT_OK )
-            (void)ui->reset(ui->context, widget);
-        if( ui->find_all(ui->context, FRAME_SURFACE_ROLE[s], members, FRAME_MEMBER_MAX, &member_count) !=
-            TORIRS_CONTRACT_OK )
-            continue;
-        for( size_t m = 0; m < member_count && m < FRAME_MEMBER_MAX; m++ )
-            if( ToriRS_WidgetRefValid(members[m]) )
-                (void)ui->reset(ui->context, members[m]);
+        struct PorcelainElementState plate;
+        if( Porcelain_Element(state->porcelain, PORCELAIN_CHAT_FILTER_EL(i), &plate) )
+            describe->hide(describe, PORCELAIN_CHAT_FILTER_EL(i));
     }
 }
 
 /*
- * Everything this plugin put on the tree, gone: the frame was given back while
- * the plugin still runs -- the host released it, or the provider declined the
- * root it now finds itself over -- and the lane's own chrome comes up under
- * whatever is left. The chat dressing goes at the next frame start, which
- * already takes it off a frame this plugin no longer provides.
- * @see frame_chat_dress
+ * The whole frame, as one description.
+ *
+ * Run by Porcelain_FrameEvent when the host asks for the frame, and again
+ * whenever one of the layer's own inputs moved -- the canvas resized, a role
+ * rebound, an asset landed, this plugin invalidated. The layout is rebuilt
+ * from nothing every run and that is deliberate: every number in it is derived
+ * from the canvas and from what the lane has bound, and a plan carried over
+ * from a run whose inputs are gone is exactly the stale frame the provider
+ * used to ship.
+ *
+ * PENDING comes out of this for free. A description that asked about an
+ * element which has not resolved yet holds the frame back by rule (@see
+ * porcelain_frame_run_pending), which is the convergence the one-shot PENDING
+ * in the old provider got wrong -- it answered PENDING once and was never
+ * re-asked, and the frame never came up at all.
  */
 static void
-frame_clear(struct FrameCall* ctx)
+frame_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
 {
-    struct FrameState* state = ctx->state;
+    struct FrameState* state = user;
+    struct FrameCall call;
+    struct FrameCall* ctx = &call;
+    struct PorcelainElementState viewport;
+    int canvas_w;
+    int canvas_h;
 
-    assert(ctx);
-    for( int i = 0; i < FRAME_BLIT_MAX; i++ )
-        frame_owned_drop(ctx, &state->piece[i]);
-    frame_owned_drop(ctx, &state->housing);
-    for( int i = 0; i < FRAME_TAB_COUNT; i++ )
-    {
-        frame_owned_drop(ctx, &state->tab[i]);
-        frame_owned_drop(ctx, &state->face[i]);
-        frame_owned_drop(ctx, &state->icon[i]);
-    }
-    for( int i = 0; i < 3; i++ )
-        frame_owned_drop(ctx, &state->chat_switch[i]);
-    frame_reset_surfaces(ctx);
+    assert(describe);
+    assert(state);
+    frame_call_init(&call, state->api, state);
+
+    canvas_w = state->canvas_w;
+    canvas_h = state->canvas_h;
+    frame_usable_canvas(ctx, &canvas_w, &canvas_h);
+
+    frame_build_redstones(ctx);
+    frame_build_classic_masks(ctx);
+
     memset(&g_plan, 0, sizeof(g_plan));
-}
-
-/* The whole plan onto the tree. PENDING until the lane has a scene to arrange
- * around, which is the ordinary state for the first frames after login. */
-static enum ToriRS_FrameBuildResult
-frame_apply(struct FrameCall* ctx, char* reason, size_t reason_capacity)
-{
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
-    struct ToriRS_WidgetRef viewport;
-    struct ToriRS_WidgetRef parent;
-
-    assert(ctx);
-    if( ui->find(ui->context, FRAME_SURFACE_ROLE[FRAME_SURFACE_VIEWPORT], &viewport) != TORIRS_CONTRACT_OK )
+    g_plan.layout = state->layout;
+    g_plan.canvas_w = canvas_w;
+    g_plan.canvas_h = canvas_h;
+    switch( g_plan.layout )
     {
-        (void)snprintf(reason, reason_capacity, "%s", "The gameframe is waiting for the scene.");
-        return TORIRS_FRAME_PENDING;
+    case FRAME_MODERN_FIXED:
+        frame_layout_modern_fixed(ctx);
+        break;
+    case FRAME_MODERN_RESIZABLE:
+        frame_layout_modern_resizable(ctx, canvas_w, canvas_h);
+        break;
+    default:
+        frame_layout_classic_fixed(ctx);
+        break;
     }
-    /* The frame's own children live under the ROOT the lane arranges its frame
-     * in -- the 2004 fixed shell, an OldSchool toplevel -- and not under the
-     * scene's own container: on 548 that container is the size of the scene
-     * and clips its children, so a surround placed beside the scene from
-     * inside it painted nothing at all. */
-    parent = viewport;
-    for( int depth = 0; depth < 32; depth++ )
-    {
-        struct ToriRS_WidgetRef above;
-        if( ui->parent(ui->context, parent, &above) != TORIRS_CONTRACT_OK )
-            break;
-        parent = above;
-    }
-    /* World, chrome, stones, surfaces: each anchored over the last of the
-     * one before, so the stack order is stated once, here. */
-    frame_reset_surfaces(ctx);
-    frame_apply_surfaces(ctx, viewport, frame_apply_tabs(ctx, parent, frame_apply_pieces(ctx, parent, viewport)));
-    frame_apply_skins(ctx);
-    frame_apply_housing(ctx, parent);
-    frame_refresh_tabs(ctx);
-    return TORIRS_FRAME_READY;
+
+    /*
+     * Nothing at all until the lane has a scene to arrange around.
+     *
+     * Asking is what holds the frame PENDING, so this is both the guard and
+     * the answer: the viewport is the one element every layout needs, and a
+     * run that got no further stated nothing, which the reconcile takes as
+     * "remove what I own" -- correct on a remount, where the nodes those keys
+     * named are gone anyway.
+     */
+    if( !Porcelain_Element(state->porcelain, PORCELAIN_EL(VIEWPORT), &viewport) )
+        return;
+    /* Noticed here and reported after the fence: invalidating from inside a
+     * describe is the trap the layer documents -- the reconcile runs once per
+     * fence on the LAST pass's scratch, so a run that invalidates itself has
+     * its own description discarded. @see FrameState::remounted. */
+    if( state->viewport_incarnation && state->viewport_incarnation != viewport.incarnation )
+        state->remounted = true;
+    state->viewport_incarnation = viewport.incarnation;
+
+    frame_describe_chrome(ctx, describe);
+    frame_describe_surfaces(ctx, describe);
+    frame_describe_skins(ctx, describe);
+    frame_describe_chat_dress(ctx, describe);
 }
 
 /* -------------------------------------------------------------- the events */
@@ -3584,58 +4026,98 @@ frame_call_init(struct FrameCall* call, struct ToriRS_Api* api, struct FrameStat
  * OldSchool docks interface 728's strip on the canvas's right edge at full
  * height, and at a 765 window grows the canvas to 807 to keep its own frame
  * whole beside it; the strip is mounted, painted and swallows clicks whatever
- * frame is selected. A frame that took the whole canvas slid its map ring under
- * the strip (gf-review-matrix40-v1/m07). The strip is the profile role
- * `lane_chrome_0`, which is how the builder's FRAME_BUILD area subtracted it;
- * a strip on either edge moves that edge in, and one across neither is
- * ignored. The role is watched, so a strip mounting after login re-plans.
+ * frame is selected. A frame that took the whole canvas slid its map ring
+ * under the strip (gf-review-matrix40-v1/m07).
+ *
+ * The strip used to be found, asked whether it was visible, asked for its box
+ * and then subtracted here, with the edge test written out. Porcelain_Usable
+ * is that whole answer: the frame root's box less a LANE_CHROME strip, and
+ * only one that is PRESENTED and spans a full edge -- which is the same rule,
+ * stated once, and gets 601's bound, laid-out, hidden 58x46 strip right
+ * without this file having to know that 601 has one.
+ *
+ * It is INTERSECTED with the canvas the host offered rather than replacing it.
+ * The two are the same number on every desktop root, and where they are not
+ * the host's is the contract: the offer said this frame would lay out in a
+ * canvas of that size and the root's box is an observation about the lane.
  */
 static void
-frame_usable_canvas(struct FrameCall* ctx, struct ToriRS_GameframeEvent const* event, int* width, int* height)
+frame_usable_canvas(struct FrameCall* ctx, int* width, int* height)
 {
-    struct ToriRS_WidgetApi* ui = &g_api->widgets;
-    struct ToriRS_WidgetRef strip;
-    struct ToriRS_WidgetBounds box;
-    bool visible = false;
-
     assert(ctx);
-    assert(event);
     assert(width);
     assert(height);
-    if( event->canvas != TORIRS_FRAME_CANVAS_WINDOW )
+    if( ctx->state->canvas != TORIRS_FRAME_CANVAS_WINDOW )
         return;
-    /* First what the PLATFORM covers -- the phone's keyboard band -- which
-     * the host states as the safe rect and re-asks this frame about when it
-     * moves. The whole canvas when nothing is up. */
-    if( event->safe.width > 0 && event->safe.height > 0 && event->safe.x >= 0 && event->safe.y >= 0 &&
-        event->safe.x + event->safe.width <= *width && event->safe.y + event->safe.height <= *height )
+    /* First what the PLATFORM covers -- the phone's keyboard band -- which the
+     * host states as the safe rect and re-asks this frame about when it moves.
+     * The whole canvas when nothing is up.
+     *
+     * Read off the event and kept here, because the layer takes the safe rect
+     * as an INPUT to Porcelain_FrameEvent and gives a description no way to
+     * read it back. @see FrameState::safe. */
+    if( ctx->state->safe.width > 0 && ctx->state->safe.height > 0 && ctx->state->safe.x >= 0 &&
+        ctx->state->safe.y >= 0 && ctx->state->safe.x + ctx->state->safe.width <= *width &&
+        ctx->state->safe.y + ctx->state->safe.height <= *height )
     {
-        ctx->origin_x = event->safe.x;
-        ctx->origin_y = event->safe.y;
-        *width = event->safe.width;
-        *height = event->safe.height;
+        ctx->origin_x = ctx->state->safe.x;
+        ctx->origin_y = ctx->state->safe.y;
+        *width = ctx->state->safe.width;
+        *height = ctx->state->safe.height;
     }
-    if( ui->find(ui->context, "lane_chrome_0", &strip) != TORIRS_CONTRACT_OK ||
-        ui->visible(ui->context, strip, &visible) != TORIRS_CONTRACT_OK || !visible ||
-        ui->bounds(ui->context, strip, &box) != TORIRS_CONTRACT_OK || box.width <= 0 || box.height <= 0 ||
-        box.width >= *width )
-        return;
-    if( box.x > ctx->origin_x && box.x + box.width >= ctx->origin_x + *width )
-        *width = box.x - ctx->origin_x;
-    else if( box.x <= ctx->origin_x && box.x + box.width < ctx->origin_x + *width )
+    /*
+     * The strip, by ELEMENT, and the subtraction against the OFFERED canvas.
+     *
+     * Porcelain_Usable is the verb for this and it could not be used. It
+     * answers an absolute rect derived from the frame ROOT's box, and the root
+     * is not the canvas this frame was offered: OldSchool grows the canvas to
+     * 807 at a 765 window to keep its own frame whole beside interface 728's
+     * strip, so the strip stands at 765 -- outside a 765-wide root entirely --
+     * and a rect that is the root minus nothing is a canvas with the strip
+     * still in it. Adopting the rect outright is worse: it laid a 1200-wide
+     * window out in the root's 765 columns.
+     *
+     * So the RULE is read off the element and applied to the host's number.
+     * What is left of the old provider's `find` + `visible` + `bounds` is one
+     * element ask, and `presented` is the answer to all three.
+     * @see the port report: the verb should answer the cuts, not the rect.
+     */
+    /* How many strips this lane HAS, by data: asking about one it does not
+     * have is an ABSENT finding per member per lane for a fact the count
+     * answers without a watch. This is the same reason the minimap orbs ask
+     * Porcelain_Count before asking for an ORB. */
+    for( int member = 0,
+             strips = Porcelain_Count(ctx->state->porcelain, PORCELAIN_EL_LANE_CHROME);
+         member < strips; member++ )
     {
-        *width -= box.x + box.width - ctx->origin_x;
-        ctx->origin_x = box.x + box.width;
+        struct PorcelainElementState strip;
+        if( !Porcelain_Element(ctx->state->porcelain, PORCELAIN_CHROME_EL(member), &strip) )
+            continue;
+        if( !strip.presented || strip.box.width <= 0 || strip.box.height <= 0 ||
+            strip.box.width >= *width )
+            continue;
+        /* A strip on either edge moves that edge in; one across neither is
+         * ignored, which is the 601 case the lane chrome family exists for. */
+        if( strip.box.x > ctx->origin_x && strip.box.x + strip.box.width >= ctx->origin_x + *width )
+            *width = strip.box.x - ctx->origin_x;
+        else if( strip.box.x <= ctx->origin_x && strip.box.x + strip.box.width < ctx->origin_x + *width )
+        {
+            *width -= strip.box.x + strip.box.width - ctx->origin_x;
+            ctx->origin_x = strip.box.x + strip.box.width;
+        }
     }
 }
 
 /*
  * The frame is asked for, or given back.
  *
- * Nothing before the gameframe exists: on the title screen there is no frame
- * to dress, and a plan applied there would hide title furniture behind a frame
- * for a screen nobody is on yet. PENDING keeps the lane's own frame up until
- * the game screen, when the host asks again.
+ * Three answers are this plugin's own and are given before the layer is
+ * reached, because none of them is a question about an element: the title
+ * screen has no frame to dress, a Classic Fixed asked for over the mobile top
+ * is a desktop frame over a layout it was not cut for, and the offer id picks
+ * the layout. Everything after that is the description, and
+ * Porcelain_FrameEvent runs it, fences it and answers READY, PENDING or
+ * UNSUPPORTED from what the run touched.
  */
 static enum ToriRS_FrameBuildResult
 frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_GameframeEvent const* event)
@@ -3644,8 +4126,6 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
     struct FrameCall call;
     struct FrameCall* ctx = &call;
     enum ToriRS_FrameBuildResult result;
-    int canvas_w;
-    int canvas_h;
 
     assert(api);
     assert(state);
@@ -3653,9 +4133,21 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
     frame_call_init(&call, api, state);
     if( !event->active )
     {
-        frame_clear(ctx);
+        /* A release is a description that stages nothing, run and fenced by
+         * the layer: the moves, the hides, the skins and every owned control
+         * come off in one pass and the claims go with them. `frame_clear`,
+         * the sixty-three drops and `frame_reset_surfaces` were that, by
+         * hand, and the one thing they could not undo was a dressing left on
+         * a chat pack by a frame this plugin no longer provides. */
+        enum ToriRS_FrameBuildResult const released =
+            (enum ToriRS_FrameBuildResult)Porcelain_FrameEvent(state->porcelain, event);
         state->provided = 0;
-        return TORIRS_FRAME_READY;
+        state->layout = -1;
+        /* Porcelain_FrameEvent fences; a fence whose writes nobody committed
+         * is a frame of stale layout and the layer says so. The per-frame
+         * fence commits its own, and this one is not on that path. */
+        Porcelain_Commit(api);
+        return released;
     }
     if( api->core.screen(api) != TORIRS_SCREEN_GAME )
     {
@@ -3671,34 +4163,37 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
             (void)snprintf(
                 event->reason, event->reason_capacity, "%s",
                 "Classic Fixed is a desktop frame; choose Stone Drawer for the native mobile layout.");
+            state->declined_root = mobile;
             return TORIRS_FRAME_UNSUPPORTED;
         }
     }
-    canvas_w = event->width;
-    canvas_h = event->height;
-    frame_usable_canvas(ctx, event, &canvas_w, &canvas_h);
+    state->declined_root = -1;
+    /* Before the description, because the description READS the stash and the
+     * host may ask for the frame before it has started one. @see
+     * frame_poll_tabs. */
+    (void)frame_poll_tabs(api, state);
 
-    frame_build_redstones(ctx);
-    frame_build_classic_masks(ctx);
+    /*
+     * The canvas, carried by hand from the event to the description.
+     *
+     * Porcelain_FrameEvent already takes these four numbers, compares them,
+     * stores them and notes PORCELAIN_INPUT_CANVAS when they move -- and then
+     * hands the describe function nothing but its own user pointer. A layout
+     * has no other input, so every frame provider written against this layer
+     * will copy exactly these lines. @see the port report.
+     */
+    state->layout = frame_layout_resolve(event->offer_id);
+    assert((state->layout == FRAME_MODERN_RESIZABLE) == (event->canvas == TORIRS_FRAME_CANVAS_WINDOW));
+    state->canvas = event->canvas;
+    state->canvas_w = event->width;
+    state->canvas_h = event->height;
+    state->safe.x = event->safe.x;
+    state->safe.y = event->safe.y;
+    state->safe.width = event->safe.width;
+    state->safe.height = event->safe.height;
 
-    memset(&g_plan, 0, sizeof(g_plan));
-    g_plan.layout = frame_layout_resolve(event->offer_id);
-    assert((g_plan.layout == FRAME_MODERN_RESIZABLE) == (event->canvas == TORIRS_FRAME_CANVAS_WINDOW));
-    g_plan.canvas_w = canvas_w;
-    g_plan.canvas_h = canvas_h;
-    switch( g_plan.layout )
-    {
-    case FRAME_MODERN_FIXED:
-        frame_layout_modern_fixed(ctx);
-        break;
-    case FRAME_MODERN_RESIZABLE:
-        frame_layout_modern_resizable(ctx, canvas_w, canvas_h);
-        break;
-    default:
-        frame_layout_classic_fixed(ctx);
-        break;
-    }
-    result = frame_apply(ctx, event->reason, event->reason_capacity);
+    result = (enum ToriRS_FrameBuildResult)Porcelain_FrameEvent(state->porcelain, event);
+    Porcelain_Commit(api);
     state->provided = result == TORIRS_FRAME_READY;
     /*
      * One line per plan: selection, resize, explicit invalidation, or rebuild.
@@ -3709,8 +4204,8 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
     if( state->logged_layout != g_plan.layout || state->logged_pending != (result != TORIRS_FRAME_READY) ||
         result == TORIRS_FRAME_READY )
         api->core.log(
-            api, "layout %s at %dx%d: %d chrome pieces, %d tabs%s%s", FRAME_LAYOUT_NAME[g_plan.layout], canvas_w,
-            canvas_h, g_plan.blit_count + g_plan.housing_placed, g_plan.tab_count,
+            api, "layout %s at %dx%d: %d chrome pieces, %d tabs%s%s", FRAME_LAYOUT_NAME[g_plan.layout], g_plan.canvas_w,
+            g_plan.canvas_h, g_plan.blit_count + g_plan.housing_placed, g_plan.tab_count,
             result == TORIRS_FRAME_READY ? "" : " (pending)",
             frame_lane_oldschool(ctx) ? " over the OldSchool toplevel" : "");
     state->logged_layout = g_plan.layout;
@@ -3719,67 +4214,114 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
 }
 
 static void
-frame_image_request(struct ToriRS_Api* api, struct FrameState* state, int image)
-{
-    struct ToriRS_ImageRef token = { 0 };
-    enum ToriRS_AssetState result;
-
-    assert(api);
-    assert(state);
-    assert(image >= 0 && image < FRAME_IMG_COUNT);
-    if( !FRAME_IMAGE_FILE[image] )
-        return;
-    result = api->assets.image(api, FRAME_IMAGE_FILE[image], &token);
-    if( token.value != 0 )
-        state->image_token[image] = token;
-    if( result == TORIRS_ASSET_READY )
-    {
-        state->image[image] = token;
-        state->image_ready[image] = true;
-    }
-    else if( result != TORIRS_ASSET_PENDING )
-        api->core.log(api, "could not load %s", FRAME_IMAGE_FILE[image]);
-}
-
-/*
- * A role this frame arranges came or went -- the toplevel mounted after login,
- * a remount replaced the chat pack, the sidebar rebuilt. The retained edits
- * on the old nodes died with them; ask the host for another plan pass, which
- * re-applies onto whatever is bound now.
- */
-static void
-frame_role_changed(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
-{
-    (void)user;
-    assert(api);
-    assert(event);
-    if( event->type == TORIRS_WIDGET_BOUND || event->type == TORIRS_WIDGET_UNBOUND )
-        api->frame.invalidate(api);
-}
-
-static void
 frame_on_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct FrameState* state = state_ptr;
     uint32_t const clear = 0;
-    static char const* const WATCHED[] = { "viewport", "chat", "sidebar", "minimap", "lane_chrome_0" };
-
     assert(api);
     assert(state);
     memset(state, 0, sizeof(*state));
     state->api = api;
     state->chat_open = true;
+    state->layout = -1;
+    state->declined_root = -1;
     state->logged_layout = -1;
+
+    state->porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_GAMEFRAME, state);
+    assert(state->porcelain);
+    g_frame_porcelain_for_testing = state->porcelain;
+
+    /*
+     * The chat pack's own size, declared unsupported on the lanes that do not
+     * state one.
+     *
+     * The layout asks Porcelain_NativeSize(CHAT) for the pixel box the LANE
+     * authored its chatbox at, and falls back to the 519x165 the OldSchool
+     * packs all use when the lane has no answer. A lane with no stated size is
+     * a fact about the lane, not a failure, and declaring it is what keeps the
+     * clean-findings gate meaningful: an UNSUPPORTED nobody declared is the
+     * thing the gate is for.
+     */
+    Porcelain_ExpectUnsupported(state->porcelain,
+                                "the lane states no pixel size for this surface",
+                                "the chat falls back to the 519x165 every OldSchool pack uses");
+
+    /*
+     * The three offers, each bound to the same description.
+     *
+     * The OFFERS themselves are static data in ToriRS_PluginDef.frames and the
+     * host resolves auto/native before this plugin starts, so registration
+     * order cannot change which one is asked for; what is bound here is the
+     * DESCRIPTION of each, and the layout it runs is the offer id.
+     */
+    Porcelain_Frame(state->porcelain, "classic-fixed", TORIRS_FRAME_CANVAS_FIXED, FRAME_FIXED_W,
+                    FRAME_FIXED_H, frame_describe, state);
+    Porcelain_Frame(state->porcelain, "modern-fixed", TORIRS_FRAME_CANVAS_FIXED, FRAME_FIXED_W,
+                    FRAME_FIXED_H, frame_describe, state);
+    Porcelain_Frame(state->porcelain, "modern-resizable", TORIRS_FRAME_CANVAS_WINDOW, FRAME_FIXED_W,
+                    FRAME_FIXED_H, frame_describe, state);
+
+    /*
+     * The names, once. Every shipped picture is named from the table and its
+     * handle arrives when the description first asks for it; the gaps in the
+     * table are slots no layout ships and stay NULL. @see frame_art.
+     */
     for( int i = 0; i < FRAME_IMG_COUNT; i++ )
-        frame_image_request(api, state, i);
-    (void)api->assets.image_compose(api, "frame_blank.png", 1, 1, &clear, &state->blank);
-    for( size_t i = 0; i < sizeof(WATCHED) / sizeof(WATCHED[0]); i++ )
-        (void)api->widgets.watch(api->widgets.context, WATCHED[i], frame_role_changed, state);
+        state->image[i].name = FRAME_IMAGE_FILE[i];
+
+    /* The keys the description names its own children by. Built once because
+     * a key must outlive the describe that stated it, and because building
+     * sixty-three strings per fence is what the retained layer exists to
+     * stop. */
+    for( int i = 0; i < FRAME_BLIT_MAX; i++ )
+        (void)snprintf(state->piece_key[i], sizeof(state->piece_key[i]), "piece.%02d", i);
+    for( int i = 0; i < FRAME_TAB_COUNT; i++ )
+    {
+        (void)snprintf(state->tab_key[i], sizeof(state->tab_key[i]), "tab.%02d", i);
+        (void)snprintf(state->face_key[i], sizeof(state->face_key[i]), "face.%02d", i);
+        (void)snprintf(state->icon_key[i], sizeof(state->icon_key[i]), "icon.%02d", i);
+    }
+    for( int i = 0; i < 3; i++ )
+        (void)snprintf(state->switch_key[i], sizeof(state->switch_key[i]), "chatsw.%d", i);
+    /* One `<slot>:<member>` per member this frame can place. @see
+     * frame_member_element for why these are spelled at all. */
+    for( int s = 0; s < FRAME_SURFACE_COUNT; s++ )
+        for( int m = 0; m < FRAME_MEMBER_MAX; m++ )
+            (void)snprintf(state->member_role[s][m], sizeof(state->member_role[s][m]), "%s:%d",
+                           FRAME_SURFACE_ROLE[s], m);
+
+    state->blank.name = "frame_blank.png";
+    (void)api->assets.image_compose(api, state->blank.name, 1, 1, &clear, &state->blank.ref);
+
+    /*
+     * No widget watches of this plugin's own, and that is forced.
+     *
+     * The provider used to keep five -- viewport, chat, sidebar, minimap and
+     * the lane's popout strip -- and call frame.invalidate from them. Porcelain
+     * watches every element the description names, which is all five and
+     * thirty more, and the host keeps ONE watch slot per (plugin, role):
+     * widget_subscribe finds an existing slot by role name and memsets it. So
+     * the two registrations replace each other, last writer wins, and which
+     * one that is depends on whether the describe ran before or after
+     * on_start. The remount is noticed inside the description instead.
+     * @see frame_describe and the port report.
+     */
 }
 
 /*
- * The per-frame half: which stone is lit and which icons are given, the
- * OldSchool chat pack's dressing, and the resizable frame's collapsed state.
+ * The per-frame half.
+ *
+ * Two things move between descriptions without any of the layer's own inputs
+ * moving, so this plugin says so itself rather than re-describing blind:
+ * which stone is lit and which icons the server has handed over, and -- on the
+ * resizable frame, which draws the closed sidebar rather than opening it --
+ * whether a tab is open at all. Opening or closing a tab is neither a resize
+ * nor a rebuild, and nothing else re-runs a layout for it.
+ *
+ * Everything else the frame used to do here is gone: the tab refresh that
+ * compared two arrays of last-written state against the live answer, and the
+ * chat dressing that was re-applied and conditionally un-applied every single
+ * frame whether or not the pack had moved.
  */
 static void
 frame_on_frame_start(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_FrameEvent const* event)
@@ -3792,15 +4334,41 @@ frame_on_frame_start(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Fram
     assert(api);
     assert(state);
     frame_call_init(&call, api, state);
-    frame_chat_dress(ctx);
-    if( !state->provided || api->core.screen(api) != TORIRS_SCREEN_GAME )
-        return;
-    frame_refresh_tabs(ctx);
-    /* The resizable frame draws the closed sidebar rather than opening it, and
-     * re-plans when that answer moves: opening or closing a tab is neither a
-     * resize nor a rebuild, so nothing else re-runs the layout for it. */
-    if( g_plan.layout == FRAME_MODERN_RESIZABLE && (frame_sidebar_open(ctx) != 0) != g_sidebar_open )
+    if( state->declined_root >= 0 && api->cache.frame_root(api) != state->declined_root )
+    {
+        /* The root this frame said no to is gone. @see FrameState::declined_root. */
+        state->declined_root = -1;
         api->frame.invalidate(api);
+    }
+    if( state->provided && api->core.screen(api) == TORIRS_SCREEN_GAME )
+    {
+        /*
+         * Two invalidations, and which one is which is the whole distinction.
+         *
+         * A lit stone changes what the description SAYS and not what the frame
+         * IS, so it goes through the layer: the next fence re-describes and
+         * the reconcile writes the two setters that moved, in this same frame.
+         * That is what the hand-written refresh pass did, minus the two arrays
+         * of last-written state it kept to know which two.
+         *
+         * A sidebar that opened or closed changes the frame's SHAPE -- the
+         * resizable layout draws the collapsed one rather than opening it --
+         * and the host has to be told, because the host owns the frame record
+         * and nothing in the layer can reach it.
+         */
+        if( frame_poll_tabs(api, state) )
+            Porcelain_Invalidate(state->porcelain);
+        if( g_plan.layout == FRAME_MODERN_RESIZABLE &&
+            (frame_sidebar_open(ctx) != 0) != g_sidebar_open )
+            api->frame.invalidate(api);
+    }
+    Porcelain_Fence(state->porcelain);
+    Porcelain_Commit(api);
+    if( state->remounted )
+    {
+        state->remounted = false;
+        api->frame.invalidate(api);
+    }
 }
 
 static void
@@ -3811,15 +4379,19 @@ frame_on_asset(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_AssetEvent
     assert(api);
     assert(state);
     assert(event);
-    if( !event->name )
-        return;
-    for( int i = 0; i < FRAME_IMG_COUNT; i++ )
-        if( FRAME_IMAGE_FILE[i] && strcmp(FRAME_IMAGE_FILE[i], event->name) == 0 )
-        {
-            frame_image_request(api, state, i);
-            api->frame.invalidate(api);
-            return;
-        }
+    (void)api;
+    (void)event;
+    /*
+     * One note, and no table walk.
+     *
+     * This used to compare the arriving name against all ninety-seven and
+     * re-request the one that matched, because a handle taken before the
+     * bytes landed stayed empty for ever. Porcelain re-asks a PENDING picture
+     * by itself at every fence and remembers a terminal answer once, so the
+     * only thing left to say is that an input moved.
+     */
+    if( state->porcelain )
+        Porcelain_Note(state->porcelain, PORCELAIN_INPUT_ASSET);
 }
 
 static void
@@ -3827,13 +4399,16 @@ frame_release_sized(struct ToriRS_Api* api, struct FrameSized* cache)
 {
     assert(api);
     assert(cache);
-    if( cache->art.value != 0 )
-        api->assets.image_release(api, cache->art);
+    if( cache->art.ref.value != 0 )
+        api->assets.image_release(api, cache->art.ref);
     memset(cache, 0, sizeof(*cache));
 }
 
-/* Every image this plugin published goes back. The owned widgets and the
- * retained edits are the host's to drop with the plugin. */
+/*
+ * Every picture this plugin COMPOSED goes back. The shipped art, the owned
+ * widgets and the retained edits are the layer's, and Porcelain_Close takes
+ * all three.
+ */
 static void
 frame_on_stop(struct ToriRS_Api* api, void* state_ptr)
 {
@@ -3841,18 +4416,24 @@ frame_on_stop(struct ToriRS_Api* api, void* state_ptr)
 
     assert(api);
     assert(state);
+    Porcelain_Close(state->porcelain);
+    g_frame_porcelain_for_testing = NULL;
+    /* The shipped art is this plugin's own now -- @see frame_image -- so it
+     * is this plugin that gives it back. Porcelain released the pictures a
+     * description NAMED when it closed, which for a name that is both is the
+     * same slot and the second release is a no-op. */
     for( int i = 0; i < FRAME_IMG_COUNT; i++ )
-        if( state->image_token[i].value != 0 )
-            api->assets.image_release(api, state->image_token[i]);
+        if( state->image[i].ref.value != 0 )
+            api->assets.image_release(api, state->image[i].ref);
     for( int i = 0; i < 3; i++ )
         for( int f = 0; f < REDSTONE_FLIP_COUNT; f++ )
-            if( state->redstone_flip[i][f].value != 0 )
-                api->assets.image_release(api, state->redstone_flip[i][f]);
+            if( state->redstone_flip[i][f].ref.value != 0 )
+                api->assets.image_release(api, state->redstone_flip[i][f].ref);
     for( int i = 0; i < FRAME_C_MASK_COUNT; i++ )
-        if( state->classic_mask[i].value != 0 )
-            api->assets.image_release(api, state->classic_mask[i]);
-    if( state->blank.value != 0 )
-        api->assets.image_release(api, state->blank);
+        if( state->classic_mask[i].ref.value != 0 )
+            api->assets.image_release(api, state->classic_mask[i].ref);
+    if( state->blank.ref.value != 0 )
+        api->assets.image_release(api, state->blank.ref);
     frame_release_sized(api, &state->chat_paper);
     frame_release_sized(api, &state->chat_bar);
     frame_release_sized(api, &state->chat_band);

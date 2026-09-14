@@ -101,6 +101,9 @@ struct PorcelainFrameState
     int canvas_height;
     struct ToriRS_WidgetBounds safe;
 
+    /** The last answer this handle gave the host. A provider that has not
+     *  come up yet is still waiting for the lane. @see Porcelain_FrameWaiting */
+    bool waiting;
     /** Porcelain_Unsupported inside the frame describe. @see the frame arm. */
     bool unsupported;
     char unsupported_reason[PORCELAIN_DETAIL_MAX];
@@ -300,6 +303,7 @@ Porcelain_FrameEvent(struct Porcelain* porcelain, struct ToriRS_GameframeEvent c
          */
         state->active = -1;
         state->unsupported = false;
+        state->waiting = false;
         Porcelain_Describe(porcelain, porcelain_frame_empty_describe, NULL);
         Porcelain_Fence(porcelain);
         Porcelain_Relinquish(porcelain);
@@ -349,17 +353,48 @@ Porcelain_FrameEvent(struct Porcelain* porcelain, struct ToriRS_GameframeEvent c
     }
     if( porcelain_frame_run_pending(porcelain) )
     {
+        state->waiting = true;
         if( event->reason && event->reason_capacity > 0 )
             snprintf(event->reason, event->reason_capacity,
                      "'%s' is waiting for the lane's own surfaces", offer->id);
         return TORIRS_FRAME_PENDING;
     }
+    state->waiting = false;
     return TORIRS_FRAME_READY;
 }
 
 /* ------------------------------------------------------------------------ */
 /* The usable canvas                                                        */
 /* ------------------------------------------------------------------------ */
+
+/*
+ * Is this handle a frame provider that has not come up yet?
+ *
+ * A provider answers PENDING for exactly as long as something its description
+ * asked about has not resolved -- that is what PENDING is FOR -- and while it
+ * is in that state the lane is still mounting the toplevel the provider is
+ * being asked to arrange. Nothing about it is absent yet.
+ *
+ * Without this, the absence clock ran through the very window the provider
+ * exists to wait out: the frame gates its whole description on the viewport,
+ * the viewport binds first, and the toplevel's chat, sidebar, modal and orb
+ * block arrive four fences later -- so all four were reported ABSENT, once
+ * each, on every desktop lane, and bound immediately afterwards. A finding
+ * nobody can act on is worse than no finding, because the clean-findings gate
+ * is how a real absence gets seen.
+ *
+ * What this buys is a MULTIPLIER on the clock and not a stop:
+ * @see PORCELAIN_ABSENT_FRAME_GRACE, which says why stopping it deadlocks.
+ */
+bool
+Porcelain_FrameWaiting(struct Porcelain* porcelain)
+{
+    struct PorcelainFrameState const* state;
+
+    assert(porcelain);
+    state = porcelain_frame_state(porcelain, false);
+    return state && state->waiting;
+}
 
 bool
 Porcelain_Usable(struct Porcelain* porcelain, struct ToriRS_WidgetBounds* out)

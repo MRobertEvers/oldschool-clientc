@@ -197,6 +197,24 @@ Testbed_MoveElement(char const* role, int x, int y)
 }
 
 void
+Testbed_RefuseAnchors(bool refuse)
+{
+    g_testbed.refuse_anchors = refuse;
+}
+
+void
+Testbed_KillControl(char const* key)
+{
+    assert(key);
+    for( int i = 0; i < TESTBED_CONTROLS_MAX; i++ )
+        if( g_testbed.controls[i].live && strcmp(g_testbed.controls[i].key, key) == 0 )
+        {
+            g_testbed.controls[i].live = false;
+            return;
+        }
+}
+
+void
 Testbed_PresentElement(char const* role, bool presented)
 {
     struct TestbedElement* element = Testbed_Element(role);
@@ -597,6 +615,10 @@ fake_set_position(void* context, struct ToriRS_WidgetRef ref, int32_t x, int32_t
     (void)context;
     testbed_log("set_position %s %d,%d", control ? control->key : (element ? element->role : "?"),
                 (int)x, (int)y);
+    /* A reference to nothing at all: the engine's answer for a node that has
+     * been destroyed. @see Testbed_KillControl. */
+    if( !control && !element )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
     if( control )
     {
         control->x = x;
@@ -690,14 +712,30 @@ fake_set_anchor(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_Widget
 {
     struct TestbedControl* control = testbed_control_by_ref(ref);
     struct TestbedElement const* element = testbed_element_by_ref(target);
+    struct TestbedElement* subject = testbed_element_by_ref(ref);
+    struct TestbedControl const* target_control = testbed_control_by_ref(target);
 
     (void)context;
-    testbed_log("set_anchor %s -> %s rel=%d", control ? control->key : "?",
-                element ? element->role : "?", (int)relation);
+    testbed_log("set_anchor %s -> %s rel=%d",
+                control          ? control->key
+                : subject        ? subject->role
+                                 : "?",
+                element                ? element->role
+                : target_control       ? target_control->key
+                                       : "?",
+                (int)relation);
+    if( g_testbed.refuse_anchors )
+        return TORIRS_CONTRACT_UNAVAILABLE;
     if( control )
     {
         control->anchor = target;
         control->relation = relation;
+    }
+    /* The subject of a `raise` is a native element. @see TestbedElement. */
+    if( subject )
+    {
+        subject->anchor = target;
+        subject->anchor_relation = relation;
     }
     return TORIRS_CONTRACT_OK;
 }

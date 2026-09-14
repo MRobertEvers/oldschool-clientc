@@ -39,8 +39,11 @@ The file is ini-ish, one declaration per line, `kind target = reason`:
   normalise   scene                = the image slot is an internal handle, and
                                       releasing the source art renumbers it
 
-`only-before` matches a whole capture line by substring, `owned-drop` names an
-owned key that must disappear, `normalise` strips `<name>=<value>` from every
+`only-before` matches a whole capture line by substring and `only-after` is
+its mirror, for a line the port ADDS; a port that moves a native box states
+one of each, because the box left one place and arrived at another.
+`role-move` names a ROLE whose resolved box changed. `owned-drop` names an
+owned key that must disappear. `normalise` strips `<name>=<value>` from every
 tail before comparing. Blank lines and lines beginning with # are ignored.
 """
 import re, sys, collections
@@ -50,7 +53,8 @@ class Expectations:
     truth. Every declaration must fire at least once."""
 
     def __init__(self, path=None):
-        self.only_before, self.owned_drop, self.normalise = {}, {}, {}
+        self.only_before, self.only_after = {}, {}
+        self.role_move, self.owned_drop, self.normalise = {}, {}, {}
         self.fired = collections.Counter()
         if not path:
             return
@@ -74,7 +78,8 @@ class Expectations:
             target = target.strip()
             if not target:
                 raise SystemExit(f"{path}:{lineno}: `{kind}` names nothing")
-            table = {"only-before": self.only_before, "owned-drop": self.owned_drop,
+            table = {"only-before": self.only_before, "only-after": self.only_after,
+                     "role-move": self.role_move, "owned-drop": self.owned_drop,
                      "normalise": self.normalise}.get(kind)
             if table is None:
                 raise SystemExit(f"{path}:{lineno}: unknown declaration `{kind}`")
@@ -87,11 +92,28 @@ class Expectations:
                 text = re.sub(rf"\s*\b{re.escape(name)}=\S+", "", text)
         return text
 
-    def excuses_line(self, line):
-        for target, _ in self.only_before.items():
+    def excuses_line(self, line, kind="only-before"):
+        """A capture line a port is declared to add or remove.
+
+        `only-after` is the mirror of `only-before` and it is not a symmetry
+        for its own sake: a port that moves a NATIVE box states one of each,
+        because the box left one place and arrived at another. Without it a
+        port whose whole job is to place a surface the old one silently failed
+        to place could never pass -- it can say the old box is gone and not
+        that the new one is right, which is half an argument.
+        """
+        table = self.only_before if kind == "only-before" else self.only_after
+        for target, _ in table.items():
             if target in line:
-                self.fired[("only-before", target)] += 1
+                self.fired[(kind, target)] += 1
                 return True
+        return False
+
+    def excuses_role(self, role):
+        """A ROLE whose resolved box the port is declared to move."""
+        if role in self.role_move:
+            self.fired[("role-move", role)] += 1
+            return True
         return False
 
     def excuses_key(self, key):
@@ -104,7 +126,8 @@ class Expectations:
         """Print what each declaration did. A declaration nobody needed is a
         failure: it claims the port changes something it does not."""
         stale = []
-        for kind, table in (("only-before", self.only_before), ("owned-drop", self.owned_drop),
+        for kind, table in (("only-before", self.only_before), ("only-after", self.only_after),
+                            ("role-move", self.role_move), ("owned-drop", self.owned_drop),
                             ("normalise", self.normalise)):
             for target, reason in table.items():
                 n = self.fired[(kind, target)]
@@ -187,7 +210,8 @@ def compare(before, after, label, expect):
     a = [expect.strip(l) for l in a]
     cb, ca = collections.Counter(b), collections.Counter(a)
     gone_lines = [l for l in (cb - ca).elements() if not expect.excuses_line(l)]
-    new_lines = list((ca - cb).elements())
+    new_lines = [l for l in (ca - cb).elements()
+                 if not expect.excuses_line(l, "only-after")]
     only_b, only_a = len(gone_lines), len(new_lines)
     print(f"{label}: bounds {len(b)} -> {len(a)}, only-before {only_b}, only-after {only_a}")
     if only_b or only_a:
@@ -195,7 +219,8 @@ def compare(before, after, label, expect):
         for l in gone_lines[:4]: print("    -", l[:150])
         for l in new_lines[:4]: print("    +", l[:150])
     rb, ra = roles(before + "/log.txt", expect), roles(after + "/log.txt", expect)
-    moved = sorted(k for k in set(rb) | set(ra) if rb.get(k) != ra.get(k))
+    moved = sorted(k for k in set(rb) | set(ra)
+                   if rb.get(k) != ra.get(k) and not expect.excuses_role(k))
     print(f"{label}: roles {len(rb)} -> {len(ra)}, differing {len(moved)}{': ' + ', '.join(moved[:6]) if moved else ''}")
     if moved: bad.append("roles")
     ob, oa = owned(before + "/log.txt", expect), owned(after + "/log.txt", expect)

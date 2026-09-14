@@ -1436,6 +1436,8 @@ enum PorcelainAspect
     PORCELAIN_ASPECT_SKIN_ART,
     PORCELAIN_ASPECT_SKIN_MASK,
     PORCELAIN_ASPECT_OPACITY,
+    /** Where an element sits in the draw order. @see ToriRS_PorcelainApi::raise */
+    PORCELAIN_ASPECT_DEPTH,
     PORCELAIN_ASPECT_COUNT
 };
 
@@ -1801,6 +1803,30 @@ struct ToriRS_PorcelainDescribe
                  struct ToriRS_WidgetBounds box, int anchor_modes);
     /** A presentation hide. Never an unhide: native hide is authoritative. */
     void (*hide)(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element);
+    /**
+     * Where a NATIVE element sits in the draw order.
+     *
+     * `move` states a box and nothing else, and for an overlay that is the
+     * whole of what it needs. A frame PROVIDER needs the other half and had
+     * no way to say it: it draws its own surround at canvas coordinates under
+     * the clipping root, so every piece of that surround is after the lane's
+     * own subtree, and the chat, the map, the panels and the orb block have
+     * to come back above it. That is one `set_anchor` per surface and the old
+     * providers each wrote it by hand.
+     *
+     * `over` of kind NONE means "above everything this plugin owns", which is
+     * the frame provider's actual sentence and the only one it can say: a
+     * depth target is an ELEMENT and an owned control is not in the element
+     * vocabulary, so "over the last piece of my chrome" is otherwise
+     * unstateable. Any other `over` is an ordinary element, and -- as with an
+     * item's `place.depth` -- it must PAINT and not merely bind, or the
+     * anchor falls back and the provider is told it lost.
+     *
+     * Undone by the diff like every other edit: an element no longer raised
+     * goes back to its native order.
+     */
+    void (*raise)(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element,
+                  struct PorcelainElement over, bool behind);
     /** Independent halves: either may be NULL to leave that half alone. */
     void (*skin)(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element,
                  char const* image, char const* mask);

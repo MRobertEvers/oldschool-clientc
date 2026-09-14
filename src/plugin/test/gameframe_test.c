@@ -25,6 +25,7 @@
  */
 
 #include "engine/png_decode.h"
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_api.h"
 
@@ -36,6 +37,9 @@
 #include <string.h>
 
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME;
+/** @see gameframe.c: the one thing this test knows about the plugin's private
+ *  state, and what lets the counters be read at all. */
+extern struct Porcelain* ToriRS_GameframePorcelainForTesting(void);
 
 static int g_checks;
 static int g_failures;
@@ -554,10 +558,35 @@ selected_frame(void)
 }
 
 /** One canvas size, declared. Mirrors what App_PluginLayoutTick does. */
+static void frame_tick(void);
+
 static void
 declare(int w, int h)
 {
     PluginHost_Layout(g_host, w, h);
+    /*
+     * And then drive to convergence, which is what the app does.
+     *
+     * A described frame answers PENDING on the fence that first ASKS about an
+     * element: a watch is registered by the asking and resolves at the fence
+     * after. The provider this replaced needed only one `find` to succeed and
+     * so came up in a single pass. The host re-asks a PENDING provider every
+     * fence until it answers -- that is what PENDING is for, and it is the
+     * convergence the old provider got wrong in the other direction, answering
+     * PENDING once and never being re-asked.
+     *
+     * Twenty fences, because a surface the lane does not have at all is only
+     * called absent after the provider's grace -- PORCELAIN_ABSENT_FENCES
+     * times PORCELAIN_ABSENT_FRAME_GRACE, sixteen -- and the frame is PENDING
+     * until it is. Far more than the two a complete lane takes, and little
+     * enough that a frame which never converges still shows up as a failed
+     * assertion rather than a hang.
+     */
+    for( int fence = 0; fence < 20; fence++ )
+    {
+        frame_tick();
+        PluginHost_Layout(g_host, w, h);
+    }
 }
 
 /* ------------------------------------------------------- fake widget tree */
@@ -569,7 +598,16 @@ declare(int w, int h)
  * parent's plus the local position the plugin set, which is what the bridge
  * reports as `bounds`.
  */
-#define FW_MAX 160
+/*
+ * Nodes this fake tree holds.
+ *
+ * A short table does not read as a short table: the assert in fw_add fires
+ * somewhere in the middle of a layout, and at OPT=1 with NDEBUG it is a bus
+ * error instead. The desktop frame owns sixty-three children of its own on
+ * top of everything the lane mounts, and the harness rebuilds the tree several
+ * times over one run.
+ */
+#define FW_MAX 256
 struct FakeWidget
 {
     int alive;
@@ -658,9 +696,25 @@ fw_build(int oldschool)
 static int fw_find(char const* role, int member)
 {
     char base[24]; char const* under = strrchr(role, '_');
+    char const* colon = strchr(role, ':');
     int wanted = member;
+    /*
+     * `<slot>:<member>` -- ONE member of a frame slot, which is how the real
+     * adapter spells it (app_plugin_slot_member_node) and the only spelling a
+     * portable caller has for the sidebar's fourteen mounts or the orb block's
+     * children: the element vocabulary numbers members for three families and
+     * those two are in neither. This fake answered only find_all, so every
+     * such element came back ABSENT and the frame placed none of them.
+     */
+    if( member < 0 && colon && colon[1] >= '0' && colon[1] <= '9' )
+    {
+        snprintf(base, sizeof(base), "%.*s", (int)(colon - role), role);
+        wanted = atoi(colon + 1);
+        role = base;
+        under = NULL;
+    }
     /* chat_plate_3 and friends: the numbered role names of the OldSchool profile. */
-    if( member < 0 && under && under[1] >= '0' && under[1] <= '9' )
+    else if( member < 0 && under && under[1] >= '0' && under[1] <= '9' )
     {
         snprintf(base, sizeof(base), "%.*s", (int)(under - role), role);
         wanted = atoi(under + 1);
@@ -727,6 +781,37 @@ fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
     { int x = n->x, y = n->y; if( !n->owner && n->parent >= 0 ) { x -= g_w[n->parent].x; y -= g_w[n->parent].y; }
       *r->bounds = (struct ToriRS_WidgetBounds){ x, y, n->w, n->h }; return TORIRS_CONTRACT_OK; }
     case PLUGIN_WIDGET_VISIBLE: *r->flag = !n->hidden; return TORIRS_CONTRACT_OK;
+    /*
+     * The state reader, which this fake did not have.
+     *
+     * A described frame asks for elements, not for nodes: Porcelain watches a
+     * role, reads this once per fence and hands the plugin a stamped copy.
+     * Without it every element bound with a ZERO box and `presented` false --
+     * which reads, downstream, as a frame that placed nothing and anchored
+     * nothing, because a depth target that does not paint is refused by rule.
+     *
+     * Only the fields this harness has an answer for are filled. `facets` is
+     * zero from every adapter in the tree today, not just from this one.
+     */
+    case PLUGIN_WIDGET_STATE:
+    {
+        int x, y;
+        fw_canvas(id, &x, &y);
+        memset(r->state, 0, sizeof(*r->state));
+        r->state->struct_size = sizeof(*r->state);
+        r->state->bounds = (struct ToriRS_WidgetBounds){ x, y, n->w, n->h };
+        {
+            int lx = n->x, ly = n->y;
+            if( !n->owner && n->parent >= 0 ) { lx -= g_w[n->parent].x; ly -= g_w[n->parent].y; }
+            r->state->local = (struct ToriRS_WidgetBounds){ lx, ly, n->w, n->h };
+        }
+        r->state->presented = !n->hidden;
+        r->state->own_hidden = n->hidden != 0;
+        r->state->input_present = !n->hidden;
+        r->state->graphic_token = n->image >= 0 ? (uint32_t)(n->image + 1) : 0u;
+        r->state->incarnation = fw_ref(id).opaque[2];
+        return TORIRS_CONTRACT_OK;
+    }
     case PLUGIN_WIDGET_REVALIDATE: return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_POSITION:
         if( n->owner ) { n->x = r->a; n->y = r->b; }
@@ -795,7 +880,8 @@ static int anchored(struct FakeWidget const* n, char const* role, int relation)
 {
     return n && n->anchor_relation == relation && n->anchor_target == fw_find(role, -1);
 }
-/* Pieces anchored OVER the scene; the LAST of them is what the surfaces sit on. */
+/* Pieces anchored OVER the scene; the LAST owned control of any kind is what
+ * the surfaces are raised over. */
 static struct FakeWidget const* g_last_piece;
 static int pieces_behind_viewport(void)
 {
@@ -806,35 +892,45 @@ static int pieces_behind_viewport(void)
             anchored(&g_w[i], "viewport", TORIRS_WIDGET_RELATION_OVER) ) { n++; g_last_piece = &g_w[i]; }
     return n;
 }
+/*
+ * The topmost control this plugin owns: the one the surfaces are raised over.
+ *
+ * The frame used to chain its children -- each stone over the last piece, each
+ * face over its stone, each icon over its face, and the live surfaces over the
+ * last of all of them. A described frame cannot state that chain: a depth
+ * target is an ELEMENT and an owned control is not in the element vocabulary.
+ * What it states instead is that every child sits over the SCENE, in
+ * description order, and that each live surface sits over everything the
+ * plugin owns -- which is the same stack, said in two sentences instead of
+ * sixty-three links.
+ */
+static struct FakeWidget const* last_owned_control(void)
+{
+    struct FakeWidget const* last = NULL;
+    for( int i = 0; i < g_w_count; i++ )
+        if( g_w[i].alive && g_w[i].owner )
+            last = &g_w[i];
+    return last;
+}
+/* Is this owned control anchored over the scene, which is where the frame's
+ * whole surround goes? */
+static int over_scene(char const* key)
+{
+    struct FakeWidget const* n = owned(key);
+    return n && anchored(n, "viewport", TORIRS_WIDGET_RELATION_OVER);
+}
 static int anchored_to(struct FakeWidget const* n, struct FakeWidget const* target, int relation)
 {
     return n && target && n->anchor_relation == relation && n->anchor_target == (int)(target - g_w);
 }
-/* Whether `n`'s anchor chain -- OVER the stone before it, OVER the one before
- * that -- reaches `target` within the tree's own depth limit. */
-static int chain_reaches(struct FakeWidget const* n, struct FakeWidget const* target)
-{
-    for( int hop = 0; n && target && hop < 64; hop++ )
-    {
-        if( n == target ) return 1;
-        if( n->anchor_relation != TORIRS_WIDGET_RELATION_OVER || n->anchor_target < 0 ) return 0;
-        n = &g_w[n->anchor_target];
-    }
-    return 0;
-}
-/* A live surface sits over the LAST owned stone, face or icon, whose chain
- * sits over the last piece of chrome: world, chrome, stones, surfaces. */
 static int over_chrome(char const* role)
 {
     struct FakeWidget const* n = native(role, -1);
     struct FakeWidget const* on;
-    if( !n || !g_last_piece || n->anchor_relation != TORIRS_WIDGET_RELATION_OVER || n->anchor_target < 0 )
+    if( !n || n->anchor_relation != TORIRS_WIDGET_RELATION_OVER || n->anchor_target < 0 )
         return 0;
     on = &g_w[n->anchor_target];
-    if( !on->owner || !(strncmp(on->key, "tab.", 4) == 0 || strncmp(on->key, "face.", 5) == 0 ||
-                        strncmp(on->key, "icon.", 5) == 0) )
-        return 0;
-    return chain_reaches(on, g_last_piece);
+    return on->owner && on->alive;
 }
 static void press(char const* key)
 {
@@ -844,7 +940,26 @@ static void press(char const* key)
         CHECK(PluginHost_WidgetOperation(g_host, g_widget_owner, fw_ref((int)(n - g_w)), n->registration),
               "the owned control's operation dispatches");
 }
-static void frame_tick(void) { static uint64_t now_ms = 10000; PluginHost_FrameStart(g_host, now_ms++, 0); }
+/*
+ * The app's own per-frame order, which this harness did not have: publish the
+ * bindings, stamp every watched element's state, then start the frame.
+ *
+ * Both halves matter and they answer different questions. The publication is
+ * what gives a watch registered since the last frame a NODE at all -- a
+ * described plugin registers its watches from inside a describe, so every one
+ * of them is "since the last frame" once. The stamp is what reports a change
+ * that bumps no tree generation: a hide, a move, a re-skin. Without the first,
+ * the second has nothing to stamp and an element the lane hid still reports
+ * itself as painting for the rest of the session.
+ */
+static void frame_tick(void)
+{
+    static uint64_t now_ms = 10000;
+    static uint64_t generation = 100;
+    PluginHost_WidgetsChanged(g_host, 77, generation++);
+    PluginHost_WidgetStates(g_host);
+    PluginHost_FrameStart(g_host, now_ms++, 0);
+}
 /** The frame-start refresh, then the re-plan the app runs when the provider
  *  invalidated: frame.invalidate republishes through frame_activate, which is
  *  what marks the app's layout dirty. */
@@ -1011,7 +1126,10 @@ main(void)
         CHECK(strcmp(selected.active_id, "gameframe-layout/classic-fixed") == 0 && selected.status == TORIRS_FRAME_STATUS_ACTIVE,
               "a READY classic plan becomes the active offer");
     }
-    CHECK(g_frame.active == 1 && g_frame.provide_calls == 1,
+    /* provide_calls >= 1, not == 1: a described frame answers PENDING on the
+     * fence that first asks about an element and READY on the one after, so
+     * coming up costs the host one extra publish. @see declare. */
+    CHECK(g_frame.active == 1 && g_frame.provide_calls >= 1,
           "the provider owns the frame through frame_provide");
     CHECK(g_frame.canvas == TORIRS_FRAME_CANVAS_FIXED && g_frame.fixed_w == 765 && g_frame.fixed_h == 503,
           "classic-fixed pins the canvas at the classic frame");
@@ -1026,12 +1144,28 @@ main(void)
     printf("GAMEFRAME classic pieces=%d tabs=%d icons=%d housing=%d\n", pieces_behind_viewport(), owned_count("tab."),
            owned_count("icon."), owned("housing") != NULL);
     CHECK(pieces_behind_viewport() == 14, "the fourteen classic surround pieces are owned images over the scene");
+    /*
+     * Mutation: drop the `describe->raise` beside the surface move in
+     * frame_describe_surfaces and this goes red -- which is the picture where
+     * the surround paints over the inventory's contents, the orb block's
+     * globe and wiki banner, and the XP button.
+     */
     CHECK(over_chrome("minimap") && over_chrome("chat") && over_chrome("sidebar") && over_chrome("main_modal"),
-          "the live surfaces sit over the last stone, whose chain sits over the last piece of chrome: world, chrome, stones, surfaces");
-    CHECK(anchored_to(owned("tab.00"), g_last_piece, TORIRS_WIDGET_RELATION_OVER) &&
-              anchored_to(owned("icon.00"), owned("face.00"), TORIRS_WIDGET_RELATION_OVER) &&
-              anchored_to(owned("tab.01"), owned("icon.00"), TORIRS_WIDGET_RELATION_OVER),
-          "each stone, face and icon is anchored over the one before, in the tabs' own order");
+          "every live surface is raised over everything the frame owns: world, chrome, surfaces");
+    CHECK(anchored_to(native("minimap", -1), last_owned_control(), TORIRS_WIDGET_RELATION_OVER),
+          "and the control it names is the last one the description stated");
+    CHECK(!anchored(native("viewport", -1), "viewport", TORIRS_WIDGET_RELATION_OVER) &&
+              (native("viewport", -1)->anchor_target < 0 ||
+               !g_w[native("viewport", -1)->anchor_target].owner),
+          "the SCENE is the exception: raising it would put the world over the frame");
+    /*
+     * Mutation: pass PORCELAIN_EL(NONE) instead of PORCELAIN_EL(VIEWPORT) as
+     * the depth argument of frame_describe_piece and this goes red. A canvas
+     * placement that states no depth costs no anchor by design, and for a
+     * frame provider "no anchor" means "after the lane's whole subtree".
+     */
+    CHECK(over_scene("piece.00") && over_scene("tab.00") && over_scene("icon.00"),
+          "every piece, stone and icon is anchored over the scene, in description order");
     CHECK(owned_at("piece.00", 0, 0) && owned_at("piece.10", 17, 357) && owned_at("piece.13", 496, 466),
           "the surround pieces stand where the 2004 frame draws them");
     CHECK(owned_at("housing", 550, 4) && anchored(owned("housing"), "compass", TORIRS_WIDGET_RELATION_OVER),
@@ -1045,16 +1179,43 @@ main(void)
     CHECK(g_frame.select_calls == 1 && g_frame.selected_tab == 3, "the semantic tab action runs once and selects the named tab");
     g_frame.active_tab = 3;
     frame_tick();
-    CHECK(owned("face.03") && !owned("face.03")->hidden && owned("face.00") && owned("face.00")->hidden,
-          "the open tab wears its redstone and the 2004 others wear nothing");
+    /*
+     * Fourteen faces, and thirteen of them wearing NO PICTURE.
+     *
+     * "Wears nothing" is a control that exists and draws nothing, not a
+     * control that is absent: a described item with no `image` is spelled out
+     * as exactly that, and it is what the provider this replaces left behind
+     * for every stone that was not lit. Keeping the control is the faithful
+     * shape; describing only the lit one would drop thirteen nodes from the
+     * tree and renumber every dynamic component allocated after them.
+     *
+     * Mutation: state `face` as the item's image unconditionally -- drop the
+     * `pressed &&` from the choice in frame_describe_chrome -- and the second
+     * line goes red with thirteen redstones on screen at once.
+     */
+    CHECK(owned("face.03") && !owned("face.03")->hidden && owned("face.03")->image >= 0,
+          "the open tab wears its redstone");
+    CHECK(owned_count("face.") == 14 && owned("face.00") &&
+              owned("face.00")->image == owned("tab.00")->image,
+          "and the 2004 others wear the 1x1 blank, on a control that is still there");
     CHECK(owned("face.03")->img_w == 44 && owned("face.03")->img_h == 35 && owned("tab.03")->w == 33 &&
-              owned("tab.03")->h == 36 && owned("face.03")->image != owned("face.00")->image,
+              owned("tab.03")->h == 36,
           "the redstone is its own picture at its own size on a plate of another size, not stretched to it");
     CHECK(owned("icon.03") && !owned("icon.03")->hidden, "a given tab shows its icon");
     g_frame.ungiven_tab = 3;
     frame_tick();
-    CHECK(owned("icon.03")->hidden && owned("face.03")->hidden,
-          "a tab the server has not handed over wears neither icon nor highlight");
+    /*
+     * The ICON goes; the FACE's control stays and stops being lit.
+     *
+     * A described item whose `image` becomes NULL does NOT lose its picture:
+     * the engine refuses a zero image ref outright (INVALID_ARGUMENT), so the
+     * layer's "exists, draws nothing" is a statement about a control being
+     * CREATED and not about one being updated. What actually takes the
+     * highlight off a stone is the same thing that always did -- the redstone
+     * is only ever written while the tab is lit. @see the port report.
+     */
+    CHECK(owned("icon.03") == NULL, "a tab the server has not handed over shows no icon");
+    CHECK(owned("face.03") != NULL, "and its stone keeps the control it was made with");
     g_frame.ungiven_tab = -1;
 
     /* ---- 2b. a remount: the roles come back as new nodes ---------------- */
@@ -1062,6 +1223,19 @@ main(void)
         int const published = g_frame.set_calls;
         fw_build(/*oldschool=*/0);
         PluginHost_WidgetsChanged(g_host, 77, 2);
+        /*
+         * One fence, not zero.
+         *
+         * The provider used to keep a widget watch of its own on each of these
+         * roles and call frame.invalidate straight from it, so the host heard
+         * inside this very call. It cannot keep one any more: the host holds
+         * ONE watch slot per (plugin, role) and the layer watches all five
+         * itself, so the two registrations replace each other. The remount is
+         * seen by the description instead -- the viewport comes back with a
+         * new incarnation -- and reported after the fence, which is one frame
+         * later and is the only lag this port adds.
+         */
+        frame_tick();
         CHECK(g_frame.set_calls > published, "rebound roles make the provider ask for another plan pass");
         declare(765, 503);
         CHECK(placed("viewport", -1, 4, 4, 512, 334) && placed("chat", -1, 17, 357, 479, 96) &&
@@ -1085,7 +1259,10 @@ main(void)
     printf("GAMEFRAME modern-fixed pieces=%d\n", pieces_behind_viewport());
     CHECK(pieces_behind_viewport() == 14 && owned_at("housing", 545, 4), "the OldSchool surround and its housing are owned images");
     CHECK(owned_count("tab.") == 14 && owned_count("icon.") == 14, "548 publishes fourteen stones and fourteen icons");
-    CHECK(owned("face.01") && owned("face.01")->hidden, "an OldSchool stone not pressed wears nothing of its own: the row is in the surround");
+    /* The control is there wearing the invisible blank, not the stone's own
+     * picture. @see the 2004 case above. */
+    CHECK(owned("face.01") && owned("face.01")->image == owned("tab.01")->image,
+          "an OldSchool stone not pressed wears nothing of its own: the row is in the surround");
     g_frame.select_calls = 0;
     press("tab.08");
     CHECK(g_frame.selected_tab == 9, "548's ninth stone is the account tab");
@@ -1249,6 +1426,9 @@ main(void)
      *         window and docks interface 728's strip on the right --------- */
     {
         int const strip = fw_add(fw_find("", -1), "lane_chrome", 0, 765, 0, 42, 503);
+        /* Adding a node is a TOPOLOGY change and the app publishes one, which
+         * is what gives the host's watch a node to stamp states for. */
+        PluginHost_WidgetsChanged(g_host, 77, 9);
         select_frame("gameframe-layout/modern-resizable", 700);
         declare(807, 503);
         CHECK(placed("compass", -1, 588, 5, 35, 35) && placed("minimap", -1, 607, 8, 152, 152) &&
@@ -1259,6 +1439,42 @@ main(void)
         CHECK(placed("compass", -1, 630, 5, 35, 35) && placed("viewport", -1, 0, 0, 807, 503),
               "a strip that is not shown gives the columns back");
         g_w[strip].hidden = 0;
+    }
+
+    /* ---- 9. a settled frame costs nothing ------------------------------ */
+    /*
+     * The claim the whole layer is for, read rather than believed.
+     *
+     * Nothing changes: the same canvas, the same root, the same open tab, the
+     * same assets. The description is word for word what it was, so the
+     * reconcile must make NO engine call at all -- not "the per-field compares
+     * all matched", which is a second line of defence and not the rule, but
+     * one hash compare per key and nothing else.
+     *
+     * Mutation: drop the `applied->item.hash == wanted->hash` fast path in
+     * porcelain_reconcile and property_applies climbs with every frame. Drop
+     * the poll's `active != shown` test in frame_on_frame_start and the frame
+     * re-describes for ever, which shows up here as describe_runs.
+     */
+    {
+        struct PorcelainCounters counters;
+        struct Porcelain* const porcelain = ToriRS_GameframePorcelainForTesting();
+        CHECK(porcelain != NULL, "the provider's layer handle is reachable");
+        declare(807, 503);
+        Porcelain_CountersReset(porcelain);
+        for( int frame = 0; frame < 8; frame++ )
+            frame_tick();
+        Porcelain_CountersRead(porcelain, &counters);
+        CHECK(counters.describe_runs == 0, "a settled frame re-describes not once in eight frames");
+        CHECK(counters.setters == 0, "and writes no setter");
+        CHECK(counters.creates == 0 && counters.removes == 0, "and creates and removes nothing");
+        CHECK(counters.reparents == 0, "and re-parents nothing: the tree is settled");
+        CHECK(counters.revalidates == 0, "and costs no full-tree resolve");
+        CHECK(counters.property_applies == 0, "an unchanged hash walks no property");
+        CHECK(counters.allocations == 0, "and allocates nothing");
+        printf("GAMEFRAME steady engine_calls=%u setters=%u describes=%u props=%u allocs=%u\n",
+               counters.engine_calls, counters.setters, counters.describe_runs,
+               counters.property_applies, counters.allocations);
     }
 
     PluginHost_Free(g_host);

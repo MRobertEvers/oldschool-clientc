@@ -2948,13 +2948,17 @@ test-plugin-contract: $(OBJ_DIR)
 test-plugin-contract-native:
 	TORIRS_TEST_CONTRACT_V3=1 $(MAKE) test-uitree
 
+# The layer comes in because the provider is described to it now. It is the
+# plugin's own library and not a second host: the test still drives the real
+# torirs_plugin_host, and what changed is only who writes the setters.
 test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
-		plugin/plugins/gameframe.c \
+		plugin/plugins/gameframe.c $(PORCELAIN_SRCS) \
 		plugin/test/gameframe_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/gameframe_test \
 		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
 			ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/gameframe.c \
+		$(PORCELAIN_SRCS) \
 		plugin/test/gameframe_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/gameframe_test
 

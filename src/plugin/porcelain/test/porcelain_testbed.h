@@ -45,6 +45,11 @@ struct TestbedElement
     uint64_t incarnation;
     struct ToriRS_WidgetRef ref;
     struct ToriRS_WidgetRef parent;
+    /* Where a `raise` put this native element, and against what. A frame
+     * provider anchors the LANE's own nodes, so unlike every overlay verb the
+     * subject here is an element and not an owned control. */
+    struct ToriRS_WidgetRef anchor;
+    enum ToriRS_WidgetRelation anchor_relation;
 };
 
 struct TestbedControl
@@ -164,6 +169,9 @@ struct Testbed
     int panel_orphan_setters;
     /* Refuse the next set_options, whatever it says. */
     bool panel_refuse_options;
+    /* Refuse every set_anchor, the way the engine does for a target that is
+     * not laid out yet. @see Testbed_RefuseAnchors. */
+    bool refuse_anchors;
 
     struct TestbedElement elements[TESTBED_ELEMENTS_MAX];
     struct
@@ -248,6 +256,24 @@ void Testbed_UnbindElement(char const* role);
 void Testbed_MoveElement(char const* role, int x, int y);
 /** Hide or show it, raising STATE_CHANGED. */
 void Testbed_PresentElement(char const* role, bool presented);
+
+/**
+ * Make every set_anchor answer UNAVAILABLE, or stop.
+ *
+ * The engine refuses an anchor whose target has not been laid out yet, which
+ * on a frame provider's first pass is the ordinary case: the plate is
+ * described on the fence the frame is, three frames before the surface it
+ * sits over is placed.
+ */
+void Testbed_RefuseAnchors(bool refuse);
+
+/**
+ * Destroy one owned control behind the layer's back, the way the engine does
+ * when the tree it hangs in is replaced. Every setter naming it then answers
+ * STALE_REFERENCE, which is what a frame root swap looks like from inside the
+ * layer.
+ */
+void Testbed_KillControl(char const* key);
 struct TestbedElement* Testbed_Element(char const* role);
 
 /* Assets ------------------------------------------------------------------ */

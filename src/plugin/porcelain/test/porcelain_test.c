@@ -2570,6 +2570,22 @@ test_a_late_picture_still_arrives(void)
     fence(porcelain);
     camera = Testbed_Control("camera");
     CHECK(camera && camera->live, "the control exists while its picture is still loading");
+    /*
+     * And NOTHING is written for it yet.
+     *
+     * Porcelain_Image answers a pending asset with a zero handle, the property
+     * pass stores that, and the geometry pass wrote it -- the engine refuses a
+     * zero image ref outright, so every control described before its art
+     * landed cost one REFUSED set_image. A refusal nobody can act on is what
+     * the clean-findings gate exists to keep out. Measured on the gate's
+     * remount lane: one per tab face whose PRESSED picture is first named
+     * after the frame root is replaced.
+     *
+     * MUTATION: drop the image_state test from porcelain_apply_box's
+     * set_image arm. Red here, with one refused write.
+     */
+    CHECK(Testbed_LogCountWith("set_image camera") == 0,
+          "and no zero image ref is written while it is still loading");
 
     Testbed_LandAsset("camera.png");
     fence(porcelain);
@@ -4558,6 +4574,86 @@ test_usable_subtracts_only_a_presented_strip(void)
     CHECK(usable.x == 0 && usable.width == 760,
           "a presented strip that spans a full edge moves that edge in");
     Porcelain_Close(porcelain);
+
+    /*
+     * The same strip, and NOBODY asked for the chrome element first.
+     *
+     * Every case above opens with Porcelain_Element(CHROME_EL(0)), which is
+     * what registers the watch -- and the rect was read off an EXISTING watch
+     * and quietly answered the un-subtracted root when there was none. A
+     * caller that simply asks for the usable canvas, which is the only thing
+     * this verb is for, got the whole root and no sign anything was missing.
+     * Measured on the desktop frame: the resizable layout took OldSchool's
+     * 807-column canvas whole, which pushed the popout strip out to 807, which
+     * grew the canvas to 849, a frame at a time.
+     *
+     * Mutation: pass `false` to Porcelain_WatchFor in porcelain_usable and
+     * this goes red while every case above stays green.
+     */
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 0, 0, 800, 500);
+    Testbed_BindElement("viewport");
+    Testbed_DeclareElement("lane_chrome_0", 760, 0, 40, 500);
+    Testbed_BindElement("lane_chrome_0");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    (void)Porcelain_Element(porcelain, PORCELAIN_EL(VIEWPORT), &state);
+    Porcelain_Fence(porcelain);
+    Porcelain_Commit(Testbed_Api());
+    /* The first ask is what registers the watch; the fence after it is what
+     * binds and stamps. A verb that registers nothing never gets either. */
+    (void)Porcelain_Usable(porcelain, &usable);
+    Porcelain_Fence(porcelain);
+    Porcelain_Commit(Testbed_Api());
+    CHECK(Porcelain_Usable(porcelain, &usable), "the canvas is answered");
+    CHECK(usable.x == 0 && usable.width == 760,
+          "and the strip is subtracted for a caller that watched nothing itself");
+    Porcelain_Close(porcelain);
+}
+
+/* A re-skin of the compass, art and mask, for the asset-arrival case. */
+static void
+skin_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    (void)user;
+    describe->skin(describe, PORCELAIN_EL(COMPASS), "rose.png", NULL);
+}
+
+/*
+ * A re-skin whose picture has not decoded yet is asked AGAIN.
+ *
+ * A skin is applied only when the description changed, and an asset landing
+ * changes no description: same element, same name, same hash. So a provider
+ * that named its compass rose on the first describe -- which is what a frame
+ * provider does, because the description IS the frame -- had the write dropped
+ * once and the lane kept its own rose for the session. The frame's own art
+ * crosses the IO queue like everything else and is never ready on the fence
+ * that first names it.
+ *
+ * Mutation: replace the `applied->edit.hash = 0` in porcelain_apply_edit's
+ * SKIN arm with a no-op and "the skin lands once its picture decodes" goes red
+ * with zero set_image calls.
+ */
+static void
+test_skin_waits_for_its_picture(void)
+{
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("compass", 545, 4, 33, 33);
+    Testbed_BindElement("compass");
+    Testbed_DeclareAsset("rose.png", TORIRS_ASSET_PENDING);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, skin_describe, NULL);
+    fence(porcelain);
+    CHECK(Testbed_LogCountWith("set_image compass") == 0,
+          "a picture that has not decoded is not written");
+
+    Testbed_LandAsset("rose.png");
+    fence(porcelain);
+    fence(porcelain);
+    CHECK(Testbed_LogCountWith("set_image compass") > 0,
+          "the skin lands once its picture decodes");
+    Porcelain_Close(porcelain);
 }
 
 /*
@@ -4908,21 +5004,33 @@ test_depth_target_must_paint(void)
 }
 
 /*
- * A canvas placement parents to the frame ROOT, which is already after every
- * subtree the lane mounted inside it. There is nothing for an anchor to add,
- * and one live anchor switches on the frame's depth handling -- 13.5 ms a
- * frame by the audit. Accepting `.depth` there and dropping it silently is
- * how a provider believes it stated an order it did not.
+ * A canvas placement costs no anchor, and STATING a depth target on one buys
+ * the anchor back.
  *
- * Mutation: drop the finding in porcelain_push_item and the describe below
- * reports nothing while its depth statement is discarded.
+ * Both halves are load-bearing and they are load-bearing for different
+ * plugins. An overlay wants the anchorless form: one live anchor switches on
+ * the frame's depth handling, 13.5 ms a frame by the audit, and the minimap
+ * orbs deliberately take a canvas placement with no depth so as not to pay
+ * it. A frame PROVIDER needs the opposite -- its surround parents to the
+ * clipping root because nothing else can hold it unclipped, and it has to
+ * draw UNDER the lane's chat, panels and orb block, all of which are inside
+ * that same subtree. Refusing the depth target there is what made a Porcelain
+ * frame provider impossible: measured on classic548, the surround painted
+ * over the inventory's contents, the orb block and the XP button.
+ *
+ * Mutation: restore the early return in porcelain_apply_anchor for the three
+ * parenting kinds without its `.depth` test, and "a stated depth target buys
+ * the anchor" goes red. Delete the test in porcelain_push_item that stopped
+ * recording the UNSUPPORTED finding, and "and costs no finding" goes red.
  */
 static void
-test_canvas_placement_takes_no_depth(void)
+test_canvas_placement_depth_is_opt_in(void)
 {
     struct Porcelain* porcelain;
     struct FrameFixture fixture = {.key = "surround"};
     struct PorcelainFinding findings[8];
+    struct TestbedControl const* control;
+    struct TestbedElement const* viewport;
 
     Testbed_Reset();
     Testbed_DeclareElement("viewport", 4, 4, 512, 334);
@@ -4931,13 +5039,313 @@ test_canvas_placement_takes_no_depth(void)
     porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
     Porcelain_Describe(porcelain, canvas_depth_describe, &fixture);
     fence(porcelain);
-    CHECK(Testbed_LogCountWith("set_anchor") == 0, "a canvas placement emits no anchor");
-    CHECK(Porcelain_Findings(porcelain, findings, 8) == 1,
-          "and a depth target stated on one is refused rather than dropped");
-    CHECK(findings[0].result == PORCELAIN_FINDING_UNSUPPORTED, "as unsupported");
+    control = Testbed_Control("surround");
+    viewport = Testbed_Element("viewport");
+    CHECK(control != NULL, "the surround piece is placed");
+    CHECK(control && viewport && ToriRS_WidgetRefEqual(control->anchor, viewport->ref),
+          "a stated depth target buys the anchor a canvas placement does not take");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 0, "and costs no finding");
+    Porcelain_Close(porcelain);
+
+    /* The other half: no depth stated, no anchor, which is what every overlay
+     * relies on. */
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    Testbed_DeclareAsset("piece.png", TORIRS_ASSET_READY);
+    fixture.runs = 0;
+    fixture.wants_viewport = false;
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, frame_describe, &fixture);
+    fence(porcelain);
+    CHECK(Testbed_LogCountWith("set_anchor") == 0,
+          "a canvas placement that states no depth still emits no anchor");
     Porcelain_Close(porcelain);
 }
 
+
+
+/* A surface raised over everything this plugin owns, the way a frame provider
+ * puts the lane's chat back above its own surround. */
+static void
+raise_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct FrameFixture* fixture = user;
+    struct PorcelainItem item;
+
+    fixture->runs++;
+    memset(&item, 0, sizeof(item));
+    item.key = fixture->key;
+    item.image = "piece.png";
+    item.place.kind = PORCELAIN_AT_CANVAS;
+    item.place.depth = PORCELAIN_EL(VIEWPORT);
+    item.w = 32;
+    item.h = 32;
+    describe->piece(describe, &item);
+    describe->raise(describe, PORCELAIN_EL(CHAT), PORCELAIN_EL(NONE), false);
+}
+
+/*
+ * A REFUSED anchor is asked for again.
+ *
+ * The engine refuses an anchor whose target has not been laid out yet, and
+ * for a frame provider that is the ordinary first pass: the map housing is
+ * described on the fence the frame is and the compass it sits over is placed
+ * three frames later. The layer recorded the target it ASKED for rather than
+ * the one that was WRITTEN, so the next fence compared equal, decided there
+ * was nothing to do, and the plate kept its native draw index for the rest of
+ * the session -- over the orb block's globe, its wiki banner and the activity
+ * adviser. The provider this replaced re-anchored on every plan pass and
+ * recovered by accident.
+ *
+ * MUTATION: drop the result test after set_anchor in porcelain_apply_anchor
+ * (`(void)result;`). Red: the anchor is written once and never retried.
+ */
+static void
+test_a_refused_anchor_is_retried(void)
+{
+    struct Porcelain* porcelain;
+    struct FrameFixture fixture = {.key = "surround"};
+    struct TestbedControl const* control;
+    struct TestbedElement const* viewport;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    Testbed_DeclareAsset("piece.png", TORIRS_ASSET_READY);
+    Testbed_RefuseAnchors(true);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, canvas_depth_describe, &fixture);
+    fence(porcelain);
+    control = Testbed_Control("surround");
+    CHECK(control != NULL, "the piece is placed even though its anchor was refused");
+    CHECK(control && !ToriRS_WidgetRefValid(control->anchor),
+          "and the refused anchor did not land");
+
+    /* The lane's own trigger, stated: the compass binding, the canvas moving
+     * or the provider invalidating all re-run the description, and the
+     * question is only whether the reconcile then asks for the anchor AGAIN
+     * or believes the one it recorded. */
+    Testbed_RefuseAnchors(false);
+    Testbed_ClearLog();
+    Porcelain_Invalidate(porcelain);
+    fence(porcelain);
+    fence(porcelain);
+    control = Testbed_Control("surround");
+    viewport = Testbed_Element("viewport");
+    CHECK(Testbed_LogCountWith("set_anchor") > 0, "the layer asks again once it can succeed");
+    CHECK(control && viewport && ToriRS_WidgetRefEqual(control->anchor, viewport->ref),
+          "and the piece ends up over the element it named");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * The same rule for a RAISE, which is the other half of the same defect.
+ *
+ * `raise` is a frame provider's verb for putting a native surface back above
+ * the chrome it just drew, and the target it names is the provider's own
+ * topmost control -- which on the first fence has only just been created. An
+ * engine that refuses that ordering once must not be believed for ever.
+ *
+ * MUTATION: drop the result test in porcelain_apply_edit's RAISE arm
+ * (`(void)result;`). Red: the chat is never raised.
+ */
+static void
+test_a_refused_raise_is_retried(void)
+{
+    struct Porcelain* porcelain;
+    struct FrameFixture fixture = {.key = "surround"};
+    struct TestbedElement const* chat;
+    struct TestbedControl const* control;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_DeclareElement("chat", 17, 357, 519, 165);
+    Testbed_BindElement("viewport");
+    Testbed_BindElement("chat");
+    Testbed_DeclareAsset("piece.png", TORIRS_ASSET_READY);
+    Testbed_RefuseAnchors(true);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, raise_describe, &fixture);
+    fence(porcelain);
+    chat = Testbed_Element("chat");
+    CHECK(chat && !ToriRS_WidgetRefValid(chat->anchor), "the refused raise did not land");
+
+    Testbed_RefuseAnchors(false);
+    Porcelain_Invalidate(porcelain);
+    fence(porcelain);
+    fence(porcelain);
+    chat = Testbed_Element("chat");
+    control = Testbed_Control("surround");
+    CHECK(chat && control && ToriRS_WidgetRefEqual(chat->anchor, control->ref),
+          "the raise is asked again and puts the chat over the frame's own chrome");
+    Porcelain_Close(porcelain);
+}
+
+
+/* A provider that asks about the whole toplevel: the viewport it gates on and
+ * the chat that arrives several fences later. */
+static void
+mounting_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct FrameFixture* fixture = user;
+    struct PorcelainElementState state;
+    struct PorcelainItem item;
+
+    fixture->runs++;
+    (void)Porcelain_Element(describe->porcelain, PORCELAIN_EL(VIEWPORT), &state);
+    (void)Porcelain_Element(describe->porcelain, PORCELAIN_EL(CHAT), &state);
+    memset(&item, 0, sizeof(item));
+    item.key = fixture->key;
+    item.image = "piece.png";
+    item.place.kind = PORCELAIN_AT_CANVAS;
+    item.w = 16;
+    item.h = 16;
+    describe->piece(describe, &item);
+}
+
+/*
+ * A toplevel that is still mounting is not a toplevel with things MISSING.
+ *
+ * The absence clock calls an element ABSENT after two fences of failed
+ * resolution, which is right for an overlay: it asks about one target and
+ * either the lane has it or it does not. A frame provider names the WHOLE
+ * vocabulary on the fence its gate element binds -- the viewport, which every
+ * lane mounts first -- and the chat, the sidebar, the modal and the orb block
+ * of the same toplevel arrive several fences behind it. At the plain two,
+ * every desktop lane in the gate reported all four ABSENT, once each, and
+ * bound them on the fence after. A finding nobody can act on is worse than no
+ * finding, because the clean-findings gate is how a real absence gets seen.
+ *
+ * The grace is a MULTIPLIER and not a suspension, and that is the part worth
+ * testing: a provider is PENDING precisely because something it asked about
+ * has not resolved, so stopping the clock while it waits is a deadlock -- the
+ * element cannot be called absent, so the frame cannot come up, so the
+ * element cannot be called absent. The second half of this case is that the
+ * finding still arrives.
+ *
+ * MUTATION: drop the Porcelain_FrameWaiting term from the absence test in
+ * porcelain_resolve_pending. Red: the chat is reported absent while the lane
+ * is still mounting it.
+ */
+static void
+test_a_mounting_frame_is_not_an_absent_one(void)
+{
+    struct FrameFixture fixture = {.key = "surround"};
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[8];
+    char reason[TORIRS_FRAME_REASON_MAX];
+    struct ToriRS_GameframeEvent event;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_DeclareElement("chat", 17, 357, 519, 165);
+    Testbed_BindElement("viewport");
+    Testbed_DeclareAsset("piece.png", TORIRS_ASSET_READY);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Frame(porcelain, "classic-fixed", TORIRS_FRAME_CANVAS_FIXED, 765, 503,
+                    mounting_describe, &fixture);
+    reason[0] = '\0';
+    event = frame_event("classic-fixed", true, 765, 503, reason, sizeof(reason));
+    CHECK(Porcelain_FrameEvent(porcelain, &event) == TORIRS_FRAME_PENDING,
+          "a provider whose chat has not mounted answers PENDING");
+    Porcelain_Commit(Testbed_Api());
+
+    for( int i = 0; i < PORCELAIN_ABSENT_FENCES + 2; i++ )
+        fence(porcelain);
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 0,
+          "and the chat it is waiting for is not called absent while the lane mounts");
+
+    Testbed_BindElement("chat");
+    fence(porcelain);
+    fence(porcelain);
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 0, "still nothing once it arrives");
+
+    /* The other half: the clock RUNS. A surface this lane truly does not have
+     * is still named, and the grace only decides how long that takes. */
+    for( int i = 0; i < PORCELAIN_ABSENT_FENCES * PORCELAIN_ABSENT_FRAME_GRACE + 2; i++ )
+        fence(porcelain);
+    Porcelain_Close(porcelain);
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    Testbed_DeclareAsset("piece.png", TORIRS_ASSET_READY);
+    fixture.runs = 0;
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Frame(porcelain, "classic-fixed", TORIRS_FRAME_CANVAS_FIXED, 765, 503,
+                    mounting_describe, &fixture);
+    reason[0] = '\0';
+    event = frame_event("classic-fixed", true, 765, 503, reason, sizeof(reason));
+    (void)Porcelain_FrameEvent(porcelain, &event);
+    Porcelain_Commit(Testbed_Api());
+    for( int i = 0; i < PORCELAIN_ABSENT_FENCES * PORCELAIN_ABSENT_FRAME_GRACE + 4; i++ )
+        fence(porcelain);
+    CHECK(Porcelain_Findings(porcelain, findings, 8) > 0,
+          "a chat the lane never mounts is still reported, after the grace");
+    Porcelain_Close(porcelain);
+}
+
+
+/*
+ * A node the ENGINE destroyed is rebuilt, and is nobody's refusal.
+ *
+ * Every owned control hangs in somebody else's tree, and when that tree is
+ * replaced -- a frame root swap, a toplevel rebuild -- the engine takes the
+ * children with it. The layer learns which elements rebound on the fence
+ * AFTER, so for one fence a description that still matches writes setters at
+ * a node that is gone. The engine answers STALE_REFERENCE, which the layer
+ * recorded as a REFUSED finding: a line the plugin is told about and can do
+ * nothing with, on the gate's clean-findings rule, for the layer's own
+ * housekeeping. Measured on the remount lane: one, `set_image face.03`, on
+ * the fence between the toplevel being replaced and the root rebinding.
+ *
+ * MUTATION: delete the STALE_REFERENCE arm of porcelain_note_item_result.
+ * Red: the rebuild is reported as a refusal and the control is written at the
+ * same dead node for as long as the description keeps matching.
+ */
+static void
+test_a_destroyed_node_is_rebuilt_not_reported(void)
+{
+    struct Porcelain* porcelain;
+    struct Fixture fixture = {.image = "camera.png", .gap = 4, .enabled = true};
+    struct PorcelainFinding findings[8];
+    struct TestbedControl const* camera;
+
+    Testbed_Reset();
+    declare_chrome();
+    Testbed_BindElement("report_button");
+    Testbed_BindElement("chat_bar");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, fixture_describe, &fixture);
+    fence(porcelain);
+    CHECK(Testbed_Control("camera") != NULL, "the control exists");
+
+    /* The engine drops it, and the description then MOVES it -- which is what
+     * puts a setter at the dead node. The element it hangs against has NOT
+     * rebound yet, which is the real order: a toplevel is replaced, its
+     * children die at once, and the layer hears which elements moved on the
+     * fence after. */
+    Testbed_KillControl("camera");
+    fixture.gap = 12;
+    Porcelain_Invalidate(porcelain);
+    fence(porcelain);
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 0,
+          "a node the engine destroyed is not reported to the plugin as a refusal");
+    CHECK(Testbed_Control("camera") == NULL,
+          "and nothing is built against the dead parent it hung in");
+
+    /* And now the tree it hung in comes back. */
+    Testbed_UnbindElement("report_button");
+    fence(porcelain);
+    Testbed_BindElement("report_button");
+    fence(porcelain);
+    fence(porcelain);
+    camera = Testbed_Control("camera");
+    CHECK(camera && camera->live, "and the layer builds it again once its target rebinds");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 0, "still with nothing to report");
+    Porcelain_Close(porcelain);
+}
 
 /*
  * A TAB's spelling is re-derived while it is unresolved.
@@ -5516,6 +5924,7 @@ main(void)
     test_frame_pending_until_the_lane_binds();
     test_frame_event_refusals();
     test_usable_subtracts_only_a_presented_strip();
+    test_skin_waits_for_its_picture();
     test_native_size_is_asked_by_element();
     test_orb_kinds_are_not_block_members();
     test_native_size_member_refusals();
@@ -5526,7 +5935,11 @@ main(void)
     test_tab_group_capacity_is_a_finding();
     test_frame_offer_budget();
     test_depth_target_must_paint();
-    test_canvas_placement_takes_no_depth();
+    test_canvas_placement_depth_is_opt_in();
+    test_a_refused_anchor_is_retried();
+    test_a_refused_raise_is_retried();
+    test_a_mounting_frame_is_not_an_absent_one();
+    test_a_destroyed_node_is_rebuilt_not_reported();
     test_tab_spelling_is_re_derived();
     test_tab_rows_are_bands_not_coordinates();
 

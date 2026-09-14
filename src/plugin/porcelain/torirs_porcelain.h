@@ -33,7 +33,22 @@ extern "C" {
  * the per-frame 2 MB the audit measured.
  */
 #define PORCELAIN_ITEMS_MAX 64
-#define PORCELAIN_EDITS_MAX 32
+/*
+ * Edits one description may state.
+ *
+ * Forty-eight, because the desktop frame provider is the consumer that sets
+ * it and thirty-two was below its floor. One pass of gameframe-layout's
+ * classic-fixed layout over an OldSchool toplevel states thirty-six: seven
+ * surface moves, the sidebar's fourteen mounts, the orb block's three
+ * children, four masks and re-skins, and the eight chat plates the 2004
+ * dressing hides. The resizable layout adds the four chat-filter boxes.
+ *
+ * A frame provider cannot shrink its way under a ceiling the way an overlay
+ * can -- every one of those edits is a surface the frame is responsible for
+ * placing -- so the budget finding it hit was not a plugin asking for too
+ * much. @see the gameframe-layout port report.
+ */
+#define PORCELAIN_EDITS_MAX 48
 #define PORCELAIN_WATCHES_MAX 48
 #define PORCELAIN_FINDINGS_MAX 32
 #define PORCELAIN_EXPECT_MAX 16
@@ -148,8 +163,31 @@ extern "C" {
  * it is called ABSENT. Two and not one because the first fence of a session
  * runs before any tree has published, and calling every element absent there
  * would fire a finding for the whole vocabulary on every boot.
+ *
+ * Counted from the last time ANYTHING new bound, not from the first ask.
+ * @see porcelain_note_new_binding.
  */
 #define PORCELAIN_ABSENT_FENCES 2
+
+/*
+ * And this many times that, while a frame PROVIDER is still answering PENDING.
+ *
+ * A provider names its whole vocabulary on the fence its gate element binds --
+ * the viewport, which the lane mounts first -- and the toplevel's chat,
+ * sidebar, modal and orb block arrive several fences later. At the plain two
+ * all four were reported ABSENT, once each, on every desktop lane, and bound
+ * immediately afterwards; a finding nobody can act on is worse than none,
+ * because the clean-findings gate is how a real absence gets seen.
+ *
+ * A MULTIPLIER and not a suspension, which is the whole point: a provider is
+ * PENDING precisely because something it asked about has not resolved, so
+ * suspending the clock while it waits is a deadlock -- the element cannot be
+ * called absent, so the frame cannot come up, so the element cannot be called
+ * absent. Sixteen fences is long enough for a toplevel to finish mounting and
+ * short enough that a surface the lane truly lacks is still named before the
+ * frame has been up a second.
+ */
+#define PORCELAIN_ABSENT_FRAME_GRACE 8
 
 /*
  * Operations per subject in a menu tag. Sixteen, and not the two and the four
@@ -240,6 +278,15 @@ struct ToriRS_ImageRef Porcelain_Image(struct Porcelain* porcelain, char const* 
                                        enum PorcelainAssetState* out_state);
 bool Porcelain_ImageSize(struct Porcelain* porcelain, char const* name, int* out_width,
                          int* out_height);
+
+/**
+ * Forget the handle cached for `name`, because it no longer means that
+ * picture.
+ *
+ * Call it after composing over a name this handle may already have resolved.
+ * @see the definition for the refusal it exists to prevent.
+ */
+void Porcelain_ImageForget(struct Porcelain* porcelain, char const* name);
 struct ToriRS_ModelRef Porcelain_Model(struct Porcelain* porcelain, char const* name,
                                        enum PorcelainAssetState* out_state);
 struct ToriRS_ImageRef Porcelain_Derived(struct Porcelain* porcelain, char const* key,
@@ -317,6 +364,10 @@ void Porcelain_Blocker(struct ToriRS_PorcelainDescribe* describe, char const* ke
 void Porcelain_Move(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element,
                     struct ToriRS_WidgetBounds box, int anchor_modes);
 void Porcelain_Hide(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element);
+/** @see ToriRS_PorcelainApi::raise. `over` of kind NONE means "above
+ *  everything this plugin owns". */
+void Porcelain_Raise(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element,
+                     struct PorcelainElement over, bool behind);
 void Porcelain_Skin(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element,
                     char const* image, char const* mask);
 void Porcelain_Opacity(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element,

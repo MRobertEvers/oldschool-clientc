@@ -1107,6 +1107,42 @@ Porcelain_Derived(struct Porcelain* porcelain, char const* key, void const* inpu
     return slot->ref;
 }
 
+/*
+ * This name now means a DIFFERENT picture.
+ *
+ * The image table caches name -> handle and never re-asks once a picture is
+ * READY, which is right for a file: a name and its pixels are the same thing
+ * for the life of the client. A COMPOSED picture is not a file. The plugin
+ * that made it can release it and compose another under the same name -- the
+ * frame's mirrored redstones and its per-size chat art both do, because the
+ * name IS the cache key they are looked up by -- and the second one is a new
+ * handle the table has no way to learn about. Every write of it afterwards is
+ * an INVALID_ARGUMENT the engine reports and nobody can act on.
+ *
+ * Measured on the gate's remount lane:
+ * `skin chat_backing classic_chat_paper_519x73.png`, once, on the layout
+ * switch -- the layer had released the first parchment for going four runs
+ * unnamed, the plugin noticed its own handle was dead and composed another
+ * under the same name, and the layer skinned with the one it remembered. The
+ * finding is gone with this and has not come back.
+ *
+ * The slot is DROPPED and not released: the handle it holds is the dead one,
+ * and the live picture belongs to the caller who just composed it.
+ */
+void
+Porcelain_ImageForget(struct Porcelain* porcelain, char const* name)
+{
+    assert(porcelain);
+    assert(name);
+    for( int i = 0; i < PORCELAIN_IMAGES_MAX; i++ )
+        if( porcelain->images[i].used && strcmp(porcelain->images[i].name.text, name) == 0 )
+        {
+            memset(&porcelain->images[i], 0, sizeof(porcelain->images[i]));
+            porcelain->stamp[PORCELAIN_INPUT_ASSET]++;
+            return;
+        }
+}
+
 void
 Porcelain_ImageTouch(struct Porcelain* porcelain, char const* name)
 {

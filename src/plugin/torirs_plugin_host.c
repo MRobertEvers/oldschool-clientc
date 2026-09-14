@@ -117,7 +117,23 @@ static enum ToriRS_CallbackResult plugin_v2_event(
     void* event,
     void* userdata);
 
-#define PLUGIN_WIDGET_WATCH_MAX 32
+/*
+ * Widget watches one plugin may hold.
+ *
+ * Sixty-four, and the consumer that sets it is a frame provider described to
+ * Porcelain: the layer registers one watch per ELEMENT the description names,
+ * and the desktop frame names thirty-three on a fixed toplevel -- seven
+ * surfaces, the sidebar's fourteen mounts, the orb block's three children,
+ * eight chat plates and the chat backing -- and thirty-seven on a resizable
+ * one, where the lane's four chrome strips are asked about too.
+ *
+ * At thirty-two the last few silently failed to register: widget_subscribe
+ * answers BUDGET_EXCEEDED and a retained layer has no reason to look, so the
+ * element resolves by a find per fence instead and never hears a STATE change
+ * again. What that looks like downstream is a node the lane HID still
+ * reporting itself as painting, for the rest of the session.
+ */
+#define PLUGIN_WIDGET_WATCH_MAX 64
 struct PluginWidgetWatch
 {
     char role[TORIRS_UI_NAME_MAX];

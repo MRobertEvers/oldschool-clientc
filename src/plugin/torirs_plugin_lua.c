@@ -2198,6 +2198,19 @@ static int lua_porcelain_hide(lua_State* L)
     d->hide(d, lua_porcelain_element_arg(L, 1));
     return 0;
 }
+static int lua_porcelain_raise(lua_State* L)
+{
+    struct ToriRS_PorcelainDescribe* d = lua_porcelain_describe_object(L);
+    struct PorcelainElement element = lua_porcelain_element_arg(L, 1);
+    /* An absent second argument is kind NONE: "above everything this plugin
+     * owns", which is the form a frame provider wants and the only one it can
+     * state. @see ToriRS_PorcelainApi::raise */
+    struct PorcelainElement over = lua_isnoneornil(L, 2)
+                                       ? (struct PorcelainElement){PORCELAIN_EL_NONE, 0, NULL}
+                                       : lua_porcelain_element_arg(L, 2);
+    d->raise(d, element, over, lua_toboolean(L, 3) != 0);
+    return 0;
+}
 static int lua_porcelain_skin(lua_State* L)
 {
     struct ToriRS_PorcelainDescribe* d = lua_porcelain_describe_object(L);
@@ -3481,6 +3494,7 @@ static struct LuaFn const LUA_PORCELAIN_DESCRIBE_FNS[] = {
     {"control",lua_porcelain_control},{"piece",lua_porcelain_piece},
     {"text",lua_porcelain_text},{"blocker",lua_porcelain_blocker},
     {"move",lua_porcelain_move},{"hide",lua_porcelain_hide},
+    {"raise",lua_porcelain_raise},
     {"skin",lua_porcelain_skin},{"opacity",lua_porcelain_opacity},
     {"unsupported",lua_porcelain_unsupported},
     {"row",lua_porcelain_row},{"reidentify",lua_porcelain_reidentify},{NULL,NULL}

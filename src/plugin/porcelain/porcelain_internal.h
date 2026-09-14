@@ -135,6 +135,14 @@ struct PorcelainAppliedItem
      */
     struct ToriRS_WidgetRef target_ref;
     uint32_t target_element_stamp;
+    /** This item's index in the last description. The order the engine draws
+     *  this plugin's own children in, so "over everything I own" is the
+     *  highest of them. @see ToriRS_PorcelainApi::raise */
+    int order;
+    /** A setter answered STALE_REFERENCE: the engine has dropped this node
+     *  and the next reconcile builds it again.
+     *  @see porcelain_note_item_result */
+    bool stale;
 };
 
 /* ----------------------------------------------------------------- edits */
@@ -144,7 +152,8 @@ enum PorcelainEditKind
     PORCELAIN_EDIT_MOVE = 0,
     PORCELAIN_EDIT_HIDE,
     PORCELAIN_EDIT_SKIN,
-    PORCELAIN_EDIT_OPACITY
+    PORCELAIN_EDIT_OPACITY,
+    PORCELAIN_EDIT_RAISE
 };
 
 struct PorcelainNormalEdit
@@ -154,6 +163,11 @@ struct PorcelainNormalEdit
     char element_role[PORCELAIN_NAME_MAX];
     struct ToriRS_WidgetBounds box;
     int anchor_modes;
+    /** RAISE: what to sit over. Kind NONE means this plugin's own topmost
+     *  control. @see ToriRS_PorcelainApi::raise */
+    struct PorcelainElement over;
+    char over_role[PORCELAIN_NAME_MAX];
+    bool behind;
     bool has_image;
     struct PorcelainName image;
     bool has_mask;
@@ -643,6 +657,11 @@ void Porcelain_PanelCountersReset(struct Porcelain* porcelain);
 void Porcelain_FrameNoteUnsupported(struct Porcelain* porcelain, char const* reason);
 /** Drop this handle's frame row. Takes NULL: reached from Porcelain_Close. */
 void Porcelain_FrameForget(struct Porcelain* porcelain);
+/** True while a frame provider has answered PENDING and not yet READY.
+ *  @see PORCELAIN_ABSENT_FRAME_GRACE for why the absence clock SLOWS there --
+ *  it must not stop, because a provider is PENDING precisely because
+ *  something it asked about has not resolved. */
+bool Porcelain_FrameWaiting(struct Porcelain* porcelain);
 /** @see Porcelain_ResetForTesting. */
 void Porcelain_FrameResetForTesting(void);
 

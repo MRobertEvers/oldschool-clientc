@@ -95,9 +95,15 @@ normalise   scene = the image slot is an internal handle, and handing back the
                     write-once source art renumbers what comes after it
 ```
 
-`only-before` matches a whole capture line by substring. `owned-drop` names an
-owned control that must disappear. `normalise` strips `<name>=<value>` from
-every tail before comparing.
+`only-before` matches a whole capture line by substring and `only-after` is its
+mirror, for a line the port ADDS. A port that MOVES a native box states one of
+each, because the box left one place and arrived at another; without the second
+half, a port whose whole job is to place a surface the old provider silently
+failed to place could never pass, because it could say the old box is gone and
+not that the new one is right. `role-move` names a ROLE whose resolved box
+changed, which is the same difference said about the role rather than the
+component. `owned-drop` names an owned control that must disappear.
+`normalise` strips `<name>=<value>` from every tail before comparing.
 
 A declaration is not a suppression, and three rules keep it from becoming one:
 

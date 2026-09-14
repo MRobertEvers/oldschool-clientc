@@ -744,6 +744,7 @@ warn = nil
 ---@field blocker fun(item: torirs.PorcelainItem) An invisible, armed hit box.
 ---@field move fun(element: string, box: torirs.PorcelainBox, anchor_modes?: integer) Omit x or y to keep it block-relative.
 ---@field hide fun(element: string) A presentation hide. Never an unhide.
+---@field raise fun(element: string, over?: string, behind?: boolean) Where a NATIVE element sits in the draw order. Omit `over` for "above everything this plugin owns", which is the frame provider's sentence.
 ---@field skin fun(element: string, image?: string, mask?: string) Independent halves.
 ---@field opacity fun(element: string, opacity: integer)
 ---@field unsupported fun(reason: string) This feature cannot run on this lane. One finding, no items.

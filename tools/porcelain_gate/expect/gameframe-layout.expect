@@ -1,0 +1,139 @@
+# What the gameframe-layout port changes on purpose, and why.
+#
+# Run it as:
+#   gate_diff.py --expect tools/porcelain_gate/expect/gameframe-layout.expect <pairs...>
+#
+# Every line here is a claim a reader is meant to be able to disagree with. If
+# you think one of them is wrong, the argument is with the reason, not with the
+# tool.
+
+# --------------------------------------------------------------------------
+# 1. The main modal lands where the layout always said it should.
+#
+# Classic Fixed states `frame_surface(MODAL, 4, 4, 512, 334)` -- the modal
+# shares the scene's box -- on every root, and the provider's own unit test has
+# pinned that since it was written. On toplevel 161 it never happened: the old
+# apply path converted its canvas rectangle to a parent-local one by asking the
+# engine for the modal's PARENT and then that parent's bounds, and when either
+# answered anything but OK it returned false and placed nothing at all. The
+# modal kept the lane's own centred 130,88 under a frame that had moved
+# everything around it.
+#
+# The port derives the same origin from the element's own two boxes -- the
+# drawn one and the parent-local one, whose difference IS the parent's origin
+# -- which needs no second lookup and cannot fail that way. So the box moves,
+# once, on one lane, to the number the layout has always stated.
+#
+# This is the one place the port changes what a person sees, and it is the
+# defect the ledger's "the modal shares the scene's box" row describes.
+only-before BOUNDS com=0x00a10010 (161|16) type=18 graphic=-1 hidden=0 abs=130,88 = the modal at the lane's own centred box, which is where a failed parent lookup left it
+only-after  BOUNDS com=0x00a10010 (161|16) type=18 graphic=-1 hidden=0 abs=4,4 = and the box the classic layout has always stated for it
+role-move frame_main_modal = the same move, said about the role rather than the component
+
+# --------------------------------------------------------------------------
+# 2. The composed art lands in different image slots.
+#
+# Every box, every size and every hidden bit of every owned control is
+# identical. What moved is the internal slot number the client hands a picture,
+# because the layer now owns when a picture a DESCRIPTION names is asked for:
+# it is requested on the describe that first names it instead of all ninety-
+# seven at once from on_start, and everything allocated afterwards renumbers.
+#
+# THE CLAIM, stated so it can be argued with: a slot id is an internal handle
+# and not behaviour. Nothing reads it, nothing persists it, and no two builds
+# are obliged to agree on it. This is the same line the minimap-orbs port
+# carries, for the same reason, and the same trade is available: byte-identity
+# costs keeping every picture resident for the life of the client, which is a
+# worse deal than this line.
+normalise scene = the image slot is an internal handle, and requesting a picture on the describe that names it renumbers what is allocated after it
+
+# --------------------------------------------------------------------------
+# 3. Toplevel 161's DYNAMIC component ids renumber, and nothing else does.
+#
+# The thirty-one lines below are stated twice, once leaving and once arriving,
+# and every pair differs in ONE field: the component id. Type, graphic, hidden
+# bit, absolute box, stated size, resize modes, scroll extent and offset are
+# identical, the interface is identical, and the count is identical -- which is
+# what makes this a renumber rather than a change. The proof is mechanical:
+# strip `com=0x... (iface|serial)` from both sides and the two multisets are
+# EQUAL, 8 distinct shapes over 31 lines. They are written out
+# rather than normalised away because a rule that dropped the component id from
+# every BOUNDS line would also stop the gate noticing a component that really
+# did appear or vanish.
+#
+# WHY it renumbers: the id is an allocation serial the client hands out as
+# scripts create components, and the port creates twenty fewer transient owned
+# controls while the frame comes up -- the old provider built a plan, applied
+# it, and rebuilt on the next pass, where the described one names each key once
+# and the layer creates it once. Everything the lane's own scripts allocate
+# after that point is twenty lower. The 896 block moves further because the
+# chatbox's line components are allocated on a different fence for the same
+# reason.
+#
+# THE CLAIM: a dynamic component id is a serial and not an identity. Nothing
+# in the cache, the protocol or a save file names one; the boxes are what the
+# player sees and they are the same to the pixel.
+
+only-before com=0x0000a79b (0|42907) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x00a1a40b (161|41995) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x00a1a40c (161|41996) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x00a1a40d (161|41997) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x00a1a40e (161|41998) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x00a1a40f (161|41999) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x00a2a409 (162|41993) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x00a2a40a (162|41994) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x02d8a798 (728|42904) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x02d8a799 (728|42905) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x02d8a79a (728|42906) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a784 (896|42884) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a785 (896|42885) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a786 (896|42886) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a787 (896|42887) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a788 (896|42888) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a789 (896|42889) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a78a (896|42890) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a78b (896|42891) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a78c (896|42892) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a78d (896|42893) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a78e (896|42894) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a78f (896|42895) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a790 (896|42896) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a791 (896|42897) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a792 (896|42898) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a793 (896|42899) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a794 (896|42900) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a795 (896|42901) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a796 (896|42902) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-before com=0x0380a797 (896|42903) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+
+only-after  com=0x0000a787 (0|42887) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x00a1a3f7 (161|41975) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x00a1a3f8 (161|41976) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x00a1a3f9 (161|41977) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x00a1a3fa (161|41978) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x00a1a3fb (161|41979) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x00a2a3f5 (162|41973) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x00a2a3f6 (162|41974) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x02d8a784 (728|42884) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x02d8a785 (728|42885) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x02d8a786 (728|42886) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a3ff (896|41983) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a400 (896|41984) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a401 (896|41985) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a402 (896|41986) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a403 (896|41987) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a404 (896|41988) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a405 (896|41989) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a406 (896|41990) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a407 (896|41991) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a408 (896|41992) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a409 (896|41993) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a40a (896|41994) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a40b (896|41995) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a40c (896|41996) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a40d (896|41997) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a40e (896|41998) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a40f (896|41999) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a410 (896|42000) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a411 (896|42001) = a dynamic component id is an allocation serial: the same component, the same box, at a different number
+only-after  com=0x0380a412 (896|42002) = a dynamic component id is an allocation serial: the same component, the same box, at a different number

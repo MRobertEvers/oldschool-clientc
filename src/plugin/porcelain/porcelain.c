@@ -757,6 +757,30 @@ porcelain_read_state(struct Porcelain* porcelain, struct PorcelainWatch* watch)
     watch->state.stamp = porcelain->frame;
 }
 
+/*
+ * Something new bound: nothing is absent yet.
+ *
+ * The absence clock used to run from the first ask, and it starts as soon as
+ * ANY element of the handle binds -- which for an overlay is the moment its
+ * one target arrives and for a frame PROVIDER is two fences before the
+ * toplevel finishes mounting. The provider gates its whole description on the
+ * viewport; the chat, the sidebar and the modal of the same toplevel bind
+ * after it, and at two fences all three were reported absent, once each, on
+ * every desktop lane, and bound on the fence after.
+ *
+ * A lane is still mounting for as long as things are still arriving, so that
+ * is the rule: the clock counts fences since the last NEW binding rather than
+ * fences since the first ask. An element the lane really does not have is
+ * still reported, two fences after the last of its neighbours turned up.
+ */
+static void
+porcelain_note_new_binding(struct Porcelain* porcelain)
+{
+    for( int i = 0; i < PORCELAIN_WATCHES_MAX; i++ )
+        if( porcelain->watches[i].used && porcelain->watches[i].state.bind == PORCELAIN_PENDING )
+            porcelain->watches[i].pending_fences = 0;
+}
+
 static void
 porcelain_watch_listener(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
 {
@@ -778,6 +802,7 @@ porcelain_watch_listener(struct ToriRS_Api* api, void* user, struct ToriRS_Widge
         porcelain_forget_absence(porcelain, watch->element);
         watch->state.ref = event->widget;
         watch->pending_fences = 0;
+        porcelain_note_new_binding(porcelain);
         porcelain_read_state(porcelain, watch);
         /* A declared absence that BINDS is a failure. A stale declaration has
          * to fail loudly in both directions or it silently excuses a real
@@ -988,7 +1013,20 @@ porcelain_usable(struct Porcelain* porcelain)
     for( int member = 0; member < 4; member++ )
     {
         struct PorcelainElement const strip = PORCELAIN_CHROME_EL(member);
-        struct PorcelainWatch const* watch = Porcelain_WatchFor(porcelain, strip, false);
+        /*
+         * CREATED, not merely read.
+         *
+         * A read-only lookup answers NULL until something else has asked for
+         * the same element, so the rect came back as the whole root and the
+         * subtraction this function exists to do never happened -- silently,
+         * because an un-subtracted rect is a perfectly plausible answer.
+         * Measured: the resizable frame laid itself out in the 807-wide canvas
+         * OldSchool grows to keep its own frame whole beside interface 728's
+         * popout strip, which pushed the strip out to 807, which grew the
+         * canvas to 849, and the two chased each other a frame at a time. The
+         * provider it replaced found the strip by name and got it right.
+         */
+        struct PorcelainWatch const* watch = Porcelain_WatchFor(porcelain, strip, true);
         if( !watch || watch->state.bind != PORCELAIN_BOUND || !watch->state.presented )
             continue;
         if( watch->state.box.height >= usable.height && watch->state.box.width > 0 )
@@ -1206,23 +1244,30 @@ porcelain_push_item(struct ToriRS_PorcelainDescribe* describe, enum PorcelainIte
      * A canvas placement has no depth target, and saying so is worth a
      * finding rather than a quiet drop.
      *
-     * AT_CANVAS, AT_USABLE and WITHIN all PARENT: the target is the parent,
-     * a child is already after every subtree inside it, and an anchor to
-     * one's own parent is ANCHOR_INVALID besides. It is also the form worth
-     * wanting -- one live anchor switches on the frame's depth handling,
-     * which the audit priced at 13.5 ms a frame, and a unit with no anchor
-     * cannot be got above by another unit's ordering. Accepting `.depth` on
-     * one and ignoring it is how a provider believes it stated an order it
-     * did not.
+     * AT_CANVAS, AT_USABLE and WITHIN all PARENT, and a child is already
+     * after every subtree inside its parent. For an OVERLAY that is the whole
+     * answer and the reason those placements cost no anchor: one live anchor
+     * switches on the frame's depth handling, which the audit priced at
+     * 13.5 ms a frame, and a unit with no anchor cannot be got above by
+     * another unit's ordering.
+     *
+     * For a FRAME PROVIDER it is the wrong answer, and refusing the depth
+     * target outright made one impossible to write. Its surround is placed at
+     * canvas coordinates under the clipping root -- there is no other parent
+     * that does not clip -- and it must draw UNDER the lane's own chat, map,
+     * panels and orb block, every one of which is inside that same subtree.
+     * "After every subtree inside it" is exactly what it must not be.
+     * Measured on classic548: the surround painted over the inventory's
+     * contents, the orb block's globe and wiki banner, and the XP button.
+     *
+     * So a depth target STATED on a parenting placement is honoured: the item
+     * still parents to the root, and the anchor says where in the order it
+     * goes. An anchor to one's own parent would be ANCHOR_INVALID, so the
+     * target has to be something else -- which a stated depth always is, or
+     * the plugin would not have stated it. Nothing is charged to a placement
+     * that states none, so every overlay keeps its anchorless form.
+     * @see the gameframe-layout port report.
      */
-    if( (source->place.kind == PORCELAIN_AT_CANVAS ||
-         source->place.kind == PORCELAIN_AT_USABLE ||
-         source->place.kind == PORCELAIN_WITHIN) &&
-        source->place.depth.kind > PORCELAIN_EL_NONE )
-        Porcelain_RecordFinding(porcelain, "place", source->place.depth,
-                                PORCELAIN_FINDING_UNSUPPORTED,
-                                "a parenting placement takes no depth target");
-
     if( porcelain->scratch_item_count >= PORCELAIN_ITEMS_MAX )
     {
         porcelain->scratch_poisoned = true;
@@ -1343,6 +1388,10 @@ porcelain_edit_hash(struct PorcelainNormalEdit const* edit)
     hash = Porcelain_HashString(hash, edit->element_role);
     hash = Porcelain_HashBytes(hash, &edit->box, sizeof(edit->box));
     hash = Porcelain_HashBytes(hash, &edit->anchor_modes, sizeof(edit->anchor_modes));
+    hash = Porcelain_HashBytes(hash, &edit->over.kind, sizeof(edit->over.kind));
+    hash = Porcelain_HashBytes(hash, &edit->over.member, sizeof(edit->over.member));
+    hash = Porcelain_HashString(hash, edit->over_role);
+    hash = Porcelain_HashBytes(hash, &edit->behind, sizeof(edit->behind));
     hash = Porcelain_HashString(hash, edit->image.text);
     hash = Porcelain_HashString(hash, edit->mask.text);
     hash = Porcelain_HashBytes(hash, &edit->has_image, sizeof(edit->has_image));
@@ -1428,6 +1477,30 @@ Porcelain_Hide(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElemen
         return;
     porcelain_commit_edit(describe->porcelain, edit, PORCELAIN_ASPECT_HIDE,
                           PORCELAIN_ASPECT_HIDE, false, "hide");
+}
+
+void
+Porcelain_Raise(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element,
+                struct PorcelainElement over, bool behind)
+{
+    struct PorcelainNormalEdit* edit = porcelain_push_edit(describe, PORCELAIN_EDIT_RAISE, element);
+
+    if( !edit )
+        return;
+    edit->over = over;
+    if( over.role )
+    {
+        Porcelain_CopyString(edit->over_role, sizeof(edit->over_role), over.role);
+        edit->over.role = edit->over_role;
+    }
+    edit->behind = behind;
+    /* Watched like any other described element, so that a target which
+     * rebinds re-runs the description that raised over it. Kind NONE is this
+     * plugin's own topmost control and watches nothing. */
+    if( over.kind > PORCELAIN_EL_NONE )
+        (void)Porcelain_WatchFor(describe->porcelain, over, true);
+    porcelain_commit_edit(describe->porcelain, edit, PORCELAIN_ASPECT_DEPTH,
+                          PORCELAIN_ASPECT_DEPTH, false, "raise");
 }
 
 void
@@ -1616,6 +1689,57 @@ porcelain_note_result(struct Porcelain* porcelain, char const* verb,
     Porcelain_RecordFinding(porcelain, verb, element, PORCELAIN_FINDING_REFUSED, detail);
 }
 
+/*
+ * A setter's answer about one of THIS plugin's own controls.
+ *
+ * STALE_REFERENCE is the one result that is not a refusal: it says the engine
+ * has already destroyed the node, which happens whenever the tree the control
+ * hangs in is replaced -- a frame root swap, a toplevel rebuild. The layer
+ * repairs that by itself (the next reconcile finds no live node and creates
+ * one), so reporting it to the plugin is telling it about the layer's own
+ * housekeeping. Measured on the gate's remount lane: exactly one, a tab face
+ * whose picture changed on the fence between the toplevel being replaced and
+ * the frame root rebinding, and nothing a provider could have done about it.
+ *
+ * It is not swallowed, either: the slot is MARKED, so the reconcile stops
+ * writing at the dead node instead of doing it again on every fence the
+ * description keeps matching, and the ordinary re-create runs on the fence
+ * the element rebinds.
+ */
+static void
+porcelain_note_item_result(struct Porcelain* porcelain, struct PorcelainAppliedItem* applied,
+                           char const* verb, enum ToriRS_ContractResult result)
+{
+    assert(porcelain);
+    assert(applied);
+    assert(verb);
+    if( result == TORIRS_CONTRACT_STALE_REFERENCE )
+    {
+        /*
+         * Marked, and NOTHING else.
+         *
+         * Not an input stamp, which is the obvious move and was measured
+         * wrong: bumping PORCELAIN_INPUT_ELEMENT makes every item's target
+         * read as moved, so the whole description is torn down and rebuilt
+         * against a root that has not rebound yet, and the rebuild is refused
+         * -- sixty-three `create tab.04` findings on the gate's remount lane,
+         * in place of the one refusal this arm exists to remove. The element
+         * stamp belongs to the widget events that actually say what the tree
+         * did; a dead reference is a symptom of one of those, not a second
+         * source of truth about it.
+         *
+         * The repair is the ordinary one: the fence the element rebinds,
+         * porcelain_item_target_moved fires, the slot is removed and built
+         * again with the new parent. Until then this flag keeps the reconcile
+         * from writing at a node that is not there.
+         */
+        applied->stale = true;
+        return;
+    }
+    porcelain_note_result(porcelain, verb, applied->item.place.on, result,
+                          applied->item.key.text);
+}
+
 static void
 porcelain_op_listener(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEvent const* event)
 {
@@ -1664,9 +1788,9 @@ porcelain_apply_geometry(struct Porcelain* porcelain, struct PorcelainAppliedIte
     {
         porcelain->counters.engine_calls++;
         porcelain->counters.setters++;
-        porcelain_note_result(porcelain, "set_position", applied->item.place.on,
-                              widgets->set_position(widgets->context, applied->ref, box.x, box.y),
-                              applied->item.key.text);
+        porcelain_note_item_result(
+            porcelain, applied, "set_position",
+            widgets->set_position(widgets->context, applied->ref, box.x, box.y));
         applied->live_x = box.x;
         applied->live_y = box.y;
         porcelain->dirty = true;
@@ -1676,26 +1800,34 @@ porcelain_apply_geometry(struct Porcelain* porcelain, struct PorcelainAppliedIte
     {
         porcelain->counters.engine_calls++;
         porcelain->counters.setters++;
-        porcelain_note_result(
-            porcelain, "set_size", applied->item.place.on,
-            widgets->set_size(widgets->context, applied->ref, box.width, box.height),
-            applied->item.key.text);
+        porcelain_note_item_result(
+            porcelain, applied, "set_size",
+            widgets->set_size(widgets->context, applied->ref, box.width, box.height));
         applied->live_w = box.width;
         applied->live_h = box.height;
         porcelain->dirty = true;
     }
     else if( applied->item.kind != PORCELAIN_ITEM_TEXT &&
+             !(applied->item.has_image && applied->image_state == PORCELAIN_ASSET_PENDING) &&
              (applied->image_dirty || applied->live_w != box.width ||
               applied->live_h != box.height) )
     {
         /* An owned image control takes its size through set_image, which is
-         * also where the picture lives; the two travel together. */
+         * also where the picture lives; the two travel together.
+         *
+         * And NOT while that picture is still decoding. Porcelain_Image
+         * answers PENDING with a zero handle, the property pass stores it,
+         * and this wrote it: the engine refuses a zero image ref outright, so
+         * every control described before its art landed cost one REFUSED
+         * set_image. porcelain_refresh_image already asks again on the fence
+         * the asset lands and raises image_dirty, so the write is deferred
+         * rather than lost -- which is also why live_w/live_h must not be
+         * updated here. @see porcelain_refresh_image. */
         porcelain->counters.engine_calls++;
         porcelain->counters.setters++;
-        porcelain_note_result(porcelain, "set_image", applied->item.place.on,
-                              widgets->set_image(widgets->context, applied->ref,
-                                                 applied->image_ref, box.width, box.height),
-                              applied->item.key.text);
+        porcelain_note_item_result(porcelain, applied, "set_image",
+                                   widgets->set_image(widgets->context, applied->ref,
+                                                      applied->image_ref, box.width, box.height));
         applied->live_w = box.width;
         applied->live_h = box.height;
         applied->image_dirty = false;
@@ -2005,10 +2137,35 @@ porcelain_apply_anchor(struct Porcelain* porcelain, struct PorcelainAppliedItem*
          * thing an unbound target already does; the finding is so the
          * provider learns it lost instead of seeing a rendering bug.
          */
+        bool const parenting = applied->item.place.kind == PORCELAIN_AT_CANVAS ||
+                               applied->item.place.kind == PORCELAIN_AT_USABLE ||
+                               applied->item.place.kind == PORCELAIN_WITHIN;
         if( !Porcelain_Element(porcelain, applied->item.place.depth, &depth_state) )
-            ;
+        {
+            /* Not resolved YET is not a loss. A parenting placement has no
+             * second target to fall back to -- see below -- so it simply does
+             * not anchor this fence and is asked again at the next. */
+            if( parenting )
+                return;
+        }
         else if( depth_state.presented )
             anchor = depth_state.ref;
+        else if( parenting )
+        {
+            /*
+             * NO anchor, rather than an anchor to the parent.
+             *
+             * A parent-relative placement falls back to the placement's own
+             * element, which is a real node and a legal target. A parenting one
+             * has no such element: its target IS the parent, and an anchor to
+             * one's own parent is ANCHOR_INVALID -- so the fallback was a
+             * refusal, recorded as a finding, on every frame between the
+             * description naming the compass and the compass being laid out.
+             * Leaving it unanchored is what the placement means without a
+             * depth target anyway, and the next fence asks again.
+             */
+            return;
+        }
         else
             Porcelain_RecordFinding(porcelain, "set_anchor", applied->item.place.depth,
                                     PORCELAIN_FINDING_REFUSED, "the depth target draws nothing");
@@ -2019,23 +2176,44 @@ porcelain_apply_anchor(struct Porcelain* porcelain, struct PorcelainAppliedItem*
                                                  : TORIRS_WIDGET_RELATION_OVER);
     if( !fresh && ToriRS_WidgetRefEqual(applied->anchor_target, anchor) )
         return;
-    if( applied->item.place.kind == PORCELAIN_AT_CANVAS ||
-        applied->item.place.kind == PORCELAIN_AT_USABLE ||
-        applied->item.place.kind == PORCELAIN_WITHIN )
+    if( (applied->item.place.kind == PORCELAIN_AT_CANVAS ||
+         applied->item.place.kind == PORCELAIN_AT_USABLE ||
+         applied->item.place.kind == PORCELAIN_WITHIN) &&
+        applied->item.place.depth.kind <= PORCELAIN_EL_NONE )
     {
         /* Nothing to anchor to: the target IS the parent, and an anchor to
          * one's own parent is ANCHOR_INVALID. WITHIN exists so that a corner
          * ornament costs no live anchor -- one live anchor makes
          * UITree_FrameHasDepth true, which the ledger prices at 13.5 ms a
-         * frame on osrs239. */
+         * frame on osrs239. A parenting placement that STATES a depth target
+         * is asking for that anchor on purpose. @see porcelain_push_item. */
         applied->anchor_target = anchor;
         return;
     }
     porcelain->counters.engine_calls++;
     porcelain->counters.setters++;
-    porcelain_note_result(porcelain, "set_anchor", applied->item.place.on,
-                          widgets->set_anchor(widgets->context, applied->ref, anchor, relation),
-                          applied->item.key.text);
+    {
+        enum ToriRS_ContractResult const result =
+            widgets->set_anchor(widgets->context, applied->ref, anchor, relation);
+        porcelain_note_result(porcelain, "set_anchor", applied->item.place.on, result,
+                              applied->item.key.text);
+        /*
+         * Only a WRITTEN anchor is remembered.
+         *
+         * The target is what the next fence compares against to decide there
+         * is nothing to do, so recording one the engine refused meant the
+         * anchor was asked for exactly once and never again. Measured: the
+         * desktop frame's map housing asks to sit over the compass on the
+         * fence the frame is first described, three frames before the compass
+         * is laid out; the engine refused it, the layer wrote it down as done,
+         * and the plate kept its native draw index for the rest of the session
+         * -- painting over the orb block's world-map globe, its wiki banner
+         * and the activity adviser. The old provider re-anchored on every plan
+         * pass and recovered by accident.
+         */
+        if( result != TORIRS_CONTRACT_OK && result != TORIRS_CONTRACT_PENDING )
+            return;
+    }
     applied->anchor_target = anchor;
     porcelain->dirty = true;
 }
@@ -2058,12 +2236,69 @@ porcelain_remove_item(struct Porcelain* porcelain, struct PorcelainAppliedItem* 
 /* Applying an element edit                                                 */
 /* ------------------------------------------------------------------------ */
 
+/*
+ * What a RAISE anchors to.
+ *
+ * Kind NONE means "above everything this plugin owns", and that is the frame
+ * provider's whole sentence: it draws a surround under the clipping root, so
+ * every piece of it is after the lane's own subtree, and the chat, the map,
+ * the panels and the orb block have to come back above the surround. The node
+ * to name is the LAST control the description stated, and a description has
+ * no way to name one of its own controls -- a depth target is an ELEMENT.
+ *
+ * Any other kind is an ordinary element and, like an item's `place.depth`, it
+ * has to PAINT: a unit anchored over a target that emits nothing keeps its own
+ * native draw index, which is later than everything it was meant to sit under.
+ */
+static bool
+porcelain_raise_anchor(struct Porcelain* porcelain, struct PorcelainNormalEdit const* wanted,
+                       struct ToriRS_WidgetRef* out)
+{
+    struct PorcelainElementState over;
+
+    assert(porcelain);
+    assert(wanted);
+    assert(out);
+    if( wanted->over.kind > PORCELAIN_EL_NONE )
+    {
+        if( !Porcelain_Element(porcelain, wanted->over, &over) )
+            return false;
+        if( !over.presented )
+        {
+            Porcelain_RecordFinding(porcelain, "raise", wanted->over, PORCELAIN_FINDING_REFUSED,
+                                    "the depth target draws nothing");
+            return false;
+        }
+        *out = over.ref;
+        return true;
+    }
+    {
+        struct PorcelainAppliedItem const* top = NULL;
+        for( int i = 0; i < PORCELAIN_ITEMS_MAX; i++ )
+        {
+            struct PorcelainAppliedItem const* applied = &porcelain->applied_items[i];
+            if( !applied->live || applied->owner != porcelain )
+                continue;
+            if( !top || applied->order > top->order )
+                top = applied;
+        }
+        /* Nothing owned yet. Not a failure and not a finding: the first fence
+         * of a frame states its chrome and its surfaces in one description,
+         * and the surfaces are raised on the fence after the chrome exists. */
+        if( !top )
+            return false;
+        *out = top->ref;
+        return true;
+    }
+}
+
 static void
 porcelain_apply_edit(struct Porcelain* porcelain, struct PorcelainAppliedEdit* applied,
                      struct PorcelainNormalEdit const* wanted, bool fresh)
 {
     struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
     struct PorcelainElementState target;
+    struct PorcelainNormalEdit const previous_edit = applied->edit;
 
     if( !Porcelain_Element(porcelain, wanted->element, &target) )
         return;
@@ -2110,12 +2345,46 @@ porcelain_apply_edit(struct Porcelain* porcelain, struct PorcelainAppliedEdit* a
                               wanted->element_role);
         break;
     case PORCELAIN_EDIT_SKIN:
+        /*
+         * A half that STOPS being described is taken off.
+         *
+         * A skin is a setter and the engine keeps no pre-edit snapshot, so the
+         * only undo there is is `reset`, and reset is reached only when the
+         * whole edit stops being described. A layout that re-skins the compass
+         * followed by one that skins only its MASK left the first layout's
+         * rose behind for ever: the element is still skinned, so the edit is
+         * still live, and the art half is simply never revisited. The provider
+         * this replaced reset every surface before every plan, which is the
+         * blunt version of this and cost a reset per role per pass.
+         */
+        if( previous_edit.kind == PORCELAIN_EDIT_SKIN &&
+            ((previous_edit.has_image && !wanted->has_image) ||
+             (previous_edit.has_mask && !wanted->has_mask)) )
+        {
+            porcelain->counters.engine_calls++;
+            (void)widgets->reset(widgets->context, target.ref);
+        }
         if( wanted->has_image )
         {
             enum PorcelainAssetState state = PORCELAIN_ASSET_READY;
             struct ToriRS_ImageRef const image =
                 Porcelain_Image(porcelain, wanted->image.text, &state);
-            if( state == PORCELAIN_ASSET_READY )
+            if( state != PORCELAIN_ASSET_READY )
+                /*
+                 * Asked again next fence.
+                 *
+                 * A skin is applied only when the description changed, and an
+                 * asset landing does not change a description -- so a re-skin
+                 * described before its picture had decoded was dropped once
+                 * and the widget kept the lane's own art for the session.
+                 * Measured: the OldSchool frame's compass rose, which is
+                 * named on the first describe and decodes several frames later.
+                 * Clearing the remembered hash is what makes the next fence
+                 * call this fresh; the item path solves the same problem with
+                 * porcelain_refresh_image.
+                 */
+                applied->edit.hash = 0;
+            else
             {
                 porcelain->counters.engine_calls++;
                 porcelain->counters.setters++;
@@ -2132,7 +2401,9 @@ porcelain_apply_edit(struct Porcelain* porcelain, struct PorcelainAppliedEdit* a
             enum PorcelainAssetState state = PORCELAIN_ASSET_READY;
             struct ToriRS_ImageRef const mask =
                 Porcelain_Image(porcelain, wanted->mask.text, &state);
-            if( state == PORCELAIN_ASSET_READY )
+            if( state != PORCELAIN_ASSET_READY )
+                applied->edit.hash = 0;
+            else
             {
                 porcelain->counters.engine_calls++;
                 porcelain->counters.setters++;
@@ -2149,6 +2420,25 @@ porcelain_apply_edit(struct Porcelain* porcelain, struct PorcelainAppliedEdit* a
                               widgets->set_opacity(widgets->context, target.ref, wanted->opacity),
                               wanted->element_role);
         break;
+    case PORCELAIN_EDIT_RAISE:
+    {
+        struct ToriRS_WidgetRef anchor;
+        enum ToriRS_ContractResult result;
+
+        if( !porcelain_raise_anchor(porcelain, wanted, &anchor) )
+            break;
+        porcelain->counters.engine_calls++;
+        porcelain->counters.setters++;
+        result = widgets->set_anchor(widgets->context, target.ref, anchor,
+                                     wanted->behind ? TORIRS_WIDGET_RELATION_BEHIND
+                                                    : TORIRS_WIDGET_RELATION_OVER);
+        porcelain_note_result(porcelain, "raise", wanted->element, result, wanted->element_role);
+        /* A refused raise is NOT recorded as applied: the same defect the
+         * item anchor had. @see porcelain_apply_anchor. */
+        if( result != TORIRS_CONTRACT_OK && result != TORIRS_CONTRACT_PENDING )
+            return;
+        break;
+    }
     }
     applied->live = true;
     porcelain->dirty = true;
@@ -2336,6 +2626,25 @@ porcelain_reconcile(struct Porcelain* porcelain)
                 applied->target_element_stamp = porcelain->stamp[PORCELAIN_INPUT_ELEMENT];
             }
         }
+        if( applied && applied->stale )
+        {
+            /*
+             * The engine destroyed this node under us: write NOTHING to it
+             * and wait.
+             *
+             * Not "drop it and create another", which is the obvious move and
+             * is wrong: the node died because the tree it hung in was
+             * replaced, so its PARENT is gone too, and a create against a
+             * dead parent fails -- measured on the gate's remount lane as
+             * sixty-three `create tab.04` findings in place of the one refusal
+             * this was meant to remove. The arm above re-creates it properly,
+             * with the new parent, on the fence the target rebinds; until then
+             * the slot is simply not touched, which is the honest description
+             * of a widget that is not there.
+             * @see porcelain_note_item_result.
+             */
+            continue;
+        }
         if( !applied )
         {
             applied = porcelain_applied_free(porcelain);
@@ -2355,6 +2664,9 @@ porcelain_reconcile(struct Porcelain* porcelain)
             }
             fresh = true;
         }
+        /* Description order, kept so that "over everything this plugin
+         * owns" has an answer. @see ToriRS_PorcelainApi::raise */
+        applied->order = i;
         porcelain_refresh_image(porcelain, applied);
         if( !fresh && applied->item.hash == wanted->hash )
         {
@@ -2411,7 +2723,13 @@ porcelain_reconcile(struct Porcelain* porcelain)
     {
         struct PorcelainNormalEdit const* wanted = &porcelain->scratch_edits[i];
         struct PorcelainAppliedEdit* slot = NULL;
+        struct PorcelainElementState target_state;
+        struct ToriRS_WidgetRef target_ref_of_edit;
         bool fresh = true;
+
+        memset(&target_ref_of_edit, 0, sizeof(target_ref_of_edit));
+        if( Porcelain_Element(porcelain, wanted->element, &target_state) )
+            target_ref_of_edit = target_state.ref;
         for( int j = 0; j < PORCELAIN_EDITS_MAX && !slot; j++ )
             if( porcelain->applied_edits[j].live &&
                 porcelain->applied_edits[j].edit.kind == wanted->kind &&
@@ -2419,7 +2737,25 @@ porcelain_reconcile(struct Porcelain* porcelain)
                     Porcelain_ElementKey(wanted->element) )
             {
                 slot = &porcelain->applied_edits[j];
-                fresh = slot->edit.hash != wanted->hash;
+                /*
+                 * A changed hash, OR a changed NODE.
+                 *
+                 * An edit is a setter on somebody else's widget, and the only
+                 * record that it was written is this slot. When a remount
+                 * replaces the node the element resolves to, the description is
+                 * word for word the same -- so the hash matches, nothing is
+                 * written, and every surface keeps the box the LANE gave the
+                 * new node. The plate, the map and the chat all snap back to
+                 * the toplevel's own layout while the frame's surround stays
+                 * where the provider drew it.
+                 *
+                 * This is the defect the gate's remount164 lane exists for,
+                 * and it was invisible to the six static lanes because none of
+                 * them ever replaces a node. The item path already had its own
+                 * arm for the same thing (porcelain_item_target_moved).
+                 */
+                fresh = slot->edit.hash != wanted->hash ||
+                        !ToriRS_WidgetRefEqual(slot->ref, target_ref_of_edit);
             }
         if( !slot )
             for( int j = 0; j < PORCELAIN_EDITS_MAX && !slot; j++ )
@@ -2501,6 +2837,7 @@ porcelain_resolve_pending(struct Porcelain* porcelain)
                 porcelain_forget_absence(porcelain, watch->element);
                 watch->state.ref = ref;
                 watch->absence_reported = false;
+                porcelain_note_new_binding(porcelain);
                 porcelain_read_state(porcelain, watch);
                 porcelain->stamp[PORCELAIN_INPUT_ELEMENT]++;
             }
@@ -2512,6 +2849,8 @@ porcelain_resolve_pending(struct Porcelain* porcelain)
             porcelain->any_element_bound = true;
             porcelain_forget_absence(porcelain, watch->element);
             watch->state.ref = ref;
+            watch->pending_fences = 0;
+            porcelain_note_new_binding(porcelain);
             porcelain_read_state(porcelain, watch);
             porcelain->stamp[PORCELAIN_INPUT_ELEMENT]++;
             continue;
@@ -2523,7 +2862,11 @@ porcelain_resolve_pending(struct Porcelain* porcelain)
             watch->pending_fences = 0;
             continue;
         }
-        if( ++watch->pending_fences >= PORCELAIN_ABSENT_FENCES )
+        /* A frame provider that has not come up yet is still watching its
+         * toplevel mount. @see PORCELAIN_ABSENT_FRAME_GRACE. */
+        if( ++watch->pending_fences >=
+            (Porcelain_FrameWaiting(porcelain) ? PORCELAIN_ABSENT_FENCES * PORCELAIN_ABSENT_FRAME_GRACE
+                                               : PORCELAIN_ABSENT_FENCES) )
         {
             watch->state.bind = PORCELAIN_ABSENT;
             porcelain->stamp[PORCELAIN_INPUT_ELEMENT]++;
@@ -2785,6 +3128,7 @@ porcelain_builder_init(struct Porcelain* porcelain)
     porcelain->builder.blocker = Porcelain_Blocker;
     porcelain->builder.move = Porcelain_Move;
     porcelain->builder.hide = Porcelain_Hide;
+    porcelain->builder.raise = Porcelain_Raise;
     porcelain->builder.skin = Porcelain_Skin;
     porcelain->builder.opacity = Porcelain_Opacity;
     porcelain->builder.unsupported = Porcelain_Unsupported;
