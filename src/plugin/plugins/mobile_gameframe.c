@@ -4770,6 +4770,7 @@ mobile_describe_chat_dress(struct MobileCall* ctx, struct ToriRS_PorcelainDescri
     struct MobileState* state = ctx->state;
     struct PorcelainElementState pack;
     struct PorcelainElementState bar;
+    struct PorcelainElementState row;
     struct PorcelainElementState backing;
     struct MobileChatCell cell[MOBILE_CHAT_CELL_MAX];
     int cell_count = 0;
@@ -4796,30 +4797,55 @@ mobile_describe_chat_dress(struct MobileCall* ctx, struct ToriRS_PorcelainDescri
         bar.box.height <= 0 )
         return;
     /*
-     * The bar is WIDER THAN THE PACK IT LIVES IN, and the rock must not be.
+     * The bar is WIDER THAN THE ROW IT LIVES IN, and the rock must not be.
      *
-     * On 601 the pack is 519 wide at x=0 and the bar node answers 519 wide at
-     * x=58 -- it carries the PACK's width rather than its own container's,
-     * which is 461 (162|1, abs 58,471 461x28, i.e. exactly out to the pack's
-     * right edge). So the bar as the lane states it runs 58 px past the sheet
-     * it belongs to.
+     * On 601 the bar node answers 519 wide at x=58 -- `controls_background_
+     * graphic` carries the PACK's width rather than its own container's, which
+     * is 461 (162|1, abs 58,471 461x28). So the bar as the lane states it runs
+     * 58 px past the strip it is the backdrop for.
      *
      * That is the lane's own geometry, not something this provider did: the
      * boxes are byte-identical with no plugins loaded. It is invisible there
      * only because the lane paints that band translucent over the world. Paint
-     * opaque 2004 rock on the same number and the overflow is a slab of stone
-     * hanging off the end of the parchment, which is what it looked like.
+     * opaque 2004 rock on the same number and the overflow is a detached slab
+     * of stone, hollows and all, standing on the floor past the last filter --
+     * which is what it looked like.
      *
-     * Clamping to the pack is right whatever the node says: the rock dresses
-     * the bar, the bar is furniture INSIDE the sheet, and no dressing of it
-     * belongs outside. The hollows are measured from bar.box.x and so are
-     * untouched -- a caption still lands on its own hollow.
+     * Clamp to `controls`, the bar's OWN container, and not to the pack that
+     * container is in. The pack's right edge gave the same 461 on a settled
+     * 601 tree by arithmetic accident -- the pack is 58 px to the LEFT and 58
+     * px wider, so the two right edges coincide -- and stopped agreeing the
+     * moment either number was read from a tree mid-layout. Measured, on a
+     * boot fence of this lane: the pack answered `11,0 519x165` while the bar
+     * answered `0,480 519x23`, the pack's right edge came out 530, the bar's
+     * 519, the `> pack_right` test was false and a 519-wide slab was described
+     * with no clamp at all. The row and the bar are parent and child of the
+     * same layout pass, so they cannot disagree that way.
+     *
+     * And the row is REQUIRED, not consulted-if-present. `if( pack.width > 0 )`
+     * was the same silent skip written as a guard: a fence that could not say
+     * how wide the strip is painted the rock unclamped instead of not painting
+     * it. A row with no box yet is an ordinary pending layout -- the guard
+     * below `bar.box.width` already reads that way -- so it waits for the next
+     * fence, which is one frame and not a slab.
+     *
+     * The hollows are measured from the clamped bar.box.x, so a caption still
+     * lands on its own hollow.
      */
-    if( pack.box.width > 0 )
+    if( !Porcelain_Element(state->porcelain, MOBILE_CHAT_CONTROLS, &row) )
+        return;
+    if( row.box.width <= 0 )
+        return;
     {
-        int const pack_right = pack.box.x + pack.box.width;
-        if( bar.box.x + bar.box.width > pack_right )
-            bar.box.width = pack_right - bar.box.x;
+        int const row_left = row.box.x;
+        int const row_right = row.box.x + row.box.width;
+        int left = bar.box.x < row_left ? row_left : bar.box.x;
+        int right = bar.box.x + bar.box.width;
+
+        if( right > row_right )
+            right = row_right;
+        bar.box.x = left;
+        bar.box.width = right - left;
     }
     if( bar.box.width <= 0 )
         return;
