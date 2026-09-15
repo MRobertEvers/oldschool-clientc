@@ -30,8 +30,26 @@ birdnest-off-cs2 nxt-bird-nest cs2 TORIRS_SIM_VARBIT=450,13087,1 'TORIRS_SIM_CMD
 # ::cannon places one on your tile with 15 balls; loc op 3 "Empty" takes 15 to 0
 # in a single tick, which is the deterministic empty-ammo edge. 1500 frames
 # because the assembly is a real 4-tick animation.
-cannon-cs2 nxt-cannon-ammo cs2 'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
-cannon-cs1 nxt-cannon-ammo cs1 'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+#
+# ALL THREE settings rows are written. 249 (varbit 14176, `cannon_low_amount`)
+# is the slider, its default is 0, and `threshold > 0` refuses that -- so with
+# it unwritten the low half of this builtin could not fire in any capture on
+# any lane, and the absence of a low line said nothing. At 12 it is an
+# assertion instead: 15 to 0 crosses twelve AND reaches empty, and the empty
+# branch claims it.
+cannon-cs2 nxt-cannon-ammo cs2 'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+cannon-cs1 nxt-cannon-ammo cs1 'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+
+# The LOW edge, which the row above cannot reach: its only ammunition movement
+# is a jump straight to zero, and `ammo == 0` is checked first and returns.
+# What crosses a threshold is the fire clock -- cannon_fire_once spends ONE
+# ball per tick, and only while a live npc stands inside ^cannon_range. The
+# fixture tile has none, which is why the drive above still had all fifteen
+# balls at frame 1400. Five goblins are five guaranteed firing ticks (one shot
+# a tick, so at most one of them dies per tick), so 15 -> 12 lands on the third
+# whatever the damage rolls are. NO loc op here: the cannon must not reach zero
+# or the empty line lands on top of the line being photographed.
+cannonlow-cs2 nxt-cannon-ammo cs2 'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=460,spawn goblin 5;500,cannon' TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
 
 # `camera` has to be in force at START, so it goes in the ini (the `--` args),
 # not through a tick-scheduled config write. `off` is the default, and the

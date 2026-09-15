@@ -17,8 +17,8 @@ tileind-lua-cs2 tile-indicator-lua cs2 TORIRS_SIM_HOVER=300,180
 # An unquoted `;` in a jobs line is a statement separator to par.sh's eval, so
 # the first of these ran with no TORIRS_SIM_CMD at all and the rest of the line
 # became a second, failing command. Quoted now.
-cannon-cs2 nxt-cannon-ammo cs2 'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
-cannon-cs1 nxt-cannon-ammo cs1 'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+cannon-cs2 nxt-cannon-ammo cs2 'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+cannon-cs1 nxt-cannon-ammo cs1 'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
 
 # The loot tracker's page with ONE loot event, against the same page with none.
 # The pair is the whole finding: the empty store draws the overview band, the

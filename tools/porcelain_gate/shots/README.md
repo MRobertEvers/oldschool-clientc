@@ -243,7 +243,7 @@ python3 detail_lengths.py
 ```
 
 `jobs/` is the drive for every shot, with the reason for each in place. The
-five things that cost a run each to learn, so nobody pays for them twice:
+six things that cost a run each to learn, so nobody pays for them twice:
 
 **`enabled` defaults to ON.** The host only writes the flag when it differs
 from the plugin's own default, so an ini naming one plugin `enabled=1` leaves
@@ -267,6 +267,19 @@ trailing `ENV=value` list it reaches the client, where nothing reads it, and
 the run is 700 frames after all — which is how a cannon drive scheduled at
 frame 1400 came back with no cannon fired and no error. Pass
 `TORIRS_MAX_FRAMES` in that list instead; `env` takes it last-wins.
+
+**A drive lever's receipt is not narration, and `TORIRS_LOG` is not compiled
+into the binary you photograph with.** Every shot here is taken with an `OPT=1`
+build, `OPT=1` is `-DNDEBUG`, and `-DNDEBUG` compiles `TORIRS_LOG` away. So
+`sim_varbit:` and `sim_oploc:` printed nothing in any capture log while
+`sim_cmd:` -- `TORIRS_REPORT`, three lines away in `main.c` -- printed beside
+them, and the only way to answer "did the varbit write land, and what did it
+read back as" was to trust the jobs file. That is how the cannon builtin's low
+notification went a whole port without a capture: setting 249 was never
+written, the log could not say so, and the picture of a row that does nothing
+is the picture of a row that was never switched on. Both are `TORIRS_REPORT`
+now. `strings <binary> | grep sim_varbit` is the check; if it is empty, the
+receipts in that binary's logs are too.
 
 **`TORIRS_SIM_HOVER` used to put "Connection lost" across the viewport, and to
 mark the wrong tile.** FIXED — both halves were one block in `main.c`, and both

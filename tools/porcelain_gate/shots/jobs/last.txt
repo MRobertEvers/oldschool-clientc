@@ -5,7 +5,7 @@
 # resolves to gameframe-layout there. It matters for the two notification
 # builtins because the provider's chat pane shows three lines and the notice is
 # below them; on the native frame the same notice is legible.
-cannon-native-cs2 nxt-cannon-ammo cs2 TORIRS_PLUGIN_ONLY=nxt-cannon-ammo 'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+cannon-native-cs2 nxt-cannon-ammo cs2 TORIRS_PLUGIN_ONLY=nxt-cannon-ammo 'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
 birdnest-off-native-cs2 nxt-bird-nest cs2 TORIRS_PLUGIN_ONLY=nxt-bird-nest TORIRS_SIM_VARBIT=450,13087,1 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1' TORIRS_TRACE_NATIVE_UI=1
 
 tileind-lua-nohover-cs2 tile-indicator-lua cs2

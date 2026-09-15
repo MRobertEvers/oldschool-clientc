@@ -2043,7 +2043,10 @@ frame_loop_step(void)
                 }
                 if( sim_oploc_frame >= 0 && frame_count >= sim_oploc_frame )
                 {
-                    TORIRS_LOG(
+                    /* TORIRS_REPORT and not TORIRS_LOG: @see the sim_varbit
+                     * receipt below for why a drive lever's only receipt may
+                     * not be compiled out of the build every capture uses. */
+                    TORIRS_REPORT(
                         "sim_oploc: op=%ld tile=%ld,%ld loc=%ld\n",
                         sim_oploc_op,
                         sim_oploc_x,
@@ -2305,7 +2308,25 @@ frame_loop_step(void)
                      * unimplementable in the first place.
                      */
                     RS_CS2Host_QueueSettingsMirror(&app.host, (int)vb_id, (int)vb_value);
-                    TORIRS_LOG(
+                    /*
+                     * TORIRS_REPORT, not TORIRS_LOG: this is the RECEIPT for a
+                     * lever, not narration.
+                     *
+                     * Every screenshot in tools/porcelain_gate/shots is taken
+                     * with an OPT=1 binary, which is -DNDEBUG, which compiles
+                     * TORIRS_LOG away -- so the one line that says whether the
+                     * write landed, and what the varbit read back as, was
+                     * absent from every capture log while `sim_cmd:` beside it
+                     * printed. A cannon capture whose threshold row was never
+                     * written therefore looked exactly like one whose write had
+                     * landed and done nothing, and the reads-back field is what
+                     * separates "the profile has no such varbit" from "the
+                     * value is too wide for its bits".
+                     *
+                     * It meets the channel's own test: it prints only because
+                     * someone set TORIRS_SIM_VARBIT.
+                     */
+                    TORIRS_REPORT(
                         "sim_varbit: %ld = %ld (base varp %d, reads back %d)\n",
                         vb_id,
                         vb_value,
