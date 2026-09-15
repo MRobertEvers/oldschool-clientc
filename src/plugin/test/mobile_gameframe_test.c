@@ -677,7 +677,30 @@ fw_build(int oldschool)
     fw_add(root, "minimap", -1, 575, 9, 146, 151);
     fw_add(root, "compass", -1, 550, 4, 33, 33);
     fw_add(root, "chat", -1, 0, 338, 519, 165);
-    fw_add(root, "sidebar", -1, 553, 205, 190, 261);
+    /*
+     * The sidebar CONTAINER exists on a cache lane and does not on a 2004 one.
+     *
+     * `rs245_2lc_dat1_ui.ini` -- the layout rs289lc shares -- declares only
+     * `panel_<name> = slot(sidebar, <n>)`, the fourteen MOUNTS, and seats each
+     * of them directly under `fixed_shell` at the 2004 inventory box. There is
+     * no `[role:sidebar]` in it, and the node that does stand at that box,
+     * `sidebar_region`, is the invback plate BESIDE the mounts rather than an
+     * ancestor of them.
+     *
+     * The fixture used to hand both lanes a container regardless, and that one
+     * line of generosity is what hid the drawer's whole shut path: the frame
+     * had a role to hide, the test checked that role, and on the lane this
+     * frame ships for there was nothing there to hide. @see the checks on the
+     * mounts themselves in scenario 1.
+     *
+     * The mounts stay ROOT children on both, which is also what the 2004
+     * layout states. A cache lane parents them under the container, and this
+     * fixture not modelling that is deliberate: it makes every hide the frame
+     * relies on an explicit one, so a hide inherited from a parent can never
+     * stand in for one the frame failed to state.
+     */
+    if( oldschool )
+        fw_add(root, "sidebar", -1, 553, 205, 190, 261);
     for( int i = 0; i < 14; i++ )
         if( i != g_missing_sidetab ) fw_add(root, "sidebar", i, 553, 205, 190, 261);
     fw_add(root, "main_modal", -1, 4, 4, 512, 334);
@@ -886,6 +909,29 @@ static int placed(char const* role, int member, int x, int y, int w, int h)
 {
     struct FakeWidget const* n = native(role, member);
     return n && n->moved && !n->hidden && n->x == x && n->y == y && n->w == w && n->h == h;
+}
+/*
+ * How many of the lane's sidebar MOUNTS are still painting?
+ *
+ * The question the drawer is really about. A shut drawer that hides only the
+ * container leaves every one of these on the screen wherever the lane put it,
+ * and on a 2004 lane that is the inventory's item grid over the world at
+ * (553,205), taking the taps meant for the rail under it.
+ *
+ * Counted over the mounts the fixture MOUNTED, so a lane missing a tab is not
+ * credited with hiding one it never had. @see g_missing_sidetab.
+ */
+static int
+sidebar_mounts_showing(void)
+{
+    int showing = 0;
+    for( int tab = 0; tab < 14; tab++ )
+    {
+        int const id = fw_find("sidebar", tab);
+        if( id >= 0 && !g_w[id].hidden )
+            showing++;
+    }
+    return showing;
 }
 static int owned_at(char const* key, int x, int y)
 {
@@ -1144,7 +1190,20 @@ main(void)
         CHECK(map->mask >= 0 && native("compass", -1)->mask >= 0 && native("compass", -1)->art < 0,
               "both round windows are cut and the 2004 rose is kept");
     }
-    CHECK(native("sidebar", -1)->hidden && !placed("sidebar", -1, 740, 335, 190, 261), "the drawer is shut: the sidebar is hidden");
+    /*
+     * The drawer is shut, so every MOUNT is put away -- not the container.
+     *
+     * This lane has no sidebar container to hide (@see fw_build), and even
+     * where one exists it is not an ancestor of the mounts on a 2004 layout.
+     * The frame therefore has to name each mount, and this is the count that
+     * says it did.
+     *
+     * MUTATION: drop the `s == FRAME_SURFACE_SIDEBAR && !g_drawer_open` block
+     * from mobile_describe_surfaces. Red: all fourteen go on painting at the
+     * 2004 inventory box with the drawer shut.
+     */
+    CHECK(sidebar_mounts_showing() == 0 && !placed("sidebar", 3, 740, 335, 190, 261),
+          "the drawer is shut: every sidebar mount is hidden and none is placed");
     CHECK(placed("chat", -1, 17, 452, 479, 96), "the sheet is up at the bottom-left, above the button strip");
     /*
      * And the block stands ON the bottom margin rather than on the last row.
@@ -1255,12 +1314,39 @@ main(void)
     }
 
     /* ---- 2. the drawer -------------------------------------------------- */
+    /* The two plates, as the layer knows them BEFORE the drawer adds anything
+     * to the chrome. @see the identity check below. */
+    struct FakeWidget const* const plate_l_before = owned("piece.rail.0");
+    struct FakeWidget const* const plate_r_before = owned("piece.rail.1");
     g_frame.select_calls = 0;
     press("tab.03");
     CHECK(g_frame.select_calls == 1 && g_frame.selected_tab == 3, "tapping a stone selects that tab, once");
     g_frame.active_tab = 3;
     declare_after_press(M_W, M_H);
-    CHECK(placed("sidebar", -1, 740, 335, 190, 261) && !native("sidebar", -1)->hidden, "the drawer opens on that panel");
+    CHECK(placed("sidebar", 3, 740, 335, 190, 261) && sidebar_mounts_showing() == 14,
+          "the drawer opens on that panel, and every mount is back");
+    /*
+     * And the rail is the SAME two plates it was, not two new ones.
+     *
+     * Opening the drawer records two more chrome pieces -- the panel's backing
+     * and the tap blocker under it -- ahead of the rail. While a piece was
+     * named by its INDEX in that table, both plates therefore changed key, and
+     * a changed key is a new widget: the layer creates it at the end of the
+     * parent's children, which is in front of every stone and icon the rail
+     * described earlier. What that looked like on rs289lc was the right-hand
+     * column going blank the moment the drawer opened -- its seven icons
+     * behind their own plate -- and every rock in it refusing a tap, because
+     * the plate was taking it. @see MobileBlit::key.
+     *
+     * The pointers are the assertion: `owned()` answers the live widget for a
+     * key, so a plate re-created under a new name is a different address.
+     *
+     * MUTATION: key the pieces by table index again. Red: both plates come
+     * back as widgets the rail had never seen.
+     */
+    CHECK(plate_l_before && plate_r_before && owned("piece.rail.0") == plate_l_before &&
+              owned("piece.rail.1") == plate_r_before,
+          "and the rail's two plates keep the widgets they already had");
     CHECK(stone_lit(3) && !stone_lit(0), "the open tab's stone is lit and no other");
     {
         int blockers = 0;
@@ -1273,12 +1359,12 @@ main(void)
     CHECK(g_frame.select_calls == 1 && g_frame.selected_tab == 5, "a different stone switches panels");
     g_frame.active_tab = 5;
     declare_after_press(M_W, M_H);
-    CHECK(placed("sidebar", -1, 740, 335, 190, 261), "and leaves the drawer open");
+    CHECK(placed("sidebar", 5, 740, 335, 190, 261), "and leaves the drawer open");
     g_frame.select_calls = 0;
     press("tab.05");
     CHECK(g_frame.select_calls == 0, "tapping the open tab does not re-select it");
     declare_after_press(M_W, M_H);
-    CHECK(native("sidebar", -1)->hidden && !stone_lit(5), "and shuts the drawer");
+    CHECK(sidebar_mounts_showing() == 0 && !stone_lit(5), "and shuts the drawer");
     /*
      * A tab the server has not handed over is a bare rock -- and now an INERT
      * one.
@@ -1298,7 +1384,7 @@ main(void)
     CHECK(owned("icon.04") == NULL, "a tab the server has not handed over wears no icon");
     CHECK(owned("tab.04") && owned("tab.04")->op[0] == '\0',
           "and its rock carries no Select row at all");
-    CHECK(g_frame.select_calls == 0 && native("sidebar", -1)->hidden, "so a tap on it does nothing");
+    CHECK(g_frame.select_calls == 0 && sidebar_mounts_showing() == 0, "so a tap on it does nothing");
     g_frame.ungiven_tab = -1;
     declare_after_press(M_W, M_H);
     CHECK(owned("icon.04") != NULL && owned("tab.04") && strcmp(owned("tab.04")->op, "Select") == 0,
@@ -1690,12 +1776,23 @@ main(void)
     CHECK(owned("chat-toggle") && strcmp(owned("chat-toggle")->op, "Hide chat") == 0,
           "a switch whose plate never decoded is still a switch that can bring the chat back");
     CHECK(owned("chat-glyph") != NULL, "and the glyph that DID decode is still on it");
-    /* Thirteen rocks and not fourteen, and the keys are the rail's own indices:
-     * a tab the cache does not mount takes no cell, so the twelfth index is the
-     * last one there is. The one ABSENT finding this raises is the price of the
-     * answer, and it is the price the ledger row quotes. */
-    CHECK(owned_count("tab.") == 13 && owned("tab.12") != NULL && owned("tab.13") == NULL,
-          "a tab this cache does not mount loses its rock");
+    /*
+     * Thirteen rocks and not fourteen, and the key that is MISSING is the
+     * absent tab's own.
+     *
+     * A cell is named for the tab it opens rather than for its place in the
+     * rail, so the gap falls where the cache's gap is: `tab.07` is not there
+     * and `tab.13` still is. Keyed by position the thirteen cells would shuffle
+     * up one the moment a tab came or went, and every stone after the gap would
+     * be wearing a neighbour's identity -- the same trap the chrome pieces fell
+     * into, one array along. The one ABSENT finding this raises is the price of
+     * the answer, and it is the price the ledger row quotes.
+     *
+     * MUTATION: key the cells by plan index again (`state->cell_key[i]`). Red:
+     * `tab.13` is gone and `tab.07` is there instead.
+     */
+    CHECK(owned_count("tab.") == 13 && owned("tab.07") == NULL && owned("tab.13") != NULL,
+          "a tab this cache does not mount loses its OWN rock, not the last one");
     PluginHost_Free(g_host);
     g_stub_asset = NULL;
     g_missing_sidetab = -1;

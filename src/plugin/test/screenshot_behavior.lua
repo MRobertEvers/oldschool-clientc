@@ -28,9 +28,24 @@ return { id = 'screenshot-behavior', on_start = function(host)
     end
 
     -- --------------------------------------------------------------- assets
+    -- chat_button.png is the plate's SOURCE, 56x22 like the shipped sprite, and
+    -- it carries pixels because the plugin three-slices it rather than ramping
+    -- a palette across the box. Its cells are i*16 + 0xff000000 so a plate cut
+    -- from it can be told from a constant, and it starts ready: the plate is
+    -- the one picture the plugin reads rather than merely holds, so a test that
+    -- landed it late would be testing the fake's own sequencing.
+    local CHAT_BUTTON_W, CHAT_BUTTON_H = 56, 22
+    local chat_button_pixels = {}
+    for i = 1, CHAT_BUTTON_W * CHAT_BUTTON_H do
+        chat_button_pixels[i] = 0xff000000 + (i * 16) % 0x1000000
+    end
     local assets = { ['camera.png'] = { ready = false, ref = 1, w = 28, h = 26, requests = 0 },
-                     ['camera_small.png'] = { ready = false, ref = 2, w = 20, h = 16, requests = 0 } }
-    local by_ref = { [1] = assets['camera.png'], [2] = assets['camera_small.png'] }
+                     ['camera_small.png'] = { ready = false, ref = 2, w = 20, h = 16, requests = 0 },
+                     ['chat_button.png'] = { ready = true, ref = 3, w = CHAT_BUTTON_W,
+                                             h = CHAT_BUTTON_H, requests = 0,
+                                             pixels = chat_button_pixels } }
+    local by_ref = { [1] = assets['camera.png'], [2] = assets['camera_small.png'],
+                     [3] = assets['chat_button.png'] }
     -- Derived pictures are NOT assets: the layer composes them from the
     -- plugin's own pixels, so nothing here is requested, held or released.
     -- Keyed by name; the slot remembers the inputs it was painted for.
@@ -264,6 +279,15 @@ return { id = 'screenshot-behavior', on_start = function(host)
                 assert(asset and asset.ready, 'image_size on a handle that is not ready')
                 return asset.w, asset.h
             end,
+            -- The plate's source pixels. A plugin that reads these at describe
+            -- time and indexes them from inside the layer's paint callback is
+            -- the whole reason the read is separate from the paint.
+            image_pixels = function(ref)
+                local asset = by_ref[ref]
+                assert(asset and asset.ready, 'image_pixels on a handle that is not ready')
+                assert(asset.pixels, 'image_pixels on a handle with no pixels')
+                return asset.pixels
+            end,
             screenshot = function(directory, name)
                 captures[#captures + 1] = directory .. '|' .. name
                 return true, '/saved/' .. directory .. '/' .. name
@@ -398,13 +422,24 @@ return { id = 'screenshot-behavior', on_start = function(host)
     assert(plate.relation == 'replace' and plate.anchor == 'report_button',
         'the plate stands in place of the report button through a REPLACE placement')
     assert(plate.image == 'camera_plate.png', 'and it is the plugin\'s own derived picture')
+    -- ...DERIVED FROM THE SPRITE, and that is the part worth pinning. The
+    -- plate was a palette for one morning -- five tones sampled off a
+    -- screenshot and ramped across the box -- and it read as a flat slab
+    -- between two pictures. Every cell of it now comes out of chat_button.png,
+    -- cache sprite 3051, the picture the lane itself draws under a filter.
+    local from_sprite = {}
+    for i = 1, #chat_button_pixels do from_sprite[chat_button_pixels[i]] = true end
+    local cells = derived_slots['camera_plate.png'].cells
+    for i = 1, #cells do
+        assert(from_sprite[cells[i]], 'cell ' .. i .. ' of the plate is not a sprite pixel')
+    end
     assert(plate.w == 80 and plate.h == 22,
         'the plate is the size of the BUTTON, so nothing REPLACE removed is left as a hole')
     assert(plate.x == 430 and plate.y == 6, 'and it sits exactly where the button was')
     assert(plate.armed == nil,
         'the plate carries no hit box: the camera over it owns the press')
-    assert(#derived_paints == 1 and derived_paints[1] == 'camera_plate.png|80x22',
-        'the plate is painted exactly once, keyed by the box it was painted for')
+    assert(#derived_paints == 1 and derived_paints[1] == 'camera_plate.png|chat_button.png 80x22',
+        'the plate is painted once, keyed by the SOURCE and the box it was cut to')
     -- REPLACE is the placement that must be a sibling: a REPLACE from a child
     -- of the target is ANCHOR_INVALID. So the plate DOES pay an anchor, and
     -- that is the difference WITHIN exists to avoid paying twice.
@@ -435,7 +470,7 @@ return { id = 'screenshot-behavior', on_start = function(host)
     -- A new SIZE is a new picture, and the key says so: the plate covers
     -- whatever box the lane reports, which is the whole point of deriving it.
     element_moved('report_button', 300, 40, 100, 30); porcelain.note('element'); frame()
-    assert(#derived_paints == 2 and derived_paints[2] == 'camera_plate.png|100x30',
+    assert(#derived_paints == 2 and derived_paints[2] == 'camera_plate.png|chat_button.png 100x30',
         'a resized button repaints the plate at the new box')
     assert(plate.w == 100 and plate.h == 30, 'and the plate covers the new box exactly')
     element_moved('report_button', 430, 6, 80, 22); porcelain.note('element'); frame()
@@ -489,11 +524,12 @@ return { id = 'screenshot-behavior', on_start = function(host)
     product.on_key(api, { down = true, key = 44 })
     assert(#captures == 4, 'the hotkey captures immediately')
 
-    -- ------------------------------------------------- both icons stay held
-    -- The layer releases an image no describe run asked for. Both are asked
-    -- for on every run, so a mode change never pays a second decode.
+    -- ------------------------------------------------ every image stays held
+    -- The layer releases an image no describe run asked for. All three -- both
+    -- icons and the plate's source sprite -- are asked for on every run, so a
+    -- mode change never pays a second decode.
     for _ = 1, 8 do porcelain.note('explicit'); frame() end
-    assert(#released == 0, 'neither icon is released while the camera is live')
+    assert(#released == 0, 'no image is released while the camera is live')
     config.camera = 'bottom-right'; config_changed(); frame()
     assert(assets['camera.png'].requests == 1 and assets['camera_small.png'].requests == 1,
         'switching mode re-uses the held icon rather than re-requesting it')
@@ -502,7 +538,7 @@ return { id = 'screenshot-behavior', on_start = function(host)
     -- ------------------------------------------------------------ teardown
     product.on_stop(api)
     porcelain.close()   -- the host closes the handle after on_stop returns
-    assert(#released == 2, 'close releases both image handles')
+    assert(#released == 3, 'close releases all three image handles: two icons and the plate art')
     none()
     host.core.log('screenshot behavior verified')
 end }

@@ -78,8 +78,9 @@
  *   stone       the surround's vertical strip retained with the classic set.
  *   highlight   the pressed stone, drawn on the open tab only.
  *   drawer      the 2004 side panel, which the drawer IS.
- *   chat_plate  the two classic base sprites whose real chat-control regions
- *               are cut out and, on OldSchool, reduced to the native cells.
+ *   chat_button the 2004 chat filter stone with the strip it was cut out of
+ *               already taken off it, hand-masked: reduced to a button's box,
+ *               or reduced and three-sliced to an OldSchool bar's cells.
  *   chat_sheet  the torn parchment behind either lane's chat behavior.
  *   map_housing the map plate, with the minimap and compass in the holes the
  *               classic frame puts them in.
@@ -419,8 +420,8 @@ static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] =
 
 /*
  * The OldSchool pack's own bar is 519x23, and the 2004 strip that dresses it
- * is composed at exactly that box -- with a hollow cut for every filter the
- * pack has, which is eight.
+ * is composed at exactly that box -- with a stone cut for every filter the
+ * pack has, which is eight, and nothing at all between them.
  *
  * Two wrong answers came before this one. The pack's eight controls were first
  * re-dressed one at a time in a shrunken classic stone, which squashed the
@@ -429,24 +430,50 @@ static unsigned char const MOBILE_O_COLUMN[MOBILE_RAIL_COLS][MOBILE_RAIL_ROWS] =
  * with it and left four 2004 buttons where the player had All, Game, Public,
  * Private, Channel, Clan, Trade and Report.
  *
- * A 2004 chat filter is a caption on a hollow cut INTO the rock, with nothing
- * between the two. So the bar's picture is re-cut here -- one hollow per
- * filter, at the boxes the eight plate roles report -- and the plates are held
- * with no art. Everything written on them stays the pack's: the name, and the
- * green mode line under it that says On, Friends or Off.
+ * A 2004 chat filter is a STONE, and only the stone. The picture composed at
+ * the bar's box is one stone per filter, at the boxes the eight plate roles
+ * report, with every column between them and beyond the last one left CLEAR --
+ * and the plates are held with no art. Everything written on them stays the
+ * pack's: the name, and the green mode line under it that says On, Friends or
+ * Off.
  *
- * @see MOBILE_CHAT_RECESS_CAP, mobile_compose_classic_bar.
+ * NOT a slab with the stones cut into it. The band used to be tiled from the
+ * clean rock beside the source hollow and the hollows re-cut into it, which is
+ * how 2004 authored the sprite -- but 2004's slab was the chat's whole
+ * backdrop, and here the backdrop is the torn parchment sheet. Tiling the rock
+ * as well laid a second, rectangular backdrop across the sheet's bottom rows
+ * and out to the corner past the last filter: the row read as a stone bar with
+ * buttons pressed into it rather than as eight buttons standing on the paper.
+ * So the band carries the stones and nothing else.
+ *
+ * @see MOBILE_CHAT_BUTTON_CAP, mobile_compose_classic_bar.
  */
-/** The one hollow the band is re-cut from, and the clean rock beside it. The
- *  first, at MOBILE_CHAT_BUTTON_SRC[0], is wholly inside `chat_plate.png`. */
-#define MOBILE_CHAT_RECESS_CAP 10
-#define MOBILE_CHAT_ROCK_X 106
-#define MOBILE_CHAT_ROCK_W 29
-/** As many hollows as a bar can be asked for: an OldSchool chatbox has eight
+/*
+ * Every stone on this frame is `chat_button.png`, and there is nothing else.
+ *
+ * The slab is not read at all any more. Both paths used to cut their stone out
+ * of `chat_plate.png` -- the 2004 strip -- one at a 100x32 WINDOW and one at a
+ * measured silhouette, and both were answering a question the assets had
+ * already answered: the sprite beside them is the button with the slab taken
+ * off it, hand-masked at 295x97 so its alpha follows the stone's own outline.
+ * It shipped on 2026-08-27 and nothing read it until the dark rectangle it
+ * exists to prevent had been reported three times.
+ *
+ * So there is no silhouette to measure, no rock to fill with, and no corner to
+ * round: a cut-out carries all three. What is left is one number.
+ */
+/** The sprite's rounded END, in its own columns: the three-slice copies this
+ *  much from each side and resamples what is between, so a narrow cell keeps
+ *  the shape of the ends instead of squashing them. MEASURED on the alpha --
+ *  column coverage climbs from 0 and first reaches the full 97 rows at x=24,
+ *  and falls again after x=240 -- so 25 of 295, and it is carried as source
+ *  columns because the picture is reduced before it is sliced. */
+#define MOBILE_CHAT_BUTTON_CAP 25
+/** As many stones as a bar can be asked for: an OldSchool chatbox has eight
  *  filters and a 2004 one has four. */
 #define MOBILE_CHAT_CELL_MAX 8
 
-/** One hollow to cut, in the BAR's own columns and rows. */
+/** One stone to cut, in the BAR's own columns and rows. */
 struct MobileChatCell
 {
     int x;
@@ -597,11 +624,14 @@ enum MobileImage
     /** The grey button the 2004 interfaces use for logout and the settings
      *  toggles -- `miscgraphics2` frame 0. The chat switch wears it. */
     IMG_SWITCH,
-    /** The 2004 base plates the four chat buttons are regions of. The first
-     *  three fit in `backbase1`; Report crosses into `backbase2`.
-     *  @see mobile_compose_chat_button. */
-    IMG_CHAT_PLATE,
-    IMG_CHAT_PLATE_END,
+    /** The chat filter button, ALONE: the 2004 stone with the slab it was cut
+     *  out of already taken off it, hand-masked at 295x97. Shipped since
+     *  2026-08-27 and read by nothing until now -- both chat paths cut their
+     *  own stone out of the 2004 STRIP instead, and a piece of that strip is a
+     *  stone in a dark ragged rectangle the moment the chat stands on the
+     *  world rather than on rock. It is the only chat art this frame reads.
+     *  @see MOBILE_CHAT_BUTTON_CAP. */
+    IMG_CHAT_BUTTON,
     /*
      * The two switch glyphs, from OldSchool's own sprite set.
      *
@@ -770,8 +800,7 @@ static char const* const MOBILE_IMAGE_FILE[MOBILE_IMG_COUNT] = {
     [IMG_STONE] = "stone.png",
     [IMG_PLATE] = "rail_back_top_cleaned.png",
     [IMG_SWITCH] = "switch.png",
-    [IMG_CHAT_PLATE] = "chat_plate.png",
-    [IMG_CHAT_PLATE_END] = "chat_plate_end.png",
+    [IMG_CHAT_BUTTON] = "chat_button.png",
     [IMG_ICON_KEYBOARD] = "icon_keyboard.png",
     [IMG_ICON_CHAT] = "icon_chat.png",
     [IMG_COMPASS] = "compass.png",
@@ -845,14 +874,16 @@ enum MobileComposed
      * close enough to fourteen that a table keyed by the thing the draw pass
      * actually has in its hand is simpler than one it has to look up.
      */
-    /** Four real regions of the classic base plate, at their original
-     *  100x32 boxes. An OldSchool bar wears the whole strip instead, composed
-     *  at the box the pack reports. @see mobile_bar_art. */
-    ART_CHAT_BUTTON_0,
+    /** The 2004 chat filter button at its 100x32 box. ONE, for all four of
+     *  them: the four are the same picture, so four slots held four copies of
+     *  it and three of them were a decode and an image name the layer cannot
+     *  spend elsewhere. An OldSchool bar wears the whole strip instead,
+     *  composed at the box the pack reports. @see mobile_bar_art. */
+    ART_CHAT_BUTTON,
     /** The chat glyph, scaled to fit the switch. The keyboard keeps
      *  `osm_keyboard`'s authored 33x36 transparent canvas.
      *  @see MOBILE_ICON_NUM. */
-    ART_ICON_CHAT = ART_CHAT_BUTTON_0 + MOBILE_CHAT_BUTTON_COUNT,
+    ART_ICON_CHAT,
     /** The keyboard glyph, fitted to the switch the same way.
      *  @see MOBILE_KEY_ICON_NUM. */
     ART_ICON_KEYBOARD,
@@ -950,6 +981,26 @@ struct MobileArt
  *  wearing a blank face, so a tap on chrome does not walk the player. */
 struct MobileBlit
 {
+    /*
+     * The NAME this piece is described under, and the reason it is a name.
+     *
+     * It used to be `piece.%02d`, the entry's index in this table -- and the
+     * table's LENGTH moves: the drawer's backing is recorded only while the
+     * drawer is open, the parchment only while the sheet is up, and the second
+     * switch only on a lane that has one. Every piece behind the one that came
+     * or went therefore changed key, and a key that changes is a new widget:
+     * the layer creates it at the END of the parent's children, which is over
+     * every stone and icon the rail described earlier. Opening the drawer put
+     * the right-hand plate on top of its own seven icons -- the column went
+     * blank and stopped answering taps, because the plate was in front of it.
+     *
+     * So a piece is named for WHAT IT IS. The identity then survives every
+     * other piece coming and going, which is the one property the reconciler
+     * needs from it. The `piece.` stem stays: it is the family this frame's
+     * own chrome is counted by, as against its rocks, stones and icons.
+     * @see mobile_describe_chrome.
+     */
+    char const* key;
     struct MobileArt image;
     int x;
     int y;
@@ -1097,7 +1148,7 @@ struct MobileRuntime
 
 /** A composed picture and the box it was composed for. Held across passes: the
  *  size changes about as often as the chatbox does. `key` is whatever else the
- *  picture depends on -- for the chat bar, the hollows cut into it. */
+ *  picture depends on -- for the chat bar, the stones cut into it. */
 struct MobilePaper
 {
     struct MobileArt art;
@@ -1171,7 +1222,6 @@ struct MobileState
      * re-described -- so these cannot be a `char[24]` on the describe's stack
      * the way the old apply pass's `snprintf` into a local was.
      */
-    char piece_key[MOBILE_BLIT_MAX][12];
     char cell_key[MOBILE_TAB_COUNT][12];
     char lit_key[MOBILE_TAB_COUNT][12];
     char icon_key[MOBILE_TAB_COUNT][12];
@@ -1254,7 +1304,7 @@ ToriRS_MobileGameframePorcelainForTesting(void)
  * two owns a picture's lifetime is decided by who NAMES it: Porcelain owns the
  * pictures a DESCRIPTION names, requesting one on the describe that first names
  * it and handing the slot back after several runs that did not. A composition
- * SOURCE is named by no description -- `chat_plate.png` is read for its pixels
+ * SOURCE is named by no description -- `chat_button.png` is read for its pixels
  * and never blitted -- and the host's image table is one slot per (plugin,
  * name) with no refcount, so a slot the layer releases takes the plugin's
  * handle with it. Asking again is a table lookup the host answers without
@@ -1354,12 +1404,6 @@ mobile_blank(struct MobileCall* ctx)
     state->blank.ref = mobile_publish(ctx, state->blank.name, 1, 1, &clear);
     return state->blank;
 }
-
-/* The 2004 base plates the four chat buttons are regions of. */
-#define MOBILE_CHAT_PLATE_Y 14
-#define MOBILE_CHAT_PLATE_END_X 496
-#define MOBILE_CHAT_PLATE_END_DY 1
-static int const MOBILE_CHAT_BUTTON_SRC[MOBILE_CHAT_BUTTON_COUNT] = { 6, 135, 273, 408 };
 
 /*
  * Which map housing to wear.
@@ -1558,117 +1602,231 @@ mobile_housing(struct MobileCall* ctx)
  * that a frame declared before the drawer has ever been opened still wears its
  * icons.
  */
-/** Cut one complete 100x32 chat plate from the classic gameframe sprites. */
-static struct ToriRS_ImageRef
-mobile_compose_chat_button(
-    struct MobileCall* ctx,
-    char const* name,
-    int index)
+
+/*
+ * The reduction itself, on raw buffers: `src_w` x `src_h` into `width` x
+ * `height`, each destination pixel the MEAN of the source rectangle it covers.
+ *
+ * On buffers and not on handles because there are two callers with different
+ * needs -- one publishes the result as a picture, the other three-slices it
+ * into a band -- and the pixels are the only thing they share.
+ *
+ * Averaged in PREMULTIPLIED space, because the alternative is wrong at every
+ * edge: a transparent pixel still carries a colour, and mixing that colour in
+ * at full weight drags the rim of a cut-out toward whatever it happened to be
+ * filled with -- black, here, so the button would come back with a dark fringe
+ * all round it, which is the defect this whole path exists to avoid.
+ */
+static void
+mobile_scale_pixels(
+    uint32_t const* src,
+    int src_w,
+    int src_h,
+    uint32_t* out,
+    int width,
+    int height)
 {
-    uint32_t* plate;
-    uint32_t* tail;
-    uint32_t* out;
-    int plate_w = 0;
-    int plate_h = 0;
-    int tail_w = 0;
-    int tail_h = 0;
-    size_t copied = 0;
-    struct ToriRS_ImageRef handle = { 0 };
-    int const from = MOBILE_CHAT_BUTTON_SRC[index];
-
-    assert(ctx);
-    assert(name);
-    assert(index >= 0);
-    assert(index < MOBILE_CHAT_BUTTON_COUNT);
-    if( !g_api->assets.image_size(g_api, mobile_image(ctx, IMG_CHAT_PLATE), &plate_w, &plate_h) ||
-        plate_w <= 0 || plate_h <= 0 ||
-        !g_api->assets.image_size(
-            g_api, mobile_image(ctx, IMG_CHAT_PLATE_END), &tail_w, &tail_h) ||
-        tail_w <= 0 || tail_h <= 0 )
-        return handle;
-
-    plate = malloc((size_t)plate_w * (size_t)plate_h * sizeof(*plate));
-    tail = malloc((size_t)tail_w * (size_t)tail_h * sizeof(*tail));
-    assert(plate);
-    assert(tail);
-    if( !g_api->assets.image_pixels(
-            g_api,
-            mobile_image(ctx, IMG_CHAT_PLATE),
-            plate,
-            (size_t)plate_w * (size_t)plate_h,
-            &copied) ||
-        copied != (size_t)plate_w * (size_t)plate_h )
-        goto done;
-    copied = 0;
-    if( !g_api->assets.image_pixels(
-            g_api,
-            mobile_image(ctx, IMG_CHAT_PLATE_END),
-            tail,
-            (size_t)tail_w * (size_t)tail_h,
-            &copied) ||
-        copied != (size_t)tail_w * (size_t)tail_h )
-        goto done;
-
-    out = malloc(
-        (size_t)MOBILE_CHAT_BUTTON_W * (size_t)MOBILE_CHAT_BUTTON_H * sizeof(*out));
+    assert(src);
     assert(out);
-    for( int y = 0; y < MOBILE_CHAT_BUTTON_H; y++ )
-        for( int x = 0; x < MOBILE_CHAT_BUTTON_W; x++ )
+    assert(src_w > 0);
+    assert(src_h > 0);
+    assert(width > 0);
+    assert(height > 0);
+    for( int row = 0; row < height; row++ )
+    {
+        int const y0 = (row * src_h) / height;
+        int const y1 = (((row + 1) * src_h) / height) > y0 ? ((row + 1) * src_h) / height
+                                                           : y0 + 1;
+
+        for( int col = 0; col < width; col++ )
         {
-            int const sx = from + x;
-            int const sy = MOBILE_CHAT_PLATE_Y + y;
-            uint32_t pixel = 0;
+            int const x0 = (col * src_w) / width;
+            int const x1 = (((col + 1) * src_w) / width) > x0 ? ((col + 1) * src_w) / width
+                                                              : x0 + 1;
+            unsigned long sum_a = 0;
+            unsigned long sum_r = 0;
+            unsigned long sum_g = 0;
+            unsigned long sum_b = 0;
+            unsigned long count = 0;
 
-            if( sx < plate_w && sy < plate_h )
-                pixel = plate[(size_t)sy * (size_t)plate_w + (size_t)sx];
-            else if( sx >= MOBILE_CHAT_PLATE_END_X )
+            for( int sy = y0; sy < y1 && sy < src_h; sy++ )
             {
-                int const tx = sx - MOBILE_CHAT_PLATE_END_X;
-                int const ty = sy + MOBILE_CHAT_PLATE_END_DY;
-                if( tx < tail_w && ty < tail_h )
-                    pixel = tail[(size_t)ty * (size_t)tail_w + (size_t)tx];
-            }
-            out[(size_t)y * MOBILE_CHAT_BUTTON_W + (size_t)x] = pixel;
-        }
-    handle = mobile_publish(ctx, name, MOBILE_CHAT_BUTTON_W, MOBILE_CHAT_BUTTON_H, out);
-    free(out);
+                for( int sx = x0; sx < x1 && sx < src_w; sx++ )
+                {
+                    uint32_t const pixel = src[(sy * src_w) + sx];
+                    unsigned long const alpha = (pixel >> 24) & 0xffu;
 
-done:
-    free(plate);
-    free(tail);
-    return handle;
+                    sum_a += alpha;
+                    sum_r += ((pixel >> 16) & 0xffu) * alpha;
+                    sum_g += ((pixel >> 8) & 0xffu) * alpha;
+                    sum_b += (pixel & 0xffu) * alpha;
+                    count++;
+                }
+            }
+            if( count == 0 || sum_a == 0 )
+            {
+                out[(row * width) + col] = 0x00000000u;
+                continue;
+            }
+            out[(row * width) + col] = (uint32_t)(((sum_a / count) & 0xffu) << 24) |
+                                       (uint32_t)(((sum_r / sum_a) & 0xffu) << 16) |
+                                       (uint32_t)(((sum_g / sum_a) & 0xffu) << 8) |
+                                       (uint32_t)((sum_b / sum_a) & 0xffu);
+        }
+    }
 }
 
 /*
- * The 2004 chat strip, at the box the pack's own bar occupies, with a hollow
- * re-cut for every filter that bar carries.
+ * The 2004 chat strip, at the box the pack's own bar occupies: one stone
+ * re-cut for every filter that bar carries, and CLEAR everywhere else.
  *
- * One BAND and not a row of buttons. 2004 cut its four hollows into the base
- * sprite itself, so a bar is ONE picture and a filter is a caption on it; the
- * moment a plate is laid over the bar there are two bars, and the seam between
- * them is the rectangle you can see behind every label. How many hollows there
- * are is the LANE's answer -- eight on an OldSchool chatbox -- so they are
- * re-cut here rather than read off the source at its own four columns.
+ * ONE picture and not eight. The moment a plate is laid over the bar there are
+ * two bars, and the seam between them is the rectangle you can see behind
+ * every label -- so the whole row is composed here, at the bar's box, and what
+ * changes per filter is which columns of it carry a stone. How many stones
+ * there are is the LANE's answer -- eight on an OldSchool chatbox, four on a
+ * 2004 one -- so they are re-cut rather than read off a source at its own four
+ * columns.
  *
- * Each hollow is the source hollow three-sliced SIDEWAYS: MOBILE_CHAT_RECESS_
- * CAP columns from each end copied exactly (the rounded corner and the bevel,
- * the two things a narrower cell must not squash) and the smooth gradient
- * between them resampled. Vertically nothing is scaled: the band is 32 rows
- * and a bar is 23, so rows come top from the top and bottom from the bottom --
- * both rock edges exact, and the only rows lost out of the middle of a hollow
- * whose middle is flat. What the cells leave is filled with the clean rock the
- * source carries beside its first hollow.
+ * The stone is `chat_button.png`, REDUCED to the band's height first and
+ * three-sliced second. That order is the whole of the quality: the sprite is
+ * authored at roughly three times the box, so slicing it first would point
+ * sample a 3:1 reduction and turn the bevel into a staircase, while reducing
+ * it first hands the slice a picture already at the right scale. The reduction
+ * keeps the sprite's proportions, so the ends stay the shape they were drawn.
+ *
+ * What the cells leave is TRANSPARENT, and so is everything the sprite's own
+ * mask leaves: the parchment and the world show between the buttons and around
+ * them. @see MOBILE_CHAT_BUTTON_CAP.
  */
 static int
-mobile_chat_band_row(int row, int rows)
+mobile_chat_band_row(int row, int rows, int stone_h)
 {
-    int band = row < rows / 2 ? row : MOBILE_CHAT_BUTTON_H - (rows - row);
+    int band = row < rows / 2 ? row : stone_h - (rows - row);
 
+    assert(stone_h > 0);
     if( band < 0 )
         band = 0;
-    else if( band >= MOBILE_CHAT_BUTTON_H )
-        band = MOBILE_CHAT_BUTTON_H - 1;
+    else if( band >= stone_h )
+        band = stone_h - 1;
     return band;
+}
+
+/*
+ * One stone, written into the band at the cell the filter reported.
+ *
+ * `stone` is the sprite already reduced to `stone_w` x `stone_h`, and `cap` is
+ * MOBILE_CHAT_BUTTON_CAP carried through that same reduction. Rows come
+ * top from the top and bottom from the bottom so both bevels stay exact and
+ * only the flat middle is lost when a cell is shallower than the picture;
+ * columns are the three-slice, with the ends copied and the middle resampled.
+ *
+ * A fully transparent source pixel is SKIPPED rather than written. The band is
+ * cleared once and the cells do not overlap, so this changes no picture -- it
+ * is there so that a lane which ever reports two cells that touch cannot have
+ * one stone's mask erase the edge of its neighbour.
+ */
+static void
+mobile_cut_stone(
+    uint32_t* out,
+    int width,
+    int height,
+    struct MobileChatCell const* cell,
+    uint32_t const* stone,
+    int stone_w,
+    int stone_h,
+    int cap)
+{
+    int const cols = cell->w;
+    int const rows = cell->h;
+
+    assert(out);
+    assert(cap >= 0);
+    assert(cell);
+    assert(stone);
+    assert(stone_w > 0);
+    assert(stone_h > 0);
+    /* A cell too narrow to hold both ends has no three-slice to make, and a
+     * squashed end is worse than the clear column it would replace. */
+    if( cols <= 2 * cap || rows <= 0 )
+        return;
+    for( int y = 0; y < rows; y++ )
+    {
+        int const oy = cell->y + y;
+        int const sy = mobile_chat_band_row(y, rows, stone_h);
+
+        if( oy < 0 || oy >= height )
+            continue;
+        for( int x = 0; x < cols; x++ )
+        {
+            int const ox = cell->x + x;
+            uint32_t pixel;
+            int sx;
+
+            if( ox < 0 || ox >= width )
+                continue;
+            if( x < cap )
+                sx = x;
+            else if( x >= cols - cap )
+                sx = stone_w - (cols - x);
+            else
+                sx = cap + (x - cap) * (stone_w - 2 * cap) / (cols - 2 * cap);
+            pixel = stone[(size_t)sy * (size_t)stone_w + (size_t)sx];
+            if( (pixel >> 24) == 0 )
+                continue;
+            out[(size_t)oy * (size_t)width + (size_t)ox] = pixel;
+        }
+    }
+}
+
+/*
+ * The sprite, reduced to a band height. The caller frees it.
+ *
+ * Proportional: the width follows the height, so the ends keep the shape they
+ * were drawn with and the three-slice above has a picture at its own scale to
+ * copy them from. `cap` comes back reduced by the same ratio. Answers NULL for every reason a picture can be missing --
+ * the asset still crossing the IO queue is the common one -- and a bar with no
+ * stone to cut is simply not composed this fence.
+ */
+static uint32_t*
+mobile_chat_stone_at_height(struct MobileCall* ctx, int height, int* stone_w, int* cap)
+{
+    uint32_t* sprite;
+    uint32_t* stone;
+    int src_w = 0;
+    int src_h = 0;
+    int width;
+    size_t copied = 0;
+
+    assert(ctx);
+    assert(stone_w);
+    assert(cap);
+    assert(height > 0);
+    if( !g_api->assets.image_size(g_api, mobile_image(ctx, IMG_CHAT_BUTTON), &src_w, &src_h) ||
+        src_w <= 0 || src_h <= 0 )
+        return NULL;
+    width = src_w * height / src_h;
+    if( width <= 0 )
+        return NULL;
+    sprite = malloc((size_t)src_w * (size_t)src_h * sizeof(*sprite));
+    assert(sprite);
+    if( !g_api->assets.image_pixels(
+            g_api, mobile_image(ctx, IMG_CHAT_BUTTON), sprite,
+            (size_t)src_w * (size_t)src_h, &copied) ||
+        copied != (size_t)src_w * (size_t)src_h )
+    {
+        free(sprite);
+        return NULL;
+    }
+    stone = malloc((size_t)width * (size_t)height * sizeof(*stone));
+    assert(stone);
+    mobile_scale_pixels(sprite, src_w, src_h, stone, width, height);
+    free(sprite);
+    *stone_w = width;
+    /* The end, reduced by the same ratio as the picture it was measured on, so
+     * the number never has to be restated against a hardcoded source width. */
+    *cap = MOBILE_CHAT_BUTTON_CAP * width / src_w;
+    return stone;
 }
 
 static struct ToriRS_ImageRef
@@ -1680,11 +1838,10 @@ mobile_compose_classic_bar(
     struct MobileChatCell const* cell,
     int cell_count)
 {
-    uint32_t* plate;
+    uint32_t* stone;
     uint32_t* out;
-    int plate_w = 0;
-    int plate_h = 0;
-    size_t copied = 0;
+    int stone_w = 0;
+    int cap = 0;
     struct ToriRS_ImageRef handle = { 0 };
 
     assert(ctx);
@@ -1693,77 +1850,21 @@ mobile_compose_classic_bar(
     assert(height > 0);
     assert(cell_count >= 0);
     assert(cell_count == 0 || cell);
-    if( !g_api->assets.image_size(g_api, mobile_image(ctx, IMG_CHAT_PLATE), &plate_w, &plate_h) ||
-        plate_w < MOBILE_CHAT_ROCK_X + MOBILE_CHAT_ROCK_W ||
-        plate_h < MOBILE_CHAT_PLATE_Y + MOBILE_CHAT_BUTTON_H )
+    /* Reduced ONCE for the whole row: every cell in a bar is the same height,
+     * and a picture per cell would be the same picture eight times. */
+    stone = mobile_chat_stone_at_height(ctx, height, &stone_w, &cap);
+    if( !stone )
         return handle;
 
-    plate = malloc((size_t)plate_w * (size_t)plate_h * sizeof(*plate));
-    assert(plate);
-    if( !g_api->assets.image_pixels(
-            g_api,
-            mobile_image(ctx, IMG_CHAT_PLATE),
-            plate,
-            (size_t)plate_w * (size_t)plate_h,
-            &copied) ||
-        copied != (size_t)plate_w * (size_t)plate_h )
-    {
-        free(plate);
-        return handle;
-    }
-
-    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    /* CLEAR, and the stones are the only thing written over it: the band is a
+     * row of buttons standing on the parchment, not a slab with buttons in it. */
+    out = calloc((size_t)width * (size_t)height, sizeof(*out));
     assert(out);
-    for( int y = 0; y < height; y++ )
-    {
-        int const sy = MOBILE_CHAT_PLATE_Y + mobile_chat_band_row(y, height);
-
-        for( int x = 0; x < width; x++ )
-            out[(size_t)y * (size_t)width + (size_t)x] =
-                plate[(size_t)sy * (size_t)plate_w +
-                      (size_t)(MOBILE_CHAT_ROCK_X + (x % MOBILE_CHAT_ROCK_W))];
-    }
     for( int i = 0; i < cell_count; i++ )
-    {
-        int const cw = cell[i].w;
-        int const ch = cell[i].h;
-
-        /* A cell too narrow to hold both caps has no three-slice to make, and
-         * a squashed bevel is worse than the plain rock it would replace. */
-        if( cw <= 2 * MOBILE_CHAT_RECESS_CAP || ch <= 0 )
-            continue;
-        for( int y = 0; y < ch; y++ )
-        {
-            int const oy = cell[i].y + y;
-            int const sy = MOBILE_CHAT_PLATE_Y + mobile_chat_band_row(y, ch);
-
-            if( oy < 0 || oy >= height )
-                continue;
-            for( int x = 0; x < cw; x++ )
-            {
-                int const ox = cell[i].x + x;
-                int sx;
-
-                if( ox < 0 || ox >= width )
-                    continue;
-                if( x < MOBILE_CHAT_RECESS_CAP )
-                    sx = x;
-                else if( x >= cw - MOBILE_CHAT_RECESS_CAP )
-                    sx = MOBILE_CHAT_BUTTON_W - (cw - x);
-                else
-                    sx = MOBILE_CHAT_RECESS_CAP +
-                         (x - MOBILE_CHAT_RECESS_CAP) *
-                             (MOBILE_CHAT_BUTTON_W - 2 * MOBILE_CHAT_RECESS_CAP) /
-                             (cw - 2 * MOBILE_CHAT_RECESS_CAP);
-                out[(size_t)oy * (size_t)width + (size_t)ox] =
-                    plate[(size_t)sy * (size_t)plate_w +
-                          (size_t)(MOBILE_CHAT_BUTTON_SRC[0] + sx)];
-            }
-        }
-    }
+        mobile_cut_stone(out, width, height, &cell[i], stone, stone_w, height, cap);
     handle = mobile_publish(ctx, name, width, height, out);
     free(out);
-    free(plate);
+    free(stone);
     return handle;
 }
 
@@ -2375,52 +2476,47 @@ mobile_compose_scaled(
     }
     out = malloc((size_t)width * (size_t)height * sizeof(*out));
     assert(out);
-    for( int row = 0; row < height; row++ )
-    {
-        int const y0 = (row * src_h) / height;
-        int const y1 = (((row + 1) * src_h) / height) > y0 ? ((row + 1) * src_h) / height
-                                                           : y0 + 1;
-
-        for( int col = 0; col < width; col++ )
-        {
-            int const x0 = (col * src_w) / width;
-            int const x1 = (((col + 1) * src_w) / width) > x0 ? ((col + 1) * src_w) / width
-                                                              : x0 + 1;
-            unsigned long sum_a = 0;
-            unsigned long sum_r = 0;
-            unsigned long sum_g = 0;
-            unsigned long sum_b = 0;
-            unsigned long count = 0;
-
-            for( int sy = y0; sy < y1 && sy < src_h; sy++ )
-            {
-                for( int sx = x0; sx < x1 && sx < src_w; sx++ )
-                {
-                    uint32_t const pixel = px[(sy * src_w) + sx];
-                    unsigned long const alpha = (pixel >> 24) & 0xffu;
-
-                    sum_a += alpha;
-                    sum_r += ((pixel >> 16) & 0xffu) * alpha;
-                    sum_g += ((pixel >> 8) & 0xffu) * alpha;
-                    sum_b += (pixel & 0xffu) * alpha;
-                    count++;
-                }
-            }
-            if( count == 0 || sum_a == 0 )
-            {
-                out[(row * width) + col] = 0x00000000u;
-                continue;
-            }
-            out[(row * width) + col] = (uint32_t)(((sum_a / count) & 0xffu) << 24) |
-                                       (uint32_t)(((sum_r / sum_a) & 0xffu) << 16) |
-                                       (uint32_t)(((sum_g / sum_a) & 0xffu) << 8) |
-                                       (uint32_t)((sum_b / sum_a) & 0xffu);
-        }
-    }
+    mobile_scale_pixels(px, src_w, src_h, out, width, height);
     handle = mobile_publish(ctx, name, width, height, out);
     free(px);
     free(out);
     return handle;
+}
+
+/*
+ * One chat filter, alone.
+ *
+ * `chat_button.png` IS the button with no background: the 2004 stone with the
+ * slab it was cut out of already taken off it, hand-masked at 295x97 so the
+ * alpha follows the stone's own rounded outline instead of a rectangle. It has
+ * shipped in this plugin's assets since 2026-08-27 and nothing read it.
+ *
+ * What the four buttons wore instead was a 100x32 WINDOW of `chat_plate.png`,
+ * and on a 2004 frame a window is the right answer: the hollow is cut INTO
+ * `backbase1`, so the rock around it is the same rock the next hollow is cut
+ * into, and a window of it is invisible against the rest of the slab. THIS
+ * frame's chat strip stands on the world. Lift the window out of the slab and
+ * that rock is a dark ragged rectangle around every button, which is what it
+ * was reported as, three times.
+ *
+ * Reduced rather than re-cut, and reduced in premultiplied space: the sprite
+ * is authored at three times the box, and it is a cut-out, so every rule
+ * mobile_compose_scaled was written for applies here first. @see it.
+ *
+ * There is no `index`, and no four pictures. The 2004 strip's four buttons are
+ * one stone stamped at four columns of different rubble -- MEASURED, over
+ * x 4..99: a pixel agreeing across all four windows to within 14 per channel
+ * is the button and one that differs is the rubble, and the agreeing region is
+ * 70 to 81 wide on every row of the stone -- so ONE picture is all four, and
+ * ART_CHAT_BUTTON is one slot rather than four copies of it.
+ */
+static struct ToriRS_ImageRef
+mobile_compose_chat_button(struct MobileCall* ctx, char const* name)
+{
+    assert(ctx);
+    assert(name);
+    return mobile_compose_scaled(ctx, name, mobile_image(ctx, IMG_CHAT_BUTTON),
+                                 MOBILE_CHAT_BUTTON_W, MOBILE_CHAT_BUTTON_H);
 }
 
 /*
@@ -2578,8 +2674,8 @@ mobile_art(struct MobileCall* ctx, int which)
                 (icon_w * MOBILE_KEY_ICON_NUM) / MOBILE_KEY_ICON_DEN,
                 (icon_h * MOBILE_KEY_ICON_NUM) / MOBILE_KEY_ICON_DEN);
     }
-    else if( which >= ART_CHAT_BUTTON_0 && which < ART_CHAT_BUTTON_0 + MOBILE_CHAT_BUTTON_COUNT )
-        art->ref = mobile_compose_chat_button(ctx, name, which - ART_CHAT_BUTTON_0);
+    else if( which == ART_CHAT_BUTTON )
+        art->ref = mobile_compose_chat_button(ctx, name);
     /*
      * The plate takes the same quarter turn as the stones standing on it, and
      * the right-hand column takes it mirrored so the two sit back to back.
@@ -2660,12 +2756,13 @@ mobile_mask(struct MobileCall* ctx, int which)
 /* ---------------------------------------------------- recording the plan */
 
 static void
-mobile_blit_into(struct MobileCall* ctx, struct MobileArt image, int x, int y, int w, int h,
-                 char const* op)
+mobile_blit_into(struct MobileCall* ctx, char const* key, struct MobileArt image, int x, int y,
+                 int w, int h, char const* op)
 {
     struct MobileBlit* b;
 
     assert(ctx);
+    assert(key);
     if( !image.name && !op )
         return;
     if( g_frame.blit_count >= MOBILE_BLIT_MAX )
@@ -2677,6 +2774,7 @@ mobile_blit_into(struct MobileCall* ctx, struct MobileArt image, int x, int y, i
         return;
     }
     b = &g_frame.blit[g_frame.blit_count++];
+    b->key = key;
     b->image = image;
     b->x = x;
     b->y = y;
@@ -2687,20 +2785,21 @@ mobile_blit_into(struct MobileCall* ctx, struct MobileArt image, int x, int y, i
 
 /** Chrome over the scene, under the live surfaces. */
 static void
-mobile_blit(struct MobileCall* ctx, struct MobileArt image, int x, int y)
+mobile_blit(struct MobileCall* ctx, char const* key, struct MobileArt image, int x, int y)
 {
-    mobile_blit_into(ctx, image, x, y, 0, 0, NULL);
+    mobile_blit_into(ctx, key, image, x, y, 0, 0, NULL);
 }
 
 /** The same, for a piece that belongs UNDER the chat rather than over the
  *  scene. @see MobileBlit::behind_chat. */
 static void
-mobile_blit_under_chat(struct MobileCall* ctx, struct MobileArt image, int x, int y)
+mobile_blit_under_chat(struct MobileCall* ctx, char const* key, struct MobileArt image, int x,
+                       int y)
 {
     int const before = g_frame.blit_count;
 
     assert(ctx);
-    mobile_blit_into(ctx, image, x, y, 0, 0, NULL);
+    mobile_blit_into(ctx, key, image, x, y, 0, 0, NULL);
     /* Only the piece this call actually recorded. A full table is a state
      * mobile_blit_into already says out loud, and marking the piece BEFORE the
      * one that was dropped would put somebody else's stone under the chat. */
@@ -2710,11 +2809,11 @@ mobile_blit_under_chat(struct MobileCall* ctx, struct MobileArt image, int x, in
 
 /** A rectangle that exists only to stop a tap falling through to the world. */
 static void
-mobile_blocker(struct MobileCall* ctx, struct ToriRS_Rect box, char const* op)
+mobile_blocker(struct MobileCall* ctx, char const* key, struct ToriRS_Rect box, char const* op)
 {
     assert(op);
     mobile_blit_into(
-        ctx, (struct MobileArt){ NULL, { 0 } }, box.x, box.y, box.width, box.height, op);
+        ctx, key, (struct MobileArt){ NULL, { 0 } }, box.x, box.y, box.width, box.height, op);
 }
 
 static void
@@ -2773,7 +2872,7 @@ mobile_ui_node(
     }
     if( strcmp(name, "frame.sidebar.rail") == 0 )
     {
-        mobile_blocker(ctx, bounds, "Rail");
+        mobile_blocker(ctx, "piece.rail.blocker", bounds, "Rail");
         return;
     }
     if( strncmp(name, "frame.chat.button.", 18) == 0 )
@@ -3310,7 +3409,7 @@ mobile_paper_art(struct MobileCall* ctx, int width, int height)
     return g_paper.art;
 }
 
-/** The 2004 strip at `width` by `height`, composed once per (size, hollows).
+/** The 2004 strip at `width` by `height`, composed once per (size, stones).
  *  @see mobile_paper_art, whose bargain this is. */
 static struct MobileArt
 mobile_bar_art(
@@ -3330,7 +3429,7 @@ mobile_bar_art(
     assert(height > 0);
     assert(cell_count >= 0);
     assert(cell_count == 0 || cell);
-    /* The hollows are folded into a KEY rather than compared one by one: the
+    /* The stones are folded into a KEY rather than compared one by one: the
      * chatbox is rebuilt on the lane's schedule, and what matters is only that
      * a moved filter re-cuts the bar and an unmoved one does not. */
     for( int i = 0; i < cell_count; i++ )
@@ -3451,7 +3550,8 @@ mobile_layout_rail_classic(
         /* The plate first, then the stones that stand on it. Both columns are
          * pinned to the rail's top, and being one picture twice they end
          * level. */
-        mobile_blit(ctx, mobile_art(ctx, col == 0 ? ART_PLATE_0 : ART_PLATE_1), plate_x, rail_y);
+        mobile_blit(ctx, col == 0 ? "piece.rail.0" : "piece.rail.1",
+                    mobile_art(ctx, col == 0 ? ART_PLATE_0 : ART_PLATE_1), plate_x, rail_y);
 
         for( int row = 0; row < MOBILE_RAIL_ROWS; row++ )
         {
@@ -3531,7 +3631,7 @@ mobile_layout_rail_oldschool(
     int panel_y)
 {
     assert(ctx);
-    mobile_blit(ctx, mobile_art(ctx, ART_O_RAIL), rail_x, rail_y);
+    mobile_blit(ctx, "piece.rail.0", mobile_art(ctx, ART_O_RAIL), rail_x, rail_y);
     for( int col = 0; col < MOBILE_RAIL_COLS; col++ )
     {
         int const cell_x = rail_x + MOBILE_O_BORDER + col * MOBILE_O_STONE;
@@ -3729,7 +3829,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
 
     if( g_drawer_open )
         mobile_blit(
-            ctx,
+            ctx, "piece.drawer",
             mobile_art_file(ctx, family == FAMILY_OLDSCHOOL ? IMG_O_DRAWER : IMG_INVBACK), panel_x, panel_y);
 
     /*
@@ -3745,7 +3845,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
      */
     if( chat_visible && !oldschool )
         mobile_blit_under_chat(
-            ctx,
+            ctx, "piece.sheet",
             mobile_paper_art(ctx, MOBILE_PAPER_ART_W(chat_w), MOBILE_PAPER_ART_H(chat_h)),
             area.x,
             chat_y - MOBILE_PAPER_FRINGE_T);
@@ -3800,7 +3900,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
     g_frame.toggle_y =
         (chat_visible ? (oldschool ? chat_y : chat_y - MOBILE_PAPER_FRINGE_T) : safe_bottom) -
         MOBILE_MARGIN - g_frame.toggle_h;
-    mobile_blit(ctx, g_frame.toggle_art, g_frame.toggle_x, g_frame.toggle_y);
+    mobile_blit(ctx, "piece.switch.chat", g_frame.toggle_art, g_frame.toggle_x, g_frame.toggle_y);
     /*
      * And the keyboard beside it.
      *
@@ -3813,7 +3913,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
      */
     g_frame.keys_x = g_frame.toggle_x + g_frame.toggle_w + MOBILE_TOGGLE_GAP;
     g_frame.keys_y = g_frame.toggle_y;
-    mobile_blit(ctx, g_frame.toggle_art, g_frame.keys_x, g_frame.keys_y);
+    mobile_blit(ctx, "piece.switch.keys", g_frame.toggle_art, g_frame.keys_x, g_frame.keys_y);
     mobile_ui_node(
         ctx,
         "chat-toggle",
@@ -3987,7 +4087,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
             ctx,
             NAME[i],
             bounds,
-            mobile_art(ctx, ART_CHAT_BUTTON_0 + i));
+            mobile_art(ctx, ART_CHAT_BUTTON));
     }
 }
 
@@ -4313,7 +4413,7 @@ mobile_describe_chrome(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe* 
             struct PorcelainItem item;
 
             memset(&item, 0, sizeof(item));
-            item.key = state->piece_key[i];
+            item.key = b->key;
             item.image = mobile_blank(ctx).name;
             item.w = w;
             item.h = h;
@@ -4336,7 +4436,7 @@ mobile_describe_chrome(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe* 
             struct PorcelainItem item;
 
             memset(&item, 0, sizeof(item));
-            item.key = state->piece_key[i];
+            item.key = b->key;
             item.image = b->image.name;
             item.w = w;
             item.h = h;
@@ -4349,7 +4449,7 @@ mobile_describe_chrome(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe* 
             describe->piece(describe, &item);
             continue;
         }
-        mobile_describe_piece(describe, state->piece_key[i], b->image, b->x, b->y, w, h,
+        mobile_describe_piece(describe, b->key, b->image, b->x, b->y, w, h,
                               PORCELAIN_EL(VIEWPORT));
     }
 
@@ -4381,6 +4481,15 @@ mobile_describe_chrome(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe* 
                     : PORCELAIN_EL(MINIMAP));
     }
 
+    /*
+     * By TABNO and not by plan index, for the reason MobileBlit::key states.
+     *
+     * The plan holds only the tabs this cache HAS, so a lane that mounts its
+     * sidebar after login -- or one whose seventh tab is absent, which every
+     * 2004 cache's is -- renumbers every cell after the gap. Keyed by position
+     * the stones would swap identities under the reconciler; keyed by the tab
+     * they open, they cannot. @see mobile_tab_present.
+     */
     for( int i = 0; i < g_frame.tab_count; i++ )
     {
         struct MobileTab const* t = &g_frame.tab[i];
@@ -4405,7 +4514,7 @@ mobile_describe_chrome(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe* 
          * names for it.
          */
         memset(&item, 0, sizeof(item));
-        item.key = state->cell_key[i];
+        item.key = state->cell_key[t->tabno];
         item.image = mobile_blank(ctx).name;
         item.w = t->w;
         item.h = t->h;
@@ -4415,8 +4524,8 @@ mobile_describe_chrome(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe* 
         item.place.depth = PORCELAIN_EL(VIEWPORT);
         item.op_label = "Select";
         item.on_op = mobile_tab_pressed;
-        state->tab_handle[i] = (struct MobileTabHandle){ state, t->tabno };
-        item.user = &state->tab_handle[i];
+        state->tab_handle[t->tabno] = (struct MobileTabHandle){ state, t->tabno };
+        item.user = &state->tab_handle[t->tabno];
         item.hit = true;
         item.enabled = given;
         describe->control(describe, &item);
@@ -4450,7 +4559,7 @@ mobile_describe_chrome(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe* 
         {
             if( !mobile_own_size(ctx, face, &fw, &fh) )
                 face = mobile_blank(ctx);
-            mobile_describe_piece(describe, state->lit_key[i], face, t->x + (t->w - w) / 2,
+            mobile_describe_piece(describe, state->lit_key[t->tabno], face, t->x + (t->w - w) / 2,
                                   t->y + (t->h - h) / 2, w, h, PORCELAIN_EL(VIEWPORT));
         }
 
@@ -4458,7 +4567,7 @@ mobile_describe_chrome(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe* 
          * out. That used to be an array of last-written state and a refresh
          * pass; it is a key that is described or is not. */
         if( given && mobile_art_size(ctx, t->icon, &w, &h) )
-            mobile_describe_piece(describe, state->icon_key[i], t->icon, t->x + (t->w - w) / 2,
+            mobile_describe_piece(describe, state->icon_key[t->tabno], t->icon, t->x + (t->w - w) / 2,
                                   t->y + (t->h - h) / 2, w, h, PORCELAIN_EL(VIEWPORT));
     }
 
@@ -4566,15 +4675,63 @@ mobile_describe_surfaces(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe
             continue;
         }
         /*
-         * The CONTAINER before its members.
+         * A SHUT drawer puts every mount away BY NAME.
+         *
+         * Every other surface here rests on the rule the branch above states:
+         * the plan did not place the role, so the role is hidden and its whole
+         * subtree goes with it. That rule needs the container to be a declared
+         * role AND an ancestor of the mounts, and on a 2004 dat1 lane it is
+         * neither. `rs245_2lc_dat1_ui.ini` -- which rs289lc shares -- declares
+         * only `panel_<name> = slot(sidebar, <n>)`, the fourteen MOUNTS, and
+         * seats each of them directly under `fixed_shell` at the 2004
+         * inventory box. There is no `sidebar` role for `surface_bound` to
+         * find, and the one node standing at that box, `sidebar_region`, is
+         * the invback plate BESIDE the mounts rather than over them: hiding it
+         * would take the backing away and leave the panel painting.
+         *
+         * So the shut drawer says it to each mount, and says it before the
+         * container gate below, which a shut drawer can never pass -- nothing
+         * is placed, so `has_members` is false.
+         *
+         * What this looked like on rs289lc: with the drawer shut the
+         * inventory's item icons went on painting over the world at (553,205),
+         * and the grid under them ate taps meant for the rail.
+         *
+         * Free of the watch budget the member loop below is careful about: the
+         * rail asked about all fourteen of these this same layout, to decide
+         * which rocks to cut. @see mobile_tab_present.
+         */
+        if( s == FRAME_SURFACE_SIDEBAR && !g_drawer_open )
+            for( int tab = 0; tab < MOBILE_TAB_COUNT; tab++ )
+                if( g_tab_present[tab] )
+                    describe->hide(
+                        describe, mobile_member_element(ctx, FRAME_SURFACE_SIDEBAR, tab));
+        /*
+         * The CONTAINER before its members -- where there IS a container.
          *
          * A member is a child of the surface, and the server mounts the surface
          * first: asking about `orbs:1` before interface 160 exists gets it
          * called ABSENT, and an absence recorded for something that binds four
          * frames later is a finding nobody can act on. One ask answers for all
          * of them, and it is an ask this loop already made.
+         *
+         * The SIDEBAR is the one surface that reasoning is not about. Its
+         * fourteen mounts are not children of its container on a 2004 lane --
+         * `rs245_2lc_dat1_ui.ini` seats them under `fixed_shell` and declares
+         * no `[role:sidebar]` at all -- so `surface_bound` there is not "the
+         * mounts have not arrived yet", it is permanently false, and the gate
+         * skipped the whole member loop on every frame of every lane rs289lc
+         * shares that layout with. What that looked like was the drawer
+         * OPENING on nothing: the tab the player picked went on painting at
+         * the lane's own 2004 box, (553,205), instead of moving to the rail.
+         *
+         * The prerequisite the container was standing in for, this surface
+         * already has per member and better: `mobile_tab_present` asks each
+         * mount whether it is ABSENT, this same layout, and the member loop
+         * below drops any that does not resolve. So there is nothing here for
+         * a container to answer earlier, and no watch spent finding it out.
          */
-        if( !has_members || !surface_bound )
+        if( !has_members || (!surface_bound && s != FRAME_SURFACE_SIDEBAR) )
             continue;
         for( int m = 0; m < FRAME_MEMBER_MAX; m++ )
         {
@@ -4752,10 +4909,11 @@ mobile_describe_skins(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe* d
  * The pack keeps its message text, its input line, its scrollbar, its eight
  * FILTERS and every action inside them. What changes is the picture: the torn
  * parchment behind it, a transparent backing so the sheet shows through, and
- * 2004 rock on the bar with a hollow cut for each of the eight -- at the boxes
- * the filter elements report, so a caption always lands on a hollow. The plates
- * themselves are hidden: a 2004 chat filter is a caption on a hollow with
- * nothing between the rock and the text, and the captions are the LANE's.
+ * a 2004 stone on the bar for each of the eight -- at the boxes the filter
+ * elements report, so a caption always lands on a stone, and CLEAR between
+ * them so the sheet and the world show through. The plates themselves are
+ * hidden: a 2004 chat filter is a caption on a stone with nothing between the
+ * rock and the text, and the captions are the LANE's.
  *
  * The UNDRESSING is gone, and that is the port's clearest single win. There
  * used to be a `chat_dressed` flag and a branch that found the backing, the bar
@@ -4791,7 +4949,7 @@ mobile_describe_chat_dress(struct MobileCall* ctx, struct ToriRS_PorcelainDescri
      */
     if( !Porcelain_Element(state->porcelain, PORCELAIN_EL(CHAT), &pack) )
         return;
-    /* The BAR's box: every hollow is measured from its left edge, and a bar
+    /* The BAR's box: every stone is measured from its left edge, and a bar
      * with no box is a pack whose layout has not run yet. */
     if( !Porcelain_Element(state->porcelain, PORCELAIN_EL(CHAT_BAR), &bar) || bar.box.width <= 0 ||
         bar.box.height <= 0 )
@@ -4808,8 +4966,11 @@ mobile_describe_chat_dress(struct MobileCall* ctx, struct ToriRS_PorcelainDescri
      * boxes are byte-identical with no plugins loaded. It is invisible there
      * only because the lane paints that band translucent over the world. Paint
      * opaque 2004 rock on the same number and the overflow is a detached slab
-     * of stone, hollows and all, standing on the floor past the last filter --
-     * which is what it looked like.
+     * of stone, buttons and all, standing on the floor past the last filter --
+     * which is what it looked like. The band carries no rock of its own now,
+     * so the overflow would be eight-stones-worth of nothing; the clamp stays
+     * because the stones are measured from the bar's left edge and a bar that
+     * starts 58 px off puts every one of them 58 px off with it.
      *
      * Clamp to `controls`, the bar's OWN container, and not to the pack that
      * container is in. The pack's right edge gave the same 461 on a settled
@@ -4829,8 +4990,8 @@ mobile_describe_chat_dress(struct MobileCall* ctx, struct ToriRS_PorcelainDescri
      * below `bar.box.width` already reads that way -- so it waits for the next
      * fence, which is one frame and not a slab.
      *
-     * The hollows are measured from the clamped bar.box.x, so a caption still
-     * lands on its own hollow.
+     * The stones are measured from the clamped bar.box.x, so a caption still
+     * lands on its own stone.
      */
     if( !Porcelain_Element(state->porcelain, MOBILE_CHAT_CONTROLS, &row) )
         return;
@@ -4879,10 +5040,10 @@ mobile_describe_chat_dress(struct MobileCall* ctx, struct ToriRS_PorcelainDescri
      * control, which is the same defect as a plate on parchment said the
      * other way round.
      *
-     * The picture is the same one either way -- one band of 2004 rock with a
-     * hollow cut at every filter the pack has -- so this is still dressing
-     * the bar and not replacing the subtree, and still a hollow rather than a
-     * plate per caption.
+     * The picture is the same one either way -- one band carrying a 2004
+     * stone at every filter the pack has and nothing elsewhere -- so this is
+     * still dressing the bar and not replacing the subtree, and still one
+     * picture rather than a plate per caption.
      *
      * BEHIND the whole pack, exactly as `pack-sheet` below is: the captions,
      * the mode lines and the bar's own translucent band are all inside the
@@ -5045,13 +5206,13 @@ mobile_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
      */
     if( g_frame.chat_placed )
         mobile_blocker(
-            ctx,
+            ctx, "piece.blocker.chat",
             (struct ToriRS_Rect){ g_frame.surface[FRAME_SURFACE_CHAT].rect.x, g_frame.chat_y,
                                   g_frame.chat_w, g_frame.chat_bottom - g_frame.chat_y },
             "Type");
     if( g_drawer_open )
         mobile_blocker(
-            ctx,
+            ctx, "piece.blocker.panel",
             (struct ToriRS_Rect){ g_frame.panel_x, g_frame.panel_y, MOBILE_PANEL_W,
                                   MOBILE_PANEL_H },
             "Panel");
@@ -5358,13 +5519,11 @@ mobile_on_start(struct ToriRS_Api* api, void* state_ptr)
         case ART_PLATE_0: literal = "plate_l.png"; break;
         case ART_PLATE_1: literal = "plate_r.png"; break;
         case ART_O_RAIL: literal = "osrs_rail_plate.png"; break;
+        case ART_CHAT_BUTTON: literal = "chat_button_cut.png"; break;
         default: break;
         }
         if( literal )
             (void)snprintf(state->art_name[i], sizeof(state->art_name[i]), "%s", literal);
-        else if( i >= ART_CHAT_BUTTON_0 && i < ART_CHAT_BUTTON_0 + MOBILE_CHAT_BUTTON_COUNT )
-            (void)snprintf(state->art_name[i], sizeof(state->art_name[i]), "chat_button_%d.png",
-                           i - ART_CHAT_BUTTON_0);
         else
             (void)snprintf(state->art_name[i], sizeof(state->art_name[i]), "stone_%d.png",
                            i - ART_STONE_0);
@@ -5375,8 +5534,6 @@ mobile_on_start(struct ToriRS_Api* api, void* state_ptr)
      * key must outlive the describe that stated it, and because building
      * eighty-eight strings per fence is what the retained layer exists to
      * stop. */
-    for( int i = 0; i < MOBILE_BLIT_MAX; i++ )
-        (void)snprintf(state->piece_key[i], sizeof(state->piece_key[i]), "piece.%02d", i);
     for( int i = 0; i < MOBILE_TAB_COUNT; i++ )
     {
         (void)snprintf(state->cell_key[i], sizeof(state->cell_key[i]), "tab.%02d", i);
