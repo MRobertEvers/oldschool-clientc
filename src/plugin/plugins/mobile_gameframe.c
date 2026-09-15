@@ -935,6 +935,23 @@ struct MobileBlit
     int w;
     int h;
     char const* op;
+    /**
+     * Drawn BEHIND the chat instead of over the scene.
+     *
+     * Every other piece of this frame's chrome is anchored over the VIEWPORT,
+     * which is right for a piece the chat is supposed to stand on -- the live
+     * surfaces are raised over the whole of this plugin's chrome afterwards,
+     * so a sheet anchored there ends up under the chat. On a 2004 lane it does
+     * not: the chat there is the client's own builtin and the packs the server
+     * mounts into `chatbox:chatmodal` under it, and that raise does not reach
+     * them. What was on screen was a blank sheet of parchment with the tutorial
+     * box, the NPC dialogue and every message line painted underneath it.
+     *
+     * So the sheet says where it belongs rather than where everything else
+     * goes: behind the CHAT, which is the same thing the OldSchool lane's
+     * retained `pack-sheet` says and the reason that lane never had this.
+     */
+    int behind_chat;
 };
 #define MOBILE_BLIT_MAX 48
 
@@ -1046,6 +1063,12 @@ struct MobileRuntime
     struct ToriRS_Rect housing_rect;
     struct MobileToggle chat_toggle;
     struct MobileToggle keyboard_toggle;
+    /**
+     * Where the OldSchool chat pack's filter bar goes, on a root that lays it
+     * out ABOVE the messages. Unplaced on every root that already hangs it off
+     * the bottom, which is every desktop one. @see mobile_describe_chat_bar.
+     */
+    struct MobileRect chat_bar;
     /** The 2004 plates under the four filter captions, behind the lane's buttons. */
     struct MobileRect plate[MOBILE_CHAT_BUTTON_COUNT];
     struct MobileArt plate_art[MOBILE_CHAT_BUTTON_COUNT];
@@ -1329,6 +1352,18 @@ static int const MOBILE_CHAT_BUTTON_SRC[MOBILE_CHAT_BUTTON_COUNT] = { 6, 135, 27
  */
 static char const* const MOBILE_HOUSING_NAME[] = { "Lizards", "Ring", "OldSchool", "Auto" };
 
+/**
+ * The chat bar's own LAYER, as an element.
+ *
+ * PORCELAIN_EL(CHAT_BAR) is the bar's PICTURE -- interface 162's
+ * `controls_background_graphic` -- because that is what a frame dressing the
+ * bar needs and it is all this file wanted until now. Moving the bar is a
+ * different question: the seven captions, their mode lines and the eight
+ * plates hang off `controls`, and a picture that moved on its own would leave
+ * the captions standing where the bar used to be. @see [role:chat_controls].
+ */
+#define MOBILE_CHAT_CONTROLS PORCELAIN_ROLE_EL("chat_controls")
+
 /*
  * Is this an OldSchool lane -- one whose chat and orbs are packs of the
  * cache's own toplevel? Asked of the host each time rather than latched at
@@ -1343,6 +1378,63 @@ mobile_lane_oldschool(struct MobileCall* ctx)
     if( !ctx->api->core.lane(ctx->api, &lane) )
         return 0;
     return lane.game == TORIRS_GAME_OLDSCHOOL;
+}
+
+/*
+ * Does this ROOT lay the chat pack's filter bar out above the messages?
+ *
+ * Interface 162 is ONE pack and every OldSchool toplevel mounts the same one,
+ * so its size cannot answer this: the desktop tops hang `controls` off the
+ * bottom of the block and the mobile top pins it to the top, two rows down,
+ * with the message area underneath. gameframe.c already carries the same fact
+ * for its own chat placement and says so in the same words -- the size cannot
+ * tell the two apart, only the root can -- and this is that question asked by
+ * the same key.
+ *
+ * A NAME and never a number: `toplevel_mobile` is the profile's name for
+ * whichever interface this revision mounts as its phone frame, so a revision
+ * that renumbers it restates one id and nothing in this file moves. A lane
+ * that names no mobile toplevel answers no, which is right: it has no root
+ * that does this.
+ */
+static bool
+mobile_chat_bar_on_top(struct MobileCall* ctx)
+{
+    int mobile_top = 0;
+
+    assert(ctx);
+    if( !g_api->cache.named_id(g_api, "iface", "toplevel_mobile", &mobile_top) )
+        return false;
+    if( mobile_top <= 0 )
+        return false;
+    return g_api->cache.frame_root(g_api) == mobile_top;
+}
+
+/*
+ * How many of the pack's rows the bar's band takes off the top.
+ *
+ * Measured as the rows the MESSAGE area does not occupy -- the pack's own
+ * height less the backing's -- and never off the bar's own box, which is the
+ * one thing this frame is about to move. A band read from the bar is 30 rows
+ * before the move and 175 after it, and a description whose input is its own
+ * output moves the bar back and forth for ever. The backing is bottom-anchored
+ * inside the pack at a fixed height, so it answers the same number on every
+ * run whatever this frame does to the bar.
+ */
+static bool
+mobile_chat_bar_band(struct MobileCall* ctx, int chat_h, int* out_band)
+{
+    struct PorcelainElementState backing;
+
+    assert(ctx);
+    assert(out_band);
+    *out_band = 0;
+    if( !Porcelain_Element(ctx->state->porcelain, PORCELAIN_EL(CHAT_BACKING), &backing) )
+        return false;
+    if( backing.box.height <= 0 || backing.box.height >= chat_h )
+        return false;
+    *out_band = chat_h - backing.box.height;
+    return true;
 }
 
 /** The choices, in the order the `art` setting lists them. */
@@ -2494,6 +2586,43 @@ mobile_ensure_masks(struct MobileCall* ctx)
     mobile_build_masks(ctx);
 }
 
+/*
+ * A window mask this frame has actually CUT, or nothing at all.
+ *
+ * mobile_art ends with the rule that a picture whose source has not decoded
+ * yet is an EMPTY art rather than a failure: the item that wanted it is not
+ * described, and the asset event runs the describe again. The two masks do not
+ * go through mobile_art -- they are cut by mobile_build_masks, which answers
+ * boxes as well as pictures -- so they had no half of that rule, and the
+ * layout named `minimap_mask.png` whether or not a picture had ever been
+ * published under it.
+ *
+ * Naming one that has not been cut is not a cosmetic slip, and this is the
+ * defect that made the Stone Drawer a no-op on a 2004 lane. A name the layer
+ * cannot resolve to a composed picture is handed to the HOST, which can only
+ * read it as a file; the file does not exist, because this name is a
+ * composition target and never was one; the asset slot is marked missing, and
+ * missing is TERMINAL -- plugin_frame_provider_assets then answers "Required
+ * gameframe asset could not be loaded" for the rest of the session and the
+ * host stops asking for the frame at all. On a dat1 lane the ring's PNG had
+ * not decoded by the first describe, the description named its masks anyway,
+ * and the frame was refused before it had drawn a single stone. The 2004
+ * surround stayed up with a few of this plugin's pieces floating over it,
+ * which reads exactly like a frame that declined.
+ *
+ * So: no picture, no name.
+ */
+static struct MobileArt
+mobile_mask(struct MobileCall* ctx, int which)
+{
+    assert(ctx);
+    assert(which >= 0);
+    assert(which < MOBILE_ART_COUNT);
+    if( ctx->state->art[which].ref.value == 0 )
+        return (struct MobileArt){ NULL, { 0 } };
+    return ctx->state->art[which];
+}
+
 /* ---------------------------------------------------- recording the plan */
 
 static void
@@ -2527,6 +2656,22 @@ static void
 mobile_blit(struct MobileCall* ctx, struct MobileArt image, int x, int y)
 {
     mobile_blit_into(ctx, image, x, y, 0, 0, NULL);
+}
+
+/** The same, for a piece that belongs UNDER the chat rather than over the
+ *  scene. @see MobileBlit::behind_chat. */
+static void
+mobile_blit_under_chat(struct MobileCall* ctx, struct MobileArt image, int x, int y)
+{
+    int const before = g_frame.blit_count;
+
+    assert(ctx);
+    mobile_blit_into(ctx, image, x, y, 0, 0, NULL);
+    /* Only the piece this call actually recorded. A full table is a state
+     * mobile_blit_into already says out loud, and marking the piece BEFORE the
+     * one that was dropped would put somebody else's stone under the chat. */
+    if( g_frame.blit_count == before + 1 )
+        g_frame.blit[before].behind_chat = 1;
 }
 
 /** A rectangle that exists only to stop a tap falling through to the world. */
@@ -3517,7 +3662,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
      * are independent, which is exactly the shape this wanted.
      */
     g_frame.skin_minimap =
-        (struct MobileSkin){ 1, { NULL, { 0 } }, g_art[ART_MINIMAP_MASK] };
+        (struct MobileSkin){ 1, { NULL, { 0 } }, mobile_mask(ctx, ART_MINIMAP_MASK) };
     /* The compass keeps the LANE's rose on a 2004 lane: it is this rose
      * already. On an OldSchool lane the cache's rose is OldSchool's, so the
      * classic family brings the 2004 one with it; the OldSchool family keeps
@@ -3526,7 +3671,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
         1,
         oldschool && family == FAMILY_CLASSIC ? mobile_art_file(ctx, IMG_COMPASS)
                                               : (struct MobileArt){ NULL, { 0 } },
-        g_art[ART_COMPASS_MASK] };
+        mobile_mask(ctx, ART_COMPASS_MASK) };
     /*
      * The orb block beside the map, where the OldSchool frames keep it. A
      * lane with no such block -- every 2004 one -- answers 0 and nothing
@@ -3565,7 +3710,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
      * layer replaces the pack backing and extends one text line past it.
      */
     if( chat_visible && !oldschool )
-        mobile_blit(
+        mobile_blit_under_chat(
             ctx,
             mobile_paper_art(ctx, MOBILE_PAPER_ART_W(chat_w), MOBILE_PAPER_ART_H(chat_h)),
             area.x,
@@ -3707,6 +3852,48 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
      * @see MOBILE_O_CHAT_W_DEFAULT. */
     if( oldschool )
     {
+        struct PorcelainElementState bar;
+        int band = 0;
+
+        /*
+         * The filter bar BELOW the chat, on the one root that puts it above.
+         *
+         * The mobile toplevel pins `controls` to the top of the pack with the
+         * message lines underneath it, which is the layout OldSchool Mobile
+         * wants and is not the layout this frame wants: every other piece of
+         * the Stone Drawer's chat -- the torn sheet, the stone strip, the two
+         * switches -- is built on the bar being the row along the BOTTOM, and
+         * a bar on top puts the filters over the parchment's torn top edge
+         * with nothing under the last message line.
+         *
+         * The BAR moves, not the subtree. The pack keeps its own children, its
+         * own actions and its own eight filters; what changes is the row one
+         * layer sits on and the row the block as a whole starts at, and the
+         * two are one move each:
+         *
+         *   - the pack goes up by the BAND, so the message area -- which is
+         *     bottom-anchored inside the pack -- lands exactly on `chat_y`,
+         *     where the block's first row belongs;
+         *   - the bar goes to the block's last rows, `bar.height` up from
+         *     `chat_y + chat_h`.
+         *
+         * So the assembly occupies the same rows it did, chat_y through
+         * chat_y + chat_h, and everything pinned to those two numbers -- the
+         * tap blocker, the switches, the strip -- is untouched. The pack's own
+         * box hangs `band` rows above its first visible row, which costs
+         * nothing: the root is a bare layer that draws no pixel of its own,
+         * and the parchment is positioned from the BACKING rather than from it.
+         */
+        if( mobile_chat_bar_on_top(ctx) && mobile_chat_bar_band(ctx, chat_h, &band) &&
+            Porcelain_Element(ctx->state->porcelain, MOBILE_CHAT_CONTROLS, &bar) &&
+            bar.box.height > 0 && bar.box.width > 0 && bar.box.height <= band )
+        {
+            mobile_surface(ctx, FRAME_SURFACE_CHAT, area.x, chat_y - band, chat_w, chat_h);
+            g_frame.chat_bar.placed = 1;
+            g_frame.chat_bar.rect = (struct ToriRS_Rect){
+                bar.box.x, chat_y + chat_h - bar.box.height, bar.box.width, bar.box.height };
+            return;
+        }
         mobile_surface(ctx, FRAME_SURFACE_CHAT, area.x, chat_y, chat_w, chat_h);
         return;
     }
@@ -4110,6 +4297,24 @@ mobile_describe_chrome(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe* 
         }
         if( !mobile_art_size(ctx, b->image, &w, &h) )
             continue;
+        if( b->behind_chat )
+        {
+            struct PorcelainItem item;
+
+            memset(&item, 0, sizeof(item));
+            item.key = state->piece_key[i];
+            item.image = b->image.name;
+            item.w = w;
+            item.h = h;
+            item.place.kind = PORCELAIN_AT_CANVAS;
+            item.place.dx = b->x;
+            item.place.dy = b->y;
+            item.place.depth = PORCELAIN_EL(CHAT);
+            item.place.behind = true;
+            item.visible_with = PORCELAIN_EL(CHAT);
+            describe->piece(describe, &item);
+            continue;
+        }
         mobile_describe_piece(describe, state->piece_key[i], b->image, b->x, b->y, w, h,
                               PORCELAIN_EL(VIEWPORT));
     }
@@ -4402,6 +4607,42 @@ mobile_describe_surfaces(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe
     }
 }
 
+/*
+ * The chat pack's filter bar, moved to the bottom of the block.
+ *
+ * ONE move of ONE layer. The pack is not re-parented, nothing of it is hidden
+ * and no child of it is created: `controls` keeps its seven captions, their
+ * mode lines, their plates and every action inside them, and this states the
+ * row it stands on. The plan already worked out which row -- @see the
+ * OldSchool branch of mobile_layout, which also moved the pack up by the band
+ * so the two together leave the block on exactly the rows it occupied before.
+ *
+ * Parent-local, like every other move here, and the parent is the pack ROOT --
+ * which this same description is moving. So the origin read back here is the
+ * one from the last fence and the first application lands the bar `band` rows
+ * high; the move changes an element, the layer notes it, the description runs
+ * again and the second lands it. Two fences and then still, which is the same
+ * convergence a member of a moved surface already relies on.
+ */
+static void
+mobile_describe_chat_bar(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe* describe)
+{
+    struct PorcelainElementState bar;
+    struct ToriRS_WidgetBounds box;
+
+    assert(ctx);
+    assert(describe);
+    if( !g_frame.chat_bar.placed )
+        return;
+    if( !Porcelain_Element(ctx->state->porcelain, MOBILE_CHAT_CONTROLS, &bar) )
+        return;
+    box.x = g_frame.chat_bar.rect.x - (bar.box.x - bar.local.x);
+    box.y = g_frame.chat_bar.rect.y - (bar.box.y - bar.local.y);
+    box.width = g_frame.chat_bar.rect.width;
+    box.height = g_frame.chat_bar.rect.height;
+    describe->move(describe, MOBILE_CHAT_CONTROLS, box, 0);
+}
+
 /* The two round windows' masks, and the compass rose the classic family brings
  * with it: re-skins stated as NAMES, because that is what a description
  * carries. An empty half leaves that half of the native picture alone. */
@@ -4423,6 +4664,21 @@ mobile_describe_skins(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe* d
     {
         struct MobileSkin const* skin = skins[i].skin;
         if( !skin->placed )
+            continue;
+        /*
+         * A re-skin with NEITHER half is not a re-skin.
+         *
+         * An empty half means "leave that half of the native picture alone",
+         * and the two halves are independent -- which is the whole reason the
+         * compass can take a mask and keep the lane's rose. Both halves empty
+         * says nothing at all, and Porcelain_Skin asserts on it, because a
+         * describe that states nothing is a caller bug and not a no-op. It
+         * became reachable the moment the masks stopped being named before
+         * they were cut (@see mobile_mask): on a 2004 lane the compass keeps
+         * the lane's rose, so its image half is empty by design, and until the
+         * ring decodes its mask half is empty too.
+         */
+        if( !skin->art.name && !skin->mask.name )
             continue;
         describe->skin(describe, FRAME_SURFACE_ELEMENT[skins[i].surface], skin->art.name,
                        skin->mask.name);
@@ -4679,6 +4935,7 @@ mobile_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
 
     mobile_describe_chrome(ctx, describe);
     mobile_describe_surfaces(ctx, describe);
+    mobile_describe_chat_bar(ctx, describe);
     mobile_describe_skins(ctx, describe);
     mobile_describe_chat_dress(ctx, describe);
 }

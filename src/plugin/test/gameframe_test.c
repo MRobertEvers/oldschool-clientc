@@ -311,6 +311,20 @@ fake_loot_row_next(
     return -1;
 }
 
+/**
+ * The host under test, for the one fake that delivers into it.
+ *
+ * Delivery cannot use the `user` pointer the engine hands back.
+ * PluginHost_New COPIES the engine struct, so a fixture that writes
+ * `e.user = g_host` after the call has already handed the new host the
+ * PREVIOUS host's address -- freed a line earlier. Delivering through it
+ * writes a decoded PNG into freed memory, and whether the frame's art arrives
+ * comes down to whether the allocator handed the same block back. The same
+ * line in mobile_gameframe_test.c failed about half its runs that way, with
+ * twenty assets stuck PENDING and no error anywhere.
+ */
+static struct ToriRS_PluginHost* g_host;
+
 static int
 fake_asset_read(void* u, char const* plugin, char const* name)
 {
@@ -319,6 +333,7 @@ fake_asset_read(void* u, char const* plugin, char const* name)
     long size;
     void* data;
 
+    (void)u; /* @see g_host: the engine's copy of it is a host ago. */
     snprintf(path, sizeof(path), "../script/plugins/assets/%s/%s", plugin, name);
     f = fopen(path, "rb");
     if( !f )
@@ -339,7 +354,7 @@ fake_asset_read(void* u, char const* plugin, char const* name)
         return 0;
     }
     fclose(f);
-    PluginHost_AssetDeliver((struct ToriRS_PluginHost*)u, plugin, name, data, (int)size);
+    PluginHost_AssetDeliver(g_host, plugin, name, data, (int)size);
     return 1;
 }
 
@@ -543,7 +558,6 @@ static uint32_t fake_hsl_to_rgb(void* u, int h) { (void)u; (void)h; return 0; }
 
 /* ------------------------------------------------------------------ tests */
 
-static struct ToriRS_PluginHost* g_host;
 static int g_plugin;
 static struct ToriRS_Api* g_frame_settings_api;
 
