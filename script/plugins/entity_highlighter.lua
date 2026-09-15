@@ -81,6 +81,30 @@
 -- npc pool is empty and npc_next answers -1 on the first call, whatever is
 -- tagged.
 --
+-- AND UNTIL NOW THAT RULE WAS THE ONLY INSTRUMENT, WHICH IS WHY IT FAILED.
+--
+-- This file printed exactly one line in its life -- the on_start failure path
+-- below -- so a working plugin and a dead one wrote the same log as well as
+-- the same picture, and the wrong-universe capture above could only be caught
+-- by someone who happened to know which cache an id came from. The engine has
+-- PLUGIN_NPC and PLUGIN_HULL traces, but they are gated on
+-- TORIRS_TRACE_PLUGIN_WORLD, they are capped at 32 lines each, and no shipped
+-- job row sets that variable; an engine trace nobody turns on is not this
+-- plugin's diagnostic anyway. on_draw_world now reports its own reading, the
+-- way loot-beam reports its beams: only when the reading MOVES, and in numbers
+-- chosen so that each way of being silent prints differently. What the last
+-- five captures would have said, had the line existed, is in the table on
+-- on_draw_world.
+--
+-- That reading is also why the hull goes through the LAYER. draw.world_hull
+-- answers BUDGET when the frame's allotment is gone and ARBITRATION_LOST when
+-- another plugin holds the entity's appearance, and this file spelled the call
+-- `draw.world_hull(...)` with the answer dropped -- so half the outlines in a
+-- mass of tagged npcs could vanish with the plugin still reporting itself
+-- armed. porcelain.hull records both, and the count it returns is what reached
+-- the screen rather than what was asked for, which is the difference between
+-- the third and fourth rows of that table.
+--
 
 ---@type torirs.Plugin
 local plugin = {
@@ -137,6 +161,15 @@ local OP_UNTAG, OP_TAG = 0, 1
 local tagged = {}
 -- Whether the reveal key is one this lane can answer, and its current state.
 local reveal_armed, reveal_down = false, false
+-- Whether porcelain.open answered. The outlines outrank the layer and still
+-- draw without it -- through the raw verb, whose refusals then have nowhere to
+-- go, which is part of what the on_start line says is off.
+local layer = false
+-- The last reading on_draw_world reported. Below the floor every count can
+-- reach, so the FIRST pass of a session always prints, all-zeros included --
+-- "nothing is tagged" is a reading, and it is the one that separates a setting
+-- that said no from a plugin that is broken.
+local reported_tags, reported_matched, reported_drew = -1, -1, -1
 
 local function npcs(api)
     local cursor = -1
@@ -186,13 +219,17 @@ end
 function plugin.on_start(api)
     load_tags(api)
     reveal_armed, reveal_down = false, false
+    layer = false
+    reported_tags, reported_matched, reported_drew = -1, -1, -1
     if not api.porcelain.open() then
         -- Out loud: without the layer there is no refusal channel at all. A
         -- full route table, a truncated tag list and a lane with no keyboard
         -- would each be silent, which is the state this port exists to end.
-        api.core.log("entity-highlighter: no porcelain layer -- tagging is off")
+        api.core.log("entity-highlighter: no porcelain layer -- tagging is off, " ..
+            "and a refused outline will be unsaid")
         return
     end
+    layer = true
     -- Declared BEFORE the edge is asked for, because the ABSENT it may answer
     -- is raised inside that call. A lane with no keyboard frame is a fact
     -- about the lane, not a refusal nobody planned for; the rows stay off
@@ -239,10 +276,44 @@ function plugin.on_draw_world(api, draw)
     -- a projection per vertex buys an outline that follows the npc instead of
     -- the box around it. Switch to "bounds" when tagging a whole species.
     local shape = api.config.shape
+    -- Chosen once per pass rather than tested per npc. Both answer the same
+    -- bool, so the tally below is honest either way; only the NAMING of a
+    -- refusal is the layer's, and its absence is already reported by on_start.
+    local hull = layer and api.porcelain.hull or draw.world_hull
+
+    local tags = 0
+    for _ in pairs(tagged) do tags = tags + 1 end
+    local seen, matched, drew = 0, 0, 0
     for npc in npcs(api) do
+        seen = seen + 1
         if tagged[npc.base_npc_id] then
-            draw.world_hull(npc.element_id, colour, fill, shape)
+            matched = matched + 1
+            if hull(npc.element_id, colour, fill, shape) then drew = drew + 1 end
         end
+    end
+
+    -- "Nothing is outlined" is one photograph with four causes, and this is
+    -- the line that tells them apart:
+    --
+    --   0 tagged                      a setting said no; nothing was asked for
+    --   T tagged, 0 matched of S      the tags name species this scene has not
+    --                                 got -- which is what the cs2 job's
+    --                                 osrs239 ids looked like at a LostCity
+    --                                 scene, the failure the header describes
+    --   M matched, 0 drawn            the hulls were refused, and the layer
+    --                                 has already named which of BUDGET and
+    --                                 ARBITRATION_LOST it was
+    --   M matched, M drawn            alive, and now it says so
+    --
+    -- Reported only when the reading MOVES, for loot-beam's reason: a line per
+    -- frame buries the transition that is the whole content. `seen` is printed
+    -- but is NOT one of the three triggers -- any npc walking in or out of view
+    -- moves it, and reprinting the other three for that is the flood this
+    -- avoids while still dating the scene each line was read from.
+    if tags ~= reported_tags or matched ~= reported_matched or drew ~= reported_drew then
+        reported_tags, reported_matched, reported_drew = tags, matched, drew
+        api.core.log(drew .. " hull(s) over " .. matched .. " tagged npc(s) of " ..
+            seen .. " in scene; " .. tags .. " species tagged")
     end
 end
 
