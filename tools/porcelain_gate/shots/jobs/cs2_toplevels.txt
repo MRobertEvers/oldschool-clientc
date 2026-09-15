@@ -92,6 +92,18 @@ loottracker-stone601 loot-tracker stone601 TORIRS_SIM_PLUGIN_PANEL=620,loot-trac
 grounditems-stone601 ground-items stone601 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1;70,dropobj ags 1;80,dropobj abyssal_whip 1' TORIRS_GROUND_ITEMS_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 lootbeam-stone601 loot-beam stone601 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 highlighter-stone601 entity-highlighter stone601 'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-nxthl-stone601 nxt-highlight stone601 TORIRS_SIM_VARBIT=450,13088,1 TORIRS_SIM_MOVE_AT=600,456,150 TORIRS_SIM_HOVER=456,150 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+# 455,180 and not 456,150: on 601 the orb column reaches further into the
+# window, and 456,150 was over the prayer orb -- no world pick, no hover
+# line, nothing for the plugin to be about. 455,180 is Romeo, and the
+# mouseover line in the log says so.
+#
+# This lane still resolves 0 and that is the CACHE's answer, not a defect:
+# clientscript 5350 is re-armed by 4726 on a DESKTOP gameframe component
+# timer (161:37 through the layout enum), and toplevel 601 has no such
+# component. `minimenu_find` is called 123 times on classic161 and modern164
+# and ZERO times here, with the mouseover published on all four. A phone
+# frame has no pointer to hover with; the row is here as the control that
+# says the difference is the cache's and not the port's.
+nxthl-stone601 nxt-highlight stone601 TORIRS_SIM_VARBIT=450,13088,1 TORIRS_SIM_MOVE_AT=600,455,180 TORIRS_SIM_HOVER=455,180 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 birdnest-stone601 nxt-bird-nest stone601 TORIRS_SIM_VARBIT=450,13087,0 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 cannon-stone601 nxt-cannon-ammo stone601 'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
