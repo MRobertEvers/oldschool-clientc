@@ -43,3 +43,33 @@ ltfix-stone601-after   loot-tracker stone601   'TORIRS_SIM_CMD=60,god 1;70,setle
 # ltfix-live-setup-a/b are phase one, and phase two is the same account again.
 # @see the lostcity-live-cs1-shot-lane note.
 ltfix-live-try1        loot-tracker cs1live    'TORIRS_SIM_CMD=200,lootkill Goblin 995 5000' TORIRS_SIM_PLUGIN_PANEL=1200,loot-tracker,page TORIRS_SHOT_FRAMES=1400
+
+# THE CS1 REAL KILL IS NOT PHOTOGRAPHED, and the row says so rather than
+# implying it is. Finding 3 -- one ::lootkill disabling the 2004 lane's only
+# working loot source -- needs an inferred kill on a lane where the record has
+# no other feeder, and LostCity has no debugproc that kills an npc (`::damage`
+# damages the PLAYER; the full list is content/scripts/_test/scripts/cheats/).
+# Three drives were tried:
+#
+#   ltfix-live-try1        ::lootkill only -- the account was fresh, so the
+#                          client sat in the character designer and the world
+#                          drive never ran. It does prove the FED RECORD reaches
+#                          the live page, which is the defect this branch exists
+#                          to fix: "Total count: 1 / Total value: 5K gp" over a
+#                          "Goblin x 1" band with the 5000-coin cell.
+#   ltfix-live-kill-{pre,after}   two-phase tutorial skip first
+#                          (ltfix-live-setup-a/b), then ~varrock + ~npc chicken
+#                          + six TORIRS_SIM_CLICK_AT around the viewport centre.
+#                          The clicks hit Romeo and opened his dialogue; the
+#                          chicken is visible on the floor, unkilled.
+#   ltfix-livekill2-after  TORIRS_SIM_OPNPC=460,1,41 instead of pixel clicks,
+#                          which is the right instrument -- the log says
+#                          "sim_opnpc: op=1 npc=41 slot=8142", so the Attack
+#                          reached a real chicken -- but the player still has to
+#                          walk to it and the kill did not land inside 1500
+#                          frames. The page is the record's one band.
+#
+# So the latch is pinned by test_loot_a_cheat_kill_does_not_disable_inference
+# and its mutation, not by a picture. A drive that wants the picture should give
+# the account a weapon and spawn the npc adjacent, or raise TORIRS_SHOT_FRAMES
+# well past 1500.
