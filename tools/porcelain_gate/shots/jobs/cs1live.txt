@@ -17,7 +17,14 @@
 # line is a different player and none of them waits out another's session
 # (LostCity answers login reply 5 for about a minute after a client leaves).
 orbs-live          minimap-orbs        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
-gf-desktop-live    gameframe-layout    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
+# preferred_frame is the MASTER SWITCH for a frame provider, not `enabled`, and
+# shot.sh's cs1live lane boots with frame=auto. So a gameframe line that names
+# its plugin and nothing else photographs the LANE'S OWN 2004 frame, on every
+# run, no matter which provider is enabled in the ini -- which is what made
+# "none of the gameframes work on CS1" look like a code defect. Same mistake was
+# caught and fixed in gen_matrix.py for the CS2 toplevels; it had to be carried
+# here too and was not.
+gf-desktop-live    gameframe-layout    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200 TORIRS_SHOT_FRAME=gameframe-layout/classic-fixed
 perf-live          performance-display cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
 screenshot-live    screenshot          cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
 widgetdemo-live    widget-demo         cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_WIDGET_DEMO=only TORIRS_MAX_FRAMES=2200
@@ -69,7 +76,7 @@ nxthl-live         nxt-highlight       cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;
 # -1 on the first call. Measured: a cs1 run tagging 547,781,783,639,153,1,3
 # logs zero PLUGIN_NPC lines. Only this lane has npcs to highlight.
 highlighter-live   entity-highlighter  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' 'TORIRS_SIM_PLUGIN_CONFIG=1400,entity-highlighter,tags,547,781,783' TORIRS_MAX_FRAMES=2200
-gf-mobile-live     mobile-gameframe    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
+gf-mobile-live     mobile-gameframe    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200 TORIRS_SHOT_FRAME=mobile-gameframe/stone-drawer
 
 # ~giverunes puts 1000 of each rune in the INVENTORY, which is the only reason
 # item-stats has anything to hover. The offline lane's inventory was empty, so

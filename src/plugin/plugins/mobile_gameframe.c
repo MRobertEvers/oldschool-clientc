@@ -4707,6 +4707,7 @@ static void
 mobile_describe_chat_dress(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe* describe)
 {
     struct MobileState* state = ctx->state;
+    struct PorcelainElementState pack;
     struct PorcelainElementState bar;
     struct PorcelainElementState backing;
     struct MobileChatCell cell[MOBILE_CHAT_CELL_MAX];
@@ -4726,12 +4727,40 @@ mobile_describe_chat_dress(struct MobileCall* ctx, struct ToriRS_PorcelainDescri
      * absence recorded for something that binds a frame later is a finding
      * nobody can act on. The container is one ask that answers for all ten.
      */
-    if( !Porcelain_Element(state->porcelain, PORCELAIN_EL(CHAT), &bar) )
+    if( !Porcelain_Element(state->porcelain, PORCELAIN_EL(CHAT), &pack) )
         return;
     /* The BAR's box: every hollow is measured from its left edge, and a bar
      * with no box is a pack whose layout has not run yet. */
     if( !Porcelain_Element(state->porcelain, PORCELAIN_EL(CHAT_BAR), &bar) || bar.box.width <= 0 ||
         bar.box.height <= 0 )
+        return;
+    /*
+     * The bar is WIDER THAN THE PACK IT LIVES IN, and the rock must not be.
+     *
+     * On 601 the pack is 519 wide at x=0 and the bar node answers 519 wide at
+     * x=58 -- it carries the PACK's width rather than its own container's,
+     * which is 461 (162|1, abs 58,471 461x28, i.e. exactly out to the pack's
+     * right edge). So the bar as the lane states it runs 58 px past the sheet
+     * it belongs to.
+     *
+     * That is the lane's own geometry, not something this provider did: the
+     * boxes are byte-identical with no plugins loaded. It is invisible there
+     * only because the lane paints that band translucent over the world. Paint
+     * opaque 2004 rock on the same number and the overflow is a slab of stone
+     * hanging off the end of the parchment, which is what it looked like.
+     *
+     * Clamping to the pack is right whatever the node says: the rock dresses
+     * the bar, the bar is furniture INSIDE the sheet, and no dressing of it
+     * belongs outside. The hollows are measured from bar.box.x and so are
+     * untouched -- a caption still lands on its own hollow.
+     */
+    if( pack.box.width > 0 )
+    {
+        int const pack_right = pack.box.x + pack.box.width;
+        if( bar.box.x + bar.box.width > pack_right )
+            bar.box.width = pack_right - bar.box.x;
+    }
+    if( bar.box.width <= 0 )
         return;
     for( int i = 0; i < MOBILE_CHAT_CELL_MAX; i++ )
     {
