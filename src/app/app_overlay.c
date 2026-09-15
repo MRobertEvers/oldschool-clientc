@@ -460,7 +460,15 @@ app_overlay_build_npc_headicon(
     }
 }
 
-/* Push one projected world segment as a LINE overlay (box + diagonal). */
+/**
+ * Push one projected world segment as a LINE overlay (box + diagonal).
+ *
+ * `line_width` is a THICKNESS in pixels and was a constant 2 here until a
+ * caller had a thickness of its own to state: the cache's highlight groups
+ * carry one, and a hard-coded width drew the hovered tile's 0 and the current
+ * tile's 2 as the same two-pixel rim. The client's own marks keep asking for
+ * APP_OVERLAY_SEGMENT_WIDTH, which is that constant given a name.
+ */
 void
 app_overlay_push_segment(
     struct App* app,
@@ -468,8 +476,17 @@ app_overlay_push_segment(
     int screen_y0,
     int screen_x1,
     int screen_y1,
-    uint32_t color)
+    uint32_t color,
+    int line_width)
 {
+    assert(app);
+    /* A zero or negative thickness is the caller asking for no line, and the
+     * emit floor (`line_width > 0 ? line_width : 1`) would turn it back into
+     * one pixel. The polygon walk declines the whole outline rather than
+     * reaching here with one, so this is the second, cheaper half of the same
+     * rule and not a case to handle. */
+    assert(line_width > 0);
+
     struct UITreeEntityOverlay seg = {
         .kind = UITREE_ENTITY_OVERLAY_LINE,
         .x = screen_x0 < screen_x1 ? screen_x0 : screen_x1,
@@ -477,7 +494,7 @@ app_overlay_push_segment(
         .w = screen_x0 < screen_x1 ? screen_x1 - screen_x0 : screen_x0 - screen_x1,
         .h = screen_y0 < screen_y1 ? screen_y1 - screen_y0 : screen_y0 - screen_y1,
         .color = color,
-        .line_width = 2,
+        .line_width = (uint8_t)(line_width > 255 ? 255 : line_width),
         /* Direction 0 = TL->BR. The segment runs that diagonal when x and y
          * grow together; otherwise it is the other one. */
         .line_direction = ((screen_x0 < screen_x1) != (screen_y0 < screen_y1)) ? 1 : 0,
@@ -565,25 +582,36 @@ app_overlay_push_polygon_filled(
     app_overlay_push(app, &item);
 }
 
+/**
+ * @param line_width the border's thickness in pixels. 0 draws NOTHING: a
+ *        caller that has a thickness to state -- the cache's highlight groups
+ *        do, and 0 is one of the three values this cache sends -- means "no
+ *        border", and the reference's own predicate reads exactly that way
+ *        (`HasTileOutline = (flags & 2) && outline_width != 0`).
+ */
 void
 app_overlay_push_polygon(
     struct App* app,
     const int* points_x,
     const int* points_y,
     int point_count,
-    uint32_t color)
+    uint32_t color,
+    int line_width)
 {
     assert(app);
     assert(points_x);
     assert(points_y);
     assert(point_count >= 0);
 
+    if( line_width <= 0 )
+        return;
     if( point_count < 2 )
         return;
 
     if( point_count == 2 )
     {
-        app_overlay_push_segment(app, points_x[0], points_y[0], points_x[1], points_y[1], color);
+        app_overlay_push_segment(
+            app, points_x[0], points_y[0], points_x[1], points_y[1], color, line_width);
         return;
     }
 
@@ -591,7 +619,7 @@ app_overlay_push_polygon(
     {
         int const next = (i + 1) % point_count;
         app_overlay_push_segment(
-            app, points_x[i], points_y[i], points_x[next], points_y[next], color);
+            app, points_x[i], points_y[i], points_x[next], points_y[next], color, line_width);
     }
 }
 
@@ -696,7 +724,7 @@ app_overlay_outline_element_model_trans(
      * have against busy ground. */
     if( fill_trans >= 0 )
         app_overlay_push_polygon_filled(app, hull_x, hull_y, hull_size, color, fill_trans);
-    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color);
+    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color, APP_OVERLAY_SEGMENT_WIDTH);
     return 1;
 }
 
@@ -919,7 +947,7 @@ app_overlay_outline_element_mesh_trans(
     hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
     if( fill_trans >= 0 )
         app_overlay_push_polygon_filled(app, hull_x, hull_y, hull_size, color, fill_trans);
-    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color);
+    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color, APP_OVERLAY_SEGMENT_WIDTH);
     return 1;
 }
 
@@ -1027,7 +1055,8 @@ app_overlay_outline_scenery(
                 size_z,
                 count,
                 hull_size);
-        app_overlay_push_polygon(app, hull_x, hull_y, hull_size, APP_OUTLINE_COLOR_FOOTPRINT);
+        app_overlay_push_polygon(
+            app, hull_x, hull_y, hull_size, APP_OUTLINE_COLOR_FOOTPRINT, APP_OVERLAY_SEGMENT_WIDTH);
     }
 }
 
@@ -1228,7 +1257,13 @@ app_overlay_build_editor_selection(struct App* app)
             hull_size,
             APP_OUTLINE_COLOR_EDITOR_SELECT,
             APP_OUTLINE_FILL_TRANS);
-        app_overlay_push_polygon(app, hull_x, hull_y, hull_size, APP_OUTLINE_COLOR_EDITOR_SELECT);
+        app_overlay_push_polygon(
+            app,
+            hull_x,
+            hull_y,
+            hull_size,
+            APP_OUTLINE_COLOR_EDITOR_SELECT,
+            APP_OVERLAY_SEGMENT_WIDTH);
     }
 }
 

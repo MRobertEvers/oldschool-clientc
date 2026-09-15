@@ -44,6 +44,11 @@ struct DrawCall
     int level;
     uint32_t fill;
     uint32_t outline;
+    /** The border's THICKNESS. This plugin has no setting for it, so what is
+     *  pinned is that it asks for the width every tile border was drawn at
+     *  before the thickness was a parameter -- the marker's look is unchanged
+     *  by the parameter existing. */
+    int outline_width;
     int alpha;
 };
 
@@ -191,6 +196,7 @@ fake_world_tile(
     int level,
     uint32_t fill_rgb,
     uint32_t outline_rgb,
+    int outline_width,
     int alpha)
 {
     struct Fake* fake = draw->implementation;
@@ -203,6 +209,7 @@ fake_world_tile(
         .level = level,
         .fill = fill_rgb,
         .outline = outline_rgb,
+        .outline_width = outline_width,
         .alpha = alpha,
     };
     return TORIRS_RESULT_OK;
@@ -261,6 +268,7 @@ check_call(
     CHECK(call->level == level, message);
     CHECK(call->fill == fill, message);
     CHECK(call->outline == outline, message);
+    CHECK(call->outline_width == TORIRS_TILE_OUTLINE_WIDTH_DEFAULT, message);
     CHECK(call->alpha == alpha, message);
 }
 

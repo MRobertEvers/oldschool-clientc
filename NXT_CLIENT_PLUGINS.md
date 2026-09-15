@@ -548,6 +548,17 @@ bits 16 and 64 alone -- flags that say HOW to draw, not WHAT.
 The opacity error was the visible one: treating 0..255 as a percent and scaling
 by 255/100 made every wash in the game 2.55x too opaque.
 
+The thickness error outlived it, one layer down. `nxt-highlight` answered
+`HasTileOutline` correctly and then had nowhere to put the answer: the engine's
+`draw_tile` took an outline COLOUR and no width, and drew the border
+unconditionally at the overlay's own two pixels. So the hovered tile wore a
+hard opaque rim the cache had switched off -- sampled at the tile's x-centre,
+two rows of unblended `0xBEBA6E` above and below a correctly-washed interior --
+and the current-tile group's thickness of 2 rendered identically to it, because
+both arrived at the same constant. `ToriRS_Graphics::world_tile` carries the
+thickness now, and 0 draws no border; `TORIRS_TILE_OUTLINE_WIDTH_DEFAULT` is
+the two every caller without a thickness of its own still asks for.
+
 ### The membership ops
 
 `highlight_tile_on(coord, group, flags)` -- the last argument is **not** flags.

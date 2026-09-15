@@ -86,6 +86,11 @@ struct NxtHighlightState
  * opacity 0 (an outline has no wash) and the hovered tile at thickness 0 (a
  * wash with no border).
  *
+ * Both predicates are answered here and both are SPENT below. `tile_outline`
+ * was computed correctly and then thrown away -- the colour went to the engine
+ * either way and the engine had no parameter that could say "no border" -- so
+ * the thickness-0 family drew the one thing it exists to not draw.
+ *
  * Opacity is already 0..255 -- the opcode handler clamps it there. This used
  * to scale it by 255/100 on the belief that it was a percent, which made every
  * wash in the game 2.55x too opaque.
@@ -175,6 +180,19 @@ nxt_highlight_draw(
                         item.level,
                         item.rgb,
                         item.rgb,
+                        /* The thickness the GROUP stated, not a constant.
+                         *
+                         * `tile_outline` is already the reference's predicate
+                         * -- flag AND non-zero thickness -- so the false arm
+                         * is a width of 0 and the true arm is the cache's own
+                         * number. Handing the colour over and letting the
+                         * engine decide was the bug: the border was drawn
+                         * unconditionally at two pixels, so clientscript
+                         * 5198's hovered tile (flags 2|8, thickness 0 -- a
+                         * wash with NO border) wore a hard opaque rim, and
+                         * the current-tile group's thickness of 2 could not
+                         * be told apart from it. */
+                        tile_outline ? item.outline_width : 0,
                         tile_fill ? item.opacity : 0);
         }
     }

@@ -292,9 +292,18 @@ fake_project(void* u, int fx, int fz, int hy, int* x, int* y)
     return 0;
 }
 static int
-fake_draw_tile(void* u, int x, int z, int l, uint32_t rgb, uint32_t fill, int alpha)
+fake_draw_tile(
+    void* u,
+    int x,
+    int z,
+    int l,
+    uint32_t rgb,
+    int outline_width,
+    uint32_t fill,
+    int alpha)
 {
     (void)u;
+    (void)outline_width;
     (void)x;
     (void)z;
     (void)l;

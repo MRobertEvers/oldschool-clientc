@@ -1419,15 +1419,15 @@ test_world_tile_budget_reaches_the_plugin(void)
      * one marker, which is the shape that made the defect invisible -- three
      * corners of a square drawn and the fourth gone. */
     g_testbed.tile_budget = 3;
-    CHECK(Porcelain_Tile(porcelain, draw, 3200, 3200, 0, 0x00ff00u, 0x00ff00u, 40),
+    CHECK(Porcelain_Tile(porcelain, draw, 3200, 3200, 0, 0x00ff00u, 0x00ff00u, 2, 40),
           "a tile inside the allotment is drawn");
-    CHECK(Porcelain_Tile(porcelain, draw, 3201, 3200, 0, 0x00ff00u, 0x00ff00u, 40), "and the next");
-    CHECK(Porcelain_Tile(porcelain, draw, 3200, 3201, 0, 0x00ff00u, 0x00ff00u, 40),
+    CHECK(Porcelain_Tile(porcelain, draw, 3201, 3200, 0, 0x00ff00u, 0x00ff00u, 2, 40), "and the next");
+    CHECK(Porcelain_Tile(porcelain, draw, 3200, 3201, 0, 0x00ff00u, 0x00ff00u, 2, 40),
           "and the last one in it");
-    CHECK(!Porcelain_Tile(porcelain, draw, 3201, 3201, 0, 0x00ff00u, 0x00ff00u, 40),
+    CHECK(!Porcelain_Tile(porcelain, draw, 3201, 3201, 0, 0x00ff00u, 0x00ff00u, 2, 40),
           "the tile over the allotment is refused");
     for( int at = 0; at < 20; at++ )
-        (void)Porcelain_Tile(porcelain, draw, 3300 + at, 3300, 0, 0x00ff00u, 0x00ff00u, 40);
+        (void)Porcelain_Tile(porcelain, draw, 3300 + at, 3300, 0, 0x00ff00u, 0x00ff00u, 2, 40);
     count = Porcelain_Findings(porcelain, findings, 8);
     CHECK(count == 1, "twenty-one refused tiles in one frame are ONE finding");
     for( int at = 0; at < count; at++ )
