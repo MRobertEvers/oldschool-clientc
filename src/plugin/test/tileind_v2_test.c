@@ -50,6 +50,7 @@ struct DrawCall
      *  by the parameter existing. */
     int outline_width;
     int alpha;
+    int depth;
 };
 
 struct Fake
@@ -197,7 +198,8 @@ fake_world_tile(
     uint32_t fill_rgb,
     uint32_t outline_rgb,
     int outline_width,
-    int alpha)
+    int alpha,
+    int depth)
 {
     struct Fake* fake = draw->implementation;
 
@@ -211,6 +213,7 @@ fake_world_tile(
         .outline = outline_rgb,
         .outline_width = outline_width,
         .alpha = alpha,
+        .depth = depth,
     };
     return TORIRS_RESULT_OK;
 }
@@ -270,6 +273,17 @@ check_call(
     CHECK(call->outline == outline, message);
     CHECK(call->outline_width == TORIRS_TILE_OUTLINE_WIDTH_DEFAULT, message);
     CHECK(call->alpha == alpha, message);
+    /*
+     * Every one of this plugin's markers is drawn OVER the scene.
+     *
+     * Checked on each of the three rather than once somewhere, because the
+     * depth is per call and the three are different features: the hover mark,
+     * the standing mark and the destination mark. A tile indicator you cannot
+     * see because you are standing on it has not indicated the tile -- that is
+     * what the cache's "- Always on top" row is for, and this plugin has no
+     * such row, so its answer is fixed and this is where it is pinned.
+     */
+    CHECK(call->depth == TORIRS_TILE_ON_TOP, message);
 }
 
 /*

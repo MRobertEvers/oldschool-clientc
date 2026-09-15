@@ -351,10 +351,13 @@ bool Porcelain_Hull(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, i
  *
  *  `alpha` is the wash and `outline_width` the border, each drawn only when
  *  its own number is non-zero -- a thickness of 0 is a fill with no border,
- *  which is what the cache's hovered-tile group asks for. */
+ *  which is what the cache's hovered-tile group asks for. `depth` is an
+ *  enum ToriRS_TileDepth: whether the marker is composited over the finished
+ *  scene or drawn with the tile's own ground, which is the difference the
+ *  cache spells "- Always on top". */
 bool Porcelain_Tile(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int tile_x,
                     int tile_z, int level, uint32_t fill_rgb, uint32_t outline_rgb,
-                    int outline_width, int alpha);
+                    int outline_width, int alpha, int depth);
 /** A plugin's own finding, in the channel Porcelain's verbs already use.
  *  `result` is a PorcelainFindingResult and may not be OK. */
 void Porcelain_Finding(struct Porcelain* porcelain, char const* verb,

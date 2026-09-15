@@ -1463,16 +1463,24 @@ fake_graphics_world_hull(struct ToriRS_Graphics* draw, int element_id, uint32_t 
 /* The world tile, with the host's one refusal: the frame's own allotment. */
 static enum ToriRS_Result
 fake_graphics_world_tile(struct ToriRS_Graphics* draw, int tile_x, int tile_z, int level,
-                         uint32_t fill_rgb, uint32_t outline_rgb, int outline_width, int alpha)
+                         uint32_t fill_rgb, uint32_t outline_rgb, int outline_width, int alpha,
+                         int depth)
 {
     (void)draw;
     (void)fill_rgb;
     (void)outline_rgb;
     (void)alpha;
-    /* The thickness is in the line, because "a wash with no border" and "a
-     * wash with a two-pixel border" are different pictures and the log is how
-     * this testbed tells two draws apart. */
-    testbed_log("world_tile %d,%d,%d w%d", tile_x, tile_z, level, outline_width);
+    /* The thickness and the DEPTH are both in the line, because "a wash with
+     * no border" and "a wash with a two-pixel border" are different pictures,
+     * and so are "under the player" and "over him" -- the log is how this
+     * testbed tells two draws apart. */
+    testbed_log(
+        "world_tile %d,%d,%d w%d %s",
+        tile_x,
+        tile_z,
+        level,
+        outline_width,
+        depth == TORIRS_TILE_IN_SCENE ? "in_scene" : "on_top");
     if( g_testbed.tile_used >= g_testbed.tile_budget )
         return TORIRS_RESULT_BUDGET;
     g_testbed.tile_used++;

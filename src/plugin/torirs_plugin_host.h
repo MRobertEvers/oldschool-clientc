@@ -607,7 +607,12 @@ struct ToriRS_PluginEngine
         int trans);
     /** `rgb` is the border's colour and `outline_width` its thickness in
      *  pixels; a width of 0 draws no border at all, which is the shape the
-     *  cache's hovered-tile group asks for. @see ToriRS_Graphics::world_tile. */
+     *  cache's hovered-tile group asks for. `depth` is an
+     *  enum ToriRS_TileDepth and decides whether the marker is composited over
+     *  the finished scene or drawn with the tile's own ground -- the host is
+     *  the only layer that can honour the second, because only it knows the
+     *  order the painter put this frame down in.
+     *  @see ToriRS_Graphics::world_tile. */
     int (*draw_tile)(
         void* user,
         int tile_x,
@@ -616,7 +621,8 @@ struct ToriRS_PluginEngine
         uint32_t rgb,
         int outline_width,
         uint32_t fill_rgb,
-        int fill_alpha);
+        int fill_alpha,
+        int depth);
     int (*draw_hull)(
         void* user,
         int element_id,

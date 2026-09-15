@@ -1515,20 +1515,27 @@ Porcelain_Hull(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int el
  *
  * The budget is the only refusal here: a tile is a place, so there is no
  * entity whose appearance another plugin could hold.
+ *
+ * `depth` is passed through and not decided here. It is the one thing about a
+ * tile marker this layer cannot answer on the plugin's behalf -- the ordering
+ * belongs to whoever painted the frame -- and the layer's job is to carry the
+ * question, not to have an opinion about it.
  */
 bool
 Porcelain_Tile(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int tile_x, int tile_z,
-               int level, uint32_t fill_rgb, uint32_t outline_rgb, int outline_width, int alpha)
+               int level, uint32_t fill_rgb, uint32_t outline_rgb, int outline_width, int alpha,
+               int depth)
 {
     enum ToriRS_Result result;
 
     assert(porcelain);
     assert(draw);
     assert(draw->world_tile);
+    assert(depth == TORIRS_TILE_ON_TOP || depth == TORIRS_TILE_IN_SCENE);
 
     porcelain->counters.engine_calls++;
-    result =
-        draw->world_tile(draw, tile_x, tile_z, level, fill_rgb, outline_rgb, outline_width, alpha);
+    result = draw->world_tile(
+        draw, tile_x, tile_z, level, fill_rgb, outline_rgb, outline_width, alpha, depth);
     if( result == TORIRS_RESULT_OK )
         return true;
     if( result == TORIRS_RESULT_BUDGET )

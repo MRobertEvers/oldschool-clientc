@@ -113,6 +113,36 @@ app_overlay_push(
     }
 
     /*
+     * A tile marker that belongs in the scene leaves by the third door.
+     *
+     * Opened for the length of ONE draw_tile call and keyed to the tile that
+     * call named, so every primitive the polygon helpers push while it is open
+     * is a primitive of that marker. Nothing else can be in flight: the
+     * helpers are called straight from the verb and do not re-enter.
+     */
+    if( app->world_tile_mark_stage_active )
+    {
+        struct ToriRS_WorldTileMark* mark;
+
+        if( app->world_tile_mark_count >= APP_WORLD_TILE_MARKS_MAX )
+        {
+            app->world_tile_mark_overflow = 1;
+            return;
+        }
+        mark = &app->world_tile_marks[app->world_tile_mark_count];
+        mark->after_command = APP_WORLD_TILE_MARK_UNPLACED;
+        mark->item = *item;
+        mark->item.clip_x = app->world_tile_mark_stage_clip.x;
+        mark->item.clip_y = app->world_tile_mark_stage_clip.y;
+        mark->item.clip_w = app->world_tile_mark_stage_clip.w;
+        mark->item.clip_h = app->world_tile_mark_stage_clip.h;
+        app->world_tile_mark_key[app->world_tile_mark_count] =
+            app->world_tile_mark_stage_key;
+        app->world_tile_mark_count++;
+        return;
+    }
+
+    /*
      * Which list depends on the draw window that is open, and nothing above
      * this has to know which one that is.
      *
@@ -134,7 +164,221 @@ app_overlay_count(struct App const* app)
     /* The panel's staging is not the stage's, so its count is not either. */
     if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_PANEL )
         return app->panel_overlay_stage_active ? app->panel_overlay_stage_count : 0;
+    /* Nor is the tile-mark stage's. A marker drawn into the scene costs the
+     * frame exactly what the same marker costs over it, and the budget has to
+     * bill it, or "in the scene" would be a way to draw for free. */
+    if( app->world_tile_mark_stage_active )
+        return app->world_tile_mark_count;
     return OverlayStage_Count(&app->overlays, app_overlay_surface(app));
+}
+
+/**
+ * The marked tile, as one int.
+ *
+ * A key and not a struct because it is compared, never read: the placement
+ * pass below matches it against the tile a painter command names, and the
+ * stage carries exactly one of them at a time.
+ */
+int
+app_world_tile_mark_key(
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    assert(scene_x >= 0);
+    assert(scene_x < APP_WORLD_TILE_MARK_SCENE_MAX);
+    assert(scene_z >= 0);
+    assert(scene_z < APP_WORLD_TILE_MARK_SCENE_MAX);
+    assert(level >= 0);
+    assert(level < WORLD_MAP_TERRAIN_LEVELS);
+    return ((scene_x * APP_WORLD_TILE_MARK_SCENE_MAX) + scene_z) *
+               WORLD_MAP_TERRAIN_LEVELS +
+           level;
+}
+
+/**
+ * Empty the in-scene tile-marker list.
+ *
+ * Called from the same place the world overlay list is emptied, and for the
+ * same reason: the two are one frame's worth of the same drawing, split only
+ * by when it has to reach the raster. Emptying one and not the other would
+ * leave a marker on screen for a tile nothing is marking any more.
+ */
+void
+app_world_tile_marks_reset(struct App* app)
+{
+    assert(app);
+    app->world_tile_mark_count = 0;
+    app->world_tile_mark_overflow = 0;
+    app->world_tile_mark_unplaced = 0;
+    app->world_tile_mark_stage_active = 0;
+    app->world_tile_mark_stage_key = 0;
+    memset(&app->world_tile_mark_stage_clip, 0, sizeof(app->world_tile_mark_stage_clip));
+}
+
+void
+app_world_tile_mark_begin(
+    struct App* app,
+    int key,
+    int clip_x,
+    int clip_y,
+    int clip_w,
+    int clip_h)
+{
+    assert(app);
+    assert(!app->world_tile_mark_stage_active);
+    app->world_tile_mark_stage_active = 1;
+    app->world_tile_mark_stage_key = key;
+    app->world_tile_mark_stage_clip.x = clip_x;
+    app->world_tile_mark_stage_clip.y = clip_y;
+    app->world_tile_mark_stage_clip.w = clip_w;
+    app->world_tile_mark_stage_clip.h = clip_h;
+}
+
+void
+app_world_tile_mark_end(struct App* app)
+{
+    assert(app);
+    assert(app->world_tile_mark_stage_active);
+    app->world_tile_mark_stage_active = 0;
+}
+
+/**
+ * Resolve every staged marker to the painter command it is drawn after.
+ *
+ * Run once a frame, after the paint and before the frame is handed over,
+ * because the answer is a position in THIS paint's command list and there is
+ * no such thing as a stable one: the buckets drain from wherever the camera
+ * is, so the command that carries a tile moves every time the eye does.
+ *
+ * The command wanted is the LAST terrain command for the marked tile at the
+ * marked level. Last, not first, because a tile can put down several storeys'
+ * ground in one pass (a bridge deck over the ground below it) and a marker
+ * emitted after the first of them would be painted over by the rest. The
+ * level is part of the match for the same reason.
+ *
+ * Only the ROOT view is searched. A marker on a boat's deck is addressed in
+ * that view's own tiles and would collide with a root tile of the same number;
+ * markers there keep the overlay's always-on-top path, which is where the
+ * bridge leaves them.
+ *
+ * Marks whose tile this paint never drew keep `after_command` at the sentinel
+ * and sort to the end, where the walk's own "not reached yet" test stops at
+ * them. They are counted rather than dropped: the count is the difference
+ * between "behind the player" and "not drawn at all", which the picture cannot
+ * tell apart.
+ */
+void
+app_world_tile_marks_place(struct App* app)
+{
+    struct PaintersBuffer* buffer;
+    /* The distinct TILES, not the primitives. Ten primitives of one marker
+     * share one tile and one answer, and the scan below runs once per painter
+     * command -- so searching the primitives would multiply the paint's
+     * thousands of terrain commands by ten for no new information. */
+    int tile_key[APP_WORLD_TILE_MARKS_MAX];
+    int tile_at[APP_WORLD_TILE_MARKS_MAX];
+    int tile_count = 0;
+    int depth = 0;
+
+    assert(app);
+    if( app->world_tile_mark_count <= 0 )
+        return;
+
+    for( int i = 0; i < app->world_tile_mark_count; i++ )
+    {
+        int at = 0;
+
+        while( at < tile_count && tile_key[at] != app->world_tile_mark_key[i] )
+            at++;
+        if( at == tile_count )
+        {
+            tile_key[tile_count] = app->world_tile_mark_key[i];
+            tile_at[tile_count] = APP_WORLD_TILE_MARK_UNPLACED;
+            tile_count++;
+        }
+    }
+
+    buffer = app->painter_buffer;
+    if( buffer )
+    {
+        for( int at = 0; at < buffer->command_count; at++ )
+        {
+            struct PaintersElementCommand const* cmd = &buffer->commands[at];
+            int key;
+
+            if( cmd->_bf_kind == PNTR_CMD_BEGIN_WORLD )
+            {
+                depth++;
+                continue;
+            }
+            if( cmd->_bf_kind == PNTR_CMD_END_WORLD )
+            {
+                depth--;
+                continue;
+            }
+            if( depth != 0 )
+                continue;
+            if( cmd->_bf_kind != PNTR_CMD_TERRAIN &&
+                cmd->_bf_kind != PNTR_CMD_TERRAIN_PICK_ONLY )
+                continue;
+            key = app_world_tile_mark_key(
+                (int)cmd->_terrain._bf_terrain_x,
+                (int)cmd->_terrain._bf_terrain_z,
+                (int)cmd->_terrain._bf_terrain_y);
+            /* LAST wins, deliberately: a tile can put down several storeys of
+             * ground in one pass and a marker emitted after the first of them
+             * would be painted over by the rest. */
+            for( int i = 0; i < tile_count; i++ )
+                if( tile_key[i] == key )
+                    tile_at[i] = at;
+        }
+    }
+
+    for( int i = 0; i < app->world_tile_mark_count; i++ )
+    {
+        int at = 0;
+
+        while( at < tile_count && tile_key[at] != app->world_tile_mark_key[i] )
+            at++;
+        assert(at < tile_count);
+        app->world_tile_marks[i].after_command = tile_at[at];
+        if( tile_at[at] == APP_WORLD_TILE_MARK_UNPLACED )
+            app->world_tile_mark_unplaced++;
+    }
+
+    /* The two ways an in-scene marker can fail to appear, said out loud.
+     * Neither is an error -- a tile off screen has no ground to be drawn
+     * after, and the budget is the budget -- but both look exactly like "the
+     * plugin drew nothing", which is the confusion this whole directory of
+     * captures exists to stop. Only when there is something to say. */
+    if( (app->world_tile_mark_unplaced || app->world_tile_mark_overflow) &&
+        getenv("TORIRS_TRACE_PLUGIN_WORLD") )
+        TORIRS_LOG(
+            "PLUGIN_TILE_MARKS staged=%d unplaced=%d overflow=%d\n",
+            app->world_tile_mark_count,
+            app->world_tile_mark_unplaced,
+            app->world_tile_mark_overflow);
+
+    /* Insertion sort, and it must be STABLE: the primitives of one marker are
+     * a run -- a polygon's begin, its points and its end -- and they all carry
+     * the same command index, so an unstable sort would reorder a run into a
+     * polygon with no beginning. */
+    for( int i = 1; i < app->world_tile_mark_count; i++ )
+    {
+        struct ToriRS_WorldTileMark mark = app->world_tile_marks[i];
+        int key = app->world_tile_mark_key[i];
+        int j = i - 1;
+
+        while( j >= 0 && app->world_tile_marks[j].after_command > mark.after_command )
+        {
+            app->world_tile_marks[j + 1] = app->world_tile_marks[j];
+            app->world_tile_mark_key[j + 1] = app->world_tile_mark_key[j];
+            j--;
+        }
+        app->world_tile_marks[j + 1] = mark;
+        app->world_tile_mark_key[j + 1] = key;
+    }
 }
 
 /* One entity's overlay set. combat/damage state lives on the shared facet, so

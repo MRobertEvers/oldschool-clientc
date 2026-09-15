@@ -300,9 +300,11 @@ fake_draw_tile(
     uint32_t rgb,
     int outline_width,
     uint32_t fill,
-    int alpha)
+    int alpha,
+    int depth)
 {
     (void)u;
+    (void)depth;
     (void)outline_width;
     (void)x;
     (void)z;

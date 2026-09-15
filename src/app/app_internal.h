@@ -1080,6 +1080,29 @@ app_overlay_push(
 int
 app_overlay_count(struct App const* app);
 
+/* The in-scene tile markers: the stage a draw_tile call opens, the reset that
+ * empties it and the per-frame placement against the painter buffer.
+ * @see app_world_tile_marks_place. */
+int
+app_world_tile_mark_key(
+    int scene_x,
+    int scene_z,
+    int level);
+void
+app_world_tile_marks_reset(struct App* app);
+void
+app_world_tile_mark_begin(
+    struct App* app,
+    int key,
+    int clip_x,
+    int clip_y,
+    int clip_w,
+    int clip_h);
+void
+app_world_tile_mark_end(struct App* app);
+void
+app_world_tile_marks_place(struct App* app);
+
 void
 app_overlay_build_chat(
     struct App* app,

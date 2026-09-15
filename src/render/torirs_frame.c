@@ -838,6 +838,126 @@ translate_scrollbar_h_step(
     return false;
 }
 
+/*
+ * One entity-overlay primitive as one render command.
+ *
+ * Lifted out of the UITREE_EMIT_ENTITY_OVERLAY arm so the WORLD pass can
+ * replay the very same items. A tile marker whose highlight group did not ask
+ * to be always on top is drawn inside the 3D pass rather than over it, and it
+ * has to be the same primitives spelled the same way -- one conversion means
+ * the two orderings can differ in WHEN a marker is drawn and never in what it
+ * is made of.
+ */
+static bool
+frame_emit_overlay_item(
+    struct UITreeEntityOverlay const* item,
+    int clip_x,
+    int clip_y,
+    int clip_w,
+    int clip_h,
+    struct ToriRS_RenderCommand* out)
+{
+    assert(item);
+    assert(out);
+
+    switch( item->kind )
+    {
+    case UITREE_ENTITY_OVERLAY_SPRITE:
+        if( item->scene_id <= 0 )
+            return false;
+        out->kind = TORIRSRC_SPRITE;
+        out->u.sprite.scene_id = item->scene_id;
+        out->u.sprite.atlas_index = item->atlas_index;
+        out->u.sprite.x = item->x;
+        out->u.sprite.y = item->y;
+        out->u.sprite.w = item->w;
+        out->u.sprite.h = item->h;
+        out->u.sprite.trans = item->trans;
+        out->u.sprite.scissor_x = clip_x;
+        out->u.sprite.scissor_y = clip_y;
+        out->u.sprite.scissor_w = clip_w;
+        out->u.sprite.scissor_h = clip_h;
+        /* Native entity art (hitsplats, headicons and health bars) leaves
+         * the destination size at zero and is blitted 1:1. Plugin image
+         * draws carry an explicit destination box; honouring that box
+         * requires the renderers' IF3/scaled sprite path. In particular,
+         * the retained chrome panel doubles both the bitmap's placement
+         * and its destination size at 2x -- a native blit would otherwise
+         * occupy only the upper-left quarter of the scaled well. */
+        out->u.sprite.if3 = (uint8_t)(item->w > 0 && item->h > 0);
+        return true;
+    case UITREE_ENTITY_OVERLAY_TEXT:
+        /* >= 0: dat1 p11 is cache font id 0, and scene font ids are the
+         * cache ids (see app_hitsplat_font_scene_id). */
+        if( item->font_id < 0 || item->text[0] == '\0' )
+            return false;
+        out->kind = TORIRSRC_FONT;
+        out->u.font.font_id = item->font_id;
+        out->u.font.text = item->text;
+        out->u.font.x = item->x;
+        out->u.font.y = item->y;
+        out->u.font.w = item->w;
+        out->u.font.h = item->h;
+        out->u.font.color = (int)item->color;
+        out->u.font.center = 1;
+        /* Reference draws hitsplat numbers with `p11.centreString`, whose
+         * y is the text baseline/bottom (drawString does `y -= height2d`),
+         * not a widget-box top. Without this the number lands ~1 line
+         * height too low and drifts off the hitmark sprite. */
+        out->u.font.baseline = 1;
+        out->u.font.scissor_x = clip_x;
+        out->u.font.scissor_y = clip_y;
+        out->u.font.scissor_w = clip_w;
+        out->u.font.scissor_h = clip_h;
+        return true;
+    case UITREE_ENTITY_OVERLAY_LINE:
+        out->kind = TORIRSRC_LINE;
+        out->u.line.x = item->x;
+        out->u.line.y = item->y;
+        out->u.line.w = item->w;
+        out->u.line.h = item->h;
+        out->u.line.argb = item->color;
+        out->u.line.line_width = item->line_width > 0 ? item->line_width : 1;
+        out->u.line.line_direction = item->line_direction;
+        out->u.line.scissor_x = clip_x;
+        out->u.line.scissor_y = clip_y;
+        out->u.line.scissor_w = clip_w;
+        out->u.line.scissor_h = clip_h;
+        return true;
+    case UITREE_ENTITY_OVERLAY_POLY_BEGIN:
+        out->kind = TORIRSRC_POLYGON_BEGIN;
+        out->u.polygon_begin.argb = (int)item->color;
+        out->u.polygon_begin.trans = item->trans;
+        out->u.polygon_begin.scissor_x = clip_x;
+        out->u.polygon_begin.scissor_y = clip_y;
+        out->u.polygon_begin.scissor_w = clip_w;
+        out->u.polygon_begin.scissor_h = clip_h;
+        return true;
+    case UITREE_ENTITY_OVERLAY_POLY_POINT:
+        out->kind = TORIRSRC_POLYGON_POINT;
+        out->u.polygon_point.x = item->x;
+        out->u.polygon_point.y = item->y;
+        return true;
+    case UITREE_ENTITY_OVERLAY_POLY_END:
+        out->kind = TORIRSRC_POLYGON_END;
+        return true;
+    case UITREE_ENTITY_OVERLAY_RECT:
+    default:
+        out->kind = TORIRSRC_FILL_RECT;
+        out->u.fill_rect.x = item->x;
+        out->u.fill_rect.y = item->y;
+        out->u.fill_rect.w = item->w;
+        out->u.fill_rect.h = item->h;
+        out->u.fill_rect.argb = emit_color_argb((int)item->color,item->trans);
+        out->u.fill_rect.filled = 1;
+        out->u.fill_rect.scissor_x = clip_x;
+        out->u.fill_rect.scissor_y = clip_y;
+        out->u.fill_rect.scissor_w = clip_w;
+        out->u.fill_rect.scissor_h = clip_h;
+        return true;
+    }
+}
+
 static bool
 translate_ui_cmd(
     struct ToriRS_Frame* frame,
@@ -1278,102 +1398,7 @@ translate_ui_cmd(
                 return false;
         }
 
-        switch( item->kind )
-        {
-        case UITREE_ENTITY_OVERLAY_SPRITE:
-            if( item->scene_id <= 0 )
-                return false;
-            out->kind = TORIRSRC_SPRITE;
-            out->u.sprite.scene_id = item->scene_id;
-            out->u.sprite.atlas_index = item->atlas_index;
-            out->u.sprite.x = item->x;
-            out->u.sprite.y = item->y;
-            out->u.sprite.w = item->w;
-            out->u.sprite.h = item->h;
-            out->u.sprite.trans = item->trans;
-            out->u.sprite.scissor_x = clip_x;
-            out->u.sprite.scissor_y = clip_y;
-            out->u.sprite.scissor_w = clip_w;
-            out->u.sprite.scissor_h = clip_h;
-            /* Native entity art (hitsplats, headicons and health bars) leaves
-             * the destination size at zero and is blitted 1:1. Plugin image
-             * draws carry an explicit destination box; honouring that box
-             * requires the renderers' IF3/scaled sprite path. In particular,
-             * the retained chrome panel doubles both the bitmap's placement
-             * and its destination size at 2x -- a native blit would otherwise
-             * occupy only the upper-left quarter of the scaled well. */
-            out->u.sprite.if3 = (uint8_t)(item->w > 0 && item->h > 0);
-            return true;
-        case UITREE_ENTITY_OVERLAY_TEXT:
-            /* >= 0: dat1 p11 is cache font id 0, and scene font ids are the
-             * cache ids (see app_hitsplat_font_scene_id). */
-            if( item->font_id < 0 || item->text[0] == '\0' )
-                return false;
-            out->kind = TORIRSRC_FONT;
-            out->u.font.font_id = item->font_id;
-            out->u.font.text = item->text;
-            out->u.font.x = item->x;
-            out->u.font.y = item->y;
-            out->u.font.w = item->w;
-            out->u.font.h = item->h;
-            out->u.font.color = (int)item->color;
-            out->u.font.center = 1;
-            /* Reference draws hitsplat numbers with `p11.centreString`, whose
-             * y is the text baseline/bottom (drawString does `y -= height2d`),
-             * not a widget-box top. Without this the number lands ~1 line
-             * height too low and drifts off the hitmark sprite. */
-            out->u.font.baseline = 1;
-            out->u.font.scissor_x = clip_x;
-            out->u.font.scissor_y = clip_y;
-            out->u.font.scissor_w = clip_w;
-            out->u.font.scissor_h = clip_h;
-            return true;
-        case UITREE_ENTITY_OVERLAY_LINE:
-            out->kind = TORIRSRC_LINE;
-            out->u.line.x = item->x;
-            out->u.line.y = item->y;
-            out->u.line.w = item->w;
-            out->u.line.h = item->h;
-            out->u.line.argb = item->color;
-            out->u.line.line_width = item->line_width > 0 ? item->line_width : 1;
-            out->u.line.line_direction = item->line_direction;
-            out->u.line.scissor_x = clip_x;
-            out->u.line.scissor_y = clip_y;
-            out->u.line.scissor_w = clip_w;
-            out->u.line.scissor_h = clip_h;
-            return true;
-        case UITREE_ENTITY_OVERLAY_POLY_BEGIN:
-            out->kind = TORIRSRC_POLYGON_BEGIN;
-            out->u.polygon_begin.argb = (int)item->color;
-            out->u.polygon_begin.trans = item->trans;
-            out->u.polygon_begin.scissor_x = clip_x;
-            out->u.polygon_begin.scissor_y = clip_y;
-            out->u.polygon_begin.scissor_w = clip_w;
-            out->u.polygon_begin.scissor_h = clip_h;
-            return true;
-        case UITREE_ENTITY_OVERLAY_POLY_POINT:
-            out->kind = TORIRSRC_POLYGON_POINT;
-            out->u.polygon_point.x = item->x;
-            out->u.polygon_point.y = item->y;
-            return true;
-        case UITREE_ENTITY_OVERLAY_POLY_END:
-            out->kind = TORIRSRC_POLYGON_END;
-            return true;
-        case UITREE_ENTITY_OVERLAY_RECT:
-        default:
-            out->kind = TORIRSRC_FILL_RECT;
-            out->u.fill_rect.x = item->x;
-            out->u.fill_rect.y = item->y;
-            out->u.fill_rect.w = item->w;
-            out->u.fill_rect.h = item->h;
-            out->u.fill_rect.argb = emit_color_argb((int)item->color,item->trans);
-            out->u.fill_rect.filled = 1;
-            out->u.fill_rect.scissor_x = clip_x;
-            out->u.fill_rect.scissor_y = clip_y;
-            out->u.fill_rect.scissor_w = clip_w;
-            out->u.fill_rect.scissor_h = clip_h;
-            return true;
-        }
+        return frame_emit_overlay_item(item, clip_x, clip_y, clip_w, clip_h, out);
     }
 
     case UITREE_EMIT_DEBUG_OVERLAY:
@@ -2254,6 +2279,45 @@ try_emit_world_draw_model(
     if( !frame->world || !frame->painters || !frame->scene )
         return false;
 
+    /*
+     * A tile marker staged against a command already consumed goes first.
+     *
+     * This is the whole of "not always on top": the wash is the same overlay
+     * primitive it has always been, and the only thing that changed is that it
+     * leaves here, between the tile's ground and the things standing on the
+     * tile, instead of from the entity-overlay list after the scene. Drained
+     * before the next command is consumed, so a mark placed after command i is
+     * drawn before command i+1 -- which is what puts the player over it.
+     *
+     * An item the conversion declines (a degenerate run) is skipped and the
+     * cursor still advances: a mark that cannot become a command must not stop
+     * the walk, and the loop is what turns "no command" into "try the next".
+     *
+     * Not on the world-only iterator. That one exists to hand a worker thread
+     * the MODEL commands to project and sort ahead of the draw; it is not the
+     * stream that reaches a framebuffer, and a 2D primitive in it would be a
+     * command that lane has no job for.
+     */
+    while( !frame->world_only &&
+           frame->world_tile_mark_cursor < frame->world_tile_mark_count )
+    {
+        struct ToriRS_WorldTileMark const* mark =
+            &frame->world_tile_marks[frame->world_tile_mark_cursor];
+
+        assert(mark->after_command >= 0);
+        if( mark->after_command >= frame->painters_index )
+            break;
+        frame->world_tile_mark_cursor++;
+        if( frame_emit_overlay_item(
+                &mark->item,
+                mark->item.clip_x,
+                mark->item.clip_y,
+                mark->item.clip_w,
+                mark->item.clip_h,
+                out) )
+            return true;
+    }
+
     /* Truncate the stream at the cap: commands past it simply do not exist
      * this frame, so the raster shows the scene as of paint N. The index
      * counts every consumed command, drawn or dropped, so a cap position
@@ -2666,6 +2730,21 @@ ToriRS_FrameSetWorld(
 }
 
 void
+ToriRS_FrameSetWorldTileMarks(
+    struct ToriRS_Frame* frame,
+    struct ToriRS_WorldTileMark const* marks,
+    int count)
+{
+    assert(frame);
+    assert(count >= 0);
+    if( count > 0 )
+        assert(marks);
+    frame->world_tile_marks = marks;
+    frame->world_tile_mark_count = count;
+    frame->world_tile_mark_cursor = 0;
+}
+
+void
 ToriRS_FrameClearViewXforms(struct ToriRS_Frame* frame)
 {
     assert(frame);
@@ -2731,6 +2810,11 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     frame->pass = TORIRS_FRAME_PASS_NONE;
     frame->emit_index = 0;
     frame->painters_index = 0;
+    /* The mark cursor walks the painter buffer beside painters_index, so it
+     * rewinds with it and not with the array it points into: the marks are
+     * restated once a frame and the WALK is what happens twice, on this
+     * iterator and on the world-only copy below. */
+    frame->world_tile_mark_cursor = 0;
     frame_lookahead_reset(frame);
     /* The queue's address is a fact about the scene, not about the command;
      * take it once here rather than on every FrameNextCommand call. */
@@ -2772,6 +2856,7 @@ ToriRS_FrameBeginWorldOnly(struct ToriRS_Frame* frame)
     frame->pass = TORIRS_FRAME_PASS_NONE;
     frame->emit_index = 0;
     frame->painters_index = 0;
+    frame->world_tile_mark_cursor = 0;
     frame_lookahead_reset(frame);
     /* No events are taken on a world-only replay; leave no queue to take
      * them from either. */

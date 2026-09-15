@@ -1673,7 +1673,7 @@ static int lua_builder_image(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_
 /* Arg 7 is the border's THICKNESS, and it defaults to the width the overlay
  * drew every border at before it was a parameter -- so a script that never
  * mentions it is byte-for-byte what it was. 0 means no border. */
-static int lua_builder_world_tile(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);uint32_t fill=lua_color_arg(L,4);uint32_t outline=lua_isnoneornil(L,5)?fill:lua_color_arg(L,5);lua_push_result(L,d->world_tile(d,(int)luaL_checkinteger(L,1),(int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3),fill,outline,(int)luaL_optinteger(L,7,TORIRS_TILE_OUTLINE_WIDTH_DEFAULT),(int)luaL_optinteger(L,6,0)));return 2; }
+static int lua_builder_world_tile(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);uint32_t fill=lua_color_arg(L,4);uint32_t outline=lua_isnoneornil(L,5)?fill:lua_color_arg(L,5);lua_push_result(L,d->world_tile(d,(int)luaL_checkinteger(L,1),(int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3),fill,outline,(int)luaL_optinteger(L,7,TORIRS_TILE_OUTLINE_WIDTH_DEFAULT),(int)luaL_optinteger(L,6,0),(int)luaL_optinteger(L,8,TORIRS_TILE_ON_TOP)));return 2; }
 static int lua_builder_world_hull(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);int shape=TORIRS_HULL_BOUNDS;if(lua_type(L,4)==LUA_TSTRING){char const*name=lua_tostring(L,4);if(strcmp(name,"mesh")==0)shape=TORIRS_HULL_MESH;else if(strcmp(name,"bounds")!=0)return luaL_error(L,"unknown hull shape '%s'",name);}else if(!lua_isnoneornil(L,4))shape=lua_enum_integer(L,4,TORIRS_HULL_BOUNDS,TORIRS_HULL_MESH,"hull shape");lua_push_result(L,d->world_hull(d,(int)luaL_checkinteger(L,1),lua_color_arg(L,2),(int)luaL_optinteger(L,3,0),shape));return 2; }
 static int lua_builder_image_clip(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);d->image_clip(d,lua_image_arg(L,1),(int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3),lua_check_rect(L,4),(int)luaL_optinteger(L,5,255));return 0; }
 static int lua_builder_context(lua_State* L) { struct ToriRS_Graphics* d=lua_draw_builder(L);struct ToriRS_DrawContext v;memset(&v,0,sizeof(v));v.struct_size=sizeof(v);if(!d->context(d,&v)){lua_pushnil(L);return 1;}lua_createtable(L,0,2);lua_push_rect(L,v.bounds);lua_setfield(L,-2,"bounds");lua_push_rect(L,v.clip);lua_setfield(L,-2,"clip");return 1; }
@@ -3370,7 +3370,8 @@ static int lua_porcelain_tile(lua_State* L)
                            lua_porcelain(L), draw, (int)luaL_checkinteger(L, 1),
                            (int)luaL_checkinteger(L, 2), (int)luaL_checkinteger(L, 3), fill,
                            outline, (int)luaL_optinteger(L, 7, TORIRS_TILE_OUTLINE_WIDTH_DEFAULT),
-                           (int)luaL_optinteger(L, 6, 0)));
+                           (int)luaL_optinteger(L, 6, 0),
+                           (int)luaL_optinteger(L, 8, TORIRS_TILE_ON_TOP)));
     return 1;
 }
 /* The result names, so a plugin writes `"refused"` and not a bare 4. The

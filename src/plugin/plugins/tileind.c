@@ -198,7 +198,16 @@ tileind_draw(
              * ask for the width every tile border was drawn at before the
              * thickness was a parameter, and are unchanged by its existing. */
             TORIRS_TILE_OUTLINE_WIDTH_DEFAULT,
-            tileind_config_int(api, "hover_fill_alpha", 0));
+            tileind_config_int(api, "hover_fill_alpha", 0),
+            /* Over the scene, for all three markers below as well.
+             *
+             * Not the default falling through: these are the PLUGIN's own
+             * markers, not a cache highlight group's, and nothing here carries
+             * the settings row that would say otherwise. A tile indicator you
+             * cannot see because you are standing on it has not indicated the
+             * tile, which is the whole reason the reference draws its own over
+             * the scene too. */
+            TORIRS_TILE_ON_TOP);
 
     if( !api->world.local_player(api, &me) )
         return;
@@ -211,7 +220,8 @@ tileind_draw(
         tileind_config_color(api, "true_fill_color", 0x00FFFFu),
         tileind_config_color(api, "true_color", 0x00FFFFu),
         TORIRS_TILE_OUTLINE_WIDTH_DEFAULT,
-        tileind_config_int(api, "true_fill_alpha", 40));
+        tileind_config_int(api, "true_fill_alpha", 40),
+        TORIRS_TILE_ON_TOP);
 
     if( !tileind_config_bool(api, "show_dest", true) )
         return;
@@ -236,7 +246,8 @@ tileind_draw(
             tileind_config_color(api, "dest_fill_color", 0xFFFF00u),
             tileind_config_color(api, "dest_color", 0xFFFF00u),
             TORIRS_TILE_OUTLINE_WIDTH_DEFAULT,
-            tileind_config_int(api, "dest_fill_alpha", 0));
+            tileind_config_int(api, "dest_fill_alpha", 0),
+            TORIRS_TILE_ON_TOP);
 }
 
 /*

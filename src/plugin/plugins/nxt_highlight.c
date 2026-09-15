@@ -63,6 +63,20 @@
 #define NXT_HL_TILE_OUTLINE 2
 #define NXT_HL_MODEL_FILL 4
 #define NXT_HL_TILE_FILL 8
+/**
+ * The settings row spelled "- Always on top", as a flag bit.
+ *
+ * Four bits said what to draw and this one says WHERE, and it was the only one
+ * of the five this renderer never read. What that cost is a marker the cache
+ * asked to put under the scene and this client painted over it: the
+ * current-tile group (kind 7, group 3, flags 2|8) washes the boots of the
+ * player standing on the tile it marks, while the tile-marker group the "Mark
+ * tile" op fills (group 6, flags 2|8|16|64) asks for the opposite and got the
+ * same picture. Reading four of five bits is not a smaller version of reading
+ * five: it makes two groups the cache deliberately distinguishes
+ * indistinguishable.
+ */
+#define NXT_HL_ALWAYS_ON_TOP 16
 
 /** Named once, because `Porcelain_Require` and `Porcelain_ExpectUnsupported`
  *  must agree on the string: the declaration is matched against the finding's
@@ -105,6 +119,22 @@ static bool
 nxt_hl_fill(struct ToriRS_HighlightItem const* item, int flag)
 {
     return (item->flags & flag) != 0 && item->opacity != 0;
+}
+
+/*
+ * Where the group asked its tile marker to sit.
+ *
+ * No predicate beside it and no thickness to pair with: unlike the four draw
+ * bits, this one stands alone -- there is no second number that could switch
+ * it off -- so it is the bit and nothing else. The default when it is absent
+ * is IN_SCENE, which is the reading that makes the cache's own pair of groups
+ * mean two different things.
+ */
+static int
+nxt_hl_tile_depth(struct ToriRS_HighlightItem const* item)
+{
+    return (item->flags & NXT_HL_ALWAYS_ON_TOP) != 0 ? TORIRS_TILE_ON_TOP
+                                                     : TORIRS_TILE_IN_SCENE;
 }
 
 static void
@@ -193,7 +223,13 @@ nxt_highlight_draw(
                          * the current-tile group's thickness of 2 could not
                          * be told apart from it. */
                         tile_outline ? item.outline_width : 0,
-                        tile_fill ? item.opacity : 0);
+                        tile_fill ? item.opacity : 0,
+                        /* The DEPTH the group stated, for the same reason the
+                         * thickness above is the group's: it is a decision a
+                         * clientscript already made, off a varbit the user
+                         * owns, and a renderer that overrides it has taken the
+                         * settings row away from the settings panel. */
+                        nxt_hl_tile_depth(&item));
         }
     }
 }
