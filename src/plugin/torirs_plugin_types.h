@@ -393,8 +393,15 @@ struct ToriRS_LootSource
 struct ToriRS_LootRow
 {
     int obj_id;
+    /** How many of them, summed over every kill this source has recorded. */
     int quantity;
-    /** The value the store recorded, which is ObjType.cost at drop time. */
+    /**
+     * What ONE of them is worth: `ObjType.cost` at drop time.
+     *
+     * A unit price, so the row is worth `value * quantity` -- and a per-item
+     * rule such as high alchemy's `floor(cost * 3 / 5)` truncates HERE, before
+     * that multiply, exactly as the reference's per-unit haPrice does.
+     */
     int value;
 };
 

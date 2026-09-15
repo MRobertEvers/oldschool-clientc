@@ -3442,24 +3442,58 @@ app_plugin_obj_image(
         break;
     }
     /*
-     * -1 is the ORDINARY answer while the objtype or its inventory model is
-     * still coming off the cache, and the bridge has already asked for both.
-     * Nothing to report: the caller asks again next frame, exactly as the
-     * client's own inventory reconcile does.
+     * The bridge RASTERISES an icon; it does not fetch what an icon is made
+     * of. `bridge_ensure_obj_icon` answers -1 when the objtype or its
+     * inventory model is not resident and queues nothing -- so this comment's
+     * old claim, that "the bridge has already asked for both", was simply
+     * false, and an icon nothing else in the client had already drawn was
+     * PENDING for ever. The Loot Tracker's drop cells were empty from the day
+     * they were written for exactly this reason: a goblin's coins and bones
+     * are not in your backpack, so nobody had loaded their models.
+     *
+     * The inventory does not rely on the bridge either -- Task_InvIconReconcile
+     * runs CreateTask_ObjModelLoad over its pending slots before it rasterises
+     * anything. This is that step, for the plugin lane.
+     *
+     * The request is made from a plugin's COMPOSE, which runs at the plugin's
+     * own cadence rather than per frame, and CreateTask_ObjModelLoad answers
+     * NULL the moment nothing is left to fetch -- so the duplicates this can
+     * queue are the ones asked for while the first is in flight.
      */
     if( scene_id < 0 )
-        return 0;
+    {
+        int const ids[1] = { obj_id };
+        int const counts[1] = { count > 0 ? count : 1 };
+        struct ToriRS_Task* load =
+            CreateTask_ObjModelLoad(app->provider, ids, counts, 1);
 
+        if( load )
+        {
+            ToriRS_TaskQueue_Add(app->runner.queue, load);
+            return 0;
+        }
+        /*
+         * CreateTask_ObjModelLoad answers NULL only when ObjModelLoad_NeedsWork
+         * is false for every id it was given -- so nothing is left to fetch and
+         * the icon still will not build. That is terminal, and saying "not yet"
+         * for it is what makes a caller ask for the rest of the session.
+         */
+        return -1;
+    }
+
+    /* Past here the bridge HAS the icon, so anything that goes wrong is about
+     * this slot rather than about the obj, and is terminal for the caller:
+     * asking again cannot change the answer. */
     sprites = ToriDraw_SceneSpriteGet(app->scene, scene_id, &found);
     if( !sprites || found <= 0 )
-        return 0;
+        return -1;
     sprite = sprites[0];
     if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
-        return 0;
+        return -1;
 
     if( UITreeSceneBridge_PublishPluginImage(
             &app->bridge, slot, sprite->width, sprite->height, sprite->pixels_argb) < 0 )
-        return 0;
+        return -1;
 
     *out_w = sprite->width;
     *out_h = sprite->height;

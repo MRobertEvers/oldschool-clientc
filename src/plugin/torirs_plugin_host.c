@@ -2356,7 +2356,8 @@ api_obj_image(
     struct PluginContext* ctx,
     int obj_id,
     int count,
-    int style)
+    int style,
+    enum ToriRS_AssetState* out_state)
 {
     struct ToriRS_PluginHost* host;
     int free_entry = -1;
@@ -2366,13 +2367,18 @@ api_obj_image(
     int h = 0;
 
     assert(ctx);
+    assert(out_state);
 
     host = ctx->host;
+    *out_state = TORIRS_ASSET_PENDING;
     /* An id and a count are NUMBERS the plugin computed -- off a drop table,
      * out of a container -- so a silly one is bad input rather than a bug in
      * the caller's frame, and the honest answer is "there is no such icon". */
     if( obj_id < 0 || count < 0 || style < 0 || style > TORIRS_ITEM_ICON_SELECTED )
+    {
+        *out_state = TORIRS_ASSET_INVALID;
         return -1;
+    }
     if( count == 0 )
         count = 1;
 
@@ -2392,6 +2398,7 @@ api_obj_image(
             row->style == style )
         {
             row->used = host->icon_clock;
+            *out_state = TORIRS_ASSET_READY;
             return row->image;
         }
         if( victim < 0 || row->used < host->obj_icons[victim].used )
@@ -2428,11 +2435,24 @@ api_obj_image(
             ctx->name,
             obj_id,
             TORIRS_PLUGIN_IMAGES_MAX);
+        *out_state = TORIRS_ASSET_BUDGET;
         return -1;
     }
 
-    if( !host->engine.obj_image(host->engine.user, free_image, obj_id, count, style, &w, &h) )
-        return -1;
+    {
+        /* 1 built, 0 not yet (the engine has asked for what is missing), -1
+         * never. @see ToriRS_PluginEngine::obj_image -- the three are not the
+         * same answer, and a caller handed "not yet" for a picture that is
+         * never coming asks again twice a second for the rest of the
+         * session. */
+        int const built =
+            host->engine.obj_image(host->engine.user, free_image, obj_id, count, style, &w, &h);
+        if( built <= 0 )
+        {
+            *out_state = built < 0 ? TORIRS_ASSET_MISSING : TORIRS_ASSET_PENDING;
+            return -1;
+        }
+    }
 
     host->images[free_image].plugin = ctx->index;
     /*
@@ -2461,6 +2481,7 @@ api_obj_image(
         host->icon_revision++;
     host->obj_icons[free_entry].revision = host->icon_revision;
     host->obj_icons[free_entry].used = host->icon_clock;
+    *out_state = TORIRS_ASSET_READY;
     return free_image;
 }
 
@@ -5856,6 +5877,7 @@ plugin_v2_item_image(
     uint64_t* out_revision)
 {
     struct ToriRS_PluginHost* host = user;
+    enum ToriRS_AssetState state = TORIRS_ASSET_PENDING;
     int image;
 
     assert(host);
@@ -5870,9 +5892,9 @@ plugin_v2_item_image(
         return TORIRS_ASSET_INVALID;
     if( count == 0 )
         count = 1;
-    image = api_obj_image(context, obj_id, count, style);
+    image = api_obj_image(context, obj_id, count, style, &state);
     if( image < 0 )
-        return TORIRS_ASSET_PENDING;
+        return state;
     for( int i = 0; i < TORIRS_PLUGIN_OBJ_ICONS_MAX; i++ )
         if( host->obj_icons[i].plugin == context->index &&
             host->obj_icons[i].image == image &&

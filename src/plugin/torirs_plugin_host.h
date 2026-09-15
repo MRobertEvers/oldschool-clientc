@@ -537,10 +537,18 @@ struct ToriRS_PluginEngine
      * Rasterise the client's inventory icon for `obj_id` at `count` and
      * publish it at plugin image `slot`.
      *
-     * `style` is enum ToriRS_ItemIconStyle. Returns 1 when the slot now
-     * holds the icon, 0 when the objtype or its inventory model is not
-     * resident yet -- which is an ordinary state and not a failure, so the
-     * host answers -1 and the plugin asks again.
+     * `style` is enum ToriRS_ItemIconStyle. Three answers, and the third one
+     * is why this is not a bool:
+     *
+     *   1  the slot now holds the icon.
+     *   0  NOT YET -- the objtype or its inventory model is still coming, the
+     *      engine has asked for what is missing, and the plugin asks again.
+     *   -1 NOT EVER -- nothing is left to load and the icon still will not
+     *      build. A caller that cannot tell this from 0 retries for the rest
+     *      of the session over a picture that is not coming.
+     *
+     * An engine that only ever answers 1 or 0 is still correct; -1 is a
+     * refinement of 0, not a new obligation.
      *
      * The engine end owns the build because an icon is a scene render: the
      * interface emitter already asks the scene bridge for exactly these three
