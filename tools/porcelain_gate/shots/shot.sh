@@ -40,8 +40,29 @@ case $lane in
         manifest=manifest_osrs239_curses.ini; mode=0; frame=auto;                                extra_args=() ;;
   cs1|dat1_254)
         manifest=manifest_rs254lc.ini;        mode=0; frame=auto;                                extra_args=(--offline) ;;
-  *) echo "lane must be one of cs2|classic548 classic161 modern164 stone601 native548 cs1|dat1_254"; exit 2 ;;
+  # The CS1 lane LOGGED IN, against a real LostCity server. @see lostcity.sh
+  # for the three gates that all answer login reply 6. `cs1` above boots the
+  # world and never logs in, so a skill has no reading, the inventory is empty
+  # and nothing ever speaks in the chat pane -- half of every plugin's output
+  # is missing from those shots and none of it looks broken, which is worse.
+  cs1live)
+        manifest=manifest_rs289lc.ini;        mode=0; frame=auto;                                extra_args=() ;;
+  *) echo "lane must be one of cs2|classic548 classic161 modern164 stone601 native548 cs1|dat1_254 cs1live"; exit 2 ;;
 esac
+
+# A live lane needs an account and the server's current checksums. The user has
+# to differ per run: LostCity answers login reply 5 ("already logged in") while
+# a previous run's session is still held, and a shot sweep runs back to back.
+if [ "$lane" = cs1live ]; then
+  # base37, so a-z 0-9 and underscore only, and twelve characters at the most.
+  # A shot name is neither -- `live-orbs` has a hyphen and `loottracker-loot`
+  # is sixteen -- and both come back as login reply 3 (invalid username), which
+  # reads exactly like a wrong password and is not one.
+  lcuser=${TORIRS_LC_USER:-s$(printf '%s' "$name" | tr -c 'a-z0-9' '_' | cut -c1-11)}
+  extra_args+=(--user "$lcuser" --pass "${TORIRS_LC_PASS:-zuk}")
+  : ${TORIRS_JAG_CRC:=$(zsh $here/lostcity.sh)} || exit 2
+  export TORIRS_JAG_CRC
+fi
 
 # The manifests are generated once by shot_manifests.sh, with the caches and
 # content pinned to the data checkout and revconfig to the worktree under test.

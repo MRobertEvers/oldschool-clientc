@@ -20,7 +20,7 @@ repo=${TORIRS_SHOT_REPO:-/Users/matthewevers/Documents/git_repos/3draster}
 worktree=${1:-${here:h:h:h}}; worktree=${worktree:A}
 out=${2:-$here/manifests}; mkdir -p $out; out=${out:A}
 
-for m in manifest_osrs239_curses manifest_rs254lc; do
+for m in manifest_osrs239_curses manifest_rs254lc manifest_rs289lc; do
   python3 - "$repo/manifests/$m.ini" "$out/$m.ini" "$repo" "$worktree" <<'PY'
 import re, sys
 src, dst, repo, worktree = sys.argv[1:5]
