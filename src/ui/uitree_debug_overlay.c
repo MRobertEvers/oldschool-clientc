@@ -5109,10 +5109,26 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             th->panel_title_bg,
             1,
             clip);
+        /*
+         * ONE pixel of lead, not two, so the DESCENDERS stay in the band.
+         *
+         * The band is `head_y + DBG_RULE` for `header_bar_h` rows -- 78..93 on
+         * the shipped plugin window -- and this baseline was `head_y + 2 +
+         * lineHeight`, which put the 'g' of "Client Settings" and "Feature
+         * Flags" on row 94: panel body, in title ink (93,84,71) against body
+         * (73,64,52). At ~20/255 of contrast the tail simply vanished and the
+         * letter read as clipped.
+         *
+         * The lead moves rather than the band's height, because the band's
+         * height is the header every row below is laid out from -- growing it
+         * by one would slide every control on every panel down a pixel to fix
+         * one descender. p12's line box is not centred on its ink, which is
+         * the same reason the chrome button's caption once rode high.
+         */
         dbg_push_text(
             ui,
             p->x + edge + DBG_PX(2),
-            head_y + DBG_PX(2) + ToriRSChrome_FontLineHeight(TORIRS_CHROME_FONT_MENU, ui->scale),
+            head_y + DBG_PX(1) + ToriRSChrome_FontLineHeight(TORIRS_CHROME_FONT_MENU, ui->scale),
             p->title,
             th->panel_title_text,
             TORIRS_CHROME_FONT_MENU,

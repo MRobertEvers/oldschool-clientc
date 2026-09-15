@@ -2997,6 +2997,20 @@ is_state_tooltip(
     return g_row_count;
 }
 
+/** The panel's step right of the pointer. */
+#define IS_TIP_DX 12
+/** Clear air between the panel and the pointer. */
+#define IS_TIP_GAP 8
+/**
+ * How far below the pointer the LANE's own hover caption reaches.
+ *
+ * Two lines of the client's caption plus its lead, measured at 252..285 for a
+ * pointer at 627,244: 41 rows. Forty is the step the panel takes when it has
+ * to sit below the pointer after all, so it clears the caption instead of
+ * bisecting it.
+ */
+#define IS_TIP_CAPTION_H 40
+
 /*
  * Compose the panel, and blit it beside the pointer.
  *
@@ -3074,8 +3088,27 @@ is_on_draw_canvas(
     g_tip_w = g_tip->width;
     g_tip_h = g_tip->height;
 
-    x = mouse_x + 12;
-    y = mouse_y + 16;
+    /*
+     * ABOVE the pointer, because the LANE draws its own caption below it.
+     *
+     * At the old pointer+(12,16) the panel landed square on the client's
+     * two-line hover box -- measured at 613..741 x 252..285 against a panel at
+     * 627,244 -- and cut "Wear Rune platebody / 3 more options" down to a
+     * leading "W" and a trailing "body" / "ptions", the middle showing only as
+     * a 12% bleed through the plate. Two pieces of text over each other, and
+     * neither readable.
+     *
+     * Above is the side the lane leaves empty on every root, so this is one
+     * rule rather than a per-lane offset. Where there is no room above, the
+     * panel still goes below -- but clear of the caption by its own height
+     * rather than into it. @see IS_TIP_CAPTION_H.
+     */
+    x = mouse_x + IS_TIP_DX;
+    y = mouse_y - g_tip_h - IS_TIP_GAP;
+    if( canvas.height > 0 && y < canvas.y )
+        y = mouse_y + IS_TIP_CAPTION_H;
+    else if( canvas.height <= 0 && y < 0 )
+        y = mouse_y + IS_TIP_CAPTION_H;
     /* Kept on the canvas this callback may draw on: the pass's own drawable
      * rect, which for a canvas paint is the whole canvas. That is what the
      * retired placement area meant here; the 3D viewport is not it -- an
@@ -3087,7 +3120,7 @@ is_on_draw_canvas(
     if( canvas.width > 0 && x + g_tip_w > canvas.x + canvas.width )
         x = mouse_x - g_tip_w - 4;
     if( canvas.height > 0 && y + g_tip_h > canvas.y + canvas.height )
-        y = mouse_y - g_tip_h - 4;
+        y = mouse_y - g_tip_h - IS_TIP_GAP;
     if( x < 0 )
         x = 0;
     if( y < 0 )

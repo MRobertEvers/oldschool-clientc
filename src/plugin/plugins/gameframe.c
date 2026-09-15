@@ -171,6 +171,26 @@ enum FrameLayout
 #define FRAME_C_CHAT_Y 357
 #define FRAME_C_CHAT_W 479
 #define FRAME_C_CHAT_H 96
+/*
+ * Where a pack WIDER than the 2004 hole is put instead.
+ *
+ * The OldSchool chat pack is FRAME_O_CHAT_PACK_W = 519 and the 2004 hole is
+ * 479 at x=17, so a pack placed at the hole's origin ends at 536 -- and the
+ * lane's own sidetab_7 is a 33x36 cell at (526,466). The pack took the stone's
+ * left ten columns: its bevel went, and the clan icon lost four columns of ink
+ * and read as sliced flat. Same collision on 548 and on 161.
+ *
+ * Seven, because that is the arithmetic and not a taste: 526 - 519 = 7 is the
+ * rightmost origin whose right edge (7 + 519 = 526) still CLEARS the stone,
+ * boxes being half-open -- a pack ending at 526 and a cell starting at 526 do
+ * not share a column.
+ *
+ * It does not fit the band cleanly and cannot: the 2004 chat band runs 0..495
+ * before FRAME_C_TAB_BOTTOM_BAND_X, so no 519-wide pack fits between the
+ * frame's edge and its tab band. This puts the unavoidable overlap on the
+ * frame's OWN bottom band art rather than on a lane control the player clicks.
+ */
+#define FRAME_C_CHAT_WIDE_X 7
 
 /*
  * The 2004 filter strip: `backbase1`'s box, under the chat hole.
@@ -1025,6 +1045,15 @@ struct FrameState
     /** The 2004 board and torn edge, re-cut for the seated pack and laid back
      *  over it. @see frame_compose_chat_housing. */
     struct FrameSized chat_housing;
+    /**
+     * The x the classic layout seated the chat pack at, for the housing.
+     *
+     * The housing's rip has to straddle the pack's LEFT SEAM, and the compose
+     * takes only a width and a height -- so the seam reaches it here rather
+     * than as a constant that silently stops being true the moment the pack
+     * moves. @see FRAME_C_CHAT_WIDE_X, frame_compose_chat_housing.
+     */
+    int chat_seam_x;
     /** The tiled panel backing at the box the resizable layout asked for. */
     struct FrameSized side_tiled;
     /** The two tab bands with their hollows re-cut onto the lane's grid --
@@ -2363,6 +2392,19 @@ frame_compose_chat_housing(
      * `backleft2` stops would leave the pack's sheet meeting the frame's
      * stone in a straight line for the last fifty rows.
      */
+    /*
+     * How far right `backleft2` is redrawn, from the seam the layout actually
+     * used. FRAME_C_CHAT_EDGE_DX is the answer for the 2004 hole's own 17 and
+     * stays the fallback; a pack seated at FRAME_C_CHAT_WIDE_X = 7 needs NO
+     * redraw at all, because a seam at 7 already falls inside the strip's own
+     * rip at columns 5..11. Clamped at zero: a negative offset would push the
+     * board off the canvas's left edge.
+     */
+    int edge_dx = ctx->state->chat_seam_x > 0 ? ctx->state->chat_seam_x - 9
+                                              : FRAME_C_CHAT_EDGE_DX;
+
+    if( edge_dx < 0 )
+        edge_dx = 0;
     for( int y = 0; y < height; y++ )
     {
         int const sy = frame_mirror_index(band_y + y - FRAME_C_CHAT_Y, side_h);
@@ -2370,7 +2412,7 @@ frame_compose_chat_housing(
         for( int c = 0; c < side_w; c++ )
         {
             uint32_t const pixel = side[(size_t)sy * (size_t)side_w + (size_t)c];
-            int const x = c + FRAME_C_CHAT_EDGE_DX;
+            int const x = c + edge_dx;
 
             if( !frame_pixel_is_rock(pixel) )
                 break;
@@ -3818,9 +3860,13 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         else
         {
             int const chat_y = FRAME_FIXED_H - native_h;
+            /* A pack that fits the hole is seated in it; a wider one is seated
+             * where it clears the tab stones. @see FRAME_C_CHAT_WIDE_X. */
+            int const chat_x =
+                native_w > FRAME_C_CHAT_W ? FRAME_C_CHAT_WIDE_X : FRAME_C_CHAT_X;
 
-            frame_surface(
-                ctx, FRAME_SURFACE_CHAT, FRAME_C_CHAT_X, chat_y, native_w, native_h);
+            frame_surface(ctx, FRAME_SURFACE_CHAT, chat_x, chat_y, native_w, native_h);
+            ctx->state->chat_seam_x = chat_x;
             /*
              * And the 2004 housing back OVER it. @see FRAME_C_CHAT_TEAR_H.
              *
@@ -3833,7 +3879,7 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
              * stands in this list decides nothing but its name.
              *
              * The picture is the housing's whole band, gutters included: the
-             * pack covers 17..536 of it and the rip is drawn on those edges,
+             * pack covers 7..525 of it and the rip is drawn on those edges,
              * but the six columns of sheet `backleft2` leaves outside the
              * pack are part of the same defect and they are covered from the
              * same picture. @see frame_compose_chat_housing.

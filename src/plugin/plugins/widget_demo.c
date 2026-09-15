@@ -148,14 +148,34 @@ static void widget_demo_binding(struct ToriRS_Api* api, void* user, struct ToriR
             state->control=(struct ToriRS_WidgetRef){0};
             return;
         }
+        /*
+         * The two labels sit down the viewport's MIDDLE, not at its top.
+         *
+         * At the old 12,40 they were buried on toplevel 601: that root hangs
+         * its chat drawer over the top-left of the world, so of "Public:
+         * Friends" only the last ~15 px survived and "Strength: 99" was a
+         * fragment of the "99" -- 56 of the label's 71 cyan pixels overpainted.
+         * The other four lanes were fine, which is exactly why it shipped.
+         *
+         * Half the viewport's own height and not a second magic number: the
+         * drawer is pinned to the top on the root that has one, and the middle
+         * of the world is clear on every lane this plugin runs on. A fixed
+         * offset that cleared 601 would be a number chosen for one root, which
+         * is the per-lane rule this project does not allow.
+         */
+        struct ToriRS_WidgetBounds view={0};
+        int label_y=40;
+
+        if( ui->bounds(ui->context,event->widget,&view)==TORIRS_CONTRACT_OK && view.height>64 )
+            label_y=view.height/2;
         if( ui->create_text(ui->context,event->widget,"strength",&state->label)!=TORIRS_CONTRACT_OK ) return;
         state->level=-1;
-        ui->set_position(ui->context,state->label,12,40);
+        ui->set_position(ui->context,state->label,12,label_y);
         ui->set_text_color(ui->context,state->label,0xffffff);
         widget_demo_update(api,user,NULL);
         ui->revalidate(ui->context,state->label);
         if( ui->create_text(ui->context,event->widget,"public",&state->control)!=TORIRS_CONTRACT_OK ) return;
-        ui->set_position(ui->context,state->control,12,56);
+        ui->set_position(ui->context,state->control,12,label_y+16);
         ui->set_text(ui->context,state->control,"Public: Friends");
         ui->set_text_color(ui->context,state->control,0x00ffff);
         enum ToriRS_ContractResult armed=ui->set_on_op(ui->context,state->control,"Set public chat to friends",widget_demo_operation,user);
