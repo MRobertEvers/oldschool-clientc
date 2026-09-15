@@ -855,6 +855,7 @@ porcelain_read_state(struct Porcelain* porcelain, struct PorcelainWatch* watch)
     watch->state.native_hidden = native.native_hidden;
     watch->state.input_present = native.input_present;
     watch->state.graphic_token = native.graphic_token;
+    watch->state.paints_own_art = native.paints_own_art;
     watch->state.text_hash = native.text_hash;
     watch->state.facets = native.facets;
     watch->state.incarnation = native.incarnation;

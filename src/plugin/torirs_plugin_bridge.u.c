@@ -4720,6 +4720,14 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
          * number, and no caller may read a scene id back out of it. */
         state->graphic_token =
             (uint32_t)(((uint32_t)scene_id << 8) ^ ((uint32_t)atlas_index & 0xFFu));
+        /* What a REPLACE of this widget would CONSUME. The token above cannot
+         * answer it -- the art of a button is on a child, so the token is zero
+         * on every one of them -- and the walk is only reached for a node that
+         * is presented, which is where it costs nothing on a node the lane has
+         * already put away. @see UITree_NodeSubtreePaintsArt. */
+        state->paints_own_art =
+            state->presented &&
+            UITree_NodeSubtreePaintsArt(tree, &app->ui_host, idx, app->hover_com_id);
         state->text_hash = UITree_NodeTextHash(tree, idx);
         state->facets = app_plugin_widget_facets(app, idx);
         state->incarnation = r->ref.opaque[2];

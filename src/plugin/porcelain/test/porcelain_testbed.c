@@ -692,6 +692,9 @@ fake_state(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetState
     out->native_hidden = element->native_hidden;
     out->input_present = element->input_present;
     out->graphic_token = element->graphic_token;
+    /* The engine only walks for a node that is presented, so an element the
+     * lane has put away paints nothing whatever the test declared. */
+    out->paints_own_art = element->paints_own_art && element->presented;
     out->facets = element->facets;
     out->incarnation = element->incarnation;
     return TORIRS_CONTRACT_OK;

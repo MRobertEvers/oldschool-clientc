@@ -167,11 +167,21 @@ end
 -- paints the plate, so replacing it left a 79x23 hole with a 20x16 camera
 -- floating in the middle of it.
 --
--- There is no way to tell those apart from the plugin: element.graphic_token is
--- 0 on ALL FOUR toplevels (the art is on a child, and the field is a change
--- token rather than an identity), and `facets` is a world-element word that no
--- widget adapter fills. So the plugin stops depending on what is behind it and
--- brings its own plate, at whatever box the lane reports.
+-- The two are told apart by ONE ANSWER, and it is the engine's:
+-- `element.paints_own_art` is whether this element or anything below it paints
+-- a picture, which is exactly what a REPLACE of it consumes. A plate goes in
+-- where that is true and NOWHERE ELSE -- on a lane whose strip already drew
+-- the hollow, a plate of our own is a slab laid over the 2004 stone, which is
+-- the defect this plugin shipped for a morning.
+--
+-- Nothing else in the state answers it. element.graphic_token is 0 on ALL FOUR
+-- toplevels (the art is on a child, and the field is a change token rather
+-- than an identity), `presented` is true on all four (the BUTTON is presented
+-- on every lane; it is its art child that the classic frame puts away), and
+-- `facets` is a world-element word that no widget adapter fills. MEASURED, the
+-- art child: classic548 false, classic161 false, modern164 true, native548
+-- true -- the 2004 frame provider hides the eight filter plates and draws
+-- their hollows into its own chat-bar rock, and the lane's own 548 does not.
 --
 -- THE PLATE IS THE LANE'S OWN BUTTON SPRITE, not a palette. It was a palette
 -- for one morning -- five tones sampled off a screenshot of the hollow and
@@ -276,7 +286,7 @@ local function describe(d)
             -- paint callback with nothing to index. The read is one decode,
             -- once, and every later run takes the early answer.
             local state
-            if plate_source() then
+            if report.paints_own_art and plate_source() then
                 local _, derived = API.porcelain.derived(
                     PLATE_KEY, PLATE_ART .. " " .. bw .. "x" .. bh, bw, bh, plate_pixels)
                 state = derived
@@ -291,6 +301,14 @@ local function describe(d)
                 -- after the plate in the same unit's draw order.
                 item = camera("camera_report", "camera_small.png",
                     { kind = "inside", on = "report_button", corner = "centre" })
+            elseif not report.paints_own_art then
+                -- NO PLATE, because the target paints no picture to lose: the
+                -- camera itself takes the records, and what shows behind it is
+                -- the hollow the strip was already drawing. This is the shape
+                -- the plugin had before it grew a plate, kept for the lane it
+                -- was always right on.
+                item = camera("camera_report", "camera_small.png",
+                    { kind = "replace", on = "report_button" })
             end
         else
             item = corner_item("bottom-right")

@@ -41,6 +41,11 @@ struct TestbedElement
     bool native_hidden;
     bool input_present;
     uint32_t graphic_token;
+    /** This element (or something below it) paints a PICTURE, which is what a
+     *  REPLACE of it consumes. Off by default: a declared element is a box
+     *  with no art until a test says otherwise, and the plugins that ask are
+     *  asking precisely because most targets are not the same answer. */
+    bool paints_own_art;
     uint32_t facets;
     uint64_t incarnation;
     struct ToriRS_WidgetRef ref;

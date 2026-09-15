@@ -558,6 +558,7 @@ warn = nil
 ---@field native_hidden boolean The engine's native suppression, not the script's.
 ---@field input_present boolean Reachable by the native hit test as the lane left it; a plugin's own hiding is not folded in.
 ---@field graphic_token integer Change token for a node that carries art, 0 for one that does not. Never an identity.
+---@field paints_own_art boolean This node or something below it paints a PICTURE this frame -- what a REPLACE of it would consume. Text does not count. Zero graphic_token does not answer this: a button's art is on a child.
 ---@field text_hash integer FNV-1a 64 of a text node's string, 0 for a non-text node.
 ---@field facets integer What the LANE says about this widget, as a mask of api.widgets.facet values. 0 is 'no', never 'unknown'.
 ---@field facet torirs.WidgetFacets The same bits already unpacked.
@@ -852,6 +853,7 @@ warn = nil
 ---@field native_hidden boolean The engine's native suppression.
 ---@field input_present boolean
 ---@field graphic_token integer A CHANGE token, never an identity.
+---@field paints_own_art boolean This element or something below it paints a PICTURE -- what a REPLACE of it consumes. Text does not count.
 ---@field facets integer
 ---@field incarnation integer
 ---@field box torirs.PorcelainBox Canvas space.

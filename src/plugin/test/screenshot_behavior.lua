@@ -20,7 +20,15 @@ return { id = 'screenshot-behavior', on_start = function(host)
     -- what every placement is computed in.
     local elements = {
         viewport = { bind = 'pending', box = { x = 4, y = 4, width = 512, height = 334 }, presented = true },
-        report_button = { bind = 'pending', box = { x = 430, y = 6, width = 80, height = 22 }, presented = true },
+        -- `paints_own_art` is the lane answer the plate turns on, and it is
+        -- not the same on every root: MEASURED true on modern164 and on the
+        -- lane's own native 548, false on classic548/161, where the frame
+        -- provider hides the eight filter plates and draws their hollows into
+        -- its own chat-bar rock. The default here is the first kind, which is
+        -- the one that needs the plate; `report_button.paints_own_art = false`
+        -- below photographs the second.
+        report_button = { bind = 'pending', box = { x = 430, y = 6, width = 80, height = 22 },
+                          presented = true, paints_own_art = true },
     }
     local function element_moved(name, x, y, w, h)
         local e = elements[name]
@@ -210,7 +218,8 @@ return { id = 'screenshot-behavior', on_start = function(host)
         element = function(name)
             local e = elements[name]
             assert(e, 'unknown element ' .. name)
-            return { bind = e.bind, presented = e.presented, box = e.box, local_box = e.box }
+            return { bind = e.bind, presented = e.presented, paints_own_art = e.paints_own_art,
+                     box = e.box, local_box = e.box }
         end,
         image = function(name)
             local asset = assets[name]
@@ -534,6 +543,29 @@ return { id = 'screenshot-behavior', on_start = function(host)
     assert(assets['camera.png'].requests == 1 and assets['camera_small.png'].requests == 1,
         'switching mode re-uses the held icon rather than re-requesting it')
     assert(only('camera').image == 'camera.png', 'and the corner camera is up at once')
+
+    -- ------------------- the lane whose strip already drew the hollow
+    -- THE DEFECT THE OWNER REPORTED: "there used to be JUST THE BUTTON SPRITE
+    -- WITH NO BACKGROUND". A plate is right where REPLACE consumes the
+    -- target's own picture and WRONG where it consumes none -- there the
+    -- hollow under the camera belongs to the strip behind it, and a plate of
+    -- the plugin's own is a slab laid over the lane's 2004 stone. One answer
+    -- decides it, and it is the engine's.
+    config.camera = 'report-button'; config_changed(); frame(); frame()
+    local paints_before = #derived_paints
+    elements.report_button.paints_own_art = false; porcelain.note('element'); frame()
+    local bare = only('camera_report')
+    assert(bare.relation == 'replace' and bare.anchor == 'report_button',
+        'with no art to consume the camera itself takes the target\'s place')
+    assert(bare.image == 'camera_small.png',
+        'and it is the camera, not a plate with a camera on it')
+    assert(#derived_paints == paints_before,
+        'no plate is derived for a target that paints nothing: that is the defect')
+    assert(bare.armed == 'Take screenshot',
+        'the camera owns the press here, the way it did before there was a plate')
+    elements.report_button.paints_own_art = true; porcelain.note('element'); frame()
+    assert(exactly('camera_plate', 'camera_report'),
+        'and the plate comes back on a lane whose button paints its own')
 
     -- ------------------------------------------------------------ teardown
     product.on_stop(api)

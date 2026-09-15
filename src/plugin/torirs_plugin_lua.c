@@ -964,7 +964,8 @@ static int lua_widget_state(lua_State* L)
     WS_I("local_width",v.local.width); WS_I("local_height",v.local.height);
     WS_B("presented",v.presented); WS_B("own_hidden",v.own_hidden);
     WS_B("native_hidden",v.native_hidden); WS_B("input_present",v.input_present);
-    WS_I("graphic_token",v.graphic_token); WS_I("text_hash",v.text_hash);
+    WS_I("graphic_token",v.graphic_token); WS_B("paints_own_art",v.paints_own_art);
+    WS_I("text_hash",v.text_hash);
     WS_I("facets",v.facets); WS_I("incarnation",v.incarnation);
     lua_createtable(L,0,(int)(sizeof(LUA_WIDGET_FACETS)/sizeof(LUA_WIDGET_FACETS[0])));
     for(size_t i=0;i<sizeof(LUA_WIDGET_FACETS)/sizeof(LUA_WIDGET_FACETS[0]);i++)
@@ -2509,6 +2510,7 @@ static int lua_porcelain_element(lua_State* L)
     lua_pushboolean(L, state.native_hidden); lua_setfield(L, -2, "native_hidden");
     lua_pushboolean(L, state.input_present); lua_setfield(L, -2, "input_present");
     lua_pushinteger(L, (lua_Integer)state.graphic_token); lua_setfield(L, -2, "graphic_token");
+    lua_pushboolean(L, state.paints_own_art); lua_setfield(L, -2, "paints_own_art");
     lua_pushinteger(L, (lua_Integer)state.facets); lua_setfield(L, -2, "facets");
     lua_pushinteger(L, (lua_Integer)state.incarnation); lua_setfield(L, -2, "incarnation");
     lua_createtable(L, 0, 4);

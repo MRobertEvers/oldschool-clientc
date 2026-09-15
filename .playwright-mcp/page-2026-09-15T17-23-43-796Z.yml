@@ -1,0 +1,64 @@
+- group "Plugin chrome" [ref=f1e2]:
+  - region "Selected plugin page" [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - heading "Every kind" [level=1] [ref=f1e5]
+      - button "Close plugin page" [ref=f1e6] [cursor=pointer]: ×
+    - main [ref=f1e7]:
+      - generic [ref=f1e8]:
+        - checkbox [checked] [ref=f1e9]
+        - generic [ref=f1e10]: Enabled
+      - generic [ref=f1e11]:
+        - generic [ref=f1e12]: Name
+        - textbox [ref=f1e13]: Rune
+      - generic [ref=f1e14]:
+        - generic [ref=f1e15]: Mode
+        - combobox [ref=f1e16]:
+          - option "One"
+          - option "Two" [selected]
+      - button "Run" [ref=f1e18] [cursor=pointer]
+      - generic [ref=f1e19]:
+        - text: Row
+        - button "Row" [ref=f1e20] [cursor=pointer]
+        - checkbox [ref=f1e24]
+      - generic [ref=f1e25]:
+        - generic [ref=f1e26]: Notes
+        - textbox [ref=f1e27]: a b
+      - generic [ref=f1e28]: Chart
+      - generic [ref=f1e31]: Readout
+      - generic [ref=f1e35]: Preview
+      - generic [ref=f1e37]:
+        - generic [ref=f1e38]: Colour
+        - generic [ref=f1e39]:
+          - textbox [ref=f1e40]: "#112233"
+          - textbox [ref=f1e41]: "#112233"
+      - generic [ref=f1e42]:
+        - generic [ref=f1e43]: Gameframe
+        - combobox [ref=f1e44]:
+          - option "Same|label. Uses the lane default": Same|label — Uses the lane default
+          - option "Same|label. Provider is not installed" [disabled] [selected]: Same|label — Provider is not installed
+          - option "Ready. Available now": Ready — Available now
+      - button "Woodcutting. XP/hr 12.3K · XP 4,200" [ref=f1e46] [cursor=pointer]:
+        - generic [ref=f1e47]: Woodcutting
+        - generic [ref=f1e48]: XP/hr 12.3K · XP 4,200
+      - generic [ref=f1e49]:
+        - text: Client Settings
+        - button "Client Settings" [ref=f1e50] [cursor=pointer]
+      - heading "Session" [level=2] [ref=f1e55]
+      - paragraph [ref=f1e57]: No loot recorded yet.
+      - generic [ref=f1e59]:
+        - term [ref=f1e60]: Total value
+        - definition [ref=f1e61]: 12,450 gp
+      - generic [ref=f1e63]:
+        - generic [ref=f1e64]:
+          - generic [ref=f1e65]: Level progress
+          - generic [ref=f1e66]: Level 72 to 73
+        - progressbar [ref=f1e67]
+      - alert [ref=f1e69]:
+        - strong [ref=f1e70]: Tracker unavailable
+        - text: Log in first
+  - navigation "Plugin pages" [ref=f1e71]:
+    - generic [ref=f1e72]:
+      - button "Manage Plugins" [ref=f1e73] [cursor=pointer]:
+        - generic [ref=f1e74]: M
+      - button "Entity Highlighter" [ref=f1e75] [cursor=pointer]:
+        - generic [ref=f1e76]: E

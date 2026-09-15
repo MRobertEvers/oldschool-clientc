@@ -350,4 +350,23 @@ UITree_EmitRefreshVolatile(
     struct UITreeHost const* host,
     struct UITreeEmitBuffer* out);
 
+/**
+ * Does `node_index` or anything below it PAINT A PICTURE this frame?
+ *
+ * The answer a REPLACE needs and cannot get from the state it already has:
+ * `graphic_token` is zero on a container whose art is on a child, and it is a
+ * change token rather than an identity either way. Text does not count -- a
+ * replacement that stands where a caption stood owes the caption nothing.
+ *
+ * The ancestor condition is the CALLER'S: this walks down from `node_index`
+ * and tests each node's own flags, so the caller must already know the node
+ * itself is presented (which is what every caller here reads first).
+ */
+bool
+UITree_NodeSubtreePaintsArt(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int32_t node_index,
+    int hovered_component_id);
+
 #endif

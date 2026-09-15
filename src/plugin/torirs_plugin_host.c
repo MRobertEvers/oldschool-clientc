@@ -7108,7 +7108,8 @@ plugin_widget_state_equal(
            a->local.width == b->local.width && a->local.height == b->local.height &&
            a->presented == b->presented && a->own_hidden == b->own_hidden &&
            a->native_hidden == b->native_hidden && a->input_present == b->input_present &&
-           a->graphic_token == b->graphic_token && a->text_hash == b->text_hash &&
+           a->graphic_token == b->graphic_token && a->paints_own_art == b->paints_own_art &&
+           a->text_hash == b->text_hash &&
            a->facets == b->facets && a->incarnation == b->incarnation;
 }
 
@@ -7187,10 +7188,10 @@ PluginHost_WidgetStates(struct ToriRS_PluginHost* host)
         if( trace )
             TORIRS_REPORT(
                 "PLUGIN_STATE owner=%d role=%s box=%d,%d,%d,%d presented=%d own_hidden=%d "
-                "native_hidden=%d input=%d art=%08x text=%016" PRIx64 "\n",
+                "native_hidden=%d input=%d art=%08x paints_art=%d text=%016" PRIx64 "\n",
                 item.owner, role, state.bounds.x, state.bounds.y, state.bounds.width,
                 state.bounds.height, state.presented, state.own_hidden, state.native_hidden,
-                state.input_present, state.graphic_token, state.text_hash);
+                state.input_present, state.graphic_token, state.paints_own_art, state.text_hash);
         struct ToriRS_WidgetEvent event = {
             .type = TORIRS_WIDGET_STATE_CHANGED, .widget = current,
             .native_revision = host->widget_tree_generation, .role = role};

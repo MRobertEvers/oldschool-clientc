@@ -1236,6 +1236,9 @@ struct PorcelainElementState
     bool input_present;
     /** A CHANGE token, never an identity. */
     uint32_t graphic_token;
+    /** @see ToriRS_WidgetState::paints_own_art -- this element or something
+     * below it paints a picture, which is what a REPLACE of it consumes. */
+    bool paints_own_art;
     uint64_t text_hash;
     /** Lane-derived facets. Zero from every adapter that has not filled them. */
     uint32_t facets;

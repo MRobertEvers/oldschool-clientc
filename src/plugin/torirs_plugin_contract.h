@@ -181,6 +181,17 @@ struct ToriRS_WidgetState
      *  not. NEVER an identity: equal tokens mean "the art did not change",
      *  and nothing may be decoded back out of it. */
     uint32_t graphic_token;
+    /** This node OR ANYTHING BELOW IT paints a picture this frame -- what a
+     *  REPLACE of this widget would consume. Text does not count: a
+     *  replacement standing where a caption stood owes the caption nothing.
+     *
+     *  Distinct from `graphic_token`, which is zero on a container whose art
+     *  is on a child and therefore cannot tell a button that paints its own
+     *  plate from one whose plate belongs to the strip behind it. That is the
+     *  whole reason this field exists: the first leaves a HOLE when it is
+     *  replaced and the second leaves nothing, and a replacement that brings
+     *  a plate to the second covers the lane's own art with a slab. */
+    bool paints_own_art;
     /** FNV-1a 64 of a text node's current string; zero for a non-text node.
      *  A text node with an empty string hashes to the FNV basis, not zero. */
     uint64_t text_hash;
