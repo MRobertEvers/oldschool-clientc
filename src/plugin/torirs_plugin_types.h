@@ -1136,6 +1136,22 @@ struct ToriRS_FeatureInfo
     int value_count;
     /** The value the flag holds right now. */
     int value;
+    /**
+     * The value the engine ACTS on, which is not always the one it stores.
+     *
+     * A flag whose field carries a SENTINEL resolves it at the point of use:
+     * `draw_distance` stores 0 for "this era states no preference" and the
+     * painter reads that 0 as its 25-tile minimum. Nothing outside the engine
+     * can know that rule, so the engine states its answer here rather than
+     * leaving every reader to reinvent it -- a page that named `value` would
+     * tell the player the draw distance is zero tiles, which is neither one of
+     * the flag's choices nor inside its own [min, max].
+     *
+     * Equal to `value` for every flag that has no such rule, which is all but
+     * one of them today. Read it wherever a PERSON is shown the value; read
+     * `value` where the question is what the field holds.
+     */
+    int effective;
     /** 1 when the value in force is this boot's own, i.e. nothing has set it. */
     int is_default;
 };

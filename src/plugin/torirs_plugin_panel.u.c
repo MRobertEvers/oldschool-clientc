@@ -541,6 +541,17 @@ app_plugin_panel_place(struct App* app)
     assert(app);
     assert(app->plugin_panel >= 0);
 
+    /*
+     * The same canvas the box below is clamped into, told to the chrome, so
+     * that an open dropdown list folds up into it as well.
+     *
+     * The list is not a panel and nothing places it: it hangs off the row that
+     * opened it and is meant to escape the 320-wide window. It is not meant to
+     * escape the CANVAS -- past that edge the pointer cannot follow it -- and
+     * at fullscreen the window's last rows sit on that edge.
+     */
+    ToriRSChrome_SetSurface(&app->plugin_ui, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+
     if( g_plugin_fullscreen )
     {
         ToriRSChrome_PanelMove(&app->plugin_ui, app->plugin_panel, 0, 0);

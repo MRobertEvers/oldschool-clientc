@@ -294,16 +294,22 @@ ToriRS_Features_RunEnergyModelName(int model)
 }
 
 int
+ToriRS_Features_PainterDrawDistanceOf(int stored)
+{
+    if( stored == 0 )
+        return TORIRS_PAINTER_DRAW_DISTANCE_MIN;
+    if( stored < TORIRS_PAINTER_DRAW_DISTANCE_MIN )
+        return TORIRS_PAINTER_DRAW_DISTANCE_MIN;
+    if( stored > TORIRS_PAINTER_DRAW_DISTANCE_MAX )
+        return TORIRS_PAINTER_DRAW_DISTANCE_MAX;
+    return stored;
+}
+
+int
 ToriRS_Features_PainterDrawDistance(struct ToriRS_FeatureTable const* features)
 {
-    int distance = features ? features->painter_draw_distance : 0;
-    if( distance == 0 )
-        return TORIRS_PAINTER_DRAW_DISTANCE_MIN;
-    if( distance < TORIRS_PAINTER_DRAW_DISTANCE_MIN )
-        return TORIRS_PAINTER_DRAW_DISTANCE_MIN;
-    if( distance > TORIRS_PAINTER_DRAW_DISTANCE_MAX )
-        return TORIRS_PAINTER_DRAW_DISTANCE_MAX;
-    return distance;
+    assert(features);
+    return ToriRS_Features_PainterDrawDistanceOf(features->painter_draw_distance);
 }
 
 char const*

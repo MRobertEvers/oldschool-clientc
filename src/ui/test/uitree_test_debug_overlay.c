@@ -1723,6 +1723,224 @@ test_debug_overlay_custom_region(void)
         "a custom well scrolled away retains no drawable clip");
 }
 
+/* Find one TEXT primitive by its exact string. The display list is the only
+ * place a caption's resolved position exists, so it is where a layout claim
+ * has to be checked. */
+static int
+dbg_test_text_prim(char const* text, int* out_x, int* out_y)
+{
+    int count = 0;
+    struct ToriRSChromePrim const* prims = ToriRSChrome_Prims(&g_ui, &count);
+
+    for( int i = 0; i < count; i++ )
+    {
+        if( prims[i].kind != TORIRS_CHROME_PRIM_TEXT || !prims[i].text )
+            continue;
+        if( strcmp(prims[i].text, text) != 0 )
+            continue;
+        if( out_x )
+            *out_x = prims[i].x;
+        if( out_y )
+            *out_y = prims[i].y;
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * The label column FOLLOWS THE PANEL, and stacking follows the column.
+ *
+ * Photographed defect: Feature Flags at fullscreen is ~790 pixels wide, and
+ * three of its sixteen rows -- "Overhead distance", "Middle-button drag",
+ * "Held-item spell bit" -- drew their caption alone on one line with the
+ * select full width underneath, while the other thirteen were caption-left /
+ * select-right. The trip point was the AUTHORED 104-pixel column, which is the
+ * column of the 320-logical pane it was measured for; at 790 there were six
+ * hundred empty pixels beside the caption and those three rows wore a
+ * different treatment for no reason a reader of the page could see.
+ *
+ * Both halves are asserted here, because a fix that simply stopped stacking
+ * would be a caption sliced off by the box painted over it -- the defect
+ * stacking was introduced to cure. @see dbg_row_label_stacked.
+ *
+ * MUTATION: pin dbg_row_label_w to DBG_LABEL_W and the wide half goes red.
+ */
+static void
+test_debug_overlay_label_column_follows_panel(void)
+{
+    /* Two values short enough that neither is elided, so each row's value is
+     * findable by its own string. */
+    static char const* const ON_OFF[] = { "On", "Off" };
+    /* The real caption, and the real trip point: wider than the authored
+     * column and far narrower than a third of a canvas. */
+    char const* const LONG = "Overhead distance";
+    int long_w;
+    int panel;
+    int narrow_label_y = -1;
+    int narrow_value_y = -1;
+    int wide_label_y = -1;
+    int wide_value_y = -1;
+    int wide_value_x = -1;
+    int wide_short_x = -1;
+
+    ToriRSChrome_Init(&g_ui);
+    long_w = ToriRSChrome_MeasureText(g_ui.theme.font_row, 1, LONG);
+    TEST_ASSERT(
+        long_w + TORIRS_CHROME_M_ROW_NAME_GAP > TORIRS_CHROME_M_LABEL_W,
+        "the fixture's caption really is wider than the authored column");
+    TEST_ASSERT(
+        long_w + TORIRS_CHROME_M_ROW_NAME_GAP < 700 / 3,
+        "and really does fit a canvas-wide one");
+
+    /* The authored pane: the caption has nowhere to go, so it takes a line of
+     * its own and the box goes under it. 320 is the width the plugin window
+     * opens at and the width the column was measured for. */
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 320, "Flags");
+    TEST_ASSERT(
+        ToriRSChrome_Dropdown(&g_ui, panel, LONG, ON_OFF, 2, 0) >= 0,
+        "the narrow row was created");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(
+        dbg_test_text_prim(LONG, NULL, &narrow_label_y) &&
+            dbg_test_text_prim("On", NULL, &narrow_value_y),
+        "the narrow row drew both its caption and its value");
+    TEST_ASSERT(
+        narrow_value_y > narrow_label_y,
+        "in a 320-wide pane a caption that does not fit still takes its own line");
+
+    /* The same row in a canvas-wide panel. */
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 780, "Flags");
+    TEST_ASSERT(
+        ToriRSChrome_Dropdown(&g_ui, panel, LONG, ON_OFF, 2, 0) >= 0,
+        "the wide row was created");
+    TEST_ASSERT(
+        ToriRSChrome_Dropdown(&g_ui, panel, "Zoom", ON_OFF + 1, 1, 0) >= 0,
+        "and a short-captioned row beside it");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(
+        dbg_test_text_prim(LONG, NULL, &wide_label_y) &&
+            dbg_test_text_prim("On", &wide_value_x, &wide_value_y),
+        "the wide row drew both its caption and its value");
+    TEST_ASSERT(
+        wide_value_y == wide_label_y,
+        "a caption that FITS the panel's column shares the line with its box");
+    TEST_ASSERT(
+        dbg_test_text_prim("Off", &wide_short_x, NULL),
+        "the short-captioned row drew its value too");
+    /*
+     * And the column is still ONE column. A fix that gave the long row an
+     * offset of its own would un-stack it and leave the page ragged, which is
+     * the property dbg_row_box_offset exists to hold.
+     *
+     * Compared at the value's CENTRE, because a select's value is centred in
+     * its strip (@see test_debug_overlay_select_elides) -- two boxes at the
+     * same x hold two differently-measured strings at two different x.
+     */
+    TEST_ASSERT(
+        wide_value_x + ToriRSChrome_MeasureText(g_ui.theme.font_row, 1, "On") / 2 ==
+            wide_short_x +
+                ToriRSChrome_MeasureText(g_ui.theme.font_row, 1, "Off") / 2,
+        "and every labelled box in the panel still shares that one column");
+}
+
+/*
+ * An open list FOLDS UP INTO THE SURFACE rather than off the bottom of it.
+ *
+ * Photographed defect: the last row of the fullscreen Feature Flags page
+ * opened its nine-entry list downward, one entry was drawn against the window
+ * edge with its glyphs cut through the middle, and the other eight were below
+ * the canvas entirely -- unreachable, because the pointer cannot go there. The
+ * list is deliberately allowed to escape its PANEL (a 320-wide settings window
+ * has no room for one); it must not escape the canvas.
+ *
+ * MUTATION: delete the surface fold in dbg_dropdown_rect and the first half
+ * goes red -- the list's rows land past `surface_h`.
+ */
+static void
+test_debug_overlay_dropdown_folds_into_surface(void)
+{
+    static char const* const OPTIONS[] = {
+        "alpha", "bravo", "charlie", "delta", "echo", "foxtrot",
+    };
+    int const surface_h = 200;
+    int panel;
+    int drop;
+    int lowest = -1;
+    int highest = -1;
+    int drawn = 0;
+    int count = 0;
+    struct ToriRSChromePrim const* prims;
+    struct ToriRSChromeWidget const* box;
+
+    ToriRSChrome_Init(&g_ui);
+    ToriRSChrome_SetSurface(&g_ui, 400, surface_h);
+    /* Near the bottom of the surface, which is where the last rows of a
+     * full-height window are. UNLABELLED, so the box starts at the row's own
+     * left edge and the click below needs no opinion about the column. */
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 140, 380, "");
+    drop = ToriRSChrome_Dropdown(&g_ui, panel, "", OPTIONS, 6, 0);
+    TEST_ASSERT(drop >= 0, "the bottom row was created");
+    ToriRSChrome_Build(&g_ui);
+
+    box = &g_ui.widgets[drop];
+    TEST_ASSERT(
+        box->y + box->h + 6 * TORIRS_CHROME_M_DROP_LIST_ROW_H > surface_h,
+        "the fixture's list really cannot fit below its own row");
+
+    ToriRSChrome_MouseDown(&g_ui, box->x + 2, box->y + 2);
+    ToriRSChrome_MouseUp(&g_ui, box->x + 2, box->y + 2);
+    ToriRSChrome_Build(&g_ui);
+
+    prims = ToriRSChrome_Prims(&g_ui, &count);
+    for( int i = 0; i < count; i++ )
+    {
+        if( prims[i].kind != TORIRS_CHROME_PRIM_TEXT || !prims[i].text )
+            continue;
+        /* The CLOSED button carries the selected option's string too, and it
+         * is not part of the list. */
+        if( prims[i].y >= box->y && prims[i].y <= box->y + box->h )
+            continue;
+        for( int o = 0; o < 6; o++ )
+        {
+            if( strcmp(prims[i].text, OPTIONS[o]) != 0 )
+                continue;
+            drawn++;
+            if( lowest < 0 || prims[i].y < lowest )
+                lowest = prims[i].y;
+            if( prims[i].y > highest )
+                highest = prims[i].y;
+        }
+    }
+    TEST_ASSERT(drawn == 6, "every option of the open list is drawn");
+    TEST_ASSERT(lowest >= 0, "and none of them above the surface");
+    TEST_ASSERT(
+        highest < surface_h,
+        "and none of them past the bottom of it: the list folded above its row");
+
+    /* And no gratuitous flip: a row with room below still drops downward,
+     * which is what the reference does and what a reader expects. */
+    ToriRSChrome_Init(&g_ui);
+    ToriRSChrome_SetSurface(&g_ui, 400, surface_h);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 380, "");
+    drop = ToriRSChrome_Dropdown(&g_ui, panel, "", OPTIONS, 6, 0);
+    ToriRSChrome_Build(&g_ui);
+    box = &g_ui.widgets[drop];
+    ToriRSChrome_MouseDown(&g_ui, box->x + 2, box->y + 2);
+    ToriRSChrome_MouseUp(&g_ui, box->x + 2, box->y + 2);
+    ToriRSChrome_Build(&g_ui);
+    {
+        /* Not the selection, so this string appears in the LIST and nowhere
+         * else -- the closed button draws the first option. */
+        int first_y = -1;
+        TEST_ASSERT(
+            dbg_test_text_prim("bravo", NULL, &first_y), "the top row's list drew");
+        TEST_ASSERT(
+            first_y > g_ui.widgets[drop].y + g_ui.widgets[drop].h,
+            "a list with room below its row still opens downward");
+    }
+}
+
 void
 test_debug_overlay(void)
 {
@@ -1753,4 +1971,6 @@ test_debug_overlay(void)
     test_debug_overlay_widget_reidentify_in_place();
     test_debug_overlay_button_disabled();
     test_debug_overlay_custom_region();
+    test_debug_overlay_label_column_follows_panel();
+    test_debug_overlay_dropdown_folds_into_surface();
 }

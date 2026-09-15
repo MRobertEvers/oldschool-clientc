@@ -2104,6 +2104,18 @@ struct AppPluginFeatureDesc
     char const* choices;
     int values[TORIRS_FEATURE_VALUES_MAX];
     int value_count;
+    /**
+     * How the engine resolves this field's SENTINEL, or NULL where the field
+     * is its own meaning.
+     *
+     * A settings page names a value to a person, and for one flag the number
+     * in the field is not the number anything acts on: `draw_distance` stores
+     * 0 for "this era states no preference" and every reader of it goes
+     * through ToriRS_Features_PainterDrawDistance, which answers 25. The page
+     * cannot know that, and must not guess it -- pointing at the engine's own
+     * function is how the row and the painter cannot disagree.
+     */
+    int (*effective)(int stored);
 };
 
 #define APP_PLUGIN_FEATURE_TABLE_OFF(field) offsetof(struct ToriRS_FeatureTable, field)
@@ -2303,6 +2315,8 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "25 tiles|32 tiles|40 tiles|50 tiles|60 tiles|70 tiles|80 tiles|90 tiles",
         { 25, 32, 40, 50, 60, 70, 80, 90 },
         8,
+        /* The one flag in this table whose stored 0 is not a distance. */
+        ToriRS_Features_PainterDrawDistanceOf,
     },
     {
         "npc_light_type",
@@ -2497,6 +2511,9 @@ app_plugin_feature_next(void* user, int iter, struct ToriRS_FeatureInfo* out)
     for( int i = 0; i < desc->value_count; i++ )
         out->values[i] = desc->values[i];
     out->value = app_plugin_feature_read(app, desc, 0);
+    /* What the field holds, and what the engine makes of it. The two differ
+     * only where the descriptor says how -- @see AppPluginFeatureDesc::effective. */
+    out->effective = desc->effective ? desc->effective(out->value) : out->value;
     out->is_default = out->value == app_plugin_feature_read(app, desc, 1);
     return at;
 }
