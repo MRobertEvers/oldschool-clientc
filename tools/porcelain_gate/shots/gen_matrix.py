@@ -52,7 +52,16 @@ PLUGINS = [
     ("widget-demo",         "widgetdemo",     "TORIRS_WIDGET_DEMO=only TORIRS_PLUGIN_LOG=1"),
     ("tile-indicator-c",    "tileind-c",      "TORIRS_SIM_HOVER=300,180"),
     ("tile-indicator-lua",  "tileind-lua",    "TORIRS_SIM_HOVER=300,180"),
-    ("xp-drop-orbs",        "xporbs",         "'TORIRS_SIM_CMD=660,setlevel 10 45'"),
+    # setlevel lands on a level threshold EXACTLY, so xp == level_xp, progress
+    # computes to 0, and xp_orbs.c gates the arc behind `progress > 0`. The
+    # globe drew and the arc it exists to show never did, on any toplevel. An
+    # added award must name the SAME skill setlevel moved -- index 10 is
+    # fishing, not attack, and an award to another skill raises no gain here.
+    # It must also land WELL INSIDE the frame budget: the default is 700 and a
+    # command scheduled at 700 is sent on the frame the run ends on, so the
+    # gain it causes never arrives.
+    # added xp award afterwards puts the orb mid-level where the arc is real.
+    ("xp-drop-orbs",        "xporbs",         "'TORIRS_SIM_CMD=560,setlevel 10 45;620,xp fishing 8000' TORIRS_MAX_FRAMES=900"),
     ("xp-tracker",          "xptracker",      "TORIRS_SIM_PLUGIN_PANEL=600,xp-tracker,page 'TORIRS_SIM_CMD=300,setlevel 10 45;400,xp fishing 30000'"),
     ("client-settings",     "clientsettings", "TORIRS_SIM_PLUGIN_PANEL=600,client-settings,page"),
     ("feature-flags",       "featureflags",   "TORIRS_SIM_PLUGIN_PANEL=600,feature-flags,page"),
