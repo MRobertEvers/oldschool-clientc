@@ -30,10 +30,10 @@ import sys
 
 # Resolved by lane_coords.py from tools/porcelain_gate gate captures.
 LANES = {
-    "classic548": {"inv": "573,228", "inv_hidden": False, "report": "493,491", "report_hidden": False},
-    "classic161": {"inv": "573,228", "inv_hidden": False, "report": "493,491", "report_hidden": False},
-    "modern164":  {"inv": "565,224", "inv_hidden": True,  "report": "476,491", "report_hidden": False},
-    "stone601":   {"inv": "492,231", "inv_hidden": True,  "report": "476,370", "report_hidden": True},
+    "classic548": {"inv": "615,228", "inv_hidden": False, "report": "493,491", "report_hidden": False, "npc": "330,120"},
+    "classic161": {"inv": "615,228", "inv_hidden": False, "report": "493,491", "report_hidden": False, "npc": "330,120"},
+    "modern164":  {"inv": "607,224", "inv_hidden": True,  "report": "476,491", "report_hidden": False, "npc": "456,228"},
+    "stone601":   {"inv": "534,231", "inv_hidden": True,  "report": "476,370", "report_hidden": True, "npc": "456,150"},
 }
 
 # plugin id -> drive. {inv} and {report} are substituted per lane; a drive
@@ -41,10 +41,14 @@ LANES = {
 PLUGINS = [
     ("none",                "control",        ""),
     ("minimap-orbs",        "orbs",           ""),
-    ("gameframe-layout",    "gf-desktop",     ""),
-    ("mobile-gameframe",    "gf-mobile",      ""),
+    ("gameframe-layout",    "gf-desktop",     "TORIRS_SHOT_FRAME=gameframe-layout/classic-fixed"),
+    # preferred_frame is the MASTER SWITCH for a frame provider, not `enabled`.
+    # Without it the ini says enabled=1, the host says enabled=0, and the shot
+    # photographs whichever provider the lane preference already named --
+    # gf-mobile-classic548 came back byte-identical to gf-desktop.
+    ("mobile-gameframe",    "gf-mobile",      "TORIRS_SHOT_FRAME=mobile-gameframe/stone-drawer"),
     ("performance-display", "perf",           ""),
-    ("screenshot",          "screenshot",     ""),
+    ("screenshot",          "screenshot",     "-- camera=report-button"),
     ("widget-demo",         "widgetdemo",     "TORIRS_WIDGET_DEMO=only TORIRS_PLUGIN_LOG=1"),
     ("tile-indicator-c",    "tileind-c",      "TORIRS_SIM_HOVER=300,180"),
     ("tile-indicator-lua",  "tileind-lua",    "TORIRS_SIM_HOVER=300,180"),
@@ -57,7 +61,7 @@ PLUGINS = [
     ("ground-items",        "grounditems",    "'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1;70,dropobj ags 1;80,dropobj abyssal_whip 1' TORIRS_GROUND_ITEMS_DEBUG=1"),
     ("loot-beam",           "lootbeam",       "'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1'"),
     ("entity-highlighter",  "highlighter",    "'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108'"),
-    ("nxt-highlight",       "nxthl",          "TORIRS_SIM_MOVE_AT=600,330,120 TORIRS_SIM_HOVER=330,120 TORIRS_HIGHLIGHT_DEBUG=1"),
+    ("nxt-highlight",       "nxthl",          "TORIRS_SIM_MOVE_AT=600,{npc} TORIRS_SIM_HOVER={npc} TORIRS_HIGHLIGHT_DEBUG=1"),
     ("nxt-bird-nest",       "birdnest",       "TORIRS_SIM_VARBIT=450,13087,0 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1'"),
     ("nxt-cannon-ammo",     "cannon",         "'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500"),
 ]
@@ -79,7 +83,7 @@ def main():
                 needs.append("inventory hidden on this toplevel")
             if plugin == "screenshot" and box["report_hidden"]:
                 needs.append("report button hidden on this toplevel")
-            body = drive.format(inv=box["inv"], report=box["report"])
+            body = drive.format(inv=box["inv"], report=box["report"], npc=box.get("npc", "330,120"))
             line = f"{stem}-{lane} {plugin} {lane} {body} {TRACE}".replace("  ", " ").strip()
             if needs:
                 line += "   # NEEDS_OPEN: " + "; ".join(needs)

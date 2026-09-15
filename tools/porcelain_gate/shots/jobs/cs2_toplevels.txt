@@ -7,10 +7,10 @@
 # ---- classic548 --------------------------------------------------------
 control-classic548 none classic548 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 orbs-classic548 minimap-orbs classic548 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-gf-desktop-classic548 gameframe-layout classic548 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-gf-mobile-classic548 mobile-gameframe classic548 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+gf-desktop-classic548 gameframe-layout classic548 TORIRS_SHOT_FRAME=gameframe-layout/classic-fixed TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+gf-mobile-classic548 mobile-gameframe classic548 TORIRS_SHOT_FRAME=mobile-gameframe/stone-drawer TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 perf-classic548 performance-display classic548 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-screenshot-classic548 screenshot classic548 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+screenshot-classic548 screenshot classic548 -- camera=report-button TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 widgetdemo-classic548 widget-demo classic548 TORIRS_WIDGET_DEMO=only TORIRS_PLUGIN_LOG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 tileind-c-classic548 tile-indicator-c classic548 TORIRS_SIM_HOVER=300,180 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 tileind-lua-classic548 tile-indicator-lua classic548 TORIRS_SIM_HOVER=300,180 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
@@ -18,7 +18,7 @@ xporbs-classic548 xp-drop-orbs classic548 'TORIRS_SIM_CMD=660,setlevel 10 45' TO
 xptracker-classic548 xp-tracker classic548 TORIRS_SIM_PLUGIN_PANEL=600,xp-tracker,page 'TORIRS_SIM_CMD=300,setlevel 10 45;400,xp fishing 30000' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 clientsettings-classic548 client-settings classic548 TORIRS_SIM_PLUGIN_PANEL=600,client-settings,page TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 featureflags-classic548 feature-flags classic548 TORIRS_SIM_PLUGIN_PANEL=600,feature-flags,page TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-itemstats-classic548 item-stats classic548 TORIRS_SIM_HOVER=573,228 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+itemstats-classic548 item-stats classic548 TORIRS_SIM_HOVER=615,228 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 loottracker-classic548 loot-tracker classic548 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page 'TORIRS_SIM_CMD=560,lootkill Goblin 995 5000;570,lootkill Goblin 526 1' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 grounditems-classic548 ground-items classic548 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1;70,dropobj ags 1;80,dropobj abyssal_whip 1' TORIRS_GROUND_ITEMS_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 lootbeam-classic548 loot-beam classic548 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
@@ -30,10 +30,10 @@ cannon-classic548 nxt-cannon-ammo classic548 'TORIRS_SIM_VARBIT=450,14175,1;452,
 # ---- classic161 --------------------------------------------------------
 control-classic161 none classic161 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 orbs-classic161 minimap-orbs classic161 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-gf-desktop-classic161 gameframe-layout classic161 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-gf-mobile-classic161 mobile-gameframe classic161 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+gf-desktop-classic161 gameframe-layout classic161 TORIRS_SHOT_FRAME=gameframe-layout/classic-fixed TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+gf-mobile-classic161 mobile-gameframe classic161 TORIRS_SHOT_FRAME=mobile-gameframe/stone-drawer TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 perf-classic161 performance-display classic161 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-screenshot-classic161 screenshot classic161 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+screenshot-classic161 screenshot classic161 -- camera=report-button TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 widgetdemo-classic161 widget-demo classic161 TORIRS_WIDGET_DEMO=only TORIRS_PLUGIN_LOG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 tileind-c-classic161 tile-indicator-c classic161 TORIRS_SIM_HOVER=300,180 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 tileind-lua-classic161 tile-indicator-lua classic161 TORIRS_SIM_HOVER=300,180 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
@@ -41,7 +41,7 @@ xporbs-classic161 xp-drop-orbs classic161 'TORIRS_SIM_CMD=660,setlevel 10 45' TO
 xptracker-classic161 xp-tracker classic161 TORIRS_SIM_PLUGIN_PANEL=600,xp-tracker,page 'TORIRS_SIM_CMD=300,setlevel 10 45;400,xp fishing 30000' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 clientsettings-classic161 client-settings classic161 TORIRS_SIM_PLUGIN_PANEL=600,client-settings,page TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 featureflags-classic161 feature-flags classic161 TORIRS_SIM_PLUGIN_PANEL=600,feature-flags,page TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-itemstats-classic161 item-stats classic161 TORIRS_SIM_HOVER=573,228 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+itemstats-classic161 item-stats classic161 TORIRS_SIM_HOVER=615,228 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 loottracker-classic161 loot-tracker classic161 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page 'TORIRS_SIM_CMD=560,lootkill Goblin 995 5000;570,lootkill Goblin 526 1' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 grounditems-classic161 ground-items classic161 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1;70,dropobj ags 1;80,dropobj abyssal_whip 1' TORIRS_GROUND_ITEMS_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 lootbeam-classic161 loot-beam classic161 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
@@ -53,10 +53,10 @@ cannon-classic161 nxt-cannon-ammo classic161 'TORIRS_SIM_VARBIT=450,14175,1;452,
 # ---- modern164 --------------------------------------------------------
 control-modern164 none modern164 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 orbs-modern164 minimap-orbs modern164 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-gf-desktop-modern164 gameframe-layout modern164 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-gf-mobile-modern164 mobile-gameframe modern164 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+gf-desktop-modern164 gameframe-layout modern164 TORIRS_SHOT_FRAME=gameframe-layout/classic-fixed TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+gf-mobile-modern164 mobile-gameframe modern164 TORIRS_SHOT_FRAME=mobile-gameframe/stone-drawer TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 perf-modern164 performance-display modern164 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-screenshot-modern164 screenshot modern164 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+screenshot-modern164 screenshot modern164 -- camera=report-button TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 widgetdemo-modern164 widget-demo modern164 TORIRS_WIDGET_DEMO=only TORIRS_PLUGIN_LOG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 tileind-c-modern164 tile-indicator-c modern164 TORIRS_SIM_HOVER=300,180 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 tileind-lua-modern164 tile-indicator-lua modern164 TORIRS_SIM_HOVER=300,180 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
@@ -64,22 +64,22 @@ xporbs-modern164 xp-drop-orbs modern164 'TORIRS_SIM_CMD=660,setlevel 10 45' TORI
 xptracker-modern164 xp-tracker modern164 TORIRS_SIM_PLUGIN_PANEL=600,xp-tracker,page 'TORIRS_SIM_CMD=300,setlevel 10 45;400,xp fishing 30000' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 clientsettings-modern164 client-settings modern164 TORIRS_SIM_PLUGIN_PANEL=600,client-settings,page TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 featureflags-modern164 feature-flags modern164 TORIRS_SIM_PLUGIN_PANEL=600,feature-flags,page TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-itemstats-modern164 item-stats modern164 TORIRS_SIM_HOVER=565,224 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all   # NEEDS_OPEN: inventory hidden on this toplevel
+itemstats-modern164 item-stats modern164 TORIRS_SIM_HOVER=607,224 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all   # NEEDS_OPEN: inventory hidden on this toplevel
 loottracker-modern164 loot-tracker modern164 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page 'TORIRS_SIM_CMD=560,lootkill Goblin 995 5000;570,lootkill Goblin 526 1' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 grounditems-modern164 ground-items modern164 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1;70,dropobj ags 1;80,dropobj abyssal_whip 1' TORIRS_GROUND_ITEMS_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 lootbeam-modern164 loot-beam modern164 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 highlighter-modern164 entity-highlighter modern164 'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-nxthl-modern164 nxt-highlight modern164 TORIRS_SIM_MOVE_AT=600,330,120 TORIRS_SIM_HOVER=330,120 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+nxthl-modern164 nxt-highlight modern164 TORIRS_SIM_MOVE_AT=600,456,228 TORIRS_SIM_HOVER=456,228 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 birdnest-modern164 nxt-bird-nest modern164 TORIRS_SIM_VARBIT=450,13087,0 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 cannon-modern164 nxt-cannon-ammo modern164 'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 
 # ---- stone601 --------------------------------------------------------
 control-stone601 none stone601 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 orbs-stone601 minimap-orbs stone601 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-gf-desktop-stone601 gameframe-layout stone601 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-gf-mobile-stone601 mobile-gameframe stone601 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+gf-desktop-stone601 gameframe-layout stone601 TORIRS_SHOT_FRAME=gameframe-layout/classic-fixed TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+gf-mobile-stone601 mobile-gameframe stone601 TORIRS_SHOT_FRAME=mobile-gameframe/stone-drawer TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 perf-stone601 performance-display stone601 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-screenshot-stone601 screenshot stone601 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all   # NEEDS_OPEN: report button hidden on this toplevel
+screenshot-stone601 screenshot stone601 -- camera=report-button TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all   # NEEDS_OPEN: report button hidden on this toplevel
 widgetdemo-stone601 widget-demo stone601 TORIRS_WIDGET_DEMO=only TORIRS_PLUGIN_LOG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 tileind-c-stone601 tile-indicator-c stone601 TORIRS_SIM_HOVER=300,180 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 tileind-lua-stone601 tile-indicator-lua stone601 TORIRS_SIM_HOVER=300,180 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
@@ -87,11 +87,11 @@ xporbs-stone601 xp-drop-orbs stone601 'TORIRS_SIM_CMD=660,setlevel 10 45' TORIRS
 xptracker-stone601 xp-tracker stone601 TORIRS_SIM_PLUGIN_PANEL=600,xp-tracker,page 'TORIRS_SIM_CMD=300,setlevel 10 45;400,xp fishing 30000' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 clientsettings-stone601 client-settings stone601 TORIRS_SIM_PLUGIN_PANEL=600,client-settings,page TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 featureflags-stone601 feature-flags stone601 TORIRS_SIM_PLUGIN_PANEL=600,feature-flags,page TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-itemstats-stone601 item-stats stone601 TORIRS_SIM_HOVER=492,231 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all   # NEEDS_OPEN: inventory hidden on this toplevel
+itemstats-stone601 item-stats stone601 TORIRS_SIM_HOVER=534,231 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all   # NEEDS_OPEN: inventory hidden on this toplevel
 loottracker-stone601 loot-tracker stone601 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page 'TORIRS_SIM_CMD=560,lootkill Goblin 995 5000;570,lootkill Goblin 526 1' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 grounditems-stone601 ground-items stone601 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1;70,dropobj ags 1;80,dropobj abyssal_whip 1' TORIRS_GROUND_ITEMS_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 lootbeam-stone601 loot-beam stone601 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 highlighter-stone601 entity-highlighter stone601 'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
-nxthl-stone601 nxt-highlight stone601 TORIRS_SIM_MOVE_AT=600,330,120 TORIRS_SIM_HOVER=330,120 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+nxthl-stone601 nxt-highlight stone601 TORIRS_SIM_MOVE_AT=600,456,150 TORIRS_SIM_HOVER=456,150 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 birdnest-stone601 nxt-bird-nest stone601 TORIRS_SIM_VARBIT=450,13087,0 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1' TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 cannon-stone601 nxt-cannon-ammo stone601 'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
