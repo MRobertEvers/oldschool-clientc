@@ -48,7 +48,19 @@ cannon-live        nxt-cannon-ammo     cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;
 # ~maxme is here and nowhere else: it is what puts a real number on an xp orb,
 # and it also floods the chat with level-up dialogues, so no shot that wants a
 # readable chat pane can afford it.
-xporbs-live        xp-drop-orbs        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;1000,~maxme' TORIRS_MAX_FRAMES=2200
+#
+# It fires at 2150 and not at 1000, and that is the whole shot. An orb is a
+# THING THAT EXPIRES -- `orb_duration` is 10s, the "+N" that climbs into it
+# lasts 1.2s -- and 1000 to 2200 is 1200 frames, about 22 seconds at the 20ms
+# pacer. The old line raised every skill at frame 1000 and photographed frame
+# 2200, twice the orb's whole life later, so the capture held not one plugin
+# pixel: five globes were planned, logged at x=137..337 y=4, and every one of
+# them had gone by the time the BMP was written. That reads as "the plugin is
+# dead on CS1" and it is the recipe, not the plugin. 2150 leaves 50 frames --
+# one second -- which is inside both clocks, so the shot carries the globes AND
+# the labels still in the air under them. Anything earlier than ~2140 loses the
+# labels; anything earlier than ~1700 loses the globes too.
+xporbs-live        xp-drop-orbs        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;2150,~maxme' TORIRS_MAX_FRAMES=2200
 xptracker-live     xp-tracker          cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;1000,~maxme' TORIRS_SIM_PLUGIN_PANEL=1600,xp-tracker,page TORIRS_MAX_FRAMES=2200
 
 # Coins on their own, with the hide exception that makes them visible.
