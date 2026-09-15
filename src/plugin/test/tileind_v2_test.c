@@ -10,9 +10,10 @@
  * otherwise invisible -- the picture is identical either way and only the
  * sequence says which happened.
  *
- * WHAT IT COSTS: one declaration at on_start and, from then on, not one call
- * into the Porcelain layer. There is no describe, no fence, no commit and no
- * setter, and the counters are read to say so rather than believed.
+ * WHAT IT COSTS: an open handle at on_start -- no declaration, because there
+ * is no limitation left to declare -- and, from then on, not one call into the
+ * Porcelain layer. There is no describe, no fence, no commit and no setter,
+ * and the counters are read to say so rather than believed.
  */
 
 #include "plugin/porcelain/torirs_porcelain.h"
@@ -351,7 +352,8 @@ main(void)
     CHECK(TORIRS_PLUGIN_TILEIND.callbacks.on_draw_world != NULL,
         "world drawing is a declarative v2 callback");
     CHECK(TORIRS_PLUGIN_TILEIND.callbacks.on_start != NULL,
-        "on_start exists to declare the one refusal this plugin cannot see");
+        "on_start exists to open the findings channel the draw path would "
+        "otherwise have none of");
     CHECK(TORIRS_PLUGIN_TILEIND.callbacks.on_stop != NULL,
         "and on_stop gives the handle back, so a re-enable does not leak one");
 
@@ -365,32 +367,37 @@ main(void)
         "last existing config key remains present");
 
     /*
-     * Start declares the one refusal this plugin cannot see, BY NAME, so it
-     * is an expected finding in every capture instead of a sentence in a
-     * commit message. It is the whole of what opening the layer bought.
+     * Start declares NOTHING, and that is the assertion -- the same one, in
+     * the same place, that tile_indicator_behavior.lua makes of the twin
+     * (`#declared == 0`).
+     *
+     * It used to declare draw_refusal_readout: api_draw_tile returned void,
+     * so v2_builder_world_tile answered OK whatever the frame allotment had
+     * said, and the truncation was unreportable. api_draw_tile answers
+     * TORIRS_RESULT_BUDGET now and the builder carries it verbatim -- see
+     * test_world_tile_answers_its_refusal in torirs_plugin_host_test.c, which
+     * is the other half of this pair -- so the declaration became a FALSE one
+     * filed on every capture on every lane, and its twin filed none.
+     *
+     * This is why the count and not merely the text is checked: an
+     * expect_unsupported fires unconditionally, so a stale one is invisible to
+     * a staleness check that asks whether a declaration ever fired. The only
+     * thing that can catch it is counting what start says against what the
+     * twin says, which is what this line and the twin's line do together.
      */
     TORIRS_PLUGIN_TILEIND.callbacks.on_start(&api, g_state);
     CHECK(handle() != NULL, "on_start opens a layer handle and keeps it");
     finding_count = Porcelain_Findings(handle(), findings, PORCELAIN_FINDINGS_MAX);
-    CHECK(finding_count == 1, "on_start files exactly one finding");
-    if( finding_count == 1 )
-    {
-        CHECK(strcmp(findings[0].verb, "unsupported") == 0,
-            "and its verb says the feature is unsupported, not refused");
-        CHECK(findings[0].result == PORCELAIN_FINDING_UNSUPPORTED,
-            "with the UNSUPPORTED result the clean gate reads");
-        CHECK(findings[0].detail && strcmp(findings[0].detail, "draw_refusal_readout") == 0,
-            "the unreadable draw result is declared, not left unsaid");
-        CHECK(findings[0].element.role
-                && strcmp(findings[0].element.role, "draw_refusal_readout") == 0,
-            "named identically to the Lua twin's declaration, because the twins "
-            "must be comparable");
-        CHECK(findings[0].expected,
-            "and it is EXPECTED, so a declared gap does not fail the clean gate");
-        CHECK(findings[0].count == 1, "declared once, not once a frame");
-    }
+    CHECK(finding_count == 0,
+        "the draw refusal is readable now, so start has no limitation left to "
+        "declare and files no finding -- exactly what the Lua twin files");
+    for( int i = 0; i < finding_count; i++ )
+        CHECK(!(findings[i].element.role
+                && strcmp(findings[i].element.role, "draw_refusal_readout") == 0),
+            "and draw_refusal_readout in particular is never declared again: "
+            "world_tile carries api_draw_tile's BUDGET answer");
     Porcelain_CountersRead(handle(), &counters);
-    CHECK(counters.engine_calls == 0, "a declaration costs no engine call");
+    CHECK(counters.engine_calls == 0, "opening the channel costs no engine call");
     CHECK(counters.allocations == 0, "and no allocation");
 
     frame(&fake, &api, &draw);
@@ -455,7 +462,7 @@ main(void)
      * layer keeps stays where it was: no describe, no fence, no commit, no
      * setter, no revalidate, no allocation. This is the acceptance rule
      * "steady state costs nothing", read rather than believed -- and the
-     * declaration is still one finding, not sixty.
+     * findings channel is still EMPTY, not sixty frames of anything.
      */
     Porcelain_CountersReset(handle());
     for( int i = 0; i < 60; i++ )
@@ -467,8 +474,9 @@ main(void)
     CHECK(counters.setters == 0, "it owns no control to move");
     CHECK(counters.revalidates == 0, "and asks for no layout");
     CHECK(counters.allocations == 0, "and allocates nothing");
-    CHECK(Porcelain_Findings(handle(), findings, PORCELAIN_FINDINGS_MAX) == 1,
-        "the declaration is made once, not once a frame");
+    CHECK(Porcelain_Findings(handle(), findings, PORCELAIN_FINDINGS_MAX) == 0,
+        "and sixty frames file no finding: the draw path calls no layer verb, "
+        "so there is nothing for one to come from");
 
     /*
      * A disable through the settings panel, then a re-enable. The handle table
@@ -479,8 +487,8 @@ main(void)
     CHECK(handle() == NULL, "on_stop gives the handle back");
     TORIRS_PLUGIN_TILEIND.callbacks.on_start(&api, g_state);
     CHECK(handle() != NULL, "and a re-enable opens a fresh one");
-    CHECK(Porcelain_Findings(handle(), findings, PORCELAIN_FINDINGS_MAX) == 1,
-        "which declares the same gap again, on its own clean channel");
+    CHECK(Porcelain_Findings(handle(), findings, PORCELAIN_FINDINGS_MAX) == 0,
+        "on a clean channel that a restart declares nothing onto either");
     frame(&fake, &api, &draw);
     CHECK(fake.call_count == 3, "and the markers draw after a restart");
     TORIRS_PLUGIN_TILEIND.callbacks.on_stop(&api, g_state);

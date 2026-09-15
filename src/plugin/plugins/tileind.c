@@ -43,9 +43,10 @@
  * answered by the snapshot, so that capability could never be false, and a
  * capability that cannot answer no is not a capability.
  *
- * What the layer IS opened for is the refusal channel, and this plugin has
- * exactly one refusal to put on it -- the one it cannot see. @see
- * tileind_on_start.
+ * What the layer IS opened for is the refusal channel: nothing here calls a
+ * Porcelain verb, so a marker this plugin could not draw would go unsaid
+ * without it, exactly as the Lua twin's own open() comment says. It declares
+ * no limitation -- there is none left to declare. @see tileind_on_start.
  *
  * There is no describe, no fence and no commit: nothing here is retained, so
  * there is nothing to reconcile. After on_start this plugin makes no layer
@@ -55,10 +56,11 @@
 struct TileindState
 {
     /*
-     * The handle exists only to carry the declaration in on_start and to be
-     * closed in on_stop. It is per-instance rather than file-scope because a
-     * handle is a slot in the layer's fixed table, and a disable/enable round
-     * trip through the settings panel would otherwise leak one every time.
+     * The handle exists only to open the findings channel in on_start and to
+     * be closed in on_stop. It is per-instance rather than file-scope because
+     * a handle is a slot in the layer's fixed table, and a disable/enable
+     * round trip through the settings panel would otherwise leak one every
+     * time.
      */
     struct Porcelain* porcelain;
 };
@@ -68,24 +70,34 @@ struct TileindState
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND;
 
 /*
- * The one thing this plugin knows it cannot report.
+ * Start declares NOTHING, and that is the point worth writing down.
  *
- * draw->world_tile is declared to answer `enum ToriRS_Result` and the ledger
- * reads that as "a refused draw is visible to the plugin". It is not.
- * v2_builder_world_tile returns TORIRS_RESULT_OK unconditionally, and
- * api_draw_tile -- which is where the per-frame draw-budget gate actually
- * lives -- returns void and swallows the refusal. Round three fixed exactly
- * this shape for the SIBLING verb, world_hull, because that one also refuses
- * per ENTITY on an APPEARANCE claim and printed nothing at all; api_draw_tile
- * was deliberately left void there, on the ground that its only refusal is the
- * budget and the budget already announces itself once per frame per plugin.
- * Reading the pair here would therefore pin a constant while reading like a
- * check that bites.
+ * There was a Porcelain_ExpectUnsupported("draw_refusal_readout") here, and it
+ * is gone with the limitation it declared. It was true when it was written:
+ * api_draw_tile returned void, so v2_builder_world_tile answered
+ * TORIRS_RESULT_OK whatever the frame allotment had said, and a truncated
+ * overlay was something this plugin could name but never report. The
+ * nxt-highlight port made that refusal an ANSWER -- api_draw_tile is
+ * `static enum ToriRS_Result` and returns TORIRS_RESULT_BUDGET when
+ * plugin_draw_allow refuses, and v2_builder_world_tile returns that answer
+ * verbatim -- so keeping the declaration files a FALSE one on every capture,
+ * on every lane, marked expected.
  *
- * So it is not read. The gap is DECLARED, in the same words the Lua twin
- * declares it, which makes it one EXPECTED finding in every capture rather
- * than a sentence in a commit message -- and makes a stale claim fail loudly
- * from the other side the day the engine half lands.
+ * A declaration has to be true in both directions or it is not evidence, and
+ * a false one is exactly what the bidirectional rule exists to catch. It was
+ * not caught from the other side because an expect_unsupported cannot go
+ * stale on its own: it fires unconditionally, so the gate's staleness check
+ * sees a declaration that always fires and says nothing. What caught it is the
+ * parity twin -- script/plugins/tile_indicator.lua retired the same
+ * declaration in the same words and files no finding at all, and two twins
+ * that exist to be compared disagreed by exactly one line per capture.
+ *
+ * What is NOT done here, and deliberately: reading the answer. This overlay's
+ * shape is that no frame costs a single call into the layer, and the twin
+ * calls draw.world_tile raw for the same reason; routing the three markers
+ * through Porcelain_Tile to test a result that only ever differs at the 512th
+ * primitive would make the twins diverge to report a case neither of them
+ * reaches. That is the owner's call to revisit, not this line's.
  *
  * Unlike the Lua twin there is no "no layer" arm: Lua reaches these verbs
  * through api->porcelain, which a host may not have installed, while a C
@@ -101,10 +113,6 @@ tileind_on_start(
     assert(api);
     assert(state_ptr);
     state->porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_TILEIND, state);
-    Porcelain_ExpectUnsupported(
-        state->porcelain,
-        "draw_refusal_readout",
-        "world_tile answers OK even when the budget refused it: api_draw_tile returns void");
 }
 
 static void
