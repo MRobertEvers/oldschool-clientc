@@ -1,28 +1,50 @@
-# Ground Items price overrides: obj_id = price, one per line.
+# Ground Items price overrides: name = price, one per line.
 #
 # The client has no Grand Exchange feed and never will -- what it knows is
 # ObjType.cost, the cache's own base value, which for most items is the shop
 # price rather than anything a player would pay. This file is where a plugin's
 # author or a user corrects the ones that matter. Anything absent here is
-# priced from the cache, and the high-alchemy figure is derived from whichever
-# of the two applies (floor(price * 0.6), as the reference derives it).
+# priced from the cache.
+#
+# Keyed by the item's NAME, matched case-insensitively against the name the
+# booted cache gives the ground stack -- NOT by obj id. An id is a fact about
+# one cache: this table used to be `obj_id = price` with "ids are for
+# cache.osrs239" written here, and on any other cache a row either matched
+# nothing or matched whatever item had inherited the number. Since an override
+# is the only thing that can lift a stack to the loot beam's thresholds -- a
+# shop price never reaches a million -- that made a beam structurally
+# impossible on every lane but one, and a beam over the wrong item possible on
+# the rest. The high-alchemy figure is derived from whichever price applies
+# (floor(price * 0.6), as the reference derives it).
+#
+# A name a cache does not have simply never matches, which is the right answer
+# and costs nothing. Blank lines and # comments are skipped, and so is any line
+# that does not parse -- one bad row must not cost you the rest.
 #
 # Deliberately a SECOND copy of the loot beam's table rather than a shared one:
 # api.asset_load takes a bare filename and resolves it under this plugin's own
 # directory, precisely so one plugin can never read another's files. The two
 # tables answer the same question and are expected to be edited together.
-#
-# Ids are for cache.osrs239. Blank lines and # comments are skipped, and so is
-# any line that does not parse -- one bad row must not cost you the rest.
 
-# Barrows / rare drops whose cache cost is nowhere near their value.
-4151  = 1500000    # Abyssal whip
-11802 = 15000000   # Armadyl godsword
-11832 = 3000000    # Bandos chestplate
-11834 = 2500000    # Bandos tassets
-11826 = 5000000    # Armadyl helmet
-11828 = 25000000   # Armadyl chestplate
-11830 = 25000000   # Armadyl chainskirt
-2577  = 40000000   # Ranger boots
-6585  = 1800000    # Amulet of fury
-12006 = 90000000   # Abyssal tentacle
+# Rare drops whose cache cost is nowhere near what the item is worth.
+Abyssal whip        = 1500000
+Abyssal tentacle    = 90000000
+Armadyl godsword    = 15000000
+Bandos chestplate   = 3000000
+Bandos tassets      = 2500000
+Armadyl helmet      = 5000000
+Armadyl chestplate  = 25000000
+Armadyl chainskirt  = 25000000
+Ranger boots        = 40000000
+Amulet of fury      = 1800000
+
+# Pre-EoC staples, for the dat1 caches. They are named here for the same reason
+# as the rows above -- their shop cost is not their value -- and they are the
+# rows that make this table mean anything at all on a 2004-era world, where
+# none of the names above exist.
+Dragon chainbody    = 1800000
+Dragon 2h sword     = 2500000
+Third age longsword = 250000000
+Third age platebody = 300000000
+Santa hat           = 100000000
+Red partyhat        = 1500000000

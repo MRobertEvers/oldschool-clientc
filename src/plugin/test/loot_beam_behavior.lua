@@ -41,13 +41,20 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     local me = { level = 0, true_x = 3210, true_z = 3424 }
     -- What the shipped asset folder holds. A name absent from here is a
     -- MISSING asset, which is the terminal state the model row is about.
-    -- `560 = 1` is the ordinary item the per-unit truncation is proved on; it
-    -- used to be 995, which is the one id that rule must not be proved on.
-    -- There is deliberately NO coin row here: section 6b's first assertion is
-    -- the shipped defect exactly as a user meets it, with nothing but the
-    -- cache's own cost of 1 behind it.
+    -- `Death rune` is the ordinary item the per-unit truncation is proved on;
+    -- it used to be the coin, which is the one item that rule must not be
+    -- proved on. There is deliberately NO coin row here: section 6b's first
+    -- assertion is the shipped defect exactly as a user meets it, with nothing
+    -- but the cache's own cost of 1 behind it.
+    --
+    -- The rows are keyed by NAME. `# Rune scimitar = 1` is a commented-out row
+    -- and `1127 = 39000` is an obj id, and NEITHER may be read: the first is
+    -- the shape the old whole-file gmatch matched anyway, and the second is
+    -- the shape that shipped -- an id from one cache, applied to every cache.
     local files = { ['beam_modern.model'] = true, ['beam_light.model'] = true,
-                    ['prices.txt'] = '1127=39000\n# a comment\n\n560 = 1\nnonsense\n' }
+                    ['prices.txt'] = 'Rune scimitar=39000\n# a comment\n\n'
+                        .. 'DEATH RUNE = 1\nnonsense\n'
+                        .. '# Rune scimitar = 1\n1127 = 77\n' }
 
     local function record(name, ...)
         order[#order + 1] = name
@@ -255,9 +262,16 @@ return { id = 'loot-beam-behavior', on_start = function(host)
         for _ in pairs(scene.live) do n = n + 1 end
         return n
     end
-    local function stack(id, x, z, cost, count, level)
+    -- The cache's own name for each id the fixture drops. A ground-item
+    -- snapshot carries one on every lane, and the price table is keyed on it,
+    -- so a fixture without names would price everything from the cache and
+    -- never exercise an override at all.
+    local OBJ_NAME = { [1127] = 'Rune scimitar', [560] = 'Death rune',
+                       [995] = 'Coins', [526] = 'Bones' }
+    local function stack(id, x, z, cost, count, level, name)
         return { obj_id = id, tile_x = x, tile_z = z, level = level or 0,
-                 cost = cost, count = count or 1 }
+                 cost = cost, count = count or 1,
+                 name = name or OBJ_NAME[id] or ('Obj ' .. id) }
     end
     local function start()
         me = { level = 0, true_x = 3210, true_z = 3424 }
@@ -316,9 +330,15 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     --    number the tier is measured against
     ----------------------------------------------------------------------
 
-    -- `1127=39000` and `995 = 1` are rows; the comment, the blank and the
-    -- unreadable line are not, and none of them costs the file.
-    assert(logs[1] == 'prices.txt: 2 price overrides', 'two rows, three skipped: ' .. logs[1])
+    -- `Rune scimitar=39000` and `DEATH RUNE = 1` are rows; the comment, the
+    -- blank, the unreadable line and the commented-out row are not, and none
+    -- of them costs the file. `1127 = 77` IS read as a row -- it is a name
+    -- like any other, and no cache calls an item "1127", so it matches
+    -- nothing. That is the point: an obj id in this file is now inert rather
+    -- than being a price silently applied to whatever item inherited the
+    -- number on the cache that actually booted.
+    assert(logs[1] == 'prices.txt: 3 price overrides',
+        'three rows, three skipped: ' .. logs[1])
 
     ----------------------------------------------------------------------
     -- 4. cadence: a burst of ten spawns is ONE rebuild, and a tick with
@@ -390,8 +410,9 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     --    stack multiply -- which is where the reference truncates too
     ----------------------------------------------------------------------
 
-    -- obj 560 has a cache cost of 100 and a prices.txt override of 1, and
-    -- there are ten of it on the tile. Priced from the cache the stack alches
+    -- The death rune has a cache cost of 100 and a prices.txt override of 1
+    -- (spelled `DEATH RUNE`, so this is also where the match is proved
+    -- case-insensitive), and there are ten of it on the tile. Priced from the cache the stack alches
     -- to (100*3//5)*10 = 600; priced from the override it alches to
     -- (1*3//5)*10 = 0. A threshold of 500 tells the two apart.
     stacks = { stack(560, 3211, 3425, 100, 10) }
@@ -494,7 +515,7 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     -- prices.txt row for coins does not get a say either -- it is a correction
     -- of whatever the lookup answered, not a fallback for a lookup that
     -- answered nothing.
-    files['prices.txt'] = '995 = 100\n'
+    files['prices.txt'] = 'Coins = 100\n'
     start()
     assert(logs[1] == 'prices.txt: 1 price overrides', logs[1])
     config.tier, config.value_mode = 'low', 'alch'
@@ -509,7 +530,38 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     product.on_config_changed(api, 'low_value')
     tick()
     assert(beams_up() == 1, 'and still 5000')
-    files['prices.txt'] = '1127=39000\n# a comment\n\n560 = 1\nnonsense\n'
+    files['prices.txt'] = 'Rune scimitar=39000\n# a comment\n\n'
+        .. 'DEATH RUNE = 1\nnonsense\n# Rune scimitar = 1\n1127 = 77\n'
+
+    ----------------------------------------------------------------------
+    -- 6b2. an OBJ ID in the price table prices nothing
+    --
+    -- The shipped table was `obj_id = price` and its header said the ids were
+    -- for one specific cache. Read on any other cache a row matched nothing --
+    -- or matched whatever item had inherited the number, which is a
+    -- twenty-five-million-gp beam over a bronze dagger. Since an override is
+    -- the only thing that can lift a stack to these thresholds (a cache cost
+    -- is a shop number and no shop number reaches a million), that made a beam
+    -- structurally impossible on every lane but the one the file was written
+    -- against. The row is now inert: it is a name, and nothing is called 1127.
+    ----------------------------------------------------------------------
+
+    start()
+    config.tier, config.value_mode = 'low', 'value'
+    config.low_value = 100
+    product.on_config_changed(api, 'low_value')
+    -- `1127 = 77` is in the file and this stack IS obj 1127, with a cache cost
+    -- of 1 -- but it is called "Bronze dagger", so the row cannot reach it.
+    -- Priced by the id row it would be 77 and lit; priced from the cache it is
+    -- 1 and dark.
+    stacks = { stack(1127, 3210, 3424, 1, 1, 0, 'Bronze dagger') }
+    product.on_item_spawn(api, {}); tick()
+    assert(beams_up() == 0,
+        'an obj id in the price table is a name nothing has, not a price')
+    -- The same stack under the name the row for it IS keyed on: 39000, lit.
+    stacks = { stack(1127, 3210, 3424, 1, 1, 0, 'Rune scimitar') }
+    product.on_item_changed(api, {}); tick()
+    assert(beams_up() == 1, 'and the NAME row prices it')
 
     ----------------------------------------------------------------------
     -- 6c. the PLANE
@@ -781,6 +833,38 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     stacks = {}
     product.on_item_despawn(api, {}); tick()
     assert(logs[#logs] == '0 beam(s) over 0 ground stack(s)', logs[#logs])
+
+    -- 13b. ...and when the FLOOR moves under an unchanged beam count.
+    --
+    -- This is the reading the line exists to give and the one it could not
+    -- reach. The line's whole job is to separate "nothing on the floor clears
+    -- the threshold" from "beams exist and are not being drawn", which makes
+    -- 0-over-N its most important output -- and it used to be gated on the
+    -- BEAM count alone, so with live stuck at 0 a floor covered in loot
+    -- printed exactly what an empty floor printed: nothing. That is how this
+    -- plugin came to be reported as drawing nothing on a lane where it was
+    -- correctly drawing nothing, and the report cost a full investigation of
+    -- the scene path before anyone measured the floor.
+    start()
+    config.tier, config.low_value = 'low', 1000000
+    product.on_config_changed(api, 'low_value')
+    stacks = { stack(526, 3210, 3424, 4000), stack(526, 3211, 3425, 4000),
+               stack(526, 3212, 3426, 4000) }
+    product.on_item_spawn(api, {}); tick()
+    assert(beams_up() == 0, 'nothing on this floor clears a million')
+    assert(logs[#logs] == '0 beam(s) over 3 ground stack(s)',
+        'a floor with loot on it says so, even when no beam is raised: ' ..
+        tostring(logs[#logs]))
+    lines = #logs
+    -- Still only when something moves: the same floor twice more is silent.
+    product.on_item_changed(api, {}); tick()
+    product.on_item_changed(api, {}); tick()
+    assert(#logs == lines, 'an unchanged floor with no beams is still one line, not one a tick')
+    -- And the tally alone moving is a new reading.
+    stacks[4] = stack(526, 3213, 3427, 4000)
+    product.on_item_spawn(api, {}); tick()
+    assert(logs[#logs] == '0 beam(s) over 4 ground stack(s)',
+        'the stack count moving is a change worth a line: ' .. tostring(logs[#logs]))
 
     ----------------------------------------------------------------------
     -- 14. a world load clears first and rebuilds from scratch

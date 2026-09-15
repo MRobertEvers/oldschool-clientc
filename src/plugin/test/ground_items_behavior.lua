@@ -134,7 +134,12 @@ return {id='ground-behavior',on_start=function(host)
     -- reconciler happened to write nothing" are not the same claim.
     local setters, revalidates, staged = 0, 0, false
     local capabilities = { cs2_scripts = true }
-    local assets = { ['prices.txt'] = '# a comment\n1127 = 65000\nnot a row\n' }
+    -- Keyed by NAME. `# Rune platebody = 1` is a commented-out row and
+    -- `1127 = 65000` is an obj id: the first is the shape the old whole-file
+    -- gmatch matched anyway, and the second is the shape that shipped -- an id
+    -- from one cache, read on every cache. Neither may price anything.
+    local assets = { ['prices.txt'] = '# a comment\nABYSSAL WHIP = 65000\n'
+        .. 'not a row\n# Abyssal whip = 1\n1127 = 3\n' }
     local asset_requests = {}
     local table_failed = {}
     local notified = {}
@@ -451,15 +456,26 @@ return {id='ground-behavior',on_start=function(host)
     -- is not the default.
     assert(#drawn==2 and drawn[1].x==101 and drawn[1].y==101 and drawn[1].color==0x000000,
         'the default is one shadow, one pixel down-right')
-    -- The price table is the FILE's and not the cache's: prices.txt overrides
-    -- 1127 to 65000 where ObjType.cost says 39000, and the alch price is
-    -- floor(unit * 3/5) per unit before the stack multiply. 39000 alch is over
-    -- the 20000 low threshold and under the 100000 medium one, so the ink is
-    -- the low tier's colour.
     assert(drawn[2].x==100 and drawn[2].y==100 and drawn[2].color==config.low_color,
         'the ink is last and carries the colour')
-    assert(drawn[2].text=='Rune platebody (EX: 65K gp) (HA: 39K gp)',
+    assert(drawn[2].text=='Rune platebody (EX: 39K gp) (HA: 23K gp)',
         'name, then the prices the mode asks for, each only when non-zero')
+
+    -- The price table is the FILE's and not the cache's, and it is keyed on
+    -- the item's NAME. It overrides `Abyssal whip` to 65000 where ObjType.cost
+    -- says 39000, and the alch price is floor(unit * 3/5) per unit before the
+    -- stack multiply. Matched case-insensitively (the row is spelled
+    -- ABYSSAL WHIP), and neither the commented-out row nor the `1127 = 3` one
+    -- is read -- the second is the shape that shipped, an obj id from one
+    -- cache read on every cache, and it is now a name nothing is called.
+    obj.name='Abyssal whip';drawn={}
+    product.on_draw_world(api,graphics)
+    assert(drawn[2].text=='Abyssal whip (EX: 65K gp) (HA: 39K gp)',
+        'the NAME row prices the stack: '..drawn[2].text)
+    obj.obj_id=1127;obj.name='Rune platebody';drawn={}
+    product.on_draw_world(api,graphics)
+    assert(drawn[2].text=='Rune platebody (EX: 39K gp) (HA: 23K gp)',
+        'and an obj id the file lists prices nothing: '..drawn[2].text)
 
     origin={3192,3400};drawn={};projections={}
     product.on_draw_world(api,graphics)
@@ -470,13 +486,13 @@ return {id='ground-behavior',on_start=function(host)
     assert(#drawn==0 and #projections==0,'no world means no projection')
     origin={3184,3392}
 
-    -- The stack size and the price mode. An id the price file does NOT name
+    -- The stack size and the price mode. An item the price file does NOT name
     -- falls back to the cache's own OC_COST, which is also what makes obj.cost
     -- the lever for every value case below.
     obj.obj_id=4151;obj.cost=100;obj.count=5;drawn={}
     product.on_draw_world(api,graphics)
     assert(drawn[2].text=='Rune platebody (5) (EX: 500 gp) (HA: 300 gp)',
-        'an id the price file does not name is priced from OC_COST, per unit then stacked')
+        'an item the price file does not name is priced from OC_COST, per unit then stacked')
     obj.count=65535;drawn={}
     product.on_draw_world(api,graphics)
     assert(drawn[2].text:find('(Lots!)',1,true),'65535 is where the reference stops counting')
@@ -545,8 +561,8 @@ return {id='ground-behavior',on_start=function(host)
         'and is worth exactly 5000 -- the correction is one gp a coin, not 0.6 of one')
     config.set('low_value',20000)
     config.set('hidden_items','Vial, Ashes, Coins, Bones, Bucket, Jug, Seaweed')
-    -- Back to the id the block below expects: 4151 is the one prices.txt does
-    -- NOT name, so obj.cost is the lever again.
+    -- Back to what the block below expects: `Rune platebody` is a name
+    -- prices.txt does NOT carry, so obj.cost is the lever again.
     obj.obj_id=4151;obj.name='Rune platebody';obj.cost=100;obj.count=1
 
     -- ---------------------------------------------------- the tier zero gate
@@ -808,7 +824,7 @@ return {id='ground-behavior',on_start=function(host)
     product.on_item_spawn(api,obj)
     product.on_item_spawn(api,obj)
     assert(#notified==1 and notified[1].kind=='highlight' and notified[1].subject==1127 and
-        notified[1].text=='highlighted drop: Rune platebody (EX: 65K gp) (HA: 39K gp)',
+        notified[1].text=='highlighted drop: Rune platebody (EX: 39K gp) (HA: 23K gp)',
         'a highlighted drop is one announcement per obj per frame')
     config.set('notify_highlighted',false);config.set('highlighted_items','')
     config.set('notify_tier','low')
