@@ -8637,7 +8637,17 @@ exec_widget_set_position(
      * TORIRS_DUMP_SETSIZE above; both CC_SETPOSITION and IF_SETPOSITION come
      * through here, so one line covers the whole opcode pair, and
      * host->trace_script_id names the clientscript whose ThreadRun is on the
-     * stack. Without it a moved box is a fact with no author. */
+     * stack. Without it a moved box is a fact with no author.
+     *
+     * TORIRS_REPORT, not TORIRS_LOG, for the reason TORIRS_DUMP_BOUNDS gives:
+     * the shipping lane compiles -DNDEBUG, which strips TORIRS_LOG, and the
+     * gate binary and every porcelain shot ARE that build. Printed through
+     * TORIRS_LOG this facility answered "no script moved it" about a box a
+     * clientscript had just moved -- an answer that reads as the CLIENT having
+     * moved it, and is how interface 164's own two-row tab stacking
+     * (SETPOS 164|95 0,36 modes=2,2 script=901) nearly went down as a client
+     * defect. An instrument that goes silent in the build it is used in is
+     * worse than no instrument. */
     {
         static int setpos_want = -2;
         if( setpos_want == -2 )
@@ -8649,7 +8659,7 @@ exec_widget_set_position(
         {
             int const group = (component_id >> 16) & 0xffff;
             if( group == setpos_want || setpos_want == 0 )
-                TORIRS_LOG("SETPOS com=0x%08x (%d|%d) %d,%d modes=%d,%d script=%d\n",
+                TORIRS_REPORT("SETPOS com=0x%08x (%d|%d) %d,%d modes=%d,%d script=%d\n",
                     (unsigned)component_id,
                     group,
                     component_id & 0xffff,
@@ -8677,6 +8687,8 @@ exec_widget_set_size(
     struct UITree* tree = rs_cs2_tree(host);
     if( !tree )
         return CS2VM_EXECNO_OK;
+    /* TORIRS_DUMP_SETSIZE=<group>: the twin of TORIRS_DUMP_SETPOS below, and
+     * TORIRS_REPORT for the same reason it is. */
     {
         static int setsize_want = -2;
         if( setsize_want == -2 )
@@ -8688,7 +8700,7 @@ exec_widget_set_size(
         {
             int const group = (component_id >> 16) & 0xffff;
             if( group == setsize_want )
-                TORIRS_LOG("SETSIZE com=0x%08x (%d|%d) %dx%d modes=%d,%d\n",
+                TORIRS_REPORT("SETSIZE com=0x%08x (%d|%d) %dx%d modes=%d,%d\n",
                     (unsigned)component_id,
                     group,
                     component_id & 0xffff,

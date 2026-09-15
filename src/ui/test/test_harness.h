@@ -274,6 +274,7 @@ void test_hover_input(void);
 void test_click_event_coords(void);
 void test_pointer_owner_blocks_tree(void);
 void test_layout_build(void);
+void test_toplevel164_tab_strip(void);
 void test_mutate_emit(void);
 void test_apply_object_silhouette(void);
 void test_drag_composite(void);

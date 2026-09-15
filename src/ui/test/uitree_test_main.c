@@ -76,6 +76,7 @@ main(void)
     test_click_event_coords();
     test_pointer_owner_blocks_tree();
     test_layout_build();
+    test_toplevel164_tab_strip();
     test_mutate_emit();
     test_apply_object_silhouette();
     test_drag_composite();
