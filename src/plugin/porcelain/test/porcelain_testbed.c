@@ -1263,7 +1263,61 @@ fake_image_compose(struct ToriRS_Api* api, char const* name, int width, int heig
     (void)api;
     (void)argb;
     testbed_log("image_compose %s %dx%d", name, width, height);
-    out->value = 900 + (int)strlen(name);
+    /*
+     * A composed picture of a NEW SIZE is a new handle.
+     *
+     * This used to answer `900 + strlen(name)` -- the same eight bytes for a
+     * name whatever it was composed at -- and that made a whole class of defect
+     * untestable here: a control that re-asks the layer for its image and one
+     * that keeps the handle it has produced identical runs, because the answer
+     * never changed. It is the same fidelity gap Testbed_UnbindElement had, and
+     * it hid the same kind of bug.
+     *
+     * Same name AND same size still answers the same handle, which is what a
+     * real engine does when it recomposes over a slot it can reuse -- so the
+     * steady-state checks that compare refs across frames are untouched.
+     */
+    {
+        static struct { char name[64]; int width, height, value; } minted[32];
+        static int mint_count;
+        static int next_value = 900;
+
+        for( int i = 0; i < mint_count; i++ )
+            if( minted[i].width == width && minted[i].height == height &&
+                strcmp(minted[i].name, name) == 0 )
+            {
+                out->value = minted[i].value;
+                return TORIRS_ASSET_READY;
+            }
+        assert(mint_count < (int)(sizeof(minted) / sizeof(minted[0])));
+        snprintf(minted[mint_count].name, sizeof(minted[mint_count].name), "%s", name);
+        minted[mint_count].width = width;
+        minted[mint_count].height = height;
+        minted[mint_count].value = ++next_value;
+        out->value = minted[mint_count].value;
+        mint_count++;
+    }
+    /*
+     * A composed picture is REACHABLE BY ITS NAME afterwards.
+     *
+     * That is what composing means on the engine: the name now resolves to the
+     * picture that was just written under it, which is how a described item can
+     * say `item.image = "my_key.png"` for a key its own plugin composed. The
+     * fake published a handle and registered nothing, so any control naming a
+     * composed key resolved to no picture at all -- and every test of a derived
+     * picture reaching a control was impossible to write.
+     */
+    {
+        struct TestbedAsset* asset;
+
+        Testbed_DeclareAsset(name, TORIRS_ASSET_READY);
+        asset = testbed_asset(name);
+        assert(asset);
+        asset->state = TORIRS_ASSET_READY;
+        asset->value = (int)out->value;
+        asset->width = width;
+        asset->height = height;
+    }
     return TORIRS_ASSET_READY;
 }
 

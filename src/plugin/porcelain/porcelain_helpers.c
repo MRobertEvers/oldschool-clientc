@@ -1061,6 +1061,23 @@ Porcelain_Derived(struct Porcelain* porcelain, char const* key, void const* inpu
         return slot->ref;
     }
 
+    /*
+     * About to compose OVER a name this handle may already have resolved, so
+     * the handle it resolved to stops meaning this picture. @see
+     * Porcelain_ImageForget, whose own doc comment asks to be called here and
+     * which nothing in this file was calling.
+     *
+     * What it costs to skip is invisible until a derived key recomposes at a
+     * NEW SIZE: image_compose hands back a fresh ToriRS_ImageRef, the applied
+     * control keeps the old one -- porcelain_apply_properties re-resolves only
+     * when the image NAME changes, and the name did not -- and the control goes
+     * on wearing a picture of the wrong size. The screenshot plugin's report
+     * plate is 79x23 on three toplevels and absent on the fourth, so nothing
+     * ships that reaches it today; a runtime switch to a differently-sized
+     * button would.
+     */
+    Porcelain_ImageForget(porcelain, key);
+
     pixels = malloc((size_t)width * (size_t)height * sizeof(*pixels));
     assert(pixels);
     porcelain->counters.allocations++;
@@ -1139,8 +1156,33 @@ Porcelain_ImageForget(struct Porcelain* porcelain, char const* name)
         {
             memset(&porcelain->images[i], 0, sizeof(porcelain->images[i]));
             porcelain->stamp[PORCELAIN_INPUT_ASSET]++;
-            return;
+            break;
         }
+    /*
+     * And every control already WEARING that name asks again.
+     *
+     * Dropping the handle cache alone was half a forget. porcelain_refresh_image
+     * only re-resolves while an item's image_state is PENDING, and an item that
+     * resolved once is READY for ever -- so a control kept pointing at the
+     * handle it had, the layer went on setting the OLD picture, and the only
+     * thing the forget achieved was that the NEXT control to ask got the new
+     * one. Two controls under one name then disagreed about what that name
+     * meant.
+     *
+     * Putting them back to PENDING is not a repaint: refresh_image compares the
+     * ref it gets against the one it holds and only marks the item dirty if
+     * they actually differ, so a forget of a name that recomposed to the same
+     * handle still costs nothing.
+     */
+    for( int i = 0; i < PORCELAIN_ITEMS_MAX; i++ )
+    {
+        struct PorcelainAppliedItem* applied = &porcelain->applied_items[i];
+        if( !applied->live || !applied->item.has_image )
+            continue;
+        if( strcmp(applied->item.image.text, name) != 0 )
+            continue;
+        applied->image_state = PORCELAIN_ASSET_PENDING;
+    }
 }
 
 void

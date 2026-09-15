@@ -6878,6 +6878,98 @@ test_repeated_logins_do_not_grow_the_watch_table(void)
           "and exactly one control, not five");
 }
 
+
+/*
+ * A control wearing a derived picture follows it when it recomposes larger.
+ *
+ * Porcelain_Derived hands back a NEW ToriRS_ImageRef when a key is recomposed
+ * at a new size -- the engine allocated a different picture -- and the control
+ * already wearing that name kept the handle it had. porcelain_apply_properties
+ * re-resolves an image only when the NAME changes, and the name did not; and
+ * Porcelain_Image caches name -> handle and never re-asks once READY. So the
+ * layer went on setting a picture of the old size, under a name that now means
+ * a different one.
+ *
+ * Porcelain_ImageForget is documented for exactly this ("call it after
+ * composing over a name this handle may already have resolved") and nothing in
+ * porcelain_helpers.c was calling it. Calling it was also only half the repair:
+ * dropping the handle cache made the NEXT control to ask get the new picture
+ * and left every control already wearing the name on the old one, so two
+ * controls under one name disagreed about what it meant. The forget puts them
+ * back to PENDING, which is the only state porcelain_refresh_image re-asks in.
+ *
+ * MUTATION ONE: delete the Porcelain_ImageForget call in Porcelain_Derived.
+ * MUTATION TWO: keep the call and delete the loop in Porcelain_ImageForget that
+ * puts applied items back to PENDING.
+ * Either one turns "the control follows the picture to its new handle" red.
+ *
+ * The testbed earns this: fake_image_compose used to answer one handle per
+ * NAME whatever the size, so a control that re-asked and one that never did
+ * produced identical runs.
+ */
+static char const* g_derived_key = "composed_plate.png";
+
+static void
+derived_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct PorcelainItem item;
+
+    (void)user;
+    memset(&item, 0, sizeof(item));
+    item.key = "plate";
+    item.image = g_derived_key;
+    item.place.kind = PORCELAIN_INSIDE;
+    item.place.on = PORCELAIN_EL(CHAT_BAR);
+    item.place.corner_or_side = PORCELAIN_TOP_LEFT;
+    item.w = 20;
+    item.h = 20;
+    describe->piece(describe, &item);
+}
+
+static void
+test_a_recomposed_picture_reaches_the_control_wearing_it(void)
+{
+    struct Porcelain* porcelain;
+    struct PaintCounter counter = {0, false};
+    enum PorcelainDerivedState state = PORCELAIN_DERIVED_PENDING;
+    int inputs[2] = {1, 1};
+    struct ToriRS_ImageRef first;
+    struct ToriRS_ImageRef second;
+    struct TestbedControl const* control;
+
+    Testbed_Reset();
+    declare_chrome();
+    Testbed_BindElement("report_button");
+    Testbed_BindElement("chat_bar");
+
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    first = Porcelain_Derived(porcelain, g_derived_key, inputs, sizeof(inputs), 79, 23,
+                              counting_paint, &counter, &state);
+    CHECK(state == PORCELAIN_DERIVED_READY, "the first compose is READY");
+
+    Porcelain_Describe(porcelain, derived_describe, NULL);
+    fence(porcelain);
+    fence(porcelain);
+    control = Testbed_Control("plate");
+    CHECK(control && control->live, "the control is up");
+    CHECK(control && control->image.value == first.value,
+          "and wears the picture that was composed for it");
+
+    /* The same key at a different SIZE: a different picture, same name. */
+    inputs[0] = 2;
+    second = Porcelain_Derived(porcelain, g_derived_key, inputs, sizeof(inputs), 120, 23,
+                               counting_paint, &counter, &state);
+    CHECK(state == PORCELAIN_DERIVED_READY, "the recompose is READY too");
+    CHECK(first.value != second.value,
+          "and it is a DIFFERENT handle, because it is a different picture");
+
+    fence(porcelain);
+    fence(porcelain);
+    control = Testbed_Control("plate");
+    CHECK(control && control->image.value == second.value,
+          "the control follows the picture to its new handle");
+}
+
 int
 main(void)
 {
@@ -6995,6 +7087,7 @@ main(void)
     test_logout_clears_the_bindings_and_a_relogin_restores_them();
     test_repeated_logins_do_not_grow_the_watch_table();
     test_a_screen_change_re_runs_a_description_that_watches_nothing();
+    test_a_recomposed_picture_reaches_the_control_wearing_it();
 
     printf("porcelain: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

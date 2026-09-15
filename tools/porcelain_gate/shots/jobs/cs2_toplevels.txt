@@ -119,3 +119,27 @@ ehreveal-modern164 entity-highlighter modern164 'TORIRS_SIM_PLUGIN_CONFIG=60,ent
 ehtag-modern164 entity-highlighter modern164 TORIRS_SIM_KEYHOLD=42 TORIRS_SIM_KEYHOLD_FRAME=500 TORIRS_SIM_CLICK_NPC=560,5037,1 TORIRS_SIM_MENU_ROW=600,Tag TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 ehreveal-stone601 entity-highlighter stone601 'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108' TORIRS_SIM_KEYHOLD=42 TORIRS_SIM_KEYHOLD_FRAME=500 TORIRS_SIM_CLICK_NPC=620,5037,1 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all   # NO_KEYBOARD: no keyboard frame: the reveal rows are declared off here
 ehtag-stone601 entity-highlighter stone601 TORIRS_SIM_KEYHOLD=42 TORIRS_SIM_KEYHOLD_FRAME=500 TORIRS_SIM_CLICK_NPC=560,5037,1 TORIRS_SIM_MENU_ROW=600,Tag TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all   # NO_KEYBOARD: no keyboard frame: the reveal rows are declared off here
+
+# The two TILE groups the always-on-top bit distinguishes, armed side by side.
+#
+# nxt_highlight reads five flag bits and used to read four. The fifth says
+# WHERE, and without it the current-tile group (flags 2|8, no bit 16, which the
+# cache asks to be drawn UNDER the scene) and the Mark-tile group (flags
+# 2|8|16|64, which asks for the opposite) got the same picture: a wash over the
+# boots of whoever stood on the tile.
+#
+# varbit 12977 is what arms them -- verified, this row's own log carries
+#   NATIVE_HIGHLIGHT kind=7 group=2 ... flags=10   (2|8, goes under)
+#   NATIVE_HIGHLIGHT kind=7 group=6 ... flags=90   (2|8|16|64, goes over)
+# which is the contrast pair, and the flags are the whole claim.
+#
+# WHAT THIS ROW STILL CANNOT DO, written down rather than left to be rediscovered:
+# both groups report members=0, so nothing is drawn. A tile becomes a MEMBER
+# through the right-click "Mark tile" op, and no sim knob in this harness reaches
+# it -- TORIRS_SIM_CLICK_AT plus TORIRS_SIM_MENU_ROW=<frame>,Mark never fires,
+# because the ground menu on this fixture has no such row. So the depth fix is
+# covered by test-nxt-plugins and by the flags this row proves are distinct, and
+# NOT by a picture of a wash under a model. Getting one needs a mark-tile op in
+# the fixture, or a sim knob that adds a highlight member directly.
+nxthl-tilegroups-classic548 nxt-highlight classic548 'TORIRS_SIM_VARBIT=450,13088,1;452,12977,1' TORIRS_SIM_MOVE_AT=600,280,190 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1
+
