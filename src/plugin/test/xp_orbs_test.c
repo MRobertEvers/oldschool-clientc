@@ -1333,6 +1333,74 @@ main(void)
             CHECK(hi_last - lo_last == 40, "and where it finishes, by the same 40");
             PluginHost_ConfigSet(g_host, index, "drop_offset_y", "20");
         }
+        /*
+         * Nineteen skills raised in ONE poll -- ~maxme, a quest reward, a
+         * lamp, a skill cape. The globe row holds five and the drop table
+         * eight, so the table overflows and has to choose which labels to
+         * keep; it chooses by ARRIVAL, and the five skills that own a globe
+         * are the five that arrived last, so every globe keeps its own label.
+         *
+         * Before it chose that way it compared millisecond stamps -- which in
+         * one poll are all the SAME millisecond, so the scan never left slot 0
+         * and every gain after the eighth overwrote it. Five globes, ONE
+         * label, and nothing in any log to say so.
+         */
+        {
+            struct FakeControl const* many[8];
+            int saved_xp[25];
+            int saved_level[25];
+            int shown = 0;
+            int labelled = 0;
+            /* Every skill's reading is about to move, and the blocks after
+             * this one are written against the table as it stands. */
+            memcpy(saved_xp, g_xp, sizeof(saved_xp));
+            memcpy(saved_level, g_level, sizeof(saved_level));
+            g_now_ms += 30000;
+            frame();
+            g_now_ms += 600;
+            for( int skill = 0; skill <= 20; skill++ )
+            {
+                if( skill == 18 || skill == 19 )
+                    continue;
+                g_level[skill] = 50;
+                if( g_xp[skill] < g_level_xp[48] )
+                    g_xp[skill] = g_level_xp[48];
+                g_xp[skill] += 4242;
+            }
+            tick();
+            frame();
+            shown = globes(many);
+            CHECK(shown == 5, "nineteen gains in one poll fill the five-globe row");
+            for( int i = 0; i < shown; i++ )
+            {
+                int const centre = many[i]->x + many[i]->w / 2;
+                for( int c = 0; c < g_control_count; c++ )
+                {
+                    struct FakeControl const* label = &g_control[c];
+                    int label_centre;
+                    if( !label->alive || !label->image )
+                        continue;
+                    if( strncmp(label->key, "drop", 4) != 0 )
+                        continue;
+                    label_centre = label->x + label->w / 2;
+                    if( label_centre >= centre - 2 && label_centre <= centre + 2 )
+                    {
+                        labelled++;
+                        break;
+                    }
+                }
+            }
+            CHECK(labelled == shown, "and EVERY one of those globes keeps its own label");
+            /* Put the table back. A reading that goes DOWN re-seeds rather
+             * than reporting a negative gain, so one poll leaves the plugin
+             * where this block found it. */
+            memcpy(g_xp, saved_xp, sizeof(saved_xp));
+            memcpy(g_level, saved_level, sizeof(saved_level));
+            g_now_ms += 30000;
+            tick();
+            frame();
+            CHECK(globes(many) == 0, "and the row empties once they expire");
+        }
         g_now_ms += 30000;
         frame();
         CHECK(control_named("drop") == NULL, "expired labels remove their controls");

@@ -270,6 +270,8 @@ struct XpGlobe
     int level;
     /** When it appeared, or was last touched by a hover. */
     uint64_t at_ms;
+    /** Where it falls in the arrival order. @see orb_seq_next. */
+    uint64_t seq;
 };
 
 
@@ -285,6 +287,14 @@ struct XpGlobe
  * free slot takes the oldest -- the same rule the globes themselves use, and
  * for the same reason: at the point where six labels are in flight, the one
  * that has been readable longest is the one nobody is still reading.
+ *
+ * "Oldest" is `seq` and not `at_ms`, because the case that overflows this
+ * table is precisely the case where at_ms cannot answer: one poll of
+ * UPDATE_STAT can raise every skill at once -- ~maxme, a quest reward, a
+ * lamp -- and then all nine, or nineteen, gains carry the SAME millisecond.
+ * A clock comparison has no answer there, so whichever slot the scan reached
+ * first stayed put and every gain after the eighth landed on that one slot,
+ * leaving one label on screen out of five globes that had earned one.
  */
 struct XpDrop
 {
@@ -292,6 +302,8 @@ struct XpDrop
     int skill;
     int amount;
     uint64_t at_ms;
+    /** Where it falls in the arrival order. @see orb_seq_next. */
+    uint64_t seq;
 };
 
 #define ORB_DROP_MAX 8
@@ -449,6 +461,8 @@ struct XpOrbState
     struct XpGlobe globe[ORB_MAX_SHOWN];
     int globe_count;
     struct XpDrop drop[ORB_DROP_MAX];
+    /** Hands out the arrival order both tables evict by. @see orb_seq_next. */
+    uint64_t seq_next;
     int* seen_xp;
     struct XpTrack* track;
     int skill_count;
@@ -513,6 +527,7 @@ struct XpOrbState
 #define g_globe (state->globe)
 #define g_globe_count (state->globe_count)
 #define g_drop (state->drop)
+#define g_seq_next (state->seq_next)
 #define g_seen_xp (state->seen_xp)
 #define g_track (state->track)
 #define g_skill_count (state->skill_count)
@@ -1063,6 +1078,20 @@ orb_arc_offset(struct ToriRS_Api* api)
 
 /* -------------------------------------------------------------- the globes */
 
+/**
+ * The next arrival number, which is what both tables mean by "oldest".
+ *
+ * Strictly increasing per call, so two entries never tie however many gains
+ * share a millisecond -- a tie is the only thing a millisecond stamp cannot
+ * break, and it is the case that overflows these tables. @see struct XpDrop.
+ */
+static uint64_t
+orb_seq_next(struct XpOrbState* state)
+{
+    assert(state);
+    return ++g_seq_next;
+}
+
 /** Drop globe `slot`, keeping the rest in order. */
 static void
 orb_remove(struct XpOrbState* state, int slot)
@@ -1099,6 +1128,7 @@ orb_add(struct XpOrbState* state, int skill, int xp, int level, uint64_t now)
         g_globe[i].xp = xp;
         g_globe[i].level = level;
         g_globe[i].at_ms = now;
+        g_globe[i].seq = orb_seq_next(state);
         return;
     }
 
@@ -1106,7 +1136,7 @@ orb_add(struct XpOrbState* state, int skill, int xp, int level, uint64_t now)
     {
         int oldest = 0;
         for( int i = 1; i < g_globe_count; i++ )
-            if( g_globe[i].at_ms < g_globe[oldest].at_ms )
+            if( g_globe[i].seq < g_globe[oldest].seq )
                 oldest = i;
         orb_remove(state, oldest);
     }
@@ -1120,6 +1150,7 @@ orb_add(struct XpOrbState* state, int skill, int xp, int level, uint64_t now)
     g_globe[at].xp = xp;
     g_globe[at].level = level;
     g_globe[at].at_ms = now;
+    g_globe[at].seq = orb_seq_next(state);
     g_globe_count++;
 }
 
@@ -1142,13 +1173,14 @@ orb_drop_add(struct XpOrbState* state, int skill, int amount, uint64_t now)
             at = i;
             break;
         }
-        if( at < 0 || g_drop[i].at_ms < g_drop[at].at_ms )
+        if( at < 0 || g_drop[i].seq < g_drop[at].seq )
             at = i;
     }
     assert(at >= 0);
     g_drop[at].skill = skill;
     g_drop[at].amount = amount;
     g_drop[at].at_ms = now;
+    g_drop[at].seq = orb_seq_next(state);
 }
 
 /** Forget every globe and every session number. What a logout is. */
@@ -1755,7 +1787,13 @@ orb_plan(struct XpOrbState* state, struct OrbViewport const* viewport, uint64_t 
             if( dx * dx + dy * dy <= (size / 2) * (size / 2) )
             {
                 slot->picture.hovered = 1;
+                /* A hover is a TOUCH, and a touch has to move both clocks:
+                 * at_ms is what holds the globe past its duration, and seq is
+                 * what stops the next skill's gain evicting the one under the
+                 * pointer. Moving only the first put the globe a player was
+                 * reading at the front of the eviction queue. */
                 globe->at_ms = now;
+                globe->seq = orb_seq_next(state);
                 hovered_slot = i;
                 hovered_goal = next_xp > level_xp ? next_xp : 0;
             }
