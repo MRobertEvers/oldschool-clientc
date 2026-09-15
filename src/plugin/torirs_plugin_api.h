@@ -1403,7 +1403,12 @@ struct PorcelainMotion
  * TORIRS_TRACE_NATIVE_UI as
  *
  *   PORCELAIN_FINDING plugin= verb= element= result= detail= expected=
- *                     first_frame= count=
+ *                     [why=] first_frame= count=
+ *
+ * and under TORIRS_PLUGIN_LOG too, because a finding is a PLUGIN diagnostic
+ * and every capture already asks for that log; gating it on the widget-tree
+ * trace alone made a plugin whose only output is a finding invisible in a
+ * shot. `why=` is written only where a declaration gave one.
  *
  * Silence is the class the record says hurt most: a plugin that ignores a
  * return value has no consequence until a screenshot is zoomed.
@@ -1456,6 +1461,21 @@ struct PorcelainFinding
     char const* detail;
     /** Declared through expect_absent: ignored by the clean gate. */
     bool expected;
+    /**
+     * WHY the declaration said this was expected, or "" when nothing declared
+     * it.
+     *
+     * The reason a plugin passes to `expect_absent` / `expect_unsupported`,
+     * carried onto every finding that declaration covers. It used to be stored
+     * and never read by anything -- no accessor, no field, no trace line -- so
+     * an UNSUPPORTED finding said the feature name as its element and again as
+     * its detail and never once said the cause, and three builtins wrote a
+     * sentence expressly for the log that the log threw away.
+     *
+     * Never NULL: the empty string is "nobody declared this", which is the
+     * ordinary case for a finding that is a plain failure.
+     */
+    char const* why;
     uint32_t first_frame, count;
 };
 

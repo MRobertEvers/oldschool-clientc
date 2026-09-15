@@ -3032,10 +3032,18 @@ test_an_absence_can_be_declared_when_it_is_found(void)
     CHECK(Porcelain_Findings(porcelain, findings, 8) == 1, "and says so, once");
     CHECK(!findings[0].expected, "unexpected until the plugin declares it");
 
+    CHECK(findings[0].why[0] == '\0', "and nothing says why, because nothing has declared it");
+
     Porcelain_ExpectAbsent(porcelain, PORCELAIN_EL(REPORT_BUTTON), "no report button here");
     CHECK(Porcelain_Findings(porcelain, findings, 8) == 1, "the declaration adds no finding");
     CHECK(findings[0].expected, "it marks the one already recorded");
     CHECK(findings[0].result == PORCELAIN_FINDING_ABSENT_EXPECTED, "as a declared absence");
+    /* And the REASON comes with the label. The declaration's `why` was stored
+     * in the expectation table and read by nothing at all -- no accessor, no
+     * field, no trace line -- so a capture could see that an absence was
+     * declared and never why.
+     * MUTATION: pass "" for why in porcelain_relabel_absence. Red here. */
+    CHECK(strcmp(findings[0].why, "no report button here") == 0, "and it says why");
     Porcelain_Close(porcelain);
 
     /* The other direction still bites: a declaration on a lane that HAS the
@@ -3077,6 +3085,19 @@ test_a_limitation_can_be_declared(void)
     CHECK(count == 1, "the declaration is itself one finding -- the point is that it shows");
     CHECK(findings[0].result == PORCELAIN_FINDING_UNSUPPORTED, "an unsupported feature");
     CHECK(findings[0].expected, "and it is expected, so the clean gate still passes");
+    /*
+     * And it SAYS WHY.
+     *
+     * The reason used to be copied into the declaration table and read by
+     * nothing: no accessor, no field, no trace line. An UNSUPPORTED finding
+     * then named the feature as its element and again as its detail and never
+     * gave the cause, so the sentence three builtins wrote expressly for the
+     * log was discarded.
+     *
+     * MUTATION: drop the `why` copy in Porcelain_RecordFinding. Red here.
+     */
+    CHECK(strcmp(findings[0].why, "no verb measures a string") == 0,
+          "and the declaration's reason is on the finding it covers");
 
     /* And it covers a later refusal through a different route: Require
      * records verb=require, the describe builder records verb=unsupported,
@@ -3086,7 +3107,14 @@ test_a_limitation_can_be_declared(void)
     count = Porcelain_Findings(porcelain, findings, 8);
     CHECK(count == 2, "with its own finding");
     for( int i = 0; i < count; i++ )
+    {
         CHECK(findings[i].expected, "and every one of them is declared");
+        /* Every route, not just the declaration's own line: `require` records
+         * verb=require with the feature as its detail, and the reason has to
+         * reach that one too or the log still never says the cause. */
+        CHECK(strcmp(findings[i].why, "no verb measures a string") == 0,
+              "and every one of them carries the reason");
+    }
     Porcelain_Close(porcelain);
 
     /*
@@ -3116,14 +3144,63 @@ test_a_limitation_can_be_declared(void)
     count = Porcelain_Findings(porcelain, findings, 8);
     CHECK(count == 1, "and it is one finding");
     CHECK(!findings[0].expected, "undeclared, at the instant it was recorded");
+    CHECK(findings[0].why[0] == '\0', "and nothing has said why, because nothing declared it");
     Porcelain_ExpectUnsupported(porcelain, "cache highlights", "no CS2 highlight groups here");
     count = Porcelain_Findings(porcelain, findings, 8);
     CHECK(count == 2, "the declaration is its own finding, as before");
     for( int i = 0; i < count; i++ )
+    {
         CHECK(findings[i].expected,
               "the refusal that PROMPTED the declaration is covered by it");
+        /* The relabel carries the REASON in as well as the label: a finding
+         * that predates the declaration reads back the same as one that
+         * follows it.
+         * MUTATION: drop the why copy in Porcelain_RelabelUnsupported. Red. */
+        CHECK(strcmp(findings[i].why, "no CS2 highlight groups here") == 0,
+              "reason and all");
+    }
     Porcelain_Close(porcelain);
 }
+
+/*
+ * The same sentence, on an absence DECLARED BEFORE it is found.
+ *
+ * The relabel path is covered above; this is the other order, where the
+ * finding is born under the declaration and the reason has to arrive through
+ * Porcelain_RecordFinding rather than through the relabel.
+ *
+ * MUTATION: drop the absence arm of the declaration lookup in
+ * Porcelain_RecordFinding. Red: the declared absence says nothing.
+ */
+static void
+test_a_declared_absence_says_why(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[8];
+    struct PorcelainElementState state;
+
+    Testbed_Reset();
+    /* Something of this lane HAS resolved, or nothing is absent, only early.
+     * @see absent_report_describe. */
+    Testbed_DeclareElement("chat_bar", 0, 460, 500, 22);
+    Testbed_BindElement("chat_bar");
+    Testbed_DeclareAsset("camera.png", TORIRS_ASSET_READY);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_ExpectAbsent(porcelain, PORCELAIN_EL(REPORT_BUTTON),
+                           "the 2004 frame has no report button");
+    Porcelain_Describe(porcelain, absent_report_describe, NULL);
+    fence(porcelain);
+    fence(porcelain);
+    fence(porcelain);
+    CHECK(!Porcelain_Element(porcelain, PORCELAIN_EL(REPORT_BUTTON), &state),
+          "this lane has no report button");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 1, "one absence");
+    CHECK(findings[0].result == PORCELAIN_FINDING_ABSENT_EXPECTED, "declared");
+    CHECK(strcmp(findings[0].why, "the 2004 frame has no report button") == 0,
+          "and it says why it is declared");
+    Porcelain_Close(porcelain);
+}
+
 
 static void
 within_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
@@ -6224,6 +6301,7 @@ main(void)
     test_panel_declaration_owed_after_a_refusal();
     test_panel_close_releases_the_pane();
     test_frame_offer_describes_and_releases();
+    test_a_declared_absence_says_why();
     test_frame_unsupported_reaches_the_host();
     test_frame_pending_until_the_lane_binds();
     test_frame_event_refusals();
