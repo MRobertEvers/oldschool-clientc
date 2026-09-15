@@ -398,3 +398,61 @@ coins at one gp each and two bones are worth.
 The 100M is not a rounding difference. The store held `cost * qty` in a field
 the plugin API documents as the price of ONE, so the quantity went in twice:
 10,000 * (1 * 10,000) = 100,000,000. The zoomed pair shows both halves at once.
+
+## `nxt5fresh{A,B}` and `nxt5cannonwarm` — the live lane's chat pane
+
+Three captures that settle `CANNON-BIRDNEST-LIVE-CHAT-COVERED`, and the reason
+they are three rather than a before/after pair: the control has to differ in the
+INTENDED VARIABLE ONLY, and the intended variable here is not the code.
+
+The defect report said the tutorial parchment owning the chat pane in
+`cannon-live`, `birdnest-live` and `control-live` was "a per-run race", because
+`nxthl-live` -- same job file, same `~skiptutorial` drive -- shows it skipped. It
+is not a race. It is whether the shot's account already existed:
+
+| capture | account | login | `CHAT_REGION` | row 434 chat rule |
+|---|---|---|---|---|
+| `nxt5freshA` | `szn5fresh01`, created by this run | first | `iface=6179 tut_com=6179 log_visible=0` | 10/470 |
+| `nxt5freshB` | `szn5fresh01`, **the same one** | second | `iface=-1 log_visible=1` | 470/470 |
+| `nxt5cannonwarm` | `scannon_liv`, `cannon-live`'s own | second | `iface=-1 log_visible=1` | 470/470 |
+
+`freshA` and `freshB` are one drive, one binary, one plugin and one account
+name, run twice. The only thing that differs is that the second one is not the
+account's first login -- and `login.rs2` runs `@start_tutorial` only while
+`%tutorial < ^tutorial_complete` AND the player stands on tutorial island, both
+of which are true exactly once. `nxt5cannonwarm` is the same statement made
+about the defect's own shot: `cannon-live`'s row, `cannon-live`'s account, one
+login later, with a chat pane in it.
+
+The shipped four, measured the same way: `cannon-live`, `birdnest-live` and
+`control-live` score 10/470 on that rule and their `.sav` files were born inside
+their own captures (23:37:24, 23:36:30, 23:31:49); `nxthl-live` scores 470/470
+and its account was born at 21:07:20, two and a half hours before the sweep.
+
+Why `~skiptutorial` cannot help: `tut_open` puts the box in the engine's TUT
+modal slot and `if_close` runs `Player.closeModal`, which clears modalMain,
+modalChat and modalSide and never modalTutorial -- only `tut_close` writes
+`TutOpen(-1)`. @see the note in `lostcity.sh` for the one-line server-side fix,
+which lives in the LostCity checkout and cannot be committed here.
+
+**What the harness could not see, and now can.** The tab strip is 46 colours in
+ALL THREE of these and in all four shipped shots -- a covered run and a clear one
+have the same sidebar, so `live_check.py`'s old "~12 colours means the tutorial
+never got skipped" could never separate them, and 37 of the 47 live captures
+taken on this lane's own 2004 frame shipped covered. The client now writes
+
+    CHAT_REGION iface=<id> chat_com=<id> tut_com=<id> log_visible=<0|1>
+
+beside every BMP -- the chat builtin draws neither its log nor its input line
+while an interface is mounted in that region, so this is the difference between
+"the plugin said nothing" and "the plugin's line had nowhere to go".
+`live_check.py` reads it and fails; a log without the line is `UNKNOWN-CHAT`,
+which is not a pass. `live_check_test.py` pins all of it, and `test-ui-slots`
+pins the client half.
+
+**Neither notification plugin could have drawn here anyway**, and that is the
+other half of the refutation: `revconfig/rs289lc/rs289lc_dat1_cache.ini`
+declares no `varbit:bird_nest` and no `varp:cannon_coord`, so both builtins'
+`Porcelain_Require` refuses at start and registers no sampler -- each run log
+says so twice as a `PORCELAIN_FINDING` on frame 0 -- and neither live drive
+produces a nest or a cannon to begin with.

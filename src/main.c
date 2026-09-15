@@ -4067,6 +4067,38 @@ frame_loop_teardown(void)
                     strlen(entry->text),
                     hash);
             }
+        /*
+         * WHO OWNS THE CHAT REGION IN THE PICTURE THAT WAS JUST TAKEN.
+         *
+         * Unconditional, and beside the BMP write rather than behind a trace
+         * flag, because it answers a question every capture of a chat-speaking
+         * plugin depends on and no capture could answer: the message log --
+         * and therefore every `Porcelain_Notify` line, every `mes`, every
+         * game message a plugin can produce -- is SUPPRESSED whenever an
+         * interface is mounted in the chat region. Not covered: not drawn at
+         * all. @see RS_UISlots_ChatRegionIface, and drawChat's `if
+         * (chatInterfaceId !== -1) ... else if (tutComId !== -1)` that it
+         * mirrors.
+         *
+         * Without this line a plugin that said nothing and a plugin whose line
+         * had nowhere to go are the SAME PICTURE, and that is not a theory:
+         * thirty-seven of the forty-seven live captures taken on this
+         * lane's own 2004 frame were photographed with a server modal owning
+         * the region, and nothing in the harness could say so -- the state was
+         * found by a person cropping one of them by hand. A log line costs
+         * nothing and every capture already keeps its log.
+         *
+         * `iface` is what the region shows: the IF_OPENCHAT dialogue if one is
+         * mounted, otherwise the tutorial-progress component, otherwise -1 for
+         * the message log itself. The two ids are printed alongside so the
+         * reader knows WHICH of the two owns it without a table.
+         */
+        TORIRS_REPORT(
+            "CHAT_REGION iface=%d chat_com=%d tut_com=%d log_visible=%d\n",
+            RS_UISlots_ChatRegionIface(&app.slots),
+            app.slots.chat_com_id,
+            app.slots.tut_com_id,
+            RS_UISlots_ChatRegionIface(&app.slots) == -1);
         bmp_write_file(
             getenv("TORIRS_EXIT_BMP"), pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         TORIRS_LOG("wrote %s\n", getenv("TORIRS_EXIT_BMP"));
