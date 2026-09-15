@@ -43,8 +43,12 @@ The file is ini-ish, one declaration per line, `kind target = reason`:
 its mirror, for a line the port ADDS; a port that moves a native box states
 one of each, because the box left one place and arrived at another.
 `role-move` names a ROLE whose resolved box changed. `owned-drop` names an
-owned key that must disappear. `normalise` strips `<name>=<value>` from every
-tail before comparing. Blank lines and lines beginning with # are ignored.
+owned key that must disappear and `owned-move` one whose box the port moves
+-- the twin of `role-move`, and it exists because without it a port that
+moves a NATIVE surface could not be declared at all: another plugin's control
+that follows that surface changes its box, and every other kind here is about
+capture lines or roles. `normalise` strips `<name>=<value>` from every tail
+before comparing. Blank lines and lines beginning with # are ignored.
 """
 import re, sys, collections
 
@@ -55,6 +59,7 @@ class Expectations:
     def __init__(self, path=None):
         self.only_before, self.only_after = {}, {}
         self.role_move, self.owned_drop, self.normalise = {}, {}, {}
+        self.owned_move = {}
         self.fired = collections.Counter()
         if not path:
             return
@@ -80,6 +85,7 @@ class Expectations:
                 raise SystemExit(f"{path}:{lineno}: `{kind}` names nothing")
             table = {"only-before": self.only_before, "only-after": self.only_after,
                      "role-move": self.role_move, "owned-drop": self.owned_drop,
+                     "owned-move": self.owned_move,
                      "normalise": self.normalise}.get(kind)
             if table is None:
                 raise SystemExit(f"{path}:{lineno}: unknown declaration `{kind}`")
@@ -122,12 +128,25 @@ class Expectations:
             return True
         return False
 
+    def excuses_moved_key(self, key):
+        """An owned control the port is declared to MOVE.
+
+        Not the same claim as owned-drop and not interchangeable with it: a
+        control that moved is still there, and a port that said `drop` about
+        one that merely moved would be excusing the wrong thing.
+        """
+        if key in self.owned_move:
+            self.fired[("owned-move", key)] += 1
+            return True
+        return False
+
     def report(self):
         """Print what each declaration did. A declaration nobody needed is a
         failure: it claims the port changes something it does not."""
         stale = []
         for kind, table in (("only-before", self.only_before), ("only-after", self.only_after),
                             ("role-move", self.role_move), ("owned-drop", self.owned_drop),
+                            ("owned-move", self.owned_move),
                             ("normalise", self.normalise)):
             for target, reason in table.items():
                 n = self.fired[(kind, target)]
@@ -235,7 +254,7 @@ def compare(before, after, label, expect):
     # are judged like everything else.
     measured = [k for k in diff if is_volatile(k) and ob[k][0] == oa[k][0]
                 and hidden_of(ob[k][1]) == hidden_of(oa[k][1])]
-    movedc = [k for k in diff if k not in measured]
+    movedc = [k for k in diff if k not in measured and not expect.excuses_moved_key(k)]
     print(f"{label}: owned controls {len(ob)} -> {len(oa)}, missing {len(gone)}, "
           f"added {len(new)}, moved {len(movedc)}, measured-text {len(measured)}")
     for k in gone[:6]: print("    - ", k, ob[k])

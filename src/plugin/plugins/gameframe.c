@@ -172,6 +172,29 @@ enum FrameLayout
 #define FRAME_C_CHAT_W 479
 #define FRAME_C_CHAT_H 96
 
+/*
+ * The 2004 filter strip: `backbase1`'s box, under the chat hole.
+ *
+ * On a dat1 lane this is the frame's BAR -- four hollows cut into it and four
+ * filter buttons placed on them. On a lane whose chat pack carries its own
+ * bar it is not a bar at all, and that is the whole of @see
+ * FRAME_C_CHAT_PACK_H.
+ */
+#define FRAME_C_STRIP_Y 453
+#define FRAME_C_STRIP_H 50
+
+/*
+ * What a pack that brings its own bar is given: the chat hole AND the strip.
+ *
+ * 96 + 50 = 146, and the number matters twice. It ends the pack at 503, the
+ * canvas's last row, so nothing of the 2004 bar band is left beside it -- and
+ * 146 - 23 = 123 rows of backing puts the pack's own 23-row bar at 480, which
+ * is exactly where interface 548 puts that same bar on its own frame. The
+ * pack is not being squeezed into a hole here, it is being seated on the row
+ * the lane seats it on.
+ */
+#define FRAME_C_CHAT_PACK_H (FRAME_C_CHAT_H + FRAME_C_STRIP_H)
+
 #define FRAME_O_ORBS_FIXED_DX (-29)
 #define FRAME_O_ORBS_FIXED_DY 0
 #define FRAME_O_ORBS_FIXED_W 236
@@ -836,8 +859,6 @@ struct FrameState
     /** The 2004 bar the two OldSchool layouts blit on a 2004 lane, with this
      *  frame's own four hollows cut into it. @see frame_chat_stones. */
     struct FrameSized chat_stones;
-    /** Plain rock covering the unused dat1 filter recesses on CS2 lanes. */
-    struct FrameSized base_flat;
     struct FrameSized chat_rail;
     struct FrameSized chat_base;
     /** The tiled panel backing at the box the resizable layout asked for. */
@@ -899,6 +920,20 @@ struct FrameState
     uint64_t viewport_incarnation;
     bool remounted;
     /*
+     * The frame root the last COMPLETE description was planned against, or 0.
+     *
+     * The incarnation above is not enough, and the direction the gate could
+     * not see is what proved it: switching layout 2 to layout 0 replaces
+     * interface 164 with 548, and for one fence the viewport's incarnation
+     * still reads the old value while every node under the root is already
+     * dead. A description planned on that fence is written at the corpses --
+     * measured: twenty-five stale references, and a frame in which the tab
+     * strips stood at the OLD toplevel's collapsed geometry over the new one.
+     * The root id moves first, and it is the fact this file already polls
+     * (@see FrameState::declined_root), so it costs nothing new.
+     */
+    int planned_root;
+    /*
      * The root this frame DECLINED, or -1.
      *
      * A declined provider is never asked again until something tells the host
@@ -956,7 +991,6 @@ struct FrameCall
 #define g_chat_bar (ctx->state->chat_bar)
 #define g_chat_band (ctx->state->chat_band)
 #define g_chat_stones (ctx->state->chat_stones)
-#define g_base_flat (ctx->state->base_flat)
 #define g_plan (ctx->state->plan)
 #define g_api (ctx->api)
 
@@ -2517,26 +2551,35 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
     {
         frame_blit(ctx, frame_surround_piece(ctx, &ctx->state->chat_rail,
                    IMG_C_BACKVMID3, 17, 109, "classic_chat_rail_wide.png"), 536, 357);
+        /*
+         * Still blitted, and still the frame's own stone -- but BACKING now
+         * rather than a bar. The pack seated on it reaches the canvas's last
+         * row (@see FRAME_C_CHAT_PACK_H), so all that shows of this piece is
+         * the seventeen columns left of the pack, where it continues
+         * `backleft2` to the bottom edge. Its four hollows are behind the
+         * pack's own bar.
+         *
+         * There used to be a second picture here: `classic_base_flat`, a
+         * 536x32 band composed to cover those hollows because the pack's bar
+         * sat 27 rows higher and left them showing. It never covered them --
+         * it TILED FRAME_C_ROCK_W columns of the strip, and those 29 columns
+         * carry the right-hand shadow of the first hollow, so repeating them
+         * eighteen and a half times manufactured a row of dark sockets at a
+         * 29-column pitch: the "empty hollows under the bar" the ledger ranks
+         * first. There is no run of plain rock in this strip to tile instead
+         * -- every column of its button band is a hollow, a bevel or a cast
+         * shadow -- which is why the band is not re-cut but retired.
+         */
         frame_blit(ctx, frame_surround_piece(ctx, &ctx->state->chat_base,
-                   IMG_C_BACKBASE1, 536, 50, "classic_chat_base_wide.png"), 0, 453);
+                   IMG_C_BACKBASE1, 536, FRAME_C_STRIP_H,
+                   "classic_chat_base_wide.png"), 0, FRAME_C_STRIP_Y);
     }
     else
     {
         frame_blit(ctx, frame_art(ctx, IMG_C_BACKVMID3), 496, 357);
-        frame_blit(ctx, frame_art(ctx, IMG_C_BACKBASE1), 0, 453);
+        frame_blit(ctx, frame_art(ctx, IMG_C_BACKBASE1), 0, FRAME_C_STRIP_Y);
     }
     frame_blit(ctx, frame_art(ctx, IMG_C_BACKBASE2), 496, 466);
-    /* The CS2 pack carries every live filter above this strip. Leaving the
-     * four dat1 recesses here makes a second, captionless row. Fill only
-     * that band from the source rock; preserve the surrounding frame. */
-    if( oldschool )
-        frame_blit(
-            ctx,
-            frame_chat_bar_art(
-                ctx, &g_base_flat, "classic_base_flat", 536,
-                FRAME_CHAT_BUTTON_H, (struct ToriRS_ImageRef){ 0 }, NULL,
-                0, 0, FRAME_CHAT_BUTTON_H),
-            0, 453 + FRAME_C_STRIP_BAND_Y);
 
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
@@ -2598,13 +2641,12 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         FRAME_C_HOLE_COMPASS_W,
         FRAME_C_HOLE_COMPASS_H);
     frame_skin_classic_map(ctx);
-    /* Keep the 2004 origin and height while accommodating the lane's pack.
-     * The surround above is re-cut for the desktop pack's 519 columns.
-     * Narrowing the content to 479 was prototyped with relative container
-     * widths and a measured-width filter calculation: the running client
-     * put All at x=-18, clipped against the left edge. The wider surround
-     * keeps all eight filters and their state lines inside a complete rail.
-     * 357 + 73 backing + 23 bar = 453, where the lower rock strip begins. */
+    /* Keep the 2004 origin while accommodating the lane's pack. The surround
+     * above is re-cut for the desktop pack's 519 columns. Narrowing the
+     * content to 479 was prototyped with relative container widths and a
+     * measured-width filter calculation: the running client put All at
+     * x=-18, clipped against the left edge. The wider surround keeps all
+     * eight filters and their state lines inside a complete rail. */
     if( oldschool )
     {
         /*
@@ -2614,8 +2656,17 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
          * its width does not reflow (519 is authored absolute on chatbox.if's
          * `controls` and `chatarea`, and torirs_chatbox_layout computes the
          * filter gap from that same literal), but its HEIGHT does -- so it
-         * takes the 2004 origin and the 2004 height and keeps its own width:
-         * 357 + 73 backing + 23 bar = 453, exactly where `backbase1` starts.
+         * takes the 2004 origin and keeps its own width.
+         *
+         * The HEIGHT it takes is the chat hole PLUS the 2004 filter strip
+         * under it (@see FRAME_C_CHAT_PACK_H), because a pack that carries
+         * its own bar does not want a second one below it. At the 2004 hole's
+         * own 96 rows the pack's bar landed at 430 and the frame's bar band
+         * stood under it at 467, and between them the strip's parchment lip
+         * showed at 453: a filter row, a pale ledge, and a second row of
+         * sockets. Seated on the strip instead, the pack's bar IS the frame's
+         * bar, at the row 548 draws it on, and there is no second band to
+         * paint out.
          *
          * The MOBILE top is a different pack: 461 wide, and its bar sits ABOVE
          * the message area rather than under it. Placed at the desktop box it
@@ -2642,8 +2693,8 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         {
             struct ToriRS_WidgetBounds native;
             /* The WIDTH only. The height the classic layout gives a chat is
-             * its own -- FRAME_C_CHAT_H, the 2004 pack's 165 -- and the pack's
-             * own height is read here for nothing. */
+             * its own -- FRAME_C_CHAT_PACK_H, the hole plus the strip -- and
+             * the pack's own height is read here for nothing. */
             if( Porcelain_NativeSize(ctx->state->porcelain, PORCELAIN_EL(CHAT), &native) &&
                 native.width > 0 && native.height > 0 )
                 native_w = native.width;
@@ -2658,7 +2709,7 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         else
             frame_surface(
                 ctx, FRAME_SURFACE_CHAT, FRAME_C_CHAT_X, FRAME_C_CHAT_Y,
-                native_w, FRAME_C_CHAT_H);
+                native_w, FRAME_C_CHAT_PACK_H);
     }
     else
         frame_surface(
@@ -3982,6 +4033,41 @@ frame_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
     if( state->viewport_incarnation && state->viewport_incarnation != viewport.incarnation )
         state->remounted = true;
     state->viewport_incarnation = viewport.incarnation;
+    /*
+     * And the ROOT, which moves first, and on the fence it moves: say nothing.
+     *
+     * A replaced root means every element this description names is a
+     * different node from the one the last pass measured, and the facts the
+     * layout was just computed from -- the open tab, the surfaces' native
+     * sizes, the chat's filter boxes -- were read off the tree that died.
+     * Describing anyway is writing at the corpses, and the engine says so: a
+     * 164-to-548 remount answered STALE_REFERENCE to all twenty-five writes
+     * that pass produced (every live-surface move, the fourteen sidebar
+     * mounts, the three orb members, the panel backing's opacity and the left
+     * pillar's creation), and what reached the screen for that fence was the
+     * OLD toplevel's collapsed geometry standing on the new one.
+     *
+     * The viewport's incarnation cannot carry this on its own. It is a
+     * property of the node the role resolves to, and on that fence the role
+     * still answers the old node with the old incarnation -- which is the
+     * whole reason the writes went to a dead tree rather than being skipped.
+     *
+     * Falling through to `return` is the same answer the unresolved viewport
+     * above gets, and it is right for the same reason: an empty description
+     * reconciles to "remove what I own", which is what the remount has
+     * already done to those nodes. frame_on_frame_start raises the
+     * invalidation as soon as the fence closes, and the next pass plans
+     * against the tree that is actually there.
+     */
+    {
+        int const root = g_api->cache.frame_root(g_api);
+
+        if( state->planned_root && root != state->planned_root )
+            state->remounted = true;
+        state->planned_root = root;
+    }
+    if( state->remounted )
+        return;
 
     frame_describe_chrome(ctx, describe);
     frame_describe_surfaces(ctx, describe);
@@ -4440,7 +4526,6 @@ frame_on_stop(struct ToriRS_Api* api, void* state_ptr)
     frame_release_sized(api, &state->chat_stones);
     frame_release_sized(api, &state->chat_rail);
     frame_release_sized(api, &state->chat_base);
-    frame_release_sized(api, &state->base_flat);
     frame_release_sized(api, &state->side_tiled);
     memset(state, 0, sizeof(*state));
 }
