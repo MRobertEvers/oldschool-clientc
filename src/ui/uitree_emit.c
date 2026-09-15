@@ -1680,9 +1680,14 @@ emit_chat(
     }
 
     {
-        /* Message window clip (reference setClipping(0,0,463,77)). */
+        /* Message window clip (reference setClipping(0,0,463,77)): 463 wide,
+         * and as tall as the node's own box leaves above the input line, so a
+         * gameframe that hands the chat a taller region gets more history
+         * rather than the same five lines floating in it.
+         * @see UI_CHATVIEW_WINDOW_H. */
         struct UITreeEmitClip msg_clip;
-        if( !clip_intersect(&msg_clip, parent_clip, x, y, w < 463 ? w : 463, 77) )
+        if( !clip_intersect(
+                &msg_clip, parent_clip, x, y, w < 463 ? w : 463, UI_CHATVIEW_WINDOW_H(h)) )
             msg_clip = *parent_clip;
         for( int i = 0; i < view->line_count; i++ )
         {
@@ -1706,7 +1711,7 @@ emit_chat(
     /* Chat scrollbar, drawn unconditionally like the reference
      * (drawScrollbar(463, 0, chatScrollHeight-chatScrollPos-77, chatScrollHeight,
      * 77), Client.ts:11485). Local x=463 puts it just right of the 463-wide
-     * message column; height is the message window (77), not the full chat node.
+     * message column; height is the message window, not the full chat node.
      * The desc-driven scrollbar_v render (torirs_frame.c) reads scroll_content /
      * scroll_off_y straight from here, so no component backing is needed. */
     {
@@ -1718,7 +1723,7 @@ emit_chat(
         desc.x = x + 463;
         desc.y = y;
         desc.w = UITREE_SCROLLBAR_THICKNESS;
-        desc.h = 77;
+        desc.h = UI_CHATVIEW_WINDOW_H(h);
         desc.scroll_content = view->scroll_height;
         desc.scroll_off_y = view->scroll_pos;
         desc.scene_id = host_scrollbar_scene(host);
@@ -1746,7 +1751,9 @@ emit_chat(
                 line->spans[s].text);
         /* Separator above the input line (reference Pix2D.hline(0, 77, 479):
          * spans the 463-wide message column plus the scrollbar, so it runs
-         * from the left edge all the way to the scrollbar's right side). */
+         * from the left edge all the way to the scrollbar's right side). It
+         * rides the bottom of the message window, wherever the node's height
+         * puts that. */
         {
             struct UITreeEmitDesc desc;
             memset(&desc, 0, sizeof(desc));
@@ -1754,7 +1761,7 @@ emit_chat(
             desc.node_index = idx;
             desc.component_id = c->component_id;
             desc.x = x;
-            desc.y = y + 77;
+            desc.y = y + UI_CHATVIEW_WINDOW_H(h);
             desc.w = 463 + UITREE_SCROLLBAR_THICKNESS;
             desc.h = 1;
             desc.color = 0x000000;

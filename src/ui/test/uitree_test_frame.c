@@ -1242,6 +1242,60 @@ test_synthetic_press_sees_through_frame_hidden(void)
 }
 
 /*
+ * And through the OTHER hide a plugin has, which is the one Porcelain uses.
+ *
+ * `frame_hidden` is what a frame provider writes; `widget_hidden` is what the
+ * widget API's set_hidden writes, and that is the verb every non-frame plugin
+ * reaches -- Porcelain's `hide` is it. The two say the same thing and nothing
+ * makes a plugin choose between them by meaning, so a press that sees through
+ * one and not the other sees through whichever verb the plugin happened to
+ * call.
+ *
+ * It cost the minimap orbs their clicks. They cover the lane's own orb with a
+ * plate of their own and hide what is underneath; the button they then press
+ * by name -- the run toggle, interface 160 component 28 on osrs239 -- is a
+ * CHILD of the orb they hid, so with only `frame_hidden` excused the plugin's
+ * own hide came back as "there is nothing to press here" on every later
+ * question it asked.
+ */
+static void
+test_synthetic_press_sees_through_widget_hidden(void)
+{
+    struct UITree* tree = UITree_New(4);
+    int32_t orb;
+    int32_t button;
+
+    printf("TEST: a synthesised press sees through a plugin's widget hide\n");
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    orb = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 900, 0, 0, 57, 34);
+    button = UITree_TestPushXy(tree, orb, UIELEM_RS_GRAPHIC, 904, 3, 5, 50, 26);
+    UITree_TestResolve(tree);
+
+    tree->components[orb].widget_hidden = 1;
+    TEST_ASSERT(
+        UITree_NodeOrAncestorDisplayHidden(tree, button),
+        "a click on pixels still refuses a widget-hidden subtree");
+    TEST_ASSERT(
+        !UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 1),
+        "a synthesised press reaches the button under a plugin's own cover");
+
+    tree->components[orb].behavior.hide = 1;
+    TEST_ASSERT(
+        UITree_NodeOrAncestorDisplayHiddenEx(tree, button, 1),
+        "a hide the cache or a script authored still fences it");
+    tree->components[orb].behavior.hide = 0;
+
+    /* The node the plugin hid, asked about itself: a cover that replaces a
+     * control delegates to THAT control as often as to a child of it. */
+    TEST_ASSERT(
+        !UITree_NodeOrAncestorDisplayHiddenEx(tree, orb, 1),
+        "the hidden node itself answers the press too");
+
+    UITree_Free(tree);
+}
+
+/*
  * A cache gameframe names its regions through a BINDER.
  *
  * The tree recognises the world, the minimap and the compass by widget type;
@@ -1722,5 +1776,6 @@ test_frame_replacement(void)
     test_ancestor_keeps_its_native_box_across_a_shrink();
     test_release_ignores_same_id_recycled_incarnations();
     test_synthetic_press_sees_through_frame_hidden();
+    test_synthetic_press_sees_through_widget_hidden();
     test_placed_world_paints_first_and_stretched_ancestor_clips_nothing();
 }

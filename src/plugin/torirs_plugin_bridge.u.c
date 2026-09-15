@@ -3790,8 +3790,13 @@ app_plugin_click_node(struct App* app, int32_t node, int op)
      * built the row and was dropped without a word. A hide the CACHE or a
      * script authored (behavior.hide) still refuses, which is the difference
      * that matters -- that one means the game says this button is not there.
+     *
+     * The same statement covers a plugin that COVERS a native control and
+     * delegates to it: the minimap orbs hide the lane's own orb under their
+     * plate, and the button they press is a child of it, so the hide they
+     * applied themselves is on this walk too.
      */
-    pick.allow_frame_hidden = 1;
+    pick.allow_plugin_hidden = 1;
 
     /*
      * The action a real click on THIS button would carry, derived from its own
@@ -4599,7 +4604,16 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     case PLUGIN_WIDGET_ACTIONS:
     case PLUGIN_WIDGET_INVOKE:
     {
-        if( UITree_NodeOrAncestorDisplayHidden(tree,idx) ||
+        /* The LANE's fences, not the plugin layer's. Both verbs name a
+         * component and ask what it offers, which is the same kind of
+         * question a synthesised press asks -- so a region a plugin is not
+         * showing is not a reason to answer "nothing", while a hide the cache
+         * or a script authored still is. A plugin that covers a native
+         * control and delegates to it hid that control ITSELF, and the strict
+         * fence answered its own hide back to it: minimap-orbs read
+         * `actions` as empty and `invoke` as blocked on the very button its
+         * cover exists to press. @see UITree_NodeOrAncestorDisplayHiddenEx. */
+        if( UITree_NodeOrAncestorDisplayHiddenEx(tree,idx,1) ||
             !UITree_NodeNativeInputPresent(tree,&app->ui_host,idx) ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
         struct UIMinimenu menu;
         app_widget_actions(app,idx,&menu);
@@ -4617,6 +4631,12 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         if( op<0 ) return TORIRS_CONTRACT_STALE_REFERENCE;
         /* The normal dispatcher repeats native availability and event checks.
          * A local action returns zero too; OK means dispatched, not server ack. */
+        /* run_option validates the pick a second time, and the row was built
+         * by a walk that knows nothing of where the press came from -- so
+         * stamp it with the statement the gate above already made, or the
+         * press is resolved, built and then dropped without a word.
+         * @see app_plugin_click_node. */
+        menu.options[op].pick.allow_plugin_hidden=1;
         struct UIMinimenu saved=app->interact.minimenu;
         app->interact.minimenu=menu;
         app_minimenu_run_option(app,op,0,0);
@@ -4682,8 +4702,16 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
             UITree_NodeNativeVisible(tree, &app->ui_host, idx, app->hover_com_id);
         state->own_hidden = c->behavior.hide != 0;
         state->native_hidden = c->native_hide != 0;
+        /* What the LANE offers here, which is not the same question as
+         * `presented` above and must not fold in the plugin layer's own
+         * hiding. A plugin that covers a native control and keeps its action
+         * -- the minimap orbs over the lane's own orb -- hides that control
+         * itself, and a fence that counted its own hide answered "there is
+         * nothing to press" about the button its cover delegates to, one
+         * fence after it drew it. A hide the cache or a script authored still
+         * says no, because that one means the game says the button is gone. */
         state->input_present = UITree_NodeNativeInputPresent(tree, &app->ui_host, idx) &&
-            !display_hidden;
+            !UITree_NodeOrAncestorDisplayHiddenEx(tree, idx, 1);
         if( c->type == UIELEM_RS_GRAPHIC )
         { scene_id = c->u.rs_graphic.scene_id; atlas_index = c->u.rs_graphic.atlas_index; }
         else if( c->type == UIELEM_BUILTIN_SPRITE || c->type == UIELEM_BUILTIN_COMPASS )

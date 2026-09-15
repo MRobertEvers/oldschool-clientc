@@ -3001,21 +3001,28 @@ UITree_NodeOrAncestorDisplayHidden(
     int32_t node_index);
 
 /**
- * The same query with the gameframe plugin's own suppression excused.
+ * The same query with the PLUGIN LAYER's own suppression excused.
  *
- * `ignore_frame_hidden` drops the gameframe PLUGIN's own suppression from the
- * fence, and exists for the one caller that is not a click on pixels: a
- * synthesised button press names a component, not a place on the screen, so a
- * panel the arranger is simply not showing right now is not a reason to
- * refuse it -- while a hide the cache or a script authored still is. Every
- * other flag (behavior.hide, screen, projection, and an orphaned root) fences
- * as before.
+ * `ignore_plugin_hidden` drops the layer's presentation hides from the fence,
+ * and exists for the callers that are not a click on pixels: a synthesised
+ * button press names a component, not a place on the screen, so a region the
+ * arranger is simply not showing right now is not a reason to refuse it --
+ * while a hide the cache or a script authored still is. Every other flag
+ * (behavior.hide, screen, projection, and an orphaned root) fences as before.
+ *
+ * BOTH of the layer's hides: `frame_hidden`, which a frame provider writes
+ * when it puts a region away, and `widget_hidden`, which the widget API's
+ * set_hidden writes and which is therefore what Porcelain's `hide` verb
+ * reaches. The two say the same thing and a plugin does not choose between
+ * them by meaning, so a fence that excused only the first left a plugin that
+ * COVERS a native control unable to ask anything about the control underneath
+ * -- the minimap orbs, whose run toggle is a child of the orb they hide.
  */
 int
 UITree_NodeOrAncestorDisplayHiddenEx(
     struct UITree const* tree,
     int32_t node_index,
-    int ignore_frame_hidden);
+    int ignore_plugin_hidden);
 
 /**
  * FNV-1a 64 of a text node's current string, as a CHANGE token.

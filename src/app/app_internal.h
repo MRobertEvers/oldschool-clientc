@@ -603,6 +603,7 @@ app_chat_region(
     struct App const* app,
     int* out_x,
     int* out_y,
+    int* out_height,
     int* out_font_id);
 
 int

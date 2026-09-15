@@ -95,6 +95,18 @@ static struct
 #define FRAME_CHAT_BUTTON_H 32
 #define FRAME_C_CHAT_PACK_H (96 + FRAME_C_STRIP_H)
 
+/*
+ * The chat hole's top row, the band's width, and the right rail's height.
+ *
+ * `backhmid2` is 553 columns -- from the canvas edge to the tab column -- so
+ * 553 is where the chat band ENDS and where the rail that closes it has to
+ * reach. `backvmid3` is 109 rows, which is what tells that piece from
+ * `backleft2`'s 96 at the same top row.
+ */
+#define FRAME_C_CHAT_Y 357
+#define FRAME_C_BAND_W 553
+#define FRAME_C_CHAT_RAIL_H 109
+
 /**
  * Draws per chat-button plate: ONE.
  *
@@ -2007,8 +2019,28 @@ main(void)
          * the whole difference between a derivation and a number that happens
          * to be right once.
          */
+        /*
+         * And the SURROUND is cut against the same seam.
+         *
+         * The rail that closes the chat band on the right was blitted at a
+         * constant 536 -- the 2004 origin plus the pack's own 519 -- while the
+         * pack above had been moved left off the lane's stone. Nothing owned
+         * the columns between them: the band showed a dark slot beside the
+         * chat with a stray strip of the rail's own sheet stranded past it,
+         * which is what a player sees as the chatbox overflowing to the right.
+         *
+         * Stated as the two edges the piece has to meet -- the pack on its
+         * left and the band's end on its right -- because either alone is
+         * satisfied by the defect: a rail at 536 with the pack at 7 still ends
+         * at 553, and a rail seated on the pack but cut to a constant 17 stops
+         * ten columns short of the sidebar.
+         *
+         * MUTATION: put either number back to a constant and the 526 grid and
+         * the 528 grid disagree about it, which no constant can satisfy.
+         */
         {
             struct FakeWidget const* chat;
+            struct FakeWidget const* rail;
             fw_build(/*oldschool=*/1);
             fw_tabs(/*x0=*/526, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
             PluginHost_WidgetsChanged(g_host, 78, 21);
@@ -2016,6 +2048,10 @@ main(void)
             chat = native("chat", -1);
             CHECK(chat && chat->x + chat->w == 526,
                   "the pack's right edge lands on 548's leftmost bottom stone");
+            rail = owned_piece_at(526, FRAME_C_CHAT_Y);
+            CHECK(rail && rail->image >= 0 && g_image[rail->image].h == FRAME_C_CHAT_RAIL_H &&
+                      526 + g_image[rail->image].w == FRAME_C_BAND_W,
+                  "and the band's right rail runs from that edge to the end of the band");
 
             fw_build(/*oldschool=*/1);
             fw_tabs(/*x0=*/528, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
@@ -2024,6 +2060,10 @@ main(void)
             chat = native("chat", -1);
             CHECK(chat && chat->x + chat->w == 528,
                   "and on 161's, which is two columns further right");
+            rail = owned_piece_at(528, FRAME_C_CHAT_Y);
+            CHECK(rail && rail->image >= 0 && g_image[rail->image].h == FRAME_C_CHAT_RAIL_H &&
+                      528 + g_image[rail->image].w == FRAME_C_BAND_W,
+                  "and the rail is re-cut two columns narrower to meet it there");
 
             /* A row that stands ABOVE the band is not in the pack's way, and
              * the pack keeps the 2004 origin rather than being seated against
@@ -2035,6 +2075,9 @@ main(void)
             chat = native("chat", -1);
             CHECK(chat && chat->x == 17,
                   "a lane whose stones are all above the chat band leaves the pack at the 2004 origin");
+            rail = owned_piece_at(17 + 519, FRAME_C_CHAT_Y);
+            CHECK(rail && rail->image >= 0 && g_image[rail->image].w == FRAME_C_BAND_W - (17 + 519),
+                  "and the rail goes back to the seventeen columns the 2004 hole leaves it");
 
             /* Put the fixture back the way section 10 built it: everything
              * below reads the 526 grid with its bottom row in the band. */
@@ -2224,63 +2267,161 @@ main(void)
         }
 
         /*
-         * The LIT STONE, which is the picture the whole row wears.
+         * The LIT STONE, which is the picture ONE tab wears -- and which of
+         * the three that is, is a fact about THAT TAB.
          *
-         * Symmetric about its own centre, because a grid of fourteen equal
-         * boxes has no mirror line for a one-sided picture to be on. The 2004
-         * strip's cells are each cut for the side of the strip they stand on:
-         * laid at all fourteen, `classic_redstone1` put a diagonal wedge of
-         * bare rock down the left of every selected tab and crowded the red
-         * against its right edge -- measured on classic548 at 9 red pixels in
-         * the leftmost eleven columns against 179 in the rightmost eleven.
+         * The 2004 strip is cut from three cells, each shaped for where in the
+         * strip it stands: `classic_redstone1` is an END at 34x36 with a
+         * diagonal corner out of its lower left, `classic_redstone2` the
+         * INTERIOR cell at 30x37, `classic_redstone3` the one WIDE cell at
+         * 44x35. The frame's own table says which of them goes under each of
+         * the fourteen and which way round, and adopting the lane's grid
+         * changes the BOX each is re-cut to and nothing else about it.
          *
-         * Mutation: pass `folded=0` to frame_tab_stone_column and this goes
-         * red at the first column pair. Mutation: hand
-         * frame_compose_tab_stone IMG_C_REDSTONE1 and it goes red as well,
-         * because that picture's shape is not symmetric either.
+         * This used to be one folded picture per row: the source reflected
+         * about the OUTPUT's centre, which makes a stone symmetric about its
+         * own centre -- lit from neither side, identical under all fourteen
+         * and identical whichever tab the player selects. That is what the
+         * report "the classic fixed frame uses the same redstone icon for
+         * each button" was looking at.
+         *
+         * Measured at the CAPS, which is where a three-slice copies one to
+         * one: the outer six columns and the outer six rows of the output are
+         * the source's own, so the top-left 6x6 of the composed stone is the
+         * top-left 6x6 of the picture it was cut from, and the three sources
+         * disagree there in 23 of those 36 pixels.
+         *
+         * Mutation: give frame_tab_stone one source for every tab and two of
+         * the three cap assertions go red. Mutation: fold
+         * frame_tab_stone_column about the output's centre again and all three
+         * go red, because a folded stone's left cap is the source's right one.
          */
         fw_build(/*oldschool=*/1);
         fw_tabs(/*x0=*/526, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
         PluginHost_WidgetsChanged(g_host, 77, 26);
-        g_frame.active_tab = 3;
-        declare(765, 503);
         {
-            struct FakeWidget const* face = owned("face.03");
-            int mirrored = 0;
-            int pairs = 0;
+            /* Screen position, the 2004 cell that stands under it, and the
+             * key its face is described by. @see FRAME_TAB_SCREEN_ORDER: on
+             * the top row the two numberings agree, so the tab to select is
+             * the position itself. */
+            static struct
+            {
+                int tab;
+                char const* key;
+                char const* source;
+            } const SHAPE[3] = {
+                { 0, "face.00", "classic_redstone1.png" },
+                { 1, "face.01", "classic_redstone2.png" },
+                { 3, "face.03", "classic_redstone3.png" },
+            };
+            static char const* const WHY[3] = {
+                "the row's FIRST stone is cut from classic_redstone1, the strip's end cell",
+                "an INTERIOR stone is cut from classic_redstone2, which is a different picture",
+                "and the fourth is cut from classic_redstone3, the wide cell -- three tabs, three stones",
+            };
+            uint32_t shot[3][33 * 36];
+            int alike = 0;
 
-            CHECK(face && face->image >= 0 && g_image[face->image].w == 33 &&
-                      g_image[face->image].h == 36,
-                  "the lit stone is composed at the TAB's box, not at the picture's own 30x37");
-            if( face && face->image >= 0 )
+            memset(shot, 0, sizeof(shot));
+            for( int i = 0; i < 3; i++ )
+            {
+                struct FakeWidget const* face;
+                int caps = 0;
+
+                g_frame.active_tab = SHAPE[i].tab;
+                frame_tick();
+                declare(765, 503);
+                face = owned(SHAPE[i].key);
+                CHECK(face && face->image >= 0 && g_image[face->image].w == 33 &&
+                          g_image[face->image].h == 36,
+                      "the lit stone is composed at the TAB's box, not at the picture's own size");
+                if( !face || face->image < 0 )
+                    continue;
                 for( int row = 0; row < 36; row++ )
                     for( int col = 0; col < 33; col++ )
-                    {
-                        pairs++;
-                        if( image_px(face->image, col, row) ==
-                            image_px(face->image, 32 - col, row) )
-                            mirrored++;
-                    }
-            CHECK(pairs == 33 * 36 && mirrored == 33 * 36,
-                  "and it is symmetric about its own centre: no side of a uniform grid is the lit side");
+                        shot[i][(row * 33) + col] = image_px(face->image, col, row);
+                if( !source_image(SHAPE[i].source) )
+                    CHECK(0, "the stone's source picture is readable");
+                for( int row = 0; row < 6; row++ )
+                    for( int col = 0; col < 6; col++ )
+                        if( image_px(face->image, col, row) == source_px(col, row) )
+                            caps++;
+                CHECK(caps == 36, WHY[i]);
+            }
+            /*
+             * And the three are three PICTURES, which the caps alone do not
+             * say: a stone cut from the right source but folded still has the
+             * source's cap at both edges.
+             */
+            for( int i = 0; i < 33 * 36; i++ )
+                if( shot[0][i] == shot[1][i] )
+                    alike++;
+            CHECK(alike < 33 * 36,
+                  "the first tab's stone and its neighbour's are not the same picture");
+            alike = 0;
+            for( int i = 0; i < 33 * 36; i++ )
+                if( shot[1][i] == shot[2][i] )
+                    alike++;
+            CHECK(alike < 33 * 36,
+                  "nor are the interior stone and the wide one");
+            /*
+             * The right-hand half of the row wears the same stones MIRRORED,
+             * which is what the 2004 table's REDSTONE_FLIP_H column says and
+             * what a strip lit from its middle out looks like. A fold cannot
+             * express it: a symmetric picture is its own mirror.
+             *
+             * Mutation: drop `mirror_x` in frame_compose_tab_stone and this
+             * goes red against the first tab's stone, which it then equals
+             * column for column.
+             */
+            {
+                struct FakeWidget const* face;
+                int mirrored = 0;
+                int straight = 0;
+
+                g_frame.active_tab = 6;
+                frame_tick();
+                declare(765, 503);
+                face = owned("face.06");
+                CHECK(face && face->image >= 0 && g_image[face->image].w == 33,
+                      "the row's LAST stone wears a lit stone of its own");
+                if( face && face->image >= 0 )
+                    for( int row = 0; row < 36; row++ )
+                        for( int col = 0; col < 33; col++ )
+                        {
+                            uint32_t const px = image_px(face->image, col, row);
+
+                            if( px == shot[0][(row * 33) + (32 - col)] )
+                                mirrored++;
+                            if( px == shot[0][(row * 33) + col] )
+                                straight++;
+                        }
+                CHECK(mirrored == 33 * 36 && straight < 33 * 36,
+                      "and it is the first stone MIRRORED, not the first stone again");
+            }
         }
         /*
-         * And the BOTTOM row wears it upside down.
+         * And the BOTTOM row wears its stones upside down.
          *
          * The two bands are two pictures rather than one flipped, but the
          * hollows in them are flips of each other: `backhmid1` lights its
          * sockets from below and `backbase2` from above. The 2004 table says
          * the same thing -- every one of its bottom seven entries is a
          * REDSTONE_FLIP_V or _HV of the picture the row above wears -- and a
-         * single stone for all fourteen loses it, which is a lit stone shaded
-         * against the rock it stands in.
+         * lit stone shaded against the rock it stands in is what losing it
+         * looks like.
+         *
+         * Read at the row's LAST stone, which is the table's _HV entry, so
+         * this holds the vertical mirror while the horizontal one above holds
+         * the other axis -- and neither assertion can be satisfied by the
+         * other's fix.
          *
          * Mutation: pass `mirror_y=0` for both rows in frame_tab_stone and
-         * this goes red while the symmetry assertion above stays green.
+         * this goes red while every assertion above stays green.
          */
         {
             uint32_t top[33 * 36];
-            struct FakeWidget const* face = owned("face.03");
+            struct FakeWidget const* face = owned("face.06");
             int flipped = 0;
             int pairs = 0;
 

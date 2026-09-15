@@ -1866,15 +1866,17 @@ App_RunOnce(
         {
             int rx = 0;
             int ry = 0;
+            int rh = UI_CHATVIEW_NATIVE_HEIGHT;
             int left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
             if( left_held && !out.minimenu_consumed_pointer && app->slots.chat_com_id == -1 &&
-                app_chat_region(app, &rx, &ry, NULL) )
+                app_chat_region(app, &rx, &ry, &rh, NULL) )
             {
                 struct RS_ChatFilters filters = app_chat_filters(app);
                 app->chat_scroll_cycle++;
                 if( RS_Chat_ScrollbarInput(
                         &app->chat,
                         &filters,
+                        rh,
                         input->curr.mouse_x - rx,
                         input->curr.mouse_y - ry,
                         app->chat_scroll_cycle) )
@@ -1892,7 +1894,8 @@ App_RunOnce(
         {
             int rx = 0;
             int ry = 0;
-            if( app_chat_region(app, &rx, &ry, NULL) )
+            int rh = UI_CHATVIEW_NATIVE_HEIGHT;
+            if( app_chat_region(app, &rx, &ry, &rh, NULL) )
             {
                 int32_t const chat_idx = app_chat_node_index(app);
                 int bx = 0, by = 0, bw = 0, bh = 0;
@@ -1904,7 +1907,7 @@ App_RunOnce(
                         input->curr.mouse_y >= by && input->curr.mouse_y < by + bh )
                     {
                         struct RS_ChatFilters filters = app_chat_filters(app);
-                        RS_Chat_Scroll(&app->chat, &filters, input->curr.mouse_wheel_y);
+                        RS_Chat_Scroll(&app->chat, &filters, rh, input->curr.mouse_wheel_y);
                         app->need_redraw = 1;
                     }
                 }

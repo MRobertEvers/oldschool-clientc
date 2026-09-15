@@ -556,7 +556,7 @@ warn = nil
 ---@field presented boolean Paints this frame; the same answer as :visible().
 ---@field own_hidden boolean The node's own hide bit: a CS2 if_sethide or a dat1 IF_SETTAB.
 ---@field native_hidden boolean The engine's native suppression, not the script's.
----@field input_present boolean Reachable by the native hit test.
+---@field input_present boolean Reachable by the native hit test as the lane left it; a plugin's own hiding is not folded in.
 ---@field graphic_token integer Change token for a node that carries art, 0 for one that does not. Never an identity.
 ---@field text_hash integer FNV-1a 64 of a text node's string, 0 for a non-text node.
 ---@field facets integer What the LANE says about this widget, as a mask of api.widgets.facet values. 0 is 'no', never 'unknown'.

@@ -171,8 +171,11 @@ struct ToriRS_WidgetState
     bool own_hidden;
     /** The engine's native suppression bits, not the script's. */
     bool native_hidden;
-    /** Present to the native hit test: a decoration that must stay clickable
-     *  follows this and not `presented`. */
+    /** Present to the native hit test AS THE LANE LEFT IT: a decoration that
+     *  must stay clickable follows this and not `presented`. The plugin
+     *  layer's own hiding is not folded in, so a plugin that covers a native
+     *  control and keeps its action can still read the control it covers;
+     *  a hide the cache or a script authored answers false as it always did. */
     bool input_present;
     /** A CHANGE token for a node that carries art, zero for one that does
      *  not. NEVER an identity: equal tokens mean "the art did not change",

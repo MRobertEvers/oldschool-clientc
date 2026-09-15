@@ -6673,7 +6673,7 @@ uitree_node_or_ancestor_hidden(
     struct UITree const* tree,
     int32_t idx,
     int include_plugin_hidden,
-    int ignore_frame_hidden)
+    int ignore_plugin_hidden)
 {
     int group;
     int mount_hops = 0;
@@ -6694,15 +6694,27 @@ uitree_node_or_ancestor_hidden(
         do
         {
             group_root = idx;
-            /* The Ex form can excuse the gameframe plugin's own hiding on the
+            /* The Ex form can excuse the PLUGIN LAYER's own hiding on the
              * whole walk for a caller that names a COMPONENT rather than a
              * place -- a synthesised press.
+             *
+             * Both of the layer's hides, because a plugin has two verbs for
+             * the same statement and they are not chosen by meaning: a frame
+             * provider puts a region away with `frame_hidden`, and the widget
+             * API's set_hidden -- which is what Porcelain's `hide` reaches --
+             * writes `widget_hidden`. Excusing only the first is what made the
+             * minimap orbs unclickable the moment they started hiding the
+             * lane's own orb under the cover they draw for it: the run toggle
+             * is a CHILD of that orb, so the plugin's own hide fenced every
+             * later question it asked about the button it delegates to.
              * @see UITree_NodeOrAncestorDisplayHiddenEx. */
             if( tree->components[idx].behavior.hide || tree->components[idx].mount_hidden ||
                 (include_plugin_hidden &&
-                 ((tree->components[idx].frame_hidden && !ignore_frame_hidden) ||
+                 (((tree->components[idx].frame_hidden ||
+                    tree->components[idx].widget_hidden) &&
+                   !ignore_plugin_hidden) ||
                   tree->components[idx].screen_hidden ||
-                  tree->components[idx].projection_hidden || tree->components[idx].widget_hidden)) )
+                  tree->components[idx].projection_hidden)) )
                 return 1;
             idx = tree->components[idx].parent;
         } while( idx >= 0 && (uint32_t)idx < tree->component_count );
@@ -6763,12 +6775,12 @@ int
 UITree_NodeOrAncestorDisplayHiddenEx(
     struct UITree const* tree,
     int32_t node_index,
-    int ignore_frame_hidden)
+    int ignore_plugin_hidden)
 {
     assert(tree);
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return 1;
-    return uitree_node_or_ancestor_hidden(tree, node_index, 1, ignore_frame_hidden);
+    return uitree_node_or_ancestor_hidden(tree, node_index, 1, ignore_plugin_hidden);
 }
 
 uint64_t

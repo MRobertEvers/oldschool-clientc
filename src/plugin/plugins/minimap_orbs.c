@@ -46,7 +46,9 @@
  * Exactly as interface 160 builds it, which is why the art lines up without a
  * single hand-tuned offset:
  *
- *   1. `frame`      57x34, the stone plate, at the orb's origin.
+ *   1. `frame`      57x34, the stone plate, at the orb's origin -- or
+ *                   `frame_over`, its lit twin, while the pointer is over the
+ *                   orb's button. @see ORB_BUTTON.
  *   2. a fill disc  26x26 at +27,+4 -- the orb's colour at FULL.
  *   3. `fill_empty` 26x26 at the same place, clipped to the UNFILLED rows at
  *                   the top. A meter is a dark disc covering a bright one, not
@@ -156,6 +158,39 @@ static const struct
 };
 #define ORB_SLOT_COUNT ((int)(sizeof(ORB_SLOT) / sizeof(ORB_SLOT[0])))
 
+/**
+ * The orb's BUTTON, in plate-local pixels: the rectangle that lights the plate.
+ *
+ * Interface 160 does not put the hover on the plate. Each orb is a container
+ * holding a 57x34 plate graphic and, over it, a small layer that carries the
+ * operation -- 160:9 `Cure`, 160:20 `Quick-prayers`, 160:28 `Toggle Run`,
+ * 160:36 `Special Attack` -- and it is THAT layer the mouse hooks hang off:
+ *
+ *     if_setonmouserepeat("graphic_swapper($plate, $lit)", $button);
+ *     if_setonmouseleave ("graphic_swapper($plate, $normal)", $button);
+ *
+ * So the lit plate is what the pointer being inside the button looks like, and
+ * the corners of the plate -- which are clear pixels anyway -- do not light it.
+ * Each orb's own box is taken from its own component rather than shared,
+ * because three of the four disagree: the prayer button is a pixel narrower
+ * and the special-attack button is a pixel shorter and sits a pixel lower.
+ *
+ * @see orbs_hover for the availability gate the same two scripts carry.
+ */
+static const struct
+{
+    int x;
+    int y;
+    int w;
+    int h;
+} ORB_BUTTON[] = {
+    { 3, 5, 50, 26 }, /* 160:9  over 160:8  */
+    { 3, 5, 49, 26 }, /* 160:20 over 160:19 */
+    { 3, 5, 50, 26 }, /* 160:28 over 160:27 */
+    { 3, 6, 50, 25 }, /* 160:36 over 160:35 */
+};
+#define ORB_BUTTON_COUNT ((int)(sizeof(ORB_BUTTON) / sizeof(ORB_BUTTON[0])))
+
 /** Hitpoints and prayer, in the skill order that has not moved since 2001. */
 #define ORB_STAT_HITPOINTS 3
 #define ORB_STAT_PRAYER 5
@@ -242,6 +277,10 @@ struct OrbPicture
     int32_t filled;
     int32_t total;
     int32_t inactive;
+    /** The pointer is over this orb's button, so the plate is the lit one.
+     *  A hashed input like every other: a hover is a different picture, not a
+     *  different draw of the same one. @see orbs_hover */
+    int32_t hovered;
     int32_t digits_ready;
     int32_t art;
 };
@@ -292,6 +331,9 @@ struct OrbsState
      *  number poll compares the same picture the description drew. */
     bool available[ORB_COUNT];
     bool bound[ORB_COUNT];
+    /** Is the pointer over each orb's button, as of this frame's poll.
+     *  @see orbs_hover, which is the only writer. */
+    bool hovered[ORB_COUNT];
     int native_count;
     /**
      * Describe runs in which the minimap was bound.
@@ -898,7 +940,9 @@ orbs_compose_number(
  * the "a quiet frame draws nothing" rule that orbs_key used to enforce by hand
  * is the layer's now. The three states the reference draws an orb in
  * (clientscript 2792): INACTIVE a grey disc at trans 50 and no operation; idle
- * the orb's own colour at trans 25. The lit (hovered) plate is not reproduced.
+ * the orb's own colour at trans 25; and HOVERED the lit plate under an
+ * otherwise unchanged disc, icon and number -- the swap the same script arms
+ * with `graphic_swapper`, which touches the plate and nothing else.
  *
  * @return false only when the plate art is not decoded, which is a terminal
  * DERIVED_FAILED and one finding -- so an orb that never got its art says so
@@ -910,7 +954,7 @@ orbs_paint(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, int he
     struct OrbPaintCall const* call = user;
     struct OrbsState* state;
     struct OrbPicture const* picture;
-    int trans, hidden, w, h;
+    int trans, hidden, plate, w, h;
 
     assert(api);
     assert(call);
@@ -921,15 +965,19 @@ orbs_paint(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, int he
     state = call->state;
     picture = &state->painting[call->orb];
     trans = picture->inactive ? 50 : 25;
+    /* orbs_hover does not set `hovered` before the lit plate is decoded, so
+     * the one that gets drawn is the one that exists. */
+    plate = picture->hovered ? ORB_IMG_FRAME_OVER : ORB_IMG_FRAME;
 
-    if( !orbs_pixels(state, ORB_IMG_FRAME, &w, &h) )
+    if( !orbs_pixels(state, plate, &w, &h) )
         return false;
 
-    api->core.log(api, "MINIMAP_ORBS_VALUE orb=%s value=%d filled=%d total=%d inactive=%d",
+    api->core.log(api,
+        "MINIMAP_ORBS_VALUE orb=%s value=%d filled=%d total=%d inactive=%d hovered=%d",
         ORB_PART[call->orb].key, picture->value, picture->filled, picture->total,
-        picture->inactive);
+        picture->inactive, picture->hovered);
 
-    orbs_blit(state, argb, ORB_IMG_FRAME, 0, 0, 0, 0, ORB_W, ORB_H, 255);
+    orbs_blit(state, argb, plate, 0, 0, 0, 0, ORB_W, ORB_H, 255);
     orbs_blit(state, argb, picture->fill_image, ORB_DISC_X, ORB_DISC_Y, ORB_DISC_X, ORB_DISC_Y,
         ORB_DISC, ORB_DISC, 255 - trans);
     /* The dark disc over the unfilled rows, rounded so 98 of 99 still shows
@@ -995,6 +1043,11 @@ orbs_picture(
     memset(out, 0, sizeof(*out));
     out->digits_ready = state->digits_ready;
     out->art = state->art;
+    /* Whether the pointer is over the button is orbs_hover's answer, and it
+     * already carries the availability gate the reference's two mouse hooks
+     * carry -- so every orb reads it the same way and none of the four
+     * branches below gets to have its own opinion. */
+    out->hovered = state->hovered[orb];
 
     if( orb == ORB_HP || orb == ORB_PRAYER )
     {
@@ -1315,6 +1368,40 @@ orbs_canvas_box(
     return box;
 }
 
+/**
+ * Where this orb's plate is NOW, in canvas space, or false if it is not up.
+ *
+ * The hover test and the harness read-out are the same question asked twice a
+ * frame, and orbs_canvas_box is one function for exactly that reason: a hover
+ * that lit a rectangle the pixel checker never compares is a defect neither
+ * half can see. So the liveness test is shared too -- described this fence,
+ * bound or beside a minimap that is there, and its element still answering.
+ */
+static bool
+orbs_live_box(
+    struct OrbsState* state,
+    int orb,
+    struct PorcelainElementState const* map,
+    bool have_map,
+    struct ToriRS_WidgetBounds* out)
+{
+    struct PorcelainElementState native;
+
+    assert(state);
+    assert(map);
+    assert(out);
+    assert(orb >= 0 && orb < ORB_COUNT);
+
+    memset(&native, 0, sizeof(native));
+    if( !state->described[orb] || (!state->bound[orb] && !have_map) )
+        return false;
+    if( state->bound[orb] &&
+        !Porcelain_Element(state->porcelain, PORCELAIN_ORB_EL(orb), &native) )
+        return false;
+    *out = orbs_canvas_box(state, orb, state->bound[orb], &native, map);
+    return true;
+}
+
 /* ------------------------------------------------------------ describe */
 
 /**
@@ -1369,7 +1456,31 @@ orbs_action_available(
     if( role && state->settled >= PORCELAIN_ABSENT_FENCES &&
         (native_count > 0 || orb == ORB_HP) &&
         Porcelain_Element(state->porcelain, PORCELAIN_ROLE_EL(role), &action) )
-        return action.input_present;
+        /*
+         * The LANE's hides, and not `input_present`.
+         *
+         * `input_present` is the engine's answer, and the engine folds every
+         * veto into it -- including THIS PLUGIN'S. The action button is a
+         * child of the orb (160:28 inside 160:26, 160:20 inside 160:18), the
+         * description hides that orb thirty lines below to stop two plates
+         * stacking, and from the next describe onward the button under it
+         * reads `presented=0 input_present=0`. So the answer decayed to false
+         * for every orb, one fence after the first, and stayed there: the
+         * covers were drawn with `enabled = false`, the column had no menu row
+         * at all, and every orb on every CS2 lane was inert. Measured on
+         * classic-fixed 548 at rev 239 -- four plates, zero mouseover rows.
+         *
+         * `own_hidden` and `native_hidden` are the lane's own bits and carry
+         * no veto of ours, which is exactly the question being asked: the
+         * reference says "this orb has no verb" by HIDING the button layer --
+         * `if_sethide(true, $button)` in `orbs_update_health` when the player
+         * is not poisoned, in `orbs_spec_draw_button` with no special weapon
+         * worn, in `orbs_update_runenergy` off the sidepanel -- and says it
+         * has one by showing it. Measured on the same lane: prayer and run
+         * answer `own_hidden=0`, the special orb the cache had hidden answers
+         * 1, and the hitpoints role never binds at all.
+         */
+        return !action.own_hidden && !action.native_hidden;
     if( native_count > 0 )
         return orbs_compat_button(api, name, &component, &operation) != 0;
     return false;
@@ -1667,21 +1778,13 @@ orbs_log_controls(struct OrbsState* state)
     have_map = Porcelain_Element(state->porcelain, PORCELAIN_EL(MINIMAP), &map);
     for( int i = 0; i < ORB_COUNT; i++ )
     {
-        struct PorcelainElementState orb;
         struct ToriRS_WidgetBounds box;
 
-        memset(&orb, 0, sizeof(orb));
-        if( !state->described[i] || (!state->bound[i] && !have_map) )
+        if( !orbs_live_box(state, i, &map, have_map, &box) )
         {
             state->reported_live[i] = false;
             continue;
         }
-        if( state->bound[i] && !Porcelain_Element(state->porcelain, PORCELAIN_ORB_EL(i), &orb) )
-        {
-            state->reported_live[i] = false;
-            continue;
-        }
-        box = orbs_canvas_box(state, i, state->bound[i], &orb, &map);
         if( state->reported_live[i] && box.x == state->reported[i].x &&
             box.y == state->reported[i].y )
             continue;
@@ -1694,6 +1797,75 @@ orbs_log_controls(struct OrbsState* state)
 }
 
 /* ------------------------------------------------------------ lifecycle */
+
+/**
+ * Is the pointer over each orb's button?
+ *
+ * The reference's hover is the plate graphic swapped for its lit twin, armed
+ * on the orb's BUTTON and not on the plate:
+ *
+ *     if_setonmouserepeat("graphic_swapper($plate, 1072)", $button);
+ *     if_setonmouseleave ("graphic_swapper($plate, 1071)", $button);
+ *
+ * -- written `~graphic_device(1072, 5792)`, whose second arm is the phone's
+ * own lit plate. This draws 1072 on both, for the same reason it draws 1071
+ * on both: the art is the plugin's, cut once from rev 239, and a lane with no
+ * such sprite table still gets an orb. @see the file header.
+ *
+ * The two calls are made in the same branch that arms the operation --
+ * `orbs_update_health` only when the player is poisoned, `orbs_spec_draw_button`
+ * only with a special-attack weapon worn, `orbs_update_runenergy` only while
+ * the stamina blink is not running. The other branch passes `null` to both and
+ * hides the button. So the highlight means BOTH things at once: the pointer is
+ * over the orb and the orb can be clicked -- which is why the gate here is
+ * `available`, the same answer that arms `PorcelainItem::enabled`, and not
+ * `inactive`, which is about the meter's colour and says nothing about the op.
+ *
+ * A rectangle against `input.pointer` because no verb asks the engine whether
+ * one of this plugin's own controls is hovered: `Porcelain_ControlHover` is
+ * named in the layer's own not-implemented list, and `ToriRS_WidgetState`
+ * carries no pointer state. xp_orbs tests its discs the same way, and its
+ * comment says the same thing. The cost of that is real and small: nothing
+ * here knows about occlusion, so a plate under an open menu still lights.
+ *
+ * The lit plate not being decoded yet is answered here rather than in the
+ * painter, because `hovered` is a hashed painter input -- a picture that asked
+ * for art it does not have would be one terminal DERIVED_FAILED and then an
+ * orb that never draws again.
+ */
+static void
+orbs_hover(struct OrbsState* state)
+{
+    struct PorcelainElementState map;
+    bool have_map;
+    bool pointer;
+    bool lit_ready;
+    int mouse_x = 0;
+    int mouse_y = 0;
+    int w = 0;
+    int h = 0;
+
+    assert(state);
+
+    lit_ready = orbs_pixels(state, ORB_IMG_FRAME_OVER, &w, &h) != NULL;
+    pointer = state->api->input.pointer(state->api, &mouse_x, &mouse_y);
+    have_map = Porcelain_Element(state->porcelain, PORCELAIN_EL(MINIMAP), &map);
+    for( int i = 0; i < ORB_COUNT; i++ )
+    {
+        struct ToriRS_WidgetBounds box;
+        int x, y;
+
+        state->hovered[i] = false;
+        if( !pointer || !lit_ready || !state->available[i] )
+            continue;
+        if( !orbs_live_box(state, i, &map, have_map, &box) )
+            continue;
+        x = box.x + ORB_BUTTON[i].x;
+        y = box.y + ORB_BUTTON[i].y;
+        state->hovered[i] = mouse_x >= x && mouse_x < x + ORB_BUTTON[i].w && mouse_y >= y &&
+                            mouse_y < y + ORB_BUTTON[i].h;
+    }
+}
 
 /**
  * Have the live numbers moved?
@@ -1723,12 +1895,14 @@ orbs_numbers_moved(struct OrbsState* state)
             (void)Porcelain_Element(state->porcelain, PORCELAIN_ORB_EL(i), &orb);
         if( !orbs_picture(state, i, state->bound[i], orb.facets, state->available[i], &picture) )
             continue;
-        /* `art` and `digits_ready` are the describe's business; only the
-         * numbers are polled here. */
+        /* `art` and `digits_ready` are the describe's business; the numbers
+         * and the hover are polled here -- the pointer moving over a button is
+         * no more one of Porcelain's six inputs than a skill packet is. */
         if( picture.value != state->picture[i].value ||
             picture.filled != state->picture[i].filled ||
             picture.total != state->picture[i].total ||
             picture.inactive != state->picture[i].inactive ||
+            picture.hovered != state->picture[i].hovered ||
             picture.fill_image != state->picture[i].fill_image ||
             picture.icon_image != state->picture[i].icon_image )
             moved = true;
@@ -1746,6 +1920,9 @@ orbs_frame(struct ToriRS_Api* api, void* plugin_state, struct ToriRS_FrameEvent 
     (void)event;
     if( !state->porcelain )
         return;
+    /* Before the comparison, not after: the hover is one of the things
+     * orbs_numbers_moved is comparing. */
+    orbs_hover(state);
     if( orbs_numbers_moved(state) )
         Porcelain_Invalidate(state->porcelain);
     Porcelain_Fence(state->porcelain);
@@ -1890,6 +2067,9 @@ _Static_assert(
 _Static_assert(
     ORB_SLOT_COUNT == ORB_COUNT,
     "one column slot per orb, in the reference's order");
+_Static_assert(
+    ORB_BUTTON_COUNT == ORB_COUNT,
+    "one button box per orb, taken from that orb's own component");
 
 static struct ToriRS_ConfigSchema const ORBS_SCHEMA = {
     .struct_size = sizeof(struct ToriRS_ConfigSchema),

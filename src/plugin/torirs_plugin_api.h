@@ -1231,6 +1231,8 @@ struct PorcelainElementState
     bool own_hidden;
     /** The engine's native suppression. */
     bool native_hidden;
+    /** @see ToriRS_WidgetState::input_present -- the LANE's answer, with the
+     * plugin layer's own hiding left out of it. */
     bool input_present;
     /** A CHANGE token, never an identity. */
     uint32_t graphic_token;

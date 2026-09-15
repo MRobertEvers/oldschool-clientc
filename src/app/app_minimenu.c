@@ -1829,7 +1829,7 @@ app_minimenu_ui_pick_live(
             app->tree->components[pick->node_index].component_id != pick->id )
             return 0;
         if( UITree_NodeOrAncestorDisplayHiddenEx(
-                app->tree, pick->node_index, pick->allow_frame_hidden) )
+                app->tree, pick->node_index, pick->allow_plugin_hidden) )
             return 0;
         idx = pick->node_index;
     }
