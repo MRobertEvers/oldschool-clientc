@@ -2043,7 +2043,10 @@ frame_loop_step(void)
                 }
                 if( sim_oploc_frame >= 0 && frame_count >= sim_oploc_frame )
                 {
-                    TORIRS_LOG(
+                    /* TORIRS_REPORT and not TORIRS_LOG: @see the sim_varbit
+                     * receipt below for why a drive lever's only receipt may
+                     * not be compiled out of the build every capture uses. */
+                    TORIRS_REPORT(
                         "sim_oploc: op=%ld tile=%ld,%ld loc=%ld\n",
                         sim_oploc_op,
                         sim_oploc_x,
@@ -2305,7 +2308,25 @@ frame_loop_step(void)
                      * unimplementable in the first place.
                      */
                     RS_CS2Host_QueueSettingsMirror(&app.host, (int)vb_id, (int)vb_value);
-                    TORIRS_LOG(
+                    /*
+                     * TORIRS_REPORT, not TORIRS_LOG: this is the RECEIPT for a
+                     * lever, not narration.
+                     *
+                     * Every screenshot in tools/porcelain_gate/shots is taken
+                     * with an OPT=1 binary, which is -DNDEBUG, which compiles
+                     * TORIRS_LOG away -- so the one line that says whether the
+                     * write landed, and what the varbit read back as, was
+                     * absent from every capture log while `sim_cmd:` beside it
+                     * printed. A cannon capture whose threshold row was never
+                     * written therefore looked exactly like one whose write had
+                     * landed and done nothing, and the reads-back field is what
+                     * separates "the profile has no such varbit" from "the
+                     * value is too wide for its bits".
+                     *
+                     * It meets the channel's own test: it prints only because
+                     * someone set TORIRS_SIM_VARBIT.
+                     */
+                    TORIRS_REPORT(
                         "sim_varbit: %ld = %ld (base varp %d, reads back %d)\n",
                         vb_id,
                         vb_value,
@@ -2534,6 +2555,67 @@ frame_loop_step(void)
                         TORIRS_REPORT("sim_keyhold: holding key %ld\n", code);
                         spec = (end && *end == ',') ? end + 1 : NULL;
                     }
+                }
+            }
+
+            /*
+             * TORIRS_SIM_CAMERA_YAW="<0..2047>" with
+             * TORIRS_SIM_CAMERA_YAW_FRAME=N: park the follow camera at a known
+             * yaw from loop frame N on, so a world overlay can be photographed
+             * with its subject IN the viewport instead of beside it.
+             *
+             * The yaw lives in `orbit`, not in world_camera: the follow step
+             * rebuilds world_camera.yaw from orbit.yaw every cycle, so a park
+             * written to world_camera survives exactly one render. The
+             * pre-loop block below got away with that because it renders and
+             * exits; from inside the loop it would simply not turn the camera.
+             * yaw_velocity goes to zero with it -- the reference's camera
+             * coasts, and a park that leaves a velocity behind drifts away
+             * from the angle the drive asked for over the frames that follow.
+             *
+             * This is the lever the entity-highlighter's live capture needed
+             * and did not have. Its three tagged npcs stand 11-12 tiles north
+             * and 5-8 tiles east of the only teleport that lane can reach;
+             * `wanderrange` keeps them from walking off, which is what the job
+             * comment argued, but nothing kept them in FRONT of a camera whose
+             * reset yaw looks north -- two of the three projected past the
+             * viewport's right edge and the drive had no way to say otherwise.
+             */
+            {
+                static int yaw_done = 0;
+                static long yaw_frame = -1;
+                if( yaw_frame < 0 )
+                {
+                    char const* at = getenv("TORIRS_SIM_CAMERA_YAW_FRAME");
+                    yaw_frame = at ? strtol(at, NULL, 0) : 1;
+                    if( yaw_frame < 1 )
+                        yaw_frame = 1;
+                }
+                if( !yaw_done && getenv("TORIRS_SIM_CAMERA_YAW") &&
+                    getenv("TORIRS_SIM_CAMERA_YAW_FRAME") && frame_count >= yaw_frame )
+                {
+                    yaw_done = 1;
+                    app.orbit.yaw = ToriDraw_NormalizeAngle(
+                        (int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
+                    app.orbit.yaw_velocity = 0;
+                    /*
+                     * Yaw only, and the pitch is deliberately NOT a second
+                     * knob beside it. Measured on this lane: the reset pitch
+                     * of 148 puts the highlighter's trio at y=13 and a park at
+                     * 190 puts them off the top of the viewport at y=4, so the
+                     * pitch band's flat end (128) is worth about four pixels
+                     * of headroom and its steep end throws the subject away
+                     * entirely. A knob that cannot move the picture in the
+                     * direction a drive needs is a knob nobody can use.
+                     *
+                     * REPORT for the same reason sim_cmd is: a drive that
+                     * asked for an angle wants the angle in the optimized
+                     * build's log, not only in a debug one.
+                     */
+                    TORIRS_REPORT(
+                        "sim_camera_yaw: frame %ld parked at %d\n",
+                        (long)frame_count,
+                        app.orbit.yaw);
                 }
             }
 
@@ -2931,17 +3013,17 @@ frame_loop_step(void)
          */
 #if defined(TORIRS_PLATFORM_ANDROID)
         app.touch_camera = 1;
-        app.touch_ui = 1;
 #endif
-        /* The touch-sized interface on a desktop, to look at it. @see
-         * App.touch_ui. */
-        if( torirs_env_touch_ui() )
-            app.touch_ui = 1;
-        /* A finger scrolls a list by dragging it; a mouse has the bar and the
-         * wheel. Mirrored here, beside the flag it follows, rather than after
-         * App_Init -- this block is what sets touch_ui, and it runs from the
-         * frame loop, so anything read at init time is still zero. */
-        app.interact.touch_scroll = app.touch_ui;
+        /*
+         * touch_ui is NOT set here any more, and neither is touch_scroll.
+         *
+         * Both are resolved in App_Init, beside the clientscript identity
+         * they follow. This block runs from the frame loop, which is after
+         * PluginHost_Start, so the capability a plugin reads at on_start --
+         * the only place a key declaration can be made -- was false on every
+         * lane and true from frame one onwards, with nobody listening by
+         * then. Measured: CAPPROBE at=start touch=0, at=frame60 touch=1.
+         */
 
         /* Cheap and unconditional: a window dragged from a Retina display to
          * an ordinary one changes density with no event that says so, and
@@ -3433,12 +3515,59 @@ frame_loop_teardown(void)
             char* hov_sep = NULL;
             int hov_x = (int)strtol(getenv("TORIRS_SIM_HOVER"), &hov_sep, 0);
             int hov_y = hov_sep && *hov_sep == ',' ? (int)strtol(hov_sep + 1, NULL, 0) : 0;
+            /*
+             * These frames CONTINUE the loop's clock; they do not restart it.
+             *
+             * `now_ms` is the clock the session is judged against, and it is
+             * the one App_RunOnce hands NetLinkWatch_Step. The four frames
+             * used to be stamped 20/40/60/80 -- absolute, from zero -- so
+             * after a run of any length the clock jumped BACKWARDS by the
+             * whole session, `now_ms - last_recv_ms` wrapped unsigned, and
+             * the watch read the wrap as fifteen silent seconds. It then tore
+             * the session down: "Connection lost / Please wait - attempting
+             * to reestablish" across the viewport, and with it the local
+             * player, every npc and every minimap dot. Four frames of parked
+             * pointer are not supposed to cost a session, and every shot that
+             * asked for a hover paid for one -- which is what left the tile
+             * indicator's own headline photograph with no player to mark.
+             */
+            uint64_t const hov_base_ms = app.last_frame_ms;
             for( int t = 0; t < 4; t++ )
             {
-                LibToriRS_Input_Begin(hov_input, (uint64_t)(t + 1) * 20);
+                uint64_t const hov_ms = hov_base_ms + (uint64_t)(t + 1) * 20;
+                LibToriRS_Input_Begin(hov_input, hov_ms);
                 LibToriRS_Input_PushMouseMove(hov_input, hov_x, hov_y);
                 LibToriRS_Input_End(hov_input);
-                App_RunOnce(&app, (uint64_t)(t + 1) * 20, hov_input);
+                (void)App_RunOnce(&app, hov_ms, hov_input);
+                /*
+                 * Unconditionally, and not on App_RunOnce's redraw answer:
+                 * the world PICK is armed inside App_Render, so the parked
+                 * pointer only reaches the pickset and world_hover_tile_x/z
+                 * by rendering. Without this the pointer moved and nothing
+                 * re-picked, and hover-tile consumers kept answering the tile
+                 * the last main-loop event left -- on the CS1 lane that was
+                 * the login click, a tile the ~varrock teleport had since put
+                 * under a roof. A frame that reports no redraw has still
+                 * moved the pointer, so the redraw flag is the wrong question
+                 * for these four.
+                 */
+
+                /*
+                 * Why rendering is the fix and not a nicety: App_RunOnce only
+                 * latches the mouse point. The scene pick runs inside
+                 * App_Render -- a hittest as each visible model projects -- and
+                 * app_world_pick_finish writes world_hover_tile from it, so the
+                 * hover tile any overlay reads is the LAST RENDER'S. Four
+                 * logic-only frames moved the pointer and left the pick where
+                 * the main loop's final frame had put it: on CS2 the mouse had
+                 * never been in the viewport, so hover_tile() answered nothing
+                 * and the indicator drew no marker; on the live CS1 lane the
+                 * pointer had last been at the login click, so the marker sat
+                 * on a roof a hundred pixels from where the drive asked. Both
+                 * pictures read as a plugin that draws in the wrong place
+                 * rather than a drive that never delivered the hover.
+                 */
+                sim_render_frame(&app);
             }
             TORIRS_LOG(
                 "sim_hover: parked at %d,%d hover_com_id=%d\n", hov_x, hov_y, app.hover_com_id);
@@ -3547,12 +3676,18 @@ frame_loop_teardown(void)
                     c->type == UIELEM_RS_LAYER ? c->u.rs_layer.scroll_height : -1,
                     c->scroll_x,
                     c->scroll_y);
+                /* The plugin anchor this node carries, so a capture rule can
+                 * assert "the camera REPLACES the report button" instead of
+                 * inferring it from paint bits. 0:-1 when none. */
+                int32_t anchor_target = -1;
+                enum UITreeWidgetRelation const anchor_relation =
+                    UITree_WidgetAnchorAt(app.tree, (int32_t)i, &anchor_target);
                 if( getenv("TORIRS_TRACE_NATIVE_UI") )
                     TORIRS_REPORT(
                         "NATIVE_UI node=%u incarnation=%" PRIu64 " parent=%d com=%d "
                         "type=%s hidden=%d native_paint=%d native_input=%d native_hide=%u slot=%u "
                         "member=%u role=%u "
-                        "box=%d,%d,%d,%d cs1_scripts=%d active=%d\n",
+                        "box=%d,%d,%d,%d cs1_scripts=%d active=%d anchor=%d:%d plugin_hidden=%d\n",
                         i,
                         c->incarnation,
                         c->parent,
@@ -3571,7 +3706,10 @@ frame_loop_teardown(void)
                         c->position.abs_w,
                         c->position.abs_h,
                         c->behavior.scripts_count,
-                        c->cs1_active);
+                        c->cs1_active,
+                        (int)anchor_relation,
+                        anchor_target,
+                        (int)c->widget_hidden);
                 /* Every widget a plugin OWNS, by the key it created it under:
                  * a text's length and hash, so a caption's content can be
                  * checked; an image's scene id, so its draw command can be
@@ -3581,9 +3719,7 @@ frame_loop_teardown(void)
                     c->type == UIELEM_RS_TEXT )
                 {
                     char const* text = c->u.rs_text.text ? c->u.rs_text.text : "";
-                    uint64_t hash = UINT64_C(14695981039346656037);
-                    for( unsigned char const* p = (unsigned char const*)text; *p; ++p )
-                        hash = (hash ^ *p) * UINT64_C(1099511628211);
+                    uint64_t hash = UITree_NodeTextHash(app.tree, (int32_t)i);
                     TORIRS_REPORT(
                         "OWNED_WIDGET owner=%" PRIu64
                         " key=%s node=%u box=%d,%d,%d,%d len=%zu hash=%016" PRIx64 " hidden=%d\n",
@@ -3618,9 +3754,7 @@ frame_loop_teardown(void)
                     c->u.rs_text.input )
                 {
                     char const* text = c->u.rs_text.text ? c->u.rs_text.text : "";
-                    uint64_t hash = UINT64_C(14695981039346656037);
-                    for( unsigned char const* p = (unsigned char const*)text; *p; ++p )
-                        hash = (hash ^ *p) * UINT64_C(1099511628211);
+                    uint64_t hash = UITree_NodeTextHash(app.tree, (int32_t)i);
                     TORIRS_REPORT(
                         "NATIVE_INPUT parent=%d com=%d focused=%d len=%zu hash=%016" PRIx64 "\n",
                         c->parent >= 0 ? app.tree->components[c->parent].component_id : -1,
@@ -4015,6 +4149,38 @@ frame_loop_teardown(void)
                     strlen(entry->text),
                     hash);
             }
+        /*
+         * WHO OWNS THE CHAT REGION IN THE PICTURE THAT WAS JUST TAKEN.
+         *
+         * Unconditional, and beside the BMP write rather than behind a trace
+         * flag, because it answers a question every capture of a chat-speaking
+         * plugin depends on and no capture could answer: the message log --
+         * and therefore every `Porcelain_Notify` line, every `mes`, every
+         * game message a plugin can produce -- is SUPPRESSED whenever an
+         * interface is mounted in the chat region. Not covered: not drawn at
+         * all. @see RS_UISlots_ChatRegionIface, and drawChat's `if
+         * (chatInterfaceId !== -1) ... else if (tutComId !== -1)` that it
+         * mirrors.
+         *
+         * Without this line a plugin that said nothing and a plugin whose line
+         * had nowhere to go are the SAME PICTURE, and that is not a theory:
+         * thirty-seven of the forty-seven live captures taken on this
+         * lane's own 2004 frame were photographed with a server modal owning
+         * the region, and nothing in the harness could say so -- the state was
+         * found by a person cropping one of them by hand. A log line costs
+         * nothing and every capture already keeps its log.
+         *
+         * `iface` is what the region shows: the IF_OPENCHAT dialogue if one is
+         * mounted, otherwise the tutorial-progress component, otherwise -1 for
+         * the message log itself. The two ids are printed alongside so the
+         * reader knows WHICH of the two owns it without a table.
+         */
+        TORIRS_REPORT(
+            "CHAT_REGION iface=%d chat_com=%d tut_com=%d log_visible=%d\n",
+            RS_UISlots_ChatRegionIface(&app.slots),
+            app.slots.chat_com_id,
+            app.slots.tut_com_id,
+            RS_UISlots_ChatRegionIface(&app.slots) == -1);
         bmp_write_file(
             getenv("TORIRS_EXIT_BMP"), pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         TORIRS_LOG("wrote %s\n", getenv("TORIRS_EXIT_BMP"));
@@ -5525,8 +5691,15 @@ main(
 
     /* TORIRS_SIM_CAMERA_YAW=<0..2047>: park the camera at a yaw and run a frame,
      * so the compass/minimap can be screenshotted at known angles. The in-app
-     * yaw keys are the arrows, which the key sim above cannot send. */
-    if( getenv("TORIRS_SIM_CAMERA_YAW") )
+     * yaw keys are the arrows, which the key sim above cannot send.
+     *
+     * TORIRS_SIM_CAMERA_YAW_FRAME says the drive wants the park applied from a
+     * MAIN-LOOP frame instead -- the only placement a lane that has to log in,
+     * skip a tutorial and teleport can use -- and that block owns the variable
+     * then. Running both would spend two extra frames here on a clock that
+     * starts at 1 ms, which on a live lane is the session teardown the shots
+     * README dates its broken hover captures by. */
+    if( getenv("TORIRS_SIM_CAMERA_YAW") && !getenv("TORIRS_SIM_CAMERA_YAW_FRAME") )
     {
         struct LibToriRS_Input yaw_storage;
         struct LibToriRS_Input* yaw_input = LibToriRS_Input_Init(&yaw_storage, 0);
@@ -5537,8 +5710,15 @@ main(
         {
             if( frame == 1 )
             {
-                app.world_camera.yaw =
+                /* Both, and orbit is the one that lasts: the follow step
+                 * rebuilds world_camera.yaw from orbit.yaw, so a park written
+                 * only to world_camera is gone by the next cycle. This path
+                 * renders immediately and never saw that, which is exactly why
+                 * the in-loop twin above could not reuse it. */
+                app.orbit.yaw =
                     ToriDraw_NormalizeAngle((int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
+                app.orbit.yaw_velocity = 0;
+                app.world_camera.yaw = app.orbit.yaw;
                 TORIRS_LOG("sim_camera_yaw: %d\n", app.world_camera.yaw);
             }
             LibToriRS_Input_Begin(yaw_input, yaw_ms);

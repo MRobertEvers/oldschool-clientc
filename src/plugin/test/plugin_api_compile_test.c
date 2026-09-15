@@ -28,6 +28,36 @@ example_report_bound(struct ToriRS_Api* api, void* user, struct ToriRS_WidgetEve
     (void)api;
     if( event->type == TORIRS_WIDGET_BOUND )
         state->report = event->widget;
+    /* The host raises this whenever the watched widget moved, was hidden, was
+     * re-skinned or was retyped underneath the plugin. */
+    if( event->type == TORIRS_WIDGET_STATE_CHANGED )
+        state->report = event->widget;
+}
+
+/*
+ * A skill snapshot says whether its numbers are READINGS. Seeding a session
+ * from an unstated skill is the bug this bit exists to stop, so the source
+ * shape a third party compiles against has to carry it.
+ */
+static int
+example_stated_level(struct ToriRS_Api* api)
+{
+    struct ToriRS_SkillSnapshot snapshot = { .struct_size = sizeof(snapshot) };
+
+    if( !api->game || !api->game->skill(api, 0, &snapshot) || !snapshot.stated )
+        return -1;
+    return snapshot.current_level;
+}
+
+/* Capabilities are asked for by NAME, and every name is an engine fact. */
+static bool
+example_wants_orbs(struct ToriRS_Api* api)
+{
+    return api->core.capability(api, "native_orbs") &&
+           api->core.capability(api, "server_tick.fenced") &&
+           api->core.capability(api, "cs2_scripts") &&
+           api->core.capability(api, "item_bonuses") &&
+           api->core.capability(api, "varbit:ground_items_enabled");
 }
 
 static void
@@ -35,11 +65,19 @@ example_start(struct ToriRS_Api* api, void* plugin_state)
 {
     struct ExampleState* state = plugin_state;
     struct ToriRS_WidgetBounds bounds;
+    struct ToriRS_WidgetState live = { .struct_size = sizeof(live) };
 
     state->starts++;
+    if( example_wants_orbs(api) && example_stated_level(api) > 0 )
+        state->starts++;
     (void)api->widgets.watch(api->widgets.context, "chat_report", example_report_bound, state);
+    (void)api->widgets.watch_state(api->widgets.context, "chat_report", example_report_bound, state);
     if( ToriRS_WidgetRefValid(state->report) &&
         api->widgets.bounds(api->widgets.context, state->report, &bounds) == TORIRS_CONTRACT_OK )
+        (void)api->widgets.set_hidden(api->widgets.context, state->report, false);
+    /* One read of the whole follow-the-native-widget answer. */
+    if( api->widgets.state(api->widgets.context, state->report, &live) == TORIRS_CONTRACT_OK &&
+        live.own_hidden )
         (void)api->widgets.set_hidden(api->widgets.context, state->report, false);
 }
 
@@ -155,5 +193,12 @@ main(void)
     _Static_assert(
         TORIRS_FRAME_OFFER_REQUIRED_SIZE <= sizeof(struct ToriRS_FrameOffer),
         "an offer is its id, title and canvas policy");
+    _Static_assert(
+        offsetof(struct ToriRS_SkillSnapshot, stated) >
+            offsetof(struct ToriRS_SkillSnapshot, next_level_xp),
+        "the stated bit is APPENDED: every field before it keeps its offset");
+    _Static_assert(
+        TORIRS_SKILL_SNAPSHOT_REQUIRED_SIZE <= sizeof(struct ToriRS_SkillSnapshot),
+        "a snapshot's required size is its struct_size prefix");
     return EXAMPLE_PLUGIN.struct_size == sizeof(EXAMPLE_PLUGIN) ? 0 : 1;
 }

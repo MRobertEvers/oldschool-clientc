@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "perf_audit.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
@@ -33,6 +34,7 @@ App_NoteFrameTime(
 {
     assert(app);
 
+    PerfAudit_EndFrame(frame_us);
     FrameTimeRing_Add(&app->dbg_frame_times, frame_us);
 }
 
@@ -884,7 +886,8 @@ App_RunOnce(
      * is complete. Applying it at the head of App_RunOnce made every later
      * CC_DELETEALL/CC_CREATE hand interaction a tree one generation newer
      * than the semantic bindings it was using. */
-    App_PluginLayoutTick(app);
+    { uint64_t const pa_w0 = PerfAudit_Now(); App_PluginLayoutTick(app);
+      PA_ADD(layout_tick_ns, PerfAudit_Now() - pa_w0); }
     /* A popup retained from the previous frame must not keep native rows live
      * after that reconciliation suppressed or rebuilt their component. */
     app_minimenu_close_if_stale(app);
@@ -2123,7 +2126,8 @@ App_RunOnce(
          * second CS2/topology transaction. This is the publication fence: the
          * standing semantic declaration must name the exact incarnations the
          * emit walk is about to commit, never the tree from frame start. */
-        App_PluginLayoutTick(app);
+        { uint64_t const pa_w0 = PerfAudit_Now(); App_PluginLayoutTick(app);
+      PA_ADD(layout_tick_ns, PerfAudit_Now() - pa_w0); }
         app_minimenu_close_if_stale(app);
         /* Publication invariant: an emit list is a frame commit, not a view of
          * whatever intermediate state the cooperative schedulers reached. */

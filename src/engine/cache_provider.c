@@ -2166,6 +2166,35 @@ CacheProvider_ObjtypeSearchByName(
     return count;
 }
 
+int
+CacheProvider_ObjtypeFindResident(
+    struct CacheProvider* provider,
+    bool (*match)(struct ToriRS_Objtype const* objtype, void* user),
+    void* user)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderObjtype* entry;
+    int found = -1;
+
+    assert(provider);
+    assert(match);
+    if( !provider->objtype_cache )
+        return -1;
+
+    iter = hmap_iter_new(provider->objtype_cache);
+    while( (entry = (struct MapEntry_ProviderObjtype*)hmap_iter_next(iter)) )
+    {
+        if( !entry->objtype )
+            continue;
+        if( !match(entry->objtype, user) )
+            continue;
+        found = entry->id;
+        break;
+    }
+    hmap_iter_free(iter);
+    return found;
+}
+
 void
 CacheProvider_NpctypeAdd(
     struct CacheProvider* provider,

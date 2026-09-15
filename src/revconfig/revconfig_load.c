@@ -235,6 +235,31 @@ push_field_from_ini_kv(
             push_field(vec, kind, value);
         return;
     }
+    /*
+     * `[tabs]` and `[tabs:<root>]`. Two reserved keys and then a free
+     * vocabulary: every OTHER key is a tab NAME, and its value the tab number,
+     * so this arm cannot dispatch on a fixed key set the way [features] does.
+     * The row is packed back into one `name=number` string because a field
+     * carries one value; revconfig_tabs_push_entry splits it again.
+     *
+     * Scoped to the section type for the same reason `id=` and `match=` are:
+     * `columns` and `detached` are ordinary enough words that another section
+     * could want them, and the header is what keeps the two apart.
+     */
+    if( strcmp(s_ini_item_type, "tabs") == 0 )
+    {
+        if( strcmp(key, "columns") == 0 )
+            push_field(vec, RCFIELD_TABS_COLUMNS, value);
+        else if( strcmp(key, "detached") == 0 )
+            push_field(vec, RCFIELD_TABS_DETACHED, value);
+        else
+        {
+            char row[64];
+            snprintf(row, sizeof(row), "%s=%s", key, value);
+            push_field(vec, RCFIELD_TABS_ENTRY, row);
+        }
+        return;
+    }
     if( strcmp(s_ini_item_type, "camera") == 0 )
     {
         if( strcmp(key, "rest") == 0 )

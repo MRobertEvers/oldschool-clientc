@@ -37,7 +37,7 @@
     };
     var INTENT = {
         ACTIVATE: 1, ACTION: 2, TOGGLE: 3, TEXT: 4, PICK: 5, TAB: 6,
-        CLOSE: 7, CUSTOM_ACTIVATE: 8
+        CLOSE: 7, CUSTOM_ACTIVATE: 8, CUSTOM_MENU: 9
     };
     var ROW_ACTION = 0x1;
     var ROW_LOCKED = 0x2;
@@ -751,7 +751,11 @@
             cw: integer(input && input.cw, 0), ch: integer(input && input.ch, 0),
             label: text(input && input.label, 63), text: text(input && input.text),
             detail: text(input && input.detail),
-            s: unsigned(input && input.s)
+            s: unsigned(input && input.s),
+            /* WIDGET_ADD's insertion anchor: the handle the new row goes before.
+             * -1 -- and an absent field, which is every stream authored before this
+             * one -- means append. */
+            b: integer(input && input.b, -1)
         };
     }
     function labelNode(labelValue) {
@@ -777,6 +781,20 @@
         if (!width || !height || x < 0 || y < 0 || x >= width || y >= height)
             return null;
         return { x: x, y: y, width: width, height: height };
+    }
+    // A well's point in the LOGICAL units the plugin painted in.
+    //
+    // One place, because the primary and secondary click must map a point the
+    // same way or a band would be picked by one button and missed by the other:
+    // through the published bitmap first (which is what the host fences the
+    // coordinates against) and then back out of the well's own scale.
+    function customLocalX(record, point) {
+        var px = Math.max(0, Math.min(record.bitmapWidth - 1, Math.floor(point.x * record.bitmapWidth / point.width)));
+        return Math.floor(px * 1000 / Math.max(1, record.customScale));
+    }
+    function customLocalY(record, point) {
+        var py = Math.max(0, Math.min(record.bitmapHeight - 1, Math.floor(point.y * record.bitmapHeight / point.height)));
+        return Math.floor(py * 1000 / Math.max(1, record.customScale));
     }
     function createWidget(command) {
         if (command.p !== state.panel || command.w < 0 || command.v < 0 || command.v > W.FREE)
@@ -1100,9 +1118,24 @@
                     var point = customContentPoint(custom_1, event);
                     if (!point)
                         return;
-                    var px = Math.max(0, Math.min(record.bitmapWidth - 1, Math.floor(point.x * record.bitmapWidth / point.width)));
-                    var py = Math.max(0, Math.min(record.bitmapHeight - 1, Math.floor(point.y * record.bitmapHeight / point.height)));
-                    postWidget(record, INTENT.CUSTOM_ACTIVATE, 0, '', Math.floor(px * 1000 / Math.max(1, record.customScale)), Math.floor(py * 1000 / Math.max(1, record.customScale)));
+                    postWidget(record, INTENT.CUSTOM_ACTIVATE, 0, '', customLocalX(record, point), customLocalY(record, point));
+                });
+                // The secondary click, with the SAME coordinate mapping as the
+                // release above: a well is one control, so where it was clicked is
+                // the whole of what it is told, and a menu click that arrived without
+                // coordinates would name no band. The browser's own context menu is
+                // suppressed here and only here, so the page's menu still works
+                // everywhere a well is not.
+                bind(custom_1, 'contextmenu', function (event) {
+                    var point = customContentPoint(custom_1, event);
+                    if (!point)
+                        return;
+                    if (event.preventDefault)
+                        event.preventDefault();
+                    else
+                        event.returnValue = false;
+                    record.pointer = null;
+                    postWidget(record, INTENT.CUSTOM_MENU, 0, '', customLocalX(record, point), customLocalY(record, point));
                 });
                 bind(custom_1, 'keydown', function (event) {
                     var code = event.keyCode || event.which || 0;
@@ -1120,7 +1153,21 @@
                 hidden(row, true);
                 break;
         }
-        content.appendChild(row);
+        /*
+         * WHERE, not just what. The command's "b" names the row this one must go
+         * before, by handle -- the same handle space "w" uses -- because an ADD is
+         * not always an append: a row can be given a new identity between
+         * unchanged neighbours, and the host states that as REMOVE then ADD.
+         *
+         * Absent, -1, or a handle this page does not hold means append. The first
+         * keeps a stream authored before this field valid; the last is what the
+         * in-order snapshot carries, where a row's successor does not exist yet.
+         */
+        var before = state.widgets.get(integer(command.b, -1));
+        if (before && before.row.parentNode === content)
+            content.insertBefore(row, before.row);
+        else
+            content.appendChild(row);
         state.widgets.set(record.handle, record);
         indexWidget(record);
         queueWidgetRender(record, RENDER.FULL);

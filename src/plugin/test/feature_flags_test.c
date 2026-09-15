@@ -14,6 +14,7 @@
  * would only be checking that two lists were typed the same way.
  */
 
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_host.h"
 
 #include <stdio.h>
@@ -52,7 +53,27 @@ struct FakeFlag
     /** What this "boot" resolved, i.e. what the UNSET sentinel restores. */
     int boot;
     int value;
+    /** How the engine resolves this field's sentinel, or NULL where the field
+     *  is its own meaning. @see AppPluginFeatureDesc::effective. */
+    int (*resolve)(int stored);
 };
+
+/*
+ * The painter's own rule, in the shape the engine publishes it in: a stored 0
+ * means "this era states no preference" and draws the official minimum, and
+ * anything outside the band is clamped into it. Here so the fake engine can
+ * hold a flag whose field and whose meaning are DIFFERENT NUMBERS, which is
+ * the only state in which the page can name the wrong one.
+ */
+static int
+fake_draw_distance_effective(int stored)
+{
+    if( stored == 0 || stored < 25 )
+        return 25;
+    if( stored > 90 )
+        return 90;
+    return stored;
+}
 
 /*
  * One flag of each shape: a NUMBER whose named values are suggestions, an
@@ -68,24 +89,29 @@ static struct FakeFlag g_flags[] = {
      90, "25 tiles|40 tiles|60 tiles|90 tiles",
      { 25, 40, 60, 90 },
      4, 25,
-     25   },
+     25, fake_draw_distance_effective   },
     { "camera_zoom",
      "Zoom",          "Camera",
      TORIRS_FEATURE_ENUM, 0,
      0,  "Adjustable|Fixed",
      { 0, 1 },
      2, 0,
-     0    },
+     0, NULL    },
     { "target_mask_held",
      "Held bit",      "",
      TORIRS_FEATURE_ENUM, 0,
      0,  "0x10 (2004)|0x20 (OldSchool)",
      { 0x10, 0x20 },
      2, 0x10,
-     0x10 },
+     0x10, NULL },
 };
 
 #define FLAG_COUNT ((int)(sizeof(g_flags) / sizeof(g_flags[0])))
+
+/* How many of them this "build" publishes. The ledger's rule is that the list
+ * is re-read at every run, so a build that publishes a different set produces
+ * a different page rather than a stale one. */
+static int g_published = FLAG_COUNT;
 
 static void
 flags_reset(void)
@@ -114,7 +140,7 @@ fake_feature_next(
     (void)u;
 
     int const at = i < 0 ? 0 : i + 1;
-    if( at >= FLAG_COUNT )
+    if( at >= g_published )
         return -1;
 
     struct FakeFlag const* f = &g_flags[at];
@@ -131,6 +157,7 @@ fake_feature_next(
     for( int v = 0; v < f->value_count; v++ )
         o->values[v] = f->values[v];
     o->value = f->value;
+    o->effective = f->resolve ? f->resolve(f->value) : f->value;
     o->is_default = f->value == f->boot;
     return at;
 }
@@ -381,14 +408,18 @@ fake_draw_tile(
     int z,
     int l,
     uint32_t c,
+    int outline_width,
     uint32_t f,
-    int a)
+    int a,
+    int depth)
 {
     (void)u;
     (void)x;
     (void)z;
     (void)l;
     (void)c;
+    (void)depth;
+    (void)outline_width;
     (void)f;
     (void)a;
     return 0;
@@ -487,6 +518,16 @@ fake_slot_native_size(void* u, int slot, int* w, int* h)
     (void)slot;
     (void)w;
     (void)h;
+    return 0;
+}
+
+/** No member of any surface has an authored box in this fake.
+ *  @see ToriRS_FrameApi::surface_member_native_box. */
+static int
+fake_slot_member_native_box(
+    void* u, int slot, int member, int* x, int* y, int* w, int* h)
+{
+    (void)u; (void)slot; (void)member; (void)x; (void)y; (void)w; (void)h;
     return 0;
 }
 
@@ -1111,6 +1152,7 @@ fake_engine(void)
     e.tab_select = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
     e.slot_native_size = fake_slot_native_size;
+    e.slot_member_native_box = fake_slot_member_native_box;
     e.component_rect = fake_component_rect;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
@@ -1217,6 +1259,15 @@ choice_index(
     }
 }
 
+/** One client frame: the fence where a Porcelain description is reconciled. */
+static void
+frame(struct ToriRS_PluginHost* host)
+{
+    static uint64_t now_ms;
+    static uint64_t drawn;
+    PluginHost_FrameStart(host, now_ms += 20, ++drawn);
+}
+
 /** Do the same thing the panel does when a dropdown row is used. */
 static void
 pick(
@@ -1239,6 +1290,13 @@ pick(
         (void)PluginHost_PanelDispatch(
             host, generation, w->serial, ++sequence, id,
             TORIRS_PANEL_ACTION_PICK, index, value, 0, 0);
+        /*
+         * A pick used to re-publish the row from inside the dispatch, and to
+         * rebuild the whole page whenever that publish was refused. It now
+         * says the stored value moved, and the reconcile runs at the next
+         * fence -- so the test drives the frame the client would.
+         */
+        frame(host);
         (void)PluginHost_PanelEnsureBuilt(host, generation);
     }
 }
@@ -1247,8 +1305,15 @@ int
 main(void)
 {
     struct ToriRS_PluginEngine engine = fake_engine();
-    struct ToriRS_PluginHost* host = PluginHost_New(&engine);
-    int const p = PluginHost_Register(host, &TORIRS_FEATURE_FLAGS);
+    struct ToriRS_PluginHost* host;
+    int p;
+
+    /* The page is a Porcelain description now, so the layer has to be in the
+     * host before anything starts -- the real client installs it at the same
+     * point, in App_PluginsInit. */
+    PluginHost_SetPorcelain(ToriRS_PorcelainApiTable());
+    host = PluginHost_New(&engine);
+    p = PluginHost_Register(host, &TORIRS_FEATURE_FLAGS);
 
     flags_reset();
 
@@ -1298,12 +1363,20 @@ main(void)
     {
         struct ToriRS_PanelWidget const* w = PluginHost_PanelWidgetAt(
             host, PluginHost_PanelSelectionGeneration(host), 0);
+        /*
+         * A heading has a STABLE key now, and its string travels as the row's
+         * text. Both follow from the row model: the builder's `heading` mints
+         * a generated id, and an id the plugin did not choose is an id
+         * nothing can patch, reidentify or route to -- while `label` is the
+         * one field the host's patch path cannot restate. The page reads the
+         * same, because the host draws a heading from a readout over the two.
+         */
         CHECK(
-            w && w->kind == TORIRS_PANEL_WIDGET_SECTION && strcmp(w->label, "Scene") == 0,
+            w && w->kind == TORIRS_PANEL_WIDGET_SECTION && strcmp(w->text, "Scene") == 0,
             "the first section's heading comes before its rows");
         CHECK(
-            widget_named(host, p, "_v2_heading_1") != NULL,
-            "and the second section gets its own heading");
+            widget_named(host, p, "sec_1") != NULL,
+            "and the second section gets its own heading, under a key of its own");
     }
 
     {
@@ -1431,10 +1504,197 @@ main(void)
         CHECK(g_flags[0].value == 63, "an ini value the list does not name still applies");
 
         CHECK(PluginHost_PanelSelect(host3, p3), "the custom-value page selects");
+        CHECK(
+            PluginHost_PanelLayout(
+                host3, PluginHost_PanelSelectionGeneration(host3),
+                320, 480, 1000, TORIRS_PANEL_SIZE_MEDIUM, true, true),
+            "and receives a live layout, so a row on it can be used");
         w = widget_named(host3, p3, "draw_distance");
         CHECK(w && choice_index(w, "63") == 5, "and is appended after the named ones");
         CHECK(w && w->selected == 5, "with the row showing it");
+
+        /*
+         * And picking AWAY from it removes that entry, so the option COUNT
+         * changes -- which is the common edit on this page and used to be
+         * refused by the host's same-count rule, whereupon this plugin
+         * invalidated and the whole page was rebuilt for a one-row change.
+         * Host fix H3 made the count a setter; the row model is what keeps
+         * the rest of the page out of it.
+         */
+        {
+            uint32_t const generation = PluginHost_PanelSelectionGeneration(host3);
+            int const before_count = PluginHost_PanelWidgetCount(host3, generation);
+            /* Six before: the sentinel, four named, and the unlisted 63. */
+            uint32_t serials[16];
+            int captured = 0;
+
+            for( int i = 0; i < before_count && captured < 16; i++ )
+            {
+                struct ToriRS_PanelWidget const* row =
+                    PluginHost_PanelWidgetAt(host3, generation, i);
+                serials[captured++] = row ? row->serial : 0;
+            }
+            pick(host3, p3, "draw_distance", "40 tiles");
+            w = widget_named(host3, p3, "draw_distance");
+            CHECK(w && w->select_option_count == 5,
+                  "picking away from an unlisted number drops its synthetic option");
+            CHECK(PluginHost_PanelSelectionGeneration(host3) == generation,
+                  "and the page is not rebuilt for it");
+            for( int i = 0; i < captured; i++ )
+            {
+                struct ToriRS_PanelWidget const* row =
+                    PluginHost_PanelWidgetAt(host3, generation, i);
+                CHECK(row && row->serial == serials[i],
+                      "every row keeps the identity a click was authored against");
+            }
+        }
         PluginHost_Free(host3);
+    }
+
+    /*
+     * The same description on both faces.
+     *
+     * These ARE the settings, so the page and the settings form show the same
+     * rows -- which the row model states as `faces = PAGE | SETTINGS` and
+     * nothing else. Before, the build simply ignored `view`, which is the
+     * same behaviour with nothing saying it was meant.
+     */
+    {
+        struct ToriRS_PluginEngine e4 = fake_engine();
+        struct ToriRS_PluginHost* host4 = PluginHost_New(&e4);
+        int const p4 = PluginHost_Register(host4, &TORIRS_FEATURE_FLAGS);
+        char page_keys[16][TORIRS_PLUGIN_WIDGET_ID_MAX];
+        int page_count = 0;
+        uint32_t generation;
+
+        flags_reset();
+        g_published = FLAG_COUNT;
+        PluginHost_Start(host4);
+        CHECK(PluginHost_PanelSelectView(host4, p4, TORIRS_PANEL_VIEW_PAGE),
+              "the page face selects");
+        generation = PluginHost_PanelSelectionGeneration(host4);
+        for( int i = 0; i < PluginHost_PanelWidgetCount(host4, generation) && page_count < 16;
+             i++ )
+        {
+            struct ToriRS_PanelWidget const* row =
+                PluginHost_PanelWidgetAt(host4, generation, i);
+            snprintf(page_keys[page_count], sizeof(page_keys[page_count]), "%s",
+                     row ? row->id : "");
+            page_count++;
+        }
+        CHECK(page_count > 0, "and carries rows");
+
+        CHECK(PluginHost_PanelSelectView(host4, p4, TORIRS_PANEL_VIEW_SETTINGS),
+              "the settings face selects too");
+        generation = PluginHost_PanelSelectionGeneration(host4);
+        CHECK(PluginHost_PanelWidgetCount(host4, generation) == page_count,
+              "and declares the same number of rows");
+        for( int i = 0; i < page_count; i++ )
+        {
+            struct ToriRS_PanelWidget const* row =
+                PluginHost_PanelWidgetAt(host4, generation, i);
+            CHECK(row && strcmp(row->id, page_keys[i]) == 0,
+                  "in the same key order: these ARE the settings");
+        }
+        PluginHost_Free(host4);
+    }
+
+    /*
+     * The list is re-read on every run.
+     *
+     * A build that publishes a different set of flags is a different KEY
+     * SEQUENCE, which is the one thing the row model answers with a rebuild;
+     * and a build that publishes none declares the empty state rather than a
+     * blank page.
+     */
+    {
+        struct ToriRS_PluginEngine e5 = fake_engine();
+        struct ToriRS_PluginHost* host5 = PluginHost_New(&e5);
+        int const p5 = PluginHost_Register(host5, &TORIRS_FEATURE_FLAGS);
+        uint32_t generation;
+
+        flags_reset();
+        g_published = FLAG_COUNT;
+        PluginHost_Start(host5);
+        CHECK(PluginHost_PanelSelect(host5, p5), "the page selects");
+        generation = PluginHost_PanelSelectionGeneration(host5);
+        CHECK(PluginHost_PanelWidgetCount(host5, generation) == FLAG_COUNT + 2,
+              "a full list is a row per flag and a heading per section");
+
+        /* The build published fewer flags, and something moved the store --
+         * PluginHost_ConfigSet is the path the settings form uses, and the
+         * one that reaches the plugin's on_config_changed. */
+        g_published = 1;
+        CHECK(PluginHost_ConfigSet(host5, p5, "camera_zoom", "Fixed"),
+              "a config write the plugin is told about");
+        frame(host5);
+        (void)PluginHost_PanelEnsureBuilt(
+            host5, PluginHost_PanelSelectionGeneration(host5));
+        generation = PluginHost_PanelSelectionGeneration(host5);
+        CHECK(PluginHost_PanelWidgetCount(host5, generation) == 2,
+              "a build that publishes a different set produces a different page");
+        CHECK(widget_named(host5, p5, "camera_zoom") == NULL,
+              "with the rows it no longer publishes gone");
+
+        /* And none at all. */
+        g_published = 0;
+        CHECK(PluginHost_ConfigSet(host5, p5, "draw_distance", "40"),
+              "and another");
+        frame(host5);
+        (void)PluginHost_PanelEnsureBuilt(
+            host5, PluginHost_PanelSelectionGeneration(host5));
+        generation = PluginHost_PanelSelectionGeneration(host5);
+        CHECK(PluginHost_PanelWidgetCount(host5, generation) == 1,
+              "a build that publishes no flags declares one row");
+        {
+            struct ToriRS_PanelWidget const* row =
+                PluginHost_PanelWidgetAt(host5, generation, 0);
+            CHECK(row && strcmp(row->id, "empty") == 0,
+                  "and it is the explicit empty state, not a blank page");
+        }
+        g_published = FLAG_COUNT;
+        PluginHost_Free(host5);
+    }
+
+    /*
+     * A FLAG WHOSE FIELD IS A SENTINEL.
+     *
+     * The CS1 lane boots `draw_distance` at 0 -- the era states no preference
+     * -- and the painter draws the 25 tiles the engine resolves that to. The
+     * page named the FIELD and said "Revision default (0)": a distance that is
+     * not one of the row's eight choices, is below the row's own minimum, and
+     * that the row would itself refuse if you picked it.
+     */
+    {
+        struct ToriRS_PluginEngine e6 = fake_engine();
+        struct ToriRS_PluginHost* host6 = PluginHost_New(&e6);
+        int const p6 = PluginHost_Register(host6, &TORIRS_FEATURE_FLAGS);
+        int const saved_boot = g_flags[0].boot;
+
+        flags_reset();
+        g_published = FLAG_COUNT;
+        /* Boot AND live, because it is the untouched row that has to read
+         * right: a row somebody has picked on names its own choice. */
+        g_flags[0].boot = 0;
+        g_flags[0].value = 0;
+
+        PluginHost_Start(host6);
+        CHECK(PluginHost_PanelSelect(host6, p6), "the page selects on a sentinel boot");
+        {
+            struct ToriRS_PanelWidget const* w =
+                widget_named(host6, p6, "draw_distance");
+            CHECK(
+                w && w->structured_select && w->select_option_count == 5,
+                "a sentinel adds no synthetic option: nothing is stored");
+            CHECK(
+                w && strcmp(w->select_options[0].label,
+                            "Revision default (25 tiles)") == 0,
+                "the default entry names what the engine ACTS on, not the "
+                "sentinel its field holds");
+        }
+        g_flags[0].boot = saved_boot;
+        flags_reset();
+        PluginHost_Free(host6);
     }
 
     PluginHost_Free(host);

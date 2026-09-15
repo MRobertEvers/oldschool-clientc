@@ -13,6 +13,7 @@ main(void)
     test_refs();
     test_profile();
     test_roles();
+    test_tabs();
 
     if( g_failures )
     {

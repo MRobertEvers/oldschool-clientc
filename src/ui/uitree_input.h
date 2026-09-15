@@ -141,6 +141,27 @@ UITree_PointBlocksWorld(
     int py);
 
 /**
+ * Both of the above, from ONE tree collection.
+ *
+ * The world gate asks them back to back at the same point, and on the plugin
+ * path (any widget anchor at all -> UITree_FrameHasDepth) each one is a whole
+ * ordered walk of the tree. Sharing the collection is free: the two answers are
+ * independent reductions of the same event list, and both entry points remain
+ * for the callers that want only one.
+ *
+ * `*out_blocks_world` gets UITree_PointBlocksWorld's answer, `*out_interactive_hit`
+ * UITree_HitTestInteractive's (a node index, or -1).
+ */
+void
+UITree_PointQuery(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py,
+    int* out_blocks_world,
+    int32_t* out_interactive_hit);
+
+/**
  * Collect every menu-relevant node under (px,py), TOP-MOST FIRST: interactive
  * nodes plus RS_INV/RS_INV_TEXT grids (whose rows come from inventory slots).
  * Applies the same visibility / clip / scroll / no_click_through rules as

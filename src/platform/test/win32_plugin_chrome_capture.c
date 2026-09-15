@@ -93,6 +93,9 @@ apply_add(
     cmd.value = kind;
     cmd.h = height;
     cmd.serial = (uint32_t)(1001 + widget);
+    /* This capture states its rows in order, so each one appends. Spelled out
+     * because the memset default, 0, is a real widget handle. */
+    cmd.before_widget = -1;
     copy_text(cmd.label, sizeof(cmd.label), label);
     copy_text(cmd.text, sizeof(cmd.text), text);
     exec->apply(exec->user, &cmd);

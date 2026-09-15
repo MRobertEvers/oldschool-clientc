@@ -192,27 +192,59 @@ def check_screenshot_saved(log, failures):
     if not ok: failures.append("screenshot_saved")
 
 
-def check_report_replaced(log, failures):
-    """The plugin's report-slot camera lies inside a native control whose
-    presentation the plugin hid: native paint and input off, native hide still
-    zero (server state intact), while the camera itself is a painted owned
-    graphic. Read from the final publication only."""
-    final = log[log.rfind("NATIVE_ROOT id="):] if "NATIVE_ROOT id=" in log else log
-    cams = [tuple(map(int, m)) for m in re.findall(r"SCREENSHOT_CAMERA camera_report (-?\d+) (-?\d+) (\d+) (\d+)", log)]
-    cam = cams[-1] if cams else None
-    nodes = re.findall(r"NATIVE_UI node=\d+[^\n]*com=(-?\d+) type=(\w+) hidden=(\d) native_paint=(\d) native_input=(\d) native_hide=(\d)[^\n]*box=(-?\d+),(-?\d+),(\d+),(\d+)", final)
-    def contains(outer, inner):
-        ox, oy, ow, oh = outer; ix, iy, iw, ih = inner
-        return ox <= ix and oy <= iy and ix + iw <= ox + ow and iy + ih <= oy + oh
-    hidden_hosts = [n for n in nodes if cam and n[2] == "0" and n[3] == "0" and n[4] == "0" and n[5] == "0"
-                    and contains(tuple(map(int, n[6:])), cam) and n[1] in ("rs_graphic", "rs_layer", "chat_button")]
-    camera_nodes = [n for n in nodes if cam and n[0] == "-1" and n[1] == "rs_graphic" and n[3] == "1"
-                    and tuple(map(int, n[6:])) == cam]
-    print(f"PIXEL report_control_plugin_hidden={'PASS' if hidden_hosts else 'FAIL'} hosts={len(hidden_hosts)} camera={cam}")
-    if not hidden_hosts: failures.append("report_control_plugin_hidden")
-    print(f"PIXEL report_camera_painted={'PASS' if camera_nodes else 'FAIL'} nodes={len(camera_nodes)}")
-    if not camera_nodes: failures.append("report_camera_painted")
+def check_porcelain_clean(log, failures):
+    """No refusal the plugin did not declare.
 
+    A Porcelain plugin reports every result that is not OK or PENDING as a
+    finding, and a finding it expects (an element this lane does not have,
+    declared through ExpectAbsent) carries expected=1. Anything else in the
+    log is a refusal nobody planned for, which is the class of defect the
+    record says hurt most and was found last."""
+    found = re.findall(r"^PORCELAIN_FINDING .*$", log, re.M)
+    unexpected = [l for l in found if "expected=1" not in l]
+    print(f"PIXEL porcelain_clean={'PASS' if not unexpected else 'FAIL'} "
+          f"findings={len(found)} unexpected={len(unexpected)}")
+    for l in unexpected[:6]:
+        print("    !", l[:160])
+    if unexpected:
+        failures.append("porcelain_clean")
+
+
+def check_report_replaced(log, failures):
+    """The plugin's report-slot camera is an owned graphic anchored REPLACE to
+    the native report control: the engine drops the control's paint and input
+    while the camera is presented and restores them when it is not, and the
+    control's own state stays untouched (hidden 0, native_hide 0). The rule
+    asserts the anchor relation itself (anchor=3:<report node> on the camera
+    node), not the paint bits, so it holds however the engine orders the two.
+    Read from the final publication only."""
+    final = log[log.rfind("NATIVE_ROOT id="):] if "NATIVE_ROOT id=" in log else log
+    # The host names the camera control by the key the plugin created it under,
+    # unconditionally; the plugin's own SCREENSHOT_CAMERA log line needs
+    # TORIRS_PLUGIN_LOG and is not relied on.
+    owned = re.findall(r"OWNED_WIDGET owner=\d+ key=camera_report node=(\d+) box=(-?\d+),(-?\d+),(\d+),(\d+)", final)
+    cam_node = int(owned[-1][0]) if owned else -1
+    cam = tuple(map(int, owned[-1][1:])) if owned else None
+    reports = re.findall(r"ROLE_WIDGET role=report_button node=(\d+)", final)
+    report_node = int(reports[-1]) if reports else -1
+    nodes = re.findall(r"NATIVE_UI node=(\d+)[^\n]*com=(-?\d+) type=(\w+) hidden=(\d) native_paint=(\d) native_input=(\d) native_hide=(\d)[^\n]*box=(-?\d+),(-?\d+),(\d+),(\d+)[^\n]*anchor=(\d+):(-?\d+) plugin_hidden=(\d)", final)
+    REPLACE = 3
+    camera_nodes = [n for n in nodes if int(n[0]) == cam_node and n[1] == "-1" and n[2] == "rs_graphic"]
+    replaced = [n for n in camera_nodes if int(n[11]) == REPLACE and int(n[12]) == report_node and report_node >= 0]
+    # The plugin never hid the control itself: its widget-hide bit is clear.
+    # The cache's own hide and the engine's suppression are theirs to set (the
+    # mobile toplevel hides Report natively) and are reported, not asserted.
+    intact = [n for n in nodes if int(n[0]) == report_node and n[13] == "0"]
+    print(f"PIXEL report_control_replaced={'PASS' if replaced else 'FAIL'} camera={cam} report_node={report_node} anchors={[n[11]+':'+n[12] for n in camera_nodes]}")
+    if not replaced: failures.append("report_control_replaced")
+    print(f"PIXEL report_control_state_intact={'PASS' if intact else 'FAIL'} nodes={len(intact)} report_hidden={[n[3]+'/native_hide='+n[6]+'/plugin='+n[13] for n in nodes if int(n[0]) == report_node]}")
+    if not intact: failures.append("report_control_state_intact")
+    # The camera node is available on its own account; whether it is finally
+    # painted is the REPLACE veto's answer (it follows the report control's
+    # presentation), which the pixel rules on the chat bar read.
+    available = [n for n in camera_nodes if n[4] == "1"]
+    print(f"PIXEL report_camera_available={'PASS' if available else 'FAIL'} nodes={len(available)}")
+    if not available: failures.append("report_camera_available")
 
 def check_highlight_color(rows, log, spec, failures):
     """A cache highlight group was recorded live by the engine AND its exact
@@ -446,7 +478,7 @@ def check_native_caption(rows,log,text,failures):
 
 
 def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=None,
-          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None, dest_tile=False, menu_row=None, overlay_text_absent=None, native_caption_absent=None, scene_objects=None, find_all_holes=None):
+          revision="osrs239", native_baseline=False, rs289_scenario="baseline", input_state=None, native_focus_hide=False, widget_demo=None, widget_moves=1, widget_rune_slot=0, owned_text=None, owned_count=1, widget_offset=12, plugin_id=None, plugin_enabled=1, plugin_lua=False, performance_metrics="fps,frame,effective,memory", performance_position="10,25", performance_color="FFFFFF", overlay_text=None, native_ground_labels=None, native_caption=None, ground_row_gap=None, public_chat_mode="on", widget_op=False, expect_log=None, screenshot_saved=False, report_replaced=False, forbid_log=None, highlight_color=None, panel_custom_ink=None, dest_tile=False, menu_row=None, overlay_text_absent=None, native_caption_absent=None, scene_objects=None, find_all_holes=None, porcelain_clean=False):
     width, height, rows = read_bmp(path)
     failures = []
     if public_chat_mode=="friends":
@@ -576,6 +608,8 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         valid = observed == (count, missing)
         print(f"PIXEL find_all_holes={'PASS' if valid else 'FAIL'} role={role} expected={count}:{missing} observed={observed}")
         if not valid: failures.append(f"find_all_holes:{spec}")
+    if porcelain_clean:
+        check_porcelain_clean(Path(bounds_path).read_text() if bounds_path else "", failures)
     if report_replaced:
         check_report_replaced(Path(bounds_path).read_text() if bounds_path else "", failures)
     if highlight_color:
@@ -642,32 +676,43 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
             raise ValueError("rs289lc requires its matching native trace")
         check_rs289(rows, Path(bounds_path).read_text(), failures, rs289_scenario, frame, public_chat_mode, report_replaced)
         return failures
-    if frame == "gameframe-layout/classic-fixed":
-        # The approved plain-rock band spans x=0..495, y=467..498.
-        # Its 29-column source repeats without any of the four old recesses.
-        # Checking all repeats also catches partially covered/late old art.
-        # Mobile puts its message area below the filters, covering part of
-        # this strip. Test the exposed rock, not the chat painted over it.
-        backing = None
+    if frame == "gameframe-layout/classic-fixed" and root != 601:
+        # The 2004 filter band -- rows 467..498, where the four dat1 recesses
+        # are cut -- must be BEHIND the lane's chat pack, not beside it.
+        #
+        # This rule used to say the opposite. It asserted that those rows WERE
+        # a 29-column source tile repeated across the strip, which is what the
+        # provider composed there to cover the four recesses the CS2 pack's
+        # own filters made redundant. That tile never covered them: its 29
+        # columns start at the first recess's right-hand shadow, so eighteen
+        # and a half repeats of it manufactured a row of dark sockets at a
+        # 29-column pitch -- the "empty 2004 hollows under the bar" the ledger
+        # ranks first, pinned green by the rule that was meant to catch it.
+        # There is no run of plain rock in that strip to tile instead, so the
+        # band is not re-cut: the pack is seated ON the strip and its own bar
+        # is the frame's bar.
+        #
+        # What is checkable about that is containment, and it is checked on
+        # the pack's own box rather than on pixels: the pack must start at or
+        # left of the frame's chat hole, reach at least to where `backbase1`
+        # ends, begin above the band and end at or below it. Pixels cannot
+        # tell "covered by the pack" from "painted to look like the pack".
+        pack = None
         if bounds_path:
-            match = re.search(r"BOUNDS[^\n]*\(162\|37\)[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)",
+            match = re.search(r"BOUNDS[^\n]*\(162\|0\)[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)",
                               Path(bounds_path).read_text())
             if match:
-                backing = tuple(map(int, match.groups()))
-        def exposed(x, y):
-            if backing is None:
-                return True
-            bx, by, bw, bh = backing
-            return not (bx <= x < bx + bw and by <= y < by + bh)
-        valid = width >= 496 and height >= 499 and (root != 601 or backing is not None)
+                pack = tuple(map(int, match.groups()))
+        valid = width >= 496 and height >= 499 and pack is not None
+        detail = "no chat pack in the trace"
         if valid:
-            valid = all(rows[y][x] == rows[y][x % 29]
-                        for y in range(467, 499) for x in range(29, 496)
-                        if exposed(x, y) and exposed(x % 29, y))
-            valid = valid and len({p for row in rows[467:499] for p in row[:29]}) > 3
-        print(f"PIXEL no_captionless_2004_hollows={'PASS' if valid else 'FAIL'} root={root}")
+            px, py, pw, ph = pack
+            valid = px <= 17 and px + pw >= 496 and py <= 467 and py + ph >= 499
+            detail = f"pack={px},{py} {pw}x{ph}"
+        print(f"PIXEL no_captionless_2004_hollows={'PASS' if valid else 'FAIL'} root={root} {detail}")
         if not valid:
             failures.append("no_captionless_2004_hollows")
+    if frame == "gameframe-layout/classic-fixed":
         if root != 601:
             # Approved running-client crop. The pre-fix 519-wide parchment
             # covered 40 columns of the old rail; its surviving right edge
@@ -732,6 +777,8 @@ if __name__ == "__main__":
     parser.add_argument("--widget-op", action="store_true", help="the simulated click must press the demo's owned control")
     parser.add_argument("--expect-log", action="append", default=[], help="regex the client log must contain (repeatable)")
     parser.add_argument("--screenshot-saved", action="store_true", help="a plugin 'captured <path>' line names an existing PNG")
+    parser.add_argument("--porcelain-clean", action="store_true",
+                        help="fail on any PORCELAIN_FINDING the plugin did not declare expected")
     parser.add_argument("--report-replaced", action="store_true", help="the native report control is plugin-hidden and the camera sits in its slot")
     parser.add_argument("--forbid-log", action="append", default=[], help="regex the client log must NOT contain (repeatable)")
     parser.add_argument("--highlight-color", help="RRGGBB[:min] a live cache highlight group of this colour has members and its exact colour is painted")
@@ -761,7 +808,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     try:
         raise SystemExit(bool(check(args.capture, args.frame, args.root, args.bounds, args.minimap_state,
-                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log, args.highlight_color, args.panel_custom_ink, args.dest_tile, args.menu_row, args.overlay_text_absent, args.native_caption_absent, args.scene_objects, args.find_all_holes)))
+                                    args.server_hide, args.revision, args.native_baseline, args.rs289_scenario, args.input_state, args.native_focus_hide, args.widget_demo, args.widget_moves, args.widget_rune_slot, args.owned_text, args.owned_count, args.widget_offset, args.plugin_id, args.plugin_enabled, args.plugin_lua, args.performance_metrics, args.performance_position, args.performance_color, args.overlay_text, args.native_ground_labels, args.native_caption, args.ground_row_gap, args.public_chat_mode, args.widget_op, args.expect_log, args.screenshot_saved, args.report_replaced, args.forbid_log, args.highlight_color, args.panel_custom_ink, args.dest_tile, args.menu_row, args.overlay_text_absent, args.native_caption_absent, args.scene_objects, args.find_all_holes, args.porcelain_clean)))
     except (OSError, ValueError, struct.error) as error:
         print(f"PIXEL capture=FAIL: {error}")
         raise SystemExit(1)

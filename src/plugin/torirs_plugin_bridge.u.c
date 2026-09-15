@@ -159,7 +159,27 @@ app_plugin_fill_player(
     out->server_pid = player->server_pid;
     out->element_id = player->element_id;
     out->combat_level = player->combat_level;
-    snprintf(out->name, sizeof(out->name), "%s", player->name);
+    /*
+     * A NAME, or nothing -- never the decoder's failure report.
+     *
+     * An appearance block carries the name as a packed base37 word, and
+     * base37tostr answers a word that is not a name with the literal string
+     * "invalid_name" (reference `fromBase37`). The entity keeps that, because
+     * the nameplate and the right-click row are TEXT and showing the
+     * reference's own token is the reference's own behaviour.
+     *
+     * This snapshot is not text: it is the plugin API's answer to "who is
+     * this", and plugins use it as an identity. The screenshot plugin files
+     * captures under it, and on the CS1 lane every capture in the programme
+     * landed in a folder called `invalid-name` -- past a guard that reads
+     * `name ~= ""`, which the sentinel is not. Two accounts would have shared
+     * that folder. So the sentinel becomes the empty string, which is what
+     * "this client does not know the name" already means to every caller, and
+     * the knowledge that it IS a sentinel stays in jbase37.h where it is
+     * written.
+     */
+    if( !Base37_IsInvalidName(player->name) )
+        snprintf(out->name, sizeof(out->name), "%s", player->name);
 }
 
 void
@@ -1363,13 +1383,50 @@ static bool app_script_set_string(void* user,size_t index,char const* value)
     thread->strs_stack[thread->strs_stack_top-1-(int)index]=copy;
     return true;
 }
+/*
+ * The script a named plugin callback can be raised FROM on this lane, or -1.
+ *
+ * `groundItemCaption` is raised by the cache's ground-item caption script --
+ * but only by a copy of that script which
+ * tools/plugin_engine_script_hooks.py has patched: the stock OldSchool script
+ * carries no RUNELITE_CALLBACK opcode at all, so on a stock cache the callback
+ * cannot be raised however much CS2 the lane runs. That is a fact about the
+ * CACHE and not about the ui logic, so the PROFILE declares it --
+ * `[script:ground_items_caption]` -- exactly as `[script:highlight_hover_tile]`
+ * declares the highlight lane's, and "undeclared means absent" is the same
+ * contract the rest of revconfig runs on. The bytes are still pinned at the
+ * hook site below by the fingerprint the header was generated from: a profile
+ * may say a cache is hooked, it may not say WHICH hook.
+ *
+ * This is the question `cs2_scripts` was being asked and cannot answer. It
+ * answers "this client runs CS2 ui logic", which all four CS2 lanes are, and
+ * the native-caption half then waited for a callback no cache in this tree can
+ * raise -- with the latch suppressing and nothing saying so.
+ */
+static int
+app_plugin_script_callback_script(struct App* app, char const* name)
+{
+    assert(app);
+    assert(name);
+    if( strcmp(name, "groundItemCaption") != 0 )
+        return -1;
+    if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
+        return -1;
+    /* The captions hang off the overlay this client drives per dirty tile; a
+     * profile that declares no overlay has no rows for a caption to be. */
+    if( RevConfigRefs_Get(&app->revconfig_refs, "script", "ground_items_overlay") <= 0 )
+        return -1;
+    return RevConfigRefs_Get(&app->revconfig_refs, "script", "ground_items_caption");
+}
+
 void app_script_callback(void* user,struct CS2VM2_Thread* thread,char const* name)
 {
     struct App* app=user;
     if( !app->plugins || App_UiLogic(app)!=APP_UI_LOGIC_CS2 || thread->frame_sp<=0 ) return;
     struct CS2VM2_Script const* script=CS2VM_FRAME(thread)->script;
     if( strcmp(name,"groundItemCaption")!=0 ) return;
-    if( script->script_id!=TORIRS_GROUND_CAPTION_SCRIPT ||
+    if( script->script_id!=app_plugin_script_callback_script(app,name) ||
+        script->script_id!=TORIRS_GROUND_CAPTION_SCRIPT ||
         app_script_fingerprint(script)!=TORIRS_GROUND_CAPTION_FINGERPRINT ||
         thread->ints_stack_top<TORIRS_GROUND_CAPTION_INTS || thread->strs_stack_top<1 )
     {
@@ -1384,6 +1441,123 @@ void app_script_callback(void* user,struct CS2VM2_Thread* thread,char const* nam
     PluginHost_ScriptCallback(app->plugins,name,CS2VM_FRAME(thread)->script->script_id,&stack);
 }
 
+/*
+ * The twelve bonuses out of a record's own param table. Ids 0..11 are the
+ * equipment bonuses and 14 is the attack rate in ticks -- an OldSchool
+ * convention (OpenRune's ParamMapper documents it, and the server reads the
+ * same table through read_combat_params) -- so a client running an OldSchool
+ * cache answers a weapon's stats with no hand-written bonus table anywhere.
+ * A string param's value is a `char*`, so reading one as an int would be a
+ * wild dereference and not a wrong number: those are skipped by kind.
+ *
+ * Non-zero when this record carried ANY of them, which is both the item's
+ * `has_bonuses` and the engine fact behind the `item_bonuses` capability.
+ */
+static int
+app_plugin_objtype_fill_bonuses(
+    struct ToriRS_Objtype const* type,
+    struct ToriRS_ItemInfo* out)
+{
+    int found = 0;
+
+    assert(type);
+    assert(out);
+    for( int i = 0; i < type->param_count; i++ )
+    {
+        struct ToriRS_Param const* param = &type->params[i];
+        if( param->string_value )
+            continue;
+        if( param->key >= 0 && param->key < TORIRS_EQUIPMENT_BONUS_COUNT )
+        {
+            out->bonus[param->key] = param->int_value;
+            found = 1;
+        }
+        else if( param->key == 14 )
+        {
+            out->attack_rate = param->int_value;
+            found = 1;
+        }
+        /* Ranged strength, from whichever of the two ids this record uses. */
+        else if( param->key == 12 || param->key == 189 )
+        {
+            out->ranged_strength += param->int_value;
+            found = 1;
+        }
+    }
+    return found;
+}
+
+/* CacheProvider_ObjtypeFindResident's predicate: the same fill, over a
+ * scratch record nobody reads, asked only for its answer. */
+static bool
+app_plugin_objtype_has_bonuses(struct ToriRS_Objtype const* type, void* user)
+{
+    struct ToriRS_ItemInfo scratch;
+
+    assert(type);
+    (void)user;
+    memset(&scratch, 0, sizeof(scratch));
+    scratch.attack_rate = -1;
+    return app_plugin_objtype_fill_bonuses(type, &scratch) != 0;
+}
+
+/* The wire opcode this revision gives a canonical packet name, or -1 when the
+ * table has no row for it -- which is how every other caller asks whether a
+ * lane carries a packet at all. @see GameProtoRevTable::packetin_wire. */
+static int
+app_plugin_packet_wire(struct App const* app, int pkt_name)
+{
+    assert(app);
+    if( !app->net || !app->net->rev || !app->net->rev->packetin_wire )
+        return -1;
+    return app->net->rev->packetin_wire(pkt_name);
+}
+
+/*
+ * One host/platform/engine fact per name, and every one of them is an
+ * EXPRESSION OVER AN ENGINE FACT: a packet this revision's wire table
+ * carries, a ref the profile declares, a role the live tree resolves, a param
+ * the loaded cache carries. Never a lane, revision or lineage name -- a
+ * plugin that asked "is this osrs239" would be carrying a copy of a decision
+ * this client already made, and it would be wrong on the next profile that
+ * declares the same thing.
+ *
+ *   widgets.geometry     always: the widget API reports geometry everywhere
+ *   scripts.callbacks    CS2 ui logic               (kept: the old spelling)
+ *   cs2_scripts          CS2 ui logic               (the same fact, named)
+ *   script_callback:<n>  this client has a hook site that can raise the plugin
+ *                        callback <n>: CS2 ui logic AND the profile declares
+ *                        both the script the callback hangs off and the hooked
+ *                        script itself. NOT `cs2_scripts`: the hook lives in
+ *                        patched CACHE BYTES, so a CS2 lane on a stock cache
+ *                        raises nothing at all.
+ *   highlight_groups     CS2 ui logic && [script:highlight_hover_tile]
+ *   varbit:<name>        [varbit:<name>] declared by this profile
+ *   varp:<name>          [varp:<name>] declared by this profile
+ *   server_tick          always: the tick is raised on every lane now
+ *   server_tick.fenced   the wire carries SERVER_TICK_END, so the tick is a
+ *                        real end-of-tick fence and not PLAYER_INFO's edge
+ * `loot_events` USED TO BE HERE, answered `App_UiLogic == CS2`. It was a lane
+ * test in a table whose rule forbids one, and the loot tracker read it as "is
+ * the client's loot record mine to read". The record is filled by
+ * App_LootNotifyKill, which every lane reaches, so on CS1 the answer was no
+ * over a store holding two kills. A plugin asks the RECORD now
+ * (game->loot_source_next); there is no capability to ask.
+ *
+ *   item_bonuses         a resident objtype carries equipment-bonus params
+ *   native_orbs          the live tree resolves the `orb_run` role
+ *   if_settab            the wire carries IF_SETTAB
+ *   tab_select           app_plugin_tab_select can act: the cache lane needs
+ *                        [script:sidebar_switch], the dat1 lane owns the slots
+ *   touch                the application is on the touch UI/input policy
+ *   web                  the Emscripten lane
+ *   browser              this build has the embedded BROWSER transport
+ *
+ * `native_chat_filters` is deliberately NOT here: how many filters a lane's
+ * chat bar carries is a COUNT and not a bool, and a plugin already counts
+ * them -- widgets.find_all("chat_buttons", NULL, 0, &count) answers the
+ * count alone, one past the highest member this frame has.
+ */
 static int
 app_plugin_capability(void* user, char const* name)
 {
@@ -1393,6 +1567,64 @@ app_plugin_capability(void* user, char const* name)
     assert(name);
     if( strcmp(name, "widgets.geometry") == 0 ) return 1;
     if( strcmp(name,"scripts.callbacks")==0 ) return App_UiLogic(app)==APP_UI_LOGIC_CS2;
+    if( strcmp(name, "cs2_scripts") == 0 )
+        return App_UiLogic(app) == APP_UI_LOGIC_CS2;
+    if( strncmp(name, "script_callback:", 16) == 0 )
+        return app_plugin_script_callback_script(app, name + 16) > 0;
+    if( strcmp(name, "highlight_groups") == 0 )
+        return App_UiLogic(app) == APP_UI_LOGIC_CS2 &&
+               RevConfigRefs_Get(
+                   &app->revconfig_refs, "script", "highlight_hover_tile") >= 0;
+    if( strncmp(name, "varbit:", 7) == 0 )
+        return RevConfigRefs_Get(&app->revconfig_refs, "varbit", name + 7) >= 0;
+    if( strncmp(name, "varp:", 5) == 0 )
+        return RevConfigRefs_Get(&app->revconfig_refs, "varp", name + 5) >= 0;
+    if( strcmp(name, "server_tick") == 0 )
+        return 1;
+    if( strcmp(name, "server_tick.fenced") == 0 )
+        return app_plugin_packet_wire(app, PKT_NAME_SERVER_TICK_END) >= 0;
+    if( strcmp(name, "item_bonuses") == 0 )
+        return app->provider &&
+               CacheProvider_ObjtypeFindResident(
+                   app->provider, app_plugin_objtype_has_bonuses, NULL) >= 0;
+    if( strcmp(name, "native_orbs") == 0 )
+        return app->tree &&
+               UITree_RoleNodeByName(app->tree, &app->ui_roles, "orb_run") >= 0;
+    if( strcmp(name, "if_settab") == 0 )
+        return app_plugin_packet_wire(app, PKT_NAME_IF_SETTAB) >= 0;
+    if( strcmp(name, "tab_select") == 0 )
+    {
+        /* app_plugin_tab_select's own condition, said once: the cache lane
+         * flips a tab by running the profile's switch script and refuses
+         * without it, while the dat1 lane owns the slot table itself. */
+        if( App_UiLogic(app) == APP_UI_LOGIC_CS2 )
+            return RevConfigRefs_Get(
+                       &app->revconfig_refs, "script", "sidebar_switch") > 0;
+        return 1;
+    }
+    /*
+     * A BOOT fact, and it must be answerable at on_start.
+     *
+     * App.touch_ui used to be written from frame_loop_step, which runs after
+     * PluginHost_Start: a plugin asking here at on_start -- the only place a
+     * key declaration can be made, and the only place ExpectAbsent used to be
+     * legal -- was told false on every lane and true from frame one, with
+     * nobody listening by then. Measured before the move:
+     *
+     *     CAPPROBE at=start    touch=0
+     *     CAPPROBE at=frame60  touch=1
+     *
+     * It is resolved in App_Init now, beside the clientscript identity it
+     * follows. @see App.touch_ui.
+     *
+     * THE SHAPE TO WATCH FOR. A capability answered from a field the BOOT
+     * fills lies at on_start if the boot fills it late. The two answers above
+     * that still change -- `item_bonuses` and `native_orbs` -- are not that
+     * shape: they are facts about state that ARRIVES (an objtype resident in
+     * the cache, a published tree), so false at on_start is the honest
+     * answer and a plugin that needs them asks again at a fence. Anything
+     * else that moves between at=start and at=frame60 is this defect again.
+     */
     if( strcmp(name, "touch") == 0 )
         return app->touch_ui != 0;
     if( strcmp(name, "web") == 0 )
@@ -1941,6 +2173,18 @@ struct AppPluginFeatureDesc
     char const* choices;
     int values[TORIRS_FEATURE_VALUES_MAX];
     int value_count;
+    /**
+     * How the engine resolves this field's SENTINEL, or NULL where the field
+     * is its own meaning.
+     *
+     * A settings page names a value to a person, and for one flag the number
+     * in the field is not the number anything acts on: `draw_distance` stores
+     * 0 for "this era states no preference" and every reader of it goes
+     * through ToriRS_Features_PainterDrawDistance, which answers 25. The page
+     * cannot know that, and must not guess it -- pointing at the engine's own
+     * function is how the row and the painter cannot disagree.
+     */
+    int (*effective)(int stored);
 };
 
 #define APP_PLUGIN_FEATURE_TABLE_OFF(field) offsetof(struct ToriRS_FeatureTable, field)
@@ -2140,6 +2384,8 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "25 tiles|32 tiles|40 tiles|50 tiles|60 tiles|70 tiles|80 tiles|90 tiles",
         { 25, 32, 40, 50, 60, 70, 80, 90 },
         8,
+        /* The one flag in this table whose stored 0 is not a distance. */
+        ToriRS_Features_PainterDrawDistanceOf,
     },
     {
         "npc_light_type",
@@ -2334,6 +2580,9 @@ app_plugin_feature_next(void* user, int iter, struct ToriRS_FeatureInfo* out)
     for( int i = 0; i < desc->value_count; i++ )
         out->values[i] = desc->values[i];
     out->value = app_plugin_feature_read(app, desc, 0);
+    /* What the field holds, and what the engine makes of it. The two differ
+     * only where the descriptor says how -- @see AppPluginFeatureDesc::effective. */
+    out->effective = desc->effective ? desc->effective(out->value) : out->value;
     out->is_default = out->value == app_plugin_feature_read(app, desc, 1);
     return at;
 }
@@ -2681,13 +2930,8 @@ app_plugin_lane(void* user, struct ToriRS_LaneInfo* out)
  * inside a frame -- a hover, a draw -- and a snapshot verb that started IO
  * would stall the one thing it is supposed to be cheap enough for.
  *
- * The twelve bonuses come out of the record's own param table. Ids 0..11 are
- * the equipment bonuses and 14 is the attack rate in ticks -- an OldSchool
- * convention (OpenRune's ParamMapper documents it, and the server reads the
- * same table through read_combat_params) -- so a client running an OldSchool
- * cache answers a weapon's stats with no hand-written bonus table anywhere.
- * A string param's value is a `char*`, so reading one as an int would be a
- * wild dereference and not a wrong number: those are skipped by kind.
+ * The twelve bonuses come out of the record's own param table.
+ * @see app_plugin_objtype_fill_bonuses.
  */
 static int
 app_plugin_obj_info(void* user, int obj_id, struct ToriRS_ItemInfo* out)
@@ -2715,28 +2959,7 @@ app_plugin_obj_info(void* user, int obj_id, struct ToriRS_ItemInfo* out)
     out->wearpos3 = type->wearpos3;
     out->attack_rate = -1;
 
-    for( int i = 0; i < type->param_count; i++ )
-    {
-        struct ToriRS_Param const* param = &type->params[i];
-        if( param->string_value )
-            continue;
-        if( param->key >= 0 && param->key < TORIRS_EQUIPMENT_BONUS_COUNT )
-        {
-            out->bonus[param->key] = param->int_value;
-            out->has_bonuses = 1;
-        }
-        else if( param->key == 14 )
-        {
-            out->attack_rate = param->int_value;
-            out->has_bonuses = 1;
-        }
-        /* Ranged strength, from whichever of the two ids this record uses. */
-        else if( param->key == 12 || param->key == 189 )
-        {
-            out->ranged_strength += param->int_value;
-            out->has_bonuses = 1;
-        }
-    }
+    out->has_bonuses = app_plugin_objtype_fill_bonuses(type, out) ? 1 : 0;
     return 1;
 }
 
@@ -2842,6 +3065,46 @@ app_plugin_overlay_argb(uint32_t rgb)
  * vertex plus two brackets plus an outline segment per edge.
  */
 
+/*
+ * Is this marker one the scene can hold, and where does it go if so?
+ *
+ * Two questions the caller cannot skip either half of. TORIRS_TILE_ON_TOP is
+ * the answer for every marker whose group asked to be on top, and it is also
+ * the answer whenever the scene cannot ANSWER the other one -- a marked tile
+ * outside the scene's own grid has no ground command to be drawn after, and a
+ * deck tile is addressed in a boat's own tile numbers, which collide with the
+ * root's. Saying "on top" there is not a fallback that hides a bug: it is the
+ * only ordering that exists for a tile the root paint never puts down, and it
+ * is what the marker did before this parameter existed.
+ */
+static bool
+app_plugin_tile_mark_key(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int depth,
+    int* out_key)
+{
+    assert(app);
+    assert(out_key);
+    if( depth != TORIRS_TILE_IN_SCENE )
+        return false;
+    if( !app->world )
+        return false;
+    if( scene_x < 0 || scene_z < 0 )
+        return false;
+    if( scene_x >= app->world->_scene_size || scene_z >= app->world->_scene_size )
+        return false;
+    if( scene_x >= APP_WORLD_TILE_MARK_SCENE_MAX ||
+        scene_z >= APP_WORLD_TILE_MARK_SCENE_MAX )
+        return false;
+    if( level < 0 || level >= WORLD_MAP_TERRAIN_LEVELS )
+        return false;
+    *out_key = app_world_tile_mark_key(scene_x, scene_z, level);
+    return true;
+}
+
 static int
 app_plugin_draw_tile(
     void* user,
@@ -2849,8 +3112,10 @@ app_plugin_draw_tile(
     int tile_z,
     int level,
     uint32_t rgb,
+    int outline_width,
     uint32_t fill_rgb,
-    int fill_alpha)
+    int fill_alpha,
+    int depth)
 {
     struct App* app = (struct App*)user;
     static const int CORNER[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
@@ -2863,9 +3128,12 @@ app_plugin_draw_tile(
     int scene_x;
     int scene_z;
     int plane_y;
-    int const before = app ? app_overlay_count(app) : 0;
+    int mark_key = 0;
+    bool in_scene = false;
+    int before;
 
     assert(app);
+    assert(depth == TORIRS_TILE_ON_TOP || depth == TORIRS_TILE_IN_SCENE);
 
     if( !app->world )
         return 0;
@@ -2928,6 +3196,8 @@ app_plugin_draw_tile(
      * plugin only ever speaks absolute. */
     scene_x = tile_x - app->world->_base_tile_x;
     scene_z = tile_z - app->world->_base_tile_z;
+    in_scene =
+        app_plugin_tile_mark_key(app, scene_x, scene_z, level, depth, &mark_key);
 
     /*
      * One flat plane at the tile's own SW corner height, not a per-corner
@@ -2961,6 +3231,27 @@ app_plugin_draw_tile(
 
 emit:
 
+    /*
+     * The stage decides WHERE the next few pushes land, and it is opened
+     * around the pushes rather than consulted inside them, so that the
+     * polygon helpers below stay the two the overlay list has always used.
+     * The marker is the same quad, the same wash and the same border on both
+     * sides of this; only the list differs, and with it the moment the raster
+     * sees it.
+     */
+    if( in_scene )
+        app_world_tile_mark_begin(
+            app,
+            mark_key,
+            app->world_emit_desc.x,
+            app->world_emit_desc.y,
+            app->world_emit_desc.w,
+            app->world_emit_desc.h);
+    /* Taken AFTER the stage is open: the count is the open list's, and a
+     * marker drawn into the scene has to bill the frame the same items the
+     * same marker drawn over it would. */
+    before = app_overlay_count(app);
+
     hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
     /* The wash is the caller's fill colour, which is not always the outline's
      * -- see draw_tile in torirs_plugin_api.h. */
@@ -2972,8 +3263,27 @@ emit:
             hull_size,
             app_plugin_overlay_argb(fill_rgb),
             255 - (fill_alpha > 255 ? 255 : fill_alpha));
-    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, app_plugin_overlay_argb(rgb));
-    return app_overlay_count(app) - before;
+    /*
+     * The border, at the thickness the caller asked for and NOT at all when
+     * that is zero.
+     *
+     * This call was unconditional and the thickness was the overlay's own
+     * constant two, which is two separate wrongs in one line: the cache's
+     * hovered-tile group is `flags 2|8, thickness 0` -- a wash with no border,
+     * which the reference draws as exactly that -- and wore a hard opaque rim
+     * here; and the current-tile group's thickness of 2 was indistinguishable
+     * from it because both arrived at the same constant. push_polygon declines
+     * a width of 0 rather than this deciding it, so every caller gets the same
+     * rule.
+     */
+    app_overlay_push_polygon(
+        app, hull_x, hull_y, hull_size, app_plugin_overlay_argb(rgb), outline_width);
+    {
+        int const spent = app_overlay_count(app) - before;
+        if( in_scene )
+            app_world_tile_mark_end(app);
+        return spent;
+    }
 }
 
 static int
@@ -3016,7 +3326,8 @@ app_plugin_draw_line(void* user, int x0, int y0, int x1, int y1, uint32_t rgb)
 
     assert(app);
     before = app_overlay_count(app);
-    app_overlay_push_segment(app, x0, y0, x1, y1, app_plugin_overlay_argb(rgb));
+    app_overlay_push_segment(
+        app, x0, y0, x1, y1, app_plugin_overlay_argb(rgb), APP_OVERLAY_SEGMENT_WIDTH);
     return app_overlay_count(app) - before;
 }
 
@@ -3079,10 +3390,10 @@ app_plugin_draw_rect(
         /* The overlay layer has no rectangle OUTLINE primitive, only a filled
          * box and a box-diagonal, so an unfilled rect is four segments. */
         uint32_t const argb = app_plugin_overlay_argb(rgb);
-        app_overlay_push_segment(app, x, y, x + w, y, argb);
-        app_overlay_push_segment(app, x + w, y, x + w, y + h, argb);
-        app_overlay_push_segment(app, x + w, y + h, x, y + h, argb);
-        app_overlay_push_segment(app, x, y + h, x, y, argb);
+        app_overlay_push_segment(app, x, y, x + w, y, argb, APP_OVERLAY_SEGMENT_WIDTH);
+        app_overlay_push_segment(app, x + w, y, x + w, y + h, argb, APP_OVERLAY_SEGMENT_WIDTH);
+        app_overlay_push_segment(app, x + w, y + h, x, y + h, argb, APP_OVERLAY_SEGMENT_WIDTH);
+        app_overlay_push_segment(app, x, y + h, x, y, argb, APP_OVERLAY_SEGMENT_WIDTH);
     }
     return app_overlay_count(app) - before;
 }
@@ -3305,24 +3616,58 @@ app_plugin_obj_image(
         break;
     }
     /*
-     * -1 is the ORDINARY answer while the objtype or its inventory model is
-     * still coming off the cache, and the bridge has already asked for both.
-     * Nothing to report: the caller asks again next frame, exactly as the
-     * client's own inventory reconcile does.
+     * The bridge RASTERISES an icon; it does not fetch what an icon is made
+     * of. `bridge_ensure_obj_icon` answers -1 when the objtype or its
+     * inventory model is not resident and queues nothing -- so this comment's
+     * old claim, that "the bridge has already asked for both", was simply
+     * false, and an icon nothing else in the client had already drawn was
+     * PENDING for ever. The Loot Tracker's drop cells were empty from the day
+     * they were written for exactly this reason: a goblin's coins and bones
+     * are not in your backpack, so nobody had loaded their models.
+     *
+     * The inventory does not rely on the bridge either -- Task_InvIconReconcile
+     * runs CreateTask_ObjModelLoad over its pending slots before it rasterises
+     * anything. This is that step, for the plugin lane.
+     *
+     * The request is made from a plugin's COMPOSE, which runs at the plugin's
+     * own cadence rather than per frame, and CreateTask_ObjModelLoad answers
+     * NULL the moment nothing is left to fetch -- so the duplicates this can
+     * queue are the ones asked for while the first is in flight.
      */
     if( scene_id < 0 )
-        return 0;
+    {
+        int const ids[1] = { obj_id };
+        int const counts[1] = { count > 0 ? count : 1 };
+        struct ToriRS_Task* load =
+            CreateTask_ObjModelLoad(app->provider, ids, counts, 1);
 
+        if( load )
+        {
+            ToriRS_TaskQueue_Add(app->runner.queue, load);
+            return 0;
+        }
+        /*
+         * CreateTask_ObjModelLoad answers NULL only when ObjModelLoad_NeedsWork
+         * is false for every id it was given -- so nothing is left to fetch and
+         * the icon still will not build. That is terminal, and saying "not yet"
+         * for it is what makes a caller ask for the rest of the session.
+         */
+        return -1;
+    }
+
+    /* Past here the bridge HAS the icon, so anything that goes wrong is about
+     * this slot rather than about the obj, and is terminal for the caller:
+     * asking again cannot change the answer. */
     sprites = ToriDraw_SceneSpriteGet(app->scene, scene_id, &found);
     if( !sprites || found <= 0 )
-        return 0;
+        return -1;
     sprite = sprites[0];
     if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
-        return 0;
+        return -1;
 
     if( UITreeSceneBridge_PublishPluginImage(
             &app->bridge, slot, sprite->width, sprite->height, sprite->pixels_argb) < 0 )
-        return 0;
+        return -1;
 
     *out_w = sprite->width;
     *out_h = sprite->height;
@@ -3644,6 +3989,30 @@ app_plugin_slot_native_size(void* user, int slot, int* out_w, int* out_h)
 }
 
 /*
+ * The box the lane gave one numbered member of a surface, block-relative.
+ * @see slot_member_native_box.
+ *
+ * Block-relative, because what a frame does is put the BLOCK somewhere and
+ * what it needs back is where each member sat inside it; the pack a cache
+ * mounts in the block is an intermediate node with a box of its own, and a
+ * parent-relative answer would leave every caller to rediscover and add it.
+ */
+static int
+app_plugin_slot_member_native_box(
+    void* user, int slot, int member, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( !app->tree )
+        return 0;
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
+        return 0;
+    return UITree_FrameSlotMemberNativeBox(
+        app->tree, slot, member, out_x, out_y, out_w, out_h);
+}
+
+/*
  * Where a component is. @see component_rect.
  *
  * The same node->rect the region readouts end in, reached by id rather than by
@@ -3702,9 +4071,57 @@ app_plugin_role_slot(char const* role)
     return UITree_RoleSlotFromName(role);
 }
 
+/*
+ * `<slot>:<member>` -- ONE member of a frame slot, spelled the way a profile
+ * already spells it in `match=slot(chat_buttons, report)`.
+ *
+ * find_all has answered a slot's members since the frame binder learned to
+ * number them, but find and watch_state could not name one, and a watch is
+ * the only way to follow an element's geometry. That gap is why a portable
+ * caller could reach the four 2004 chat filters and the fourteen 2004 tab
+ * stones only through an authored role NAME, which two of the four filters
+ * do not have: `slot(chat_buttons, private)` is declared by nobody, because
+ * nothing had a reason to name it until now.
+ *
+ * The member is written either way the role grammar writes it -- a name for
+ * the slots whose members have names, a number for the rest -- so
+ * `chat_buttons:private` and `chat_buttons:1` are the same element, and
+ * `sidebar:3` is the tab-3 mount on whichever lane is up.
+ */
+static int32_t
+app_plugin_slot_member_node(struct App* app, char const* role)
+{
+    char slot_name[TORIRS_UI_NAME_MAX];
+    char const* colon;
+    size_t length;
+    int slot;
+    int member;
+
+    assert(app);
+    assert(app->tree);
+    assert(role);
+
+    colon = strchr(role, ':');
+    if( !colon || colon == role || colon[1] == '\0' )
+        return -1;
+    length = (size_t)(colon - role);
+    if( length >= sizeof(slot_name) )
+        return -1;
+    memcpy(slot_name, role, length);
+    slot_name[length] = '\0';
+    slot = UITree_RoleSlotFromName(slot_name);
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
+        return -1;
+    member = UITree_RoleSlotMemberFromName(slot, colon + 1);
+    if( member < 0 || member >= UITREE_FRAME_SLOT_NODES_MAX )
+        return -1;
+    UITree_FrameBind(app->tree);
+    return UITree_FrameSlotMemberNode(app->tree, slot, member);
+}
+
 /* The node a semantic role resolves to for the widget API's find: a frame
- * slot's bound node, or the profile role's. CANVAS is a rectangle and not a
- * node, so it has no answer here. */
+ * slot's bound node, one member of one, or the profile role's. CANVAS is a
+ * rectangle and not a node, so it has no answer here. */
 static int32_t
 app_plugin_role_node(struct App* app, char const* role)
 {
@@ -3716,12 +4133,45 @@ app_plugin_role_node(struct App* app, char const* role)
         return -1;
 
     slot = app_plugin_role_slot(role);
+    /*
+     * The sidebar's container is where its tab mounts actually hang, and that
+     * is a question about the TREE rather than about the lane.
+     *
+     * Both callers used to ask it as `App_UiLogic(app) == APP_UI_LOGIC_CS2`,
+     * which is the one shape this whole layer exists to keep out of plugins --
+     * and it was in the bridge, where it is worse, because every plugin
+     * inherits it without being able to see it. What the branch was really
+     * standing in for is that on a cache gameframe the block a profile names
+     * `sidebar` is the side-modal region, while the fourteen numbered tab
+     * mounts hang together under the container a plugin means when it says
+     * "the sidebar".
+     *
+     * Their common parent is that container, it is derived from the frame
+     * binder's own numbering rather than from a lane name, and where the frame
+     * can answer it the answer is right on every lane. Where it cannot -- the
+     * mounts disagree about their parent, or the frame numbered none -- the
+     * declared block is still the best available answer and nothing changes.
+     */
+    if( slot == TORIRS_HOST_SURFACE_SIDEBAR )
+    {
+        int32_t const group = UITree_FrameSlotGroupNode(app->tree, UITREE_FRAME_SLOT_SIDEBAR);
+        if( group >= 0 )
+            return group;
+    }
     if( slot >= 0 && slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         return app_plugin_slot_node_cached(app, slot);
     if( slot >= 0 )
         return -1;
 
-    return UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
+    /* A profile role first: the name a profile declared wins over the
+     * positional spelling, the way a declaration wins over a derivation
+     * everywhere else in this table. */
+    {
+        int32_t const node = UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
+        if( node >= 0 )
+            return node;
+    }
+    return app_plugin_slot_member_node(app, role);
 }
 
 _Static_assert((int)TORIRS_WIDGET_RELATION_NATIVE==(int)UITREE_WIDGET_RELATION_NATIVE &&
@@ -3731,6 +4181,23 @@ _Static_assert((int)TORIRS_WIDGET_RELATION_NATIVE==(int)UITREE_WIDGET_RELATION_N
                "public widget relations must match the tree's anchor relations");
 _Static_assert(TORIRS_WIDGET_OP_LABEL_MAX==UITREE_MENU_OPTION_LEN,
     "public owned-control label capacity must match native menu option storage");
+/* Porcelain is a plugin-side library and cannot see uitree_minimenu.h, so it
+ * mirrors the one pick kind it reads. This is the translation unit that sees
+ * both, and the only thing that keeps the mirror honest. */
+_Static_assert((int)PORCELAIN_MENU_PICK_INV_SLOT==(int)UI_MINIMENU_PICK_INV_SLOT,
+    "Porcelain's mirrored container-cell pick kind must match the tree's");
+/* A pure table of constants, pulled in here for the one pin below: this is
+ * the translation unit that sees the chrome's ceiling and the panel's. */
+#include "ui/torirs_chrome_metrics.h"
+/* TWO ceilings on the same well, and only one of them was pinned. The host
+ * clamps a CUSTOM row to TORIRS_PANEL_CUSTOM_HEIGHT_MAX and the chrome that
+ * presents it clips at TORIRS_CHROME_M_CUSTOM_H_MAX; a well is cut off by
+ * whichever is LOWER, and the lower one leaves no trace at all -- the row is
+ * the height the plugin asked for and the picture is short. The porcelain
+ * test pins the host's from the plugin side; this is the translation unit
+ * that sees the chrome's too. */
+_Static_assert(TORIRS_CHROME_M_CUSTOM_H_MAX==TORIRS_PANEL_CUSTOM_HEIGHT_MAX,
+    "the panel's custom-well ceiling and the chrome's must be raised together");
 
 struct ToriRS_WidgetRef
 app_widget_ref(struct UITree const* tree, int32_t index)
@@ -3775,6 +4242,7 @@ app_plugin_trace_find_all(
 
     assert(app);
     assert(role);
+    PA_INC(getenv_calls);
     if( !getenv("TORIRS_TRACE_PLUGIN_WORLD") )
         return;
     for( at = 0; at < seen_count; at++ )
@@ -3800,11 +4268,231 @@ app_plugin_trace_find_all(
         role, count, list);
 }
 
+static int app_plugin_tab_active(void* user);
+
+/*
+ * The ids the facets below are spelled with, resolved once.
+ *
+ * Every one of them is a NAME on the way in -- a `[varbit:…]` row, a
+ * `[varp:…]` row, a role -- and a name costs a walk of the ref table with a
+ * strcmp per row, or an intern lookup. The facets run per watched element per
+ * layout fence, which is a hundred lookups a frame for four numbers that
+ * change when a profile is loaded and never again.
+ *
+ * Keyed the way the frame binder keys its own interned role ids: on the SIZE
+ * of each table behind it. A revconfig row or a role can only appear by the
+ * table growing, so a count that has not moved is a table that has not gained
+ * the thing that was missing.
+ */
+static void
+app_plugin_facet_ids(struct App* app)
+{
+    assert(app);
+    if( app->plugin_facet_ids.valid &&
+        app->plugin_facet_ids.refs_count == app->revconfig_refs.count &&
+        app->plugin_facet_ids.roles_count == app->ui_roles.count )
+        return;
+
+    app->plugin_facet_ids.refs_count = app->revconfig_refs.count;
+    app->plugin_facet_ids.roles_count = app->ui_roles.count;
+    _Static_assert(
+        (int)(sizeof(app->plugin_facet_ids.role_sidetab) /
+              sizeof(app->plugin_facet_ids.role_sidetab[0])) >= UITREE_FRAME_SLOT_NODES_MAX,
+        "the sidetab role cache covers every member a frame slot can have");
+    for( int tab = 0; tab < UITREE_FRAME_SLOT_NODES_MAX; tab++ )
+    {
+        char role[UITREE_ROLE_NAME_MAX];
+        snprintf(role, sizeof(role), "sidetab_%d", tab);
+        app->plugin_facet_ids.role_sidetab[tab] = UITree_RoleFind(&app->ui_roles, role);
+    }
+    app->plugin_facet_ids.sidetab_valid = 0;
+    app->plugin_facet_ids.varbit_sidebar_flash =
+        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "sidebar_flash_tab");
+    app->plugin_facet_ids.varbit_cutscene =
+        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "cutscene_status");
+    app->plugin_facet_ids.varp_run_mode =
+        RevConfigRefs_Get(&app->revconfig_refs, "varp", "run_mode");
+    app->plugin_facet_ids.varp_special_armed =
+        RevConfigRefs_Get(&app->revconfig_refs, "varp", "special_attack_armed");
+    app->plugin_facet_ids.role_orb_run = UITree_RoleFind(&app->ui_roles, "orb_run");
+    app->plugin_facet_ids.role_orb_spec = UITree_RoleFind(&app->ui_roles, "orb_spec");
+    app->plugin_facet_ids.valid = 1;
+}
+
+/*
+ * Which sidebar tab this node IS, or -1.
+ *
+ * The two spellings of one thing, and neither is a fallback for the other: a
+ * 2004 frame's tab is a builtin carrying its number in its own union, and a
+ * cache gameframe's `sideN` is a plain layer the frame binder stamped with a
+ * slot tag and a member number. UITree_FrameSlotIndex already reads both --
+ * this adds only the question it deliberately does not answer, which is
+ * whether the node is a tab at all. @see frame_node_is_slot.
+ */
+/*
+ * Which node each tab STONE is, resolved once per publication.
+ *
+ * Asking the role table per element would be a memo hit per tab per element,
+ * which is a hundred elements' worth of lookups for an answer that changes
+ * when the tree does. The stones move only when the tree is rebuilt or a
+ * script recycles an id, which is exactly what the role memo itself keys on,
+ * so this caches on the same two counters.
+ */
+static void
+app_plugin_facet_sidetab_nodes(struct App* app)
+{
+    assert(app);
+    assert(app->tree);
+    if( app->plugin_facet_ids.sidetab_valid &&
+        app->plugin_facet_ids.sidetab_generation == app->tree->generation &&
+        app->plugin_facet_ids.sidetab_id_generation == app->tree->id_generation )
+        return;
+    app->plugin_facet_ids.sidetab_generation = app->tree->generation;
+    app->plugin_facet_ids.sidetab_id_generation = app->tree->id_generation;
+    app->plugin_facet_ids.sidetab_valid = 1;
+    for( int tab = 0; tab < UITREE_FRAME_SLOT_NODES_MAX; tab++ )
+        app->plugin_facet_ids.sidetab_node[tab] =
+            app->plugin_facet_ids.role_sidetab[tab]
+                ? UITree_RoleNode(app->tree, &app->ui_roles, app->plugin_facet_ids.role_sidetab[tab])
+                : -1;
+}
+
+/* The stone, by node identity. -1 when this node is not one. */
+static int
+app_plugin_node_stone_tabno(struct App* app, int32_t idx)
+{
+    assert(app);
+    app_plugin_facet_sidetab_nodes(app);
+    for( int tab = 0; tab < UITREE_FRAME_SLOT_NODES_MAX; tab++ )
+        if( app->plugin_facet_ids.sidetab_node[tab] == idx )
+            return tab;
+    return -1;
+}
+
+static int
+app_plugin_node_tabno(struct UITreeComponent const* c)
+{
+    assert(c);
+    if( c->type == UIELEM_BUILTIN_SIDEBAR )
+        return c->u.sidebar.componentno >= 0 ? c->u.sidebar.tabno : -1;
+    if( c->slot_tag != UITREE_SLOT_SIDE_MODAL || !c->frame_member_plus1 )
+        return -1;
+    return (int)c->frame_member_plus1 - 1;
+}
+
+/*
+ * Lane-derived facets for one node: the single place that answers "what does
+ * the GAME say about this thing" for a plugin that dresses it.
+ *
+ * ONE function, and no lane name anywhere in it. What it keys on is what the
+ * profile declared (a varbit row exists or it does not) and what the node
+ * itself carries (its builtin type, its slot stamp, the role it resolves to).
+ * A lane that cannot derive a facet reads zero for it -- which is why the two
+ * spellings of "is this tab hidden" live behind RS_UISlots_TabGiven and the
+ * selection behind app_plugin_tab_active rather than being restated here: each
+ * of those already holds both halves, and a second copy is how the two drift.
+ *
+ * Cost: no tree walk, no strcmp, no snprintf per element beyond the one
+ * RS_UISlots_TabGiven does for a node that is actually a tab. The ids are
+ * app_plugin_facet_ids' single resolution; the orb roles memoise on the tree's
+ * own generations; the minimap permissions are three host requests, the same
+ * three the engine's own minimap and compass ask.
+ */
+static uint32_t
+app_plugin_widget_facets(struct App* app, int32_t idx)
+{
+    struct UITreeComponent const* c;
+    uint32_t facets = 0;
+    int tabno;
+
+    assert(app);
+    assert(idx >= 0);
+    assert(app->tree);
+    assert((uint32_t)idx < app->tree->component_count);
+
+    app_plugin_facet_ids(app);
+    c = &app->tree->components[idx];
+
+    /* A fact about the SCREEN, so it is reported on everything: a plugin's
+     * own decoration has to fold away with the HUD it is drawn over. A lane
+     * whose profile declares no cutscene varbit has no cutscene. */
+    if( app->plugin_facet_ids.varbit_cutscene >= 0 &&
+        VarPManager_GetVarbit(&app->varps, app->plugin_facet_ids.varbit_cutscene) )
+        facets |= TORIRS_WIDGET_FACET_HIDDEN_BY_CUTSCENE;
+
+    /* The panel a tab opens, or the stone that opens it: a plugin dressing
+     * either one is asking about the same tab. */
+    tabno = app_plugin_node_tabno(c);
+    if( tabno < 0 )
+        tabno = app_plugin_node_stone_tabno(app, idx);
+    if( tabno >= 0 )
+    {
+        if( RS_UISlots_TabGiven(app, tabno) )
+            facets |= TORIRS_WIDGET_FACET_GIVEN;
+        if( app_plugin_tab_active(app) == tabno )
+            facets |= TORIRS_WIDGET_FACET_SELECTED;
+        /*
+         * The flash FLAG, not the blink. Two sources and they are not
+         * alternatives: the cache lane flags the tab in a varbit its own
+         * `toplevel_flashicon` reads, and a dat1 lane flags it in TUT_FLASH.
+         *
+         * The off-by-one is the cache script's own: it computes the tab from
+         * `varbit - 1`, which is what makes 0 mean "nothing is flashing"
+         * rather than "tab 0 is". Subtracting it here is the same arithmetic
+         * on the same varbit, not a guess about the encoding.
+         */
+        if( app->plugin_facet_ids.varbit_sidebar_flash >= 0 )
+        {
+            int const flagged =
+                VarPManager_GetVarbit(&app->varps, app->plugin_facet_ids.varbit_sidebar_flash) - 1;
+            if( flagged == tabno )
+                facets |= TORIRS_WIDGET_FACET_FLASHING;
+        }
+        if( app->slots.flash_tab == tabno )
+            facets |= TORIRS_WIDGET_FACET_FLASHING;
+    }
+
+    if( c->type == UIELEM_BUILTIN_MINIMAP || c->type == UIELEM_BUILTIN_COMPASS )
+    {
+        /* Through the host and not RS_MinimapPermissions, deliberately: the
+         * engine's minimap and compass gate their own paint on exactly these
+         * requests, so the facet and the pixels cannot disagree. */
+        struct UITreeHostRequest req;
+        memset(&req, 0, sizeof(req));
+        req.kind = c->type == UIELEM_BUILTIN_MINIMAP ? UITREE_HOST_GET_MINIMAP_HIDDEN
+                                                     : UITREE_HOST_GET_COMPASS_HIDDEN;
+        if( !UITree_Host(&app->ui_host, &req) )
+            facets |= TORIRS_WIDGET_FACET_DRAWN;
+        memset(&req, 0, sizeof(req));
+        req.kind = UITREE_HOST_GET_COMPASS_HIDDEN;
+        if( !UITree_Host(&app->ui_host, &req) )
+            facets |= TORIRS_WIDGET_FACET_ORIENTED;
+        memset(&req, 0, sizeof(req));
+        req.kind = UITREE_HOST_GET_MINIMAP_WALK;
+        if( UITree_Host(&app->ui_host, &req) )
+            facets |= TORIRS_WIDGET_FACET_WALKABLE;
+    }
+
+    /* An orb's own toggle, and only for the orb it belongs to: the run orb
+     * does not light up because the special is armed. */
+    if( app->plugin_facet_ids.varp_run_mode >= 0 && app->plugin_facet_ids.role_orb_run &&
+        UITree_RoleNode(app->tree, &app->ui_roles, app->plugin_facet_ids.role_orb_run) == idx &&
+        VarPManager_GetVarp(&app->varps, app->plugin_facet_ids.varp_run_mode) )
+        facets |= TORIRS_WIDGET_FACET_ACTIVE;
+    if( app->plugin_facet_ids.varp_special_armed >= 0 && app->plugin_facet_ids.role_orb_spec &&
+        UITree_RoleNode(app->tree, &app->ui_roles, app->plugin_facet_ids.role_orb_spec) == idx &&
+        VarPManager_GetVarp(&app->varps, app->plugin_facet_ids.varp_special_armed) )
+        facets |= TORIRS_WIDGET_FACET_ACTIVE;
+
+    return facets;
+}
+
 static enum ToriRS_ContractResult
 app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest* r)
 {
     struct App* app = user;
     struct UITree* tree = app->tree;
+    PA_INC(widget_request_calls);
     if( r->kind == PLUGIN_WIDGET_RESET_OWNER )
     {
         UITree_WidgetResetOwner(tree, owner);
@@ -3841,6 +4529,8 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     }
     if( r->kind==PLUGIN_WIDGET_FIND_ALL )
     {
+        PA_INC(find_all_calls);
+        uint64_t const pa_fa0 = PerfAudit_Now();
         /* A frame role spread over MEMBERS -- the four chat filters, the
          * fourteen side panels, the orb block's children -- answers them in
          * the role's own numbering: slot m IS member m, a member this frame
@@ -3855,6 +4545,7 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         {
             uint32_t missing=0;
             UITree_FrameBind(tree);
+            PA_ADD(find_all_iters, UITREE_FRAME_SLOT_NODES_MAX);
             for( int member=0; member<UITREE_FRAME_SLOT_NODES_MAX; ++member )
             {
                 int32_t node=UITree_FrameSlotMemberNode(tree,slot,member);
@@ -3866,12 +4557,12 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
             if( *r->count )
             {
                 app_plugin_trace_find_all(app,owner,r->name,*r->count,missing&((1u<<*r->count)-1));
+                PA_ADD(find_all_ns, PerfAudit_Now() - pa_fa0);
                 return *r->count>r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
             }
         }
         int32_t idx=app_plugin_role_node(app,r->name);
-        if( strcmp(r->name,"sidebar")==0 && App_UiLogic(app)==APP_UI_LOGIC_CS2 )
-            idx=UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR);
+        PA_ADD(find_all_ns, PerfAudit_Now() - pa_fa0);
         if( idx<0 ) return TORIRS_CONTRACT_UNAVAILABLE;
         *r->count=1;
         app_plugin_trace_find_all(app,owner,r->name,1,0);
@@ -3882,8 +4573,6 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     {
         int32_t idx = r->kind == PLUGIN_WIDGET_FIND
             ? app_plugin_role_node(app, r->name) : UITree_FindByComponentId(tree, r->id);
-        if( r->kind == PLUGIN_WIDGET_FIND && strcmp(r->name,"sidebar") == 0 && App_UiLogic(app) == APP_UI_LOGIC_CS2 )
-            idx = UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR);
         *r->refs = app_widget_ref(tree, idx);
         return r->refs->opaque[2] ? TORIRS_CONTRACT_OK : TORIRS_CONTRACT_UNAVAILABLE;
     }
@@ -3968,6 +4657,46 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
             r->bounds->y -= tree->components[c->parent].position.abs_y;
         }
         return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_STATE:
+    {
+        /* One read of every answer a follower would otherwise poll for. The
+         * geometry pair is BOUNDS and LOCAL_BOUNDS verbatim (layout first, as
+         * they do); `presented` is the VISIBLE answer verbatim. The two hide
+         * bits stay APART: `own_hidden` is what a script or the cache said,
+         * `native_hidden` is what the engine said, and a plugin that means to
+         * un-hide a stone has to know which one refused. */
+        UITree_EnsureLayoutFor(tree, idx);
+        struct ToriRS_WidgetState* state = r->state;
+        int32_t scene_id = 0, atlas_index = 0;
+        bool const display_hidden = UITree_NodeOrAncestorDisplayHidden(tree, idx) != 0;
+        UITree_NodeDrawnBounds(tree, idx, &state->bounds.x, &state->bounds.y,
+                               &state->bounds.width, &state->bounds.height);
+        state->local = (struct ToriRS_WidgetBounds){
+            c->position.abs_x, c->position.abs_y, c->position.abs_w, c->position.abs_h};
+        if( c->parent >= 0 )
+        {
+            state->local.x -= tree->components[c->parent].position.abs_x;
+            state->local.y -= tree->components[c->parent].position.abs_y;
+        }
+        state->presented = !display_hidden &&
+            UITree_NodeNativeVisible(tree, &app->ui_host, idx, app->hover_com_id);
+        state->own_hidden = c->behavior.hide != 0;
+        state->native_hidden = c->native_hide != 0;
+        state->input_present = UITree_NodeNativeInputPresent(tree, &app->ui_host, idx) &&
+            !display_hidden;
+        if( c->type == UIELEM_RS_GRAPHIC )
+        { scene_id = c->u.rs_graphic.scene_id; atlas_index = c->u.rs_graphic.atlas_index; }
+        else if( c->type == UIELEM_BUILTIN_SPRITE || c->type == UIELEM_BUILTIN_COMPASS )
+        { scene_id = c->u.sprite.scene_id; atlas_index = c->u.sprite.atlas_index; }
+        /* A CHANGE token and nothing else: art that differs gives a different
+         * number, and no caller may read a scene id back out of it. */
+        state->graphic_token =
+            (uint32_t)(((uint32_t)scene_id << 8) ^ ((uint32_t)atlas_index & 0xFFu));
+        state->text_hash = UITree_NodeTextHash(tree, idx);
+        state->facets = app_plugin_widget_facets(app, idx);
+        state->incarnation = r->ref.opaque[2];
+        return TORIRS_CONTRACT_OK;
+    }
     case PLUGIN_WIDGET_TEXT:
     {
         if( c->type != UIELEM_RS_TEXT ) return TORIRS_CONTRACT_UNAVAILABLE;
@@ -4134,21 +4863,20 @@ static void
 app_plugin_frame_stamp_role(
     struct App* app,
     struct UITree* tree,
-    char const* role,
+    uint16_t role_id,
     uint8_t tag,
     int member,
     int32_t* next,
     int* next_count)
 {
-    uint16_t const role_id = UITree_RoleFind(&app->ui_roles, role);
     int32_t node;
     struct UITreeComponent* c;
 
     assert(app);
     assert(tree);
-    assert(role);
     assert(next);
     assert(next_count);
+    PA_INC(frame_bind_stamp_calls);
     if( role_id == 0 || *next_count >= APP_FRAME_STAMP_MAX )
         return;
     node = UITree_RoleNode(tree, &app->ui_roles, role_id);
@@ -4397,24 +5125,61 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
         app->ui_roles.fallback = app_plugin_frame_role_fallback;
         app->ui_roles.fallback_user = app;
         for( int i = 0; i < app->ui_roles.count; i++ ) app->ui_roles.entries[i].memo_valid = 0;
+        app->plugin_frame_bound_valid = 0;
+    }
+
+    /* Every answer below is a function of the role memo's two keys: a role
+     * can only move when the tree is rebuilt (`generation`) or a node is
+     * pushed or recycled (`id_generation`). When neither has moved since the
+     * last pass the stamps are already right; running the pass again would
+     * recompute 106 constants with 7,000 string compares to reach the same
+     * table. A role interned after the last pass (the table grew) is the one
+     * other input, and it re-arms the pass through the intern table below. */
+    if( app->plugin_frame_bound_valid && app->plugin_frame_bound_tree == tree &&
+        app->plugin_frame_bound_generation == tree->generation &&
+        app->plugin_frame_bound_id_generation == tree->id_generation &&
+        app->plugin_frame_role_ids_for_count == app->ui_roles.count )
+        return;
+
+    /* The frame role names are compile-time constants; intern them once per
+     * role table and stamp by id. Rebuilt when the table grows, since a role
+     * a later profile line declares must start answering. */
+    _Static_assert(UITREE_FRAME_SLOT_COUNT <= APP_FRAME_ROLE_SLOTS, "frame slot table too small");
+    if( app->plugin_frame_role_ids_for_count != app->ui_roles.count )
+    {
+        for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
+        {
+            char const* name = UITree_RoleSlotName(slot);
+            char role[UITREE_ROLE_NAME_MAX];
+            uint16_t* ids = app->plugin_frame_role_id[slot];
+
+            memset(ids, 0, sizeof(app->plugin_frame_role_id[slot]));
+            if( app_plugin_frame_slot_tag(slot) == UITREE_SLOT_NONE || !name )
+                continue;
+            snprintf(role, sizeof(role), "frame_%s", name);
+            ids[0] = UITree_RoleFind(&app->ui_roles, role);
+            if( !app_plugin_frame_slot_has_members(slot) )
+                continue;
+            for( int member = 0; member < UITREE_FRAME_SLOT_NODES_MAX; member++ )
+            {
+                snprintf(role, sizeof(role), "frame_%s_%d", name, member);
+                ids[1 + member] = UITree_RoleFind(&app->ui_roles, role);
+            }
+        }
+        app->plugin_frame_role_ids_for_count = app->ui_roles.count;
     }
     for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
     {
         uint8_t const tag = app_plugin_frame_slot_tag(slot);
-        char const* name = UITree_RoleSlotName(slot);
-        char role[UITREE_ROLE_NAME_MAX];
+        uint16_t const* ids = app->plugin_frame_role_id[slot];
 
-        if( tag == UITREE_SLOT_NONE || !name )
+        if( tag == UITREE_SLOT_NONE || !ids[0] )
             continue;
-        snprintf(role, sizeof(role), "frame_%s", name);
-        app_plugin_frame_stamp_role(app, tree, role, tag, -1, next, &next_count);
+        app_plugin_frame_stamp_role(app, tree, ids[0], tag, -1, next, &next_count);
         if( !app_plugin_frame_slot_has_members(slot) )
             continue;
         for( int member = 0; member < UITREE_FRAME_SLOT_NODES_MAX; member++ )
-        {
-            snprintf(role, sizeof(role), "frame_%s_%d", name, member);
-            app_plugin_frame_stamp_role(app, tree, role, tag, member, next, &next_count);
-        }
+            app_plugin_frame_stamp_role(app, tree, ids[1 + member], tag, member, next, &next_count);
     }
 
     /* One audit per root, when asked for: the rungs are hand-copied from a
@@ -4466,6 +5231,21 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
         app->plugin_frame_stamp[n].incarnation = tree->components[next[n]].incarnation;
     }
     app->plugin_frame_stamp_count = next_count;
+    /* One line per pass the guard let through. The matrix counts them
+     * against the distinct (generation, id_generation) pairs of the run: a
+     * guard that stops working shows as one line per layout tick. */
+    {
+        static int trace = -1;
+        if( trace < 0 )
+            trace = getenv("TORIRS_TRACE_NATIVE_UI") != NULL;
+        if( trace )
+            TORIRS_REPORT("PLUGIN_FRAME_BIND generation=%u id_generation=%u stamps=%d\n",
+                          tree->generation, tree->id_generation, next_count);
+    }
+    app->plugin_frame_bound_tree = tree;
+    app->plugin_frame_bound_generation = tree->generation;
+    app->plugin_frame_bound_id_generation = tree->id_generation;
+    app->plugin_frame_bound_valid = 1;
 }
 
 /**
@@ -4967,6 +5747,7 @@ app_plugin_engine(struct App* app)
     engine.chat_focus = app_plugin_chat_focus;
     engine.mouse_pos = app_plugin_mouse_pos;
     engine.slot_native_size = app_plugin_slot_native_size;
+    engine.slot_member_native_box = app_plugin_slot_member_native_box;
     engine.component_rect = app_plugin_component_rect;
     engine.menu_drop = app_plugin_menu_drop;
     engine.frame_activate = app_plugin_frame_activate;

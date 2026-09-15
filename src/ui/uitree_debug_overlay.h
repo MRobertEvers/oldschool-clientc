@@ -870,6 +870,17 @@ struct ToriRSChromeWidget
      *  secondary summary. @see ToriRSChrome_ListRowLocked and
      *  ToriRSChrome_ActionRow. */
     int row_locked;
+    /**
+     * BUTTON: the control is present but cannot be used right now.
+     *
+     * Drawn in the dim ink a disabled dropdown row already uses, and skipped
+     * by the activation path -- the same two halves the structured select's
+     * `enabled` has. Not `hidden`, because the two say different things: a
+     * hidden row is one the page does not have, and a page whose Save button
+     * vanished while an edit was staged reads as a page that lost the
+     * command. A disabled one says the command exists and is unavailable.
+     */
+    int disabled;
     /** TORIRS_CHROME_W_LABEL only: enum ToriRSChromeLabelStyle. */
     int label_style;
     /** TEXTAREA: visible lines of the box, before it scrolls. Part of the
@@ -1161,6 +1172,10 @@ struct ToriRSChrome
      * wide -- so changing it dirties every panel, the same way SetScale does.
      */
     int check_style;
+    /** The drawable surface, for the popups that must fold up into it.
+     *  0 = unstated. @see ToriRSChrome_SetSurface. */
+    int surface_w;
+    int surface_h;
     struct ToriRSChromePanel panels[TORIRS_CHROME_MAX_PANELS];
     int panel_count;
     struct ToriRSChromeWidget widgets[TORIRS_CHROME_MAX_WIDGETS];
@@ -1302,6 +1317,17 @@ struct ToriRSChrome
     int activated_action;
     /** CUSTOM activation, in plugin-local logical coordinates. */
     int activated_custom;
+    /**
+     * That CUSTOM activation was a SECONDARY click, not a primary one.
+     *
+     * Its own flag beside `activated_custom` and not a second latch, because
+     * the two are the same event with a different button and every fence the
+     * primary one carries -- same widget for press and release, the region
+     * clip, the generation and serial -- applies identically. A separate latch
+     * would let a primary and a secondary click be live at once, which is a
+     * state no pointer can be in.
+     */
+    int activated_menu;
     int activated_x;
     int activated_y;
     uint32_t activated_selection_generation;
@@ -1311,6 +1337,7 @@ struct ToriRSChrome
      *  live flag, and asking after the drain is the only order a caller has. */
     int taken_action;
     int taken_custom;
+    int taken_menu;
     int taken_x;
     int taken_y;
     uint32_t taken_selection_generation;
@@ -1423,6 +1450,26 @@ ToriRSChrome_SetScale(struct ToriRSChrome* ui, int scale);
 /** Device pixels per chrome pixel. */
 int
 ToriRSChrome_Scale(struct ToriRSChrome const* ui);
+
+/**
+ * The surface this chrome is drawn onto, so a POPUP can stay inside it.
+ *
+ * Panels are placed by their owner, who clamps them into the canvas itself.
+ * An open dropdown list is not a panel and is not placed by anybody: it hangs
+ * off the row that opened it and is deliberately allowed to escape that row's
+ * panel -- a 320-wide settings window would otherwise have to hold a list it
+ * has no room for. What it may NOT escape is the canvas, because the pointer
+ * cannot go there: a list opened by the last row of a full-height window drew
+ * one entry against the bottom edge and put the other eight off-screen, which
+ * is a control that cannot be used at all.
+ *
+ * So the owner states the box, in the same chrome pixels the panels are placed
+ * in, and the popups fold up into it. Zero (the Init default) means unstated,
+ * and nothing is clamped -- a caller that never says how big its surface is
+ * gets the behaviour it had before it could.
+ */
+void
+ToriRSChrome_SetSurface(struct ToriRSChrome* ui, int width, int height);
 
 /**
  * Choose which of the interfaces' two booleans every checkbox wears.
@@ -1655,6 +1702,30 @@ ToriRSChrome_CustomRegion(
 int
 ToriRSChrome_CustomActivate(
     struct ToriRSChrome* ui, int widget, int local_x, int local_y);
+
+/**
+ * The same, for a SECONDARY click.
+ *
+ * A CUSTOM well is ONE control, so everything inside it is arithmetic on the
+ * coordinates -- and until this existed a well could be told where it was
+ * clicked but never that the click was the other button, so a plugin whose
+ * strip has per-band and per-cell operations had nowhere to put them and left
+ * them as buttons under a selected row.
+ */
+int
+ToriRSChrome_CustomMenu(
+    struct ToriRSChrome* ui, int widget, int local_x, int local_y);
+
+/**
+ * A secondary click at a point, hit-tested like a release.
+ *
+ * Separate from ToriRSChrome_MouseUp because a secondary click has no press
+ * half here: the routing feeds only the LEFT button's press/release into this
+ * library, so there is no `press` for a right button to be matched against and
+ * requiring one would make the channel dead. Returns 1 when a well took it.
+ */
+int
+ToriRSChrome_SecondaryClick(struct ToriRSChrome* ui, int x, int y);
 
 /** Mark one widget dirty without changing its semantic value. */
 void
@@ -1989,6 +2060,32 @@ void
 ToriRSChrome_WidgetRemove(struct ToriRSChrome* ui, int widget);
 
 /**
+ * The row before `widget` in its panel's list, or -1 when it is the first.
+ *
+ * Read BEFORE a removal, so the replacement can be put back where the old
+ * row stood. @see ToriRSChrome_WidgetMoveAfter.
+ */
+int
+ToriRSChrome_WidgetPrev(struct ToriRSChrome const* ui, int widget);
+
+/**
+ * Relink one row to sit directly after `after` in its panel's list, or at the
+ * head when `after` is -1.
+ *
+ * The row list is the model's order -- it is what the executors emit in and
+ * what the in-canvas builder lays out in -- and a widget is always ADDED at
+ * the end. So replacing one row in the middle of a page is two steps: build
+ * the fresh row, then move it back to where the old one was. Without the
+ * second step the rebuilt row appears at the bottom of the page, which is
+ * exactly the symptom a full-page rebuild exists to avoid.
+ *
+ * Both handles must name live widgets of the SAME panel; moving a row across
+ * panels is a different operation and is refused.
+ */
+void
+ToriRSChrome_WidgetMoveAfter(struct ToriRSChrome* ui, int widget, int after);
+
+/**
  * Remove every widget of one panel, leaving the panel itself in place.
  *
  * This is what makes a panel rebuildable. The alternative before it existed was
@@ -2047,11 +2144,45 @@ ToriRSChrome_SetLabel(struct ToriRSChrome* ui, int widget, char const* label);
 void
 ToriRSChrome_SetColor(struct ToriRSChrome* ui, int widget, uint32_t color);
 
+/**
+ * How far a panel is scrolled, in logical pixels of content past the top.
+ *
+ * Read and written rather than only written, because the number is the
+ * READER'S PLACE and the only thing that knows it is this library. A page
+ * rebuild clears the widget list, which takes the scroll back to the top with
+ * it -- so anything that legitimately re-declares a page has to carry the
+ * place across, and could not before these existed.
+ */
+int
+ToriRSChrome_PanelScroll(struct ToriRSChrome const* ui, int panel);
+
+/**
+ * Put it back. The value is NOT clamped here: the content it would be clamped
+ * against is the page that has just been thrown away, and the next Build
+ * clamps against the page that replaced it, which is the one that matters.
+ */
+void
+ToriRSChrome_PanelSetScroll(struct ToriRSChrome* ui, int panel, int scroll);
+
 void
 ToriRSChrome_SetChecked(struct ToriRSChrome* ui, int widget, int checked);
 
 int
 ToriRSChrome_Checked(struct ToriRSChrome const* ui, int widget);
+
+/**
+ * Mark a BUTTON present-but-unavailable, or available again.
+ *
+ * Both halves, together: the caption goes to the dim ink a disabled dropdown
+ * row already draws in, and a click on it activates nothing. A caller that
+ * only greyed the caption would ship a button that looks dead and still
+ * fires. @see ToriRSChromeWidget::disabled.
+ */
+void
+ToriRSChrome_SetDisabled(struct ToriRSChrome* ui, int widget, int disabled);
+
+int
+ToriRSChrome_Disabled(struct ToriRSChrome const* ui, int widget);
 
 /** Live text of a TEXTINPUT / LABEL / MENUITEM. Never NULL. */
 char const*
@@ -2131,6 +2262,16 @@ ToriRSChrome_TakeActivated(struct ToriRSChrome* ui);
  */
 int
 ToriRSChrome_ActivationWasAction(struct ToriRSChrome const* ui);
+
+/**
+ * Was the CUSTOM activation just drained a SECONDARY click?
+ *
+ * Valid immediately after ToriRSChrome_TakeActivated, exactly like
+ * ToriRSChrome_ActivationWasAction, and 0 for a primary click and for every
+ * non-custom widget.
+ */
+int
+ToriRSChrome_ActivationWasMenu(struct ToriRSChrome const* ui);
 
 /** Whether the activation just drained was a CUSTOM well and its coordinates. */
 int

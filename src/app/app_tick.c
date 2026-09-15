@@ -428,161 +428,43 @@ app_logic_tick(struct App* app)
         app->host.hover_coord = hover_coord;
 
         /*
-         * What the pointer is on, for MINIMENU_TYPE and the target getters.
+         * What the pointer is on is the ACTING ROW's subject, and the row is
+         * published where the rest of the row is -- app_minimenu_entry_publish,
+         * off the same scratch menu the hover line is composed from.
          *
-         * The nearest non-terrain pick of the frame -- the same one the
-         * client's own left click would act on, and the same rule
-         * app_plugin_hover_entity follows. Terrain is skipped: over open
-         * ground the answer is "nothing", which is what clientscript 5350
-         * bails on.
+         * This used to walk `world_pickset` here and publish its nearest
+         * non-terrain hit. That made `_7100` and the four FIND ops answer about
+         * a DIFFERENT entry from the one `_7101` and `_7109` answer about, and
+         * the two disagree whenever the priority sort moves a row: measured on
+         * the Lumbridge fixture at 330,120 the hover line reads "Talk-to Romeo"
+         * while the pickset's first hit is loc 7143 "Fountain", so the cache's
+         * mouse-over highlighter outlined the fountain the pointer was not on.
+         * RS_ClientOpState already says why the pickset is the wrong source for
+         * an entry field; the subject is an entry field like the other three.
+         *
+         * `menu_open` stays here: it is a fact about the popup, not about a row.
          */
-        {
-            struct RS_ClientOpContext mo;
-            int minimenu_type = RS_MINIMENU_TYPE_NONE;
+        app->host.clientop.menu_open = app->interact.minimenu.visible;
 
-            memset(&mo, 0, sizeof(mo));
-            mo.kind = -1;
-            mo.uid = -1;
-            mo.type = -1;
-            mo.count = -1;
-            mo.coord = -1;
-            mo.layer = -1;
-
-            if( app->world )
-            {
-                for( int i = 0; i < app->world_pickset.count; i++ )
-                {
-                    struct World_Picked const* hit = &app->world_pickset.items[i];
-                    int const base_x = app->world->_base_tile_x;
-                    int const base_z = app->world->_base_tile_z;
-
-                    if( hit->type == WORLD_PICK_NPC )
-                    {
-                        struct WorldEntity_NPC* npc =
-                            World_NpcGetByElementId(app->world, hit->element_id, NULL);
-                        if( !npc )
-                            continue;
-                        mo.kind = RS_CLIENTOP_NPC;
-                        minimenu_type = RS_MINIMENU_TYPE_NPC;
-                        mo.uid = npc->server_slot;
-                        mo.type = npc->npc_id;
-                        mo.coord = RS_CLIENTOP_COORD(
-                            npc->grid_position.level,
-                            base_x + npc->grid_position.x,
-                            base_z + npc->grid_position.z);
-                        snprintf(mo.name, sizeof(mo.name), "%s", npc->name);
-                    }
-                    else if( hit->type == WORLD_PICK_SCENERY )
-                    {
-                        struct WorldEntity_Scenery* loc =
-                            World_SceneryGetByElementId(app->world, hit->element_id);
-                        if( !loc )
-                            continue;
-                        mo.kind = RS_CLIENTOP_LOC;
-                        minimenu_type = RS_MINIMENU_TYPE_LOC;
-                        mo.type = loc->loc_id;
-                        /* Half of a loc's identity: a tile holds one loc per
-                         * layer, and the scripted-overlay store keys on it. */
-                        mo.layer = World_LocShapeToLayer(loc->shape);
-                        mo.coord = RS_CLIENTOP_COORD(
-                            loc->grid_position.level,
-                            base_x + loc->grid_position.x,
-                            base_z + loc->grid_position.z);
-                        snprintf(mo.name, sizeof(mo.name), "%s", loc->info->name);
-                    }
-                    else if( hit->type == WORLD_PICK_OBJSTACK )
-                    {
-                        struct WorldEntity_ObjStack* stack =
-                            World_ObjStackGetByElementId(app->world, hit->element_id);
-                        if( !stack )
-                            continue;
-                        mo.kind = RS_CLIENTOP_OBJ;
-                        minimenu_type = RS_MINIMENU_TYPE_OBJ;
-                        mo.type = stack->obj_id;
-                        /* `_6853`, and the other half of a ground stack's
-                         * identity -- see RS_ClientOpContext::count. */
-                        mo.count = stack->count;
-                        mo.coord = RS_CLIENTOP_COORD(
-                            stack->grid_position.level,
-                            base_x + stack->grid_position.x,
-                            base_z + stack->grid_position.z);
-                        snprintf(mo.name, sizeof(mo.name), "%s", stack->name);
-                    }
-                    else if( hit->type == WORLD_PICK_PLAYER )
-                    {
-                        struct WorldEntity_Player* pl =
-                            World_PlayerGetByElementId(app->world, hit->element_id);
-                        if( !pl )
-                            continue;
-                        mo.kind = RS_CLIENTOP_PLAYER;
-                        minimenu_type = RS_MINIMENU_TYPE_PLAYER;
-                        /* The server slot, which is what a player uid is here
-                         * -- ACTIVEPLAYER_GETUID reports it and
-                         * app_cs2_player_route resolves it back. Same choice as
-                         * an npc's. */
-                        mo.uid = pl->server_pid;
-                        mo.coord = RS_CLIENTOP_COORD(
-                            pl->grid_position.level,
-                            base_x + pl->grid_position.x,
-                            base_z + pl->grid_position.z);
-                        snprintf(mo.name, sizeof(mo.name), "%s", pl->name);
-                    }
-                    else
-                        continue;
-                    break;
-                }
-            }
-
-            /*
-             * MINIMENU_ENTRY is deliberately NOT written here.
-             *
-             * This block answers "what is under the pointer" for the target
-             * getters and the highlighters, which is not the same question as
-             * "what would the menu act on": a pick can name an entity whose row
-             * lost the priority sort, or one left in a pickset the menu no
-             * longer builds a row for. Publishing the pick's name as the
-             * mouseover TARGET therefore put a subject in the tooltip that the
-             * hover line disagreed with -- measured, an idle pointer over open
-             * ground drew "Walk here" on the line and " Hans" in the tooltip.
-             * app_hover_text_update owns the entry, off the menu it composes.
-             */
-            app->host.clientop.menu_open = app->interact.minimenu.visible;
-            RS_ClientOpMouseoverSet(&app->host.clientop, &mo, minimenu_type);
-
-            /*
-             * Publishing is ALL the client does here.
-             *
-             * The cache drives the mouseover highlighter itself: clientscript
-             * 4726 is re-armed on a gameframe component timer and calls 5350
-             * every tick. Measured -- with the client's own edge-triggered call
-             * removed, 5350 still ran 89 times over the same window. Adding one
-             * would be a second driver for an idempotent script, which is only
-             * waste.
-             *
-             * The three TILE refreshers are different and are driven below:
-             * nothing in the cache calls those at all.
-             */
-            if( torirs_env_clientop_debug() )
-            {
-                /* The COMPONENT is part of what the pointer is on, so a UI
-                 * hover is a change of subject even when the world pick is
-                 * empty -- `_7109` reads that half. */
-                int const subject = (mo.kind < 0 ? -1 : (mo.kind * 4096) ^ mo.uid ^ mo.type) ^
-                                    (app->host.clientop.mouseover_component * 8192);
-                if( subject != app->highlight_last_mouseover )
-                {
-                    app->highlight_last_mouseover = subject;
-                    TORIRS_LOG(
-                        "mouseover: type=%d kind=%d uid=%d id=%d com=%d '%s'\n",
-                        minimenu_type,
-                        mo.kind,
-                        mo.uid,
-                        mo.type,
-                        app->host.clientop.mouseover_component,
-                        mo.name);
-                }
-            }
-        }
+        /*
+         * Publishing is ALL the client does here.
+         *
+         * The cache drives the mouseover highlighter itself: clientscript 4726
+         * is re-armed on a gameframe component timer and calls 5350 every tick.
+         * Measured -- with the client's own edge-triggered call removed, 5350
+         * still ran 89 times over the same window. Adding one would be a second
+         * driver for an idempotent script, which is only waste.
+         *
+         * What 5350 does with it is the CACHE's decision and not this client's:
+         * it reads %varbit13088 ("Highlight entities on mouse-over", All
+         * Settings > Activities row 190) and returns on the spot when that is
+         * 0, which is its shipped default. A capture that wants to see the
+         * highlighter has to turn the row on, exactly as the hovered-tile
+         * captures turn %varbit12977 on.
+         *
+         * The three TILE refreshers are different and are driven below:
+         * nothing in the cache calls those at all.
+         */
 
         /*
          * Only once the world is up: before that the scripts would clear a

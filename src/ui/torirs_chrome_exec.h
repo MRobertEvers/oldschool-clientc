@@ -150,6 +150,12 @@ enum ToriRSChromeCmdKind
      *          enum ToriRSChromeLabelStyle.
      *   `h` -- a TEXTAREA is this many lines tall; a CUSTOM region is this
      *          many logical chrome pixels tall.
+     *
+     * `before_widget` states WHERE, because an ADD is no longer always an
+     * append. A row can be re-identified in place -- same page, same
+     * neighbours, new identity -- and the shadow answers that with a REMOVE
+     * then an ADD. An executor that only ever appended moved that row to the
+     * bottom of the page, silently, for every row that was not already last.
      */
     TORIRS_CHROME_CMD_WIDGET_ADD,
     /** A widget went away. Its handle may be reused by a later ADD. */
@@ -274,6 +280,22 @@ struct ToriRSChromeCmd
     int h;
     /** ToriRSChromeWidget::serial on WIDGET_ADD, zero otherwise. */
     uint32_t serial;
+    /**
+     * WIDGET_ADD only: the handle of the row this one goes BEFORE. -1 appends.
+     *
+     * A handle rather than an ordinal on purpose. An index names a position in
+     * whatever the presentation happens to hold at the instant it applies the
+     * command, and two deltas in flight -- a remove and an add that cross a
+     * snapshot, a transaction the transport retried -- disagree about what
+     * position 3 was. A handle names the row itself, and every presentation
+     * already keys its rows by handle, so no executor has to count.
+     *
+     * A presentation that does not (yet) have the named row appends, which is
+     * also what an absent field means. That is exactly right for the in-order
+     * snapshot walk, where each row's successor has not been created yet, and
+     * it keeps a stream authored before this field a valid stream.
+     */
+    int before_widget;
     char label[TORIRS_CHROME_LABEL_MAX];
     char text[TORIRS_CHROME_TEXT_MAX];
     char detail[TORIRS_CHROME_TEXT_MAX];
@@ -304,6 +326,15 @@ enum ToriRSChromeIntentKind
     TORIRS_CHROME_INTENT_CLOSE,
     /** A CUSTOM well was released: `x`/`y` are content-local logical units. */
     TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE,
+    /**
+     * A CUSTOM well was SECONDARY-clicked; `x`/`y` as above.
+     *
+     * Its own kind and not a flag on ACTIVATE, because every executor
+     * switches on this enum and a flag on a kind is a field three of them
+     * would forget to carry -- which is the same reason ACTION is not a flag
+     * on ACTIVATE. @see TORIRS_PANEL_ACTION_MENU for what a well does with it.
+     */
+    TORIRS_CHROME_INTENT_CUSTOM_MENU,
 };
 
 /*

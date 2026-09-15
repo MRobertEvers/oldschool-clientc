@@ -375,6 +375,7 @@ test_host_input_epochs(void)
         [UITREE_HOST_GET_STATIC_SPRITE_SCENE] = assets,
         [UITREE_HOST_GET_MINIMAP_STATE] = camera | world | assets,
         [UITREE_HOST_GET_MINIMAP_HIDDEN] = client | world,
+        [UITREE_HOST_GET_MINIMAP_WALK] = client | world,
         [UITREE_HOST_GET_COMPASS_HIDDEN] = world,
         [UITREE_HOST_GET_MULTIWAY] = world,
         [UITREE_HOST_GET_REBOOT_TIMER] = client | animation,

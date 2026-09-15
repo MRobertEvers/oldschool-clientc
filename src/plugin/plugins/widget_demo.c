@@ -1,7 +1,66 @@
-/* Native widget probe, registered only with TORIRS_WIDGET_DEMO. */
+/*
+ * Native widget probe, registered only with TORIRS_WIDGET_DEMO.
+ *
+ * NOT PORTED TO PORCELAIN, AND NOT AN OVERSIGHT.
+ *
+ * This file is the raw widget contract's control. It is the only thing in the
+ * tree that calls actions/invoke on a RETAINED action ref after the widget it
+ * came from has gone, that arms the same owned control twice to watch the
+ * first registration's menu rows die, that reads a native box, writes it back
+ * twelve pixels left and reads it AGAIN, and that walks a live CS2 stack by
+ * index inside the callback. Those calls are the demonstration; a port would
+ * replace every one of them with a description and delete the thing the file
+ * exists to show.
+ *
+ * Worse than useless, it would be misleading. Run a probe of the raw contract
+ * THROUGH a reconciler and it stops measuring the contract: every assertion
+ * the matrix makes about it (--widget-offset 12 --widget-moves 1,
+ * owned_widget_armed, WIDGET_DEMO_OLD_ACTION result=) would then be evidence
+ * about Porcelain rather than about the host underneath it, with Porcelain as
+ * both the subject and the instrument. The -12 nudge is the clearest case: the
+ * layer's first rule is that an unchanged description costs no setter, so the
+ * second nudge would correctly be a no-op and the probe would be measuring the
+ * hash compare it was written to see past.
+ *
+ * Two of its rows are invariants the LAYER has to preserve, which is the other
+ * half of the reason: "retained action refs expire" and "widget requests
+ * inside an op callback are allowed" are facts about the host gate that
+ * Porcelain inherits unchanged and cannot restate.
+ *
+ * The Porcelain-side demonstrations are their own files and always were --
+ * script/plugins/_porcelainprobe.lua, _porcelainframeprobe.lua,
+ * _r3placeprobe.lua. If a third is wanted, it is a new sibling, never a
+ * conversion of this one.
+ */
 #include "plugin/torirs_plugin_api.h"
 #include <stdio.h>
 #include <string.h>
+
+/*
+ * WHICH SURFACE THE -12 NUDGE IS WRITTEN ON, AND WHY IT IS NOT `sidebar`.
+ *
+ * The probe's third row is "read a native box, write it back twelve pixels
+ * left, read it AGAIN" -- and a readback that agrees with itself is only half
+ * the assertion. The other half is that the PAINTER honoured it, because a
+ * write the painter drops reads back exactly like one it took.
+ *
+ * `sidebar` is the frame slot, and the node a frame slot answers with is its
+ * side-modal REGION on both lanes: `slot=side_modal` on the 2004 profile, the
+ * `sidemodal` box (clientCode 1354, `[role:frame_sidebar]`) on a cache one.
+ * That region is where an interface opens OVER the tabs, so unless a side
+ * modal is up it is an empty container -- nothing is parented to it and moving
+ * it moves no pixels. On the CS1 lane that is exactly what happened: the
+ * readback said 553 -> 541 and the fourteen tab mounts, which are its
+ * SIBLINGS, stayed at 553 with the inventory drawn in one of them.
+ *
+ * So the nudge is written on the panel the lane actually draws. Every profile
+ * declares `[role:panel_<name>]` for its side panels -- `slot(sidebar, 3)` on
+ * the dat1 lane, `id(if(149, 0))` on the dat2 one -- which is one role name,
+ * one lookup and no number compiled into C. The tab this resolves to is the
+ * revision's own answer to "where does the inventory live", and a lane that
+ * declares no such panel reports UNAVAILABLE and the probe simply never binds.
+ */
+#define PANEL_ROLE "panel_inventory"
 
 struct WidgetDemoState {
     struct ToriRS_WidgetRef label, control, public_button;
@@ -89,14 +148,34 @@ static void widget_demo_binding(struct ToriRS_Api* api, void* user, struct ToriR
             state->control=(struct ToriRS_WidgetRef){0};
             return;
         }
+        /*
+         * The two labels sit down the viewport's MIDDLE, not at its top.
+         *
+         * At the old 12,40 they were buried on toplevel 601: that root hangs
+         * its chat drawer over the top-left of the world, so of "Public:
+         * Friends" only the last ~15 px survived and "Strength: 99" was a
+         * fragment of the "99" -- 56 of the label's 71 cyan pixels overpainted.
+         * The other four lanes were fine, which is exactly why it shipped.
+         *
+         * Half the viewport's own height and not a second magic number: the
+         * drawer is pinned to the top on the root that has one, and the middle
+         * of the world is clear on every lane this plugin runs on. A fixed
+         * offset that cleared 601 would be a number chosen for one root, which
+         * is the per-lane rule this project does not allow.
+         */
+        struct ToriRS_WidgetBounds view={0};
+        int label_y=40;
+
+        if( ui->bounds(ui->context,event->widget,&view)==TORIRS_CONTRACT_OK && view.height>64 )
+            label_y=view.height/2;
         if( ui->create_text(ui->context,event->widget,"strength",&state->label)!=TORIRS_CONTRACT_OK ) return;
         state->level=-1;
-        ui->set_position(ui->context,state->label,12,40);
+        ui->set_position(ui->context,state->label,12,label_y);
         ui->set_text_color(ui->context,state->label,0xffffff);
         widget_demo_update(api,user,NULL);
         ui->revalidate(ui->context,state->label);
         if( ui->create_text(ui->context,event->widget,"public",&state->control)!=TORIRS_CONTRACT_OK ) return;
-        ui->set_position(ui->context,state->control,12,56);
+        ui->set_position(ui->context,state->control,12,label_y+16);
         ui->set_text(ui->context,state->control,"Public: Friends");
         ui->set_text_color(ui->context,state->control,0x00ffff);
         enum ToriRS_ContractResult armed=ui->set_on_op(ui->context,state->control,"Set public chat to friends",widget_demo_operation,user);
@@ -138,7 +217,7 @@ static void widget_demo_start(struct ToriRS_Api* api, void* user)
     api->core.log(api,"WIDGET_DEMO_SCRIPT_CALLBACKS available=%d",api->scripts.available(api->scripts.context));
     api->scripts.invalidate(api->scripts.context,"groundItemCaption");
     api->widgets.watch(api->widgets.context,"public_chat_button",widget_demo_binding,user);
-    api->widgets.watch(api->widgets.context,"sidebar",widget_demo_binding,user);
+    api->widgets.watch(api->widgets.context,PANEL_ROLE,widget_demo_binding,user);
     api->widgets.watch(api->widgets.context,"viewport",widget_demo_binding,user);
 }
 static void widget_demo_script(struct ToriRS_Api* api,void* user,struct ToriRS_ScriptEvent const* event)

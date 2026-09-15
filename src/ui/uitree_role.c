@@ -1,5 +1,6 @@
 #include "uitree_role.h"
 
+#include "perf_audit.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -86,18 +87,59 @@ UITree_RoleSlotMemberFromName(int slot, char const* name)
 /* The table                                                                 */
 /* ------------------------------------------------------------------------ */
 
+static uint32_t
+role_name_hash(char const* name)
+{
+    uint32_t h = 2166136261u;
+    for( ; *name; name++ )
+        h = (h ^ (unsigned char)*name) * 16777619u;
+    return h;
+}
+
+/* (Re)build the name index so it holds every entry at most half full. */
+static void
+role_index_rebuild(struct UITreeRoleTable* table, uint32_t capacity)
+{
+    assert(table);
+    assert(capacity);
+    assert((capacity & (capacity - 1)) == 0);
+    assert((uint32_t)table->count * 2 <= capacity);
+    free(table->name_index);
+    table->name_index = calloc(capacity, sizeof(*table->name_index));
+    assert(table->name_index);
+    table->name_index_capacity = capacity;
+    for( int i = 0; i < table->count; i++ )
+    {
+        uint32_t slot = role_name_hash(table->entries[i].name) & (capacity - 1);
+        while( table->name_index[slot] )
+            slot = (slot + 1) & (capacity - 1);
+        table->name_index[slot] = (uint16_t)(i + 1);
+    }
+}
+
 uint16_t
 UITree_RoleFind(struct UITreeRoleTable const* table, char const* name)
 {
     assert(table);
     assert(name);
 
-    for( int i = 0; i < table->count; i++ )
+    PA_INC(role_find_calls);
+    if( table->count == 0 )
+        return 0;
+    /* The index is maintained by the one writer, UITree_RoleIntern; a table
+     * with entries and no index is a table something else wrote into. */
+    assert(table->name_index);
+    assert((uint32_t)table->count * 2 <= table->name_index_capacity);
+    uint32_t const mask = table->name_index_capacity - 1;
+    for( uint32_t slot = role_name_hash(name) & mask;; slot = (slot + 1) & mask )
     {
-        if( strcmp(table->entries[i].name, name) == 0 )
-            return (uint16_t)(i + 1);
+        uint16_t const id = table->name_index[slot];
+        PA_INC(role_find_iters);
+        if( id == 0 )
+            return 0;
+        if( strcmp(table->entries[id - 1].name, name) == 0 )
+            return id;
     }
-    return 0;
 }
 
 uint16_t
@@ -134,6 +176,16 @@ UITree_RoleIntern(struct UITreeRoleTable* table, char const* name)
     memset(entry, 0, sizeof(*entry));
     strncpy(entry->name, name, sizeof(entry->name) - 1);
     entry->memo_node = -1;
+    if( (uint32_t)table->count * 2 > table->name_index_capacity )
+        role_index_rebuild(table, table->name_index_capacity ? table->name_index_capacity * 2 : 64);
+    else
+    {
+        uint32_t const mask = table->name_index_capacity - 1;
+        uint32_t slot = role_name_hash(entry->name) & mask;
+        while( table->name_index[slot] )
+            slot = (slot + 1) & mask;
+        table->name_index[slot] = (uint16_t)table->count;
+    }
     return (uint16_t)table->count;
 }
 
@@ -192,6 +244,9 @@ UITree_RoleTableFree(struct UITreeRoleTable* table)
     table->entries = NULL;
     table->count = 0;
     table->capacity = 0;
+    free(table->name_index);
+    table->name_index = NULL;
+    table->name_index_capacity = 0;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -245,6 +300,7 @@ role_find_authored(struct UITree const* tree, uint16_t role_id)
     assert(tree);
     assert(role_id);
 
+    PA_ADD(role_authored_iters, tree->component_count);
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         if( tree->components[i].freed )
@@ -315,6 +371,8 @@ UITree_RoleNode(
     assert(tree);
     assert(table);
 
+    uint64_t const pa_t0 = PerfAudit_Now();
+    PA_INC(role_node_calls);
     if( role_id == 0 || (int)role_id > table->count )
         return -1;
 
@@ -340,7 +398,7 @@ UITree_RoleNode(
          * moving, so the answer is re-checked rather than trusted. */
         if( (entry->memo_node < 0 && !table->fallback) ||
             (entry->memo_node >= 0 && role_node_alive(tree, entry->memo_node)) )
-            return entry->memo_node;
+        { PA_INC(role_memo_hits); PA_ADD(role_ns, PerfAudit_Now() - pa_t0); return entry->memo_node; }
     }
 
     /* The authored tag first: a profile that stamped a node has named it
@@ -353,11 +411,13 @@ UITree_RoleNode(
     if( node < 0 && adapted != -2 ) node = adapted;
     else
         for( int i = 0; node < 0 && i < entry->matcher_count; i++ )
-            node = role_resolve_matcher(tree, &entry->matchers[i]);
+        { PA_INC(role_matcher_calls); node = role_resolve_matcher(tree, &entry->matchers[i]); }
     entry->memo_node = node;
     entry->memo_generation = tree->generation;
     entry->memo_id_generation = tree->id_generation;
     entry->memo_valid = 1;
+    PA_INC(role_memo_misses);
+    PA_ADD(role_ns, PerfAudit_Now() - pa_t0);
     return node;
 }
 

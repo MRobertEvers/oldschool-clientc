@@ -97,18 +97,114 @@ struct ToriRS_PluginRequirement
 
 struct ToriRS_WidgetBounds { int32_t x, y, width, height; };
 
+/*
+ * ToriRS_WidgetState::facets -- what the LANE says about this widget, as
+ * opposed to what the tree says about the node.
+ *
+ * Every other field of the state is geometry or presentation the tree can
+ * answer for any node at all. These cannot be: "has the player been given this
+ * tab", "is the run orb lit", "has the server taken the minimap away" are
+ * facts held in varps, varbits, slot state and a MINIMAP_TOGGLE mode, spelled
+ * differently on a dat1 client and a cache one, and a plugin that dresses a
+ * stone or an orb needs them on the same fence as the box it is dressing.
+ *
+ * A bit is set only for a node the facet is ABOUT -- SELECTED is meaningless
+ * on the compass -- and a facet this lane cannot derive reads zero. Zero is
+ * therefore always "no", never "unknown": a lane whose profile declares no
+ * cutscene varbit has no cutscene to hide the HUD for, which is a fact about
+ * the revision and not a gap in the answer.
+ */
+enum ToriRS_WidgetFacet
+{
+    /** A sidebar tab the lane has GIVEN the player: the panel exists and
+     *  nothing has taken it away. A tab this is clear on must not be drawn
+     *  with an icon -- the click would open nothing. */
+    TORIRS_WIDGET_FACET_GIVEN = 1u << 0,
+    /** The sidebar tab currently showing. Exactly one of a frame's tabs. */
+    TORIRS_WIDGET_FACET_SELECTED = 1u << 1,
+    /** The sidebar tab the game has FLAGGED to flash (a tutorial "look at
+     *  your inventory"). The flag, not the blink: the icon's half-second gap
+     *  is the frame's to draw, and a facet that pulsed with it would raise a
+     *  state change twice a second for every watcher. */
+    TORIRS_WIDGET_FACET_FLASHING = 1u << 2,
+    /** The minimap or compass surface is permitted to paint at all. Separate
+     *  from `presented`, which is whether THIS node draws: the server can
+     *  withhold the map while the widget is perfectly visible. */
+    TORIRS_WIDGET_FACET_DRAWN = 1u << 3,
+    /** The compass rose is live, so north is readable. Reported on the
+     *  minimap too: the same MINIMAP_TOGGLE mode governs both. */
+    TORIRS_WIDGET_FACET_ORIENTED = 1u << 4,
+    /** A click on the minimap walks. Clear in the modes that draw the map and
+     *  refuse the step, where a frame must not show a walk cursor. */
+    TORIRS_WIDGET_FACET_WALKABLE = 1u << 5,
+    /** This orb's toggle is on: run is on, or the special attack is armed. */
+    TORIRS_WIDGET_FACET_ACTIVE = 1u << 6,
+    /** A cutscene is running and the lane has folded the gameplay HUD away.
+     *  Set on every watched widget, because it is a fact about the SCREEN --
+     *  a plugin's own decoration has to go with it. */
+    TORIRS_WIDGET_FACET_HIDDEN_BY_CUTSCENE = 1u << 7,
+};
+
+/*
+ * Everything a plugin that REPLACES or DECORATES a native widget has to
+ * follow: where the widget is, whether it paints, who hid it, whether it can
+ * still be clicked, and whether its art or caption changed underneath.
+ *
+ * Read it with ToriRS_WidgetApi::state, or take it for granted: the host
+ * stamps it once a frame for every bound watch and raises
+ * TORIRS_WIDGET_STATE_CHANGED when any field below moves. That is the whole
+ * point of the struct -- without it a tab stone or a compass plate has to poll
+ * the individual getters every frame to notice a CS2 if_sethide or a move.
+ */
+struct ToriRS_WidgetState
+{
+    uint32_t struct_size;
+    /** Drawn canvas space, as ToriRS_WidgetApi::bounds answers it. */
+    struct ToriRS_WidgetBounds bounds;
+    /** Native-parent-local, unscrolled, as ToriRS_WidgetApi::position. */
+    struct ToriRS_WidgetBounds local;
+    /** Paints this frame: exactly the ToriRS_WidgetApi::visible answer. */
+    bool presented;
+    /** The node's OWN hide bit -- a CS2 if_sethide or a dat1 IF_SETTAB.
+     *  Separate from native_hidden because a plugin that un-hides a stone
+     *  needs to know which of the two said no. */
+    bool own_hidden;
+    /** The engine's native suppression bits, not the script's. */
+    bool native_hidden;
+    /** Present to the native hit test: a decoration that must stay clickable
+     *  follows this and not `presented`. */
+    bool input_present;
+    /** A CHANGE token for a node that carries art, zero for one that does
+     *  not. NEVER an identity: equal tokens mean "the art did not change",
+     *  and nothing may be decoded back out of it. */
+    uint32_t graphic_token;
+    /** FNV-1a 64 of a text node's current string; zero for a non-text node.
+     *  A text node with an empty string hashes to the FNV basis, not zero. */
+    uint64_t text_hash;
+    /** What the LANE says about this widget: a bitmask of
+     *  enum ToriRS_WidgetFacet. Zero is "no" and never "unknown". */
+    uint32_t facets;
+    /** The reference's incarnation, so a state that arrived for a replaced
+     *  node can be told from one for the node the plugin still holds. */
+    uint64_t incarnation;
+};
+
 /* Event payload strings and argument views are borrowed for the callback.
  * Widget references can be retained, but must still be live when next used. */
 enum ToriRS_WidgetEventType
 {
+    /** The mount seam: a widget's interface was opened or closed. NOT RAISED
+     *  YET -- the seam is task_slot_mount, and until something raises them a
+     *  plugin should watch BOUND and UNBOUND, which carry the same news about
+     *  the element it actually asked for. They are declared because the seam
+     *  is the one place that can tell an interface CHANGING from a widget
+     *  merely being rebound, which BOUND cannot. */
     TORIRS_WIDGET_LOADED,
     TORIRS_WIDGET_CLOSED,
+    /** The element moved, was hidden, was re-skinned or retyped. Raised once
+     *  per publication fence per watch registered through `watch_state`. */
     TORIRS_WIDGET_STATE_CHANGED,
-    TORIRS_WIDGET_BEFORE_LAYOUT,
-    TORIRS_WIDGET_AFTER_LAYOUT,
     TORIRS_WIDGET_OPERATION,
-    TORIRS_SCRIPT_PRE_FIRED,
-    TORIRS_SCRIPT_POST_FIRED,
     TORIRS_SCRIPT_CALLBACK,
     TORIRS_WIDGET_BOUND,
     TORIRS_WIDGET_UNBOUND,
@@ -187,6 +283,11 @@ struct ToriRS_WidgetApi
     /* Native-parent-local, unscrolled geometry; bounds is drawn canvas space. */
     enum ToriRS_ContractResult (*position)(void*, struct ToriRS_WidgetRef, struct ToriRS_WidgetBounds*);
     enum ToriRS_ContractResult (*get_text)(void*, struct ToriRS_WidgetRef, char*, size_t capacity, size_t* required);
+    /* One read of everything a follower needs; see ToriRS_WidgetState. Set
+     * `out->struct_size` before the call. The host stamps the same answer once
+     * a frame for every bound watch and raises TORIRS_WIDGET_STATE_CHANGED on
+     * a difference, so a plugin that only wants to REACT need never call it. */
+    enum ToriRS_ContractResult (*state)(void*, struct ToriRS_WidgetRef, struct ToriRS_WidgetState* out);
     enum ToriRS_ContractResult (*set_position)(void*, struct ToriRS_WidgetRef, int32_t x, int32_t y);
     enum ToriRS_ContractResult (*set_size)(void*, struct ToriRS_WidgetRef, int32_t width, int32_t height);
     enum ToriRS_ContractResult (*set_hidden)(void*, struct ToriRS_WidgetRef, bool hidden);
@@ -236,6 +337,13 @@ struct ToriRS_WidgetApi
      * for the old incarnation then BOUND for the new one. Hidden is still
      * bound. NULL listener unregisters this owner's subscription for the role. */
     enum ToriRS_ContractResult (*watch)(void*, char const* role, ToriRS_WidgetListener, void* user);
+    /* As `watch`, and additionally raises TORIRS_WIDGET_STATE_CHANGED once per
+     * publication fence in which the bound widget's native state (box,
+     * presented, own and native hides, input presence, graphic token, text)
+     * moved; read it with `state`. Opt-in: a plain `watch` never receives
+     * STATE_CHANGED, so a listener written for BOUND/UNBOUND alone keeps its
+     * meaning. */
+    enum ToriRS_ContractResult (*watch_state)(void*, char const* role, ToriRS_WidgetListener, void* user);
     /* Initial notification and subsequent topology publications. Geometry or
      * hiding alone do not trigger this. Event widget is empty; query live refs.
      * A replacement subscription starts at the next publication fence. */

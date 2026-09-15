@@ -667,6 +667,13 @@ app_build_entity_overlays(
     int hitmarks_scene;
 
     OverlayStage_ResetWorld(&app->overlays);
+    /* The in-scene tile markers are the same frame's drawing, split from the
+     * list above only by when it has to reach the raster, so they empty with
+     * it. Emptied here and not in the frame build: a frame that reuses a
+     * RETAINED overlay list never reaches this function, and both lists have
+     * to survive that together or a marker outlives the overlays it was
+     * drawn beside. */
+    app_world_tile_marks_reset(app);
     *out_items = OverlayStage_Items(&app->overlays, OVERLAY_SURFACE_WORLD);
     if( !world || !world->load_complete || !app->world_view_valid )
         return 0;
@@ -811,7 +818,7 @@ app_build_entity_overlays(
      * taken what they need from -- so a crowded scene clips the plugin, never
      * a health bar.
      */
-    PluginHost_DrawWorld(app->plugins);
+    PluginHost_DrawWorld(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 
     /* TORIRS_OVERLAY_DEBUG=1: the primitives this frame, plus the two assets
      * they need — a missing p11 (font -1) or hitmarks pack is the usual

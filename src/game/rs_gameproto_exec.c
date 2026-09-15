@@ -94,6 +94,11 @@ exec_if_clearinv_node(
     c = &tree->components[idx];
     if( c->freed )
         return;
+    /* A plugin-owned control under a cache container is not the server's
+     * inventory: it carries no obj and neither do its children. The slot
+     * remount sweep keeps owned children the same way. */
+    if( c->plugin_owner )
+        return;
     (void)UITree_SetObjectAt(tree, idx, 0, 0, -1, 0, c->item_num_mode);
     for( int32_t child = c->first_child; child >= 0; )
     {

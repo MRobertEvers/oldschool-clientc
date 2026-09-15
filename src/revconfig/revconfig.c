@@ -1017,6 +1017,12 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_ROLE_MATCH";
     case RCFIELD_UICOMPONENT_ROLE:
         return "RCFIELD_UICOMPONENT_ROLE";
+    case RCFIELD_TABS_ENTRY:
+        return "RCFIELD_TABS_ENTRY";
+    case RCFIELD_TABS_COLUMNS:
+        return "RCFIELD_TABS_COLUMNS";
+    case RCFIELD_TABS_DETACHED:
+        return "RCFIELD_TABS_DETACHED";
     default:
         return "UNKNOWN";
     }
@@ -1171,6 +1177,11 @@ revconfig_item_set_name(
         else
             item->u.login_reply.code = revconfig_parse_int(value);
         break;
+    case RCITEM_TABS:
+        /* The section name IS the gameframe root the arrangement is for;
+         * `[tabs]` with no name is the base map and keeps its -1. */
+        item->u.tabs.root = revconfig_parse_int(value);
+        break;
     default:
         break;
     }
@@ -1240,6 +1251,14 @@ revconfig_item_begin(
         /* -1 = "leave the screen alone", which is what most codes want: the
          * generic error page is already up by the time the lines are read. */
         item->u.login_reply.screen = -1;
+    }
+    else if( strcmp(type_value, "tabs") == 0 )
+    {
+        item->kind = RCITEM_TABS;
+        /* -1, not 0: 0 is a real interface id, so `[tabs]` (the base map, which
+         * belongs to no root) has to read as something no `[tabs:<root>]` can
+         * spell. @see struct RevConfigTabsItem. */
+        item->u.tabs.root = -1;
     }
     else if( strcmp(type_value, "inv") == 0 )
         item->kind = RCITEM_INV;
@@ -2330,6 +2349,120 @@ revconfig_item_apply_chrome_field(
     }
 }
 
+/*
+ * One `<name>=<number>` row of a `[tabs]` section.
+ *
+ * The line arrives whole rather than split, because the KEY of a tab row is
+ * the tab's own NAME -- there is no fixed key set to dispatch on the way
+ * [features] and [camera] have -- and a field carries one string.
+ *
+ * A row that does not parse is dropped with a report rather than stored half.
+ * A truncated tab name is a name nothing will ever ask for, which is the
+ * silent wrong answer this table exists to delete.
+ */
+static void
+revconfig_tabs_push_entry(
+    struct RevConfigTabsItem* tabs,
+    char const* row)
+{
+    char const* separator;
+    size_t name_length;
+
+    assert(tabs);
+    assert(row);
+
+    separator = strchr(row, '=');
+    if( !separator )
+    {
+        TORIRS_LOG("revconfig: [tabs] row '%s' states no number\n", row);
+        return;
+    }
+    name_length = (size_t)(separator - row);
+    if( name_length == 0 || name_length >= sizeof(tabs->entries[0].name) )
+    {
+        TORIRS_LOG("revconfig: [tabs] row '%s' has no usable name\n", row);
+        return;
+    }
+    if( tabs->entry_count >= REVCONFIG_TABS_MAX )
+    {
+        TORIRS_LOG("revconfig: [tabs] holds at most %d rows; '%s' is dropped\n",
+            REVCONFIG_TABS_MAX,
+            row);
+        return;
+    }
+    memcpy(tabs->entries[tabs->entry_count].name, row, name_length);
+    tabs->entries[tabs->entry_count].name[name_length] = '\0';
+    tabs->entries[tabs->entry_count].number = revconfig_parse_int(separator + 1);
+    tabs->entry_count++;
+}
+
+/*
+ * One `columns=` line, which may carry several columns separated by `|`.
+ *
+ * The key may also be stated once per column; both spellings append in the
+ * order they are read. @see struct RevConfigTabsItem for why both exist.
+ */
+static void
+revconfig_tabs_push_columns(
+    struct RevConfigTabsItem* tabs,
+    char const* line)
+{
+    char const* cursor;
+
+    assert(tabs);
+    assert(line);
+
+    for( cursor = line; *cursor; )
+    {
+        char const* divider = strchr(cursor, '|');
+        size_t length = divider ? (size_t)(divider - cursor) : strlen(cursor);
+
+        if( tabs->column_count >= REVCONFIG_TABS_COLUMNS_MAX )
+        {
+            TORIRS_LOG("revconfig: [tabs:%d] states more than %d columns\n",
+                tabs->root,
+                REVCONFIG_TABS_COLUMNS_MAX);
+            return;
+        }
+        if( length >= sizeof(tabs->columns[0]) )
+            length = sizeof(tabs->columns[0]) - 1;
+        memcpy(tabs->columns[tabs->column_count], cursor, length);
+        tabs->columns[tabs->column_count][length] = '\0';
+        tabs->column_count++;
+
+        if( !divider )
+            return;
+        cursor = divider + 1;
+    }
+}
+
+/** One `[tabs]` / `[tabs:<root>]` key. */
+static void
+revconfig_item_apply_tabs_field(
+    struct RevConfigTabsItem* tabs,
+    enum RevConfigFieldKind kind,
+    const char* value)
+{
+    assert(tabs);
+    assert(value);
+
+    switch( kind )
+    {
+    case RCFIELD_TABS_ENTRY:
+        revconfig_tabs_push_entry(tabs, value);
+        break;
+    case RCFIELD_TABS_COLUMNS:
+        revconfig_tabs_push_columns(tabs, value);
+        break;
+    case RCFIELD_TABS_DETACHED:
+        strncpy(tabs->detached, value, sizeof(tabs->detached) - 1);
+        tabs->detached[sizeof(tabs->detached) - 1] = '\0';
+        break;
+    default:
+        break;
+    }
+}
+
 static void
 revconfig_item_apply_field(
     struct RevConfigItem* item,
@@ -2438,6 +2571,9 @@ revconfig_item_apply_field(
                     value, &item->u.role.matchers[item->u.role.matcher_count]) )
                 item->u.role.matcher_count++;
         }
+        break;
+    case RCITEM_TABS:
+        revconfig_item_apply_tabs_field(&item->u.tabs, kind, value);
         break;
     case RCITEM_FEATURES:
         revconfig_item_apply_features_field(&item->u.features, kind, value);

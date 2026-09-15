@@ -103,6 +103,15 @@ App_BuildFrame(
                 app->world_camera_pos.z);
             /* Must follow SetWorld: it resets slot 0 to the root identity. */
             app_wev_bind_frame_xforms(app, frame);
+            /* Must follow the paint: a tile marker that belongs in the scene
+             * is placed by the command index it is drawn after, and that
+             * index is a position in the list app_world_paint has just
+             * written. Resolved here rather than where the marker was staged
+             * because the staging happens during the overlay build, which is
+             * a whole phase before this paint exists. */
+            app_world_tile_marks_place(app);
+            ToriRS_FrameSetWorldTileMarks(
+                frame, app->world_tile_marks, app->world_tile_mark_count);
         }
     }
     return true;

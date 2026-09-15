@@ -220,6 +220,14 @@ print_component_details(
 
     if( c->name && c->name[0] != '\0' )
         fprintf(fp, "  name='%s'", c->name);
+    /* The RAW layout inputs beside the resolved box. Without them a reader has
+     * to invert the mode arithmetic to answer "did the client change this, or
+     * is this what the cache says", and that inversion is only unique when the
+     * modes are known. @see UITree_If3AxisFromPositionMode. */
+    if( c->if3 )
+        fprintf(fp, "  raw=%d,%d %dx%d modes=x%d,y%d,w%d,h%d",
+            c->baseX, c->baseY, c->baseWidth, c->baseHeight,
+            (int)c->xMode, (int)c->yMode, (int)c->widthMode, (int)c->heightMode);
     fputc('\n', fp);
 
     /* IF1 "active" scripts: comparator[k] + operand[k] vs the value script

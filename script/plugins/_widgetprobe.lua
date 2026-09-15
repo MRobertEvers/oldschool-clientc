@@ -1,5 +1,13 @@
 -- Same live-widget source on CS1/revconfig and CS2, including native remounts.
-local plugin = { id = "widgetprobe", version = "3" }
+--
+-- The -12 nudge is written on `panel_inventory` and not on `sidebar`, for the
+-- reason src/plugin/plugins/widget_demo.c states at length: the `sidebar` slot
+-- answers with its side-modal REGION on both lanes -- an empty container that
+-- an interface only opens INTO -- so the readback agreed with itself while the
+-- painter moved nothing. Every profile declares `[role:panel_<name>]` for its
+-- side panels, which is one role name and one lookup on either lane.
+local plugin = { id = "widgetprobe", version = "4" }
+local PANEL_ROLE = "panel_inventory"
 local label, control, last_level
 local function set_public_friends(api)
     local button = api.widgets.find("public_chat_button")
@@ -19,7 +27,7 @@ local function update(api)
     end
 end
 function plugin.on_start(api)
-    assert(api.widgets.watch("sidebar", function(sidebar, event)
+    assert(api.widgets.watch(PANEL_ROLE, function(sidebar, event)
         if event.kind == "unbound" then
             sidebar:reset()
             api.core.log("LUA_WIDGET_DEMO_UNBOUND")

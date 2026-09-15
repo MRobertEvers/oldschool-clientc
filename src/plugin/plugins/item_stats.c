@@ -1,4 +1,4 @@
-#include "plugin/plugins/plugin_draw.h"
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
@@ -57,6 +57,27 @@
  *   - Potion DURATIONS (RuneLite's PotionDuration) and the leagues
  *     combat-mastery multipliers, which are varbits no revision here defines.
  *   - Spicy stew, whose boost is four quest varbits.
+ *
+ * Each of those four is DECLARED, at on_start, through
+ * Porcelain_ExpectUnsupported -- so "this client shows no weight column" is a
+ * line in the findings channel with a reason beside it rather than a paragraph
+ * in this comment that no capture can read. A declaration that ever stops
+ * being true fails loudly, which a comment cannot do.
+ *
+ * WHAT PORCELAIN OWNS HERE. The plugin keeps every calculator, the consumable
+ * table and the whole of the panel's arithmetic -- none of that is a layer's
+ * business. What moved out is the bookkeeping the layer exists to hold:
+ *
+ *   - the hovered cell, including WHICH CONTAINER it is in (Porcelain_Hover),
+ *     so a bank cell and an inventory cell are two tooltips and not one;
+ *   - the tooltip picture, painted at most once per (key, hash of what it
+ *     says) (Porcelain_Derived), which replaces a thirty-frame TTL that was
+ *     stale for up to half a second and then flickered;
+ *   - the two shipped data files (Porcelain_Table) and the glyph sheet
+ *     (Porcelain_Image), each asked for once, with a terminal state
+ *     remembered and reported instead of re-requested every frame;
+ *   - the draw region (Porcelain_DrawContext), whose refusal is now a finding
+ *     rather than an unclamped panel.
  */
 
 /* ------------------------------------------------------------------ model */
@@ -233,37 +254,44 @@ struct is_change
 
 struct is_glyph;
 struct is_row;
+struct is_tip;
 struct is_bonus_row;
 
 struct ItemStatsState
 {
-    struct
-    {
-        int obj_id;
-        int component_id;
-        int slot;
-        long frame;
-    } hover;
-    long frame;
+    /*
+     * The layer handle, FIRST, because a test reads it through a head struct
+     * of its own -- the same assumption, for the same reason, as
+     * tileind_v2_test.c's TileindStateHead.
+     */
+    struct Porcelain* porcelain;
     struct is_glyph* glyph;
     int glyph_ready;
     int glyph_line_h;
     int glyph_row_h;
-    struct ToriRS_ImageRef img_text;
     uint32_t* text_px;
     int text_w;
     int text_h;
-    uint32_t* scratch;
-    struct is_row* rows;
-    int row_count;
+    /** The rows, and everything else that decides what the picture says.
+     *  Handed to Porcelain_Derived whole, as the hash of its own inputs. */
+    struct is_tip* tip;
     struct ToriRS_ImageRef tip_image;
     int tip_w;
     int tip_h;
-    int tip_obj;
-    long tip_frame;
     struct is_bonus_row* bonus;
     int bonus_count;
-    int bonus_state;
+    /**
+     * Does the OPEN CACHE state equipment bonuses at all?
+     *
+     * -1 not asked, 0 no, 1 yes. Latched at 1 and never re-asked, because the
+     * capability is a fact about state that ARRIVES -- an objtype resident in
+     * the cache -- so false is only ever "not yet". Asked at most once per
+     * composed tooltip and not per item: the answer is about the lane.
+     */
+    int lane_bonuses;
+    /** A worn item neither source could name. The comparison is abandoned
+     *  rather than computed against zero. @see is_worn_equip. */
+    int worn_unknown;
     char skill_name[IS_SKILL_COUNT][32];
 };
 
@@ -274,27 +302,23 @@ struct ItemStatsRuntime
 };
 
 #define g_api (rt->api)
-#define g_hover (rt->state->hover)
-#define g_frame (rt->state->frame)
+#define g_porcelain (rt->state->porcelain)
 #define g_glyph (rt->state->glyph)
 #define g_glyph_ready (rt->state->glyph_ready)
 #define g_glyph_line_h (rt->state->glyph_line_h)
 #define g_glyph_row_h (rt->state->glyph_row_h)
-#define g_img_text (rt->state->img_text)
 #define g_text_px (rt->state->text_px)
 #define g_text_w (rt->state->text_w)
 #define g_text_h (rt->state->text_h)
-#define g_scratch (rt->state->scratch)
-#define g_rows (rt->state->rows)
-#define g_row_count (rt->state->row_count)
+#define g_tip (rt->state->tip)
+#define g_rows (rt->state->tip->rows)
+#define g_row_count (rt->state->tip->row_count)
 #define g_tip_image (rt->state->tip_image)
 #define g_tip_w (rt->state->tip_w)
 #define g_tip_h (rt->state->tip_h)
-#define g_tip_obj (rt->state->tip_obj)
-#define g_tip_frame (rt->state->tip_frame)
 #define g_bonus (rt->state->bonus)
 #define g_bonus_count (rt->state->bonus_count)
-#define g_bonus_state (rt->state->bonus_state)
+#define g_worn_unknown (rt->state->worn_unknown)
 
 static int
 is_cfg_bool(struct ItemStatsRuntime* rt, char const* key)
@@ -1860,8 +1884,11 @@ struct is_glyph
  * the rest of the cache's own 12-pixel line. */
 #define IS_LINE_PITCH (g_glyph_line_h + 2)
 
-#define IS_SCRATCH_W 288
-#define IS_SCRATCH_H 352
+/* The widest and tallest a panel may be. A super restore's twenty rows fit
+ * inside it; a wider label is cut rather than pushing the picture past what
+ * the client will publish. */
+#define IS_TIP_MAX_W 288
+#define IS_TIP_MAX_H 352
 
 static uint32_t
 is_over(uint32_t dst, uint32_t src)
@@ -1896,20 +1923,16 @@ is_over(uint32_t dst, uint32_t src)
  * glyph, a line beginning with a space, be read by the same rule as every
  * other and keeps it apart from the header keys and the comments.
  */
-static int
-is_load_glyphs(struct ItemStatsRuntime* rt)
+static bool
+is_parse_glyphs(struct ToriRS_Api* api, void* user, void const* data, size_t size)
 {
-    char const* at;
-    void const* bytes = NULL;
-    size_t size = 0;
+    struct ItemStatsRuntime* rt = user;
+    char const* at = data;
 
-    if( g_glyph_ready )
-        return 1;
-    if( g_api->assets.request(g_api, "text.ini") != TORIRS_ASSET_READY )
-        return 0;
-    if( !g_api->assets.bytes(g_api, "text.ini", &bytes, &size) || !bytes || size == 0 )
-        return 0;
-    at = bytes;
+    assert(api);
+    assert(rt);
+    assert(data);
+    (void)api;
 
     for( char const* end = at + size; at < end; )
     {
@@ -1963,7 +1986,67 @@ is_load_glyphs(struct ItemStatsRuntime* rt)
                 g_glyph_ready = 1;
         }
     }
-    return g_glyph_ready;
+    /* False is a parse REFUSAL, and Porcelain turns it into one finding and
+     * never asks again -- which is the honest answer for an atlas whose
+     * metrics are unreadable. A retry every frame is what this replaces. */
+    return g_glyph_ready != 0;
+}
+
+/*
+ * The face: the metrics through Porcelain_Table and the sheet through
+ * Porcelain_Image, each asked for ONCE.
+ *
+ * Both were a bare `assets.request` per draw call before, with no memory of a
+ * terminal answer: a missing text.ini was re-read on every frame the pointer
+ * sat over an inventory cell, for ever, and said nothing to anybody. The two
+ * verbs remember MISSING and ERROR and report each exactly once.
+ *
+ * The PIXELS are still copied out through api->assets.image_pixels, which the
+ * layer has no verb for: Porcelain hands back a handle and its size, and a
+ * plugin that composes its own picture needs the bytes behind it. One copy
+ * per session, and the source handle is the layer's to release.
+ */
+static int
+is_load_art(struct ItemStatsRuntime* rt)
+{
+    enum PorcelainAssetState state;
+    struct ToriRS_ImageRef ref;
+    int metrics;
+
+    /*
+     * Both halves are asked for on the SAME frame, and the metrics do not
+     * gate the sheet. That is not tidiness: a host image slot is handed out
+     * in request order, and delaying this request by the frame or two the
+     * .ini takes to arrive renumbered the slots of every plugin that asks
+     * after this one. The gate saw it as six of gameframe's own faces
+     * changing their scene handle -- a port that moved something in a plugin
+     * it never touched.
+     */
+    metrics = Porcelain_Table(g_porcelain, "text.ini", is_parse_glyphs, rt) ? 1 : 0;
+    if( g_text_px )
+        return metrics;
+    ref = Porcelain_Image(g_porcelain, "text.png", &state);
+    if( state != PORCELAIN_ASSET_READY )
+        return 0;
+    if( !Porcelain_ImageSize(g_porcelain, "text.png", &g_text_w, &g_text_h) ||
+        g_text_w <= 0 || g_text_h <= 0 )
+        return 0;
+    {
+        size_t const count = (size_t)g_text_w * (size_t)g_text_h;
+        size_t written = 0;
+        g_text_px = malloc(count * sizeof(*g_text_px));
+        assert(g_text_px);
+        if( !g_api->assets.image_pixels(g_api, ref, g_text_px, count, &written) ||
+            written != count )
+        {
+            free(g_text_px);
+            g_text_px = NULL;
+            Porcelain_Finding(g_porcelain, "image", PORCELAIN_ROLE_EL("text.png"),
+                PORCELAIN_FINDING_ASSET_ERROR, "the sheet published fewer pixels than its size");
+            return 0;
+        }
+    }
+    return metrics;
 }
 
 static int
@@ -1993,6 +2076,7 @@ is_text_width(struct ItemStatsRuntime* rt, char const* text)
 static void
 is_text(
     struct ItemStatsRuntime* rt,
+    uint32_t* buf,
     int x,
     int top,
     char const* text,
@@ -2002,6 +2086,7 @@ is_text(
 {
     int pen = x;
 
+    assert(buf);
     assert(text);
     if( !g_glyph_ready || !g_text_px )
         return;
@@ -2035,8 +2120,8 @@ is_text(
                     uint32_t r = ((px >> 16) & 0xFF) * ((tint >> 16) & 0xFF) / 255;
                     uint32_t gg = ((px >> 8) & 0xFF) * ((tint >> 8) & 0xFF) / 255;
                     uint32_t b = (px & 0xFF) * (tint & 0xFF) / 255;
-                    g_scratch[ty * w + tx] =
-                        is_over(g_scratch[ty * w + tx], (a << 24) | (r << 16) | (gg << 8) | b);
+                    buf[ty * w + tx] =
+                        is_over(buf[ty * w + tx], (a << 24) | (r << 16) | (gg << 8) | b);
                 }
             }
         }
@@ -2058,7 +2143,44 @@ struct is_row
 
 #define IS_ROWS_MAX 40
 
-/** The composed panel is retained in ItemStatsState and keyed by object/frame. */
+/*
+ * Everything that decides what the picture says, in one contiguous block.
+ *
+ * This IS the derived key. Porcelain paints at most once per (key, hash of
+ * inputs), and the inputs are handed to it as bytes -- so the rule "restate
+ * the tooltip whenever what it SAYS would change" is expressed by putting
+ * exactly the deciding facts in here and nothing else.
+ *
+ * The rows carry their own colours, so a settings change moves the hash
+ * without any callback having to know that it should; the three number rows
+ * and the two halves' switches move the row TEXT and the row COUNT. The
+ * container is in here because a bank cell and an inventory cell are two
+ * different hovers even when the obj is the same, which is the whole of the
+ * row the ledger opened against the old obj-only key.
+ *
+ * `is_row_add` zeroes a row before filling it, so the tail of every `left` and
+ * `right` is zero rather than whatever the last item left there -- which is
+ * what makes hashing the bytes mean hashing the text.
+ */
+struct is_tip
+{
+    int obj;
+    int container;
+    int container_id;
+    int width;
+    int height;
+    int row_count;
+    struct is_row rows[IS_ROWS_MAX];
+};
+
+/** The bytes of `is_tip` that are live for `row_count` rows. */
+static size_t
+is_tip_inputs_len(int row_count)
+{
+    assert(row_count >= 0);
+    assert(row_count <= IS_ROWS_MAX);
+    return offsetof(struct is_tip, rows) + (size_t)row_count * sizeof(struct is_row);
+}
 
 static uint32_t
 is_positivity_rgb(struct ItemStatsRuntime* rt, int positivity)
@@ -2208,29 +2330,29 @@ struct is_bonus_row
     short speed;
 };
 
-/** 0 not tried, 1 loaded, -1 the asset is absent -- which is a legitimate
- *  install (the table is only needed by the older revisions) and must not be
- *  retried every frame. */
-
-static int
-is_load_bonuses(struct ItemStatsRuntime* rt)
+/*
+ * An absent file is a LEGITIMATE install -- the table is only needed by the
+ * older revisions -- and must be asked for once.
+ *
+ * The tri-state that said so was hand-rolled here and half of it never ran:
+ * the branch that remembered "absent" was only reachable AFTER the asset had
+ * answered READY, so a bonuses.txt that was simply not there was re-requested
+ * on every frame the pointer sat over an item, for the life of the session,
+ * with nothing in any log. Porcelain_Table remembers MISSING, ERROR and a
+ * refused parse alike, reports each exactly once, and retries only the one
+ * state that is worth retrying -- the web lane still fetching it.
+ */
+static bool
+is_parse_bonuses(struct ToriRS_Api* api, void* user, void const* data, size_t size)
 {
-    char const* at;
-    void const* bytes = NULL;
-    size_t size = 0;
+    struct ItemStatsRuntime* rt = user;
+    char const* at = data;
     int cap = 0;
 
-    if( g_bonus_state != 0 )
-        return g_bonus_state > 0;
-    if( g_api->assets.request(g_api, "bonuses.txt") != TORIRS_ASSET_READY )
-        return 0; /* still reading; asked again next frame */
-    if( !g_api->assets.bytes(g_api, "bonuses.txt", &bytes, &size) ||
-        !bytes || size == 0 )
-    {
-        g_bonus_state = -1;
-        return 0;
-    }
-    at = bytes;
+    assert(api);
+    assert(rt);
+    assert(data);
+    (void)api;
 
     for( char const* end = at + size; at < end; )
     {
@@ -2295,10 +2417,34 @@ is_load_bonuses(struct ItemStatsRuntime* rt)
         g_bonus[g_bonus_count++] = row;
     }
 
-    /* The bytes are the host's and are not needed once parsed. */
-    g_api->assets.release(g_api, "bonuses.txt");
-    g_bonus_state = g_bonus_count > 0 ? 1 : -1;
-    return g_bonus_state > 0;
+    /* The bytes are the host's, and Porcelain releases them the moment this
+     * returns: the parsed form lives here. A file that parsed to no rows at
+     * all is a refusal, not an empty table nobody mentions. */
+    return g_bonus_count > 0;
+}
+
+/*
+ * Does the OPEN CACHE state equipment bonuses at all?
+ *
+ * The question the shipped table's whole existence turns on, and until now it
+ * was asked PER ITEM -- `info->has_bonuses` -- which is a different question
+ * with a different answer. An OldSchool record that happens to carry no
+ * params (a log, a coin, a quest item) fell through to a table baked from
+ * somebody else's cache, so an OldSchool session COULD be told about another
+ * game's balance in exactly the case the file's own header swears it cannot.
+ *
+ * `item_bonuses` is the lane's answer: a resident objtype carries the params.
+ * It is false until one has been read, so it is asked again until it is true
+ * and then latched -- and it is asked at most once per composed tooltip,
+ * because the scan behind it walks the resident objtype table.
+ */
+static int
+is_lane_states_bonuses(struct ItemStatsRuntime* rt)
+{
+    if( rt->state->lane_bonuses == 1 )
+        return 1;
+    rt->state->lane_bonuses = Porcelain_Has(g_porcelain, "item_bonuses") ? 1 : 0;
+    return rt->state->lane_bonuses;
 }
 
 static struct is_bonus_row const*
@@ -2308,7 +2454,7 @@ is_bonus_lookup(struct ItemStatsRuntime* rt, char const* cache_name)
 
     assert(cache_name);
 
-    if( !is_load_bonuses(rt) )
+    if( !Porcelain_Table(g_porcelain, "bonuses.txt", is_parse_bonuses, rt) )
         return NULL;
     is_normalize_name(cache_name, key, sizeof(key));
     if( key[0] == '\0' )
@@ -2380,6 +2526,15 @@ is_equip_resolve(
         return 1;
     }
 
+    /*
+     * The cache states bonuses and this record carries none: the record is
+     * the truth, and the truth is that this item has none. Reaching for the
+     * shipped table here is how an OldSchool session gets told about a
+     * different game's balance.
+     */
+    if( is_lane_states_bonuses(rt) )
+        return 0;
+
     row = is_bonus_lookup(rt, info->name);
     if( !row || row->slot < 0 )
         return 0;
@@ -2444,8 +2599,18 @@ is_equip_subtract(struct is_equip* self, struct is_equip const* other)
     self->speed -= other->speed;
 }
 
-/** What is worn in `slot`, or 0 when the slot is empty / the container is not
- *  known / the record is not resident. */
+/*
+ * What is worn in `slot`, or 0 when the slot is EMPTY.
+ *
+ * An empty slot and an unrecognisable one are two different answers and used
+ * to be the same one. On a dat1 world the worn side resolves by name too, and
+ * a miss contributed zero -- so an equipped item the table has never heard of
+ * was silently treated as bare skin, and every delta measured against it was
+ * wrong with nothing said anywhere. The miss is a finding now, coalesced on
+ * (verb, element, result) with the name in its detail, and it raises
+ * `worn_unknown` so the comparison is ABANDONED rather than computed against
+ * a zero nobody stated.
+ */
 static int
 is_worn_equip(struct ItemStatsRuntime* rt, int slot, struct is_equip* out)
 {
@@ -2457,9 +2622,37 @@ is_worn_equip(struct ItemStatsRuntime* rt, int slot, struct is_equip* out)
     if( !g_api->game->inventory_slot(
             g_api, TORIRS_INVENTORY_WORN, slot, &obj_id, NULL) )
         return 0;
-    if( obj_id < 0 || !g_api->game->item_info(g_api, obj_id, &info) )
+    if( obj_id < 0 )
         return 0;
-    return is_equip_resolve(rt, &info, out);
+    if( !g_api->game->item_info(g_api, obj_id, &info) )
+    {
+        /* Not resident YET. A readiness state, which the layer's own rule
+         * says is retried and never a finding -- but it is still not "the
+         * slot is empty", so the comparison waits rather than measuring
+         * against bare skin for the frame it takes to arrive. */
+        g_worn_unknown = 1;
+        return 0;
+    }
+    if( is_equip_resolve(rt, &info, out) )
+        return 1;
+    /*
+     * The record states nothing.
+     *
+     * On a lane whose cache DOES state bonuses, that is the cache's own
+     * answer about an item it authored and this stays exactly what it always
+     * was: nothing comparable is worn. On a lane that states nothing the
+     * shipped table was the only source there was, and a name it has never
+     * heard of is the miss the ledger opened a row against -- so it says so,
+     * once, and the comparison is abandoned rather than measured against a
+     * zero nobody stated.
+     */
+    if( !is_lane_states_bonuses(rt) )
+    {
+        g_worn_unknown = 1;
+        Porcelain_Finding(g_porcelain, "equipment", PORCELAIN_ROLE_EL("worn"),
+            PORCELAIN_FINDING_UNSUPPORTED, info.name);
+    }
+    return 0;
 }
 
 /*
@@ -2571,6 +2764,14 @@ is_build_equipment(
             have_offhand = is_worn_equip(rt, IS_SLOT_SHIELD, &offhand);
     }
 
+    /*
+     * A worn side neither source could name. Every delta below would be
+     * measured against a zero nobody stated, so nothing is printed -- the
+     * finding is_worn_equip raised is what says why.
+     */
+    if( g_worn_unknown )
+        return;
+
     if( have_other )
         is_equip_subtract(&diff, &other);
     if( have_offhand )
@@ -2637,14 +2838,25 @@ is_build_equipment(
 
 /* ------------------------------------------------------------- the events */
 
+/* The definition itself, which on_start hands to the layer as this plugin's
+ * identity. Defined at the foot of the file, beside the schema it carries. */
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_ITEM_STATS;
+
 /*
  * What the pointer is over, off the hover rebuild.
  *
- * An INV_SLOT row is a row about an inventory CELL, and the cell's item is the
- * row's target -- which is the whole reason the bridge fills `target_id` for
- * this pick kind. Any row of the pass will do, because a hover pass builds
- * rows for one thing: the last one is the acting row, the rest are the same
- * cell's other verbs.
+ * The whole of it is the layer's now, and this is the plugin the verb was
+ * shaped for: an INV_SLOT row is a row about a CONTAINER CELL, the cell's
+ * item is the row's target, and the answer is an obj, a container and a slot
+ * -- which is exactly the question a tooltip about a hovered item asks.
+ * Everything the hand-rolled version did is still done, including the two
+ * things that made it correct: a right-click build is not a hover (the
+ * pointer is over the menu by then), and the stash goes stale within a frame
+ * so an open menu stops the tooltip instead of dragging it around.
+ *
+ * What is NEW is the container. `component_id` and `slot` were captured here
+ * before and never read once, so a bank cell keyed identically to an
+ * inventory cell and the two shared one composed picture.
  */
 static enum ToriRS_CallbackResult
 is_on_menu_build(
@@ -2657,30 +2869,19 @@ is_on_menu_build(
 
     assert(api);
     assert(ev);
-
-    /* The right-click menu's build is not a hover: the pointer is over the
-     * menu itself by then, and following it would leave a tooltip pinned to a
-     * cell nobody is pointing at. */
-    if( !ev->hover_pass )
-        return TORIRS_CALLBACK_CONTINUE;
-
-    g_hover.obj_id = -1;
-    g_hover.component_id = -1;
-    g_hover.slot = -1;
-    for( int i = 0; i < ev->row_count; i++ )
-    {
-        struct ToriRS_MenuRow const* row = &ev->rows[i];
-        if( row->pick_kind != 2 /* UI_MINIMENU_PICK_INV_SLOT */ || row->target_id < 0 )
-            continue;
-        g_hover.obj_id = row->target_id;
-        g_hover.component_id = row->component_id;
-        g_hover.slot = row->slot;
-        break;
-    }
-    g_hover.frame = g_frame;
+    Porcelain_NoteMenu(g_porcelain, ev);
     return TORIRS_CALLBACK_CONTINUE;
 }
 
+/*
+ * The fence, which in C is the plugin's own to drive.
+ *
+ * It used to be a frame counter and nothing else; the counter is the layer's
+ * now, and the fence is what moves the hover's one-frame liveness window, the
+ * asset states and the findings' coalescing. The commit that follows is not
+ * optional: a fence without one is a finding on the next fence, and it is the
+ * right one -- a handle that wrote nothing still owes the epoch its turn.
+ */
 static void
 is_on_frame(
     struct ToriRS_Api* api,
@@ -2690,25 +2891,141 @@ is_on_frame(
     struct ItemStatsRuntime runtime = { api, state_ptr };
     struct ItemStatsRuntime* rt = &runtime;
     (void)event;
-    g_frame++;
+    assert(api);
+    Porcelain_Fence(g_porcelain);
+    Porcelain_Commit(api);
 }
 
-/** Ask for the atlas, and read its pixels back once they land. */
-static void
-is_load_art(struct ItemStatsRuntime* rt)
+/*
+ * The panel's pixels, painted into the buffer Porcelain owns.
+ *
+ * Reached at most once per (key, hash of `struct is_tip`), which is the whole
+ * of the freshness rule: this runs on a frame where what the tooltip SAYS has
+ * changed, and on no other.
+ */
+static bool
+is_paint_tooltip(struct ToriRS_Api* api, void* user, uint32_t* argb, int w, int h)
 {
-    (void)is_load_glyphs(rt);
-    (void)PluginDraw_ImageLoad(
-        g_api, "text.png", &g_img_text, &g_text_px, &g_text_w, &g_text_h);
+    struct ItemStatsRuntime* rt = user;
+
+    assert(api);
+    assert(rt);
+    assert(argb);
+    (void)api;
+
+    /* The plate is written rather than cleared and then covered: every pixel
+     * of it is the panel. */
+    for( int i = 0; i < w * h; i++ )
+        argb[i] = IS_TIP_ARGB;
+    for( int i = 0; i < g_row_count; i++ )
+    {
+        int const top = IS_TIP_BORDER + i * IS_LINE_PITCH;
+        is_text(rt, argb, IS_TIP_BORDER, top, g_rows[i].left, w, h, g_rows[i].left_rgb);
+        if( g_rows[i].right[0] )
+            is_text(
+                rt,
+                argb,
+                IS_TIP_BORDER + is_text_width(rt, g_rows[i].left),
+                top,
+                g_rows[i].right,
+                w,
+                h,
+                g_rows[i].right_rgb);
+    }
+    return true;
 }
+
+/*
+ * Say what the tooltip would say, into `g_tip`.
+ *
+ * Every frame the pointer is over a cell, because this is what DECIDES
+ * whether the picture has to change: a heal that lands differently as
+ * hitpoints drain, a boost that caps as a level rises, a colour somebody has
+ * just edited. It is arithmetic over one sample of the player and one
+ * objtype; the expensive half -- setting twenty rows of glyphs -- is behind
+ * the hash and runs only when this answer moves.
+ *
+ * @return the row count, and zero when this item has nothing to say.
+ */
+static int
+is_state_tooltip(
+    struct ItemStatsRuntime* rt,
+    struct PorcelainHover const* hover,
+    struct ToriRS_ItemInfo const* info)
+{
+    struct is_player player;
+    int width = 0;
+    int height;
+
+    assert(hover);
+    assert(info);
+
+    g_row_count = 0;
+    g_worn_unknown = 0;
+    is_player_sample(rt, &player);
+
+    if( is_cfg_bool(rt, "consumable_stats") )
+    {
+        struct is_effect const* effect = is_lookup(info->name);
+        if( effect )
+            is_build_consumable(rt, &player, effect);
+    }
+    if( is_cfg_bool(rt, "equipment_stats") )
+        is_build_equipment(rt, info);
+
+    if( g_row_count == 0 )
+        return 0;
+
+    for( int i = 0; i < g_row_count; i++ )
+    {
+        int const w = is_text_width(rt, g_rows[i].left) + is_text_width(rt, g_rows[i].right);
+        if( w > width )
+            width = w;
+    }
+    width += IS_TIP_BORDER * 2;
+    height = IS_TIP_BORDER * 2 + g_row_count * IS_LINE_PITCH;
+    if( width > IS_TIP_MAX_W )
+        width = IS_TIP_MAX_W;
+    if( height > IS_TIP_MAX_H )
+        height = IS_TIP_MAX_H;
+
+    g_tip->obj = info->obj_id;
+    g_tip->container = (int)hover->container;
+    g_tip->container_id = hover->container_id;
+    g_tip->width = width;
+    g_tip->height = height;
+    return g_row_count;
+}
+
+/** The panel's step right of the pointer. */
+#define IS_TIP_DX 12
+/** Clear air between the panel and the pointer. */
+#define IS_TIP_GAP 8
+/**
+ * How far below the pointer the LANE's own hover caption reaches.
+ *
+ * Two lines of the client's caption plus its lead, measured at 252..285 for a
+ * pointer at 627,244: 41 rows. Forty is the step the panel takes when it has
+ * to sit below the pointer after all, so it clears the caption instead of
+ * bisecting it.
+ */
+#define IS_TIP_CAPTION_H 40
 
 /*
  * Compose the panel, and blit it beside the pointer.
  *
- * Composed only when the ITEM changes, because the contents cannot change
- * while the pointer sits still -- but blitted every frame, because the panel
- * follows the pointer. That split is xp_orbs' and it is what keeps a
+ * The split that matters is unchanged: the panel FOLLOWS the pointer, so the
+ * blit is per frame, and keeping the compose off that path is what keeps a
  * twenty-row super-restore tooltip off the per-frame budget.
+ *
+ * What changed is WHEN the compose happens. It used to be keyed on the obj id
+ * with a thirty-frame TTL, which is wrong in both directions: for up to half a
+ * second the panel said something that was no longer true -- a heal printed
+ * against hitpoints that have since drained -- and then flickered to the new
+ * answer at a moment that had nothing to do with the change; and on a
+ * stationary pointer over an unchanging item it recomposed twice a second for
+ * nothing. Porcelain_Derived paints at most once per (key, hash of inputs),
+ * and the inputs are what the rows SAY, so one line fixes both halves.
  */
 static void
 is_on_draw_canvas(
@@ -2718,9 +3035,11 @@ is_on_draw_canvas(
 {
     struct ItemStatsRuntime runtime = { api, state_ptr };
     struct ItemStatsRuntime* rt = &runtime;
+    struct PorcelainHover hover;
+    struct PorcelainDrawContext context;
     struct ToriRS_ItemInfo info;
-    struct is_player player;
-    struct ToriRS_Rect canvas = { 0 };
+    enum PorcelainDerivedState derived;
+    struct ToriRS_Rect canvas = { 0, 0, 0, 0 };
     int mouse_x = 0;
     int mouse_y = 0;
     int x;
@@ -2729,18 +3048,20 @@ is_on_draw_canvas(
     assert(api);
     assert(draw);
 
-    is_load_art(rt);
-    if( !g_glyph_ready || !g_text_px )
+    if( !is_load_art(rt) )
         return;
 
-    /* A stash nobody refreshed this frame or last is not a hover any more:
-     * either the pointer left the cell, or the right-click menu went up and
-     * the hover rebuild stopped running. */
-    if( g_hover.obj_id < 0 || g_frame - g_hover.frame > 1 )
+    /*
+     * The hovered cell, with its one-frame liveness window. A pointer that
+     * left the cell, and a right-click menu that stopped the hover rebuild
+     * running, both answer false here -- which is the reference client's own
+     * isMenuOpen() gate, for free.
+     */
+    if( !Porcelain_Hover(g_porcelain, &hover) )
         return;
     if( !g_api->input.pointer(g_api, &mouse_x, &mouse_y) )
         return;
-    if( !g_api->game->item_info(g_api, g_hover.obj_id, &info) )
+    if( !g_api->game->item_info(g_api, hover.obj, &info) )
         return;
 
     /* A noted stack is the base item wearing paper: it has no ops, no params
@@ -2749,98 +3070,97 @@ is_on_draw_canvas(
     if( info.cert_link >= 0 && !g_api->game->item_info(g_api, info.cert_link, &info) )
         return;
 
-    if( g_tip_image.value == 0 || g_tip_obj != info.obj_id || g_frame - g_tip_frame > 30 )
-    {
-        int width = 0;
-        int height;
+    if( is_state_tooltip(rt, &hover, &info) == 0 )
+        return;
 
-        g_row_count = 0;
-        is_player_sample(rt, &player);
+    g_tip_image = Porcelain_Derived(
+        g_porcelain,
+        "tooltip.png",
+        g_tip,
+        is_tip_inputs_len(g_row_count),
+        g_tip->width,
+        g_tip->height,
+        is_paint_tooltip,
+        rt,
+        &derived);
+    if( derived != PORCELAIN_DERIVED_READY )
+        return;
+    g_tip_w = g_tip->width;
+    g_tip_h = g_tip->height;
 
-        if( is_cfg_bool(rt, "consumable_stats") )
-        {
-            struct is_effect const* effect = is_lookup(info.name);
-            if( effect )
-                is_build_consumable(rt, &player, effect);
-        }
-        if( is_cfg_bool(rt, "equipment_stats") )
-            is_build_equipment(rt, &info);
-
-        if( g_row_count == 0 )
-            return;
-
-        for( int i = 0; i < g_row_count; i++ )
-        {
-            int const w = is_text_width(rt, g_rows[i].left) +
-                          is_text_width(rt, g_rows[i].right);
-            if( w > width )
-                width = w;
-        }
-        width += IS_TIP_BORDER * 2;
-        height = IS_TIP_BORDER * 2 + g_row_count * IS_LINE_PITCH;
-        if( width > IS_SCRATCH_W )
-            width = IS_SCRATCH_W;
-        if( height > IS_SCRATCH_H )
-            height = IS_SCRATCH_H;
-
-        /* The plate is written rather than cleared and then covered: every
-         * pixel of it is the panel. */
-        for( int i = 0; i < width * height; i++ )
-            g_scratch[i] = IS_TIP_ARGB;
-        for( int i = 0; i < g_row_count; i++ )
-        {
-            int const top = IS_TIP_BORDER + i * IS_LINE_PITCH;
-            is_text(rt, IS_TIP_BORDER, top, g_rows[i].left,
-                width, height, g_rows[i].left_rgb);
-            if( g_rows[i].right[0] )
-                is_text(
-                    rt,
-                    IS_TIP_BORDER + is_text_width(rt, g_rows[i].left),
-                    top,
-                    g_rows[i].right,
-                    width,
-                    height,
-                    g_rows[i].right_rgb);
-        }
-
-        if( g_api->assets.image_compose(
-                g_api, "tooltip.png", width, height, g_scratch,
-                &g_tip_image) != TORIRS_ASSET_READY )
-            return;
-        g_tip_w = width;
-        g_tip_h = height;
-        g_tip_obj = info.obj_id;
-        g_tip_frame = g_frame;
-    }
-
-    x = mouse_x + 12;
-    y = mouse_y + 16;
-    /* Kept on the canvas this callback may draw on: the graphics context's
-     * own bounds, which for a canvas paint is the whole canvas. That is what
-     * the retired placement area meant here; the 3D viewport is not it -- an
+    /* Kept on the canvas this callback may draw on: the pass's own drawable
+     * rect, which for a canvas paint is the whole canvas. That is what the
+     * retired placement area meant here; the 3D viewport is not it -- an
      * inventory hover sits outside the viewport and its tooltip must not flip
-     * away over the minimap. */
-    {
-        struct ToriRS_DrawContext context;
-        memset(&context, 0, sizeof(context));
-        context.struct_size = sizeof(context);
-        if( draw->context && draw->context(draw, &context) )
-            canvas = context.bounds;
-    }
+     * away over the minimap. A pass that set no region at all used to leave
+     * `canvas` zeroed and the panel silently unclamped; it is a finding now.
+     *
+     * Asked BEFORE the placement, not after it. The "is there room above"
+     * test is a question about this rectangle's TOP edge, and it used to run
+     * against a `canvas` still zeroed from its initialiser: `canvas.height >
+     * 0` could not be true yet, so the rule that shipped was the fallback's
+     * absolute `y < 0` and a drawable rect starting anywhere but row zero
+     * placed the panel off the top of it. One rect, fetched once, read after
+     * it exists. */
+    if( Porcelain_DrawContext(g_porcelain, draw, PORCELAIN_EL(NONE), &context) )
+        canvas = context.bounds;
+
+    /*
+     * ABOVE the pointer, because the LANE draws its own caption below it.
+     *
+     * At the old pointer+(12,16) the panel landed square on the client's
+     * two-line hover box -- measured at 613..741 x 252..285 against a panel at
+     * 627,244 -- and cut "Wear Rune platebody / 3 more options" down to a
+     * leading "W" and a trailing "body" / "ptions", the middle showing only as
+     * a 12% bleed through the plate. Two pieces of text over each other, and
+     * neither readable. The pointer that was measured, 615,228, is an
+     * INVENTORY cell: the caption is hung off the cursor wherever the cursor
+     * is, so this is not a viewport rule and the inventory is not an
+     * exception to it.
+     *
+     * Above is the side the lane leaves empty on every root, so this is one
+     * rule rather than a per-lane offset. Where there is no room above, the
+     * panel still goes below -- but clear of the caption by its own height
+     * rather than into it. @see IS_TIP_CAPTION_H.
+     *
+     * And on a lane that captions the pointer NOWHERE -- the 2004 root draws
+     * its mouseover line in the viewport's top-left corner instead -- the
+     * answer is the same, because above is empty there too. That is why this
+     * asks the lane nothing about its caption: a rung read to find one would
+     * be refused on every root that has none, and an undeclared refusal is
+     * the same silence that let the original defect ship. Nothing asked,
+     * nothing to declare, and one placement on all six roots.
+     */
+    x = mouse_x + IS_TIP_DX;
+    y = mouse_y - g_tip_h - IS_TIP_GAP;
+    if( y < canvas.y )
+        y = mouse_y + IS_TIP_CAPTION_H;
     if( canvas.width > 0 && x + g_tip_w > canvas.x + canvas.width )
         x = mouse_x - g_tip_w - 4;
     if( canvas.height > 0 && y + g_tip_h > canvas.y + canvas.height )
-        y = mouse_y - g_tip_h - 4;
-    if( x < 0 )
-        x = 0;
-    if( y < 0 )
-        y = 0;
+        y = mouse_y - g_tip_h - IS_TIP_GAP;
+    if( x < canvas.x )
+        x = canvas.x;
+    if( y < canvas.y )
+        y = canvas.y;
     draw->image(draw, g_tip_image, x, y, 255);
 }
 
-/* A settings change repaints: the five colours and the three number rows all
- * live in the composed image, so a panel kept from before the change would
- * show the old ones until the pointer moved. */
+/*
+ * A settings change repaints.
+ *
+ * It used to have to: the picture was cached against the obj id alone, so a
+ * colour edited while the pointer sat still would not have shown until the
+ * pointer moved, and the only way out was to throw the picture away by hand.
+ * The five colours and the three number rows are all IN the derived hash now
+ * -- the rows carry their own colours, and the number rows change the row
+ * text -- so the repaint is a consequence of the same rule that keeps a
+ * draining heal honest, and there is nothing to remember to do here.
+ *
+ * The input is still forwarded: a library cannot install a callback into a
+ * definition the host already registered, and the layer is entitled to know
+ * its world moved.
+ */
 static void
 is_on_config_changed(
     struct ToriRS_Api* api,
@@ -2849,30 +3169,63 @@ is_on_config_changed(
 {
     struct ItemStatsRuntime runtime = { api, state_ptr };
     struct ItemStatsRuntime* rt = &runtime;
+    assert(api);
     (void)key;
-    if( g_tip_image.value ) g_api->assets.image_release(g_api, g_tip_image);
-    g_tip_image.value = 0;
-    g_tip_obj = -1;
+    Porcelain_Note(g_porcelain, PORCELAIN_INPUT_CONFIG);
 }
 
+/*
+ * Open the handle, and say what this client cannot do.
+ *
+ * The four declarations are the four paragraphs at the top of this file, said
+ * where a capture can read them. Each one is expected=1, so the clean-findings
+ * gate ignores it -- and a declaration that ever stops being true is a loud
+ * failure, which is the half a comment cannot do.
+ */
 static void
 is_start(struct ToriRS_Api* api, void* state_ptr)
 {
     struct ItemStatsState* state = state_ptr;
     struct ItemStatsRuntime runtime = { api, state };
     struct ItemStatsRuntime* rt = &runtime;
+
     assert(api);
     assert(state);
     assert(api->game);
+
+    state->porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_ITEM_STATS, state);
+    assert(state->porcelain);
+
+    Porcelain_ExpectUnsupported(g_porcelain, "item weight",
+        "no cache this client boots states an item weight");
+    /*
+     * Both of the reasons below were over the ninety-six bytes a declared
+     * limitation may carry, and Porcelain_CopyString asserted rather than
+     * truncating -- so an OPT=0 client aborted during plugin start, which is
+     * every capture the native-contract matrix takes. Two people found that
+     * independently, from opposite ends: one running the unit suite with
+     * assertions live, one watching all eleven matrix groups read NO ROOT.
+     *
+     * Said shorter, keeping the fact that IDENTIFIES each case -- the occult
+     * necklace reading 50 where the game shows +10% is the whole argument --
+     * because the conclusion is in the ledger row and the long form is in the
+     * comment above each row's own code.
+     */
+    Porcelain_ExpectUnsupported(g_porcelain, "magic damage",
+        "param 299 reads 50 on the occult necklace where the game shows +10%");
+    Porcelain_ExpectUnsupported(g_porcelain, "potion durations",
+        "the durations and the combat-mastery multipliers are varbits no "
+        "revision here declares");
+    Porcelain_ExpectUnsupported(g_porcelain, "spicy stew boost",
+        "the boost is four quest varbits no revision here declares");
+
     state->glyph = calloc(IS_GLYPH_COUNT, sizeof(*state->glyph));
-    state->scratch = calloc(IS_SCRATCH_W * IS_SCRATCH_H, sizeof(*state->scratch));
-    state->rows = calloc(IS_ROWS_MAX, sizeof(*state->rows));
-    assert(state->glyph && state->scratch && state->rows);
+    assert(state->glyph);
+    state->tip = calloc(1, sizeof(*state->tip));
+    assert(state->tip);
     state->glyph_line_h = 10;
     state->glyph_row_h = 10;
-    g_hover.obj_id = -1;
-    g_hover.frame = -1000;
-    g_tip_obj = -1;
+    state->lane_bonuses = -1;
 }
 
 static void
@@ -2880,26 +3233,25 @@ is_stop(struct ToriRS_Api* api, void* state_ptr)
 {
     struct ItemStatsRuntime runtime = { api, state_ptr };
     struct ItemStatsRuntime* rt = &runtime;
+
     assert(api);
     assert(state_ptr);
-    if( g_img_text.value ) g_api->assets.image_release(g_api, g_img_text);
-    if( g_tip_image.value ) g_api->assets.image_release(g_api, g_tip_image);
-    g_img_text.value = 0;
+    /* The glyph sheet and the composed panel are the layer's handles now, and
+     * Close gives both back. What is left here is what this plugin allocated
+     * for itself: the decoded pixels, the metrics and the parsed table. */
+    Porcelain_Close(g_porcelain);
+    g_porcelain = NULL;
     g_tip_image.value = 0;
-    g_tip_obj = -1;
     free(g_text_px);
     g_text_px = NULL;
     g_glyph_ready = 0;
     free(g_bonus);
     g_bonus = NULL;
     g_bonus_count = 0;
-    g_bonus_state = 0;
     free(rt->state->glyph);
-    free(rt->state->scratch);
-    free(rt->state->rows);
     rt->state->glyph = NULL;
-    rt->state->scratch = NULL;
-    rt->state->rows = NULL;
+    free(rt->state->tip);
+    rt->state->tip = NULL;
 }
 
 /*

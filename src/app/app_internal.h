@@ -979,6 +979,32 @@ app_hover_text_update(
     int mouse_x,
     int mouse_y);
 
+/**
+ * Publish the whole mouseover ENTRY -- subject, text, op count, component --
+ * from one menu's acting row. A NULL menu means the pointer is on nothing the
+ * menu speaks for, and clears all four.
+ *
+ * Not static, and not only for a test: the four halves coming from ONE row is
+ * the contract that broke (the subject used to be published from the pick set
+ * in the logic tick, a different entry), and a contract nothing can call is a
+ * contract nothing can check.
+ */
+void
+app_minimenu_entry_publish(
+    struct App* app,
+    struct UIMinimenu const* menu);
+
+/**
+ * The subject one menu row is about, as a dispatch context, and the
+ * `RS_MINIMENU_TYPE_*` that names its kind -- RS_MINIMENU_TYPE_NONE with
+ * `out` reset for a row that is not about a live world entity.
+ */
+int
+app_minimenu_pick_subject(
+    struct App* app,
+    struct UIMinimenuPick const* pick,
+    struct RS_ClientOpContext* out);
+
 void
 app_minimenu_ctx_ground_fallback(
     struct App* app,
@@ -1080,6 +1106,29 @@ app_overlay_push(
 int
 app_overlay_count(struct App const* app);
 
+/* The in-scene tile markers: the stage a draw_tile call opens, the reset that
+ * empties it and the per-frame placement against the painter buffer.
+ * @see app_world_tile_marks_place. */
+int
+app_world_tile_mark_key(
+    int scene_x,
+    int scene_z,
+    int level);
+void
+app_world_tile_marks_reset(struct App* app);
+void
+app_world_tile_mark_begin(
+    struct App* app,
+    int key,
+    int clip_x,
+    int clip_y,
+    int clip_w,
+    int clip_h);
+void
+app_world_tile_mark_end(struct App* app);
+void
+app_world_tile_marks_place(struct App* app);
+
 void
 app_overlay_build_chat(
     struct App* app,
@@ -1113,6 +1162,12 @@ app_overlay_build_npc_headicon(
     int prayer_scene,
     int prayer_group);
 
+/** The thickness the client's OWN overlay marks are drawn at: the constant
+ *  app_overlay_push_segment used to hold. A caller with a thickness of its own
+ *  -- a cache highlight group states one, and 0 there means no border at all --
+ *  passes that instead. */
+#define APP_OVERLAY_SEGMENT_WIDTH 2
+
 void
 app_overlay_push_segment(
     struct App* app,
@@ -1120,7 +1175,8 @@ app_overlay_push_segment(
     int screen_y0,
     int screen_x1,
     int screen_y1,
-    uint32_t color);
+    uint32_t color,
+    int line_width);
 
 void
 app_overlay_push_polygon_filled(
@@ -1137,7 +1193,8 @@ app_overlay_push_polygon(
     const int* points_x,
     const int* points_y,
     int point_count,
-    uint32_t color);
+    uint32_t color,
+    int line_width);
 
 int
 app_overlay_outline_element_model_trans(

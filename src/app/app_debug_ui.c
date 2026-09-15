@@ -242,6 +242,12 @@ app_debug_overlay_tick(
         ToriRSChrome_SetText(&app->dbg_ui, app->dbg_frame_row, text);
     }
 
+    /* The canvas the readout is drawn onto, so an open dropdown list folds up
+     * into it rather than off the bottom edge. Compare-then-set inside, and
+     * the canvas can change under a resize, so it is restated per tick rather
+     * than captured at init — where the layout root is not resolved yet. */
+    ToriRSChrome_SetSurface(&app->dbg_ui, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+
     /* Build returns 0 on a frame where nothing moved. When it did rebuild the
      * canvas is stale — including the frame the panel was hidden on, whose
      * vacated pixels are still on screen until something repaints them. */

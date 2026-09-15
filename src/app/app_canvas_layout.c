@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "perf_audit.h"
 
 /* Most hooks a single canvas change dispatches. The gameframe registers one
  * onResize per open interface root (script 901 does it for the toplevel; panels
@@ -404,6 +405,7 @@ App_PluginLayoutTick(struct App* app)
 
     assert(app);
 
+    PA_INC(layout_tick_calls);
     if( !app->plugins )
         return;
     /*
@@ -422,6 +424,11 @@ App_PluginLayoutTick(struct App* app)
         app->plugins,
         widgets_ready ? app->tree->instance_id : 0,
         widgets_ready ? app->tree->generation : 0);
+    /* Unconditional, and that is the point: a hide, a move, a re-skin or a
+     * retype bumps no tree generation, so the bindings pass above cannot see
+     * them. Every bound watch is stamped here and told when its widget moved
+     * underneath it. */
+    PluginHost_WidgetStates(app->plugins);
     frame_candidate = PluginHost_FrameNeedsLayout(app->plugins) ? 1 : 0;
     if( !app->plugin_frame_active )
     {
@@ -525,7 +532,9 @@ candidate_layout:
         app->plugin_layout_w != UITREE_LAYOUT_ROOT_W ||
         app->plugin_layout_h != UITREE_LAYOUT_ROOT_H )
     {
+        { uint64_t const pa_h0 = PerfAudit_Now();
         PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        PA_ADD(plugin_host_layout_ns, PerfAudit_Now() - pa_h0); }
         /* A provider may change selection from inside on_gameframe. The host
          * correctly abandons that transaction (its selection epoch moved),
          * which leaves dirty set and the effective frame released. Give the

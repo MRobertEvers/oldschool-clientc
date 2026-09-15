@@ -7,6 +7,7 @@
 #include "game/rs_if1_buttons.h"
 #include "game/rs_ui_slots.h"
 #include "revconfig/revconfig.h"
+#include "rscache_profile.h"
 #include "ui/uitree.h"
 #include "ui/uitree_role.h"
 #include "varp/varp_manager.h"
@@ -49,6 +50,21 @@ main(
 
     cfg.cache_dir = argc > 1 ? argv[1] : "../cache254";
     cfg.cache_kind = APP_CACHE_DAT1;
+    /*
+     * The four identity fields a manifest's [cache:boot] states.
+     *
+     * `app_provider_set_cache_profile` asserts they were stated, because a
+     * memset-zeroed profile is an UNIDENTIFIED cache and the decoders would
+     * otherwise guess an era from the container, which a dat1 cache does not
+     * determine. This test builds its AppConfig by hand and so has to say them
+     * itself; they are `manifests/manifest_rs254lc.ini`'s, for the same cache
+     * this test's default argument names.
+     */
+    cfg.cache_game = RSCACHE_GAME_RS2;
+    cfg.cache_epoch = RSCACHE_EPOCH_DAT1;
+    cfg.cache_revision = 254;
+    cfg.cache_quirks = RSCACHE_QUIRK_NONE;
+    cfg.cache_identity_set = 1;
     cfg.config_dir = "../config";
     cfg.script_dir = "../script";
     cfg.interface_id = 84;
@@ -127,6 +143,53 @@ main(
     App_BootWait(&app);
     assert(app.slots.chat_com_id == -1);
     printf("PASS: OpenChat/Close cycled the chat dialog\n");
+
+    /*
+     * TUT_OPEN: the tutorial component owns the chat region too, and IF_CLOSE
+     * IS NOT WHAT TAKES IT DOWN.
+     *
+     * This is the reference's own arrangement and not a tolerated failure --
+     * drawChat is `if (chatInterfaceId !== -1) ... else if (tutComId !== -1)`,
+     * and the server side keeps the tutorial in a modal slot of its own that
+     * `closeModal` does not touch (LostCity `Player.closeModal` clears
+     * modalMain, modalChat and modalSide; only `Player.closeTutorial` writes
+     * `TutOpen(-1)`). It is pinned here because the whole live-capture
+     * programme was driven by a `~skiptutorial` cheat that called `if_close`
+     * and nothing else, and so left the tutorial parchment owning the chat
+     * region for the entire run: the message log is not drawn AT ALL while
+     * this is mounted, so every plugin that speaks in the chat photographed as
+     * a plugin that said nothing -- thirty-seven of the forty-seven live
+     * captures taken on that lane's own 2004 frame.
+     *
+     * The three claims, in the order a reader needs them:
+     *   - the tutorial component is what the region shows when no dialogue is;
+     *   - a dialogue takes precedence over it and giving the dialogue back
+     *     returns the tutorial box rather than leaving the region empty;
+     *   - IF_CLOSE leaves it exactly where it was, which is why a drive that
+     *     wants the message log has to send TUT_OPEN(-1).
+     */
+    RS_UISlots_OpenTut(&app, 5608);
+    App_BootWait(&app);
+    assert(app.slots.tut_com_id == 5608);
+    TEST_CHECK(RS_UISlots_ChatRegionIface(&app.slots) == 5608);
+    assert(node_child_count(app.tree, app.slots.chat_index) > 0);
+
+    RS_UISlots_OpenChat(&app, 2459);
+    App_BootWait(&app);
+    TEST_CHECK(RS_UISlots_ChatRegionIface(&app.slots) == 2459);
+
+    RS_UISlots_CloseModal(&app);
+    App_BootWait(&app);
+    assert(app.slots.chat_com_id == -1);
+    TEST_CHECK(app.slots.tut_com_id == 5608);
+    TEST_CHECK(RS_UISlots_ChatRegionIface(&app.slots) == 5608);
+
+    RS_UISlots_OpenTut(&app, -1);
+    App_BootWait(&app);
+    assert(app.slots.tut_com_id == -1);
+    TEST_CHECK(RS_UISlots_ChatRegionIface(&app.slots) == -1);
+    assert(node_child_count(app.tree, app.slots.chat_index) == 0);
+    printf("PASS: TUT_OPEN owns the chat region and only TUT_OPEN(-1) frees it\n");
 
     /* IF1 button engine: a TOGGLE button whose value script reads varp 173
      * flips it (reference TOGGLE_BUTTON); SELECT snaps to the operand. */

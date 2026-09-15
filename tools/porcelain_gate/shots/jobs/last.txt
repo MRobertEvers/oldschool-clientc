@@ -1,0 +1,29 @@
+# SERIAL ONLY. Everything still missing, in one pass.
+#
+# TORIRS_PLUGIN_ONLY registers that plugin and nothing else, which is the only
+# way to get the NATIVE desktop frame on the cs2 lane -- `preferred_frame=auto`
+# resolves to gameframe-layout there. It matters for the two notification
+# builtins because the provider's chat pane shows three lines and the notice is
+# below them; on the native frame the same notice is legible.
+cannon-native-cs2 nxt-cannon-ammo cs2 TORIRS_PLUGIN_ONLY=nxt-cannon-ammo 'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+birdnest-off-native-cs2 nxt-bird-nest cs2 TORIRS_PLUGIN_ONLY=nxt-bird-nest TORIRS_SIM_VARBIT=450,13087,1 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1' TORIRS_TRACE_NATIVE_UI=1
+
+tileind-lua-nohover-cs2 tile-indicator-lua cs2
+
+# preferred_frame, not the ini, is what turns a frame provider on, so these two
+# states are the ones no lane preset can ask for.
+gf-desktop-on-cs1 gameframe-layout cs1 TORIRS_SHOT_FRAME=gameframe-layout/classic-fixed
+gf-mobile-on-cs2  mobile-gameframe  cs2 TORIRS_SHOT_FRAME=mobile-gameframe/stone-drawer
+
+# One variable, six values: WHEN the page was opened. Nothing else differs --
+# no loot in any of them, same frames, same trace.
+lootsweep-560 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=560,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootsweep-580 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=580,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootsweep-600 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootsweep-620 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootsweep-640 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=640,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootsweep-700 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=700,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+# The same question of the other page, to see whether it is this well or every page.
+xpsweep-620 xp-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,xp-tracker,page 'TORIRS_SIM_CMD=300,setlevel 10 45;400,xp fishing 30000' TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+# And the loot case at the tick that works, which is the shot the set needs.
+loottracker-loot-600-cs2 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page 'TORIRS_SIM_CMD=200,lootkill Goblin 995 5000;210,lootkill Goblin 526 1' TORIRS_TRACE_NATIVE_UI=1

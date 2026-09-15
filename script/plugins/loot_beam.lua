@@ -20,8 +20,8 @@
 -- OSRS 239 once and carried in this plugin's own asset folder
 -- (`make -C src plugin-beam-assets` re-extracts them). Neither carries a
 -- textured face, so nothing about how they draw depends on the booted cache;
--- api.assets.model hands the bytes to a decoder that reads the model format off
--- the file's own trailer rather than off the revision.
+-- the decoder reads the model format off the file's own trailer rather than
+-- off the revision.
 --
 -- What does NOT come with them is the animation: sequence 9260 is a rig
 -- driving transform groups, and shipping it would mean shipping its frames and
@@ -37,9 +37,29 @@
 --
 -- Value comes from ObjType.cost -- the cache's own number, what OC_COST reads.
 -- It is not a Grand Exchange price and the client has no way to know one, so
--- the plugin also reads an optional `prices.txt` asset: `obj_id=price` lines
+-- the plugin also reads an optional `prices.txt` asset: `name = price` lines
 -- that override the cache for the items whose cache value is nothing like
 -- their real one (the coin-value of a rune scimitar is not 25,600).
+--
+-- Keyed on the item's NAME, and that is the same lesson as the model above.
+-- The table used to be `obj_id = price`, and its own header said "Ids are for
+-- cache.osrs239" -- so on every other cache this client boots, a row either
+-- matched nothing or matched whatever item had inherited that number, which is
+-- a 25-million-gp beam over a bronze dagger and no line anywhere saying so.
+-- It was not a cosmetic scoping problem: an override is the ONLY thing that
+-- can lift a stack to these thresholds (a cache cost is a shop number, and no
+-- shop number reaches a million), so on the dat1 lane the table could not
+-- apply and therefore no beam could ever be raised at the shipped tier. That
+-- is what "loot beams do not work on LostCity" turned out to be -- measured:
+-- five stacks on the floor, the plane filter passing all five, values of
+-- 15,360 / 60,000 / 20,000 / 180 / 0 against a 1,000,000 threshold.
+--
+-- ground-items.lua reads the same floor and did not have the defect, because
+-- the tables that steer ITS output -- the highlight and hide lists -- are
+-- keyed on obj.name. That asymmetry is the whole of it. The ground-item
+-- snapshot carries `name` on every lane, dat1 and dat2 alike, so a name is
+-- what a price table keys on here too. An item a cache does not have simply
+-- never matches, which is the right answer instead of an accidental one.
 --
 -- What a beam is measured against is `value_mode`, and its default is the
 -- HIGH-ALCHEMY price rather than that raw cost, for the same reason
@@ -48,6 +68,64 @@
 -- ItemComposition.getHaPrice -- is the one the game will actually pay. The
 -- two plugins spell this row identically so a threshold set on one can be
 -- read off the other.
+--
+-- WHAT PORCELAIN IS HERE FOR
+--
+-- Not the picture: the beams stand on the same tiles, in the same colours, at
+-- the same yaw, spun by the same arithmetic. Five pieces of this file's own
+-- bookkeeping moved into the layer, and four of them were recorded defects.
+--
+--   * the CADENCE -- porcelain.every("logic_tick"). `rebuild` is the only
+--     place a beam is created or destroyed, and it used to hang off the server
+--     tick, which lc245_2, lc254, lc289 and xrsps233 never sent: `dirty` was
+--     set by every obj event and nothing drained it, so a beam that existed
+--     never came down. This file answered that by naming the four lanes in a
+--     comment. The layer states the rule once; the four names survive in this
+--     paragraph as the record of the defect, not as a branch anything reads.
+--
+--   * the TIER TEST -- porcelain.tier. Two rules, both the reference's, and
+--     this file had neither: strictly greater at every threshold (an item
+--     worth exactly the low threshold is not a low-value item), and a
+--     threshold at or below zero turns its tier OFF rather than matching
+--     everything. This plugin used >= and ground-items used >, over nine rows
+--     they share spelling-for-spelling. porcelain.tiers_from_config reads
+--     THIS plugin's own four keys: there is no cross-plugin config read.
+--
+--   * the MODEL -- porcelain.model. assets.model answers (handle, state) and a
+--     missing file answers (nil, "missing"); the old memo stored that nil, so
+--     "never asked" and "asked, and it will never arrive" were one value and
+--     the plugin re-asked on every dress with no line printed anywhere. The
+--     verb remembers a terminal state and raises exactly one finding for it.
+--
+--   * the PRICE TABLE -- porcelain.table. One request, one parse, the bytes
+--     released, one finding if the file is absent or unreadable: what
+--     request/bytes/release did here by hand, minus the resident copy nobody
+--     freed on the failure path.
+--
+--   * the REFUSALS -- porcelain.finding. scene.instance_* answers (ok,result)
+--     and every result went on the floor. instance_create is the one that
+--     mattered: past the host's 64-object budget it answers "budget", and the
+--     old code dropped the tile and retried it next rebuild in pairs() order,
+--     so WHICH tile was the missing 65th moved between rebuilds and the floor
+--     flickered. The want set is walked sorted now, so the clipped set is the
+--     same set twice, and the refusal reaches the plugin's own finding channel
+--     instead of only a host log line nobody reads.
+--
+-- There is no describe and no fence: this plugin owns no widget and states no
+-- element, so nothing here is retained for the layer to reconcile, and its
+-- steady state is one forwarded tick that returns on a boolean.
+--
+-- It does not ask for porcelain.draw_context. That verb answers the pass's
+-- drawable rectangle and whether that rectangle IS the canvas; a beam is not
+-- painted in a pass at all -- it is an object handed to the painter in WORLD
+-- coordinates and projected by the renderer -- so there is no rectangle here
+-- to derive, clamp or intersect. Its two sibling world overlays,
+-- tile-indicator and entity-highlighter, decline it for the same reason.
+--
+-- Without the layer there are no beams. Every rule above lives in it now, and
+-- re-implementing five of them here for a host that has no Porcelain would be
+-- keeping four recorded defects alive to serve a configuration that does not
+-- ship. The plugin says so in one line instead.
 --
 
 ---@type torirs.Plugin
@@ -82,6 +160,10 @@ local plugin           = {
             label = "Value calculation"
         },
 
+        -- The four porcelain.tiers_from_config reads, by the names it reads
+        -- them under. They are the CALLER's own keys: ground-items declares
+        -- the same four spellings in its own section and neither plugin can
+        -- see the other's.
         {
             key = "low_value",
             type = "int",
@@ -143,7 +225,7 @@ local plugin           = {
 -- constants were written against, so they stay the values they are rather than
 -- becoming keys this plugin invented.
 --
-local STYLES        = {
+local STYLES           = {
     modern = {
         asset = "beam_modern.model",
         -- Body first, core second: the core is the one that gets the extra
@@ -159,7 +241,7 @@ local STYLES        = {
     },
 }
 
-local LUMINANCE_MAX = 127
+local LUMINANCE_MAX    = 127
 
 local function hsl_unpack(hsl)
     return (hsl >> 10) & 63, (hsl >> 7) & 7, hsl & 127
@@ -169,18 +251,51 @@ local function hsl_pack(h, s, l)
     return ((h & 63) << 10) | ((s & 7) << 7) | (l & 127)
 end
 
-local PRICES_ASSET  = "prices.txt"
+local PRICES_ASSET     = "prices.txt"
 
 -- tile key -> { handle, rgb, style, x, z, level, phase }. Keyed on the
 -- ABSOLUTE tile, which is what survives a scene rebuild -- the same reason
 -- api.scene.instance_position takes one.
-local beams         = {}
--- style name -> model handle from api.assets.model. Loaded on first use rather
--- than at start: a client that never shows a LIGHT beam never reads its file.
-local models        = {}
--- obj_id -> price, from the asset. Empty until it lands, and empty forever if
--- it is not shipped; the cache cost is the fallback either way.
-local prices        = {}
+local beams            = {}
+-- style name -> { handle }. A style whose file answered a TERMINAL state gets
+-- an entry whose handle is nil, which is what makes "never asked" and "asked,
+-- and it will never arrive" two different states rather than one nil.
+local models           = {}
+-- lower-cased item name -> price, from the asset. Empty until it lands, and
+-- empty forever if it is not shipped; the cache cost is the fallback either
+-- way. Lower-cased on both sides of the lookup so a table does not have to
+-- guess how a given cache capitalises "Abyssal whip".
+local prices           = {}
+-- Whether porcelain.open answered. Nothing here runs without it: see header.
+local layer            = false
+-- The four thresholds, read from this plugin's own config once per change
+-- rather than four times per ground stack.
+local tiers            = nil
+-- One finding per refused scene verb, not one per refused call: a beam that
+-- cannot be positioned cannot be positioned every frame, and the layer's
+-- coalescing would still cost a call across the boundary each time.
+local refused          = {}
+-- Set by every edge that can change what should be lit; drained on the logic
+-- tick, so a packet burst that adds ten stacks rebuilds once and not ten
+-- times.
+local dirty            = true
+-- Beams standing after the last rebuild, and the ground stacks they were
+-- chosen from, so the count line is only printed when one of the two moves.
+--
+-- The TALLY is half of that pair because of what the line is for. It used to
+-- be gated on the beam count alone, and the whole point of the line is to
+-- separate "nothing on the floor clears the threshold" from "beams exist and
+-- are not being drawn" -- which makes 0-beams-over-N-stacks the one reading it
+-- exists to give, and the one reading a live-only gate can never reach: live
+-- stays 0, so nothing prints, and a floor covered in loot is indistinguishable
+-- from an empty one. That is how this plugin came to be reported as drawing
+-- nothing on a lane where it was correctly drawing nothing.
+local live             = 0
+local reported_live    = 0
+local reported_tally   = 0
+-- The parse handed to porcelain.table, made once against the api it logs
+-- through: the verb calls it back with the bytes and nothing else.
+local prices_parse     = nil
 
 local function items(api)
     local cursor = -1
@@ -191,22 +306,51 @@ local function items(api)
         return item
     end
 end
--- Set by every edge that can change what should be lit; drained on the server
--- tick, so a packet burst that adds ten stacks rebuilds once and not ten
--- times.
-local dirty         = true
--- Beams standing after the last rebuild, so the count is only reported when it
--- moves.
-local live          = 0
 
--- The model for a style, asked for on first use. nil only when the resident
--- model table is full, which two files cannot fill.
+-- Every scene verb answers (ok, result), and every one of those results used
+-- to go on the floor. This is the one place they are read: a refusal is named
+-- once on the layer's own channel, so a beam that is not where it should be is
+-- readable instead of being a picture nobody can explain.
+local function applied(api, verb, ok, why)
+    if ok then return true end
+    if not refused[verb] then
+        refused[verb] = true
+        api.porcelain.finding("scene", nil, why == "budget" and "budget" or "refused",
+            verb .. ": " .. tostring(why))
+    end
+    return false
+end
+
+-- The model for a style, asked for on first use.
+--
+-- PENDING is deliberately not memoised as a failure and deliberately not
+-- waited for: the host hands back a live handle the moment the read is queued
+-- and rebuilds the model behind it when the file lands, so the beam is dressed
+-- now and fills in. Only MISSING and ERROR are terminal, and porcelain.model
+-- is what remembers them -- one finding naming the file, and never asked again.
 local function model_for(api, style)
-    local handle = models[style]
+    local slot = models[style]
+    local name, handle, state
 
-    if handle then return handle end
-    handle = api.assets.model(STYLES[style].asset)
-    models[style] = handle
+    if slot then return slot.handle end
+    name = STYLES[style].asset
+    -- The verb answers (nil, state) by design: a model handle has no Lua
+    -- representation, so the STATE is the whole of what it is asked for.
+    handle, state = api.porcelain.model(name)
+    if state == "missing" or state == "error" then
+        models[style] = { handle = nil }
+        return nil
+    end
+    handle = api.assets.model(name)
+    if not handle then
+        -- The layer says the asset is live and the host would not hand back a
+        -- handle for it. That is a refusal, not an absence, and it is the one
+        -- shape porcelain.model cannot report on this plugin's behalf.
+        api.porcelain.finding("model", "role:" .. name, "refused", "no handle for a live asset")
+        models[style] = { handle = nil }
+        return nil
+    end
+    models[style] = { handle = handle }
     return handle
 end
 
@@ -218,51 +362,83 @@ local function tier_rank(name)
     return 0
 end
 
--- The colour a value earns, or nil when it earns none. Walked from the top so
--- the highest tier a value clears wins, and gated on the configured tier so
--- "beam from high" does not light the low-value drops underneath it.
+-- porcelain.tier answers 0..4, and these are the colour rows it indexes.
+local TIER_COLOUR      = { "low_color", "medium_color", "high_color", "insane_color" }
+
+-- The colour a value earns, or nil when it earns none. The tier itself is the
+-- layer's: strictly greater at every threshold, and a threshold at or below
+-- zero turns its tier off rather than matching everything. The floor is this
+-- plugin's, and gates the answer so "beam from high" does not light the
+-- low-value drops underneath it.
 local function tier_colour(api, value)
     local floor = tier_rank(api.config.tier)
-    if floor == 0 then return nil end
+    local rank
 
-    if value >= api.config.insane_value and floor <= 4 then return api.config.insane_color end
-    if value >= api.config.high_value and floor <= 3 then return api.config.high_color end
-    if value >= api.config.medium_value and floor <= 2 then return api.config.medium_color end
-    if value >= api.config.low_value and floor <= 1 then return api.config.low_color end
-    return nil
+    if floor == 0 then return nil end
+    rank = api.porcelain.tier(tiers, value)
+    if rank < floor then return nil end
+    return api.config[TIER_COLOUR[rank]]
 end
 
 -- Reference ItemComposition.getHaPrice: price * HIGH_ALCHEMY_MULTIPLIER
 -- (0.6f), truncated. Kept as a rational so the arithmetic stays in integers,
 -- and applied per UNIT before the stack multiply -- which is where the
--- reference truncates too.
-local HA_NUM, HA_DEN = 3, 5
+-- reference truncates too: GroundItem holds the two prices per unit and its
+-- getGePrice/getHaPrice multiply by the quantity on the way out, so a stack of
+-- n is n * floor(cost * 0.6) and never floor(n * cost * 0.6).
+local HA_NUM, HA_DEN   = 3, 5
+
+-- Coins.
+--
+-- The per-unit truncation above is the reference's, and for every ordinary
+-- item it is right. For ONE item it is catastrophic, and the reference knows
+-- it: a coin's cache cost is 1, floor(1 * 0.6) is 0, and a pile of five
+-- thousand of them is therefore worth nothing at all -- which, with `alch` as
+-- the shipped default value_mode, is a loot beam that can never fire over a
+-- pile of gold. The archetypal drop was the one drop this plugin could not
+-- see.
+--
+-- GroundItemsPlugin.buildGroundItem ends with exactly this correction, under
+-- the comment "Update item price in case it is coins":
+--
+--     if (realItemId == COINS) { groundItem.setHaPrice(1); groundItem.setGePrice(1); }
+--
+-- so a coin is worth one gp under BOTH prices and a pile is worth its count.
+-- It is written after the price lookup it overrides, which is why prices.txt
+-- does not get a say here either: the rule is not a fallback, it is a
+-- correction of whatever the lookup answered. ItemID.COINS_995 is 995 in every
+-- revision this client boots.
+local COINS            = 995
+
+-- The override for this item, or the cache's own cost.
+--
+-- A snapshot with no name is a legitimate runtime state -- a cache whose
+-- ObjType carries none -- and it prices from the cache, which is what an
+-- unnamed item would have done under any table.
+local function unit_price(obj)
+    local name = obj.name
+
+    if name then
+        local override = prices[string.lower(name)]
+        if override then return override end
+    end
+    return obj.cost
+end
 
 -- What this stack is worth under the configured mode. `alch` is the default;
 -- see the header.
 local function value_of(api, obj)
-    local unit = prices[obj.obj_id] or obj.cost
+    local unit = unit_price(obj)
     local exchange = unit * obj.count
     local alch = (unit * HA_NUM // HA_DEN) * obj.count
     local mode = api.config.value_mode
 
+    if obj.obj_id == COINS then
+        exchange, alch = obj.count, obj.count
+    end
     if mode == "value" then return exchange end
     if mode == "highest" then return exchange > alch and exchange or alch end
     return alch
-end
-
--- Parse `obj_id=price` lines. Anything else -- blank lines, `#` comments, a
--- line we cannot read -- is skipped rather than failing the file: a price
--- table is a convenience, and one bad row must not cost the plugin the other
--- ten thousand.
-local function parse_prices(text)
-    local out = {}
-    local n = 0
-    for id, price in string.gmatch(text, "(%d+)%s*=%s*(%d+)") do
-        out[tonumber(id)] = tonumber(price)
-        n = n + 1
-    end
-    return out, n
 end
 
 --
@@ -287,41 +463,81 @@ local function dress(api, beam, rgb, style)
     if not model then return end
 
     api.scene.instance_clear_recolors(handle)
-    api.scene.instance_model(handle, model)
-    api.scene.instance_recolor(handle, shape.body, hsl_pack(h, s - sat_step, l))
-    if shape.core then
-        api.scene.instance_recolor(
-            handle, shape.core, hsl_pack(h, s, math.min(l + 24, LUMINANCE_MAX)))
+    if not applied(api, "instance_model", api.scene.instance_model(handle, model)) then return end
+    if not applied(api, "instance_recolor",
+            api.scene.instance_recolor(handle, shape.body, hsl_pack(h, s - sat_step, l))) then
+        return
+    end
+    if shape.core and not applied(api, "instance_recolor",
+            api.scene.instance_recolor(handle, shape.core,
+                hsl_pack(h, s, math.min(l + 24, LUMINANCE_MAX)))) then
+        return
     end
     -- The reference lights this model well above the default; without it the
     -- recoloured bands read as dark plastic rather than as light.
-    api.scene.instance_light(handle, 75, 1875)
+    if not applied(api, "instance_light", api.scene.instance_light(handle, 75, 1875)) then return end
     beam.rgb, beam.style = rgb, style
 end
 
+--
+-- The beams that should be standing, from the floor as it is now.
+--
+-- Filtered by PLANE, which this plugin did not do and ground_items.lua always
+-- has (`obj.level == me.level`). The client tracks every ground stack in the
+-- LOADED SCENE, not only the ones on the player's own storey, so a drop in the
+-- room above was a beam this plugin created, positioned, spun once a frame and
+-- counted.
+--
+-- What it was not was a beam anyone saw: world_cycle.c gates every plugin
+-- object on `obj->level != local_level`, so an off-plane object is dropped
+-- before the painter. That is what made this the kind of defect that survives
+-- -- there was no wrong pixel to notice. What there was:
+--
+--   * the COUNT LINE, which is the only diagnostic this plugin prints and the
+--     only thing separating "nothing on the floor clears the threshold" from
+--     "beams exist and are not being drawn". It was reporting beams nobody
+--     could see, which is the second answer given for the first question.
+--   * the OBJECT BUDGET. The host refuses instance_create past 64 objects per
+--     plugin, so every pile on another storey held a slot a visible beam
+--     wanted. In a multi-storey building that clips the beams the player CAN
+--     see in favour of beams that cannot be drawn at all.
+--
+-- The tally is filtered with the beams, for the same reason: "0 beam(s) over 20
+-- ground stack(s)" reads as a threshold set too high when all twenty of those
+-- stacks are upstairs.
+--
+-- No local player is no floor to filter against -- the lane before login, and
+-- between a logout and the next world -- and nothing is lit: the beams come
+-- down and the next obj event rebuilds them.
+--
 local function rebuild(api)
     local style = api.config.style
+    local me = api.world.local_player()
     local want = {}
+    local order = {}
     local tally = 0
 
     for obj in items(api) do
-        local value = value_of(api, obj)
-        tally = tally + 1
-        local rgb = tier_colour(api, value)
-        if rgb then
-            -- One beam per TILE, coloured by the best thing on it: a tile with
-            -- a rune scimitar and a bone under it is one beam, not two in the
-            -- same place fighting over the same pixels.
-            local key = obj.level .. ":" .. obj.tile_x .. ":" .. obj.tile_z
-            local best = want[key]
-            if not best or value > best.value then
-                want[key] = {
-                    value = value,
-                    rgb = rgb,
-                    x = obj.tile_x,
-                    z = obj.tile_z,
-                    level = obj.level
-                }
+        if me and obj.level == me.level then
+            local value = value_of(api, obj)
+            local rgb = tier_colour(api, value)
+            tally = tally + 1
+            if rgb then
+                -- One beam per TILE, coloured by the best thing on it: a tile
+                -- with a rune scimitar and a bone under it is one beam, not two
+                -- in the same place fighting over the same pixels.
+                local key = obj.level .. ":" .. obj.tile_x .. ":" .. obj.tile_z
+                local best = want[key]
+                if not best then order[#order + 1] = key end
+                if not best or value > best.value then
+                    want[key] = {
+                        value = value,
+                        rgb = rgb,
+                        x = obj.tile_x,
+                        z = obj.tile_z,
+                        level = obj.level
+                    }
+                end
             end
         end
     end
@@ -333,12 +549,18 @@ local function rebuild(api)
         end
     end
 
-    local before = live
-    for key, w in pairs(want) do
+    -- SORTED, and that sort is the whole of the object-budget fix. The host
+    -- refuses instance_create past 64 objects per plugin; walked in pairs()
+    -- order the tile that lost the draw changed between rebuilds and the floor
+    -- flickered between two arbitrary subsets of the same 65. A total order
+    -- over the tile keys makes the clipped set the same set every time.
+    table.sort(order)
+    for _, key in ipairs(order) do
+        local w = want[key]
         local beam = beams[key]
         if not beam then
-            local handle = api.scene.instance_create()
-            if handle then
+            local handle, why = api.scene.instance_create()
+            if applied(api, "instance_create", handle ~= nil, why) then
                 beam = { handle = handle }
                 beams[key] = beam
             end
@@ -354,18 +576,22 @@ local function rebuild(api)
             -- rigid object rather than as several lights; the tile is a phase
             -- that is stable across a rebuild, which frame_ms alone is not.
             beam.phase = (w.x * 137 + w.z * 311) % 2048
-            api.scene.instance_position(beam.handle, w.x, w.z, w.level, 0, beam.phase)
+            applied(api, "instance_position", api.scene.instance_position(
+                beam.handle, w.x, w.z, w.level, 0, beam.phase))
             api.scene.instance_active(beam.handle, true)
         end
     end
 
-    -- Only when the count moves. "No beams appear" is the report this plugin
-    -- will get, and it has two very different causes -- nothing on the floor
-    -- clears the threshold, or beams exist and are not being drawn. One line
-    -- separates them; a line per tick would bury both.
+    -- Only when the READING moves -- the beams or the floor they were chosen
+    -- from. "No beams appear" is the report this plugin will get, and it has
+    -- two very different causes -- nothing on the floor clears the threshold,
+    -- or beams exist and are not being drawn. One line separates them, and it
+    -- can only do that if a floor with loot on it and an empty one print
+    -- differently; a line per tick would bury both.
     live = 0
     for _ in pairs(beams) do live = live + 1 end
-    if live ~= before then
+    if live ~= reported_live or tally ~= reported_tally then
+        reported_live, reported_tally = live, tally
         api.core.log(live .. " beam(s) over " .. tally .. " ground stack(s)")
     end
 end
@@ -375,35 +601,99 @@ local function clear(api)
         api.scene.instance_destroy(beam.handle)
         beams[key] = nil
     end
-    live = 0
+    -- The reported pair goes with the beams: the next rebuild is against a
+    -- floor this plugin has said nothing about yet, so whatever it finds is
+    -- news. Both halves, or a world load into an identically-sized floor would
+    -- print nothing and the log would skip the new scene entirely.
+    live, reported_live, reported_tally = 0, 0, 0
+end
+
+-- Parse `name = price` lines. Anything else -- blank lines, `#` comments, a
+-- line we cannot read -- is skipped rather than failing the file: a price
+-- table is a convenience, and one bad row must not cost the plugin the other
+-- ten thousand. Accepting the bytes is what makes porcelain.table release them
+-- and never ask again; the parsed table is all that stays resident.
+--
+-- LINE at a time, and the comment cut before the row is read. The old parser
+-- was one gmatch for `(%d+)%s*=%s*(%d+)` over the whole file, which could not
+-- see a line at all: a commented-out row still matched, and so did a pair of
+-- numbers that happened to fall either side of an equals in a sentence of
+-- prose. A name has spaces in it and cannot be found that way regardless.
+local function make_prices_parse(api)
+    return function(text)
+        local out, n = {}, 0
+        for line in string.gmatch(text, "[^\r\n]+") do
+            local body = string.match(line, "^([^#]*)")
+            local name, price = string.match(body, "^%s*(.-)%s*=%s*(%d+)%s*$")
+            if name and name ~= "" then
+                out[string.lower(name)] = tonumber(price)
+                n = n + 1
+            end
+        end
+        prices = out
+        api.core.log(PRICES_ASSET .. ": " .. n .. " price overrides")
+        -- A price is a value and a value is a tier: the beams standing now
+        -- were coloured from the cache's own numbers.
+        dirty = true
+        return true
+    end
 end
 
 function plugin.on_start(api)
-    beams, models, prices, dirty, live = {}, {}, {}, true, 0
-    -- Optional: a client without the file simply prices everything from the
-    -- cache. on_asset hears about it either way.
-    api.assets.request(PRICES_ASSET)
+    beams, models, prices, refused = {}, {}, {}, {}
+    dirty, live, tiers = true, 0, nil
+    reported_live, reported_tally = 0, 0
+    layer = api.porcelain.open()
+    if not layer then
+        -- Out loud, once. The cadence, the tier rule, the terminal asset
+        -- states, the price table and every scene refusal are the layer's now;
+        -- a beam raised without them would be four recorded defects wearing a
+        -- ported plugin's version number.
+        api.core.log("loot-beam: no porcelain layer -- no beams")
+        return
+    end
+    -- The one thing the ledger asks for that the layer cannot do yet, declared
+    -- rather than left as a sentence in a commit message: it is one expected
+    -- finding in every capture, and it comes out when the verb lands.
+    api.porcelain.expect_unsupported("shared_price_table",
+        "table slots are per plugin handle: ground-items parses prices.txt again")
+    tiers = api.porcelain.tiers_from_config()
+    if not tiers then
+        api.porcelain.finding("tiers_from_config", nil, "refused",
+            "none of the four value rows answered; every tier is off")
+        tiers = { low = 0, medium = 0, high = 0, insane = 0 }
+    end
+    prices_parse = make_prices_parse(api)
+    -- Optional: a client without the file prices everything from the cache.
+    -- The verb arms the read and answers false until the bytes are there;
+    -- on_asset is the edge that asks it again.
+    api.porcelain.table(PRICES_ASSET, prices_parse)
+    -- The only cadence in this file, and it names no lane. rebuild is the one
+    -- place a beam is created or destroyed, and it runs at most once per
+    -- client logic tick, when something has actually moved.
+    api.porcelain.every("logic_tick", function()
+        if not dirty then return end
+        dirty = false
+        rebuild(api)
+    end)
 end
 
 function plugin.on_stop(api)
     -- The model files go with the plugin; the host releases them when it stops
-    -- one, for the same reason it takes its objects out of the world.
+    -- one, for the same reason it takes its objects out of the world. The
+    -- porcelain handle is the host's to close, after this returns.
     clear(api)
 end
 
 function plugin.on_asset(api, ev)
-    if ev.name ~= PRICES_ASSET then return end
+    if not layer or ev.name ~= PRICES_ASSET then return end
+    -- Whatever landed, the verb is what reads the state: it parses a file that
+    -- arrived, raises one finding for one that did not, and asks neither
+    -- question twice.
+    if api.porcelain.table(PRICES_ASSET, prices_parse) then return end
     if not ev.ok then
         api.core.log("no " .. PRICES_ASSET .. "; pricing from the cache's own OC_COST")
-        return
     end
-    local n
-    prices, n = parse_prices(api.assets.bytes(PRICES_ASSET) or "")
-    api.core.log(PRICES_ASSET .. ": " .. n .. " price overrides")
-    -- The bytes are parsed; there is no reason to keep a copy of the file
-    -- resident for the rest of the session.
-    api.assets.release(PRICES_ASSET)
-    dirty = true
 end
 
 -- Every edge that can change what should be lit. They only mark, because a
@@ -420,6 +710,9 @@ function plugin.on_config_changed(api, key)
     -- those are dressed only when something about them differs -- which is
     -- exactly what `dirty` makes the tick notice.
     dirty = true
+    -- A threshold is read once per config change and not once per ground
+    -- stack, so this is where the four rows are re-read.
+    if layer then tiers = api.porcelain.tiers_from_config() or tiers end
 end
 
 function plugin.on_world_loaded(api, ev)
@@ -428,45 +721,40 @@ function plugin.on_world_loaded(api, ev)
     -- from scratch rather than trusted. The loaded models survive it -- they
     -- are geometry, and nothing about a scene rebuild changes their shape.
     clear(api)
+    -- A refusal against the old scene says nothing about the new one, and a
+    -- latch held across a world load would silence the first real one.
+    refused = {}
     dirty = true
 end
 
--- on_logic_tick and not on_server_tick: the tick fence (PKT_NAME_SERVER_TICK_END)
--- is only on the wire for osrs230, osrs239 and the rsprot bridge -- every
--- xp_tracker.c/loot_tracker.c tracker in this tree already made this switch for
--- the same reason. On lc245_2, lc254, lc289 and xrsps233 the fence never fires
--- at all, so `dirty` was set correctly by every obj event but `rebuild` -- the
--- ONLY place a beam is created or destroyed -- never ran: a beam that existed
--- never came down, and a despawned item's tile never got the memo. on_logic_tick
--- is the client's own 20ms cycle and exists on every lane; the `dirty` gate
--- below is what keeps this cheap when nothing changed.
+-- The tick the layer registered for, forwarded. FRAME is the only cadence the
+-- layer drives itself; a plugin hands it the other two, because a library
+-- cannot install a callback into a definition the host already registered.
 function plugin.on_logic_tick(api, ev)
-    if dirty then
-        dirty = false
-        rebuild(api)
-    end
+    if not layer then return end
+    api.porcelain.tick("logic_tick")
 end
 
 --
 -- The rise, one yaw per beam.
 --
 -- Per FRAME rather than per tick because it is motion and a tick is 600ms, and
--- through object_position because turning a standing object is applied to the
--- live element -- no model is rebuilt for it, which is what makes an animation
--- this plugin owns affordable at all.
+-- through instance_position because turning a standing object is applied to
+-- the live element -- no model is rebuilt for it, which is what makes an
+-- animation this plugin owns affordable at all.
 --
 function plugin.on_frame_start(api, ev)
     local spin = api.config.spin
     local turn
 
-    if spin == 0 then return end
+    if not layer or spin == 0 then return end
     -- 2048 yaw units to a turn, `spin` degrees to a second.
     turn = (ev.now_ms * spin * 2048) // 360000
 
     for _, beam in pairs(beams) do
         if beam.x then
-            api.scene.instance_position(
-                beam.handle, beam.x, beam.z, beam.level, 0, (turn + beam.phase) % 2048)
+            applied(api, "instance_position", api.scene.instance_position(
+                beam.handle, beam.x, beam.z, beam.level, 0, (turn + beam.phase) % 2048))
         end
     end
 end

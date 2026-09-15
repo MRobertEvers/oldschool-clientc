@@ -92,6 +92,17 @@ RS_UISlots_InitFromTree(
              * the chat region instead (RS_UISlots_OpenTut), so there is
              * nothing to record. */
             break;
+        case UITREE_SLOT_ORBS:
+        case UITREE_SLOT_CHAT_BUTTON:
+            /*
+             * Both are stamped by the frame binder, not authored by a profile,
+             * and neither is a REGION this client mounts an interface into --
+             * an orb column and a chat filter button are parts of a frame the
+             * provider already placed. There is nothing here to record, and
+             * saying so explicitly is what keeps the warning for the NEXT tag
+             * somebody adds: this switch has no default on purpose.
+             */
+            break;
         case UITREE_SLOT_NONE:
             break;
         }

@@ -142,6 +142,65 @@ compare(
   'TORIRS_CHROME_LABEL_',
   readJsTable('LABEL', 'plugin_chrome/runtime-source.js'));
 
+/*
+ * A command's FIELDS have to stay in step too, not only its kinds.
+ *
+ * Every JS side of this seam re-reads a command through a whitelist -- the
+ * page's normalizeCommand and the adapter's -- so a field C starts sending is
+ * dropped in silence unless both whitelists are told about it. That is exactly
+ * how WIDGET_ADD's insertion anchor first went missing: the executor emitted
+ * `b`, the whitelist did not name it, and a re-identified middle row appended
+ * itself to the bottom of the page with nothing logged.
+ *
+ * Read out of the sources rather than listed here, so this cannot go stale.
+ */
+function braceBody(source, from) {
+  const open = source.indexOf('{', from);
+  if (open < 0) throw new Error('no body');
+  let depth = 0;
+  for (let at = open; at < source.length; at++) {
+    if (source[at] === '{') depth++;
+    else if (source[at] === '}' && --depth === 0) return source.slice(open + 1, at);
+  }
+  throw new Error('unterminated body');
+}
+
+/** The JSON keys one C command serialiser writes. */
+function cWireKeys(file, fn) {
+  const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
+  const at = source.indexOf(`${fn}(`);
+  if (at < 0) throw new Error(`no ${fn} in ${file}`);
+  const keys = braceBody(source, at).match(/\\"([A-Za-z_][A-Za-z0-9_]*)\\":/g) || [];
+  return keys.map(item => item.replace(/\\"/g, '').replace(':', '')).sort();
+}
+
+/** The keys one JS whitelist copies out of a raw command. */
+function jsWireKeys(file, fn) {
+  const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
+  const at = source.indexOf(`${fn}(`);
+  if (at < 0) throw new Error(`no ${fn} in ${file}`);
+  const body = braceBody(source, at).replace(/\/\*[\s\S]*?\*\//g, '');
+  const keys = body.match(/[{,]\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/g) || [];
+  return keys.map(item => item.replace(/^[{,]\s*/, '').replace(':', '')).sort();
+}
+
+const wireKeys = cWireKeys('ui/torirs_chrome_exec_web.c', 'chrome_web_batch_command');
+check(wireKeys.indexOf('b') >= 0,
+  'the wasm command serialiser does not send WIDGET_ADD\'s insertion anchor');
+for (const other of [
+  { label: 'the MSHTML command serialiser',
+    keys: cWireKeys('ui/torirs_chrome_exec_winbrowser.c', 'append_command') },
+  { label: 'the canonical runtime whitelist',
+    keys: jsWireKeys('plugin_chrome/runtime-source.js', 'normalizeCommand') },
+  { label: 'the web adapter whitelist',
+    keys: jsWireKeys('web/torirs_chrome.js', 'normalizeCommand') }
+]) {
+  check(
+    other.keys.join(',') === wireKeys.join(','),
+    `command fields: ${other.label} carries [${other.keys}], ` +
+      `the wasm serialiser carries [${wireKeys}]`);
+}
+
 /* Skin slot numbers no longer cross the web boundary. Both the adapter theme
  * and canonical CSS name packaged, local files, so adding a slot cannot silently
  * make a different numbered sprite appear. The C bake test checks the pixel

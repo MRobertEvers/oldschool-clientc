@@ -25,6 +25,7 @@
 #include "plugin/torirs_plugin_types.h"
 #include "plugin/torirs_plugin_api.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 /** Printable ASCII, which is the whole range a baked atlas carries. */
@@ -136,6 +137,19 @@ void PluginDraw_ImageFree(
     struct ToriRS_Api* api,
     uint32_t** px,
     struct ToriRS_ImageRef* handle);
+
+/**
+ * Fill `atlas`'s glyph table from the bytes of a baked `<name>.ini`.
+ *
+ * Public because the fetch and the parse have different owners on the
+ * Porcelain layer: `Porcelain_Table` owns the request, the retry and the one
+ * finding an absent file is worth, and hands back bytes with nothing to read
+ * them. @return 1 when at least one glyph was read.
+ */
+int PluginDraw_AtlasParse(
+    struct PluginDraw_Atlas* atlas,
+    void const* bytes,
+    size_t size);
 
 /** Load `<name>.ini` and `<name>.png` into `atlas`. Same 0/1 contract. */
 int PluginDraw_AtlasLoad(

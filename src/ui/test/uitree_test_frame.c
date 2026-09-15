@@ -1258,6 +1258,7 @@ static int32_t g_binder_side3;
 static int32_t g_binder_orbs;
 static int32_t g_binder_adviser;
 static int32_t g_binder_globe;
+static int32_t g_binder_banner;
 
 static void
 stamping_binder(struct UITree* tree, void* user)
@@ -1276,6 +1277,10 @@ stamping_binder(struct UITree* tree, void* user)
      * world-map globe is: orbs member 1. */
     tree->components[g_binder_globe].slot_tag = UITREE_SLOT_ORBS;
     tree->components[g_binder_globe].frame_member_plus1 = 1 + 1;
+    /* And one nested a level deeper than the pack root, as the wiki banner is
+     * on a toplevel that groups it: orbs member 2. */
+    tree->components[g_binder_banner].slot_tag = UITREE_SLOT_ORBS;
+    tree->components[g_binder_banner].frame_member_plus1 = 2 + 1;
 }
 
 static void
@@ -1290,12 +1295,17 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     int32_t pack;
     int32_t adviser;
     int32_t globe;
+    int32_t banner_group;
+    int32_t banner;
     int32_t container;
     int32_t blocker;
     int32_t control;
     int32_t tip_host;
     int32_t tip_plate;
     int32_t panel_border;
+    int32_t status_host;
+    int32_t status_glyph;
+    int32_t status_tint;
 
     shell = UITree_TestPushXy(
         tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -1322,6 +1332,13 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
      * the pack's own script puts it on a resizable toplevel. */
     globe = UITree_TestPushXy(
         tree, pack, UIELEM_RS_LAYER, ((FRAME_GROUP + 1) << 16) | 49, 206, 115, 30, 30);
+    /* The wiki banner, a level deeper again: the pack groups it with the art
+     * beside it, so the box the lane authored for the BANNER is 6,7 inside the
+     * group and 8,12 inside that -- neither number on its own places it. */
+    banner_group = UITree_TestPushXy(
+        tree, pack, UIELEM_RS_LAYER, ((FRAME_GROUP + 1) << 16) | 60, 6, 7, 60, 40);
+    banner = UITree_TestPushXy(
+        tree, banner_group, UIELEM_RS_LAYER, ((FRAME_GROUP + 1) << 16) | 50, 8, 12, 24, 22);
     /* A click-blocker and a control, both root-group layers: chrome. */
     {
         struct UITreeNodeSpec spec;
@@ -1356,10 +1373,24 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
      * they are pictures of -- the group alone cannot tell them apart. */
     tip_plate = UITree_CcCreate(tree, tip_host, (FRAME_GROUP << 16) | 26, 3, 0);
     panel_border = UITree_CcCreate(tree, container, (FRAME_GROUP << 16) | 20, 3, 0);
+    /*
+     * The toplevel's STATUS CORNER: a bare root-group layer of its own with no
+     * op on it, and a sprite the toplevel's script draws into it -- 601's wifi
+     * bars and its battery, which are two 24x24 layers holding one cc_setgraphic
+     * each. Structurally indistinguishable from `tip_host` and its plate: same
+     * type, same group, same "the frame took neither container over".
+     */
+    status_host = UITree_TestPushXy(
+        tree, root, UIELEM_RS_LAYER, (FRAME_GROUP << 16) | 27, 711, 0, 24, 24);
+    status_glyph = UITree_CcCreate(tree, status_host, (FRAME_GROUP << 16) | 27, 5, 0);
+    /* And a RECT drawn into the same container, so the rule below is provably
+     * about what the node IS and not about where it was drawn. */
+    status_tint = UITree_CcCreate(tree, status_host, (FRAME_GROUP << 16) | 27, 3, 1);
     TEST_ASSERT(
         chat >= 0 && side3 >= 0 && orbs >= 0 && pack >= 0 && adviser >= 0 && globe >= 0 &&
-            blocker >= 0 &&
-            control >= 0 && tip_host >= 0 && tip_plate >= 0 && panel_border >= 0,
+            banner_group >= 0 && banner >= 0 && blocker >= 0 &&
+            control >= 0 && tip_host >= 0 && tip_plate >= 0 && panel_border >= 0 &&
+            status_host >= 0 && status_glyph >= 0 && status_tint >= 0,
         "cache frame fixture with layers builds");
     TEST_ASSERT(
         (tree->components[tip_plate].component_id >> 16) == FRAME_GROUP &&
@@ -1376,6 +1407,7 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     g_binder_orbs = orbs;
     g_binder_adviser = adviser;
     g_binder_globe = globe;
+    g_binder_banner = banner;
     UITree_FrameSetBinder(tree, stamping_binder, NULL);
 
     UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
@@ -1428,6 +1460,36 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     TEST_ASSERT(
         tree->components[panel_border].frame_hidden,
         "and one drawn inside a container the frame took over is its surround");
+    /*
+     * The status corner, and the half of the cc rule the pair above could not
+     * decide.
+     *
+     * `tip_plate` and `status_glyph` are the same kind of node in the same kind
+     * of container: a cc_create child of the toplevel's group, drawn into a
+     * root-group layer the provision never took over. The container test says
+     * "content" to both, and for the glyph that is wrong -- a wifi bar is
+     * decoration, there is nothing to operate and nothing about the game in it,
+     * and a layout that draws its own frame is drawing over it. Left standing,
+     * 601's wifi and battery stood in the top-right corner of the Stone Drawer,
+     * over the sky and over the frame's own map housing.
+     *
+     * So the type decides: a script drawing a GRAPHIC is reaching for a sprite
+     * the interface shipped, which is a decision the toplevel's author already
+     * made; a script drawing a RECT or a LINE is building something that is not
+     * in the cache, which is the tooltip's box and plate.
+     *
+     * MUTATION: drop `c->type != UIELEM_RS_GRAPHIC` from the dynamic guard in
+     * frame_is_lane_chrome. Red: the glyph is content again.
+     */
+    TEST_ASSERT(
+        tree->components[status_glyph].frame_hidden,
+        "a script-drawn SPRITE of the toplevel's own group is its surround, wherever it was drawn");
+    TEST_ASSERT(
+        !tree->components[status_tint].frame_hidden,
+        "and a script-drawn rectangle beside it in the same container is still content");
+    TEST_ASSERT(
+        !tree->components[status_host].frame_hidden,
+        "the container itself is left alone: the layer rule takes controls and blockers, not mounts");
     TEST_ASSERT(!tree->components[orbs].frame_hidden, "nor is the bound orb block");
     /* The members inside the block -- the adviser the profile seats, the globe
      * the pack carries -- are the provider's to move or hide through the
@@ -1462,6 +1524,67 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     TEST_ASSERT(
         UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_ORBS) == orbs,
         "and the whole-role answer is still the block, not the member");
+
+    /*
+     * The member twin of UITree_FrameSlotNativeSize: where inside the BLOCK
+     * the lane authored each member, so a provider that moves the block can
+     * put them back without carrying one toplevel's numbers onto another.
+     *
+     * Asked here deliberately, with the adviser MOVED: the authored answer
+     * must still be the lane's 202,50 and not the 20,20 the provider just
+     * wrote, or a frame reading it to decide where to place is reading its
+     * own answer back.
+     */
+    {
+        int box_x = -1, box_y = -1, box_w = -1, box_h = -1;
+        TEST_ASSERT(
+            UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 0, &box_x, &box_y, &box_w, &box_h) &&
+                box_x == 202 && box_y == 50 && box_w == 34 && box_h == 34,
+            "a moved member still reports the box the lane authored for it");
+        TEST_ASSERT(
+            UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 1, &box_x, &box_y, &box_w, &box_h) &&
+                box_x == 206 && box_y == 115 && box_w == 30 && box_h == 30,
+            "and a member of the pack reports its offset inside the block");
+        TEST_ASSERT(
+            UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 2, &box_x, &box_y, &box_w, &box_h) &&
+                box_x == 6 + 8 && box_y == 7 + 12 && box_w == 24 && box_h == 22,
+            "a member nested deeper reports the sum, not the box its own parent gave it");
+        TEST_ASSERT(
+            !UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 3, NULL, NULL, NULL, NULL),
+            "a member this frame does not have has no box");
+        TEST_ASSERT(
+            !UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, -1, NULL, NULL, NULL, NULL),
+            "and the surface as a whole is NativeSize's question, not this one");
+        /* A member sized as a PROPORTION of its parent has no pixel box to
+         * report, exactly as UITree_FrameSlotNativeSize refuses one: handing
+         * back `width` would report 40 for a node that is 40% wide. */
+        box_x = box_y = box_w = box_h = -1;
+        tree->components[globe].position.width_mode = 1;
+        TEST_ASSERT(
+            !UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 1, &box_x, &box_y, &box_w, &box_h) &&
+                box_w == -1,
+            "a proportional member reports nothing rather than a percentage as pixels");
+        tree->components[globe].position.width_mode = 0;
+        /* The same refusal for a container ON THE WAY UP: the sum is only as
+         * meaningful as the least certain term in it. */
+        tree->components[banner_group].position.kind = UIPOS_RELATIVE;
+        TEST_ASSERT(
+            !UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 2, NULL, NULL, NULL, NULL),
+            "nor does a member reached through a container whose own box is relative");
+        tree->components[banner_group].position.kind = UIPOS_XY;
+        TEST_ASSERT(
+            UITree_FrameSlotMemberNativeBox(
+                tree, UITREE_FRAME_SLOT_ORBS, 2, &box_x, &box_y, NULL, NULL) &&
+                box_x == 14 && box_y == 19,
+            "and answers again once the chain is plain pixels");
+    }
 
     UITree_WidgetResetOwner(tree, PLUGIN_OWNER);
     UITree_FrameRelease(tree);

@@ -23,7 +23,26 @@
 # sees that. `check` fails when the struct grows past it AND when it has shrunk
 # below it, so a field cannot creep back in on the space a subsystem freed.
 
-struct-App-fields: 332
+# Raised from 332 by the Porcelain plugin layer. Six fields, and the gate is
+# right to ask: five of them are MEMO, not state, and the sixth is a boot fact.
+#
+#   plugin_frame_role_id + plugin_frame_role_ids_for_count
+#   plugin_facet_ids (refs/roles counts, four var ids, two orb roles, valid)
+#   plugin_sidetab (sixteen roles, sixteen nodes, two generations, valid)
+#   plugin_frame_bound (tree, two generations, valid)
+#     -- each is a table of interned ids with the generation it was interned
+#        for. They exist because the bridge was resolving the same names by
+#        string on every watched element on every layout fence. They belong to
+#        the bridge, and the bridge is a unit of this layer that keeps no state
+#        of its own; giving them a subsystem means giving the bridge one, which
+#        is a larger change than this branch should make.
+#
+#   touch_ui (already present; its RESOLUTION moved, not the field)
+#
+# The honest note: if the bridge is ever given a struct of its own, all five
+# memos go with it and this number comes back down. They are recorded here so
+# that is findable, not forgiven.
+struct-App-fields: 338
 
 src/main.c
 src/executor_config.c
@@ -50,4 +69,8 @@ src/game/test/task_exec_entity_info_test.c
 src/world/test/wev_rebuild_test.c
 # The composition root of the App layer: construction, teardown and the
 # globals main.c shares. Everything else is a unit under src/app/.
-app.c-lines: 1255
+# Raised from 1255 by the touch-UI boot resolution and the Porcelain table
+# hand-off, both of which belong in the composition root: one resolves a fact
+# about the boot beside the clientscript identity it follows, and the other
+# tells the host which library the CLIENT linked.
+app.c-lines: 1293

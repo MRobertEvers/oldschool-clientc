@@ -1,0 +1,34 @@
+# The page, settings and tooltip plugins -- the ones no gate lane ever puts on
+# screen. One plugin per picture.
+#
+# TWO CLOCKS. TORIRS_SIM_PLUGIN_PANEL ticks are ABSOLUTE app frames (the panel
+# tick runs from process start, title screen included); TORIRS_SIM_CMD frames
+# are POST-LOGIN frames, because shot.sh sets TORIRS_SIM_AFTER_READY=1. At 700
+# frames both 560 and 620 land.
+#
+# `item-stats` registers NO panel page, so asking for `,page` is a silent
+# no-op -- AppPluginRailRoute_Decide returns ROUTE_NONE and says nothing. Its
+# two faces are the canvas tooltip (a parked pointer) and the host-generated
+# settings form.
+
+itemstats-hover-cs2    item-stats cs2 TORIRS_SIM_HOVER=627,228
+itemstats-hover-cs1    item-stats cs1 TORIRS_SIM_HOVER=627,228
+itemstats-settings-cs2 item-stats cs2 TORIRS_SIM_PLUGIN_PANEL=600,item-stats,settings
+
+# Fishing (stat 10) is the one skill the fixture is not maxed in. setlevel
+# alone lands EXACTLY on a threshold, so the arc would be zero-length; the xp
+# chaser is what gives the progress bar something to show. `xp` takes TENTHS.
+loottracker-empty-cs2 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page
+loottracker-loot-cs2  loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page 'TORIRS_SIM_CMD=560,lootkill Goblin 995 5000;570,lootkill Goblin 526 1;580,lootkill Goblin 995 5000;590,lootkill Goblin 526 1'
+loottracker-cs1       loot-tracker cs1 TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page
+
+clientsettings-cs2 client-settings cs2 TORIRS_SIM_PLUGIN_PANEL=600,client-settings,page
+clientsettings-cs1 client-settings cs1 TORIRS_SIM_PLUGIN_PANEL=600,client-settings,page
+
+featureflags-cs2 feature-flags cs2 TORIRS_SIM_PLUGIN_PANEL=600,feature-flags,page
+featureflags-cs1 feature-flags cs1 TORIRS_SIM_PLUGIN_PANEL=600,feature-flags,page
+
+# Registered only by TORIRS_WIDGET_DEMO, and `only` registers it ALONE, which
+# is the isolation the rest of this set gets from its ini.
+widgetdemo-cs2 widget-demo cs2 TORIRS_WIDGET_DEMO=only TORIRS_PLUGIN_LOG=1
+widgetdemo-cs1 widget-demo cs1 TORIRS_WIDGET_DEMO=only TORIRS_PLUGIN_LOG=1

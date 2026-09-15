@@ -3,6 +3,7 @@
 #include "revconfig_load.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -77,6 +78,189 @@ refs_set(
     entry->alt_id = alt_id;
 }
 
+/* ------------------------------------------------------------------------ */
+/* Sidebar tabs                                                              */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * The four kinds a `[tabs]` family resolves through, all of them plain ints so
+ * that RevConfigRefs_Get answers every one of them:
+ *
+ *   tab        <name>          -> the tab NUMBER. The base map.
+ *   tabcol     <root>:<name>   -> which column of that root the tab is in.
+ *   tabpos     <root>:<name>   -> where in that column, top first.
+ *   tabdetach  <root>:<name>   -> 1 for a tab that root places outside every
+ *                                 column. Absent reads -1, i.e. "not
+ *                                 detached", which is the same answer as "this
+ *                                 root states no arrangement at all" -- and
+ *                                 that is right: a root with no override lays
+ *                                 its tabs out in one plain run.
+ *
+ * Why not the raw `columns=` string under one name: this table answers ints,
+ * and a caller handed the string would have to re-parse the grammar the
+ * profile already wrote. These four are the questions a caller actually asks.
+ */
+#define REVCONFIG_REFS_TAB_KIND "tab"
+#define REVCONFIG_REFS_TAB_COLUMN_KIND "tabcol"
+#define REVCONFIG_REFS_TAB_POSITION_KIND "tabpos"
+#define REVCONFIG_REFS_TAB_DETACHED_KIND "tabdetach"
+
+/** `<root>:<name>` into `out`; 0 when it does not fit. */
+static int
+refs_tab_key(
+    char* out,
+    size_t capacity,
+    int root,
+    char const* name,
+    size_t name_length)
+{
+    int written;
+
+    assert(out);
+    assert(name);
+
+    if( name_length == 0 || name_length >= capacity )
+        return 0;
+    written = snprintf(out, capacity, "%d:%.*s", root, (int)name_length, name);
+    return written > 0 && (size_t)written < capacity;
+}
+
+/*
+ * Register one comma-separated run of tab names -- one `columns=` column, or
+ * the whole of `detached=`.
+ *
+ * `position_kind` NULL is the detached run, which has no order to record: its
+ * whole content is that those tabs are NOT in a column.
+ */
+static void
+refs_add_tab_run(
+    struct RevConfigRefs* refs,
+    int root,
+    char const* run,
+    char const* column_kind,
+    char const* position_kind,
+    int column_index)
+{
+    char const* cursor;
+    int position = 0;
+
+    assert(refs);
+    assert(run);
+    assert(column_kind);
+
+    for( cursor = run; *cursor; )
+    {
+        char const* comma = strchr(cursor, ',');
+        size_t length = comma ? (size_t)(comma - cursor) : strlen(cursor);
+        char key[REVCONFIG_REFS_NAME_LEN];
+
+        while( length > 0 && (cursor[0] == ' ' || cursor[0] == '\t') )
+        {
+            cursor++;
+            length--;
+        }
+        while( length > 0 && (cursor[length - 1] == ' ' || cursor[length - 1] == '\t') )
+            length--;
+
+        if( length > 0 && refs_tab_key(key, sizeof(key), root, cursor, length) )
+        {
+            refs_set(refs, column_kind, key, column_index, -1);
+            if( position_kind )
+                refs_set(refs, position_kind, key, position, -1);
+            position++;
+        }
+
+        if( !comma )
+            return;
+        cursor = comma + 1;
+    }
+}
+
+/** One `[tabs]` / `[tabs:<root>]` item, as the kinds above. */
+static void
+refs_add_tabs_item(
+    struct RevConfigRefs* refs,
+    struct RevConfigTabsItem const* tabs)
+{
+    assert(refs);
+    assert(tabs);
+
+    for( int i = 0; i < tabs->entry_count; i++ )
+        refs_set(
+            refs, REVCONFIG_REFS_TAB_KIND, tabs->entries[i].name, tabs->entries[i].number, -1);
+
+    /* The arrangement keys are a per-root fact and mean nothing without one, so
+     * a `[tabs]` with no root states the base map only. */
+    if( tabs->root < 0 )
+        return;
+    for( int i = 0; i < tabs->column_count; i++ )
+        refs_add_tab_run(
+            refs,
+            tabs->root,
+            tabs->columns[i],
+            REVCONFIG_REFS_TAB_COLUMN_KIND,
+            REVCONFIG_REFS_TAB_POSITION_KIND,
+            i);
+    if( tabs->detached[0] != '\0' )
+        refs_add_tab_run(
+            refs, tabs->root, tabs->detached, REVCONFIG_REFS_TAB_DETACHED_KIND, NULL, 1);
+}
+
+/*
+ * The dat1 fallback: `[role:panel_<name>] match=slot(sidebar, <n>)`.
+ *
+ * A 2004 profile carries the tab numbering already, in the only place it can.
+ * Its sidebar mounts are found BY tab number, so every `panel_<name>` role IS
+ * a name -> number row, written in the role grammar. Reading it here is what
+ * lets `RevConfigRefs_Get(refs, "tab", "inventory")` answer on a lane with no
+ * `[tabs]` section, instead of every caller learning which of two spellings
+ * the lane it booted on uses.
+ *
+ * It never fires on a cache lane: there the sidebar mounts come from the CS2
+ * toplevel, so `panel_<name>` is stated as `id(if(<iface>, 0))` and carries no
+ * tab number at all -- which is exactly why the dat2 profile states `[tabs]`.
+ *
+ * An explicit row wins in either order: a `[tabs]` read earlier is left alone
+ * by the guard below, and one read later replaces this the way any later
+ * declaration replaces an earlier one.
+ */
+static void
+refs_add_tab_from_panel_role(
+    struct RevConfigRefs* refs,
+    struct RevConfigRoleItem const* role)
+{
+    static char const PANEL_PREFIX[] = "panel_";
+    size_t const prefix_length = sizeof(PANEL_PREFIX) - 1;
+    char const* name;
+
+    assert(refs);
+    assert(role);
+
+    if( strncmp(role->name, PANEL_PREFIX, prefix_length) != 0 )
+        return;
+    name = role->name + prefix_length;
+    if( name[0] == '\0' )
+        return;
+    if( refs_find(refs, REVCONFIG_REFS_TAB_KIND, name) )
+        return;
+
+    for( int i = 0; i < role->matcher_count; i++ )
+    {
+        struct RevConfigRoleMatcher const* matcher = &role->matchers[i];
+        int number;
+
+        if( matcher->kind != REVCONFIG_ROLE_MATCH_SLOT )
+            continue;
+        if( strcmp(matcher->slot, "sidebar") != 0 || matcher->member[0] == '\0' )
+            continue;
+        number = revconfig_parse_int(matcher->member);
+        if( number < 0 )
+            continue;
+        refs_set(refs, REVCONFIG_REFS_TAB_KIND, name, number, -1);
+        return;
+    }
+}
+
 void
 RevConfigRefs_AddItems(
     struct RevConfigRefs* refs,
@@ -95,6 +279,10 @@ RevConfigRefs_AddItems(
             refs_set(
                 refs, "font", item->u.font.name, item->u.font.archive_id,
                 item->u.font.cache_font_id);
+        else if( item->kind == RCITEM_TABS )
+            refs_add_tabs_item(refs, &item->u.tabs);
+        else if( item->kind == RCITEM_ROLE )
+            refs_add_tab_from_panel_role(refs, &item->u.role);
     }
 }
 

@@ -63,6 +63,10 @@ cmd_init(struct ToriRSChromeCmd* cmd, int kind, int panel, int widget)
     cmd->widget = widget;
     cmd->tab = -1;
     cmd->value = 0;
+    /* Not zero: zero is a perfectly good widget handle, so the memset default
+     * would read as "insert before widget 0" on every command that never
+     * thought about position. Append is the neutral answer. */
+    cmd->before_widget = -1;
 }
 
 static void
@@ -265,6 +269,39 @@ sync_widget_relevant(struct ToriRSChrome const* ui, int widget)
 }
 
 /**
+ * Which row a freshly added one must precede, named by handle. -1 = append.
+ *
+ * The model's own row list is the order the page is in, so the answer is the
+ * first later sibling the executor ALREADY HAS. A later sibling it does not
+ * have yet cannot be an anchor -- naming it would leave the presentation to
+ * guess -- and there is never one behind such a row either, because the walk
+ * that creates them runs in row order. So the two cases collapse: append.
+ *
+ * This is what makes a re-identified row stay put. Its own shadow was just
+ * cleared by the REMOVE, its neighbours' were not, and the row after it is
+ * still live -- so the ADD that follows names it and lands back in place
+ * instead of at the bottom of the page.
+ */
+static int
+sync_insert_before(
+    struct ToriRSChromeSync const* sync, struct ToriRSChrome const* ui, int widget)
+{
+    assert(sync);
+    assert(ui);
+    assert(widget >= 0);
+    assert(widget < ui->widget_count);
+
+    for( int at = ui->widgets[widget].next; at >= 0; at = ui->widgets[at].next )
+    {
+        if( !sync_widget_relevant(ui, at) )
+            continue;
+        if( sync->widgets[at].live )
+            return at;
+    }
+    return -1;
+}
+
+/**
  * A CUSTOM well's height in the LOGICAL units a command carries.
  *
  * One formula, used by the ADD that first states it and by the comparison that
@@ -450,6 +487,7 @@ sync_snapshot(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
                         ? sync_custom_logical_h(ui, w)
                         : w->rows;
             cmd.serial = w->intent_serial ? w->intent_serial : (uint32_t)w->serial;
+            cmd.before_widget = sync_insert_before(sync, ui, i);
             chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->label);
             chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->text);
             sync_emit(sync, &cmd);
@@ -736,6 +774,10 @@ sync_refresh_widget(
                     ? sync_custom_logical_h(ui, w)
                     : w->rows;
         cmd.serial = identity;
+        /* The row that carried the REMOVE just above is coming back between
+         * the same neighbours. Without this the executor appends and a
+         * re-identified middle row drops to the bottom of the page. */
+        cmd.before_widget = sync_insert_before(sync, ui, widget);
         chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->label);
         chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->text);
         sync_emit(sync, &cmd);
@@ -1162,6 +1204,18 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
 
     case TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE:
         if( !ToriRSChrome_CustomActivate(
+                ui, intent->widget, intent->x, intent->y) )
+            return 0;
+        ui->activated_selection_generation = intent->selection_generation;
+        ui->activated_widget_serial = intent->widget_serial;
+        return 1;
+
+    case TORIRS_CHROME_INTENT_CUSTOM_MENU:
+        /* The same fences as above, and deliberately the same order: the
+         * generation and serial are stamped AFTER the latch, because the latch
+         * zeroes them and a presentation's own identity must outrank the
+         * library's default of "this frame". */
+        if( !ToriRSChrome_CustomMenu(
                 ui, intent->widget, intent->x, intent->y) )
             return 0;
         ui->activated_selection_generation = intent->selection_generation;

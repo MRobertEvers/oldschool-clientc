@@ -341,8 +341,12 @@ LootStore_AddKillLoot(
     {
         if( src->rows[i].obj_id == obj_id )
         {
+            /* The quantities accumulate; the UNIT price does not. It is a
+             * property of the objtype, so the newest reading simply replaces
+             * the last. @see LootRow::value for what reading this as a running
+             * total cost. */
             src->rows[i].qty += qty;
-            src->rows[i].value += value * qty;
+            src->rows[i].value = value;
             loot_revision_bump(store);
             return;
         }
@@ -353,7 +357,7 @@ LootStore_AddKillLoot(
     struct LootRow* row = &src->rows[src->row_count++];
     row->obj_id = obj_id;
     row->qty = qty;
-    row->value = value * qty;
+    row->value = value;
     loot_revision_bump(store);
 }
 

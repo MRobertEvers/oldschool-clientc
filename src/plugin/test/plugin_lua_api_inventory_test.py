@@ -92,6 +92,10 @@ def main() -> int:
         "LUA_WIDGET_METHOD_FNS",
         "LUA_GRAPHICS_FNS",
         "LUA_PANEL_BUILDER_FNS",
+        # The Porcelain describe builder is an object handed to the describe
+        # callback, exactly like the panel builder, so it is inventoried the
+        # same way rather than as a namespace.
+        "LUA_PORCELAIN_DESCRIBE_FNS",
     }
     errors += difference("registration arrays", set(arrays), expected_array_names)
 
@@ -104,6 +108,7 @@ def main() -> int:
         "assets": "ToriRS_AssetsApi", "scene": "ToriRS_SceneApi",
         "panel": "ToriRS_PanelApi", "cache": "ToriRS_CacheApi",
         "client": "ToriRS_ClientApi", "game": "ToriRS_GameApi",
+        "porcelain": "ToriRS_PorcelainApi",
     }
     errors += difference("canonical module set", set(modules), set(module_structs))
     for module, struct_name in module_structs.items():
@@ -136,6 +141,7 @@ def main() -> int:
     for array, class_name in (
         ("LUA_GRAPHICS_FNS", "torirs.Graphics"),
         ("LUA_PANEL_BUILDER_FNS", "torirs.PanelBuilder"),
+        ("LUA_PORCELAIN_DESCRIBE_FNS", "torirs.PorcelainDescribe"),
     ):
         errors += difference(
             class_name,
@@ -151,6 +157,11 @@ def main() -> int:
         "panel builder versus API header",
         arrays.get("LUA_PANEL_BUILDER_FNS", set()),
         struct_callables(api_source, "ToriRS_PanelBuilder"),
+    )
+    errors += difference(
+        "porcelain describe builder versus API header",
+        arrays.get("LUA_PORCELAIN_DESCRIBE_FNS", set()),
+        struct_callables(api_source, "ToriRS_PorcelainDescribe"),
     )
 
     handler_match = re.search(
@@ -213,13 +224,16 @@ def main() -> int:
                 errors.append(f"{path.name}: legacy callback {callback}")
 
     screenshot = (SCRIPT_DIR / "screenshot.lua").read_text(encoding="utf-8")
+    # The camera is described to the Porcelain layer now: one describe, one
+    # REPLACE placement on the report_button element, one WITHIN placement in
+    # the viewport, and the layer owns every control, watch and image handle.
     for required in (
-        'api.widgets.watch("report_button"',
-        'api.widgets.watch("viewport"',
-        ":create_image(",
-        ":set_image(",
-        ":set_on_op(",
-        "report:set_hidden(",
+        "api.porcelain.open(",
+        "api.porcelain.describe(",
+        'porcelain.element("report_button")',
+        'kind = "replace", on = "report_button"',
+        'kind = "within", on = "viewport"',
+        "d.control(",
         '"report-button"',
         'off|top-left|top-right|bottom-left|bottom-right|report-button',
         "api.assets.screenshot(",
@@ -229,6 +243,127 @@ def main() -> int:
     for forbidden in ("ui_contributions", "on_ui_node_draw", "on_ui_node_action", "on_canvas_action", "api.ui.", "api.placement."):
         if forbidden in screenshot:
             errors.append(f"screenshot.lua: superseded execution API still used: {forbidden}")
+    # The pump is the layer's, for EVERY Lua plugin and not just the ported two.
+    # `open` installs it, so a plugin that spells it again fences twice in one
+    # frame -- and the second fence finds the epoch already fenced, records a
+    # `fence without commit` budget finding and flushes. That finding is an
+    # undeclared PORCELAIN_FINDING line, which is a gate failure on every lane
+    # the plugin runs on, so this is checked rather than recommended.
+    #
+    # A probe -- a file whose name begins with an underscore -- is exempt, and
+    # the exemption is narrow on purpose. A probe is not shipped and is not a
+    # plugin: it exists to poke the layer's seams, and the frame probe closes
+    # an epoch BETWEEN each refusal path so the three do not coalesce into one
+    # finding. Forbidding that would be forbidding the measurement. A shipped
+    # plugin has no such reason and gets no such exemption.
+    for path in sorted(SCRIPT_DIR.glob("*.lua")):
+        if path == META_SOURCE or path.name.startswith("_"):
+            continue
+        source = strip_line_comments(path.read_text(encoding="utf-8"))
+        for hand_written in ("porcelain.fence(", "porcelain.commit(",
+                             'porcelain.note("config")', "porcelain.note('config')",
+                             'porcelain.tick("server_tick")', "porcelain.tick('server_tick')"):
+            if hand_written in source:
+                errors.append(
+                    f"{path.name}: hand-written porcelain pump is back: {hand_written}; "
+                    "open() installs it")
+    # The raw retained verbs are the shape the port replaced. A regression to
+    # any of them is a plugin doing the layer's bookkeeping again: watching
+    # widgets, remembering which control is alive, and re-placing by hand --
+    # which is how the corner camera went stale on a resize.
+    for forbidden in ("api.widgets.watch(", ":create_image(", ":set_anchor(", ":set_on_op(",
+                      "api.assets.image(", "api.assets.image_release("):
+        if forbidden in screenshot:
+            errors.append(f"screenshot.lua: raw retained widget verb back in a Porcelain plugin: {forbidden}")
+    # The camera stands in place of the native Report button through a REPLACE
+    # placement, which follows the target's native visibility both ways. Hiding
+    # the button and positioning a sibling is the shape that painted the camera
+    # over the Trade caption on the mobile toplevel, where the cache hides
+    # Report.
+    if "set_hidden(" in screenshot:
+        errors.append("screenshot.lua: report button hidden instead of replaced by a REPLACE placement")
+
+    highlighter = (SCRIPT_DIR / "entity_highlighter.lua").read_text(encoding="utf-8")
+    # Three refusals reach this plugin and it used to drop all three: the
+    # route table is full, the joined tag list is past the store's value
+    # ceiling, and the lane has no keyboard frame to answer a reveal key with.
+    # Each has a verb now, and the verb is what reports it.
+    for required in (
+        "api.porcelain.open(",
+        "api.porcelain.menu_add(",
+        "api.porcelain.menu_tag(",
+        'api.porcelain.config_list_add("tags"',
+        'api.porcelain.key_edge("reveal_key"',
+        'api.porcelain.expect_absent("role:reveal_key"',
+        # An edge nothing forwards is an edge that never fires. porcelain
+        # .note_key has no caller in the host at all, so the plugin's own
+        # on_key is the whole mechanism; without it the reveal key could never
+        # go down and the Tag rows were unreachable on every lane. The fence
+        # and the commit are NOT listed beside it any more: open() installs
+        # those, and this same file now forbids a plugin from spelling them.
+        "api.porcelain.note_key(",
+    ):
+        if required not in highlighter:
+            errors.append(f"entity_highlighter.lua: missing reported refusal: {required}")
+    # api.menu.add returns a bool nobody read; api.input.key_held answers 0 for
+    # "not held" and for "this lane has no keyboard" alike. Both are the shape
+    # the port replaced, and a regression to either is a refusal going quiet.
+    for forbidden in ("api.menu.add(", "api.input.key_held("):
+        if forbidden in highlighter:
+            errors.append(f"entity_highlighter.lua: raw verb whose refusal is silent: {forbidden}")
+
+    ground = (SCRIPT_DIR / "ground_items.lua").read_text(encoding="utf-8")
+    # The widest lane surface of the four overlays, and most of it was
+    # bookkeeping around a refusal the plugin then dropped: a hand-rolled
+    # suppress-then-format latch over the lane's caption widgets, a copied
+    # 192-byte config ceiling, a hand-rolled retained-row encoding, a key poll
+    # that cannot answer on a touch lane, and a price file requested, read and
+    # released by hand. Each has a verb now, and the verb is what reports it.
+    for required in (
+        "api.porcelain.open(",
+        'api.porcelain.native_overlay("ground_item_labels", "groundItemCaption"',
+        "api.porcelain.note_script(",
+        # NOT cs2_scripts. That is "this client runs CS2", which every CS2
+        # lane is and which says nothing about whether the cache's caption
+        # script can call back; asking it left the latch suppressing in
+        # silence on all four of them.
+        'api.porcelain.require("script_callback:groundItemCaption", "native captions")',
+        'api.porcelain.expect_unsupported("native captions"',
+        'api.porcelain.expect_unsupported("draw_refusal_readout"',
+        'api.porcelain.expect_absent("role:reveal_key"',
+        'api.porcelain.key_edge("reveal_key"',
+        "api.porcelain.note_key(",
+        "api.porcelain.menu_add(",
+        "api.porcelain.menu_tag(",
+        "api.porcelain.menu_untag(",
+        "api.porcelain.config_list_add(",
+        "api.porcelain.config_list_remove(",
+        "api.porcelain.tiers_from_config(",
+        "api.porcelain.tier(",
+        "api.porcelain.table(",
+        "api.porcelain.notify(",
+        # The fence and the commit are NOT listed: open() installs the pump,
+        # and the forbid list above now bans a plugin from spelling either.
+    ):
+        if required not in ground:
+            errors.append(f"ground_items.lua: missing reported refusal: {required}")
+    # Every one of these is a value this plugin used to drop or a constant it
+    # used to copy. watch_tree/find_all/set_hidden/reset WERE the latch;
+    # `find_all(...) or {}` read a truncated collection as "no captions".
+    # assets.request/bytes/release held prices.txt resident for the session.
+    # key_held answers 0 for "up" and for "no keyboard" alike. menu.add's bool
+    # was dropped. core.log is where the notifications went to die.
+    for forbidden in ("api.widgets.", "api.assets.", "api.input.key_held(",
+                      "api.menu.add(", "CONFIG_VALUE_MAX", "watch_tree("):
+        if forbidden in ground:
+            errors.append(f"ground_items.lua: raw verb whose refusal is silent: {forbidden}")
+    # Two verbs this plugin declines on purpose, with the reason in the header.
+    # Calling either would be an engine call a frame for an answer about a
+    # different subject, so a regression to one is not an improvement.
+    for forbidden in ("porcelain.draw_context(", "porcelain.hover(", "porcelain.note_menu(",
+                      "draw.context("):
+        if forbidden in ground:
+            errors.append(f"ground_items.lua: scene-addressed overlay called a canvas verb: {forbidden}")
 
     if errors:
         for error in errors:

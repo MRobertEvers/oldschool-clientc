@@ -1,0 +1,92 @@
+# What the touch frame's three visible-defect fixes change on purpose, and why.
+#
+# Run it as:
+#   gate_diff.py --expect tools/porcelain_gate/expect/mobile-gameframe-touchfix.expect <pairs...>
+#
+# Six of the seven lanes are byte identical: native548, classic548, classic161,
+# modern164, dat1_254 and remount164 show zero differing bounds, zero differing
+# roles and zero moved owned controls. Everything declared below is stone601,
+# which is the only lane the Stone Drawer is on.
+#
+# Every line here is a claim a reader is meant to be able to disagree with. If
+# you think one of them is wrong, the argument is with the reason, not with the
+# tool.
+
+# --------------------------------------------------------------------------
+# 1. The chat block moved up four rows, and its whole subtree with it.
+#
+# The block was hung flush to the canvas floor: `chat_backing` measured
+# 58,388 461x115 and `chat_input` 63,487 454x16, and both of those END ON ROW
+# 503, the last row of a 503-tall window. Every other piece this frame pins to
+# that edge -- the rail, the drawer, the two switches -- is inset from it by
+# MOBILE_MARGIN; the chat block was the one assembly that read the raw edge.
+# So the parchment's torn bottom fringe was off the screen entirely and the
+# input line's last row was the screen's last row, on a frame whose whole
+# premise is that the sheet FLOATS.
+#
+# It is one translation, not a re-layout. All 3,234 differing capture lines
+# on the before side are THE SAME COMPONENT, THE SAME SIZE, FOUR ROWS UP --
+# checked by matching each only-before line against the only-after line four
+# rows below it, with nothing left over on the before side and exactly one
+# line left over on the after side, which is the bar rock section 2 adds. The
+# count is large because the OldSchool chat pack carries a text node per
+# message row and the whole pack is one block.
+only-before BOUNDS com=0x00a2 = the chat pack at the box it had when the block was flush with the window's last row
+only-after  BOUNDS com=0x00a2 = the same component, the same size, four rows up: the block now sits on the bottom margin like everything else on that edge
+only-before BOUNDS com=0x02590031 = the toplevel's own chat mount, which is the block's parent and moves with it
+only-after  BOUNDS com=0x02590031 = the same mount four rows up
+
+# The Stone Drawer's own furniture inside and around the block. These carry no
+# component id in a capture -- an owned control is 0xffffffff -- so this is the
+# BOUNDS half of the nine `owned-move` rows below, said about the same nine
+# controls. On every other lane nothing owned moves, so nothing here fires.
+only-before BOUNDS com=0xffffffff = this frame's own pieces at the boxes they had while the block was flush with the floor
+only-after  BOUNDS com=0xffffffff = the same pieces four rows up, plus the bar rock this round adds
+
+# The same difference said about the roles rather than the components.
+role-move chat_backing = moved with the block
+role-move chat_bar = moved with the block
+role-move chat_input = moved with the block, which is the row the defect was reported on
+role-move chat_plate_0 = moved with the block
+role-move chat_plate_1 = moved with the block
+role-move chat_plate_2 = moved with the block
+role-move chat_plate_3 = moved with the block
+role-move chat_plate_4 = moved with the block
+role-move chat_plate_5 = moved with the block
+role-move chat_plate_6 = moved with the block
+role-move chat_plate_7 = moved with the block
+role-move public_chat_button = moved with the block
+role-move report_button = moved with the block
+role-move action_frame_chat_button_report_activate = the report button again, under its action role
+role-move frame_chat = the frame slot the block is bound to
+
+owned-move pack-sheet = the torn parchment behind the pack, moved with it
+owned-move chat-toggle = the switch is pinned to the sheet's top edge and follows it
+owned-move chat-glyph = the switch's glyph, centred on the switch
+owned-move keyboard-toggle = the second switch, beside the first
+owned-move keyboard-glyph = its glyph
+owned-move camera_report = the screenshot plugin's button, which it places against the report button this frame moved
+owned-move piece.00 = the chat switch's plate, blitted under the switch and pinned to the sheet's top edge
+owned-move piece.01 = the keyboard switch's plate, beside it
+owned-move piece.05 = the tap blocker over the chat block. It follows the block AND it is four rows shorter than a pure translation would leave it: it used to run from the block's top to the canvas floor, which was the block's own bottom while the block was flush, and would otherwise have made the margin's four rows of newly visible world a dead band -- the exact defect this blocker exists to avoid, four pixels tall
+
+# --------------------------------------------------------------------------
+# 2. The chat bar's rock is now a picture this frame owns.
+#
+# The dressing already described a re-skin of PORCELAIN_EL(CHAT_BAR) with one
+# band of 2004 rock, a hollow cut at every filter the pack has. On toplevel 601
+# that reached nothing: the bar is a TYPE_GRAPHIC the cache holds at FULL
+# TRANSPARENCY -- the toplevel paints the band with a translucent rect beside
+# it and keeps this node for its box -- and UITree_EmitFill drops a node at
+# trans 255 before it looks at what a plugin put on it. The engine took the
+# skin, answered OK and threw it away on every frame. What was on screen was
+# seven captions and their green mode lines standing on the WORLD: no socket,
+# no plate, no affordance of any kind, which is a control that does not read as
+# a control.
+#
+# So the same rock is also described as an owned piece at the bar's box, behind
+# the whole pack -- the captions, the mode lines and the bar's own translucent
+# band are all inside the pack, so behind it is under all three and over the
+# world. It is still one band dressing the bar and not a plate per caption, and
+# it still shows ALL SEVEN of the lane's filters.
+owned-add bar-rock = the 2004 rock the re-skin could not carry on a bar the lane holds at full transparency

@@ -70,6 +70,16 @@ static int g_plugin_panel_ticks;
 int g_plugin_page = -1;
 /** The page the widgets on screen were built for; a mismatch rebuilds. */
 int g_plugin_page_built = -1;
+/**
+ * The page the scroll offset belongs to.
+ *
+ * Separate from `g_plugin_page_built`, which is about the WIDGETS: the scroll
+ * survives a rebuild of the same page and must not survive a move to another
+ * one, and those two questions are answered at different moments. Carrying a
+ * place across a page change would drop the reader half way down a list they
+ * had not opened yet.
+ */
+static int g_plugin_page_scrolled = -1;
 /** Handle of the page's Back button, or -1 on the roster. It belongs to no
  *  plugin, so it is remembered here rather than tracked as a row. */
 static int g_plugin_back_widget = -1;
@@ -531,6 +541,17 @@ app_plugin_panel_place(struct App* app)
     assert(app);
     assert(app->plugin_panel >= 0);
 
+    /*
+     * The same canvas the box below is clamped into, told to the chrome, so
+     * that an open dropdown list folds up into it as well.
+     *
+     * The list is not a panel and nothing places it: it hangs off the row that
+     * opened it and is meant to escape the 320-wide window. It is not meant to
+     * escape the CANVAS -- past that edge the pointer cannot follow it -- and
+     * at fullscreen the window's last rows sit on that edge.
+     */
+    ToriRSChrome_SetSurface(&app->plugin_ui, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+
     if( g_plugin_fullscreen )
     {
         ToriRSChrome_PanelMove(&app->plugin_ui, app->plugin_panel, 0, 0);
@@ -630,10 +651,8 @@ app_plugin_panel_select_inputs(
  * explicit low-level drawing well; ordinary bundled pages do not use it.
  */
 static int
-app_plugin_panel_add_semantic(
+app_plugin_panel_build_semantic(
     struct App* app,
-    int plugin,
-    int model_index,
     struct ToriRS_PanelWidget const* model)
 {
     char text[TORIRS_CHROME_INPUT_MAX];
@@ -745,6 +764,11 @@ app_plugin_panel_add_semantic(
             &app->plugin_ui,
             app->plugin_panel,
             model->label[0] ? model->label : model->id);
+        /* A button's `value` IS its availability -- what the builder's
+         * `enabled` argument writes. It used to be stored and never read, so
+         * a page that offered a command it could not service drew it as
+         * live. @see ToriRSChromeWidget::disabled. */
+        ToriRSChrome_SetDisabled(&app->plugin_ui, widget, !model->value);
         break;
 
     case TORIRS_PANEL_WIDGET_SEPARATOR:
@@ -813,6 +837,22 @@ app_plugin_panel_add_semantic(
     if( widget >= 0 )
         ToriRSChrome_WidgetSetIntentSerial(
             &app->plugin_ui, widget, model->serial);
+    return widget;
+}
+
+/** Materialize one semantic node AND record it as a new page row. */
+static int
+app_plugin_panel_add_semantic(
+    struct App* app,
+    int plugin,
+    int model_index,
+    struct ToriRS_PanelWidget const* model)
+{
+    int widget;
+
+    assert(app);
+    assert(model);
+    widget = app_plugin_panel_build_semantic(app, model);
     app_plugin_panel_track_semantic(app, widget, plugin, model_index, model);
     return widget;
 }
@@ -909,6 +949,104 @@ app_plugin_panel_semantic_chrome_kind(struct ToriRS_PanelWidget const* model)
     }
 }
 
+/* Defined with the rest of the custom-region bookkeeping, below. */
+static void
+app_plugin_panel_custom_pending_set(
+    struct App* app,
+    struct AppPluginPanelRow* row,
+    int pending);
+
+/**
+ * Retire the retained custom run belonging to one identity.
+ *
+ * Not a general erasure: a reidentified well's last bitmap was drawn against
+ * the mapping that just changed, so it is the one run that must NOT survive.
+ * Everything else in the pool keeps its owner and its pixels, which is the
+ * whole difference between this and the page rebuild it replaces.
+ */
+static void
+app_plugin_panel_overlay_retire(struct App* app, uint32_t serial)
+{
+    int out = 0;
+
+    assert(app);
+    if( serial == 0 )
+        return;
+    for( int i = 0; i < app->panel_overlay_count; i++ )
+    {
+        if( app->panel_overlay_owner[i] == serial )
+            continue;
+        if( out != i )
+        {
+            app->panel_overlays[out] = app->panel_overlays[i];
+            app->panel_overlay_owner[out] = app->panel_overlay_owner[i];
+            app->panel_overlay_row[out] = app->panel_overlay_row[i];
+        }
+        out++;
+    }
+    if( out == app->panel_overlay_count )
+        return;
+    app->panel_overlay_count = out;
+    app->panel_overlay_revision++;
+    if( app->panel_overlay_revision == 0 )
+        app->panel_overlay_revision++;
+}
+
+/**
+ * Replace ONE row's presentation node in place, keeping the rows around it.
+ *
+ * The host reminted this row's serial, so the node the executor holds belongs
+ * to an identity that no longer exists: it has to be removed and built again,
+ * or a queued intent naming the old serial would still be delivered. What it
+ * must NOT cost is the rest of the page -- the chrome adds at the END of the
+ * panel's row list, so the fresh node is moved back to the slot the old one
+ * occupied. The panel's scroll is untouched (only PanelClearWidgets zeroes
+ * it) and every other row's retained custom run is untouched.
+ */
+static int
+app_plugin_panel_reidentify_row(
+    struct App* app,
+    int row_index,
+    struct ToriRS_PanelWidget const* model)
+{
+    struct AppPluginPanelRow* row;
+    uint32_t retired;
+    int before;
+    int fresh;
+
+    assert(app);
+    assert(model);
+    assert(row_index >= 0);
+    assert(row_index < app->plugin_panel_row_count);
+
+    row = &app->plugin_panel_rows[row_index];
+    retired = row->widget_serial;
+    before = ToriRSChrome_WidgetPrev(&app->plugin_ui, row->widget);
+    ToriRSChrome_WidgetRemove(&app->plugin_ui, row->widget);
+    fresh = app_plugin_panel_build_semantic(app, model);
+    if( fresh < 0 )
+    {
+        /* The old node is already gone, so the page and the model disagree;
+         * say so and let the caller take the rebuild path. */
+        row->widget = -1;
+        return 0;
+    }
+    ToriRSChrome_WidgetMoveAfter(&app->plugin_ui, fresh, before);
+
+    row->widget = fresh;
+    row->widget_serial = model->serial;
+    row->widget_kind = model->kind;
+    if( model->kind == TORIRS_PANEL_WIDGET_CUSTOM )
+    {
+        app_plugin_panel_overlay_retire(app, retired);
+        /* Its geometry is resolved by the next layout pass against the new
+         * node; until then nothing may claim the old region for it. */
+        row->custom_layout_valid = 0;
+        app_plugin_panel_custom_pending_set(app, row, 0);
+    }
+    return 1;
+}
+
 /** Apply one exact host-model mutation to its already-retained chrome row. */
 static int
 app_plugin_panel_patch_row(
@@ -935,11 +1073,23 @@ app_plugin_panel_patch_row(
     if( row->kind != APP_PLUGIN_ROW_PANEL_WIDGET ||
         row->model_index != change->widget_index || !model ||
         model->serial != change->widget_serial ||
-        model->serial != row->widget_serial || model->kind != row->widget_kind ||
+        model->kind != row->widget_kind ||
         strcmp(model->id, row->widget_id) != 0 || row->widget < 0 ||
         row->widget >= app->plugin_ui.widget_count ||
         app->plugin_ui.widgets[row->widget].kind !=
             app_plugin_panel_semantic_chrome_kind(model) )
+        return 0;
+
+    /* Identity first, and alone: the row it names is about to stop existing,
+     * so patching properties onto the node being replaced would be writing to
+     * a handle the rebuild then frees. Any property the same journal entry
+     * also carried is already in the model the fresh node is built from. */
+    if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_IDENTITY )
+        return app_plugin_panel_reidentify_row(app, mapped, model);
+
+    /* Every other change is a property of the node the row already holds, so
+     * the retained identity has to still be the model's. */
+    if( model->serial != row->widget_serial )
         return 0;
 
     switch( model->kind )
@@ -958,6 +1108,12 @@ app_plugin_panel_patch_row(
     case TORIRS_PANEL_WIDGET_ERROR:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
+        /* The NAME half. A key/value row is two strings, and before this only
+         * the reading could be patched: renaming the key rebuilt the page. */
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_LABEL )
+            ToriRSChrome_SetLabel(
+                &app->plugin_ui, row->widget,
+                model->label[0] ? model->label : model->id);
         break;
     case TORIRS_PANEL_WIDGET_IMAGE:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
@@ -988,6 +1144,10 @@ app_plugin_panel_patch_row(
             ToriRSChrome_SetChecked(
                 &app->plugin_ui, row->widget,
                 model->value ? 1 : model->checked);
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_LABEL )
+            ToriRSChrome_SetLabel(
+                &app->plugin_ui, row->widget,
+                model->label[0] ? model->label : model->id);
         break;
     case TORIRS_PANEL_WIDGET_INPUT:
     case TORIRS_PANEL_WIDGET_TEXTAREA:
@@ -1028,9 +1188,26 @@ app_plugin_panel_patch_row(
         }
         else if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
+        /* Outside the structured/legacy split above, because a dropdown's
+         * CAPTION is the same string whichever way its options are carried,
+         * and the degraded field the option pool falls back to still has one. */
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_LABEL )
+            ToriRSChrome_SetLabel(
+                &app->plugin_ui, row->widget,
+                model->label[0] ? model->label : model->id);
         break;
     case TORIRS_PANEL_WIDGET_BUTTON:
-        /* Button captions are declaration identity in ABI-21. */
+        /* A caption set through panel.set_text lands on the button: the
+         * tracker's Pause/Unpause flips here. The host journals the change
+         * and used to apply nothing, reporting OK. */
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
+            ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
+        /* And its availability, which panel.set_value journals as a VALUE
+         * change: a command that became servable has to become pressable on
+         * the page that is already there, not on the next rebuild. */
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_VALUE )
+            ToriRSChrome_SetDisabled(
+                &app->plugin_ui, row->widget, !model->value);
         break;
     case TORIRS_PANEL_WIDGET_LIST_ROW:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
@@ -1047,6 +1224,10 @@ app_plugin_panel_patch_row(
     case TORIRS_PANEL_WIDGET_ACTION_ROW:
         if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_TEXT )
             ToriRSChrome_SetText(&app->plugin_ui, row->widget, model->text);
+        if( change->flags & TORIRS_PLUGIN_PANEL_CHANGE_LABEL )
+            ToriRSChrome_SetLabel(
+                &app->plugin_ui, row->widget,
+                model->label[0] ? model->label : model->id);
         break;
     case TORIRS_PANEL_WIDGET_SEPARATOR:
     default:
@@ -1214,7 +1395,28 @@ app_plugin_panel_sync(struct App* app)
      * the generation-only reset in the draw pass. */
     app_plugin_panel_overlay_reset(
         app, panel_active >= 0 ? panel_generation : 0);
-    ToriRSChrome_PanelClearWidgets(&app->plugin_ui, app->plugin_panel);
+    /*
+     * The READER'S PLACE, carried across the rebuild.
+     *
+     * ClearWidgets takes the scroll to the top with the widget list, because
+     * for a page that CHANGED that is right. But the one legitimate rebuild
+     * the row model still has -- a detail block opened, a flag list grew, a
+     * heading arrived -- re-declares the SAME page, and sending it back to the
+     * top under whoever was reading it is the last piece of the flash the
+     * reconciler exists to remove. Restored only when the page is the same
+     * page: a different plugin's page, or the roster, has no place to keep.
+     */
+    {
+        int const keep_scroll =
+            g_plugin_page == g_plugin_page_scrolled
+                ? ToriRSChrome_PanelScroll(&app->plugin_ui, app->plugin_panel)
+                : 0;
+        ToriRSChrome_PanelClearWidgets(&app->plugin_ui, app->plugin_panel);
+        /* Not clamped here: the content it would be clamped against is the
+         * page just thrown away. The next Build clamps against the new one. */
+        ToriRSChrome_PanelSetScroll(&app->plugin_ui, app->plugin_panel, keep_scroll);
+        g_plugin_page_scrolled = g_plugin_page;
+    }
     g_plugin_back_widget = -1;
     g_plugin_fullscreen_widget = -1;
 
@@ -1947,6 +2149,12 @@ app_plugin_panel_apply(struct App* app, int widget)
                      custom_generation != app->plugin_panel_built_generation) ||
                     (custom_serial != 0 && custom_serial != row->widget_serial) )
                     return;
+                /* Same event, same fences, same coordinates -- the BUTTON is
+                 * the only difference, so it is the only thing decided here.
+                 * A well is one control, and a plugin whose strip has per-band
+                 * operations had no channel for them at all before this. */
+                if( ToriRSChrome_ActivationWasMenu(&app->plugin_ui) )
+                    action = TORIRS_PANEL_ACTION_MENU;
                 break;
 
             /* Readouts have no interactive ToriRSChrome primitive. */
@@ -3645,6 +3853,24 @@ app_plugin_panel_publish_layout(struct App* app)
      * plugins to stand down from duplicate game work. */
     game_visible = !(g_plugin_fullscreen &&
                      app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER);
+    /*
+     * Where the page is scrolled to, and any request to move it.
+     *
+     * Here rather than in the sync, because this is the function that already
+     * knows the selection generation both halves are fenced on -- and the
+     * publish happens BEFORE the take so a plugin reading `scroll` inside the
+     * callback its own scroll_to came from sees the place it was, not a
+     * half-applied one.
+     */
+    {
+        int wanted = 0;
+        PluginHost_PanelSetScroll(
+            app->plugins, generation,
+            ToriRSChrome_PanelScroll(&app->plugin_ui, app->plugin_panel) / scale);
+        if( PluginHost_PanelTakeScrollRequest(app->plugins, generation, &wanted) )
+            ToriRSChrome_PanelSetScroll(
+                &app->plugin_ui, app->plugin_panel, wanted * scale);
+    }
     return PluginHost_PanelLayout(
         app->plugins,
         generation,

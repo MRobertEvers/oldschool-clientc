@@ -198,21 +198,22 @@ PluginDraw_ImageFree(
     handle->value = 0;
 }
 
-static int
-plugin_draw_read_ini(
-    struct ToriRS_Api* api,
-    struct PluginDraw_Atlas* atlas,
-    char const* name)
+/*
+ * The glyph table, out of bytes somebody else fetched.
+ *
+ * Separate from the fetch because the two questions have different owners now:
+ * a plugin on the Porcelain layer reads a shipped file through
+ * Porcelain_Table, which owns the request, the retry and the one finding an
+ * absent file is worth -- and then has nothing to parse the bytes with. The
+ * only alternative was a second copy of this loop inside the plugin.
+ */
+int
+PluginDraw_AtlasParse(struct PluginDraw_Atlas* atlas, void const* bytes, size_t size)
 {
-    char file[TORIRS_PLUGIN_ASSET_NAME_MAX];
-    void const* bytes = NULL;
     char const* at;
-    size_t size = 0;
 
-    snprintf(file, sizeof(file), "%s.ini", name);
-    if( api->assets.request(api, file) != TORIRS_ASSET_READY ||
-        !api->assets.bytes(api, file, &bytes, &size) || !bytes || size == 0 )
-        return 0;
+    assert(atlas);
+    assert(bytes);
     at = bytes;
     for( char const* end = at + size; at < end; )
     {
@@ -245,6 +246,26 @@ plugin_draw_read_ini(
         }
     }
     return atlas->ready;
+}
+
+static int
+plugin_draw_read_ini(
+    struct ToriRS_Api* api,
+    struct PluginDraw_Atlas* atlas,
+    char const* name)
+{
+    char file[TORIRS_PLUGIN_ASSET_NAME_MAX];
+    void const* bytes = NULL;
+    size_t size = 0;
+
+    assert(api);
+    assert(atlas);
+    assert(name);
+    snprintf(file, sizeof(file), "%s.ini", name);
+    if( api->assets.request(api, file) != TORIRS_ASSET_READY ||
+        !api->assets.bytes(api, file, &bytes, &size) || !bytes || size == 0 )
+        return 0;
+    return PluginDraw_AtlasParse(atlas, bytes, size);
 }
 
 int

@@ -103,12 +103,22 @@ app_world_mouse_gate(
      * while a `noClickThrough` layer owns its own bounds. Overlay/tab mounts
      * stay transparent unless their own records raise that flag.
      */
-    if( app->tree && UITree_PointBlocksWorld(app->tree, &app->ui_host, mouse_x, mouse_y) )
-        return 0;
-    /* Clickable UI wins over the world; pass-through layers with hover scripts
-     * do not. */
-    if( app->tree && UITree_HitTestInteractive(app->tree, &app->ui_host, mouse_x, mouse_y) >= 0 )
-        return 0;
+    if( app->tree )
+    {
+        int ui_blocks_world = 0;
+        int32_t ui_interactive_hit = -1;
+        /* One collection, both answers. These are asked back to back at the same
+         * point, and with any plugin widget anchor present each of the two entry
+         * points is a whole ordered walk of the tree. */
+        UITree_PointQuery(
+            app->tree, &app->ui_host, mouse_x, mouse_y, &ui_blocks_world, &ui_interactive_hit);
+        if( ui_blocks_world )
+            return 0;
+        /* Clickable UI wins over the world; pass-through layers with hover
+         * scripts do not. */
+        if( ui_interactive_hit >= 0 )
+            return 0;
+    }
     /* Gate on the world WIDGET rect, not just its clip: an unclipped world
      * node inherits a full-canvas clip, which let sidebar/chat clicks count
      * as "in world" — right-clicking an inventory item offered "Walk here"

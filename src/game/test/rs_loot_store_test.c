@@ -86,6 +86,50 @@ test_add_kill_loot(void)
     LootStore_Free(&store);
 }
 
+/*
+ * What a row's `value` MEANS.
+ *
+ * It is the unit price -- `ObjType.cost` for one of them -- and never the
+ * stack's total, which is what the plugin API has documented it to be since
+ * the field existed. The store used to accumulate `value * qty` into it, and
+ * the one reader that follows the stated contract multiplied by the quantity a
+ * SECOND time: ten thousand coins at a cost of one came out of the Loot
+ * Tracker's totals band as a hundred million gp.
+ *
+ * MUTATION: `row->value = value * qty` on the create arm reddens the first
+ * assertion; `src->rows[i].value += value` on the merge arm reddens the third.
+ */
+static void
+test_row_value_is_the_unit_price(void)
+{
+    printf("TEST: a row's value is what ONE of them costs\n");
+
+    struct LootStore store;
+    LootStore_Init(&store);
+
+    /* Five thousand coins at a cache cost of one. */
+    LootStore_AddKillLoot(&store, "Goblin", 995, 5000, 1, 1);
+    TEST_ASSERT(store.source_count == 1, "one source");
+    TEST_ASSERT(store.sources[0].rows[0].qty == 5000, "five thousand of them");
+    TEST_ASSERT(
+        store.sources[0].rows[0].value == 1,
+        "and one gp each, not five thousand");
+
+    /* A second kill of the same pile. The quantities add up; the unit price is
+     * a property of the objtype and does not. */
+    LootStore_AddKillLoot(&store, "Goblin", 995, 5000, 1, 2);
+    TEST_ASSERT(store.sources[0].rows[0].qty == 10000, "ten thousand of them");
+    TEST_ASSERT(
+        store.sources[0].rows[0].value == 1,
+        "still one gp each after a merge");
+    TEST_ASSERT(
+        (long long)store.sources[0].rows[0].value * store.sources[0].rows[0].qty ==
+            10000,
+        "so the pile is worth ten thousand gp, not a hundred million");
+
+    LootStore_Free(&store);
+}
+
 /* ======================================================================== */
 /* 3. BeginQuery + QueryId (script 7166 read loop)                          */
 /* ======================================================================== */
@@ -448,6 +492,7 @@ main(void)
 {
     test_init_free();
     test_add_kill_loot();
+    test_row_value_is_the_unit_price();
     test_begin_query();
     test_row_access();
     test_aux_lists();
