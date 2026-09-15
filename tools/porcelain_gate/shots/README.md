@@ -449,6 +449,14 @@ BEFORE shot has a 15-stack of cannonballs in slot 4, because the unload put
 them back, and the AFTER has three items and no cannonballs, because they were
 fired.
 
+`cannon-thresholdonly-control.png` is the third leg, and it is what says the
+two causes above are INDEPENDENT rather than one cause said twice: the old
+`::cannon` + op-3 drive with `14176=10` added and nothing else. Its chat is the
+BEFORE's, to the line -- "You unload 15 cannonballs." then "Your cannon is out
+of ammunition!" -- and `grep -c PLUGIN_NOTIFY` on its log is 0. Writing the
+threshold is necessary and not sufficient; a drive that only ever drops to zero
+stays silent however the rows are set.
+
 **The general shape, which is not about cannons.** An edge-triggered plugin
 needs a drive that produces the EDGE, and "the state it reports is reached" is
 not the same claim. Emptiness was reached in every one of those 307 captures.
