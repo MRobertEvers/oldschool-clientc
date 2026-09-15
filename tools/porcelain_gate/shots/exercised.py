@@ -42,16 +42,44 @@ Two signals, because neither is sufficient alone:
         has diagnostics: that asymmetry is how the loot-beam lane defect was
         found, CS2 logging its beam count and CS1 logging nothing.
 
+  EMIT  whether a widget the plugin OWNS put a draw command in the exit draw
+        list. The only one of the three that is sound for a FRAME PROVIDER,
+        and the reason it exists:
+
+          * INK is zero by construction. gameframe-layout's Classic Fixed on a
+            2004 dat1 lane is a deliberate pixel-for-pixel reproduction of that
+            lane's own frame -- the geometry is copied from the lane's own
+            `[layout:fixed]` and the art is cut from the same media jagfile --
+            so the provider drawing the whole frame and the provider never
+            starting are THE SAME PICTURE, to 0 pixels outside the minimap.
+          * LOG is printed by the code that INTENDED the frame. The layout line
+            said "15 chrome pieces, 14 tabs" off a plan filled before the two
+            fences that can make a pass state nothing.
+
+        So a working provider was reported on this branch as reaching the
+        screen with nothing at all, and neither signal here could contradict
+        it. EMIT can: 56 of the plugin's own scene ids in the exit draw list is
+        the frame buffer's own answer. Needs a run with TORIRS_TRACE_NATIVE_UI
+        (for the OWNED_WIDGET lines) and TORIRS_DUMP_EMIT_EXIT=all.
+
 WHAT THIS CANNOT DO, stated because a check that overclaims is worse than none:
 performance-display, tile-indicator-c, nxt-highlight and screenshot print NO
-diagnostic line, so on a busy lane, whole-frame, neither signal decides and the
-verdict is UNCLEAR. That is a real state and NOT a pass -- re-run with --box for
-that plugin's region. Supplying per-plugin boxes is the completion of this tool
-and is not done yet.
+diagnostic line, so on a busy lane, whole-frame, neither of the first two
+signals decides and the verdict is UNCLEAR unless the run carried the emit
+traces. That is a real state and NOT a pass -- re-run with --box for that
+plugin's region. Supplying per-plugin boxes is the completion of this tool and
+is not done yet.
+
+EMIT does not name WHICH plugin owned the draw: the owner on an OWNED_WIDGET
+line is the host's numeric owner id and nothing in the log maps it to an id.
+pshot.sh runs one plugin at a time, which is what makes the answer that
+plugin's; a log from a run with several enabled is answering about all of them
+at once, and says so.
 """
 
 import argparse
 import os
+import re
 import sys
 
 from PIL import Image
@@ -84,6 +112,24 @@ def diff_in(a, b, box):
         for x in range(max(0, x0), min(width, x1))
         if pa[x, y] != pb[x, y]
     )
+
+
+def owned_draws(body):
+    """(owned scene ids, how many of them the exit draw list carries).
+
+    An owned graphic's picture is a `scene=` id on its OWNED_WIDGET line, and a
+    draw command that put that picture on the frame buffer carries the same id
+    on its EMIT_EXIT line. Scene 0 and -1 are "no picture" and name nothing.
+    """
+    owned = {
+        int(m)
+        for m in re.findall(r"^OWNED_WIDGET .* scene=(-?\d+) ", body, re.M)
+        if int(m) > 0
+    }
+    if not owned:
+        return owned, 0
+    drawn = [int(m) for m in re.findall(r"^EMIT_EXIT\[\d+\] .* scene=(-?\d+) ", body, re.M)]
+    return owned, sum(1 for scene in drawn if scene in owned)
 
 
 def main(argv):
@@ -132,31 +178,48 @@ def main(argv):
     # loot-beam lane defect was found (CS2 logged its beam count, CS1 logged
     # nothing at all).
     spoke = None
-    if args.log and args.plugin and os.path.exists(args.log):
+    drew_owned = None
+    if args.log and os.path.exists(args.log):
         with open(args.log, errors="ignore") as handle:
             body = handle.read()
-        spoke = f"[{args.plugin}]" in body
+        if args.plugin:
+            spoke = f"[{args.plugin}]" in body
+        owned, drawn = owned_draws(body)
+        if owned:
+            drew_owned = drawn
 
     name = os.path.basename(args.shot)
+    emit = "-" if drew_owned is None else str(drew_owned)
     if floor is None:
-        print(f"{name:34} differs={drew:6}  (no --control2: no floor, judge by eye)")
+        print(f"{name:34} differs={drew:6} emit={emit:5} (no --control2: no floor, judge by eye)")
         return 0
     # A plugin has to beat the animation by a clear margin in its own region,
     # not merely exceed it: the floor is itself a sample of a noisy quantity.
     ink = drew > max(floor * 2, floor + args.threshold)
-    if ink or spoke:
+    # EMIT decides in ONE direction and says so in the other. A draw command in
+    # the exit list is the frame buffer's own answer and settles it; none is
+    # not the mirror of that, because an owned picture is only half of what a
+    # plugin can put on screen -- a frame provider also MOVES the lane's own
+    # surfaces and RE-SKINS them, and neither leaves a scene id of its own.
+    if drew_owned:
+        verdict = "EXERCISED"
+    elif ink or spoke:
         verdict = "EXERCISED"
     elif spoke is False:
         verdict = "INERT"
     else:
         verdict = "UNCLEAR"
     said = "-" if spoke is None else ("said" if spoke else "silent")
-    print(f"{name:34} differs={drew:6} floor={floor:6} log={said:6} {verdict}")
+    print(f"{name:34} differs={drew:6} floor={floor:6} log={said:6} emit={emit:5} {verdict}")
     if verdict == "UNCLEAR":
         print("   Ink did not beat this lane's animation and no --log/--plugin was")
         print("   given. Re-run with --box for the plugin's own region, or with")
         print("   --log runs/<shot>/log.txt --plugin <id>. Do not read this as a pass.")
         return 0
+    if drew_owned == 0 and verdict == "EXERCISED":
+        print("   NOTE: this plugin owns pictures and not one of them is in the exit")
+        print("   draw list, so whatever reached the screen was its moves and skins")
+        print("   rather than its own art. Read the picture before believing it.")
     if verdict == "INERT":
         print("   Nothing this plugin drew beat the animation in its own region.")
         print("   Before reading the picture as a defect, check the DRIVE: did the")
