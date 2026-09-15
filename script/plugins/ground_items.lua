@@ -399,8 +399,16 @@ local OP_HIDE_OFF, OP_HIDE_ON = 2, 3
 -- wildcard the reference's list syntax has (WildcardMatchLoader).
 local PATTERN_MAGIC = "([%^%$%(%)%%%.%[%]%+%-%?])"
 
--- obj_id -> price, from the asset. Empty until it lands, and empty forever if
--- it is not shipped; the cache cost is the fallback either way.
+-- lower-cased item name -> price, from the asset. Empty until it lands, and
+-- empty forever if it is not shipped; the cache cost is the fallback either
+-- way.
+--
+-- By NAME, not by obj id, for the reason prices.txt now states at length: an
+-- id is a fact about one cache, and the table shipped keyed to cache.osrs239's
+-- while being read on every cache this client boots. It cost loot-beam every
+-- beam it could have raised on the dat1 lane -- this plugin got away with it
+-- only because its captions do not depend on an override landing. The two
+-- tables answer the same question and are kept in the same shape.
 local prices = {}
 local prices_count = 0
 local prices_settled = false
@@ -513,7 +521,8 @@ end
 
 -- The two prices the reference reasons about, for the whole stack.
 local function prices_of(obj)
-    local unit = prices[obj.obj_id] or obj.cost
+    local name = obj.name
+    local unit = (name and prices[string.lower(name)]) or obj.cost
     if obj.obj_id == COINS then return obj.count, obj.count end
     return unit * obj.count, (unit * HA_NUM // HA_DEN) * obj.count
 end
@@ -621,16 +630,25 @@ local function text_at(draw, x, y, s, colour, outline)
     draw.text(x, y, s, colour)
 end
 
--- Parse `obj_id=price` lines. Anything else -- blank lines, `#` comments, a
+-- Parse `name = price` lines. Anything else -- blank lines, `#` comments, a
 -- line we cannot read -- is skipped rather than failing the file: a price
 -- table is a convenience, and one bad row must not cost the plugin the other
 -- ten thousand. Never a refusal, so the verb never records one for the shape
 -- of a row; a file that is absent or unreadable is the verb's own finding.
+--
+-- LINE at a time, and the comment cut before the row is read: a name has
+-- spaces in it, and the old whole-file gmatch for two numbers around an equals
+-- also matched a commented-out row and any pair of numbers that fell either
+-- side of one in a sentence of prose.
 local function on_prices(text)
     prices, prices_count = {}, 0
-    for id, price in string.gmatch(text, "(%d+)%s*=%s*(%d+)") do
-        prices[tonumber(id)] = tonumber(price)
-        prices_count = prices_count + 1
+    for line in string.gmatch(text, "[^\r\n]+") do
+        local body = string.match(line, "^([^#]*)")
+        local name, price = string.match(body, "^%s*(.-)%s*=%s*(%d+)%s*$")
+        if name and name ~= "" then
+            prices[string.lower(name)] = tonumber(price)
+            prices_count = prices_count + 1
+        end
     end
     return true
 end

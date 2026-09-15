@@ -37,9 +37,29 @@
 --
 -- Value comes from ObjType.cost -- the cache's own number, what OC_COST reads.
 -- It is not a Grand Exchange price and the client has no way to know one, so
--- the plugin also reads an optional `prices.txt` asset: `obj_id=price` lines
+-- the plugin also reads an optional `prices.txt` asset: `name = price` lines
 -- that override the cache for the items whose cache value is nothing like
 -- their real one (the coin-value of a rune scimitar is not 25,600).
+--
+-- Keyed on the item's NAME, and that is the same lesson as the model above.
+-- The table used to be `obj_id = price`, and its own header said "Ids are for
+-- cache.osrs239" -- so on every other cache this client boots, a row either
+-- matched nothing or matched whatever item had inherited that number, which is
+-- a 25-million-gp beam over a bronze dagger and no line anywhere saying so.
+-- It was not a cosmetic scoping problem: an override is the ONLY thing that
+-- can lift a stack to these thresholds (a cache cost is a shop number, and no
+-- shop number reaches a million), so on the dat1 lane the table could not
+-- apply and therefore no beam could ever be raised at the shipped tier. That
+-- is what "loot beams do not work on LostCity" turned out to be -- measured:
+-- five stacks on the floor, the plane filter passing all five, values of
+-- 15,360 / 60,000 / 20,000 / 180 / 0 against a 1,000,000 threshold.
+--
+-- ground-items.lua reads the same floor and did not have the defect, because
+-- the tables that steer ITS output -- the highlight and hide lists -- are
+-- keyed on obj.name. That asymmetry is the whole of it. The ground-item
+-- snapshot carries `name` on every lane, dat1 and dat2 alike, so a name is
+-- what a price table keys on here too. An item a cache does not have simply
+-- never matches, which is the right answer instead of an accidental one.
 --
 -- What a beam is measured against is `value_mode`, and its default is the
 -- HIGH-ALCHEMY price rather than that raw cost, for the same reason
@@ -241,8 +261,10 @@ local beams            = {}
 -- an entry whose handle is nil, which is what makes "never asked" and "asked,
 -- and it will never arrive" two different states rather than one nil.
 local models           = {}
--- obj_id -> price, from the asset. Empty until it lands, and empty forever if
--- it is not shipped; the cache cost is the fallback either way.
+-- lower-cased item name -> price, from the asset. Empty until it lands, and
+-- empty forever if it is not shipped; the cache cost is the fallback either
+-- way. Lower-cased on both sides of the lookup so a table does not have to
+-- guess how a given cache capitalises "Abyssal whip".
 local prices           = {}
 -- Whether porcelain.open answered. Nothing here runs without it: see header.
 local layer            = false
@@ -257,9 +279,20 @@ local refused          = {}
 -- tick, so a packet burst that adds ten stacks rebuilds once and not ten
 -- times.
 local dirty            = true
--- Beams standing after the last rebuild, so the count is only reported when it
--- moves.
+-- Beams standing after the last rebuild, and the ground stacks they were
+-- chosen from, so the count line is only printed when one of the two moves.
+--
+-- The TALLY is half of that pair because of what the line is for. It used to
+-- be gated on the beam count alone, and the whole point of the line is to
+-- separate "nothing on the floor clears the threshold" from "beams exist and
+-- are not being drawn" -- which makes 0-beams-over-N-stacks the one reading it
+-- exists to give, and the one reading a live-only gate can never reach: live
+-- stays 0, so nothing prints, and a floor covered in loot is indistinguishable
+-- from an empty one. That is how this plugin came to be reported as drawing
+-- nothing on a lane where it was correctly drawing nothing.
 local live             = 0
+local reported_live    = 0
+local reported_tally   = 0
 -- The parse handed to porcelain.table, made once against the api it logs
 -- through: the verb calls it back with the bytes and nothing else.
 local prices_parse     = nil
@@ -377,10 +410,25 @@ local HA_NUM, HA_DEN   = 3, 5
 -- revision this client boots.
 local COINS            = 995
 
+-- The override for this item, or the cache's own cost.
+--
+-- A snapshot with no name is a legitimate runtime state -- a cache whose
+-- ObjType carries none -- and it prices from the cache, which is what an
+-- unnamed item would have done under any table.
+local function unit_price(obj)
+    local name = obj.name
+
+    if name then
+        local override = prices[string.lower(name)]
+        if override then return override end
+    end
+    return obj.cost
+end
+
 -- What this stack is worth under the configured mode. `alch` is the default;
 -- see the header.
 local function value_of(api, obj)
-    local unit = prices[obj.obj_id] or obj.cost
+    local unit = unit_price(obj)
     local exchange = unit * obj.count
     local alch = (unit * HA_NUM // HA_DEN) * obj.count
     local mode = api.config.value_mode
@@ -468,7 +516,6 @@ local function rebuild(api)
     local want = {}
     local order = {}
     local tally = 0
-    local before = live
 
     for obj in items(api) do
         if me and obj.level == me.level then
@@ -535,13 +582,16 @@ local function rebuild(api)
         end
     end
 
-    -- Only when the count moves. "No beams appear" is the report this plugin
-    -- will get, and it has two very different causes -- nothing on the floor
-    -- clears the threshold, or beams exist and are not being drawn. One line
-    -- separates them; a line per tick would bury both.
+    -- Only when the READING moves -- the beams or the floor they were chosen
+    -- from. "No beams appear" is the report this plugin will get, and it has
+    -- two very different causes -- nothing on the floor clears the threshold,
+    -- or beams exist and are not being drawn. One line separates them, and it
+    -- can only do that if a floor with loot on it and an empty one print
+    -- differently; a line per tick would bury both.
     live = 0
     for _ in pairs(beams) do live = live + 1 end
-    if live ~= before then
+    if live ~= reported_live or tally ~= reported_tally then
+        reported_live, reported_tally = live, tally
         api.core.log(live .. " beam(s) over " .. tally .. " ground stack(s)")
     end
 end
@@ -551,20 +601,34 @@ local function clear(api)
         api.scene.instance_destroy(beam.handle)
         beams[key] = nil
     end
-    live = 0
+    -- The reported pair goes with the beams: the next rebuild is against a
+    -- floor this plugin has said nothing about yet, so whatever it finds is
+    -- news. Both halves, or a world load into an identically-sized floor would
+    -- print nothing and the log would skip the new scene entirely.
+    live, reported_live, reported_tally = 0, 0, 0
 end
 
--- Parse `obj_id=price` lines. Anything else -- blank lines, `#` comments, a
+-- Parse `name = price` lines. Anything else -- blank lines, `#` comments, a
 -- line we cannot read -- is skipped rather than failing the file: a price
 -- table is a convenience, and one bad row must not cost the plugin the other
 -- ten thousand. Accepting the bytes is what makes porcelain.table release them
 -- and never ask again; the parsed table is all that stays resident.
+--
+-- LINE at a time, and the comment cut before the row is read. The old parser
+-- was one gmatch for `(%d+)%s*=%s*(%d+)` over the whole file, which could not
+-- see a line at all: a commented-out row still matched, and so did a pair of
+-- numbers that happened to fall either side of an equals in a sentence of
+-- prose. A name has spaces in it and cannot be found that way regardless.
 local function make_prices_parse(api)
     return function(text)
         local out, n = {}, 0
-        for id, price in string.gmatch(text, "(%d+)%s*=%s*(%d+)") do
-            out[tonumber(id)] = tonumber(price)
-            n = n + 1
+        for line in string.gmatch(text, "[^\r\n]+") do
+            local body = string.match(line, "^([^#]*)")
+            local name, price = string.match(body, "^%s*(.-)%s*=%s*(%d+)%s*$")
+            if name and name ~= "" then
+                out[string.lower(name)] = tonumber(price)
+                n = n + 1
+            end
         end
         prices = out
         api.core.log(PRICES_ASSET .. ": " .. n .. " price overrides")
@@ -578,6 +642,7 @@ end
 function plugin.on_start(api)
     beams, models, prices, refused = {}, {}, {}, {}
     dirty, live, tiers = true, 0, nil
+    reported_live, reported_tally = 0, 0
     layer = api.porcelain.open()
     if not layer then
         -- Out loud, once. The cadence, the tier rule, the terminal asset
