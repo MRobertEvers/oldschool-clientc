@@ -3,7 +3,12 @@
 manifests/
 # One run directory per shot: the log, the save, the bmp, and the prefs copy
 # each run gets so the client's write-back cannot leak into the next shot.
-runs/
+#
+# The glob, not the bare name, because TORIRS_SHOT_RUNS exists: a re-take of a
+# shot somebody else photographed sends its runs somewhere of its own rather
+# than overwriting the log that DATES the capture being replaced, and that log
+# is how the staleness was proved in the first place.
+runs*/
 # One prefs ini per shot, written by plugin_ini.sh from the plugin id in
 # jobs/*.txt. Sixty near-identical twenty-section files that are a function of
 # the jobs file, not of a commit; the jobs file is the record worth keeping.
