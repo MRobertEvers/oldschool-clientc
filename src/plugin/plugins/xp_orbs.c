@@ -1696,6 +1696,151 @@ orb_slot_origin(int origin_x, int origin_y, int index, int size, int gap, int ve
 }
 
 /**
+ * Do these two labels stand on any of the same rows?
+ *
+ * Only a pair that does can hide one another, and that is the whole reason
+ * the spread below is one rule rather than two: a VERTICAL column puts
+ * consecutive globes a pitch apart in y, so their labels share no row, every
+ * bound in the spread is already satisfied and not one of them moves.
+ */
+static bool
+orb_drop_shares_rows(struct OrbDropPlan const* label, struct OrbDropPlan const* other)
+{
+    assert(label);
+    assert(other);
+    return label->y < other->y + other->h && other->y < label->y + label->h;
+}
+
+/**
+ * The order the spread places labels in: left to right, and it cannot tie.
+ *
+ * x first, because that is the order the row reads in. Then the y of the
+ * climb, which separates two gains in the SAME skill -- they want the same x
+ * exactly. Then the drop slot, which is unique and which a live drop keeps
+ * until it expires, so the order is stable for as long as both labels are on
+ * screen. An order that could tie here is an order in which two labels swap
+ * places from one frame to the next and the row flickers.
+ */
+static bool
+orb_drop_before(
+    struct OrbDropPlan const* label,
+    int label_slot,
+    struct OrbDropPlan const* other,
+    int other_slot)
+{
+    assert(label);
+    assert(other);
+    if( label->x != other->x )
+        return label->x < other->x;
+    if( label->y != other->y )
+        return label->y < other->y;
+    return label_slot < other_slot;
+}
+
+/** The live labels' drop slots, in `orb_drop_before` order. @return how many. */
+static int
+orb_drop_order(struct OrbPlan const* plan, int* out_order)
+{
+    int count = 0;
+
+    assert(plan);
+    assert(out_order);
+    for( int i = 0; i < ORB_DROP_MAX; i++ )
+        if( plan->drop[i].live )
+            out_order[count++] = i;
+    for( int i = 1; i < count; i++ )
+    {
+        int const hold = out_order[i];
+        int at = i - 1;
+
+        while( at >= 0 &&
+               orb_drop_before(&plan->drop[hold], hold, &plan->drop[out_order[at]], out_order[at]) )
+        {
+            out_order[at + 1] = out_order[at];
+            at--;
+        }
+        out_order[at + 1] = hold;
+    }
+    return count;
+}
+
+/**
+ * Pull the floating labels apart, so that no number is painted over by the
+ * one beside it.
+ *
+ * A label is as wide as its digits and the column's pitch is fixed at
+ * `size + gap`. "Centred under its globe" is therefore only readable while
+ * the number is NARROWER than that pitch, and the numbers a player actually
+ * sees are not: a quest paying 100,000 xp measures 51px against the default
+ * 50px pitch, and `~maxme`'s +13,034,431 measures 59. Five of those lose nine
+ * pixels each, which is the last digit and half of the one before it -- and
+ * they are not lost to background, they are overpainted by the NEXT skill's
+ * label in the NEXT skill's colour, so the number does not read as truncated,
+ * it reads as a different number in a lie about which skill earned it.
+ *
+ * Two gains in one skill are the same defect on the other axis: they want the
+ * same x exactly and are separated only by the 12px climb, so a second gain
+ * 200ms after the first lands two pixels below it.
+ *
+ * So the row is spread FROM ITS MIDDLE. The middle label keeps the place it
+ * wanted; each label outwards from there is moved out only as far as it takes
+ * to clear every already-placed label that shares its rows. Spreading from
+ * the middle rather than sweeping from one end is what keeps the displacement
+ * symmetric -- five 59px labels on a 50px pitch move -18, -9, 0, +9, +18 --
+ * so the row stays centred on the column it belongs to instead of drifting
+ * off one end of it.
+ *
+ * Every bound is a max/min against a label this one genuinely overlaps, so an
+ * ordinary gain ("+312", 23px) is placed exactly where it was before: this
+ * changes nothing at all until two numbers would otherwise be one.
+ */
+static void
+orb_drop_spread(struct OrbPlan* plan)
+{
+    int order[ORB_DROP_MAX];
+    int count;
+    int middle;
+
+    assert(plan);
+    count = orb_drop_order(plan, order);
+    if( count < 2 )
+        return;
+
+    /* Outwards from the middle. Everything between `i` and `middle` is already
+     * placed, and nothing on the far side of `middle` can reach back across
+     * it, so one pass per side settles the whole row. */
+    middle = count / 2;
+    for( int i = middle - 1; i >= 0; i-- )
+    {
+        struct OrbDropPlan* slot = &plan->drop[order[i]];
+
+        for( int j = i + 1; j <= middle; j++ )
+        {
+            struct OrbDropPlan const* placed = &plan->drop[order[j]];
+
+            if( !orb_drop_shares_rows(slot, placed) )
+                continue;
+            if( slot->x + slot->w > placed->x )
+                slot->x = placed->x - slot->w;
+        }
+    }
+    for( int i = middle + 1; i < count; i++ )
+    {
+        struct OrbDropPlan* slot = &plan->drop[order[i]];
+
+        for( int j = middle; j < i; j++ )
+        {
+            struct OrbDropPlan const* placed = &plan->drop[order[j]];
+
+            if( !orb_drop_shares_rows(slot, placed) )
+                continue;
+            if( slot->x < placed->x + placed->w )
+                slot->x = placed->x + placed->w;
+        }
+    }
+}
+
+/**
  * Everything that should exist this frame, worked out once.
  *
  * @return the hash of the plan, which is what decides whether the description
@@ -1883,6 +2028,12 @@ orb_plan(struct XpOrbState* state, struct OrbViewport const* viewport, uint64_t 
         slot->picture.rgb = (int32_t)orb_skill_rgb(api, drop->skill);
         slot->picture.art = state->art;
     }
+    /* Each label above was placed knowing only its own globe, which is all a
+     * label under a narrow number needs. What NO label can answer on its own
+     * is whether the number beside it is wide enough to reach across; that is
+     * a property of the row, so it is settled once, here, with the whole row
+     * in hand. @see orb_drop_spread. */
+    orb_drop_spread(plan);
 
     /* The tooltip: its rows on a gate, its position every frame. */
     if( hovered_slot >= 0 && orb_cfg_bool(api, "enable_tooltips") && g_glyph_ready )
