@@ -1030,11 +1030,26 @@ orbs_picture(
         out->filled = energy;
         out->total = 100;
         out->inactive = !running;
+        /*
+         * Inactive changes the COLOUR of the meter, never its reading.
+         *
+         * The grey plate at trans 50 is the reference's "this orb has no
+         * operation right now". How much of the disc is filled, and which row
+         * of the digit ramp the number is tinted from, are both `filled` over
+         * `total` -- and an orb whose button is dead still holds exactly as
+         * much energy as it did a frame earlier. The line that used to sit
+         * here, `out->filled = out->total`, said otherwise: it capped nothing
+         * with fill_empty and picked the ramp's last row, pure green, so a
+         * walking player at 43 energy and an unarmed 70% special both drew a
+         * full green orb over a number that was not full. That is precisely
+         * what orbs_paint's own comment forbids -- "the orb must never read
+         * as full when it is not" -- and it was invisible on the run orb only
+         * because every capture in the tree happens to sit at 100.
+         *
+         * The special orb below carries the same rule for the same reason.
+         */
         if( out->inactive )
-        {
             out->fill_image = ORB_IMG_FILL_GREY;
-            out->filled = out->total;
-        }
         return true;
     }
 
@@ -1056,11 +1071,9 @@ orbs_picture(
         out->filled = energy;
         out->total = spec_max;
         out->inactive = !action_available;
+        /* Grey, and still the real reading: see the run orb above. */
         if( out->inactive )
-        {
             out->fill_image = ORB_IMG_FILL_GREY;
-            out->filled = out->total;
-        }
         return true;
     }
 }
