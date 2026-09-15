@@ -3487,7 +3487,6 @@ frame_loop_teardown(void)
                  */
                 sim_render_frame(&app);
             }
-            free(hov_pixels);
             TORIRS_LOG(
                 "sim_hover: parked at %d,%d hover_com_id=%d\n", hov_x, hov_y, app.hover_com_id);
         }
