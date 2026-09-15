@@ -50,3 +50,12 @@ cannon-live        nxt-cannon-ammo     cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;
 # readable chat pane can afford it.
 xporbs-live        xp-drop-orbs        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;1000,~maxme' TORIRS_MAX_FRAMES=2200
 xptracker-live     xp-tracker          cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;1000,~maxme' TORIRS_SIM_PLUGIN_PANEL=1600,xp-tracker,page TORIRS_MAX_FRAMES=2200
+
+# Coins on their own, with the hide exception that makes them visible.
+#
+# `hidden_items` defaults to RuneLite's own list -- "Vial, Ashes, Coins,
+# Bones, ..." -- so a coin pile draws NO caption out of the box and its
+# absence looks exactly like the old defect where a pile was worth nothing.
+# It is not: it is the reference's default, and the way to photograph coins
+# is to except them, not to "fix" the filter.
+gi-coins-live      ground-items        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;1200,~torirscoins' TORIRS_MAX_FRAMES=2200 -- hide_exceptions=Coins

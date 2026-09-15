@@ -14,34 +14,51 @@
 # All plugins on. The AFTER must show every owned control back on the new
 # toplevel; a port with no re-parent arm loses the lot and the picture is a
 # bare frame.
-remount-548-before all cs2       TORIRS_MAX_FRAMES=600
-remount-548-after  all cs2       'TORIRS_SIM_CMD=500,layout 1' TORIRS_MAX_FRAMES=900
-remount-161-after  all classic161 'TORIRS_SIM_CMD=500,layout 2' TORIRS_MAX_FRAMES=900
-remount-164-after  all modern164  'TORIRS_SIM_CMD=500,layout 0' TORIRS_MAX_FRAMES=900
+remount-548-before all cs2       TORIRS_MAX_FRAMES=600 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+remount-548-after  all cs2       'TORIRS_SIM_CMD=500,layout 1' TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+remount-161-after  all classic161 'TORIRS_SIM_CMD=500,layout 2' TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+remount-164-after  all modern164  'TORIRS_SIM_CMD=500,layout 0' TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 
 # --- 2. Enable and disable a plugin while its controls are on screen ---------
-# minimap-orbs owns four covers over native orbs; gameframe-layout owns the
-# whole frame. Switching either off must remove what it owns and leave the
-# lane's own furniture behind, not a hole.
-toggle-orbs-on     all cs2 TORIRS_MAX_FRAMES=700
-toggle-orbs-off    all cs2 TORIRS_SIM_PLUGIN_TOGGLE=500,minimap-orbs,0 TORIRS_MAX_FRAMES=900
-toggle-orbs-back   all cs2 'TORIRS_SIM_PLUGIN_TOGGLE=500,minimap-orbs,0;700,minimap-orbs,1' TORIRS_MAX_FRAMES=1100
-toggle-frame-off   all cs2 TORIRS_SIM_PLUGIN_TOGGLE=500,gameframe-layout,0 TORIRS_MAX_FRAMES=900
-toggle-frame-back  all cs2 'TORIRS_SIM_PLUGIN_TOGGLE=500,gameframe-layout,0;700,gameframe-layout,1' TORIRS_MAX_FRAMES=1100
+# minimap-orbs owns four covers over the lane's native orbs. Switching it off
+# must remove them and leave the lane's own orbs behind, not a hole.
+#
+# TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all is what makes this checkable. The covers are a
+# faithful reproduction of the art they sit on, so ON and OFF are very nearly
+# the same PICTURE and a pixel diff cannot tell "the covers went away and the
+# native ones showed" from "the covers are still there" -- it reads 0.0% for
+# both. The OWNED_WIDGET lines say who owns what, which is the actual question.
+toggle-orbs-on     all cs2 TORIRS_MAX_FRAMES=700 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+toggle-orbs-off    all cs2 TORIRS_SIM_PLUGIN_TOGGLE=500,minimap-orbs,0 TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+toggle-orbs-back   all cs2 'TORIRS_SIM_PLUGIN_TOGGLE=500,minimap-orbs,0;700,minimap-orbs,1' TORIRS_MAX_FRAMES=1100 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+# Two more owners, to show a teardown is not special to the orbs.
+toggle-tile-off    all cs2 TORIRS_SIM_PLUGIN_TOGGLE=500,tile-indicator-c,0 TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+toggle-perf-off    all cs2 TORIRS_SIM_PLUGIN_TOGGLE=500,performance-display,0 TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+
+# A FRAME PROVIDER HAS NO SUCH SWITCH, and that is deliberate, not a gap:
+# PluginHost_SetEnabled returns early for one ("its runtime state is derived
+# from the one Gameframe preference; it deliberately has no independent
+# checkbox"). Driving TORIRS_SIM_PLUGIN_TOGGLE at it reports applied=1 -- the
+# index resolved -- and changes nothing, which reads exactly like a provider
+# that refused to tear down. preferred_frame is the switch, so these two ask
+# the question the supported way: the same client, one with the provider and
+# one without.
+frame-provider-on  all cs2 TORIRS_MAX_FRAMES=700 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+frame-provider-off all cs2 TORIRS_SHOT_FRAME=auto TORIRS_PLUGIN_ONLY=none TORIRS_MAX_FRAMES=700 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 
 # --- 3. Window resize: the canvas moves under every anchored control ---------
-resize-before      all modern164 TORIRS_MAX_FRAMES=600
-resize-after       all modern164 TORIRS_SIM_RESIZE=500,1024x700 TORIRS_MAX_FRAMES=900 TORIRS_SHOT_WINDOW=1024x700
+resize-before      all modern164 TORIRS_MAX_FRAMES=600 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+resize-after       all modern164 TORIRS_SIM_RESIZE=500,1024x700 TORIRS_MAX_FRAMES=900 TORIRS_SHOT_WINDOW=1024x700 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 
 # --- 4. Two plugins reaching for the same surface ----------------------------
 # Both tile indicators draw the same tile; both orb plugins want the orb column.
-pair-tiles         all cs2 TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=700
-pair-orbs          all cs2 'TORIRS_SIM_CMD=660,setlevel 10 45' TORIRS_MAX_FRAMES=800
+pair-tiles         all cs2 TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=700 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+pair-orbs          all cs2 'TORIRS_SIM_CMD=660,setlevel 10 45' TORIRS_MAX_FRAMES=800 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 
 # --- 5. Panel over panel: open one page while another is open ----------------
-panel-single       all cs2 TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_MAX_FRAMES=900
-panel-over-panel   all cs2 'TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page;700,xp-tracker,page' TORIRS_MAX_FRAMES=1000
+panel-single       all cs2 TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+panel-over-panel   all cs2 'TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page;700,xp-tracker,page' TORIRS_MAX_FRAMES=1000 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
 
 # --- 6. Frame provider switched at runtime, desktop <-> touch ----------------
-provider-desktop   all cs2     TORIRS_MAX_FRAMES=700
-provider-stone     all stone601 TORIRS_MAX_FRAMES=700
+provider-desktop   all cs2     TORIRS_MAX_FRAMES=700 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+provider-stone     all stone601 TORIRS_MAX_FRAMES=700 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all

@@ -1,0 +1,10 @@
+# The seven CS2 states the main sweep did not name, re-captured after the
+# chat-strip fix. They were left behind at the pre-fix binary and still carried
+# the doubled bar -- a stale shot in a PR is indistinguishable from a live one.
+birdnest-off-cs2  nxt-bird-nest      cs2 TORIRS_SIM_VARBIT=450,13087,1 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1' TORIRS_TRACE_NATIVE_UI=1
+loottracker-none-cs2 loot-tracker    cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+loottracker-loot-600-cs2 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page 'TORIRS_SIM_CMD=200,lootkill Goblin 995 5000;210,lootkill Goblin 526 1' TORIRS_TRACE_NATIVE_UI=1
+tile-c-all-cs2    tile-indicator-c   cs2 TORIRS_SIM_CLICK_AT=620,120,300 TORIRS_SIM_MOVE_AT=640,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
+tile-lua-all-cs2  tile-indicator-lua cs2 TORIRS_SIM_CLICK_AT=620,120,300 TORIRS_SIM_MOVE_AT=640,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
+tileind-c-nohover-cs2   tile-indicator-c   cs2
+tileind-lua-nohover-cs2 tile-indicator-lua cs2
