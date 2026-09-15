@@ -660,6 +660,11 @@ static int g_missing_sidetab = -1;
 /** Whether the lane's chat backing draws a picture of its own. @see fw_build. */
 static int g_backing_has_art = 1;
 
+/** Whether the chat pack's filter ROW has laid itself out yet. A pack mounts
+ *  several frames before its children have boxes, so a fence that finds no row
+ *  is ordinary and not an error. @see fw_build. */
+static int g_chat_row_laid_out = 1;
+
 static void
 fw_build(int oldschool)
 {
@@ -686,8 +691,23 @@ fw_build(int oldschool)
          * not, and that is the whole of why a re-skin lands on one and is
          * refused on the other. @see g_backing_has_art. */
         g_w[fw_add(root, "chat_backing", -1, 0, 338, 519, 142)].graphic = g_backing_has_art;
-        fw_add(root, "chat_bar", -1, 0, 480, 519, 23);
-        for( int i = 0; i < 8; i++ ) fw_add(root, "chat_plate", i, 5 + i * 62, 480, 56, 22);
+        /*
+         * The filter row and the picture it draws first, at the two boxes the
+         * LANE states -- which are not the same width, and that is the point.
+         *
+         * `chat_controls` (162|1) is the strip the eight plates hang under and
+         * measures 461 wide; `chat_bar` (162|3) is the stone picture inside it
+         * and answers 519, the whole PACK's width, so the node the frame is
+         * asked to dress overhangs its own container by 58 px. Taken from a
+         * 765x503 stone601 capture: controls 58,471 461x28, bar 58,473 519x23,
+         * plates 65 + i*65, 474 58x24. The fake kept both at x=0 and 519 wide,
+         * so the overhang -- the only reason this frame clamps anything -- was
+         * not in the fixture at all and every clamp here was untested.
+         */
+        if( g_chat_row_laid_out )
+            fw_add(root, "chat_controls", -1, 58, 478, 461, 28);
+        fw_add(root, "chat_bar", -1, 58, 480, 519, 23);
+        for( int i = 0; i < 8; i++ ) fw_add(root, "chat_plate", i, 65 + i * 62, 480, 56, 22);
     }
 }
 static int fw_find(char const* role, int member)
@@ -1354,15 +1374,84 @@ main(void)
      */
     {
         struct FakeWidget const* bar = native("chat_bar", -1);
+        struct FakeWidget const* strip = native("chat_controls", -1);
         struct FakeWidget const* rock = owned("bar-rock");
         CHECK(bar && rock && rock->image >= 0,
               "the 2004 rock is also a picture this frame owns, not only a re-skin");
-        CHECK(rock && owned_at("bar-rock", bar->x, bar->y) && rock->w == bar->w &&
-                  rock->h == bar->h,
-              "it covers exactly the bar the lane authored");
+        CHECK(rock && owned_at("bar-rock", bar->x, bar->y) && rock->h == bar->h,
+              "it starts at the bar the lane authored and is as tall as it");
+        /*
+         * And it STOPS where the filter row stops, 58 px short of where the
+         * bar node says the bar ends.
+         *
+         * The bar's own node carries the whole pack's 519 rather than the 461
+         * of the strip it is the backdrop for, so a rock cut to the bar's own
+         * width is 58 px of opaque 2004 stone -- two socket hollows of it --
+         * standing past the last filter with nothing in it, on the 3D floor.
+         * That is exactly what stone601 showed. The clamp is the FRAME's, not
+         * the lane's, because the lane gets away with the number by painting
+         * that band translucent.
+         *
+         * Clamped to the ROW and not to the pack: the pack's right edge gives
+         * the same answer only while both boxes come from one settled layout,
+         * and on a boot fence of this lane the pack read `11,0 519x165` while
+         * the bar read `0,480 519x23` -- pack_right 530, bar right 519, no
+         * clamp, a 519-wide slab described. Parent and child cannot disagree
+         * that way.
+         *
+         * MUTATION: drop the clamp. Red: the rock is 519 wide and runs past
+         * the strip by the two hollows the capture shows.
+         *
+         * Clamping to PORCELAIN_EL(CHAT) instead, which is what this used to
+         * do, is GREEN here and stays green in any fixture worth writing: on a
+         * settled 601 tree the pack's right edge and the row's are the same
+         * number. That is the whole trap, and it is not a thing a settled
+         * fixture can catch -- what catches it is the fence below, where the
+         * row has no box and the pack still has one.
+         */
+        CHECK(strip && rock && rock->w == strip->x + strip->w - bar->x,
+              "and stops at the filter row's right edge, not at the bar node's");
+        CHECK(strip && rock && rock->w < bar->w,
+              "which is narrower than the bar node claims, or there is nothing to clamp");
         CHECK(rock && rock->anchor_relation == TORIRS_WIDGET_RELATION_BEHIND &&
                   rock->anchor_target == fw_find("chat", -1),
               "behind the whole pack, so the captions and the mode lines stay on top of it");
+    }
+
+    /*
+     * A fence that cannot say how wide the filter row is draws NO rock.
+     *
+     * The pack mounts several frames before its children carry boxes, and the
+     * bar's own node is one of the ones that answers early -- with the whole
+     * pack's 519. The clamp used to be written `if( the pack has a width )`,
+     * which made "I cannot measure the strip" and "the strip is 519 wide" the
+     * same branch: the fence painted the rock UNCLAMPED, and what stood on
+     * screen was the 58 px slab this test's fixture is built around.
+     *
+     * Waiting is one frame. Guessing is a slab, and on a fence that turns out
+     * to be the last one before the inputs settle, a permanent one.
+     *
+     * MUTATION: consult the row only when it has a box, the way the pack used
+     * to be consulted. Red: a bar-rock is described with nothing to clamp it.
+     */
+    {
+        g_chat_row_laid_out = 0;
+        fw_build(/*oldschool=*/1);
+        PluginHost_WidgetsChanged(g_host, 77, 6);
+        declare(M_W, M_H);
+        CHECK(owned("bar-rock") == NULL,
+              "no filter row, no rock -- the frame waits for the fence that can measure it");
+        g_chat_row_laid_out = 1;
+        fw_build(/*oldschool=*/1);
+        PluginHost_WidgetsChanged(g_host, 77, 7);
+        declare(M_W, M_H);
+        {
+            struct FakeWidget const* strip = native("chat_controls", -1);
+            struct FakeWidget const* bar = native("chat_bar", -1);
+            CHECK(strip && bar && owned("bar-rock") &&
+                      owned("bar-rock")->w == strip->x + strip->w - bar->x,
+                  "and cuts it to the row on the fence the row arrives");
+        }
     }
 
     /*
@@ -1381,7 +1470,7 @@ main(void)
     {
         g_backing_has_art = 0;
         fw_build(/*oldschool=*/1);
-        PluginHost_WidgetsChanged(g_host, 77, 6);
+        PluginHost_WidgetsChanged(g_host, 77, 8);
         declare(M_W, M_H);
         CHECK(native("chat_backing", -1) && native("chat_backing", -1)->art < 0,
               "a backing that draws no picture of its own is not re-skinned");
