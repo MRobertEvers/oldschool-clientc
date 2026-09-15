@@ -205,3 +205,41 @@ be, and `*-nohover-*.png` is the same plugin without it.
 
 One correction to the openers table above: `TORIRS_SIM_CLICK_AT` is
 `frame,x,y[,right]`, frame FIRST, not `x,y,<tick>`.
+
+### The two defects the photographs found, and their own pairs
+
+Two rows are named after what was wrong rather than after a lane, because the
+lane they were found on is not the only one they were on.
+
+**`*-chatstrip-548.png` — two chat bars on an OldSchool toplevel.** The 2004
+frame's filter strip stood below the pack's own filter row, showing its
+parchment lip and then a band of dark sockets. The sockets were not the
+strip's four hollows: they were `classic_base_flat`, a picture composed to
+COVER those hollows, which tiled twenty-nine columns of the strip and so
+repeated the first hollow's cast shadow eighteen and a half times. There is no
+run of plain rock in that strip to tile instead. The AFTER seats the pack on
+the strip — 357 + 96 + 50 = 503, which also puts its bar on row 480, where
+interface 548 puts that same bar on its own frame — and the composed band is
+retired, because nothing is left for it to cover.
+
+**`chatstrip-548-control.png` — who draws what, in one picture.** The same
+hundred rows on four lanes: `native548` with no provider at all, `classic548`
+before and after, and the CS1 lane as the reference. It is here because the
+first reading of the BEFORE shot was that the provider had put PLATES where
+the frame wants hollows. The control says the opposite. With no provider the
+eight filters are the OldSchool pack's own raised plates on a dark bar, and
+there is no second band at all; the provider is what turns them into 2004
+hollows. Only the band below them was the provider's doing. The two lanes are
+not pixel-identical in that region either: mean absolute difference 70.85
+before the fix, 36.20 after.
+
+**`*-remount-548-from-164.png` — the eighth gate lane's own end state.** These
+two are IDENTICAL, and that is the point worth recording: the defect the lane
+exists for lives in ONE fence, the one where the frame root becomes 548 while
+the roles still answer the dying tree's nodes, and the frame converges either
+way within a few frames. It cannot be photographed by stopping the client at a
+chosen frame, because the switch is a server answer and does not land on a
+fixed frame number — two runs of the same binary put it four frames apart, and
+the client's own reload screen sits in the middle of the window. What DOES see
+it is the findings channel the gate already compares: twenty-five
+STALE_REFERENCE refusals in that fence before, none after.

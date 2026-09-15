@@ -1,5 +1,5 @@
 #!/bin/zsh
-# The six permutations every Porcelain port is judged on.
+# The eight permutations every Porcelain port is judged on.
 #
 #   capture_set.sh <outdir> <binary> [worktree]
 #
@@ -67,7 +67,25 @@ $here/lane.sh $out dat1_254   $bin 0 auto                              0 $M/mani
 TORIRS_GATE_SIM_CMD='500,layout 2' \
 $here/lane.sh $out remount164 $bin 0 gameframe-layout/classic-fixed    0 $M/manifest_osrs239_curses.ini
 
-for t in native548 classic548 classic161 modern164 stone601 dat1_254 remount164; do
+# And the same switch the OTHER way, because a remount is not symmetric and the
+# lane above could not see it.
+#
+# 548 to 164 replaces a fixed toplevel with a resizable one, and the only thing
+# that went stale was one of the plugin's OWN controls -- which the layer
+# already absorbs and repairs. 164 to 548 replaces a floating panel with a
+# frame that owns the whole right column, and there it is the LANE's nodes that
+# die under the description: measured on this lane before it existed,
+# twenty-five stale references in one fence -- every live-surface move, all
+# fourteen sidebar mounts, the three orb members, the panel backing's opacity
+# and the left pillar's creation -- and a frame drawn with the old toplevel's
+# collapsed geometry standing on the new one.
+#
+# Same frame, same offer, same 500-of-620 split as its twin: only `mode` and
+# the command differ, which is what makes the pair a pair.
+TORIRS_GATE_SIM_CMD='500,layout 0' \
+$here/lane.sh $out remount548 $bin 2 gameframe-layout/modern-resizable 0 $M/manifest_osrs239_curses.ini
+
+for t in native548 classic548 classic161 modern164 stone601 dat1_254 remount164 remount548; do
   printf "%-12s exit=%s bounds=%s roles=%s owned=%s\n" $t \
     "$(cat $out/$t/exit-status)" \
     "$(grep -c '^BOUNDS' $out/$t/log.txt)" \

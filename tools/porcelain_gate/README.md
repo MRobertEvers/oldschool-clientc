@@ -1,17 +1,17 @@
 # The port gate
 
-Six captures, one comparison. A plugin ported to Porcelain must do exactly what
-it did before on every lane, and this is what decides whether it did.
+Eight captures, one comparison. A plugin ported to Porcelain must do exactly
+what it did before on every lane, and this is what decides whether it did.
 
 ```
 zsh tools/porcelain_gate/capture_set.sh <outdir> <binary> [worktree]
 python3 tools/porcelain_gate/gate_diff.py <baseline>/<lane>:<outdir>/<lane> ...
 ```
 
-Pass all six pairs to one `gate_diff.py` invocation. It prints a verdict per
+Pass all eight pairs to one `gate_diff.py` invocation. It prints a verdict per
 lane and one for the set, and exits non-zero if any lane failed.
 
-## The six lanes, and why these six
+## The eight lanes, and why these eight
 
 | tag | layout mode | frame | what it covers |
 |---|---|---|---|
@@ -22,8 +22,9 @@ lane and one for the set, and exits non-zero if any lane failed.
 | `stone601` | 0 | stone-drawer | the touch provider, `TORIRS_CLIENTTYPE=7` |
 | `dat1_254` | 0 | auto | the CS1/RevConfig lane, offline |
 | `remount164` | 0 | classic-fixed | switches layout at frame 500: does the port survive its parent dying |
+| `remount548` | 2 | modern-resizable | the same switch the other way: 164 to 548 |
 
-Six are CS2 and one is CS1, which is the split that matters: a change that
+Seven are CS2 and one is CS1, which is the split that matters: a change that
 works only because it read a dat2 fact fails `dat1_254` and nothing else.
 
 `remount164` exists because a regression got past the other six. A port can be
@@ -32,6 +33,20 @@ moment the frame root is replaced, because the layer moves a control through
 its setters and had no arm that re-created one whose parent died. Six captures
 that never remount anything cannot see that. This one switches layout half way
 through and leaves 120 frames for the description to come back.
+
+`remount548` is its mirror, and it is a separate lane rather than a second
+assertion on the first because **a remount is not symmetric**. Going 548 to
+164 replaces a fixed toplevel with a floating one and the only thing that went
+stale was one of the plugin's OWN controls, which the layer already absorbs and
+repairs -- `remount164` was tuned on exactly that and reports nothing else.
+Going 164 to 548 replaces the floating panel with a frame that owns the whole
+right column, and there it is the LANE's nodes that die under a description
+still being written: twenty-five stale references in one fence, and a frame in
+which the old toplevel's collapsed tab strips stood on the new one. Every one
+of those was invisible to seven lanes that only ever switched the other way.
+The frame root is what moves first on such a switch, earlier than any
+element's incarnation, which is why this lane can be red while every static
+lane and its own twin are green.
 
 **A set can exit 0 on every lane and still be worthless.** If the embedded
 server refuses a stale script pack the client never gets a root, and the lanes
@@ -90,6 +105,8 @@ that matches every line there is.
 ```
 owned-drop  orb_hitpoints = a skill with no reading gets no orb; the empty
                             control was the defect the ledger names
+owned-move  camera_report = the screenshot button sits above the chat bar and
+                            went with it when the bar moved
 only-before BOUNDS com=0x02240015 = the same row, said about the capture line
 normalise   scene = the image slot is an internal handle, and handing back the
                     write-once source art renumbers what comes after it
@@ -108,8 +125,13 @@ port changes on purpose. Those last two are the same argument as `only-after`,
 said about the plugin's own controls: a fix whose whole job is to put back a
 picture the frame was missing, or to move the frame's own furniture off the
 window's last row, has nothing to say under a vocabulary that can only excuse
-a control going away. `normalise` strips `<name>=<value>` from every tail
-before comparing.
+a control going away. `owned-move` is also the twin of `role-move`, and the
+one kind a port that MOVES a native surface cannot do without: another
+plugin's control that follows that surface changes its box, and every other
+kind here is about capture lines or roles. The kinds are not interchangeable:
+`owned-move` on a control that actually vanished excuses nothing and is
+reported stale as well, which is both halves of the rule below firing at once.
+`normalise` strips `<name>=<value>` from every tail before comparing.
 
 A declaration is not a suppression, and three rules keep it from becoming one:
 
@@ -169,7 +191,7 @@ handled; the symptom when it was not was six lanes exiting 1 with no log file.
 
 **Run whole sets.** A single-lane rerun under load is not deterministic. An
 isolated `stone601` rerun of an *unchanged* plugin has been observed to drop a
-control entirely and shift 58 scene ids. Six lanes run sequentially are stable;
+control entirely and shift 58 scene ids. Eight lanes run sequentially are stable;
 one lane run on a busy machine is not. Judge a set, never a lane.
 
 ## Data versus code

@@ -676,32 +676,43 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
             raise ValueError("rs289lc requires its matching native trace")
         check_rs289(rows, Path(bounds_path).read_text(), failures, rs289_scenario, frame, public_chat_mode, report_replaced)
         return failures
-    if frame == "gameframe-layout/classic-fixed":
-        # The approved plain-rock band spans x=0..495, y=467..498.
-        # Its 29-column source repeats without any of the four old recesses.
-        # Checking all repeats also catches partially covered/late old art.
-        # Mobile puts its message area below the filters, covering part of
-        # this strip. Test the exposed rock, not the chat painted over it.
-        backing = None
+    if frame == "gameframe-layout/classic-fixed" and root != 601:
+        # The 2004 filter band -- rows 467..498, where the four dat1 recesses
+        # are cut -- must be BEHIND the lane's chat pack, not beside it.
+        #
+        # This rule used to say the opposite. It asserted that those rows WERE
+        # a 29-column source tile repeated across the strip, which is what the
+        # provider composed there to cover the four recesses the CS2 pack's
+        # own filters made redundant. That tile never covered them: its 29
+        # columns start at the first recess's right-hand shadow, so eighteen
+        # and a half repeats of it manufactured a row of dark sockets at a
+        # 29-column pitch -- the "empty 2004 hollows under the bar" the ledger
+        # ranks first, pinned green by the rule that was meant to catch it.
+        # There is no run of plain rock in that strip to tile instead, so the
+        # band is not re-cut: the pack is seated ON the strip and its own bar
+        # is the frame's bar.
+        #
+        # What is checkable about that is containment, and it is checked on
+        # the pack's own box rather than on pixels: the pack must start at or
+        # left of the frame's chat hole, reach at least to where `backbase1`
+        # ends, begin above the band and end at or below it. Pixels cannot
+        # tell "covered by the pack" from "painted to look like the pack".
+        pack = None
         if bounds_path:
-            match = re.search(r"BOUNDS[^\n]*\(162\|37\)[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)",
+            match = re.search(r"BOUNDS[^\n]*\(162\|0\)[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)",
                               Path(bounds_path).read_text())
             if match:
-                backing = tuple(map(int, match.groups()))
-        def exposed(x, y):
-            if backing is None:
-                return True
-            bx, by, bw, bh = backing
-            return not (bx <= x < bx + bw and by <= y < by + bh)
-        valid = width >= 496 and height >= 499 and (root != 601 or backing is not None)
+                pack = tuple(map(int, match.groups()))
+        valid = width >= 496 and height >= 499 and pack is not None
+        detail = "no chat pack in the trace"
         if valid:
-            valid = all(rows[y][x] == rows[y][x % 29]
-                        for y in range(467, 499) for x in range(29, 496)
-                        if exposed(x, y) and exposed(x % 29, y))
-            valid = valid and len({p for row in rows[467:499] for p in row[:29]}) > 3
-        print(f"PIXEL no_captionless_2004_hollows={'PASS' if valid else 'FAIL'} root={root}")
+            px, py, pw, ph = pack
+            valid = px <= 17 and px + pw >= 496 and py <= 467 and py + ph >= 499
+            detail = f"pack={px},{py} {pw}x{ph}"
+        print(f"PIXEL no_captionless_2004_hollows={'PASS' if valid else 'FAIL'} root={root} {detail}")
         if not valid:
             failures.append("no_captionless_2004_hollows")
+    if frame == "gameframe-layout/classic-fixed":
         if root != 601:
             # Approved running-client crop. The pre-fix 519-wide parchment
             # covered 40 columns of the old rail; its surviving right edge

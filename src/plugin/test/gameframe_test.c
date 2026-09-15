@@ -79,6 +79,22 @@ static struct
 /** Public, private, trade, report. */
 #define FRAME_CHAT_BUTTON_COUNT 4
 
+/*
+ * The 2004 frame's own chat geometry, stated HERE rather than included.
+ *
+ * Same rule as the four button columns above: a test that shares the
+ * plugin's constant cannot see the plugin change it, and these are the
+ * numbers the "two chat bars" defect lives in. `backbase1` is blitted at
+ * y=453 and is 50 rows tall; its button band starts fourteen rows down it and
+ * is 32 rows tall; and a chat pack that carries its own bar is given the hole
+ * (96) plus the whole strip.
+ */
+#define FRAME_C_STRIP_Y 453
+#define FRAME_C_STRIP_H 50
+#define FRAME_C_STRIP_BAND_Y 14
+#define FRAME_CHAT_BUTTON_H 32
+#define FRAME_C_CHAT_PACK_H (96 + FRAME_C_STRIP_H)
+
 /**
  * Draws per chat-button plate: ONE.
  *
@@ -970,19 +986,6 @@ static void tick_and_declare(int w, int h)
     CHECK(g_frame.set_calls > published, "the provider invalidated its frame");
     declare(w, h);
 }
-static int image_opaque_rows(int slot)
-{
-    int rows = 0;
-    if( slot < 0 || slot >= FAKE_IMAGE_SLOTS || !g_image[slot].argb ) return 0;
-    for( int y = 0; y < g_image[slot].h; y++ )
-    {
-        int opaque = 0;
-        for( int x = 0; x < g_image[slot].w; x++ ) if( g_image[slot].argb[y * g_image[slot].w + x] >> 24 ) opaque++;
-        if( opaque == g_image[slot].w ) rows++;
-    }
-    return rows;
-}
-
 /* ------------------------------------------------------------------ main */
 
 int
@@ -1340,20 +1343,68 @@ main(void)
     declare(765, 503);
     CHECK(strcmp(selected_frame().active_id, "gameframe-layout/classic-fixed") == 0 && g_frame.active == 1,
           "the provider owns the OldSchool frame too");
-    CHECK(placed("chat", -1, 17, 357, 519, 96), "the chat pack takes the 2004 origin and height and keeps its own width");
+    /*
+     * 146 and not 96: the hole PLUS the 2004 filter strip under it.
+     *
+     * A pack that carries its own bar is seated ON the strip, not above it.
+     * At 96 the pack's bar stopped at 453 and the frame's own bar band stood
+     * under it -- the "empty 2004 hollows under the bar" the ledger ranks
+     * first -- with the strip's parchment lip showing between the two. 357 +
+     * 146 = 503 is the canvas's last row, so there is nothing of the frame's
+     * bar left beside the pack's.
+     */
+    CHECK(placed("chat", -1, 17, 357, 519, FRAME_C_CHAT_PACK_H),
+          "the chat pack takes the 2004 hole and the filter strip under it, and keeps its own width");
     CHECK(placed("orbs", -1, 521, 4, 236, 163), "548's orb block sits beside the 2004 housing");
     CHECK(placed("orbs", 1, 717, 119, 30, 30) && placed("orbs", 2, 709, 139, 40, 34) && placed("orbs", 0, 723, 54, 34, 34),
           "the world map, the wiki banner and the whole adviser are seated");
     printf("GAMEFRAME oldschool classic pieces=%d icons=%d\n", pieces_behind_viewport(), owned_count("icon."));
-    CHECK(pieces_behind_viewport() == 14 && owned_count("icon.") == 14,
+    CHECK(pieces_behind_viewport() == 13 && owned_count("icon.") == 14,
           "the surround is re-cut for the pack, without the 2004 parchment, and every stone wears rev-239's icon");
+    /*
+     * ONE picture over the 2004 button band, and the pack over all of it.
+     *
+     * The band is rows 467..498 of the frame: the thirty-two rows of stone
+     * the four dat1 filters are recessed into. There used to be a second picture laid
+     * on exactly that box -- `classic_base_flat`, meant to cover the four
+     * hollows the CS2 pack's own bar made redundant -- and it did not cover
+     * them: it tiled twenty-nine columns of the source strip, and those
+     * columns carry the first hollow's cast shadow, so eighteen and a half
+     * repeats of it read as a row of empty sockets. Counting is what says the
+     * second picture is gone; the chat's box is what says nothing needs it.
+     *
+     * Both halves, because either alone is satisfied by the wrong fix:
+     * deleting the band without seating the pack leaves the frame's own
+     * hollows showing, and seating the pack without deleting the band leaves
+     * a composed picture nobody can see.
+     */
     {
-        struct FakeWidget const* flat = NULL;
+        int const band_top = FRAME_C_STRIP_Y + FRAME_C_STRIP_BAND_Y;
+        int const band_bottom = band_top + FRAME_CHAT_BUTTON_H;
+        struct FakeWidget const* chat = native("chat", -1);
+        int on_strip = 0;
+
+        /* Counted by the LEFT EDGE, which is what tells the strip's two
+         * pictures apart from the frame's other stone. `backbase2` also
+         * covers part of these rows, but it begins at x=496 and is the
+         * bottom-right surround; the strip and the band that used to be laid
+         * on it are the only two pieces that start at the canvas's edge. */
         for( int i = 0; i < g_w_count; i++ )
-            if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, "piece.", 6) == 0 && g_w[i].image >= 0 )
-            { int cx, cy; fw_canvas(i, &cx, &cy); if( cx == 0 && cy == 467 ) flat = &g_w[i]; }
-        CHECK(flat && image_opaque_rows(flat->image) == g_image[flat->image].h,
-              "no captionless 2004 hollows below the CS2 filters: the band is flat rock");
+            if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, "piece.", 6) == 0 &&
+                g_w[i].image >= 0 )
+            {
+                int cx, cy;
+                fw_canvas(i, &cx, &cy);
+                if( cx == 0 && cy >= FRAME_C_STRIP_Y &&
+                    cy < FRAME_C_STRIP_Y + FRAME_C_STRIP_H )
+                    on_strip++;
+            }
+        printf("GAMEFRAME oldschool strip pictures=%d chat_bottom=%d\n", on_strip,
+               chat ? chat->y + chat->h : -1);
+        CHECK(on_strip == 1,
+              "the 2004 filter strip carries the frame's own stone and nothing else: no second picture over the hollows");
+        CHECK(chat && chat->y <= band_top && chat->y + chat->h >= band_bottom,
+              "and the pack that supplies the bar stands on that band, so the frame's hollows are behind it");
     }
     frame_tick();
     CHECK(native("chat_bar", -1)->art >= 0 && native("chat_backing", -1)->art >= 0,
@@ -1398,6 +1449,55 @@ main(void)
         CHECK(placed("orbs", 2, 709, 139, 40, 34) && placed("orbs", 0, 723, 54, 34, 34),
               "the wiki banner keeps member 2's seat when the globe is not there");
         g_w[globe].alive = 1;
+    }
+
+    /* ---- 6d. a REMOUNT: the root moves, and the description waits ------
+     *
+     *  What the gate's eighth lane photographs, in one fence.
+     *
+     *  A layout switch replaces the whole tree: the frame root answers a new
+     *  interface and every node under the old one dies. The plugin's own
+     *  remount arm used to be the VIEWPORT's incarnation, and on the fence a
+     *  164-to-548 switch lands that has not moved yet -- so a whole
+     *  description was planned from facts read off the dead tree and written
+     *  at its corpses. Measured on the running client: twenty-five stale
+     *  references in that one fence, and a frame in which the old toplevel's
+     *  collapsed tab strips stood on the new one.
+     *
+     *  The ROOT is what moves first, so it is what the description asks. Here
+     *  it is moved first by hand, which is the premise, and then the tree is
+     *  replaced under it.
+     * ------------------------------------------------------------------- */
+    {
+        int const settled = owned_count("piece.");
+
+        CHECK(settled > 0, "the frame owns its chrome before the remount");
+        /*
+         * The root alone, and the tree NOT yet rebuilt. That is the premise
+         * and the reason this is a separate case: on the fence a layout
+         * switch lands, the frame root already answers the new interface
+         * while the roles still resolve to the old nodes, carrying the old
+         * incarnations. A remount arm that watches an element's incarnation
+         * sees nothing here -- which is exactly how a whole description came
+         * to be planned from the dying tree's facts and written at it.
+         *
+         * ONE fence, and no layout pass after it: a layout pass would re-ask
+         * the provider, the root would agree with the plan by then, and the
+         * frame would be back before anything could be asserted.
+         */
+        g_frame_root = 161;
+        frame_tick();
+        printf("GAMEFRAME remount fence pieces=%d\n", owned_count("piece."));
+        CHECK(owned_count("piece.") == 0,
+              "the fence that sees a new frame root states nothing: no plan is written against the tree that is about to go");
+        /* And then the nodes really are replaced, and the frame comes back. */
+        fw_build(/*oldschool=*/1);
+        declare(765, 503);
+        CHECK(owned_count("piece.") == settled && placed("viewport", -1, 4, 4, 512, 334),
+              "and the pass after it plans against the tree that is actually there");
+        g_frame_root = 548;
+        fw_build(/*oldschool=*/1);
+        declare(765, 503);
     }
 
     /* ---- 7. the mobile toplevel declines classic ---------------------- */

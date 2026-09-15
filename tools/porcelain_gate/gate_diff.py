@@ -46,8 +46,12 @@ one of each, because the box left one place and arrived at another.
 owned key that must disappear, `owned-add` one that must appear, and
 `owned-move` one whose box or state the port changes on purpose -- the same
 mirror, said about the plugin's own controls rather than about the lane's.
-`normalise` strips `<name>=<value>` from every tail before comparing. Blank
-lines and lines beginning with # are ignored.
+`owned-move` is the twin of `role-move`, and it exists because without it a
+port that moves a NATIVE surface could not be declared at all: another
+plugin's control that follows that surface changes its box, and every other
+kind here is about capture lines or roles. `normalise` strips
+`<name>=<value>` from every tail before comparing. Blank lines and lines
+beginning with # are ignored.
 """
 import re, sys, collections
 
@@ -153,6 +157,10 @@ class Expectations:
         margin every other bottom-anchored piece sits on -- moves every
         control in that block, and the declaration is what makes "on purpose"
         checkable instead of assertable.
+
+        Not the same claim as owned-drop and not interchangeable with it: a
+        control that moved is still there, and a port that said `drop` about
+        one that merely moved would be excusing the wrong thing.
         """
         if key in self.owned_move:
             self.fired[("owned-move", key)] += 1
@@ -274,7 +282,7 @@ def compare(before, after, label, expect):
     # are judged like everything else.
     measured = [k for k in diff if is_volatile(k) and ob[k][0] == oa[k][0]
                 and hidden_of(ob[k][1]) == hidden_of(oa[k][1])]
-    movedc = [k for k in diff if k not in measured]
+    movedc = [k for k in diff if k not in measured and not expect.excuses_moved_key(k)]
     print(f"{label}: owned controls {len(ob)} -> {len(oa)}, missing {len(gone)}, "
           f"added {len(new)}, moved {len(movedc)}, measured-text {len(measured)}")
     for k in gone[:6]: print("    - ", k, ob[k])
