@@ -1,0 +1,88 @@
+# What making the Stone Drawer work on both lanes changes on purpose, and why.
+#
+#   gate_diff.py --expect tools/porcelain_gate/expect/mobile-gameframe-both-lanes.expect <pairs...>
+#
+# Two things change and they are separable. One is a new ROLE, which every
+# OldSchool lane sees and nothing else about them moves. The other is the 601
+# chat block, which is the whole of stone601's difference and is not visible on
+# any other lane. dat1_254 -- the lane this round is mostly about -- is byte
+# identical, because a 2004 profile declares neither the role nor interface
+# 162 and the frame under test there is the LANE's, not this plugin's: the
+# capture runs `auto`, so the fix that makes the Stone Drawer come up when it
+# IS chosen cannot show in it. The cs1live screenshot is where that half is
+# judged, and it is judged by looking at it.
+#
+# Every line here is a claim a reader is meant to be able to disagree with. If
+# you think one of them is wrong, the argument is with the reason, not with the
+# tool.
+
+# --------------------------------------------------------------------------
+# 1. A new role, on every lane whose cache mounts interface 162.
+#
+# `[role:chat_controls]` names the chat bar's LAYER. [role:chat_bar] names the
+# bar's PICTURE and says at length why it must stay the picture: naming the
+# layer there once made a "complete replacement" take the whole subtree and
+# throw four filters away. This is a second role for a second question --
+# geometry -- and nothing that re-skins a chat reaches it. It exists because
+# the four OldSchool toplevels disagree about which end of the block the bar
+# goes on and a frame that wants the same chat on both has to move it.
+#
+# It fires seven times: six CS2 lanes plus the one it is for. A role that
+# resolves is a ROLE_WIDGET line, and a line that was not there before reads to
+# the comparator as a role that moved -- which is the only kind it has for
+# something that arrives.
+role-move chat_controls = the revconfig adds this role; it resolves on every lane that mounts interface 162, and on six of them that is the only difference there is
+
+# --------------------------------------------------------------------------
+# 2. The 601 chat block, turned the right way up.
+#
+# The mobile toplevel pins `controls` to the TOP of the pack with the message
+# lines underneath. The Stone Drawer's chat is built the other way round -- the
+# torn sheet, the stone strip and the two switches all assume the bar is the row
+# along the bottom -- so the filters stood on the parchment's torn top edge with
+# nothing under the last message line.
+#
+# It is TWO moves and no re-parenting. The pack goes up by the 30-row band the
+# bar takes off its top, so the bottom-anchored message area lands on the
+# block's first row (chat_backing 58,384 -> 58,354); the bar goes to the
+# block's last rows (chat_controls 58,356 -> 58,471). The assembly occupies
+# exactly the rows it did -- 354 through 499 -- which is why the tap blocker,
+# the two switches and the strip do not appear anywhere below.
+#
+# 3,228 capture lines on each side, and they are the same 3,228: 3,224 of the
+# pack's own components, its mount, and the three owned controls named under
+# section 3. The count is large because the pack carries a text node per
+# message row and the whole of it is one block.
+only-before BOUNDS com=0x00a2 = interface 162 with its filter bar at the top of the block, which is where toplevel 601 puts it
+only-after  BOUNDS com=0x00a2 = the same components with the bar at the bottom: the message area 30 rows up, the bar 115 rows down, the block on the same rows it was
+only-before BOUNDS com=0x02590031 = the toplevel's own chat mount, which is the block's parent and moves with it
+only-after  BOUNDS com=0x02590031 = the same mount, up by the band the bar no longer takes off the top
+
+# The three of this frame's own pieces that follow the block. An owned control
+# carries no component id in a capture -- it is 0xffffffff -- so this is the
+# BOUNDS half of the three `owned-move` rows below, said about the same three
+# controls. The pair pins itself: if a fourth owned box moved on this lane, the
+# `owned-move` list would not cover it and the lane would still fail.
+only-before BOUNDS com=0xffffffff = the bar rock, the parchment and the screenshot button at the boxes they had while the bar was on top
+only-after  BOUNDS com=0xffffffff = the same three, each following the surface it is pinned to
+
+# The same difference said about the roles rather than the components.
+role-move chat_backing = the message area, now the block's first row instead of its last 115
+role-move chat_bar = the bar's picture, which follows the layer it is drawn in
+role-move chat_input = the input line, which is the message area's last row and went up with it
+role-move chat_plate_0 = a filter plate, hidden by this frame and still moved by the bar it hangs on
+role-move chat_plate_1 = the same, Game
+role-move chat_plate_2 = the same, Public
+role-move chat_plate_3 = the same, Private
+role-move chat_plate_4 = the same, Channel
+role-move chat_plate_5 = the same, Clan
+role-move chat_plate_6 = the same, Trade
+role-move chat_plate_7 = the Report plate, which this toplevel keeps hidden and which moved with the bar anyway
+role-move public_chat_button = the Public filter's own layer, a child of the bar
+role-move report_button = the Report button's layer, a child of the bar
+role-move action_frame_chat_button_report_activate = the report button again, under its action role
+role-move frame_chat = the frame slot the block is bound to, which is the pack root this frame moved
+
+owned-move bar-rock = the 2004 band with a hollow per filter, drawn at the bar's box: it moved because the bar did
+owned-move pack-sheet = the torn parchment, positioned from the backing's box: it moved because the message area did
+owned-move camera_report = the screenshot plugin's button, which places itself against the report button this frame moved
