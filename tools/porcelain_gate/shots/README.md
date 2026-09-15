@@ -106,7 +106,9 @@ Openers worth knowing, all of them drives the client already had:
 | a plugin config value | `TORIRS_SIM_PLUGIN_CONFIG='60,<plugin>,<key>,<value>'` |
 | the pointer somewhere | `TORIRS_SIM_HOVER=x,y` |
 | a click | `TORIRS_SIM_CLICK_AT=x,y,<tick>` |
-| a key held | `TORIRS_SIM_KEYHOLD=<code>` |
+| a key held | `TORIRS_SIM_KEYHOLD=<code>` (once, never released; `TORIRS_SIM_KEYHOLD_FRAME=N` to press after the title screen) |
+| a right-click on an npc | `TORIRS_SIM_CLICK_NPC=<frame>,<type>,1` — by TYPE, because npcs wander; `-1` is any |
+| a plugin's own menu row | `TORIRS_SIM_MENU_ROW=<frame>,<label prefix>` — finds it on the open menu, PRINTS the label it found, clicks its centre |
 | a server command | `TORIRS_SIM_CMD='<tick>,<command>'` |
 
 ## The rule that matters
@@ -238,6 +240,8 @@ zsh plugin_ini.sh <out.ini> <plugin-id> ["key=value" ...]   # one on, 19 off
 zsh pshot.sh <name> <plugin-id> <lane> [ENV=v ...] [-- cfg=v ...]
 PAR_JOBS=1 zsh par.sh jobs/<file>.txt
 python3 vs_control.py plugins/control-<lane>.png plugins/<shot>.png
+python3 exercised.py --menu-row <label> --log runs/<shot>/log.txt   # did the plugin's row exist
+python3 exercised.py --selftest                                     # after touching its log readers
 python3 zoom.py <in.png> <out.png> <x> <y> <w> <h> [scale]
 python3 detail_lengths.py
 ```
@@ -367,6 +371,94 @@ fixed frame number — two runs of the same binary put it four frames apart, and
 the client's own reload screen sits in the middle of the window. What DOES see
 it is the findings channel the gate already compares: twenty-five
 STALE_REFERENCE refusals in that fence before, none after.
+
+## ehreveal-* and ehtag-* — the half of a plugin no shot had opened
+
+The entity highlighter draws hulls and it adds `Tag`/`Untag` to the right-click
+menu. Five shots of it were filed, one per lane, and every one of them drove
+the hulls: no key held, no menu opened. So the menu half — the half the
+plugin's own header calls the point of the port, and which it says was
+unreachable on **every** lane before the `on_key` forward went in — was
+photographed by five drives that could not have seen it fail. Deleting
+`on_menu_build` and `on_menu_select` outright would have produced the same
+pixels and the same log in all five.
+
+That is the failure this directory is named after, one plugin further in: the
+shot was evidence about the drive, and it was read as evidence about the
+plugin. Nothing in the harness could say so, because the three signals
+`exercised.py` had cannot see a menu row — INK is a few hundred pixels of the
+client's own font inside a box that moves with the click, LOG is silent
+because this plugin prints nothing, and EMIT needs a scene id a menu row does
+not have. It grew a fourth, `--menu-row`, and a `--selftest` for it.
+
+Two drives per lane now, ten in all, and each proves itself in the log:
+
+| row | drive | what it shows |
+|---|---|---|
+| `ehreveal-<lane>` | tags preloaded, `TORIRS_SIM_KEYHOLD=42` at frame 500, `TORIRS_SIM_CLICK_NPC=620,5037,1` | the menu still open in the last frame with `Untag Romeo` in it, over the hull |
+| `ehtag-<lane>` | **no tags**, same key, right-click at 560, `TORIRS_SIM_MENU_ROW=600,Tag` | `sim_menu_row: ... row 'Tag @yel@Romeo'`, `tags=5037` written back, and a hull that exists only because that row was picked |
+| `ehtag-nokey-classic548` | the `ehtag` drive **minus the keyhold** | the control: five native rows, no `Tag`, no `sim_menu_row` line, no hull, nothing written |
+| `ehtag-prefix-classic548` | the `ehtag` drive against a script tree with the `note_key` forward **deleted** | the negative control, and the one that proves the drive tests the thing |
+
+The frame numbers above are the CS2 ones; `ehreveal-live` and `ehtag-live` do
+the same thing at 2100 and 1900 against LostCity npc 547, after the teleport,
+and their rows read `Untag Baraek` and `Tag @yel@Baraek` — names out of that
+lane's OWN content, which is the other trap this plugin's header is about.
+
+The last two rows are a pair, and the difference between them is the whole
+argument:
+
+| menu | rows | `Mark tile` | `Tag Romeo` | `sim_menu_row` | `tags=` |
+|---|---|---|---|---|---|
+| `ehtag-nokey` (key never held) | 5 | no | no | none | unwritten |
+| `ehtag-prefix` (key held, forward deleted) | 6 | **yes** | no | none | unwritten |
+| `ehtag-classic548` (as shipped) | 7 | yes | **yes** | `'Tag @yel@Romeo'` | `5037` |
+
+`Mark tile` is the CACHE's own shift-gated client op, so its presence in the
+middle row proves the held key reached the client and the plugin did not
+forward it. "Key not held" and "key held but not forwarded" are two different
+pictures now, and the drive goes red for the second one. Before this, those two
+and a working plugin all made the same picture.
+
+There is a scalar too, and it is the one worth quoting because no chrome in
+this client is pure magenta: count `#FF00FF` pixels, which is the hull's own
+default outline colour. Whole-frame, on the `ehtag` family — where the ONLY
+thing that can produce a hull is the menu row having been picked:
+
+```
+ehtag-nokey-classic548      0      ehtag-classic548    530
+ehtag-prefix-classic548     0      ehtag-classic161    528
+ehtag-stone601              0      ehtag-modern164     637
+   (declared off)                  ehtag-live          218
+```
+
+Four things in those drives are not decoration.
+
+**The npc is named by TYPE, not by pixel.** `TORIRS_SIM_CLICK_NPC=<frame>,<type>,1`
+— the trailing 1 is the right button. A fixed coordinate is a coin toss on a
+wandering npc, and the type has to be one that is actually **in the tag list**
+or the row reads `Tag` where the shot claims `Untag`, which is a different
+picture of a different claim.
+
+**The key is pressed once and never released.** `TORIRS_SIM_KEYHOLD` presses on
+one frame and that is the only transition there will ever be, so a handler that
+misses it never gets a second chance — which is exactly the bug the drive
+exists to be able to see. It is deferred to frame 500 because a key pressed on
+frame 1 lands on the title screen, before the plugins are started.
+
+**`TORIRS_SIM_MENU_ROW` prints the label it FOUND**, before it clicks it. That
+line is the evidence: a row that was never built cannot pass as one that was,
+and `exercised.py --menu-row Tag --log runs/<shot>/log.txt` exits non-zero when
+it is missing.
+
+**601 has no `Tag` row and that is correct.** It logs in as a phone, so
+`Porcelain_KeyEdge` answers ABSENT *at the call* and the plugin turns the rows
+off. The tell is the finding's detail: the fence's own absence prints the key
+NAME (`shift`, `off`), so `detail=touch lane has no key` at `first_frame=0` can
+only have come from the branch inside the call — the capability was already
+true when `on_start` asked it. Those job lines carry `NO_KEYBOARD`, and
+`--menu-row` answers `DECLARED OFF` rather than `INERT` there, but only for an
+absence the plugin **declared**; an undeclared one still fails.
 
 ## lt-blank-{before,after} and lt-cells-{before,after} — the Loot Tracker's two
 
