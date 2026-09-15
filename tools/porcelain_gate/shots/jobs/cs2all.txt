@@ -1,0 +1,33 @@
+# Every plugin on the CS2 lane, re-captured after the frame fixes.
+#
+# The set these replace was taken BEFORE the chat-strip fix, so every one of
+# them carried the doubled filter bar in the bottom 50 rows -- twenty pictures
+# of the same defect, published in a PR as evidence the plugins were right.
+control-cs2       none               cs2
+orbs-cs2          minimap-orbs       cs2
+gf-desktop-cs2    gameframe-layout   cs2
+perf-cs2          performance-display cs2
+screenshot-cs2    screenshot         cs2
+widgetdemo-cs2    widget-demo        cs2 TORIRS_WIDGET_DEMO=only TORIRS_PLUGIN_LOG=1
+tileind-c-cs2     tile-indicator-c   cs2 TORIRS_SIM_HOVER=300,180
+tileind-lua-cs2   tile-indicator-lua cs2 TORIRS_SIM_HOVER=300,180
+xporbs-cs2        xp-drop-orbs       cs2 'TORIRS_SIM_CMD=660,setlevel 10 45'
+xptracker-cs2     xp-tracker         cs2 TORIRS_SIM_PLUGIN_PANEL=600,xp-tracker,page 'TORIRS_SIM_CMD=300,setlevel 10 45;400,xp fishing 30000'
+clientsettings-cs2 client-settings   cs2 TORIRS_SIM_PLUGIN_PANEL=600,client-settings,page
+featureflags-cs2  feature-flags      cs2 TORIRS_SIM_PLUGIN_PANEL=600,feature-flags,page
+itemstats-hover-cs2 item-stats       cs2 TORIRS_SIM_HOVER=627,228
+itemstats-settings-cs2 item-stats    cs2 TORIRS_SIM_PLUGIN_PANEL=600,item-stats,settings
+loottracker-loot-cs2 loot-tracker    cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page 'TORIRS_SIM_CMD=560,lootkill Goblin 995 5000;570,lootkill Goblin 526 1;580,lootkill Goblin 995 5000;590,lootkill Goblin 526 1'
+loottracker-empty-cs2 loot-tracker   cs2 TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page
+grounditems-cs2   ground-items       cs2 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1;70,dropobj ags 1;80,dropobj abyssal_whip 1' TORIRS_GROUND_ITEMS_DEBUG=1
+gi-tiles-cs2      ground-items       cs2 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1' 'TORIRS_SIM_PLUGIN_CONFIG=100,ground-items,highlight_tiles,1;110,ground-items,text_outline,1'
+lootbeam-cs2      loot-beam          cs2 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1'
+highlighter-cs2   entity-highlighter cs2 'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108'
+nxthl-hover-cs2   nxt-highlight      cs2 TORIRS_SIM_MOVE_AT=600,330,120 TORIRS_SIM_HOVER=330,120 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1
+nxthl-tile-cs2    nxt-highlight      cs2 TORIRS_SIM_VARBIT=450,12977,1 TORIRS_SIM_RUNSCRIPT=500,5198 TORIRS_SIM_MOVE_AT=600,330,200 TORIRS_SIM_HOVER=330,200 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1
+birdnest-cs2      nxt-bird-nest      cs2 TORIRS_SIM_VARBIT=450,13087,0 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1' TORIRS_TRACE_NATIVE_UI=1
+cannon-cs2        nxt-cannon-ammo    cs2 'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+sshot-corner-cs2  screenshot         cs2 TORIRS_SIM_CLICK_AT=640,24,23 TORIRS_TRACE_NATIVE_UI=1 -- camera=top-left
+sshot-report-cs2  screenshot         cs2 TORIRS_SIM_CLICK_AT=640,476,491 TORIRS_TRACE_NATIVE_UI=1 -- camera=report-button
+gf-mobile-s601    mobile-gameframe   stone601
+control-noplugins-cs2 none           cs2 TORIRS_PLUGIN_ONLY=none

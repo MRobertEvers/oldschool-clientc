@@ -1,0 +1,47 @@
+# THE INTERACTION MATRIX.
+#
+# Every shot above this file photographs ONE plugin in ONE steady state. None
+# of them can see the class of defect that only exists at a TRANSITION -- the
+# frame root being replaced, a plugin being switched off while its controls are
+# on screen, two plugins reaching for the same anchor in the same fence. Both
+# frame regressions this programme found were of exactly that class and both
+# were invisible to every static lane.
+#
+# Each pair is BEFORE (the steady state) and AFTER (the same client past the
+# transition), same binary, same drive up to the transition frame.
+
+# --- 1. Layout remount: the frame root is replaced under live controls -------
+# All plugins on. The AFTER must show every owned control back on the new
+# toplevel; a port with no re-parent arm loses the lot and the picture is a
+# bare frame.
+remount-548-before all cs2       TORIRS_MAX_FRAMES=600
+remount-548-after  all cs2       'TORIRS_SIM_CMD=500,layout 1' TORIRS_MAX_FRAMES=900
+remount-161-after  all classic161 'TORIRS_SIM_CMD=500,layout 2' TORIRS_MAX_FRAMES=900
+remount-164-after  all modern164  'TORIRS_SIM_CMD=500,layout 0' TORIRS_MAX_FRAMES=900
+
+# --- 2. Enable and disable a plugin while its controls are on screen ---------
+# minimap-orbs owns four covers over native orbs; gameframe-layout owns the
+# whole frame. Switching either off must remove what it owns and leave the
+# lane's own furniture behind, not a hole.
+toggle-orbs-on     all cs2 TORIRS_MAX_FRAMES=700
+toggle-orbs-off    all cs2 TORIRS_SIM_PLUGIN_TOGGLE=500,minimap-orbs,0 TORIRS_MAX_FRAMES=900
+toggle-orbs-back   all cs2 'TORIRS_SIM_PLUGIN_TOGGLE=500,minimap-orbs,0;700,minimap-orbs,1' TORIRS_MAX_FRAMES=1100
+toggle-frame-off   all cs2 TORIRS_SIM_PLUGIN_TOGGLE=500,gameframe-layout,0 TORIRS_MAX_FRAMES=900
+toggle-frame-back  all cs2 'TORIRS_SIM_PLUGIN_TOGGLE=500,gameframe-layout,0;700,gameframe-layout,1' TORIRS_MAX_FRAMES=1100
+
+# --- 3. Window resize: the canvas moves under every anchored control ---------
+resize-before      all modern164 TORIRS_MAX_FRAMES=600
+resize-after       all modern164 TORIRS_SIM_RESIZE=500,1024x700 TORIRS_MAX_FRAMES=900 TORIRS_SHOT_WINDOW=1024x700
+
+# --- 4. Two plugins reaching for the same surface ----------------------------
+# Both tile indicators draw the same tile; both orb plugins want the orb column.
+pair-tiles         all cs2 TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=700
+pair-orbs          all cs2 'TORIRS_SIM_CMD=660,setlevel 10 45' TORIRS_MAX_FRAMES=800
+
+# --- 5. Panel over panel: open one page while another is open ----------------
+panel-single       all cs2 TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_MAX_FRAMES=900
+panel-over-panel   all cs2 'TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page;700,xp-tracker,page' TORIRS_MAX_FRAMES=1000
+
+# --- 6. Frame provider switched at runtime, desktop <-> touch ----------------
+provider-desktop   all cs2     TORIRS_MAX_FRAMES=700
+provider-stone     all stone601 TORIRS_MAX_FRAMES=700

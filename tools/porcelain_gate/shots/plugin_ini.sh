@@ -22,16 +22,19 @@ all=(
   widget-demo
 )
 
+# `all` is the interaction matrix's case: every plugin on at once, which is the
+# only way two of them can reach for the same anchor in the same fence. `none`
+# falls out of the same loop -- no id matches, so everything is written off.
 : > $out
 for p in $all; do
-  if [ "$p" = "$only" ]; then
+  if [ "$only" = "all" ] || [ "$p" = "$only" ]; then
     printf '[plugin:%s]\nenabled=1\n' $p >> $out
   else
     printf '[plugin:%s]\nenabled=0\n' $p >> $out
   fi
 done
 
-if [ $# -gt 0 ]; then
+if [ $# -gt 0 ] && [ "$only" != "all" ] && [ "$only" != "none" ]; then
   printf '[plugin:%s]\n' $only >> $out
   for kv in "$@"; do printf '%s\n' "$kv" >> $out; done
 fi
