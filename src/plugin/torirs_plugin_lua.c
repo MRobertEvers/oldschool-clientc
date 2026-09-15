@@ -2563,11 +2563,13 @@ static int lua_porcelain_findings(lua_State* L)
     lua_createtable(L, count, 0);
     for( int i = 0; i < count; i++ )
     {
-        lua_createtable(L, 0, 6);
+        lua_createtable(L, 0, 7);
         lua_pushstring(L, findings[i].verb); lua_setfield(L, -2, "verb");
         lua_pushinteger(L, findings[i].result); lua_setfield(L, -2, "result");
         lua_pushstring(L, findings[i].detail ? findings[i].detail : ""); lua_setfield(L, -2, "detail");
         lua_pushboolean(L, findings[i].expected); lua_setfield(L, -2, "expected");
+        /* The declaration's reason, "" when nothing declared this finding. */
+        lua_pushstring(L, findings[i].why ? findings[i].why : ""); lua_setfield(L, -2, "why");
         lua_pushinteger(L, (lua_Integer)findings[i].first_frame); lua_setfield(L, -2, "first_frame");
         lua_pushinteger(L, (lua_Integer)findings[i].count); lua_setfield(L, -2, "count");
         lua_rawseti(L, -2, i + 1);

@@ -61,6 +61,19 @@ static struct ToriRS_Api* g_epoch_api;
 /*
  * The trace gate, read once. getenv on a per-frame path is the hot-path
  * defect the audit already found elsewhere in this tree.
+ *
+ * TWO NAMES, and the second is the one that was missing. Everything this gate
+ * guards is a PLUGIN diagnostic -- a finding, a reparent, a re-create -- and
+ * it answered only to the WIDGET-TREE trace, which is a different subject that
+ * a capture has to know to ask for separately. A plugin whose entire output on
+ * a lane is its finding (`nxt-cannon-ammo` declining a revision with no cannon
+ * varps is the case that found this) therefore produced a log with nothing in
+ * it, and the capture was indistinguishable from a plugin that never ran.
+ * TORIRS_PLUGIN_LOG is the flag that already means "log what the plugins did",
+ * and every capture in the shot harness sets it.
+ *
+ * Not a lane fact and not a per-lane switch: both lanes read the same two
+ * names.
  */
 static int g_trace = -1;
 
@@ -68,7 +81,7 @@ static bool
 porcelain_trace_enabled(void)
 {
     if( g_trace < 0 )
-        g_trace = getenv("TORIRS_TRACE_NATIVE_UI") ? 1 : 0;
+        g_trace = (getenv("TORIRS_TRACE_NATIVE_UI") || getenv("TORIRS_PLUGIN_LOG")) ? 1 : 0;
     return g_trace != 0;
 }
 
@@ -182,29 +195,36 @@ Porcelain_FormatElement(struct PorcelainElement element, char* out, size_t capac
  * declaration covers all of them without a second key. Without this, a plugin
  * that honestly said "this lane cannot do X" failed the clean gate for saying
  * so, and going quiet was the only way to pass.
+ *
+ * It answers with the DECLARATION and not a yes-or-no, because the reason is
+ * the half a reader needs. Both lookups used to answer bool, the `why` the two
+ * expect verbs stored was read by nothing at all, and an UNSUPPORTED finding
+ * therefore named its feature twice -- once as the element and once as the
+ * detail -- and never said the cause. Returning the slot costs the same walk
+ * and hands the caller both answers.
  */
-static bool
-porcelain_expected_unsupported(struct Porcelain* porcelain, char const* detail)
+static struct PorcelainExpectUnsupported*
+porcelain_unsupported_declaration(struct Porcelain* porcelain, char const* detail)
 {
     if( !detail )
-        return false;
+        return NULL;
     for( int i = 0; i < PORCELAIN_EXPECT_UNSUPPORTED_MAX; i++ )
         if( porcelain->expect_unsupported[i].used &&
             strcmp(porcelain->expect_unsupported[i].feature, detail) == 0 )
-            return true;
-    return false;
+            return &porcelain->expect_unsupported[i];
+    return NULL;
 }
 
-static bool
-porcelain_expected_absence(struct Porcelain* porcelain, struct PorcelainElement element)
+static struct PorcelainExpectAbsent*
+porcelain_absence_declaration(struct Porcelain* porcelain, struct PorcelainElement element)
 {
     uint64_t const key = Porcelain_ElementKey(element);
 
     for( int i = 0; i < PORCELAIN_EXPECT_MAX; i++ )
         if( porcelain->expects[i].used &&
             Porcelain_ElementKey(porcelain->expects[i].element) == key )
-            return true;
-    return false;
+            return &porcelain->expects[i];
+    return NULL;
 }
 
 /*
@@ -232,11 +252,39 @@ porcelain_forget_absence(struct Porcelain* porcelain, struct PorcelainElement el
     }
 }
 
+/*
+ * ` why=<the declaration's reason>`, or NOTHING AT ALL.
+ *
+ * Written only where there is a reason to write, and that is not tidiness: an
+ * undeclared finding is the line every log comparator keys on, and giving all
+ * of them a constant `why=-` would have renamed every one of those keys for a
+ * field that says nothing. The field is present exactly when a declaration
+ * covers the finding -- which is exactly the line a reader is asking "why is
+ * this here" about.
+ */
+static void
+porcelain_why_field(char const* why, char* out, size_t capacity)
+{
+    assert(why);
+    assert(out);
+    assert(capacity > 0);
+    if( !why[0] )
+    {
+        out[0] = '\0';
+        return;
+    }
+    snprintf(out, capacity, " why=%s", why);
+}
+
 void
 Porcelain_RecordFinding(struct Porcelain* porcelain, char const* verb,
                         struct PorcelainElement element, int result, char const* detail)
 {
     struct PorcelainFindingSlot* free_slot = NULL;
+    struct PorcelainExpectUnsupported const* unsupported_declaration;
+    struct PorcelainExpectAbsent const* absence_declaration;
+    char const* why = "";
+    char why_field[PORCELAIN_DETAIL_MAX + 8];
     char text[PORCELAIN_NAME_MAX];
 
     assert(porcelain);
@@ -276,11 +324,29 @@ Porcelain_RecordFinding(struct Porcelain* porcelain, char const* verb,
     free_slot->pub.verb = free_slot->verb;
     free_slot->pub.detail = free_slot->detail;
     free_slot->pub.result = result;
+    /*
+     * The declaration that covers this finding, asked ONCE for both of its
+     * answers: whether the finding is expected, and the sentence the plugin
+     * wrote to say why. An ABSENT_EXPECTED finding is expected by its own
+     * result and still carries a declaration, so it is looked up too.
+     */
+    unsupported_declaration = result == PORCELAIN_FINDING_UNSUPPORTED
+                                  ? porcelain_unsupported_declaration(porcelain, detail)
+                                  : NULL;
+    absence_declaration = (result == PORCELAIN_FINDING_ABSENT ||
+                           result == PORCELAIN_FINDING_ABSENT_EXPECTED)
+                              ? porcelain_absence_declaration(porcelain, element)
+                              : NULL;
+    if( unsupported_declaration )
+        why = unsupported_declaration->why;
+    else if( absence_declaration )
+        why = absence_declaration->why;
+    Porcelain_CopyString(free_slot->why, sizeof(free_slot->why), why);
+    free_slot->pub.why = free_slot->why;
     free_slot->pub.expected = result == PORCELAIN_FINDING_ABSENT_EXPECTED ||
-                              (result == PORCELAIN_FINDING_ABSENT &&
-                               porcelain_expected_absence(porcelain, element)) ||
+                              (result == PORCELAIN_FINDING_ABSENT && absence_declaration != NULL) ||
                               (result == PORCELAIN_FINDING_UNSUPPORTED &&
-                               porcelain_expected_unsupported(porcelain, detail));
+                               unsupported_declaration != NULL);
     free_slot->pub.first_frame = porcelain->frame;
     free_slot->pub.count = 1;
 
@@ -290,17 +356,19 @@ Porcelain_RecordFinding(struct Porcelain* porcelain, char const* verb,
     /* One line at birth, with the running count readable through `findings`
      * and restated at close. A line per frame is the defect the record calls
      * "logged every frame or not at all". */
+    porcelain_why_field(free_slot->why, why_field, sizeof(why_field));
     fprintf(stderr,
             "PORCELAIN_FINDING plugin=%s verb=%s element=%s result=%d detail=%s "
-            "expected=%d first_frame=%u count=%u\n",
+            "expected=%d%s first_frame=%u count=%u\n",
             porcelain->plugin_id, free_slot->verb, text, free_slot->pub.result,
             free_slot->detail[0] ? free_slot->detail : "-", free_slot->pub.expected ? 1 : 0,
-            free_slot->pub.first_frame, free_slot->pub.count);
+            why_field, free_slot->pub.first_frame, free_slot->pub.count);
 }
 
 static void
 porcelain_trace_final_findings(struct Porcelain* porcelain)
 {
+    char why_field[PORCELAIN_DETAIL_MAX + 8];
     char text[PORCELAIN_NAME_MAX];
 
     if( !porcelain_trace_enabled() )
@@ -311,11 +379,12 @@ porcelain_trace_final_findings(struct Porcelain* porcelain)
         if( !slot->used || slot->pub.count < 2 )
             continue;
         Porcelain_FormatElement(slot->pub.element, text, sizeof(text));
+        porcelain_why_field(slot->why, why_field, sizeof(why_field));
         fprintf(stderr,
                 "PORCELAIN_FINDING plugin=%s verb=%s element=%s result=%d detail=%s "
-                "expected=%d first_frame=%u count=%u\n",
+                "expected=%d%s first_frame=%u count=%u\n",
                 porcelain->plugin_id, slot->verb, text, slot->pub.result,
-                slot->detail[0] ? slot->detail : "-", slot->pub.expected ? 1 : 0,
+                slot->detail[0] ? slot->detail : "-", slot->pub.expected ? 1 : 0, why_field,
                 slot->pub.first_frame, slot->pub.count);
     }
 }
@@ -336,10 +405,14 @@ Porcelain_Findings(struct Porcelain* porcelain, struct PorcelainFinding* out, in
 }
 
 /* An absence reported before the declaration arrived becomes the declared
- * one, in place, keeping its first_frame and its count. */
+ * one, in place, keeping its first_frame and its count -- and its REASON, so
+ * a finding that predates the declaration reads back the same as one that
+ * follows it. */
 static void
-porcelain_relabel_absence(struct Porcelain* porcelain, struct PorcelainElement element)
+porcelain_relabel_absence(struct Porcelain* porcelain, struct PorcelainElement element,
+                          char const* why)
 {
+    assert(why);
     for( int i = 0; i < PORCELAIN_FINDINGS_MAX; i++ )
     {
         struct PorcelainFindingSlot* slot = &porcelain->findings[i];
@@ -349,6 +422,8 @@ porcelain_relabel_absence(struct Porcelain* porcelain, struct PorcelainElement e
             continue;
         slot->pub.result = PORCELAIN_FINDING_ABSENT_EXPECTED;
         slot->pub.expected = true;
+        Porcelain_CopyString(slot->why, sizeof(slot->why), why);
+        slot->pub.why = slot->why;
     }
 }
 
@@ -368,8 +443,11 @@ porcelain_relabel_absence(struct Porcelain* porcelain, struct PorcelainElement e
 void
 Porcelain_RelabelUnsupported(struct Porcelain* porcelain, char const* feature)
 {
+    struct PorcelainExpectUnsupported const* declaration;
+
     assert(porcelain);
     assert(feature);
+    declaration = porcelain_unsupported_declaration(porcelain, feature);
     for( int i = 0; i < PORCELAIN_FINDINGS_MAX; i++ )
     {
         struct PorcelainFindingSlot* slot = &porcelain->findings[i];
@@ -378,6 +456,14 @@ Porcelain_RelabelUnsupported(struct Porcelain* porcelain, char const* feature)
         if( strcmp(slot->detail, feature) != 0 )
             continue;
         slot->pub.expected = true;
+        /* The declaration is already in the table when this runs -- that is
+         * what prompted the call -- so the reason comes from there rather
+         * than through a second parameter that could disagree with it. */
+        if( declaration )
+        {
+            Porcelain_CopyString(slot->why, sizeof(slot->why), declaration->why);
+            slot->pub.why = slot->why;
+        }
     }
 }
 
@@ -398,7 +484,7 @@ Porcelain_ExpectAbsent(struct Porcelain* porcelain, struct PorcelainElement elem
      * The other direction still bites: a declared-absent element that BINDS
      * is a failure, so a stale declaration cannot go quiet.
      */
-    porcelain_relabel_absence(porcelain, element);
+    porcelain_relabel_absence(porcelain, element, why);
     for( int i = 0; i < PORCELAIN_EXPECT_MAX; i++ )
     {
         struct PorcelainExpectAbsent* slot = &porcelain->expects[i];
@@ -825,7 +911,7 @@ porcelain_watch_listener(struct ToriRS_Api* api, void* user, struct ToriRS_Widge
         /* A declared absence that BINDS is a failure. A stale declaration has
          * to fail loudly in both directions or it silently excuses a real
          * regression for the rest of the session. */
-        if( porcelain_expected_absence(porcelain, watch->element) )
+        if( porcelain_absence_declaration(porcelain, watch->element) )
             Porcelain_RecordFinding(porcelain, "element", watch->element,
                                     PORCELAIN_FINDING_ABSENT_UNEXPECTEDLY_PRESENT, watch->role);
         break;
@@ -1181,7 +1267,7 @@ Porcelain_Element(struct Porcelain* porcelain, struct PorcelainElement element,
     {
         watch->absence_reported = true;
         Porcelain_RecordFinding(porcelain, "element", watch->element,
-                                porcelain_expected_absence(porcelain, watch->element)
+                                porcelain_absence_declaration(porcelain, watch->element)
                                     ? PORCELAIN_FINDING_ABSENT_EXPECTED
                                     : PORCELAIN_FINDING_ABSENT,
                                 watch->role);

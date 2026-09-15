@@ -192,6 +192,10 @@ struct PorcelainFindingSlot
     char verb[PORCELAIN_VERB_MAX];
     char detail[PORCELAIN_DETAIL_MAX];
     char role[PORCELAIN_NAME_MAX];
+    /** The covering declaration's reason, copied at record time and again
+     *  when a relabel brings a declaration to a finding that predates it.
+     *  Empty when nothing declared this finding. @see PorcelainFinding::why */
+    char why[PORCELAIN_DETAIL_MAX];
 };
 
 struct PorcelainExpectAbsent
