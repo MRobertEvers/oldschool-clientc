@@ -1576,20 +1576,43 @@ orbs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
          * does and the historical child-at-(0,0) did not -- would be a
          * behaviour change this port has no mandate for.
          *
-         * `visible_with` carries what the anchor would otherwise have: the
-         * cover is presented exactly when the thing it stands for is.
+         * `visible_with` follows WHAT THE COVER STANDS FOR, which is not the
+         * same thing on the two kinds of lane this plugin runs on.
+         *
+         * Where the lane HAS a native orb, this control stands for that orb.
+         * The orb's existence has nothing to do with the minimap's -- a lane
+         * that stops painting its map still has its orb column -- so the cover
+         * takes no gate at all, and it is right that hiding the minimap leaves
+         * it alone. It cannot take the ORB as its gate either, because this
+         * plugin HIDES that node three lines below and a cover gated on a node
+         * it just took out of the frame would never paint; the description
+         * itself is the gate, since the cover is only described while the orb
+         * is bound and available, and the cutscene facet above still takes the
+         * whole column away.
+         *
+         * Where the lane has NO native orbs, the plugin invented the column
+         * out of nothing and hung it beside the map -- the placement above is
+         * literally measured off the map box, clamped out of the map disc.
+         * Then the minimap IS what these plates stand for, and when it stops
+         * painting they are hanging off nothing and should go with it.
+         *
+         * The two are one rule, asked of the layer rather than of the lane:
+         * did this orb bind? A branch on the cache or the toplevel would be
+         * the defect family this plugin's own port report warns about; "is
+         * there a native orb here" is a fact the layer answers on every lane.
+         *
+         * Not PORCELAIN_EL_ORBS, the block, for the no-orb case: a 2004 lane
+         * has no orb block either, so that gate would be ABSENT and therefore
+         * never satisfied on exactly the lane that needs the invented column
+         * most.
          */
         {
             struct ToriRS_WidgetBounds const box = orbs_canvas_box(state, i, orb_bound, &orb, &map);
             item.place.kind = PORCELAIN_AT_CANVAS;
             item.place.dx = box.x;
             item.place.dy = box.y;
-            /* The MINIMAP and not the orb, in both cases: the orb we cover is
-             * one we also HIDE below, and a cover gated on the presented state
-             * of a node this plugin just took out of the frame would never
-             * paint at all. The cutscene facet above is what still takes the
-             * whole column away. */
-            item.visible_with = PORCELAIN_EL(MINIMAP);
+            if( !orb_bound )
+                item.visible_with = PORCELAIN_EL(MINIMAP);
         }
         describe->control(describe, &item);
         /*
