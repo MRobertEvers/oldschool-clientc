@@ -440,13 +440,15 @@ fake_draw_tile(
     uint32_t d,
     int outline_width,
     uint32_t e,
-    int f)
+    int f,
+    int g)
 {
     (void)u;
     (void)a;
     (void)b;
     (void)c;
     (void)d;
+    (void)g;
     (void)outline_width;
     (void)e;
     (void)f;
@@ -2803,11 +2805,11 @@ static int tile_budget_first, tile_budget_last;
 static void tile_budget_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* graphics)
 {
     (void)api;(void)state;
-    tile_budget_first =
-        (int)graphics->world_tile(graphics, 3200, 3200, 0, 0x00ff00u, 0x00ff00u, 2, 40);
+    tile_budget_first = (int)graphics->world_tile(
+        graphics, 3200, 3200, 0, 0x00ff00u, 0x00ff00u, 2, 40, TORIRS_TILE_ON_TOP);
     for( int i = 0; i < TORIRS_PLUGIN_DRAW_BUDGET; i++ )
-        tile_budget_last =
-            (int)graphics->world_tile(graphics, 3200 + i, 3200, 0, 0x00ff00u, 0x00ff00u, 2, 40);
+        tile_budget_last = (int)graphics->world_tile(
+            graphics, 3200 + i, 3200, 0, 0x00ff00u, 0x00ff00u, 2, 40, TORIRS_TILE_ON_TOP);
 }
 static void test_world_tile_answers_its_refusal(void)
 {

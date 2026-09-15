@@ -257,7 +257,15 @@ struct ToriRS_Graphics
      * hovered tile wore a hard opaque rim the cache had switched off and
      * every thickness the cache sent rendered the same.
      *
+     * `depth` says whether the marker is composited over the finished scene
+     * or drawn with the tile's own ground. It is a separate argument and not a
+     * bit stolen from a colour or a width because it decides ORDER and nothing
+     * else: a marker is the same quad, the same wash and the same border
+     * either way, and the only difference is whether the player standing on
+     * the tile is over it or under it. @see enum ToriRS_TileDepth.
+     *
      * @param outline_width border thickness in pixels; 0 draws no border.
+     * @param depth enum ToriRS_TileDepth.
      */
     enum ToriRS_Result (*world_tile)(
         struct ToriRS_Graphics* draw,
@@ -267,7 +275,8 @@ struct ToriRS_Graphics
         uint32_t fill_rgb,
         uint32_t outline_rgb,
         int outline_width,
-        int alpha);
+        int alpha,
+        int depth);
     enum ToriRS_Result (*world_hull)(
         struct ToriRS_Graphics* draw,
         int element_id,
@@ -2142,7 +2151,7 @@ struct ToriRS_PorcelainApi
      *  that for a while and nothing could read it. */
     bool (*tile)(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int tile_x,
                  int tile_z, int level, uint32_t fill_rgb, uint32_t outline_rgb,
-                 int outline_width, int alpha);
+                 int outline_width, int alpha, int depth);
     /** A plugin's OWN finding, coalesced on (verb, element, result) like
      *  every other. `result` is a PorcelainFindingResult and may not be OK. */
     void (*finding)(struct Porcelain* porcelain, char const* verb,

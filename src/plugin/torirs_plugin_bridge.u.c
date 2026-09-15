@@ -3020,6 +3020,46 @@ app_plugin_overlay_argb(uint32_t rgb)
  * vertex plus two brackets plus an outline segment per edge.
  */
 
+/*
+ * Is this marker one the scene can hold, and where does it go if so?
+ *
+ * Two questions the caller cannot skip either half of. TORIRS_TILE_ON_TOP is
+ * the answer for every marker whose group asked to be on top, and it is also
+ * the answer whenever the scene cannot ANSWER the other one -- a marked tile
+ * outside the scene's own grid has no ground command to be drawn after, and a
+ * deck tile is addressed in a boat's own tile numbers, which collide with the
+ * root's. Saying "on top" there is not a fallback that hides a bug: it is the
+ * only ordering that exists for a tile the root paint never puts down, and it
+ * is what the marker did before this parameter existed.
+ */
+static bool
+app_plugin_tile_mark_key(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int depth,
+    int* out_key)
+{
+    assert(app);
+    assert(out_key);
+    if( depth != TORIRS_TILE_IN_SCENE )
+        return false;
+    if( !app->world )
+        return false;
+    if( scene_x < 0 || scene_z < 0 )
+        return false;
+    if( scene_x >= app->world->_scene_size || scene_z >= app->world->_scene_size )
+        return false;
+    if( scene_x >= APP_WORLD_TILE_MARK_SCENE_MAX ||
+        scene_z >= APP_WORLD_TILE_MARK_SCENE_MAX )
+        return false;
+    if( level < 0 || level >= WORLD_MAP_TERRAIN_LEVELS )
+        return false;
+    *out_key = app_world_tile_mark_key(scene_x, scene_z, level);
+    return true;
+}
+
 static int
 app_plugin_draw_tile(
     void* user,
@@ -3029,7 +3069,8 @@ app_plugin_draw_tile(
     uint32_t rgb,
     int outline_width,
     uint32_t fill_rgb,
-    int fill_alpha)
+    int fill_alpha,
+    int depth)
 {
     struct App* app = (struct App*)user;
     static const int CORNER[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
@@ -3042,9 +3083,12 @@ app_plugin_draw_tile(
     int scene_x;
     int scene_z;
     int plane_y;
-    int const before = app ? app_overlay_count(app) : 0;
+    int mark_key = 0;
+    bool in_scene = false;
+    int before;
 
     assert(app);
+    assert(depth == TORIRS_TILE_ON_TOP || depth == TORIRS_TILE_IN_SCENE);
 
     if( !app->world )
         return 0;
@@ -3107,6 +3151,8 @@ app_plugin_draw_tile(
      * plugin only ever speaks absolute. */
     scene_x = tile_x - app->world->_base_tile_x;
     scene_z = tile_z - app->world->_base_tile_z;
+    in_scene =
+        app_plugin_tile_mark_key(app, scene_x, scene_z, level, depth, &mark_key);
 
     /*
      * One flat plane at the tile's own SW corner height, not a per-corner
@@ -3140,6 +3186,27 @@ app_plugin_draw_tile(
 
 emit:
 
+    /*
+     * The stage decides WHERE the next few pushes land, and it is opened
+     * around the pushes rather than consulted inside them, so that the
+     * polygon helpers below stay the two the overlay list has always used.
+     * The marker is the same quad, the same wash and the same border on both
+     * sides of this; only the list differs, and with it the moment the raster
+     * sees it.
+     */
+    if( in_scene )
+        app_world_tile_mark_begin(
+            app,
+            mark_key,
+            app->world_emit_desc.x,
+            app->world_emit_desc.y,
+            app->world_emit_desc.w,
+            app->world_emit_desc.h);
+    /* Taken AFTER the stage is open: the count is the open list's, and a
+     * marker drawn into the scene has to bill the frame the same items the
+     * same marker drawn over it would. */
+    before = app_overlay_count(app);
+
     hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
     /* The wash is the caller's fill colour, which is not always the outline's
      * -- see draw_tile in torirs_plugin_api.h. */
@@ -3166,7 +3233,12 @@ emit:
      */
     app_overlay_push_polygon(
         app, hull_x, hull_y, hull_size, app_plugin_overlay_argb(rgb), outline_width);
-    return app_overlay_count(app) - before;
+    {
+        int const spent = app_overlay_count(app) - before;
+        if( in_scene )
+            app_world_tile_mark_end(app);
+        return spent;
+    }
 }
 
 static int

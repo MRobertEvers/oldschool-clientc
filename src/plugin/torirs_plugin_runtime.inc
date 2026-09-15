@@ -2285,7 +2285,8 @@ v2_builder_world_tile(
     uint32_t fill_rgb,
     uint32_t outline_rgb,
     int outline_width,
-    int alpha)
+    int alpha,
+    int depth)
 {
     struct PluginV2DrawScope* scope = v2_draw_scope(draw);
     /* The host's answer, not a constant. This returned OK unconditionally for
@@ -2300,7 +2301,8 @@ v2_builder_world_tile(
         outline_rgb,
         outline_width,
         fill_rgb,
-        v2_alpha(alpha));
+        v2_alpha(alpha),
+        depth);
 }
 
 static enum ToriRS_Result

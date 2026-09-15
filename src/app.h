@@ -48,6 +48,7 @@
 #include "inv/inv_manager.h"
 #include "platform/platform_io.h"
 #include "render/torirs_damage_region.h"
+#include "render/torirs_frame.h"
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_mesh.h"
 #include "ui/uitree_frame.h"
@@ -85,6 +86,7 @@ struct ToriRS_Frame;
 struct ToriRS_PickHits;
 struct PktRunClientScript;
 
+#include <limits.h>
 #include <stdint.h>
 
 struct World;
@@ -190,6 +192,27 @@ enum AppPluginRowKind
 #define APP_PLUGIN_CHOICES_MAX 128
 /** Retained portable primitives across every custom well on the active page. */
 #define APP_PLUGIN_PANEL_OVERLAYS_MAX 512
+
+/**
+ * Overlay primitives a frame may hand to the WORLD pass, over every tile.
+ *
+ * The same 512 the per-frame draw budget allots a plugin, because these come
+ * out of that budget: a tile marker is ten primitives (a filled quad as a
+ * begin / four points / end, and four border segments), so this is fifty
+ * tiles' worth and the budget bites first in every case that matters. Past it
+ * the staging refuses and says so rather than wrapping.
+ */
+#define APP_WORLD_TILE_MARKS_MAX 512
+
+/** Scene tiles a mark key can name per axis. 512 because that is what a
+ *  painter terrain command's own nine-bit x and z can name, and the key is
+ *  compared against one. */
+#define APP_WORLD_TILE_MARK_SCENE_MAX 512
+
+/** "This paint never drew the marked tile." INT_MAX so the sort puts these
+ *  last and the world walk's own "not reached yet" test stops at the first of
+ *  them -- no second test, no second list. */
+#define APP_WORLD_TILE_MARK_UNPLACED INT_MAX
 /** Room for both chrome instances plus converted panel-local primitives. */
 #define APP_CHROME_PRIMS_MAX                                                                   \
     (2 * TORIRS_CHROME_MAX_PRIMS + APP_PLUGIN_PANEL_OVERLAYS_MAX)
@@ -1142,6 +1165,38 @@ struct App
     int panel_overlay_stage_count;
     int panel_overlay_stage_active;
     int panel_overlay_stage_overflow;
+    /**
+     * Tile markers that belong INSIDE the 3D pass, and the tiles they mark.
+     *
+     * A tile marker the cache did not flag "always on top" is drawn with the
+     * tile's own ground instead of over the finished scene, so the player
+     * standing on the tile covers it. The primitives are the same ones the
+     * overlay list holds -- app_overlay_push routes them here while the stage
+     * is open -- and what makes them land in the right place is
+     * `after_command`, resolved once a frame against the painter buffer that
+     * was just painted (app_world_tile_marks_place).
+     *
+     * `world_tile_mark_key` is the marked tile, packed scene-local, and it is
+     * what survives from frame to frame: the command index does not, because
+     * the paint is new every frame, and the retained-overlay path can leave
+     * this list standing for several.
+     */
+    struct ToriRS_WorldTileMark world_tile_marks[APP_WORLD_TILE_MARKS_MAX];
+    int world_tile_mark_key[APP_WORLD_TILE_MARKS_MAX];
+    int world_tile_mark_count;
+    int world_tile_mark_overflow;
+    /** Marks whose tile the last paint did not draw at all -- off screen,
+     *  culled, or under a hidden roof. A legitimate state and not an error,
+     *  and counted because "the marker is gone" and "the marker is behind
+     *  something" look the same on screen. */
+    int world_tile_mark_unplaced;
+    int world_tile_mark_stage_active;
+    int world_tile_mark_stage_key;
+    /** The world viewport, stamped onto every primitive the open stage takes.
+     *  The overlay list gets its clip from the DESC it travels on; a mark has
+     *  no desc -- it is emitted inside the 3D pass -- so it has to carry one,
+     *  or a marker at the edge of the scene paints over the chrome. */
+    struct ToriRSChromeRect world_tile_mark_stage_clip;
     int panel_overlay_origin_x;
     int panel_overlay_origin_y;
     int panel_overlay_scale;

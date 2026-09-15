@@ -3673,6 +3673,19 @@ test-frame-entity-overlay-sprite: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
 	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_entity_overlay_sprite_test
 
+# A tile marker the cache did not flag "always on top" is drawn WITH the tile's
+# ground rather than over the finished scene, so the player standing on the
+# tile covers it. The whole of that is an order inside the world walk, and this
+# is where the order is pinned.
+.PHONY: test-frame-tile-mark
+test-frame-tile-mark: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/frame_tile_mark_test \
+		render/test/torirs_frame_tile_mark_test.c \
+		render/torirs_frame.c render/torirs_arc.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
+	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_tile_mark_test
+
 .PHONY: test-frame-flat
 test-frame-flat: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)

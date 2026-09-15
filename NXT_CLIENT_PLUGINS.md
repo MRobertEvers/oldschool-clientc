@@ -82,10 +82,13 @@ See "Client triggers" and "Scripted entity overlays" below.
 | 113 | Tile highlight colour | cache + client (picker) |
 | 117 | Clear your highlighted tiles | client (button) |
 | 172 | Highlight hovered tile | cache |
+| 173 | Highlight hovered tile - Always on top | cache |
 | 174 | Highlight hovered tile - Colour | cache |
 | 175 | Highlight current tile | cache |
+| 176 | Highlight current tile - Always on top | cache |
 | 177 | Highlight current tile - Colour | cache |
 | 178 | Highlight destination tile | cache |
+| 179 | Highlight destination tile - Always on top | cache |
 | 180 | Highlight destination tile - Colour | cache |
 | 189 | Bird nest notification | `nxt-bird-nest` |
 | 190 | Highlight entities on mouse-over | cache |
@@ -129,9 +132,6 @@ this client's, and is the same one for all of them. See "The third half".
 | id | setting | what is missing |
 |---:|---------|-----------------|
 | 164 | Highlight Agility obstacles | the objtype half populates; the obstacles need a per-course script |
-| 173 | Highlight hovered tile - Always on top | flag reaches the renderer; needs a depth-tested ground primitive |
-| 176 | Highlight current tile - Always on top | flag reaches the renderer; needs a depth-tested ground primitive |
-| 179 | Highlight destination tile - Always on top | flag reaches the renderer; needs a depth-tested ground primitive |
 
 ### Not started, by what each needs
 
@@ -1254,21 +1254,48 @@ glyphs twice a pixel apart.
 Each was deleted in the change that replaced it. Not before, or those rows go
 dark; not after, or they draw twice.
 
-### "- Always on top" (173, 176, 179) is read and not honoured
+### "- Always on top" (173, 176, 179) is honoured -- by ORDER, not by depth
 
-The row means "draw the marker over the scenery in front of it". `draw_tile`
-lands in this client's overlay layer, which is composited after the scene and
-is therefore *always* on top -- so the ON state is what you get either way and
-the OFF state cannot be produced at all. Honouring it needs a depth-tested
-ground primitive; ToriDraw's z-buffer scratch is per MODEL
-(`TORIDRAW_SCENE_MODEL_ZBUFFER`) and the overlay layer has none. That is a
-renderer change, not a plugin one.
+The row means "draw the marker over the scenery in front of it", and for a
+long time this client could only do the ON state: `draw_tile` landed in the
+overlay layer, which is composited after the whole scene, so every marker was
+always on top whether its group asked for that or not. The two groups the
+cache deliberately distinguishes -- the current-tile group (kind 7, group 3,
+flags 2|8) and the tile-marker group the "Mark tile" op fills (group 6, flags
+2|8|16|64) -- were the same picture, and the first of them washed the boots of
+the player standing on the tile it marked.
 
-The varbit is still read, and deliberately not acted on. Reading it keeps the
-dependency visible where the fix will go. Acting on it -- hiding the marker
-when "always on top" is off -- would be worse than doing nothing, because it is
-not what the row says, and a user turning it off would lose the marker
-entirely.
+The fix is not a depth test and does not need one. ToriDraw's z-buffer scratch
+is per MODEL (`TORIDRAW_SCENE_MODEL_ZBUFFER`) and the overlay layer has none,
+which is what made this look like a renderer project -- but the scene is drawn
+by a PAINTER, and a painter's answer to "what is in front" is the order the
+commands come in. So a marker whose group does not set bit 16 is emitted
+inside the 3D pass, immediately after the ground command of the tile it marks:
+everything the painter puts down afterwards -- the locs on that tile, the npc,
+the player -- covers it, which is the whole of "not always on top".
+
+Three layers carry it and none of them decides it:
+
+- `nxt_highlight` reads bit 16 and nothing else about it (`nxt_hl_tile_depth`);
+- `draw->world_tile` and `Porcelain_Tile` take a `depth` -- an
+  `enum ToriRS_TileDepth`, a separate argument and not a bit stolen from a
+  colour or a width, because it decides ORDER and nothing else;
+- the host stages an IN_SCENE marker's primitives against the tile they mark
+  (`app_world_tile_marks_place`) and the world walk replays them at that point
+  (`ToriRS_WorldTileMark`). They are the SAME primitives the overlay list
+  holds, through the same two polygon helpers, so the two orderings can differ
+  in when a marker is drawn and never in what it is made of.
+
+A marked tile the paint never drew -- off screen, culled, under a hidden roof
+-- has no ground command to be drawn after, and its marker is not drawn.
+That is counted and said out loud under `TORIRS_TRACE_PLUGIN_WORLD`
+(`PLUGIN_TILE_MARKS staged= unplaced= overflow=`), because "behind the player"
+and "not drawn at all" are the same picture and the log is what tells them
+apart. A deck tile aboard a boat keeps the overlay's always-on-top path: it is
+addressed in that view's own tile numbers, which collide with the root's.
+
+What is NOT done is hiding a marker when the row is off. That was never what
+the row says, and a user turning it off would lose the marker entirely.
 
 ### 453's "you have not voted" half is the server's
 

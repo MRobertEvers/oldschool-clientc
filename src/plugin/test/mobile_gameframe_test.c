@@ -421,7 +421,7 @@ static int fake_lane(void* u, struct ToriRS_LaneInfo* o)
 static int fake_project(void* u, int a, int b, int c, int* x, int* y) { (void)u; (void)a; (void)b; (void)c; (void)x; (void)y; return 0; }
 /* `w` is the border thickness draw_tile gained when the hovered-tile group's
  * own answer of 0 (no border at all) turned out never to be read. */
-static int fake_draw_tile(void* u, int x, int z, int l, uint32_t c, int w, uint32_t f, int a) { (void)u; (void)x; (void)z; (void)l; (void)c; (void)w; (void)f; (void)a; return 0; }
+static int fake_draw_tile(void* u, int x, int z, int l, uint32_t c, int w, uint32_t f, int a, int d) { (void)u; (void)x; (void)z; (void)l; (void)c; (void)w; (void)f; (void)a; (void)d; return 0; }
 static int fake_draw_hull(void* u, int e, uint32_t c, int a, int s) { (void)u; (void)e; (void)c; (void)a; (void)s; return 0; }
 static int fake_draw_line(void* u, int a, int b, int c, int d, uint32_t r) { (void)u; (void)a; (void)b; (void)c; (void)d; (void)r; return 0; }
 static int fake_draw_text(void* u, int x, int y, char const* t, uint32_t r) { (void)u; (void)x; (void)y; (void)t; (void)r; return 0; }

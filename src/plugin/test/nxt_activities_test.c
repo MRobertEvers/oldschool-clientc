@@ -113,6 +113,13 @@ struct FakeEngine
      *  app_plugin_draw_tile, so the hovered tile's thickness of 0 drew a hard
      *  opaque rim that nothing in this file could see. */
     int last_tile_outline_width;
+    /** Where the group asked its marker to sit: TORIRS_TILE_ON_TOP or
+     *  TORIRS_TILE_IN_SCENE. Recorded because the renderer read four of the
+     *  cache's five tile bits and dropped this one, which made the
+     *  current-tile group (flags 2|8) and the tile-marker group
+     *  (flags 2|8|16|64) the same picture -- the first washes the player
+     *  standing on its tile and the second is supposed to. */
+    int last_tile_depth;
     char last_text[64];
 
     /* api->notify: what the player was told, and how often. */
@@ -421,7 +428,8 @@ fake_draw_tile(
     uint32_t rgb,
     int outline_width,
     uint32_t fill_rgb,
-    int fill_alpha)
+    int fill_alpha,
+    int depth)
 {
     (void)u;
     (void)tx;
@@ -432,6 +440,7 @@ fake_draw_tile(
     g_engine.last_tile_rgb = rgb;
     g_engine.last_tile_outline_width = outline_width;
     g_engine.last_tile_fill_alpha = fill_alpha;
+    g_engine.last_tile_depth = depth;
     /* What this primitive spent of the frame's allotment. The host adds the
      * return value to the plugin's `draw_used`, so a test that wants the
      * budget refusal makes one tile expensive rather than drawing 512. */
@@ -1238,6 +1247,40 @@ main(void)
         CHECK(
             g_engine.last_tile_outline_width == 1,
             "and the THICKNESS the group stated, not a constant");
+        /*
+         * The FIFTH bit, which decides where the marker sits rather than what
+         * it is made of.
+         *
+         * Clientscript 5198's hovered tile is flags 2|8 -- no bit 16 -- and
+         * the settings row that adds it is called "- Always on top". Without
+         * it the marker belongs in the scene, under whatever stands on the
+         * tile; this group asked for that and the renderer used to ask the
+         * host for the opposite, because it read the four draw bits and not
+         * this one.
+         *
+         * MUTATION: return TORIRS_TILE_ON_TOP unconditionally from
+         *   nxt_hl_tile_depth -- the shipped defect exactly. Red here and
+         *   nowhere else: every other assertion in this block is about what
+         *   the marker is made of, and that does not change.
+         */
+        CHECK(
+            g_engine.last_tile_depth == TORIRS_TILE_IN_SCENE,
+            "a group with no bit 16 asks for a marker IN the scene");
+
+        /* And with bit 16 the same group asks for the opposite. Both arms,
+         * because a renderer that answered IN_SCENE unconditionally would be
+         * just as wrong and would pass the assertion above: it is the pair
+         * that says the bit is READ rather than replaced by a new constant.
+         * This is the tile-marker group (kind 7, group 6, flags 2|8|16|64),
+         * the one the "Mark tile" client op fills. */
+        g_engine.highlights[0].flags = 2 | 8 | 16 | 64;
+        draw_reset(host);
+        PluginHost_DrawWorld(host, 765, 503);
+        CHECK(g_engine.tiles == 1, "the always-on-top group still marks its tile");
+        CHECK(
+            g_engine.last_tile_depth == TORIRS_TILE_ON_TOP,
+            "and bit 16 asks for it OVER the scene");
+        g_engine.highlights[0].flags = 2 | 8;
 
         /* The thickness is the group's, whatever it is. Two and one have to
          * arrive as two and one: while the engine held a constant they were

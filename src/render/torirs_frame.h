@@ -2,6 +2,7 @@
 #define SRC_RENDER_TORIRS_FRAME_H
 
 #include "render/torirs_render.h"
+#include "ui/uitree_entity_overlay.h"
 #include "ui/uitree_scroll.h"
 
 #include <stdbool.h>
@@ -57,6 +58,31 @@ struct ToriRS_FrameViewXform
 };
 
 /**
+ * One overlay primitive that belongs INSIDE the 3D pass, and the painter
+ * command it is drawn straight after.
+ *
+ * A tile marker is a wash on the ground. Drawn from the entity-overlay list it
+ * is composited after the whole scene, so it lies over the player standing on
+ * the tile -- which is the state the cache's "always on top" flag describes,
+ * and the cache only sets that flag on some of its groups. The other state is
+ * what this exists for: the same primitives, replayed in the world walk
+ * immediately after the tile's own ground mesh, so everything the painter puts
+ * down later -- the locs on the tile, the npc, the player -- covers it.
+ *
+ * `after_command` is an index into the PaintersBuffer the frame is walking.
+ * The app resolves it against the buffer it has just painted, because only the
+ * app can see both the marked tile and the paint; the render layer only has to
+ * count commands. Marks arrive sorted ascending by it, and a mark whose tile
+ * was not painted this frame (off screen, culled, under a hidden roof) is not
+ * in the array at all.
+ */
+struct ToriRS_WorldTileMark
+{
+    int after_command;
+    struct UITreeEntityOverlay item;
+};
+
+/**
  * Greedy frame emitter: one GFX command per ToriRS_FrameNextCommand call.
  * Translates UITreeEmitBuffer; WORLD opens a 3D pass and walks PaintersBuffer
  * when world/painters are attached.
@@ -105,6 +131,12 @@ struct ToriRS_Frame
     enum ToriRS_FramePassKind pass;
     int emit_index;
     int painters_index;
+    /** @see ToriRS_WorldTileMark. Sorted ascending by `after_command`; the
+     *  cursor is the next one to draw and only ever moves forward, which is
+     *  what makes the drain O(1) per command. */
+    struct ToriRS_WorldTileMark const* world_tile_marks;
+    int world_tile_mark_count;
+    int world_tile_mark_cursor;
     /* The element ids of the next few painter commands, resolved once when
      * they are prefetched (a terrain command's id is a pool lookup) and
      * reused when the command comes round. Slot i & (RING-1) holds command
@@ -196,6 +228,18 @@ ToriRS_FrameSetWorld(
     int cam_x,
     int cam_y,
     int cam_z);
+
+/**
+ * The tile markers to replay inside the world pass. @see ToriRS_WorldTileMark.
+ *
+ * Set after ToriRS_FrameSetWorld, with the painter buffer that call was given:
+ * `after_command` indexes that buffer and means nothing against another one.
+ */
+void
+ToriRS_FrameSetWorldTileMarks(
+    struct ToriRS_Frame* frame,
+    struct ToriRS_WorldTileMark const* marks,
+    int count);
 
 /**
  * Drop every world-entity transform, keeping the root. Called once per frame

@@ -1199,6 +1199,32 @@ enum ToriRS_HullShape
     TORIRS_HULL_MESH = 1
 };
 
+/**
+ * Where a tile marker sits against the scene it marks.
+ *
+ * A marked tile is a place on the ground, so there are two honest answers to
+ * "what happens when something stands on it", and the cache states which it
+ * wants: bit 16 of a highlight group's flags is the settings row spelled
+ * "- Always on top", and the cache sets it on the tile-marker group and
+ * leaves it off the current-tile and hovered-tile ones.
+ *
+ * This is NOT a hint. ON_TOP composites the marker after the whole scene;
+ * IN_SCENE draws it with the tile's own ground, so the locs, npcs and players
+ * the painter puts down after that tile cover it. Nothing else about the
+ * marker changes: same quad, same wash, same border.
+ */
+enum ToriRS_TileDepth
+{
+    /**
+     * Over everything. The default, because it is what every caller got while
+     * there was no parameter, and because it is what a marker the USER placed
+     * is for -- a tile mark you cannot see behind a wall has not marked it.
+     */
+    TORIRS_TILE_ON_TOP = 0,
+    /** In the scene, under whatever stands on the tile. */
+    TORIRS_TILE_IN_SCENE = 1
+};
+
 /* ------------------------------------------------------------------------ */
 /* Retained facets for named entities in the world                           */
 /* ------------------------------------------------------------------------ */
