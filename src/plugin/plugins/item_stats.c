@@ -3088,6 +3088,23 @@ is_on_draw_canvas(
     g_tip_w = g_tip->width;
     g_tip_h = g_tip->height;
 
+    /* Kept on the canvas this callback may draw on: the pass's own drawable
+     * rect, which for a canvas paint is the whole canvas. That is what the
+     * retired placement area meant here; the 3D viewport is not it -- an
+     * inventory hover sits outside the viewport and its tooltip must not flip
+     * away over the minimap. A pass that set no region at all used to leave
+     * `canvas` zeroed and the panel silently unclamped; it is a finding now.
+     *
+     * Asked BEFORE the placement, not after it. The "is there room above"
+     * test is a question about this rectangle's TOP edge, and it used to run
+     * against a `canvas` still zeroed from its initialiser: `canvas.height >
+     * 0` could not be true yet, so the rule that shipped was the fallback's
+     * absolute `y < 0` and a drawable rect starting anywhere but row zero
+     * placed the panel off the top of it. One rect, fetched once, read after
+     * it exists. */
+    if( Porcelain_DrawContext(g_porcelain, draw, PORCELAIN_EL(NONE), &context) )
+        canvas = context.bounds;
+
     /*
      * ABOVE the pointer, because the LANE draws its own caption below it.
      *
@@ -3096,35 +3113,36 @@ is_on_draw_canvas(
      * 627,244 -- and cut "Wear Rune platebody / 3 more options" down to a
      * leading "W" and a trailing "body" / "ptions", the middle showing only as
      * a 12% bleed through the plate. Two pieces of text over each other, and
-     * neither readable.
+     * neither readable. The pointer that was measured, 615,228, is an
+     * INVENTORY cell: the caption is hung off the cursor wherever the cursor
+     * is, so this is not a viewport rule and the inventory is not an
+     * exception to it.
      *
      * Above is the side the lane leaves empty on every root, so this is one
      * rule rather than a per-lane offset. Where there is no room above, the
      * panel still goes below -- but clear of the caption by its own height
      * rather than into it. @see IS_TIP_CAPTION_H.
+     *
+     * And on a lane that captions the pointer NOWHERE -- the 2004 root draws
+     * its mouseover line in the viewport's top-left corner instead -- the
+     * answer is the same, because above is empty there too. That is why this
+     * asks the lane nothing about its caption: a rung read to find one would
+     * be refused on every root that has none, and an undeclared refusal is
+     * the same silence that let the original defect ship. Nothing asked,
+     * nothing to declare, and one placement on all six roots.
      */
     x = mouse_x + IS_TIP_DX;
     y = mouse_y - g_tip_h - IS_TIP_GAP;
-    if( canvas.height > 0 && y < canvas.y )
+    if( y < canvas.y )
         y = mouse_y + IS_TIP_CAPTION_H;
-    else if( canvas.height <= 0 && y < 0 )
-        y = mouse_y + IS_TIP_CAPTION_H;
-    /* Kept on the canvas this callback may draw on: the pass's own drawable
-     * rect, which for a canvas paint is the whole canvas. That is what the
-     * retired placement area meant here; the 3D viewport is not it -- an
-     * inventory hover sits outside the viewport and its tooltip must not flip
-     * away over the minimap. A pass that set no region at all used to leave
-     * `canvas` zeroed and the panel silently unclamped; it is a finding now. */
-    if( Porcelain_DrawContext(g_porcelain, draw, PORCELAIN_EL(NONE), &context) )
-        canvas = context.bounds;
     if( canvas.width > 0 && x + g_tip_w > canvas.x + canvas.width )
         x = mouse_x - g_tip_w - 4;
     if( canvas.height > 0 && y + g_tip_h > canvas.y + canvas.height )
         y = mouse_y - g_tip_h - IS_TIP_GAP;
-    if( x < 0 )
-        x = 0;
-    if( y < 0 )
-        y = 0;
+    if( x < canvas.x )
+        x = canvas.x;
+    if( y < canvas.y )
+        y = canvas.y;
     draw->image(draw, g_tip_image, x, y, 255);
 }
 
