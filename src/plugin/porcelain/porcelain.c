@@ -3896,6 +3896,19 @@ Porcelain_ResetForTesting(void)
     memset(&g_epoch_revalidate_ref, 0, sizeof(g_epoch_revalidate_ref));
 }
 
+struct Porcelain*
+Porcelain_HandleForTesting(char const* plugin_id)
+{
+    assert(plugin_id);
+    for( int i = 0; i < PORCELAIN_HANDLES_MAX; i++ )
+        if( g_handles[i].used && strcmp(g_handles[i].plugin_id, plugin_id) == 0 )
+            return &g_handles[i];
+    /* Not an error: a test asks this of a plugin it may have chosen not to
+     * register, and "no handle" is the answer that distinguishes a plugin
+     * that never opened one from a plugin that opened one and filed nothing. */
+    return NULL;
+}
+
 /* ------------------------------------------------------------------------ */
 /* The table                                                                */
 /* ------------------------------------------------------------------------ */

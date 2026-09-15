@@ -607,6 +607,21 @@ void Porcelain_CountersReset(struct Porcelain* porcelain);
  */
 void Porcelain_ResetForTesting(void);
 
+/**
+ * The open handle plugin `plugin_id` holds, or NULL when it holds none.
+ *
+ * For a test that drives a plugin through the HOST -- PluginHost_ObjSpawn,
+ * PluginHost_ServerTick -- and so never sees the state struct the handle
+ * lives in. Its one use is to read `Porcelain_Findings` back afterwards.
+ *
+ * It exists because of a rule this project already has: a test that pins
+ * "the feature said nothing" and CANNOT also pin "and it recorded why" is a
+ * silent-failure pin, and it stays green on the day the refusal channel goes
+ * away. The bare-lane checks in nxt_activities_test.c were exactly that
+ * shape, which is also why the CS1 bird-nest capture could not be read.
+ */
+struct Porcelain* Porcelain_HandleForTesting(char const* plugin_id);
+
 /** Which handle owns `aspect` of `element`, or NULL. Inspectable by rule. */
 char const* Porcelain_ClaimOwner(struct PorcelainElement element, enum PorcelainAspect aspect);
 
