@@ -81,6 +81,22 @@ $here/lane.sh $out dat1_stone   $bin 0 mobile-gameframe/stone-drawer   1 $M/mani
 #
 # 500 of 620 frames leaves 120 for the description to come back, which is far
 # more than it needs and little enough that a lane costs the same as the others.
+# Both remount lanes get 900 frames rather than the set's 620, and that is a
+# BUG FIX rather than a margin.
+#
+# The switch fires at 500, so 620 leaves 120 frames for a whole toplevel to come
+# back -- and sometimes it does not. Measured on one binary: three runs of
+# remount548 at 620 answered 0, 17 and 17 for the seventeen components of
+# interface 729, so the lane's BOUNDS count varied by seventeen between runs of
+# identical code. That is the worst thing a gate can do. It cost this
+# integration one investigation into an XP-tracker interface that "never comes
+# back after a remount", which was not happening at all.
+#
+# Four runs at 900 answered 17 every time. Four runs is evidence and not proof,
+# which is why the frame count is stated here with its reason rather than
+# quietly raised: if this flakes again the answer is to wait for the remount to
+# SETTLE rather than to buy more frames.
+TORIRS_GATE_FRAMES=900 \
 TORIRS_GATE_SIM_CMD='500,layout 2' \
 $here/lane.sh $out remount164 $bin 0 gameframe-layout/classic-fixed    0 $M/manifest_osrs239_curses.ini
 
@@ -99,6 +115,7 @@ $here/lane.sh $out remount164 $bin 0 gameframe-layout/classic-fixed    0 $M/mani
 #
 # Same frame, same offer, same 500-of-620 split as its twin: only `mode` and
 # the command differ, which is what makes the pair a pair.
+TORIRS_GATE_FRAMES=900 \
 TORIRS_GATE_SIM_CMD='500,layout 0' \
 $here/lane.sh $out remount548 $bin 2 gameframe-layout/modern-resizable 0 $M/manifest_osrs239_curses.ini
 

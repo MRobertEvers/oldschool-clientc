@@ -215,7 +215,23 @@ def owned(path, expect):
         l = expect.strip(l)
         m = re.search(r"key=(\S+) node=\d+ box=(-?\d+),(-?\d+),(-?\d+),(-?\d+)(.*)$", l)
         if m:
-            tail = re.sub(r"\bnode=\d+\b|\bowner=\d+\b", "", m.group(6)).strip()
+            # node, owner and scene are ALLOCATION ORDER, not description.
+            #
+            # Two runs that create the same controls in a different order get
+            # different numbers for all three, and a port that frees one image
+            # and composes another renumbers scene for every control after it.
+            # Leaving scene in the identity made stone601 report three owned
+            # controls "moved" whose boxes were byte-identical -- motion where
+            # nothing moved, which is the most expensive kind of gate output
+            # because somebody has to go and prove it means nothing.
+            #
+            # There is a `normalise scene` declaration for this, and it is the
+            # wrong instrument: a per-port declaration for a field that is
+            # never a fact about the port makes every port declare it, and a
+            # declaration that everyone writes is a field that should have
+            # been stripped here.
+            tail = re.sub(r"\bnode=\d+\b|\bowner=\d+\b|\bscene=\d+\b", "", m.group(6))
+            tail = re.sub(r"\s+", " ", tail).strip()
             out[m.group(1)] = (tuple(int(x) for x in m.groups()[1:5]), tail)
     return out
 
