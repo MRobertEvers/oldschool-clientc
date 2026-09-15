@@ -1437,6 +1437,15 @@ main(void)
      * varp 3 is the count (`rockthrower`) and varp 3551 your cannon's coord
      * (`ownedmcannon_temp`). Everything below is an EDGE -- a count that is
      * already low when you look at it is a state, not an event.
+     *
+     * THE EMPTY NOTICE IS HELD FOR TWO TICKS. The OSRS239 content implements
+     * the cannon itself and says "Your cannon is out of ammunition!" the tick
+     * after the count reaches zero, so a builtin that spoke immediately put
+     * two messages in the chatbox for one event -- photographed in
+     * tools/porcelain_gate/shots/plugins/cannon-native-cs2.png. Every empty
+     * below therefore ticks the grace out before it counts the line, which is
+     * why `cannon_grace()` exists; the LOW notice is not held, because no
+     * content sends one.
      */
     {
         int tick = 0;
@@ -1483,7 +1492,11 @@ main(void)
 
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
         PluginHost_ServerTick(host, ++tick);
-        CHECK(g_engine.notifies == 2, "empty says so");
+        CHECK(g_engine.notifies == 1, "empty does not speak over the lane's own line yet");
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 1, "and is still waiting one tick later");
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 2, "a lane that stayed silent gets the plugin's line");
         CHECK(strstr(g_engine.last_notify, "run out") != NULL, "as running out");
 
         /* Reloading is not news, and it re-arms the low notice. */
@@ -1504,6 +1517,8 @@ main(void)
         CHECK(g_engine.notifies == 3, "threshold 0 never calls anything low");
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
         PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 4, "but empty is still empty");
 
         /* Both rows off. */
@@ -1511,6 +1526,8 @@ main(void)
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
         PluginHost_ServerTick(host, ++tick);
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 4, "setting 250 off is silent at empty");
 
@@ -1524,6 +1541,8 @@ main(void)
         PluginHost_ServerTick(host, ++tick);
         PluginHost_SetEnabled(host, p_cannon, true);
         PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 4, "reenable does not replay disabled cannon ammo changes");
 
         /* Native pickup publishes null (-1), while initial/absent adapters
@@ -1534,7 +1553,92 @@ main(void)
         PluginHost_ServerTick(host, ++tick);
         g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
         PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 4, "native null coordinate has no ammo events");
+
+        /*
+         * ---- THE LANE SAYS IT ITSELF ----------------------------------
+         *
+         * The photographed defect: "Your cannon has run out of cannonballs."
+         * from this builtin, immediately followed by "Your cannon is out of
+         * ammunition!" from cannon.rs2. Two messages for one event, on every
+         * lane whose content implements the cannon -- which is every OSRS239
+         * lane, i.e. the one the plugin is actually run on.
+         *
+         * The row is not wrong to exist: a revision whose content sends no
+         * such line is what it is for, and that case is the three ticks
+         * above. What it must not do is speak over a lane that already did.
+         *
+         * MUTATION 1: drop the grace (fire at the moment ammo hits zero) --
+         *   red on "the lane's own line cancels the plugin's".
+         * MUTATION 2: drop the `!state->content_announces` guard -- red on
+         *   "a lane known to announce it never arms again".
+         * MUTATION 3: accept any chat type in nxt_cannon_chat -- red on "a
+         *   player saying the sentence cannot cancel a notification".
+         */
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = 0x0C800C80;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
+        PluginHost_ServerTick(host, ++tick);
+
+        /* A PLAYER saying it is not the content saying it. */
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ChatMessage(host, 2, "Zezima", "your cannon is out of ammunition");
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 5,
+            "a player saying the sentence cannot cancel a notification");
+
+        /* The lane's own line, inside the grace. */
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
+        PluginHost_ServerTick(host, ++tick);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ChatMessage(host, 0, NULL, "Your cannon is out of ammunition!");
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 5, "the lane's own line cancels the plugin's");
+
+        /* And having heard it once, the builtin knows this lane announces
+         * empties and stops arming at all -- so the SECOND emptying is one
+         * message too, with no window and no wait. */
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
+        PluginHost_ServerTick(host, ++tick);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 5, "a lane known to announce it never arms again");
+
+        /* The sailing content spells the same statement with a full stop.
+         * Re-registered so the latch above is not what is under test. */
+        PluginHost_SetEnabled(host, p_cannon, false);
+        PluginHost_SetEnabled(host, p_cannon, true);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
+        PluginHost_ServerTick(host, ++tick);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ChatMessage(host, 0, NULL, "Your cannon is out of ammunition.");
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 5,
+            "the sailing content's full stop is the same statement");
+
+        /* Restore the fixture for the cost measurement below: no cannon, and
+         * a builtin that has not heard the lane announce anything. */
+        PluginHost_SetEnabled(host, p_cannon, false);
+        PluginHost_SetEnabled(host, p_cannon, true);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = -1;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
+        PluginHost_ServerTick(host, ++tick);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 5, "native null coordinate still has no ammo events");
 
         /*
          * What a quiet tick COSTS.

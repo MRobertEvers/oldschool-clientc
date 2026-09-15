@@ -70,7 +70,86 @@ struct NxtCannonState
      *  the profile's own refs; @see the identical field on the bird-nest
      *  builtin for why it is held rather than re-asked. */
     bool available;
+    /**
+     * The empty announcement, held back for a tick or two.
+     *
+     * The cannon's coordinate while one is held, 0 while none is. @see
+     * NXT_CANNON_EMPTY_GRACE_TICKS for why it is held at all.
+     */
+    int pending_coord;
+    int pending_ticks;
+    /**
+     * THIS LANE'S CONTENT SAYS IT ITSELF.
+     *
+     * Latched the first time the lane's own out-of-ammo line is seen, and
+     * never cleared: content does not stop implementing a script mid-session.
+     * After that the grace below is not needed, because there is nothing to
+     * wait for -- the answer is already known.
+     */
+    bool content_announces;
 };
+
+/**
+ * Server ticks the empty announcement waits for the lane's content.
+ *
+ * TWO MESSAGES FOR ONE EVENT, which is what this exists to stop. The OSRS239
+ * content implements the cannon itself, and `cannon.rs2`'s tick timer says
+ * "Your cannon is out of ammunition!" the tick AFTER `%cannon_balls` reaches
+ * zero. This builtin sampled the same varp and said "Your cannon has run out
+ * of cannonballs." the tick it reached zero, so the chatbox got both, one
+ * after the other, every time.
+ *
+ * The plugin is not wrong to exist: a revision whose content does NOT send
+ * that line is exactly the case the All Settings row promises to cover, and
+ * the row would do nothing there. What is wrong is announcing before the lane
+ * has had its say. So the announcement is HELD for this many server ticks and
+ * cancelled if the lane speaks first.
+ *
+ * Two and not one: the count reaching zero and the content's line are a tick
+ * apart in the fire path, and the sample and the incoming message share a
+ * tick without a guaranteed order between them. Two ticks is 1.2 seconds on
+ * a lane that stays silent, which is below noticing for a notification that
+ * is itself a convenience.
+ */
+#define NXT_CANNON_EMPTY_GRACE_TICKS 2
+
+/**
+ * The lane's own out-of-ammo line, recognised.
+ *
+ * The SENTENCE and not a packet: nothing on the wire distinguishes a message
+ * the cannon script sent from any other `mes`, and the client has no list of
+ * what a revision's content implements. What it has is the line itself.
+ *
+ * Matched on the stem rather than the whole sentence because the content
+ * spells it two ways -- `cannon.rs2` ends it with "!" and the sailing
+ * content's `boat_cannons.rs2` with "." -- and both are the same statement.
+ * Case-insensitive and searched anywhere in the line, so a revision that
+ * colours it or prefixes it still counts.
+ */
+static bool
+nxt_cannon_line_is_empty_notice(char const* text)
+{
+    static char const STEM[] = "cannon is out of ammunition";
+    size_t const stem_len = sizeof(STEM) - 1;
+
+    assert(text);
+    for( size_t at = 0; text[at]; at++ )
+    {
+        size_t i = 0;
+        while( i < stem_len && text[at + i] )
+        {
+            char const a = text[at + i];
+            char const b = STEM[i];
+            char const lowered = (a >= 'A' && a <= 'Z') ? (char)(a - 'A' + 'a') : a;
+            if( lowered != b )
+                break;
+            i++;
+        }
+        if( i == stem_len )
+            return true;
+    }
+    return false;
+}
 
 /** One spelling per row, used for the requirement and for the read. */
 #define NXT_CANNON_CAPABILITY "varp:" NXT_VARP_CANNON_COORD
@@ -94,6 +173,27 @@ nxt_cannon_sample(struct ToriRS_Api* api, void* state_ptr, uint64_t elapsed_ms)
     /* Zero on a cadence timer: the interval IS the tick, and a plugin that
      * read this would be measuring the server's pace, not its own. */
     (void)elapsed_ms;
+
+    /*
+     * The held announcement comes due FIRST, before anything else this tick
+     * can change.
+     *
+     * Unconditionally, and above the no-cannon exit: the grace is a delay and
+     * nothing else, so an event that already happened is still announced even
+     * if the cannon was picked up while it was waiting. Anything else would
+     * make the message depend on what the player did in the following second.
+     */
+    if( state->pending_coord != 0 )
+    {
+        state->pending_ticks--;
+        if( state->pending_ticks <= 0 )
+        {
+            int const subject = state->pending_coord;
+            state->pending_coord = 0;
+            Porcelain_Notify(state->porcelain, "cannon_empty", subject,
+                "Your cannon has run out of cannonballs.");
+        }
+    }
 
     /* Absent reads as "no cannon" and as "the switch is off", which is the
      * state in which this builtin does nothing at all -- the right answer for
@@ -141,9 +241,20 @@ nxt_cannon_sample(struct ToriRS_Api* api, void* state_ptr, uint64_t elapsed_ms)
      */
     if( ammo == 0 )
     {
-        if( Porcelain_Setting(state->porcelain, NXT_VARBIT_CANNON_NO_AMMO_NOTIFY, 0) )
-            Porcelain_Notify(state->porcelain, "cannon_empty", coord,
-                "Your cannon has run out of cannonballs.");
+        /*
+         * ARMED, not said. The lane's own content gets first refusal: see
+         * NXT_CANNON_EMPTY_GRACE_TICKS, and nxt_cannon_chat, which cancels
+         * this if the content speaks.
+         *
+         * A lane already known to announce it arms nothing at all, so the
+         * second and every later emptying costs no wait and no window.
+         */
+        if( !state->content_announces &&
+            Porcelain_Setting(state->porcelain, NXT_VARBIT_CANNON_NO_AMMO_NOTIFY, 0) )
+        {
+            state->pending_coord = coord;
+            state->pending_ticks = NXT_CANNON_EMPTY_GRACE_TICKS;
+        }
         return;
     }
 
@@ -196,6 +307,36 @@ nxt_cannon_tick(
     Porcelain_Tick(state->porcelain, PORCELAIN_SERVER_TICK);
 }
 
+/**
+ * The lane, saying it itself.
+ *
+ * A GAME line with no sender, which is what `mes` produces. Constrained to
+ * that on purpose: a public line is something another player typed, and
+ * letting one cancel your notification by saying the sentence out loud is a
+ * griefing tool, not a recogniser.
+ */
+static void
+nxt_cannon_chat(
+    struct ToriRS_Api* api,
+    void* state_ptr,
+    struct ToriRS_ChatMessageEvent const* event)
+{
+    struct NxtCannonState* state = state_ptr;
+
+    assert(api);
+    assert(state);
+    assert(event);
+    (void)api;
+    if( event->type != 0 || event->sender[0] )
+        return;
+    if( !nxt_cannon_line_is_empty_notice(event->text) )
+        return;
+    /* Held announcement: DROPPED. The player has been told. */
+    state->pending_coord = 0;
+    state->pending_ticks = 0;
+    state->content_announces = true;
+}
+
 static void
 nxt_cannon_start(struct ToriRS_Api* api, void* state_ptr)
 {
@@ -205,6 +346,9 @@ nxt_cannon_start(struct ToriRS_Api* api, void* state_ptr)
     assert(state);
     state->last_ammo = -1;
     state->last_coord = 0;
+    state->pending_coord = 0;
+    state->pending_ticks = 0;
+    state->content_announces = false;
     state->porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_NXT_CANNON_AMMO, state);
     assert(state->porcelain);
 
@@ -261,6 +405,8 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = nxt_cannon_start,
         .on_stop = nxt_cannon_stop,
+        /* The lane's own chatbox, read for ONE sentence. @see nxt_cannon_chat. */
+        .on_chat_message = nxt_cannon_chat,
         /* Server tick, not render frame: cannon ammo is server state. */
         .on_server_tick = nxt_cannon_tick,
     },
