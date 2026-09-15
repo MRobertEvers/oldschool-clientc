@@ -2755,7 +2755,8 @@ test_native_overlay_latch(void)
     struct PorcelainFinding findings[4];
 
     Testbed_Reset();
-    snprintf(g_testbed.capabilities, sizeof(g_testbed.capabilities), "cs2_scripts");
+    snprintf(g_testbed.capabilities, sizeof(g_testbed.capabilities),
+             "cs2_scripts,script_callback:groundItemCaption");
     for( int i = 0; i < 3; i++ )
     {
         char role[64];
@@ -2797,7 +2798,8 @@ test_native_overlay_latch(void)
      * Red: the labels stay hidden after the plugin is gone.
      */
     Testbed_Reset();
-    snprintf(g_testbed.capabilities, sizeof(g_testbed.capabilities), "cs2_scripts");
+    snprintf(g_testbed.capabilities, sizeof(g_testbed.capabilities),
+             "cs2_scripts,script_callback:groundItemCaption");
     for( int i = 0; i < 3; i++ )
     {
         char role[64];
@@ -2844,6 +2846,62 @@ test_native_overlay_latch(void)
     event.name = "groundItemCaption";
     Porcelain_NoteScript(porcelain, &event);
     CHECK(g_overlay_calls == 0, "the callback never fires there");
+    Porcelain_Close(porcelain);
+
+    /*
+     * A CS2 LANE WITHOUT THE HOOK, which is every CS2 lane in this checkout.
+     *
+     * The hook `groundItemCaption` is raised from is a RUNELITE_CALLBACK
+     * opcode that tools/plugin_engine_script_hooks.py patches into the cache's
+     * caption script. A stock cache has no such opcode, so the script runs and
+     * raises nothing -- while `cs2_scripts` cheerfully answers yes, because it
+     * is a fact about the ui logic and not about the cache. Gating on it left
+     * the latch in SUPPRESSING for the whole session with no finding and no
+     * log line, on all four CS2 lanes at once.
+     *
+     * MUTATION: gate Porcelain_NativeOverlay on "cs2_scripts" again. Red: the
+     * state is SUPPRESSING and there is no finding.
+     */
+    Testbed_Reset();
+    snprintf(g_testbed.capabilities, sizeof(g_testbed.capabilities), "cs2_scripts");
+    for( int i = 0; i < 3; i++ )
+    {
+        char role[64];
+        snprintf(role, sizeof(role), "ground_item_labels#%d", i);
+        Testbed_DeclareElement(role, 100, 100 + i * 12, 80, 12);
+        Testbed_BindElement(role);
+    }
+    g_overlay_calls = 0;
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_NativeOverlay(porcelain, "ground_item_labels", "groundItemCaption",
+                            overlay_caption, NULL);
+    CHECK(Porcelain_NativeOverlayState(porcelain) == PORCELAIN_NATIVE_OVERLAY_ABSENT,
+          "CS2 ui logic alone is not a hook site: the latch stands down");
+    CHECK(Porcelain_Findings(porcelain, findings, 4) == 1,
+          "and says so once, instead of suppressing in silence");
+    CHECK(findings[0].result == PORCELAIN_FINDING_UNSUPPORTED, "an unsupported capability");
+    Testbed_ClearLog();
+    fence(porcelain);
+    CHECK(Testbed_LogCountWith("set_hidden") == 0,
+          "nothing native is hidden for a caption that will never be written");
+    Porcelain_Close(porcelain);
+
+    /*
+     * And the question the layer asks is the CALLBACK'S, not one name baked
+     * into the layer: a lane that has a hook site for some other callback is
+     * not a hook site for this one.
+     *
+     * MUTATION: build the capability from a literal instead of
+     * overlay->callback. Red: this latch suppresses.
+     */
+    Testbed_Reset();
+    snprintf(g_testbed.capabilities, sizeof(g_testbed.capabilities),
+             "cs2_scripts,script_callback:someOtherCaption");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_NativeOverlay(porcelain, "ground_item_labels", "groundItemCaption",
+                            overlay_caption, NULL);
+    CHECK(Porcelain_NativeOverlayState(porcelain) == PORCELAIN_NATIVE_OVERLAY_ABSENT,
+          "another callback's hook site is not this callback's");
     Porcelain_Close(porcelain);
 }
 

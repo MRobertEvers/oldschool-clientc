@@ -1383,13 +1383,50 @@ static bool app_script_set_string(void* user,size_t index,char const* value)
     thread->strs_stack[thread->strs_stack_top-1-(int)index]=copy;
     return true;
 }
+/*
+ * The script a named plugin callback can be raised FROM on this lane, or -1.
+ *
+ * `groundItemCaption` is raised by the cache's ground-item caption script --
+ * but only by a copy of that script which
+ * tools/plugin_engine_script_hooks.py has patched: the stock OldSchool script
+ * carries no RUNELITE_CALLBACK opcode at all, so on a stock cache the callback
+ * cannot be raised however much CS2 the lane runs. That is a fact about the
+ * CACHE and not about the ui logic, so the PROFILE declares it --
+ * `[script:ground_items_caption]` -- exactly as `[script:highlight_hover_tile]`
+ * declares the highlight lane's, and "undeclared means absent" is the same
+ * contract the rest of revconfig runs on. The bytes are still pinned at the
+ * hook site below by the fingerprint the header was generated from: a profile
+ * may say a cache is hooked, it may not say WHICH hook.
+ *
+ * This is the question `cs2_scripts` was being asked and cannot answer. It
+ * answers "this client runs CS2 ui logic", which all four CS2 lanes are, and
+ * the native-caption half then waited for a callback no cache in this tree can
+ * raise -- with the latch suppressing and nothing saying so.
+ */
+static int
+app_plugin_script_callback_script(struct App* app, char const* name)
+{
+    assert(app);
+    assert(name);
+    if( strcmp(name, "groundItemCaption") != 0 )
+        return -1;
+    if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
+        return -1;
+    /* The captions hang off the overlay this client drives per dirty tile; a
+     * profile that declares no overlay has no rows for a caption to be. */
+    if( RevConfigRefs_Get(&app->revconfig_refs, "script", "ground_items_overlay") <= 0 )
+        return -1;
+    return RevConfigRefs_Get(&app->revconfig_refs, "script", "ground_items_caption");
+}
+
 void app_script_callback(void* user,struct CS2VM2_Thread* thread,char const* name)
 {
     struct App* app=user;
     if( !app->plugins || App_UiLogic(app)!=APP_UI_LOGIC_CS2 || thread->frame_sp<=0 ) return;
     struct CS2VM2_Script const* script=CS2VM_FRAME(thread)->script;
     if( strcmp(name,"groundItemCaption")!=0 ) return;
-    if( script->script_id!=TORIRS_GROUND_CAPTION_SCRIPT ||
+    if( script->script_id!=app_plugin_script_callback_script(app,name) ||
+        script->script_id!=TORIRS_GROUND_CAPTION_SCRIPT ||
         app_script_fingerprint(script)!=TORIRS_GROUND_CAPTION_FINGERPRINT ||
         thread->ints_stack_top<TORIRS_GROUND_CAPTION_INTS || thread->strs_stack_top<1 )
     {
@@ -1488,6 +1525,12 @@ app_plugin_packet_wire(struct App const* app, int pkt_name)
  *   widgets.geometry     always: the widget API reports geometry everywhere
  *   scripts.callbacks    CS2 ui logic               (kept: the old spelling)
  *   cs2_scripts          CS2 ui logic               (the same fact, named)
+ *   script_callback:<n>  this client has a hook site that can raise the plugin
+ *                        callback <n>: CS2 ui logic AND the profile declares
+ *                        both the script the callback hangs off and the hooked
+ *                        script itself. NOT `cs2_scripts`: the hook lives in
+ *                        patched CACHE BYTES, so a CS2 lane on a stock cache
+ *                        raises nothing at all.
  *   highlight_groups     CS2 ui logic && [script:highlight_hover_tile]
  *   varbit:<name>        [varbit:<name>] declared by this profile
  *   varp:<name>          [varp:<name>] declared by this profile
@@ -1520,6 +1563,8 @@ app_plugin_capability(void* user, char const* name)
     if( strcmp(name,"scripts.callbacks")==0 ) return App_UiLogic(app)==APP_UI_LOGIC_CS2;
     if( strcmp(name, "cs2_scripts") == 0 )
         return App_UiLogic(app) == APP_UI_LOGIC_CS2;
+    if( strncmp(name, "script_callback:", 16) == 0 )
+        return app_plugin_script_callback_script(app, name + 16) > 0;
     if( strcmp(name, "highlight_groups") == 0 )
         return App_UiLogic(app) == APP_UI_LOGIC_CS2 &&
                RevConfigRefs_Get(

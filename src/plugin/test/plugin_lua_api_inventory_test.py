@@ -323,7 +323,11 @@ def main() -> int:
         "api.porcelain.open(",
         'api.porcelain.native_overlay("ground_item_labels", "groundItemCaption"',
         "api.porcelain.note_script(",
-        'api.porcelain.require("cs2_scripts", "native captions")',
+        # NOT cs2_scripts. That is "this client runs CS2", which every CS2
+        # lane is and which says nothing about whether the cache's caption
+        # script can call back; asking it left the latch suppressing in
+        # silence on all four of them.
+        'api.porcelain.require("script_callback:groundItemCaption", "native captions")',
         'api.porcelain.expect_unsupported("native captions"',
         'api.porcelain.expect_unsupported("draw_refusal_readout"',
         'api.porcelain.expect_absent("role:reveal_key"',

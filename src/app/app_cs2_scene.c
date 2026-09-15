@@ -419,14 +419,27 @@ app_ground_items_tick(struct App* app)
         if( getenv("TORIRS_GROUND_ITEMS_DEBUG") )
         {
             struct RS_CS2GroundObj entry;
+            /* `enabled` is the overlay script's OWN first gate: it reads
+             * ground_items_enabled and, when that is not 1, jumps clean over
+             * the whole per-row loop -- so it still creates the coordinate
+             * layer and puts nothing in it. Without this number "the overlay
+             * ran and built no captions" and "the overlay is switched off"
+             * are the same line, and one of them is a bug. -1 when the varbit
+             * table has not landed yet. */
+            int const enabled_varbit = app->host.varbit_ground_items_enabled;
+            int enabled = -1;
+            if( app->host.varps && enabled_varbit > 0 &&
+                VarPManager_VarbitBaseVar(app->host.varps, enabled_varbit) >= 0 )
+                enabled = VarPManager_GetVarbit(app->host.varps, enabled_varbit);
             fprintf(
                 stderr,
-                "ground_items: tile %d,%d level %d -> %d obj(s), script %d\n",
+                "ground_items: tile %d,%d level %d -> %d obj(s), script %d, enabled=%d\n",
                 (coord >> 14) & 0x3fff,
                 coord & 0x3fff,
                 (coord >> 28) & 3,
                 app_cs2_objs_on_coord(app, coord, -1, &entry),
-                app->host.script_ground_items_overlay);
+                app->host.script_ground_items_overlay,
+                enabled);
         }
         app_cs2_set_active_tile(app, coord);
         RS_CS2_RunScript(

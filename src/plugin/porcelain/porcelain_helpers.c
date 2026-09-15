@@ -1686,6 +1686,7 @@ Porcelain_NativeOverlay(struct Porcelain* porcelain, char const* labels_role,
                         char const* callback, PorcelainScriptFn fn, void* user)
 {
     struct PorcelainNativeOverlay* overlay;
+    char capability[PORCELAIN_NAME_MAX + 24];
 
     assert(porcelain);
     assert(labels_role);
@@ -1700,10 +1701,18 @@ Porcelain_NativeOverlay(struct Porcelain* porcelain, char const* labels_role,
     overlay->fn = fn;
     overlay->user = user;
 
-    /* ABSENT is decided once, here. A lane with no script VM never raises the
-     * callback, and an overlay that sat in SUPPRESSING for ever -- hiding
-     * natives it would never replace -- is worse than one that stands down. */
-    if( !Porcelain_Has(porcelain, "cs2_scripts") )
+    /*
+     * ABSENT is decided once, here, and the question has to be the one the
+     * latch is actually waiting on: does THIS CLIENT have a hook site that can
+     * raise THIS CALLBACK. `cs2_scripts` is not that question -- it answers
+     * "the client runs CS2 ui logic", and a CS2 lane whose cache carries no
+     * patched hook answers it yes and then never calls back. That left the
+     * latch in SUPPRESSING for a whole session with no log line and no
+     * finding -- hiding natives it was never going to replace, which is the
+     * one outcome this latch exists to avoid.
+     */
+    snprintf(capability, sizeof(capability), "script_callback:%s", overlay->callback);
+    if( !Porcelain_Has(porcelain, capability) )
     {
         overlay->state = PORCELAIN_NATIVE_OVERLAY_ABSENT;
         Porcelain_RecordFinding(porcelain, "native_overlay", PORCELAIN_ROLE_EL(callback),

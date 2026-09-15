@@ -477,6 +477,11 @@ struct ToriRS_CoreApi
      * - `browser`: this build supports the embedded BROWSER chrome transport;
      * - `widgets.geometry`: the widget API reports live geometry;
      * - `scripts.callbacks`, `cs2_scripts`: this client runs CS2 UI logic;
+     * - `script_callback:<name>`: this client has a hook site that can raise
+     *   the plugin callback `<name>`. NOT the same fact as `cs2_scripts`: the
+     *   hook is a patched opcode in the CACHE, so a CS2 lane on a stock cache
+     *   runs the script and raises nothing. Ask this before installing
+     *   anything that waits for that callback;
      * - `highlight_groups`: CS2 UI logic AND the profile declares the
      *   hover-tile highlight script;
      * - `varbit:<name>`, `varp:<name>`: this revision declares that var;

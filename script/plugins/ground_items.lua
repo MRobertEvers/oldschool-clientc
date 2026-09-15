@@ -761,8 +761,15 @@ function plugin.on_start(api)
     -- expect_absent re-labels an absence already in the table; expect_unsupported
     -- does not, so an UNSUPPORTED raised before its declaration stays
     -- unexpected for the life of the session.
+    -- Two lanes answer no to this and they are NOT the same lane. A CS1 lane
+    -- runs no CS2 at all; a CS2 lane whose cache is not one
+    -- tools/plugin_engine_script_hooks.py has patched runs the caption script
+    -- and raises nothing, because the hook is a patched OPCODE and not a
+    -- feature of the ui logic. Both are "no hook site here", which is what the
+    -- capability is named after and what this declaration has to cover, or the
+    -- second one is an unexpected finding on four lanes.
     api.porcelain.expect_unsupported("native captions",
-        "a CS1 lane runs no CS2, so the cache's own ground-item caption script does not exist")
+        "no hook site: a CS1 lane runs no CS2, a stock CS2 cache carries no patched hook")
     -- Trimmed to PORCELAIN_DETAIL_MAX. The primitive arithmetic behind this --
     -- a label is two, or five with the outline, against a 512 budget -- is in
     -- the comment above the draw itself, where it belongs.
@@ -778,7 +785,11 @@ function plugin.on_start(api)
     -- are this plugin's to write. On a lane with no CS2 the feature turns
     -- itself off and says so once, rather than suppressing labels it will
     -- never replace.
-    if api.porcelain.require("cs2_scripts", "native captions") then
+    -- NOT cs2_scripts. That answers "this client runs CS2", which every CS2
+    -- lane does and which says nothing about whether the cache's caption
+    -- script can call back into this plugin. Asking it is what left the latch
+    -- suppressing, silently, on all four of them.
+    if api.porcelain.require("script_callback:groundItemCaption", "native captions") then
         api.porcelain.native_overlay("ground_item_labels", "groundItemCaption", on_caption)
     end
 
