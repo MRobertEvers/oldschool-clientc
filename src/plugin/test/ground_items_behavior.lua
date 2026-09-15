@@ -606,12 +606,62 @@ return {id='ground-behavior',on_start=function(host)
     config.set('highlight_tiles',true)
     drawn={}
     product.on_draw_world(api,graphics)
-    local wash=drawn[#drawn]
-    assert(wash.tile and wash.x==3210 and wash.z==3424 and wash.level==0 and
-        wash.alpha==config.tile_fill and wash.fill==drawn[2].color and
-        wash.outline==drawn[2].color,
+    -- Found rather than indexed, so WHERE it is in the list is the order
+    -- assertion's business alone and this one only judges the wash itself.
+    local function washes_and_ink(list)
+        local washes,ink,last_tile,first_text={},{},0,nil
+        for at,item in ipairs(list) do
+            if item.tile then
+                washes[#washes+1]=item; last_tile=at
+            else
+                if item.color~=0x000000 then ink[#ink+1]=item end
+                if not first_text then first_text=at end
+            end
+        end
+        return washes,ink,last_tile,first_text
+    end
+    local washes,ink,last_tile,first_text=washes_and_ink(drawn)
+    assert(#washes==1 and washes[1].x==3210 and washes[1].z==3424 and
+        washes[1].level==0 and washes[1].alpha==config.tile_fill and
+        washes[1].fill==ink[1].color and washes[1].outline==ink[1].color,
         "the tile takes the top item's colour with the tile_fill wash")
+
+    -- ORDER. The wash is a translucent quad over the tile and the caption is
+    -- drawn at that same tile's projected centre, so the two overlap by
+    -- construction. Drawn after, the wash paints out the middle of its own
+    -- label -- the photographed defect was "Abyssal tentacle (EX: 90M gp)"
+    -- with the price under a pink smear. A highlight goes UNDER the thing it
+    -- highlights.
+    --
+    -- This was pinned the wrong way round here (`drawn[#drawn]`), which is why
+    -- no test saw it: one stack on one tile makes "last" and "after its own
+    -- label" the same sentence.
+    assert(first_text and last_tile<first_text,
+        'every tile wash goes down before any caption, or it paints the caption out')
+
+    -- And ACROSS tiles, which the single-tile case cannot see: interleaving
+    -- per tile let a stack lose its text to the NEXT tile's wash, so the
+    -- damage depended on pool order.
+    local neighbour={obj_id=4151,name='Abyssal whip',count=1,tile_x=3211,tile_z=3424,
+                     level=0,cost=2000000}
+    api.world.item_next=function(cursor)
+        if cursor==-1 then return 0,obj end
+        if cursor==0 then return 1,neighbour end
+    end
+    drawn={}
+    product.on_draw_world(api,graphics)
+    washes,ink,last_tile,first_text=washes_and_ink(drawn)
+    assert(#washes==2,'two occupied tiles are two washes')
+    assert(#ink==2,'and two captions')
+    assert(first_text and last_tile<first_text,
+        'BOTH washes precede BOTH captions: no tile may paint over its neighbour')
+    api.world.item_next=function(cursor) if cursor==-1 then return 0,obj end end
     config.set('highlight_tiles',false)
+    drawn={}
+    product.on_draw_world(api,graphics)
+    for _,item in ipairs(drawn) do
+        assert(not item.tile,'highlight_tiles off draws no wash at all')
+    end
 
     -- ------------------------------------------------ per-tile stacking
     -- Two stacks on one tile: the most valuable line is nearest the ground and

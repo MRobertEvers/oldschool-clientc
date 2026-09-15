@@ -114,6 +114,18 @@ _Static_assert(
  *  wrap puts the caret on a line that is not where the glyphs are. */
 #define DBG_TEXTAREA_LINES_MAX (TORIRS_CHROME_INPUT_MAX + 1)
 /**
+ * Lines one explanatory LABEL row may wrap to. @see dbg_label_wrap_w.
+ *
+ * A ceiling and not a budget: a label row grows the panel it is in, so an
+ * unbounded one is a plugin able to push every row under it off the bottom
+ * with one long string. Six covers the whole of TORIRS_CHROME_INPUT_MAX in
+ * the 320-logical pane this presents into -- 292 pixels of content column is
+ * about 55 characters a line -- so nothing a plugin can say today reaches it.
+ * A narrower pane would, and cutting at six is then the ceiling doing its
+ * job; the one line every label used to get cut nearly everything.
+ */
+#define DBG_LABEL_LINES_MAX 6
+/**
  * Edge of the arrow button on a closed dropdown, and the width of a scrollbar.
  *
  * One number because in the reference it is one sprite: the same 16x16 arrow
@@ -3788,6 +3800,85 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
     }
 }
 
+/** The string a LABEL row draws: its value where it has one, else its name. */
+static char const*
+dbg_label_string(struct ToriRSChromeWidget const* w)
+{
+    assert(w);
+    return w->text[0] ? w->text : w->label;
+}
+
+/**
+ * The width a PLAIN / PARAGRAPH label wraps at, or 0 for "do not wrap".
+ *
+ * A label row is a SENTENCE -- "Scaling draws the whole canvas larger, the 3D
+ * scene included" under the scaling picker -- and it was drawn with one
+ * `dbg_push_text` and given exactly one row of height, so the sentence was cut
+ * at the panel border and the rest of it did not exist. Not truncated with a
+ * mark; simply gone, mid-word, with empty panel underneath it. An explanatory
+ * line nobody can finish reading is not an explanatory line.
+ *
+ * The WIDTH is the panel's business and not the plugin's, which is why this
+ * lives here: a plugin cannot know how wide the pane it mounts into is, what
+ * the executor did to it, or whether a scrollbar took ten pixels this frame.
+ * It states a sentence; the presentation decides how many lines that is.
+ *
+ * Only a panel with a FIXED width wraps. An auto-sized panel takes its width
+ * from `dbg_widget_width`, which asks for the whole string on one line -- so
+ * there is nothing to wrap to, and wrapping against a width this measurement
+ * is itself an input to would be circular.
+ *
+ * The scrollbar column is reserved whenever the panel CAN scroll, not when it
+ * currently does. Whether it does is a function of the content height, which
+ * is a function of this number: measure without the bar, and a panel that
+ * turns out to overflow draws its rows ten pixels narrower than they were
+ * measured, so the last line of a label reappears with nowhere to go. Ten
+ * pixels of early wrapping on a panel that does not overflow is invisible;
+ * a line that disagrees with its own row height is not.
+ */
+static int
+dbg_label_wrap_w(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
+{
+    struct ToriRSChromePanel const* p;
+    int edge;
+    int width;
+
+    assert(ui);
+    assert(w);
+    if( w->kind != TORIRS_CHROME_W_LABEL )
+        return 0;
+    if( w->label_style != TORIRS_CHROME_LABEL_PLAIN &&
+        w->label_style != TORIRS_CHROME_LABEL_PARAGRAPH )
+        return 0;
+    if( w->panel < 0 || w->panel >= TORIRS_CHROME_MAX_PANELS )
+        return 0;
+    p = &ui->panels[w->panel];
+    if( p->fixed_w <= 0 )
+        return 0;
+    edge = dbg_panel_is_framed(ui, p) ? DBG_FRAME : DBG_RULE;
+    width = p->fixed_w - 2 * edge - 2 * DBG_PAD_X - (p->scrollable ? DBG_SCROLL_W : 0);
+    /* The same pad the draw indents a PARAGRAPH by, taken off both sides. */
+    if( w->label_style != TORIRS_CHROME_LABEL_PLAIN )
+        width -= 2 * DBG_INPUT_PAD_X;
+    return width > 0 ? width : 0;
+}
+
+/** Display lines one label row takes. One where it does not wrap. */
+static int
+dbg_label_lines(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
+{
+    int const wrap_w = dbg_label_wrap_w(ui, w);
+    char const* text;
+
+    assert(ui);
+    assert(w);
+    text = dbg_label_string(w);
+    if( wrap_w <= 0 || !text[0] )
+        return 1;
+    return ToriRSChrome_WrapText(
+        ui->theme.font_row, ui->scale, text, wrap_w, NULL, NULL, DBG_LABEL_LINES_MAX);
+}
+
 /**
  * Row height of one widget, excluding DBG_ROW_GAP.
  *
@@ -3806,6 +3897,9 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
  * takes the ToriRSChrome, because the two kinds that genuinely cannot live in
  * the grid -- a model view, which is sized by its caller, and a tab strip,
  * which is a strip and not a row -- are measured here too.
+ *
+ * A LABEL row is the one exception the grid grew, and it is still the grid: a
+ * wrapped sentence is a whole number of these rows. @see dbg_label_wrap_w.
  */
 static int
 dbg_widget_height(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
@@ -3825,7 +3919,10 @@ dbg_widget_height(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const
         case TORIRS_CHROME_LABEL_PARAGRAPH:
         case TORIRS_CHROME_LABEL_PLAIN:
         default:
-            return DBG_ROW_H;
+            /* One row per wrapped line, so the row OWNS the space its own
+             * sentence needs and the row under it starts below the last of
+             * it. @see dbg_label_wrap_w. */
+            return DBG_ROW_H * dbg_label_lines(ui, w);
         }
     case TORIRS_CHROME_W_MODELVIEW:
         return w->view_h + 2 * DBG_RULE;
@@ -3915,6 +4012,64 @@ dbg_wrap_line(struct ToriRSChrome* ui, char const* src, int len)
     out[len] = '\0';
     ui->wrap_used += len + 1;
     return out;
+}
+
+/**
+ * `text`, cut to `width` with an ellipsis where it had to cut.
+ *
+ * A value strip is as wide as the panel leaves it and a select's value is
+ * whatever the plugin published, so the two do not negotiate: "Revision
+ * default (Mouse wheel)" in a 200-pixel strip has to give somewhere. Clipping
+ * alone -- which is all this had -- gives "Revision default (Mouse whe" with
+ * the last glyph sliced down the middle and the arrow sitting on top of it,
+ * which reads as a broken renderer rather than as a name too long for its box.
+ *
+ * It also made the ALIGNMENT look broken, which is the half that gave the
+ * defect away: the caller centres a value that fits and left-aligns one that
+ * does not, so a page of six rows had two centred and four hard against the
+ * left edge. Elided here, every value fits, so every value is centred and the
+ * column reads as a column.
+ *
+ * Three dots and not U+2026: the baked faces are the client's own, the glyph
+ * is not in them, and a missing glyph measures as something and draws as
+ * nothing -- an invisible cut is worse than a visible one.
+ *
+ * @return `text` itself when it fits, otherwise a wrap-pool copy that lives
+ *         until the end of this build. NULL never: a pool that is full gives
+ *         back the original, which clips exactly as it did before.
+ */
+static char const*
+dbg_elide_text(struct ToriRSChrome* ui, int font_slot, char const* text, int width)
+{
+    static char const DBG_ELLIPSIS[] = "...";
+    char buffer[TORIRS_CHROME_INPUT_MAX + sizeof(DBG_ELLIPSIS)];
+    int const* adv;
+    int budget;
+    int px = 0;
+    int kept = 0;
+    char const* elided;
+
+    assert(ui);
+    assert(text);
+    if( width <= 0 )
+        return text;
+    if( ToriRSChrome_MeasureText(font_slot, ui->scale, text) <= width )
+        return text;
+
+    adv = dbg_advance_table(font_slot, ui->scale);
+    budget = width - ToriRSChrome_MeasureText(font_slot, ui->scale, DBG_ELLIPSIS);
+    while( text[kept] && kept < (int)(sizeof(buffer) - sizeof(DBG_ELLIPSIS)) )
+    {
+        int const a = adv[(unsigned char)text[kept]];
+        if( px + a > budget )
+            break;
+        px += a;
+        kept++;
+    }
+    memcpy(buffer, text, (size_t)kept);
+    memcpy(buffer + kept, DBG_ELLIPSIS, sizeof(DBG_ELLIPSIS));
+    elided = dbg_wrap_line(ui, buffer, kept + (int)sizeof(DBG_ELLIPSIS) - 1);
+    return elided ? elided : text;
 }
 
 /** @param trans 0 opaque .. 255 invisible, the client's sense. */
@@ -4590,12 +4745,22 @@ dbg_push_dropdown_button(
     dbg_push_scroll_arrow(
         ui, arrow_x, box.y + (box.h - arrow) / 2, arrow, arrow_slot, !open, inside);
 
-    /* The value gets the strip left of the arrow, centred in it when it fits
-     * and left-aligned when it does not -- the reference sizes its button to
-     * the text and so only ever has the first case, and a centred string that
-     * is being clipped at both ends is unreadable. */
+    /*
+     * The value gets the strip LEFT OF THE ARROW, elided to it, and centred.
+     *
+     * Two things were wrong here and they compounded. The strip was measured
+     * to the arrow but the value was never cut to it, so a long one ran under
+     * the arrow and was sliced by the clip -- "Revision default (Mouse whe"
+     * with a chevron on top of the last glyph. And the fallback for a value
+     * that did not fit was to left-align it, so the same page showed two
+     * values centred and four hard left, which reads as a second fault.
+     *
+     * Elided first, every value fits its strip, so the centring below is not
+     * a special case any more: one rule, one column. @see dbg_elide_text.
+     */
     text_x = box.x + DBG_FIELD_INSET;
     text_w = arrow_x - text_x;
+    text = dbg_elide_text(ui, th->font_row, text, text_w);
     shown_w = ToriRSChrome_MeasureText(th->font_row, ui->scale, text);
     if( shown_w < text_w )
         text_x += (text_w - shown_w) / 2;
@@ -5251,18 +5416,57 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             case TORIRS_CHROME_LABEL_PARAGRAPH:
             case TORIRS_CHROME_LABEL_PLAIN:
             default:
-                dbg_push_text(
-                    ui,
-                    row_x + (w->label_style == TORIRS_CHROME_LABEL_PLAIN
-                                 ? 0
-                                 : DBG_INPUT_PAD_X),
-                    dbg_row_text_baseline(ui, row_y, row_h),
-                    w->text[0] ? w->text : w->label,
-                    w->color ? w->color : th->text,
-                    ui->theme.font_row,
-                    0,
-                    clip);
+            {
+                /*
+                 * One push per WRAPPED line, at the same width the height was
+                 * measured from, so the sentence and the space reserved for it
+                 * cannot disagree. A row that does not wrap takes this path
+                 * too: wrap_w 0 means one line and the loop runs once, which is
+                 * byte for byte what the single push did. @see dbg_label_wrap_w.
+                 */
+                char const* const text = dbg_label_string(w);
+                int const indent = w->label_style == TORIRS_CHROME_LABEL_PLAIN
+                                       ? 0
+                                       : DBG_INPUT_PAD_X;
+                int const wrap_w = dbg_label_wrap_w(ui, w);
+                uint32_t const ink = w->color ? w->color : th->text;
+                int starts[DBG_LABEL_LINES_MAX];
+                int lens[DBG_LABEL_LINES_MAX];
+                int count;
+
+                if( wrap_w <= 0 || !text[0] )
+                {
+                    dbg_push_text(
+                        ui,
+                        row_x + indent,
+                        dbg_row_text_baseline(ui, row_y, DBG_ROW_H),
+                        text,
+                        ink,
+                        ui->theme.font_row,
+                        0,
+                        clip);
+                    break;
+                }
+                count = ToriRSChrome_WrapText(
+                    ui->theme.font_row, ui->scale, text, wrap_w, starts, lens,
+                    DBG_LABEL_LINES_MAX);
+                for( int li = 0; li < count; li++ )
+                {
+                    char const* line = dbg_wrap_line(ui, text + starts[li], lens[li]);
+                    if( !line )
+                        break;
+                    dbg_push_text(
+                        ui,
+                        row_x + indent,
+                        dbg_row_text_baseline(ui, row_y + li * DBG_ROW_H, DBG_ROW_H),
+                        line,
+                        ink,
+                        ui->theme.font_row,
+                        0,
+                        clip);
+                }
                 break;
+            }
             }
             break;
 

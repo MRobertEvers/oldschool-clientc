@@ -943,19 +943,41 @@ function plugin.on_draw_world(api, draw)
         -- always the line nearest the ground, and the column does not jump
         -- about when an unrelated item under it despawns.
         table.sort(tile.items, by_value)
+    end
 
-        local sx, sy = api.draw.project(
-            (tile.x - base_x) * 128 + 64, (tile.z - base_z) * 128 + 64, height)
-        if sx and not native_captions then
-            for i, item in ipairs(tile.items) do
-                text_at(draw, sx, sy - gap * (i - 1), item.text, item.colour, outline)
-            end
-        end
-
-        if fill_tiles then
+    -- TWO passes, and the order between them is the whole point.
+    --
+    -- The wash is a translucent quad over the tile and a caption is drawn at
+    -- the tile's projected centre, so the two overlap by construction: a
+    -- stack's own label sits in the middle of its own tile. Interleaved --
+    -- caption then wash, per tile -- every tile painted its own label out,
+    -- and with `highlight_tiles` on the middle of every caption was a pink
+    -- smear ("Abyssal tentacle (EX: 90M gp)" with the price unreadable).
+    -- Worse, the interleaving made it depend on iteration order: a stack
+    -- whose neighbour came later in the pool lost its text to the NEIGHBOUR's
+    -- wash as well.
+    --
+    -- Washes first, then every caption: the tile is a highlight and a
+    -- highlight goes UNDER the thing it highlights. @see the reference, which
+    -- renders the tile polygon in its own overlay pass ahead of the labels.
+    if fill_tiles then
+        for index = 1, tile_count do
+            local tile = tile_pool[index]
             -- Reference: the tile takes the colour of the item on it.
             draw.world_tile(tile.x, tile.z, me.level,
               tile.items[1].colour, tile.items[1].colour, tile_fill)
+        end
+    end
+
+    if native_captions then return end
+    for index = 1, tile_count do
+        local tile = tile_pool[index]
+        local sx, sy = api.draw.project(
+            (tile.x - base_x) * 128 + 64, (tile.z - base_z) * 128 + 64, height)
+        if sx then
+            for i, item in ipairs(tile.items) do
+                text_at(draw, sx, sy - gap * (i - 1), item.text, item.colour, outline)
+            end
         end
     end
 end

@@ -460,6 +460,189 @@ test_debug_overlay_border(void)
     }
 }
 
+/*
+ * A select's value is ELIDED to its strip, and therefore always centred.
+ *
+ * Photographed defect: the Feature Flags page showed "Revision default (Mouse
+ * whe", "(Normal (60" and "(Reference" -- four of six values sliced mid-word
+ * with the chevron sitting on the cut, and no ellipsis. The strip was measured
+ * to the arrow and the value was never cut to it, so the clip did the cutting.
+ *
+ * The other half is what made it read as two faults: the draw centred a value
+ * that fit and LEFT-ALIGNED one that did not, so the same page had two values
+ * centred and four hard against the left edge. Elision removes the second
+ * case, so the centring assertion below is the one that says the column is a
+ * column.
+ *
+ * MUTATION: drop the `dbg_elide_text` call in dbg_push_dropdown_button and
+ * both halves go red -- the string runs past its own clip, and it stops being
+ * centred.
+ */
+static void
+test_debug_overlay_select_elides(void)
+{
+    /* Long enough that no panel this presents into could hold it: the point
+     * is the value that does not fit, and one that did would test nothing. */
+    static char const* const OPTIONS[] = {
+        "Revision default (Mouse wheel, inverted, with acceleration)",
+        "Off",
+    };
+    int const scale = 1;
+    int panel;
+    int drop;
+    int arrow_x;
+    int strip_x;
+    int strip_w;
+    int shown_w;
+    int left_gap;
+    int right_gap;
+    int found = 0;
+    int count = 0;
+    struct ToriRSChromePrim const* prims;
+    struct ToriRSChromeWidget const* box;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 220, "Camera");
+    /* UNLABELLED, so the value strip is the whole row and the assertions below
+     * need no opinion about the caption column or about stacking. */
+    drop = ToriRSChrome_Dropdown(&g_ui, panel, "", OPTIONS, 2, 0);
+    TEST_ASSERT(drop >= 0, "the select was created");
+    ToriRSChrome_Build(&g_ui);
+
+    box = &g_ui.widgets[drop];
+    arrow_x = box->x + box->w - TORIRS_CHROME_M_FIELD_INSET * scale -
+              TORIRS_CHROME_M_DROP_ARROW * scale;
+    strip_x = box->x + TORIRS_CHROME_M_FIELD_INSET * scale;
+    strip_w = arrow_x - strip_x;
+    TEST_ASSERT(strip_w > 0, "the value strip has room to be judged");
+    TEST_ASSERT(
+        ToriRSChrome_MeasureText(g_ui.theme.font_row, scale, OPTIONS[0]) > strip_w,
+        "the fixture's value really is too long for its strip");
+
+    prims = ToriRSChrome_Prims(&g_ui, &count);
+    for( int i = 0; i < count; i++ )
+    {
+        if( prims[i].kind != TORIRS_CHROME_PRIM_TEXT )
+            continue;
+        if( prims[i].y < box->y || prims[i].y > box->y + box->h )
+            continue;
+        found++;
+        shown_w = ToriRSChrome_MeasureText(g_ui.theme.font_row, scale, prims[i].text);
+
+        /* The cut is MARKED. A value that merely stopped would read as a
+         * rendering fault; three dots say "there is more of this name". */
+        TEST_ASSERT(
+            strlen(prims[i].text) >= 3 &&
+                strcmp(prims[i].text + strlen(prims[i].text) - 3, "...") == 0,
+            "an over-long select value ends in an ellipsis");
+        TEST_ASSERT(
+            strncmp(prims[i].text, OPTIONS[0], strlen(prims[i].text) - 3) == 0,
+            "and what is shown is a PREFIX of the value, not some other string");
+
+        /* No glyph is sliced: the whole of what is drawn fits left of the
+         * arrow. Measured against the strip, not against the clip -- a clip
+         * that cuts is exactly the defect. */
+        TEST_ASSERT(prims[i].x >= strip_x, "the value starts inside its strip");
+        TEST_ASSERT(prims[i].x + shown_w <= arrow_x, "and ends before the arrow");
+
+        /* Centred, because after elision there is no other case. */
+        left_gap = prims[i].x - strip_x;
+        right_gap = arrow_x - (prims[i].x + shown_w);
+        TEST_ASSERT(
+            left_gap - right_gap <= 1 && right_gap - left_gap <= 1,
+            "an elided value is centred in its strip like every other value");
+    }
+    TEST_ASSERT(found == 1, "the closed select drew exactly one value string");
+    ToriRSChrome_Init(&g_ui);
+}
+
+/*
+ * An explanatory LABEL row WRAPS, and owns the height it wraps to.
+ *
+ * Photographed defect: Client Settings drew "Scaling draws the whole canvas
+ * larger, the 3D scene" and then nothing -- the rest of the sentence did not
+ * exist, on both lanes, with empty panel underneath it. A label row was one
+ * `dbg_push_text` and exactly one DBG_ROW_H of height, so anything wider than
+ * the panel was cut at the border mid-word.
+ *
+ * The assertion that matters is not "it is more than one line": it is that
+ * the lines CONCATENATE BACK to the sentence, so nothing was dropped between
+ * them, and that the row after it starts below the last of them.
+ *
+ * MUTATION: make dbg_label_wrap_w return 0, or put DBG_ROW_H back in
+ * dbg_widget_height's PLAIN case, and the reassembly is short / the next row
+ * overlaps.
+ */
+static void
+test_debug_overlay_label_wraps(void)
+{
+    static char const SENTENCE[] =
+        "Scaling draws the whole canvas larger, the 3D scene included, and "
+        "the filter decides how the enlarged pixels are resolved.";
+    int panel;
+    int label;
+    int below;
+    int content_w;
+    int count = 0;
+    int lines = 0;
+    size_t at = 0;
+    char rebuilt[sizeof(SENTENCE) + 8];
+    struct ToriRSChromePrim const* prims;
+    struct ToriRSChromeWidget const* row;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 220, "Client");
+    label = ToriRSChrome_Label(&g_ui, panel, SENTENCE);
+    below = ToriRSChrome_Checkbox(&g_ui, panel, "Fullscreen", 0);
+    TEST_ASSERT(label >= 0 && below >= 0, "the fixture rows were created");
+    ToriRSChrome_Build(&g_ui);
+
+    row = &g_ui.widgets[label];
+    content_w = row->w;
+    TEST_ASSERT(
+        ToriRSChrome_MeasureText(g_ui.theme.font_row, 1, SENTENCE) > content_w,
+        "the fixture's sentence really is wider than the row it is in");
+    TEST_ASSERT(
+        row->h > TORIRS_CHROME_M_ROW_H,
+        "a sentence that does not fit one line is given more than one line of row");
+    TEST_ASSERT(
+        row->h % TORIRS_CHROME_M_ROW_H == 0,
+        "and the row is a whole number of lines tall");
+
+    rebuilt[0] = '\0';
+    prims = ToriRSChrome_Prims(&g_ui, &count);
+    for( int i = 0; i < count; i++ )
+    {
+        if( prims[i].kind != TORIRS_CHROME_PRIM_TEXT )
+            continue;
+        if( prims[i].y <= row->y || prims[i].y > row->y + row->h )
+            continue;
+        lines++;
+        TEST_ASSERT(
+            ToriRSChrome_MeasureText(g_ui.theme.font_row, 1, prims[i].text) <= content_w,
+            "no wrapped line is wider than the column it was wrapped to");
+        TEST_ASSERT(
+            at + strlen(prims[i].text) < sizeof(rebuilt), "the reassembly buffer holds");
+        memcpy(rebuilt + at, prims[i].text, strlen(prims[i].text));
+        at += strlen(prims[i].text);
+        rebuilt[at] = '\0';
+    }
+    TEST_ASSERT(lines > 1, "the sentence was drawn as more than one line");
+    TEST_ASSERT(
+        row->h == lines * TORIRS_CHROME_M_ROW_H,
+        "the row reserves exactly the lines it drew -- no gap, no overlap");
+    TEST_ASSERT(
+        strcmp(rebuilt, SENTENCE) == 0,
+        "the drawn lines concatenate back to the whole sentence: none of it was cut");
+
+    /* And the row under it starts BELOW the last line, which is the half a
+     * height that lied about itself would break. */
+    TEST_ASSERT(
+        g_ui.widgets[below].y >= row->y + row->h,
+        "the next row starts under the last wrapped line");
+    ToriRSChrome_Init(&g_ui);
+}
+
 /* Checkbox: hit box, press/release pairing, toggle, activation latch. */
 static void
 test_debug_overlay_checkbox(void)
@@ -1552,6 +1735,8 @@ test_debug_overlay(void)
     test_debug_overlay_retained();
     test_debug_overlay_damage();
     test_debug_overlay_border();
+    test_debug_overlay_select_elides();
+    test_debug_overlay_label_wraps();
     test_debug_overlay_checkbox();
     test_debug_overlay_textinput();
     test_debug_overlay_textarea();
