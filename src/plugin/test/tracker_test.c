@@ -2600,6 +2600,46 @@ test_loot_record_decides_not_the_lane(void)
 }
 
 /*
+ * An EMPTY record may not blank a table the inference path built.
+ *
+ * The record is read on every lane now, which means the page build's forced
+ * read runs on a client that keeps no record at all -- and that read rebuilds
+ * the table from what it finds. Finding nothing is not the same as finding an
+ * empty record: it is the record having said nothing, and a pass that wrote
+ * `source_count = 0` there would erase every inferred kill each time the rail
+ * redrew the page.
+ */
+static void
+test_loot_empty_record_does_not_erase_inference(void)
+{
+    struct ToriRS_NpcSnapshot goblin;
+    struct ToriRS_GroundItemSnapshot coins;
+
+    client_reset();
+    g_lane_game = TORIRS_GAME_RS2;
+    loot_start();
+
+    goblin = dying_npc("Goblin", 3200);
+    coins = drop_at(995, 12, 1, "Coins", 3200);
+    dispatch_npc_despawn(&goblin);
+    dispatch_item_spawn(&coins);
+    tick(1201);
+    TEST_ASSERT(has_loot(), "the inference path recorded the kill");
+
+    /* Every forced read of the record there is: the page built again, and the
+     * shell showing it again. */
+    panel_build();
+    TEST_ASSERT(has_loot(), "and building the page again does not erase it");
+    settle();
+    TEST_ASSERT(has_loot(), "nor does an idle refresh");
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "12") == 0,
+        "with the value it was inferred to be worth (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+}
+
+/*
  * Past the source ceiling the LEAST VALUABLE record is dropped.
  *
  * Refusing the newest instead would mean a trip that met one new monster
@@ -3267,6 +3307,7 @@ main(void)
     test_loot_ignore_list_over_the_ceiling_is_refused();
     test_loot_store_lane_announces_a_kill();
     test_loot_record_decides_not_the_lane();
+    test_loot_empty_record_does_not_erase_inference();
     test_loot_eviction_drops_the_poorest();
     test_loot_band_menu_carries_the_headers_ops();
     test_loot_a_click_beside_the_menu_only_closes_it();
