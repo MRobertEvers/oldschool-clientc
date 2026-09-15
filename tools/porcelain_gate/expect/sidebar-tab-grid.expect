@@ -31,18 +31,42 @@
 # The fix takes each stone's box from the tab itself -- an element of kind TAB
 # resolved through the profile's `[tabs]` map, the way the chat bar already
 # takes each filter's -- and re-cuts the art to it: one hollow out of each
-# band, three-sliced sideways and laid at the seven boxes that row reports, and
-# the lit redstone cut the same way. Nothing here reads a lane's name; the
-# guard on adopting the grid is that the seven boxes are one size and fall
-# inside the band this layout has already blitted, which is why 601's two
-# columns of stones down the window edge do not take it.
+# band, laid at the seven boxes that row reports, and one lit redstone per row
+# cut the same way. Nothing here reads a lane's name; the guard on adopting the
+# grid is that the seven boxes are one size, stand on one line, and fall inside
+# the band this layout has already blitted, which is why 601's two columns of
+# stones down the window edge do not take it.
+#
+# The hollow's own box is the TAB's on both axes and the band's floor for its
+# height: a socket in either of these bands runs from its lip to the band's
+# last row while the stone standing in it is 36 rows, so a hollow cut to the
+# box would give its bottom row back to the band -- and what the 2004 art has
+# at that row is the next cell's divider, a dark line under every socket.
+#
+# The lit stone is cut from `classic_redstone2`, the strip's INTERIOR cell, and
+# FOLDED about its own centre rather than sliced across it. The strip's cells
+# are each lit for the side of the strip they stand on because they mirror
+# about the strip's middle; a row of fourteen equal boxes has no middle, so
+# there is no side for a one-sided picture to be on. Cut from `redstone1` --
+# the strip's CORNER cell, with a diagonal bite out of its lower left -- every
+# selected tab wore that bite: 9 red pixels in the leftmost eleven columns of
+# the tab against 179 in the rightmost eleven, measured on classic548. Folded
+# it is 195 against 177. TWO of them, one per row, because the two bands light
+# their sockets from opposite sides and the 2004 table says so itself: every
+# one of its bottom seven entries is a REDSTONE_FLIP_V or _HV of the picture
+# the row above wears.
 #
 # --------------------------------------------------------------------------
 # 1. The pictures land in different image slots.
 #
-# The two re-cut bands and the re-cut stone are pictures the frame did not
+# The two re-cut bands and the two re-cut stones are pictures the frame did not
 # have before, so everything allocated after them renumbers -- the four orbs
 # and the two band pieces report a different `scene` at exactly the same box.
+#
+# Four composed pictures where the frame had none, on the lane that runs two
+# layouts in one window: `remount164` reports no `verb=image result=9` on any
+# of the eight, which is the BUDGET refusal that caught an earlier attempt at
+# four MIRRORINGS of one stone. @see PORCELAIN_IMAGES_MAX.
 #
 # THE CLAIM, stated so it can be argued with: a slot id is an internal handle
 # and not behaviour. Nothing reads it, nothing persists it, and no two builds

@@ -420,9 +420,52 @@ static int fake_varbit(void* u, int i) { (void)u; (void)i; return 0; }
 static int fake_varp(void* u, int i) { (void)u; (void)i; return 0; }
 /* The OldSchool toplevels, as the osrs239 profile names them. Ids are that
  * cache's; the plugin never sees a number, only the answer to a name. */
+/*
+ * The fourteen tab NAMES, in the order every profile in the tree numbers them.
+ *
+ * The lane's own numbering, which is what `named_id("tab", name)` answers and
+ * what `sidetab_<n>` is spelled with. Written out here rather than reached for
+ * through Porcelain_TabNames for the reason the chat-button count is: a test
+ * that shares the vocabulary cannot see the vocabulary change.
+ */
+static char const* const FAKE_TAB_NAME[] = {
+    "combat", "stats",   "quests",  "inventory", "equipment", "prayer", "magic",
+    "clan",   "account", "friends", "logout",    "options",   "emotes", "music",
+};
+
+/*
+ * Where each of the fourteen STANDS, left to right: rev-239 runs clan,
+ * friends, account along its bottom row, so screen order and tab order are not
+ * the same list. The frame keeps its own copy of this; a second one here is
+ * what lets the two be compared.
+ */
+static int const FAKE_TAB_SCREEN_ORDER[14] = { 0, 1, 2, 3, 4, 5, 6, 7, 9, 8, 10, 11, 12, 13 };
+
+/*
+ * Does this lane NUMBER its tabs?
+ *
+ * The profile's `[tabs]` map and the nodes it names are one fact and not two:
+ * a lane that answers `named_id("tab", "music")` has a `sidetab_13` under it,
+ * and one that answers nothing has neither. Modelling them apart would put
+ * this fake in a state no lane is in, and it would not be free -- an element
+ * with a second spelling to try is an element that takes twice as many fences
+ * to be called ABSENT, which is long enough to outlast a `declare` and read as
+ * a layout that never converged. Set by fw_tabs, cleared by fw_build.
+ */
+static int g_lane_numbers_tabs;
+
 static int fake_cache_id(void* u, char const* k, char const* n)
 {
     (void)u;
+    if( strcmp(k, "tab") == 0 )
+    {
+        if( !g_lane_numbers_tabs )
+            return -1;
+        for( int i = 0; i < 14; i++ )
+            if( strcmp(n, FAKE_TAB_NAME[i]) == 0 )
+                return i;
+        return -1;
+    }
     if( strcmp(k, "iface") != 0 )
         return -1;
     if( strcmp(n, "toplevel_fixed") == 0 )
@@ -726,6 +769,7 @@ fw_build(int oldschool)
     int root;
     memset(g_w, 0, sizeof(g_w));
     g_w_count = 0;
+    g_lane_numbers_tabs = 0;
     ++g_w_incarnation;
     root = fw_add(-1, "", -1, 0, 0, 765, 503);
     fw_add(root, "viewport", -1, 4, 4, 512, 334);
@@ -777,6 +821,49 @@ static int fw_find(char const* role, int member)
         if( g_w[i].alive && !g_w[i].owner && strcmp(g_w[i].role, role) == 0 && g_w[i].member == wanted ) return i;
     return -1;
 }
+/*
+ * The lane's own fourteen STONES, which fw_build does not mount.
+ *
+ * A lane gameframe has a node per tab -- `sidetab_<n>`, the spelling
+ * Porcelain's TAB element resolves to -- and until this existed the harness
+ * had none, so every layout in this file ran the 2004 art strip's own cell
+ * table and the whole lane-grid path was untested. It is a separate call and
+ * not part of fw_build because the table path is the other half of the same
+ * decision: a frame whose stones are its own builtins is exactly what keeps
+ * the table.
+ *
+ * `x0` and `pitch` lay the seven columns; `y_top` and `y_bottom` the two rows.
+ * The tab a column carries is the SCREEN order's, so sidetab_9 is the eighth
+ * stone and sidetab_8 the ninth -- which is what makes a face keyed by screen
+ * position comparable with a role keyed by tab number.
+ */
+static void
+fw_tabs(int x0, int pitch, int y_top, int y_bottom, int wide, int high)
+{
+    int const root = fw_find("", -1);
+
+    g_lane_numbers_tabs = 1;
+    for( int i = 0; i < 14; i++ )
+    {
+        int const row = i / 7;
+
+        /* Member-numbered, which is how this fake spells `sidetab_<n>`: a
+         * find for that name strips the trailing number and asks for the
+         * member. @see fw_find. */
+        fw_add(root, "sidetab", FAKE_TAB_SCREEN_ORDER[i], x0 + ((i % 7) * pitch),
+               row ? y_bottom : y_top, wide, high);
+    }
+}
+
+/** The node one screen column's stone stands on, for a poke after the mount. */
+static struct FakeWidget*
+fw_tab(int screen_index)
+{
+    int const found = fw_find("sidetab", FAKE_TAB_SCREEN_ORDER[screen_index]);
+
+    return found >= 0 ? &g_w[found] : NULL;
+}
+
 static enum ToriRS_ContractResult
 fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
 {
@@ -929,6 +1016,85 @@ static int owned_at(char const* key, int x, int y)
     fw_canvas((int)(n - g_w), &cx, &cy);
     return cx == x && cy == y;
 }
+/** An owned control's canvas box, or zeroes when it has none. */
+static int owned_box(char const* key, int* x, int* y, int* w, int* h)
+{
+    struct FakeWidget const* n = owned(key);
+    if( !n )
+        return 0;
+    fw_canvas((int)(n - g_w), x, y);
+    *w = n->w;
+    *h = n->h;
+    return 1;
+}
+
+/** The owned surround piece whose canvas origin is this, or NULL. */
+static struct FakeWidget const* owned_piece_at(int x, int y)
+{
+    for( int i = 0; i < g_w_count; i++ )
+    {
+        int cx, cy;
+        if( !g_w[i].alive || !g_w[i].owner || strncmp(g_w[i].key, "piece.", 6) != 0 )
+            continue;
+        fw_canvas(i, &cx, &cy);
+        if( cx == x && cy == y )
+            return &g_w[i];
+    }
+    return NULL;
+}
+
+/** One pixel of a published picture, or 0 where there is no such pixel. */
+static uint32_t image_px(int slot, int x, int y)
+{
+    if( slot < 0 || slot >= FAKE_IMAGE_SLOTS || !g_image[slot].argb )
+        return 0;
+    if( x < 0 || y < 0 || x >= g_image[slot].w || y >= g_image[slot].h )
+        return 0;
+    return g_image[slot].argb[(size_t)y * (size_t)g_image[slot].w + (size_t)x];
+}
+
+/*
+ * One of the plugin's shipped pictures, decoded straight off disk.
+ *
+ * The band a hollow is CUT FROM, so that where the hollow landed can be said
+ * against the source rather than against a second copy of the arithmetic that
+ * put it there. Read through the same path fake_asset_read uses, which is the
+ * art the client would draw.
+ */
+static uint32_t* g_source_argb;
+static int g_source_w, g_source_h;
+static int source_image(char const* name)
+{
+    char path[512];
+    FILE* f;
+    long size;
+    void* data;
+    int ok;
+
+    free(g_source_argb);
+    g_source_argb = NULL;
+    snprintf(path, sizeof(path), "../script/plugins/assets/gameframe-layout/%s", name);
+    f = fopen(path, "rb");
+    if( !f )
+        return 0;
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    data = malloc((size_t)size);
+    assert(data);
+    ok = fread(data, 1, (size_t)size, f) == (size_t)size;
+    fclose(f);
+    ok = ok && PngDecode_Argb(data, (int)size, &g_source_w, &g_source_h, &g_source_argb);
+    free(data);
+    return ok;
+}
+static uint32_t source_px(int x, int y)
+{
+    if( !g_source_argb || x < 0 || y < 0 || x >= g_source_w || y >= g_source_h )
+        return 0;
+    return g_source_argb[(size_t)y * (size_t)g_source_w + (size_t)x];
+}
+
 static int anchored(struct FakeWidget const* n, char const* role, int relation)
 {
     return n && n->anchor_relation == relation && n->anchor_target == fw_find(role, -1);
@@ -1740,7 +1906,303 @@ main(void)
                counters.property_applies, counters.allocations);
     }
 
+    /* ---- 10. the LANE's grid, where the lane has stones of its own ----- */
+    /*
+     * Everything above this runs the 2004 art strip's own cell table, because
+     * no lane in this file had a `sidetab_<n>` to ask. That table is a fact
+     * about a PICTURE -- `backhmid1`'s seven hollows are 27 to 38 columns wide
+     * on a pitch of their own -- and rev-239 stands its stones 33 apart from
+     * 526, so not one tab stood on one of those cells. The four functions that
+     * answer it (frame_lane_tab_boxes, frame_row_adoptable, frame_tab_band and
+     * frame_compose_tab_stone) had no coverage at all, and a revert of any of
+     * them was invisible to `make test-*`.
+     *
+     * The section is written as a fixture the shape of the fixture matters
+     * for: 526 and 528 are the two grids the shipped roots state, the pitch is
+     * 33 and the box is 33x36, and every refusal case below is a poke at ONE
+     * number of that.
+     */
+    {
+        static int const TOP_ROW_X[7] = { 526, 559, 592, 625, 658, 691, 724 };
+        int box_x, box_y, box_w, box_h;
+        int matched;
+
+        g_lane_game = TORIRS_GAME_OLDSCHOOL;
+        g_frame_root = 548;
+        select_frame("auto", 900);
+        fw_build(/*oldschool=*/1);
+        fw_tabs(/*x0=*/526, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
+        PluginHost_WidgetsChanged(g_host, 77, 20);
+        g_frame.active_tab = 3;
+        g_frame.ungiven_tab = -1;
+        select_frame("gameframe-layout/classic-fixed", 1000);
+        declare(765, 503);
+
+        /*
+         * THE ACCEPTANCE: every face stands on its own tab's box.
+         *
+         * Face keys are SCREEN order and `sidetab_<n>` is TAB order, which is
+         * the whole reason FAKE_TAB_SCREEN_ORDER exists here: 548 runs clan,
+         * friends, account along its bottom row, so comparing face.08 with
+         * sidetab_8 compares two different stones and passes anyway because
+         * the boxes are a set of seven.
+         *
+         * Mutation: drop the reorder in frame_layout_classic_fixed -- index
+         * `screen` by `i` instead of by FRAME_TAB_SCREEN_ORDER[i] -- and this
+         * stays green while `face.08 opens the tab its box belongs to` below
+         * goes red. Mutation: return the table's box from the `lane_grid ?`
+         * choice and every one of the fourteen goes red at once.
+         */
+        matched = 0;
+        for( int i = 0; i < 14; i++ )
+        {
+            struct FakeWidget const* tab = fw_tab(i);
+            char key[16];
+
+            snprintf(key, sizeof(key), "face.%02d", i);
+            if( tab && owned_box(key, &box_x, &box_y, &box_w, &box_h) && box_x == tab->x &&
+                box_y == tab->y && box_w == tab->w && box_h == tab->h )
+                matched++;
+        }
+        CHECK(matched == 14,
+              "all fourteen faces stand on the box their own tab reports, not on the art strip's cell");
+        CHECK(owned_box("face.00", &box_x, &box_y, &box_w, &box_h) && box_x == TOP_ROW_X[0] &&
+                  box_w == 33 && box_h == 36,
+              "and the leftmost is at the lane's 526 rather than the strip's 538");
+        /*
+         * The stone still opens the tab whose box it took.
+         *
+         * Mutation: index the screen table the other way round -- `tab =
+         * FRAME_TAB_SCREEN_ORDER[i]` becomes `tab = i` -- and pressing the
+         * ninth stone opens account instead of friends, which looks exactly
+         * like a client bug and is what this catches.
+         */
+        g_frame.select_calls = 0;
+        press("tab.08");
+        CHECK(g_frame.select_calls == 1 && g_frame.selected_tab == 9,
+              "face.08 opens the tab its box belongs to: screen order is not tab order on the bottom row");
+
+        /*
+         * The SECOND grid, which is what says the box is READ.
+         *
+         * 161 stands its stones 33 apart from 528, two columns right of 548's.
+         * One capture cannot tell a box that was asked for from a constant
+         * that happens to match; two grids that differ by two columns can, and
+         * that is exactly the pair the gate's two classic lanes are.
+         *
+         * Mutation: write 526 into frame_lane_tab_boxes instead of
+         * `state.box.x - ctx->origin_x` and this is the only line that moves.
+         */
+        fw_build(/*oldschool=*/1);
+        fw_tabs(/*x0=*/528, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
+        PluginHost_WidgetsChanged(g_host, 77, 21);
+        declare(765, 503);
+        CHECK(owned_box("face.00", &box_x, &box_y, &box_w, &box_h) && box_x == 528 &&
+                  owned_box("face.06", &box_x, &box_y, &box_w, &box_h) && box_x == 528 + 6 * 33,
+              "a root two columns to the right moves all seven with it");
+
+        /*
+         * The GUARD, three refusals, one poke each.
+         *
+         * Each of these keeps the 2004 table, and the table's first stone is
+         * 38 columns wide at 538,170 -- a box no lane grid here states -- so
+         * one assertion tells adoption from refusal.
+         */
+        fw_build(/*oldschool=*/1);
+        fw_tabs(/*x0=*/526, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
+        fw_tab(4)->w = 40;
+        PluginHost_WidgetsChanged(g_host, 77, 22);
+        declare(765, 503);
+        CHECK(owned_box("face.00", &box_x, &box_y, &box_w, &box_h) && box_x == 538 && box_y == 170,
+              "a row whose boxes are not one size keeps the table: seven sizes is seven hollows");
+
+        /*
+         * A STAIRCASE: seven boxes of one size, all inside the band, standing
+         * at seven heights. Not a row, and one lit stone cut for one lighting
+         * cannot be worn by stones at two depths in the rock.
+         *
+         * Mutation: drop the `tab.y != row[0].y` line from
+         * frame_row_adoptable and this is the only assertion that goes red.
+         */
+        fw_build(/*oldschool=*/1);
+        fw_tabs(/*x0=*/526, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
+        fw_tab(4)->y = 169;
+        PluginHost_WidgetsChanged(g_host, 77, 23);
+        declare(765, 503);
+        CHECK(owned_box("face.00", &box_x, &box_y, &box_w, &box_h) && box_x == 538 && box_y == 170,
+              "and a row standing at two heights keeps it too: a staircase is not a row");
+
+        /*
+         * OUTSIDE the band: 601 stacks its stones in two columns down the
+         * window's edge, and these two horizontal bands cannot carry that.
+         *
+         * Mutation: drop either half of the inside-the-band test in
+         * frame_row_adoptable and the frame re-cuts `backhmid1` for seven
+         * hollows hanging off the end of it.
+         */
+        fw_build(/*oldschool=*/1);
+        fw_tabs(/*x0=*/700, /*pitch=*/33, /*y_top=*/40, /*y_bottom=*/80, 33, 36);
+        PluginHost_WidgetsChanged(g_host, 77, 24);
+        declare(765, 503);
+        CHECK(owned_box("face.00", &box_x, &box_y, &box_w, &box_h) && box_x == 538 && box_y == 170,
+              "a root whose stones fall outside the band keeps the table: the rock does not reach them");
+
+        /*
+         * The HOLLOW is cut where its tab stands, on BOTH axes.
+         *
+         * `cell[i].x` came off the tab from the first version of this and
+         * `cell[i].y` was the band's own constant, so a root standing its
+         * stones lower inside the same band -- which the guard admits,
+         * because lower is still inside -- got its hollows cut ABOVE them.
+         * The band has exactly one row of slack for a 36-row stone (160..204
+         * for 45 rows), so one row is what this moves them by, and one row is
+         * enough: row 8 of `backhmid1` is the hollow's lip and row 9 is its
+         * floor, so a destination fed the wrong source row is a different
+         * colour in every one of these pixels.
+         *
+         * Read against the SOURCE art rather than against a second copy of
+         * the arithmetic: the cut's left cap is FRAME_C_TAB_CAP columns copied
+         * one to one out of the band's own cell at 28,8.
+         *
+         * Mutation: put `cell[i].y = BAND[row].cell_y` back and this goes red
+         * while every box assertion above stays green -- which is what makes
+         * it a defect nobody would have seen.
+         */
+        fw_build(/*oldschool=*/1);
+        fw_tabs(/*x0=*/526, /*pitch=*/33, /*y_top=*/169, /*y_bottom=*/466, 33, 36);
+        PluginHost_WidgetsChanged(g_host, 77, 25);
+        declare(765, 503);
+        CHECK(owned_box("face.00", &box_x, &box_y, &box_w, &box_h) && box_y == 169,
+              "a row one pixel lower is still inside the band, so the grid is still adopted");
+        {
+            struct FakeWidget const* band = owned_piece_at(516, 160);
+            int same = 0;
+            int cells = 0;
+            int recut = 0;
+
+            CHECK(source_image("classic_backhmid1.png") && g_source_w == 249 && g_source_h == 45,
+                  "the top band's own art is 249x45, which is what the arithmetic below is read against");
+            /*
+             * RE-CUT, and not the band as it was drawn. The 2004 strip's own
+             * first hollow starts at column 538, twelve columns right of where
+             * this lane's first stone stands, so the destination this checks
+             * is divider rock in the band's own picture and a hollow's lip in
+             * the composed one.
+             *
+             * Mutation: return `plain` from frame_tab_band whatever `adopt`
+             * says, or skip every cell in frame_compose_tab_band, and this
+             * goes red together with the row assertion under it.
+             */
+            if( band && band->image >= 0 )
+                for( int row = 0; row < 6; row++ )
+                    for( int col = 0; col < 6; col++ )
+                        if( image_px(band->image, 10 + col, 9 + row) !=
+                            source_px(10 + col, 9 + row) )
+                            recut++;
+            CHECK(band && band->image >= 0 && g_image[band->image].w == 249 &&
+                      g_image[band->image].h == 45 && recut > 0,
+                  "the top band is an owned picture of the band's own size, with a hollow cut into it");
+            if( band && band->image >= 0 )
+                for( int row = 0; row < 6; row++ )
+                    for( int col = 0; col < 6; col++ )
+                    {
+                        cells++;
+                        /* dest (526-516, 169-160) + (col,row); src (28,8) + (col,row) */
+                        if( image_px(band->image, 10 + col, 9 + row) == source_px(28 + col, 8 + row) )
+                            same++;
+                    }
+            CHECK(cells == 36 && same == 36,
+                  "and its hollow is cut at the tab's own row, not at the band constant one row above");
+        }
+
+        /*
+         * The LIT STONE, which is the picture the whole row wears.
+         *
+         * Symmetric about its own centre, because a grid of fourteen equal
+         * boxes has no mirror line for a one-sided picture to be on. The 2004
+         * strip's cells are each cut for the side of the strip they stand on:
+         * laid at all fourteen, `classic_redstone1` put a diagonal wedge of
+         * bare rock down the left of every selected tab and crowded the red
+         * against its right edge -- measured on classic548 at 9 red pixels in
+         * the leftmost eleven columns against 179 in the rightmost eleven.
+         *
+         * Mutation: pass `folded=0` to frame_tab_stone_column and this goes
+         * red at the first column pair. Mutation: hand
+         * frame_compose_tab_stone IMG_C_REDSTONE1 and it goes red as well,
+         * because that picture's shape is not symmetric either.
+         */
+        fw_build(/*oldschool=*/1);
+        fw_tabs(/*x0=*/526, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
+        PluginHost_WidgetsChanged(g_host, 77, 26);
+        g_frame.active_tab = 3;
+        declare(765, 503);
+        {
+            struct FakeWidget const* face = owned("face.03");
+            int mirrored = 0;
+            int pairs = 0;
+
+            CHECK(face && face->image >= 0 && g_image[face->image].w == 33 &&
+                      g_image[face->image].h == 36,
+                  "the lit stone is composed at the TAB's box, not at the picture's own 30x37");
+            if( face && face->image >= 0 )
+                for( int row = 0; row < 36; row++ )
+                    for( int col = 0; col < 33; col++ )
+                    {
+                        pairs++;
+                        if( image_px(face->image, col, row) ==
+                            image_px(face->image, 32 - col, row) )
+                            mirrored++;
+                    }
+            CHECK(pairs == 33 * 36 && mirrored == 33 * 36,
+                  "and it is symmetric about its own centre: no side of a uniform grid is the lit side");
+        }
+        /*
+         * And the BOTTOM row wears it upside down.
+         *
+         * The two bands are two pictures rather than one flipped, but the
+         * hollows in them are flips of each other: `backhmid1` lights its
+         * sockets from below and `backbase2` from above. The 2004 table says
+         * the same thing -- every one of its bottom seven entries is a
+         * REDSTONE_FLIP_V or _HV of the picture the row above wears -- and a
+         * single stone for all fourteen loses it, which is a lit stone shaded
+         * against the rock it stands in.
+         *
+         * Mutation: pass `mirror_y=0` for both rows in frame_tab_stone and
+         * this goes red while the symmetry assertion above stays green.
+         */
+        {
+            uint32_t top[33 * 36];
+            struct FakeWidget const* face = owned("face.03");
+            int flipped = 0;
+            int pairs = 0;
+
+            memset(top, 0, sizeof(top));
+            if( face && face->image >= 0 )
+                for( int row = 0; row < 36; row++ )
+                    for( int col = 0; col < 33; col++ )
+                        top[(row * 33) + col] = image_px(face->image, col, row);
+            g_frame.active_tab = 13;
+            frame_tick();
+            declare(765, 503);
+            face = owned("face.13");
+            CHECK(face && face->image >= 0 && g_image[face->image].w == 33,
+                  "the bottom row's selected tab wears a lit stone of its own");
+            if( face && face->image >= 0 )
+                for( int row = 0; row < 36; row++ )
+                    for( int col = 0; col < 33; col++ )
+                    {
+                        pairs++;
+                        if( image_px(face->image, col, row) == top[((35 - row) * 33) + col] )
+                            flipped++;
+                    }
+            CHECK(pairs == 33 * 36 && flipped == 33 * 36,
+                  "and it is the top row's stone turned over, which is how the 2004 table lights the row");
+        }
+        printf("GAMEFRAME lane grid faces=%d at %d..%d\n", matched, TOP_ROW_X[0], TOP_ROW_X[6]);
+    }
+
     PluginHost_Free(g_host);
+    free(g_source_argb);
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }
