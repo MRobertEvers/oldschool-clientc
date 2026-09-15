@@ -4505,6 +4505,33 @@ mobile_describe_surfaces(struct MobileCall* ctx, struct ToriRS_PorcelainDescribe
                 describe->hide(describe, FRAME_SURFACE_ELEMENT[s]);
         }
         /*
+         * The lane's filter CAPTIONS go away with the sheet they stand on.
+         *
+         * Every other surface here follows the rule that a role the plan did
+         * not place is hidden. The filters were exempted from it because they
+         * are placed as members and their container is the chat, which the
+         * plan does place -- and that is true only where the filters are
+         * CHILDREN of the chat. On a 2004 frame they are not: the four
+         * captions are siblings of the chat in the frame's own layer, so
+         * hiding the chat leaves them behind. Every time this frame put the
+         * sheet away -- which is what opening the drawer does -- "Public chat
+         * / On" and three more went on painting on bare world, with the plates
+         * gone from under them, because a plate is described only where the
+         * plan placed one.
+         *
+         * Asked of the LANE's count rather than of this frame's four: a pack
+         * with eight answers eight, and a lane with no filters at all is not
+         * asked about one it does not have. @see Porcelain_Count.
+         */
+        if( s == FRAME_SURFACE_CHAT_BUTTONS && !g_frame.chat_placed )
+        {
+            int const filters = Porcelain_Count(state->porcelain, PORCELAIN_EL_CHAT_FILTER);
+
+            for( int i = 0; i < filters; i++ )
+                describe->hide(describe, PORCELAIN_CHAT_FILTER_EL(i));
+            continue;
+        }
+        /*
          * The CONTAINER before its members.
          *
          * A member is a child of the surface, and the server mounts the surface

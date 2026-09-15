@@ -77,6 +77,16 @@ nxthl-live         nxt-highlight       cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;
 # logs zero PLUGIN_NPC lines. Only this lane has npcs to highlight.
 highlighter-live   entity-highlighter  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' 'TORIRS_SIM_PLUGIN_CONFIG=1400,entity-highlighter,tags,547,781,783' TORIRS_MAX_FRAMES=2200
 gf-mobile-live     mobile-gameframe    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200 TORIRS_SHOT_FRAME=mobile-gameframe/stone-drawer
+# The SAME frame with its drawer OPEN, which is a different frame and not a
+# variation on the one above: opening the drawer takes the chat sheet down, and
+# every piece of chat furniture the frame does not account for is then standing
+# on bare world. That is where the 2004 lane's four filter captions were found
+# still painting with their plates gone -- invisible to every shot in this file,
+# because not one of them ever tapped a rock. The tap is at 698,370, which is
+# the inventory stone on the classic rail (tab.03, 680,352 36x37); ONE tap, not
+# two, because a second one shuts the drawer again and the shot is of the state
+# it started in.
+gf-mobile-drawer   mobile-gameframe    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285;1900,698,370' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200 TORIRS_SHOT_FRAME=mobile-gameframe/stone-drawer
 
 # ~giverunes puts 1000 of each rune in the INVENTORY, which is the only reason
 # item-stats has anything to hover. The offline lane's inventory was empty, so
