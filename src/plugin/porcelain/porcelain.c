@@ -1881,14 +1881,41 @@ porcelain_note_result(struct Porcelain* porcelain, char const* verb,
  * writing at the dead node instead of doing it again on every fence the
  * description keeps matching, and the ordinary re-create runs on the fence
  * the element rebinds.
+ *
+ * EVERY setter that writes at one of this item's own two nodes comes through
+ * here, and that is the whole of the rule. It used to be only the three the
+ * geometry pass makes -- set_position, set_size, set_image -- and the split
+ * was invisible while the only measured remount also moved a box. It is not
+ * invisible on a readout: performance-display states four rows INSIDE the
+ * viewport and never moves them, so the geometry pass writes nothing after
+ * the create and the only per-frame setter is set_text. On the CS1 lane the
+ * four controls die at frame 7 and their element does not rebind until 207,
+ * and for every one of those two hundred fences the string had moved, so the
+ * layer wrote at the dead node and filed the answer as the plugin's refusal:
+ * 363 dead engine calls and one undeclared PORCELAIN_FINDING that no CS2 lane
+ * raises, which is a port-gate failure on a lane difference the plugin cannot
+ * see, let alone declare.
+ *
+ * `detail` rather than applied->item.key.text, because a REPLACE's hit box is
+ * this item's SECOND node and is named `<key>__hit` in a finding; both hang
+ * under applied->parent and die in the same event, so either answering
+ * STALE_REFERENCE marks the same slot.
+ *
+ * Two setters deliberately stay OUT: `create`, whose STALE_REFERENCE is about
+ * the PARENT and whose repair is the re-create arm rather than this flag (and
+ * marking there was measured as sixty-three `create tab.04` findings), and
+ * `set_anchor`, which takes a second reference and so cannot say WHICH of the
+ * two nodes the engine called dead.
  */
 static void
 porcelain_note_item_result(struct Porcelain* porcelain, struct PorcelainAppliedItem* applied,
-                           char const* verb, enum ToriRS_ContractResult result)
+                           char const* verb, enum ToriRS_ContractResult result,
+                           char const* detail)
 {
     assert(porcelain);
     assert(applied);
     assert(verb);
+    assert(detail);
     if( result == TORIRS_CONTRACT_STALE_REFERENCE )
     {
         /*
@@ -1912,8 +1939,7 @@ porcelain_note_item_result(struct Porcelain* porcelain, struct PorcelainAppliedI
         applied->stale = true;
         return;
     }
-    porcelain_note_result(porcelain, verb, applied->item.place.on, result,
-                          applied->item.key.text);
+    porcelain_note_result(porcelain, verb, applied->item.place.on, result, detail);
 }
 
 static void
@@ -1995,7 +2021,8 @@ porcelain_apply_geometry(struct Porcelain* porcelain, struct PorcelainAppliedIte
         porcelain->counters.setters++;
         porcelain_note_item_result(
             porcelain, applied, "set_position",
-            widgets->set_position(widgets->context, applied->ref, box.x, box.y));
+            widgets->set_position(widgets->context, applied->ref, box.x, box.y),
+            applied->item.key.text);
         applied->live_x = box.x;
         applied->live_y = box.y;
         porcelain->dirty = true;
@@ -2023,7 +2050,8 @@ porcelain_apply_geometry(struct Porcelain* porcelain, struct PorcelainAppliedIte
         porcelain->counters.setters++;
         porcelain_note_item_result(
             porcelain, applied, "set_size",
-            widgets->set_size(widgets->context, applied->ref, box.width, box.height));
+            widgets->set_size(widgets->context, applied->ref, box.width, box.height),
+            applied->item.key.text);
         applied->live_w = box.width;
         applied->live_h = box.height;
         porcelain->dirty = true;
@@ -2048,7 +2076,8 @@ porcelain_apply_geometry(struct Porcelain* porcelain, struct PorcelainAppliedIte
         porcelain->counters.setters++;
         porcelain_note_item_result(porcelain, applied, "set_image",
                                    widgets->set_image(widgets->context, applied->ref,
-                                                      applied->image_ref, box.width, box.height));
+                                                      applied->image_ref, box.width, box.height),
+                                   applied->item.key.text);
         applied->live_w = box.width;
         applied->live_h = box.height;
         applied->image_dirty = false;
@@ -2066,9 +2095,9 @@ porcelain_apply_hidden(struct Porcelain* porcelain, struct PorcelainAppliedItem*
         return;
     porcelain->counters.engine_calls++;
     porcelain->counters.setters++;
-    porcelain_note_result(porcelain, "set_hidden", applied->item.place.on,
-                          widgets->set_hidden(widgets->context, applied->ref, hidden),
-                          applied->item.key.text);
+    porcelain_note_item_result(porcelain, applied, "set_hidden",
+                               widgets->set_hidden(widgets->context, applied->ref, hidden),
+                               applied->item.key.text);
     applied->applied_hidden = hidden;
     applied->hidden_written = true;
     porcelain->dirty = true;
@@ -2246,17 +2275,18 @@ porcelain_apply_properties(struct Porcelain* porcelain, struct PorcelainAppliedI
         {
             porcelain->counters.engine_calls++;
             porcelain->counters.setters++;
-            porcelain_note_result(porcelain, "set_text", wanted->place.on,
-                                  widgets->set_text(widgets->context, applied->ref, wanted->text),
-                                  wanted->key.text);
+            porcelain_note_item_result(
+                porcelain, applied, "set_text",
+                widgets->set_text(widgets->context, applied->ref, wanted->text),
+                wanted->key.text);
             porcelain->dirty = true;
         }
         if( fresh || previous.rgb != wanted->rgb )
         {
             porcelain->counters.engine_calls++;
             porcelain->counters.setters++;
-            porcelain_note_result(
-                porcelain, "set_text_color", wanted->place.on,
+            porcelain_note_item_result(
+                porcelain, applied, "set_text_color",
                 widgets->set_text_color(widgets->context, applied->ref, wanted->rgb),
                 wanted->key.text);
             porcelain->dirty = true;
@@ -2267,8 +2297,8 @@ porcelain_apply_properties(struct Porcelain* porcelain, struct PorcelainAppliedI
             porcelain->counters.setters++;
             /* Alignment 1 is CENTRE, which is what the shipped readout is
              * pinned to; the sketch called it LEFT and was wrong. */
-            porcelain_note_result(
-                porcelain, "set_text_align", wanted->place.on,
+            porcelain_note_item_result(
+                porcelain, applied, "set_text_align",
                 widgets->set_text_align(widgets->context, applied->ref, wanted->align, 0),
                 wanted->key.text);
             porcelain->dirty = true;
@@ -2277,8 +2307,8 @@ porcelain_apply_properties(struct Porcelain* porcelain, struct PorcelainAppliedI
         {
             porcelain->counters.engine_calls++;
             porcelain->counters.setters++;
-            porcelain_note_result(
-                porcelain, "set_text_outline", wanted->place.on,
+            porcelain_note_item_result(
+                porcelain, applied, "set_text_outline",
                 widgets->set_text_outline(widgets->context, applied->ref, wanted->outline),
                 wanted->key.text);
             porcelain->dirty = true;
@@ -2320,9 +2350,9 @@ porcelain_apply_properties(struct Porcelain* porcelain, struct PorcelainAppliedI
                                     PORCELAIN_FINDING_REFUSED, wanted->key.text);
         porcelain->counters.engine_calls++;
         porcelain->counters.setters++;
-        porcelain_note_result(porcelain, "set_opacity", wanted->place.on,
-                              widgets->set_opacity(widgets->context, applied->ref, opacity),
-                              wanted->key.text);
+        porcelain_note_item_result(porcelain, applied, "set_opacity",
+                                   widgets->set_opacity(widgets->context, applied->ref, opacity),
+                                   wanted->key.text);
         applied->applied_opacity = opacity;
         porcelain->dirty = true;
     }
@@ -2354,8 +2384,8 @@ porcelain_apply_op(struct Porcelain* porcelain, struct PorcelainAppliedItem* app
         return;
     porcelain->counters.engine_calls++;
     porcelain->counters.setters++;
-    porcelain_note_result(
-        porcelain, "set_on_op", wanted->place.on,
+    porcelain_note_item_result(
+        porcelain, applied, "set_on_op",
         widgets->set_on_op(widgets->context, applied->ref, armed ? wanted->op_label : NULL,
                            armed ? porcelain_op_listener : NULL, armed ? applied : NULL),
         wanted->key.text);
@@ -2479,8 +2509,8 @@ porcelain_apply_replace_hit(struct Porcelain* porcelain, struct PorcelainApplied
     {
         porcelain->counters.engine_calls++;
         porcelain->counters.setters++;
-        porcelain_note_result(
-            porcelain, "set_position", wanted->place.on,
+        porcelain_note_item_result(
+            porcelain, applied, "set_position",
             widgets->set_position(widgets->context, applied->hit_ref, target->local.x,
                                   target->local.y),
             key);
@@ -2491,8 +2521,8 @@ porcelain_apply_replace_hit(struct Porcelain* porcelain, struct PorcelainApplied
     {
         porcelain->counters.engine_calls++;
         porcelain->counters.setters++;
-        porcelain_note_result(
-            porcelain, "set_size", wanted->place.on,
+        porcelain_note_item_result(
+            porcelain, applied, "set_size",
             widgets->set_size(widgets->context, applied->hit_ref, target->local.width,
                               target->local.height),
             key);
@@ -2504,10 +2534,11 @@ porcelain_apply_replace_hit(struct Porcelain* porcelain, struct PorcelainApplied
     {
         porcelain->counters.engine_calls++;
         porcelain->counters.setters++;
-        porcelain_note_result(porcelain, "set_on_op", wanted->place.on,
-                              widgets->set_on_op(widgets->context, applied->hit_ref,
-                                                 wanted->op_label, porcelain_op_listener, applied),
-                              key);
+        porcelain_note_item_result(porcelain, applied, "set_on_op",
+                                   widgets->set_on_op(widgets->context, applied->hit_ref,
+                                                      wanted->op_label, porcelain_op_listener,
+                                                      applied),
+                                   key);
         Porcelain_CopyString(applied->hit_label, sizeof(applied->hit_label), wanted->op_label);
         porcelain->dirty = true;
     }
@@ -3001,12 +3032,30 @@ porcelain_reconcile(struct Porcelain* porcelain)
             if( !ToriRS_WidgetRefEqual(parent, applied->parent) )
             {
                 porcelain->counters.reparents++;
+                /*
+                 * The WHOLE reference in `was` and `now`, not just its middle
+                 * field.
+                 *
+                 * A widget reference is tree:index:incarnation and the compare
+                 * above is on all three. Printing the index alone made a login
+                 * -- where the 2004 lane replaces the tree and the plugin's
+                 * rows hang under a NEW node that happens to carry the old
+                 * one's index -- read as `was=1 now=1`, a reparent under a
+                 * parent that did not change, and it was filed as a defect on
+                 * exactly that reading. The index is the field least likely to
+                 * differ; it must not be the only one shown.
+                 */
                 if( porcelain_trace_enabled() )
                     fprintf(stderr,
-                            "PORCELAIN_REPARENT plugin=%s key=%s frame=%u was=%llu now=%llu\n",
+                            "PORCELAIN_REPARENT plugin=%s key=%s frame=%u "
+                            "was=%llu:%llu:%llu now=%llu:%llu:%llu\n",
                             porcelain->plugin_id, wanted->key.text, porcelain->frame,
+                            (unsigned long long)applied->parent.opaque[0],
                             (unsigned long long)applied->parent.opaque[1],
-                            (unsigned long long)parent.opaque[1]);
+                            (unsigned long long)applied->parent.opaque[2],
+                            (unsigned long long)parent.opaque[0],
+                            (unsigned long long)parent.opaque[1],
+                            (unsigned long long)parent.opaque[2]);
                 porcelain_remove_item(porcelain, applied);
                 applied = NULL;
             }
@@ -3528,9 +3577,9 @@ Porcelain_Set(struct Porcelain* porcelain, char const* key, struct PorcelainMoti
         {
             porcelain->counters.engine_calls++;
             porcelain->counters.setters++;
-            porcelain_note_result(porcelain, "set", applied->item.place.on,
-                                  widgets->set_position(widgets->context, applied->ref, x, y),
-                                  key);
+            porcelain_note_item_result(
+                porcelain, applied, "set",
+                widgets->set_position(widgets->context, applied->ref, x, y), key);
             applied->live_x = x;
             applied->live_y = y;
             porcelain->dirty = true;
@@ -3549,8 +3598,8 @@ Porcelain_Set(struct Porcelain* porcelain, char const* key, struct PorcelainMoti
         {
             porcelain->counters.engine_calls++;
             porcelain->counters.setters++;
-            porcelain_note_result(
-                porcelain, "set", applied->item.place.on,
+            porcelain_note_item_result(
+                porcelain, applied, "set",
                 widgets->set_text(widgets->context, applied->ref, motion->text), key);
             Porcelain_CopyString(applied->item.text, sizeof(applied->item.text), motion->text);
             applied->item.has_text = true;
@@ -3564,8 +3613,8 @@ Porcelain_Set(struct Porcelain* porcelain, char const* key, struct PorcelainMoti
         {
             porcelain->counters.engine_calls++;
             porcelain->counters.setters++;
-            porcelain_note_result(
-                porcelain, "set", applied->item.place.on,
+            porcelain_note_item_result(
+                porcelain, applied, "set",
                 widgets->set_text_color(widgets->context, applied->ref, motion->rgb), key);
             applied->item.rgb = motion->rgb;
             applied->item.hash = porcelain_item_hash(&applied->item);
@@ -3579,8 +3628,8 @@ Porcelain_Set(struct Porcelain* porcelain, char const* key, struct PorcelainMoti
         {
             porcelain->counters.engine_calls++;
             porcelain->counters.setters++;
-            porcelain_note_result(
-                porcelain, "set", applied->item.place.on,
+            porcelain_note_item_result(
+                porcelain, applied, "set",
                 widgets->set_opacity(widgets->context, applied->ref, motion->opacity), key);
             applied->applied_opacity = motion->opacity;
             porcelain->dirty = true;
@@ -3594,10 +3643,10 @@ Porcelain_Set(struct Porcelain* porcelain, char const* key, struct PorcelainMoti
             struct ToriRS_ImageRef const image = Porcelain_Image(porcelain, motion->image, &state);
             porcelain->counters.engine_calls++;
             porcelain->counters.setters++;
-            porcelain_note_result(porcelain, "set", applied->item.place.on,
-                                  widgets->set_image(widgets->context, applied->ref, image,
-                                                     applied->live_w, applied->live_h),
-                                  key);
+            porcelain_note_item_result(porcelain, applied, "set",
+                                       widgets->set_image(widgets->context, applied->ref, image,
+                                                          applied->live_w, applied->live_h),
+                                       key);
             applied->image_ref = image;
             Porcelain_CopyString(applied->item.image.text, sizeof(applied->item.image.text),
                                  motion->image);

@@ -726,6 +726,10 @@ fake_set_size(void* context, struct ToriRS_WidgetRef ref, int32_t width, int32_t
     (void)context;
     testbed_log("set_size %s %dx%d", control ? control->key : (element ? element->role : "?"),
                 (int)width, (int)height);
+    /* A reference to nothing at all: the engine's answer for a node that has
+     * been destroyed, from EVERY entry point. @see Testbed_KillControl. */
+    if( !control && !element )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
     if( control )
     {
         control->width = width;
@@ -743,6 +747,10 @@ fake_set_hidden(void* context, struct ToriRS_WidgetRef ref, bool hidden)
     (void)context;
     testbed_log("set_hidden %s %d", control ? control->key : (element ? element->role : "?"),
                 hidden ? 1 : 0);
+    /* A reference to nothing at all: the engine's answer for a node that has
+     * been destroyed, from EVERY entry point. @see Testbed_KillControl. */
+    if( !control && !element )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
     if( control )
         control->hidden = hidden;
     return TORIRS_CONTRACT_OK;
@@ -770,6 +778,10 @@ fake_set_image(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_ImageRe
      */
     if( !image.value )
         return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    /* A reference to nothing at all: the engine's answer for a node that has
+     * been destroyed, from EVERY entry point. @see Testbed_KillControl. */
+    if( !control && !element )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
     if( control )
     {
         control->width = width;
@@ -798,6 +810,10 @@ fake_set_opacity(void* context, struct ToriRS_WidgetRef ref, int opacity)
     (void)context;
     testbed_log("set_opacity %s %d", control ? control->key : (element ? element->role : "?"),
                 opacity);
+    /* A reference to nothing at all: the engine's answer for a node that has
+     * been destroyed, from EVERY entry point. @see Testbed_KillControl. */
+    if( !control && !element )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
     if( control )
         control->opacity = opacity;
     return TORIRS_CONTRACT_OK;
@@ -842,9 +858,14 @@ fake_set_on_op(void* context, struct ToriRS_WidgetRef ref, char const* label,
                ToriRS_WidgetListener listener, void* user)
 {
     struct TestbedControl* control = testbed_control_by_ref(ref);
+    struct TestbedElement const* element = testbed_element_by_ref(ref);
 
     (void)context;
     testbed_log("set_on_op %s %s", control ? control->key : "?", label ? label : "(none)");
+    /* A reference to nothing at all: the engine's answer for a node that has
+     * been destroyed, from EVERY entry point. @see Testbed_KillControl. */
+    if( !control && !element )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
     if( control )
     {
         control->armed = label != NULL;
@@ -859,9 +880,14 @@ static enum ToriRS_ContractResult
 fake_set_text(void* context, struct ToriRS_WidgetRef ref, char const* text)
 {
     struct TestbedControl* control = testbed_control_by_ref(ref);
+    struct TestbedElement const* element = testbed_element_by_ref(ref);
 
     (void)context;
     testbed_log("set_text %s %s", control ? control->key : "?", text ? text : "");
+    /* A reference to nothing at all: the engine's answer for a node that has
+     * been destroyed, from EVERY entry point. @see Testbed_KillControl. */
+    if( !control && !element )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
     if( control )
         snprintf(control->text, sizeof(control->text), "%s", text ? text : "");
     return TORIRS_CONTRACT_OK;
@@ -871,9 +897,14 @@ static enum ToriRS_ContractResult
 fake_set_text_color(void* context, struct ToriRS_WidgetRef ref, uint32_t rgb)
 {
     struct TestbedControl* control = testbed_control_by_ref(ref);
+    struct TestbedElement const* element = testbed_element_by_ref(ref);
 
     (void)context;
     testbed_log("set_text_color %s %06x", control ? control->key : "?", rgb);
+    /* A reference to nothing at all: the engine's answer for a node that has
+     * been destroyed, from EVERY entry point. @see Testbed_KillControl. */
+    if( !control && !element )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
     return TORIRS_CONTRACT_OK;
 }
 
@@ -881,9 +912,14 @@ static enum ToriRS_ContractResult
 fake_set_text_align(void* context, struct ToriRS_WidgetRef ref, int horizontal, int vertical)
 {
     struct TestbedControl* control = testbed_control_by_ref(ref);
+    struct TestbedElement const* element = testbed_element_by_ref(ref);
 
     (void)context;
     testbed_log("set_text_align %s %d,%d", control ? control->key : "?", horizontal, vertical);
+    /* A reference to nothing at all: the engine's answer for a node that has
+     * been destroyed, from EVERY entry point. @see Testbed_KillControl. */
+    if( !control && !element )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
     return TORIRS_CONTRACT_OK;
 }
 
@@ -891,9 +927,14 @@ static enum ToriRS_ContractResult
 fake_set_text_outline(void* context, struct ToriRS_WidgetRef ref, bool outline)
 {
     struct TestbedControl* control = testbed_control_by_ref(ref);
+    struct TestbedElement const* element = testbed_element_by_ref(ref);
 
     (void)context;
     testbed_log("set_text_outline %s %d", control ? control->key : "?", outline ? 1 : 0);
+    /* A reference to nothing at all: the engine's answer for a node that has
+     * been destroyed, from EVERY entry point. @see Testbed_KillControl. */
+    if( !control && !element )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
     return TORIRS_CONTRACT_OK;
 }
 
