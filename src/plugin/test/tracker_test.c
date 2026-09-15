@@ -1165,6 +1165,9 @@ press_box(int row)
 #define TEST_HEAD_H 33
 /** The totals band the strip opens with, which every band sits below. */
 #define TEST_TOTALS_H 44
+/** One EXPANDED band holding one item -- `lt_grid_rows(1) * LT_CELL_H + 46`,
+ *  which is what every band in these cases is. */
+#define TEST_BAND_H 82
 
 /**
  * A click inside the well, at a point.
@@ -1216,6 +1219,15 @@ frames(int count)
 {
     for( int i = 0; i < count; i++ )
         dispatch_frame_start();
+}
+
+/** The strip's whole height, which is what states how many bands it holds.
+ *  @see lt_strip_h -- totals, then one block per visible source. */
+static int
+strip_h(void)
+{
+    struct FakeWidget const* w = fake_widget_find("strip");
+    return w ? w->height : -1;
 }
 
 /** Is there a band strip with anything in it? A strip with only its totals
@@ -2640,6 +2652,293 @@ test_loot_empty_record_does_not_erase_inference(void)
 }
 
 /*
+ * A record that speaks may not erase a band the page already STATED.
+ *
+ * The empty-record case above is the easy half. This is the one that shipped:
+ * the record takes its first Goblin, `lt_sync_store` wrote `source_count =
+ * count` from what the record held, and the Imp band the page had been
+ * showing -- "Imp, 1 kill, 21 gp" -- was gone. Measured, that was a strip 126
+ * pixels tall against a control of 126: the SAME height as the same record
+ * with no inference beside it at all, which is the whole defect in one number.
+ *
+ * It is also the same defect as the one this branch exists to fix. "No loot to
+ * display." over a record that was not empty, and a page with no Imp on it
+ * after an Imp died, are both the page asserting something it has no basis
+ * for. The record holding a Goblin is not a statement about Imps.
+ *
+ * The rule is per SOURCE: the record owns every name it holds and inference
+ * owns the rest. @see lt_record_names.
+ */
+static void
+test_loot_record_does_not_erase_a_band_it_does_not_name(void)
+{
+    struct ToriRS_NpcSnapshot imp;
+    struct ToriRS_GroundItemSnapshot feather;
+    int inferred_only;
+    int merged;
+    int record_only;
+
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    imp = dying_npc("Imp", 3200);
+    feather = drop_at(314, 21, 1, "Feather", 3200);
+    dispatch_npc_despawn(&imp);
+    dispatch_item_spawn(&feather);
+    tick(1201);
+    inferred_only = strip_h();
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        detail_source() && strcmp(detail_source(), "Imp") == 0,
+        "the page STATED an Imp kill (got '%s')",
+        detail_source() ? detail_source() : "(none)");
+
+    /* Replayed, because opening that detail put the strip into the detail
+     * view and the three heights have to be measured in the same state. Now
+     * the record takes something else entirely. */
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    dispatch_npc_despawn(&imp);
+    dispatch_item_spawn(&feather);
+    tick(1201);
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+    merged = strip_h();
+
+    /* The control is the same record with nothing inferred beside it. If the
+     * merge dropped the Imp the two are equal, which is exactly what the
+     * shipped pass measured. */
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+    record_only = strip_h();
+
+    TEST_ASSERT(
+        merged == record_only + TEST_BAND_H,
+        "the merged strip is the record's band PLUS the inferred one "
+        "(record alone %d, merged %d, one band %d)",
+        record_only, merged, TEST_BAND_H);
+    /*
+     * Stated separately because this is the shipped defect's own measurement:
+     * the two were EQUAL, and equal is what "the Imp band is gone" looks like
+     * from outside. The inferred-only strip is the same height as the
+     * record-only one -- one band either way -- so the sum above is the only
+     * thing that can tell a merge from a replacement.
+     */
+    TEST_ASSERT(
+        merged != record_only,
+        "and not the record's strip over again (record alone %d, inferred "
+        "alone %d, merged %d)",
+        record_only, inferred_only, merged);
+}
+
+/*
+ * ...and the surviving band is still the one a click opens.
+ *
+ * Separate from the case above because the height alone cannot see this. The
+ * client's LootStore numbers its sources from 1 and the bands this plugin
+ * invents were numbered from 1 as well; that was harmless only while the two
+ * accounts could never be on the page together. Merging them made a recorded
+ * Goblin and an inferred Imp share id 1, and the id is what a click, a band
+ * menu and the detail block all key on -- so the Imp band opened the Goblin's
+ * detail, showing 5,000 gp of coins under the word "Imp". @see
+ * LT_INFERRED_ID_BASE.
+ */
+static void
+test_loot_an_inferred_band_is_not_the_records_band(void)
+{
+    struct ToriRS_NpcSnapshot imp;
+    struct ToriRS_GroundItemSnapshot feather;
+
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    imp = dying_npc("Imp", 3200);
+    feather = drop_at(314, 21, 1, "Feather", 3200);
+    dispatch_npc_despawn(&imp);
+    dispatch_item_spawn(&feather);
+    tick(1201);
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+
+    /* The record's band is first and the inferred one follows it. One press
+     * per band, because opening a detail replaces the list. */
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        detail_source() && strcmp(detail_source(), "Goblin") == 0,
+        "the record's band leads the page (got '%s')",
+        detail_source() ? detail_source() : "(none)");
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "5,000") == 0,
+        "worth what the record priced it at (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    dispatch_npc_despawn(&imp);
+    dispatch_item_spawn(&feather);
+    tick(1201);
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+    press_strip(TEST_TOTALS_H + TEST_BAND_H + 4);
+    TEST_ASSERT(
+        detail_source() && strcmp(detail_source(), "Imp") == 0,
+        "and the band below it is the inferred one, not the record's again "
+        "(got '%s')",
+        detail_source() ? detail_source() : "(none)");
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "21") == 0,
+        "with the Imp's own 21 gp under it, not the Goblin's 5,000 (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+}
+
+/*
+ * The despawn/spawn path is ARMED on a client that keeps a record, and what
+ * decides whether it accounts for a kill is the source NAME.
+ *
+ * Ungating `lt_sync_store` armed this path on every CS2 lane, where it had
+ * never run, and nothing asserted anything about it: the case it replaced
+ * pinned an RS2-lineage client whose record was FULL, and the state the
+ * ungating actually created is a CS2-lineage client whose record is EMPTY.
+ *
+ * Both halves are the OldSchool lineage, so neither can be passing because of
+ * one. The variable is whether the record holds the name.
+ */
+static void
+test_loot_infers_only_what_the_record_does_not_hold(void)
+{
+    struct ToriRS_NpcSnapshot goblin;
+    struct ToriRS_GroundItemSnapshot coins;
+
+    goblin = dying_npc("Goblin", 3200);
+    coins = drop_at(995, 5000, 1, "Coins", 3200);
+
+    /* A record that holds nothing is not an account of the kill, so the
+     * despawn is the only one there is and the page says so. */
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    fake_config_set_raw("kill_chat_message", "1");
+    g_client.notify[0] = '\0';
+    dispatch_npc_despawn(&goblin);
+    dispatch_item_spawn(&coins);
+    tick(1201);
+    TEST_ASSERT(
+        has_loot(),
+        "a client whose record holds nothing infers the kill it just saw");
+    TEST_ASSERT(
+        strstr(g_client.notify, "Goblin x1 loot: 5,000 gp") != NULL,
+        "and announces it once (got '%s')", g_client.notify);
+
+    /* The same lineage, the same despawn, the same drop -- but the record
+     * holds "Goblin", so the record's is the account and inferring beside it
+     * would count the one kill twice. */
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    fake_config_set_raw("kill_chat_message", "1");
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+    g_client.notify[0] = '\0';
+    dispatch_npc_despawn(&goblin);
+    dispatch_item_spawn(&coins);
+    tick(1201);
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0,
+        "the record's one kill stays one kill (got '%s')",
+        row_text("d_kills") ? row_text("d_kills") : "(none)");
+    TEST_ASSERT(
+        g_client.notify[0] == '\0',
+        "and nothing is announced a second time (got '%s')", g_client.notify);
+
+    /*
+     * The other order, which is the 2004 lane's: inference settles a Goblin
+     * first and the record comes to hold that name afterwards. The record
+     * TAKES OVER the name rather than standing a second band beside it --
+     * one kill, counted once, under the account that is the game's own.
+     */
+    client_reset();
+    g_lane_game = TORIRS_GAME_RS2;
+    loot_start();
+    dispatch_npc_despawn(&goblin);
+    dispatch_item_spawn(&coins);
+    tick(1201);
+    TEST_ASSERT(has_loot(), "the inferred Goblin is on the page");
+    {
+        int const before = strip_h();
+
+        loot_add("Goblin", 995, 5000, 1, 1);
+        settle();
+        TEST_ASSERT(
+            strip_h() == before,
+            "and the record naming it takes it over rather than doubling it "
+            "(was %d, now %d)",
+            before, strip_h());
+    }
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0,
+        "one kill, not two (got '%s')",
+        row_text("d_kills") ? row_text("d_kills") : "(none)");
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "5,000") == 0,
+        "priced as the record prices it, not as the ground did (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+}
+
+/*
+ * One `::lootkill` must not disable the lane's only real loot source.
+ *
+ * The record has two feeders: `CS2_OP_LOOT_ADD`, which is the game's own and
+ * runs only where CS2 scripts do, and `App_LootNotifyKill`, which the
+ * `::lootkill` cheat reaches on EVERY lane. On the 2004 lane there is no CS2
+ * VM, so the cheat is the only thing that ever writes the record and
+ * despawn/spawn correlation is the only account of a real kill there is.
+ *
+ * A latch that read "the record has taken something, so stop inferring" turned
+ * one cheat invocation into a permanent, silent switch-off of that account for
+ * the rest of the session -- every real kill afterwards recorded nothing. It
+ * was documented in a comment and asserted nowhere.
+ */
+static void
+test_loot_a_cheat_kill_does_not_disable_inference(void)
+{
+    struct ToriRS_NpcSnapshot imp;
+    struct ToriRS_GroundItemSnapshot bones;
+    int seeded;
+
+    client_reset();
+    g_lane_game = TORIRS_GAME_RS2;
+    loot_start();
+
+    /* ::lootkill goblin 995 5000, which is what the live capture sent. */
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+    seeded = strip_h();
+
+    /* And now a real kill, which only the world can tell this lane about. */
+    imp = dying_npc("Imp", 3200);
+    bones = drop_at(526, 1, 1, "Bones", 3200);
+    dispatch_npc_despawn(&imp);
+    dispatch_item_spawn(&bones);
+    tick(1201);
+    TEST_ASSERT(
+        strip_h() > seeded,
+        "the real kill is on the page beside the seeded one (was %d, now %d)",
+        seeded, strip_h());
+    press_strip(TEST_TOTALS_H + TEST_BAND_H + 4);
+    TEST_ASSERT(
+        detail_source() && strcmp(detail_source(), "Imp") == 0,
+        "and it is the Imp that died, under its own name (got '%s')",
+        detail_source() ? detail_source() : "(none)");
+}
+
+/*
  * Past the source ceiling the LEAST VALUABLE record is dropped.
  *
  * Refusing the newest instead would mean a trip that met one new monster
@@ -3308,6 +3607,10 @@ main(void)
     test_loot_store_lane_announces_a_kill();
     test_loot_record_decides_not_the_lane();
     test_loot_empty_record_does_not_erase_inference();
+    test_loot_record_does_not_erase_a_band_it_does_not_name();
+    test_loot_an_inferred_band_is_not_the_records_band();
+    test_loot_infers_only_what_the_record_does_not_hold();
+    test_loot_a_cheat_kill_does_not_disable_inference();
     test_loot_eviction_drops_the_poorest();
     test_loot_band_menu_carries_the_headers_ops();
     test_loot_a_click_beside_the_menu_only_closes_it();
