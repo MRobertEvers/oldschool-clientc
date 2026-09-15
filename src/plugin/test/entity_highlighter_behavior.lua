@@ -17,7 +17,18 @@
 --     forwarded anything: from its port until now the reveal key could not go
 --     down and Tag/Untag were unreachable on every lane;
 --   * a finding whose element was declared through expect_absent reads as
---     expected, and one that was not does not.
+--     expected, and one that was not does not;
+--   * hull answers false when the frame's draw allotment is gone or another
+--     plugin holds the entity's appearance, and RECORDS which -- the raw
+--     draw.world_hull this plugin used to call answers both and was spelled
+--     with the answer dropped.
+--
+-- And it no longer forbids api.core.log. It used to assert(false) there --
+-- "the layer is present: nothing to report" -- which is a test pinning silent
+-- success: this plugin printed nothing at all when it worked, so a tag list
+-- from the wrong cache drew nothing, logged nothing, and photographed exactly
+-- like a working one. The pass's reading is a line now, and the four ways it
+-- can read are pinned below, each having to print DIFFERENTLY from the others.
 --
 -- Each of the first three used to be a value this plugin dropped -- a `false`
 -- from menu.add, a truncated `set`, a `0` from key_held that means "not held"
@@ -25,8 +36,9 @@
 -- refusal happened, and that it was reported. The fourth is pinned the same
 -- way: that the forward happens, and that the edge moved because of it.
 --
--- What this file must NOT grow back: api.menu.add, api.input.key_held, a tag
--- encoding written out by hand, or a describe. The fake refuses all four.
+-- What this file must NOT grow back: api.menu.add, api.input.key_held,
+-- draw.world_hull with its answer dropped, a tag encoding written out by
+-- hand, or a describe. The fake refuses all five.
 return { id = 'entity-behavior', on_start = function(host)
     -- The two host constants this plugin is measured against. They are spelled
     -- here for the same reason the plugin spells TAG_OPS: neither reaches Lua.
@@ -39,6 +51,8 @@ return { id = 'entity-behavior', on_start = function(host)
     local KEY_CODE = { shift = 42, ctrl = 43, escape = 37, tab = 36, space = 57 }
 
     local api                                       -- forward: the fake reaches it
+    local logs = {}                                 -- every api.core.log, in order
+    local function said() return logs[#logs] end
     local npc = { slot = 7, base_npc_id = 42, npc_id = 100, name = 'Guard', element_id = 123 }
     local added, drawn = {}, {}
     local touch = false
@@ -72,6 +86,10 @@ return { id = 'entity-behavior', on_start = function(host)
 
     -- ------------------------------------------------------------ porcelain
     local edges, opened = {}, 0
+    -- The two refusals the raw verb answers and this plugin used to drop. With
+    -- them the pass can match an npc and still draw nothing, which is the one
+    -- silent state a tag list alone can never explain.
+    local hull_refuses = false
     -- This plugin owns no control, so these two must stay at zero for the life
     -- of the run. They are counted anyway: "nothing to reconcile" and "the
     -- reconciler happened to write nothing" are not the same claim.
@@ -148,6 +166,17 @@ return { id = 'entity-behavior', on_start = function(host)
             added[#added + 1] = { text = text, tag = action }
             return true
         end,
+        -- draw.world_hull with BUDGET and ARBITRATION_LOST made loud. The
+        -- bool is the whole point: it is what reached the screen, and the
+        -- plugin's tally has to count THAT and not what it asked for.
+        hull = function(element, colour, fill, shape)
+            if hull_refuses then
+                finding('world_hull', 'none', 'budget', 'the frame draw allotment')
+                return false
+            end
+            drawn[#drawn + 1] = { element, colour, fill, shape }
+            return true
+        end,
         config_list_add = function(key, item)
             local current = api.config[key] or ''
             for entry in string.gmatch(current, '[^,]+') do
@@ -183,7 +212,7 @@ return { id = 'entity-behavior', on_start = function(host)
     api = {
         config = config,
         porcelain = porcelain,
-        core = { log = function() assert(false, 'the layer is present: nothing to report') end },
+        core = { log = function(text) logs[#logs + 1] = text end },
         world = {
             npc_by_slot = function() return npc end,
             npc_next = function(cursor) if cursor == -1 then return 0, npc end end,
@@ -198,9 +227,8 @@ return { id = 'entity-behavior', on_start = function(host)
         end },
     }
     local graphics = {
-        world_hull = function(element, color, fill, shape)
-            drawn[#drawn + 1] = { element, color, fill, shape }
-            return true, 'ok'
+        world_hull = function()
+            error('a Porcelain plugin draws its hull through the layer, which reports a refusal')
         end,
         context = function()
             error('a hull is named in scene terms: there is no rect here to derive')
@@ -233,6 +261,18 @@ return { id = 'entity-behavior', on_start = function(host)
         'the lane that cannot answer the reveal key is declared before it is asked')
     assert(#findings == 0, 'a lane that can answer it raises nothing')
 
+    -- ------------------------------------------------------- reading one
+    -- Nothing tagged: a setting said no. The README's rule is that "drew
+    -- nothing because a setting said no" and "drew nothing because it is
+    -- broken" must not be the same picture; here they are not the same line
+    -- either, and the all-zero reading is printed on the FIRST pass rather
+    -- than suppressed as uninteresting.
+    assert(#logs == 0, 'a layer that opened reports nothing at start')
+    product.on_draw_world(api, graphics)
+    assert(#drawn == 0, 'nothing is tagged, so nothing is outlined')
+    assert(said() == '0 hull(s) over 0 tagged npc(s) of 1 in scene; 0 species tagged',
+        'an empty tag list is a reading and is reported as one')
+
     -- --------------------------------------------------------- the two gates
     frame()
     product.on_menu_build(api, menu)
@@ -264,10 +304,25 @@ return { id = 'entity-behavior', on_start = function(host)
     assert(config.tags == '42', 'retained Tag preserves its intended operation')
     product.on_draw_world(api, graphics)
     assert(#drawn == 0, 'replacement species is not highlighted')
+    -- READING TWO, and the one this whole line exists for: a species is
+    -- tagged, the scene has npcs, and NONE of them is it. That is a cs2 tag
+    -- list carried to a LostCity lane, and before this it photographed and
+    -- logged exactly like a working plugin.
+    local nothing_matched = said()
+    assert(nothing_matched == '0 hull(s) over 0 tagged npc(s) of 1 in scene; 1 species tagged',
+        'a tag that matches nothing in this scene says so, in numbers')
     npc = { slot = 8, base_npc_id = 42, npc_id = 101, name = 'Guard', element_id = 125 }
     product.on_draw_world(api, graphics)
     assert(#drawn == 1 and drawn[1][1] == 125 and drawn[1][4] == 'mesh',
         'tag follows the shell across model transforms and slot changes')
+    -- READING FOUR: alive, and saying so. A plugin that works is no longer
+    -- indistinguishable from one that does not.
+    local alive = said()
+    assert(alive == '1 hull(s) over 1 tagged npc(s) of 1 in scene; 1 species tagged',
+        'a drawn outline is reported as a drawn outline')
+    assert(alive ~= nothing_matched,
+        'the two states must not print the same line -- a constant would pass every other check here')
+    local spoken = #logs
 
     -- Colour, fill and shape are read on every pass, so a panel change shows
     -- on the next frame and not on the next bind.
@@ -276,6 +331,8 @@ return { id = 'entity-behavior', on_start = function(host)
     product.on_draw_world(api, graphics)
     assert(drawn[1][2] == 0x00ff00 and drawn[1][3] == 200 and drawn[1][4] == 'bounds',
         'colour, fill and shape are read fresh on every draw pass')
+    assert(#logs == spoken,
+        'a reading that did not move is not reprinted -- a line per frame buries the transition')
     config.color, config.fill, config.shape = 0xff00ff, 48, 'mesh'
 
     -- ---------------------------------------------------------------- untag
@@ -362,6 +419,35 @@ return { id = 'entity-behavior', on_start = function(host)
     press(KEY_CODE.shift, false); press(KEY_CODE.shift, true); added = {}
     product.on_menu_build(api, menu)
     assert(#added == 1, 'a press after the absence brings the rows back')
+
+    -- ------------------------------------------ the outline, refused
+    -- Last of the four readings, and placed after every unexpected() count
+    -- above because it raises a third finding nobody declared. The fixture is
+    -- put back to one tagged species in front of one npc first, so the three
+    -- lines below are comparable with the two taken earlier.
+    config.set('tags', '42')
+    npc = { slot = 8, base_npc_id = 42, npc_id = 101, name = 'Guard', element_id = 125 }
+    drawn = {}
+    product.on_draw_world(api, graphics)
+    assert(#drawn == 1, 'the fixture is one tagged npc again')
+    assert(said() == alive, 'and it reads as the drawn outline it is')
+
+    -- READING THREE: the hulls were asked for and refused. Only the layer can
+    -- tell this from reading four -- the raw verb answers the same refusal and
+    -- this plugin used to drop it -- so the count reported has to be what was
+    -- DRAWN and not what was matched.
+    hull_refuses = true; drawn = {}
+    product.on_draw_world(api, graphics)
+    assert(#drawn == 0, 'a refused hull draws nothing')
+    assert(said() == '0 hull(s) over 1 tagged npc(s) of 1 in scene; 1 species tagged',
+        'a matched npc whose outline was refused is not reported as an outline')
+    assert(said() ~= alive and said() ~= nothing_matched,
+        'refused, unmatched and drawn are three different lines')
+    local refused_hull = found('world_hull', 'budget')
+    assert(refused_hull, 'and the refusal itself is a finding, not a silence')
+    hull_refuses = false
+    product.on_draw_world(api, graphics)
+    assert(said() == alive, 'and it goes back to reporting the outline when it draws one')
 
     -- -------------------------------------------- a lane with no keyboard
     -- The plugin has no on_stop: the host closes the handle after the stop
