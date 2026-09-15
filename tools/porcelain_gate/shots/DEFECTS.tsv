@@ -13,12 +13,12 @@
 # when you get around to it.
 
 # ---- the layer itself -------------------------------------------------
-LAYER-01	porcelain	all	open		Porcelain never reads engine.screen; a BOUND watch is never re-checked, so UITree_Clear at logout leaves every bound watch holding a ref into a dead tree
-LAYER-02	porcelain	all	open		only mobile_gameframe subscribes to on_screen_changed; login -> game and game -> login are invisible to every other plugin
+LAYER-01	porcelain	all	refuted	test_logout_clears_the_bindings_and_a_relogin_restores_them	WRONG as reported. The host re-resolves every subscription by name whenever the tree instance changes and raises UNBOUND; App_PluginLayoutTick passes instance 0 for the whole login screen, so a bound watch is back to PENDING before the poll would have spoken. What was missing was the test, and a testbed that retired a node identity on unbind instead of handing the same ref back
+LAYER-02	porcelain	all	fixed	porcelain_note_screen + test_a_screen_change_re_runs_a_description_that_watches_nothing	REAL. PORCELAIN_INPUT_SCREEN was an enumerator nothing ever raised, so a description that watches no element (AT_CANVAS, a fixed corner) was never re-asked at a transition. Masked on the usual path because a logout unbinds every element. Porcelain now reads core.screen once per fence and stamps the input on a change
 LAYER-03	bridge	all	open		per-lane branch App_UiLogic(app)==APP_UI_LOGIC_CS2 on the sidebar lookup in torirs_plugin_bridge.u.c -- exactly the family this layer exists to prevent
 
 # ---- the gate cannot see a CS1 frame regression ------------------------
-GATE-01	gameframe	dat1_254	open		the 8-lane gate runs dat1_254 with frame=auto, so no lane gates a frame provider on CS1 at all
+GATE-01	gameframe	dat1_254	fixed	dat1_classic + dat1_stone lanes; 10-lane gate PASS	REAL. Two lanes added. They bite: dat1_254 captures 8 owned controls, dat1_classic 64 and dat1_stone 63 -- the number the old set could not produce, and the one that settles "does a provider reach CS1 at all"
 
 # ---- frame chrome, seen across 13 of 19 interaction shots --------------
 CHROME-01	gameframe	classic548	fixed	f03db27e5	leftmost sidebar tab had no hollow under it -- the strip blit carried the 2004 frame own seven cells

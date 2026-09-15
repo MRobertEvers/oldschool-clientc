@@ -6360,6 +6360,236 @@ test_panel_scroll_is_readable_and_writable(void)
 
 /* ------------------------------------------------------------------------ */
 
+
+/* ------------------------------------------------------------------------ */
+/* The player logs out and logs back in                                     */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * The transition the layer was said to be blind to.
+ *
+ * A logout clears the interface tree: every element a plugin had bound goes
+ * away at once, and the tree that comes back at the next login is built from
+ * scratch, so the chat bar afterwards is a DIFFERENT widget answering to the
+ * same name. The claim carried in the pull request was that a BOUND watch is
+ * never re-checked -- `porcelain_resolve_pending` skips it and continues --
+ * and therefore that every bound watch keeps a reference into a dead tree.
+ *
+ * That claim was wrong, and this test is what says so rather than another
+ * paragraph. The re-check does not live in the poll because it does not need
+ * to: the host re-resolves every subscription by name whenever the tree
+ * instance changes, finds nothing, and raises UNBOUND -- and App_PluginLayoutTick
+ * passes instance 0 for exactly as long as the client is not READY, which is
+ * the whole of the login screen. The watch is back to PENDING before the poll
+ * would have had anything to say.
+ *
+ * What was genuinely missing was this test, and a testbed honest enough to
+ * carry it: until Testbed_UnbindElement retired the element's identity, a
+ * re-bind handed back the same eight bytes, so a layer that never re-read a
+ * single ref was indistinguishable from one that re-read all of them.
+ *
+ * MUTATION: drop the TORIRS_WIDGET_UNBOUND case from porcelain_watch_listener.
+ * Red on "and neither is the report button" -- the layer keeps the dead ref and
+ * goes on reporting BOUND for a node the logout retired, which is the state
+ * every wrong thing downstream follows from. (It also takes
+ * test_a_destroyed_node_is_rebuilt_not_reported with it, which is the same
+ * defect seen from the remount side.)
+ */
+static void
+test_logout_clears_the_bindings_and_a_relogin_restores_them(void)
+{
+    struct Fixture fixture = {.image = "camera.png", .gap = 4, .enabled = true};
+    struct Porcelain* porcelain;
+    struct ToriRS_WidgetRef first_button;
+    struct ToriRS_WidgetRef second_button;
+    struct PorcelainElementState state;
+    struct TestbedControl const* control;
+
+    Testbed_Reset();
+    declare_chrome();
+    Testbed_BindElement("report_button");
+    Testbed_BindElement("chat_bar");
+    g_testbed.screen = TORIRS_SCREEN_GAME;
+
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, fixture_describe, &fixture);
+    fence(porcelain);
+    CHECK(Testbed_LiveControls() == 1, "in game, the control is up");
+    first_button = Testbed_Element("report_button")->ref;
+
+    /* --- the player logs out: the tree goes, all of it, in one frame --- */
+    Testbed_UnbindElement("chat_bar");
+    Testbed_UnbindElement("report_button");
+    g_testbed.screen = TORIRS_SCREEN_TITLE;
+    Porcelain_Note(porcelain, PORCELAIN_INPUT_SCREEN);
+    fence(porcelain);
+
+    memset(&state, 0, sizeof(state));
+    Porcelain_Element(porcelain, PORCELAIN_EL(CHAT_BAR), &state);
+    CHECK(state.bind != PORCELAIN_BOUND,
+          "the chat bar is not reported bound once the tree is gone");
+    memset(&state, 0, sizeof(state));
+    Porcelain_Element(porcelain, PORCELAIN_EL(REPORT_BUTTON), &state);
+    CHECK(state.bind != PORCELAIN_BOUND,
+          "and neither is the report button");
+
+    /*
+     * Not "it stops drawing" -- that is the lane's business and a plugin may
+     * legitimately want a login-screen control. What must not happen is a
+     * setter aimed at a widget that no longer exists, which the engine answers
+     * STALE_REFERENCE and which is how this failure reaches a user: as a
+     * control frozen at the box it held before the logout.
+     */
+    CHECK(Testbed_LogCountWith("STALE_REFERENCE") == 0,
+          "and nothing was written through a reference the logout retired");
+
+    /* --- the player logs back in: a NEW tree, new nodes, same names --- */
+    Testbed_MoveElement("chat_bar", 0, 430);
+    Testbed_BindElement("report_button");
+    Testbed_BindElement("chat_bar");
+    g_testbed.screen = TORIRS_SCREEN_GAME;
+    Porcelain_Note(porcelain, PORCELAIN_INPUT_SCREEN);
+    fence(porcelain);
+    fence(porcelain);
+
+    second_button = Testbed_Element("report_button")->ref;
+    CHECK(!ToriRS_WidgetRefEqual(first_button, second_button),
+          "the button that came back is a different node from the one that went");
+    memset(&state, 0, sizeof(state));
+    Porcelain_Element(porcelain, PORCELAIN_EL(CHAT_BAR), &state);
+    CHECK(state.bind == PORCELAIN_BOUND,
+          "the chat bar binds again on the second login");
+
+    control = Testbed_Control("camera");
+    CHECK(control && control->live, "and the control is back");
+    CHECK(control && ToriRS_WidgetRefEqual(control->anchor, second_button),
+          "the control is anchored to the NEW report button, not the retired one");
+}
+
+
+/*
+ * A description that watches nothing still has to be re-asked at a transition.
+ *
+ * Every other signal the layer polls is downstream of the tree moving. The
+ * screen is not: a control placed at a canvas corner binds no element, so a
+ * logout moves nothing it is watching, and before PORCELAIN_INPUT_SCREEN was
+ * actually raised such a plugin was never re-described from the moment it
+ * settled -- it kept whatever it had decided at the login screen for the rest
+ * of the session, or whatever it had decided in game for the rest of the
+ * logout.
+ *
+ * MUTATION: delete the porcelain_note_screen call in Porcelain_Fence. Red on
+ * "the screen change re-runs the description" -- which is the whole of the
+ * enumerator's meaning, and it sat in the header unraised.
+ */
+static int g_screen_describe_runs;
+
+static void
+screen_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct PorcelainItem item;
+
+    (void)user;
+    g_screen_describe_runs++;
+    memset(&item, 0, sizeof(item));
+    item.key = "corner";
+    item.image = "camera.png";
+    item.place.kind = PORCELAIN_AT_CANVAS;
+    item.place.corner_or_side = PORCELAIN_TOP_LEFT;
+    item.w = 20;
+    item.h = 20;
+    describe->piece(describe, &item);
+}
+
+static void
+test_a_screen_change_re_runs_a_description_that_watches_nothing(void)
+{
+    struct Porcelain* porcelain;
+    int settled;
+
+    Testbed_Reset();
+    declare_chrome();
+    g_testbed.screen = TORIRS_SCREEN_TITLE;
+
+    g_screen_describe_runs = 0;
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, screen_describe, NULL);
+    for( int i = 0; i < 4; i++ )
+        fence(porcelain);
+    settled = g_screen_describe_runs;
+    CHECK(settled > 0, "the canvas-placed piece is described at the login screen");
+
+    for( int i = 0; i < 3; i++ )
+        fence(porcelain);
+    CHECK(g_screen_describe_runs == settled,
+          "and then costs nothing while the client stays where it is");
+
+    g_testbed.screen = TORIRS_SCREEN_GAME;
+    fence(porcelain);
+    CHECK(g_screen_describe_runs > settled,
+          "the screen change re-runs the description");
+
+    settled = g_screen_describe_runs;
+    for( int i = 0; i < 3; i++ )
+        fence(porcelain);
+    CHECK(g_screen_describe_runs == settled,
+          "and in game it settles again rather than re-running for ever");
+
+    g_testbed.screen = TORIRS_SCREEN_TITLE;
+    fence(porcelain);
+    CHECK(g_screen_describe_runs > settled,
+          "game back to login is a transition too, not just login to game");
+}
+
+/*
+ * The same cycle twice, because a layer can survive one and leak on the next.
+ *
+ * Watch slots are a fixed table and a subscription is a host resource. A
+ * re-bind that took a fresh slot each time would pass the test above and still
+ * exhaust the table on a player who hops worlds a dozen times -- which reads,
+ * at the far end, as the plugin quietly going away mid-session.
+ */
+static void
+test_repeated_logins_do_not_grow_the_watch_table(void)
+{
+    struct Fixture fixture = {.image = "camera.png", .gap = 4, .enabled = true};
+    struct Porcelain* porcelain;
+    int settled_watches;
+
+    Testbed_Reset();
+    declare_chrome();
+    Testbed_BindElement("report_button");
+    Testbed_BindElement("chat_bar");
+    g_testbed.screen = TORIRS_SCREEN_GAME;
+
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, fixture_describe, &fixture);
+    fence(porcelain);
+    settled_watches = Testbed_LiveWatches();
+    CHECK(settled_watches > 0, "the first login takes its subscriptions");
+
+    for( int cycle = 0; cycle < 4; cycle++ )
+    {
+        Testbed_UnbindElement("chat_bar");
+        Testbed_UnbindElement("report_button");
+        g_testbed.screen = TORIRS_SCREEN_TITLE;
+        Porcelain_Note(porcelain, PORCELAIN_INPUT_SCREEN);
+        fence(porcelain);
+
+        Testbed_BindElement("report_button");
+        Testbed_BindElement("chat_bar");
+        g_testbed.screen = TORIRS_SCREEN_GAME;
+        Porcelain_Note(porcelain, PORCELAIN_INPUT_SCREEN);
+        fence(porcelain);
+        fence(porcelain);
+    }
+
+    CHECK(Testbed_LiveWatches() == settled_watches,
+          "four logout/login cycles leave the subscription count where it started");
+    CHECK(Testbed_LiveControls() == 1,
+          "and exactly one control, not five");
+}
+
 int
 main(void)
 {
@@ -6471,6 +6701,9 @@ main(void)
     test_a_destroyed_node_is_rebuilt_not_reported();
     test_tab_spelling_is_re_derived();
     test_tab_rows_are_bands_not_coordinates();
+    test_logout_clears_the_bindings_and_a_relogin_restores_them();
+    test_repeated_logins_do_not_grow_the_watch_table();
+    test_a_screen_change_re_runs_a_description_that_watches_nothing();
 
     printf("porcelain: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

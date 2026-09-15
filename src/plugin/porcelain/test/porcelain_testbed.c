@@ -174,22 +174,33 @@ Testbed_PublishTree(void)
 }
 
 static void
-testbed_raise(char const* role, enum ToriRS_WidgetEventType type)
+testbed_raise_ref(char const* role, enum ToriRS_WidgetEventType type,
+                  struct ToriRS_WidgetRef ref)
 {
-    struct TestbedElement const* element = Testbed_Element(role);
     struct ToriRS_WidgetEvent event;
 
     memset(&event, 0, sizeof(event));
     event.type = type;
     event.role = role;
-    if( element )
-        event.widget = element->ref;
+    event.widget = ref;
     for( int i = 0; i < TESTBED_WATCHES_MAX; i++ )
     {
         if( !g_testbed.watches[i].used || strcmp(g_testbed.watches[i].role, role) != 0 )
             continue;
         g_testbed.watches[i].fn(&g_testbed.api, g_testbed.watches[i].user, &event);
     }
+}
+
+static void
+testbed_raise(char const* role, enum ToriRS_WidgetEventType type)
+{
+    struct TestbedElement const* element = Testbed_Element(role);
+    struct ToriRS_WidgetRef ref;
+
+    memset(&ref, 0, sizeof(ref));
+    if( element )
+        ref = element->ref;
+    testbed_raise_ref(role, type, ref);
 }
 
 void
@@ -203,15 +214,33 @@ Testbed_BindElement(char const* role)
     testbed_raise(role, TORIRS_WIDGET_BOUND);
 }
 
+/*
+ * The node that comes back is NOT the node that went away.
+ *
+ * A logout clears the tree and a login builds a fresh one, so the chat bar the
+ * player sees afterwards is a different widget that happens to answer to the
+ * same name. The contract already says so -- "UNBOUND for the old incarnation
+ * then BOUND for the new one" -- and a testbed that handed the same ref back
+ * made every re-bind path look correct whether or not it re-read anything,
+ * because a stale ref and a fresh one were the same eight bytes.
+ *
+ * So the identity is retired here, at the unbind, and the UNBOUND event still
+ * carries the ref that is going away -- which is the one a listener needs, to
+ * recognise WHICH of its widgets it just lost.
+ */
 void
 Testbed_UnbindElement(char const* role)
 {
     struct TestbedElement* element = Testbed_Element(role);
+    struct ToriRS_WidgetRef previous;
 
     assert(element);
+    previous = element->ref;
     element->bound = false;
+    element->ref = testbed_mint_ref();
+    element->incarnation++;
     testbed_publish_tree();
-    testbed_raise(role, TORIRS_WIDGET_UNBOUND);
+    testbed_raise_ref(role, TORIRS_WIDGET_UNBOUND, previous);
 }
 
 void

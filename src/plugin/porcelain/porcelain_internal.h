@@ -633,6 +633,21 @@ struct Porcelain
     bool tree_subscribed;
     /** A topology publication has landed since the last pending poll. */
     bool tree_moved;
+    /*
+     * The client screen as of the last fence, so a transition can be noticed.
+     *
+     * PORCELAIN_INPUT_SCREEN existed as an enumerator for a long time with
+     * nothing on the layer's side ever raising it: a plugin whose description
+     * depends on where the client is -- login versus game -- was re-described
+     * only when something ELSE moved. On the usual path something else always
+     * does, because a logout unbinds every element, which is why this went
+     * unnoticed; a description that watches no element at all (AT_CANVAS, a
+     * fixed corner) got nothing.
+     *
+     * -1 rather than TORIRS_SCREEN_TITLE, so the first fence is a change and
+     * the stamp starts out matching what the client is actually showing.
+     */
+    int screen;
 };
 
 /* ----------------------------------------------------------- arbitration */

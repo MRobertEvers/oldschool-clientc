@@ -55,6 +55,23 @@ $here/lane.sh $out modern164  $bin 2 gameframe-layout/modern-resizable 0 $M/mani
 $here/lane.sh $out stone601   $bin 0 mobile-gameframe/stone-drawer     1 $M/manifest_osrs239_curses.ini
 $here/lane.sh $out dat1_254   $bin 0 auto                              0 $M/manifest_rs254lc.ini --offline
 
+# The CS1 lane above runs `auto`, which is the lane's own frame and no provider
+# -- so for the whole life of this gate NO lane gated a frame provider on CS1 at
+# all, and a CS1-only frame regression was invisible to all eight.
+#
+# It went unnoticed because the two questions look like one. `dat1_254` proves a
+# port does not read a dat2 fact; it says nothing about what a PROVIDER does on
+# a lane whose chrome it has to suppress and redraw. A provider that staged
+# nothing there would pass every lane in the set.
+#
+# Both providers, because both were asked for on both lanes and because they
+# fail differently: classic-fixed reproduces the 2004 frame closely enough that
+# "it drew correctly" and "it never ran" are the same picture -- which is
+# exactly the confusion that cost a day -- while stone-drawer replaces the
+# chrome outright and shows a lane mismatch immediately.
+$here/lane.sh $out dat1_classic $bin 0 gameframe-layout/classic-fixed  0 $M/manifest_rs254lc.ini --offline
+$here/lane.sh $out dat1_stone   $bin 0 mobile-gameframe/stone-drawer   1 $M/manifest_rs254lc.ini --offline
+
 # The seventh lane switches layout half way through, and it is here because a
 # regression got past the first six. A port can be byte-identical on every
 # static lane and still lose every control it owns the moment the frame root is
@@ -85,7 +102,7 @@ $here/lane.sh $out remount164 $bin 0 gameframe-layout/classic-fixed    0 $M/mani
 TORIRS_GATE_SIM_CMD='500,layout 0' \
 $here/lane.sh $out remount548 $bin 2 gameframe-layout/modern-resizable 0 $M/manifest_osrs239_curses.ini
 
-for t in native548 classic548 classic161 modern164 stone601 dat1_254 remount164 remount548; do
+for t in native548 classic548 classic161 modern164 stone601 dat1_254 dat1_classic dat1_stone remount164 remount548; do
   printf "%-12s exit=%s bounds=%s roles=%s owned=%s\n" $t \
     "$(cat $out/$t/exit-status)" \
     "$(grep -c '^BOUNDS' $out/$t/log.txt)" \

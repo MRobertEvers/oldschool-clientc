@@ -1,17 +1,25 @@
 # The port gate
 
-Eight captures, one comparison. A plugin ported to Porcelain must do exactly
+Ten captures, one comparison. A plugin ported to Porcelain must do exactly
 what it did before on every lane, and this is what decides whether it did.
 
 ```
-zsh tools/porcelain_gate/capture_set.sh <outdir> <binary> [worktree]
+TORIRS_GATE_REPO=<the checkout holding the caches> \
+  zsh tools/porcelain_gate/capture_set.sh <outdir> <binary> [worktree]
 python3 tools/porcelain_gate/gate_diff.py <baseline>/<lane>:<outdir>/<lane> ...
 ```
 
-Pass all eight pairs to one `gate_diff.py` invocation. It prints a verdict per
+`TORIRS_GATE_REPO` defaults to the tree the script lives in, which is right
+from the main checkout and wrong from every agent worktree -- a worktree has no
+multi-gigabyte cache in it. Getting it wrong does not look like a
+misconfiguration: all ten lanes come back `exit=1 bounds=0 roles=0 owned=0`,
+which reads exactly like a client that crashed on the change under test. The
+tell is in `<outdir>/<lane>/log.txt`: "no dat2 cache at ...".
+
+Pass all ten pairs to one `gate_diff.py` invocation. It prints a verdict per
 lane and one for the set, and exits non-zero if any lane failed.
 
-## The eight lanes, and why these eight
+## The ten lanes, and why these ten
 
 | tag | layout mode | frame | what it covers |
 |---|---|---|---|
@@ -21,11 +29,21 @@ lane and one for the set, and exits non-zero if any lane failed.
 | `modern164` | 2 | modern-resizable | the resizable provider, where staleness shows |
 | `stone601` | 0 | stone-drawer | the touch provider, `TORIRS_CLIENTTYPE=7` |
 | `dat1_254` | 0 | auto | the CS1/RevConfig lane, offline |
+| `dat1_classic` | 0 | classic-fixed | the desktop provider **on CS1** |
+| `dat1_stone` | 0 | stone-drawer | the touch provider **on CS1** |
 | `remount164` | 0 | classic-fixed | switches layout at frame 500: does the port survive its parent dying |
 | `remount548` | 2 | modern-resizable | the same switch the other way: 164 to 548 |
 
-Seven are CS2 and one is CS1, which is the split that matters: a change that
-works only because it read a dat2 fact fails `dat1_254` and nothing else.
+Seven are CS2 and three are CS1, which is the split that matters: a change that
+works only because it read a dat2 fact fails the CS1 lanes and nothing else.
+
+`dat1_classic` and `dat1_stone` were added late, and their absence was a real
+hole rather than an oversight to tidy: with `dat1_254` running `auto`, no lane
+in the set ever switched a frame PROVIDER on for CS1, so a provider that staged
+nothing at all on that lane passed every gate this repository had. The two
+questions look like one and are not -- `dat1_254` proves a port reads no dat2
+fact, which says nothing about whether a provider that must suppress and redraw
+a 2004 lane's chrome actually did.
 
 `remount164` exists because a regression got past the other six. A port can be
 byte-identical on every static lane and still lose every control it owns the

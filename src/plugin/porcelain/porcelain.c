@@ -3238,6 +3238,37 @@ porcelain_inputs_moved(struct Porcelain const* porcelain)
  * binds anything reports no absences at all, which is right: twenty-six
  * findings tell nobody anything an empty screen did not.
  */
+/*
+ * Login to game, and game back to login.
+ *
+ * One int read per fence through a function pointer, which is the cheapest
+ * question the core api answers, and it buys the only signal a description
+ * has for "the client is somewhere else now". Everything else the layer polls
+ * is a consequence of the tree moving; the screen is not, and a plugin that
+ * places at a canvas corner rather than against an element sees no tree
+ * movement at all when the player logs out.
+ *
+ * Raised as an input rather than acted on, because what a transition MEANS is
+ * the plugin's business: some want to disappear at the login screen, some want
+ * to stay, and the layer has no standing to choose. It only has to make sure
+ * the question gets asked again.
+ */
+static void
+porcelain_note_screen(struct Porcelain* porcelain)
+{
+    struct ToriRS_CoreApi const* core = &porcelain->api->core;
+    int screen;
+
+    assert(porcelain);
+    if( !core->screen )
+        return;
+    screen = core->screen(porcelain->api);
+    if( screen == porcelain->screen )
+        return;
+    porcelain->screen = screen;
+    porcelain->stamp[PORCELAIN_INPUT_SCREEN]++;
+}
+
 static void
 porcelain_resolve_pending(struct Porcelain* porcelain)
 {
@@ -3405,6 +3436,7 @@ Porcelain_Fence(struct Porcelain* porcelain)
     porcelain->frame++;
     porcelain->dirty = false;
 
+    porcelain_note_screen(porcelain);
     porcelain_resolve_pending(porcelain);
     Porcelain_HelpersFence(porcelain);
 
@@ -3628,6 +3660,9 @@ Porcelain_Open(struct ToriRS_Api* api, struct ToriRS_PluginDef const* def, void*
     porcelain->api = api;
     porcelain->def = def;
     porcelain->state = state;
+    /* Not a screen the client can be on, so the first fence reads a change and
+     * the stamp starts out agreeing with what is actually up. */
+    porcelain->screen = -1;
     Porcelain_CopyString(porcelain->plugin_id, sizeof(porcelain->plugin_id), def->id);
     porcelain_builder_init(porcelain);
     return porcelain;
