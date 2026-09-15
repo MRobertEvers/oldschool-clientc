@@ -268,13 +268,42 @@ the run is 700 frames after all — which is how a cannon drive scheduled at
 frame 1400 came back with no cannon fired and no error. Pass
 `TORIRS_MAX_FRAMES` in that list instead; `env` takes it last-wins.
 
-**`TORIRS_SIM_HOVER` puts "Connection lost" across the viewport.** It parks the
-pointer for four extra interact frames after the main loop has stopped, and the
-net link times out in them. Same plugin, same lane, run serially: with
-`TORIRS_SIM_HOVER` the banner is there, without it the frame is clean. It is in
-`pages/BEFORE_itemstats_hover.png` too, so it is not new and it is not load. A
-hover state that can be reached with `TORIRS_SIM_MOVE_AT` during the run should
-be, and `*-nohover-*.png` is the same plugin without it.
+**`TORIRS_SIM_HOVER` used to put "Connection lost" across the viewport, and to
+mark the wrong tile.** FIXED — both halves were one block in `main.c`, and both
+are worth knowing because the shots taken before the fix are still in git
+history and in `pages/BEFORE_itemstats_hover.png`.
+
+The banner: the four parked-pointer frames after the main loop were stamped
+20/40/60/80 ms — absolute, counted from zero. After a run of any length that is
+the clock jumping BACKWARDS by the whole session, so `now_ms - last_recv_ms`
+wrapped unsigned inside `NetLinkWatch_Step` and the watch read the wrap as
+fifteen silent seconds. It tore the session down in the last four frames of
+every hover shot: banner, no local player, no npcs, no minimap dots. That is
+what left `tileind-c-cs2` — the headline picture of the plugin the ledger calls
+the yardstick — with none of its three markers in it. The frames now continue
+the loop's clock.
+
+The wrong tile: those frames ran `App_RunOnce` and nothing else, and the world
+PICK is armed inside `App_Render`. So the pointer moved and nothing re-picked,
+and every hover-tile consumer went on answering the tile the last main-loop
+event had left — on `tileind-c-live` that was the login click, a tile the
+`~varrock` teleport had since put under a roof, 110 px from the pointer the
+shot declared. They now render, like every other headless sim frame does
+(`sim_render_frame`, and see the comment on it).
+
+`TORIRS_SIM_MOVE_AT` during the run is still the better instrument where a
+state needs many frames of hover to build, and `*-nohover-*.png` is the same
+plugin with no parked pointer at all.
+
+Every hover shot in `plugins/` was taken against the broken teardown, so every
+one of them has to be re-taken before it can be read. The tile indicator's
+eleven are done — `tileind-{c,lua}-{cs2,cs1,live}`, `tile-{c,lua}-all-{cs2,cs1}`,
+`pair-tiles`, `toggle-tile-off`, and `tileind-c-cs2-before.png` is the same
+drive on a binary built before the fix, kept as the picture of what the bug
+looked like. These SEVEN are still pre-fix and belong to their own plugins'
+owners: `itemstats-hover-cs2`, `itemstats-hover-cs1`, `itemstats-live`,
+`nxthl-hover-cs2`, `nxthl-hover-cs1`, `nxthl-tile-cs2`, `nxthl-live`. Re-taking
+one is its job row and nothing else.
 
 One correction to the openers table above: `TORIRS_SIM_CLICK_AT` is
 `frame,x,y[,right]`, frame FIRST, not `x,y,<tick>`.

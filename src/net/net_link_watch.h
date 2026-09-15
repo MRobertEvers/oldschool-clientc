@@ -82,6 +82,19 @@ struct NetLinkWatch
  *  policy; every one of these is the caller's observation of one. */
 struct NetLinkSighting
 {
+    /**
+     * Wall clock, and it MUST NOT GO BACKWARDS across calls.
+     *
+     * Every detector below is an unsigned difference from a stamp this watch
+     * took itself, so a frame stamped earlier than the last packet wraps to
+     * roughly 5.8e8 years and reads as fifteen silent seconds: the session is
+     * torn down and the only symptom is a perfectly ordinary "Connection
+     * lost". A harness that fabricates frames outside the main loop has to
+     * CONTINUE the loop's clock rather than start its own at zero -- the
+     * TORIRS_SIM_HOVER teardown in main.c started at 20 ms, and every hover
+     * screenshot ever taken lost its local player in the last four frames
+     * because of it.
+     */
     uint64_t now_ms;
     /**
      * The previous frame's whole wall duration, 0 before the first frame.

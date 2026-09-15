@@ -43,9 +43,25 @@ sshot-corner-cs2 screenshot cs2 TORIRS_SIM_CLICK_AT=640,24,23 TORIRS_TRACE_NATIV
 sshot-corner-cs1 screenshot cs1 TORIRS_TRACE_NATIVE_UI=1 -- camera=top-left
 
 # All three markers. The destination marker is the MAP FLAG and it clears on
-# arrival, so the click is late and far and the capture is cut short to land
-# mid-walk.
-tile-c-all-cs2   tile-indicator-c   cs2 TORIRS_SIM_CLICK_AT=620,120,300 TORIRS_SIM_MOVE_AT=640,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
-tile-lua-all-cs2 tile-indicator-lua cs2 TORIRS_SIM_CLICK_AT=620,120,300 TORIRS_SIM_MOVE_AT=640,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
-tile-c-all-cs1   tile-indicator-c   cs1 TORIRS_SIM_CLICK_AT=620,120,300 TORIRS_SIM_MOVE_AT=640,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
-tile-lua-all-cs1 tile-indicator-lua cs1 TORIRS_SIM_CLICK_AT=620,120,300 TORIRS_SIM_MOVE_AT=640,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
+# arrival, so the click is LATE -- twenty frames before the capture -- and the
+# route is long enough that the walk is nowhere near done when the shutter
+# falls.
+#
+# The old row clicked (120,300), which is toward the CAMERA and therefore
+# three tiles away, at frame 620 of 660: the walk finished inside the window
+# and the flag had cleared, so `dest == true`, the plugin correctly suppressed
+# the yellow quad, and the one shot in the set named "-all" photographed two
+# markers out of three. Measured on the fixed binary: (150,110) routes to
+# 3207,3429, five steps out, and the flag stays up from frame ~644 to past
+# frame 700 -- the capture sits in the middle of that window rather than on
+# its edge, so a slow machine cannot walk out of the shot.
+#
+# Expect the model to be drawn OFF its cyan tile here, and do not file that:
+# mid-stride the true tile is route[0], the tile being walked TO, while the
+# figure is still interpolating out of the last one. Showing that gap is the
+# entire reason this plugin distinguishes the two, and `*-nohover-*` is the
+# standing-still picture where they coincide.
+tile-c-all-cs2   tile-indicator-c   cs2 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_SIM_MOVE_AT=650,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
+tile-lua-all-cs2 tile-indicator-lua cs2 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_SIM_MOVE_AT=650,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
+tile-c-all-cs1   tile-indicator-c   cs1 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_SIM_MOVE_AT=650,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
+tile-lua-all-cs1 tile-indicator-lua cs1 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_SIM_MOVE_AT=650,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
