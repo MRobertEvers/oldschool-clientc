@@ -398,3 +398,42 @@ coins at one gp each and two bones are worth.
 The 100M is not a rounding difference. The store held `cost * qty` in a field
 the plugin API documents as the price of ONE, so the quantity went in twice:
 10,000 * (1 * 10,000) = 100,000,000. The zoomed pair shows both halves at once.
+
+## `xtbargeom-*` — one number, five lanes
+
+Ten full frames and six crops for XPTRACKER-BAR-EATS-ICON-LAST-ROW and
+XPTRACKER-BAR-OVERPAINTS-BOX-BORDER, which are one defect. One binary per
+side, built from the same tree with only `xp_tracker.c` differing, the
+`jobs/cs2_toplevels.txt` and `jobs/cs1live.txt` xptracker drives: all four CS2
+toplevels and the live CS1 lane, because the constant is lane-independent and
+a fix that only looked right on 548 would be the same mistake again.
+
+The BEFORE side is not the original port. It is the state after the defect had
+been repaired ONCE, as two separate one-pixel nudges -- the bar down a row to
+stop it eating the icon's last row, and in a column to stop it erasing the
+box's outline. Both stop the symptom and neither is the cache's number:
+
+|  | before (two nudges) | after (the layer's carry) | cache |
+|---|---|---|---|
+| bar, box rows | 28..42 | 30..44 | 30..44 |
+| rows between icon and bar | 0 | 2 | 2 |
+| rows under the bar | 4 | 3 | 3 |
+| bar margin, left and right | 1, 1 | 3, 3 | 3, 3 |
+| goal label, in from the box's right | 4 | 6 | 6 |
+
+Interface 729 keeps the box wash, its outline, the icon and the stat grid in
+layers 4, 5, 6 and 12..16 -- all `503,2 244x499` -- and the bar's five
+components in 7..11, which are `506,5 238x493`. Every measurement in
+script5365 is therefore in a frame three pixels inside the one script5363 and
+script5366 measure in, and carrying it across is the whole fix. Read that way
+the box accounts for its own forty-eight rows, `3 + 25 + 2 + 15 + 3 = 48`, and
+the bar's left edge (absolute 506) lands on the icon's (absolute 503 + 3) --
+which is what `zoom/xtbargeom-live-attack-after.png` shows and what the two
+nudges cannot produce at any pair of values.
+
+`zoom/xtbargeom-live-attack-{before,after}.png` is the Attack sword at 12x on
+the live lane, the icon whose pommel this defect was first filed about: before,
+the bar is flush under the pommel's outline; after, two rows of the box's own
+wash separate them. `zoom/xtbargeom-548-goal-{before,after}.png` is the other
+end of the same bar, where the goal label and the track's edge both move two
+columns in.
