@@ -17,7 +17,16 @@
 # line is a different player and none of them waits out another's session
 # (LostCity answers login reply 5 for about a minute after a client leaves).
 orbs-live          minimap-orbs        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
-gf-desktop-live    gameframe-layout    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
+# preferred_frame is the MASTER SWITCH for a frame provider, and this row did
+# not set it: `cs1live` defaults to `auto`, which leaves gameframe-layout OFF
+# however its ini row is written, so this shot photographed the lane's own
+# 2004 frame with the plugin never started. That picture was then read as
+# "the desktop provider draws nothing on CS1" -- and it cannot be read any
+# other way, because Classic Fixed on a dat1 lane is a deliberate
+# pixel-for-pixel reproduction of that same frame. Switched on, and carrying
+# the two traces that tell the two apart: EMIT_EXIT names the plugin's own
+# draw commands, FRAME_APPLY names the lane chrome the provision suppressed.
+gf-desktop-live    gameframe-layout    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200 TORIRS_SHOT_FRAME=gameframe-layout/classic-fixed TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all TORIRS_DUMP_EMIT_EXIT=all TORIRS_TRACE_FRAME_APPLY=1
 perf-live          performance-display cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
 screenshot-live    screenshot          cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
 widgetdemo-live    widget-demo         cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_WIDGET_DEMO=only TORIRS_MAX_FRAMES=2200

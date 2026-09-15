@@ -967,6 +967,65 @@ frame_mark_bound_nodes(
             UITree_MarkNodeDirty(tree, fl->stretched[i]);
 }
 
+/*
+ * What the provision TOOK, said out loud, under TORIRS_TRACE_FRAME_APPLY.
+ *
+ * Nothing in the tree could answer "did the frame actually take the lane's
+ * chrome", and that is half of why a working desktop provider was reported on
+ * this branch as drawing nothing at all on the 2004 lane. The other half is
+ * that the Classic Fixed frame is a deliberate pixel-for-pixel reproduction of
+ * that lane's own frame -- same geometry, from the same `[layout:fixed]`, same
+ * art, cut from the same media jagfile -- so "the provider's frame" and "the
+ * lane's frame" are the SAME PICTURE and a screenshot cannot tell them apart.
+ * The hidden list can: 42 suppressed builtins on that lane means what is on
+ * screen is the plugin's, whatever it looks like.
+ *
+ * The per-node half is what makes it evidence rather than a number. A count
+ * says forty-two; the list says which forty-two, so a frame missing one strip
+ * is a line nobody wrote rather than an argument about a crop.
+ */
+static void
+frame_trace_binding(
+    struct UITree const* tree,
+    struct UITreeFrameLayout const* next,
+    int root_group,
+    uint64_t provider_owner)
+{
+    static int trace = -1;
+
+    assert(tree);
+    assert(next);
+    if( trace < 0 )
+        trace = getenv("TORIRS_TRACE_FRAME_APPLY") != NULL;
+    if( !trace )
+        return;
+    TORIRS_REPORT(
+        "FRAME_APPLY root_group=%d owner=%llu components=%u hidden=%d stretched=%d\n",
+        root_group,
+        (unsigned long long)provider_owner,
+        tree->component_count,
+        next->hidden_count,
+        next->stretched_count);
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+        TORIRS_REPORT("FRAME_SLOT slot=%d nodes=%d\n", s, next->slot_node_count[s]);
+    for( int i = 0; i < next->hidden_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[next->hidden[i]];
+        int x, y, w, h;
+
+        UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
+        TORIRS_REPORT(
+            "FRAME_HIDE node=%d type=%s com=%d box=%d,%d,%d,%d\n",
+            next->hidden[i],
+            UITree_ComponentTypeStr(c->type),
+            c->component_id,
+            x,
+            y,
+            w,
+            h);
+    }
+}
+
 static void
 frame_apply(
     struct UITree* tree,
@@ -998,6 +1057,7 @@ frame_apply(
     frame_collect_slots(tree, &next);
     frame_stretch_moved_ancestors(tree, &next);
     frame_collect_chrome(tree, &next, root_group);
+    frame_trace_binding(tree, &next, root_group, provider_owner);
 
     fl = frame_state(tree);
     if( fl->active )

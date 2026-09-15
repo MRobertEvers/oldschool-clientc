@@ -885,6 +885,18 @@ struct FramePlan
     /** Owned toggles over the first three 2004 chat filters: the resizable
      *  frame's chatbox switch. @see frame_chat_buttons_across. */
     int chat_switch;
+    /*
+     * Did the description this plan belongs to reach the STAGING half?
+     *
+     * Everything above is filled by the layout arithmetic, which runs before
+     * the two fences that can make a pass state nothing -- an unbound viewport
+     * and a frame root that moved. So every count above is what the layout
+     * INTENDED, and reading one as what the frame did is how a provider that
+     * was never switched on came to be reported as a provider that draws
+     * nothing: the line said "15 chrome pieces" in both cases.
+     * @see frame_describe, and the log line in frame_on_gameframe.
+     */
+    int described;
 };
 
 /** A composed picture and the box it was composed for. Held across passes:
@@ -4483,6 +4495,7 @@ frame_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
     frame_describe_surfaces(ctx, describe);
     frame_describe_skins(ctx, describe);
     frame_describe_chat_dress(ctx, describe);
+    g_plan.described = 1;
 }
 
 /* -------------------------------------------------------------- the events */
@@ -4699,11 +4712,26 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
      */
     if( state->logged_layout != g_plan.layout || state->logged_pending != (result != TORIRS_FRAME_READY) ||
         result == TORIRS_FRAME_READY )
-        api->core.log(
-            api, "layout %s at %dx%d: %d chrome pieces, %d tabs%s%s", FRAME_LAYOUT_NAME[g_plan.layout], g_plan.canvas_w,
-            g_plan.canvas_h, g_plan.blit_count + g_plan.housing_placed, g_plan.tab_count,
-            result == TORIRS_FRAME_READY ? "" : " (pending)",
-            frame_lane_oldschool(ctx) ? " over the OldSchool toplevel" : "");
+    {
+        if( g_plan.described )
+            api->core.log(
+                api, "layout %s at %dx%d: %d chrome pieces, %d tabs%s%s",
+                FRAME_LAYOUT_NAME[g_plan.layout], g_plan.canvas_w, g_plan.canvas_h,
+                g_plan.blit_count + g_plan.housing_placed, g_plan.tab_count,
+                result == TORIRS_FRAME_READY ? "" : " (pending)",
+                frame_lane_oldschool(ctx) ? " over the OldSchool toplevel" : "");
+        else
+            /* The pass that states nothing says so, and says which fence
+             * stopped it. It used to print the plan's counts here as well,
+             * which reads as a frame that was placed -- and a reconcile of an
+             * empty description takes every piece back OFF. */
+            api->core.log(
+                api, "layout %s at %dx%d: described nothing (%s)%s",
+                FRAME_LAYOUT_NAME[g_plan.layout], g_plan.canvas_w, g_plan.canvas_h,
+                state->remounted ? "the frame root moved under this pass"
+                                 : "the lane has bound no viewport yet",
+                result == TORIRS_FRAME_READY ? "" : " (pending)");
+    }
     state->logged_layout = g_plan.layout;
     state->logged_pending = result != TORIRS_FRAME_READY;
     return result;
