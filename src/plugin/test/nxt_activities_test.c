@@ -37,6 +37,70 @@ static int g_checks;
         }                                                                                     \
     } while( 0 )
 
+/* ------------------------------------------------------------- findings */
+
+/*
+ * Did this plugin RECORD the refusal it is silent about, and did it say why.
+ *
+ * The bare-lane checks below used to pin `notifies == 0` and nothing else,
+ * which is the silent-failure pin this project's rules forbid: it is green for
+ * a builtin that turned itself off and said so, and equally green for one that
+ * is simply broken. The CS1 bird-nest capture had the same hole -- the whole
+ * picture is "no chat line", on a lane where that is also what correct looks
+ * like -- and reading it needed the plugin's own findings, which are exactly
+ * what these two answer.
+ */
+static int
+finding_count_for(char const* plugin_id, int result, char const* detail)
+{
+    struct PorcelainFinding found[PORCELAIN_FINDINGS_MAX];
+    struct Porcelain* handle;
+    int matched = 0;
+    int count;
+
+    /* Before the lookup, which reads the string. */
+    assert(plugin_id);
+    assert(detail);
+    /* A miss is -1 and never 0, so "this plugin opened no handle at all"
+     * fails every caller below instead of reading as "it declared nothing". */
+    handle = Porcelain_HandleForTesting(plugin_id);
+    if( !handle )
+        return -1;
+    count = Porcelain_Findings(handle, found, PORCELAIN_FINDINGS_MAX);
+    for( int i = 0; i < count; i++ )
+        if( found[i].result == result && found[i].detail &&
+            strcmp(found[i].detail, detail) == 0 )
+            matched++;
+    return matched;
+}
+
+/* The declared reason carried onto the first finding that names `detail`, or
+ * NULL when nothing there names it. "" would mean nobody declared it. */
+static char const*
+finding_why_for(char const* plugin_id, int result, char const* detail)
+{
+    static char why[PORCELAIN_DETAIL_MAX];
+    struct PorcelainFinding found[PORCELAIN_FINDINGS_MAX];
+    struct Porcelain* handle;
+    int count;
+
+    assert(plugin_id);
+    assert(detail);
+    handle = Porcelain_HandleForTesting(plugin_id);
+    if( !handle )
+        return NULL;
+    count = Porcelain_Findings(handle, found, PORCELAIN_FINDINGS_MAX);
+    for( int i = 0; i < count; i++ )
+        if( found[i].result == result && found[i].detail &&
+            strcmp(found[i].detail, detail) == 0 )
+        {
+            assert(found[i].why);
+            snprintf(why, sizeof(why), "%s", found[i].why);
+            return why;
+        }
+    return NULL;
+}
+
 /* ------------------------------------------------------------ fake engine */
 
 #define FAKE_VARS_MAX 20000
@@ -1388,6 +1452,29 @@ main(void)
         obj.tile_z = 3200;
         obj.level = 0;
 
+        /*
+         * The declaration is a LANE ANSWER, not a blanket caveat.
+         *
+         * `nxt_bird_nest_start` asks `Porcelain_Has` before it requires, so
+         * that a lane which HAS the row declares nothing -- and a declaration
+         * that fires everywhere is the stale one the port gate reports. This
+         * is the other direction of the bare-lane pair below; neither half
+         * means anything without the other.
+         *
+         * The ten obj ids are a different claim and stay declared on every
+         * lane, because "these are literals in C" is true on every lane.
+         *
+         * MUTATION: drop the `Porcelain_Has` guard and declare
+         * unconditionally. Red: "a lane that declares the row declares no
+         * limitation about it".
+         */
+        CHECK(finding_count_for("nxt-bird-nest", PORCELAIN_FINDING_UNSUPPORTED,
+                                "bird nest notification") == 0,
+              "a lane that declares the row declares no limitation about it");
+        CHECK(finding_count_for("nxt-bird-nest", PORCELAIN_FINDING_UNSUPPORTED,
+                                "bird nest ids from the profile") == 1,
+              "while the ten literal ids are declared on every lane, this one included");
+
         g_engine.varbit[fake_id("varbit", NXT_VARBIT_BIRD_NEST)] = 1; /* inverted: 1 is OFF */
         g_engine.notifies = 0;
         PluginHost_ObjSpawn(host, &obj);
@@ -1827,6 +1914,43 @@ main(void)
               "a lane with no bird_nest row costs nothing per ground item");
         CHECK(g_engine.varbit_reads == 0, "and reads no var to decide it");
         CHECK(g_engine.notifies == 0, "an inverted row that is not there is OFF, never ON");
+
+        /*
+         * AND IT SAID SO. This is the half the three checks above cannot see.
+         *
+         * "No chat line" is what a correctly-unavailable builtin looks like
+         * and it is also what a dead one looks like, so the checks above on
+         * their own are a silent-failure pin: they stay green on the day
+         * `Porcelain_Require` stops recording, on the day the plugin drops
+         * `NXT_NEST_FEATURE`, and on the day it simply never registers the
+         * spawn callback. The refusal channel is what separates the three,
+         * and the CS1 capture is unreadable for exactly this reason -- see
+         * jobs/cs1live.txt's birdnest-live row, which can photograph nothing
+         * else on rev289.
+         *
+         * Two findings, not one, and both are wanted: `Porcelain_Has`
+         * answering false makes the DECLARATION (verb `unsupported`), and
+         * `Porcelain_Require` answering false makes the REFUSAL (verb
+         * `require`) that the declaration then marks expected. Counting the
+         * UNSUPPORTED result over the feature name catches both.
+         *
+         * MUTATION 1: delete the Porcelain_Require call in
+         *   nxt_bird_nest_start and set `available` from Porcelain_Has.
+         *   Red: "and it files its refusal rather than going quiet".
+         * MUTATION 2: drop the `why` string from the ExpectUnsupported call.
+         *   Red: "with the reason a reader needs, not just the feature name".
+         */
+        CHECK(finding_count_for("nxt-bird-nest", PORCELAIN_FINDING_UNSUPPORTED,
+                                "bird nest notification") == 2,
+              "and it files its refusal rather than going quiet");
+        {
+            char const* why = finding_why_for("nxt-bird-nest", PORCELAIN_FINDING_UNSUPPORTED,
+                                              "bird nest notification");
+            CHECK(why != NULL && why[0] != '\0',
+                  "with the reason a reader needs, not just the feature name");
+            CHECK(why != NULL && strstr(why, "no bird_nest setting") != NULL,
+                  "and the reason names the row this profile does not declare");
+        }
 
         for( int at = 0; at < 5; at++ )
             PluginHost_ServerTick(bare, at + 1);

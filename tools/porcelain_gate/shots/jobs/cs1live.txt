@@ -114,7 +114,62 @@ itemstats-set-live item-stats          cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;
 # vocabulary, so the two lanes' ground-item pictures are comparable.
 grounditems-live   ground-items        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_GROUND_ITEMS_DEBUG=1 TORIRS_MAX_FRAMES=2200
 lootbeam-live      loot-beam           cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_MAX_FRAMES=2200
-birdnest-live      nxt-bird-nest       cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_MAX_FRAMES=2200
+
+# This row is a REFUSAL capture, and it is the only bird-nest picture rev289
+# can produce. It used to be a silent copy of the grounditems-live line above,
+# which reads as a bird-nest drive and is not one; the three walls in the way
+# were never written down, so the shot -- a two-dozen-line log and an ordinary
+# Varrock frame -- could not be told apart from a dead plugin.
+#
+# WALL 1, the governing one: revconfig/rs289lc/rs289lc_dat1_cache.ini declares
+# ZERO `[varbit:]` rows, `[varbit:bird_nest]` among them. `Porcelain_Require`
+# refuses, `NxtBirdNestState::available` is false, and nxt_bird_nest_spawn
+# returns at its FIRST gate for every obj -- not at the id test, which is what
+# the original report of this guessed. The two PORCELAIN_FINDING lines at frame
+# 0 say so, and they are the result this shot is of.
+#
+# WALL 2: the rev289 world has no bird nest AT ALL. LostCity_Server's
+# content/pack/obj.pack holds 4089 rows and its highest id is 4088; the ten ids
+# nxt_bird_nest.c matches run 5070..22800, every one of them above the top of
+# that id space, and grepping `bird` through content/scripts' .obj files finds
+# feathers, birdfeed and chompy hats and no nest. So no `obj_add` in any
+# debugproc can name one, and "give this row a drive that drops a nest" is not
+# a repair that exists here. The positive picture is birdnest-cs2, whose drive
+# IS `dropobj bird_nest_egg_red 1` and whose log carries PLUGIN_NOTIFY.
+#
+# WALL 3, and it is not this plugin's: THE CHATBOX IS COVERED. A fresh account
+# logs in with the tutorial's `tut_open(tutorial_text)` overlay -- the blue
+# "Getting started" plate -- standing over the whole chat pane, and the cheat's
+# `if_close` does not take it down: `tut_close` is a separate engine command
+# and nothing here sends it. Measured rather than assumed, in
+# plugins/birdnest-live-chatprobe.png: a THIRD close at frame 2000, from
+# ~torirscoins, raised the coin pile from 20000 to 40000 -- so the cheat ran --
+# and the plate is still there 200 frames later. A Porcelain_Notify line is an
+# ordinary chat line, so no notification capture on this lane can show one; it
+# is filed as CS1LIVE-CHATBOX-COVERED and it also holds cannon-live.
+#
+# What the drive must therefore do is put the plugin's one reachable state in
+# front of it -- a ground item spawning on the player's own tile -- and prove
+# in the capture that it did. ~torirsdrop is that pile. TORIRS_TRACE_NATIVE_UI
+# is the half that was missing, and it is what the four CS2 birdnest rows have
+# always set: it prints NATIVE_PLAYER and one NATIVE_GROUND_STACK per stack, so
+# both walls and the exercise are in the log rather than in a paragraph:
+#
+#   NATIVE_PLAYER true=3213,3423,0 ...
+#   NATIVE_GROUND_STACK tile=3213,3423,0 id=1333  count=1     name=Rune scimitar
+#   NATIVE_GROUND_STACK tile=3213,3423,0 id=1149  count=1     name=Dragon med helm
+#   NATIVE_GROUND_STACK tile=3213,3423,0 id=995   count=20000 name=Coins
+#   NATIVE_GROUND_STACK tile=3213,3423,0 id=385   count=1     name=Shark
+#   NATIVE_GROUND_STACK tile=3232,3399,0 id=1931  count=1     name=Pot
+#
+# Four stacks on the player's OWN true tile, so the tile test the plugin ends
+# with would have passed; five in total, which is the count lootbeam-live reads
+# off the same drive. Every id is three or four digits and the lowest nest is
+# 5070. It costs ~3160 log lines, nearly all of them NATIVE_CS1 -- the same
+# switch prints those on a CS1 lane -- and that is the price of the six lines
+# above being there at all. plugins/birdnest-live-before.png is the same drive
+# on the same binary without it: same picture, 24 lines, nothing to read.
+birdnest-live      nxt-bird-nest       cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_TRACE_NATIVE_UI=1 TORIRS_MAX_FRAMES=2200
 cannon-live        nxt-cannon-ammo     cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
 
 # ~maxme is here and nowhere else: it is what puts a real number on an xp orb,
