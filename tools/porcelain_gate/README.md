@@ -102,8 +102,14 @@ half, a port whose whole job is to place a surface the old provider silently
 failed to place could never pass, because it could say the old box is gone and
 not that the new one is right. `role-move` names a ROLE whose resolved box
 changed, which is the same difference said about the role rather than the
-component. `owned-drop` names an owned control that must disappear.
-`normalise` strips `<name>=<value>` from every tail before comparing.
+component. `owned-drop` names an owned control that must disappear,
+`owned-add` one that must appear, and `owned-move` one whose box or state the
+port changes on purpose. Those last two are the same argument as `only-after`,
+said about the plugin's own controls: a fix whose whole job is to put back a
+picture the frame was missing, or to move the frame's own furniture off the
+window's last row, has nothing to say under a vocabulary that can only excuse
+a control going away. `normalise` strips `<name>=<value>` from every tail
+before comparing.
 
 A declaration is not a suppression, and three rules keep it from becoming one:
 

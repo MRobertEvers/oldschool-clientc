@@ -1107,22 +1107,48 @@ main(void)
               "both round windows are cut and the 2004 rose is kept");
     }
     CHECK(native("sidebar", -1)->hidden && !placed("sidebar", -1, 740, 335, 190, 261), "the drawer is shut: the sidebar is hidden");
-    CHECK(placed("chat", -1, 17, 456, 479, 96), "the sheet is up at the bottom-left, above the button strip");
+    CHECK(placed("chat", -1, 17, 452, 479, 96), "the sheet is up at the bottom-left, above the button strip");
+    /*
+     * And the block stands ON the bottom margin rather than on the last row.
+     *
+     * Every other piece pinned to this edge -- the rail, the drawer, the two
+     * switches -- is inset by MOBILE_MARGIN from it. The chat block took the
+     * raw edge, so the parchment's torn bottom fringe fell off the screen
+     * entirely and the input line's last row WAS the window's last row: on a
+     * 765x503 stone601 capture `chat_backing` measured 58,388 461x115 and
+     * `chat_input` 63,487 454x16, and both of those end on row 503.
+     *
+     * Asserted as the GAP and not as a coordinate, because a coordinate is
+     * the same assertion written so that nobody reading it can tell what it
+     * is for.
+     *
+     * MUTATION: put `chat_bottom` back to `safe_bottom` in mobile_layout.
+     * Red: the gap is 0.
+     */
+    {
+        /* The 2004 block's tail is the 36-row filter strip, and the button in
+         * it is centred: (36 - 32) / 2 = 2 rows of strip below the button. So
+         * the BLOCK's last row is two below the button's own. */
+        struct FakeWidget const* strip = native("chat_buttons", 0);
+        int const block_bottom = strip ? strip->y + strip->h + 2 : 0;
+        CHECK(strip && M_H - block_bottom == MOBILE_TEST_MARGIN,
+              "the 2004 block's last row is one margin above the canvas floor");
+    }
     CHECK(placed("main_modal", -1, 256, 133, 512, 334), "the modal is centred");
-    CHECK(placed("chat_buttons", 0, 26, 566, 100, 32) && placed("chat_buttons", 3, 383, 566, 100, 32),
+    CHECK(placed("chat_buttons", 0, 26, 562, 100, 32) && placed("chat_buttons", 3, 383, 562, 100, 32),
           "the four filters spread across the strip");
     /* The platform band: the keyboard covers the bottom 200 rows; the block
      * hangs from the safe bottom instead of the canvas floor. */
     g_safe.present = 1; g_safe.x = 0; g_safe.y = 0; g_safe.w = M_W; g_safe.h = M_H - 200;
     declare(M_W, M_H);
-    CHECK(placed("chat", -1, 17, 256, 479, 96) && placed("chat_buttons", 0, 26, 366, 100, 32),
+    CHECK(placed("chat", -1, 17, 252, 479, 96) && placed("chat_buttons", 0, 26, 362, 100, 32),
           "the sheet and its strip hang from the safe bottom above the keyboard");
     g_safe.present = 0;
     declare(M_W, M_H);
-    CHECK(placed("chat", -1, 17, 456, 479, 96), "and drop back to the floor when the band goes");
+    CHECK(placed("chat", -1, 17, 452, 479, 96), "and drop back to the floor when the band goes");
     printf("MOBILE pieces=%d tabs=%d icons=%d plates=%d\n", pieces_behind_viewport(), owned_count("tab."), owned_count("icon."), owned_count("plate."));
     CHECK(pieces_behind_viewport() >= 7, "the rail plates, the sheet, the two switches and the blockers are owned pieces over the scene");
-    CHECK(owned_at("piece.02", 0, 439) || owned_at("piece.01", 0, 439) || owned_at("piece.00", 0, 439) || owned_at("piece.03", 0, 439),
+    CHECK(owned_at("piece.02", 0, 435) || owned_at("piece.01", 0, 435) || owned_at("piece.00", 0, 435) || owned_at("piece.03", 0, 435),
           "the torn sheet hangs at the chat's box less its fringe");
     CHECK(owned_count("plate.") == 4 && anchored(owned("plate.0"), "", -1) == 0 &&
               owned("plate.0")->anchor_relation == TORIRS_WIDGET_RELATION_BEHIND && owned("plate.0")->anchor_target == fw_find("chat_buttons", 0),
@@ -1153,9 +1179,9 @@ main(void)
               "and the modal is raised above every rock, stone and icon this plugin owns");
     }
     CHECK(!stone_lit(3), "no stone is lit while the drawer is shut");
-    CHECK(owned("chat-toggle") && strcmp(owned("chat-toggle")->op, "Hide chat") == 0 && owned_at("chat-toggle", 4, 410),
+    CHECK(owned("chat-toggle") && strcmp(owned("chat-toggle")->op, "Hide chat") == 0 && owned_at("chat-toggle", 4, 406),
           "the chat switch sits above the sheet");
-    CHECK(owned("keyboard-toggle") && strcmp(owned("keyboard-toggle")->op, "Keyboard") == 0 && owned_at("keyboard-toggle", 44, 410),
+    CHECK(owned("keyboard-toggle") && strcmp(owned("keyboard-toggle")->op, "Keyboard") == 0 && owned_at("keyboard-toggle", 44, 406),
           "the keyboard switch sits beside it");
     CHECK(owned("chat-glyph") && owned("keyboard-glyph"), "both switches wear their glyphs");
     {
@@ -1222,11 +1248,11 @@ main(void)
     CHECK(owned_count("plate.") == 0, "and its filter plates with it");
     press("chat-toggle");
     declare_after_press(M_W, M_H);
-    CHECK(placed("chat", -1, 17, 456, 479, 96) && owned_count("plate.") == 4, "and brings it back");
+    CHECK(placed("chat", -1, 17, 452, 479, 96) && owned_count("plate.") == 4, "and brings it back");
 
     /* ---- 4. the scene follows the canvas ------------------------------- */
     declare(1280, 720);
-    CHECK(placed("viewport", -1, 0, 0, 1280, 720) && placed("chat", -1, 17, 576, 479, 96) && owned_at("housing", 1043, 4),
+    CHECK(placed("viewport", -1, 0, 0, 1280, 720) && placed("chat", -1, 17, 572, 479, 96) && owned_at("housing", 1043, 4),
           "the scene follows the canvas and the corners follow their edges");
 
     /* ---- 5. release ------------------------------------------------------ */
@@ -1245,9 +1271,18 @@ main(void)
     PluginHost_WidgetsChanged(g_host, 77, 5);
     declare(M_W, M_H);
     CHECK(g_frame.active == 1, "an OldSchool lane keeps the drawer on");
-    CHECK(placed("chat", -1, 0, 435, 519, 165), "the chat pack is placed whole, flush with the corner");
+    CHECK(placed("chat", -1, 0, 431, 519, 165), "the chat pack is placed whole in the bottom-left corner");
+    /* The same margin, on the lane whose chat is one 519x165 block: the pack's
+     * own bar and input line are inside it, so the whole block moving up by a
+     * margin is what keeps the input line off the last row.
+     * MUTATION: as above. Red: the gap is 0. */
+    {
+        struct FakeWidget const* pack = native("chat", -1);
+        CHECK(pack && M_H - (pack->y + pack->h) == MOBILE_TEST_MARGIN,
+              "the OldSchool block's last row is one margin above the canvas floor");
+    }
     CHECK(placed("orbs", -1, 829 - 53, 12 + 2, 207, 197) || native("orbs", -1)->moved, "the orb block is placed beside the map");
-    CHECK(owned_at("chat-toggle", 439, 406), "the switches take the far end of the strip on this lane");
+    CHECK(owned_at("chat-toggle", 439, 402), "the switches take the far end of the strip on this lane");
     CHECK(owned_count("icon.") == 14, "every stone wears rev-239's icon");
     frame_tick();
     CHECK(native("chat_bar", -1)->art >= 0 && native("chat_backing", -1)->art >= 0 && !native("chat_backing", -1)->hidden,
@@ -1256,6 +1291,36 @@ main(void)
               owned("pack-sheet")->anchor_target == fw_find("chat", -1),
           "the torn sheet is an owned image directly behind the pack");
     CHECK(native("chat_plate", 0)->hidden && native("chat_plate", 7)->hidden, "the eight OldSchool plates are hidden under the lane's captions");
+    /*
+     * And the same rock again as a picture of this frame's OWN, because the
+     * re-skin above reaches nothing on the toplevel this frame is for.
+     *
+     * 601's bar is a TYPE_GRAPHIC the cache holds at full transparency -- the
+     * toplevel paints the band with a translucent rect beside it and keeps
+     * this node for its box -- and UITree_EmitFill drops a node at trans 255
+     * before it looks at what a plugin put on it. The engine took the skin,
+     * answered OK and threw it away every frame; what was on screen was seven
+     * captions and their green mode lines standing on the WORLD, with no
+     * socket and no affordance of any kind. This fake cannot reproduce the
+     * lane's transparency, so what is asserted is the thing that makes the
+     * frame independent of it: the rock exists as a control this plugin owns,
+     * at the bar's box, behind the pack.
+     *
+     * MUTATION: delete the "bar-rock" piece from mobile_describe_chat_dress.
+     * Red: there is no owned control at the bar's box.
+     */
+    {
+        struct FakeWidget const* bar = native("chat_bar", -1);
+        struct FakeWidget const* rock = owned("bar-rock");
+        CHECK(bar && rock && rock->image >= 0,
+              "the 2004 rock is also a picture this frame owns, not only a re-skin");
+        CHECK(rock && owned_at("bar-rock", bar->x, bar->y) && rock->w == bar->w &&
+                  rock->h == bar->h,
+              "it covers exactly the bar the lane authored");
+        CHECK(rock && rock->anchor_relation == TORIRS_WIDGET_RELATION_BEHIND &&
+                  rock->anchor_target == fw_find("chat", -1),
+              "behind the whole pack, so the captions and the mode lines stay on top of it");
+    }
 
     /*
      * And a backing with no picture of its own is left alone.

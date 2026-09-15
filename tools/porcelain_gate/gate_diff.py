@@ -43,8 +43,11 @@ The file is ini-ish, one declaration per line, `kind target = reason`:
 its mirror, for a line the port ADDS; a port that moves a native box states
 one of each, because the box left one place and arrived at another.
 `role-move` names a ROLE whose resolved box changed. `owned-drop` names an
-owned key that must disappear. `normalise` strips `<name>=<value>` from every
-tail before comparing. Blank lines and lines beginning with # are ignored.
+owned key that must disappear, `owned-add` one that must appear, and
+`owned-move` one whose box or state the port changes on purpose -- the same
+mirror, said about the plugin's own controls rather than about the lane's.
+`normalise` strips `<name>=<value>` from every tail before comparing. Blank
+lines and lines beginning with # are ignored.
 """
 import re, sys, collections
 
@@ -55,6 +58,7 @@ class Expectations:
     def __init__(self, path=None):
         self.only_before, self.only_after = {}, {}
         self.role_move, self.owned_drop, self.normalise = {}, {}, {}
+        self.owned_add, self.owned_move = {}, {}
         self.fired = collections.Counter()
         if not path:
             return
@@ -80,6 +84,7 @@ class Expectations:
                 raise SystemExit(f"{path}:{lineno}: `{kind}` names nothing")
             table = {"only-before": self.only_before, "only-after": self.only_after,
                      "role-move": self.role_move, "owned-drop": self.owned_drop,
+                     "owned-add": self.owned_add, "owned-move": self.owned_move,
                      "normalise": self.normalise}.get(kind)
             if table is None:
                 raise SystemExit(f"{path}:{lineno}: unknown declaration `{kind}`")
@@ -122,12 +127,45 @@ class Expectations:
             return True
         return False
 
+    def excuses_added_key(self, key):
+        """An owned control the port is declared to ADD.
+
+        The mirror of owned-drop, and here for the reason only-after is here.
+        A port whose whole job is to put back a picture the frame was missing
+        -- the Stone Drawer's chat bar, which the lane holds at full
+        transparency so the re-skin that was supposed to carry it never
+        reached the screen -- can say nothing under the old vocabulary: the
+        drop half excuses a control that goes and there was no half for one
+        that arrives. Such a change could never pass, and its verdict became
+        an argument in prose, which is the thing this comparator replaces.
+        """
+        if key in self.owned_add:
+            self.fired[("owned-add", key)] += 1
+            return True
+        return False
+
+    def excuses_moved_key(self, key):
+        """An owned control the port is declared to MOVE.
+
+        Same argument again, said about a box rather than about existence. A
+        fix that moves the frame's own furniture on purpose -- a chat block
+        that was hung flush to the window's last row and now sits on the
+        margin every other bottom-anchored piece sits on -- moves every
+        control in that block, and the declaration is what makes "on purpose"
+        checkable instead of assertable.
+        """
+        if key in self.owned_move:
+            self.fired[("owned-move", key)] += 1
+            return True
+        return False
+
     def report(self):
         """Print what each declaration did. A declaration nobody needed is a
         failure: it claims the port changes something it does not."""
         stale = []
         for kind, table in (("only-before", self.only_before), ("only-after", self.only_after),
                             ("role-move", self.role_move), ("owned-drop", self.owned_drop),
+                            ("owned-add", self.owned_add), ("owned-move", self.owned_move),
                             ("normalise", self.normalise)):
             for target, reason in table.items():
                 n = self.fired[(kind, target)]
@@ -229,8 +267,9 @@ def compare(before, after, label, expect):
     if moved: bad.append("roles")
     ob, oa = owned(before + "/log.txt", expect), owned(after + "/log.txt", expect)
     gone = sorted(k for k in set(ob) - set(oa) if not expect.excuses_key(k))
-    new = sorted(set(oa) - set(ob))
-    diff = [k for k in sorted(set(ob) & set(oa)) if ob[k] != oa[k]]
+    new = sorted(k for k in set(oa) - set(ob) if not expect.excuses_added_key(k))
+    diff = [k for k in sorted(set(ob) & set(oa))
+            if ob[k] != oa[k] and not expect.excuses_moved_key(k)]
     # A volatile readout may differ ONLY in its text; its box and hidden state
     # are judged like everything else.
     measured = [k for k in diff if is_volatile(k) and ob[k][0] == oa[k][0]

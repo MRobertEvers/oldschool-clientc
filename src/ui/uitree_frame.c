@@ -582,6 +582,38 @@ UITree_FrameSlotMemberNode(
  * marker on the minimap. Hiding those is hiding content, and it left the
  * rev-239 cursor tooltip as bare unreadable text over the world -- its three
  * TEXT children are not of a hideable type, so only its backing vanished.
+ *
+ * ...and a script-drawn GRAPHIC is exempt from that half, because the whole
+ * of what a graphic can be is a SPRITE THE INTERFACE SHIPPED.
+ *
+ * This is the same distinction the chat filter buttons are excluded on, made
+ * the other way round. Those look like chrome and are not, because they are
+ * four working CONTROLS; a wifi bar and a battery gauge look like content and
+ * are not, because there is nothing to operate and nothing about the game in
+ * them -- they are a readout of the DEVICE, in the corner of the surround, and
+ * a layout that draws its own frame is drawing over them. Decide by what the
+ * thing IS, not by where it happens to sit.
+ *
+ * `cc_create` can make a GRAPHIC, a RECT, a LINE or a TEXT, and only the first
+ * of those is a picture the cache holds. A script SHOWING the player something
+ * builds it out of rectangles, lines and words -- the cursor tooltip's box and
+ * plate, an outline round a row -- because what it is showing is not in the
+ * cache to begin with. A script FINISHING the toplevel's own surround reaches
+ * for a sprite, because a sprite is a decision the interface's author already
+ * made. So the shape-and-word half keeps the container test that saved the
+ * tooltip, and the sprite half answers to the same group test every other
+ * graphic answers to.
+ *
+ * What that fixed: toplevel 601 paints its wifi bars and its battery with
+ * cc_setgraphic into two 24x24 layers of its own, and neither layer carries an
+ * op, so the layer rule below reads both as containers and leaves them alone
+ * while the container test left the glyphs in them alone too. They fell
+ * through both halves and stood in the top-right corner of the Stone Drawer,
+ * over the sky and over the frame's own map housing. (601's own chat and
+ * keyboard switches are drawn exactly the same way and never reached the draw
+ * list, so nobody had seen the gap: what made the two glyphs visible and not
+ * the switches is only where 601 declares them relative to its world region,
+ * which is draw order and not a rule. This takes both.)
  */
 static int
 frame_is_lane_chrome(
@@ -644,7 +676,7 @@ frame_is_lane_chrome(
     }
     if( root_group < 0 || c->component_id < 0 )
         return 0;
-    if( c->dynamic && !parent_is_frame_owned )
+    if( c->dynamic && !parent_is_frame_owned && c->type != UIELEM_RS_GRAPHIC )
         return 0;
     return ((c->component_id >> 16) & 0xffff) == root_group;
 }

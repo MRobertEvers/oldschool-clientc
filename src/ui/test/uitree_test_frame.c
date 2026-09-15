@@ -1303,6 +1303,9 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     int32_t tip_host;
     int32_t tip_plate;
     int32_t panel_border;
+    int32_t status_host;
+    int32_t status_glyph;
+    int32_t status_tint;
 
     shell = UITree_TestPushXy(
         tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -1370,10 +1373,24 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
      * they are pictures of -- the group alone cannot tell them apart. */
     tip_plate = UITree_CcCreate(tree, tip_host, (FRAME_GROUP << 16) | 26, 3, 0);
     panel_border = UITree_CcCreate(tree, container, (FRAME_GROUP << 16) | 20, 3, 0);
+    /*
+     * The toplevel's STATUS CORNER: a bare root-group layer of its own with no
+     * op on it, and a sprite the toplevel's script draws into it -- 601's wifi
+     * bars and its battery, which are two 24x24 layers holding one cc_setgraphic
+     * each. Structurally indistinguishable from `tip_host` and its plate: same
+     * type, same group, same "the frame took neither container over".
+     */
+    status_host = UITree_TestPushXy(
+        tree, root, UIELEM_RS_LAYER, (FRAME_GROUP << 16) | 27, 711, 0, 24, 24);
+    status_glyph = UITree_CcCreate(tree, status_host, (FRAME_GROUP << 16) | 27, 5, 0);
+    /* And a RECT drawn into the same container, so the rule below is provably
+     * about what the node IS and not about where it was drawn. */
+    status_tint = UITree_CcCreate(tree, status_host, (FRAME_GROUP << 16) | 27, 3, 1);
     TEST_ASSERT(
         chat >= 0 && side3 >= 0 && orbs >= 0 && pack >= 0 && adviser >= 0 && globe >= 0 &&
             banner_group >= 0 && banner >= 0 && blocker >= 0 &&
-            control >= 0 && tip_host >= 0 && tip_plate >= 0 && panel_border >= 0,
+            control >= 0 && tip_host >= 0 && tip_plate >= 0 && panel_border >= 0 &&
+            status_host >= 0 && status_glyph >= 0 && status_tint >= 0,
         "cache frame fixture with layers builds");
     TEST_ASSERT(
         (tree->components[tip_plate].component_id >> 16) == FRAME_GROUP &&
@@ -1443,6 +1460,36 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     TEST_ASSERT(
         tree->components[panel_border].frame_hidden,
         "and one drawn inside a container the frame took over is its surround");
+    /*
+     * The status corner, and the half of the cc rule the pair above could not
+     * decide.
+     *
+     * `tip_plate` and `status_glyph` are the same kind of node in the same kind
+     * of container: a cc_create child of the toplevel's group, drawn into a
+     * root-group layer the provision never took over. The container test says
+     * "content" to both, and for the glyph that is wrong -- a wifi bar is
+     * decoration, there is nothing to operate and nothing about the game in it,
+     * and a layout that draws its own frame is drawing over it. Left standing,
+     * 601's wifi and battery stood in the top-right corner of the Stone Drawer,
+     * over the sky and over the frame's own map housing.
+     *
+     * So the type decides: a script drawing a GRAPHIC is reaching for a sprite
+     * the interface shipped, which is a decision the toplevel's author already
+     * made; a script drawing a RECT or a LINE is building something that is not
+     * in the cache, which is the tooltip's box and plate.
+     *
+     * MUTATION: drop `c->type != UIELEM_RS_GRAPHIC` from the dynamic guard in
+     * frame_is_lane_chrome. Red: the glyph is content again.
+     */
+    TEST_ASSERT(
+        tree->components[status_glyph].frame_hidden,
+        "a script-drawn SPRITE of the toplevel's own group is its surround, wherever it was drawn");
+    TEST_ASSERT(
+        !tree->components[status_tint].frame_hidden,
+        "and a script-drawn rectangle beside it in the same container is still content");
+    TEST_ASSERT(
+        !tree->components[status_host].frame_hidden,
+        "the container itself is left alone: the layer rule takes controls and blockers, not mounts");
     TEST_ASSERT(!tree->components[orbs].frame_hidden, "nor is the bound orb block");
     /* The members inside the block -- the adviser the profile seats, the globe
      * the pack carries -- are the provider's to move or hide through the

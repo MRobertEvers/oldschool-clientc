@@ -1013,6 +1013,11 @@ struct MobileRuntime
      *  what a bottom-anchored piece hangs from. @see mobile_lane_area. */
     int canvas_w;
     int canvas_h;
+    /** The row the chat block's last one is, plus one: the usable bottom less
+     *  the margin every bottom-anchored piece is inset by. What the tap
+     *  blocker ends at, so the margin's four rows of world stay tappable.
+     *  @see chat_bottom in mobile_layout. */
+    int chat_bottom;
     struct MobileBlit blit[MOBILE_BLIT_MAX];
     int blit_count;
     struct MobileTab tab[MOBILE_TAB_COUNT];
@@ -3415,6 +3420,24 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
     int const map_x = area_right - MOBILE_MARGIN - g_map_w;
     int const map_y = area.y + MOBILE_MARGIN;
     int const safe_bottom = area_bottom;
+    /*
+     * The row the chat block hangs from, and the margin it was missing.
+     *
+     * `safe_bottom` is the last row this frame may draw on. It is not the row
+     * anything SITS on: every other piece pinned to that edge -- the rail, the
+     * drawer, and the two switches a few lines down -- is inset from it by
+     * MOBILE_MARGIN, and the chat block was the one assembly that took the raw
+     * edge instead. Flush with it, the parchment's torn bottom fringe is off
+     * the screen entirely and the input line's last row IS the window's last
+     * row, which on a frame whose whole point is that the sheet FLOATS reads
+     * as a sheet that has slid off the bottom.
+     *
+     * A separate name rather than moving `safe_bottom` itself, because the
+     * switch in the corner reads the raw edge when the sheet is down (@see
+     * g_frame.toggle_y) and is already correctly inset from it: insetting
+     * twice would put the switch four rows above the drawer beside it.
+     */
+    int const chat_bottom = safe_bottom - MOBILE_MARGIN;
     int strip_y;
     int chat_y;
     /* The surface's size is the LANE's, asked for once and then used
@@ -3436,14 +3459,15 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
         area.w, rail_w, oldschool ? chat_w : MOBILE_PAPER_ART_W(chat_w));
 
     /* The safe rect and the lane's strip are both in `area`, so every
-     * bottom-anchored piece uses the same visible edge. */
-    strip_y = safe_bottom - MOBILE_STRIP_H;
+     * bottom-anchored piece uses the same visible edge -- inset by the same
+     * margin every other piece on that edge is inset by. @see chat_bottom. */
+    strip_y = chat_bottom - MOBILE_STRIP_H;
     /* Through the macro rather than `strip_y - chat_h`, so the block is
      * still pinned by the ART's last inked row and not by the surface's -- the
      * safe bottom moved which edge it hangs from, not what hangs there.
-     * @see MOBILE_CHAT_Y. The OldSchool pack is one 519x165 block flush with
-     * the safe bottom, its own stone bar included. */
-    chat_y = oldschool ? safe_bottom - chat_h : MOBILE_CHAT_Y(safe_bottom, chat_h);
+     * @see MOBILE_CHAT_Y. The OldSchool pack is one 519x165 block sitting on
+     * the bottom margin, its own stone bar included. */
+    chat_y = oldschool ? chat_bottom - chat_h : MOBILE_CHAT_Y(chat_bottom, chat_h);
 
     /*
      * The scene is the WHOLE canvas, chrome included.
@@ -3668,6 +3692,7 @@ mobile_layout(struct MobileCall* ctx, int canvas_w, int canvas_h)
 
     g_frame.canvas_w = area.x + area.w;
     g_frame.canvas_h = area.y + area.h;
+    g_frame.chat_bottom = chat_bottom;
     g_frame.chat_placed = chat_visible;
     g_frame.chat_y = chat_y;
     g_frame.chat_pack = oldschool;
@@ -4466,6 +4491,52 @@ mobile_describe_chat_dress(struct MobileCall* ctx, struct ToriRS_PorcelainDescri
     if( !rock.name )
         return;
     describe->skin(describe, PORCELAIN_EL(CHAT_BAR), rock.name, NULL);
+    /*
+     * And the same rock as a picture of this frame's OWN, because on the
+     * mobile toplevel the re-skin above reaches nothing.
+     *
+     * A re-skin can only change a picture the lane DRAWS. 601 does not draw
+     * one here: its bar is a TYPE_GRAPHIC held at full transparency -- the
+     * toplevel paints the band with a translucent rect beside it and keeps
+     * this node for its box -- and UITree_EmitFill drops a node at trans 255
+     * before it ever looks at what a plugin put on it. So the engine took the
+     * skin, answered OK, recorded it applied, and threw it away on every
+     * frame; what reached the screen was seven captions and their green mode
+     * lines standing on the world, with no socket, no plate and no affordance
+     * of any kind. A control with nothing behind it does not read as a
+     * control, which is the same defect as a plate on parchment said the
+     * other way round.
+     *
+     * The picture is the same one either way -- one band of 2004 rock with a
+     * hollow cut at every filter the pack has -- so this is still dressing
+     * the bar and not replacing the subtree, and still a hollow rather than a
+     * plate per caption.
+     *
+     * BEHIND the whole pack, exactly as `pack-sheet` below is: the captions,
+     * the mode lines and the bar's own translucent band are all inside the
+     * pack, so behind it is under all three and over the world. Anchoring to
+     * the BAR would have been the obvious depth and is refused by rule -- a
+     * depth target that does not paint cannot be got above, which is the same
+     * fact that made the re-skin useless.
+     */
+    {
+        struct PorcelainItem item;
+
+        memset(&item, 0, sizeof(item));
+        item.key = "bar-rock";
+        item.image = rock.name;
+        item.w = bar.box.width;
+        item.h = bar.box.height;
+        item.place.kind = PORCELAIN_AT_CANVAS;
+        item.place.dx = bar.box.x;
+        item.place.dy = bar.box.y;
+        item.place.depth = PORCELAIN_EL(CHAT);
+        item.place.behind = true;
+        /* The bar's own presented state and not the chat's: a script that puts
+         * the filter row away must take its rock with it. */
+        item.visible_with = PORCELAIN_EL(CHAT_BAR);
+        describe->piece(describe, &item);
+    }
 
     if( Porcelain_Element(state->porcelain, PORCELAIN_EL(CHAT_BACKING), &backing) &&
         backing.box.width > 0 && backing.box.height > 0 )
@@ -4564,15 +4635,21 @@ mobile_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
      * used to fall straight through and walk the player somewhere. The blockers
      * are pieces -- owned controls under the live widgets -- so the chat's
      * scrollbar and the panel's items still take their own taps first. The
-     * sheet's runs from the block's top to the usable floor, and the SURFACE's
-     * columns rather than the torn parchment's: a blocker cut to the picture
-     * would swallow taps on world the player can see.
+     * sheet's runs from the block's top to the block's BOTTOM, and the
+     * SURFACE's columns rather than the torn parchment's: a blocker cut to
+     * the picture would swallow taps on world the player can see.
+     *
+     * The bottom used to be the usable floor, which was the same number while
+     * the block was hung flush to it. It is not any more: the block sits on
+     * the bottom margin like everything else on that edge, and a blocker that
+     * still ran to the floor would make those four rows of visible world a
+     * dead band -- the defect this blocker exists to avoid, four pixels tall.
      */
     if( g_frame.chat_placed )
         mobile_blocker(
             ctx,
             (struct ToriRS_Rect){ g_frame.surface[FRAME_SURFACE_CHAT].rect.x, g_frame.chat_y,
-                                  g_frame.chat_w, g_frame.canvas_h - g_frame.chat_y },
+                                  g_frame.chat_w, g_frame.chat_bottom - g_frame.chat_y },
             "Type");
     if( g_drawer_open )
         mobile_blocker(
