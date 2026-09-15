@@ -1,0 +1,45 @@
+# The loot tracker's record/inference MERGE, before and after.
+#
+# SERIAL, two binaries. BEFORE is fix/trackers-4 (963095f6d, built as
+# torirs_ltpre in its own worktree with its own manifests); AFTER is this tree.
+# Both defects are in C, so pointing TORIRS_SHOT_WORKTREE at the old tree would
+# change nothing -- TORIRS_SHOT_BIN is what selects the side.
+#
+# THE STIMULUS IS THE POINT. Every loot capture before these drove ::lootkill,
+# which feeds the client's own record and makes NO npc despawn -- so the
+# despawn/spawn inference path that ungating lt_sync_store armed on the CS2
+# lanes could not appear in one of them. This drive makes a real kill on the
+# embedded server and the chat band proves it: "Spawned 1 x Goblin (3028) at
+# 3211,3425." then "Attacking Goblin (slot 1438, 1 tiles)." ::god 1 keeps the
+# player up and ::setlevel attack/strength 99 makes the fight short enough to
+# finish inside 700 frames.
+#
+# ltfix-548-origin is the control that says which account the band came from:
+# it is the SAME drive on 0f1e7b528, where inference is off on CS2 altogether,
+# and the Goblin band is still there. So the CS2 record is fed by real kills,
+# the inferred band is a duplicate, and the correct result is that the page
+# does not change. It does not: the loot-page rect (0,70,340,345) differs by 0
+# pixels between pre and after on all four toplevels. Without the per-source
+# rule it would read "Goblin x 2".
+#
+# The four full frames differ outside that rect -- world scene and the
+# performance readout -- and on classic161 by a 4px column at x=4..7, which is
+# the floor to the LEFT of the panel (the panel's own edge is x=8) showing a
+# character in a different animation frame.
+
+ltfix-548-pre          loot-tracker cs2        'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-548-after        loot-tracker cs2        'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-548-origin       loot-tracker cs2        'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-classic161-pre   loot-tracker classic161 'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-classic161-after loot-tracker classic161 'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-modern164-pre    loot-tracker modern164  'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-modern164-after  loot-tracker modern164  'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-stone601-pre     loot-tracker stone601   'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-stone601-after   loot-tracker stone601   'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+
+# The live CS1 lane, which is the one the original defect was reported on.
+# TORIRS_LC_USER must differ per run (reply 5 holds the previous session for
+# about a minute) and the account needs the two-phase tutorial skip first --
+# ltfix-live-setup-a/b are phase one, and phase two is the same account again.
+# @see the lostcity-live-cs1-shot-lane note.
+ltfix-live-try1        loot-tracker cs1live    'TORIRS_SIM_CMD=200,lootkill Goblin 995 5000' TORIRS_SIM_PLUGIN_PANEL=1200,loot-tracker,page TORIRS_SHOT_FRAMES=1400
