@@ -307,6 +307,24 @@ struct XpDrop
 };
 
 #define ORB_DROP_MAX 8
+/*
+ * There is deliberately NO gutter between two separated labels.
+ *
+ * Five full drops on one row settle exactly touching, and
+ * "+13,034,431+13,034,431" has no seam in it -- which is worth two columns of
+ * air, and two columns is what it cannot have. Five 59px labels need 295
+ * columns and the row is five globes on a 50px pitch, so the outermost label
+ * is already 20 columns from its own globe's centre; adding four gutters puts
+ * it past 25, which is half the pitch, which is the point at which a label
+ * sits nearer the NEXT globe's centre than its own and the number reads as the
+ * wrong skill's.
+ *
+ * So the crowding stays. Misattributing a number is a worse failure than
+ * making the reader look twice at where one ends, and the half-pitch bound is
+ * the only thing standing between the two. Measured, not argued: adding
+ * ORB_DROP_GUTTER 2 turns "each label stays within half a pitch of its own
+ * globe" red.
+ */
 
 /** One tooltip row: a label on the left in orange, a value on the right in
  *  white -- the reference's LineComponent, which is the whole panel. */
