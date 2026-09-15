@@ -375,6 +375,17 @@ enum FrameLayout
 /** Sidebar tabs, in the order every revision since 2001 numbers them. */
 #define FRAME_TAB_COUNT 14
 
+/**
+ * The tab a frame with a PERMANENT side well opens when the lane has none.
+ *
+ * The inventory, which is three in both numberings this file deals with --
+ * FRAME_TAB_SCREEN_ORDER[3] is 3 -- so it needs no order table to name, and
+ * it is what the fixed toplevels themselves log in showing: 548's
+ * `frame_sidebar_3` and 161's are the one member of the fourteen that is not
+ * hidden at login. @see frame_seed_sidebar.
+ */
+#define FRAME_TAB_INVENTORY 3
+
 
 
 /*
@@ -1039,6 +1050,14 @@ struct FrameState
     struct FramePlan plan;
     /** The plan is applied and the host has our answer READY. */
     int provided;
+    /**
+     * Whether this provide has already asked the lane to open a tab.
+     *
+     * One attempt per provide and per remount, never per frame: opening the
+     * panel again every fence would make it impossible to close, and the
+     * choice after the first one is the player's. @see frame_seed_sidebar.
+     */
+    bool sidebar_seeded;
 
     /*
      * The frame event's own four numbers, carried by hand.
@@ -1327,10 +1346,68 @@ frame_lane_oldschool(struct FrameCall* ctx)
  * a state 164 (`toplevel_pre_eoc`) logs in with.
  */
 static int
-frame_sidebar_open(struct FrameCall* ctx)
+frame_sidebar_open(struct FrameState const* state)
 {
-    assert(ctx);
-    return ctx->state->tab_active_shown >= 0;
+    assert(state);
+    return state->tab_active_shown >= 0;
+}
+
+/**
+ * Does this frame's SHAPE require a tab to be open?
+ *
+ * A question about the frame the player chose, not about the lane underneath
+ * it. Both fixed layouts blit a side well, two pillars and a lid around it
+ * unconditionally -- the well is structural, and the 2004 and 548 frames it
+ * reproduces have no state in which it is not there. Only Modern Resizable
+ * has a collapsed state, because the toplevel it is shaped after has one.
+ * @see frame_layout_modern_resizable's collapsed note.
+ */
+static bool
+frame_sidebar_permanent(struct FrameState const* state)
+{
+    assert(state);
+    return state->layout == FRAME_CLASSIC_FIXED || state->layout == FRAME_MODERN_FIXED;
+}
+
+/**
+ * Open the default tab where the frame's well would otherwise stand empty.
+ *
+ * A toplevel decides for itself whether it logs in with a side panel open:
+ * 548 and 161 unhide one of their fourteen and 164 unhides none, which is
+ * 164's own reference behaviour and not a defect -- its native chrome draws
+ * two tab rows in the corner and no panel at all until a stone is pressed.
+ * A FIXED frame standing over that lane has no such state to draw. It paints
+ * the well regardless, so the lane's collapsed default showed 261 rows of
+ * bare rock with all fourteen stones idle, for as long as the player left
+ * the stones alone (measured on `gf-desktop-modern164`).
+ *
+ * So the frame asks for what its shape needs, exactly the way a stone does:
+ * the lane's own switch, through cache.tab_select. It costs nothing on a
+ * lane that logged in open, because there is nothing to ask for.
+ *
+ * Attempted ONCE, and only once the server has handed the tab over -- the
+ * same `given` test the stones wear their icons by, so a frame provided
+ * during the tutorial waits for the inventory instead of spending its one
+ * attempt on a refusal. A lane whose profile cannot switch tabs at all
+ * (no `[script:sidebar_switch]`) refuses, says so once in the bridge, and is
+ * not asked again either: the attempt is spent on being MADE, which is what
+ * keeps this off the per-frame path for good.
+ */
+static bool
+frame_seed_sidebar(struct ToriRS_Api* api, struct FrameState* state)
+{
+    assert(api);
+    assert(state);
+    if( state->sidebar_seeded )
+        return false;
+    if( !frame_sidebar_permanent(state) )
+        return false;
+    if( frame_sidebar_open(state) )
+        return false;
+    if( !api->cache.tab_enabled(api, FRAME_TAB_INVENTORY) )
+        return false;
+    state->sidebar_seeded = true;
+    return api->cache.tab_select(api, FRAME_TAB_INVENTORY);
 }
 
 /*
@@ -4117,7 +4194,7 @@ frame_layout_modern_resizable(
      * A frame-start check re-declares this frame when the answer moves.
      * @see frame_on_frame_start.
      */
-    int const sidebar_open = frame_sidebar_open(ctx);
+    int const sidebar_open = frame_sidebar_open(ctx->state);
     /*
      * The bottom row hangs off the canvas's bottom edge and the float margin
      * is kept at EVERY height, 503 included. Everything else in this column
@@ -5375,6 +5452,9 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
             (enum ToriRS_FrameBuildResult)Porcelain_FrameEvent(state->porcelain, event);
         state->provided = 0;
         state->layout = -1;
+        /* The next provide is a fresh frame over a fresh lane state. @see
+         * frame_seed_sidebar. */
+        state->sidebar_seeded = false;
         /* Porcelain_FrameEvent fences; a fence whose writes nobody committed
          * is a frame of stale layout and the layer says so. The per-frame
          * fence commits its own, and this one is not on that path. */
@@ -5423,6 +5503,15 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
     state->safe.y = event->safe.y;
     state->safe.width = event->safe.width;
     state->safe.height = event->safe.height;
+
+    /*
+     * The one thing this frame ASKS the lane for, and the only callback it is
+     * allowed to ask from. Re-polled on success so the stone it just opened
+     * is lit by THIS description rather than the next one.
+     * @see frame_seed_sidebar, and api_tab_select's dispatch gate.
+     */
+    if( frame_seed_sidebar(api, state) )
+        (void)frame_poll_tabs(api, state);
 
     result = (enum ToriRS_FrameBuildResult)Porcelain_FrameEvent(state->porcelain, event);
     Porcelain_Commit(api);
@@ -5606,7 +5695,7 @@ frame_on_frame_start(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Fram
         if( frame_poll_tabs(api, state) )
             Porcelain_Invalidate(state->porcelain);
         if( g_plan.layout == FRAME_MODERN_RESIZABLE &&
-            (frame_sidebar_open(ctx) != 0) != g_sidebar_open )
+            (frame_sidebar_open(ctx->state) != 0) != g_sidebar_open )
             api->frame.invalidate(api);
     }
     Porcelain_Fence(state->porcelain);
@@ -5614,6 +5703,9 @@ frame_on_frame_start(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Fram
     if( state->remounted )
     {
         state->remounted = false;
+        /* A remount is a new toplevel under the same frame, and a new
+         * toplevel decides its own login tab state. @see frame_seed_sidebar. */
+        state->sidebar_seeded = false;
         api->frame.invalidate(api);
     }
 }

@@ -1592,7 +1592,17 @@ v2_probe_logic(
     struct ToriRS_TickEvent const* event)
 {
     struct V2ProbeState* state = state_ptr;
-    (void)api;
+
+    /* The other side of the frame build's allowance: an ordinary tick is
+     * nobody's click and no frame's shape, and it cannot move the player's
+     * sidebar. Asked once, on the first tick, so the count stays a count. */
+    if( state->ticks == 0 )
+    {
+        int const navigation_before = g_engine.native_tab_selects;
+        CHECK(!api->cache.tab_select(api, 3) &&
+                  g_engine.native_tab_selects == navigation_before,
+              "a logic tick cannot open a sidebar tab");
+    }
     state->ticks += event->cycle;
 }
 
@@ -1711,10 +1721,24 @@ v2_probe_gameframe(
     struct ToriRS_GameframeEvent const* event)
 {
     struct V2ProbeState* state = state_ptr;
-    int navigation_before = g_engine.native_tab_selects;
+    int const navigation_before = g_engine.native_tab_selects;
 
-    CHECK(!api->cache.tab_select(api, 3) && g_engine.native_tab_selects == navigation_before,
-          "frame provision cannot issue native navigation commands");
+    /*
+     * The frame build is the one callback that is not a player's click and
+     * may still open a sidebar tab.
+     *
+     * This used to be a refusal, and the refusal was a defect: a frame whose
+     * side well is STRUCTURAL -- both fixed gameframes blit one whatever the
+     * lane is doing -- standing over a toplevel that logs in with every side
+     * panel hidden painted 261 rows of bare rock with no stone lit, and the
+     * only thing that could fill it was the lane's own switch, which no
+     * provider could reach. Narrow on purpose: on_gameframe is the only
+     * thing dispatched under PLUGIN_CALLBACK_LAYOUT, it runs on a frame the
+     * player has just chosen, and every other non-input callback is still
+     * refused -- @see v2_probe_logic. */
+    CHECK(api->cache.tab_select(api, 3) &&
+              g_engine.native_tab_selects == navigation_before + 1,
+          "a frame being built may ask the lane to open a tab");
     CHECK(state && state->marker == 3, "selected frame receives its own v2 state");
     CHECK(strcmp(event->offer_id, "test") == 0, "frame provision receives the local offer id");
     if( !event->active )
