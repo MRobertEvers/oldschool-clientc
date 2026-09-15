@@ -515,6 +515,24 @@ mobile_chat_button_x(int i, int strip_w)
  */
 #define MOBILE_ICON_NUM 2
 #define MOBILE_ICON_DEN 3
+/*
+ * And how much of its own size the KEYBOARD glyph keeps.
+ *
+ * MEASURED, not chosen: `osm_keyboard`'s 33x36 canvas carries its ink at
+ * x2..30, y13..25 -- a 29x13 keyboard. Centring that canvas in a 36x25 switch
+ * leaves the ink 3 columns of stone on the left and 4 on the right, against
+ * the 7 the scaled chat bubble gets, so the keyboard's black frame came within
+ * a pixel or two of the plate's inner bevel and read as squeezed beside it.
+ *
+ * Three quarters takes the 29 columns of ink to 22 and buys back the same 7
+ * columns of margin the bubble has. The fraction is derived from that number:
+ * 36 - 2*7 = 22, and 22/29 rounds to 3/4.
+ *
+ * The ink NEVER left the plate -- this is a margin, not an overflow, which is
+ * why it survived every unmagnified review.
+ */
+#define MOBILE_KEY_ICON_NUM 3
+#define MOBILE_KEY_ICON_DEN 4
 
 /** What a bank or a dialogue is authored for. The cache's own interfaces are
  *  built against this box, so it is placed and never resized -- only moved. */
@@ -835,6 +853,9 @@ enum MobileComposed
      *  `osm_keyboard`'s authored 33x36 transparent canvas.
      *  @see MOBILE_ICON_NUM. */
     ART_ICON_CHAT = ART_CHAT_BUTTON_0 + MOBILE_CHAT_BUTTON_COUNT,
+    /** The keyboard glyph, fitted to the switch the same way.
+     *  @see MOBILE_KEY_ICON_NUM. */
+    ART_ICON_KEYBOARD,
     /** The two backing plates, turned: one whole column each. */
     ART_PLATE_0,
     ART_PLATE_1,
@@ -2544,6 +2565,19 @@ mobile_art(struct MobileCall* ctx, int which)
                 (icon_w * MOBILE_ICON_NUM) / MOBILE_ICON_DEN,
                 (icon_h * MOBILE_ICON_NUM) / MOBILE_ICON_DEN);
     }
+    else if( which == ART_ICON_KEYBOARD )
+    {
+        int icon_w = 0;
+        int icon_h = 0;
+
+        if( g_api->assets.image_size(
+                g_api, mobile_image(ctx, IMG_ICON_KEYBOARD), &icon_w, &icon_h) &&
+            icon_w > 0 && icon_h > 0 )
+            art->ref = mobile_compose_scaled(
+                ctx, name, mobile_image(ctx, IMG_ICON_KEYBOARD),
+                (icon_w * MOBILE_KEY_ICON_NUM) / MOBILE_KEY_ICON_DEN,
+                (icon_h * MOBILE_KEY_ICON_NUM) / MOBILE_KEY_ICON_DEN);
+    }
     else if( which >= ART_CHAT_BUTTON_0 && which < ART_CHAT_BUTTON_0 + MOBILE_CHAT_BUTTON_COUNT )
         art->ref = mobile_compose_chat_button(ctx, name, which - ART_CHAT_BUTTON_0);
     /*
@@ -2734,7 +2768,7 @@ mobile_ui_node(
         t->box = bounds;
         t->face = g_frame.toggle_art;
         t->glyph = name[0] == 'c' ? mobile_art(ctx, ART_ICON_CHAT)
-                                  : mobile_art_file(ctx, IMG_ICON_KEYBOARD);
+                                  : mobile_art(ctx, ART_ICON_KEYBOARD);
         return;
     }
     if( strcmp(name, "frame.sidebar.rail") == 0 )
@@ -4853,8 +4887,34 @@ mobile_describe_chat_dress(struct MobileCall* ctx, struct ToriRS_PorcelainDescri
     if( Porcelain_Element(state->porcelain, PORCELAIN_EL(CHAT_BACKING), &backing) &&
         backing.box.width > 0 && backing.box.height > 0 )
     {
-        int const h = backing.box.height + MOBILE_O_PAPER_PAD_T + MOBILE_O_PAPER_PAD_B;
-        struct MobileArt const paper = mobile_paper_art(ctx, backing.box.width, h);
+        /*
+         * The sheet stops ABOVE THE BAR, and the bar's own box says where.
+         *
+         * The backing runs the whole height of the pack, the stone bar
+         * included, so a sheet sized to the backing puts its last rows -- the
+         * nine-patch's torn BOTTOM fringe, the one edge that makes the
+         * parchment read as paper -- underneath `bar-rock`, which is drawn
+         * over them. The paper then met the rock at a straight horizontal cut
+         * while its other three edges were torn. Measured on classic548: sheet
+         * 0,320,519x170 ends at 489 and the bar starts at 476, so 14 rows went
+         * under it; on stone601, 10 of the 12 inked rows.
+         *
+         * This is the same rule MOBILE_CHAT_Y already states for the 2004
+         * branch -- pin the block by the ART's last inked row, not by the
+         * surface's -- said here for the OldSchool one, which never got it.
+         *
+         * From the BAR'S OWN BOX and not from MOBILE_STRIP_H: the rock above
+         * is placed at `bar.box`, and a sheet clipped against a constant while
+         * the rock is drawn at the lane's number is the two-sources-of-truth
+         * the straight seam came from. The lane's bar is 23 tall here, not 36.
+         */
+        int h = backing.box.height + MOBILE_O_PAPER_PAD_T + MOBILE_O_PAPER_PAD_B;
+        int const sheet_top = backing.box.y - MOBILE_O_PAPER_PAD_T;
+        struct MobileArt paper;
+
+        if( bar.box.height > 0 && bar.box.y > sheet_top && bar.box.y - sheet_top < h )
+            h = bar.box.y - sheet_top;
+        paper = mobile_paper_art(ctx, backing.box.width, h);
 
         if( paper.name )
         {
@@ -5268,6 +5328,7 @@ mobile_on_start(struct ToriRS_Api* api, void* state_ptr)
         case ART_MINIMAP_MASK: literal = "minimap_mask.png"; break;
         case ART_COMPASS_MASK: literal = "compass_mask.png"; break;
         case ART_ICON_CHAT: literal = "icon_chat_fit.png"; break;
+        case ART_ICON_KEYBOARD: literal = "icon_keyboard_fit.png"; break;
         case ART_PLATE_0: literal = "plate_l.png"; break;
         case ART_PLATE_1: literal = "plate_r.png"; break;
         case ART_O_RAIL: literal = "osrs_rail_plate.png"; break;

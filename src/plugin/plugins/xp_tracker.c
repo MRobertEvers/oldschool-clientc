@@ -137,9 +137,29 @@
 /** The skill icon: 25x25 at x=3, y=+3. */
 #define XT_ICON 25
 #define XT_ICON_X 3
-/** The bar: 15 tall, at `2 + 25` down the box. */
+/** The bar's height, as script5365 sets it. */
 #define XT_BAR_H 15
-#define XT_BAR_Y (XT_BOX_GAP + XT_ICON)
+/**
+ * The bar's top: one row BELOW the icon's last row.
+ *
+ * The icon is blitted at `top + XT_BOX_GAP + 1` and is XT_ICON tall, so its
+ * last row is `top + XT_BOX_GAP + XT_ICON`. At the script's own `2 + 25` the
+ * bar started ON that row and won it, and seven of the twenty-five cells in
+ * skills.png carry ink in source row 24 -- the Attack sword's pommel came out
+ * cut flat. The +1 is the row the two were sharing.
+ *
+ * There is room: the bar now runs to `top + XT_BOX_GAP + XT_ICON + XT_BAR_H`
+ * = top+42, five rows clear of the box's bottom border at top+47.
+ */
+#define XT_BAR_Y (XT_BOX_GAP + XT_ICON + 1)
+/**
+ * The bar is drawn INSIDE the box's 1px outline, not over it.
+ *
+ * PluginDraw_Frame draws that outline at column 0 and column w-1; a bar
+ * filled from 0 for w columns erased both of them for its fifteen rows, so
+ * the box had an outline above and below the bar and none beside it.
+ */
+#define XT_BAR_INSET 1
 /** The stat grid's line box. */
 #define XT_LINE_H 12
 #define XT_PAD 4
@@ -1161,6 +1181,7 @@ xt_draw_box(
     int next_xp;
     int level;
     int bar_y;
+    int bar_w;
     int fill_w;
     int key_w = 0;
     int val_w;
@@ -1242,17 +1263,21 @@ xt_draw_box(
     /* Only 200m is done. Level 99 continues through the cache's virtual-level
      * thresholds; level 126 continues to the final 200m "Max!" goal. */
     done = progress.done;
-    fill_w = done
-                 ? w
-                 : (int)(((long long)(xp - level_xp) * w) / (next_xp - level_xp));
+    /* Every span below is measured in the INSET width, so a full bar stops at
+     * the outline instead of painting over it. */
+    bar_w = w - 2 * XT_BAR_INSET;
+    if( bar_w < 0 )
+        bar_w = 0;
+    fill_w = done ? bar_w
+                  : (int)(((long long)(xp - level_xp) * bar_w) / (next_xp - level_xp));
     if( fill_w < 0 )
         fill_w = 0;
-    if( fill_w > w )
-        fill_w = w;
+    if( fill_w > bar_w )
+        fill_w = bar_w;
 
-    PluginDraw_Fill(buf, w, h, 0, bar_y, w, XT_BAR_H, XT_BAR_TRACK, 255);
-    PluginDraw_Fill(
-        buf, w, h, 0, bar_y, fill_w, XT_BAR_H, done ? XT_BAR_DONE : XT_BAR_FILL, 255);
+    PluginDraw_Fill(buf, w, h, XT_BAR_INSET, bar_y, bar_w, XT_BAR_H, XT_BAR_TRACK, 255);
+    PluginDraw_Fill(buf, w, h, XT_BAR_INSET, bar_y, fill_w, XT_BAR_H,
+                    done ? XT_BAR_DONE : XT_BAR_FILL, 255);
 
     /*
      * Its three labels: the level at each end, the percentage in the middle.

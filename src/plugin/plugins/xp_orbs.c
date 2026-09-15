@@ -980,6 +980,34 @@ orb_commas(char* out, int out_size, int value)
     out[at < out_size ? at : out_size - 1] = '\0';
 }
 
+/**
+ * `value` short enough to fit between two globes: 13.0M, 45K, 900.
+ *
+ * Used ONLY when the comma'd spelling will not fit the globe pitch, so the
+ * ordinary drop -- which is three or four digits and fits easily -- keeps the
+ * reference's exact formatting and every existing capture of it is unchanged.
+ *
+ * The full spelling of a large drop is what the collision was: "+13,034,431"
+ * measures 59 px against a 50 px pitch, so each label's tail was overpainted
+ * by the next and four of five numbers could not be read at all. A number that
+ * cannot be read carries less than a rounded one that can.
+ */
+static void
+orb_compact(char* out, int out_size, int value)
+{
+    int const magnitude = value < 0 ? -value : value;
+    char const* sign = value < 0 ? "-" : "";
+
+    assert(out);
+    if( magnitude >= 1000000 )
+        snprintf(out, out_size, "%s%d.%dM", sign, magnitude / 1000000,
+                 (magnitude / 100000) % 10);
+    else if( magnitude >= 10000 )
+        snprintf(out, out_size, "%s%dK", sign, magnitude / 1000);
+    else
+        orb_commas(out, out_size, value);
+}
+
 /** `seconds` as H:MM:SS, or MM:SS under an hour. */
 static void
 orb_duration(char* out, int out_size, int seconds)
@@ -1848,6 +1876,20 @@ orb_plan(struct XpOrbState* state, struct OrbViewport const* viewport, uint64_t 
         orb_commas(amount, sizeof(amount), drop->amount);
         snprintf(label, sizeof(label), "+%s", amount);
         slot->w = orb_text_width(state, label) + 1;
+        /*
+         * A label wider than the globe pitch is respelled short.
+         *
+         * Only on a HORIZONTAL row, where the pitch is what separates one
+         * label from the next; a vertical column puts the globes a whole
+         * globe apart down the screen and its labels never met.
+         * @see orb_compact.
+         */
+        if( !vertical && slot->w > size + gap )
+        {
+            orb_compact(amount, sizeof(amount), drop->amount);
+            snprintf(label, sizeof(label), "+%s", amount);
+            slot->w = orb_text_width(state, label) + 1;
+        }
         slot->h = g_glyph_line_h + 2;
         if( slot->w <= 0 || slot->w > ORB_SCRATCH_W || slot->h > ORB_SCRATCH_H )
             continue;

@@ -1584,9 +1584,40 @@ orbs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
             item.place.kind = PORCELAIN_AT_CANVAS;
             item.place.dx = box.x;
             item.place.dy = box.y;
-            item.visible_with = orb_bound ? PORCELAIN_ORB_EL(i) : PORCELAIN_EL(MINIMAP);
+            /* The MINIMAP and not the orb, in both cases: the orb we cover is
+             * one we also HIDE below, and a cover gated on the presented state
+             * of a node this plugin just took out of the frame would never
+             * paint at all. The cutscene facet above is what still takes the
+             * whole column away. */
+            item.visible_with = PORCELAIN_EL(MINIMAP);
         }
         describe->control(describe, &item);
+        /*
+         * And the lane's own orb goes AWAY under it.
+         *
+         * The cover is ORB_W x ORB_H of rev-239 plate, and that plate is a
+         * ROUND shape on a rectangular canvas -- its corners and its edges are
+         * clear. Where the lane's plate is not the same shape, what shows
+         * through those clear pixels is the lane's plate: on toplevel 601 a
+         * black keyline and a lower lip, measured as a 23-pixel continuous
+         * near-black run at row 5, cols 5..28 of the prayer cover, lying
+         * entirely inside the cover's transparent region. Every orb read as
+         * two stacked plates with a doubled rim.
+         *
+         * A HIDE and not a re-skin. The re-skin was tried first and was a
+         * no-op: the element reports graphic_token 0 here, and that field is a
+         * CHANGE token rather than an identity -- zero says this node is a
+         * layer, not that the orb draws nothing. The art is on a child, so the
+         * thing to take out of the frame is the subtree, which is what hide
+         * does and what a skin of the parent cannot reach.
+         *
+         * The menu rows this removes are replaced and not lost: the item above
+         * carries `hit`, `op_label` and `on_op`, so the orb keeps an operation
+         * -- which is the one thing the comment above was protecting when it
+         * refused REPLACE.
+         */
+        if( orb_bound )
+            describe->hide(describe, PORCELAIN_ORB_EL(i));
         state->described[i] = true;
     }
 }

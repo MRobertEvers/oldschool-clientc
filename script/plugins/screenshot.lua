@@ -158,6 +158,59 @@ end
 -- to an anchor implementation that no longer exists; see PORCELAIN_WITHIN in
 -- torirs_plugin_api.h. An ornament that needs no ordering should still not
 -- state one.
+-- THE PLATE THE REPLACEMENT STANDS ON.
+--
+-- REPLACE consumes the target's whole record set, and what that set contains
+-- is not the same on every root. On classic548/161 the plate under the caption
+-- belongs to the PARENT strip, so replacing the button drops the camera into a
+-- stone hollow that was already there. On modern164 the button's own subtree
+-- paints the red plate, so replacing it left a 79x23 hole with a 20x16 camera
+-- floating in the middle of it.
+--
+-- There is no way to tell those apart from the plugin: element.graphic_token is
+-- 0 on ALL FOUR toplevels (the art is on a child, and the field is a change
+-- token rather than an identity), and `facets` is a world-element word that no
+-- widget adapter fills. So the plugin stops depending on what is behind it and
+-- brings its own plate, at whatever box the lane reports.
+--
+-- The palette is MEASURED off the hollow the port already looked right in --
+-- plugins/screenshot-classic548.png, box 444,480,79x23 -- so the lane that was
+-- correct stays closest to what it was: #15120e is its darkest line, #776754
+-- its lit edge, and the three between are its body.
+local PLATE_EDGE = 0x15120e
+local PLATE_LIT = 0x776754
+local PLATE_LIGHT = 0x4b4235
+local PLATE_MID = 0x423a2f
+local PLATE_DARK = 0x2e2a24
+local PLATE_OPAQUE = 0xff000000
+
+-- One plate, as the w*h table of ARGB cells porcelain.derived wants back.
+-- Painted at most once per (key, size): the layer hashes the inputs.
+local function plate_pixels(w, h)
+    local out = {}
+    for y = 0, h - 1 do
+        local row = y * w
+        for x = 0, w - 1 do
+            local i = row + x + 1
+            local corner = (x == 0 or x == w - 1) and (y == 0 or y == h - 1)
+            if corner then
+                out[i] = 0                      -- a clipped corner, not a square plate
+            elseif x == 0 or x == w - 1 or y == 0 or y == h - 1 then
+                out[i] = PLATE_OPAQUE + PLATE_EDGE
+            elseif y == 1 then
+                out[i] = PLATE_OPAQUE + PLATE_LIT
+            elseif y == h - 2 then
+                out[i] = PLATE_OPAQUE + PLATE_DARK
+            elseif y * 2 < h then
+                out[i] = PLATE_OPAQUE + PLATE_LIGHT
+            else
+                out[i] = PLATE_OPAQUE + PLATE_MID
+            end
+        end
+    end
+    return out
+end
+
 local function corner_item(where)
     return camera("camera", "camera.png",
         { kind = "within", on = "viewport", corner = CORNERS[where], dx = MARGIN, dy = MARGIN })
@@ -171,6 +224,10 @@ local function hold_icons()
     API.porcelain.image("camera_small.png")
 end
 
+-- The derived plate's name. A name and not a handle: the layer re-reads it at
+-- every fence and the description has to outlive the call that made it.
+local PLATE_KEY = "camera_plate.png"
+
 local function describe(d)
     local where = API.config.camera
     hold_icons()
@@ -181,9 +238,22 @@ local function describe(d)
         -- layer defers the item until it does. ABSENT is a lane fact -- no
         -- chat-filter art at all -- already reported on the findings channel;
         -- the camera goes to a corner rather than nowhere.
-        if API.porcelain.element("report_button").bind ~= "absent" then
-            item = camera("camera_report", "camera_small.png",
-                { kind = "replace", on = "report_button" })
+        local report = API.porcelain.element("report_button")
+        if report.bind ~= "absent" and report.box.width > 0 and report.box.height > 0 then
+            local bw, bh = report.box.width, report.box.height
+            local _, state = API.porcelain.derived(
+                PLATE_KEY, bw .. "x" .. bh, bw, bh, plate_pixels)
+            if state == "ready" then
+                -- The plate takes the target's place at the target's own size,
+                -- so nothing of what REPLACE removed is left as a hole. It
+                -- carries no hit box: the camera above it owns the press.
+                d.control({ key = "camera_plate", image = PLATE_KEY, w = bw, h = bh,
+                            place = { kind = "replace", on = "report_button" } })
+                -- INSIDE, so the camera is anchored OVER the button and lands
+                -- after the plate in the same unit's draw order.
+                item = camera("camera_report", "camera_small.png",
+                    { kind = "inside", on = "report_button", corner = "centre" })
+            end
         else
             item = corner_item("bottom-right")
         end
