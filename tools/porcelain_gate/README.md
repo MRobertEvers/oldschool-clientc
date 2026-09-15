@@ -184,7 +184,7 @@ make -C src test-porcelain OPT=0 PLATFORM_OBJ_BASE=build_dbg
 and the same for your own plugin's suite. It is one extra build and it is the
 only thing in this harness that can see an assert at all.
 
-## Two traps that cost real time
+## Three traps that cost real time
 
 **Absolute paths.** Both scripts resolve every path they are given to an
 absolute one before the client runs, because the client runs from the data
@@ -195,6 +195,36 @@ handled; the symptom when it was not was six lanes exiting 1 with no log file.
 isolated `stone601` rerun of an *unchanged* plugin has been observed to drop a
 control entirely and shift 58 scene ids. Eight lanes run sequentially are stable;
 one lane run on a busy machine is not. Judge a set, never a lane.
+
+**A whole set is not repeatable either -- two lanes have a measured flip.**
+"Judge a set, never a lane" is still right, and it is not the same claim as "a
+set is repeatable". Four sets captured back to back from two binaries -- two
+from each -- disagree on two lanes and only these two:
+
+| set | binary | `stone601` 162&#124;8 | `remount164` iface 729 |
+|---|---|---|---|
+| before  | A | graphic=5781 | 0 components |
+| before2 | A | graphic=5781 | 17 components |
+| after   | B | graphic=5779 | 17 components |
+| after2  | B | graphic=5781 | 17 components |
+
+- `remount164` sometimes loses **interface 729** entirely -- all seventeen
+  components of the popout panel's layer stack. Every other CS2 lane carries
+  those seventeen in every run; this one drops them when the layout switch at
+  frame 500 beats the panel's mount. Two runs of the SAME binary: 7178 bounds
+  against 7195, differing by exactly those seventeen lines.
+- `stone601`'s **first chat filter** (162|8) is sometimes `graphic=5781` and
+  sometimes `5779`, while the other five filters are 5779 in every run. The
+  same binary produced both, so the value is not a function of the code under
+  test.
+
+Neither is a reason to wave a red lane through -- both of these were
+investigated as real before they were shown not to be, and the investigation is
+what produced the table. But when a lane fails on one of these two signatures
+and nothing else, the cheap check is to capture a SECOND set from one of the
+two binaries and diff same-binary against same-binary. Two sets from one binary
+that disagree in the same way is proof; "my change cannot reach that lane" is
+not, because the honest answer to "can it?" is usually longer than the rerun.
 
 ## Data versus code
 
