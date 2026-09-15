@@ -240,7 +240,13 @@ PAR_JOBS=1 zsh par.sh jobs/<file>.txt
 python3 vs_control.py plugins/control-<lane>.png plugins/<shot>.png
 python3 zoom.py <in.png> <out.png> <x> <y> <w> <h> [scale]
 python3 detail_lengths.py
+python3 shot_rules.py          # what a tracked capture has to still be true of
 ```
+
+`shot_rules.py` is the one of those that can FAIL. Everything else here makes a
+picture; it re-measures the numbers that closed a defect, so a capture that has
+gone stale — or a fix that has come undone — stops being something a reader has
+to notice and becomes something a gate says.
 
 `jobs/` is the drive for every shot, with the reason for each in place. The
 five things that cost a run each to learn, so nobody pays for them twice:
@@ -300,10 +306,49 @@ one of them has to be re-taken before it can be read. The tile indicator's
 eleven are done — `tileind-{c,lua}-{cs2,cs1,live}`, `tile-{c,lua}-all-{cs2,cs1}`,
 `pair-tiles`, `toggle-tile-off`, and `tileind-c-cs2-before.png` is the same
 drive on a binary built before the fix, kept as the picture of what the bug
-looked like. These SEVEN are still pre-fix and belong to their own plugins'
-owners: `itemstats-hover-cs2`, `itemstats-hover-cs1`, `itemstats-live`,
-`nxthl-hover-cs2`, `nxthl-hover-cs1`, `nxthl-tile-cs2`, `nxthl-live`. Re-taking
-one is its job row and nothing else.
+looked like. `nxthl-tile-cs2` and its control `nxthl-tile-none-cs2` are done
+too — see below, because that pair was pre-fix TWICE over and is the reason
+`shot_rules.py` exists. These FIVE are still pre-fix and belong to their own
+plugins' owners: `itemstats-hover-cs2`, `itemstats-hover-cs1`,
+`itemstats-live`, `nxthl-hover-cs2`, `nxthl-hover-cs1`, `nxthl-live`.
+Re-taking one is its job row and nothing else.
+
+### `nxthl-tile-{cs2,none-cs2}` — two fixes photographed as live bugs
+
+The pair was taken at 21:31 and 22:02 with the `83c75b410` binary. `190648c80`
+(a tile border is the cache's thickness, and 0 is no border) landed at 22:32
+and `74fc1f13f` (the parked pointer stopped costing a session) at 22:35, and
+neither re-took them. So the headline picture of nxt-highlight showed a hard
+opaque rim around a group the cache states at `outline=0`, over a session the
+net watch had torn down — both already repaired, both re-reported off the
+picture a day later as `NXTHL-TILE-CS2-STALE-PREFIX-548`.
+
+Re-taken here with the same drive on a binary built from this tree — the
+`plugins.ini` and `preferences.ini` of the new runs `diff` clean against the
+old ones, so the BINARY is the only variable on that axis. The control had no
+job row at all and had to be reconstructed from its run directory before it
+could be re-taken; it has one in `jobs/reruns.txt` now, beside the shot's.
+Measured rather than admired:
+
+| | pre-fix pair | re-taken pair |
+|---|---|---|
+| unblended `0xBEBA6E` in the frame | **389** | **0** |
+| the tile's interior, px (293,200) | `(105,103,78)` | `(105,103,78)` |
+| the same px in the CONTROL | `(74,72,67)` | `(74,72,67)` |
+| pure white in the viewport band `y150..220` | **649** | **0** |
+
+The first row is the rim; the second says the WASH survived it, which is the
+half that separates "the border is gone" from "the plugin stopped drawing";
+the third is what makes the control a control; the fourth is the teardown
+banner's text. An A/A pair — two runs, the same ini, the same binary — moves
+nothing in the tile band and reproduces every other difference between shot and
+control, so the entity and minimap deltas are run-to-run and only the tile is
+the plugin's.
+
+All four measurements are pinned in `shot_rules.py`, which fails on the pre-fix
+pair with three of its five rules and passes on the re-taken one. A measurement
+that closed a defect belongs in a file that runs, not in a paragraph.
+
 hover the wrong tile.** FIXED -- both halves were in `frame_loop_teardown`, and
 any shot older than that fix which was driven with `TORIRS_SIM_HOVER` shows one
 or both. They are worth knowing by sight, because that is how you date a shot:
