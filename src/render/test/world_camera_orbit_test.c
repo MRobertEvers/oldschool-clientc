@@ -288,6 +288,55 @@ test_yaw_wraps_and_pitch_does_not(void)
 }
 
 static void
+test_a_parked_angle_holds_for_the_rest_of_a_capture(void)
+{
+    struct WorldCameraOrbit parked;
+    struct WorldCameraOrbit coasting;
+    struct WorldCameraLimits const limits = osrs_limits();
+    struct WorldCameraKeys const keys = no_keys();
+    int i;
+
+    printf("TEST: an angle parked with no velocity holds; one parked over a velocity does not\n");
+
+    /*
+     * The property TORIRS_SIM_CAMERA_YAW depends on, and the reason it writes
+     * `orbit` and zeroes the velocity rather than writing world_camera.yaw.
+     *
+     * A capture parks the camera at a chosen angle hundreds of frames before
+     * the frame it photographs -- the entity highlighter's live shot parks at
+     * loop frame 1500 and the BMP is written at 2200 -- so "the camera is
+     * where the drive put it" is a claim about seven hundred cycles, not about
+     * the cycle after the write. Nothing here is a still frame can check: a
+     * camera that creeps two units a cycle looks exactly like a camera that
+     * does not, until the subject leaves the viewport.
+     */
+    WorldCameraOrbit_Reset(&parked);
+    parked.yaw = 1878;
+    parked.pitch = 148;
+    for( i = 0; i < 700; i++ )
+        WorldCameraOrbit_StepAngles(&parked, &keys, &limits);
+    CHECK(parked.yaw == 1878, "a parked yaw drifted to %d over 700 cycles", parked.yaw);
+    CHECK(parked.pitch == 148, "a parked pitch drifted to %d over 700 cycles", parked.pitch);
+
+    /*
+     * And the negative control that says the zeroing is load-bearing: the same
+     * park with a turn still coasting under it ends up somewhere else
+     * entirely, because a released key halves what is left rather than
+     * dropping it. A park that inherited the player's last camera nudge would
+     * photograph a different angle every run.
+     */
+    WorldCameraOrbit_Reset(&coasting);
+    coasting.yaw = 1878;
+    coasting.pitch = 148;
+    coasting.yaw_velocity = 23;
+    for( i = 0; i < 700; i++ )
+        WorldCameraOrbit_StepAngles(&coasting, &keys, &limits);
+    CHECK(
+        coasting.yaw != parked.yaw,
+        "a coasting yaw_velocity changed nothing -- the park's zeroing is not doing anything");
+}
+
+static void
 test_the_terrain_clamp_rises_faster_than_it_falls(void)
 {
     struct WorldCameraOrbit rising;
@@ -545,6 +594,7 @@ main(void)
     test_a_held_key_accelerates_and_a_released_one_coasts();
     test_the_two_axes_and_their_directions();
     test_yaw_wraps_and_pitch_does_not();
+    test_a_parked_angle_holds_for_the_rest_of_a_capture();
     test_the_terrain_clamp_rises_faster_than_it_falls();
     test_the_clamp_only_ever_raises_the_pitch();
     test_the_distance();
