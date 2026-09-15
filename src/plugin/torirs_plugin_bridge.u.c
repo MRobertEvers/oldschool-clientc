@@ -4012,6 +4012,31 @@ app_plugin_role_node(struct App* app, char const* role)
         return -1;
 
     slot = app_plugin_role_slot(role);
+    /*
+     * The sidebar's container is where its tab mounts actually hang, and that
+     * is a question about the TREE rather than about the lane.
+     *
+     * Both callers used to ask it as `App_UiLogic(app) == APP_UI_LOGIC_CS2`,
+     * which is the one shape this whole layer exists to keep out of plugins --
+     * and it was in the bridge, where it is worse, because every plugin
+     * inherits it without being able to see it. What the branch was really
+     * standing in for is that on a cache gameframe the block a profile names
+     * `sidebar` is the side-modal region, while the fourteen numbered tab
+     * mounts hang together under the container a plugin means when it says
+     * "the sidebar".
+     *
+     * Their common parent is that container, it is derived from the frame
+     * binder's own numbering rather than from a lane name, and where the frame
+     * can answer it the answer is right on every lane. Where it cannot -- the
+     * mounts disagree about their parent, or the frame numbered none -- the
+     * declared block is still the best available answer and nothing changes.
+     */
+    if( slot == TORIRS_HOST_SURFACE_SIDEBAR )
+    {
+        int32_t const group = UITree_FrameSlotGroupNode(app->tree, UITREE_FRAME_SLOT_SIDEBAR);
+        if( group >= 0 )
+            return group;
+    }
     if( slot >= 0 && slot < TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
         return app_plugin_slot_node_cached(app, slot);
     if( slot >= 0 )
@@ -4416,8 +4441,6 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
             }
         }
         int32_t idx=app_plugin_role_node(app,r->name);
-        if( strcmp(r->name,"sidebar")==0 && App_UiLogic(app)==APP_UI_LOGIC_CS2 )
-            idx=UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR);
         PA_ADD(find_all_ns, PerfAudit_Now() - pa_fa0);
         if( idx<0 ) return TORIRS_CONTRACT_UNAVAILABLE;
         *r->count=1;
@@ -4429,8 +4452,6 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     {
         int32_t idx = r->kind == PLUGIN_WIDGET_FIND
             ? app_plugin_role_node(app, r->name) : UITree_FindByComponentId(tree, r->id);
-        if( r->kind == PLUGIN_WIDGET_FIND && strcmp(r->name,"sidebar") == 0 && App_UiLogic(app) == APP_UI_LOGIC_CS2 )
-            idx = UITree_FrameSlotGroupNode(tree,UITREE_FRAME_SLOT_SIDEBAR);
         *r->refs = app_widget_ref(tree, idx);
         return r->refs->opaque[2] ? TORIRS_CONTRACT_OK : TORIRS_CONTRACT_UNAVAILABLE;
     }
