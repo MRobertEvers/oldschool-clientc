@@ -368,9 +368,32 @@ struct OrbGlobePicture
 };
 
 /** The same, for a "+N" label. @see orb_paint_drop. */
+/*
+ * The drop label's TEXT, not the number it came from.
+ *
+ * This used to carry `int32_t amount` and let the painter spell it, which put
+ * the decision in two places: `orb_plan` measured one spelling to size the
+ * control, and `orb_paint_drop` re-derived another to fill it. The moment the
+ * two could disagree -- a large drop respelled short to fit the globe pitch --
+ * the painter went on writing the long one into a box sized for the short one,
+ * and the engine clipped it mid-glyph. "+13,034,431" came out as "+13,03" with
+ * a one-pixel slice of the next digit: not a rounded number, a truncated one,
+ * which is worse than the collision it was meant to repair.
+ *
+ * So the plan decides and the painter obeys. There is no spelling rule on the
+ * paint side at all any more, which is what makes the two impossible to
+ * disagree rather than merely unlikely to.
+ *
+ * These bytes are also the derived image's CACHE KEY (@see Porcelain_Derived,
+ * which hashes `sizeof(*this)`), so the array is zero-filled before it is
+ * written: whatever sat past the terminator would otherwise make two identical
+ * labels hash differently and repaint for nothing. For the same reason the
+ * char array comes first and the two int32_t after it -- 24 + 4 + 4 with no
+ * padding hole for uninitialised bytes to hide in.
+ */
 struct OrbDropPicture
 {
-    int32_t amount;
+    char text[24];
     int32_t rgb;
     int32_t art;
 };
@@ -1482,17 +1505,14 @@ orb_paint_drop(struct ToriRS_Api* api, void* user, uint32_t* argb, int w, int h)
     struct OrbPaintCall const* call = user;
     struct XpOrbState* state = call->state;
     struct OrbDropPicture const* picture = &state->plan.drop[call->slot].picture;
-    char amount[20];
-    char label[24];
 
     assert(api);
     assert(call);
     assert(argb);
     (void)api;
 
-    orb_commas(amount, sizeof(amount), picture->amount);
-    snprintf(label, sizeof(label), "+%s", amount);
-    orb_text(state, argb, w, h, 0, 0, label, ORB_TEXT_WHITE, (uint32_t)picture->rgb);
+    /* Exactly the string orb_plan measured this buffer for. @see OrbDropPicture. */
+    orb_text(state, argb, w, h, 0, 0, picture->text, ORB_TEXT_WHITE, (uint32_t)picture->rgb);
     return true;
 }
 
@@ -1921,7 +1941,10 @@ orb_plan(struct XpOrbState* state, struct OrbViewport const* viewport, uint64_t 
          */
         if( slot->opacity <= 0 )
             slot->opacity = 1;
-        slot->picture.amount = drop->amount;
+        /* Zero-filled first: these bytes are the derived image's cache key and
+         * snprintf leaves whatever was past the terminator. */
+        memset(slot->picture.text, 0, sizeof(slot->picture.text));
+        snprintf(slot->picture.text, sizeof(slot->picture.text), "%s", label);
         slot->picture.rgb = (int32_t)orb_skill_rgb(api, drop->skill);
         slot->picture.art = state->art;
     }
