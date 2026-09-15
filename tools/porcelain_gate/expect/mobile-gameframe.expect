@@ -1,0 +1,37 @@
+# What the mobile-gameframe port changes on purpose, and why.
+#
+# Run it as:
+#   gate_diff.py --expect tools/porcelain_gate/expect/mobile-gameframe.expect <pairs...>
+#
+# One line, and that is the whole of it: six of the seven lanes are byte
+# identical, and the seventh differs only in an internal handle. Every rectangle
+# of the Stone Drawer -- the housing, the two rail plates, the fourteen rocks,
+# their stones and icons, the two switches and their glyphs, the three tap
+# blockers, the four filter plates, the torn sheet -- is the number it was, on
+# every lane, before and after.
+#
+# Every line here is a claim a reader is meant to be able to disagree with. If
+# you think one of them is wrong, the argument is with the reason, not with the
+# tool.
+
+# --------------------------------------------------------------------------
+# The shipped art lands in different image slots on the touch lane.
+#
+# Every box, every size and every hidden bit of all fifty-seven owned controls
+# is identical. What moved is the internal slot number the client hands a
+# picture, because the layer now owns when a picture a DESCRIPTION names is
+# asked for: it is requested on the describe that first names it instead of all
+# sixty-eight at once from on_start, and everything allocated afterwards
+# renumbers. The pictures this frame COMPOSES for itself renumber with them --
+# fourteen turned stones, two turned plates, the parchment, the chat bar -- for
+# the same reason, because they are composed on the describe that first asks
+# rather than in one all-or-nothing latch.
+#
+# THE CLAIM, stated so it can be argued with: a slot id is an internal handle
+# and not behaviour. Nothing reads it, nothing persists it, and no two builds
+# are obliged to agree on it. This is the same line the gameframe-layout and
+# minimap-orbs ports carry, for the same reason, and the same trade is
+# available: byte-identity costs keeping every picture resident for the life of
+# the client, which is a worse deal than this line on the one machine this
+# frame is for.
+normalise scene = the image slot is an internal handle, and requesting a picture on the describe that names it renumbers what is allocated after it

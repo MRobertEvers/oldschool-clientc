@@ -1,0 +1,59 @@
+dump          : C:/Users/mrobe/.claude/jobs/6a36cf9a/tmp/out_eip3/E1-d3d9.eip.txt
+binary        : C:/Users/mrobe/Documents/git_repos/oldschool-clientc/.claude/worktrees/d3d9-profile/dist/win32/torirs.exe
+module base   : 0x00400000   (nm range 0x00401000-0x0083c570)
+samples       : 8857 over 25.4 s (348 Hz), 6662 in image (75.2%), 0 suspend failures
+
+=== inside the executable ===
+  samples   share   at  19.7ms  symbol
+------------------------------------------------------------------------------
+     1062   11.99%    2.365 ms  _ToriDraw_ComputeProjectedFaceOrderSmall.lto_priv.0
+      461    5.20%    1.026 ms  _painter_paint_bucket.constprop.0.isra.0
+      385    4.35%    0.857 ms  _d3d9_bake_pose_vertices
+      381    4.30%    0.848 ms  _d3d9_ui_draw_sprite.lto_priv.0
+      334    3.77%    0.744 ms  _trspk_toridraw_bake_face.constprop.0
+      330    3.73%    0.735 ms  _trspk_toridraw_face_colors
+      319    3.60%    0.710 ms  _app_plugin_highlights_rebuild_pools
+      277    3.13%    0.617 ms  _emit_walk_node
+      252    2.85%    0.561 ms  _ToriDraw_AnimApplyTransform
+      245    2.77%    0.545 ms  _toridraw_project_vertices_noclip_portable.isra.0
+      235    2.65%    0.523 ms  _d3d9_draw_retained
+      230    2.60%    0.512 ms  _ToriRS_FrameNextCommand
+      220    2.48%    0.490 ms  _ToriDraw_Project.lto_priv.0
+      162    1.83%    0.361 ms  _World_CycleRegisterPainterDynamics.lto_priv.0
+      150    1.69%    0.334 ms  _scene_occluders_ground_tile_hidden
+      149    1.68%    0.332 ms  _d3d9_draw_model.lto_priv.0
+      143    1.61%    0.318 ms  _ToriDraw_CalculateCylinderAabb8point.isra.0
+       93    1.05%    0.207 ms  _trspk_toridraw_world_vertex
+       78    0.88%    0.174 ms  _hit_test_interactive_recursive.constprop.0
+       65    0.73%    0.145 ms  _d3d9_ui_append_quad_vertices.part.0.lto_priv.0
+       55    0.62%    0.122 ms  _app_world_frame.constprop.0
+       50    0.56%    0.111 ms  _CS2VM2_RunOp
+       43    0.49%    0.096 ms  _PlatformXIOJs5Cache_Tick
+       37    0.42%    0.082 ms  _cs2vm2_run_script_body
+       33    0.37%    0.073 ms  _app_ui_host_publish_inputs.constprop.0
+       33    0.37%    0.073 ms  _UITree_FindByComponentId
+       32    0.36%    0.071 ms  _get_next_block.lto_priv.0
+       32    0.36%    0.071 ms  _scene_occluders_point_hidden_impl
+       29    0.33%    0.065 ms  _interactive_render_present.constprop.0
+       28    0.32%    0.062 ms  _app_entity_overlay_layout.constprop.0
+       26    0.29%    0.058 ms  _UITree_LayerChildClip
+       22    0.25%    0.049 ms  ___divdi3
+       22    0.25%    0.049 ms  ___umoddi3
+       21    0.24%    0.047 ms  _ToriDraw_ModelSetBoundsCylinder
+       20    0.23%    0.045 ms  _toridraw_projected_model_hit_face.isra.0
+       18    0.20%    0.040 ms  _UITree_EmitWalk
+       17    0.19%    0.038 ms  _ToriDraw_MapSearch
+       16    0.18%    0.036 ms  _toridraw_projection_debug_print.isra.0
+       15    0.17%    0.033 ms  _app_logic_tick.constprop.0
+       15    0.17%    0.033 ms  _hmap_search.constprop.0
+
+=== outside the executable (64 KB pages, DLL granularity) ===
+  samples   share   at  19.7ms  symbol
+------------------------------------------------------------------------------
+     1383   15.61%    3.079 ms  ntdll.dll
+      643    7.26%    1.432 ms  msvcrt.dll
+      141    1.59%    0.314 ms  d3d9.dll
+       19    0.21%    0.042 ms  kernel32.dll
+        7    0.08%    0.016 ms  GDI32.dll
+        1    0.01%    0.002 ms  mswsock.dll
+        1    0.01%    0.002 ms  d3d8thk.dll

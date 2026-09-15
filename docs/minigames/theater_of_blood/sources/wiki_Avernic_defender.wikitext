@@ -1,0 +1,140 @@
+{{Infobox Item
+|version1 = Normal
+|version2 = Broken
+|version3 = Locked
+|name1 = Avernic defender
+|name2 = Avernic defender (broken)
+|name3 = Avernic defender (l)
+|image1 = [[File:Avernic defender.png]]
+|image2 = [[File:Avernic defender (broken).png]]
+|image3 = [[File:Avernic defender.png]]
+|release1 = [[7 June]] [[2018]]
+|release2 = [[7 June]] [[2018]]
+|release3 = [[29 August]] [[2019]]
+|update1 = The Theatre of Blood
+|update2 = The Theatre of Blood
+|update3 = Last Man Standing (2019)
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable1 = Yes
+|equipable2 = No
+|equipable3 = Yes
+|stackable = No
+|noteable = No
+|options1 = Wield, Dismantle, Drop
+|options2 = Drop
+|options3 = Wield, Dismantle, Drop
+|examine = A defensive weapon.
+|value1 = 2500000
+|value2 = 1
+|value3 = 2500000
+|weight = 0.453
+|id1 = 22322
+|id2 = 22441
+|id3 = 24186
+|leagueRegion = Morytania
+}}
+{{Synced switch
+|version1 = [[File:Avernic defender detail.png|left|130px]]
+|version2 = [[File:Avernic defender (broken) detail.png|left|130px]]
+|version3 = [[File:Avernic defender detail.png|left|130px]]
+}}
+The '''Avernic defender''' is a [[defender]] wielded in the [[Worn Equipment#Shield slot|shield slot]], requiring 70 [[Attack]] and [[Defence]] to wield. It is obtained by combining a [[dragon defender]] with an [[Avernic defender hilt]]. This process can be reversed to return the dragon defender, but the hilt will be '''destroyed''' in the process. This defender boasts the highest [[Strength#Strength bonus|strength bonus]] of any shield slot equipment, being 1 higher than the [[dragonfire shield]]. It also has the highest [[melee]] [[Attack#Attack bonus|attack bonuses]] of any shield slot equipment. The defensive bonuses are comparable to that of an [[adamant kiteshield]].
+
+[[Ghommal's hilt 5]] or [[Ghommal's hilt 6|6]] can be attached to it, creating [[Ghommal's avernic defender 5]] or [[Ghommal's avernic defender 6|6]] respectively, giving the bonuses of the Avernic defender and the additional benefits of the hilt. This process is reversible, returning both the hilt and the defender.
+
+Avernic weaponry was common amongst [[Zarosian]] forces in the [[Second Age]], crafted by Avernic [[Demons|demon]] smiths in the liquid fires of [[Infernus]]. Today, they are incredibly rare, and [[Verzik Vitur]]'s Avernic defender is one of the few to remain, a relic from her time in the service of [[Zaros]]. Due to its age, the full defender has been destroyed, and only the hilt remains.{{CiteNews|url=http://services.runescape.com/m=news/the-theatre-of-blood?oldschool=1|title=The Theatre of Blood|newsdate=7 June 2018|quote=During the Second Age, Avernic weaponry was common amongst the forces of the Empty Lord. These weapons, crafted by Avernic smiths in the liquid fires of Infernus, were some of the most powerful around. Today, Avernic weapons are incredibly rare, the secrets behind their creation having long since been lost. Lady Verzik's Avernic Defender is one of the few to still remain and is a relic from her time in the service of the Empty Lord. [...] Due to its age, the full defender has been destroyed, leaving behind only the hilt.}}
+
+If the player dies to a [[PvP]] death and the avernic defender is not one of the player's protected items, it will remain in the player's inventory, but will become [[(broken)|broken]], which means the item is unusable and must be repaired with {{NoCoins|600000|c}} by using the item on [[Perdu]]. The game values the defender at 600,000 GP when determining which items to protect.
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Normal
+|version2 = Broken
+|version3 = Locked
+|astab = +30
+|aslash = +29
+|acrush = +28
+|amagic = -5
+|arange = -4
+|dstab = +30
+|dslash = +29
+|dcrush = +28
+|dmagic = -5
+|drange = -4
+|str = +8
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = shield
+|image = [[File:Avernic defender equipped.png|130px]]
+|altimage = [[File:Avernic defender equipped female.png|130px]]
+}}
+
+==Creation==
+{{Recipe
+|members = Yes
+|ticks = 1
+|mat1 = Dragon defender
+|mat1cost = No
+|mat2 = Avernic defender hilt
+|output1 = Avernic defender
+|output1cost = No
+}}
+
+==Products==
+{{Uses material list|Avernic defender}}
+
+==Treasure Trails==
+{{EmoteClueHeader}}
+{{EmoteClue|tier=master|emote=Raspberry|location={{StashLocation|x=2843|y=3540|pin = redPin|text=[[Warriors' Guild]] bank}}
+ |item1=Avernic defender|cost={{GEP|Avernic defender hilt}}|variation=dragon defender
+ |item2=Dragon battleaxe
+ |item3=Slayer helmet|cost3={{GEP|Black mask}}+{{GEP|Earmuffs}}+{{GEP|Facemask}}+{{GEP|Nose peg}}+{{GEP|Spiny helmet}}}}
+{{EmoteClueBottom}}
+{{FaloItem|Dragon defender|A sword held in the other hand, red its colour, Cyclops strength you must withstand.}} This upgraded version is also accepted.
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Avernic defender}}
+
+==Transcript==
+{{Hastranscript|transclude=yes}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 July 2026
+|update = Wyrmscraig Is Out Today!
+|change = The Avernic Defender and all of its variants will no longer be protected over items of higher value. All versions of the Avernic Defender will be valued at 600,000 GP, matching their repair cost.
+}}
+{{Subject changes
+|date = 20 September 2023
+|update = Poll 80 & Shooting Stars Changes
+|change = The amount of coins dropped in place of the Avernic Defender when a player is killed by another player above level 20 [[Wilderness]] has been increased from 300,000 to 600,000 [[coins]].
+}}
+{{Subject changes
+|prerelease = yes
+|page = Avernic defender (beta)
+|date = 15 March 2018
+|update = QoL, Deadman and the Falador Party Room
+|change = The item was renamed from "Infernal defender" to "Avernic defender".
+}}
+{{Subject changes
+|daterange = 8 - 17 March 2018
+|beta = Theatre of Blood Rewards Testing
+|change = First present in the Theatre of Blood Rewards beta.
+}}
+{{Subject changes footer}}
+
+==Trivia== 
+* The term Avernic refers to a race of [[demon]]s, which are composed of the Tsutsaroth (demons such as [[K'ril Tsutsaroth]] and [[Porazdir]]), Alyaroth ([[greater demon]]s and [[black demon]]s) and Byzroth ([[lesser demon]]s) tribes.
+**In ''Old School RuneScape'', [[Thammaron]] is the only demon directly confirmed to be Avernic.{{CiteNPC|npc=Golem (Desert Treasure II)|quote=Thammaron {{*}} Designation: Foe {{*}} Race: Avernic {{*}} Rank: Legatus (Formerly) {{*}} Status: Alive {{*}} Last Known Location: Kharyrll {{*}} Notes: None.|loc=Desert Treasure II - The Fallen Empire}}
+*The root word ''Avernus'' refers to an ancient Roman gateway to the underworld.
+
+==References==
+{{Reflist}}
+
+{{Defender}}
+{{Theatre of Blood}}
+[[Category:Lockable items]]

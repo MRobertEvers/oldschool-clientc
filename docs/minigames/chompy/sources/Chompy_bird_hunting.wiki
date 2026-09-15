@@ -1,0 +1,146 @@
+{{External|rs=Chompy_bird/Strategies}}
+{{otheruses|the activity|the quest|Big Chompy Bird Hunting}}
+{{HasStrategy|page=Chompy bird hunting/Strategy}}
+{{Infobox Activity
+|name = Chompy bird hunting
+|image = [[File:Chompy Marsh.png]]
+|release = [[18 May]] [[2004]]
+|update = Big Chompy Bird Hunting
+|members = Yes
+|type = Minigame
+|skills = Ranged
+|requirements = [[Big Chompy Bird Hunting]]
+|location = [[Chompy Marsh]]<br>[[Feldip Hills]]
+|map = no
+|leagueRegion = Kandarin
+}}
+'''Chompy bird hunting''' is an unmarked [[Ranged]] [[activity]] that involves killing [[Chompy bird|chompy]] and [[jubbly bird]]s. It becomes available after completion of the [[Big Chompy Bird Hunting]] quest. Plucking a Chompy bird grants the player 30 [[Hunter]] experience.
+
+Players with enough kills may claim decorative [[chompy bird hat]]s from [[Rantz]] in the east of [[Feldip Hills]], '''as long as''' they have an [[ogre bow]] or [[comp ogre bow]] in the inventory. Players may see hats they can unlock by asking him for his "hatsies". These hats provide no bonuses and are purely cosmetic.
+
+To see their kill count, players may right-click ''check kills'' on an ogre bow or comp ogre bow. This counts all kills made by the player, not just the bow currently checked.
+
+This activity is a requirement for each tier of the [[Western Provinces Diary]]. Players will need 30, 125, 300, and 1000 kills respectively for the [[Easy Western Provinces Diary|easy]], [[Medium Western Provinces Diary|medium]], [[Hard Western Provinces Diary|hard]], and [[Elite Western Provinces Diary|elite]] difficulties of the diary. After full completion of the elite diary, each chompy bird ('''not''' jubbly) will have a 1/500 chance of yielding the [[Chompy chick]] pet when killed or plucked.
+
+After the player kills their 4,000th chompy bird, they will gain an additional one-time 30,000 Ranged [[experience]]. When this occurs, a message in the chatbox will state {{mes|You've been awarded ranged experience for your relentless pursuit of chompies!}}
+
+==Equipment==
+In order to hunt chompy birds, players need the following:
+*[[Ogre bow]] or [[comp ogre bow]]
+*[[Ogre arrow]]s or [[brutal arrows]]
+*[[Ogre bellows]]
+
+An ogre bow can be obtained from Rantz, while a comp ogre bow can be fletched at level 30 after completion of [[Zogre Flesh Eaters]] or obtained from the [[Grand Exchange]]. Arrows can either be purchased from the Grand Exchange (recommended) or fletched. Ogre bellows are obtained by "unlocking" a chest (a key is not required) in the cave just north of Rantz and the Big Chompy Bird Hunting quest start icon on the map.
+
+Only one ogre bellows is needed to hunt chompy birds, but using at least 2 or up to 24 is recommended as this will increase the rate at which you catch chompies. The remaining inventory space can be used for 3 toads, which is the maximum amount of toads you can carry. Bring less than 24 bellows if planning to bank the [[raw chompy|raw chompies]], worth {{NoCoins|{{GEP|raw chompy}}}} coins each, or to make [[raw wild pie]]s, worth {{NoCoins|{{GEP|raw wild pie}}}} coins each.
+
+===Gear===
+*The highest level [[d'hide armour]] (or better) that you can wear; chompy birds have low Ranged defence, so high-level players won't need more than one piece of armour to save on weight
+*Comp ogre bow (highly recommended due to faster attack speed than ogre bow)
+*Best brutal arrows you can afford (if unable to afford mithril, use standard [[ogre arrows]])
+*One of [[Ava's device]]s
+*Weight-reducing items such as the [[graceful outfit]] if not wearing full d'hide
+
+[[Stamina potion]]s are optional if players struggle with run energy. [[Ranging potion]]s are also recommended for faster kills. Carrying a [[bonecrusher]] or [[bonecrusher necklace]] will grant Prayer XP when plucking a chompy. The [[Void Knight equipment]] damage bonus has no effect on comp ogre bows, so maximising [[Ranged]] accuracy is preferred.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/684408693287448576|date=5 January 2016|archiveurl=https://reldo.runescape.wiki/i/97246|archivedate=26 May 2020|quote=It ignores damage boosts, but would probably improve its accuracy a little.}}
+
+==Locations==
+There are several hunting locations to choose from:
+*2 ponds in the [[Chompy Marsh]] south-west of [[Castle Wars]] ([[fairy ring]] code {{Fairycode|BKP}}) {{Map|2337,3061|2395,3048|type=maplink|mtype=pin|text=}}
+*3 ponds in the [[Feldip Hills]] west of Rantz (fairy ring code {{Fairycode|AKS}}) {{Map|2549,2985|2527,2978|2598,2966|type=maplink|mtype=pin|text=}}
+
+The ponds south-west of Castle Wars are ideal because there are no aggressive monsters nearby and there is minimal scenery, allowing for easier movement while hunting.
+
+==Strategy==
+{{Main|Chompy bird hunting/Strategy}}
+It's highly recommended to complete each successive tier of the Western Provinces Diary as you achieve the kill-count for it, as each tier provides a significantly higher rate of chompy spawning. After completing the Western Provinces Diary, and using an optimised setup, you can expect 200-350 kills per hour.
+
+After reaching a hunting area, inflate all [[Ogre bellows|bellows]] in your inventory.
+
+Then inflate and drop swamp toads. You can hold a maximum of 3 bloated toads, but each dropped toad has a chance to spawn chompies, so inflating and dropping toads one at a time is the optimal method by a slight margin for efficiency, but three toads at a time will require less effort and take less time. After a toad spawns a chompy (or 2 with diary completion), it will not spawn any more. A chompy must be killed within 60 seconds or it will despawn.
+
+You can choose to pluck a chompy's carcass, but this isn't required in order to increase kill-count.  Swamp toads can even be placed where a chompy's carcass lies, as chompies are seemingly unable to notice the danger. [[Raw chompy|Raw chompies]] weigh 10 kg each, so they will add considerable weight to the player. Some players (with 85 cooking) choose to bring [[Part wild pie (raw bear meat)|unfinished]] [[wild pie]]s and add the chompies to them, reducing the chompies' weight to almost nothing.  
+
+==Chompy hats==
+While they '''can''' be stored in the [[Armour case space|armour case]] in the [[costume room]] of a [[player-owned house]], chompy hats can be dropped and re-obtained later from [[Rantz]]. 
+{|class="wikitable lighttable align-right-1"
+!Kills
+!colspan=2|Hat
+|-
+|30
+|{{plinkt|Chompy bird hat (ogre bowman)|txt=Ogre bowman}}
+|-
+|40
+|{{plinkt|Chompy bird hat (bowman)|txt=Bowman}}
+|-
+|50
+|{{plinkt|Chompy bird hat (ogre yeoman)|txt=Ogre yeoman}}
+|-
+|70
+|{{plinkt|Chompy bird hat (yeoman)|txt=Yeoman}}
+|-
+|95
+|{{plinkt|Chompy bird hat (ogre marksman)|txt=Ogre marksman}}
+|-
+|125
+|{{plinkt|Chompy bird hat (marksman)|txt=Marksman}}
+|-
+|170
+|{{plinkt|Chompy bird hat (ogre woodsman)|txt=Ogre woodsman}}
+|-
+|225
+|{{plinkt|Chompy bird hat (woodsman)|txt=Woodsman}}
+|-
+|300
+|{{plinkt|Chompy bird hat (ogre forester)|txt=Ogre forester}}
+|-
+|400
+|{{plinkt|Chompy bird hat (forester)|txt=Forester}}
+|-
+|550
+|{{plinkt|Chompy bird hat (ogre bowmaster)|txt=Ogre bowmaster}}
+|-
+|700
+|{{plinkt|Chompy bird hat (bowmaster)|txt=Bowmaster}}
+|-
+|1,000
+|{{plinkt|Chompy bird hat (ogre expert)|txt=Ogre expert}}
+|-
+|1,300
+|{{plinkt|Chompy bird hat (expert)|txt=Expert}}
+|-
+|1,700
+|{{plinkt|Chompy bird hat (ogre dragon archer)|txt=Ogre dragon archer}}
+|-
+|2,250
+|{{plinkt|Chompy bird hat (dragon archer)|txt=Dragon archer}}
+|-
+|3,000
+|{{plinkt|Chompy bird hat (expert ogre dragon archer)|txt=Expert ogre dragon archer}}
+|-
+|4,000
+|{{plinkt|Chompy bird hat (expert dragon archer)|txt=Expert dragon archer}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 August 2026
+|update = Summer Sweep Up - Hunter & Skilling
+|change = 
+* Plucking a [[chompy bird]] now grants 30 [[Hunter]] XP.
+}}
+{{Subject changes
+|date = 1 October 2025
+|update = Interface Uplift Round 2
+|change = 
+* A new interface is now available through [[Rantz]] for claiming chompy hats.
+* Chompy hats can now be stored in the [[armour case]] in the [[costume room]] of the [[player-owned house]].
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}{{Activities}}{{Ogre hats}}
+[[Category:Birds]]
+[[Category:Big Chompy Bird Hunting]]
+[[Category:Slayer]]
+[[Category:Ranged]]

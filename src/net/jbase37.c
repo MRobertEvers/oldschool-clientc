@@ -57,13 +57,13 @@ base37tostr(
     char* buffer,
     int buffer_size)
 {
-    // must be able to hold "invalid_name" + null
+    // must be able to hold BASE37_INVALID_NAME + null
     if( buffer_size <= 0 )
         return;
 
     if( l == 0 || l >= MAX_BASE37 || (l % 37) == 0 )
     {
-        strncpy(buffer, "invalid_name", buffer_size - 1);
+        strncpy(buffer, BASE37_INVALID_NAME, buffer_size - 1);
         buffer[buffer_size - 1] = '\0';
         return;
     }
@@ -85,11 +85,18 @@ base37tostr(
     if( out_len + 1 > buffer_size )
     {
         // not enough space
-        strncpy(buffer, "invalid_name", buffer_size - 1);
+        strncpy(buffer, BASE37_INVALID_NAME, buffer_size - 1);
         buffer[buffer_size - 1] = '\0';
         return;
     }
 
     memcpy(buffer, &tmp[12 - len], out_len);
     buffer[out_len] = '\0';
+}
+
+bool
+Base37_IsInvalidName(const char* name)
+{
+    assert(name);
+    return strcmp(name, BASE37_INVALID_NAME) == 0;
 }

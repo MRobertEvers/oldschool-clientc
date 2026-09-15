@@ -142,6 +142,23 @@ RSCache_CS2_CommandName(int opcode)
     return info ? info->name : NULL;
 }
 
+static bool
+cs2_command_name_equals(const char* candidate, const char* name)
+{
+    while( *candidate && *name )
+    {
+        char ca = *candidate;
+        char cb = *name;
+        if( cb >= 'A' && cb <= 'Z' )
+            cb = (char)(cb - 'A' + 'a');
+        if( ca != cb )
+            return false;
+        candidate++;
+        name++;
+    }
+    return !*candidate && !*name;
+}
+
 int
 RSCache_CS2_CommandOfName(const char* name)
 {
@@ -153,21 +170,52 @@ RSCache_CS2_CommandOfName(const char* name)
         if( !candidate )
             continue;
         /* The table stores lowercase; source may be written in any case. */
-        const char* a = candidate;
-        const char* b = name;
-        while( *a && *b )
-        {
-            char ca = *a;
-            char cb = *b;
-            if( cb >= 'A' && cb <= 'Z' )
-                cb = (char)(cb - 'A' + 'a');
-            if( ca != cb )
-                break;
-            a++;
-            b++;
-        }
-        if( !*a && !*b )
+        if( cs2_command_name_equals(candidate, name) )
             return i;
+    }
+
+    /* Semantic spellings emitted by this tree before the canonical
+     * osrs-cache command catalogue was imported. Keep them as source aliases
+     * just like the numeric compatibility form below. */
+    static const struct
+    {
+        const char* name;
+        int opcode;
+    } aliases[] = {
+        { "activeplayer_setlocal", 6901 },
+        { "activeplayer_getroutelength", 6902 },
+        { "activeplayer_getroutecoord", 6903 },
+        { "activeplayer_getuid", 6904 },
+        { "localplayer_getuid", 6905 },
+        { "highlight_opgroup_setup", 7040 },
+        { "highlight_opgroup_on", 7041 },
+        { "highlight_opgroup_off", 7042 },
+        { "highlight_opgroup_get", 7043 },
+        { "highlight_opgroup_clear", 7044 },
+    };
+    for( size_t i = 0; i < sizeof(aliases) / sizeof(aliases[0]); i++ )
+        if( cs2_command_name_equals(aliases[i].name, name) )
+            return aliases[i].opcode;
+
+    /* Numeric command spellings are the decompiler's compatibility format
+     * for opcodes that were unnamed at the time source was produced.  Once an
+     * opcode gains a semantic name the generated row changes, but that should
+     * not make an older source tree stop compiling.  Accept `_1234` only when
+     * that opcode has a real command row; arbitrary numeric identifiers remain
+     * errors.  The decompiler still prints the row's current canonical name. */
+    if( name[0] == '_' && name[1] >= '0' && name[1] <= '9' )
+    {
+        int opcode = 0;
+        for( const char* p = name + 1; *p; p++ )
+        {
+            if( *p < '0' || *p > '9' )
+                return -1;
+            if( opcode > (CS2_COMMAND_TABLE_COUNT - 1 - (*p - '0')) / 10 )
+                return -1;
+            opcode = opcode * 10 + (*p - '0');
+        }
+        if( RSCache_CS2_CommandGet(opcode) )
+            return opcode;
     }
     return -1;
 }

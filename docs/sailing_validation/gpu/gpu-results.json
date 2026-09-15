@@ -1,0 +1,540 @@
+{
+  "ok": true,
+  "worker": "client",
+  "purpose": "GPU recheck: gl3-zbuffer (windowed) vs soft3d, identical command script",
+  "date": "2026-09-06",
+  "shared_binaries_verified": {
+    "src/torirs": "c7e62cce180aaeb6bc4cd044818b0209ca99edb478f5280c3ebd10d6b79b1d8d",
+    "src/build_opt/torirsserver": "a53899eb8ce5d086e36df3653aaccfd2ee93c05f8e767ece05ecc40a94b9c3db",
+    "OSRS-Content/osrs239-content/server/scripts/build/script.dat": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59"
+  },
+  "sessions": {
+    "gl3": {
+      "dir": "/tmp/sailing-final-gpu-gl3",
+      "pid": 1644,
+      "renderer": "gl3-zbuffer",
+      "headless": false,
+      "binary_sha256": "c7e62cce180aaeb6bc4cd044818b0209ca99edb478f5280c3ebd10d6b79b1d8d",
+      "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+      "stopped": true
+    },
+    "soft3d": {
+      "dir": "/tmp/sailing-final-gpu-soft",
+      "pid": 1818,
+      "renderer": "soft3d",
+      "headless": true,
+      "binary_sha256": "c7e62cce180aaeb6bc4cd044818b0209ca99edb478f5280c3ebd10d6b79b1d8d",
+      "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+      "stopped": true
+    },
+    "soft3d_windowed_control": {
+      "dir": "/tmp/sailing-final-gpu-softwin",
+      "pid": 6702,
+      "renderer": "soft3d",
+      "headless": false,
+      "purpose": "negative control isolating renderer from headless for the caption shift",
+      "stopped": true
+    }
+  },
+  "wev_counters_identical_between_renderers": true,
+  "captures": {
+    "gl3": [
+      {
+        "name": "ocean-idle",
+        "note": "stopped skiff, surveyed ocean 3072,3160",
+        "path": "gl3-ocean-idle.png",
+        "renderer": "gl3-zbuffer",
+        "world_order_mode": 1,
+        "bytes": 213293,
+        "wev": [
+          {
+            "id": 1,
+            "visible": true,
+            "flat": false,
+            "markers": 1,
+            "model_commands": 7,
+            "terrain_commands": 10,
+            "actor_commands": 1,
+            "bounds": [
+              393152,
+              404224,
+              393408,
+              404864
+            ],
+            "yaw": 0
+          }
+        ],
+        "vessel": {
+          "heading": 0,
+          "angle": 0,
+          "sails_set": 0,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "hp": 80,
+          "facilities": [
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      {
+        "name": "underway-h06",
+        "note": "sails set, heading 6, tier 2",
+        "path": "gl3-underway-h06.png",
+        "renderer": "gl3-zbuffer",
+        "world_order_mode": 1,
+        "bytes": 220356,
+        "wev": [
+          {
+            "id": 1,
+            "visible": true,
+            "flat": false,
+            "markers": 1,
+            "model_commands": 7,
+            "terrain_commands": 10,
+            "actor_commands": 1,
+            "bounds": [
+              392812,
+              404007,
+              393458,
+              404625
+            ],
+            "yaw": 273
+          }
+        ],
+        "vessel": {
+          "heading": 6,
+          "angle": 384,
+          "sails_set": 1,
+          "fine_x": 393024,
+          "fine_z": 404288,
+          "hp": 80,
+          "facilities": [
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      {
+        "name": "deck-baseline",
+        "note": "deck camera, no net installed",
+        "path": "gl3-deck-baseline.png",
+        "renderer": "gl3-zbuffer",
+        "world_order_mode": 1,
+        "bytes": 222171,
+        "wev": [
+          {
+            "id": 1,
+            "visible": true,
+            "flat": false,
+            "markers": 1,
+            "model_commands": 8,
+            "terrain_commands": 10,
+            "actor_commands": 1,
+            "bounds": [
+              393152,
+              404224,
+              393408,
+              404864
+            ],
+            "yaw": 0
+          }
+        ],
+        "vessel": {
+          "heading": 0,
+          "angle": 0,
+          "sails_set": 0,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "hp": 80,
+          "facilities": [
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      {
+        "name": "deck-net-installed",
+        "note": "trawling net facility installed in deck slot 4",
+        "path": "gl3-deck-net-installed.png",
+        "renderer": "gl3-zbuffer",
+        "world_order_mode": 1,
+        "bytes": 227133,
+        "wev": [
+          {
+            "id": 1,
+            "visible": true,
+            "flat": false,
+            "markers": 1,
+            "model_commands": 9,
+            "terrain_commands": 10,
+            "actor_commands": 1,
+            "bounds": [
+              393152,
+              404224,
+              393408,
+              404864
+            ],
+            "yaw": 0
+          }
+        ],
+        "vessel": {
+          "heading": 0,
+          "angle": 0,
+          "sails_set": 0,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "hp": 80,
+          "facilities": [
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      {
+        "name": "three-overlap",
+        "note": "three native WEV boats; group1 overlap flattens the later hull",
+        "path": "gl3-three-overlap.png",
+        "renderer": "gl3-zbuffer",
+        "world_order_mode": 1,
+        "bytes": 223130,
+        "wev": [
+          {
+            "id": 1,
+            "visible": true,
+            "flat": false,
+            "markers": 1,
+            "model_commands": 8,
+            "terrain_commands": 10,
+            "actor_commands": 1,
+            "bounds": [
+              393152,
+              404224,
+              393408,
+              404864
+            ],
+            "yaw": 0
+          },
+          {
+            "id": 2,
+            "visible": true,
+            "flat": false,
+            "markers": 1,
+            "model_commands": 6,
+            "terrain_commands": 10,
+            "actor_commands": 0,
+            "bounds": [
+              393792,
+              404224,
+              394048,
+              404864
+            ],
+            "yaw": 0
+          },
+          {
+            "id": 3,
+            "visible": true,
+            "flat": true,
+            "markers": 1,
+            "model_commands": 6,
+            "terrain_commands": 10,
+            "actor_commands": 0,
+            "bounds": [
+              393732,
+              404356,
+              394364,
+              404988
+            ],
+            "yaw": 256
+          }
+        ],
+        "vessel": {
+          "heading": 0,
+          "angle": 0,
+          "sails_set": 0,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "hp": 80,
+          "facilities": [
+            1,
+            1,
+            1
+          ]
+        }
+      }
+    ],
+    "soft3d": [
+      {
+        "name": "ocean-idle",
+        "note": "stopped skiff, surveyed ocean 3072,3160",
+        "path": "soft3d-ocean-idle.png",
+        "renderer": "soft3d",
+        "world_order_mode": 0,
+        "bytes": 189053,
+        "wev": [
+          {
+            "id": 1,
+            "visible": true,
+            "flat": false,
+            "markers": 1,
+            "model_commands": 7,
+            "terrain_commands": 10,
+            "actor_commands": 1,
+            "bounds": [
+              393152,
+              404224,
+              393408,
+              404864
+            ],
+            "yaw": 0
+          }
+        ],
+        "vessel": {
+          "heading": 0,
+          "angle": 0,
+          "sails_set": 0,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "hp": 80,
+          "facilities": [
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      {
+        "name": "underway-h06",
+        "note": "sails set, heading 6, tier 2",
+        "path": "soft3d-underway-h06.png",
+        "renderer": "soft3d",
+        "world_order_mode": 0,
+        "bytes": 189754,
+        "wev": [
+          {
+            "id": 1,
+            "visible": true,
+            "flat": false,
+            "markers": 1,
+            "model_commands": 7,
+            "terrain_commands": 10,
+            "actor_commands": 1,
+            "bounds": [
+              392812,
+              404007,
+              393458,
+              404625
+            ],
+            "yaw": 273
+          }
+        ],
+        "vessel": {
+          "heading": 6,
+          "angle": 384,
+          "sails_set": 1,
+          "fine_x": 393024,
+          "fine_z": 404288,
+          "hp": 80,
+          "facilities": [
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      {
+        "name": "deck-baseline",
+        "note": "deck camera, no net installed",
+        "path": "soft3d-deck-baseline.png",
+        "renderer": "soft3d",
+        "world_order_mode": 0,
+        "bytes": 208533,
+        "wev": [
+          {
+            "id": 1,
+            "visible": true,
+            "flat": false,
+            "markers": 1,
+            "model_commands": 8,
+            "terrain_commands": 10,
+            "actor_commands": 1,
+            "bounds": [
+              393152,
+              404224,
+              393408,
+              404864
+            ],
+            "yaw": 0
+          }
+        ],
+        "vessel": {
+          "heading": 0,
+          "angle": 0,
+          "sails_set": 0,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "hp": 80,
+          "facilities": [
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      {
+        "name": "deck-net-installed",
+        "note": "trawling net facility installed in deck slot 4",
+        "path": "soft3d-deck-net-installed.png",
+        "renderer": "soft3d",
+        "world_order_mode": 0,
+        "bytes": 211451,
+        "wev": [
+          {
+            "id": 1,
+            "visible": true,
+            "flat": false,
+            "markers": 1,
+            "model_commands": 9,
+            "terrain_commands": 10,
+            "actor_commands": 1,
+            "bounds": [
+              393152,
+              404224,
+              393408,
+              404864
+            ],
+            "yaw": 0
+          }
+        ],
+        "vessel": {
+          "heading": 0,
+          "angle": 0,
+          "sails_set": 0,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "hp": 80,
+          "facilities": [
+            1,
+            1,
+            1
+          ]
+        }
+      },
+      {
+        "name": "three-overlap",
+        "note": "three native WEV boats; group1 overlap flattens the later hull",
+        "path": "soft3d-three-overlap.png",
+        "renderer": "soft3d",
+        "world_order_mode": 0,
+        "bytes": 194831,
+        "wev": [
+          {
+            "id": 1,
+            "visible": true,
+            "flat": false,
+            "markers": 1,
+            "model_commands": 8,
+            "terrain_commands": 10,
+            "actor_commands": 1,
+            "bounds": [
+              393152,
+              404224,
+              393408,
+              404864
+            ],
+            "yaw": 0
+          },
+          {
+            "id": 2,
+            "visible": true,
+            "flat": false,
+            "markers": 1,
+            "model_commands": 6,
+            "terrain_commands": 10,
+            "actor_commands": 0,
+            "bounds": [
+              393792,
+              404224,
+              394048,
+              404864
+            ],
+            "yaw": 0
+          },
+          {
+            "id": 3,
+            "visible": true,
+            "flat": true,
+            "markers": 1,
+            "model_commands": 6,
+            "terrain_commands": 10,
+            "actor_commands": 0,
+            "bounds": [
+              393732,
+              404356,
+              394364,
+              404988
+            ],
+            "yaw": 256
+          }
+        ],
+        "vessel": {
+          "heading": 0,
+          "angle": 0,
+          "sails_set": 0,
+          "fine_x": 393280,
+          "fine_z": 404544,
+          "hp": 80,
+          "facilities": [
+            1,
+            1,
+            1
+          ]
+        }
+      }
+    ]
+  },
+  "defects": [
+    {
+      "id": "GPU-1",
+      "severity": "visual defect, UI",
+      "summary": "gl3-zbuffer draws the chat-filter button name line 5 px lower than soft3d, colliding with the green On state line",
+      "evidence": "gl3-chatfilter-caption-shift-x6.png; glyph rows gl3 486-493 vs soft3d 481-488; green On line identical; plates aligned at dy=0 (1114/12880 px differ); Report caption unaffected; sidebar text pixel-identical",
+      "negative_control": "windowed soft3d (/tmp/sailing-final-gpu-softwin) matches headless soft3d exactly, so it is renderer-specific, not headless-specific",
+      "regression": "unknown - not checked against older gl3 captures"
+    },
+    {
+      "id": "GPU-2",
+      "severity": "visual defect, world depth",
+      "summary": "On gl3-zbuffer the player standing on a boat deck is occluded by the boat's own plank/gunwale band at the close deck camera (256/256/1000)",
+      "evidence": "gl3-deck-figure-occluded-x6.png; actor_commands is 1 in both renderers so the actor is emitted; feet/tunic bottom at the same y so the actor is not moved; wide camera (1024/256/1200) is unaffected",
+      "regression": "NO - the same occlusion is present in this directory's earlier deck-baseline.png from client 54a09b3f (gl3-deck-figure-occluded-prior-x5.png). Pre-existing."
+    },
+    {
+      "id": "GPU-3",
+      "severity": "observation, memory",
+      "summary": "gl3-zbuffer process RSS reached 2969 MiB against soft3d's 199 MiB on the identical command script",
+      "evidence": "HUD 537.1 MiB -> 1.84 GiB -> 2.27 GiB across the five scenes; ps RSS 2969 MiB vs 199 MiB after the run; 5 further captures at a fixed camera added ~1 MiB each, so growth lands on scene/renderer transitions, not on capture",
+      "regression": "not established"
+    }
+  ],
+  "investigated_not_defects": [
+    {
+      "item": "grey wedge on the water absent from gl3-ocean-idle.png",
+      "finding": "both renderers draw it after restore+hover at the same place (gl3-water-wedge-probe-x6.png) and both report the same 'Set heading' mouseover; animated world element, phase differs per process"
+    },
+    {
+      "item": "top-left 'Set heading' mouseover missing in gl3 captures",
+      "finding": "OS cursor position in a real window, not a renderer fault; the hover probe reproduces it in gl3"
+    },
+    {
+      "item": "world_order_mode 1 (gl3) vs 0 (soft3d)",
+      "finding": "expected: the z-buffer lane picks its own world ordering; resulting wev command counts, bounds and yaw are identical"
+    }
+  ],
+  "timing_is_not_performance_evidence": "Several workers ran clients concurrently during this phase. The HUD frame times in these captures (gl3 32.45 ms vs soft3d 0.96 ms in three-overlap) must not be used as performance evidence.",
+  "visual_review": "Every one of the ten scene PNGs plus the five magnified comparison crops was opened and described in README.md."
+}

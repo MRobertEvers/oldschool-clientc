@@ -790,6 +790,25 @@ test_features_eras(void)
     TEST_ASSERT(ToriRS_Features_ByName("server_routed") == routed, "ByName resolves server_routed");
     TEST_ASSERT(ToriRS_Features_ByName("nope") == NULL, "ByName rejects an unknown era");
 
+    /* The mover model, and which era owns which. Only the 2004 lane keeps the
+     * per-cycle mover; a lineage with no table of its own lands on lostcity and
+     * has to say `mover=frame` in its manifest, so the names have to round
+     * trip. */
+    TEST_ASSERT(lostcity->mover_model == TORIRS_MOVER_CYCLE_INTEGER,
+                "lostcity moves actors on the cycle clock");
+    TEST_ASSERT(osrs->mover_model == TORIRS_MOVER_FRAME_DELTA,
+                "osrs moves actors on the frame clock");
+    TEST_ASSERT(routed->mover_model == TORIRS_MOVER_FRAME_DELTA,
+                "server_routed moves actors on the frame clock");
+    TEST_ASSERT(ToriRS_Features_MoverModelByName("cycle") == TORIRS_MOVER_CYCLE_INTEGER,
+                "MoverModelByName resolves cycle");
+    TEST_ASSERT(ToriRS_Features_MoverModelByName("frame") == TORIRS_MOVER_FRAME_DELTA,
+                "MoverModelByName resolves frame");
+    TEST_ASSERT(ToriRS_Features_MoverModelByName("nope") == -1,
+                "MoverModelByName rejects an unknown model");
+    TEST_ASSERT(strcmp(ToriRS_Features_MoverModelName(TORIRS_MOVER_FRAME_DELTA), "frame") == 0,
+                "MoverModelName names the frame model");
+
     /* LostCity is the zero table: every slot at the 2004 behaviour. */
     TEST_ASSERT(lostcity->pathing_mode == TORIRS_PATHING_CLIENT_BFS, "lostcity paths client-side");
     TEST_ASSERT(lostcity->approach_model == TORIRS_APPROACH_LEGACY_SHAPE, "lostcity uses shapes");
@@ -980,7 +999,7 @@ test_route_coordinate_coincidence(void)
     int spanned_both = 0;
     for( int i = 0; i < 128 && player->pathing.route_length > 0; i++ )
     {
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
         if( player->pathing.route_length == 0 )
             break;
         TEST_ASSERT(
@@ -1033,7 +1052,7 @@ test_route_coordinate_coincidence(void)
 
         for( int cycle = 0; cycle < 64 && corner->pathing.route_length == 2; cycle++ )
         {
-            World_Cycle(world, 1);
+            World_TestCycle(world, 1);
             TEST_ASSERT((int)corner->draw_position.x == start_x,
                         "corner rendering does not move diagonally through the blocker");
         }
@@ -1116,7 +1135,7 @@ test_tile_stack_dedup(void)
 
         World_NpcSpawn(world, 102, 500, 0, 25, 25, 1, idle);
 
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
 
         int first = -1;
         int count = painter_tile_scenery_count(world->painter, 25, 25, 0, &first);
@@ -1138,7 +1157,7 @@ test_tile_stack_dedup(void)
         struct WorldEntity_NPC* aot = World_EntityPoolGet(&world->entities.npc, nn);
         aot->alwaysontop = true;
 
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
 
         int first = -1;
         int count = painter_tile_scenery_count(world->painter, 30, 30, 0, &first);
@@ -1163,7 +1182,7 @@ test_tile_stack_dedup(void)
         moving->server_pid = 8;
         World_PlayerPathPushStep(world, mp, WORLD_PATHSTEP_WALK, 4); /* east */
 
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
 
         TEST_ASSERT((moving->draw_position.x & 0x7f) != 64, "mover is off tile-centre mid-walk");
         int count = painter_tile_scenery_count(world->painter, 34, 35, 0, NULL);
@@ -1199,7 +1218,7 @@ test_minusedlevel_entity_draw(void)
 
         World_NpcSpawn(world, 202, 500, 1, 42, 40, 1, idle);
 
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
 
         int first = -1;
         TEST_ASSERT(
@@ -1243,7 +1262,7 @@ test_minusedlevel_entity_draw(void)
             world, 215, 0, same_sx, same_sz, same_sx + 128, same_sz, 100, 40, 0, 60, 45, 0,
             WORLD_PROJECTILE_TARGET_NONE);
 
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
 
         TEST_ASSERT(
             painter_tile_scenery_count(world->painter, 45, 45, 0, NULL) == 0 &&

@@ -1,0 +1,297 @@
+{{Instance|irs=Orrvor quo Maten|cost=100000}}
+{{HasStrategy}}
+{{HasTask|Hydras}}
+{{Infobox Monster
+|version1 = Serpentine
+|version2 = Electric
+|version3 = Fire
+|version4 = Extinguished
+|name = Alchemical Hydra
+|image1 = [[File:Alchemical Hydra (serpentine).png|x300px]]
+|image2 = [[File:Alchemical Hydra (electric).png|x300px]]
+|image3 = [[File:Alchemical Hydra (fire).png|x300px]]
+|image4 = [[File:Alchemical Hydra (extinguished).png|x300px]]
+|release = [[10 January]] [[2019]]
+|update = The Kebos Lowlands
+|members = Yes
+|combat = 426
+|size = 6
+|examine = A ferocious Alchemical Hydra!
+|attributes = dragon
+|xpbonus = 20
+|max hit1 = 17x2 (default), 26x2 (empowered)
+|max hit2 = 35 (default), 26x2 (empowered)
+|max hit3 = 35 (default), 52 (empowered)
+|max hit4 = 55
+|aggressive = Yes
+|poisonous = Yes
+|attack style = [[Ranged]], [[Magic]]
+|attack speed1 = 6
+|attack speed2 = 6
+|attack speed3 = 6
+|attack speed4 = 4
+|respawn = 43
+|slaylvl = 95
+|slayxp = 1320
+|cat = Hydras, Bosses
+|assignedby = konar, mortimer
+|hitpoints = 1100
+|att = 100
+|str = 100
+|def = 100
+|mage = 260
+|range = 260
+|attbns = 0
+|strbns = 0
+|amagic = 45
+|mbns = 20
+|arange = 45
+|rngbns = 20
+|dstab = 75
+|dslash = 150
+|dcrush = 150
+|dmagic = 150
+|dlight = 45
+|dstandard = 45
+|dheavy = 45
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|immuneburn1 = Not Immune
+|immuneburn2 = Not Immune
+|immuneburn3 = Immune to normal burns
+|immuneburn4 = Not Immune
+|id1 = 8615,8616
+|id2 = 8619,8617
+|id3 = 8620,8618
+|id4 = 8621,8622
+|leagueRegion = Kourend
+}}
+[[File:Hydra icon.png|left]]
+The '''Alchemical Hydra''' is a [[boss]] version of [[hydra]], found in the lower level of the [[Karuulm Slayer Dungeon]] in [[Mount Karuulm]], requiring level 95 [[Slayer]] to kill. The Alchemical Hydra was the creation of a [[Dragonkin]] named [[Karuulm]]. While Karuulm saw promise in his creation, he nevertheless saw it as a failure because he could not replicate its traits, and abandoned it along with his other creations: the [[Wyrm]]s, [[Drake]]s, and [[Hydra]]s.
+
+Unlike normal hydras, the Alchemical Hydra can '''only''' be killed while on a hydra [[Slayer task]], which are only assigned by [[Konar quo Maten]] and [[Mortimer]]. Likewise, it can be assigned for [[boss slayer]], but only by Konar.
+
+In addition, as it is found within the volcano, players who have not completed the [[elite Kourend & Kebos Diary]] must wear [[boots of stone]], [[boots of brimstone]], or [[granite boots]] to protect themselves from the extreme heat of the dungeon floor. This also applies to attempting to use the [[Item Retrieval Service]], where the rapid damage will interrupt actions and dying a second time will wipe the storage.
+
+Along with all the unique drops obtainable from hydras, it can also drop [[hydra leather]], which is used on the [[machinery]] south-west of the pool in the [[Lithkren Vault]] to create [[ferocious gloves]], as well as the [[hydra claw]], which is combined with a [[Zamorakian hasta]] to create the [[dragon hunter lance]].
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Alchemical Hydra
+|location = [[Karuulm Slayer Dungeon]] (lower level)
+|levels = 426
+|members = Yes
+|mapID = 33
+|plane = 0
+|x:1364,y:10265
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{LocTableBottom}}
+
+The Alchemical Hydra can be found in the lower level of the [[Karuulm Slayer Dungeon]]. Its lair is at the northern side of the dungeon, past the [[Tasakaal]] and then east past the [[hydra]]s chamber. [[Orrvor quo Maten]] will be found guarding the entrance of the lair. Alternatively, with level 88 [[Agility]] the [[mysterious pipe]] shortcut just behind [[Kaal-Ket-Jor]] may be used to reach the lair safely.
+
+==Fight overview==
+{{main|Alchemical Hydra/Strategies}}
+{{Listen 
+|title = [[Alchemical Attack!]]
+|desc = The music which plays when fighting the Alchemical Hydra.
+|filename = Alchemical Attack!.ogg
+}}
+The player fights the Hydra in an [[instance]]d room upon jumping over the rock barrier. The chamber consists of two rooms; an observation room which is safe from the Hydra, and a set of doors leading into the test chamber where the Hydra resides. The Hydra will become aggressive and attack upon entering the test chamber, and the doors will also lock themselves. This means that the only means of escape are to either kill the boss, die, or teleportation. Players cannot log themselves out of the test chamber either.
+
+The Alchemical Hydra has four phases throughout the fight, depending on its remaining health. It attacks with [[Ranged]] and [[Magic]], alternating between them every three attacks for the first three phases. At the start of each phase, it has a 75% damage reduction, which can be removed if it is lured over a vent on the floor which spews chemical liquid. However, the vent must be the correct one, corresponding to the [[combat triangle]] (e.g. when it is green, red will weaken it), otherwise the Hydra's damage is increased by up to 50%.
+
+When the Alchemical Hydra reaches or falls below 75%, 50%, and 25% of its health (that is, at 825, 550, and 275 [[Hitpoints]]), it will lose one of its heads and begin the next phase. Barring the last phase, the damage reduction is reapplied, and so it should be lured over the next vent. It also has special attacks for each phase: poison pools when green and black, electricity when blue and fire when red. These special attacks are avoidable.
+
+In its final phase, the Hydra will alternate combat styles every attack with increased attack speed and max hit. Its first attack will always be the opposite style to what it most recently used (e.g if its last attack in phase 3 was ranged, it will start phase 4 with magic). 
+
+When the Hydra is killed, it will respawn in approximately 25 seconds, and the doors will unlock during this time.
+
+==Money making==
+{{Mmgsection|Killing the Alchemical Hydra}}
+
+==Drops==
+''In addition to the 100% drop, the player will also have two rolls on the Alchemical Hydra's drop table. The first drop has a chance to be a unique, while the second is always standard. The drop rates in the drop table below reflect the chance of getting an item for every roll on the standard loot table. For example, a listed drop rate of 2 x 2/100 indicates that you have two 2/100 chances of receiving that item.''{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1084600369995571203|date=13 January 2019|archiveurl=https://reldo.runescape.wiki/i/101991|archivedate=16 April 2019|quote=The first roll will go to the unique table OR to the standard table. The second roll will always go to the standard table. And you only get one pet roll in either situation.}}
+
+''Drops remain on the ground for 3 hours, or until the player leaves the instanced area.''{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1688468997375762432|date=7 August 2023|archiveurl=https://reldo.runescape.wiki/i/96330|archivedate=10 August 2023|quote=I believe those are 180 mins. This is not universal across all instances, but it's been enabled for quite a few repeatable boss rooms.}}
+
+{{DropLogProject|kills=292738}}
+
+{{Average drop value}}
+
+{{Average drop value|brimstone=yes}}
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Hydra bones|quantity=2|rarity=Always}}
+{{DropsTableBottom}}
+
+===Pre-roll===
+''There is approximately a 1/87.6 chance to hit this table.<ref>Whether a unique item is dropped is determined by the game rolling each item in succession, and if it fails, the next item is rolled. If any item is successfully rolled, it will be dropped, and if no item is rolled, it is replaced by a regular drop. The order is dragon thrownaxe, dragon knife, hydra's claw, hydra tail, hydra leather and brimstone ring piece. For example, a brimstone ring piece rate follows the formula <math>\frac{1}{180\div\left(\frac{1999}{2000} \times \frac{1999}{2000} \times \frac{999}{1000} \times \frac{511}{512} \times \frac{511}{512}\right)} \approx \frac{1}{181.07}</math><br />{{PlainCiteTwitter|author=Mod Munro|url=https://twitter.com/JagexMunro/status/1096054934263525377|date=14 February 2019|archiveurl=https://reldo.runescape.wiki/i/107146|archivedate=16 Apr 2019|quote=Yes, your edit to the wiki is correct.}}</ref>''
+
+{{DropsTableHead}}
+{{DropsLine|name=Hydra's eye|quantity=1|rarity=1/{{#expr:180/(1999/2000*1999/2000*999/1000*511/512*511/512) round 1}}|raritynotes=<ref name="brimstone_ring" group="d"> The order in which players receive the items is: Hydra's eye, Hydra's fang and finally Hydra's heart.</ref>{{CiteTwitter|author=Mod Munro|url=https://twitter.com/JagexMunro/status/1095752074099339264|date=13 February 2019|archiveurl=https://reldo.runescape.wiki/i/106227|archivedate=25 March 2019|quote=As I mentioned on the Q & A, here are the pictures of the drop rates for various parts of Kebos. This time with the correct drop rate for the pieces of the Brimstone Ring.|name=Alchemical Hydra}}|gemw=No}}
+{{DropsLine|name=Hydra's fang|quantity=1|rarity=1/{{#expr:180/(1999/2000*1999/2000*999/1000*511/512*511/512) round 1}}|raritynotes=<ref name="brimstone_ring" group="d"/>{{NamedRef|Alchemical Hydra}}|gemw=No}}
+{{DropsLine|name=Hydra's heart|quantity=1|rarity=1/{{#expr:180/(1999/2000*1999/2000*999/1000*511/512*511/512) round 1}}|raritynotes=<ref name="brimstone_ring" group="d"/>{{NamedRef|Alchemical Hydra}}|gemw=No}}
+{{DropsLine|name=Hydra tail|quantity=1|rarity=1/{{#expr:512/(1999/2000*1999/2000*999/1000) round 1}}|raritynotes={{NamedRef|Alchemical Hydra}}}}
+{{DropsLine|name=Hydra leather|quantity=1|rarity=1/{{#expr:512/(1999/2000*1999/2000*999/1000*511/512) round 1}}|raritynotes={{NamedRef|Alchemical Hydra}}}}
+{{DropsLine|name=Hydra's claw|quantity=1|rarity=1/{{#expr:1000/(1999/2000*1999/2000) round 1}}|raritynotes={{NamedRef|Alchemical Hydra}}}}
+{{DropsLine|name=Dragon thrownaxe|quantity=500-1000|rarity=1/2000|raritynotes={{NamedRef|Alchemical Hydra}}}}
+{{DropsLine|name=Dragon knife|quantity=500-1000|rarity=1/{{#expr:2000/(1999/2000) round 1}}|raritynotes={{NamedRef|Alchemical Hydra}}}}
+{{DropsTableBottom}}
+
+{{Reflist|group="d"}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Mystic fire staff|rolls=2|quantity=1|rarity=8/101|raritynotes=<ref name="dual-drop" group="d">Players will receive [[Mystic fire staff]] together with [[Mystic water staff]]</ref>}}
+{{DropsLine|name=Mystic water staff|rolls=2|quantity=1|rarity=8/101|raritynotes=<ref name="dual-drop" group="d"/>}}
+{{DropsLine|name=Battlestaff|rolls=2|quantity=8-12 (noted)|rarity=5/101}}
+{{DropsLine|name=Black d'hide body|rolls=2|quantity=1|rarity=5/101}}
+{{DropsLine|name=Dragon longsword|rolls=2|quantity=1|rarity=3/101}}
+{{DropsLine|name=Dragon med helm|rolls=2|quantity=1|rarity=3/101}}
+{{DropsLine|name=Rune platebody|rolls=2|quantity=1|rarity=3/101|raritynotes=<ref name="dual-drop-rune" group="d">Players will receive [[Rune platebody]] together with [[Rune platelegs]] or [[Rune plateskirt]]</ref>}}
+{{DropsLine|name=Dragon battleaxe|rolls=2|quantity=1|rarity=2/101}}
+{{DropsLine|name=Rune platelegs|rolls=2|quantity=1|rarity=1.5/101|raritynotes=<ref name="dual-drop-rune" group="d"/>}}
+{{DropsLine|name=Rune plateskirt|rolls=2|quantity=1|rarity=1.5/101|raritynotes=<ref name="dual-drop-rune" group="d"/>}}
+{{DropsLine|name=Mystic robe top (light)|rolls=2|quantity=1|rarity=1/101|raritynotes=<ref name="dual-drop-mystic" group="d">Players will receive [[Mystic robe top (light)]] together with [[Mystic robe bottom (light)]]</ref>}}
+{{DropsLine|name=Mystic robe bottom (light)|rolls=2|quantity=1|rarity=1/101|raritynotes=<ref name="dual-drop-mystic" group="d"/>}}
+{{DropsTableBottom}}
+
+{{Reflist|group="d"}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Chaos rune|rolls=2|quantity=150-300|rarity=6/101}}
+{{DropsLine|name=Death rune|rolls=2|quantity=150-300|rarity=6/101}}
+{{DropsLine|name=Blood rune|rolls=2|quantity=150-300|rarity=6/101}}
+{{DropsLine|name=Astral rune|rolls=2|quantity=150-300|rarity=6/101}}
+{{DropsLine|name=Dragonstone bolts (e)|rolls=2|quantity=100-120|rarity=2/101}}
+{{DropsLine|name=Onyx bolts (e)|rolls=2|quantity=35-50|rarity=1/101}}
+{{DropsTableBottom}}
+
+===Herbs===
+''There is a 10/101 chance to get noted herbs.''
+{{#vardefine:herbbase|{{#expr:10/101/32}}}}
+{{DropsTableHead}}
+{{DropsLine|name=Grimy avantoe|rolls=2|quantity=10-15 (noted)|rarity=1/{{#expr:1/(5*{{#var:herbbase}}) round 1}}}}
+{{DropsLine|name=Grimy kwuarm|rolls=2|quantity=25-30 (noted)|rarity=1/{{#expr:1/(5*{{#var:herbbase}}) round 1}}}}
+{{DropsLine|name=Grimy ranarr weed|rolls=2|quantity=10-15 (noted)|rarity=1/{{#expr:1/(4*{{#var:herbbase}}) round 1}}}}
+{{DropsLine|name=Grimy snapdragon|rolls=2|quantity=10-15 (noted)|rarity=1/{{#expr:1/(4*{{#var:herbbase}}) round 1}}}}
+{{DropsLine|name=Grimy cadantine|rolls=2|quantity=25-30 (noted)|rarity=1/{{#expr:1/(4*{{#var:herbbase}}) round 1}}}}
+{{DropsLine|name=Grimy dwarf weed|rolls=2|quantity=25-30 (noted)|rarity=1/{{#expr:1/(4*{{#var:herbbase}}) round 1}}}}
+{{DropsLine|name=Grimy lantadyme|rolls=2|quantity=25-30 (noted)|rarity=1/{{#expr:1/(3*{{#var:herbbase}}) round 1}}}}
+{{DropsLine|name=Grimy torstol|rolls=2|quantity=10-15 (noted)|rarity=1/{{#expr:1/(3*{{#var:herbbase}}) round 1}}}}
+{{DropsTableBottom}}
+
+===Seeds===
+{{TreeHerbSeedDropTableInfo|2/101}}
+{{DropsTableHead}}
+{{TreeHerbSeedDropLines|2/101|multiplier=2-3|rolls=2|OverrideWatermelonQuantity=30-45}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Coins|rolls=2|quantity=5550-25550|rarity=0.5/101|gemw=No}}
+{{DropsLine|name=Coins|rolls=2|quantity=40000-60000|rarity=9.5/101|gemw=No}}
+{{DropsLine|name=Shark|rolls=2|quantity=2-4|rarity=7/101}}
+{{DropsLine|name=Ranging potion(3)|rolls=2|quantity=1|rarity=7/101|raritynotes=<ref name="dual-drop-pots" group="d">Players will receive [[Ranging potion(3)]] together with two [[Super restore(3)]]</ref>}}
+{{DropsLine|name=Super restore(3)|rolls=2|quantity=2|rarity=7/101|raritynotes=<ref name="dual-drop-pots" group="d"/>}}
+{{DropsLine|name=Dragon bones|rolls=2|quantity=30 (noted)|rarity=6/101}}
+{{DropsLine|name=Crystal key|rolls=2|quantity=1|rarity=1/101}}
+{{DropsTableBottom}}
+
+{{Reflist|group="d"}}
+
+===Rare drop table===
+{{RareDropTable|1/101|rolls=2|naturetalisman=yes|override=There is a 1/101 chance of rolling the [[rare drop table]]. This will give the player two rolls on the [[rare drop table]]}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|426|bonus=yes}}|raritynotes=<ref group=d>Brimstone keys are only dropped if killed on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No}}
+{{DropsLineClue|type=hard|rarity=1/100|raritynotes={{NamedRef|Alchemical Hydra}}}}
+{{DropsLine|name=Alchemical hydra heads|quantity=1|rarity=1/256|raritynotes={{NamedRef|Alchemical Hydra}}|gemw=No}}
+{{DropsLineClue|type=elite|rarity=1/256|raritynotes={{NamedRef|Alchemical Hydra}}}}
+{{DropsLine|name=Jar of Chemicals|quantity=1|rarity=1/2000|raritynotes={{NamedRef|Alchemical Hydra}}}}
+{{DropsLine|name=Ikkle Hydra|image=Ikkle Hydra (serpentine).png|quantity=1|rarity=1/3000|raritynotes={{NamedRef|Alchemical Hydra}}|gemw=No}}
+{{DropsTableBottom}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Alchemical Hydra}}
+
+==Gallery==
+<gallery captionalign="center" widths="180">
+Alchemical Hydra concept.png|A concept of the Alchemical Hydra shown during RuneFest 2018.
+Alchemical Hydra first teaser.jpg|A teaser image of the Alchemical Hydra in an area resembling [[Dragonkin]] architecture
+Alchemical Hydra decapitation animation.gif|The decapitation of one of the boss's heads, created by Mod Ghost
+Alchemical Hydra art.jpg|A piece of official artwork depicting the Alchemical Hydra.
+Alchemical Hydra (Trading Card).png|The Alchemical Hydra [[Steam Trading Cards|Steam Trading Card]].
+</gallery>
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Alchemical Hydra now has a 50% [[elemental weakness]] to [[earth spells]].
+}}
+{{Subject changes
+|date = 9 March 2022
+|update = PJ Timer & New Broadcast Settings
+|change = Certain [[Combat Achievement]] tasks now perform their checks correctly in the final phase of the Alchemical Hydra fight.
+}}
+{{Subject changes
+|date = 26 August 2021
+|update = Deadman: Reborn
+|change = Alchemical Hydra's animation issues have been fixed.
+}}
+{{Subject changes
+|date = 14 July 2021
+|update = Slayer Improvements - Poll 75
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = The Alchemical Hydra now has an animation to indicate it changing attack styles.
+}}
+{{Subject changes
+|date = 13 June 2019
+|update = PvP Improvements and W45 Changes
+|change = Players can no longer logout in the Alchemical Hydra room due to an issue where players trying to log out in the room kept getting stuck in a state where they couldn't attack the boss but it kept trying to attack them.
+}}
+{{Subject changes
+|date = 7 February 2019
+|update = X Marks The Spot
+|poll = Old School Content Poll 63: Kebos - Post Launch Changes
+|change = The [[alchemical hydra heads]] were added as a possible tertiary drop.
+}}
+{{Subject changes
+|date = 31 January 2019
+|update = Chambers of Xeric, Kebos, and Collection Log Changes
+|change = The [[jar of chemicals]] was added as a possible tertiary drop.
+}}
+{{Subject changes
+|date = 14 January 2019
+|update = Konar Loot Table Balancing
+|type = hotfix
+|change = The Alchemical Hydra gained access to Konar's drop table.{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/1084834960543043585|date=14 January 2019|archiveurl=https://reldo.runescape.wiki/i/103571|archivedate=25 May 2020|quote=3. The Alchemical Hydra now accesses Konar's drop table.}}
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Despite being visible in the overworld, the Alchemical Hydra is fought in an [[instance]].
+*The Alchemical Hydra has the highest Slayer requirement of all the slayer bosses, overtaking the [[thermonuclear smoke devil]].
+*The rocks right before the Hydras's chamber have examine texts that explains how Igneous Rocks are made.
+
+==References==
+{{reflist}}
+
+{{Alchemical Hydra}}
+{{Slayer monsters}}
+{{Bosses}}
+{{Dragon}}

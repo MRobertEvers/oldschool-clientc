@@ -2,21 +2,29 @@
 #define RS_CS2_HOST_H
 
 #include "cs2vm2/cs2vm2_host.h"
+#include "game/rs_clientop.h"
+#include "game/rs_entity_overlay.h"
+#include "game/rs_highlight.h"
 #include "input/torirs_keymap.h"
+#include "ui/uitree.h"
 
 #include <stdbool.h>
 #include <stdint.h>
 
 struct UITree;
+struct UITreeHost;
 struct CacheProvider;
 struct InvManager;
 struct VarPManager;
 struct VarCManager;
+struct RevConfigRefs;
 struct RS_PlayerStats;
 struct CS2VM2_Thread;
 struct UITreeSceneBridge;
 struct RS_WorldMapState;
+struct TaskRunner;
 struct RS_Social;
+struct RS_Chat;
 struct LootStore;
 struct ToriRS_Component;
 
@@ -42,6 +50,7 @@ enum RS_CS2SocialSendKind
     RS_CS2_SOCIAL_SEND_IGNORE_DEL,
     RS_CS2_SOCIAL_SEND_CHAT_SETMODE,
     RS_CS2_SOCIAL_SEND_MESSAGE_PRIVATE,
+    RS_CS2_SOCIAL_SEND_MESSAGE_PUBLIC,
     RS_CS2_SOCIAL_SEND_CHEAT,
     /** RESUME_COUNTDIALOG (3104) — not social, and neither is CHEAT above.
      *  What this queue actually is, and has been since CHEAT joined it, is
@@ -80,6 +89,26 @@ enum RS_CS2SocialSendKind
  */
 #define RS_CS2_HOST_SOUND_MAX 64
 
+/** Settings-panel row uses buffered for the App between two frames. A person
+ *  cannot click eight rows in one frame; the depth is for a frame that stalls,
+ *  not for a burst. */
+#define RS_CS2_HOST_SETTINGS_ACTIONS_MAX 8
+
+/** Colour rows the panel is expected to hold at once. The rev-239 cache's read
+ *  hub (script_4181) switches on 49 setting ids across every category; this is
+ *  that with headroom, and a row past it is refused and logged rather than
+ *  evicting one that is on screen. */
+#define RS_CS2_HOST_SETTINGS_COLOURS_MAX 96
+
+/** Number-input rows the panel is expected to hold at once. Sized the same way
+ *  as the colour table above, against the same read hub's switch. */
+#define RS_CS2_HOST_SETTINGS_NUMBERS_MAX 64
+
+/** `clientclock` ticks per GAME tick: 600 ms of 20 ms logic ticks. The
+ *  conversion between the wire's game-tick durations and the clock every cache
+ *  script counts in. */
+#define RS_CS2_HOST_CLOCKS_PER_TICK 30
+
 /* Cache script option ids used by interface 116's audio panel, plus the one
  * game option that is not audio: "hide roofs", which GETREMOVEROOFS /
  * SETREMOVEROOFS (3111/3112) name directly and which the world render reads. */
@@ -88,6 +117,144 @@ enum RS_CS2SocialSendKind
 #define RS_CS2_GAMEOPTION_SOUND_VOLUME 8
 #define RS_CS2_GAMEOPTION_AREA_VOLUME 9
 #define RS_CS2_DEVICEOPTION_MASTER_VOLUME 19
+/* All Settings > Display: "Interface scaling mode". The cache's enum_4033
+ * stores these values directly in device option 15. */
+#define RS_CS2_DEVICEOPTION_UI_SCALE_MODE 15
+
+/**
+ * The Display panel's "Limit Framerate" row, in frames per second.
+ *
+ * Written by the cache's own script chain -- the dropdown runs
+ * `~torirs_fps_cap_set`, which sets BOTH of these to the chosen rate (15, 20,
+ * 30, 60) or to 999 for Unlimited, and `~torirs_fps_cap_index` reads option 5
+ * back to draw the current choice. Zero, the untouched default, is also
+ * unlimited.
+ *
+ * Two options because the reference caps the foreground and the background
+ * separately. Only the first is honoured here; the second is stored so the
+ * scripts read back what they wrote.
+ */
+#define RS_CS2_DEVICEOPTION_FPS_CAP 5
+#define RS_CS2_DEVICEOPTION_FPS_CAP_BACKGROUND 26
+#define RS_CS2_UI_SCALE_MODE_NEAREST 0
+#define RS_CS2_UI_SCALE_MODE_LINEAR 1
+#define RS_CS2_UI_SCALE_MODE_BICUBIC 2
+/* "Interface scaling" (All Settings > Display). The row is built by cache
+ * script_3850 and applied by script_3967 case 79 -> script_3054, whose whole
+ * body is `deviceoption_set(27, max(~script3333, min(400, v)))`; the label
+ * comes back through script_9116 case 79 -> `deviceoption_get(27)` rendered as
+ * "<n>%". So the id is a PERCENTAGE and its domain is stated by the script,
+ * not by us: ~script3333 is 100 on desktop (175 on mobile) and the ceiling is
+ * 400.
+ *
+ * It is not in the rev-239 Java client's device-option table (deob class64
+ * lists ids -1/2/3/4/5/6/14/19/22 and throws "Unrecognized device option" for
+ * anything else) — the row is gated behind ~script100, which is true only for
+ * the enhanced/mobile client types, and this client reports clienttype 10.
+ * There is therefore no reference implementation to copy; the semantics below
+ * are the ones the scripts state. */
+#define RS_CS2_DEVICEOPTION_UI_SCALE 27
+#define RS_CS2_UI_SCALE_MIN 100
+#define RS_CS2_UI_SCALE_MAX 400
+
+/* Setting-struct params the panel itself reads, and this client reads with it.
+ * `param_1078` is the row KIND -- 9 is the colour row -- and 1077 / 1086 / 1230
+ * are that row's setting id, its title and the swatch it shows before anyone
+ * has picked one. */
+#define RS_CS2_PARAM_SETTING_ID 1077
+#define RS_CS2_PARAM_SETTING_KIND 1078
+#define RS_CS2_PARAM_SETTING_LABEL 1086
+#define RS_CS2_PARAM_SETTING_COLOUR_DEFAULT 1230
+/* The number-input row's own two words: the unit it draws after a value above
+ * one ("gp"), and what it draws instead of a zero ("Off"). */
+#define RS_CS2_PARAM_SETTING_NUMBER_SUFFIX 1112
+#define RS_CS2_PARAM_SETTING_NUMBER_ZERO 1113
+#define RS_CS2_SETTING_KIND_COLOUR 9
+
+/**
+ * One entry of a tile's ground-item pile.
+ *
+ * The reference's `ClientObj`, less the fields no script asks for. The two
+ * clocks are DEADLINES in `client_clock` units or -1 ("the server never
+ * said") -- the ops turn them into the remaining GAME ticks the cache counts
+ * in, which is the one conversion this struct exists to keep in one place.
+ */
+struct RS_CS2GroundObj
+{
+    int obj_id;
+    int count;
+    int public_clock;
+    int despawn_clock;
+    /** OBJ_ADD's ownershipType, what OBJ_OWNER (6863) answers: 0/1 public or
+     *  mine, 2 someone else's, 3 a group ironman's. */
+    int owner;
+    /** OBJ_ADD's neverBecomesPublic: the pile stays private for its whole
+     *  life, so `_6862` says no however far the public clock has run. */
+    int never_becomes_public;
+};
+
+/**
+ * A number-input row's field, clicked.
+ *
+ * The numeric twin of RS_CS2SettingsColourRequest: everything the App needs to
+ * put an entry box on screen and write the answer back. `param_1112` and
+ * `param_1113` are the row's own suffix and its zero-word ("Off"), which the
+ * panel draws beside the number and which an entry box has to echo if the two
+ * are not to disagree about what is being typed.
+ */
+struct RS_CS2SettingsNumberRequest
+{
+    /** `param_1077`, the id every settings hub switches on. */
+    int setting_id;
+    /** The varp holding the value, or -1 when the read hub never named one. */
+    int varp_id;
+    /** What the varp holds now. */
+    int value;
+    /** The component the op was dispatched on, so the box can open beside the
+     *  field instead of in the middle of the screen. -1 when unknown. */
+    int component_id;
+    /** `param_1086`, the row's own title. */
+    char label[64];
+    /** `param_1112`, the unit drawn after a value above one ("gp"). */
+    char suffix[32];
+    /** `param_1113`, what the row draws instead of a zero ("Off"). */
+    char zero_label[32];
+};
+
+/**
+ * A colour row's swatch, clicked.
+ *
+ * Everything the App needs to put a picker on screen and write the answer
+ * back, resolved here because this is the side that can see the cache: the
+ * struct behind the row is loaded (the panel read its title out of it to draw
+ * the row) and the varp behind it was learned when the row was built.
+ */
+struct RS_CS2SettingsColourRequest
+{
+    /** `param_1077`, the id every settings hub switches on. */
+    int setting_id;
+    /** The varp holding `colour + 1`, or -1 when the read hub never named one
+     *  -- which is a row this client cannot write, and is said so out loud
+     *  rather than written to varp -1. */
+    int varp_id;
+    /** Current value as 0xRRGGBB: the varp less one, or `default_colour` when
+     *  the varp is 0, which is what "never chosen" is stored as. */
+    int colour;
+    /** `param_1230`, the swatch the panel draws before anyone picks. */
+    int default_colour;
+    /** The component the op was dispatched on, so a picker can open beside the
+     *  swatch instead of in the middle of the screen. -1 when unknown. */
+    int component_id;
+    /** `param_1086`, the row's own title ("Tile highlight colour"). */
+    char label[64];
+};
+
+/* Settings-panel setting ids (struct param_1077), as switched on by the cache's
+ * settings hubs script_3962 (read) and script_3967 (apply). Only the ones this
+ * client has to recognise by name are listed. */
+#define RS_CS2_SETTING_CLIENT_LAYOUT 12
+#define RS_CS2_SETTING_UI_SCALE 79
+#define RS_CS2_SETTING_UI_SCALE_MODE 169
 #define RS_CS2_OPTION_MAX 64
 
 /**
@@ -130,10 +297,13 @@ struct RS_CS2SocialSend
     int kind; /* enum RS_CS2SocialSendKind */
     /** Target player: the four list ops and MESSAGE_PRIVATE. */
     char name[RS_CS2_HOST_SOCIAL_NAME_LEN];
-    /** Message body: MESSAGE_PRIVATE and CHEAT. */
+    /** Message body: MESSAGE_PRIVATE, MESSAGE_PUBLIC and CHEAT. */
     char text[RS_CS2_HOST_SOCIAL_TEXT_LEN];
     /** public / private / trade: CHAT_SETMODE only. */
     int modes[3];
+    /** Packed colour/effect the line is spoken in: MESSAGE_PUBLIC only. High
+     *  byte colour, low byte effect. */
+    int colour_effect;
 };
 
 /** A CC_TRIGGEROP request: which component's on_op to run, and the op index
@@ -141,6 +311,7 @@ struct RS_CS2SocialSend
 struct RS_CS2TriggerOp
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int op_index;
 };
 
@@ -175,11 +346,17 @@ enum RS_CS2SoundKind
     RS_CS2_SOUND_SONG_WITHSECONDARY,
 };
 
-/** An IF_TRIGGEROPLOCAL request: IF_BUTTON1(component, sub) to send. */
+/** Deferred native IF_SCRIPT_TRIGGER; own strings after the VM returns. */
 struct RS_CS2TriggerOpLocal
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int sub;
+    int crc;
+    int child;
+    char signature[17];
+    int values[16];
+    char strings[16][256];
 };
 
 /*
@@ -214,6 +391,7 @@ struct RS_CS2TriggerOpLocal
 struct RS_CS2InvTransmitHook
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int script_id;
     int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
@@ -228,11 +406,15 @@ struct RS_CS2InvTransmitHook
      *  once when first dispatched visible, then only when the serial advances
      *  (TS parity: node.lastChangedInvCount vs cycles.changedInvCount). */
     uint32_t last_seen_serial;
+    /** A matching container changed while this hook was hidden. An unhide pass
+     *  resumes only hooks carrying this bit, not every globally stale hook. */
+    uint8_t pending_unhide;
 };
 
 struct RS_CS2VarTransmitHook
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int script_id;
     int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
@@ -244,6 +426,8 @@ struct RS_CS2VarTransmitHook
     int trigger_count;
     /** var_change_serial this hook last fired for (0 = never fired). */
     uint32_t last_seen_serial;
+    /** A matching varp changed while this hook was hidden. */
+    uint8_t pending_unhide;
 };
 
 /*
@@ -255,6 +439,7 @@ struct RS_CS2VarTransmitHook
 struct RS_CS2StatTransmitHook
 {
     int component_id;
+    struct UITreeNodeRef ref;
     int script_id;
     int int_args[RS_CS2_HOST_TRANSMIT_INT_ARG_MAX];
     int int_arg_count;
@@ -265,6 +450,8 @@ struct RS_CS2StatTransmitHook
     int trigger_count;
     /** stat_change_serial this hook last fired for (0 = never fired). */
     uint32_t last_seen_serial;
+    /** A matching skill changed while this hook was hidden. */
+    uint8_t pending_unhide;
 };
 
 struct RS_CS2Host
@@ -282,6 +469,10 @@ struct RS_CS2Host
      *  panels draw their empty state — which is exactly what they did before
      *  those opcodes had handlers at all. */
     struct RS_Social* social;
+    /** The message store the CHAT_GETHISTORY* opcodes read and
+     *  RS_CS2Host_ChatAdd writes. May be NULL (a headless harness with no
+     *  chatbox), in which case the history opcodes answer empty. */
+    struct RS_Chat* chat;
     /** The three chat filter modes, borrowed from RS_UISlots — the same three
      *  ints the IF1 privacy bar cycles. A pointer rather than a copy because
      *  CHAT_SETFILTER and the privacy bar are two writers of one value and the
@@ -319,6 +510,73 @@ struct RS_CS2Host
      */
     int (*events_override_for_component)(void* user, int com_id, int* out_events);
     void* events_user;
+    /** Synchronous named callback. Stack access is scoped to this invocation;
+     * it must neither yield nor recursively execute the VM. Optional. */
+    void (*script_callback)(void* user, struct CS2VM2_Thread*, char const* name);
+    void* script_callback_user;
+    bool script_callback_running;
+
+    /*
+     * The scene, for the two ops that ask about it: LOC_FIND (6803) and
+     * COORD_INSCENE (6951).
+     *
+     * Callbacks for the same reason the one above is one -- the scene lives on
+     * the App and this header stays clear of the world layer. Both NULL is a
+     * host with no world, where LOC_FIND finds nothing and COORD_INSCENE says
+     * no; every static-overlay script then declines to draw, which is the
+     * truthful answer for a client that has not loaded a map.
+     *
+     * `loc_at_coord` returns nonzero when a loc of `loc_type` stands on
+     * `coord`, filling `*out_layer` (World_LocShapeToLayer) and up to
+     * `name_cap` bytes of its name.
+     */
+    int (*loc_at_coord)(
+        void* user,
+        int coord,
+        int loc_type,
+        int* out_layer,
+        char* out_name,
+        int name_cap);
+    int (*coord_in_scene)(void* user, int coord);
+    /**
+     * One player's queued ROUTE, for ACTIVEPLAYER_GETROUTELENGTH and
+     * ACTIVEPLAYER_GETROUTECOORD.
+     *
+     * A route is the tiles the server has put a player on that the client has
+     * not walked through yet -- the reference's `ClientPlayer::m_routeLength`
+     * and its two `array<int,10>` companions, which this client mirrors as
+     * WorldEntityFacet_Pathing. Index 0 is the NEWEST entry, so it is the
+     * player's server-side tile and runs AHEAD of the rendered position while
+     * they walk; that is the whole point of the current-tile indicator, which
+     * marks ACTIVEPLAYER_GETROUTECOORD(0) when there is a route and `coord`
+     * when there is not.
+     *
+     * Returns the route length, or -1 when no player in the world has that
+     * uid. `*out_coord` is filled with the packed absolute coord of entry
+     * `index` when that index is inside the route, and left alone otherwise.
+     * NULL here (a host with no world) is a client where every player has no
+     * route, which is what a client with no players truthfully has.
+     */
+    int (*player_route)(void* user, int player_uid, int index, int* out_coord);
+    /**
+     * The ground-item pile on one tile, for the ground-items overlay family
+     * (`_7120`/`_7121`/`_7122`, and `_6859`'s lookup).
+     *
+     * `Client::GetObjectsOnTile` in the reference, which answers an empty pile
+     * for a coord outside the build area rather than an error -- so does this:
+     * the return is the number of entries on the tile, and `*out` is filled
+     * only when `index` names one of them.
+     *
+     * NULL is a host with no world, where every tile is empty. That is the
+     * truthful answer for a client on the login screen, and it is what makes
+     * the overlay script destroy its overlay instead of drawing a stale one.
+     */
+    int (*objs_on_coord)(
+        void* user,
+        int coord,
+        int index,
+        struct RS_CS2GroundObj* out);
+    void* world_user;
 
     bool has_pending;
     struct CS2VM_HostRequest pending;
@@ -326,13 +584,126 @@ struct RS_CS2Host
     struct VarCManager* varcs; /* client-variable store; may be NULL */
     struct LootStore* loot;   /* client-native loot tracker; may be NULL */
 
+    /**
+     * `clientclock`, one per 20 ms logic tick (RS_CS2Host_Tick).
+     *
+     * The unit matters outside this file: `~buff_bar_time_string` divides its
+     * argument by 50 to get seconds, so every duration a cache script formats
+     * is counted in these. A GAME tick is RS_CS2_HOST_CLOCKS_PER_TICK of them,
+     * which is the conversion the ground-item timers ride on -- the wire says
+     * game ticks, this clock counts logic ticks, and the overlay script
+     * multiplies the op's answer by 30 to get back here.
+     */
     int client_clock;
+
+    /* The local player's packed coord (plane<<28 | x<<14 | z), refreshed by the
+     * App each frame. Cache scripts branch on it - the raid HUDs decide which
+     * panel to show from where the player is standing - and -1 means "the world
+     * has no local player yet", which reads as no tile rather than as tile
+     * zero. See CS2VM2_Op_Coord. */
+    int local_coord;
+    /**
+     * The local player's uid, as LOCALPLAYER_GETUID reports it, or -1 before
+     * login.
+     *
+     * This client's player uid IS the server player slot (pid), the same
+     * choice RS_ClientOpContext::uid makes for an npc and for the same reason:
+     * the value never leaves the client, so the only requirement is that
+     * whoever reports it and whoever resolves it agree.
+     *
+     * Read beside ACTIVEPLAYER_GETUID and never on its own: the
+     * pair is how a per-player trigger script asks "is this me", which is what
+     * clientscript 5203 opens with.
+     */
+    int local_pid;
+    /**
+     * Where the local player is WALKING to, packed the same way, or -1.
+     *
+     * Opcode 3330, and the destination-tile highlight's whole input:
+     * clientscript 5210 guards it as `if (_3330 ! null)` before marking the
+     * tile, so -1 has to mean "not walking anywhere" and not tile zero. The
+     * map flag is the source, exactly as it is for the plugin api's
+     * `dest_x`/`flag_x` -- the route queue trails behind the player and never
+     * holds the destination at all.
+     */
+    int dest_coord;
+
+    /**
+     * The tile the pointer is over, packed the same way, or -1.
+     *
+     * Backs `_6950` when no client op is being dispatched. That op is the
+     * "current tile target": during a client op it is the tile the row was
+     * built for, and outside one it is the mouseover -- clientscript 5197
+     * ("Highlight hovered tile") reads it with no client op in sight.
+     */
+    int hover_coord;
+
+    /**
+     * The three tile-highlight TRIGGER scripts, by cache id.
+     *
+     * Each is a `[trigger_4x]` with no arguments that clears its highlight
+     * group and re-adds one tile, reading the tile from the context the client
+     * set before firing it:
+     *
+     *     5197  [trigger_48]  hovered tile      _7039(5); tile_on(_6950, 5, 0)
+     *     5203  [trigger_49]  current tile
+     *            _7039(3); tile_on(ACTIVEPLAYER_GETROUTECOORD(0) or coord, 3, 0)
+     *     5209  [trigger_47]  destination tile  _7039(4); tile_on(_6950, 4, 0)
+     *
+     * Nothing in the CACHE calls them -- a trigger script is the client's to
+     * fire -- and the reference fires each on one edge: the mouseover ground
+     * tile changing (`Client::GlUpdateMouseOverTile`), a player's route being
+     * updated (`ReceivePlayerPositions` and `Client::GlMovePlayers`), and the
+     * minimap flag moving (`Client::SetPlayerDestination`). It sets the ACTIVE
+     * PLAYER and, for the two tile-context ones, the ACTIVE TILE first; see
+     * app_logic_tick, which is the half of this that lives on the App.
+     *
+     * Their `[clientscript]` siblings -- 5198, 5204 and 5210 -- are the
+     * settings-panel APPLY forms of the same three rows: they restate the
+     * group's colour and style and are called by the cache (5199/5205/5211
+     * write the varbit and call one; the login settings pass runs all three).
+     * Running one of THOSE on a coord edge is what this client used to do, and
+     * an apply script adds a tile without clearing the group first, so every
+     * tile the player stood on and every flag they dropped stayed marked.
+     *
+     * Held here beside `script_settings_client_mode` for the same reason: a
+     * cache id this client has to know by number belongs in one place where it
+     * can be checked against the cache, not spelled inline at the call site.
+     */
+    int script_highlight_hover_tile;
+    int script_highlight_current_tile;
+    int script_highlight_dest_tile;
+
+    /**
+     * The GROUND-ITEMS overlay hook, and the pile entry `_6859` selected.
+     *
+     * `script_ground_items_overlay` is the cache's per-tile rebuild
+     * (`torirs_ground_items_overlay_hook`, 7226): it reads the tile from
+     * `_6950` and rebuilds -- or destroys -- the coord-anchored overlay that
+     * lists what is lying there. Nothing in the cache calls it, for the same
+     * reason nothing calls the three tile refreshers above: the client is what
+     * knows a pile changed. See app_ground_items_tick.
+     *
+     * `active_obj` is the reference's `ScriptRunner::SetActiveObj`. The four
+     * no-arg getters (`_6860` despawn, `_6861` visibility, `_6862` is-public,
+     * OBJ_OWNER) read the entry the last `_6859` found, so the selection has
+     * to outlive that op -- it is one obj and not a queue because the script
+     * asks its four questions before selecting the next.
+     * `active_obj_valid` is false before any `_6859`, which is what makes
+     * those getters answer -1 rather than describing entry zero of nothing.
+     */
+    int script_ground_items_overlay;
+    struct RS_CS2GroundObj active_obj;
+    bool active_obj_valid;
+
     /** The client canvas, and what GETCANVASSIZE / VIEWPORT_GETEFFECTIVESIZE
      *  return. One of three copies of the canvas size — write it through
      *  App_SetCanvasSize, never here, or the layout and the scripts that read it
      *  back disagree (app.h says what that looks like). */
     int viewport_w;
     int viewport_h;
+    /** Native7900/7901, default30; zero suppresses unboarded carriers. */
+    int world_entity_draw_limit;
     /** Window mode (enum CS2VM_WindowMode), backing GET/SETWINDOWMODE and their
      *  `default` siblings. `window_mode_dirty` is raised by a SET and drained by
      *  the App, which owns the canvas and the SDL window — same shape as
@@ -352,9 +723,224 @@ struct RS_CS2Host
      *  calls setwindowmode; drained to WINDOW_STATUS so the server remounts. */
     int client_layout_mode;
     bool client_layout_dirty;
+    /** The clientscript whose CS2VM2_ThreadRun is on the stack right now, or
+     *  -1 between runs. Read only by the TORIRS_DUMP_SETPOS trace, so a
+     *  position write can name the script that made it instead of leaving the
+     *  reader to infer it. Written by Task_CS2Run around the VM call. */
+    int trace_script_id;
     /** Cache id of settings_client_mode (pack name script_3998). Dialect/cache
      *  surface for observing the dropdown's mode arg on SETWINDOWMODE. */
     int script_settings_client_mode;
+    /** Cache id of the All Settings panel's client-side apply hub (script_3967)
+     *  and of the varbit its first statement writes (9657, "the setting the
+     *  player just changed").
+     *
+     *  Together they are this client's only view of a selection made in the
+     *  All Settings panel: the panel is built entirely by clientscripts, and a
+     *  dropdown row's whole apply path is `~script3967(<setting id>, <choice>,
+     *  -1)`. Every setting that hub knows is applied inside it — except the
+     *  client layout (setting 12), which has no case there in any cache this
+     *  client can read, so picking a layout in All Settings changed nothing at
+     *  all. See RS_CS2Host_Exec's varbit case. */
+    int script_settings_client_apply;
+    int varbit_settings_last_changed;
+    /**
+     * Setting ids the All Settings panel has named since the App last looked.
+     *
+     * Every one of the four apply hubs (3965 toggle, 3966 slider, 3967
+     * dropdown, 3969 button) opens by writing the setting id to
+     * `varbit_settings_last_changed`, so that write IS the panel telling the
+     * client which row was used -- and it is the ONLY trace a button row
+     * leaves, because 3969's switch has no case for either of the two buttons
+     * in the Activities category.
+     *
+     * Queued rather than latched in the varbit, because the varbit cannot say
+     * "pressed twice": a second press writes the same value and the change
+     * gate in the var layer drops it. A queue also keeps the reader out of the
+     * running script, which is the same rule every other host request here
+     * follows.
+     *
+     * `value` is the hub's chosen value where it has one and -1 where it does
+     * not. Overflow drops the OLDEST, since a settings action nobody drained
+     * for eight rows is a stalled frame and the newest press is the one the
+     * user is waiting on.
+     */
+    /**
+     * What the cache asked this client to highlight.
+     *
+     * The HIGHLIGHT_* family (7000..7044) is how the settings panel's
+     * Activities category actually reaches the client: 125 clientscripts read
+     * a varbit and a colour row and describe a group here. See rs_highlight.h.
+     *
+     * Held on the host and not in the App, for the same reason every other
+     * script-written state is: it is written from inside a running script,
+     * through the host request path, and the App reads it afterwards.
+     */
+    struct RS_HighlightState highlight;
+
+    /**
+     * The client-owned right-click rows the cache installed, and what the one
+     * being dispatched is about.
+     *
+     * The other half of the highlight story: the groups were being set up all
+     * along, and nothing was ever put in them because the scripts that do the
+     * putting read their subject out of here. See rs_clientop.h.
+     */
+    struct RS_ClientOpState clientop;
+
+    /**
+     * Interface components the cache hung off things in the world.
+     *
+     * The other half of the Activities category: what is not a highlight is one
+     * of these. The layer each overlay names by `component_id` lives in the
+     * UITree under the `entity_overlay` builtin, so `cc_*` reaches it the same
+     * way it reaches a panel; the App projects the anchor and moves it each
+     * frame. See rs_entity_overlay.h.
+     */
+    struct RS_OverlayState overlay;
+
+    int settings_action_id[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
+    int settings_action_value[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
+    int settings_action_count;
+
+    /**
+     * Settings varbit writes, waiting to be mirrored to the SERVER.
+     *
+     * ## Why the server has to be told, and why nothing tells it
+     *
+     * Ten rows of the Activities category are decided server-side -- the
+     * Agility / Slayer / Blast Furnace helpers, the clue helper's marker, arrow
+     * and infobox, the iron loot warnings, the boss health overlay and the
+     * max-hit threshold. Every one of them reads a varbit whose base varp is an
+     * ORDINARY SERVER VARP (`ironman_var_1`, `options_varp`, `options_mobile`
+     * ...), and the panel writes it with `VarPManager_SetVarbitOptimistic` --
+     * the client's own copy only. `VarPManager_ApplySync` overwrites that copy
+     * from `var_serv` the moment the server speaks about the varp, so the write
+     * is not merely invisible to the server, it is not durable here either.
+     *
+     * Nothing in the revision closes that gap:
+     *
+     *   - rev239's client prot table (`3rd/rsprot/gen/rev239_prot.h`) carries no
+     *     varp, varbit or settings packet. `SET_CHATFILTERSETTINGS` is the only
+     *     settings-shaped entry and it is about chat filters.
+     *   - the reference client does not transmit either: NXT's
+     *     `ClientVarCache::SetVarbit` writes `m_var` and returns, and `m_varServ`
+     *     is written only by the inbound `VARP_*` handlers.
+     *   - the panel does not ask the server: there is no `if_triggerop` or
+     *     `cc_triggerop` anywhere in interface 134's script family, and the
+     *     cache's own server-applied row kind (`~script3968`) has an empty
+     *     switch, which none of these rows uses.
+     *
+     * So the reference server holds these varps by a path this revision's prot
+     * table does not show, and the client's write is a prediction of a value the
+     * server is expected to already agree with.
+     *
+     * ## What this client does instead, and why it is CLIENT_CHEAT
+     *
+     * The App drains this queue and sends `::setting <varbit> <value>` over
+     * `CLIENT_CHEAT`, which ToriRSServer applies to the player's varps.
+     *
+     * CLIENT_CHEAT rather than a new opcode, deliberately. Adding a client
+     * packet id that rev239 does not define would make this client unable to
+     * talk to a real rev239 server at all -- an unknown opcode is not ignored,
+     * it desynchronises the stream, because the reader takes the packet's LENGTH
+     * from the prot table. CLIENT_CHEAT is a real rev239 client packet with a
+     * var-u8 string payload, so a server that does not know the command answers
+     * "unknown command" or says nothing, and the connection survives. A wire
+     * extension that degrades to a no-op is the only kind worth having here.
+     *
+     * ## What is mirrored, and what is not
+     *
+     * Only writes made INSIDE an All Settings apply hub. The root script id of
+     * the frame that wrote `%varbit9657` is remembered, and a varbit write is
+     * mirrored only while that same script is the root -- so the 510
+     * clientscripts in this cache that write a varbit for some other reason
+     * (a quest stage, a panel's scroll position) say nothing to the server,
+     * which is right: those are the server's own state and it already knows.
+     *
+     * Learned rather than tabulated, the same way `settings_colour_varp` is: the
+     * hub announces itself by writing 9657 as its first statement, so nothing
+     * here has to carry a list of hub script ids to keep in step with the cache.
+     */
+    int settings_mirror_varbit[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
+    int settings_mirror_value[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
+    int settings_mirror_count;
+    /** The apply hub's own script id, learned from the frame that wrote 9657.
+     *  -1 before the panel has ever applied anything. */
+    int settings_mirror_root_script;
+
+    /**
+     * The All Settings panel's COLOUR rows, and the one the player just
+     * clicked.
+     *
+     * A colour row (`param_1078 = 9`, built by clientscript 4182) hangs
+     * `settings_colour_input_click` off its swatch, and that script's whole
+     * body is `~settings_op_checker` -- a click sound and, on a blocked row,
+     * the "you cannot change this" message. There is no apply in the cache
+     * because there is none to write: the reference opens a picker of its own
+     * from here and writes the row's varp itself. So does this client; see
+     * RS_CS2Host_ScriptStarted.
+     *
+     * `settings_colour_varp` is LEARNED rather than tabulated. The read hub
+     * `settings_get_colour` (script_4181) is a switch from setting id to
+     * `calc(%var<n> - 1)`, so the varp behind a row is stated only inside that
+     * script -- and the row builder calls it while laying the row out, which
+     * is necessarily before anyone can click the swatch. Watching the varp
+     * read it performs therefore answers "which varp is this row" from the
+     * cache itself, for every colour row and every revision, instead of from
+     * a fifty-line table this file would have to keep in step by hand.
+     *
+     * To check one by hand:
+     *     3rd/rscache/tools/cs2/cs2 decompile --cache cache.osrs239 \
+     *         --rev osrs239 --out /tmp/cs2 4181
+     */
+    int settings_colour_setting[RS_CS2_HOST_SETTINGS_COLOURS_MAX];
+    int settings_colour_varp[RS_CS2_HOST_SETTINGS_COLOURS_MAX];
+    int settings_colour_count;
+    /** Cache ids of the two scripts above -- the op script whose run IS the
+     *  click, and the read hub whose varp read names the row's varp. */
+    int script_settings_colour_click;
+    int script_settings_colour_get;
+    /** The click waiting for the App to open a picker for it. One slot and not
+     *  a queue: a second click before the first is drained is the same person
+     *  changing their mind about which row they meant, and the newer one is
+     *  the one they are looking at. */
+    struct RS_CS2SettingsColourRequest settings_colour_request;
+    bool settings_colour_pending;
+
+    /**
+     * The All Settings panel's NUMBER-INPUT rows, and the one just clicked.
+     *
+     * The same arrangement as the colour rows above, discovered the same way
+     * and for the same reason: `settings_input_op` (the row's Select op) is
+     * `~settings_op_checker` and nothing else, because the reference opens a
+     * numeric entry of its own from here and writes the row's varp itself.
+     * `settings_get_number_input` is the read hub, so the varp it reads inside
+     * a frame of that script names the row -- which is what makes the five
+     * ground-items price tiers reachable without a table of setting ids.
+     *
+     * The value is stored PLAIN, not offset: a threshold of zero is a real
+     * threshold ("colour everything at this tier"), so there is no room for a
+     * never-chosen sentinel and none is wanted -- the cache's own default for
+     * these varps is zero.
+     */
+    int settings_number_setting[RS_CS2_HOST_SETTINGS_NUMBERS_MAX];
+    int settings_number_varp[RS_CS2_HOST_SETTINGS_NUMBERS_MAX];
+    int settings_number_count;
+    int script_settings_number_click;
+    int script_settings_number_get;
+    struct RS_CS2SettingsNumberRequest settings_number_request;
+    bool settings_number_pending;
+
+    /**
+     * The two varbits that name the ground-items settings' CARRIER varps.
+     *
+     * Not read for their own value: the App resolves each to its base varp
+     * (VarPManager_VarbitBaseVar) and watches those, because a varp is what a
+     * change can be noticed on. See app_ground_items_tick.
+     */
+    int varbit_ground_items_enabled;
+    int varbit_ground_items_modifier_key;
     /** Follow-camera trailing height, backing CAM_SET/GETFOLLOWHEIGHT. The
      *  orbit-camera render path in app.c does not consume this yet; it is stored
      *  so a script that sets it can read the same value back. */
@@ -380,9 +966,36 @@ struct RS_CS2Host
      *  render path consuming it yet. */
     int minimap_zoom;
 
-    /** Set by LOGOUT (5630); nothing consumes it yet — the client has no logout
-     *  flow wired up, so this just records that a script asked for one. */
+    /** Set by LOGOUT (5630) — the modern logout button's script. Drained by the
+     *  App's tick, which defers it one more step onto App::logout_requested so
+     *  the teardown lands behind the packets this tick has already queued. */
     bool logout_requested;
+
+    /** Set by MOBILE_KEYBOARDSHOWSTRING / SHOWINTEGER (6522/6523) and
+     *  MOBILE_KEYBOARDHIDE (6521): 1 = show, -1 = hide, 0 = nothing pending.
+     *  Drained by the App's tick into the chat line's focus, which is what
+     *  raises and lowers the platform's soft keyboard (app_wants_text_input).
+     *  The mobile scripts own the toggle's state (%varcint1226); the host
+     *  only does what the last request said. */
+    int keyboard_request;
+
+    /**
+     * What the device is doing, for MOBILE_BATTERYLEVEL / BATTERYCHARGING /
+     * WIFIAVAILABLE.
+     *
+     * Seeded to the answer a machine with no battery gives -- full, on mains,
+     * on an unmetered link -- so a desktop reads exactly as it did when these
+     * three opcodes were literals. A platform that knows better writes them
+     * through RS_CS2Host_SetDeviceStatus.
+     *
+     * `network` is the LINK, not just wifi: the scripts only ask "is this
+     * wifi", but the same question is how a client decides it is on a metered
+     * connection, and answering it from a two-state flag would lose the
+     * difference between cellular and nothing at all.
+     */
+    int battery_percent;
+    int battery_charging;
+    int network_kind;
 
     /** Set by IF_CLOSE (3103) — an interface's close button. Drained by the
      *  App's tick, which sends CLOSE_MODAL; the server is what actually
@@ -442,10 +1055,13 @@ struct RS_CS2Host
     int viewport_aspect_min;
     int viewport_aspect_max;
 
-    /** UI zoom, backing UIZOOM_SET/GET/RESET (GETDEFAULT is a fixed constant,
-     *  not read from here). Host-owned so it round-trips like the other
-     *  settings values above. */
-    int ui_zoom;
+    /** Raised whenever the interface scale (device option 27) changes value.
+     *  Drained by the App, which owns the canvas — same shape as
+     *  `window_mode_dirty`. The scale itself is NOT a separate field: it lives
+     *  in `device_options[RS_CS2_DEVICEOPTION_UI_SCALE]` so the two spellings
+     *  the cache uses for it (deviceoption 27 and the UIZOOM_* opcode family)
+     *  cannot disagree. */
+    bool ui_scale_dirty;
 
     /** Backing CAM_GETYAW. There is no setter opcode and no live link yet from
      *  this host to the render-side camera (app->world_camera.yaw, reached via
@@ -466,14 +1082,28 @@ struct RS_CS2Host
      *  write that would otherwise overwrite it on the next tick. */
     bool cam_angle_forced;
 
-    struct RS_CS2InvTransmitHook inv_transmit_hooks[RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX];
+    /* Heap, grown on demand, dense over [0, count). As fixed
+     * RS_CS2_HOST_*_TRANSMIT_HOOK_MAX slabs these three were 6.62 MB of .bss --
+     * 98.3% of struct RS_CS2Host and 68% of struct App -- charged to every
+     * client start to hold what a session actually registers: 0 inv hooks and
+     * 6 var hooks. An entry is 4520 bytes, 4096 of it the fixed str_args
+     * block, so the empty slots were the whole cost. MAX survives as the
+     * ceiling, leaving the hooks-full drop path unchanged.
+     *
+     * Index, never hold a pointer across an acquire: a grow moves the base.
+     * The dispatch protothreads already re-derive from hook_index on every
+     * iteration, which is what makes that safe across their yields. */
+    struct RS_CS2InvTransmitHook* inv_transmit_hooks;
     int inv_transmit_hook_count;
+    int inv_transmit_hook_cap;
 
-    struct RS_CS2VarTransmitHook var_transmit_hooks[RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX];
+    struct RS_CS2VarTransmitHook* var_transmit_hooks;
     int var_transmit_hook_count;
+    int var_transmit_hook_cap;
 
-    struct RS_CS2StatTransmitHook stat_transmit_hooks[RS_CS2_HOST_VAR_TRANSMIT_HOOK_MAX];
+    struct RS_CS2StatTransmitHook* stat_transmit_hooks;
     int stat_transmit_hook_count;
+    int stat_transmit_hook_cap;
 
     /** Set when IF_SETHIDE unhides a subtree (TS markWidgetsLoaded). Consumed once
      *  per logic tick by RS_CS2_PumpTransmits; per-hook last_seen_serial gating
@@ -511,6 +1141,13 @@ struct RS_CS2Host
      *  packets via RS_CS2Host_NotifyFriendChanged. Without it the friends panel
      *  paints once at mount and never again. */
     int friend_transmit_dirty;
+    /** Set when a message reached the chat store. Same shape as misc and
+     *  friend -- CC/IF_SETONCHATTRANSMIT carries no trigger list, so every
+     *  registered hook re-runs. This is the stamp the reference bumps in
+     *  `addChatMessage`, and it is what makes the cache's own
+     *  `[proc,rebuildchatbox]` run: the chatbox is 500 text components the
+     *  scripts fill, and without this dispatch nothing ever asks them to. */
+    int chat_transmit_dirty;
     /** Which container ids changed since the last dispatch, mirroring
      *  var_changed_ids. `inv_changed_all` means "re-run every inv hook". */
     int inv_changed_ids[RS_CS2_HOST_VAR_CHANGED_MAX];
@@ -608,7 +1245,7 @@ struct RS_CS2Host
      *  nested run, and would be a finding rather than a tweak.
      *
      *  A listener may queue another, so the drain loops. */
-    int call_on_resize[RS_CS2_HOST_CALL_ON_RESIZE_MAX];
+    struct UITreeNodeRef call_on_resize[RS_CS2_HOST_CALL_ON_RESIZE_MAX];
     int call_on_resize_count;
     int call_on_resize_head;
 
@@ -633,6 +1270,16 @@ struct RS_CS2Host
     int triggeroplocal_head;
 };
 
+/**
+ * Seed the host, including every cache id it drives a feature from.
+ *
+ * `refs` is the boot's RevConfig id table and may be NULL (tests, and any
+ * embedding with no profile). Each id it fails to supply is left at -1, and -1
+ * means the running revision has no such script or varbit: the settings-panel
+ * mirror and the tile-highlight bridge switch themselves off rather than
+ * running whatever script happens to carry rev-239's number on some other
+ * cache.
+ */
 void
 RS_CS2Host_Init(
     struct RS_CS2Host* host,
@@ -640,7 +1287,8 @@ RS_CS2Host_Init(
     struct CacheProvider* provider,
     struct InvManager* invs,
     struct VarPManager* varps,
-    struct VarCManager* varcs);
+    struct VarCManager* varcs,
+    struct RevConfigRefs const* refs);
 
 /** Arm the var- and inv-transmit hooks a component record declares in the
  *  cache (`onVarpTransmit`/`varpTriggers`, `onInvTransmit`/`inventoryTriggers`).
@@ -650,6 +1298,7 @@ RS_CS2Host_Init(
 void
 RS_CS2_RegisterCacheTransmitHooks(
     struct RS_CS2Host* host,
+    struct UITree* tree,
     struct ToriRS_Component const* src);
 
 /** Give the host the player's skill table. Separate from Init because the
@@ -693,6 +1342,28 @@ RS_CS2Host_SetSocial(
 void
 RS_CS2Host_NotifyFriendChanged(struct RS_CS2Host* host);
 
+/** Point the CHAT_* history opcodes at the client's message store. */
+void
+RS_CS2Host_SetChat(
+    struct RS_CS2Host* host,
+    struct RS_Chat* chat);
+
+/**
+ * Add a message and tell the chatbox scripts about it.
+ *
+ * The one entry point for anything that has a host, because the two halves
+ * belong together: a message the store holds but the transmit channel never
+ * announced is a line the cache's chatbox will not draw until something else
+ * happens to repaint it. Stamps the client clock, which is the host's to know.
+ */
+void
+RS_CS2Host_ChatAdd(
+    struct RS_CS2Host* host,
+    int type,
+    char const* name,
+    char const* sender,
+    char const* text);
+
 /** Pop the oldest queued outbound social request, FIFO. Returns false when the
  *  queue is empty. The App drains this once per tick and turns each entry into
  *  a packet; nothing else may consume it. */
@@ -713,6 +1384,114 @@ RS_CS2Host_TakeCallOnResize(
  *  queue is empty. The App drains this once per tick and runs each
  *  component's on_op listener with event_opindex set to op_index; nothing
  *  else may consume it. */
+/**
+ * Pop the oldest All Settings row use, FIFO. False when the queue is empty.
+ *
+ * `*out_value` is the row's chosen value, or -1 for a row whose apply hub
+ * carries none (every toggle, and both of the Activities buttons). The App
+ * drains this once per frame and hands it to the plugin layer, which is where
+ * the builtins that implement those rows live.
+ */
+bool
+RS_CS2Host_TakeSettingsAction(
+    struct RS_CS2Host* host,
+    int* out_setting_id,
+    int* out_value);
+
+/**
+ * Pop the oldest settings varbit write waiting to be mirrored to the server.
+ *
+ * FIFO, and false when the queue is empty. See `settings_mirror_varbit` for why
+ * a client-side settings write has to reach the server at all.
+ */
+bool
+RS_CS2Host_TakeSettingsMirror(
+    struct RS_CS2Host* host,
+    int* out_varbit_id,
+    int* out_value);
+
+/**
+ * Queue a settings varbit write for the server directly, bypassing the "was a
+ * hub on the stack" test.
+ *
+ * For the writers that are not the panel: `TORIRS_SIM_VARBIT`, which exists
+ * precisely because nothing in the cache writes these varbits and a headless
+ * run has no panel to click. A simulated write that the server never heard
+ * about would make every server-side row untestable from a headless run, which
+ * is the only way most of them can be tested at all.
+ */
+void
+RS_CS2Host_QueueSettingsMirror(
+    struct RS_CS2Host* host,
+    int varbit_id,
+    int value);
+
+/**
+ * A clientscript is about to run, with its arguments already in its locals.
+ *
+ * The one seam this client has on a script's ARGUMENTS. A hook that fires from
+ * inside an opcode (the way the client-layout apply does, off the varbit write
+ * that opens its hub) can only see scripts that execute an opcode worth
+ * watching, and `settings_colour_input_click` executes none: it plays the
+ * panel's click sound and returns. Its arguments -- which row was clicked, and
+ * whether the row is enabled -- are the whole of what it says, and they exist
+ * only here.
+ *
+ * @param component_id the component the op was dispatched on, or -1.
+ *
+ * Deliberately narrow: it claims one script id and ignores every other, so the
+ * per-script cost is one integer compare on a path that runs for every hook in
+ * the cache.
+ */
+void
+RS_CS2Host_ScriptStarted(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    int component_id);
+
+/**
+ * Take the colour row waiting for a picker, if any.
+ *
+ * One shot: the App opens its picker on the request and owns the row from
+ * there, so a second frame with nothing new to report answers false rather
+ * than re-opening what is already up.
+ */
+bool
+RS_CS2Host_TakeSettingsColourRequest(
+    struct RS_CS2Host* host,
+    struct RS_CS2SettingsColourRequest* out);
+
+/** The varp a colour row writes, or -1 when the read hub has not named one
+ *  yet. See `settings_colour_varp` for where the answer comes from. */
+int
+RS_CS2Host_SettingsColourVarp(
+    struct RS_CS2Host const* host,
+    int setting_id);
+
+/** The number-input twin of the two above. */
+bool
+RS_CS2Host_TakeSettingsNumberRequest(
+    struct RS_CS2Host* host,
+    struct RS_CS2SettingsNumberRequest* out);
+
+int
+RS_CS2Host_SettingsNumberVarp(
+    struct RS_CS2Host const* host,
+    int setting_id);
+
+/**
+ * Drop one scripted entity overlay and the UITree layer it owns.
+ *
+ * For the App, which is the only thing that can tell that an overlay's subject
+ * has left the world -- the script that made it gets no event for that, and an
+ * overlay whose npc despawned would otherwise sit in the table forever holding
+ * a layer that projects nowhere.
+ *
+ * A free index is a no-op, matching RS_OverlayDestroy.
+ */
+void
+RS_CS2Host_OverlayReap(struct RS_CS2Host* host, int index);
+
 /** Pop the oldest queued script sound. False when the queue is empty. */
 bool
 RS_CS2Host_TakeSound(
@@ -793,6 +1572,50 @@ RS_CS2Host_SetOption(
     int kind,
     int option_id,
     int value);
+
+/**
+ * The interface scale as a percentage, clamped to
+ * RS_CS2_UI_SCALE_MIN..RS_CS2_UI_SCALE_MAX. Never 0 — an option table that
+ * nothing has written still answers 100 here, so callers can divide by it.
+ */
+int
+RS_CS2Host_UiScalePercent(
+    struct RS_CS2Host const* host);
+
+/** The interface presentation filter selected by device option 15. Always one
+ *  of RS_CS2_UI_SCALE_MODE_NEAREST..RS_CS2_UI_SCALE_MODE_BICUBIC. */
+/**
+ * The frame rate the screen is capped to, or 0 for uncapped.
+ *
+ * The cap is the SCREEN's: the world keeps ticking at its own rate whatever
+ * this says, which is why the caller applies it to the draw budget and not to
+ * the pacer's period. @see RS_CS2_DEVICEOPTION_FPS_CAP.
+ */
+int
+RS_CS2Host_FrameRateCapFps(struct RS_CS2Host const* host);
+
+/** @see RS_CS2Host::network_kind. */
+#define RS_CS2_NETWORK_NONE 0
+#define RS_CS2_NETWORK_WIFI 1
+#define RS_CS2_NETWORK_CELLULAR 2
+
+/**
+ * Tell the host what the device is doing: battery 0..100, whether it is
+ * charging, and which link it is on (RS_CS2_NETWORK_*).
+ *
+ * Cheap and idempotent -- the platform calls it whenever its own reading
+ * changes, and a value that has not moved costs a compare.
+ */
+void
+RS_CS2Host_SetDeviceStatus(
+    struct RS_CS2Host* host,
+    int battery_percent,
+    int battery_charging,
+    int network_kind);
+
+int
+RS_CS2Host_UiScaleMode(
+    struct RS_CS2Host const* host);
 
 bool
 RS_CS2Host_TakeTriggerOp(
@@ -893,6 +1716,58 @@ void
 RS_CS2Host_ClearHooksForInterfaceGroup(
     struct RS_CS2Host* host,
     int group_id);
+
+/* =========================================================================
+ * IF3 text-entry fields (component type 12)
+ *
+ * The caret and the keyboard for the cache's own editable boxes -- the hiscores
+ * name field, the bug-report body, the loot-tracker ignore prompt. The field
+ * itself is an ordinary RS_TEXT node flagged `input` (ui/uitree.h); what lives
+ * here is everything the field cannot do alone: measuring a candidate line
+ * against the font it draws in, and running the three CS2 hooks the scripts
+ * hang off it.
+ *
+ * The app owns the POINTER and the KEYBOARD and calls in; nothing here polls.
+ * ========================================================================= */
+
+/** The field holding the caret, by component id, or -1. */
+int
+RS_CS2_InputFocusId(struct RS_CS2Host* host);
+
+/**
+ * Move the caret to `com_id`, or drop it with -1.
+ *
+ * Dispatches `on_input_focus_changed` on the field that LOST the caret, and not
+ * on the one that took it. Both directions are a defensible reading of the
+ * opcode's name; only one is a defensible reading of what the cache hangs off
+ * it. `torirs_hiscores_from_text` (7527) reads the box and runs the lookup, so
+ * firing on entry would search for the text you clicked in to replace, and
+ * would do it again on every click into the box.
+ */
+void
+RS_CS2_InputSetFocus(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    int com_id);
+
+/**
+ * One key event for the focused field, in the `LibToriRS_KeyEvent` encoding
+ * (`key_typed` = OSRS key code with `key_pressed` 0, or `key_typed` -1 with
+ * `key_pressed` carrying the character).
+ *
+ * Returns nonzero when an available focused field consumed it, including keys
+ * it does nothing with. Hidden or input-suppressed fields keep logical focus
+ * but receive no keyboard events; ui_host supplies native availability. A focused text box that
+ * let an unhandled letter through to the onKey broadcast would switch a sidebar
+ * tab while you typed a name.
+ */
+int
+RS_CS2_InputKey(
+    struct RS_CS2Host* host,
+    struct TaskRunner* runner,
+    struct UITreeHost const* ui_host,
+    int key_typed,
+    int key_pressed);
 
 /** Releases what the host owns (the world map state); the host itself is the
  *  caller's storage. */

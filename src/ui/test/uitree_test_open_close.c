@@ -1,4 +1,5 @@
 #include "test_harness.h"
+#include "uitree_interact.h"
 
 #include <stdlib.h>
 
@@ -235,6 +236,132 @@ test_open_close_steady(void)
     UITree_Free(tree);
 }
 
+void
+test_mounted_component_inherits_container_hidden(void)
+{
+    struct UITree* tree = UITree_New(0);
+    struct UITreeNodeSpec spec;
+    int32_t gameframe;
+    int32_t side_slot;
+    int32_t side_root;
+    int32_t account_slot;
+    int32_t account_root;
+    int32_t account_hook;
+
+    printf("TEST: mounted component inherits container hidden\n");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (161 << 16) | 0;
+    gameframe = UITree_Push(tree, -1, &spec);
+
+    spec.component_id = (161 << 16) | 78;
+    side_slot = UITree_Push(tree, gameframe, &spec);
+
+    spec.component_id = (629 << 16) | 0;
+    side_root = UITree_Push(tree, -1, &spec);
+
+    spec.component_id = (629 << 16) | 43;
+    account_slot = UITree_Push(tree, side_root, &spec);
+
+    spec.component_id = (712 << 16) | 0;
+    account_root = UITree_Push(tree, -1, &spec);
+
+    spec.type = UIELEM_RS_TEXT;
+    spec.component_id = (712 << 16) | 2;
+    account_hook = UITree_Push(tree, account_root, &spec);
+
+    TEST_ASSERT(
+        gameframe >= 0 && side_slot >= 0 && side_root >= 0 && account_slot >= 0 &&
+            account_root >= 0 && account_hook >= 0,
+        "nested mounted fixture builds");
+    UITree_InterfaceParentSet(tree, (161 << 16) | 78, 629, 1);
+    UITree_InterfaceParentSet(tree, (629 << 16) | 43, 712, 1);
+
+    TEST_ASSERT(
+        !UITree_ComponentOrAncestorHidden(tree, (712 << 16) | 2),
+        "visible mount chain leaves child visible");
+
+    tree->components[side_slot].behavior.hide = 1;
+    TEST_ASSERT(
+        UITree_ComponentOrAncestorHidden(tree, (712 << 16) | 2),
+        "hidden outer mount container hides nested interface child");
+
+    tree->components[side_slot].behavior.hide = 0;
+    tree->components[account_slot].behavior.hide = 1;
+    TEST_ASSERT(
+        UITree_ComponentOrAncestorHidden(tree, (712 << 16) | 2),
+        "hidden inner mount container hides mounted interface child");
+
+    tree->components[account_slot].behavior.hide = 0;
+    tree->components[account_root].behavior.hide = 1;
+    TEST_ASSERT(
+        UITree_ComponentOrAncestorHidden(tree, (712 << 16) | 2),
+        "pack-local hidden ancestor still hides child");
+
+    UITree_Free(tree);
+}
+
+/*
+ * A click resolves its hook UP the tree: a leaf with no onOp/onClick of its
+ * own runs the nearest ancestor's operation hook, and the row is reported
+ * under that ancestor's component id -- a dynamic child of a hooked
+ * container (an inventory cell, the compass dot's parent) fires the
+ * container's script. onOp outranks onClick on the same node; a node with no
+ * hook at all is walked through to the next ancestor that has one.
+ */
+void
+test_click_hook_inherits_nearest_parent(void)
+{
+    struct UITree* tree = UITree_New(0);
+    struct UITreeNodeSpec spec;
+    int32_t root;
+    int32_t target;
+    int32_t child;
+    int hook_component = -1;
+
+    printf("TEST: a click hook resolves to the nearest hooked ancestor\n");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (505 << 16) | 0;
+    root = UITree_Push(tree, -1, &spec);
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_RECT;
+    spec.component_id = (505 << 16) | 1;
+    target = UITree_Push(tree, root, &spec);
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_RECT;
+    spec.component_id = (505 << 16) | 2;
+    child = UITree_Push(tree, target, &spec);
+    TEST_ASSERT(root >= 0 && target >= 0 && child >= 0, "click hook fixture");
+    UITree_HooksMut(&tree->components[root])->on_click.script_id = 610;
+    UITree_HooksMut(&tree->components[target])->on_op.script_id = 611;
+    UITree_SyncHookMembership(tree, root);
+    UITree_SyncHookMembership(tree, target);
+
+    TEST_ASSERT(
+        UITree_ResolveClickHook(tree, child, &hook_component) ==
+                &UITree_Hooks(&tree->components[target])->on_op &&
+            hook_component == tree->components[target].component_id,
+        "a child normally inherits its nearest parent's operation hook");
+    TEST_ASSERT(
+        UITree_ResolveClickHook(tree, root, &hook_component) ==
+                &UITree_Hooks(&tree->components[root])->on_click &&
+            hook_component == tree->components[root].component_id,
+        "a node with only an onClick answers with that");
+
+    UITree_HooksMut(&tree->components[target])->on_op.script_id = 0;
+    UITree_SyncHookMembership(tree, target);
+    TEST_ASSERT(
+        UITree_ResolveClickHook(tree, child, &hook_component) ==
+                &UITree_Hooks(&tree->components[root])->on_click &&
+            hook_component == tree->components[root].component_id,
+        "with the parent's hook gone the walk continues to the outer ancestor");
+
+    UITree_Free(tree);
+}
+
 /* Compass-shaped case: gameframe dynamic child keeps on_op when a sibling
  * pack (bank) is cleared — the live failure was menu ops without on_op. */
 void
@@ -362,10 +489,14 @@ count_live_with_component_id(
     return n;
 }
 
-/* chatmodal close/replace must reclaim dialogue packs so remount cannot
- * keep a hidden copy whose string shadows FindByComponentId / ApplyText. */
+/* Close and replace reclaim the outgoing group at EVERY mount slot (the
+ * reference client's rule: unload unless the same group is being remounted),
+ * so a remount cannot keep a hidden copy whose string shadows
+ * FindByComponentId / ApplyText. Dialogue packs alternating in the chatbox
+ * modal are where that shadowing was first seen; the slot below stands in for
+ * any of them. */
 void
-test_chatmodal_reclaim_no_shadow_text(void)
+test_mount_slot_reclaim_no_shadow_text(void)
 {
     struct UITree* tree = UITree_New(0);
     struct UITreeNodeSpec spec;
@@ -376,16 +507,18 @@ test_chatmodal_reclaim_no_shadow_text(void)
     int const group_a = 231;
     int const group_b = 217;
     int const text_cid = (group_a << 16) | 4;
+    /* Any mount slot: the rule no longer names one. */
+    int const mount_slot_uid = (162 << 16) | 567;
 
-    printf("TEST: chatmodal reclaim — no shadowed dialogue text\n");
+    printf("TEST: mount-slot reclaim — no shadowed pack text\n");
 
     memset(&spec, 0, sizeof(spec));
     spec.type = UIELEM_RS_LAYER;
-    spec.component_id = UITREE_CHATBOX_CHATMODAL_UID;
+    spec.component_id = mount_slot_uid;
     spec.width = 479;
     spec.height = 96;
     slot = UITree_Push(tree, -1, &spec);
-    TEST_ASSERT(slot >= 0, "chatmodal slot");
+    TEST_ASSERT(slot >= 0, "mount slot");
 
     memset(&spec, 0, sizeof(spec));
     spec.type = UIELEM_RS_LAYER;
@@ -411,7 +544,7 @@ test_chatmodal_reclaim_no_shadow_text(void)
         "stuck text applied");
     TEST_ASSERT(count_live_with_component_id(tree, text_cid) == 1, "one live A name");
 
-    /* Replace A with B under chatmodal — reclaim A (not hide). */
+    /* Replace A with B in the slot — reclaim A (not hide). */
     UITree_ReclaimInterfaceGroup(tree, group_a);
     TEST_ASSERT(!UITree_GroupPresent(tree, group_a), "group A gone after reclaim");
     TEST_ASSERT(count_live_with_component_id(tree, text_cid) == 0, "no live A name");

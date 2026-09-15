@@ -171,6 +171,27 @@ struct RSCache_MapTerrain
 int
 RSCache_MapTerrainFlags(const struct RSCache* cache);
 
+/**
+ * Resolve every tile's height in place: Perlin noise where the file authored
+ * none at level 0, the level below where it authored none above that, and the
+ * tile-height basis applied where it did.
+ *
+ * Normally the decode runs this for you. It is public for the two callers that
+ * need the raw values first and the resolved ones after — a decode passed
+ * RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP, and anything that EDITS terrain and has
+ * to re-resolve it. Both need the authored form to stay reachable, which it is
+ * not once this has run: `height` is overwritten for every tile, so `authored_height`
+ * and `height_authored` are the only record of what the file said.
+ *
+ * Idempotent it is NOT — running it twice scales an already-scaled height again.
+ * `is_fixedup` says whether it has run.
+ */
+void
+RSCache_MapTerrainFixup(
+    struct RSCache_MapTerrain* map_terrain,
+    int map_x,
+    int map_z);
+
 struct RSCache_Dat2Disk;
 struct RSCache_Dat2DiskArchive;
 
@@ -221,6 +242,23 @@ RSCache_MapTerrainNewFromArchiveProfile(
     int map_x,
     int map_z,
     const struct RSCache* cache);
+
+/**
+ * As above, with decode flags OR'd on top of the profile's tile widths.
+ *
+ * The flag worth passing is RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP, for a caller
+ * that wants the stream as stored and will resolve heights itself with
+ * RSCache_MapTerrainFixup. Splitting the two is what lets a caller keep both
+ * forms of a square — the authored one it can write back, and the resolved one
+ * it can draw.
+ */
+struct RSCache_MapTerrain*
+RSCache_MapTerrainNewFromArchiveProfileFlags(
+    struct RSCache_Dat2DiskArchive* archive,
+    int map_x,
+    int map_z,
+    const struct RSCache* cache,
+    int extra_flags);
 
 struct RSCache_MapTerrain*
 RSCache_MapTerrainNewFromDecodeFlags(

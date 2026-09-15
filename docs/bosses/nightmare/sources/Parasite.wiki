@@ -1,0 +1,88 @@
+{{Infobox Monster
+|version1 = Weakened
+|version2 = Regular
+|name = Parasite
+|image1 = [[File:Parasite (2).png|x250px]]
+|image2 = [[File:Parasite.png|x250px]]
+|release = [[6 February]] [[2020]]
+|update = The Nightmare of Ashihama
+|members = Yes
+|combat1 = 57
+|combat2 = 86
+|size = 1
+|examine1 = A weakened parasite.
+|examine2 = A fully grown parasite.
+|xpbonus = 
+|max hit1 = 10
+|max hit2 = 12
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]], [[Magic]]
+|attack speed = 4
+|hitpoints1 = 40
+|hitpoints2 = 80
+|att = 1
+|str = 1
+|def1 = 40
+|def2 = 60
+|mage = 60
+|range = 60
+|attbns = 0
+|strbns = 0
+|amagic1 = 12
+|amagic2 = 20
+|mbns1 = 26
+|mbns2 = 46
+|arange1 = 12
+|arange2 = 20
+|rngbns1 = 26
+|rngbns2 = 46
+|dstab1 = 50
+|dstab2 = 60
+|dslash1 = 70
+|dslash2 = 80
+|dcrush1 = 10
+|dcrush2 = 20
+|dmagic1 = 100
+|dmagic2 = 120
+|dlight1 = 100
+|dlight2 = 120
+|dstandard1 = 100
+|dstandard2 = 120
+|dheavy1 = 100
+|dheavy2 = 120
+|elementalweaknesstype = fire
+|elementalweaknesspercent = 50 
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = yes
+|freezeresistance = 100
+|id1 = 9453
+|id2 = 9452
+}}
+'''Parasites''' are enemies impregnated in the player by [[the Nightmare]] while fighting her. After ~18 ticks (10.8s), the parasite grows and bursts out of the player, damaging them. Drinking a dose of [[Sanfew serum]] or [[Relicym's balm]] will weaken the parasite.
+
+If a player doesn't weaken the parasite inside them, they receive significantly more damage when the parasite bursts out of them. The parasite also spawns with higher stats.
+
+If The Nightmare's shield is partly damaged, they target her to restore her shield. In the situation where one or more totems are partially charged, they target the least charged totem to discharge it until the totem is completely discharged. The heal amount is 31 to 50 per attack.
+
+In case there are no suitable targets to heal, parasites attack the player. They alternate [[Ranged]] and [[Magic]] attacks starting with a Ranged attack. Using [[protection prayers]] will fully negate their hits.
+
+If clicking the Player [[Minimap|Hitpoints Orb]] to weaken parasites, it will prioritise Relicym's Balm over Sanfew Serums within the player inventory.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Parasites now have a 50% [[elemental weakness]] to [[fire spells]].
+}}
+{{Subject changes
+|date = 24 February 2021
+|update = Getting Ready For Steam and Poll 74 Changes
+|poll = Old School Content Poll 74: Collection Log & Game Improvements
+|change = The Nightmare's parasites will now heal her for a random number of hitpoints within a more consistent range. Previously, the parasites could heal between 1 and 80 hitpoints. Now, the range is between 31 and 50. 
+}}
+{{Subject changes footer}}
+
+{{The Nightmare}}

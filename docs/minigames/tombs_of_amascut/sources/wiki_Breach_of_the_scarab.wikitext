@@ -1,0 +1,46 @@
+{{Redirect3|Breach|For the item created when this is attached to the Keris partisan, see [[Keris partisan of breaching]]. For the Deadman: Apocalypse mechanic, see [[Deadman:_Apocalypse#Breaches|Breaches]]}}
+{{Infobox Item
+|name = Breach of the scarab
+|image = [[File:Breach of the scarab.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Attach, Inspect, Drop
+|examine = A jewel with a scarab etched upon it that radiates with power.
+|value = 300000
+|weight = 0.951
+|id = 27283
+|leagueRegion = Desert
+}}
+[[File:Breach of the scarab detail.png|left|100px]]
+The '''Breach of the scarab''' is an untradeable jewel that can be obtained as a reward from the [[Tombs of Amascut]].
+
+The jewel can be attached to the [[Keris partisan]] to create the [[Keris partisan of breaching]], providing a 33% accuracy boost against all [[Kalphites]] and [[Scabarites]].
+
+Unlike the other three jeweled Keris partisans, the Keris partisan of breaching's passive effect can be used outside the Tombs of Amascut.
+
+==Products==
+{{Uses material list|Breach of the scarab}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Item sources==
+{{Drop sources|Breach of the scarab}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 September 2022
+|update = Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas
+|change = Players will no longer obtain duplicate keris partisan jewels from the reward chest, unless all four have been obtained once.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}
+[[Category:Collection log items]]

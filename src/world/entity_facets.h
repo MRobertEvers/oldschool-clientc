@@ -13,6 +13,11 @@ struct WorldEntityFacet_IdleAnimations
     int walkanim_b;
     int walkanim_r;
     int walkanim_l;
+    /** NpcType opcode 130. See World_StepEntityAnimation: when the action track
+     *  finishes, an entity carrying this restarts its idle from frame 0 rather
+     *  than revealing it wherever it drifted to underneath. Players are always
+     *  0 -- the reference's predicate is a hard `false` on the player class. */
+    int idle_anim_restart;
 };
 
 struct WorldEntityFacet_AnimationStep
@@ -93,12 +98,77 @@ struct WorldEntityFacet_GridPosition
     int level : 4;
 };
 
-/* Sub-tile position (128 units per tile). */
+/*
+ * Sub-tile position (128 units per tile).
+ *
+ * `x`/`z` are the integer position every consumer reads -- rev-239
+ * class105.field1474 / field1475. `fx`/`fz` are the same position carried at
+ * full precision (field1517 / field1465), and they are what the per-FRAME
+ * mover integrates: a render frame is not a whole 20ms client cycle, so the
+ * distance walked in one is fractional. Rounding that away per frame is what
+ * an integer-only mover does, and it is why the old cycle-quantised port
+ * lurched -- see World_MoversAdvance.
+ *
+ * Invariant: x == (uint32_t)fx and z == (uint32_t)fz. Anything that moves an
+ * entity outright (spawn, teleport, scene rebase) must write both, which is
+ * what World_DrawPositionSet is for.
+ */
 struct WorldEntityFacet_DrawPosition
 {
     uint32_t x;
     uint32_t z;
     uint32_t y;
+    float fx;
+    float fz;
+};
+
+/** Set both halves of a draw position at once (see the invariant above). */
+static inline void
+World_DrawPositionSet(
+    struct WorldEntityFacet_DrawPosition* draw_position,
+    int x,
+    int z)
+{
+    draw_position->x = (uint32_t)x;
+    draw_position->z = (uint32_t)z;
+    draw_position->fx = (float)x;
+    draw_position->fz = (float)z;
+}
+
+/**
+ * Which world view actually DRAWS this actor, and where it stands in that
+ * view's own scene-local fine coordinates (SAILING_PLAN C5.1).
+ *
+ * The actor record itself never leaves the world that owns it — the server
+ * reports every player in root coordinates, projected onto the hull if they
+ * are aboard — so `grid_position`/`draw_position` stay authoritative and this
+ * facet is purely the rendering answer to "whose deck is under their feet".
+ *
+ * `view_id` 0 is the root, and then `x`/`z` are simply `draw_position`, which
+ * is why an all-zero facet is the correct default for an actor spawned before
+ * any boat exists. A non-zero id means the actor's scene element is tagged
+ * TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(view_id) and is registered with THAT view's
+ * painter at (x >> 7, z >> 7); the descent transform carries it back into root
+ * space at emit time.
+ */
+struct WorldEntityFacet_ViewPlacement
+{
+    int view_id;
+    int x;
+    int z;
+    /**
+     * The view whose STAGING rectangle the wire says this actor's absolute
+     * coordinates are inside, or 0 (root) — set by the entity-info executor
+     * when it rebases an absolute position, read by the per-tick routing pass.
+     *
+     * When non-zero, `grid_position`/`draw_position` and the route queue are
+     * VIEW-LOCAL (relative to that view's base) rather than root-scene-local:
+     * a rider's deck tiles live hundreds of squares off the map, and the
+     * uint8_t route arrays physically cannot carry them root-relative. The
+     * deob stores aboard actors view-locally for the same reason
+     * (docs/SAILING.md §5.1: actors carry view-local fine coordinates).
+     */
+    int home_view;
 };
 
 struct WorldEntityFacet_OrientationPYR
@@ -166,9 +236,31 @@ struct WorldEntityFacet_Combat
     int combat_cycle;
     int health;
     int total_health;
-    /* Non-zero when health/total_health are raw HealthBarConfig fill units,
-     * rather than gameplay hitpoints from a legacy hitsplat block. */
-    int healthbar_width;
+    /*
+     * The overhead health bar, when the server sent one (reference
+     * HealthBarUpdate). Distinct from health/total_health above, which are the
+     * gameplay hitpoints a legacy dat1 hitsplat block carries: a HEADBAR block
+     * carries no hitpoints at all, only a fill fraction of the healthbar
+     * type's own `width`, and how that becomes a pixel span is the type's
+     * business. See src/game/rs_healthbar.h.
+     *
+     * The reference keeps up to four bars per entity, each with up to four
+     * queued updates, sorted by the type's draw order. One is kept here
+     * because one is what the protocol sends: both encoders write a single
+     * bar, and the extras only ever appear in the block's count.
+     *
+     * `healthbar_type < 0` means no bar, and is the state a dat1 session never
+     * leaves -- there the legacy fields above drive the old 30-wide rectangle.
+     */
+    int healthbar_type;
+    /** loopCycle + startDelay: when the fill starts moving. */
+    int healthbar_start_cycle;
+    /** Cycles the fill takes to travel; 0 = it is already at end_fill. */
+    int healthbar_duration;
+    int healthbar_start_fill;
+    int healthbar_end_fill;
+    /** start_cycle + duration + the type's persist window. */
+    int healthbar_end_cycle;
 };
 
 struct WorldEntityFacet_Appearance

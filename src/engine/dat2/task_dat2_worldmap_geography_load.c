@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * One map surface region's tiles (cache table 18).
@@ -223,9 +224,7 @@ Task_Dat2WorldMapGeographyLoad_Run(
                     if( worldmap_read_source_from_entry(task->geography, cached, source) )
                         task->decoded++;
                     else if( getenv("TORIRS_WORLDMAP_DEBUG") )
-                        fprintf(
-                            stderr,
-                            "worldmap geography: cached read FAILED group=%d file=%d "
+                        TORIRS_ERR("worldmap geography: cached read FAILED group=%d file=%d "
                             "kind=%d dst_chunk=%d,%d remaining=%u\n",
                             group_id,
                             want_file,
@@ -250,9 +249,7 @@ Task_Dat2WorldMapGeographyLoad_Run(
 
         archive = RSCache_IO_Dat2WorldMapGeographyDecode(io, 0);
         if( getenv("TORIRS_WORLDMAP_DEBUG") )
-            fprintf(
-                stderr,
-                "worldmap geography: group=%d file=%d archive=%s files=%d\n",
+            TORIRS_ERR("worldmap geography: group=%d file=%d archive=%s files=%d\n",
                 group_id,
                 want_file,
                 archive ? "ok" : "MISSING",
@@ -274,9 +271,7 @@ Task_Dat2WorldMapGeographyLoad_Run(
             if( archive->file_ids[i] != want_file )
             {
                 if( getenv("TORIRS_WORLDMAP_DEBUG") )
-                    fprintf(
-                        stderr,
-                        "worldmap geography: skip file_id=%d want=%d (group=%d)\n",
+                    TORIRS_LOG("worldmap geography: skip file_id=%d want=%d (group=%d)\n",
                         archive->file_ids[i],
                         want_file,
                         group_id);
@@ -305,9 +300,7 @@ Task_Dat2WorldMapGeographyLoad_Run(
                             source->dst_chunk_y) )
                         task->decoded++;
                     else if( getenv("TORIRS_WORLDMAP_DEBUG") )
-                        fprintf(
-                            stderr,
-                            "worldmap geography: decode FAILED group=%d file=%d size=%d "
+                        TORIRS_ERR("worldmap geography: decode FAILED group=%d file=%d size=%d "
                             "kind=%d derived=1 dst_chunk=%d,%d\n",
                             group_id,
                             want_file,
@@ -321,9 +314,7 @@ Task_Dat2WorldMapGeographyLoad_Run(
                     task->decoded++;
                 }
                 else if( getenv("TORIRS_WORLDMAP_DEBUG") )
-                    fprintf(
-                        stderr,
-                        "worldmap geography: read FAILED group=%d file=%d size=%d "
+                    TORIRS_ERR("worldmap geography: read FAILED group=%d file=%d size=%d "
                         "kind=%d dst_chunk=%d,%d\n",
                         group_id,
                         want_file,
@@ -347,9 +338,7 @@ Task_Dat2WorldMapGeographyLoad_Run(
                 task->decoded++;
             }
             else if( getenv("TORIRS_WORLDMAP_DEBUG") )
-                fprintf(
-                    stderr,
-                    "worldmap geography: decode FAILED group=%d file=%d size=%d "
+                TORIRS_ERR("worldmap geography: decode FAILED group=%d file=%d size=%d "
                     "kind=%d derived=0 dst_chunk=%d,%d\n",
                     group_id,
                     want_file,
@@ -371,9 +360,7 @@ Task_Dat2WorldMapGeographyLoad_Run(
             uint32_t left =
                 RSCache_WorldMapGeographyReaderRemaining(&task->file_cache[i].reader);
             if( left != 0 )
-                fprintf(
-                    stderr,
-                    "worldmap geography: leftover %u bytes group=%d file=%d size=%d\n",
+                TORIRS_LOG("worldmap geography: leftover %u bytes group=%d file=%d size=%d\n",
                     left,
                     task->file_cache[i].group_id,
                     task->file_cache[i].file_id,
@@ -449,7 +436,7 @@ Task_Dat2WorldMapGeographyLoad_Run(
          * bakes a background-coloured region once instead of asking again every
          * frame for a region this cache has no tiles for. */
         if( getenv("TORIRS_WORLDMAP_DEBUG") )
-            fprintf(stderr, "worldmap geography: key 0x%08x decoded nothing\n", task->key);
+            TORIRS_LOG("worldmap geography: key 0x%08x decoded nothing\n", task->key);
     }
 
     CacheProvider_WorldMapGeographyAdd(&task->bc->base, task->key, task->geography);

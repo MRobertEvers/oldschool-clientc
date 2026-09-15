@@ -1,15 +1,24 @@
 #include "platform_x_io.h"
+/*
+ * Two remote cache backings, two flags, because two callers want different
+ * halves. JS5 is the dat2 one and drags in the SDL2 clock its pump is paced
+ * by; on-demand is the dat1 one and needs nothing but a socket. io_server
+ * wants the second without the first -- it PROXIES a LostCity cache to the
+ * browser, which is the whole reason it links this file -- so a single flag
+ * naming "every networked source" cannot express what it is asking for.
+ */
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
 #include "platform_x_io_js5.h"
 #include "platform_x_io_js5_cache.h"
-#include "platform_sdl2.h"
+#include "platform_window.h"
+#endif
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+#include "platform_x_io_ondemand.h"
 #endif
 
 #include "asyncio.h"
+#include "platform/platform_x_http.h"
 
-#if defined(TORIRS_WEB_CACHE_IDB)
-#include "platform/dat2_web_store.h"
-#endif
 
 #include <assert.h>
 #include <rscache.h>
@@ -18,9 +27,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include "log/torirs_log.h"
 
 #ifdef _WIN32
 #include <direct.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 #endif
 
 /*
@@ -31,9 +45,22 @@
  * free the archive they receive.
  */
 #define DAT2_ARCHIVE_CACHE_SLOTS 32
-#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
-#define JS5_PENDING_SLOTS (TORIRS_IO_MAX_ITEMS * 2)
-#endif
+/*
+ * How many of those slots hold an archive unless told otherwise.
+ *
+ * Four was measured on a BOOT, where a group is requested once per id it
+ * contains and the repeat run is a burst rather than a long tail. In play the
+ * tail is what matters: a rebuild reads the loc, underlay, overlay, sequence
+ * and texture groups, an interface opening reads enums, structs, params and
+ * sprites, an inventory update reads the obj group, and with four slots those
+ * evict each other inside one frame. The loser is bzip2'd again on its next
+ * touch -- 0.6 MB compressed for the loc or obj group -- which is the stutter
+ * behind doors, item icons and first-open interfaces. Eight holds a rebuild's
+ * set with room for the UI's. Raise it with TORIRS_DAT2_ARCHIVE_SLOTS (up to
+ * DAT2_ARCHIVE_CACHE_SLOTS) for a workload that keeps more groups open; the
+ * split-group cache above it (DAT2_GROUP_CACHE_BUDGET) has the same story.
+ */
+#define DAT2_ARCHIVE_CACHE_SLOTS_DEFAULT 8
 
 struct Dat2ArchiveCacheSlot
 {
@@ -41,16 +68,34 @@ struct Dat2ArchiveCacheSlot
     uint64_t last_used;
 };
 
-#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
-struct Js5PendingItem
+/*
+ * A read parked on a remote source.
+ *
+ * One table for both remote backings, because to the queue they are the same
+ * thing: a slot whose answer is coming later. `archive`/`group` are the
+ * source's own address -- the resolved JS5 archive and group, or the dat1
+ * table and the resolved archive id -- so servicing never re-resolves.
+ *
+ * Grown, not fixed. The fixed 64 it replaced was a ceiling on how much of the
+ * client's work could be on the wire at once, and the executor now hands over
+ * a whole region's reads in one pass; past the ceiling every further read was
+ * FAILED outright ("pending IO table full"), which read as a corrupt cache.
+ */
+enum RemoteSource
+{
+    REMOTE_SOURCE_JS5 = 1,
+    REMOTE_SOURCE_ON_DEMAND = 2,
+};
+
+struct RemotePendingItem
 {
     int in_use;
+    int source;
     struct ToriRS_IO* io;
     int slot;
     int archive;
     int group;
 };
-#endif
 
 struct PlatformX_IO
 {
@@ -60,33 +105,139 @@ struct PlatformX_IO
     char* script_dir;
 
     struct Dat2ArchiveCacheSlot archive_cache[DAT2_ARCHIVE_CACHE_SLOTS];
+    /* Slots actually used, <= DAT2_ARCHIVE_CACHE_SLOTS. The array stays a fixed
+     * member (it is 8 bytes a slot); only how many of them are allowed to hold
+     * an archive is tunable, because the archives are what cost megabytes. */
+    int archive_cache_slots;
     uint64_t archive_cache_clock;
 
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     struct PlatformXIOJs5Cache* js5;
-    struct Js5PendingItem js5_pending[JS5_PENDING_SLOTS];
 #endif
+    /* Reads parked on either remote source. @see RemotePendingItem. */
+    struct RemotePendingItem* pending;
+    int pending_count;
+    int pending_cap;
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+    /* The dat1 counterpart of dat2's js5 client: the cache lives on a LostCity
+     * server rather than on this machine. Set instead of dat1_disk, never
+     * beside it. */
+    struct PlatformXIOOnDemand* dat1_on_demand;
+#endif
+
+    /*
+     * Where stored_file_read's second leg asks, or "" for a client that has no
+     * io_server and should not go looking for one.
+     *
+     * From TORIRS_IO_SERVER (`host` or `host:port`). An environment variable
+     * rather than a manifest key because it is a property of the DEPLOYMENT --
+     * the same manifest is run from a full tree on a developer's machine and
+     * from a bare binary beside a server -- and those two want different
+     * answers from one file.
+     */
+    char io_server_host[256];
+    /* Set when TORIRS_IO_SERVER named it, so a later manifest does not. */
+    int io_server_from_env;
+    int io_server_port;
+
+    /* Set when that second leg found nobody home. Stays zero for a client with
+     * no io_server configured, which then answers "reachable" always -- true,
+     * because it has nothing it could fail to reach. */
+    int transport_down;
 };
 
-#if defined(TORIRS_WEB_CACHE_IDB)
-/* The frame loop reaches the two host calls below without a handle (they stand
- * in for the wire backend's, which is a singleton for the same reason: the JS
- * side has no place to carry a context pointer). App owns exactly one
- * PlatformX_IO and shares it between both pipelines, so this is not a
- * restriction the design would otherwise have avoided. */
-static struct PlatformX_IO* g_web_px = NULL;
-#endif
+
+/* TORIRS_DAT2_ARCHIVE_SLOTS narrows the LRU without a rebuild. An unusable
+ * value falls back to the compiled default rather than asserting: this reads a
+ * user's environment, not a caller's argument. */
+static int
+dat2_archive_cache_slots(void)
+{
+    char const* env = getenv("TORIRS_DAT2_ARCHIVE_SLOTS");
+    long n;
+
+    if( !env || env[0] == '\0' )
+        return DAT2_ARCHIVE_CACHE_SLOTS_DEFAULT;
+    n = strtol(env, NULL, 10);
+    if( n < 1 || n > DAT2_ARCHIVE_CACHE_SLOTS )
+        return DAT2_ARCHIVE_CACHE_SLOTS_DEFAULT;
+    return (int)n;
+}
 
 struct PlatformX_IO*
 PlatformX_IO_New(void)
 {
     struct PlatformX_IO* px = malloc(sizeof(struct PlatformX_IO));
+    char const* server = getenv("TORIRS_IO_SERVER");
+
     assert(px);
     memset(px, 0, sizeof(struct PlatformX_IO));
-#if defined(TORIRS_WEB_CACHE_IDB)
-    g_web_px = px;
-#endif
+    px->archive_cache_slots = dat2_archive_cache_slots();
+
+    /* `host` or `host:port`; the port defaults to io_server's own. Parsed here
+     * rather than at each use so an unparseable value fails once, visibly, at
+     * startup instead of once per read. */
+    px->io_server_port = 8088;
+    if( server && server[0] )
+    {
+        char const* colon = strrchr(server, ':');
+        if( colon && colon[1] )
+        {
+            int port = atoi(colon + 1);
+            size_t host_len = (size_t)(colon - server);
+            if( port > 0 && port <= 65535 && host_len < sizeof(px->io_server_host) )
+            {
+                memcpy(px->io_server_host, server, host_len);
+                px->io_server_host[host_len] = '\0';
+                px->io_server_port = port;
+            }
+        }
+        else
+            snprintf(px->io_server_host, sizeof(px->io_server_host), "%s", server);
+
+        if( px->io_server_host[0] )
+        {
+            /* Remembered so a manifest cannot overwrite a deliberate one-off.
+             * TORIRS_IO_SERVER is what someone reaches for to point a client
+             * at a different server for one run; a manifest read afterwards
+             * would silently undo that. */
+            px->io_server_from_env = 1;
+            TORIRS_REPORT("io: files not found locally will be asked of %s:%d\n",
+                px->io_server_host,
+                px->io_server_port);
+        }
+    }
     return px;
+}
+
+/*
+ * Where to ask for a file this disk does not have.
+ *
+ * Called after the boot manifest is read, so a world can state its own file
+ * server the way it states its game server. TORIRS_IO_SERVER wins: it is the
+ * older spelling and the one a one-off debugging run uses, and a manifest
+ * quietly overriding it would make that run lie about which server answered.
+ *
+ * An empty host is "say nothing", not "turn it off" -- the manifest simply had
+ * no opinion, and a value from the environment stands.
+ */
+void
+PlatformX_IO_InitIoServer(struct PlatformX_IO* px, const char* host, int port)
+{
+    assert(px);
+
+    if( px->io_server_from_env )
+        return;
+    if( !host || !host[0] )
+        return;
+
+    snprintf(px->io_server_host, sizeof(px->io_server_host), "%s", host);
+    if( port > 0 && port <= 65535 )
+        px->io_server_port = port;
+
+    TORIRS_REPORT("io: files not found locally will be asked of %s:%d\n",
+        px->io_server_host,
+        px->io_server_port);
 }
 
 void
@@ -106,6 +257,11 @@ PlatformX_IO_InitDat1Disk(
 {
     assert(px);
     assert(disk);
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+    /* One dat1 source. The remote one refuses an open disk from its side;
+     * this is the same rule read the other way round. */
+    assert(!px->dat1_on_demand);
+#endif
     px->dat1_disk = disk;
 }
 
@@ -156,40 +312,27 @@ PlatformX_IO_Free(struct PlatformX_IO* px)
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     PlatformXIOJs5Cache_Free(px->js5);
 #endif
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+    PlatformXIOOnDemand_Free(px->dat1_on_demand);
+#endif
+    free(px->pending);
     for( int i = 0; i < DAT2_ARCHIVE_CACHE_SLOTS; i++ )
         RSCache_Dat2DiskArchiveFree(px->archive_cache[i].archive);
     free(px->config_dir);
     free(px->script_dir);
-#if defined(TORIRS_WEB_CACHE_IDB)
-    if( g_web_px == px )
-        g_web_px = NULL;
-#endif
     free(px);
 }
 
-static struct RSCache_Dat2DiskArchive*
-dat2_archive_clone(const struct RSCache_Dat2DiskArchive* src)
-{
-    struct RSCache_Dat2DiskArchive* dst = malloc(sizeof(*dst));
-    assert(dst);
-    *dst = *src;
-    dst->data = NULL;
-    dst->file_ids = NULL;
-
-    if( src->data && src->data_size > 0 )
-    {
-        dst->data = malloc((size_t)src->data_size);
-        assert(dst->data);
-        memcpy(dst->data, src->data, (size_t)src->data_size);
-    }
-    if( src->file_ids && src->file_count > 0 )
-    {
-        dst->file_ids = malloc((size_t)src->file_count * sizeof(int));
-        assert(dst->file_ids);
-        memcpy(dst->file_ids, src->file_ids, (size_t)src->file_count * sizeof(int));
-    }
-    return dst;
-}
+/*
+ * The archive cache LENDS its archives: a request that hits gets the cached
+ * archive itself with a holder added (RSCache_Dat2DiskArchiveRetain), and
+ * the task's RSCache_Dat2DiskArchiveFree is that holder letting go. It used
+ * to hand out a full copy per request, which at world entry meant the
+ * 2.5 MB loc config group copied once for each of ~1,000 loc lookups
+ * waiting on the platform at the same time -- 2.7 GB live, and on a phone
+ * the low-memory killer. Consumers read the archive only, so sharing is
+ * sound; the cache's own hold is released by eviction like any other.
+ */
 
 static struct RSCache_Dat2DiskArchive*
 dat2_archive_cache_get(
@@ -197,7 +340,7 @@ dat2_archive_cache_get(
     int table_id,
     int archive_id)
 {
-    for( int i = 0; i < DAT2_ARCHIVE_CACHE_SLOTS; i++ )
+    for( int i = 0; i < px->archive_cache_slots; i++ )
     {
         struct Dat2ArchiveCacheSlot* slot = &px->archive_cache[i];
         if( slot->archive && slot->archive->table_id == table_id &&
@@ -217,7 +360,7 @@ dat2_archive_cache_put(
     struct RSCache_Dat2DiskArchive* archive)
 {
     struct Dat2ArchiveCacheSlot* lru = &px->archive_cache[0];
-    for( int i = 0; i < DAT2_ARCHIVE_CACHE_SLOTS; i++ )
+    for( int i = 0; i < px->archive_cache_slots; i++ )
     {
         struct Dat2ArchiveCacheSlot* slot = &px->archive_cache[i];
         if( !slot->archive )
@@ -284,6 +427,14 @@ read_whole_file(
  * Absent is not an error the platform reports differently from unreadable —
  * both are error_code -1 and an empty answer. Whether "no file" means a first
  * launch or a problem is the caller's judgement, not the disk layer's.
+ *
+ * LOCAL ONLY, deliberately, and this is the one read that does not get
+ * stored_file_read's second leg. These are the player's own files — saved
+ * options, a plugin's saved assets — and asking a server for one would put a
+ * single shared copy in front of every browser that machine answers, then read
+ * back settings its user never chose. io_server refuses them by KIND for the
+ * same reason (io_server_main.c), so the two ends agree: this is the client's,
+ * and it never leaves.
  */
 static int
 read_client_file_item(struct ToriRS_IOItem* item)
@@ -291,31 +442,6 @@ read_client_file_item(struct ToriRS_IOItem* item)
     void* data = NULL;
     int data_size = 0;
 
-#if defined(TORIRS_WEB_CACHE_IDB)
-    /*
-     * The browser's filesystem is MEMFS: it exists for the life of the tab and
-     * nothing more. A client file is the player's saved options, which is
-     * precisely the thing that must outlive a reload — writing it to MEMFS
-     * reproduces the "the music setting does not save" defect rs_prefs.c was
-     * written to fix, one layer lower down. So on this host the durable store
-     * answers, and the virtual filesystem is not consulted at all.
-     */
-    {
-        uint8_t* bytes = NULL;
-        int size = 0;
-        int found = Dat2WebStore_FileRead(item->u.file.path, &bytes, &size);
-
-        if( found != 1 )
-        {
-            item->error_code = -1;
-            return -1;
-        }
-        item->data = bytes;
-        item->data_size = size;
-        item->error_code = 0;
-        return 0;
-    }
-#endif
 
     if( read_whole_file(item->u.file.path, &data, &data_size) != 0 )
     {
@@ -384,23 +510,13 @@ write_client_file_item(struct ToriRS_IOItem* item)
         return -1;
     }
 
-#if defined(TORIRS_WEB_CACHE_IDB)
-    /* See read_client_file_item. The write-then-rename below buys durability
-     * against an interrupted write; a single keyed put is already atomic, so
-     * the store replaces the whole dance rather than emulating it. */
-    item->error_code = Dat2WebStore_FileWrite(
-                           item->u.file.path, (const uint8_t*)item->data, item->data_size) == 0
-                           ? 0
-                           : -1;
-    return item->error_code;
-#endif
 
     mkdir_parent(item->u.file.path);
     snprintf(temp, sizeof(temp), "%s.tmp", item->u.file.path);
     fp = fopen(temp, "wb");
     if( !fp )
     {
-        fprintf(stderr, "io: cannot write %s\n", temp);
+        TORIRS_ERR("io: cannot write %s\n", temp);
         item->error_code = -1;
         return -1;
     }
@@ -413,9 +529,19 @@ write_client_file_item(struct ToriRS_IOItem* item)
         return -1;
     }
     fclose(fp);
+#ifdef _WIN32
+    /* ISO C rename() is allowed to reject an existing destination, and the
+     * Windows CRT does. MoveFileEx supplies the replace-existing semantics
+     * this write-then-rename path requires while keeping the swap atomic. */
+    if( !MoveFileExA(
+            temp,
+            item->u.file.path,
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) )
+#else
     if( rename(temp, item->u.file.path) != 0 )
+#endif
     {
-        fprintf(stderr, "io: cannot replace %s\n", item->u.file.path);
+        TORIRS_ERR("io: cannot replace %s\n", item->u.file.path);
         remove(temp);
         item->error_code = -1;
         return -1;
@@ -424,8 +550,105 @@ write_client_file_item(struct ToriRS_IOItem* item)
     return 0;
 }
 
+/*
+ * One file under one root, LOCAL STORE FIRST AND SERVER SECOND.
+ *
+ * Both legs are here, in one function, because the order between them is the
+ * policy and splitting it per lane is how the two drifted apart before: the
+ * browser lane had a store and no second leg, the desktop lane had a file and
+ * no second leg, and neither could say why a file it did not have was missing.
+ *
+ * LEG 1 -- the local store. On the desktop that is the filesystem; on the
+ * browser it is the record database, which is the same thing for this
+ * purpose: a durable local copy the read can be answered from without leaving
+ * the process. Keyed by the WHOLE joined path, never by (dir, name) -- a key
+ * that dropped the root would collide the moment two roots held a file of the
+ * same name, and the page has to be able to spell the key too.
+ *
+ * LEG 2 -- the server, for a path leg 1 did not have. The page stages what it
+ * can name in advance (torirs_host.js: `boot.load`, `plugins.load`) and that
+ * covers the manifest, the INIs it points at and the scripts it lists. It
+ * cannot cover a plugin's ASSETS: those are named by the plugin, at runtime,
+ * in code the page never reads. Without this leg they were unreachable in the
+ * browser by construction, however healthy the server -- the plugin was
+ * loaded, its data simply had no route.
+ *
+ * Bytes that arrive are written into the store on the way through, so a path
+ * costs at most one round trip per session and the next read is leg 1 again.
+ *
+ * The desktop has no leg 2 and needs none: nothing sits between it and its
+ * disk. The read either finds the file or does not, which is exactly what the
+ * caller is told.
+ */
+static int
+stored_file_read(
+    struct PlatformX_IO* px,
+    const char* base_dir,
+    const char* path,
+    void** out_data,
+    int* out_size)
+{
+    char resolved[TORIRS_IOITEM_MAX_PATH * 2];
+
+    assert(px);
+    assert(path);
+    assert(out_data);
+    assert(out_size);
+
+    if( base_dir && base_dir[0] )
+        snprintf(resolved, sizeof(resolved), "%s/%s", base_dir, path);
+    else
+        snprintf(resolved, sizeof(resolved), "%s", path);
+
+    if( read_whole_file(resolved, out_data, out_size) == 0 )
+        return 0;
+
+    /*
+     * LEG 2: ask io_server for what this disk did not have.
+     *
+     * The desktop has a filesystem, which is why leg 1 is a real answer here
+     * and not a formality -- but "has a filesystem" is not the same as "has the
+     * file". A client run from somewhere other than the tree it was built in,
+     * or a deployment that ships the binary without the script/ and config/
+     * trees beside it, misses every one of these and has no way to recover:
+     * a missing plugin manifest is deliberately silent (task_plugin_io.c), so
+     * the roster comes up holding only the statically linked C plugins with
+     * nothing anywhere saying why.
+     *
+     * So the desktop gets the same second leg the browser has, for the same
+     * reason and against the same route. Off unless TORIRS_IO_SERVER names one:
+     * a client with a local tree must not start dialling, and a client without
+     * one should not start guessing.
+     */
+    if( px->io_server_host[0] )
+    {
+        char route[TORIRS_IOITEM_MAX_PATH * 2 + 8];
+        char* body;
+        int size = 0;
+        int status = 0;
+
+        snprintf(route, sizeof(route), "/boot/%s", resolved);
+        body = PlatformX_HttpGetStatus(
+            px->io_server_host, px->io_server_port, route, &size, &status);
+
+        /* Reachability is decided here and nowhere else, because this is the
+         * only place that learns it: a server answering 404 proves it is THERE
+         * and clears the flag exactly as bytes would. Only silence raises it. */
+        px->transport_down = status == 0;
+        if( body )
+        {
+            *out_data = body;
+            *out_size = size;
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
 static int
 load_file_item(
+    struct PlatformX_IO* px,
     struct ToriRS_IOItem* item,
     const char* base_dir,
     const char* path)
@@ -433,10 +656,7 @@ load_file_item(
     void* data = NULL;
     int data_size = 0;
 
-    char resolved_path[TORIRS_IOITEM_MAX_PATH];
-    snprintf(resolved_path, sizeof(resolved_path), "%s/%s", base_dir, path);
-
-    if( read_whole_file(resolved_path, &data, &data_size) != 0 )
+    if( stored_file_read(px, base_dir, path, &data, &data_size) != 0 )
     {
         item->error_code = -1;
         return -1;
@@ -447,6 +667,19 @@ load_file_item(
     item->error_code = 0;
     return 0;
 }
+
+/*
+ * A plugin script, the manifest that names them, or a shipped plugin asset.
+ *
+ * Nothing to decide here: stored_file_read is local-first and io_server-second
+ * for every file kind, which is the whole of what this used to spell out twice.
+ */
+static int
+read_script_item(struct PlatformX_IO* px, struct ToriRS_IOItem* item)
+{
+    return load_file_item(px, item, px->script_dir, item->u.script.path);
+}
+
 
 /*
  * Turn the logical table a caller queued into the on-disk id THIS cache uses.
@@ -477,6 +710,100 @@ dat2_resolve_table(
     return RSCache_Dat2DiskTableId(px->dat2_disk, (enum RSCache_Dat2Table)logical_table);
 }
 
+/*
+ * Where a cache item's bytes come from.
+ *
+ * There are two remote backings and they are PEERS: each is a cache living on
+ * a server instead of on this machine, one per container format. They did not
+ * read as peers, because they were added at different depths -- JS5 intercepted
+ * up in Process, before LoadItem was even called, while the dat1 on-demand
+ * handle was tested four calls further down, inside the dat1 loader's archive
+ * read. "Is this read local?" therefore had two answers in two places, and
+ * neither function was in a position to state the rule.
+ *
+ * Naming the source makes the rule one line, and leaves exactly one real
+ * difference between the two backings: whether the answer can be given
+ * synchronously. That is what cache_source_parks reports, and it is a property
+ * OF THE SOURCE rather than a special case in the caller.
+ */
+enum CacheSource
+{
+    /** The open disk on this machine answers -- dat2 or dat1. */
+    CACHE_SOURCE_DISK,
+    /** dat2 groups from a JS5 server, into the disk that client fills. */
+    CACHE_SOURCE_JS5,
+    /** dat1 archives from a LostCity server, 2004 on-demand protocol. */
+    CACHE_SOURCE_ON_DEMAND,
+};
+
+/* Which container this item is phrased in. The dat2 case is every flag that is
+ * not one of the three dat1 ones (asyncio.h defines exactly four). */
+static int
+cache_item_is_dat1(struct ToriRS_IOItem const* item)
+{
+    return item->u.cache.flags == TORIRS_IO_CACHE_DAT1 ||
+           item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN ||
+           item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY;
+}
+
+/*
+ * One rule, both containers: a remote backing answers when one is configured.
+ *
+ * Configuring one excludes the matching local disk, which is what makes this a
+ * choice rather than a preference -- PlatformXIO_Dat1OnDemandEnable refuses if
+ * a dat1 disk is already open, and the JS5 client is handed the dat2 disk it
+ * fills, so there is never a second opinion to reconcile.
+ *
+ * A build with no JS5 has neither handle to test and every read is local, so
+ * this collapses to a constant rather than carrying a dead branch.
+ */
+static enum CacheSource
+cache_source_for(
+    struct PlatformX_IO* px,
+    struct ToriRS_IOItem const* item)
+{
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+    if( cache_item_is_dat1(item) )
+        return px->dat1_on_demand ? CACHE_SOURCE_ON_DEMAND : CACHE_SOURCE_DISK;
+#endif
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+    if( !cache_item_is_dat1(item) )
+        return px->js5 ? CACHE_SOURCE_JS5 : CACHE_SOURCE_DISK;
+#endif
+    (void)px;
+    (void)item;
+    return CACHE_SOURCE_DISK;
+}
+
+/*
+ * Must the caller park on this source rather than be answered inside LoadItem?
+ *
+ * Both remote backings, now: JS5 pulls a group over several frames, and the
+ * on-demand wire is a pipeline the executor puts a whole pass of reads on and
+ * polls (it used to block per file, which made a region rebuild a line of
+ * round trips on the frame thread). Asking this instead of testing for a
+ * backing by hand is what lets Process talk about sources.
+ */
+/* Only compiled where a source can park. A build with neither remote backing
+ * has no such source, so Process never asks and the question would be dead
+ * code. */
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5) || !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+static int
+cache_source_parks(enum CacheSource source)
+{
+    /* TORIRS_OD_BLOCKING=1 puts the on-demand wire back to one blocking read
+     * per file inside LoadItem. The A/B the parked wire was measured with,
+     * and the first thing to try if a dat1 world ever misbehaves only when
+     * streamed. */
+    static int od_blocking = -1;
+    if( od_blocking < 0 )
+        od_blocking = getenv("TORIRS_OD_BLOCKING") != NULL;
+    if( source == CACHE_SOURCE_ON_DEMAND )
+        return !od_blocking;
+    return source == CACHE_SOURCE_JS5;
+}
+#endif
+
 static int
 load_cache_item_dat2(
     struct PlatformX_IO* px,
@@ -491,9 +818,7 @@ load_cache_item_dat2(
 
     if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
     {
-        fprintf(
-            stderr,
-            "dat2: logical table %d has no table in this cache's branch (game %s)\n",
+        TORIRS_LOG("dat2: logical table %d has no table in this cache's branch (game %s)\n",
             logical_table,
             RSCache_GameName(px->dat2_disk->profile.game));
         item->error_code = -1;
@@ -505,7 +830,7 @@ load_cache_item_dat2(
         if( trace_enabled < 0 )
             trace_enabled = getenv("TORIRS_IO_TRACE") != NULL;
         if( trace_enabled )
-            fprintf(stderr, "io_trace: dat2 table=%d archive=%d\n", table_id, archive_id);
+            TORIRS_LOG("io_trace: dat2 table=%d archive=%d\n", table_id, archive_id);
     }
 
     {
@@ -513,12 +838,8 @@ load_cache_item_dat2(
             dat2_archive_cache_get(px, table_id, archive_id);
         if( cached )
         {
-            archive = dat2_archive_clone(cached);
-            if( !archive )
-            {
-                item->error_code = -1;
-                return -1;
-            }
+            RSCache_Dat2DiskArchiveRetain(cached);
+            archive = cached;
             item->data = archive;
             item->data_size = sizeof(struct RSCache_Dat2DiskArchive);
             item->error_code = 0;
@@ -550,11 +871,10 @@ load_cache_item_dat2(
 
     /* An idx record with no reference-table entry (hand-patched cache) is a
      * missing archive, not a fatal error. */
-    if( !RSCache_Dat2DiskArchiveInitMetadataFromTable(px->dat2_disk->tables[table_id], archive) )
+    if( !RSCache_Dat2DiskArchiveInitMetadataFromTable(
+            RSCache_Dat2DiskReferenceTable(px->dat2_disk, table_id), archive) )
     {
-        fprintf(
-            stderr,
-            "dat2 archive %d in table %d absent from reference table\n",
+        TORIRS_LOG("dat2 archive %d in table %d absent from reference table\n",
             archive_id,
             table_id);
         RSCache_Dat2DiskArchiveFree(archive);
@@ -562,11 +882,9 @@ load_cache_item_dat2(
         return -1;
     }
 
-    {
-        struct RSCache_Dat2DiskArchive* master = dat2_archive_clone(archive);
-        if( master )
-            dat2_archive_cache_put(px, master);
-    }
+    /* The cache takes the archive as one holder and the task is another. */
+    dat2_archive_cache_put(px, archive);
+    RSCache_Dat2DiskArchiveRetain(archive);
 
     item->data = archive;
     item->data_size = sizeof(struct RSCache_Dat2DiskArchive);
@@ -574,16 +892,24 @@ load_cache_item_dat2(
     return 0;
 }
 
-#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
-static struct Js5PendingItem*
-js5_pending_alloc(struct PlatformX_IO* px)
+/* A free row in the parked-read table, growing it when there is none. */
+static struct RemotePendingItem*
+remote_pending_alloc(struct PlatformX_IO* px)
 {
-    for( int i = 0; i < JS5_PENDING_SLOTS; i++ )
-        if( !px->js5_pending[i].in_use )
-            return &px->js5_pending[i];
-    return NULL;
+    for( int i = 0; i < px->pending_count; i++ )
+        if( !px->pending[i].in_use )
+            return &px->pending[i];
+    if( px->pending_count == px->pending_cap )
+    {
+        px->pending_cap = px->pending_cap ? px->pending_cap * 2 : 64;
+        px->pending = realloc(px->pending, (size_t)px->pending_cap * sizeof(*px->pending));
+        assert(px->pending);
+    }
+    memset(&px->pending[px->pending_count], 0, sizeof(*px->pending));
+    return &px->pending[px->pending_count++];
 }
 
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
 static int
 js5_queue_cache_item(
     struct PlatformX_IO* px,
@@ -594,7 +920,7 @@ js5_queue_cache_item(
     int archive = dat2_resolve_table(px, item->u.cache.table_id);
     int group = item->u.cache.archive_id;
     enum Js5RequestResult request;
-    struct Js5PendingItem* pending;
+    struct RemotePendingItem* pending;
 
     if( archive == RSCACHE_DAT2_DISK_TABLE_ABSENT )
         return load_cache_item_dat2(px, item);
@@ -608,14 +934,9 @@ js5_queue_cache_item(
         return -1;
     }
 
-    pending = js5_pending_alloc(px);
-    if( !pending )
-    {
-        fprintf(stderr, "js5: pending IO table full, failing %d/%d\n", archive, group);
-        item->error_code = -1;
-        return -1;
-    }
+    pending = remote_pending_alloc(px);
     pending->in_use = 1;
+    pending->source = REMOTE_SOURCE_JS5;
     pending->io = io;
     pending->slot = slot;
     pending->archive = archive;
@@ -628,13 +949,13 @@ js5_service_pending(
     struct PlatformX_IO* px,
     int terminal_failure)
 {
-    for( int i = 0; i < JS5_PENDING_SLOTS; i++ )
+    for( int i = 0; i < px->pending_count; i++ )
     {
-        struct Js5PendingItem* pending = &px->js5_pending[i];
+        struct RemotePendingItem* pending = &px->pending[i];
         struct ToriRS_IOItem* item;
         int group_failed;
 
-        if( !pending->in_use )
+        if( !pending->in_use || pending->source != REMOTE_SOURCE_JS5 )
             continue;
         group_failed = PlatformXIOJs5Cache_GroupFailed(
             px->js5, pending->archive, pending->group);
@@ -662,9 +983,22 @@ static int
 dat1_map_archive_id(
     struct PlatformX_IO* px,
     int map_square_id,
-    int want_scenery)
+    int want_scenery,
+    enum CacheSource source)
 {
-    struct RSCache_MapSquares* squares = px->dat1_disk ? px->dat1_disk->map_squares : NULL;
+    struct RSCache_MapSquares* squares = NULL;
+
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+    /* Same table, other source: the server's versionlist, decoded when the
+     * on-demand handle opened. Selected by source rather than by falling back
+     * off a NULL disk, so this reads the same way the archive load below does. */
+    if( source == CACHE_SOURCE_ON_DEMAND )
+        squares = PlatformXIOOnDemand_MapSquares(px->dat1_on_demand);
+    else
+#else
+    (void)source;
+#endif
+        squares = px->dat1_disk ? px->dat1_disk->map_squares : NULL;
 
     if( !squares )
         return -1;
@@ -681,19 +1015,25 @@ dat1_map_archive_id(
 static int
 load_cache_item_dat1(
     struct PlatformX_IO* px,
-    struct ToriRS_IOItem* item)
+    struct ToriRS_IOItem* item,
+    enum CacheSource source)
 {
     int table_id = item->u.cache.table_id;
     int archive_id = item->u.cache.archive_id;
     int flags = item->u.cache.flags;
     struct RSCache_Dat1DiskArchive* archive = NULL;
 
-    assert(px->dat1_disk);
+    /* Exactly one dat1 source is configured, so a source that is not the
+     * on-demand handle must be a disk. Reading through a NULL disk is what
+     * this catches, and it now says so without a per-build spelling: the
+     * on-demand arm is only reachable when that handle exists, because that is
+     * the only way cache_source_for names it. */
+    assert(source == CACHE_SOURCE_ON_DEMAND || px->dat1_disk);
 
     if( flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN || flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY )
     {
         archive_id = dat1_map_archive_id(
-            px, archive_id, flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY);
+            px, archive_id, flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY, source);
         if( archive_id < 0 )
         {
             item->error_code = -1;
@@ -709,7 +1049,12 @@ load_cache_item_dat1(
         return -1;
     }
 
-    archive = RSCache_Dat1DiskArchiveNewLoad(px->dat1_disk, table_id, archive_id);
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+    if( source == CACHE_SOURCE_ON_DEMAND )
+        archive = PlatformXIOOnDemand_ArchiveLoad(px->dat1_on_demand, table_id, archive_id);
+    else
+#endif
+        archive = RSCache_Dat1DiskArchiveNewLoad(px->dat1_disk, table_id, archive_id);
     if( !archive )
     {
         item->error_code = -1;
@@ -722,16 +1067,137 @@ load_cache_item_dat1(
     return 0;
 }
 
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+/*
+ * Put a dat1 read on the on-demand wire, or answer it now.
+ *
+ * The address is resolved here, once, exactly as the blocking load resolves
+ * it (a map read names a SQUARE, and only the versionlist knows the archive).
+ * A hydration-cache hit and a jag archive are answered inside Begin; the
+ * rest is a row in the parked table until the pump says it has landed.
+ */
+static int
+od_queue_cache_item(
+    struct PlatformX_IO* px,
+    struct ToriRS_IO* io,
+    int slot)
+{
+    struct ToriRS_IOItem* item = &io->io_slots[slot];
+    int table_id = item->u.cache.table_id;
+    int archive_id = item->u.cache.archive_id;
+    int flags = item->u.cache.flags;
+    struct RSCache_Dat1DiskArchive* archive = NULL;
+    struct RemotePendingItem* pending;
+
+    if( flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN || flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY )
+    {
+        archive_id = dat1_map_archive_id(
+            px, archive_id, flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY, CACHE_SOURCE_ON_DEMAND);
+        if( archive_id < 0 )
+        {
+            item->error_code = -1;
+            return -1;
+        }
+    }
+    else if(
+        table_id != RSCACHE_DAT1_DISK_TABLE_MODELS &&
+        table_id != RSCACHE_DAT1_DISK_TABLE_CONFIGS &&
+        table_id != RSCACHE_DAT1_DISK_TABLE_ANIMATIONS )
+    {
+        item->error_code = -1;
+        return -1;
+    }
+
+    if( PlatformXIOOnDemand_ArchiveLoadBegin(px->dat1_on_demand, table_id, archive_id, &archive) )
+    {
+        if( !archive )
+        {
+            item->error_code = -1;
+            return -1;
+        }
+        item->data = archive;
+        item->data_size = sizeof(struct RSCache_Dat1DiskArchive);
+        item->error_code = 0;
+        return 0;
+    }
+
+    pending = remote_pending_alloc(px);
+    pending->in_use = 1;
+    pending->source = REMOTE_SOURCE_ON_DEMAND;
+    pending->io = io;
+    pending->slot = slot;
+    pending->archive = table_id;
+    pending->group = archive_id;
+    return 0;
+}
+
+/* Move the wire, then answer every parked dat1 read that has landed. */
+static void
+od_service_pending(struct PlatformX_IO* px)
+{
+    if( !px->dat1_on_demand )
+        return;
+    PlatformXIOOnDemand_Pump(px->dat1_on_demand);
+    for( int i = 0; i < px->pending_count; i++ )
+    {
+        struct RemotePendingItem* pending = &px->pending[i];
+        struct ToriRS_IOItem* item;
+        struct RSCache_Dat1DiskArchive* archive = NULL;
+
+        if( !pending->in_use || pending->source != REMOTE_SOURCE_ON_DEMAND )
+            continue;
+        if( !PlatformXIOOnDemand_ArchiveLoadPoll(
+                px->dat1_on_demand, pending->archive, pending->group, &archive) )
+            continue;
+        item = &pending->io->io_slots[pending->slot];
+        if( archive )
+        {
+            item->data = archive;
+            item->data_size = sizeof(struct RSCache_Dat1DiskArchive);
+            item->error_code = 0;
+        }
+        else
+            item->error_code = -1;
+        memset(pending, 0, sizeof(*pending));
+    }
+}
+#endif
+
+/*
+ * One cache read, dispatched on its source.
+ *
+ * Both remote backings appear here, at the same level, which is the whole
+ * point of the enum: the container split that used to be the only thing this
+ * function said is now one arm of it rather than the shape of it.
+ */
 static int
 load_cache_item(
     struct PlatformX_IO* px,
     struct ToriRS_IOItem* item)
 {
-    if( item->u.cache.flags == TORIRS_IO_CACHE_DAT1 ||
-        item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN ||
-        item->u.cache.flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY )
-        return load_cache_item_dat1(px, item);
-    return load_cache_item_dat2(px, item);
+    enum CacheSource const source = cache_source_for(px, item);
+
+    switch( source )
+    {
+    case CACHE_SOURCE_JS5:
+        /*
+         * Only ever reached for a group that is already resident: Process
+         * parks everything else on the JS5 client and resumes it here once the
+         * bytes have landed in the disk. So this is a disk read, and it is the
+         * same one CACHE_SOURCE_DISK does -- what differs is who filled it.
+         */
+        return load_cache_item_dat2(px, item);
+    case CACHE_SOURCE_ON_DEMAND:
+        return load_cache_item_dat1(px, item, source);
+    case CACHE_SOURCE_DISK:
+        return cache_item_is_dat1(item) ? load_cache_item_dat1(px, item, source)
+                                        : load_cache_item_dat2(px, item);
+    }
+
+    /* No default above, so a source added without an arm is a compiler
+     * warning rather than a silent fall-through to the wrong container. */
+    item->error_code = -1;
+    return -1;
 }
 
 static int
@@ -798,9 +1264,9 @@ PlatformX_IO_LoadItem(
     case TORIRS_IOK_CACHE:
         return load_cache_item(px, item);
     case TORIRS_IOK_CONFIG_FILE:
-        return load_file_item(item, px->config_dir, item->u.config_file.path);
+        return load_file_item(px, item, px->config_dir, item->u.config_file.path);
     case TORIRS_IOK_SCRIPT:
-        return load_file_item(item, px->script_dir, item->u.script.path);
+        return read_script_item(px, item);
     case TORIRS_IOK_REFERENCE_TABLE:
         return load_reference_table_item(px, item);
     case TORIRS_IOK_FILE_READ:
@@ -811,29 +1277,71 @@ PlatformX_IO_LoadItem(
     }
 }
 
-/* Local hits remain synchronous. A JS5 miss parks only the ToriRS_IO instance
- * that requested it; bounded pumping here also keeps native TaskRunner_Drain
- * live when there is no outer frame loop yet. */
+/* Local hits remain synchronous. A remote miss parks only the ToriRS_IO
+ * instance that requested it; bounded pumping here also keeps native
+ * TaskRunner_Drain live when there is no outer frame loop yet. */
 int
 PlatformX_IO_Pending(
     struct PlatformX_IO* px,
     struct ToriRS_IO* io)
 {
-#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     int count = 0;
 
     assert(px);
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     if( px->js5 )
-        PlatformXIO_Js5Pump(px, PlatformSDL2_Ticks64());
-    for( int i = 0; i < JS5_PENDING_SLOTS; i++ )
-        if( px->js5_pending[i].in_use && px->js5_pending[i].io == io )
+        PlatformXIO_Js5Pump(px, PlatformWindow_Ticks64());
+#endif
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+    od_service_pending(px);
+#endif
+    for( int i = 0; i < px->pending_count; i++ )
+        if( px->pending[i].in_use && px->pending[i].io == io )
             count++;
     return count;
-#else
-    (void)px;
-    (void)io;
+}
+
+/*
+ * Is the read in THIS slot still coming?
+ *
+ * The per-task half of Pending above, and the reason a task waiting on a
+ * remote miss no longer holds up every other task's turn. A synchronous read
+ * has already landed by the time anyone can ask, so on a cache with neither
+ * remote backing attached this is always no -- which is exactly what it was
+ * before the runner learned to ask.
+ */
+int
+PlatformX_IO_SlotPending(
+    struct PlatformX_IO* px,
+    struct ToriRS_IO* io,
+    int slot)
+{
+    assert(px);
+    for( int i = 0; i < px->pending_count; i++ )
+        if( px->pending[i].in_use && px->pending[i].io == io && px->pending[i].slot == slot )
+            return 1;
     return 0;
-#endif
+}
+
+/*
+ * Whatever stored_file_read's second leg last found.
+ *
+ * On the desktop there is no second leg, so this is yes for the life of the
+ * process -- see the header for why that is an answer and not a stub. On the
+ * browser lane it is the page's server, and the flag moves only on evidence: a
+ * request that went unanswered raises it, and any answer at all -- bytes, or
+ * an honest "no such file" -- clears it.
+ *
+ * Yes until proven otherwise, which is the right default for the frames before
+ * anything has been asked for. A client that started with its plugin UI
+ * switched off waiting for proof of life would never get it: the proof is a
+ * request, and the requests are made by the things that UI leads to.
+ */
+int
+PlatformX_IO_ServerReachable(struct PlatformX_IO* px)
+{
+    assert(px);
+    return !px->transport_down;
 }
 
 int
@@ -858,11 +1366,24 @@ PlatformX_IO_Process(
         }
         item->error_code = 0;
 
-#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
-        if( px->js5 && item->kind == TORIRS_IOK_CACHE &&
-            item->u.cache.flags == TORIRS_IO_CACHE_DAT2 )
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5) || !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+        /* A source that parks is the only reason this loop does anything other
+         * than call LoadItem. Asked as a question about the SOURCE, and both
+         * remote backings answer yes: each is put on its wire here and
+         * answered by the pump once it has landed. */
+        if( item->kind == TORIRS_IOK_CACHE &&
+            cache_source_parks(cache_source_for(px, item)) )
         {
-            if( js5_queue_cache_item(px, io, slot) == 0 )
+            int queued = -1;
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+            if( cache_source_for(px, item) == CACHE_SOURCE_JS5 )
+                queued = js5_queue_cache_item(px, io, slot);
+#endif
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+            if( cache_source_for(px, item) == CACHE_SOURCE_ON_DEMAND )
+                queued = od_queue_cache_item(px, io, slot);
+#endif
+            if( queued == 0 )
                 processed++;
         }
         else
@@ -872,6 +1393,12 @@ PlatformX_IO_Process(
     }
 
     ToriRS_IO_ResetActive(io);
+
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+    /* The pass's requests go out now rather than on the next Pending, so a
+     * local server's answers are already back when the runner next asks. */
+    od_service_pending(px);
+#endif
 
     return processed;
 }
@@ -928,50 +1455,131 @@ PlatformXIO_Js5GetProgress(
 }
 #endif
 
-#if defined(TORIRS_WEB_CACHE_IDB)
-/*
- * The frame loop's host-facing calls.
- *
- * They are declared in platform_x_io_web.h and implemented by the wire backend
- * on the other web lane. Their contract is about the *host*, not about where
- * the bytes come from — "give the asynchronous side a turn", "how many reads
- * are outstanding", "may a read block the frame" — so this backend answers them
- * too, and frame_loop_step needs no idea which cache source it was built
- * against.
- *
- * The pacing one matters more here than on the wire lane. While JS5 has reads
- * in flight the loop must run from the event loop rather than from
- * requestAnimationFrame: a WebSocket delivers between turns of the event loop,
- * so a display-rate loop would cap the download at one round trip per frame.
- */
-void
-PlatformXIO_Web_Pump(void)
+#if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
+int
+PlatformXIO_Dat1OnDemandEnable(
+    struct PlatformX_IO* px,
+    const char* host,
+    int game_port,
+    int web_port,
+    const char* cache_dir)
 {
-    if( g_web_px && g_web_px->js5 )
-        PlatformXIO_Js5Pump(g_web_px, PlatformSDL2_Ticks64());
+    assert(px);
+    assert(host);
+    if( px->dat1_disk || px->dat1_on_demand )
+        return -1;
+    px->dat1_on_demand =
+        PlatformXIOOnDemand_New(host, game_port, web_port, cache_dir);
+    return px->dat1_on_demand ? 0 : -1;
 }
 
 int
-PlatformXIO_Web_PendingTotal(void)
+PlatformXIO_Dat1OnDemandJagChecksums(
+    struct PlatformX_IO* px,
+    int32_t out[9])
 {
-    int count = 0;
-
-    if( !g_web_px )
-        return 0;
-    for( int i = 0; i < JS5_PENDING_SLOTS; i++ )
-        if( g_web_px->js5_pending[i].in_use )
-            count++;
-    return count;
+    assert(px);
+    assert(out);
+    if( !px->dat1_on_demand )
+        return -1;
+    return PlatformXIOOnDemand_JagChecksums(px->dat1_on_demand, out);
 }
 
-/*
- * Nothing to answer here. This lane has no synchronous read to suppress: JS5
- * arrives over a WebSocket, which cannot deliver inside the call that asked for
- * it, so every read on this backend is already the non-blocking kind.
- */
-void
-PlatformXIO_Web_SetBlockingReads(int allowed)
+int
+PlatformXIO_Dat1OnDemandJagChecksumsRefresh(
+    struct PlatformX_IO* px,
+    int32_t out[9])
 {
-    (void)allowed;
+    assert(px);
+    assert(out);
+    if( !px->dat1_on_demand )
+        return -1;
+    return PlatformXIOOnDemand_JagChecksumsRefresh(px->dat1_on_demand, out);
+}
+
+uint8_t*
+PlatformXIO_Dat1OnDemandContainerFetch(
+    struct PlatformX_IO* px,
+    int table_id,
+    int archive_id,
+    int flags,
+    int* out_format,
+    int* out_size)
+{
+    assert(px);
+    assert(out_format);
+    assert(out_size);
+    if( !px->dat1_on_demand )
+        return NULL;
+
+    /*
+     * The same resolution load_cache_item_dat1 does, and deliberately the same
+     * code: a map read names a SQUARE and the archive holding it is a fact
+     * only the server's versionlist knows. A proxy that skipped this would
+     * pass the square id through as an archive id and serve the wrong file --
+     * silently, because any archive decodes into something.
+     */
+    if( flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN || flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY )
+    {
+        archive_id = dat1_map_archive_id(
+            px, archive_id, flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY, CACHE_SOURCE_ON_DEMAND);
+        if( archive_id < 0 )
+            return NULL;
+    }
+
+    return PlatformXIOOnDemand_ContainerFetch(
+        px->dat1_on_demand, table_id, archive_id, out_format, out_size);
+}
+
+int
+PlatformXIO_Dat1OnDemandContainerFetchMany(
+    struct PlatformX_IO* px,
+    int count,
+    const int* table_ids,
+    const int* archive_ids,
+    const int* flags,
+    uint8_t** out_data,
+    int* out_sizes,
+    int* out_formats)
+{
+    int* resolved;
+    int served;
+
+    assert(px);
+    assert(count >= 0);
+    assert(table_ids);
+    assert(archive_ids);
+    assert(flags);
+    assert(out_data);
+    assert(out_sizes);
+    assert(out_formats);
+
+    for( int i = 0; i < count; i++ )
+    {
+        out_data[i] = NULL;
+        out_sizes[i] = 0;
+        out_formats[i] = 0;
+    }
+    if( !px->dat1_on_demand )
+        return 0;
+
+    /* The same square -> archive resolution as the single fetch, done for
+     * every entry before any goes on the wire; a square the world does not
+     * ship becomes an id no server has, which the wire answers as absent. */
+    resolved = malloc((size_t)(count > 0 ? count : 1) * sizeof(int));
+    assert(resolved);
+    for( int i = 0; i < count; i++ )
+    {
+        resolved[i] = archive_ids[i];
+        if( flags[i] == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN ||
+            flags[i] == TORIRS_IO_CACHE_DAT1_MAP_SCENERY )
+            resolved[i] = dat1_map_archive_id(
+                px, archive_ids[i], flags[i] == TORIRS_IO_CACHE_DAT1_MAP_SCENERY,
+                CACHE_SOURCE_ON_DEMAND);
+    }
+    served = PlatformXIOOnDemand_ContainerFetchMany(
+        px->dat1_on_demand, count, table_ids, resolved, out_data, out_sizes, out_formats);
+    free(resolved);
+    return served;
 }
 #endif

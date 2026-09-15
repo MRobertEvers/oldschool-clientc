@@ -25,6 +25,16 @@ struct World_EntityPool
     int head;
     int tail;
     int free_head;
+    /** Bumped whenever the LIVE SET changes -- an entity activated,
+     *  released, or the whole pool reset.
+     *
+     *  Says THAT the set changed and never WHICH entity, so it can only
+     *  invalidate a cached pass, not maintain one -- and invalidating means
+     *  walking the pool again, which for scenery is the 23k-entity walk the
+     *  caching was for. Where that matters, World::scenery_changed carries
+     *  the identities instead. Kept because "did anything change at all" is
+     *  a cheap question with no other answer. */
+    unsigned int epoch;
 };
 
 void
@@ -60,6 +70,28 @@ void*
 World_EntityPoolGet(
     const struct World_EntityPool* pool,
     int index);
+
+/** The same slot as World_EntityPoolGet, for callers that have already settled
+ *  that the index is one -- typically the line above, with
+ *  `assert(World_EntityPoolIsActive(pool, idx))` or a checked
+ *  World_EntityPoolAlloc. An out-of-range index is the caller's bug and stops
+ *  here, so the result is never NULL and no call site needs to test it.
+ *
+ *  This is not only style. World_EntityPoolGet's NULL return survives inlining,
+ *  and the OPT=1 lane compiles with -DNDEBUG, which erases the assert that ruled
+ *  it out -- LTO then reads every write through the result as a write through a
+ *  null pointer and reports it as -Wstringop-overflow. */
+static inline void*
+World_EntityPoolAt(
+    const struct World_EntityPool* pool,
+    int index)
+{
+    assert(pool);
+    assert(index >= 0);
+    assert(index < pool->count);
+    assert(pool->items);
+    return (char*)pool->items + (size_t)index * (size_t)pool->element_size;
+}
 
 static inline bool
 World_EntityPoolIsActive(

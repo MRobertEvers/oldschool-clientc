@@ -9,6 +9,75 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "log/torirs_log.h"
+
+struct WidgetModelPose
+{
+    struct ToriDraw_Model* model;
+    uint64_t source_revision;
+    int sequence;
+    int frame;
+};
+
+static void
+widget_pose_free(void* data)
+{
+    struct WidgetModelPose* pose = data;
+    if( !pose ) return;
+    if( pose->model ) ToriDraw_ModelFree(pose->model);
+    free(pose);
+}
+
+struct ToriDraw_ModelHandle
+UITreeAnim_ModelForDraw(struct ToriDraw_Scene* scene, struct UITreeModelRenderCache* cache,
+                       int model_id, int sequence, int frame)
+{
+    struct ToriDraw_ModelHandle source = ToriDraw_SceneModelGet(scene, model_id);
+    if( !cache ) return source;
+    if( sequence < 0 || !ToriDraw_ModelKindIsFull(source.kind) || !source.u.model.model )
+    {
+        if( cache->release ) cache->release(cache->data);
+        cache->data = NULL;
+        cache->release = NULL;
+        return source;
+    }
+    struct ToriDraw_Animation* animation = ToriDraw_SceneAnimationGet(scene, sequence);
+    if( !animation || (!animation->base && !animation->skeletal) || animation->frame_count <= 0 ) return source;
+    if( frame < 0 || frame >= animation->frame_count ) frame = 0;
+    uint64_t revision = ToriDraw_SceneModelRevision(scene, model_id);
+    struct WidgetModelPose* pose = cache->data;
+    if( !pose || pose->source_revision != revision )
+    {
+        if( cache->release ) cache->release(cache->data);
+        pose = calloc(1, sizeof(*pose));
+        if( !pose ) abort();
+        pose->model = ToriDraw_ModelCopy(source.u.model.model);
+        if( !pose->model->original_vertices_x )
+            ToriDraw_ModelCaptureOriginalVertices(pose->model);
+        pose->source_revision = revision;
+        pose->sequence = pose->frame = -1;
+        cache->data = pose;
+        cache->release = widget_pose_free;
+    }
+    if( pose->sequence != sequence || pose->frame != frame )
+    {
+        ToriDraw_ModelAnimateReset(pose->model);
+        if( animation->skeletal )
+        {
+            if( pose->model->animaya_vertex_count > 0 && pose->model->animaya_group_counts &&
+                pose->model->animaya_groups && pose->model->animaya_scales )
+                ToriDraw_ModelAnimateSkeletal(pose->model, animation->skeletal, frame);
+        }
+        else if( animation->frames && animation->frames[frame].length > 0 )
+            ToriDraw_ModelAnimateFrame(pose->model, animation->base, &animation->frames[frame]);
+        else
+            ToriDraw_ModelSetBoundsCylinder(pose->model);
+        pose->sequence = sequence;
+        pose->frame = frame;
+    }
+    struct ToriDraw_ModelHandle result = {.kind=TORIDRAWMK_MODEL, .u.model.model=pose->model};
+    return result;
+}
 
 static int
 tracker_has(struct SeqLoadTracker const* tracker, int seq_id)
@@ -53,8 +122,8 @@ UITreeAnim_RequestMissing(
         c = &tree->components[idx];
         if( c->freed || c->type != UIELEM_RS_MODEL )
             continue;
-        seq = c->u.rs_model.anim_seq_id;
-        if( seq < 0 || c->u.rs_model.gamecache_model_id < 0 )
+        seq = c->cs1_active ? c->u.rs_model.active_anim_seq_id : c->u.rs_model.anim_seq_id;
+        if( seq < 0 || (c->cs1_active ? c->u.rs_model.active_model_id : c->u.rs_model.gamecache_model_id) < 0 )
             continue;
         if( ToriDraw_SceneAnimationGet(scene, seq) )
             continue;
@@ -81,6 +150,7 @@ UITreeAnim_Advance(
     int applied = 0;
     int model_n;
     int mi;
+    uint64_t begin_marks = g_torirs_dirty_mark_seq;
 
     assert(tree && scene);
     model_n = tree->models.count;
@@ -102,22 +172,30 @@ UITreeAnim_Advance(
         if( cycles > 0 &&
             (c->u.rs_model.rotate_x_speed != 0 || c->u.rs_model.rotate_y_speed != 0) )
         {
-            c->u.rs_model.xan =
+            int const xan =
                 (c->u.rs_model.xan + c->u.rs_model.rotate_x_speed * cycles) & 2047;
-            c->u.rs_model.yan =
+            int const yan =
                 (c->u.rs_model.yan + c->u.rs_model.rotate_y_speed * cycles) & 2047;
-            UITree_MarkNodeDirty(tree, idx);
+            (void)UITree_SetModelPoseAt(
+                tree,
+                idx,
+                c->u.rs_model.x_offset,
+                c->u.rs_model.y_offset,
+                xan,
+                yan,
+                c->u.rs_model.zan,
+                0);
             applied = 1;
         }
-        seq = c->u.rs_model.anim_seq_id;
-        model_id = c->u.rs_model.gamecache_model_id;
+        seq = c->cs1_active ? c->u.rs_model.active_anim_seq_id : c->u.rs_model.anim_seq_id;
+        model_id = c->cs1_active ? c->u.rs_model.active_model_id : c->u.rs_model.gamecache_model_id;
         if( seq < 0 || model_id < 0 )
             continue;
 
         anim = ToriDraw_SceneAnimationGet(scene, seq);
         /* Not registered: load still in flight — rest pose until it lands.
          * Registered but empty: the load task's unavailable sentinel — skip. */
-        if( !anim || !anim->base || anim->frame_count <= 0 )
+        if( !anim || (!anim->base && !anim->skeletal) || anim->frame_count <= 0 )
         {
             /* Silent by default and per-component under TORIRS_ANIM_DEBUG: a
              * widget stuck in its rest pose looks identical whether its
@@ -128,9 +206,7 @@ UITreeAnim_Advance(
             if( debug < 0 )
                 debug = getenv("TORIRS_ANIM_DEBUG") != NULL;
             if( debug )
-                fprintf(
-                    stderr,
-                    "uitree_anim: com=0x%x seq=%d not posable (anim=%p base=%p frames=%d)\n",
+                TORIRS_ERR("uitree_anim: com=0x%x seq=%d not posable (anim=%p base=%p frames=%d)\n",
                     c->component_id,
                     seq,
                     (void*)anim,
@@ -140,7 +216,7 @@ UITreeAnim_Advance(
         }
 
         hnd = ToriDraw_SceneModelGet(scene, model_id);
-        if( hnd.kind != TORIDRAWMK_MODEL || !hnd.u.model.model )
+        if( !ToriDraw_ModelKindIsFull(hnd.kind) || !hnd.u.model.model )
             continue;
 
         {
@@ -154,6 +230,18 @@ UITreeAnim_Advance(
              * preview once and only spins modelYAn afterwards. */
             if( c->u.rs_model.anim_hold )
             {
+                cyc = 0;
+            }
+            else if( anim->skeletal )
+            {
+                int64_t next = (int64_t)fr + cycles;
+                if( next >= anim->frame_count )
+                {
+                    int repeat = anim->frame_step > 0 && anim->frame_step <= anim->frame_count
+                        ? anim->frame_step : anim->frame_count;
+                    next = anim->frame_count - repeat + (next - anim->frame_count) % repeat;
+                }
+                fr = next < 0 ? 0 : (int)next;
                 cyc = 0;
             }
             else
@@ -179,17 +267,13 @@ UITreeAnim_Advance(
                 }
             }
 
-            c->u.rs_model.anim_frame = fr;
-            c->u.rs_model.anim_frame_cycle = cyc;
-
-            ToriDraw_ModelAnimateReset(hnd.u.model.model);
-            /* An empty frame (no translators) is the rest pose — reset only. */
-            if( anim->frames[fr].length > 0 )
-                ToriDraw_ModelAnimateFrame(hnd.u.model.model, anim->base, &anim->frames[fr]);
-            else
-                ToriDraw_ModelSetBoundsCylinder(hnd.u.model.model);
+            (void)UITree_SetModelAnimationCursorAt(tree, idx, fr, cyc);
+            /* Posing is per widget at draw translation. The registered model
+             * remains an immutable asset shared by any number of widgets. */
             applied = 1;
         }
     }
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_ANIM_MARKS, (int64_t)(g_torirs_dirty_mark_seq - begin_marks));
     return applied;
 }

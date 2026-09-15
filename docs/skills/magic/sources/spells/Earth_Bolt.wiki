@@ -1,0 +1,69 @@
+{{External|rs|rsc=Earth bolt}}
+{{Infobox Spell
+|name = Earth Bolt
+|image = [[File:Earth Bolt.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 29
+|spellbook = Normal
+|type = Combat
+|exp = 19.5
+|element = Earth
+|damage = 11 or 12
+|cost = {{RuneReq|Earth=3|Air=2|Chaos=1}}
+|speed = 5 ticks
+|description = A low level Earth missile
+|anim = [[File:Earth Bolt.gif|300px]]
+|sound = [[File:Earth Bolt.ogg]]
+}}
+[[File:Earth Bolt icon (mobile).png|left]]
+'''Earth Bolt''' is an [[Earth spells|earth]]-based [[Bolt spells|bolt spell]] in the [[standard spellbook]], requiring level 29 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+==Damage==
+Earth Bolt's base maximum hit starts at 11 and increases to 12 when the player unlocks [[Fire Bolt]] at level 35 Magic. Players who have completed the [[Family Crest]] quest can wear [[Chaos gauntlets]] to increase the maximum hit by an additional +3, up to 15.
+{| class="wikitable"
+!{{SCP|Magic|link=yes}} level
+!Highest-level bolt spell available
+!{{Plink|Earth Bolt}} base maximum hit
+!{{Plink|Earth Bolt}} maximum hit with {{Plink|Chaos gauntlets}}
+|-
+|{{SCP|Magic|29}}- 34
+|{{Plink|Earth Bolt}}
+|11
+|14
+|-
+|{{SCP|Magic|35}}+
+|{{Plink|Fire Bolt}}
+|12
+|15
+|}
+As with all combat spells, Earth Bolt's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As an earth-based spell, Earth Bolt's maximum hit is also increased against targets that are [[Elemental weakness|weak to earth]].
+
+===Calculator===
+{{Magic damage calculator|Earth Bolt|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|chaosgauntlets=y|tome=earth}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 3
+|Rune2 = air
+|Rune2num = 2
+|Rune3 = chaos
+|Rune3num = 1
+|is_offensive = y
+|uses_pages = y
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[bolt spell]]s the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

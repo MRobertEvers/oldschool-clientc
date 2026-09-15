@@ -1,0 +1,40 @@
+{{External|rs}}
+{{Otheruses|def=no|the explosive potion in [[Soul Wars]]|Explosive potion (Soul Wars)}}
+{{Infobox Item
+|name = Explosive potion
+|image = [[File:Explosive potion.png]]
+|release = [[13 December]] [[2004]]
+|update = Castle Wars
+|members = No
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drop
+|examine = I could use this to destroy things...
+|value = 1
+|weight = 0.035
+|id = 4045
+}}
+[[File:Explosive potion detail.png|left|120px]]
+'''Explosive potions''' are found on tables in the [[Castle Wars]] equipment rooms. They can be used to instantly destroy [[barricade]]s or destroy the enemy [[Catapult (Castle Wars)|catapult]]. It can also be used to clear or collapse the cave walls in the underground tunnel connecting the two castles. This is a useful strategy that many players employ since dropping the rockslide on another player instantly kills them. These potions can't be taken outside of the Castle Wars area.
+
+If a player drops an explosive potion, it will self-inflict non-lethal damage based on maximum [[hitpoints]], with the player saying {{overhead|Ow!}}.
+
+It is recommended that the flag runner take a few of these as it is common for the opposing team to barricade the flag room. When the flag runner gets the opposing team's flag, they are useful to halt pursuers temporarily by collapsing the rocks in the underground tunnels.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 July 2017
+|update = F2P Castle Wars
+|change = The item was made available to free-to-play players.
+}}
+{{Subject changes footer}}
+
+{{Items that can damage oneself}}
+{{Castle Wars}}
+{{Potions}}
+
+[[Category:Minigame items]]

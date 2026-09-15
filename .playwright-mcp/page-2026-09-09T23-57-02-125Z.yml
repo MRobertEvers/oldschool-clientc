@@ -1,0 +1,1736 @@
+- generic [ref=f184e2]:
+  - navigation "Shortcuts menu" [ref=f184e3]:
+    - heading "Skip to" [level=2] [ref=f184e4]
+    - list "Skip to" [ref=f184e5]:
+      - listitem [ref=f184e6]:
+        - link "main content" [ref=f184e7] [cursor=pointer]:
+          - /url: "#skippedLink"
+          - text: Main content
+      - listitem [ref=f184e8]:
+        - link "About this item" [ref=f184e9] [cursor=pointer]:
+          - /url: "#featurebullets_feature_div"
+      - listitem [ref=f184e10]:
+        - link "Buying options" [ref=f184e11] [cursor=pointer]:
+          - /url: "#buybox"
+      - listitem [ref=f184e12]:
+        - link "Videos" [ref=f184e13] [cursor=pointer]:
+          - /url: "#va-related-videos-widget_feature_div"
+      - listitem [ref=f184e14]:
+        - link "Reviews" [ref=f184e15] [cursor=pointer]:
+          - /url: "#customerReviews"
+    - separator [aria-hidden] [ref=f184e16]
+    - heading "Keyboard shortcuts" [level=2] [ref=f184e17]
+    - list "Keyboard shortcuts" [ref=f184e18]:
+      - listitem [ref=f184e19]:
+        - link "Search, option, forward slash" [ref=f184e20] [cursor=pointer]:
+          - /url: javascript:void(0)
+          - generic [aria-hidden] [ref=f184e21]:
+            - generic [ref=f184e22]: Search
+            - generic [ref=f184e23]:
+              - generic [ref=f184e24]: opt
+              - generic [ref=f184e25]: +
+              - generic [ref=f184e26]: /
+      - listitem [ref=f184e27]:
+        - link "Cart, shift, option, c" [ref=f184e28] [cursor=pointer]:
+          - /url: javascript:void(0)
+          - generic [aria-hidden] [ref=f184e29]:
+            - generic [ref=f184e30]: Cart
+            - generic [ref=f184e31]:
+              - generic [ref=f184e32]: shift
+              - generic [ref=f184e33]: +
+              - generic [ref=f184e34]: opt
+              - generic [ref=f184e35]: +
+              - generic [ref=f184e36]: C
+      - listitem [ref=f184e37]:
+        - link "Home, shift, option, h" [ref=f184e38] [cursor=pointer]:
+          - /url: javascript:void(0)
+          - generic [aria-hidden] [ref=f184e39]:
+            - generic [ref=f184e40]: Home
+            - generic [ref=f184e41]:
+              - generic [ref=f184e42]: shift
+              - generic [ref=f184e43]: +
+              - generic [ref=f184e44]: opt
+              - generic [ref=f184e45]: +
+              - generic [ref=f184e46]: H
+      - listitem [ref=f184e47]:
+        - link "Your orders, shift, option, o" [ref=f184e48] [cursor=pointer]:
+          - /url: javascript:void(0)
+          - generic [aria-hidden] [ref=f184e49]:
+            - generic [ref=f184e50]: Orders
+            - generic [ref=f184e51]:
+              - generic [ref=f184e52]: shift
+              - generic [ref=f184e53]: +
+              - generic [ref=f184e54]: opt
+              - generic [ref=f184e55]: +
+              - generic [ref=f184e56]: O
+      - listitem [ref=f184e57]:
+        - button "Add to cart, shift, option, K" [ref=f184e58] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f184e59]:
+            - generic [ref=f184e60]: Add to cart
+            - generic [ref=f184e61]:
+              - generic [ref=f184e62]: shift
+              - generic [ref=f184e63]: +
+              - generic [ref=f184e64]: opt
+              - generic [ref=f184e65]: +
+              - generic [ref=f184e66]: K
+      - listitem [ref=f184e67]:
+        - button "Product summary, shift, option, d" [ref=f184e68] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f184e69]:
+            - generic [ref=f184e70]: Product summary
+            - generic [ref=f184e71]:
+              - generic [ref=f184e72]: shift
+              - generic [ref=f184e73]: +
+              - generic [ref=f184e74]: opt
+              - generic [ref=f184e75]: +
+              - generic [ref=f184e76]: D
+      - listitem [ref=f184e77]:
+        - button "Show/hide shortcuts, shift, option, z" [ref=f184e78] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f184e79]:
+            - generic [ref=f184e80]: Show/Hide shortcuts
+            - generic [ref=f184e81]:
+              - generic [ref=f184e82]: shift
+              - generic [ref=f184e83]: +
+              - generic [ref=f184e84]: opt
+              - generic [ref=f184e85]: +
+              - generic [ref=f184e86]: Z
+    - generic [ref=f184e89]:
+      - generic [ref=f184e90] [cursor=pointer]
+      - generic [ref=f184e92]: To move between items, use your keyboard's up or down arrows.
+  - banner [ref=f184e93]:
+    - navigation "Primary" [ref=f184e94]:
+      - generic [ref=f184e95]:
+        - generic [ref=f184e96]:
+          - link "Amazon" [ref=f184e98] [cursor=pointer]:
+            - /url: /ref=nav_logo
+          - button "Delivering to Riverside 64150 Update location" [ref=f184e101] [cursor=pointer]:
+            - generic [ref=f184e103]:
+              - generic [ref=f184e104]: Delivering to Riverside 64150
+              - generic [ref=f184e105]: Update location
+        - search [ref=f184e108]:
+          - generic [ref=f184e111]:
+            - generic [ref=f184e112]: Toys & Games
+            - combobox "Select the department you want to search in" [ref=f184e115] [cursor=pointer]:
+              - option "All Departments"
+              - option "Alexa Skills"
+              - option "Amazon Autos"
+              - option "Amazon Devices"
+              - option "Amazon Global Store"
+              - option "Amazon Haul"
+              - option "Amazon One Medical"
+              - option "Amazon Pharmacy"
+              - option "Amazon Resale"
+              - option "Appliances"
+              - option "Apps & Games"
+              - option "Arts, Crafts & Sewing"
+              - option "Audible Books & Originals"
+              - option "Automotive Parts & Accessories"
+              - option "Baby"
+              - option "Beauty & Personal Care"
+              - option "Books"
+              - option "CDs & Vinyl"
+              - option "Cell Phones & Accessories"
+              - option "Clothing, Shoes & Jewelry"
+              - option "Women's Clothing, Shoes & Jewelry"
+              - option "Men's Clothing, Shoes & Jewelry"
+              - option "Girl's Clothing, Shoes & Jewelry"
+              - option "Boy's Clothing, Shoes & Jewelry"
+              - option "Baby Clothing, Shoes & Jewelry"
+              - option "Collectibles & Fine Art"
+              - option "Computers"
+              - option "Credit and Payment Cards"
+              - option "Digital Music"
+              - option "Electronics"
+              - option "Garden & Outdoor"
+              - option "Gift Cards"
+              - option "Grocery & Gourmet Food"
+              - option "Handmade"
+              - option "Health, Household & Baby Care"
+              - option "Home & Business Services"
+              - option "Home & Kitchen"
+              - option "Industrial & Scientific"
+              - option "Just for Prime"
+              - option "Kindle Store"
+              - option "Luggage & Travel Gear"
+              - option "Luxury Stores"
+              - option "Magazine Subscriptions"
+              - option "Movies & TV"
+              - option "Musical Instruments"
+              - option "Office Products"
+              - option "Pet Supplies"
+              - option "Premium Beauty"
+              - option "Prime Video"
+              - option "Same-Day Store"
+              - option "Smart Home"
+              - option "Software"
+              - option "Sports & Outdoors"
+              - option "Subscribe & Save"
+              - option "Subscription Boxes"
+              - option "Tools & Home Improvement"
+              - option "Toys & Games" [selected]
+              - option "Under $10"
+              - option "Video Games"
+              - option "Whole Foods Market"
+          - searchbox "Search Amazon" [ref=f184e118]
+          - generic [ref=f184e119]:
+            - generic "Go" [ref=f184e121] [cursor=pointer]:
+              - button "Go" [ref=f184e122]
+            - button [ref=f184e124]: Agent Search
+        - generic [ref=f184e126]:
+          - generic [ref=f184e127]:
+            - link "Choose a language for shopping in Amazon United States. The current selection is English (EN)." [ref=f184e128] [cursor=pointer]:
+              - /url: /customer-preferences/edit?ie=UTF8&preferencesReturnUrl=%2F&ref_=topnav_lang
+              - generic [ref=f184e131]:
+                - img "United States" [ref=f184e132]
+                - generic [ref=f184e133]: EN
+            - button "Expand to Change Language or Country" [ref=f184e134] [cursor=pointer]
+          - generic [ref=f184e135]:
+            - link "Hello, sign in Account & Lists" [ref=f184e136] [cursor=pointer]:
+              - /url: https://www.amazon.com/ap/signin?openid.return_to=https%3A%2F%2Fwww.amazon.com%2Fdp%2FB0BNLXCFHJ%3Fref_%3Dnav_ya_signin&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=usflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0
+              - generic [ref=f184e137]: Hello, sign in
+              - generic [ref=f184e139]: Account & Lists
+            - button "Expand Account and Lists" [ref=f184e140] [cursor=pointer]
+          - link "Returns & Orders" [ref=f184e141] [cursor=pointer]:
+            - /url: /gp/css/order-history?ref_=nav_orders_first
+            - generic [ref=f184e142]: Returns
+            - generic [ref=f184e143]: "& Orders"
+          - link "0 items in cart" [ref=f184e144] [cursor=pointer]:
+            - /url: /gp/cart/view.html?ref_=nav_cart
+            - generic [aria-hidden] [ref=f184e146]: "0"
+            - generic [aria-hidden] [ref=f184e149]: Cart
+      - generic [ref=f184e150]:
+        - button "Open All Categories Menu" [ref=f184e152] [cursor=pointer]:
+          - generic [ref=f184e154]: All
+        - list [ref=f184e158]:
+          - listitem [ref=f184e159]:
+            - link "Health AI" [ref=f184e161] [cursor=pointer]:
+              - /url: https://health.amazon.com/health-ai?ref_=nav_cs_health_ai
+          - listitem [ref=f184e162]:
+            - link "Amazon Haul" [ref=f184e164] [cursor=pointer]:
+              - /url: /haul/store?ref_=nav_cs_hul_disb
+          - listitem [ref=f184e165]:
+            - generic [ref=f184e166]:
+              - link "Medical Care" [ref=f184e167] [cursor=pointer]:
+                - /url: https://health.amazon.com/?ref_=nav_cs_medical_care_health_home
+              - button "Medical Care Details" [ref=f184e168] [cursor=pointer]
+          - listitem [ref=f184e169]:
+            - link "Amazon Basics" [ref=f184e171] [cursor=pointer]:
+              - /url: /Amazon_Basics?channel=discovbar&field-lbr_brands_browse-bin=AmazonBasics&ref_=nav_cs_amazonbasics
+          - listitem [ref=f184e172]:
+            - link "Best Sellers" [ref=f184e174] [cursor=pointer]:
+              - /url: /gp/bestsellers/?ref_=nav_cs_bestsellers
+          - listitem [ref=f184e175]:
+            - generic [ref=f184e176]:
+              - link "Prime" [ref=f184e177] [cursor=pointer]:
+                - /url: /prime?ref_=nav_cs_primelink_nonmember
+              - button "Prime Details" [ref=f184e178] [cursor=pointer]
+          - listitem [ref=f184e179]:
+            - link "New Releases" [ref=f184e181] [cursor=pointer]:
+              - /url: /gp/new-releases/?ref_=nav_cs_newreleases
+          - listitem [ref=f184e182]:
+            - link "Groceries" [ref=f184e184] [cursor=pointer]:
+              - /url: /fmc/grocery-gateway?gsc=fe16aGPfFs46S&ref_=nav_cs_groceries
+          - listitem [ref=f184e185]:
+            - link "Whole Foods" [ref=f184e187] [cursor=pointer]:
+              - /url: /alm/storefront?almBrandId=VUZHIFdob2xlIEZvb2Rz&ref_=nav_cs_whole_foods
+          - listitem [ref=f184e188]:
+            - link "Today's Deals" [ref=f184e190] [cursor=pointer]:
+              - /url: /deals?ref_=nav_cs_gb
+          - listitem [ref=f184e191]:
+            - link "Books" [ref=f184e193] [cursor=pointer]:
+              - /url: /books-used-books-textbooks/b/?ie=UTF8&node=283155&ref_=nav_cs_books
+          - listitem [ref=f184e194]:
+            - generic [ref=f184e195]:
+              - link "Gift Cards" [ref=f184e196] [cursor=pointer]:
+                - /url: /gift-cards/b/?ie=UTF8&node=2238192011&ref_=nav_cs_gc
+              - button "Gift Cards Details" [ref=f184e197] [cursor=pointer]
+          - listitem [ref=f184e198]:
+            - link "Sell" [ref=f184e200] [cursor=pointer]:
+              - /url: /b/?_encoding=UTF8&ld=AZUSSOA-sell&node=12766669011&ref_=nav_cs_sell
+          - listitem [ref=f184e201]:
+            - link "Music" [ref=f184e203] [cursor=pointer]:
+              - /url: /music/player?ref_=nav_cs_music
+          - listitem [ref=f184e204]:
+            - link "Fashion" [ref=f184e206] [cursor=pointer]:
+              - /url: /amazon-fashion/b/?ie=UTF8&node=7141123011&ref_=nav_cs_fashion
+          - listitem [ref=f184e207]:
+            - link "Registry" [ref=f184e209] [cursor=pointer]:
+              - /url: /gp/browse.html?node=16115931011&ref_=nav_cs_registry
+          - listitem [ref=f184e210]:
+            - generic [ref=f184e211]:
+              - link "Amazon Home" [ref=f184e212] [cursor=pointer]:
+                - /url: /home-garden-kitchen-furniture-bedding/b/?ie=UTF8&node=1055398&ref_=nav_cs_home
+              - button "Amazon Home Details" [ref=f184e213] [cursor=pointer]
+          - listitem [ref=f184e214]:
+            - generic [ref=f184e215]:
+              - link "Toys & Games" [ref=f184e216] [cursor=pointer]:
+                - /url: /toys/b/?ie=UTF8&node=165793011&ref_=nav_cs_toys
+              - button "Toys & Games Details" [ref=f184e217] [cursor=pointer]
+          - listitem [ref=f184e218]:
+            - link "Automotive" [ref=f184e220] [cursor=pointer]:
+              - /url: /automotive-auto-truck-replacements-parts/b/?ie=UTF8&node=15684181&ref_=nav_cs_automotive
+          - listitem [ref=f184e221]:
+            - link "Baby" [ref=f184e223] [cursor=pointer]:
+              - /url: /baby-car-seats-strollers-bedding/b/?ie=UTF8&node=165796011&ref_=nav_cs_baby
+          - listitem [ref=f184e224]:
+            - generic [ref=f184e225]:
+              - link "Home Improvement" [ref=f184e226] [cursor=pointer]:
+                - /url: /Tools-and-Home-Improvement/b/?ie=UTF8&node=228013&ref_=nav_cs_hi
+              - button "Home Improvement Details" [ref=f184e227] [cursor=pointer]
+          - listitem [ref=f184e228]:
+            - link "Sports & Outdoors" [ref=f184e230] [cursor=pointer]:
+              - /url: /sports-outdoors/b/?ie=UTF8&node=3375251&ref_=nav_cs_sports
+          - listitem [ref=f184e231]:
+            - link "Smart Home" [ref=f184e233] [cursor=pointer]:
+              - /url: /Smart-Home/b/?ie=UTF8&node=6563140011&ref_=nav_cs_smart_home
+          - listitem [ref=f184e234]:
+            - link "Pharmacy" [ref=f184e236] [cursor=pointer]:
+              - /url: https://pharmacy.amazon.com/?nodl=0&ref_=nav_cs_pharmacy
+          - listitem [ref=f184e237]:
+            - link "Everyday" [ref=f184e239] [cursor=pointer]:
+              - /url: /everyday-essentials?ref_=nav_cs_ee
+      - generic [ref=f184e243]:
+        - link "Toys & Games" [ref=f184e244] [cursor=pointer]:
+          - /url: /toys/b/?ie=UTF8&node=165793011&ref_=topnav_storetab_t
+        - link "Shop Toys by Character" [ref=f184e245] [cursor=pointer]:
+          - /url: /b/?_encoding=UTF8&ie=UTF8&node=17728536011&ref_=sv_t_1
+        - link "Shop Best Selling Toys" [ref=f184e246] [cursor=pointer]:
+          - /url: /gp/bestsellers/toys-and-games/?ie=UTF8&ie=UTF8&ref_=sv_t_2
+        - link "Shop Newly Released Toys" [ref=f184e247] [cursor=pointer]:
+          - /url: /gp/new-releases/toys-and-games/?ie=UTF8&ie=UTF8&ref_=sv_t_3
+        - link "Shop Amazon Exclusive Toys" [ref=f184e248] [cursor=pointer]:
+          - /url: /b/207836829011/?_encoding=UTF8&ref_=sv_t_4
+        - link "Shop Toy Deals" [ref=f184e249] [cursor=pointer]:
+          - /url: /b/?_encoding=UTF8&_encoding=UTF8&node=2241292011&ref_=sv_t_5
+        - link "Create a Gift List" [ref=f184e250] [cursor=pointer]:
+          - /url: /registries/?_encoding=UTF8&sourceVendorId=from_toys_games&ref_=nav_sn_t_from_toys
+      - dialog [ref=f184e251]
+  - generic [ref=f184e253]:
+    - heading "Product summary presents key product information Keyboard shortcut shift + opt + D" [level=1] [ref=f184e255]:
+      - button "Product summary presents key product information" [ref=f184e257] [cursor=pointer]
+      - separator [aria-hidden] [ref=f184e260]
+      - generic [ref=f184e261]:
+        - text: Keyboard shortcut
+        - generic [ref=f184e262]: shift + opt + D
+    - main [ref=f184e263]:
+      - generic [ref=f184e264]:
+        - generic [ref=f184e267]:
+          - iframe [ref=f184e268]:
+            - generic [ref=f185e4]:
+              - generic [aria-hidden] [ref=f185e5]: "Click to navigate to product detail page Sponsored Ad. Product image. Branded image. Mlikero Trading Card Storage Box, Bulk Card Storage for 1800+ Sleeved Cards, PU Leather Magnetic Closure Card Organizer with 10 Dividers & 3 Foam Stoppers, Fit for MTG, TCG and Sports Cards. Price: $29.99."
+              - generic [ref=f185e17]:
+                - generic [ref=f185e18]: MlikeroTrading Card Storage Box, Bulk Card Storage for 1800+ Sleeved Cards, PU Leather Magnetic Closure Card Organizer with 10 Dividers & 3 Foam Stoppers, Fit for MTG, TCG and Sports Cards
+                - generic [ref=f185e19]:
+                  - generic [ref=f185e20]: Save 15%
+                  - generic [ref=f185e22]: with coupon
+                - 'link "4.6 out of 5 stars., 2,258 customer reviews. Click to navigate to product detail page Sponsored Ad. Product image. Branded image. Mlikero Trading Card Storage Box, Bulk Card Storage for 1800+ Sleeved Cards, PU Leather Magnetic Closure Card Organizer with 10 Dividers & 3 Foam Stoppers, Fit for MTG, TCG and Sports Cards. Price: $29.99." [ref=f185e23] [cursor=pointer]':
+                  - /url: https://www.amazon.com/product-reviews/B0BHVSLGTZ?aaxitk=bdc71b868eb86be4299d355262e9aa70&language=en_US
+                  - img "4.6 out of 5 stars., 2,258 customer reviews." [ref=f185e24]:
+                    - generic [ref=f185e25]: "4.6"
+                    - generic [aria-hidden] [ref=f185e52]: 2,258
+              - link "Click to navigate to product detail page" [ref=f185e54] [cursor=pointer]:
+                - /url: https://aax-events-cell01-cf.us-east.ono.axp.amazon-adsystem.com/x/c/RCftHezgMlQ81DMWKD2-S50AAAGgiJp5vAEAAAH0AQBvbm9fdHhuX2JpZDIgICBvbm9fdHhuX2ltcDIgICCCU-2z/clv1c_ek_Qw_HTLcbCzomnUM3qMWY-iTkjTtpR35rEycKoiuOffe0boeEP8QXD5-xrXYwKJGXBmBc-ARgh881lb3jkbnluwtmcjKUo5wgBE1MR-m3n810sMlop2DJMMvh1rX93OStA9ZJuo7GG3sOCHsn9aUGmyF3eFl3-GtZYV06CDh7RDUdGCJmjqvP4xmq-5sPL7Lzpym4YTYmCZ3yMfv3ZQiHXLHU7nL4bDa4NDX9vdreCRXRISL5aLb2l_es28oCR8iEcCm7kUgieuOmNrzJAsQ4Vsg4jgovi8TIsqWYROwCiroX1fF9aLnDoITNepFB68Wiayp_HXfacumoqj3zK-9MqY1vb7o1eEmiZCGw_5SSPmFbLFHUhFw3FnTHdXq-Ikh1NEvYNg3ULzfeksugKZjNzbq2f3peZjLb3_S5DB7-zN7MiCbJj247t4Y5ZXzvqSDCQDObh7yYkxIN48lieUocP0gCFK4wZHhRGKDeOQVJHVZ4_tTPHFlGtOSSeBUp6HvEY83xOnIuxdqzvom1F_AwBclT4FK17sxv-oPRRMPtZG7_xPc8PKVyON1NYDYcZG2J34yG3Hvmrtci0LkaFDbRPIk0aa1Ie9l90q3eI95Gvx4SqYS_PF74Xoi0DncsbLBKvTdEaz3u6-hReW2e9b2wi15h0EFjP1b0Ql_Iyo-fCpOxfrUD8M8xcXjqKtAKDdnMVYw1MBj__Lt4gosCUWkez7dgFpJDPvKTO5qdiHxq_-d4AIvoCcVGGzmLiRuu2v6vMUO3hju1H_vNfg0BiJaHaVZMS9z6qOmesDtUXvXh-o2sM6qV02hjDmvFezuEiMy9x78Nkh8a3n4uSU-sFPVeXsHcNBH4CFzAfnjgwBY2nifFbPeDOHZtALgf7g1G45jkm_wPjyjT_Gy7B7si28FJhrAtMdI4zFt1M2xG06XnMLkHg-vSY3L6Oj4L260H3azodRkX0o73UmT26KNeGhdk39Hqk8yU4V9sd9Ny3DVia6h7HyyVzby_H1bJEFWOJvjXDymxNStCv2TYwYtZ820K0td6x-la_NP0MqM4JcRoAUw/http://www.amazon.com/dp/B0BHVSLGTZ/ref=syn_sd_onsite_desktop_0?ie=UTF8&psc=1&pd_rd_plhdr=t&aref=OYcbLpwmKS
+          - button "Leave feedback on Sponsored ad" [ref=f184e270] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f184e271]: Sponsored
+        - list [ref=f184e277]:
+          - listitem [ref=f184e278]:
+            - link "Toys & Games" [ref=f184e280] [cursor=pointer]:
+              - /url: /toys/b/ref=dp_bc_1?ie=UTF8&node=165793011
+          - listitem [aria-hidden] [ref=f184e281]: ›
+          - listitem [ref=f184e282]:
+            - link "Games & Accessories" [ref=f184e284] [cursor=pointer]:
+              - /url: /kids-games-board-classic-dvd-travel/b/ref=dp_bc_2?ie=UTF8&node=166220011
+          - listitem [aria-hidden] [ref=f184e285]: ›
+          - listitem [ref=f184e286]:
+            - link "Card Games" [ref=f184e288] [cursor=pointer]:
+              - /url: /card-games/b/ref=dp_bc_3?ie=UTF8&node=166239011
+          - listitem [aria-hidden] [ref=f184e289]: ›
+          - listitem [ref=f184e290]:
+            - link "Collectible Card Games" [ref=f184e292] [cursor=pointer]:
+              - /url: /trading-card-gamess/b/ref=dp_bc_4?ie=UTF8&node=166242011
+          - listitem [aria-hidden] [ref=f184e293]: ›
+          - listitem [ref=f184e294]:
+            - link "Booster Packs" [ref=f184e296] [cursor=pointer]:
+              - /url: /b/ref=dp_bc_5?ie=UTF8&node=19431306011
+      - generic [ref=f184e297]:
+        - generic [ref=f184e309]:
+          - generic [ref=f184e316]:
+            - generic [ref=f184e317]: $129.97
+            - generic [aria-hidden] [ref=f184e318]:
+              - text: $
+              - generic [ref=f184e319]:
+                - text: "129"
+                - generic [ref=f184e320]: .
+              - text: "97"
+          - generic [ref=f184e322]:
+            - generic [ref=f184e324]:
+              - generic [ref=f184e327]:
+                - generic [ref=f184e329]:
+                  - text: FREE delivery Thursday, September 17.
+                  - link "Details about delivery costs and shipping methods" [ref=f184e330] [cursor=pointer]:
+                    - /url: /gp/aag/details/?seller=A2FSD71474P417&sshmPath=shipping-rates
+                    - text: Details
+                - generic [ref=f184e332]:
+                  - text: Or fastest delivery September 11 - 15.
+                  - link "Details about delivery costs and shipping methods" [ref=f184e333] [cursor=pointer]:
+                    - /url: /gp/aag/details/?seller=A2FSD71474P417&sshmPath=shipping-rates
+                    - text: Details
+              - button "Delivering to Riverside 64150 - Update location" [ref=f184e336] [cursor=pointer]:
+                - generic [ref=f184e338]: Delivering to Riverside 64150 - Update location
+            - generic [ref=f184e343]: Only 4 left in stock - order soon.
+            - generic [ref=f184e352]:
+              - generic [aria-hidden] [ref=f184e353]: "Quantity:"
+              - combobox "Quantity:" [ref=f184e354]:
+                - option "1" [selected]
+                - option "2"
+                - option "3"
+                - option "4"
+              - generic [aria-hidden] [ref=f184e357] [cursor=pointer]: Quantity:1
+            - generic [ref=f184e363] [cursor=pointer]:
+              - button "Add to cart" [ref=f184e364]
+              - generic [aria-hidden] [ref=f184e365]: Add to cart
+            - generic [ref=f184e370] [cursor=pointer]:
+              - button "Buy Now" [ref=f184e371]
+              - generic [aria-hidden] [ref=f184e372]: Buy Now
+            - group "Seller, shipping, and buying option details" [ref=f184e377]:
+              - generic [ref=f184e378]:
+                - heading "Shipper / Seller" [level=4] [ref=f184e379]
+                - link "Super Games Inc." [ref=f184e383] [cursor=pointer]:
+                  - /url: /gp/help/seller/at-a-glance.html/ref=dp_merchant_link?ie=UTF8&seller=A2FSD71474P417&asin=B0BNLXCFHJ&ref_=dp_merchant_link
+              - generic [ref=f184e384]:
+                - heading "Returns" [level=4] [ref=f184e385]
+                - button "30-day refund/replacement" [ref=f184e389] [cursor=pointer]
+              - generic [ref=f184e393]:
+                - heading "Payment" [level=4] [ref=f184e394]
+                - button "Secure transaction" [ref=f184e398] [cursor=pointer]
+          - generic [ref=f184e400]:
+            - separator [aria-hidden] [ref=f184e401]
+            - link "Add to List" [ref=f184e406] [cursor=pointer]:
+              - /url: https://www.amazon.com/ap/signin?openid.return_to=https%3A%2F%2Fwww.amazon.com%2Fgp%2Faw%2Fd%2FB0BNLXCFHJ&openid.identity=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.assoc_handle=usflex&openid.mode=checkid_setup&openid.claimed_id=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0%2Fidentifier_select&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0&
+        - generic [ref=f184e408]:
+          - generic [ref=f184e410]:
+            - button [ref=f184e411]:
+              - button "Share" [ref=f184e412] [cursor=pointer]
+            - generic [ref=f184e415]:
+              - radiogroup "Image thumbnails" [ref=f184e417]:
+                - listitem [ref=f184e418]:
+                  - radio [ref=f184e423] [cursor=pointer]
+                - listitem [ref=f184e425]:
+                  - radio [ref=f184e430] [cursor=pointer]
+                - listitem [ref=f184e432]:
+                  - radio [ref=f184e437] [cursor=pointer]
+                - listitem [ref=f184e439]:
+                  - radio [ref=f184e444] [cursor=pointer]
+                - listitem [ref=f184e446]:
+                  - radio [ref=f184e451] [cursor=pointer]
+                - listitem [ref=f184e453]:
+                  - radio [ref=f184e458] [cursor=pointer]
+                - listitem [ref=f184e460]:
+                  - radio [ref=f184e465] [cursor=pointer]
+              - generic [ref=f184e467]:
+                - generic [ref=f184e469]:
+                  - list
+                  - list [ref=f184e470]:
+                    - listitem [ref=f184e471] [cursor=pointer]:
+                      - button [ref=f184e474]:
+                        - 'img "Magic: The Gathering March of The Machine Bundle | 8 Set Boosters + Accessories" [ref=f184e475]'
+                - link "Click to see full view" [ref=f184e479] [cursor=pointer]:
+                  - /url: "#"
+          - generic [ref=f184e481]:
+            - generic:
+              - button
+          - generic:
+            - link:
+              - generic:
+                - list
+        - generic [ref=f184e482]:
+          - generic [ref=f184e484]:
+            - link [ref=f184e487] [cursor=pointer]:
+              - /url: /stores/MagicTheGathering/page/1C5A2505-C20D-44F5-B31D-E91265896FF4?lp_asin=B0BNLXCFHJ&ref_=ast_bln&store_ref=bl_ast_dp_brandlogo_sto
+              - 'img "Magic: The Gathering" [ref=f184e488]'
+            - 'link "Visit the Magic: The Gathering Store" [ref=f184e491] [cursor=pointer]':
+              - /url: /stores/MagicTheGathering/page/1C5A2505-C20D-44F5-B31D-E91265896FF4?lp_asin=B0BNLXCFHJ&ref_=ast_bln&store_ref=bl_ast_dp_brandlogo_sto
+          - 'heading "Magic: The Gathering March of The Machine Bundle | 8 Set Boosters + Accessories" [level=1] [ref=f184e494]'
+          - generic [ref=f184e496]:
+            - generic "4.6 out of 5 stars" [ref=f184e498]:
+              - button "4.6 out of 5 stars" [ref=f184e500] [cursor=pointer]: "4.6"
+            - link "835 Reviews" [ref=f184e505] [cursor=pointer]:
+              - /url: "#averageCustomerReviewsAnchor"
+              - text: (835)
+          - generic [ref=f184e506]: Amazon's Choice
+          - separator [ref=f184e511]
+          - generic [ref=f184e514]:
+            - generic [ref=f184e517]:
+              - generic [ref=f184e518]: $129.97
+              - generic [aria-hidden] [ref=f184e520]:
+                - text: $
+                - generic [ref=f184e521]:
+                  - text: "129"
+                  - generic [ref=f184e522]: .
+                - text: "97"
+            - link "Get a $10 Amazon Gift Card instantly upon approval for the Amazon Store Card. No annual fee." [ref=f184e530] [cursor=pointer]:
+              - /url: /gp/product/B008A0GNA8?pr=conplcc&inc=023594a7-fd3a-4290-a332-5819e1ac259e&ts=4wokfpw98w7zccsff4odu3ech7nfgma&dasin=B0BNLXCFHJ&plattr=math&place=priceblock&imp=20c6efdd-146e-4f28-8c53-34b73d777cb4&mru=/dp/product/B0BNLXCFHJ
+            - generic:
+              - table
+          - generic [ref=f184e532]: "Style: Bundle"
+          - generic [ref=f184e539]:
+            - list [ref=f184e540]:
+              - listitem [ref=f184e541]: 8 March of the Machine Set Boosters—the best MTG boosters to open just for fun
+              - listitem [ref=f184e542]: 1 traditional foil alt-art promo card—Ghalta and Mavren
+              - listitem [ref=f184e543]: At least 1 Multiverse Legend card in every Set Booster
+              - listitem [ref=f184e544]: 40 basic land cards (20 foil + 20 nonfoil), 1 Spindown life counter + card storage box
+              - listitem [ref=f184e545]: Battle the Machine Legion as Phyrexians invade planes across the Multiverse
+            - generic [ref=f184e546]:
+              - text: ›
+              - link "See more product details" [ref=f184e547] [cursor=pointer]:
+                - /url: "#productDetails"
+          - link "Report an issue with this product or seller" [ref=f184e553] [cursor=pointer]:
+            - /url: javascript:void(0)
+        - generic [ref=f184e555]:
+          - separator [aria-hidden] [ref=f184e556]
+          - generic [ref=f184e559]:
+            - iframe [ref=f184e560]:
+              - region "Sponsored ad from Ultra Pro" [ref=f186e3]:
+                - link [ref=f186e4] [cursor=pointer]:
+                  - generic [ref=f186e5]:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - generic:
+                                    - img "Ultra Pro"
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - generic:
+                                    - 'img "Ultra PRO - Foundations Tiny Bones 9-Pocket PRO-Binder for Magic: The Gathering - Perfect for Magic The Gathering Cards, for Kids, Boys Adults, Toy Storage Solution for Collectors & TCG Gamers Alike!"'
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic: Ultra Pro
+                              - text: "Foundations Tiny Bones 9-Pocket PRO-Binder for Magic: The Gathering - Perfect for Magic The Gathering Cards, for Kids, Boys Adults, Toy Storage Solution for Collectors & TCG Gamers Alike!"
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - generic:
+                                    - generic:
+                                      - generic: $24.99
+                                      - generic [aria-hidden]:
+                                        - generic: $
+                                        - generic: "24"
+                                        - generic: "99"
+                                      - generic:
+                                        - generic:
+                                          - img "Eligible for Amazon Prime."
+            - button "Leave feedback on Sponsored ad" [ref=f184e562] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f184e563]: Sponsored
+      - generic [ref=f184e569]:
+        - separator [aria-hidden] [ref=f184e570]
+        - heading "Frequently bought together" [level=2] [ref=f184e571]
+        - generic [ref=f184e572]:
+          - group "Frequently bought together" [ref=f184e573]:
+            - generic [ref=f184e574]:
+              - generic [ref=f184e575]:
+                - 'checkbox "This item: Magic: The Gathering March of The Machine Bundle | 8 Set Boosters + Accessories" [checked] [ref=f184e581]'
+                - generic [ref=f184e586]:
+                  - generic [ref=f184e587]: "This item: Magic: The Gathering March of The Machine Bundle | 8 Set Boosters + Accessories"
+                  - generic [ref=f184e595]:
+                    - generic [ref=f184e596]: $129.97
+                    - generic [aria-hidden] [ref=f184e597]:
+                      - text: $
+                      - generic [ref=f184e598]:
+                        - text: "129"
+                        - generic [ref=f184e599]: .
+                      - text: "97"
+              - generic [ref=f184e600]:
+                - generic [ref=f184e601]:
+                  - generic [ref=f184e602]: +
+                  - 'checkbox "Magic: The Gathering Murders at Karlov Manor Bundle - 9 Play Boosters, 30 Land Cards + Exclusive Accessories" [checked] [ref=f184e606]'
+                  - link [ref=f184e610] [cursor=pointer]:
+                    - /url: /Magic-Gathering-Boosters-Exclusive-Accessories/dp/B0CMW6S82Q/ref=pd_bxgy_thbs_d_sccl_1/144-6018676-6807141?pd_rd_w=fB7kF&content-id=amzn1.sym.9bef5913-5870-4504-8883-3ba89d7f8e39&pf_rd_p=9bef5913-5870-4504-8883-3ba89d7f8e39&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0CMW6S82Q&psc=1
+                    - 'img "Magic: The Gathering Murders at Karlov Manor Bundle - 9 Play Boosters, 30 Land Cards + Exclusive Accessories" [ref=f184e611]'
+                - generic [ref=f184e612]:
+                  - 'link "Magic: The Gathering Murders at Karlov Manor Bundle - 9 Play Boosters, 30 Land Cards + Exclusive Accessories" [ref=f184e614] [cursor=pointer]':
+                    - /url: /Magic-Gathering-Boosters-Exclusive-Accessories/dp/B0CMW6S82Q/ref=pd_bxgy_d_sccl_1/144-6018676-6807141?pd_rd_w=fB7kF&content-id=amzn1.sym.9bef5913-5870-4504-8883-3ba89d7f8e39&pf_rd_p=9bef5913-5870-4504-8883-3ba89d7f8e39&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0CMW6S82Q&psc=1
+                  - generic [ref=f184e622]:
+                    - generic [ref=f184e623]: $69.97
+                    - generic [aria-hidden] [ref=f184e624]:
+                      - text: $
+                      - generic [ref=f184e625]:
+                        - text: "69"
+                        - generic [ref=f184e626]: .
+                      - text: "97"
+          - generic [ref=f184e627]:
+            - generic [ref=f184e628]:
+              - generic [ref=f184e630]:
+                - text: "Total price:"
+                - generic [ref=f184e631]:
+                  - generic [ref=f184e632]: $199.94
+                  - generic [aria-hidden] [ref=f184e633]:
+                    - text: $
+                    - generic [ref=f184e634]: "199."
+                    - text: "94"
+              - generic [ref=f184e640] [cursor=pointer]:
+                - 'button "Add both to Cart, Magic: The Gathering March of The Machine Bundle | 8 Set Boosters + Accessories" [ref=f184e641]'
+                - generic [aria-hidden] [ref=f184e642]: Add both to Cart
+            - generic [ref=f184e643]:
+              - generic [ref=f184e644]: One of these items ships sooner than the other.
+              - link "Show details for Frequently bought together,After enabling, redirect focus to product information to get details," [ref=f184e649] [cursor=pointer]:
+                - /url: javascript:void(0)
+                - text: Show details
+      - generic [ref=f184e652]:
+        - separator [aria-hidden] [ref=f184e653]
+        - group [ref=f184e656]:
+          - heading "Based on your recent shopping trends" [level=2] [ref=f184e661]
+          - group [ref=f184e666]:
+            - list [ref=f184e667]:
+              - listitem [ref=f184e668]:
+                - generic [ref=f184e670]:
+                  - link [aria-hidden] [ref=f184e672] [cursor=pointer]:
+                    - /url: /Magic-Gathering-Aetherdrift-Finish-Bundle/dp/B0DNV4QFMZ/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_1/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DNV4QFMZ&psc=1
+                  - generic [ref=f184e675]:
+                    - 'link "Magic: The Gathering Aetherdrift Finish Line Bundle" [ref=f184e676] [cursor=pointer]':
+                      - /url: /Magic-Gathering-Aetherdrift-Finish-Bundle/dp/B0DNV4QFMZ/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_1/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DNV4QFMZ&psc=1
+                    - link "4.4 out of 5 stars, 620 ratings" [ref=f184e681] [cursor=pointer]:
+                      - /url: /product-reviews/B0DNV4QFMZ/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_1_cr/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DNV4QFMZ
+                      - generic [ref=f184e683]: 4.4 out of 5 stars
+                      - text: "620"
+                    - generic [ref=f184e684]:
+                      - link "$93.02" [ref=f184e688] [cursor=pointer]:
+                        - /url: /Magic-Gathering-Aetherdrift-Finish-Bundle/dp/B0DNV4QFMZ/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_1/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DNV4QFMZ&psc=1
+                        - generic [ref=f184e689]:
+                          - generic [ref=f184e690]: $93.02
+                          - generic [aria-hidden] [ref=f184e691]:
+                            - text: $
+                            - generic [ref=f184e692]: "93."
+                            - text: "02"
+                      - generic [ref=f184e693]: Get it as soon as Monday, Sep 14
+                    - text: FREE Shipping by Amazon
+              - listitem [ref=f184e695]:
+                - generic [ref=f184e697]:
+                  - link [aria-hidden] [ref=f184e699] [cursor=pointer]:
+                    - /url: /Magic-The-Gathering-Aetherdrift-Bundle/dp/B0DNV4P1Z6/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_2/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DNV4P1Z6&psc=1
+                  - generic [ref=f184e702]:
+                    - 'link "Magic: The Gathering Aetherdrift Bundle" [ref=f184e703] [cursor=pointer]':
+                      - /url: /Magic-The-Gathering-Aetherdrift-Bundle/dp/B0DNV4P1Z6/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_2/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DNV4P1Z6&psc=1
+                    - link "4.4 out of 5 stars, 446 ratings" [ref=f184e708] [cursor=pointer]:
+                      - /url: /product-reviews/B0DNV4P1Z6/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_2_cr/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DNV4P1Z6
+                      - generic [ref=f184e710]: 4.4 out of 5 stars
+                      - text: "446"
+                    - generic [ref=f184e713]:
+                      - generic [ref=f184e714]:
+                        - link "-26%" [ref=f184e715] [cursor=pointer]:
+                          - /url: /Magic-The-Gathering-Aetherdrift-Bundle/dp/B0DNV4P1Z6/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_2/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DNV4P1Z6&psc=1
+                        - link "$39.99" [ref=f184e716] [cursor=pointer]:
+                          - /url: /Magic-The-Gathering-Aetherdrift-Bundle/dp/B0DNV4P1Z6/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_2/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DNV4P1Z6&psc=1
+                          - generic [ref=f184e717]:
+                            - generic [ref=f184e718]: $39.99
+                            - generic [aria-hidden] [ref=f184e719]:
+                              - text: $
+                              - generic [ref=f184e720]: "39."
+                              - text: "99"
+                      - 'link "List: $53.99" [ref=f184e722] [cursor=pointer]':
+                        - /url: /Magic-The-Gathering-Aetherdrift-Bundle/dp/B0DNV4P1Z6/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_2/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DNV4P1Z6&psc=1
+                    - text: FREE Shipping
+              - listitem [ref=f184e725]:
+                - generic [ref=f184e727]:
+                  - link [aria-hidden] [ref=f184e729] [cursor=pointer]:
+                    - /url: /Magic-Gathering-Fracture-Exclusive-Accessories/dp/B0GXC9W89R/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_3/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0GXC9W89R&psc=1
+                  - generic [ref=f184e732]:
+                    - 'link "Magic: The Gathering Reality Fracture Bundle | Includes 9 Play Boosters, 30 Lands, 1 Foil Alt-Art Promo Card + Exclusive Accessories" [ref=f184e733] [cursor=pointer]':
+                      - /url: /Magic-Gathering-Fracture-Exclusive-Accessories/dp/B0GXC9W89R/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_3/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0GXC9W89R&psc=1
+                    - generic [ref=f184e736]:
+                      - link "$57.99" [ref=f184e740] [cursor=pointer]:
+                        - /url: /Magic-Gathering-Fracture-Exclusive-Accessories/dp/B0GXC9W89R/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_3/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0GXC9W89R&psc=1
+                        - generic [ref=f184e741]:
+                          - generic [ref=f184e742]: $57.99
+                          - generic [aria-hidden] [ref=f184e743]:
+                            - text: $
+                            - generic [ref=f184e744]: "57."
+                            - text: "99"
+                      - generic [ref=f184e745]: Get it as soon as Monday, Oct 5
+                    - text: FREE Shipping by Amazon
+                    - generic [ref=f184e747]: This item will be released on October 2, 2026.
+              - listitem [ref=f184e750]:
+                - generic [ref=f184e752]:
+                  - link [aria-hidden] [ref=f184e754] [cursor=pointer]:
+                    - /url: /Magic-Gathering-Edge-Eternities-Bundle/dp/B0DTRW3GMM/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_4/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DTRW3GMM&psc=1
+                  - generic [ref=f184e757]:
+                    - 'link "Magic: The Gathering Edge of Eternities - Bundle" [ref=f184e758] [cursor=pointer]':
+                      - /url: /Magic-Gathering-Edge-Eternities-Bundle/dp/B0DTRW3GMM/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_4/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DTRW3GMM&psc=1
+                    - link "4.7 out of 5 stars, 517 ratings" [ref=f184e763] [cursor=pointer]:
+                      - /url: /product-reviews/B0DTRW3GMM/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_4_cr/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DTRW3GMM
+                      - generic [ref=f184e765]: 4.7 out of 5 stars
+                      - text: "517"
+                    - generic [ref=f184e766]:
+                      - link "$105.95" [ref=f184e770] [cursor=pointer]:
+                        - /url: /Magic-Gathering-Edge-Eternities-Bundle/dp/B0DTRW3GMM/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_4/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0DTRW3GMM&psc=1
+                        - generic [ref=f184e771]:
+                          - generic [ref=f184e772]: $105.95
+                          - generic [aria-hidden] [ref=f184e773]:
+                            - text: $
+                            - generic [ref=f184e774]: "105."
+                            - text: "95"
+                      - generic [ref=f184e775]: Get it as soon as Monday, Sep 14
+                    - text: FREE Shipping by Amazon
+              - listitem [ref=f184e777]:
+                - generic [ref=f184e779]:
+                  - link [aria-hidden] [ref=f184e781] [cursor=pointer]:
+                    - /url: /Magic-Gathering-Strixhaven-Collector-Boosters/dp/B0G86Z91GX/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_5/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0G86Z91GX&psc=1
+                  - generic [ref=f184e784]:
+                    - 'link "Magic: The Gathering Secrets of Strixhaven - Draft Night (1 Collector Booster, 12 Play Boosters, 90 Lands, 10 Token Cards)" [ref=f184e785] [cursor=pointer]':
+                      - /url: /Magic-Gathering-Strixhaven-Collector-Boosters/dp/B0G86Z91GX/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_5/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0G86Z91GX&psc=1
+                    - link "4.5 out of 5 stars, 156 ratings" [ref=f184e790] [cursor=pointer]:
+                      - /url: /product-reviews/B0G86Z91GX/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_5_cr/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0G86Z91GX
+                      - generic [ref=f184e792]: 4.5 out of 5 stars
+                      - text: "156"
+                    - generic [ref=f184e793]: Amazon's Choice
+                    - generic [ref=f184e798]:
+                      - link "$89.97" [ref=f184e802] [cursor=pointer]:
+                        - /url: /Magic-Gathering-Strixhaven-Collector-Boosters/dp/B0G86Z91GX/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_5/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B0G86Z91GX&psc=1
+                        - generic [ref=f184e803]:
+                          - generic [ref=f184e804]: $89.97
+                          - generic [aria-hidden] [ref=f184e805]:
+                            - text: $
+                            - generic [ref=f184e806]: "89."
+                            - text: "97"
+                      - generic [ref=f184e807]: Get it as soon as Monday, Sep 21
+                    - text: FREE Shipping by Amazon
+                    - generic [ref=f184e809]: Only 1 left in stock - order soon.
+              - listitem [ref=f184e812]:
+                - generic [ref=f184e814]:
+                  - link [aria-hidden] [ref=f184e816] [cursor=pointer]:
+                    - /url: /Magic-Gathering-Zendikar-Collector-Accessories/dp/B08D1MCVTK/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_6/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B08D1MCVTK&psc=1
+                  - generic [ref=f184e819]:
+                    - 'link "Magic: The Gathering Zendikar Rising Gift Bundle | 10 Draft Booster Packs | 1 Collector Booster | Accessories" [ref=f184e820] [cursor=pointer]':
+                      - /url: /Magic-Gathering-Zendikar-Collector-Accessories/dp/B08D1MCVTK/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_6/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B08D1MCVTK&psc=1
+                    - link "4.7 out of 5 stars, 1,681 ratings" [ref=f184e825] [cursor=pointer]:
+                      - /url: /product-reviews/B08D1MCVTK/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_6_cr/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B08D1MCVTK
+                      - generic [ref=f184e827]: 4.7 out of 5 stars
+                      - text: 1,681
+                    - generic [ref=f184e828]:
+                      - link "$149.99" [ref=f184e832] [cursor=pointer]:
+                        - /url: /Magic-Gathering-Zendikar-Collector-Accessories/dp/B08D1MCVTK/ref=pd_ci_mcx_di_int_sccai_cn_d_sccl_1_6/144-6018676-6807141?pd_rd_w=6Qv8F&content-id=amzn1.sym.751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_p=751acc83-5c05-42d0-a15e-303622651e1e&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c&pd_rd_i=B08D1MCVTK&psc=1
+                        - generic [ref=f184e833]:
+                          - generic [ref=f184e834]: $149.99
+                          - generic [aria-hidden] [ref=f184e835]:
+                            - text: $
+                            - generic [ref=f184e836]: "149."
+                            - text: "99"
+                      - generic [ref=f184e837]: Get it as soon as Monday, Sep 14
+                    - text: FREE Shipping by Amazon
+                    - generic [ref=f184e839]: Only 4 left in stock - order soon.
+      - generic [ref=f184e847]:
+        - generic [ref=f184e849]:
+          - separator [ref=f184e850]
+          - heading "From the manufacturer" [level=2] [ref=f184e851]
+          - generic [ref=f184e854]:
+            - generic [ref=f184e856]:
+              - heading "Every World. Every Hero. One Last Stand." [level=3] [ref=f184e857]
+              - img "March of the Machine" [ref=f184e858]
+              - paragraph [ref=f184e859]: Planes across the Multiverse have fallen to the Phyrexian invasion. Hope isdwindling and the spark of individuality and rebellion is nothing but an ember. With corrupted Planeswalkers and the remaining heroes nearly overwhelmed, the fate of all hinges on one last stand.
+            - generic [ref=f184e861]:
+              - heading "Multiverse Legends" [level=3] [ref=f184e862]
+              - img "March of the Machine" [ref=f184e863]
+              - paragraph [ref=f184e864]: March of the Machine brings a whole Multiverse of Legendary creatures together for the final battle. Multiverse Legend cards are Legendary Creature reprints, each with a showcase frame styled after the plane that creature is from. Eleven showcase frame styles return for the planes of Theros, Kaldheim, Zendikar, Kamigawa, New Capenna, Dominaria, New Phyrexia, Eldraine, Innistrad, Amonkhet, and Arcavios (home of Strixhaven University), and five new frames are introduced for Kaladesh, Tarkir, Ravnica, Ikoria, and Ixalan!
+              - paragraph [ref=f184e865]: At least 1 Multiverse Legend card can be found in every March of the Machine Draft and Set Booster. Collector Boosters contain 3 foil Multiverse Legends in every pack, including at least 1 with a special foil treatment (Halo Foil nonserialized, Foil-Etched nonserialized, or Double Rainbow Foil Serialized card).
+            - generic [ref=f184e867]:
+              - heading "Halo Foils & Serialized Cards" [level=3] [ref=f184e868]
+              - img "March of the Machine" [ref=f184e869]
+              - paragraph [ref=f184e870]: Get the finest cards in the Multiverse with Collector Booster-exclusive special treatments!
+              - paragraph [ref=f184e871]: "Halo Foils: March of the Machine introduces Halo Foil cards that shine with a gorgeous rippling rainbow pattern. A Halo Foil Rare or Mythic Rare card can be found in 10% of Collector Boosters."
+              - paragraph [ref=f184e872]: "Serialized Cards: Collector Boosters are also the only March of the Machine packs that may contain Serialized cards—a Double Rainbow Foil Serialized Multiverse Legend or Serialized Alt-Art Borderless Praetor card can be found in less than 1% of packs."
+            - generic [ref=f184e874]:
+              - heading "Introducing the Battle Card Type" [level=3] [ref=f184e875]
+              - img "March of the Machine" [ref=f184e876]
+              - paragraph [ref=f184e877]: "March of the Machine introduces an all new card type: Battle! Each card represents the invasion of a different plane in the Multiverse. Battle it out with your friends and, if you win, the card will transform into a tactical advantage."
+            - table [ref=f184e882]:
+              - rowgroup [ref=f184e883]:
+                - row [ref=f184e884]:
+                  - cell [ref=f184e885]
+                  - columnheader [ref=f184e886]:
+                    - link "Draft Booster Box" [ref=f184e887] [cursor=pointer]:
+                      - /url: /dp/B0BNLZRJ3S?ref=emc_s_m_5_i_atc
+                  - columnheader [ref=f184e890]:
+                    - link "Set Booster Box" [ref=f184e891] [cursor=pointer]:
+                      - /url: /dp/B0BNLZ13F9?ref=emc_s_m_5_i_atc
+                  - columnheader [ref=f184e894]:
+                    - link "Collector Booster Box" [ref=f184e895] [cursor=pointer]:
+                      - /url: /dp/B0BNLX9WWR?ref=emc_s_m_5_i_atc
+                  - columnheader [ref=f184e898]:
+                    - link "Jumpstart Booster Box" [ref=f184e899] [cursor=pointer]:
+                      - /url: /dp/B0BNM11BXR?ref=emc_s_m_5_i_atc
+                  - columnheader [ref=f184e902]:
+                    - link "Bundle" [ref=f184e903] [cursor=pointer]:
+                      - /url: /dp/B0BNLXCFHJ?ref=emc_s_m_5_i_atc
+                  - columnheader [ref=f184e906]:
+                    - link "All 5 Commander Decks" [ref=f184e907] [cursor=pointer]:
+                      - /url: /dp/B0BPJP23NF?ref=emc_s_m_5_i_atc
+                - row [ref=f184e910]:
+                  - cell [ref=f184e911]
+                  - cell [ref=f184e912]:
+                    - link "Buying Options" [ref=f184e916] [cursor=pointer]:
+                      - /url: /dp/B0BNLZRJ3S?ref=emc_s_m_5_i_atc
+                  - cell [ref=f184e917]:
+                    - link "Buying Options" [ref=f184e921] [cursor=pointer]:
+                      - /url: /dp/B0BNLZ13F9?ref=emc_s_m_5_i_atc
+                  - cell [ref=f184e922]:
+                    - link "Buying Options" [ref=f184e926] [cursor=pointer]:
+                      - /url: /dp/B0BNLX9WWR?ref=emc_s_m_5_i_atc
+                  - cell "Add to Cart" [ref=f184e927]:
+                    - generic [ref=f184e931] [cursor=pointer]:
+                      - button "Add to Cart" [ref=f184e932]
+                      - generic [aria-hidden] [ref=f184e933]: Add to Cart
+                  - cell "Add to Cart" [ref=f184e934]:
+                    - generic [ref=f184e938] [cursor=pointer]:
+                      - button "Add to Cart" [ref=f184e939]
+                      - generic [aria-hidden] [ref=f184e940]: Add to Cart
+                  - cell [ref=f184e941]:
+                    - link "Buying Options" [ref=f184e945] [cursor=pointer]:
+                      - /url: /dp/B0BPJP23NF?ref=emc_s_m_5_i_atc
+                - row [ref=f184e946]:
+                  - rowheader "Customer Reviews" [ref=f184e947]
+                  - cell "4.6 out of 5 stars 197" [ref=f184e948]:
+                    - generic [ref=f184e950]:
+                      - generic [ref=f184e951]: 4.6 out of 5 stars
+                      - text: "197"
+                  - cell "4.6 out of 5 stars 394" [ref=f184e953]:
+                    - generic [ref=f184e955]:
+                      - generic [ref=f184e956]: 4.6 out of 5 stars
+                      - text: "394"
+                  - cell "3.6 out of 5 stars 195" [ref=f184e958]:
+                    - generic [ref=f184e960]:
+                      - generic [ref=f184e961]: 3.6 out of 5 stars
+                      - text: "195"
+                  - cell "4.1 out of 5 stars 19" [ref=f184e963]:
+                    - generic [ref=f184e965]:
+                      - generic [ref=f184e966]: 4.1 out of 5 stars
+                      - text: "19"
+                  - cell "4.6 out of 5 stars 835" [ref=f184e968]:
+                    - generic [ref=f184e970]:
+                      - generic [ref=f184e971]: 4.6 out of 5 stars
+                      - text: "835"
+                  - cell "4.0 out of 5 stars 321" [ref=f184e973]:
+                    - generic [ref=f184e975]:
+                      - generic [ref=f184e976]: 4.0 out of 5 stars
+                      - text: "321"
+                - row [ref=f184e978]:
+                  - rowheader "Price" [ref=f184e979]
+                  - cell "— no data" [ref=f184e980]:
+                    - text: —
+                    - generic [ref=f184e981]: no data
+                  - cell "— no data" [ref=f184e982]:
+                    - text: —
+                    - generic [ref=f184e983]: no data
+                  - cell "— no data" [ref=f184e984]:
+                    - text: —
+                    - generic [ref=f184e985]: no data
+                  - cell "$159.95" [ref=f184e986]:
+                    - generic [ref=f184e987]:
+                      - generic [ref=f184e988]: $159.95
+                      - generic [aria-hidden] [ref=f184e989]:
+                        - text: $
+                        - generic [ref=f184e990]:
+                          - text: "159"
+                          - generic [ref=f184e991]: .
+                        - text: "95"
+                  - cell "$129.97" [ref=f184e992]:
+                    - generic [ref=f184e993]:
+                      - generic [ref=f184e994]: $129.97
+                      - generic [aria-hidden] [ref=f184e995]:
+                        - text: $
+                        - generic [ref=f184e996]:
+                          - text: "129"
+                          - generic [ref=f184e997]: .
+                        - text: "97"
+                  - cell "— no data" [ref=f184e998]:
+                    - text: —
+                    - generic [ref=f184e999]: no data
+                - row [ref=f184e1000]:
+                  - rowheader "Contents:" [ref=f184e1001]
+                  - cell "36 Draft Boosters" [ref=f184e1002]
+                  - cell "30 Set Boosters" [ref=f184e1003]
+                  - cell "12 Collector Boosters" [ref=f184e1004]
+                  - cell "18 Jumpstart Boosters" [ref=f184e1005]
+                  - cell "8 Set Boosters + Accessories" [ref=f184e1006]
+                  - cell "Bundle of all 5 Commander Decks" [ref=f184e1007]
+                - row [ref=f184e1008]:
+                  - rowheader "Best for:" [ref=f184e1009]
+                  - cell "Draft play experience" [ref=f184e1010]
+                  - cell "Opening packs for fun" [ref=f184e1011]
+                  - cell "Shortcut to the coolest cards" [ref=f184e1012]
+                  - cell "A fun quick-play experience" [ref=f184e1013]
+                  - cell "Exclusive accessories" [ref=f184e1014]
+                  - cell "Epic multiplayer games" [ref=f184e1015]
+                - row [ref=f184e1016]:
+                  - rowheader "Special Features:" [ref=f184e1017]
+                  - cell "Just draft, add lands, and play" [ref=f184e1018]
+                  - cell "Art Card + possible card from \"The List\" in every pack" [ref=f184e1019]
+                  - cell "Only packs that may contain Halo Foils or Serialized cards" [ref=f184e1020]
+                  - cell "Just grab 2 packs, shuffle, and play" [ref=f184e1021]
+                  - cell "Alt-art promo card, 40 Lands, Spindown life counter, and card storage box" [ref=f184e1022]
+                  - cell "2-card Collector Booster Sample Pack with every deck" [ref=f184e1023]
+                - row [ref=f184e1024]:
+                  - rowheader "Highlights:" [ref=f184e1025]
+                  - cell "At least 1 Multiverse Legend in every pack" [ref=f184e1026]
+                  - cell "At least 1 Multiverse Legend in every pack" [ref=f184e1027]
+                  - cell "3 Multiverse Legends in every pack" [ref=f184e1028]
+                  - cell "Every pack introduces 1 Rare card not found in the main set" [ref=f184e1029]
+                  - cell "At least 1 Multiverse Legend in every Set Booster" [ref=f184e1030]
+                  - cell "2 foil Legendary Creatures in every deck" [ref=f184e1031]
+        - generic:
+          - navigation:
+            - navigation "Navigate within the product detail page":
+              - navigation "Back to top jump link":
+                - generic: Top
+              - navigation "About this item widget jump link":
+                - generic: About this item
+              - navigation "Similar widget jump link":
+                - generic: Similar
+              - navigation "Product information widget jump link":
+                - generic: Product information
+              - navigation "From the brand widget jump link":
+                - generic: From the Brand
+              - navigation "Customer reviews widget jump link":
+                - generic: Reviews
+            - navigation "Back to top Image jump link":
+              - 'img "Magic: The Gathering March of The Machine Bundle | 8 Set Boosters + Accessories"'
+            - navigation "Back to top title jump link":
+              - generic: "Magic: The Gathering March of The Machine Bundle | 8 Set Boosters + Accessories"
+        - generic [ref=f184e1032]:
+          - separator [aria-hidden] [ref=f184e1033]
+          - generic [ref=f184e1035]:
+            - heading "Product information" [level=1] [ref=f184e1036]
+            - generic [ref=f184e1040]:
+              - generic [ref=f184e1041]:
+                - button [ref=f184e1046] [cursor=pointer]:
+                  - heading "Item details" [level=5] [ref=f184e1048]
+                - generic [ref=f184e1049]:
+                  - generic [ref=f184e1051]:
+                    - heading "Warranty & Support" [level=3] [ref=f184e1052]
+                    - generic [ref=f184e1053]:
+                      - text: "Amazon.com Return Policy:"
+                      - generic [ref=f184e1054]:
+                        - text: "Amazon.com Voluntary 30-Day Return Guarantee: You can return many items you have purchased within 30 days following delivery of the item to you. Our Voluntary 30-Day Return Guarantee does not affect your legal right of withdrawal in any way. You can find out more about the exceptions and conditions"
+                        - link "here" [ref=f184e1055] [cursor=pointer]:
+                          - /url: /gp/help/customer/display.html/ref=orc_hp_s_retpol?ie=UTF8&nodeId=201819200
+                        - text: .
+                  - generic [ref=f184e1057]:
+                    - heading "Feedback" [level=3] [ref=f184e1058]
+                    - generic [ref=f184e1063]:
+                      - text: Would you like to
+                      - button "tell us about a lower price?" [ref=f184e1065] [cursor=pointer]
+              - generic [ref=f184e1069]:
+                - button [ref=f184e1072] [cursor=pointer]:
+                  - heading "Features & Specs" [level=5] [ref=f184e1074]
+                - button [ref=f184e1077] [cursor=pointer]:
+                  - heading "Measurements" [level=5] [ref=f184e1079]
+                - button [ref=f184e1082] [cursor=pointer]:
+                  - heading "Style" [level=5] [ref=f184e1084]
+                - button [ref=f184e1087] [cursor=pointer]:
+                  - heading "Additional details" [level=5] [ref=f184e1089]
+        - generic [ref=f184e1095]:
+          - heading "Product Videos" [level=2] [ref=f184e1097]
+          - generic [ref=f184e1102]:
+            - region "Video Player" [ref=f184e1103]:
+              - generic [ref=f184e1106]:
+                - button "Play" [ref=f184e1107] [cursor=pointer]
+                - slider "Progress Bar" [ref=f184e1110] [cursor=pointer]: .
+                - generic [ref=f184e1111]: "-0:00"
+                - generic [ref=f184e1113]:
+                  - menu
+                - button "Mute" [ref=f184e1114] [cursor=pointer]
+            - generic [ref=f184e1117]:
+              - link [ref=f184e1118] [cursor=pointer]:
+                - /url: /shop/theflippingaccountant
+              - generic [ref=f184e1119]:
+                - generic [ref=f184e1120]:
+                  - link "Justin - The Flipping Accountant" [ref=f184e1121] [cursor=pointer]:
+                    - /url: /shop/theflippingaccountant
+                  - link "Click to go to amazon influencer info page" [ref=f184e1123] [cursor=pointer]:
+                    - /url: /shop/info
+                    - text: Earns commissions
+                - generic [ref=f184e1124]: OPENING March of Machines Bundle - Magic The Gathering MTG
+            - button "Play" [ref=f184e1125] [cursor=pointer]
+        - generic [ref=f184e1199]:
+          - heading "Product Description" [level=2] [ref=f184e1202]
+          - paragraph [ref=f184e1204]: The March of the Machine Bundle contains 8 March of the Machine Set Boosters—the best boosters to open just for fun—plus accessories, with 1 traditional foil alternate-art promo card—Ghalta and Mavren, 40 basic lands (20 traditional foils and 20 nonfoils), 1 oversized Spindown life counter, 1 card storage box, and 2 reference cards. Each Set Booster contains 12 Magic cards, 1 Art Card, and 1 token/ad card, Helper card, or card from “The List” (a special card from Magic's history—found in 25% of packs). Every pack includes a combination of 1–5 card(s) of rarity Rare or higher, and 3–8 Uncommon, 2–7 Common, and 1 Land cards. 1 non–Art Card and non–Land card of any rarity is foil. Traditional Foil Borderless Mythic Planeswalker in <1% of boosters. Foil-Stamped Signature Art Card replaces Art Card in 10% of boosters.
+      - generic [ref=f184e1206]:
+        - separator [aria-hidden] [ref=f184e1207]
+        - heading "What's in the box" [level=2] [ref=f184e1208]
+        - listitem [ref=f184e1210]: 1 March of the Machine Bundle
+      - generic [ref=f184e1212]:
+        - separator [aria-hidden] [ref=f184e1213]
+        - generic [ref=f184e1214]:
+          - 'heading "Top Brand: Magic: The Gathering" [level=2] [ref=f184e1215]'
+          - generic [ref=f184e1216]:
+            - generic [ref=f184e1219]:
+              - generic [ref=f184e1220]: Highly Rated
+              - generic [ref=f184e1221]: 100K+ customers rate items from this brand highly
+            - generic [ref=f184e1224]:
+              - generic [ref=f184e1225]: Trending
+              - generic [ref=f184e1226]: 100K+ orders for this brand in past 3 months
+            - generic [ref=f184e1229]:
+              - generic [ref=f184e1230]: Low Returns
+              - generic [ref=f184e1231]: Customers usually keep items from this brand
+      - generic [ref=f184e1234]:
+        - separator [aria-hidden] [ref=f184e1235]
+        - region "Related products with free delivery on eligible orders" [ref=f184e1236]:
+          - generic [ref=f184e1238]:
+            - heading "Related products with free delivery on eligible orders" [level=2] [ref=f184e1239]
+            - generic [ref=f184e1241]:
+              - link "Sponsored" [ref=f184e1243] [cursor=pointer]:
+                - /url: "#sp_detail2-prime_theme_for_non_prime_members_feedbackForm"
+              - text: "| Try Prime for unlimited fast, free shipping"
+          - list [ref=f184e1253]:
+            - listitem [ref=f184e1254]:
+              - generic [ref=f184e1255]:
+                - 'link "AFIING MTG Commander Deck Box 200 Double Sleeved Cards Storage, 3-in-1 Magnetic Card Case Organizer for Magic: The Gathering TCG CCG, 4 Dividers & 2 Toploaders (Black/Orange)" [ref=f184e1256] [cursor=pointer]':
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAzMjc4NjM0MDM0MDI6Ojo6&url=%2Fdp%2FB0D1CK3186%2Fref%3Dsspa_dk_detail_0%3Fpsc%3D1%26pd_rd_i%3DB0D1CK3186%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - generic [aria-hidden] [ref=f184e1260]: AFIING MTG Commander Deck Box 200 Double Sleeved Cards Storage, 3-in-1 Magnetic Car...
+                - link "4.8 out of 5 stars 872 ratings" [ref=f184e1262] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAzMjc4NjM0MDM0MDI6Ojo6&url=%2Fdp%2FB0D1CK3186%2Fref%3Dsspa_dk_detail_0%3Fpsc%3D1%26pd_rd_i%3DB0D1CK3186%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy#customerReviews
+                  - text: "872"
+                - link "Limited time deal" [ref=f184e1264] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAzMjc4NjM0MDM0MDI6Ojo6&url=%2Fdp%2FB0D1CK3186%2Fref%3Dsspa_dk_detail_0%3Fpsc%3D1%26pd_rd_i%3DB0D1CK3186%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                - 'link "-10% $24.29 Typical: $26.99 Typical: null" [ref=f184e1268] [cursor=pointer]':
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAzMjc4NjM0MDM0MDI6Ojo6&url=%2Fdp%2FB0D1CK3186%2Fref%3Dsspa_dk_detail_0%3Fpsc%3D1%26pd_rd_i%3DB0D1CK3186%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - text: "-10%"
+                  - generic [ref=f184e1269]:
+                    - generic [ref=f184e1270]: $24.29
+                    - generic [aria-hidden] [ref=f184e1271]:
+                      - text: $
+                      - generic [ref=f184e1272]:
+                        - text: "24"
+                        - generic [ref=f184e1273]: .
+                      - text: "29"
+                  - generic [ref=f184e1274]: "Typical: $26.99"
+                  - generic [ref=f184e1275]:
+                    - text: "Typical:"
+                    - generic [ref=f184e1276]:
+                      - generic [ref=f184e1277]: "null"
+                      - text: $26.99
+                - link "FREE delivery Mon, Sep 14 on $35 of items shipped by Amazon" [ref=f184e1279] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAzMjc4NjM0MDM0MDI6Ojo6&url=%2Fdp%2FB0D1CK3186%2Fref%3Dsspa_dk_detail_0%3Fpsc%3D1%26pd_rd_i%3DB0D1CK3186%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+            - listitem [ref=f184e1285]:
+              - generic [ref=f184e1286]:
+                - link "Kabinka 5 Row 3900+ Trading Card Storage Box with Commander Display | MTG Storage Box with Removable Lid Bulk Card Storage for MTG TCG PTCG Sports Card, Top Loaders Storage Box (Purple)" [ref=f184e1287] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDEyMjE2NzA0NTg3MDI6Ojo6&url=%2Fdp%2FB0DSW4KXJN%2Fref%3Dsspa_dk_detail_1%3Fpsc%3D1%26pd_rd_i%3DB0DSW4KXJN%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - generic [aria-hidden] [ref=f184e1291]: Kabinka 5 Row 3900+ Trading Card Storage Box with Commander Display | MTG Storage…
+                - link "4.8 out of 5 stars 860 ratings" [ref=f184e1293] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDEyMjE2NzA0NTg3MDI6Ojo6&url=%2Fdp%2FB0DSW4KXJN%2Fref%3Dsspa_dk_detail_1%3Fpsc%3D1%26pd_rd_i%3DB0DSW4KXJN%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy#customerReviews
+                  - text: "860"
+                - generic [ref=f184e1295]:
+                  - link "Amazon's Choice":
+                    - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDEyMjE2NzA0NTg3MDI6Ojo6&url=%2Fdp%2FB0DSW4KXJN%2Fref%3Dsspa_dk_detail_1%3Fpsc%3D1%26pd_rd_i%3DB0DSW4KXJN%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                - 'link "-11% $39.99 List: $44.99 List: null" [ref=f184e1299] [cursor=pointer]':
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDEyMjE2NzA0NTg3MDI6Ojo6&url=%2Fdp%2FB0DSW4KXJN%2Fref%3Dsspa_dk_detail_1%3Fpsc%3D1%26pd_rd_i%3DB0DSW4KXJN%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - text: "-11%"
+                  - generic [ref=f184e1300]:
+                    - generic [ref=f184e1301]: $39.99
+                    - generic [aria-hidden] [ref=f184e1302]:
+                      - text: $
+                      - generic [ref=f184e1303]:
+                        - text: "39"
+                        - generic [ref=f184e1304]: .
+                      - text: "99"
+                  - generic [ref=f184e1305]: "List: $44.99"
+                  - generic [ref=f184e1306]:
+                    - text: "List:"
+                    - generic [ref=f184e1307]:
+                      - generic [ref=f184e1308]: "null"
+                      - text: $44.99
+                - link "FREE delivery Mon, Sep 14" [ref=f184e1310] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDEyMjE2NzA0NTg3MDI6Ojo6&url=%2Fdp%2FB0DSW4KXJN%2Fref%3Dsspa_dk_detail_1%3Fpsc%3D1%26pd_rd_i%3DB0DSW4KXJN%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                - link "Climate Pledge Friendly" [ref=f184e1317] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDEyMjE2NzA0NTg3MDI6Ojo6&url=%2Fdp%2FB0DSW4KXJN%2Fref%3Dsspa_dk_detail_1%3Fpsc%3D1%26pd_rd_i%3DB0DSW4KXJN%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+            - listitem [ref=f184e1319]:
+              - generic [ref=f184e1320]:
+                - link "TiMOVO MTG Commander Deck Box for YuGiOh TCG CCG Magic Cards, Black+Blue | Fits 200+ Double-Sleeved Cards, Magnetic Leather Storage Box, 2 Commander Display & 4 Dividers & Dice Tray" [ref=f184e1321] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAyODczNjY2NzAzMDI6Ojo6&url=%2Fdp%2FB0D542VBPY%2Fref%3Dsspa_dk_detail_2%3Fpsc%3D1%26pd_rd_i%3DB0D542VBPY%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - generic [aria-hidden] [ref=f184e1325]: TiMOVO MTG Commander Deck Box for YuGiOh TCG CCG Magic Cards,…
+                - link "4.8 out of 5 stars 394 ratings" [ref=f184e1327] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAyODczNjY2NzAzMDI6Ojo6&url=%2Fdp%2FB0D542VBPY%2Fref%3Dsspa_dk_detail_2%3Fpsc%3D1%26pd_rd_i%3DB0D542VBPY%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy#customerReviews
+                  - text: "394"
+                - link "$24.59" [ref=f184e1330] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAyODczNjY2NzAzMDI6Ojo6&url=%2Fdp%2FB0D542VBPY%2Fref%3Dsspa_dk_detail_2%3Fpsc%3D1%26pd_rd_i%3DB0D542VBPY%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - generic [ref=f184e1331]:
+                    - generic [ref=f184e1332]: $24.59
+                    - generic [aria-hidden] [ref=f184e1333]:
+                      - text: $
+                      - generic [ref=f184e1334]:
+                        - text: "24"
+                        - generic [ref=f184e1335]: .
+                      - text: "59"
+                - link "FREE delivery Tue, Sep 15 on $35 of items shipped by Amazon" [ref=f184e1337] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAyODczNjY2NzAzMDI6Ojo6&url=%2Fdp%2FB0D542VBPY%2Fref%3Dsspa_dk_detail_2%3Fpsc%3D1%26pd_rd_i%3DB0D542VBPY%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                - link "You pay $22.13 with coupon" [ref=f184e1344] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAyODczNjY2NzAzMDI6Ojo6&url=%2Fdp%2FB0D542VBPY%2Fref%3Dsspa_dk_detail_2%3Fpsc%3D1%26pd_rd_i%3DB0D542VBPY%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - generic [ref=f184e1345]:
+                    - generic [ref=f184e1346]: You pay $22.13
+                    - text: with coupon
+            - listitem [ref=f184e1347]:
+              - generic [ref=f184e1348]:
+                - link "62PCS MTG Dice Counters Bulk for Magic Cards, TCG, Cards Gaming Accessories | Inclu..." [ref=f184e1349] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDA4ODcwMTIyMTE5MDI6Ojo6&url=%2Fdp%2FB0FH66CYQQ%2Fref%3Dsspa_dk_detail_3%3Fpsc%3D1%26pd_rd_i%3DB0FH66CYQQ%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - generic [aria-hidden] [ref=f184e1353]: 62PCS MTG Dice Counters Bulk for Magic Cards, TCG, Cards Gaming Accessories |…
+                - link "4.9 out of 5 stars 7 ratings" [ref=f184e1355] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDA4ODcwMTIyMTE5MDI6Ojo6&url=%2Fdp%2FB0FH66CYQQ%2Fref%3Dsspa_dk_detail_3%3Fpsc%3D1%26pd_rd_i%3DB0FH66CYQQ%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy#customerReviews
+                  - text: "7"
+                - link "$12.99" [ref=f184e1358] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDA4ODcwMTIyMTE5MDI6Ojo6&url=%2Fdp%2FB0FH66CYQQ%2Fref%3Dsspa_dk_detail_3%3Fpsc%3D1%26pd_rd_i%3DB0FH66CYQQ%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - generic [ref=f184e1359]:
+                    - generic [ref=f184e1360]: $12.99
+                    - generic [aria-hidden] [ref=f184e1361]:
+                      - text: $
+                      - generic [ref=f184e1362]:
+                        - text: "12"
+                        - generic [ref=f184e1363]: .
+                      - text: "99"
+                - link "FREE delivery Mon, Sep 14 on $35 of items shipped by Amazon" [ref=f184e1365] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDA4ODcwMTIyMTE5MDI6Ojo6&url=%2Fdp%2FB0FH66CYQQ%2Fref%3Dsspa_dk_detail_3%3Fpsc%3D1%26pd_rd_i%3DB0FH66CYQQ%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+            - listitem [ref=f184e1371]:
+              - generic [ref=f184e1372]:
+                - link "Trading Card Storage Box, 3500+ MTG Deck Box with Commander Display | All-in-one ca..." [ref=f184e1373] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDExODg1NjA2MTQ5MDI6Ojo6&url=%2Fdp%2FB0FFMB9J2W%2Fref%3Dsspa_dk_detail_4%3Fpsc%3D1%26pd_rd_i%3DB0FFMB9J2W%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - generic [aria-hidden] [ref=f184e1377]: Trading Card Storage Box, 3500+ MTG Deck Box with Commander Display | All-in-one ca...
+                - link "4.7 out of 5 stars 255 ratings" [ref=f184e1379] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDExODg1NjA2MTQ5MDI6Ojo6&url=%2Fdp%2FB0FFMB9J2W%2Fref%3Dsspa_dk_detail_4%3Fpsc%3D1%26pd_rd_i%3DB0FFMB9J2W%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy#customerReviews
+                  - text: "255"
+                - link "$36.99" [ref=f184e1382] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDExODg1NjA2MTQ5MDI6Ojo6&url=%2Fdp%2FB0FFMB9J2W%2Fref%3Dsspa_dk_detail_4%3Fpsc%3D1%26pd_rd_i%3DB0FFMB9J2W%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - generic [ref=f184e1383]:
+                    - generic [ref=f184e1384]: $36.99
+                    - generic [aria-hidden] [ref=f184e1385]:
+                      - text: $
+                      - generic [ref=f184e1386]:
+                        - text: "36"
+                        - generic [ref=f184e1387]: .
+                      - text: "99"
+                - link "FREE delivery Mon, Sep 14" [ref=f184e1389] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDExODg1NjA2MTQ5MDI6Ojo6&url=%2Fdp%2FB0FFMB9J2W%2Fref%3Dsspa_dk_detail_4%3Fpsc%3D1%26pd_rd_i%3DB0FFMB9J2W%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                - link "Climate Pledge Friendly" [ref=f184e1396] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDExODg1NjA2MTQ5MDI6Ojo6&url=%2Fdp%2FB0FFMB9J2W%2Fref%3Dsspa_dk_detail_4%3Fpsc%3D1%26pd_rd_i%3DB0FFMB9J2W%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+            - listitem [ref=f184e1398]:
+              - generic [ref=f184e1399]:
+                - link "TiMOVO MTG Commander Deck Box, 11-in-1 Modular for TCG/PTCG, Black Rainbow | 8-Deck Card Storage Case and 3 Dice Trays, Holds 1760+ Single-Sleeved Cards, Display Window, Carry handle" [ref=f184e1400] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDEzNTE2NTIzMjQwMDI6Ojo6&url=%2Fdp%2FB0H1RKT2G7%2Fref%3Dsspa_dk_detail_5%3Fpsc%3D1%26pd_rd_i%3DB0H1RKT2G7%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - generic [aria-hidden] [ref=f184e1404]: TiMOVO MTG Commander Deck Box, 11-in-1 Modular for TCG/PTCG, Black…
+                - link "4.7 out of 5 stars 4 ratings" [ref=f184e1406] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDEzNTE2NTIzMjQwMDI6Ojo6&url=%2Fdp%2FB0H1RKT2G7%2Fref%3Dsspa_dk_detail_5%3Fpsc%3D1%26pd_rd_i%3DB0H1RKT2G7%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy#customerReviews
+                  - text: "4"
+                - 'link "-16% $75.99 List: $89.99 List: null" [ref=f184e1409] [cursor=pointer]':
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDEzNTE2NTIzMjQwMDI6Ojo6&url=%2Fdp%2FB0H1RKT2G7%2Fref%3Dsspa_dk_detail_5%3Fpsc%3D1%26pd_rd_i%3DB0H1RKT2G7%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - text: "-16%"
+                  - generic [ref=f184e1410]:
+                    - generic [ref=f184e1411]: $75.99
+                    - generic [aria-hidden] [ref=f184e1412]:
+                      - text: $
+                      - generic [ref=f184e1413]:
+                        - text: "75"
+                        - generic [ref=f184e1414]: .
+                      - text: "99"
+                  - generic [ref=f184e1415]: "List: $89.99"
+                  - generic [ref=f184e1416]:
+                    - text: "List:"
+                    - generic [ref=f184e1417]:
+                      - generic [ref=f184e1418]: "null"
+                      - text: $89.99
+                - link "FREE delivery Mon, Sep 14" [ref=f184e1420] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDEzNTE2NTIzMjQwMDI6Ojo6&url=%2Fdp%2FB0H1RKT2G7%2Fref%3Dsspa_dk_detail_5%3Fpsc%3D1%26pd_rd_i%3DB0H1RKT2G7%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+            - listitem [ref=f184e1426]:
+              - generic [ref=f184e1427]:
+                - link "ZLCA MTG Deck Box Holds 120+ Single Sleeved Cards Commander Deck Box | Card Deck Box for Trading Cards Magnetic Card Storage Box Fits for Magic the Gathering TCG CCG(Black& Blue)" [ref=f184e1428] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAzMDAwOTA0NTQxMDI6Ojo6&url=%2Fdp%2FB0C1C2G32G%2Fref%3Dsspa_dk_detail_6%3Fpsc%3D1%26pd_rd_i%3DB0C1C2G32G%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - generic [aria-hidden] [ref=f184e1432]: ZLCA MTG Deck Box Holds 120+ Single Sleeved Cards Commander Deck Box…
+                - link "4.8 out of 5 stars 2,391 ratings" [ref=f184e1434] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAzMDAwOTA0NTQxMDI6Ojo6&url=%2Fdp%2FB0C1C2G32G%2Fref%3Dsspa_dk_detail_6%3Fpsc%3D1%26pd_rd_i%3DB0C1C2G32G%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy#customerReviews
+                  - text: 2,391
+                - link "$9.99" [ref=f184e1437] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAzMDAwOTA0NTQxMDI6Ojo6&url=%2Fdp%2FB0C1C2G32G%2Fref%3Dsspa_dk_detail_6%3Fpsc%3D1%26pd_rd_i%3DB0C1C2G32G%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+                  - generic [ref=f184e1438]:
+                    - generic [ref=f184e1439]: $9.99
+                    - generic [aria-hidden] [ref=f184e1440]:
+                      - text: $
+                      - generic [ref=f184e1441]:
+                        - text: "9"
+                        - generic [ref=f184e1442]: .
+                      - text: "99"
+                - link "FREE delivery Mon, Sep 14 on $35 of items shipped by Amazon" [ref=f184e1444] [cursor=pointer]:
+                  - /url: /sspa/click?ie=UTF8&spc=MToyMDQ3OTQwNDQwOTA0MzY2OjE3ODg5OTgyMjA6c3BfZGV0YWlsMjozMDAzMDAwOTA0NTQxMDI6Ojo6&url=%2Fdp%2FB0C1C2G32G%2Fref%3Dsspa_dk_detail_6%3Fpsc%3D1%26pd_rd_i%3DB0C1C2G32G%26pd_rd_w%3DCSOwE%26content-id%3Damzn1.sym.4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_p%3D4a7f44df-467c-45a1-af5f-91661a6df2f9%26pf_rd_r%3D9Q9EXJY455VHQX7YN5YQ%26pd_rd_wg%3DivvNJ%26pd_rd_r%3D021857a0-2dea-4e76-95df-4c564816404c%26sp_csd%3Dd2lkZ2V0TmFtZT1zcF9kZXRhaWwy
+      - generic [ref=f184e1452]:
+        - iframe [ref=f184e1453]:
+          - generic [ref=f187e4]:
+            - generic [aria-hidden] [ref=f187e5]: "Sponsored Ad. Product image. WAVESRX TriAnchor - Stainless Steel Folding PWC & Boat Anchor Kit | Sets Instantly for Effortless Boat & Jet Ski Anchoring | Compact Patent-Pending Design Grips Better Than Plow, Fluke or Box Anchor Price: $147.55 Shop now"
+            - link "Click to navigate to product detail page" [ref=f187e8] [cursor=pointer]:
+              - /url: https://www.amazon.com/dp/B0C6F4F9L1?aref=KEOTvAX9kM&aaxitk=f47205f8eca4762df0cf60776c4cf175&language=en_US&pd_rd_plhdr=t&ref=dacx_dp_588431788383832890_580104456178862133
+            - generic [ref=f187e9]:
+              - img "Product image" [ref=f187e13]
+              - generic [ref=f187e18]:
+                - generic [ref=f187e19]: WAVESRX TriAnchor - Stainless Steel Folding PWC & Boat Anchor Kit | Sets Instantly for Effortless Boat & Jet Ski Anchoring | Compact Patent-Pending Design Grips Better Than Plow, Fluke or Box Anchor
+                - img "4.7 out of 5 stars., 103 customer reviews." [ref=f187e20]:
+                  - generic [aria-hidden] [ref=f187e37]: "103"
+                - generic [ref=f187e39]:
+                  - generic [ref=f187e40]: $147.55
+                  - generic [aria-hidden] [ref=f187e41]:
+                    - generic [ref=f187e42]: $
+                    - generic [ref=f187e43]: "147"
+                    - generic [ref=f187e44]: "55"
+                  - img "Eligible for Amazon Prime." [ref=f187e45]
+        - button "Leave feedback on Sponsored ad" [ref=f184e1455] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f184e1456]: Sponsored
+      - generic [ref=f184e1460]:
+        - separator [aria-hidden] [ref=f184e1461]
+        - generic [ref=f184e1462]:
+          - heading "Brands in this category on Amazon" [level=2] [ref=f184e1463]
+          - button "Leave feedback on Sponsored ad" [ref=f184e1468] [cursor=pointer]: Sponsored
+          - region "Brands in this category on Amazon" [ref=f184e1470]:
+            - button "Go to the previous sponsored brands carousel slide." [disabled] [ref=f184e1473]
+            - generic [ref=f184e1475]:
+              - group "1 of 5" [ref=f184e1476]:
+                - generic [ref=f184e1477]:
+                  - link "Sponsored ad from Ultra Pro. \"Ultra Pro-Deck Protection Like Never Before.\" Shop Ultra Pro." [ref=f184e1478] [cursor=pointer]:
+                    - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JM_3uLHPQhX5Pa9oVYIt1Y4AAAGgiJp5jQEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICAjLUnT/clv1c_ek-YBYHXFcbWDn2nI7cAJ16WpAySueZcdBoswfvgmwqLr3LPDfuidwJtackwppL9iOgKELhnCpZcnZFdJ54bxtMA8ZpfdvCdr4eILmmTIlUBBwmIrpijAXeF76XJJvU0_6ArzyaMMKv9pOHxI9oicc5BscmplljiUsT33W-8xqInGcgeHdbBVpKeZ5pplXR2vnfbD0Q6iUiLUeH0uUR4_oIb3YkajWY1EAgAjKnz9fQZNElr73GCGU7fSEf_ud0MMj5CJwzrjONLcpRQuIuWfeYMu6nWIMFpKVfnbOSxXRS8eTE0lAJSWnmMWTVyPefylX6eMdrbbzVK4uItNXeAGMYl4BCLiGPHBvVLpJ_84CSIzfeedaqbyNW9rChVrSwxDXcPxjR2Y-ZyRjF7ST_XK5P1I4iF3CKjRiqDnZTF_Pks-nuM5vD8FRRJGsIxPqio7P-fHAVNoS9pmCQq1tdiVuNWuvtLXap-6t8TCReie-_SQUqUObcKjAc__txyvtNZ9gK07lBDKnUT2rXKwiQ4fCUZt_w3sH9gdYdt6NfOWzLOSDxGjvYCRooSO6MbFSkk9hHTrT2Xvc9DNz3vbv0JqYPd_QKtXIA8l3QlD5biH37pjBAEL1FPId0HsUrgXAIQ-M5wCQeEpiUtWzw_DH_WB_QxBacdz_eX2_1RPQ04V38vT91GxRmt-gIgJq6mNYI6l1hBcEiAu4cIkFETtgj3JwmWmK1fETGIRYUtSjAAaEkGpuhV6MKpSV8ohfPDgqpZFJWHIdHMxpGfmjoJ4KDnJkRhtTlDXKTzGv50Bq8CSd0YChIAiEfPORIM-jnGgkRMv4FUxIVvyMgf6B3IcStf3LILoqEXtsfYrKZXKzR0N-wk1RkKhKIKLmUF8Ji-rrD2iTPgWVZaiGlE34t26gicTuY8eNnV3NQ1OJrbEcHZpn9OI6eTQkT3R5M7WCedhYJk-CP8ZPqOvyLXDoYQlxq9_fTdpayM0PG2572-yXPXuVLtFc4dEsFYPVaPq6sfbfcf-8JeVnNBZKJW4MWW3rIEYs6O67rjmVORrLeGioapk2NCmnDG2hAmngKOT1tN_LW-LcgZ_GMD9rPgz7_n2knIv1vOy5uML2EZP3NyMhXUJhCYoS4hTJR9EPLiQ-StODfUoXxorOUIVX7pcKlCcPZAh6y2iur5OXat7gYfksw4r52B-uoe_fMliUi0gOJEFklJiFRp3TbtdgWud_0_E4Wtu8eNhtYD3AfqnK_Ib1V9Ur05PJCdYdcHpjNJTQYyxsNfyVLwbuIDKqQmng5Oi1qjX2O6CHp7rNRnwtrH0qgwSnglEmMF8N2RbgSp-bwDaNGfHYiUyOKH9ZklL1hGIw0Y6cz32ynAjolHA7yVVdDmKvjVlkRxauCqbLCxNZ7VNvgpyHQAD3x204d6_7f7oZwTcHnfp5qJFr2L-YT7S8A6erTn8xLTBbvlW_jVqdNsAbAews-MyeU44u8uJ_49jOTxAdJhSqvnJXP67cQHTdx73U2bnD_e6Rg3G4KoDa3SLN01moC8k9WTV0nb5b-OKAkKEaJoGVSJy9TooWPBv6UhZDXG4dpR5BBCzcm4Eb0/https://www.amazon.com/stores/page/09BEE30C-540E-40EB-ADE0-49629DE9EB7A/?_encoding=UTF8&store_ref=SB_A08070902W1Z6C5FLMWWU-A03677121K29GTZBOKVK5&pd_rd_plhdr=t&aaxitk=875ae0f8139673bff5024c3748a8a4a3&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad1&ref_=sbx_be_dp_arbies_mblsd_mb0_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                  - generic:
+                    - generic:
+                      - link [ref=f184e1479] [cursor=pointer]:
+                        - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JM_3uLHPQhX5Pa9oVYIt1Y4AAAGgiJp5jQEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICAjLUnT/clv1c_ek-YBYHXFcbWDn2nI7cAJ16WpAySueZcdBoswfvgmwqLr3LPDfuidwJtackwppL9iOgKELhnCpZcnZFdJ54bxtMA8ZpfdvCdr4eILmmTIlUBBwmIrpijAXeF76XJJvU0_6ArzyaMMKv9pOHxI9oicc5BscmplljiUsT33W-8xqInGcgeHdbBVpKeZ5pplXR2vnfbD0Q6iUiLUeH0uUR4_oIb3YkajWY1EAgAjKnz9fQZNElr73GCGU7fSEf_ud0MMj5CJwzrjONLcpRQuIuWfeYMu6nWIMFpKVfnbOSxXRS8eTE0lAJSWnmMWTVyPefylX6eMdrbbzVK4uItNXeAGMYl4BCLiGPHBvVLpJ_84CSIzfeedaqbyNW9rChVrSwxDXcPxjR2Y-ZyRjF7ST_XK5P1I4iF3CKjRiqDnZTF_Pks-nuM5vD8FRRJGsIxPqio7P-fHAVNoS9pmCQq1tdiVuNWuvtLXap-6t8TCReie-_SQUqUObcKjAc__txyvtNZ9gK07lBDKnUT2rXKwiQ4fCUZt_w3sH9gdYdt6NfOWzLOSDxGjvYCRooSO6MbFSkk9hHTrT2Xvc9DNz3vbv0JqYPd_QKtXIA8l3QlD5biH37pjBAEL1FPId0HsUrgXAIQ-M5wCQeEpiUtWzw_DH_WB_QxBacdz_eX2_1RPQ04V38vT91GxRmt-gIgJq6mNYI6l1hBcEiAu4cIkFETtgj3JwmWmK1fETGIRYUtSjAAaEkGpuhV6MKpSV8ohfPDgqpZFJWHIdHMxpGfmjoJ4KDnJkRhtTlDXKTzGv50Bq8CSd0YChIAiEfPORIM-jnGgkRMv4FUxIVvyMgf6B3IcStf3LILoqEXtsfYrKZXKzR0N-wk1RkKhKIKLmUF8Ji-rrD2iTPgWVZaiGlE34t26gicTuY8eNnV3NQ1OJrbEcHZpn9OI6eTQkT3R5M7WCedhYJk-CP8ZPqOvyLXDoYQlxq9_fTdpayM0PG2572-yXPXuVLtFc4dEsFYPVaPq6sfbfcf-8JeVnNBZKJW4MWW3rIEYs6O67rjmVORrLeGioapk2NCmnDG2hAmngKOT1tN_LW-LcgZ_GMD9rPgz7_n2knIv1vOy5uML2EZP3NyMhXUJhCYoS4hTJR9EPLiQ-StODfUoXxorOUIVX7pcKlCcPZAh6y2iur5OXat7gYfksw4r52B-uoe_fMliUi0gOJEFklJiFRp3TbtdgWud_0_E4Wtu8eNhtYD3AfqnK_Ib1V9Ur05PJCdYdcHpjNJTQYyxsNfyVLwbuIDKqQmng5Oi1qjX2O6CHp7rNRnwtrH0qgwSnglEmMF8N2RbgSp-bwDaNGfHYiUyOKH9ZklL1hGIw0Y6cz32ynAjolHA7yVVdDmKvjVlkRxauCqbLCxNZ7VNvgpyHQAD3x204d6_7f7oZwTcHnfp5qJFr2L-YT7S8A6erTn8xLTBbvlW_jVqdNsAbAews-MyeU44u8uJ_49jOTxAdJhSqvnJXP67cQHTdx73U2bnD_e6Rg3G4KoDa3SLN01moC8k9WTV0nb5b-OKAkKEaJoGVSJy9TooWPBv6UhZDXG4dpR5BBCzcm4Eb0/https://www.amazon.com/stores/page/09BEE30C-540E-40EB-ADE0-49629DE9EB7A/?_encoding=UTF8&store_ref=SB_A08070902W1Z6C5FLMWWU-A03677121K29GTZBOKVK5&pd_rd_plhdr=t&aaxitk=875ae0f8139673bff5024c3748a8a4a3&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad1&ref_=sbx_be_dp_arbies_mblsd_mb0_ls&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                        - img "Ultra Pro" [ref=f184e1480]
+                      - generic [ref=f184e1482]:
+                        - generic [ref=f184e1483]:
+                          - link [aria-hidden] [ref=f184e1484] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JM_3uLHPQhX5Pa9oVYIt1Y4AAAGgiJp5jQEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICAjLUnT/clv1c_ek-YBYHXFcbWDn2nI7cAJ16WpAySueZcdBoswfvgmwqLr3LPDfuidwJtackwppL9iOgKELhnCpZcnZFdJ54bxtMA8ZpfdvCdr4eILmmTIlUBBwmIrpijAXeF76XJJvU0_6ArzyaMMKv9pOHxI9oicc5BscmplljiUsT33W-8xqInGcgeHdbBVpKeZ5pplXR2vnfbD0Q6iUiLUeH0uUR4_oIb3YkajWY1EAgAjKnz9fQZNElr73GCGU7fSEf_ud0MMj5CJwzrjONLcpRQuIuWfeYMu6nWIMFpKVfnbOSxXRS8eTE0lAJSWnmMWTVyPefylX6eMdrbbzVK4uItNXeAGMYl4BCLiGPHBvVLpJ_84CSIzfeedaqbyNW9rChVrSwxDXcPxjR2Y-ZyRjF7ST_XK5P1I4iF3CKjRiqDnZTF_Pks-nuM5vD8FRRJGsIxPqio7P-fHAVNoS9pmCQq1tdiVuNWuvtLXap-6t8TCReie-_SQUqUObcKjAc__txyvtNZ9gK07lBDKnUT2rXKwiQ4fCUZt_w3sH9gdYdt6NfOWzLOSDxGjvYCRooSO6MbFSkk9hHTrT2Xvc9DNz3vbv0JqYPd_QKtXIA8l3QlD5biH37pjBAEL1FPId0HsUrgXAIQ-M5wCQeEpiUtWzw_DH_WB_QxBacdz_eX2_1RPQ04V38vT91GxRmt-gIgJq6mNYI6l1hBcEiAu4cIkFETtgj3JwmWmK1fETGIRYUtSjAAaEkGpuhV6MKpSV8ohfPDgqpZFJWHIdHMxpGfmjoJ4KDnJkRhtTlDXKTzGv50Bq8CSd0YChIAiEfPORIM-jnGgkRMv4FUxIVvyMgf6B3IcStf3LILoqEXtsfYrKZXKzR0N-wk1RkKhKIKLmUF8Ji-rrD2iTPgWVZaiGlE34t26gicTuY8eNnV3NQ1OJrbEcHZpn9OI6eTQkT3R5M7WCedhYJk-CP8ZPqOvyLXDoYQlxq9_fTdpayM0PG2572-yXPXuVLtFc4dEsFYPVaPq6sfbfcf-8JeVnNBZKJW4MWW3rIEYs6O67rjmVORrLeGioapk2NCmnDG2hAmngKOT1tN_LW-LcgZ_GMD9rPgz7_n2knIv1vOy5uML2EZP3NyMhXUJhCYoS4hTJR9EPLiQ-StODfUoXxorOUIVX7pcKlCcPZAh6y2iur5OXat7gYfksw4r52B-uoe_fMliUi0gOJEFklJiFRp3TbtdgWud_0_E4Wtu8eNhtYD3AfqnK_Ib1V9Ur05PJCdYdcHpjNJTQYyxsNfyVLwbuIDKqQmng5Oi1qjX2O6CHp7rNRnwtrH0qgwSnglEmMF8N2RbgSp-bwDaNGfHYiUyOKH9ZklL1hGIw0Y6cz32ynAjolHA7yVVdDmKvjVlkRxauCqbLCxNZ7VNvgpyHQAD3x204d6_7f7oZwTcHnfp5qJFr2L-YT7S8A6erTn8xLTBbvlW_jVqdNsAbAews-MyeU44u8uJ_49jOTxAdJhSqvnJXP67cQHTdx73U2bnD_e6Rg3G4KoDa3SLN01moC8k9WTV0nb5b-OKAkKEaJoGVSJy9TooWPBv6UhZDXG4dpR5BBCzcm4Eb0/https://www.amazon.com/stores/page/09BEE30C-540E-40EB-ADE0-49629DE9EB7A/?_encoding=UTF8&store_ref=SB_A08070902W1Z6C5FLMWWU-A03677121K29GTZBOKVK5&pd_rd_plhdr=t&aaxitk=875ae0f8139673bff5024c3748a8a4a3&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad1&ref_=sbx_be_dp_arbies_mblsd_mb0_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                          - link [ref=f184e1485] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JM_3uLHPQhX5Pa9oVYIt1Y4AAAGgiJp5jQEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICAjLUnT/clv1c_ek-YBYHXFcbWDn2nI7cAJ16WpAySueZcdBoswfvgmwqLr3LPDfuidwJtackwppL9iOgKELhnCpZcnZFdJ54bxtMA8ZpfdvCdr4eILmmTIlUBBwmIrpijAXeF76XJJvU0_6ArzyaMMKv9pOHxI9oicc5BscmplljiUsT33W-8xqInGcgeHdbBVpKeZ5pplXR2vnfbD0Q6iUiLUeH0uUR4_oIb3YkajWY1EAgAjKnz9fQZNElr73GCGU7fSEf_ud0MMj5CJwzrjONLcpRQuIuWfeYMu6nWIMFpKVfnbOSxXRS8eTE0lAJSWnmMWTVyPefylX6eMdrbbzVK4uItNXeAGMYl4BCLiGPHBvVLpJ_84CSIzfeedaqbyNW9rChVrSwxDXcPxjR2Y-ZyRjF7ST_XK5P1I4iF3CKjRiqDnZTF_Pks-nuM5vD8FRRJGsIxPqio7P-fHAVNoS9pmCQq1tdiVuNWuvtLXap-6t8TCReie-_SQUqUObcKjAc__txyvtNZ9gK07lBDKnUT2rXKwiQ4fCUZt_w3sH9gdYdt6NfOWzLOSDxGjvYCRooSO6MbFSkk9hHTrT2Xvc9DNz3vbv0JqYPd_QKtXIA8l3QlD5biH37pjBAEL1FPId0HsUrgXAIQ-M5wCQeEpiUtWzw_DH_WB_QxBacdz_eX2_1RPQ04V38vT91GxRmt-gIgJq6mNYI6l1hBcEiAu4cIkFETtgj3JwmWmK1fETGIRYUtSjAAaEkGpuhV6MKpSV8ohfPDgqpZFJWHIdHMxpGfmjoJ4KDnJkRhtTlDXKTzGv50Bq8CSd0YChIAiEfPORIM-jnGgkRMv4FUxIVvyMgf6B3IcStf3LILoqEXtsfYrKZXKzR0N-wk1RkKhKIKLmUF8Ji-rrD2iTPgWVZaiGlE34t26gicTuY8eNnV3NQ1OJrbEcHZpn9OI6eTQkT3R5M7WCedhYJk-CP8ZPqOvyLXDoYQlxq9_fTdpayM0PG2572-yXPXuVLtFc4dEsFYPVaPq6sfbfcf-8JeVnNBZKJW4MWW3rIEYs6O67rjmVORrLeGioapk2NCmnDG2hAmngKOT1tN_LW-LcgZ_GMD9rPgz7_n2knIv1vOy5uML2EZP3NyMhXUJhCYoS4hTJR9EPLiQ-StODfUoXxorOUIVX7pcKlCcPZAh6y2iur5OXat7gYfksw4r52B-uoe_fMliUi0gOJEFklJiFRp3TbtdgWud_0_E4Wtu8eNhtYD3AfqnK_Ib1V9Ur05PJCdYdcHpjNJTQYyxsNfyVLwbuIDKqQmng5Oi1qjX2O6CHp7rNRnwtrH0qgwSnglEmMF8N2RbgSp-bwDaNGfHYiUyOKH9ZklL1hGIw0Y6cz32ynAjolHA7yVVdDmKvjVlkRxauCqbLCxNZ7VNvgpyHQAD3x204d6_7f7oZwTcHnfp5qJFr2L-YT7S8A6erTn8xLTBbvlW_jVqdNsAbAews-MyeU44u8uJ_49jOTxAdJhSqvnJXP67cQHTdx73U2bnD_e6Rg3G4KoDa3SLN01moC8k9WTV0nb5b-OKAkKEaJoGVSJy9TooWPBv6UhZDXG4dpR5BBCzcm4Eb0/https://www.amazon.com/stores/page/09BEE30C-540E-40EB-ADE0-49629DE9EB7A/?_encoding=UTF8&store_ref=SB_A08070902W1Z6C5FLMWWU-A03677121K29GTZBOKVK5&pd_rd_plhdr=t&aaxitk=875ae0f8139673bff5024c3748a8a4a3&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad1&ref_=sbx_be_dp_arbies_mblsd_mb0_logo&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                            - img "Ultra Pro" [ref=f184e1487]
+                        - generic [ref=f184e1488]:
+                          - link [aria-hidden] [ref=f184e1489] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JM_3uLHPQhX5Pa9oVYIt1Y4AAAGgiJp5jQEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICAjLUnT/clv1c_ek-YBYHXFcbWDn2nI7cAJ16WpAySueZcdBoswfvgmwqLr3LPDfuidwJtackwppL9iOgKELhnCpZcnZFdJ54bxtMA8ZpfdvCdr4eILmmTIlUBBwmIrpijAXeF76XJJvU0_6ArzyaMMKv9pOHxI9oicc5BscmplljiUsT33W-8xqInGcgeHdbBVpKeZ5pplXR2vnfbD0Q6iUiLUeH0uUR4_oIb3YkajWY1EAgAjKnz9fQZNElr73GCGU7fSEf_ud0MMj5CJwzrjONLcpRQuIuWfeYMu6nWIMFpKVfnbOSxXRS8eTE0lAJSWnmMWTVyPefylX6eMdrbbzVK4uItNXeAGMYl4BCLiGPHBvVLpJ_84CSIzfeedaqbyNW9rChVrSwxDXcPxjR2Y-ZyRjF7ST_XK5P1I4iF3CKjRiqDnZTF_Pks-nuM5vD8FRRJGsIxPqio7P-fHAVNoS9pmCQq1tdiVuNWuvtLXap-6t8TCReie-_SQUqUObcKjAc__txyvtNZ9gK07lBDKnUT2rXKwiQ4fCUZt_w3sH9gdYdt6NfOWzLOSDxGjvYCRooSO6MbFSkk9hHTrT2Xvc9DNz3vbv0JqYPd_QKtXIA8l3QlD5biH37pjBAEL1FPId0HsUrgXAIQ-M5wCQeEpiUtWzw_DH_WB_QxBacdz_eX2_1RPQ04V38vT91GxRmt-gIgJq6mNYI6l1hBcEiAu4cIkFETtgj3JwmWmK1fETGIRYUtSjAAaEkGpuhV6MKpSV8ohfPDgqpZFJWHIdHMxpGfmjoJ4KDnJkRhtTlDXKTzGv50Bq8CSd0YChIAiEfPORIM-jnGgkRMv4FUxIVvyMgf6B3IcStf3LILoqEXtsfYrKZXKzR0N-wk1RkKhKIKLmUF8Ji-rrD2iTPgWVZaiGlE34t26gicTuY8eNnV3NQ1OJrbEcHZpn9OI6eTQkT3R5M7WCedhYJk-CP8ZPqOvyLXDoYQlxq9_fTdpayM0PG2572-yXPXuVLtFc4dEsFYPVaPq6sfbfcf-8JeVnNBZKJW4MWW3rIEYs6O67rjmVORrLeGioapk2NCmnDG2hAmngKOT1tN_LW-LcgZ_GMD9rPgz7_n2knIv1vOy5uML2EZP3NyMhXUJhCYoS4hTJR9EPLiQ-StODfUoXxorOUIVX7pcKlCcPZAh6y2iur5OXat7gYfksw4r52B-uoe_fMliUi0gOJEFklJiFRp3TbtdgWud_0_E4Wtu8eNhtYD3AfqnK_Ib1V9Ur05PJCdYdcHpjNJTQYyxsNfyVLwbuIDKqQmng5Oi1qjX2O6CHp7rNRnwtrH0qgwSnglEmMF8N2RbgSp-bwDaNGfHYiUyOKH9ZklL1hGIw0Y6cz32ynAjolHA7yVVdDmKvjVlkRxauCqbLCxNZ7VNvgpyHQAD3x204d6_7f7oZwTcHnfp5qJFr2L-YT7S8A6erTn8xLTBbvlW_jVqdNsAbAews-MyeU44u8uJ_49jOTxAdJhSqvnJXP67cQHTdx73U2bnD_e6Rg3G4KoDa3SLN01moC8k9WTV0nb5b-OKAkKEaJoGVSJy9TooWPBv6UhZDXG4dpR5BBCzcm4Eb0/https://www.amazon.com/stores/page/09BEE30C-540E-40EB-ADE0-49629DE9EB7A/?_encoding=UTF8&store_ref=SB_A08070902W1Z6C5FLMWWU-A03677121K29GTZBOKVK5&pd_rd_plhdr=t&aaxitk=875ae0f8139673bff5024c3748a8a4a3&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad1&ref_=sbx_be_dp_arbies_mblsd_mb0_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                          - link "Ultra Pro-Deck Protection Like Never Before" [ref=f184e1490] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JM_3uLHPQhX5Pa9oVYIt1Y4AAAGgiJp5jQEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICAjLUnT/clv1c_ek-YBYHXFcbWDn2nI7cAJ16WpAySueZcdBoswfvgmwqLr3LPDfuidwJtackwppL9iOgKELhnCpZcnZFdJ54bxtMA8ZpfdvCdr4eILmmTIlUBBwmIrpijAXeF76XJJvU0_6ArzyaMMKv9pOHxI9oicc5BscmplljiUsT33W-8xqInGcgeHdbBVpKeZ5pplXR2vnfbD0Q6iUiLUeH0uUR4_oIb3YkajWY1EAgAjKnz9fQZNElr73GCGU7fSEf_ud0MMj5CJwzrjONLcpRQuIuWfeYMu6nWIMFpKVfnbOSxXRS8eTE0lAJSWnmMWTVyPefylX6eMdrbbzVK4uItNXeAGMYl4BCLiGPHBvVLpJ_84CSIzfeedaqbyNW9rChVrSwxDXcPxjR2Y-ZyRjF7ST_XK5P1I4iF3CKjRiqDnZTF_Pks-nuM5vD8FRRJGsIxPqio7P-fHAVNoS9pmCQq1tdiVuNWuvtLXap-6t8TCReie-_SQUqUObcKjAc__txyvtNZ9gK07lBDKnUT2rXKwiQ4fCUZt_w3sH9gdYdt6NfOWzLOSDxGjvYCRooSO6MbFSkk9hHTrT2Xvc9DNz3vbv0JqYPd_QKtXIA8l3QlD5biH37pjBAEL1FPId0HsUrgXAIQ-M5wCQeEpiUtWzw_DH_WB_QxBacdz_eX2_1RPQ04V38vT91GxRmt-gIgJq6mNYI6l1hBcEiAu4cIkFETtgj3JwmWmK1fETGIRYUtSjAAaEkGpuhV6MKpSV8ohfPDgqpZFJWHIdHMxpGfmjoJ4KDnJkRhtTlDXKTzGv50Bq8CSd0YChIAiEfPORIM-jnGgkRMv4FUxIVvyMgf6B3IcStf3LILoqEXtsfYrKZXKzR0N-wk1RkKhKIKLmUF8Ji-rrD2iTPgWVZaiGlE34t26gicTuY8eNnV3NQ1OJrbEcHZpn9OI6eTQkT3R5M7WCedhYJk-CP8ZPqOvyLXDoYQlxq9_fTdpayM0PG2572-yXPXuVLtFc4dEsFYPVaPq6sfbfcf-8JeVnNBZKJW4MWW3rIEYs6O67rjmVORrLeGioapk2NCmnDG2hAmngKOT1tN_LW-LcgZ_GMD9rPgz7_n2knIv1vOy5uML2EZP3NyMhXUJhCYoS4hTJR9EPLiQ-StODfUoXxorOUIVX7pcKlCcPZAh6y2iur5OXat7gYfksw4r52B-uoe_fMliUi0gOJEFklJiFRp3TbtdgWud_0_E4Wtu8eNhtYD3AfqnK_Ib1V9Ur05PJCdYdcHpjNJTQYyxsNfyVLwbuIDKqQmng5Oi1qjX2O6CHp7rNRnwtrH0qgwSnglEmMF8N2RbgSp-bwDaNGfHYiUyOKH9ZklL1hGIw0Y6cz32ynAjolHA7yVVdDmKvjVlkRxauCqbLCxNZ7VNvgpyHQAD3x204d6_7f7oZwTcHnfp5qJFr2L-YT7S8A6erTn8xLTBbvlW_jVqdNsAbAews-MyeU44u8uJ_49jOTxAdJhSqvnJXP67cQHTdx73U2bnD_e6Rg3G4KoDa3SLN01moC8k9WTV0nb5b-OKAkKEaJoGVSJy9TooWPBv6UhZDXG4dpR5BBCzcm4Eb0/https://www.amazon.com/stores/page/09BEE30C-540E-40EB-ADE0-49629DE9EB7A/?_encoding=UTF8&store_ref=SB_A08070902W1Z6C5FLMWWU-A03677121K29GTZBOKVK5&pd_rd_plhdr=t&aaxitk=875ae0f8139673bff5024c3748a8a4a3&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad1&ref_=sbx_be_dp_arbies_mblsd_mb0_hl&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                            - generic [ref=f184e1492]:
+                              - generic [ref=f184e1493]: Ultra Pro-Deck Protection Like Never Before
+                              - generic [aria-hidden] [ref=f184e1494]: Ultra Pro-Deck Protection Like Never Before
+              - group "2 of 5" [ref=f184e1495]:
+                - generic [ref=f184e1496]:
+                  - 'link "Sponsored ad from Quiver Time®. \"Your Passion, Our Vow: Quiver Right by Your Side.\" Shop Quiver Time®." [ref=f184e1497] [cursor=pointer]':
+                    - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JFG9A2RqCjjdiwvmgUr_NkIAAAGgiJp5jgEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICD2YTOY/clv1c_ek-YBQfWEsTa3eL7k99V-u4wAEgDN0CyIE7RQXbDK2yoVzMIz27nWbYHl8aRE-i7A6W-6Sf-7PePDxlv7VpGnDdZjBvZNEYmMKH1Jm-Dkqyw6wlt6rHX63YAmHh0rSLBttjXYaWB2QPoNouIhFh4YuErytWahtXrnOBAg2NivAbZXW0BxvDwZWtFDARcQ2z27Y8oHjOfNUNM0P3zu_C0GupbyxquIM80GsBkYh85JwmdeoJbXJX8QrXngwzFcRhzRJL_wQsV8Eo5fa4Ob-PL5EWx0lQK3jhqoz-Os21Gjo72nuBXhjDKjuN9uPY6epB7ZHY7Lz-UPbTr3csWqi-oIpdEkqJji-UdEC4oPkhCIgEaQVxeKn8V46_4J4Czz_dwVYIuyDM87p2mLx3BT8Z9vnlYOVWabnrYqV7L8IarFN_zT-JVaeFI4fwuzimNvGzn5XF1XFeZEj-hq9kvTmCfVarbGEEKOzC0BqaZdXiQCV6IG0J53cl6zhIb8JlGJy3T0_8URxNEK3WT2rXKwiQ4fOWYtvx2sH9AdcdtaNfOW7LPSDxHhvQiRovOVUWLDEDLkJd9K68ZS36UQBqYlQb4duprEg6cSVO9Cxv5igBKnXHNtj-VVV7-srcbaONHK9fZGh7Cgc4dJiqJm_NmHJUVg-Z2-2dlGldroq2MVL6uD4s4Szp4AMVSGBA1cYz1MFEUAbbMZkXgbgxT8qJLvhRTfHrcqwDmupqfNYqCY41g_uZP0jmhsEJ6a0gldHdFY4W8KXYC0E95zROfZsaPKhtY1EvQPOBjGs3066sFEJh5_thdo3YLTqVGfkdZrhAscQoIPblfS5oPVR7qgwl3t3JffaTUvSVoLtLmDwJ5zH9DdYXKW8WrhoUuEP7AXdK6pN-ZJZ6vZq3QF7u2qZME9aMXN4QUrpiAT1bfLsSvXFOpEiY2eSSQ45Vte2uF3S9Pyh5cwRmWUmPQ8gTpwOWBNJOFQnBQ2kVN6ahZruv_aXkxZgChC7jpC7ffpH3_tgYtQv_Oxl4PtHjHe_oRrhdTQDcXT8P_U-cDsnraDuztYtJlS5UKe6qirqY182TmigkG4OvUtQzM-sKuZyEo7ryWUc-JvPP42VJ6sspXWUOME1e-VNpdvZBhGZlhSBQjcKP0CdGBH_2c02grnQm6ZpokLNvQoS0ZQJ8X1-WgWn69vDb_dyjBUknD5nn2rGy4mrIgqYWn97w00_6MJNnRy-fz0XHjmPAxizwzJu9RbHhYUevqcME1lnj42NlkP5m2nO_36enhfqkYl5e9rMmUCOhQpDTSwIfB0WNiChen2L_hZE2YCbAmnnV3n24rQGg4cHmWD4A0zrdSst1klSkaRUTkJa87Ut0r-eiR6AeeUuAzUtZPwBOuVsSo_ilPjYCDSHBM1xX1jq43omcGpN-0eZg_d1hAUq7GI9m4kewzchRp0GriWAJHulz1oW3ZZAyg2pc_a1cIS_j_p4p_8jQrYtSpcA44L4fkXB3Ks_WB-ww5O4mROhsWnYV9R_GexxbflHRLYMOZMVxj2JaSFPSfYwdczYmN3Xi9VKvgYX-3eaLJ_FoBkcpHHw/https://www.amazon.com/stores/page/71746A01-D187-4A23-9F52-BA10B476A3FD/?_encoding=UTF8&store_ref=SB_A0565073143TH50BNLB7H-A0981307155OUDC8UEYR4&pd_rd_plhdr=t&aaxitk=604a3ab694aa1f63b601871058e86e41&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad2&ref_=sbx_be_dp_arbies_mblsd_mb1_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                  - generic:
+                    - generic:
+                      - link [ref=f184e1498] [cursor=pointer]:
+                        - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JFG9A2RqCjjdiwvmgUr_NkIAAAGgiJp5jgEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICD2YTOY/clv1c_ek-YBQfWEsTa3eL7k99V-u4wAEgDN0CyIE7RQXbDK2yoVzMIz27nWbYHl8aRE-i7A6W-6Sf-7PePDxlv7VpGnDdZjBvZNEYmMKH1Jm-Dkqyw6wlt6rHX63YAmHh0rSLBttjXYaWB2QPoNouIhFh4YuErytWahtXrnOBAg2NivAbZXW0BxvDwZWtFDARcQ2z27Y8oHjOfNUNM0P3zu_C0GupbyxquIM80GsBkYh85JwmdeoJbXJX8QrXngwzFcRhzRJL_wQsV8Eo5fa4Ob-PL5EWx0lQK3jhqoz-Os21Gjo72nuBXhjDKjuN9uPY6epB7ZHY7Lz-UPbTr3csWqi-oIpdEkqJji-UdEC4oPkhCIgEaQVxeKn8V46_4J4Czz_dwVYIuyDM87p2mLx3BT8Z9vnlYOVWabnrYqV7L8IarFN_zT-JVaeFI4fwuzimNvGzn5XF1XFeZEj-hq9kvTmCfVarbGEEKOzC0BqaZdXiQCV6IG0J53cl6zhIb8JlGJy3T0_8URxNEK3WT2rXKwiQ4fOWYtvx2sH9AdcdtaNfOW7LPSDxHhvQiRovOVUWLDEDLkJd9K68ZS36UQBqYlQb4duprEg6cSVO9Cxv5igBKnXHNtj-VVV7-srcbaONHK9fZGh7Cgc4dJiqJm_NmHJUVg-Z2-2dlGldroq2MVL6uD4s4Szp4AMVSGBA1cYz1MFEUAbbMZkXgbgxT8qJLvhRTfHrcqwDmupqfNYqCY41g_uZP0jmhsEJ6a0gldHdFY4W8KXYC0E95zROfZsaPKhtY1EvQPOBjGs3066sFEJh5_thdo3YLTqVGfkdZrhAscQoIPblfS5oPVR7qgwl3t3JffaTUvSVoLtLmDwJ5zH9DdYXKW8WrhoUuEP7AXdK6pN-ZJZ6vZq3QF7u2qZME9aMXN4QUrpiAT1bfLsSvXFOpEiY2eSSQ45Vte2uF3S9Pyh5cwRmWUmPQ8gTpwOWBNJOFQnBQ2kVN6ahZruv_aXkxZgChC7jpC7ffpH3_tgYtQv_Oxl4PtHjHe_oRrhdTQDcXT8P_U-cDsnraDuztYtJlS5UKe6qirqY182TmigkG4OvUtQzM-sKuZyEo7ryWUc-JvPP42VJ6sspXWUOME1e-VNpdvZBhGZlhSBQjcKP0CdGBH_2c02grnQm6ZpokLNvQoS0ZQJ8X1-WgWn69vDb_dyjBUknD5nn2rGy4mrIgqYWn97w00_6MJNnRy-fz0XHjmPAxizwzJu9RbHhYUevqcME1lnj42NlkP5m2nO_36enhfqkYl5e9rMmUCOhQpDTSwIfB0WNiChen2L_hZE2YCbAmnnV3n24rQGg4cHmWD4A0zrdSst1klSkaRUTkJa87Ut0r-eiR6AeeUuAzUtZPwBOuVsSo_ilPjYCDSHBM1xX1jq43omcGpN-0eZg_d1hAUq7GI9m4kewzchRp0GriWAJHulz1oW3ZZAyg2pc_a1cIS_j_p4p_8jQrYtSpcA44L4fkXB3Ks_WB-ww5O4mROhsWnYV9R_GexxbflHRLYMOZMVxj2JaSFPSfYwdczYmN3Xi9VKvgYX-3eaLJ_FoBkcpHHw/https://www.amazon.com/stores/page/71746A01-D187-4A23-9F52-BA10B476A3FD/?_encoding=UTF8&store_ref=SB_A0565073143TH50BNLB7H-A0981307155OUDC8UEYR4&pd_rd_plhdr=t&aaxitk=604a3ab694aa1f63b601871058e86e41&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad2&ref_=sbx_be_dp_arbies_mblsd_mb1_ls&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                        - img "Quiver Time®" [ref=f184e1499]
+                      - generic [ref=f184e1501]:
+                        - generic [ref=f184e1502]:
+                          - link [aria-hidden] [ref=f184e1503] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JFG9A2RqCjjdiwvmgUr_NkIAAAGgiJp5jgEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICD2YTOY/clv1c_ek-YBQfWEsTa3eL7k99V-u4wAEgDN0CyIE7RQXbDK2yoVzMIz27nWbYHl8aRE-i7A6W-6Sf-7PePDxlv7VpGnDdZjBvZNEYmMKH1Jm-Dkqyw6wlt6rHX63YAmHh0rSLBttjXYaWB2QPoNouIhFh4YuErytWahtXrnOBAg2NivAbZXW0BxvDwZWtFDARcQ2z27Y8oHjOfNUNM0P3zu_C0GupbyxquIM80GsBkYh85JwmdeoJbXJX8QrXngwzFcRhzRJL_wQsV8Eo5fa4Ob-PL5EWx0lQK3jhqoz-Os21Gjo72nuBXhjDKjuN9uPY6epB7ZHY7Lz-UPbTr3csWqi-oIpdEkqJji-UdEC4oPkhCIgEaQVxeKn8V46_4J4Czz_dwVYIuyDM87p2mLx3BT8Z9vnlYOVWabnrYqV7L8IarFN_zT-JVaeFI4fwuzimNvGzn5XF1XFeZEj-hq9kvTmCfVarbGEEKOzC0BqaZdXiQCV6IG0J53cl6zhIb8JlGJy3T0_8URxNEK3WT2rXKwiQ4fOWYtvx2sH9AdcdtaNfOW7LPSDxHhvQiRovOVUWLDEDLkJd9K68ZS36UQBqYlQb4duprEg6cSVO9Cxv5igBKnXHNtj-VVV7-srcbaONHK9fZGh7Cgc4dJiqJm_NmHJUVg-Z2-2dlGldroq2MVL6uD4s4Szp4AMVSGBA1cYz1MFEUAbbMZkXgbgxT8qJLvhRTfHrcqwDmupqfNYqCY41g_uZP0jmhsEJ6a0gldHdFY4W8KXYC0E95zROfZsaPKhtY1EvQPOBjGs3066sFEJh5_thdo3YLTqVGfkdZrhAscQoIPblfS5oPVR7qgwl3t3JffaTUvSVoLtLmDwJ5zH9DdYXKW8WrhoUuEP7AXdK6pN-ZJZ6vZq3QF7u2qZME9aMXN4QUrpiAT1bfLsSvXFOpEiY2eSSQ45Vte2uF3S9Pyh5cwRmWUmPQ8gTpwOWBNJOFQnBQ2kVN6ahZruv_aXkxZgChC7jpC7ffpH3_tgYtQv_Oxl4PtHjHe_oRrhdTQDcXT8P_U-cDsnraDuztYtJlS5UKe6qirqY182TmigkG4OvUtQzM-sKuZyEo7ryWUc-JvPP42VJ6sspXWUOME1e-VNpdvZBhGZlhSBQjcKP0CdGBH_2c02grnQm6ZpokLNvQoS0ZQJ8X1-WgWn69vDb_dyjBUknD5nn2rGy4mrIgqYWn97w00_6MJNnRy-fz0XHjmPAxizwzJu9RbHhYUevqcME1lnj42NlkP5m2nO_36enhfqkYl5e9rMmUCOhQpDTSwIfB0WNiChen2L_hZE2YCbAmnnV3n24rQGg4cHmWD4A0zrdSst1klSkaRUTkJa87Ut0r-eiR6AeeUuAzUtZPwBOuVsSo_ilPjYCDSHBM1xX1jq43omcGpN-0eZg_d1hAUq7GI9m4kewzchRp0GriWAJHulz1oW3ZZAyg2pc_a1cIS_j_p4p_8jQrYtSpcA44L4fkXB3Ks_WB-ww5O4mROhsWnYV9R_GexxbflHRLYMOZMVxj2JaSFPSfYwdczYmN3Xi9VKvgYX-3eaLJ_FoBkcpHHw/https://www.amazon.com/stores/page/71746A01-D187-4A23-9F52-BA10B476A3FD/?_encoding=UTF8&store_ref=SB_A0565073143TH50BNLB7H-A0981307155OUDC8UEYR4&pd_rd_plhdr=t&aaxitk=604a3ab694aa1f63b601871058e86e41&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad2&ref_=sbx_be_dp_arbies_mblsd_mb1_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                          - link [ref=f184e1504] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JFG9A2RqCjjdiwvmgUr_NkIAAAGgiJp5jgEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICD2YTOY/clv1c_ek-YBQfWEsTa3eL7k99V-u4wAEgDN0CyIE7RQXbDK2yoVzMIz27nWbYHl8aRE-i7A6W-6Sf-7PePDxlv7VpGnDdZjBvZNEYmMKH1Jm-Dkqyw6wlt6rHX63YAmHh0rSLBttjXYaWB2QPoNouIhFh4YuErytWahtXrnOBAg2NivAbZXW0BxvDwZWtFDARcQ2z27Y8oHjOfNUNM0P3zu_C0GupbyxquIM80GsBkYh85JwmdeoJbXJX8QrXngwzFcRhzRJL_wQsV8Eo5fa4Ob-PL5EWx0lQK3jhqoz-Os21Gjo72nuBXhjDKjuN9uPY6epB7ZHY7Lz-UPbTr3csWqi-oIpdEkqJji-UdEC4oPkhCIgEaQVxeKn8V46_4J4Czz_dwVYIuyDM87p2mLx3BT8Z9vnlYOVWabnrYqV7L8IarFN_zT-JVaeFI4fwuzimNvGzn5XF1XFeZEj-hq9kvTmCfVarbGEEKOzC0BqaZdXiQCV6IG0J53cl6zhIb8JlGJy3T0_8URxNEK3WT2rXKwiQ4fOWYtvx2sH9AdcdtaNfOW7LPSDxHhvQiRovOVUWLDEDLkJd9K68ZS36UQBqYlQb4duprEg6cSVO9Cxv5igBKnXHNtj-VVV7-srcbaONHK9fZGh7Cgc4dJiqJm_NmHJUVg-Z2-2dlGldroq2MVL6uD4s4Szp4AMVSGBA1cYz1MFEUAbbMZkXgbgxT8qJLvhRTfHrcqwDmupqfNYqCY41g_uZP0jmhsEJ6a0gldHdFY4W8KXYC0E95zROfZsaPKhtY1EvQPOBjGs3066sFEJh5_thdo3YLTqVGfkdZrhAscQoIPblfS5oPVR7qgwl3t3JffaTUvSVoLtLmDwJ5zH9DdYXKW8WrhoUuEP7AXdK6pN-ZJZ6vZq3QF7u2qZME9aMXN4QUrpiAT1bfLsSvXFOpEiY2eSSQ45Vte2uF3S9Pyh5cwRmWUmPQ8gTpwOWBNJOFQnBQ2kVN6ahZruv_aXkxZgChC7jpC7ffpH3_tgYtQv_Oxl4PtHjHe_oRrhdTQDcXT8P_U-cDsnraDuztYtJlS5UKe6qirqY182TmigkG4OvUtQzM-sKuZyEo7ryWUc-JvPP42VJ6sspXWUOME1e-VNpdvZBhGZlhSBQjcKP0CdGBH_2c02grnQm6ZpokLNvQoS0ZQJ8X1-WgWn69vDb_dyjBUknD5nn2rGy4mrIgqYWn97w00_6MJNnRy-fz0XHjmPAxizwzJu9RbHhYUevqcME1lnj42NlkP5m2nO_36enhfqkYl5e9rMmUCOhQpDTSwIfB0WNiChen2L_hZE2YCbAmnnV3n24rQGg4cHmWD4A0zrdSst1klSkaRUTkJa87Ut0r-eiR6AeeUuAzUtZPwBOuVsSo_ilPjYCDSHBM1xX1jq43omcGpN-0eZg_d1hAUq7GI9m4kewzchRp0GriWAJHulz1oW3ZZAyg2pc_a1cIS_j_p4p_8jQrYtSpcA44L4fkXB3Ks_WB-ww5O4mROhsWnYV9R_GexxbflHRLYMOZMVxj2JaSFPSfYwdczYmN3Xi9VKvgYX-3eaLJ_FoBkcpHHw/https://www.amazon.com/stores/page/71746A01-D187-4A23-9F52-BA10B476A3FD/?_encoding=UTF8&store_ref=SB_A0565073143TH50BNLB7H-A0981307155OUDC8UEYR4&pd_rd_plhdr=t&aaxitk=604a3ab694aa1f63b601871058e86e41&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad2&ref_=sbx_be_dp_arbies_mblsd_mb1_logo&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                            - img "Quiver Time®" [ref=f184e1506]
+                        - generic [ref=f184e1507]:
+                          - link [aria-hidden] [ref=f184e1508] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JFG9A2RqCjjdiwvmgUr_NkIAAAGgiJp5jgEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICD2YTOY/clv1c_ek-YBQfWEsTa3eL7k99V-u4wAEgDN0CyIE7RQXbDK2yoVzMIz27nWbYHl8aRE-i7A6W-6Sf-7PePDxlv7VpGnDdZjBvZNEYmMKH1Jm-Dkqyw6wlt6rHX63YAmHh0rSLBttjXYaWB2QPoNouIhFh4YuErytWahtXrnOBAg2NivAbZXW0BxvDwZWtFDARcQ2z27Y8oHjOfNUNM0P3zu_C0GupbyxquIM80GsBkYh85JwmdeoJbXJX8QrXngwzFcRhzRJL_wQsV8Eo5fa4Ob-PL5EWx0lQK3jhqoz-Os21Gjo72nuBXhjDKjuN9uPY6epB7ZHY7Lz-UPbTr3csWqi-oIpdEkqJji-UdEC4oPkhCIgEaQVxeKn8V46_4J4Czz_dwVYIuyDM87p2mLx3BT8Z9vnlYOVWabnrYqV7L8IarFN_zT-JVaeFI4fwuzimNvGzn5XF1XFeZEj-hq9kvTmCfVarbGEEKOzC0BqaZdXiQCV6IG0J53cl6zhIb8JlGJy3T0_8URxNEK3WT2rXKwiQ4fOWYtvx2sH9AdcdtaNfOW7LPSDxHhvQiRovOVUWLDEDLkJd9K68ZS36UQBqYlQb4duprEg6cSVO9Cxv5igBKnXHNtj-VVV7-srcbaONHK9fZGh7Cgc4dJiqJm_NmHJUVg-Z2-2dlGldroq2MVL6uD4s4Szp4AMVSGBA1cYz1MFEUAbbMZkXgbgxT8qJLvhRTfHrcqwDmupqfNYqCY41g_uZP0jmhsEJ6a0gldHdFY4W8KXYC0E95zROfZsaPKhtY1EvQPOBjGs3066sFEJh5_thdo3YLTqVGfkdZrhAscQoIPblfS5oPVR7qgwl3t3JffaTUvSVoLtLmDwJ5zH9DdYXKW8WrhoUuEP7AXdK6pN-ZJZ6vZq3QF7u2qZME9aMXN4QUrpiAT1bfLsSvXFOpEiY2eSSQ45Vte2uF3S9Pyh5cwRmWUmPQ8gTpwOWBNJOFQnBQ2kVN6ahZruv_aXkxZgChC7jpC7ffpH3_tgYtQv_Oxl4PtHjHe_oRrhdTQDcXT8P_U-cDsnraDuztYtJlS5UKe6qirqY182TmigkG4OvUtQzM-sKuZyEo7ryWUc-JvPP42VJ6sspXWUOME1e-VNpdvZBhGZlhSBQjcKP0CdGBH_2c02grnQm6ZpokLNvQoS0ZQJ8X1-WgWn69vDb_dyjBUknD5nn2rGy4mrIgqYWn97w00_6MJNnRy-fz0XHjmPAxizwzJu9RbHhYUevqcME1lnj42NlkP5m2nO_36enhfqkYl5e9rMmUCOhQpDTSwIfB0WNiChen2L_hZE2YCbAmnnV3n24rQGg4cHmWD4A0zrdSst1klSkaRUTkJa87Ut0r-eiR6AeeUuAzUtZPwBOuVsSo_ilPjYCDSHBM1xX1jq43omcGpN-0eZg_d1hAUq7GI9m4kewzchRp0GriWAJHulz1oW3ZZAyg2pc_a1cIS_j_p4p_8jQrYtSpcA44L4fkXB3Ks_WB-ww5O4mROhsWnYV9R_GexxbflHRLYMOZMVxj2JaSFPSfYwdczYmN3Xi9VKvgYX-3eaLJ_FoBkcpHHw/https://www.amazon.com/stores/page/71746A01-D187-4A23-9F52-BA10B476A3FD/?_encoding=UTF8&store_ref=SB_A0565073143TH50BNLB7H-A0981307155OUDC8UEYR4&pd_rd_plhdr=t&aaxitk=604a3ab694aa1f63b601871058e86e41&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad2&ref_=sbx_be_dp_arbies_mblsd_mb1_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                          - 'link "Your Passion, Our Vow: Quiver Right by Your Side." [ref=f184e1509] [cursor=pointer]':
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JFG9A2RqCjjdiwvmgUr_NkIAAAGgiJp5jgEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICD2YTOY/clv1c_ek-YBQfWEsTa3eL7k99V-u4wAEgDN0CyIE7RQXbDK2yoVzMIz27nWbYHl8aRE-i7A6W-6Sf-7PePDxlv7VpGnDdZjBvZNEYmMKH1Jm-Dkqyw6wlt6rHX63YAmHh0rSLBttjXYaWB2QPoNouIhFh4YuErytWahtXrnOBAg2NivAbZXW0BxvDwZWtFDARcQ2z27Y8oHjOfNUNM0P3zu_C0GupbyxquIM80GsBkYh85JwmdeoJbXJX8QrXngwzFcRhzRJL_wQsV8Eo5fa4Ob-PL5EWx0lQK3jhqoz-Os21Gjo72nuBXhjDKjuN9uPY6epB7ZHY7Lz-UPbTr3csWqi-oIpdEkqJji-UdEC4oPkhCIgEaQVxeKn8V46_4J4Czz_dwVYIuyDM87p2mLx3BT8Z9vnlYOVWabnrYqV7L8IarFN_zT-JVaeFI4fwuzimNvGzn5XF1XFeZEj-hq9kvTmCfVarbGEEKOzC0BqaZdXiQCV6IG0J53cl6zhIb8JlGJy3T0_8URxNEK3WT2rXKwiQ4fOWYtvx2sH9AdcdtaNfOW7LPSDxHhvQiRovOVUWLDEDLkJd9K68ZS36UQBqYlQb4duprEg6cSVO9Cxv5igBKnXHNtj-VVV7-srcbaONHK9fZGh7Cgc4dJiqJm_NmHJUVg-Z2-2dlGldroq2MVL6uD4s4Szp4AMVSGBA1cYz1MFEUAbbMZkXgbgxT8qJLvhRTfHrcqwDmupqfNYqCY41g_uZP0jmhsEJ6a0gldHdFY4W8KXYC0E95zROfZsaPKhtY1EvQPOBjGs3066sFEJh5_thdo3YLTqVGfkdZrhAscQoIPblfS5oPVR7qgwl3t3JffaTUvSVoLtLmDwJ5zH9DdYXKW8WrhoUuEP7AXdK6pN-ZJZ6vZq3QF7u2qZME9aMXN4QUrpiAT1bfLsSvXFOpEiY2eSSQ45Vte2uF3S9Pyh5cwRmWUmPQ8gTpwOWBNJOFQnBQ2kVN6ahZruv_aXkxZgChC7jpC7ffpH3_tgYtQv_Oxl4PtHjHe_oRrhdTQDcXT8P_U-cDsnraDuztYtJlS5UKe6qirqY182TmigkG4OvUtQzM-sKuZyEo7ryWUc-JvPP42VJ6sspXWUOME1e-VNpdvZBhGZlhSBQjcKP0CdGBH_2c02grnQm6ZpokLNvQoS0ZQJ8X1-WgWn69vDb_dyjBUknD5nn2rGy4mrIgqYWn97w00_6MJNnRy-fz0XHjmPAxizwzJu9RbHhYUevqcME1lnj42NlkP5m2nO_36enhfqkYl5e9rMmUCOhQpDTSwIfB0WNiChen2L_hZE2YCbAmnnV3n24rQGg4cHmWD4A0zrdSst1klSkaRUTkJa87Ut0r-eiR6AeeUuAzUtZPwBOuVsSo_ilPjYCDSHBM1xX1jq43omcGpN-0eZg_d1hAUq7GI9m4kewzchRp0GriWAJHulz1oW3ZZAyg2pc_a1cIS_j_p4p_8jQrYtSpcA44L4fkXB3Ks_WB-ww5O4mROhsWnYV9R_GexxbflHRLYMOZMVxj2JaSFPSfYwdczYmN3Xi9VKvgYX-3eaLJ_FoBkcpHHw/https://www.amazon.com/stores/page/71746A01-D187-4A23-9F52-BA10B476A3FD/?_encoding=UTF8&store_ref=SB_A0565073143TH50BNLB7H-A0981307155OUDC8UEYR4&pd_rd_plhdr=t&aaxitk=604a3ab694aa1f63b601871058e86e41&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad2&ref_=sbx_be_dp_arbies_mblsd_mb1_hl&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                            - generic [ref=f184e1511]:
+                              - generic [ref=f184e1512]: "Your Passion, Our Vow: Quiver Right by Your Side."
+                              - generic [aria-hidden] [ref=f184e1513]: "Your Passion, Our Vow: Quiver Right by Your Side."
+              - group "3 of 5" [ref=f184e1514]:
+                - generic [ref=f184e1515]:
+                  - link "Sponsored ad from ZLCA. \"MTG Commander deck box.\" Shop ZLCA." [ref=f184e1516] [cursor=pointer]:
+                    - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JGN0DWKVv7wMw9Sqxokb3FoAAAGgiJp5jwEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICBMQepO/clv1c_ek-YBff3FcTa3ut7cOoEbugzoh05WFG5gCTm8jtyj0FQTAN9qwzK-jArZnRaHui7c9BoBeFrc0DAFPmCl-wjwPA-BF9xW9DpIANBGArU-1R3ByDj5tgwaqtv8dNo5rO00iMgOOjHUT4IzGsRdIACPhCwgbXcllPSAgRCnhdrz5wCQdv93B4xPqX6Q-rnnkG3CayQ5zUVN3foFGf4KEHT4tIdMcwrlJ5m3Mr0bWzTyXLAq0DUPEIknKave5c5eVvBPeBWTBt1BXiQ2_lagSM8se1LVwLtYq1OKr8Q7Iz5mmw65qEfTXkySE4mYHLgf5R60vUnAs9Qkhzi9zVcTaa48ni9id8VjSa96uG5ipiUEJCIldMEw3ygvmZZivG91_cEGskxOYYCiFVgZVkElq2PeaQ_ojnHe2a0rVjzgXzZtLCLA1uCaIg7xPNaDNVOYgWQ75Ma_yqSZR089WZLtmS64qtqVlzWnqLq_QQpuGERPWFgXMhy7o5HJ6mItr7LOocpYDwzVt24tMMj4nf_L9Hbjvgt1h2h_Xcjbns3KDuOi640yLlaO_6smUliMH-XrgvK0NjycWawBMwzz4i2VDjfW70tZV8x040n0cpvrkTlpPTn-47g3bAOKUv9z00GDu-SgB4LluBUp2SmQjxOKv3Jt7FLHznZovNEiO6nurqGCrpvcoDcmxkmUYA7cNTHivNCPTRQfiov3JXYwZYoofAYgVGOw7-n1dgNjF7IrAbD-fia7sfjwUoMUyygIv4RVWbaX_dZ81blOTpe_e0HxCRTwtfM_xnHh4I7Rizt5APFimxXtHgVGI8sj2srVz1kqgfWyTBcFohNJwy1umqkJgKiS7BAY3i_IWSbZ3PxEm3c30BUNm0HqJ5gjPgvOOetDmBAPFbl0am-YHjGR8OVH-ap10RNdpaSXsFl4rG56v4Bkq9Y7bNe78Vsmp3HllbmxXdPcEV19c1M-wHCdSpSLRcLPVZnOcCrLCy8Yw2zIBSGDtMcmwHdxyluod9_K8V8HFlkW0ZtZi6gudikCEwmgiARoyzIbur9T0XFNv2A1FLL5zGyMrPaykbaO5RiQZy9NeokiZb9ly4bW7JfXf_LhXDTznFC66Sw0JkGw1cTFWR1A2b9s_NNDwnFxy_EXhD23Am7OK7SvmusI0b2FdO-J6k0xl1u5ngfwRJMts9RNP87u9k7IvGcNKSi2ZCWymx4PQ2817vmhIuMbAulZLNKfDeaeuNBSQNhTRa1U2I_x2bqr6knLc1L39FsqaaCvHEkHyie9w3zjIdcocIMj29z9BkfyXlb7cXJmP3mXxatMgCwnTph5Pg9wuXMm8n-z4Jw74WgG8rQj6zLpehzRcnOcAqjmJy9StvwmECem643-6YyLXK960bXRnLyyxDJTUqZeyXvmbB3gvmbVx6Dz8tGgLWma9c3dE4gCpXwB5lcUr4pcTTxGdWMKG1GdU7CFinwJ-pd5OsOJPO6DGJBkmyw4gAPRLEmVnDuyAbjUkdmSlv6mNoUfOXKoEf309FY_anNe3YBvM9PkR9d503iv9674rfqUnb2FWwF3VQ_598ATr6nn_YiHA/https://www.amazon.com/stores/page/0B052113-C871-407A-B877-145B5814ED08/?_encoding=UTF8&store_ref=SB_A02628571ZKHU5PKCUO6H-A067526431UR2U5T7VYO0&pd_rd_plhdr=t&aaxitk=f3f4ca5b85ca0343cd9a6b1dc421157d&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad3&ref_=sbx_be_dp_arbies_mblsd_mb2_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                  - generic:
+                    - generic:
+                      - link [ref=f184e1517] [cursor=pointer]:
+                        - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JGN0DWKVv7wMw9Sqxokb3FoAAAGgiJp5jwEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICBMQepO/clv1c_ek-YBff3FcTa3ut7cOoEbugzoh05WFG5gCTm8jtyj0FQTAN9qwzK-jArZnRaHui7c9BoBeFrc0DAFPmCl-wjwPA-BF9xW9DpIANBGArU-1R3ByDj5tgwaqtv8dNo5rO00iMgOOjHUT4IzGsRdIACPhCwgbXcllPSAgRCnhdrz5wCQdv93B4xPqX6Q-rnnkG3CayQ5zUVN3foFGf4KEHT4tIdMcwrlJ5m3Mr0bWzTyXLAq0DUPEIknKave5c5eVvBPeBWTBt1BXiQ2_lagSM8se1LVwLtYq1OKr8Q7Iz5mmw65qEfTXkySE4mYHLgf5R60vUnAs9Qkhzi9zVcTaa48ni9id8VjSa96uG5ipiUEJCIldMEw3ygvmZZivG91_cEGskxOYYCiFVgZVkElq2PeaQ_ojnHe2a0rVjzgXzZtLCLA1uCaIg7xPNaDNVOYgWQ75Ma_yqSZR089WZLtmS64qtqVlzWnqLq_QQpuGERPWFgXMhy7o5HJ6mItr7LOocpYDwzVt24tMMj4nf_L9Hbjvgt1h2h_Xcjbns3KDuOi640yLlaO_6smUliMH-XrgvK0NjycWawBMwzz4i2VDjfW70tZV8x040n0cpvrkTlpPTn-47g3bAOKUv9z00GDu-SgB4LluBUp2SmQjxOKv3Jt7FLHznZovNEiO6nurqGCrpvcoDcmxkmUYA7cNTHivNCPTRQfiov3JXYwZYoofAYgVGOw7-n1dgNjF7IrAbD-fia7sfjwUoMUyygIv4RVWbaX_dZ81blOTpe_e0HxCRTwtfM_xnHh4I7Rizt5APFimxXtHgVGI8sj2srVz1kqgfWyTBcFohNJwy1umqkJgKiS7BAY3i_IWSbZ3PxEm3c30BUNm0HqJ5gjPgvOOetDmBAPFbl0am-YHjGR8OVH-ap10RNdpaSXsFl4rG56v4Bkq9Y7bNe78Vsmp3HllbmxXdPcEV19c1M-wHCdSpSLRcLPVZnOcCrLCy8Yw2zIBSGDtMcmwHdxyluod9_K8V8HFlkW0ZtZi6gudikCEwmgiARoyzIbur9T0XFNv2A1FLL5zGyMrPaykbaO5RiQZy9NeokiZb9ly4bW7JfXf_LhXDTznFC66Sw0JkGw1cTFWR1A2b9s_NNDwnFxy_EXhD23Am7OK7SvmusI0b2FdO-J6k0xl1u5ngfwRJMts9RNP87u9k7IvGcNKSi2ZCWymx4PQ2817vmhIuMbAulZLNKfDeaeuNBSQNhTRa1U2I_x2bqr6knLc1L39FsqaaCvHEkHyie9w3zjIdcocIMj29z9BkfyXlb7cXJmP3mXxatMgCwnTph5Pg9wuXMm8n-z4Jw74WgG8rQj6zLpehzRcnOcAqjmJy9StvwmECem643-6YyLXK960bXRnLyyxDJTUqZeyXvmbB3gvmbVx6Dz8tGgLWma9c3dE4gCpXwB5lcUr4pcTTxGdWMKG1GdU7CFinwJ-pd5OsOJPO6DGJBkmyw4gAPRLEmVnDuyAbjUkdmSlv6mNoUfOXKoEf309FY_anNe3YBvM9PkR9d503iv9674rfqUnb2FWwF3VQ_598ATr6nn_YiHA/https://www.amazon.com/stores/page/0B052113-C871-407A-B877-145B5814ED08/?_encoding=UTF8&store_ref=SB_A02628571ZKHU5PKCUO6H-A067526431UR2U5T7VYO0&pd_rd_plhdr=t&aaxitk=f3f4ca5b85ca0343cd9a6b1dc421157d&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad3&ref_=sbx_be_dp_arbies_mblsd_mb2_ls&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                        - img "ZLCA" [ref=f184e1518]
+                      - generic [ref=f184e1520]:
+                        - generic [ref=f184e1521]:
+                          - link [aria-hidden] [ref=f184e1522] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JGN0DWKVv7wMw9Sqxokb3FoAAAGgiJp5jwEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICBMQepO/clv1c_ek-YBff3FcTa3ut7cOoEbugzoh05WFG5gCTm8jtyj0FQTAN9qwzK-jArZnRaHui7c9BoBeFrc0DAFPmCl-wjwPA-BF9xW9DpIANBGArU-1R3ByDj5tgwaqtv8dNo5rO00iMgOOjHUT4IzGsRdIACPhCwgbXcllPSAgRCnhdrz5wCQdv93B4xPqX6Q-rnnkG3CayQ5zUVN3foFGf4KEHT4tIdMcwrlJ5m3Mr0bWzTyXLAq0DUPEIknKave5c5eVvBPeBWTBt1BXiQ2_lagSM8se1LVwLtYq1OKr8Q7Iz5mmw65qEfTXkySE4mYHLgf5R60vUnAs9Qkhzi9zVcTaa48ni9id8VjSa96uG5ipiUEJCIldMEw3ygvmZZivG91_cEGskxOYYCiFVgZVkElq2PeaQ_ojnHe2a0rVjzgXzZtLCLA1uCaIg7xPNaDNVOYgWQ75Ma_yqSZR089WZLtmS64qtqVlzWnqLq_QQpuGERPWFgXMhy7o5HJ6mItr7LOocpYDwzVt24tMMj4nf_L9Hbjvgt1h2h_Xcjbns3KDuOi640yLlaO_6smUliMH-XrgvK0NjycWawBMwzz4i2VDjfW70tZV8x040n0cpvrkTlpPTn-47g3bAOKUv9z00GDu-SgB4LluBUp2SmQjxOKv3Jt7FLHznZovNEiO6nurqGCrpvcoDcmxkmUYA7cNTHivNCPTRQfiov3JXYwZYoofAYgVGOw7-n1dgNjF7IrAbD-fia7sfjwUoMUyygIv4RVWbaX_dZ81blOTpe_e0HxCRTwtfM_xnHh4I7Rizt5APFimxXtHgVGI8sj2srVz1kqgfWyTBcFohNJwy1umqkJgKiS7BAY3i_IWSbZ3PxEm3c30BUNm0HqJ5gjPgvOOetDmBAPFbl0am-YHjGR8OVH-ap10RNdpaSXsFl4rG56v4Bkq9Y7bNe78Vsmp3HllbmxXdPcEV19c1M-wHCdSpSLRcLPVZnOcCrLCy8Yw2zIBSGDtMcmwHdxyluod9_K8V8HFlkW0ZtZi6gudikCEwmgiARoyzIbur9T0XFNv2A1FLL5zGyMrPaykbaO5RiQZy9NeokiZb9ly4bW7JfXf_LhXDTznFC66Sw0JkGw1cTFWR1A2b9s_NNDwnFxy_EXhD23Am7OK7SvmusI0b2FdO-J6k0xl1u5ngfwRJMts9RNP87u9k7IvGcNKSi2ZCWymx4PQ2817vmhIuMbAulZLNKfDeaeuNBSQNhTRa1U2I_x2bqr6knLc1L39FsqaaCvHEkHyie9w3zjIdcocIMj29z9BkfyXlb7cXJmP3mXxatMgCwnTph5Pg9wuXMm8n-z4Jw74WgG8rQj6zLpehzRcnOcAqjmJy9StvwmECem643-6YyLXK960bXRnLyyxDJTUqZeyXvmbB3gvmbVx6Dz8tGgLWma9c3dE4gCpXwB5lcUr4pcTTxGdWMKG1GdU7CFinwJ-pd5OsOJPO6DGJBkmyw4gAPRLEmVnDuyAbjUkdmSlv6mNoUfOXKoEf309FY_anNe3YBvM9PkR9d503iv9674rfqUnb2FWwF3VQ_598ATr6nn_YiHA/https://www.amazon.com/stores/page/0B052113-C871-407A-B877-145B5814ED08/?_encoding=UTF8&store_ref=SB_A02628571ZKHU5PKCUO6H-A067526431UR2U5T7VYO0&pd_rd_plhdr=t&aaxitk=f3f4ca5b85ca0343cd9a6b1dc421157d&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad3&ref_=sbx_be_dp_arbies_mblsd_mb2_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                          - link [ref=f184e1523] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JGN0DWKVv7wMw9Sqxokb3FoAAAGgiJp5jwEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICBMQepO/clv1c_ek-YBff3FcTa3ut7cOoEbugzoh05WFG5gCTm8jtyj0FQTAN9qwzK-jArZnRaHui7c9BoBeFrc0DAFPmCl-wjwPA-BF9xW9DpIANBGArU-1R3ByDj5tgwaqtv8dNo5rO00iMgOOjHUT4IzGsRdIACPhCwgbXcllPSAgRCnhdrz5wCQdv93B4xPqX6Q-rnnkG3CayQ5zUVN3foFGf4KEHT4tIdMcwrlJ5m3Mr0bWzTyXLAq0DUPEIknKave5c5eVvBPeBWTBt1BXiQ2_lagSM8se1LVwLtYq1OKr8Q7Iz5mmw65qEfTXkySE4mYHLgf5R60vUnAs9Qkhzi9zVcTaa48ni9id8VjSa96uG5ipiUEJCIldMEw3ygvmZZivG91_cEGskxOYYCiFVgZVkElq2PeaQ_ojnHe2a0rVjzgXzZtLCLA1uCaIg7xPNaDNVOYgWQ75Ma_yqSZR089WZLtmS64qtqVlzWnqLq_QQpuGERPWFgXMhy7o5HJ6mItr7LOocpYDwzVt24tMMj4nf_L9Hbjvgt1h2h_Xcjbns3KDuOi640yLlaO_6smUliMH-XrgvK0NjycWawBMwzz4i2VDjfW70tZV8x040n0cpvrkTlpPTn-47g3bAOKUv9z00GDu-SgB4LluBUp2SmQjxOKv3Jt7FLHznZovNEiO6nurqGCrpvcoDcmxkmUYA7cNTHivNCPTRQfiov3JXYwZYoofAYgVGOw7-n1dgNjF7IrAbD-fia7sfjwUoMUyygIv4RVWbaX_dZ81blOTpe_e0HxCRTwtfM_xnHh4I7Rizt5APFimxXtHgVGI8sj2srVz1kqgfWyTBcFohNJwy1umqkJgKiS7BAY3i_IWSbZ3PxEm3c30BUNm0HqJ5gjPgvOOetDmBAPFbl0am-YHjGR8OVH-ap10RNdpaSXsFl4rG56v4Bkq9Y7bNe78Vsmp3HllbmxXdPcEV19c1M-wHCdSpSLRcLPVZnOcCrLCy8Yw2zIBSGDtMcmwHdxyluod9_K8V8HFlkW0ZtZi6gudikCEwmgiARoyzIbur9T0XFNv2A1FLL5zGyMrPaykbaO5RiQZy9NeokiZb9ly4bW7JfXf_LhXDTznFC66Sw0JkGw1cTFWR1A2b9s_NNDwnFxy_EXhD23Am7OK7SvmusI0b2FdO-J6k0xl1u5ngfwRJMts9RNP87u9k7IvGcNKSi2ZCWymx4PQ2817vmhIuMbAulZLNKfDeaeuNBSQNhTRa1U2I_x2bqr6knLc1L39FsqaaCvHEkHyie9w3zjIdcocIMj29z9BkfyXlb7cXJmP3mXxatMgCwnTph5Pg9wuXMm8n-z4Jw74WgG8rQj6zLpehzRcnOcAqjmJy9StvwmECem643-6YyLXK960bXRnLyyxDJTUqZeyXvmbB3gvmbVx6Dz8tGgLWma9c3dE4gCpXwB5lcUr4pcTTxGdWMKG1GdU7CFinwJ-pd5OsOJPO6DGJBkmyw4gAPRLEmVnDuyAbjUkdmSlv6mNoUfOXKoEf309FY_anNe3YBvM9PkR9d503iv9674rfqUnb2FWwF3VQ_598ATr6nn_YiHA/https://www.amazon.com/stores/page/0B052113-C871-407A-B877-145B5814ED08/?_encoding=UTF8&store_ref=SB_A02628571ZKHU5PKCUO6H-A067526431UR2U5T7VYO0&pd_rd_plhdr=t&aaxitk=f3f4ca5b85ca0343cd9a6b1dc421157d&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad3&ref_=sbx_be_dp_arbies_mblsd_mb2_logo&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                            - img "ZLCA" [ref=f184e1525]
+                        - generic [ref=f184e1526]:
+                          - link [aria-hidden] [ref=f184e1527] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JGN0DWKVv7wMw9Sqxokb3FoAAAGgiJp5jwEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICBMQepO/clv1c_ek-YBff3FcTa3ut7cOoEbugzoh05WFG5gCTm8jtyj0FQTAN9qwzK-jArZnRaHui7c9BoBeFrc0DAFPmCl-wjwPA-BF9xW9DpIANBGArU-1R3ByDj5tgwaqtv8dNo5rO00iMgOOjHUT4IzGsRdIACPhCwgbXcllPSAgRCnhdrz5wCQdv93B4xPqX6Q-rnnkG3CayQ5zUVN3foFGf4KEHT4tIdMcwrlJ5m3Mr0bWzTyXLAq0DUPEIknKave5c5eVvBPeBWTBt1BXiQ2_lagSM8se1LVwLtYq1OKr8Q7Iz5mmw65qEfTXkySE4mYHLgf5R60vUnAs9Qkhzi9zVcTaa48ni9id8VjSa96uG5ipiUEJCIldMEw3ygvmZZivG91_cEGskxOYYCiFVgZVkElq2PeaQ_ojnHe2a0rVjzgXzZtLCLA1uCaIg7xPNaDNVOYgWQ75Ma_yqSZR089WZLtmS64qtqVlzWnqLq_QQpuGERPWFgXMhy7o5HJ6mItr7LOocpYDwzVt24tMMj4nf_L9Hbjvgt1h2h_Xcjbns3KDuOi640yLlaO_6smUliMH-XrgvK0NjycWawBMwzz4i2VDjfW70tZV8x040n0cpvrkTlpPTn-47g3bAOKUv9z00GDu-SgB4LluBUp2SmQjxOKv3Jt7FLHznZovNEiO6nurqGCrpvcoDcmxkmUYA7cNTHivNCPTRQfiov3JXYwZYoofAYgVGOw7-n1dgNjF7IrAbD-fia7sfjwUoMUyygIv4RVWbaX_dZ81blOTpe_e0HxCRTwtfM_xnHh4I7Rizt5APFimxXtHgVGI8sj2srVz1kqgfWyTBcFohNJwy1umqkJgKiS7BAY3i_IWSbZ3PxEm3c30BUNm0HqJ5gjPgvOOetDmBAPFbl0am-YHjGR8OVH-ap10RNdpaSXsFl4rG56v4Bkq9Y7bNe78Vsmp3HllbmxXdPcEV19c1M-wHCdSpSLRcLPVZnOcCrLCy8Yw2zIBSGDtMcmwHdxyluod9_K8V8HFlkW0ZtZi6gudikCEwmgiARoyzIbur9T0XFNv2A1FLL5zGyMrPaykbaO5RiQZy9NeokiZb9ly4bW7JfXf_LhXDTznFC66Sw0JkGw1cTFWR1A2b9s_NNDwnFxy_EXhD23Am7OK7SvmusI0b2FdO-J6k0xl1u5ngfwRJMts9RNP87u9k7IvGcNKSi2ZCWymx4PQ2817vmhIuMbAulZLNKfDeaeuNBSQNhTRa1U2I_x2bqr6knLc1L39FsqaaCvHEkHyie9w3zjIdcocIMj29z9BkfyXlb7cXJmP3mXxatMgCwnTph5Pg9wuXMm8n-z4Jw74WgG8rQj6zLpehzRcnOcAqjmJy9StvwmECem643-6YyLXK960bXRnLyyxDJTUqZeyXvmbB3gvmbVx6Dz8tGgLWma9c3dE4gCpXwB5lcUr4pcTTxGdWMKG1GdU7CFinwJ-pd5OsOJPO6DGJBkmyw4gAPRLEmVnDuyAbjUkdmSlv6mNoUfOXKoEf309FY_anNe3YBvM9PkR9d503iv9674rfqUnb2FWwF3VQ_598ATr6nn_YiHA/https://www.amazon.com/stores/page/0B052113-C871-407A-B877-145B5814ED08/?_encoding=UTF8&store_ref=SB_A02628571ZKHU5PKCUO6H-A067526431UR2U5T7VYO0&pd_rd_plhdr=t&aaxitk=f3f4ca5b85ca0343cd9a6b1dc421157d&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad3&ref_=sbx_be_dp_arbies_mblsd_mb2_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                          - link "MTG Commander deck box" [ref=f184e1528] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JGN0DWKVv7wMw9Sqxokb3FoAAAGgiJp5jwEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICBMQepO/clv1c_ek-YBff3FcTa3ut7cOoEbugzoh05WFG5gCTm8jtyj0FQTAN9qwzK-jArZnRaHui7c9BoBeFrc0DAFPmCl-wjwPA-BF9xW9DpIANBGArU-1R3ByDj5tgwaqtv8dNo5rO00iMgOOjHUT4IzGsRdIACPhCwgbXcllPSAgRCnhdrz5wCQdv93B4xPqX6Q-rnnkG3CayQ5zUVN3foFGf4KEHT4tIdMcwrlJ5m3Mr0bWzTyXLAq0DUPEIknKave5c5eVvBPeBWTBt1BXiQ2_lagSM8se1LVwLtYq1OKr8Q7Iz5mmw65qEfTXkySE4mYHLgf5R60vUnAs9Qkhzi9zVcTaa48ni9id8VjSa96uG5ipiUEJCIldMEw3ygvmZZivG91_cEGskxOYYCiFVgZVkElq2PeaQ_ojnHe2a0rVjzgXzZtLCLA1uCaIg7xPNaDNVOYgWQ75Ma_yqSZR089WZLtmS64qtqVlzWnqLq_QQpuGERPWFgXMhy7o5HJ6mItr7LOocpYDwzVt24tMMj4nf_L9Hbjvgt1h2h_Xcjbns3KDuOi640yLlaO_6smUliMH-XrgvK0NjycWawBMwzz4i2VDjfW70tZV8x040n0cpvrkTlpPTn-47g3bAOKUv9z00GDu-SgB4LluBUp2SmQjxOKv3Jt7FLHznZovNEiO6nurqGCrpvcoDcmxkmUYA7cNTHivNCPTRQfiov3JXYwZYoofAYgVGOw7-n1dgNjF7IrAbD-fia7sfjwUoMUyygIv4RVWbaX_dZ81blOTpe_e0HxCRTwtfM_xnHh4I7Rizt5APFimxXtHgVGI8sj2srVz1kqgfWyTBcFohNJwy1umqkJgKiS7BAY3i_IWSbZ3PxEm3c30BUNm0HqJ5gjPgvOOetDmBAPFbl0am-YHjGR8OVH-ap10RNdpaSXsFl4rG56v4Bkq9Y7bNe78Vsmp3HllbmxXdPcEV19c1M-wHCdSpSLRcLPVZnOcCrLCy8Yw2zIBSGDtMcmwHdxyluod9_K8V8HFlkW0ZtZi6gudikCEwmgiARoyzIbur9T0XFNv2A1FLL5zGyMrPaykbaO5RiQZy9NeokiZb9ly4bW7JfXf_LhXDTznFC66Sw0JkGw1cTFWR1A2b9s_NNDwnFxy_EXhD23Am7OK7SvmusI0b2FdO-J6k0xl1u5ngfwRJMts9RNP87u9k7IvGcNKSi2ZCWymx4PQ2817vmhIuMbAulZLNKfDeaeuNBSQNhTRa1U2I_x2bqr6knLc1L39FsqaaCvHEkHyie9w3zjIdcocIMj29z9BkfyXlb7cXJmP3mXxatMgCwnTph5Pg9wuXMm8n-z4Jw74WgG8rQj6zLpehzRcnOcAqjmJy9StvwmECem643-6YyLXK960bXRnLyyxDJTUqZeyXvmbB3gvmbVx6Dz8tGgLWma9c3dE4gCpXwB5lcUr4pcTTxGdWMKG1GdU7CFinwJ-pd5OsOJPO6DGJBkmyw4gAPRLEmVnDuyAbjUkdmSlv6mNoUfOXKoEf309FY_anNe3YBvM9PkR9d503iv9674rfqUnb2FWwF3VQ_598ATr6nn_YiHA/https://www.amazon.com/stores/page/0B052113-C871-407A-B877-145B5814ED08/?_encoding=UTF8&store_ref=SB_A02628571ZKHU5PKCUO6H-A067526431UR2U5T7VYO0&pd_rd_plhdr=t&aaxitk=f3f4ca5b85ca0343cd9a6b1dc421157d&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad3&ref_=sbx_be_dp_arbies_mblsd_mb2_hl&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                            - generic [ref=f184e1530]:
+                              - generic [ref=f184e1531]: MTG Commander deck box
+                              - generic [aria-hidden] [ref=f184e1532]: MTG Commander deck box
+              - group "4 of 5" [ref=f184e1533]:
+                - generic [ref=f184e1534]:
+                  - link "Sponsored ad from SENVINI Direct. \"Scratch-resistant ETB Protector Cases.\" Shop SENVINI Direct." [ref=f184e1535] [cursor=pointer]:
+                    - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JLL8sOW9AaD5Nl06DeHvKxYAAAGgiJp5kAEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICBp470H/clv1c_ek-wBYHXErbWDn2nI7cAJ16WpAySueZcaFSo9enxv4P7gTXj0KcbW0YJKlE-UQSNzfXAZTB9aevgIWqUQ_rv6fTyWp6QLQbTbkET4yk3K6MNzXnzSSxnbQ52ZDZzwmoxVBUW1WwHsGEdh5Bkn0MmLq3ooItp1lTmgoTxyK0hxpcJyfNdn8G-dEY_AsxU_i-aoZcjcox-T07X1OK575igQcuZGQwYFoeEnGauzCt6hwilZddpbp6g_BnxInhhebpxwkqc2i65S_oihxuz3RAkSLA_L05xcICKiWzh8EdOAX-Ive-BcACZA4Nr5Z4z6yKEuqAIcW-1crozbZ1y8gWAGTreNwYIxZsEC3tPKgmDagmkVnWHojoFmjWhcKEcnvANNv7EFSF6LvxgbJ42JKmT37SfxeTff9dHTjRY0hlcmkiKkMlIythzP9JCP90wtHMN4qNKIhcArLcmBsQbEOAi7sa4HnHzYGky_3Yy6n_TgxrUo6yS0MIfUBrHMzHCeQxNUPtPOBrbLQg9EjLBciS2iNPNA78CgztgdPjJrq6YVY7uFiWdgLEOwdc31xwEJmPBu_TzC_XFIQ0U_XOR7PHtBVBnXCReiXXhl_2USfFjw3kzY5ZhsQ7rahTNVgzbZeiCNXF2e3hkYbFIesI8yGhYcb4um1ZIFgO9rN62b-qhWPfKzA2WYU7Uzod7rmdGVYfcKtbwX8OoytKIv2MgUO2X5RB0uS3Wwam8DU-afVShZjWYiq-Snlu4n8_VvzsQvaCWuBk5AQvmVp7rUnkxOIc5GoqhPMvPeH1E9NuAdxtDgCskcWMI2FdK-7m9RPtzWJPfdLA16fSgrREoKDteqfOk2ad45aIANBWiirN4ewqJ-w8Q07wNpyjsEPZ3dVTJNGYO245gvK3YbrcsRWnGoe23jE6rXD0r8s9uJ0h0XhKRTxmMnPDgaHaNJZbwDGUyrSu2SEM4-Y3f_NmvT8PWLPqOdzva2xcP9do3CCX3lnv2XdDHnziFCZt5PXF2uBlmDa3Xet0jXNwfAXh3sE7rtPPKWuqwTwAE4i_5g30ePRb96xuK2WCAGHSiGCWB5K9MrRQq9hX2LD00gW6FF_EneXgRB4NtqpQTi8F4Cq8Eh0a72tJMGrJOzYrIIytZwZDawjHT66uNjaMYKxDtaeCo6r-T63RB8a6tUw9LCY5_sAjbHf_Kovp0FtgcUSYlK18dVri-Jgd8s5-_yKKlWyPmc2_axG9mTWg7WhSjRaA_LlWkA3lkiJQ_DWyUiFW1aNi5XEZs-TUD74rpU_d5hJLfu1NOr4bYNe5o_bCDztv1uO9uNrucxOGSTdPlVTarLhivp-FyjzKFV9KmBS_6ugvEwkDhlLgd7PEPHEskmCuXGIIPH_1RDAXh6CBArLagqWHGVOUJt4V06d1I-9iIoLwzrHKHislBVm-56jejph7-UmhCnWyJHd13JBLcVEhy6q8JxI1qR6Oxb7-9aZh8W5Yb-TwzidwRWyv3Xu9B4ET2ww1T7nLSM9N8uwyXxnIBxJPx5Go4r4xFK4tWkjtvjpPObQ0JCoHzaoEz0qClwO8RAxdHZzCBZ1MVYKuo9elcV5QmK6rznTTJan_Xth9o8cBV8A/https://www.amazon.com/stores/page/E420B3C4-E518-4C66-918C-2605C27191B4/?_encoding=UTF8&store_ref=SB_A053267031NFROQDBLGDD-A07147711TN97DIXE3L6V&pd_rd_plhdr=t&aaxitk=49d072c65c72b5b71230709c79d3d633&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad4&ref_=sbx_be_dp_arbies_mblsd_mb3_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                  - generic:
+                    - generic:
+                      - link [ref=f184e1536] [cursor=pointer]:
+                        - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JLL8sOW9AaD5Nl06DeHvKxYAAAGgiJp5kAEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICBp470H/clv1c_ek-wBYHXErbWDn2nI7cAJ16WpAySueZcaFSo9enxv4P7gTXj0KcbW0YJKlE-UQSNzfXAZTB9aevgIWqUQ_rv6fTyWp6QLQbTbkET4yk3K6MNzXnzSSxnbQ52ZDZzwmoxVBUW1WwHsGEdh5Bkn0MmLq3ooItp1lTmgoTxyK0hxpcJyfNdn8G-dEY_AsxU_i-aoZcjcox-T07X1OK575igQcuZGQwYFoeEnGauzCt6hwilZddpbp6g_BnxInhhebpxwkqc2i65S_oihxuz3RAkSLA_L05xcICKiWzh8EdOAX-Ive-BcACZA4Nr5Z4z6yKEuqAIcW-1crozbZ1y8gWAGTreNwYIxZsEC3tPKgmDagmkVnWHojoFmjWhcKEcnvANNv7EFSF6LvxgbJ42JKmT37SfxeTff9dHTjRY0hlcmkiKkMlIythzP9JCP90wtHMN4qNKIhcArLcmBsQbEOAi7sa4HnHzYGky_3Yy6n_TgxrUo6yS0MIfUBrHMzHCeQxNUPtPOBrbLQg9EjLBciS2iNPNA78CgztgdPjJrq6YVY7uFiWdgLEOwdc31xwEJmPBu_TzC_XFIQ0U_XOR7PHtBVBnXCReiXXhl_2USfFjw3kzY5ZhsQ7rahTNVgzbZeiCNXF2e3hkYbFIesI8yGhYcb4um1ZIFgO9rN62b-qhWPfKzA2WYU7Uzod7rmdGVYfcKtbwX8OoytKIv2MgUO2X5RB0uS3Wwam8DU-afVShZjWYiq-Snlu4n8_VvzsQvaCWuBk5AQvmVp7rUnkxOIc5GoqhPMvPeH1E9NuAdxtDgCskcWMI2FdK-7m9RPtzWJPfdLA16fSgrREoKDteqfOk2ad45aIANBWiirN4ewqJ-w8Q07wNpyjsEPZ3dVTJNGYO245gvK3YbrcsRWnGoe23jE6rXD0r8s9uJ0h0XhKRTxmMnPDgaHaNJZbwDGUyrSu2SEM4-Y3f_NmvT8PWLPqOdzva2xcP9do3CCX3lnv2XdDHnziFCZt5PXF2uBlmDa3Xet0jXNwfAXh3sE7rtPPKWuqwTwAE4i_5g30ePRb96xuK2WCAGHSiGCWB5K9MrRQq9hX2LD00gW6FF_EneXgRB4NtqpQTi8F4Cq8Eh0a72tJMGrJOzYrIIytZwZDawjHT66uNjaMYKxDtaeCo6r-T63RB8a6tUw9LCY5_sAjbHf_Kovp0FtgcUSYlK18dVri-Jgd8s5-_yKKlWyPmc2_axG9mTWg7WhSjRaA_LlWkA3lkiJQ_DWyUiFW1aNi5XEZs-TUD74rpU_d5hJLfu1NOr4bYNe5o_bCDztv1uO9uNrucxOGSTdPlVTarLhivp-FyjzKFV9KmBS_6ugvEwkDhlLgd7PEPHEskmCuXGIIPH_1RDAXh6CBArLagqWHGVOUJt4V06d1I-9iIoLwzrHKHislBVm-56jejph7-UmhCnWyJHd13JBLcVEhy6q8JxI1qR6Oxb7-9aZh8W5Yb-TwzidwRWyv3Xu9B4ET2ww1T7nLSM9N8uwyXxnIBxJPx5Go4r4xFK4tWkjtvjpPObQ0JCoHzaoEz0qClwO8RAxdHZzCBZ1MVYKuo9elcV5QmK6rznTTJan_Xth9o8cBV8A/https://www.amazon.com/stores/page/E420B3C4-E518-4C66-918C-2605C27191B4/?_encoding=UTF8&store_ref=SB_A053267031NFROQDBLGDD-A07147711TN97DIXE3L6V&pd_rd_plhdr=t&aaxitk=49d072c65c72b5b71230709c79d3d633&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad4&ref_=sbx_be_dp_arbies_mblsd_mb3_ls&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                        - img "SENVINI Direct" [ref=f184e1537]
+                      - generic [ref=f184e1539]:
+                        - generic [ref=f184e1540]:
+                          - link [aria-hidden] [ref=f184e1541] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JLL8sOW9AaD5Nl06DeHvKxYAAAGgiJp5kAEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICBp470H/clv1c_ek-wBYHXErbWDn2nI7cAJ16WpAySueZcaFSo9enxv4P7gTXj0KcbW0YJKlE-UQSNzfXAZTB9aevgIWqUQ_rv6fTyWp6QLQbTbkET4yk3K6MNzXnzSSxnbQ52ZDZzwmoxVBUW1WwHsGEdh5Bkn0MmLq3ooItp1lTmgoTxyK0hxpcJyfNdn8G-dEY_AsxU_i-aoZcjcox-T07X1OK575igQcuZGQwYFoeEnGauzCt6hwilZddpbp6g_BnxInhhebpxwkqc2i65S_oihxuz3RAkSLA_L05xcICKiWzh8EdOAX-Ive-BcACZA4Nr5Z4z6yKEuqAIcW-1crozbZ1y8gWAGTreNwYIxZsEC3tPKgmDagmkVnWHojoFmjWhcKEcnvANNv7EFSF6LvxgbJ42JKmT37SfxeTff9dHTjRY0hlcmkiKkMlIythzP9JCP90wtHMN4qNKIhcArLcmBsQbEOAi7sa4HnHzYGky_3Yy6n_TgxrUo6yS0MIfUBrHMzHCeQxNUPtPOBrbLQg9EjLBciS2iNPNA78CgztgdPjJrq6YVY7uFiWdgLEOwdc31xwEJmPBu_TzC_XFIQ0U_XOR7PHtBVBnXCReiXXhl_2USfFjw3kzY5ZhsQ7rahTNVgzbZeiCNXF2e3hkYbFIesI8yGhYcb4um1ZIFgO9rN62b-qhWPfKzA2WYU7Uzod7rmdGVYfcKtbwX8OoytKIv2MgUO2X5RB0uS3Wwam8DU-afVShZjWYiq-Snlu4n8_VvzsQvaCWuBk5AQvmVp7rUnkxOIc5GoqhPMvPeH1E9NuAdxtDgCskcWMI2FdK-7m9RPtzWJPfdLA16fSgrREoKDteqfOk2ad45aIANBWiirN4ewqJ-w8Q07wNpyjsEPZ3dVTJNGYO245gvK3YbrcsRWnGoe23jE6rXD0r8s9uJ0h0XhKRTxmMnPDgaHaNJZbwDGUyrSu2SEM4-Y3f_NmvT8PWLPqOdzva2xcP9do3CCX3lnv2XdDHnziFCZt5PXF2uBlmDa3Xet0jXNwfAXh3sE7rtPPKWuqwTwAE4i_5g30ePRb96xuK2WCAGHSiGCWB5K9MrRQq9hX2LD00gW6FF_EneXgRB4NtqpQTi8F4Cq8Eh0a72tJMGrJOzYrIIytZwZDawjHT66uNjaMYKxDtaeCo6r-T63RB8a6tUw9LCY5_sAjbHf_Kovp0FtgcUSYlK18dVri-Jgd8s5-_yKKlWyPmc2_axG9mTWg7WhSjRaA_LlWkA3lkiJQ_DWyUiFW1aNi5XEZs-TUD74rpU_d5hJLfu1NOr4bYNe5o_bCDztv1uO9uNrucxOGSTdPlVTarLhivp-FyjzKFV9KmBS_6ugvEwkDhlLgd7PEPHEskmCuXGIIPH_1RDAXh6CBArLagqWHGVOUJt4V06d1I-9iIoLwzrHKHislBVm-56jejph7-UmhCnWyJHd13JBLcVEhy6q8JxI1qR6Oxb7-9aZh8W5Yb-TwzidwRWyv3Xu9B4ET2ww1T7nLSM9N8uwyXxnIBxJPx5Go4r4xFK4tWkjtvjpPObQ0JCoHzaoEz0qClwO8RAxdHZzCBZ1MVYKuo9elcV5QmK6rznTTJan_Xth9o8cBV8A/https://www.amazon.com/stores/page/E420B3C4-E518-4C66-918C-2605C27191B4/?_encoding=UTF8&store_ref=SB_A053267031NFROQDBLGDD-A07147711TN97DIXE3L6V&pd_rd_plhdr=t&aaxitk=49d072c65c72b5b71230709c79d3d633&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad4&ref_=sbx_be_dp_arbies_mblsd_mb3_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                          - link [ref=f184e1542] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JLL8sOW9AaD5Nl06DeHvKxYAAAGgiJp5kAEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICBp470H/clv1c_ek-wBYHXErbWDn2nI7cAJ16WpAySueZcaFSo9enxv4P7gTXj0KcbW0YJKlE-UQSNzfXAZTB9aevgIWqUQ_rv6fTyWp6QLQbTbkET4yk3K6MNzXnzSSxnbQ52ZDZzwmoxVBUW1WwHsGEdh5Bkn0MmLq3ooItp1lTmgoTxyK0hxpcJyfNdn8G-dEY_AsxU_i-aoZcjcox-T07X1OK575igQcuZGQwYFoeEnGauzCt6hwilZddpbp6g_BnxInhhebpxwkqc2i65S_oihxuz3RAkSLA_L05xcICKiWzh8EdOAX-Ive-BcACZA4Nr5Z4z6yKEuqAIcW-1crozbZ1y8gWAGTreNwYIxZsEC3tPKgmDagmkVnWHojoFmjWhcKEcnvANNv7EFSF6LvxgbJ42JKmT37SfxeTff9dHTjRY0hlcmkiKkMlIythzP9JCP90wtHMN4qNKIhcArLcmBsQbEOAi7sa4HnHzYGky_3Yy6n_TgxrUo6yS0MIfUBrHMzHCeQxNUPtPOBrbLQg9EjLBciS2iNPNA78CgztgdPjJrq6YVY7uFiWdgLEOwdc31xwEJmPBu_TzC_XFIQ0U_XOR7PHtBVBnXCReiXXhl_2USfFjw3kzY5ZhsQ7rahTNVgzbZeiCNXF2e3hkYbFIesI8yGhYcb4um1ZIFgO9rN62b-qhWPfKzA2WYU7Uzod7rmdGVYfcKtbwX8OoytKIv2MgUO2X5RB0uS3Wwam8DU-afVShZjWYiq-Snlu4n8_VvzsQvaCWuBk5AQvmVp7rUnkxOIc5GoqhPMvPeH1E9NuAdxtDgCskcWMI2FdK-7m9RPtzWJPfdLA16fSgrREoKDteqfOk2ad45aIANBWiirN4ewqJ-w8Q07wNpyjsEPZ3dVTJNGYO245gvK3YbrcsRWnGoe23jE6rXD0r8s9uJ0h0XhKRTxmMnPDgaHaNJZbwDGUyrSu2SEM4-Y3f_NmvT8PWLPqOdzva2xcP9do3CCX3lnv2XdDHnziFCZt5PXF2uBlmDa3Xet0jXNwfAXh3sE7rtPPKWuqwTwAE4i_5g30ePRb96xuK2WCAGHSiGCWB5K9MrRQq9hX2LD00gW6FF_EneXgRB4NtqpQTi8F4Cq8Eh0a72tJMGrJOzYrIIytZwZDawjHT66uNjaMYKxDtaeCo6r-T63RB8a6tUw9LCY5_sAjbHf_Kovp0FtgcUSYlK18dVri-Jgd8s5-_yKKlWyPmc2_axG9mTWg7WhSjRaA_LlWkA3lkiJQ_DWyUiFW1aNi5XEZs-TUD74rpU_d5hJLfu1NOr4bYNe5o_bCDztv1uO9uNrucxOGSTdPlVTarLhivp-FyjzKFV9KmBS_6ugvEwkDhlLgd7PEPHEskmCuXGIIPH_1RDAXh6CBArLagqWHGVOUJt4V06d1I-9iIoLwzrHKHislBVm-56jejph7-UmhCnWyJHd13JBLcVEhy6q8JxI1qR6Oxb7-9aZh8W5Yb-TwzidwRWyv3Xu9B4ET2ww1T7nLSM9N8uwyXxnIBxJPx5Go4r4xFK4tWkjtvjpPObQ0JCoHzaoEz0qClwO8RAxdHZzCBZ1MVYKuo9elcV5QmK6rznTTJan_Xth9o8cBV8A/https://www.amazon.com/stores/page/E420B3C4-E518-4C66-918C-2605C27191B4/?_encoding=UTF8&store_ref=SB_A053267031NFROQDBLGDD-A07147711TN97DIXE3L6V&pd_rd_plhdr=t&aaxitk=49d072c65c72b5b71230709c79d3d633&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad4&ref_=sbx_be_dp_arbies_mblsd_mb3_logo&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                            - img "SENVINI Direct" [ref=f184e1544]
+                        - generic [ref=f184e1545]:
+                          - link [aria-hidden] [ref=f184e1546] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JLL8sOW9AaD5Nl06DeHvKxYAAAGgiJp5kAEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICBp470H/clv1c_ek-wBYHXErbWDn2nI7cAJ16WpAySueZcaFSo9enxv4P7gTXj0KcbW0YJKlE-UQSNzfXAZTB9aevgIWqUQ_rv6fTyWp6QLQbTbkET4yk3K6MNzXnzSSxnbQ52ZDZzwmoxVBUW1WwHsGEdh5Bkn0MmLq3ooItp1lTmgoTxyK0hxpcJyfNdn8G-dEY_AsxU_i-aoZcjcox-T07X1OK575igQcuZGQwYFoeEnGauzCt6hwilZddpbp6g_BnxInhhebpxwkqc2i65S_oihxuz3RAkSLA_L05xcICKiWzh8EdOAX-Ive-BcACZA4Nr5Z4z6yKEuqAIcW-1crozbZ1y8gWAGTreNwYIxZsEC3tPKgmDagmkVnWHojoFmjWhcKEcnvANNv7EFSF6LvxgbJ42JKmT37SfxeTff9dHTjRY0hlcmkiKkMlIythzP9JCP90wtHMN4qNKIhcArLcmBsQbEOAi7sa4HnHzYGky_3Yy6n_TgxrUo6yS0MIfUBrHMzHCeQxNUPtPOBrbLQg9EjLBciS2iNPNA78CgztgdPjJrq6YVY7uFiWdgLEOwdc31xwEJmPBu_TzC_XFIQ0U_XOR7PHtBVBnXCReiXXhl_2USfFjw3kzY5ZhsQ7rahTNVgzbZeiCNXF2e3hkYbFIesI8yGhYcb4um1ZIFgO9rN62b-qhWPfKzA2WYU7Uzod7rmdGVYfcKtbwX8OoytKIv2MgUO2X5RB0uS3Wwam8DU-afVShZjWYiq-Snlu4n8_VvzsQvaCWuBk5AQvmVp7rUnkxOIc5GoqhPMvPeH1E9NuAdxtDgCskcWMI2FdK-7m9RPtzWJPfdLA16fSgrREoKDteqfOk2ad45aIANBWiirN4ewqJ-w8Q07wNpyjsEPZ3dVTJNGYO245gvK3YbrcsRWnGoe23jE6rXD0r8s9uJ0h0XhKRTxmMnPDgaHaNJZbwDGUyrSu2SEM4-Y3f_NmvT8PWLPqOdzva2xcP9do3CCX3lnv2XdDHnziFCZt5PXF2uBlmDa3Xet0jXNwfAXh3sE7rtPPKWuqwTwAE4i_5g30ePRb96xuK2WCAGHSiGCWB5K9MrRQq9hX2LD00gW6FF_EneXgRB4NtqpQTi8F4Cq8Eh0a72tJMGrJOzYrIIytZwZDawjHT66uNjaMYKxDtaeCo6r-T63RB8a6tUw9LCY5_sAjbHf_Kovp0FtgcUSYlK18dVri-Jgd8s5-_yKKlWyPmc2_axG9mTWg7WhSjRaA_LlWkA3lkiJQ_DWyUiFW1aNi5XEZs-TUD74rpU_d5hJLfu1NOr4bYNe5o_bCDztv1uO9uNrucxOGSTdPlVTarLhivp-FyjzKFV9KmBS_6ugvEwkDhlLgd7PEPHEskmCuXGIIPH_1RDAXh6CBArLagqWHGVOUJt4V06d1I-9iIoLwzrHKHislBVm-56jejph7-UmhCnWyJHd13JBLcVEhy6q8JxI1qR6Oxb7-9aZh8W5Yb-TwzidwRWyv3Xu9B4ET2ww1T7nLSM9N8uwyXxnIBxJPx5Go4r4xFK4tWkjtvjpPObQ0JCoHzaoEz0qClwO8RAxdHZzCBZ1MVYKuo9elcV5QmK6rznTTJan_Xth9o8cBV8A/https://www.amazon.com/stores/page/E420B3C4-E518-4C66-918C-2605C27191B4/?_encoding=UTF8&store_ref=SB_A053267031NFROQDBLGDD-A07147711TN97DIXE3L6V&pd_rd_plhdr=t&aaxitk=49d072c65c72b5b71230709c79d3d633&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad4&ref_=sbx_be_dp_arbies_mblsd_mb3_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                          - link "Scratch-resistant ETB Protector Cases" [ref=f184e1547] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JLL8sOW9AaD5Nl06DeHvKxYAAAGgiJp5kAEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICBp470H/clv1c_ek-wBYHXErbWDn2nI7cAJ16WpAySueZcaFSo9enxv4P7gTXj0KcbW0YJKlE-UQSNzfXAZTB9aevgIWqUQ_rv6fTyWp6QLQbTbkET4yk3K6MNzXnzSSxnbQ52ZDZzwmoxVBUW1WwHsGEdh5Bkn0MmLq3ooItp1lTmgoTxyK0hxpcJyfNdn8G-dEY_AsxU_i-aoZcjcox-T07X1OK575igQcuZGQwYFoeEnGauzCt6hwilZddpbp6g_BnxInhhebpxwkqc2i65S_oihxuz3RAkSLA_L05xcICKiWzh8EdOAX-Ive-BcACZA4Nr5Z4z6yKEuqAIcW-1crozbZ1y8gWAGTreNwYIxZsEC3tPKgmDagmkVnWHojoFmjWhcKEcnvANNv7EFSF6LvxgbJ42JKmT37SfxeTff9dHTjRY0hlcmkiKkMlIythzP9JCP90wtHMN4qNKIhcArLcmBsQbEOAi7sa4HnHzYGky_3Yy6n_TgxrUo6yS0MIfUBrHMzHCeQxNUPtPOBrbLQg9EjLBciS2iNPNA78CgztgdPjJrq6YVY7uFiWdgLEOwdc31xwEJmPBu_TzC_XFIQ0U_XOR7PHtBVBnXCReiXXhl_2USfFjw3kzY5ZhsQ7rahTNVgzbZeiCNXF2e3hkYbFIesI8yGhYcb4um1ZIFgO9rN62b-qhWPfKzA2WYU7Uzod7rmdGVYfcKtbwX8OoytKIv2MgUO2X5RB0uS3Wwam8DU-afVShZjWYiq-Snlu4n8_VvzsQvaCWuBk5AQvmVp7rUnkxOIc5GoqhPMvPeH1E9NuAdxtDgCskcWMI2FdK-7m9RPtzWJPfdLA16fSgrREoKDteqfOk2ad45aIANBWiirN4ewqJ-w8Q07wNpyjsEPZ3dVTJNGYO245gvK3YbrcsRWnGoe23jE6rXD0r8s9uJ0h0XhKRTxmMnPDgaHaNJZbwDGUyrSu2SEM4-Y3f_NmvT8PWLPqOdzva2xcP9do3CCX3lnv2XdDHnziFCZt5PXF2uBlmDa3Xet0jXNwfAXh3sE7rtPPKWuqwTwAE4i_5g30ePRb96xuK2WCAGHSiGCWB5K9MrRQq9hX2LD00gW6FF_EneXgRB4NtqpQTi8F4Cq8Eh0a72tJMGrJOzYrIIytZwZDawjHT66uNjaMYKxDtaeCo6r-T63RB8a6tUw9LCY5_sAjbHf_Kovp0FtgcUSYlK18dVri-Jgd8s5-_yKKlWyPmc2_axG9mTWg7WhSjRaA_LlWkA3lkiJQ_DWyUiFW1aNi5XEZs-TUD74rpU_d5hJLfu1NOr4bYNe5o_bCDztv1uO9uNrucxOGSTdPlVTarLhivp-FyjzKFV9KmBS_6ugvEwkDhlLgd7PEPHEskmCuXGIIPH_1RDAXh6CBArLagqWHGVOUJt4V06d1I-9iIoLwzrHKHislBVm-56jejph7-UmhCnWyJHd13JBLcVEhy6q8JxI1qR6Oxb7-9aZh8W5Yb-TwzidwRWyv3Xu9B4ET2ww1T7nLSM9N8uwyXxnIBxJPx5Go4r4xFK4tWkjtvjpPObQ0JCoHzaoEz0qClwO8RAxdHZzCBZ1MVYKuo9elcV5QmK6rznTTJan_Xth9o8cBV8A/https://www.amazon.com/stores/page/E420B3C4-E518-4C66-918C-2605C27191B4/?_encoding=UTF8&store_ref=SB_A053267031NFROQDBLGDD-A07147711TN97DIXE3L6V&pd_rd_plhdr=t&aaxitk=49d072c65c72b5b71230709c79d3d633&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad4&ref_=sbx_be_dp_arbies_mblsd_mb3_hl&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                            - generic [ref=f184e1549]:
+                              - generic [ref=f184e1550]: Scratch-resistant ETB Protector Cases
+                              - generic [aria-hidden] [ref=f184e1551]: Scratch-resistant ETB Protector Cases
+              - group "5 of 5" [ref=f184e1552]:
+                - generic [ref=f184e1553]:
+                  - 'link "Sponsored ad from Quiver Time. \"Your Passion, Our Vow: Quiver Right by Your Side.\" Shop Quiver Time." [ref=f184e1554] [cursor=pointer]':
+                    - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JODd5GBsprCObs__IztpOtEAAAGgiJp5kQEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICDkyaSA/clv1c_ek-wBYHXFcbWDn2nI7cAJ16WpAySueZcdBoswfvgmwoDvMZFmVdMm_dQw1V-P57QSkjHTDQ6FzTyej9QZiWLMFCWaQxjSqM-zkjdFqkFfe2ymtfzC3BJfgwT69VYJrK31ivsoV63_N6mEFA7HFzPBlAKso2ck036UkSS7nYoz4I1yQvdmAkXayx6IqYao7XZtw1vrAglDV9YNSR9fMjO0gbIi1Y1DGaekLKXzhKxCsUag6Z1SRXER75fS4c5SWvJOeA2FNo1HUgq9597AisW3PW3obCXMbYezkYQuvL4-TLfuEA-4REvjC36nmWQ6Sc1CsJxsUvdu7F-pp1vPo9HD_u6A9CHi-Q2NM6aFQTjdf_DHB-sUqqRCOAx1e6SP-wexw-Fdsg43CULt2fYzTR4hyZz25yrIalYZ_yDh3XJ4g9XLx5fYzvskDgEtqoWjZH6YoL-QSlvXGRjERTFaDoTqniCTHD5FPHJBXV1rcBXiOgzHdmkD0fL83YhvVHy-mZCMV-FBx9X2W9e--Wlohh376YxNxwfz5auZpfncMv0PsE3J29vnnCrZL_gsGQEbVyZDspNm5MenUtU88qdHAf9U5PihSOSpeEQ_qOOdso8m5rssI0t3yCLIiU4rzboFs-hex39kbDtkt539ZWlxYHkH1elJytcDEUrQbrgkBjKO8cZbM5YGEbCjTXTlKumJZFaIQMlCd4q6LanIVHVVm08CTuFECNhxFKOV3OyK2nA7upOYhoGoEOe44m_UlloLGTyndwIM5Iy8v2Kc60ayV08Toru2RHqEarV3DBhFZvmQz8eOLjxg8CAjiOA0qudOwFRI2vdU7xXe1tN-vHMg6eQ0oujjM7lnGATwTp8PO4RVfvTPgVY5NR_vqapArLFv-wgVZUPvDPvcXXsXMCQAGG9acSIWww0TL2NCYAGT8O2TR--XH4aDWdgMwUjpbtyCVo7eCbJS73Lzym9RvcuRNLXHpauTPr9iJU5omQ28yXA1Fh0_RsF4EO1G8Y7vAVJJhgQyVJ_FcsLe_Qr4O_JNI0P4CLy-Kg2Y21AbircjngyOvCPtlrhL58E1e20XYwCbPp0npcS-TUlJESVCzGkwZ5UaZGf3ZVeao4UFtyGy1oW9f9RU5J6uf49OQsPwQI9f1ZnMSVewMx9XgzpX9QQ_8B6UnTPwT3MxXOXUv_T5KAS76iy4gpsSe-yGucwKsgti3_IQ9NWV5QVrmG6XP9ELOsJMc5ppHL84Px-g1eAjHQvGQxHV98Uy7qB9H5ML4k8XI_xWyuP1CB_4bJ4DAEta9TtnIDPMRVEPktuTSHRpgmIPZi2J7bYM_9pvoST1H7aBSumNB8uyrfpqiiZIDpl_pLoqwGhCRsv5cIKqG6gMyczmGQdHu1bKVgZqSKfA5Ug49YHMTK2vSa9_49PBOarYh4g47wEsiKmFns0xHbyBfw0Xqe5uA3D2YGJjOpuq7ZhLyDHS-iwHAJ3iodLhFjnuRrSTersV9OxzE-Km_MdD4AZKHmfYkzUn4zElctZOmbfjcYyw8nlbygG3tIiryTJMau_UvCwhtZbvJmurAdZAuQdZ6ySIl-vyqLZ2RnD3ieEGA/https://www.amazon.com/stores/page/40A3DED7-075E-49CD-BA7B-D12743D1BE92/?_encoding=UTF8&store_ref=SB_A0749755IWUFTHWYOK03-A03124653PBYKYMNQE2K0&pd_rd_plhdr=t&aaxitk=272e74fa1080a84ca435bb85a3cc2f55&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad5&ref_=sbx_be_dp_arbies_mblsd_mb4_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                  - generic:
+                    - generic:
+                      - link [ref=f184e1555] [cursor=pointer]:
+                        - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JODd5GBsprCObs__IztpOtEAAAGgiJp5kQEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICDkyaSA/clv1c_ek-wBYHXFcbWDn2nI7cAJ16WpAySueZcdBoswfvgmwoDvMZFmVdMm_dQw1V-P57QSkjHTDQ6FzTyej9QZiWLMFCWaQxjSqM-zkjdFqkFfe2ymtfzC3BJfgwT69VYJrK31ivsoV63_N6mEFA7HFzPBlAKso2ck036UkSS7nYoz4I1yQvdmAkXayx6IqYao7XZtw1vrAglDV9YNSR9fMjO0gbIi1Y1DGaekLKXzhKxCsUag6Z1SRXER75fS4c5SWvJOeA2FNo1HUgq9597AisW3PW3obCXMbYezkYQuvL4-TLfuEA-4REvjC36nmWQ6Sc1CsJxsUvdu7F-pp1vPo9HD_u6A9CHi-Q2NM6aFQTjdf_DHB-sUqqRCOAx1e6SP-wexw-Fdsg43CULt2fYzTR4hyZz25yrIalYZ_yDh3XJ4g9XLx5fYzvskDgEtqoWjZH6YoL-QSlvXGRjERTFaDoTqniCTHD5FPHJBXV1rcBXiOgzHdmkD0fL83YhvVHy-mZCMV-FBx9X2W9e--Wlohh376YxNxwfz5auZpfncMv0PsE3J29vnnCrZL_gsGQEbVyZDspNm5MenUtU88qdHAf9U5PihSOSpeEQ_qOOdso8m5rssI0t3yCLIiU4rzboFs-hex39kbDtkt539ZWlxYHkH1elJytcDEUrQbrgkBjKO8cZbM5YGEbCjTXTlKumJZFaIQMlCd4q6LanIVHVVm08CTuFECNhxFKOV3OyK2nA7upOYhoGoEOe44m_UlloLGTyndwIM5Iy8v2Kc60ayV08Toru2RHqEarV3DBhFZvmQz8eOLjxg8CAjiOA0qudOwFRI2vdU7xXe1tN-vHMg6eQ0oujjM7lnGATwTp8PO4RVfvTPgVY5NR_vqapArLFv-wgVZUPvDPvcXXsXMCQAGG9acSIWww0TL2NCYAGT8O2TR--XH4aDWdgMwUjpbtyCVo7eCbJS73Lzym9RvcuRNLXHpauTPr9iJU5omQ28yXA1Fh0_RsF4EO1G8Y7vAVJJhgQyVJ_FcsLe_Qr4O_JNI0P4CLy-Kg2Y21AbircjngyOvCPtlrhL58E1e20XYwCbPp0npcS-TUlJESVCzGkwZ5UaZGf3ZVeao4UFtyGy1oW9f9RU5J6uf49OQsPwQI9f1ZnMSVewMx9XgzpX9QQ_8B6UnTPwT3MxXOXUv_T5KAS76iy4gpsSe-yGucwKsgti3_IQ9NWV5QVrmG6XP9ELOsJMc5ppHL84Px-g1eAjHQvGQxHV98Uy7qB9H5ML4k8XI_xWyuP1CB_4bJ4DAEta9TtnIDPMRVEPktuTSHRpgmIPZi2J7bYM_9pvoST1H7aBSumNB8uyrfpqiiZIDpl_pLoqwGhCRsv5cIKqG6gMyczmGQdHu1bKVgZqSKfA5Ug49YHMTK2vSa9_49PBOarYh4g47wEsiKmFns0xHbyBfw0Xqe5uA3D2YGJjOpuq7ZhLyDHS-iwHAJ3iodLhFjnuRrSTersV9OxzE-Km_MdD4AZKHmfYkzUn4zElctZOmbfjcYyw8nlbygG3tIiryTJMau_UvCwhtZbvJmurAdZAuQdZ6ySIl-vyqLZ2RnD3ieEGA/https://www.amazon.com/stores/page/40A3DED7-075E-49CD-BA7B-D12743D1BE92/?_encoding=UTF8&store_ref=SB_A0749755IWUFTHWYOK03-A03124653PBYKYMNQE2K0&pd_rd_plhdr=t&aaxitk=272e74fa1080a84ca435bb85a3cc2f55&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad5&ref_=sbx_be_dp_arbies_mblsd_mb4_ls&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                        - img "Quiver Time" [ref=f184e1556]
+                      - generic [ref=f184e1558]:
+                        - generic [ref=f184e1559]:
+                          - link [aria-hidden] [ref=f184e1560] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JODd5GBsprCObs__IztpOtEAAAGgiJp5kQEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICDkyaSA/clv1c_ek-wBYHXFcbWDn2nI7cAJ16WpAySueZcdBoswfvgmwoDvMZFmVdMm_dQw1V-P57QSkjHTDQ6FzTyej9QZiWLMFCWaQxjSqM-zkjdFqkFfe2ymtfzC3BJfgwT69VYJrK31ivsoV63_N6mEFA7HFzPBlAKso2ck036UkSS7nYoz4I1yQvdmAkXayx6IqYao7XZtw1vrAglDV9YNSR9fMjO0gbIi1Y1DGaekLKXzhKxCsUag6Z1SRXER75fS4c5SWvJOeA2FNo1HUgq9597AisW3PW3obCXMbYezkYQuvL4-TLfuEA-4REvjC36nmWQ6Sc1CsJxsUvdu7F-pp1vPo9HD_u6A9CHi-Q2NM6aFQTjdf_DHB-sUqqRCOAx1e6SP-wexw-Fdsg43CULt2fYzTR4hyZz25yrIalYZ_yDh3XJ4g9XLx5fYzvskDgEtqoWjZH6YoL-QSlvXGRjERTFaDoTqniCTHD5FPHJBXV1rcBXiOgzHdmkD0fL83YhvVHy-mZCMV-FBx9X2W9e--Wlohh376YxNxwfz5auZpfncMv0PsE3J29vnnCrZL_gsGQEbVyZDspNm5MenUtU88qdHAf9U5PihSOSpeEQ_qOOdso8m5rssI0t3yCLIiU4rzboFs-hex39kbDtkt539ZWlxYHkH1elJytcDEUrQbrgkBjKO8cZbM5YGEbCjTXTlKumJZFaIQMlCd4q6LanIVHVVm08CTuFECNhxFKOV3OyK2nA7upOYhoGoEOe44m_UlloLGTyndwIM5Iy8v2Kc60ayV08Toru2RHqEarV3DBhFZvmQz8eOLjxg8CAjiOA0qudOwFRI2vdU7xXe1tN-vHMg6eQ0oujjM7lnGATwTp8PO4RVfvTPgVY5NR_vqapArLFv-wgVZUPvDPvcXXsXMCQAGG9acSIWww0TL2NCYAGT8O2TR--XH4aDWdgMwUjpbtyCVo7eCbJS73Lzym9RvcuRNLXHpauTPr9iJU5omQ28yXA1Fh0_RsF4EO1G8Y7vAVJJhgQyVJ_FcsLe_Qr4O_JNI0P4CLy-Kg2Y21AbircjngyOvCPtlrhL58E1e20XYwCbPp0npcS-TUlJESVCzGkwZ5UaZGf3ZVeao4UFtyGy1oW9f9RU5J6uf49OQsPwQI9f1ZnMSVewMx9XgzpX9QQ_8B6UnTPwT3MxXOXUv_T5KAS76iy4gpsSe-yGucwKsgti3_IQ9NWV5QVrmG6XP9ELOsJMc5ppHL84Px-g1eAjHQvGQxHV98Uy7qB9H5ML4k8XI_xWyuP1CB_4bJ4DAEta9TtnIDPMRVEPktuTSHRpgmIPZi2J7bYM_9pvoST1H7aBSumNB8uyrfpqiiZIDpl_pLoqwGhCRsv5cIKqG6gMyczmGQdHu1bKVgZqSKfA5Ug49YHMTK2vSa9_49PBOarYh4g47wEsiKmFns0xHbyBfw0Xqe5uA3D2YGJjOpuq7ZhLyDHS-iwHAJ3iodLhFjnuRrSTersV9OxzE-Km_MdD4AZKHmfYkzUn4zElctZOmbfjcYyw8nlbygG3tIiryTJMau_UvCwhtZbvJmurAdZAuQdZ6ySIl-vyqLZ2RnD3ieEGA/https://www.amazon.com/stores/page/40A3DED7-075E-49CD-BA7B-D12743D1BE92/?_encoding=UTF8&store_ref=SB_A0749755IWUFTHWYOK03-A03124653PBYKYMNQE2K0&pd_rd_plhdr=t&aaxitk=272e74fa1080a84ca435bb85a3cc2f55&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad5&ref_=sbx_be_dp_arbies_mblsd_mb4_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                          - link [ref=f184e1561] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JODd5GBsprCObs__IztpOtEAAAGgiJp5kQEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICDkyaSA/clv1c_ek-wBYHXFcbWDn2nI7cAJ16WpAySueZcdBoswfvgmwoDvMZFmVdMm_dQw1V-P57QSkjHTDQ6FzTyej9QZiWLMFCWaQxjSqM-zkjdFqkFfe2ymtfzC3BJfgwT69VYJrK31ivsoV63_N6mEFA7HFzPBlAKso2ck036UkSS7nYoz4I1yQvdmAkXayx6IqYao7XZtw1vrAglDV9YNSR9fMjO0gbIi1Y1DGaekLKXzhKxCsUag6Z1SRXER75fS4c5SWvJOeA2FNo1HUgq9597AisW3PW3obCXMbYezkYQuvL4-TLfuEA-4REvjC36nmWQ6Sc1CsJxsUvdu7F-pp1vPo9HD_u6A9CHi-Q2NM6aFQTjdf_DHB-sUqqRCOAx1e6SP-wexw-Fdsg43CULt2fYzTR4hyZz25yrIalYZ_yDh3XJ4g9XLx5fYzvskDgEtqoWjZH6YoL-QSlvXGRjERTFaDoTqniCTHD5FPHJBXV1rcBXiOgzHdmkD0fL83YhvVHy-mZCMV-FBx9X2W9e--Wlohh376YxNxwfz5auZpfncMv0PsE3J29vnnCrZL_gsGQEbVyZDspNm5MenUtU88qdHAf9U5PihSOSpeEQ_qOOdso8m5rssI0t3yCLIiU4rzboFs-hex39kbDtkt539ZWlxYHkH1elJytcDEUrQbrgkBjKO8cZbM5YGEbCjTXTlKumJZFaIQMlCd4q6LanIVHVVm08CTuFECNhxFKOV3OyK2nA7upOYhoGoEOe44m_UlloLGTyndwIM5Iy8v2Kc60ayV08Toru2RHqEarV3DBhFZvmQz8eOLjxg8CAjiOA0qudOwFRI2vdU7xXe1tN-vHMg6eQ0oujjM7lnGATwTp8PO4RVfvTPgVY5NR_vqapArLFv-wgVZUPvDPvcXXsXMCQAGG9acSIWww0TL2NCYAGT8O2TR--XH4aDWdgMwUjpbtyCVo7eCbJS73Lzym9RvcuRNLXHpauTPr9iJU5omQ28yXA1Fh0_RsF4EO1G8Y7vAVJJhgQyVJ_FcsLe_Qr4O_JNI0P4CLy-Kg2Y21AbircjngyOvCPtlrhL58E1e20XYwCbPp0npcS-TUlJESVCzGkwZ5UaZGf3ZVeao4UFtyGy1oW9f9RU5J6uf49OQsPwQI9f1ZnMSVewMx9XgzpX9QQ_8B6UnTPwT3MxXOXUv_T5KAS76iy4gpsSe-yGucwKsgti3_IQ9NWV5QVrmG6XP9ELOsJMc5ppHL84Px-g1eAjHQvGQxHV98Uy7qB9H5ML4k8XI_xWyuP1CB_4bJ4DAEta9TtnIDPMRVEPktuTSHRpgmIPZi2J7bYM_9pvoST1H7aBSumNB8uyrfpqiiZIDpl_pLoqwGhCRsv5cIKqG6gMyczmGQdHu1bKVgZqSKfA5Ug49YHMTK2vSa9_49PBOarYh4g47wEsiKmFns0xHbyBfw0Xqe5uA3D2YGJjOpuq7ZhLyDHS-iwHAJ3iodLhFjnuRrSTersV9OxzE-Km_MdD4AZKHmfYkzUn4zElctZOmbfjcYyw8nlbygG3tIiryTJMau_UvCwhtZbvJmurAdZAuQdZ6ySIl-vyqLZ2RnD3ieEGA/https://www.amazon.com/stores/page/40A3DED7-075E-49CD-BA7B-D12743D1BE92/?_encoding=UTF8&store_ref=SB_A0749755IWUFTHWYOK03-A03124653PBYKYMNQE2K0&pd_rd_plhdr=t&aaxitk=272e74fa1080a84ca435bb85a3cc2f55&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad5&ref_=sbx_be_dp_arbies_mblsd_mb4_logo&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                            - img "Quiver Time" [ref=f184e1563]
+                        - generic [ref=f184e1564]:
+                          - link [aria-hidden] [ref=f184e1565] [cursor=pointer]:
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JODd5GBsprCObs__IztpOtEAAAGgiJp5kQEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICDkyaSA/clv1c_ek-wBYHXFcbWDn2nI7cAJ16WpAySueZcdBoswfvgmwoDvMZFmVdMm_dQw1V-P57QSkjHTDQ6FzTyej9QZiWLMFCWaQxjSqM-zkjdFqkFfe2ymtfzC3BJfgwT69VYJrK31ivsoV63_N6mEFA7HFzPBlAKso2ck036UkSS7nYoz4I1yQvdmAkXayx6IqYao7XZtw1vrAglDV9YNSR9fMjO0gbIi1Y1DGaekLKXzhKxCsUag6Z1SRXER75fS4c5SWvJOeA2FNo1HUgq9597AisW3PW3obCXMbYezkYQuvL4-TLfuEA-4REvjC36nmWQ6Sc1CsJxsUvdu7F-pp1vPo9HD_u6A9CHi-Q2NM6aFQTjdf_DHB-sUqqRCOAx1e6SP-wexw-Fdsg43CULt2fYzTR4hyZz25yrIalYZ_yDh3XJ4g9XLx5fYzvskDgEtqoWjZH6YoL-QSlvXGRjERTFaDoTqniCTHD5FPHJBXV1rcBXiOgzHdmkD0fL83YhvVHy-mZCMV-FBx9X2W9e--Wlohh376YxNxwfz5auZpfncMv0PsE3J29vnnCrZL_gsGQEbVyZDspNm5MenUtU88qdHAf9U5PihSOSpeEQ_qOOdso8m5rssI0t3yCLIiU4rzboFs-hex39kbDtkt539ZWlxYHkH1elJytcDEUrQbrgkBjKO8cZbM5YGEbCjTXTlKumJZFaIQMlCd4q6LanIVHVVm08CTuFECNhxFKOV3OyK2nA7upOYhoGoEOe44m_UlloLGTyndwIM5Iy8v2Kc60ayV08Toru2RHqEarV3DBhFZvmQz8eOLjxg8CAjiOA0qudOwFRI2vdU7xXe1tN-vHMg6eQ0oujjM7lnGATwTp8PO4RVfvTPgVY5NR_vqapArLFv-wgVZUPvDPvcXXsXMCQAGG9acSIWww0TL2NCYAGT8O2TR--XH4aDWdgMwUjpbtyCVo7eCbJS73Lzym9RvcuRNLXHpauTPr9iJU5omQ28yXA1Fh0_RsF4EO1G8Y7vAVJJhgQyVJ_FcsLe_Qr4O_JNI0P4CLy-Kg2Y21AbircjngyOvCPtlrhL58E1e20XYwCbPp0npcS-TUlJESVCzGkwZ5UaZGf3ZVeao4UFtyGy1oW9f9RU5J6uf49OQsPwQI9f1ZnMSVewMx9XgzpX9QQ_8B6UnTPwT3MxXOXUv_T5KAS76iy4gpsSe-yGucwKsgti3_IQ9NWV5QVrmG6XP9ELOsJMc5ppHL84Px-g1eAjHQvGQxHV98Uy7qB9H5ML4k8XI_xWyuP1CB_4bJ4DAEta9TtnIDPMRVEPktuTSHRpgmIPZi2J7bYM_9pvoST1H7aBSumNB8uyrfpqiiZIDpl_pLoqwGhCRsv5cIKqG6gMyczmGQdHu1bKVgZqSKfA5Ug49YHMTK2vSa9_49PBOarYh4g47wEsiKmFns0xHbyBfw0Xqe5uA3D2YGJjOpuq7ZhLyDHS-iwHAJ3iodLhFjnuRrSTersV9OxzE-Km_MdD4AZKHmfYkzUn4zElctZOmbfjcYyw8nlbygG3tIiryTJMau_UvCwhtZbvJmurAdZAuQdZ6ySIl-vyqLZ2RnD3ieEGA/https://www.amazon.com/stores/page/40A3DED7-075E-49CD-BA7B-D12743D1BE92/?_encoding=UTF8&store_ref=SB_A0749755IWUFTHWYOK03-A03124653PBYKYMNQE2K0&pd_rd_plhdr=t&aaxitk=272e74fa1080a84ca435bb85a3cc2f55&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad5&ref_=sbx_be_dp_arbies_mblsd_mb4_bkgd&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                          - 'link "Your Passion, Our Vow: Quiver Right by Your Side." [ref=f184e1566] [cursor=pointer]':
+                            - /url: https://aax-us-east-retail-direct.amazon.com/x/c/JODd5GBsprCObs__IztpOtEAAAGgiJp5kQEAAAH2AQBvbm9fdHhuX2JpZDMgICBvbm9fdHhuX2ltcDIgICDkyaSA/clv1c_ek-wBYHXFcbWDn2nI7cAJ16WpAySueZcdBoswfvgmwoDvMZFmVdMm_dQw1V-P57QSkjHTDQ6FzTyej9QZiWLMFCWaQxjSqM-zkjdFqkFfe2ymtfzC3BJfgwT69VYJrK31ivsoV63_N6mEFA7HFzPBlAKso2ck036UkSS7nYoz4I1yQvdmAkXayx6IqYao7XZtw1vrAglDV9YNSR9fMjO0gbIi1Y1DGaekLKXzhKxCsUag6Z1SRXER75fS4c5SWvJOeA2FNo1HUgq9597AisW3PW3obCXMbYezkYQuvL4-TLfuEA-4REvjC36nmWQ6Sc1CsJxsUvdu7F-pp1vPo9HD_u6A9CHi-Q2NM6aFQTjdf_DHB-sUqqRCOAx1e6SP-wexw-Fdsg43CULt2fYzTR4hyZz25yrIalYZ_yDh3XJ4g9XLx5fYzvskDgEtqoWjZH6YoL-QSlvXGRjERTFaDoTqniCTHD5FPHJBXV1rcBXiOgzHdmkD0fL83YhvVHy-mZCMV-FBx9X2W9e--Wlohh376YxNxwfz5auZpfncMv0PsE3J29vnnCrZL_gsGQEbVyZDspNm5MenUtU88qdHAf9U5PihSOSpeEQ_qOOdso8m5rssI0t3yCLIiU4rzboFs-hex39kbDtkt539ZWlxYHkH1elJytcDEUrQbrgkBjKO8cZbM5YGEbCjTXTlKumJZFaIQMlCd4q6LanIVHVVm08CTuFECNhxFKOV3OyK2nA7upOYhoGoEOe44m_UlloLGTyndwIM5Iy8v2Kc60ayV08Toru2RHqEarV3DBhFZvmQz8eOLjxg8CAjiOA0qudOwFRI2vdU7xXe1tN-vHMg6eQ0oujjM7lnGATwTp8PO4RVfvTPgVY5NR_vqapArLFv-wgVZUPvDPvcXXsXMCQAGG9acSIWww0TL2NCYAGT8O2TR--XH4aDWdgMwUjpbtyCVo7eCbJS73Lzym9RvcuRNLXHpauTPr9iJU5omQ28yXA1Fh0_RsF4EO1G8Y7vAVJJhgQyVJ_FcsLe_Qr4O_JNI0P4CLy-Kg2Y21AbircjngyOvCPtlrhL58E1e20XYwCbPp0npcS-TUlJESVCzGkwZ5UaZGf3ZVeao4UFtyGy1oW9f9RU5J6uf49OQsPwQI9f1ZnMSVewMx9XgzpX9QQ_8B6UnTPwT3MxXOXUv_T5KAS76iy4gpsSe-yGucwKsgti3_IQ9NWV5QVrmG6XP9ELOsJMc5ppHL84Px-g1eAjHQvGQxHV98Uy7qB9H5ML4k8XI_xWyuP1CB_4bJ4DAEta9TtnIDPMRVEPktuTSHRpgmIPZi2J7bYM_9pvoST1H7aBSumNB8uyrfpqiiZIDpl_pLoqwGhCRsv5cIKqG6gMyczmGQdHu1bKVgZqSKfA5Ug49YHMTK2vSa9_49PBOarYh4g47wEsiKmFns0xHbyBfw0Xqe5uA3D2YGJjOpuq7ZhLyDHS-iwHAJ3iodLhFjnuRrSTersV9OxzE-Km_MdD4AZKHmfYkzUn4zElctZOmbfjcYyw8nlbygG3tIiryTJMau_UvCwhtZbvJmurAdZAuQdZ6ySIl-vyqLZ2RnD3ieEGA/https://www.amazon.com/stores/page/40A3DED7-075E-49CD-BA7B-D12743D1BE92/?_encoding=UTF8&store_ref=SB_A0749755IWUFTHWYOK03-A03124653PBYKYMNQE2K0&pd_rd_plhdr=t&aaxitk=272e74fa1080a84ca435bb85a3cc2f55&hsa_cr_id=0&lp_slot=desktop-arbies&lp_page_asin=B0BNLXCFHJ&pd_rd_i=ad5&ref_=sbx_be_dp_arbies_mblsd_mb4_hl&pd_rd_w=JgXhR&content-id=amzn1.sym.d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_p=d4d91f0b-2ea5-4099-b125-c8f96930ac21&pf_rd_r=9Q9EXJY455VHQX7YN5YQ&pd_rd_wg=ivvNJ&pd_rd_r=021857a0-2dea-4e76-95df-4c564816404c
+                            - generic [ref=f184e1568]:
+                              - generic [ref=f184e1569]: "Your Passion, Our Vow: Quiver Right by Your Side."
+                              - generic [aria-hidden] [ref=f184e1570]: "Your Passion, Our Vow: Quiver Right by Your Side."
+            - button "Go to the next sponsored brands carousel slide." [ref=f184e1573] [cursor=pointer]
+      - generic "Top reviews" [ref=f184e1576]:
+        - separator [aria-hidden] [ref=f184e1577]
+        - generic [ref=f184e1579]:
+          - generic [ref=f184e1580]:
+            - generic [ref=f184e1585]:
+              - heading "Customer reviews" [level=2] [ref=f184e1587]
+              - generic [ref=f184e1589]:
+                - generic [ref=f184e1591]:
+                  - generic [ref=f184e1592]: 4.6 out of 5 stars
+                  - generic [aria-hidden] [ref=f184e1597]: 4.6 out of 5
+                - generic [ref=f184e1598]: 835 global ratings
+              - list [ref=f184e1603]:
+                - listitem [ref=f184e1604]:
+                  - link "78 percent of reviews have 5 stars" [ref=f184e1607] [cursor=pointer]:
+                    - /url: /portal/customer-reviews/B0BNLXCFHJ/ref=acr_dp_hist_5?ie=UTF8&filterByStar=five_star&reviewerType=all_reviews#reviews-filter-bar
+                    - generic [aria-hidden] [ref=f184e1608]: 5 star
+                    - progressbar [aria-hidden] [ref=f184e1610]
+                    - generic [aria-hidden] [ref=f184e1611]: 78%
+                - listitem [ref=f184e1612]:
+                  - link "15 percent of reviews have 4 stars" [ref=f184e1615] [cursor=pointer]:
+                    - /url: /portal/customer-reviews/B0BNLXCFHJ/ref=acr_dp_hist_4?ie=UTF8&filterByStar=four_star&reviewerType=all_reviews#reviews-filter-bar
+                    - generic [aria-hidden] [ref=f184e1616]: 4 star
+                    - progressbar [aria-hidden] [ref=f184e1618]
+                    - generic [aria-hidden] [ref=f184e1619]: 15%
+                - listitem [ref=f184e1620]:
+                  - link "6 percent of reviews have 3 stars" [ref=f184e1623] [cursor=pointer]:
+                    - /url: /portal/customer-reviews/B0BNLXCFHJ/ref=acr_dp_hist_3?ie=UTF8&filterByStar=three_star&reviewerType=all_reviews#reviews-filter-bar
+                    - generic [aria-hidden] [ref=f184e1624]: 3 star
+                    - progressbar [aria-hidden] [ref=f184e1626]
+                    - generic [aria-hidden] [ref=f184e1627]: 6%
+                - listitem [ref=f184e1628]:
+                  - generic "0 percent of reviews have 2 stars" [ref=f184e1631]:
+                    - generic [aria-hidden] [ref=f184e1632]: 2 star
+                    - progressbar [aria-hidden] [ref=f184e1634]
+                    - generic [aria-hidden] [ref=f184e1635]: 0%
+                - listitem [ref=f184e1636]:
+                  - link "1 percent of reviews have 1 stars" [ref=f184e1639] [cursor=pointer]:
+                    - /url: /portal/customer-reviews/B0BNLXCFHJ/ref=acr_dp_hist_1?ie=UTF8&filterByStar=one_star&reviewerType=all_reviews#reviews-filter-bar
+                    - generic [aria-hidden] [ref=f184e1640]: 1 star
+                    - progressbar [aria-hidden] [ref=f184e1642]
+                    - generic [aria-hidden] [ref=f184e1643]: 1%
+              - button "How customer reviews and ratings work" [ref=f184e1648] [cursor=pointer]
+            - separator [aria-hidden] [ref=f184e1650]
+            - generic [ref=f184e1653]:
+              - iframe [ref=f184e1654]:
+                - generic [ref=f188e4]:
+                  - generic [aria-hidden] [ref=f188e5]: "Sponsored Ad. Brand logo. Product image. Black Girl Vitamins - Collagen Gummies for Hair, Skin, and Nail Support, with Vitamin C, Vitamin E, and Biotin, Gluten-Free, (Lime), 60ct Price: $24.30 Shop now"
+                  - link "Click to navigate to product detail page" [ref=f188e8] [cursor=pointer]:
+                    - /url: https://www.amazon.com/dp/B0DH6KR3J4?aref=fvLcntLiwv&aaxitk=4b4e99af6f7816caad0cfe234caa2860&language=en_US&pd_rd_plhdr=t&ref=dacx_dp_589715583160081359_584784822348764521
+                  - generic [ref=f188e9]:
+                    - img "Brand logo" [ref=f188e13]
+                    - img "Product image" [ref=f188e17]
+              - button "Leave feedback on Sponsored ad" [ref=f184e1656] [cursor=pointer]:
+                - generic [aria-hidden] [ref=f184e1657]: Sponsored
+          - generic [ref=f184e1670]:
+            - link "Sign in" [ref=f184e1671] [cursor=pointer]:
+              - /url: https://www.amazon.com/ap/signin?openid.mode=checkid_setup&openid.ns=http%3A%2F%2Fspecs.openid.net%2Fauth%2F2.0&openid.return_to=https%3A%2F%2Fwww.amazon.com%2Fdp%2FB0BNLXCFHJ%2Fref%3Dcm_cr_dp_d_signin%23cr-top-reviews-card&openid.assoc_handle=usflex
+            - text: to see customer reviews.
+      - generic [ref=f184e1678]:
+        - iframe [ref=f184e1679]:
+          - generic [ref=f189e4]:
+            - generic [aria-hidden] [ref=f189e5]: "Click to navigate to product detail page Sponsored Ad. Product image. Branded image. Hill's Science Diet Kitten Formula Sensitive Stomach & Skin Dry Cat Food | #1 Veterinarian Recommended, Salmon & Brown Rice, 6 lb. Bag. Price: $38.99."
+            - generic [ref=f189e8]:
+              - img "Brand logo" [ref=f189e13]
+              - img "Product image" [ref=f189e18]
+            - link "Click to navigate to product detail page" [ref=f189e22] [cursor=pointer]:
+              - /url: https://www.amazon.com/dp/B0D32VYVDZ?aref=SgSgl08OZH&aaxitk=3ef68b8bb0e5a748f5b016c715ce94cc&language=en_US&pd_rd_plhdr=t&ref=dacx_dp_579102593817689238_579471253353328562
+        - button "Leave feedback on Sponsored ad" [ref=f184e1681] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f184e1682]: Sponsored
+  - complementary "Your recently viewed items and featured recommendations"
+  - generic [ref=f184e1684]:
+    - button "Back to top" [ref=f184e1685] [cursor=pointer]
+    - generic [ref=f184e1687]:
+      - generic [ref=f184e1688]:
+        - heading "Get to Know Us" [level=6] [ref=f184e1689]
+        - list [ref=f184e1690]:
+          - listitem [ref=f184e1691]:
+            - link "Careers" [ref=f184e1692] [cursor=pointer]:
+              - /url: https://www.amazon.jobs
+          - listitem [ref=f184e1693]:
+            - link "Amazon Newsletter" [ref=f184e1694] [cursor=pointer]:
+              - /url: https://www.aboutamazon.com/subscribe?utm_source=amazon_com&utm_medium=amazonfooter&utm_campaign=newslettersubscribers&utm_term=amazonnewssignup
+          - listitem [ref=f184e1695]:
+            - link "About Amazon" [ref=f184e1696] [cursor=pointer]:
+              - /url: https://www.aboutamazon.com/?utm_source=gateway&utm_medium=footer&token=about
+          - listitem [ref=f184e1697]:
+            - link "Accessibility" [ref=f184e1698] [cursor=pointer]:
+              - /url: https://www.amazon.com/b?node=15701038011&ie=UTF8
+          - listitem [ref=f184e1699]:
+            - link "Sustainability" [ref=f184e1700] [cursor=pointer]:
+              - /url: https://sustainability.aboutamazon.com/?utm_source=gateway&utm_medium=footer&ref_=susty_footer
+          - listitem [ref=f184e1701]:
+            - link "Press Center" [ref=f184e1702] [cursor=pointer]:
+              - /url: https://www.amazon.com/pr
+          - listitem [ref=f184e1703]:
+            - link "Investor Relations" [ref=f184e1704] [cursor=pointer]:
+              - /url: https://www.amazon.com/ir
+          - listitem [ref=f184e1705]:
+            - link "Amazon Devices" [ref=f184e1706] [cursor=pointer]:
+              - /url: /gp/browse.html?node=2102313011&ref_=footer_devices
+          - listitem [ref=f184e1707]:
+            - link "Amazon Science" [ref=f184e1708] [cursor=pointer]:
+              - /url: https://www.amazon.science
+      - generic [ref=f184e1710]:
+        - heading "Make Money with Us" [level=6] [ref=f184e1711]
+        - list [ref=f184e1712]:
+          - listitem [ref=f184e1713]:
+            - link "Sell on Amazon" [ref=f184e1714] [cursor=pointer]:
+              - /url: https://sell.amazon.com/?ld=AZFSSOA_FTSELL-C&ref_=footer_soa
+          - listitem [ref=f184e1715]:
+            - link "Sell apps on Amazon" [ref=f184e1716] [cursor=pointer]:
+              - /url: https://developer.amazon.com
+          - listitem [ref=f184e1717]:
+            - link "Supply to Amazon" [ref=f184e1718] [cursor=pointer]:
+              - /url: https://supply.amazon.com
+          - listitem [ref=f184e1719]:
+            - link "Protect & Build Your Brand" [ref=f184e1720] [cursor=pointer]:
+              - /url: https://sell.amazon.com/brand-registry?ld=AZUSSOA_ABR-FT
+          - listitem [ref=f184e1721]:
+            - link "Become an Affiliate" [ref=f184e1722] [cursor=pointer]:
+              - /url: https://affiliate-program.amazon.com/
+          - listitem [ref=f184e1723]:
+            - link "Become a Delivery Driver" [ref=f184e1724] [cursor=pointer]:
+              - /url: https://dspjobhub.com/
+          - listitem [ref=f184e1725]:
+            - link "Start a Package Delivery Business" [ref=f184e1726] [cursor=pointer]:
+              - /url: https://logistics.amazon.com/marketing?utm_source=amzn&utm_medium=footer&utm_campaign=home
+          - listitem [ref=f184e1727]:
+            - link "Advertise Your Products" [ref=f184e1728] [cursor=pointer]:
+              - /url: https://advertising.amazon.com/?ref=ext_amzn_ftr
+          - listitem [ref=f184e1729]:
+            - link "Self-Publish with Us" [ref=f184e1730] [cursor=pointer]:
+              - /url: /gp/seller-account/mm-summary-page.html?ld=AZFooterSelfPublish&topic=200260520&ref_=footer_publishing
+          - listitem [ref=f184e1731]:
+            - link "Become an Amazon Hub Partner" [ref=f184e1732] [cursor=pointer]:
+              - /url: https://www.amazon.com/b?node=216188543011
+          - listitem [ref=f184e1733]:
+            - text: ›
+            - link "See More Ways to Make Money" [ref=f184e1734] [cursor=pointer]:
+              - /url: /b/?node=18190131011&ld=AZUSSOA-seemore&ref_=footer_seemore
+      - generic [ref=f184e1736]:
+        - heading "Amazon Payment Products" [level=6] [ref=f184e1737]
+        - list [ref=f184e1738]:
+          - listitem [ref=f184e1739]:
+            - link "Amazon Visa" [ref=f184e1740] [cursor=pointer]:
+              - /url: /iss/credit/rewardscardmember?plattr=CBFOOT&ref_=footer_cbcc
+          - listitem [ref=f184e1741]:
+            - link "Amazon Store Card" [ref=f184e1742] [cursor=pointer]:
+              - /url: /credit/storecard/member?plattr=PLCCFOOT&ref_=footer_plcc
+          - listitem [ref=f184e1743]:
+            - link "Amazon Secured Card" [ref=f184e1744] [cursor=pointer]:
+              - /url: /dp/product/B084KP3NG6?plattr=SCFOOT&ref_=footer_ACB
+          - listitem [ref=f184e1745]:
+            - link "Amazon Business Card" [ref=f184e1746] [cursor=pointer]:
+              - /url: /dp/B0DVBL912R?plattr=ACOMFO&ie=UTF-8
+          - listitem [ref=f184e1747]:
+            - link "Shop with Points" [ref=f184e1748] [cursor=pointer]:
+              - /url: https://www.amazon.com/hp/shopwithpoints/servicing
+          - listitem [ref=f184e1749]:
+            - link "Credit Card Marketplace" [ref=f184e1750] [cursor=pointer]:
+              - /url: /gp/browse.html?node=3561432011&ref_=footer_ccmp
+          - listitem [ref=f184e1751]:
+            - link "Reload Your Balance" [ref=f184e1752] [cursor=pointer]:
+              - /url: /gp/browse.html?node=10232440011&ref_=footer_reload_us
+          - listitem [ref=f184e1753]:
+            - link "Gift Cards" [ref=f184e1754] [cursor=pointer]:
+              - /url: https://www.amazon.com/b/?node=2238192011&ref=shop_footer_payments_gc_desktop
+          - listitem [ref=f184e1755]:
+            - link "Amazon Currency Converter" [ref=f184e1756] [cursor=pointer]:
+              - /url: /gp/browse.html?node=388305011&ref_=footer_tfx
+      - generic [ref=f184e1758]:
+        - heading "Let Us Help You" [level=6] [ref=f184e1759]
+        - list [ref=f184e1760]:
+          - listitem [ref=f184e1761]:
+            - link "Your Account" [ref=f184e1762] [cursor=pointer]:
+              - /url: https://www.amazon.com/gp/css/homepage.html?ref_=footer_ya
+          - listitem [ref=f184e1763]:
+            - link "Your Orders" [ref=f184e1764] [cursor=pointer]:
+              - /url: https://www.amazon.com/gp/css/order-history?ref_=footer_yo
+          - listitem [ref=f184e1765]:
+            - link "Shipping Rates & Policies" [ref=f184e1766] [cursor=pointer]:
+              - /url: /gp/help/customer/display.html?nodeId=468520&ref_=footer_shiprates
+          - listitem [ref=f184e1767]:
+            - link "Amazon Prime" [ref=f184e1768] [cursor=pointer]:
+              - /url: /gp/prime?ref_=footer_prime
+          - listitem [ref=f184e1769]:
+            - link "Returns & Replacements" [ref=f184e1770] [cursor=pointer]:
+              - /url: /gp/css/returns/homepage.html?ref_=footer_hy_f_4
+          - listitem [ref=f184e1771]:
+            - link "Manage Your Content and Devices" [ref=f184e1772] [cursor=pointer]:
+              - /url: /hz/mycd/myx?ref_=footer_myk
+          - listitem [ref=f184e1773]:
+            - link "Recalls and Product Safety Alerts" [ref=f184e1774] [cursor=pointer]:
+              - /url: https://www.amazon.com/product-safety-alerts?ref_=footer_bsx_ypsa
+          - listitem [ref=f184e1775]:
+            - link "Registry & Gift List" [ref=f184e1776] [cursor=pointer]:
+              - /url: /registries?ref_=nav_footer_registry_giftlist_desktop
+          - listitem [ref=f184e1777]:
+            - link "Help" [ref=f184e1778] [cursor=pointer]:
+              - /url: /gp/help/customer/display.html?nodeId=508510&ref_=footer_gw_m_b_he
+    - generic [ref=f184e1780]:
+      - link "Amazon US Home" [ref=f184e1783] [cursor=pointer]:
+        - /url: /?ref_=footer_logo
+      - generic [ref=f184e1786]:
+        - generic [ref=f184e1787]:
+          - link "Choose a language for shopping. Current selection is English." [ref=f184e1788] [cursor=pointer]:
+            - /url: /customer-preferences/edit?ie=UTF8&preferencesReturnUrl=%2F&ref_=footer_lang
+            - generic [ref=f184e1790]: English
+          - button "Expand to Change Language or Country" [ref=f184e1791] [cursor=pointer]
+        - button "Choose a country/region for shopping. The current selection is United States." [ref=f184e1792] [cursor=pointer]:
+          - generic [ref=f184e1794]: United States
+    - navigation "More on Amazon" [ref=f184e1795]:
+      - generic "More on Amazon" [ref=f184e1796]:
+        - list [ref=f184e1797]:
+          - listitem [ref=f184e1798]:
+            - link [ref=f184e1799] [cursor=pointer]:
+              - /url: https://music.amazon.com?ref=dm_aff_amz_com
+              - heading "Amazon Music" [level=5] [ref=f184e1800]
+              - generic [ref=f184e1801]: Stream millionsof songs
+          - listitem [aria-hidden] [ref=f184e1802]
+          - listitem [ref=f184e1803]:
+            - link [ref=f184e1804] [cursor=pointer]:
+              - /url: https://advertising.amazon.com/?ref=footer_advtsing_amzn_com
+              - heading "Amazon Ads" [level=5] [ref=f184e1805]
+              - generic [ref=f184e1806]: Reach customerswherever theyspend their time
+          - listitem [aria-hidden] [ref=f184e1807]
+          - listitem [ref=f184e1808]:
+            - link [ref=f184e1809] [cursor=pointer]:
+              - /url: https://www.6pm.com
+              - heading "6pm" [level=5] [ref=f184e1810]
+              - generic [ref=f184e1811]: Score dealson fashion brands
+          - listitem [aria-hidden] [ref=f184e1812]
+          - listitem [ref=f184e1813]:
+            - link [ref=f184e1814] [cursor=pointer]:
+              - /url: https://www.abebooks.com
+              - heading "AbeBooks" [level=5] [ref=f184e1815]
+              - generic [ref=f184e1816]: Books, art& collectibles
+          - listitem [aria-hidden] [ref=f184e1817]
+          - listitem [ref=f184e1818]:
+            - link [ref=f184e1819] [cursor=pointer]:
+              - /url: https://www.acx.com/
+              - heading "ACX" [level=5] [ref=f184e1820]
+              - generic [ref=f184e1821]: Audiobook PublishingMade Easy
+          - listitem [aria-hidden] [ref=f184e1822]
+          - listitem [ref=f184e1823]:
+            - link "Sell on Amazon Start a Selling Account" [ref=f184e1824] [cursor=pointer]:
+              - /url: https://sell.amazon.com/?ld=AZUSSOA-footer-aff&ref_=footer_sell
+              - heading "Sell on Amazon" [level=5] [ref=f184e1825]
+              - generic [ref=f184e1826]: Start a Selling Account
+          - listitem [aria-hidden] [ref=f184e1827]
+          - listitem [ref=f184e1828]:
+            - link [ref=f184e1829] [cursor=pointer]:
+              - /url: https://www.veeqo.com/?utm_source=amazon&utm_medium=website&utm_campaign=footer
+              - heading "Veeqo" [level=5] [ref=f184e1830]
+              - generic [ref=f184e1831]: Shipping SoftwareInventory Management
+        - list [ref=f184e1832]:
+          - listitem [ref=f184e1833]:
+            - link [ref=f184e1834] [cursor=pointer]:
+              - /url: /business?ref_=footer_retail_b2b
+              - heading "Amazon Business" [level=5] [ref=f184e1835]
+              - generic [ref=f184e1836]: Everything ForYour Business
+          - listitem [aria-hidden] [ref=f184e1837]
+          - listitem [ref=f184e1838]:
+            - link [ref=f184e1839] [cursor=pointer]:
+              - /url: /alm/storefront?almBrandId=QW1hem9uIEZyZXNo&ref_=footer_aff_fresh
+              - heading "Amazon Fresh" [level=5] [ref=f184e1840]
+              - generic [ref=f184e1841]: Groceries & MoreRight To Your Door
+          - listitem [aria-hidden] [ref=f184e1842]
+          - listitem [ref=f184e1843]:
+            - link [ref=f184e1844] [cursor=pointer]:
+              - /url: /gp/browse.html?node=20338496011&ref_=footer_amazonglobal
+              - heading "AmazonGlobal" [level=5] [ref=f184e1845]
+              - generic [ref=f184e1846]: Ship OrdersInternationally
+          - listitem [aria-hidden] [ref=f184e1847]
+          - listitem [ref=f184e1848]:
+            - link [ref=f184e1849] [cursor=pointer]:
+              - /url: /services?ref_=footer_services
+              - heading "Home Services" [level=5] [ref=f184e1850]
+              - generic [ref=f184e1851]: Experienced ProsHappiness Guarantee
+          - listitem [aria-hidden] [ref=f184e1852]
+          - listitem [ref=f184e1853]:
+            - link [ref=f184e1854] [cursor=pointer]:
+              - /url: https://aws.amazon.com/what-is-cloud-computing/?sc_channel=EL&sc_campaign=amazonfooter
+              - heading "Amazon Web Services" [level=5] [ref=f184e1855]
+              - generic [ref=f184e1856]: Scalable CloudComputing Services
+          - listitem [aria-hidden] [ref=f184e1857]
+          - listitem [ref=f184e1858]:
+            - link [ref=f184e1859] [cursor=pointer]:
+              - /url: https://www.audible.com
+              - heading "Audible" [level=5] [ref=f184e1860]
+              - generic [ref=f184e1861]: Listen to Books & OriginalAudio Performances
+          - listitem [aria-hidden] [ref=f184e1862]
+          - listitem [ref=f184e1863]:
+            - link [ref=f184e1864] [cursor=pointer]:
+              - /url: https://www.boxofficemojo.com/?ref_=amzn_nav_ftr
+              - heading "Box Office Mojo" [level=5] [ref=f184e1865]
+              - generic [ref=f184e1866]: Find MovieBox Office Data
+        - list [ref=f184e1867]:
+          - listitem [ref=f184e1868]:
+            - link [ref=f184e1869] [cursor=pointer]:
+              - /url: https://www.goodreads.com
+              - heading "Goodreads" [level=5] [ref=f184e1870]
+              - generic [ref=f184e1871]: Book reviews& recommendations
+          - listitem [aria-hidden] [ref=f184e1872]
+          - listitem [ref=f184e1873]:
+            - link [ref=f184e1874] [cursor=pointer]:
+              - /url: https://www.imdb.com
+              - heading "IMDb" [level=5] [ref=f184e1875]
+              - generic [ref=f184e1876]: Movies, TV& Celebrities
+          - listitem [aria-hidden] [ref=f184e1877]
+          - listitem [ref=f184e1878]:
+            - link [ref=f184e1879] [cursor=pointer]:
+              - /url: https://pro.imdb.com?ref_=amzn_nav_ftr
+              - heading "IMDbPro" [level=5] [ref=f184e1880]
+              - generic [ref=f184e1881]: Get Info EntertainmentProfessionals Need
+          - listitem [aria-hidden] [ref=f184e1882]
+          - listitem [ref=f184e1883]:
+            - link [ref=f184e1884] [cursor=pointer]:
+              - /url: https://kdp.amazon.com
+              - heading "Kindle Direct Publishing" [level=5] [ref=f184e1885]
+              - generic [ref=f184e1886]: Indie Digital & Print PublishingMade Easy
+          - listitem [aria-hidden] [ref=f184e1887]
+          - listitem [ref=f184e1888]:
+            - link [ref=f184e1889] [cursor=pointer]:
+              - /url: /gp/browse.html?node=13234696011&ref_=_gno_p_foot
+              - heading "Amazon Photos" [level=5] [ref=f184e1890]
+              - generic [ref=f184e1891]: Unlimited Photo StorageFree With Prime
+          - listitem [aria-hidden] [ref=f184e1892]
+          - listitem [ref=f184e1893]:
+            - link [ref=f184e1894] [cursor=pointer]:
+              - /url: https://videodirect.amazon.com/home/landing
+              - heading "Prime Video Direct" [level=5] [ref=f184e1895]
+              - generic [ref=f184e1896]: Video DistributionMade Easy
+          - listitem [aria-hidden] [ref=f184e1897]
+          - listitem [ref=f184e1898]:
+            - link [ref=f184e1899] [cursor=pointer]:
+              - /url: https://www.shopbop.com
+              - heading "Shopbop" [level=5] [ref=f184e1900]
+              - generic [ref=f184e1901]: DesignerFashion Brands
+        - list [ref=f184e1902]:
+          - listitem [ref=f184e1903]:
+            - link [ref=f184e1904] [cursor=pointer]:
+              - /url: /gp/browse.html?node=10158976011&ref_=footer_wrhsdls
+              - heading "Amazon Resale" [level=5] [ref=f184e1905]
+              - generic [ref=f184e1906]: Great Deals onQuality Used Products
+          - listitem [aria-hidden] [ref=f184e1907]
+          - listitem [ref=f184e1908]:
+            - link [ref=f184e1909] [cursor=pointer]:
+              - /url: https://www.wholefoodsmarket.com
+              - heading "Whole Foods Market" [level=5] [ref=f184e1910]
+              - generic [ref=f184e1911]: America’s HealthiestGrocery Store
+          - listitem [aria-hidden] [ref=f184e1912]
+          - listitem [ref=f184e1913]:
+            - link [ref=f184e1914] [cursor=pointer]:
+              - /url: https://www.woot.com/
+              - heading "Woot!" [level=5] [ref=f184e1915]
+              - generic [ref=f184e1916]: Deals and Shenanigans
+          - listitem [aria-hidden] [ref=f184e1917]
+          - listitem [ref=f184e1918]:
+            - link [ref=f184e1919] [cursor=pointer]:
+              - /url: https://www.zappos.com
+              - heading "Zappos" [level=5] [ref=f184e1920]
+              - generic [ref=f184e1921]: Shoes &Clothing
+          - listitem [aria-hidden] [ref=f184e1922]
+          - listitem [ref=f184e1923]:
+            - link [ref=f184e1924] [cursor=pointer]:
+              - /url: https://ring.com
+              - heading "Ring" [level=5] [ref=f184e1925]
+              - generic [ref=f184e1926]: Smart HomeSecurity Systems
+          - listitem [aria-hidden] [ref=f184e1927]
+          - listitem [ref=f184e1928]:
+            - link [ref=f184e1929] [cursor=pointer]:
+              - /url: https://eero.com/
+              - heading "eero WiFi" [level=5] [ref=f184e1930]
+              - generic [ref=f184e1931]: Stream 4K Videoin Every Room
+          - listitem [aria-hidden] [ref=f184e1932]
+          - listitem [ref=f184e1933]:
+            - link [ref=f184e1934] [cursor=pointer]:
+              - /url: https://blinkforhome.com/?ref=nav_footer
+              - heading "Blink" [level=5] [ref=f184e1935]
+              - generic [ref=f184e1936]: Smart Securityfor Every Home
+        - list [ref=f184e1937]:
+          - listitem [aria-hidden] [ref=f184e1938]
+          - listitem [aria-hidden] [ref=f184e1939]
+          - listitem [aria-hidden] [ref=f184e1940]
+          - listitem [aria-hidden] [ref=f184e1941]
+          - listitem [ref=f184e1942]:
+            - link [ref=f184e1943] [cursor=pointer]:
+              - /url: https://shop.ring.com/pages/neighbors-app
+              - heading "Neighbors App" [level=5] [ref=f184e1944]
+              - generic [ref=f184e1945]: Real-Time Crime& Safety Alerts
+          - listitem [aria-hidden] [ref=f184e1946]
+          - listitem [ref=f184e1947]:
+            - link "PillPack Pharmacy Simplified" [ref=f184e1948] [cursor=pointer]:
+              - /url: https://www.pillpack.com
+              - heading "PillPack" [level=5] [ref=f184e1949]
+              - generic [ref=f184e1950]: Pharmacy Simplified
+          - listitem [aria-hidden] [ref=f184e1951]
+          - listitem [ref=f184e1952]:
+            - link [ref=f184e1953] [cursor=pointer]:
+              - /url: /gp/browse.html?node=12653393011&ref_=footer_usrenew
+              - heading "Amazon Renewed" [level=5] [ref=f184e1954]
+              - generic [ref=f184e1955]: Refurbished techyou can trust
+          - listitem [aria-hidden] [ref=f184e1956]
+          - listitem [aria-hidden] [ref=f184e1957]
+          - listitem [aria-hidden] [ref=f184e1958]
+          - listitem [aria-hidden] [ref=f184e1959]
+    - generic [ref=f184e1960]:
+      - list [ref=f184e1961]:
+        - listitem [ref=f184e1962]:
+          - link "Conditions of Use" [ref=f184e1963] [cursor=pointer]:
+            - /url: /gp/help/customer/display.html?nodeId=508088&ref_=footer_cou
+        - listitem [ref=f184e1964]:
+          - link "Privacy Notice" [ref=f184e1965] [cursor=pointer]:
+            - /url: /gp/help/customer/display.html?nodeId=GX7NJQ4ZB8MHFRNJ&ref_=footer_privacy
+        - listitem [ref=f184e1966]:
+          - link "Consumer Health Data Privacy Disclosure" [ref=f184e1967] [cursor=pointer]:
+            - /url: /gp/help/customer/display.html?ie=UTF8&nodeId=TnACMrGVghHocjL8KB&ref_=footer_consumer_health_data_privacy
+        - listitem [ref=f184e1968]:
+          - link "Your Ads Privacy Choices" [ref=f184e1969] [cursor=pointer]:
+            - /url: /privacyprefs?ref_=footer_iba
+        - listitem [ref=f184e1970]
+      - generic [ref=f184e1972]: © 1996-2026, Amazon.com, Inc. or its affiliates

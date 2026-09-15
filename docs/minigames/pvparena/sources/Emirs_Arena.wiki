@@ -1,0 +1,513 @@
+{{Safe activity|noitems=yes|pvp=yes}}
+{{External|rs=Het's Oasis}}
+{{Infobox Activity
+|name = Emir's Arena
+|image = [[File:Emir's Arena.png|300px]]
+|release = [[13 July]] [[2022]]
+|update = Emir's Arena: Full Launch
+|aka = PvP Arena
+|type = Minigame
+|members = No (Yes for ranked)
+|location = [[Al Kharid]]
+|players = 2+
+|skills = [[Combat]]
+|currency = N/A
+|tutorial = No
+|music = [[Shine]], [[The Emir's Arena]]
+|map = {{Map|name=Emir's Arena|zoom=1|x=3360|y=3233}}
+|leagueRegion = Desert
+}}
+The '''Emir's Arena''', also known as the '''Al Kharid PvP Arena''', is a [[minigame]] that replaced the [[Duel Arena]]. The minigame gives players an opportunity to fight each other in a controlled environment, where matches take place on an alternative save game world against players of a similar skill level, determined by a [[#Ranking|ranking]] system. Players will be able to register their interest in finding a fight; while a match is being prepared, players can continue with whatever they were doing prior.
+
+It was soft-launched on [[6 July]] [[2022]] in order to have players stress-test the core systems used for the minigame, and was fully launched the next week on [[13 July]].
+
+==History==
+The Emir's Arena is an ancient complex dating back to the [[Second Age]]. Discovered beneath the sands during the late [[Fifth Age]], archaeologists of the [[Varrock Museum]] excavated it before shifting their focus to the digs of [[Saranthium]] and [[Senntisten]] at the [[Digsite]].{{CiteNPC|npc=Mubariz|quote=The original building was excavated by the Varrock Museum a while ago. It dated back to the Second Age!}}
+
+Following the excavation, the land was bought by [[Mubariz]], who turned it into the [[Duel Arena]].{{CiteNPC|npc=Mubariz|quote=When the archaeologists moved out, a group of warriors, headed by myself, bought the land and converted it to a set of arenas for duels.}} This attracted many participants and spectators, and it was not long before the arena turned into a place of gambling. Three officials: [[Maoma]], captain of the Emir's guard, [[Koriff]], the hostess of the arena, and [[Saika]], the accountant of the arena, formed the [[Calamity Coven]], where they abused their positions to rig matches, encourage betting and falsify accounts to earn themselves huge amounts of profit.{{CiteNPC|npc=Arena Guard|quote=Through their foul arts, they [the Calamity Coven] turned this Arena into a hotbed of corruption.}} The Coven was eventually found out and was dispelled, although under which circumstances are not known. 
+
+More recently, the [[Emir]] of [[Al Kharid]] acquired the arena and had it restored to its former glory,{{CiteNPC|npc=Mubariz|quote=More recently, the Emir of Al Kharid acquired the Arena and had it renovated to the state it's in now.}} with the arena once again being used as a fighting ground, with increased control and heightened security to avoid similar incidents in the future.
+
+==Layout==
+[[File:Praying in Emir's Arena.png|thumb|width=300x300|A player prays at the [[altar]] in the Emir's Arena chapel.]]
+
+==== Entrance ====
+[[Arena Guard Yon]] paces near the entrance gate, and will inform players about the arena. Players will arrive here if they use the [[ring of dueling]] teleport.
+
+==== Welcome centre ====
+The welcome centre is right next to the entrance, and features [[Mubariz]], who runs the [[PvP Arena Rewards]] shop.
+
+==== Hospital ====
+The northern part of the arena features the hospital, where players can speak to the staff to heal to full health. Players with 99 [[Hitpoints]] can speak to [[Surgeon General Tafani]] to buy the [[Hitpoints cape|cape]]. Players can also climb the stairs on official Arena worlds (see below) to match with other players.
+
+==== Chapel ====
+Attached to the hospital is a [[chapel]], where the player can restore their [[Prayer points]]. There is a monk named [[Hamid]] who roams the chapel, who players speak to during a [[hard clue scroll]] step.
+
+==== Bank ====
+East of the hospital is the Emir's Arena bank, which features [[Fadli]], the banker, as well as [[Chris]], who runs a lost properties shop. In addition to allowing players to bank and collect items, Fadli also sells [[Rotten tomato|rotten tomatoes]]. 
+
+=== Combat areas ===
+There are four combat areas in the Arena, each with a spectator walkway above them. Players can look in on in-progress fights, or watch [[fighter]]s duel each other on non-Arena worlds.
+
+==Official worlds==
+Players can only participate in ranked activites within the Emir's Arena on designated [[worlds]], as they use a separate profile from the player's profile in the main game. Legacy duels work like the [[Duel Arena]] used to, bar the staking aspect.
+
+{| class="wikitable sortable" style="text-align: left;"
+!World
+!Location
+!Members
+!Activity
+{{WorldLine|348|United States (west)|mems=yes|PvP Arena (Legacy Duels)}}
+{{WorldLine|379|United Kingdom|mems=no|PvP Arena (Legacy Duels)}}
+{{WorldLine|479|United States (east)|mems=yes|PvP Arena (Legacy Duels)}}
+{{WorldLine|483|United States (east)|mems=no|PvP Arena (Legacy Duels)}}
+{{WorldLine|506|United Kingdom|mems=yes|PvP Arena (Legacy Duels)}}
+{{WorldLine|558|United Kingdom|mems=yes|PvP Arena (UK)}}
+{{WorldLine|570|Australia|mems=yes|PvP Arena (AUS)}}
+{{WorldLine|571|Australia|mems=no|PvP Arena (Legacy Duels)}}
+{{WorldLine|578|United States (east)|mems=yes|PvP Arena (US)}}
+|}
+
+==Gameplay==
+===Matching===
+Players can find matches via the PvP Arena button in the [[grouping]] tab or the [[arena recruitment board]], where they can register for either a 1v1 Tournament or 1v1 Duel where the game decides who they fight against. 
+
+Once the match is ready, players will be notified that it's time to fight, and be prompted to [[world hop]] to a designated world, giving players enough time to get to a safe place and hop.
+
+===Account Builds===
+Because fights take place on an alternative save game world, the player's standard game profile is left behind, along with their levels and items. To succeed in the Arena, players should be familiar with [[Player killing/Mechanics|player killing mechanics]] as well as can adapt their playstyle across multiple [[Player killing#Account Builds|player killing builds]] based on what the audience craves the most. The crowds' preferences change on a weekly basis, requiring players to use one of the following builds:
+
+{|class=wikitable style="text-align:center;"
+!Build
+!Attack
+!Strength
+!Defence
+!Hitpoints
+!Ranged
+!Magic
+!Prayer
+|-
+|'''Max/Med'''
+|75
+|99
+|70
+|99
+|99
+|99
+|77
+|-
+|'''Zerker'''
+|60
+|99
+|45
+|99
+|99
+|99
+|55
+|-
+|'''1 Def Pure'''
+|60
+|99
+|1
+|99
+|99
+|99
+|52
+|}
+
+===Equipment===
+As well as mastering various builds, players will have to select which items to take into battle via the PvP Arena Supplies interface. Players can tailor their equipment and inventory to their liking via the supplies chest inside the Arena's hospital, of which there are nearly 400 items to choose from, including equipment exclusively used for the minigame, such as [[Calamity armour]] and wrapped [[Culinaromancer's gloves]].
+
+The Supplies interface can also be accessed whilst preparing for a match on the upper level of the hospital. Players can only use equipment that their assigned account build can wear, so they'll need to know which items work best for whichever build is currently in rotation.
+
+The rotations occur before the weekly game update, which is between Tuesday and Wednesday from midnight to 1{{nbsp}}a.m. (dependent on the current time standard in the UK). The rotation will only affect ranked duels; other types of duels may be fought with players' choice of loadout.
+<!-- The build automatically updates with wiki magic - if outdated, click the "wrong?" link.
+-->{{#vardefine:weekly|{{#expr:floor(floor(({{#time:U}}-{{#time:U|27 July 2022 00:00:00 UTC}})/(60*60*24))/7) mod 3}}}}
+The current active build in the rotation is '''{{#switch:{{#var:weekly}}|0=Max/Med|1=Zerker|2=Pure}}'''.{{purge|tag=sup}} Examples of equipment and items for each build:
+<tabber>
+Max/Med=
+[[File:Emir's Arena - Max-med kit.png|frame]]
+
+|-|
+Zerker=
+[[File:Emir's Arena - Zerker kit.png|frame]]
+|-|
+Pure=
+[[File:Emir's Arena - 1 Def Pure kit.png|frame]]
+|-|
+</tabber>
+
+==Types of fights==
+===1v1 Tournaments===
+[[File:Emir's Arena spectating.png|thumb|350px|Spectating a duel via the Arena's recruitment boards. Spectators can view the fighter's health, prayer points, special attack energy, and their current inventory by using the nearby telescope, which functions as an [[oculus orb]].]]
+{{Listen
+|filename=You Are Victorious! (Emir's Arena).ogg
+|align=right
+|title=[[You Are Victorious! (Emir's Arena)|You Are Victorious!]]
+|desc= The jingle that plays when you have won the fight.}}
+In 1v1 Tournaments, players participate in a series of 1v1 fights in succession. Players can let the game form a tournament group for them, selected from the pool of available participants, or have a go at organising one manually (note that there are no rewards for participating in manually organised events).
+
+To enter a Tournament, simply register interest via the PvP Arena side-panel. Once enough players have signed up, the game will proceed to create a 1v1 Tournament for successful applicants.
+
+Each Tournament consists of anywhere from 4 to 64 players, with each round being split until there are only two participants left! Here's how this might look for a Tournament of 16 players:
+* 16 players are divided into eight 1v1 battles
+* The eight winners from the first round then fight in four 1v1 battles
+* The four winners from the second round then fight in two 1v1 battles
+* The final two winners then fight each other for the victory.
+
+Players will receive Rank and Reward Points based on how they placed in the tournament.
+
+===1v1 Duels===
+1v1 Duels are one-off battles where the game will automatically pit players against an opponent of similar rank.
+
+Just like tournaments, the winner of a ranked 1v1 Battle will receive Rank Points and 16 Reward Points. Losing a battle awards 12 Reward Points instead. One additional point is rewarded per win based on the player's current win-streak, up to 10 additional points for 26 points per win.
+
+In unranked duels, players can choose who to fight, but there are no rewards for doing so; challenge areas are identified upon entering by a battleaxe ([[File:Duel Arena battleaxe.png|30px]]) which appears in the bottom right hand corner of the [[interface]], during a duel this is changed to a skull ([[File:Skull (status) icon.png|25px]]).
+
+===Legacy Duels===
+Players within the arena bounds can engage in safe 1-vs-1 combat in so-called legacy duels. In order to start a duel in the legacy mode, players have to right-click on the selected opponent and choose the ''Challenge'' option.
+
+The gameplay of the legacy mode is similar to the replaced [[Duel Arena]] with a few notable differences:
+* Players can no longer stake [[coins]] during the fights. As such, the Duel Arena tax was also removed.
+* Combat takes place in the designated Emir's Arena maps rather than the shared Duel Arena combat area.
+* When challenging another player, the following warning appears in the chat: {{mes|As this is an unofficial duel, you will not receive rank or reward points for participating.}}
+
+The win and loss counts within the legacy mode are stored separately for each player, and they do not affect the main minigame. The initial values for each player were copied from the original [[Duel Arena]] kill and death counts.
+
+Legacy Duels at the Emir's Arena are restricted to the specific 'Legacy Duels' theme worlds. Attempting to challenge a player on a non-dedicated world yields the following message: {{mes|Please use one of the designated Legacy Duels worlds.}}
+
+====Duel options====
+[[File:Duel Arena interface.png|thumb|280px|The Duel Options interface]]
+When a player accepts a challenge, it opens up the duelling options screen, which defines the parameters and restrictions for the battle. The screen shows the name, [[Combat level]] and combat skills items of the opponent, as well as player's currently worn items. There are 12 different options that can be turned on or off and are adjustable by either player. These are detailed as follows:
+*'''No [[Ranged]]''': No ranged [[weapon]]ry can be equipped during the battle.
+*'''No [[Melee]]''': Players cannot engage in hand-to-hand [[combat]], including bare fists/feet.
+*'''No [[Magic]]''': No magical attack [[spells]] can be cast.
+*'''No Special Attacks''': [[Special attack]]s can not be used.
+*'''Fun Weapons''': The only allowed weapons are those with negative attack stats, such as the [[Rubber chicken]], [[Flowers]], [[Birthday cake]], rubber mouse toy, and [[Golden tench]]. Bare fists/feet are not allowed.
+*'''No Forfeit''': Players cannot escape the arena; the fight lasted until one player dies.
+*'''No Drinks''': Players cannot drink anything that boosts stats, such as [[potions]]. All stats that were boosted prior to the fight were reset to their default values once the fight begins.
+*'''No [[Food]]''': Eating [[food]] to heal is not allowed, including [[Saradomin brew]]s.
+*'''No [[Prayer]]:''' Using the [[Prayer]] skill is not allowed.
+*'''No Movement''': Players cannot walk or [[run]] during the battle.
+*'''No Weapon Switch''': Players cannot switch their weapons during the battle.
+*'''Show Inventories''': Both players can inspect the inventory and worn items of their opponent before the duel.
+
+It is also possible to select and disable specific equipment slots on this screen by clicking on the worn items section. Rangers should be careful not to check off [[shield]] if they intend to use a bow.
+
+Some of the options couldn't be combined; for instance, having no Ranged, Melee, or Magic makes it impossible to fight.
+
+====Presets====
+A player can save the duel options and load it as a preset, allowing them to quickly select specific options for their duel.
+
+The 5 different options are:
+*[[File:Save as preset icon.png]] '''Save as preset''': Saved the current choice of options and saved it as a preset.
+*[[File:Load preset icon.png]] '''Load preset''': Loaded the preset that the player saved.
+*[[File:Load preset icon.png]] '''Load last duel''': Loaded the last duels options.
+* "'''Whip'''": Only allowed the use of any one-handed weapon, no armour permitted. 
+* "'''Boxing'''": No weapons or armour permitted.
+
+==Rewards==
+[[File:PvP Arena Rewards interface.png|frame|The purchasable rewards for participating in the Emir's PvP Arena.]]
+Upon completing a match, players are returned to where they were upon joining. Winning awards rank points and reward points, and losing will deduct rank points.
+
+* '''Rank points''' are used to determine the player's rank. When finding a fight, the matchmaking system will try to match players with one with a similar Rank. The more points players have, the higher their Rank is.
+* '''Reward points''' are used to purchase rewards from the reward shop.
+
+Rank and Reward points can only be scored by participating in a fight generated by the game. There are no rewards for participating in manually organised events. Reward points are capped at 15,000.
+
+At the entrance to the arena, trade [[Mubariz]] to purchase [[PvP Arena Rewards]]:
+
+Note, the player must be on an ordinary world to access the PvP Arena Rewards shop.
+* [[Scroll of imbuing]] - an alternative method of imbuing items, similar to the imbuing rewards from the [[Dom Onion's Reward Shop|Nightmare Zone]] and [[Soul Wars Reward Shop]].
+* [[Blighted surge sack]] - allows players within the Wilderness to cast any [[surge spells]] without needing the required runes.
+
+===Scrapped rewards===
+{{Shelved content|section=yes}}
+During the initial [[Update:The PvP Arena|Developer's Blog]], some rewards were proposed, but were later scrapped entirely:
+* '''Amulet of souls''' - an item granting +10 in all Attack bonuses, +15 in all Defence bonuses, a +8 Strength bonus, and a +5 Prayer bonus.
+** Created via combining an [[amulet of fury]], [[onyx]], and an amulet of souls scroll, the amulet would have been only usable within the Wilderness, and charged with [[Death rune|death]] and [[soul rune]]s.
+** While wearing the charged amulet, if players took damage from an opponent that would have killed them, they would be resurrected with five hitpoints remaining, with [[poison]] and [[venom]] cured if they were inflicted with either. This effect could only be used every fifteen minutes.
+* '''Thaw potion''' - a potion created via combining an [[Dwarf weed potion (unf)|unfinished dwarf weed potion]] with a [[white lily]] and a flame rose (purchased from the reward shop)
+** Drinking the thaw potion would grant players ten seconds of immunity to spells that bound players in place, such as [[Snare]] and [[Ice spells]]. However, they can only be used every two minutes.
+
+Other rewards were polled in the [[Poll:Rewards for Beneath Cursed Sands & PvP Arena|Rewards for Beneath Cursed Sands & PvP Arena]] [[poll]], which required players to have at least 20 player kills in the Wilderness or PvP worlds, as well as one win from the [[Last Man Standing]] minigame.
+* Ornament kits for [[Dagon'hai robes ornament kit|dagon'hai robes]], [[Dragon claws ornament kit|dragon claws]], [[Dragon warhammer ornament kit|dragon warhammer]], [[Heavy ballista ornament kit|heavy ballista]], [[Elder maul ornament kit|elder maul]], [[Elder chaos robes ornament kit|elder chaos druid robes]], [[Armadyl armour ornament kit|Armadyl armour]], and [[Bandos armour ornament kit|Bandos armour]].
+* [[Wristbands of the arena]] - gives the same stats as [[Barrows gloves]] with a level 20 Defence requirement, but can only be used in PvP. Could be [[Wristbands of the arena (i)|imbued]] to require level 40 Defence and improved Attack bonuses.
+* [[Centurion cuirass]] - gives similar stats to the [[Fighter torso]] with a level 40 Defence requirement, but can only be used in PvP.
+* A left-click teleport item similar in function to the [[royal seed pod]].
+* [[Humble Chivalry]] and [[Humble Piety]], lesser variants of [[Chivalry]] and [[Piety]] with an additional level 40 Defence requirement.
+* [[Calamity armour]] - a set of armour similar in function to [[Void Knight equipment]], with matching helmets for melee, ranged, and magic.
+
+After the first poll had all its rewards fail despite the restricted nature of the poll, a revised [[Update:PvP Arena Revised Rewards|Developer's Blog]] was released aiming to address player feedback with the proposed rewards. It was then polled in the [[Poll:PvP Arena Rewards v2|PvP Arena Rewards v2]], with a similar set of restrictions in voting.
+
+The same rewards were polled, except the humble prayers and left-click teleport item. All but the imbue scroll and spell sacks failed the poll. As a compromise, the Calamity armour and wrapped Culinaromancer's gloves, were added in as equipment usable only within the minigame's equipment chests.
+
+==Ranking==
+Players have a rank that starts at 2,500, and can increase or decrease depending on their performance each game. The [[arena recruitment board]] shows one's own rank within the arena. The maximum possible rank is 15,000.
+
+{| class="wikitable"
+|+Ranks
+!colspan="3"|Title
+!Range
+|-
+<!--style="writing-mode:vertical-lr;transform:rotate(180deg);text-align:center;"-->
+|rowspan="4" style="background-color:#DF791C;"|
+|[[File:PvP Arena Bronze rank icon.png]]
+|Bronze I
+|0-249
+|-
+|[[File:PvP Arena Bronze rank icon.png]]
+|Bronze II
+|250-499
+|-
+|[[File:PvP Arena Bronze rank icon.png]]
+|Bronze III
+|500-749
+|-
+|[[File:PvP Arena Bronze rank icon.png]]
+|Bronze IV
+|750-999 
+|-
+!colspan="4"|
+|-
+|rowspan="4" style="background-color:#858585;"|
+|[[File:PvP Arena Iron rank icon.png]]
+|Iron I
+|1,000-1,249
+|-
+|[[File:PvP Arena Iron rank icon.png]]
+|Iron II
+|1,250-1,499
+|-
+|[[File:PvP Arena Iron rank icon.png]]
+|Iron III
+|1,500-1,749
+|-
+|[[File:PvP Arena Iron rank icon.png]]
+|Iron IV
+|1,750-1,999
+|-
+!colspan="4"|
+|-
+|rowspan="4" style="background-color:#DADADB;"|
+|[[File:PvP Arena Steel rank icon.png]]
+|Steel I
+|2,000-2,249
+|-
+|[[File:PvP Arena Steel rank icon.png]]
+|Steel II
+|2,250-2,499
+|-
+|[[File:PvP Arena Steel rank icon.png]]
+|Steel III
+|2,500-2,749
+|-
+|[[File:PvP Arena Steel rank icon.png]]
+|Steel IV
+|2,750-2,999
+|-
+!colspan="4"|
+|-
+|rowspan="4" style="background-color:#7273B9;"|
+|[[File:PvP Arena Mithril rank icon.png]]
+|Mithril I
+|3,000-3,249
+|-
+|[[File:PvP Arena Mithril rank icon.png]]
+|Mithril II
+|3,250-3,499
+|-
+|[[File:PvP Arena Mithril rank icon.png]]
+|Mithril III
+|3,500-3,749
+|-
+|[[File:PvP Arena Mithril rank icon.png]]
+|Mithril IV
+|3,750-3,999
+|-
+!colspan="4"|
+|-
+|rowspan="4" style="background-color:#3ED46D;"|
+|[[File:PvP Arena Adamant rank icon.png]]
+|Adamant I
+|4,000-4,249
+|-
+|[[File:PvP Arena Adamant rank icon.png]]
+|Adamant II
+|4,250-4,499
+|-
+|[[File:PvP Arena Adamant rank icon.png]]
+|Adamant III
+|4,500-4,749
+|-
+|[[File:PvP Arena Adamant rank icon.png]]
+|Adamant IV
+|4,750-4,999
+|-
+!colspan="4"|
+|-
+|rowspan="4" style="background-color:#80C4D1;"|
+|[[File:PvP Arena Rune rank icon.png]]
+|Rune I
+|5,000-5,249
+|-
+|[[File:PvP Arena Rune rank icon.png]]
+|Rune II
+|5,250-5,499
+|-
+|[[File:PvP Arena Rune rank icon.png]]
+|Rune III
+|5,500-5,749
+|-
+|[[File:PvP Arena Rune rank icon.png]]
+|Rune IV
+|5,750-5,999
+|-
+!colspan="4"|
+|-
+|rowspan="4" style="background-color:#E05444;"|
+|[[File:PvP Arena Dragon rank icon.png]]
+|Dragon
+|6,000-6,999
+|-
+|[[File:PvP Arena Dragon rank icon.png]]
+|Dragon Elite
+|7,000-7,999
+|-
+|[[File:PvP Arena Dragon rank icon.png]]
+|Dragon Master
+|8,000-8,999
+|-
+|[[File:PvP Arena Dragon rank icon.png]]
+|Dragon Grandmaster 
+|9,000+
+|-
+!colspan="3"|Maximum rank
+!15,000
+|}
+{{Reflist|group=r}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 March 2026
+|update = Easter 2026 & PvP QoL Improvements
+|change = * Emir's Arena has had some gear adjustments to bring the gear more in line with the current meta.
+* Updated the Pure, Zerker and Max/Med starter sets to be more up to date
+* Deadeye and Mystic Vigour prayers are now allowed in fights and can be used by players who meet the level requirements.
+* Zerker build now has 75 Attack, 50 Defence, and 63 Prayer, up from 60, 45, and 55 respectively.
+* The "Max/Med" account build's Attack, Defence and Prayer levels are increased to 99.
+}}
+{{Subject changes
+|date = 30 July 2025
+|update = Varlamore: Bug Fixes & More
+|change = Restored spectate mode and telescope functionality in the PvP Arena. Players can now observe matches as intended.
+}}
+{{Subject changes
+|date = 13 November 2024
+|update = Guardians of the Rift Changes Out Now!
+|change = The Dragon Grandmaster rank upper limit has been increased from 9,999 to 15,000. The Fake [[File:Egg.png]] rank is no longer shown.
+}}
+{{Subject changes
+|date = 23 October 2024
+|update = Halloween Fixes & Miscellaneous Changes
+|change = The following weapons and armour have been added to the supply chests on PvP Arena worlds:
+* [[Blue moon armour]] set
+* [[Blood moon armour]] set and [[Blue moon spear|spear]]
+* [[Eclipse moon armour]] set
+* [[Eclipse atlatl]] and [[atlatl dart]]s
+* [[Dual macuahuitl]]
+}}
+{{Subject changes
+|date = 16 October 2024
+|update = Halloween 2024
+|change = 
+* The matchmaking system has been adjusted to ensure that matches occur more frequently.
+* Players will no longer get stuck in ghost matches by getting paired with no other players.
+* A bug has been fixed in the PvP Arena matchmaking system where players would sometimes be paired with nobody and got stuck in a ghost match.
+}}
+{{Subject changes
+|date = 28 August 2024
+|update = Araxxor
+|change = * Legacy Duels at the Emir's Arena are now restricted to the specific 'Legacy Duels' worlds.
+* Worlds 348, 483, 506, and 571 were marked as the designated Legacy Duels servers.
+}}
+{{Subject changes
+|date = 5 October 2022
+|update = Clan Hall Upgrades & More
+|change = In order to discourage no-shows, Rank Points are now automatically removed when players receive an invitation to duel, and restored once the player makes it to the staging area.
+}}
+{{Subject changes
+|date = 3 August 2022
+|update = Maximum Hitsplats & Clan Hall Changes
+|poll = 
+|type = mobile
+|change = The spellbook selection drop-down boxes in the PvP Arena Supplies interface now work more reliably on mobile devices.
+}}
+{{Subject changes
+|date = 27 July 2022
+|update = New Client Update: Clue Scroll Helper
+|change = * When outside combat areas on PvP Arena worlds, the "Trade" option has been replaced with a "Load-outs" option. Players can right-click another player and open a menu showing the selected player's three loadouts. From here, you can copy their loadout over to yours, replacing your current preset.
+* The grouping algorithm has been rebalanced to help the less common ranks find matches.
+}}
+{{Subject changes
+|date = 20 July 2022
+|update = Activity Adviser: Phase One
+|change = * The [[Bow of Faerdhinen]] has been removed from the PvP Arena Supplies interface.
+* Right-clicking the [[Rune pouch (Emir's Arena)|rune pouch]] within the supplies interface will now allow players to choose what runes are brought into a fight.
+* A button to copy the opponent's loadout has been added for unranked fights.
+* The Elo system has been adjusted to address the way that rank points scale in uneven fights:
+** Players winning against weaker opponents will gain fewer rank points
+** Players winning against stronger opponents will gain more rank points
+** Players losing against stronger opponents will lose fewer rank points
+** Players losing against weaker opponents will lose more rank points
+* The price for a [[scroll of imbuing]] has been reduced from 500 points to 200. Players who purchased one prior to this update will be refunded their points.
+}}
+{{Subject changes
+|date = 13 July 2022
+|update = Emir's Arena: Full Launch
+|change = * The Emir's Arena was fully launched. Rank and reward points earned during the soft launch were reset to 0.
+* Several items were added and removed from the PvP Arena Supplies interface:
+** Players will no longer see items that their designated build cannot equip. As such, the [[Ghrazi rapier]] and [[Inquisitor's mace]] have been removed from the interface (as no build can currently equip them).
+** [[Xerician robes]], [[rune gloves]], the [[amulet of blood fury]], and the [[Zaryte crossbow]] have been added.
+** [[Purple sweets]], the [[ring of suffering (i)]], and the [[ancient godsword]] have been removed, as they were deemed too powerful.
+** [[Heavy ballista]] and [[Ava's assembler]] can no longer be equipped by 1 Def Pure builds.
+** [[Elite Void Knight equipment]] can no longer be equipped by Zerker builds.
+* The timer before a tournament starts has been reduced from 8:30 minutes to 5 minutes.
+* Tournaments will automatically begin if no new players enter the staging area for over 72 seconds.
+* Players in the staging area will now receive chatbox messages to indicate that the tournament is ready to begin.
+* The info button to check brackets during a tournament battle is now hidden during combat.
+* The size of the timer during a fight has been reduced.
+* A chatbox message has been added during unranked fights to indicate Rank and Reward Points will not be earned.
+* Health bars visible to spectators via telescopes now have a secondary layer that drains after a short delay, like a typical fighting game.
+}}
+{{Subject changes
+|date = 6 July 2022
+|update = PvP Arena: Soft Launch
+|change = The Emir's Arena was soft-launched for testing in order to test the core systems used in the minigame.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+Dagon'hai robes (or) equipped male.png|A male model for the scrapped ornamented Dagon'hai robes.
+Dagon'hai robes (or) equipped female.png|A female model for the scrapped ornamented Dagon'hai robes.
+Elder chaos druid robes (or) equipped male.png|A male model for the scrapped ornamented elder chaos druid robes.
+Elder chaos druid robes (or) equipped female.png|A female model for the scrapped ornamented elder chaos druid robes.
+Armadyl armour (or) equipped.png|Model for the scrapped ornamented Armadyl armour.
+Bandos armour (or) equipped.png|Model for the scrapped ornamented Bandos armour.
+Calamity armour concept art.jpg|Concept art for [[Calamity armour]], by [[Mod Jerv]].
+PvP Arena- Rewards Beta (4).jpg|Concept art for the scrapped [[Centurion cuirass]].
+PvP Arena- Rewards Beta (1).jpg|Concept art for the scrapped [[Wristbands of the arena]].
+</gallery>
+
+==Trivia==
+* Like the [[Castle Wars]] lobby doors, the arena gates can only be opened a single time per [[Server|world]] reset, since they cannot be interacted with once they have been opened and will remain open indefinitely.
+
+==References==
+{{Reflist}}
+
+{{Emir's Arena}}
+[[Category:Al Kharid]]
+[[Category:Player vs Player arenas]]
+[[Category:Free-to-play minigames]]

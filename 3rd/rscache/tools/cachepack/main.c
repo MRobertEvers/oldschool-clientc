@@ -2,6 +2,7 @@
 
 #include "cp_assets.h"
 #include "cp_import.h"
+#include "cache_write.h"
 #include "tool_profile.h"
 
 #include <stdlib.h>
@@ -19,6 +20,8 @@ usage(void)
         "                   [--assets[=models,songs]] [--binary[=1,2]]\n"
         "  cachepack pack   --src DIR --out DIR [--base DIR] [--rev NAME] [--types a,b]\n"
         "                   [--assets] [--binary] [--gamevals]\n"
+        "  cachepack pack   --src DIR --out DIR --rev NAME --asset-only\n"
+        "                   --assets=interfaces,scripts [--archive-list FILE]\n"
         "  cachepack pack   --src DIR --server-only\n"
         "  cachepack verify --cache DIR --rev NAME --src DIR [--types a,b]\n"
         "                   [--assets[=models,sprites]] [--tmp DIR]\n"
@@ -46,6 +49,10 @@ usage(void)
         "          run, so --types makes the config half of it partial. --server-only\n"
         "          writes just that server pack — no cache is opened, no --out needed —\n"
         "          which is the cheap form the build runs before every server boot.\n"
+        "          --asset-only opens an already-complete --out in place and skips\n"
+        "          configs/server packs. With --archive-list, only rows written as\n"
+        "          <asset>=<archive id> are replaced; a selected friendly form that\n"
+        "          cannot encode is an error rather than a silent base-cache fallback.\n"
         "  verify  round-trips every record through the text and reports exact /\n"
         "          same-length / differing counts per type. With --assets, also\n"
         "          round-trips the asset tables through their friendly forms in a\n"
@@ -63,7 +70,7 @@ usage(void)
         "          routing they state — a name no config layer states, a name in\n"
         "          <ns>.server the tree says nothing about, a record under\n"
         "          server/scripts neither file claims — and exits non-zero on any of\n"
-        "          them. The id-range half of that check runs in mock230_pack, where\n"
+        "          them. The id-range half of that check runs in ToriRSServer_Pack, where\n"
         "          the allocation bases live.\n"
         "\n"
         "Options:\n"
@@ -75,6 +82,8 @@ usage(void)
         "                  songs/<name>.jmid, binary/title.jpg. Extensions come from\n"
         "                  the bytes, and nothing is transcoded. --assets=models,maps\n"
         "                  limits it to those kinds; --list-assets prints them.\n"
+        "  --asset-only    replace assets in an already-complete --out; no config pass\n"
+        "  --archive-list F restrict asset import to <asset>=<archive id> rows in F\n"
         "  --raw-assets    skip the friendly decoders, so every asset writes its raw\n"
         "                  payload. Use when a decoded form is in the way.\n"
         "  --gamevals      on pack, write pack/<ns>.pack back into the cache's own\n"
@@ -254,12 +263,14 @@ main(int argc, char** argv)
     const char* types_csv = NULL;
     const char* binary_tables = NULL;
     const char* asset_kinds = NULL;
+    const char* archive_list_path = NULL;
     const char* tmp_dir = "build/cachepack_verify";
     int want_gamevals = 0;
     int want_binary = 0;
     int want_assets = 0;
     int check_only = 0;
     int server_only = 0;
+    int asset_only = 0;
     const char* digest_dir = NULL;
     int warn_limit = 20;
 
@@ -284,6 +295,8 @@ main(int argc, char** argv)
             check_only = 1;
         else if( strcmp(arg, "--server-only") == 0 )
             server_only = 1;
+        else if( strcmp(arg, "--asset-only") == 0 )
+            asset_only = 1;
         else if( strcmp(arg, "--assets") == 0 )
             want_assets = 1;
         else if( strcmp(arg, "--gamevals") == 0 )
@@ -323,6 +336,8 @@ main(int argc, char** argv)
             types_csv = argv[++i];
         else if( strcmp(arg, "--tmp") == 0 )
             tmp_dir = argv[++i];
+        else if( strcmp(arg, "--archive-list") == 0 )
+            archive_list_path = argv[++i];
         else if( strcmp(arg, "--warn") == 0 )
             warn_limit = atoi(argv[++i]);
         else
@@ -335,6 +350,21 @@ main(int argc, char** argv)
     if( !src_dir )
     {
         fprintf(stderr, "cachepack: --src is required\n");
+        return 1;
+    }
+    if( asset_only && strcmp(command, "pack") != 0 )
+    {
+        fprintf(stderr, "cachepack: --asset-only is valid only with pack\n");
+        return 1;
+    }
+    if( archive_list_path && (strcmp(command, "pack") != 0 || !want_assets) )
+    {
+        fprintf(stderr, "cachepack: --archive-list requires pack --assets\n");
+        return 1;
+    }
+    if( asset_only && base_dir && out_dir && strcmp(base_dir, out_dir) == 0 )
+    {
+        fprintf(stderr, "cachepack: --base and --out must be different directories\n");
         return 1;
     }
 
@@ -439,6 +469,15 @@ main(int argc, char** argv)
         if( strcmp(command, "unpack") == 0 )
         {
             rc = cp_unpack_run(&ctx, &sel) ? 0 : 1;
+            /* The archives nothing decodes — undecoded config groups and the
+             * nested gameval records — as raw bytes, so a pack with no --base
+             * reproduces every archive the cache holds. Unconditional because
+             * they cost a few hundred KB and skipping them is how idx17 and 21
+             * config groups silently vanished from tree-only caches. */
+            if( rc == 0 && !cp_raw_groups_export(&ctx) )
+                rc = 1;
+            if( rc == 0 && !cp_names_export_raw_gamevals(&ctx) )
+                rc = 1;
             if( rc == 0 && want_assets )
                 rc = cp_assets_export(&ctx, asset_kinds) ? 0 : 1;
             if( rc == 0 && want_binary )
@@ -471,7 +510,48 @@ main(int argc, char** argv)
             cp_names_free(&ctx.names);
             return 1;
         }
-        if( check_only )
+        if( asset_only && (check_only || server_only || want_binary || want_gamevals || types_csv) )
+        {
+            fprintf(stderr, "cachepack: --asset-only cannot be combined with --check-only, "
+                            "--server-only, --binary, --gamevals or --types\n");
+            cp_names_free(&ctx.names);
+            return 1;
+        }
+        if( asset_only && !want_assets )
+        {
+            fprintf(stderr, "cachepack: --asset-only requires --assets or --assets=<kinds>\n");
+            cp_names_free(&ctx.names);
+            return 1;
+        }
+        if( asset_only )
+        {
+            /* This is the authoring fast path. The caller may have made `out`
+             * with clonefile/reflink already; in that case opening it in place
+             * preserves copy-on-write sharing with the base cache. `--base`
+             * remains available for callers that prefer cachepack's portable
+             * byte copy. */
+            if( base_dir )
+            {
+                printf("Copying %s -> %s\n", base_dir, out_dir);
+                if( tool_copy_cache_dir(base_dir, out_dir) != 0 )
+                {
+                    fprintf(stderr, "cachepack: failed to copy the base cache\n");
+                    cp_names_free(&ctx.names);
+                    return 1;
+                }
+            }
+            if( !tool_dat2_open(out_dir, &ctx.profile, &ctx.cache) )
+            {
+                cp_names_free(&ctx.names);
+                return 1;
+            }
+            ctx.cache_open = true;
+            /* No config commit is required: the target began as a complete
+             * cache and this mode only replaces named asset archives. */
+            ctx.cache_committed = true;
+            rc = 0;
+        }
+        else if( check_only )
         {
             /* `cp_pack_run` is what normally opens the cache, and check-only skips
              * it — so open it here. The reference table is what says which archives
@@ -510,9 +590,19 @@ main(int argc, char** argv)
                             "--assets/--binary/--gamevals rather than writing them into a "
                             "cache with no config table\n");
 
+        /* The undecoded config groups, from their raw passthrough. Before the
+         * assets so a failure surfaces next to the config report it belongs
+         * with; skipped for --asset-only, whose target began as a complete
+         * cache and already holds them. */
+        if( !asset_only && ctx.cache_open && writable )
+        {
+            if( !cp_raw_groups_import(&ctx, check_only ? NULL : out_dir) )
+                rc = 1;
+        }
         if( want_assets && ctx.cache_open && writable )
         {
-            if( !cp_assets_import(&ctx, check_only ? NULL : out_dir) )
+            if( !cp_assets_import(&ctx, check_only ? NULL : out_dir, asset_kinds,
+                                  archive_list_path) )
                 rc = 1;
         }
         /* After the configs and the assets, because it writes the *names* of what
@@ -537,7 +627,7 @@ main(int argc, char** argv)
          * packs and nothing else, which is the same reason `--server-only`
          * needs neither.
          *
-         * `--check-only` is the same word `pack` and `mock230_pack` use, and it
+         * `--check-only` is the same word `pack` and `ToriRSServer_Pack` use, and it
          * means the same thing here: read everything, write nothing, exit
          * non-zero on a disagreement. Seeding and checking are one command
          * because they walk and merge the same tree through the same gates —
@@ -566,5 +656,6 @@ main(int argc, char** argv)
     if( ctx.compare_open )
         tool_dat2_close(&ctx.compare);
     cp_names_free(&ctx.names);
+    free(ctx.param_types);
     return rc;
 }

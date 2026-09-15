@@ -1,0 +1,42 @@
+{{External|rs|rsc=Charge earth Orb}}
+{{Infobox Spell
+|name = Charge Earth Orb
+|image = [[File:Charge Earth Orb.png]]
+|release = [[18 March]] [[2002]]
+|update = Latest RuneScape News (18 March 2002)
+|members = Yes
+|level = 60
+|spellbook = Normal
+|type = Utility
+|exp = 70
+|cost = {{RuneReq|Cosmic=3|Earth=30|Orb=1}}
+|speed = 3 ticks (6 on autocast)
+|description = Needs to be cast on an earth obelisk
+|anim = [[File:Charge Earth Orb.gif]]
+|sound = [[File:Charge Earth Orb.ogg]]
+}}
+[[File:Charge Earth Orb icon (mobile).png|left|class=pageimage]]
+'''Charge Earth Orb''' is an [[enchantment]] spell that requires a [[Magic]] level of 60 to cast. It can only be cast at the [[earth obelisk]] in the [[Wilderness]] area of [[Edgeville Dungeon]], south of the [[Black demon]]s in the area where [[Chronozon]] is found.
+
+If you have an [[unpowered orb]] and the correct [[runes]] in your inventory, each cast will create an [[earth orb]], which yields 70 Magic experience.
+
+Using an earth orb on a [[battlestaff]] makes an [[earth battlestaff]]. This requires 58 [[Crafting]] and gives 112.5 Crafting experience.
+
+Because the obelisk is in the Wilderness, it makes it a dangerous place to train magic or make profit at, as there is a chance you will run into [[player killers]] either inside the dungeon or in the Wilderness itself.
+
+Casting this spell is a requirement for the [[Medium Wilderness Diary|medium Wilderness diary]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 30
+|Rune2 = cosmic
+|Rune2num = 3
+|Rune3 = unpowered orb
+|Rune3num = 1
+}}
+
+==Money making==
+{{Mmgsection|Charging earth orbs}}
+
+{{Standard spellbook}}

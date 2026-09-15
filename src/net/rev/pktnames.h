@@ -112,6 +112,18 @@ enum GameProtoPktName
     PKT_NAME_P_COUNTDIALOG,
     PKT_NAME_SET_MULTIWAY,
     PKT_NAME_SET_PLAYER_OP,
+    /**
+     * Turn the minimap off, or to the "hidden but still clickable" middle
+     * state (LostCity 274+; one byte, 0/1/2 -- see struct PktMinimapToggle).
+     *
+     * A name in this list is also what gives the packet a LENGTH in a
+     * revision's table: a server packet with no length there consumes zero
+     * bytes and misframes everything after it, so a name has to exist here
+     * before a decoder does. This one carried its length alone for a while,
+     * which is the correct half-measure -- an unhandled packet must still be
+     * a correctly skipped one.
+     */
+    PKT_NAME_MINIMAP_TOGGLE,
     /** Run the current root's CS2 onDialogAbort listeners before teardown. */
     PKT_NAME_TRIGGER_ONDIALOGABORT,
     /** End of a server tick's packet group. The client uses it to know a tick's
@@ -191,6 +203,35 @@ enum GameProtoPktName
      * in the client's npc table with the right ids, and none of them is drawn.
      */
     PKT_NAME_SET_NPC_UPDATE_ORIGIN,
+
+    /**
+     * Select the root/dynamic world and plane that the following entity and
+     * zone packets address. Revision 239 does not derive the active root plane
+     * from PLAYER_INFO: omitting this leaves the actor tracker on the new
+     * plane while the rendered WorldView remains on the old one.
+     */
+    PKT_NAME_SET_ACTIVE_WORLD,
+
+    /**
+     * Per-view world-entity (sailing boat) sync: movement ops against the
+     * active view's entity list in list order, then a spawn trailer for new
+     * entities (rev 239+, WORLDENTITY_INFO_V7). SAILING.md §5.4 — RSProt
+     * carries no decoder for the info family, so the layout is transcribed
+     * from the deob's Statics.method977.
+     */
+    PKT_NAME_WORLDENTITY_INFO,
+
+    /**
+     * Rebuild the ACTIVE view's deck map (rev 237+, REBUILD_WORLDENTITY_V4):
+     * u16 baseX, u16 baseZ (absolute root-world tiles of the view's SW
+     * staging corner — deob Statics.method6693 stores them straight into
+     * field1405/field1395), then the same source-square count + bit-packed
+     * zone-descriptor grid REBUILD_REGION carries, except the grid's
+     * dimensions are the active view's spawn-time size and are not on the
+     * wire. V3+ dropped V2's leading view-id field: the target is always the
+     * SET_ACTIVE_WORLD cursor (deob field5861).
+     */
+    PKT_NAME_REBUILD_WORLDENTITY,
 
     PKT_NAME_COUNT
 };
@@ -333,6 +374,8 @@ enum GameProtoPktOutName
     PKTOUT_NAME_REPORT_ABUSE,
     PKTOUT_NAME_MOVE_MINIMAPCLICK,
     PKTOUT_NAME_MOVE_GAMECLICK,
+    /** Sailing's 16-point compass bearing; revision 239 carries one raw byte. */
+    PKTOUT_NAME_SET_HEADING,
 
     PKTOUT_NAME_IGNORELIST_DEL,
     PKTOUT_NAME_IGNORELIST_ADD,

@@ -1,0 +1,573 @@
+{{External|rs|rsc}}
+{{See also|Non-pet followers}}
+[[File:Pets in a menagerie.png|thumb|300px|A [[menagerie]] housing many pets.]]
+A '''pet''' is a non-combat [[Non-player character|NPC]] loyal to a [[Account|player]] that is generally obtained from [[monster]] [[drops]] and [[Skills|skilling]]. Most pets are very rare drops from certain [[boss]]es or skilling activities and do not serve a purpose other than aesthetics. The player is able to interact with most pets, but they may only have one pet following them at a time. Pets are limited to a walking pace (except for [[Nexling]] and [[Tumeken's guardian#Babi|Babi]]); if they become stuck and/or too far away from the player they follow, they will teleport close to the player and continue. They can also be called to the player's side using the "[[Call follower]]" button under the [[Worn Equipment]] tab. There are currently 71 available pets in ''Old School RuneScape''.
+
+Pets may be stored in the [[bank]] or [[inventory]] and will follow the player when dropped. Players can store up to 71 pets in the [[menagerie]] of a [[player-owned house]] (with the highest-level [[Menagerie#Pet house|pet house]]). Restrictions on bringing pets into [[minigames]] and [[boss|boss encounters]] vary by activity; for example, pets are prohibited in [[Barbarian Assault]] but are allowed in [[Guardians of the Rift]]. 
+
+Unlike other pets, [[cat]]s are the only ones that must be raised to maturity by following the player. [[Kitten]]s must be stroked and fed regularly, or they will run away. Once they reach the adult stage, they no longer need to be fed.
+
+As of December 2023, [[Rocky]] is the most commonly owned pet by players, and the [[Pet Penance Queen|Penance Queen]] is the least common.
+
+==Obtaining a pet==
+When a player receives a one-off pet (i.e. a [[boss]] or [[Skills|skilling]] pet), it will automatically try to appear as their follower. At the same time, a message in the [[Chat Interface|chatbox]] will state {{mes|You have a funny feeling like you're being followed.|color=red}} Upon receiving a pet, a small sound will be heard.
+{{Listen
+|title = Receiving a pet
+|align = right
+|filename = Getting pet.ogg
+|desc = The sound which can be heard when players receive a one-off pet.}}
+However, if a player receives a pet while having a follower out (for example, a [[cat]]), it will be placed into their [[inventory]]. When this occurs, the message in the chatbox will instead state, {{mes|You feel something weird sneaking into your backpack.|color=red}} If a player's inventory is full '''and''' they have a follower already, they '''will not''' receive the pet; it must instead be claimed from [[Probita]] in [[East Ardougne]]. When skilling, the pet is prioritised over the resource gathered; it will be placed in the last inventory slot available{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1033777201815191558|date=26 August 2018|archiveurl=https://reldo.runescape.wiki/i/102833|archivedate=30 May 2020|quote=Yes, though skilling features will aim to avoid that by putting a new pet in your inventory ahead of whatever skilling resource you were about to be given.}}, while the resource gathered will be dropped underneath the player if their inventory becomes full. However, this '''does not''' apply to [[Farming]] due to the complexity of the skill's code.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1162879828384722946|date=17 August 2019|archiveurl=https://reldo.runescape.wiki/i/101108|archivedate=14 January 2021|quote=The herb would get the slot and the pet roll would not give you the pet. The devs who plugged in skill pets were able to prioritise the pets for Mining, Hunter, Fishing and Woodcutting, but the Farming code seems to have been nastier to handle that way.}}
+
+As pets are awarded as tertiary [[Drops|drop]]s, players can "obtain" more even if they own the pet in their bank, inventory, menagerie or is following them; when this happens, players will receive the message {{mes|You have a funny feeling like you would have been followed...|color=red}} The only exceptions are pets that are awarded as main drops, such as the [[abyssal orphan]] and [[Smol Heredit]]. 
+
+A few pets can be obtained by gambling rather than being a drop, those being the [[pet Penance Queen]], [[TzRek-Jad]], [[Jal-Nib-Rek]] and [[Smol Heredit]]. The latter three require sacrificing their respective item ([[fire cape]], [[infernal cape]] and [[dizana's quiver]]) and makes the same drop rate roll as getting it normally. If the player already owns the pet in their bank, inventory, menagerie or is following them, the pet cannot be gambled for again until lost.
+
+If a player dies with a one-off pet following them (or if it is in their inventory and it is not one of the items protected on death) in a dangerous situation, the pet will be dropped and wander around the area for 30 seconds before despawning. Even if the player returns in time, the pet cannot be picked up. Pets can be reclaimed from Probita or found again from their eligible sources.
+
+Getting and having a pet follow the player requires [[members]]hip. If a player runs out of membership with a pet still following them, the pet is placed in their [[inventory]]. They will receive the message {{mes|Your pet is scared into your backpack.|color=red}} If the player does not have space in their inventory, the pet is placed in their [[bank]]. If the player's bank is full or exceeds the allowable [[free-to-play]] bank space limit, their pet is sent to [[Probita]] in [[East Ardougne]].
+
+==List of pets==
+{{Otheruses|def=no|a list of pet variants and unlock requirements|Metamorphosis}}
+===Boss pets===
+Each pet is a potential reward for defeating a certain [[boss]] monster or completing a [[Raids|raid]], including skilling bosses and minigame bosses. Additionally, with the exception of the [[Phoenix]] (rewarded for subduing [[Wintertodt]]), these pets resemble or are capable of resembling the bosses they are associated with.
+{| class="wikitable lighttable sortable align-left-2 align-left-3 align-right-5" style="text-align:center;"
+! colspan="2" |Pet
+!Source
+! data-sort-value="" | Drop rate
+! data-sort-type="date" |Release date
+|-
+|{{plinkt|Abyssal orphan}}||[[Abyssal Sire]]{{efn|Using an [[unsired]] on the [[Abyssal Nexus|Font of Consumption]].}}|| data-sort-value=2560 | 1/2,560{{efn|1/2,560 per Abyssal Sire kill; 5/128 per unsired.}}||[[1 October]] [[2015]]
+|-
+|{{plinkt|Aggy}}||[[Mad Angel]]|| data-sort-value=2000 | 1/2,000||[[29 July]] [[2026]]
+|-
+|{{plinkt|Baby Mole}}||[[Giant Mole]]|| data-sort-value=3000 | 1/3,000||[[17 July]] [[2014]]
+|-
+|{{plinkt|Baron}}||[[Duke Sucellus]]|| data-sort-value=2500 | 1/2,500||[[26 July]] [[2023]]
+|-
+|{{plinkt|Bran}}||[[Royal Titans]]|| data-sort-value=3000 | 1/3,000 (Loot)
+1/1,500 (Sacrifice){{efn|Removes loot rolls for doubled pet chance.}}
+|[[5 February]] [[2025]]
+|-
+|{{plinkt|Beef}}||[[Brutus]]|| data-sort-value=1000 | 1/1,000||[[25 February]] [[2026]]
+|-
+|{{plinkt|Butch}}||[[Vardorvis]]|| data-sort-value=3000 | 1/3,000||[[26 July]] [[2023]]
+|-
+|{{plinkt|Callisto cub}}||[[Callisto]] and [[Artio]]|| data-sort-value=2800 | 1/1,500 (Callisto)<br/>1/2,800 (Artio)||[[19 March]] [[2015]]
+|-
+|{{plinkt|Dom}}||[[Doom of Mokhaiotl]]|| data-sort-value=250 | 1/250-1/1000{{efn|1/1,000 at delve level 6, 1/750 at delve level 7, 1/500 at delve level 8, and 1/250 at delve level 9 and beyond.}}||[[23 July]] [[2025]]
+|-
+|{{plinkt|Gull (pet)|txt=Gull}}||[[Shellbane Gryphon]]|| data-sort-value=3000 | 1/3,000||[[19 November]] [[2025]]
+|-
+|{{plinkt|Hellpuppy}}||[[Cerberus]]|| data-sort-value=3000 | 1/3,000||[[27 August]] [[2015]]
+|-
+|{{plinkt|Huberte}}||[[The Hueycoatl]]|| data-sort-value=400 | 1/400||[[25 September]] [[2024]]
+|-
+|{{plinkt|Ikkle Hydra|pic=Ikkle Hydra (serpentine)}}||[[Alchemical Hydra]]|| data-sort-value=3000 | 1/3,000||[[10 January]] [[2019]]
+|-
+|{{plinkt|Jal-Nib-Rek}}||{{SCP|minigame}} [[Inferno]]|| data-sort-value=75 | 1/100 (per kill or gamble)<br/>1/75 (per kill on Slayer task)||[[1 June]] [[2017]]
+|-
+|{{plinkt|Kalphite Princess}}||[[Kalphite Queen]]|| data-sort-value=3000 | 1/3,000||[[17 July]] [[2014]]
+|-
+|{{plinkt|Lil' Zik}}||{{SCP|raid}} [[Theatre of Blood]]|| data-sort-value=500 | 1/650 (Normal mode)<br />1/500 (Hard mode){{efn|The drop rate varies based on the player's individual performance in the raid, ranging from 1/650 (the base rate) to 1/6,500 in Normal Mode. For Hard Mode, the base rate is 1/500.}}||[[7 June]] [[2018]]
+|-
+|{{plinkt|Lil'viathan}}||[[The Leviathan]]|| data-sort-value=2500 | 1/2,500||[[26 July]] [[2023]]
+|-
+|{{plinkt|Little Nightmare}}||[[The Nightmare]] and [[Phosani's Nightmare]]|| data-sort-value=1400 | 1/800 to 1/4,000 (From 1 to 5+ team size)
+1/1,400 (Phosani's Nightmare)
+|[[6 February]] [[2020]]
+|-
+|{{plinkt|Maggot marquess}} || [[Maggot King]]|| data-sort-value=3500 | 1/3,500 || [[30 June]] [[2026]]
+|-
+|{{plinkt|Moxi}}||[[Amoxliatl]]|| data-sort-value=3000 | 1/3,000||[[25 September]] [[2024]]
+|-
+|{{plinkt|Muphin|pic=Muphin (ranged)}}||[[Phantom Muspah]]|| data-sort-value=2500 | 1/2,500||[[11 January]] [[2023]]
+|-
+|{{plinkt|Nexling}}||[[Nex]]|| data-sort-value=500 | 1/500||[[5 January]] [[2022]]
+|-
+|{{plinkt|Nid}}||[[Araxxor]]|| data-sort-value=1500 | 1/3,000 (Harvest)
+1/1,500 (Destroy){{efn|Removes loot rolls for doubled pet chance.}}
+|[[28 August]] [[2024]]
+|-
+|{{plinkt|Noon}}||[[Grotesque Guardians]]|| data-sort-value=3000 | 1/3,000||[[26 October]] [[2017]]
+|-
+|{{plinkt|Olmlet}}||{{SCP|raid}} [[Chambers of Xeric]]|| data-sort-value=53 | 1/53{{efn|Only for the player that rolls unique loot.}}||[[5 January]] [[2017]]
+|-
+|{{plinkt|Pet Chaos Elemental}}||[[Chaos Elemental]] and [[Chaos Fanatic]]|| data-sort-value=300 | 1/300 (Elemental)<br/>1/1,000 (Fanatic)||[[3 April]] [[2014]]
+|-
+|{{plinkt|Pet Dagannoth Prime}}||[[Dagannoth Prime]]|| data-sort-value=5000 | 1/5,000||[[17 July]] [[2014]]
+|-
+|{{plinkt|Pet Dagannoth Rex}}||[[Dagannoth Rex]]|| data-sort-value=5000 | 1/5,000||[[17 July]] [[2014]]
+|-
+|{{plinkt|Pet Dagannoth Supreme}}||[[Dagannoth Supreme]]|| data-sort-value=5000 | 1/5,000||[[17 July]] [[2014]]
+|-
+|{{plinkt|Pet dark core}}||[[Corporeal Beast]]|| data-sort-value=5000 | 1/5,000||[[16 October]] [[2014]]
+|-
+|{{plinkt|Pet General Graardor}}||[[General Graardor]]|| data-sort-value=5000 | 1/5,000||[[17 July]] [[2014]]
+|-
+|{{plinkt|Pet K'ril Tsutsaroth}}||[[K'ril Tsutsaroth]]|| data-sort-value=5000 | 1/5,000||[[17 July]] [[2014]]
+|-
+|{{plinkt|Pet Kraken}}||[[Kraken]]|| data-sort-value=3000 | 1/3,000||[[17 July]] [[2014]]
+|-
+|{{plinkt|Pet Kree'arra}}||[[Kree'arra]]|| data-sort-value=5000 | 1/5,000||[[17 July]] [[2014]]
+|-
+|{{plinkt|Pet Smoke Devil}}||[[Thermonuclear smoke devil]]|| data-sort-value=3000 | 1/3,000||[[17 July]] [[2014]]
+|-
+|{{plinkt|Pet Snakeling}}||[[Zulrah]]|| data-sort-value=4000 | 1/4,000||[[8 January]] [[2015]]
+|-
+|{{plinkt|Pet Zilyana}}||[[Commander Zilyana]]|| data-sort-value=5000 | 1/5,000||[[17 July]] [[2014]]
+|-
+|{{plinkt|Phoenix}}||[[Wintertodt]]{{efn|Received when collecting from the [[reward cart]] after subduing the [[Wintertodt]].}}|| data-sort-value=5000 | 1/5,000{{efn|While it is not officially recognised as a skilling pet, the 15x drop rate increase at [[200 million experience]] in [[Firemaking]] does apply to the Phoenix.}}||[[8 September]] [[2016]]
+|-
+|{{plinkt|Prince Black Dragon}}||[[King Black Dragon]]|| data-sort-value=3000 | 1/3,000||[[17 July]] [[2014]]
+|-
+|{{plinkt|Scorpia's offspring}}||[[Scorpia]]|| data-sort-value=2015 | 1/2,015.75||[[19 March]] [[2015]]
+|-
+|{{plinkt|Scurry}}||[[Scurrius]]|| data-sort-value=3000 | 1/3,000{{efn|Only rolls for the MVP.}}||[[24 January]] [[2024]]
+|-
+|{{plinkt|Skotos}}||[[Skotizo]]|| data-sort-value=65 | 1/65||[[4 May]] [[2017]]
+|-
+|{{plinkt|Smolcano}}||[[Zalcano]]|| data-sort-value=2250 | 1/2,250||[[25 July]] [[2019]]
+|-
+|{{plinkt|Smol Heredit}}||[[Sol Heredit]]|| data-sort-value=200 | 1/200 (per kill or gamble)||[[20 March]] [[2024]]
+|-
+|{{plinkt|Sraracha}}||[[Sarachnis]]|| data-sort-value=3000 | 1/3,000||[[4 July]] [[2019]]
+|-
+|{{plinkt|Tiny tempor}}||[[Tempoross]]{{efn|Received when collecting from the [[reward pool]] after subduing [[Tempoross]].}}|| data-sort-value=8000 | 1/8,000||[[24 March]] [[2021]]
+|-
+|{{plinkt|Tumeken's guardian}}||{{SCP|raid}} [[Tombs of Amascut]]|| data-sort-value=732 | Varies{{efn|The drop rate varies depending on total reward points and raid level. See [[Chest (Tombs of Amascut)#Tertiary rewards|this page]] for more details.}}||[[24 August]] [[2022]]
+|-
+|{{plinkt|TzRek-Jad}}||{{SCP|minigame}} [[TzHaar Fight Cave]]|| data-sort-value=200 | 1/200 (per kill or gamble)<br/>1/100 (per kill on Slayer task)||[[6 August]] [[2015]]
+|-
+|{{plinkt|Venenatis spiderling}}||[[Venenatis]] and [[Spindel]]|| data-sort-value=2800 | 1/1,500 (Venenatis)<br>1/2,800 (Spindel)||[[19 March]] [[2015]]
+|-
+|{{plinkt|Vet'ion Jr.}}||[[Vet'ion]] and [[Calvar'ion]]|| data-sort-value=2800 | 1/1,500 (Vet'ion)<br/>1/2,800 (Calvar'ion)||[[19 March]] [[2015]]
+|-
+|{{plinkt|Vorki}}||[[Vorkath]]|| data-sort-value=3000 | 1/3,000||[[4 January]] [[2018]]
+|-
+|{{plinkt|Wisp}}||[[The Whisperer]]|| data-sort-value=2000 | 1/2,000||[[26 July]] [[2023]]
+|-
+|{{plinkt|Yami}}||[[Yama]]|| data-sort-value=100 | 1/2,500<br/>1/100 ([[Contract of familiar acquisition]])||[[15 May]] [[2025]]
+|-
+|{{plinkt|Youngllef}}||{{SCP|minigame}} [[The Gauntlet]]|| data-sort-value=800 | 1/2,000 (normal Gauntlet)<br/>1/800 ([[Corrupted Gauntlet]])||[[25 July]] [[2019]]
+|}
+{{notelist}}
+
+===Skilling pets===
+These pets are obtained by training a specific [[Skills|skill]], with the chance of obtaining one being based on the player's level in the corresponding skill and the base chance of the activity being performed.
+
+For all [[drop rate]]s, use the formula: <math>\text{DropRate} = \frac{1}{\text{BaseChance} - (\text{SkillLevel} * 25)}</math>. Base chances are found on the individual page for each pet. A player's chance of receiving a skilling pet does not increase past level 99, with only one exception: players with [[200 million experience]] in the corresponding skill will be fifteen times more likely to receive the skilling pet.{{CiteTwitter|author=Mod Kieren|url=https://twitter.com/JagexKieren/status/784723957450702848|date=8 October 2016|archiveurl=https://reldo.runescape.wiki/i/104225|archivedate=25 May 2020|quote=15x more likely.}}
+
+As the rates use the player's base level, [[temporary skill boost]]s such as the [[dragon pickaxe]]'s [[Special attacks|special attack]] or invisible boosts in areas such as the [[Woodcutting Guild]] do not affect the rate at which players can obtain these pets.{{CiteTwitter|author=Mod Ed|url=https://twitter.com/JagexEd/status/877884145329897472|date=22 July 2017|archiveurl=https://reldo.runescape.wiki/i/105316|archivedate=30 May 2020|quote=It doesn't affect the rate but it will allow you to mine slightly faster than you'd be able to otherwise.}}
+{| class="wikitable sortable lighttable align-left-2 align-left-3 align-right-5" style="text-align:center; max-width:960px;"
+! colspan="2" |Pet
+!Source
+!Drop rate
+! data-sort-type="date" |Release date
+|-
+|{{plinkt|Baby chinchompa|pic=Baby chinchompa (grey)}}||Obtained while [[Hunter|Hunting]] chinchompas||[[Baby chinchompa#Drop rates|See here]]||[[5 November]] [[2015]]
+|-
+|{{plinkt|Beaver}}||Obtained while [[Woodcutting]]||[[Beaver#Drop rates|See here]]||[[5 November]] [[2015]]
+|-
+|{{plinkt|Giant Squirrel}}||Obtained while training [[Agility]]||[[Giant Squirrel#Drop rates|See here]]||[[1 September]] [[2016]]
+|-
+|{{plinkt|Heron}}||Obtained while [[Fishing]]||[[Heron#Drop rate|See here]]||[[5 November]] [[2015]]
+|-
+|{{plinkt|Rift guardian|pic=Rift guardian (fire)}}||Obtained while training [[Runecraft]]||[[Rift guardian#Drop rates|See here]]||[[1 September]] [[2016]]
+|-
+|{{plinkt|Rock golem}}||Obtained while [[Mining]]||[[Rock golem#Drop rates|See here]]||[[5 November]] [[2015]]
+|-
+|{{plinkt|Rocky}}||Obtained while [[Thieving]]||[[Rocky#Drop rates|See here]]||[[1 September]] [[2016]]
+|-
+|{{plinkt|Soup}}||Obtained while [[Sailing]]||[[Soup#Drop rates|See here]]||[[19 November]] [[2025]]
+|-
+|{{plinkt|Tangleroot}}||Obtained while [[Farming]]||[[Tangleroot#Drop rates|See here]]||[[1 September]] [[2016]]
+|}
+
+===Other (Collection log)===
+Collection log pets obtained through non-skilling or non-bossing means.
+{|class="wikitable lighttable sortable align-left-2 align-left-3 align-right-5" style="text-align:center; max-width:960px;"
+! colspan="2" |Pet
+!Source
+!Drop rate
+! data-sort-type="date" |Release date
+|-
+|{{plinkt|Abyssal protector}}||{{SCP|minigame}} [[Guardians of the Rift]]||1/4,000||[[23 March]] [[2022]]
+|-
+|{{plinkt|Bloodhound}}||{{SCP|dd}} [[Clue scroll (master)|Master clue scrolls]]||1/1,000||[[6 July]] [[2016]]
+|-
+|{{plinkt|Chompy chick}}||Dropped by [[chompy bird]]s after completing the {{SCP|diary}} [[Western Provinces Diary#Elite|Elite Western Provinces Diary]]||1/500||[[5 March]] [[2015]]
+|-
+|{{plinkt|Herbi}}||Hunting [[herbiboar]]s||1/6,500||[[7 September]] [[2017]]
+|-
+|{{plinkt|Lil' Creator}}||{{SCP|minigame}} [[Soul Wars]]||1/400||[[6 January]] [[2021]]
+|-
+|{{plinkt|Pet Penance Queen}}||{{SCP|minigame}} [[Barbarian Assault]]||1/1,000||[[14 August]] [[2014]]
+|-
+|{{plinkt|Quetzin}}||Expert and Master [[Hunter's guild rumours]]||1/1,000{{efn|While it is not officially recognised as a skilling pet, the 15x drop rate increase at [[200 million experience]] in [[Hunter]] does apply to the Quetzin and Mr McGroot.|name=200m}}||[[20 March]] [[2024]]
+|-
+|{{plinkt|Mr McGroot}}||Obtained while hunting [[Wyrmscraig Goat]]s||[[Mr McGroot#Drop rates|See here]]{{efn|While it is not officially recognised as a skilling pet, the 15x drop rate increase at [[200 million experience]] in [[Hunter]] does apply to the Quetzin and Mr McGroot.|name=200m}}||[[29 July]] [[2026]]
+|}
+{{notelist}}
+
+===Other (Generic)===
+These pets are obtained either through [[quests]] or other means.
+{|class="wikitable lighttable sortable align-left-2 align-left-3 align-right-5" style="text-align:center; max-width:960px;"
+! colspan="2" |Pet
+!Source
+!Drop rate
+! data-sort-type="date" |Release date
+|-
+|{{plinkt|Broav}}||[[Hunting Expert]] during {{SCP|quest}} [[While Guthix Sleeps]]||{{NA}}||[[10 July]] [[2024]]
+|-
+|{{plinkt|Cat|pic=Pet cat (black)}}||[[Gertrude]], after completing {{SCP|quest}} [[Gertrude's Cat]]||{{NA}}||[[28 July]] [[2003]]
+|-
+|{{plinkt|Fishbowl (pet)|pic=Fishbowl (blue)|txt=Pet fish}}||Caught in [[Harry's Fishing Shop]]||{{NA}}||[[24 October]] [[2005]]
+|-
+|{{plinkt|Hellcat|pic=Hell cat}}||Catching [[Hell-Rat]]s with a [[cat]]||{{NA}}||[[15 March]] [[2006]]
+|-
+|{{plinkt|Pet rock}}||[[Askeladden]], after {{SCP|quest}} [[The Fremennik Trials]]||{{NA}}||[[3 March]] [[2016]]
+|-
+|{{plinkt|Toy cat}}||[[Clockwork]] and a regular [[plank]] used at a [[crafting table 4]] with {{SCP|Crafting|85|link=yes}}||{{NA}}||[[31 May]] [[2006]]
+|-
+|{{plinkt|Humphrey Dumphrey|pic=Egg (Humphrey Dumphrey)}}||Completing the [[Scrambled!]] quest||{{NA}}||[[23 July]] [[2025]]
+|-
+|{{plinkt|Spooky chair}}||Completing the [[2025 Halloween event]] or any Halloween event after this||{{NA}}||[[15 October]] [[2025]]
+|-
+|{{plinkt|Mayor of catherby}}||Completing the [[Current affairs]] quest||{{NA}}||[[19 November]] [[2025]]
+|-
+|{{plinkt|Archibald}}||Completing the [[2026 Easter event]] or any Easter event after this||{{NA}}||[[25 March]] [[2026]]
+|}
+{{notelist}}
+
+==Pet-free locations==
+{{Incomplete}}
+There are several locations in the game where pets cannot be taken. Attempting to enter these locations generally provides players with a canonical reason why pets are not allowed there. Some locations show a different message when entering with a pet in the inventory, or when attempting to drop a pet inside of the location, which is also shown in this table.
+
+{| class="wikitable"
+!rowspan="2"| Location
+! Follower message 
+!rowspan="2"| Inventory allowed? 
+|-
+! Inventory message
+|-
+|rowspan="2"|''[[The Adventurous]]'' ([[Bill Teach]]'s ship)
+| You should hold onto your pet rather than letting it wander about.
+|rowspan="2" {{Yes}}
+|-
+| There is probably already a ship's pet around here somewhere.
+|-
+|[[The Gauntlet]]
+| [[Bryn]]: "Don't think you can be taking any plus ones down there with you."
+|{{Yes}}
+|-
+| [[The Nightmare]]
+| This doesn't seem like a suitable place to take a pet.
+| {{No}}
+|-
+|rowspan="2"| [[Brimhaven Agility Arena]]
+| [[Cracked Jenny's Tea Cup|Parrot]]: "Squawk!"<br><!--
+-->[[Cap'n Izzy No-Beard]]: "Oi matey! No followers allowed in the arena!"
+|rowspan="2" {{Yes}}
+|-
+| You can't have a follower here.
+|-
+| rowspan="2" | [[Corporeal Beast's Lair]]
+| Your follower hides in fear and refuses to enter the cave.
+| rowspan="2"  {{Yes}}
+|-
+| Your follower hides in fear and won't come out.
+|-
+|rowspan="2"| [[Fishing Trawler]]
+| You can't take that follower on the trawler. It might get wet.
+|rowspan="2" {{No}}
+|-
+| You can't take a follower out on the trawler. It might get wet.
+|-
+| [[The Hueycoatl]]
+| This doesn't seem like a suitable place to take a pet.
+| {{No}}
+|-
+| [[Chambers of Xeric]]{{efn|name=2025extra|You can enter the raid with a pet already following you to have it follow you during the raid. The pet may also be dropped to follow you once the raid begins.}}
+| You should keep the raiding dungeon tidy until your raid has begun.
+| {{yes}}
+|-
+| [[Nex]]
+| This doesn't seem like a suitable place to take a pet.
+| {{no}}
+|-
+|rowspan="2"| Underwater ([[Mogre Camp]])
+| [[Murphy]]: "I'm not taking you out for a dive with that pet following you. It'll get wet."
+|rowspan="2" {{no}}
+|-
+| [[Murphy]]: "I'm not taking you out for a dive with that pet in your bag. It'll get wet."
+|-
+|rowspan="2"| [[Underwater]] ([[Fossil Island]])
+| Your pet will not budge towards the water.
+|rowspan="2" {{no}}
+|-
+| Your pet tries to get out of your pack as you near the water.
+|-
+|rowspan="2"| Underwater ([[Coral Nurseries]])
+| Your pet has no interest in diving.
+|rowspan="2" {{yes}}
+|-
+| You can't have that follower here.
+|-
+|rowspan="2"| Underwater ([[Underwater Tunnel]])
+| You cannot go diving with that follower.
+|rowspan="2" {{no}}
+|-
+| You cannot go diving with that follower in your bag.
+|-
+|rowspan="2"| Underwater ([[Red Reef]])
+| Your pet has no interest in diving.
+|rowspan="2" {{yes}}
+|-
+| You can't have that follower here.
+|-
+| [[Ape Atoll Agility Course]]{{efn|Pets can technically follow you while on the course, however clearing any obstacle will forcibly put the pet in your inventory.}}
+| Your little friend can't make it over the obstacle...
+| {{yes}}
+|-
+|[[Barbarian Assault]] arena
+| "The barbarians don't want you to take your follower in."
+|{{No}}
+|-
+|rowspan="2"| [[Player-owned house]] in [[Building mode]]
+| "You should pick up your follower before entering building mode."
+|rowspan="2" {{yes}}
+|-
+|"You cannot drop items while in building mode."
+|-
+| [[Soul Wars]]
+| You can't enter a waiting area with a follower.
+| {{No}}
+|-
+| [[Trouble Brewing]]
+| "You cannot take your follower into the game."
+| {{No}}
+|-
+| [[Keldagrim minecart system]]
+| "Watch out, [sir/madam]! Don't want anything to run over your follower!"
+| {{Yes}}
+|}
+{{notelist}}
+
+==One-off pet totals==
+This is how many times each pet has been obtained by players, sorted by date. On the linked tweets by [[Jagex Moderator]]s, they are also divided into columns based on [[Ironman Mode|ironman]] status.
+{|class="wikitable sortable sticky-header" style="text-align:center;"
+! colspan=2 |Pet
+!8 Oct<br/>2015{{CiteTwitter|author=Mod John C|url=https://twitter.com/JagexJohnC/status/652116217206075392|date=8 October 2015|archiveurl=https://reldo.runescape.wiki/i/97049|archivedate=30 May 2020|quote=OSRS Total Boss Pets owned, not including those stored in menageries! [https://pbs.twimg.com/media/CQzIPmHXAAAYzv-.png]}}
+!14 Mar<br/>2016{{CiteTwitter|author=Mod John C|url=https://twitter.com/JagexJohnC/status/710441248218341376|date=14 March 2016|archiveurl=https://reldo.runescape.wiki/i/99236|archivedate=30 May 2020|quote=Here's an updated count of boss and skill pets in the game as of March 14th 2016! [https://pbs.twimg.com/media/Cdv-jIYWoAAst93.jpg]}}
+!7 Nov<br/>2016{{CiteTwitter|author=Mod Lottie|url=https://twitter.com/JagexLottie/status/795692573872558080|date=7 November 2016|archiveurl=https://reldo.runescape.wiki/i/104276|archivedate=30 May 2020|quote=As promised... Boss Pets, Skill Pets and "Other" Pets in @OldSchoolRS. [https://pbs.twimg.com/media/CwrdxO9XcAA9RI1.jpg] [https://pbs.twimg.com/media/Cwrd2sjXUAA392c.jpg] [https://pbs.twimg.com/media/Cwrd7kzWIAAbnnm.jpg]}}
+!16 May<br/>2017{{CiteTwitter|author=Mod Lottie|url=https://twitter.com/JagexLottie/status/864526992967962624|date=16 May 2017|archiveurl=https://reldo.runescape.wiki/i/109057|archivedate=30 May 2020|quote=The number of pets in @OldSchoolRS along with an ironman status split. Enjoy! :) [https://pbs.twimg.com/media/C_9qdO4VYAAOHsc.jpg]}}
+!16 Nov<br/>2017{{CiteTwitter|author=Mod Lottie|url=https://twitter.com/JagexLottie/status/931149238553186304|date=16 November 2017|archiveurl=https://reldo.runescape.wiki/i/99327|archivedate=30 May 2020|quote=Here are the latest @OldSchoolRS pet counts! [https://pbs.twimg.com/media/DOwaX4JW4AEQxfF.jpg]}}
+!24 May<br/>2018{{CiteTwitter|author=Mod Lottie|url=https://twitter.com/JagexLottie/status/999694703204462593|date=24 May 2018|archiveurl=https://reldo.runescape.wiki/i/106686|archivedate=30 May 2020|quote=It's about time for some new pet counts [https://i.imgur.com/LXnu5pw.png]}}
+!22 Feb<br/>2019{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/1100059595828015107|date=25 February 2019|archiveurl=https://reldo.runescape.wiki/i/99921|archivedate=30 May 2020|quote=On Friday 22nd February we celebrated our 6th Birthday, and to celebrate it we hosted a special livestream (which you can find on our YouTube channel). It included a data segment from @JagexMatk and @JagexNasty! For your convenience, within this chain are the slides! [https://pbs.twimg.com/media/D0QyXzBXQAAc_ex.png]}}
+!21 Feb<br/>2020{{CiteVideo|author=Old School RuneScape|title=OSRS Data Stream 2020 - Old School RuneScape's 7th Birthday!|url=https://www.youtube.com/watch?v=UfB2bBacxJ8|timestamp=18:37|date=Feb 26, 2020|site=Youtube}}
+!24 Dec<br/>2021{{CiteTwitter|author=Mod Lottie|url=https://twitter.com/JagexLottie/status/1474431946927312911|date=24 Dec 2021|archiveurl=https://reldo.runescape.wiki/i/97009|archivedate=24 Dec 2021|quote=Ho-ho-holy moly that's a lot of pets!! Here's an updated boss pet count for @OldSchoolRS!! #RuneStats #GuessWhosBack #HappyHolidays [https://pbs.twimg.com/media/FHYjZaZXoAMaDba?format=jpg&name=large] [https://pbs.twimg.com/media/FHY8Ic8XECMpIW1?format=jpg&name=large] [https://pbs.twimg.com/media/FHY98wpXsAY6-Ar?format=jpg&name=large]}}
+!13 Dec<br/>2023{{CiteTwitter|author=Mod Enigma|url=https://twitter.com/JagexEnigma/status/1737475535649792288|date=20 December 2023|archiveurl=|archivedate=20 December 2023|quote=After a long wait, here are the updated Pet Stats for @OldSchoolRS as of 13th Dec 2023. #OSRSPets}}
+|-
+|{{plinkt|Pet Chaos Elemental|txt=Chaos Elemental}}||2,413||3,393||5,718||7,251||9,306||12,312||16,677||25,615||40,388||78,223
+|-
+|{{plinkt|Pet Dagannoth Supreme|txt=Dagannoth Supreme}}||623||972||1,951||2,948||4,017||5,086||6,818||9,380||12,224||19,126
+|-
+|{{plinkt|Pet Dagannoth Prime|txt=Dagannoth Prime}}||613||976||1,844||2,738||3,745||4,778||6,419||8,928||11,694||18,759
+|-
+|{{plinkt|Pet Dagannoth Rex|txt=Dagannoth Rex}}||1,031||1,471||2,565||3,789||5,111||6,589||8,985||12,436||16,222||26,540
+|-
+|{{plinkt|Baby Mole}}||521||782||1,610||2,766||4,668||6,562||8,334||11,818||21,171||43,910
+|-
+|{{plinkt|Kalphite Princess}}||307||504||1,282||1,841||2,626||3,515||4,570||5,986||9,040||16,260
+|-
+|{{plinkt|Pet Smoke Devil|txt=Smoke devil}}||1,487||2,072||4,032||5,534||7,413||9,851||13,668||19,479||30,568||55,124
+|-
+|{{plinkt|Pet Kree'arra|txt=Kree'arra}}||376||523||841||1,000||1,287||1,738||2,360||3,510||5,036||10,351
+|-
+|{{plinkt|Pet General Graardor|txt=General Graardor}}||918||1,393||2,600||3,394||4,178||5,225||6,724||9,675||12,359||27,027
+|-
+|{{plinkt|Pet Zilyana|txt=Zilyana}}||505||799||1,397||1,829||2,256||2,783||3,383||4,331||6,250||11,571
+|-
+|{{plinkt|Pet K'ril Tsutsaroth|txt=K'ril Tsutsaroth}}||310||492||1,041||1,310||1,549||1,811||2,192||2,981||4,606||8,821
+|-
+|{{plinkt|Prince Black Dragon}}||1,950||3,050||5,614||7,530||9,830||12,406||15,750||20,965||27,795||48,232
+|-
+|{{plinkt|Pet Kraken|txt=Kraken}}||4,051||6,006||11,750||17,050||23,070||31,906||45,655||66,139||97,357||168,482
+|-
+|{{plinkt|Pet Penance Queen|txt=Penance Queen}}||81||136||294||410||542||670||826||1,129||1,625||2,624
+|-
+|{{plinkt|Pet dark core|txt=Dark core}}||263||487||971||1,230||1,436||1,762||2,078||2,701||4,087||8,611
+|-
+|{{plinkt|Pet Snakeling|txt=Snakeling}}||3,577||5,340||9,870||14,345||17,126||21,242||29,144||42,072||41,273||96,199
+|-
+|{{plinkt|Chompy chick}}||476||858||2,209||3,451||5,573||8,520||12,066||17,779||31,686||59,487
+|-
+|{{plinkt|Venenatis spiderling}}||590||996||1,896||2,396||3,011||3,574||4,832||7,268||8,874||26,001
+|-
+|{{plinkt|Callisto cub}}||244||419||969||1,390||1,998||2,641||3,546||4,999||6,483||22,290
+|-
+|{{plinkt|Vet'ion Jr.}}||134||203||468||617||785||992||1,393||2,157||3,111||17,618
+|-
+|{{plinkt|Scorpia's offspring}}||351||572||997||1,501||2,006||2,481||3,168||4,265||5,986||12,113
+|-
+|{{plinkt|TzRek-Jad}}||648||1,443||3,290||4,822||6,629||8,679||12,047||16,352||24,278||42,860
+|-
+|{{plinkt|Hellpuppy}}||414||1,165||3,060||4,826||6,829||9,090||12,568||18,021||28,847||51,162
+|-
+|{{plinkt|Abyssal orphan}}||76||444||1,572||2,579||3,953||5,135||6,635||9,215||16,461||28,372
+|-
+|{{plinkt|Heron}}||{{NA}}||2,608||13,062||20,883||28,447||36,147||50,906||72,510||92,657||182,997
+|-
+|{{plinkt|Rock golem}}||{{NA}}||1,559||6,335||11,217||17,222||25,653||40,455||62,910||80,460||197,251
+|-
+|{{plinkt|Beaver}}||{{NA}}||2,458||10,804||17,838||25,219||33,305||47,237||68,482||94,686||174,924
+|-
+|{{plinkt|Baby chinchompa|pic=Baby chinchompa (grey)}}||{{NA}}||1,345||5,119||8,098||11,022||14,122||19,397||26,957||22,326||60,351
+|-
+|{{plinkt|Bloodhound}}||{{NA}}||{{NA}}||137||305||492||739||1,171||2,071||3,912||7,982
+|-
+|{{plinkt|Giant Squirrel}}||{{NA}}||{{NA}}||1,418||7,576||12,890||19,353||31,723||51,136||66,921||153,649
+|-
+|{{plinkt|Tangleroot}}||{{NA}}||{{NA}}||591||2,678||4,813||7,547||15,154||31,184||56,385||109,676
+|-
+|{{plinkt|Rocky}}||{{NA}}||{{NA}}||1,332||6,629||13,295||24,478||38,796||63,326||85,625||211,565
+|-
+|{{plinkt|Rift guardian|pic=Rift guardian (fire)}}||{{NA}}||{{NA}}||763||3,521||6,499||10,109||15,995||26,804||43,618||91,433
+|-
+|{{plinkt|Phoenix}}||{{NA}}||{{NA}}||3,436||8,393||13,105||18,244||29,905||46,083||78,242||143,749
+|-
+|{{plinkt|Olmlet}}||{{NA}}||{{NA}}||{{NA}}||547||1,414||2,730||4,697||8,786||15,475||29,195
+|-
+|{{plinkt|Skotos}}||{{NA}}||{{NA}}||{{NA}}||2,580||11,826||20,225||33,765||55,634||86,434||152,314
+|-
+|{{plinkt|Jal-Nib-Rek}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||24||86||194||508||1,531||2,963
+|-
+|{{plinkt|Herbi}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||548||1,374||2,877||5,672||12,970||29,969
+|-
+|{{plinkt|Noon}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||339||1,199||2,560||4,467||9,420||18,819
+|-
+|{{plinkt|Vorki}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||3,956||11,074||22,953||37,508||94,869
+|-
+|{{plinkt|Lil' Zik}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||1,783||4,644||10,805||21,174
+|-
+|{{plinkt|Ikkle Hydra|pic=Ikkle Hydra (serpentine)}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||2,483||10,589||23,413||45,797
+|-
+|{{plinkt|Sraracha}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||1,027||5,635||14,229
+|-
+|{{plinkt|Smolcano}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||7,123||28,952
+|-
+|{{plinkt|Youngllef}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||614||9,946||54,987
+|-
+|{{plinkt|Little Nightmare}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||4,076||4,028||10,472
+|-
+|{{plinkt|Lil' Creator}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||7,675||21,629
+|-
+|{{plinkt|Tiny tempor}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||9,825||31,719
+|-
+|{{plinkt|Abyssal protector}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||48,191
+|-
+|{{plinkt|Tumeken's guardian}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||24,459
+|-
+|{{plinkt|Nexling}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||10,357
+|-
+|{{plinkt|Muphin|pic=Muphin (ranged)}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||8,099
+|-
+|{{plinkt|Baron}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||7,778
+|-
+|{{plinkt|Butch}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||7,703
+|-
+|{{plinkt|Wisp}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||3,838
+|-
+|{{plinkt|Lil'viathan}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||{{NA}}||3,745
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 March 2026
+|update = More from the Getting Around Poll
+|change = The message about dropping pets on F2P worlds has been updated to reflect changes to Probita's services.
+}}
+{{Subject changes
+|date = 10 September 2025
+|update = Pet Insurance Rework & More
+|change = Pet reclaims are now free. Any reclaim tokens purchased prior to the change were refunded.
+}}
+{{Subject changes
+|date = 31 January 2024
+|update = Scurrius & DT2 Combat Achievements
+|change = Pets should now properly follow players back when returning from a [[random event]] area.
+}}
+{{Subject changes
+|date = 30 August 2023
+|update = Poll 80 ToA Changes & DMM Tweaks
+|type = hotfix
+|change = Pets no longer get exploded or take damage from explosions within the [[Path of Apmeken]].
+}}
+{{Subject changes
+|date = 2 February 2023
+|update = Wilderness Boss Rework Tweaks & More
+|change = It's no longer possible for a player to exploit a bug with [[Temple Trekking]] to have multiple pets out simultaneously.
+}}
+{{Subject changes
+|date = 22 June 2022
+|update = Pride 2022, Pet Reclaim Changes & New Mobile Client!
+|poll = Old School Content Poll 76: Game Improvements
+|change = One-off pets are now automatically insured by [[Probita]] upon receiving one. Players who've paid the insurance fee of 500,000 coins prior to this update will have the fees paid added to Probita's reclaim fee coffer, which can then be used as a discount towards any further reclaims. For example, if players insured two pets for 500,000 coins each, they will be given one free reclaim token, and if five were insured, they will be given two free reclaim tokens and a 500,000 coins discount towards the next reclaim token purchase.
+}}
+{{Subject changes
+|date = 6 October 2016
+|update = The Hill Giant Boss
+|poll = 
+|change = Talking to various NPCs in [[A Tail of Two Cats]]/[[Icthlarin's Little Helper]] quests while other pets are visible displays the correct dialogue.
+}}
+{{Subject changes
+|date = 29 September 2016
+|update = Duel Arena Improvements
+|poll = Old School Content Poll 47: Rewards for Raids & Slayer
+|change = Players with 200 million [[experience]] in a skill now have an increased chance of acquiring the related skilling pet for that skill.
+}}
+{{Subject changes
+|date = 28 April 2016
+|update = Calling Pets & Deadman Death
+|poll = Old School Content Poll 41: Bank placeholders & Skillcapes
+|change = *"Call pet" button has been added to force your follower to appear next to you.
+*You will now receive a message if you would have obtained the pet on that kill, but only if you already own the boss pet.
+}}
+{{Subject changes
+|date = 5 November 2015
+|update = Skilling Pets & Deadman Tweaks
+|poll = Old School Content Poll 36: Skilling Pets
+|change = Four skilling pets have been added: a [[beaver]] for [[Woodcutting]], [[rock golem]] for [[Mining]], [[heron]] for [[Fishing]], and a [[baby chinchompa]] for [[Hunter]].
+}}
+{{Subject changes
+|date = 30 April 2015
+|update = Mutagens, Mo & Much More
+|change = Pets now follow you up and down the ladder in the [[Motherlode Mine]].
+}}
+{{Subject changes
+|date = 9 April 2015
+|update = Motherlode Expansion & More
+|poll = Old School Content Poll 31: Easter Holiday Event
+|change = The 'talk to' option is now the left-click option for boss pets rather than 'pick up'. Dialogue added for the chaos elemental pet, dark core pet, and chompy bird pet.
+}}
+{{Subject changes
+|date = 21 August 2014
+|update = In-Game Polls & Pet Insurance
+|poll = Old School feature poll - Content Poll 23
+|change = [[Pet insurance]] is added to the game.
+}}
+{{Subject changes
+|date = 15 May 2014
+|update = Coal & gem bags and Attack options
+|change = The options on other players' pets are no longer visible.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Players cannot go underwater if they have a pet following them or in their inventory, with the exception of the [[Pet Kraken]] and [[Pet Chaos Elemental]]. Furthermore, while many pets can be obtained underwater, [[Tangleroot]], [[Quetzin]], [[Lil' Creator]] and [[Bloodhound]] can be more easily obtained there, but they cannot be taken back once the player leaves.
+**The [[Phoenix]] was another pet that could be be more easily obtained underwater. However, [[Update:Wintertodt Updates & Varlamore Drop Rates|an update]] changed the [[Wintertodt|Wintertodt's]] reward system from [[Supply crate (discontinued)|Supply crates]] to the [[Reward Cart]], meaning that only players that kept supply crates before the update have a chance of obtaining this pet underwater.
+
+==References==
+{{Reflist}}
+{{Pets}}

@@ -1,5 +1,13 @@
 # Client-TS Parity Notes
 
+> **`::tele` takes underscores, not commas.** `::tele 0_50_50_21_21`. The comma
+> form in some older recipes below fails with "nowhere called 0,50,50,21,21" and
+> the run then CONTINUES from wherever the player already was — so a harness
+> using it has been measuring the login tile, silently. `~tele_resolve` reads one
+> word and decides name-or-coord by its first character (cheat_tele.rs2); a comma
+> literal is neither.
+
+
 How Client-TS (the LostCity 225-era reference client, `Client-TS/src/`)
 implements the gameplay features ported to `src/` (torirs), how torirs
 implements them today, and the architecture mapping between the two. Written
@@ -711,8 +719,8 @@ half-speed only applies when `faceEntity === -1 && turnspeed !== 0`.
 and are converted at use time — `(faceSquareX - mapBuildBaseX*2) * 64` — which
 is why `0,0` works as the "no target" sentinel.
 
-**mock230 facesquare:** `SS_OP_FACESQUARE` / `SS_OP_NPC_FACESQUARE` write
-`mock230_coord_fine(tile, 1)` (= `(tile<<1)+1`), matching LostCity
+**ToriRSServer facesquare:** `SS_OP_FACESQUARE` / `SS_OP_NPC_FACESQUARE` write
+`ToriRSServer_CoordFine(tile, 1)` (= `(tile<<1)+1`), matching LostCity
 `CoordGrid.fine`. Writing raw tiles made `atan2` land near yaw 256
 (southwest) for every dialogue `~chatnpc` turn — fixed 2026-08-03.
 
@@ -906,11 +914,11 @@ that catastrophic rather than local:
   canvas (the same reason `UIELEM_BUILTIN_HOVERTEXT` carries an explicit "must
   never eat world clicks" pass-through case).
 - `UITree_HitTestInteractive` walks root siblings in order and lets a **later**
-  root's hit win. `app_push_builtin_overlay_nodes` appends after the interface,
-  so the overlay shadowed the entire UI, not just the world.
+  root's hit win. RevConfig placed the overlay after the interface, so the
+  overlay shadowed the entire UI, not just the world.
 
-Fix: one `case` in `uitree_input.c`. Anything added to
-`app_push_builtin_overlay_nodes` needs an entry there. Regression test:
+Fix: one `case` in `uitree_input.c`. Every decorative overlay node type needs
+an entry there. Regression test:
 `uitree_test_hover.c` "entity overlay never eats clicks" (verified to fail
 without the case).
 
@@ -1550,8 +1558,8 @@ endpoint IfButtonD). torirs now matches that on the CS2 path (no local
 for rev-230 UI behaviour is the Java deob, not in-repo `Client-TS`.
 
 Verified: `test-uitree`, `test-inv`, `test-varp` (incl. optimistic+sync),
-`test-net-exec`, `mock230 --selftest` (inventory drag stanza), and
-`mock230_pack --check-only` at 0 errors. Live under `manifest_osrs230.ini`:
+`test-net-exec`, `ToriRSServer --selftest` (inventory drag stanza), and
+`ToriRSServer_Pack --check-only` at 0 errors. Live under `manifests/manifest_osrs230.ini`:
 CS2 backpack drag `541,229→583,229` sends ClientProt 48
 (`INV_BUTTOND 149|0#0 → 149|0#1`) and the server's `UPDATE_INV_PARTIAL`
 repaints; Escape after `TORIRS_NET_CHEAT=bank` sends `CLOSE_MODAL` and locally
@@ -1729,7 +1737,7 @@ IfButtonD). The 2004 `objReplace` / bank-insert cascade are not IF3
 features; do not reintroduce them on the CS2 path.
 
 Verified: `test-inv`, `test-uitree`, `test-net-exec`, `test-varp` pass. Live
-under `manifest_osrs230.ini`: press-hold a worn item does not move; a plain
+under `manifests/manifest_osrs230.ini`: press-hold a worn item does not move; a plain
 backpack click runs its op with no fade; a promoted backpack drag fires
 `onDragComplete` + dual-endpoint `INV_BUTTOND` (no local swap on CS2). CS1
 against LostCity still does the optimistic swap (see §21.4).
@@ -3322,9 +3330,9 @@ surrounding chrome.
 
 ### torirs
 
-The overlay node (`UIELEM_BUILTIN_ENTITY_OVERLAY`) is pushed as a late root
-sibling (`app_push_builtin_overlay_nodes`, `app.c`), so its `parent_clip` in the
-emit walk is the whole canvas. `UITree_EmitFill` already populated the desc's
+The overlay node (`UIELEM_BUILTIN_ENTITY_OVERLAY`) is declared as a late root
+sibling in RevConfig, so its `parent_clip` in the emit walk is the whole canvas.
+`UITree_EmitFill` already populated the desc's
 clip with the world viewport box the host reports
 (`UITREE_HOST_GET_ENTITY_OVERLAYS` → `world_emit_desc.x/y/w/h`, `app.c:836`), but
 `emit_walk_node` (`uitree_emit.c`) then unconditionally overwrote it with
@@ -3720,7 +3728,7 @@ lengths and run one curve tick per client cycle (v1 parity).
 
 ```
 TORIRS_ANIM_DEBUG=1 TORIRS_WORLD_MAP=50,50 TORIRS_SIM_WORLD_KEY=400,300,8 \
-  TORIRS_SIM_TICKS=20 TORIRS_WORLD_BMP=1 ./src/torirs --manifest manifest_osrs239.ini --offline
+  TORIRS_SIM_TICKS=20 TORIRS_WORLD_BMP=1 ./src/torirs --manifest manifests/manifest_osrs239.ini --offline
 
 seq_load: seq=10230 skeletal maya=13893632 bones=236 baked=125 play=120
 seq_bind: element=9015 seq=10230 frames=120 skeletal=1
@@ -3728,7 +3736,7 @@ seq_bind: element=9015 seq=10230 frames=120 skeletal=1
 
 Renders at 1 / 25 / 60 ticks differ — the tentacles move — and the model stays
 coherent. Classic sequences are untouched: npc 3106 in the same cache still
-binds seq 808 (`frames=12 skeletal=0`), and the dat1 `manifest_rs254` spawn
+binds seq 808 (`frames=12 skeletal=0`), and the dat1 `manifest_rs254lc` spawn
 still binds seq 1191 (`frames=70 skeletal=0`). `test-world`, `test-walkmerge`,
 `test-uitree`, `test-world-builder`, `test-entity-decode` and `test-task-order`
 all pass.
@@ -3919,7 +3927,7 @@ main-modal slot once the gameframe is up — the same `RS_UISlots_OpenMain` path
 
 ```
 SDL_VIDEODRIVER=dummy TORIRS_SIM_OPENMAIN=3559 TORIRS_MAX_FRAMES=250 \
-  TORIRS_EXIT_BMP=build/design.bmp ./src/torirs --manifest manifest_rs254.ini --offline
+  TORIRS_EXIT_BMP=build/design.bmp ./src/torirs --manifest manifests/manifest_rs254lc.ini --offline
 ```
 
 The default male composites and renders (bald head + goatee, olive top, green
@@ -4028,7 +4036,7 @@ effect once the gameframe is up:
 
 ```
 TORIRS_AUDIO_DEBUG=1 TORIRS_SIM_SOUND=41 TORIRS_MAX_FRAMES=200 \
-  ./src/torirs --manifest manifest_rs254.ini
+  ./src/torirs --manifest manifests/manifest_rs254lc.ini
 ```
 
 ```
@@ -4037,8 +4045,8 @@ rs_audio: play id=41 loops=1 samples=26680 (60 ticks)
 audio(sdl2): queued id=41 samples=26680 rate=22050 volume=64
 ```
 
-Confirmed on every shipped manifest: `manifest_rs254` (dat1),
-`manifest_osrs230`, `manifest_osrs239`, `manifest_xrsps` and `manifest_void634`.
+Confirmed on every shipped manifest: `manifest_rs254lc` (dat1),
+`manifest_osrs230`, `manifest_osrs239`, `manifest_osrs233xrsps` and `manifest_rs634void`.
 
 ### Still open
 
@@ -4051,7 +4059,7 @@ Confirmed on every shipped manifest: `manifest_rs254` (dat1),
   what plays; 3 sample-only, which are silent). Decoding BCV means a Vorbis
   implementation plus its shared codebook, and rt4's `VorbisSound` header layout
   does not match these bytes — no reference to port.
-- **`manifest_rs377.ini` states `revision=254`** while pointing at
+- **`manifests/manifest_rs377lc.ini` states `revision=254`** while pointing at
   `cache.rs377`. It is a copy of the 254 manifest with only `dir=` changed (its
   header comment still says "rev 254"), so the sound codec picks the pre-filter
   flavour and the stream mis-frames — the loader reports
@@ -4111,7 +4119,7 @@ frame and so reproduce exactly the pre-mount race:
 
 ```
 TORIRS_SIM_OPENCHAT=2459 TORIRS_SIM_SETHIDE=2468:0,2465:1 \
-TORIRS_SIM_SETTAB=0:3796 ./src/torirs --manifest manifest_rs254.ini --offline
+TORIRS_SIM_SETTAB=0:3796 ./src/torirs --manifest manifests/manifest_rs254lc.ini --offline
 ```
 
 `TORIRS_NET_DEBUG=1` prints `if_sethide: com=7624 hide=0 applied=0` — the
@@ -4174,7 +4182,7 @@ re-bake would otherwise clear them):
 
 ```
 TORIRS_SIM_SETTAB=0:3796 TORIRS_SIM_SETHIDE=7624:0 \
-TORIRS_SIM_SETVARP=300:500,301:0 ./src/torirs --manifest manifest_rs254.ini --offline
+TORIRS_SIM_SETVARP=300:500,301:0 ./src/torirs --manifest manifests/manifest_rs254lc.ini --offline
 ```
 
 Sampling one row across the bar shows the fill tracking varp 300 exactly —
@@ -4397,7 +4405,7 @@ rendered correctly with five lines of chat and the input caret drawn straight
 through it. Mounting into the modal instead deletes both server-side hide
 packets — the open is one `IF_OPENSUB`, the close is one `IF_CLOSESUB`, and the
 client's own script does the rest, in both directions. The slot is now resolved
-by name (`chatbox:chatmodal` → `Mock230Ids.com_chatbox_modal`) rather than
+by name (`chatbox:chatmodal` → `ToriRSServerIds.com_chatbox_modal`) rather than
 written as a literal, which is what would have caught it the first time.
 
 **The chathead froze on frame 0.** `app_if_head_poll` rebinds a chathead's
@@ -4416,7 +4424,7 @@ loaded sequence sitting on `frame=0` forever. `UITreeAnim_Advance` now says why
 it skipped a widget under that flag (still loading vs. decoded to nothing vs.
 skeletal), which is the one distinction a rest-pose model cannot show you.
 
-Verified headless against `src/build/mock230` (`::talk <slot> 1`, which is
+Verified headless against `src/build/torirsserver` (`::talk <slot> 1`, which is
 Hans' four-page conversation — npc, player, npc, player — so it exercises
 repeated mounts of two different groups into the same slot). The chat area is
 the dialogue and nothing else on every page; both the npc chathead (231:2) and
@@ -4470,7 +4478,7 @@ older map-square-aligned base needed `scene_off`; that field is gone. Pin by
 `test-net-exec`'s SET_MAP_FLAG case.
 
 Verified: `test-walkmerge`, `test-world` (incl. delaymove), `test-net-exec`,
-`mock230_pack --check-only` at 0 errors.
+`ToriRSServer_Pack --check-only` at 0 errors.
 
 ---
 
@@ -4514,7 +4522,7 @@ the map base (OpLoc wire id). Gaps closed:
    separate server-update callback.
 2. **Minimenu** — post-remorph child ops/name via the refreshed scenery record
    (no separate menu-time resolve needed).
-3. **Server OpLoc** — `mock230_loc_resolve_transform` for op validation +
+3. **Server OpLoc** — `ToriRSServer_LocResolveTransform` for op validation +
    trigger type/category; scene loc remains the base (`osrs230_mockserver.md`).
 
 Content that needs this: Ernest `%ernestdoors` levers/doors, runecraft ruin
@@ -4535,7 +4543,7 @@ multilocs, Restless Ghost tower altar (`%restless_ghost_altar_var`).
 
 ### Symptom
 
-Under the exact live C-client path (`run-live.sh manifest_osrs239.ini`), the
+Under the exact live C-client path (`run-live.sh manifests/manifest_osrs239.ini`), the
 backpack drew correctly and its right-click object rows existed, but a drag did
 nothing.  The server had armed `149:0` for slots `0..27` with mask `0x33f8fc`;
 the live minimenu trace nevertheless printed `events=0x0`, so the object-drag

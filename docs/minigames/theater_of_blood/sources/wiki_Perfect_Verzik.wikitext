@@ -1,0 +1,60 @@
+{{Infobox Combat Achievement
+|name = Perfect Verzik
+|image = [[File:Verzik Vitur (final form).png|250px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Defeat Verzik Vitur without anyone in the team taking damage from Verzik Vitur's attacks other than her spider form's correctly prayed against regular magical and ranged attacks.
+|tier = Master
+|monster = Theatre of Blood
+|type = Perfection
+|id = 249
+|leagueRegion = Morytania
+}}
+'''Perfect Verzik''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to defeat [[Verzik Vitur]] without anyone in the team taking avoidable damage from Verzik Vitur's attacks.
+
+Specifically, players are '''not''' allowed to take damage from:
+
+*Magic and ranged attacks during phases 1 and 2
+*Damage from pillar falling
+*Nylocas explosions
+*Verzik's bounce attack during phase 2
+**If no damage is taken, this will not invalidate the run
+*Ranged or magic attacks during phase 3 that are not correctly prayed against
+*Being stuck in a web when it expires
+*Yellow projectile when not shielded
+*Green bomb attack without bouncing it to other players as many times as possible
+*Verzik's Tornado attack
+
+Players may take damage from:
+*[[Nylocas Athanatos]] landing
+*Lightning attack, it is allowed to tank the zap if the projectile immediately dissipates upon hitting the first player for a large amount of damage, or if the entire chain is handled correctly. However, letting the projectile correctly bounce on the first player and then incorrectly zap subsequent players for large amounts of damage will fail the task. 
+*Green bomb attack if it will continue to target another player or it cannot be bounced further
+
+== Strategy ==
+
+=== Phase 1 ===
+No special considerations are needed for this phase as long as teams use enough [[Dawnbringer]] special attacks. Players who seek to deal extra damage with melee should be mindful of Verzik's attack speed and time to hide to avoid getting clipped by her attack. Make sure to avoid standing next to a pillar once the phase ends to avoid getting hit as it collapses.
+
+=== Phase 2 ===
+To reduce the chance of a nylocas exploding on a player, wait until nylos spawn and freeze them immediately. The [[Nylocas Athanatos]] that spawns will begin to slowly heal Verzik. As long as it is left alive no more nylocas will spawn and it is very easy to out-damage the healing with a [[Scythe of vitur]]. Once the [[Nylocas Matomenos]] spawn, the purple nylocas can be killed off. Save any special attacks for Phase 3 enrage. It is very important to time attacks so that Verzik does not bounce a player, as it is possible to take damage (and fail the achievement) from it, and it is more than likely to be hit by a ranged attack while stunned.
+
+=== Phase 3 ===
+Whoever is tanking Verzik should not step under the boss as it reduces the travel time of her projectiles, making them more difficult to correctly pray against. Players should freeze the nylocas that spawn similarly to P2 to avoid any potential explosion damage.
+
+It should be the team's goal to do enough damage to end the encounter before the green ball special attack, as its mechanics require a large amount of coordination. If the players have enough special attack energy and Scythes, they can leave Verzik with just above 20% until the yellow attack. Afterwards, use as many special attacks as possible to end the encounter. With a small team or in teams without a lot of Scythes it may be easier to continue doing damage and start enrage early. Avoiding the tornados while correctly standing on a yellow portal can give a much needed head start to finishing Verzik off before the green ball is launched.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 4 August 2021
+|update = New Client Features: Milestone 2
+|poll =
+|change = The "Perfect Verzik" task will no longer fail if players take damage from Verzik's green ball attack, providing it was successfully bounced to another player.
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

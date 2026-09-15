@@ -4,8 +4,7 @@
 
 A function that is handed something it cannot accept must **abort loudly**, not
 return a neutral value and let the caller carry on. Use `assert()` from
-`<assert.h>`. `NDEBUG` is never defined in this tree, so asserts are live in
-every configuration, `OPT=1` included.
+`<assert.h>`.
 
 ```c
 /* NO — the caller's bug becomes a silent no-op, surfacing later as a

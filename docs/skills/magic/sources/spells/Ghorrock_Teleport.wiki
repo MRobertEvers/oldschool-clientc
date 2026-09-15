@@ -1,0 +1,41 @@
+{{External|rs}}
+{{otheruses|the teleport spell|the teleport tablet|Ghorrock teleport (tablet)}}
+{{Infobox Spell
+|name = Ghorrock Teleport
+|image = [[File:Ghorrock Teleport.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 96
+|spellbook = Ancient
+|type = Teleport
+|exp = 106
+|cost = {{RuneReq|Law=2|Water=8}}
+|speed = 5 ticks
+|description = A teleportation spell
+|anim = [[File:Ancient teleport.gif]]
+|sound = [[File:Teleport (Ancient Magicks).ogg]]
+}}
+[[File:Ghorrock Teleport icon (mobile).png|left|class=pageimage]]
+'''Ghorrock Teleport''' requires a [[Magic]] level of 96 to cast. It [[teleport]]s the caster to the [[Frozen Waste Plateau]] in the [[Wilderness]] (near the level 44 [[Wilderness Obelisk|obelisk]]), which was historically a part of the larger [[Ghorrock]] settlement. It has the highest Magic level requirement of any teleport.
+
+As with all [[Ancient Magicks]] spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+
+Casting this spell is a requirement for the [[Elite Wilderness Diary]]. The spell cannot be cast from within the [[Castle Wars]] mini game, nor can it be cast from the NMZ or Nightmare Zone. 
+
+This spell and [[Spellbook Swap]] are tied for the highest Magic level requirement of all spells.
+
+==Cost==
+{{Spell cost table
+|Rune1 = law
+|Rune1num = 2
+|Rune2 = water
+|Rune2num = 8
+}}
+
+==Destination==
+
+{{Map|2974,3875|2979,3875|2979,3870|2974,3870|mtype=polygon|align=left}}{{clear|left}}
+
+{{Ancient Magicks}}
+{{Teleport spells}}

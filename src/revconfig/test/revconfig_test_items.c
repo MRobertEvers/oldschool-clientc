@@ -108,18 +108,20 @@ test_items_build(void)
     }
     push(fields, RCFIELD_ITEMDONE, "");
 
-    /* World viewport: the camera-gesture keys default ON when the section
-     * omits them, so packs written before the keys existed keep the gestures. */
-    push(fields, RCFIELD_ITEMTYPE, "component");
-    push(fields, RCFIELD_ITEMNAME, "world_default");
-    push(fields, RCFIELD_UICOMPONENT_TYPE, "world");
+    /* [features]: names are carried verbatim, numbers keep a "not stated"
+     * sentinel that is distinct from every legal value. */
+    push(fields, RCFIELD_ITEMTYPE, "features");
+    push(fields, RCFIELD_FEATURES_ERA, "osrs");
+    push(fields, RCFIELD_FEATURES_GROUND_CLICK_NEAREST, "box10_rect");
+    push(fields, RCFIELD_FEATURES_MOVER, "frame");
+    push(fields, RCFIELD_FEATURES_GROUND_CLICK_OFFMAP, "1");
     push(fields, RCFIELD_ITEMDONE, "");
 
-    push(fields, RCFIELD_ITEMTYPE, "component");
-    push(fields, RCFIELD_ITEMNAME, "world_off");
-    push(fields, RCFIELD_UICOMPONENT_TYPE, "world");
-    push(fields, RCFIELD_UICOMPONENT_MMB_ROTATE, "false");
-    push(fields, RCFIELD_UICOMPONENT_WHEEL_ZOOM, "0");
+    /* [camera]: an item carries only the keys its section stated. */
+    push(fields, RCFIELD_ITEMTYPE, "camera");
+    push(fields, RCFIELD_CAMERA_REST, "600");
+    push(fields, RCFIELD_CAMERA_VIEWPORT_ZOOM, "no");
+    push(fields, RCFIELD_CAMERA_CONTROLS, "arrow_keys");
     push(fields, RCFIELD_ITEMDONE, "");
 
     /* hotkey= repeats into a list; [hotkey:…] is its own item kind. */
@@ -136,9 +138,21 @@ test_items_build(void)
     push(fields, RCFIELD_HOTKEY_EFFECT, "select_tab");
     push(fields, RCFIELD_ITEMDONE, "");
 
+    /*
+     * `table=defaults slot=N`: the graphic-defaults path, which addresses a
+     * sprite by its position in the defaults record rather than by hashing a
+     * name. Appended last so the indices above keep their meaning.
+     */
+    push(fields, RCFIELD_ITEMTYPE, "sprite");
+    push(fields, RCFIELD_ITEMNAME, "compass");
+    push(fields, RCFIELD_CACHE_TABLE, "defaults");
+    push(fields, RCFIELD_CACHE_DEFAULTS_SLOT, "0");
+    push(fields, RCFIELD_CACHE_ARCHIVE, "compass");
+    push(fields, RCFIELD_ITEMDONE, "");
+
     revconfig_items_build(fields, items);
 
-    TEST_ASSERT(items->item_count == 13, "item_count");
+    TEST_ASSERT(items->item_count == 14, "item_count");
 
     struct RevConfigItem const* invback = &items->items[0];
     TEST_ASSERT(invback->kind == RCITEM_CACHE_SPRITE, "invback kind");
@@ -152,6 +166,18 @@ test_items_build(void)
     TEST_ASSERT(cross->kind == RCITEM_CACHE_SPRITE, "cross kind");
     TEST_ASSERT(cross->u.cache.archive_id == 297, "dat2 archive_id");
     TEST_ASSERT(cross->u.cache.atlas_count == 2, "atlas_count");
+    /* Absent slot= must read as "not a defaults section", not as slot 0 --
+     * otherwise every name-keyed sprite would claim the compass slot. */
+    TEST_ASSERT(cross->u.cache.defaults_slot == -1, "defaults_slot default");
+
+    struct RevConfigItem const* defaults_compass = &items->items[13];
+    TEST_ASSERT(defaults_compass->kind == RCITEM_CACHE_SPRITE, "defaults sprite kind");
+    TEST_ASSERT(strcmp(defaults_compass->u.cache.table, "defaults") == 0, "defaults table");
+    TEST_ASSERT(defaults_compass->u.cache.defaults_slot == 0, "defaults slot");
+    /* archive= may sit alongside slot= as documentation of what the slot
+     * resolved to; it must not disturb the slot. */
+    TEST_ASSERT(
+        strcmp(defaults_compass->u.cache.archive, "compass") == 0, "defaults archive kept");
 
     struct RevConfigItem const* b12 = &items->items[2];
     TEST_ASSERT(b12->kind == RCITEM_CACHE_FONT, "b12 kind");
@@ -197,13 +223,33 @@ test_items_build(void)
     TEST_ASSERT(backpack->u.inv.item_count == 3, "inv count");
     TEST_ASSERT(strcmp(backpack->u.inv.items[1], "item1") == 0, "inv item");
 
-    struct RevConfigItem const* world_default = &items->items[9];
-    TEST_ASSERT(world_default->u.uicomponent.mmb_rotate == 1, "mmb_rotate default on");
-    TEST_ASSERT(world_default->u.uicomponent.wheel_zoom == 1, "wheel_zoom default on");
+    struct RevConfigItem const* features = &items->items[9];
+    TEST_ASSERT(features->kind == RCITEM_FEATURES, "features item kind");
+    TEST_ASSERT(strcmp(features->u.features.era, "osrs") == 0, "features era");
+    TEST_ASSERT(
+        strcmp(features->u.features.ground_click_nearest, "box10_rect") == 0,
+        "features ground_click_nearest");
+    TEST_ASSERT(strcmp(features->u.features.mover, "frame") == 0, "features mover");
+    TEST_ASSERT(features->u.features.ground_click_offmap == 1, "features offmap stated");
+    TEST_ASSERT(
+        features->u.features.ground_click_unbounded == -1, "features unbounded unstated");
+    TEST_ASSERT(
+        features->u.features.painter_draw_distance == 0, "features draw distance unstated");
 
-    struct RevConfigItem const* world_off = &items->items[10];
-    TEST_ASSERT(world_off->u.uicomponent.mmb_rotate == 0, "mmb_rotate=false");
-    TEST_ASSERT(world_off->u.uicomponent.wheel_zoom == 0, "wheel_zoom=0");
+    struct RevConfigItem const* camera = &items->items[10];
+    TEST_ASSERT(camera->kind == RCITEM_CAMERA, "camera item kind");
+    TEST_ASSERT(camera->u.camera.has_rest == 1, "camera rest stated");
+    TEST_ASSERT(camera->u.camera.rest == 600, "camera rest");
+    /* An item carries a key's has_ flag ONLY for what its section spelled --
+     * `viewport_zoom=` here, and nothing about the band, which this section
+     * never mentioned. The profile owns those defaults, once. */
+    TEST_ASSERT(camera->u.camera.has_viewport_zoom == 1, "camera viewport_zoom stated");
+    TEST_ASSERT(camera->u.camera.viewport_zoom == 0, "camera takes no viewport term");
+    TEST_ASSERT(camera->u.camera.has_zoom_closest == 0, "band end not stated here");
+    TEST_ASSERT(camera->u.camera.has_controls == 1, "camera controls stated");
+    TEST_ASSERT(
+        camera->u.camera.controls == REVCONFIG_CAMERA_CONTROL_ARROW_KEYS,
+        "camera controls arrow_keys only");
 
     struct RevConfigItem const* tab_icon = &items->items[11];
     TEST_ASSERT(tab_icon->u.uicomponent.hotkey_count == 2, "hotkey= repeats");

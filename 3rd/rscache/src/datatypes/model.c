@@ -1660,12 +1660,18 @@ decode_version3__osrs_material(
     int offsetOfVertexZData = dataOffset;
     dataOffset += vertexZDataByteCount;
     int offsetOfSimpleTextureMapping = dataOffset;
+    /* After the type-0 p/m/n block the render-type 1..3 ("complex") triangles
+     * carry five columns — 6, 6, 2, 1, and a final 2 bytes each — plus 2 bytes
+     * per render-type-2 ("cube") triangle. There is no sixth column; see deob
+     * class136.method4578 var55..var65 (RuneLite ModelLoader.decodeType3).
+     * Counting one extra `complex * 2` here put the trailing-flag read past the
+     * end of the archive on the 401 osrs239 models that have complex texture
+     * triangles. */
     dataOffset += simpleTextureFaceCount * 6;
     dataOffset += complexTextureFaceCount * 6;
     dataOffset += complexTextureFaceCount * 6;
     dataOffset += complexTextureFaceCount * 2;
     dataOffset += complexTextureFaceCount;
-    dataOffset += complexTextureFaceCount * 2;
     dataOffset = dataOffset + complexTextureFaceCount * 2 + cubeTextureFaceCount * 2;
 
     {

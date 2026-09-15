@@ -274,7 +274,7 @@ in the client changed for this; `sockstream.c` is the same file on both hosts.
 
 The handshake itself is shared with the mock game server through
 [`net_transport_ws_handshake.h`](../src/platform/net_transport_ws_handshake.h),
-a pure function over bytes so that a blocking reader (mock230) and a nonblocking
+a pure function over bytes so that a blocking reader (ToriRSServer) and a nonblocking
 reactor (js5_server) can both use it.
 
 One caveat worth knowing: emscripten requests the `binary` subprotocol, and a
@@ -299,7 +299,7 @@ manifest on every load.
 Then open the page with the manifest on the query string:
 
 ```
-http://localhost:8099/index.html?arg=--manifest&arg=manifest_osrs239.ini&arg=--offline
+http://localhost:8099/index.html?arg=--manifest&arg=manifests/manifest_osrs239.ini&arg=--offline
 ```
 
 Web-only knobs, beyond the ones in [web_build.md](web_build.md):

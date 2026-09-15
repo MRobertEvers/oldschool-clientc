@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "rsprot_buffer.h"
+#include "log/torirs_log.h"
 
 /*
  * The byte cursor and its six readers used to live here: a private
@@ -106,7 +107,7 @@ osrs230_parse(
              * garbage, which is indistinguishable from a content bug.
              *
              * Unreachable from this repo's own server (the host aborts above
-             * MOCK230_RUNCLIENTSCRIPT_ARG_MAX and the compiler above
+             * TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX and the compiler above
              * SSC_MAX_VARARG_TYPES, both smaller), reachable from any other.
              */
             if( argc >= PKT_RUNCLIENTSCRIPT_ARG_MAX )
@@ -117,13 +118,13 @@ osrs230_parse(
         if( cur.err || !terminated )
             return 0;
 
-        memset(&out->_runclientscript, 0, sizeof(out->_runclientscript));
-        out->_runclientscript.argc = argc;
+        struct PktRunClientScript* p = pkt_runclientscript_reset(out);
+        p->argc = argc;
         for( int i = argc - 1; i >= 0; i-- )
         {
             if( types[i] == 's' )
             {
-                char* dst = out->_runclientscript.strv[i];
+                char* dst = p->strv[i];
                 int n = 0;
                 for( ;; )
                 {
@@ -134,14 +135,14 @@ osrs230_parse(
                         dst[n++] = (char)ch;
                 }
                 dst[n] = '\0';
-                out->_runclientscript.str_mask |= 1u << i;
+                p->str_mask |= 1u << i;
             }
             else
             {
-                out->_runclientscript.intv[i] = RSProt_BufferG4Be(&cur);
+                p->intv[i] = RSProt_BufferG4Be(&cur);
             }
         }
-        out->_runclientscript.script_id = RSProt_BufferG4Be(&cur);
+        p->script_id = RSProt_BufferG4Be(&cur);
         return cur.err ? 0 : 1;
     }
 
@@ -288,9 +289,7 @@ osrs230_parse(
                 &cur, &out->_update_inv_full.obj_ids[i], &out->_update_inv_full.obj_counts[i]);
         if( cur.err )
         {
-            fprintf(
-                stderr,
-                "osrs230: UPDATE_INV_FULL inv=%d capacity=%d overran %d bytes; dropped\n",
+            TORIRS_LOG("osrs230: UPDATE_INV_FULL inv=%d capacity=%d overran %d bytes; dropped\n",
                 out->_update_inv_full.inv_id,
                 capacity,
                 len);
@@ -337,9 +336,7 @@ osrs230_parse(
         }
         if( cur.err || cur.rpos != len )
         {
-            fprintf(
-                stderr,
-                "osrs230: UPDATE_INV_PARTIAL inv=%d did not consume its %d-byte frame "
+            TORIRS_LOG("osrs230: UPDATE_INV_PARTIAL inv=%d did not consume its %d-byte frame "
                 "(stopped at %d after %d slots); dropped\n",
                 out->_update_inv_partial.inv_id,
                 len,
@@ -362,6 +359,9 @@ osrs230_parse(
         if( len < 1 )
             return 0;
         text_len = len - 1;
+        /* The leading byte is the chat type. This revision's packet has no
+         * optional sender field, so `name` stays NULL. */
+        out->_message_game.type = data[0];
         out->_message_game.text = malloc((size_t)text_len + 1);
         assert(out->_message_game.text);
         memcpy(out->_message_game.text, data + 1, (size_t)text_len);

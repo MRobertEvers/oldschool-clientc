@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Load every varbit type into the VarPManager, once, at boot.
@@ -88,9 +89,7 @@ varbit_decode_group(
             &entry, filelist->files[i], filelist->file_sizes[i]);
 
         if( entry._consumed != filelist->file_sizes[i] )
-            fprintf(
-                stderr,
-                "varbit %d: decode consumed %d of %d bytes\n",
+            TORIRS_LOG("varbit %d: decode consumed %d of %d bytes\n",
                 id,
                 entry._consumed,
                 filelist->file_sizes[i]);
@@ -131,7 +130,7 @@ Task_Dat2VarbitLoad_Run(
         task->ref = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
         if( !task->ref )
         {
-            fprintf(stderr, "varbit: table %d absent; varbits will read 0\n", task->addr.table);
+            TORIRS_LOG("varbit: table %d absent; varbits will read 0\n", task->addr.table);
             PT_EXIT(&task->pt);
         }
 
@@ -159,9 +158,9 @@ Task_Dat2VarbitLoad_Run(
         task->ref = NULL;
 
         if( !VarPManager_SetVarbitTypes(task->varps, task->types, task->type_count) )
-            fprintf(stderr, "varbit: failed to install %d types\n", task->type_count);
+            TORIRS_ERR("varbit: failed to install %d types\n", task->type_count);
         else
-            printf("varbit load: %d types (%d records, ids 0..%d)\n", task->type_count,
+            TORIRS_LOG("varbit load: %d types (%d records, ids 0..%d)\n", task->type_count,
                    task->decoded, task->type_count - 1);
         free(task->types);
         task->types = NULL;
@@ -176,7 +175,7 @@ Task_Dat2VarbitLoad_Run(
     {
         /* Not every cache carries the group. Leave the table empty rather than fail
          * the boot: that is the pre-existing behaviour, just now on purpose. */
-        fprintf(stderr, "varbit: config group absent; varbits will read 0\n");
+        TORIRS_LOG("varbit: config group absent; varbits will read 0\n");
         PT_EXIT(&task->pt);
     }
 
@@ -184,7 +183,7 @@ Task_Dat2VarbitLoad_Run(
         RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
     if( !filelist || !archive->file_ids )
     {
-        fprintf(stderr, "varbit: failed to split the config group\n");
+        TORIRS_ERR("varbit: failed to split the config group\n");
         RSCache_FileListFree(filelist);
         RSCache_Dat2DiskArchiveFree(archive);
         PT_EXIT(&task->pt);
@@ -223,9 +222,7 @@ Task_Dat2VarbitLoad_Run(
             &entry, filelist->files[i], filelist->file_sizes[i]);
 
         if( entry._consumed != filelist->file_sizes[i] )
-            fprintf(
-                stderr,
-                "varbit %d: decode consumed %d of %d bytes\n",
+            TORIRS_LOG("varbit %d: decode consumed %d of %d bytes\n",
                 id,
                 entry._consumed,
                 filelist->file_sizes[i]);
@@ -242,9 +239,9 @@ Task_Dat2VarbitLoad_Run(
     RSCache_Dat2DiskArchiveFree(archive);
 
     if( !VarPManager_SetVarbitTypes(task->varps, types, type_count) )
-        fprintf(stderr, "varbit: failed to install %d types\n", type_count);
+        TORIRS_ERR("varbit: failed to install %d types\n", type_count);
     else
-        printf("varbit load: %d types (%d records, ids 0..%d)\n", type_count, decoded,
+        TORIRS_LOG("varbit load: %d types (%d records, ids 0..%d)\n", type_count, decoded,
                type_count - 1);
 
     free(types);

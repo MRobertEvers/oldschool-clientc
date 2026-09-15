@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2ClientScriptLoad
 {
@@ -35,7 +36,7 @@ Task_Dat2ClientScriptLoad_Run(
     rscache_script = RSCache_IO_ClientScriptDecode(io, 0, task->script_id);
     if( !rscache_script )
     {
-        fprintf(stderr, "Failed to decode dat2 clientscript %d\n", task->script_id);
+        TORIRS_ERR("Failed to decode dat2 clientscript %d\n", task->script_id);
         PT_EXIT(&task->pt);
     }
 
@@ -48,7 +49,7 @@ Task_Dat2ClientScriptLoad_Run(
             vm_script,
             CS2_OpcodeDialectForCache(CacheProvider_Profile(&task->bc->base)) ) )
     {
-        fprintf(stderr, "Failed to convert dat2 clientscript %d\n", task->script_id);
+        TORIRS_ERR("Failed to convert dat2 clientscript %d\n", task->script_id);
         free(vm_script);
         PT_EXIT(&task->pt);
     }

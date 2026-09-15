@@ -1,0 +1,47 @@
+# ToB varbits/varps — rev239 cache
+## varbit:
+6400=tob_verzik_throne_visible
+6440=tob_client_partystatus
+6441=tob_client_partyslot
+6442=tob_client_p0
+6443=tob_client_p1
+6444=tob_client_p2
+6445=tob_client_p3
+6446=tob_client_p4
+6447=tob_client_waveprogress_type
+6448=tob_client_waveprogress_val
+6449=tob_client_waveprogress_max
+6450=tob_treasureroom_chest_0
+6451=tob_treasureroom_chest_1
+6452=tob_treasureroom_chest_2
+6453=tob_treasureroom_chest_3
+6454=tob_treasureroom_chest_4
+6455=tob_lobby_well_contents
+6460=tob_midwaychest_points
+6461=tob_midwaychest_boobyprize
+6573=tobquest_used_notice_board
+10996=tobquest_in_instanced_cave
+11469=tob_damage_taken
+11958=tob_should_have_loot
+12269=tob_sotetseg_hard_tiles_visible
+12270=tob_scoreboard_tab
+12271=tob_midwaychest_staminapot
+12272=tob_midwaychest_last_x
+12276=tobquest
+12277=tobquest_lamps
+12971=tob_progress
+12972=tobquest_done_tob
+12973=tobquest_stranger_op
+12974=tobquest_given_acid
+12975=tobquest_hespori_awareness
+12988=tob_lobby_friends_filter
+14610=tobquest_bonus_lamps
+14980=tob_crystal_antispam
+15607=tobquest_stranger_vis
+## varp:
+1737=tob_temp_transmit_2
+1740=tob_mycontroller
+1745=tob_temp_transmit_1
+1746=tob_perm_transmit_1
+3052=tob_temp_transmit_3
+3055=tobquest_main

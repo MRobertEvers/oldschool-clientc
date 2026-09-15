@@ -1,4 +1,5 @@
 #include "perf/torirs_perf.h"
+#include "log/torirs_log.h"
 
 #ifndef TORIRS_PERF_DISABLE
 
@@ -16,10 +17,19 @@
 #endif
 
 int g_torirs_perf_enabled = 0;
+uint64_t g_torirs_cc_create_seq = 0;
+uint64_t g_torirs_dirty_mark_seq = 0;
+uint64_t g_torirs_dirty_topo_seq = 0;
+uint64_t g_torirs_cs2_script_ns = 0;
+int g_torirs_dirty_topo_line = 0;
 
 #define TORIRS_PERF_RING 2048
 #define TORIRS_PERF_BUDGET_NS 20000000ull /* 20 ms */
 #define TORIRS_PERF_WINDOW_DEFAULT 1000
+/* Gauge resample cadence when no window boundary is near. Small enough that the
+ * exit report never quotes a stale growth figure, large enough that the full
+ * tree walks behind the gauges cost nothing measurable. */
+#define TORIRS_PERF_GAUGE_FALLBACK_FRAMES 64
 
 struct TorirsPerfFrame
 {
@@ -35,7 +45,13 @@ struct TorirsPerfFrame
 };
 
 static struct TorirsPerfFrame g_cur;
-static struct TorirsPerfFrame g_ring[TORIRS_PERF_RING];
+/* Heap, and only while perf is on.  TORIRS_PERF_RING frames is 3.86 MB on
+ * win32; as .bss that was private commit charged to every client start,
+ * including the memory-gated ones that never enable perf.  Nothing touches
+ * it when disabled: every writer is behind `g_torirs_perf_enabled`
+ * (perf/torirs_perf.h:640-701) and every reader behind `g_ring_count`,
+ * which TorirsPerf_Init leaves at 0. */
+static struct TorirsPerfFrame* g_ring;
 static int g_ring_count;
 static int g_ring_head;
 static uint64_t g_frame_begin_ns;
@@ -57,6 +73,9 @@ static uint64_t g_frames_over_budget;
 static char g_csv_path[512];
 static int g_window_frames;
 static int g_window_index;
+/* Sticky per-site "a gauge sample is wanted" flags; see
+ * TorirsPerf_GaugeSampleDue. */
+static int g_gauge_sample_due[TORIRS_PERF_GAUGE_SITE_COUNT] = { 1, 1 };
 static FILE* g_window_csv;
 static int g_window_csv_header_written;
 static int g_window_flush_pending;
@@ -71,6 +90,22 @@ static char const* const g_stage_names[TORIRS_PERF_STAGE_COUNT] = {
     "emit",     "paint",  "build",  "render",  "pick_finish", "present", "server",
     "platform_poll", "command_drain", "app_run", "frame_post",
     "input_prep", "surface_sync", "display", "window_sync", "pace", "period", "cs2_settle", "ui_icon", "tick_packets",
+    "cs2_settle_layout", "present_fill", "present_blit", "cs2_host_op",
+    "cs2_settle_followups",
+    "cs2_script",
+    "task_queue_run",
+    "cs2_task_start",
+    "cs2_script_in",
+    "task_io",
+    "r_clear",
+    "r_model",
+    "r_sprite",
+    "r_font",
+    "r_rect",
+    "r_other",
+    "r_project",
+    "r_sort",
+    "r_raster",
 };
 
 static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
@@ -100,7 +135,9 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "uitree_apply_geo",
     "uitree_apply_content",
     "uitree_apply_hook",
+    "uitree_apply_hook_skip",
     "uitree_apply_other",
+    "uitree_apply_nochange",
     "uitree_key_scan",
     "uitree_key_scan_nodes",
     "uitree_components",
@@ -116,8 +153,12 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "cs2_vm_pool_hit",
     "cs2_vm_pool_miss",
     "cs2_vm_init_ns",
+    "cs2_vm_release_ns",
     "cs2_frame_pool_hit",
     "cs2_frame_pool_miss",
+    "cs2_frame_push",
+    "cs2_frame_clear_bytes",
+    "cs2_frame_locals_bytes",
     "cache_model_hit",
     "cache_model_miss",
     "cache_model_evict",
@@ -220,6 +261,8 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "gl_ibo_upload_bytes",
     "gl_ibo_uploads",
     "gl_draw_ranges",
+    "gl_ui_batch_draws",
+    "gl_project_skipped",
     "gl_draw_calls",
     "gl_attrib_rebinds",
     "gl_2d_batch_flushes",
@@ -232,6 +275,37 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "ui_model_build",
     "npc_model_cache_hit",
     "npc_model_cache_miss",
+    "present_blit_1to1",
+    "present_blit_stretch",
+    "present_blit_pixels",
+    "present_fill_pixels",
+    "chrome_strip_vischeck",
+    "emit_list_same",
+    "emit_list_diff",
+    "emit_desc_diff",
+    "emit_dirty_bumps",
+    "emit_dirty_unreached",
+    "emit_dirty_mark",
+    "emit_dirty_topo",
+    "emit_gen_quiet",
+    "emit_gen_unsound",
+    "task_steps",
+    "task_resumes",
+    "task_ends",
+    "anim_marks",
+    "gate_tree_quiet",
+    "gate_hover_quiet",
+    "emit_retained",
+    "emit_retain_blocked",
+    "r_cmds",
+    "r_cmds_model",
+    "r_cmds_sprite",
+    "r_cmds_font",
+    "r_cmds_rect",
+    "r_model_culled",
+    "r_model_drawn",
+    "r_model_sort_empty",
+    "r_model_faces",
 };
 
 /* COUNT_SET gauges: window flush reports last sample, not a sum. */
@@ -431,14 +505,14 @@ window_csv_open(void)
     g_window_csv = fopen(path, "w");
     if( !g_window_csv )
     {
-        fprintf(stderr, "torirs_perf: failed to open window csv %s\n", path);
+        TORIRS_ERR("torirs_perf: failed to open window csv %s\n", path);
         return;
     }
     fprintf(
         g_window_csv,
         "kind,name,mean_ns,p50_ns,p95_ns,max_ns,total,per_frame,window\n");
     g_window_csv_header_written = 1;
-    fprintf(stderr, "torirs_perf: window=%d writing %s\n", g_window_frames, path);
+    TORIRS_REPORT("torirs_perf: window=%d writing %s\n", g_window_frames, path);
 }
 
 static int
@@ -778,9 +852,7 @@ window_flush(void)
 
     /* Brief stderr slope line for interactive runs. */
     stage_stats_tail(TORIRS_PERF_STAGE_FRAME, n, &mean, &p50, &p95, &mx);
-    fprintf(
-        stderr,
-        "torirs_perf: window=%d frame_p95=%.2fms\n",
+    TORIRS_REPORT("torirs_perf: window=%d frame_p95=%.2fms\n",
         g_window_index,
         (double)p95 / 1e6);
 
@@ -793,9 +865,9 @@ TorirsPerf_Init(int enabled)
     char const* env;
     char const* csv;
     char const* win;
+    int i;
 
     memset(&g_cur, 0, sizeof(g_cur));
-    memset(g_ring, 0, sizeof(g_ring));
     memset(g_stage_begin_ns, 0, sizeof(g_stage_begin_ns));
     memset(g_stage_depth, 0, sizeof(g_stage_depth));
     g_frame_cpu_begin_ns = 0;
@@ -817,6 +889,8 @@ TorirsPerf_Init(int enabled)
     g_window_csv_header_written = 0;
     g_window_flush_pending = 0;
     g_window_frames = TORIRS_PERF_WINDOW_DEFAULT;
+    for( i = 0; i < TORIRS_PERF_GAUGE_SITE_COUNT; i++ )
+        g_gauge_sample_due[i] = 1;
     torirs_perf_cpu_cycle_clock_init();
 
     env = getenv("TORIRS_PERF");
@@ -824,6 +898,24 @@ TorirsPerf_Init(int enabled)
         g_torirs_perf_enabled = 1;
     else
         g_torirs_perf_enabled = 0;
+
+    /* Sized only once perf is known to be on.  Init is idempotent, so an
+     * already-allocated ring is reset in place rather than reallocated. */
+    if( g_torirs_perf_enabled )
+    {
+        if( !g_ring )
+        {
+            g_ring = calloc(TORIRS_PERF_RING, sizeof(*g_ring));
+            assert(g_ring);
+        }
+        else
+            memset(g_ring, 0, TORIRS_PERF_RING * sizeof(*g_ring));
+    }
+    else if( g_ring )
+    {
+        free(g_ring);
+        g_ring = NULL;
+    }
 
     csv = getenv("TORIRS_PERF_CSV");
     if( csv && csv[0] )
@@ -848,9 +940,7 @@ TorirsPerf_Init(int enabled)
     }
 
     if( g_torirs_perf_enabled )
-        fprintf(
-            stderr,
-            "torirs_perf: enabled (ring=%d window=%d budget=20ms cpu_clock=%s)%s%s\n",
+        TORIRS_REPORT("torirs_perf: enabled (ring=%d window=%d budget=20ms cpu_clock=%s)%s%s\n",
             TORIRS_PERF_RING,
             g_window_frames,
             torirs_perf_main_thread_cpu_clock_name(),
@@ -868,6 +958,10 @@ TorirsPerf_Shutdown(void)
         fclose(g_window_csv);
         g_window_csv = NULL;
     }
+    free(g_ring);
+    g_ring = NULL;
+    g_ring_count = 0;
+    g_ring_head = 0;
     g_torirs_perf_enabled = 0;
 }
 
@@ -983,6 +1077,37 @@ TorirsPerf_FrameEnd(void)
     if( g_window_frames > 0 && g_csv_path[0] &&
         (g_total_frames % (uint64_t)g_window_frames) == 0 )
         g_window_flush_pending = 1;
+
+    /*
+     * Arm the next gauge sample. g_total_frames now counts completed frames, so
+     * the frame about to start has index g_total_frames and is the last one of
+     * its window when (index + 1) % window == 0 — sampling there puts a fresh
+     * value in front of the flush. The 64-frame fallback keeps the exit report
+     * (and a run with no window CSV) from quoting a stale gauge.
+     */
+    if( (g_window_frames > 0 &&
+         ((g_total_frames + 1) % (uint64_t)g_window_frames) == 0) ||
+        (g_total_frames % TORIRS_PERF_GAUGE_FALLBACK_FRAMES) == 0 )
+    {
+        int i;
+        for( i = 0; i < TORIRS_PERF_GAUGE_SITE_COUNT; i++ )
+            g_gauge_sample_due[i] = 1;
+    }
+}
+
+int
+TorirsPerf_GaugeSampleDue(enum TorirsPerfGaugeSite site)
+{
+    assert(site >= 0);
+    assert(site < TORIRS_PERF_GAUGE_SITE_COUNT);
+    if( !g_torirs_perf_enabled )
+        return 0;
+    if( !g_gauge_sample_due[site] )
+        return 0;
+    /* Consume: a frame that runs no logic tick leaves the arm set for the next
+     * one rather than skipping the window's sample entirely. */
+    g_gauge_sample_due[site] = 0;
+    return 1;
 }
 
 void
@@ -1059,7 +1184,7 @@ TorirsPerf_Report(void)
 
     if( g_ring_count <= 0 )
     {
-        fprintf(stderr, "torirs_perf: no frames captured\n");
+        TORIRS_REPORT("torirs_perf: no frames captured\n");
         return;
     }
 
@@ -1088,23 +1213,20 @@ TorirsPerf_Report(void)
                 &frame_max);
     fps = frame_mean > 0 ? 1e9 / (double)frame_mean : 0.0;
 
-    fprintf(stderr, "\n=== torirs_perf report ===\n");
-    fprintf(stderr, "frames=%llu ring=%d over_20ms=%llu (%.1f%%) eff_fps=%.1f\n",
+    TORIRS_REPORT("\n=== torirs_perf report ===\n");
+    TORIRS_REPORT("frames=%llu ring=%d over_20ms=%llu (%.1f%%) eff_fps=%.1f\n",
             (unsigned long long)g_total_frames, g_ring_count,
             (unsigned long long)g_frames_over_budget,
             g_total_frames
                 ? 100.0 * (double)g_frames_over_budget / (double)g_total_frames
                 : 0.0,
             fps);
-    fprintf(stderr,
-            "frame_ns mean=%llu p50=%llu p95=%llu max=%llu  (budget=20000000)\n",
+    TORIRS_REPORT("frame_ns mean=%llu p50=%llu p95=%llu max=%llu  (budget=20000000)\n",
             (unsigned long long)frame_mean, (unsigned long long)frame_p50,
             (unsigned long long)frame_p95, (unsigned long long)frame_max);
 
     main_thread_cpu_stats(&cpu);
-    fprintf(
-        stderr,
-        "main_thread_cpu_ns mean=%llu p50=%llu p95=%llu max=%llu  "
+    TORIRS_REPORT("main_thread_cpu_ns mean=%llu p50=%llu p95=%llu max=%llu  "
         "(clock=%s distribution=%s raw_total=%llu)\n",
         (unsigned long long)cpu.mean_ns,
         (unsigned long long)cpu.p50_ns,
@@ -1115,20 +1237,20 @@ TorirsPerf_Report(void)
                                       : torirs_perf_cpu_direct_distribution_name(),
         (unsigned long long)cpu.raw_total_ns);
 
-    fprintf(stderr, "\n%-12s %10s %10s %10s %10s\n", "stage", "mean_ns", "p50_ns",
+    TORIRS_REPORT("\n%-12s %10s %10s %10s %10s\n", "stage", "mean_ns", "p50_ns",
             "p95_ns", "max_ns");
     for( i = 1; i < TORIRS_PERF_STAGE_COUNT; i++ )
     {
         stage_stats((enum TorirsPerfStage)i, &mean, &p50, &p95, &mx);
         attributed += mean;
-        fprintf(stderr, "%-12s %10llu %10llu %10llu %10llu\n", g_stage_names[i],
+        TORIRS_REPORT("%-12s %10llu %10llu %10llu %10llu\n", g_stage_names[i],
                 (unsigned long long)mean, (unsigned long long)p50,
                 (unsigned long long)p95, (unsigned long long)mx);
     }
-    fprintf(stderr, "%-12s %10lld  (frame_mean - attributed stages)\n",
+    TORIRS_REPORT("%-12s %10lld  (frame_mean - attributed stages)\n",
             "residual", (long long)((int64_t)frame_mean - (int64_t)attributed));
 
-    fprintf(stderr, "\n%-32s %12s %12s\n", "counter", "total", "per_frame");
+    TORIRS_REPORT("\n%-32s %12s %12s\n", "counter", "total", "per_frame");
     for( i = 0; i < TORIRS_PERF_CTR_COUNT; i++ )
     {
         int64_t total;
@@ -1136,7 +1258,7 @@ TorirsPerf_Report(void)
         ctr_totals((enum TorirsPerfCounter)i, &total, &per);
         if( total == 0 )
             continue;
-        fprintf(stderr, "%-32s %12lld %12.2f\n", g_ctr_names[i],
+        TORIRS_REPORT("%-32s %12lld %12.2f\n", g_ctr_names[i],
                 (long long)total, per);
     }
 
@@ -1145,7 +1267,7 @@ TorirsPerf_Report(void)
         csv = fopen(g_csv_path, "w");
         if( !csv )
         {
-            fprintf(stderr, "torirs_perf: failed to open csv %s\n", g_csv_path);
+            TORIRS_ERR("torirs_perf: failed to open csv %s\n", g_csv_path);
         }
         else
         {
@@ -1194,10 +1316,10 @@ TorirsPerf_Report(void)
                         (long long)total, per);
             }
             fclose(csv);
-            fprintf(stderr, "\ntorirs_perf: wrote %s\n", g_csv_path);
+            TORIRS_REPORT("\ntorirs_perf: wrote %s\n", g_csv_path);
         }
     }
-    fprintf(stderr, "=== end torirs_perf ===\n\n");
+    TORIRS_REPORT("=== end torirs_perf ===\n\n");
 }
 
 #endif /* TORIRS_PERF_DISABLE */

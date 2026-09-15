@@ -1,0 +1,8 @@
+[    1820ms] [LOG] joinUs() at %ce%cb%ca%cy%c! font-weight:bold;color:#e53238; font-weight:bold;color:#0064d2 font-weight:bold;color:#f5af02 font-weight:bold;color:#86b817 color:black @ https://ir.ebaystatic.com/rs/c/srpnweb/common-C2rBUGrN.js:1
+[    1932ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1979ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1979ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1988ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    2281ms] [LOG] done @ https://www.ebay.com/sch/i.html?_nkw=mtg+spider-man+bundle+empty+storage+box&_sacat=0:4
+[    2688ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[    2718ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0

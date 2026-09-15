@@ -21,7 +21,7 @@ SEQ="${SEQ:-rs2012_seq_16714}"
 STRIDE="${STRIDE:-1}"
 VIEW_ARGS="${VIEW_ARGS:---angles 3 --pitch 300 --tile 300 --yaw0 1300}"
 
-toolchain="$repo/toolchain/mingw64/bin"
+toolchain="$repo/toolchains/mingw64/bin"
 [ -d "$toolchain" ] && PATH="$toolchain:$PATH" && MAKE="${MAKE:-mingw32-make}" || MAKE="${MAKE:-make}"
 export PATH
 "$MAKE" -C src rs2012-model-view >/dev/null

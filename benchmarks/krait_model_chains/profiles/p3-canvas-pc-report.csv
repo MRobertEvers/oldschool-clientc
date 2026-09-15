@@ -1,0 +1,60 @@
+Cmdline: /data/data/com.torirs.client/simpleperf record -e cpu-cycles:u -c 500000 -p 29171 --duration 20 -o /sdcard/Android/data/com.torirs.client/files/pipeline-sample.data --no-dump-kernel-symbols
+Arch: arm
+Event: cpu-cycles:u (type 0, config 0)
+Samples: 1725
+Event count: 862500000
+
+Overhead,VaddrInFile,Symbol,EventCount,EventName
+26.03%,0x19a88c,UITree_CanvasMeasureCompact,224500000,cpu-cycles:u
+12.41%,0x19a864,UITree_CanvasMeasureCompact,107000000,cpu-cycles:u
+11.59%,0x19a840,UITree_CanvasMeasureCompact,100000000,cpu-cycles:u
+9.04%,0x19a84c,UITree_CanvasMeasureCompact,78000000,cpu-cycles:u
+4.46%,0x19a834,UITree_CanvasMeasureCompact,38500000,cpu-cycles:u
+3.65%,0x19a478,UITree_CanvasMeasureCompact,31500000,cpu-cycles:u
+3.25%,0x19a87c,UITree_CanvasMeasureCompact,28000000,cpu-cycles:u
+2.55%,0x19a74c,UITree_CanvasMeasureCompact,22000000,cpu-cycles:u
+2.49%,0x19a73c,UITree_CanvasMeasureCompact,21500000,cpu-cycles:u
+2.49%,0x19a858,UITree_CanvasMeasureCompact,21500000,cpu-cycles:u
+2.26%,0x19a830,UITree_CanvasMeasureCompact,19500000,cpu-cycles:u
+2.09%,0x19a734,UITree_CanvasMeasureCompact,18000000,cpu-cycles:u
+1.91%,0x19a870,UITree_CanvasMeasureCompact,16500000,cpu-cycles:u
+1.57%,0x19a4bc,UITree_CanvasMeasureCompact,13500000,cpu-cycles:u
+1.51%,0x19a838,UITree_CanvasMeasureCompact,13000000,cpu-cycles:u
+1.33%,0x19a740,UITree_CanvasMeasureCompact,11500000,cpu-cycles:u
+1.28%,0x19a48c,UITree_CanvasMeasureCompact,11000000,cpu-cycles:u
+1.16%,0x19a780,UITree_CanvasMeasureCompact,10000000,cpu-cycles:u
+0.93%,0x19a498,UITree_CanvasMeasureCompact,8000000,cpu-cycles:u
+0.81%,0x19a46c,UITree_CanvasMeasureCompact,7000000,cpu-cycles:u
+0.70%,0x19a4a4,UITree_CanvasMeasureCompact,6000000,cpu-cycles:u
+0.64%,0x19a76c,UITree_CanvasMeasureCompact,5500000,cpu-cycles:u
+0.52%,0x19a894,UITree_CanvasMeasureCompact,4500000,cpu-cycles:u
+0.46%,0x19a480,UITree_CanvasMeasureCompact,4000000,cpu-cycles:u
+0.46%,0x19a798,UITree_CanvasMeasureCompact,4000000,cpu-cycles:u
+0.46%,0x19a848,UITree_CanvasMeasureCompact,4000000,cpu-cycles:u
+0.41%,0x19a770,UITree_CanvasMeasureCompact,3500000,cpu-cycles:u
+0.35%,0x19a758,UITree_CanvasMeasureCompact,3000000,cpu-cycles:u
+0.35%,0x19a7a8,UITree_CanvasMeasureCompact,3000000,cpu-cycles:u
+0.35%,0x19a880,UITree_CanvasMeasureCompact,3000000,cpu-cycles:u
+0.29%,0x19a778,UITree_CanvasMeasureCompact,2500000,cpu-cycles:u
+0.17%,0x19a4b0,UITree_CanvasMeasureCompact,1500000,cpu-cycles:u
+0.17%,0x19a4d8,UITree_CanvasMeasureCompact,1500000,cpu-cycles:u
+0.17%,0x19a4dc,UITree_CanvasMeasureCompact,1500000,cpu-cycles:u
+0.17%,0x19a730,UITree_CanvasMeasureCompact,1500000,cpu-cycles:u
+0.17%,0x19a83c,UITree_CanvasMeasureCompact,1500000,cpu-cycles:u
+0.12%,0x19a470,UITree_CanvasMeasureCompact,1000000,cpu-cycles:u
+0.12%,0x19a4e4,UITree_CanvasMeasureCompact,1000000,cpu-cycles:u
+0.12%,0x19a5f8,UITree_CanvasMeasureCompact,1000000,cpu-cycles:u
+0.12%,0x19a77c,UITree_CanvasMeasureCompact,1000000,cpu-cycles:u
+0.12%,0x19a784,UITree_CanvasMeasureCompact,1000000,cpu-cycles:u
+0.12%,0x19a884,UITree_CanvasMeasureCompact,1000000,cpu-cycles:u
+0.06%,0x19a3e0,UITree_CanvasMeasureCompact,500000,cpu-cycles:u
+0.06%,0x19a458,UITree_CanvasMeasureCompact,500000,cpu-cycles:u
+0.06%,0x19a47c,UITree_CanvasMeasureCompact,500000,cpu-cycles:u
+0.06%,0x19a4b8,UITree_CanvasMeasureCompact,500000,cpu-cycles:u
+0.06%,0x19a4c0,UITree_CanvasMeasureCompact,500000,cpu-cycles:u
+0.06%,0x19a54c,UITree_CanvasMeasureCompact,500000,cpu-cycles:u
+0.06%,0x19a72c,UITree_CanvasMeasureCompact,500000,cpu-cycles:u
+0.06%,0x19a738,UITree_CanvasMeasureCompact,500000,cpu-cycles:u
+0.06%,0x19a764,UITree_CanvasMeasureCompact,500000,cpu-cycles:u
+0.06%,0x19a860,UITree_CanvasMeasureCompact,500000,cpu-cycles:u
+0.06%,0x19a8a8,UITree_CanvasMeasureCompact,500000,cpu-cycles:u

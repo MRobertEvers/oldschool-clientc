@@ -1,0 +1,110 @@
+{{External|rs}}
+{{otheruses|the Void Knights' outpost|other outposts|Outpost (disambiguation)}}
+{{Infobox Location
+|name = Void Knights' Outpost
+|image = [[File:Void Knights' Outpost.png|300px]]
+|release = [[18 April]] [[2006]]
+|update = Pest Control
+|members = Yes
+|location = [[Ardent Ocean]]
+|race = [[Void Knights]]
+|teleport = [[Pest control teleport]]
+|music = [[Null and Void]]
+|map = {{Map|name=Void Knights' Outpost|x=2656|y=2656}}
+|type = island
+|leagueRegion = Asgarnia
+}}
+[[File:Void Knights&#39; Outpost icon detail.png|left|130px]]
+{{Relativelocation
+|location = Void Knight Outpost
+|north = Ape Atoll
+|west = Ardent Ocean
+|south = Pest Control Island
+|east = Marim
+}}
+The '''Void Knights' Outpost''' is a small island in the [[Ardent Ocean]] occupied by the [[Void Knights]] just south-west of [[Ape Atoll]]. It serves as the hub for the [[minigame]] [[Pest Control]].
+
+==Transportation==
+Several methods of reaching the island exist:
+
+* {{plink|Minigame teleport|pic=Minigame icon}} to [[Pest Control]] — island centre.
+* {{plink|Pest control teleport|txt=Pest Control teleport scroll}} — island centre.
+* Talking to a [[Squire (Void Knights)|Squire]] on the [[Port Sarim|Port Sarim docks]], which can be accessed quickly via [[charter ship|charter ships]] across [[Gielinor]].
+* [[Sailing]] to and mooring at the island, requiring level 50 [[Sailing]].
+
+==Locations==
+
+=== Buildings ===
+{| class="wikitable"
+!Name
+!Description
+|-
+|Anvil building
+|A building with an [[anvil]] and a smith who can repair [[Barrows equipment|Barrows armour]].
+|-
+|[[Void Knight Archery Store|Void Knights' archery store]]
+|A [[Ranged]] shop which sells both [[arrow tips]] and [[javelin]]s from [[bronze equipment|bronze]] to [[rune equipment|rune]].
+|-
+|[[Void Knights' Outpost bank|Void Knights' bank]]
+|The closest to [[Port Sarim]] and many places accessible by ship, by a free boat journey. Behind the bank is the [[Dodgy Squire]], who exchanges [[Void Knight equipment|Void Knight Equipment]] for about 80% of their value.
+|-
+|[[Void Knight General Store|Void Knights' general store]]
+|Sells ration packs, which can be used to heal 10 [[Hitpoints]].
+|-
+|[[Void Knight Magic Store|Void Knight]] [[Void Knight Magic Store|magic store]]
+|A [[Magic shops|rune shop]] which sells all [[Elemental rune|elemental]], [[Mind rune|mind]], [[Body rune|body]], [[Chaos rune|chaos]] and [[Death rune|death]] [[runes]].
+|}
+Around the island, players can talk to any of the [[Void Knights]] to buy [[Void Knight Equipment]] and upgrade the [[Elite Void Knight equipment]].
+
+=== Pest Control ===
+The main feature of the island is [[Pest Control]], a co-operative multi-player [[combat]] [[minigame]]. The landers at the south side of the island brings players to the [[Pest Control Island|Pest Control island]] when there are 5-25 players in them. The official world for Pest Control is world 344.
+
+==Sailing info==
+Players can [[mooring point|dock]] at the Void Knights' Outpost with level 50 [[Sailing]]. The dock north of the town offers the following utilities for sailors:
+*[[File:Port task board icon.png|link=Notice board]] [[Notice board]]
+*[[File:Salvaging station map icon.png|link=Salvaging station]] [[Salvaging station]]
+*[[File:Ledger table icon.png|link=Ledger table]] [[Ledger table]]
+*[[File:Bank icon.png|link=Bank deposit box]] [[Bank deposit box]]
+
+===Port tasks===
+The notice board offers eight [[port tasks]] selected from the following lists.
+
+'''[[Bounty tasks]]'''
+{{BountyTaskList|location=Void Knights' Outpost}}
+
+'''[[Courier tasks]]'''
+{{CourierTaskList|location=Void Knights' Outpost}}
+
+== Inhabitants ==
+Note that all characters below named "squire" don't have any additional information in their names, and are instead located near their shop or utility.
+
+* {{Chatl|Dodgy Squire|text=Dodgy squire}}, who can refund 80% of the points used to buy [[Void Knight equipment|void knight equipment]] to the player.
+* {{Chatl|Elite Void Knight|text=Elite Void Knight}}, who can upgrade a player's [[Void Knight equipment|void knight equipment]].
+* {{Chatl|Squire (Void Knights general store)|text=General store squire}}, who runs the island's [[general store]].
+* {{Chatl|Squire (Void Knights magic shop)|text=Magic shop squire}}, who runs the island's magic shop.
+* {{Chatl|Port master|pic=Port master (Void Knights' Outpost) chathead}}, who helps players with their [[port tasks]].
+* {{Chatl|Squire (Void Knights ranged shop)|text=Ranged shop squire}}, who sells
+* {{Chatl|Squire (Void Knights)|text=Squires}}, who help explain the game and island.
+* {{Chatl|Squire (Void Knights banker)|pic=Squire (Void Knights banker, male) chathead|text=Squire bankers}}, who help players access their banks.
+* {{Chatl|Squire (Void Knights smith)|text=Squire blacksmith}}, who can [[Degradation|repair]] a player's items.
+* {{Chatl|Squire (Novice)}}, who runs the [[Pest Control#Rewards|novice Pest Control boat]].
+* {{Chatl|Squire (Intermediate)}}, who runs the [[Pest Control#Rewards|intermediate Pest Control boat]].
+* {{Chatl|Squire (Veteran)}}, who runs the [[Pest Control#Rewards|veteran Pest Control boat]].
+* {{Chatl|Void Knight|text=Void Knights|pic=Void Knight (4) chathead}}, who give training in exchange for [[Void Knight commendation points|commendation points]].
+
+== Music ==
+{| class="wikitable"
+!Name
+!Unlock location
+!Music track
+|-
+|[[Null and Void]]
+|Void Knights' Outpost
+|[[File:Null and Void.ogg|frameless]]
+|-
+|[[Pest Control (music track)|Pest Control]]
+|[[Pest Control Island|Pest Control island]]
+|[[File:Pest Control.ogg|frameless]]
+|}
+{{Pest Control}}
+[[Category:Bases and camps]]

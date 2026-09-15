@@ -19,6 +19,7 @@
 #include "packets/chat_filter_settings.h"
 #include "packets/friendlist_loaded.h"
 #include "packets/if_sethide.h"
+#include "packets/minimap_toggle.h"
 #include "packets/if_setplayermodel_basecolour.h"
 #include "packets/if_setplayermodel_bodytype.h"
 #include "packets/if_setplayermodel_obj.h"
@@ -211,14 +212,15 @@ static int
 bridge_message_game(int revision, uint8_t const* data, int len, struct RevPacket* out)
 {
     BRIDGE_RUN(rsprot_message_game_out, MsgMessageGame)
-    /*
-     * `type` (the chat filter tab) and `name` (the speaker, present only when
-     * name_present is set) are DROPPED: struct PktMessageGame carries only
-     * `text`. That is the same loss the hand-written osrs239_parse.c already
-     * takes — it reads the name and frees it on the spot — so this is not a
-     * regression, but it is a real gap and belongs in the canonical struct
-     * rather than being read and discarded twice.
-     */
+    out->_message_game.type = msg.type;
+    /* `name` rides on its own present flag: a game message has no speaker, and
+     * a zero-length name is not the same thing as no name. */
+    if( msg.name_present && msg.name )
+    {
+        out->_message_game.name = dup_borrowed(msg.name);
+        if( !out->_message_game.name )
+            return 0;
+    }
     out->_message_game.text = dup_borrowed(msg.message);
     if( !out->_message_game.text )
         return 0;
@@ -537,12 +539,27 @@ bridge_cam_shake(int revision, uint8_t const* data, int len, struct RevPacket* o
 }
 
 /*
- * `chat_private_mode` is stated as 0, not left alone.
+ * `chat_private_mode` is stated as ABSENT, not as 0.
  *
  * The rev-239 packet carries only the public and trade filters -- private chat
- * moved to its own CHAT_FILTER_SETTINGS_PRIVATECHAT packet -- so there is no
- * value on the wire for it. Writing 0 makes that explicit; the hand-written arm
- * did the same.
+ * moved to its own CHAT_FILTER_SETTINGS_PRIVATECHAT packet (opcode 5, whose
+ * handler at client.java:3830 is the only writer of Statics.field5072, the
+ * object CS2 5005 chat_getfilter_private reads) -- so there is no value on the
+ * wire for it. This used to say 0, and the hand-written arm in
+ * `osrs239/osrs239_parse.c` said 0 beside it; both now say -1, because a
+ * fabricated 0 is not "no value", it is the value "Show all" written over
+ * whatever the player chose.
+ *
+ * What that cost: the filter bar read "Private On" the instant after the
+ * player picked Show friends, because this echo landed on top of the choice;
+ * and their NEXT filter change of any kind sent the fabricated 0 back to the
+ * server, through chat_set_filter_184's
+ * `chat_setfilter(chat_getfilter_public, chat_getfilter_private, $new)`,
+ * destroying the persisted Private setting Board-friend reads. The executor
+ * (`src/game/rs_gameproto_exec.c`, PKT_NAME_CHAT_FILTER_SETTINGS) applies the
+ * private mode only when it is non-negative, so -1 leaves the client's own copy
+ * standing -- the same absent convention the zone headers use for a plane a
+ * revision does not send.
  */
 static int
 bridge_chat_filter_settings(int revision, uint8_t const* data, int len, struct RevPacket* out)
@@ -550,7 +567,15 @@ bridge_chat_filter_settings(int revision, uint8_t const* data, int len, struct R
     BRIDGE_RUN(rsprot_chat_filter_settings_out, MsgChatFilterSettings)
     out->_chat_filter_settings.chat_public_mode = msg.public_chat_filter;
     out->_chat_filter_settings.chat_trade_mode = msg.trade_chat_filter;
-    out->_chat_filter_settings.chat_private_mode = 0;
+    out->_chat_filter_settings.chat_private_mode = -1;
+    return 1;
+}
+
+static int
+bridge_minimap_toggle(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_minimap_toggle_out, MsgMinimapToggle)
+    out->_minimap_toggle.state = msg.minimap_state;
     return 1;
 }
 
@@ -832,7 +857,7 @@ bridge_update_friendlist(int revision, uint8_t const* data, int len, struct RevP
 static int
 bridge_runclientscript(int revision, uint8_t const* data, int len, struct RevPacket* out)
 {
-    struct PktRunClientScript* p = &out->_runclientscript;
+    struct PktRunClientScript* p;
     static MsgRunClientScriptArg args[MSG_RUNCLIENTSCRIPT_MAX_ARGS];
     static int32_t ints[MSG_RUNCLIENTSCRIPT_MAX_ELEMS];
     static const char* strs[MSG_RUNCLIENTSCRIPT_MAX_ELEMS];
@@ -859,7 +884,7 @@ bridge_runclientscript(int revision, uint8_t const* data, int len, struct RevPac
     if( !rsprot_exec_ok(&x) || buf.err || !msg.types )
         return 0;
 
-    memset(p, 0, sizeof(*p));
+    p = pkt_runclientscript_reset(out);
     p->script_id = msg.id;
     argc = (int)strlen(msg.types);
     if( argc > PKT_RUNCLIENTSCRIPT_ARG_MAX )
@@ -1071,6 +1096,7 @@ static struct BridgeRow const k_rows[] = {
     { PKT_NAME_SET_NPC_UPDATE_ORIGIN, bridge_set_npc_update_origin },
     { PKT_NAME_CHAT_FILTER_SETTINGS, bridge_chat_filter_settings },
     { PKT_NAME_IF_SETHIDE, bridge_if_sethide },
+    { PKT_NAME_MINIMAP_TOGGLE, bridge_minimap_toggle },
     { PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR, bridge_if_setplayermodel_basecolour },
     { PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE, bridge_if_setplayermodel_bodytype },
     { PKT_NAME_IF_SETPLAYERMODEL_OBJ, bridge_if_setplayermodel_obj },

@@ -1419,12 +1419,17 @@ visit_healthbar(
     note_bytes(tally, encoded, written, data, size);
 
     RSCache_Dat2ConfigHealthbarDecodeInplace(&second, encoded, (int)written);
-    if( first.sprite_id_a == second.sprite_id_a && first.sprite_id_b == second.sprite_id_b &&
-        first.has_opcode_2 == second.has_opcode_2 && first.opcode_2 == second.opcode_2 &&
-        first.has_opcode_3 == second.has_opcode_3 && first.opcode_3 == second.opcode_3 &&
-        first.has_opcode_5 == second.has_opcode_5 && first.opcode_5 == second.opcode_5 &&
-        first.has_opcode_11 == second.has_opcode_11 && first.opcode_11 == second.opcode_11 &&
-        first.has_opcode_14 == second.has_opcode_14 && first.opcode_14 == second.opcode_14 )
+    if( first.front_sprite_id == second.front_sprite_id &&
+        first.back_sprite_id == second.back_sprite_id &&
+        first.has_draw_order == second.has_draw_order &&
+        first.draw_order == second.draw_order &&
+        first.has_evict_priority == second.has_evict_priority &&
+        first.evict_priority == second.evict_priority &&
+        first.has_persist_cycles == second.has_persist_cycles &&
+        first.persist_cycles == second.persist_cycles &&
+        first.has_fade_threshold == second.has_fade_threshold &&
+        first.fade_threshold == second.fade_threshold &&
+        first.has_width == second.has_width && first.width == second.width )
         tally->semantic_ok++;
     (void)profile;
 }
@@ -1463,14 +1468,15 @@ visit_hitsplat(
         first.has_duration == second.has_duration && first.duration == second.duration &&
         first.has_slot_policy == second.has_slot_policy &&
         first.slot_policy == second.slot_policy &&
-        first.has_opcode_11_flag == second.has_opcode_11_flag &&
-        first.has_opcode_14 == second.has_opcode_14 &&
-        first.opcode_11_14 == second.opcode_11_14 &&
-        first.has_opcode_13 == second.has_opcode_13 && first.opcode_13 == second.opcode_13 &&
-        first.has_colour == second.has_colour && first.colour == second.colour &&
+        first.has_fade_flag == second.has_fade_flag &&
+        first.has_fade_after == second.has_fade_after && first.fade_after == second.fade_after &&
+        first.has_text_offset_y == second.has_text_offset_y &&
+        first.text_offset_y == second.text_offset_y &&
+        first.has_text_colour == second.has_text_colour &&
+        first.text_colour == second.text_colour &&
         first.variant_opcode == second.variant_opcode &&
-        first.variant_a == second.variant_a && first.variant_b == second.variant_b &&
-        first.variant_c == second.variant_c &&
+        first.variant_varbit == second.variant_varbit && first.variant_varp == second.variant_varp &&
+        first.variant_fallback == second.variant_fallback &&
         first.variant_count == second.variant_count &&
         memcmp(
             first.variants,

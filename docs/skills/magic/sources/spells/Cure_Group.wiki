@@ -1,0 +1,34 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Cure Group
+|image = [[File:Cure Group.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 74
+|spellbook = Lunar
+|type = Combat
+|exp = 74
+|cost = {{RuneReq|Astral=2|Law=2|Cosmic=2}}
+|speed = 
+|description = Cure poison on players
+|anim = [[File:Cure Group.gif|180px]]
+|sound = [[File:Cure Group.ogg]]
+}}
+[[File:Cure Group icon (mobile).png|left]]
+'''Cure Group''' is a [[spell]] in the [[lunar spellbook]] requiring the [[Lunar Diplomacy]] [[quest]] and 74 [[Magic]] to use. It functions similarly to the [[Cure Me]] spell, curing poison from all [[player]]s within 1 square radius of the caster. Players must have '''Accept Aid''' turned on to benefit from this spell.
+
+This spell is used by [[clan]]s and [[pking]] teams and is useful for [[Tai Bwo Wannai Cleanup]], the [[TzHaar Fight Pit]], or other team-based activities.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Astral
+|Rune1num = 2
+|Rune2 = Cosmic
+|Rune2num = 2
+|Rune3 = Law
+|Rune3num = 2
+}}
+
+{{Lunar spellbook}}
+{{Combat spells}}

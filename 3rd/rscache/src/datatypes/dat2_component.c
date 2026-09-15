@@ -1677,11 +1677,16 @@ RSCache_Dat2ComponentPackNewFromFileList(
     pack->components = calloc((size_t)filelist->file_count, sizeof(struct RSCache_Dat2Component*));
     assert(pack->components != NULL);
 
+    /* Probed once: this loop runs for every component of every interface. */
+    static int dump_bytes = -1;
+    if( dump_bytes < 0 )
+        dump_bytes = getenv("RSCACHE_DUMP_COMPONENT_BYTES") != NULL;
+
     for( int i = 0; i < filelist->file_count; i++ )
     {
         int file_id = file_ids ? file_ids[i] : i;
         int packed_id = (interface_id << 16) | (file_id & 0xFFFF);
-        if( getenv("RSCACHE_DUMP_COMPONENT_BYTES") )
+        if( dump_bytes )
         {
             int dump_n = filelist->file_sizes[i] < 26 ? filelist->file_sizes[i] : 26;
             fprintf(stderr, "RAWBYTES iface=%d file=%d:", interface_id, file_id);

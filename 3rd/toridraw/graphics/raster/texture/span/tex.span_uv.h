@@ -3,6 +3,7 @@
 
 #include "graphics/clamp.h"
 #include "graphics/dash_restrict.h"
+#include "census/raster_ablate.h"
 #include "graphics/shade.h"
 #include "graphics/shared_tables.h"
 
@@ -84,6 +85,23 @@ tex_span_u_quotient(int au, float inv_w, int texture_width)
 }
 
 /**
+ * u under the address mode the material actually asks for.
+ *
+ * `clamp_s` is the sampler's own field, so this is the one place that decides
+ * what `repeat` means for u. Getting it wrong is not subtle at the pixel level
+ * and is very subtle at the code level: a clamped u pins every coordinate past
+ * the edge to one column, so a face whose mapping leaves 0..1 draws that column
+ * smeared along the whole span. On a rock surface that reads as horizontal
+ * streaking, and the uv itself measures perfectly healthy while it happens.
+ */
+static inline int
+tex_span_u_quotient_mode(int au, int w, float inv_w, int texture_width, int clamp_s)
+{
+    return clamp_s ? tex_span_u_quotient(au, inv_w, texture_width)
+                   : tex_span_wrapped_quotient(au, w, inv_w);
+}
+
+/**
  * True when an 8-pixel linear fit between a block's two endpoints is worth
  * drawing. Because a passing fit is bounded by one tile, it also guarantees the
  * step and scan arithmetic that draws it stays inside int.
@@ -122,7 +140,7 @@ tex_span_wrapped_scan_start(int cur, int texture_width, int texture_shift)
  */
 static inline void
 tex_span_exact_block(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int offset,
     const int* RESTRICT texels,
     int count,
@@ -137,6 +155,7 @@ tex_span_exact_block(
     int texture_shift,
     int transparent)
 {
+    TORIDRAW_ABLATE_TEX_RETURN_IF(3);
     for( int i = 0; i < count; i++ )
     {
         int w = cw >> texture_shift;
@@ -146,7 +165,7 @@ tex_span_exact_block(
             int v = (bv / w) & (texture_width - 1);
             int texel = texels[u + (v << texture_shift)];
             if( !transparent || texel != 0 )
-                pixel_buffer[offset + i] = shade_blend(texel, shade);
+                pixel_buffer[offset + i] = toritexel_to_pixel(toritexel_shade_blend(texel, shade));
         }
         au += step_au_dx;
         bv += step_bv_dx;

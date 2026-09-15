@@ -1,0 +1,20 @@
+- generic [active] [ref=f99e1]:
+  - main [ref=f99e2]:
+    - generic [ref=f99e3]:
+      - heading "www.cardmarket.com" [level=1] [ref=f99e5]
+      - heading "Performing security verification" [level=2] [ref=f99e6]
+      - paragraph [ref=f99e7]: This website uses a security service to protect against malicious bots. This page is displayed while the website verifies you are not a bot.
+  - contentinfo [ref=f99e14]:
+    - generic [ref=f99e16]:
+      - generic [ref=f99e18]:
+        - text: "Ray ID:"
+        - code [ref=f99e19]: a3892db10d0e5002
+      - generic [ref=f99e20]:
+        - generic [ref=f99e21]:
+          - text: Performance and Security by
+          - link "Cloudflare, opens in a new tab" [ref=f99e22] [cursor=pointer]:
+            - /url: https://www.cloudflare.com?utm_source=challenge&utm_campaign=m
+            - text: Cloudflare
+        - link "Privacy, opens in a new tab" [ref=f99e24] [cursor=pointer]:
+          - /url: https://www.cloudflare.com/privacypolicy/
+          - text: Privacy

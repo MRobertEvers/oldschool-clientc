@@ -1,0 +1,575 @@
+{{External|rs=Falador achievements}}
+{{Infobox Achievement Diary
+|name = Falador Diary
+|image = [[File:Falador Diary.png]]
+|release = [[5 March]] [[2015]]
+|update = Achievement Diaries
+|areas = [[Falador]], [[Rimmington]], [[Taverley]], [[Burthorpe]], [[Mudskipper Point]], and [[Port Sarim]]
+|members = Yes
+|reward = [[Falador shield|Shield]]
+|taskmasters = [[Sir Rebral]]
+|leagueRegion = Asgarnia
+}}
+{{Map|name=Sir Rebral|x=2978|y=3347|r=3|height=250|width=250|caption=Sir Rebral's location|align=left|mtype=square}}
+The '''Falador Diary''' is an [[Achievement Diary]] whose tasks revolve around areas in and near [[Falador]], such as [[Burthorpe]], [[Rimmington]], and [[Taverley]].
+
+Several skill, quest, and item requirements are needed to complete all tasks. Unless stated otherwise, [[temporary skill boost]]s can be used to meet the skill requirements. For the [[#Elite|elite tier]] of this diary, the player must have completed all [[quest]]s, or achieved [[level 99]] in any skill.
+
+Rewards can be claimed from [[Sir Rebral]] in the [[White Knights' Castle]]'s courtyard in [[Falador]]. Tasks may be done in any order, but the previous tiers of a diary must be completed to claim rewards of the next tier.
+
+==Overview==
+{{Sync}}
+<tabber>
+|-|
+Easy=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 10
+|Agility = 5
+|Smithing = 13
+|Construction = 16
+|Total = 72
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Doric's Quest"
+|[[Doric's Quest]]
+|- data-rowid="The Knight's Sword"
+|[[The Knight's Sword]]
+|}
+| style="vertical-align: top" |
+|}
+
+|-|
+Medium=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 40
+|Strength = 37
+|Agility = 42
+|Smithing = 13 
+|SmithingNotes = <ref name="IronMed">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require 47 [[Farming]] or the ability to kill [[gryphon]]s for a [[watermelon]], and either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].</ref>
+|Defence = 20
+|Ranged = 19
+|Thieving = 40
+|Cooking = 20
+|Prayer = 10
+|Crafting = 40
+|Firemaking = 49
+|Magic = 37
+|Fletching = 1
+|FletchingNotes = <ref name="IronMed"/>
+|Woodcutting = 30
+|Slayer = 32
+|Farming = 23
+|FarmingNotes = <ref name="IronMed"/>
+|Construction = 16
+|Quest = 12
+|Total = 484
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+! Quest requirements
+|- data-rowid="Doric's Quest"
+|[[Doric's Quest]]
+|- data-rowid="The Knight's Sword"
+|[[The Knight's Sword]]
+|- data-rowid="Recruitment Drive"
+|[[Recruitment Drive]]
+|- data-rowid="Skippy and the Mogres"
+|[[Skippy and the Mogres]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Partial completion of [[Ratcatchers]]
+|}
+|}
+{{Reflist}}
+
+|-|
+Hard=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Attack = 1
+|AttackNotes = <ref name="WarriorsGuild">You'll need 130 combined levels in [[Attack]] and [[Strength]], or level 99 in either, to access the [[Warriors' Guild]].</ref>
+|Mining = 60
+|Strength = 37
+|StrengthNotes = <ref name="WarriorsGuild"/>
+|Agility = 59
+|Smithing = 13 
+|SmithingNotes = <ref name="IronHard">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require 47 [[Farming]] or the ability to kill [[gryphon]]s for a [[watermelon]], and either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].</ref>
+|Defence = 50
+|Ranged = 19
+|Herblore = 52
+|Fishing = 53
+|Thieving = 58
+|Cooking = 53
+|Prayer = 70
+|PrayerNotes =  {{Boostable|n}}
+|Crafting = 40
+|Firemaking = 49
+|Magic = 37
+|Fletching = 1
+|FletchingNotes = <ref name="IronHard"/>
+|Woodcutting = 71
+|Runecraft = 56
+|RunecraftNotes = <ref name="RunecraftHard">The minimally required [[Runecraft]] level is 42 with 3+ [[Raiments of the Eye]] pieces, or 56 with less.</ref>
+|Slayer = 72
+|Farming = 45
+|FarmingNotes = <ref name="IronHard"/>
+|Construction = 16
+|Quest = 55
+|Total = 971
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Doric's Quest"
+|[[Doric's Quest]]
+|- data-rowid="Grim Tales"
+|[[Grim Tales]]
+|- data-rowid="Heroes' Quest"
+|[[Heroes' Quest]]
+|- data-rowid="The Knight's Sword"
+|[[The Knight's Sword]]
+|- data-rowid="Skippy and the Mogres"
+|[[Skippy and the Mogres]]
+|- data-rowid="The Slug Menace"
+|[[The Slug Menace]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Access to the [[Warriors' Guild]] <ref name="WarriorsGuild"/>
+|-
+|Partial completion of [[Ratcatchers]]
+|-
+|Defeat the [[Giant Mole]]
+|-
+|Acquire a [[prospector helmet]] from the [[Motherlode Mine]]
+|}
+|}
+{{Reflist}}
+
+|-|
+Elite=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Attack = 1
+|AttackNotes = <ref name="WarriorsGuild">You'll need 130 combined levels in [[Attack]] and [[Strength]], or level 99 in either, to access the [[Warriors' Guild]].</ref>
+|Mining = 60
+|Strength = 37
+|StrengthNotes = <ref name="WarriorsGuild"/>
+|Agility = 80
+|Smithing = 13 
+|SmithingNotes = <ref name="IronElite">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].</ref>
+|Defence = 50
+|Ranged = 19
+|Herblore = 81
+|Fishing = 53
+|Thieving = 58
+|Cooking = 53
+|Prayer = 70 
+|PrayerNotes = {{Boostable|n}}
+|Crafting = 40
+|Firemaking = 49
+|Magic = 37
+|Fletching = 1
+|FletchingNotes = <ref name="IronElite"/>
+|Woodcutting = 75
+|Runecraft = 88
+|RunecraftNotes = <ref name="RunecraftElite">The minimally required [[Runecraft]] level is 55 with a full set of [[Raiments of the Eye]], 66 with 3 pieces, 77 with 2 pieces, and 88 with less.</ref>
+|Slayer = 72
+|Farming = 91
+|Construction = 16
+|Quest = 55
+|Total = 1080
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Doric's Quest"
+|[[Doric's Quest]]
+|- data-rowid="Grim Tales"
+|[[Grim Tales]]
+|- data-rowid="Heroes' Quest"
+|[[Heroes' Quest]]
+|- data-rowid="The Knight's Sword"
+|[[The Knight's Sword]]
+|- data-rowid="Skippy and the Mogres"
+|[[Skippy and the Mogres]]
+|- data-rowid="The Slug Menace"
+|[[The Slug Menace]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Access to the [[Warriors' Guild]] <ref name="WarriorsGuild"/>
+|-
+|Partial completion of [[Ratcatchers]]
+|-
+|Defeat the [[Giant Mole]]
+|-
+|Reach the rank of [[White Knights#Knight rankings|White Knight Master]]
+|-
+|Acquire a [[prospector helmet]] from the [[Motherlode Mine]]
+|-
+|Completion of all [[quest]]s, discovery of all [[Music|music tracks]], or [[Skill mastery|level 99]] in any skill
+|}
+|}
+{{Reflist}}
+
+|-|
+</tabber>
+
+==Easy==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Falador" data-diary-tier="Easy"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Find out what your family crest is from [[Sir Renitee]]
+''Note: You must finish the dialogue.''
+|
+*{{SCP|Construction|16|link=yes}}
+|-
+|2. Climb over the western [[Falador]] wall.
+|
+*{{SCP|Agility|5|link=yes}}
+|-
+|3. Browse [[Sarah's Farming shop.|Sarah's farm shop]].
+|{{NA|None}}
+|-
+|4. Get a Haircut or a Shave from the [[Hairdresser|Falador Hairdresser]].
+|{{NA|None}}
+|-
+|5. Fill a [[bucket]] from the [[Waterpump (Falador)|pump]] north of [[Falador west bank]].
+|
+*[[Bucket]]
+|-
+|6. Kill a [[duck]] in [[Falador Park]].
+|
+*None, though using [[Magic]] or a [[Ranged#Weapons|Ranged weapon]] is recommended
+|-
+|7. Make a [[mind tiara]].
+|
+*[[Tiara]] and a [[mind talisman]]
+|-
+|8. Take the [[Monk_of_Entrana|boat]] to [[Entrana]].
+|
+*Have no [[weapons]] or [[armour]] equipped or in your inventory
+|-
+|9. Repair a [[broken strut]] in the [[Motherlode Mine]].
+|
+*[[Hammer]] and any [[pickaxe]]
+|-
+|10. Claim a [[security book]] from the [[Security guard]] at [[Port Sarim]] jail.
+''Note: The guard is found upstairs. Ask him about security and finish the dialogue.''
+|{{NA|None}}
+|-
+|11. Smith some [[Blurite Limbs]] on [[Doric]]'s anvil.
+|
+*{{SCP|Quest}} Completion of [[The Knight's Sword]] and [[Doric's Quest]]
+*{{SCP|Mining|10|link=yes}} and {{SCP|Smithing|13|link=yes}}
+*[[Hammer]] and a [[Blurite bar]]
+|}
+
+===Rewards===
+*[[Falador shield 1]]:
+**Can restore 25% of [[prayer points]] once a day
+*[[Antique lamp (easy)|Antique lamp]] worth 2,500 experience in any skill of at least level 30
+*Access to the [[Tight-gap (Goblin Village)|tight-gap shortcut]] from [[Burthorpe]] to the [[Chaos Temple (Asgarnia)|Chaos Temple]] (with 14 [[Agility]])
+
+==Medium==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Falador" data-diary-tier="Medium"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Light a [[Bullseye lantern]] at the [[Chemist|Chemist's]] in [[Rimmington]].
+|
+*{{SCP|Firemaking|49|link=yes}}
+*[[Tinderbox]] and a regular [[bullseye lantern]]
+|-
+|2. [[Telegrab]] some [[Wine of Zamorak]] at the [[Chaos Temple (Asgarnia)|Chaos Temple]] by the [[Wilderness]].
+''Note: This altar is located north-west of the [[Goblin Village]]. You have to be inside the building until the jug appears in your inventory for the task to register as completed.''
+|
+*{{SCP|Magic|33|link=yes}}
+*Means to cast [[Telegrab]] ({{RuneReq|Air=1|Law=1}})
+|-
+|3. Unlock the [[Crystal chest]] in [[Taverley]].
+|
+*[[Crystal key]]
+|-
+|4. Place a [[Scarecrow]] in the [[Falador farm]] flower patch.
+|
+*{{SCP|Farming|23|link=yes}} ([[Ironman mode|Ironman accounts]] require {{SCP|Farming|47|link=yes}} or the ability to kill [[gryphon]]s)
+*[[Bronze spear]], [[watermelon]], and a [[hay sack]] (you can fill an [[empty sack]] with hay at the [[hay bale]] in the chicken coop nearby.)
+|-
+|5. Kill a [[Mogre]] at [[Mudskipper Point]].
+|
+*{{SCP|Quest}} Completion of [[Skippy and the Mogres]]
+*{{SCP|Slayer|32|link=yes}}
+*[[Fishing explosive]]. 
+* It is not possible to skip having to complete Skippy and the Mogres, or needing a fishing explosive, by killing them through a boat cannon through the Sailing skill.
+|-
+|6. Visit the [[Port Sarim]] [[Rat Pits]].
+|
+*{{SCP|Quest}} Partial completion of [[Ratcatchers]]
+|-
+|7. Grapple up and then jump off the north [[Falador]] wall.
+|
+*{{SCP|Agility|11|link=yes}}, {{SCP|Strength|37|link=yes}}, and {{SCP|Ranged|19|link=yes}}
+*[[Mith grapple]]{{efn|[[Ironman Mode|Ironmen]] require either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].}} and any [[Crossbow (weapon)|crossbow]]
+|-
+|8. Pickpocket a [[Falador]] [[guard]].
+|
+*{{SCP|Thieving|40|link=yes}}
+|-
+|9. Pray at the [[Stone circle|Altar of Guthix]] in [[Taverley]] whilst wearing full [[Initiate armour|Initiate]].
+|
+*{{SCP|Quest}} Completion of [[Recruitment Drive]]
+*{{SCP|Prayer|10|link=yes}} and {{SCP|Defence|20|link=yes}}
+*[[Initiate armour]]
+|-
+|10. Mine some [[Gold ore]] at the [[Crafting Guild]].
+|
+*{{SCP|Crafting|40|link=yes}} and {{SCP|Mining|40|link=yes}}
+*Any [[pickaxe]] and a [[brown apron]], [[golden apron]], or [[Crafting cape]]
+|-
+|11. Squeeze through the crevice in the [[Dwarven mine]]s.
+|
+*{{SCP|Agility|42|link=yes}}
+|-
+|12. Chop and burn some [[Willow logs]] in [[Taverley]].
+''Note: Willow trees can be found to the south-east along the lake. [[Willow tree (Farming)|Player-grown willow trees]] do not count towards completing the task.''
+|
+*{{SCP|Woodcutting|30|link=yes}} and {{SCP|Firemaking|30|link=yes}}
+*Any [[axe]] and a [[tinderbox]]
+|-
+|13. Craft a [[basket|fruit basket]] on the [[Falador Farm]] [[loom]].
+|
+*{{SCP|Crafting|36|link=yes}} (and {{SCP|Farming|30|link=yes}} for [[Ironman mode|Ironman accounts]])
+*6 [[Willow branch]]es
+|-
+|14. Teleport to [[Falador]].
+|
+*{{SCP|Magic|37|link=yes}}
+*Means to cast [[Falador Teleport]] ({{RuneReq|Air=3|Water=1|Law=1}})
+|}
+{{Notelist}}
+
+===Rewards===
+*[[Falador shield 2]]:
+**Can restore 50% of [[prayer points]] once a day
+*[[Antique lamp (medium)|Antique lamp]] worth 7,500 experience in any skill of at least level 40
+*10% more experience from the [[Falador farm|Falador farming patch]]
+*Access to the [[Dark tunnel (Motherlode Mine)|dark tunnel shortcut]] in the [[Motherlode Mine]] (with 54 [[Agility]]) 
+*Roughly 21% increased chance of receiving a [[clue scroll (medium)|medium clue scroll]] from a [[guard]] in [[Falador]] (from 1/128 to 1/106)
+
+==Hard==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Falador" data-diary-tier="Hard"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Craft 140 [[Mind rune]]s simultaneously from Essence without the use of [[Extracts]].
+''Note: [[Mind core|Mind cores]] do not count.''
+|
+*{{SCP|Runecraft|56|link=y}}
+*{{SCP|Runecraft|42|link=y}} with 3+ [[Raiments of the Eye]] pieces
+*28 [[Pure essence|pure]], [[Daeyalt essence|daeyalt]], or [[rune essence]] (less may suffice at higher [[Runecraft]] levels)
+*Access to the [[Mind Altar]] ([[mind talisman]]/[[mind tiara|tiara]], [[catalytic talisman]]/[[Catalytic tiara|tiara]], or the [[Abyss]])
+|-
+|2. Change your [[heraldic crest|family crest]] to the [[Saradomin]] symbol.
+''Note: This is done by talking to [[Sir Renitee]].''
+|
+*{{SCP|Prayer|70|link=yes}} {{Boostable|n}}
+*{{SCP|Construction|16|link=yes}}{{Boostable|y}}
+*5,000 [[coins]] (an additional 5,000 [[coins]] if your randomised [[heraldic crest|family crest]] already is [[Saradomin]], to change to another and back)
+|-
+|3. Kill the [[Giant Mole]] beneath [[Falador Park]].
+|
+*[[Spade]] and [[light source]]
+*See the [[Giant Mole/Strategies|strategy guide]]
+|-
+|4. Kill a [[Skeletal Wyvern]] in the [[Asgarnia Ice Dungeon]].
+|
+*{{SCP|Slayer|72|link=yes}} {{Boostable|y}}
+*Protection from the wyvern's [[icy breath]] and [[weapon]]ry to slay it
+|-
+|5. Complete a lap of the [[Falador Rooftop Course|Falador rooftop agility course]].
+|
+*{{SCP|Agility|50|link=yes}} {{Boostable|y}}
+|-
+|6. Enter the [[mining guild]] while wearing a [[Prospector helmet]].
+''Note: This helmet can be obtained from the [[Motherlode Mine]] or the [[Volcanic Mine]].''
+|
+*{{SCP|Mining|60|link=yes}}
+*[[Prospector helmet]] or [[golden prospector helmet]]
+|-
+|7. Kill the [[Blue Dragon]] under the [[Heroes' Guild]].
+|
+*{{SCP|Quest}} Completion of the [[Heroes' Quest]]
+*Protection from [[dragonfire]] and [[weapon]]ry to slay it
+|-
+|8. Crack a [[Wall safe (lobby)|wall safe]] within [[Rogues' Den]].
+''Note: [[Wall safe]]s in the maze do not count towards completing this task.''
+|
+*{{SCP|Thieving|50|link=yes}}
+|-
+|9. Recharge your [[prayer]] in the [[Rimmington church|Port Sarim church]] while wearing full [[Proselyte armour|Proselyte]].
+|
+*{{SCP|Quest}} Completion of [[The Slug Menace]]
+*{{SCP|Defence|30|link=yes}}
+*{{SCP|Prayer|20|link=yes}}
+*Full [[Proselyte armour]]
+|-
+|10. Enter the [[Warriors' Guild]].
+|
+*130 combined levels in {{SCP|Attack|link=yes}} and {{SCP|Strength|link=yes}}, or level 99 in either
+|-
+|11. Equip a [[dwarven helmet]] within the [[dwarven mine]]s.
+|
+*{{SCP|Quest}} Completion of [[Grim Tales]]
+*{{SCP|Defence|50|link=yes}}
+*[[Dwarven helmet]]
+|}
+
+===Rewards===
+*[[Falador shield 3]]:
+**Can restore full [[prayer points]] once a day
+**Indicates the [[Giant Mole]]'s location when equipped or held in the inventory in the [[Mole Hole]]
+*[[Antique lamp (hard)|Antique lamp]] worth 15,000 experience in any skill of at least level 50
+*The [[Giant Mole]]'s [[mole skin]] and [[Mole claw|claw]] drops will be [[Bank note|noted]]
+*Access to the [[bank]] chest and [[Bank Deposit Box|bank deposit box]] in the [[Crafting Guild]]
+*Access to the [[Crevice (Heroes' Guild)|shortcut]] to the [[Fountain of Heroes]] in the [[Heroes' Guild]] basement (with 67 [[Agility]])
+
+==Elite==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Falador" data-diary-tier="Elite"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Craft 252 [[Air Rune]]s simultaneously from Essence without the use of [[Runic extract|Extracts]].
+|
+*{{SCP|Runecraft|88|link=y}}
+*{{SCP|Runecraft|77|link=y}} with 2 [[Raiments of the Eye]] pieces or 1 [[Raiments of the Eye]] piece and [[abyssal lantern]] (with willow or redwood logs)
+*{{SCP|Runecraft|66|link=y}} with 3 [[Raiments of the Eye]] pieces
+*{{SCP|Runecraft|55|link=y}} with 4 [[Raiments of the Eye]] pieces
+*28 [[Pure essence|pure]], [[Daeyalt essence|daeyalt]], or [[rune essence]] (less may suffice at higher [[Runecraft]] levels)
+*Access to the [[Air Altar]] ([[air talisman]]/[[air tiara|tiara]], [[elemental talisman]]/[[Elemental tiara|tiara]], or the [[Abyss]])
+|-
+|2. Purchase a [[white 2h sword|White 2h Sword]] from [[Sir Vyvin]].
+''Note: Selling this sword to him and then buying it back without having the proper rank does not count for this achievement.''
+|
+*{{SCP|Quest}} Completion of [[Wanted!]]
+*1,920 [[coins]]
+*Rank of [[White equipment#Knight rankings|White Knight Master]] (requires a [[Black Knight]] kill score of 1300 - this rank automatically starts at White Knight Novice, with a kill score of 100)
+|-
+|3. Find at least 3 [[magic roots]] at once when digging up your [[magic tree (Farming)|magic tree]] in [[Falador]].
+''Note: You need to cut the tree down yourself.''
+|
+*{{SCP|Farming|91|link=yes}} and {{SCP|Woodcutting|75|link=yes}}
+*[[Magic sapling]], [[spade]] and any [[axe]]
+|-
+|4. Perform a [[Cape of Accomplishment|skillcape]] or [[Quest point cape|quest cape]] emote at the top of [[White Knights' Castle|Falador Castle]].
+|
+*Completion of all [[quest]]s or [[Skill mastery|level 99]] in any skill
+*Any [[Cape of Accomplishment]] (except for [[Cape of Accomplishment#Joke Skillcapes|joke skillcapes]] or the [[Max cape]])
+|-
+|5. Jump over the [[Strange floor (Taverley Dungeon)|strange floor]] in [[Taverley Dungeon|Taverley dungeon]].
+''Note: Might take several tries. You must take no damage from the jump.''
+|
+*{{SCP|Agility|80|link=yes}}
+|-
+|6. Mix a [[Saradomin brew]] in [[Falador east bank]].
+|
+*{{SCP|Herblore|81|link=yes}}
+*[[Toadflax potion (unf)]], [[crushed nest]]
+|}
+
+===Rewards===
+*[[Falador shield 4]]:
+**Can restore full [[prayer points]] twice a day
+*[[Antique lamp (elite)|Antique lamp]] worth 50,000 experience in any skill of at least level 70
+*The [[tree patch]] in [[Falador Park]] will never get [[Disease (Farming)|diseased]]
+*Access to the larger [[Amethyst crystals|amethyst]] mine in the west of the [[Mining Guild]]
+*Slightly increased chance of receiving higher level [[Pay-dirt#Cleaning|ores]] when cleaning [[pay-dirt]], by about 1% per ore{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1239199151243644928|date=15 March 2020|archiveurl=https://reldo.runescape.wiki/i/101939|archivedate=15 March 2020|quote=There's just one buff to pay-dirt, and it's for the elite diary only. This matches what the diary master says if asked.|name=Falador Diary reward tweet}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1536370067935358978|date=13 June 2022|archiveurl=https://reldo.runescape.wiki/i/109709|archivedate=9 July 2022|quote=The roll for each ore type is increased by about 1 percentage point.}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = The Hard Diary task now only requires the Prospector helmet, instead of the full outfit.
+}}
+{{Subject changes
+|date = 2 September 2021
+|update = Deadman Reborn: Beta and Feedback
+|poll = Mini Poll - Miscellaneous Improvements
+|change = Players that have completed the [[Falador Elite Diary]] now have access to an alternative [[amethyst]] mining spot.
+}}
+{{Subject changes
+|date = 14 April 2021
+|update = Below Ice Mountain
+|change = All diary tasks to craft runes were changed to clarify they can only be completed with essence.
+}}
+{{Subject changes
+|date = 
+|change = The Medium Falador Diary and Hard Falador Diary no longer provide any increased chance of receiving higher ores when cleaning pay dirt.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1239199151243644928|date=15 March 2020|archiveurl=https://reldo.runescape.wiki/i/101939|archivedate=15 March 2020|quote=There's just one buff to pay-dirt, and it's for the elite diary only. This matches what the diary master says if asked.|name=Falador Diary reward tweet}}
+}}
+{{Subject changes
+|date = 2 June 2016
+|update = The Woodcutting Guild
+|change = Removed strikethrough from the text stating where to reclaim your Falador shields in the Falador achievement diary menu.
+}}
+{{Subject changes
+|date = 23 July 2015
+|update = Big Cats & WWF
+|change = The 10% increase in XP at the Falador [[farming patch]] will now only apply after completing the [[Falador Medium Diary]] (rather than the [[Falador Easy Diary|easy diary]]), as intended.
+}}
+{{Subject changes
+|date = 18 June 2015
+|update = Multiple Clues & Midsummer
+|poll = Old School Achievement Diary Rewards Poll
+|change = The slight increased chance at receiving higher ores when cleaning pay-dirt if you have completed the [[Falador Hard Diary]] and a further increased chance if you have completed the [[Falador Elite Diary]] is now correctly applied.
+}}
+{{Subject changes
+|date = 23 April 2015
+|update = Crystal Halberd Special & More
+|change = Players that have completed the [[Falador Medium Diary]] now have an increased chance of receiving [[clue scrolls]] from [[Guard#Falador|Falador guards]].
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = You now receive 10% more experience from the Falador [[farming patch]] if you have completed the [[Falador Medium Diary]].
+}}
+{{Subject changes footer}}
+
+==References==
+{{reflist}}
+
+{{Achievement diary}}

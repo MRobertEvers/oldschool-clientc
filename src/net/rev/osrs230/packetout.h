@@ -140,7 +140,7 @@ static const struct Osrs230PacketOutDef g_packet_out_definitions_osrs230[] = {
      * so `packetout_code_osrs230` returned -1 and `out_begin` refused: every
      * social send this client made at rev 230 wrote nothing. These rows are what
      * turn them on. Payloads are lc254's, which is what net_out.c writes and
-     * what src/net/mock decodes:
+     * what src/torirsserver decodes:
      *
      *   FRIENDLIST_ADD/DEL, IGNORELIST_ADD/DEL  p8 name37
      *   CHAT_SETMODE                            p1 public, p1 private, p1 trade

@@ -21,7 +21,7 @@ def main() -> int:
     parser.add_argument("--flag-on", type=Path, default=REPO_ROOT / "cache.osrs239.summoning")
     parser.add_argument("--flag-off", type=Path, default=REPO_ROOT / "cache.osrs239")
     parser.add_argument("--scripts", type=Path, default=REPO_ROOT / "OSRS-Content/osrs239-content/server/scripts/build_summoning")
-    parser.add_argument("--manifest", type=Path, default=REPO_ROOT / "manifest_osrs239.ini")
+    parser.add_argument("--manifest", type=Path, default=REPO_ROOT / "manifests/manifest_osrs239.ini")
     parser.add_argument("--out", type=Path, default=REPO_ROOT / "build" / "summoning-phase1")
     args = parser.parse_args()
 
@@ -172,8 +172,8 @@ def main() -> int:
         env = os.environ.copy()
         env.update(
             {
-                "MOCK230_SAVES": str(saves),
-                "MOCK230_SCRIPTS": str(args.scripts),
+                "TORIRSSERVER_SAVES": str(saves),
+                "TORIRSSERVER_SCRIPTS": str(args.scripts),
                 "SDL_VIDEODRIVER": "dummy",
                 "TORIRS_MAX_FRAMES": "430",
                 "TORIRS_EXIT_BMP": str(bmp),

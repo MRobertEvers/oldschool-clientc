@@ -39,6 +39,40 @@ python3 tools/memtrace/decode_memtrace.py tools/memtrace/bins/memtrace.bin
 
 ---
 
+## `runescript-lsp/` + `vscode-runescript/` — editor support
+
+Syntax highlighting and intellisense for `.rs2` (ServerScript), `.cs2`
+(ClientScript) and the whole declaration family — `.npc`, `.obj`, `.loc`,
+`.varp`, `.enum`, `.dbrow`, `.constant`, `.spawn`, and the `.alloc` / `.pack` /
+`.compack` ledgers. Go-to-definition on `%bankpin_code` offers the record, the
+allocation and the cache's name index; hover reports the id and the doc comment;
+diagnostics catch a name nothing declares.
+
+**Full documentation:** [`runescript-lsp/README.md`](runescript-lsp/README.md)
+· extension [`vscode-runescript/README.md`](vscode-runescript/README.md)
+
+**Quick start:**
+
+```bash
+tools/vscode-runescript/scripts/install.sh      # build the server, install the extension
+# then: Developer: Reload Window
+```
+
+The server on its own, for a non-VS Code editor:
+
+```bash
+make -C tools/runescript-lsp && make -C tools/runescript-lsp test
+```
+
+Structure comes from two tree-sitter grammars,
+[`tree-sitter-runescript/`](tree-sitter-runescript) and
+[`tree-sitter-runeconfig/`](tree-sitter-runeconfig), which parse 100% of this
+repo's 11,791 scripts and 4,899 declaration files. The runtime is vendored at
+[`3rd/tree-sitter`](../3rd/tree-sitter); the generated parsers are checked in,
+so building needs no Node.
+
+---
+
 ## Python scripts
 
 ### `check_crystal_set_contract.py`
@@ -50,10 +84,14 @@ debugproc, required equipment semantics, runtime diagnostics, and semantic
 self-test coverage. Its negative controls prove that the original Cry prefix
 match and a duplicate command fail the gate.
 
-It runs automatically before both `mock230-scripts` and `mock230-cache`:
+It runs automatically before `torirsserver-cache`, and as part of
+`check-content-audits` and `test-content`. It no longer gates
+`torirsserver-scripts`: with the contract settled, the server half re-proved the
+same verdict on every launch that recompiled a script.
 
 ```bash
 make -C src check-crystal-set-contract
+make -C src check-content-audits          # with the Agility and Wintertodt audits
 ```
 
 Full incident: [`../docs/CRYSTAL_SET_COMMAND.md`](../docs/CRYSTAL_SET_COMMAND.md).
@@ -137,6 +175,28 @@ See [`entity_viewer/README.md`](entity_viewer/README.md).
 ```bash
 make -C tools/entity_viewer   # -> ev_catalog, ev_server
 ```
+
+## `chrome_button_stamp.py` — a new chrome button out of an old one
+
+Borrows the interfaces' close button (the baked `CloseButton` plate: frame,
+bevel, face, ink, and its hover twin), wipes the X off it, and puts your sprite
+there. That is how the plugin window's pop-out button exists at all — the game
+has no art for a window that leaves its frame, so the button is the cache's
+plate with an arrow stamped in the middle.
+
+```bash
+tools/chrome_button_stamp.py arrow.png              # -> arrow-button.png + -over.png
+tools/chrome_button_stamp.py arrow.png --ink        # recoloured to the plate's own ink
+tools/chrome_button_stamp.py arrow.png --rows       # as a spritebake glyph table
+tools/chrome_button_stamp.py --selftest             # must reproduce the shipped bake
+```
+
+A PNG is a preview, not a button the client can draw: shipping one means
+`--rows` into `3rd/rscache/tools/spritebake`'s glyph table and a `--stamp` line
+in the bake recipe. `--selftest` rebuilds the baked `PopoutButton` from the
+baked `CloseButton` and fails on a single differing pixel, which is what keeps
+this script and the C tool agreeing about where the mark box is and which
+colour the face is.
 
 ## Cache porting (`3rd/rscache/tools/`)
 

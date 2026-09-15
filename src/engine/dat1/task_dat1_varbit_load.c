@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Load every varbit type into the VarPManager, once, at boot — the dat1 half of what
@@ -58,7 +59,7 @@ Task_Dat1VarbitLoad_Run(
         loaded = RSCache_IO_Dat1ConfigJagfileDecode(io, 0);
         if( !loaded )
         {
-            fprintf(stderr, "varbit: failed to decode the dat1 config jagfile\n");
+            TORIRS_ERR("varbit: failed to decode the dat1 config jagfile\n");
             PT_EXIT(&task->pt);
         }
         dat1_buildcache_set_config_jagfile(task->bc, loaded);
@@ -73,7 +74,7 @@ Task_Dat1VarbitLoad_Run(
     {
         /* Not every dat1 cache carries it. Leave the table empty rather than fail the
          * boot — varbits then read 0, which is the pre-existing behaviour. */
-        fprintf(stderr, "varbit: varbit.dat absent from the config jagfile\n");
+        TORIRS_LOG("varbit: varbit.dat absent from the config jagfile\n");
         PT_EXIT(&task->pt);
     }
 
@@ -82,11 +83,11 @@ Task_Dat1VarbitLoad_Run(
             (const uint8_t*)config_jagfile->files[data_idx],
             (size_t)config_jagfile->file_sizes[data_idx]) )
     {
-        fprintf(stderr, "varbit: failed to load varbit.dat\n");
+        TORIRS_ERR("varbit: failed to load varbit.dat\n");
         PT_EXIT(&task->pt);
     }
 
-    printf("varbit load (dat1): %d types from varbit.dat\n", task->varps->varbit_count);
+    TORIRS_LOG("varbit load (dat1): %d types from varbit.dat\n", task->varps->varbit_count);
 
     PT_END(&task->pt);
 }

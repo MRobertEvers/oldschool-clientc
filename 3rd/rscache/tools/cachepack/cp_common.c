@@ -452,7 +452,7 @@ cp_resolve_ref_or_null(
      *
      * LostCity writes "no value" as the literal `null`, in a param value and as a
      * param default alike, and the server already resolves it that way in one
-     * place for the same reason — see mock230_content_symbol_checked, whose note
+     * place for the same reason — see ToriRSServer_ContentSymbolChecked, whose note
      * this mirrors. Stated here rather than at the two call sites so the
      * convention has one home.
      *
@@ -662,6 +662,18 @@ static const struct
     { 'I', "component", -1 },
     { 'c', "coord", -1 },
     { 'm', "model", -1 },
+    /*
+     * `synth` is not a cache param letter — 'P' is already `param` — so a sound
+     * param is stored as an int here, exactly as it was when it was spelled
+     * `type=int`. The word is listed anyway because the *server* reads the same
+     * `type=` for a second thing the wire character cannot express: the namespace a
+     * symbolic value resolves in. Spelled `int`, `param=attack_sound_stance1,
+     * longbow` was guessed at and came back as the longbow *item*. Listed after
+     * `int` so `cp_param_type_name('i')` still answers "int" and a re-pack of
+     * cachepack's own output reads back unchanged. cp_param_types_load retains
+     * the asset namespace separately for authored symbolic values.
+     */
+    { 'i', "synth", -1 },
 };
 
 #define PARAM_TYPE_COUNT ((int)(sizeof(k_param_types) / sizeof(k_param_types[0])))
@@ -720,7 +732,7 @@ cp_param_type_of(
 {
     if( !ctx->param_types || param_id < 0 || param_id >= ctx->param_types_count )
         return 0;
-    return ctx->param_types[param_id];
+    return ctx->param_types[param_id].code;
 }
 
 int
@@ -732,7 +744,7 @@ cp_param_types_load(struct CP_Ctx* ctx)
     int capacity = 4096;
 
     free(ctx->param_types);
-    ctx->param_types = (char*)calloc((size_t)capacity, 1);
+    ctx->param_types = calloc((size_t)capacity, sizeof(*ctx->param_types));
     ctx->param_types_count = ctx->param_types ? capacity : 0;
     if( !ctx->param_types )
         return 0;
@@ -761,7 +773,9 @@ cp_param_types_load(struct CP_Ctx* ctx)
             }
             /* A later layer restating a type overrides an earlier one, matching
              * the merge's rank rule — `cp_walk` hands them back in rank order. */
-            ctx->param_types[id] = code;
+            ctx->param_types[id].code = code;
+            ctx->param_types[id].asset_plus_one =
+                strcmp(type_text, "synth") == 0 ? CP_ASSET_SYNTH + 1 : 0;
             typed++;
         }
         cp_config_file_free(&file);
@@ -830,6 +844,8 @@ cp_parse_param(
          */
         char code = cp_param_type_of(ctx, param_id);
         int ref = cp_param_ref_type(code);
+        int asset = ctx->param_types && param_id >= 0 && param_id < ctx->param_types_count
+                        ? ctx->param_types[param_id].asset_plus_one - 1 : -1;
 
         kind_text = code == 's' ? "str" : "int";
         snprintf(kind_buf, sizeof(kind_buf), "%s", kind_text);
@@ -861,6 +877,14 @@ cp_parse_param(
         if( ref >= 0 && !cp_parse_int(text, &resolved) )
         {
             if( !cp_resolve_ref_or_null(ctx, (enum CP_TypeId)ref, text, &resolved) )
+                return 0;
+            snprintf(resolved_buf, sizeof(resolved_buf), "%d", resolved);
+            text = resolved_buf;
+        }
+        else if( asset >= 0 && !cp_parse_int(text, &resolved) )
+        {
+            resolved = cp_asset_name_find(ctx, (enum CP_AssetId)asset, text);
+            if( resolved < 0 )
                 return 0;
             snprintf(resolved_buf, sizeof(resolved_buf), "%d", resolved);
             text = resolved_buf;

@@ -2,6 +2,7 @@
 #define TORIDRAW_SCENE_H
 
 #include "toridraw_types.h"
+#include "toridraw_element_id.h"
 #include <assert.h>
 
 #include <stdbool.h>
@@ -73,6 +74,10 @@ ToriDraw_SceneNew(
 void
 ToriDraw_SceneFree(struct ToriDraw_Scene* scene);
 
+/** Version of model/sprite/font registry state observable by UITree. */
+uint64_t
+ToriDraw_SceneUIAssetRevision(struct ToriDraw_Scene const* scene);
+
 size_t
 ToriDraw_SceneSize(
     uint32_t flags,
@@ -83,8 +88,108 @@ ToriDraw_ScenePrintSize(
     uint32_t flags,
     enum ToriDraw_ScratchBufferSize scratch_buffer_size);
 
+struct ToriDraw_RasterKernelSD;
+
 struct ToriDraw_TextureState*
 ToriDraw_SceneTexState(struct ToriDraw_Scene* scene);
+
+/**
+ * The texture map, or NULL when this scene has no texture state.
+ *
+ * Unlike ToriDraw_SceneTexState this never BUILDS one, which is what the
+ * raster context needs: it takes the map for every model, textured or not, so
+ * building on demand there puts a 16 KB calloc behind an untextured icon and
+ * makes an arena scene -- which has no allocator -- unable to draw one at all.
+ *
+ * Handing NULL onward is safe: the two raster sites that resolve a texture
+ * test the map alongside the id, and a NULL map takes the same road as an id
+ * the map does not hold -- the face is skipped and the miss is tallied. That
+ * is a state this engine already supports and reports, not a caller error: a
+ * lazy-textures scene meets its first textured model before its first texture
+ * whenever the cache load is asynchronous, which is always.
+ */
+struct ToriDraw_TextureMap*
+ToriDraw_SceneTextureMapOrNull(struct ToriDraw_Scene* scene);
+
+/* ---- Kernel scratch ------------------------------------------------- */
+
+/**
+ * The scratch groups a kernel's three stages read and write.
+ *
+ * A scene allocates by tier and by the SMALL flag, which is a decision made at
+ * ToriDraw_SceneNew, before anyone has chosen a kernel. These bits let the two
+ * be reconciled afterwards: ask a kernel what it needs, ask the scene what it
+ * has, and allocate the difference.
+ *
+ * They also make one long-standing trap visible. The bitonic+radix sort's key
+ * arrays and the batched walk's y-ordered stash are small-tier scratch, so on
+ * a full scene that face-sort kernel silently runs the same bucket sort the
+ * bucket kernel runs, and a presorted raster never sees a presorted face. That
+ * is safe -- sm_face_xy_valid records what the sort actually did, and the walk
+ * reads the flag rather than the request -- but until now a caller had no way
+ * to find out except by profiling. ToriDraw_SceneHasScratch answers it.
+ */
+enum ToriDraw_SceneScratch
+{
+    /** Projected vertex arrays. Every kernel, always. */
+    TORIDRAW_SCENE_SCRATCH_VERTICES = 1u << 0,
+    /** tmp_face_order: the back-to-front order stage 3 walks. */
+    TORIDRAW_SCENE_SCRATCH_FACE_ORDER = 1u << 1,
+    /** The full scene's dense depth_levels x depth_stride bucket table. */
+    TORIDRAW_SCENE_SCRATCH_BUCKET_SORT = 1u << 2,
+    /** The small scene's CSR sorter arrays, sized off max_faces. */
+    TORIDRAW_SCENE_SCRATCH_CSR_SORT = 1u << 3,
+    /** sm_sort_keys / sm_sort_tmp: the bitonic+radix sort's composite keys. */
+    TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS = 1u << 4,
+    /** sm_face_x4 / y4: the y-ordered stash the batched raster walk reads. */
+    TORIDRAW_SCENE_SCRATCH_PRESORT_XY = 1u << 5,
+};
+
+/**
+ * What this kernel will read and write, given this scene.
+ *
+ * Depends on both: the bitonic+radix face sort needs BITONIC_RADIX_KEYS only
+ * where the scene runs the CSR sorter, and the presort stash is only ever
+ * asked for by the stock branching raster, which is the batched walk's only
+ * door.
+ *
+ * `kernel` may be NULL, meaning the stock defaults.
+ */
+uint32_t
+ToriDraw_SceneKernelScratchNeeds(
+    const struct ToriDraw_Scene* scene,
+    const struct ToriDraw_RasterKernelSD* kernel);
+
+/** Which groups are currently allocated. */
+uint32_t
+ToriDraw_SceneScratchResident(const struct ToriDraw_Scene* scene);
+
+/** Whether every group in `needs` is resident. */
+bool
+ToriDraw_SceneHasScratch(const struct ToriDraw_Scene* scene, uint32_t needs);
+
+/**
+ * Allocate every group in `needs` that is not already resident.
+ *
+ * Idempotent, and never frees: a scene that has been prepared for two kernels
+ * keeps the union of what they need, so switching between them costs nothing.
+ * Returns false only when a group cannot be satisfied for this scene at all.
+ */
+bool
+ToriDraw_SceneEnsureScratch(struct ToriDraw_Scene* scene, uint32_t needs);
+
+/**
+ * The pair above, applied: prepare `scene` for `kernel`.
+ *
+ * Call once, after ToriDraw_SceneNew and before the first frame, with the
+ * kernel the renderer intends to hold. Does NOT provision the z-buffer, which
+ * is sized from the viewport rather than the scene tier -- use
+ * ToriDraw_SceneZBufferResize for that.
+ */
+bool
+ToriDraw_SceneEnsureKernelScratch(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_RasterKernelSD* kernel);
 
 /* The scene's z-buffer scratch (TORIDRAW_SCENE_MODEL_ZBUFFER). */
 
@@ -127,6 +232,9 @@ struct ToriDraw_ModelHandle
 ToriDraw_SceneModelGet(
     struct ToriDraw_Scene* scene,
     int model_id);
+
+/** Process-unique registration revision; zero when the model is absent. */
+uint64_t ToriDraw_SceneModelRevision(struct ToriDraw_Scene* scene, int model_id);
 
 bool
 ToriDraw_SceneModelHas(
@@ -283,12 +391,35 @@ ToriDraw_SceneSoundsReemitLoads(struct ToriDraw_Scene* scene);
 #define TORIDRAW_SCENE_POOL_STATIC 0
 #define TORIDRAW_SCENE_POOL_DYNAMIC 1
 
+/*
+ * One scene, many world views. Element ids are scene-global and the painter
+ * stores bare ids, so a client that draws several worlds at once (the OSRS
+ * sailing views: the mainland plus up to 15 boat decks — src/world/worldview.h)
+ * keeps them all in ONE scene and tells them apart by pool: every view owns a
+ * STATIC/DYNAMIC pair, so a boat's rebuild frees its own deck and sweeps its
+ * own entities and the mainland's elements never move.
+ *
+ * View 0's pair IS the historic {STATIC, DYNAMIC}, so a single-world client is
+ * byte-for-byte what it was. Only view 0's STATIC clear touches the retained
+ * batch arena, which is why only view 0's geometry may be batched — see
+ * ToriDraw_SceneClearPool.
+ */
+#define TORIDRAW_SCENE_POOL_VIEW_STRIDE 2
+#define TORIDRAW_SCENE_POOL_STATIC_VIEW(view_id)                                                   \
+    ((view_id)*TORIDRAW_SCENE_POOL_VIEW_STRIDE + TORIDRAW_SCENE_POOL_STATIC)
+#define TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(view_id)                                                  \
+    ((view_id)*TORIDRAW_SCENE_POOL_VIEW_STRIDE + TORIDRAW_SCENE_POOL_DYNAMIC)
+/** Views a pool pair can be minted for: the tag is one byte per element. */
+#define TORIDRAW_SCENE_POOL_VIEW_MAX (256 / TORIDRAW_SCENE_POOL_VIEW_STRIDE)
+
 void
 ToriDraw_SceneClear(struct ToriDraw_Scene* scene);
 
 /** Free only the elements tagged with `pool`. Freed ids return to the shared
  *  free list; live elements in other pools are untouched. Clearing the
- *  STATIC pool also resets batch bookkeeping (batches are static-only). */
+ *  STATIC pool (view 0's static half) also resets batch bookkeeping and drops
+ *  the retained batch arena — batches are that pool's alone; every other pool
+ *  is unloaded element by element instead. */
 void
 ToriDraw_SceneClearPool(
     struct ToriDraw_Scene* scene,
@@ -304,6 +435,28 @@ ToriDraw_SceneElementAddPool(
     struct ToriDraw_Scene* scene,
     int pool);
 
+/**
+ * Retag a live element into another pool. The element keeps its id, its model,
+ * its position and every other field — only which clear/sweep owns it changes.
+ *
+ * This is what an entity crossing a view boundary needs (the OSRS sailing case:
+ * a player walking onto a boat's deck, SAILING_PLAN C5). Free-and-reallocate
+ * cannot serve there: the element id is stored on the entity record and on the
+ * painter's scenery chains, and the model would have to be rebuilt for what is
+ * a bookkeeping move.
+ */
+void
+ToriDraw_SceneElementSetPool(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int pool);
+
+/** The pool tag of a live element, or -1 when `element_id` names no element. */
+int
+ToriDraw_SceneElementPool(
+    struct ToriDraw_Scene* scene,
+    int element_id);
+
 int
 ToriDraw_SceneElementRemove(
     struct ToriDraw_Scene* scene,
@@ -312,6 +465,52 @@ ToriDraw_SceneElementRemove(
 struct ToriDraw_SceneElement*
 ToriDraw_SceneElementGet(
     struct ToriDraw_Scene* scene,
+    int element_id);
+
+/*
+ * Warm the caches for an element a caller is ABOUT to get, in two stages.
+ *
+ * An element is reached through the pool's node table and then the node's
+ * data pointer: two dependent loads, and in painter order both are cold --
+ * consecutive draws are neighbours in depth, not in memory. A frame that
+ * walks two thousand of them spends its iterator waiting on exactly those
+ * loads. The stages let a loop pipeline them: prefetch the NODE for the
+ * command two ahead, and the DATA for the one ahead (whose node the previous
+ * iteration fetched). Neither stalls, neither reads past what the list
+ * holds, and an id that is not live is simply ignored.
+ */
+void
+ToriDraw_SceneElementPrefetchNode(
+    const struct ToriDraw_Scene* scene,
+    int element_id);
+void
+ToriDraw_SceneElementPrefetchData(
+    const struct ToriDraw_Scene* scene,
+    int element_id);
+/* The same, warming both cache lines of the element: the emit reads the model
+ * handle near the front and pick_aabb at the very end. */
+void
+ToriDraw_SceneElementPrefetchDataBothLines(
+    const struct ToriDraw_Scene* scene,
+    int element_id);
+/*
+ * Warm the lines the cull and the projection read off the element's MODEL:
+ * the leading struct (counts, vertex and face array pointers) and the bounds
+ * cylinder. Reads the element data, so the element's own line must already
+ * be warm -- issue this a step later in the pipeline than PrefetchData.
+ */
+void
+ToriDraw_SceneElementPrefetchModel(
+    const struct ToriDraw_Scene* scene,
+    int element_id);
+/*
+ * One step later again: the first line of each vertex axis and face index
+ * array, which the projection and the face sort read next. Reads the model
+ * struct, so PrefetchModel must have gone out a step earlier.
+ */
+void
+ToriDraw_SceneElementPrefetchArrays(
+    const struct ToriDraw_Scene* scene,
     int element_id);
 
 bool
@@ -339,12 +538,12 @@ ToriDraw_SceneElementOcclusionHeight(
     if( !ToriDraw_SceneElementIsLive(scene, element_id) )
         return 0;
     el = ToriDraw_SceneElementGet(scene, element_id);
-    if( !el || el->model.kind != TORIDRAWMK_MODEL )
+    if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) )
         return 0;
     model = el->model.u.model.model;
-    if( !model || !model->bounds_cylinder )
+    if( !model || !model->has_bounds_cylinder )
         return 0;
-    h = -model->bounds_cylinder->min_y;
+    h = -model->bounds_cylinder.min_y;
     return h > 0 ? h : 0;
 }
 
@@ -376,6 +575,42 @@ ToriDraw_SceneElementSetAnimLoop(
     struct ToriDraw_Scene* scene,
     int element_id,
     bool loop);
+
+/**
+ * This element's model, made private first if other elements share it.
+ *
+ * The one door through which a placed model may be written. A loc that stands
+ * in a scene hundreds of times holds ONE model (see
+ * ToriDraw_Model::shared_owner), so editing it through
+ * ToriDraw_SceneElementGet would edit every placement; ask here instead and
+ * the element gets a copy of its own, which it then owns outright.
+ *
+ * Returns NULL when the element is dead or does not carry a full model -- both
+ * are ordinary states for a caller that is chasing an element it did not
+ * create. The returned pointer belongs to the element, not the caller.
+ */
+struct ToriDraw_Model*
+ToriDraw_SceneElementModelForWrite(
+    struct ToriDraw_Scene* scene,
+    int element_id);
+
+/**
+ * The scene's shared-model store, created on the first ask.
+ *
+ * One per scene, and the only place a shared model may live: the models in it
+ * are held by this scene's elements, so its lifetime is the scene's. Built
+ * lazily because a scene that draws no world geometry -- a widget model view,
+ * an icon raster -- never has two placements of anything and would otherwise
+ * pay for a table it never reads. See toridraw_shared_model.h.
+ */
+struct ToriDraw_SharedModelStore*
+ToriDraw_SceneSharedModels(struct ToriDraw_Scene* scene);
+
+/** The scene's store of lendable face buffers, built on the first ask. Separate
+ *  from the whole-model store because they hold different types with different
+ *  lifetimes; see ToriDraw_SharedFacesStoreBorrow. */
+struct ToriDraw_SharedFacesStore*
+ToriDraw_SceneSharedFaces(struct ToriDraw_Scene* scene);
 
 void
 ToriDraw_SceneElementSetModel(
@@ -412,6 +647,32 @@ ToriDraw_SceneElementSetAnimFrames(
     int element_id,
     int primary_frame,
     int secondary_frame);
+
+/*
+ * Forget the pose the element's model holds, so the next
+ * ToriDraw_SceneElementApplyAnimation re-poses even for a frame it has
+ * already produced. The scene's own mutators call this; it is public for the
+ * caller that edits the element's model or animation fields directly.
+ */
+void
+ToriDraw_SceneElementPoseInvalidate(
+    struct ToriDraw_Scene* scene,
+    int element_id);
+
+/*
+ * Pose the element's model for `frame` of its primary (or secondary) track.
+ * A request identical to the pose the model already holds is skipped
+ * (TORIDRAW_ANIM_SKIP_SAME=0 re-poses every time) -- see the posed_* fields
+ * on ToriDraw_SceneElement for what "identical" means.
+ */
+/** Resolved element owner only; reuse follows the existing pose invalidation
+ * contract. The caller must not publish/read the model until this returns. */
+void ToriDraw_SceneElementApplyAnimationResolved(struct ToriDraw_SceneElement* element,
+    int element_id, bool primary, int frame, bool reuse);
+#if defined(TORIRS_ANIM_CHAIN_CAPTURE)
+void ToriDraw_AnimCaptureBeginPass(void);
+void ToriDraw_AnimCaptureEndPass(void);
+#endif
 
 void
 ToriDraw_SceneElementApplyAnimation(

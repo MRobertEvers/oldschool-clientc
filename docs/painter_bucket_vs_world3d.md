@@ -52,7 +52,40 @@ neighbour must already be in `PAINT_STEP_GROUND` or later before this tile may p
 unless the tile has an active span flag in that direction (meaning it is the "outer" tile of
 the object and the span exception applies).
 
-### The seam exception (bucket only)
+### The seam exception (bucket only) — narrowed 2026-08-19
+
+Worked examples of the rule, case by case: [painter_seam_rule.md](painter_seam_rule.md).
+
+The first version relaxed the gate on *either* axis and misordered ToB: a large loc
+also straddles rings in depth, so Xarpus' 6x5 ledge at `x[43,48] z[67,71]` seen from
+`(50,43)` (near corner ring 26) let the floor directly in front of its z=67 row —
+`(44..46,66)`, rings 27–29 — paint first, and the ledge's tall far part landed on top
+of it; same for the Maiden stair landing (`32804`, 4x1) over the steps.
+
+The rule now has two halves, both required (each was mutation-checked against the
+other's test in `test-painters-terrain-levels`):
+
+1. relax only the **lateral** gate — the neighbour beside the eye→tile ray, i.e. the
+   W/E gates when `|dz| > |dx|`, the N/S gates when `|dx| > |dz|`, neither on a tie. A
+   seam column on the camera column has `dx == 0`, so its x gates relax; the
+   Xarpus/Maiden tiles gate on the depth axis and wait;
+2. a relaxed tile gets only its **ground**: `TilePaint.seam_relaxed` holds its scenery
+   and completion until the reference gate passes (`bucket_far_neighbours_pending`).
+   Without this the Xarpus barrier `(49,51)` drew before the 6x5 ledge beside it whose
+   far row abuts the barrier, and the ledge covered the barrier's edge. Without (1),
+   (2) alone still lets one floor tile in front of the ledge through in the flat-scene
+   test.
+
+Measured: pixel-identical to `painter_paint_world3d` in 64 ToB views (Maiden, Bloat,
+Nylocas, Sotetseg, Xarpus, Verzik; 8 yaws × 2 zooms where swept) and 16 QBD arena
+views, using `TORIRS_PAINTER_ALT=1` same-frame A/B — frames, cameras and the
+before/after defect shots are in [painter_sweeps/](painter_sweeps/README.md). The QBD arena itself no longer
+exercises the exception — its floor locs are now `63040` 13x18 `x[37,49]` and `63043`
+12x19 `x[49,60]`, overlapping on column 49, so the reference span exception covers the
+seam and even the plain gate emits no seam floor late. The exception remains for the
+general abutting-locs topology, pinned by `test_seam_between_two_large_locs_keeps_the_sweep`.
+
+Original rationale, kept for the record:
 
 The span exception above is keyed on **this** tile's spans, so it cannot fire when the
 neighbour is held by a loc that does not cover this tile. `painter_paint_bucket` adds a
@@ -715,6 +748,48 @@ Differential `fuzz_real 1 200` passes (bucket ⊇ world3d). `make test-world` an
 
 Live check after the cullmap fix: one bake (`near=50`, `slice_vis≈1226`), then
 `commands≈6100` per frame (nocull was ~12950 — the frustum is doing real work).
+
+**Re-measured 2026-08-19, after the seam exception was narrowed** (lateral gate +
+ground-only release, `TilePaint.seam_relaxed`). `scripts/painter/c/fuzz_real` needed two
+bit-rot fixes to build (`ToriDraw_Init*Table`, the `camera_cot16` argument of
+`painters_cullmap_build_toridraw`); the 200-seed superset run passes, and the one
+`occlusion subsequence` failure (seed 2, 47 vs 47 commands) is pre-existing — the
+HEAD~1 painters fail it identically.
+
+`fuzz_real 1 500 bench 100`, three runs each, same machine:
+
+```
+world3d: ~13.5-13.9 µs/iter  |  bucket (new): 11.0-11.5 µs/iter  |  ratio 0.81-0.83  |  slower: 70-74/500
+world3d: ~13.5-13.7 µs/iter  |  bucket (old): 10.7-10.8 µs/iter  |  ratio 0.79-0.80  |  slower: 51-56/500
+```
+
+The narrowed rule costs the synthetic bench ~2-3% against the old bucket (the extra
+lateral test and the relaxed-tile re-check) and stays ~19% faster than world3d.
+
+Live, `TORIRS_PERF=1 TORIRS_PERF_WINDOW=200`, ToB Xarpus via the headless recipe, paint
+stage p50 over the in-scene windows (frames 600-1600), two runs each:
+
+```
+world3d            p50 249-277 µs   p95 ~280-290 µs (outside spike windows)
+bucket (new)       p50 207-215 µs   p95 ~224-229 µs
+bucket (old)       p50 206-228 µs   p95 ~222-225 µs
+```
+
+Maiden: world3d p50 288 µs vs bucket 228 µs. So the live cost of the narrowed rule is
+within noise, and the bucket painter is ~18-21% faster than world3d at p50 in ToB.
+
+**Later the same day — exact parity + memoization.** Deferring a relaxed tile's 3D
+features (far walls, decor, objects, underpass wall/scenery — `bucket_emit_tile_features`)
+along with its scenery closed the last residual (Nylocas, 38 px): every scene tried is now
+0 px against world3d. Two perf changes went in with it: the neighbour's pending-scenery
+scan is memoized per paint in `TilePaint.seam_scan` (a sound upper bound — elements only
+leave the pending set), and the lateral flags are computed once per pop from the `adx/adz`
+already in hand. `bucket_emit_tile_features` is `always_inline`: outlined, it cost the
+paint stage ~5%. Final: bench ratio 0.77–0.85 (old 0.75–0.82, same session; the machine
+was noisy enough that the world3d column itself moved ±15% between runs — read the
+ratios); live Xarpus paint p50 221–224 µs (old rule ≈ 211 µs, world3d ≈ 260 µs).
+`painter_commands` ≈ 1603/frame in Xarpus, 1345 in Maiden. `TORIRS_PAINTER_W3D=1`
+selects world3d in the live client; the default is the bucket painter.
 
 ---
 

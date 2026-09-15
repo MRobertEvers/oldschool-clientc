@@ -1,0 +1,171 @@
+================================================================================
+A record and its fields
+================================================================================
+
+// Unpacked by cachepack from a npc cache.
+[farming_tools_leprechaun]
+name=Tool Leprechaun
+readyanim=farming_tools_leprechaun_ready
+vislevel=0
+alwaysontop=yes
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (comment)
+  (record
+    (record_name
+      (name)))
+  (property
+    (name)
+    (value
+      (value_item
+        (text))))
+  (property
+    (name)
+    (value
+      (value_item
+        (name))))
+  (property
+    (name)
+    (value
+      (value_item
+        (number))))
+  (property
+    (name)
+    (value
+      (value_item
+        (name)))))
+
+================================================================================
+Values are comma-separated, and the last item may be empty
+================================================================================
+
+[smelting_blurite_bar]
+data=bar,blurite_bar
+data=levelfailure,You need a Smithing level of 13 to smelt a blurite bar.
+param=param_1111,str,
+condop=3,65535,20251,0,63,
+val=0,0_18_57_57_40
+2dzoom=710
+name=
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (record
+    (record_name
+      (name)))
+  (property
+    (name)
+    (value
+      (value_item
+        (name))
+      (value_item
+        (name))))
+  (property
+    (name)
+    (value
+      (value_item
+        (name))
+      (value_item
+        (text))))
+  (property
+    (name)
+    (value
+      (value_item
+        (name))
+      (value_item
+        (name))))
+  (property
+    (name)
+    (value
+      (value_item
+        (number))
+      (value_item
+        (number))
+      (value_item
+        (number))
+      (value_item
+        (number))
+      (value_item
+        (number))))
+  (property
+    (name)
+    (value
+      (value_item
+        (number))
+      (value_item
+        (coord))))
+  (property
+    (name)
+    (value
+      (value_item
+        (number))))
+  (property
+    (name)))
+
+================================================================================
+Constants, allocations and name indexes
+================================================================================
+
+^dm_default = 5
+^max_32bit_int = 2147483647
+5727=bankpin_code
+4=01
+26000=ported/rs558_ancient_curses/curses_animset_2998
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (constant_definition
+    (constant)
+    (value
+      (value_item
+        (number))))
+  (constant_definition
+    (constant)
+    (value
+      (value_item
+        (number))))
+  (id_binding
+    (number)
+    (value_item
+      (name)))
+  (id_binding
+    (number)
+    (value_item
+      (number)))
+  (id_binding
+    (number)
+    (value_item
+      (text))))
+
+================================================================================
+Spawn sections and their columns
+================================================================================
+
+==== NPC ====
+snakeboss_fisherman                           2189  3069 0
+tormented_demon_1                             4136  4372 0
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (section_marker)
+  (spawn_row
+    (name)
+    (spawn_column
+      (number))
+    (spawn_column
+      (number))
+    (spawn_column
+      (number)))
+  (spawn_row
+    (name)
+    (spawn_column
+      (number))
+    (spawn_column
+      (number))
+    (spawn_column
+      (number))))

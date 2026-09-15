@@ -1,3 +1,4 @@
+#include "engine/boot_bar.h"
 #include "platform/platform_sdl2_renderer_gl3.h"
 
 #include "core/trspk_atlas.h"
@@ -26,7 +27,7 @@
 #include "toridraw_sprite.h"
 #include "toridraw_types.h"
 
-#include <SDL.h>
+#include "platform/platform_gl_context.h"
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -42,6 +43,24 @@
 /* -----------------------------------------------------------------------
  * Helpers
  * ----------------------------------------------------------------------- */
+
+static GLint
+gl3_interface_filter(struct ToriRS_GL3 const* renderer)
+{
+    return renderer->interface_scale_mode == 0 ? GL_NEAREST : GL_LINEAR;
+}
+
+static void
+gl3_set_ui_texture_filter(struct ToriRS_GL3 const* renderer, GLuint texture)
+{
+    GLint filter;
+    if( !texture )
+        return;
+    filter = gl3_interface_filter(renderer);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+}
 
 /*
  * Point the world attributes at `vbo_gpu`, `base_vertex` vertices in.
@@ -251,6 +270,8 @@ gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
     renderer->rotmask_last_texture = 0u;
     if( renderer->white_texture )
         glDeleteTextures(1, &renderer->white_texture);
+    if( renderer->chrome_texture )
+        glDeleteTextures(1, &renderer->chrome_texture);
     if( renderer->quad_vao )
         glDeleteVertexArrays(1, &renderer->quad_vao);
     if( renderer->quad_vbo )
@@ -267,6 +288,9 @@ gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
     renderer->atlas_texture = 0u;
     renderer->sprite_atlas_texture = 0u;
     renderer->white_texture = 0u;
+    renderer->chrome_texture = 0u;
+    renderer->chrome_texture_w = 0;
+    renderer->chrome_texture_h = 0;
 }
 
 static void
@@ -286,53 +310,83 @@ gl3_upload_sprite_atlas(struct ToriRS_GL3* renderer)
         return;
 
     glBindTexture(GL_TEXTURE_2D, renderer->sprite_atlas_texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl3_interface_filter(renderer));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl3_interface_filter(renderer));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    if( !renderer->sprite_atlas_texture_allocated )
+    /*
+     * Push only the rectangle that changed -- the discipline D3D9 has followed
+     * since it was written (WINDOWS-D3D9-UPLOAD-001) and the one this path
+     * lacked. The writers (trspk_atlas_update_rect) merge an exact dirty
+     * rectangle; the upload used to ignore it and push the whole 2048^2 RGBA
+     * atlas -- 16 MB -- on every dirty frame. The title flames dirty it EVERY
+     * frame. A desktop bus hides that; the GLES2 lane, which shares this
+     * function's shape, measured it at 60-70 ms of render per frame on the
+     * phone. Rows are packed rather than GL_UNPACK_ROW_LENGTH'd so both GL
+     * backends run one path and a bug in it cannot hide on the host nobody
+     * tests.
+     */
     {
-        glTexImage2D(
+        struct TRSPK_AtlasDirtyRect dirty;
+        size_t need;
+
+        if( !renderer->sprite_atlas_texture_allocated )
+        {
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                TORIRS_GL_TEX_RGBA,
+                (GLsizei)renderer->sprite_atlas.width,
+                (GLsizei)renderer->sprite_atlas.height,
+                0,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                renderer->sprite_atlas.pixels);
+            renderer->sprite_atlas_texture_allocated = true;
+            trspk_atlas_clear_dirty(&renderer->sprite_atlas);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            return;
+        }
+        if( !trspk_atlas_get_dirty_rect(&renderer->sprite_atlas, &dirty) || dirty.w == 0u ||
+            dirty.h == 0u )
+        {
+            trspk_atlas_clear_dirty(&renderer->sprite_atlas);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            return;
+        }
+        need = (size_t)dirty.w * (size_t)dirty.h * 4u;
+        if( need > renderer->atlas_stage_capacity )
+        {
+            size_t cap = renderer->atlas_stage_capacity ? renderer->atlas_stage_capacity : 65536u;
+            uint8_t* grown;
+            while( cap < need )
+                cap *= 2u;
+            grown = (uint8_t*)realloc(renderer->atlas_stage, cap);
+            assert(grown);
+            renderer->atlas_stage = grown;
+            renderer->atlas_stage_capacity = cap;
+        }
+        for( uint32_t y = 0u; y < dirty.h; y++ )
+        {
+            const uint8_t* src = renderer->sprite_atlas.pixels +
+                                 (size_t)(dirty.y + y) * renderer->sprite_atlas.stride +
+                                 (size_t)dirty.x * 4u;
+            memcpy(renderer->atlas_stage + (size_t)y * dirty.w * 4u, src, (size_t)dirty.w * 4u);
+        }
+        glTexSubImage2D(
             GL_TEXTURE_2D,
             0,
-            TORIRS_GL_TEX_RGBA,
-            (GLsizei)renderer->sprite_atlas.width,
-            (GLsizei)renderer->sprite_atlas.height,
-            0,
+            (GLint)dirty.x,
+            (GLint)dirty.y,
+            (GLsizei)dirty.w,
+            (GLsizei)dirty.h,
             GL_RGBA,
             GL_UNSIGNED_BYTE,
-            NULL);
-        renderer->sprite_atlas_texture_allocated = true;
+            renderer->atlas_stage);
     }
-
-    glTexSubImage2D(
-        GL_TEXTURE_2D,
-        0,
-        0,
-        0,
-        (GLsizei)renderer->sprite_atlas.width,
-        (GLsizei)renderer->sprite_atlas.height,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        renderer->sprite_atlas.pixels);
     trspk_atlas_clear_dirty(&renderer->sprite_atlas);
     glBindTexture(GL_TEXTURE_2D, 0);
-}
-
-static void
-gl3_sprite_uv_clamp_set(
-    struct ToriRS_GL3* renderer,
-    bool enable,
-    float u0,
-    float v0,
-    float u1,
-    float v1)
-{
-    if( renderer->u2d_uv_clamp >= 0 )
-        glUniform1i(renderer->u2d_uv_clamp, enable ? 1 : 0);
-    if( enable && renderer->u2d_uv_bounds >= 0 )
-        glUniform4f(renderer->u2d_uv_bounds, u0, v0, u1, v1);
 }
 
 static void
@@ -1004,6 +1058,10 @@ gl3_sprite_slot_index(
     renderer->sprite_slots[free_idx].count = 0;
     free(renderer->sprite_slots[free_idx].uvs);
     free(renderer->sprite_slots[free_idx].loaded);
+    /* The tiles belong to whatever sprite used to live in this slot;
+     * reusing them for a different id would overwrite it. */
+    free(renderer->sprite_slots[free_idx].tiles);
+    renderer->sprite_slots[free_idx].tiles = NULL;
     renderer->sprite_slots[free_idx].uvs = NULL;
     renderer->sprite_slots[free_idx].loaded = NULL;
     return free_idx;
@@ -1090,17 +1148,45 @@ gl3_sprite_upload_rgba(
     uint32_t src_stride,
     int upload_w,
     int upload_h,
+    struct GL3SpriteTile* tile_io,
     float* out_uv)
 {
     struct TRSPK_AtlasTile tile;
-    if( !trspk_atlas_binpack_insert(
-            &renderer->sprite_atlas,
-            crop_pixels,
-            src_stride,
-            (uint32_t)upload_w,
-            (uint32_t)upload_h,
-            &tile) )
-        return false;
+
+    /* Overwrite the tile this sprite already holds when the replacement
+     * is the same size, and only ask the packer for a new one otherwise.
+     * Without this a sprite replaced every frame walks the sheet until
+     * inserts fail and it silently stops drawing. */
+    if( tile_io && tile_io->valid && tile_io->tile.w == (uint32_t)upload_w &&
+        tile_io->tile.h == (uint32_t)upload_h )
+    {
+        if( !trspk_atlas_update_rect(
+                &renderer->sprite_atlas,
+                tile_io->tile.x,
+                tile_io->tile.y,
+                crop_pixels,
+                src_stride,
+                (uint32_t)upload_w,
+                (uint32_t)upload_h) )
+            return false;
+        tile = tile_io->tile;
+    }
+    else
+    {
+        if( !trspk_atlas_binpack_insert(
+                &renderer->sprite_atlas,
+                crop_pixels,
+                src_stride,
+                (uint32_t)upload_w,
+                (uint32_t)upload_h,
+                &tile) )
+            return false;
+        if( tile_io )
+        {
+            tile_io->tile = tile;
+            tile_io->valid = 1u;
+        }
+    }
     out_uv[0] = tile.u_start;
     out_uv[1] = tile.v_start;
     out_uv[2] = tile.u_end;
@@ -1216,10 +1302,13 @@ gl3_sprite_ensure_base(
         slot->count = count;
         free(slot->uvs);
         free(slot->loaded);
+        free(slot->tiles);
         slot->uvs = calloc((size_t)count * 4u, sizeof(float));
         slot->loaded = calloc((size_t)count, sizeof(uint8_t));
+        slot->tiles = calloc((size_t)count, sizeof(*slot->tiles));
         assert(slot->uvs);
         assert(slot->loaded);
+        assert(slot->tiles);
     }
     if( slot->loaded[atlas_index] )
     {
@@ -1239,7 +1328,8 @@ gl3_sprite_ensure_base(
         float uv[4];
         if( !rgba )
             return false;
-        trspk_sprite_argb_to_rgba(
+        trspk_sprite_argb_to_rgba_for(
+            sp->alpha_channel,
             (uint32_t const*)sp->pixels_argb, rgba, (size_t)sp->width * (size_t)sp->height);
         if( sp->crop_width > 0 &&
             (sp->crop_width < sp->width || sp->crop_height < sp->height) )
@@ -1256,7 +1346,7 @@ gl3_sprite_ensure_base(
                 (uint32_t)sp->width * 4u,
                 upload_w,
                 upload_h,
-                uv) )
+                &slot->tiles[atlas_index], uv) )
         {
             free(rgba);
             return false;
@@ -1399,9 +1489,9 @@ gl3_sprite_ensure_variant(
     {
         float uv[4];
         /* Transforms leave ToriDraw ARGB in spr_px; GL_RGBA wants R,G,B,A. */
-        trspk_sprite_argb_to_rgba(spr_px, spr_px, (size_t)sw * (size_t)sh);
+        trspk_sprite_argb_to_rgba_for(sp->alpha_channel, spr_px, spr_px, (size_t)sw * (size_t)sh);
         if( !gl3_sprite_upload_rgba(
-                renderer, (uint8_t const*)spr_px, (uint32_t)sw * 4u, sw, sh, uv) )
+                renderer, (uint8_t const*)spr_px, (uint32_t)sw * 4u, sw, sh, NULL, uv) )
         {
             free(spr_px);
             return false;
@@ -1469,6 +1559,7 @@ gl3_rotmask_dedicated_slot(
 
 static bool
 gl3_rotmask_upload_to_slot(
+    struct ToriRS_GL3* renderer,
     struct GL3RotmaskDedicated* slot,
     uint8_t const* rgba,
     int w,
@@ -1483,8 +1574,8 @@ gl3_rotmask_upload_to_slot(
     if( !slot->texture )
         return false;
     glBindTexture(GL_TEXTURE_2D, slot->texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl3_interface_filter(renderer));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl3_interface_filter(renderer));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     if( slot->tex_w != w || slot->tex_h != h )
@@ -1542,7 +1633,7 @@ gl3_sprite_ensure_rotated_masked(
     baked = trspk_sprite_rotmask_bake(&renderer->rotmask_bake, cmd, sp, mask_sp, dst_w, dst_h);
     if( !baked )
         return false;
-    if( !gl3_rotmask_upload_to_slot(slot, (uint8_t const*)baked, dst_w, dst_h) )
+    if( !gl3_rotmask_upload_to_slot(renderer, slot, (uint8_t const*)baked, dst_w, dst_h) )
         return false;
     out_uv[0] = 0.0f;
     out_uv[1] = 0.0f;
@@ -1555,6 +1646,7 @@ gl3_sprite_ensure_rotated_masked(
 
 static bool
 gl3_bake_font_atlas(
+    struct ToriRS_GL3* renderer,
     struct GL3FontSlot* slot,
     int font_id)
 {
@@ -1657,8 +1749,8 @@ gl3_bake_font_atlas(
         return false;
     }
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl3_interface_filter(renderer));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl3_interface_filter(renderer));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -1747,7 +1839,7 @@ gl3_ensure_font_slot(
     }
     if( slot->font && !slot->baked )
     {
-        if( !gl3_bake_font_atlas(slot, font_id) )
+        if( !gl3_bake_font_atlas(renderer, slot, font_id) )
         {
             struct ToriDraw_Font* font = slot->font;
             fprintf(stderr,
@@ -2220,18 +2312,21 @@ gl3_draw_font_box(
         int const draw_y = cmd->y + base_y0 + i * resolved_lh - font_ascent;
         if( line_lens[i] <= 0 )
             continue;
-        if( cmd->shadowed )
+        for( int pass=0;pass<ToriDraw_FontShadowPassCount(cmd->shadowed);++pass )
+        {
+            int dx,dy;ToriDraw_FontShadowOffset(cmd->shadowed,pass,&dx,&dy);
             gl3_draw_font_glyphs_len(
                 renderer,
                 slot,
                 font,
                 lines[i],
                 line_lens[i],
-                line_x + 1,
-                draw_y + 1,
+                line_x + dx,
+                draw_y + dy,
                 cmd->color,
                 1.0f,
                 true);
+        }
         gl3_draw_font_glyphs_len(
             renderer,
             slot,
@@ -2322,6 +2417,11 @@ gl3_ev_begin_2d(
     (void)command;
     renderer->in2d = true;
     glDisable(GL_DEPTH_TEST);
+    /* Off for 2D. GL state is global and sticky, and the z-buffer world
+     * pass turns culling ON -- a UI quad wound the other way would vanish.
+     * The D3D9 lane gets this for free because d3d9_ui_set_states sets
+     * D3DCULL_NONE outright; here it has to be said. */
+    glDisable(GL_CULL_FACE);
     glDisable(GL_STENCIL_TEST);
     glDisable(GL_SCISSOR_TEST);
     glEnable(GL_BLEND);
@@ -2450,12 +2550,19 @@ gl3_ev_sprite_unload(
     int slot_i = gl3_sprite_slot_index(renderer, scene_id, false);
     if( slot_i < 0 )
         return;
-    free(renderer->sprite_slots[slot_i].uvs);
-    free(renderer->sprite_slots[slot_i].loaded);
-    renderer->sprite_slots[slot_i].uvs = NULL;
-    renderer->sprite_slots[slot_i].loaded = NULL;
-    renderer->sprite_slots[slot_i].count = 0;
-    renderer->sprite_slots[slot_i].scene_id = 0;
+    /*
+     * Mark the pixels stale; keep the slot and its tiles.
+     *
+     * Releasing the slot here is what made a replaced sprite take a new
+     * atlas tile on every upload. The next draw re-uploads into the tile
+     * this slot already owns whenever the size is unchanged, which for a
+     * sprite replaced in place it always is.
+     */
+    if( renderer->sprite_slots[slot_i].loaded )
+        memset(renderer->sprite_slots[slot_i].loaded,
+               0,
+               (size_t)renderer->sprite_slots[slot_i].count *
+                   sizeof(*renderer->sprite_slots[slot_i].loaded));
 }
 
 static void
@@ -2762,18 +2869,21 @@ gl3_ev_font(
 
     y -= font->line_height;
 
-    if( command->u.font.shadowed )
+    for( int pass=0;pass<ToriDraw_FontShadowPassCount(command->u.font.shadowed);++pass )
+    {
+        int dx,dy;ToriDraw_FontShadowOffset(command->u.font.shadowed,pass,&dx,&dy);
         gl3_draw_font_glyphs(
             renderer,
             slot,
             font,
             command->u.font.text,
-            x + 1,
-            y + 1,
+            x + dx,
+            y + dy,
             command->u.font.color,
             1.0f,
             true,
             center);
+    }
 
     gl3_draw_font_glyphs(
         renderer,
@@ -2925,10 +3035,12 @@ gl3_bind_world_draw_state(struct ToriRS_GL3* renderer)
     else
     {
         /* Painter order: the submission order IS the depth order, so the test
-         * must never reject. */
+         * must never reject. And no culling: the painter sorts faces and has
+         * its own reasons to see every one of them. */
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_ALWAYS);
         glDepthMask(GL_FALSE);
+        glDisable(GL_CULL_FACE);
     }
 }
 
@@ -3278,6 +3390,14 @@ gl3_ev_begin_3d(
     renderer->cur_3d = command->u.begin_3d;
     renderer->has_3d = true;
     renderer->in3d = true;
+    /* Publish the prepared camera block. The prepared projection kernels
+     * (the AArch64 assembly, the SSE2 fused-yaw family) are gated on
+     * `scene->projection_prepared_camera_source == camera`; until this was
+     * here only the soft3d and D3D9 renderers published one, so every model
+     * on the GL lanes took the unprepared kernel. The pointer must be the
+     * one the projection is called with: &renderer->cur_3d.camera. */
+    if( renderer->scene )
+        ToriDraw_ScenePrepareProjectionCamera(renderer->scene, &renderer->cur_3d.camera);
 
     {
         const struct ToriDraw_ViewPort* vp = &renderer->cur_3d.view_port;
@@ -3331,8 +3451,8 @@ gl3_ev_begin_3d(
              * whatever the layout computed — at this boot's viewport that is
              * ~191, so the GPU drew the world 2.7x magnified about the viewport
              * centre. Identical camera, identical scene, different size. */
-            (int)cam->proj_mode,
-            cam->proj_scale,
+            (int)cam->projection_mode,
+            cam->projection_scale,
             cam->fov_rpi2048,
             cam->parallel_zoom16);
 
@@ -3461,12 +3581,17 @@ gl3_bake_into_arena(
 
     const uint32_t base = model_slot->vertex_base;
 
+    /* Resolved once for the model, not once per corner. */
+    struct TRSPK_WorldPlacement placement;
+    trspk_toridraw_placement_init(&placement, world_position);
+
     for( uint32_t face_index = 0; face_index < tri_count; face_index++ )
     {
         const uint32_t vi = base + face_index * 3u;
         struct TRSPK_ToriDrawBakeFaceVerts face;
         if( !trspk_toridraw_bake_face_handle(
-                model_handle, face_index, world_position, ctx, true, &face) )
+                model_handle, face_index, &placement, ctx, true,
+                TRSPK_BAKE_COLOR_FLOAT, &face) )
             continue;
         {
             int const slot = gl3_ensure_texture(renderer, face.tex_id);
@@ -3560,7 +3685,7 @@ gl3_ev_anim_load(
     if( !animation || animation->frame_count <= 0 ||
         (!skeletal && (!animation->base || !animation->frames)) ||
         anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT ||
-        base_handle->kind != TORIDRAWMK_MODEL ||
+        !ToriDraw_ModelKindIsFull(base_handle->kind) ||
         !base_handle->u.model.model )
         return;
 
@@ -3592,16 +3717,28 @@ gl3_ev_anim_load(
                 source->original_face_alphas,
                 (size_t)baked->face_count * sizeof(*baked->face_alphas));
         ToriDraw_ModelCaptureOriginalVertices(baked);
+        bool posed = false;
         if( skeletal )
         {
             int skeletal_frame = frame < skeletal->frame_count ? frame : 0;
             if( skeletal->frame_count > 0 && skeletal->matrices &&
                 baked->animaya_vertex_count > 0 && baked->animaya_group_counts &&
                 baked->animaya_groups && baked->animaya_scales )
+            {
                 ToriDraw_ModelAnimateSkeletal(baked, skeletal, skeletal_frame);
+                posed = true;
+            }
         }
         else if( animation->frames[frame].length > 0 )
+        {
             ToriDraw_ModelAnimateFrame(baked, animation->base, &animation->frames[frame]);
+            posed = true;
+        }
+        /* Every pose that DID run has already re-applied the model's
+         * post-animation resize; the rest pose is the one path that has not,
+         * and it still has to be baked at render scale. */
+        if( !posed )
+            ToriDraw_ModelApplyPostTransforms(baked);
 
         struct ToriDraw_ModelHandle baked_handle = {
             .kind = TORIDRAWMK_MODEL,
@@ -3717,9 +3854,9 @@ gl3_ev_model_draw(
         ToriDraw_SceneElementApplyAnimation(
             ctx, mcmd->element_id, mcmd->anim_index == 0, mcmd->anim_frame);
     position = mcmd->position;
-    if( ToriDraw_RenderModel1Project(
-            mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera) !=
-        TORIDRAW_CULL_VISIBLE )
+    if( ToriDraw_RenderModel1ProjectWithTable(
+            mcmd->model, ctx, &position, &renderer->cur_3d.view_port, &renderer->cur_3d.camera,
+            renderer->kernel) != TORIDRAW_CULL_VISIBLE )
         return;
     /* Hittest before the face sort: the scene scratch holds this model's
      * projection only until the next model projects, and a model whose faces
@@ -3740,7 +3877,8 @@ gl3_ev_model_draw(
             mcmd->pick_terrain,
             mcmd->pick_tile_x,
             mcmd->pick_tile_z,
-            mcmd->pick_tile_level);
+            mcmd->pick_tile_level,
+            mcmd->pick_view);
     if( mcmd->pick_only )
         return;
     {
@@ -3759,7 +3897,8 @@ gl3_ev_model_draw(
          */
         int face_count = renderer->z_buffer_enabled
                              ? trspk_toridraw_face_count(mcmd->model)
-                             : ToriDraw_RenderModel2SortFaces(mcmd->model, ctx);
+                             : ToriDraw_RenderModel2SortFacesWithTable(
+                                   mcmd->model, ctx, renderer->kernel);
         int* face_order;
         if( face_count <= 0 )
             return;
@@ -3978,6 +4117,8 @@ gl3_ev_end_3d(
     }
 
 done:
+    if( renderer->scene )
+        ToriDraw_SceneClearProjectionCamera(renderer->scene);
     renderer->has_3d = false;
     renderer->in3d = false;
     /* World pass leaves a world-sized viewport and depth state; restore so any
@@ -4010,6 +4151,70 @@ gl3_ev_clear_rect(
         0, 0, 1, 1, rgba);
 }
 
+
+/* ---- convex polygon ------------------------------------------------------ *
+ *
+ * The shared decomposition (render/torirs_polygon.c) turns the polygon into
+ * horizontal runs and this draws each as a one-pixel-tall quad, on the same
+ * white-texture path the line primitive already uses. Spans rather than a
+ * triangle fan so that all four backends run the SAME geometry: a highlight
+ * that covers different pixels in the GL and software paths is the kind of
+ * difference nobody goes looking for.
+ */
+
+struct gl3_span_ctx
+{
+    struct ToriRS_GL3* renderer;
+    float rgba[4];
+};
+
+static void
+gl3_polygon_span(
+    void* user_data,
+    int x,
+    int y,
+    int count)
+{
+    struct gl3_span_ctx* ctx = user_data;
+    if( count <= 0 )
+        return;
+    gl3_draw_textured_quad(
+        ctx->renderer, ctx->renderer->white_texture, 0, false, NULL,
+        (float)x, (float)y, (float)(x + count), (float)(y + 1), 0, 0, 1, 1, ctx->rgba);
+}
+
+static void
+gl3_polygon_end(struct ToriRS_GL3* renderer)
+{
+    struct gl3_span_ctx ctx;
+    int alpha;
+
+    if( !renderer->polygon_open )
+        return;
+    renderer->polygon_open = 0;
+    if( !renderer->in2d )
+        return;
+
+    gl3_set_draw_scissor(
+        renderer, renderer->polygon.scissor_x, renderer->polygon.scissor_y,
+        renderer->polygon.scissor_w, renderer->polygon.scissor_h);
+    trspk_color_argb_to_rgba(renderer->polygon.argb, ctx.rgba);
+    /* `trans` is the sprite path's sense: 0 opaque, 255 invisible. A highlight
+     * is a wash over the model it marks, so this is normally well under 255. */
+    alpha = 255 - (renderer->polygon.trans & 0xFF);
+    ctx.rgba[3] = (float)alpha / 255.0f;
+    ctx.renderer = renderer;
+
+    gl3_flush_2d_batch(renderer);
+    ToriRS_PolygonFillConvex(
+        renderer->polygon_x, renderer->polygon_y, renderer->polygon_count,
+        renderer->polygon.scissor_w > 0 ? renderer->polygon.scissor_x : 0,
+        renderer->polygon.scissor_h > 0 ? renderer->polygon.scissor_y : 0,
+        renderer->polygon.scissor_w > 0 ? renderer->polygon.scissor_w : 1 << 15,
+        renderer->polygon.scissor_h > 0 ? renderer->polygon.scissor_h : 1 << 15,
+        gl3_polygon_span, &ctx);
+}
+
 static void
 gl3_ev_line(
     struct ToriRS_GL3* renderer,
@@ -4035,14 +4240,45 @@ gl3_ev_line(
     {
         x1 = cmd->x; y1 = cmd->y; x2 = cmd->x + cmd->w; y2 = cmd->y + cmd->h;
     }
-    gl3_flush_2d_batch(renderer);
-    gl3_draw_textured_quad(renderer, renderer->white_texture, 0, false, NULL,
-        (float)x1, (float)y1 - (float)(thickness - 1) * 0.5f,
-        (float)x2, (float)y1 + (float)thickness * 0.5f, 0, 0, 1, 1, rgba);
-    if( y2 != y1 )
-        gl3_draw_textured_quad(renderer, renderer->white_texture, 0, false, NULL,
-            (float)x2 - (float)thickness * 0.5f, (float)y1,
-            (float)x2 + (float)thickness * 0.5f, (float)y2, 0, 0, 1, 1, rgba);
+    /*
+     * A line is a quad extruded along its own direction -- not the axis-
+     * aligned L this used to draw. The old shape rendered any diagonal as a
+     * horizontal run plus a vertical drop, which turned every slanted edge of
+     * a selection outline into staircase chrome: the "contour lines only go
+     * in cardinal directions" bug, visible on every hull the overlay draws
+     * over sloped ground. The soft rasteriser always drew true diagonals;
+     * this brings GL to parity.
+     */
+    {
+        float const fx1 = (float)x1;
+        float const fy1 = (float)y1;
+        float const fx2 = (float)x2;
+        float const fy2 = (float)y2;
+        float const dx = fx2 - fx1;
+        float const dy = fy2 - fy1;
+        float const len = sqrtf(dx * dx + dy * dy);
+        float px;
+        float py;
+        struct GL3Vertex2D verts[6];
+
+        if( len <= 0.0f )
+            return;
+        /* Perpendicular, scaled to half the stroke width. */
+        px = -dy / len * (float)thickness * 0.5f;
+        py = dx / len * (float)thickness * 0.5f;
+
+        verts[0] = (struct GL3Vertex2D){ { fx1 - px, fy1 - py }, { 0, 0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+        verts[1] = (struct GL3Vertex2D){ { fx2 - px, fy2 - py }, { 0, 0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+        verts[2] = (struct GL3Vertex2D){ { fx2 + px, fy2 + py }, { 0, 0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+        verts[3] = (struct GL3Vertex2D){ { fx1 - px, fy1 - py }, { 0, 0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+        verts[4] = (struct GL3Vertex2D){ { fx2 + px, fy2 + py }, { 0, 0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+        verts[5] = (struct GL3Vertex2D){ { fx1 + px, fy1 + py }, { 0, 0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+
+        gl3_batch2d_append_verts(
+            renderer, renderer->white_texture, 0, false, NULL, renderer->draw_scissor_x,
+            renderer->draw_scissor_y, renderer->draw_scissor_w, renderer->draw_scissor_h, verts,
+            6u);
+    }
 }
 
 static void
@@ -4196,7 +4432,8 @@ gl3_bake_widget_model(
 
             assert(ctx);
             if( !trspk_toridraw_bake_face_handle(
-                    model_handle, face_index, NULL, ctx, true, &face) )
+                    model_handle, face_index, &trspk_world_placement_identity, ctx, true,
+                    TRSPK_BAKE_COLOR_FLOAT, &face) )
                 continue;
             /* Soft3D never rasterizes HIDDEN / fully-transparent faces. Leave
              * the slot zeroed (alpha 0) so painter order cannot punch holes. */
@@ -4354,7 +4591,7 @@ gl3_ev_model_widget(
         wcmd->model_zan,
         wcmd->model_x_offset,
         wcmd->model_y_offset,
-        0,
+        wcmd->model_center_y,
         wcmd->model_orthog != 0,
         wcmd->model_fixed_zoom != 0);
     g = &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC];
@@ -4523,6 +4760,29 @@ handle_render_command(
         gl3_ev_line(renderer, command);
         break;
 
+    case TORIRSRC_POLYGON_BEGIN:
+        renderer->polygon = command->u.polygon_begin;
+        renderer->polygon_count = 0;
+        renderer->polygon_open = 1;
+        break;
+
+    case TORIRSRC_POLYGON_POINT:
+        /* Points past the cap are dropped rather than growing the run: the cap
+         * is far above any highlight, so reaching it means something upstream
+         * is wrong, and a dropped tail distorts the shape less than a wrapped
+         * write would destroy memory. */
+        if( renderer->polygon_open && renderer->polygon_count < TORIRS_POLYGON_MAX_POINTS )
+        {
+            renderer->polygon_x[renderer->polygon_count] = command->u.polygon_point.x;
+            renderer->polygon_y[renderer->polygon_count] = command->u.polygon_point.y;
+            renderer->polygon_count++;
+        }
+        break;
+
+    case TORIRSRC_POLYGON_END:
+        gl3_polygon_end(renderer);
+        break;
+
     case TORIRSRC_NONE:
         break;
 
@@ -4556,6 +4816,7 @@ ToriRS_GL3_New(
 
     renderer->width = width;
     renderer->height = height;
+    renderer->interface_scale_mode = 2;
 
     renderer->ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U32);
     renderer->ibo_staging = trspk_ibo_create(TRSPK_GL3_GPU_IBO_INIT, TRSPK_INDEX_FORMAT_U32);
@@ -4655,13 +4916,22 @@ ToriRS_GL3_SetViewport(
 }
 
 void
+ToriRS_GL3_SetHostRightInset(struct ToriRS_GL3* renderer, int pixels)
+{
+    assert(renderer);
+    if( pixels < 0 )
+        pixels = 0;
+    renderer->host_right_inset = pixels;
+}
+
+void
 ToriRS_GL3_Free(struct ToriRS_GL3* renderer)
 {
     if( !renderer )
         return;
 
     if( renderer->window && renderer->gl_context )
-        SDL_GL_MakeCurrent(renderer->window, renderer->gl_context);
+        ToriRS_GLContext_MakeCurrent(renderer->window, renderer->gl_context);
 
     gl3_batch2d_free(renderer);
     gl3_destroy_gl_resources(renderer);
@@ -4711,7 +4981,7 @@ ToriRS_GL3_Free(struct ToriRS_GL3* renderer)
 
     if( renderer->gl_context )
     {
-        SDL_GL_DeleteContext(renderer->gl_context);
+        ToriRS_GLContext_Delete(renderer->gl_context);
         renderer->gl_context = NULL;
     }
 
@@ -4721,56 +4991,54 @@ ToriRS_GL3_Free(struct ToriRS_GL3* renderer)
 bool
 ToriRS_GL3_Init(
     struct ToriRS_GL3* gl3,
-    SDL_Window* window,
+    ToriRS_GLWindow* window,
     struct ToriDraw_Scene* scene,
     bool z_buffer)
 {
+    GLuint vertexShader = 0u;
+    GLuint fragmentShader = 0u;
+
     assert(gl3 && window && scene);
     gl3->scene = scene;
+    gl3->kernel = ToriDraw_KernelGetGpu();
     gl3->window = window;
     gl3->z_buffer_enabled = z_buffer;
-    if( z_buffer )
-    {
-        /*
-         * Before the context exists, because it is part of the pixel format.
-         * A WebGL1 context is created with depth by default, but SDL only
-         * requests one if it is asked to, and a context without a depth buffer
-         * fails silently: the depth test simply never rejects anything and the
-         * result looks like painter order with the sort removed.
-         *
-         * 24 rather than D3D9's D16: WebGL1's DEPTH_COMPONENT16 renderbuffer is
-         * the guaranteed one, but SDL asks the browser for a canvas depth
-         * attachment and the implementation picks; asking for more and getting
-         * 16 is fine, asking for 16 cannot get more.
-         */
-        SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-    }
-    gl3->gl_context = SDL_GL_CreateContext(window);
+    /*
+     * Depth is a CREATION attribute -- part of the pixel format -- which is why
+     * it is a parameter of the create call and not a setting applied to a
+     * context that already exists. A context without a depth buffer fails
+     * SILENTLY: the depth test never rejects anything, and the result looks
+     * like painter order with the sort removed.
+     *
+     * 24 rather than D3D9's D16: the guaranteed GLES2/WebGL1 renderbuffer
+     * format is DEPTH_COMPONENT16, but the host picks what it actually hands
+     * back -- asking for more and getting 16 is fine, asking for 16 cannot get
+     * more.
+     *
+     * Create also makes the context current, so there is no separate
+     * make-current step here; the calls later in the frame exist because this
+     * renderer is written to survive sharing a thread with another context.
+     */
+    gl3->gl_context = ToriRS_GLContext_Create(window, z_buffer ? 24 : 0);
     if( !gl3->gl_context )
     {
-        fprintf(stderr, "OpenGL3: SDL_GL_CreateContext failed: %s\n", SDL_GetError());
+        fprintf(
+            stderr,
+            "OpenGL3: context creation failed: %s\n",
+            ToriRS_GLContext_LastError());
         return false;
     }
-
-    if( SDL_GL_MakeCurrent(window, gl3->gl_context) != 0 )
-    {
-        fprintf(stderr, "OpenGL3: SDL_GL_MakeCurrent failed: %s\n", SDL_GetError());
-        SDL_GL_DeleteContext(gl3->gl_context);
-        gl3->gl_context = NULL;
-        return false;
-    }
-
     /* Desktop GL needs its entry points resolved; emscripten links the GLES2
      * ones straight into the module. */
     if( !trspk_sdlgl_init() )
     {
         fprintf(stderr, "OpenGL3: trspk_sdlgl_init failed\n");
-        SDL_GL_DeleteContext(gl3->gl_context);
+        ToriRS_GLContext_Delete(gl3->gl_context);
         gl3->gl_context = NULL;
         return false;
     }
 
-    SDL_GL_SetSwapInterval(0);
+    ToriRS_GLContext_SetSwapInterval(0);
 
     /* Say what we actually got. The renderer is written against one feature
      * set; if the context is not the one it expects, that is worth seeing on
@@ -4831,8 +5099,8 @@ ToriRS_GL3_Init(
 
     const char* vs_src = trspk_opengl3_vertex_shader;
     const char* fs_src = trspk_opengl3_fragment_shader;
-    GLuint vertexShader = gl3_compile_shader(GL_VERTEX_SHADER, vs_src);
-    GLuint fragmentShader = gl3_compile_shader(GL_FRAGMENT_SHADER, fs_src);
+    vertexShader = gl3_compile_shader(GL_VERTEX_SHADER, vs_src);
+    fragmentShader = gl3_compile_shader(GL_FRAGMENT_SHADER, fs_src);
     if( vertexShader == 0u || fragmentShader == 0u )
         goto fail_gl;
 
@@ -5009,8 +5277,8 @@ ToriRS_GL3_Init(
             uint32_t const white_pixel = 0xFFFFFFFFu;
             glGenTextures(1, &gl3->white_texture);
             glBindTexture(GL_TEXTURE_2D, gl3->white_texture);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl3_interface_filter(gl3));
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl3_interface_filter(gl3));
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             glTexImage2D(
@@ -5026,7 +5294,7 @@ fail_gl:
     if( fragmentShader )
         glDeleteShader(fragmentShader);
     gl3_destroy_gl_resources(gl3);
-    SDL_GL_DeleteContext(gl3->gl_context);
+    ToriRS_GLContext_Delete(gl3->gl_context);
     gl3->gl_context = NULL;
     return false;
 }
@@ -5039,6 +5307,31 @@ ToriRS_GL3_SetPick(struct ToriRS_GL3* gl3, int mouse_x, int mouse_y)
     gl3->pick_mouse_x = mouse_x;
     gl3->pick_mouse_y = mouse_y;
     ToriRS_PickHitsReset(&gl3->pick_hits);
+}
+
+void
+ToriRS_GL3_SetInterfaceScaleMode(struct ToriRS_GL3* gl3, int mode)
+{
+    if( !gl3 )
+        return;
+    if( mode < 0 )
+        mode = 0;
+    if( mode > 2 )
+        mode = 2;
+    if( gl3->interface_scale_mode == mode )
+        return;
+    gl3->interface_scale_mode = mode;
+    if( !gl3->gl_context || !gl3->window )
+        return;
+
+    ToriRS_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
+    gl3_set_ui_texture_filter(gl3, gl3->sprite_atlas_texture);
+    gl3_set_ui_texture_filter(gl3, gl3->white_texture);
+    for( int i = 0; i < GL3_ROTMASK_DEDICATED_CAP; i++ )
+        gl3_set_ui_texture_filter(gl3, gl3->rotmask_slots[i].texture);
+    for( int i = 0; i < TRSPK_GL3_FONT_CAP; i++ )
+        gl3_set_ui_texture_filter(gl3, gl3->font_slots[i].texture);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 struct ToriRS_PickHits const*
@@ -5056,20 +5349,77 @@ ToriRS_GL3_Execute(struct ToriRS_GL3* gl3, struct ToriRS_RenderCommand const* cm
     handle_render_command(gl3, (struct ToriRS_RenderCommand*)cmd);
 }
 
+/*
+ * The bar's caption, in a 2D pass of its own.
+ *
+ * The same two facts the software lane draws (App_BootBarCaption), through the
+ * same command the retained frame carries, so a boot sentence is one picture
+ * and not one per renderer. Baseline + centred: the reference draws it with
+ * centreString on the track's baseline, not into a widget box.
+ *
+ * gl3_ev_begin_2d sets the whole 2D state up itself, so this does not lean on
+ * the bar's own setup above -- and it is what the text path's `in2d` gate
+ * wants. The font id is a scene font id, which gl3_ensure_font_slot resolves
+ * out of the scene: no TORIRSRC_FONT_LOAD reaches this lane during a boot,
+ * because no frame is being walked to carry one.
+ */
+static void
+gl3_draw_boot_caption(
+    struct ToriRS_GL3* gl3,
+    int caption_font_id,
+    char const* caption)
+{
+    struct ToriRS_RenderCommand command;
+
+    assert(gl3);
+    assert(caption);
+    assert(caption_font_id >= 0);
+
+    memset(&command, 0, sizeof(command));
+    command.kind = TORIRSRC_FONT;
+    command.u.font.font_id = caption_font_id;
+    command.u.font.x = BootBar_OriginX(gl3->width) + BOOT_BAR_W / 2;
+    command.u.font.y = BootBar_OriginY(gl3->height) + BOOT_BAR_TEXT_BASELINE;
+    command.u.font.color = 0xFFFFFF;
+    command.u.font.center = 1;
+    command.u.font.baseline = 1;
+    command.u.font.text = caption;
+    command.u.font.scissor_w = gl3->width;
+    command.u.font.scissor_h = gl3->height;
+
+    gl3_ev_begin_2d(gl3, &command);
+    gl3_ev_font(gl3, &command);
+    gl3_ev_end_2d(gl3, &command);
+}
+
 void
-ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress)
+ToriRS_GL3_DrawBootBar(
+    struct ToriRS_GL3* gl3,
+    int progress,
+    int caption_font_id,
+    char const* caption)
 {
     assert(gl3);
+    /* progress < 0: clear to black and draw no bar -- the post-login loading
+     * screen, which is a black screen and the sentence alone on every lane. */
+    int const clear_only = progress < 0;
     if( progress < 0 )
         progress = 0;
     if( progress > 100 )
         progress = 100;
 
-    SDL_GL_MakeCurrent(gl3->window, gl3->gl_context);
+    ToriRS_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
 
     int drawable_w = gl3->width;
     int drawable_h = gl3->height;
-    SDL_GL_GetDrawableSize(gl3->window, &drawable_w, &drawable_h);
+    ToriRS_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
+    int const full_drawable_w = drawable_w;
+    if( gl3->host_right_inset > 0 )
+    {
+        drawable_w -= gl3->host_right_inset;
+        if( drawable_w < 1 )
+            drawable_w = 1;
+    }
 
     struct TRSPK_Letterbox lb;
     trspk_compute_letterbox(gl3->width, gl3->height, drawable_w, drawable_h, &lb);
@@ -5078,9 +5428,18 @@ ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress)
     gl3->lb_w = lb.w;
     gl3->lb_h = lb.h;
 
-    glViewport(0, 0, drawable_w, drawable_h);
-    glClearColor(0.125f, 0.141f, 0.157f, 1.0f);
+    glViewport(0, 0, full_drawable_w, drawable_h);
+    if( clear_only )
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    else
+        glClearColor(0.125f, 0.141f, 0.157f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if( clear_only )
+    {
+        if( caption && caption[0] && caption_font_id >= 0 )
+            gl3_draw_boot_caption(gl3, caption_font_id, caption);
+        return;
+    }
 
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
@@ -5099,21 +5458,44 @@ ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress)
         glUniform1i(gl3->u2d_uv_clamp, 0);
     glDisable(GL_SCISSOR_TEST);
 
-    int const bar_w = gl3->width / 3;
-    int const bar_h = 12;
-    int const bar_x = (gl3->width - bar_w) / 2;
-    int const bar_y = (gl3->height - bar_h) / 2;
-    int const fill_w = bar_w * progress / 100;
-    float const border_rgba[4] = { 0.545f, 0.0f, 0.0f, 1.0f };
-    float const fill_rgba[4] = { 0.545f, 0.0f, 0.0f, 1.0f };
-    float const empty_rgba[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    /*
+     * The references' bar, not one of ours. @see engine/boot_bar.h -- the
+     * constants are shared with the software lane so the same boot does
+     * not draw two different pictures depending on the renderer.
+     */
+    int const bar_x = gl3->width / 2 - BOOT_BAR_W / 2;
+    int const bar_y = gl3->height / 2 - BOOT_BAR_ABOVE_CENTRE;
+    int const fill_w = progress * BOOT_BAR_PX_PER_PERCENT;
+    float const red_rgba[4] = {
+        (float)((BOOT_BAR_COLOR >> 16) & 0xFF) / 255.0f,
+        (float)((BOOT_BAR_COLOR >> 8) & 0xFF) / 255.0f,
+        (float)(BOOT_BAR_COLOR & 0xFF) / 255.0f,
+        1.0f
+    };
+    float const black_rgba[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
     gl3_flush_2d_batch(gl3);
-    gl3_draw_textured_quad_immediate(gl3, (float)(bar_x - 1), (float)(bar_y - 1), (float)(bar_x + bar_w + 1), (float)(bar_y + bar_h + 1), 0, 0, 1, 1, border_rgba);
-    gl3_draw_textured_quad_immediate(gl3, (float)bar_x, (float)bar_y, (float)(bar_x + fill_w), (float)(bar_y + bar_h), 0, 0, 1, 1, fill_rgba);
-    if( fill_w < bar_w )
-        gl3_draw_textured_quad_immediate(gl3, (float)(bar_x + fill_w), (float)bar_y, (float)(bar_x + bar_w), (float)(bar_y + bar_h), 0, 0, 1, 1, empty_rgba);
+    /* Filled track, a black inset one pixel in that leaves the red as a
+     * border and blacks the unfilled remainder, then the fill two pixels
+     * in. The black ring between border and fill is the deob's. */
+    gl3_draw_textured_quad_immediate(gl3,
+        (float)bar_x, (float)bar_y,
+        (float)(bar_x + BOOT_BAR_W), (float)(bar_y + BOOT_BAR_H),
+        0, 0, 1, 1, red_rgba);
+    gl3_draw_textured_quad_immediate(gl3,
+        (float)(bar_x + 1), (float)(bar_y + 1),
+        (float)(bar_x + BOOT_BAR_W - 1), (float)(bar_y + BOOT_BAR_H - 1),
+        0, 0, 1, 1, black_rgba);
+    if( fill_w > 0 )
+        gl3_draw_textured_quad_immediate(gl3,
+            (float)(bar_x + BOOT_BAR_INSET), (float)(bar_y + BOOT_BAR_INSET),
+            (float)(bar_x + BOOT_BAR_INSET + fill_w),
+            (float)(bar_y + BOOT_BAR_INSET + BOOT_BAR_FILL_H),
+            0, 0, 1, 1, red_rgba);
     gl3_unbind_attribs(gl3);
+
+    if( caption && caption[0] && caption_font_id >= 0 )
+        gl3_draw_boot_caption(gl3, caption_font_id, caption);
 }
 
 void
@@ -5122,11 +5504,18 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
     assert(gl3);
     assert(frame);
 
-    SDL_GL_MakeCurrent(gl3->window, gl3->gl_context);
+    ToriRS_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
 
     int drawable_w = gl3->width;
     int drawable_h = gl3->height;
-    SDL_GL_GetDrawableSize(gl3->window, &drawable_w, &drawable_h);
+    ToriRS_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
+    int const full_drawable_w = drawable_w;
+    if( gl3->host_right_inset > 0 )
+    {
+        drawable_w -= gl3->host_right_inset;
+        if( drawable_w < 1 )
+            drawable_w = 1;
+    }
 
     {
         struct TRSPK_Letterbox lb;
@@ -5137,7 +5526,7 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
         gl3->lb_h = lb.h;
     }
 
-    glViewport(0, 0, drawable_w, drawable_h);
+    glViewport(0, 0, full_drawable_w, drawable_h);
     glClearColor(0.125f, 0.141f, 0.157f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -5151,7 +5540,10 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
         ToriRS_GL3_Execute(gl3, &command);
     ToriRS_FrameEnd(frame);
 
-    /* TORIRS_GL3_READBACK=path dumps one GL frame (after READBACK_FRAME, default 90). */
+    /* TORIRS_GL3_READBACK=path dumps one GL frame (after READBACK_FRAME, default 90).
+     * The readback itself is ToriRS_GL3_ReadPixels, which the app also uses for
+     * plugin screenshots -- one path, so a bug in the letterbox arithmetic
+     * cannot show up in a debug dump and not in a screenshot. */
     {
         char const* path = getenv("TORIRS_GL3_READBACK");
         static int done = 0;
@@ -5160,51 +5552,184 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
                               : 90;
         if( path && path[0] && !done && gl3->frame_clock >= (double)want )
         {
-            int fb_w = 0;
-            int fb_h = 0;
-            int* fb;
-            done = 1;
-            SDL_GL_GetDrawableSize(gl3->window, &fb_w, &fb_h);
-            fb = (int*)malloc((size_t)fb_w * (size_t)fb_h * sizeof(int));
-            assert(fb);
             int* top = (int*)malloc((size_t)gl3->width * (size_t)gl3->height * sizeof(int));
             void bmp_write_file(const char* filename, int* px, int w, int h);
-            glPixelStorei(GL_PACK_ALIGNMENT, 1);
-            glReadBuffer(GL_BACK);
-            glReadPixels(0, 0, fb_w, fb_h, TORIRS_GL_READ_FORMAT, GL_UNSIGNED_BYTE, fb);
-            if( top )
+            done = 1;
+            assert(top);
+            if( ToriRS_GL3_ReadPixels(gl3, top, gl3->width, gl3->height) )
             {
-                float const sx = (float)gl3->lb_w / (float)gl3->width;
-                float const sy = (float)gl3->lb_h / (float)gl3->height;
                 int resident = 0;
-                for( int y = 0; y < gl3->height; y++ )
-                {
-                    int src_y = gl3->lb_y + (int)((float)(gl3->height - 1 - y) * sy);
-                    if( src_y < 0 )
-                        src_y = 0;
-                    if( src_y >= fb_h )
-                        src_y = fb_h - 1;
-                    for( int x = 0; x < gl3->width; x++ )
-                    {
-                        int src_x = gl3->lb_x + (int)((float)x * sx);
-                        if( src_x < 0 )
-                            src_x = 0;
-                        if( src_x >= fb_w )
-                            src_x = fb_w - 1;
-                        top[y * gl3->width + x] = fb[src_y * fb_w + src_x];
-                    }
-                }
                 for( int i = 0; i < (int)gl3->tex_cap; i++ )
                     resident += gl3->tex_resident[i] ? 1 : 0;
                 bmp_write_file(path, top, gl3->width, gl3->height);
-                fprintf(
-                    stderr,
-                    "gl3_readback: wrote %s tex_resident=%d\n",
-                    path,
-                    resident);
-                free(top);
+                fprintf(stderr, "gl3_readback: wrote %s tex_resident=%d\n", path, resident);
             }
-            free(fb);
+            free(top);
         }
     }
+}
+
+void
+ToriRS_GL3_DrawChromePixels(
+    struct ToriRS_GL3* gl3, int const* pixels, int width, int height)
+{
+    int drawable_w = 0;
+    int drawable_h = 0;
+    int pane_w;
+    float projection[16];
+    float const white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    assert(gl3);
+    if( width <= 0 || height <= 0 || gl3->host_right_inset <= 0 )
+        return;
+    ToriRS_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
+    ToriRS_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
+    if( drawable_w <= 0 || drawable_h <= 0 )
+        return;
+    pane_w = gl3->host_right_inset;
+    if( pane_w > drawable_w )
+        pane_w = drawable_w;
+
+    if( !gl3->chrome_texture )
+        glGenTextures(1, &gl3->chrome_texture);
+    if( !gl3->chrome_texture )
+        return;
+    glBindTexture(GL_TEXTURE_2D, gl3->chrome_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    if( pixels )
+    {
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+        if( gl3->chrome_texture_w != width || gl3->chrome_texture_h != height )
+        {
+            glTexImage2D(
+                GL_TEXTURE_2D,
+                0,
+                GL_RGBA8,
+                width,
+                height,
+                0,
+                GL_BGRA,
+                GL_UNSIGNED_BYTE,
+                pixels);
+            gl3->chrome_texture_w = width;
+            gl3->chrome_texture_h = height;
+        }
+        else
+            glTexSubImage2D(
+                GL_TEXTURE_2D,
+                0,
+                0,
+                0,
+                width,
+                height,
+                GL_BGRA,
+                GL_UNSIGNED_BYTE,
+                pixels);
+    }
+    if( gl3->chrome_texture_w <= 0 || gl3->chrome_texture_h <= 0 )
+    {
+        glBindTexture(GL_TEXTURE_2D, 0);
+        return;
+    }
+
+    /* One retained textured quad after the game. The game renderer already
+     * cleared the full drawable and restricted its own letterbox to the space
+     * left of host_right_inset, so this cannot cover a gameframe pixel. */
+    gl3_flush_2d_batch(gl3);
+    glViewport(drawable_w - pane_w, 0, pane_w, drawable_h);
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_BLEND);
+    glUseProgram(gl3->program2d);
+    trspk_mat4_ortho2d_top_left(projection, 0.0f, (float)width, (float)height, 0.0f);
+    glUniformMatrix4fv(gl3->u2d_projection, 1, GL_FALSE, projection);
+    gl3_bind_quad_attribs(gl3);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, gl3->chrome_texture);
+    glUniform1i(gl3->u2d_texture, 0);
+    if( gl3->u2d_text_mode >= 0 )
+        glUniform1i(gl3->u2d_text_mode, 0);
+    if( gl3->u2d_uv_clamp >= 0 )
+        glUniform1i(gl3->u2d_uv_clamp, 0);
+    gl3_draw_textured_quad_immediate(
+        gl3, 0.0f, 0.0f, (float)width, (float)height, 0.0f, 0.0f, 1.0f, 1.0f,
+        white);
+    gl3_unbind_attribs(gl3);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+/*
+ * The frame that is on screen, sampled back onto the canvas grid.
+ *
+ * Two conversions, and both are why this cannot just be a glReadPixels into
+ * the caller's buffer:
+ *
+ *   - The drawable is letterboxed. lb_x/lb_y/lb_w/lb_h is where the canvas
+ *     actually landed inside it, and everything outside that is bars.
+ *   - GL reports rows bottom-up. The client's buffers are top-down, so the
+ *     row index is walked backwards -- RuneLite's GpuPlugin.screenshot ends
+ *     with the same flip, for the same reason.
+ */
+bool
+ToriRS_GL3_ReadPixels(
+    struct ToriRS_GL3* gl3,
+    int* pixels,
+    int width,
+    int height)
+{
+    int fb_w = 0;
+    int fb_h = 0;
+    int* fb;
+    float sx;
+    float sy;
+
+    assert(gl3);
+    assert(pixels);
+    assert(width > 0);
+    assert(height > 0);
+
+    if( !gl3->window )
+        return false;
+
+    ToriRS_GLContext_DrawableSize(gl3->window, &fb_w, &fb_h);
+    if( fb_w <= 0 || fb_h <= 0 )
+        return false;
+
+    fb = (int*)malloc((size_t)fb_w * (size_t)fb_h * sizeof(int));
+    assert(fb);
+
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    /* App_DrawComplete requests the presented frame after the swap. The back
+     * buffer is then reusable/undefined and can contain the next clear. */
+    glReadBuffer(GL_FRONT);
+    glReadPixels(0, 0, fb_w, fb_h, TORIRS_GL_READ_FORMAT, GL_UNSIGNED_BYTE, fb);
+
+    sx = (float)gl3->lb_w / (float)width;
+    sy = (float)gl3->lb_h / (float)height;
+    for( int y = 0; y < height; y++ )
+    {
+        int src_y = gl3->lb_y + (int)((float)(height - 1 - y) * sy);
+
+        if( src_y < 0 )
+            src_y = 0;
+        if( src_y >= fb_h )
+            src_y = fb_h - 1;
+        for( int x = 0; x < width; x++ )
+        {
+            int src_x = gl3->lb_x + (int)((float)x * sx);
+
+            if( src_x < 0 )
+                src_x = 0;
+            if( src_x >= fb_w )
+                src_x = fb_w - 1;
+            pixels[y * width + x] = fb[src_y * fb_w + src_x];
+        }
+    }
+
+    free(fb);
+    return true;
 }

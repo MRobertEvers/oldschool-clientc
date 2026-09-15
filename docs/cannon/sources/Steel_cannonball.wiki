@@ -1,0 +1,164 @@
+{{External|rs|rsc=Multi cannon ball}}
+{{otheruses|the ammunition for the dwarf multicannon|Sailing and quest cannonballs|Cannonball}}
+{{Infobox Item
+|name = Steel cannonball
+|image = [[File:Steel cannonball.png]]
+|release = [[27 May]] [[2003]]
+|update = New Dwarf Cannon Quest
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = Ammo suited for a boat's cannon or for a dwarf multicannon.
+|value = 5
+|weight = 0.000
+|exchange = Yes
+|id = 2
+}}
+[[File:Steel cannonball detail.png|left|130px]]
+'''Steel cannonballs''' are [[ammunition]] used for a [[dwarf multicannon]], as well as for a [[Cannon (facility)|boat cannon]] during [[boat combat]]. They can be fired from [[steel cannon]]s or stronger.
+
+Four can be made from a single [[steel bar]] with level 35 [[Smithing]], granting 25.6 experience per bar. Smithing cannonballs require the use of an [[ammo mould]], which requires partial completion of [[Dwarf Cannon]] to obtain. Alternatively, a [[double ammo mould]] (requiring [[Foundry Reputation]] to purchase via the [[Giants' Foundry]] minigame) allows players to process two bars into eight cannonballs at the same speed as a regular ammo mould processes one bar into four.
+
+Players with level 87 [[Sailing]] can further speed up smithing cannonballs by using the [[ancient furnace]] in the [[Grimstone Dungeon]], which halves the time it takes to create cannonballs from 8 ticks to 4 ticks. Combining this with a double ammo mould, players can smith cannonballs at four times the normal speed.
+
+Lastly, players with level 50 [[Smithing]] can use [[granite dust]] on steel cannonballs to create [[granite cannonball]]s, which gives superior stats on boat cannons, and increases the max hit of dwarf multicannons by 5. This yields no experience.
+
+==Comparison==
+''The following stats apply only to ship combat.''
+{{Cannonball Stats}}
+
+==Creation==
+{{tabber
+|tab1=Normal ammo mould
+|tab1content=
+{{Recipe
+|skill1 = Smithing
+|skill1lvl = 35
+|skill1boostable = Yes
+|skill1exp = 25.6
+|notes = {{SCP|Quest}} Partial completion of [[Dwarf Cannon]]
+|members = Yes
+|ticks = 8
+|ticksnote = Make-X is 8, then 10 ticks
+|tools = Ammo mould
+|facilities = Furnace
+|mat1 = Steel bar
+|output1 = Steel cannonball
+|output1quantity = 4
+|output1subtxt = Ammo mould
+}}
+|tab2=Double ammo mould
+|tab2content=
+{{Recipe
+|skill1 = Smithing
+|skill1lvl = 35
+|skill1boostable = Yes
+|skill1exp = 51.2
+|notes = {{SCP|Quest}} Completion of [[Sleeping Giants]]<br/>{{SCP|Minigame}} [[Giants' Foundry]]
+|members = Yes
+|ticks = 8
+|ticksnote = Make-X is 8, then 10 ticks
+|tools = Double ammo mould
+|facilities = Furnace
+|mat1 = Steel bar
+|mat1quantity = 2
+|output1 = Steel cannonball
+|output1quantity = 8
+|output1subtxt = Double ammo mould
+}}
+}}
+
+[[File:Cannonball Smithing.gif|frame|right|A player smithing steel cannonballs.]]
+Making steel cannonballs is a popular method for players to train [[Smithing]] and profit without requiring much input or attention. A full inventory takes 160 seconds to process using Make-X. Optimal speeds yield nearly 14,000 Smithing experience per hour from converting a total of 540 [[steel bar]]s into 2,160 cannonballs when using the [[Prifddinas]] furnace. Using a furnace closer to a bank will increase efficiency.
+
+Players can also smelt one [[iron ore]] and two [[coal]] to make the steel bars and then use them to make cannonballs without returning to a bank, but it is very slow. Unless using the [[Blast Furnace]] with a [[coal bag]], the profit gained from creating your own steel bars is far less than using premade steel bars.
+
+The [[double ammo mould]] from [[Giants' Foundry]] almost doubles production and experience rates.
+
+==Money making==
+{{Mmgsection|Smithing steel cannonballs|Smithing cannonballs (Grimstone Dungeon)}}
+
+==Products==
+{{Uses material list|Steel cannonball}}
+
+==Item sources==
+{{Drop sources|Steel cannonball}}
+
+===Shop locations===
+{{Store locations list|Steel cannonball}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 May 2026
+|update = Changes to Sailing & LMS Rewards Eligibility
+|change = The item was graphically updated again to better match other steel items.
+}}
+{{Subject changes
+|date = 20 May 2026
+|update = The Red Reef is Out Today!
+|change = The item was graphically updated to better match other steel items.
+}}
+{{Subject changes
+|date = 18 March 2026
+|update = Boat Combat Fixes
+|change = The [[Ranged Strength]] bonus of steel cannonballs for ship combat has been increased from +26 to +74.
+}}
+{{Subject_changes
+|date = 5 November 2025
+|update = Sailing Technical Pre-Release
+|change = * The item's name was changed from "Cannonball" to "Steel cannonball".
+* The item's examine text was changed; previously, it was "Ammo for the Dwarf Cannon."
+}}
+{{Subject changes
+|date = 8 June 2022
+|update = Giants' Foundry
+|poll = Giants' Foundry
+|change = The [[double ammo mould]] was added to the game allowing 8 cannonballs to be produced at once.
+}}
+{{Subject changes
+|date = 10 September 2020
+|update = A Porcine of Interest
+|change = The [[Grand Exchange]] buy limit was changed from 7,000 to 11,000.
+}}
+{{Subject changes
+|date = 22 June 2005
+|update = Rogues Den + Tweaks
+|change = The experience received when smelting cannonballs was reduced from 37.5 to 25.6 xp.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Steel cannonball v1 detail.png|center|300x150px]]
+|[[File:Cannonball (Christmas, 2018) detail.png|center|300x150px]]
+|[[File:Cannonball (Christmas, 2019) detail.png|center|300x150px]]
+|[[File:Steel cannonball v2 detail.png|center|300x150px]]
+|[[File:Steel cannonball detail.png|center|300x150px]]
+|-
+|[[File:Steel cannonball v1.png|center]]
+|[[File:Cannonball (Christmas, 2018).png|center]]
+|[[File:Cannonball (Christmas, 2019).png|center]]
+|[[File:Steel cannonball v2.png|center]]
+|[[File:Steel cannonball.png|center]]
+|-
+|27 May 2003 –<br/>20 May 2026
+|Christmas 2017, 2018
+|Christmas 2019
+|20 May 2026 –<br/>27 May 2026
+|27 May 2026 –<br/>Present
+|}
+
+==Trivia==
+*Cannonballs had a festive override to look like [[wikipedia:Christmas pudding|christmas pudding]]s during the [[2017 Christmas event/Gallery|2017]], [[2018 Christmas event/Gallery|2018]], and [[2019 Christmas event/Gallery|2019]] Christmas events. The override had a darker colour in 2019 compared to 2017 and 2018.
+* Making a cannonball uses the same animation as when a player buries [[bones]].
+* This is the tradeable item with the lowest [[Item IDs|Item ID]] in the game (2).
+
+{{Cannon}}
+{{Ranged weapons}}
+{{Dwarf Cannon}}
+{{Ship combat}}

@@ -1,0 +1,633 @@
+@font-face {
+  font-family: "ToriRS Chrome";
+  src: url("font/ToriRSBody.woff") format("woff"),
+       url("font/ToriRSBody.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "ToriRS Chrome";
+  src: url("font/ToriRSMenu.woff") format("woff"),
+       url("font/ToriRSMenu.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: "ToriRS Chrome Small";
+  src: url("font/ToriRSSmall.woff") format("woff"),
+       url("font/ToriRSSmall.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+}
+
+:root {
+  color-scheme: dark;
+  --tpc-body: #5d5447;
+  --tpc-deep: #0e0e0c;
+  --tpc-inset: #474745;
+  --tpc-field: #000;
+  --tpc-text: #fff;
+  --tpc-label: #ff981f;
+  --tpc-accent: #ffff00;
+  --tpc-danger: #ff5555;
+  /* A red button's caption under the cursor. */
+  --tpc-button-hover: #f00;
+  --tpc-panel-image: none;
+  --tpc-plugin-icon: none;
+  --tpc-close-image: none;
+  --tpc-check-on: none;
+  --tpc-check-off: none;
+  font-family: "ToriRS Chrome", "Lucida Console", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { background: #0e0e0c; background: var(--tpc-deep); color: #fff; color: var(--tpc-text); }
+button, input, select, textarea { font: inherit; }
+button { font-weight: 700; }
+
+/*
+ * The reference's drop shadow, on every piece of chrome text.
+ *
+ * Not decoration: the game theme this page projects sets `text_shadowed = 1`
+ * (uitree_debug_overlay.c), so every caption, label, value and heading the
+ * native chrome draws carries one black pixel down and right. Stated once on
+ * the shell -- form controls are listed because a UA stylesheet resets their
+ * inherited text properties -- so no row has to remember it.
+ */
+.tpc-shell, .tpc-shell button, .tpc-shell input, .tpc-shell select, .tpc-shell textarea {
+  text-shadow: 1px 1px #000;
+}
+
+.tpc-shell {
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #0e0e0c;
+  background: var(--tpc-deep);
+  contain: layout paint style;
+}
+
+.tpc-shell.tpc-collapsed { grid-template-columns: 0 42px; }
+.tpc-shell.tpc-collapsed .tpc-pane { display: none !important; }
+.tpc-pane[hidden], .tpc-tabs[hidden] { display: none !important; }
+
+/* The rail is the game's own stone side-tab column: the tiled panel body
+ * inside the interfaces' nine-slice frame, and the icons sitting straight on
+ * that surface -- no plate, no well, no black box.
+ *
+ * 42 wide including the frame, and 6 of that is the frame's rail on each side,
+ * because that is the gameframe popout strip standing beside it
+ * (TORIRS_CHROME_M_RAIL_W / TORIRS_CHROME_M_FRAME). The 6px border is what
+ * reserves the frame's room; the art is painted over it by .tpc-frame, exactly
+ * as the page's own panel does. */
+.tpc-rail {
+  position: relative;
+  -webkit-box-flex: 0;
+  -webkit-flex: 0 0 42px;
+  flex: 0 0 42px;
+  width: 42px;
+  margin-left: auto;
+  grid-column: 2;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  /* PADDING, not a border, and that is the whole reason the frame is visible:
+   * `overflow: hidden` clips this box's own children to its PADDING box, so a
+   * frame laid over a border (which is what .tpc-pane does, hanging its pieces
+   * outside itself) would be cut away here. The padding is the frame's room
+   * and the pieces are laid inside it. */
+  padding: 6px;
+  background-color: #5d5447;
+  background-color: var(--tpc-body);
+  background-image: none;
+  background-image: var(--tpc-panel-image);
+  image-rendering: pixelated;
+}
+
+/* The rail's frame is flush with its box; the panel's hangs outside its own. */
+.tpc-rail > .tpc-frame { left: 0; right: 0; top: 0; bottom: 0; inset: 0; }
+
+.tpc-rail-list {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-color: var(--tpc-inset) var(--tpc-deep);
+}
+
+.tpc-rail-entry {
+  position: relative;
+  display: block;
+  width: 30px;
+  height: 32px;
+  margin: 0 0 4px;
+  padding: 2px 0;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: #ff981f;
+  color: var(--tpc-label);
+  cursor: pointer;
+  image-rendering: pixelated;
+}
+
+.tpc-rail-entry:hover { border-color: #ff981f; border-color: var(--tpc-label); }
+.tpc-rail-entry:focus-visible { outline: 1px solid var(--tpc-accent); outline-offset: -3px; }
+/* The open tab: the pressed stone, darker under the icon, as the gameframe's
+ * own selected side tab reads. */
+.tpc-rail-entry[aria-selected="true"] { border-color: #0e0e0c; border-color: var(--tpc-deep); background: rgba(0, 0, 0, 0.22); box-shadow: inset 0 0 0 1px #3a3329; }
+.tpc-rail-entry[aria-selected="true"]:hover { border-color: #ff981f; border-color: var(--tpc-label); }
+.tpc-rail-entry.tpc-attention { box-shadow: inset 3px 0 var(--tpc-accent); }
+
+.tpc-rail-icon {
+  display: block;
+  width: 26px;
+  height: 26px;
+  margin: 0 auto;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.tpc-rail-fallback {
+  display: block;
+  width: 26px;
+  height: 26px;
+  margin: 0 auto;
+  line-height: 26px;
+  text-align: center;
+  color: var(--tpc-label);
+}
+
+.tpc-badge {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  max-width: 34px;
+  padding: 1px 2px;
+  overflow: hidden;
+  border-top: 1px solid var(--tpc-label);
+  background: var(--tpc-deep);
+  color: var(--tpc-text);
+  font: 400 10px/12px "ToriRS Chrome Small", "Lucida Console", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tpc-attention-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  background: var(--tpc-accent);
+  box-shadow: 0 0 4px var(--tpc-accent);
+}
+
+.tpc-pane {
+  position: relative;
+  grid-column: 1;
+  display: -webkit-box;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  -webkit-box-flex: 1;
+  -webkit-flex: 1 1 auto;
+  flex: 1 1 auto;
+  /* PADDING, like the rail beside it, and for the same reason: overflow:hidden
+   * clips to the padding box, so a frame hung over a border is cut away. The
+   * padding is the frame's room and the nine pieces are laid inside it, which
+   * is what makes the page wear the same stone edge as the side-tab column. */
+  padding: 6px;
+  /*
+   * The seam with the rail is ONE border, not two.
+   *
+   * Both boxes reserve a 6px frame rail, so side by side they draw two of
+   * them with a groove between. Overlapping the pane 6px into the rail's
+   * track puts the two rails in exactly the same place; the rail is later in
+   * the document and paints over, so what shows is a single edge. The pane's
+   * own 6px padding still ends the content at the rail's left edge, and the
+   * collapsed state hides the pane entirely, so this is inert there.
+   */
+  margin-right: -6px;
+  background-color: #5d5447;
+  background-color: var(--tpc-body);
+  background-image: none;
+  background-image: var(--tpc-panel-image);
+  image-rendering: pixelated;
+}
+
+.tpc-frame, .tpc-frame i { position: absolute; pointer-events: none; }
+.tpc-frame { left: 0; right: 0; top: 0; bottom: 0; inset: 0; z-index: 0; }
+.tpc-frame i { display: block; background-repeat: repeat; image-rendering: pixelated; }
+.tpc-frame-tl, .tpc-frame-tr, .tpc-frame-bl, .tpc-frame-br { width: 32px; height: 32px; background-repeat: no-repeat !important; }
+.tpc-frame-tl { left: 0; top: 0; }
+.tpc-frame-t { left: 32px; right: 32px; top: 0; height: 6px; }
+.tpc-frame-tr { right: 0; top: 0; }
+.tpc-frame-l { left: 0; top: 32px; bottom: 32px; width: 6px; }
+.tpc-frame-r { right: 0; top: 32px; bottom: 32px; width: 6px; }
+.tpc-frame-bl { left: 0; bottom: 0; }
+.tpc-frame-b { left: 32px; right: 32px; bottom: 0; height: 6px; }
+.tpc-frame-br { right: 0; bottom: 0; }
+
+.tpc-header, .tpc-tabs, .tpc-content { position: relative; z-index: 1; }
+/* The page's title, as a side panel names itself: the caption in the settings
+ * orange straight on the stone with a rule under it, not a black bar. The
+ * baked close mark sits in the frame's own corner. */
+.tpc-header {
+  -webkit-box-flex: 0;
+  -webkit-flex: 0 0 auto;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  height: 21px;
+  min-height: 21px;
+  margin: 0 6px;
+  padding: 0 0 2px;
+  border-bottom: 1px solid #0e0e0c;
+  border-bottom-color: var(--tpc-deep);
+  box-shadow: 0 1px #7a6e5c;
+  background: transparent;
+}
+.tpc-header h1 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #ff981f;
+  color: var(--tpc-label);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tpc-close {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  background-image: url("skin/CloseButton.png");
+  background-image: var(--tpc-close-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 16px 16px;
+  color: transparent;
+  font-size: 0;
+  cursor: pointer;
+  image-rendering: pixelated;
+}
+.tpc-close:hover { background-image: url("skin/CloseButtonOver.png"); }
+
+.tpc-tabs { display: -webkit-box; display: -webkit-flex; display: flex; height: 20px; min-height: 20px; margin: 6px 6px 3px; overflow-x: auto; border-bottom: 1px solid #0e0e0c; border-bottom-color: var(--tpc-deep); }
+.tpc-tabs button { height: 20px; min-width: 12px; padding: 0 5px; border: 0; border-right: 1px solid var(--tpc-inset); background: var(--tpc-deep); color: var(--tpc-label); }
+.tpc-tabs button[aria-selected="true"] { color: var(--tpc-text); box-shadow: inset 0 -2px var(--tpc-accent); }
+
+.tpc-content { -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-height: 0; padding: 6px; overflow: auto; }
+.tpc-pane.tpc-no-tabs .tpc-content { padding-top: 4px; }
+.tpc-pane:not(.tpc-no-tabs) .tpc-content { padding-top: 0; }
+.tpc-row { display: -webkit-box; display: -webkit-flex; display: flex; align-items: center; min-height: 18px; margin-bottom: 3px; color: #fff; color: var(--tpc-text); }
+.tpc-row > * + * { margin-left: 6px; }
+.tpc-row[hidden] { display: none !important; }
+.tpc-label { -webkit-flex: 0 0 104px; flex: 0 0 104px; word-wrap: break-word; overflow-wrap: anywhere; color: #ff981f; color: var(--tpc-label); }
+.tpc-section-row { min-height: 24px; margin: 8px 0 5px; padding: 0 2px 3px; border-bottom: 1px solid #0e0e0c; box-shadow: 0 1px #766654; }
+.tpc-content > .tpc-section-row:first-child { margin-top: 1px; }
+.tpc-section-heading { width: 100%; margin: 0; color: #ff981f; color: var(--tpc-label); font-size: 12px; font-weight: 700; line-height: 20px; }
+.tpc-paragraph-row { align-items: flex-start; margin: 0 2px 7px; }
+.tpc-paragraph { width: 100%; margin: 0; color: #f7f0df; line-height: 17px; white-space: normal; overflow-wrap: break-word; }
+.tpc-key-value-row { min-height: 28px; margin-bottom: 4px; }
+.tpc-key-value {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+  width: 100%; min-height: 28px; margin: 0; padding: 4px 7px;
+  border: 1px solid #0e0e0c; border-color: var(--tpc-deep);
+  box-shadow: inset 0 0 0 1px #474745; box-shadow: inset 0 0 0 1px var(--tpc-inset);
+  background: #372e22 url("skin/DropdownBody.png"); image-rendering: pixelated;
+}
+.tpc-key, .tpc-key-value .tpc-value { margin: 0; min-width: 0; }
+.tpc-key { padding-right: 10px; color: #ff981f; color: var(--tpc-label); }
+.tpc-key-value .tpc-value { color: #fff; color: var(--tpc-text); text-align: right; overflow-wrap: anywhere; }
+.tpc-progress-row { min-height: 40px; margin-bottom: 5px; }
+.tpc-progress {
+  width: 100%; min-height: 40px; padding: 4px 7px 6px;
+  border: 1px solid #0e0e0c; border-color: var(--tpc-deep);
+  box-shadow: inset 0 0 0 1px #474745; box-shadow: inset 0 0 0 1px var(--tpc-inset);
+  background: #372e22 url("skin/DropdownBody.png"); image-rendering: pixelated;
+}
+.tpc-progress-header { display: flex; align-items: baseline; min-width: 0; margin-bottom: 4px; }
+.tpc-progress-label { color: #ff981f; color: var(--tpc-label); }
+.tpc-progress-detail { margin-left: auto; padding-left: 8px; color: #fff; color: var(--tpc-text); }
+.tpc-progress-meter { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 8px; overflow: hidden; border: 1px solid #0e0e0c; border-radius: 0; background: #23201b; }
+.tpc-progress-meter::-webkit-progress-bar { background: #23201b; }
+.tpc-progress-meter::-webkit-progress-value { background: #4f8a32; box-shadow: inset 0 1px #79ad50, inset 0 -1px #294d1b; }
+.tpc-progress-meter::-moz-progress-bar { background: #4f8a32; box-shadow: inset 0 1px #79ad50, inset 0 -1px #294d1b; }
+.tpc-progress-fill { display: block; height: 100%; background: #4f8a32; box-shadow: inset 0 1px #79ad50, inset 0 -1px #294d1b; }
+.tpc-error-row { min-height: 28px; margin-bottom: 5px; }
+.tpc-error { width: 100%; min-height: 28px; margin: 0; padding: 4px 7px; border: 1px solid #7d2828; background: rgba(35, 8, 8, 0.78); color: #ff8a8a; line-height: 18px; }
+.tpc-error-label { color: #ff5555; }
+.tpc-error-detail { color: #ffd0d0; }
+.tpc-toggle-row, .tpc-field-row { min-height: 22px; }
+.tpc-row > input[type="text"], .tpc-row > input[type="color"], .tpc-row > select, .tpc-row > textarea { flex: 1 1 auto; min-width: 0; }
+.tpc-row input[type="text"], .tpc-row input[type="color"], .tpc-row select, .tpc-row textarea {
+  height: 18px; border: 1px solid var(--tpc-inset); border-radius: 0; background: var(--tpc-field); color: var(--tpc-text); padding: 0 4px; line-height: 16px;
+}
+.tpc-tall-row { -webkit-box-orient: vertical; -webkit-flex-direction: column; flex-direction: column; align-items: stretch; }
+.tpc-tall-row > * + * { margin-left: 0; }
+.tpc-tall-row > .tpc-label { -webkit-flex: 0 0 18px; flex: 0 0 18px; width: auto; }
+.tpc-row textarea { height: auto; min-height: 72px; padding: 3px 4px; resize: none; }
+.tpc-check {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 17px;
+  height: 17px;
+  min-width: 17px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent url("skin/CheckOff.png") center/17px 17px no-repeat;
+  image-rendering: pixelated;
+}
+.tpc-check:checked { background-image: url("skin/CheckOn.png"); }
+.tpc-separator { position: relative; height: 18px; min-height: 18px; background: transparent; }
+.tpc-separator-line { position: absolute; left: 0; right: 0; top: 9px; height: 1px; overflow: hidden; background: #0e0e0c; background: var(--tpc-deep); }
+/*
+ * The interfaces' own three-piece button: the notched left cap, the notched
+ * right cap, and the tiled middle between them, from the 2x bake at the
+ * authored 18px row height.
+ *
+ * NO border of the chrome's own, and that is the fix rather than a taste: the
+ * art carries its own black outline and its notched corners, so a 1px box
+ * drawn around it squares the ends off -- and because a background is
+ * positioned against the PADDING box, that border also pushed the 18px art
+ * into the 16px space left for it, which clipped the caps to slivers.
+ */
+.tpc-button, .tpc-menu {
+  height: 18px; min-height: 18px; border: 0 solid transparent; border-radius: 0;
+  /*
+   * The middle STOPS under the caps. A cap's cell is 18px but its art carries
+   * a transparent bleed margin and two notched corners (measured on the bake:
+   * ButtonLeft is opaque over 1..16.5 of its 18, ButtonRight over 1.5..17), so
+   * a middle tiled across the whole width shows through both -- the tile
+   * running past the ends of the end caps.
+   *
+   * The inset is 16, the caps' opaque width, NOT their 18px cell: the middle
+   * then tucks half a pixel UNDER each cap, which the cap paints over, instead
+   * of stopping half a pixel short of it and leaving a seam. Overflow hides a
+   * caption too long for the span, as the native chrome's clip does.
+   *
+   * The inset is a TRANSPARENT BORDER rather than padding, and that is what
+   * frees the padding for the caption nudge below: a border can be excluded
+   * from the middle's positioning area and its clip (`padding-box`) while the
+   * caps keep the whole border box, whereas the old `content-box` clip tied
+   * the middle's TOP edge to the vertical padding as well -- a padding-top
+   * would have sliced a strip of tile out of the middle of the plate.
+   */
+  border-left-width: 16px;
+  border-right-width: 16px;
+  /*
+   * Two pixels of it, and they are what centres the caption ON THE PLATE.
+   *
+   * A button centres the LINE BOX, and this face's line box is not centred on
+   * its own ink: p12 claims a 12px ascent for accents nothing here writes,
+   * while a capital is 10 tall and a descender 4 deep. Centred by the metrics
+   * -- baseline at 13 of 18 -- a caption sits 2px under the plate's top edge
+   * and 3.75px over its bottom one, which is the whole of what reads as "not
+   * vertically centred" on so short a plate. Baseline 14 puts the cap block in
+   * the middle of the art's opaque 1..17 band, at the cost of a descender
+   * reaching the bottom edge; the reference's own button is the same shape
+   * with three times the room (interface 182: a 36px plate, b12, valign 1).
+   *
+   * The nudge is 2 and not 1 because a button centres its caption with AUTO
+   * MARGINS, which halve whatever the content box has left over: 2 leaves the
+   * 18px box exactly the 16px line box, nothing to halve, and the baseline is
+   * the padding edge plus the 12px ascent on the nail. A 1 would leave one
+   * pixel to share and put the baseline on a half -- a blurred row of a font
+   * whose whole point is that it lands on the pixel grid.
+   */
+  padding: 2px 0 0;
+  overflow: hidden;
+  background-origin: border-box, border-box, padding-box;
+  background-clip: border-box, border-box, padding-box;
+  /* White on the red plate, red under the cursor: the pair the interfaces
+   * give their own red buttons. Not the label orange, and not the accent
+   * yellow the flat rows hover to. */
+  background-color: transparent; color: #fff; color: var(--tpc-text); cursor: pointer;
+  background-image: url("skin/ButtonMid.png");
+  background-image: url("skin/ButtonLeft.png"), url("skin/ButtonRight.png"), url("skin/ButtonMid.png");
+  background-position: left center, right center, left center;
+  background-repeat: no-repeat, no-repeat, repeat-x;
+  background-size: 18px 18px, 18px 18px, 10px 18px;
+  image-rendering: pixelated;
+}
+.tpc-button:hover, .tpc-menu:hover { color: #f00; color: var(--tpc-button-hover); }
+/* Pressed: the caption shifts one pixel down and right, which is the whole of
+ * what makes a press read as a press in the native chrome. Down is one more of
+ * top padding -- the content box is now SHORTER than the line box, and auto
+ * margins resolve to zero against negative free space rather than halving it,
+ * so the caption sits on the padding edge and the pixel is whole. Right is two
+ * of LEFT padding, which narrows the box the caption is centred in and so
+ * moves its centre one. The border is untouched, so the plate does not move
+ * with the caption.
+ *
+ * `!important` because the runtime writes the resting padding INLINE when a
+ * theme brings button art (skinButton), and an inline declaration outranks an
+ * ordinary rule: without it a themed button -- which is every button on a
+ * client that sent a skin -- would swallow its own press. */
+.tpc-button:active, .tpc-menu:active { padding: 3px 0 0 2px !important; }
+.tpc-button { width: 104px; max-width: 100%; }
+.tpc-menu { width: 104px; max-width: 100%; text-align: left; }
+/* A roster row, as the retained chrome draws one: the name in its own column,
+ * clipped at the furniture; the settings well (three dots in field chrome,
+ * 16px, 5px before the switch); and the tick/cross right-aligned in its 24px
+ * hit box. See torirs_chrome_metrics.h ROW_ICON / ROW_ICON_GAP / TOGGLE_W. */
+.tpc-list-table { width: 100%; height: 18px; border-collapse: collapse; table-layout: fixed; }
+.tpc-list-table td { height: 18px; padding: 0; vertical-align: middle; }
+.tpc-name-cell { overflow: hidden; padding-right: 4px; white-space: nowrap; text-overflow: ellipsis; color: #fff; color: var(--tpc-text); cursor: pointer; }
+.tpc-name-cell:hover .tpc-row-name { color: #ffff00; color: var(--tpc-accent); }
+.tpc-action-row {
+  display: block; width: 100%; min-height: 42px; margin: 0; padding: 4px 7px 5px;
+  border: 1px solid #0e0e0c; border-color: var(--tpc-deep); border-radius: 0;
+  box-shadow: inset 0 0 0 1px #474745; box-shadow: inset 0 0 0 1px var(--tpc-inset);
+  background: #372e22 url("skin/DropdownBody.png"); color: #fff;
+  color: var(--tpc-text); font-weight: 400; line-height: 16px; text-align: left;
+  cursor: pointer; image-rendering: pixelated;
+}
+.tpc-action-row:hover, .tpc-action-row:focus { border-color: #ffff00; border-color: var(--tpc-accent); box-shadow: inset 0 0 0 1px #766654; }
+.tpc-action-row:focus { outline: 1px dotted #fff; outline-offset: -4px; }
+.tpc-action-label { display: block; color: #ff981f; color: var(--tpc-label); font-weight: 700; }
+.tpc-action-row:hover .tpc-action-label { color: #ffff00; color: var(--tpc-accent); }
+.tpc-action-summary { display: block; margin-top: 2px; color: #f7f0df; font-weight: 400; white-space: normal; overflow-wrap: break-word; }
+.tpc-well-cell { width: 21px; }
+.tpc-row-well {
+  position: relative;
+  display: block;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid #0e0e0c;
+  border-color: var(--tpc-deep);
+  border-radius: 0;
+  outline: 0;
+  box-shadow: inset 0 0 0 1px #474745;
+  box-shadow: inset 0 0 0 1px var(--tpc-inset);
+  background: #000 url("skin/DropdownBody.png");
+  cursor: pointer;
+  image-rendering: pixelated;
+}
+.tpc-row-well:hover { border-color: #ffff00; border-color: var(--tpc-accent); }
+/* The dots are the FIELD's ink, and follow the outline to the accent on hover
+ * -- @see the LISTROW case in uitree_debug_overlay.c for why they are not the
+ * panel's label orange. Offsets are the metrics' DOT_INSET/DOT_PITCH less one:
+ * an absolutely-positioned child is placed against the PADDING box, which the
+ * 1px border has already moved in by a pixel. */
+.tpc-dot { position: absolute; top: 6px; width: 2px; height: 2px; background: #fff; background: var(--tpc-text); }
+.tpc-dot-0 { left: 2px; }
+.tpc-dot-1 { left: 6px; }
+.tpc-dot-2 { left: 10px; }
+.tpc-row-well:hover .tpc-dot { background: #ffff00; background: var(--tpc-accent); }
+.tpc-toggle-cell { width: 24px; text-align: right; }
+.tpc-toggle-cell .tpc-check { display: block; margin: 0 0 0 auto; }
+.tpc-model { width: 100%; min-height: 100px; border: 1px solid #474745; border-color: var(--tpc-inset); background: #372e22; color: #ff981f; color: var(--tpc-label); text-align: center; }
+.tpc-custom { position: relative; display: block; width: auto; min-height: 48px; border: 1px solid var(--tpc-inset); box-sizing: content-box; background: #372e22; overflow: hidden; touch-action: none; }
+.tpc-custom img, .tpc-custom canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.tpc-color { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-flex: 1 1 auto; flex: 1 1 auto; }
+.tpc-color > * + * { margin-left: 5px; }
+.tpc-color input[type="color"] { flex: 0 0 42px; }
+.tpc-color input[type="text"] { flex: 1 1 auto; min-width: 0; }
+.tpc-row input[type="text"], .tpc-row select, .tpc-row textarea {
+  background-color: #000;
+  background-image: url("skin/DropdownBody.png");
+  image-rendering: pixelated;
+}
+.tpc-row select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 20px;
+  background-image: url("skin/ScrollDown.png"), url("skin/DropdownBody.png");
+  background-position: right 2px center, left top;
+  background-repeat: no-repeat, repeat;
+  background-size: 14px 14px, auto;
+}
+::-webkit-scrollbar { width: 16px; height: 16px; background: #0e0e0c url("skin/ScrollTrack.png") repeat-y; }
+::-webkit-scrollbar-button:vertical:decrement { height: 16px; background: #0e0e0c url("skin/ScrollUp.png") center no-repeat; }
+::-webkit-scrollbar-button:vertical:increment { height: 16px; background: #0e0e0c url("skin/ScrollDown.png") center no-repeat; }
+::-webkit-scrollbar-thumb:vertical {
+  min-height: 10px;
+  background-color: #474745;
+  background-image: url("skin/ScrollGripTop.png"), url("skin/ScrollGripBottom.png"), url("skin/ScrollGripMid.png");
+  background-position: center top, center bottom, center;
+  background-repeat: repeat-x, repeat-x, repeat;
+}
+.tpc-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/*
+ * The right-click popup: the client's own "Choose Option" menu, spelled in
+ * CSS the way the rest of this page spells the chrome.
+ *
+ * The numbers are UIMinimenu_LayoutFromLineBoxStyled's desktop layout for the
+ * 16px line box these faces are baked at: a 16px title bar one pixel inside
+ * the border, one row of body under it before the black rule, a 15px row
+ * stride (box - 1) and text three pixels in. The title is drawn in the BODY
+ * colour on the black bar -- that is what emit_minimenu passes, not white --
+ * and rows carry the chrome's drop shadow while the title does not.
+ */
+.tpc-minimenu-backdrop {
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+}
+/*
+ * Not a bordered box: emit_minimenu_popup fills the WHOLE rect body-brown
+ * first, then paints the header black one pixel inset from the top/left/
+ * right (so those three edges stay a brown sliver, not black), and only
+ * draws an actual black border -- left, right, bottom -- around the ROWS
+ * beneath the separator. This padding is that brown sliver, on all four
+ * sides (the fourth being the blank row the bottom border line leaves
+ * below it), and .tpc-minimenu-list carries the only real border.
+ */
+.tpc-minimenu {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 1px;
+  background: #5d5447;
+  background: var(--tpc-body);
+  font-family: "ToriRS Chrome", "Lucida Console", Menlo, Consolas, monospace;
+}
+.tpc-minimenu-title {
+  height: 16px;
+  padding: 0 3px;
+  background: #000;
+  color: #5d5447;
+  color: var(--tpc-body);
+  font-weight: 700;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* The rule under the title bar, one brown row below the header. */
+.tpc-minimenu-separator {
+  height: 1px;
+  margin-top: 1px;
+  background: #000;
+}
+/* The rows' own black border -- left, right and bottom only; the header
+ * above owns no border of its own. */
+.tpc-minimenu-list {
+  border-left: 1px solid #000;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+}
+.tpc-minimenu-option {
+  display: block;
+  width: 100%;
+  height: 15px;
+  margin: 0;
+  padding: 0 3px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  color: var(--tpc-text);
+  font-weight: 400;
+  line-height: 15px;
+  text-align: left;
+  text-shadow: 1px 1px #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.tpc-minimenu-option:hover, .tpc-minimenu-option:focus {
+  color: #ffff00;
+  color: var(--tpc-accent);
+  outline: 0;
+}

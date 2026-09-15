@@ -1,4 +1,5 @@
 #include "task_interface_open.h"
+#include "torirs_env.h"
 
 #include "task_static_sprites_load.h"
 
@@ -25,11 +26,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "log/torirs_log.h"
 
 /* Standard human idle sequence for the player preview (clientCode 327/328). */
-#ifndef INTERFACE_PLAYER_IDLE_SEQ
-#define INTERFACE_PLAYER_IDLE_SEQ UITREE_BUILDER_PLAYER_IDLE_SEQ
-#endif
 
 #define INTERFACE_OPEN_ONLOAD_ARGV_MAX TORIRS_COMPONENT_HOOK_ARG_MAX
 #define INTERFACE_OPEN_ONLOAD_MAX 256
@@ -113,7 +112,7 @@ open_resolve_sprite(
         return -1;
     scene_id = UITreeSceneBridge_EnsureSprite(self->bridge, graphic_id);
     if( scene_id < 0 )
-        fprintf(stderr, "InterfaceOpen: RS sprite %d not in scene\n", graphic_id);
+        TORIRS_LOG("InterfaceOpen: RS sprite %d not in scene\n", graphic_id);
     return scene_id;
 }
 
@@ -146,11 +145,11 @@ upload_model_nodes(
         c = &tree->components[i];
         if( c->type != UIELEM_RS_MODEL )
             continue;
+        if( c->u.rs_model.active_model_id >= 0 )
+            (void)UITreeSceneBridge_EnsureModel(bridge, c->u.rs_model.active_model_id);
         cache_id = c->u.rs_model.gamecache_model_id;
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "upload_model_nodes: com=0x%x cache_id=%d client_code=%d\n",
+            TORIRS_LOG("upload_model_nodes: com=0x%x cache_id=%d client_code=%d\n",
                 (unsigned)c->component_id,
                 cache_id,
                 c->behavior.client_code);
@@ -161,27 +160,25 @@ upload_model_nodes(
             {
                 scene_id = UITreeSceneBridge_EnsurePlayerModel(bridge);
                 if( getenv("TORIRS_ANIM_DEBUG") )
-                    fprintf(stderr, "  EnsurePlayerModel -> %d\n", scene_id);
+                    TORIRS_LOG("  EnsurePlayerModel -> %d\n", scene_id);
                 if( scene_id >= 0 )
                 {
-                    c->u.rs_model.gamecache_model_id = scene_id;
+                    (void)UITree_SetModelAt(tree, i, scene_id);
                     /* Pose the preview. The server appearance's readyanim is not
                      * decoded here, so use the standard human ready sequence; the
                      * tick driver loads it and disables gracefully if absent.
                      * Held at frame 0 — the reference poses the design composite
                      * once and only spins modelYAn after that. */
-                    if( c->u.rs_model.anim_seq_id < 0 )
-                        c->u.rs_model.anim_seq_id = INTERFACE_PLAYER_IDLE_SEQ;
-                    c->u.rs_model.anim_frame = 0;
-                    c->u.rs_model.anim_frame_cycle = 0;
-                    c->u.rs_model.anim_hold = 1;
+                    (void)UITree_SetModelAnimationAt(tree, i,
+                        c->u.rs_model.anim_seq_id < 0 ? bridge->player_idle_seq : c->u.rs_model.anim_seq_id,
+                        0, 0, 1);
                 }
             }
             continue;
         }
         scene_id = UITreeSceneBridge_EnsureModel(bridge, cache_id);
         if( scene_id >= 0 )
-            c->u.rs_model.gamecache_model_id = scene_id;
+            (void)UITree_SetModelAt(tree, i, scene_id);
     }
 }
 
@@ -275,7 +272,7 @@ collect_onloads(
         struct InterfaceOpenOnLoad* hook = Task_InterfaceOpen_PushOnLoad(self);
         if( !hook )
         {
-            fprintf(stderr, "InterfaceOpen: onload list full at %d\n", self->onload_count);
+            TORIRS_LOG("InterfaceOpen: onload list full at %d\n", self->onload_count);
             break;
         }
         hook->component_id = src->id;
@@ -283,9 +280,7 @@ collect_onloads(
         hook->argc = on_load->argc;
         if( hook->argc > INTERFACE_OPEN_ONLOAD_ARGV_MAX )
         {
-            fprintf(
-                stderr,
-                "InterfaceOpen: onload argc %d truncated to %d (component 0x%x)\n",
+            TORIRS_ERR("InterfaceOpen: onload argc %d truncated to %d (component 0x%x)\n",
                 hook->argc,
                 INTERFACE_OPEN_ONLOAD_ARGV_MAX,
                 (unsigned)src->id);
@@ -315,7 +310,7 @@ arm_cache_transmit_hooks(
     if( !self->host )
         return;
     for( int i = 0; i < pack->component_count; i++ )
-        RS_CS2_RegisterCacheTransmitHooks(self->host, &pack->components[i]);
+        RS_CS2_RegisterCacheTransmitHooks(self->host, self->tree, &pack->components[i]);
 }
 
 static void
@@ -354,9 +349,7 @@ collect_seed_objs(struct Task_InterfaceOpen* self)
                 /* Prefetch only — the per-slot EnsureObjIcon pass below still
                  * loads whatever the seed list misses, so drop the tail rather
                  * than kill the client. */
-                fprintf(
-                    stderr,
-                    "InterfaceOpen: seed obj list full (%d); skipping prefetch of obj %d\n",
+                TORIRS_LOG("InterfaceOpen: seed obj list full (%d); skipping prefetch of obj %d\n",
                     INTERFACE_OPEN_SEED_OBJ_MAX,
                     oid);
                 return;
@@ -396,7 +389,7 @@ interface_group_in_tree(
  * already be sitting in the tree (hidden, and holding every dynamic child the
  * script created). Scanning all components, rather than only the root sibling
  * list, catches that copy and any stale mount at a different slot, and clearing
- * hide_unmounted un-hides exactly what the mount bookkeeping hid.
+ * mount_hidden un-hides exactly what the mount bookkeeping hid.
  */
 static void
 mount_pack_under_target(struct Task_InterfaceOpen* self)
@@ -432,10 +425,9 @@ mount_pack_under_target(struct Task_InterfaceOpen* self)
             ((self->tree->components[c->parent].component_id >> 16) & 0xffff) ==
                 self->interface_id )
             continue;
-        if( c->behavior.hide_unmounted )
+        if( c->mount_hidden )
         {
-            c->behavior.hide = 0;
-            c->behavior.hide_unmounted = 0;
+            (void)UITree_SetMountHiddenAt(self->tree, i, 0);
         }
         if( c->parent == mount_idx )
             continue;
@@ -466,9 +458,7 @@ collect_sub_change_hooks(struct Task_InterfaceOpen* self)
         if( slot->script_id <= 0 )
             continue;
         if( getenv("TORIRS_ONSUBCHANGE_DEBUG") )
-            fprintf(
-                stderr,
-                "onsubchange-collect: sub-iface=%d component 0x%08x (%d|%d) script=%d\n",
+            TORIRS_LOG("onsubchange-collect: sub-iface=%d component 0x%08x (%d|%d) script=%d\n",
                 self->interface_id,
                 (unsigned)c->component_id,
                 (c->component_id >> 16) & 0xffff,
@@ -477,7 +467,7 @@ collect_sub_change_hooks(struct Task_InterfaceOpen* self)
         dst = Task_InterfaceOpen_PushRuntimeHook(self);
         if( !dst )
         {
-            fprintf(stderr, "InterfaceOpen: runtime-hook list full at %d\n",
+            TORIRS_LOG("InterfaceOpen: runtime-hook list full at %d\n",
                     self->runtime_hook_count);
             break;
         }
@@ -529,9 +519,7 @@ Task_InterfaceOpen_Run(
     PT_TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->interface_id));
     if( !CacheProvider_ComponentPackHas(self->provider, self->interface_id) )
     {
-        fprintf(
-            stderr,
-            "interface open: pack %d missing from cache; skipping mount\n",
+        TORIRS_ERR("interface open: pack %d missing from cache; skipping mount\n",
             self->interface_id);
         PT_EXIT(&self->pt);
     }
@@ -600,10 +588,8 @@ Task_InterfaceOpen_Run(
         {
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_BAKE_REUSE, 1);
             UITreeIfaceStats_NoteBakeReuse(self->interface_id);
-            if( getenv("TORIRS_NET_DEBUG") )
-                fprintf(
-                    stderr,
-                    "interface open: group %d already baked; reusing it\n",
+            if( torirs_env_net_debug() )
+                TORIRS_LOG("interface open: group %d already baked; reusing it\n",
                     self->interface_id);
         }
         else
@@ -626,9 +612,20 @@ Task_InterfaceOpen_Run(
 
     if( self->target_uid >= 0 )
     {
-        /* Close existing mount at target, then reparent. The outgoing group's
-         * nodes are children of the mount target (that is what mounting did),
-         * so hiding only tree roots would leave them on screen. */
+        /* Close existing mount at target, then reparent.
+         *
+         * Reclaim the outgoing group rather than hide it, unless it IS the
+         * incoming one. That pair of clauses is the reference client's whole
+         * rule: its IF_OPENSUB handler calls `method9520(parent, unload)` with
+         * `unload = outgoing.group != incoming`, and the unload nulls every
+         * widget in the group (class304.method7206). A group being moved from
+         * one slot to another survives; anything else is rebuilt from the
+         * pack on its next mount, which mount_pack_under_target does anyway.
+         *
+         * Hiding instead — which this used to do, with `chatbox:chatmodal`
+         * carved out — kept the bake for reuse but left the group answering
+         * UITree_FindByComponentId, so an IF_SETTEXT could update a shadowed
+         * copy while the remount drew the previous pack's string. */
         {
             int old = UITree_InterfaceParentFind(self->tree, self->target_uid);
             if( old >= 0 )
@@ -638,30 +635,7 @@ Task_InterfaceOpen_Run(
                 {
                     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE, 1);
                     UITreeIfaceStats_NoteClose(old_group);
-                    if( self->target_uid == UITREE_CHATBOX_CHATMODAL_UID )
-                    {
-                        /* Same reclaim path as IF_CLOSESUB for chatmodal:
-                         * dialogue packs have no cc_create kids to reuse. */
-                        UITree_ReclaimInterfaceGroup(self->tree, old_group);
-                    }
-                    else
-                    {
-                        for( uint32_t i = 0; i < self->tree->component_count; i++ )
-                        {
-                            struct UITreeComponent* c = &self->tree->components[i];
-                            if( c->freed || c->component_id < 0 )
-                                continue;
-                            if( ((c->component_id >> 16) & 0xffff) != old_group )
-                                continue;
-                            if( c->parent >= 0 &&
-                                ((self->tree->components[c->parent].component_id >> 16) &
-                                 0xffff) == old_group )
-                                continue;
-                            if( !c->behavior.hide )
-                                c->behavior.hide_unmounted = 1;
-                            c->behavior.hide = 1;
-                        }
-                    }
+                    UITree_ReclaimInterfaceGroup(self->tree, old_group);
                     RS_CS2Host_ClearHooksForInterfaceGroup(self->host, old_group);
                 }
                 UITree_InterfaceParentClear(self->tree, self->target_uid);
@@ -677,7 +651,7 @@ Task_InterfaceOpen_Run(
          * speculatively, and the spillover sweep hides a root nothing had
          * mounted yet; either one applied to a group that is now being opened
          * as the toplevel would render the whole gameframe blank, with nothing
-         * to point at. Clearing hide_unmounted here is the opentop half of the
+         * to point at. Clearing mount_hidden here is the opentop half of the
          * same bookkeeping. */
         struct UITreeNodeSet const* gset =
             UITree_GroupNodes(self->tree, self->interface_id);
@@ -690,10 +664,9 @@ Task_InterfaceOpen_Run(
             c = &self->tree->components[idx];
             if( c->freed || c->component_id < 0 )
                 continue;
-            if( c->behavior.hide_unmounted )
+            if( c->mount_hidden )
             {
-                c->behavior.hide = 0;
-                c->behavior.hide_unmounted = 0;
+                (void)UITree_SetMountHiddenAt(self->tree, idx, 0);
             }
         }
     }
@@ -785,7 +758,7 @@ Task_InterfaceOpen_Run(
 
     /* 9b. Player-preview components idle with the player readyanim, not whatever
      * sequence an onLoad script set (TS parity — see uitree_builder_bake.h). */
-    uitree_builder_reassert_player_idle_anim(self->tree);
+    uitree_builder_reassert_player_idle_anim(self->tree, self->bridge);
 
     /* 10. Final layout. */
     layout_tree(self);

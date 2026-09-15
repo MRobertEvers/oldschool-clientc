@@ -1,0 +1,108 @@
+{
+  "checks": [
+    {
+      "mode": "default",
+      "result": {
+        "expected": 1,
+        "canvas_compact": 1,
+        "actor_direct": 1,
+        "actor_words": 1,
+        "pose_reuse": 1,
+        "actor_world_cache": 1,
+        "static_primary": 1
+      }
+    },
+    {
+      "mode": "rollback",
+      "result": {
+        "expected": 0,
+        "canvas_compact": 0,
+        "actor_direct": 0,
+        "actor_words": 0,
+        "pose_reuse": 1,
+        "actor_world_cache": 1,
+        "static_primary": 1
+      }
+    },
+    {
+      "mode": "words-only-rollback",
+      "result": {
+        "expected": 1,
+        "canvas_compact": 1,
+        "actor_direct": 1,
+        "actor_words": 0,
+        "pose_reuse": 1,
+        "actor_world_cache": 1,
+        "static_primary": 1
+      }
+    }
+  ],
+  "normal_apk_sha256": "48c062e9734a8b6f4925d8bc044fe50e7a279cefa2c2f3b03d572bf1e00fdfbb",
+  "build": {
+    "probe": "normal",
+    "source": {
+      "commit": "152dc6469e3c784ddd05dd76d15ae5dfbe02efd0",
+      "changed_source_sha256": {
+        "src/app.c": "76bd46e3a39534ae7ac18e755a0b43ca993852f1495152505ad862eaa1ad6055",
+        "src/main.c": "ef70e0aa1708199db6530695ed46fb83519b5f22e765813090a42c30dee77614",
+        "src/makefile": "fa92d96dee3d0397e94280fad94642d227a995cf44570f711b131755c622ff35",
+        "src/platform/platform_renderer_gles2_core.c": "7b27162b9a6f15c6efd7243038746520f0107aa04dc66b662b3add0205505adc",
+        "src/platform/platform_renderer_gles2_core.h": "2679d22f513b9d32dc5f82a5a3246fccc6d5cdb50007719ab00b0f185667c197",
+        "src/render/trspk_toridraw.c": "fa2844c19d66cbb9a7d41e74a2de930025c01dc9d8cd17f3fe0250f46740740c",
+        "src/render/trspk_toridraw.h": "c0db943c2ed47c89e493ec171228862c2b8b70ffdf1a1dbd92378555cf6d2eae",
+        "src/render/trspk_toridraw_gles2_encode.u.h": "49075fc389396814b077bc48dd88c56b8f434326e65f0e78536eb18977a6a745",
+        "src/ui/test/uitree_test_canvas.c": "f41901ecf6a735e548262b0c58f9460b7ea4d5795487d2c7c2edad4d784b9527",
+        "src/ui/test/uitree_test_main.c": "014b847657d83930809b34caa6f75fc699c946b8175ae82f71c7a5cf947b4ac0",
+        "src/ui/test/uitree_test_overlay_retain.c": "d260b800c350c8a46dbd1392a165d8828dec94a247c7a4d4e3bc1df95b516ca6",
+        "src/ui/uitree.c": "68c14a0507d9c9292dc6eb5b58a6b2c6a65b9d432164a5ec70400f47874905e5",
+        "src/ui/uitree.h": "cbfba75e00260616d0cc5d5f2da460f7c3b602c6f546ada05fe06df0ffaf31fd",
+        "src/ui/uitree_canvas_measure.h": "8b1d87d5bc68ec69d393ded7f200cbf5e7f93f4f81ef0cf003bbf22fcce92d64",
+        "src/ui/uitree_emit.c": "9b56475e2a654beaad6b60b92b7ad7f6dce0b4f49aba8f1e53f7f46dcb5212ac",
+        "src/ui/uitree_emit.h": "83a4db367816137935145268ae61db48e0554f45de73503977669782303b0fd2",
+        "src/ui/uitree_emit_overlay.u.h": "73288bd09e98c9423e902312c4188edc03cd08b82b0a100b8a7b43b494a83f9e",
+        "tools/perf/bake_chain_replay.c": "5fbca8ee97c85774c2de76e1c96108df2ae5c3093ad88bfa61b61ee62b42bdde",
+        "tools/perf/bake_chain_test.c": "cecf56e4a4fd36650892f3bd93ea194bfc91c3ec6ecd3fede0fec6fef2f7792e",
+        "tools/perf/build_android_renderer.py": "0591d84a53a78ca10b02d28c219634af17985712ba43088a320fe771d2186481",
+        "tools/perf/canvas_chain_capture.u.h": "0f30dcd396eef27ae0533c80d85766138eb4521ccdd60ace98ffedf8d3396657",
+        "tools/perf/canvas_chain_format.h": "4f570c35b2b6fbecf8500fdc3db5a7e7c8f6c2cd6161300adf9167b3b04299bb",
+        "tools/perf/canvas_chain_replay.c": "52d7c451008a7dd9bebd0f66e409881449d46f17ea84221910ead7df2aeba11d",
+        "tools/perf/gles2_frame_times.h": "7ffbf99399c7d84305b98aad67ba809987b34353dda88190fb9319fe88dd2ea8",
+        "tools/perf/gles2_frame_times.py": "0d153074a4d61c7fcc77dd3cb34db3c41c83998f62300141917dda0426f9065f",
+        "tools/perf/gles2_frame_times.u.h": "77712f60d6dbfbb5498cbb73f48730d3fa3f44d623dea2dfeb3d5962eb4fb030",
+        "tools/perf/gles2_pipeline_pmu.u.h": "95bd74fb64c6fa212e84a2354370be4dff731b72d12c29b5b85c57ed57b264d7",
+        "tools/perf/model_chain.mk": "2e5f408661a5064c313803d5ef43b601130141851831fa8add713712077b03d9",
+        "tools/perf/renderer_provenance.py": "e3dd0b6ccdf451c3fce942b607db655c5a503254c6fed1a0a1422680090686c3",
+        "tools/perf/ui_emit_pmu.py": "7dccbc65ec3229e6a31e0db42dad31ad94a04b38a61f26c4681c0db3b70c7d7e",
+        "tools/perf/ui_emit_pmu.u.h": "6671552b2af0855745bb9086bb1ff4724c4ec11d65ef05b32d223845e4267829"
+      },
+      "tracked_diff_sha256": "262629d317bea1acd8730e7e24dba2d538d93131d8c2e352f65cd1fc3fcf6c93"
+    },
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/krait-sub10/worktree/src",
+      "-j8",
+      "PLATFORM=android",
+      "ANDROID_ABI=armeabi-v7a",
+      "OPT=1",
+      "TORIDRAW_PROBE_CFLAGS=",
+      "-W",
+      "/private/tmp/krait-sub10/worktree/3rd/toridraw/toridraw_unity.c",
+      "-W",
+      "platform/platform_renderer_gles2_core.c",
+      "-W",
+      "platform/platform_renderer_gles2_dualcore.c",
+      "-W",
+      "main.c",
+      "-W",
+      "app.c",
+      "-W",
+      "ui/uitree.c",
+      "all"
+    ],
+    "library_sha256": "7508b087da632a599131ec02b73ade21eb87904ae275838e288385aef93ee2d8",
+    "apk_sha256": "48c062e9734a8b6f4925d8bc044fe50e7a279cefa2c2f3b03d572bf1e00fdfbb"
+  },
+  "diagnostic_markers_absent": true,
+  "scope": "Installed normal-library defaults and independent rollbacks. No timing claim."
+}

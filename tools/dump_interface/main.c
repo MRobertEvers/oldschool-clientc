@@ -125,6 +125,53 @@ print_ops(
 }
 
 static void
+print_one_hook(
+    char const* label,
+    ComponentScriptVar const* vars,
+    int len,
+    FILE* fp,
+    char const* indent)
+{
+    if( !vars || len <= 0 )
+        return;
+    fprintf(fp, "%s%s:", indent, label);
+    for( int i = 0; i < len; i++ )
+    {
+        if( vars[i].type == SCRIPT_VAR_STRING )
+            fprintf(fp, " \"%s\"", vars[i].value.s ? vars[i].value.s : "");
+        else
+            fprintf(fp, " %d", vars[i].value.i);
+    }
+    fputc('\n', fp);
+}
+
+static void
+print_hooks(
+    RSCacheDat2A_Component const* c,
+    FILE* fp,
+    char const* indent)
+{
+    print_one_hook("onLoad", c->onLoad, c->onLoadLen, fp, indent);
+    print_one_hook("onMouseOver", c->onMouseOver, c->onMouseOverLen, fp, indent);
+    print_one_hook("onMouseLeave", c->onMouseLeave, c->onMouseLeaveLen, fp, indent);
+    print_one_hook("onVarpTransmit", c->onVarpTransmit, c->onVarpTransmitLen, fp, indent);
+    print_one_hook("onInvTransmit", c->onInvTransmit, c->onInvTransmitLen, fp, indent);
+    print_one_hook("onStatTransmit", c->onStatTransmit, c->onStatTransmitLen, fp, indent);
+    print_one_hook("onTimer", c->onTimer, c->onTimerLen, fp, indent);
+    print_one_hook("onOp", c->onOp, c->onOpLen, fp, indent);
+    print_one_hook("onMouseRepeat", c->onMouseRepeat, c->onMouseRepeatLen, fp, indent);
+    print_one_hook("onClick", c->onClick, c->onClickLen, fp, indent);
+    print_one_hook("onClickRepeat", c->onClickRepeat, c->onClickRepeatLen, fp, indent);
+    print_one_hook("onRelease", c->onRelease, c->onReleaseLen, fp, indent);
+    print_one_hook("onHold", c->onHold, c->onHoldLen, fp, indent);
+    print_one_hook("onDrag", c->onDrag, c->onDragLen, fp, indent);
+    print_one_hook("onDragComplete", c->onDragComplete, c->onDragCompleteLen, fp, indent);
+    print_one_hook("onScrollWheel", c->onScrollWheel, c->onScrollWheelLen, fp, indent);
+    print_one_hook("onVarcTransmit", c->onVarcTransmit, c->onVarcTransmitLen, fp, indent);
+    print_one_hook("onVarcstrTransmit", c->onVarcstrTransmit, c->onVarcstrTransmitLen, fp, indent);
+}
+
+static void
 print_component_details(
     struct DumpIfaceLoaded const* li,
     int i,
@@ -173,6 +220,14 @@ print_component_details(
 
     if( c->name && c->name[0] != '\0' )
         fprintf(fp, "  name='%s'", c->name);
+    /* The RAW layout inputs beside the resolved box. Without them a reader has
+     * to invert the mode arithmetic to answer "did the client change this, or
+     * is this what the cache says", and that inversion is only unique when the
+     * modes are known. @see UITree_If3AxisFromPositionMode. */
+    if( c->if3 )
+        fprintf(fp, "  raw=%d,%d %dx%d modes=x%d,y%d,w%d,h%d",
+            c->baseX, c->baseY, c->baseWidth, c->baseHeight,
+            (int)c->xMode, (int)c->yMode, (int)c->widthMode, (int)c->heightMode);
     fputc('\n', fp);
 
     /* IF1 "active" scripts: comparator[k] + operand[k] vs the value script
@@ -311,6 +366,7 @@ print_component_details(
     }
 
     print_ops(c, fp, "      ");
+    print_hooks(c, fp, "      ");
 }
 
 static void

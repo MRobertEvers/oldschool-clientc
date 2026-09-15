@@ -2,10 +2,10 @@
 # Profile torirs on macOS and write a flamegraph — no sudo (unlike profile.d,
 # which needs dtrace). Uses /usr/bin/sample, which works on your own processes.
 #
-#   ./profile-mac.sh                              # headless, manifest_osrs230.ini, 25s
-#   ./profile-mac.sh manifest_rs254.ini           # another manifest
-#   ./profile-mac.sh manifest_osrs230_embed.ini 40 # embedded server, Soft3D (harness)
-#   ./profile-mac.sh manifest_osrs230.ini 40      # sample for 40 seconds
+#   ./profile-mac.sh                              # headless, manifests/manifest_osrs230.ini, 25s
+#   ./profile-mac.sh manifests/manifest_rs254lc.ini           # another manifest
+#   ./profile-mac.sh manifests/manifest_osrs230_embed.ini 40 # embedded server, Soft3D (harness)
+#   ./profile-mac.sh manifests/manifest_osrs230.ini 40      # sample for 40 seconds
 #   TORIRS_PROFILE_WINDOWED=1 ./profile-mac.sh    # real SDL window instead of dummy
 #   TORIRS_PROFILE_ATTACH=<pid> ./profile-mac.sh  # sample a client you already started
 #
@@ -25,7 +25,7 @@ set -eu
 
 cd "$(dirname "$0")"
 
-MANIFEST="${1:-manifest_osrs230.ini}"
+MANIFEST="${1:-manifests/manifest_osrs230.ini}"
 DURATION="${2:-25}"
 WARMUP="${TORIRS_PROFILE_WARMUP:-8}"
 OUT="${OUT:-flamegraph_$(basename "$MANIFEST" .ini)}"
@@ -61,7 +61,7 @@ else
     REV=$(sed -n 's/^[[:space:]]*rev[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 
     # Embed manifests need EMBED_SERVER=1 (and typically TORIDRAW_OPT=1 for the
-    # harness). TCP osrs230 still auto-starts mock230.
+    # harness). TCP osrs230 still auto-starts ToriRSServer.
     if [ "$TRANSPORT" = "embed" ]; then
         echo "profile-mac.sh: embed transport — building EMBED_SERVER=1 TORIDRAW_OPT=${TORIDRAW_OPT:-1}"
         make -C src EMBED_SERVER=1 TORIDRAW_OPT="${TORIDRAW_OPT:-1}" torirs
@@ -71,9 +71,9 @@ else
         [ -x src/torirs ] || make -C src torirs
         if [ "$REV" = "osrs230" ] && [ "${HOST:-localhost}" = "localhost" ] &&
            ! lsof -i ":${PORT:-43594}" >/dev/null 2>&1; then
-            echo "profile-mac.sh: starting src/build/mock230 on ${PORT:-43594}"
-            make -C src mock230 >/dev/null
-            src/build/mock230 "${PORT:-43594}" > "$OUT.mock.log" 2>&1 &
+            echo "profile-mac.sh: starting src/build/torirsserver on ${PORT:-43594}"
+            make -C src ToriRSServer >/dev/null
+            src/build/torirsserver "${PORT:-43594}" > "$OUT.mock.log" 2>&1 &
             MOCK_PID=$!
             trap 'kill $MOCK_PID 2>/dev/null || true' EXIT
             sleep 1

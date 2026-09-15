@@ -1,0 +1,61 @@
+{{External|rs|rsc=Watchtower teleport}}
+{{otheruses|the teleport spell|the teleport tablet|Watchtower teleport (tablet)}}
+{{Infobox Spell
+|name = Watchtower Teleport
+|image = [[File:Watchtower Teleport.png]]
+|release = [[7 May]] [[2003]]
+|update = New - Watch Tower Quest!
+|members = Yes
+|level = 58
+|spellbook = Normal
+|type = Teleport
+|exp = 68
+|cost = {{RuneReq|Earth=2|Law=2}}
+|speed = 4 ticks
+|quest = [[Watchtower]]
+|description = Teleports you to the Watchtower
+|anim = [[File:Teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Watchtower Teleport icon (mobile).png|left|class=pageimage]]
+'''Watchtower Teleport''' [[teleport]]s the player to the top floor of the [[Watchtower (building)|Watchtower]], just north of [[Yanille]]. Unlocking the spell requires completion of the [[Watchtower]] [[quest]] to read the [[spell scroll]] given as a reward by the [[Watchtower Wizard]].
+
+Casting this spell is a requirement for completing the [[hard Ardougne Diary]]. Completing the hard Ardougne Diary grants the ability to teleport to the centre of Yanille by right-clicking the Watchtower teleport icon in the [[standard spellbook]].
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 2
+|Rune2 = law
+|Rune2num = 2
+}}
+
+==Teleportation options==
+{{TeleportLocationTableHead}}
+{{TeleportLocationLine|name=[[Watchtower (building)|Watchtower]]|x=2546|y=3114}}
+{{TeleportLocationLine|name=[[Yanille]] centre|note={{Efn|If [[hard Ardougne Diary]] has been completed.|group=L}}|x=2584|y=3097}}
+{{TableBottom}}
+{{Notelist|group=L}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 4 May 2017
+|update = Skotos & Dark Claws
+|change = Corrected some text when changing teleports between Yanille and the Watchtower.
+}}
+{{Subject changes
+|date = 7 April 2016
+|update = Hell-Rats, Fairy Rings & Perks
+|poll = 
+|change = The right-click options on the Watchtower teleport spell have been adjusted slightly to make it more convenient to configure.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = You can now toggle the location of the Watchtower Teleport to the centre of [[Yanille]] with the completion of the [[Ardougne Hard Diary]].
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

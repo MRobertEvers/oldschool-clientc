@@ -86,6 +86,50 @@ test_add_kill_loot(void)
     LootStore_Free(&store);
 }
 
+/*
+ * What a row's `value` MEANS.
+ *
+ * It is the unit price -- `ObjType.cost` for one of them -- and never the
+ * stack's total, which is what the plugin API has documented it to be since
+ * the field existed. The store used to accumulate `value * qty` into it, and
+ * the one reader that follows the stated contract multiplied by the quantity a
+ * SECOND time: ten thousand coins at a cost of one came out of the Loot
+ * Tracker's totals band as a hundred million gp.
+ *
+ * MUTATION: `row->value = value * qty` on the create arm reddens the first
+ * assertion; `src->rows[i].value += value` on the merge arm reddens the third.
+ */
+static void
+test_row_value_is_the_unit_price(void)
+{
+    printf("TEST: a row's value is what ONE of them costs\n");
+
+    struct LootStore store;
+    LootStore_Init(&store);
+
+    /* Five thousand coins at a cache cost of one. */
+    LootStore_AddKillLoot(&store, "Goblin", 995, 5000, 1, 1);
+    TEST_ASSERT(store.source_count == 1, "one source");
+    TEST_ASSERT(store.sources[0].rows[0].qty == 5000, "five thousand of them");
+    TEST_ASSERT(
+        store.sources[0].rows[0].value == 1,
+        "and one gp each, not five thousand");
+
+    /* A second kill of the same pile. The quantities add up; the unit price is
+     * a property of the objtype and does not. */
+    LootStore_AddKillLoot(&store, "Goblin", 995, 5000, 1, 2);
+    TEST_ASSERT(store.sources[0].rows[0].qty == 10000, "ten thousand of them");
+    TEST_ASSERT(
+        store.sources[0].rows[0].value == 1,
+        "still one gp each after a merge");
+    TEST_ASSERT(
+        (long long)store.sources[0].rows[0].value * store.sources[0].rows[0].qty ==
+            10000,
+        "so the pile is worth ten thousand gp, not a hundred million");
+
+    LootStore_Free(&store);
+}
+
 /* ======================================================================== */
 /* 3. BeginQuery + QueryId (script 7166 read loop)                          */
 /* ======================================================================== */
@@ -233,6 +277,16 @@ test_aux_lists(void)
     TEST_ASSERT(LootStore_AuxCount(&store, 3) == 1, "kind 3");
     TEST_ASSERT(LootStore_AuxCount(&store, 4) == 1, "kind 4");
     TEST_ASSERT(LootStore_AuxCountTotal(&store) == 2, "kinds 3+4 total");
+    uint64_t filter_revision=LootStore_AuxRevision(&store,3);
+    uint64_t highlight_revision=LootStore_AuxRevision(&store,4);
+    TEST_ASSERT(filter_revision && highlight_revision,"native aux edits publish a revision");
+    LootStore_AuxUpsert(&store,3,"Filter*",0);
+    TEST_ASSERT(LootStore_AuxRevision(&store,3)==filter_revision,"duplicate aux insertion does not invalidate views");
+    LootStore_AuxRemove(&store,3,"Filter*",0);
+    TEST_ASSERT(LootStore_AuxRevision(&store,3)!=filter_revision && LootStore_AuxRevision(&store,4)==highlight_revision,
+        "aux removal invalidates only its own list");
+    LootStore_AuxClear(&store,4);
+    TEST_ASSERT(LootStore_AuxRevision(&store,4)!=highlight_revision,"aux clear invalidates dependent native views");
 
     /* out of range kind */
     TEST_ASSERT(LootStore_AuxCount(&store, -1) == 0, "negative kind");
@@ -352,13 +406,19 @@ test_reset_all(void)
 
     struct LootStore store;
     LootStore_Init(&store);
+    uint64_t revision = LootStore_Revision(&store);
+    TEST_ASSERT(revision != 0, "revision starts nonzero");
 
     LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5, 1);
+    TEST_ASSERT(LootStore_Revision(&store) > revision, "a drop advances revision");
+    revision = LootStore_Revision(&store);
     LootStore_AuxUpsert(&store, 1, "SrcName", 0);
     LootStore_ItemIgnoreAdd(&store, "Bones");
     LootStore_SourceIgnoreAdd(&store, "Goblin");
 
     LootStore_ResetAll(&store);
+    TEST_ASSERT(LootStore_Revision(&store) > revision, "reset cannot resurrect an old revision");
+    revision = LootStore_Revision(&store);
 
     TEST_ASSERT(LootStore_SourceCount(&store) == 0, "sources cleared");
     TEST_ASSERT(LootStore_AuxCountTotal(&store) == 0, "aux cleared");
@@ -367,6 +427,7 @@ test_reset_all(void)
 
     /* Usable after reset */
     LootStore_AddKillLoot(&store, "Imp", 200, 1, 10, 1);
+    TEST_ASSERT(LootStore_Revision(&store) > revision, "post-reset mutation advances revision");
     TEST_ASSERT(LootStore_SourceCount(&store) == 1, "usable after reset");
     TEST_ASSERT(LootStore_SourceKillCount(&store, "Imp") == 1, "kill after reset");
 
@@ -431,6 +492,7 @@ main(void)
 {
     test_init_free();
     test_add_kill_loot();
+    test_row_value_is_the_unit_price();
     test_begin_query();
     test_row_access();
     test_aux_lists();

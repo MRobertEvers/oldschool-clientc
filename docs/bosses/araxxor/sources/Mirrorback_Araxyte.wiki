@@ -1,0 +1,83 @@
+{{External|rs=Mirrorback spider}}
+{{Switch infobox
+|item1 =
+{{Infobox Monster
+|name = Mirrorback Araxyte
+|image = [[File:Mirrorback Araxyte.png|280px]]
+|release = [[28 August]] [[2024]]
+|update = Araxxor
+|members = Yes
+|combat = 114
+|size = 2
+|examine = A colourful spider.
+|xpbonus = 7.5
+|max hit = 15
+|aggressive = Yes
+|poisonous = Yes
+|attack style = Melee
+|attack speed = 6
+|slaylvl = 92
+|slayxp = 58
+|cat = Spiders, Araxytes
+|assignedby = turael,spria,nieve,duradel
+|hitpoints = 58
+|att = 150
+|str = 120
+|def = 50
+|mage = 1
+|range = 60
+|attbns = 180
+|strbns = 12
+|amagic = 0
+|mbns = 0
+|arange = 450
+|rngbns = 0
+|dstab = 25
+|dslash = 25
+|dcrush = 25
+|dmagic = -10
+|dlight = 25
+|dstandard = 25
+|dheavy = 25
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 13671
+|leagueRegion = Morytania
+}}
+|text1 = Hatched
+|item2 =
+{{Infobox NPC
+|name = Egg
+|image = [[File:Egg (Mirrorback Araxyte).png|250px]]
+|release = [[28 August]] [[2024]]
+|update = Araxxor
+|members = Yes
+|race = [[Araxyte]]
+|location = [[Morytania Spider Cave]]
+|options = Attack
+|examine = Egg!
+|map = No
+|id = 13670
+|leagueRegion = Morytania
+}}
+|text2 = Egg}}
+'''Mirrorback Araxytes''' are a type of [[araxyte]] who hatch from white eggs during the battle with [[Araxxor]]. They will redirect 20% of the damage dealt to Araxxor towards themselves, and further recoil 50% of that damage to the player, effectively resulting in players taking damage equal to 10% of the damage they dealt to Araxxor. However, Mirrorbacks '''will not''' reflect damage Araxxor deals to himself during the enrage phase.
+
+Attacking them with melee within melee distance will result in them recoiling 50% of the damage (rounded down) they receive to the player; attacking with [[ranged]], [[magic]], or with a [[halberd]] (while one tile away) will negate this effect. Furthermore, if the player has [[Vengeance]] currently active, attacking it will result in no damage taken, with a game message stating {{mes|You reflect the Mirrorback's reflected damage!|colour=#3366ff}}. Damage from [[zombified thrall]]s will also be reflected to the player if one attacks it.
+
+Players will always [[max hit]] when attacking them with the [[noxious halberd]], or with a [[Crush weapons|crush]] attack style or heavy ranged weapon (such as a [[Crossbow (weapon)|crossbow]] or [[ballista]]) if crush or ranged is their highest accuracy style respectively.
+
+Araxxor's minions and eggs are considered by the game to be part of an araxyte task without decreasing the task count similar to Abyssal Sire respiratory system vents, allowing the accuracy and damage bonuses of the [[slayer helm]] to be utilised against them.
+
+==Gallery==
+<gallery mode="packed" heights="150">
+Araxxor - Mirrorback Vengeance.mp4|Countering a mirrorback araxyte with Vengeance.
+Araxxor minions concept art.png|Concept art of Araxxor's minions, by [[Mod Skylark]].
+Araxyte eggs concept art.png|Concept art of the eggs which hatch Araxxor's minions, by Mod Skylark.
+</gallery>
+
+{{Araxxor}}

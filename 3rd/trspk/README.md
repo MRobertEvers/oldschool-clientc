@@ -13,7 +13,8 @@ defects are registered in
 
 - `core/` — shared VBO/IBO/atlas/arena/pose/draw-range helpers
 - `opengl3/` — GL proc loader, vertex layout, embedded GLSL
-- `webgl1/`, `d3d9/` — vertex layouts (kept for the VBO union)
+- `gles2/`, `webgl1/`, `d3d9/` — vertex layouts (kept for the VBO union;
+  `gles2/` is the layout the shared GLES2/WebGL1 renderer bakes)
 
 ## Build
 

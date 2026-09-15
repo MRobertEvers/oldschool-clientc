@@ -1,0 +1,629 @@
+#ifndef SRC_PLATFORM_PLATFORM_WINDOW_H
+#define SRC_PLATFORM_PLATFORM_WINDOW_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+struct PlatformWindow;
+struct ToriRS_CmdBus;
+
+/* The GL window handle, opaque and windowing-library-free.
+ * @see platform/platform_gl_context.h. */
+#include "platform/platform_gl_context.h"
+/* ToriRS_TouchOverlayFn, for the gesture seam below. The touch header is
+ * policy and two integers deep -- it pulls in nothing. */
+#include "input/torirs_touch.h"
+
+struct PlatformWindow*
+PlatformWindow_New(void);
+
+bool
+PlatformWindow_Init(
+    struct PlatformWindow* platform,
+    int width,
+    int height,
+    char const* title);
+
+/** Create an SDL OpenGL window (no CPU pixel buffer / SDL_Renderer).
+ *  macOS: GL 3.2 core + forward-compatible; elsewhere: GL 3.3 core. */
+bool
+PlatformWindow_InitForOpenGL3(
+    struct PlatformWindow* platform,
+    int width,
+    int height,
+    char const* title);
+
+/**
+ * The window a GL context is made on, as the neutral handle the renderers take.
+ *
+ * On the SDL lanes this IS the SDL_Window; on Android it is a token the EGL
+ * backend resolves for itself. Either way nothing above platform/ dereferences
+ * it -- it is passed straight to ToriRS_GL3_Init and from there only back into
+ * platform_gl_context.h.
+ */
+ToriRS_GLWindow*
+PlatformWindow_GLWindow(struct PlatformWindow* platform);
+
+/** Return the platform's native window handle without exposing OS headers.
+ *  The SDL-free Win32 backend returns its HWND as a void pointer. */
+void*
+PlatformWindow_NativeWindowHandle(struct PlatformWindow* platform);
+
+/* ---- the auxiliary window -------------------------------------------------
+ *
+ * ONE extra window, optional, and never a render target: it exists for chrome a
+ * user may want beside the game rather than on top of it -- the plugin window,
+ * today. The game's own window is untouched, which is what keeps the D3D9
+ * contract ("consumes the existing HWND; must not create a second window",
+ * docs/platform_quirks.md WINDOWS-HOST-001) true: nothing here ever hosts a
+ * renderer.
+ *
+ * A backend that cannot provide one says so by returning false from Open, and
+ * the caller falls back to drawing the same chrome in the game canvas. That is
+ * the whole reason this is a small, refusable API rather than a general
+ * multi-window layer: exactly one caller wants it, and every platform is
+ * allowed to decline.
+ *
+ * Input from it arrives on the SAME command bus as the game's, tagged with the
+ * aux window so the drain can tell them apart. Sharing the bus is deliberate:
+ * record/replay, and the headless input simulator, then cover the second window
+ * with no machinery of their own.
+ */
+
+/**
+ * A frame of the aux window's input, in ITS coordinates.
+ *
+ * The platform's own POD rather than the chrome executor's, because platform/
+ * sits below ui/ and must not include it -- the same reason the plugin
+ * contract restates key codes instead of including the input header. The
+ * executor copies across, and the two are three ints and a string apart.
+ */
+struct PlatformWindow_AuxInput
+{
+    /*
+     * The pointer in the SURFACE's pixels, not in SDL's points.
+     *
+     * The chrome that reads this laid its panels out in the surface, at a scale
+     * the display's density chose, so that is the only space these can be in.
+     * The conversion happens in the pump, where the window's two sizes are
+     * known. @see aux_point_to_pixel.
+     */
+    int mouse_x;
+    int mouse_y;
+    int mouse_down;
+    int mouse_up;
+    int wheel;
+    /** Printable bytes typed this frame, NUL-terminated. */
+    char text[32];
+    /** SDL scancode-derived editing key, or 0. @see PlatformWindow_AuxEditKey. */
+    int edit_key;
+    int resized;
+    /** The new surface size, in PIXELS -- the drawable, not the points SDL's
+     *  own resize event carries. Feed it straight to PlatformWindow_AuxResize. */
+    int width;
+    int height;
+};
+
+/**
+ * Editing keys the aux window reports, spelled here so ui/ and platform/ can
+ * agree without either including the other. Values match enum ToriRSChromeKey,
+ * which a _Static_assert in the executor pins.
+ */
+enum PlatformWindow_AuxEditKey
+{
+    PLATFORM_AUX_KEY_NONE = 0,
+    PLATFORM_AUX_KEY_BACKSPACE,
+    PLATFORM_AUX_KEY_DELETE,
+    PLATFORM_AUX_KEY_LEFT,
+    PLATFORM_AUX_KEY_RIGHT,
+    PLATFORM_AUX_KEY_HOME,
+    PLATFORM_AUX_KEY_END,
+    PLATFORM_AUX_KEY_ENTER,
+    PLATFORM_AUX_KEY_ESCAPE,
+    /* Appended, and appended in ui/'s order: the two enums are pinned value
+     * for value, so inserting either of these beside LEFT/RIGHT -- where they
+     * belong by meaning -- would renumber every key after it on both sides. */
+    PLATFORM_AUX_KEY_UP,
+    PLATFORM_AUX_KEY_DOWN
+};
+
+/**
+ * Take the aux window's accumulated gesture. @return true when there was one.
+ *
+ * Coalesced by the pump rather than queued: a settings form cares where the
+ * pointer ended up and whether a button went down, not about the path it took.
+ * Draining clears the EDGES (press, release, wheel, typed text) but keeps the
+ * position, because a pointer that stopped moving is still where it was.
+ */
+bool
+PlatformWindow_AuxTakeInput(struct PlatformWindow* platform, struct PlatformWindow_AuxInput* out);
+
+/**
+ * Open the aux window at `width` x `height` POINTS.
+ *
+ * Points, because the size asked for is a physical one -- how big the window
+ * should be on a desk. Its SURFACE comes up at the drawable, which on a
+ * HighDPI display is a multiple of that; ask PlatformWindow_AuxWidth/Height for
+ * the size anything drawing into it must use.
+ *
+ * @return false when this backend has none.
+ */
+bool
+PlatformWindow_AuxOpen(struct PlatformWindow* platform, int width, int height, char const* title);
+
+/** Close it. Safe when it was never opened. */
+void
+PlatformWindow_AuxClose(struct PlatformWindow* platform);
+
+/** Is it up? */
+bool
+PlatformWindow_AuxIsOpen(struct PlatformWindow const* platform);
+
+/** Its ARGB staging buffer, or NULL when closed. Width * height ints. */
+int*
+PlatformWindow_AuxPixels(struct PlatformWindow* platform);
+
+/** The SURFACE's size, in pixels -- the space its contents are laid out and
+ *  rasterised in, and the space every gesture above is reported in. Not the
+ *  window's size in points, which on a HighDPI display is smaller. */
+int
+PlatformWindow_AuxWidth(struct PlatformWindow const* platform);
+int
+PlatformWindow_AuxHeight(struct PlatformWindow const* platform);
+
+/** Resize the aux surface, in PIXELS. @return false when it could not be
+ *  resized. */
+bool
+PlatformWindow_AuxResize(struct PlatformWindow* platform, int width, int height);
+
+/** Push the staging buffer to the aux window. */
+void
+PlatformWindow_AuxPresent(struct PlatformWindow* platform);
+
+/**
+ * Did the user close the aux window since the last ask? Clears the flag.
+ *
+ * A latch rather than an event, because the one thing a caller does with it is
+ * take its own chrome down -- and a close that arrived on a frame nobody asked
+ * would otherwise be lost, leaving a window the OS has destroyed still being
+ * drawn into.
+ */
+bool
+PlatformWindow_AuxTakeCloseRequest(struct PlatformWindow* platform);
+
+/* ---- plugin chrome attached to the main application window --------------
+ *
+ * The production plugin shell prefers these over PlatformWindow_Aux*. There
+ * is still exactly one top-level application window: opening reserves a pane
+ * at its trailing edge and, where the window manager accepts it, grows the
+ * client area so the game presentation keeps its previous size. A platform
+ * that cannot compose an attached region returns false; the host then uses
+ * its exclusive in-window browser fallback, never an in-game overlay.
+ *
+ * Growth is a courtesy, not a contract. The window is never resized while
+ * it is maximised or fullscreen (a programmatic resize would un-maximise it),
+ * nor widened past the edge of the display it sits on (the page would hang
+ * off the screen) -- though a frame that would overhang by less than the
+ * room on its left slides left by exactly that much and grows. Otherwise
+ * the pane opens inside the current frame and the game area gives up the
+ * width; only when that would take the game area below its floor does the
+ * window grow off the display instead. Close gives back exactly what was
+ * grown and never moves the window, so a pane that never grew the window
+ * never shrinks it either.
+ *
+ * Sizes and input are in the attached pane's DRAWABLE pixels. `width` passed
+ * to Open is in window points, matching AuxOpen and making it a physical desk
+ * size on HighDPI displays.
+ */
+
+/** Expand the selected page beside the permanent rail. `width` is the page
+ * width in window points; the backend adds its fixed rail allocation. Calling
+ * this again while open updates that page width without replacing the browser. */
+bool
+PlatformWindow_ChromeOpen(
+    struct PlatformWindow* platform, int width, int height, char const* title);
+
+/** Materialise only the permanent trailing rail. Valid before any page
+ * executor begins; grows the one main window exactly once. */
+bool PlatformWindow_ChromeRailOpen(
+    struct PlatformWindow* platform, int width, char const* title);
+
+/** Resize only the attached page portion, preserving the fixed rail and the
+ * game width. Used when a newly selected plugin has another preferred width. */
+bool PlatformWindow_ChromeSetPageWidth(
+    struct PlatformWindow* platform, int page_width);
+
+/** Collapse the page while retaining the small in-window rail and remembered
+ * launcher. Reopening expands the same surface; final PlatformWindow_Free
+ * removes the rail with the application window. */
+void
+PlatformWindow_ChromeClose(struct PlatformWindow* platform);
+
+bool
+PlatformWindow_ChromeIsOpen(struct PlatformWindow const* platform);
+
+int*
+PlatformWindow_ChromePixels(struct PlatformWindow* platform);
+
+int
+PlatformWindow_ChromeWidth(struct PlatformWindow const* platform);
+
+int
+PlatformWindow_ChromeHeight(struct PlatformWindow const* platform);
+
+/** Drawable width occupied by the far-right rail, and by the page left of it. */
+int PlatformWindow_ChromeRailWidth(struct PlatformWindow const* platform);
+int PlatformWindow_ChromePageWidth(struct PlatformWindow const* platform);
+
+bool
+PlatformWindow_ChromeResize(struct PlatformWindow* platform, int width, int height);
+
+void
+PlatformWindow_ChromePresent(struct PlatformWindow* platform);
+
+/** Was the retained pane texture changed since the last take? Clears the
+ * dirty latch. GPU hosts use this to upload only changed pixels while still
+ * compositing the retained texture every frame. */
+bool
+PlatformWindow_ChromeTakeDirty(struct PlatformWindow* platform);
+
+/** Non-consuming dirty probe used to schedule a GL frame for rail-only hover
+ * or metadata changes. */
+bool PlatformWindow_ChromeIsDirty(struct PlatformWindow const* platform);
+
+bool
+PlatformWindow_ChromeTakeInput(
+    struct PlatformWindow* platform, struct PlatformWindow_AuxInput* out);
+
+/* ---- local plugin-browser bundle transport -----------------------------
+ *
+ * Implemented by hosts which present plugin chrome through one embedded
+ * browser control. The semantic executor is deliberately platform-neutral:
+ * WebView2, MSHTML and WKWebView consume the same copied JSON and
+ * relative bitmap URLs.
+ */
+bool PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* platform);
+bool PlatformWindow_PluginBrowserReady(struct PlatformWindow const* platform);
+bool PlatformWindow_PluginBrowserFailed(struct PlatformWindow const* platform);
+bool PlatformWindow_PluginBrowserSend(
+    struct PlatformWindow* platform, char const* json);
+/** Consume a send accepted into an asynchronous backend queue but lost later. */
+bool PlatformWindow_PluginBrowserTakeSendFailure(struct PlatformWindow* platform);
+int PlatformWindow_PluginBrowserPoll(
+    struct PlatformWindow* platform, char* out_json, int capacity);
+bool PlatformWindow_PluginBrowserBitmapUrl(
+    struct PlatformWindow* platform,
+    char const* cache_key,
+    uint32_t revision,
+    uint32_t const* argb,
+    int width,
+    int height,
+    char* out_url,
+    int capacity);
+
+/** Raw rail-local pointer/wheel input, available collapsed and expanded. It is
+ * a separate queue so rail events can reach neither page hit-testing nor the
+ * game's command bus. */
+bool PlatformWindow_ChromeTakeRailInput(
+    struct PlatformWindow* platform, struct PlatformWindow_AuxInput* out);
+
+/* ---- borderless windows, dragged by what is drawn in them -----------------
+ *
+ * Taking the OS frame off a window takes four things with it: the title bar
+ * that moved it, the border that resized it, the buttons that minimised and
+ * closed it, and the double-click that zoomed it. A window that hides its frame
+ * has to answer for all of them, and the one this API covers is the first two:
+ * the WM is told, per point, whether that pixel moves the window or resizes it
+ * from an edge.
+ *
+ * Answering is a callback rather than a rectangle handed over once, because the
+ * chrome that provides the handle is laid out every frame and moves whenever
+ * the window is resized or a panel rebuilt. Answering is a callback into
+ * PUBLISHED GEOMETRY rather than into a live model, because of when it runs:
+ * SDL asks while it is deciding what a mouse press even is, from inside the
+ * event pump, so the provider must be a cheap point test against a snapshot and
+ * must not walk anything the frame thread mutates.
+ *
+ * The cost of a draggable region is that it SWALLOWS the press that begins the
+ * drag -- the application is never told about a mouse-down there. Whatever
+ * draws the handle therefore has to exclude every control inside it, or those
+ * controls silently stop being clickable.
+ */
+
+/**
+ * Does this point drag the window? Asked in the window's own CONTENT
+ * coordinates -- canvas pixels for the game window (the letterbox is already
+ * undone).
+ *
+ * @return non-zero to move the window, zero to let the press through.
+ */
+typedef int (*PlatformWindow_DragHandleFn)(void* user, int x, int y);
+
+/**
+ * Where the game window may be grabbed. NULL clears it, which is a legitimate
+ * state: a borderless window whose chrome has no handle this frame is dragged
+ * from nowhere but its resize edges.
+ */
+void
+PlatformWindow_SetDragHandleProvider(
+    struct PlatformWindow* platform, PlatformWindow_DragHandleFn fn, void* user);
+
+/** The same, for the aux window. Survives the window itself being closed and
+ *  reopened, so a caller sets it once. */
+void
+PlatformWindow_AuxSetDragHandleProvider(
+    struct PlatformWindow* platform, PlatformWindow_DragHandleFn fn, void* user);
+
+/**
+ * Take the OS frame off the game window, or give it back.
+ * @return true when the window ended up in the state asked for.
+ *
+ * REFUSES to go borderless on a video driver with no hit test, and says so on
+ * stderr. Every way a user has of moving or resizing a window goes through
+ * either the frame or the hit test; a driver with neither leaves a window
+ * pinned where it opened, at the size it opened, for the rest of the session --
+ * which is a worse answer than the frame it was asked to hide.
+ */
+bool
+PlatformWindow_SetBorderless(struct PlatformWindow* platform, bool borderless);
+
+/** The same, for the aux window. Call it after PlatformWindow_AuxOpen: the wish
+ *  is not remembered across the window it applies to. */
+bool
+PlatformWindow_AuxSetBorderless(struct PlatformWindow* platform, bool borderless);
+
+/** Is the frame currently off? */
+bool
+PlatformWindow_IsBorderless(struct PlatformWindow const* platform);
+
+bool
+PlatformWindow_AuxIsBorderless(struct PlatformWindow const* platform);
+
+void
+PlatformWindow_Free(struct PlatformWindow* platform);
+
+int*
+PlatformWindow_Pixels(struct PlatformWindow* platform);
+
+int
+PlatformWindow_Width(struct PlatformWindow* platform);
+
+int
+PlatformWindow_Height(struct PlatformWindow* platform);
+
+/**
+ * Drawable pixels per window point: 1 on an ordinary display, 2 on a Retina or
+ * 200%-scaled one.
+ *
+ * The framebuffer is already sized in drawable pixels, so nothing multiplies
+ * by this to draw. It exists for the chrome, which has to pick which BAKED
+ * font size to lay itself out with -- a UI authored for 1x pixels, drawn into
+ * a 2x framebuffer, is half the physical size it should be, and the fix is a
+ * bigger authored font rather than a stretch.
+ */
+int
+PlatformWindow_PixelDensity(struct PlatformWindow* platform);
+
+/**
+ * Ask the next window for a device-pixel (HighDPI) drawable.
+ *
+ * Must be called BEFORE PlatformWindow_Init / _InitForOpenGL3: the flag becomes
+ * SDL_WINDOW_ALLOW_HIGHDPI at creation and SDL has no way to add it after.
+ * `[ui:boot] hidpi=` is what drives it; TORIRS_HIDPI overrides either way.
+ */
+void
+PlatformWindow_SetWantHighDPI(bool want);
+
+bool
+PlatformWindow_QuitRequested(struct PlatformWindow* platform);
+
+void
+PlatformWindow_SetTitle(
+    struct PlatformWindow* platform,
+    char const* title);
+
+/**
+ * Resizable mode: make the logical framebuffer track the window instead of
+ * letterboxing a fixed one into it. While set, every window size change emits
+ * TORIRS_CMD_WINDOW_RESIZE so the client relayouts; while clear, the window
+ * only scales what is already drawn. Turning it ON pushes one resize command
+ * for the current window size, so the caller does not have to wait for the user
+ * to drag something.
+ *
+ * `min_w`/`min_h` are the client's canvas floor. They become the window's
+ * minimum size in BOTH modes, because a window smaller than the floor is the
+ * one case the client cannot answer with layout — the canvas clamps and the
+ * present scales it down. Below the floor, "resize" is not available at any
+ * layer, so the window is not allowed there.
+ *
+ * Turning it OFF also snaps the window back to exactly `min_w x min_h`: fixed
+ * mode *is* that frame, and leaving a larger window behind would present it
+ * upscaled, which is the behaviour the mode switch exists to leave. The size it
+ * snapped away from is remembered and restored when it is turned back ON, so
+ * resizable -> fixed -> resizable returns the user to the window they had
+ * instead of leaving them at the floor.
+ *
+ * This does NOT resize the backbuffer. The client clamps the canvas to a floor
+ * it owns, so the canvas — not the window — is what the backbuffer must match;
+ * the caller reconciles them with PlatformWindow_Resize after draining the bus.
+ */
+/**
+ * Turn the on-screen keyboard on or off.
+ *
+ * SDL's text-input mode is the same switch on every backend that HAS a soft
+ * keyboard: starting it raises the keyboard on Android, iOS and emscripten, and
+ * stopping it puts it away. On a desktop backend it governs only whether
+ * SDL_TEXTINPUT events arrive, and there is nothing to put away -- so an OFF is
+ * the backend's to ignore, and it does. Honouring it there costs the client
+ * every printable character it will ever be sent: the login form is the last
+ * thing to want text input, so the first off after it lands is permanent.
+ */
+void
+PlatformWindow_SetTextInput(struct PlatformWindow* platform, int on);
+
+/**
+ * Where the 3D world sits on the canvas, for the touch gesture policy.
+ *
+ * A one-finger drag that begins inside this box turns the camera instead of
+ * dragging the pointer across the interface; outside it, a drag is still a
+ * drag. The platform owns the finger state (@see input/torirs_touch.h) and the
+ * client owns the layout, so this is the one fact that has to cross.
+ *
+ * Called every frame. `w`/`h` <= 0 means "no world on screen", which disables
+ * the gesture rather than guessing -- the login screen and the world map both
+ * want that.
+ *
+ * A no-op on a backend with no touch state; every backend implements it so
+ * nothing above platform/ has to ask which host it is on.
+ */
+void
+PlatformWindow_SetTouchViewport(
+    struct PlatformWindow* platform, int x, int y, int w, int h);
+
+/**
+ * What is drawn OVER that viewport, so a drag beginning on it is not the camera.
+ *
+ * The client draws windows inside the world's rectangle -- the plugin panel, the
+ * developer chrome -- and a drag that starts on one belongs to it. The platform
+ * cannot know that, so the client hands down a predicate it can ask about the
+ * point a finger landed on. @see input/torirs_touch.h.
+ *
+ * Set once; NULL is "nothing covers the world". A no-op on a backend with no
+ * touch state, like the viewport above.
+ */
+void
+PlatformWindow_SetTouchOverlayTest(
+    struct PlatformWindow* platform, ToriRS_TouchOverlayFn fn, void* user);
+
+void
+PlatformWindow_SetCanvasFollowsWindow(
+    struct PlatformWindow* platform,
+    struct ToriRS_CmdBus* bus,
+    bool follow,
+    int min_w,
+    int min_h);
+
+/**
+ * Resize the OS window, as if the user had dragged its corner.
+ *
+ * The distinction from PlatformWindow_Resize matters: this touches the window and
+ * nothing else, so what happens next is decided by the follow gate exactly as it
+ * would be for a real drag. It is the only way to exercise that gate headlessly
+ * — pushing TORIRS_CMD_WINDOW_RESIZE straight onto the bus skips it.
+ */
+void
+PlatformWindow_SetWindowSize(
+    struct PlatformWindow* platform,
+    int width,
+    int height);
+
+/**
+ * Resize the logical framebuffer (pixels + streaming texture) in place. No-op
+ * when the size is unchanged or the platform is in GL mode (GL draws straight
+ * to the window and owns no CPU buffer). Returns true when the size changed.
+ */
+bool
+PlatformWindow_Resize(
+    struct PlatformWindow* platform,
+    int width,
+    int height);
+
+/** Select how the logical interface framebuffer is sampled when it is scaled
+ *  into the window: 0 nearest-neighbour, 1 linear, 2 best/bicubic. Backends
+ *  use their closest supported high-quality filter for mode 2. */
+void
+PlatformWindow_SetInterfaceScaleMode(
+    struct PlatformWindow* platform,
+    int mode);
+
+/** Map window-pixel mouse coords into the letterboxed logical framebuffer. */
+void
+PlatformWindow_MapMouse(
+    struct PlatformWindow* platform,
+    int win_x,
+    int win_y,
+    int* out_x,
+    int* out_y);
+
+/**
+ * Poll SDL events into the command bus as TORIRS_CMD_INPUT_* commands (mouse
+ * coords already mapped to logical space, so recordings are window-size
+ * independent). Window-level events (quit, esc-quit) stay platform state.
+ */
+void
+PlatformWindow_PollCommands(
+    struct PlatformWindow* platform,
+    struct ToriRS_CmdBus* bus);
+
+/**
+ * Restrict the NEXT Present to a sub-rectangle of the pixel buffer; the rest
+ * of the window keeps what the last present put there. Applies once, and the
+ * present clears it, so a caller that forgets to set it gets a full present
+ * rather than a stale one.
+ *
+ * `w <= 0 || h <= 0` means "the whole buffer", which is what the backend
+ * falls back to whenever it cannot honour a partial copy (a scaled window --
+ * every destination pixel then depends on a source area that a damage box
+ * does not bound, and a repair paint has no damage box at all).
+ */
+void
+PlatformWindow_SetPresentDamage(
+    struct PlatformWindow* platform,
+    int x,
+    int y,
+    int w,
+    int h);
+
+/** Matches APP_DAMAGE_RECT_MAX. */
+#define PLATFORM_PRESENT_DAMAGE_RECT_MAX 4
+
+/**
+ * Refine the box set by SetPresentDamage into separate rectangles, so the
+ * present copies their area rather than their bounding box. Each must lie
+ * inside the box; anything else is ignored and the box is presented, which is
+ * always correct and only ever copies more.
+ */
+void
+PlatformWindow_SetPresentDamageRects(
+    struct PlatformWindow* platform,
+    int const (*rects)[4],
+    int count);
+
+void
+PlatformWindow_Present(struct PlatformWindow* platform);
+
+/**
+ * Is there somewhere to put a frame right now?
+ *
+ * False while the platform has no surface for the game -- Android takes the
+ * Surface back while the activity is stopped or its view is being recreated.
+ * The frame loop then keeps the world and the network ticking but skips the
+ * draw: the picture would be rendered in full and thrown away. Desktop windows
+ * always answer true; a hidden or minimised window there is the compositor's
+ * business, and its present is cheap.
+ */
+bool
+PlatformWindow_CanPresent(struct PlatformWindow const* platform);
+
+/** Swap the GL backbuffer. Only valid after InitForOpenGL3. */
+void
+PlatformWindow_PresentGL(struct PlatformWindow* platform);
+
+uint64_t
+PlatformWindow_Ticks64(void);
+
+/**
+ * The same monotonic clock at microsecond resolution.
+ *
+ * Millisecond ticks are what the 20 ms frame budget is paced against, but they
+ * are too coarse to measure a frame *with*: a few-millisecond frame quantises
+ * to a couple of integers, and the quantisation survives averaging.
+ */
+uint64_t
+PlatformWindow_TicksUs(void);
+
+/** Wait until an absolute PlatformWindow_Ticks64() deadline. */
+void
+PlatformWindow_SleepUntil(uint64_t deadline_ms);
+
+#endif

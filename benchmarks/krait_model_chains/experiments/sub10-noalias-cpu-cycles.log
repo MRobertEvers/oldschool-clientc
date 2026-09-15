@@ -1,0 +1,17 @@
+WARNING: linker: Unsupported flags DT_FLAGS_1=0x8000001
+WARNING: linker: /data/local/tmp/krait-noalias-replay: unused DT entry: type 0x6ffffef5 arg 0x468
+WARNING: linker: /data/local/tmp/krait-noalias-replay: unused DT entry: type 0x6ffffffe arg 0x428
+WARNING: linker: /data/local/tmp/krait-noalias-replay: unused DT entry: type 0x6fffffff arg 0x2
+verified: 128 real model bakes, 50375 ordered faces, 0 textured, both arms
+pmu,cpu-cycles,bake,1,768,66743187,86905.191,arm=0
+pmu,cpu-cycles,bake,2,768,65551188,85353.109,arm=1
+pmu,cpu-cycles,bake,3,768,65349648,85090.688,arm=1
+pmu,cpu-cycles,bake,4,768,66600533,86719.444,arm=0
+pmu,cpu-cycles,bake,5,768,66713109,86866.027,arm=0
+pmu,cpu-cycles,bake,6,768,65492452,85276.630,arm=1
+pmu,cpu-cycles,bake,7,768,65310319,85039.478,arm=1
+pmu,cpu-cycles,bake,8,768,66790665,86967.012,arm=0
+pmu,cpu-cycles,bake,9,768,66731550,86890.039,arm=0
+pmu,cpu-cycles,bake,10,768,65323166,85056.206,arm=1
+pmu,cpu-cycles,bake,11,768,65377250,85126.628,arm=1
+pmu,cpu-cycles,bake,12,768,66680973,86824.184,arm=0

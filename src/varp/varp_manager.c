@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct DatCursor
 {
@@ -97,7 +98,7 @@ alloc_var_arrays(
  * The reference cannot reach this case: its varp array is sized from the cache
  * varplayer table and a real server never addresses past it. This tree can —
  * content allocates its own varps above the cache's highest id on purpose
- * (mock230.h MOCK230_VARP_SERVER_HEADROOM), and the alternative to growing is
+ * (torirs_server.h TORIRSSERVER_VARP_SERVER_HEADROOM), and the alternative to growing is
  * dropping those writes silently. Growth stops at `varp_types` only in the
  * sense that the grown ids have no TYPE: `varp_type_count` stays where the
  * cache put it, so GetClientcode answers "none" for them rather than reading
@@ -389,9 +390,7 @@ VarPManager_LoadVarbitDat(
      * rather than fail: the types read so far are still usable.
      */
     if( c.pos != size )
-        fprintf(
-            stderr,
-            "varbit.dat: decoded %d types but consumed %zu of %zu bytes\n",
+        TORIRS_LOG("varbit.dat: decoded %d types but consumed %zu of %zu bytes\n",
             count,
             c.pos,
             size);
@@ -619,9 +618,47 @@ VarPManager_ResolveTransform(
     else if( transform_varp != -1 )
         transform_index = VarPManager_GetVarp(mgr, transform_varp);
 
-    if( transform_index >= 0 && transform_index < transform_count - 1 &&
-        transforms[transform_index] != -1 )
+    /* -1 is a real positional entry: it means this loc/NPC is hidden for that
+     * value. Falling through to the fallback here made internal `multinpcN=-1`
+     * slots show the fallback form instead, which is especially visible when
+     * two players are at different quest stages. */
+    if( transform_index >= 0 && transform_index < transform_count - 1 )
         return transforms[transform_index];
 
     return transforms[transform_count - 1];
+}
+
+
+bool
+VarPManager_TransformDependsOnVarp(
+    const struct VarPManager* mgr,
+    const int* transforms,
+    int transform_count,
+    int transform_varbit,
+    int transform_varp,
+    int varp_id)
+{
+    assert(mgr);
+
+    /* No table is no dependency: the record has no transform at all, which is
+     * a different thing from one whose key is missing. */
+    if( transform_count <= 0 || !transforms )
+        return false;
+
+    if( transform_varp == varp_id )
+        return true;
+
+    /* The indirect key. A varbit is a field packed inside some varp, and the
+     * wire carries that BASE varp -- so a table keyed on a varbit depends on a
+     * varp it names nowhere. Dropping this is a door that never opens while
+     * every packet involved arrives correctly. */
+    if( transform_varbit >= 0 && transform_varbit < mgr->varbit_count )
+    {
+        struct VarBitType const* varbit = &mgr->varbit_types[transform_varbit];
+
+        if( varbit->basevar == varp_id )
+            return true;
+    }
+
+    return false;
 }

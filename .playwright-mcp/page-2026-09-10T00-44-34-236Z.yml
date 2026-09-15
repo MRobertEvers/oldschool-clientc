@@ -1,0 +1,129 @@
+- generic [active] [ref=f7e1]:
+  - generic [ref=f7e2]:
+    - generic [ref=f7e3]:
+      - text: Website powered by
+      - link [ref=f7e4] [cursor=pointer]:
+        - /url: https://www.artstation.com
+    - banner [ref=f7e5]:
+      - generic [ref=f7e7]:
+        - generic [ref=f7e9]:
+          - link "Jeff Carpenter" [ref=f7e10] [cursor=pointer]:
+            - /url: /
+          - generic [ref=f7e11]: Illustrator
+        - generic [ref=f7e14]:
+          - link "Home" [ref=f7e16] [cursor=pointer]:
+            - /url: /
+          - link "Resume" [ref=f7e18] [cursor=pointer]:
+            - /url: /resume
+    - list [ref=f7e20]:
+      - listitem [ref=f7e21]:
+        - link "All" [ref=f7e22] [cursor=pointer]:
+          - /url: /projects
+    - generic [ref=f7e25]:
+      - link "Spider-Man Pre-Release Packaging Art" [ref=f7e28] [cursor=pointer]:
+        - /url: /projects/98bvnW
+      - link "Nightmare Bundle Box Art" [ref=f7e35] [cursor=pointer]:
+        - /url: /projects/NqL9R5
+      - link "Bestow Greatness" [ref=f7e42] [cursor=pointer]:
+        - /url: /projects/XJwqoL
+      - 'link "\"Duskmourn: House of Horror\" - In-Store Poster" [ref=f7e49] [cursor=pointer]':
+        - /url: /projects/y4Wrqn
+      - link "Spider-Lens Series" [ref=f7e56] [cursor=pointer]:
+        - /url: /projects/YGy0oX
+      - link "\"Maha, Its Feathers Night\" - Card Art" [ref=f7e63] [cursor=pointer]:
+        - /url: /projects/gRnaXP
+      - link "Daredevil" [ref=f7e70] [cursor=pointer]:
+        - /url: /projects/ZlaaQN
+      - 'link "Bloomburrow Booster Art for Magic: The Gathering" [ref=f7e77] [cursor=pointer]':
+        - /url: /projects/qJ9yqL
+      - 'link "Bloomburrow Planeswalker Symbols - Magic: The Gathering" [ref=f7e84] [cursor=pointer]':
+        - /url: /projects/nJYRaE
+      - 'link "Murders at Karlov Manor In-Store Poster Art - Magic: The Gathering" [ref=f7e91] [cursor=pointer]':
+        - /url: /projects/1N8ydL
+      - 'link "Outlaws of Thunder Junction Prerelease Artwork - Magic: The Gathering" [ref=f7e98] [cursor=pointer]':
+        - /url: /projects/mADex9
+      - 'link "Universes Beyond: Fallout - Planeswalker Symbols" [ref=f7e105] [cursor=pointer]':
+        - /url: /projects/P6oWm3
+      - 'link "Universes Beyond: Fallout - Pip Boy Art" [ref=f7e112] [cursor=pointer]':
+        - /url: /projects/XJnkda
+      - 'link "The Lost Caverns of Ixalan Planeswalker Symbols - Magic: The Gathering" [ref=f7e119] [cursor=pointer]':
+        - /url: /projects/x3JkJ4
+      - 'link "Murders at Karlov Manor Planeswalker Symbol - Magic: The Gathering" [ref=f7e126] [cursor=pointer]':
+        - /url: /projects/wr6kEV
+      - 'link "Starter Kit 2023 Main Packaging Art - Magic: The Gathering" [ref=f7e133] [cursor=pointer]':
+        - /url: /projects/rlAkW2
+      - link "Westley Woodcut" [ref=f7e140] [cursor=pointer]:
+        - /url: /projects/GeVb6Q
+      - 'link "Magic: The Gathering - The Lord of the Rings: Tales of Middle Earth - Planeswalker Symbols" [ref=f7e147] [cursor=pointer]':
+        - /url: /projects/dKRv43
+      - link "Wizards of the Coast - Holiday Party Photo Backdrops" [ref=f7e154] [cursor=pointer]:
+        - /url: /projects/ZaXkG0
+      - 'link "Magic: The Gathering - Dominaria Remastered Panorama" [ref=f7e161] [cursor=pointer]':
+        - /url: /projects/n0L9v6
+      - 'link "Planeswalker Symbols for The Brothers'' War - Magic: The Gathering" [ref=f7e168] [cursor=pointer]':
+        - /url: /projects/EaerZe
+      - 'link "Unfinity for Magic: The Gathering" [ref=f7e175] [cursor=pointer]':
+        - /url: /projects/xYQL0R
+      - 'link "Faction Symbols for Streets of New Capenna - Magic: The Gathering" [ref=f7e182] [cursor=pointer]':
+        - /url: /projects/Rnmdlm
+      - 'link "Midnight Hunt Gift Bundle - Cut and Assemble Mask for Magic: The Gathering" [ref=f7e189] [cursor=pointer]':
+        - /url: /projects/B3dgJD
+      - 'link "Planeswalker Symbols for Streets of New Capenna - Magic: The Gathering" [ref=f7e196] [cursor=pointer]':
+        - /url: /projects/X1QELy
+      - link "Hades" [ref=f7e203] [cursor=pointer]:
+        - /url: /projects/b5L2PG
+      - link "The Charge of the Corgis" [ref=f7e210] [cursor=pointer]:
+        - /url: /projects/QrzAqZ
+      - link "Evie Study" [ref=f7e217] [cursor=pointer]:
+        - /url: /projects/B3dgz9
+      - link "Captain & Ms. Marvel" [ref=f7e224] [cursor=pointer]:
+        - /url: /projects/9mnEzL
+      - link "Spider-Gwen (Ghost Spider)" [ref=f7e231] [cursor=pointer]:
+        - /url: /projects/L3QRlK
+      - link "This Is The Way - Illustrated Type" [ref=f7e238] [cursor=pointer]:
+        - /url: /projects/18gNAq
+      - link "Super Josh" [ref=f7e245] [cursor=pointer]:
+        - /url: /projects/bKvgVk
+      - link "Battle-Kitty" [ref=f7e252] [cursor=pointer]:
+        - /url: /projects/PoVEYn
+      - link "\"Teg\" Character Design" [ref=f7e259] [cursor=pointer]:
+        - /url: /projects/WK3OeN
+      - link "The Graveyard Book - Character Lineup" [ref=f7e266] [cursor=pointer]:
+        - /url: /projects/mzyJw1
+      - link "My Hero!" [ref=f7e273] [cursor=pointer]:
+        - /url: /projects/OoVPk6
+      - link "Spiders of New York City" [ref=f7e280] [cursor=pointer]:
+        - /url: /projects/r96x5a
+      - link "Fairy Character Design" [ref=f7e287] [cursor=pointer]:
+        - /url: /projects/YeaNPd
+      - link "Self Portrait" [ref=f7e294] [cursor=pointer]:
+        - /url: /projects/q9w6de
+      - link "Goblin Character Design" [ref=f7e301] [cursor=pointer]:
+        - /url: /projects/oAAbKW
+      - link "The Wolverine" [ref=f7e308] [cursor=pointer]:
+        - /url: /projects/188x38
+      - link "Zebras" [ref=f7e315] [cursor=pointer]:
+        - /url: /projects/zOOx04
+      - link "Wizards of the Coast Holiday Card 2019" [ref=f7e322] [cursor=pointer]:
+        - /url: /projects/WKKB33
+      - link "Illustrated Typography - Pew! Snikt! Thwip!" [ref=f7e329] [cursor=pointer]:
+        - /url: /projects/ZGGazm
+      - link "Banrion The Evil Unicorn - Dungeons & Dragons" [ref=f7e336] [cursor=pointer]:
+        - /url: /projects/WK2AE2
+      - link "Ant and Wasp" [ref=f7e343] [cursor=pointer]:
+        - /url: /projects/28894v
+      - link "Angel Westley" [ref=f7e350] [cursor=pointer]:
+        - /url: /projects/g8bYL8
+      - link "My Family D&D Campaign Poster" [ref=f7e357] [cursor=pointer]:
+        - /url: /projects/L32A60
+      - link "Wonder Rex" [ref=f7e364] [cursor=pointer]:
+        - /url: /projects/QrzA54
+    - link " Report User" [ref=f7e370] [cursor=pointer]:
+      - /url: https://www.artstation.com/jeffcarpenter
+      - generic [ref=f7e371]: 
+      - generic [ref=f7e372]: Report User
+  - contentinfo [ref=f7e373]:
+    - generic [ref=f7e375]:
+      - link [ref=f7e378] [cursor=pointer]:
+        - /url: https://www.artstation.com
+      - generic [ref=f7e379]: © All rights reserved

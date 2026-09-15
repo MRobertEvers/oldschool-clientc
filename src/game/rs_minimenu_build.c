@@ -1,8 +1,10 @@
 #include "rs_minimenu_build.h"
 
 #include "rs_minimenu_world.h"
+#include "rs_ui_slots.h"
 
 #include "revconfig/revconfig.h"
+#include "ui/torirs_chrome_exec.h"
 #include "ui/uitree_input.h"
 #include "ui/uitree_inv_view.h"
 #include "ui/uitree_layout.h"
@@ -12,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* Row text below is display-only (dispatch runs on the separate action/pick
  * fields) and safely clipped by snprintf if a name/verb is unusually long, so
@@ -98,11 +101,13 @@ pick_inv_slot(int component_id, int slot, int obj_id, int obj_count)
     return pick;
 }
 
-/** "<verb> @lre@ <name>" — reference inv-item row formatting (orange name). */
+/** "<verb> @lre@<name>" — reference inv-item row formatting (orange name).
+ * The colour tag has zero rendered width, so a space on both sides would draw
+ * as two spaces between the verb and name. */
 static void
 format_inv_item_option(char* out, size_t out_size, char const* verb, char const* obj_name)
 {
-    snprintf(out, out_size, "%s @lre@ %s", verb, obj_name);
+    snprintf(out, out_size, "%s @lre@%s", verb, obj_name);
 }
 
 /* ObjType's revision-defined fifth inventory action. The cache omits this
@@ -130,13 +135,37 @@ static int const k_inv_button_action[UITREE_MENU_OPTION_SLOTS] = {
     REVCONFIG_MINIMENU_IF_BUTTON,  REVCONFIG_MINIMENU_IF_BUTTON,
     REVCONFIG_MINIMENU_IF_BUTTON,  REVCONFIG_MINIMENU_IF_BUTTON,
 };
+/*
+ * The same ops, when the component under them is a legacy TYPE_INV container.
+ *
+ * Those are a family of their own on the wire — INV_BUTTON1..5, one opcode per
+ * slot (Client.ts:9772-9795, `if (child.iop)`) — and the pre-237 protocol has
+ * no IF_BUTTON<n> at all. Sending the worn tab's "Remove" through the
+ * IF_BUTTON ladder therefore reached net_out_if_button_op with a name no lc254
+ * or lc289 table carries, which resolves to -1, which is how net_out declines
+ * to send: the menu row was built, the click was consumed, and the helmet
+ * stayed on with nothing on the socket to explain it.
+ *
+ * Slots 5..9 keep IF_BUTTON. The classic family stops at five and a container
+ * that names a sixth op is by construction a CS2 one, where the numbered
+ * ladder is the right answer.
+ */
+static int const k_container_iop_action[UITREE_MENU_OPTION_SLOTS] = {
+    REVCONFIG_MINIMENU_INV_BUTTON1, REVCONFIG_MINIMENU_INV_BUTTON2,
+    REVCONFIG_MINIMENU_INV_BUTTON3, REVCONFIG_MINIMENU_INV_BUTTON4,
+    REVCONFIG_MINIMENU_INV_BUTTON5, REVCONFIG_MINIMENU_IF_BUTTON,
+    REVCONFIG_MINIMENU_IF_BUTTON,   REVCONFIG_MINIMENU_IF_BUTTON,
+    REVCONFIG_MINIMENU_IF_BUTTON,   REVCONFIG_MINIMENU_IF_BUTTON,
+};
 
 /*
  * Rows from a node's cache/script ops (op slot 4 down to 0, so op 1 lands on
  * top after the bottom-to-top draw). Action id = op_actions[i] when a script
- * assigned one, else the INV_BUTTON default for the slot. target_suffix is
- * appended to each verb (reference: "<op> <target>", e.g. "Withdraw-1
- * <col>Coins</col>"); NULL/empty for plain verbs. Port of v1
+ * assigned one, else `default_actions[i]` — which family the click belongs to
+ * is the CALLER's knowledge, not this loop's (k_inv_button_action for a plain
+ * widget, k_container_iop_action for an item container's own buttons).
+ * target_suffix is appended to each verb (reference: "<op> <target>", e.g.
+ * "Withdraw-1 <col>Coins</col>"); NULL/empty for plain verbs. Port of v1
  * ui_click_add_menu_ops_rows + xrsps buildWidgetOpEntry labeling.
  */
 static int
@@ -144,10 +173,15 @@ add_menu_ops_rows(
     struct UIMinimenu* menu,
     struct UITreeMenuOptions const* opts,
     struct UIMinimenuPick pick,
-    char const* target_suffix)
+    char const* target_suffix,
+    int const* default_actions)
 {
     int const before = menu->option_count;
     char text[UITREE_MINIMENU_OPTION_LEN];
+
+    assert(menu);
+    assert(opts);
+    assert(default_actions);
 
     for( int i = UITREE_MENU_OPTION_SLOTS - 1; i >= 0; i-- )
     {
@@ -160,7 +194,7 @@ add_menu_ops_rows(
             snprintf(text, sizeof(text), "%s", opts->ops[i]);
 
         {
-            int action = k_inv_button_action[i];
+            int action = default_actions[i];
             if( opts->op_actions[i] != 0 )
                 action = opts->op_actions[i];
             UIMinimenu_AddOption(menu, text, action, i, pick);
@@ -272,7 +306,7 @@ add_inv_slot_select_row(
         snprintf(
             text,
             sizeof(text),
-            "Use %s with @lre@ %s",
+            "Use %s with @lre@%s",
             sel->obj_name[0] ? sel->obj_name : "item",
             obj_name);
         UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_USEHELD_ONHELD, 0, pick);
@@ -284,7 +318,7 @@ add_inv_slot_select_row(
                                                            : TORIRS_TARGET_MASK_HELD_CLASSIC;
         if( (sel->target_mask & held_bit) == 0 )
             return true; /* spell does not target held items */
-        snprintf(text, sizeof(text), "%s @lre@ %s", sel->target_op, obj_name);
+        snprintf(text, sizeof(text), "%s @lre@%s", sel->target_op, obj_name);
         UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_HELD, 0, pick);
         return true;
     }
@@ -365,8 +399,7 @@ add_obj_cell_rows(
         /* The three things that decide an item cell's rows, in one line —
          * which container the wire will name, and whether its verbs are live. */
         if( getenv("TORIRS_MINIMENU_DEBUG") )
-            fprintf(
-                stderr, "objcell: com=%d|%d events=0x%x ops_node=%d onop=%d target=\"%s\"\n",
+            TORIRS_LOG("objcell: com=%d|%d events=0x%x ops_node=%d onop=%d target=\"%s\"\n",
                 (cell->component_id >> 16) & 0xFFFF, cell->component_id & 0xFFFF, ev,
                 (int)cell->ops_node_index, has_on_op, target_verb);
         if( !has_on_op )
@@ -397,7 +430,7 @@ add_obj_cell_rows(
          * Since insertion order is drawn bottom-to-top, this puts Use directly
          * below that operation on screen. method12079 still gates the row on a
          * non-empty verb and nonzero target mask (flags bits 11..16). */
-        snprintf(suffix, sizeof(suffix), "@lre@ %s", obj_name);
+        snprintf(suffix, sizeof(suffix), "@lre@%s", obj_name);
         for( int i = UITREE_MENU_OPTION_SLOTS - 1; i >= 0; i-- )
         {
             if( i == target_priority && target_verb[0] != '\0' &&
@@ -432,11 +465,11 @@ add_obj_cell_rows(
         obj,
         cell->obj_ops != 0,
         cell->obj_use != 0);
-    snprintf(suffix, sizeof(suffix), "@lre@ %s", obj_name);
+    snprintf(suffix, sizeof(suffix), "@lre@%s", obj_name);
     /* Container's own iop buttons (a shop's Value/Sell 1/5/10, the worn tab's
      * Remove), then the always-present Examine — trailing order per reference
      * (Client.ts: 9993-10020). */
-    add_menu_ops_rows(menu, &component_ops, pick, suffix);
+    add_menu_ops_rows(menu, &component_ops, pick, suffix, k_container_iop_action);
     {
         char examine[UITREE_MINIMENU_OPTION_LEN];
         format_inv_item_option(examine, sizeof(examine), "Examine", obj_name);
@@ -497,9 +530,9 @@ add_social_rows(
         pick.secondary_id = slot;
 
         snprintf(text, sizeof(text), "Remove @whi@%s", label);
-        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_FRIENDLIST_DEL, slot, pick);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_FRIENDLIST_DEL, -1, pick);
         snprintf(text, sizeof(text), "Message @whi@%s", label);
-        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_MESSAGE_PRIVATE, slot, pick);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_MESSAGE_PRIVATE, -1, pick);
         return true;
     }
 
@@ -510,7 +543,7 @@ add_social_rows(
         pick.secondary_id = slot;
 
         snprintf(text, sizeof(text), "Remove @whi@%s", label);
-        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_IGNORELIST_DEL, slot, pick);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_IGNORELIST_DEL, -1, pick);
         return true;
     }
 
@@ -587,7 +620,7 @@ add_chat_rows(
     int click_y,
     struct UIMinimenu* menu)
 {
-    struct UITreeChatMinimenuConfig const* config = &node->u.chat.minimenu;
+    struct UITreeChatMinimenuConfig const* config = &UITree_Chat(node)->minimenu;
     char sender[UITREE_MINIMENU_OPTION_LEN];
     int chat_type = 0;
     int const before = menu->option_count;
@@ -606,6 +639,64 @@ add_chat_rows(
         menu, config->op_add_ignore, config->op_add_ignore_action, 1, sender);
     add_chat_template_row(
         menu, config->op_add_friend, config->op_add_friend_action, 1, sender);
+    return menu->option_count - before;
+}
+
+/*
+ * The modes one privacy button can be put into, as menu rows.
+ *
+ * Named rather than stepped: "Public chat: Friends" says which mode it means,
+ * and the same row means the same thing wherever the filter happens to be.
+ * That is the whole reason these exist -- the modern frames give the button's
+ * left click to the chatbox switch, so cycling is no longer available, and a
+ * setting with no gesture left is a setting you cannot change.
+ *
+ * A filter that does not cycle contributes nothing. Report abuse is one: it is
+ * a click-through to the report interface and has no modes to choose between,
+ * so its right click offers what any other component's does and no more.
+ */
+static int
+add_chat_button_rows(
+    struct RS_MinimenuBuildCtx const* ctx,
+    struct UITreeComponent const* node,
+    struct UIMinimenu* menu)
+{
+    (void)ctx;
+    struct UITreeChatButtonConfig const* cfg = UITree_ChatButton(node);
+    int const filter = (int)cfg->filter;
+    int const modes = RS_UISlots_ChatFilterModeCount(filter);
+    int const before = menu->option_count;
+
+    assert(ctx);
+    assert(node);
+    assert(menu);
+    if( modes <= 1 )
+        return 0;
+
+    /*
+     * Highest mode FIRST, because a later row draws higher: walking down puts
+     * On at the top of the menu, which is the order the button itself cycles
+     * in and the order the labels read in the ini.
+     */
+    for( int mode = modes - 1; mode >= 0; mode-- )
+    {
+        char text[UITREE_MINIMENU_OPTION_LEN];
+
+        if( !cfg->mode_label[mode][0] )
+            continue;
+        snprintf(text, sizeof(text), "%s: %s", cfg->label, cfg->mode_label[mode]);
+        UIMinimenu_AddOption(
+            menu,
+            text,
+            RS_MINIMENU_ACTION_CHAT_FILTER,
+            -1,
+            (struct UIMinimenuPick){
+                .kind = UI_MINIMENU_PICK_UI,
+                .id = node->component_id,
+                .secondary_id = filter,
+                .tertiary_id = mode,
+            });
+    }
     return menu->option_count - before;
 }
 
@@ -660,8 +751,57 @@ add_target_button_row(
         verb[space - verb] = '\0';
 
     snprintf(text, sizeof(text), "%s @gre@%s", verb, opts->target_base);
-    UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_BUTTON, 0, pick);
+    UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_BUTTON, -1, pick);
     return true;
+}
+
+/*
+ * `TORIRS_MINIMENU_DEBUG`: one readout per menu build. Read once and kept,
+ * because a menu is rebuilt for the hover text on every frame the cursor sits
+ * over a component and a per-frame getenv is a measured cost in this tree.
+ */
+static bool
+minimenu_debug_enabled(void)
+{
+    static int enabled = -1;
+    if( enabled < 0 )
+        enabled = getenv("TORIRS_MINIMENU_DEBUG") != NULL;
+    return enabled != 0;
+}
+
+/*
+ * The six target bits of a component's EFFECTIVE events word.
+ *
+ * Deob `method12079` asks `method7577(method12093(events, widget))`, and
+ * `method12093` is explicit about where the number comes from: the server's
+ * IF_SETEVENTS entry for this widget (or for its parent's dynamic-child range)
+ * where one exists, and the widget's own decoded flags where it does not. Both
+ * arms are the SAME 3-byte events word, whose bits 11..16 are the target mask —
+ * `method7577` is literally `var0 >> 11 & 0x3F`.
+ *
+ * Reading only the decoded half is what made a script-built target button
+ * unarmable: a CC_CREATE child is memset to zero and no `cc_` opcode can write
+ * a target mask, so the sailing crew panel's "Edit navigator" — armed by
+ * `if_setevents(sailing_sidepanel:crew_content_clicklayer, 0, 127,
+ * ^if_event_op_all + 16384)`, bit 14 — measured 0 here and its
+ * `cc_settargetverb("Edit-navigator")` row was never built. `add_obj_cell_rows`
+ * already tests the events word (`ev >> 11 & 0x3F`), which is why the same
+ * mechanism worked on an inventory item and not on the button.
+ *
+ * The shift is IF3-only. A dat1 component stores `targetMask` unshifted in both
+ * `click_mask` and `target_mask` (torirs_component_from_rscache.c), so shifting
+ * an IF1 events word would turn a real answer into noise — the same split
+ * `rs_cs2_target_mask` keeps for IF/CC_GETTARGETMASK.
+ */
+static int
+component_effective_target_mask(
+    struct UITreeComponent const* node,
+    int events)
+{
+    int mask = (int)node->behavior.target_mask;
+    if( node->if3 )
+        mask |= (events >> TORIRS_TARGET_MASK_IF3_SHIFT) & TORIRS_TARGET_MASK_IF3_BITS;
+    return mask;
 }
 
 /*
@@ -675,10 +815,12 @@ add_target_button_row(
  * every rev-230/239 spell built a plain button row and nothing ever armed.
  */
 static bool
-component_offers_if3_target(struct UITreeComponent const* node)
+component_offers_if3_target(
+    struct UITreeComponent const* node,
+    int events)
 {
     return node->behavior.button_type != REVCONFIG_BUTTON_TYPE_TARGET &&
-           node->behavior.target_mask != 0 &&
+           component_effective_target_mask(node, events) != 0 &&
             UITree_MenuOptions(node)->target_verb[0] != '\0';
 }
 
@@ -711,8 +853,20 @@ add_if3_target_op_rows(
     char text[UITREE_MINIMENU_OPTION_LEN];
     /* The reference walks 32 operation slots; this tree stores 10. A priority
      * past the end still has to produce its row, so it lands on the first slot
-     * walked — the same "above every op" position it holds there. A negative
-     * priority is `cc_settargetpriority(-1)`, "no target row at all". */
+     * walked — the same "above every op" position it holds there.
+     *
+     * There is no such thing as a negative target priority. `Statics.java`'s
+     * CC_SETTARGETPRIORITY (opcode 1312) handler stores `-1` as the DEFAULT 4
+     * (`field4122 = 1431939116`, which is `4 * -1789498869`), stores `1..32` as
+     * `value - 1`, and ignores everything else; the widget constructor seeds the
+     * same 4. So `cc_settargetpriority(-1)` — what both the sailing crew panel's
+     * `torirs_sailing_edit_navigator_btn` and the native inventory's
+     * `inventory_noops_allowinteraction_bind_actions_6011` open with — is a
+     * RESET, not a suppression, and `UITree_ApplyTargetPriority` already applies
+     * that mapping. Nothing may reach this walk with a negative slot: the
+     * reference's own loop (`for (var3 = 31; var3 >= 0; var3--)`, target row at
+     * `var3 == priority`) would drop the row on the floor. */
+    assert(node->target_priority >= 0);
     int const priority = node->target_priority >= UITREE_MENU_OPTION_SLOTS
                              ? UITREE_MENU_OPTION_SLOTS - 1
                              : node->target_priority;
@@ -721,8 +875,14 @@ add_if3_target_op_rows(
     {
         if( i == priority )
         {
-            snprintf(text, sizeof(text), "%s %s", opts->target_verb, base);
-            UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_BUTTON, 0, pick);
+            /* Same "no opBase, no trailing space" rule the op rows below use:
+             * a script-built button (the crew panel's) carries a target verb
+             * and no opBase at all, and its row is just the verb. */
+            if( base[0] != '\0' )
+                snprintf(text, sizeof(text), "%s %s", opts->target_verb, base);
+            else
+                snprintf(text, sizeof(text), "%s", opts->target_verb);
+            UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_BUTTON, -1, pick);
         }
         if( !rows || rows->ops[i][0] == '\0' )
             continue;
@@ -768,6 +928,36 @@ add_component_rows(
     struct UITreeMenuOptions filtered;
     struct UITreeMenuOptions const* rows = opts;
 
+    /*
+     * CLIENT CHROME IS NOT GAME CONTENT.
+     *
+     * The client builds its own furniture out of real interface components --
+     * today the "Manage Plugins" button. They are armed for clicks so the
+     * client hears about them -- and that arming is exactly what this function
+     * reads, so a control the game does not own grew a right-click menu
+     * offering "Continue", and the mouseover text read "Continue" with the
+     * pointer over it. That is the generic verb the reference gives a
+     * component a script enabled, and it means nothing here.
+     *
+     * Recognised by GROUP, the same bounds test the click interception uses
+     * (TORIRS_CHROME_GROUP is the tree's own "app-overlay chrome" group).
+     * One test here covers the right-click menu, the left-click default row
+     * and the mouseover text, because all three are this one menu build.
+     */
+    if( ((node->component_id >> 16) & 0xFFFF) == TORIRS_CHROME_GROUP )
+        return 0;
+
+    if( node->plugin_owner )
+    {
+        if( node->plugin_op_serial && opts->option[0] )
+        {
+            struct UIMinimenuPick owned=pick;
+            UITree_StampMenuPick(ctx->tree,(int32_t)(node-ctx->tree->components),&owned);
+            UIMinimenu_AddOption(menu,opts->option,RS_MINIMENU_ACTION_PLUGIN_WIDGET,0,owned);
+        }
+        return menu->option_count-before;
+    }
+
     if( add_social_rows(node, menu) )
         return menu->option_count - before;
 
@@ -809,13 +999,24 @@ add_component_rows(
             rows = &filtered;
     }
 
+    /* The four things that decide whether a component's target verb can be
+     * armed with the mouse — the same one-line readout add_obj_cell_rows keeps
+     * for item cells, and the one that names which of them was zero. */
+    if( minimenu_debug_enabled() )
+        TORIRS_REPORT(
+            "component: com=%d|%d if3=%d events=0x%x mask=0x%x prio=%d target=\"%s\" base=\"%s\"\n",
+            (node->component_id >> 16) & 0xFFFF, node->component_id & 0xFFFF,
+            (int)node->if3, (unsigned)events,
+            (unsigned)component_effective_target_mask(node, events),
+            node->target_priority, UITree_MenuOptions(node)->target_verb, opts->option);
+
     /* An IF3 target component's verb and its ops are ONE ordered walk, not two
      * competing branches: High Alchemy carries "Animation" and "Warnings"
      * alongside "Cast High Alchemy" and the reference emits all three from the
      * same loop. Falling into the plain op path instead would emit the ops and
      * silently drop the cast; taking the classic early-return would emit the
      * cast and drop the ops. */
-    if( select_mode == RS_MINIMENU_SELECT_NONE && component_offers_if3_target(node) )
+    if( select_mode == RS_MINIMENU_SELECT_NONE && component_offers_if3_target(node, events) )
     {
         ops_added = add_if3_target_op_rows(menu, node, rows, pick);
         if( ops_added > 0 )
@@ -825,7 +1026,8 @@ add_component_rows(
     if( rows )
     {
         ops_added = add_menu_ops_rows(
-            menu, rows, pick, rows->option[0] != '\0' ? rows->option : NULL);
+            menu, rows, pick, rows->option[0] != '\0' ? rows->option : NULL,
+            k_inv_button_action);
         if( ops_added > 0 )
             return menu->option_count - before;
     }
@@ -841,10 +1043,29 @@ add_component_rows(
 
     if( label )
     {
-        int action = opts->option_action != 0
-                         ? opts->option_action
-                         : if_button_action_for_type(node->behavior.button_type);
-        UIMinimenu_AddOption(menu, label, action, 0, pick);
+        /*
+         * A row's action_index is WHICH NUMBERED OP it is, and it is the thing
+         * the dispatcher uses to decide the click is an IF3 `IF_BUTTON<n>` for
+         * the server (app.c, `opt.action_index >= 0 && < 10`). A row built from
+         * the cache's BUTTON TYPE is not a numbered op at all -- it is an IF1
+         * button, applied locally by RS_IF1_ApplyButtonClick, which is what
+         * turns buttonType 6 into RESUME_PAUSEBUTTON and buttonType 3 into a
+         * close.
+         *
+         * Passing 0 here said "this is op 1". A dialogue's "Click here to
+         * continue" therefore went out as IF_BUTTON1 on a component the server
+         * had armed no op on, `if_button_sent` suppressed the local apply, and
+         * the prompt did nothing at all -- no continue, no error. -1 is the
+         * same "no numbered op" the Cancel and social rows already use.
+         *
+         * An explicit `option_action` from a revconfig IS an op-0 row and keeps
+         * its index; only the button-type fallback is not one.
+         */
+        int const from_button_type = opts->option_action == 0;
+        int const action = from_button_type
+                               ? if_button_action_for_type(node->behavior.button_type)
+                               : opts->option_action;
+        UIMinimenu_AddOption(menu, label, action, from_button_type ? -1 : 0, pick);
         return menu->option_count - before;
     }
 
@@ -863,10 +1084,59 @@ add_component_rows(
                                ? node->u.rs_text.text
                                : "Continue";
 
-        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON, 0, pick);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON, -1, pick);
     }
 
     return menu->option_count - before;
+}
+
+uint64_t RS_Minimenu_WidgetActionRevision(struct UIMinimenuOption const* row)
+{
+    uint64_t hash=row->pick.action_signature;
+    int fields[]={row->action,row->action_index,row->pick.kind,row->pick.id,
+        row->pick.secondary_id,row->pick.tertiary_id,row->pick.quaternary_id,
+        row->pick.view_id,row->pick.has_native_events,(int)row->pick.native_events};
+    for( size_t i=0;i<sizeof(fields)/sizeof(fields[0]);++i )
+    {
+        uint32_t value=(uint32_t)fields[i];
+        for( int byte=0;byte<4;++byte ) { hash=(hash^(value&255))*UINT64_C(1099511628211);value>>=8; }
+    }
+    for( unsigned char const* p=(unsigned char const*)row->text;*p;++p ) hash=(hash^*p)*UINT64_C(1099511628211);
+    return hash ? hash : 1;
+}
+
+int RS_Minimenu_WidgetActionIndex(struct UIMinimenu const* menu,uint64_t ordinal,uint64_t revision)
+{
+    if( !menu || !ordinal || ordinal>(uint64_t)menu->option_count ) return -1;
+    int index=(int)ordinal-1;
+    return revision==RS_Minimenu_WidgetActionRevision(&menu->options[index]) ? index : -1;
+}
+
+int
+RS_Minimenu_AddWidgetRows(struct RS_MinimenuBuildCtx const* ctx, int32_t index,
+                         struct UIMinimenu* out)
+{
+    if( !ctx || !ctx->tree || !out || index < 0 ||
+        (uint32_t)index >= ctx->tree->component_count ||
+        UITree_NodeOrAncestorDisplayHidden(ctx->tree, index) ||
+        !UITree_NodeNativeInputPresent(ctx->tree, ctx->ui_host, index) ) return 0;
+    struct UITreeComponent const* node = &ctx->tree->components[index];
+    int before = out->option_count;
+    if( node->type == UIELEM_BUILTIN_CHAT_BUTTON )
+        add_chat_button_rows(ctx, node, out);
+    else if( node->type != UIELEM_BUILTIN_CHAT && node->type != UIELEM_RS_INV &&
+             node->type != UIELEM_RS_INV_TEXT )
+        add_component_rows(ctx, node, RS_MINIMENU_SELECT_NONE, out);
+    for( int i = before; i < out->option_count; ++i )
+    {
+        UITree_StampMenuPick(ctx->tree, index, &out->options[i].pick);
+        if( ctx->events_for_component )
+        {
+            out->options[i].pick.has_native_events = 1;
+            out->options[i].pick.native_events = ctx->events_for_component(ctx->events_user, node->component_id, -1);
+        }
+    }
+    return out->option_count - before;
 }
 
 void
@@ -895,6 +1165,22 @@ RS_Minimenu_Build(
 
     hit_count =
         UITree_CollectNodesAt(ctx->tree, ctx->ui_host, click_x, click_y, hits, RS_MINIMENU_HIT_STACK_MAX);
+
+    /* Which components the click reached at all. A row that is missing because
+     * its component never entered this stack is a DIFFERENT bug from a row that
+     * is missing because add_component_rows declined to build it, and without
+     * this line the two are indistinguishable from the menu alone. */
+    if( minimenu_debug_enabled() )
+    {
+        TORIRS_REPORT("minimenu: %d,%d hits=%d", click_x, click_y, hit_count);
+        for( int i = 0; i < hit_count; i++ )
+            TORIRS_REPORT(
+                " [%d]=%d|%d(type=%d)", i,
+                (ctx->tree->components[hits[i]].component_id >> 16) & 0xFFFF,
+                ctx->tree->components[hits[i]].component_id & 0xFFFF,
+                (int)ctx->tree->components[hits[i]].type);
+        TORIRS_REPORT("\n");
+    }
 
     /* A cell's rows are emitted for the cell, and the container it borrowed
      * its verbs from must not emit them a second time on its own account —
@@ -932,8 +1218,41 @@ RS_Minimenu_Build(
             continue;
         if( node->type == UIELEM_BUILTIN_CHAT )
             add_chat_rows(ctx, node, click_x, click_y, out);
+        else if( node->type == UIELEM_BUILTIN_CHAT_BUTTON )
+            add_chat_button_rows(ctx, node, out);
         else
             add_component_rows(ctx, node, ctx->selection.mode, out);
+    }
+
+    /*
+     * Drop the plugin launcher's row when its server is gone. See
+     * RS_MinimenuBuildCtx::plugin_io_down for why this is by action id.
+     *
+     * After the walk and before the sort: the row can come from an authored
+     * component op or from the launcher this client builds itself, and this is
+     * the one point both have passed through. A compaction rather than a flag
+     * on the option, because everything downstream -- the sort, the width
+     * measure, the default-row scan -- counts rows, and a row that is present
+     * but ignored would have to be taught to each of them separately.
+     *
+     * Only the launcher. A plugin's own canvas-region rows are its FEATURES,
+     * not a way into the panel, and one already running off assets it loaded
+     * before the outage keeps working; taking its orb's rows away would break
+     * a plugin that is fine.
+     */
+    if( ctx->plugin_io_down )
+    {
+        int kept = 0;
+
+        for( int i = 0; i < out->option_count; i++ )
+        {
+            if( out->options[i].action == RS_MINIMENU_ACTION_PLUGIN_PANEL )
+                continue;
+            if( kept != i )
+                out->options[kept] = out->options[i];
+            kept++;
+        }
+        out->option_count = kept;
     }
 
     UIMinimenu_SortPriorityActions(out);
@@ -958,7 +1277,7 @@ RS_Minimenu_DefaultOptionIndex(struct UIMinimenu const* menu)
                 walk = i;
             continue;
         }
-        if( action < 1000 )
+        if( RS_Minimenu_ActionIsDefaultable(action) )
             return i;
     }
     return walk;

@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_SlotMount
 {
@@ -61,7 +62,7 @@ Task_SlotMount_Run(
             }
             else
             {
-                fprintf(stderr, "slot_mount: pack %d missing after load\n", self->iface_id);
+                TORIRS_ERR("slot_mount: pack %d missing after load\n", self->iface_id);
             }
         }
     }

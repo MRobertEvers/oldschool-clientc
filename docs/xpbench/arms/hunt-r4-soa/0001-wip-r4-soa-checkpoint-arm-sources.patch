@@ -1,0 +1,970 @@
+From dc493016272b25f1dc7ed368ecb71abc0ce91cd5 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:16:55 -0500
+Subject: [PATCH] wip(r4-soa): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r4-soa.
+
+files: 3rd/toridraw/graphics/soa_census.c 3rd/toridraw/graphics/soa_census.h 3rd/toridraw/graphics/soa_pack.c 3rd/toridraw/graphics/soa_pack.h 3rd/toridraw/toridraw.c 3rd/toridraw/toridraw_model.c 3rd/toridraw/toridraw_render.u.c 3rd/toridraw/toridraw_types.h 3rd/toridraw/toridraw_unity.c
+---
+ 3rd/toridraw/graphics/soa_census.c | 490 +++++++++++++++++++++++++++++
+ 3rd/toridraw/graphics/soa_census.h |  43 +++
+ 3rd/toridraw/graphics/soa_pack.c   | 146 +++++++++
+ 3rd/toridraw/graphics/soa_pack.h   |  43 +++
+ 3rd/toridraw/toridraw.c            |  54 +++-
+ 3rd/toridraw/toridraw_model.c      |  27 ++
+ 3rd/toridraw/toridraw_render.u.c   |  13 +
+ 3rd/toridraw/toridraw_types.h      |  12 +
+ 3rd/toridraw/toridraw_unity.c      |   2 +
+ 9 files changed, 824 insertions(+), 6 deletions(-)
+ create mode 100644 3rd/toridraw/graphics/soa_census.c
+ create mode 100644 3rd/toridraw/graphics/soa_census.h
+ create mode 100644 3rd/toridraw/graphics/soa_pack.c
+ create mode 100644 3rd/toridraw/graphics/soa_pack.h
+
+diff --git a/3rd/toridraw/graphics/soa_census.c b/3rd/toridraw/graphics/soa_census.c
+new file mode 100644
+index 000000000..da46ec414
+--- /dev/null
++++ b/3rd/toridraw/graphics/soa_census.c
+@@ -0,0 +1,490 @@
++#include "graphics/soa_census.h"
++
++#if defined(TORIDRAW_SOA_CENSUS) && TORIDRAW_SOA_CENSUS
++
++#include "toridraw_types.h"
++
++#include <assert.h>
++#include <stdint.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#define SOA_LINE_BITS 6
++#define SOA_PAGE_BITS 12
++
++/* Per-frame distinct-line / distinct-page sets. Generation stamped so the
++ * per-frame reset is O(1). */
++#define SOA_SET_BITS 20
++#define SOA_SET_SIZE (1u << SOA_SET_BITS)
++#define SOA_SET_MASK (SOA_SET_SIZE - 1u)
++
++struct soa_set
++{
++    uint32_t* key;
++    uint32_t* gen;
++    uint32_t cur;
++    uint32_t count;
++};
++
++static struct soa_set g_line_set;
++static struct soa_set g_page_set;
++static struct soa_set g_vline_set; /* vertex arrays only */
++static struct soa_set g_fline_set; /* face arrays only */
++
++/* Distinct models seen over the whole run. */
++#define SOA_MODEL_BITS 15
++#define SOA_MODEL_SIZE (1u << SOA_MODEL_BITS)
++#define SOA_MODEL_MASK (SOA_MODEL_SIZE - 1u)
++static uint32_t g_model_key[SOA_MODEL_SIZE];
++static uint32_t g_model_used;
++static double g_model_bytes_distinct;
++
++static void
++soa_set_init(struct soa_set* s)
++{
++    s->key = calloc(SOA_SET_SIZE, sizeof(uint32_t));
++    s->gen = calloc(SOA_SET_SIZE, sizeof(uint32_t));
++    assert(s->key);
++    assert(s->gen);
++    s->cur = 1;
++    s->count = 0;
++}
++
++static void
++soa_set_reset(struct soa_set* s)
++{
++    s->cur++;
++    s->count = 0;
++}
++
++/* Returns 1 if newly inserted. */
++static int
++soa_set_add(struct soa_set* s, uint32_t k)
++{
++    uint32_t h = k * 2654435761u;
++    uint32_t i = h & SOA_SET_MASK;
++    uint32_t probes = 0;
++
++    for( ;; )
++    {
++        if( s->gen[i] != s->cur )
++        {
++            s->gen[i] = s->cur;
++            s->key[i] = k;
++            s->count++;
++            return 1;
++        }
++        if( s->key[i] == k )
++            return 0;
++        i = (i + 1) & SOA_SET_MASK;
++        probes++;
++        assert(probes < SOA_SET_SIZE);
++    }
++}
++
++/* ---- accumulators -------------------------------------------------- */
++
++struct soa_run
++{
++    double models; /* models censused */
++    double vertices;
++    double faces;
++
++    double vbytes;             /* bytes of the 3 vertex arrays */
++    double fbytes;             /* bytes of the face arrays */
++    double vlines_model;       /* distinct 64B lines per model, vertex arrays */
++    double flines_model;       /* distinct 64B lines per model, face arrays */
++    double lines_model;        /* distinct 64B lines per model, all arrays */
++    double packed_lines_model; /* lines the same bytes would need if packed */
++    double span_bytes;         /* max_end - min_start over the model arrays */
++    double arrays;             /* how many arrays were present */
++    double pages_model;        /* distinct 4K pages per model */
++
++    double frames;
++    double lines_frame; /* distinct 64B lines per FRAME */
++    double vlines_frame;
++    double flines_frame;
++    double pages_frame; /* distinct 4K pages per FRAME */
++    double models_frame;
++
++    /* histograms */
++    double vhist[8];
++    double fhist[8];
++};
++
++static struct soa_run g_run;
++static int g_inited;
++static uint32_t g_frame_models;
++
++/* per-model scratch: the model own line set is measured with a tiny
++ * generation-stamped table too. */
++#define SOA_MSET_BITS 12
++#define SOA_MSET_SIZE (1u << SOA_MSET_BITS)
++#define SOA_MSET_MASK (SOA_MSET_SIZE - 1u)
++static uint32_t g_mkey[SOA_MSET_SIZE];
++static uint32_t g_mgen[SOA_MSET_SIZE];
++static uint32_t g_mcur;
++
++static int
++soa_mset_add(uint32_t k)
++{
++    uint32_t h = k * 2654435761u;
++    uint32_t i = h & SOA_MSET_MASK;
++    uint32_t probes = 0;
++    for( ;; )
++    {
++        if( g_mgen[i] != g_mcur )
++        {
++            g_mgen[i] = g_mcur;
++            g_mkey[i] = k;
++            return 1;
++        }
++        if( g_mkey[i] == k )
++            return 0;
++        i = (i + 1) & SOA_MSET_MASK;
++        probes++;
++        assert(probes < SOA_MSET_SIZE);
++    }
++}
++
++static void
++soa_init(void)
++{
++    if( g_inited )
++        return;
++    g_inited = 1;
++    soa_set_init(&g_line_set);
++    soa_set_init(&g_page_set);
++    soa_set_init(&g_vline_set);
++    soa_set_init(&g_fline_set);
++    g_mcur = 1;
++    atexit(ToriDraw_SoaCensusDump);
++}
++
++static int g_scene_dumped;
++
++void
++ToriDraw_SoaCensusScene(const struct ToriDraw_Scene* scene)
++{
++    assert(scene);
++    if( g_scene_dumped )
++        return;
++    g_scene_dumped = 1;
++
++    fprintf(stderr, "=== soa scene scratch map ===\n");
++    fprintf(
++        stderr,
++        "max_vertices %d  max_faces %d  depth_levels %d  depth_stride %d\n",
++        scene->max_vertices,
++        scene->max_faces,
++        scene->depth_levels,
++        scene->depth_stride);
++#define P(name, ptr, bytes)                                                         \
++    do                                                                              \
++    {                                                                               \
++        uintptr_t a = (uintptr_t)(ptr);                                             \
++        fprintf(                                                                    \
++            stderr,                                                                 \
++            "  %-28s %p  bytes %-10lu L1set %2lu  page %lu\n",                      \
++            name,                                                                   \
++            (void*)(ptr),                                                           \
++            (unsigned long)(bytes),                                                 \
++            (unsigned long)((a >> 6) & 31u),                                        \
++            (unsigned long)(a >> 12));                                              \
++    } while( 0 )
++    P("screen_vertices_x", scene->screen_vertices_x, (unsigned long)scene->max_vertices * 4);
++    P("screen_vertices_y", scene->screen_vertices_y, (unsigned long)scene->max_vertices * 4);
++    P("screen_vertices_z", scene->screen_vertices_z, (unsigned long)scene->max_vertices * 4);
++    P("orthographic_vertices_x",
++      scene->orthographic_vertices_x,
++      (unsigned long)scene->max_vertices * 4);
++    P("orthographic_vertices_y",
++      scene->orthographic_vertices_y,
++      (unsigned long)scene->max_vertices * 4);
++    P("orthographic_vertices_z",
++      scene->orthographic_vertices_z,
++      (unsigned long)scene->max_vertices * 4);
++    P("tmp_face_order", scene->tmp_face_order, (unsigned long)scene->max_faces * 4);
++    P("tmp_depth_face_count", scene->tmp_depth_face_count, (unsigned long)scene->depth_levels * 2);
++    P("tmp_depth_faces",
++      scene->tmp_depth_faces,
++      (unsigned long)scene->depth_levels * (unsigned long)scene->depth_stride * 2);
++    P("tmp_priority_faces",
++      scene->tmp_priority_faces,
++      12ul * (unsigned long)scene->priority_stride * 2);
++#undef P
++    fprintf(stderr, "=== end soa scene scratch map ===\n");
++    fflush(stderr);
++}
++
++struct soa_arr
++{
++    const void* p;
++    unsigned long bytes;
++};
++
++static void
++soa_add_arrays(
++    const struct soa_arr* a,
++    int n,
++    struct soa_set* group,
++    double* out_model_lines,
++    uintptr_t* lo,
++    uintptr_t* hi,
++    double* out_bytes,
++    double* out_arrays)
++{
++    int i;
++    for( i = 0; i < n; i++ )
++    {
++        uintptr_t s;
++        uintptr_t e;
++        uintptr_t l;
++
++        if( !a[i].p || a[i].bytes == 0 )
++            continue;
++        s = (uintptr_t)a[i].p;
++        e = s + a[i].bytes;
++        *out_bytes += (double)a[i].bytes;
++        *out_arrays += 1.0;
++        if( s < *lo )
++            *lo = s;
++        if( e > *hi )
++            *hi = e;
++        for( l = (s >> SOA_LINE_BITS); l <= ((e - 1) >> SOA_LINE_BITS); l++ )
++        {
++            *out_model_lines += (double)soa_mset_add((uint32_t)l);
++            soa_set_add(group, (uint32_t)l);
++            soa_set_add(&g_line_set, (uint32_t)l);
++            soa_set_add(&g_page_set, (uint32_t)(l >> (SOA_PAGE_BITS - SOA_LINE_BITS)));
++        }
++    }
++}
++
++void
++ToriDraw_SoaCensusModel(const struct ToriDraw_Model* m)
++{
++    struct soa_arr varr[3];
++    struct soa_arr farr[16];
++    int nf = 0;
++    unsigned long vc;
++    unsigned long fc;
++    unsigned long tf;
++    uintptr_t lo = (uintptr_t)-1;
++    uintptr_t hi = 0;
++    double model_lines = 0.0;
++    double vlines = 0.0;
++    double flines = 0.0;
++    double bytes_v = 0.0;
++    double bytes_f = 0.0;
++    double arrays = 0.0;
++    uint32_t mi;
++
++    assert(m);
++    soa_init();
++
++    vc = (unsigned long)m->vertex_count;
++    fc = (unsigned long)m->face_count;
++    tf = (unsigned long)m->textured_face_count;
++
++    g_mcur++;
++
++    varr[0].p = m->vertices_x;
++    varr[0].bytes = vc * sizeof(vertexint_t);
++    varr[1].p = m->vertices_y;
++    varr[1].bytes = vc * sizeof(vertexint_t);
++    varr[2].p = m->vertices_z;
++    varr[2].bytes = vc * sizeof(vertexint_t);
++
++#define F(ptr, b)                  \
++    do                             \
++    {                              \
++        farr[nf].p = (ptr);        \
++        farr[nf].bytes = (b);      \
++        nf++;                      \
++    } while( 0 )
++    F(m->face_indices_a, fc * sizeof(faceint_t));
++    F(m->face_indices_b, fc * sizeof(faceint_t));
++    F(m->face_indices_c, fc * sizeof(faceint_t));
++    F(m->face_colors_a, fc * sizeof(hsl16_t));
++    F(m->face_colors_b, fc * sizeof(hsl16_t));
++    F(m->face_colors_c, fc * sizeof(hsl16_t));
++    F(m->face_infos, fc * sizeof(int));
++    F(m->face_priorities, (fc + 1) / 2);
++    F(m->face_alphas, fc * sizeof(alphaint_t));
++    F(m->face_textures, fc * sizeof(faceint_t));
++    F(m->face_texture_coords, fc * sizeof(faceint_t));
++    F(m->textured_p_coordinate, tf * sizeof(faceint_t));
++    F(m->textured_m_coordinate, tf * sizeof(faceint_t));
++    F(m->textured_n_coordinate, tf * sizeof(faceint_t));
++#undef F
++
++    soa_add_arrays(varr, 3, &g_vline_set, &vlines, &lo, &hi, &bytes_v, &arrays);
++    model_lines += vlines;
++    soa_add_arrays(farr, nf, &g_fline_set, &flines, &lo, &hi, &bytes_f, &arrays);
++    model_lines += flines;
++
++    g_run.models += 1.0;
++    g_run.vertices += (double)vc;
++    g_run.faces += (double)fc;
++    g_run.vbytes += bytes_v;
++    g_run.fbytes += bytes_f;
++    g_run.vlines_model += vlines;
++    g_run.flines_model += flines;
++    g_run.lines_model += model_lines;
++    g_run.arrays += arrays;
++    g_run.packed_lines_model += (bytes_v + bytes_f + 63.0) / 64.0;
++    if( hi > lo )
++    {
++        g_run.span_bytes += (double)(hi - lo);
++        g_run.pages_model +=
++            (double)(((hi - 1) >> SOA_PAGE_BITS) - (lo >> SOA_PAGE_BITS) + 1);
++    }
++    g_frame_models++;
++
++    {
++        int vb = 0;
++        int fb = 0;
++        while( vb < 7 && vc > (unsigned long)(8u << vb) )
++            vb++;
++        g_run.vhist[vb] += 1.0;
++        while( fb < 7 && fc > (unsigned long)(8u << fb) )
++            fb++;
++        g_run.fhist[fb] += 1.0;
++    }
++
++    /* distinct models over the run */
++    mi = ((uint32_t)(uintptr_t)m * 2654435761u) & SOA_MODEL_MASK;
++    for( ;; )
++    {
++        if( g_model_key[mi] == 0 )
++        {
++            g_model_key[mi] = (uint32_t)(uintptr_t)m;
++            g_model_used++;
++            g_model_bytes_distinct += bytes_v + bytes_f;
++            break;
++        }
++        if( g_model_key[mi] == (uint32_t)(uintptr_t)m )
++            break;
++        mi = (mi + 1) & SOA_MODEL_MASK;
++    }
++}
++
++void
++ToriDraw_SoaCensusFrameEnd(void)
++{
++    if( !g_inited )
++        return;
++    if( g_frame_models == 0 )
++        return;
++    g_run.frames += 1.0;
++    g_run.lines_frame += (double)g_line_set.count;
++    g_run.vlines_frame += (double)g_vline_set.count;
++    g_run.flines_frame += (double)g_fline_set.count;
++    g_run.pages_frame += (double)g_page_set.count;
++    g_run.models_frame += (double)g_frame_models;
++    g_frame_models = 0;
++    soa_set_reset(&g_line_set);
++    soa_set_reset(&g_page_set);
++    soa_set_reset(&g_vline_set);
++    soa_set_reset(&g_fline_set);
++}
++
++void
++ToriDraw_SoaCensusDump(void)
++{
++    const char* path = getenv("TORIDRAW_SOA_CENSUS_FILE");
++    FILE* f = stderr;
++    double n;
++    double fr;
++    int i;
++
++    if( g_run.models < 1.0 )
++        return;
++    if( path )
++    {
++        FILE* o = fopen(path, "w");
++        if( o )
++            f = o;
++    }
++    n = g_run.models;
++    fr = g_run.frames > 0.0 ? g_run.frames : 1.0;
++
++    fprintf(f, "=== soa census ===\n");
++    fprintf(
++        f,
++        "models censused    %.0f over %.0f frames  (%.1f/frame)\n",
++        n,
++        g_run.frames,
++        g_run.models_frame / fr);
++    fprintf(
++        f,
++        "distinct models    %u   holding %.0f bytes (%.1f KB) of hot arrays\n",
++        g_model_used,
++        g_model_bytes_distinct,
++        g_model_bytes_distinct / 1024.0);
++    fprintf(f, "vertices/model     %.2f      faces/model %.2f\n", g_run.vertices / n, g_run.faces / n);
++    fprintf(f, "arrays/model       %.2f\n", g_run.arrays / n);
++    fprintf(f, "\n-- PER MODEL --\n");
++    fprintf(
++        f, "vertex bytes       %.1f   -> %.2f lines\n", g_run.vbytes / n, g_run.vlines_model / n);
++    fprintf(
++        f, "face   bytes       %.1f   -> %.2f lines\n", g_run.fbytes / n, g_run.flines_model / n);
++    fprintf(
++        f,
++        "TOTAL  bytes       %.1f   -> %.2f lines (%.1f useful B per 64B line)\n",
++        (g_run.vbytes + g_run.fbytes) / n,
++        g_run.lines_model / n,
++        (g_run.vbytes + g_run.fbytes) / g_run.lines_model);
++    fprintf(
++        f,
++        "if PACKED          %.2f lines   => %.2fx fewer lines\n",
++        g_run.packed_lines_model / n,
++        g_run.lines_model / g_run.packed_lines_model);
++    fprintf(
++        f,
++        "address span       %.0f bytes  (%.2fx the bytes it holds)\n",
++        g_run.span_bytes / n,
++        g_run.span_bytes / (g_run.vbytes + g_run.fbytes));
++    fprintf(f, "4K pages/model     %.2f\n", g_run.pages_model / n);
++    fprintf(f, "\n-- PER FRAME (distinct, union over all models) --\n");
++    fprintf(f, "models             %.1f\n", g_run.models_frame / fr);
++    fprintf(
++        f,
++        "distinct 64B lines %.0f   = %.1f KB resident footprint\n",
++        g_run.lines_frame / fr,
++        g_run.lines_frame / fr * 64.0 / 1024.0);
++    fprintf(
++        f,
++        "  vertex arrays    %.0f   = %.1f KB\n",
++        g_run.vlines_frame / fr,
++        g_run.vlines_frame / fr * 64.0 / 1024.0);
++    fprintf(
++        f,
++        "  face arrays      %.0f   = %.1f KB\n",
++        g_run.flines_frame / fr,
++        g_run.flines_frame / fr * 64.0 / 1024.0);
++    fprintf(f, "distinct 4K pages  %.0f   (DTLB is 64 entries)\n", g_run.pages_frame / fr);
++    fprintf(
++        f,
++        "line TOUCHES/frame %.0f  (sum over models, re-touches counted)\n",
++        g_run.lines_model / fr);
++    fprintf(
++        f,
++        "reuse factor       %.2f touches per distinct line\n",
++        g_run.lines_model / g_run.lines_frame);
++    fprintf(f, "\n-- HISTOGRAMS (models by count) --\n");
++    fprintf(f, "vertices  ");
++    for( i = 0; i < 8; i++ )
++        fprintf(f, "<=%u:%.1f%%  ", 8u << i, 100.0 * g_run.vhist[i] / n);
++    fprintf(f, "\nfaces     ");
++    for( i = 0; i < 8; i++ )
++        fprintf(f, "<=%u:%.1f%%  ", 8u << i, 100.0 * g_run.fhist[i] / n);
++    fprintf(f, "\n=== end soa census ===\n");
++    fflush(f);
++    if( f != stderr )
++        fclose(f);
++}
++
++#endif
+diff --git a/3rd/toridraw/graphics/soa_census.h b/3rd/toridraw/graphics/soa_census.h
+new file mode 100644
+index 000000000..ed6d4d510
+--- /dev/null
++++ b/3rd/toridraw/graphics/soa_census.h
+@@ -0,0 +1,43 @@
++#ifndef TORIDRAW_SOA_CENSUS_H
++#define TORIDRAW_SOA_CENSUS_H
++
++/*
++ * ROUTE soa census. Measures the MEMORY FOOTPRINT of the per-model SoA arrays
++ * the projection/sort/raster pipeline reads, in 64-byte lines and 4 KB pages,
++ * against the Pentium 4 Prescott's 16 KB L1D / 1 MB L2 / 64-entry DTLB.
++ *
++ * Never time a binary built with this on -- it hashes every line touched.
++ */
++
++struct ToriDraw_Model;
++struct ToriDraw_Scene;
++
++#if defined(TORIDRAW_SOA_CENSUS) && TORIDRAW_SOA_CENSUS
++
++void
++ToriDraw_SoaCensusScene(const struct ToriDraw_Scene* scene);
++
++void
++ToriDraw_SoaCensusModel(const struct ToriDraw_Model* model);
++
++void
++ToriDraw_SoaCensusFrameEnd(void);
++
++void
++ToriDraw_SoaCensusDump(void);
++
++#define TORIDRAW_SOA_CENSUS_SCENE(s)  ToriDraw_SoaCensusScene((s))
++#define TORIDRAW_SOA_CENSUS_MODEL(m)  ToriDraw_SoaCensusModel((m))
++#define TORIDRAW_SOA_CENSUS_FRAME()   ToriDraw_SoaCensusFrameEnd()
++#define TORIDRAW_SOA_CENSUS_DUMP()    ToriDraw_SoaCensusDump()
++
++#else
++
++#define TORIDRAW_SOA_CENSUS_SCENE(s)  ((void)0)
++#define TORIDRAW_SOA_CENSUS_MODEL(m)  ((void)0)
++#define TORIDRAW_SOA_CENSUS_FRAME()   ((void)0)
++#define TORIDRAW_SOA_CENSUS_DUMP()    ((void)0)
++
++#endif
++
++#endif
+diff --git a/3rd/toridraw/graphics/soa_pack.c b/3rd/toridraw/graphics/soa_pack.c
+new file mode 100644
+index 000000000..bdf73d725
+--- /dev/null
++++ b/3rd/toridraw/graphics/soa_pack.c
+@@ -0,0 +1,146 @@
++#include "graphics/soa_pack.h"
++
++#include "toridraw_types.h"
++
++#include <assert.h>
++#include <stdint.h>
++#include <stdlib.h>
++#include <string.h>
++
++static int g_soa_pack_inited = 0;
++static int g_soa_pack_enabled = 0;
++static int g_soa_scratch_skew = 0;
++
++static int
++soa_env_on(const char* name)
++{
++    const char* v = getenv(name);
++
++    assert(name);
++    if( !v )
++        return 0;
++    return v[0] == '1';
++}
++
++void
++ToriDraw_SoaPackInit(void)
++{
++    if( g_soa_pack_inited )
++        return;
++    g_soa_pack_inited = 1;
++    g_soa_pack_enabled = soa_env_on("TORIDRAW_MODEL_PACK");
++    g_soa_scratch_skew = soa_env_on("TORIDRAW_SCRATCH_SKEW");
++}
++
++int
++ToriDraw_SoaPackEnabled(void)
++{
++    return g_soa_pack_enabled;
++}
++
++int
++ToriDraw_SoaScratchSkewEnabled(void)
++{
++    return g_soa_scratch_skew;
++}
++
++/*
++ * The arrays, in the order the frame reads them: project, then sort, then
++ * raster. Keeping that order is the point -- the projection loop's three
++ * vertex streams end up on the same one or two lines instead of three.
++ */
++#define SOA_PACK_MAX 18
++
++struct soa_pack_ent
++{
++    void** slot;
++    size_t bytes;
++    size_t offset;
++};
++
++void
++ToriDraw_ModelPackArrays(struct ToriDraw_Model* model)
++{
++    struct soa_pack_ent ent[SOA_PACK_MAX];
++    int n = 0;
++    size_t total = 0;
++    unsigned char* arena;
++    int i;
++    size_t vc;
++    size_t fc;
++    size_t tc;
++
++    assert(model);
++
++    if( model->soa_packed )
++        return;
++    model->soa_packed = 1;
++
++    vc = model->vertex_count > 0 ? (size_t)model->vertex_count : 0;
++    fc = model->face_count > 0 ? (size_t)model->face_count : 0;
++    tc = model->textured_face_count > 0 ? (size_t)model->textured_face_count : 0;
++
++#define SOA_ADD(field, nbytes)                     \
++    do                                             \
++    {                                              \
++        size_t b_ = (size_t)(nbytes);              \
++        if( model->field && b_ > 0 )               \
++        {                                          \
++            assert(n < SOA_PACK_MAX);              \
++            ent[n].slot = (void**)&model->field;   \
++            ent[n].bytes = b_;                     \
++            n++;                                   \
++        }                                          \
++    } while( 0 )
++
++    /* projection */
++    SOA_ADD(vertices_x, vc * sizeof(vertexint_t));
++    SOA_ADD(vertices_y, vc * sizeof(vertexint_t));
++    SOA_ADD(vertices_z, vc * sizeof(vertexint_t));
++    /* sort */
++    SOA_ADD(face_indices_a, fc * sizeof(faceint_t));
++    SOA_ADD(face_indices_b, fc * sizeof(faceint_t));
++    SOA_ADD(face_indices_c, fc * sizeof(faceint_t));
++    SOA_ADD(face_infos, fc * sizeof(int));
++    SOA_ADD(face_priorities, (fc + 1) / 2);
++    /* raster */
++    SOA_ADD(face_colors_a, fc * sizeof(hsl16_t));
++    SOA_ADD(face_colors_b, fc * sizeof(hsl16_t));
++    SOA_ADD(face_colors_c, fc * sizeof(hsl16_t));
++    SOA_ADD(face_alphas, fc * sizeof(alphaint_t));
++    SOA_ADD(face_textures, fc * sizeof(faceint_t));
++    SOA_ADD(face_texture_coords, fc * sizeof(faceint_t));
++    /* textured raster */
++    SOA_ADD(textured_p_coordinate, tc * sizeof(faceint_t));
++    SOA_ADD(textured_m_coordinate, tc * sizeof(faceint_t));
++    SOA_ADD(textured_n_coordinate, tc * sizeof(faceint_t));
++    SOA_ADD(texture_render_types, tc * sizeof(uint8_t));
++
++#undef SOA_ADD
++
++    if( n == 0 )
++        return;
++
++    /*
++     * 8-byte slots, matching what malloc already guarantees on this target --
++     * the SSE2 projection kernel does _mm_loadl_epi64 straight off
++     * vertices_x/y/z and must not become less aligned than it is today.
++     */
++    for( i = 0; i < n; i++ )
++    {
++        ent[i].offset = total;
++        total += (ent[i].bytes + 7u) & ~(size_t)7u;
++    }
++
++    arena = (unsigned char*)malloc(total);
++    assert(arena);
++
++    for( i = 0; i < n; i++ )
++    {
++        memcpy(arena + ent[i].offset, *ent[i].slot, ent[i].bytes);
++        free(*ent[i].slot);
++        *ent[i].slot = arena + ent[i].offset;
++    }
++
++    model->soa_arena = arena;
++}
+diff --git a/3rd/toridraw/graphics/soa_pack.h b/3rd/toridraw/graphics/soa_pack.h
+new file mode 100644
+index 000000000..615563ddd
+--- /dev/null
++++ b/3rd/toridraw/graphics/soa_pack.h
+@@ -0,0 +1,43 @@
++#ifndef TORIDRAW_GRAPHICS_SOA_PACK_H
++#define TORIDRAW_GRAPHICS_SOA_PACK_H
++
++/*
++ * ROUTE soa: one contiguous arena per model for the render-hot SoA arrays.
++ *
++ * Measured (TORIDRAW_SOA_CENSUS, 873 moving-camera frames, 1,574,187 model
++ * projections): a drawn model carries 571.8 bytes of hot arrays across 10.76
++ * separate mallocs, and those land on 15.88 distinct 64-byte lines -- 36.0
++ * useful bytes per line. Packed back to back the same bytes need 9.92 lines.
++ * Per frame the union is 23,472 distinct lines (1,467 KB, larger than the 1 MB
++ * L2) over 1,081 distinct 4 KB pages (the DTLB holds 64), touched 1.22 times
++ * each -- i.e. streamed, not resident, so the line count IS the miss count.
++ *
++ * Bit-exact: the bytes and their order inside each array are unchanged; only
++ * the addresses move. Off unless TORIDRAW_MODEL_PACK=1 is in the environment.
++ */
++
++#include <stddef.h>
++
++struct ToriDraw_Model;
++
++/** Read the env knobs once. Safe to call more than once. */
++void
++ToriDraw_SoaPackInit(void);
++
++/** 1 when TORIDRAW_MODEL_PACK=1 was set. */
++int
++ToriDraw_SoaPackEnabled(void);
++
++/** 1 when TORIDRAW_SCRATCH_SKEW=1 was set. */
++int
++ToriDraw_SoaScratchSkewEnabled(void);
++
++/**
++ * Move the render-hot arrays of `model` into one allocation.
++ *
++ * Idempotent via model->soa_packed. The old per-array allocations are freed.
++ */
++void
++ToriDraw_ModelPackArrays(struct ToriDraw_Model* model);
++
++#endif
+diff --git a/3rd/toridraw/toridraw.c b/3rd/toridraw/toridraw.c
+index b2a4729f7..395117f58 100644
+--- a/3rd/toridraw/toridraw.c
++++ b/3rd/toridraw/toridraw.c
+@@ -2,6 +2,8 @@
+ #include <assert.h>
+ 
+ #include "toridraw_types.h"
++#include "graphics/soa_census.h"
++#include "graphics/soa_pack.h"
+ 
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -260,6 +262,18 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
+     if( !scene )
+         return;
+ 
++    if( scene->scratch_block )
++    {
++        /* The six are sub-allocations of one skewed block; free that instead. */
++        free(scene->scratch_block);
++        scene->scratch_block = NULL;
++        scene->screen_vertices_x = NULL;
++        scene->screen_vertices_y = NULL;
++        scene->screen_vertices_z = NULL;
++        scene->orthographic_vertices_x = NULL;
++        scene->orthographic_vertices_y = NULL;
++        scene->orthographic_vertices_z = NULL;
++    }
+     free(scene->screen_vertices_x);
+     free(scene->screen_vertices_y);
+     free(scene->screen_vertices_z);
+@@ -302,12 +316,37 @@ ToriDraw_SceneAllocBuffers(
+     scene->flex_prio_capacity =
+         caps->flex_prio11 < caps->flex_prio12 ? caps->flex_prio11 : caps->flex_prio12;
+ 
+-    scene->screen_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
+-    scene->screen_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
+-    scene->screen_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
+-    scene->orthographic_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
+-    scene->orthographic_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
+-    scene->orthographic_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
++    ToriDraw_SoaPackInit();
++    if( ToriDraw_SoaScratchSkewEnabled() )
++    {
++        /*
++         * ROUTE soa. Measured: the six arrays are equal-sized mallocs, so glibc
++         * hands them out 65,544 bytes apart -- 8 mod 2048, i.e. the SAME L1D
++         * set. The projection loop writes all six at the same index, so six of
++         * the eight ways of one set carry the whole scratch while the other 31
++         * sets carry none of it. One block, each array skewed by 128 bytes
++         * (two sets) past the previous, spreads them over 12 sets instead.
++         */
++        size_t const span = (size_t)caps->max_vertices * sizeof(int) + 128u;
++        unsigned char* block = (unsigned char*)malloc(span * 6u);
++        assert(block);
++        scene->scratch_block = block;
++        scene->screen_vertices_x = (int*)(block + span * 0u);
++        scene->screen_vertices_y = (int*)(block + span * 1u);
++        scene->screen_vertices_z = (int*)(block + span * 2u);
++        scene->orthographic_vertices_x = (int*)(block + span * 3u);
++        scene->orthographic_vertices_y = (int*)(block + span * 4u);
++        scene->orthographic_vertices_z = (int*)(block + span * 5u);
++    }
++    else
++    {
++        scene->screen_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
++        scene->screen_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
++        scene->screen_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
++        scene->orthographic_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
++        scene->orthographic_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));
++        scene->orthographic_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
++    }
+     scene->tmp_face_order = malloc((size_t)caps->max_faces * sizeof(int));
+ 
+     assert(scene->screen_vertices_x);
+@@ -755,6 +794,9 @@ ToriDraw_ScenePrepareProjectionCamera(
+         prepared->cot15[lane] = values[4];
+     }
+     scene->projection_prepared_camera_source = camera;
++
++    TORIDRAW_SOA_CENSUS_SCENE(scene);
++    TORIDRAW_SOA_CENSUS_FRAME();
+ }
+ 
+ void
+diff --git a/3rd/toridraw/toridraw_model.c b/3rd/toridraw/toridraw_model.c
+index 649a8f6c0..bcfb40082 100644
+--- a/3rd/toridraw/toridraw_model.c
++++ b/3rd/toridraw/toridraw_model.c
+@@ -449,6 +449,33 @@ ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
+ static void
+ ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
+ {
++    /* ROUTE soa: a packed model owns its render-hot arrays through one arena.
++     * Release that and NULL the slots, so the per-array frees below become
++     * free(NULL) for the packed set and still run for everything else. */
++    if( m->soa_arena )
++    {
++        free(m->soa_arena);
++        m->soa_arena = NULL;
++        m->vertices_x = NULL;
++        m->vertices_y = NULL;
++        m->vertices_z = NULL;
++        m->face_indices_a = NULL;
++        m->face_indices_b = NULL;
++        m->face_indices_c = NULL;
++        m->face_infos = NULL;
++        m->face_priorities = NULL;
++        m->face_colors_a = NULL;
++        m->face_colors_b = NULL;
++        m->face_colors_c = NULL;
++        m->face_alphas = NULL;
++        m->face_textures = NULL;
++        m->face_texture_coords = NULL;
++        m->textured_p_coordinate = NULL;
++        m->textured_m_coordinate = NULL;
++        m->textured_n_coordinate = NULL;
++        m->texture_render_types = NULL;
++    }
++
+     free(m->vertices_x);
+     free(m->vertices_y);
+     free(m->vertices_z);
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..6b167e9a9 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -3,6 +3,8 @@
+ #include "graphics/dash_restrict.h"
+ #include "graphics/projection.h"
+ #include "graphics/winding.h"
++#include "graphics/soa_census.h"
++#include "graphics/soa_pack.h"
+ #include "toridraw_math.h"
+ #include "toridraw_model_internal.h"
+ #include "toridraw_types.h"
+@@ -2852,6 +2854,17 @@ ToriDraw_Project(
+ 
+     scene->near_clipped = may_clip;
+ 
++    if( ToriDraw_ModelKindIsFull(hnd.kind) )
++    {
++        struct ToriDraw_Model* soa_m = model_as_full(hnd);
++        TORIDRAW_SOA_CENSUS_MODEL(soa_m);
++        /* ROUTE soa: first time this model is actually drawn, fold its
++         * render-hot arrays into one allocation. Bit-exact -- only addresses
++         * move -- and one-shot, latched by soa_packed. */
++        if( ToriDraw_SoaPackEnabled() && !soa_m->soa_packed )
++            ToriDraw_ModelPackArrays(soa_m);
++    }
++
+     if( toridraw_proj_is_parallel(camera->proj_mode) )
+     {
+         /*
+diff --git a/3rd/toridraw/toridraw_types.h b/3rd/toridraw/toridraw_types.h
+index 375b5bbea..29ff39534 100644
+--- a/3rd/toridraw/toridraw_types.h
++++ b/3rd/toridraw/toridraw_types.h
+@@ -220,6 +220,13 @@ struct ToriDraw_Model
+     struct ToriDraw_Bones* face_bones;
+     struct ToriDraw_BoundsCylinder* bounds_cylinder;
+ 
++    /* ROUTE soa: when non-NULL, every render-hot array above lives inside this
++     * one allocation and ToriDraw_ModelFree_arrays releases it instead of them.
++     * `soa_packed` is the one-shot latch, set even when there was nothing to
++     * pack so the render path stops re-asking. */
++    void* soa_arena;
++    uint8_t soa_packed;
++
+     /* Animaya per-vertex skin (NULL if no skeletal rigging) */
+     int      animaya_vertex_count;
+     uint8_t* animaya_group_counts; /* [animaya_vertex_count] */
+@@ -689,6 +696,11 @@ struct ToriDraw_Scene
+     int* tmp_face_order;
+     int tmp_face_order_count;
+ 
++    /* ROUTE soa: when non-NULL the six screen/orthographic vertex scratch
++     * arrays are sub-allocations of this one block, skewed so they do not all
++     * land in the same L1D set. Freeing it replaces freeing the six. */
++    void* scratch_block;
++
+     faceint_t sparse_a[4096];
+     faceint_t sparse_b[4096];
+     faceint_t sparse_c[4096];
+diff --git a/3rd/toridraw/toridraw_unity.c b/3rd/toridraw/toridraw_unity.c
+index e9db3a847..0bba2ff42 100644
+--- a/3rd/toridraw/toridraw_unity.c
++++ b/3rd/toridraw/toridraw_unity.c
+@@ -29,6 +29,8 @@
+ #include "graphics/raster/face_census.c"
+ #include "graphics/raster/gouraudhsllightness/sarea_census.c"
+ #include "graphics/proj_census.c"
++#include "graphics/soa_census.c"
++#include "graphics/soa_pack.c"
+ #include "graphics/raster/span_census.c"
+ #include "graphics/shared_tables.c"
+ #include "osrs/palette.c"

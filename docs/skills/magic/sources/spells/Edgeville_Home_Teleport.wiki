@@ -1,0 +1,42 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Edgeville Home Teleport
+|image = [[File:Edgeville Home Teleport.png]]
+|release = [[15 May]] [[2007]]
+|update = Dream Mentor
+|members = No
+|level = 1
+|spellbook = Ancient
+|type = Teleport
+|exp = 0
+|cost = None ''(see article)''
+|speed = 24 ticks (default)<br/>Variable ([[Animation overrides#Home Teleport|animation]])
+|cooldown = 3,000 ticks
+|description = Requires no runes - recharge time 30 mins. Warning: This spell takes a long time to cast and will be interrupted by combat.
+|anim = [[File:Home Teleport.gif]]
+|sound = [[File:Home Teleport.ogg]]
+}}
+[[File:Edgeville Home Teleport icon (mobile).png|left|class=pageimage]]
+'''Edgeville Home Teleport''' is the [[home teleport]] of the [[Ancient Magicks]]. It provides players with a free [[teleport]] every half an hour to [[Edgeville]]. It takes around 10 seconds to cast the spell, and importantly, this can be interrupted at any time by [[combat]], and only can be cast 10 seconds or more after combat has ended (similar to logging out). The spell may also only be used every 30 minutes: if a player tries to cast it before 30 minutes have elapsed, they are notified with the remaining time in minutes.
+
+This cooldown is shared with that of other home teleports. Switching spell book will not allow you to use a different home teleport spell until 30 minutes has elapsed.
+
+Although you may only switch to [[Ancient Magicks]] on a [[members]]' server, this home teleport spell will work in F2P.
+
+As with all home teleports, the Edgeville Home Teleport default animation can be overridden with an alternative [[Animation overrides#Home Teleport|animation]], if unlocked.
+
+==Destination==
+
+{{Map|3087,3504|3090,3504|3090,3501|3087,3501|mtype=polygon|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 December 2025
+|update = More Sailing and Interface Changes
+|change = The spell's icon will now appear grey if it is on cooldown.
+}}
+{{Subject changes footer}}
+
+{{Ancient Magicks}}
+{{Teleport spells}}

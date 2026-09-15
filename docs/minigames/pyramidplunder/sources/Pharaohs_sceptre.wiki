@@ -1,0 +1,400 @@
+{{External|rs|dw=Pharaoh's Sceptre}}
+{{otheruses|the [[Pyramid Plunder]] [[minigame]] reward|the [[Stronghold of Security]] reward|Skull sceptre}}
+{{Infobox Item
+|defver = 2
+|version1 = Uncharged
+|version2 = Charged
+|name1 = Pharaoh's sceptre (uncharged)
+|name2 = Pharaoh's sceptre
+|image1 = [[File:Pharaoh's sceptre.png]]
+|image2 = [[File:Pharaoh's sceptre (1).png]]
+|release = [[27 April]] [[2022]]
+|update = Beneath Cursed Sands
+|members = Yes
+|quest = No
+|tradeable1 = Yes
+|tradeable2 = No
+|equipable = Yes
+|stackable = No
+|noteable1 = Yes
+|noteable2 = No
+|options1 = Wield, Check, Drop
+|options2 = Wield, Teleport, Last-Teleport, Check, Uncharge
+|wornoptions1 = None
+|wornoptions2 = Jalsavrah, Jaleustrophos, Jaldraocht, Jaltevas, Check
+|examine1 = This sceptre has no remaining charges.
+|examine2 = An ancient and powerful sceptre.
+|value = 83334
+|weight = 2.000
+|exchange1 = Yes
+|exchange2 = No
+|id1 = 26945
+|id2 = 26948,26950
+|leagueRegion = Desert
+}}
+{{Synced switch
+|version1 = [[File:Pharaoh's sceptre (uncharged) detail.png|left|150px]]
+|version2 = [[File:Pharaoh's sceptre detail.png|left|150px]]
+}}
+The '''pharaoh's sceptre''' is a [[polestaff]] found during the [[Pyramid Plunder]] [[minigame]] in [[Sophanem]], from the [[Grand Gold Chest|golden chests]] and [[Sarcophagus (Pyramid Plunder)|sarcophagi]]. It requires 30 [[Attack]] and 30 [[Magic]] to wield.
+
+The sceptre provides teleports to each of the great pyramids of the [[Kharidian Desert]], using a charge to do so. By default, the sceptre holds three charges. Players who have progressed in the [[Desert Diary]] have their sceptre hold more charges; up to 10 with the easy diary, 25 with the medium diary, 50 with the hard diary, and 100 with the elite diary.
+
+It is one of only a [[Wilderness#Member_teleportation_up_to_level_30_Wilderness|few teleports]] that work up to level 30 Wilderness, while most other means of [[teleport|teleportation]] will not work above level 20 Wilderness.
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Charged
+|astab = +7
+|aslash = -1
+|acrush = +25
+|amagic = +10
+|arange = +0
+|dstab = +2
+|dslash = +3
+|dcrush = +1
+|dmagic = +10
+|drange = +0
+|str = +32
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 5
+|attackrange = 1
+|combatstyle = Polestaff
+|image = [[File:Pharaoh's sceptre equipped.png|170px]]
+|altimage = [[File:Pharaoh's sceptre equipped female.png|150px]]
+}}
+
+{{CombatStyles|Polestaff|speed=5|attackrange=1}}
+
+==Teleportation options==
+[[File:Pharaoh's sceptre teleport.gif|thumb|200px|A player using the Pharaoh's sceptre teleport.]]
+{{TeleportLocationTableHead}}
+{{TeleportLocationLine|name=1. [[Jalsavrah]], the Tomb of Kings. Teleports players to the starting lobby of [[Pyramid Plunder]]. 
+
+''This is the default teleport destination if the player has never used the sceptre before.''|x=1934|y=4428|plane=3|mapID=10129|mtype=pin}}
+{{TeleportLocationLine|name=2. [[Jaleustrophos]], the Tomb of the Agile. Teleports players by [[Simon Templeton]]'s camp.|x=3341|y=2827|plane=0|mtype=pin}}
+{{TeleportLocationLine|name=3. [[Jaldraocht]], the Tomb of Magic. Teleports players to the pyramid entrance.|x=3232|y=2897|plane=0|mtype=pin}}
+{{TeleportLocationLine|name=4. [[Jaltevas]], the Tomb of the Father. Teleports players next to the [[Obelisk (Necropolis)|obelisk]] in the [[necropolis]].
+
+Players must commune with the obelisk with the sceptre in your inventory before being able to teleport here. The sceptre does not need to be charged for communing to unlock the teleport.|x=3313|y=2718|plane=0|mtype=pin}}
+{{TableBottom}}
+
+==Recharging==
+To recharge the sceptre, the player must talk to the [[guardian mummy]] inside Jalsavrah, the Pyramid Plunder pyramid. The mummy will complain about the player owning the sceptre, but will recharge it anyway.
+
+The player must give the mummy either 6 Gold artefacts, 12 Stone artefacts, or 24 pottery/ivory artefacts to '''fully''' recharge the sceptre. Different shaped artefacts may be combined as long as they are all the same material, and noted artefacts are accepted. It is recommended that the sceptre's last charge be used to teleport to [[Pyramid Plunder]] for recharging, as it is a fairly lengthy trip to return there without a teleport.
+
+By default, the sceptre is recharged to three charges. Players who have progressed in the [[Desert Diary]] have their sceptre recharged with more charges; up to 10 with the easy diary, 25 with the medium diary, 50 with the hard diary, and 100 with the elite diary.
+
+The following table shows recharge costs for each individual artefact according to Grand Exchange prices and compares the value of artefacts when sold to [[Simon Templeton]]. Note the items within the same artefact class may be combined to satisfy the required count. 
+
+Simon's purchase price may be useful for ironmen when comparing which artefacts to save for charges. As a general rule, using Gold artefacts are the most costly options.
+
+Artefacts can be noted when recharging the sceptre. 
+
+{| class="wikitable sortable align-left-1 align-left-3" style="text-align:center"
+!Artefact Class
+!colspan=2|Item
+!Required count
+!GE cost to charge 
+!Sale price to Simon
+|-
+|Ivory/Pottery
+|{{plinkt|Ivory comb}}
+|24
+|{{Coins|{{GEP|Ivory comb}} * 24}}
+|{{Coins|50 * 24}}
+|-
+|Ivory/Pottery
+|{{plinkt|Pottery scarab}}
+|24
+|{{Coins|{{GEP|Pottery scarab}} * 24}}
+|{{Coins|75 * 24}}
+|-
+|Ivory/Pottery
+|{{plinkt|Pottery statuette}}
+|24
+|{{Coins|{{GEP|Pottery statuette}} * 24}}
+|{{Coins|100 * 24}}
+|-
+|Stone
+|{{plinkt|Stone seal}}
+|12
+|{{Coins|{{GEP|Stone seal}} * 12}}
+|{{Coins|150 * 12}}
+|-
+|Stone
+|{{plinkt|Stone scarab}}
+|12
+|{{Coins|{{GEP|Stone scarab}} * 12}}
+|{{Coins|175 * 12}}
+|-
+|Stone
+|{{plinkt|Stone statuette}}
+|12
+|{{Coins|{{GEP|Stone statuette}} * 12}}
+|{{Coins|200 * 12}}
+|-
+|Gold
+|{{plinkt|Gold seal}}
+|6
+|{{Coins|{{GEP|Gold seal}} * 6}}
+|{{Coins|750 * 6}}
+|-
+|Gold
+|{{plinkt|Golden scarab}}
+|6
+|{{Coins|{{GEP|Golden scarab}} * 6}}
+|{{Coins|1000 * 6}}
+|-
+|Gold
+|{{plinkt|Golden statuette}}
+|6
+|{{Coins|{{GEP|Golden statuette}} * 6}}
+|{{Coins|1250 * 6}}
+|}
+
+==Products==
+{{Uses material list|Pharaoh's sceptre (uncharged)}}
+
+==Obtaining==
+Pharaoh's sceptres are a very rare reward received from the [[Grand Gold Chest|golden chest]]s and [[Sarcophagus (Pyramid Plunder)|sarcophagi]] during the [[Pyramid Plunder]] minigame. The chance of receiving a pharaoh's sceptre scales depending on the room. When a player finds the sceptre, they are immediately ejected from the pyramid. If the player had no free inventory space when they found the sceptre, it will appear on the ground under them when they are outside the pyramid.
+
+{| class="wikitable"
+!
+!
+! colspan="2" |Chance per Room
+! colspan="4" |Cumulative Chance
+|-
+!Room
+!Lvl Req
+!Chest
+!Sarcophagus
+!Chests
+!Both
+!Chests 4-8
+!Both 4-8
+|-
+|'''1'''
+|{{SCP|Thieving|21+}}
+|1/4,200
+|1/4,200
+|~1/4,200
+|~1/2,100
+| -
+| -
+|-
+|'''2'''
+|{{SCP|Thieving|31+}}
+|1/2,800
+|1/2,800
+|~1/1,680
+|~1/840
+| -
+| -
+|-
+|'''3'''
+|{{SCP|Thieving|41+}}
+|1/1,600
+|1/1,600
+|~1/820
+|~1/410
+| -
+| -
+|-
+|'''4'''
+|{{SCP|Thieving|51+}}
+|1/950
+|1/950
+|~1/440
+|~1/220
+|~1/950
+|~1/475
+|-
+|'''5'''
+|{{SCP|Thieving|61+}}
+|1/800
+|1/800
+|~1/284
+|~1/142
+|~1/435
+|~1/218
+|-
+|'''6'''
+|{{SCP|Thieving|71+}}
+|1/750
+|1/750
+|~1/206
+|~1/103
+|~1/275
+|~1/138
+|-
+|'''7'''
+|{{SCP|Thieving|81+}}
+|1/650
+|1/650
+|~1/157
+|~1/78
+|~1/194
+|~1/97
+|-
+|'''8'''
+|{{SCP|Thieving|91+}}
+|1/650
+|1/650
+|~1/126
+|~1/63
+|~1/149
+|~1/75
+|}
+
+==Item sources==
+{{Drop sources|Pharaoh's sceptre}}
+
+==Treasure Trails==
+{{EmoteClueHeader}}
+{{EmoteClue|tier=master|emote=Yawn|location=7th room in [[Pyramid Plunder]]|item1=Pharaoh's sceptre (uncharged)|item2=menaphite purple hat|item3=menaphite purple top|item4=menaphite purple kilt|cost2={{min|{{GEP|menaphite purple hat}}+{{GEP|menaphite purple top}}+{{GEP|menaphite purple kilt}}|{{GEP|menaphite purple hat}}+{{GEP|menaphite purple top}}+{{GEP|menaphite purple robe}}|{{GEP|menaphite red hat}}+{{GEP|menaphite red top}}+{{GEP|menaphite red kilt}}|{{GEP|menaphite red hat}}+{{GEP|menaphite red top}}+{{GEP|menaphite red robe}}}}}}
+{{EmoteClueBottom}}
+*The pharaoh's sceptre can have any amount of charges. The pieces of the menaphite clothing must all be the same colour, both the kilt and robe can be used. It's possible to store the menaphite clothing in the STASH unit without the pharaoh's sceptre.
+
+==Transcript==
+{{hastranscript|item}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 3 June 2026
+|update = New Regional Worlds Launch TODAY! 
+|change = Added a warning before teleporting in a PvP world with the sceptre.
+}}
+{{Subject changes
+|date = 18 May 2022
+|update = Poll 76 Improvements
+|change = Charged sceptres now appear as they did prior to 27 April 2022 rather than having the appearance of an uncharged sceptre.
+}}
+{{Subject changes
+|date = 27 April 2022
+|update = Beneath Cursed Sands
+|poll = Tombs of Amascut Rewards
+|change = 
+The [[Pharaoh's sceptre (discontinued)|original pharaoh's sceptre]] is now discontinued: 
+* All variants of the pharaoh's sceptre that existed prior to 27 April 2022 have had all their interface options replaced with a "Convert" option, which replaces it with a reworked version of the sceptre.
+* The teleport options are now in a separate interface akin to that of a [[ring of dueling]], accessed by the sceptre's "Teleport" option. A "Last-Teleport" option will instantly teleport players to the previous destination.
+In addition: 
+* The sceptre can now be uncharged by players rather than needing to visit the guardian mummy to do so.
+* The sceptre can now be charged by the guardian mummy at any time, rather than only being able to recharge it once all charges are expended.
+* The maximum amount of charges the sceptre holds has been further increased based on the tier of Desert Diary completed.
+** The Easy Diary now allows a maximum of 10 charges, up from 4.
+** The Medium Diary now allows a maximum of 25 charges, up from 5.
+** The Hard Diary now allows a maximum of 50 charges, up from 6.
+** The Elite Diary now allows a maximum of 100 charges, up from 8.
+}}
+{{Subject changes
+|date = 16 March 2022
+|update = PvP Arena: Rewards Beta
+|poll = Old School Content Poll 76: Game Improvements
+|change = Pharaoh's sceptre is now 1-handed.
+}}
+{{Subject changes
+|date = 24 March 2021
+|update = Fishing Skill Boss and Easter Event
+|change = Pharaoh's sceptre now has scaling drop rates depending on the room its chest/sarcophagus is located.
+}}
+{{Subject changes
+|date = 23 September 2020
+|update = More Poll 72 Updates
+|change = 
+*The "Jalsavrah" and "Wield" options were switched, so Wield is now first.
+*"Jalsavrah" was made the first option when equipped.
+}}
+{{Subject changes
+|date = 31 August 2017
+|update = Fossil Island Kudos Display, the Champion's Cape, and much more.
+|change = Partially charged versions of the item could now be turned into bank placeholders.
+}}
+{{Subject changes
+|date = 22 June 2017
+|update = Mining Guild Expansion
+|change = When leaving Pyramid Plunder with a full inventory, rewarded pharaoh's sceptres will remain on the ground for longer than 30 seconds.
+}}
+{{Subject changes 
+|date = 9 February 2017
+|update = Colourful Golems & Graphical Improvements
+|change = The uncharged version was made darker to distinguish it from charged versions.
+}}
+{{Subject changes
+|date = 11 February 2016
+|update = Tournament Stats & Skilling QoL
+|change = The "Teleport" left-click option was replaced with a "Jalsavrah" left-click option, and "Jaleustrophos", and "Jaldraocht" right-click options.
+}}
+{{Subject changes
+|date = 20 August 2015
+|update = Boss slayer & total worlds
+|change = Fixed typos in teleport messages given by the pharaoh's Sceptre.
+}}
+{{Subject changes
+|date = 16 April 2015
+|update = Clan Wars Game Modes & More
+|change = Murky Matt will only decant pharoah's sceptres with the amount of charges you have unlocked from the Desert Diary.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = The pharaoh's sceptre now holds more charges for the completion of [[Desert Diary|Desert Diaries]]:
+
+*4 total charges for the [[Desert Easy Diary]].
+*5 total charges for the [[Desert Medium Diary]].
+*6 total charges for the [[Desert Hard Diary]].
+*8 total charges for the [[Desert Elite Diary]].
+}}
+{{Subject changes
+|date = 26 June 2014
+|update = Midsummer Event
+|poll = Old School feature poll - Rewarding Rewards
+|change = The pharaoh's sceptre now has an alch value of 50,000 coins.
+}}
+{{Subject changes
+|date = 6 March 2014
+|update = Teletabs, Clues and Poll 17
+|poll = Old School feature poll 16
+|change = Charged versions were renamed from "Pharaoh's sceptre" to "Pharaoh's sceptre (n)".
+}}
+{{Subject changes
+|date = 25 April 2013
+|update = Patch Notes (25 April 2013)
+|change = The jewelled sceptre no longer teleports players into the Desert Treasure pyramid before they have completed enough of the quest to unlock it.
+}}
+{{Subject changes
+|date = 10 January 2007
+|update = Contact!
+|change = The item was renamed from "Pharoah's sceptre"{{sic}} to "Pharaoh's sceptre".
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Pharaoh's sceptre (v1) detail.png|center|300x150px]]
+|[[File:Pharaoh's sceptre (uncharged) detail.png|center|300x150px]]
+|-
+|[[File:Pharaoh's sceptre v1.png|center]]
+|[[File:Pharaoh's sceptre.png|center]]
+|-
+|17 July 2006 –<br/>9 February 2017
+|9 February 2017 –<br/>present
+|}
+
+==Trivia==
+*If the player talks to [[Simon Templeton]] while holding a sceptre, he will try to convince them that it is worthless and will offer 100 coins for it, which the player refuses.
+*When someone else in the pyramid finds a sceptre, an annoyed guardian mummy appears in some rooms next to the golden chest noting that someone has stolen it.
+*Before an update, the sceptre was commonly used by lurers due to having a teleport as its left click option. Lurers would tell the player to switch to a [[PvP world]] and "wield" the sceptre, where they were then teleported into a pvp zone and killed for their loot.
+
+{{Pyramid Plunder}}
+{{Magic weapons}}
+{{Teleportation items}}
+[[Category:Collection log items]]
+[[Category:Items with charges]]

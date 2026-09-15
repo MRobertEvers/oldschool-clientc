@@ -1,0 +1,163 @@
+{
+  "serial": "T062809L3Z",
+  "scene": null,
+  "event": "instructions",
+  "target": "pose",
+  "warmup": 600,
+  "frames": 180,
+  "live": true,
+  "manifest": "/sdcard/Android/data/com.torirs.client/files/manifests/krait-live.ini",
+  "rows": [
+    {
+      "sample": 0,
+      "arm": 0,
+      "frames": 180,
+      "draw": 1350981248,
+      "worker": 901793286,
+      "models": 260052,
+      "worker_models": 200045,
+      "faces": 1684009
+    },
+    {
+      "sample": 1,
+      "arm": 1,
+      "frames": 180,
+      "draw": 1361420992,
+      "worker": 410714537,
+      "models": 260672,
+      "worker_models": 220932,
+      "faces": 2141890
+    },
+    {
+      "sample": 2,
+      "arm": 1,
+      "frames": 180,
+      "draw": 1408347378,
+      "worker": 401329728,
+      "models": 260774,
+      "worker_models": 215458,
+      "faces": 2098688
+    },
+    {
+      "sample": 3,
+      "arm": 0,
+      "frames": 180,
+      "draw": 1332251891,
+      "worker": 942245910,
+      "models": 260231,
+      "worker_models": 198774,
+      "faces": 1906518
+    },
+    {
+      "sample": 4,
+      "arm": 0,
+      "frames": 180,
+      "draw": 1437635520,
+      "worker": 887521733,
+      "models": 260303,
+      "worker_models": 195953,
+      "faces": 1888152
+    },
+    {
+      "sample": 5,
+      "arm": 1,
+      "frames": 180,
+      "draw": 1348319689,
+      "worker": 437791462,
+      "models": 260394,
+      "worker_models": 230440,
+      "faces": 2329823
+    },
+    {
+      "sample": 6,
+      "arm": 1,
+      "frames": 180,
+      "draw": 1369716389,
+      "worker": 435749802,
+      "models": 260347,
+      "worker_models": 228402,
+      "faces": 2331337
+    },
+    {
+      "sample": 7,
+      "arm": 0,
+      "frames": 180,
+      "draw": 1376965408,
+      "worker": 984517105,
+      "models": 260508,
+      "worker_models": 204767,
+      "faces": 1881683
+    },
+    {
+      "sample": 8,
+      "arm": 0,
+      "frames": 180,
+      "draw": 1461361534,
+      "worker": 919899979,
+      "models": 260250,
+      "worker_models": 198799,
+      "faces": 1934107
+    },
+    {
+      "sample": 9,
+      "arm": 1,
+      "frames": 180,
+      "draw": 1414147397,
+      "worker": 426294521,
+      "models": 260155,
+      "worker_models": 218833,
+      "faces": 2283759
+    },
+    {
+      "sample": 10,
+      "arm": 1,
+      "frames": 180,
+      "draw": 1366031503,
+      "worker": 455769686,
+      "models": 259878,
+      "worker_models": 232566,
+      "faces": 2462877
+    },
+    {
+      "sample": 11,
+      "arm": 0,
+      "frames": 180,
+      "draw": 1503621276,
+      "worker": 941492299,
+      "models": 260112,
+      "worker_models": 199160,
+      "faces": 2040510
+    }
+  ],
+  "local_apk_sha256": "17c9298ab404e4ab3849eb8c1ede73d6d6a9f7495eb9557fde632590ba77dd09",
+  "scope": "Draw RenderFrame plus worker model pass; per-thread userspace hardware counters; ABBA x3 with six settling frames; both arms aligned.",
+  "summary": {
+    "draw": {
+      "baseline": 7818335.911111111,
+      "candidate": 7599299.7,
+      "percent": -2.8015707383437616,
+      "mad": {
+        "0": 306611.9055555556,
+        "1": 72242.25277777808
+      }
+    },
+    "worker": {
+      "baseline": 5170534.105555555,
+      "candidate": 2394567.563888889,
+      "percent": -53.68819709909638,
+      "mad": {
+        "0": 112368.3999999999,
+        "1": 75213.6805555555
+      }
+    },
+    "total": {
+      "baseline": 13018443.794444444,
+      "candidate": 10042064.713888887,
+      "percent": -22.86278703930581,
+      "mad": {
+        "0": 296565.86666666623,
+        "1": 99138.99444444478
+      }
+    }
+  }
+}

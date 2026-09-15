@@ -1,0 +1,40 @@
+# Toplevel 161 seats the chat pack against its OWN stone, two columns right.
+#
+# The 519-wide OldSchool chat pack used to be seated at a constant 7 on every
+# OldSchool toplevel -- the minimum over the two grids the shipped roots state,
+# so that it cleared 548's bottom tab row at 526. On 161 the row is at 528, so
+# the constant left two columns of sheet between the pack and the stone: not a
+# collision, but not the seam either, and a number that means nothing on the
+# next grid a root states.
+#
+# The frame asks the lane now. 161 answers 528, the pack's right edge is seated
+# on it, and its origin is 528 - 519 = 9. Everything the pack contains moves the
+# same two columns, which is interface 162's whole subtree.
+#
+# Declared as ONE shift rather than as 3225 pairs of lines, because 3225
+# declarations is a diff with a reason stapled to the front: nobody reads it and
+# a real regression hiding among them is invisible. The claim `bounds-shift 2,0`
+# can still fail -- a box that moved by anything else, or that changed in any
+# other field, is not excused by it.
+#
+# remount164 sees the same move: it ends on a toplevel that mounts this pack.
+bounds-shift 2,0 = 161 stands its bottom tab row at 528 rather than 548's 526, so the pack seated against it starts two columns further right
+owned-move camera_plate = the screenshot plate sits in the chat pack's filter strip and moves with it
+owned-move camera_report = the camera sits on that plate and moves with it
+bounds-shift 8,0 = remount164 ends on toplevel 164, whose bottom row stands at 534, so the pack seated against it starts at 534 - 519 = 15 rather than the constant 7
+role-move frame_chat = the pack itself, re-seated against the lane's own stone
+role-move action_frame_chat_button_report_activate = inside the chat pack, and moves with it
+role-move chat_backing = inside the chat pack, and moves with it
+role-move chat_bar = inside the chat pack, and moves with it
+role-move chat_controls = inside the chat pack, and moves with it
+role-move chat_input = inside the chat pack, and moves with it
+role-move chat_plate_0 = inside the chat pack, and moves with it
+role-move chat_plate_1 = inside the chat pack, and moves with it
+role-move chat_plate_2 = inside the chat pack, and moves with it
+role-move chat_plate_3 = inside the chat pack, and moves with it
+role-move chat_plate_4 = inside the chat pack, and moves with it
+role-move chat_plate_5 = inside the chat pack, and moves with it
+role-move chat_plate_6 = inside the chat pack, and moves with it
+role-move chat_plate_7 = inside the chat pack, and moves with it
+role-move public_chat_button = inside the chat pack, and moves with it
+role-move report_button = inside the chat pack, and moves with it

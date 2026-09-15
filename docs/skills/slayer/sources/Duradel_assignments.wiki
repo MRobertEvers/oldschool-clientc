@@ -1,0 +1,321 @@
+<!-- Unlock Requirement sort value is in the format {slayer req}{combat req}
+So an Aberrant Spectre has a sort value of 6065 because it has a 60 Slayer req and a 65 combat req.
+A Crocodile only has a combat req of 50, so its sort value is 50
+Lizards have a slayer req of 22 with no combat req, so their sort value is 2200, with the 0s at the end to make sure it sorts correctly-->
+{| class="wikitable sortable lighttable qc-active"
+!Monster
+!Amount
+![[Slayer Rewards#Extend|Extended amt.]]
+!Unlock requirement
+!class="unsortable"|Alternative(s)
+![[Task weight|Weight]]
+|-
+|[[Slayer task/Aberrant spectres|Aberrant Spectres]]
+|130-200
+|200-250
+|data-sort-value="6065"|{{SCP|Slayer|60}}, {{SCP|Combat|65}}, completion of [[Priest in Peril]]
+|[[Deviant spectre]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Abyssal demons|Abyssal Demons]]
+|130-200
+|200-250
+|data-sort-value="8585"|{{SCP|Slayer|85}}, {{SCP|Combat|85}}, completion of [[Priest in Peril]] or [[Fairytale II - Cure a Queen]] {{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1122846921331224576|date=29 April 2019|archiveurl=https://reldo.runescape.wiki/i/108660|archivedate=4 March 2023|quote=(...) Abyssal demons will accept Fairy Tale II for abyss access.}}
+|[[Abyssal Sire]], [[Reanimated abyssal]]
+|{{+=|weight|12|echo=2}}
+|-
+|[[Slayer task/Ankou|Ankou]]
+|50-80
+|91-150
+|data-sort-value="40"|{{SCP|Combat|40}}
+|[[Dark Ankou]]
+|{{+=|weight|5|echo=2}}
+|-
+|[[Slayer task/Aquanites|Aquanites]]
+|30-50
+|150-200
+|data-sort-value="7873"|{{SCP|Slayer|78}}, {{SCP|Sailing|73}}, Unlocked the ''Lured In'' ability via spending 80 [[Slayer reward points]]
+|{{NA|None}}
+|{{+=|weight|5|echo=2}}
+|-
+|[[Slayer task/Araxytes|Araxytes]]
+|data-sort-value="60"|60-80
+|200-250
+|data-sort-value="9200"|{{SCP|Slayer|92}}, Completion of [[Priest in Peril]]
+|[[Araxxor]]
+|{{+=|weight|10|echo=2}}
+|-
+|[[Slayer task/Aviansie|Aviansie]]
+|120-200
+|200-250
+|data-sort-value="0"|Unlocked the ''Watch the birdie'' ability via spending 80 [[Slayer reward points]]
+|[[Kree'arra]], [[Flight Kilisa]], [[Flockleader Geerin]], [[Wingman Skree]], [[Reanimated aviansie]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Slayer task/Basilisks|Basilisks]]
+|130-200
+|200-250
+|data-sort-value="4000"|{{SCP|Slayer|40}}, unlocked the ''Basilocked'' ability via spending 80 [[Slayer reward points]]
+|[[Basilisk Knight]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Black demons|Black Demons]]
+|130-200
+|200-250
+|data-sort-value="80"|{{SCP|Combat|80}}
+|[[Demonic gorilla]]s, [[Balfrug Kreeyath]], [[Porazdir]], [[Skotizo]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Slayer task/Black dragons|Black Dragons]]
+|10-20
+|40-60
+|data-sort-value="80"|{{SCP|Combat|80}}, partial completion of [[Dragon Slayer I]]
+|[[Baby black dragon]]s, [[King Black Dragon]], [[brutal black dragon]]s ({{SCP|Slayer|77}})
+|{{+=|weight|9|echo=2}}
+|-
+|[[Slayer task/Bloodveld|Bloodveld]]
+|130-200
+|200-250
+|data-sort-value="5050"|{{SCP|Slayer|50}}, {{SCP|Combat|50}}, completion of [[Priest in Peril]]
+|[[Mutated Bloodveld]], [[Reanimated bloodveld|Reanimated Bloodveld]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Slayer task/Blue dragons|Blue Dragons]]
+|110-170
+| {{NA}}
+|data-sort-value="65"|{{SCP|Combat|65}}, partial completion of [[Dragon Slayer I]]
+|[[Baby blue dragon]]s, [[brutal blue dragon]]s, [[Vorkath]]
+|{{+=|weight|4|echo=2}}
+|-
+|[[Boss#Boss_slayer|Boss]]<ref group="n">The odds of getting a specific [[Slayer task|task]] from the [[Boss#Boss_slayer|boss]] category is much smaller than getting a normal task, since there are two rolls for that task: one roll for the boss task, and one roll for the specific task within the boss category.</ref>
+|3-35<ref group="n">The maximum amount assigned can be increased by completing tiers of the [[Combat Achievements]]: up to 40 with the [[Combat_Achievements/Easy|Easy]] tier, 45 with the [[Combat_Achievements/Medium|Medium]] tier, 50 with the [[Combat_Achievements/Hard|Hard]] tier, 55 with the [[Combat_Achievements/Elite|Elite]] tier, 60 with the [[Combat_Achievements/Master|Master]] tier, and finally 65 with the [[Combat_Achievements/Grandmaster|Grandmaster]] tier.</ref>
+| {{NA}}
+|data-sort-value="0"|Unlocked the ''Like a boss'' ability via spending 200 [[Slayer reward points]], as well as various requirements for specific bosses
+| {{NA|None}}
+|{{+=|weight|12|echo=2}}
+|-
+|[[Slayer task/Cave horrors|Cave Horrors]]
+|130-200
+|200-250
+|data-sort-value="5885"|{{SCP|Slayer|58}}, {{SCP|Combat|85}}, completion of [[Cabin Fever]]
+| {{NA|None}}
+|{{+=|weight|4|echo=2}}
+|-
+|[[Slayer task/Cave krakens|Cave Kraken]]
+|100-120
+|150-200
+|data-sort-value="8780"|{{SCP|Slayer|87}}, {{SCP|Combat|80}}, {{SCP|Magic|50}}
+|[[Kraken]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Slayer task/Dagannoth|Dagannoth]]
+|130-200
+| {{NA}}
+|data-sort-value="75"|{{SCP|Combat|75}}, completion of [[Horror from the Deep]]
+|[[Dagannoth spawn]], [[Dagannoth fledgeling]], [[Dagannoth Kings]], [[Reanimated dagannoth]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Slayer task/Dark beast|Dark Beasts]]
+|10-20
+|110-135
+|data-sort-value="9090"|{{SCP|Slayer|90}}, {{SCP|Combat|90}}, started [[Mourning's End Part II]]
+| {{NA|None}}
+|{{+=|weight|11|echo=2}}
+|-
+|[[Slayer task/Drake|Drakes]]
+|50-110
+| {{NA}}
+|data-sort-value="8400"|{{SCP|Slayer|84}}
+| {{NA|None}}
+|{{+=|weight|8|echo=2}}
+|-
+|[[Slayer task/dust devil|Dust Devils]]
+|130-200
+|200-250
+|data-sort-value="6570"|{{SCP|Slayer|65}}, {{SCP|Combat|70}}, partial completion of [[Desert Treasure I]]
+| {{NA|None}}
+|{{+=|weight|5|echo=2}}
+|-
+|[[Slayer task/Elves|Elves]]
+|110-170
+| {{NA}}
+|data-sort-value="70"|{{SCP|Combat|70}}, completion of [[Regicide]]
+|[[Elf warrior]], [[mourner]] ([[Mourner Headquarters]]), [[Guard (Prifddinas)]], [[Reanimated elf]], [[Iorwerth Warrior]]
+|{{+=|weight|4|echo=2}}
+|-
+|[[Slayer task/Fire giants|Fire Giants]]
+|130-200
+| {{NA}}
+|data-sort-value="65"|{{SCP|Combat|65}}
+| [[Branda the Fire Queen|Branda the Fire Queen (Royal Titans)]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Fossil Island wyverns|Fossil Island Wyverns]]
+|data-sort-value="20"|20-50
+|55-75
+|data-sort-value="6660"|{{SCP|Slayer|66}}, {{SCP|Combat|60}}, completion of [[Bone Voyage]], completion of [[Elemental Workshop I]]{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1298524179629838337|date=27 August 2020|archiveurl=https://reldo.runescape.wiki/i/102411|archivedate=27 August 2020|quote=They do indeed require both of those. There isn't a limit on how many distinct requirements a task may have.}}
+|[[Spitting Wyvern|Spitting]], [[Taloned Wyvern|taloned]] and [[Long-tailed Wyvern|long-tailed wyvern]] ({{SCP|Slayer|66}}), [[Ancient Wyvern]] ({{SCP|Slayer|82}})
+|{{+=|weight|7|echo=2}}
+|-
+|[[Frost dragon|Frost Dragons]]
+|70-120
+|180-240
+|data-sort-value="87"|{{SCP|Sailing|87}}, {{SCP|Combat|85}} <!--DS1 is NOT required-->
+|{{NA}}
+|{{+=|weight|5|echo=2}}<ref group="n">The weight of this task can be increased from '''5''' to '''8''' by purchasing the ''Chance of Heavy Frost'' unlock.</ref>
+|-
+|[[Slayer task/Gargoyles|Gargoyles]]
+|130-200
+|200-250
+|data-sort-value="7580"|{{SCP|Slayer|75}}, {{SCP|Combat|80}}, completion of [[Priest in Peril]]
+|[[Grotesque Guardians]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Slayer task/Greater demons|Greater Demons]]
+|130-200
+|200-250
+|data-sort-value="75"|{{SCP|Combat|75}}
+|[[K'ril Tsutsaroth]], [[Tstanon Karlak]], [[Skotizo]], [[Tormented Demon]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Gryphons]]
+|data-sort-value="100"|100-210
+| 180-290
+|data-sort-value="5145"|{{SCP|Slayer|51}}, {{SCP|Sailing|45}}, completion of [[Troubled Tortugans]], Unlocked the ''Wings Spread'' ability via spending 80 [[Slayer reward points]]
+|[[Shellbane gryphon]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Hellhounds|Hellhounds]]
+|130-200
+| {{NA}}
+|data-sort-value="75"|{{SCP|Combat|75}}
+|[[Cerberus]] ({{SCP|Slayer|91}}), [[Skeleton Hellhound (Vet'ion)|Skeleton Hellhound]], [[Greater Skeleton Hellhound (Vet'ion)|Greater Skeleton Hellhound]], [[Reanimated hellhound]]
+|{{+=|weight|10|echo=2}}
+|-
+|[[Slayer task/Kalphites|Kalphite]]
+|130-200
+| {{NA}}
+|data-sort-value="15"|{{SCP|Combat|15}}
+|[[Kalphite worker]], [[Kalphite soldier]], [[Kalphite guardian]], [[Kalphite Queen]], [[Reanimated kalphite]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Slayer task/kurask|Kurask]]
+|130-200
+| {{NA}}
+|data-sort-value="7065"|{{SCP|Slayer|70}}, {{SCP|Combat|65}}
+| {{NA|None}}
+|{{+=|weight|4|echo=2}}
+|-
+|[[Slayer task/Lizardmen|Lizardmen]]
+|130-210
+| {{NA}}
+|data-sort-value="0"|Unlocked the ''Reptile got ripped'' ability via spending 75 [[Slayer reward points]]
+|[[Lizardman brute]], [[Lizardman shaman]]
+|{{+=|weight|10|echo=2}}
+|-
+|[[Slayer task/Metal dragons|Metal Dragons]]
+|35-45
+|150-200
+|data-sort-value="85"|{{SCP|Combat|85}}, partial completion of [[Dragon Slayer I]]
+| [[Bronze dragon]], [[Iron dragon]], [[Steel dragon]], [[Mithril dragon]]<ref group="n">With partial completion of the [[Barbarian Training]] [[miniquest]].</ref>, [[Adamant dragon]]<ref group="n" name="ds2_required>With completion of [[Dragon Slayer II]].</ref>, [[Rune dragon]]<ref group="n" name="ds2_required/>
+|{{+=|weight|14|echo=2}}
+|-
+|[[Slayer task/Zygomites|Mutated Zygomites]]
+|20-30
+| {{NA}}
+|data-sort-value="5760"|{{SCP|Slayer|57}}, {{SCP|Combat|60}}, completion of [[Lost City]]
+|[[Ancient Zygomite]]
+|{{+=|weight|2|echo=2}}
+|-
+|[[Slayer task/Nechryael|Nechryael]]
+|130-200
+|200-250
+|data-sort-value="8085"|{{SCP|Slayer|80}}, {{SCP|Combat|85}}, completion of [[Priest in Peril]]
+|[[Greater Nechryael]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Slayer task/Red dragons|Red Dragons]]
+|data-sort-value="30"|30-65
+| {{NA}}
+|data-sort-value="68"|{{SCP|Combat|68}}, partial completion of [[Dragon Slayer I]], unlocked the ''Seeing red'' ability via spending 50 [[Slayer reward points]]
+|[[Baby red dragon]]s, [[brutal red dragon]]s
+|{{+=|weight|8|echo=2}}
+|-
+|[[Skeletal Wyvern]]s
+|20-40
+|50-70
+|data-sort-value="7270"|{{SCP|Slayer|72}}, {{SCP|Combat|70}}, completion of [[Elemental Workshop I]]
+| {{NA|None}}
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Smoke devils|Smoke Devils]]
+|130-200
+| {{NA}}
+|data-sort-value="9385"|{{SCP|Slayer|93}}, {{SCP|Combat|85}}
+|[[Thermonuclear smoke devil]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Slayer task/Spiritual creatures|Spiritual Creatures]]
+|130-200
+|181-250
+|data-sort-value="6360"|{{SCP|Slayer|63}}, {{SCP|Combat|60}}, completion of [[Death Plateau]], level 60 in {{SCP|Strength}} or {{SCP|Agility}}
+|[[Spiritual ranger]] ({{SCP|Slayer|63}}), [[spiritual warrior|warrior]] ({{SCP|Slayer|68}}), [[spiritual mage|mage]] ({{SCP|Slayer|83}})
+|{{+=|weight|7|echo=2}}
+|-
+|[[Slayer task/Suqah|Suqahs]]
+|60-90
+|186-250
+|data-sort-value="85"|{{SCP|Combat|85}}, partial completion of [[Lunar Diplomacy]]
+| {{NA|None}}
+|{{+=|weight|8|echo=2}}
+|-
+|[[Slayer task/Trolls|Trolls]]
+|130-200
+| {{NA}}
+|data-sort-value="60"|{{SCP|Combat|60}}
+|[[Mountain troll]], [[ice troll]], [[Troll general]], [[Reanimated troll]], [[Dad]], [[Ice Troll King]], [[Arrg]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Slayer task/TzHaar|TzHaar]]
+|130-199
+| {{NA}}
+|data-sort-value="0"|Unlocked the ''Hot stuff'' ability via spending 100 [[Slayer reward points]]
+|[[TzTok-Jad]],<ref group="n" name="jad">Players will be given a chance to slay [[TzTok-Jad]] if assigned this task, giving 25,000 bonus [[Slayer]] [[experience]] as well as any experience gained throughout the cave.</ref> [[TzKal-Zuk]]<ref group="n" name="zuk">Players will be given a chance to slay [[TzKal-Zuk]], '''provided they have already killed it once before''' if assigned this task, giving 100,000 bonus [[Slayer]] [[experience]] as well as any experience gained throughout the [[Inferno]].</ref>
+|{{+=|weight|10|echo=2}}
+|-
+|[[Slayer task/Vampyres|Vampyres]]
+|100-210
+|200-250
+|data-sort-value="0"|Unlocked the ''Actual Vampyre Slayer'' ability via spending 80 [[Slayer reward points]]
+|[[Feral Vampyre]], [[Vampyre Juvinate]], [[Vyrewatch]], [[Vyrewatch Sentinel]], [[Venator]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Slayer task/Warped creature|Warped creatures]]
+|130-200
+| {{NA}}
+|data-sort-value="0"|Unlocked the ''Warped Reality'' ability via spending 60 [[Slayer reward points]]
+|[[Warped Terrorbird]], [[Warped Tortoise]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Slayer task/Waterfiends|Waterfiends]]
+|130-200
+| {{NA}}
+|data-sort-value="75"|{{SCP|Combat|75}}, progressed the Firemaking tasks of the [[Barbarian Training]] [[miniquest]] up to crafting [[Barbarian Training#Pyre ships|Pyre ships]].
+| {{NA|None}}
+|{{+=|weight|2|echo=2}}
+|-
+|[[Slayer task/Wyrms|Wyrms]]
+|100-160
+|200-250
+|data-sort-value="6200"|{{SCP|Slayer|62}}
+|[[Lava Strykewyrm]], [[Wyrmling]]
+|{{+=|weight|8|echo=2}}
+|-
+!colspan="5"|Total [[task weight]]
+!{{#var:weight}}
+|}
+<references group="n" />
+<references />
+[[Category:Slayer task]]
+[[Category:Slayer Masters]]
+[[Category:Slayer]]

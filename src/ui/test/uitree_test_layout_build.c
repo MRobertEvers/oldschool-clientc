@@ -123,6 +123,64 @@ test_layout_build(void)
         UITree_Free(tree);
     }
 
+    /*
+     * A sprite the caller already holds: graphic_scene_id wins over graphic,
+     * and carries a frame with it.
+     *
+     * This is how the baked chrome skin reaches a component -- it is one
+     * multi-frame scene sprite that never came from a cache archive, so there
+     * is no graphic id to resolve and the resolver must not be consulted. The
+     * control beside it is the point: an unset graphic_scene_id has to leave
+     * the ordinary cache path exactly as it was.
+     */
+    {
+        struct UIBuildComponent comps[2];
+        memset(comps, 0, sizeof(comps));
+        comps[0].id = 300;
+        comps[0].type = UIBUILD_GRAPHIC;
+        comps[0].parent_id = -1;
+        comps[0].graphic = 5;                 /* would resolve to 1005 */
+        comps[0].graphic_scene_id = 0x40000009;
+        comps[0].graphic_atlas_index = 7;
+        comps[1].id = 301;
+        comps[1].type = UIBUILD_GRAPHIC;
+        comps[1].parent_id = -1;
+        comps[1].graphic = 5;                 /* no scene id: the cache path */
+
+        g_build_comps = comps;
+        g_build_count = 2;
+
+        struct UITree* tree = UITree_New(8);
+        struct UITreeBuildSource src = {
+            .count = 2,
+            .get_component = get_comp,
+            .get_parent_id = get_parent_id,
+            .resolve_sprite = resolve_sprite,
+            .resolve_font = NULL,
+            .ud = NULL,
+        };
+        TEST_ASSERT(UITree_BuildFromSource(tree, &src) == 2, "build baked + cache graphics");
+
+        int32_t baked = UITree_FindByComponentId(tree, 300);
+        TEST_ASSERT(baked >= 0, "baked graphic found");
+        TEST_ASSERT(
+            tree->components[baked].u.rs_graphic.scene_id == 0x40000009,
+            "baked graphic keeps the caller's scene id");
+        TEST_ASSERT(
+            tree->components[baked].u.rs_graphic.atlas_index == 7,
+            "baked graphic keeps the caller's frame");
+
+        int32_t cached = UITree_FindByComponentId(tree, 301);
+        TEST_ASSERT(cached >= 0, "cache graphic found");
+        TEST_ASSERT(
+            tree->components[cached].u.rs_graphic.scene_id == 1005,
+            "cache graphic still resolves through the resolver");
+        TEST_ASSERT(
+            tree->components[cached].u.rs_graphic.atlas_index == 0,
+            "cache graphic still draws frame 0");
+        UITree_Free(tree);
+    }
+
     /* BuildFromSource forward parent (child before parent in source order) */
     {
         struct UIBuildComponent comps[3];
@@ -418,4 +476,188 @@ test_layout_build(void)
 
         UITree_Free(tree);
     }
+    /*
+     * safe_area=os:bottom: a row gives up the overlap with the OS band and no
+     * more, and gets it all back when the band goes away.
+     *
+     * The login box is the row this exists for -- 360x200 at 202,171 in the
+     * rs245/rs289 profile -- so it is the geometry used here.
+     */
+    {
+        struct UITree* tree = UITree_New(8);
+        int32_t box = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 1, 202, 171, 360, 200);
+        int32_t row = UITree_TestPushXy(tree, box, UIELEM_RS_RECT, 2, 10, 120, 200, 20);
+        int32_t plain = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 3, 202, 171, 360, 200);
+
+        tree->components[box].position.safe_area_source = UITREE_SAFE_AREA_SOURCE_OS;
+        tree->components[box].position.safe_area_flags = UITREE_SAFE_AREA_FLAG_BOTTOM;
+        tree->components[box].position.safe_area_margin = 8;
+
+        /* No keyboard: the authored place, exactly. */
+        UITree_LayoutInvalidate(tree);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[box].position.abs_y == 171, "safe area: unlifted abs_y");
+
+        /* 200 rows covered leaves 303; the box wants its bottom (371) plus an
+         * 8px margin above that, so it gives up 76 and not a pixel more. */
+        UITree_LayoutSetSafeBottomInset(200);
+        UITree_LayoutInvalidate(tree);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[box].position.abs_y == 95, "safe area: lifted abs_y");
+        TEST_ASSERT(tree->components[box].position.abs_x == 202, "safe area: x untouched");
+        TEST_ASSERT(tree->components[box].position.abs_h == 200, "safe area: height untouched");
+        TEST_ASSERT(tree->components[box].position.y == 171, "safe area: authored y untouched");
+        TEST_ASSERT(tree->components[row].position.abs_y == 215, "safe area: child moves with it");
+        TEST_ASSERT(
+            tree->components[plain].position.abs_y == 171, "safe area: undeclared row stays put");
+
+        /* Taller than what the keyboard leaves: stop at the canvas top rather
+         * than sliding the box off it. */
+        UITree_LayoutSetSafeBottomInset(480);
+        UITree_LayoutInvalidate(tree);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[box].position.abs_y == 0, "safe area: clamped at canvas top");
+
+        /* Keyboard away: back where the profile put it, with nothing
+         * remembered about how far it had moved. */
+        UITree_LayoutSetSafeBottomInset(0);
+        UITree_LayoutInvalidate(tree);
+        UITree_TestResolve(tree);
+        TEST_ASSERT(tree->components[box].position.abs_y == 171, "safe area: restored abs_y");
+
+        UITree_Free(tree);
+    }
+}
+
+/*
+ * Interface 164's sidebar tab strip, to the pixel, in both of the states its
+ * own resize script puts it in.
+ *
+ * Recorded because the strip's bottom row shows ONE EMPTY PLATE at its left
+ * end on the modern-resizable toplevel, and that was read as a missing logout
+ * tab and filed as a defect. It is neither missing nor a defect: 164 is the
+ * toplevel whose logout is the corner door (164|34/35, graphic 542, at
+ * 737,2), so its strip carries THIRTEEN buttons, not fourteen -- seven in the
+ * top row and six in the bottom -- while both rows' backing plates are the
+ * same 231px seven-cell tile.
+ *
+ * In the single-row state the two plates overlap by exactly one cell and the
+ * thirteen buttons run unbroken. The cache's own toplevel-resize script
+ * (901/902/903/904) then stacks the rows with ONE op, measured through
+ * TORIRS_DUMP_SETPOS:
+ *
+ *     SETPOS com=0x00a4005f (164|95) 0,36 modes=2,2 script=901
+ *
+ * and it never touches the bottom row's plate (164|36), its button layer
+ * (164|37) or any of the six buttons. So the overlap cell stops being covered
+ * and becomes a bare plate. Every number below is the cache's own -- the
+ * `raw=` column of tools/dump_interface -- and the expectations are what the
+ * client renders at 765x503.
+ *
+ * The test exists so that "tidying" that plate away -- sliding 164|37 to the
+ * left edge, or shrinking 164|36 to six cells -- fails here instead of
+ * silently making the client disagree with the interface it is running.
+ */
+static int32_t
+tabstrip_push(
+    struct UITree* tree,
+    int32_t parent,
+    int component_id,
+    int x,
+    int y,
+    int w,
+    int h,
+    int x_mode,
+    int y_mode)
+{
+    struct UITreeNodeSpec spec;
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = component_id;
+    spec.has_position = 1;
+    spec.position.kind = UIPOS_XY;
+    spec.position.x = x;
+    spec.position.y = y;
+    spec.position.width = w;
+    spec.position.height = h;
+    spec.position.x_mode = (int8_t)x_mode;
+    spec.position.y_mode = (int8_t)y_mode;
+    spec.position.width_mode = 0;
+    spec.position.height_mode = 0;
+    return UITree_Push(tree, parent, &spec);
+}
+
+void
+test_toplevel164_tab_strip(void)
+{
+    /* 164|66, the block both rows hang under, is the window. */
+    int const canvas_w = 765;
+    int const canvas_h = 503;
+    struct UITree* tree = UITree_New(16);
+
+    printf("TEST: layout / toplevel 164 tab strip\n");
+
+    /* raw=0,0 231x36 modes=x2,y2 -- the BOTTOM row's block. */
+    int32_t const row_bottom = tabstrip_push(tree, -1, (164 << 16) | 94, 0, 0, 231, 36, 2, 2);
+    /* raw=198,0 231x36 modes=x2,y2 -- the TOP row's block, which the cache
+     * states to the LEFT of the bottom one, on the same line. */
+    int32_t const row_top = tabstrip_push(tree, -1, (164 << 16) | 95, 198, 0, 231, 36, 2, 2);
+    /* raw=0,0 231x36 modes=x2,y2 -- the bottom row's backing plate: SEVEN
+     * cells of 33. */
+    int32_t const plate = tabstrip_push(tree, row_bottom, (164 << 16) | 36, 0, 0, 231, 36, 2, 2);
+    /* raw=0,0 198x36 modes=x2,y1 -- the bottom row's button layer: SIX. */
+    int32_t const buttons = tabstrip_push(tree, row_bottom, (164 << 16) | 37, 0, 0, 198, 36, 2, 1);
+    /* raw=165/132/99,0 33x36 modes=x2,y1 -- friends, account, clan, in the
+     * cache's own left-to-right order, each anchored off the layer's RIGHT. */
+    int32_t const friends = tabstrip_push(tree, buttons, (164 << 16) | 46, 165, 0, 33, 36, 2, 1);
+    int32_t const account = tabstrip_push(tree, buttons, (164 << 16) | 45, 132, 0, 33, 36, 2, 1);
+    int32_t const clan = tabstrip_push(tree, buttons, (164 << 16) | 44, 99, 0, 33, 36, 2, 1);
+
+    /* The state the cache STATES: one row of thirteen, the two plates
+     * overlapping by the one cell the top row's last button sits in. */
+    UITree_LayoutResolve(tree, 0, 0, canvas_w, canvas_h);
+    TEST_ASSERT(tree->components[row_bottom].position.abs_x == 534, "164 strip: bottom row x");
+    TEST_ASSERT(tree->components[row_bottom].position.abs_y == 467, "164 strip: bottom row y");
+    TEST_ASSERT(tree->components[row_top].position.abs_x == 336, "164 strip: top row x, unstacked");
+    TEST_ASSERT(tree->components[row_top].position.abs_y == 467, "164 strip: top row y, unstacked");
+    /* The top row ENDS where the bottom row's first button begins, so the one
+     * cell of bottom plate to the left of that button (534..567) is the cell
+     * the top row's last button stands in. Nothing is bare. */
+    TEST_ASSERT(
+        tree->components[row_top].position.abs_x + 231 ==
+            tree->components[buttons].position.abs_x,
+        "164 strip: unstacked, the top row ends at the bottom row's first button");
+    TEST_ASSERT(
+        tree->components[plate].position.abs_x + 33 == tree->components[buttons].position.abs_x,
+        "164 strip: unstacked, the bottom plate's spare cell is under the top row");
+
+    /* The one op script 901 issues, verbatim from TORIRS_DUMP_SETPOS. */
+    TEST_ASSERT(
+        UITree_ApplyPositionModes(tree, (164 << 16) | 95, 0, 36, 2, 2),
+        "164 strip: the resize script's stacking op lands");
+    UITree_LayoutInvalidate(tree);
+    UITree_LayoutResolve(tree, 0, 0, canvas_w, canvas_h);
+
+    TEST_ASSERT(tree->components[row_top].position.abs_x == 534, "164 strip: top row x, stacked");
+    TEST_ASSERT(tree->components[row_top].position.abs_y == 431, "164 strip: top row y, stacked");
+    /* The plate is still seven cells and the buttons are still six, because
+     * the script moved neither. */
+    TEST_ASSERT(tree->components[plate].position.abs_x == 534, "164 strip: plate x");
+    TEST_ASSERT(tree->components[plate].position.abs_w == 231, "164 strip: plate is seven cells");
+    TEST_ASSERT(tree->components[buttons].position.abs_x == 567, "164 strip: button layer x");
+    TEST_ASSERT(
+        tree->components[buttons].position.abs_w == 198, "164 strip: button layer is six cells");
+    /* Which is the empty plate, stated as the measurement it is: one cell of
+     * backing at the row's left end with no button over it. */
+    TEST_ASSERT(
+        tree->components[buttons].position.abs_x - tree->components[plate].position.abs_x == 33,
+        "164 strip: exactly one uncovered cell at the bottom row's left end");
+
+    /* And the six that are there, where 164 puts them. */
+    TEST_ASSERT(tree->components[friends].position.abs_x == 567, "164 strip: friends x");
+    TEST_ASSERT(tree->components[account].position.abs_x == 600, "164 strip: account x");
+    TEST_ASSERT(tree->components[clan].position.abs_x == 633, "164 strip: clan x");
+    TEST_ASSERT(tree->components[friends].position.abs_y == 467, "164 strip: friends y");
+
+    UITree_Free(tree);
 }

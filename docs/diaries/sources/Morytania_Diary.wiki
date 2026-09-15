@@ -1,0 +1,576 @@
+{{External|rs=Morytania achievements}}
+{{Infobox Achievement Diary
+|name = Morytania Diary
+|image = [[File:Morytania Diary.png]]
+|release = [[5 March]] [[2015]]
+|update = Achievement Diaries
+|areas = [[Morytania]], [[Paterdomus]], [[Harmony Island]] and [[Mos Le'Harmless]]
+|members = Yes
+|reward = [[Morytania legs|Platelegs]]
+|taskmasters = [[Le-sabrè]]
+|leagueRegion = Morytania
+}}
+{{Map|name=Le-sabrè|x=3465|y=3478|r=4|mtype=square|height=250|width=250|align=left|caption=Le-sabrè's location}}
+The '''Morytania Diary''' is an [[Achievement Diary]] whose tasks revolve around areas within and around [[Morytania]], such as [[Paterdomus]], [[Harmony Island]], and [[Mos Le'Harmless]].
+
+Several skill, quest, and item requirements are needed to complete all tasks. Completion of [[Priest in Peril]] is required for all tasks, as it is needed to enter Morytania. Unless stated otherwise, [[temporary skill boost]]s can be used to meet the skill requirements.
+
+Rewards can be claimed from [[Le-sabrè]] just west of [[Canifis]]. Tasks may be done in any order, but the previous tiers of a diary must be completed to claim rewards of the next tier.
+
+==Overview==
+{{Sync}}
+<tabber>
+|-|
+Easy=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Cooking = 12
+|Crafting = 15
+|Slayer = 15
+|Farming = 23
+|FarmingNotes = <ref name="IronMed">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require 47 [[Farming]] or the ability to kill [[gryphon]]s for a [[watermelon]].</ref>
+|Combat = 20
+|Total = 93
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Nature Spirit"
+|[[Nature Spirit]]
+|}
+| style="vertical-align: top" |
+|}
+{{Reflist}}
+
+|-|
+Medium=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 15
+|Ranged = 40
+|RangedNotes = {{boostable|n}}
+|Agility = 42
+|AgilityNotes = {{boostable|n}}
+|Smithing = 50
+|SmithingNotes = {{boostable|n}}
+|Herblore = 22
+|Fishing = 50
+|Cooking = 40
+|Prayer = 47
+|Crafting = 45
+|CraftingNotes = {{boostable|n}}
+|Magic = 7
+|Fletching = 5
+|Woodcutting = 45
+|Slayer = 42
+|SlayerNotes = {{boostable|n}}
+|Farming = 40
+|FarmingNotes = <ref name="IronMed">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require 47 [[Farming]] or the ability to kill [[gryphon]]s for a [[watermelon]].</ref>
+|Hunter = 29
+|Combat = 20
+|Total = 536
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Cabin Fever"
+|[[Cabin Fever]]
+|- data-rowid="Dwarf Cannon"
+|[[Dwarf Cannon]]
+|- data-rowid="Ghosts Ahoy"
+|[[Ghosts Ahoy]]
+|- data-rowid="Lair of Tarn Razorlor"
+|[[Lair of Tarn Razorlor]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[In Aid of the Myreque]]
+|}
+| style="vertical-align: top" |
+|}
+{{Reflist}}
+
+|-|
+Hard=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Attack = 20
+|Mining = 55
+|Agility = 71
+|Smithing = 50
+|SmithingNotes = {{boostable|n}}
+|Defence = 70
+|DefenceNotes = {{boostable|n}}
+|Herblore = 22
+|Fishing = 50
+|Ranged = 40
+|RangedNotes = {{boostable|n}}
+|Thieving = 53
+|ThievingNotes = {{boostable|n}}
+|Cooking = 40
+|Prayer = 70
+|PrayerNotes = {{boostable|n}}
+|Crafting = 45
+|CraftingNotes = {{boostable|n}}
+|Firemaking = 50
+|Magic = 66
+|Fletching = 10
+|Woodcutting = 50
+|Slayer = 58
+|Farming = 53
+|Construction = 50
+|Hunter = 29
+|Combat = 20
+|Quest = 12
+|Total = 964
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Desert Treasure I"
+|[[Desert Treasure I]]
+|- data-rowid="Dwarf Cannon"
+|[[Dwarf Cannon]]
+|- data-rowid="Ghosts Ahoy"
+|[[Ghosts Ahoy]]
+|- data-rowid="In Aid of the Myreque"
+|[[In Aid of the Myreque]]
+|- data-rowid="Lair of Tarn Razorlor"
+|[[Lair of Tarn Razorlor]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[The Great Brain Robbery]]
+|-
+|Completion of the [[Knight Waves Training Grounds]]
+|}
+|}
+
+|-|
+Elite=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Attack = 20
+|AttackNotes = <ref name="Barrows">You'll either need 70 [[Ranged]] to complete [[Karil the Tainted's equipment|Karil's set]], or 70 [[Attack]] (both [[Temporary skill boost|unboostable]]) to complete the set of any of the other [[Barrows brothers]].</ref>
+|Mining = 60
+|MiningNotes = {{boostable|n}}
+|Strength = 76
+|Agility = 71
+|Smithing = 50
+|SmithingNotes = {{boostable|n}}
+|Defence = 70
+|DefenceNotes = {{boostable|n}}
+|Herblore = 22
+|Fishing = 96
+|Ranged = 40
+|RangedNotes = {{boostable|n}}<ref name="Barrows"/>
+|Thieving = 53
+|ThievingNotes = {{boostable|n}}
+|Cooking = 40
+|Prayer = 70
+|PrayerNotes = {{boostable|n}}
+|Crafting = 84
+|Firemaking = 80
+|Magic = 83
+|Fletching = 10
+|Woodcutting = 55
+|WoodcuttingNotes = {{boostable|n}}
+|Slayer = 85
+|Farming = 53
+|Construction = 50
+|Hunter = 29
+|Combat = 20
+|Quest = 12
+|Total = 1238
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Desert Treasure I"
+|[[Desert Treasure I]]
+|- data-rowid="Dwarf Cannon"
+|[[Dwarf Cannon]]
+|- data-rowid="Ghosts Ahoy"
+|[[Ghosts Ahoy]]
+|- data-rowid="In Aid of the Myreque"
+|[[In Aid of the Myreque]]
+|- data-rowid="Lair of Tarn Razorlor"
+|[[Lair of Tarn Razorlor]]
+|- data-rowid="Lunar Diplomacy"
+|[[Lunar Diplomacy]]
+|- data-rowid="Shades of Mort'ton"
+|[[Shades of Mort'ton]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Access to [[Barbarian Fishing]]
+|-
+|Started [[The Great Brain Robbery]]
+|-
+|Completion of the [[Knight Waves Training Grounds]]
+|-
+|Open the [[Chest (Barrows)|Barrows chest]] while wearing a full [[Barrows equipment|Barrows set]]
+|}
+|}
+{{Reflist}}
+
+|-|
+</tabber>
+
+==Easy==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Morytania" data-diary-tier="Easy"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Craft any [[Snelm]] from scratch in [[Morytania]].
+''Note: Must be done outside of [[Mort Myre Swamp]].
+|
+*{{SCP|Crafting|15|link=y}}
+*[[Chisel]] 
+*Any [[blamish shell]]
+|-
+|2. Cook a [[thin Snail]] on the [[Port Phasmatys]] [[range]].
+|
+*{{SCP|Cooking|12|link=y}}
+*[[Thin snail]]
+*2 [[Ecto-tokens]] or quest completion of [[Ghosts Ahoy]] to walk into [[Port Phasmatys]], or enough [[coins]] for a [[charter ship]].
+|-
+|3. Get a [[slayer task]] from the [[Mazchna|Slayer Master]] in [[Canifis]].
+|
+*{{SCP|Combat|20|link=y}}
+|-
+|4. Kill a [[Banshee]] in the [[Slayer Tower]].
+|
+*{{SCP|Slayer|15|link=y}}
+*[[Earmuffs]] or [[Slayer helmet]] recommended
+|-
+|5. Have [[Sbott]] in [[Canifis]] tan something for you.
+|
+*Any tannable [[hide]] and 2-45 [[coins]] depending on the type of hide
+|-
+|6. Enter [[Mort Myre Swamp]].
+|{{NA|None}}
+|-
+|7. Kill a [[Ghoul]].
+|
+*[[Weaponry]]
+|-
+|8. Place a [[Scarecrow]] in the Morytania [[Flower patch#Flower patches|flower patch]].
+|
+*{{SCP|Farming|23|link=yes}} ([[Ironman mode|Ironman accounts]] require {{SCP|Farming|47|link=yes}} or the ability to kill [[gryphon]]s)
+*[[Bronze spear]], [[watermelon]], and a [[hay sack]]
+|-
+|9. Offer some [[bonemeal]] at the [[Ectofuntus]].
+|
+*[[Pot]], [[bucket]], and any [[bones]]
+|-
+|10. Kill a [[werewolf]] in its human form using the [[Wolfbane|Wolfbane Dagger]]{{sic}}.
+|
+*[[Wolfbane]]
+|-
+|11. Restore your [[prayer points]] at the [[Nature Grotto|nature altar]].
+''Note: Requires you to have less than full [[Prayer points]]. If able, activate [[Piety]] while praying here to complete a [[#Hard|hard task]].''
+|
+*{{SCP|Quest}} Completion of [[Nature Spirit]]
+*[[Dramen staff|Dramen]] or [[Lunar staff]] recommended to travel to [[Fairy ring]] code {{Fairycode|bip}}
+|}
+
+===Rewards===
+*[[Morytania legs 1]]:
+**Two daily teleports to the [[Pool of Slime]] beneath the [[Ectofuntus]]
+*[[Antique lamp (easy)|Antique lamp]] worth 2,500 experience in any skill of at least level 30
+*[[Ghast]]s in the [[Mort Myre Swamp]] will ignore you half of the time
+*2.5% more [[Slayer]] experience in the [[Slayer Tower]] while on a [[Slayer task]]
+
+==Medium==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Morytania" data-diary-tier="Medium"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Catch a [[Swamp lizard (Hunter)|swamp lizard]].
+|
+*{{SCP|Hunter|29|link=y}}
+*[[Rope]] and [[small fishing net]]
+|-
+|2. Complete a lap of the [[Canifis Rooftop Course|Canifis agility course]]. 
+|
+*{{SCP|Agility|40|link=y}}
+|-
+|3. Obtain some [[bark|Bark]] from a [[Hollow tree]].
+|
+*{{SCP|Woodcutting|45|link=y}}
+*Any [[axe]]
+|-
+|4. Travel to [[Dragontooth Island|Dragontooth Isle]].
+''Note: This task is automatically completed during [[Ghost Ahoy]].''
+|
+*[[Ghostspeak amulet]] and 25 [[ecto-token]]s (or 10 with the activated [[Ring_of_charos#Activated|ring of charos]])
+|-
+|5. Kill a [[terror dog|Terror Dog]].
+|
+*{{SCP|Quest}} Completion of [[Lair of Tarn Razorlor]]
+*{{SCP|Slayer|40|link=y}}
+*[[Weaponry]]
+*[[Slayer ring]] recommended for quick access to [[Tarn's Lair]]
+|-
+|6. Complete a game of [[trouble brewing]].
+''Note: You only have to complete the minigame once, winning it is optional. In Deadman Mode, the task is instead "Speak to Honest Jimmy about Trouble Brewing."''
+|
+*Completion of [[Cabin Fever]]
+*{{SCP|Cooking|40|link=y}}
+*Empty [[inventory]] and [[Worn_Equipment#Head_slot|head slot]]
+*At least one opposing player to start the game
+|-
+|7. Board the [[Swamp Boaty|Swampy boat]]{{Sic}} at the [[Hollows]].
+|
+*{{SCP|Quest}} Quest start of [[Nature Spirit]]
+*[[Dramen staff|Dramen]] or [[Lunar staff]] recommended to travel to [[Fairy ring]] code {{Fairycode|bkr}}
+|-
+|8. Make a batch of [[cannonball]]s at the [[Port Phasmatys]] furnace.
+|
+*{{SCP|Quest}} Completion of [[Dwarf Cannon]]
+*{{SCP|Smithing|35|link=y}}
+*[[Steel bar]] and [[ammo mould]] (or 2 [[steel bar]]s and [[double ammo mould]])
+|-
+|9. Kill a [[Fever Spider]] on [[Braindeath Island]].
+''Note: This task is automatically completed during [[Rum Deal]].''
+|
+*{{SCP|Quest}} Started [[Rum Deal]]
+*{{SCP|Slayer|42|link=y}}
+*[[Weaponry]] to fight at range, or means to negate [[disease]] (such as [[Slayer gloves]]), recommended
+|-
+|10. Use an [[ectophial]] to return to [[Port Phasmatys]].
+|
+*{{SCP|Quest}} Completion of [[Ghosts Ahoy]]
+*[[Ectophial]]
+|-
+|11. Mix a [[Guthix Balance]] potion while in [[Morytania]].
+|
+*{{SCP|Quest}} Partial completion of [[In Aid of the Myreque]]
+*{{SCP|Herblore|22|link=y}}
+*[[Restore potion]], [[garlic]], and [[silver dust]] (made by using a [[silver bar]] on the [[Bone grinder|Ectofuntus bone grinder]])
+|}
+
+===Rewards===
+*[[Morytania legs 2]]:
+**Five daily teleports to the [[Pool of Slime]] beneath the [[Ectofuntus]]
+**Acts as a [[ghostspeak amulet]] when worn
+*[[Antique lamp (medium)|Antique lamp]] worth 7,500 experience in any skill of at least level 40
+*[[Robin]] exchanges 13 [[Remains#Bones|bones]] of any kind daily for a [[bucket of slime]] and a pot of [[bonemeal]] each
+*5% more [[Slayer]] experience in the [[Slayer Tower]] while on a [[Slayer task]], up from 2.5%
+
+==Hard==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Morytania" data-diary-tier="Hard"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Enter the [[Kharyrll Portal]] in your [[POH]].
+''Note: Teleporting to [[Kharyrll]] from a more expensive [[portal nexus]] also counts for this task. Higher-tier materials can optionally be used for the [[Portal space|portal]] and [[Portal_chamber#Centrepiece|centrepiece]].''
+|
+*{{SCP|Quest}} Completion of [[Desert Treasure I]]
+*{{SCP|Magic|66|link=y}} and {{SCP|Construction|50|link=y}}
+*100,000 [[coins]], 2 [[limestone brick]]s, 3 [[teak plank]]s, [[hammer]], and [[saw]] to construct a [[portal chamber]] with an activatable [[teak portal]] and [[teleport focus]], if you haven't already
+*200 [[law rune]]s and 100 [[blood rune]]s to direct a portal to [[Kharyrll]], or 2000 law runes and 1000 blood runes if adding the portal to a [[portal nexus]] instead
+|-
+|2. Climb up the [[Spikey_chain_(Slayer_Tower)#Advanced|advanced spike chain]] within [[Slayer Tower]].
+''Note: This chain is located on the {{FloorNumber|uk=1}} near the [[Infernal Mage]]s, leading to the {{FloorNumber|uk=2}} to near the [[Nechryael]].''
+|
+*{{SCP|Agility|71|link=y}} {{Boostable|yes}}
+*[[Slayer helmet]] or [[nose peg]] recommended against the [[aberrant spectre]]s, when climbing the [[Spikey_chain_(Slayer_Tower)|spikey chain]] on the {{FloorNumber|uk=0}} as a shortcut to the [[Spikey_chain_(Slayer_Tower)#Advanced|advanced spikey chain]]
+*Only a successful climb (not taking damage) will count as task completed.
+|-
+|3. Harvest some [[Watermelon]] from the [[Allotment patch]] on [[Harmony Island]].
+|
+*{{SCP|Quest}} Started [[The Great Brain Robbery]]
+*{{SCP|Farming|47|link=y}}
+*3 [[watermelon seed]]s, [[spade]], [[seed dibber]] (or [[Barbarian Farming]]), and a [[rake]]
+*[[Ultracompost]] recommended
+|-
+|4. Chop and burn some [[mahogany logs]] on [[Mos Le'Harmless]].
+|
+*{{SCP|Quest}} Completion of [[Cabin Fever]]
+*{{SCP|Woodcutting|50|link=y}} and {{SCP|Firemaking|50|link=y}}
+*Any [[axe]] and a [[tinderbox]]
+*[[Witchwood icon]] and a [[light source]] (if [[Fire of Eternal Light]] has not been built) recommended
+|-
+|5. Complete a [[Temple Trekking|temple trek]] with a hard companion.
+''Note: Completion of [[Darkness of Hallowvale]] unlocks the reverse route. It's not necessary to complete any events for this task. In Deadman Mode, the task is instead "Speak to a hard companion about completing a Temple Trek."''
+|
+*{{SCP|Quest}} Completion of [[In Aid of the Myreque]]
+*See the [[Temple_Trekking#Recommendations|recommendations]]
+|-
+|6. Kill a [[cave horror|Cave Horror]].
+|
+*{{SCP|Quest}} Completion of [[Cabin Fever]]
+*{{SCP|Slayer|58|link=y}}
+*[[Witchwood icon]] and a [[light source]] 
+|-
+|7. Harvest some [[Mushroom|Bittercap Mushrooms]] from the patch in [[Canifis]].
+|
+*{{SCP|Farming|53|link=y}}
+*[[Mushroom spore]], [[seed dibber]] (or [[Barbarian Farming]]), and a [[rake]]
+*[[Ultracompost]] recommended
+|-
+|8. Pray at the [[Nature Grotto|Altar of Nature]] with [[Piety]] activated.
+|
+*{{SCP|Quest}} Completion of [[Nature Spirit]] and the [[Knight Waves Training Grounds]] (which requires completion of [[King's Ransom]])
+*{{SCP|Prayer|70|link=y}} and {{SCP|Defence|70|link=y}} (neither [[Temporary skill boost|boostable]])
+*[[Dramen staff|Dramen]] or [[Lunar staff]] recommended to travel to [[Fairy ring]] code {{Fairycode|bip}}
+|-
+|9. Use the shortcut to get to the bridge over [[River Salve|the Salve]].
+''Note: You have to use the shortcut to go downwards for this task, not upwards.
+|
+*{{SCP|Agility|65|link=y}}
+|-
+|10. Mine some [[Mithril ore]] in the [[Abandoned Mine]].
+|
+*{{SCP|Quest}} Completion of [[Haunted Mine]]
+*{{SCP|Mining|55|link=y}}
+*Any [[pickaxe]]
+*[[Crystal-mine key]] recommended (allows use of veins on Level 2, right next to the secret entrance)
+|}
+===Rewards===
+*[[Morytania legs 3]]:
+**Unlimited teleports to [[Burgh de Rott]]
+**Plus the same benefits as Morytania legs 2:
+***Five daily teleports to the Pool of Slime beneath the Ectofuntus
+***Acts as a ghostspeak amulet when worn
+*[[Bonecrusher]], claimable from a [[ghost disciple]] while wearing a [[ghostspeak amulet]] or [[Morytania legs 3]]+
+**An additional item that, when carried, causes [[Remains#Bones|bones]] dropped from killed monsters to be automatically buried, granting half the usual [[Prayer]] experience that would have been granted for burying them normally
+**This item is [[Bonecrusher#Charging|charged]] with a small amount of [[ecto-token]]s
+*[[Antique lamp (hard)|Antique lamp]] worth 15,000 experience in any skill of at least level 50
+*[[Robin]] exchanges 26 [[Remains#Bones|bones]] of any kind daily for a [[bucket of slime]] and a pot of [[bonemeal]] each, up from 13
+*Double [[Mort myre fungus|Mort myre fungi]] when casting [[Bloom]]
+*50% more [[Prayer]] experience from burning shade remains
+*50% more [[runes]] from the [[Barrows chest]]
+*7.5% more [[Slayer]] experience in the [[Slayer Tower]] while on a [[Slayer task]] (instead of 5%)
+
+==Elite==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Morytania" data-diary-tier="Elite"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Catch a [[shark]] in [[Burgh de Rott]] with your bare hands.
+|
+*{{SCP|Quest}} Completion of [[In Aid of the Myreque]]
+*Access to [[Barbarian Fishing]]
+*{{SCP|Fishing|96|link=y}} and {{SCP|Strength|76|link=y}} (both are [[Temporary skill boost|boostable]])
+*[[Shark lure]] recommended
+*If you are boosting with the [[Dragon harpoon]] special attack, you need to bank the harpoon before catching the shark. Having it in the inventory will use it by default and it will not count as bare handed.
+|-
+|2. Cremate any [[Shade remains]] on a [[Magic pyre logs|Magic]] or [[Redwood pyre logs|Redwood pyre]].
+|
+*{{SCP|Quest}} Completion of [[Shades of Mort'ton]]
+*{{SCP|Firemaking|80|link=y}} {{Boostable|yes}}
+*[[Magic pyre logs|Magic]] or [[Redwood pyre logs]], any [[shade remains]], and a [[tinderbox]]
+|-
+|3. Fertilize the [[Morytania]] [[herb patch]] using [[Lunar spells|Lunar Magic]].
+''Note: This herb patch is located west of [[Port Phasmatys]].''
+|
+*{{SCP|Quest}} Completion of [[Lunar Diplomacy]]
+*{{SCP|Magic|83|link=y}}
+*[[Lunar spellbook]] selected
+*Means to cast [[Fertile Soil]] ({{RuneReq|Nature=2|Astral=3|Earth=15}})
+|-
+|4. Craft a [[Black d'hide body|Black dragonhide body]] in [[Canifis bank]].
+|
+*{{SCP|Crafting|84|link=y}}
+*3 [[black dragon leather]], and a [[needle]] and [[thread]] or the [[costume needle]]
+|-
+|5. Kill an [[Abyssal demon]] in the [[Slayer Tower]].
+''Note: [[Abyssal demon]]s on the {{FloorNumber|uk=2}} do not require a [[Slayer task]] to kill like those in the basement.''
+|
+*{{SCP|Slayer|85|link=y}}
+*[[Weaponry]]
+|-
+|6. Loot the [[Barrows chest]] while wearing any complete [[Barrows equipment|barrows set]].
+''Note: This includes the weapon that is part of the equipped set.
+|
+*{{SCP|Defence|70|link=y}}{{boostable|no}} 
+*Various other skill requirements depending on the set used, none of which can be [[Temporary skill boost|boosted]]:
+**{{SCP|Attack|70|link=y}} and {{SCP|Magic|70|link=y}} for [[Ahrim the Blighted's equipment|Ahrim's]]
+**{{SCP|Attack|70|link=y}} and {{SCP|Strength|70|link=y}} for [[Dharok the Wretched's equipment|Dharok's]] or [[Torag the Corrupted's equipment|Torag's]]
+**{{SCP|Attack|70|link=y}} for [[Guthan the Infested's equipment|Guthan's]] or [[Verac the Defiled's equipment|Verac's]]
+**{{SCP|Ranged|70|link=y}} for [[Karil the Tainted's equipment|Karil's]]
+|}
+
+===Rewards===
+*[[Morytania legs 4]]:
+**Prevents [[ghast]]s from turning your [[food]] into [[rotten food]] when worn
+**Unlimited teleports to the [[Pool of Slime]] beneath the [[Ectofuntus]]
+**Plus the same benefits as Morytania legs 3:
+***Unlimited teleports to [[Burgh de Rott]]
+***Acts as a ghostspeak amulet when worn
+*[[Antique lamp (elite)|Antique lamp]] worth 50,000 experience in any skill of at least level 70
+*[[Robin]] exchanges 39 [[Remains#Bones|bones]] of any kind daily for a [[bucket of slime]] and a pot of [[bonemeal]] each, up from 26
+*50% more [[Firemaking]] experience when burning [[shade remains]]
+*Bones buried via the [[Bonecrusher]] now grant full [[Prayer]] experience
+*Access to the disease-free [[herb patch]] on [[Harmony Island]]
+*10% more [[Slayer]] experience in the [[Slayer Tower]] while on a [[Slayer task]], up from 7.5%
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 July 2024
+|update = While Guthix Sleeps
+|change = The diary task of getting a slayer task from Mazchna has been replaced with getting a slayer task from the Slayer Master in Canifis.
+}}
+{{Subject changes
+|date = 4 May 2017
+|update = Skotos & Dark Claws
+|change = Abyssal Demons in the new Slayer Tower Basement will now count towards the Morytania Achievement Diary.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = Typo in Morytania Diary journal fixed.
+}}
+{{Subject changes
+|date = 17 September 2015
+|update = Angler's Outfit & Slayer
+|change = The task to make a Guthix balance potion in Morytania will now tick off if you are anywhere in Morytania, not just at ground level.
+}}
+{{Subject changes
+|date = 16 July 2015
+|update = Duel Arena Rework
+|change = Fixed misspelling of "receive" in Ardougne, Karamja, Morytania and Wilderness Diaries.
+}}
+{{Subject changes
+|date = 7 May 2015
+|update = Slayer Partners & Teleports
+|change = Climbing the medium spiked chain at the slayer tower no longer completes the Morytania task for climbing the advanced spike chain.
+}}
+{{Subject changes
+|date = 9 April 2015
+|update = Motherlode Expansion & More
+|change = Fixed typos in the Morytania achievement diary.
+}}
+{{Subject changes footer}}
+
+{{Achievement diary}}

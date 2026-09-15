@@ -10,11 +10,13 @@
  * links exactly one (see platform/platform.mk).
  *
  * This file and its two .c files may use anything GL 3.2 core offers: VAOs,
- * 32-bit element indices, sized internal formats, BGRA readback. The WebGL1
- * backend is a separate set of files with none of that available, so there is
- * no TORIRS_GL_ES2 here and no fallback to keep in step.
+ * 32-bit element indices, sized internal formats, BGRA readback. The browser
+ * does not build this renderer at all -- it links the GLES2 one
+ * (platform_renderer_gles2_*.c) against WebGL1 -- so there is no ES2 switch
+ * here and no fallback to keep in step.
  */
 
+#include "render/torirs_polygon.h"
 #include "platform/platform_sdl2_renderer_gl3.h"
 
 #include "core/trspk_atlas.h"
@@ -43,7 +45,7 @@
 #include "toridraw_sprite.h"
 #include "toridraw_types.h"
 
-#include <SDL.h>
+#include "platform/platform_gl_context.h"
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -57,12 +59,10 @@
 /*
  * Two GPU backends, one renderer.
  *
- * Natively this is desktop GL 3.2 core; on the web it is WebGL1 (GLES2) with no
- * extensions — see 3rd/trspk/webgl1/trspk_webgl1.h for what that rules out.
- * Everything above the handful of definitions below is written once: the draw
- * order, the atlas, the sprite variants, the picking and the 2D batcher do not
- * know which context they are running on, and a fix to any of them lands on
- * both. What genuinely differs is named here.
+ * This is desktop GL 3.2 core. The browser no longer builds a variant of it:
+ * the web lane links the GLES2 renderer (platform_renderer_gles2_*.c) against
+ * WebGL1, so the definitions below have exactly one value each and are kept as
+ * names only because the code reads better through them.
  */
 #define TORIRS_GL_TEX_RGBA GL_RGBA8
 #define TORIRS_GL_TEX_R GL_R8
@@ -222,12 +222,28 @@ struct GL3AlphaSubmission
     int depth;
 };
 
+/*
+ * The atlas tile a scene sprite already occupies.
+ *
+ * Kept across an unload, and that is the point of it. The sprite atlas is
+ * an append-only bin-packer with no reclamation, so a sprite REPLACED over
+ * a live id would take a fresh tile on every upload and exhaust the sheet;
+ * once inserts fail the sprite stops drawing at all. Holding the tile lets
+ * a replacement of the same size overwrite the pixels where they are.
+ */
+struct GL3SpriteTile
+{
+    struct TRSPK_AtlasTile tile;
+    uint8_t valid;
+};
+
 struct GL3SpriteSlot
 {
     int scene_id;
     int count;
     float* uvs;
     uint8_t* loaded;
+    struct GL3SpriteTile* tiles;
 };
 
 struct GL3SpriteVariant
@@ -322,15 +338,33 @@ struct GL3ModelGroup
 
 struct ToriRS_GL3
 {
+    /* Polygon run state: points accumulate between POLYGON_BEGIN and
+     * POLYGON_END and the fill happens on END. Held on the renderer because a
+     * run spans several commands by design -- see TORIRSRC_POLYGON_* in
+     * torirs_render.h. */
+    struct ToriRS_RenderCommand_PolygonBegin polygon;
+    int polygon_open;
+    int polygon_x[TORIRS_POLYGON_MAX_POINTS];
+    int polygon_y[TORIRS_POLYGON_MAX_POINTS];
+    int polygon_count;
+
     struct ToriDraw_Scene* scene;
-    SDL_Window* window;
-    SDL_GLContext gl_context;
+    /* Projection + face sort; a NULL raster slot is how the table says it
+     * has no software raster stage (ToriDraw_KernelGetGpu). */
+    const struct ToriDraw_Kernel* kernel;
+    ToriRS_GLWindow* window;
+    ToriRS_GLContext gl_context;
     int width;
     int height;
     int lb_x;
     int lb_y;
     int lb_w;
     int lb_h;
+    /** Drawable pixels reserved at the right for the attached plugin shell. */
+    int host_right_inset;
+    /* All Settings' interface scaling mode. GL has nearest and linear
+     * sampling; the Bicubic choice uses the highest portable one, linear. */
+    int interface_scale_mode;
 
     struct TRSPK_Atlas atlas;
     /*
@@ -414,6 +448,10 @@ struct ToriRS_GL3
     struct TRSPK_Atlas sprite_atlas;
     GLuint sprite_atlas_texture;
     GLuint white_texture;
+    /** Retained attached ToriRSChrome pane, uploaded only when its host asks. */
+    GLuint chrome_texture;
+    int chrome_texture_w;
+    int chrome_texture_h;
     /* Dedicated GL textures for rotated+masked chrome (minimap, compass).
      * Soft3D reblits into the framebuffer every frame; we keep one texture per
      * (scene, mask, size) and rewrite it each draw so the two never alias. */

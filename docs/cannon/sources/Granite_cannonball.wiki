@@ -1,0 +1,103 @@
+{{Infobox Item
+|name = Granite cannonball
+|image = [[File:Granite cannonball.png]]
+|release = [[26 October]] [[2017]]
+|update = Grotesque Guardians
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = Ammo suited for a boat's cannon or for a dwarf multicannon.
+|value = 85
+|weight = 0.000
+|id = 21728
+}}
+[[File:Granite cannonball detail.png|left|150px]]
+'''Granite cannonballs''' are [[ammunition]] used for a [[dwarf multicannon]], as well as for a [[Cannon (facility)|boat cannon]] during [[boat combat]]. They can be fired from [[adamant cannon]]s or stronger. They are created at level 50 [[Smithing]] by using a [[steel cannonball]] on [[granite dust]], granting no experience.
+
+Granite cannonballs increase the [[max ranged hit|max hit]] of the dwarf multicannon from 30 to 35, equating to an approximate damage per second increase of 16.67%.
+
+When a player creates granite cannonballs, a message in the chatbox will state ''You apply a thick coating of granite dust to your steel cannonballs.''
+
+If a player is killed by another player in the [[Wilderness]] or a [[PvP world]], the killer will receive steel cannonballs.
+
+==Comparison==
+''The following stats apply only to ship combat.''
+{{Cannonball Stats}}
+
+==Creation==
+{{Recipe
+|skill1 = Smithing
+|skill1lvl = 50
+|skill1boostable = Yes
+|skill1exp = 0
+|members = Yes
+|ticks = 0
+|mat1 = Steel cannonball
+|mat2 = Granite dust
+|mat2cost = No
+|output1 = Granite cannonball
+|output1cost = No
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 18 March 2026
+|update = Boat Combat Fixes
+|change = The [[Ranged Strength]] bonus of granite cannonballs for ship combat has been increased from +61 to +125.
+}}
+{{Subject changes
+|date = 5 November 2025
+|update = Sailing Technical Pre-Release
+|change =
+* The item's examine text was changed; previously, it was "Extra powerful ammo for the Dwarf Cannon."
+* The item was recoloured.
+}}
+{{Subject changes 
+|date = 16 January 2020
+|update = Twisted League Reward Shop and Game Improvements
+|change = Granite cannonballs are once again the correct shade of grey.
+}}
+{{Subject changes 
+|date = 9 January 2020
+|update = Eating in the Bank
+|change = The item was recoloured.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Granite cannonball v1 detail.png|center|300x150px]]
+|[[File:Granite cannonball v2 detail.png|center|300x150px]]
+|[[File:Granite cannonball v1 detail.png|center|300x150px]]
+|[[File:Granite cannonball detail.png|center|300x150px]]
+|[[File:Granite cannonball (Christmas, 2017) detail.png|center|300x150px]]
+|[[File:Granite cannonball (Christmas, 2018) detail.png|center|300x150px]]
+|-
+|[[File:Granite cannonball v1.png|center]]
+|[[File:Granite cannonball v2.png|center]]
+|[[File:Granite cannonball v1.png|center]]
+|[[File:Granite cannonball.png|center]]
+|[[File:Granite cannonball (Christmas, 2017).png|center]]
+|[[File:Granite cannonball (Christmas, 2018).png|center]]
+|-
+|26 October 2017 –<br/>9 January 2020
+|9 January 2020 –<br/>16 January 2020
+|16 January 2020 –<br/>5 November 2025
+|5 November 2025 –<br/>Present
+|Christmas 2017, 2019
+|Christmas 2018
+|}
+
+==Trivia==
+*Granite cannonballs had a festive override to look like [[wikipedia:Christmas pudding|christmas pudding]]s during the [[2017 Christmas event/Gallery|2017]], [[2018 Christmas event/Gallery|2018]], and [[2019 Christmas event/Gallery|2019]] Christmas events. The override had a darker colour in 2018 compared to 2017 and 2019. Upon the 2019 event ending, the colour was accidentally changed to be identical to regular [[cannonball]]s, which was fixed the following week.
+
+{{Ranged weapons}}
+{{Cannon}}
+{{Ship combat}}
+{{Granite items}}
+{{Grotesque Guardians}}

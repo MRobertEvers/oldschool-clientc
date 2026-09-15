@@ -1,0 +1,41 @@
+From 5954103a9224aec38a8b994e842f696bab44f7e2 Mon Sep 17 00:00:00 2001
+From: Matt Evers <mrobertevers@gmail.com>
+Date: Tue, 25 Aug 2026 01:48:09 -0500
+Subject: [PATCH] build(hunt): HUNT_CFLAGS/HUNT_LDFLAGS whole-program escape
+ hatch
+
+Empty by default, so a plain make is byte-identical to before. Unlike
+TORIDRAW_PROBE_CFLAGS these reach every compile that feeds the final link,
+which is what -fprofile-generate/-fprofile-use require: a partly-instrumented
+LTO link silently drops the un-instrumented objects out of the profile.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ src/makefile | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/src/makefile b/src/makefile
+index ce14e6b3e..db8682699 100644
+--- a/src/makefile
++++ b/src/makefile
+@@ -354,6 +354,20 @@ COMPRESS_CFLAGS += $(OPT_RELEASE_CFLAGS)
+ TORIDRAW_CFLAGS += $(OPT_RELEASE_CFLAGS)
+ LDFLAGS         += $(OPT_RELEASE_LDFLAGS)
+ 
++# HUNT_CFLAGS / HUNT_LDFLAGS: a whole-program codegen escape hatch for the perf
++# hunt. Empty by default, so a plain `make` is byte-identical to before. Unlike
++# TORIDRAW_PROBE_CFLAGS these reach EVERY compile that feeds the final link,
++# which is what -fprofile-generate/-fprofile-use require: a partly-instrumented
++# LTO link silently drops the un-instrumented objects out of the profile.
++HUNT_CFLAGS  ?=
++HUNT_LDFLAGS ?=
++CFLAGS          += $(HUNT_CFLAGS)
++RSCACHE_CFLAGS  += $(HUNT_CFLAGS)
++RSPROT_CFLAGS   += $(HUNT_CFLAGS)
++COMPRESS_CFLAGS += $(HUNT_CFLAGS)
++TORIDRAW_CFLAGS += $(HUNT_CFLAGS)
++LDFLAGS         += $(HUNT_LDFLAGS)
++
+ ifeq ($(ENABLE_ASAN),1)
+ CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
+ RSCACHE_CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1

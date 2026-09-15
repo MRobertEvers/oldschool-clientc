@@ -25,7 +25,7 @@ PASS_NAME="${TORIRS_PROFILE_PASS:-test}"
 REV="$(git rev-parse --short HEAD 2>/dev/null || echo nogit)"
 OUT_DIR="$ROOT/tools/perf/results"
 mkdir -p "$OUT_DIR"
-MANIFEST="$ROOT/manifest_osrs230_embed.ini"
+MANIFEST="$ROOT/manifests/manifest_osrs230_embed.ini"
 
 case "$SCENARIO" in
   idle|ui|world|drift|drift-capped|drift-ui|soak-ui) ;;

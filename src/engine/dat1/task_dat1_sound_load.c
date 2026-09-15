@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Make one dat1 sound effect resident.
@@ -50,7 +51,7 @@ Task_Dat1SoundLoad_Run(
         jagfile = RSCache_IO_Dat1JagfileDecode(io, 0, RSCACHE_DAT1_CONFIG_SOUND_EFFECTS);
         if( !jagfile )
         {
-            fprintf(stderr, "dat1 sound: sound-effects jagfile did not decode\n");
+            TORIRS_LOG("dat1 sound: sound-effects jagfile did not decode\n");
             PT_EXIT(&task->pt);
         }
         dat1_buildcache_set_sounds_jagfile(task->bc, jagfile);
@@ -63,7 +64,7 @@ Task_Dat1SoundLoad_Run(
         /* Not an error: servers reference ids a given cache does not carry, and
          * the reference client plays nothing for them. */
         if( getenv("TORIRS_AUDIO_DEBUG") )
-            fprintf(stderr, "dat1 sound: no effect %d in this bank\n", task->sound_id);
+            TORIRS_LOG("dat1 sound: no effect %d in this bank\n", task->sound_id);
         PT_EXIT(&task->pt);
     }
 
@@ -75,15 +76,13 @@ Task_Dat1SoundLoad_Run(
     {
         /* An empty program renders to nothing; the reference plays silence. */
         if( getenv("TORIRS_AUDIO_DEBUG") )
-            fprintf(stderr, "dat1 sound: effect %d has no audible tone\n", task->sound_id);
+            TORIRS_LOG("dat1 sound: effect %d has no audible tone\n", task->sound_id);
         PT_EXIT(&task->pt);
     }
 
     CacheProvider_SoundAdd(&task->bc->base, task->sound_id, sound);
     if( getenv("TORIRS_AUDIO_DEBUG") )
-        fprintf(
-            stderr,
-            "dat1 sound: effect %d rendered, %d samples, delay %d ticks\n",
+        TORIRS_LOG("dat1 sound: effect %d rendered, %d samples, delay %d ticks\n",
             task->sound_id,
             sound->sample_count,
             sound->queue_delay);

@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static void
 torirs_copy_menu_actions(
@@ -55,7 +56,7 @@ torirs_component_type_from_raw(int type)
     case TORIRS_COMPONENT_LINE:
         return TORIRS_COMPONENT_LINE;
     default:
-        fprintf(stderr, "torirs_component_type_from_raw: unknown dat2 type=%d\n", type);
+        TORIRS_ERR("torirs_component_type_from_raw: unknown dat2 type=%d\n", type);
         assert(false && "unknown dat2 component type");
         return TORIRS_COMPONENT_LAYER;
     }
@@ -98,19 +99,20 @@ torirs_component_copy_inv_slots_dat2(
         return;
     assert(dst);
 
+    struct ToriRS_ComponentInvSlots* slots = ToriRS_ComponentInvSlotsEnsure(dst);
     for( int i = 0; i < TORIRS_INV_SLOT_MAX; i++ )
     {
         if( src->invSlotOffsetX )
-            dst->inv_slot_offset_x[i] = src->invSlotOffsetX[i];
+            slots->offset_x[i] = src->invSlotOffsetX[i];
         if( src->invSlotOffsetY )
-            dst->inv_slot_offset_y[i] = src->invSlotOffsetY[i];
+            slots->offset_y[i] = src->invSlotOffsetY[i];
         if( src->invSlotGraphicId )
         {
-            dst->inv_slot_graphic_id[i] = src->invSlotGraphicId[i];
+            slots->graphic_id[i] = src->invSlotGraphicId[i];
             torirs_dat2_sprite_ref_from_id(
                 src->invSlotGraphicId[i],
-                dst->inv_slot_sprite_ref[i],
-                sizeof(dst->inv_slot_sprite_ref[i]));
+                slots->sprite_ref[i],
+                sizeof(slots->sprite_ref[i]));
         }
     }
 }
@@ -350,6 +352,7 @@ ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
     dst->active_model_type = src->activeModelId >= 0 ? src->modelType : 0;
     dst->active_model_id = src->activeModelId;
     dst->model_seq_id = src->modelSeqId;
+    dst->model_active_seq_id = src->activeAnimId;
     dst->model_zoom = src->modelZoom;
     dst->model_xan = src->modelXAngle;
     dst->model_yan = src->modelYAngle;
@@ -485,12 +488,20 @@ ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
     dst->hide = src->hide ? 1 : 0;
     dst->button_type = src->buttonType;
     dst->client_code = src->clientCode;
-    dst->click_mask = src->targetMask;
-    /* dat1 keeps the mask as its own field, decoded only for a BUTTON_TARGET or
+    /*
+     * dat1 keeps the mask as its own field, decoded only for a BUTTON_TARGET or
      * an INV, and left at -1 ("never read") everywhere else. -1 is not a mask:
-     * passed on as one it would answer yes to every target kind, so the
-     * not-a-target case is spelled 0 here the way every other generation
-     * spells it. */
+     * passed on as one it answers yes to every bit there is.
+     *
+     * BOTH fields need saying, and only one of them used to say it. As a
+     * CLICK mask, -1 sets the drag-depth bits, so UITree_ComponentIsDraggable
+     * answered yes for every ordinary IF1 widget in the cache -- an era whose
+     * interfaces have no drag concept at all -- and most of a 2004 gameframe
+     * could be picked up and thrown around. It also makes every one of them a
+     * drop target and a click target, which is the same mistake wearing three
+     * hats.
+     */
+    dst->click_mask = src->targetMask > 0 ? src->targetMask : 0;
     dst->target_mask = src->targetMask > 0 ? src->targetMask : 0;
     dst->parent_id = src->layer;
 
@@ -530,6 +541,7 @@ ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
     dst->active_model_type = src->activeModelType;
     dst->active_model_id = src->activeModel;
     dst->model_seq_id = src->anim;
+    dst->model_active_seq_id = src->activeAnim;
     dst->model_zoom = src->zoom;
     dst->model_xan = src->xan;
     dst->model_yan = src->yan;
@@ -550,18 +562,19 @@ ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
          * item ops) and usable = objUse (show "Use"). */
         dst->inv_obj_ops = src->interactable ? 1 : 0;
         dst->inv_obj_use = src->usable ? 1 : 0;
+        struct ToriRS_ComponentInvSlots* slots = ToriRS_ComponentInvSlotsEnsure(dst);
         for( int i = 0; i < TORIRS_INV_SLOT_MAX; i++ )
         {
-            dst->inv_slot_graphic_id[i] = -1;
+            slots->graphic_id[i] = -1;
             if( src->invSlotOffsetX )
-                dst->inv_slot_offset_x[i] = src->invSlotOffsetX[i];
+                slots->offset_x[i] = src->invSlotOffsetX[i];
             if( src->invSlotOffsetY )
-                dst->inv_slot_offset_y[i] = src->invSlotOffsetY[i];
+                slots->offset_y[i] = src->invSlotOffsetY[i];
             if( src->invSlotGraphic && src->invSlotGraphic[i] )
                 strncpy(
-                    dst->inv_slot_sprite_ref[i],
+                    slots->sprite_ref[i],
                     src->invSlotGraphic[i],
-                    sizeof(dst->inv_slot_sprite_ref[i]) - 1);
+                    sizeof(slots->sprite_ref[i]) - 1);
         }
     }
 
@@ -710,9 +723,19 @@ torirs_component_pack_apply_layout(
         if( !rs )
             continue;
 
-        int rel_x = rs->if3 ? rs->baseX : rs->x;
-        int rel_y = rs->if3 ? rs->baseY : rs->y;
-        ToriRS_ComponentApplyWalkLayout(dst, rs->layer, rel_x, rel_y);
+        /*
+         * `baseX`/`baseY` for BOTH formats. `x`/`y` on the decoded component
+         * are the reference's RUNTIME position — a field the server writes —
+         * and the dat2 decoder never populates them: every one of its three
+         * paths, IF1 included, reads the authored position into `baseX`.
+         *
+         * Reading `x` for an if3=0 component therefore read a zero, and every
+         * IF1 component in the cache laid out at its parent's origin. It is
+         * quiet because the legacy interfaces are few and mostly small:
+         * `messagescroll`'s scroll model sat at (0,0) instead of (220,166),
+         * and 65 interfaces in the corpus were wrong the same way.
+         */
+        ToriRS_ComponentApplyWalkLayout(dst, rs->layer, rs->baseX, rs->baseY);
         if( rs->baseWidth > 0 )
             dst->width = rs->baseWidth;
         if( rs->baseHeight > 0 )

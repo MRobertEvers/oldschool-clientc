@@ -1,0 +1,50 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Shadow Barrage
+|image = [[File:Shadow Barrage.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 88
+|spellbook = Ancient
+|type = Combat
+|exp = 49
+|element = Shadow
+|damage = 28
+|cost = {{RuneReq|Air=4|Soul=3|Blood=2|Death=4}}
+|speed = 5 ticks
+|description = A multi-target strong shadow attack
+|anim = [[File:Shadow Barrage.gif|250px]]
+|sound = [[File:Shadow Barrage.ogg]]
+}}
+[[File:Shadow Barrage icon (mobile).png|left]]
+'''Shadow Barrage''' is the highest tier [[shadow spell]] in the [[Ancient Magicks]] spellbook, requiring level 88 [[Magic]] and completion of the [[Desert Treasure I]] [[quest]]. Like all [[barrage spells]], it is able target up to nine targets in a [[Game square|3x3 grid]] around its primary target. 
+
+Given that Shadow Barrage is the most expensive spell on the spellbook, it is rarely used, as [[Smoke Barrage]] offers significantly better cost efficiency and both [[Blood Barrage]] and [[Ice Barrage]] offer both more damage per and less cost per cast.
+
+==Damage==
+===Calculator===
+{{Magic damage calculator|Shadow Barrage|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+=== Effects ===
+In addition to dealing damage, Shadow Barrage reduces the target's [[Attack]] level by 15% if it has not already been drained. This effect does '''not''' stack to lower the target's Attack level to zero, and will not apply if the target's stats have already been drained from another source. 
+
+When used against the [[Abyssal Sire]], Shadow Barrage has a 100% chance of disorienting it for the first phase of the fight. Contrary to popular belief, the spell '''does not''' offer this effect against standard [[abyssal demon]]s, and will simply reduce their Attack by 15% like normal.
+
+Players can also cast Shadow Barrage to stun [[the Leviathan]], resulting in a guaranteed hit that will cause it to stay still for 15 [[ticks]] (9 seconds), allowing players to safely deal damage. This will reset the Leviathan's attack speed to the beginning of the 2-tick attacks.
+
+==Cost==
+{{Spell cost table
+|Rune1 = death
+|Rune1num = 4
+|Rune2 = blood
+|Rune2num = 2
+|Rune3 = air
+|Rune3num = 4
+|Rune4 = soul
+|Rune4num = 3
+|is_offensive = y
+}}
+
+{{Ancient Magicks}}
+{{Combat spells}}

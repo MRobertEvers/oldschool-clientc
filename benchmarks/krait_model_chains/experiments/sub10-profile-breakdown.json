@@ -1,0 +1,143 @@
+{
+  "scope": "Selected flat symbol groups across all sampled application threads, not inclusive stage times or elapsed-frame percentages.",
+  "groups": {
+    "UI emission and width queries": [
+      "emit_walk_node",
+      "App_MeasureLaneFrameCoreWidth",
+      "App_MeasureRightChromeStripWidth"
+    ],
+    "Actor baking and packing": [
+      "gles2_bake_pose_vertices",
+      "trspk_toridraw_bake_face_impl",
+      "trspk_toridraw_face_colors",
+      "trspk_toridraw_world_vertices"
+    ],
+    "General face ordering": [
+      "toridraw_compute_projected_face_order_small_general"
+    ],
+    "Pose transforms": [
+      "ToriDraw_AnimApplyTransform"
+    ],
+    "Scene painter and registration": [
+      "bucket_paint_world",
+      "World_CycleRegisterPainterDynamics"
+    ],
+    "memcpy": [
+      "__memcpy_base"
+    ]
+  },
+  "profiles": {
+    "cpu-cycles": {
+      "samples": 38309,
+      "lost": 0,
+      "threads": {
+        "Thread-499": {
+          "samples": 32670,
+          "percent": 85.28022135790545
+        },
+        "gles2-stage": {
+          "samples": 3876,
+          "percent": 10.117726904904853
+        },
+        "AudioTrack": {
+          "samples": 1430,
+          "percent": 3.7328043018611816
+        },
+        "GL updater": {
+          "samples": 162,
+          "percent": 0.4228771307003576
+        },
+        "Binder_2": {
+          "samples": 86,
+          "percent": 0.2244903286433997
+        },
+        "Binder_1": {
+          "samples": 85,
+          "percent": 0.22187997598475553
+        }
+      },
+      "groups": {
+        "UI emission and width queries": {
+          "samples": 3853,
+          "percent": 10.057688793756036
+        },
+        "Actor baking and packing": {
+          "samples": 2828,
+          "percent": 7.382077318645749
+        },
+        "General face ordering": {
+          "samples": 2207,
+          "percent": 5.761048317627711
+        },
+        "Pose transforms": {
+          "samples": 1923,
+          "percent": 5.019708162572764
+        },
+        "Scene painter and registration": {
+          "samples": 2081,
+          "percent": 5.432143882638544
+        },
+        "memcpy": {
+          "samples": 1698,
+          "percent": 4.432378814377823
+        }
+      }
+    },
+    "L1-dcache-load-misses": {
+      "samples": 21031,
+      "lost": 0,
+      "threads": {
+        "Thread-579": {
+          "samples": 19326,
+          "percent": 91.8929199752746
+        },
+        "gles2-stage": {
+          "samples": 1531,
+          "percent": 7.279729922495364
+        },
+        "AudioTrack": {
+          "samples": 148,
+          "percent": 0.7037230754600352
+        },
+        "GL updater": {
+          "samples": 12,
+          "percent": 0.05705862774000285
+        },
+        "Binder_1": {
+          "samples": 7,
+          "percent": 0.03328419951500167
+        },
+        "Binder_2": {
+          "samples": 7,
+          "percent": 0.03328419951500167
+        }
+      },
+      "groups": {
+        "UI emission and width queries": {
+          "samples": 4586,
+          "percent": 21.80590556797109
+        },
+        "Actor baking and packing": {
+          "samples": 1526,
+          "percent": 7.255955494270363
+        },
+        "General face ordering": {
+          "samples": 1706,
+          "percent": 8.111834910370405
+        },
+        "Pose transforms": {
+          "samples": 304,
+          "percent": 1.4454852360800723
+        },
+        "Scene painter and registration": {
+          "samples": 1169,
+          "percent": 5.558461319005278
+        },
+        "memcpy": {
+          "samples": 4249,
+          "percent": 20.20350910560601
+        }
+      }
+    }
+  }
+}

@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 struct RS_CS2Host;
+struct RS_CS2VarTransmitHook;
 struct CS2VM2_Script;
 
 /**
@@ -59,6 +60,11 @@ CreateTask_CS2InvTransmitDispatch(
     struct RS_CS2Host* host,
     int container_id);
 
+/** Resume inv hooks that missed a matching change while hidden. */
+struct ToriRS_Task*
+CreateTask_CS2InvTransmitUnhideDispatch(
+    struct RS_CS2Host* host);
+
 /**
  * Run registered var-transmit hooks whose triggers match var_id
  * (or all hooks when var_id < 0).
@@ -76,6 +82,19 @@ CreateTask_CS2VarTransmitDispatch(
 struct ToriRS_Task*
 CreateTask_CS2VarTransmitDispatchSet(
     struct RS_CS2Host* host,
+    int const* var_ids,
+    int var_count);
+
+/** Resume var hooks that missed a matching change while hidden. */
+struct ToriRS_Task*
+CreateTask_CS2VarTransmitUnhideDispatch(
+    struct RS_CS2Host* host);
+
+/** True when a var-transmit hook's compiled varp trigger set intersects the
+ * changed base-varp ids. A zero-sized side is the wildcard form. */
+int
+RS_CS2_VarTransmitTriggersMatch(
+    struct RS_CS2VarTransmitHook const* hook,
     int const* var_ids,
     int var_count);
 
@@ -118,6 +137,17 @@ CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host);
 struct ToriRS_Task*
 CreateTask_CS2FriendTransmitDispatch(struct RS_CS2Host* host);
 
+/*
+ * Re-run every CC/IF_SETONCHATTRANSMIT hook: the chatbox scrollback.
+ *
+ * Same contract again — no trigger set — driven from RS_CS2_PumpTransmits when
+ * chat_transmit_dirty is set. This is the ONLY thing that draws a chat line at
+ * a cache revision: interface 162 ships 500 empty text components and the
+ * cache's own scripts fill them from the client's message store.
+ */
+struct ToriRS_Task*
+CreateTask_CS2ChatTransmitDispatch(struct RS_CS2Host* host);
+
 /** Re-run every stat-transmit hook whose trigger list names one of `stat_ids`
  *  (NULL/0 = every hook). The skill half of the var/inv reactive loop; the XP
  *  drop panel is its consumer. */
@@ -126,5 +156,9 @@ CreateTask_CS2StatTransmitDispatchSet(
     struct RS_CS2Host* host,
     int const* stat_ids,
     int stat_count);
+
+/** Resume stat hooks that received a matching update while hidden. */
+struct ToriRS_Task*
+CreateTask_CS2StatTransmitUnhideDispatch(struct RS_CS2Host* host);
 
 #endif /* TASK_CS2_RUN_H */

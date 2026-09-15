@@ -1,0 +1,83 @@
+# The loot tracker's record/inference MERGE, before and after.
+#
+# SERIAL, two binaries. BEFORE is fix/trackers-4 (963095f6d, built as
+# torirs_ltpre in its own worktree with its own manifests); AFTER is this tree.
+# Both defects are in C, so pointing TORIRS_SHOT_WORKTREE at the old tree would
+# change nothing -- TORIRS_SHOT_BIN is what selects the side.
+#
+# THE STIMULUS IS THE POINT. Every loot capture before these drove ::lootkill,
+# which feeds the client's own record and makes NO npc despawn -- so the
+# despawn/spawn inference path that ungating lt_sync_store armed on the CS2
+# lanes could not appear in one of them. This drive makes a real kill on the
+# embedded server and the chat band proves it: "Spawned 1 x Goblin (3028) at
+# 3211,3425." then "Attacking Goblin (slot 1438, 1 tiles)." ::god 1 keeps the
+# player up and ::setlevel attack/strength 99 makes the fight short enough to
+# finish inside 700 frames.
+#
+# ltfix-548-origin is the control that says which account the band came from:
+# it is the SAME drive on 0f1e7b528, where inference is off on CS2 altogether,
+# and the Goblin band is still there. So the CS2 record is fed by real kills,
+# the inferred band is a duplicate, and the correct result is that the page
+# does not change. It does not: the loot-page rect (0,70,340,345) differs by 0
+# pixels between pre and after on all four toplevels. Without the per-source
+# rule it would read "Goblin x 2".
+#
+# The four full frames differ outside that rect -- world scene and the
+# performance readout -- and on classic161 by a 4px column at x=4..7, which is
+# the floor to the LEFT of the panel (the panel's own edge is x=8) showing a
+# character in a different animation frame.
+
+ltfix-548-pre          loot-tracker cs2        'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-548-after        loot-tracker cs2        'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-548-origin       loot-tracker cs2        'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-classic161-pre   loot-tracker classic161 'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-classic161-after loot-tracker classic161 'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-modern164-pre    loot-tracker modern164  'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-modern164-after  loot-tracker modern164  'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-stone601-pre     loot-tracker stone601   'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+ltfix-stone601-after   loot-tracker stone601   'TORIRS_SIM_CMD=60,god 1;70,setlevel attack 99;80,setlevel strength 99;120,spawn goblin;160,fight;520,lootkill Imp 526 1' TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_SHOT_FRAMES=700
+
+# The live CS1 lane, which is the one the original defect was reported on.
+# TORIRS_LC_USER must differ per run (reply 5 holds the previous session for
+# about a minute) and the account needs the two-phase tutorial skip first --
+# ltfix-live-setup-a/b are phase one, and phase two is the same account again.
+# @see the lostcity-live-cs1-shot-lane note.
+ltfix-live-try1        loot-tracker cs1live    'TORIRS_SIM_CMD=200,lootkill Goblin 995 5000' TORIRS_SIM_PLUGIN_PANEL=1200,loot-tracker,page TORIRS_SHOT_FRAMES=1400
+
+# THE CS1 REAL KILL IS NOT PHOTOGRAPHED, and the row says so rather than
+# implying it is. Finding 3 -- one ::lootkill disabling the 2004 lane's only
+# working loot source -- needs an inferred kill on a lane where the record has
+# no other feeder, and LostCity has no debugproc that kills an npc (`::damage`
+# damages the PLAYER; the full list is content/scripts/_test/scripts/cheats/).
+# Three drives were tried:
+#
+#   ltfix-live-try1        ::lootkill only -- the account was fresh, so the
+#                          client sat in the character designer and the world
+#                          drive never ran. It does prove the FED RECORD reaches
+#                          the live page, which is the defect this branch exists
+#                          to fix: "Total count: 1 / Total value: 5K gp" over a
+#                          "Goblin x 1" band with the 5000-coin cell.
+#   ltfix-live-kill-{pre,after}   two-phase tutorial skip first
+#                          (ltfix-live-setup-a/b), then ~varrock + ~npc chicken
+#                          + six TORIRS_SIM_CLICK_AT around the viewport centre.
+#                          The clicks hit Romeo and opened his dialogue; the
+#                          chicken is visible on the floor, unkilled.
+#   ltfix-livekill2-{pre,after}   TORIRS_SIM_OPNPC=460,1,41 instead of pixel
+#                          clicks, which is the right instrument -- BOTH logs
+#                          say "sim_opnpc: op=1 npc=41 slot=8142", so the Attack
+#                          reached a real chicken on both sides -- but the player
+#                          still has to walk to it and the kill did not land
+#                          inside 1500 frames. Both pages are the record's one
+#                          band, "Goblin x 1  5K gp" over the 5000-coin cell, and
+#                          the loot-page rect (0,70,340,345) differs by 24 px
+#                          between them: x=328..338, y=84..113, which is the
+#                          Varrock fountain's animated sparkle in the viewport to
+#                          the RIGHT of the panel (the panel's stone edge is at
+#                          x~325). The pair is therefore a control that says the
+#                          merge changes nothing where the record is the only
+#                          account -- not a picture of the latch.
+#
+# So the latch is pinned by test_loot_a_cheat_kill_does_not_disable_inference
+# and its mutation, not by a picture. A drive that wants the picture should give
+# the account a weapon and spawn the npc adjacent, or raise TORIRS_SHOT_FRAMES
+# well past 1500.

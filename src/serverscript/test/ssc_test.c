@@ -12,6 +12,7 @@
 
 #include "ss_opcode.h"
 #include "ssc.h"
+#include "ssc_lane.h"
 #include "ssvm.h"
 
 #include <stdio.h>
@@ -20,6 +21,14 @@
 #include <unistd.h>
 
 static int g_fail = 0;
+
+/* Column ids as the compiler emits them: (table << 12) | (column << 4). The
+ * values matter only in that the recorder and the fixture agree. */
+enum
+{
+    DBCOL_STRING = (7 << 12) | (0 << 4),
+    DBCOL_INT = (7 << 12) | (1 << 4),
+};
 
 #define CHECK(cond, msg)                                                       \
     do                                                                         \
@@ -69,7 +78,7 @@ struct HostRecord
     int last_int_arg;
 
     /* RUNCLIENTSCRIPTVARARG, recorded exactly as the mock server's host case
-     * pops it (mock230_scripts.c, `case SS_OP_RUNCLIENTSCRIPTVARARG`). */
+     * pops it (torirs_server_scripts.c, `case SS_OP_RUNCLIENTSCRIPTVARARG`). */
     int run_count;
     int32_t run_script_id;
     int run_argc;
@@ -110,6 +119,29 @@ record_command(struct SSVM_State* state, int opcode, int dot)
         if( !SSVM_PopInt(state, &value) )
             return 1;
         record->last_int_arg = value;
+        return 1;
+    }
+
+    /*
+     * `db_getfield(row, table:column, index)` — the one command whose return
+     * type is decided by DATA, so the recorder answers the way the real handler
+     * does: the column says which stack the value lands on. Keyed on the column
+     * id the compiler emitted, because that id is the only thing the runtime
+     * has to go on either.
+     */
+    case SS_OP_DB_GETFIELD:
+    {
+        int32_t index;
+        int32_t column;
+        int32_t row;
+
+        if( !SSVM_PopInt(state, &index) || !SSVM_PopInt(state, &column) ||
+            !SSVM_PopInt(state, &row) )
+            return 1;
+        if( column == DBCOL_STRING )
+            SSVM_PushStr(state, "Air");
+        else
+            SSVM_PushInt(state, 55);
         return 1;
     }
 
@@ -226,6 +258,10 @@ fixture_compile(struct Fixture* fixture, const char* source, const char* label)
      * these from .pack files; the compiler cannot tell the difference. */
     SSC_SymbolsAdd(&fixture->symbols, "hans", 3105, SSC_SYM_NPC, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "coins", 995, SSC_SYM_OBJ, NULL);
+    /* Rev 239's exact OBJ/NPC collision behind the drop-command argument
+     * regression: cooked shark is obj 385 and an aquarium shark is npc 1830. */
+    SSC_SymbolsAdd(&fixture->symbols, "shark", 385, SSC_SYM_OBJ, NULL);
+    SSC_SymbolsAdd(&fixture->symbols, "shark", 1830, SSC_SYM_NPC, NULL);
     /* Same name in two namespaces, as the real cache has it (grim_pendant is
      * obj 11197 and loc 24780). OBJ sorts first, so an unqualified subject
      * lookup takes the obj — see test_subject_namespace. */
@@ -242,6 +278,20 @@ fixture_compile(struct Fixture* fixture, const char* source, const char* label)
      * 451, and SEQ sorts before SPOTANIM. See test_spotanim_argument_hint. */
     SSC_SymbolsAdd(&fixture->symbols, "tzhaar_rock_smash", 2660, SSC_SYM_SEQ, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "tzhaar_rock_smash", 451, SSC_SYM_SPOTANIM, NULL);
+    /* Rev 239's Ancient Prison ranger collision: arrow_launch is seq 366 and
+     * synth 2692. SOUND_SYNTH's first argument must choose the latter. */
+    SSC_SymbolsAdd(&fixture->symbols, "arrow_launch", 366, SSC_SYM_SEQ, NULL);
+    SSC_SymbolsAdd(&fixture->symbols, "arrow_launch", 2692, SSC_SYM_SYNTH, NULL);
+    /*
+     * Two `table:column` references, carrying the declared types the `.dbtable`
+     * loader puts in `text`. That text is the compiler's only way to know which
+     * stack a `db_getfield` on the column pushes onto — see
+     * test_dbcolumn_return_type.
+     */
+    SSC_SymbolsAdd(&fixture->symbols, "rc_table:name", DBCOL_STRING, SSC_SYM_DBCOLUMN,
+                   "string");
+    SSC_SymbolsAdd(&fixture->symbols, "rc_table:level", DBCOL_INT, SSC_SYM_DBCOLUMN,
+                   "int,int,LIST");
     SSC_SymbolsAdd(&fixture->symbols, "max_coins", 0, SSC_SYM_CONSTANT, "2147000000");
     SSC_SymbolsAdd(&fixture->symbols, "greeting", 0, SSC_SYM_CONSTANT, "\"Well met!\"");
     /*
@@ -386,12 +436,26 @@ test_arguments_and_locals(void)
     if( !fixture_compile(&fixture,
                          "[proc,subtract](int $a, int $b)(int)\n"
                          "def_int $result = calc($a - $b);\n"
-                         "return($result);\n",
+                         "return($result);\n"
+                         "[proc,branch_local](int $first_arm)(int)\n"
+                         "if ($first_arm = 1) {\n"
+                         "    def_int $option = 1;\n"
+                         "    if ($option = 1) { return(11); }\n"
+                         "} else {\n"
+                         "    def_int $option = 2;\n"
+                         "    if ($option = 2) { return(22); }\n"
+                         "}\n"
+                         "return(99);\n",
                          "arguments") )
         return;
 
     if( run_script(&fixture, "[proc,subtract]", args, 2, &result, "arguments") )
         CHECK_EQ(result, 7, "arguments bind in source order");
+
+    args[0] = 0;
+    if( run_script(&fixture, "[proc,branch_local]", args, 1, &result,
+                    "branch-local redeclaration") )
+        CHECK_EQ(result, 22, "a local redeclared in the other branch reuses its slot");
 
     fixture_close(&fixture);
 }
@@ -717,7 +781,7 @@ test_coord_subject(void)
      *    be indexed, and a later reader would reasonably conclude the trigger is
      *    keyed.
      *  - the stored **name** is the header's raw text, character for character.
-     *    `mock230_scripts_run_trigger_at` rebuilds that string with an
+     *    `ToriRSServer_ScriptsRunTriggerAt` rebuilds that string with an
      *    `snprintf` and asks `getByName`; if the lexer ever normalised a coord
      *    token, or the compiler zero-padded a component, every `[zone]` in the
      *    tree would stop running and nothing would report it.
@@ -854,7 +918,7 @@ test_runclientscript_vararg(void)
  * The compiler's own guards on the vararg list.
  *
  * `SSC_MAX_VARARG_TYPES` is the first of three caps the same value has to pass
- * (the mock host's `MOCK230_RUNCLIENTSCRIPT_ARG_MAX` and the client's
+ * (the mock host's `TORIRSSERVER_RUNCLIENTSCRIPT_ARG_MAX` and the client's
  * `PKT_RUNCLIENTSCRIPT_ARG_MAX` are the other two), and it is the only one that
  * can refuse *before* anything is on the wire. Refusing is the point: the
  * failure mode it replaces is a clientscript run with some of its arguments,
@@ -937,7 +1001,7 @@ test_script_name_argument(void)
  * `inv` TYPE at all, and `(inv $x)` recorded its param type as `int`. Nothing in
  * a compiled script could notice — an inv rides the int stack either way — so
  * the only observable is the one consumer that reads `param_types` back:
- * `mock230_scripts_run_debugproc`, which resolves each argument through the pack
+ * `ToriRSServer_ScriptsRunDebugproc`, which resolves each argument through the pack
  * named by its type. With `inv` recorded as `int` it ran `strtol` over the
  * container's *name* and passed container 0 instead.
  *
@@ -1096,6 +1160,110 @@ test_spotanim_argument_hint(void)
     fixture_close(&fixture);
 }
 
+static void
+test_synth_argument_hint(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* script;
+    int found = 0;
+
+    printf("bare synth names in sound_synth arguments\n");
+    if( !fixture_compile(&fixture,
+                         "[proc,s0]\n"
+                         "sound_synth(arrow_launch, 1, 0);\n",
+                         "synth argument hint") )
+        return;
+    script = SSVM_ProviderGetByName(&fixture.provider, "[proc,s0]");
+    if( !script )
+    {
+        printf("  FAIL synth argument hint: no script\n");
+        g_fail++;
+        fixture_close(&fixture);
+        return;
+    }
+    for( int op = 0; op < script->op_count; op++ )
+    {
+        if( script->opcodes[op] != SS_OP_SOUND_SYNTH )
+            continue;
+        found = 1;
+        CHECK(op >= 3 && script->opcodes[op - 3] == SS_OP_PUSH_CONSTANT_INT,
+              "the synth argument is a constant push");
+        if( op >= 3 && script->opcodes[op - 3] == SS_OP_PUSH_CONSTANT_INT )
+        {
+            CHECK_EQ(script->int_operands[op - 3], 2692,
+                     "sound_synth resolves arrow_launch as synth 2692");
+            CHECK(script->int_operands[op - 3] != 366,
+                  "and not the sequence that shares the name");
+        }
+    }
+    CHECK(found, "sound_synth compiled to its host opcode");
+    fixture_close(&fixture);
+}
+
+/* Floor-object commands declare argument 1 as an obj. That type must win when
+ * a cache gives an NPC the same bare name, otherwise valid drop source compiles
+ * and executes with the NPC id. */
+static void
+test_obj_command_argument_hint(void)
+{
+    struct Fixture fixture;
+    static const struct
+    {
+        const char* script_name;
+        int opcode;
+        int argc;
+    } k_cases[] = {
+        { "[proc,s0]", SS_OP_OBJ_ADD, 4 },
+        { "[proc,s1]", SS_OP_OBJ_ADDALL, 4 },
+        { "[proc,s2]", SS_OP_OBJ_ADD_PRIVATE, 5 },
+        { "[proc,s3]", SS_OP_OBJ_FIND, 2 },
+    };
+
+    printf("bare obj names in floor-object command arguments\n");
+    if( !fixture_compile(&fixture,
+                         "[proc,s0]\n"
+                         "obj_add(0_50_50, shark, 2, 200);\n"
+                         "\n"
+                         "[proc,s1]\n"
+                         "obj_addall(0_50_50, shark, 2, 200);\n"
+                         "\n"
+                         "[proc,s2]\n"
+                         "obj_add_private(0_50_50, shark, 2, 200, 100);\n"
+                         "\n"
+                         "[proc,s3]()(boolean)\n"
+                         "return(obj_find(0_50_50, shark));\n",
+                         "obj command argument hint") )
+        return;
+
+    for( size_t i = 0; i < sizeof(k_cases) / sizeof(k_cases[0]); i++ )
+    {
+        const struct SSVM_Script* script =
+            SSVM_ProviderGetByName(&fixture.provider, k_cases[i].script_name);
+        int found = 0;
+
+        CHECK(script != NULL, "the obj command test script exists");
+        if( !script )
+            continue;
+        for( int op = 0; op < script->op_count; op++ )
+        {
+            int obj_push = op - k_cases[i].argc + 1;
+
+            if( script->opcodes[op] != k_cases[i].opcode )
+                continue;
+            found = 1;
+            CHECK(obj_push >= 0 &&
+                      script->opcodes[obj_push] == SS_OP_PUSH_CONSTANT_INT,
+                  "the floor-object argument is a constant push");
+            if( obj_push >= 0 &&
+                script->opcodes[obj_push] == SS_OP_PUSH_CONSTANT_INT )
+                CHECK_EQ(script->int_operands[obj_push], 385,
+                         "floor-object command resolves shark as obj, not npc");
+        }
+        CHECK(found, "the expected floor-object opcode was emitted");
+    }
+    fixture_close(&fixture);
+}
+
 /*
  * A `~proc` argument resolves as the parameter it fills.
  *
@@ -1122,6 +1290,10 @@ test_proc_param_kind_hint(void)
     } k_cases[] = {
         { "[proc,s0]", 3, "a `stat` parameter resolves the stat" },
         { "[proc,s1]", 2100, "an `int` parameter resolves unhinted" },
+        { "[proc,s2]", 451,
+          "a `spotanim` parameter resolves the spotanim, not its seq" },
+        { "[proc,s3]", 451,
+          "fixed command arguments preserve a later `spotanim` parameter hint" },
     };
 
     printf("bare names in ~proc arguments\n");
@@ -1133,13 +1305,25 @@ test_proc_param_kind_hint(void)
                          "[proc,take_int](int $n)\n"
                          "~noop;\n"
                          "\n"
+                         "[proc,take_spotanim](spotanim $graphic)\n"
+                         "spotanim_map($graphic, 0_50_50, 0, 0);\n"
+                         "\n"
+                         "[proc,take_projectile](coord $from, coord $to, int $uid, spotanim $graphic)\n"
+                         "spotanim_map($graphic, $to, 0, 0);\n"
+                         "\n"
                          "[proc,noop]()\n"
                          "\n"
                          "[proc,s0]\n"
                          "~max_stat(hitpoints);\n"
                          "\n"
                          "[proc,s1]\n"
-                         "~take_int(hitpoints);\n",
+                         "~take_int(hitpoints);\n"
+                         "\n"
+                         "[proc,s2]\n"
+                         "~take_spotanim(tzhaar_rock_smash);\n"
+                         "\n"
+                         "[proc,s3]\n"
+                         "~take_projectile(npc_coord, coord, uid, tzhaar_rock_smash);\n",
                          "proc param kind hint") )
         return;
 
@@ -1634,9 +1818,301 @@ test_errors(void)
         printf("  note: could not clean up %s\n", dir);
 }
 
+/*
+ * `db_getfield`'s return type comes from the column, not from the opcode table.
+ *
+ * `ss_meta.gen.h` says DB_GETFIELD pushes one INT, because that is the common
+ * case and an opcode table cannot say more — the column decides (ss_meta.h,
+ * `runtime_typed`). Inside a string literal the compiler appends TOSTRING to
+ * anything it believes is an int, so a `string` column was converted a second
+ * time: the value was already on the string stack and TOSTRING popped an empty
+ * int stack. `runecraft.rs2:95` — "You hold the <…name…> Talisman towards the
+ * mysterious ruins." — aborted there, after the animation and the sound, with
+ * nothing said to the player.
+ *
+ * Both directions are asserted, because the fix is "trust the column" and the
+ * int case is the one a wrong column type would break instead.
+ */
+static void
+test_dbcolumn_return_type(void)
+{
+    struct Fixture fixture;
+
+    printf("db_getfield's return type comes from the column\n");
+
+    if( !fixture_compile(&fixture,
+                         "[proc,s0]\n"
+                         "mes(\"the <db_getfield(0, rc_table:name, 0)> talisman\");\n"
+                         "\n"
+                         "[proc,s1]\n"
+                         "mes(\"level <db_getfield(0, rc_table:level, 0)>\");\n",
+                         "dbcolumn return type") )
+        return;
+
+    if( run_script(&fixture, "[proc,s0]", NULL, 0, NULL, "dbcolumn string column") )
+        CHECK_EQ(strcmp(fixture.record.last_message, "the Air talisman"), 0,
+                 "a string column joins the literal with no conversion");
+    if( run_script(&fixture, "[proc,s1]", NULL, 0, NULL, "dbcolumn int column") )
+        CHECK_EQ(strcmp(fixture.record.last_message, "level 55"), 0,
+                 "an int column still gets its TOSTRING");
+
+    fixture_close(&fixture);
+}
+
+/* ------------------------------------------------------------------ */
+/* Content lanes                                                       */
+/* ------------------------------------------------------------------ */
+
+/** The script whose name is `name`, or NULL. */
+static const struct SSVM_Script*
+find_script(const struct SSC_Compiler* compiler, const char* name)
+{
+    int i;
+
+    for( i = 0; i < SSC_ScriptCount(compiler); i++ )
+    {
+        const struct SSVM_Script* script = SSC_ScriptAt(compiler, i);
+
+        if( script && script->name && strcmp(script->name, name) == 0 )
+            return script;
+    }
+    return NULL;
+}
+
+/*
+ * A lane replaces the base tree's default for a name, and leaving the lane out
+ * subtracts its scripts from the walk they live inside.
+ *
+ * Both halves have to be checked by WHICH BODY LANDED, not by whether the
+ * compile succeeded: the failure this mechanism exists to prevent is the seam
+ * and the lane both compiling, one of them silently overwriting the other at the
+ * same id, with the winner decided by sort order.
+ */
+static void
+test_lane_seams(void)
+{
+    struct SSC_Symbols symbols;
+    struct SSC_Compiler* compiler;
+    struct SSC_Diag diag;
+    struct SSC_SourceRoot roots[3];
+    const char* excludes[1];
+    const struct SSVM_Script* script;
+    char dir[256];
+    char path[400];
+    char lane_dir[400];
+    char seam_dir[400];
+    char command[1200];
+    FILE* file;
+
+    printf("lane seams\n");
+
+    snprintf(dir, sizeof(dir), "/tmp/ssc_lane_%d", (int)getpid());
+    snprintf(lane_dir, sizeof(lane_dir), "%s/lane_a", dir);
+    snprintf(seam_dir, sizeof(seam_dir), "%s/lane_seams", dir);
+    snprintf(command, sizeof(command), "rm -rf %s && mkdir -p %s && mkdir -p %s", dir, lane_dir,
+             seam_dir);
+    if( system(command) != 0 )
+        return;
+
+    /* The base tree calls a name it does not define. */
+    snprintf(path, sizeof(path), "%s/base.rs2", dir);
+    file = fopen(path, "wb");
+    fputs("[proc,base_entry]()(int)\nreturn(~lane_answer);\n", file);
+    fclose(file);
+
+    /* The seam: the answer when the lane is not in the build. */
+    snprintf(path, sizeof(path), "%s/seam.rs2", seam_dir);
+    file = fopen(path, "wb");
+    fputs("[proc,lane_answer]()(int)\nreturn(0);\n", file);
+    fclose(file);
+
+    /* The lane: the real answer, plus a script of its own that must not exist
+     * at all in a build without the lane. */
+    snprintf(path, sizeof(path), "%s/lane.rs2", lane_dir);
+    file = fopen(path, "wb");
+    fputs("[proc,lane_answer]()(int)\nreturn(7);\n"
+          "[proc,lane_private]\nreturn;\n",
+          file);
+    fclose(file);
+
+    /* Lane off: the base root walks the whole of `dir`, so the lane's own
+     * directory has to be subtracted from it. */
+    roots[0].dir = dir;
+    roots[0].weak = 0;
+    roots[1].dir = seam_dir;
+    roots[1].weak = 1;
+    excludes[0] = lane_dir;
+    SSC_SymbolsInit(&symbols);
+    compiler = SSC_New(&symbols);
+    memset(&diag, 0, sizeof(diag));
+    CHECK(SSC_CompileRoots(compiler, roots, 2, excludes, 1, &diag),
+          "a build without the lane compiles");
+    script = find_script(compiler, "[proc,lane_answer]");
+    CHECK(script != NULL, "and still has the name the base tree calls");
+    if( script )
+        CHECK(strstr(script->source_path, "lane_seams") != NULL,
+              "answered by the seam, not the lane");
+    CHECK(find_script(compiler, "[proc,lane_private]") == NULL,
+          "and carries none of the lane's own scripts");
+    SSC_Free(compiler);
+    SSC_SymbolsFree(&symbols);
+
+    /* Lane on: the same exclusion, plus the lane as its own root. Excluding it
+     * unconditionally is what keeps the enabled lane from being walked twice —
+     * which would be a duplicate declaration of every name in it. */
+    roots[0].dir = dir;
+    roots[0].weak = 0;
+    roots[1].dir = lane_dir;
+    roots[1].weak = 0;
+    roots[2].dir = seam_dir;
+    roots[2].weak = 1;
+    SSC_SymbolsInit(&symbols);
+    compiler = SSC_New(&symbols);
+    memset(&diag, 0, sizeof(diag));
+    CHECK(SSC_CompileRoots(compiler, roots, 3, excludes, 1, &diag),
+          "a build with the lane compiles");
+    if( diag.message[0] )
+        printf("  reported: %s:%d: %s\n", diag.file, diag.line, diag.message);
+    script = find_script(compiler, "[proc,lane_answer]");
+    CHECK(script != NULL, "and has the name once");
+    if( script )
+        CHECK(strstr(script->source_path, "lane_a") != NULL,
+              "answered by the lane, which replaced the seam");
+    CHECK(find_script(compiler, "[proc,lane_private]") != NULL,
+          "and carries the lane's own scripts");
+    SSC_Free(compiler);
+    SSC_SymbolsFree(&symbols);
+
+    snprintf(command, sizeof(command), "rm -rf %s", dir);
+    if( system(command) != 0 )
+        printf("  note: could not clean up %s\n", dir);
+}
+
+/* A lane describes itself, and every path in the descriptor is resolved against
+ * the content root — including through the `<src>/../..` form the compiler
+ * derives that root from by default, which is the shape that once made every
+ * exclusion match nothing. */
+static void
+test_lane_descriptors(void)
+{
+    struct SSC_LaneSet set;
+    struct SSC_Lane* lane;
+    char dir[256];
+    char path[400];
+    char command[1200];
+    char derived_root[600];
+    FILE* file;
+
+    printf("lane descriptors\n");
+
+    snprintf(dir, sizeof(dir), "/tmp/ssc_lanedesc_%d", (int)getpid());
+    snprintf(command, sizeof(command),
+             "rm -rf %s && mkdir -p %s/ported/gated && mkdir -p %s/ported/additive "
+             "&& mkdir -p %s/ported/nodescriptor",
+             dir, dir, dir, dir);
+    if( system(command) != 0 )
+        return;
+
+    snprintf(path, sizeof(path), "%s/ported/gated/lane.ini", dir);
+    file = fopen(path, "wb");
+    fputs("; a gated lane\n"
+          "[lane]\n"
+          "default=off\n"
+          "constant=gated_enabled\n"
+          "\n"
+          "[compile]\n"
+          "scripts=server/scripts/ported_gated\n"
+          "pack=ported/gated/pack\n"
+          "pack_file=ported/gated/configs/all.varbit.compack\n"
+          "component_root=ported/gated\n",
+          file);
+    fclose(file);
+
+    snprintf(path, sizeof(path), "%s/ported/additive/lane.ini", dir);
+    file = fopen(path, "wb");
+    fputs("[lane]\nname=additive\ndefault=on\n\n[compile]\npack=ported/additive/pack\n", file);
+    fclose(file);
+
+    CHECK_EQ(SSC_LanesDiscover(&set, dir), 2,
+             "only directories carrying a lane.ini are lanes");
+    lane = SSC_LaneFind(&set, "gated");
+    CHECK(lane != NULL, "a lane is named by its directory when it states nothing");
+    if( lane )
+    {
+        CHECK_EQ(lane->enabled_by_default, 0, "default=off");
+        CHECK_EQ(strcmp(lane->constant, "gated_enabled"), 0, "and names its feature flag");
+        CHECK_EQ(lane->script_count, 1, "one script root");
+        CHECK_EQ(lane->pack_file_count, 1, "one named index");
+        CHECK_EQ(lane->component_root_count, 1, "one component root");
+    }
+    lane = SSC_LaneFind(&set, "additive");
+    CHECK(lane != NULL, "and a lane may name itself instead");
+    if( lane )
+        CHECK_EQ(lane->enabled_by_default, 1, "default=on");
+
+    /* The same tree reached the way sscompile reaches it with no
+     * --content-root: `<src>/../..`. The descriptor's paths must come out
+     * identical to the ones above, or nothing the walk builds will match them. */
+    snprintf(derived_root, sizeof(derived_root), "%s/server/scripts/../..", dir);
+    CHECK_EQ(SSC_LanesDiscover(&set, derived_root), 2, "discovered through a `..` root too");
+    lane = SSC_LaneFind(&set, "gated");
+    if( lane )
+    {
+        char expected[SSC_LANE_PATH_MAX];
+
+        snprintf(expected, sizeof(expected), "%s/server/scripts/ported_gated", dir);
+        CHECK_EQ(strcmp(lane->scripts[0], expected), 0,
+                 "with `..` collapsed out of every path");
+    }
+
+    snprintf(command, sizeof(command), "rm -rf %s", dir);
+    if( system(command) != 0 )
+        printf("  note: could not clean up %s\n", dir);
+}
+
+static void
+test_recompile_transaction(void)
+{
+    struct Fixture fixture;
+    const char* label = "transactional incremental compile";
+    if( !fixture_compile(&fixture, "[proc,callee]()(int) return(7);\n[proc,caller]()(int) return(~callee);\n", label) ) return;
+    char path[600];
+    snprintf(path, sizeof(path), "%s/src/test.rs2", fixture.dir);
+    const char* cases[] = {
+        "[proc,callee]()(int) return(9);\n[proc,caller]()(int) return(~callee);\n",
+        "[proc,callee]()(int) return(123);\n[proc,caller]()(int) return(~missing);\n",
+        "[proc,callee](int $x)(int) return($x);\n[proc,caller]()(int) return(0);\n",
+        "[proc,callee]()(int) return(0);\n",
+        "[proc,callee]()(int) return(0);\n[proc,caller]()(int) return(0);\n[proc,new] return;\n",
+    };
+    for( int i = 0; i < 5; i++ )
+    {
+        FILE* file = fopen(path, "w");
+        CHECK(file != NULL, "write incremental fixture");
+        if( !file ) break;
+        fputs(cases[i], file); fclose(file);
+        struct SSC_Diag diag = {0};
+        int ok = SSC_RecompileFile(fixture.compiler, path, &diag);
+        CHECK_EQ(ok, i == 0, "body edit accepted; error/signature/add/remove rejected");
+        CHECK(SSC_Write(fixture.compiler, fixture.dir, &diag), "write last good compiler state");
+        SSVM_EnvFree(&fixture.env);
+        SSVM_ProviderFree(&fixture.provider);
+        struct SSVM_Error err;
+        SSVM_ErrorClear(&err);
+        CHECK(SSVM_ProviderLoadDir(&fixture.provider, fixture.dir, &err), "read incremental output");
+        SSVM_EnvInit(&fixture.env, &fixture.provider);
+        SSVM_EnvBindHost(&fixture.env, &fixture.record, record_command);
+        int32_t value = 0;
+        CHECK(run_script(&fixture, "[proc,caller]", NULL, 0, &value, label), "execute preserved caller");
+        CHECK_EQ(value, 9, "last good bytecode survives every failed edit");
+    }
+    fixture_close(&fixture);
+}
+
 int
 main(void)
 {
+    test_recompile_transaction();
     test_minimal();
     test_arguments_and_locals();
     test_calc_precedence();
@@ -1661,9 +2137,14 @@ main(void)
     test_subject_namespace();
     test_stat_argument_hint();
     test_spotanim_argument_hint();
+    test_synth_argument_hint();
+    test_obj_command_argument_hint();
     test_proc_param_kind_hint();
     test_param_type_shadowing();
     test_script_name_argument();
+    test_dbcolumn_return_type();
+    test_lane_seams();
+    test_lane_descriptors();
     test_errors();
 
     if( g_fail )

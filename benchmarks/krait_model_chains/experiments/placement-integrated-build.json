@@ -1,0 +1,16 @@
+{
+  "apk_sha256": "1833017a908cd4687f5643a0b42e8b49515d5001da23d42e117ae5c96dd18b7f",
+  "library_sha256": "fccfd8aa6ae89506d0a36e7cde7abee49078bdc015785503a6cb4f64942cd551",
+  "normal_build": true,
+  "installed_device": "T062809L3Z",
+  "correctness_checks": 51,
+  "captured_pipeline_records": 12088,
+  "captured_queries": 4829,
+  "rollback": "TORIRS_GLES2_STATIC_PRIMARY=0",
+  "memory_bytes": {
+    "ge_descriptors": 1065792,
+    "ge_bitmap": 4164,
+    "varrock_descriptors": 1354720,
+    "varrock_bitmap": 5292
+  }
+}

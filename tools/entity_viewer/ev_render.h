@@ -14,6 +14,35 @@
 void
 ev_init(void);
 
+/**
+ * Set the colour ev_render clears to, as 0xAARRGGBB. Defaults to the page's
+ * panel colour.
+ *
+ * ev_render fabricates alpha -- it paints this behind the model and then
+ * stamps every pixel opaque -- so an offline caller cannot separate background
+ * from a model pixel of the same colour. Rendering one frame against two
+ * different backgrounds answers it exactly: covered pixels match in both,
+ * uncovered ones differ by the whole change, and a translucent face satisfies
+ * c1 - c2 == (1 - alpha) * (bg1 - bg2), which yields its coverage rather than
+ * merely flagging it. ev_sheet.c uses this to emit real per-pixel alpha.
+ */
+void
+ev_set_bg(uint32_t argb);
+
+/**
+ * Model pitch and roll, in the client's 2048-per-turn units. Both default to
+ * 0, which is what the viewer has always drawn.
+ *
+ * ev_render's own `yaw` argument already turns the model (it sets
+ * ToriDraw_Position.yaw); its `pitch` argument elevates the CAMERA instead.
+ * Position carries pitch and roll too and nothing was setting them, so a
+ * caller wanting the model itself tilted or rolled had no way to ask.
+ */
+void
+ev_set_orientation(
+    int pitch,
+    int roll);
+
 void*
 ev_alloc(int size);
 
@@ -169,6 +198,45 @@ uint8_t*
 ev_render(int width, int height, int yaw, int pitch, int zoom, int frame);
 
 /**
+ * Render the current model with the client's interface-widget projection.
+ *
+ * The canvas is the caller's parent clip, and widget_x/widget_y are already
+ * rebased into that canvas.  Unlike ev_render, this does not frame, orbit, pan,
+ * or paint a viewer background: it calls ToriDraw_RenderModelExtentsAtWidget
+ * with the values carried by the widget record.  Pixels outside the model are
+ * returned with alpha zero, so the RGBA buffer can be composited over the rest
+ * of a browser-rendered interface.
+ *
+ * `object_composed` applies the native CC_SETOBJECT composition: zoom is scaled
+ * by 32/min(widget_width,widget_height), and the model is vertically centred
+ * from its bounds cylinder.  Ordinary model/player widgets pass zero.
+ *
+ * The returned buffer is canvas_width*canvas_height*4 bytes of straight RGBA
+ * and is reused by subsequent render calls.  Its alpha preserves translucent
+ * model faces so the browser can source-over the preceding interface layers,
+ * just as the native raster draws into its existing framebuffer. `frame`
+ * selects the loaded sequence frame, or -1 for the bind pose.
+ */
+uint8_t*
+ev_render_widget(
+    int canvas_width,
+    int canvas_height,
+    int widget_x,
+    int widget_y,
+    int widget_width,
+    int widget_height,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int x_offset,
+    int y_offset,
+    int orthographic,
+    int fixed_zoom,
+    int object_composed,
+    int frame);
+
+/**
  * Pin the height the framing lifts the model by, instead of measuring it off
  * the model's own bounds each render. 0 restores the measured behaviour.
  *
@@ -219,6 +287,25 @@ ev_move_get(int* out_x, int* out_y, int* out_z);
 void
 ev_set_zbuffer(int on);
 
+/**
+ * Draw through the depth-tested (`zbuf`) kernels with NO face sort at all.
+ *
+ * A third discipline, not a stronger ev_set_zbuffer. That one sets
+ * TORIDRAW_MODEL_FLAG_ZBUFFER, which keeps the painter's sort and depth-tests
+ * underneath it; this calls ToriDraw_RenderZBuffered / ToriDraw_RenderHDZBuffered
+ * instead, which rank nothing — faces are drawn in the model's own order and the
+ * depth buffer alone decides. Face priorities cannot matter here, so a picture
+ * that is still wrong under this toggle is wrong about DEPTH, not about order.
+ *
+ * Applies to the classic and HD subjects alike, and unlike the flag it needs
+ * nothing written to the model — so it reaches an adopted HD model too.
+ */
+void
+ev_set_zbuffer_kernels(int on);
+
+int
+ev_zbuffer_kernels(void);
+
 /** Pose the model for `frame`; -1 is the bind pose. Branches between classic
  *  and skeletal animation, and is the only place that does. */
 void
@@ -266,5 +353,18 @@ ev_drawn_model(void);
  *  graphic is merged in. Everything at or past it is the graphic. */
 int
 ev_spot_vertex_first(void);
+
+/**
+ * Where a face of the drawn model landed in the LAST ev_render: the screen
+ * centroid of its three projected vertices, in pixels of that render's canvas.
+ * Returns 0 when nothing has been rendered, the face is out of range, or a
+ * vertex was near-clipped (then no screen position exists for it).
+ *
+ * This is how "does the texture stay on the face" is measured rather than
+ * eyeballed: read the pixel here across camera moves or animation frames. The
+ * geometry moves, the sampled texel must not.
+ */
+int
+ev_face_screen_centroid(int face, int* out_x, int* out_y);
 
 #endif

@@ -1,0 +1,59 @@
+dump          : C:/Users/mrobe/AppData/Local/Temp/claude/c--Users-mrobe-Documents-git-repos-oldschool-clientc/59db2050-960c-4713-8a49-4930a7928675/scratchpad/0824-205529-9c793f_eip_r0_s0.eip.txt
+binary        : C:/Users/mrobe/AppData/Local/Temp/claude/c--Users-mrobe-Documents-git-repos-oldschool-clientc/59db2050-960c-4713-8a49-4930a7928675/scratchpad/torirs-eip.exe
+module base   : 0x00400000   (nm range 0x00401000-0x00792540)
+samples       : 11317 over 28.4 s (399 Hz), 10254 in image (90.6%), 0 suspend failures
+
+=== inside the executable ===
+  samples   share   at  35.2ms  symbol
+------------------------------------------------------------------------------
+     1769   15.63%    5.502 ms  _toridraw_gouraud_tri_opaque_s4_asm
+     1553   13.72%    4.830 ms  _toridraw_textri_opaque_lerp8_v3_asm
+      986    8.71%    3.067 ms  _scene_occluders_ground_tile_hidden
+      980    8.66%    3.048 ms  _painter_paint_bucket.constprop.0.isra.0
+      790    6.98%    2.457 ms  _ToriDraw_ComputeProjectedFaceOrder.isra.0
+      563    4.97%    1.751 ms  _ToriDraw_RasterWithFaceIndices.constprop.0.isra.0
+      561    4.96%    1.745 ms  _ToriRS_FrameNextCommand
+      444    3.92%    1.381 ms  _ToriDraw_Project.lto_priv.0
+      272    2.40%    0.846 ms  _ToriRS_Soft3D_RenderFrame
+      254    2.24%    0.790 ms  _toridraw_project_vertices_noclip_portable.isra.0
+      252    2.23%    0.784 ms  _scene_occluders_point_hidden_impl
+      221    1.95%    0.687 ms  _draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered.lto_priv.0
+      205    1.81%    0.638 ms  _ToriDraw_CalculateCylinderAabb8point.isra.0
+      196    1.73%    0.610 ms  _scene_occluders_column_hidden.part.0
+      175    1.55%    0.544 ms  _ToriDraw_TriangleGouraud.lto_priv.0
+      162    1.43%    0.504 ms  _World_CycleRegisterPainterDynamics.lto_priv.0
+      126    1.11%    0.392 ms  _app_world_pick_finish.lto_priv.0
+       91    0.80%    0.283 ms  _raster_flat_screen_opaque_branching_s4_ordered.lto_priv.0
+       84    0.74%    0.261 ms  _toridraw_texplane_prepare32_asm
+       83    0.73%    0.258 ms  _ToriRS_Soft3D_Execute
+       78    0.69%    0.243 ms  _World_TerrainElementAt
+       77    0.68%    0.239 ms  _bucket_push_if_active.isra.0
+       72    0.64%    0.224 ms  _ToriDraw_AnimApplyTransform
+       47    0.42%    0.146 ms  _raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered.lto_priv.0
+       23    0.20%    0.072 ms  _app_world_frame.constprop.0
+       17    0.15%    0.053 ms  _scene_occluders_wall_hidden
+       16    0.14%    0.050 ms  _scene_occluders_column_hidden
+       15    0.13%    0.047 ms  _ToriDraw_ModelSetBoundsCylinder
+       14    0.12%    0.044 ms  _ToriDraw_ModelAnimateFrame
+       12    0.11%    0.037 ms  _soft3d_execute_measured
+       11    0.10%    0.034 ms  _ToriDraw_TriangleFlat.lto_priv.0
+       10    0.09%    0.031 ms  _raster_gouraudhsllightness_screen_alpha_bary_branching_s4_ordered
+        8    0.07%    0.025 ms  _toridraw_projected_model_hit_face.isra.0
+        7    0.06%    0.022 ms  _App_RunOnce.constprop.0
+        7    0.06%    0.022 ms  _App_BuildFrame.part.0
+        7    0.06%    0.022 ms  _scene_occluders_footprint_hidden
+        7    0.06%    0.022 ms  _raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline.isra.0
+        7    0.06%    0.022 ms  _ToriDraw_SceneElementApplyAnimation
+        5    0.04%    0.016 ms  _ToriDraw_TrigSinFromShared.lto_priv.0
+        4    0.04%    0.012 ms  _app_logic_tick.constprop.0
+
+=== outside the executable (64 KB pages, DLL granularity) ===
+  samples   share   at  35.2ms  symbol
+------------------------------------------------------------------------------
+      890    7.86%    2.768 ms  ntdll.dll
+      130    1.15%    0.404 ms  msvcrt.dll
+       22    0.19%    0.068 ms  kernel32.dll
+        9    0.08%    0.028 ms  uxtheme.dll
+        5    0.04%    0.016 ms  USER32.dll
+        5    0.04%    0.016 ms  GDI32.dll
+        2    0.02%    0.006 ms  MSCTF.dll

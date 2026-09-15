@@ -1,0 +1,69 @@
+{{Infobox Monster
+|name = Baboon
+|image = [[File:Baboon.png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 77
+|size = 1
+|examine = An undead baboon.
+|xpbonus = 
+|max hit = 1?
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]]
+|attack speed = 4
+|hitpoints = 10
+|att = 0
+|str = 0
+|def = 50
+|mage = 50
+|range = 80
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 80
+|rngbns = 20
+|dstab = 10
+|dslash = 50
+|dcrush = 50
+|dmagic = 50
+|dlight = 50
+|dstandard = 50
+|dheavy = 50
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 11781
+}}
+'''Baboons''' are a monster summoned by [[Ba-Ba]] in the [[Tombs of Amascut]]. They attack the sarcophagi in the area; if left unchecked, the open sarcophagi will discharge energy blasts that crash down into the fight area.
+
+If the "Jungle Japes" invocation is also enabled, the baboons will drop two [[banana peel]]s on the floor upon death. If a peel is stepped or run over, the player takes small amounts of damage and is left stunned for 3 seconds.
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Ba-Ba's baboons concept art.png|Concept art of Ba-Ba's baboons by [[Mod Jerv]].
+Ba-Ba concept art.png|Concept art of Ba-Ba, by [[Mod Grub]]. Notably, it shows that the baboons Ba-Ba summons were originally going to fly.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change=
+*Ba-Ba will summon 1-4 baboons when prompted, rather than 1-8.
+*Players are guaranteed to land a max hit on Ba-Ba's baboons.
+*Baboon Hitpoints have been reduced from 35 to 10.
+*Baboons now drop two banana peels if Jungle Japes is enabled.
+}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change = Bananas peels now spawn upon a baboon's death rather than randomly, and deal significantly reduced damage.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

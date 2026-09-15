@@ -179,6 +179,14 @@ test_key_dispatch(void)
         int li = key_target_index(&out, 11);
         int ri = key_target_index(&out, 12);
         TEST_ASSERT(
+            out.key_targets[li].node_index == left &&
+                out.key_targets[li].node_incarnation == tree->components[left].incarnation,
+            "key target retains the exact collected node incarnation");
+        TEST_ASSERT(
+            out.key_targets[ri].node_index == right &&
+                out.key_targets[ri].node_incarnation == tree->components[right].incarnation,
+            "each broadcast target carries its own exact occupant");
+        TEST_ASSERT(
             out.key_mouse_x - out.key_targets[li].abs_x == 200, "left rel x = mouse - abs");
         TEST_ASSERT(
             out.key_mouse_x - out.key_targets[ri].abs_x == 200 - 300, "right rel x = mouse - abs");
@@ -339,5 +347,298 @@ test_key_dispatch(void)
         UITree_Free(copy_tree);
     }
 
+    UITree_Free(tree);
+}
+
+/*
+ * A press and its release in ONE frame still click.
+ *
+ * The touch layer pushes move, down and up together (a finger has no hover to
+ * watch), and a mouse clicked faster than a frame does the same. A component
+ * with on_op fires on the press edge and tells the release to stay quiet, so
+ * the bridge, returning only the release's result, said "clicked nothing" --
+ * and the mobile chrome's every tab and orb was dead to a tap while a long
+ * press (a right click) still worked. The second tap guards the latch that
+ * swallows a press-edge click's release: armed for a release still to come,
+ * it swallowed the NEXT tap instead.
+ */
+void
+test_same_frame_press_release_clicks(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct TestHostState hstate;
+    struct UITreeHost host;
+    struct UIInteraction interact;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int tap;
+
+    printf("TEST: a press and its release in one frame click (a finger's tap)\n");
+
+    UITree_TestHostInit(&host, &hstate);
+    UIInteraction_Init(&interact);
+    {
+        int32_t layer = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 10, 0, 0, 400, 300);
+        int32_t button = UITree_TestPushXy(tree, layer, UIELEM_RS_RECT, 11, 100, 100, 40, 40);
+        set_on_op(tree, button, 200);
+        tree->components[button].behavior.click_mask = 1u; /* op1 */
+    }
+    UITree_TestResolve(tree);
+    input = LibToriRS_Input_Init(&input_storage, 0);
+
+    for( tap = 0; tap < 3; tap++ )
+    {
+        LibToriRS_Input_Begin(input, (uint64_t)(1000 + tap * 700));
+        LibToriRS_Input_PushMouseMove(input, 120, 120);
+        LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 120, 120);
+        LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 120, 120);
+        run_frame(&interact, tree, &host, input, &out);
+        TEST_ASSERT(out.clicked_com_id == 11, "every tap clicks the button under the finger");
+        TEST_ASSERT(!interact.swallow_left_click,
+            "no release is owed after a tap, so nothing is latched to swallow the next one");
+        /* The finger lifted: the frame after a tap has no pointer and no
+         * buttons, like the touch layer's mouse-leave. */
+        LibToriRS_Input_Begin(input, (uint64_t)(1000 + tap * 700 + 100));
+        LibToriRS_Input_PushMouseLeave(input);
+        run_frame(&interact, tree, &host, input, &out);
+        TEST_ASSERT(out.clicked_com_id < 0, "the idle frame after a tap clicks nothing");
+    }
+
+    UITree_Free(tree);
+}
+
+/*
+ * A held finger inside a scrollable layer scrolls it (UIInteraction::
+ * touch_scroll): the layer moves by the finger's travel, the row under the
+ * finger is never pressed, and the lift is not a click. A tap in the same
+ * layer still clicks its row, and a mouse (touch_scroll off) still presses.
+ */
+void
+test_touch_swipe_scrolls_layer(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct TestHostState hstate;
+    struct UITreeHost host;
+    struct UIInteraction interact;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int32_t list;
+    int32_t row;
+
+    printf("TEST: a held finger inside a scrollable layer scrolls it\n");
+
+    UITree_TestHostInit(&host, &hstate);
+    UIInteraction_Init(&interact);
+    interact.touch_scroll = 1;
+    list = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 10, 0, 0, 200, 100);
+    row = UITree_TestPushXy(tree, list, UIELEM_RS_RECT, 11, 0, 20, 200, 20);
+    set_on_op(tree, row, 200);
+    tree->components[row].behavior.click_mask = 1u;
+    UITree_TestResolve(tree);
+    TEST_ASSERT(UITree_SetScrollSizeAt(tree, list, 200, 400), "the list is taller than its box");
+    /* The cache hangs the scrollbar's own handler on the CONTENT layer
+     * (scrollbar_vertical_31: `if_setonscrollwheel(..., $content)`). */
+    UITree_HooksMut(&tree->components[list])->on_scroll_wheel.script_id = 77;
+    UITree_SyncHookMembership(tree, list);
+    TEST_ASSERT(UITree_ScrollLayerNeedsVertical(&tree->components[list]), "and so needs scrolling");
+    input = LibToriRS_Input_Init(&input_storage, 0);
+
+    /* The finger lands on the row and is held (the touch layer's drag press). */
+    LibToriRS_Input_Begin(input, 1000);
+    LibToriRS_Input_PushMouseMove(input, 100, 30);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 100, 30);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_com_id < 0, "the row under a held finger is not pressed");
+    TEST_ASSERT(interact.ts_layer == list, "the list owns the gesture");
+
+    /* It travels 50 px up the screen: the list scrolls down by 50. */
+    LibToriRS_Input_Begin(input, 1050);
+    LibToriRS_Input_PushMouseMove(input, 100, -20);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(tree->components[list].scroll_y == 50, "the layer scrolled by the finger's travel");
+    TEST_ASSERT(out.clicked_com_id < 0, "still no click");
+    /* And the interface is told, so a script-drawn scrollbar's dragger can
+     * follow: the list's own onScrollWheel handler, with a zero step. */
+    {
+        int found = 0;
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            if( out.intents[i].component_id != 10 || !out.intents[i].hook )
+                continue;
+            if( out.intents[i].hook->script_id != 77 )
+                continue;
+            found = 1;
+            TEST_ASSERT(out.intents[i].has_event_mouse, "the notify carries an event mouse");
+            TEST_ASSERT(out.intents[i].event_mouse_y == 0, "and a zero wheel step");
+        }
+        TEST_ASSERT(found, "the swipe notifies the list's scroll handler");
+    }
+
+    /* Past the end: clamped. */
+    LibToriRS_Input_Begin(input, 1100);
+    LibToriRS_Input_PushMouseMove(input, 100, -900);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(tree->components[list].scroll_y == 300, "the scroll is clamped to the content");
+
+    /* The lift is the gesture's, not a click. */
+    LibToriRS_Input_Begin(input, 1150);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 100, -900);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_com_id < 0, "lifting after a swipe clicks nothing");
+    TEST_ASSERT(interact.ts_layer < 0, "the gesture is over");
+
+    /* A tap on the row (press and release together) still clicks it. */
+    LibToriRS_Input_Begin(input, 1300);
+    LibToriRS_Input_PushMouseLeave(input);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(UITree_SetScrollPosAt(tree, list, 0, 0), "back to the top");
+    LibToriRS_Input_Begin(input, 1400);
+    LibToriRS_Input_PushMouseMove(input, 100, 30);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 100, 30);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 100, 30);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_com_id == 11, "a tap in a scrollable list still clicks its row");
+
+    /* A mouse: no swipe, the press reaches the row. */
+    interact.touch_scroll = 0;
+    LibToriRS_Input_Begin(input, 1500);
+    LibToriRS_Input_PushMouseLeave(input);
+    run_frame(&interact, tree, &host, input, &out);
+    LibToriRS_Input_Begin(input, 1600);
+    LibToriRS_Input_PushMouseMove(input, 100, 30);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 100, 30);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_com_id == 11, "a mouse press still presses the row");
+
+    LibToriRS_Input_Begin(input, 1650);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 100, 30);
+    run_frame(&interact, tree, &host, input, &out);
+
+    UITree_Free(tree);
+}
+
+/*
+ * Feedback overlays never take a click.
+ *
+ * The touch marker ("inkwell") is a 64x64 late root sibling parked at the
+ * canvas origin, and UITree_HitTestInteractive lets a later root's hit beat an
+ * earlier one -- so while it was missing from the pass-through switch it won
+ * every hit test it covered. On the mobile gameframe that corner holds the
+ * logout, chat and keyboard stones: a TAP on them resolved to the marker and
+ * ran nothing, while a long press still worked (the minimenu is built from
+ * components carrying ops and never sees this node).
+ */
+void
+test_feedback_overlay_never_takes_a_click(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct TestHostState hstate;
+    struct UITreeHost host;
+    struct UIInteraction interact;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int32_t button;
+
+    printf("TEST: a feedback overlay over a button does not take its click\n");
+
+    UITree_TestHostInit(&host, &hstate);
+    UIInteraction_Init(&interact);
+    {
+        int32_t panel = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 10, 0, 0, 200, 200);
+        button = UITree_TestPushXy(tree, panel, UIELEM_RS_RECT, 11, 10, 10, 40, 40);
+        set_on_op(tree, button, 200);
+        tree->components[button].behavior.click_mask = 1u;
+        /* The marker: its own root, pushed last, over the button. */
+        (void)UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_INKWELL, -1, 0, 0, 64, 64);
+    }
+    UITree_TestResolve(tree);
+
+    /* The predicate itself, because the walk above asks the HOST whether the
+     * marker is showing and this harness always answers no -- so only this
+     * assertion actually fails when the marker is interactive again. */
+    {
+        int32_t marker = -1;
+        for( uint32_t i = 0; i < tree->component_count; i++ )
+            if( tree->components[i].type == UIELEM_BUILTIN_INKWELL )
+                marker = (int32_t)i;
+        TEST_ASSERT(marker >= 0, "the marker is in the tree");
+        TEST_ASSERT(
+            UITree_ComponentIsPassThrough(&tree->components[marker], &host),
+            "the marker is pass-through, so a hit test walks past it");
+    }
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, 20, 20) == button,
+        "the hit under the marker is the button beneath it");
+
+    input = LibToriRS_Input_Init(&input_storage, 0);
+    LibToriRS_Input_Begin(input, 1000);
+    LibToriRS_Input_PushMouseMove(input, 20, 20);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 20, 20);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 20, 20);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_com_id == 11, "and the tap runs the button, not the marker");
+
+    UITree_Free(tree);
+}
+
+/*
+ * A plugin-owned control has no component id. Its click must still be
+ * reported -- by node -- or the app sees neither a UI click (id -1) nor a
+ * world click (the interactive hit closed the world gate) and the press is
+ * lost. Arming is the real owned-widget operation API; an unarmed owned text
+ * stays decoration and the click falls through to the world.
+ */
+void
+test_owned_control_click_reports_node(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct TestHostState hstate;
+    struct UITreeHost host;
+    struct UIInteraction interact;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int32_t layer, own;
+
+    printf("TEST: a click on an armed plugin-owned control is reported by node\n");
+
+    UITree_TestHostInit(&host, &hstate);
+    UIInteraction_Init(&interact);
+    layer = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 10, 0, 0, 400, 300);
+    own = UITree_WidgetCreateText(tree, UITree_RefAt(tree, layer), 7, "button", 0);
+    TEST_ASSERT(own >= 0, "owned control created");
+    UITree_WidgetSetPosition(tree, UITree_RefAt(tree, own), 7, 100, 100);
+    UITree_TestResolve(tree);
+    input = LibToriRS_Input_Init(&input_storage, 0);
+
+    LibToriRS_Input_Begin(input, 1000);
+    LibToriRS_Input_PushMouseMove(input, 120, 108);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 120, 108);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 120, 108);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_node < 0 && out.clicked_com_id < 0 && out.left_click_miss,
+        "an unarmed owned text is decoration: the click falls through to the world");
+
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 7, 5, "Press"), "owner arms the control");
+    LibToriRS_Input_Begin(input, 2000);
+    LibToriRS_Input_PushMouseMove(input, 120, 108);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 120, 108);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 120, 108);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_node == own && out.clicked_incarnation == tree->components[own].incarnation,
+        "the click on an armed owned control is reported by node identity");
+    TEST_ASSERT(out.clicked_com_id < 0, "an owned control still has no component id");
+    TEST_ASSERT(!out.left_click_miss, "an owned control's click is not a world click");
+
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 7, 0, ""), "owner disarms the control");
+    LibToriRS_Input_Begin(input, 3000);
+    LibToriRS_Input_PushMouseMove(input, 120, 108);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 120, 108);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 120, 108);
+    run_frame(&interact, tree, &host, input, &out);
+    TEST_ASSERT(out.clicked_node < 0 && out.left_click_miss, "a disarmed control falls through again");
     UITree_Free(tree);
 }

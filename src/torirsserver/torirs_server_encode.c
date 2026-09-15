@@ -1,0 +1,6539 @@
+/*
+ * Every server->client packet the mock sends.
+ *
+ * All encoding goes through 3rd/rsareabuf, which is why the byte-order variants
+ * read as intent (`rsab_p2_alt2`) rather than as two hand-spelled `p1` calls,
+ * and why the info bitstreams can be written with `rsab_pbit` instead of a
+ * bespoke bit packer. Buffers come from a per-packet arena that is reset on
+ * every send, so nothing here allocates.
+ *
+ * Two of these are bitstreams rather than field lists — PLAYER_INFO and
+ * NPC_INFO — and they are the packets worth reading carefully. Both end their
+ * bit section with a terminator whose only job is to stop the client's decode
+ * loop before it walks into the byte-aligned extended-info section that
+ * follows. Skipping the terminator is the classic way to make a stream decode
+ * as garbage entities.
+ */
+#include "torirs_server.h"
+
+#include "torirs_server_content.h"
+#include "torirs_server_ids.h"
+#include "torirs_server_mapinstance.h"
+#include "torirs_server_session.h"
+#include "torirs_server_vessel.h"
+#include "mock239_runclientscript.h"
+#include "mock239_appearance.h"
+#include "mock239_facing.h"
+#include "mock239_playerinfo.h"
+
+#include "net/isaac.h"
+#include "net/rev/osrs239/loginblock.h"
+#include "net/jbase37.h"
+#include "net/wordpack.h"
+
+/* The client's framing table, for the length check in ToriRSServer_Send. */
+#include "torirsserver/torirs_server_scene.h"
+#include "net/rev/osrs230/packetin.h"
+/* The appearance vocabulary and every wire spelling of it — the writers below
+ * choose an encoding, never a tag. */
+#include "net/rev/packets/pkt_player_appearance.h"
+
+#include "ss_trigger.h"
+
+#include <rsareabuf.h>
+
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+static int v5_face_from_classic(
+    struct Mock239Face* face,
+    struct ToriRSServerPlayer const* recipient,
+    uint32_t classic,
+    uint32_t entity_mask,
+    uint32_t coord_mask,
+    int face_entity,
+    int face_x,
+    int face_z,
+    int force_latch);
+
+/*
+ * The packets this server can send, as CANONICAL names rather than wire
+ * opcodes.
+ *
+ * These used to be literal rev-230 opcodes, one `enum` of 50 numbers, and that
+ * was a second copy of what `src/net/rev/osrs230/packetin.h` already said. The
+ * numbers now come from the wire adapter (torirs_server_wire.h) at send time, which
+ * is what lets one build speak either revision -- and, less obviously, what
+ * removes the chance of the two copies disagreeing.
+ *
+ * Every call site below is unchanged. `ToriRSServer_Send` takes what used to be an
+ * opcode and is now a name, resolves it through `world->wire`, and records the
+ * RESOLVED opcode in the packet capture -- so the selftest's assertions, which
+ * are written against wire numbers like 120 and 108, still mean what they
+ * meant, and still pass unchanged at revision 230. That is the property that
+ * makes this refactor checkable rather than merely plausible.
+ */
+enum
+{
+    OP_SET_MAP_FLAG = PKT_NAME_UNSET_MAP_FLAG,
+    OP_HINT_ARROW = PKT_NAME_HINT_ARROW,
+    OP_CHAT_FILTER_SETTINGS = PKT_NAME_CHAT_FILTER_SETTINGS,
+    OP_IF_OPENSUB = PKT_NAME_IF_OPENSUB,
+    OP_FRIENDLIST_LOADED = PKT_NAME_FRIENDLIST_LOADED,
+    OP_UPDATE_IGNORELIST = PKT_NAME_UPDATE_IGNORELIST,
+    OP_MESSAGE_PRIVATE = PKT_NAME_MESSAGE_PRIVATE,
+    OP_UPDATE_FRIENDLIST = PKT_NAME_UPDATE_FRIENDLIST,
+    OP_UPDATE_INV_FULL = PKT_NAME_UPDATE_INV_FULL,
+    OP_PLAYER_INFO = PKT_NAME_PLAYER_INFO,
+    OP_UPDATE_RUNWEIGHT = PKT_NAME_UPDATE_RUNWEIGHT,
+    OP_VARP_SMALL = PKT_NAME_VARP_SMALL,
+    OP_UPDATE_INV_PARTIAL = PKT_NAME_UPDATE_INV_PARTIAL,
+    OP_IF_SETEVENTS = PKT_NAME_IF_SETEVENTS,
+    OP_IF_SETTEXT = PKT_NAME_IF_SETTEXT,
+    OP_IF_SETNPCHEAD = PKT_NAME_IF_SETNPCHEAD,
+    OP_IF_SETPLAYERHEAD = PKT_NAME_IF_SETPLAYERHEAD,
+    OP_IF_SETANIM = PKT_NAME_IF_SETANIM,
+    OP_IF_SETCOLOUR = PKT_NAME_IF_SETCOLOUR,
+    OP_IF_SETHIDE = PKT_NAME_IF_SETHIDE,
+    OP_IF_SETMODEL = PKT_NAME_IF_SETMODEL,
+    OP_IF_SETOBJECT = PKT_NAME_IF_SETOBJECT,
+    OP_IF_SETPOSITION = PKT_NAME_IF_SETPOSITION,
+    OP_IF_SETSCROLLPOS = PKT_NAME_IF_SETSCROLLPOS,
+    OP_IF_SETROTATESPEED = PKT_NAME_IF_SETROTATESPEED,
+    OP_IF_SETANGLE = PKT_NAME_IF_SETANGLE,
+    OP_IF_SETNPCHEAD_ACTIVE = PKT_NAME_IF_SETNPCHEAD_ACTIVE,
+    OP_IF_SETPLAYERMODEL_BASECOLOUR = PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR,
+    OP_IF_SETPLAYERMODEL_BODYTYPE = PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE,
+    OP_IF_SETPLAYERMODEL_OBJ = PKT_NAME_IF_SETPLAYERMODEL_OBJ,
+    OP_IF_SETPLAYERMODEL_SELF = PKT_NAME_IF_SETPLAYERMODEL_SELF,
+    OP_IF_CLOSESUB = PKT_NAME_IF_CLOSESUB,
+    OP_IF_MOVESUB = PKT_NAME_IF_MOVESUB,
+    OP_IF_RESYNC_V2 = PKT_NAME_IF_RESYNC_V2,
+    OP_IF_CLEARINV = PKT_NAME_IF_CLEARINV,
+    OP_UPDATE_INV_STOP_TRANSMIT = PKT_NAME_UPDATE_INV_STOP_TRANSMIT,
+    OP_RUNCLIENTSCRIPT = PKT_NAME_RUNCLIENTSCRIPT,
+    OP_P_COUNTDIALOG = PKT_NAME_P_COUNTDIALOG,
+    OP_IF_OPENTOP = PKT_NAME_IF_OPENTOP,
+    OP_REBUILD_NORMAL = PKT_NAME_REBUILD_NORMAL,
+    OP_REBUILD_REGION = PKT_NAME_REBUILD_REGION,
+    OP_UPDATE_RUNENERGY = PKT_NAME_UPDATE_RUNENERGY,
+    OP_MESSAGE_GAME = PKT_NAME_MESSAGE_GAME,
+    OP_NPC_INFO = PKT_NAME_NPC_INFO,
+    OP_SET_NPC_UPDATE_ORIGIN = PKT_NAME_SET_NPC_UPDATE_ORIGIN,
+    OP_SET_ACTIVE_WORLD = PKT_NAME_SET_ACTIVE_WORLD,
+    OP_SERVER_TICK_END = PKT_NAME_SERVER_TICK_END,
+    OP_UPDATE_STAT = PKT_NAME_UPDATE_STAT,
+    OP_UPDATE_PID = PKT_NAME_UPDATE_PID,
+    OP_VARP_LARGE = PKT_NAME_VARP_LARGE,
+    OP_UPDATE_ZONE_PARTIAL_FOLLOWS = PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS,
+    OP_UPDATE_ZONE_FULL_FOLLOWS = PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS,
+    OP_UPDATE_ZONE_PARTIAL_ENCLOSED = PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED,
+    OP_LOC_ADD_CHANGE = PKT_NAME_LOC_ADD_CHANGE,
+    OP_LOC_DEL = PKT_NAME_LOC_DEL,
+    OP_LOC_ANIM = PKT_NAME_LOC_ANIM,
+    OP_LOC_MERGE = PKT_NAME_LOC_MERGE,
+    OP_OBJ_ADD = PKT_NAME_OBJ_ADD,
+    OP_OBJ_DEL = PKT_NAME_OBJ_DEL,
+    OP_OBJ_COUNT = PKT_NAME_OBJ_COUNT,
+    OP_MAP_PROJANIM = PKT_NAME_MAP_PROJANIM,
+    OP_MAP_ANIM = PKT_NAME_MAP_ANIM,
+    OP_SET_PLAYER_OP = PKT_NAME_SET_PLAYER_OP,
+    OP_CAM_RESET = PKT_NAME_CAM_RESET,
+    OP_CAM_MOVETO = PKT_NAME_CAM_MOVETO,
+    OP_CAM_LOOKAT = PKT_NAME_CAM_LOOKAT,
+    OP_CAM_SHAKE = PKT_NAME_CAM_SHAKE,
+    OP_SYNTH_SOUND = PKT_NAME_SYNTH_SOUND,
+    OP_MIDI_SONG = PKT_NAME_MIDI_SONG,
+    OP_MIDI_SONG_STOP = PKT_NAME_MIDI_SONG_STOP,
+    OP_MIDI_JINGLE = PKT_NAME_MIDI_JINGLE,
+    OP_AMBIENTSOUND_START = PKT_NAME_AMBIENTSOUND_START,
+    OP_AMBIENTSOUND_STOP = PKT_NAME_AMBIENTSOUND_STOP,
+    OP_TRIGGER_ONDIALOGABORT = PKT_NAME_TRIGGER_ONDIALOGABORT,
+    /* Sailing (docs/SAILING_PLAN.md S2). Revision 230 has no such packets at
+     * all, so `ToriRSServer_WireOpcode` answers -1 there and the send is
+     * dropped — the refusal the wire convention wants. */
+    OP_REBUILD_WORLDENTITY = PKT_NAME_REBUILD_WORLDENTITY,
+    OP_WORLDENTITY_INFO = PKT_NAME_WORLDENTITY_INFO,
+};
+/* One packet's worth of scratch. Reset per send; sized for the largest packet
+ * the mock produces (a full REBUILD_NORMAL key block). */
+static uint8_t g_arena_memory[64 * 1024];
+static struct RSArena g_arena;
+static int g_arena_ready;
+
+static void
+open_packet(
+    struct RSAreaBuf* buf,
+    size_t capacity)
+{
+    if( !g_arena_ready )
+    {
+        rsab_arena_init(&g_arena, g_arena_memory, sizeof(g_arena_memory));
+        g_arena_ready = 1;
+    }
+    rsab_arena_reset(&g_arena);
+    if( !rsab_open_arena(buf, &g_arena, capacity) )
+        fprintf(stderr, "torirsserver: packet arena exhausted (%zu bytes)\n", capacity);
+}
+
+/*
+ * The old `opcode_name` switch lived here: a second table of the same 50
+ * packets, keyed on wire opcode. It went with the opcodes -- a name for a
+ * canonical packet is `ToriRSServer_WirePktName`, and there is one of those.
+ */
+
+/*
+ * A fixed-length packet's framing comes from the client's table, not from what
+ * was written here: send one byte short and the client's reader takes the next
+ * packet's opcode as the missing field, so the stream desyncs at some unrelated
+ * packet later on and the encoder that was actually wrong is nowhere in sight.
+ * The table is right there in the client tree, so check against it rather than
+ * waiting for the symptom.
+ */
+static void
+check_frame_length(
+    const struct ToriRSServerWire* wire,
+    int pkt_name,
+    int opcode,
+    int len,
+    int var)
+{
+    int framed;
+    /* Through the wire adapter rather than the 230 table directly: the whole
+     * point of the check is "does what this encoder wrote match what THIS
+     * client frames", and which client that is now depends on the revision. */
+    int expect;
+
+    framed = wire->payload_size ? wire->payload_size(opcode) : 0;
+    expect = framed == PKTIN_LENGTH_VARU8 ? 1 : framed == PKTIN_LENGTH_VARU16 ? 2 : 0;
+
+    /*
+     * The LENGTH CLASS is checked before the length, and it is the check that
+     * matters more.
+     *
+     * A fixed packet written at the wrong size costs one packet: the client
+     * reads the declared number of bytes either way and the next opcode is
+     * still on a boundary. Writing the wrong CLASS costs the connection --
+     * a one-byte length where the client reads two (or none) leaves every
+     * subsequent byte offset, so the client reads payload as opcodes until it
+     * hits something fatal and drops the socket. Nothing about that failure
+     * points back at the packet that caused it, and the packet itself was
+     * perfectly formed.
+     *
+     * This used to `return` whenever `var != 0`, which is to say it checked
+     * only the case that cannot desynchronise a stream and skipped the one
+     * that can.
+     */
+    if( expect != var )
+    {
+        static char const* const k_class[] = { "fixed", "var-u8", "var-u16" };
+
+        fprintf(stderr, "torirsserver: %s op %d (%s) sent as %s, client frames it as %s\n",
+                wire->name, opcode, ToriRSServer_WirePktName(pkt_name),
+                k_class[var < 0 || var > 2 ? 0 : var], k_class[expect]);
+        return;
+    }
+    if( var == 0 && framed >= 0 && framed != len )
+        fprintf(stderr,
+                "torirsserver: %s op %d (%s) wrote %d bytes, client frames it as %d\n",
+                wire->name, opcode, ToriRSServer_WirePktName(pkt_name), len, framed);
+}
+
+void
+ToriRSServer_Send(
+    struct ToriRSServerPlayer* player,
+    int pkt_name,
+    const uint8_t* payload,
+    int len,
+    int var)
+{
+    uint8_t frame[64 * 1024];
+    struct RSAreaBuf buf;
+    struct ToriRSServer* srv;
+    const struct ToriRSServerWire* wire;
+    int opcode;
+
+    /* A packet is addressed to a player, and every encoder above this now says
+     * so. What is left of the old "send to the server's one player" shape is
+     * this line: the capture is a property of the world, because a test asserts
+     * on what the *server* emitted, not on what one client received. */
+    assert(player);
+    srv = player->world;
+
+    /*
+     * Resolve the canonical name to this world's revision.
+     *
+     * Two ways this returns "no": the revision has no such packet at all
+     * (there is no UPDATE_PID at 239), or its payload has not been transcribed
+     * for this revision. Both drop the packet and report once. Dropping is the
+     * only answer that cannot corrupt: a packet written with another
+     * revision's layout frames correctly, passes the length check below, and
+     * arrives meaning something else.
+     */
+    wire = (srv && srv->wire) ? srv->wire : ToriRSServer_WireDefault();
+    opcode = ToriRSServer_WireOpcode(wire, pkt_name);
+    if( opcode < 0 || !ToriRSServer_WireCanWrite(wire, pkt_name) )
+        return;
+
+    check_frame_length(wire, pkt_name, opcode, len, var);
+
+    /*
+     * TORIRSSERVER_TRACE_OUT=1 -- one line per packet, opcode and the revision's own
+     * name for it.
+     *
+     * The only view of the stream that exists. The client is obfuscated: when
+     * it dies it prints a ring of recent opcodes and a stack of one-letter
+     * method names, and matching that ring against what was actually sent is
+     * the whole diagnosis. Named from the revision's table (`prot_name`) rather
+     * than the canonical enum so a line can be grepped straight into RSProt.
+     *
+     * Guarded by an env lookup cached in a static: this is on the path of every
+     * packet of every tick, and `getenv` per packet is measurable.
+     */
+    {
+        static int trace = -1;
+
+        if( trace < 0 )
+        {
+            char const* v = getenv("TORIRSSERVER_TRACE_OUT");
+            trace = (v && *v && *v != '0') ? (*v == '2' ? 2 : 1) : 0;
+        }
+        if( trace )
+        {
+            char const* prot = wire->prot_name ? wire->prot_name(opcode) : NULL;
+
+            fprintf(stderr, "torirsserver: -> op %3d %-28s %d byte(s)", opcode,
+                    prot ? prot : "?", len);
+            /* TORIRSSERVER_TRACE_OUT=2 adds the body. Capped because PLAYER_INFO's
+             * init block is 4608 bytes and would bury everything around it. */
+            if( trace > 1 )
+            {
+                int const cap = len < 48 ? len : 48;
+
+                for( int i = 0; i < cap; i++ )
+                    fprintf(stderr, " %02x", payload[i]);
+                if( cap < len )
+                    fprintf(stderr, " ...");
+            }
+            fprintf(stderr, "\n");
+        }
+    }
+
+    /* Above the fd check on purpose: the selftest runs with no socket, and this
+     * is the one point every encoder has already passed through with its
+     * payload built. Recording here makes all of them observable without any
+     * encoder knowing the capture exists. */
+    if( srv && srv->capture )
+    {
+        struct ToriRSServerCapture* capture = srv->capture;
+
+        if( capture->count < TORIRSSERVER_CAPTURE_MAX )
+        {
+            struct ToriRSServerCapturedPacket* packet = &capture->packets[capture->count++];
+            int kept = len > TORIRSSERVER_CAPTURE_BYTES ? TORIRSSERVER_CAPTURE_BYTES : len;
+
+            packet->recipient_pid = player->pid;
+            packet->opcode = opcode;
+            packet->name = pkt_name;
+            packet->len = kept;
+            packet->full_len = len;
+            packet->truncated = kept != len;
+            if( kept > 0 )
+                memcpy(packet->data, payload, (size_t)kept);
+        }
+        else
+        {
+            /* Never silently DROP: a test asserting "this packet is absent"
+             * against a full buffer would pass for the wrong reason. An
+             * oversized packet is kept and cut instead — see `truncated`. */
+            capture->overflow = 1;
+        }
+    }
+
+    /*
+     * No session is a world with no client — the selftest. Everything above
+     * this point still ran, so the capture saw the packet.
+     *
+     * `cipher_out` is checked, not just the state: a session is "alive" from
+     * the moment it is accepted, but its ISAAC pair does not exist until the
+     * login block is parsed, so anything the world emits in that window would
+     * otherwise scramble its opcode against a null cipher. With one player
+     * that window was invisible because nothing was addressed to a
+     * half-logged-in session; with a pool, every tick's PLAYER_INFO is.
+     */
+    if( !player->session || !ToriRSServer_SessionAlive(player->session) ||
+        !player->session->cipher_out )
+        return;
+    rsab_wrap(&buf, frame, sizeof(frame));
+    /*
+     * pSmart1Or2: a revision whose opcodes reach 0x80 writes the high ones as
+     * two bytes, each stepped through the cipher separately. Revision 239's
+     * reach 148. Writing such an opcode as one byte does not lose the packet —
+     * the client reads the truncated value as some other opcode and the whole
+     * stream is gone from there on.
+     */
+    if( wire->opcode_smart2 && opcode >= 0x80 )
+    {
+        rsab_p1(&buf,
+                (((opcode >> 8) | 0x80) + isaac_next(player->session->cipher_out)) & 0xff);
+        rsab_p1(&buf, ((opcode & 0xff) + isaac_next(player->session->cipher_out)) & 0xff);
+    }
+    else
+    {
+        rsab_p1(&buf, (opcode + isaac_next(player->session->cipher_out)) & 0xff);
+    }
+    if( var == 1 )
+        rsab_p1(&buf, len);
+    else if( var == 2 )
+        rsab_p2(&buf, len);
+    rsab_pdata(&buf, payload, (size_t)len);
+
+    if( !rsab_ok(&buf) )
+    {
+        fprintf(stderr, "torirsserver: frame overflow for op %d (%d bytes)\n", opcode, len);
+        return;
+    }
+    if( ToriRSServer_SessionSend(player->session, frame, (int)rsab_len(&buf)) < 0 )
+        ToriRSServer_SessionKill(player->session);
+    else
+        player->session->last_output_packet_name = pkt_name;
+
+    if( srv && srv->verbose )
+        fprintf(
+            stderr,
+            "torirsserver: -> %-18s op=%-3d payload=%d\n",
+            ToriRSServer_WirePktName(pkt_name),
+            opcode,
+            len);
+}
+
+
+/*
+ * The revision's payload writer set, or NULL for "whatever this file has
+ * always written".
+ *
+ * Every encoder that has a per-revision writer branches on this. The branch is
+ * explicit rather than a dispatch table because there are ten of them and
+ * because the 230 arm is the readable statement of what the mock's own client
+ * expects — hiding it behind a pointer would leave that layout written nowhere.
+ */
+static const struct ToriRSServerWirePayload*
+wire_payload(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServer* srv = player ? player->world : NULL;
+    const struct ToriRSServerWire* wire =
+        (srv && srv->wire) ? srv->wire : ToriRSServer_WireDefault();
+    return wire->payload;
+}
+
+/** The wire adapter behind a player, or the default when the world has none. */
+static const struct ToriRSServerWire*
+wire_for(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServer* srv = player ? player->world : NULL;
+    return (srv && srv->wire) ? srv->wire : ToriRSServer_WireDefault();
+}
+
+static void
+flush(struct ToriRSServerPlayer* player, struct RSAreaBuf* buf, int opcode, int var);
+
+/*
+ * Select revision 239's root WorldView and the plane addressed by the info
+ * batch that follows. Map instances in this server are copied root-world
+ * scenes, not WORLDENTITY_INFO worlds, so their world index is still zero.
+ *
+ * This is deliberately sent before a rebuild as well as before PLAYER_INFO:
+ * the Java client's asynchronous map loader snapshots the active WorldView
+ * plane when it is created. PLAYER_INFO updates its independent coordinate
+ * tracker, but never writes WorldView.field1400; without this packet a
+ * same-scene teleport from plane 0 to a God Wars chamber on plane 2 leaves the
+ * chamber black even though the local tracker reports the right coordinate.
+ */
+void
+ToriRSServer_SendSetActiveWorldId(
+    struct ToriRSServerPlayer* player,
+    int world_id,
+    int level)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWire* wire = wire_for(player);
+
+    assert(player);
+    /* 0 is the root; 1..15 are the world-entity registry. An id outside that
+     * is a server bug, and the client asserts on it (rs_gameproto_exec.c
+     * WorldviewRegistry_Get) — stop here instead. */
+    assert(world_id >= 0);
+    assert(world_id <= TORIRSSERVER_WEV_VIEW_MAX);
+
+    if( !wire || wire->revision < 239 )
+        return;
+    open_packet(&buf, 3);
+    rsab_p2(&buf, world_id);
+    rsab_p1(&buf, level & 3);
+    flush(player, &buf, OP_SET_ACTIVE_WORLD, 0);
+}
+
+void
+ToriRSServer_SendSetActiveWorld(struct ToriRSServerPlayer* player)
+{
+    ToriRSServer_SendSetActiveWorldId(player, 0, player->level);
+}
+
+/* ------------------------------------------------------------------ */
+/* Per-client npc names                                                */
+/* ------------------------------------------------------------------ */
+
+/* The client's index field has to be able to hold every name we can allocate.
+ * 14 bits is the narrower of the two wires, so it is what this is checked
+ * against — a client slot the classic stream cannot express would alias. */
+typedef char ToriRSServer_ClientSlotsFitTheWire
+    [TORIRSSERVER_CLIENT_NPC_SLOTS <= (1 << TORIRSSERVER_NPC_SLOT_BITS) - 1 ? 1 : -1];
+
+/*
+ * TORIRSSERVER_NPC_TRACE=<npc_id>[,...]: narrate this observer's private npc-slot
+ * bookkeeping for those npc types.
+ *
+ * The client keys its entity registry BY SLOT, and the slot is not the world
+ * pool index -- it is a per-observer name minted here (see
+ * ToriRSServer_SlotMapAcquire). So the server has to hand the same creature the
+ * same name for as long as the client is tracking it: a release followed by a
+ * re-acquire is, to the client, a despawn and a brand new npc, and the re-add
+ * is the one path with no retry if it fails.
+ *
+ * Pair with TORIRS_NPC_TRACE=<npc_id> on the client to check both halves of the
+ * mapping agree tick by tick.
+ */
+static int
+ToriRSServer_NpcTraceWants(int npc_id)
+{
+    static char const* spec = NULL;
+    static int parsed = 0;
+    char const* p;
+
+    if( !parsed )
+    {
+        parsed = 1;
+        spec = getenv("TORIRSSERVER_NPC_TRACE");
+    }
+    if( !spec || !*spec || npc_id < 0 )
+        return 0;
+    for( p = spec; *p; )
+    {
+        char* end = NULL;
+        long const want = strtol(p, &end, 10);
+        if( end == p )
+            break;
+        if( want == npc_id )
+            return 1;
+        p = (*end == ',') ? end + 1 : end;
+        if( !*p )
+            break;
+    }
+    return 0;
+}
+
+static void
+ToriRSServer_NpcTrace(
+    struct ToriRSServerPlayer* player,
+    int world_slot,
+    int client_slot,
+    char const* what)
+{
+    struct ToriRSServer* srv = player ? player->world : NULL;
+    struct ToriRSServerNpc* npc =
+        (srv && world_slot >= 0 && world_slot < TORIRSSERVER_NPC_MAX) ? &srv->npcs[world_slot] : NULL;
+    int npc_id = npc ? npc->type : -1;
+
+    if( !ToriRSServer_NpcTraceWants(npc_id) )
+        return;
+    fprintf(
+        stderr,
+        "mock_npc_trace: npc=%d pid=%d world_slot=%d client_slot=%d tick=%d %s\n",
+        npc_id, player ? player->pid : -1, world_slot, client_slot,
+        srv ? (int)srv->tick : -1, what);
+}
+
+void
+ToriRSServer_SlotMapReset(struct ToriRSServerPlayer* player)
+{
+    memset(player->npc_slots.world_of, 0xff, sizeof(player->npc_slots.world_of));
+    memset(player->npc_slots.client_of, 0xff, sizeof(player->npc_slots.client_of));
+    player->npc_slots.next = 0;
+}
+
+/*
+ * What this client calls `world_slot`, allocating a name if it has none.
+ *
+ * Returns -1 when every name is out, which cannot happen at
+ * TORIRSSERVER_CLIENT_NPC_SLOTS 1024 against TORIRSSERVER_TRACKED_NPC_MAX 255 — and is
+ * still checked, because the alternative to a refused add is a silently
+ * duplicated id.
+ */
+int
+ToriRSServer_SlotMapAcquire(
+    struct ToriRSServerPlayer* player,
+    int world_slot)
+{
+    struct ToriRSServerPlayerSlotMap* map = &player->npc_slots;
+
+    if( world_slot < 0 || world_slot >= TORIRSSERVER_NPC_MAX )
+        return -1;
+    if( map->client_of[world_slot] >= 0 )
+        return map->client_of[world_slot];
+    for( int i = 0; i < TORIRSSERVER_CLIENT_NPC_SLOTS; i++ )
+    {
+        int candidate = (map->next + i) % TORIRSSERVER_CLIENT_NPC_SLOTS;
+
+        if( map->world_of[candidate] >= 0 )
+            continue;
+        map->world_of[candidate] = (int16_t)world_slot;
+        map->client_of[world_slot] = (int16_t)candidate;
+        map->next = (candidate + 1) % TORIRSSERVER_CLIENT_NPC_SLOTS;
+        ToriRSServer_NpcTrace(player, world_slot, candidate, "ACQUIRE (new client slot)");
+        return candidate;
+    }
+    fprintf(stderr, "torirsserver: pid %d has no free npc name for world slot %d\n", player->pid,
+            world_slot);
+    return -1;
+}
+
+/*
+ * The world npc this client means by `client_slot`, or -1.
+ *
+ * The inbound half, and leaving it out is what made every npc unclickable: the
+ * client echoes back the name the server gave it, and `handle_opnpc` was
+ * indexing the npc pool with it. A name of 3 resolved to world slot 3 — some
+ * other npc, usually far away — so the walk went somewhere else and the player
+ * was told "I can't reach that" while standing next to the thing they clicked.
+ *
+ * Every packet that names an npc has to come through here. There is no
+ * "probably the same number" case: the two spaces coincide only for whichever
+ * npcs happened to be named first, which is exactly the shape of bug that looks
+ * intermittent and is not.
+ */
+int
+ToriRSServer_SlotMapWorld(
+    const struct ToriRSServerPlayer* player,
+    int client_slot)
+{
+    /* NULL-safe because the inbound handlers reach it through
+     * `srv->active_player`, and "whose turn is it" is a question with a
+     * `NULL` answer between sessions. */
+    if( client_slot < 0 || client_slot >= TORIRSSERVER_CLIENT_NPC_SLOTS )
+        return -1;
+    assert(player);
+    return player->npc_slots.world_of[client_slot];
+}
+
+/*
+ * This client's name for `world_slot`, or -1 when it has none.
+ *
+ * The read-only half of `ToriRSServer_SlotMapAcquire`, and the distinction is the
+ * point: an encoder that names an npc the client is not tracking must say "no
+ * entity", not mint a name for one it has never been told about. Acquiring here
+ * would hand out a slot the client cannot resolve and hold it against a real
+ * npc entering view later.
+ */
+int
+ToriRSServer_SlotMapClient(
+    const struct ToriRSServerPlayer* player,
+    int world_slot)
+{
+    if( world_slot < 0 || world_slot >= TORIRSSERVER_NPC_MAX )
+        return -1;
+    assert(player);
+    return player->npc_slots.client_of[world_slot];
+}
+
+/*
+ * Translate an actor's canonical FACE_ENTITY target for one recipient.
+ *
+ * The mock keeps NPC targets as world-pool slots so one actor can be encoded
+ * for several observers. NPC_INFO, however, gives each observer a private NPC
+ * slot through ToriRSServerPlayerSlotMap. Every FACE_ENTITY field on that observer's
+ * stream must use the same private slot or the client cannot resolve the actor
+ * and falls back to its supplied angle (yaw 0, due south, at revision 239).
+ * Player ids are already absolute in the classic id space and stay unchanged.
+ */
+static int
+ToriRSServer_FaceEntityForClient(
+    const struct ToriRSServerPlayer* recipient,
+    int face_entity)
+{
+    if( face_entity < 0 || face_entity >= TORIRSSERVER_FACE_PLAYER_BASE )
+        return face_entity;
+    return ToriRSServer_SlotMapClient(recipient, face_entity);
+}
+
+/** Give back this client's name for `world_slot`. Idempotent. */
+void
+ToriRSServer_SlotMapRelease(
+    struct ToriRSServerPlayer* player,
+    int world_slot)
+{
+    ToriRSServer_SlotMapReleaseWhy(player, world_slot, "unspecified");
+}
+
+void
+ToriRSServer_SlotMapReleaseWhy(
+    struct ToriRSServerPlayer* player,
+    int world_slot,
+    char const* why)
+{
+    struct ToriRSServerPlayerSlotMap* map = &player->npc_slots;
+    int client_slot;
+
+    if( world_slot < 0 || world_slot >= TORIRSSERVER_NPC_MAX )
+        return;
+    client_slot = map->client_of[world_slot];
+    if( client_slot < 0 )
+        return;
+    {
+        char msg[192];
+        snprintf(
+            msg, sizeof(msg),
+            "RELEASE why=%s (client sees a despawn; a re-add later gets a DIFFERENT slot)",
+            why ? why : "?");
+        ToriRSServer_NpcTrace(player, world_slot, client_slot, msg);
+    }
+    map->world_of[client_slot] = -1;
+    map->client_of[world_slot] = -1;
+}
+
+/** Does this player's world speak the v5 entity streams? */
+static int
+wire_is_v5(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServer* srv = player ? player->world : NULL;
+    const struct ToriRSServerWire* wire =
+        (srv && srv->wire) ? srv->wire : ToriRSServer_WireDefault();
+    return wire->revision >= 239;
+}
+
+/* Send whatever the caller just built into `buf`. */
+static void
+flush(
+    struct ToriRSServerPlayer* player,
+    struct RSAreaBuf* buf,
+    int opcode,
+    int var)
+{
+    if( !rsab_ok(buf) )
+    {
+        fprintf(stderr, "torirsserver: dropped op %d — encode overflowed\n", opcode);
+        return;
+    }
+    ToriRSServer_Send(player, opcode, buf->data, (int)rsab_len(buf), var);
+}
+
+/* ------------------------------------------------------------------ */
+/* Login                                                               */
+/* ------------------------------------------------------------------ */
+
+int
+ToriRSServer_SendReconnectOk(struct ToriRSServerPlayer* player)
+{
+    struct RSAreaBuf buf;
+    struct RSAreaBuf out;
+    uint8_t header[3];
+    int32_t coord;
+
+    if( !player->session )
+        return 0;
+
+    /*
+     * LoginResponse.ReconnectOk: opcode, a var-SHORT length, and the
+     * player-info init block as the payload.
+     *
+     * It is the one login response with a body the client has to decode
+     * rather than skip, and the reason is what a reconnect *doesn't* get: no
+     * REBUILD_LOGIN follows, so this is the only statement of where the 2048
+     * player slots are. The deob reads it at gameState 40 and hands it
+     * straight to the player-info reader (client.java:1795); RSProt frames it
+     * as VAR_SHORT and writes the caller's buffer verbatim.
+     *
+     * Raw, not through flush(): login responses are not ISAAC-scrambled game
+     * packets. The ciphers are already armed at this point and stepping one
+     * here would desync the whole session.
+     */
+    if( !wire_is_v5(player) )
+        return 0;
+
+    open_packet(&buf, 8192);
+    coord = (int32_t)(((player->level & 0x3) << 28) | ((player->x & 0x3fff) << 14) |
+                      (player->z & 0x3fff));
+    mock239_playerinfo_write_init(&buf, ToriRSServer_WirePlayerIndex(player->pid), coord);
+    if( !rsab_ok(&buf) )
+    {
+        fprintf(stderr, "torirsserver: reconnect init block overflowed\n");
+        return 0;
+    }
+
+    /*
+     * The client is now tracking itself, exactly as it would be after a login
+     * rebuild — so the REBUILD_NORMAL that follows must NOT repeat the block.
+     * That is the same `player_tracked` gate ToriRSServer_SendRebuildNormal
+     * reads, set from the other side of it.
+     */
+    player->player_tracked[player->pid] = 1;
+    player->v5_playerinfo_sent = 0;
+    mock239_playerinfo_state_init(&player->v5_gpi, ToriRSServer_WirePlayerIndex(player->pid), coord);
+    memset(player->v5_player_generation, 0, sizeof(player->v5_player_generation));
+    player->v5_last_x = player->x;
+    player->v5_last_z = player->z;
+    player->v5_last_level = player->level;
+
+    rsab_wrap(&out, header, sizeof(header));
+    rsab_p1(&out, OSRS239_LOGINRES_RECONNECT_OK);
+    rsab_p2(&out, (int)rsab_len(&buf));
+    if( ToriRSServer_SessionSend(player->session, header, (int)sizeof(header)) < 0 )
+        return 0;
+    if( ToriRSServer_SessionSend(player->session, buf.data, (int)rsab_len(&buf)) < 0 )
+        return 0;
+    if( player->world && player->world->verbose )
+        fprintf(stderr, "torirsserver: RECONNECT_OK, %d byte player-info init at %d,%d\n",
+                (int)rsab_len(&buf), player->x, player->z);
+    return 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Scene                                                               */
+/* ------------------------------------------------------------------ */
+
+static void
+send_rebuild_normal_at(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int include_login_init)
+{
+    struct ToriRSServer* srv = player->world;
+    struct RSAreaBuf buf;
+    int base_x = ToriRSServer_SceneOrigin(zone_x);
+    int base_z = ToriRSServer_SceneOrigin(zone_z);
+    int sq_x0 = base_x >> 6, sq_x1 = (base_x + TORIRSSERVER_SCENE_TILES - 1) >> 6;
+    int sq_z0 = base_z >> 6, sq_z1 = (base_z + TORIRSSERVER_SCENE_TILES - 1) >> 6;
+    int count = (sq_x1 - sq_x0 + 1) * (sq_z1 - sq_z0 + 1);
+
+    open_packet(&buf, 8192);
+
+    /*
+     * At revision 239 the LOGIN rebuild carries the GPI init block first, ahead
+     * of its own fields — RSProt's RebuildLogin variant.
+     *
+     * This is what seeds the client's 2048-slot player table: the local
+     * player's absolute coord and a rough position for every other index.
+     * Without it PLAYER_INFO is not merely incomplete, it is unreadable — the
+     * client's high-resolution count is zero, so the first section's bits are
+     * read as the second's and the stream decodes as noise.
+     *
+     * `player_tracked[pid]` is the server's own "has this client been told
+     * about pid" flag, and the local player's own entry is what distinguishes
+     * the login rebuild from a later one. A rebuild after login must NOT repeat
+     * the block: the client would re-seed a table it is already tracking
+     * against, and every player in it would jump.
+     */
+    if( include_login_init && wire_is_v5(player) && !player->player_tracked[player->pid] )
+    {
+        int32_t coord = (int32_t)(((player->level & 0x3) << 28) |
+                                  ((player->x & 0x3fff) << 14) | (player->z & 0x3fff));
+        mock239_playerinfo_write_init(&buf, ToriRSServer_WirePlayerIndex(player->pid),
+                                      coord);
+        player->player_tracked[player->pid] = 1;
+        /* The init block resets the client's cycle bits, so the next
+         * PLAYER_INFO must place the crowd in section 4 again — and it stated
+         * the absolute position, so the next delta is measured from there. */
+        player->v5_playerinfo_sent = 0;
+        mock239_playerinfo_state_init(&player->v5_gpi, ToriRSServer_WirePlayerIndex(player->pid), coord);
+        memset(player->v5_player_generation, 0, sizeof(player->v5_player_generation));
+        player->v5_last_x = player->x;
+        player->v5_last_z = player->z;
+        player->v5_last_level = player->level;
+    }
+
+    /* RSProt RebuildNormalEncoder: worldArea, zoneX (p2Alt2), zoneZ, keyCount,
+     * then keyCount * 4 XTEA ints. Zero keys: unencrypted regions load, and
+     * this cache ships its keys client-side via xteas.json. */
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->rebuild_normal )
+        {
+            /* V2 carries no key block at all — OldSchool stores map archives
+             * in the clear from revision 237 — so the writer is handed the
+             * square count and ignores it, rather than this branch quietly
+             * omitting a field. */
+            pl->rebuild_normal(&buf, 0, zone_x, zone_z, NULL, count);
+        }
+        else
+        {
+            rsab_p2(&buf, 0);
+            rsab_p2_alt2(&buf, zone_x);
+            rsab_p2(&buf, zone_z);
+            rsab_p2(&buf, count);
+            for( int i = 0; i < count * 4; i++ )
+                rsab_p4(&buf, 0);
+        }
+    }
+
+    flush(player, &buf, OP_REBUILD_NORMAL, 2);
+    if( srv->verbose )
+        fprintf(
+            stderr,
+            "torirsserver: rebuild zone=%d,%d origin=%d,%d squares=%d\n",
+            zone_x,
+            zone_z,
+            base_x,
+            base_z,
+            count);
+}
+
+void
+ToriRSServer_SendRebuildNormal(struct ToriRSServerPlayer* player)
+{
+    /* The player's own window origin: the scene this client holds is the one
+     * their movement is judged against, whoever else is online. */
+    send_rebuild_normal_at(player, player->zone_x, player->zone_z, 1);
+}
+
+/*
+ * A normal-world scene centred somewhere other than the authoritative player.
+ *
+ * Construction's scrying pool is the caller. It must load the destination's
+ * terrain for one client without moving the player, changing the player's
+ * own scene/collision window origin, or re-seeding the already-live
+ * player-info table. The remote-view lifetime and restoration are owned by
+ * ToriRSServer_WorldRemoteView_*; this encoder is deliberately only the packet.
+ */
+void
+ToriRSServer_SendRebuildNormalAt(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z)
+{
+    send_rebuild_normal_at(player, zone_x, zone_z, 0);
+}
+
+/*
+ * REBUILD_REGION — the instanced scene.
+ *
+ * The same header as REBUILD_NORMAL, then a 4 x 13 x 13 grid of template-chunk
+ * descriptors, then the keys. One bit per destination zone says whether it has a
+ * source; when it does, 26 bits say which:
+ *
+ *     bits  1..2   rotation, quarter-turns clockwise
+ *     bits  3..13  source zone z   (11 bits)
+ *     bits 14..23  source zone x   (10 bits)
+ *     bits 24..25  source plane    (2 bits)
+ *
+ * That layout is the client's own, not this server's invention — it is what
+ * every OSRS-era client reads out of `instanceTemplateChunks` (`rotation = z >> 1
+ * & 0x3`, `chunkY = z >> 3 & 0x7FF`, `chunkX = z >> 14 & 0x3FF`, `plane = z >> 24
+ * & 0x3`), and 2009scape's `BuildDynamicScene` and Kronos's `sendRegion` both
+ * write exactly it.
+ *
+ * Note the asymmetry the 10-bit source-x field creates: a *source* zone must
+ * have x < 1024, i.e. map square x < 128. Destinations are the loop position and
+ * carry no such limit, which is why the instance pool can sit at map x >= 100
+ * while every source it copies from is real map (all of this cache's squares are
+ * within x 15..98).
+ *
+ * Keys are zeros, for the same reason REBUILD_NORMAL's are: this client reads
+ * its XTEA keys from xteas.json beside the cache.
+ */
+void
+ToriRSServer_SendRebuildRegion(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServer* srv = player->world;
+    struct RSAreaBuf buf;
+    struct ToriRSServerMapInstanceWindow window;
+    int key_count = 0;
+
+    ToriRSServer_MapInstanceWindow(player->zone_x, player->zone_z, &window);
+
+    open_packet(&buf, 8192);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->rebuild_region )
+        {
+            /* V2 has no worldArea field and adds `reload`; zoneZ comes first. */
+            pl->rebuild_region(&buf, player->zone_x, player->zone_z, 0);
+        }
+        else
+        {
+            rsab_p2(&buf, 0);
+            rsab_p2_alt2(&buf, player->zone_x);
+            rsab_p2(&buf, player->zone_z);
+        }
+    }
+
+/*
+     * The distinct source map squares.
+     *
+     * Counted before the grid rather than after it, because revision 239 wants
+     * the number HERE -- `encodeRegionV2` back-patches a p2 in front of the bit
+     * buffer -- while the classic packet writes it afterwards as the length of
+     * a trailing XTEA key block. Same number, two different places, and V2 has
+     * no key block at all (map archives are stored plain from 237).
+     *
+     * Getting this wrong is what logs a client out: the grid is read as though
+     * the count were part of it, so every zone descriptor after the first is
+     * shifted and the packet ends somewhere the client does not expect.
+     */
+    /* One key block per source square the descriptors name, which is what the
+     * client would need if it were taking keys off the wire. Counted from the
+     * window so the two never disagree about how many follow. */
+    {
+        int seen_x[TORIRSSERVER_MAPINSTANCE_LEVELS * TORIRSSERVER_MAPINSTANCE_SCENE_ZONES *
+                   TORIRSSERVER_MAPINSTANCE_SCENE_ZONES];
+        int seen_z[sizeof(seen_x) / sizeof(*seen_x)];
+
+        for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
+            for( int zx = 0; zx < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zx++ )
+                for( int zz = 0; zz < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zz++ )
+                {
+                    const struct ToriRSServerMapInstanceZone* zone = &window.zones[level][zx][zz];
+                    int map_x;
+                    int map_z;
+                    int dup = 0;
+
+                    if( !zone->set )
+                        continue;
+                    map_x = zone->src_zone_x >> 3;
+                    map_z = zone->src_zone_z >> 3;
+                    for( int i = 0; i < key_count && !dup; i++ )
+                    {
+                        if( seen_x[i] == map_x && seen_z[i] == map_z )
+                            dup = 1;
+                    }
+                    if( dup )
+                        continue;
+                    seen_x[key_count] = map_x;
+                    seen_z[key_count] = map_z;
+                    key_count++;
+                }
+    }
+    if( wire_is_v5(player) )
+        rsab_p2(&buf, key_count);
+
+    rsab_bits(&buf);
+    for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
+    {
+        for( int zx = 0; zx < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zx++ )
+        {
+            for( int zz = 0; zz < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zz++ )
+            {
+                const struct ToriRSServerMapInstanceZone* zone = &window.zones[level][zx][zz];
+
+                if( !zone->set )
+                {
+                    rsab_pbit(&buf, 1, 0);
+                    continue;
+                }
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 26,
+                          ((zone->rotation & 3) << 1) | ((zone->src_zone_z & 0x7ff) << 3) |
+                              ((zone->src_zone_x & 0x3ff) << 14) |
+                              ((zone->src_level & 3) << 24));
+            }
+        }
+    }
+    rsab_bytes(&buf);
+
+    if( !wire_is_v5(player) )
+    {
+        rsab_p2(&buf, key_count);
+        for( int i = 0; i < key_count * 4; i++ )
+            rsab_p4(&buf, 0);
+    }
+
+    flush(player, &buf, OP_REBUILD_REGION, 2);
+    if( srv->verbose )
+        fprintf(
+            stderr,
+            "torirsserver: rebuild region zone=%d,%d source zones=%d squares=%d\n",
+            player->zone_x,
+            player->zone_z,
+            window.set_count,
+            key_count);
+}
+
+/*
+ * Which rebuild the player is owed.
+ *
+ * The choice is made from where the player *is* rather than from a flag, because
+ * that is the one thing that cannot go stale: an instance is a region of
+ * coordinate space, and standing in it is what makes the scene instanced. Every
+ * caller wants this rather than either encoder directly.
+ */
+void
+ToriRSServer_SendRebuild(struct ToriRSServerPlayer* player)
+{
+    /* A rider stands in an instance, but their SCENE is not the instance:
+     * their window (and zone_x) is anchored under the hull, on the normal
+     * map, and that is the rebuild their client is owed
+     * (player_scene_anchor). */
+    if( ToriRSServer_MapInstanceFind(player->x, player->z) != 0 &&
+        !ToriRSServer_VesselAtTile(player->world, player->x, player->z) )
+        ToriRSServer_SendRebuildRegion(player);
+    else
+        ToriRSServer_SendRebuildNormal(player);
+}
+
+/* ------------------------------------------------------------------ */
+/* Sailing: REBUILD_WORLDENTITY_V4 and WORLDENTITY_INFO_V7             */
+/* ------------------------------------------------------------------ */
+
+/*
+ * REBUILD_WORLDENTITY_V4 (op 109) — the deck map of one world entity.
+ *
+ * Structurally REBUILD_REGION with three differences, all of them silent when
+ * wrong: the header is the deck's SW *tile* rather than its centre zone, the
+ * descriptor grid is the VIEW's zone extent rather than a fixed 13x13, and
+ * there is no key block. The packet names no view: the target is whatever
+ * SET_ACTIVE_WORLD last selected, so it only means anything inside a sandwich
+ * (`wev_flush_deck_rebuild`).
+ *
+ * The client re-strides the compact grid onto its own 13x13 array
+ * (PktRebuildWev_DecodeZones) and asserts full consumption — a grid written at
+ * the wrong extent is a hard stop there, which is the behaviour wanted: the
+ * two ends disagreeing about a view's size cannot be walked past.
+ */
+void
+ToriRSServer_SendRebuildWorldEntity(
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerVessel* vessel)
+{
+    struct RSAreaBuf buf;
+    struct ToriRSServerMapInstanceWindow window;
+    int base_tile_x = 0;
+    int base_tile_z = 0;
+    int zones_x = 0;
+    int zones_z = 0;
+    int square_count = 0;
+    int seen_x[TORIRSSERVER_MAPINSTANCE_LEVELS * TORIRSSERVER_MAPINSTANCE_SCENE_ZONES *
+               TORIRSSERVER_MAPINSTANCE_SCENE_ZONES];
+    int seen_z[sizeof(seen_x) / sizeof(*seen_x)];
+
+    assert(player);
+    assert(vessel);
+    assert(vessel->in_use);
+    assert(vessel->instance > 0);
+
+    if( !wire_is_v5(player) )
+        return;
+    /* A dead instance handle is the vessel and the pool disagreeing, which the
+     * deck's own lifetime rules out — VesselFree releases both together. */
+    if( !ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z) )
+        return;
+    ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
+
+    /*
+     * `MapInstanceWindow` is centred (its SW zone is centre - 6), so asking for
+     * the deck's base zone + 6 lands the deck's own zone (0,0) on window index
+     * (0,0). Reading only the deck's extent out of it is safe even with other
+     * reservations inside the 13x13: instances never overlap in tile space, so
+     * an index inside this deck's rectangle can only be this deck's.
+     */
+    ToriRSServer_MapInstanceWindow(
+        (base_tile_x >> 3) + 6, (base_tile_z >> 3) + 6, &window);
+
+    for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
+        for( int zx = 0; zx < zones_x; zx++ )
+            for( int zz = 0; zz < zones_z; zz++ )
+            {
+                const struct ToriRSServerMapInstanceZone* zone = &window.zones[level][zx][zz];
+                int map_x;
+                int map_z;
+                int dup = 0;
+
+                if( !zone->set )
+                    continue;
+                map_x = zone->src_zone_x >> 3;
+                map_z = zone->src_zone_z >> 3;
+                for( int i = 0; i < square_count && !dup; i++ )
+                    if( seen_x[i] == map_x && seen_z[i] == map_z )
+                        dup = 1;
+                if( dup )
+                    continue;
+                seen_x[square_count] = map_x;
+                seen_z[square_count] = map_z;
+                square_count++;
+            }
+
+    open_packet(&buf, 8192);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+        /* No fallback arm: a revision without this writer has no such packet,
+         * and `flush` drops it at the opcode lookup rather than framing some
+         * other revision's bytes. */
+        if( !pl || !pl->rebuild_worldentity )
+            return;
+        pl->rebuild_worldentity(&buf, base_tile_x, base_tile_z, square_count);
+    }
+
+    rsab_bits(&buf);
+    for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
+        for( int zx = 0; zx < zones_x; zx++ )
+            for( int zz = 0; zz < zones_z; zz++ )
+            {
+                const struct ToriRSServerMapInstanceZone* zone = &window.zones[level][zx][zz];
+
+                if( !zone->set )
+                {
+                    rsab_pbit(&buf, 1, 0);
+                    continue;
+                }
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 26,
+                          ((zone->rotation & 3) << 1) | ((zone->src_zone_z & 0x7ff) << 3) |
+                              ((zone->src_zone_x & 0x3ff) << 14) |
+                              ((zone->src_level & 3) << 24));
+            }
+    rsab_bytes(&buf);
+
+    flush(player, &buf, OP_REBUILD_WORLDENTITY, 2);
+}
+
+/*
+ * WORLDENTITY_INFO's per-axis delta: a 2-bit code selecting nothing / i8 /
+ * i16 BE / i32 BE, LSB-first across dx, dy, dz, dangle. The code is chosen
+ * from the value, so an idle boat costs one mask byte and nothing else.
+ */
+static int
+wev_delta_code(int v)
+{
+    if( v == 0 )
+        return 0;
+    if( v >= -128 && v <= 127 )
+        return 1;
+    if( v >= -32768 && v <= 32767 )
+        return 2;
+    return 3;
+}
+
+static void
+wev_put_delta(
+    struct RSAreaBuf* buf,
+    int code,
+    int v)
+{
+    switch( code & 3 )
+    {
+    case 0:
+        break;
+    case 1:
+        rsab_p1(buf, v & 0xff);
+        break;
+    case 2:
+        rsab_p2(buf, v & 0xffff);
+        break;
+    default:
+        rsab_p4(buf, v);
+        break;
+    }
+}
+
+/** The four-axis bitfield and its payload, the shape both the update records
+ *  and the spawn trailer's absolute transform use. */
+static void
+wev_put_transform(
+    struct RSAreaBuf* buf,
+    int dx,
+    int dy,
+    int dz,
+    int dangle)
+{
+    int cx = wev_delta_code(dx);
+    int cy = wev_delta_code(dy);
+    int cz = wev_delta_code(dz);
+    int ca = wev_delta_code(dangle);
+
+    rsab_p1(buf, cx | (cy << 2) | (cz << 4) | (ca << 6));
+    wev_put_delta(buf, cx, dx);
+    wev_put_delta(buf, cy, dy);
+    wev_put_delta(buf, cz, dz);
+    wev_put_delta(buf, ca, dangle);
+}
+
+/*
+ * The shortest signed arc from `from` to `to` in 2048-space.
+ *
+ * The client applies the delta by addition and masks to 0x7FF, so 1900 and
+ * -148 land on the same angle — but they interpolate the long way round and
+ * the short way round respectively, and the boat visibly spins. This is the
+ * server half of the client's own shortest-arc rule (SAILING.md §5.5, the
+ * 1024 threshold).
+ */
+static int
+wev_angle_delta(int from, int to)
+{
+    int d = ((to - from) & 0x7ff);
+
+    if( d > 1024 )
+        d -= 2048;
+    return d;
+}
+
+/** Where this observer's tracked list holds `view_id`, or -1. */
+static int
+wev_tracked_index(
+    const struct ToriRSServerPlayer* player,
+    int view_id)
+{
+    for( int i = 0; i < player->wev_tracked_count; i++ )
+        if( player->wev_view_ids[i] == view_id )
+            return i;
+    return -1;
+}
+
+/*
+ * WORLDENTITY_INFO_V7 (op 122), plus the deck rebuilds any spawn in it owes.
+ *
+ * Written as the exact inverse of the committed client decoder
+ * (src/net/rev/osrs239/osrs239_parse.c) — the only statement of this layout
+ * that exists on both ends, since RSProt's generator excludes the info family.
+ *
+ * The records are POSITIONAL: record `i` addresses entry `i` of the client's
+ * own per-view list, so this observer's `wev_view_ids` has to mirror that list
+ * in the same order. Op 0 removes an entry and the client compacts its list;
+ * this array is compacted the same way, in the same pass, or every record
+ * after the removal addresses the wrong boat from the next tick on.
+ *
+ * Nothing is sent when the observer tracks nothing and nothing is spawning:
+ * a 1-byte "count = 0" every tick to every client would be pure noise, and the
+ * existing packet-sequence selftests pin its absence.
+ */
+void
+ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServer* srv;
+    struct RSAreaBuf buf;
+    struct ToriRSServerVessel* spawning[TORIRSSERVER_WEV_VIEW_MAX];
+    int spawning_count = 0;
+    int kept_ids[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_serials[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_x[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_z[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_angle[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_seq_stamps[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_teleport_stamps[TORIRSSERVER_WEV_VIEW_MAX];
+    int kept_count = 0;
+    const struct ToriRSServerWirePayload* pl;
+
+    assert(player);
+    srv = player->world;
+    if( !srv || !wire_is_v5(player) )
+        return;
+    pl = wire_payload(player);
+    if( !pl || !pl->wev_spawn_scalars )
+        return;
+
+    /* Everything live with a view id, lowest first, that this observer is not
+     * already tracking. S2 publishes every hull to every client: culling by
+     * range is a despawn/respawn policy, and the interpolator would have to be
+     * re-seeded on every re-entry — C4's problem, not this one's.
+     *
+     * "Already tracking" is a SERIAL match, not a view-id match: a hull that
+     * sank and one that took its view id in the same tick share every number
+     * except that one, and treating the second as the first sends the client a
+     * move where it needs a respawn. */
+    for( int view = 1; view <= TORIRSSERVER_WEV_VIEW_MAX; view++ )
+    {
+        struct ToriRSServerVessel* vessel = ToriRSServer_VesselByView(srv, view);
+        int at;
+
+        if( !vessel )
+            continue;
+        at = wev_tracked_index(player, view);
+        if( at >= 0 && player->wev_serials[at] == vessel->serial )
+            continue;
+        spawning[spawning_count++] = vessel;
+    }
+    if( player->wev_tracked_count == 0 && spawning_count == 0 )
+        return;
+
+    open_packet(&buf, 1024);
+    rsab_p1(&buf, player->wev_tracked_count);
+    for( int i = 0; i < player->wev_tracked_count; i++ )
+    {
+        int view = player->wev_view_ids[i];
+        struct ToriRSServerVessel* vessel = ToriRSServer_VesselByView(srv, view);
+        int dx;
+        int dz;
+        int dangle;
+
+        /* A different serial under the same view id is a DIFFERENT HULL, and
+         * the only record that can say so is the despawn: the config id and the
+         * deck size live in the spawn trailer, which the loop above has already
+         * queued this hull for. The client applies collected despawns before
+         * the trailer's spawns, so both land in this one packet. */
+        if( !vessel || player->wev_serials[i] != vessel->serial )
+        {
+            /* Op 0 carries no flags byte at all — the deob's `if (op != 0)`
+             * guards every remaining read of the record. The entry is dropped
+             * from `kept`, which is the compaction the client performs. */
+            rsab_p1(&buf, 0);
+            continue;
+        }
+
+        dx = vessel->fine_x - player->wev_last_fine_x[i];
+        dz = vessel->fine_z - player->wev_last_fine_z[i];
+        dangle = wev_angle_delta(player->wev_last_angle[i], vessel->angle);
+        /* updateFlags bit 0x1: the one-shot wire seq (the sink family), sent
+         * once per seq_stamp bump per observer. Bit 0x2 (op mask) stays
+         * spawn-only. */
+        {
+            int flags = 0;
+
+            if( vessel->seq_id >= 0 &&
+                player->wev_seq_stamps[i] != vessel->seq_stamp )
+                flags |= 0x1;
+        int teleport = player->wev_teleport_stamps[i] != vessel->teleport_stamp;
+        if( dx == 0 && dz == 0 && dangle == 0 && !teleport )
+        {
+            /* Op 1 is the flags-only record: the slot has to be described
+             * (the count addresses it positionally) and there is nothing to
+             * say about it. */
+            rsab_p1(&buf, 1);
+            rsab_p1(&buf, flags);
+        }
+        else
+        {
+            /* Ordinary sailing interpolates. Recovery/checkpoint relocation
+             * explicitly snaps once per observer, including a zero-distance
+             * discontinuity used to reset interpolation coherently. */
+            rsab_p1(&buf, teleport ? 3 : 2);
+            wev_put_transform(&buf, dx, 0, dz, dangle);
+            rsab_p1(&buf, flags);
+        }
+        if( flags & 0x1 )
+        {
+            /* Same shape the client reads: seq u16 BE (65535 clears), then
+             * the delay byte in 20 ms client ticks. */
+            rsab_p2(&buf, vessel->seq_id & 0xFFFF);
+            rsab_p1(&buf, vessel->seq_delay & 0xFF);
+        }
+        }
+        kept_ids[kept_count] = view;
+        kept_serials[kept_count] = vessel->serial;
+        kept_x[kept_count] = vessel->fine_x;
+        kept_z[kept_count] = vessel->fine_z;
+        kept_angle[kept_count] = vessel->angle;
+        kept_seq_stamps[kept_count] = vessel->seq_stamp;
+        kept_teleport_stamps[kept_count] = vessel->teleport_stamp;
+        kept_count++;
+    }
+
+    /* --- the spawn trailer, read by the client "while bytes remain" --- */
+    for( int i = 0; i < spawning_count; i++ )
+    {
+        struct ToriRSServerVessel* vessel = spawning[i];
+        int zones_x = 0;
+        int zones_z = 0;
+
+        ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
+        /* The nibbles are ZONE counts and the client multiplies each by 8; a
+         * deck wider than 15 zones cannot be named at all. VesselSpawn's own
+         * reservation is bounded well below that. */
+        assert(zones_x >= 1);
+        assert(zones_x <= 15);
+        assert(zones_z >= 1);
+        assert(zones_z <= 15);
+
+        rsab_p2(&buf, vessel->view_id);
+        /* updateFlags: bit 0x2 carries the op mask. Sent on every spawn so the
+         * entity's right-click ops are stated once, at the only point the
+         * client has nothing to fall back on. */
+        rsab_p1(&buf, 0x2);
+        pl->wev_spawn_scalars(
+            &buf, ((zones_x & 0xf) << 4) | (zones_z & 0xf), vessel->priority,
+            vessel->config_id);
+        /* The absolute transform is the same 4-axis bitfield applied to
+         * (0,0,0,0), so the "delta" here is the position itself. */
+        wev_put_transform(&buf, vessel->fine_x, 0, vessel->fine_z, vessel->angle & 0x7ff);
+        pl->wev_op_mask(&buf, TORIRSSERVER_WEV_OP_MASK_ALL);
+
+        kept_ids[kept_count] = vessel->view_id;
+        kept_serials[kept_count] = vessel->serial;
+        kept_x[kept_count] = vessel->fine_x;
+        kept_z[kept_count] = vessel->fine_z;
+        kept_angle[kept_count] = vessel->angle;
+        /* Recorded unsent: a client that just learned of the hull has no
+         * business replaying a sink already in progress. */
+        kept_seq_stamps[kept_count] = vessel->seq_stamp;
+        kept_teleport_stamps[kept_count] = vessel->teleport_stamp;
+        kept_count++;
+    }
+
+    flush(player, &buf, OP_WORLDENTITY_INFO, 2);
+
+    for( int i = 0; i < kept_count; i++ )
+    {
+        player->wev_view_ids[i] = kept_ids[i];
+        player->wev_serials[i] = kept_serials[i];
+        player->wev_last_fine_x[i] = kept_x[i];
+        player->wev_last_fine_z[i] = kept_z[i];
+        player->wev_last_angle[i] = kept_angle[i];
+        player->wev_seq_stamps[i] = kept_seq_stamps[i];
+        player->wev_teleport_stamps[i] = kept_teleport_stamps[i];
+    }
+    player->wev_tracked_count = kept_count;
+
+    /*
+     * The deck maps, each inside a SET_ACTIVE_WORLD sandwich addressed to its
+     * own view (docs/SAILING_PLAN.md S2.3). After the info packet, never
+     * before it: the client asserts that the id names a live view, and the
+     * spawn above is what makes it live.
+     *
+     * The root is re-selected at the end because the cursor persists until
+     * SERVER_TICK_END, and everything after this — PLAYER_INFO's placement,
+     * the zone flush — is root-world.
+     */
+    if( spawning_count > 0 )
+    {
+        for( int i = 0; i < spawning_count; i++ )
+        {
+            ToriRSServer_SendSetActiveWorldId(
+                player, spawning[i]->view_id, spawning[i]->level);
+            ToriRSServer_SendRebuildWorldEntity(player, spawning[i]);
+        }
+        ToriRSServer_SendSetActiveWorld(player);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Interfaces                                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The component a frame actually hosts a role in.
+ *
+ * Content names a role on one frame and the engine rewrites it to the same
+ * role on the live one, which holds while the role means the same thing
+ * everywhere. It does not always: the mobile frame's `mainmodal` is a fixed
+ * 512x334 box, because the mobile client does not host its big windows there,
+ * and a window that sizes ITSELF from the slot it was given came out squashed
+ * in it (see the `gameframe_slot_override` note in gameframe.enum).
+ *
+ * So a frame declares its own answer, in content, beside the mount table it
+ * already declares. Nothing here knows which frame or which role: this is a
+ * lookup, and a frame with nothing to say is not in the table and keeps the
+ * component its role named. That is what stops the next frame needing another
+ * branch in C.
+ */
+static int
+gameframe_slot_host(int uid)
+{
+    const struct ToriRSServerEnumDef* table;
+
+    if( uid <= 0 )
+        return uid;
+    table = ToriRSServer_ContentEnum("gameframe_slot_override");
+    if( !table )
+        return uid;
+    for( int i = 0; i < table->count; i++ )
+        if( table->values[i].key == uid && table->values[i].value > 0 )
+            return table->values[i].value;
+    return uid;
+}
+
+/*
+ * Content often names `toplevel_osrs_stretch:sidemodal` / `:xp_drops` (etc.)
+ * even after Display has remounted Fixed/Modern. Those are role aliases for
+ * the live gameframe's matching slot — rewrite by the `:role` suffix. No list
+ * of tops, no numeric ids.
+ *
+ * Modal slots use the uids if_opentop already bound on the player (also used
+ * for modal-mount bookkeeping). Other HUD roles resolve `<live_top>:<role>`
+ * through the component pack, but only when the *source* interface is itself
+ * a gameframe top (has `:mainmodal`) — so nested panels like `orbs:xp_drops`
+ * are never rewritten onto the HUD slot.
+ *
+ * Only rewrite when the named component lives on a *different* interface than
+ * the session's live top; same-top spellings are already correct.
+ */
+static int
+ToriRSServer_RemapGameframeSlotUid(
+    struct ToriRSServerPlayer* player,
+    int uid)
+{
+    const char* name;
+    const char* colon;
+    const char* role;
+    const char* src_iface_name;
+    const char* live_iface_name;
+    char probe[128];
+    int live;
+    int live_iface;
+    int src_iface;
+
+    assert(player);
+    if( uid <= 0 )
+        return uid;
+    live_iface = ToriRSServer_PlayerGameframeIface(player);
+    if( live_iface > 0 && TORIRSSERVER_COM_GROUP(uid) == live_iface )
+        return uid;
+    name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_COMPONENT, uid);
+    if( !name )
+        return uid;
+    colon = strrchr(name, ':');
+    if( !colon || colon[1] == '\0' )
+        return uid;
+    role = colon + 1;
+    if( strcmp(role, "mainmodal") == 0 )
+        live = ToriRSServer_PlayerMainmodal(player);
+    else if( strcmp(role, "sidemodal") == 0 )
+        live = ToriRSServer_PlayerSidemodal(player);
+    else if( strcmp(role, "floater") == 0 )
+        live = ToriRSServer_PlayerFloater(player);
+    else
+    {
+        src_iface = TORIRSSERVER_COM_GROUP(uid);
+        src_iface_name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INTERFACE, src_iface);
+        live_iface_name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INTERFACE, live_iface);
+        if( !src_iface_name || !live_iface_name || live_iface <= 0 )
+            return uid;
+        snprintf(probe, sizeof(probe), "%s:mainmodal", src_iface_name);
+        if( ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, probe) <= 0 )
+            return uid;
+        snprintf(probe, sizeof(probe), "%s:%s", live_iface_name, role);
+        live = gameframe_slot_host(ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, probe));
+    }
+    return live > 0 ? live : uid;
+}
+
+void
+ToriRSServer_SendIfOpentop(
+    struct ToriRSServerPlayer* player,
+    int group)
+{
+    struct RSAreaBuf buf;
+
+    /* Mutate authority before the packet is observable. A resync built from a
+     * send-after-the-fact cache can otherwise preserve mounts the new root has
+     * already destroyed in the golden client. */
+    ToriRSServer_IfStateOpenTop(&player->interfaces, group);
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_opentop )
+            pl->if_opentop(&buf, group);
+        else
+            rsab_p2_alt1(&buf, group);
+    }
+    flush(player, &buf, OP_IF_OPENTOP, 0);
+}
+
+void
+ToriRSServer_SendIfMovesub(
+    struct ToriRSServerPlayer* player,
+    int source_uid,
+    int dest_uid)
+{
+    struct RSAreaBuf buf;
+    source_uid = ToriRSServer_RemapGameframeSlotUid(player, source_uid);
+    dest_uid = ToriRSServer_RemapGameframeSlotUid(player, dest_uid);
+    ToriRSServer_IfStateMoveSub(&player->interfaces, source_uid, dest_uid);
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_movesub )
+            pl->if_movesub(&buf, source_uid, dest_uid);
+        else
+        {
+            /* Rev 230 IfMoveSubEncoder: destination then source, both p4Alt1. */
+            rsab_p4_alt1(&buf, dest_uid);
+            rsab_p4_alt1(&buf, source_uid);
+        }
+    }
+    flush(player, &buf, OP_IF_MOVESUB, 0);
+}
+
+static void
+ToriRSServer_GameframeBindSlots(
+    struct ToriRSServerPlayer* player,
+    int group,
+    const char* top_name)
+{
+    char name[128];
+    int uid;
+
+    assert(player);
+    assert(top_name);
+    player->gameframe_iface = group;
+
+    snprintf(name, sizeof(name), "%s:mainmodal", top_name);
+    uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
+    player->gameframe_mainmodal = gameframe_slot_host(uid);
+
+    snprintf(name, sizeof(name), "%s:sidemodal", top_name);
+    uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
+    player->gameframe_sidemodal = gameframe_slot_host(uid);
+
+    snprintf(name, sizeof(name), "%s:floater", top_name);
+    uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
+    player->gameframe_floater = gameframe_slot_host(uid);
+
+    /* `helper_content`, the innermost of the three helper layers -- see
+     * ToriRSServerIds.com_gameframe_helper for why not `helper`. */
+    snprintf(name, sizeof(name), "%s:helper_content", top_name);
+    uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
+    player->gameframe_helper = gameframe_slot_host(uid);
+}
+
+static int
+gameframe_mount_index(
+    const struct ToriRSServerInterfaceState* state,
+    int target_uid)
+{
+    assert(state);
+    for( int i = 0; i < state->mount_count; i++ )
+        if( state->mounts[i].target_uid == target_uid )
+            return i;
+    return -1;
+}
+
+/* A mount target only exists if the group holding it is on screen: either the
+ * root itself, or a group mounted somewhere inside it. */
+static int
+gameframe_group_present(
+    struct ToriRSServerPlayer const* player,
+    int group)
+{
+    assert(player);
+    if( group == ToriRSServer_PlayerGameframeIface(player) )
+        return 1;
+    for( int i = 0; i < player->interfaces.mount_count; i++ )
+        if( player->interfaces.mounts[i].interface_id == group )
+            return 1;
+    return 0;
+}
+
+/*
+ * Everything the server has open that `gameframe.enum` does not name.
+ *
+ * IF_OPENTOP destroys the client's entire widget tree, and the enum is only the
+ * login set — chatbox, orbs, the fourteen sidebar tabs. A modal the player has
+ * open, a raid HUD mounted in `overlay_atmosphere`, a panel nested inside one
+ * of the enum's own groups: those are server authority too, and the root switch
+ * clears their mount records along with everything else. Nothing ever mounts
+ * them again, so a Display-panel layout switch taken mid-raid removed the HUD
+ * permanently — the symptom this exists to fix, and the reason
+ * `~xpdrops_sync_mount` had to be spelled out by hand in gameframe_layout.rs2.
+ *
+ * So the mount table is snapshotted before the root is replaced and replayed
+ * after the enum has rebuilt the frame. Replay order is mount order, which is
+ * chronological, so a parent group is always re-opened before the child whose
+ * target uid names it.
+ */
+static void
+ToriRSServer_GameframeCarryMounts(
+    struct ToriRSServerPlayer* player,
+    const struct ToriRSServerIfMount* carried,
+    int carried_count)
+{
+    assert(player);
+    assert(carried);
+    for( int i = 0; i < carried_count; i++ )
+    {
+        /* Slots are named against whichever top the content spelled. The
+         * remapper moves a `:role` slot onto the live root; a uid already under
+         * it comes back unchanged. */
+        int uid = ToriRSServer_RemapGameframeSlotUid(player, carried[i].target_uid);
+        int at = gameframe_mount_index(&player->interfaces, uid);
+
+        /* The enum's own rebuild — or an onIfOpen it ran — may already have put
+         * this back. Only an identical mount counts: a slot now holding some
+         * other group is the older state, and the snapshot is the newer. */
+        if( at >= 0 &&
+            player->interfaces.mounts[at].interface_id == carried[i].interface_id &&
+            player->interfaces.mounts[at].type == carried[i].type )
+            continue;
+        if( !gameframe_group_present(player, TORIRSSERVER_COM_GROUP(uid)) )
+        {
+            /* A slot on the root that was just replaced, with no `:role`
+             * spelling for the remapper to follow. Re-sending it would address
+             * a group the client no longer has. */
+            fprintf(stderr,
+                    "torirsserver: if_opentop drops interface %d — target 0x%08x has "
+                    "no slot under the new root\n",
+                    carried[i].interface_id,
+                    (unsigned)uid);
+            continue;
+        }
+        ToriRSServer_SendIfOpensub(
+            player,
+            TORIRSSERVER_COM_GROUP(uid),
+            TORIRSSERVER_COM_CHILD(uid),
+            carried[i].interface_id,
+            carried[i].type);
+    }
+}
+
+void
+ToriRSServer_GameframeOpentop(
+    struct ToriRSServerPlayer* player,
+    int group)
+{
+    const char* top_name;
+    const struct ToriRSServerEnumDef* frame;
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    struct ToriRSServerIfMount carried[TORIRSSERVER_IF_MOUNT_MAX];
+    int carried_count;
+
+    assert(player);
+    top_name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INTERFACE, group);
+    if( !top_name )
+    {
+        fprintf(stderr, "torirsserver: if_opentop group=%d has no pack name\n", group);
+        return;
+    }
+
+    /* Before IF_OPENTOP, which is what clears the table. */
+    carried_count = player->interfaces.mount_count;
+    assert(carried_count >= 0);
+    assert(carried_count <= TORIRSSERVER_IF_MOUNT_MAX);
+    memcpy(carried, player->interfaces.mounts, (size_t)carried_count * sizeof(carried[0]));
+
+    ToriRSServer_SendIfOpentop(player, group);
+    ToriRSServer_GameframeBindSlots(player, group, top_name);
+
+    /* Keep the static ids table's "current stretch" aliases pointed at the
+     * live top so C call sites that still read ids->com_gameframe_mainmodal
+     * see the right slots after a switch. */
+    if( ids )
+    {
+        /* iface_gameframe stays the stretch default for selftests that pin
+         * login; session state is player->gameframe_*. */
+        (void)ids;
+    }
+
+    frame = ToriRSServer_ContentEnum(top_name);
+    if( !frame || frame->count == 0 )
+        fprintf(stderr,
+                "torirsserver: no `%s` gameframe enum — HUD/tabs will be empty\n",
+                top_name);
+    else
+        for( int i = 0; i < frame->count; i++ )
+            ToriRSServer_SendIfOpensub(
+                player,
+                group,
+                frame->values[i].key & 0xffff,
+                frame->values[i].value,
+                1);
+    /* The frame is back; now put back what the frame does not know about. */
+    ToriRSServer_GameframeCarryMounts(player, carried, carried_count);
+    /* The V2 snapshot is the authoritative commit for this root. It also
+     * removes stale client-side mounts/event ranges left by an interrupted
+     * layout switch. Revision 230's sender is deliberately a no-op. */
+    ToriRSServer_SendIfResyncV2(player);
+}
+
+void
+ToriRSServer_SendIfOpensub(
+    struct ToriRSServerPlayer* player,
+    int parent,
+    int child,
+    int group,
+    int type)
+{
+    /* RSProt IfOpenSubEncoder: p1 type, p2Alt2 interfaceId,
+     * p4Alt3 destinationCombinedId (parent << 16 | child). */
+    struct ToriRSServer* srv = player->world;
+    struct RSAreaBuf buf;
+    int uid = ToriRSServer_RemapGameframeSlotUid(player, (parent << 16) | (child & 0xffff));
+
+    parent = (uid >> 16) & 0xffff;
+    child = uid & 0xffff;
+
+    if( !ToriRSServer_IfStateOpenSub(&player->interfaces, uid, group, type) )
+    {
+        fprintf(stderr,
+                "torirsserver: cannot register IF_OPENSUB %d:%d <- %d type %d\n",
+                parent, child, group, type);
+        /* Revision 239 must never send a mutation its later IF_RESYNC_V2
+         * cannot reproduce. The classic wire has no V2 registry contract. */
+        if( wire_is_v5(player) )
+            return;
+    }
+
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_opensub )
+            pl->if_opensub(&buf, group, uid, type);
+        else
+        {
+            rsab_p1(&buf, type);
+            rsab_p2_alt2(&buf, group);
+            rsab_p4_alt3(&buf, uid);
+        }
+    }
+    flush(player, &buf, OP_IF_OPENSUB, 0);
+    ToriRSServer_NoteModalMount(srv, uid, group);
+    /* OpenRune's onIfOpen: nested fills (e.g. side_journal → tab body) run
+     * here so their IF_OPENSUB is encoded immediately after the parent's on
+     * the wire. Subject is the interface id, same shape as IF_CLOSE. */
+    if( group > 0 && srv && srv->scripts )
+        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_IF_OPEN, group, -1, -1);
+}
+
+/*
+ * Reference layout: the per-argument type string (newline-terminated), then the
+ * arguments in REVERSE order, then the script id.
+ *
+ * The reverse order is not a quirk of this port — the reference's writer pushes
+ * the CS2 operand stack, which unwinds last-argument-first. `osrs230_parse.c`
+ * reads it back the same way.
+ */
+void
+ToriRSServer_SendRunClientscriptMixed(
+    struct ToriRSServerPlayer* player,
+    int script_id,
+    const char* types,
+    int const* intv,
+    const char* const* strv,
+    int argc)
+{
+    struct RSAreaBuf buf;
+
+    /* Sized for the string case, not the int one. A multi-choice option list is
+     * one string carrying every row (see PKT_RUNCLIENTSCRIPT_STR_LEN), and five
+     * rows of dialogue is comfortably past a kilobyte. */
+    open_packet(&buf, 4096);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->run_clientscript )
+            pl->run_clientscript(&buf, script_id, types, intv, strv, argc);
+        else
+        {
+        for( int i = 0; i < argc; i++ )
+            rsab_p1(&buf, types && types[i] ? (uint8_t)types[i] : (uint8_t)'i');
+        rsab_p1(&buf, '\n');
+        for( int i = argc - 1; i >= 0; i-- )
+        {
+            if( types && types[i] == 's' )
+                rsab_pjstr(&buf, strv && strv[i] ? strv[i] : "", RSAB_JSTR_NEWLINE);
+            else
+                rsab_p4(&buf, intv ? intv[i] : 0);
+        }
+        rsab_p4(&buf, script_id);
+        }
+    }
+    flush(player, &buf, OP_RUNCLIENTSCRIPT, 2);
+}
+
+void
+ToriRSServer_SendRunClientscript(
+    struct ToriRSServerPlayer* player,
+    int script_id,
+    int const* args,
+    int argc)
+{
+    ToriRSServer_SendRunClientscriptMixed(player, script_id, NULL, args, NULL, argc);
+}
+
+int
+ToriRSServer_SendRunClientscriptTyped(
+    struct ToriRSServerPlayer* player,
+    int script_id,
+    const char* types,
+    const struct Mock239ClientScriptArg* args,
+    int argc)
+{
+    struct RSAreaBuf buf;
+
+    assert(player);
+    if( !wire_is_v5(player) )
+        return 0;
+
+    /* RUNCLIENTSCRIPT is VAR_SHORT, so 65535 is the protocol ceiling. Leave
+     * headroom in the packet arena for ordinary adjacent server work; an
+     * argument set larger than this fails closed through rsab_ok(). */
+    open_packet(&buf, 60 * 1024);
+    if( !mock239_encode_runclientscript(&buf, script_id, types, args, argc) )
+    {
+        fprintf(stderr, "torirsserver: refused invalid rev239 RUNCLIENTSCRIPT %d\n", script_id);
+        return 0;
+    }
+    flush(player, &buf, OP_RUNCLIENTSCRIPT, 2);
+    return 1;
+}
+
+void
+ToriRSServer_SendIfSetevents(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int from,
+    int to,
+    int events)
+{
+    uint32_t events1;
+    uint32_t events2;
+
+    ToriRSServer_IfStateSplitClassicEvents((uint32_t)events, &events1, &events2);
+    ToriRSServer_SendIfSeteventsV2(player, uid, from, to, events1, events2);
+}
+
+void
+ToriRSServer_SendIfSeteventsV2(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int from,
+    int to,
+    uint32_t events1,
+    uint32_t events2)
+{
+    /* RSProt IfSetEventsEncoder: p4Alt3 combinedId, p2Alt2 start, p4Alt1
+     * events, p2 end. */
+    struct RSAreaBuf buf;
+
+    if( !ToriRSServer_IfStateSeteventsV2(
+            &player->interfaces, uid, from, to, events1, events2) )
+    {
+        fprintf(stderr,
+                "torirsserver: cannot register IF_SETEVENTS %d:%d range %d..%d\n",
+                (uid >> 16) & 0xffff, uid & 0xffff, from, to);
+        if( wire_is_v5(player) )
+            return;
+    }
+
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setevents )
+            pl->if_setevents(&buf, uid, from, to, events1, events2);
+        else
+        {
+            uint32_t classic = events1 | ((events2 & UINT32_C(0x3ff)) << 1);
+
+            rsab_p4_alt3(&buf, uid);
+            rsab_p2_alt2(&buf, from);
+            rsab_p4_alt1(&buf, (int32_t)classic);
+            rsab_p2(&buf, to);
+        }
+    }
+    flush(player, &buf, OP_IF_SETEVENTS, 0);
+}
+
+void
+ToriRSServer_SendIfResyncV2(struct ToriRSServerPlayer* player)
+{
+    struct RSAreaBuf buf;
+    size_t capacity;
+
+    if( !wire_is_v5(player) )
+        return;
+    capacity = ToriRSServer_IfStateResyncPayloadSize(&player->interfaces);
+    if( capacity == 0 || capacity > TORIRSSERVER_IF_RESYNC_MAX_PAYLOAD )
+    {
+        fprintf(stderr, "torirsserver: invalid IF_RESYNC_V2 registry size %zu\n", capacity);
+        return;
+    }
+    open_packet(&buf, capacity);
+    ToriRSServer_IfStateEncodeResyncV2(&buf, &player->interfaces);
+    flush(player, &buf, OP_IF_RESYNC_V2, 2);
+}
+
+void
+ToriRSServer_SendIfClearinv(
+    struct ToriRSServerPlayer* player,
+    int uid)
+{
+    struct RSAreaBuf buf;
+
+    if( !wire_is_v5(player) )
+        return;
+    open_packet(&buf, 4);
+    ToriRSServer_IfStateEncodeClearinv(&buf, uid);
+    flush(player, &buf, OP_IF_CLEARINV, 0);
+}
+
+void
+ToriRSServer_SendTriggerOndialogabort(struct ToriRSServerPlayer* player)
+{
+    struct RSAreaBuf buf;
+
+    if( !wire_is_v5(player) )
+        return;
+    open_packet(&buf, 1);
+    flush(player, &buf, OP_TRIGGER_ONDIALOGABORT, 0);
+}
+
+/* ------------------------------------------------------------------ */
+/* Scalars                                                             */
+/* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* Interface setters                                                   */
+/* ------------------------------------------------------------------ */
+
+/*
+ * All five carry a p4 combined uid ((interface << 16) | child), which is how
+ * rev 230 addresses a component. lc254's flat p2 component id does not exist
+ * here — see the osrs230_parse overrides for the reading half.
+ */
+
+void
+ToriRSServer_SendIfSettext(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    const char* text)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 512);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_settext )
+            pl->if_settext(&buf, uid, text);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_pjstr(&buf, text ? text : "", RSAB_JSTR_NEWLINE);
+        }
+    }
+    flush(player, &buf, OP_IF_SETTEXT, 2);
+}
+
+void
+ToriRSServer_SendIfSetnpchead(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int npc_id)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setnpchead )
+            pl->if_setnpchead(&buf, uid, npc_id);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, npc_id);
+        }
+    }
+    flush(player, &buf, OP_IF_SETNPCHEAD, 0);
+}
+
+void
+ToriRSServer_SendIfSetplayerhead(
+    struct ToriRSServerPlayer* player,
+    int uid)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setplayerhead )
+            pl->if_setplayerhead(&buf, uid);
+        else
+        {
+            rsab_p4(&buf, uid);
+        }
+    }
+    flush(player, &buf, OP_IF_SETPLAYERHEAD, 0);
+}
+
+void
+ToriRSServer_SendIfSetanim(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int anim_id)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setanim )
+            pl->if_setanim(&buf, uid, anim_id);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, anim_id);
+        }
+    }
+    flush(player, &buf, OP_IF_SETANIM, 0);
+}
+
+void
+ToriRSServer_SendIfSetcolour(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int colour)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setcolour )
+            pl->if_setcolour(&buf, uid, colour);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, colour);
+        }
+    }
+    flush(player, &buf, OP_IF_SETCOLOUR, 0);
+}
+
+void
+ToriRSServer_SendMinimapToggle(struct ToriRSServerPlayer* player, int state)
+{
+    struct RSAreaBuf buf;
+    /* The generated revision-239 codec is one U1, and the wire adapter owns
+     * opcode/framing. No client-side state assignment stands in for the packet. */
+    open_packet(&buf, 1);
+    rsab_p1(&buf, state);
+    flush(player, &buf, PKT_NAME_MINIMAP_TOGGLE, 0);
+}
+
+void
+ToriRSServer_SendIfSethide(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int hide)
+{
+    struct RSAreaBuf buf;
+
+    /* A content-side gameframe role is just as relative for setters as it is
+     * for IF_OPENSUB: Display may have switched the live root since the
+     * script was compiled. Keep the component's visibility on that root. */
+    uid = ToriRSServer_RemapGameframeSlotUid(player, uid);
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_sethide )
+            pl->if_sethide(&buf, uid, hide);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p1(&buf, hide ? 1 : 0);
+        }
+    }
+    flush(player, &buf, OP_IF_SETHIDE, 0);
+}
+
+void
+ToriRSServer_SendIfSetmodel(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int model_id)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setmodel )
+            pl->if_setmodel(&buf, uid, model_id);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, model_id);
+        }
+    }
+    flush(player, &buf, OP_IF_SETMODEL, 0);
+}
+
+void
+ToriRSServer_SendIfSetobject(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int obj_id,
+    int value)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setobject )
+            pl->if_setobject(&buf, uid, obj_id, value);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, obj_id);
+            rsab_p4(&buf, value);
+        }
+    }
+    flush(player, &buf, OP_IF_SETOBJECT, 0);
+}
+
+void
+ToriRSServer_SendIfSetposition(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int x,
+    int y)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setposition )
+            pl->if_setposition(&buf, uid, x, y);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, x);
+            rsab_p2(&buf, y);
+        }
+    }
+    flush(player, &buf, OP_IF_SETPOSITION, 0);
+}
+
+void
+ToriRSServer_SendIfSetscroll(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int position)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_setscroll )
+            pl->if_setscroll(&buf, uid, position);
+        else
+        {
+            rsab_p4(&buf, uid);
+            rsab_p2(&buf, position);
+        }
+    }
+    flush(player, &buf, OP_IF_SETSCROLLPOS, 0);
+}
+
+void
+ToriRSServer_SendIfSetrotatespeed(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int x_speed,
+    int y_speed)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    /* These seven packets do not exist in the hybrid revision-230 table.
+     * Refuse rather than inventing a classic body and preserve that wire's
+     * established behaviour exactly. */
+    if( !pl || !pl->if_setrotatespeed )
+        return;
+    open_packet(&buf, 8);
+    pl->if_setrotatespeed(&buf, uid, x_speed, y_speed);
+    flush(player, &buf, OP_IF_SETROTATESPEED, 0);
+}
+
+void
+ToriRSServer_SendIfSetangle(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int zoom,
+    int angle_x,
+    int angle_y)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->if_setangle )
+        return;
+    open_packet(&buf, 10);
+    pl->if_setangle(&buf, uid, zoom, angle_x, angle_y);
+    flush(player, &buf, OP_IF_SETANGLE, 0);
+}
+
+void
+ToriRSServer_SendIfSetnpcheadActive(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int index)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->if_setnpchead_active )
+        return;
+    open_packet(&buf, 6);
+    pl->if_setnpchead_active(&buf, uid, index);
+    flush(player, &buf, OP_IF_SETNPCHEAD_ACTIVE, 0);
+}
+
+void
+ToriRSServer_SendIfSetplayermodelBasecolour(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int index,
+    int colour)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->if_setplayermodel_basecolour )
+        return;
+    open_packet(&buf, 6);
+    pl->if_setplayermodel_basecolour(&buf, uid, index, colour);
+    flush(player, &buf, OP_IF_SETPLAYERMODEL_BASECOLOUR, 0);
+}
+
+void
+ToriRSServer_SendIfSetplayermodelBodytype(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int body_type)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->if_setplayermodel_bodytype )
+        return;
+    open_packet(&buf, 5);
+    pl->if_setplayermodel_bodytype(&buf, uid, body_type);
+    flush(player, &buf, OP_IF_SETPLAYERMODEL_BODYTYPE, 0);
+}
+
+void
+ToriRSServer_SendIfSetplayermodelObj(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int obj_id)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->if_setplayermodel_obj )
+        return;
+    open_packet(&buf, 8);
+    pl->if_setplayermodel_obj(&buf, uid, obj_id);
+    flush(player, &buf, OP_IF_SETPLAYERMODEL_OBJ, 0);
+}
+
+void
+ToriRSServer_SendIfSetplayermodelSelf(
+    struct ToriRSServerPlayer* player,
+    int uid,
+    int copy_objs)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->if_setplayermodel_self )
+        return;
+    open_packet(&buf, 5);
+    pl->if_setplayermodel_self(&buf, uid, copy_objs);
+    flush(player, &buf, OP_IF_SETPLAYERMODEL_SELF, 0);
+}
+
+void
+ToriRSServer_SendIfClosesub(
+    struct ToriRSServerPlayer* player,
+    int uid)
+{
+    struct ToriRSServer* srv = player->world;
+    struct RSAreaBuf buf;
+
+    uid = ToriRSServer_RemapGameframeSlotUid(player, uid);
+    ToriRSServer_IfStateCloseSub(&player->interfaces, uid);
+
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->if_closesub )
+            pl->if_closesub(&buf, uid);
+        else
+            rsab_p4(&buf, uid);
+    }
+    flush(player, &buf, OP_IF_CLOSESUB, 0);
+    ToriRSServer_NoteModalMount(srv, uid, 0);
+}
+
+/*
+ * P_COUNTDIALOG: open the "Enter amount" prompt.
+ *
+ * No payload — the packet is the whole message, and the answer comes back as
+ * RESUME_P_COUNTDIALOG. The client's handler is `RS_Chat.dialog_input`, which
+ * already existed; only the packet reaching it was missing.
+ */
+void
+ToriRSServer_SendIfOpencountdialog(struct ToriRSServerPlayer* player)
+{
+    struct RSAreaBuf buf;
+
+    if( wire_is_v5(player) )
+    {
+        const char* strings[] = { "Enter amount:" };
+
+        /* P_COUNTDIALOG was removed before rev239. The golden client exposes
+         * the same prompt through clientscript 108 and returns the existing
+         * RESUME_P_COUNTDIALOG packet (op 75). */
+        ToriRSServer_SendRunClientscriptMixed(player, 108, "s", NULL, strings, 1);
+        return;
+    }
+
+    open_packet(&buf, 4);
+    flush(player, &buf, OP_P_COUNTDIALOG, 0);
+}
+
+void
+ToriRSServer_SendVarpSmall(
+    struct ToriRSServerPlayer* player,
+    int id,
+    int value)
+{
+    struct RSAreaBuf buf;
+    int client_count = ToriRSServer_VarpClientCount();
+
+    /* A transmit declaration can belong to a cache-overlay lane that is not
+     * active. Never encode an id the connected client's varp array cannot
+     * address; the official client treats it as a fatal protocol error. */
+    if( id < 0 || (client_count > 0 && id >= client_count) )
+        return;
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->varp_small )
+            pl->varp_small(&buf, id, value);
+        else
+        {
+            rsab_p2(&buf, id);
+            rsab_p1(&buf, value);
+        }
+    }
+    flush(player, &buf, OP_VARP_SMALL, 0);
+}
+
+/*
+ * VARP_LARGE: p2 id, p4 value.
+ *
+ * VARP_SMALL's value is a single signed byte, so anything outside -128..127
+ * has to go this way. Special-attack energy is in tenths of a percent — 1000
+ * for a full bar — which is exactly the case that made this necessary.
+ */
+void
+ToriRSServer_SendVarpLarge(
+    struct ToriRSServerPlayer* player,
+    int id,
+    int value)
+{
+    struct RSAreaBuf buf;
+    int client_count = ToriRSServer_VarpClientCount();
+
+    if( id < 0 || (client_count > 0 && id >= client_count) )
+        return;
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->varp_large )
+            pl->varp_large(&buf, id, value);
+        else
+        {
+            rsab_p2(&buf, id);
+            rsab_p4(&buf, value);
+        }
+    }
+    flush(player, &buf, OP_VARP_LARGE, 0);
+}
+
+void
+ToriRSServer_SendStat(
+    struct ToriRSServerPlayer* player,
+    int stat,
+    int level,
+    int xp,
+    int boosted)
+{
+    /* UPDATE_STAT_V2 (7 bytes). Field order is the mock's own — see the
+     * osrs230_parse override that reads it back.
+     *
+     * The boosted level is the one with a consumer: the client derives the base
+     * level from the xp and writes this into `current_level`, which is what the
+     * health orb reads for hitpoints. Sending the base twice pins the orb at
+     * full health forever, which is exactly what it used to do. */
+    struct RSAreaBuf buf;
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->update_stat )
+            pl->update_stat(&buf, stat, level, xp, boosted);
+        else
+        {
+            rsab_p1(&buf, stat);
+            rsab_p1(&buf, level);
+            rsab_p4(&buf, xp);
+            rsab_p1(&buf, boosted);
+        }
+    }
+    flush(player, &buf, OP_UPDATE_STAT, 0);
+}
+
+/*
+ * Which player index the client is.
+ *
+ * Its real pool slot. The client's fallback when this never arrives is 2047 —
+ * the classic self index (`local_player_pid`, task_exec_entity_info.c) — and
+ * the mock used to send that sentinel deliberately, which worked only while
+ * there was one client: with two, "you are 2047" is true of both, so no
+ * absolute reference to a player could name one. An npc's FACE_ENTITY is the
+ * absolute reference that made it visible.
+ *
+ * Sent once at login, before the first PLAYER_INFO, so the client registers its
+ * own entity under this pid rather than under the fallback.
+ */
+void
+ToriRSServer_SendUpdatePid(
+    struct ToriRSServerPlayer* player,
+    int local_pid)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    rsab_p2(&buf, local_pid);
+    rsab_p1(&buf, 0); /* members flag */
+    flush(player, &buf, OP_UPDATE_PID, 0);
+}
+
+void
+ToriRSServer_SendRunEnergy(
+    struct ToriRSServerPlayer* player,
+    int percent)
+{
+    /* Two bytes at rev 230: energy in hundredths of a percent. */
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->update_runenergy )
+            pl->update_runenergy(&buf, percent * 100);
+        else
+            rsab_p2(&buf, percent * 100);
+    }
+    flush(player, &buf, OP_UPDATE_RUNENERGY, 0);
+}
+
+void
+ToriRSServer_SendCamReset(struct ToriRSServerPlayer* player)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 4);
+    flush(player, &buf, OP_CAM_RESET, 0);
+}
+
+void
+ToriRSServer_SendCamMoveto(
+    struct ToriRSServerPlayer* player,
+    int world_x,
+    int world_z,
+    int height,
+    int rate,
+    int rate2)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        /* Absolute at 239, scene-local at 230 -- see torirs_server.h. */
+        if( pl && pl->cam_moveto )
+            pl->cam_moveto(&buf, world_x, world_z, height, rate, rate2);
+        else
+        {
+            /* Local to the RECEIVING player's own scene window. */
+            rsab_p1(&buf, world_x - ToriRSServer_SceneOrigin(player->zone_x));
+            rsab_p1(&buf, world_z - ToriRSServer_SceneOrigin(player->zone_z));
+            rsab_p2(&buf, height);
+            rsab_p1(&buf, rate);
+            rsab_p1(&buf, rate2);
+        }
+    }
+    flush(player, &buf, OP_CAM_MOVETO, 0);
+}
+
+void
+ToriRSServer_SendCamLookat(
+    struct ToriRSServerPlayer* player,
+    int world_x,
+    int world_z,
+    int height,
+    int rate,
+    int rate2)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        /* Absolute at 239, scene-local at 230 -- see torirs_server.h. */
+        if( pl && pl->cam_lookat )
+            pl->cam_lookat(&buf, world_x, world_z, height, rate, rate2);
+        else
+        {
+            /* Local to the RECEIVING player's own scene window. */
+            rsab_p1(&buf, world_x - ToriRSServer_SceneOrigin(player->zone_x));
+            rsab_p1(&buf, world_z - ToriRSServer_SceneOrigin(player->zone_z));
+            rsab_p2(&buf, height);
+            rsab_p1(&buf, rate);
+            rsab_p1(&buf, rate2);
+        }
+    }
+    flush(player, &buf, OP_CAM_LOOKAT, 0);
+}
+
+void
+ToriRSServer_SendCamShake(
+    struct ToriRSServerPlayer* player,
+    int axis,
+    int jitter,
+    int amplitude,
+    int frequency)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->cam_shake )
+            pl->cam_shake(&buf, axis, jitter, amplitude, frequency);
+        else
+        {
+            rsab_p1(&buf, axis);
+            rsab_p1(&buf, jitter);
+            rsab_p1(&buf, amplitude);
+            rsab_p1(&buf, frequency);
+        }
+    }
+    flush(player, &buf, OP_CAM_SHAKE, 0);
+}
+
+/*
+ * SYNTH_SOUND — WEAPON_FX.md §6. Field order is not a choice: it matches the
+ * client's own reader (gameproto_parse.c:706-710) exactly — id g2, loops g1,
+ * delay g2, 5 bytes total. lc254/packetin.h:157 and lc245_2/packetin.h:154
+ * carry the same shape.
+ */
+void
+ToriRSServer_SendSynthSound(
+    struct ToriRSServerPlayer* player,
+    int id,
+    int loops,
+    int delay)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->synth_sound )
+            pl->synth_sound(&buf, id, loops, delay);
+        else
+        {
+            rsab_p2(&buf, id);
+            rsab_p1(&buf, loops);
+            rsab_p2(&buf, delay);
+        }
+    }
+    flush(player, &buf, OP_SYNTH_SOUND, 0);
+}
+
+void
+ToriRSServer_SendMidiSongEnvelope(
+    struct ToriRSServerPlayer* player,
+    int id,
+    int fade_out_delay,
+    int fade_out_speed,
+    int fade_in_delay,
+    int fade_in_speed)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->midi_song )
+            pl->midi_song(
+                &buf, id, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed);
+    }
+    flush(player, &buf, OP_MIDI_SONG, 0);
+}
+
+void
+ToriRSServer_SendMidiSongStop(
+    struct ToriRSServerPlayer* player,
+    int fade_out_delay,
+    int fade_out_speed)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    /*
+     * Return rather than flush an empty body when the revision has no writer.
+     *
+     * `ToriRSServer_SendMidiSong` above flushes unconditionally, which for a
+     * revision with no `midi_song` writer puts a zero-length MIDI_SONG on the
+     * wire — harmless there only because every revision this tree runs has one.
+     * MIDI_SONG_STOP is genuinely absent from osrs230's packet table, so this
+     * one WILL take the missing-writer path, and a 0-byte body where the client
+     * expects 4 desynchronises the stream rather than being ignored.
+     * `ToriRSServer_Send` reports the unmapped name once by itself.
+     */
+    if( !pl || !pl->midi_song_stop )
+        return;
+    open_packet(&buf, 8);
+    pl->midi_song_stop(&buf, fade_out_delay, fade_out_speed);
+    flush(player, &buf, OP_MIDI_SONG_STOP, 0);
+}
+
+void
+ToriRSServer_SendMidiSong(
+    struct ToriRSServerPlayer* player,
+    int id)
+{
+    /* script9630's reference wire fallback: fade the old track over 60
+     * cycles, start the next after 60, then set its gain immediately. */
+    ToriRSServer_SendMidiSongEnvelope(player, id, 0, 60, 60, 0);
+}
+
+/*
+ * MIDI_JINGLE -- same missing-writer discipline as `ToriRSServer_SendMidiSongStop`
+ * just above, and for the same reason: osrs230's packet table has no
+ * MIDI_JINGLE either, so a caller targeting that revision WILL take this path,
+ * and a short body would desynchronise the stream rather than being ignored.
+ * `ToriRSServer_Send` reports the unmapped name once by itself.
+ */
+void
+ToriRSServer_SendMidiJingle(
+    struct ToriRSServerPlayer* player,
+    int id,
+    int length_ms)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->midi_jingle )
+        return;
+    open_packet(&buf, 8);
+    pl->midi_jingle(&buf, id, length_ms);
+    flush(player, &buf, OP_MIDI_JINGLE, 0);
+}
+
+/*
+ * AMBIENTSOUND_START -- the region's background bed.
+ *
+ * `id` names a soundscape record (config group 15), not a sound effect. Nothing
+ * sent this before, which is why the whole bed path -- the group-15 decoder, the
+ * multi-loop bed, the timed random sets -- was unreachable from a running
+ * client. Reachability is the point: a subsystem nothing can reach is one
+ * nobody notices is broken.
+ */
+void
+ToriRSServer_SendAmbientsoundStart(
+    struct ToriRSServerPlayer* player,
+    int id,
+    int fade)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->ambientsound_start )
+            pl->ambientsound_start(&buf, id, fade);
+    }
+    flush(player, &buf, OP_AMBIENTSOUND_START, 0);
+}
+
+void
+ToriRSServer_SendAmbientsoundStop(
+    struct ToriRSServerPlayer* player,
+    int fade)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 4);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->ambientsound_stop )
+            pl->ambientsound_stop(&buf, fade);
+    }
+    flush(player, &buf, OP_AMBIENTSOUND_STOP, 0);
+}
+
+void
+ToriRSServer_SendRunWeight(
+    struct ToriRSServerPlayer* player,
+    int kilograms)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->update_runweight )
+            pl->update_runweight(&buf, kilograms);
+        else
+            rsab_p2(&buf, kilograms);
+    }
+    flush(player, &buf, OP_UPDATE_RUNWEIGHT, 0);
+}
+
+void
+ToriRSServer_SendMessage(
+    struct ToriRSServerPlayer* player,
+    const char* text)
+{
+    struct RSAreaBuf buf;
+    /* TORIRSSERVER_ECHO_MES=1: mirror every game message to stderr. The chat box is
+     * the only place a `mes` lands, which makes a content self-test that
+     * reports through it unreadable from a headless run. */
+    if( getenv("TORIRSSERVER_ECHO_MES") )
+        fprintf(stderr, "mes: %s\n", text ? text : "");
+    open_packet(&buf, 512);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->message_game )
+            pl->message_game(&buf, 0, text);
+        else
+        {
+            rsab_p1(&buf, 0); /* message type: plain game message */
+            rsab_pjstr(&buf, text, RSAB_JSTR_NUL);
+        }
+    }
+    flush(player, &buf, OP_MESSAGE_GAME, 1);
+}
+
+/* ------------------------------------------------------------------ */
+/* Social                                                              */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The five server->client social packets.
+ *
+ * Each is a transcription of the matching LostCity encoder under
+ * engine/src/network/game/server/codec/ — UpdateFriendListEncoder,
+ * UpdateIgnoreListEncoder, FriendlistLoadedEncoder, MessagePrivateEncoder,
+ * ChatFilterSettingsEncoder — and each was checked against the *client's own*
+ * reader in src/net/rev/gameproto_parse.c, which is the half that has to agree.
+ * Three of the five readers assert full frame consumption, so a field out of
+ * place here is an abort in the client rather than a subtle drawing bug.
+ *
+ * None of them decides anything. Which friend, at which world, and whether the
+ * viewer may see it at all is torirs_server_friends.c's answer (`isVisibleTo`); these
+ * only write it down.
+ */
+
+void
+ToriRSServer_SendUpdateFriendlist(
+    struct ToriRSServerPlayer* player,
+    int64_t name37,
+    int world)
+{
+    /* One entry per packet, both for the login dump and for the deltas after
+     * it. `world` is 0 for "offline, or not visible to you" — the conflation is
+     * the reference's (FriendServer.sendPlayerWorldUpdate) and is the whole of
+     * how "Private chat: off" hides a player from their own friends. */
+    struct RSAreaBuf buf;
+    open_packet(&buf, 64);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->friend_entry )
+        {
+            char name[16];
+            base37tostr((uint64_t)name37, name, (int)sizeof(name));
+            pl->friend_entry(&buf, name, world);
+        }
+        else
+        {
+            rsab_p8(&buf, name37);
+            rsab_p1(&buf, world);
+        }
+    }
+    flush(player, &buf, OP_UPDATE_FRIENDLIST, 2);
+}
+
+void
+ToriRSServer_SendUpdateFriendlistEmpty(struct ToriRSServerPlayer* player)
+{
+    /* Rev 239's zero-length FRIENDLIST_LOADED packet only moves the client to
+     * state 1 (loading). UPDATE_FRIENDLIST's decoder is what sets state 2, even
+     * for an empty list. Without this explicit empty var-short packet a fresh
+     * account's Friends and Ignore panels say "Loading ... Please wait"
+     * forever although login otherwise completed successfully. */
+    struct RSAreaBuf buf;
+    open_packet(&buf, 1);
+    flush(player, &buf, OP_UPDATE_FRIENDLIST, 2);
+}
+
+void
+ToriRSServer_SendUpdateIgnorelist(
+    struct ToriRSServerPlayer* player,
+    const int64_t* names37,
+    int count)
+{
+    /* The whole list at once — the client replaces its store wholesale
+     * (rs_gameproto_exec.c, PKT_NAME_UPDATE_IGNORELIST), which is why there is
+     * no single-entry form to pair with UPDATE_FRIENDLIST's. */
+    struct RSAreaBuf buf;
+    open_packet(&buf, (size_t)(count > 0 ? count : 0) * 8 + 16);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+        for( int i = 0; i < count; i++ )
+        {
+            if( pl && pl->ignore_entry )
+            {
+                char name[16];
+                base37tostr((uint64_t)names37[i], name, (int)sizeof(name));
+                pl->ignore_entry(&buf, name);
+                continue;
+            }
+            rsab_p8(&buf, names37[i]);
+        }
+    }
+    flush(player, &buf, OP_UPDATE_IGNORELIST, 2);
+}
+
+void
+ToriRSServer_SendFriendlistLoaded(
+    struct ToriRSServerPlayer* player,
+    int status)
+{
+    /* 0 loading, 1 connecting to friendserver, 2 online, anything else "please
+     * wait" (FriendlistLoadedEncoder's own comment). The client files it in
+     * `social.server_status`. */
+    struct RSAreaBuf buf;
+    open_packet(&buf, 4);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->friendlist_loaded )
+            pl->friendlist_loaded(&buf, status);
+        else
+        {
+            rsab_p1(&buf, status);
+        }
+    }
+    flush(player, &buf, OP_FRIENDLIST_LOADED, 0);
+}
+
+void
+ToriRSServer_SendMessagePrivate(
+    struct ToriRSServerPlayer* player,
+    int64_t from37,
+    int32_t message_id,
+    int staff_mod,
+    const char* text)
+{
+    /*
+     * p8 from, p4 messageId, p1 staffModLevel, then wordpack over the rest.
+     * The client reads `data_size - 13` bytes of wordpack, so the length has to
+     * be the var-u16 frame's, not a field.
+     *
+     * `message_id` must be non-zero: the client dedupes private messages
+     * against a zero-filled ring, so a 0 id is a message it silently drops.
+     * ToriRSServer_FriendsNextPmId guarantees that; this encoder does not
+     * re-check, because a caller that made one up should fail visibly.
+     */
+    struct RSAreaBuf buf;
+    uint8_t packed[512];
+    struct RSCache_Buffer text_buf;
+
+    RSCache_BufferInit(&text_buf, packed, (uint32_t)sizeof(packed));
+    wordpack_pack(&text_buf, text ? text : "");
+
+    open_packet(&buf, 16 + text_buf.position);
+    rsab_p8(&buf, from37);
+    rsab_p4(&buf, (int32_t)message_id);
+    rsab_p1(&buf, staff_mod > 3 ? 3 : staff_mod); /* MessagePrivateEncoder's clamp */
+    rsab_pdata(&buf, packed, (size_t)text_buf.position);
+    flush(player, &buf, OP_MESSAGE_PRIVATE, 2);
+}
+
+void
+ToriRSServer_SendChatFilterSettings(
+    struct ToriRSServerPlayer* player,
+    int public_mode,
+    int private_mode,
+    int trade_mode)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->chat_filter )
+            pl->chat_filter(&buf, public_mode, private_mode, trade_mode);
+        else
+        {
+            rsab_p1(&buf, public_mode);
+            rsab_p1(&buf, private_mode);
+            rsab_p1(&buf, trade_mode);
+        }
+    }
+    flush(player, &buf, OP_CHAT_FILTER_SETTINGS, 0);
+}
+
+void
+ToriRSServer_SendUnsetMapFlag(struct ToriRSServerPlayer* player)
+{
+    /* SET_MAP_FLAG with the 255,255 "no flag" sentinel. */
+    struct RSAreaBuf buf;
+    open_packet(&buf, 8);
+    {
+        /* No 255,255 clear sentinel at V2 -- the packet carries an absolute
+         * coord, and a cleared flag is coord 0. */
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->set_map_flag )
+            pl->set_map_flag(&buf, 0, 0, 0);
+        else
+        {
+            rsab_p1(&buf, 255);
+            rsab_p1(&buf, 255);
+        }
+    }
+    flush(player, &buf, OP_SET_MAP_FLAG, 0);
+}
+
+/*
+ * HINT_ARROW -- point the player at something.
+ *
+ * Six fixed bytes at revision 239 (`3rd/rsprot/gen/rev239_prot.h`): a type byte,
+ * then `id` and `z` as u16 and a height byte. What the last three MEAN depends
+ * on the type, which is why this takes them raw and the four script opcodes
+ * above it name the shapes:
+ *
+ *   1  coord   id = absolute tile x, z = absolute tile z, height above it
+ *   2  npc     id = npc slot; z and height are padding
+ *   10 player  id = player pid; z and height are padding
+ *   255 clear
+ *
+ * Absolute coords for the coord form, deliberately. The arrow's whole purpose
+ * is to point at somewhere the player is not, and a scene-local coord cannot
+ * name a tile outside the loaded window -- see the matching note in
+ * `app_overlay_build_hint_arrow`, which converts with the same origin
+ * `SET_MAP_FLAG`'s absolute form uses.
+ */
+void
+ToriRSServer_SendHintArrow(
+    struct ToriRSServerPlayer* player,
+    int type,
+    int id,
+    int z,
+    int height)
+{
+    struct RSAreaBuf buf;
+
+    assert(player);
+    open_packet(&buf, 8);
+    rsab_p1(&buf, type & 0xff);
+    rsab_p2(&buf, id & 0xffff);
+    rsab_p2(&buf, z & 0xffff);
+    rsab_p1(&buf, height & 0xff);
+    flush(player, &buf, OP_HINT_ARROW, 0);
+}
+
+void
+ToriRSServer_SendSetMapFlag(struct ToriRSServerPlayer* player, int local_x, int local_z)
+{
+    struct RSAreaBuf buf;
+    assert(player);
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->set_map_flag )
+            pl->set_map_flag(&buf, player->level,
+                             ToriRSServer_SceneOrigin(player->zone_x) + local_x,
+                             ToriRSServer_SceneOrigin(player->zone_z) + local_z);
+        else
+        {
+            rsab_p1(&buf, local_x & 0xff);
+            rsab_p1(&buf, local_z & 0xff);
+        }
+    }
+    flush(player, &buf, OP_SET_MAP_FLAG, 0);
+}
+
+void
+ToriRSServer_SendTickEnd(struct ToriRSServerPlayer* player)
+{
+    ToriRSServer_Send(player, OP_SERVER_TICK_END, NULL, 0, 0);
+}
+
+/* ------------------------------------------------------------------ */
+/* Containers                                                          */
+/* ------------------------------------------------------------------ */
+
+/* The slot body both inventory encoders share: p1Alt2 count, escaping to a
+ * p4Alt1 real count at 255, then p2 objId + 1 (0 = empty). */
+static void
+put_inv_slot(
+    struct RSAreaBuf* buf,
+    const struct ToriRSServerItem* item)
+{
+    if( !item || item->obj_id < 0 )
+    {
+        rsab_p1_alt2(buf, 0);
+        rsab_p2(buf, 0);
+        return;
+    }
+    rsab_p1_alt2(buf, item->count > 0xff ? 0xff : item->count);
+    if( item->count >= 255 )
+        rsab_p4_alt1(buf, item->count);
+    rsab_p2(buf, item->obj_id + 1);
+}
+
+void
+ToriRSServer_SendInvFull(
+    struct ToriRSServerPlayer* player,
+    int component,
+    int container,
+    const struct ToriRSServerItem* slots,
+    int slot_count)
+{
+    struct RSAreaBuf buf;
+    /* A slot is at most 7 bytes (count byte + 4-byte escape + 2-byte obj), and
+     * the bank is 1220 of them — well past the 8 KB this used to reserve when
+     * the only containers were the 28-slot backpack and the 14-slot worn set.
+     * Sizing from the count keeps a full bank inside one packet. */
+    open_packet(&buf, (size_t)(16 + ((slot_count > 0 ? slot_count : 0) * 7)));
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+        if( pl && pl->inv_header && pl->inv_slot )
+        {
+            pl->inv_header(&buf, PKT_NAME_UPDATE_INV_FULL, component, container,
+                           slot_count);
+            for( int i = 0; i < slot_count; i++ )
+            {
+                const struct ToriRSServerItem* it = slots ? &slots[i] : NULL;
+                /* `obj_id >= 0` is the occupancy test, not `count > 0`. A bank
+                 * placeholder is a real obj with a count of zero, and filtering
+                 * on the count sent it as an empty slot — so a bank with
+                 * placeholders in it decoded as gaps and `bankmain_drawitem`
+                 * never reached its `oc_unplaceholder` branch. The rev-239
+                 * writer has always encoded the pair independently. */
+                pl->inv_slot(&buf, PKT_NAME_UPDATE_INV_FULL, i,
+                             (it && it->obj_id >= 0) ? it->obj_id : -1,
+                             it ? it->count : 0);
+            }
+        }
+        else
+        {
+            rsab_p4(&buf, component);
+            rsab_p2(&buf, container);
+            rsab_p2(&buf, slot_count);
+            for( int i = 0; i < slot_count; i++ )
+                put_inv_slot(&buf, slots ? &slots[i] : NULL);
+        }
+    }
+    flush(player, &buf, OP_UPDATE_INV_FULL, 2);
+}
+
+void
+ToriRSServer_SendInvStopTransmit(
+    struct ToriRSServerPlayer* player,
+    int component,
+    int container)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+        if( pl && pl->inv_stop_transmit )
+            pl->inv_stop_transmit(&buf, component, container);
+        else
+        {
+            /* Rev 230 UpdateInvStopTransmitEncoder names the component. */
+            rsab_p4(&buf, component);
+        }
+    }
+    flush(player, &buf, OP_UPDATE_INV_STOP_TRANSMIT, 0);
+}
+
+void
+ToriRSServer_SendInvPartial(
+    struct ToriRSServerPlayer* player,
+    int component,
+    int container,
+    const struct ToriRSServerItem* slots,
+    int slot_count,
+    uint32_t dirty)
+{
+    struct RSAreaBuf buf;
+    if( dirty == 0 )
+        return;
+    open_packet(&buf, 8192);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        int const v5 = pl && pl->inv_header && pl->inv_slot;
+
+        if( v5 )
+            pl->inv_header(&buf, PKT_NAME_UPDATE_INV_PARTIAL, component, container, 0);
+        else
+        {
+            rsab_p4(&buf, component);
+            rsab_p2(&buf, container);
+        }
+        for( int i = 0; i < slot_count; i++ )
+        {
+            if( !(dirty & (1u << i)) )
+                continue;
+            if( v5 )
+            {
+                /* Occupancy is `obj_id >= 0` here too — see the FULL encoder. */
+                pl->inv_slot(&buf, PKT_NAME_UPDATE_INV_PARTIAL, i,
+                             slots[i].obj_id >= 0 ? slots[i].obj_id : -1,
+                             slots[i].count);
+                continue;
+            }
+            rsab_psmart(&buf, i);
+            put_inv_slot(&buf, &slots[i]);
+        }
+    }
+    flush(player, &buf, OP_UPDATE_INV_PARTIAL, 2);
+}
+
+/* ------------------------------------------------------------------ */
+/* PLAYER_INFO                                                         */
+/* ------------------------------------------------------------------ */
+
+/* What a player looks like is decided once, here, in the canonical slot
+ * vocabulary (pkt_player_appearance.h); each writer below only spells that out
+ * in its revision's tags, through Appearance_WirePack. *Which* kit fills a bare
+ * slot is the player's character and is content's, in
+ * `player/configs/appearance.enum`. */
+/* torirs_server.h states these for the player struct without being able to
+ * include the wire header. One place says so out loud rather than two drifting. */
+_Static_assert(TORIRSSERVER_APPEARANCE_SLOTS == APPEARANCE_SLOT_COUNT,
+               "the player's appearance array must be the wire's");
+_Static_assert(TORIRSSERVER_APPEARANCE_COLOURS == APPEARANCE_COLOUR_COUNT,
+               "the player's design colours must be the wire's");
+
+static int
+default_kit(int wearpos)
+{
+    const struct ToriRSServerEnumDef* kits = ToriRSServer_ContentEnum("default_appearance");
+
+    for( int i = 0; kits && i < kits->count; i++ )
+        if( kits->values[i].key == wearpos )
+            return kits->values[i].value;
+    /* `default=-1` — no body part is drawn at this position. A tree with no
+     * such enum lands here for all twelve, which is a naked player rather than
+     * a crash, and the missing config is the thing to fix. */
+    return -1;
+}
+
+/*
+ * The kit at a wear position: the character's own if they have designed one,
+ * otherwise the content default.
+ *
+ * -1 is the sentinel and not 0, because idk 0 is `hair0` — a real, bald head.
+ * A character created before the design panel existed carries -1 everywhere and
+ * keeps following `player/configs/appearance.enum`, which is what lets an
+ * operator restyle the default player without rewriting saves.
+ */
+static int
+player_kit(const struct ToriRSServerPlayer* player, int wearpos)
+{
+    if( player && wearpos >= 0 && wearpos < TORIRSSERVER_APPEARANCE_SLOTS &&
+        player->appearance_kit[wearpos] >= 0 )
+        return player->appearance_kit[wearpos];
+    return default_kit(wearpos);
+}
+
+
+/*
+ * The player's canonical appearance: one slot per wear position, in the
+ * vocabulary every renderer and every wire encoding is expressed in.
+ *
+ * Both writers below build from this, so the rules live once:
+ *
+ *   - a worn item blanks the positions it claims through wearpos_2 / wearpos_3
+ *     — that is what makes a full helm hide hair and jaw, and a platebody hide
+ *     arms. Those claimed positions are body positions, never worn ones, so
+ *     blanking before placing the worn obj (the order RSProt's pEquipment uses)
+ *     and after it come to the same thing;
+ *   - an unclaimed position falls back to the body kit. That fallback is not
+ *     redundancy: an empty slot means "nothing here", not "see the kit", so a
+ *     character wearing nothing would otherwise render with no body at all —
+ *     the scene draws, the player is present and positioned, and there is
+ *     nothing to look at.
+ */
+static void
+appearance_slots(
+    const struct ToriRSServerPlayer* player,
+    int slots[APPEARANCE_SLOT_COUNT])
+{
+    int covered[APPEARANCE_SLOT_COUNT] = { 0 };
+
+    for( int i = 0; i < TORIRSSERVER_WORN_SLOTS; i++ )
+    {
+        const struct ToriRSServerObjInfo* info;
+
+        if( player->worn[i].obj_id < 0 )
+            continue;
+        info = ToriRSServer_ObjInfo(player->worn[i].obj_id);
+        if( !info )
+            continue;
+        if( info->wearpos_2 >= 0 && info->wearpos_2 < APPEARANCE_SLOT_COUNT )
+            covered[info->wearpos_2] = 1;
+        if( info->wearpos_3 >= 0 && info->wearpos_3 < APPEARANCE_SLOT_COUNT )
+            covered[info->wearpos_3] = 1;
+    }
+
+    for( int i = 0; i < APPEARANCE_SLOT_COUNT; i++ )
+    {
+        int kit;
+
+        if( covered[i] )
+            slots[i] = 0;
+        else if( i < TORIRSSERVER_WORN_SLOTS && player->worn[i].obj_id >= 0 )
+            slots[i] = Appearance_PackObj(player->worn[i].obj_id);
+        else if( (kit = player_kit(player, i)) >= 0 )
+            slots[i] = Appearance_PackKit(kit);
+        else
+            slots[i] = 0;
+    }
+}
+
+/** The body underneath, whatever is worn over it (239's second array). */
+static void
+appearance_identkit_slots(
+    const struct ToriRSServerPlayer* player,
+    int slots[APPEARANCE_SLOT_COUNT])
+{
+    for( int i = 0; i < APPEARANCE_SLOT_COUNT; i++ )
+    {
+        int kit = player_kit(player, i);
+        slots[i] = kit >= 0 ? Appearance_PackKit(kit) : 0;
+    }
+}
+
+/** One slot entry: an empty slot is a single zero byte, anything else is the
+ *  encoding's tagged word in two. */
+static void
+put_appearance_slots(
+    struct RSAreaBuf* buf,
+    enum AppearanceEncoding encoding,
+    const int slots[APPEARANCE_SLOT_COUNT])
+{
+    for( int i = 0; i < APPEARANCE_SLOT_COUNT; i++ )
+    {
+        int wire = Appearance_WirePack(encoding, slots[i]);
+        if( wire == 0 )
+            rsab_p1(buf, 0);
+        else
+            rsab_p2(buf, wire);
+    }
+}
+
+/*
+ * The revision-239 appearance block.
+ *
+ * Not a reordering of the classic one — a different shape, and the differences
+ * are the kind that frame perfectly and render as nothing:
+ *
+ *   - the 12 wear slots become TWO arrays of 12: `equipment` (what is drawn)
+ *     and `identKit` (the body underneath). The classic packs both into one
+ *     array, so a 239 client reading it consumes the whole thing as equipment
+ *     and then reads the colours as an identKit;
+ *   - a worn obj is tagged `+ 0x800`, not `+ 0x200` — the classic tag lands
+ *     inside the kit range here and would draw some unrelated body part.
+ *     Appearance_WirePack owns that difference so it cannot be half-applied;
+ *   - a skull icon and a head icon sit right after the gender;
+ *   - the name is a NUL-terminated STRING, not the classic 8-byte base-37;
+ *   - and there are five trailing fields the classic has no room for at all
+ *     (skill level, hidden, a customisation flag, three name extras).
+ *
+ * Transcribed from RSProt's `PlayerAppearanceEncoder`.
+ */
+static void
+put_appearance_v5(
+    struct RSAreaBuf* buf,
+    const struct ToriRSServerPlayer* player)
+{
+    int equipment[APPEARANCE_SLOT_COUNT];
+    int identkit[APPEARANCE_SLOT_COUNT];
+    int headicon;
+
+    appearance_slots(player, equipment);
+    appearance_identkit_slots(player, identkit);
+
+    /* Rev 239 carries one prayer-icon archive index, not the older appearance
+     * bitmask. Content still owns the mask through HEADICONS_SET; choose its
+     * active bit at the wire boundary, just as the decoder converts the index
+     * back into the client's generic mask. */
+    headicon = mock239_appearance_headicon_index(player->headicons);
+
+    rsab_p1(buf, (uint8_t)player->gender);
+    rsab_p1(buf, 255); /* skullIcon: -1, none */
+    rsab_p1(buf, headicon < 0 ? 255 : headicon);
+
+    if( player->transmog_npc >= 0 )
+    {
+        rsab_p2(buf, APPEARANCE_WIRE_TRANSMOG);
+        rsab_p2(buf, player->transmog_npc);
+    }
+    else
+    {
+        put_appearance_slots(buf, APPEARANCE_ENC_V5, equipment);
+    }
+    put_appearance_slots(buf, APPEARANCE_ENC_V5, identkit);
+
+    /*
+     * The five design recolours — hair, torso, legs, feet, skin.
+     *
+     * These were five literal zeros, which is a legal appearance (the first
+     * entry of each palette) and was indistinguishable from "this server has no
+     * character design". The client has always decoded and applied them
+     * (`PlayerModel_BuildFromAppearance` recolours the merged model against
+     * `k_recol1d`); nothing ever sent anything but zero.
+     */
+    for( int i = 0; i < APPEARANCE_COLOUR_COUNT; i++ )
+        rsab_p1(buf, (uint8_t)player->body_colour[i]);
+
+    {
+        int anims[7] = {
+            player->readyanim, player->turnanim, player->walkanim,
+            player->walkanim_b, player->walkanim_l, player->walkanim_r,
+            player->runanim
+        };
+        for( int i = 0; i < 7; i++ )
+            rsab_p2(buf, anims[i] < 0 ? 65535 : anims[i]);
+    }
+
+    rsab_pjstr(buf, player->display_name, RSAB_JSTR_NUL);
+    /*
+     * The player's own combat level, not a placeholder.
+     *
+     * This is the number `localPlayer.combatLevel` is read from, and the NPC
+     * minimenu compares every npc against it: under the default "Depends on
+     * combat levels" Attack option the reference deprioritizes ALL of a
+     * higher-level npc's operations (deob Statics.method7229, outside its
+     * attack-pass branch). A literal 3 therefore makes every npc in the world
+     * above level 3 right-click-only, and a left click on one falls through to
+     * "Walk here" — which is itself inert wherever no ground triangle sits
+     * under the cursor (a tall model against a wall, e.g. TzKal-Zuk). The
+     * symptom is a click that does nothing at all, not even a yellow cross.
+     */
+    rsab_p1(buf, (uint8_t)ToriRSServer_CombatLevel(player));
+    rsab_p2(buf, 0); /* skill level, shown only in some minigames */
+    rsab_p1(buf, 0); /* hidden */
+    /*
+     * The obj-customisation flag: bits 1..12 (one per wear position) each say a
+     * variable-length per-obj recolour/retexture block follows, and bit 15 is
+     * forceModelRefresh. This stays 0 until those blocks are written — a
+     * decoder that cannot skip a block it does not understand reads every later
+     * field at the wrong offset, which is why our own reader rejects the whole
+     * appearance when it sees one.
+     */
+    rsab_p2(buf, 0);
+    rsab_pjstr(buf, "", RSAB_JSTR_NUL); /* beforeName */
+    rsab_pjstr(buf, "", RSAB_JSTR_NUL); /* afterName */
+    rsab_pjstr(buf, "", RSAB_JSTR_NUL); /* afterCombatLevel */
+    /*
+     * The pronoun, and it is the last byte of the block.
+     *
+     * Easy to miss: RSProt's reference DECODER stops after the three name
+     * strings, so a writer transcribed from that alone is one byte short. The
+     * real encoder writes this, and the length prefix counts it — so omitting
+     * it does not truncate a field, it shifts the whole block's length and the
+     * client rejects the packet.
+     */
+    rsab_p1(buf, 0);
+}
+
+/*
+ * The classic appearance block (lc254 / lc245_2 / xrsps233 / osrs230): one slot
+ * array, `0x100 + kit` / `0x200 + obj`, a base-37 name, and no trailing fields.
+ */
+static void
+put_appearance(
+    struct RSAreaBuf* buf,
+    const struct ToriRSServerPlayer* player)
+{
+    int slots[APPEARANCE_SLOT_COUNT];
+
+    appearance_slots(player, slots);
+
+    rsab_p1(buf, (uint8_t)player->gender);
+    /*
+     * Overhead icons.
+     *
+     * A real rev-230 appearance carries two separate one-byte fields here — a
+     * prayer icon index and a PK-skull index, each 255 for "none". This client
+     * reads ONE byte and treats it as a bitmask over the `headicons` sprite
+     * pack (app.c: app_overlay_build_player_headicons plots every set bit,
+     * stacked upward), which is the older shape. The mask is what goes on the
+     * wire because the client is the only consumer; see
+     * docs/torirs_server_player_systems.md §4.
+     *
+     * Eight icons is all this shape can carry, so a caller holding a bit above
+     * 7 loses it here. The only content that does is the Ancient Curses lane
+     * (icons 24..29), and that lane is a rev-239 cache — `put_appearance_v5`
+     * writes an index byte and has the whole range. Widening this field would
+     * change a wire format that is not this lane's to change.
+     */
+    {
+        int headicons = player->headicons;
+        if( headicons && getenv("TORIRSSERVER_VERBOSE") )
+            fprintf(stderr, "torirsserver: appearance headicons=0x%x\n", headicons);
+        rsab_p1(buf, headicons);
+    }
+    if( player->transmog_npc >= 0 )
+    {
+        rsab_p2(buf, APPEARANCE_WIRE_TRANSMOG);
+        rsab_p2(buf, player->transmog_npc);
+    }
+    else
+    {
+        put_appearance_slots(buf, APPEARANCE_ENC_CLASSIC, slots);
+    }
+    /* Same five design recolours as the v5 block above; the classic encoding
+     * differs in the slot tag and the name field, not in these. */
+    for( int i = 0; i < APPEARANCE_COLOUR_COUNT; i++ )
+        rsab_p1(buf, (uint8_t)player->body_colour[i]);
+
+    /* idle, turn, walk, walk-back, walk-left, walk-right, run.
+     * Content's READYANIM…RUNANIM own these; player_init seeds the unarmed
+     * defaults the client already expects at spawn. */
+    {
+        int anims[7] = {
+            player->readyanim, player->turnanim, player->walkanim,
+            player->walkanim_b, player->walkanim_l, player->walkanim_r,
+            player->runanim
+        };
+        for( int i = 0; i < 7; i++ )
+            rsab_p2(buf, anims[i] < 0 ? 65535 : anims[i]);
+    }
+
+    /*
+     * The player's name, base-37 packed.
+     *
+     * This was a literal 0 — "name37: empty" — and with one player it cost
+     * nothing, because the only appearance a client ever decoded was its own and
+     * it already knew who it was. It is the field that says *which* of two
+     * players you are looking at: the client's minimenu and its overhead label
+     * both read it out of the appearance blob (`PktPlayerAppearance.name`), so
+     * an empty one makes everybody in the world an anonymous body.
+     */
+    rsab_p8(buf, (int64_t)strtobase37(player->display_name));
+    /* The player's own combat level — see the v5 encoder above for what a
+     * placeholder costs (every npc above it goes right-click-only). */
+    rsab_p1(buf, (uint8_t)ToriRSServer_CombatLevel(player));
+}
+
+int
+ToriRSServer_StepDirection(
+    int dx,
+    int dz)
+{
+    if( dx < -1 || dx > 1 || dz < -1 || dz > 1 || (dx == 0 && dz == 0) )
+        return -1;
+    if( dz > 0 )
+        return dx < 0 ? 0 : (dx == 0 ? 1 : 2);
+    if( dz == 0 )
+        return dx < 0 ? 3 : 4;
+    return dx < 0 ? 5 : (dx == 0 ? 6 : 7);
+}
+
+/* The same numbering read backwards, so a caller that has a direction can find
+ * the tile it lands on without keeping a second copy of the table. */
+void
+ToriRSServer_StepDelta(
+    int dir,
+    int* dx,
+    int* dz)
+{
+    static const int k_dx[8] = { -1, 0, 1, -1, 1, -1, 0, 1 };
+    static const int k_dz[8] = { 1, 1, 1, 0, 0, -1, -1, -1 };
+
+    if( dir < 0 || dir > 7 )
+    {
+        *dx = 0;
+        *dz = 0;
+        return;
+    }
+    *dx = k_dx[dir];
+    *dz = k_dz[dir];
+}
+
+/*
+ * Write a player's extended-info block.
+ *
+ * Two rules, and getting either wrong corrupts everything after this player in
+ * the stream rather than just dropping a field:
+ *
+ *   The mask is one byte unless any bit at 0x100 or above is set, in which case
+ *   BIG_UPDATE (0x80) must be set AND the mask written as two bytes, low first.
+ *   The reader does `mask = g1(); if (mask & 0x80) mask += g1() << 8;` — so a
+ *   two-byte mask without 0x80 desyncs, and 0x80 without a second byte makes
+ *   the reader eat the first field as mask bits.
+ *
+ *   Fields go in ascending bit order, because that is the order the reader
+ *   tests them in. The mask says which fields are present, never where.
+ */
+/*
+ * The exact-move facing, as each revision spells it.
+ *
+ * Content states a direction (`^exact_north`=0 .. `^exact_west`=3), because
+ * that is what the reference's `p_exactmove` takes and what the classic block
+ * puts on the wire as one byte. Revision 239 replaced the field with a yaw,
+ * so the era translation has to happen somewhere, and the wire encoder is
+ * where every other one in this file happens.
+ *
+ * The table is not a choice: it is the client's own, `k_facing_yaw` in
+ * `world_cycle.c`, which is the four `dstYaw` assignments Client-TS makes when
+ * it decodes a direction byte. Anything else would make the same obstacle face
+ * two different ways depending on which client watched it.
+ */
+static int
+exact_move_yaw(int direction)
+{
+    static const int k_yaw[4] = { 1024, 1536, 0, 512 };
+
+    return k_yaw[direction & 3];
+}
+
+static void
+put_player_extended(
+    struct RSAreaBuf* buf,
+    struct ToriRSServerPlayer const* recipient,
+    struct ToriRSServerPlayer* player,
+    int force_appearance)
+{
+    uint32_t mask = player->masks;
+
+    /*
+     * A player entering someone's view needs their appearance whether or not
+     * they happened to change it this tick.
+     *
+     * `masks` is the player's own per-tick set, cleared in phase 11, so it says
+     * "what changed", and for an observer who has never seen this player before
+     * the answer has to be "everything they are". Without this the client spawns
+     * the default composited model and never replaces it — a player-shaped
+     * outline that walks around correctly, which is exactly the kind of bug that
+     * reads as a rendering problem.
+     */
+    if( force_appearance )
+    {
+        mask |= TORIRSSERVER_PMASK_APPEARANCE;
+        /* LostCity PlayerInfoEncoder.lowdefinition: re-emit a latched
+         * FACE_ENTITY on enter-view even when the per-tick mask was cleared. */
+        if( player->face_entity != -1 )
+            mask |= TORIRSSERVER_PMASK_FACE_ENTITY;
+    }
+
+    if( mask >= 0x100 )
+    {
+        mask |= TORIRSSERVER_PMASK_BIG_UPDATE;
+        rsab_p1(buf, (int32_t)(mask & 0xff));
+        rsab_p1(buf, (int32_t)((mask >> 8) & 0xff));
+    }
+    else
+    {
+        rsab_p1(buf, (int32_t)mask);
+    }
+
+    if( mask & TORIRSSERVER_PMASK_APPEARANCE )
+    {
+        size_t marker = rsab_psize1_begin(buf);
+
+        put_appearance(buf, player);
+        rsab_psize1_end(buf, marker);
+    }
+    if( mask & TORIRSSERVER_PMASK_SEQUENCE )
+    {
+        /* -1 goes on the wire as 65535, which is how the client spells "stop
+         * whatever is playing". */
+        rsab_p2(buf, player->anim_id < 0 ? 65535 : player->anim_id);
+        rsab_p1(buf, player->anim_delay);
+    }
+    if( mask & TORIRSSERVER_PMASK_FACE_ENTITY )
+    {
+        int const face_entity =
+            ToriRSServer_FaceEntityForClient(recipient, player->face_entity);
+        rsab_p2(buf, face_entity < 0 ? 0xffff : face_entity);
+    }
+    if( mask & TORIRSSERVER_PMASK_SAY )
+        rsab_pjstr(buf, player->say, RSAB_JSTR_NEWLINE);
+    if( mask & TORIRSSERVER_PMASK_DAMAGE )
+    {
+        rsab_p1(buf, player->damage);
+        rsab_p1(buf, player->damage_type);
+        rsab_p1(buf, player->hitpoints);
+        rsab_p1(buf, player->max_hitpoints);
+    }
+    if( mask & TORIRSSERVER_PMASK_FACE_COORD )
+    {
+        rsab_p2(buf, player->face_x);
+        rsab_p2(buf, player->face_z);
+    }
+    if( mask & TORIRSSERVER_PMASK_CHAT )
+    {
+        rsab_p2(buf, player->chat_colour_effect);
+        rsab_p1(buf, player->chat_type);
+        rsab_p1(buf, player->chat_len);
+        rsab_pdata(buf, player->chat_data, (size_t)player->chat_len);
+    }
+    if( mask & TORIRSSERVER_PMASK_SPOTANIM )
+    {
+        rsab_p2(buf, player->spotanim_id < 0 ? 65535 : player->spotanim_id);
+        rsab_p4(buf, player->spotanim_height_delay);
+    }
+    if( mask & TORIRSSERVER_PMASK_EXACT_MOVE )
+    {
+        /*
+         * Client-TS `Client.ts:8202`: four unsigned bytes, two cycle words,
+         * one direction byte — and the tiles are read absolutely, as
+         * scene-local squares, with no `pathX[0]` added. That is the whole
+         * difference from the v239 block in `mock239_playerinfo.c`, which
+         * states the same two tiles as signed deltas from the player.
+         *
+         * This arm exists whether or not a classic client is watching: the
+         * mask word above is written before any field, so a bit set with no
+         * body does not drop a field — it eats the next player's block and
+         * corrupts everything after it in the stream.
+         *
+         * Scene-local to the RECIPIENT's window: the tiles are decoded
+         * against the scene the watching client holds, which is the
+         * recipient's own, not the moving player's.
+         */
+        int origin_x = ToriRSServer_SceneOrigin(recipient->zone_x);
+        int origin_z = ToriRSServer_SceneOrigin(recipient->zone_z);
+
+        rsab_p1(buf, (player->exact_start_x - origin_x) & 0xff);
+        rsab_p1(buf, (player->exact_start_z - origin_z) & 0xff);
+        rsab_p1(buf, (player->exact_end_x - origin_x) & 0xff);
+        rsab_p1(buf, (player->exact_end_z - origin_z) & 0xff);
+        rsab_p2(buf, player->exact_start_cycle);
+        rsab_p2(buf, player->exact_end_cycle);
+        rsab_p1(buf, player->exact_direction & 3);
+    }
+    if( mask & TORIRSSERVER_PMASK_DAMAGE2 )
+    {
+        /* The tick's SECOND splat. Both classic damage masks used to write the
+         * same scalar pair, so this block could only ever repeat the first one
+         * — and nothing set the bit, so it never ran at all. See the npc twin
+         * of this branch for why the second hit lands in the client's first
+         * slot rather than its second, and why that does not matter. */
+        rsab_p1(buf, player->hitmarks[1].damage);
+        rsab_p1(buf, player->hitmarks[1].type);
+        rsab_p1(buf, player->hitpoints);
+        rsab_p1(buf, player->max_hitpoints);
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Zones                                                               */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A zone sub-packet does not carry a coordinate — only `pos`, the tile's
+ * offset inside an 8x8 zone as `(local_x << 4) | local_z`. Which zone that is
+ * comes from the UPDATE_ZONE_* packet before it, and the client keeps it as
+ * state until the next one. Sending a sub-packet without a zone header applies
+ * it to whatever zone was last named, which is a wrong-place bug rather than a
+ * decode failure.
+ *
+ * The base is in **classic scene-local tiles**: the client's scene base is
+ * also `(zone - 6) * 8`, so those tiles need no further offset, and then
+ * `pos >> 4`. That is the same coordinate space every entity coordinate uses,
+ * so getting it wrong here shows up as loot landing a few tiles from the
+ * corpse rather than as anything louder.
+ *
+ * The header is the two base bytes and nothing else — real rev-230 carries a
+ * level as well, which packetin.h deliberately drops (the mock is single-plane
+ * per scene). It has to stay in step with the length that table declares:
+ * writing a byte the client's framing does not expect makes the frame eat the
+ * opcode of whatever follows, so the stream desyncs a packet later, nowhere
+ * near here. `check_frame_length` is what catches that.
+ *
+ * Three headers, not one, and the difference is what the client does to its own
+ * memory of the zone:
+ *
+ *   PARTIAL_FOLLOWS (106)   name the zone. Sub-packets follow as ordinary
+ *                           packets.
+ *   FULL_FOLLOWS (41)       name the zone *and reset it* — the client drops
+ *                           every obj stack it holds there. What follows is the
+ *                           zone's whole state, which is how a client that has
+ *                           never held this zone is caught up.
+ *   PARTIAL_ENCLOSED (38)   name the zone and carry the sub-packets inside this
+ *                           packet's own payload, opcodes and all. Those inner
+ *                           opcodes are plain wire bytes — no ISAAC — resolved
+ *                           through the same table as a top-level one, which is
+ *                           why the sub-opcodes had to be assigned clear of the
+ *                           top-level ones (§3.1b). This is the shared form: one
+ *                           encode, however many clients stand in the zone.
+ */
+
+/* Against the RECEIVING player's own window origin: a zone header is
+ * scene-local to the scene that client holds, and each client holds its own. */
+static int
+zone_base(
+    const struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int* base_z)
+{
+    *base_z = (zone_z * TORIRSSERVER_ZONE_TILES) - ToriRSServer_SceneOrigin(player->zone_z);
+    return (zone_x * TORIRSSERVER_ZONE_TILES) - ToriRSServer_SceneOrigin(player->zone_x);
+}
+
+/*
+ * `level` is the ZONE's plane, not the player's.
+ *
+ * It used to be `player->level`, which is right for every zone a player is
+ * standing in and wrong for every other plane of the same region — and since
+ * the flush only ever offered zones at the player's own level, nothing noticed.
+ * Both are fixed together: the window now spans all four planes
+ * (`rebuild_active`), so this has to be told which one it is describing.
+ */
+/* The sandwich form: a deck zone is addressed inside SET_ACTIVE_WORLD, and
+ * the client resolves its header against the VIEW's world — whose base is the
+ * instance base, not the receiving player's root scene origin. The one-byte
+ * wire fields wrap on anything else: a deck zone is thousands of tiles from
+ * every root origin, and the wrapped base filed the boarding resync's loc
+ * state at garbage tiles the view silently refused. */
+void
+ToriRSServer_SendZoneHeaderAt(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int level,
+    int full,
+    int origin_tile_x,
+    int origin_tile_z)
+{
+    struct RSAreaBuf buf;
+    int base_x = zone_x * TORIRSSERVER_ZONE_TILES - origin_tile_x;
+    int base_z = zone_z * TORIRSSERVER_ZONE_TILES - origin_tile_z;
+
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        int name = full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS;
+
+        if( pl && pl->zone_header )
+            pl->zone_header(&buf, name, base_x, base_z, level);
+        else
+        {
+            rsab_p1(&buf, base_x);
+            rsab_p1(&buf, base_z);
+        }
+    }
+    flush(player, &buf, full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS,
+          0);
+}
+
+void
+ToriRSServer_SendZoneHeader(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int level,
+    int full)
+{
+    struct RSAreaBuf buf;
+    int base_z;
+    int base_x = zone_base(player, zone_x, zone_z, &base_z);
+
+    open_packet(&buf, 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        int name = full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS;
+
+        if( pl && pl->zone_header )
+            pl->zone_header(&buf, name, base_x, base_z, level);
+        else
+        {
+            rsab_p1(&buf, base_x);
+            rsab_p1(&buf, base_z);
+        }
+    }
+    flush(player, &buf, full ? OP_UPDATE_ZONE_FULL_FOLLOWS : OP_UPDATE_ZONE_PARTIAL_FOLLOWS,
+          0);
+}
+
+/*
+ * The right-click ops on another player, one slot at a time.
+ *
+ * `SetPlayerOpEncoder.ts`: p1 slot, p1 primary, pjstr text — and the client's
+ * parser already read exactly that for lc254, which is why this needed no new
+ * decode. The op is *cleared* by sending a null text, which is how the
+ * reference's `login.rs2` takes "Attack" away outside the wilderness.
+ *
+ * Slots are 1..5 and the client stores them at `player_ops[slot - 1]`; anything
+ * else is dropped on arrival, so the range check belongs in the opcode that
+ * calls this rather than here.
+ *
+ * `primary` decides whether the op is the *left-click* action or lives in the
+ * menu. It is a wire encoding rather than a config value, which is why it is a
+ * plain int here and `^true`/`^false` in content.
+ */
+void
+ToriRSServer_SendSetPlayerOp(
+    struct ToriRSServerPlayer* player,
+    int slot,
+    int primary,
+    const char* text)
+{
+    struct RSAreaBuf buf;
+
+    open_packet(&buf, 64);
+    rsab_p1(&buf, slot);
+    rsab_p1(&buf, primary ? 1 : 0);
+    rsab_pjstr(&buf, text ? text : "", RSAB_JSTR_NEWLINE);
+    flush(player, &buf, OP_SET_PLAYER_OP, 1);
+}
+
+/*
+ * One sub-packet's opcode and payload.
+ *
+ * Written into a caller's buffer rather than sent, because it has two consumers
+ * with the same bytes: `ToriRSServer_SendZoneSub` puts it on the wire as a packet
+ * of its own, and `torirs_server_zone.c` concatenates a zone's worth into the shared
+ * blob PARTIAL_ENCLOSED carries. Having one encoder is the point — the blob and
+ * the loose packet cannot describe the same event differently.
+ *
+ * The count is 16 bits on the wire; a bigger stack is drawn as its thousands
+ * abbreviation by the client, which reads the count it was given. Clamping is
+ * better than wrapping 65,536 coins to zero.
+ *
+ * `info` packs a loc's shape and angle into one byte: (shape << 2) | angle. The
+ * client unpacks it the same way for every loc packet, which is why LOC_DEL
+ * carries it too — a tile can hold a wall and a scenery loc at once, and the
+ * shape says which one is meant.
+ */
+/**
+ * The length class this revision frames a packet with: 0 fixed, 1 var-u8,
+ * 2 var-u16 -- the `var` argument `flush` wants.
+ *
+ * Exists because the class is a property of the REVISION, and the callers that
+ * used to pass a literal were stating 230's. See `check_frame_length`.
+ */
+static int
+wire_var_class(const struct ToriRSServerWire* wire, int pkt_name)
+{
+    int opcode;
+    int size;
+
+    assert(wire);
+    if( !wire->payload_size )
+        return 0;
+    opcode = ToriRSServer_WireOpcode(wire, pkt_name);
+    if( opcode < 0 )
+        return 0;
+    size = wire->payload_size(opcode);
+    if( size == PKTIN_LENGTH_VARU8 )
+        return 1;
+    if( size == PKTIN_LENGTH_VARU16 )
+        return 2;
+    return 0;
+}
+
+static int
+zone_sub_opcode(int kind)
+{
+    switch( kind )
+    {
+    case TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE:
+        return OP_LOC_ADD_CHANGE;
+    case TORIRSSERVER_ZONE_EV_LOC_DEL:
+        return OP_LOC_DEL;
+    case TORIRSSERVER_ZONE_EV_LOC_ANIM:
+        return OP_LOC_ANIM;
+    case TORIRSSERVER_ZONE_EV_LOC_MERGE:
+        return OP_LOC_MERGE;
+    case TORIRSSERVER_ZONE_EV_OBJ_ADD:
+        return OP_OBJ_ADD;
+    case TORIRSSERVER_ZONE_EV_OBJ_DEL:
+        return OP_OBJ_DEL;
+    case TORIRSSERVER_ZONE_EV_OBJ_COUNT:
+        return OP_OBJ_COUNT;
+    case TORIRSSERVER_ZONE_EV_PROJANIM:
+        return OP_MAP_PROJANIM;
+    case TORIRSSERVER_ZONE_EV_MAPANIM:
+        return OP_MAP_ANIM;
+    default:
+        return -1;
+    }
+}
+
+static int
+clamp16(int count)
+{
+    return count > 0xffff ? 0xffff : count;
+}
+
+/** The payload alone, without the opcode. */
+static int
+zone_sub_payload(
+    struct RSAreaBuf* buf,
+    const struct ToriRSServerZoneEvent* event,
+    const struct ToriRSServerWire* wire)
+{
+    /*
+     * The revision's own writer first. Its absence is not a fallback to the
+     * classic layout — a revision with a payload set refuses what it has not
+     * transcribed, because these packets frame to the right length either way
+     * and decode to a different loc on a different tile.
+     */
+    if( wire && wire->payload && wire->payload->zone_payload )
+    {
+        int name = zone_sub_opcode(event->kind);
+        int props = ((event->shape & 0x1f) << 2) | (event->angle & 3);
+
+        if( name < 0 )
+            return 0;
+        return wire->payload->zone_payload(buf, name, event, event->pos, props);
+    }
+
+    switch( event->kind )
+    {
+    case TORIRSSERVER_ZONE_EV_LOC_ADD_CHANGE:
+        rsab_p1(buf, event->pos);
+        rsab_p1(buf, ((event->shape & 0x1f) << 2) | (event->angle & 3));
+        rsab_p2(buf, event->id);
+        return 1;
+    case TORIRSSERVER_ZONE_EV_LOC_DEL:
+        rsab_p1(buf, event->pos);
+        rsab_p1(buf, ((event->shape & 0x1f) << 2) | (event->angle & 3));
+        return 1;
+    case TORIRSSERVER_ZONE_EV_LOC_ANIM:
+        rsab_p1(buf, event->pos);
+        rsab_p1(buf, ((event->shape & 0x1f) << 2) | (event->angle & 3));
+        rsab_p2(buf, event->id);
+        return 1;
+    case TORIRSSERVER_ZONE_EV_LOC_MERGE:
+        rsab_p1(buf, event->pos);
+        rsab_p1(buf, ((event->shape & 0x1f) << 2) | (event->angle & 3));
+        rsab_p2(buf, event->id);
+        rsab_p2(buf, event->start_cycle);
+        rsab_p2(buf, event->end_cycle);
+        rsab_p2(buf, event->player_pid);
+        rsab_p1(buf, (uint8_t)event->east);
+        rsab_p1(buf, (uint8_t)event->south);
+        rsab_p1(buf, (uint8_t)event->west);
+        rsab_p1(buf, (uint8_t)event->north);
+        return 1;
+    case TORIRSSERVER_ZONE_EV_OBJ_ADD:
+        rsab_p1(buf, event->pos);
+        rsab_p2(buf, event->id);
+        rsab_p2(buf, clamp16(event->count));
+        return 1;
+    case TORIRSSERVER_ZONE_EV_OBJ_DEL:
+        rsab_p1(buf, event->pos);
+        rsab_p2(buf, event->id);
+        return 1;
+    case TORIRSSERVER_ZONE_EV_OBJ_COUNT:
+        rsab_p1(buf, event->pos);
+        rsab_p2(buf, event->id);
+        rsab_p2(buf, clamp16(event->old_count));
+        rsab_p2(buf, clamp16(event->count));
+        return 1;
+    /*
+     * Fifteen bytes, and the client asserts it consumed exactly that
+     * (`gameproto_parse.c` MAP_PROJANIM), so the order below is the whole
+     * contract. Three of the fields are *signed* on the wire — the two tile
+     * offsets and the target — and every one of them is routinely negative: a
+     * shot to the west has a negative dx, and a projectile aimed at a player
+     * carries `-slot - 1`. `rsab_p1`/`rsab_p2` write the low bits either way, so
+     * the sign survives as two's complement and the client's `g1b`/`g2b` read it
+     * back; the masks are here to say that is deliberate rather than to fix
+     * anything.
+     */
+    case TORIRSSERVER_ZONE_EV_PROJANIM:
+        rsab_p1(buf, event->pos);
+        rsab_p1(buf, event->dx_offset & 0xff);
+        rsab_p1(buf, event->dz_offset & 0xff);
+        rsab_p2(buf, event->target & 0xffff);
+        rsab_p2(buf, event->id);
+        rsab_p1(buf, event->src_height);
+        rsab_p1(buf, event->dst_height);
+        rsab_p2(buf, event->start_delay);
+        rsab_p2(buf, event->end_delay);
+        rsab_p1(buf, event->peak);
+        rsab_p1(buf, event->arc);
+        return 1;
+    /* Six bytes; client asserts exactly that (`gameproto_parse.c` MAP_ANIM). */
+    case TORIRSSERVER_ZONE_EV_MAPANIM:
+        rsab_p1(buf, event->pos);
+        rsab_p2(buf, event->id);
+        rsab_p1(buf, event->src_height);
+        rsab_p2(buf, event->start_delay);
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+int
+ToriRSServer_EncodeZoneSub(
+    const struct ToriRSServerWire* wire,
+    uint8_t* dst,
+    int max,
+    const struct ToriRSServerZoneEvent* event)
+{
+    struct RSAreaBuf buf;
+    int pkt_name = zone_sub_opcode(event->kind);
+    int code;
+
+    if( !wire )
+        wire = ToriRSServer_WireDefault();
+    if( pkt_name < 0 )
+        return 0;
+    /*
+     * The byte that leads a sub-packet inside PARTIAL_ENCLOSED is NOT the
+     * top-level opcode at every revision -- 239 uses an ordinal. Resolving it
+     * here rather than reusing `opcode` is the difference between the client
+     * reading this event and reading a different one: the enclosed blob is
+     * length-prefixed as a whole, so a wrong lead byte still frames.
+     */
+    code = wire->zone_sub_code ? wire->zone_sub_code(pkt_name) : -1;
+    if( code < 0 )
+        return 0;
+    rsab_wrap(&buf, dst, (size_t)max);
+    rsab_p1(&buf, code);
+    if( !zone_sub_payload(&buf, event, wire) || !rsab_ok(&buf) )
+        return 0;
+    return (int)rsab_len(&buf);
+}
+
+int
+ToriRSServer_ZoneSubStandalone(
+    const struct ToriRSServerWire* wire,
+    int kind)
+{
+    int name = zone_sub_opcode(kind);
+
+    if( name < 0 )
+        return 0;
+    return ToriRSServer_WireOpcode(wire ? wire : ToriRSServer_WireDefault(), name) >= 0;
+}
+
+void
+ToriRSServer_SendZoneSub(
+    struct ToriRSServerPlayer* player,
+    const struct ToriRSServerZoneEvent* event)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWire* wire = wire_for(player);
+    int opcode = zone_sub_opcode(event->kind);
+
+    if( opcode < 0 )
+        return;
+    open_packet(&buf, 512);
+    if( !zone_sub_payload(&buf, event, wire) )
+        return;
+    /*
+     * The length class comes from the revision's table, not from a constant.
+     *
+     * These were all sent as fixed-size, which they are at 230. At 239
+     * LOC_ADD_CHANGE_V2 is VAR-U16, because it can carry a list of
+     * op-override strings; sending it fixed writes no length prefix at all,
+     * and the client reads the first two payload bytes as one and then keeps
+     * reading. The stream never recovers, so the symptom is the connection
+     * dropping some packets after a door opened -- not a wrong door.
+     */
+    flush(player, &buf, opcode, wire_var_class(wire, opcode));
+}
+
+/* `level` is the zone's plane — same reason as ToriRSServer_SendZoneHeader. */
+/* Enclosed batch with an explicit origin — the deck sandwich's spelling; see
+ * ToriRSServer_SendZoneHeaderAt. */
+void
+ToriRSServer_SendZoneEnclosedAt(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int level,
+    const uint8_t* blob,
+    int len,
+    int origin_tile_x,
+    int origin_tile_z)
+{
+    struct RSAreaBuf buf;
+    int base_x = zone_x * TORIRSSERVER_ZONE_TILES - origin_tile_x;
+    int base_z = zone_z * TORIRSSERVER_ZONE_TILES - origin_tile_z;
+
+    if( len <= 0 )
+        return;
+    open_packet(&buf, (size_t)len + 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+        if( pl && pl->zone_header )
+            pl->zone_header(&buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, base_x, base_z,
+                            level);
+        else
+        {
+            rsab_p1(&buf, base_x);
+            rsab_p1(&buf, base_z);
+        }
+    }
+    rsab_pdata(&buf, blob, (size_t)len);
+    flush(player, &buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, 2);
+}
+
+void
+ToriRSServer_SendZoneEnclosed(
+    struct ToriRSServerPlayer* player,
+    int zone_x,
+    int zone_z,
+    int level,
+    const uint8_t* blob,
+    int len)
+{
+    struct RSAreaBuf buf;
+    int base_z;
+    int base_x = zone_base(player, zone_x, zone_z, &base_z);
+
+    if( len <= 0 )
+        return;
+    open_packet(&buf, (size_t)len + 8);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+        if( pl && pl->zone_header )
+            pl->zone_header(&buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, base_x, base_z,
+                            level);
+        else
+        {
+            rsab_p1(&buf, base_x);
+            rsab_p1(&buf, base_z);
+        }
+    }
+    rsab_pdata(&buf, blob, (size_t)len);
+    flush(player, &buf, OP_UPDATE_ZONE_PARTIAL_ENCLOSED, 2);
+}
+
+/*
+ * Is `other` someone `player`'s client should be tracking?
+ *
+ * The 5-bit signed deltas a new-player record carries reach -16..15, so the add
+ * radius cannot exceed 15 tiles — beyond that the coordinate wraps and the
+ * player appears on the wrong side of the observer. Removal uses the same
+ * radius, so a player walking out is dropped rather than smeared against the
+ * edge of the range.
+ */
+static int
+player_in_view(
+    const struct ToriRSServerPlayer* player,
+    const struct ToriRSServerPlayer* other)
+{
+    int dx;
+    int dz;
+
+    if( !other->active || other == player || other->obs_level != player->obs_level )
+        return 0;
+    /* A player mid-handshake has no ciphers and no position worth reporting;
+     * `place_dirty` is set by ToriRSServer_WorldPlayerInit, so the first tick after
+     * login is the first tick they can be seen on. */
+    if( !other->world )
+        return 0;
+    /*
+     * Observation coordinates, not feet (docs/SAILING_PLAN.md S2.4). For
+     * everyone not on a vessel deck `obs_*` IS x/z/level, so a world with no
+     * vessels asks exactly the question this function always asked; for a deck
+     * player it is their tile projected back into root-world coordinates,
+     * which is the only frame a shore observer and a deck player share.
+     */
+    dx = other->obs_x - player->obs_x;
+    dz = other->obs_z - player->obs_z;
+    return dx >= -TORIRSSERVER_PLAYER_VIEW_TILES && dx <= TORIRSSERVER_PLAYER_VIEW_TILES &&
+           dz >= -TORIRSSERVER_PLAYER_VIEW_TILES && dz <= TORIRSSERVER_PLAYER_VIEW_TILES;
+}
+
+/*
+ * The same question, asked from outside this file.
+ *
+ * A wrapper rather than a copy, deliberately: the world selftest's cross-world
+ * rows exist to prove that the admission test reads OBSERVATION coordinates,
+ * and a test carrying its own +/-15 box would keep passing after the encoder
+ * stopped doing so.
+ */
+int
+ToriRSServer_PlayerObservable(
+    const struct ToriRSServerPlayer* observer,
+    const struct ToriRSServerPlayer* other)
+{
+    assert(observer);
+    assert(other);
+    return player_in_view(observer, other);
+}
+
+/*
+ * PLAYER_INFO: the local player, then everyone else this client can see.
+ *
+ * Three sections, in this order, and the client's reader depends on all three
+ * being present even when empty:
+ *
+ *   1. the local player's movement (op 3 here means *teleport*, not remove);
+ *   2. an 8-bit count and then that many *already-tracked* players, in the
+ *      order this client last saw them — op 3 here means remove;
+ *   3. players entering view, each an 11-bit pid + two 5-bit deltas, closed by
+ *      the 2047 terminator.
+ *
+ * Then, byte-aligned, one extended block per entity that asked for one — **in
+ * the order the bit section queued them**, which is why `queued[]` exists rather
+ * than the encoder walking the tracked list a second time. Getting that order
+ * wrong does not drop a field, it applies one player's appearance to another.
+ *
+ * The tracked list is rebuilt into `kept[]` as it is written and swapped in at
+ * the end, because a player removed in section 2 must not be counted into the
+ * order section 3 and the extended blocks index against.
+ */
+static void
+player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
+                   struct ToriRSServerPlayer* subject, enum Mock239PlayerMovement movement,
+                   int movement_value, int appearance_len, int entering,
+                   struct Mock239PlayerExt* output)
+{
+            struct Mock239PlayerExt ext;
+
+            memset(&ext, 0, sizeof(ext));
+            if( subject->masks & (TORIRSSERVER_PMASK_DAMAGE | TORIRSSERVER_PMASK_DAMAGE2) )
+            {
+                /*
+                 * Promoted to the wrapper that carries THIS viewer's settings.
+                 *
+                 * Content names a family (`hitsplat_damage`); the cache carries
+                 * a me/other pair and a max-hit wrapper over it, both keyed on
+                 * All Settings varbits the client resolves at draw time. Sending
+                 * the family leaf answers settings 5 and 279 "off" for every
+                 * player, silently -- see ToriRSServer_HitsplatForViewer.
+                 *
+                 * The viewer here is the player being hit, which is the common
+                 * case where the two differ: another player's damage on you is
+                 * damage you did not deal, and that is exactly what setting 5
+                 * tints.
+                 */
+                ext.has_hit = 1;
+                ext.hit_type = ToriRSServer_HitsplatForViewer(
+                    srv, viewer, subject->damage_type, subject->damage,
+                    subject->hitmark_count > 0 ? subject->hitmarks[0].dealer_slot : -1);
+                ext.hit_value = subject->damage;
+                /* Splats two and onward of the same tick. The mirrors above are
+                 * hitmarks[0]; everything the player took alongside it goes in
+                 * the list rather than being dropped (struct ToriRSServerHitmark). */
+                for( int i = 1; i < subject->hitmark_count && i <= 3; i++ )
+                {
+                    ext.hit_extra[ext.hit_extra_count].type = ToriRSServer_HitsplatForViewer(
+                        srv, viewer, subject->hitmarks[i].type, subject->hitmarks[i].damage,
+                        subject->hitmarks[i].dealer_slot);
+                    ext.hit_extra[ext.hit_extra_count].value = subject->hitmarks[i].damage;
+                    ext.hit_extra_count++;
+                }
+                /* The standard bar's configuration and width are content
+                 * symbols, not an engine-side numeric convention. Start from
+                 * full and advance to the current fill so the v239 client can
+                 * retain the config width independently of hitpoints. */
+                if( subject->max_hitpoints > 0 && ToriRSServer_Ids()->healthbar_standard >= 0 )
+                {
+                    /* Players are size 1, so the standard bar is the whole of
+                     * the size ladder for them -- but the WIDTH still comes
+                     * from the record rather than from a constant, so the two
+                     * halves of this block cannot drift apart the way the npc
+                     * one did. */
+                    int const width =
+                        ToriRSServer_HealthbarWidth(ToriRSServer_Ids()->healthbar_standard);
+
+                    ext.has_headbar = 1;
+                    ext.headbar_type = ToriRSServer_Ids()->healthbar_standard;
+                    ext.headbar_duration = 1;
+                    ext.headbar_start_delay = 0;
+                    ext.headbar_start_fill = width;
+                    ext.headbar_end_fill =
+                        (subject->hitpoints * width) / subject->max_hitpoints;
+                }
+            }
+            if( (subject->masks & TORIRSSERVER_PMASK_SEQUENCE) || (entering && subject->anim_id >= 0) )
+            {
+                ext.has_seq = 1;
+                ext.seq_id = subject->anim_id;
+                ext.seq_delay = subject->anim_delay;
+            }
+            if( subject->masks & TORIRSSERVER_PMASK_CHAT )
+            {
+                /* Straight across: the block holds the packed bytes the client
+                 * sent, and the v5 writer's only difference from the classic
+                 * one is that it emits them back to front. */
+                ext.has_chat = 1;
+                ext.chat_colour_effect = subject->chat_colour_effect;
+                ext.chat_type = subject->chat_type;
+                ext.chat_data = subject->chat_data;
+                ext.chat_len = subject->chat_len;
+            }
+            if( subject->masks & TORIRSSERVER_PMASK_SPOTANIM )
+            {
+                /* The classic script/runtime surface has one attached-graphic
+                 * field. Revision 239 carries the same graphic in its indexed
+                 * spotanim block; slot zero is the direct equivalent. Keeping
+                 * this bridge here matters when ANIM and SPOTANIM_PL are set in
+                 * the same tick: both masks must survive into one extended-info
+                 * packet. */
+                ext.has_spotanim = 1;
+                ext.spotanim_slot = 0;
+                ext.spotanim_id = subject->spotanim_id;
+                ext.spotanim_height_delay = subject->spotanim_height_delay;
+            }
+            ext.has_face = v5_face_from_classic(
+                &ext.face, viewer, subject->masks, TORIRSSERVER_PMASK_FACE_ENTITY,
+                TORIRSSERVER_PMASK_FACE_COORD, subject->face_entity, subject->face_x,
+                subject->face_z, 0);
+            if( subject->running && subject->move_count > 1 &&
+                movement != MOCK239_PLAYER_TELEPORT )
+            {
+                /*
+                 * The movement opcode states geometry, not traversal: a two-step
+                 * turn that ends one diagonal tile away is WALK geometry, and
+                 * TEMP_MOVE_SPEED=2 (class174.field2474) is what tells the
+                 * client the tiles were RUN -- it is also what makes RuneLite
+                 * method3189 invoke method2600 and locally retain the corner.
+                 *
+                 * `move_count > 1`, not `> 0`. Both reference servers stamp RUN
+                 * only when a SECOND tile was actually taken this tick --
+                 * Zenyte's TemporaryMovementMask is `runDirection != -1 ? 2 :
+                 * 1`, Kronos sets movementModeUpdate 2 only when its second
+                 * `step()` succeeded. A running player who only had one tile
+                 * to take (a follower behind a walking npc is the everyday
+                 * case: it closes one tile a tick because that is all the
+                 * target opens up) is a WALK step on the wire.
+                 *
+                 * Sending 2 there is not cosmetic. The client moves a RUN step
+                 * at speed 8, so a one-tile step arriving every 30 cycles is
+                 * covered in 15 and the model stands still for the other 15 --
+                 * a hard stop-and-go, every tick, for the whole chase. That was
+                 * "the player stutters following a moving npc", and it was
+                 * invisible with run off (speed 4 covers 120 of the 128, so a
+                 * walker only lags, it never halts).
+                 */
+                ext.has_temp_move_speed = 1;
+                ext.temp_move_speed = 2;
+            }
+            if( subject->masks & TORIRSSERVER_PMASK_EXACT_MOVE )
+            {
+                ext.has_exact_move = 1;
+                ext.exact_start_x = subject->exact_start_x - subject->x;
+                ext.exact_start_z = subject->exact_start_z - subject->z;
+                ext.exact_end_x = subject->exact_end_x - subject->x;
+                ext.exact_end_z = subject->exact_end_z - subject->z;
+                ext.exact_start_cycle = subject->exact_start_cycle;
+                ext.exact_end_cycle = subject->exact_end_cycle;
+                ext.exact_facing = exact_move_yaw(subject->exact_direction);
+            }
+            /* The player's half of TORIRSSERVER_EXT_DEBUG. The npc writer has had
+             * one since it was written; without the pair, "the animation did
+             * not play" cannot be split into "the server never set the mask"
+             * and "the client dropped the block". */
+            static int ext_debug = -1;
+            if( ext_debug < 0 )
+                ext_debug = getenv("TORIRSSERVER_EXT_DEBUG") != NULL;
+            if( ext_debug )
+                fprintf(stderr,
+                        "ext player: masks=0x%x movement=%d/%d speed=%d hit=%d/%d "
+                        "seq=%d/%d spotanim=%d/%d face=%d appearance=%d exactmove=%d "
+                        "(%d,%d)->(%d,%d) %d..%d yaw=%d\n",
+                        subject->masks, movement, movement_value,
+                        ext.has_temp_move_speed ? ext.temp_move_speed : -1, ext.hit_type,
+                        ext.hit_value, ext.seq_id, ext.seq_delay,
+                        ext.has_spotanim ? ext.spotanim_id : -1,
+                        ext.has_spotanim ? ext.spotanim_slot : -1, ext.has_face,
+                        appearance_len, ext.has_exact_move, ext.exact_start_x,
+                        ext.exact_start_z, ext.exact_end_x, ext.exact_end_z,
+                        ext.exact_start_cycle, ext.exact_end_cycle, ext.exact_facing);
+    *output = ext;
+}
+
+static int32_t
+player_coord_v5(int level, int x, int z)
+{
+    return (int32_t)(((level & 3) << 28) | ((x & 16383) << 14) | (z & 16383));
+}
+
+static void
+player_world_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
+                struct RSAreaBuf* buf, enum Mock239PlayerMovement local_movement,
+                int local_value, const uint8_t* local_appearance, int local_appearance_len,
+                const struct Mock239PlayerExt* local_ext)
+{
+    struct Mock239PlayerUpdate updates[TORIRSSERVER_PLAYER_MAX];
+    struct Mock239PlayerExt extensions[TORIRSSERVER_PLAYER_MAX];
+    uint8_t appearances[TORIRSSERVER_PLAYER_MAX][512];
+    int count = 0;
+    int local_index = ToriRSServer_WirePlayerIndex(viewer->pid);
+    if( !viewer->v5_gpi.initialized )
+    {
+        mock239_playerinfo_state_init(&viewer->v5_gpi, local_index,
+            player_coord_v5(viewer->v5_last_level, viewer->v5_last_x, viewer->v5_last_z));
+        /* Direct encoder tests may start after a previously seeded local-only
+         * stream. Real logins initialize this state alongside the wire init. */
+        if( viewer->v5_playerinfo_sent )
+            for( int i = 1; i < MOCK239_PLAYER_SLOTS; ++i )
+                if( i != local_index ) viewer->v5_gpi.inactive[i] = 1;
+    }
+    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; ++pid )
+    {
+        struct ToriRSServerPlayer* subject = pid == viewer->pid ? viewer : &srv->players[pid];
+        if( !subject->active || subject->world != srv ) continue;
+        int index = ToriRSServer_WirePlayerIndex(pid);
+        struct Mock239PlayerUpdate* update = &updates[count];
+        memset(update, 0, sizeof(*update));
+        update->index = index;
+        update->visible = subject == viewer || player_in_view(viewer, subject);
+        /* Visibility and unseen coarse positions use the common root frame.
+         * A visible actor retains its authoritative coordinate space: deck
+         * staging coordinates let every client home the passenger to the
+         * published view, exactly as it already does for its local player. */
+        update->coord = update->visible ? player_coord_v5(subject->level,subject->x,subject->z)
+            : player_coord_v5(subject->obs_level,subject->obs_x,subject->obs_z);
+        if( subject == viewer )
+        {
+            update->movement = local_movement;
+            update->movement_value = local_value;
+            update->appearance = local_appearance;
+            update->appearance_len = local_appearance_len;
+            update->ext = local_ext;
+        }
+        else if( update->visible )
+        {
+            int entering = !viewer->v5_gpi.high[index] ||
+                viewer->v5_player_generation[pid] != subject->login_generation;
+            struct RSAreaBuf ap;
+            rsab_wrap(&ap, appearances[count], sizeof(appearances[count]));
+            if( entering || (subject->masks & TORIRSSERVER_PMASK_APPEARANCE) )
+                put_appearance_v5(&ap, subject);
+            update->appearance = appearances[count];
+            update->appearance_len = (int)rsab_len(&ap);
+            uint32_t old = (uint32_t)viewer->v5_gpi.coord[index];
+            int dx = subject->x - (int)((old >> 14) & 16383);
+            int dz = subject->z - (int)(old & 16383);
+            int dl = subject->level - (int)((old >> 28) & 3);
+            int glide = subject->tele_glide && dl == 0 && dx >= -2 && dx <= 2 && dz >= -2 && dz <= 2;
+            if( !entering && !dl && (!subject->place_dirty || glide) &&
+                dx >= -1 && dx <= 1 && dz >= -1 && dz <= 1 )
+            {
+                if( dx || dz )
+                {
+                    update->movement = MOCK239_PLAYER_WALK;
+                    update->movement_value = ToriRSServer_StepDirection(dx, -dz);
+                }
+            }
+            else if( !entering && !dl && (!subject->place_dirty || glide) &&
+                     dx >= -2 && dx <= 2 && dz >= -2 && dz <= 2 )
+            {
+                static const int run[5][5] = {{0,1,2,3,4},{5,-1,-1,-1,6},
+                    {7,-1,-1,-1,8},{9,-1,-1,-1,10},{11,12,13,14,15}};
+                update->movement = MOCK239_PLAYER_RUN;
+                update->movement_value = run[dz + 2][dx + 2];
+            }
+            else
+            {
+                update->movement = MOCK239_PLAYER_TELEPORT;
+                update->movement_value = player_coord_v5(dl, dx, dz);
+            }
+            player_extended_v5(srv, viewer, subject, update->movement, update->movement_value,
+                               update->appearance_len, entering, &extensions[count]);
+            update->ext = &extensions[count];
+            viewer->v5_player_generation[pid] = subject->login_generation;
+        }
+        count++;
+    }
+    mock239_playerinfo_write_world(buf, &viewer->v5_gpi, updates, count);
+    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; ++pid )
+        viewer->player_tracked[pid] = viewer->v5_gpi.high[ToriRSServer_WirePlayerIndex(pid)];
+}
+
+void
+ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServer* srv = player->world;
+    struct RSAreaBuf buf;
+    /* This player's own window origin — the scene their client holds. */
+    int local_x = player->x - ToriRSServer_SceneOrigin(player->zone_x);
+    int local_z = player->z - ToriRSServer_SceneOrigin(player->zone_z);
+    int extended = player->masks != 0;
+    /* Who gets an extended block, in bit-section order. `player` itself is
+     * spelled as its own pointer rather than as a pid, because the local player
+     * is 2047 to itself and 2047 is not a pool slot. */
+    struct ToriRSServerPlayer* queued[TORIRSSERVER_PLAYER_MAX + 1];
+    int queued_new[TORIRSSERVER_PLAYER_MAX + 1];
+    int queued_count = 0;
+    int kept[TORIRSSERVER_PLAYER_MAX];
+    uint32_t kept_generation[TORIRSSERVER_PLAYER_MAX];
+    int nearby[TORIRSSERVER_PLAYER_MAX];
+    int nearby_count;
+    int kept_count = 0;
+
+    open_packet(&buf, 4096);
+
+    /*
+     * Revision 239 is a different CODEC here, not a different field order, so
+     * it forks before a single bit is written rather than branching per field.
+     *
+     * Its per-observer GPI state handles all visible players in four sections.
+     * Local coordinates remain deck-relative when aboard; other players use
+     * their root projections so shore and deck observers share a view test.
+     * This cannot fall through to the incompatible classic stream below.
+     */
+    if( wire_is_v5(player) )
+    {
+        uint8_t appearance[512];
+        struct RSAreaBuf ap;
+        int32_t coord;
+        enum Mock239PlayerMovement movement = MOCK239_PLAYER_NOMOVE;
+        int32_t movement_value = 0;
+
+        /*
+         * The appearance goes out once, on the tick after the init block, and
+         * then only when it changes. Re-sending it every tick is not merely
+         * wasteful: it forces the extended-info bit on, which keeps the player
+         * out of the skip path above and makes every tick an update.
+         */
+        rsab_wrap(&ap, appearance, sizeof(appearance));
+        if( !player->v5_playerinfo_sent || (player->masks & TORIRSSERVER_PMASK_APPEARANCE) )
+            put_appearance_v5(&ap, player);
+
+        /*
+         * A DELTA against what this client was last told, which the init block
+         * seeded with the absolute position. Zero while standing still.
+         *
+         * The 30-bit field is added to the client's own copy, so sending the
+         * absolute coord here moves the player by their whole world position
+         * every tick — a world that builds correctly and goes black seconds
+         * later as they leave the loaded scene, with no packet malformed.
+         */
+        coord = (int32_t)((((player->level - player->v5_last_level) & 0x3) << 28) |
+                          (((player->x - player->v5_last_x) & 0x3fff) << 14) |
+                          ((player->z - player->v5_last_z) & 0x3fff));
+
+        /*
+         * PLAYER_INFO v5 has dedicated walk/run opcodes.  Sending every delta
+         * as TELEPORT kept coordinates correct but told the golden client the
+         * player had jumped, so it never selected walkanim/runanim.
+         *
+         * Its 3-bit direction table has south first, while this server's
+         * World_CoordStep table has north first.  Derive from the measured
+         * coordinate delta so the conversion is explicit.  The 4-bit run
+         * table is the outer ring of a 5x5 square, exactly as class109's
+         * authoritative decoder spells it.
+         *
+         * A two-step turn can finish one diagonal tile away (for example east
+         * then north).  That displacement is representable by WALK, not RUN;
+         * WALK carries its geometry while TEMP_MOVE_SPEED below independently
+         * preserves RUN traversal and triggers the client's local repath.
+         */
+        {
+            int dx = player->x - player->v5_last_x;
+            int dz = player->z - player->v5_last_z;
+            /*
+             * A short `p_teleport` is a placement the client should *walk*.
+             * v5 has no jump bit to lower — its opcode 3 IS the jump — so the
+             * glide is expressed by declining to use it and letting the delta
+             * fall through to WALK/RUN below, which is what those opcodes are
+             * for. `tele_glide` already bounds the move to two tiles on one
+             * plane; the delta is re-tested because it is measured against
+             * what this client was last told, not against where the op found
+             * the player. See `tele_glide`.
+             */
+            int glide = player->tele_glide && player->level == player->v5_last_level &&
+                        dx >= -2 && dx <= 2 && dz >= -2 && dz <= 2 && (dx != 0 || dz != 0);
+
+            if( !glide && (player->place_dirty || player->level != player->v5_last_level) )
+            {
+                movement = MOCK239_PLAYER_TELEPORT;
+                movement_value = coord;
+            }
+            else if( dx >= -1 && dx <= 1 && dz >= -1 && dz <= 1 &&
+                     (dx != 0 || dz != 0) )
+            {
+                movement = MOCK239_PLAYER_WALK;
+                movement_value = ToriRSServer_StepDirection(dx, -dz);
+            }
+            else if( dx >= -2 && dx <= 2 && dz >= -2 && dz <= 2 &&
+                     (dx == -2 || dx == 2 || dz == -2 || dz == 2) )
+            {
+                static const int k_run_dir[5][5] = {
+                    { 0, 1, 2, 3, 4 },
+                    { 5, -1, -1, -1, 6 },
+                    { 7, -1, -1, -1, 8 },
+                    { 9, -1, -1, -1, 10 },
+                    { 11, 12, 13, 14, 15 },
+                };
+
+                movement = MOCK239_PLAYER_RUN;
+                movement_value = k_run_dir[dz + 2][dx + 2];
+            }
+            else if( dx != 0 || dz != 0 )
+            {
+                movement = MOCK239_PLAYER_TELEPORT;
+                movement_value = coord;
+            }
+        }
+        /*
+         * The rest of the local player's extended info, from the same masks the
+         * classic writer reads. Hitsplats and animations were absent here while
+         * the npc side had them, which reads as "npcs take damage and the player
+         * does not" -- the packets were fine, the block was simply never built.
+         */
+        {
+            struct Mock239PlayerExt ext;
+            player_extended_v5(srv, player, player, movement, movement_value,
+                               (int)rsab_len(&ap), !player->v5_playerinfo_sent, &ext);
+            player_world_v5(srv, player, &buf, movement, movement_value, appearance,
+                            (int)rsab_len(&ap), &ext);
+        }
+        player->v5_playerinfo_sent = 1;
+        player->v5_last_x = player->x;
+        player->v5_last_z = player->z;
+        player->v5_last_level = player->level;
+        flush(player, &buf, OP_PLAYER_INFO, 2);
+        return;
+    }
+
+    rsab_bits(&buf);
+
+    /* --- local player --- */
+    if( player->place_dirty )
+    {
+        /* Move op 3 on the local player is an absolute placement, not the
+         * "remove" it means for a tracked player. */
+        rsab_pbit(&buf, 1, 1);
+        rsab_pbit(&buf, 2, 3);
+        rsab_pbit(&buf, 2, player->level);
+        rsab_pbit(&buf, 7, local_x & 0x7f);
+        rsab_pbit(&buf, 7, local_z & 0x7f);
+        /* jump: snap rather than glide. Cleared for a short `p_teleport` —
+         * see `tele_glide`. The client already reads this: op-3 with the bit
+         * down and a delta inside the scene pushes a walk step
+         * (`World_EntityPathingJump`), so the player walks off the tile. */
+        rsab_pbit(&buf, 1, player->tele_glide ? 0 : 1);
+        rsab_pbit(&buf, 1, extended);
+    }
+    else if( player->move_count == 2 )
+    {
+        rsab_pbit(&buf, 1, 1);
+        rsab_pbit(&buf, 2, 2);
+        rsab_pbit(&buf, 3, player->move_dirs[0]);
+        rsab_pbit(&buf, 3, player->move_dirs[1]);
+        rsab_pbit(&buf, 1, extended);
+    }
+    else if( player->move_count == 1 )
+    {
+        rsab_pbit(&buf, 1, 1);
+        rsab_pbit(&buf, 2, 1);
+        rsab_pbit(&buf, 3, player->move_dirs[0]);
+        rsab_pbit(&buf, 1, extended);
+    }
+    else if( extended )
+    {
+        rsab_pbit(&buf, 1, 1);
+        rsab_pbit(&buf, 2, 0); /* stationary, extended info follows */
+    }
+    else
+    {
+        rsab_pbit(&buf, 1, 0); /* nothing to say about the local player */
+    }
+
+    if( extended )
+    {
+        queued_new[queued_count] = 0;
+        queued[queued_count++] = player;
+    }
+
+    /* --- players this client is already tracking --- */
+    rsab_pbit(&buf, 8, player->tracked_player_count);
+    for( int i = 0; i < player->tracked_player_count; i++ )
+    {
+        int pid = player->tracked_players[i];
+        struct ToriRSServerPlayer* other = &srv->players[pid];
+        int other_extended;
+        /*
+         * A short `p_teleport` is not a teleport as far as this section is
+         * concerned — it is one or two steps, and steps are the one thing the
+         * section CAN say. Taking that branch is what keeps the observer's copy
+         * of the entity alive across the move; without it the pair below drops
+         * and respawns them, and a respawn snaps.
+         *
+         * `move_count` decides between them rather than being merged with them:
+         * a player who both walked and teleported this tick has a route the
+         * steps already describe, and appending the glide would move them
+         * twice. The remove/re-add is the honest answer there.
+         */
+        int glide_steps = other->place_dirty && other->tele_glide &&
+                                  other->move_count == 0
+                              ? other->tele_glide_step_count
+                              : 0;
+        int const* step_dirs = glide_steps ? other->tele_glide_steps : other->move_dirs;
+        int step_count = glide_steps ? glide_steps : other->move_count;
+
+        /*
+         * `place_dirty` past that is a real teleport, and the tracked section
+         * has no way to express one: its four movement ops are "nothing", one
+         * step, two steps, and remove. So a teleport *is* a remove — and the
+         * entering-view loop below re-adds them, in the same packet, at their
+         * new tile. The client's reader handles the pair in order, so the
+         * entity is dropped and respawned inside one tick.
+         *
+         * Without this, the observer's copy of a player who teleported stays
+         * where they were until they take a step, and then walks there from the
+         * wrong place. The local player has op 3 to itself precisely because
+         * this section cannot lend it one.
+         */
+        /*
+         * The generation term catches a pid `ToriRSServer_WorldAddPlayer` handed
+         * to a different login since this list was last written (a logout and
+         * a new connection's login, both drained between the same two ticks —
+         * see `ToriRSServer_WorldPlayerFree`). Without it this branch cannot
+         * tell "still the player I was tracking" from "someone else logged
+         * into this pid" and reads the new occupant as an ordinary
+         * continuation of the old one.
+         */
+        /*
+         * `obs_jumped` is plan risk R1's answer. This section describes a
+         * tracked player as WALK STEPS, so the client's copy advances by the
+         * steps sent and by nothing else — a boat carrying a standing player,
+         * a boarding, a disembark and a plane change all move the observed
+         * position with no step to describe it. Every one of them is funnelled
+         * into the one thing the section CAN say: remove here, and the
+         * entering-view loop below re-adds at the projected tile in the same
+         * packet, exactly as a teleport's `place_dirty` does. The v5 delta
+         * state stays coherent because a projected jump is never encoded as a
+         * step.
+         */
+        if( (other->place_dirty && !glide_steps) || other->obs_jumped ||
+            !player_in_view(player, other) ||
+            other->login_generation != player->tracked_player_generation[i] )
+        {
+            /* Op 3 on a tracked player is "remove". It is the one op that does
+             * not keep the slot, so it must not go into `kept`. */
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 3);
+            player->player_tracked[pid] = 0;
+            continue;
+        }
+
+        kept_generation[kept_count] = other->login_generation;
+        kept[kept_count++] = pid;
+        other_extended = other->masks != 0;
+        if( step_count == 2 )
+        {
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 2);
+            rsab_pbit(&buf, 3, step_dirs[0]);
+            rsab_pbit(&buf, 3, step_dirs[1]);
+            rsab_pbit(&buf, 1, other_extended);
+        }
+        else if( step_count == 1 )
+        {
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 1);
+            rsab_pbit(&buf, 3, step_dirs[0]);
+            rsab_pbit(&buf, 1, other_extended);
+        }
+        else if( other_extended )
+        {
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 0);
+        }
+        else
+        {
+            rsab_pbit(&buf, 1, 0);
+        }
+        if( other_extended )
+        {
+            queued_new[queued_count] = 0;
+            queued[queued_count++] = other;
+        }
+    }
+
+    /*
+     * --- players entering view ---
+     *
+     * A new record is unconditionally followed by an extended block carrying the
+     * appearance: the client spawns a default-looking body on the pid alone and
+     * has nothing else to replace it with.
+     */
+    /*
+     * The player's OWN zones, from the ZoneMap — not a walk of `srv->players`.
+     *
+     * The flat scan was affordable (TORIRSSERVER_PLAYER_MAX is 8) and asked the
+     * wrong question: `player_in_view` is a raw tile box, and near the build
+     * area's edge a tile box reaches outside the region this client has a scene
+     * for. `player_in_view` still decides — it also carries the level and
+     * liveness tests — but it now decides over candidates that are, by
+     * construction, in a zone this client holds.
+     */
+    nearby_count = ToriRSServer_PlayerzonemapPlayers(player, TORIRSSERVER_PLAYER_VIEW_TILES, nearby,
+                                        TORIRSSERVER_PLAYER_MAX);
+    /*
+     * Cross-world candidates (docs/SAILING_PLAN.md S2.4).
+     *
+     * The zonemap is keyed on where a player's FEET are, and a deck player's
+     * feet are hundreds of squares away in the map-instance pool — so the
+     * zonemap can never offer one to a shore observer, however close the boat
+     * has sailed. Anyone carrying a projection offset is appended here
+     * instead; `player_in_view` still decides, over observation coordinates.
+     *
+     * A flat scan rather than a second index because it only runs when a hull
+     * is actually carrying someone, and TORIRSSERVER_PLAYER_MAX bounds it.
+     */
+    for( int pid = 0; pid < srv->player_count && nearby_count < TORIRSSERVER_PLAYER_MAX; pid++ )
+    {
+        struct ToriRSServerPlayer* other = &srv->players[pid];
+        int already = 0;
+
+        if( !other->active || other == player )
+            continue;
+        if( other->obs_off_x == 0 && other->obs_off_z == 0 && other->obs_off_level == 0 )
+            continue;
+        for( int i = 0; i < nearby_count && !already; i++ )
+            if( nearby[i] == pid )
+                already = 1;
+        if( !already )
+            nearby[nearby_count++] = pid;
+    }
+    for( int i = 0; i < nearby_count; i++ )
+    {
+        int pid = nearby[i];
+        struct ToriRSServerPlayer* other = &srv->players[pid];
+        int dx;
+        int dz;
+
+        if( pid < 0 || pid >= srv->player_count )
+            continue;
+        if( player->player_tracked[pid] || !player_in_view(player, other) )
+            continue;
+
+        /* Both sides projected, so the pair is described in one frame. A
+         * deck player enters a shore observer's list at the root tile the
+         * hull is carrying them over, not at their pool coordinate. */
+        dx = other->obs_x - player->obs_x;
+        dz = other->obs_z - player->obs_z;
+        rsab_pbit(&buf, 11, pid);
+        rsab_pbit(&buf, 5, dx & 0x1f);
+        rsab_pbit(&buf, 5, dz & 0x1f);
+        rsab_pbit(&buf, 1, 1); /* jump: appear on the tile, do not glide to it */
+        rsab_pbit(&buf, 1, 1); /* extended info follows — the appearance */
+
+        queued_new[queued_count] = 1;
+        queued[queued_count++] = other;
+        player->player_tracked[pid] = 1;
+        kept_generation[kept_count] = other->login_generation;
+        kept[kept_count++] = pid;
+    }
+
+    /* The terminator is not optional. Without it the client keeps reading
+     * 11-bit ids out of whatever follows, which at best invents players and at
+     * worst eats the extended-info section. */
+    rsab_pbit(&buf, 11, TORIRSSERVER_PLAYER_TERMINATOR);
+    rsab_bytes(&buf);
+
+    /* --- extended info, byte aligned, in the order the bits queued it --- */
+    for( int i = 0; i < queued_count; i++ )
+        put_player_extended(&buf, player, queued[i], queued_new[i]);
+
+    flush(player, &buf, OP_PLAYER_INFO, 2);
+
+    /*
+     * `place_dirty` is NOT cleared here. It used to be, and with one recipient
+     * that was the same thing; with several it is not. Phase 10 encodes one
+     * PLAYER_INFO per player, and a teleport has to be described in *all* of
+     * them — the mover's own (as an absolute placement) and every observer's
+     * (as a remove-and-re-add above). Clearing it inside the encoder means
+     * whoever is encoded first consumes it and everyone after sees a player who
+     * did not move. Phase 11 clears it, beside `masks`, for the same reason
+     * `masks` is cleared there.
+     */
+    memcpy(player->tracked_players, kept, sizeof(int) * (size_t)kept_count);
+    memcpy(
+        player->tracked_player_generation,
+        kept_generation,
+        sizeof(uint32_t) * (size_t)kept_count);
+    player->tracked_player_count = kept_count;
+}
+
+/* ------------------------------------------------------------------ */
+/* NPC_INFO                                                            */
+/* ------------------------------------------------------------------ */
+
+
+/* ------------------------------------------------------------------ */
+/* Revision 239 extended info                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The npc extended-info block at revision 239.
+ *
+ * A DIFFERENT FLAG SPACE from the classic one-byte mask beside it, not a wider
+ * version of it. The classic bits are 0x01 DAMAGE2, 0x02 ANIM, 0x04
+ * FACE_ENTITY, ... in the client's own read order; at 239 the same eight
+ * concepts are scattered across 26 bits with no relationship to those values,
+ * and the ORDER the blocks are written in is a third thing again -- neither
+ * ascending flag order nor the classic order. Both come from RSProt's
+ * NpcAvatarExtendedInfoDesktopWriter, whose `convertFlags` exists precisely
+ * because the server-side constants and the client's bits are different sets.
+ *
+ * Getting either wrong is quiet: the flag byte frames, the blocks are read in
+ * whatever order the client wants them, and the npc plays some other npc's
+ * animation or none.
+ */
+enum
+{
+    /* "another flag byte follows" -- one per additional byte, and they are
+     * part of the flag, so they are set from the value rather than counted. */
+    V5_NEXT_BYTE_1 = 0x40,
+    V5_NEXT_BYTE_2 = 0x800,
+    V5_NEXT_BYTE_3 = 0x200000,
+
+    V5_NPC_TRANSFORMATION = 0x1,
+    V5_NPC_SAY = 0x2,
+    V5_NPC_FACING = 0x8,
+    V5_NPC_SEQUENCE = 0x80,
+    V5_NPC_SPOTANIM = 0x40000,
+    V5_NPC_HITMARKS = 0x80000,
+    V5_NPC_HEADBARS = 0x1000000,
+};
+
+/*
+ * pSmart1or2 is `rsab_psmart`. This file used to carry a private copy — one of
+ * five in src/net (docs/BUFFER_ACCESSOR_AUDIT.md §1.1), byte-identical in range
+ * and silently truncating outside it where the library latches an overflow.
+ *
+ * Merge note: v3 deduplicated this at the same time, onto
+ * `mock239_face_psmart1or2` in mock239_facing.h — which was itself a fresh copy
+ * of the same encoding, byte-identical again. Both are now the library's, so
+ * the count went to one rather than to two.
+ */
+#define v5_psmart1or2 rsab_psmart
+
+/* Translate the mock's revision-230 facing latch to 239's one-block model.
+ * The old FACE_COORD value is an absolute half-tile centre (2 * tile + 1);
+ * Face.Loc wants absolute tile coordinates plus a footprint. */
+static int
+v5_face_from_classic(
+    struct Mock239Face* face,
+    struct ToriRSServerPlayer const* recipient,
+    uint32_t classic,
+    uint32_t entity_mask,
+    uint32_t coord_mask,
+    int face_entity,
+    int face_x,
+    int face_z,
+    int force_latch)
+{
+    mock239_face_init(face);
+
+    /* A loc and an entity cannot coexist in a V5 Face block.  `reorient`
+     * intentionally clears the entity and emits the loc in its completion
+     * tick, so a coordinate wins when both legacy masks are present. */
+    if( (classic & coord_mask) != 0 ||
+        (force_latch && face_entity < 0 && (face_x != 0 || face_z != 0)) )
+    {
+        face->kind = MOCK239_FACE_LOC;
+        face->x = face_x / 2;
+        face->z = face_z / 2;
+        return 1;
+    }
+    if( (classic & entity_mask) == 0 && !(force_latch && face_entity >= 0) )
+        return 0;
+
+    if( face_entity < 0 )
+    {
+        face->kind = MOCK239_FACE_RESET;
+        return 1;
+    }
+    face->kind = MOCK239_FACE_ENTITY;
+    if( face_entity >= TORIRSSERVER_FACE_PLAYER_BASE )
+    {
+        int const pool_pid = face_entity - TORIRSSERVER_FACE_PLAYER_BASE;
+
+        face->entity_type = MOCK239_FACE_PLAYER;
+        /* Rev-239 NpcFaceEncoder writes the player's GPI index. The classic
+         * latch stores the mock's pool pid, so it needs the same +1 mapping as
+         * login and PLAYER_INFO. Sending pool pid 0 here names the unoccupied
+         * client slot 0 while the local player lives at wire slot 1. */
+        face->entity_index = ToriRSServer_WirePlayerIndex(pool_pid);
+    }
+    else
+    {
+        face->entity_type = MOCK239_FACE_NPC;
+        face->entity_index = ToriRSServer_FaceEntityForClient(recipient, face_entity);
+    }
+    return 1;
+}
+
+
+/** The flag itself, plus the continuation bits its own width implies. */
+static void
+v5_put_extended_flag(struct RSAreaBuf* buf, uint32_t flag)
+{
+    if( flag & 0xffffff00u )
+        flag |= V5_NEXT_BYTE_1;
+    if( flag & 0xffff0000u )
+        flag |= V5_NEXT_BYTE_2;
+    if( flag & 0xff000000u )
+        flag |= V5_NEXT_BYTE_3;
+
+    rsab_p1(buf, (int32_t)(flag & 0xff));
+    if( flag & V5_NEXT_BYTE_1 )
+        rsab_p1(buf, (int32_t)((flag >> 8) & 0xff));
+    if( flag & V5_NEXT_BYTE_2 )
+        rsab_p1(buf, (int32_t)((flag >> 16) & 0xff));
+    if( flag & V5_NEXT_BYTE_3 )
+        rsab_p1(buf, (int32_t)((flag >> 24) & 0xff));
+}
+
+static int
+npc_add_requires_transformation(const struct ToriRSServerNpc* npc)
+{
+    return npc->type > TORIRSSERVER_NPC_TYPE_MAX;
+}
+
+/*
+ * Every TRANSFORMATION block this process has written, for the selftest.
+ *
+ * A transformation is not a cosmetic field: the client answers one by
+ * rebuilding the npc's model and re-applying the new type's `readyanim`, which
+ * cancels whatever the npc was animating. So "a transformation nobody asked
+ * for" is indistinguishable, in the game, from "this npc has no attack, defend
+ * or death animation" — and it is invisible on the server, where the animation
+ * was resolved, played and encoded correctly.
+ *
+ * A counter rather than a packet assertion because the bit section ahead of the
+ * extended blocks is variable-width: reading the flag back out of a captured
+ * NPC_INFO means reimplementing the client's reader inside the test. What the
+ * test needs to know is only whether one was written at all.
+ */
+static long g_npc_transformation_writes;
+
+long
+ToriRSServer_EncodeNpcTransformationWrites(void)
+{
+    return g_npc_transformation_writes;
+}
+
+/*
+ * NPC_INFO carries only 14 type bits in its initial add. Revision 239 uses the
+ * same-packet TRANSFORMATION block (client mask bit 0x1) to bootstrap a
+ * 16-bit config id. The initial type is only a placeholder in that case.
+ */
+static int
+npc_initial_wire_type(const struct ToriRSServerNpc* npc)
+{
+    return npc_add_requires_transformation(npc) ? 0 : npc->type;
+}
+
+/*
+ * One npc's slot in an NPC_INFO packet's extended-info queue.
+ *
+ * A record per npc rather than one array per field. The parallel-array form is
+ * what let a queue site fill `force_face` and leave `force_type` as whatever
+ * the stack held; `npc_queue_push` takes every latch the record carries, so a
+ * half-written entry no longer compiles. See
+ * ToriRSServer_EncodeNpcTransformationWrites for what the omission cost.
+ */
+struct ToriRSServerNpcExtendedQueue
+{
+    int slot;
+    /** Enter-view: re-emit the latched FACE_ENTITY the per-tick mask cleared. */
+    int force_face;
+    /** Enter-view with a config id wider than the add's 14 bits: re-state it
+     *  as a TRANSFORMATION block in the same packet. */
+    int force_type;
+};
+
+static void
+npc_queue_push(
+    struct ToriRSServerNpcExtendedQueue* queue,
+    int* count,
+    int slot,
+    int force_face,
+    int force_type)
+{
+    if( *count >= TORIRSSERVER_TRACKED_NPC_MAX )
+        return;
+    queue[*count].slot = slot;
+    queue[*count].force_face = force_face;
+    queue[*count].force_type = force_type;
+    (*count)++;
+}
+
+/*
+ * The healthbar config an npc's hits raise, or -1 for none.
+ *
+ * The record's own choice wins; `TORIRSSERVER_NPC_HEALTHBAR_UNSET` means it made
+ * none, and the bar is chosen from the npc's SIZE — that substitution is here
+ * rather than in the default because the id is a symbol and the defaults are
+ * seeded before the pack files are resolved.
+ *
+ * SIZE PICKS THE BAR, and this is the whole of why a boss's bar is longer than
+ * a goblin's. Near-Reality's `EntityHitBar.getType()`:
+ *
+ *     switch (getSize()) {
+ *     case 4:            return 17;
+ *     case 5:            return 18;
+ *     case 6: case 7:    return 20;
+ *     case 8: case 9:    return 22;
+ *     default:           return 0;
+ *     }
+ *
+ * and this cache agrees exactly: those four ids carry `standard_health_60`,
+ * `_80`, `_120` and `_160`, with matching opcode 14. Every npc used to get the
+ * standard 30-wide bar whatever its footprint, so Xarpus standing (size 5, and
+ * therefore an 80-wide bar) drew the same stub as a chicken.
+ *
+ * Sizes 1..3 share the standard bar — the reference's `default`, not an
+ * omission, which is why phase one's size-3 Xarpus is right at 30 and phase
+ * two's size-5 form is not.
+ */
+static int
+healthbar_for_size(int size)
+{
+    switch( size )
+    {
+    case 4:
+        return ToriRSServer_Ids()->healthbar_size4;
+    case 5:
+        return ToriRSServer_Ids()->healthbar_size5;
+    case 6:
+    case 7:
+        return ToriRSServer_Ids()->healthbar_size67;
+    case 8:
+    case 9:
+        return ToriRSServer_Ids()->healthbar_size89;
+    default:
+        return ToriRSServer_Ids()->healthbar_standard;
+    }
+}
+
+static int
+npc_headbar_id(const struct ToriRSServerNpc* npc)
+{
+    const struct ToriRSServerNpcDef* def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
+    int id = def ? def->healthbar : TORIRSSERVER_NPC_HEALTHBAR_UNSET;
+
+    return id == TORIRSSERVER_NPC_HEALTHBAR_UNSET ? healthbar_for_size(npc->size) : id;
+}
+
+/*
+ * Whether this npc's hits carry a splat, the other half of the pair above.
+ *
+ * `hitsplat=no` is scenery with hitpoints that must show a bar and not a
+ * number — see the field's note in torirs_server_content.h. Both halves of the
+ * choice now read off the record, so nothing here decides policy.
+ */
+static int
+npc_shows_hitsplat(const struct ToriRSServerNpc* npc)
+{
+    const struct ToriRSServerNpcDef* def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
+
+    return def ? def->hitsplat : 1;
+}
+
+static void
+put_npc_extended_v5(
+    struct RSAreaBuf* buf,
+    struct ToriRSServerPlayer const* recipient,
+    struct ToriRSServerNpc* npc,
+    int force_face_latch,
+    int force_type_latch)
+{
+    uint32_t const classic = npc->masks;
+    uint32_t flag = 0;
+    int const hit = (classic & (TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2)) != 0;
+    struct Mock239Face face;
+    int const has_face = v5_face_from_classic(
+        &face, recipient, classic, TORIRSSERVER_NMASK_FACE_ENTITY, TORIRSSERVER_NMASK_FACE_COORD,
+        npc->face_entity, npc->face_x, npc->face_z, force_face_latch);
+
+    /*
+     * The splat and the bar are two masks, and an npc may want the second
+     * without the first (`hitsplat=no`). Read once, so the flag and the block
+     * below cannot disagree — a flag set without its block shifts every block
+     * after it by however many bytes the client then reads as this one.
+     */
+    int const splat = hit && npc_shows_hitsplat(npc);
+
+    if( splat )
+        flag |= V5_NPC_HITMARKS;
+    if( getenv("TORIRSSERVER_SPLAT_DEBUG") && hit )
+        fprintf(stderr, "  SPLAT npc type=%d dmg=%d type=%d hp=%d/%d\n", npc->type,
+                npc->damage, npc->damage_type, npc->hitpoints, npc->max_hitpoints);
+    /*
+     * A headbar is the server's choice, not a side effect of the hit.
+     *
+     * The reference sends the headbar mask when it wants a bar and simply does
+     * not when it does not — the two masks are unrelated and its hitsplat block
+     * carries no health at all. Emitting one on every hit was this encoder's
+     * own addition, and it is why an npc whose pool is not an overhead bar (a
+     * boss with its own HUD, a marker that exists only to be drawn on) had one
+     * anyway. `healthbar=null` on the record is that choice, spelled.
+     */
+    int const headbar = npc_headbar_id(npc);
+    if( hit && headbar >= 0 && npc->max_hitpoints > 0 )
+        flag |= V5_NPC_HEADBARS;
+    if( classic & TORIRSSERVER_NMASK_ANIM )
+        flag |= V5_NPC_SEQUENCE;
+    if( classic & TORIRSSERVER_NMASK_SAY )
+        flag |= V5_NPC_SAY;
+    if( classic & TORIRSSERVER_NMASK_SPOTANIM )
+        flag |= V5_NPC_SPOTANIM;
+    if( (classic & TORIRSSERVER_NMASK_CHANGE_TYPE) || force_type_latch )
+        flag |= V5_NPC_TRANSFORMATION;
+    if( has_face )
+        flag |= V5_NPC_FACING;
+
+    if( getenv("TORIRSSERVER_EXT_DEBUG") )
+        fprintf(stderr, "ext npc: classic=0x%x flag=0x%x hit=%d/%d seq=%d\n", classic, flag,
+                npc->damage_type, npc->damage, npc->anim_id);
+    v5_put_extended_flag(buf, flag);
+
+    /*
+     * Blocks in the writer's order, which is neither the flag order nor the
+     * classic order: HITMARKS before SEQUENCE before SAY before SPOTANIM before
+     * TRANSFORMATION. The client reads them in this sequence and nothing on the
+     * wire separates them, so a block out of place is read as the next one.
+     */
+    if( splat )
+    {
+        /*
+         * NpcHitmarkEncoder: p1Alt1 count, then per hit pSmart1or2 type, value,
+         * delay, limit.
+         *
+         * The count is `npc->hitmark_count` and not the literal 1 it used to be.
+         * That 1 was justified by "one hit per tick is all the classic mask
+         * could express" — true of the mask, but the mask was the only thing
+         * that could not: this block is a list, and the entity now keeps the
+         * whole tick's worth (see struct ToriRSServerHitmark). Two attackers landing
+         * together used to send one splat and the reporter saw hitsplats appear
+         * "only sometimes".
+         *
+         * Guarded below 1 because `hit` is derived from the mask, and a mask set
+         * without a hitmark would write a count of zero and then no quadruples —
+         * legal, but it would spend a block to say nothing.
+         */
+        int hits = npc->hitmark_count > 0 ? npc->hitmark_count : 1;
+        /*
+         * Setting 182's loot-restriction icon, appended for THIS viewer only.
+         *
+         * It rides the hitmark list because that is what it is -- the cache's
+         * one textless hitsplat record, drawn over the entity and lasting three
+         * times as long as a splat (see ToriRSServer_HitsplatLootRestrictedIcon).
+         * Riding an existing block also means it appears while the player is
+         * attacking, which is exactly when the row says to warn them.
+         *
+         * Decided here rather than where the hit lands because it is one
+         * viewer's: the same npc's list is written once per player watching, and
+         * an icon added at the source would put a no-entry sign over the
+         * creature for everybody in the fight.
+         *
+         * Counted BEFORE the count byte goes out. The block is a length-prefixed
+         * list, so an extra quadruple written after a count that did not include
+         * it is not a cosmetic error -- the client reads the next field as this
+         * one and every block after it shifts.
+         */
+        int const icon_type =
+            ToriRSServer_NpcLootIconWanted(recipient->world, npc, recipient)
+                ? ToriRSServer_HitsplatLootRestrictedIcon()
+                : -1;
+
+        if( hits > TORIRSSERVER_HITMARK_MAX )
+            hits = TORIRSSERVER_HITMARK_MAX;
+        /* And the icon has to fit the client's four slots too: a fifth entry
+         * has nowhere to be drawn, so it is dropped rather than displacing a
+         * damage splat the player needs more. */
+        int const icon = (icon_type >= 0 && hits < TORIRSSERVER_HITMARK_MAX) ? 1 : 0;
+
+        rsab_p1_alt1(buf, hits + icon);
+        for( int i = 0; i < hits; i++ )
+        {
+            /* `hitmark_count == 0` with the mask set can only come from a
+             * writer that set the mask by hand; fall back to the mirror so it
+             * still says what it used to. */
+            int const damage = npc->hitmark_count > 0 ? npc->hitmarks[i].damage : npc->damage;
+            int const stated =
+                npc->hitmark_count > 0 ? npc->hitmarks[i].type : npc->damage_type;
+            int const dealer =
+                npc->hitmark_count > 0 ? npc->hitmarks[i].dealer_slot : -1;
+            /* Per RECIPIENT, which is the whole reason this cannot be decided
+             * where the hit lands: one npc's splat list is encoded once per
+             * player watching, and "was this my damage" is a fact about the
+             * pair. See ToriRSServer_HitsplatForViewer. */
+            int const damage_type =
+                ToriRSServer_HitsplatForViewer(recipient->world, recipient, stated, damage, dealer);
+
+            v5_psmart1or2(buf, damage_type);
+            v5_psmart1or2(buf, damage);
+            v5_psmart1or2(buf, 0); /* delay: lands this tick */
+            /* Actor.method3560 only inserts the hitmark when this slot limit is
+             * positive. Revision 239 actors retain four concurrent hitmarks. */
+            v5_psmart1or2(buf, 4);
+        }
+        if( icon )
+        {
+            /* Value 0, and it draws no number: the record's `text=` is empty,
+             * which is the property that identified it. */
+            v5_psmart1or2(buf, icon_type);
+            v5_psmart1or2(buf, 0);
+            v5_psmart1or2(buf, 0);
+            v5_psmart1or2(buf, 4);
+            if( getenv("TORIRSSERVER_SPLAT_DEBUG") )
+                fprintf(stderr, "  SPLAT noloot icon %d for %s over npc type %d\n", icon_type,
+                        recipient->display_name, npc->type);
+        }
+    }
+    if( flag & V5_NPC_HEADBARS )
+    {
+        /* The CHOSEN bar's width, not the standard one's: the client scales
+         * the fill by the type's own opcode 14, so an 80-wide bar fed a
+         * fraction of 30 would stop at 37% with the npc at full health. */
+        int width = ToriRSServer_HealthbarWidth(headbar);
+        int fill = (npc->hitpoints * width) / npc->max_hitpoints;
+
+        /* Which bar an npc got, and why. The three inputs (type, footprint,
+         * chosen record) and the two outputs (width, fill) on one line, because
+         * "the bar is the wrong size" has five candidate causes and reading the
+         * pixels tells you which only by elimination. Shares TORIRSSERVER_SPLAT_DEBUG
+         * with the hitmark line above -- a headbar only ever rides one. */
+        if( getenv("TORIRSSERVER_SPLAT_DEBUG") )
+            fprintf(stderr,
+                    "  HEADBAR npc type=%d size=%d -> healthbar=%d width=%d "
+                    "fill=%d (hp %d/%d)\n",
+                    npc->type, npc->size, headbar, width, fill, npc->hitpoints,
+                    npc->max_hitpoints);
+
+        /*
+         * NpcHeadbarEncoder differs from the player only in the count and
+         * target-fill byte transform -- alt2 and alt3 here against the
+         * player's alt1 and alt2. See the matching decoder's V5 block.
+         *
+         * These two were the other way round until 2026-08-21, and the swap
+         * was not survivable: the golden client reads the count as `0 - b`,
+         * so a count of 1 written alt1 (0x81) came back as 127. It then read
+         * 126 head bars that were not there, walked off the end of a 32-byte
+         * NPC_INFO and threw `RuntimeException: 600,32` -- 600 bytes consumed
+         * of a 32-byte packet -- the first time an npc took a hit in front of
+         * a real client. Nothing here catches it, because the mock's own
+         * decoder made the same swap and round-tripped happily; the authority
+         * is the deob (`Statics.method10109`, `method13137`/`method13166`) and
+         * RSProt's NpcHeadbarEncoder, and they agree with each other.
+         */
+        rsab_p1_alt2(buf, 1);
+        v5_psmart1or2(buf, headbar);
+        v5_psmart1or2(buf, 1);
+        v5_psmart1or2(buf, 0);
+        rsab_p1_alt1(buf, width);
+        rsab_p1_alt3(buf, fill);
+    }
+    if( classic & TORIRSSERVER_NMASK_ANIM )
+    {
+        /* NpcSequenceEncoder: p2 id, p1Alt2 delay. 65535 cancels. */
+        rsab_p2(buf, npc->anim_id < 0 ? 65535 : npc->anim_id);
+        rsab_p1_alt2(buf, npc->anim_delay);
+    }
+    if( classic & TORIRSSERVER_NMASK_SAY )
+        rsab_pjstr(buf, npc->say, RSAB_JSTR_NUL);
+    if( classic & TORIRSSERVER_NMASK_SPOTANIM )
+    {
+        /*
+         * NpcSpotAnimEncoder: p1Alt2 count, then per entry p1 slot, p2 id,
+         * p4Alt2 (delay | height << 16).
+         *
+         * A LIST at this revision -- an npc can carry several graphics at once,
+         * in numbered slots -- where the classic packet carried exactly one and
+         * had no slot. Slot 0 is the one the classic mask means.
+         */
+        rsab_p1_alt2(buf, 1);
+        rsab_p1(buf, 0);
+        rsab_p2(buf, npc->spotanim_id < 0 ? 65535 : npc->spotanim_id);
+        rsab_p4_alt2(buf, npc->spotanim_height_delay);
+    }
+    if( flag & V5_NPC_TRANSFORMATION )
+    {
+        /* NpcTransformationEncoder: unsigned little-endian/add short. */
+        g_npc_transformation_writes++;
+        rsab_p2_alt3(buf, force_type_latch ? npc->type : npc->change_type);
+    }
+    if( has_face )
+        mock239_face_write_npc(buf, &face);
+
+}
+
+static int
+npc_extended_pending(const struct ToriRSServerNpc* npc)
+{
+    return npc->masks != 0;
+}
+
+/*
+ * Revision 239 cannot carry every classic NPC mask yet.  In particular its
+ * FACING block is not a byte-layout variant of FACE_ENTITY/FACE_COORD (see
+ * put_npc_extended_v5), so those two masks are intentionally omitted.  They
+ * must also be omitted from the traversal's "extended info follows" bit.
+ *
+ * Queueing a face-only NPC while writing an empty v5 flag is not harmless.
+ * The low-resolution reader decides whether it can read another 16-bit index
+ * from the number of bits left in the *whole* packet.  A short face-only block
+ * can leave only 27 bits after the tracked section: too few for the reader to
+     * consume our 0xffff terminator. It then byte-aligns onto the terminator,
+ * reads 0xff as the extended flag and walks beyond the packet (the captured
+ * failure was "66,9" on NPC_INFO).
+ */
+static int
+npc_extended_pending_v5(
+    struct ToriRSServerPlayer const* recipient,
+    const struct ToriRSServerNpc* npc,
+    int force_face_latch)
+{
+    uint32_t const supported = TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2 |
+                               TORIRSSERVER_NMASK_ANIM | TORIRSSERVER_NMASK_SAY |
+                               TORIRSSERVER_NMASK_SPOTANIM | TORIRSSERVER_NMASK_CHANGE_TYPE;
+    struct Mock239Face face;
+
+    return (npc->masks & supported) != 0 ||
+           v5_face_from_classic(&face, recipient, npc->masks, TORIRSSERVER_NMASK_FACE_ENTITY,
+                                TORIRSSERVER_NMASK_FACE_COORD, npc->face_entity,
+                                npc->face_x, npc->face_z, force_face_latch);
+}
+
+/*
+ * The npc mask is a single byte — unlike the player's, there is no widening
+ * bit, so the eight fields below are all there is room for. Fields go in
+ * ascending bit order, matching the reader's test order.
+ *
+ * `force_face_latch`: LostCity NpcInfoEncoder.lowdefinition — on enter-view,
+ * re-emit a latched FACE_ENTITY even when the per-tick mask bit was cleared.
+ */
+static void
+put_npc_extended(
+    struct RSAreaBuf* buf,
+    struct ToriRSServerPlayer const* recipient,
+    struct ToriRSServerNpc* npc,
+    int force_face_latch,
+    int force_type_latch)
+{
+    uint32_t mask = npc->masks & 0xff;
+
+    /*
+     * `hitsplat=no`, as far as this revision can honour it.
+     *
+     * The classic block is ONE block carrying the damage and the health
+     * together, so there is no "bar without splat" to select here: dropping the
+     * splat drops the bar with it. The rev-239 writer has two independent masks
+     * and keeps the bar (`put_npc_extended_v5`). Clearing the bits leaves a
+     * mask byte of zero when nothing else is set, which the reader handles —
+     * a byte-aligned block that says nothing, unlike the v5 bitstream the
+     * comment above `npc_extended_pending_v5` warns about.
+     */
+    if( !npc_shows_hitsplat(npc) )
+        mask &= ~(uint32_t)(TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2);
+
+    if( force_face_latch && npc->face_entity != -1 )
+        mask |= TORIRSSERVER_NMASK_FACE_ENTITY;
+    if( force_type_latch )
+        mask |= TORIRSSERVER_NMASK_CHANGE_TYPE;
+
+    rsab_p1(buf, (int32_t)mask);
+
+    if( mask & TORIRSSERVER_NMASK_DAMAGE2 )
+    {
+        /*
+         * The tick's SECOND splat, and until now this branch was dead twice
+         * over: nothing ever set the bit, and it wrote the same scalar pair the
+         * DAMAGE branch below writes, so setting it would have drawn the first
+         * hit twice.
+         *
+         * The client reads this block BEFORE the DAMAGE one (0x01 sorts under
+         * 0x10) and each becomes its own `PKT_NPC_INFO_OP_DAMAGE`, so the
+         * second-dealt splat takes the first free render slot and the
+         * first-dealt takes the next. Slots only nudge a splat a few pixels
+         * apart, so the pair renders either way round; keeping DAMAGE on
+         * `hitmarks[0]` is what makes the ordinary one-hit tick byte-identical
+         * to what it sent before.
+         */
+        rsab_p1(buf, npc->hitmarks[1].damage);
+        rsab_p1(buf, npc->hitmarks[1].type);
+        rsab_p1(buf, npc->hitpoints);
+        rsab_p1(buf, npc->max_hitpoints);
+    }
+    if( mask & TORIRSSERVER_NMASK_ANIM )
+    {
+        rsab_p2(buf, npc->anim_id < 0 ? 65535 : npc->anim_id);
+        rsab_p1(buf, npc->anim_delay);
+    }
+    if( mask & TORIRSSERVER_NMASK_FACE_ENTITY )
+    {
+        /*
+         * The chokepoint, and the reason the check is here rather than at the
+         * five writers.
+         *
+         * A player face id is absolute — `TORIRSSERVER_FACE_PLAYER_BASE + pid` — so
+         * the same npc facing the same player encodes to the same bytes on every
+         * stream. The old self-alias `BASE + 2047` meant "whoever is reading
+         * this", which is right for one observer and wrong for every other. Its
+         * named constant is deleted, but a writer can still reach the value by
+         * arithmetic or by passing the terminator as a pid — and three of the
+         * five writers (`npc_run_mode`, the opnpc greeting, `npc_say`) are
+         * exercised by no test, so a regression at one of them would ship
+         * silently.
+         *
+         * Every face id reaches the wire through this line, whichever writer
+         * produced it. Checking here is what makes the invariant total rather
+         * than per-writer.
+         */
+        if( npc->face_entity == TORIRSSERVER_FACE_PLAYER_BASE + TORIRSSERVER_PLAYER_TERMINATOR )
+        {
+            fprintf(stderr,
+                    "torirsserver: npc %d face id %d is the self-alias — it must name an "
+                    "absolute pid (TORIRSSERVER_FACE_PLAYER_BASE + player->pid), or every "
+                    "observer but one sees it facing the wrong player\n",
+                    npc->type, npc->face_entity);
+        }
+        {
+            int const face_entity =
+                ToriRSServer_FaceEntityForClient(recipient, npc->face_entity);
+            rsab_p2(buf, face_entity < 0 ? 0xffff : face_entity);
+        }
+    }
+    if( mask & TORIRSSERVER_NMASK_SAY )
+        rsab_pjstr(buf, npc->say, RSAB_JSTR_NEWLINE);
+    if( mask & TORIRSSERVER_NMASK_DAMAGE )
+    {
+        rsab_p1(buf, npc->damage);
+        rsab_p1(buf, npc->damage_type);
+        rsab_p1(buf, npc->hitpoints);
+        rsab_p1(buf, npc->max_hitpoints);
+    }
+    if( mask & TORIRSSERVER_NMASK_CHANGE_TYPE )
+    {
+        g_npc_transformation_writes++;
+        rsab_p2(buf, force_type_latch ? npc->type : npc->change_type);
+    }
+    if( mask & TORIRSSERVER_NMASK_SPOTANIM )
+    {
+        rsab_p2(buf, npc->spotanim_id < 0 ? 65535 : npc->spotanim_id);
+        rsab_p4(buf, npc->spotanim_height_delay);
+    }
+    if( mask & TORIRSSERVER_NMASK_FACE_COORD )
+    {
+        rsab_p2(buf, npc->face_x);
+        rsab_p2(buf, npc->face_z);
+    }
+}
+
+/*
+ * This observer's npc view radius, and the tick's update to it.
+ *
+ * Split from the encoder body so the three view tests and the zone query all
+ * read ONE value: they used to name the constant separately, and a radius that
+ * moves has to be read once per tick or the keep test and the add test can
+ * disagree — which adds an npc and removes it on alternate ticks forever.
+ */
+static int
+npc_view_radius(const struct ToriRSServerPlayer* player)
+{
+    int r = player->npc_view_tiles;
+
+    if( r < TORIRSSERVER_NPC_VIEW_TILES )
+        r = TORIRSSERVER_NPC_VIEW_TILES;
+    if( r > TORIRSSERVER_NPC_VIEW_TILES_MAX )
+        r = TORIRSSERVER_NPC_VIEW_TILES_MAX;
+    return r;
+}
+
+/*
+ * Grow by a tile a tick while the list is short; snap back to the resting
+ * radius the moment it is not. Called with the count this tick actually wrote,
+ * so the change lands on the NEXT tick's tests — the alternative is a radius
+ * that changes half way through building the list it is bounding.
+ */
+static void
+npc_view_radius_update(
+    struct ToriRSServerPlayer* player,
+    int tracked_count)
+{
+    int r = npc_view_radius(player);
+
+    if( tracked_count >= TORIRSSERVER_NPC_VIEW_CROWD )
+        r = TORIRSSERVER_NPC_VIEW_TILES;
+    else if( r < TORIRSSERVER_NPC_VIEW_TILES_MAX )
+        r++;
+    player->npc_view_tiles = r;
+}
+
+void
+ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
+{
+    /*
+     * `tracked` is the *player's* list: which npcs this client holds, and in
+     * what order, is a fact about the client. It was the world's while the pool
+     * held one, which encoded the first player's npc set — deltas and all — for
+     * whoever the packet was addressed to.
+     */
+    /*
+     * Deliberately on the player's OWN coordinates, not `obs_*`
+     * (docs/SAILING_PLAN.md S2.4).
+     *
+     * No npc carries a vessel transform in S2, so an npc's projection is the
+     * identity and its coordinate is its tile. Projecting only the observer
+     * would therefore move the observer out of the frame the npcs are in — and
+     * the npcs physically nearest a deck player are the ones standing on the
+     * deck instance with them, which would be exactly the set that vanished.
+     * Deck npcs get a transform in a later phase; until they do, feet are the
+     * one frame in which both ends of this stream agree.
+     */
+    struct ToriRSServer* srv = player->world;
+    struct RSAreaBuf buf;
+    /* Extended blocks are appended in the order the bit section queued them,
+     * so remember that order while writing the bits. Zeroed rather than left as
+     * scratch: "no latch" is the right default for a field a queue site forgot,
+     * and one of them was forgotten — see struct ToriRSServerNpcExtendedQueue. */
+    struct ToriRSServerNpcExtendedQueue queued[TORIRSSERVER_TRACKED_NPC_MAX] = { { 0, 0, 0 } };
+    int nearby[TORIRSSERVER_TRACKED_NPC_MAX];
+    int nearby_count;
+    int queued_count = 0;
+    int kept[TORIRSSERVER_TRACKED_NPC_MAX];
+    int kept_generation[TORIRSSERVER_TRACKED_NPC_MAX];
+    int kept_count = 0;
+    /* The candidates for the entering-view section: whoever the ZoneMap says
+     * stands within the add radius, rather than every npc in the world. */
+
+    /*
+     * Revision 239's npc stream.
+     *
+     * The HIGH-RESOLUTION section is byte-for-byte the shape the classic
+     * encoder below already writes -- an 8-bit count, then per npc a
+     * "has update" bit and a 2-bit type (0 stay, 1 walk, 2 run/crawl,
+     * 3 remove). That is why it is duplicated here rather than shared: the
+     * agreement is a coincidence of two revisions, not a guarantee, and a
+     * shared body would silently follow whichever one changed first.
+     *
+     * The LOW-RESOLUTION adds are where it diverges, and every field moved:
+     *
+     *   classic   14-bit slot, 14-bit type, 5-bit dx, 5-bit dz, 1-bit extended
+     *   v5        16-bit client index, 1-bit spawn-cycle flag (+32 bits if set),
+     *             1-bit extended, 6-bit dx, 3-bit direction, 6-bit dz,
+     *             1-bit jump, 14-bit initial cache/config id
+     *
+     * The initial type moved to the END and the deltas widened from 5 bits to 6, so a
+     * client reading the classic record takes the type as part of the index and
+     * places an npc that does not exist at a coordinate that is not there.
+     *
+     * A type above 0x3fff is added with a valid 14-bit placeholder and an
+     * extended update; mask 0x1 then carries the real transformed unsigned
+     * 16-bit (p2Alt3) type in the byte-aligned tail. The terminator is a
+     * 16-bit 0xFFFF and it is NOT written here; see the
+     * end of the low-resolution loop for why it is only correct once extended
+     * info follows it.
+     */
+    /*
+     * AN ANIMATION THAT NO OBSERVER IS TOLD ABOUT.
+     *
+     * `npc_anim` sets `anim_id` + the ANIM mask and phase 12 clears them again,
+     * so an npc that is not in THIS client's tracked list on the tick it
+     * animates loses that animation outright — there is no retry and the mask
+     * is gone. It is silent at every layer: the script ran, the engine applied
+     * it, `TORIRS_ANIM_DEBUG` prints it, and nothing on the wire carries it.
+     *
+     * The case that found this: a Nylocas Matomenos dying at the Maiden's feet
+     * while the player stands on the room's designated fight tile. That tile is
+     * 17 tiles from her footprint and `TORIRSSERVER_NPC_VIEW_TILES` is 15, so the
+     * crab walks OUT of npc view on its way in and its death animation is
+     * played to nobody. From the player's side the crab simply vanishes.
+     *
+     * Printed rather than fixed here because the fix is a policy choice (widen
+     * the radius, or hold the mask until an observer has been told) and this
+     * says which npcs are paying for the current one.
+     */
+    if( getenv("TORIRSSERVER_ANIM_LOST") )
+    {
+        for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
+        {
+            struct ToriRSServerNpc* npc = &srv->npcs[slot];
+            int view_dx;
+            int view_dz;
+
+            if( !npc->active || !(npc->masks & TORIRSSERVER_NMASK_ANIM) )
+                continue;
+            if( player->npc_tracked[slot] )
+                continue;
+            ToriRSServer_NpcViewDeltas(npc, player, &view_dx, &view_dz);
+            fprintf(stderr,
+                    "anim-lost: npc slot %d type %d seq %d is animating but is NOT "
+                    "tracked by pid %d (footprint gap %d,%d vs view %d)\n",
+                    slot, npc->type, npc->anim_id, player->pid, view_dx, view_dz,
+                    TORIRSSERVER_NPC_VIEW_TILES);
+        }
+    }
+
+    if( wire_is_v5(player) )
+    {
+        /* Read ONCE for the whole packet: the keep test, the candidate query
+         * and the add test have to agree or an npc is added and removed on
+         * alternate ticks. */
+        int const view_tiles = npc_view_radius(player);
+        uint8_t extended_data[4096];
+        struct RSAreaBuf extended_buf;
+        int adds[TORIRSSERVER_TRACKED_NPC_MAX];
+        int add_count = 0;
+
+        /*
+         * SET_NPC_UPDATE_ORIGIN first, every tick, and it is not optional.
+         *
+         * The low-resolution deltas below are relative to an origin the CLIENT
+         * holds, and since revision 222 the client does not infer it -- world
+         * entities mean the reference point is not always the local player, so
+         * the server states it. Two bytes, scene-local, "the player's
+         * coordinate in the current build area" for the ordinary case.
+         *
+         * Omitting it is silent in every way that matters: the client's origin
+         * stays 0,0, so an npc six tiles north-west of the player is placed six
+         * tiles from the scene's south-west CORNER. It is in the npc table with
+         * the right id, RuneLite's API reports it, extended info applies to it,
+         * and it is drawn nowhere near the player -- usually off the scene
+         * entirely, and so not drawn at all. Nothing about "no npcs appear"
+         * points at a missing two-byte packet.
+         *
+         * Sent unconditionally rather than on change: it costs four bytes on
+         * the wire, and the tick it is skipped is the tick after a rebuild
+         * moves the build area under a stationary player.
+         */
+        open_packet(&buf, 4);
+        /* Local to this player's OWN window — the build area their client
+         * holds, not whichever window happens to be bound. The ANCHOR, not
+         * raw feet: a rider's build area follows the hull while their feet
+         * stay on deck tiles in the pool, and the add deltas below are
+         * measured from obs — the origin has to be the same frame or every
+         * npc lands offset by the pool gap. Off a deck the anchor IS the
+         * feet. */
+        {
+            int anchor_x = 0;
+            int anchor_z = 0;
+
+            ToriRSServer_PlayerSceneAnchor(srv, player, &anchor_x, &anchor_z);
+            rsab_p1(&buf, anchor_x - ToriRSServer_SceneOrigin(player->zone_x));
+            rsab_p1(&buf, anchor_z - ToriRSServer_SceneOrigin(player->zone_z));
+        }
+        flush(player, &buf, OP_SET_NPC_UPDATE_ORIGIN, 0);
+
+        open_packet(&buf, 4096);
+        rsab_bits(&buf);
+
+        rsab_pbit(&buf, 8, player->tracked_count);
+        for( int i = 0; i < player->tracked_count; i++ )
+        {
+            int slot = player->tracked[i];
+            struct ToriRSServerNpc* npc = &srv->npcs[slot];
+            /* The gap to the npc's FOOTPRINT, and the same measure the adds
+             * below and the ZoneMap query use: keeping and adding have to agree
+             * or an npc is added and removed on alternate ticks. */
+            int view_dx;
+            int view_dz;
+            int in_range;
+
+            ToriRSServer_NpcViewDeltas(npc, player, &view_dx, &view_dz);
+            /*
+             * The generation term catches a slot `npc_spawn` handed to a
+             * different npc since this list was last written (same-tick
+             * despawn + respawn — see `tracked_generation`'s comment). Without
+             * it this branch cannot tell "still the npc I was tracking" from
+             * "something else lives here now" and reads the new occupant as
+             * an ordinary continuation of the old one.
+             */
+            in_range = npc->active && ToriRSServer_WorldNpcVisibleTo(srv, npc, player) &&
+                       npc->obs_level == player->obs_level &&
+                       npc->generation == player->tracked_generation[i] &&
+                       view_dx <= view_tiles && view_dz <= view_tiles;
+
+            /*
+             * `obs_jumped` joins `tele` here, and for the identical reason
+             * (docs/sailing_coverage.csv SAIL-50).
+             *
+             * This section can only say STEP. A deck npc whose hull sailed or
+             * turned has moved in root coordinates without taking one, so
+             * there is nothing truthful to encode — and a step is not merely
+             * imprecise, it desynchronises the client's copy permanently,
+             * since every later delta is measured from a position that never
+             * happened. Remove and re-add restates it absolutely, which is the
+             * same answer PLAYER_INFO reaches for a carried player.
+             */
+            if( !in_range || npc->tele || npc->obs_jumped )
+            {
+                rsab_pbit(&buf, 1, 1);
+                rsab_pbit(&buf, 2, 3); /* remove */
+                /*
+                 * Clearing this is what lets the npc come BACK. `npc_tracked`
+                 * is the "this client already holds it" gate on the
+                 * entering-view scan below; leaving it set on a remove means
+                 * the npc is dropped from the client's list and can never be
+                 * re-added, so the world empties out one npc at a time as
+                 * things wander in and out of range -- a scene that starts
+                 * populated and is bare a few ticks later, with a perfectly
+                 * well-formed packet every tick.
+                 */
+                player->npc_tracked[slot] = 0;
+                ToriRSServer_SlotMapReleaseWhy(
+                    player, slot,
+                    !npc->active                            ? "npc inactive"
+                    : npc->obs_level != player->obs_level   ? "observed plane changed"
+                    : npc->generation != player->tracked_generation[i]
+                        ? "generation changed (slot reused by a different npc)"
+                    : !in_range  ? "out of view range"
+                    : npc->tele  ? "tele (teleport forces re-add)"
+                                 : "projection jumped (its hull sailed or turned "
+                                   "under it — no step can describe that)");
+                continue;
+            }
+            kept_generation[kept_count] = npc->generation;
+            kept[kept_count++] = slot;
+            {
+                int const extended = npc_extended_pending_v5(player, npc, 0);
+
+                if( npc->run_dir >= 0 )
+                {
+                    /* Two tiles this tick — update type 2, two 3-bit
+                     * directions. `playerfollow` is the only mover that fills
+                     * `run_dir`; see `ToriRSServerNpc.run_dir`. */
+                    rsab_pbit(&buf, 1, 1);
+                    rsab_pbit(&buf, 2, 2); /* run */
+                    rsab_pbit(&buf, 3, npc->step_dir);
+                    rsab_pbit(&buf, 3, npc->run_dir);
+                    rsab_pbit(&buf, 1, extended);
+                }
+                else if( npc->step_dir >= 0 )
+                {
+                    rsab_pbit(&buf, 1, 1);
+                    rsab_pbit(&buf, 2, 1); /* walk */
+                    rsab_pbit(&buf, 3, npc->step_dir);
+                    rsab_pbit(&buf, 1, extended);
+                }
+                else if( extended )
+                {
+                    /* "no movement, but something to say about it" -- update
+                     * type 0. Without this an npc that stands still and swings
+                     * has no way to carry its animation. */
+                    rsab_pbit(&buf, 1, 1);
+                    rsab_pbit(&buf, 2, 0);
+                }
+                else
+                {
+                    rsab_pbit(&buf, 1, 0); /* unchanged */
+                }
+                /* Already tracked: neither latch is re-emitted. This branch is
+                 * the one that used to state only the face latch, and left the
+                 * type latch reading whatever was on the stack. */
+                if( extended )
+                    npc_queue_push(queued, &queued_count, slot, 0, 0);
+            }
+        }
+
+        /* The player's OWN zones, not a tile box around them. See
+         * ToriRSServer_ZoneNpcsActive: a raw box reaches outside the build area
+         * near its edge, and an npc the client has no scene for is placed at a
+         * coordinate that does not exist for it. */
+        nearby_count = ToriRSServer_PlayerzonemapNpcs(player, view_tiles, nearby,
+                                         TORIRSSERVER_TRACKED_NPC_MAX);
+        /*
+         * Plus the npcs no zonemap walk could have offered
+         * (docs/sailing_coverage.csv SAIL-50).
+         *
+         * A vessel deck is a map instance in the pool and it is in nobody's
+         * subscription but its riders', so the query above cannot return a
+         * deckhand to a player on the shore however close the boat is. Before
+         * this line every boat in the world sailed past with an empty deck,
+         * and nothing in the packet was malformed while it did.
+         *
+         * Appended rather than merged: the two sets are disjoint (an npc is
+         * filed in exactly one zone, and the observer's own hull is skipped),
+         * and in a world with no live vessel this returns 0 without touching a
+         * zone, so the ordinary case is the ordinary case.
+         */
+        nearby_count += ToriRSServer_PlayerCrossFrameNpcs(
+            player, view_tiles, nearby + nearby_count,
+            TORIRSSERVER_TRACKED_NPC_MAX - nearby_count);
+        for( int i = 0; i < nearby_count; i++ )
+        {
+            int slot = nearby[i];
+            struct ToriRSServerNpc* npc = &srv->npcs[slot];
+            int dx;
+            int dz;
+            int view_dx;
+            int view_dz;
+
+            if( !npc->active || !ToriRSServer_WorldNpcVisibleTo(srv, npc, player) ||
+                player->npc_tracked[slot] )
+                continue;
+            /* Observed against observed. For everything off a deck these are
+             * x/z and this is the arithmetic that was always here; for a
+             * deckhand it is the projected tile, which is the only position
+             * the shore player's build area has a square for. */
+            dx = npc->obs_x - player->obs_x;
+            dz = npc->obs_z - player->obs_z;
+            ToriRSServer_NpcViewDeltas(npc, player, &view_dx, &view_dz);
+            /*
+             * The SAME radius and the SAME measure the high-resolution loop
+             * keeps at, and it has to be. The 6-bit delta could carry +-31, but
+             * an npc added at 20 tiles is out of range on the very next tick, so
+             * it is removed, re-added, removed... every tick, and never renders.
+             * The wire's capacity is not the view distance.
+             */
+            /* The plane, here rather than in the candidate set. The area is a
+             * *subscription* and it spans all four on purpose — a loc change
+             * one storey up still has to reach this client — so the entity
+             * streams, which are single-plane, filter at the point of use.
+             * The OBSERVED plane: a deckhand's own level is a pool storey and
+             * means nothing to a shore player — the hull's is what they share. */
+            if( npc->obs_level != player->obs_level )
+                continue;
+            if( view_dx > view_tiles || view_dz > view_tiles )
+                continue;
+            /*
+             * And what the record can actually say. The deltas written below are
+             * from the npc's ORIGIN, so a footprint in view at 15 puts the
+             * origin as far as 15 + (TORIRSSERVER_NPC_SIZE_MAX - 1); 6 signed bits
+             * stop at 31. The two constants are chosen so this cannot fire —
+             * it is here so that if either moves, a boss goes missing with a
+             * line in the log rather than silently landing 64 tiles away.
+             */
+            if( dx < -32 || dx > 31 || dz < -32 || dz > 31 )
+            {
+                fprintf(stderr,
+                        "torirsserver: npc %d (type %d, size %d) is in view at %d,%d but its "
+                        "origin delta %d,%d does not fit the v5 add; not sent\n",
+                        slot, npc->type, npc->size, npc->obs_x, npc->obs_z, dx, dz);
+                continue;
+            }
+            if( kept_count >= TORIRSSERVER_TRACKED_NPC_MAX )
+                break;
+            adds[add_count++] = slot;
+            player->npc_tracked[slot] = 1;
+            kept_generation[kept_count] = npc->generation;
+            kept[kept_count++] = slot;
+        }
+
+        for( int i = 0; i < add_count; i++ )
+        {
+            int slot = adds[i];
+            int client_slot = ToriRSServer_SlotMapAcquire(player, slot);
+            struct ToriRSServerNpc* npc = &srv->npcs[slot];
+            /* The same measure the range test above admitted it on, and it has
+             * to be — see the candidate query. Observed, so a deckhand is
+             * placed where the hull carries it rather than in the pool. */
+            int dx = npc->obs_x - player->obs_x;
+            int dz = npc->obs_z - player->obs_z;
+
+            int const force_type = npc_add_requires_transformation(npc);
+            int const extended = npc_extended_pending_v5(player, npc, 1) || force_type;
+
+            /*
+             * The client's name for this npc, 16 bits.
+             *
+             * The width is the deob's, not a choice: rev 239's low-resolution
+             * loop reads `byte var20 = 16; ... gBits(var20)` and terminates on
+             * `(1 << 16) - 1`, and its readable-bits guard is `var20 + 12`.
+             * The value is this client's, not the world's — see
+             * struct ToriRSServerPlayerSlotMap.
+             */
+            rsab_pbit(&buf, 16, client_slot);
+            rsab_pbit(&buf, 1, 0); /* no spawn cycle */
+            rsab_pbit(&buf, 1, extended);
+            rsab_pbit(&buf, 6, dx & 0x3f);
+            /*
+             * Facing, and the client applies it ONLY here -- `if (isNew)` in
+             * its own decode. An npc that enters view facing the wrong way
+             * stays that way until it walks, so this is not cosmetic for a boss
+             * that never moves.
+             */
+            rsab_pbit(&buf, 3, npc->face_dir & 7);
+            rsab_pbit(&buf, 6, dz & 0x3f);
+            rsab_pbit(&buf, 1, 1); /* jump: appear on the tile */
+            /*
+             * 14 bits, which is the deob's `gBits(14)` feeding its npc-type
+             * lookup — NOT 16. A config id above 16383 rides in CHANGE_TYPE in
+             * the same packet instead (npc_initial_wire_type), which is the
+             * shim the classic path has always used and which needs no patched
+             * client. Widening this field to 16 is possible — RSProt models it
+             * as `npcInfoBitCount` — but only against a client patched to read
+             * 16, and the deob is the authority here.
+             */
+            rsab_pbit(&buf, TORIRSSERVER_NPC_TYPE_BITS, npc_initial_wire_type(npc));
+            if( extended )
+                npc_queue_push(queued, &queued_count, slot, 1, force_type);
+        }
+
+        /* Encode the byte-aligned tail separately. Whether a sentinel is
+         * needed depends on its exact size, which cannot be inferred from the
+         * number of queued NPCs: a bare zero mask is one byte while SAY,
+         * hitmarks and spotanims are variable-length blocks. */
+        memset(extended_data, 0, sizeof(extended_data));
+        rsab_wrap(&extended_buf, extended_data, sizeof(extended_data));
+        for( int i = 0; i < queued_count; i++ )
+            put_npc_extended_v5(&extended_buf, player, &srv->npcs[queued[i].slot],
+                                queued[i].force_face, queued[i].force_type);
+
+        /*
+         * The terminator, only when the golden client's low-resolution guard
+         * can actually reach it.
+         *
+         * The client's low-resolution loop has two exits and the sentinel is
+         * the second one: it first checks `readableBits() >= 16 + 12` and
+         * returns if the buffer cannot hold another record, and only then reads
+         * a slot and compares it to 0xFFFF. `readableBits()` spans the WHOLE
+         * remaining packet, including the extended-info section, so the sentinel
+         * is what stops it from reading extended-info bytes as another add.
+         *
+         * With nothing after the bit section there is nothing to stop: byte
+         * alignment leaves at most 7 bits, the first check ends the loop, and a
+         * sentinel written anyway is 16 bits the client never consumes. It then
+         * fails its own end-of-packet check -- which is how the unconditional
+         * version was found:
+         *
+         *     Client error: 85,28,74,147,...
+         *     RuntimeException: 145,147
+         *
+         * 145 bytes read of the 147 sent, and the two were the sentinel.
+         *
+         * The guard is not "does extended info exist". It is exactly
+         * `readableBits >= 16 + 12`. With 13 tracked NPCs, one NOMOVE extended
+         * update leaves the bit cursor at 45 and a one-byte mask after three
+         * padding bits: 11 readable bits without a sentinel, but only 27 even
+         * after adding one. The client exits before reading the sentinel and
+         * then decodes the 0xffff sentinel as the mask, producing a framing error on
+         * the literal nine-byte packet. Mirror the guard instead.
+         */
+        if( mock239_npcinfo_tail_needs_sentinel(buf.bit_pos, rsab_len(&extended_buf)) )
+            rsab_pbit(&buf, 16, 0xffff);
+        rsab_bytes(&buf);
+
+        /*
+         * The extended blocks, byte-aligned, in the order the bit section
+         * queued them -- high resolution first, then the entering-view adds.
+         * Nothing on the wire says which npc a block belongs to; the client
+         * replays its own queue, so the two orders have to be the same walk.
+         */
+        rsab_pdata(&buf, extended_data, rsab_len(&extended_buf));
+
+        if( getenv("TORIRSSERVER_NPC_INFO_DEBUG") )
+        {
+            size_t const len = rsab_len(&buf);
+            fprintf(stderr,
+                    "torirsserver: NPC_INFO v5 tracked=%d kept=%d added=%d extended=%d len=%zu hex=",
+                    player->tracked_count, kept_count, add_count, queued_count, len);
+            for( size_t i = 0; i < len; i++ )
+                fprintf(stderr, "%02x", buf.data[i]);
+            fputc('\n', stderr);
+        }
+        flush(player, &buf, OP_NPC_INFO, 2);
+        memcpy(player->tracked, kept, sizeof(int) * (size_t)kept_count);
+        memcpy(
+            player->tracked_generation,
+            kept_generation,
+            sizeof(int) * (size_t)kept_count);
+        player->tracked_count = kept_count;
+        npc_view_radius_update(player, kept_count);
+        return;
+    }
+    open_packet(&buf, 8192);
+    rsab_bits(&buf);
+
+    /* --- tracked npcs, in the client's list order --- */
+    rsab_pbit(&buf, 8, player->tracked_count);
+    for( int i = 0; i < player->tracked_count; i++ )
+    {
+        int slot = player->tracked[i];
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
+        int dx = npc->x - player->x;
+        int dz = npc->z - player->z;
+        /* Level is part of range, the same way it is in `player_in_view`. It
+         * was not, which was invisible while the entering-view scan was flat and
+         * ignored level too; now that the candidates come from the ZoneMap —
+         * which is keyed by level — an npc left tracked across a climb could
+         * never be re-added, only re-encoded forever. */
+        /*
+         * The ORIGIN corner, deliberately, where the v5 encoder above measures
+         * the footprint. This revision's add carries 5-bit signed deltas from
+         * the origin — -16..15, and no room at all for the 15 + (size - 1) a
+         * footprint measure reaches. Keeping a sized npc past what the add can
+         * re-express means it is dropped on the tick it leaves and can never
+         * come back, which is worse than losing it early. Large npcs on the
+         * classic wire want a wider add field, not a wider keep test.
+         */
+        /*
+         * The generation term catches a slot `npc_spawn` handed to a
+         * different npc since this list was last written (same-tick despawn +
+         * respawn — see `tracked_generation`'s comment on the struct). Without
+         * it this branch cannot tell "still the npc I was tracking" from
+         * "something else lives here now" and reads the new occupant as an
+         * ordinary continuation of the old one — including its masks, so a
+         * same-tick hit on the new npc renders on the client's stale entity.
+         */
+        int in_range = npc->active && ToriRSServer_WorldNpcVisibleTo(srv, npc, player) &&
+                       npc->level == player->level &&
+                       npc->generation == player->tracked_generation[i] && dx >= -15 &&
+                       dx <= 15 && dz >= -15 && dz <= 15;
+        int extended = npc_extended_pending(npc);
+
+        /*
+         * `tele` is the npc half of the player section's `place_dirty`, and it
+         * is here for the same reason: this section's four movement ops are
+         * "nothing", one step, two steps, and remove, so a teleport *is* a
+         * remove — and the entering-view loop below re-adds the npc, in the
+         * same packet, at its new tile. Phase 8 refiles the ZoneMap before
+         * anything is encoded, so the scan finds it there.
+         *
+         * Without this the observer's copy stays where the npc was until it
+         * takes a step, and then walks on from the wrong tile — while the
+         * server routes clicks to the tile it is really standing on. That is
+         * an npc answering from somewhere other than where it is drawn.
+         */
+        if( !in_range || npc->tele )
+        {
+            /* Move op 3 removes the npc from the client's list. It is the one
+             * op that does not keep the slot, so it must not be counted into
+             * the new tracked order. */
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 3);
+            player->npc_tracked[slot] = 0;
+            ToriRSServer_SlotMapReleaseWhy(
+                player, slot,
+                !npc->active                  ? "npc inactive"
+                : npc->level != player->level ? "level changed"
+                : npc->generation != player->tracked_generation[i]
+                    ? "generation changed (slot reused by a different npc)"
+                : !in_range ? "out of view range"
+                            : "tele (teleport forces re-add)");
+            continue;
+        }
+
+        kept_generation[kept_count] = npc->generation;
+        kept[kept_count++] = slot;
+        if( npc->run_dir >= 0 )
+        {
+            /* Two tiles this tick — see the v5 encoder above. */
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 2);
+            rsab_pbit(&buf, 3, npc->step_dir);
+            rsab_pbit(&buf, 3, npc->run_dir);
+            rsab_pbit(&buf, 1, extended);
+        }
+        else if( npc->step_dir >= 0 )
+        {
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 1);
+            rsab_pbit(&buf, 3, npc->step_dir);
+            rsab_pbit(&buf, 1, extended);
+        }
+        else if( extended )
+        {
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 0);
+        }
+        else
+        {
+            rsab_pbit(&buf, 1, 0);
+        }
+        if( extended )
+            npc_queue_push(queued, &queued_count, slot, 0, 0);
+    }
+
+    /*
+     * --- npcs entering view ---
+     *
+     * The candidate set comes from the ZoneMap: the npcs standing in the zones
+     * the add radius touches, which is at most 5x5 zones. It used to be every
+     * slot in the world, per player, per tick — the scan that made the npc cap
+     * and the wire's tracked-count field the same number (torirs_server.h).
+     *
+     * The zone query is coarse (a zone is 8 tiles, the radius is 15) so the
+     * exact range test below still decides; what changed is how many npcs it is
+     * asked about.
+     */
+    /* Same query as the v5 path above — the two encoders differ in how they
+     * spell an add, not in who they ask about. The query answers on footprints,
+     * so it can hand this loop a sized npc whose origin is further out than the
+     * 5-bit delta reaches; the origin test below is what turns that down, for
+     * the reason given at the high-resolution loop. */
+    nearby_count = ToriRSServer_PlayerzonemapNpcs(player, TORIRSSERVER_NPC_VIEW_TILES, nearby,
+                                     TORIRSSERVER_TRACKED_NPC_MAX);
+    for( int i = 0; i < nearby_count; i++ )
+    {
+        int slot = nearby[i];
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
+        int dx, dz;
+        if( !npc->active || !ToriRSServer_WorldNpcVisibleTo(srv, npc, player) ||
+            player->npc_tracked[slot] )
+            continue;
+        dx = npc->x - player->x;
+        dz = npc->z - player->z;
+        /* Plane at the point of use — see the v5 path above. */
+        if( npc->level != player->level )
+            continue;
+        if( dx < -TORIRSSERVER_NPC_VIEW_TILES || dx > TORIRSSERVER_NPC_VIEW_TILES ||
+            dz < -TORIRSSERVER_NPC_VIEW_TILES || dz > TORIRSSERVER_NPC_VIEW_TILES )
+            continue;
+        /* The tracked count is 8 bits, so 255 is the ceiling the *stream* has —
+         * nothing to do with how many npcs the world holds. */
+        if( kept_count >= TORIRSSERVER_TRACKED_NPC_MAX )
+            break;
+
+        /* Slot and type at the revision's own widths — 14 and 14 here; this
+         * comment used to say "11-bit type" while the line below wrote
+         * TORIRSSERVER_NPC_TYPE_BITS. Then 5-bit signed deltas from the local
+         * player and 1-bit "extended info follows". No jump bit — unlike the
+         * player stream's new-entity record. */
+        {
+            int force_face = npc->face_entity != -1;
+            int force_type = npc_add_requires_transformation(npc);
+            int extended = npc_extended_pending(npc) || force_face || force_type;
+
+            /* This client's name for the npc, same as the v5 path — the
+             * classic client keys its npc table by this index too, it is just
+             * 14 bits wide instead of 16. */
+            rsab_pbit(&buf, TORIRSSERVER_NPC_SLOT_BITS, ToriRSServer_SlotMapAcquire(player, slot));
+            rsab_pbit(&buf, TORIRSSERVER_NPC_TYPE_BITS, npc_initial_wire_type(npc));
+            rsab_pbit(&buf, 5, dx & 0x1f);
+            rsab_pbit(&buf, 5, dz & 0x1f);
+            rsab_pbit(&buf, 1, extended);
+            if( extended )
+                npc_queue_push(queued, &queued_count, slot, force_face, force_type);
+        }
+        player->npc_tracked[slot] = 1;
+        kept_generation[kept_count] = npc->generation;
+        kept[kept_count++] = slot;
+    }
+
+    rsab_pbit(&buf, TORIRSSERVER_NPC_SLOT_BITS, TORIRSSERVER_NPC_TERMINATOR);
+    rsab_bytes(&buf);
+
+    for( int i = 0; i < queued_count; i++ )
+        put_npc_extended(&buf, player, &srv->npcs[queued[i].slot], queued[i].force_face,
+                         queued[i].force_type);
+
+    flush(player, &buf, OP_NPC_INFO, 2);
+
+    memcpy(player->tracked, kept, sizeof(int) * (size_t)kept_count);
+    memcpy(
+        player->tracked_generation,
+        kept_generation,
+        sizeof(int) * (size_t)kept_count);
+    player->tracked_count = kept_count;
+}
+
+/* ------------------------------------------------------------------ */
+/* Capture                                                             */
+/* ------------------------------------------------------------------ */
+
+void
+ToriRSServer_CaptureBegin(
+    struct ToriRSServer* srv,
+    struct ToriRSServerCapture* capture)
+{
+    ToriRSServer_CaptureReset(capture);
+    srv->capture = capture;
+}
+
+void
+ToriRSServer_CaptureEnd(struct ToriRSServer* srv)
+{
+    srv->capture = NULL;
+}
+
+void
+ToriRSServer_CaptureReset(struct ToriRSServerCapture* capture)
+{
+    capture->count = 0;
+    capture->overflow = 0;
+}
+
+
+int
+ToriRSServer_CaptureFind(
+    const struct ToriRSServerCapture* capture,
+    int opcode,
+    int from)
+{
+    for( int i = from < 0 ? 0 : from; i < capture->count; i++ )
+    {
+        if( capture->packets[i].opcode == opcode )
+            return i;
+    }
+    return -1;
+}
+
+/*
+ * The same search by CANONICAL name, which is what a revision-independent
+ * assertion wants.
+ *
+ * `ToriRSServer_CaptureFind` matches the number that went on the wire, and that
+ * number is different in every revision this server speaks. Most of the
+ * selftest is written in rev-230 numbers — the wire adapter's own note says so
+ * — so those stanzas assert nothing at revision 239: `IF_SETEVENTS` goes out as
+ * 108 while the assertion looks for 47. The skill guide's 102 failures were 24
+ * cells x 4 assertions all missing that way, against a server that had sent
+ * exactly the right packets.
+ *
+ * Not done by translating inside `ToriRSServer_CaptureFind`, which is the obvious
+ * shape and is wrong: a handful of stanzas (`rev239 interface writer bytes`)
+ * stand up a revision-239 player on purpose and their numbers really are 239
+ * numbers. Callers say which they mean.
+ */
+int
+ToriRSServer_CaptureFindNamed(
+    const struct ToriRSServerCapture* capture,
+    int pkt_name,
+    int from)
+{
+    for( int i = from < 0 ? 0 : from; i < capture->count; i++ )
+    {
+        if( capture->packets[i].name == pkt_name )
+            return i;
+    }
+    return -1;
+}
+
+/*
+ * The same ordering test by CANONICAL name.
+ *
+ * `ToriRSServer_CaptureHasSequence` matches wire numbers, which are a different
+ * set per revision — so a sequence written in 230's numbers asserts nothing at
+ * 239, silently, exactly as the single-packet search did.
+ */
+int
+ToriRSServer_CaptureHasSequenceNamed(
+    const struct ToriRSServerCapture* capture,
+    const int* pkt_names,
+    int count)
+{
+    int at = 0;
+
+    for( int i = 0; i < count; i++ )
+    {
+        at = ToriRSServer_CaptureFindNamed(capture, pkt_names[i], at);
+        if( at < 0 )
+            return 0;
+        at++;
+    }
+    return 1;
+}
+
+int
+ToriRSServer_CaptureHasSequence(
+    const struct ToriRSServerCapture* capture,
+    const int* opcodes,
+    int count)
+{
+    int at = 0;
+
+    /* Order matters, adjacency does not: a tick interleaves packets from
+     * several phases, and a test that demanded adjacency would break every time
+     * an unrelated encoder was added. */
+    for( int i = 0; i < count; i++ )
+    {
+        at = ToriRSServer_CaptureFind(capture, opcodes[i], at);
+        if( at < 0 )
+            return 0;
+        at++;
+    }
+    return 1;
+}

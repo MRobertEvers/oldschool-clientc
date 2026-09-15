@@ -1,0 +1,28 @@
+{{Otheruses|def=no|strategies on how to complete the puzzle room|Tombs of Amascut/Strategies#Path of Crondis}}
+{{Infobox Scenery
+|version1 = Normal
+|version2 = Started
+|version3 = Completed
+|name = Path of Crondis
+|image1 = [[File:Path of Crondis (normal).png|250x250px]]
+|image2 = [[File:Path of Crondis (started).png|250x250px]]
+|image3 = [[File:Path of Crondis (completed).png|250x250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Jaltevas Pyramid]]
+|options1 = Enter, Quick-Enter
+|options2 = Enter, Quick-Enter
+|options3 = None
+|examine1 = Walk the Path of Crondis?
+|examine2 = Another path has been started.
+|examine3 = The Path of Crondis has been completed.
+|map = {{Map|x:3541,y:5155|mapID=-1|mtype=pin}}
+|id1 = 46161
+|id2 = 46162
+|id3 = 46163
+}}
+The '''Path of Crondis''' in [[Tombs of Amascut]] leads to the [[Palm of Resourcefulness]] and  [[Zebak]], the guardian of [[Crondis]]. If another path has been entered, the crocodile head is removed to show that the other path is currently being attempted. After the path of Crondis is cleared, the fire disappears. 
+
+{{Tombs of Amascut}}

@@ -1,0 +1,194 @@
+From a849ee0954c85ec5cfd0d5f0cb8c9a6a6b37f2c2 Mon Sep 17 00:00:00 2001
+From: hunt-w9 <agent@local>
+Date: Mon, 24 Aug 2026 23:26:19 -0500
+Subject: [PATCH 3/3] perf(frame): prefetch ladder over the world emit loop
+
+The emit is three random addresses deep per command -- terrain table, scene
+node, scene element -- and each address only exists once the previous load
+returns, so nothing in hardware can guess them. 2,039 cycles a command for a
+few dozen instructions of work is serialized DRAM latency, not work.
+
+Three stages run ahead of the loop at nine, six and three commands, each one
+hop deep, so the three chases overlap instead of queueing. Every address they
+touch is one the emit is about to touch; the stages are hints with no
+architectural effect, and speculating past the end of the command list or onto
+a dead element just warms a line nobody reads.
+---
+ src/render/torirs_frame.c | 112 ++++++++++++++++++++++++++++++++++++++
+ src/world/world.h         |  26 +++++++++
+ 2 files changed, 138 insertions(+)
+
+diff --git a/src/render/torirs_frame.c b/src/render/torirs_frame.c
+index 4d0597fea..99347db00 100644
+--- a/src/render/torirs_frame.c
++++ b/src/render/torirs_frame.c
+@@ -1929,6 +1929,117 @@ frame_only_loc_allows(
+     return false;
+ }
+ 
++/*
++ * Prefetch ladder for the world emit loop.
++ *
++ * Every command is a walk down three random addresses -- the flat terrain
++ * table, the scene's intrusive node, then the scene element itself -- and each
++ * address only exists once the previous load has returned, so the hardware
++ * prefetcher cannot guess any of them. That is why the route costs 2,039
++ * cycles per command on the XP profile while doing a few dozen instructions'
++ * worth of work per command: it is DRAM latency serialized three deep, not
++ * work.
++ *
++ * The answer is not fewer misses, it is overlapping ones. Three stages run
++ * ahead of the emit at different distances, each one hop deep, so while
++ * command i is being written the table line for i+9, the node line for i+6 and
++ * the element lines for i+3 are all in flight. Prescott tracks eight
++ * outstanding loads and never had eight addresses to give it.
++ *
++ * The stages are hints and nothing else. Every address they touch is one the
++ * emit is about to touch anyway; a stage that runs off the end of the command
++ * list, or resolves a command whose element turns out to be dead, has warmed a
++ * line nobody reads. Speculating past the end is the normal case here, not a
++ * contract violation, which is why these return instead of asserting.
++ */
++#define FRAME_EMIT_PF_TABLE 9
++#define FRAME_EMIT_PF_NODE  6
++#define FRAME_EMIT_PF_EL    3
++
++#if defined(__GNUC__)
++#define FRAME_EMIT_PREFETCH(p) __builtin_prefetch((p))
++#else
++#define FRAME_EMIT_PREFETCH(p) ((void)(p))
++#endif
++
++/* The command at `index`, or NULL past the end of the list. */
++static inline struct PaintersElementCommand*
++frame_emit_peek_cmd(struct ToriRS_Frame* frame, int index)
++{
++    assert(frame);
++    assert(frame->painters);
++    if( index >= frame->painters->command_count )
++        return NULL;
++    return &frame->painters->commands[index];
++}
++
++/* The element id a future command will resolve to, -1 if it resolves to none.
++ * Same resolution the emit does, and by this point the table line is warm. */
++static inline int
++frame_emit_peek_element_id(
++    struct ToriRS_Frame* frame,
++    struct PaintersElementCommand* cmd)
++{
++    assert(frame);
++    if( !cmd )
++        return -1;
++    if( cmd->_bf_kind == PNTR_CMD_ELEMENT )
++        return (int)cmd->_entity._bf_entity;
++    if( cmd->_bf_kind == PNTR_CMD_TERRAIN || cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY )
++        return World_TerrainElementAt(
++            frame->world,
++            (int)cmd->_terrain._bf_terrain_x,
++            (int)cmd->_terrain._bf_terrain_z,
++            (int)cmd->_terrain._bf_terrain_y);
++    return -1;
++}
++
++static void
++frame_emit_prefetch_ahead(struct ToriRS_Frame* frame, int index)
++{
++    struct PaintersElementCommand* cmd;
++    struct ToriDraw_IntrusiveList* list;
++    struct ToriDraw_SceneElement* el;
++    int element_id;
++
++    assert(frame);
++    assert(frame->scene);
++
++    list = &frame->scene->elements;
++
++    /* Stage 1 -- the terrain table line. No dependent load at all: the tile
++     * comes straight out of the command's bit fields. */
++    cmd = frame_emit_peek_cmd(frame, index + FRAME_EMIT_PF_TABLE);
++    if( cmd &&
++        (cmd->_bf_kind == PNTR_CMD_TERRAIN || cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY) )
++        World_TerrainElementPrefetch(
++            frame->world,
++            (int)cmd->_terrain._bf_terrain_x,
++            (int)cmd->_terrain._bf_terrain_z,
++            (int)cmd->_terrain._bf_terrain_y);
++
++    /* Stage 2 -- the intrusive node. The table line stage 1 asked for landed
++     * three commands ago, so resolving the id here is a hit. */
++    cmd = frame_emit_peek_cmd(frame, index + FRAME_EMIT_PF_NODE);
++    element_id = frame_emit_peek_element_id(frame, cmd);
++    if( element_id >= 0 && element_id < list->count )
++        FRAME_EMIT_PREFETCH(&list->nodes[element_id]);
++
++    /* Stage 3 -- the element body, two lines of it. The node line is warm, so
++     * the data pointer costs nothing to read here. */
++    cmd = frame_emit_peek_cmd(frame, index + FRAME_EMIT_PF_EL);
++    element_id = frame_emit_peek_element_id(frame, cmd);
++    if( element_id < 0 || element_id >= list->count )
++        return;
++    if( list->nodes[element_id].prev == TORIDRAW_INTRUSIVE_FREE )
++        return;
++    el = (struct ToriDraw_SceneElement*)list->nodes[element_id].data;
++    if( !el )
++        return;
++    FRAME_EMIT_PREFETCH(el);
++    FRAME_EMIT_PREFETCH((const char*)el + 64);
++}
++
+ /*
+  * The world emitter writes every field of the DRAW_MODEL command by hand
+  * rather than clearing the command first (see the note at the stores). This is
+@@ -1973,6 +2084,7 @@ try_emit_world_draw_model(
+     {
+         if( paint_limit >= 0 && frame->painters_index >= paint_limit )
+             break;
++        frame_emit_prefetch_ahead(frame, frame->painters_index);
+         struct PaintersElementCommand* cmd =
+             &frame->painters->commands[frame->painters_index++];
+         int element_id = -1;
+diff --git a/src/world/world.h b/src/world/world.h
+index 242d7d490..c2d646632 100644
+--- a/src/world/world.h
++++ b/src/world/world.h
+@@ -9,6 +9,7 @@
+ #include "engine/world_builder/minimap.h"
+ #include "painters/painters.h"
+ 
++#include <assert.h>
+ #include <stdbool.h>
+ #include <stdint.h>
+ 
+@@ -523,6 +524,31 @@ World_TerrainTileIdx(
+     return x + z * world->_scene_size + level * world->_scene_size * world->_scene_size;
+ }
+ 
++/**
++ * Pull the mirror line for one tile toward the cache without reading it.
++ *
++ * A hint, nothing more: the caller is running ahead of itself and the tile may
++ * be off the map or hold no element at all, which is why an out-of-range tile
++ * is a no-op here rather than an assert. Nothing observable depends on whether
++ * this ran.
++ */
++static inline void
++World_TerrainElementPrefetch(
++    struct World* world,
++    int x,
++    int z,
++    int level)
++{
++    assert(world);
++    if( x < 0 || z < 0 || level < 0 )
++        return;
++    if( x >= world->_scene_size || z >= world->_scene_size || level >= WORLD_MAP_TERRAIN_LEVELS )
++        return;
++#if defined(__GNUC__)
++    __builtin_prefetch(&world->terrain_element_id[World_TerrainTileIdx(world, x, z, level)]);
++#endif
++}
++
+ struct World*
+ World_New(void);
+ 

@@ -179,6 +179,7 @@ def parse_drop_blocks(wikitext: str) -> list[dict]:
         elif lname == "dropsline" and current is not None:
             current["lines"].append({
                 "name": wi.clean_text(params.get("name", "")),
+                "alt": wi.clean_text(params.get("alt", "")),
                 "quantity": wi.clean_text(params.get("quantity", "1")) or "1",
                 "rarity": wi.clean_text(params.get("rarity", "")),
             })
@@ -192,6 +193,17 @@ def select_blocks(blocks: list[dict], target_dropversion: str | None) -> list[di
         matched = [b for b in blocks if b["dropversion"] == target_dropversion]
         if matched:
             return matched
+        # The Wiki's original-four spiritual creature infobox versions use
+        # `dropversion=Regular`, while their shared drop tables are deliberately
+        # untagged beneath the plain `==Drops==` heading.  The Zaros tables on
+        # the same pages are explicitly tagged and live under
+        # `==Drops (Ancient Prison)==`.  Treating the heading title as a literal
+        # dropversion made all twelve classic GWD spiritual NPCs ambiguous even
+        # though the page itself supplies an unambiguous Regular/Zaros split.
+        if target_dropversion == "Regular":
+            regular = [b for b in blocks if b["dropversion"] == "Drops"]
+            if regular:
+                return regular
     # Single-version page (no dropversion field, or nothing matched): take
     # every block that isn't itself tagged with a *different* version's name
     # a heading walk already found. Conservative fallback: all blocks whose
@@ -212,7 +224,10 @@ INT_RE = re.compile(r"^\d+$")
 
 
 def quantity_expr(qty: str) -> str | None:
-    qty = qty.strip()
+    # Notes are separate cache objects, not a different quantity.  Preserve
+    # the note marker for item resolution in build_table, but remove it before
+    # parsing the numeric expression.
+    qty = re.sub(r"\s*\(noted\)\s*$", "", qty.strip(), flags=re.I)
     m = RANGE_RE.match(qty)
     if m:
         lo, hi = int(m.group(1)), int(m.group(2))
@@ -259,7 +274,10 @@ def death_drop_choice(lines: list[dict]) -> dict | None:
             continue
         if line.get("rarity", "").strip().lower() != "always":
             continue
-        gameval = resolve_obj_name(nm)
+        noted = "(noted)" in line["quantity"].lower()
+        gameval = resolve_obj_name(nm, noted=noted)
+        if gameval is None and line.get("alt"):
+            gameval = resolve_obj_name(line["alt"], noted=noted)
         if gameval is None:
             continue
         return {"name": nm, "gameval": gameval, "quantity": line.get("quantity", "1")}
@@ -302,10 +320,13 @@ def build_table(lines: list[dict], death_drop: dict | None = None) -> tuple[list
         # leaving two sets of remains, one of them the wrong species.
         if (not death_drop_taken and death_drop is not None
                 and (line.get("rarity", "").strip().lower() == "always")
-                and resolve_obj_name(nm) == death_drop["gameval"]):
+                and resolve_obj_name(nm, noted="(noted)" in line["quantity"].lower()) == death_drop["gameval"]):
             death_drop_taken = True
             continue
-        gameval = resolve_obj_name(nm)
+        noted = "(noted)" in line["quantity"].lower()
+        gameval = resolve_obj_name(nm, noted=noted)
+        if gameval is None and line.get("alt"):
+            gameval = resolve_obj_name(line["alt"], noted=noted)
         if gameval is None:
             skipped.append(f"{nm}: no obj in configs/all.obj carries this exact name= (item table drift, or the wiki's display text needs cleanup)")
             continue
@@ -372,6 +393,7 @@ def slugify(name: str) -> str:
 
 ALL_OBJ = os.path.join(CONTENT, "configs", "all.obj")
 _OBJ_NAME_INDEX: dict[str, list[str]] | None = None
+_OBJ_CERT_INDEX: dict[str, str] | None = None
 _SUSPECT_GAMEVAL_RE = re.compile(
     r"(^fake_|^dummy|^test|^unused|^old_|^deleted|^roguetrader_|^100guide_|_dum$|^guide_|^tutorial_|_placeholder$)",
     re.IGNORECASE,
@@ -403,7 +425,36 @@ def obj_name_index() -> dict[str, list[str]]:
     return index
 
 
-def resolve_obj_name(display_name: str) -> str | None:
+def obj_cert_index() -> dict[str, str]:
+    """Unnoted gameval -> noted gameval from the object's certlink.
+
+    Note template records inherit their display name at cache-build time and
+    therefore do not carry a literal `name=` in all.obj.  They cannot be found
+    through obj_name_index directly; the unnoted record's certlink is the
+    authoritative symbolic join.
+    """
+    global _OBJ_CERT_INDEX
+    if _OBJ_CERT_INDEX is not None:
+        return _OBJ_CERT_INDEX
+    index: dict[str, str] = {}
+    cur = None
+    block_re = re.compile(r"^\[([A-Za-z0-9_]+)\]$")
+    cert_re = re.compile(r"^certlink=([A-Za-z0-9_]+)$")
+    with open(ALL_OBJ, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            line = line.rstrip("\n")
+            m = block_re.match(line)
+            if m:
+                cur = m.group(1)
+                continue
+            m = cert_re.match(line)
+            if m and cur and not cur.startswith("cert_"):
+                index[cur] = m.group(1)
+    _OBJ_CERT_INDEX = index
+    return index
+
+
+def resolve_obj_name(display_name: str, noted: bool = False) -> str | None:
     """Display name (as it appears in a DropsLine) -> the gameval this table
     should reference. Exact match on the obj's own `name=` field, never a
     slug guess -- 'Water rune' is gameval `waterrune`, not `water_rune`, and
@@ -415,7 +466,10 @@ def resolve_obj_name(display_name: str) -> str | None:
         return None
     clean = [g for g in candidates if not _SUSPECT_GAMEVAL_RE.search(g)]
     pool = clean or candidates
-    return min(pool, key=len)
+    selected = min(pool, key=len)
+    if noted:
+        return obj_cert_index().get(selected)
+    return selected
 
 
 # ---------------------------------------------------------------------------
@@ -614,6 +668,9 @@ def write_group(title: str, results: list[dict]) -> str | None:
             lines.append(f"// covers: {covered}")
         lines.append(f"[label,{g['label']}]")
         lines.append("if (npc_findhero = ^false) {")
+        lines.append("    return;")
+        lines.append("}")
+        lines.append("if (~gwd_death_was_npc_kill = true) {")
         lines.append("    return;")
         lines.append("}")
         lines.extend(g["rs2"])

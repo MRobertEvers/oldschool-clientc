@@ -86,13 +86,18 @@ png_unfilter(
     return true;
 }
 
-bool
-PngDecode_Rgb(
+/* The one decode both entry points share. `keep_alpha` decides only what the
+ * top byte of each output pixel holds -- the chunk walk, the inflate and the
+ * unfilter are the same work either way, and a second copy of them would be a
+ * second thing to get the Paeth predictor wrong in. */
+static bool
+png_decode(
     const void* data,
     int data_size,
     int* out_width,
     int* out_height,
-    uint32_t** out_pixels)
+    uint32_t** out_pixels,
+    bool keep_alpha)
 {
     static const uint8_t signature[8] = { 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n' };
     const uint8_t* bytes = (const uint8_t*)data;
@@ -175,7 +180,10 @@ PngDecode_Rgb(
         for( int col = 0; col < width; col++ )
         {
             const uint8_t* pixel = line + (size_t)col * bytes_per_pixel;
-            pixels[(size_t)row * width + col] =
+            uint32_t alpha = 0;
+            if( keep_alpha )
+                alpha = bytes_per_pixel == 4 ? (uint32_t)pixel[3] : 0xFFu;
+            pixels[(size_t)row * width + col] = (alpha << 24) |
                 ((uint32_t)pixel[0] << 16) | ((uint32_t)pixel[1] << 8) | (uint32_t)pixel[2];
         }
     }
@@ -191,4 +199,26 @@ done:
     free(raw);
     free(idat);
     return ok;
+}
+
+bool
+PngDecode_Rgb(
+    const void* data,
+    int data_size,
+    int* out_width,
+    int* out_height,
+    uint32_t** out_pixels)
+{
+    return png_decode(data, data_size, out_width, out_height, out_pixels, false);
+}
+
+bool
+PngDecode_Argb(
+    const void* data,
+    int data_size,
+    int* out_width,
+    int* out_height,
+    uint32_t** out_pixels)
+{
+    return png_decode(data, data_size, out_width, out_height, out_pixels, true);
 }

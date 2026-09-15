@@ -54,9 +54,13 @@
  * officially-observed active-form flag was discarded. Correcting both makes 20
  * more sources deliberately differ from the older reference. The four extra
  * comparisons (6,487 -> 6,491) are scripts this port now decompiles and upstream
- * did not, so the divergence ceiling moves by 26 in total. */
-#define CS2_EXPECT_MIN_IDENTICAL 6271
-#define CS2_EXPECT_MAX_DIFFERENT 220
+ * did not, so the divergence ceiling moves by 26 in total.
+ *
+ * G15 first recorded 6,271 -> 6,187 for 96 renamed rows. Importing the
+ * canonical rev-239 declarations for the remaining 96 numeric commands moves
+ * another 43 fixture sources into the same name-only bucket: 6,187 -> 6,144. */
+#define CS2_EXPECT_MIN_IDENTICAL 6144
+#define CS2_EXPECT_MAX_DIFFERENT 347
 #define CS2_EXPECT_MIN_DECOMPILED 7467
 
 struct cs2_entry
@@ -363,7 +367,9 @@ main(int argc, char** argv)
     /* Allowed by exact count, not blanket-skipped: a third divergence fails. */
     RSCACHE_CHECK(different <= CS2_EXPECT_MAX_DIFFERENT);
     if( different > 0 && different <= CS2_EXPECT_MAX_DIFFERENT )
-        printf("   ALLOWED %d divergence(s) — see EXCEPTIONS.md G1/G10/G12/G13\n", different);
+        printf(
+            "   ALLOWED %d divergence(s) — see EXCEPTIONS.md G1/G10/G12/G13/G15\n",
+            different);
 
     free(ids);
     for( int i = 0; i < fixture.count; i++ )

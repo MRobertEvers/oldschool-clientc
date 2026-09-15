@@ -1,0 +1,74 @@
+{{External|rs|rsc=Earth wave}}
+{{Infobox Spell
+|name = Earth Wave
+|image = [[File:Earth Wave.png]]
+|release = [[18 March]] [[2002]]
+|update = Latest RuneScape News (18 March 2002)
+|members = Yes
+|level = 70
+|spellbook = Normal
+|type = Combat
+|exp = 40
+|element = Earth
+|damage = 19 or 20
+|cost = {{RuneReq|Earth=7|Air=5|Blood=1}}
+|speed = 5 ticks
+|description = A high level Earth missile
+|anim = [[File:Earth Wave.gif|300px]]
+|sound = [[File:Earth Wave.ogg]]
+}}
+[[File:Earth Wave icon (mobile).png|left]]
+'''Earth Wave''' is an [[Earth spells|earth]]-based [[Wave spells|wave spell]] in the [[standard spellbook]], requiring level 70 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+It is the second-strongest earth spell in the game, with the strongest being [[Earth Surge]].
+
+==Damage==
+Earth Wave's base maximum hit starts at 19 and increases to 20 once the player unlocks [[Fire Wave]] at level 75 Magic.
+{| class="wikitable"
+!{{SCP|Magic|link=yes}} level
+!Highest-level wave spell available
+!{{Plink|Earth Wave}} base maximum hit
+|-
+|{{SCP|Magic|70}}- 74
+|{{Plink|Earth Wave}}
+|19
+|-
+|{{SCP|Magic|75}}+
+|{{Plink|Fire Wave}}
+|20
+|}
+As with all combat spells, Earth Wave's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As an earth-based spell, Earth Wave's maximum hit is also increased against targets that are [[Elemental weakness|weak to earth]].
+
+===Calculator===
+{{Magic damage calculator|Earth Wave|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|tome=earth}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 7
+|Rune2 = air
+|Rune2num = 5
+|Rune3 = blood
+|Rune3num = 1
+|is_offensive = y
+|uses_pages = y
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted surge sack|cost=no}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[wave spell]]s the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

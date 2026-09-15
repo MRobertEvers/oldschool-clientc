@@ -1,0 +1,96 @@
+From 36f242481e94b7e8664ce3bb8de4cf93c5d63ba9 Mon Sep 17 00:00:00 2001
+From: Matt Evers <mrobertevers@gmail.com>
+Date: Mon, 24 Aug 2026 23:14:19 -0500
+Subject: [PATCH 1/3] perf(frame): world emitter writes the DRAW_MODEL command
+ instead of clearing it
+
+The memset(out, 0, sizeof(*out)) ahead of the emit stores compiled to a
+100-byte rep stosd, and on the XP EIP profile that single instruction is 13%
+of ToriRS_FrameNextCommand. Every field of u.model is now stored explicitly;
+a debug build poisons the command first and asserts the fields the clear used
+to be the only writer of.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ src/render/torirs_frame.c | 44 ++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 43 insertions(+), 1 deletion(-)
+
+diff --git a/src/render/torirs_frame.c b/src/render/torirs_frame.c
+index ca7a84f48..4d0597fea 100644
+--- a/src/render/torirs_frame.c
++++ b/src/render/torirs_frame.c
+@@ -1929,6 +1929,27 @@ frame_only_loc_allows(
+     return false;
+ }
+ 
++/*
++ * The world emitter writes every field of the DRAW_MODEL command by hand
++ * rather than clearing the command first (see the note at the stores). This is
++ * the verifier for that: in a debug build the command is filled with a value
++ * no legitimate field can hold, so a store that was never written survives to
++ * the asserts after the block. OPT=1 defines NDEBUG, so the timed binary pays
++ * nothing for it.
++ */
++#define FRAME_EMIT_POISON_I32 ((int)0xCDCDCDCD)
++
++static inline void
++frame_emit_poison_model_cmd(struct ToriRS_RenderCommand* out)
++{
++#ifndef NDEBUG
++    assert(out);
++    memset(out, 0xCD, sizeof(*out));
++#else
++    (void)out;
++#endif
++}
++
+ static bool
+ try_emit_world_draw_model(
+     struct ToriRS_Frame* frame,
+@@ -2074,13 +2095,24 @@ try_emit_world_draw_model(
+             }
+         }
+ 
+-        memset(out, 0, sizeof(*out));
++        /* No memset of the command first. The clear was a `rep stosd` of 100
++         * bytes immediately followed by ~96 bytes of stores that rewrite
++         * nearly all of it, and on the XP EIP profile that one instruction is
++         * 13% of ToriRS_FrameNextCommand (195 of 1,551 in-function samples) --
++         * a short `rep stos` on a Prescott pays ~50 cycles of setup before it
++         * moves a byte. Every field of u.model is written below on every path
++         * instead; frame_emit_poison_model_cmd and the asserts after the
++         * stores are the debug-build verifier that says so. */
++        frame_emit_poison_model_cmd(out);
+         out->kind = TORIRSRC_DRAW_MODEL;
+         out->u.model.model = el->model;
+         out->u.model.position = rel;
+         out->u.model.world_position = el->world_position;
+         out->u.model.element_id = element_id;
+         out->u.model.animation = el->animation;
++        /* The world emitter has no animation index to give; the memset left
++         * this zero and no DRAW_MODEL consumer reads it. */
++        out->u.model.anim_index = 0;
+         out->u.model.anim_frame = el->anim_frame;
+         out->u.model.dynamic = el->dynamic;
+         out->u.model.pickable = true;
+@@ -2096,10 +2128,20 @@ try_emit_world_draw_model(
+         }
+         else
+         {
++            out->u.model.pick_terrain = false;
++            out->u.model.pick_only = false;
+             out->u.model.pick_tile_x = -1;
+             out->u.model.pick_tile_z = -1;
+             out->u.model.pick_tile_level = -1;
+         }
++        /* The fields the memset was the only writer of on at least one path.
++         * A dropped store is a wrong pick tile or a garbage animation index
++         * downstream, not a crash, so it has to be caught here. */
++        assert(out->u.model.anim_index == 0);
++        assert(out->u.model.pickable);
++        assert(out->u.model.pick_tile_x != FRAME_EMIT_POISON_I32);
++        assert(out->u.model.pick_tile_z != FRAME_EMIT_POISON_I32);
++        assert(out->u.model.pick_tile_level != FRAME_EMIT_POISON_I32);
+         return true;
+     }
+ 

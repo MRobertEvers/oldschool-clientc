@@ -1,0 +1,77 @@
+From ca4e5d5654a5377248ea1f2a39cea1a9f860e4e4 Mon Sep 17 00:00:00 2001
+From: Matt Evers <mrobertevers@gmail.com>
+Date: Tue, 25 Aug 2026 02:19:41 -0500
+Subject: [PATCH] perf(sorter): pad the depth-bucket stride off the 1024-byte
+ L1 alias
+
+---
+ 3rd/toridraw/toridraw.c                    |  1 -
+ 3rd/toridraw/toridraw_scene.h              | 20 ++++++++++++++++++++
+ 3rd/toridraw/toridraw_scene_profile_test.c |  4 ++--
+ 3 files changed, 22 insertions(+), 3 deletions(-)
+
+diff --git a/3rd/toridraw/toridraw.c b/3rd/toridraw/toridraw.c
+index b2a4729f7..00e5e9753 100644
+--- a/3rd/toridraw/toridraw.c
++++ b/3rd/toridraw/toridraw.c
+@@ -99,7 +99,6 @@ _Static_assert(
+ 
+ #define TORIDRAW_DEPTH_LEVELS_REFERENCE 1500
+ #define TORIDRAW_DEPTH_LEVELS_16K       16384
+-#define TORIDRAW_FULL_DEPTH_STRIDE 512
+ 
+ 
+ struct ToriDraw_ScratchProfile
+diff --git a/3rd/toridraw/toridraw_scene.h b/3rd/toridraw/toridraw_scene.h
+index 9ba6b828c..44881f2b9 100644
+--- a/3rd/toridraw/toridraw_scene.h
++++ b/3rd/toridraw/toridraw_scene.h
+@@ -8,6 +8,26 @@
+ #include <stddef.h>
+ #include <stdint.h>
+ 
++/* 520, not 512, and the 8 spare slots are the whole point.
++ *
++ * A depth level's slice is depth_stride * sizeof(faceint_t) bytes.  At 512
++ * that is exactly 1024 = 2^10, and on the XP target (Pentium 4 Prescott, 16 KB
++ * 8-way L1D, 64-byte lines, so 32 sets selected by address bits [10:6]) adding
++ * 1024 to an address advances the set index by 16 mod 32.  Every depth level
++ * in the table therefore lands in one of TWO L1D sets, giving the entire
++ * 16384-level table 16 usable cache lines.  Measured on the moving-camera
++ * bench: 793 distinct depth levels are ever touched and a model touches 10.78
++ * of them, writes them in the bucket loop and reads them back in the drain a
++ * few hundred cycles later -- across a window in which only 16 of them can be
++ * L1-resident and any other array mapping to those two sets evicts them.
++ *
++ * 520 makes the slice 1040 bytes, so consecutive depth levels advance the set
++ * index by 16.25 lines and the table spreads over all 32 sets (and over 2048
++ * rather than 128 L2 sets).  Capacity per level goes UP, so no face that
++ * bucketed before can be dropped now; the layout is the only thing that moved.
++ */
++#define TORIDRAW_FULL_DEPTH_STRIDE 520
++
+ #define TORIDRAW_SCENE_FULL          0u
+ #define TORIDRAW_SCENE_SMALL         (1u << 0)
+ #define TORIDRAW_SCENE_LAZY_TEXTURES (1u << 1)
+diff --git a/3rd/toridraw/toridraw_scene_profile_test.c b/3rd/toridraw/toridraw_scene_profile_test.c
+index 4143d9b57..3187218f0 100644
+--- a/3rd/toridraw/toridraw_scene_profile_test.c
++++ b/3rd/toridraw/toridraw_scene_profile_test.c
+@@ -36,7 +36,7 @@ check_profile(const struct ProfileExpectation* expected)
+     CHECK(scene->max_vertices == expected->max_vertices);
+     CHECK(scene->max_faces == expected->max_faces);
+     CHECK(scene->depth_levels == 1500);
+-    CHECK(scene->depth_stride == 512);
++    CHECK(scene->depth_stride == TORIDRAW_FULL_DEPTH_STRIDE);
+     CHECK(scene->priority_stride == expected->priority_stride);
+     CHECK(scene->tmp_depth_faces != NULL);
+     CHECK(scene->tmp_priority_faces != NULL);
+@@ -108,7 +108,7 @@ check_selectable_depth_capacity(void)
+     CHECK(ToriDraw_SceneSize(
+               TORIDRAW_SCENE_DEPTH_16K, TORIDRAW_SCRATCH_BUFFER_LOW_2K) -
+               ToriDraw_SceneSize(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K) ==
+-          (size_t)(16384 - 1500) * (512 + 1) * sizeof(faceint_t));
++          (size_t)(16384 - 1500) * (TORIDRAW_FULL_DEPTH_STRIDE + 1) * sizeof(faceint_t));
+ 
+     /*
+      * Animated QBD reaches a 4,791-unit conservative radius. The sorter adds

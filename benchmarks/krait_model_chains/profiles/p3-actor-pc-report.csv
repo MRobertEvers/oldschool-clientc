@@ -1,0 +1,59 @@
+Cmdline: /data/data/com.torirs.client/simpleperf record -e cpu-cycles:u -c 500000 -p 29171 --duration 20 -o /sdcard/Android/data/com.torirs.client/files/pipeline-sample.data --no-dump-kernel-symbols
+Arch: arm
+Event: cpu-cycles:u (type 0, config 0)
+Samples: 3875
+Event count: 1937500000
+
+Overhead,VaddrInFile,Symbol,EventCount,EventName
+15.54%,0x58137c,trspk_toridraw_gles2_untextured,301000000,cpu-cycles:u
+7.95%,0x58134c,trspk_toridraw_gles2_untextured,154000000,cpu-cycles:u
+6.63%,0x581398,trspk_toridraw_gles2_untextured,128500000,cpu-cycles:u
+6.55%,0x5813f0,trspk_toridraw_gles2_untextured,127000000,cpu-cycles:u
+5.55%,0x58144c,trspk_toridraw_gles2_untextured,107500000,cpu-cycles:u
+4.59%,0x581298,trspk_toridraw_gles2_untextured,89000000,cpu-cycles:u
+4.59%,0x5812b0,trspk_toridraw_gles2_untextured,89000000,cpu-cycles:u
+4.23%,0x581330,trspk_toridraw_gles2_untextured,82000000,cpu-cycles:u
+3.54%,0x5813e4,trspk_toridraw_gles2_untextured,68500000,cpu-cycles:u
+3.07%,0x5812cc,trspk_toridraw_gles2_untextured,59500000,cpu-cycles:u
+2.76%,0x581458,trspk_toridraw_gles2_untextured,53500000,cpu-cycles:u
+2.53%,0x5813fc,trspk_toridraw_gles2_untextured,49000000,cpu-cycles:u
+2.50%,0x58140c,trspk_toridraw_gles2_untextured,48500000,cpu-cycles:u
+2.25%,0x581324,trspk_toridraw_gles2_untextured,43500000,cpu-cycles:u
+2.17%,0x581430,trspk_toridraw_gles2_untextured,42000000,cpu-cycles:u
+2.04%,0x58143c,trspk_toridraw_gles2_untextured,39500000,cpu-cycles:u
+1.96%,0x581380,trspk_toridraw_gles2_untextured,38000000,cpu-cycles:u
+1.70%,0x5813cc,trspk_toridraw_gles2_untextured,33000000,cpu-cycles:u
+1.42%,0x5812a4,trspk_toridraw_gles2_untextured,27500000,cpu-cycles:u
+1.39%,0x5813c0,trspk_toridraw_gles2_untextured,27000000,cpu-cycles:u
+0.93%,0x5812ec,trspk_toridraw_gles2_untextured,18000000,cpu-cycles:u
+0.93%,0x581340,trspk_toridraw_gles2_untextured,18000000,cpu-cycles:u
+0.85%,0x581300,trspk_toridraw_gles2_untextured,16500000,cpu-cycles:u
+0.85%,0x581418,trspk_toridraw_gles2_untextured,16500000,cpu-cycles:u
+0.83%,0x5812c0,trspk_toridraw_gles2_untextured,16000000,cpu-cycles:u
+0.80%,0x5812bc,trspk_toridraw_gles2_untextured,15500000,cpu-cycles:u
+0.80%,0x5812d4,trspk_toridraw_gles2_untextured,15500000,cpu-cycles:u
+0.80%,0x5813d8,trspk_toridraw_gles2_untextured,15500000,cpu-cycles:u
+0.77%,0x5812f8,trspk_toridraw_gles2_untextured,15000000,cpu-cycles:u
+0.77%,0x5813b0,trspk_toridraw_gles2_untextured,15000000,cpu-cycles:u
+0.75%,0x581318,trspk_toridraw_gles2_untextured,14500000,cpu-cycles:u
+0.75%,0x581364,trspk_toridraw_gles2_untextured,14500000,cpu-cycles:u
+0.75%,0x5813a4,trspk_toridraw_gles2_untextured,14500000,cpu-cycles:u
+0.75%,0x5813bc,trspk_toridraw_gles2_untextured,14500000,cpu-cycles:u
+0.70%,0x581424,trspk_toridraw_gles2_untextured,13500000,cpu-cycles:u
+0.67%,0x58133c,trspk_toridraw_gles2_untextured,13000000,cpu-cycles:u
+0.65%,0x5812e0,trspk_toridraw_gles2_untextured,12500000,cpu-cycles:u
+0.65%,0x581358,trspk_toridraw_gles2_untextured,12500000,cpu-cycles:u
+0.65%,0x58138c,trspk_toridraw_gles2_untextured,12500000,cpu-cycles:u
+0.59%,0x581370,trspk_toridraw_gles2_untextured,11500000,cpu-cycles:u
+0.54%,0x581400,trspk_toridraw_gles2_untextured,10500000,cpu-cycles:u
+0.49%,0x58130c,trspk_toridraw_gles2_untextured,9500000,cpu-cycles:u
+0.44%,0x581440,trspk_toridraw_gles2_untextured,8500000,cpu-cycles:u
+0.08%,0x58128c,trspk_toridraw_gles2_untextured,1500000,cpu-cycles:u
+0.05%,0x5812c4,trspk_toridraw_gles2_untextured,1000000,cpu-cycles:u
+0.05%,0x581338,trspk_toridraw_gles2_untextured,1000000,cpu-cycles:u
+0.03%,0x581234,trspk_toridraw_gles2_untextured,500000,cpu-cycles:u
+0.03%,0x581240,trspk_toridraw_gles2_untextured,500000,cpu-cycles:u
+0.03%,0x5812b4,trspk_toridraw_gles2_untextured,500000,cpu-cycles:u
+0.03%,0x581384,trspk_toridraw_gles2_untextured,500000,cpu-cycles:u
+0.03%,0x5813b4,trspk_toridraw_gles2_untextured,500000,cpu-cycles:u
+0.03%,0x581464,trspk_toridraw_gles2_untextured,500000,cpu-cycles:u

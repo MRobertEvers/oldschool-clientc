@@ -278,13 +278,37 @@ main(int argc, char** argv)
             {
                 if( (m->face_textures ? m->face_textures[f] : -1) != ids[i] ) continue;
                 int coord = m->face_texture_coords ? m->face_texture_coords[f] : -1;
-                if( coord < 0 || coord >= m->textured_face_count || !hd->texture_mappings )
+                if( coord < 0 || coord >= m->textured_face_count )
                     continue;
                 int ty = m->texture_render_types ? (m->texture_render_types[coord] & 0xFF) : 0;
-                if( ty < 1 || ty > 3 ) continue;
-                const struct ToriDraw_TexMapping* mp = &hd->texture_mappings[coord];
+                if( ty > 3 ) continue;
+                if( ty >= 1 && !hd->texture_mappings ) continue;
                 int idx[3] = { m->face_indices_a[f], m->face_indices_b[f], m->face_indices_c[f] };
                 float uu[3], vv[3];
+                if( ty == 0 )
+                {
+                    /* Type 0 through the same solve the texpmn kernel runs — the
+                     * P/M/N frame projected along its normal, not the eye-ray
+                     * plane walk. See toridraw_texmap_project_plane. */
+                    int tp = m->textured_p_coordinate[coord], tm = m->textured_m_coordinate[coord],
+                        tn = m->textured_n_coordinate[coord];
+                    if( tp < 0 || tm < 0 || tn < 0 || tp >= m->vertex_count ||
+                        tm >= m->vertex_count || tn >= m->vertex_count )
+                        continue;
+                    struct ToriDraw_TexPlaneFrame frame = {
+                        m->vertices_x[tp], m->vertices_y[tp], m->vertices_z[tp],
+                        m->vertices_x[tm], m->vertices_y[tm], m->vertices_z[tm],
+                        m->vertices_x[tn], m->vertices_y[tn], m->vertices_z[tn],
+                    };
+                    toridraw_texmap_project_plane(
+                        &frame,
+                        m->vertices_x[idx[0]], m->vertices_y[idx[0]], m->vertices_z[idx[0]],
+                        m->vertices_x[idx[1]], m->vertices_y[idx[1]], m->vertices_z[idx[1]],
+                        m->vertices_x[idx[2]], m->vertices_y[idx[2]], m->vertices_z[idx[2]],
+                        uu, vv);
+                    goto have_uv;
+                }
+                const struct ToriDraw_TexMapping* mp = &hd->texture_mappings[coord];
                 int axis = 0;
                 if( ty == 2 )
                 {
@@ -307,6 +331,7 @@ main(int argc, char** argv)
                     else if( ty == 2 ) toridraw_texmap_project_cube(mp, axis, vx, vy, vz, &uu[k], &vv[k]);
                     else toridraw_texmap_project_sphere(mp, vx, vy, vz, &uu[k], &vv[k]);
                 }
+            have_uv:;
                 double ur = fmaxf(fmaxf(uu[0],uu[1]),uu[2]) - fminf(fminf(uu[0],uu[1]),uu[2]);
                 double vr = fmaxf(fmaxf(vv[0],vv[1]),vv[2]) - fminf(fminf(vv[0],vv[1]),vv[2]);
                 double hi = ur > vr ? ur : vr, lo = ur > vr ? vr : ur;

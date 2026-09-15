@@ -680,7 +680,7 @@ python osrsify.py --mode author --preset qbd \
 Two things this deliberately does **not** do: it leaves the npc record alone
 (repointing a form's `model1=`/`model2=` at a new id is an editorial decision,
 not a mechanical one), and it does not re-pack the cache. It prints both as
-the next steps — the second is `make -C src mock230-cache-rs2012`.
+the next steps — the second is `make -C src torirsserver-cache-rs2012`.
 
 ---
 

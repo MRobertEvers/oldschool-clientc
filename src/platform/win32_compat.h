@@ -5,8 +5,8 @@
  * conveniences the embedded rev-230 server reaches for that MinGW's headers
  * don't. Guarded to _WIN32 so it is inert on the SDL/native and web builds.
  *
- * NOTE: this covers only what a header can. dirent's d_type (mock230_content.c)
- * and BSD sockets (mock230_ws.c) need in-file #ifdef _WIN32 branches -- a header
+ * NOTE: this covers only what a header can. dirent's d_type (torirs_server_content.c)
+ * and BSD sockets (torirs_server_ws.c) need in-file #ifdef _WIN32 branches -- a header
  * cannot add a struct member or swap a socket API.
  */
 #ifndef SRC_PLATFORM_WIN32_COMPAT_H

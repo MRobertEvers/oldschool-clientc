@@ -1,0 +1,170 @@
+[[File:Zalcano's prison.png|thumb|280px|An overview of Zalcano's prison. To the west, the blue altar. To the east, the red furnace. In the corners, the four rock formations.]]
+==General info==
+*The official world for North America is '''World 378''', while the official world for Germany is '''World 375'''.
+*To know the minimum amount of [[tephra]] each player on your team will need to mine, divide 30 by the number of players in the room, rounding up, as each [[imbued tephra]] deals ~5 damage (~15 when standing on a blue symbol), and her armour has 300 hitpoints.
+*The optimal team size to maximise loot whilst still killing Zalcano consistently in two phases is 5.
+*3-man teams can also be ''highly'' effective. While slower on average than larger team sizes, with skilled enough teammates, you will still bring down Zalcano in three phases most of the times. This renders it not much slower than the larger teams, while offering a significantly higher individual drop rate for those chasing the [[Crystal tool seed]] (~1/615 compared to ~1/820 or worse for 4-man or above).
+*There are several clan chats available to find worlds with optimum group sizes.
+*Big rocks will fall from the ceiling quite often, dealing ~40 damage, if not dodged by walking to a different tile. They are telegraphed by debris falling down, indicating where it'll fall. Watch out for these when you're standing still, or running to a place where other players are standing still.
+*Zalcano will spawn orange/blue [[demonic symbol]]s occasionally. Running over an orange symbol deals more damage the longer it has been active, whilst also lowering your run energy. Orange symbols hit up to 26 damage and should be avoided when running around the room. The blue symbols boost damage and accuracy when throwing imbued tephra.
+*Speaking to [[Rhiannon]] allows players to toggle between resource rewards and increased experience. Toggling resources off still rolls for unique and pet rewards.
+** If resource drops are '''enabled''', players can expect to get roughly 13,500 [[Mining]], 3,000 [[Smithing]] and 1,500 [[Runecraft]] experience per hour when killing Zalcano efficiently.{{Fact|Needs re-testing, no longer accurate since Project Rebalance changes, also differentiate between solos and 3-5 man teams}}
+** If resource drops are '''disabled''', players can expect to get an additional ~50,000 Mining experience per hour.
+{{clear}}
+
+==Transportation==
+The fastest route to travel to Zalcano is by using a [[teleport crystal]] or its [[Eternal teleport crystal|eternal counterpart]]. Other ways include using a spirit tree to [[Prifddinas]] or a [[teleport to house]] with your house location in Prifddinas or a [[scroll of redirection]] on a [[teleport to house (tablet)|tablet]].
+{|
+|{{Map|mtype=pin|3281,6058|mapID=29|align=left|caption=The location of the teleport platform to Zalcano's lair}}
+|}
+{{LocTableHead}}
+{{LocLine
+|name = Zalcano
+|location = Volcanic caverns beneath [[Prifddinas]]
+|levels = 336
+|members = Yes
+|mapID = -1
+|plane = 0
+|x:3031,y:6048
+|mtype = pin
+|leagueRegion = Tirannwn
+}}
+{{LocTableBottom}}
+
+==Equipment==
+{{Recommended equipment
+| style = Mining
+| head1 = {{plink|Graceful hood}}<ref name=weight group="fn">Highest weight reduction</ref><ref name=graceful group="fn">Each piece of the [[Graceful outfit]] increases run energy restoration rate by 3-4% depending on the item.</ref>
+| head2 = {{plink|Prospector helmet}}
+| head3 = {{plink|Mitre|txt= Any mitre|pic=Saradomin mitre}}<ref name=prayer group="fn"/>
+| head4 = {{plink|Helm of neitiznot}}<ref name=prayer group="fn"/>
+| neck1 = {{plink|Dragonbone necklace}}/{{plink|Bonecrusher necklace}}<ref name=prayer group="fn">Maximises prayer bonus</ref>
+| neck2 = {{plink|Stole|pic=Guthix stole}}<ref name=prayer group="fn"/>
+| neck3 = {{plink|Holy symbol}} / {{plink|Unholy symbol}}<ref name=prayer group="fn"/>
+| cape1 = {{plink|Max cape}}<ref group="fn">Combines the Mining, Hitpoints and Agility capes' perks</ref>
+| cape2 = {{plink|Mining cape(t)}}<ref name=doubleore group="fn">Gives a chance to mine two tephra at once</ref>
+| cape3 = {{plink|Hitpoints cape(t)}} > {{plink|Hitpoints cape}}<ref name=health group="fn">Increases health regen</ref>
+| cape4 = {{plink|Agility cape(t)}} / {{plink|Graceful cape}}<ref name=graceful group="fn">Each piece of the [[Graceful outfit]] increases run energy restoration rate by 3-4% depending on the item.</ref> / {{plink|Spottier cape}}<ref name=weight group="fn"/>
+| cape5 = {{plink|Soul cape}}<ref name=prayer group="fn"/>
+| body1 = {{plink|Varrock armour 4}}<ref name=doubleore group="fn"/>
+| body2 = {{plink|Varrock armour 3}}<ref name=doubleore group="fn"/>
+| body3 = {{plink|Varrock armour 2}} / {{plink|Varrock armour 1}}
+| body4 = {{plink|Graceful top}}<ref name=weight group="fn"/><ref name=graceful group="fn"/>
+| body5 = {{plink|Prospector jacket}}
+| legs1 = {{plink|Graceful legs}}<ref name=weight group="fn"/><ref name=graceful group="fn"/>
+| legs2 = {{plink|Prospector legs}}
+| legs3 = {{plink|Zealot's robe bottom}}<ref name=prayer group="fn"/>
+| weapon1 = {{plink|Crystal pickaxe}}
+| weapon2 = {{plink|Dragon pickaxe}} / {{plink|Infernal pickaxe}}
+| weapon3 = {{plink|Rune pickaxe}}
+| shield1 = {{Plink|Elysian spirit shield}}
+| shield2 = {{plink|God book|txt= Any god book|pic=Book of Balance}}<ref name=prayer group="fn"/>
+| ammo1 = {{plink|Rada's blessing 4}}<ref name=prayer group="fn"/> /<br>{{plink|Ghommal's lucky penny}}<ref group="fn">If using an infernal pickaxe, crystal pickaxe, celestial ring, or celestial signet</ref>
+| ammo2 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing|pic=Rada's blessing 3|txt=Rada's blessings}}<ref name=prayer group="fn"/>
+| hands1 = {{plink|Regen bracelet}}<ref name=health group="fn"/>
+| hands2 = {{plink|Graceful gloves}}<ref name=graceful group="fn"/>
+| hands3 = {{plink|Penance gloves}}<ref name=weight group="fn"/>
+| hands4 = {{plink|Holy wraps}}<ref name=prayer group="fn"/>
+| feet1 = {{Plink|Devout boots}}<ref name=prayer group="fn"/>
+| feet2 = {{plink|Graceful boots}}<ref name=graceful group="fn"/>
+| feet3 = {{Plink|Holy sandals}}/{{Plink|Holy moleys}}<ref name=prayer group="fn"/>
+| feet4 = {{plink|Boots of lightness}}<ref name=weight group="fn"/>
+| feet5 = {{plink|Prospector boots}}
+| ring1 = {{plink|Celestial signet}}/{{plink|Celestial ring}}<ref name=Signet group="fn">Signet only necessary if crystal pickaxe is worn.</ref>
+| ring2 = {{plink|Ring of endurance}}<ref name=Endurance group="fn">Reduces run energy drain.</ref>
+| ring3 = {{plink|Ring of the gods (i)}}<ref name=prayer group="fn"/>
+| ring4 = {{plink|Ring of suffering (i)}}<ref name=prayer group="fn"/>
+| ring5 = {{plink|Explorer's ring|pic=Explorer's ring 4}}<ref name=prayer group="fn"/>
+| shield3 = {{plink|Falador shield 4}}<ref name=prayer group="fn"/> / {{plink|Antler guard}}
+| shield4 = {{plink|Book of the Dead}}<ref name=prayer group="fn"/>
+}}
+
+{{Equipment
+|align = right
+|head = Graceful hood
+|cape = Hitpoints cape(t)
+|neck = Dragonbone necklace
+|ammo = Rada's blessing 4
+|weapon = Crystal pickaxe
+|torso = Varrock armour 4
+|legs = Graceful legs
+|shield = Falador shield 4
+|gloves = Regen bracelet
+|boots = Graceful boots
+|ring = Celestial signet
+}}
+*The [[Varrock armour]] can give multiple tephra per mine action.
+**Alternatively, full [[graceful]] can be worn for the full stamina regeneration boost for players without access to Varrock armour. This permits the player to use a [[god book]], as the added weight will be negated.
+**Health regenerating equipment, such as the [[hitpoints cape]] and [[regen bracelet]] can be used to extend trips.
+**Wearing the [[prospector kit]] with Varrock armour will increase Mining experience, although experience gains are fairly low during this activity.
+*In the ammo slot, [[Rada's blessing 4]] gives +2 prayer bonus. Any other [[blessing]] gives +1.
+*Bring the best [[pickaxe]] you can wield. This will increase the rate at which you mine Tephra, and add +1 damage if Dragon/Infernal, or +2 damage if Crystal.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1267891668407201798|date=2 June 2020|archiveurl=https://reldo.runescape.wiki/i/102255|archivedate=3 August 2020}}
+**If using the [[dragon pickaxe|dragon]] or [[crystal pickaxe]] [[special attack]], [[prayer bonus]] gear can be worn along with using the [[preserve]] prayer to maintain the +3 Mining boost.
+**For the necklace slot, a [[dragonbone necklace]] provides the highest prayer bonus. [[Stole]]s are the second best option. A [[Phoenix necklace]] might be useful to restore some hitpoints if you are low on health.
+**For gloves, the [[regen bracelet]] is a suitable choice for health regeneration. An alternative is [[holy wraps]] for prayer bonus.
+*Both the charged [[celestial ring]] and [[celestial signet]] can give multiple tephra per mine action, though as with all other suitable ore, a charge will be lost from the ring whether or not additional tephra is mined. Uncharged, the ring/signet still provides its invisible mining boost.
+
+;Footnotes
+<references group="fn"/>
+
+==Inventory==
+{{Inventory
+|align = right|eternal teleport crystal|stamina potion(4)|stamina potion(4)|stamina potion(4)|Saradomin brew|Saradomin brew|Saradomin brew|Saradomin brew|Saradomin brew|Saradomin brew|Saradomin brew|Saradomin brew||||||||||||||||
+}}
+*1-3 [[stamina potions]] (Note: may not be necessary depending on your Agility level or the number of players).
+*An [[eternal teleport crystal]] or a regular [[teleport crystal]] to teleport back to [[Prifddinas]] should you die. You can also speak to [[Crefydd]], who can be found in the centre of [[Prifddinas]] on the {{FloorNumber|uk=1}}, and set your [[respawn point]] to Prifddinas for free.
+*Some empty slots for tephra/loot.
+*The remaining slots should be [[Saradomin brew]]s, [[summer pie]]s or the food of your choosing. If you pay enough attention, you shouldn't need too much food.
+*Some players opt to carry a rune pouch to store the rune drops, saving inventory space for additional tephra.
+
+==Making imbued tephra==
+[[File:Mining glowing rock formation.png|thumb|280px|A player mining a glowing rock formation. The falling debris above the player indicates that a boulder is about to fall on top them.]]
+In order to remove [[Zalcano]]'s armour, and mine her when it's removed, players must make imbued tephra and throw this at her.
+*First, mine the glowing rock formation in one of the four corners of the prison, this will provide you with tephra. The non-glowing rock formations give tephra at a vastly reduced rate, so always mine from the glowing ones.
+**When Zalcano first spawns, the rock formation in the north-east corner has the highest chance of glowing. If not north-east, it can spawn in any of the other corners. Previously, it could not spawn in the south-west at the beginning of the fight.
+**Watch out for Zalcano targeting the glowing rock with a magic attack, as this will make the rock explode, dealing ~30 damage to anyone still standing next to it. Another rock will start glowing instantly. Relocate to this one if you haven't acquired enough tephra yet.
+*Secondly, at the furnace on the eastern side of the prison, refine your tephra into [[refined tephra]].
+*Thirdly, at the altar on the western side of the prison, imbue your refined tephra into imbued tephra.
+*Finally, attack Zalcano.
+
+==Attacking Zalcano==
+[[File:Fighting Zalcano.png|thumb|280px|Throwing imbued tephra while standing under a blue demonic symbol will increase the player's accuracy and damage.]]
+*Imbued tephra does not need to be equipped in order to be used.
+*When Zalcano spawns orange/blue demonic symbols, standing in the blue ones will greatly boost damage and accuracy when throwing the tephra.
+*Saving tephra until Zalcano spawns the blue symbols will allow them to be used more effectively, eliminating the time-consuming process of creating more.
+<br/>When determining whether to throw remaining tephra or save them, multiply the number of remaining tephra by 15 and number of players in battle. If this number is close to Zalcano's remaining armour hitpoints, it may be worthwhile to save the tephra.
+*When Zalcano fires her magic attack at a wall instead of a glowing rock formation, a golem possessing 14 [[hitpoints]] spawns, healing Zalcano for 50 armour (or a percentage thereof if it has been damaged).
+**In larger teams (8+ players), the golem can be safely ignored.
+**In smaller teams, the golem can be killed by throwing imbued tephra at it. When killed, it drops a stack of 16-24 imbued tephra to one of the players that attacked it. If a player picks these up, any remaining tephra can be thrown at Zalcano as these additional tephra will result in that player destroying her armour eventually.
+*When her armour is depleted, Zalcano drops to the floor and becomes vulnerable.
+
+==Mining Zalcano==
+[[File:Mining Zalcano.png|thumb|280px|Two players mining Zalcano after breaking her stone armour.]]
+*Stand near to Zalcano when her armour's hitpoints are approaching zero, as this will let you start mining her faster.
+*Do not walk under her, as this will result in receiving approximately 7 damage per tick.
+*After enough time has passed (a random number between 12-16 seconds).
+**Her armour resets to 300 hitpoints.
+**A shock wave destroys all remaining tephra. Don't start mining before this happens, or your freshly mined tephra will also get destroyed.
+**Anyone standing next to her will be tossed a few tiles away, and be stunned for 1-2 ticks, receiving approximately 10 damage.
+*Go back to the first part and do it all over, until her hitpoints reach zero!
+
+==List of Zalcano's attacks==
+Zalcano has six different attacks that the player must watch out for as they attempt to take on the stone demon. Each of the attacks are performed at random intervals throughout the fight.
+
+*Zalcano stomps the ground, causing boulders to fall from the ceiling. These can be avoided by moving at least one tile. Boulders are easily spotted by checking for falling debris/shadows on the floor, which will be followed by the falling boulder. Players who are hit by these can take 40+ damage.
+*Zalcano summons blue and orange demonic symbols spread around the room.
+**Touching the blue demonic symbols has no negative effect, rather, when attacking Zalcano with imbued tephra, it will greatly increase the player's accuracy and damage.
+**Touching the orange symbols will deal more damage the longer they've been active, up to 26, whilst also lowering your run energy. (Including in modes with unlimited run energy, such as [[Leagues]])
+***There are several patterns in which symbols will appear, chosen at random. 2-5 of the symbols that appear will be blue, and the rest will be orange. It is random which symbols will be blue.
+*Zalcano fires a red ball of energy towards a wall in the prison. This summons a golem that will, if it reaches her, restore her armour's health based on the health of the golem.
+**If the golem is at full health, it will restore 50 hitpoints towards her armour.
+**It is possible for a player to damage the golem by throwing imbued tephra at it. The golem drops 16-24 imbued tephra when killed.
+*Zalcano will fire an orange ball of energy at the current glowing red rock formation to deactivate it. If a player is standing near the rock formation when this happens, they will take up to 28 damage. These can be avoided by walking away from the rock. A different rock will start glowing immediately.
+*After Zalcano has fallen and enough time has passed, or players have caused enough damage, she will rise again. If any players are standing next to her when this occurs, she creates a shock wave that pushes them away, dealing ~10 damage to them. All tephra are destroyed as well.
+*Zalcano targets all players within the prison with a barrage of small pebbles. These are unavoidable, but players will only take ~5 damage.
+
+==References==
+{{Reflist}}
+
+{{Zalcano}}
+[[Category:Strategies]]

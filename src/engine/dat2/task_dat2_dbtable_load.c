@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* DBTABLE config group (config kind 39). Same shape as the DBROW load task: read
  * the whole config group through the split-group LRU, find the file whose id is
@@ -48,15 +49,14 @@ Task_Dat2DbTableLoad_Run(
 
     if( !task->group )
     {
-        fprintf(
-            stderr, "Failed to decode dat2 dbtable config group for table %d\n", task->table_id);
+        TORIRS_ERR("Failed to decode dat2 dbtable config group for table %d\n", task->table_id);
         PT_EXIT(&task->pt);
     }
 
     pos = Dat2Group_IndexOf(task->group, task->table_id);
     if( pos < 0 )
     {
-        fprintf(stderr, "Failed to find dat2 dbtable %d in config group\n", task->table_id);
+        TORIRS_ERR("Failed to find dat2 dbtable %d in config group\n", task->table_id);
         PT_EXIT(&task->pt);
     }
 

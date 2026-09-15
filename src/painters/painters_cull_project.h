@@ -22,7 +22,7 @@ painters_cull_project(
     void* user);
 
 /** Convenience: bake with toridraw projection + trig callbacks.
- *  camera_cot16 is the resolved projection multiplier (toridraw_proj_cot16). */
+ *  camera_cot16 is the resolved projection multiplier (toridraw_projection_cot16). */
 struct PaintersCullMap*
 painters_cullmap_build_toridraw(
     int radius,

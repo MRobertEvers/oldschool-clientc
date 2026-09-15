@@ -1,0 +1,43 @@
+{{Infobox Item
+|name = Jewel of the sun
+|image = [[File:Jewel of the sun.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Attach, Inspect, Drop
+|examine = A jewel with a symbol of the sun etched upon it that radiates with power.
+|value = 300000
+|weight = 0.951
+|id = 27289
+|leagueRegion = Desert
+}}
+[[File:Jewel of the sun detail.png|left|100px]]
+The '''Jewel of the sun''' is an untradeable jewel that can be obtained as a reward from the [[Tombs of Amascut]].
+
+The jewel can be attached to the [[keris partisan]] to create the [[keris partisan of the sun]], whose special attack can only be used within the Tombs of Amascut.
+
+==Products==
+{{Uses material list|Jewel of the sun}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Item sources==
+{{Drop sources|Jewel of the sun}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 September 2022
+|update = Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas
+|change = Players will no longer obtain duplicate keris partisan jewels from the reward chest, unless all four have been obtained once.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}
+[[Category:Collection log items]]

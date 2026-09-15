@@ -1,0 +1,294 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Plank Make
+|image = [[File:Plank Make.png]]
+|release = [[15 May]] [[2007]]
+|update = Dream Mentor
+|members = Yes
+|level = 86
+|spellbook = Lunar
+|type = Utility
+|exp = 90
+|cost = {{RuneReq|Astral=2|Nature=1|Earth=15}}<sup></sup>{{plinkp|Coins|pic=Coins 25}}
+|speed = 3 ticks (6 on autocast)<sup style="border-bottom:1px black dotted" title="The first plank is made on the tick the spell is initially cast, the second plank 5 ticks later, and every plank after that is made with a 6 tick delay.">?</sup>
+|quest = [[Dream Mentor]]
+|description = Turn logs into planks
+|anim = [[File:Plank Make.gif|180px]]
+|sound = [[File:Plank Make.ogg]]
+}}
+[[File:Plank Make icon (mobile).png|left]]
+'''Plank Make''' is a [[Lunar spellbook|Lunar spell]] that requires level 86 [[Magic]] and completion of the [[Dream Mentor]] [[Quests|quest]]. It will convert '''one''' [[Logs|log]] that can normally be converted at the [[sawmill]] into a [[plank]] of the same type, costing 70% of the [[coins]] that the [[sawmill operator]] would normally charge.
+
+Plank Make may be cast once every three game [[tick]]s, or 1.8 seconds, granting 90 Magic experience per cast. Including banking time, up to about 1,850 Plank Makes may be cast per hour with optimal rates, giving up to about 166,000 Magic experience per hour. People generally use Plank Make not to make money by making planks, but rather to train [[Magic]], resulting in faster experience than casting [[High Level Alchemy]]. 
+
+Players can also let the spell automatically cast, resulting in a new plank being converted every 3.6 seconds, and giving up to 90,000 experience per hour with minimal effort.
+
+Casting this spell 20 times on [[mahogany logs]] within the Varrock sawmill is a requirement for the elite [[Varrock Diary]].
+
+When the player casts Plank Make while having [[Sawmill voucher|sawmill vouchers]] in their inventory, an extra plank is made per log. This does not work for [[sawmill coupon|sawmill coupons]] or if you do not have empty inventory spaces.
+
+==Spell information==
+
+===Cost comparison===
+The cost to convert logs is reduced, but this savings is often negated by the rune cost of the spell.
+{| class="wikitable"
+! colspan="2" rowspan="2" |Log 
+! colspan="2" rowspan="2" |Plank
+! colspan="2" | Cost in [[coins]]
+|-
+!Plank Make
+![[Sawmill]]
+|-
+|{{Plinkt|Logs}}
+|{{Plinkt|Plank}}
+|{{coins|70}}
+|{{coins|100}}
+|-
+|{{Plinkt|Oak logs}} 
+|{{Plinkt|Oak plank}}
+|{{coins|175}}
+|{{coins|250}}
+|-
+|{{Plinkt|Teak logs}}
+|{{Plinkt|Teak plank}}
+|{{coins|350}}
+|{{coins|500}}
+|-
+|{{Plinkt|Mahogany logs}}
+|{{Plinkt|Mahogany plank}}
+|{{coins|1050}}
+|{{coins|1500}}
+|-
+|{{plinkt|Camphor logs}}
+|{{plinkt|Camphor plank}}
+|{{coins|1750}}
+|{{coins|2500}}
+|-
+|{{plinkt|Ironwood logs}}
+|{{plinkt|Ironwood plank}}
+|{{coins|3500}}
+|{{coins|5000}}
+|-
+|{{plinkt|Rosewood logs}}
+|{{plinkt|Rosewood plank}}
+|{{coins|5250}}
+|{{coins|7500}}
+|}
+
+===Cost per plank===
+The below cost analysis assumes the use of a [[elemental staves|staff]] that supplies earth runes.
+{| class="wikitable"
+! colspan="2" |Item
+!Materials Required
+!Material Cost
+!Profit/Loss
+!GP/XP
+!Sawmill Voucher (optional)
+!Sawmill Voucher Profit/Loss
+|-
+|{{plinkt|Plank}}
+|{{RuneReq|Nature=1|Astral=2}} {{Plinkp|Logs}} {{Coins|70}}
+|{{Coins|{{GEP|Logs}}+{{GEP|Nature rune}}+{{GEP|Astral rune|2}}+70}} 
+|{{Coins|{{GEP|Plank}}-{{GEP|Logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-70}}
+|{{Coins|({{GEP|Plank}}-{{GEP|Logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-70)/90}}
+|{{Plinkp|Sawmill voucher}} ({{Coins|{{GEP|Sawmill voucher}}}})
+|{{Coins|{{GEP|Plank}}+{{GEP|Plank}}-{{GEP|Logs}}-{{GEP|Sawmill voucher}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-70}}
+|-
+|{{plinkt|Oak plank}}
+|{{RuneReq|Nature=1|Astral=2}} {{Plinkp|Oak logs}} {{Coins|175}}
+|{{Coins|{{GEP|Oak logs}}+{{GEP|Nature rune}}+{{GEP|Astral rune|2}}+175}}
+|{{Coins|{{GEP|Oak plank}}-{{GEP|Oak logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-175}}
+|{{Coins|({{GEP|Oak plank}}-{{GEP|Oak logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-175)/90}}
+|{{Plinkp|Sawmill voucher}} ({{Coins|{{GEP|Sawmill voucher}}}})
+|{{Coins|{{GEP|Oak plank}}+{{GEP|Oak plank}}-{{GEP|Oak logs}}-{{GEP|Sawmill voucher}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-175}}
+|-
+|{{plinkt|Teak plank}}
+|{{RuneReq|Nature=1|Astral=2}} {{Plinkp|Teak logs}} {{Coins|350}}
+|{{Coins|{{GEP|Teak logs}}+{{GEP|Nature rune}}+{{GEP|Astral rune|2}}+350}}
+|{{Coins|{{GEP|Teak plank}}-{{GEP|Teak logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-350}}
+|{{Coins|({{GEP|Teak plank}}-{{GEP|Teak logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-350)/90}}
+|{{Plinkp|Sawmill voucher}} ({{Coins|{{GEP|Sawmill voucher}}}})
+|{{Coins|{{GEP|Teak plank}}+{{GEP|Teak plank}}-{{GEP|Teak logs}}-{{GEP|Sawmill voucher}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-350}}
+|-
+|{{plinkt|Mahogany plank}}
+|{{RuneReq|Nature=1|Astral=2}} {{Plinkp|Mahogany logs}} {{Coins|1050}}
+|{{Coins|{{GEP|Mahogany logs}}+{{GEP|Nature rune}}+{{GEP|Astral rune|2}}+1050}}
+|{{Coins|{{GEP|Mahogany plank}}-{{GEP|Mahogany logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-1050}}
+|{{Coins|({{GEP|Mahogany plank}}-{{GEP|Mahogany logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-1050)/90}}
+|{{Plinkp|Sawmill voucher}} ({{Coins|{{GEP|Sawmill voucher}}}})
+|{{Coins|{{GEP|Mahogany plank}}+{{GEP|Mahogany plank}}-{{GEP|Mahogany logs}}-{{GEP|Sawmill voucher}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-1050}}
+|-
+|{{plinkt|Camphor plank}}
+|{{RuneReq|Nature=1|Astral=2}} {{Plinkp|Camphor logs}} {{Coins|1750}}
+|{{Coins|{{GEP|Camphor logs}}+{{GEP|Nature rune}}+{{GEP|Astral rune|2}}+1750}}
+|{{Coins|{{GEP|Camphor plank}}-{{GEP|Camphor logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-1750}}
+|{{Coins|({{GEP|Camphor plank}}-{{GEP|Camphor logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-1750)/90}}
+|{{Plinkp|Sawmill voucher}} ({{Coins|{{GEP|Sawmill voucher}}}})
+|{{Coins|{{GEP|Camphor plank}}+{{GEP|Camphor plank}}-{{GEP|Camphor logs}}-{{GEP|Sawmill voucher}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-1750}}
+|-
+|{{plinkt|Ironwood plank}}
+|{{RuneReq|Nature=1|Astral=2}} {{Plinkp|Ironwood logs}} {{Coins|3500}}
+|{{Coins|{{GEP|Ironwood logs}}+{{GEP|Nature rune}}+{{GEP|Astral rune|2}}+3500}}
+|{{Coins|{{GEP|Ironwood plank}}-{{GEP|Ironwood logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-3500}}
+|{{Coins|({{GEP|Ironwood plank}}-{{GEP|Ironwood logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-3500)/90}}
+|{{Plinkp|Sawmill voucher}} ({{Coins|{{GEP|Sawmill voucher}}}})
+|{{Coins|{{GEP|Ironwood plank}}+{{GEP|Ironwood plank}}-{{GEP|Ironwood logs}}-{{GEP|Sawmill voucher}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-3500}}
+|-
+|{{plinkt|Rosewood plank}}
+|{{RuneReq|Nature=1|Astral=2}} {{Plinkp|Rosewood logs}} {{Coins|5250}}
+|{{Coins|{{GEP|Rosewood logs}}+{{GEP|Nature rune}}+{{GEP|Astral rune|2}}+5250}}
+|{{Coins|{{GEP|Rosewood plank}}-{{GEP|Rosewood logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-5250}}
+|{{Coins|({{GEP|Rosewood plank}}-{{GEP|Rosewood logs}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-5250)/90}}
+|{{Plinkp|Sawmill voucher}} ({{Coins|{{GEP|Sawmill voucher}}}})
+|{{Coins|{{GEP|Rosewood plank}}+{{GEP|Rosewood plank}}-{{GEP|Rosewood logs}}-{{GEP|Sawmill voucher}}-{{GEP|Nature rune}}-{{GEP|Astral rune|2}}-5250}}
+|}
+
+==Training==
+Players can cast the spell once and will automatically make the rest of the planks in their inventory, although this is three game ticks (1.8 seconds) slower than manually casting. This method gives up to 90,000 Magic experience and converts up to 1,000 planks per hour. This rate assumes perfect banking times; more realistically, players choosing to AFK train can expect around 75,000 experience per hour with minimal attention, checking every 30 seconds or so to determine when to bank.
+
+An effective way to cast the spell quickly is to get the plank make spell to appear on the bottom right of your inventory (relative to the Lunar spellbook tab). This will allow you to click the Plank Make spell and the bottom right log in your inventory to avoid moving your cursor. In order to do this, you must go into to the Spell Filters settings at the bottom of your spellbook tab and check all the boxes except Show Combat Spells and Show spells you lack the runes to cast. You will need Astral runes, Nature runes, Earth runes, Law runes, and Fire runes in order to make Plank Make the 12th spell in your spellbook using these filter settings. To accomplish this without taking up any additional inventory space, you can put Astral runes, Nature runes, and Law runes in your rune pouch while having the lava battlestaff equipped. 
+
+===Supplementing spells===
+Several spells in the Lunar Spellbook have a 0-tick delay when casting, allowing players to immediately cast Plank Make after. At level 82, players can cast [[Magic Imbue]], which has a ten-second cooldown, and at level 94, players can cast [[Vengeance]], which has a cooldown of 30 seconds. The following table shows potential experience per hour with consistent on-time clicks, and assumes that the rune pouch and an earth staff of some kind is used.
+{| class="wikitable"
+|+Experience per hour
+!Method
+!Plank Make only
+!Plank Make and Magic Imbue
+!Plank Make, Magic Imbue, Vengeance
+!Time between clicks
+|-
+|Casting all spells manually
+|165,000
+|185,000{{Refn|With tick perfect banking, a rate of 202,000 xp/hr may be achieved.|group=a}}
+|200,000{{Refn|With tick perfect banking, a rate of 220,000 xp/hr may be achieved.|group=a}}
+|1.8 seconds
+|-
+|Casting after cooldowns{{Refn|Assumes that Plank Make autocasts, but Magic Imbue is re-cast every 10 seconds, and Vengeance every 30.|group=a}}
+|85,000
+|105,000
+|115,000
+|10 seconds
+|-
+|Casting once per inventory{{Refn|Assumes that Plank Make autocasts, but Magic Imbue and Vengeance are cast once before casting Plank Make, and then letting the inventory finish automatically.|group=a}}
+|85,000
+|88,000
+|95,000
+|90 seconds
+|}
+{{Reflist|group=a}}
+
+==Money making==
+{{Mmgsection|Casting plank make}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = Nature
+|Rune1num = 1
+|Rune2 = Astral
+|Rune2num = 2
+|Rune3 = Earth
+|Rune3num = 15
+}}
+==Break even Point==
+{{Var|rune_type|Earth}}
+{{Var|rune_num|15}}
+{{Var|rune_name|{{#switch: {{#var:rune_type}} | Fire = Fire rune | Earth = Earth rune | Water = Water rune }}}}
+{{Var|staff_name|{{#switch: {{#var:rune_type}} | Fire = Staff of fire | Earth = Staff of earth | Water = Staff of water }}}}
+{{Var|tome_name|{{#switch: {{#var:rune_type}} | Fire = Tome of Fire | Earth = Tome of Earth | Water = Tome of Water }}}}
+{{Var|page_name|{{#switch: {{#var:rune_type}} | Fire = Burnt page | Earth = Soiled page | Water = Soaked page }}}}
+{{Var|tome_rune|({{#var:rune_num}}*{{GEP|{{#var:rune_name}}}})}}
+{{Var|natur_93|({{GEP|Nature rune}}*(1-1/15))}}
+{{Var|t_cost|({{GEP|Nature rune}} + {{#var:tome_rune}})}}
+{{Var|bryo_staff|{{GEP|Bryophyta's staff (uncharged)}}}}
+{{Var|tome|({{GEP|{{#var:tome_name}} (empty)}} + {{GEP|{{#var:page_name}}}})}}
+{{Var|staff_p_tome|({{#var:bryo_staff}} + {{#var:tome}})}}
+{| class="wikitable sortable align-right-3 align-right-5 align-right-6"
+|+
+![[Staves|Staff]]
+![[Tome]]
+!Equipment Cost
+!class="unsortable" | Rune
+!Saved GP
+!Break even Point
+|-
+|Nothing
+|Nothing
+|{{Coins|0}}
+|{{RuneReq|{{#var:rune_type}}={{#var:rune_num}}|Nature=1}}
+|{{Coins|({{#var:t_cost}}-{{#var:t_cost}})/1}}
+|0
+|-
+|{{plink|{{#var:staff_name}}}} 
+|Nothing
+|{{Coins|{{GEP|{{#var:staff_name}}}}}}
+|{{RuneReq|Nature=1}}
+|{{Coins|({{#var:t_cost}}-{{GEP|Nature rune}})/1}}
+|{{Formatexpr|ceil(({{GEP|{{#var:staff_name}}}})/({{#var:tome_rune}}))}}
+|-
+|Nothing
+|{{plink|{{#var:tome_name}}}} + {{plink|{{#var:page_name}}}}
+|{{Coins|{{#var:tome}}}}
+|{{RuneReq|Nature=1}}
+|{{Coins|({{#var:t_cost}}-{{GEP|Nature rune}})/1}}
+|{{Formatexpr|ceil(({{#var:tome}})/({{#var:tome_rune}}))}}
+|-
+|{{plink|Bryophyta's staff}} 
+|{{plink|{{#var:tome_name}}}} + {{plink|{{#var:page_name}}}}
+|{{Coins|{{#var:staff_p_tome}}}}
+|{{RuneReq|Nature=0.93}}
+|{{Coins|({{#var:t_cost}}-{{#var:natur_93}})/1}}
+|{{Formatexpr|ceil({{#var:staff_p_tome}} /({{#var:tome_rune}}+({{GEP|Nature rune}}/15)))}}
+|-
+|{{plink|Bryophyta's staff}} 
+|{{plink|{{#var:tome_name}}}} + {{plink|{{#var:page_name}}}}
+|{{Coins|{{#var:staff_p_tome}}}}
+|{{RuneReq|Nature=1}}
+|{{Coins|({{#var:t_cost}}-{{GEP|Nature rune}})/1}}
+|<ref group=d name=ONLYFIRE>Not selling [[Bryophyta's staff]] and buying [[{{#var:tome_name}}]] to save the {{#var:rune_num}} [[{{#var:rune_name}}]]s.</ref>{{Formatexpr|ceil({{#var:staff_p_tome}} /({{#var:tome_rune}}))}}
+|-
+|{{plink|Bryophyta's staff}} 
+|Nothing
+|{{Coins|{{#var:bryo_staff}}}}
+|{{RuneReq|{{#var:rune_type}}={{#var:rune_num}}|Nature=0.93}}
+|{{Coins|({{#var:t_cost}}-{{#var:natur_93}}- {{#var:tome_rune}})/1}}
+|{{Formatexpr|ceil({{#var:bryo_staff}}/({{GEP|Nature rune}}/15))}} 
+|-
+|{{plink|Bryophyta's staff}} 
+|{{plink|{{#var:tome_name}}}} + {{plink|{{#var:page_name}}}}
+|{{Coins|{{#var:staff_p_tome}}}}
+|{{RuneReq|{{#var:rune_type}}={{#var:rune_num}}|Nature=0.93}}
+|{{Coins|({{#var:t_cost}}-{{#var:natur_93}}- {{#var:tome_rune}})/1}}
+|<ref group=d name=ONLYNATURE>Buying [[Bryophyta's staff]] and [[{{#var:tome_name}}]] to "only" save 1/15 of the [[Nature rune]] because saving the [[{{#var:rune_name}}]]s is a lot cheaper with the [[{{#var:staff_name}}]].</ref>{{Formatexpr|ceil({{#var:staff_p_tome}} /(({{GEP|Nature rune}}/15)))}}
+|}
+{{Reflist|group=d}}
+To get from 86 to 99 it is needed to cast {{Formatexpr|ceil(({{XP|99}}-{{XP|86}})/90)}} of [[Plank Make]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 January 2025
+|update = Run Energy Changes
+|change = The confirmation warnings for the Plank Make spell can now be toggled on & off via the [[Settings | Settings menu]].
+}}
+{{Subject changes
+|date = 31 July 2024
+|update = QoL Improvements & Further Deadman: Armageddon Tweaks
+|change = The Plank Make spell will now convert the first log in the player's [[inventory]], depositing the resulting plank in the first available slot.
+}}
+{{Subject changes
+|date = 2 May 2019
+|update = Automated Plank Make and In Game Clock
+|poll = Old School Content Poll 67: Small Old Content Changes
+|change = Plank Make is now automated once cast, and occurs approximately 2 ticks slower than a manual cast.
+}}
+{{Subject changes
+|date = 2 August 2013
+|update = Patch Notes (2 August 2013)
+|poll = Old School feature poll 7
+|change = You can now disable the price confirmation messages for the Lunar make-plank spell.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Utility spells}}

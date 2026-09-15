@@ -1,0 +1,431 @@
+{{External|rs}}
+{{HasStrategy|page=Treasure Trails/Full guide/Hard}}
+{{Infobox Item
+|name = Clue scroll (hard)
+|image = [[File:Clue scroll (hard).png]]
+|release = [[5 May]] [[2004]]
+|update = Bigger Banks & Treasure Trails
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Read, Check steps, Drop
+|examine = '''Emote:'''<br/>
+{{*}} A set of instructions to be followed.<br/>
+'''Anagram:'''<br/>
+{{*}} A clue!<br/>
+'''Map:'''<br/>
+{{*}} Part of the world map, but where?
+<br/>
+'''Coordinates:'''<br/>
+{{*}} Perhaps someone at the [[observatory]] can teach me to navigate?<br/>
+'''Fairy ring:'''<br/>
+{{*}} A clue suggested by (Player's Name)!<br/>
+'''Cipher:'''<br/>
+{{*}} I need to decipher this.<br/>
+|value = 20
+|weight = 0.020
+|id = N/A
+}}
+[[File:Clue scroll (hard) detail.png|left|150px]]
+<span lang="ar" dir="rtl">A</span> '''clue scroll (hard)''', more commonly referred to as a '''hard clue''', is a rare drop from a variety of high-levelled [[monsters]]. The clue is part of the [[Treasure Trail]]s activity, and sends players across [[Gielinor]] and other [[realms]] to complete it. Completing a trail rewards players with a [[casket (hard)|casket]] containing several random items, some of which are very rare and valuable. 
+
+Hard clue scrolls can be ''between 4 and 6 steps'' long, and are longer, more dangerous, and have harder requirements than previous tiers of clues. In addition to needing to complete puzzle boxes, players may have to enter the [[Wilderness]], as well as fight [[Zamorak wizard|Zamorakian]] or [[Saradomin wizard|Saradominist wizards]] and the [[double agent]]. 
+
+When completing a hard clue, the message {{Mes|Well done, you've completed the Treasure Trail!}} appears, followed by messages indicating the number of hard clues the player has completed and an approximate [[GE value]] of the reward; for example, {{Mes|You have completed 87 hard Treasure Trails.|colour=Red}} {{Mes|Your treasure is worth around 217,997 coins!|colour=Red}}
+
+Completion of the [[Hard Combat Achievements|hard combat tasks]] gives a 5% increased chance to receive a hard clue scroll from all sources, excluding [[implings]]. Hard clues can also be given to [[Watson]] along with an [[easy clue|easy]], [[medium clue|medium]] and [[elite clue scroll]], in return for a [[master clue scroll]]. Furthermore, each reward casket from a hard clue has a 1/15 chance of containing a master clue scroll.
+
+Completing 300 hard clues rewards the player with the [[Uri transform]] emote.
+
+==Mechanics==
+===Dying with a scroll===
+As clue scrolls are untradeable, they are sent to the [[gravestone]] if unprotected on [[PvP]] or [[PvM]] death, even above level 20 [[Wilderness]]. [[Clue box]]es are not necessary and only add additional risk when in the Wilderness.
+
+===Multiple clues===
+As with all tiers of clue scrolls, only one hard clue scroll can be held, kept in Death's Office, or stored in a bank at one time; attempting to open a [[scroll box (hard)]] while holding a hard clue scroll gives the message {{mes|The clue box refuses to open - you already have a clue.}} However, it is possible to drop clues on the floor, where they'll stay for one hour, allowing players to have multiple clues at once. Dropping prior clue scrolls while having done some of their steps does NOT retain the steps of the dropped clue when starting a new one.
+
+===Casting an alchemy spell===
+When casting an alchemy spell on a clue scroll, if the game setting that triggers a warning on untradeable items is disabled, a different confirmation warning is triggered, asking "wouldn't you rather solve the clue?". If the game setting is enabled, only the regular question is triggered.
+
+==Types of clues==
+''Please note that it is possible to receive the same clue more than once.''
+*[[Treasure Trails/Guide/Anagrams/Hard|Anagrams]]
+*[[Treasure Trails/Guide/Challenge scrolls|Challenge scrolls]]
+*[[Treasure Trails/Guide/Puzzle boxes|Puzzle box]]
+*[[Treasure Trails/Guide/Coordinates/Hard|Coordinates]]
+*[[Treasure Trails/Guide/Cryptic clues/Hard|Cryptic clues]]
+*[[Treasure Trails/Guide/Emote clues/Hard|Emote clues]]
+*[[Treasure Trails/Guide/Maps/Hard|Maps]]
+*[[Treasure Trails/Guide/Ciphers/Hard|Ciphers]]
+*[[Cecilia|Music]]
+
+==Requirements==
+<onlyinclude>
+
+===Skill requirements===
+Certain clues will require items that need a certain skill requirement in order to wear, wield or access. The table below shows the '''highest''' skill requirement, in order to complete every hard clue. Quest skill requirements are not noted in this table.
+
+{| class="wikitable sortable lighttable"
+|-
+! '''Skill level'''
+! '''Details'''
+|-
+| {{SCP|Agility|56|sort=y}} {{Boostable|yes}}
+| Required to get through the dense forest in [[Tirannwn]].
+|-
+| {{SCP|Attack|40|sort=y}} {{Boostable|no}}
+| Required to wield various [[Rune equipment|rune]] weapons and the [[mystic fire staff]].
+|-
+| {{SCP|Defence|40|sort=y}} {{Boostable|no}}
+| Required to wield rune equipment and blue dragonhide body.
+|-
+| {{SCP|Fishing|68|sort=y}} {{Boostable|yes}}
+| Required to access the [[Fishing Guild]].
+|-
+| {{SCP|Prayer|60|sort=y}} {{Boostable|no}}
+| Required to wield [[stole]]s and [[crozier]]s.
+|-
+| {{SCP|Ranged|50|sort=y}} {{Boostable|no}}
+| Required to wear [[blue dragonhide armour]].
+|-
+| {{SCP|Sailing|61|sort=y}} {{Boostable|no}}
+| Required to visit the [[Tear of the Soul]].
+|-
+| {{SCP|Strength|40|sort=y}} {{Boostable|no}}
+| Required to wield the rune warhammer.
+|}
+
+===Additional Ironman requirements===
+Players playing the [[ironman mode]] need to meet some more skill requirements to be able to solve all the clues, with the [[amulet of glory]] being the only exception: it is possible to receive an [[amulet of glory (t)]] from [[Reward casket (hard)|hard clues]].
+
+{| class="wikitable sortable lighttable"
+|-
+! '''Skill level'''
+! '''Details'''
+|-
+| {{SCP|Crafting|58|sort=y}} {{Boostable|yes}} <br/>'''OR'''<br/> {{SCP|Sailing|64}} {{Boostable|yes}}
+| Required to obtain a [[diamond bracelet]]
+|-
+| {{SCP|Hunter|50|sort=y}} {{Boostable|yes}} <br/>'''OR'''<br/> {{SCP|Crafting|68}} {{Boostable|yes}}
+| Required to obtain [[blue d'hide chaps]]
+|-
+| {{SCP|Crafting|80|sort=y}} {{Boostable|yes}} and {{SCP|Magic|68}} {{Boostable|yes}} <br/>'''OR'''<br/> {{SCP|Hunter|83}} {{Boostable|yes}}
+| Required to obtain an [[amulet of glory]]
+|-
+| {{SCP|Slayer|80|sort=y}} {{Boostable|yes}}
+| Required to obtain [[rune boots]]
+|-
+| {{SCP|Quest}} [[The Lost Tribe]] OR [[Wanted!]]
+| Required for access to [[bone spear]]
+|}
+
+===Quest requirements===
+Some clues require access to areas or NPCs which may require quests. Some only require to start the quest in order to access the area or NPC.
+
+{| class="wikitable sortable lighttable"
+|-
+!'''Quest'''
+!'''Details'''
+|-
+| [[Bone Voyage]]
+| Gives access to [[Fossil Island]] and needed to unlock the [[Fossilised]] song.
+|-
+| [[Cabin Fever]]
+| Gives access to [[Mos Le'Harmless]].
+|-
+|[[Children of the Sun]]
+|Gives access to [[Varlamore]]
+|-
+| [[Dragon Slayer I]]
+| Grants ability to equip a [[rune platebody]].
+|-
+| [[Elemental Workshop I]]
+| Grants ability to equip an [[elemental shield]].
+|-
+| [[Fairytale II - Cure a Queen]]
+| Partial completion unlocks [[fairy rings]], which are required for some clue steps. Also useful for navigating [[Gielinor]] quickly. Completion is required for [[Fairy Queen]] cipher clue (GBJSZ RVFFO).
+|-
+|[[The Fremennik Trials]]
+|Gives access to [[Miscellania]] and [[Etceteria]]
+|-
+| [[The Fremennik Isles]] (started)
+| Gives access to [[Neitiznot]] and ability to speak to [[Mawnis Burowgar]].
+|-
+| [[The Giant Dwarf]] (started)
+| Gives access to [[Keldagrim]] for the [[Dr Warden Funk]] anagram.
+|-
+| [[The Grand Tree]]
+| Gives access to the [[Ship Yard]].
+|-
+| [[Holy Grail]] (started)
+| Gives access to the [[Fisher Realm]].
+|-
+| [[Horror from the Deep]]
+| Gives access to the [[Lighthouse]].
+|-
+| [[Icthlarin's Little Helper]] (started)
+| Gives access to [[Sophanem]].
+|-
+| [[In Aid of the Myreque]] (started)
+| Gives access to [[Burgh de Rott]].
+|-
+| [[A Kingdom Divided]]
+| Gives access to the song [[Regal Pomp]].
+|-
+| [[Legends' Quest]] (started)
+| Gives access to the [[Kharazi Jungle]].
+|-
+|[[Land of the Goblins]]
+|Gives access to [[Yu'biusk]]
+|-
+| [[Monkey Madness I]] (started)
+| Gives access to Ape Atoll and able to speak to [[King Awowogei]].
+|-
+| [[Mountain Daughter]] (optional)
+| Gives access to [[Mountain Camp]], without the need of a [[rope]] everytime.
+|-
+| [[Mourning's End Part II]]
+| Gives access to the song [[La Mort]].
+|-
+| [[My Arm's Big Adventure]]
+| Gives access to the song [[Roc and Roll]].
+|-
+| [[Nature Spirit]] (started)
+| Gives access to the [[Nature Grotto]].
+|-
+|[[Perilous Moons]] (started)
+|Gives access to the song "[[The Moons of Ruin]]"
+|-
+| [[Plague City]] (started)
+| Gives access to [[West Ardougne]].
+|-
+| [[Priest in Peril]]
+| Gives access to [[Canifis]].
+|-
+| [[Regicide]]
+| Gives access to [[Tirannwn]]. Highly recommended to complete the quest, as travelling becomes easier with using a [[charter ship]] to [[Port Tyras]].
+|-
+| [[Shadow of the Storm]]
+| Access to [[Evil Dave]] west of [[Edgeville]] bank.
+|-
+| [[Shilo Village]]
+| Gives access to [[Shilo Village (location)|Shilo Village]].
+|-
+| [[Swan Song]]
+| Gives access to the [[Piscatoris Fishing Colony]] and able to speak to [[Arnold Lydspor]] (only works after the quest).
+|-
+| [[Tree Gnome Village]]
+| Allows you to speak to the [[Spirit tree]] in [[Tree Gnome Village (location)|Tree Gnome Village]].
+|-
+| [[Troll Stronghold]]
+| Gives access to [[Trollheim]].
+|-
+| [[Watchtower]] (started)
+| Gives access to [[Gu'Tanoth]].
+|-
+| [[Zogre Flesh Eaters]] (started)
+| Gives access to [[Jiggig]].
+|}
+
+===Music requirements===
+{| class="wikitable sortable lighttable"
+! Music Track
+! Unlock location
+! Notes
+|-
+| [[Complication]]
+| [[Chaos Altar]]
+| {{NA}}
+|-
+| [[Fossilised]]
+| [[Wyvern Cave]] on [[Fossil Island]]
+| Requires completion of [[Bone Voyage]].
+|-
+| [[Hells Bells]]
+| [[Trollweiss Mountain]]
+| Usually acquired while sledding down [[Trollweiss Mountain|Trollweiss mountain]], but can be acquired without starting [[Troll Romance]] by walking through the tunnel in eastern Rellekka (towards Keldagrim) to the bottom of Trollweiss mountain.
+|-
+|[[The Moons of Ruin]]
+|During [[Perilous Moons]]
+|
+|-
+| [[La Mort]]
+| [[Death Altar]]
+| Requires completion of [[Mourning's End Part II]].
+|-
+| [[Little Cave of Horrors]]
+| [[Mos Le'Harmless Cave]]
+| Requires completion of [[Cabin Fever]].
+|-
+| [[Regal Pomp]]
+| Coronation ceremony during [[A Kingdom Divided]].
+| Requires completion of [[A Kingdom Divided]].
+|-
+| [[Roc and Roll]]
+| Fight with the [[Giant Roc]] during [[My Arm's Big Adventure]].
+| Requires completion of [[My Arm's Big Adventure]].
+|-
+| [[Scorpia Dances]]
+| [[Scorpia|Scorpia's]] cave beneath the [[Scorpion Pit]].
+| The cave is located deep in the [[Wilderness]].
+|-
+| [[Subterranea]]
+| [[Crabclaw Caves]] or [[Waterbirth Island Dungeon]].
+| Crabclaw Caves access requires partial completion of [[The Depths of Despair]].
+|}
+=== Item requirements ===
+'Minimum level requirements' indicates the level required to equip all items on the list in order to complete their respective clue steps.
+
+Any quantities below indicate how many of each item is required to fill all available hard [[STASH]] units. Hard STASH units require 2 [[Teak plank|Teak planks]] and 10 [[Nails]] to build.
+{| class="wikitable lighttable individual" style="width:50%; text-align:center;"
+|-
+! colspan="4" |Minimum level requirements
+|-
+| colspan="2" |{{SCP|Attack|40|link=yes}}
+|{{SCP|Ranged|50|link=yes}}
+|{{SCP|Magic|40|link=yes}}
+|-
+| colspan="2" |{{SCP|Defence|40|link=yes}}
+| colspan="2" |{{SCP|Prayer|60|link=yes}}
+|-
+! colspan="4" | Items required
+|-
+|{{plink|Adamant 2h sword}}
+|{{plink|Adamant sq shield}}
+|{{plink|Amulet of glory}}
+|{{plink|Amulet of power}}
+|-
+|{{plink|Amulet of strength}}
+|{{plink|Blue d'hide body}}
+|2 × {{plink|Blue d'hide chaps}}
+|3 × {{plink|Blue d'hide vambraces}}
+|-
+|{{plink|Bone spear}} 
+|Any god {{plink|crozier|pic=Guthix crozier}}
+|{{plink|Diamond bracelet}}
+|{{plink|Diamond ring}}
+|-
+|{{plink|Elemental shield}}
+|{{plink|Fire battlestaff}} 
+|Any colour {{plink|headband|pic=Red headband}} 
+|Any rune {{plink|heraldic helm|pic=Rune helm (h1)}}
+|-
+|2 × Any rune {{plink|heraldic kiteshield|pic=Rune shield (h1)}}
+|{{plink|Iron platebody}}
+|{{plink|Mithril platelegs}}
+|{{plink|Mystic fire staff}}
+|-
+|{{plink|Mystic hat}}
+|{{plink|Mystic robe top}}
+|2 × {{plink|Ring of life}}
+|{{plink|Rune axe}}
+|-
+|{{plink|Rune boots}}
+|{{plink|Rune full helm}}
+|{{plink|Rune halberd}}
+|{{plink|Rune longsword}}
+|-
+|{{plink|Rune pickaxe}}
+|3 × {{plink|Rune platebody}}
+|2 × {{plink|Rune platelegs}}
+|{{plink|Rune plateskirt}}
+|-
+|{{plink|Rune spear}}
+|{{plink|Rune warhammer}}
+|Any god {{plink|Stole|pic=Guthix stole}}
+|}
+</onlyinclude>
+
+==Possible rewards==
+{{Main|Reward casket (hard)}}
+
+The average loot roll is worth {{Coins|floor({{HardClueValue}})}}. On average, hard clues are worth {{Coins|floor(5 * {{HardClueValue}})}}. The 1/15 chance of receiving a master clue scroll adds another {{Coins|floor(1/15 * 6 * {{MasterClueValue}})}}, for a total expected value per clue of {{Coins|floor(5 * {{HardClueValue}} + 1/15 * 6 * {{MasterClueValue}})}}.
+
+{{Clue scroll (hard)/Rewards}}
+
+==Item sources==
+Skilling sources are not listed here; see [[clue bottle]], [[clue geode]], and [[clue nest]] for drop rate calculators.
+
+''Some of the below rates have rarities provided by Jagex.''{{CiteTwitter|author=Mod Tide|url=https://twitter.com/JagexTide/status/1131933683714330624|date=24 May 2019|archiveurl=https://reldo.runescape.wiki/i/106558|archivedate=24 May 2019|quote=I know its been a while since the clue expansion but here is the information on clue scroll drop rates and loot chances! If anything changes I will keep you posted.|name=Clue rates tweet}}
+{{Drop sources|Clue scroll (hard)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes 
+|date = 11 April 2019
+|update = Treasure Trails Expansion and Easter 2019
+|change = The item was graphically updated.
+}}
+{{Subject changes
+|date = 9 March 2017
+|update = General QoL!
+|change = The item's value was increased from 1 to 20.
+}}
+{{Subject changes
+|date = 21 April 2016
+|update = Deadman Changes & Implings
+|poll = Old School Content Poll 41: Bank placeholders & Skillcapes
+|change = Hard clue scrolls have been added to nature, magpie, and ninja impling drop tables.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = Quality of Life - Top 10 PvM Suggestions
+|change = Hard clue scrolls are now dropped by black demons.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = A typo in the hard emote clue telling you to laugh in Jokul's tent has been fixed.
+}}
+{{Subject changes
+|date = 2 July 2015
+|update = Clue Scroll Step Counter
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = All clue scrolls now have a right-click 'Check steps' option that will allow you to see exactly how many steps you have completed so far.
+}}
+{{Subject changes
+|date = 18 June 2015
+|update = Multiple Clues & Midsummer
+|poll = Old School Content Poll 33
+|change = You will now be able to have up to one clue scroll of each tier and will be able to complete clue scrolls of different tiers simultaneously.
+}}
+{{Subject changes
+|date = 14 May 2015
+|update = System Update & Poll 33
+|change = Clue scroll stages no longer increase when bouncing different clue scrolls.
+}}
+{{Subject changes
+|date = 2 October 2014
+|update = Content Poll 25 - Batch 1
+|change = A hard level coordinate clue where the wrong type of wizard was spawning has now been fixed.
+}}
+{{Subject changes
+|date = 6 March 2014
+|update = Teletabs, Clues and Poll 17
+|poll = Old School feature poll 16
+|change = 
+*[[Bloodveld]] and [[Dark beast]]s now have a chance of dropping hard clue scrolls.
+*The item was renamed from "Clue scroll" to "Clue scroll (hard)".
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Clue scroll (v1) detail.png|center|300x150px]]
+|[[File:Clue scroll (hard) detail.png|center|300x150px]]
+|-
+|[[File:Clue scroll v1.png|center]]
+|[[File:Clue scroll (hard).png|center]]
+|-
+|5 May 2004 –<br/>11 April 2019
+|11 April 2019 –<br/>present
+|}
+
+==References==
+{{Reflist}}
+
+{{Treasure Trails}}

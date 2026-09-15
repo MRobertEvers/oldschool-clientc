@@ -19,7 +19,7 @@
  * and NPC_INFO_SMALL (op 104) carry RSProt's v5 high/low-resolution streams,
  * which this client has no decoder for. The names here bind those opcodes to
  * the classic (lc254 / Kronos) bitstreams the client does decode, and
- * src/net/mock encodes them to match. The pairing is self-consistent and
+ * src/torirsserver encodes them to match. The pairing is self-consistent and
  * exercises every downstream system; it is NOT wire-compatible with a real
  * OldSchool 230 server. See docs/osrs230_mockserver.md.
  */
@@ -136,7 +136,7 @@ static const struct Osrs230PacketInDef g_packet_in_definitions_osrs230[] = {
      * rs_gameproto_exec.c already decodes this into App_PlaySound ->
      * RS_Audio_Synth, and rs_audio_test.c already asserts a SYNTH_SOUND
      * packet reaches the platform as audible PCM. Only the server-side
-     * encoder (mock230_encode.c) and the opcode body (mock230_scripts.c,
+     * encoder (torirs_server_encode.c) and the opcode body (torirs_server_scripts.c,
      * SS_OP_SOUND_SYNTH) were missing (WEAPON_FX.md §6).
      */
     { 102, 5, PKT_NAME_SYNTH_SOUND }, /* SYNTH_SOUND */

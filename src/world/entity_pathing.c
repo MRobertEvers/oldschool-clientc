@@ -3,6 +3,7 @@
 #include "engine/world_builder/collision_map.h"
 #include "features/features.h"
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -304,6 +305,21 @@ World_EntityDrawPositionSetToTile(
     int size_x,
     int size_z)
 {
-    draw_position->x = (uint32_t)(tile_x * 128 + size_x * 64);
-    draw_position->z = (uint32_t)(tile_z * 128 + size_z * 64);
+    World_DrawPositionSet(
+        draw_position, tile_x * 128 + size_x * 64, tile_z * 128 + size_z * 64);
+}
+
+void
+World_EntityApplyHeadbar(
+    struct WorldEntityFacet_Combat* combat,
+    struct WorldEntity_Headbar bar)
+{
+    assert(combat);
+    assert(bar.type >= 0);
+    combat->healthbar_type = bar.type;
+    combat->healthbar_start_cycle = bar.start_cycle;
+    combat->healthbar_duration = bar.duration;
+    combat->healthbar_start_fill = bar.start_fill;
+    combat->healthbar_end_fill = bar.end_fill;
+    combat->healthbar_end_cycle = bar.end_cycle;
 }

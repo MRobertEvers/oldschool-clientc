@@ -1,0 +1,625 @@
+{
+  "ok": true,
+  "before_shore": 75,
+  "shore_samples": [
+    74,
+    73,
+    72,
+    71,
+    70,
+    69,
+    68,
+    67,
+    66,
+    65,
+    64,
+    63,
+    62,
+    61,
+    60,
+    59,
+    58,
+    58,
+    58,
+    58,
+    58,
+    58
+  ],
+  "ashore": {
+    "ok": true,
+    "online": true,
+    "paused": true,
+    "time_ms": 17200,
+    "server_x": 3072,
+    "server_z": 3133,
+    "level": 0,
+    "aboard_view": 0,
+    "logic_cycle": 809,
+    "server_tick": 26,
+    "camera_yaw": 256,
+    "camera_pitch": 256,
+    "camera_zoom": 1000,
+    "world_ready": 1,
+    "renderer": 0,
+    "x": 3072,
+    "z": 3133,
+    "camera": 0,
+    "animation": 0,
+    "anim_frame": 0,
+    "chat_blocked": -1,
+    "player_yaw": 1780,
+    "cinematic": {
+      "eye_x": 3024,
+      "eye_z": 3080,
+      "eye_height": 0,
+      "look_x": 3024,
+      "look_z": 3080,
+      "look_height": 0,
+      "render_yaw": 256,
+      "render_pitch": 275,
+      "render_x": 394352,
+      "render_y": -2008,
+      "render_z": 400017,
+      "hide_panels": 0,
+      "fov_mode": 0,
+      "visible_orbs": 4
+    },
+    "rig": {
+      "vertices": 288,
+      "hash": 1522931678,
+      "min_y": -194,
+      "max_y": 8,
+      "posed_frame": 0,
+      "yaw": 1780
+    },
+    "sailing": {
+      "ok": true,
+      "aboard": false,
+      "checkpoints": 1
+    },
+    "server_activity": {
+      "active_script": 0,
+      "action_locked": 0,
+      "delay_until": 0,
+      "waypoint": -1,
+      "kind": 0,
+      "op": 0,
+      "target": 0,
+      "x": 0,
+      "z": 0,
+      "use_on": 0,
+      "last_useitem": -1,
+      "last_useslot": -1,
+      "client_selected_obj": -1
+    },
+    "runtime_ms": 0.486,
+    "elapsed_ms": 2.99
+  },
+  "commands": [
+    {
+      "command": "close",
+      "elapsed_ms": 5.001
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.853
+    },
+    {
+      "command": "save extractor_acceptance",
+      "elapsed_ms": 5.403
+    },
+    {
+      "command": "camera 256 256 1000",
+      "elapsed_ms": 5.132
+    },
+    {
+      "command": "cheat sailutilityfixture 2 12",
+      "elapsed_ms": 7.932
+    },
+    {
+      "command": "hover 350 229",
+      "elapsed_ms": 10.146
+    },
+    {
+      "command": "click 350 229 left",
+      "elapsed_ms": 12.921
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 40.296
+    },
+    {
+      "command": "activity 2",
+      "elapsed_ms": 5.522
+    },
+    {
+      "command": "cheat vesselsail 0 2",
+      "elapsed_ms": 47.12
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.737
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.948
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.506
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.888
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.85
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.926
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.516
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.963
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.5
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.903
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 25.513
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.894
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 18.011
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.442
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.362
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.962
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.903
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.879
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.469
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.91
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.44
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.92
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.949
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.815
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.735
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.974
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 40.444
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.925
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.647
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.948
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 16.969
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.999
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 18.026
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.906
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 19.932
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 3.577
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 25.485
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.931
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 16.966
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.455
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 16.887
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.951
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.169
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.958
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.872
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.957
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.23
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.558
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.946
+    },
+    {
+      "command": "cheat sailplank",
+      "elapsed_ms": 47.739
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.99
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.957
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 35.588
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 3.054
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 18.091
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 5.002
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.517
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.901
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.632
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.932
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.501
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.889
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.672
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.905
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.537
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.938
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.342
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.923
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.463
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.859
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.135
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.899
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.091
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.583
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.153
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 5.445
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.465
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 5.389
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.894
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.889
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.228
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 5.451
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.381
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 5.18
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.428
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.88
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.099
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.878
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.482
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.443
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.537
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.901
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.473
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.94
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 15.374
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.66
+    },
+    {
+      "command": "cheat sailplank",
+      "elapsed_ms": 47.488
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.912
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.826
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.512
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.532
+    },
+    {
+      "command": "cheat sailplank",
+      "elapsed_ms": 45.172
+    },
+    {
+      "command": "step 90",
+      "elapsed_ms": 45.035
+    },
+    {
+      "command": "cheat sailplank",
+      "elapsed_ms": 47.457
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.888
+    },
+    {
+      "command": "step 30",
+      "elapsed_ms": 17.933
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 2.892
+    },
+    {
+      "command": "cheat sailplank",
+      "elapsed_ms": 43.888
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 5.26
+    },
+    {
+      "command": "step 60",
+      "elapsed_ms": 30.087
+    },
+    {
+      "command": "activity 2 1",
+      "elapsed_ms": 5.007
+    },
+    {
+      "command": "cheat sailplank",
+      "elapsed_ms": 46.433
+    },
+    {
+      "command": "state",
+      "elapsed_ms": 2.976
+    },
+    {
+      "command": "restore extractor_acceptance",
+      "elapsed_ms": 10.601
+    }
+  ],
+  "provenance": {
+    "pid": 2567,
+    "process_identity": "Mon Sep  7 09:36:46 2026     /Users/matthewevers/Documents/git_repos/3draster/src/torirs --manifest /Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini --user sailingtest --pass test --soft3d",
+    "binary": "/Users/matthewevers/Documents/git_repos/3draster/src/torirs",
+    "manifest": "/Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini",
+    "renderer": "soft3d",
+    "user": "sailingtest",
+    "headless": true,
+    "boat": "skiff",
+    "fixture_tile": [
+      3072,
+      3160
+    ],
+    "resume_save": false,
+    "archived_save": null,
+    "binary_sha256": "5e34b81f9d2a45eae7306e8ddf93de5c590a0b3cd475d726a7745eb0deffd03b",
+    "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+    "allow_stale_scripts": false
+  },
+  "visual_review_required": true,
+  "checks": [
+    "natural ocean/coast with real collision",
+    "native mouse activation",
+    "17 charging ticks after disembarking, then freeze",
+    "charging resumes on return",
+    "quick reboarding never double-ticks"
+  ]
+}

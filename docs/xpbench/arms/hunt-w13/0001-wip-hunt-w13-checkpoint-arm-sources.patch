@@ -1,0 +1,577 @@
+From 6c10079969edae201e225d0350528bffbc5db4fa Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:14:55 -0500
+Subject: [PATCH] wip(hunt-w13): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/w13.
+
+files: 3rd/toridraw/toridraw_render.u.c
+---
+ 3rd/toridraw/toridraw_render.u.c | 509 ++++++++++++++++++++++++++++---
+ 1 file changed, 474 insertions(+), 35 deletions(-)
+
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..6b6f4e8c2 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -1038,6 +1038,285 @@ ToriDraw_CalculateCylinderAabb8point(
+     aabb->kind = TORIDRAW_AABB_KIND_CYLINDER_8POINT;
+ }
+ 
++/* #region packed-key face order */
++/*
++ * Two independent experiments over the face sort, each gated so a build can
++ * carry one without the other and the measurement can attribute the delta.
++ *
++ * TORIDRAW_W13_FASTPATH: choose the loop-invariants of the per-face cull ONCE
++ * instead of per face.
++ * TORIDRAW_W13_KSORT: order a small model's faces with a packed-key insertion
++ * sort instead of the dense depth-bucket table.
++ */
++#ifndef TORIDRAW_W13_FASTPATH
++#define TORIDRAW_W13_FASTPATH 1
++#endif
++#ifndef TORIDRAW_W13_KSORT
++#define TORIDRAW_W13_KSORT 1
++#endif
++
++/*
++ * The depth bucket table is 512 faces wide per depth LEVEL, so two adjacent
++ * depths sit 1 KB apart. A model whose bounding sphere is 300 units spans 600
++ * levels of it, so bucketing that model's median ~15 faces scatters 15 stores
++ * across 600 KB, walks all 600 levels back to read them out, and then zeroes
++ * the 600 counts it dirtied. The faces are the small part of that: the
++ * per-model cost is the WIDTH of the depth span, not the number of faces in
++ * it, which is the same shape of bug the CSR sorter had before it was
++ * windowed (docs: scene-small-csr-sorter-slower).
++ *
++ * A model small enough that an insertion sort beats that span does not need
++ * the table at all. Pack (depth, face) into one int and sort the handful:
++ * one cache line, no table, no clear, no scan over empty levels.
++ *
++ * `0x7FFF - depth` in the high half keeps the key POSITIVE -- depth is under
++ * 16384, so the high half lands in 0x4000..0x7FFF -- and reverses the depth
++ * order, so ASCENDING key order is descending depth with the face index
++ * ascending inside a depth. That is precisely what the table emits: it appends
++ * within a level in face order and is walked from max depth down. A STABLE
++ * sort of these keys is therefore order-IDENTICAL to the table rather than
++ * merely equivalent to it.
++ */
++#define TORIDRAW_ORDER_KEY_DEPTH_BASE 0x7FFF
++
++/* Faces the packed-key path is used for, and the stack array that holds them.
++ *
++ * The cap is what the array costs; the default is where the two costs cross.
++ * Insertion sort is ~n^2/4 compares against a bucket walk that is ~2*radius
++ * levels plus n scattered stores, and 64 is roughly break-even for the ~300
++ * unit radius typical of scenery. It is also why the small path cannot
++ * disagree with the table about which faces survive: 64 faces cannot fill a
++ * 512-wide depth level, so the table's overflow drop at `count >=
++ * depth_stride` is unreachable below the threshold. */
++#define TORIDRAW_ORDER_KEY_SORT_CAP 256
++#define TORIDRAW_ORDER_KEY_SORT_MAX 64
++
++/** TORIDRAW_ORDER_KEY_MAX overrides that threshold for a measurement; 0 turns
++ *  the packed-key path off entirely, so one binary can be benchmarked against
++ *  itself with and without it. */
++static int
++toridraw_order_key_max(void)
++{
++    static int cached = -1;
++    if( cached < 0 )
++    {
++        const char* v = getenv("TORIDRAW_ORDER_KEY_MAX");
++        int n = TORIDRAW_ORDER_KEY_SORT_MAX;
++        if( v && v[0] != '\0' )
++            n = atoi(v);
++        if( n < 0 )
++            n = 0;
++        if( n > TORIDRAW_ORDER_KEY_SORT_CAP )
++            n = TORIDRAW_ORDER_KEY_SORT_CAP;
++        cached = n;
++    }
++    return cached;
++}
++
++static inline int
++order_key_make(int depth, int face)
++{
++    assert(depth >= 0);
++    assert(depth <= TORIDRAW_ORDER_KEY_DEPTH_BASE);
++    assert(face >= 0);
++    assert(face <= 0xFFFF);
++    return ((TORIDRAW_ORDER_KEY_DEPTH_BASE - depth) << 16) | face;
++}
++
++static inline int
++order_key_depth(int key)
++{
++    return TORIDRAW_ORDER_KEY_DEPTH_BASE - (key >> 16);
++}
++
++static inline int
++order_key_face(int key)
++{
++    return key & 0xFFFF;
++}
++
++/**
++ * Stable ascending insertion sort of the packed keys.
++ *
++ * Stability is load-bearing, not incidental: faces that quantise to the same
++ * depth must stay in face order, because that is the order the bucket table
++ * appended them in and the order the raster consumed them in. Linear rather
++ * than binary insertion on purpose -- the inner scan mispredicts once per
++ * element where a binary search mispredicts log2(n) times, and on a 31-stage
++ * pipeline that is the whole difference.
++ */
++static inline void
++order_keys_sort(int* RESTRICT keys, int count)
++{
++    assert(keys);
++    assert(count >= 0);
++
++    for( int i = 1; i < count; i++ )
++    {
++        int const key = keys[i];
++        int j = i - 1;
++        while( j >= 0 && keys[j] > key )
++        {
++            keys[j + 1] = keys[j];
++            j--;
++        }
++        keys[j + 1] = key;
++    }
++}
++/* #endregion */
++
++/*
++ * The same per-face cull the bucket sort runs, emitting packed order keys into
++ * a compact array instead of a table slice. Split on `depth_shift` for the
++ * reason the bucket sort is, and on `near_clipped` and the debug pointer for
++ * the same reason once more: the loop body is far past the size
++ * -funswitch-loops will hoist a condition out of, so anything left as a
++ * runtime value here is tested once per face forever.
++ */
++#if defined(__GNUC__) || defined(__clang__)
++__attribute__((always_inline))
++#endif
++static inline int
++classify_faces_to_order_keys_impl(
++    int* RESTRICT keys,
++    int depth_levels,
++    int depth_shift,
++    struct ToriDraw_FaceSortDebugStats* debug_stats,
++    bool near_clipped,
++    int model_min_depth,
++    int num_faces,
++    const int* RESTRICT vx,
++    const int* RESTRICT vy,
++    const int* RESTRICT vz,
++    const faceint_t* RESTRICT face_a,
++    const faceint_t* RESTRICT face_b,
++    const faceint_t* RESTRICT face_c)
++{
++#if TORIDRAW_W13_FASTPATH
++    /* Once per model, not once per face. This is a lazy getenv behind a
++     * function-local static, so leaving it in the loop costs a load, a test
++     * and a branch the compiler cannot hoist across the call it guards. */
++    bool const flip_winding = toridraw_flip_winding();
++#endif
++    int n = 0;
++
++    for( int f = 0; f < num_faces; f++ )
++    {
++        const uint32_t a = face_a[f];
++        const uint32_t b = face_b[f];
++        const uint32_t c = face_c[f];
++
++        bool const clip_candidate =
++            near_clipped &&
++            (vx[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
++             vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
++             vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
++        long long winding = 1;
++        if( !clip_candidate )
++            winding = toridraw_winding_2d(
++                vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
++
++        /* Same rule as the bucket sort: a clipped vertex has no screen-space
++         * winding yet, so the triangle is kept and tested after the near-plane
++         * polygon exists. */
++#if TORIDRAW_W13_FASTPATH
++        if( clip_candidate || (flip_winding ? (winding < 0) : (winding > 0)) )
++#else
++        if( clip_candidate || toridraw_winding_front_facing(winding) )
++#endif
++        {
++            int z_sum = vz[a] + vz[b] + vz[c];
++            int depth_avg = (div3_fast_fixedpoint(z_sum) + model_min_depth) >> depth_shift;
++
++            if( debug_stats )
++            {
++                debug_stats->front_facing++;
++                if( clip_candidate )
++                    debug_stats->near_clip_candidates++;
++                if( depth_avg < debug_stats->min_depth_seen )
++                    debug_stats->min_depth_seen = depth_avg;
++                if( depth_avg > debug_stats->max_depth_seen )
++                    debug_stats->max_depth_seen = depth_avg;
++            }
++
++            if( (unsigned int)depth_avg < (unsigned int)depth_levels )
++            {
++                /* No capacity test, and none is possible to need: the caller
++                 * only reaches this path for a model whose face count fits the
++                 * key array outright, so `n` cannot pass `num_faces`. */
++                assert(n < num_faces || num_faces == 0);
++                keys[n++] = order_key_make(depth_avg, f);
++
++                if( debug_stats )
++                    debug_stats->accepted++;
++            }
++            else if( debug_stats )
++            {
++                if( depth_avg < 0 )
++                    debug_stats->depth_out_low++;
++                else
++                    debug_stats->depth_out_high++;
++                if( debug_stats->first_depth_out_face < 0 )
++                {
++                    debug_stats->first_depth_out_face = f;
++                    debug_stats->first_depth_out_value = depth_avg;
++                }
++            }
++        }
++        else if( debug_stats )
++        {
++            if( winding == 0 )
++                debug_stats->degenerate++;
++            else
++                debug_stats->back_facing++;
++        }
++    }
++
++    if( debug_stats )
++        assert(
++            debug_stats->front_facing ==
++            debug_stats->accepted + debug_stats->depth_out_low +
++                debug_stats->depth_out_high + debug_stats->bucket_overflow);
++
++    return n;
++}
++
++/** The early switch, as for the bucket sort. */
++static inline int
++classify_faces_to_order_keys(
++    int* RESTRICT keys,
++    int depth_levels,
++    int depth_shift,
++    struct ToriDraw_FaceSortDebugStats* debug_stats,
++    bool near_clipped,
++    int model_min_depth,
++    int num_faces,
++    const int* RESTRICT vx,
++    const int* RESTRICT vy,
++    const int* RESTRICT vz,
++    const faceint_t* RESTRICT face_a,
++    const faceint_t* RESTRICT face_b,
++    const faceint_t* RESTRICT face_c)
++{
++#if TORIDRAW_W13_FASTPATH
++    if( !debug_stats && depth_shift == 0 )
++    {
++        if( !near_clipped )
++            return classify_faces_to_order_keys_impl(
++                keys, depth_levels, 0, NULL, false, model_min_depth,
++                num_faces, vx, vy, vz, face_a, face_b, face_c);
++        return classify_faces_to_order_keys_impl(
++            keys, depth_levels, 0, NULL, true, model_min_depth,
++            num_faces, vx, vy, vz, face_a, face_b, face_c);
++    }
++#endif
++    if( depth_shift == 0 )
++        return classify_faces_to_order_keys_impl(
++            keys, depth_levels, 0, debug_stats, near_clipped, model_min_depth, num_faces, vx, vy, vz, face_a, face_b, face_c);
++    return classify_faces_to_order_keys_impl(
++        keys, depth_levels, depth_shift, debug_stats, near_clipped, model_min_depth, num_faces, vx, vy, vz, face_a, face_b, face_c);
++}
++
+ /*
+  * Split so the shift is chosen ONCE, not per face.
+  *
+@@ -1069,6 +1348,12 @@ bucket_sort_by_average_depth_impl(
+     const faceint_t* RESTRICT face_b,
+     const faceint_t* RESTRICT face_c)
+ {
++#if TORIDRAW_W13_FASTPATH
++    /* Once per model, not once per face. This is a lazy getenv behind a
++     * function-local static, so leaving it in the loop costs a load, a test
++     * and a branch the compiler cannot hoist across the call it guards. */
++    bool const flip_winding = toridraw_flip_winding();
++#endif
+     int min_d = depth_levels;
+     int max_d = 0;
+ 
+@@ -1092,7 +1377,11 @@ bucket_sort_by_average_depth_impl(
+          * screen-space winding does not exist yet. The reference buckets it
+          * unconditionally and performs the real winding test after building
+          * the near-plane polygon. */
++#if TORIDRAW_W13_FASTPATH
++        if( clip_candidate || (flip_winding ? (winding < 0) : (winding > 0)) )
++#else
+         if( clip_candidate || toridraw_winding_front_facing(winding) )
++#endif
+         {
+             int z_sum = vz[a] + vz[b] + vz[c];
+             /* `depth_shift` makes the table a RESOLUTION budget rather than a
+@@ -1201,6 +1490,24 @@ bucket_sort_by_average_depth(
+     const faceint_t* RESTRICT face_b,
+     const faceint_t* RESTRICT face_c)
+ {
++#if TORIDRAW_W13_FASTPATH
++    /* `near_clipped` and the debug-stats pointer are loop invariants too, and
++     * the loop body is an order of magnitude past `max-unswitch-insns`, so GCC
++     * will not hoist either of them itself -- every face pays two tests that
++     * the whole model already answered. Choosing the instantiation here folds
++     * them, and with `near_clipped` false the three sentinel comparisons go
++     * with them. */
++    if( !debug_stats && depth_shift == 0 )
++    {
++        if( !near_clipped )
++            return bucket_sort_by_average_depth_impl(
++                face_depth_buckets, face_depth_bucket_counts, depth_levels, depth_stride, 0,
++                NULL, false, model_min_depth, num_faces, vx, vy, vz, face_a, face_b, face_c);
++        return bucket_sort_by_average_depth_impl(
++            face_depth_buckets, face_depth_bucket_counts, depth_levels, depth_stride, 0,
++            NULL, true, model_min_depth, num_faces, vx, vy, vz, face_a, face_b, face_c);
++    }
++#endif
+     if( depth_shift == 0 )
+         return bucket_sort_by_average_depth_impl(
+             face_depth_buckets, face_depth_bucket_counts, depth_levels, depth_stride, 0,
+@@ -1212,6 +1519,72 @@ bucket_sort_by_average_depth(
+         face_c);
+ }
+ 
++/**
++ * One face's contribution to the priority partition.
++ *
++ * Extracted so the depth-bucket walk and the packed-key walk cannot drift
++ * apart. They visit the same faces in the same order -- back to front, face
++ * index ascending inside a depth -- and this is the only place that decides
++ * what visiting one means.
++ */
++#if defined(__GNUC__) || defined(__clang__)
++__attribute__((always_inline))
++#endif
++static inline void
++accumulate_face_by_priority(
++    faceint_t* face_priority_buckets,
++    faceint_t* face_priority_bucket_counts,
++    int* priority_depths,
++    int* flex_prio11_face_to_depth,
++    int* flex_prio12_face_to_depth,
++    int* counts,
++    int priority_stride,
++    int flex_capacity,
++    int model_face_count,
++    const uint8_t* face_priorities,
++    faceint_t face_idx,
++    int depth)
++{
++    int prio = faceprio_unpack(face_priorities, face_idx);
++    int n;
++
++    assert(face_idx >= 0);
++    assert(face_idx < model_face_count);
++    assert(prio >= 0);
++    assert(prio < 12 && "face priority indexes counts[12]");
++
++    n = counts[prio];
++    /* Same shape of hazard as the depth buckets: the twelve priority runs are
++     * slices of one block, so overflowing one silently rewrites the next
++     * priority's faces. */
++    assert(n >= 0);
++    assert(n < priority_stride);
++
++    face_priority_buckets[prio * priority_stride + n] = face_idx;
++
++    if( prio < 10 )
++    {
++        priority_depths[prio] += depth;
++    }
++    else
++    {
++        /* depth occupies the low 16 bits and the face index the high 16, so
++         * both have to be representable or the pair decodes as a different
++         * face at a different depth. */
++        assert(depth >= 0);
++        assert(depth <= 0xFFFF);
++        assert(n < flex_capacity);
++
++        if( prio == 10 )
++            flex_prio11_face_to_depth[n] = depth | (face_idx << 16);
++        else
++            flex_prio12_face_to_depth[n] = depth | (face_idx << 16);
++    }
++
++    counts[prio] = n + 1;
++    face_priority_bucket_counts[prio] = (faceint_t)(n + 1);
++}
++
+ /**
+  * One traversal of the depth buckets that does everything the old
+  * parition_faces_by_priority() + the accumulation half of
+@@ -1257,41 +1630,19 @@ partition_and_accumulate_faces_by_priority(
+         faceint_t* faces = &face_depth_buckets[depth * depth_stride];
+         for( int i = 0; i < face_count; i++ )
+         {
+-            faceint_t face_idx = faces[i];
+-            int prio = faceprio_unpack(face_priorities, face_idx);
+-            int n;
+-
+-            assert(face_idx >= 0 && face_idx < model_face_count);
+-            assert(prio >= 0 && prio < 12 && "face priority indexes counts[12]");
+-
+-            n = counts[prio];
+-            /* Same shape of hazard as the depth buckets: the twelve priority
+-             * runs are slices of one block, so overflowing one silently
+-             * rewrites the next priority's faces. */
+-            assert(n >= 0 && n < priority_stride);
+-
+-            face_priority_buckets[prio * priority_stride + n] = face_idx;
+-
+-            if( prio < 10 )
+-            {
+-                priority_depths[prio] += depth;
+-            }
+-            else
+-            {
+-                /* depth occupies the low 16 bits and the face index the high
+-                 * 16, so both have to be representable or the pair decodes as
+-                 * a different face at a different depth. */
+-                assert(depth >= 0 && depth <= 0xFFFF);
+-                assert(n < flex_capacity);
+-
+-                if( prio == 10 )
+-                    flex_prio11_face_to_depth[n] = depth | (face_idx << 16);
+-                else
+-                    flex_prio12_face_to_depth[n] = depth | (face_idx << 16);
+-            }
+-
+-            counts[prio] = n + 1;
+-            face_priority_bucket_counts[prio] = (faceint_t)(n + 1);
++            accumulate_face_by_priority(
++                face_priority_buckets,
++                face_priority_bucket_counts,
++                priority_depths,
++                flex_prio11_face_to_depth,
++                flex_prio12_face_to_depth,
++                counts,
++                priority_stride,
++                flex_capacity,
++                model_face_count,
++                face_priorities,
++                faces[i],
++                depth);
+         }
+     }
+ }
+@@ -1641,6 +1992,94 @@ ToriDraw_ComputeProjectedFaceOrder(
+         }
+     }
+ 
++#if TORIDRAW_W13_KSORT
++    /* A model small enough to sort its faces directly never touches the depth
++     * bucket table: no 1 KB-apart scatter, no walk over the empty levels
++     * between its faces, and no clear afterwards. Order-identical -- see
++     * TORIDRAW_ORDER_KEY_DEPTH_BASE -- and below the threshold the table's
++     * overflow drop is unreachable, so the two paths cannot disagree about
++     * which faces survive either. */
++    {
++        int const key_max = toridraw_order_key_max();
++
++        if( face_count <= key_max )
++        {
++            int order_keys[TORIDRAW_ORDER_KEY_SORT_CAP];
++            int key_count;
++
++            assert(face_count <= TORIDRAW_ORDER_KEY_SORT_CAP);
++
++            key_count = classify_faces_to_order_keys(
++                order_keys,
++                scene->depth_levels,
++                depth_shift,
++                debug_stats,
++                scene->near_clipped,
++                model_min_depth,
++                face_count,
++                scene->screen_vertices_x,
++                scene->screen_vertices_y,
++                scene->screen_vertices_z,
++                fia,
++                fib,
++                fic);
++
++            order_keys_sort(order_keys, key_count);
++
++            if( !face_priorities )
++            {
++                for( int i = 0; i < key_count; i++ )
++                    scene->tmp_face_order[i] = order_key_face(order_keys[i]);
++                scene->tmp_face_order_count = key_count;
++            }
++            else
++            {
++                int counts[12] = { 0 };
++
++                memset(scene->tmp_priority_depth_sum, 0, 12 * sizeof(int));
++                memset(scene->tmp_priority_face_count, 0, 12 * sizeof(faceint_t));
++
++                for( int i = 0; i < key_count; i++ )
++                {
++                    accumulate_face_by_priority(
++                        scene->tmp_priority_faces,
++                        scene->tmp_priority_face_count,
++                        scene->tmp_priority_depth_sum,
++                        scene->tmp_flex_prio11_face_to_depth,
++                        scene->tmp_flex_prio12_face_to_depth,
++                        counts,
++                        scene->priority_stride,
++                        scene->flex_prio_capacity,
++                        face_count,
++                        face_priorities,
++                        (faceint_t)order_key_face(order_keys[i]),
++                        order_key_depth(order_keys[i]));
++                }
++
++                scene->tmp_face_order_count = sort_face_draw_order(
++                    scene->tmp_priority_depth_sum,
++                    scene->tmp_flex_prio11_face_to_depth,
++                    scene->tmp_flex_prio12_face_to_depth,
++                    scene->tmp_face_order,
++                    scene->tmp_priority_faces,
++                    counts,
++                    scene->priority_stride,
++                    scene->flex_prio_capacity,
++                    scene->max_faces);
++            }
++
++            if( debug_stats )
++                toridraw_face_sort_debug_print(
++                    scene, hnd, debug_stats, scene->tmp_face_order_count);
++            /* #region agent log */
++            if( toridraw_dbg_enabled() )
++                toridraw_dbg_check_face_order(scene, hnd, face_priorities, face_count, bias);
++            /* #endregion */
++            return;
++        }
++    }
++#endif
++
+     int bounds = bucket_sort_by_average_depth(
+         scene->tmp_depth_faces,
+         scene->tmp_depth_face_count,

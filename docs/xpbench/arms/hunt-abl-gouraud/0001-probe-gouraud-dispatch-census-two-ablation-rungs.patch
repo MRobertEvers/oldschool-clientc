@@ -1,0 +1,585 @@
+From 7ee5c9c2f2b59e1e97e49f9519649bc42c88b2db Mon Sep 17 00:00:00 2001
+From: hunt-abl-gouraud <mreverssci@gmail.com>
+Date: Tue, 25 Aug 2026 02:46:56 -0500
+Subject: [PATCH] probe(gouraud): dispatch census + two ablation rungs
+
+Not shippable. HUNTCEN_GOURAUD counts where gouraud faces go and what
+disqualifies one from the asm; HUNTABL_NOGOURAUD drops every gouraud face at
+the raster dispatch; HUNTABL_GNULL keeps the whole call chain and stubs only
+the kernel body. All three names avoid the strings src/makefile greps for, so
+the four handrolled asm kernels stay in the link.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ 3rd/toridraw/graphics/raster/gouraud_ablate.c |  38 +++++
+ 3rd/toridraw/graphics/raster/gouraud_ablate.h |  72 ++++++++++
+ 3rd/toridraw/graphics/raster/gouraud_census.c |  83 +++++++++++
+ 3rd/toridraw/graphics/raster/gouraud_census.h | 133 ++++++++++++++++++
+ 3rd/toridraw/toridraw_raster.u.c              |  21 +++
+ 3rd/toridraw/toridraw_unity.c                 |   2 +
+ .../triangles/toridraw_triangle_gouraud.u.c   |  23 +++
+ 7 files changed, 372 insertions(+)
+ create mode 100644 3rd/toridraw/graphics/raster/gouraud_ablate.c
+ create mode 100644 3rd/toridraw/graphics/raster/gouraud_ablate.h
+ create mode 100644 3rd/toridraw/graphics/raster/gouraud_census.c
+ create mode 100644 3rd/toridraw/graphics/raster/gouraud_census.h
+
+diff --git a/3rd/toridraw/graphics/raster/gouraud_ablate.c b/3rd/toridraw/graphics/raster/gouraud_ablate.c
+new file mode 100644
+index 000000000..292d4fe07
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/gouraud_ablate.c
+@@ -0,0 +1,38 @@
++#include "graphics/raster/gouraud_ablate.h"
++
++#if HUNTABL_GNULL
++
++volatile int g_huntabl_gnull_sink;
++
++__attribute__((noinline, noclone, noipa)) void
++huntabl_gouraud_tri_null(
++    toripixel_t* pixel_buffer,
++    int stride,
++    int screen_width,
++    int screen_height,
++    int x0,
++    int x1,
++    int x2,
++    int y0,
++    int y1,
++    int y2,
++    int color0_hsl16,
++    int color1_hsl16,
++    int color2_hsl16)
++{
++    (void)pixel_buffer;
++    (void)stride;
++    (void)screen_width;
++    (void)screen_height;
++    (void)x1;
++    (void)x2;
++    (void)y0;
++    (void)y1;
++    (void)y2;
++    (void)color0_hsl16;
++    (void)color1_hsl16;
++    (void)color2_hsl16;
++    g_huntabl_gnull_sink = x0;
++}
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/gouraud_ablate.h b/3rd/toridraw/graphics/raster/gouraud_ablate.h
+new file mode 100644
+index 000000000..3fd36e4e0
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/gouraud_ablate.h
+@@ -0,0 +1,72 @@
++#ifndef TORIDRAW_RASTER_GOURAUD_ABLATE_H
++#define TORIDRAW_RASTER_GOURAUD_ABLATE_H
++
++/**
++ * Two ablation rungs for the gouraud route. Neither is shippable; both exist
++ * only to put a ceiling on what optimising this route could ever be worth.
++ *
++ *   HUNTABL_NOGOURAUD=1  the raster dispatch drops every FACE_TYPE_GOURAUD
++ *                        face on the floor. Everything above the dispatch --
++ *                        projection, the depth sort, the painter buckets, the
++ *                        render-type / hidden / alpha gates, the texture cache
++ *                        probe -- still runs, and flat and textured faces
++ *                        still draw. So the delta is the gouraud LEAF and
++ *                        nothing else.
++ *
++ *   HUNTABL_GNULL=1      keeps the whole chain, including the thirteen-argument
++ *                        marshalling in ToriDraw_TriangleGouraud, and replaces
++ *                        only the asm kernel's body with a function that
++ *                        returns. NOGOURAUD minus GNULL is therefore the cost
++ *                        of getting TO the kernel, which is the exact quantity
++ *                        the texture route could not separate when abl_texnull
++ *                        came out smaller than abl_texv1.
++ *
++ * The names deliberately avoid the strings TORIDRAW_ABLATE, TORIDRAW_SPAN_CENSUS
++ * and TORIDRAW_SPAN_TRACE. src/makefile greps TORIDRAW_PROBE_CFLAGS for those
++ * three and withdraws all four handrolled asm kernels from the link when it
++ * finds one, which would make a timed binary a different renderer.
++ */
++
++#ifndef HUNTABL_NOGOURAUD
++#define HUNTABL_NOGOURAUD 0
++#endif
++
++#ifndef HUNTABL_GNULL
++#define HUNTABL_GNULL 0
++#endif
++
++#if HUNTABL_GNULL
++
++#include "toridraw_types.h"
++
++/**
++ * Same signature as toridraw_gouraud_tri_opaque_s4_asm, empty body.
++ *
++ * noipa, not merely noinline: with LTO on, an interprocedural pass that proved
++ * the callee reads nothing would delete the argument stores as dead and the arm
++ * would silently ablate the marshalling as well as the fill -- which is the one
++ * thing this rung exists to keep. The volatile store is the second belt: it
++ * makes the call observably side-effecting even to a pass that ignores the
++ * attribute.
++ */
++extern volatile int g_huntabl_gnull_sink;
++
++__attribute__((noinline, noclone, noipa)) void
++huntabl_gouraud_tri_null(
++    toripixel_t* pixel_buffer,
++    int stride,
++    int screen_width,
++    int screen_height,
++    int x0,
++    int x1,
++    int x2,
++    int y0,
++    int y1,
++    int y2,
++    int color0_hsl16,
++    int color1_hsl16,
++    int color2_hsl16);
++
++#endif
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/gouraud_census.c b/3rd/toridraw/graphics/raster/gouraud_census.c
+new file mode 100644
+index 000000000..94c95898b
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/gouraud_census.c
+@@ -0,0 +1,83 @@
++#include "graphics/raster/gouraud_census.h"
++
++#if defined(HUNTCEN_GOURAUD) && HUNTCEN_GOURAUD
++
++#include <stdio.h>
++#include <stdlib.h>
++
++struct ToriDraw_GouraudCensus g_toridraw_gouraud_census;
++
++static char const* const g_gouraud_census_names[HUNTCEN_G_BUCKETS] = {
++    "dispatch faces in",
++    "  skip: render type",
++    "  skip: color hidden",
++    "  skip: alpha <= 1",
++    "  textured",
++    "  skip: texture miss",
++    "  flat",
++    "  GOURAUD",
++    "  zbuffered (untex)",
++    "gouraud -> smooth S1",
++    "gouraud -> plain S4",
++    "face: near-clip route",
++    "face: near-clip drop",
++    "TriangleGouraud calls",
++    "  -> scanline family",
++    "  -> ASM opaque s4",
++    "  -> C alpha s4",
++    "TriangleGouraudS1 calls",
++    "  -> C opaque s1",
++    "  -> C alpha s1",
++};
++
++void
++ToriDraw_GouraudCensusDump(void)
++{
++    char const* path = getenv("HUNTCEN_GOURAUD_FILE");
++    FILE* f = path ? fopen(path, "w") : stderr;
++    int i;
++    double tri_calls;
++
++    if( !f )
++        f = stderr;
++
++    tri_calls = g_toridraw_gouraud_census.n[HUNTCEN_G_TRI_CALLS];
++
++    fprintf(f, "\n=== gouraud dispatch census ===\n");
++    fprintf(f, "%-26s %16s %18s %12s\n", "bucket", "count", "area px", "px/face");
++    for( i = 0; i < HUNTCEN_G_BUCKETS; i++ )
++    {
++        double n = g_toridraw_gouraud_census.n[i];
++        double a = g_toridraw_gouraud_census.area[i];
++
++        if( n == 0.0 && a == 0.0 )
++            continue;
++
++        fprintf(f, "%-26s %16.0f %18.0f %12.2f\n",
++                g_gouraud_census_names[i], n, a, n > 0.0 ? a / n : 0.0);
++    }
++
++    fprintf(f, "\nasm share of TriangleGouraud calls   %.4f%%\n",
++            tri_calls > 0.0
++                ? 100.0 * g_toridraw_gouraud_census.n[HUNTCEN_G_TRI_ASM] / tri_calls
++                : 0.0);
++    {
++        double asm_area = g_toridraw_gouraud_census.area[HUNTCEN_G_TRI_ASM];
++        double c_area = g_toridraw_gouraud_census.area[HUNTCEN_G_TRI_CALPHA];
++        double tot = asm_area + c_area;
++        fprintf(f, "asm share of TriangleGouraud area    %.4f%%\n",
++                tot > 0.0 ? 100.0 * asm_area / tot : 0.0);
++    }
++
++    fprintf(f, "\nalpha histogram over the C alpha leaf (non-zero rows only)\n");
++    for( i = 0; i < 256; i++ )
++        if( g_toridraw_gouraud_census.alpha_hist[i] != 0.0 )
++            fprintf(f, "  alpha %3d  %16.0f\n",
++                    i, g_toridraw_gouraud_census.alpha_hist[i]);
++
++    fflush(f);
++    if( path && f != stderr )
++        fclose(f);
++}
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/gouraud_census.h b/3rd/toridraw/graphics/raster/gouraud_census.h
+new file mode 100644
+index 000000000..7cd8896bc
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/gouraud_census.h
+@@ -0,0 +1,133 @@
++#ifndef TORIDRAW_RASTER_GOURAUD_CENSUS_H
++#define TORIDRAW_RASTER_GOURAUD_CENSUS_H
++
++/**
++ * Where do gouraud faces actually go, and what keeps one out of the asm?
++ *
++ * The EIP map credits toridraw_gouraud_tri_opaque_s4_asm with 10.34 ms and
++ * ToriDraw_TriangleGouraud -- the C wrapper around it -- with a further
++ * 1.15 ms. A wrapper that only dispatches should not cost 1.15 ms, so either
++ * the wrapper is doing work or a second, C-only leaf is inlined into it. This
++ * counts the dispatch so the answer is a number rather than a reading of the
++ * source.
++ *
++ * Compile-time gated on HUNTCEN_GOURAUD so a shipping build has no branch
++ * here, and deliberately NOT named with any of the three strings src/makefile
++ * greps for -- TORIDRAW_SPAN_CENSUS / TORIDRAW_ABLATE / TORIDRAW_SPAN_TRACE --
++ * because those withdraw all four handrolled asm kernels from the link, which
++ * would make this census describe a renderer nobody ships.
++ */
++
++#if defined(HUNTCEN_GOURAUD) && HUNTCEN_GOURAUD
++
++#include <stdio.h>
++#include <stdlib.h>
++
++enum
++{
++    /* Face-level, counted in ToriDraw_RasterModelFace. */
++    HUNTCEN_G_DISPATCH_FACES = 0,   /**< every face entering the dispatch */
++    HUNTCEN_G_SKIP_TYPE,            /**< raw render type hidden/out of range */
++    HUNTCEN_G_SKIP_HIDDEN,          /**< color_c == HSL16_HIDDEN */
++    HUNTCEN_G_SKIP_ALPHA,           /**< alpha <= 1 on an untextured face */
++    HUNTCEN_G_TEXTURED,             /**< routed to a texture leaf */
++    HUNTCEN_G_TEX_MISS,             /**< textured, texture not resident */
++    HUNTCEN_G_FLAT,                 /**< FACE_TYPE_FLAT, untextured */
++    HUNTCEN_G_GOURAUD,              /**< FACE_TYPE_GOURAUD, untextured */
++    HUNTCEN_G_ZBUF,                 /**< untextured face taken by the z-buffer */
++    HUNTCEN_G_SMOOTH,               /**< gouraud face on the S1 smooth path */
++    HUNTCEN_G_PLAIN,                /**< gouraud face on the S4 path */
++
++    /* Leaf-level, counted in toridraw_triangle_gouraud.u.c. */
++    HUNTCEN_G_FACE_NEARCLIP,        /**< routed to the near-plane clip builder */
++    HUNTCEN_G_FACE_NEARCLIP_DROP,   /**< near-clipped and dropped, no ortho */
++    HUNTCEN_G_TRI_CALLS,            /**< ToriDraw_TriangleGouraud entries */
++    HUNTCEN_G_TRI_SCANLINE,         /**< ... diverted to the scanline family */
++    HUNTCEN_G_TRI_ASM,              /**< ... alpha == 0xFF, the asm kernel */
++    HUNTCEN_G_TRI_CALPHA,           /**< ... alpha != 0xFF, the C alpha leaf */
++    HUNTCEN_G_TRI_S1_CALLS,         /**< ToriDraw_TriangleGouraudS1 entries */
++    HUNTCEN_G_TRI_S1_OPAQUE,
++    HUNTCEN_G_TRI_S1_ALPHA,
++    HUNTCEN_G_BUCKETS
++};
++
++struct ToriDraw_GouraudCensus
++{
++    double n[HUNTCEN_G_BUCKETS];
++    double area[HUNTCEN_G_BUCKETS];
++    /* Alpha histogram over the C-alpha leaf, 0..255. "What value is it, and is
++     * it one value or many" is the difference between a special case worth
++     * folding into the asm and a general blend. */
++    double alpha_hist[256];
++    int registered;
++};
++
++extern struct ToriDraw_GouraudCensus g_toridraw_gouraud_census;
++
++void
++ToriDraw_GouraudCensusDump(void);
++
++static inline void
++huntcen_gouraud_register(void)
++{
++    if( !g_toridraw_gouraud_census.registered )
++    {
++        g_toridraw_gouraud_census.registered = 1;
++        atexit(ToriDraw_GouraudCensusDump);
++    }
++}
++
++static inline void
++huntcen_gouraud_bump(int bucket)
++{
++    huntcen_gouraud_register();
++    g_toridraw_gouraud_census.n[bucket] += 1.0;
++}
++
++/* Doubles for the same reason face_census.h uses them: a near-clipped
++ * triangle's coordinates are not bounded by the viewport, and this is
++ * measurement code where an overflow is a silently wrong answer. */
++static inline void
++huntcen_gouraud_bump_area(
++    int bucket, int x0, int y0, int x1, int y1, int x2, int y2, int cap)
++{
++    double cross;
++    double area;
++
++    huntcen_gouraud_register();
++
++    cross = (double)(x1 - x0) * (double)(y2 - y0) -
++            (double)(x2 - x0) * (double)(y1 - y0);
++    area = (cross < 0.0 ? -cross : cross) * 0.5;
++    if( cap > 0 && area > (double)cap )
++        area = (double)cap;
++
++    g_toridraw_gouraud_census.n[bucket] += 1.0;
++    g_toridraw_gouraud_census.area[bucket] += area;
++}
++
++static inline void
++huntcen_gouraud_alpha(int alpha)
++{
++    huntcen_gouraud_register();
++    if( alpha < 0 )
++        alpha = 0;
++    if( alpha > 255 )
++        alpha = 255;
++    g_toridraw_gouraud_census.alpha_hist[alpha] += 1.0;
++}
++
++#define HUNTCEN_G_BUMP(b)                       huntcen_gouraud_bump((b))
++#define HUNTCEN_G_AREA(b, x0, y0, x1, y1, x2, y2, cap)                       \
++    huntcen_gouraud_bump_area((b), (x0), (y0), (x1), (y1), (x2), (y2), (cap))
++#define HUNTCEN_G_ALPHA(a)                      huntcen_gouraud_alpha((a))
++
++#else
++
++#define HUNTCEN_G_BUMP(b)                                ((void)0)
++#define HUNTCEN_G_AREA(b, x0, y0, x1, y1, x2, y2, cap)   ((void)0)
++#define HUNTCEN_G_ALPHA(a)                               ((void)0)
++
++#endif
++
++#endif
+diff --git a/3rd/toridraw/toridraw_raster.u.c b/3rd/toridraw/toridraw_raster.u.c
+index 43197f782..407921950 100644
+--- a/3rd/toridraw/toridraw_raster.u.c
++++ b/3rd/toridraw/toridraw_raster.u.c
+@@ -6,6 +6,8 @@
+ #include "toridraw_model_internal.h"
+ #include "toridraw_types.h"
+ #include "graphics/winding.h"
++#include "graphics/raster/gouraud_census.h"
++#include "graphics/raster/gouraud_ablate.h"
+ 
+ #include <assert.h>
+ #include <stdbool.h>
+@@ -378,6 +380,7 @@ ToriDraw_RasterModelFace(
+     struct ToriDrawModelRasterContext* ctx)
+ {
+     assert(face >= 0 && face < ctx->num_faces);
++    HUNTCEN_G_BUMP(HUNTCEN_G_DISPATCH_FACES);
+ 
+     struct ToriDraw_Texture* texture = NULL;
+     struct ToriDraw_RasterDebugStats* dbg = ctx->raster_debug;
+@@ -391,6 +394,7 @@ ToriDraw_RasterModelFace(
+     {
+         if( dbg )
+             dbg->skipped_type++;
++        HUNTCEN_G_BUMP(HUNTCEN_G_SKIP_TYPE);
+         return;
+     }
+     enum FaceType type = (enum FaceType)raw_type;
+@@ -432,6 +436,7 @@ ToriDraw_RasterModelFace(
+         // getModelFaces
+         if( dbg )
+             dbg->skipped_hidden++;
++        HUNTCEN_G_BUMP(HUNTCEN_G_SKIP_HIDDEN);
+         return;
+         // color_c = 0;
+     }
+@@ -507,6 +512,7 @@ ToriDraw_RasterModelFace(
+         {
+             if( dbg )
+                 dbg->skipped_tex_miss++;
++            HUNTCEN_G_BUMP(HUNTCEN_G_TEX_MISS);
+             /* TORIRS_RASTER_TEX_DEBUG=1: tally skipped textured faces.
+              * Resolve the env var once - getenv() walks environ with a strncmp
+              * per entry, and this branch is the steady state for every face of
+@@ -562,6 +568,7 @@ ToriDraw_RasterModelFace(
+         {
+             if( dbg )
+                 dbg->skipped_alpha++;
++            HUNTCEN_G_BUMP(HUNTCEN_G_SKIP_ALPHA);
+             return;
+         }
+ 
+@@ -622,6 +629,7 @@ ToriDraw_RasterModelFace(
+         if( ctx->zbuffered )
+         {
+             bool const flat = type == FACE_TYPE_FLAT;
++            HUNTCEN_G_BUMP(HUNTCEN_G_ZBUF);
+ 
+             ToriDraw_TriangleFaceZBuffered(
+                 &ctx->zbuf_target,
+@@ -647,8 +655,17 @@ ToriDraw_RasterModelFace(
+         switch( type )
+         {
+         case FACE_TYPE_GOURAUD:
++            HUNTCEN_G_BUMP(HUNTCEN_G_GOURAUD);
++#if HUNTABL_NOGOURAUD
++            /* ABLATION, not shippable. The face is dropped here and nowhere
++             * else: it was projected, depth-sorted, bucketed by the painter and
++             * cleared every gate above this line, so the delta this arm
++             * measures is the gouraud leaf alone. */
++            break;
++#endif
+             if( (ctx->flags & RASTER_FLAG_GOURAUD_SMOOTH) != 0 )
+             {
++                HUNTCEN_G_BUMP(HUNTCEN_G_SMOOTH);
+                 ToriDraw_TriangleFaceGouraudSmooth(
+                     ctx->pixel_buffer,
+                     face,
+@@ -677,6 +694,7 @@ ToriDraw_RasterModelFace(
+             }
+             else
+             {
++                HUNTCEN_G_BUMP(HUNTCEN_G_PLAIN);
+                 ToriDraw_TriangleFaceGouraud(
+                     ctx->pixel_buffer,
+                     face,
+@@ -706,6 +724,7 @@ ToriDraw_RasterModelFace(
+ 
+             break;
+         case FACE_TYPE_FLAT:
++            HUNTCEN_G_BUMP(HUNTCEN_G_FLAT);
+             // Skip triangle if any vertex was clipped
+ 
+             ToriDraw_TriangleFaceFlat(
+@@ -736,6 +755,7 @@ ToriDraw_RasterModelFace(
+ #ifndef TORIDRAW_PIXEL16
+         case FACE_TYPE_TEXTURED:
+         textured:;
++            HUNTCEN_G_BUMP(HUNTCEN_G_TEXTURED);
+             if( dbg )
+             {
+                 dbg->drawn++;
+@@ -925,6 +945,7 @@ ToriDraw_RasterModelFace(
+             break;
+         case FACE_TYPE_TEXTURED_FLAT_SHADE:
+         textured_flat:;
++            HUNTCEN_G_BUMP(HUNTCEN_G_TEXTURED);
+             if( dbg )
+             {
+                 dbg->drawn++;
+diff --git a/3rd/toridraw/toridraw_unity.c b/3rd/toridraw/toridraw_unity.c
+index e9db3a847..4b4c02ac8 100644
+--- a/3rd/toridraw/toridraw_unity.c
++++ b/3rd/toridraw/toridraw_unity.c
+@@ -27,6 +27,8 @@
+ #include "graphics/convex_hull.c"
+ #include "graphics/raster/raster_ablate.c"
+ #include "graphics/raster/face_census.c"
++#include "graphics/raster/gouraud_census.c"
++#include "graphics/raster/gouraud_ablate.c"
+ #include "graphics/raster/gouraudhsllightness/sarea_census.c"
+ #include "graphics/proj_census.c"
+ #include "graphics/raster/span_census.c"
+diff --git a/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c b/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
+index 22e2fd2eb..24084f45d 100644
+--- a/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
++++ b/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
+@@ -18,6 +18,8 @@
+ #include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c"
+ #include "graphics/raster/gouraudhsllightness/gouraud_tri_asm.h"
+ #include "graphics/raster/face_census.h"
++#include "graphics/raster/gouraud_census.h"
++#include "graphics/raster/gouraud_ablate.h"
+ // clang-format on
+ 
+ static inline void
+@@ -43,9 +45,12 @@ ToriDraw_TriangleGouraud(
+         x2, y2,
+         x3, y3,
+         screen_width * screen_height);
++    HUNTCEN_G_AREA(HUNTCEN_G_TRI_CALLS, x1, y1, x2, y2, x3, y3,
++                   screen_width * screen_height);
+ 
+     if( TORIDRAW_SCANLINE_SELECTED() )
+     {
++        HUNTCEN_G_BUMP(HUNTCEN_G_TRI_SCANLINE);
+         if( alpha == 0xFF )
+         {
+             raster_gouraudhsllightness_screen_opaque_bary_scanline_s4(
+@@ -86,8 +91,16 @@ ToriDraw_TriangleGouraud(
+ 
+     if( alpha == 0xFF )
+     {
++        HUNTCEN_G_AREA(HUNTCEN_G_TRI_ASM, x1, y1, x2, y2, x3, y3,
++                       screen_width * screen_height);
+         // raster_gouraudhsllightness_screen_opaque_edge_sort_s4(
++#if HUNTABL_GNULL
++        /* ABLATION rung 1: the marshalling below is unchanged, the callee's
++         * body is gone. */
++        huntabl_gouraud_tri_null(
++#else
+         TORIDRAW_GOURAUD_TRI_OPAQUE_S4(
++#endif
+             pixel_buffer,
+             stride,
+             screen_width,
+@@ -104,6 +117,9 @@ ToriDraw_TriangleGouraud(
+     }
+     else
+     {
++        HUNTCEN_G_AREA(HUNTCEN_G_TRI_CALPHA, x1, y1, x2, y2, x3, y3,
++                       screen_width * screen_height);
++        HUNTCEN_G_ALPHA(alpha);
+         raster_gouraudhsllightness_screen_alpha_bary_branching_s4(
+             pixel_buffer,
+             stride,
+@@ -166,8 +182,10 @@ ToriDraw_TriangleGouraudS1(
+         return;
+     }
+ 
++    HUNTCEN_G_BUMP(HUNTCEN_G_TRI_S1_CALLS);
+     if( alpha == 0xFF )
+     {
++        HUNTCEN_G_BUMP(HUNTCEN_G_TRI_S1_OPAQUE);
+         raster_gouraudhsllightness_screen_opaque_bary_sort_s1(
+             pixel_buffer,
+             stride,
+@@ -185,6 +203,7 @@ ToriDraw_TriangleGouraudS1(
+     }
+     else
+     {
++        HUNTCEN_G_BUMP(HUNTCEN_G_TRI_S1_ALPHA);
+         raster_gouraudhsllightness_screen_alpha_bary_branching_s1(
+             pixel_buffer,
+             stride,
+@@ -785,8 +804,12 @@ ToriDraw_TriangleFaceGouraud(
+         (x1 == TORIDRAW_SCREEN_X_NEAR_CLIPPED || x2 == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+          x3 == TORIDRAW_SCREEN_X_NEAR_CLIPPED) )
+     {
++        HUNTCEN_G_BUMP(HUNTCEN_G_FACE_NEARCLIP);
+         if( !allow_near_clip || !orthographic_vertices_x )
++        {
++            HUNTCEN_G_BUMP(HUNTCEN_G_FACE_NEARCLIP_DROP);
+             return;
++        }
+         ToriDraw_TriangleFaceGouraudNearClip(
+             pixel_buffer,
+             face,

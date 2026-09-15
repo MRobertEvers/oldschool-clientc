@@ -1,0 +1,133 @@
+{{otheruses|the [[Wilderness]] loot keys|loot keys related to the other activities|Loot key (disambiguation)}}
+{{Redirect3|Wilderness Loot Key|For other uses, see [[Larran's key]] and [[Muddy key]]}}
+{{Infobox Item
+|name = Loot key
+|image = [[File:Loot key.png]]
+|release = [[23 February]] [[2022]]
+|update = Nex Achievements and Loot Keys
+|members = No
+|quest = No
+|tradeable = No
+|bankable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Check, Destroy
+|destroy = The loot inside will be destroyed with it!
+|examine = Contains the loot from a fallen enemy. Use it at the Loot Chest in the Ferox Enclave.
+|value = 0
+|weight = 0.010
+|id = 26651,26652,26653,26654,26655
+}}
+[[File:Loot key detail.png|left|120px]]
+'''Loot keys''' allow the player to retrieve the loot stored in the [[Loot Chest]] after defeating an opponent in a dangerous [[PvP]] activity. In order to receive loot keys instead of having the items dropped on the ground by the defeated opponents, the player must pay 1,000,000 coins to [[Skully]] in the [[Ferox Enclave]] and turn on the associated setting.
+
+==Mechanics==
+
+Loot keys can be obtained both in the regular worlds within the [[Wilderness]], as well as the [[PvP world]]s. They are available to both [[free-to-play]] and [[member]] players. Opening the [[Loot Chest]] requires entering a [[bank PIN]]. If the player attempts to withdraw items from a loot key which contains members-only items while on a free-to-play world, they will be unable to withdraw the members-only items, but may withdraw non-members-only items.
+
+Loot keys always take up 1 inventory space, regardless of the value or number of the looted items. They do not stack and cannot be [[bank]]ed or converted to [[bank note]]s. Additionally, loot keys can only be normally destroyed in the safe areas. Attempting to destroy a key with a total value above 1,000,000 [[coins]] within a dangerous area such as the [[Wilderness]] will fail with the following game chat message: {{mes|The loot is worth too much for you to destroy it here. Go somewhere safe first.}} The value of the items deleted by disposing of the key through other means than the default ''Destroy'' option does not count towards the total value of the destroyed items reported by [[Skully]]. Note that in the area around [[Ferox Enclave]], {{Colour|Red|even if you are not teleblocked, other players who '''are''' teleblocked '''can''' attack you}}, and thus it should not be considered a safe area.
+
+The [[Skull (status)|skull]] of a player holding loot keys and the icon next to their name in the [[choose option]] menu changes accordingly to display the current number of held keys. However, loot key value has no effect on the appearance of the skull. If the player is [[Skull (status)|unskulled]], there is no way to tell how many keys they are holding.
+
+===Items dropped on the ground===
+
+By default, a loot key allows a player to retrieve all items that would be normally dropped by the opponent. Depending on the individual settings chosen by the player, the loot stored in the chest might contain all items except for food, all items below a specific value threshold, or a combination of those two options instead. The rest of the items filtered by the individual settings will be dropped to the ground as regular loot. Note that the [[bones]] of the killed opponent are always dropped on the ground, regardless of whether a loot key was received.
+
+If the player's inventory is not full, a loot key will appear in the player's inventory immediately after killing the opponent along with the kill message. If the inventory is full, the key will drop to the ground instead. The key's loot value cannot be checked without picking it up. A dropped loot key can only be picked up by the player who has killed the opponent; otherwise the loot is lost. If the player already has 5 loot keys in the inventory, the loot will drop to the ground as if the option was turned off, and the player will receive the following message: {{mes|You have reached the limit of 5 loot keys.}} If the opponent drops no loot, no key is given to the player or dropped on the ground.
+
+===Maximum number of keys===
+
+Each player can only have up to 5 loot keys in the inventory at any given time.
+
+After killing an opponent that has enough loot keys to put the player over the 5 key limit, some loot keys will be deleted so that the player can only obtain up to 5 keys. Note that as long as the player does not have 5 keys in the inventory, the opponent's actual loot will also be received as a loot key, which might cause to delete an additional key. This is why defeating an opponent that has 5 keys in the inventory with the loot keys enabled will always cause one key to be removed, even if the killer has none.
+
+===Death and key transfer===
+
+When a player is killed by an opponent that is either in the process of dying or has died recently, their loot keys will be destroyed along with their contents and their loot will drop to the floor regardless of the loot key settings of the other player.
+
+In case player A has disengaged from combat with player B, and is consequently finished off by player C, the loot key will go to player C if more than 30 ticks (18 seconds) have passed since the moment of disengagement, even if player B has dealt a majority of the damage total.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1630213577549160448|date=27 February 2023|archiveurl=https://reldo.runescape.wiki/i/105926|archivedate=27 February 2023}}
+
+The effects of being [[Skull (status)|unskulled]] and the [[Protect Item]] prayer apply only to the items in the inventory, but not associated with the loot keys themselves. As a consequence, loot keys are always lost on death. If a player dies a PvP death with loot keys in the inventory, the existing loot keys will be transferred to an eligible opponent even if the opponent does not have loot keys enabled through Skully. If a player dies a PvM death with loot keys in the inventory, they are removed instead.
+
+===Ironman Mode===
+
+Players in the [[Ironman Mode]] can unlock and receive loot keys, but they may not retrieve the loot themselves. However, they can still destroy or refuse to pick up the keys, effectively removing the loot from the game and preventing the opponents from getting back their items. They might also preview the looted items with the [[Loot Chest]] with the only option to destroy them. Previewing the contents of a loot key does not consume the key.
+
+Ironmen can die to a regular player to transfer their previously obtained loot keys. This is currently the only way for the Ironman players to transfer the looted items.
+
+==Gallery==
+<gallery>
+Loot key destroy prompt.png|Prompt displayed when attempting to ''Destroy'' a loot key within a safe area.
+Nex Achievements and Loot Keys (6).png|The loot key settings interface that can be accessed via [[Skully]].
+Wilderness Loot Key interface.png|The [[Wilderness Loot Key interface]] displayed after a player uses a loot key on the [[Loot Chest]].
+File:Skull (Loot key) icon (1).png|[[Skull (status)|Skull status]] whilst holding 1 loot key.
+File:Skull (Loot key) icon (2).png|Skull status whilst holding 2 loot keys.
+File:Skull (Loot key) icon (3).png|Skull status whilst holding 3 loot keys.
+File:Skull (Loot key) icon (4).png|Skull status whilst holding 4 loot keys.
+File:Skull (Loot key) icon (5).png|Skull status whilst holding 5 loot keys.
+File:Skull (Forinthry Surge Loot key) icon (1).png|Skull status with the [[Forinthry Surge]] whilst holding 1 loot keys.
+File:Skull (Forinthry Surge Loot key) icon (2).png|Skull status with the Forinthry Surge whilst holding 2 loot keys.
+File:Skull (Forinthry Surge Loot key) icon (3).png|Skull status with the Forinthry Surge whilst holding 3 loot keys.
+File:Skull (Forinthry Surge Loot key) icon (4).png|Skull status with the Forinthry Surge whilst holding 4 loot keys.
+File:Skull (Forinthry Surge Loot key) icon (5).png|Skull status with the Forinthry Surge whilst holding 5 loot keys.
+File:Choose option skull 1 loot key.png|[[Choose option]] icon whilst holding 1 loot key.
+File:Choose option skull 2 loot key.png|Choose option icon whilst holding 2 loot keys.
+File:Choose option skull 3 loot key.png|Choose option icon whilst holding 3 loot keys.
+File:Choose option skull 4 loot key.png|Choose option icon whilst holding 4 loot keys.
+File:Choose option skull 5 loot key.png|Choose option icon whilst holding 5 loot keys.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 August 2025
+|update = More Doom Tweaks, Poll 84, & Summer Sweep Up Changes
+|change = Loot key interface now matches the Deadman mode style. [[Loot chest]] can be opened without consuming a loot key, allowing for partial removal of the content without removing the loot key from the inventory.
+}}
+{{Subject changes
+|date = 13 November 2024
+|update = Guardians of the Rift Changes Out Now!
+|change = Loot keys containing less than 1,000,000 coins worth of loot can now be destroyed, up from 30,000 coins.
+}}
+{{Subject changes
+|date = 1 March 2023
+|update = Theatre of Blood: Entry Mode Improvements
+|change = Players can no longer receive a loot key if they are in a trade screen. The key will now be dropped where the player died.
+}}
+{{Subject changes
+|date = 29 June 2022
+|update = Unranked Group Iron Changes and More!
+|change = Loot Keys can now be destroyed within the Wilderness if they contain less than 30,000 coins worth of loot. There is a small delay to this process to discourage players from destroying loot during combat.
+}}
+{{Subject changes
+|date = 30 March 2022
+|update = Guardians of the Rift Improvements
+|change = Loot keys' despawn timer has been extended to two minutes, for consistency with other drops.
+}}
+{{Subject changes
+|date = 9 March 2022
+|update = PJ Timer & New Broadcast Settings 
+|change =
+* The cost of unlocking the loot key was decreased from 5,000,000 coins to 1,000,000 coins. Players who have already unlocked the loot keys with the original price were reimbursed 4,000,000 coins deposited into their banks.
+* [[Loot Chest]]s were added to the [[Grand Exchange]], [[Edgeville]] bank and [[Mage Arena]] bank.
+* When players kill each other in a duel, one of the players no longer receives the entire loot. Instead, when a player is killed by an opponent that is either in the process of dying or has died recently, their loot keys will be destroyed and their loot will drop to the floor regardless of the loot key settings of the other player.
+}}
+{{Subject changes
+|date = 23 February 2022
+|type = Hotfix
+|change = The [[Revenant Caves]] fee is now included in the loot within the [[Loot Chest]].
+}}
+{{Subject changes
+|date = 23 February 2022
+|type = Hotfix
+|change = If the player's inventory is full, the loot key will drop to the floor and the player will be able to pick it up normally without it being removed.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Keys}}
+
+[[Category:Wilderness]]

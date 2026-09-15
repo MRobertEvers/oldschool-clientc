@@ -3,7 +3,11 @@
 #include "test_harness.h"
 #include "world_pickset.h"
 
+#include "entity_objstack.h"
+#include "entity_scenery.h"
+
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 void
@@ -30,7 +34,7 @@ test_lifecycle_coords(void)
     World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 1);
     struct WorldEntity_Player* p = World_EntityPoolGet(&world->entities.player, pi);
     uint32_t x0 = p->draw_position.x;
-    World_Cycle(world, 10);
+    World_TestCycle(world, 10);
     TEST_ASSERT(p->draw_position.x == x0, "cycle no-op without load_complete");
 
     World_Free(world);
@@ -256,10 +260,10 @@ test_pickset(void)
     World_PickSetReset(&set);
     TEST_ASSERT(set.count == 0, "reset");
 
-    World_PickSetAdd(&set, 1, WORLD_PICK_TERRAIN, 0, 0, 0);
-    World_PickSetAdd(&set, 2, WORLD_PICK_SCENERY, 1, 2, 1);
-    World_PickSetAdd(&set, 3, WORLD_PICK_PROJECTILE, 3, 4, 2);
-    World_PickSetAdd(&set, 4, WORLD_PICK_NPC, 5, 6, 3);
+    World_PickSetAdd(&set, 1, WORLD_PICK_TERRAIN, 0, 0, 0, 0);
+    World_PickSetAdd(&set, 2, WORLD_PICK_SCENERY, 1, 2, 1, 0);
+    World_PickSetAdd(&set, 3, WORLD_PICK_PROJECTILE, 3, 4, 2, 0);
+    World_PickSetAdd(&set, 4, WORLD_PICK_NPC, 5, 6, 3, 0);
     TEST_ASSERT(set.count == 4, "pick count");
     TEST_ASSERT(set.items[1].type == WORLD_PICK_SCENERY && set.items[1].tile_x == 1, "scenery pick");
 
@@ -339,8 +343,35 @@ test_player_npc(void)
     World_NpcSetAnimation(world, ni, 9, WORLD_ANIMATION_TYPE_PRIMARY);
     World_NpcPathPushStep(world, ni, WORLD_PATHSTEP_RUN, 6);
     World_NpcPathJump(world, ni, false, 8, 8);
+    npc->server_slot = 77;
+    npc->combat_level = 42;
+    npc->combat.healthbar_type = 3;
+    npc->combat.healthbar_end_fill = 0;
+    snprintf(npc->name, sizeof(npc->name), "%s", "Goblin");
     World_NpcDespawn(world, ni);
     TEST_ASSERT(World_EventsCount(world) == 1, "npc despawn event");
+    ev = World_EventsPeek(world, 0);
+    TEST_ASSERT(!World_EntityPoolIsActive(&world->entities.npc, ni),
+                "npc pool slot is released before the event drain");
+    TEST_ASSERT(ev && ev->removed_npc,
+                "npc despawn event retains a pre-release snapshot");
+    {
+        int const replacement = World_NpcSpawn(world, 21, 999, 1, 9, 10, 1, idle);
+        struct WorldEntity_NPC* live =
+            World_EntityPoolGet(&world->entities.npc, replacement);
+
+        TEST_ASSERT(replacement == ni,
+                    "the released npc slot can be reused before the event drain");
+        TEST_ASSERT(live && live->npc_id == 999,
+                    "the reused pool slot now belongs to the replacement npc");
+    }
+    TEST_ASSERT(ev && ev->removed_npc && ev->removed_npc->npc_id == 1234 &&
+                    ev->removed_npc->server_slot == 77 &&
+                    ev->removed_npc->combat_level == 42 &&
+                    ev->removed_npc->combat.healthbar_type == 3 &&
+                    ev->removed_npc->combat.healthbar_end_fill == 0 &&
+                    strcmp(ev->removed_npc->name, "Goblin") == 0,
+                "the queued snapshot carries the plugin-visible death facts");
     World_EventsClear(world);
 
     World_Free(world);
@@ -391,7 +422,7 @@ test_projectile(void)
     idx = World_ProjectileSpawn(
         world, 31, 0, 128, 128, 256, 256, 100, 0, 0, 3, 0, 0, WORLD_PROJECTILE_TARGET_NONE);
     for( int t = 0; t < 10; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(world->entities.projectile.active_count == 0, "auto despawn t2");
     TEST_ASSERT(World_EventsCount(world) >= 1, "auto despawn event");
 
@@ -428,7 +459,7 @@ test_projectile_target(void)
 
     /* The npc walks off 20 tiles east while the projectile is in flight. */
     World_NpcPathJump(world, ni, true, 70, 50);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(proj->dst_x == (int)npc->draw_position.x, "dst re-aimed at the npc");
     TEST_ASSERT(proj->dst_z == (int)npc->draw_position.z, "dst_z re-aimed at the npc");
     TEST_ASSERT(proj->vx > 0.0, "velocity points east after the re-aim");
@@ -442,7 +473,7 @@ test_projectile_target(void)
         World_NpcPathPushStep(world, ni, WORLD_PATHSTEP_WALK, 4); /* east */
         for( int t = 0; t < 20 && World_EntityPoolIsActive(&world->entities.projectile, idx); t++ )
         {
-            World_Cycle(world, 1);
+            World_TestCycle(world, 1);
             if( proj->dst_x != previous_dst_x )
             {
                 tracked_moving_npc = true;
@@ -459,7 +490,7 @@ test_projectile_target(void)
     /* Flying it out lands on the npc, not on the cast-time tile. Check at t2:
      * the following cycle despawns the projectile and invalidates `proj`. */
     while( World_EntityPoolIsActive(&world->entities.projectile, idx) && proj->cycle < proj->t2 )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(proj->cycle == proj->t2, "projectile reached its landing cycle");
     TEST_ASSERT(fabs(proj->x - (double)npc->draw_position.x) < 1.0, "landed on the moved npc");
 
@@ -470,7 +501,7 @@ test_projectile_target(void)
         world, 41, 0, 10 * 128 + 64, 10 * 128 + 64, 10 * 128 + 64, 10 * 128 + 64, 100, 40, 0, 40,
         10, 0, /*target=*/-7 - 1);
     proj = World_EntityPoolGet(&world->entities.projectile, idx);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(proj->dst_x == (int)player->draw_position.x, "dst re-aimed at the player");
     TEST_ASSERT(proj->dst_z == (int)player->draw_position.z, "dst_z re-aimed at the player");
     World_ProjectileDespawn(world, idx);
@@ -481,7 +512,7 @@ test_projectile_target(void)
         world, 42, 0, 10 * 128 + 64, 10 * 128 + 64, 30 * 128 + 64, 30 * 128 + 64, 100, 40, 0, 40,
         10, 0, /*target=*/999 + 1);
     proj = World_EntityPoolGet(&world->entities.projectile, idx);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(proj->dst_x == 30 * 128 + 64 && proj->dst_z == 30 * 128 + 64,
                 "unsynced target keeps the cast destination");
     World_ProjectileDespawn(world, idx);
@@ -494,7 +525,7 @@ test_projectile_target(void)
     proj = World_EntityPoolGet(&world->entities.projectile, idx);
     World_NpcPathJump(world, ni, true, 40, 40);
     for( int t = 0; t < 5; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(proj->dst_x == 50 * 128 + 64 && proj->dst_z == 50 * 128 + 64,
                 "untargeted destination is pinned");
 
@@ -514,10 +545,10 @@ test_spotanim(void)
     /* Nothing announced while it is still counting down its delay: the app
      * holds the element's sequence at frame 0 until the start event, so an
      * event emitted early would run the animation out of sight. */
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(World_EventsCount(world) == 0, "no start event while delayed");
 
-    World_Cycle(world, 2);
+    World_TestCycle(world, 2);
     s = World_EntityPoolGet(&world->entities.spotanim, idx);
     TEST_ASSERT(s && s->active, "spot active");
 
@@ -537,10 +568,10 @@ test_spotanim(void)
 
     /* And not re-announced every cycle it stays active. */
     World_EventsClear(world);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(World_EventsCount(world) == 0, "start event is not repeated");
 
-    World_Cycle(world, 5);
+    World_TestCycle(world, 5);
     TEST_ASSERT(world->entities.spotanim.active_count == 0, "spot expired");
     TEST_ASSERT(World_EventsCount(world) >= 1, "spot despawn event");
 
@@ -593,7 +624,7 @@ test_spotanim_immediate_activation(void)
      * entity that becomes active AT SPAWN and one that becomes active on the
      * FIRST subsequent World_Cycle call age identically once real cycles
      * elapse — this only moves when `active` flips, not how fast it ages. */
-    World_Cycle(world, 10);
+    World_TestCycle(world, 10);
     TEST_ASSERT(world->entities.spotanim.active_count == 0, "delay<=0 spot expires on schedule");
 
     World_Free(world);
@@ -617,7 +648,7 @@ test_spotanim_catchup_activation(void)
     struct World* stepped = World_TestMakeReady(104);
     int stepped_idx = World_SpotanimSpawn(stepped, 91, 0, 20 * 128, 20 * 128, 0, 0, 3, 100);
     for( int t = 0; t < 7; t++ )
-        World_Cycle(stepped, 1);
+        World_TestCycle(stepped, 1);
     struct WorldEntity_Spotanim* stepped_s =
         World_EntityPoolGet(&stepped->entities.spotanim, stepped_idx);
     TEST_ASSERT(stepped_s && stepped_s->active, "stepped reference activated");
@@ -626,7 +657,7 @@ test_spotanim_catchup_activation(void)
      * (the multi-cycle App_RunOnce catch-up path). */
     struct World* lumped = World_TestMakeReady(104);
     int lumped_idx = World_SpotanimSpawn(lumped, 91, 0, 20 * 128, 20 * 128, 0, 0, 3, 100);
-    World_Cycle(lumped, 7);
+    World_TestCycle(lumped, 7);
     struct WorldEntity_Spotanim* lumped_s = World_EntityPoolGet(&lumped->entities.spotanim, lumped_idx);
     TEST_ASSERT(lumped_s && lumped_s->active, "lumped catch-up activated");
 
@@ -657,8 +688,8 @@ test_scenery(void)
 
     struct WorldEntity_Scenery* sc = World_SceneryGetByElementId(world, 70);
     TEST_ASSERT(sc && sc->loc_id == 900, "get by element");
-    TEST_ASSERT(strcmp(sc->name, "Door") == 0, "name");
-    TEST_ASSERT(strcmp(sc->actions[0].name, "Examine") == 0, "action0");
+    TEST_ASSERT(strcmp(sc->info->name, "Door") == 0, "name");
+    TEST_ASSERT(strcmp(sc->info->actions[0].name, "Examine") == 0, "action0");
     TEST_ASSERT(World_SceneryGetByElementId(world, 999) == NULL, "miss");
 
     World_RegisterSceneryPick(world, 70, 900);
@@ -666,6 +697,409 @@ test_scenery(void)
     TEST_ASSERT(world->scenery_picks[0].scenery_index == idx, "pick index");
     World_ClearSceneryPicks(world);
     TEST_ASSERT(world->scenery_pick_count == 0, "clear picks");
+
+    World_Free(world);
+}
+
+/*
+ * Bridge columns: three level spaces, and both directions between them.
+ *
+ * Every assertion here is about a *direction*, and a direction is the one thing
+ * a reader cannot check by eye — swap the +1 for a -1 in either helper and the
+ * flat world below still agrees, because a column without LINK_BELOW collapses
+ * all three spaces onto one number. So the bridged column is the whole test and
+ * the flat one is only there to say the helpers are inert off a bridge.
+ */
+/*
+ * World_HeightAt: the terrain sample every mover, projectile and overlay
+ * anchor is placed against (the reference's getAvH).
+ *
+ * Three things about it are invisible until something floats or sinks. It
+ * interpolates between tile corners rather than stepping per tile; a position
+ * outside the scene answers flat 0 instead of reading off the end of the
+ * array; and a column carrying LINK_BELOW is sampled one level UP, because
+ * the scene push-down moved the deck's geometry down a plane while the
+ * heightmap kept raw cache levels. Without that last clause a player on a
+ * bridge deck stands at the underpass floor.
+ */
+void
+test_height_at(void)
+{
+    printf("TEST: World_HeightAt\n");
+
+    struct World* world = World_TestMakeReady(64);
+    int const tile_x = 20;
+    int const tile_z = 30;
+
+    /* A world that has not loaded terrain yet answers flat, not garbage. */
+    {
+        struct World* bare = World_New();
+        TEST_ASSERT(World_HeightAt(bare, 10 * 128, 10 * 128, 0) == 0, "no heightmap reads 0");
+        World_Free(bare);
+    }
+
+    /* heightmap_set takes tile corners; the four corners of one tile at level 0
+     * are flat at -500 and the tile beyond it rises, so the seam interpolates. */
+    for( int x = tile_x; x <= tile_x + 2; x++ )
+        for( int z = tile_z; z <= tile_z + 2; z++ )
+            heightmap_set(world->heightmap, x, z, 0, -500);
+    heightmap_set(world->heightmap, tile_x + 1, tile_z, 0, -1000);
+    heightmap_set(world->heightmap, tile_x + 1, tile_z + 1, 0, -1000);
+
+    TEST_ASSERT(
+        World_HeightAt(world, tile_x * 128, tile_z * 128, 0) == -500,
+        "flat corner samples its own height");
+    TEST_ASSERT(
+        World_HeightAt(world, tile_x * 128 + 64, tile_z * 128, 0) == -750,
+        "halfway across a sloped tile is halfway between its corners");
+
+    /* Outside [0, scene_size): flat 0, and no read off the end of the array.
+     * A border NPC at tile 65 of a 64-wide scene is the case that found this.
+     *
+     * Tile 64 is the interesting one, and it is why these corners are given a
+     * height first. The heightmap is (scene_size + 1) square, so column 64
+     * EXISTS and holds the far edge of the last tile -- an unguarded sample
+     * there reads a real, in-bounds value rather than crashing. Assert against
+     * zeroed memory instead and the guard can be deleted without the test
+     * noticing, which is exactly what it must not allow. */
+    heightmap_set(world->heightmap, 64, 10, 0, -2000);
+    heightmap_set(world->heightmap, 64, 11, 0, -2000);
+    heightmap_set(world->heightmap, 10, 64, 0, -3000);
+    heightmap_set(world->heightmap, 11, 64, 0, -3000);
+    TEST_ASSERT(
+        World_HeightAt(world, 64 * 128, 10 * 128, 0) == 0,
+        "the column past the east edge is not sampled even though it exists");
+    TEST_ASSERT(
+        World_HeightAt(world, 10 * 128, 64 * 128, 0) == 0,
+        "the column past the north edge is not sampled even though it exists");
+    TEST_ASSERT(World_HeightAt(world, 65 * 128, 10 * 128, 0) == 0, "well past the east edge reads 0");
+    TEST_ASSERT(World_HeightAt(world, -1 * 128, 10 * 128, 0) == 0, "west of the scene reads 0");
+
+    /* The bridge clause. LINK_BELOW is read at cache level 1 and speaks for the
+     * whole column, so a sample asking for level 0 gets level 1's height. */
+    {
+        int const bridge_x = 40;
+        int const bridge_z = 41;
+
+        for( int x = bridge_x; x <= bridge_x + 1; x++ )
+            for( int z = bridge_z; z <= bridge_z + 1; z++ )
+            {
+                heightmap_set(world->heightmap, x, z, 0, -100); /* underpass floor */
+                heightmap_set(world->heightmap, x, z, 1, -900); /* the deck */
+            }
+
+        TEST_ASSERT(
+            World_HeightAt(world, bridge_x * 128, bridge_z * 128, 0) == -100,
+            "an ordinary column samples the level it was asked for");
+
+        world->tile_flags[bridge_x + bridge_z * 64 + 1 * 64 * 64] = 0x02; /* LINK_BELOW */
+
+        TEST_ASSERT(
+            World_HeightAt(world, bridge_x * 128, bridge_z * 128, 0) == -900,
+            "a bridge column sampled at level 0 stands on the deck, not the floor");
+
+        /* The top level has nowhere to climb to, so the clause must not run
+         * there and read a level that does not exist. */
+        TEST_ASSERT(
+            World_HeightAt(world, bridge_x * 128, bridge_z * 128, WORLD_MAP_TERRAIN_LEVELS - 1) == 0,
+            "the top level does not climb past the heightmap");
+    }
+
+    World_Free(world);
+}
+
+/*
+ * World_CoordToSceneTile: the packed CS2 coord every clientscript and every
+ * server op speaks, turned into the scene tile the scene is indexed by.
+ *
+ * Three fields in one int -- level in bits 28..29, absolute x in 14..27,
+ * absolute z in 0..13 -- and the scene is indexed by NEITHER of those
+ * absolutes, because the world slides under the player as it rebuilds. Get
+ * the shift or the mask wrong and a script's overlay lands on a plausible
+ * wrong tile rather than failing.
+ */
+void
+test_coord_to_scene_tile(void)
+{
+    printf("TEST: World_CoordToSceneTile\n");
+
+    /* A 64-tile scene. The base tile is DERIVED -- World_ResetScene takes zone
+     * centres and the base is the south-west zone times 8 -- so the test reads
+     * it rather than assuming it, which is also the point: nothing may assume
+     * the scene starts at the coord it was centred on. */
+    struct World* world = World_TestMakeReady(64);
+    int base_x = world->_base_tile_x;
+    int base_z = world->_base_tile_z;
+    int tile_x = -1;
+    int tile_z = -1;
+    int level = -1;
+
+    TEST_ASSERT(base_x > 0 && base_z > 0, "the fixture has a base tile");
+
+    /* The scene's own origin. */
+    TEST_ASSERT(
+        World_CoordToSceneTile(world, (base_x << 14) | base_z, &tile_x, &tile_z, &level),
+        "the base tile is in the scene");
+    TEST_ASSERT(tile_x == 0 && tile_z == 0 && level == 0, "the base tile is scene 0,0 level 0");
+
+    /* An interior tile, and the level field, which lives above the x field and
+     * is the one a wrong shift silently folds into it. */
+    TEST_ASSERT(
+        World_CoordToSceneTile(
+            world, (2 << 28) | ((base_x + 10) << 14) | (base_z + 20), &tile_x, &tile_z, &level),
+        "an interior coord is in the scene");
+    TEST_ASSERT(tile_x == 10, "interior x");
+    TEST_ASSERT(tile_z == 20, "interior z");
+    TEST_ASSERT(level == 2, "the level field is read from bits 28..29");
+
+    /* Only two bits of level: 4 wraps to 0 rather than bleeding into x. */
+    TEST_ASSERT(
+        World_CoordToSceneTile(
+            world, (4 << 28) | ((base_x + 1) << 14) | base_z, &tile_x, &tile_z, &level),
+        "a level-4 coord still converts");
+    TEST_ASSERT(level == 0, "level is masked to two bits");
+    TEST_ASSERT(tile_x == 1, "a level above 3 did not disturb x");
+
+    /* The far corner is inside; one past it is not. Half-open, because the
+     * scene is scene_size tiles wide and the last index is size - 1. */
+    TEST_ASSERT(
+        World_CoordToSceneTile(
+            world, ((base_x + 63) << 14) | (base_z + 63), &tile_x, &tile_z, &level),
+        "the far corner is in the scene");
+    TEST_ASSERT(tile_x == 63 && tile_z == 63, "the far corner is scene 63,63");
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, ((base_x + 64) << 14) | base_z, &tile_x, &tile_z, &level),
+        "one tile past the east edge is outside");
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, (base_x << 14) | (base_z + 64), &tile_x, &tile_z, &level),
+        "one tile past the north edge is outside");
+
+    /* West and south of the base: negative scene tiles, which the scene has no
+     * index for. This is ordinary -- a coord scrolls off as the player walks
+     * -- so it is false, not an error. */
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, ((base_x - 1) << 14) | base_z, &tile_x, &tile_z, &level),
+        "west of the base tile is outside");
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, (base_x << 14) | (base_z - 1), &tile_x, &tile_z, &level),
+        "south of the base tile is outside");
+
+    /* A negative coord is the caller's "no coord" sentinel. */
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, -1, &tile_x, &tile_z, &level), "a negative coord converted");
+
+    World_Free(world);
+}
+
+/*
+ * World_RoofLevelAlongLine: which roofs come off so the player can be seen.
+ *
+ * The reference removes roofs SELECTIVELY -- only along the sightline from the
+ * camera to the player -- and the alternative it offers is removing all of
+ * them. There is no third option, and the difference between the two is
+ * exactly this walk. Replace the line with its bounding box and every building
+ * either side of the sightline loses its lid too, which looks like the "hide
+ * all roofs" setting turning itself on.
+ */
+void
+test_roof_level_along_line(void)
+{
+    printf("TEST: World_RoofLevelAlongLine\n");
+
+    struct World* world = World_TestMakeReady(64);
+    int const level = 0;
+    int const roof = 0x04;
+    int const stride = 64;
+
+    /* Nothing roofed anywhere: every roof stays on. */
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "an unroofed line removes nothing");
+
+    /* A roof at the FROM end -- the camera is under one. */
+    world->tile_flags[10 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == level,
+        "a roof on the camera's own tile was missed");
+    world->tile_flags[10 + 10 * stride] = 0;
+
+    /* A roof at the TO end -- the player is under one. */
+    world->tile_flags[20 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == level,
+        "a roof on the player's own tile was missed");
+    world->tile_flags[20 + 10 * stride] = 0;
+
+    /* A roof in the MIDDLE of a horizontal run. */
+    world->tile_flags[15 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == level,
+        "a roof crossed on the way was missed");
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 20, 10, 10, 10) == level,
+        "the same roof was missed walking the other way");
+    world->tile_flags[15 + 10 * stride] = 0;
+
+    /* The same, on the z axis, which is the other branch of the walk. */
+    world->tile_flags[10 + 15 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 10, 20) == level,
+        "a roof on a vertical run was missed");
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 20, 10, 10) == level,
+        "the same vertical roof was missed walking south");
+    world->tile_flags[10 + 15 * stride] = 0;
+
+    /* A diagonal, where the minor axis steps when the accumulator wraps. */
+    world->tile_flags[15 + 15 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 20) == level,
+        "a roof on the diagonal was missed");
+    world->tile_flags[15 + 15 * stride] = 0;
+
+    /*
+     * WHICH tiles a shallow diagonal crosses, which is where the walk's two
+     * biases live and where an "obvious" rewrite silently moves the line by
+     * one tile for its whole length.
+     *
+     * The line (10,10) -> (18,14) crosses (11,11) and NOT (12,10). Both of
+     * these change if the accumulator starts at 0 instead of half a step, and
+     * both change again if the wrap tests `>` instead of `>=`. The half step
+     * is what centres the line on the tiles rather than hugging one side of
+     * them, and a line one tile off for its whole length takes the roof off
+     * the building next to the one you are walking past.
+     */
+    world->tile_flags[11 + 11 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 18, 14) == level,
+        "the shallow diagonal missed (11,11); the walk's half-step bias is gone");
+    world->tile_flags[11 + 11 * stride] = 0;
+
+    world->tile_flags[12 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 18, 14) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "the shallow diagonal crossed (12,10), which is one tile off its line");
+    world->tile_flags[12 + 10 * stride] = 0;
+
+    /*
+     * An EXACT diagonal takes the z-major branch, because the major-axis test
+     * is a strict `>`. The two branches visit mirror-image sets -- x-major
+     * would cross (11,10), z-major crosses (10,11) -- so which one runs is
+     * observable, and pinning it keeps the tie-break where the reference has
+     * it.
+     */
+    world->tile_flags[10 + 11 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 20) == level,
+        "the exact diagonal missed (10,11); it is no longer taking the z-major branch");
+    world->tile_flags[10 + 11 * stride] = 0;
+
+    world->tile_flags[11 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 20) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "the exact diagonal crossed (11,10); the major-axis tie-break flipped");
+    world->tile_flags[11 + 10 * stride] = 0;
+
+    /*
+     * The selectivity itself, and the reason this is a line.
+     *
+     * A roof well off the sightline but inside its bounding box must NOT come
+     * off. Walk (10,10) -> (20,10), a straight horizontal run, and put a roof
+     * at (15,18) -- eight tiles north of it. A bounding-box test would take the
+     * lid off that building; the line does not.
+     */
+    world->tile_flags[15 + 18 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "a roof off the sightline was removed; this is a line, not a box");
+    world->tile_flags[15 + 18 * stride] = 0;
+
+    /* Camera and player on the same tile: still checks that tile. */
+    world->tile_flags[12 + 12 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 12, 12, 12, 12) == level,
+        "a zero-length line missed the tile it stands on");
+    world->tile_flags[12 + 12 * stride] = 0;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 12, 12, 12, 12) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "a zero-length line on an unroofed tile removed roofs");
+
+    /* Another level's roof is not this level's business. */
+    world->tile_flags[15 + 10 * stride + 1 * stride * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, 0, 10, 10, 20, 10) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "a roof on level 1 was removed while walking level 0");
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, 1, 10, 10, 20, 10) == 1,
+        "the level-1 roof was missed while walking level 1");
+    world->tile_flags[15 + 10 * stride + 1 * stride * stride] = 0;
+
+    /* Off-scene endpoints read as unflagged rather than off the array. */
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, -5, -5, 3, 3) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "an off-scene line did not read as unroofed");
+
+    World_Free(world);
+}
+
+void
+test_bridge_levels(void)
+{
+    printf("TEST: bridge level mapping\n");
+
+    struct World* world = World_TestMakeReady(64);
+    int const bx = 20;
+    int const bz = 30;
+    int const flat_x = 21;
+    int const flat_z = 30;
+
+    /* LINK_BELOW is read at cache level 1 and speaks for the whole column. */
+    world->tile_flags[bx + bz * 64 + 1 * 64 * 64] = 0x02;
+
+    /* Paint: the build's push-down parked cache 1 on paint 0 and pushed the
+     * underside, cache 0, out to paint 3 (WorldBuilder_RebuildCenterzoneEnd). */
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, 1) == 0, "bridge deck paints at level 0");
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, 2) == 1, "bridge cache 2 paints at 1");
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, 3) == 2, "bridge cache 3 paints at 2");
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, 0) == 3, "bridge underside paints at 3");
+
+    /* Wire: the server names the level the deck is walked from, one below the
+     * level the map authored it on. */
+    TEST_ASSERT(World_LocCacheLevel(world, bx, bz, 0) == 1, "walked level 0 is cache level 1");
+    TEST_ASSERT(World_LocCacheLevel(world, bx, bz, 2) == 3, "walked level 2 is cache level 3");
+    TEST_ASSERT(World_LocCacheLevel(world, bx, bz, 3) == 3, "the top level has nowhere to climb");
+
+    /* And a zone loc packet for the deck must round-trip to the tile the
+     * painter drew it on — that round trip is the whole point of the pair. */
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, World_LocCacheLevel(world, bx, bz, 0)) == 0,
+                "a walked-level-0 loc paints back on level 0");
+
+    /* Pick: a terrain hit carries the mesh level, and coming back down is what
+     * lets it be handed to anything that speaks the wire. The deck's mesh is
+     * cache 1 and the player standing on it is level 0 — get this backwards and
+     * World_HeightAt adds the bridge's +1 to an already-shifted level and
+     * samples cache 2, a whole storey of air above the deck. */
+    TEST_ASSERT(World_TerrainWalkLevel(world, bx, bz, 1) == 0, "the deck mesh is walked from 0");
+    TEST_ASSERT(World_TerrainWalkLevel(world, bx, bz, 3) == 2, "bridge mesh 3 is walked from 2");
+    TEST_ASSERT(World_TerrainWalkLevel(world, bx, bz, World_LocCacheLevel(world, bx, bz, 0)) == 0,
+                "walk level -> cache level -> walk level is the identity");
+
+    /* VIS_BELOW draws a mesh from level 0 and walks it from its own plane, so
+     * the walk conversion must not borrow the draw level's answer. */
+    world->tile_flags[flat_x + flat_z * 64 + 2 * 64 * 64] = 0x08;
+    TEST_ASSERT(World_TerrainDrawLevel(world, flat_x, flat_z, 2) == 0, "vis-below draws at 0");
+    TEST_ASSERT(World_TerrainWalkLevel(world, flat_x, flat_z, 2) == 2, "vis-below is walked at 2");
+    world->tile_flags[flat_x + flat_z * 64 + 2 * 64 * 64] = 0;
+
+    for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
+    {
+        TEST_ASSERT(World_LocPaintLevel(world, flat_x, flat_z, level) == level,
+                    "no bridge, no paint shift");
+        TEST_ASSERT(World_LocCacheLevel(world, flat_x, flat_z, level) == level,
+                    "no bridge, no wire shift");
+        TEST_ASSERT(World_TerrainWalkLevel(world, flat_x, flat_z, level) == level,
+                    "no bridge, no walk shift");
+    }
 
     World_Free(world);
 }
@@ -693,7 +1127,7 @@ test_entity_face(void)
     int square_z = ((world->_base_tile_z + 50) << 1) + 1;
     World_PlayerFaceCoord(world, pi, square_x, square_z);
     for( int t = 0; t < 64; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(player->facing.square_x == 0 && player->facing.square_z == 0,
                 "face square consumed");
     /* The rev-239 gamepack's full conversion constant lands on the same exact
@@ -707,22 +1141,22 @@ test_entity_face(void)
     World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
     World_PlayerBeginModernFacing(world, pi, 0);
     World_PlayerFaceCoord(world, pi, square_x, square_z);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(player->facing.square_x == square_x,
                 "face movement mode 0 waits for route idle");
     World_PlayerBeginModernFacing(world, pi, 1);
     World_PlayerFaceCoord(world, pi, square_x, square_z);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(player->facing.square_x == 0,
                 "face movement mode 1 applies during route");
     World_PlayerBeginModernFacing(world, pi, 0);
     World_PlayerFaceAngle(world, pi, 512, true);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(player->facing.direct_angle == 512,
                 "direct angle mode 0 waits for route idle");
     World_PlayerBeginModernFacing(world, pi, 1);
     World_PlayerFaceAngle(world, pi, 512, true);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(player->facing.direct_angle == -1 && player->orientation.yaw == 512,
                 "direct angle mode 1 applies during route");
     World_PlayerPathJump(world, pi, true, 50, 50);
@@ -734,30 +1168,30 @@ test_entity_face(void)
     npc->server_slot = 3;
     World_PlayerFaceEntity(world, pi, 3);
     for( int t = 0; t < 64; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(player->orientation.yaw == 1024, "player faces north at the npc");
 
     /* Statics.method6710 applies only the highest-priority eligible facing
      * source. A direct angle must not be overwritten by a still-latched
      * entity, and a location must likewise win over an entity. */
     World_PlayerFaceAngle(world, pi, 512, true);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(player->orientation.yaw == 512,
                 "direct angle wins over an entity target");
     World_PlayerFaceCoord(world, pi, square_x, square_z);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT(player->orientation.dst_yaw == 1536,
                 "face location wins over an entity target");
 
     /* And the npc back at the player (player slots are offset by 32768). */
     World_NpcFaceEntity(world, ni, WORLD_FACING_PLAYER_BASE + 7);
     for( int t = 0; t < 64; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(npc->orientation.yaw == 0, "npc faces south back at the player");
 
     World_PlayerPathJump(world, pi, true, 60, 60);
     for( int t = 0; t < 64; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(npc->orientation.yaw == 1536,
                 "npc tracks a player due east at the exact cardinal yaw");
 
@@ -766,7 +1200,7 @@ test_entity_face(void)
     npc->orientation.yaw = 500;
     World_NpcFaceCoord(world, ni, square_x, square_z);
     for( int t = 0; t < 8; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(npc->orientation.yaw == 500, "turn_speed 0 never turns");
     TEST_ASSERT(npc->facing.square_x == square_x, "turn_speed 0 leaves the square pending");
 
@@ -789,7 +1223,7 @@ test_cycle_movers(void)
     int saw_run_animation = 0;
     for( int t = 0; t < 500 && player->pathing.route_length > 0; t++ )
     {
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
         if( player->animation.secondary.anim_id == (uint16_t)idle.runanim )
             saw_run_animation = 1;
     }
@@ -812,7 +1246,7 @@ test_cycle_movers(void)
     World_NpcPathPushStep(world, ni, WORLD_PATHSTEP_WALK, 1);
     struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
     for( int t = 0; t < 300 && npc->pathing.route_length > 0; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
     TEST_ASSERT(npc->pathing.route_length == 0, "npc route cleared");
 
     World_Free(world);
@@ -861,7 +1295,7 @@ test_delaymove_gate(void)
     TEST_ASSERT(player->animation.preanim_route_length > 0, "preanim route recorded");
 
     int start_x = (int)player->draw_position.x;
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT((int)player->draw_position.x == start_x, "held still on delaymove");
     TEST_ASSERT(player->animation.anim_delay_move == 1, "anim_delay_move incremented");
     TEST_ASSERT(player->animation.secondary.anim_id == (uint16_t)idle.readyanim,
@@ -869,11 +1303,200 @@ test_delaymove_gate(void)
 
     /* Clear the primary so the hold lifts; catch-up should force speed 8. */
     World_PlayerSetPrimaryAnimation(world, pi, -1, 0);
-    World_Cycle(world, 1);
+    World_TestCycle(world, 1);
     TEST_ASSERT((int)player->draw_position.x == start_x + 8, "catch-up speed 8");
     TEST_ASSERT(player->animation.anim_delay_move == 0, "anim_delay_move decremented");
 
     World_Free(world);
+}
+
+/*
+ * A walk that never pauses must not fall behind the tiles the server hands out.
+ *
+ * The arithmetic that makes this a real test: a server tick is 30 client
+ * cycles and a walk step covers 4 draw units a cycle, so a tile's 128 units
+ * take 32 cycles -- two more than the tick that queued it. Left alone, an
+ * entity walking without a break loses 8 units a tick, forever, and the
+ * queue behind it grows without bound until the position is far enough from
+ * the next tile to be snapped there. On screen that is the player drifting
+ * back off a target it is chasing and then jumping forward.
+ *
+ * rev-239 method3520/method3611 pay the debt back through the queue depth:
+ * three tiles pending moves at 6 a cycle, four at 8. This asserts the debt
+ * stays bounded -- the queue never runs deeper than the rung that clears it,
+ * and the entity is never more than a tile behind the tile it was last told
+ * to stand on.
+ *
+ * The negative control is a one-line edit: cap the speed at 4 for a non-run
+ * step in World_MoverStepSpeed (the clamp this port carried until 2026-08-18)
+ * and the queue climbs past 4 within a dozen ticks.
+ */
+static void
+walk_keeps_up_for(struct ToriRS_FeatureTable const* features)
+{
+    struct World* world = World_TestMakeReadyEra(104, features);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int pi = World_PlayerSpawn(world, 1, 0, 10, 40, idle);
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+    int deepest_queue = 0;
+    int worst_lag = 0;
+
+    /* 60 server ticks of walking east, one tile each, 30 client cycles apart --
+     * a player following an NPC that walks and never stops. */
+    for( int tick = 0; tick < 60; tick++ )
+    {
+        int told_x;
+
+        World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+        told_x = player->pathing.route_x[0];
+        World_TestCycle(world, 30);
+
+        if( player->pathing.route_length > deepest_queue )
+            deepest_queue = player->pathing.route_length;
+        {
+            int lag = told_x * 128 + 64 - (int)player->draw_position.x;
+            if( lag > worst_lag )
+                worst_lag = lag;
+        }
+    }
+
+    /* Measured either side of the fix: the reference settles at queue 2 and
+     * 152 units (1.19 tiles) behind, because the speed-6 rung fires as soon as
+     * a third tile is outstanding and pays the 8-a-tick debt straight back.
+     * With the clamp restored the same run reaches queue 4 and 510 units --
+     * four tiles adrift and still growing. The bounds sit between the two. */
+    TEST_ASSERT(deepest_queue <= 2, "the step queue stays shallow over a long walk");
+    TEST_ASSERT(worst_lag < 192, "the model stays within a tile and a half of where it was sent");
+    TEST_ASSERT(player->pathing.route_x[0] == 70, "the walk ends where the steps ended");
+
+    World_Free(world);
+}
+
+void
+test_walk_keeps_up(void)
+{
+    printf("TEST: an unbroken walk does not fall behind\n");
+    /* Both movers, because the debt and the rungs that repay it are the same
+     * arithmetic on either clock -- the clamp broke the 2004 model exactly as
+     * badly as the rev-239 one, and neither reference has it. */
+    walk_keeps_up_for(ToriRS_Features_LostCity());
+    walk_keeps_up_for(ToriRS_Features_OSRS());
+}
+
+/*
+ * The era flag actually selects a mover.
+ *
+ * Under LostCity the distance is spent inside World_Cycle and
+ * World_MoversAdvance is inert; under OSRS it is the other way round. Asserting
+ * each mover is *dead* on the other era is the half that matters: a flag that
+ * left both live would move every actor at double speed, and a walk at double
+ * speed still looks like a walk until you measure it.
+ */
+/*
+ * What a stopped walker does next -- the "boss is going down but still moving"
+ * shape.
+ *
+ * When the server parks an actor (ToB's Bloat issues `npc_walk(npc_coord)` and
+ * a sleep animation on the same tick) the client does not stop with it: the
+ * animation is applied the tick it arrives, while the route queue still holds
+ * whatever the model had not walked off yet. It glides through the first ticks
+ * of the down.
+ *
+ * That residue is not a defect on its own -- it is the reference's own
+ * equilibrium, and the arithmetic is fixed: 30 cycles at speed 4 covers 120 of
+ * a tile's 128 units, so a walker that never pauses settles a little over a
+ * tile behind and needs that tile back after it stops. What this pins is the
+ * SIZE of it, because the clamp this port used to carry let the debt grow
+ * without bound and turned a one-tile glide into a four-tile one.
+ *
+ * Identical under both movers by construction: the rungs that set the
+ * equilibrium are the same on either clock.
+ */
+void
+test_stop_settles_promptly(void)
+{
+    printf("TEST: a stopped walker settles within a tick or two\n");
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct ToriRS_FeatureTable const* eras[2] = { ToriRS_Features_LostCity(),
+                                                 ToriRS_Features_OSRS() };
+
+    for( int e = 0; e < 2; e++ )
+    {
+        struct World* world = World_TestMakeReadyEra(104, eras[e]);
+        int pi = World_PlayerSpawn(world, 1, 0, 10, 40, idle);
+        struct WorldEntity_Player* p = World_EntityPoolGet(&world->entities.player, pi);
+        int settle = 0;
+        int told;
+        int lag;
+
+        for( int t = 0; t < 40; t++ )
+        {
+            World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+            World_TestCycle(world, 30);
+        }
+        told = p->pathing.route_x[0];
+        lag = told * 128 + 64 - (int)p->draw_position.x;
+
+        /* Server has stopped issuing steps; count the ticks the model keeps
+         * moving anyway. */
+        for( int t = 0; t < 20; t++ )
+        {
+            int before = (int)p->draw_position.x;
+            World_TestCycle(world, 30);
+            if( (int)p->draw_position.x == before )
+                break;
+            settle++;
+        }
+
+        TEST_ASSERT(lag < 192, "a long walk leaves at most a tile and a half of debt");
+        TEST_ASSERT(settle <= 2, "and it is paid off within two ticks of stopping");
+        World_Free(world);
+    }
+}
+
+void
+test_mover_model_flag(void)
+{
+    printf("TEST: the era flag picks the mover\n");
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int classic_step = 0;
+
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_LostCity());
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+        int start_x = (int)player->draw_position.x;
+
+        World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+        World_MoversAdvance(world, 1.0f);
+        TEST_ASSERT((int)player->draw_position.x == start_x,
+                    "classic: the frame mover moves nothing");
+        World_Cycle(world, 1);
+        classic_step = (int)player->draw_position.x - start_x;
+        TEST_ASSERT(classic_step > 0, "classic: the cycle mover is what walks");
+        World_Free(world);
+    }
+
+    {
+        struct World* world = World_TestMakeReadyEra(104, ToriRS_Features_OSRS());
+        int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+        int start_x = (int)player->draw_position.x;
+
+        World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
+        World_Cycle(world, 1);
+        TEST_ASSERT((int)player->draw_position.x == start_x,
+                    "modern: the cycle mover moves nothing");
+        World_MoversAdvance(world, 1.0f);
+        TEST_ASSERT((int)player->draw_position.x - start_x == classic_step,
+                    "modern: a whole cycle of frame time covers exactly what a cycle did");
+        /* And a fraction of one covers a fraction of it, which is the whole
+         * point of the era: a frame is not a cycle. */
+        World_MoversAdvance(world, 0.5f);
+        TEST_ASSERT((int)player->draw_position.x - start_x == classic_step + classic_step / 2,
+                    "modern: half a cycle of frame time is half a step");
+        World_Free(world);
+    }
 }
 
 /* REBUILD_NORMAL relocation (Client-TS rebuild handler): the scene base moved
@@ -990,6 +1613,146 @@ test_obj_raise(void)
 }
 
 /*
+ * An action animation puts the readyanim back on its loop point.
+ *
+ * The readyanim free-runs underneath an action animation -- it has to, its
+ * frame sounds keep playing -- and it is not drawn while the action covers it.
+ * Which frame it resumes on is therefore free, and the animation data says what
+ * it should be: an attack clip is authored as a departure from the ready loop
+ * and back, so its first frame IS the ready loop's first frame. Xarpus proves
+ * it in the rev-239 cache -- seq 8059 frame 0 poses model 35383 identically to
+ * seq 8058 frame 0, and 8058 runs 120 cycles, exactly his four-tick attack
+ * cadence -- and before this rule his spit cut in at ready frame 39 of 52 on
+ * every spit of the fight.
+ *
+ * The walk case is the one that must NOT reset: a walk animation is blended
+ * with the action rather than hidden by it, so restarting it would stutter the
+ * gait mid-stride.
+ */
+void
+test_action_anim_restarts_the_readyanim(void)
+{
+    printf("TEST: an action animation restarts the readyanim under it\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 1, 20, 20, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    /* The ready loop, mid-cycle -- where free-running leaves it. */
+    npc->animation.secondary.anim_id = (uint16_t)idle.readyanim;
+    npc->animation.secondary.frame = 39;
+    npc->animation.secondary.cycle = 2;
+    npc->animation.secondary.loop = 1;
+
+    World_NpcSetPrimaryAnimation(world, ni, 8059, 0);
+    TEST_ASSERT(npc->animation.primary.anim_id == 8059, "the action animation lands");
+    TEST_ASSERT(npc->animation.secondary.anim_id == (uint16_t)idle.readyanim,
+                "and does not disturb which sequence the ready track holds");
+    TEST_ASSERT(npc->animation.secondary.frame == 0 && npc->animation.secondary.cycle == 0 &&
+                    npc->animation.secondary.loop == 0,
+                "but puts it back on its loop point, which is where 8059 starts from");
+
+    /* A walk animation is drawn WITH the action (the walkmerge blend), so the
+     * same call must leave it exactly where it was. */
+    npc->animation.secondary.anim_id = (uint16_t)idle.walkanim;
+    npc->animation.secondary.frame = 7;
+    npc->animation.secondary.cycle = 1;
+    World_NpcSetPrimaryAnimation(world, ni, 8060, 0);
+    TEST_ASSERT(npc->animation.secondary.frame == 7 && npc->animation.secondary.cycle == 1,
+                "a walk animation keeps its stride under an action animation");
+
+    /* A DELAYED action leaves the readyanim on screen until the delay expires,
+     * so resetting it now would be a visible jump rather than a hidden one. */
+    npc->animation.secondary.anim_id = (uint16_t)idle.readyanim;
+    npc->animation.secondary.frame = 39;
+    npc->animation.secondary.cycle = 2;
+    World_NpcSetPrimaryAnimation(world, ni, 8061, 4);
+    TEST_ASSERT(npc->animation.secondary.frame == 39 && npc->animation.secondary.cycle == 2,
+                "a delayed action leaves the visible readyanim alone");
+
+    World_Free(world);
+}
+
+/*
+ * ...and the far end of the same seam: the action animation hands BACK to the
+ * readyanim's loop point when it finishes.
+ *
+ * The two halves have to agree. An attack clip is authored to leave the ready
+ * loop at frame 0 and return to it, so if only the entry is locked the creature
+ * enters the swing seamlessly and jump-cuts out of it. Xarpus is the
+ * measurement: seq 8059 descends out of the spit at ~73 authored units per
+ * frame (its last three frames top out at -1045, -972, -900), seq 8058 frame 0
+ * tops out at -825 and continues that descent, and the free-running readyanim
+ * was instead revealed at frame 26 (-1095) -- 195 units of upward snap, against
+ * the direction he was moving.
+ *
+ * This is the reference's own restart (deob Statics ~40139) minus its NpcType
+ * opcode-130 gate; see the comment on the branch in world_cycle.c for why the
+ * flag is the wrong instrument for the question.
+ */
+static int
+seq_test_frame_count(void* userdata, int seq_id)
+{
+    (void)userdata;
+    /* The action is three frames; the readyanim is long enough that a
+     * free-running track would still be mid-loop when the action ends. */
+    return seq_id == 8059 ? 3 : 52;
+}
+
+static int
+seq_test_frame_duration(void* userdata, int seq_id, int frame)
+{
+    (void)userdata;
+    (void)seq_id;
+    (void)frame;
+    return 1;
+}
+
+static int
+seq_test_max_loops(void* userdata, int seq_id)
+{
+    (void)userdata;
+    /* One pass, so the action FINISHES rather than looping. */
+    return seq_id == 8059 ? 1 : 99;
+}
+
+void
+test_action_anim_hands_back_to_the_readyanim_loop_point(void)
+{
+    printf("TEST: a finished action animation hands back to the readyanim loop point\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 1, 20, 20, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    world->seq_source.frame_count = seq_test_frame_count;
+    world->seq_source.frame_duration = seq_test_frame_duration;
+    world->seq_source.max_loops = seq_test_max_loops;
+
+    npc->animation.secondary.anim_id = (uint16_t)idle.readyanim;
+    World_NpcSetPrimaryAnimation(world, ni, 8059, 0);
+    TEST_ASSERT(npc->animation.secondary.frame == 0,
+                "the entry half put the ready track on its loop point");
+
+    /* Step until the action runs out. The ready track free-runs underneath it
+     * the whole way -- that is what leaves it somewhere arbitrary. */
+    for( int i = 0; i < 8 && npc->animation.primary.anim_id != (uint16_t)-1; i++ )
+        World_Cycle(world, 1);
+
+    TEST_ASSERT(npc->animation.primary.anim_id == (uint16_t)-1,
+                "the action animation finished");
+    TEST_ASSERT(npc->animation.secondary.anim_id == (uint16_t)idle.readyanim,
+                "the ready track is still the one holding the readyanim");
+    TEST_ASSERT(npc->animation.secondary.frame == 0 && npc->animation.secondary.cycle == 0 &&
+                    npc->animation.secondary.loop == 0,
+                "and it is revealed at the loop point, not where free-running left it");
+
+    World_Free(world);
+}
+
+/*
  * A transmog keeps whatever one-shot is already playing.
  *
  * `Client.ts`'s CHANGETYPE branch writes type, size, turnspeed, the four walk
@@ -1001,6 +1764,73 @@ test_obj_raise(void)
  * visible casualty: content played her only death animation and retyped her to
  * her sleeping form together, and she snapped straight to the sleeping idle.
  */
+/* SAILING: facing across the gunwale computes in the ROOT frame and applies
+ * in the facer's own. The hook stands in for the app's hull transform: view 7
+ * projects the facer to a known root spot and reports the hull's yaw. */
+static int
+test_root_frame_hook(
+    void* userdata,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int* io_fine_x,
+    int* io_fine_z,
+    int* out_frame_yaw)
+{
+    (void)userdata;
+    if( placement->view_id != 7 )
+        return 0;
+    /* Projected: due EAST of tile (20,30)'s centre by 10 tiles. */
+    *io_fine_x = (20 + 10) * 128 + 64;
+    *io_fine_z = 30 * 128 + 64;
+    *out_frame_yaw = 512;
+    return 1;
+}
+
+void
+test_entity_face_across_frames(void)
+{
+    printf("TEST: facing across the hull frame (rider vs shore target)\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+
+    int ni = World_NpcSpawn(world, 2, 900, 0, 20, 30, 1, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+    int pi = World_PlayerSpawn(world, 1, 0, 4, 4, idle);
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+
+    npc->server_slot = 900;
+    player->server_pid = 7;
+    World_SetActorRootFrameFn(world, test_root_frame_hook, NULL);
+
+    /* The rider: deck-local coordinates, homed to view 7 — the hook projects
+     * them due EAST of the npc, so the ROOT facing is due west (dst = self −
+     * target = +east ⇒ yaw 1536, the same constant test_entity_face pins for
+     * east-west), and the DECK-frame yaw the element must carry is that
+     * minus the hull's 512. */
+    player->view_placement.view_id = 7;
+    player->view_placement.home_view = 7;
+    World_PlayerFaceEntity(world, pi, 900);
+    for( int t = 0; t < 64; t++ )
+        World_TestCycle(world, 1);
+    /* Self is EAST of the target, so the ROOT facing is due west — yaw 512
+     * in the atan2(self−target) convention (the east-facing pin above is the
+     * mirror, 1536) — and the DECK-frame yaw is that minus the hull's 512. */
+    TEST_ASSERT(player->orientation.dst_yaw == ((512 - 512) & 0x7ff),
+                "rider's element yaw is the root facing minus the hull yaw");
+
+    /* A root facer with the hook registered is untouched: identity frame. */
+    player->view_placement.view_id = 0;
+    player->view_placement.home_view = 0;
+    World_PlayerPathJump(world, pi, true, 30, 30);
+    World_PlayerFaceEntity(world, pi, 900);
+    for( int t = 0; t < 64; t++ )
+        World_TestCycle(world, 1);
+    TEST_ASSERT(player->orientation.dst_yaw == 512,
+                "a root facer keeps the plain root yaw");
+
+    World_Free(world);
+}
+
 void
 test_npc_retype_keeps_animation(void)
 {
@@ -1013,6 +1843,7 @@ test_npc_retype_keeps_animation(void)
     struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
 
     sleeping.readyanim = 777;
+    TEST_ASSERT(npc->base_npc_id == 1234, "spawn retains the server/base NPC type");
 
     World_NpcSetPrimaryAnimation(world, ni, 16742, 0);
     TEST_ASSERT(npc->animation.primary.anim_id == 16742, "the one-shot is armed");
@@ -1022,11 +1853,275 @@ test_npc_retype_keeps_animation(void)
 
     World_NpcSetType(world, ni, 4321, 5, &sleeping);
     TEST_ASSERT(npc->npc_id == 4321 && npc->size == 5, "the retype still lands");
+    TEST_ASSERT(
+        npc->base_npc_id == 1234,
+        "a client-side child retype does not discard the server multiNpc wrapper");
     TEST_ASSERT(npc->idle_animations.readyanim == 777, "and swaps the idle set");
     TEST_ASSERT(npc->animation.primary.anim_id == 16742,
                 "the running one-shot survives the retype");
     TEST_ASSERT(npc->animation.primary.frame == 2,
                 "and keeps its place rather than restarting");
+
+    World_Free(world);
+}
+
+/*
+ * The placement menu a LOC_ADD_CHANGE_V2 dresses a spawned loc with.
+ *
+ * This is what makes one cache record behave like several. A door's loctype
+ * ships "Open"; the zone change that swings it open spawns the open-door loc
+ * and hands it a menu saying slot 0 is now "Close". Get it wrong and the door
+ * offers both, or offers neither, or offers the right word on the wrong row --
+ * and the row is what the click reports, so the last one sends the server an
+ * op the player did not pick.
+ *
+ * Three rules, and each is only visible in a case the other two do not cover:
+ * a slot the mask CLEARS is gone whatever either side calls it, a replacement
+ * beats the loctype INCLUDING on a slot the loctype left empty, and `code` is
+ * never touched because renaming a row must not move it.
+ */
+
+static void
+set_action(struct WorldEntity_SceneryInfo* info, int slot, uint16_t code, char const* name)
+{
+    info->actions[slot].code = code;
+    memset(info->actions[slot].name, 0, sizeof(info->actions[slot].name));
+    snprintf(info->actions[slot].name, sizeof(info->actions[slot].name), "%s", name);
+}
+
+void
+test_scenery_placement_ops(void)
+{
+    struct WorldEntity_SceneryInfo info;
+    char const* replacements[5] = { "", "", "", "", "" };
+    bool has_action = false;
+    uint8_t overrides;
+
+    printf("TEST: placement op menu\n");
+
+    /* A loctype with two options of its own. */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 0, 11, "Open");
+    set_action(&info, 1, 12, "Study");
+
+    /* A menu that keeps both slots and renames neither: nothing moves, and
+     * nothing is claimed as an override. */
+    replacements[0] = "";
+    replacements[1] = "";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x03, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[0].name, "Open") == 0, "a kept slot lost the loctype's label");
+    TEST_ASSERT(strcmp(info.actions[1].name, "Study") == 0, "the second kept slot changed");
+    TEST_ASSERT(
+        overrides == 0x1c,
+        "a menu that renames nothing should still claim the four slots it drops");
+    TEST_ASSERT(has_action, "a loc with two options reported nothing to click");
+
+    /* The mask says what the placement SPEAKS FOR, which is not the same as
+     * what it changed: the three slots this menu drops are claimed too, because
+     * the placement is the reason they are empty. Only a slot that is kept and
+     * unnamed inherits, and those are the two that stay out of the mask. */
+
+    /* A replacement wins over the loctype's own label, on its own slot only. */
+    replacements[0] = "Close";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x03, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[0].name, "Close") == 0, "the replacement label did not win");
+    TEST_ASSERT(strcmp(info.actions[1].name, "Study") == 0, "the replacement reached another slot");
+    TEST_ASSERT(overrides == 0x1d, "the replaced slot is not marked overridden");
+
+    /*
+     * A slot the mask CLEARS is gone, and gone BEFORE its label is read. This
+     * is the swung door: the change keeps slot 0 and drops slot 1, and a
+     * reader that looks at the label first leaves "Study" beside "Close".
+     * The dropped slot counts as an override -- the placement is speaking for
+     * it, by saying it has nothing.
+     */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 0, 11, "Open");
+    set_action(&info, 1, 12, "Study");
+    replacements[0] = "Close";
+    replacements[1] = "Peer";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x01, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[0].name, "Close") == 0, "the kept slot lost its replacement");
+    TEST_ASSERT(info.actions[1].name[0] == '\0', "a cleared slot kept a label");
+    TEST_ASSERT(overrides == 0x1f, "a cleared slot is not marked as overridden");
+
+    /*
+     * A replacement on a slot the loctype left EMPTY. This is the whole
+     * mechanism -- it is how a record grows an option it never declared -- and
+     * it is the case a reader that only ever REPLACES existing labels gets
+     * wrong while every renamed door still works.
+     */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 3, 44, "");
+    replacements[0] = "";
+    replacements[1] = "";
+    replacements[3] = "Board";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x08, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[3].name, "Board") == 0, "an empty slot did not grow its option");
+    TEST_ASSERT(overrides == 0x1f, "the grown slot is not marked as overridden");
+    TEST_ASSERT(has_action, "a loc whose only option came from the placement reported nothing");
+
+    /*
+     * A menu with nothing in it at all. The masts ship with no name and no
+     * cache ops, and a placement that adds none has nothing to click -- which
+     * is what the caller reads to decide whether to override the loctype's own
+     * `active` flag.
+     */
+    memset(&info, 0, sizeof(info));
+    replacements[3] = "";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x00, replacements, &has_action);
+    TEST_ASSERT(!has_action, "an empty menu reported something to click");
+    TEST_ASSERT(overrides == 0x1f, "an all-clearing mask did not claim every slot");
+
+    /*
+     * `code` is the op slot a click reports, and a rename must not move it.
+     * Every slot keeps the code it had, including the one whose label was
+     * cleared -- the row is gone from the menu, not renumbered.
+     */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 0, 11, "Open");
+    set_action(&info, 1, 12, "Study");
+    set_action(&info, 2, 13, "Search");
+    replacements[0] = "Close";
+    replacements[1] = "";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x05, replacements, &has_action);
+    TEST_ASSERT(info.actions[0].code == 11, "the renamed slot's op code moved");
+    TEST_ASSERT(info.actions[1].code == 12, "the cleared slot's op code moved");
+    TEST_ASSERT(info.actions[2].code == 13, "an untouched slot's op code moved");
+    TEST_ASSERT(strcmp(info.actions[2].name, "Search") == 0, "slot 2 was kept and lost its label");
+
+    /*
+     * A shortened label leaves no tail behind. Interned blocks are compared
+     * byte for byte, so a name written over a longer one with only a NUL
+     * between them interns as a second, identical-looking entry -- and every
+     * placement that "shares" it then gets its own copy.
+     */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 0, 11, "Investigate");
+    replacements[0] = "Use";
+    replacements[1] = "";
+    WorldEntity_SceneryApplyPlacementOps(&info, 0x01, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[0].name, "Use") == 0, "the short label did not take");
+    {
+        struct WorldEntity_SceneryInfo fresh;
+        memset(&fresh, 0, sizeof(fresh));
+        set_action(&fresh, 0, 11, "Use");
+        TEST_ASSERT(
+            memcmp(&fresh, &info, sizeof(fresh)) == 0,
+            "the overwritten label left a tail past its terminator");
+    }
+
+    /* All five slots, so nothing is a four-slot loop in disguise. */
+    memset(&info, 0, sizeof(info));
+    replacements[0] = "a";
+    replacements[1] = "b";
+    replacements[2] = "c";
+    replacements[3] = "d";
+    replacements[4] = "e";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x1f, replacements, &has_action);
+    TEST_ASSERT(overrides == 0x1f, "not every slot was reached");
+    TEST_ASSERT(strcmp(info.actions[4].name, "e") == 0, "the fifth slot was not written");
+}
+
+/*
+ * The pile on a tile: how many stacks are on it, and which one is the nth.
+ *
+ * The CS2 ground-item opcodes ask both questions with the same call, which is
+ * what makes this worth pinning: the return value is the tile's TOTAL, not
+ * "how far the walk got". A walk that stops when it finds the index answers
+ * the count question with the index plus one, and the cache's own scripts read
+ * that count to decide how many rows to draw -- so a three-item pile shows one
+ * row, and the two underneath it are unreachable.
+ *
+ * The other half is that a tile holds one stack per obj id, and the order is
+ * the order they arrived. An opcode indexing into it is indexing into that.
+ */
+void
+test_obj_stack_count_at(void)
+{
+    struct World* world = World_TestMakeReady(104);
+    char actions[5][32] = { "Take", "", "", "", "" };
+    struct WorldEntity_ObjStack const* stack;
+    int count;
+
+    printf("TEST: obj stacks on a tile\n");
+
+    /* Three different objs on one tile, one on a tile beside it, and one on
+     * the same tile a level up. */
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 10, 50, 50, 0, 995, 1, "Coins", actions) >= 0, "add coins");
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 11, 50, 50, 0, 1215, 1, "Dragon dagger", actions) >= 0,
+        "add dagger");
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 12, 50, 50, 0, 526, 2, "Bones", actions) >= 0, "add bones");
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 13, 51, 50, 0, 995, 1, "Coins", actions) >= 0, "add next door");
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 14, 50, 50, 1, 995, 1, "Coins", actions) >= 0, "add upstairs");
+
+    /* The count is the whole pile, whatever index was asked for -- including
+     * an index nobody is standing on. */
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 0, &stack);
+    TEST_ASSERT(count == 3, "the tile's pile is not three deep");
+    TEST_ASSERT(stack && stack->obj_id == 995, "index 0 is not the first thing added");
+
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 2, &stack);
+    TEST_ASSERT(count == 3, "asking for the last entry changed the count");
+    TEST_ASSERT(stack && stack->obj_id == 526, "index 2 is not the last thing added");
+
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 1, &stack);
+    TEST_ASSERT(count == 3, "asking for a middle entry changed the count");
+    TEST_ASSERT(stack && stack->obj_id == 1215, "index 1 is not the second thing added");
+    TEST_ASSERT(stack && stack->count == 1, "the stack's own count did not come back");
+
+    /* Past the end: the count still answers, and the out pointer is left
+     * alone rather than being cleared or filled with the last entry. */
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 3, &stack);
+    TEST_ASSERT(count == 3, "an out-of-range index changed the count");
+    TEST_ASSERT(!stack, "an out-of-range index still wrote a stack");
+    count = World_ObjStackCountAt(world, 50, 50, 0, -1, &stack);
+    TEST_ASSERT(count == 3, "a negative index changed the count");
+    TEST_ASSERT(!stack, "a negative index wrote a stack");
+
+    /* Each of the three coordinates is read on its own. The tile next door and
+     * the same tile upstairs each hold exactly one, and neither leaks in. */
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 51, 50, 0, 0, &stack);
+    TEST_ASSERT(count == 1, "the tile east holds the wrong number");
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 1, 0, &stack);
+    TEST_ASSERT(count == 1, "the tile upstairs holds the wrong number");
+    TEST_ASSERT(stack && stack->grid_position.level == 1, "the upstairs stack is not upstairs");
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 51, 0, 0, &stack);
+    TEST_ASSERT(count == 0 && !stack, "an empty tile north holds something");
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 49, 50, 0, 0, &stack);
+    TEST_ASSERT(count == 0 && !stack, "an empty tile west holds something");
+
+    /* A tile with nothing on it answers zero and writes nothing. */
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 3, 3, 0, 0, &stack);
+    TEST_ASSERT(count == 0, "a bare tile holds something");
+    TEST_ASSERT(!stack, "a bare tile wrote a stack");
+
+    /*
+     * Adding the same obj again DEEPENS the pile. "One stack per (tile, obj)"
+     * is the caller's rule -- App_WorldObjStackAdd looks first and refreshes
+     * the count on a hit, because it has a scene element and a model to keep.
+     * World itself just allocates, and the count opcodes report what is there.
+     */
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 15, 50, 50, 0, 995, 7, "Coins", actions) >= 0, "re-add coins");
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 3, &stack);
+    TEST_ASSERT(count == 4, "a second add of the same obj did not deepen the pile");
+    TEST_ASSERT(stack && stack->obj_id == 995 && stack->count == 7, "the second add is not last");
 
     World_Free(world);
 }

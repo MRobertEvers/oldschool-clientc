@@ -1,0 +1,163 @@
+- generic [ref=f18e1]:
+  - generic:
+    - text: 
+    - navigation:
+      - menubar "Navigation" [ref=f18e2]:
+        - menu "Primary navigation" [ref=f18e3]:
+          - listitem [ref=f18e4]:
+            - link "ArtStation Logo" [ref=f18e5] [cursor=pointer]:
+              - /url: /
+          - listitem [ref=f18e6]:
+            - button "Explore" [ref=f18e7] [cursor=pointer]
+          - listitem [ref=f18e9]:
+            - button "Learn" [ref=f18e10] [cursor=pointer]
+          - listitem [ref=f18e12]:
+            - button "Shop" [ref=f18e13] [cursor=pointer]
+          - listitem [ref=f18e15]:
+            - button "Find a Job" [ref=f18e16] [cursor=pointer]
+          - listitem [ref=f18e18]:
+            - button "Hire" [ref=f18e19] [cursor=pointer]
+        - listitem "Search" [ref=f18e21]:
+          - generic [ref=f18e22]:
+            - generic [aria-hidden] [ref=f18e23]: 
+            - combobox "Search Input" [ref=f18e24]
+            - text: 
+        - menu "Utility navigation" [ref=f18e25]:
+          - text: 
+          - listitem [ref=f18e26]:
+            - link "Cart" [ref=f18e27] [cursor=pointer]:
+              - /url: /marketplace/cart
+              - generic [aria-hidden] [ref=f18e28]: 
+          - text:     
+          - listitem [ref=f18e29]:
+            - link "Sign up" [ref=f18e30] [cursor=pointer]:
+              - /url: /registration/signup
+              - generic [ref=f18e31]:
+                - generic [aria-hidden] [ref=f18e32]: 
+                - generic [ref=f18e33]: Sign up
+          - listitem [ref=f18e34]:
+            - link "Sign In" [ref=f18e35] [cursor=pointer]:
+              - /url: /users/sign_in
+              - generic [ref=f18e36]:
+                - generic [aria-hidden] [ref=f18e37]: 
+                - generic [ref=f18e38]: Sign In
+          - listitem [ref=f18e39]:
+            - button "More links" [ref=f18e40] [cursor=pointer]:
+              - generic [aria-hidden] [ref=f18e41]: 
+            - text:         
+      - text:                                  
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - button "close"
+            - generic:
+              - img "ArtStation"
+              - heading "Sign Up" [level=4]
+            - paragraph: Join the leading showcase platform for art and design.
+            - generic:
+              - link "Epic Games, Inc. Sign Up with Epic Games":
+                - /url: /api/v2/epic_auth/account/start
+                - img "Epic Games, Inc."
+                - text: Sign Up with Epic Games
+          - generic:
+            - paragraph: Already have an account?
+            - link "Sign In here":
+              - /url: /#signin
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - button "close"
+            - generic:
+              - img "ArtStation"
+              - heading "Sign In" [level=4]
+            - generic:
+              - link "Epic Games, Inc. Sign In with Epic Games":
+                - /url: /api/v2/epic_auth/session/start
+                - img "Epic Games, Inc."
+                - text: Sign In with Epic Games
+              - generic:
+                - generic: 
+                - text: Sign In with Google
+              - button " Sign In with Facebook":
+                - generic: 
+                - text: Sign In with Facebook
+            - generic: Or
+            - generic:
+              - generic:
+                - generic: Email address
+                - textbox "Email address":
+                  - /placeholder: email@example.com
+              - generic:
+                - generic: Password
+                - textbox "Password":
+                  - /placeholder: password
+              - generic:
+                - button "Sign in"
+          - generic:
+            - generic:
+              - link "Forgot password?":
+                - /url: /registration/account/password/new
+            - generic:
+              - paragraph: Don’t have an account?
+              - link "Sign Up here":
+                - /url: /#signup
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - generic: It looks like you’re using ArtStation from Europe.Would you like to change the currency to Euros (€)?
+            - generic: It looks like you’re using ArtStation from Great Britain.Would you like to change the currency to Pounds (£)?
+            - generic: It looks like you’re using ArtStation from Canada.Would you like to change the currency to CAD ($)?
+            - generic:
+              - generic:
+                - button "Keep USD $"
+              - generic:
+                - button "Change to EUR €"
+                - button "Change to GBP £"
+                - button "Change to CAD $"
+  - generic [ref=f18e45]:
+    - generic [ref=f18e47]:
+      - generic [ref=f18e50]:
+        - generic [ref=f18e51]: 
+        - searchbox "Search" [active] [ref=f18e52]: magic the gathering packaging art
+      - navigation [ref=f18e54]:
+        - list [ref=f18e55]:
+          - listitem [ref=f18e56]:
+            - link "Artworks" [ref=f18e57] [cursor=pointer]:
+              - /url: /search?query=magic%20the%20gathering%20packaging%20art
+          - listitem [ref=f18e58]:
+            - link "Artists" [ref=f18e59] [cursor=pointer]:
+              - /url: /search/artists?query=magic%20the%20gathering%20packaging%20art
+    - generic [ref=f18e61]:
+      - text: 
+      - generic [ref=f18e62]:
+        - generic [ref=f18e63]:
+          - text: 
+          - generic [ref=f18e64]:
+            - button "Sort by Relevance " [disabled]:
+              - text: Sort by Relevance
+              - generic: 
+          - button "Add filter " [ref=f18e66] [cursor=pointer]:
+            - text: Add filter
+            - generic [ref=f18e67]: 
+        - generic [ref=f18e69]:
+          - generic [ref=f18e70]:
+            - checkbox "Show Studio and Pro member artwork first" [checked] [ref=f18e71]
+            - text: Show Studio and Pro member artwork first
+          - generic [ref=f18e73]:
+            - generic [ref=f18e74]: 
+            - generic: Studio and Pro are paid subscriptions that include the ability for subscribers to have their content prioritized in search. The subscriber is the studio or individual being promoted.
+      - generic [ref=f18e76]:
+        - generic [ref=f18e77]: Quick Filters
+        - button " Hide projects created with AI" [ref=f18e78] [cursor=pointer]:
+          - generic [ref=f18e79]: 
+          - generic [ref=f18e80]: Hide projects created with AI
+    - generic [ref=f18e82]:
+      - paragraph [ref=f18e84]:
+        - generic [ref=f18e85]: 
+      - heading "What would you like to search for?" [level=4] [ref=f18e87]
+      - paragraph [ref=f18e88]: Start your search with a keyword or add a filtering option.

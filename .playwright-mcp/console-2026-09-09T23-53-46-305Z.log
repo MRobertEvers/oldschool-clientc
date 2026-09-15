@@ -1,0 +1,19 @@
+[     520ms] [ERROR] The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. @ https://www.ebay.com/splashui/challenge?ap=1&appName=orch&ru=https%3A%2F%2Fwww.ebay.com%2Fsch%2Fi.html%3F_nkw%3Dtheros%2Bbeyond%2Bdeath%2Bempty%2Bbundle%2Bbox%26_sacat%3D0&iid=086f6242-2c90-49da-95f8-3db438cd17b3&iim=NMTM2La&iia=HNjM0LjTj&iiz=kKdg0LjM2CNI:0
+[     781ms] [ERROR] The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. @ https://www.ebay.com/oe6jM-/Vy/rI/nSi8/bGTG440lLK/cJw5SfuJO3/O1QEOjg/KF04QSYp/BxEb?v=6842e26c-c9db-0f7c-f653-c2733f9617d2:0
+[     782ms] [ERROR] The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. @ https://www.ebay.com/oe6jM-/Vy/rI/nSi8/bGTG440lLK/cJw5SfuJO3/O1QEOjg/KF04QSYp/BxEb?v=6842e26c-c9db-0f7c-f653-c2733f9617d2:0
+[     800ms] [ERROR] The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. @ https://www.ebay.com/oe6jM-/Vy/rI/nSi8/bGTG440lLK/cJw5SfuJO3/O1QEOjg/KF04QSYp/BxEb?v=6842e26c-c9db-0f7c-f653-c2733f9617d2:0
+[     800ms] [ERROR] The Content Security Policy directive 'upgrade-insecure-requests' is ignored when delivered in a report-only policy. @ https://www.ebay.com/oe6jM-/Vy/rI/nSi8/bGTG440lLK/cJw5SfuJO3/O1QEOjg/KF04QSYp/BxEb?v=6842e26c-c9db-0f7c-f653-c2733f9617d2:0
+[    2561ms] [LOG] joinUs() at %ce%cb%ca%cy%c! font-weight:bold;color:#e53238; font-weight:bold;color:#0064d2 font-weight:bold;color:#f5af02 font-weight:bold;color:#86b817 color:black @ https://ir.ebaystatic.com/rs/c/srpnweb/common-C2rBUGrN.js:1
+[    2663ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    2725ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    2725ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    2733ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    2996ms] [LOG] done @ https://www.ebay.com/sch/i.html?_nkw=theros+beyond+death+empty+bundle+box&_sacat=0:4
+[    3302ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[    3322ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[    3896ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://cs.lkqd.net/cs?partnerId=59&redirect=https%3A%2F%2Fcm.g.doubleclick.net%2Fpixel%3Fgoogle_nid%3Dlkqd_dbm%26google_hm%3D%24%24rawlkqduserid%7Cbase64%24%24:0
+[    3896ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://cs.lkqd.net/cs?partnerId=59&partnerUserId=CAESEHh0p41XzW9fnX10MkkKQVs&gdpr=0&google_cver=1:0
+[    3896ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://cs.lkqd.net/cs?partnerId=59&redirect=https%3A%2F%2Fcm.g.doubleclick.net%2Fpixel%3Fgoogle_nid%3Dlkqd_dbm%26google_hm%3D%24%24rawlkqduserid%7Cbase64%24%24:0
+[    3896ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://cs.lkqd.net/cs?partnerId=59&partnerUserId=CAESEHh0p41XzW9fnX10MkkKQVs&gdpr=0&google_cver=1:0
+[   33213ms] [WARNING] [GPT] Slot.clearTargeting is deprecated, use Slot.setConfig({targeting: ...}) instead.
+https://goo.gle/gpt-message#171 @ https://securepubads.g.doubleclick.net/pagead/managed/js/gpt/m202609040101/pubads_impl.js:18

@@ -1,0 +1,77 @@
+{{otheruses|the teleport spell|the teleport tablet|Teleport to boat (tablet)}}
+{{otheruses|teleporting to your boat's location|teleporting your boat|Summon Boat}}
+{{Infobox Spell
+|name = Teleport to Boat
+|image = [[File:Teleport to Boat.png]]
+|release = [[19 November]] [[2025]]
+|update = Sailing is OUT TODAY!
+|members = Yes
+|level = 67
+|spellbook = Normal
+|type = Teleport
+|exp = 77
+|cost = {{RuneReq|Law=2|Earth=2|Water=2}}
+|speed = 
+|quest = [[Pandemonium]]
+|lectern = [[Mahogany eagle lectern]]
+|description = Teleports you to your boat
+|anim = 
+}}
+[[File:Teleport to Boat icon (mobile).png|left|class=pageimage]]
+'''Teleport to Boat''' is a spell from the [[standard spellbook]] that teleports the caster to the [[File:Docking_point_icon.png]] [[mooring point]] where their [[boat|player-owned boat]] is currently located. This spell can only be cast after completion of [[Pandemonium]]. 
+
+'''It requires the caster's boat to have a [[Greater_teleport_focus_(facility)|greater teleport focus]] on it''', requiring level 75 Sailing and 69 Construction to be built. 
+
+The spell is one of the two [[boat spell]]s.
+
+When cast, the player receives a menu to select which boat to teleport to. Any boats without a greater teleport focus will be greyed out. The last-used boat can be selected by pressing spacebar, all subsequent boats via the number keys.
+
+If a player casts this spell while riding on the boat with the greater teleport focus, they will teleport to the last mooring point the boat had docked at, and the boat will be lost.
+
+The [[Sailing cape]] offers functionality identical to this spell as one of its perks, but without costing any runes.
+
+==Uses==
+As some islands have useful amenities or other spots of interest and they have no other means of quick travel, Teleport to Boat can be useful to save time getting there. These include:
+*[[Treasure Trails]] spots
+**For master clues, [[Brittle Isle]] (~80 seconds faster than the alternative) and [[Drumstick Isle]] (~40 seconds)
+**For elite clues, [[Wintumber Island]] (~60 seconds) and [[Lledrith Island]] (~30 seconds)
+**For hard clues, [[Tear of the Soul]] (~50 seconds)
+*[[Charred Island]] for Slayer training in the dungeon and access to [[rubium rocks]] and [[rubium deposit]]s
+*[[Chinchompa Island]] for Hunter training, in particular completing Hunter rumours for red chinchompas more quickly
+*[[Sunbleak Island]] for Woodcutting training with ironwood trees
+*[[Ynysdail]] for getting to [[The Gwenith Glide]]
+*[[Lunar Isle]] for [[Money making guide/Crafting astral runes|Crafting Astral Runes]]:  [[Teleport to boat]] results in a round-trip time of 34 seconds (105 trips per hour) versus the traditional method of [[Moonclan Teleport]] average time of 49 seconds (73 trips per hour); which is approximately 45% faster. Additionally, the Lunar altar is immediately visible from the boat, allowing the craft action to be performed with a single click.
+*[[Wyrmscraig Cavern]] for access to [[Mortimer]], the slayer master
+*[[The Summer Shore]] for faster access to [[Coral Nurseries]] via the [[Rowboat (The Great Conch)|Rowboat]] (~25 seconds faster than fairy ring, ~2-5 seconds faster than using a [[Charter ship]])
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 2
+|Rune2 = water
+|Rune2num = 2
+|Rune3 = law
+|Rune3num = 2
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 August 2026
+|update = Summer Sweep Up - Agility & Chambers of Xeric Changes
+|change = Corrected the messaging displayed when using the Teleport to Boat spell on boats without a greater teleport focus.
+}}
+{{Subject changes
+|date = 29 July 2026
+|update = Wyrmscraig Is Out Today!
+|change = The [[Sailing cape]] now offers functionality identical to this spell as one of its perks.
+}}
+{{Subject changes
+|date = 20 May 2026
+|update = The Red Reef is Out Today!
+|change = Added a right-click 'Last Boat' option to the Teleport to Boat spell, which lets you quickly return to the boat you last teleported to.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

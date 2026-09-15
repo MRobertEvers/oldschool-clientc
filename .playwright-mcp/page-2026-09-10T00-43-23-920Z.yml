@@ -1,0 +1,111 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - generic [ref=f3e3]:
+      - text: Website powered by
+      - link [ref=f3e4] [cursor=pointer]:
+        - /url: https://www.artstation.com
+    - banner [ref=f3e5]:
+      - generic [ref=f3e7]:
+        - generic [ref=f3e9]:
+          - link "Justyna Dura" [ref=f3e10] [cursor=pointer]:
+            - /url: /
+          - generic [ref=f3e11]: JustynaDura.Art@gmail.com
+        - generic [ref=f3e15]:
+          - link "Home page" [ref=f3e17] [cursor=pointer]:
+            - /url: /
+          - link "Resume" [ref=f3e19] [cursor=pointer]:
+            - /url: /resume
+          - link "Store" [ref=f3e21] [cursor=pointer]:
+            - /url: /store
+          - link "Prints" [ref=f3e23] [cursor=pointer]:
+            - /url: /store/art_posters
+    - generic [ref=f3e24]:
+      - generic [ref=f3e25]:
+        - 'heading "Magic: the Gathering - Innistrad Crimson Vow" [level=1] [ref=f3e26]'
+        - generic [ref=f3e27]:
+          - text: In
+          - list [ref=f3e28]:
+            - listitem [ref=f3e29]:
+              - link "Art Prints" [ref=f3e30] [cursor=pointer]:
+                - /url: /store/art_prints
+        - generic [ref=f3e31]:
+          - generic [ref=f3e32]:
+            - generic [ref=f3e33]:
+              - generic [ref=f3e35] [cursor=pointer]
+              - generic [ref=f3e39]:
+                - generic [ref=f3e41] [cursor=pointer]
+                - generic [ref=f3e44] [cursor=pointer]
+            - generic [ref=f3e47]:
+              - paragraph [ref=f3e48]: Marketing Art for Innistrad Crimson Vow
+              - paragraph [ref=f3e49]: "AD: Elsa Monnier"
+              - paragraph [ref=f3e50]: "Magic: the Gathering © Wizards of the Coast 2021"
+          - generic [ref=f3e51]:
+            - generic [ref=f3e52]: USD $24
+            - generic [ref=f3e54]:
+              - generic [ref=f3e55]:
+                - text: How would you like sizes to be displayed?
+                - generic [ref=f3e56]:
+                  - generic [ref=f3e57]: in
+                  - generic [ref=f3e58] [cursor=pointer]
+                  - generic [ref=f3e59]: cm
+              - generic [ref=f3e60]:
+                - generic [ref=f3e61]: Select a size
+                - generic [ref=f3e62]:
+                  - generic [ref=f3e63]: 16x12in
+                  - generic [ref=f3e65]: 11.3x8.5in
+              - generic [ref=f3e67]:
+                - paragraph [ref=f3e68]:
+                  - strong [ref=f3e69]: About ArtStation Art Prints
+                - paragraph [ref=f3e70]: Complement any space with gallery quality Art Prints. With artists in mind, our Art Prints are giclee printed on artist-grade paper for a finish that is both beautiful and long-lasting.
+                - list [ref=f3e71]:
+                  - listitem [ref=f3e72]: Giclee printed with high-quality acid-free pigment based inks
+                  - listitem [ref=f3e73]: Smooth, elegant finish
+                  - listitem [ref=f3e74]: Premium matted artist-grade 264 gsm paper
+              - generic [ref=f3e75]:
+                - generic [ref=f3e76]: "Also available as:"
+                - 'link "Magic: the Gathering - Innistrad Crimson Vow Magic: the Gathering - Innistrad Crimson Vow in Canvas Prints $72" [ref=f3e77] [cursor=pointer]':
+                  - /url: /store/prints/dzEG/magic-the-gathering-innistrad-crimson-vow
+                  - 'img "Magic: the Gathering - Innistrad Crimson Vow" [ref=f3e78]'
+                  - generic [ref=f3e79]:
+                    - generic [ref=f3e80]: "Magic: the Gathering - Innistrad Crimson Vow"
+                    - generic [ref=f3e81]:
+                      - generic [ref=f3e82]: in Canvas Prints
+                      - generic [ref=f3e83]: $72
+                - 'link "Magic: the Gathering - Innistrad Crimson Vow Magic: the Gathering - Innistrad Crimson Vow in Art Posters $18+" [ref=f3e84] [cursor=pointer]':
+                  - /url: /store/art_posters/dzEG/magic-the-gathering-innistrad-crimson-vow
+                  - 'img "Magic: the Gathering - Innistrad Crimson Vow" [ref=f3e85]'
+                  - generic [ref=f3e86]:
+                    - generic [ref=f3e87]: "Magic: the Gathering - Innistrad Crimson Vow"
+                    - generic [ref=f3e88]:
+                      - generic [ref=f3e89]: in Art Posters
+                      - generic [ref=f3e90]: $18+
+            - generic [ref=f3e93]:
+              - generic [ref=f3e95]:
+                - button "Share" [ref=f3e96] [cursor=pointer]:
+                  - generic [ref=f3e97]: 
+                  - text: Share
+                - button "Pin" [ref=f3e98] [cursor=pointer]:
+                  - generic [ref=f3e99]: 
+                  - text: Pin
+                - button "Share" [ref=f3e100] [cursor=pointer]:
+                  - generic [ref=f3e101]: 
+                  - text: Share
+                - button "Share" [ref=f3e102] [cursor=pointer]:
+                  - generic [ref=f3e103]: 
+                  - text: Share
+              - generic [ref=f3e104] [cursor=pointer]:
+                - generic [ref=f3e105]: https://artstn.co/pp/dzEG
+                - generic [ref=f3e106]: 
+      - button " Report" [ref=f3e109] [cursor=pointer]:
+        - generic [ref=f3e110]: 
+        - text: Report
+  - contentinfo [ref=f3e111]:
+    - generic [ref=f3e113]:
+      - link [ref=f3e116] [cursor=pointer]:
+        - /url: https://www.artstation.com
+      - link "Contact" [ref=f3e119] [cursor=pointer]:
+        - /url: mailto:justynadura.art@gmail.com
+        - generic [ref=f3e120]: 
+        - text: Contact
+      - generic [ref=f3e121]: © All rights reserved
+  - text: 

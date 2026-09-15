@@ -1,0 +1,48 @@
+{{External|rs}}
+{{otheruses|the Lunar spell|the process of imbuing certain items to increase their stats|imbuing}}
+{{Infobox Spell
+|name = Magic Imbue
+|image = [[File:Magic Imbue.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 82
+|spellbook = Lunar
+|type = Utility
+|exp = 86
+|cost = {{RuneReq|Fire=7|Water=7|Astral=2}}
+|speed = 0 ticks
+|cooldown = 21 ticks
+|description = Combine runes without a talisman
+|anim = [[File:Magic Imbue.gif]]
+|sound = [[File:Magic Imbue.ogg]]
+}}
+[[File:Magic Imbue icon (mobile).png|left]]
+'''Magic Imbue''' is a [[Lunar spellbook|Lunar spell]] that enables the caster to craft [[combination rune]]s by removing the requirement for opposing [[talismans]] to be present in the inventory for 12.6 seconds, during which time multiple sets of combination runes may be crafted. To craft combination runes after casting Magic Imbue, players must use the opposing runes on the [[Runic altar]]. For example, to create [[lava rune]]s at the [[Earth Altar]], players would use [[fire rune]]s on the altar after casting Magic Imbue. This spell can only be cast once every 12.6 seconds (21 [[game tick]]s). 
+
+''You will still need to bring pure essence.''
+
+'''Note:''' The spell does '''not''' increase the 50% chance of success when crafting combination runes. For a 100% chance of success, a [[binding necklace]] is still required.
+
+Using a [[steam battlestaff]], [[mystic steam staff]], or [[twinflame staff]] substantially reduces the cost of Magic Imbue, along with reducing the effort of crafting combination runes, as some talismans can be quite expensive. On a related note, the difficulty of crafting [[dust rune|dust]], [[smoke rune|smoke]] and [[mist rune]]s is reduced, as it becomes economically viable to craft these runes at the [[Air Altar]] outside [[Falador]], due to the proximity to a bank.
+
+Magic Imbue can also be cast without being at an altar, and will still provide Magic experience. This can be a useful way to train [[Magic]] while training other skills such as [[Agility]], [[Mining]], or [[Hunter]]. Casting Magic Imbue repeatedly can give about 23k Magic experience per hour, with the theoretical maximum being 24,571, assuming the spell is cast consistently every 21 ticks. For this method, it is highly recommended to use a [[staves|staff]] that provides runes, particularly a variation of the [[steam battlestaff]], or [[staff of water]] and [[tome of fire]] to save on runes. This reduces the spell cost by up to {{NoCoins|{{GEP|Fire rune|7}}+{{GEP|Water rune|7}}}} coins per cast.
+
+Casting [[Spellbook Swap]] removes an active Magic Imbue effect. 
+
+As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Astral
+|Rune1num = 2
+|Rune2 = Fire
+|Rune2num = 7
+|Rune3 = Water
+|Rune3num = 7
+}}
+==Trivia==
+*This spell's animation is similar to [[Bones to Bananas]] and [[Bones to Peaches]].
+
+{{Lunar spellbook}}
+{{Utility spells}}

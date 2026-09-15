@@ -1,0 +1,35 @@
+{{External|rs=Tele-other Lumbridge}}
+{{Infobox Spell
+|name = Teleother Lumbridge
+|image = [[File:Teleother Lumbridge.png]]
+|release = [[14 March]] [[2005]]
+|update = Magic and Wilderness Updates
+|members = Yes
+|level = 74
+|spellbook = Normal
+|type = teleport
+|exp = 84
+|cost = {{RuneReq|Soul=1|Earth=1|Law=1}}
+|speed = 10 ticks
+|description = Teleports target to Lumbridge
+|anim = [[File:Teleother.gif]]
+|sound = [[File:Teleother.ogg]]
+}}
+[[File:Teleother Lumbridge icon (mobile).png|left|class=pageimage]]
+'''Teleother Lumbridge''' is a [[member]]'s spell which requires a [[Magic]] level of 74 and teleports the target player, who must have [[Accept Aid]] on, to [[Lumbridge]]. A window will pop for the person being teleported asking them if they wished to be teleported. It is used to send you to Lumbridge once you have completed [[Tutorial Island]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = soul
+|Rune1num = 1
+|Rune2 = law
+|Rune2num = 1
+|Rune3 = earth
+|Rune3num = 1
+}}
+
+==Destination==
+{{Map|3219,3218|3219,3220|3221,3220|3221,3221|3223,3221|3223,3220|3224,3220|3224,3218|3223,3218|3223,3216|3221,3216|3221,3218|mtype=polygon|align=left}}{{clear|left}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

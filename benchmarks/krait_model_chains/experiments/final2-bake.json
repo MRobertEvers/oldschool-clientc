@@ -1,0 +1,7 @@
+{
+  "corpus": "benchmarks/krait_model_chains/live-bake.chain.gz",
+  "sha256": "79660868039c287e4c9bd8bb52819f9454d3f1d167cc973d9c07401cd5e12289",
+  "binary_sha256": "916c15107e32dc59b9cd81208926e34e8dd9c76049c904c4f17856360d1d24eb",
+  "events": {},
+  "workload": "verified: 128 real model bakes, 50375 ordered faces, 0 textured, both arms"
+}

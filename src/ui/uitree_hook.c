@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Slot names, positionally. Must match `struct UITreeRuntimeHooks` field for
@@ -24,8 +25,10 @@ static char const* const k_slot_names[] = {
     "on_key_up",          "on_op",
     "on_timer",           "on_var_transmit",
     "on_inv_transmit",    "on_misc_transmit",
-    "on_friend_transmit", "on_dialog_abort",
-    "on_resize",          "on_sub_change",
+    "on_friend_transmit", "on_chat_transmit",
+    "on_dialog_abort",    "on_resize",
+    "on_sub_change",      "on_input_submit",
+    "on_input_update",    "on_input_focus_changed",
 };
 
 #define UITREE_HOOK_SLOT_COUNT ((int)(sizeof(k_slot_names) / sizeof(k_slot_names[0])))
@@ -183,9 +186,7 @@ UITree_HookSet(
         {
             if( warned_count < (int)(sizeof(warned_script) / sizeof(warned_script[0])) )
                 warned_script[warned_count++] = script_id;
-            fprintf(
-                stderr,
-                "uitree: hook clientscript %d passed %d string arguments; only the first "
+            TORIRS_LOG("uitree: hook clientscript %d passed %d string arguments; only the first "
                 "%d are kept and the rest arrive as \"\" (UITREE_HOOK_STR_ARG_MAX)\n",
                 script_id,
                 str_argc,
@@ -223,6 +224,64 @@ UITree_HookSet(
             hook->str_argc = i + 1;
         }
     }
+}
+
+/*
+ * The clamps below are `UITree_HookSet`'s, repeated rather than shared, and they
+ * have to stay that way: the question this answers is not "did the caller pass
+ * the same thing" but "would setting it change the slot", and only the post-clamp
+ * values decide that. An argument list of 70 and one of 64 land on the same slot,
+ * and so do a NULL `strv` and a str_argc of 0.
+ *
+ * What is deliberately NOT mirrored is the once-per-script-id truncation warning
+ * in the clamp above. It cannot go missing by being skipped here: a slot that has
+ * never been written is script_id 0, no incoming script_id > 0 compares equal to
+ * it, and so the first registration of any script id always goes the long way and
+ * warns.
+ */
+int
+UITree_HookEquals(
+    struct UITreeRuntimeScriptHook const* hook,
+    int script_id,
+    int const* argv,
+    int argc,
+    uint64_t str_mask,
+    char const* const* strv,
+    int str_argc)
+{
+    assert(hook);
+
+    if( script_id <= 0 )
+        return hook->script_id == 0 && hook->argc == 0 && hook->str_argc == 0;
+
+    if( argc > UITREE_HOOK_ARG_MAX )
+        argc = UITREE_HOOK_ARG_MAX;
+    if( argc < 0 || !argv )
+        argc = 0;
+    if( str_argc > UITREE_HOOK_STR_ARG_MAX )
+        str_argc = UITREE_HOOK_STR_ARG_MAX;
+    if( str_argc < 0 || !strv )
+        str_argc = 0;
+
+    if( hook->script_id != script_id )
+        return 0;
+    if( hook->str_mask != str_mask )
+        return 0;
+    if( hook->argc != argc )
+        return 0;
+    if( hook->str_argc != str_argc )
+        return 0;
+
+    for( int i = 0; i < argc; i++ )
+        if( hook->argv[i] != argv[i] )
+            return 0;
+    /* `hook_strdup` turned a NULL into "" on the way in, so compare against what
+     * it would produce, not against the pointer that was passed. */
+    for( int i = 0; i < str_argc; i++ )
+        if( strcmp(hook->strv[i], strv[i] ? strv[i] : "") != 0 )
+            return 0;
+
+    return 1;
 }
 
 void

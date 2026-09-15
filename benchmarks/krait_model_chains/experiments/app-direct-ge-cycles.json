@@ -1,0 +1,165 @@
+{
+  "serial": "T062809L3Z",
+  "scene": "grand-exchange",
+  "event": "cpu-cycles",
+  "target": "direct",
+  "warmup": 300,
+  "frames": 90,
+  "rows": [
+    {
+      "sample": 0,
+      "arm": 0,
+      "frames": 90,
+      "draw": 536296290,
+      "worker": 402631168,
+      "models": 207180,
+      "worker_models": 169462,
+      "faces": 1091311
+    },
+    {
+      "sample": 1,
+      "arm": 1,
+      "frames": 90,
+      "draw": 631569186,
+      "worker": 291819559,
+      "models": 207180,
+      "worker_models": 151105,
+      "faces": 798233
+    },
+    {
+      "sample": 2,
+      "arm": 1,
+      "frames": 90,
+      "draw": 521123140,
+      "worker": 390557957,
+      "models": 207180,
+      "worker_models": 175427,
+      "faces": 1105120
+    },
+    {
+      "sample": 3,
+      "arm": 0,
+      "frames": 90,
+      "draw": 574522834,
+      "worker": 352934991,
+      "models": 207180,
+      "worker_models": 157250,
+      "faces": 969998
+    },
+    {
+      "sample": 4,
+      "arm": 0,
+      "frames": 90,
+      "draw": 665224612,
+      "worker": 287066655,
+      "models": 207180,
+      "worker_models": 146465,
+      "faces": 782328
+    },
+    {
+      "sample": 5,
+      "arm": 1,
+      "frames": 90,
+      "draw": 509116788,
+      "worker": 416356028,
+      "models": 207180,
+      "worker_models": 176836,
+      "faces": 1154921
+    },
+    {
+      "sample": 6,
+      "arm": 1,
+      "frames": 90,
+      "draw": 618876387,
+      "worker": 315996391,
+      "models": 207180,
+      "worker_models": 153489,
+      "faces": 889101
+    },
+    {
+      "sample": 7,
+      "arm": 0,
+      "frames": 90,
+      "draw": 560211600,
+      "worker": 360874730,
+      "models": 207180,
+      "worker_models": 167476,
+      "faces": 974495
+    },
+    {
+      "sample": 8,
+      "arm": 0,
+      "frames": 90,
+      "draw": 526515021,
+      "worker": 397877095,
+      "models": 207180,
+      "worker_models": 168138,
+      "faces": 1058233
+    },
+    {
+      "sample": 9,
+      "arm": 1,
+      "frames": 90,
+      "draw": 562077898,
+      "worker": 349413024,
+      "models": 207180,
+      "worker_models": 161261,
+      "faces": 988533
+    },
+    {
+      "sample": 10,
+      "arm": 1,
+      "frames": 90,
+      "draw": 531500281,
+      "worker": 365457678,
+      "models": 207180,
+      "worker_models": 169326,
+      "faces": 1064019
+    },
+    {
+      "sample": 11,
+      "arm": 0,
+      "frames": 90,
+      "draw": 519848918,
+      "worker": 438266422,
+      "models": 207180,
+      "worker_models": 178718,
+      "faces": 1167708
+    }
+  ],
+  "summary": {
+    "draw": {
+      "baseline": 6091710.5,
+      "candidate": 6075434.327777778,
+      "percent": -0.26718558313337804,
+      "mad": {
+        "0": 266710.0722222221,
+        "1": 351879.1722222222
+      }
+    },
+    "worker": {
+      "baseline": 4215287.916666666,
+      "candidate": 3971503.9,
+      "percent": -5.783330142237208,
+      "mad": {
+        "0": 276089.87222222215,
+        "1": 414230.92222222243
+      }
+    },
+    "total": {
+      "baseline": 10368807.127777778,
+      "candidate": 10194832.455555554,
+      "percent": -1.6778658343074904,
+      "mad": {
+        "0": 116149.0944444444,
+        "1": 77677.1888888888
+      }
+    }
+  },
+  "build": {
+    "source_commit": "057f77b464cf08bbbae18780d534b9e0c73756be",
+    "apk_sha256": "428ce4fa5a1eba4aba7487ac49b38e24246a95faa3890f13542fc274d34bc0f2",
+    "scope": "Draw RenderFrame and worker model pass; per-thread userspace hardware event; excludes scene painter construction, kernel and sleep. ABBA x3, six settling frames per window. Both arms use aligned allocation."
+  },
+  "validation_note": "Provisional: keyguard was not dismissed before these runs; screenshot after instructions run showed lock screen. Use foreground repeats for acceptance."
+}

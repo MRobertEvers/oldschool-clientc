@@ -25,7 +25,7 @@ Dat2Group_TakeArchive(
     struct ToriRS_IO* io,
     int slot)
 {
-    struct ToriRS_IOItem* item = &io->io_slots[slot];
+    struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot);
     struct RSCache_Dat2DiskArchive* archive =
         (struct RSCache_Dat2DiskArchive*)item->data;
     item->data = NULL;

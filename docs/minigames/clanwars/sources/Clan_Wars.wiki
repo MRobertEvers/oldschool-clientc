@@ -1,0 +1,401 @@
+{{External|rs}}
+{{Safe activity|pvp=yes}}
+{{Otheruses|the minigame|the music track|Clan Wars (music track)}}
+{{Infobox Activity
+|name = Clan Wars
+|image = [[File:Clan Wars.png|300px]]
+|release = [[19 June]] [[2014]]
+|update = Clan Wars is here!
+|type = Minigame
+|members = No
+|location = [[Ferox Enclave]]
+|players = 1+
+|skills = [[Combat]]
+|requirements = None
+|currency = N/A
+|tutorial = No
+|music = [[Clan Wars (music track)|Clan Wars]]
+|map = {{Map|name=Clan Wars|x=3130|y=3622|zoom=2}}
+|leagueRegion = Wilderness
+}}
+[[File:Clan Wars logo.png|left]]
+'''Clan Wars''' is a safe [[minigame]] located in [[Ferox Enclave]], in a safe area of the Wilderness.
+
+Clan Wars allows members of two opposing [[chat-channel]]s to engage in player-versus-player combat against one another. A white [[free-for-all portal]] is available in addition to the normal ones. This portal is used by players to practice, to have fun in a PvP zone, or to restore drained stats and [[Hitpoints]] upon exiting.
+
+The purple portals are often used by [[Clans|PvP Clans]] to practice among their members or to fight against other clans. It is seldom used by casual clans. Instead, the free-for-all white portal is more popular.
+
+==Transportation==
+There are three safe methods of reaching Ferox Enclave that does not require players to traverse the Wilderness:
+* A [[ring of dueling]] (Ferox Enclave) will teleport directly here.
+* Using [[Minigame Teleport]] either through the spellbook or the [[Grouping]] interface to teleport to the Clan Wars minigame.
+* Using a [[waka canoe]] to row here (requires level 57 [[Woodcutting]]).
+
+==Official worlds==
+The following [[Server#Themed servers/worlds|official worlds]] are assigned to Clan Wars, while other worlds such as 302, 308, and 378 are sometimes used as unofficial worlds.
+
+{| class="wikitable sortable" style="text-align: left;"
+!World
+!Location
+!Members
+!Activity
+{{WorldLine|322|United States (east)|mems=yes|Clan Wars - Free-for-all}}
+|}
+
+==Setting up a clan fight==
+A clan fight may be setup by [[chat-channel]] members who are ranked a captain or higher by using the "Challenge" [[Choose Option|option]] on a player from another chat-channel (chat-channel was referred to as "Clan Chat" during release; it is not to be confused with the similar [[clan]] system). When challenging another clan, leaders may customise the terms and conditions for winning. Once the leaders have agreed, the minigame will begin. Clanmates will be notified in the chat-channel that a war has begun and can enter the purple portal. There will be a two-minute timer and a wall separating clans. At the end of the two-minute timer, the walls will collapse and the battle will begin.
+
+Players who die will be sent to a jail where depending on the game option, can go back in or will be unable to fight again. There is also an option to watch the fight at any time via orbs scattered across the map.
+
+[[File:Clan wars setup.png|thumb|left|250px|Clan War settings]]
+{{clear}}
+===Game mode===
+{| class="wikitable"
+!Mode
+!Conditions
+|-
+|Last team standing
+|The battle ends when all members of a team have been defeated.
+
+Fighters may not join or re-join the battle after it has begun.
+|-
+|First to X kills
+*25 kills
+*50 kills
+*100 kills
+*200 kills
+*500 kills
+*1,000 kills
+*5,000 kills
+*10,000 kills
+|The first team to score X kills will win.
+
+Fighters may enter the battle at any time.
+|-
+|King of the Hill
+
+*80 points
+*250 points
+*750 points
+*1,500 points
+*2,500 points
+*4,000 points
+*6,000 points
+|The first team to hold the hills for X points will win.
+King of the Hill points are earned when one team has more players within the highlighted King of the Hill area.
+|-
+|Most kills
+*5 minutes
+*10 minutes
+*20 minutes
+*60 minutes
+*120 minutes
+|The team with the most kills for X minutes will win.
+
+Fighters may enter the battle at any time.
+|-
+|Oddskull
+*100 points
+*300 points
+*500 points
+|The first team to hold the [[oddskull]] for X points will win.
+|}
+
+===Combat options===
+{| class="wikitable"
+!Setting
+!Option
+!Description
+|-
+| rowspan="2" | Melee
+|Allowed || Melee combat is allowed.
+|-
+|Disabled || Melee combat is disabled.
+|-
+| rowspan="2" | Ranging
+| Allowed || Ranging is allowed.
+|-
+| Disabled || Ranging is disabled.
+|-
+| rowspan="5" | Magic
+| All spellbooks || All spellbooks are allowed.
+|-
+| Standard spells|| Only the [[standard spellbook]] is allowed.
+|-
+| Classic F2P|| Only the classic standard free-to-play spells are allowed, excluding Snare.
+|-
+| Binding only|| Only the [[Bind]], [[Snare]] and [[Entangle]] spells are allowed.
+|-
+|Disabled
+|No magical combat is allowed.
+|-
+| rowspan="2" | Food
+| Allowed || Food may be eaten during the battle
+|-
+| Disabled || No food may be eaten during the battle
+|-
+| rowspan="2" | Drinks
+| Allowed || Drinks, such as potions, may be used during the battle.
+|-
+| Disabled || No drinks may be consumed during the battle.
+|-
+| rowspan="3" | Prayer
+| Allowed || All [[prayer]]s are allowed.
+|-
+| No overheads || Prayers that use an overhead icon are forbidden. Other prayers are allowed.
+|-
+| Disabled || No prayers are allowed
+|-
+| rowspan="3" | Special Attacks
+| Allowed || [[Special attacks]] are allowed
+|-
+| No Staff of the Dead || The [[Staff of the Dead]] cannot use its special attack, but all other special attacks are allowed.
+|-
+| Disabled || Special attacks are forbidden.
+|-
+| rowspan="2" | Team cap
+| Uncapped || As many players in a chat-channel can enter the battle.
+|-
+| Capped || The fight can be restricted to a certain number of players: 5 v 5, 10 v 10, 15 v 15, 20 v 20 and 30 v 30.
+|-
+| rowspan="2" | Leaving channel
+| Counts as death || If a player leaves the chat-channel mid-battle, it will count as a death.
+|-
+| No penalty || No penalty is incurred if a player leaves the chat-channel mid-battle.
+|-
+| rowspan="2" | Rejoining
+| Unrestricted || Players can immediately rejoin the battle upon death.
+|-
+| 60 sec delay || Players must wait for a minute before being able to rejoin the battle.
+|-
+| rowspan="4" | Miscellaneous
+| Ignore freezing || If freezing is ignored, spells such as [[Entangle]] and [[Ice Barrage]] will not prevent their targets from moving. Damage dealt by the spells will be applied normally.
+|-
+| PJ timer || In single-way combat areas, the PJ timer prevents players from being attacked for 10 secs after they have been attacking someone else.
+|-
+| Single Spells || If Single Spells is enabled, multi-target attacks (such as chinchompas) will hit only one target, even in multi-way combat areas.
+|-
+| Trident || If this option is enabled, the [[trident of the seas]] can be used against players.
+|-
+| rowspan="2" | Stragglers
+| Kill'em all || A team will lose the battle if it has no fighters in the arena.
+|-
+| Ignore 5 || A team will lose the battle if it has 5 fighters or fewer in the arena.
+|}
+
+==Purple Portal Arenas==
+To join a fight, players must be in a [[chat-channel]], and a ranking member that is captain or higher must initiate a war with another chat-channel. When the war has been initiated, players have 2 minutes to enter the arena before the war starts. Depending on the settings, once this 2 minute timer is up, players may or may not be able to enter the battle. There can only be a maximum of 100 players per side for a total of 200 players maximum.
+
+There are a total of 12 maps that players can choose for the purple portal. Four of the maps are [[Member|members-only]]. Each map has certain advantages and disadvantages for teams and fighting styles. Below are the available maps for the purple portal arena.
+
+===Free-to-play===
+{|class=wikitable style="text-align:center;"
+!Arena
+!Description
+!Image
+!Map
+|-
+|Wasteland
+|A dead land filled with lava, dead trees and rocks. Near each portal, there is a single combat area.
+|[[File:Clan Wars Arena - Wasteland.png|300px]]
+|{{Map|name=Wasteland (location)|x=3296|y=5056|plane=0|zoom=2|mapID=-1|height=550}}
+|-
+|Plateau
+|A platform of rock amidst a sea of lava with very few obstacles.
+|[[File:Clan Wars Arena - Plateau.png|300px]]
+|{{Map|name=Plateau (location)|x=3296|y=4960|plane=0|zoom=2|mapID=-1}}
+|-
+|Sylvan Glade
+|An arena filled with trees that block line-of-sight.
+|[[File:Clan Wars Arena - Sylvan Glade.png|300px]]
+|{{Map|name=Sylvan Glade (location)|x=3424|y=5024|plane=0|zoom=2|mapID=-1}}
+|-
+|Forsaken Quarry
+|An arena filled with small rocks that do not block line-of-sight.
+|[[File:Clan Wars Arena - Forsaken Quarry.png|300px]]
+|{{Map|name=Forsaken Quarry (location)|x=3424|y=5088|plane=0|zoom=2|mapID=-1}}
+|-
+|Turrets
+|Rangers and mages may like to ascend the many turrets in this arena to fire down at targets below.
+|[[File:Clan Wars Arena - Turrets.png|300px]]
+|{{Map|name=Turrets (location)|x=3168|y=5056|plane=0|zoom=2|mapID=-1|height=550}}
+|-
+|Clan Cup Arena
+|The same arena used in the 2013 Clan Cup adapted for Clan Wars.
+|[[File:Clan Wars Arena - Clan Cup Arena.png|300px]]
+|{{Map|name=Clan Cup Arena (location)|x=3168|y=4960|plane=0|zoom=2|mapID=-1}}
+|-
+|Soggy Swamp
+|A waterlogged marshland filled with roots and rotten trees.
+|[[File:Clan Wars Arena - Ghastly Swamp.png|300px]]
+|{{Map|name=Ghastly Swamp (location)|x=3424|y=4960|plane=0|zoom=2|mapID=-1}}
+|-
+|Classic
+|The original Clan Wars classic map from ''RuneScape''.
+|[[File:Clan Wars Arena - Classic.png|300px]]
+|{{Map|name=Classic (location)|x=3424|y=4736|plane=0|zoom=2|mapID=-1|height=550}}
+|-
+|Lumbridge Castle
+|The {{FloorNumber|uk=0}} of Lumbridge Castle, including the exterior courtyard. The two gatehouses serve as jails for fallen fighters. The main gate and rear entrance are sealed.
+|[[File:Clan Wars Arena - Lumbridge Castle.png|300px]]
+|{{Map|name=Lumbridge Castle (location)|x=3424|y=4832|plane=0|zoom=2|mapID=-1}}
+|-
+|Falador Park
+|A copy of Falador Park. The teams spawn at the two entrances to the park. The entrances are sealed, and combat is confined to the inside of the park fence. [[Cassie's Shield Shop]] and the [[Estate agent]]'s house serve as the holding cells for fallen fighters.
+|[[File:Clan Wars Arena - Falador Park.png|300px]]
+|{{Map|name=Falador Park (location)|x=3491|y=4760|plane=0|zoom=2|mapID=-1}}
+|}
+
+===Members===
+{| class="wikitable"
+!Arena
+!Description
+!Image
+!Map
+|-
+|Ghastly Swamp
+|Like the Soggy Swamp, but with aggressive ghasts that may rot your food or steal your health.
+|[[File:Clan Wars Arena - Ghastly Swamp.png|300px]]
+|{{Map|name=Ghastly Swamp (location)|x=3424|y=4960|plane=0|zoom=2|mapID=-1}}
+|-
+|Northleach Quell
+|A snowy area filled with sunken boats and broken bits of wood.
+|[[File:Clan Wars Arena - Northleach Quell.png|300px]]
+|{{Map|name=Northleach Quell (location)|x=3424|y=4896|plane=0|zoom=2|mapID=-1}}
+|-
+|Gridlock
+|A huge four-way multi-mountain map suited for King-of-the-Hill modes with rangers and mages.
+|[[File:Clan Wars Arena - Gridlock.png|300px]]
+|{{Map|name=Gridlock (location)|x=3520|y=4864|plane=0|zoom=1|mapID=-1}}
+|-
+|Ethereal
+|A strange realm in the clouds, where [[mystic symbol]]s can be used to teleport around the arena. [[Energy sprite]]s are present to keep the mystic symbols active; killing them will prevent players from using the symbols for one minute.
+|[[File:Clan Wars Arena - Ethereal.png|300px]]
+|{{Map|name=Ethereal (location)|x=3360|y=5024|plane=3|zoom=2|mapID=-1}}
+|}
+
+===<span class="anchor" id="Purple Portal Strategies & Tactics"></span> Strategies and tactics===
+
+[[File:Falling in Clan Wars.png|thumb|250x250px|A clan falling in on their leader at the start of the battle.]]
+
+====Falling in====
+A popular strategy in F2P fights is falling in. At the beginning of the war and throughout the war, a member of the clan types "fall in" and everybody follows this person into battle. The fall in leader's job is to keep everyone organized and together so that everyone is going to the same place. This is a tactic commonly utilised in F2P fights but rarely in P2P fights. One reason for this is because in members worlds, barraging is common so if everyone is together, this makes it easier for the opposing team to ice barrage a huge amount of players.
+
+[[File:Piling Clan Wars.png|thumb|250x250px|A clan piling an unfortunate member of the opposing team.]]
+
+====Piling====
+Piling is when multiple people on your team are attacking one opponent. This is also a common tactic utilised in F2P PvP scenarios because if you have more people attacking your opponent, the faster it will be to kill them. If you have enough players targeting an opposing player, and their [[Defence]] level is also low, you may be able to kill them faster than they are able to heal themselves with food. Clan leaders often utilise this tactic by calling out the name of an opponent to pile next, either through voice chat or through in game chat.
+
+[[File:Camping Clan Wars.png|thumb|Players camping on this turret during a game of Clan Wars]]
+
+====Camping or DDing====
+This is also a common strategy in F2P wars and occasionally P2P as well. One team goes to a certain area on the map and camps there and waits for the opposing team to come to them. This is commonly utilised on the turrets map as the castles throughout the arena can be used to range or mage at incoming enemies. One advantage to this strategy is that it makes it easier for everyone on your team to stick together in one spot. The disadvantage is that if the opposing clan manages to trap or overwhelm you, then it's harder to recover from. 
+
+====Freezing or snaring====
+Magic is very important in team PvP situations in both free to play and pay to play. This is why using spells to freeze your opponent in place is very common in most battles. In P2P, mages have access to ice barrage which prevents enemy players from moving. Against opponents who are only using melee, ice barrage is a very effective strategy against them as it neutralizes their ability to fight back.
+
+In free to play wars, magic is also very important and frequently used. F2P mages have access to snare which is a spell that freezes an opponent for 10 seconds. Snare is very important in F2P wars as it can freeze people who are trying to run away, giving your team a new target to pile. The downside to maging in F2P worlds is having very poor defensive stats. To make up for this, many mages will also have rune armour in their inventory and quickly switch to wearing their rune armour if they are attacked by opposing players.
+
+==Free-for-all==
+{{Map|name=Clan wars free-for-all arena (location)|width=260|height=260|x=3328|y=4800|plane=0|zoom=1|mapID=-1|caption=The free-for-all arena|align=right}}
+In addition to the purple portals, there is also a [[free-for-all portal]] west of the bank area. Players will be able to recognise it by its white colour. Unlike the purple portals, there are no set teams or setting up fights between clans. Instead, it is a place where players can challenge each other one-on-one, or in [[multi-combat]] zones without having to worry about losing their items.
+
+This portal is often used by players to restore drained stats (including [[Hitpoints]], [[Prayer]] and [[run energy]]) and cure [[poison]], as entering the portal and exiting it (via itself or a teleport) will restore stats and cure [[venom]] and poison.
+
+The free-for-all portal is also a popular place for players to AFK train [[Magic]], especially in [[F2P]]. Two players wield armour, which makes their attacks always miss, start attacking each other and they go AFK. Since the fight never ends, and players get experience even if they miss, this is a decent way to train Magic.
+
+A [[Mysterious Portal]] can be found in the south-eastern corner of the free-for-all arena. This portal was used by the participants of [[Deadman: All Stars Season 2]] to access the [[Deadman Arenas]] finale area.
+
+==Gallery==
+<gallery captionalign="center" widths="200">
+Clan Wars challenge area.png|The building in Ferox Enclave housing the Clan Wars minigame.
+Clan Wars general area.png|A view of the Clan Wars area before being moved to Ferox Enclave.
+Clan Wars challenge area (historical).png|A view of the challenge area before being moved to Ferox Enclave.
+Clan Wars bank area.png|A view of the bank area before being moved to Ferox Enclave.
+Sister Scarophia's chapel (historical).png|[[Sister Scarophia]]'s small chapel before being moved to Ferox Enclave.
+Clan Cup statues.png|The [[Clan Cup]] statues, which have been removed during the move to Ferox Enclave.
+Clan Wars map old.png|The world map displaying the old Clan Wars area.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 January 2026
+|update = Deadman: Annihilation Drops This Friday!
+|change = Fixed a bug where the [[Oddskull]] couldn't be picked up by the opposing team after it's dropped on the ground in Clan Wars.
+}}
+{{Subject changes
+|date = 23 May 2024
+|update = Minigame Tweaks, Skilling Adjustments & more!
+|change = A new 'Classic F2P' option has been added to the 'Magic' dropdown while setting up a Clan Wars game which makes it so that [[Bind]] is the only 'freeze' spell available.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = Fixed an issue where players were able to use some excluded spells in Clan Wars.
+}}
+{{Subject changes
+|date = 29 March 2023
+|update = Bounty Hunter Rewards Beta & More
+|change = Players can now challenge each other to friendly duels and Clan Wars without the interfaces suddenly cancelling.
+}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|change = Death in the Clan Wars free-for-all arena no longer removes the [[Skull (status)|skull status]]
+}}
+{{Subject changes
+|date = 16 July 2020
+|update = Ferox Enclave
+|change = The minigame has been moved from the [[Giants' Plateau]] to [[Ferox Enclave]].
+}}
+{{Subject changes
+|date = 16 July 2015
+|update = Duel Arena Rework
+|change = Moved some invisible walls on the Lumbridge Castle Clan Wars map.
+}}
+{{Subject changes
+|date = 16 April 2015
+|update = Clan Wars Game Modes & More
+|poll = Old School Content Poll 30: Near Miss Poll
+|change =
+* The Timed Deathmatch and Oddskull modes were added.
+* Clan wars classic has been tweaked to be more like the original map.
+}}
+{{Subject changes
+|date = 6 November 2014
+|update = Amulet of the Damned & CWA
+|poll = Old School Content Poll 26
+|change = The Classic Arena is added to Clan Wars as an additional arena.
+}}
+{{Subject changes
+|date = 24 July 2014
+|update = F2P Trial Expansion & More
+|poll = Old School feature poll - Content Poll 22
+|change = 
+* Members of your team no longer have Attack as their left-click option, as if you were all wearing the same team cape.
+* A Clan Wars minigame channel has been added to the minigame channel list.
+}}
+{{Subject changes
+|date = 10 July 2014
+|update = The Game Filter is Here!
+|change = Players inside clan wars viewing orbs are no longer visible on the minimap.
+}}
+{{Subject changes
+|date = 26 June 2014
+|update = Midsummer Event
+|poll = Old School feature poll - Rewarding Rewards
+|change =
+* The whole of the Wasteland map is now multi-way combat and some trees have been added.
+* Viewing orbs will now be shown on the minimap.
+* A new F2P arena, Soggy Swamp, has been added to the list.
+* On F2P worlds, unavailable arenas are now easier to see.
+}}
+{{Subject changes footer}}
+
+{{Clan Wars}}
+{{Ferox Enclave}}
+{{Activities}}
+{{Free-to-play PvP}}
+[[Category:Player vs Player arenas]]
+[[Category:Free-to-play minigames]]

@@ -1,0 +1,30 @@
+{{Infobox Item
+|name = Message
+|image = [[File:Message (Theatre of Blood).png]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Read, Drop
+|examine = A crumpled note.
+|value = 1
+|weight = 0.010
+|id = 22475
+}}
+[[File:Message (Theatre of Blood) detail.png|left|140px]]
+'''Messages''' can be found within the [[Theatre of Blood]] in the supply chests between bosses. The text is randomly generated depending on how well or poorly the player performed. A message can also be obtained from the [[Monumental chest]] when the player finishes a raid with a score of 0.
+
+==Transcript==
+{{hastranscript|transclude=yes}}
+
+==Item sources==
+{{Drop sources|Message (Theatre of Blood)}}
+
+===Shop locations===
+{{Store locations list|Message (Theatre of Blood)}}
+
+{{Theatre of Blood}}

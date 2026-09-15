@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat1FontLoadByName
 {
@@ -42,8 +43,7 @@ Task_Dat1FontLoadByName_Run(
         title_jagfile = RSCache_IO_Dat1JagfileDecode(io, 0, RSCACHE_DAT1_CONFIG_TITLE_AND_FONTS);
         if( !title_jagfile )
         {
-            fprintf(
-                stderr, "Failed to decode dat1 title jagfile for font %s\n", task->font_name);
+            TORIRS_ERR("Failed to decode dat1 title jagfile for font %s\n", task->font_name);
             PT_EXIT(&task->pt);
         }
 
@@ -54,7 +54,7 @@ Task_Dat1FontLoadByName_Run(
         dat1_buildcache_get_title_fonts_jagfile(task->bc), task->font_name);
     if( !font )
     {
-        fprintf(stderr, "Failed to decode dat1 font %s\n", task->font_name);
+        TORIRS_ERR("Failed to decode dat1 font %s\n", task->font_name);
         PT_EXIT(&task->pt);
     }
 

@@ -1,0 +1,65 @@
+{{otheruses|the removed Arceuus spell|the new spell for reanimating unicorns|Basic reanimation}}
+{{Gone|update=Arceuus Spellbook Beta and A Kingdom Divided Preparation}}
+{{Infobox Spell
+|bucket = no
+|name = Reanimate Unicorn
+|image = [[File:Reanimate Unicorn.png]]
+|release = [[7 January]] [[2016]]
+|update = Zeah: Great Kourend
+|removal = [[28 April]] [[2021]]
+|removalupdate = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|members = Yes
+|level = 22
+|spellbook = Arceuus
+|type = Utility
+|exp = 44
+|cost = {{RuneReq|Soul=1|Nature=1|Body=2}}
+|speed = 
+|quest = None
+|description = Reanimates an ensouled corpse
+|anim = [[File:Reanimate.gif|200px]]
+|sound = [[File:Reanimate (Arceuus spells).ogg]]
+}}
+[[File:Reanimate Unicorn icon (mobile).png|left]]
+'''Reanimate Unicorn''' was a [[reanimation spell]] that required a [[Magic]] level of 22 and an [[ensouled unicorn head]] to cast. The spell would summon a [[reanimated unicorn]] with 15 Hitpoints.
+
+Upon killing the reanimated unicorn, players would gain 494 [[Prayer]] experience and 0.5% [[Arceuus]] [[favour]].
+
+Reanimation could be cast on any ensouled head within an 31x31 area of where that head was dropped by a monster. This worked indefinitely, even if the ensouled head was picked up, so long as it was not put into the [[bank]], a [[trade]] screen, the [[Grand Exchange]], or the [[price checker]]. If the player had put it into any of those interfaces, the reanimation spell would only work within range of the [[Dark Altar]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = soul
+|Rune1num = 1
+|Rune2 = nature
+|Rune2num = 1
+|Rune3 = body
+|Rune3num = 2
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 October 2018
+|update = Spellbook Rework, Wise Old Man and, Increased Zoom
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes
+|date = 14 January 2016
+|update = Price Checks & Improvements
+|poll = 
+|change = The prayer experience from defeating reanimated creatures has been doubled. As a result, the 50% experience bonus gained from doing so when within range of the Dark Altar was removed.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Reanimate Unicorn v1.png|center]]
+|[[File:Reanimate Unicorn.png|center]]
+|-
+|7 January 2016–<br/>11 October 2018
+|11 October 2018 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}

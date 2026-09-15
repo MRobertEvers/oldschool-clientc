@@ -272,18 +272,18 @@ reference drives the fade, and RSProt exposes the API without a consumer.
 
 ## 4. What this tree does today
 
-**Server** (`src/net/mock/mock230_combat.c`, `npc_death_step`, line 1160) is a
+**Server** (`src/torirsserver/torirs_server_combat.c`, `npc_death_step`, line 1160) is a
 faithful port of LostCity's schedule, run in the engine rather than in content
 (because `[ai_queue3]` is an exclusive trigger and 494 drop tables bind it):
 
 ```
 D            hitpoints hit 0 -> flinch, death queued
-D+1          MOCK230_DEATH_QUEUED  — stop, clear mode, arrivedelay (0/1/2 ticks)
-D+1+a        MOCK230_DEATH_ARRIVE  — death sound, death animation
-D+1+a+delay  MOCK230_DEATH_CORPSE  — drop table, then npc_del
+D+1          TORIRSSERVER_DEATH_QUEUED  — stop, clear mode, arrivedelay (0/1/2 ticks)
+D+1+a        TORIRSSERVER_DEATH_ARRIVE  — death sound, death animation
+D+1+a+delay  TORIRSSERVER_DEATH_CORPSE  — drop table, then npc_del
 ```
 
-`death_delay` defaults to **2** (`mock230_content.c:3314`) — LostCity's
+`death_delay` defaults to **2** (`torirs_server_content.c:3314`) — LostCity's
 `npc_delay(1)`, overridable per npc. Most death seqs at 239 run longer than
 two ticks, so **the corpse is reaped mid-animation**: that, not the missing
 fade, is the first thing visibly wrong.
@@ -321,7 +321,7 @@ packed into the server band. rsmod's rule cannot be copied without adding one.
 3. **Client: consume mask `0x400`.** Emit an op, hold a `class657`-shaped tween
    on the entity, sample it per *client cycle* (not per tick) in the model build.
    Mind the latch (§1.2) — a finished ramp sticks.
-4. **Server: send it.** At `MOCK230_DEATH_ARRIVE`, alongside the death animation,
+4. **Server: send it.** At `TORIRSSERVER_DEATH_ARRIVE`, alongside the death animation,
    send `transparency(start=<corpse lifetime - fade>, end=<corpse lifetime>,
    0 -> 255, useStart=true)` in cycles (30 cycles per tick), so the ramp
    completes on the tick `npc_del` lands. Nothing clears a tween on its own, so

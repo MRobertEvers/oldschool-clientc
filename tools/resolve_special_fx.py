@@ -18,7 +18,7 @@ Method (never hand-copy a Kronos integer past this):
      for a human-readable cross-check, per WEAPON_FX_PORT_QUEUE.md §0.3).
   3. Existence in this tree: configs/all.seq / all.spotanim / the synth
      range, so a name that resolves upstream but was never baked into this
-     cache is caught here rather than at `mock230_pack --check-only` time.
+     cache is caught here rather than at `ToriRSServer_Pack --check-only` time.
 """
 from __future__ import annotations
 

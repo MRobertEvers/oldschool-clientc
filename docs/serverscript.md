@@ -10,7 +10,7 @@ Reference implementation: `/Users/matthewevers/Documents/git_repos/LostCity_Serv
 **LostCity's content ids are 2004-era and do NOT match `cache.osrs230`.** Its
 9,333 compiled scripts are a conformance corpus for this reader and VM, not
 runnable content for the mock. Anything the mock actually runs is authored
-against rev-230 ids — see `docs/mock230_content.md`. Wiring the two together produces a client showing random
+against rev-230 ids — see `docs/torirs_server_content.md`. Wiring the two together produces a client showing random
 items and a long afternoon.
 
 ## Layout
@@ -28,11 +28,11 @@ items and a long afternoon.
 | `ssc_main.c` | `sscompile` CLI |
 
 Dependencies are libc plus `3rd/rsareabuf` and nothing else — no SDL, no task
-queue, no UI tree — so the whole subsystem links into the standalone `mock230`
+queue, no UI tree — so the whole subsystem links into the standalone `ToriRSServer`
 binary and every test runs without a cache.
 
 The opcodes the VM does *not* implement itself are the mock server's, and they
-live outside this directory in `src/net/mock/mock230_ops_<domain>.c`, one file per
+live outside this directory in `src/torirsserver/ToriRSServer_Ops_<domain>.c`, one file per
 opcode family — see [The host command seam](#the-host-command-seam).
 
 Regenerate the tables after a reference-server update:
@@ -195,35 +195,35 @@ Two things happen before the callback and are therefore **not** a handler's job:
 
 ### Per-domain opcode files
 
-The mock server's implementation of that callback — `mock230_script_command` in
-`src/net/mock/mock230_scripts.c` — was a single `switch`; that file still carries
+The mock server's implementation of that callback — `ToriRSServer_ScriptCommand` in
+`src/torirsserver/torirs_server_scripts.c` — was a single `switch`; that file still carries
 **162** `case SS_OP_*:` labels across **5,827** lines (161 distinct opcodes in the
 coverage table — `SS_OP_RANDOM` also carries a label in the VM core and is counted
 once, there). It is now a chain. Each
-`src/net/mock/mock230_ops_<domain>.c` exports one function with the callback's own
+`src/torirsserver/ToriRSServer_Ops_<domain>.c` exports one function with the callback's own
 signature:
 
 ```c
 int
-mock230_ops_<domain>(struct SSVM_State* state, int opcode, int dot);
+ToriRSServer_Ops_<domain>(struct SSVM_State* state, int opcode, int dot);
 ```
 
-and `mock230_script_command` offers each domain the opcode in turn before falling
-through to the switch (`mock230_scripts.c:2402-2415`):
+and `ToriRSServer_ScriptCommand` offers each domain the opcode in turn before falling
+through to the switch (`torirs_server_scripts.c:2402-2415`):
 
 ```c
-    if( mock230_ops_db(state, opcode, dot) )
+    if( ToriRSServer_OpsDb(state, opcode, dot) )
         return 1;
-    if( mock230_ops_param(state, opcode, dot) )
+    if( ToriRSServer_OpsParam(state, opcode, dot) )
         return 1;
-    if( mock230_ops_loc(state, opcode, dot) )
+    if( ToriRSServer_OpsLoc(state, opcode, dot) )
         return 1;
-    if( mock230_ops_npc(state, opcode, dot) )
+    if( ToriRSServer_OpsNpc(state, opcode, dot) )
         return 1;
-    if( mock230_ops_obj(state, opcode, dot) )
+    if( ToriRSServer_OpsObj(state, opcode, dot) )
         return 1;
-    if( mock230_ops_inv(state, opcode, dot) )
-    if( mock230_ops_player(state, opcode, dot) )
+    if( ToriRSServer_OpsInv(state, opcode, dot) )
+    if( ToriRSServer_OpsPlayer(state, opcode, dot) )
         return 1;
 
     switch( opcode )
@@ -242,47 +242,47 @@ Two consequences worth the pattern on their own:
   shared footprint is six two-line hooks. The alternative is every opcode author
   editing the same switch. That is not a hypothetical saving: `obj_*` and `inv_*`
   landed on 2026-08-02 in the same worktree as another lane holding
-  `mock230_scripts.c`, and their whole overlap with it was two lines.
+  `torirs_server_scripts.c`, and their whole overlap with it was two lines.
   `loc_*`, `npc_*` and `p_*` families landed as five files whose entire shared
   footprint is five two-line hooks. The alternative is every opcode author editing
   the same switch.
 
-  `mock230_ops_player.c` is the newest (2026-08-02, `p_oploc`) and it is the one
+  `torirs_server_ops_player.c` is the newest (2026-08-02, `p_oploc`) and it is the one
   that shows what the split is worth beyond the diff: its header is 40 lines about
   why a `p_op*` is a **re-issue** — `stopAction`, a waypoint, then
   `setInteraction`, which the dispatch resolves on a later tick — and not a call
   into the engine's own handler. That distinction has a counter-example in this
-  tree (`SS_OP_P_OPNPC` calls `mock230_combat_engage` directly, so
+  tree (`SS_OP_P_OPNPC` calls `ToriRSServer_CombatEngage` directly, so
   `[opnpc2,_] p_opnpc(2)` would delete a fallback row and move nothing), and in
   the big switch there was nowhere to write it down where the next author of a
   `p_op*` would read it.
 - **Coverage cannot silently under-report.** `gen_opcode_coverage.py` *globs*
-  `mock230_ops_*.c` (`gen_opcode_coverage.py:39-45`) rather than listing them, so
+  `ToriRSServer_Ops_*.c` (`gen_opcode_coverage.py:39-45`) rather than listing them, so
   a new domain file is picked up with no generator edit. A hand-kept list would be
   the same staleness the generator exists to remove, one level up.
 
 Adding a domain, in full:
 
-1. Write `src/net/mock/mock230_ops_<domain>.c`. One `switch( opcode )`, every arm
+1. Write `src/torirsserver/ToriRSServer_Ops_<domain>.c`. One `switch( opcode )`, every arm
    ending in `return 1;` (there is no `break`), `default: return 0;`.
-2. Declare it in `mock230.h` in the block beside `mock230_ops_db` (`mock230.h:2587`).
-3. Add the two-line hook to `mock230_script_command`.
-4. Add the source to `MOCK230_CORE_SRCS` (`src/makefile:251`). That one list
-   reaches every consumer — the four `mock230*` binaries, `test-mock230-embed`,
-   and the client under `EMBED_SERVER=1`. `MOCK230_PACK_SRCS` is separate and
+2. Declare it in `torirs_server.h` in the block beside `ToriRSServer_OpsDb` (`torirs_server.h:2587`).
+3. Add the two-line hook to `ToriRSServer_ScriptCommand`.
+4. Add the source to `TORIRSSERVER_CORE_SRCS` (`src/makefile:251`). That one list
+   reaches every consumer — the four `ToriRSServer*` binaries, `test-torirsserver-embed`,
+   and the client under `EMBED_SERVER=1`. `TORIRSSERVER_PACK_SRCS` is separate and
    deliberately has no VM; do not add there.
-5. `cd src && python3 net/mock/gen_opcode_coverage.py`, then
-   `make -C src test-mock230-coverage`.
+5. `cd src && python3 torirsserver/gen_opcode_coverage.py`, then
+   `make -C src test-torirsserver-coverage`.
 
 Inside a handler:
 
 | what | how |
 |---|---|
-| the server | `(struct Mock230Server*)state->env->host.user` |
+| the server | `(struct ToriRSServer*)state->env->host.user` |
 | the acting player | `srv->active_player` — *whose turn it is*, not "the player" |
 | the active npc | `state->host_tag - 1` is the **slot** |
 | the active loc | `(intptr_t)SSVM_Active(state, SSVM_ENT_LOC) - 1` is the scene **slot** |
-| the active obj | `SSVM_Active(state, SSVM_ENT_OBJ)` is a **handle**, not a slot — put it through `mock230_world_ground_slot` |
+| the active obj | `SSVM_Active(state, SSVM_ENT_OBJ)` is a **handle**, not a slot — put it through `ToriRSServer_WorldGroundSlot` |
 | arguments | pop in **reverse** declaration order |
 | underflow | `if( !SSVM_PopInt(state, &v) ) return 1;` — **1**, not 0 |
 | errors | `SSVM_Abort(state, fmt, ...)` then `return 1` |
@@ -293,24 +293,24 @@ The npc and loc conventions encode `slot + 1` so that 0 can mean "none".
 mistake to avoid: `srv->ground[256]` is a free list, so a bare slot re-validates
 as *whatever landed in it while the script was parked*. See `obj_*` below.
 
-A domain file gets no access to `mock230_scripts.c`'s file-scope statics, which is
+A domain file gets no access to `torirs_server_scripts.c`'s file-scope statics, which is
 the pattern's one real friction. Two were resolved by moving the shared thing out:
-`push_typed_param` became `mock230_push_typed_param` in `mock230_ops_param.c`
-(declared at `mock230.h:2646`), and the four coord helpers became
-`mock230_coord_pack/level/x/z` as `static inline` in `mock230.h` — the coord
+`push_typed_param` became `ToriRSServer_PushTypedParam` in `torirs_server_ops_param.c`
+(declared at `torirs_server.h:2646`), and the four coord helpers became
+`ToriRSServer_CoordPack/level/x/z` as `static inline` in `torirs_server.h` — the coord
 packing had been separately restated in five places. `script_active_loc` and
 `active_npc` were *not* promoted: each is three lines, and each domain wants a
 different abort message.
 
 ### Coverage is generated, and what it cannot see
 
-`src/net/mock/mock230_opcode_coverage.gen.h` is derived from the `case SS_OP_*:`
+`src/torirsserver/torirs_server_opcode_coverage.gen.h` is derived from the `case SS_OP_*:`
 labels in the VM core and in every dispatch source. Measured today
-(`python3 net/mock/gen_opcode_coverage.py --check` is green):
+(`python3 torirsserver/gen_opcode_coverage.py --check` is green):
 
 ```
  63  VM core
-161  host commands            (mock230_scripts.c)
+161  host commands            (torirs_server_scripts.c)
   9  host commands (db)
   5  host commands (inv)
   5  host commands (loc)
@@ -320,13 +320,13 @@ labels in the VM core and in every dispatch source. Measured today
 260  total, of 401 declared opcodes
 ```
 
-`(obj)` is eight rather than five because `mock230_ops_obj.c` took the
+`(obj)` is eight rather than five because `torirs_server_ops_obj.c` took the
 `oc_wearpos*` config reads as well as the active-obj family — the same
-instance-half/config-half pairing `mock230_ops_loc.c` has for `loc_*` and
+instance-half/config-half pairing `torirs_server_ops_loc.c` has for `loc_*` and
 `lc_*`. `(inv)` is the sixth domain file: `inv_movefromslot`, `inv_dropslot`
-and the `inv_moveitem` trio, which moved out of `mock230_scripts.c` (hence
+and the `inv_moveitem` trio, which moved out of `torirs_server_scripts.c` (hence
 164 → 161) so the domain is whole.
-164  host commands            (mock230_scripts.c)
+164  host commands            (torirs_server_scripts.c)
   9  host commands (db)
   2  host commands (param)
   8  host commands (loc)
@@ -336,19 +336,19 @@ and the `inv_moveitem` trio, which moved out of `mock230_scripts.c` (hence
 ```
 
 (That block is a snapshot and the generator is the authority — `python3
-net/mock/gen_opcode_coverage.py --check`. It said 237/399 when the split landed
+torirsserver/gen_opcode_coverage.py --check`. It said 237/399 when the split landed
 and 254/401 on 2026-08-02; three of the four new ones are the loc category rung,
 `LOC_CATEGORY` / `LC_CATEGORY` / `LC_DEBUGNAME`, and the fourth is `P_OPLOC`.)
 
 The extraction regex is `^\s*case\s+(SS_OP_[A-Z0-9_]+)\s*:` — plain `case` labels
 only. An opcode handled inside a case body via `if( opcode == SS_OP_X )` is *not*
-counted, which is correct: `mock230_ops_db.c` disambiguates fallthrough groups
+counted, which is correct: `torirs_server_ops_db.c` disambiguates fallthrough groups
 exactly that way, and only the bodies use `opcode ==`.
 
 **What this cannot see is whether the answer is right.** `NPC_PARAM` (2529) has
-carried a `case` label in `mock230_scripts.c` since before the param family
+carried a `case` label in `torirs_server_scripts.c` since before the param family
 existed. That case compared the popped param id against a single
-`mock230_content_symbol(MOCK230_PACK_PARAM, "death_drop")` — a game-facing name
+`ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "death_drop")` — a game-facing name
 spelled in C — pushed that one field and pushed **0 for every other param**, always
 onto the int stack, ignoring the declared `default=`. It has been counted as
 covered the whole time, the load-time gap report has been silent, and `--selftest`
@@ -370,7 +370,7 @@ and then a `fprintf` saying `is not modelled`, followed by a silent return. So
 `inv_moveitem(inv, worn, …)` and `inv_moveitem(worn, inv, …)` — which is every
 reference equip and unequip path — did nothing at all, while the opcode counted
 as covered for the whole time, correctly by this table's own definition. The
-generic container-to-container arm is in `mock230_ops_inv.c` now, appended after
+generic container-to-container arm is in `torirs_server_ops_inv.c` now, appended after
 the three bank arms so none of them can change behaviour by the move.
 
 A third state is worse than either and `OC_WEARPOS` (4213) is the example: an
@@ -381,14 +381,14 @@ one compiled and ran into `unimplemented_stub`, which pushes 0 — and 0 is
 header omits it, which is the system working; but *content* written against it
 would have run, done something plausible, and logged nothing.
 
-`mock230_ops_npc.c` now claims 2529, and the domain hooks run *before* the switch,
-so **`mock230_scripts.c`'s `case SS_OP_NPC_PARAM:` is unreachable dead code**. It
+`torirs_server_ops_npc.c` now claims 2529, and the domain hooks run *before* the switch,
+so **`torirs_server_scripts.c`'s `case SS_OP_NPC_PARAM:` is unreachable dead code**. It
 should be deleted; it is recorded here rather than left to be rediscovered, because
 editing it changes nothing and reading it suggests otherwise.
 
 ### The families that have landed
 
-`db_*` (9 ops) is documented in `mock230_ops_db.c`'s own header. The one thing
+`db_*` (9 ops) is documented in `torirs_server_ops_db.c`'s own header. The one thing
 worth restating here is the packed column reference `combat_style_table:damagestyle`,
 which `ssc_symbols.c` emits as `(table << 12) | (column << 4) | tuple_index` — and
 whose **tuple index is 1-based, with 0 meaning "the whole tuple"**. Reading 0 as
@@ -398,27 +398,27 @@ Verified against the reference's own unpack in `DbOps.ts`.
 
 #### `obj_*` — the active ground obj, and a handle that is not a slot
 
-**Eight** ops in `mock230_ops_obj.c`, in two halves. The *instance* half reads or
+**Eight** ops in `torirs_server_ops_obj.c`, in two halves. The *instance* half reads or
 mutates the active ground obj: `obj_type` (3511), `obj_count` (3503),
 `obj_coord` (3502), `obj_takeitem` (3510), `obj_del` (3504). The *config* half
 reads the obj record: `oc_wearpos` (4213), `oc_wearpos2` (4214), `oc_wearpos3`
-(4215) — the same instance-half/config-half pairing `mock230_ops_loc.c` has for
+(4215) — the same instance-half/config-half pairing `torirs_server_ops_loc.c` has for
 `loc_*` and `lc_*`, and the reason the file is `_obj` rather than `_groundobj`.
-`obj_add` (3500) stays in `mock230_scripts.c`'s switch — it takes a coord rather
+`obj_add` (3500) stays in `torirs_server_scripts.c`'s switch — it takes a coord rather
 than an active obj and predates the split.
 
 | op | id | `engine.rs2` signature | note |
 |---|---:|---|---|
-| `obj_coord` | 3502 | `()(coord)` | `mock230_coord_pack` |
+| `obj_coord` | 3502 | `()(coord)` | `ToriRSServer_CoordPack` |
 | `obj_count` | 3503 | `()(int)` | the reference's `isValid(hash64)` receiver gate degenerates — this server has no per-killer loot window |
 | `obj_del` | 3504 | `()` | duration is content's `^lootdrop_duration`, not the reference's per-obj `respawnrate`, which this tree has no field for |
-| `obj_takeitem` | 3510 | `(inv $inv)` | all-or-nothing add through `mock230_container_add`, then `mock230_world_ground_take` |
+| `obj_takeitem` | 3510 | `(inv $inv)` | all-or-nothing add through `ToriRSServer_ContainerAdd`, then `ToriRSServer_WorldGroundTake` |
 | `obj_type` | 3511 | `()(obj)` | |
 | `oc_wearpos` | 4213 | `(obj $obj)(int)` | obj config opcode 13, default **-1**, which is RuneScript `null` — no sentinel invented |
 | `oc_wearpos2` | 4214 | `(obj $obj)(int)` | config opcode 14 |
 | `oc_wearpos3` | 4215 | `(obj $obj)(int)` | config opcode 27 |
 
-`obj_del` and `obj_takeitem` both go through `mock230_world_ground_take` rather
+`obj_del` and `obj_takeitem` both go through `ToriRSServer_WorldGroundTake` rather
 than clearing the slot themselves, and the ordering inside it is load-bearing:
 it queues the zone's `OBJ_DEL` **while the obj is still filed in its zone** and
 unfiles it after. Unfile first and the event is addressed to nowhere, so every
@@ -432,17 +432,17 @@ from the stub is the head slot.
 
 The one thing that does not follow the npc/loc pattern is how the active entity
 rides. Those two are `slot + 1`; a ground obj cannot be, because
-`srv->ground[256]` is a **free list** and `mock230_world_obj_add` hands a freed
+`srv->ground[256]` is a **free list** and `ToriRSServer_WorldObjAdd` hands a freed
 index straight to the next drop. A script parked between `obj_find` and
 `obj_takeitem` would resume onto whatever landed in the slot meanwhile.
-`mock230_world_obj_handle` therefore packs `slot + 1` in nine bits with the
-slot's `generation` above it, and `mock230_world_ground_slot` refuses a handle
+`ToriRSServer_WorldObjHandle` therefore packs `slot + 1` in nine bits with the
+slot's `generation` above it, and `ToriRSServer_WorldGroundSlot` refuses a handle
 whose generation has moved. The reference is immune for free — it holds an `Obj`
 reference and `World.removeObj` clears `isActive` on that object.
 
 The handle reaches a trigger through `srv->pending_active_obj`, a one-shot latch
-the `MOCK230_INTERACT_OBJ` dispatch arm sets and `run_trigger_script` consumes.
-Not a sixth parameter on `mock230_scripts_run_trigger`: `[opobj<n>]` is the only
+the `TORIRSSERVER_INTERACT_OBJ` dispatch arm sets and `run_trigger_script` consumes.
+Not a sixth parameter on `ToriRSServer_ScriptsRunTrigger`: `[opobj<n>]` is the only
 family with an obj subject, so the other eighteen call sites would pass 0.
 
 #### `*_param` — the declared type picks the stack, and that is the whole difficulty
@@ -457,22 +457,22 @@ family with an obj subject, so the other eighteen call sites would pass 0.
 | `loc_param` | 3011 | `(param $param)(any)` — **active loc** | 1 |
 | `obj_param` | 3509 | `(param $param)(any)` — active obj | 1 |
 
-All seven are `runtime_typed = 1`. `mock230_push_typed_param` is the single seam:
+All seven are `runtime_typed = 1`. `ToriRSServer_PushTypedParam` is the single seam:
 it reads the param's *declared* type from `configs/all.param`, routes the value to
 the int or the string stack accordingly, **aborts in both directions** when the
 declaration and the stored value disagree, and answers an absent row with the
 declared `default=` rather than 0. It is shared rather than copied because two
 copies would be two places for that disagreement to be handled differently.
 
-`lc_param` and `struct_param` landed in `mock230_ops_param.c`; `loc_param` landed
-in `mock230_ops_loc.c` because it resolves the *active* loc. **The one-word,
+`lc_param` and `struct_param` landed in `torirs_server_ops_param.c`; `loc_param` landed
+in `torirs_server_ops_loc.c` because it resolves the *active* loc. **The one-word,
 one-argument difference between `loc_param` and `lc_param` is the trap in this
 family**: reading one as the other leaves every later value on the wrong rung of
 the int stack and nothing fails at the call.
 
 `obj_param` is still not implemented, and the second half of that sentence has
 expired: it has **0 callers** in the reference, which is the whole reason now.
-The dispatch *does* set an active obj since `mock230_ops_obj.c` landed
+The dispatch *does* set an active obj since `torirs_server_ops_obj.c` landed
 (`osrs230_mockserver.md` §3.18), so the VM's `0x100` requirement would be
 satisfied — the opcode is simply unwanted. Left out rather than written blind.
 
@@ -484,12 +484,12 @@ arrive in the order the cache wrote them, which is *not* ascending by key:
 | loc | 62,194 | 1,709 | 0 | 599 | **525 (87.6 %)** |
 | struct | 3,988 | 20,751 | 6,115 | 2,833 | **1,847 (65.2 %)** |
 
-(`make -C src test-mock230-param` prints those two lines every run; obj and npc
+(`make -C src test-torirsserver-param` prints those two lines every run; obj and npc
 show the same pattern and have carried explicit sorts since they were written.)
 
 A binary search over an almost-sorted array does not crash. It *misses* — the
 lookup reports "this record carries no such param", content pushes the declared
-default, and the answer is wrong everywhere and loud nowhere. `mock230_paramtable.c`
+default, and the answer is wrong everywhere and loud nowhere. `torirs_server_paramtable.c`
 is one flat `(owner, key)` table with one `qsort` shared by all four types,
 replacing what would otherwise have been four hand-written copies of the same
 sort — four chances to reintroduce the one bug in this family that does not
@@ -529,7 +529,7 @@ was called "a real memory question" in planning; it is 41 KB.
 
 The *mutating* half of the family — `loc_add`, `loc_change`, `loc_del`, `loc_find`,
 `loc_coord`, `loc_type`, `loc_angle`, `loc_shape`, the find-all iterators — stays
-in `mock230_scripts.c`'s switch with the scene and the revert queue it needs. What
+in `torirs_server_scripts.c`'s switch with the scene and the revert queue it needs. What
 moved is exactly what is a pure read of the config record.
 
 `loc_name` is the family's only string-stack op, so it is the one that catches a
@@ -542,7 +542,7 @@ pops nothing and reads the active loc, `lc_category` pops the id it is told, and
 transposing them is a stack skew rather than a wrong answer. Two things about it
 are worth carrying:
 
-- **The opcode and the trigger rung are the same function.** `mock230_loc_category`
+- **The opcode and the trigger rung are the same function.** `ToriRSServer_LocCategory`
   is what `interaction_category` feeds `SSVM_ProviderGetByTrigger` *and* what this
   opcode pushes, so a script that tests a category and a script bound to one
   cannot disagree. It reads the authored `.loc` overlay first and the cache's
@@ -553,7 +553,7 @@ are worth carrying:
   `locType.category` raw, which is 0 for a record that states none. Here it is −1,
   which is RuneScript's `null` for a config-typed value and is what the
   `(category)` return type means. 0 is not available on this side:
-  `pack/category.pack` reserves it and `mock230_pack` refuses to name it, so
+  `pack/category.pack` reserves it and `ToriRSServer_Pack` refuses to name it, so
   content comparing against 0 would be comparing against a name that must never
   exist.
 
@@ -574,7 +574,7 @@ which locs it missed.
 | `p_oploc` | 2078 | `(int $op)` | :179 |
 | `p_opobj` | 2081 | `(int $op)` | PlayerOps.ts:1047 |
 
-`mock230_ops_player.c` holds the re-issue pair. The rest of the family —
+`torirs_server_ops_player.c` holds the re-issue pair. The rest of the family —
 `p_opnpc`, `p_opheld`, `p_opplayer` — belongs beside them as each is written or
 corrected, and the distinction they all turn on had nowhere to live in the big
 switch.
@@ -584,10 +584,10 @@ the loc is out of operable distance, and `setInteraction(SCRIPT, activeLoc,
 APLOC1 + type)`. The interaction is **resolved on a later tick by the same
 dispatch a click goes through**. That is what makes it safe for content to bind a
 verb the engine also answers: the binding can re-issue rather than replace, which
-is the obligation `mock230_scripts_report_shadowed_ops` exists to name.
+is the obligation `ToriRSServer_ScriptsReportShadowedOps` exists to name.
 
 **The counter-example is in this tree.** `SS_OP_P_OPNPC` reads the op number and
-calls `mock230_combat_engage` directly, so `p_opnpc(2)` does not re-enter the
+calls `ToriRSServer_CombatEngage` directly, so `p_opnpc(2)` does not re-enter the
 dispatch — it *is* the combat engine reached by another name. `[opnpc2,_]
 p_opnpc(2)` therefore looks like an eviction of the `opnpc` fallback row while
 moving nothing, and that row's `blocked_on` says so in as many words.
@@ -603,10 +603,10 @@ Three details of the reference are load-bearing and all three are easy to drop:
   fishing-spot scripts — rather than in one-shot discharges.
 - **the range test decides the waypoint, not the interaction.** The interaction is
   set either way; being far away only adds the walk. This port walks
-  unconditionally, which is a deliberate narrowing: `mock230_world_walk_beside`
+  unconditionally, which is a deliberate narrowing: `ToriRSServer_WorldWalkBeside`
   routes from where the player already is, so an adjacent player gets a
   zero-length route, and a second range test would be a second answer to a
-  question `mock230_world_process_interaction` already answers a tick later.
+  question `ToriRSServer_WorldProcessInteraction` already answers a tick later.
 - **it must not resolve the interaction inline.** A packet arrives between ticks,
   so `handle_oploc` resolving immediately is right; a script runs *inside* a tick,
   so resolving there would run the `[oploc<n>]` script from within itself.
@@ -627,12 +627,12 @@ Three details of the reference are load-bearing and all three are easy to drop:
 
 Three findings worth carrying:
 
-- **A name gate was hiding a field.** `mock230_npcinfo()` reports a "Someone"
+- **A name gate was hiding a field.** `ToriRSServer_NpcInfo()` reports a "Someone"
   placeholder for a nameless record, which is right for text and wrong for a field:
   of 16,292 npc records, **9,149 carry a category and 1,585 of those are
   nameless**, and 10,505 declare a menu op with 177 of those nameless. Read
   through the gated accessor, `npc_category` answers 0 for every multinpc
-  instance. `mock230_npcinfo_record()` is the ungated row.
+  instance. `ToriRSServer_NpcInfoRecord()` is the ungated row.
 - **`npc_huntall` is not `npc_findallany`.** The reference's
   `NpcHuntAllCommandIterator` skips any npc whose type declares no `op[1]` (op2).
   Without that filter, "every npc nearby" hands content the scenery.
@@ -653,12 +653,12 @@ is pre-existing and shared with `npc_type` / `npc_coord`.
 
 #### `inv_*` — the moves, and the arm that coverage could not see
 
-The sixth domain file, `mock230_ops_inv.c`, 2026-08-02. It holds the inv family's
+The sixth domain file, `torirs_server_ops_inv.c`, 2026-08-02. It holds the inv family's
 **moves** — one container into another, and a container onto the floor — and
 nothing else. The reads and the single-slot writes (`inv_add`, `inv_del`,
 `inv_delslot`, `inv_getobj`, `inv_getnum`, `inv_itemspace`, `inv_itemspace2`,
 `inv_movetoslot`, `inv_setslot`, `inv_size`, `inv_total`, `inv_freespace`) stay
-in `mock230_scripts.c`; they predate the split and moving them is a second change
+in `torirs_server_scripts.c`; they predate the split and moving them is a second change
 wearing this one's clothes.
 
 | op | id | `engine.rs2` signature |
@@ -686,10 +686,10 @@ moves can be asked to put more into a container than fits; `InvOps.ts:339-348`,
 answer — the remainder becomes a ground obj at the player's tile, **singly** for
 an unstackable obj (which is what makes twelve dropped bones twelve piles) and as
 one pile otherwise. The reference's literal `200` duration is
-`mock230_ids()->lootdrop_duration` here: the same number, resolved through the
+`ToriRSServer_Ids()->lootdrop_duration` here: the same number, resolved through the
 pack instead of restated in C (PORTING_GUIDE §2.4 item 2).
 
-One limit inherited rather than introduced: `mock230_container_add` still takes
+One limit inherited rather than introduced: `ToriRSServer_ContainerAdd` still takes
 **one slot for all units** of an unstackable obj, because `InvType.stackType`
 needs `fields/inv.ini` and that does not exist yet. `inv_movefromslot` and the
 generic `inv_moveitem` arm inherit it.
@@ -705,7 +705,7 @@ re-measured over `LostCity_Server/content` today (see below for the method):
 
 | op | uses / files | why not |
 |---|---:|---|
-| `npc_walk`, `npc_walktrigger` | 90 / 44, 2 / 1 | `NpcOps.ts` queues a **waypoint** the tick drains. `struct Mock230Npc` has no destination and no queue. Faking it as a teleport would make 44 files *look* ported while every npc arrived instantly — worse than the stub, because it is silent. |
+| `npc_walk`, `npc_walktrigger` | 90 / 44, 2 / 1 | `NpcOps.ts` queues a **waypoint** the tick drains. `struct ToriRSServerNpc` has no destination and no queue. Faking it as a teleport would make 44 files *look* ported while every npc arrived instantly — worse than the stub, because it is silent. |
 | `loc_anim` | 51 / 21 | missing **wire packet**, not missing data: `World.animLoc` is a zone event and this server's `zone_sub_opcode` enumerates no loc-anim. |
 | `npc_changetype_keepall` | 31 / 15 | verified identical to `npc_changetype` in *this* engine — the only difference upstream is re-deriving a per-npc `levels[]` store that does not exist here. One fallthrough line by whoever owns that switch. |
 | `npc_statheal` / `statsub` / `statadd` | 16 / 10, 9 / 6, 1 / 1 | all write `npc.levels[stat]`; here `npc_stat` reads the content block and hitpoints is the only number that moves. Writing a value nothing reads is worse than the stub. |
@@ -714,8 +714,8 @@ re-measured over `LostCity_Server/content` today (see below for the method):
 | `npc_inrange` | 2 / 1 | `targetWithinMaxRange()` (`Npc.ts:635`) reads the npc's `target`, `targetOp`, spawn tile and `type.maxrange`. This server has a `combat_target` and nothing else that answers "what is this npc interacting with". (`npc_arrivedelay` shared this row until 2026-08-06 — see below.) |
 | `lc_desc` | 0 / 0 | **measured: 0 of 62,194 loc records carry a `desc`.** The field is gone from OSRS loc configs at this revision; a handler could only ever push `'null'`. |
 | `lc_debugname` | 1 / 1 | `debugname` is a LostCity build-time symbol; the dat2 record has no such field. |
-| `buildappearance` | 18 / 7 | **the sharpest §3.13d case so far.** In the reference it is two lines — `this.appearanceInv = inv; masks \|= APPEARANCE` — and the first of them is *read*: `Player.ts:1366` builds the appearance out of `getInventory(this.appearanceInv)`. Its job is **selecting which container the encoder reads**. `put_appearance` (`mock230_encode.c:915`) reads `player->worn` unconditionally, so accepting the argument and raising the mask would make `buildappearance(<anything else>)` silently paint the worn set — plausible, wrong, quiet. The mask half meanwhile is already *unforgettable* here and is not in the reference: the worn container is adopted with `appearance = 1`, so every ServerScript write to it raises `MOCK230_PMASK_APPEARANCE` through `mock230_container_mark`. Implementable the day the encoder gains a selectable source, and not before. |
-| `p_clearpendingaction` | 20 / 18 | real, and it was **misfiled** as an equipment blocker for a week: `mock230_world_clear_pending_action` is called from `handle_move`, `opnpc`, `opobj`, `oploc`, `opheldu` and `useon_interact` and never from `handle_opheld`. It belongs to the worn-tab unequip (`[inv_button1,wornitems:wear]` opens with it), which is a different move. |
+| `buildappearance` | 18 / 7 | **the sharpest §3.13d case so far.** In the reference it is two lines — `this.appearanceInv = inv; masks \|= APPEARANCE` — and the first of them is *read*: `Player.ts:1366` builds the appearance out of `getInventory(this.appearanceInv)`. Its job is **selecting which container the encoder reads**. `put_appearance` (`torirs_server_encode.c:915`) reads `player->worn` unconditionally, so accepting the argument and raising the mask would make `buildappearance(<anything else>)` silently paint the worn set — plausible, wrong, quiet. The mask half meanwhile is already *unforgettable* here and is not in the reference: the worn container is adopted with `appearance = 1`, so every ServerScript write to it raises `TORIRSSERVER_PMASK_APPEARANCE` through `ToriRSServer_ContainerMark`. Implementable the day the encoder gains a selectable source, and not before. |
+| `p_clearpendingaction` | 20 / 18 | real, and it was **misfiled** as an equipment blocker for a week: `ToriRSServer_WorldClearPendingAction` is called from `handle_move`, `opnpc`, `opobj`, `oploc`, `opheldu` and `useon_interact` and never from `handle_opheld`. It belongs to the worn-tab unequip (`[inv_button1,wornitems:wear]` opens with it), which is a different move. |
 | `nc_desc`, `npc_findallzone`, `obj_param` | 0 / 0 | no caller anywhere in the reference. |
 
 **Three rows left this table on 2026-08-02 and the way they left is the useful
@@ -742,7 +742,7 @@ The counts stay in the census above so they can be re-run; `loc_category` at
 *"both read per-npc fields the mover and the interaction machinery would have to
 write"*. True of both, and the two halves are nothing like the same size:
 `npc_inrange` needs an interaction subject this server does not model, while
-`npc_arrivedelay` needed **one `int` and one line** (`Mock230Npc.last_movement`,
+`npc_arrivedelay` needed **one `int` and one line** (`ToriRSServerNpc.last_movement`,
 written in `phase_cleanup` off the tick's final `step_dir`). Pairing a cheap
 refusal with an expensive one under a shared reason is how a row outlives its
 reason without ever being wrong. `osrs230_mockserver.md` §3.13g has the port.
@@ -755,7 +755,7 @@ arity (see *What is not ported, on purpose*). `oc_desc` was written and then
 **removed** on the same ground.
 
 Six of the npc refusals are blocked on the same thing — per-npc engine state in
-`mock230_world.c`. The next npc item is not an opcode. (Seven until 2026-08-06;
+`torirs_server_world.c`. The next npc item is not an opcode. (Seven until 2026-08-06;
 `npc_arrivedelay` was the one whose per-npc state turned out to be a single
 `int`, which is exactly why the count is written as a number that has to be
 re-derived when a row leaves.)
@@ -803,12 +803,12 @@ zero-argument blindness above — `last_useitem` alone blocks 213 files.
 State of the tree at the end of the run, all re-run rather than quoted:
 
 ```
-test-mock230-coverage      current, 260 / 401
-test-mock230-param         all checks passed
-test-mock230-loc           all checks passed
-test-mock230-npc           all checks passed
-mock230 --selftest         all checks passed, exit 0
-mock230_pack --check-only  0 error(s), 15 warning(s)
+test-torirsserver-coverage      current, 260 / 401
+test-torirsserver-param         all checks passed
+test-torirsserver-loc           all checks passed
+test-torirsserver-npc           all checks passed
+ToriRSServer --selftest         all checks passed, exit 0
+ToriRSServer_Pack --check-only  0 error(s), 15 warning(s)
 ```
 
 Re-run 2026-08-02 after the `obj_*` and `inv_*` files landed: same lines, and the
@@ -819,13 +819,13 @@ by these opcodes.
 ### Testing a domain file
 
 ```
-make -C src test-mock230-coverage    # the generated table is not stale
-make -C src test-mock230-param       # the *_param family
-make -C src test-mock230-loc         # loc_* / lc_*
-make -C src test-mock230-npc         # npc_* / nc_*
+make -C src test-torirsserver-coverage    # the generated table is not stale
+make -C src test-torirsserver-param       # the *_param family
+make -C src test-torirsserver-loc         # loc_* / lc_*
+make -C src test-torirsserver-npc         # npc_* / nc_*
 ```
 
-**There is deliberately no `test-mock230-obj` and no `test-mock230-inv`.** Both
+**There is deliberately no `test-torirsserver-obj` and no `test-torirsserver-inv`.** Both
 were considered and refused on the same ground, which is worth stating because
 the absence otherwise reads as an omission: a standalone VM fixture is the right
 shape for a family that is a *pure function of cache data* — which is what
@@ -833,7 +833,7 @@ shape for a family that is a *pure function of cache data* — which is what
 subject is server state. `obj_takeitem` is only meaningful against a live
 ZoneMap, a container registry and the real dispatch; `inv_moveitem`'s new arm is
 only meaningful against two real containers. All three exist in exactly one
-place, `mock230 --selftest`, so that is where the permanent checks went
+place, `ToriRSServer --selftest`, so that is where the permanent checks went
 (*"taking an obj is content's"*, *"equipping is content's rule"*). A fixture here
 would have covered strictly less for more code.
 
@@ -851,7 +851,7 @@ would be untestable.
 This is the only way to catch wrong-stack routing: `def_string $s =
 struct_param(...)` underflows and aborts inside the VM when the value went to the
 int stack, where an int-stack assertion on the same value would pass while the two
-stacks were out of step. The domain files never touch `struct Mock230Server`
+stacks were out of step. The domain files never touch `struct ToriRSServer`
 beyond the roster, so these bind with a NULL or zeroed host user — no world, no
 socket, no pack. No ids are written into the test sources; every subject is found
 in the decoded data at run time.
@@ -1039,10 +1039,10 @@ Things worth knowing:
 
   **Three layers, and the third is the one that matters most.**
   1. the compiler resolution above;
-  2. `script_kind_allowed` (`net/mock/mock230_scripts.c`) — a script started **by
+  2. `script_kind_allowed` (`torirsserver/torirs_server_scripts.c`) — a script started **by
      id** must be of the kind whose slot held the id, and it refuses rather than
      warns, because the id survives a recompile in a save or a fixture;
-  3. `mock230_scripts_report_script_id_args` — the same question asked of the
+  3. `ToriRSServer_ScriptsReportScriptIdArgs` — the same question asked of the
      **pack**, at load, pinned by the selftest.
 
   Layer 3 exists because 1 and 2 both need the site to be *reached*. Nine of the
@@ -1052,7 +1052,7 @@ Things worth knowing:
   QUEUE — that argument names a queue script"*. It can only read a
   fully-constant argument list (the id is `int_in` instructions back, which is
   only true if every argument compiled to exactly one push), so it reports the
-  skipped count under `MOCK230_VERBOSE` rather than implying it is total.
+  skipped count under `TORIRSSERVER_VERBOSE` rather than implying it is total.
 
   Mutation-checked, all three: reverting the compiler turns
   `test_script_name_argument` (`serverscript/test/ssc_test.c`, fixture where
@@ -1079,8 +1079,8 @@ reference's content changes, so counts and byte totals are *printed for drift*
 and only self-consistency is asserted.
 
 Three of these are worth understanding rather than just running, and one lives
-outside this list: **`mock230 --selftest`** pins
-`mock230_scripts_report_script_id_args` at 0, which is the only check in the
+outside this list: **`ToriRSServer --selftest`** pins
+`ToriRSServer_ScriptsReportScriptIdArgs` at 0, which is the only check in the
 system that sees a `settimer`/`queue` argument pointing at the wrong script
 *without the site being triggered*. `test-ssc`'s `test_script_name_argument`
 pins the compiler half. Both are described under §The compiler.
@@ -1135,7 +1135,7 @@ engine does not name one, it hands the line to whichever script claims it and
 falls through to the C cheat ladder only when none does.
 
 From the pristine revision-239 client, spell server commands `::~name`. The
-client sends `~name` through `CLIENT_CHEAT`, and mock230 removes the marker
+client sends `~name` through `CLIENT_CHEAT`, and ToriRSServer removes the marker
 before this lookup. Plain `::name` is only safe when no client-local command can
 consume it.
 

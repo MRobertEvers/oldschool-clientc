@@ -1,0 +1,412 @@
+{{external|rs}}
+{{Infobox Item
+|name = Reward casket (hard)
+|image = [[File:Reward casket (hard).png]]
+|release = [[28 July]] [[2016]]
+|update = Dragon Spear Changes & Beta 3
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Open, Drop
+|examine = Cross your fingers and your toes.
+|value = 50
+|weight = 0.000
+|id = 20544
+|leagueRegion = General
+}}
+[[File:Reward casket (hard) detail.png|left|130px]]
+A '''[[reward casket]] (hard)''' is received after completing the final clue of a [[Clue scroll (hard)|hard clue scroll]] trail, and contains the final reward for the trail. Opening the reward casket is required for treasure trail completion to be tracked on the [[HiScores]] and [[collection log]].
+
+The player can possess unlimited amounts of reward caskets up to the [[Stackable_items#Limit_of_a_stack|stack limit]]. Players are eligible to receive more clue scrolls regardless of how many reward caskets are in the player's possession.
+
+==Rewards==
+Hard clues generate a minimum of 4 rewards and a maximum of 6, granting an average of 5 rewards per casket. The rewards consist of generic items, shared treasure trail items, and items that are unique for hard clues. Additionally, players have a 1/15 chance of receiving a [[master clue scroll]] upon opening a hard casket. On average, it will take 5484 reward caskets to obtain all the (non-mega-rare) unique drops specific to hard clues (not including drops shared by other clue tiers).
+
+All droprates are confirmed by [[Mod Tide]].{{CiteTwitter|author=Mod Tide|url=https://twitter.com/JagexTide/status/1131933683714330624|date=24 May 2019|archiveurl=https://reldo.runescape.wiki/i/106558|archivedate=24 May 2019|quote=I know its been a while since the clue expansion but here is the information on clue scroll drop rates and loot chances! If anything changes I will keep you posted.|name=Clue rates tweet}}{{CiteGeneral|url=https://docs.google.com/spreadsheets/d/16pVNHdZyynmxIbM9mynRDYT0LQsWxq-vbDs4_7DpnGM/edit?usp=sharing|title=Clue scrolls 2019|author=|time=24 May 2019}} The listed rarities are per roll.
+
+{|class="wikitable"
+|+Average Hard Clue Value
+!Table
+!Roll
+!Casket
+|-
+!Standard
+|{{Coins|{{HardClueStandardValue}}}}
+|{{Coins|5 * {{HardClueStandardValue}}}}
+|-
+!Shared
+|{{Coins|{{HardClueSharedValue}}}}
+|{{Coins|5*{{HardClueSharedValue}}}}
+|-
+!Uniques
+|{{Coins|{{HardClueUniqueValue}}}}
+|{{Coins|5 * {{HardClueUniqueValue}}}}
+|-
+!Gilded
+|{{Coins|{{HardClueGildedValue}}}}
+|{{Coins|5 * {{HardClueGildedValue}}}}
+|-
+!3rd Age
+|{{Coins|{{HardClue3rdAgeValue}}}}
+|{{Coins|5 * {{HardClue3rdAgeValue}}}}
+|-
+!TOTAL
+!{{Coins|{{HardClueValue}}}}
+!{{Coins|5*{{HardClueValue}}}}
+|-
+!Master - Standard/Shared/Unique
+|{{Coins|1/15 * ({{MasterClueStandardValue}} + {{MasterClueSharedValue}} + {{MasterClueNonMegaRareUniqueValue}})}}
+|{{Coins|6 * 1/15 * ({{MasterClueStandardValue}} + {{MasterClueSharedValue}} + {{MasterClueNonMegaRareUniqueValue}})}}
+|-
+!Master - Gilded/3rd Age{{efn|This number is lower than it actually is due to multiple 3rd age items trading for above the maximum Grand Exchange price of 2.147 billion.|name=3a}}
+|{{Coins|1/15 * ({{MasterClueGildedValue}}+{{MasterClue3rdAgeValue}})}}
+|{{Coins|6 * 1/15 * ({{MasterClueGildedValue}}+{{MasterClue3rdAgeValue}})}}
+|-
+!Master - Mimic{{efn|name=3a}}
+|
+|{{Coins|1/15 * 1/15 * {{MasterMimicValue}}}}
+|-
+!TOTAL (with Master){{efn|name=3a}}
+!{{Coins|{{HardClueValue}} + 1/15 * {{MasterClueValue}}}}
+!{{Coins|5*{{HardClueValue}} + 1/15 * (6 * {{MasterClueValue}} + 1/15 * {{MasterMimicValue}})}}
+|}
+{{notelist}}
+
+The average loot roll is worth {{Coins|{{HardClueValue}}}} and average hard clues are worth {{Coins|5 * {{HardClueValue}}}}, without considering the value from potential master clues. The 1/15 chance of receiving a master clue scroll adds another {{Coins|1/15 * (6 * {{MasterClueValue}} + 1/15 * {{MasterMimicValue}})}}, for a total expected value per clue of {{Coins|5 * {{HardClueValue}} + 1/15 * (6 * {{MasterClueValue}} + 1/15 * {{MasterMimicValue}})}}.
+
+===Hard clue uniques===
+
+* The droprate for any hard clue unique (excluding those in the Mega-Rare Table) is 1/12.5 per reward roll. With an average of 5 rolls, the probability to receive a clue scroll unique item from a hard casket is 5x 1/12.5, which becomes 1/2.93 or 34.1%.
+{{DropsTableHead|leagueRegion=General}}
+{{DropsLineReward|name=Magic comp bow|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/10 ) round 1}}}}
+{{DropsLineReward|name=Amulet of glory (t4)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}|image=Amulet of glory (t).png}}
+{{DropsLineReward|name=Robin hood hat|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Enchanted hat|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Enchanted top|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Enchanted robe|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Dragon boots ornament kit|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune full helm (t)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune platebody (t)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune platelegs (t)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune plateskirt (t)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune kiteshield (t)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune full helm (g)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune platebody (g)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune platelegs (g)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune plateskirt (g)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune kiteshield (g)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune shield (h1)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune shield (h2)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune shield (h3)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune shield (h4)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune shield (h5)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune helm (h1)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune helm (h2)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune helm (h3)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune helm (h4)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune helm (h5)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune platebody (h1)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/5 ) round 1}}}}
+{{DropsLineReward|name=Rune platebody (h2)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/5 ) round 1}}}}
+{{DropsLineReward|name=Rune platebody (h3)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/5 ) round 1}}}}
+{{DropsLineReward|name=Rune platebody (h4)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/5 ) round 1}}}}
+{{DropsLineReward|name=Rune platebody (h5)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/5 ) round 1}}}}
+{{DropsLineReward|name=Zamorak full helm|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Zamorak platebody|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Zamorak platelegs|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Zamorak plateskirt|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Zamorak kiteshield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Guthix full helm|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Guthix platebody|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Guthix platelegs|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Guthix plateskirt|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Guthix kiteshield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Saradomin full helm|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Saradomin platebody|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Saradomin platelegs|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Saradomin plateskirt|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Saradomin kiteshield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Ancient full helm|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Ancient platebody|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Ancient platelegs|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Ancient plateskirt|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Ancient kiteshield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Armadyl full helm|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Armadyl platebody|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Armadyl platelegs|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Armadyl plateskirt|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Armadyl kiteshield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Bandos full helm|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Bandos platebody|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Bandos platelegs|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Bandos plateskirt|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Bandos kiteshield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Red d'hide body (g)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Red d'hide body (t)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Red d'hide chaps (g)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Red d'hide chaps (t)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Blue d'hide body (g)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Blue d'hide body (t)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Blue d'hide chaps (g)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Blue d'hide chaps (t)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Saradomin coif|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Saradomin d'hide body|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Saradomin chaps|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Saradomin bracers|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Saradomin d'hide boots|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Saradomin d'hide shield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/6 ) round 1}}}}
+{{DropsLineReward|name=Guthix coif|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Guthix d'hide body|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Guthix chaps|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Guthix bracers|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Guthix d'hide boots|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Guthix d'hide shield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/6 ) round 1}}}}
+{{DropsLineReward|name=Zamorak coif|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Zamorak d'hide body|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Zamorak chaps|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Zamorak bracers|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Zamorak d'hide boots|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Zamorak d'hide shield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/6 ) round 1}}}}
+{{DropsLineReward|name=Bandos coif|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Bandos d'hide body|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Bandos chaps|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Bandos bracers|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Bandos d'hide boots|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Bandos d'hide shield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/6 ) round 1}}}}
+{{DropsLineReward|name=Armadyl coif|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Armadyl d'hide body|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Armadyl chaps|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Armadyl bracers|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Armadyl d'hide boots|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Armadyl d'hide shield|quantity=1|rarity=1/9750}}
+{{DropsLineReward|name=Ancient coif|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Ancient d'hide body|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Ancient chaps|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Ancient bracers|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Ancient d'hide boots|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Ancient d'hide shield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/6 ) round 1}}}}
+{{DropsLineReward|name=Saradomin stole|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Saradomin crozier|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Guthix stole|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Guthix crozier|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Zamorak stole|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Zamorak crozier|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Zombie head (Treasure Trails)|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Cyclops head|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Pirate's hat|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Red cavalier|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=White cavalier|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Navy cavalier|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Tan cavalier|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Dark cavalier|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Black cavalier|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Pith helmet|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Explorer backpack|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Green dragon mask|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Blue dragon mask|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Red dragon mask|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Black dragon mask|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Nunchaku|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune cane|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Dual sai|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Thieving bag|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Rune defender ornament kit|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Berserker necklace ornament kit|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsLineReward|name=Tzhaar-ket-om ornament kit|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 ) round 1}}}}
+{{DropsTableBottom}}
+
+====Mega-rare table - Hard clues====
+*The droprate for any piece of gilded is 1/3,250 per reward roll.
+*The droprate for any piece of 3rd age is 1/16,250 per reward roll.
+
+{{DropsTableHead|leagueRegion=General}}
+{{DropsLineReward|name=Super energy(4)|quantity=15 (noted)|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 ) round 1}}}}
+{{DropsLineReward|name=Super restore(4)|quantity=15 (noted)|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 ) round 1}}}}
+{{DropsLineReward|name=Antifire potion(4)|quantity=15 (noted)|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 ) round 1}}}}
+{{DropsLineReward|name=Super attack(4)|quantity=5 (noted)|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 ) round 1}}|raritynotes=<ref name="dual-drop" group="d">Players will always receive [[Super attack(4)]] together with [[Super strength(4)]] and [[Super defence(4)]].</ref>}}
+{{DropsLineReward|name=Super strength(4)|quantity=5 (noted)|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 ) round 1}}|raritynotes=<ref name="dual-drop" group="d">Players will always receive [[Super attack(4)]] together with [[Super strength(4)]] and [[Super defence(4)]].</ref>}}
+{{DropsLineReward|name=Super defence(4)|quantity=5 (noted)|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 ) round 1}}|raritynotes=<ref name="dual-drop" group="d">Players will always receive [[Super attack(4)]] together with [[Super strength(4)]] and [[Super defence(4)]].</ref>}}
+{{DropsLineReward|name=Gilded full helm|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 5/10 * 1/11 ) round 1}}}}
+{{DropsLineReward|name=Gilded platebody|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 5/10 * 1/11 ) round 1}}}}
+{{DropsLineReward|name=Gilded platelegs|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 5/10 * 1/11 ) round 1}}}}
+{{DropsLineReward|name=Gilded plateskirt|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 5/10 * 1/11 ) round 1}}}}
+{{DropsLineReward|name=Gilded kiteshield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 5/10 * 1/11 ) round 1}}}}
+{{DropsLineReward|name=Gilded med helm|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 5/10 * 1/11 ) round 1}}}}
+{{DropsLineReward|name=Gilded chainbody|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 5/10 * 1/11 ) round 1}}}}
+{{DropsLineReward|name=Gilded sq shield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 5/10 * 1/11 ) round 1}}}}
+{{DropsLineReward|name=Gilded 2h sword|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 5/10 * 1/11 ) round 1}}}}
+{{DropsLineReward|name=Gilded spear|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 5/10 * 1/11 ) round 1}}}}
+{{DropsLineReward|name=Gilded hasta|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 5/10 * 1/11 ) round 1}}}}
+{{DropsLineReward|name=3rd Age full helmet|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 * 1/13 ) round 1}}}}
+{{DropsLineReward|name=3rd Age platebody|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 * 1/13 ) round 1}}}}
+{{DropsLineReward|name=3rd Age platelegs|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 * 1/13 ) round 1}}}}
+{{DropsLineReward|name=3rd Age plateskirt|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 * 1/13 ) round 1}}}}
+{{DropsLineReward|name=3rd Age kiteshield|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 * 1/13 ) round 1}}}}
+{{DropsLineReward|name=3rd Age range coif|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 * 1/13 ) round 1}}}}
+{{DropsLineReward|name=3rd Age range top|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 * 1/13 ) round 1}}}}
+{{DropsLineReward|name=3rd Age range legs|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 * 1/13 ) round 1}}}}
+{{DropsLineReward|name=3rd Age vambraces|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 * 1/13 ) round 1}}}}
+{{DropsLineReward|name=3rd Age mage hat|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 * 1/13 ) round 1}}}}
+{{DropsLineReward|name=3rd Age robe top|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 * 1/13 ) round 1}}}}
+{{DropsLineReward|name=3rd Age robe|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 * 1/13 ) round 1}}}}
+{{DropsLineReward|name=3rd Age amulet|quantity=1|rarity=1/{{#expr:1/( 1/13 * 1/125 * 1/10 * 1/13 ) round 1}}}}
+{{DropsTableBottom}}
+
+{{Reflist|group="d"}}
+
+===Standard table===
+====Weapons and armour====
+{{DropsTableHead|leagueRegion=General}}
+{{DropsLineReward|name=Rune full helm|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Rune platebody|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Rune platelegs|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Rune plateskirt|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Rune kiteshield|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Rune longsword|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Rune dagger|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Rune battleaxe|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Rune axe|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Rune pickaxe|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Black d'hide body|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Black d'hide chaps|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Magic shortbow|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Magic longbow|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 9/10 ) round 1}}}}
+{{DropsTableBottom}}
+
+====Runes====
+{{DropsTableHead|leagueRegion=General}}
+{{DropsLineReward|name=Nature rune|quantity=30-50|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Law rune|quantity=30-50|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Blood rune|quantity=20-30|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsTableBottom}}
+
+====Food====
+{{DropsTableHead|leagueRegion=General}}
+{{DropsLineReward|name=Lobster|quantity=12-15 (noted)|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Shark|quantity=12-15 (noted)|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsTableBottom}}
+
+===Shared treasure trail items===
+These items are either part of the standard loot table or part of subtables on the standard loot table and are possible rewards from all [[clue scroll]]s, except [[clue scroll (beginner)|beginner clues]].
+{{DropsTableHead|leagueRegion=General}}
+{{DropsLineReward|name=Coins|quantity=1000-5000|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}|gemw=No}}
+{{DropsLineReward|name=Coins|quantity=10000-15000|rarity=1/{{#expr:1/( 12/13 * 1/25 * 7/20 ) round 1}}|gemw=No}}
+{{DropsLineReward|name=Purple sweets|quantity=7-15|rarity=1/{{#expr:1/( 12/13 * 1/25 ) round 1}}}}
+{{DropsLineReward|name=Purple sweets|quantity=8-12|rarity=1/{{#expr:1/( 12/13 * 1/25 * 7/20 ) round 1}}}}
+{{DropsLineReward|name=Red firelighter|quantity=9-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/5 ) round 1}}}}
+{{DropsLineReward|name=Green firelighter|quantity=9-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/5 ) round 1}}}}
+{{DropsLineReward|name=Blue firelighter|quantity=9-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/5 ) round 1}}}}
+{{DropsLineReward|name=Purple firelighter|quantity=9-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/5 ) round 1}}}}
+{{DropsLineReward|name=White firelighter|quantity=9-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/5 ) round 1}}}}
+{{DropsLineReward|name=Holy blessing|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/20 ) round 1}}}}
+{{DropsLineReward|name=Unholy blessing|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/20 ) round 1}}}}
+{{DropsLineReward|name=Peaceful blessing|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/20 ) round 1}}}}
+{{DropsLineReward|name=War blessing|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/20 ) round 1}}}}
+{{DropsLineReward|name=Honourable blessing|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/20 ) round 1}}}}
+{{DropsLineReward|name=Ancient blessing|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/20 ) round 1}}}}
+{{DropsLineReward|name=Charge dragonstone jewellery scroll|quantity=5-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 21/22 * 1/12 ) round 1}}}}
+{{DropsLineReward|name=Nardah teleport|quantity=5-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 21/22 * 1/12 ) round 1}}}}
+{{DropsLineReward|name=Mos le'harmless teleport|quantity=5-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 21/22 * 1/12 ) round 1}}}}
+{{DropsLineReward|name=Mort'ton teleport|quantity=5-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 21/22 * 1/12 ) round 1}}}}
+{{DropsLineReward|name=Feldip hills teleport|quantity=5-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 21/22 * 1/12 ) round 1}}}}
+{{DropsLineReward|name=Lunar isle teleport|quantity=5-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 21/22 * 1/12 ) round 1}}}}
+{{DropsLineReward|name=Digsite teleport|quantity=5-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 21/22 * 1/12 ) round 1}}}}
+{{DropsLineReward|name=Piscatoris teleport|quantity=5-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 21/22 * 1/12 ) round 1}}}}
+{{DropsLineReward|name=Pest control teleport|quantity=5-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 21/22 * 1/12 ) round 1}}}}
+{{DropsLineReward|name=Tai bwo wannai teleport|quantity=5-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 21/22 * 1/12 ) round 1}}}}
+{{DropsLineReward|name=Lumberyard teleport|quantity=5-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 21/22 * 1/12 ) round 1}}}}
+{{DropsLineReward|name=Iorwerth camp teleport|quantity=5-15|rarity=1/{{#expr:1/( 12/13 * 1/25 * 21/22 * 1/12 ) round 1}}}}
+{{DropsLineReward|name=Master scroll book (empty)|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/22 ) round 1}}}}
+{{DropsLineReward|name=Saradomin page 1|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Saradomin page 2|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Saradomin page 3|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Saradomin page 4|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Zamorak page 1|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Zamorak page 2|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Zamorak page 3|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Zamorak page 4|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Guthix page 1|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Guthix page 2|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Guthix page 3|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Guthix page 4|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Bandos page 1|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Bandos page 2|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Bandos page 3|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Bandos page 4|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Armadyl page 1|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Armadyl page 2|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Armadyl page 3|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Armadyl page 4|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Ancient page 1|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Ancient page 2|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Ancient page 3|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsLineReward|name=Ancient page 4|quantity=1|rarity=1/{{#expr:1/( 12/13 * 1/25 * 1/24 ) round 1}}}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead|leagueRegion=General}}
+{{DropsLineReward|name=Clue scroll (master)|quantity=1|rarity=1/15|raritynotes=<ref group="d">Clue scrolls will drop as [[scroll box]]es after the completion of [[X Marks the Spot]].</ref>|gemw=No}}
+{{DropsLineReward|name=Minor hard scroll case|quantity=1|rarity=Always|leagueRegion=No|raritynotes=<ref group="d">Players will always receive a [[minor hard scroll case]] on their 50th completed hard clue scroll ''or'' their first completed hard clue scroll if their clue count is above 50 (if the player has lost the item and did not open it before).</ref>|gemw=No}}
+{{DropsLineReward|name=Major hard scroll case|quantity=1|rarity=Always|leagueRegion=No|raritynotes=<ref group="d">Players will always receive a [[major hard scroll case]] on their 150th completed hard clue scroll ''or'' their first completed hard clue scroll if their clue count is above 150 (if the player has lost the item and did not open it before).</ref>|gemw=No}}
+{{DropsLineReward|name=Uri transform|quantity=1|rarity=always|raritynotes=<ref group="d">Players will always receive the [[Uri transform]] emote on their 300th completed hard clue ''or'' their first completed hard clue after if their clue count is above 300.</ref>|gemw=No|image=Uri transform emote icon.png}}
+{{DropsTableBottom}}
+
+{{Reflist|group="d"}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 August 2019
+|update = Small Game Updates and Betas
+|poll = Old School Content Poll 68: Small Game Improvements
+|change = The locks on the reward casket have been changed to reflect the tier of Treasure Trail it comes from.
+}}
+{{Subject changes
+|date = 11 April 2019
+|update = Treasure Trails Expansion and Easter 2019
+|poll = Old School Content Poll 65: Treasure Trails Expansion
+|change = All Treasure Trails caskets were changed to be stackable. To bolster each tier of clue with new cosmetic items, seventeen new items were added as hard clue scroll rewards.
+}}
+{{Subject changes
+|date = 6 July 2016
+|update = Treasure Trail Expansion (2016)
+|poll = Old School Content Poll 42: Clue Scrolls Expansion
+|change = All of the lower tier clues are getting many new additions to the drop tables.
+}}
+{{Subject changes
+|date = 12 June 2014
+|update = Treasure Trail Expansion
+|poll = Old School feature poll 19
+|change = There are over 180 new items available to be discovered by solving clue scrolls including third age weaponry, new outfits and a host of other items. There are new rewards and brand new clues for every level of treasure trail.
+}}
+{{Subject changes
+|date = 6 March 2014
+|update = Teletabs, Clues and Poll 17
+|poll = Old School feature poll 16
+|change = Clue scrolls and caskets now state the levels in their names.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Reward casket (hard) (v1) detail.png|center|300x150px]]
+|[[File:Reward casket (hard) detail.png|center|300x150px]]
+|-
+|[[File:Reward casket (hard) v1.png|center]]
+|[[File:Reward casket (hard).png|center]]
+|-
+|28 July 2016 –<br/>15 August 2019
+|15 August 2019 –<br/>present
+|}
+
+==Trivia==
+
+*With the [[Update:Treasure Trail Expansion|12 June 2014 update]] 41 new unique rewards were added to hard clue scrolls. With the [[Update:Treasure Trail Expansion (2016)|6 July 2016 update]] another 8 rewards were added to hard clue scroll uniques. With the [[Update:Barbarian Assault Ranged Rework|25 Jan 2018 update]], [[Dragon boots ornament kit]] was added.
+*In 2016 Mod Mat K revealed in a [https://www.youtube.com/watch?v=m-5hXaHEzIM&t=465s data stream] that on average 13,000 hard clue scrolls were completed every day.
+
+==References==
+{{Reflist}}
+
+{{Treasure Trails}}

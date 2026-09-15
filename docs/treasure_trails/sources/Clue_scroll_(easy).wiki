@@ -1,0 +1,307 @@
+{{External|rs}}
+{{HasStrategy|page=Treasure Trails/Full guide/Easy}}
+{{Infobox Item
+|name = Clue scroll (easy)
+|image = [[File:Clue scroll (easy).png]]
+|release = [[5 May]] [[2004]]
+|update = Bigger Banks & Treasure Trails
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Read, Check steps, Drop
+|examine = * A set of instructions to be followed.
+*A clue!
+*Part of the world map, but where?
+*It points to great treasure!
+|value = 20
+|weight = 0.020
+|id = N/A
+}}
+[[File:Clue scroll (easy) detail.png|left|150px]]
+A '''clue scroll (easy)''' is a valuable random drop from a large variety of lower-levelled monsters. Clue scrolls are the start of a [[Treasure Trail]] - a treasure hunt that sends players hunting all around [[Gielinor]]. At the end of the hunt players receive a reward of items randomly selected from a specific list, possibly including very rare and very valuable items. Easy clue scrolls do not feature any coordinate clues, and require nothing to be fought. They also do not take the player into the [[Wilderness]].
+
+Easy clue scrolls can be between 2 and 4 steps long.
+
+Easy clue scrolls are the easiest type of members-only clue to obtain and complete, and offer lower rewards in return. The rewards can range from [[black equipment]] to [[Blue gold-trimmed wizard robes|wizard robes (g)]]. A quick way to get easy clue scrolls is by pickpocketing [[H.A.M. Member]]s in [[Lumbridge]] (note: wearing [[H.A.M. robes]] does not increase pickpocket success rate, but does decrease the chance of being kicked out of the hideout on pickpocket failure.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/751400357473947648|date=8 July 2016|archiveurl=https://reldo.runescape.wiki/i/97065|archivedate=26 May 2020|quote=HAM kit doesn't reduce getting caught, but each piece makes you slightly less likely to be ejected after being caught.}}) Another method is killing [[thug]]s in [[Edgeville Wilderness dungeon]] while wearing a [[ring of wealth (i)]]. A less click-intensive method would be to pickpocket [[Wealthy citizen]]s in [[Civitas illa Fortis]], as pickpocketing will be automatic and guaranteed successful while the citizen is distracted by a street urchin. However, because of the lower drop rate of clues and the time between distractions, the rate of clues will likely be lower than other methods. 
+
+Completion of [[Easy Combat Achievements]] gives a 5% increased chance to receive an easy clue scroll from all sources, excluding implings.
+
+Completion of easy clues will give another clue or a [[reward casket (easy)]], containing the final reward for the trail. After completing 500 easy clues, the player will be awarded a [[large spade]].
+
+An easy clue scroll can be given to [[Watson]] along with a medium, hard and elite clue scroll in order to receive a [[clue scroll (master)|master clue scroll]]. It is also possible to receive a master clue scroll as a reward for completing the easy scroll, at a 1/50 rate.
+
+==Mechanics==
+===Dying with a scroll===
+As clue scrolls are untradeable, they are sent to the [[gravestone]] if unprotected on [[PvP]] or [[PvM]] death, even above level 20 [[Wilderness]]. [[Clue box]]es are not necessary and only add additional risk when in the Wilderness.
+
+===Multiple clues===
+As with all tiers of clue scrolls, only one easy clue scroll can be held, kept in Death's Office, or stored in a bank at one time; attempting to open a [[scroll box (easy)]] while holding an easy clue scroll gives the message {{mes|The clue box refuses to open - you already have a clue.}} However, it is possible to drop clues on the floor, where they'll stay for one hour, allowing players to have multiple clues at once. Dropping prior clue scrolls while having done some of their steps does NOT retain the steps of the dropped clue when starting a new one.
+
+===Casting an alchemy spell===
+When casting an alchemy spell on a clue scroll, if the game setting that triggers a warning on untradeable items is disabled, a different confirmation warning is triggered, asking "wouldn't you rather solve the clue?". If the game setting is enabled, only the regular question is triggered.
+
+==Entrana method==
+If the player opens an easy clue reward casket on [[Entrana]], rolls for armour and weapons will be removed since they are not allowed on the island. This makes receiving [[god book]] pages more likely, and is recommended for faster book completion.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1081706035717509120|date=5 January 2019|archiveurl=https://reldo.runescape.wiki/i/105964|archivedate=26 May 2020|quote=It is the case, and I've been recommending people go there for prayerbook pages for years.}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1341723448624689154|date=23 December 2020|archiveurl=https://reldo.runescape.wiki/i/96760|archivedate=12 January 2021}}
+
+Non-shared clue uniques '''cannot''' be obtained if opening caskets on Entrana. This may be relevant for [[ironmen]] who may wish to obtain [[Flared trousers]] (required for a [[master clue]] step) and [[Bob shirt]]s (required for an [[elite clue]] step), among others.
+
+==Types of clues==
+''Please note that it is possible to receive the same clue more than once.''
+*[[Treasure Trails/Guide/Cryptic clues/Easy|Cryptic clues]]
+*[[Treasure Trails/Guide/Emote clues/Easy|Emote clues]]
+*[[Treasure Trails/Guide/Maps/Easy|Maps]]
+*[[Cecilia|Music]]
+
+==Requirements==
+<onlyinclude>
+
+===Skill requirements===
+Certain clues will require items that need a certain skill requirement in order to wear or wield. The table below shows the '''highest''' skill requirement, in order to complete every easy clue.
+{| class="wikitable sortable lighttable"
+! Skill level
+! Details
+|-
+| {{SCP|Attack|20}} {{Boostable|no}}
+| Required to wield [[mithril pickaxe]].
+|-
+| {{SCP|Defence|20}} {{Boostable|no}}
+| Required to wear [[studded body]].
+|-
+| {{SCP|Ranged|20}} {{Boostable|no}}
+| Required to wear [[coif]], [[studded body]], and [[studded chaps]].
+|}
+
+===Quest requirements===
+Some clues require access to areas which may require quests. Some only require to start the quest in order to access the area.
+{| class="wikitable sortable lighttable"
+! Quest
+! Details
+|-
+| [[Priest in Peril]]
+| Gives access to [[Canifis]].
+|-
+|[[Children of the Sun]] 
+|Gives access to [[Varlamore]].
+|-
+|[[Pandemonium]]
+|Gives access to [[The Pandemonium]].
+|}
+
+===Music requirements===
+{| class="wikitable sortable lighttable"
+! Music Track
+! Unlock location
+|-
+| [[Alone]]
+| [[Ice Mountain]]
+|-
+| [[On the Shore]]
+| [[Corsair Cove]]
+|-
+| [[Rugged Terrain]]
+| West of [[Kourend Castle]]
+|-
+| [[The Forlorn Homestead]]
+| Southern coast of [[Hosidius]]
+|-
+| [[Tiptoe]]
+| [[Draynor Manor]] cellar
+|-
+| [[Vision]]
+| [[Wizards' Tower]]
+|}
+
+=== Item requirements ===
+'Minimum level requirements' indicates the level required to equip all items on the list in order to complete their respective clue steps.
+
+Any quantities below indicate how many of each item is required to fill all available easy [[STASH]] units. The STASH units require 2 [[plank|planks]] and 10 [[Nails]] to build.
+{| class="wikitable lighttable individual" style="width:50%; text-align:center;"
+|-
+!colspan="4" | Minimum level requirements
+|-
+| {{SCP|Attack|20|link=yes}}
+| {{SCP|Ranged|20|link=yes}}
+| colspan="2" | {{SCP|Defence|20|link=yes}}
+|-
+! colspan="4" | Items required
+|-
+|{{plink|Air tiara}}
+|{{plink|Black axe}}
+|{{plink|Black cape}}
+|{{plink|Black platebody}}
+|-
+|2 × {{plink|Blue robe top}}
+|{{plink|Blue wizard hat}}
+|{{plink|Blue wizard robe}}
+|{{plink|Blue skirt}}
+|-
+|{{plink|Body tiara}}
+|{{plink|Bronze 2h sword}}
+|{{plink|Bronze axe}}
+|{{plink|Bronze chainbody}}
+|-
+|{{plink|Bronze dagger}}
+|{{plink|Bronze full helm}}
+|2 × {{plink|Bronze platelegs}}
+|{{plink|Bronze spear}}
+|-
+|4 × {{plink|Coif}}
+|{{plink|Cream robe top}}
+|2 × {{plink|Desert shirt}}
+|{{plink|Emerald amulet}}
+|-
+|{{plink|Emerald necklace}}
+|2 × {{plink|Emerald ring}}
+|{{plink|Gold necklace}}
+|2 × {{plink|Gold ring}}
+|-
+|{{plink|Green boots}}
+|{{plink|Green hat}}
+|{{plink|Green robe bottoms}}
+|{{plink|Green robe top}}
+|-
+|{{plink|Ham boots}}
+|2 × {{plink|Ham robe}}
+|{{plink|Hardleather body}}
+|2 × {{plink|Iron chainbody}}
+|-
+|{{plink|Iron full helm}}
+|2 × {{plink|Iron kiteshield}}
+|{{plink|Iron med helm}}
+|2 × {{plink|Iron platebody}}
+|-
+|{{plink|Iron platelegs}}
+|{{plink|Iron plateskirt}}
+|{{plink|Iron scimitar}}
+|{{plink|Iron warhammer}}
+|-
+|{{plink|Leather boots}}
+|4 × {{plink|Leather chaps}}
+|{{plink|Leather cowl}}
+|3 × {{plink|Leather gloves}}
+|-
+|{{plink|Longbow}}
+|{{plink|Mithril pickaxe}}
+|{{plink|Oak longbow}}
+|{{plink|Oak shortbow}}
+|-
+|{{plink|Pink robe top}}
+|{{plink|Pink skirt}}
+|{{plink|Ruby ring}}
+|{{plink|Sapphire amulet}}
+|-
+|{{plink|Sapphire necklace}}
+|{{plink|Sapphire ring}}
+|{{plink|Staff of water}}
+|{{plink|Staff}}
+|-
+|{{plink|Steel axe}}
+|{{plink|Steel full helm}}
+|{{plink|Steel longsword}}
+|{{plink|Steel mace}}
+|-
+|{{plink|Steel med helm}}
+|{{plink|Steel pickaxe}}
+|{{plink|Steel platebody}}
+|{{plink|Steel plateskirt}}
+|-
+|{{plink|Studded body}}
+|2 × {{plink|Studded chaps}}
+|{{plink|Tiara}}
+|{{plink|Turquoise robe top}}
+|-
+|{{plink|Right eye patch}}
+|{{plink|Turquoise robe bottoms}}
+|2 × {{plink|White apron}}
+|{{plink|Bronze scimitar}}
+|}
+</onlyinclude>
+
+==Possible rewards==
+{{Main|Reward casket (easy)}}
+
+The average loot roll is worth {{Coins|floor({{EasyClueValue}})}}. On average, easy clues are worth {{Coins|floor(3 * {{EasyClueValue}})}}.
+
+{{Clue scroll (easy)/Rewards}}
+
+==Item sources==
+Skilling sources are not listed here; see [[clue bottle]], [[clue geode]], and [[clue nest]] for drop rate calculators.
+
+''Some of the below rates have rarities provided by Jagex.''{{CiteTwitter|author=Mod Tide|url=https://twitter.com/JagexTide/status/1131933683714330624|date=24 May 2019|archiveurl=https://reldo.runescape.wiki/i/106558|archivedate=24 May 2019|quote=I know its been a while since the clue expansion but here is the information on clue scroll drop rates and loot chances! If anything changes I will keep you posted.|name=Clue rates tweet}}
+{{Drop sources|Clue scroll (easy)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes 
+|date = 6 March 2024
+|update = Miscellaneous Quality of Life Changes
+|change = Clue Scrolls dropped by a player now last one hour on the ground rather than two minutes. This does not change existing behaviour for Clue Scrolls dropped by NPCs or other entities. Additionally, you are now told if you would have gotten a clue but didn't because you already have one.
+}}
+{{Subject changes 
+|date = 11 April 2019
+|update = Treasure Trails Expansion and Easter 2019
+|change = The item was graphically updated.
+}}
+{{Subject changes
+|date = 9 March 2017
+|update = General QoL!
+|change = The item's value was increased from 1 to 20.
+}}
+{{Subject changes
+|date = 21 April 2016
+|update = Deadman Changes & Implings
+|poll = Old School Content Poll 41: Bank placeholders & Skillcapes
+|change = Easy clue scrolls have been added to young, baby, and gourmet impling drop tables.
+}}
+{{Subject changes
+|date = 2 July 2015
+|update = Clue Scroll Step Counter
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = All clue scrolls now have a right-click 'Check steps' option that will allow you to see exactly how many steps you have completed so far.
+}}
+{{Subject changes
+|date = 18 June 2015
+|update = Multiple Clues & Midsummer
+|poll = Old School Content Poll 33
+|change = You will now be able to have up to one clue scroll of each tier and will be able to complete clue scrolls of different tiers simultaneously.
+}}
+{{Subject changes
+|date = 14 May 2015
+|update = System Update & Poll 33
+|change = Clue scroll stages no longer increase when bouncing different clue scrolls.
+}}
+{{Subject changes
+|date = 10 March 2016
+|update = Custom Nightmare Zone Rumbles
+|change = The easy emote clue in Falador's jewellery shop will now spawn Uri correctly instead of underneath the player.
+}}
+{{Subject changes
+|date = 6 March 2014
+|update = Patch Notes (6 March 2014)
+|poll = Old School feature poll 16
+|change = The item was renamed from "Clue scroll" to "Clue scroll (easy)".
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Clue scroll (v1) detail.png|center|300x150px]]
+|[[File:Clue scroll (easy) detail.png|center|300x150px]]
+|-
+|[[File:Clue scroll v1.png|center]]
+|[[File:Clue scroll (easy).png|center]]
+|-
+|5 May 2004 –<br/>11 April 2019
+|11 April 2019 –<br/>present
+|}
+
+==References==
+{{Reflist}}
+
+== Trivia ==
+
+* When talking to Uri, if you do not finish his dialogue (by clicking out after he gives you the next step) he will will not despawn right away. If you happen to get the same step again before he does despawn, you will be able to finish the clue step without needing to perform the emote a second time.
+{{Treasure Trails}}

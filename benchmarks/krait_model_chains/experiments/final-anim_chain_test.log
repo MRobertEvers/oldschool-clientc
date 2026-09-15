@@ -1,0 +1,5 @@
+WARNING: linker: Unsupported flags DT_FLAGS_1=0x8000001
+WARNING: linker: /data/local/tmp/final-anim_chain_test: unused DT entry: type 0x6ffffef5 arg 0x37c
+WARNING: linker: /data/local/tmp/final-anim_chain_test: unused DT entry: type 0x6ffffffe arg 0x33c
+WARNING: linker: /data/local/tmp/final-anim_chain_test: unused DT entry: type 0x6fffffff arg 0x2
+PASS: 8 skeletal pose-reuse checks

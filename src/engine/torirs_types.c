@@ -110,6 +110,12 @@ ToriRS_LocationFree(struct ToriRS_Location* loc)
     free(loc->recolors_to);
     free(loc->retextures_from);
     free(loc->retextures_to);
+    if( loc->params )
+    {
+        for( int i = 0; i < loc->param_count; i++ )
+            free(loc->params[i].string_value);
+        free(loc->params);
+    }
     free(loc->transforms);
     free(loc->ambient_sound_ids);
     free(loc);
@@ -126,6 +132,13 @@ ToriRS_NpctypeFree(struct ToriRS_Npctype* npctype)
     free(npctype->recolors_to);
     free(npctype->retextures_from);
     free(npctype->retextures_to);
+    if( npctype->params )
+    {
+        for( int i = 0; i < npctype->param_count; i++ )
+            free(npctype->params[i].string_value);
+        free(npctype->params);
+    }
+    free(npctype->transforms);
     free(npctype);
 }
 
@@ -147,6 +160,8 @@ ToriRS_NpctypeSizeOf(const struct ToriRS_Npctype* npctype)
         bytes += (size_t)npctype->retexture_count * sizeof(*npctype->retextures_from);
     if( npctype->retextures_to )
         bytes += (size_t)npctype->retexture_count * sizeof(*npctype->retextures_to);
+    if( npctype->transforms )
+        bytes += (size_t)npctype->transform_count * sizeof(*npctype->transforms);
     return bytes;
 }
 
@@ -538,12 +553,12 @@ ToriRS_ModelAssertPnmTextureInvariant(struct ToriRS_Model const* model)
         if( render_type != 0 )
             continue;
 
-        const int p = model->textured_p_coordinate[texture_face];
-        const int m = model->textured_m_coordinate[texture_face];
-        const int n = model->textured_n_coordinate[texture_face];
-        assert(p >= 0 && p < model->vertex_count);
-        assert(m >= 0 && m < model->vertex_count);
-        assert(n >= 0 && n < model->vertex_count);
+        assert(model->textured_p_coordinate[texture_face] >= 0);
+        assert(model->textured_p_coordinate[texture_face] < model->vertex_count);
+        assert(model->textured_m_coordinate[texture_face] >= 0);
+        assert(model->textured_m_coordinate[texture_face] < model->vertex_count);
+        assert(model->textured_n_coordinate[texture_face] >= 0);
+        assert(model->textured_n_coordinate[texture_face] < model->vertex_count);
     }
 }
 
@@ -791,7 +806,22 @@ ToriRS_ComponentSizeOf(const struct ToriRS_Component* component)
         bytes += (size_t)component->scripts_count * sizeof(*component->script_comparator);
     if( component->script_operand )
         bytes += (size_t)component->scripts_count * sizeof(*component->script_operand);
+    if( component->inv_slots )
+        bytes += sizeof(*component->inv_slots);
     return bytes;
+}
+
+struct ToriRS_ComponentInvSlots*
+ToriRS_ComponentInvSlotsEnsure(struct ToriRS_Component* component)
+{
+    assert(component);
+
+    if( !component->inv_slots )
+    {
+        component->inv_slots = calloc(1, sizeof(*component->inv_slots));
+        assert(component->inv_slots);
+    }
+    return component->inv_slots;
 }
 
 static void
@@ -803,6 +833,11 @@ torirs_component_release_owned(struct ToriRS_Component* component)
     /* Before the CS1 early-out below: the hooks are owned whether or not this
      * component also carries CS1 scripts, and most that have hooks have none. */
     ToriRS_ComponentHooksFree(component);
+
+    /* Ahead of the CS1 early-out below too: an inventory grid need not carry
+     * any scripts, and the columns are owned either way. */
+    free(component->inv_slots);
+    component->inv_slots = NULL;
 
     if( !component->scripts_lengths )
         return;
@@ -860,4 +895,53 @@ ToriRS_ComponentPackSizeOf(const struct ToriRS_ComponentPack* pack)
             bytes += ToriRS_ComponentSizeOf(&pack->components[i]);
     }
     return bytes;
+}
+
+void
+ToriRS_NpctypeEntityFacts(
+    struct ToriRS_Npctype const* drawn,
+    struct ToriRS_Npctype const* shell,
+    struct ToriRS_NpcEntityFacts* out)
+{
+    assert(drawn);
+    assert(out);
+
+    out->size = drawn->size > 0 ? drawn->size : 1;
+    out->readyanim = drawn->readyanim;
+    out->walkanim = drawn->walkanim;
+    out->walkanim_b = drawn->walkanim_b;
+    out->walkanim_l = drawn->walkanim_l;
+    out->walkanim_r = drawn->walkanim_r;
+    out->turnanim = drawn->turnanim_l;
+    out->runanim = drawn->runanim;
+    out->runanim_b = drawn->runanim_b;
+    out->runanim_l = drawn->runanim_l;
+    out->runanim_r = drawn->runanim_r;
+
+    /* No shell, or a rung that IS its own shell, has nothing to fill from. */
+    if( !shell || shell == drawn )
+        return;
+
+    if( out->size <= 1 && shell->size > 1 )
+        out->size = shell->size;
+    if( out->readyanim < 0 )
+        out->readyanim = shell->readyanim;
+    if( out->walkanim < 0 )
+        out->walkanim = shell->walkanim;
+    if( out->walkanim_b < 0 )
+        out->walkanim_b = shell->walkanim_b;
+    if( out->walkanim_l < 0 )
+        out->walkanim_l = shell->walkanim_l;
+    if( out->turnanim < 0 )
+        out->turnanim = shell->turnanim_l;
+    if( out->runanim < 0 )
+        out->runanim = shell->runanim;
+    if( out->runanim_b < 0 )
+        out->runanim_b = shell->runanim_b;
+    if( out->runanim_l < 0 )
+        out->runanim_l = shell->runanim_l;
+    if( out->runanim_r < 0 )
+        out->runanim_r = shell->runanim_r;
+    if( out->walkanim_r < 0 )
+        out->walkanim_r = shell->walkanim_r;
 }

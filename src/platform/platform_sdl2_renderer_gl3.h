@@ -4,7 +4,7 @@
 #include "render/torirs_pick.h"
 #include "render/torirs_render.h"
 
-#include <SDL.h>
+#include "platform/platform_gl_context.h"
 #include <stdbool.h>
 
 struct ToriDraw_Scene;
@@ -30,6 +30,21 @@ ToriRS_GL3_SetViewport(
     int width,
     int height);
 
+void
+ToriRS_GL3_SetInterfaceScaleMode(
+    struct ToriRS_GL3* gl3,
+    int mode);
+
+/** Reserve drawable pixels at the trailing edge for application chrome. */
+void
+ToriRS_GL3_SetHostRightInset(struct ToriRS_GL3* gl3, int pixels);
+
+/** Upload and composite one retained top-down ARGB ToriRSChrome surface into
+ * the reserved trailing pane. No-op when pixels/size are absent. */
+void
+ToriRS_GL3_DrawChromePixels(
+    struct ToriRS_GL3* gl3, int const* pixels, int width, int height);
+
 /**
  * Bring up the GL context and the renderer's resources.
  *
@@ -43,7 +58,7 @@ ToriRS_GL3_SetViewport(
 bool
 ToriRS_GL3_Init(
     struct ToriRS_GL3* gl3,
-    SDL_Window* window,
+    ToriRS_GLWindow* window,
     struct ToriDraw_Scene* scene,
     bool z_buffer);
 
@@ -58,10 +73,52 @@ ToriRS_GL3_Execute(
     struct ToriRS_GL3* gl3,
     struct ToriRS_RenderCommand const* cmd);
 
+/**
+ * The startup progress bar, before there is a frame to build.
+ *
+ * `progress` < 0 clears without a bar (the post-login loading screen). The
+ * caption is drawn either way, so the text-only screen still carries its
+ * sentence; pass caption NULL / caption_font_id < 0 for none. Both come from
+ * App_BootBarCaption -- the font id is a SCENE font id, resolved out of the
+ * scene this renderer was initialised with, so the app must have registered
+ * the face before the id means anything here.
+ */
 void
-ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress);
+ToriRS_GL3_DrawBootBar(
+    struct ToriRS_GL3* gl3,
+    int progress,
+    int caption_font_id,
+    char const* caption);
 
 struct ToriRS_PickHits const*
 ToriRS_GL3_PickHits(struct ToriRS_GL3 const* gl3);
+
+/**
+ * Read the presented frame back off the device into `pixels`, top-down ARGB.
+ *
+ * `width`/`height` are the CANVAS size, not the window's: the drawable is
+ * letterboxed and possibly scaled by the display's DPI, so the readback is
+ * sampled back down onto the canvas grid the rest of the client thinks in.
+ * That is what makes a GPU capture the same size as a software one.
+ *
+ * Call it BEFORE the buffer swap: it reads GL_BACK, which holds the finished
+ * frame right up to the swap and is undefined immediately after one. Returns
+ * false when there is no context to read.
+ *
+ * (RuneLite reads after its swapBuffers, which is the other valid pairing
+ * rather than a disagreement -- rlawt's getBufferMode hands it GL_FRONT, the
+ * buffer the swap moved the frame into. Mixing the two, back-buffer-after,
+ * reads whatever the driver happened to leave behind.)
+ *
+ * This is a pipeline stall and is meant to be called rarely: the app asks for
+ * it only when a capture is actually pending (App_DrawComplete), the same way
+ * RuneLite's DrawManager only invokes its supplier when a listener is queued.
+ */
+bool
+ToriRS_GL3_ReadPixels(
+    struct ToriRS_GL3* gl3,
+    int* pixels,
+    int width,
+    int height);
 
 #endif

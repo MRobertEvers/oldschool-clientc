@@ -2,8 +2,8 @@
 # Run a boot manifest's world under the REAL OldSchool client: RuneLite, driving
 # the recompiled deob gamepack, against this repo's mock server.
 #
-#   ./run-runelite.sh                            manifest_osrs239.ini
-#   ./run-runelite.sh manifest_osrs239_rs2012.ini
+#   ./run-runelite.sh                            manifests/manifest_osrs239.ini
+#   ./run-runelite.sh manifests/manifest_osrs239_rs2012.ini
 #   ./run-runelite.sh --stop | --status
 #   ./run-runelite.sh -- --developer-mode        args after -- go to RuneLite
 #
@@ -20,14 +20,18 @@
 #
 #   the gamepack     Deobfuscator/instr/src recompiled into an injected-client
 #                    jar. Checked for changes on every run and rebuilt when its
-#                    sources moved; then gated on instr/tools/verify_api.py,
-#                    because a dropped accessor is an AbstractMethodError inside
-#                    a plugin hours away from this build.
+#                    sources moved; then gated on instr/tools/verify_api.py and
+#                    instr/tools/verify_static_init.py. Both guard the same
+#                    thing: something the decompiler changed that javac accepts.
+#                    A dropped accessor is an AbstractMethodError inside a
+#                    plugin hours away from this build; a forward-referenced
+#                    static initialiser is a zero-length array that crashes
+#                    whenever the field is finally used.
 #   the RSA modulus  compiled into that jar. It has to be the manifest's
 #                    rsa_mod, which is the mock server's public key -- otherwise
 #                    the login block is encrypted to a key nothing here holds
 #                    and login fails with no useful message on either side.
-#   mock230          the world AND the JS5 cache server, on one socket (the
+#   ToriRSServer          the world AND the JS5 cache server, on one socket (the
 #                    client picks with its first byte: 14 game, 15 JS5).
 #   a jav_config     RuneLite takes no server address. It takes
 #                    `--jav_config=<URL>` and reads `codebase` out of it to
@@ -36,7 +40,7 @@
 #
 # The manifest's [net:boot] port is NOT the game port for an embed manifest --
 # there it is a placeholder for a transport that never binds (see
-# manifest_osrs239.ini). An OldSchool client cannot be handed an arbitrary port
+# manifests/manifest_osrs239.ini). An OldSchool client cannot be handed an arbitrary port
 # either: it derives one from the jav_config world id, as 40000 + world_id when
 # the environment is nonzero, and the fixed 43594 when it is zero. So an embed
 # manifest runs on 43594 (GAME_PORT= overrides) and only a transport=tcp
@@ -98,7 +102,7 @@ ACTION=${ACTION:-run}
 
 # The default the header advertises, and the one everything below is verified
 # against. Any manifest whose [net:boot] rev is osrs239 works the same way.
-MANIFEST=${MANIFEST:-manifest_osrs239.ini}
+MANIFEST=${MANIFEST:-manifests/manifest_osrs239.ini}
 
 say()  { printf '%s\n' "$*"; }
 warn() { printf 'run-runelite: %s\n' "$*" >&2; }
@@ -154,7 +158,7 @@ else
     GAME_PORT=${GAME_PORT:-43594}
 fi
 GAME_HOST=${GAME_HOST:-${HOST:-127.0.0.1}}
-# `localhost` resolves to ::1 first on this machine and mock230 binds IPv4
+# `localhost` resolves to ::1 first on this machine and ToriRSServer binds IPv4
 # loopback only, so the manifest's spelling would cost a connection refused.
 if [ "$GAME_HOST" = localhost ]; then GAME_HOST=127.0.0.1; fi
 
@@ -264,19 +268,19 @@ esac
 content_tree_has_lanes() {
     [ -d "$1/ported/scape2009_summoning" ] && [ -d "$1/ported/rs2012_qbd_td" ]
 }
-if [ -z "${MOCK230_CONTENT_DIR:-}" ]; then
+if [ -z "${TORIRSSERVER_CONTENT_DIR:-}" ]; then
     for candidate in OSRS-Content/osrs239-content build/*/osrs239-content; do
         if content_tree_has_lanes "$candidate"; then
-            MOCK230_CONTENT_DIR=$(cd "$candidate" && pwd)
+            TORIRSSERVER_CONTENT_DIR=$(cd "$candidate" && pwd)
             break
         fi
     done
 fi
-if [ -n "${MOCK230_CONTENT_DIR:-}" ]; then
-    # MOCK230_CONTENT_DIR is the BUILD side, MOCK230_CONTENT the RUNTIME side.
+if [ -n "${TORIRSSERVER_CONTENT_DIR:-}" ]; then
+    # TORIRSSERVER_CONTENT_DIR is the BUILD side, TORIRSSERVER_CONTENT the RUNTIME side.
     # Setting only the first compiles script.dat into one tree and boots
     # another's -- see run-live.sh.
-    export MOCK230_CONTENT_DIR MOCK230_CONTENT="$MOCK230_CONTENT_DIR"
+    export TORIRSSERVER_CONTENT_DIR TORIRSSERVER_CONTENT="$TORIRSSERVER_CONTENT_DIR"
 fi
 
 # The lane cache bake and the server script pack are run-live.sh's, invoked
@@ -396,6 +400,17 @@ elif deob_stale; then
         ( cd "$DEOB" && python3 instr/tools/verify_api.py ) \
             || die "API surface incomplete — see the census above"
     fi
+    # The second gate, and it is the same shape of problem: something the
+    # decompiler changed that javac accepts. CFR orders fields its own way and
+    # folds <clinit> into the declarations, so a field initialised from one
+    # declared below it gets qualified as `Self.later` -- legal Java that reads
+    # the DEFAULT value. class70's nine draw arrays came out four int[0] and
+    # five int[50] that way, and the first npc to say anything overhead killed
+    # the client in Statics.method6709 with an index-0-of-length-0.
+    if [ -x "$DEOB/instr/tools/verify_static_init.py" ]; then
+        ( cd "$DEOB" && python3 instr/tools/verify_static_init.py ) \
+            || die "forward-referenced static initialiser — see the list above"
+    fi
 else
     say "gamepack is up to date ($INSTR_JAR)"
 fi
@@ -502,16 +517,16 @@ start_server() {
     # path builds. The outer environment may carry OPT/MEMTRACE/sanitizer
     # variables for some other experiment; it must not decide which binary this
     # launcher then looks for.
-    local bin=${TORIRS_MOCK_BIN:-src/build_opt/mock230}
+    local bin=${TORIRS_MOCK_BIN:-src/build_opt/torirsserver}
     if [ -z "${TORIRS_MOCK_BIN:-}" ]; then
         say "building the native mock server…"
         make -C src PLATFORM=native OPT=1 MEMTRACE=0 ENABLE_ASAN=0 ENABLE_UBSAN=0 \
-            TORIDRAW_NO_SIMD=0 TORIDRAW_OPT=0 EMBED_SERVER=0 mock230 >/dev/null \
-            || die "mock230 build failed"
+            TORIDRAW_NO_SIMD=0 TORIDRAW_OPT=0 EMBED_SERVER=0 ToriRSServer >/dev/null \
+            || die "ToriRSServer build failed"
     fi
     [ -x "$bin" ] || die "mock binary '$bin' is not executable"
 
-    say "starting mock230 on $GAME_PORT (world + JS5, cache $CACHE_DIR)…"
+    say "starting ToriRSServer on $GAME_PORT (world + JS5, cache $CACHE_DIR)…"
     # ONE cache: the world reads the same directory JS5 serves. The two used to
     # differ (world on the bake, the client served pristine), which meant the
     # world acted on config values no connected client had.
@@ -519,10 +534,10 @@ start_server() {
     # nohup: an agent/CI command runner closes its pseudo-terminal as soon as
     # this script's foreground job ends, and without it every child takes the
     # same SIGHUP -- a healthy stack that looks like a crash a few lines in.
-    nohup env MOCK230_CACHE="$CACHE_DIR" \
-        ${SERVER_SCRIPTS:+MOCK230_SCRIPTS="$SERVER_SCRIPTS"} \
-        MOCK230_REV=osrs239 MOCK230_VERBOSE=1 \
-        MOCK230_JS5_REV="${CLIENT_VERSION:-239}" MOCK230_JS5_CACHE="$CACHE_DIR" \
+    nohup env TORIRSSERVER_CACHE="$CACHE_DIR" \
+        ${SERVER_SCRIPTS:+TORIRSSERVER_SCRIPTS="$SERVER_SCRIPTS"} \
+        TORIRSSERVER_REV=osrs239 TORIRSSERVER_VERBOSE=1 \
+        TORIRSSERVER_JS5_REV="${CLIENT_VERSION:-239}" TORIRSSERVER_JS5_CACHE="$CACHE_DIR" \
         "$bin" "$GAME_PORT" --rev osrs239 \
         > "$(logfile server)" 2>&1 < /dev/null &
     echo $! > "$(pidfile server)"

@@ -6,13 +6,13 @@ port_droptables_check — the bars the drop tables slice needs and nothing else 
     tools/port_droptables_check.py --check    # the build bar (test-port)
 
 Four things go wrong here, all of them silently, and none of them is caught by
-`sscompile`, by `mock230_pack` or by the name-resolution gate.
+`sscompile`, by `ToriRSServer_Pack` or by the name-resolution gate.
 
 1.  **A duplicate trigger binding.** Two files both declaring `[ai_queue3,goblin]`
     compile to two scripts, not one — measured, because the inherited claim was
     that the compiler collapses them (docs/LOSTCITY_PORT_TRIAGE.md §16.11).
     `SSVM_ProviderLoad` sorts by key, counts equal adjacent keys into
-    `provider->duplicate_keys`, and **nothing in mock230 ever reads that field**.
+    `provider->duplicate_keys`, and **nothing in ToriRSServer ever reads that field**.
     `find_by_key` is a `bsearch`, so which of the two answers is whichever the
     search lands on: walk-order dependent, and one whole table quietly does not
     exist. §13 bar 4 calls a second binding a conflict; until this file, nothing
@@ -33,7 +33,7 @@ Four things go wrong here, all of them silently, and none of them is caught by
 
 4.  **A bound table that forgets `npc_param(death_drop)`.** Binding
     `[ai_queue3,<npc>]` at all *suppresses* the engine's death-drop fallback
-    (`mock230_world_npc_died`, MOCK230_FALLBACK_AI_QUEUE3). A table that does not
+    (`ToriRSServer_WorldNpcDied`, TORIRSSERVER_FALLBACK_AI_QUEUE3). A table that does not
     re-state the drop takes the bones away from an npc that had them, and the
     only symptom is loot that looks slightly thin. Either state it, or waive it in
     the file with `// no-death-drop: <reason>` on its own line — a waiver is a

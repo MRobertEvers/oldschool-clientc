@@ -1,0 +1,59 @@
+{
+  "size": [
+    807,
+    503
+  ],
+  "mean_error_limit": 3.0,
+  "regions": {
+    "01-shaping": [
+      10,
+      10,
+      510,
+      335
+    ],
+    "02-destinations": [
+      120,
+      10,
+      410,
+      325
+    ],
+    "03-river-start": [
+      275,
+      185,
+      500,
+      310
+    ],
+    "04-river-motion": [
+      275,
+      185,
+      500,
+      310
+    ],
+    "06-cave-1": [
+      295,
+      170,
+      470,
+      265
+    ],
+    "06-cave-2": [
+      295,
+      170,
+      470,
+      265
+    ],
+    "06-cave-3": [
+      295,
+      170,
+      470,
+      265
+    ],
+    "06-cave-4": [
+      295,
+      170,
+      470,
+      265
+    ]
+  },
+  "masks": {},
+  "basis": "Reviewed local renderer regression images, with staging specified independently by cutscene-reference.json. Not Jagex screenshots."
+}

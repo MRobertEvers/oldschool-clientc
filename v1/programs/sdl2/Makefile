@@ -351,7 +351,7 @@ endif # Linux
 ifeq ($(HOST_OS),Windows)
 
 # Vendored 32-bit (i686) MinGW-w64 toolchain — targets Windows XP SP3.
-TOOLCHAIN_WIN32 := $(REPO_ROOT)/toolchain/win32/mingw32
+TOOLCHAIN_WIN32 := $(REPO_ROOT)/toolchains/mingw32
 
 # Force the 32-bit compiler (still overridable on the command line via CC=...).
 CC := $(TOOLCHAIN_WIN32)/bin/gcc.exe

@@ -1,0 +1,278 @@
+From f7d49de22d20338849e47282d05c41cc0b0273af Mon Sep 17 00:00:00 2001
+From: Matt Evers <mrobertevers@gmail.com>
+Date: Tue, 25 Aug 2026 02:18:33 -0500
+Subject: [PATCH] census: sorter per-model census (never timed)
+
+---
+ 3rd/toridraw/toridraw_render.u.c | 230 +++++++++++++++++++++++++++++++
+ 1 file changed, 230 insertions(+)
+
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..a173641f7 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -1038,6 +1038,121 @@ ToriDraw_CalculateCylinderAabb8point(
+     aabb->kind = TORIDRAW_AABB_KIND_CYLINDER_8POINT;
+ }
+ 
++
++/* ===================== SORT CENSUS (build-time only) ===================== */
++#if defined(TORIDRAW_SORT_CENSUS) && TORIDRAW_SORT_CENSUS
++struct ToriDraw_SortCensus
++{
++    double models;            /* calls to ComputeProjectedFaceOrder            */
++    double models_prio;       /* took the priority path                        */
++    double models_noprio;     /* took the plain drain path                     */
++    double models_empty;      /* zero accepted faces                           */
++    double faces_examined;
++    double faces_front;
++    double faces_back;
++    double faces_degen;
++    double faces_nearclip;
++    double faces_accepted;
++    double depth_span;        /* sum of (max_d - min_d + 1)                    */
++    double depth_span_max;
++    double occupied_buckets;  /* sum of distinct depth levels used             */
++    double occ_max;           /* max faces in one depth level                  */
++    double depth_avg_max;     /* largest depth_avg seen                        */
++    double prio_distinct;     /* sum over prio-path models of distinct prios   */
++    double models_single_prio;/* prio path, exactly one distinct priority      */
++    double models_single_prio_lt10;
++    double models_prio_flex;  /* prio path, has any prio>=10 face              */
++    double flex_faces;
++    double span_hist[12];     /* log2 buckets of depth span                    */
++    double occ_hist[16];      /* bucket occupancy histogram (clamped)          */
++    double prio_hist[13];     /* distinct-priority-count histogram             */
++    double bytes_memset;      /* sum of bucket-count memset bytes              */
++    double drain_iters;       /* sum of depth-loop trip counts                 */
++    double lines_touched;     /* distinct 64B lines in the depth bucket array  */
++    double pages_touched;     /* distinct 4K pages in the depth bucket array   */
++    double prio_face_hist[12];/* accepted faces per priority                   */
++};
++extern struct ToriDraw_SortCensus g_toridraw_sort_census;
++struct ToriDraw_SortCensus g_toridraw_sort_census;
++
++static void
++ToriDraw_SortCensusDump(void)
++{
++    const char* path = getenv("TORIDRAW_SORT_CENSUS_FILE");
++    FILE* f = path ? fopen(path, "w") : stderr;
++    struct ToriDraw_SortCensus* c = &g_toridraw_sort_census;
++    double m = c->models > 0 ? c->models : 1;
++    int i;
++    if( !f )
++        f = stderr;
++    fprintf(f, "\n=== toridraw SORT census ===\n");
++    fprintf(f, "models                 %12.0f\n", c->models);
++    fprintf(f, "  priority path        %12.0f  %6.2f%%\n", c->models_prio, 100.0*c->models_prio/m);
++    fprintf(f, "  plain drain path     %12.0f  %6.2f%%\n", c->models_noprio, 100.0*c->models_noprio/m);
++    fprintf(f, "  empty (0 accepted)   %12.0f  %6.2f%%\n", c->models_empty, 100.0*c->models_empty/m);
++    fprintf(f, "faces examined         %12.0f  %8.2f /model\n", c->faces_examined, c->faces_examined/m);
++    fprintf(f, "  front                %12.0f  %8.2f /model\n", c->faces_front, c->faces_front/m);
++    fprintf(f, "  back                 %12.0f  %8.2f /model\n", c->faces_back, c->faces_back/m);
++    fprintf(f, "  degenerate           %12.0f  %8.2f /model\n", c->faces_degen, c->faces_degen/m);
++    fprintf(f, "  nearclip             %12.0f  %8.2f /model\n", c->faces_nearclip, c->faces_nearclip/m);
++    fprintf(f, "  accepted             %12.0f  %8.2f /model\n", c->faces_accepted, c->faces_accepted/m);
++    fprintf(f, "depth span sum         %12.0f  %8.2f /model   max %.0f\n",
++            c->depth_span, c->depth_span/m, c->depth_span_max);
++    fprintf(f, "occupied buckets       %12.0f  %8.2f /model\n", c->occupied_buckets, c->occupied_buckets/m);
++    fprintf(f, "max bucket occupancy   %12.0f\n", c->occ_max);
++    fprintf(f, "max depth_avg seen     %12.0f\n", c->depth_avg_max);
++    fprintf(f, "drain/partition iters  %12.0f  %8.2f /model\n", c->drain_iters, c->drain_iters/m);
++    fprintf(f, "bucket-count memset B  %12.0f  %8.2f /model\n", c->bytes_memset, c->bytes_memset/m);
++    fprintf(f, "depth-bucket 64B lines %12.0f  %8.2f /model\n", c->lines_touched, c->lines_touched/m);
++    fprintf(f, "depth-bucket 4K pages  %12.0f  %8.2f /model\n", c->pages_touched, c->pages_touched/m);
++    fprintf(f, "prio: distinct sum     %12.0f  %8.2f /prio-model\n",
++            c->prio_distinct, c->prio_distinct/(c->models_prio>0?c->models_prio:1));
++    fprintf(f, "prio: single-prio      %12.0f  %6.2f%% of prio models\n",
++            c->models_single_prio, 100.0*c->models_single_prio/(c->models_prio>0?c->models_prio:1));
++    fprintf(f, "prio: single & <10     %12.0f  %6.2f%% of prio models\n",
++            c->models_single_prio_lt10, 100.0*c->models_single_prio_lt10/(c->models_prio>0?c->models_prio:1));
++    fprintf(f, "prio: any flex(>=10)   %12.0f  %6.2f%% of prio models\n",
++            c->models_prio_flex, 100.0*c->models_prio_flex/(c->models_prio>0?c->models_prio:1));
++    fprintf(f, "prio: flex faces       %12.0f\n", c->prio_face_hist[10] + c->prio_face_hist[11]);
++    fprintf(f, "depth-span histogram (log2 lo..hi):\n");
++    for( i = 0; i < 12; i++ )
++        if( c->span_hist[i] > 0 )
++            fprintf(f, "   [%6d..%6d) %12.0f  %6.2f%%\n",
++                    i == 0 ? 0 : (1 << i), (1 << (i+1)), c->span_hist[i],
++                    100.0*c->span_hist[i]/m);
++    fprintf(f, "bucket occupancy histogram (faces at one depth level):\n");
++    for( i = 0; i < 16; i++ )
++        if( c->occ_hist[i] > 0 )
++            fprintf(f, "   occ %2d%s %12.0f  %6.2f%%\n", i+1, i==15?"+":" ",
++                    c->occ_hist[i], 100.0*c->occ_hist[i]/(c->occupied_buckets>0?c->occupied_buckets:1));
++    fprintf(f, "distinct-priority histogram (prio-path models):\n");
++    for( i = 0; i < 13; i++ )
++        if( c->prio_hist[i] > 0 )
++            fprintf(f, "   %2d distinct %12.0f  %6.2f%%\n", i, c->prio_hist[i],
++                    100.0*c->prio_hist[i]/(c->models_prio>0?c->models_prio:1));
++    fprintf(f, "accepted faces by priority:\n");
++    for( i = 0; i < 12; i++ )
++        if( c->prio_face_hist[i] > 0 )
++            fprintf(f, "   prio %2d %12.0f  %6.2f%%\n", i, c->prio_face_hist[i],
++                    100.0*c->prio_face_hist[i]/(c->faces_accepted>0?c->faces_accepted:1));
++    fflush(f);
++    if( f != stderr )
++        fclose(f);
++}
++
++static void
++ToriDraw_SortCensusInit(void)
++{
++    static int done = 0;
++    if( !done )
++    {
++        done = 1;
++        atexit(ToriDraw_SortCensusDump);
++    }
++}
++#endif
++/* =================== end SORT CENSUS =================== */
++
+ /*
+  * Split so the shift is chosen ONCE, not per face.
+  *
+@@ -1092,6 +1207,17 @@ bucket_sort_by_average_depth_impl(
+          * screen-space winding does not exist yet. The reference buckets it
+          * unconditionally and performs the real winding test after building
+          * the near-plane polygon. */
++#if defined(TORIDRAW_SORT_CENSUS) && TORIDRAW_SORT_CENSUS
++        g_toridraw_sort_census.faces_examined++;
++        if( clip_candidate )
++            g_toridraw_sort_census.faces_nearclip++;
++        if( clip_candidate || toridraw_winding_front_facing(winding) )
++            g_toridraw_sort_census.faces_front++;
++        else if( winding == 0 )
++            g_toridraw_sort_census.faces_degen++;
++        else
++            g_toridraw_sort_census.faces_back++;
++#endif
+         if( clip_candidate || toridraw_winding_front_facing(winding) )
+         {
+             int z_sum = vz[a] + vz[b] + vz[c];
+@@ -1131,6 +1257,13 @@ bucket_sort_by_average_depth_impl(
+ 
+                     face_depth_bucket_counts[depth_avg] = count + 1;
+                     face_depth_buckets[depth_avg * depth_stride + count] = (faceint_t)f;
++#if defined(TORIDRAW_SORT_CENSUS) && TORIDRAW_SORT_CENSUS
++                    g_toridraw_sort_census.faces_accepted++;
++                    if( depth_avg > g_toridraw_sort_census.depth_avg_max )
++                        g_toridraw_sort_census.depth_avg_max = depth_avg;
++                    if( count + 1 > g_toridraw_sort_census.occ_max )
++                        g_toridraw_sort_census.occ_max = count + 1;
++#endif
+ 
+                     if( debug_stats )
+                     {
+@@ -1544,6 +1677,99 @@ toridraw_dbg_check_face_order(
+ }
+ /* #endregion */
+ 
++#if defined(TORIDRAW_SORT_CENSUS) && TORIDRAW_SORT_CENSUS
++static void
++ToriDraw_SortCensusModel(
++    struct ToriDraw_Scene* scene,
++    const uint8_t* face_priorities,
++    int min_d,
++    int max_d,
++    int bounds)
++{
++    struct ToriDraw_SortCensus* c = &g_toridraw_sort_census;
++    int prio_seen[12] = { 0 };
++    int distinct_prio = 0;
++    int span;
++    int occupied = 0;
++    int last_page = -1;
++    int lg;
++
++    ToriDraw_SortCensusInit();
++    c->models++;
++    if( face_priorities )
++        c->models_prio++;
++    else
++        c->models_noprio++;
++    if( bounds == 0 && scene->tmp_depth_face_count[0] == 0 )
++    {
++        c->models_empty++;
++        c->span_hist[0]++;
++        if( face_priorities )
++            c->prio_hist[0]++;
++        return;
++    }
++
++    span = max_d - min_d + 1;
++    c->depth_span += span;
++    if( span > c->depth_span_max )
++        c->depth_span_max = span;
++    c->drain_iters += span;
++    c->bytes_memset += (double)span * 2.0;
++    for( lg = 0; lg < 11; lg++ )
++        if( span < (1 << (lg + 1)) )
++            break;
++    c->span_hist[lg]++;
++
++    for( int d = min_d; d <= max_d; d++ )
++    {
++        int n = (int)scene->tmp_depth_face_count[d];
++        int page;
++        if( n == 0 )
++            continue;
++        occupied++;
++        c->occ_hist[n > 16 ? 15 : n - 1]++;
++        /* stride is in faceint_t; one depth slice starts at d*stride*2 bytes */
++        c->lines_touched += (double)(((n - 1) * 2) / 64 + 1);
++        page = (d * scene->depth_stride * 2) >> 12;
++        if( page != last_page )
++        {
++            c->pages_touched++;
++            last_page = page;
++        }
++        if( face_priorities )
++        {
++            const faceint_t* faces =
++                &scene->tmp_depth_faces[d * scene->depth_stride];
++            for( int i = 0; i < n; i++ )
++            {
++                int prio = faceprio_unpack(face_priorities, faces[i]);
++                c->prio_face_hist[prio]++;
++                if( !prio_seen[prio] )
++                {
++                    prio_seen[prio] = 1;
++                    distinct_prio++;
++                }
++            }
++        }
++    }
++    c->occupied_buckets += occupied;
++
++    if( face_priorities )
++    {
++        c->prio_distinct += distinct_prio;
++        c->prio_hist[distinct_prio]++;
++        if( distinct_prio == 1 )
++        {
++            c->models_single_prio++;
++            if( !prio_seen[10] && !prio_seen[11] )
++                c->models_single_prio_lt10++;
++        }
++        if( prio_seen[10] || prio_seen[11] )
++            c->models_prio_flex++;
++    }
++}
++#endif
++
+ static inline void
+ ToriDraw_ComputeProjectedFaceOrder(
+     struct ToriDraw_Scene* scene,
+@@ -1660,6 +1886,10 @@ ToriDraw_ComputeProjectedFaceOrder(
+ 
+     model_min_depth = bounds & 0xFFFF;
+     int model_max_depth = bounds >> 16;
++#if defined(TORIDRAW_SORT_CENSUS) && TORIDRAW_SORT_CENSUS
++    ToriDraw_SortCensusModel(
++        scene, face_priorities, model_min_depth, model_max_depth, bounds);
++#endif
+ 
+     if( !face_priorities )
+     {

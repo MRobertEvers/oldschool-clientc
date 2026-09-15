@@ -63,14 +63,34 @@ CS2_TYPES_C = REPO / "3rd" / "rscache" / "src" / "cs2" / "cs2_types.c"
 MAX_OPCODE = 8025
 
 MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
+    6599: (0, 1, 0, 0),  # RuneLite callback pops its name; remaining stacks are live.
+    # CS2VM2_Op_GroundObj and exec_groundobj own these exact stack effects.
+    6859: (2, 0, 1, 0),
+    6860: (0, 0, 1, 0),
+    6861: (0, 0, 1, 0),
+    6862: (0, 0, 1, 0),
+    6863: (0, 0, 1, 0),
+    7120: (1, 0, 1, 0),
+    7121: (2, 0, 1, 0),
+    7122: (2, 0, 1, 0),
     47: (0, 0, 0, 1),  # PUSH_VARC_STRING_OLD(varc id) -> string
     48: (0, 1, 0, 0),  # POP_VARC_STRING_OLD(varc id) <- string
     86: (1, 0, 0, 0),  # BRANCH_IF_ONE(value): branch if value == 1 (RS2-era)
     6910: (0, 0, 1, 0),  # LOGIN_INT24 -> Class24.anInt359 (stub: 0)
+    # ACTIVEPLAYER_SETLOCAL: set the ACTIVE PLAYER to the local player, push
+    # whether there is one. The vendored table has no row for it and no script
+    # in this
+    # cache calls it; the signature is the reference's own body
+    # (ScriptRunnerImpl_6900To6999.cpp: SetActivePlayer(m_localPlayerIndex)
+    # then push 1, else push -1), which is the other half of the
+    # ACTIVEPLAYER_GETROUTELENGTH..LOCALPLAYER_GETUID block this client
+    # implements.
+    6901: (0, 0, 1, 0),
     106: (2, 0, 0, 0),  # CC_CREATECHILD
     107: (2, 0, 0, 0),  # CC_CREATESIBLING
-    202: (0, 0, 1, 0),  # CC_FINDROOT
-    203: (1, 0, 0, 0),  # CC_CHILDREN_FIND
+    # 202/203 used to be guessed here as CC_FINDROOT / CC_CHILDREN_FIND. They
+    # are the scripted-entity-overlay find pair; their signatures now come
+    # from the stack doc comments on CS2_OP_OVERLAY_FIND / OVERLAY_CC_FIND.
     204: (0, 0, 1, 0),  # CC_CHILDREN_FINDNEXTID
     205: (2, 0, 0, 0),  # IF_CHILDREN_FIND
     # OC_* obj-config getters (4201/4202/4208/4210-4213/4217/4218/4222). Most
@@ -90,13 +110,10 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     4218: (1, 0, 0, 1),  # OC_EXAMINE(item) -> examine text (real data: obj.desc)
     4222: (3, 0, 0, 1),  # OC_ISUBOP(obj, opIndex, subIndex) -> sub-op string (stub: "")
     206: (0, 0, 1, 0),  # IF_CHILDREN_FINDNEXTID
-    # New in the rev-239 gameframe scripts and in neither vendored table. Arity
-    # established by `cs2 infer-arity` over cache.osrs239: ten sites, every one
-    # solving to the same six-int pop with nothing pushed, unanimously. What it
-    # *means* is still unknown, so this only keeps the stack balanced — the six
-    # arguments are dropped and nothing happens. Reached from script 8483 during
-    # boot, where the alternative was StackMetaStub's assert.
-    210: (6, 0, 0, 0),  # _210(component, int, int, int, int, int)
+    # CC_FIND_PARAM(root, param1, value1, param2, value2, param3, value3) finds
+    # a matching component and pushes whether it succeeded. All rev-239 call
+    # sites have this exact shape; the generic VM stub currently returns zero.
+    210: (7, 0, 1, 0),
     211: (3, 0, 1, 0),  # IF_CHILDREN_COLLECT(start, component, unused) -> count
     212: (1, 0, 1, 0),  # CC_CHILDREN_FIND+count(start) -> count
     213: (0, 0, 1, 0),  # CC_CHILDREN_FINDNEXT() -> bool (set target; != FINDNEXTID)
@@ -108,14 +125,13 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     6204: (0, 0, 2, 0),  # VIEWPORT_GETZOOM
     6205: (0, 0, 2, 0),  # VIEWPORT_GETFOV
     # UI zoom (6210..6214; 6213 unconfirmed, left out). Dedicated dispatch in
-    # cs2vm2.c forwards them to the host (CS2VM_HOST_REQUEST_UIZOOM).
+    # cs2vm2.c forwards each opcode as its exact CS2VM host-request kind.
     6210: (1, 0, 0, 0),  # UIZOOM_SET(value)
     6211: (0, 0, 1, 0),  # UIZOOM_GET -> value
     6212: (0, 0, 0, 0),  # UIZOOM_RESET
     6214: (0, 0, 1, 0),  # UIZOOM_GETDEFAULT -> value
-    # Safe-area bounds (6220..6223). Dedicated
-    # dispatch in cs2vm2.c forwards them to the host
-    # (CS2VM_HOST_REQUEST_SAFEAREA).
+    # Safe-area bounds (6220..6223). Dedicated dispatch in cs2vm2.c forwards
+    # each opcode as its exact CS2VM host-request kind.
     6220: (0, 0, 1, 0),  # SAFEAREA_GETMINX -> value
     6221: (0, 0, 1, 0),  # SAFEAREA_GETMINY -> value
     6222: (0, 0, 1, 0),  # SAFEAREA_GETMAXX -> value
@@ -149,17 +165,17 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     3316: (0, 0, 1, 0),  # STAFFMODLEVEL -> staff rights level (stub: 0)
     3323: (0, 0, 1, 0),  # PLAYERMOD -> is-player-moderator bool (stub: 0)
     3324: (0, 0, 1, 0),  # WORLDFLAGS -> world flag bits (stub: 0)
-    # Minimap zoom (7250..7254). Dedicated dispatch in cs2vm2.c forwards them to
-    # the host (CS2VM_HOST_REQUEST_MINIMAP), so they never reach StackMetaStub —
-    # these document the contracts. Setters pop one value; GETZOOM pushes the zoom
-    # (polled by toplevel cc_setontimer scripts, 7052).
+    # Minimap zoom (7250..7254). Dedicated dispatch in cs2vm2.c forwards each
+    # opcode as its exact CS2VM host-request kind, so they never reach
+    # StackMetaStub — these document the contracts. Setters pop one value;
+    # GETZOOM pushes the zoom (polled by toplevel cc_setontimer scripts, 7052).
     7250: (1, 0, 0, 0),  # MINIMAP_SETZOOMABLE(flag)
     7252: (1, 0, 0, 0),  # MINIMAP_SETZOOM(zoom)
     7253: (0, 0, 1, 0),  # MINIMAP_GETZOOM -> zoom (2..8)
     7254: (1, 0, 0, 0),  # MINIMAP_SETICONZOOMLIMIT(limit)
     # MINIMENU_* (7100..7110): mouseover / right-click-menu queries, all no-arg
-    # getters. Dedicated dispatch in cs2vm2.c forwards them to the host
-    # (CS2VM_HOST_REQUEST_MINIMENU), so they never reach StackMetaStub — these just
+    # getters. Dedicated dispatch in cs2vm2.c forwards each opcode as its exact
+    # CS2VM host-request kind, so they never reach StackMetaStub — these just
     # document the contracts. MINIMENU_ENTRY pushes two strings (option, target);
     # the rest push one int (a bool for the FIND*/ISOPEN queries).
     7100: (0, 0, 1, 0),  # MINIMENU_TYPE:          -> 1 int (hovered target type)
@@ -350,9 +366,9 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     5630: (0, 0, 0, 0),
     # HIGHLIGHT_LOC_* (7011..7014): scene-object highlight family, keyed by
     # (locTypeId, coordPacked, slot, group). Dedicated dispatch in cs2vm2.c
-    # forwards them to the host (CS2VM_HOST_REQUEST_HIGHLIGHT, stubbed for now), so
-    # these never reach StackMetaStub — the entries just document the real
-    # contracts. See CS2VM2_Op_Highlight.
+    # forwards each opcode as its exact CS2VM host-request kind (stubbed for
+    # now), so these never reach StackMetaStub — the entries just document the
+    # real contracts. See CS2VM2_Op_Highlight.
     7011: (4, 0, 0, 0),  # HIGHLIGHT_LOC_ON:   pop 4
     7012: (4, 0, 0, 0),  # HIGHLIGHT_LOC_OFF:  pop 4
     7013: (4, 0, 1, 0),  # HIGHLIGHT_LOC_GET:  pop 4 -> bool
@@ -385,11 +401,11 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     3134: (0, 0, 0, 0),  # MOBILE_OPENSTORE: no args, no-op (marked known)
     3135: (2, 0, 0, 0),  # MOBILE_OPENSTORECATEGORY: pop 2 ints, discard
     # Audio volume (3203..3208) + client/game/device options (3209..3217).
-    # Dedicated dispatch in cs2vm2.c forwards them to the host
-    # (CS2VM_HOST_REQUEST_CLIENT_OPTION), so they never reach StackMetaStub — these
-    # document the contracts. Volume setters take just a value; the OPTION families
-    # are keyed by an option id (SET pops id+value, GET pops id, GETRANGE pops id
-    # and pushes min+max).
+    # Dedicated dispatch in cs2vm2.c forwards each opcode as its exact CS2VM
+    # host-request kind, so they never reach StackMetaStub — these document the
+    # contracts. Volume setters take just a value; the OPTION families are keyed
+    # by an option id (SET pops id+value, GET pops id, GETRANGE pops id and pushes
+    # min+max).
     3203: (1, 0, 0, 0),  # SETVOLUMEMUSIC(value)
     3204: (0, 0, 1, 0),  # GETVOLUMEMUSIC -> value
     3205: (1, 0, 0, 0),  # SETVOLUMESOUNDS(value)
@@ -405,8 +421,8 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     3217: (1, 0, 2, 0),  # DEVICEOPTION_GETRANGE(id) -> min, max
     # CLIENTOP_* (6700..6709): enhanced client-side context-menu hooks. SET pops
     # (slot, scriptId) + string label; DEL pops slot. Dedicated dispatch in
-    # cs2vm2.c forwards them to the host (CS2VM_HOST_REQUEST_CLIENTOP, stubbed),
-    # so they never reach StackMetaStub — these document the contracts.
+    # cs2vm2.c forwards each opcode as its exact CS2VM host-request kind
+    # (stubbed), so they never reach StackMetaStub — these document the contracts.
     6700: (2, 1, 0, 0),  # CLIENTOP_NPC_SET(slot, scriptId) + label
     6701: (1, 0, 0, 0),  # CLIENTOP_NPC_DEL(slot)
     6702: (2, 1, 0, 0),  # CLIENTOP_LOC_SET(slot, scriptId) + label
@@ -521,7 +537,12 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
 #      blind; each needs its own witness before it moves.
 BRIDGE_CONFLICTS_OK: dict[int, tuple[int, int, int, int]] = {
     102: (1, 0, 0, 0),   # cc_deleteall
-    202: (1, 0, 1, 0),   # _203 (id 202 in that table's naming)
+    # (d) rows the reference decompile settles against the vendored table.
+    #     `ScriptRunnerImpl_7200To7299.cpp` pops the slot in both
+    #     GetScriptedOverlayIndex forms; the vendored (0 in) would read
+    #     whatever the script left below it and answer about the wrong slot.
+    7205: (0, 0, 1, 0),  # OVERLAY_NPC_GET -- pops the slot
+    7208: (0, 0, 1, 0),  # OVERLAY_PLAYER_GET -- pops the slot
     1006: (1, 0, 0, 0),  # cc_setnoscrollthrough
     1100: (2, 0, 0, 0),  # cc_setscrollpos
     1104: (1, 0, 0, 0),  # cc_setlinewid
@@ -689,6 +710,12 @@ def parse_meta_names() -> dict[int, str]:
 
 
 def heuristic(name: str) -> tuple[int, int, int, int] | None:
+    # These commands have no dedicated VM handler. Their established compiler
+    # signatures already populated the checked-in table as inherited (2).
+    # A later name must not turn a SET*/OC_* name guess into authoritative arity.
+    if name in {"CC_SETHTTPSPRITE", "CC_SETLOCMODEL", "IF_SETLOCMODEL",
+                "IF_SETNPCMODEL", "STOCKMARKET_VALUE", "OC_GETOPBASE", "OC_GETOP"}:
+        return None
     if name in ("POP_VAR", "POP_VARBIT"):
         return (1, 0, 0, 0)
     if name == "DEFINE_ARRAY":

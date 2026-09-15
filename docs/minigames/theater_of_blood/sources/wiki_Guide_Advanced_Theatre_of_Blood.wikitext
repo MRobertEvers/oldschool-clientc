@@ -1,0 +1,348 @@
+{{Guide}}
+<!-- Add guide content below this line -->
+
+== Advanced ToB Strategies ==
+Non-exhaustive strategies at Theatre of Blood bosses for those wanting to push their gameplay and get into more efficient ToB. Much of this information is copy-pasted from GM30, Max eff moneys, Flash's Hideout, and We Do Raids. 
+It is highly recommended you are familiar with [[game ticks]], [[attack speed]], and [[true tile]] to become fully comfortable with these methods.
+
+'''General Tips'''
+* Always [[super combat potion|potted]], all the time. If you are brewed down, pot back up. If you are drained, pot.
+* 100% thrall uptime.
+* Take your Venges. If possible, take them off-prayer for more damage.
+* Eat hardfood when attack cooldown is negligible e.g. Verzik P1 -> P2 or Sote maze. If emergency healing, combo eat, then [[Guide:Advanced_Theatre_of_Blood#How_to_Brew+Supercombat_Pot_(BSCP)|BSCP]]
+* If you are at the gate, it is presumed you are ready, and vice-versa. Spam click it to enter on-tick with everyone else.
+* Standard order is SFRZ, MFRZ, RDPS, MDPS 1, MDPS 2. In smaller scales, remove MDPS 2 first, then MFRZ. In duos, split as Ranger/Mager. In solos, good luck.
+
+== Plugins ==
+Never required but ''highly'' recommended, the following plugins are a standard baseline for easier efficient ToB'ing.
+
+==== [https://runelite.net/plugin-hub/show/tobqol ToB QoL] ====
+
+'''General'''
+
+''Optionally enable'' loot/salve/gear/spellbook/ammo reminders
+
+'''Maiden'''
+
+''Enable'' Display Crabs Health
+
+'''Bloat'''
+
+''Enable'' Hide Ceiling Chains
+
+'''Nylo'''
+
+''Enable'' Pillar HP, Recolor Menu, Recolor Bigs Darker, Instance Timer
+
+''Optionally Enable'' Hide Objects
+
+'''Sotetseg'''
+
+''Enable'' Instance Timer, Hide white screen
+
+''Optionally Enable'' Projectile Theme
+
+'''Xarpus'''
+
+''Enable'' Instance timers
+
+'''Verzik'''
+
+''Enable'' Reds Health Overlay, Mark Tornadoes
+
+==== [https://runelite.net/plugin-hub/show/nyloer Nyloer] ====
+
+''Disable'' Show Nylocas Symbol
+
+''Enable'' Show Nylocas Wave, Split Prefix (s)
+
+Use the role selector in the plugin sidepanel to easily set custom menu swaps for click priority on your role's nylo! 
+
+==== [https://runelite.net/plugin-hub/show/tob-utilities ToB Utilities] ==== 
+
+'''Maiden'''
+
+''Optionally Enable'' Maiden Scuff Warning
+
+'''Bloat'''
+
+''Enable'' Hide Self, Hide Others, Outline Players, Hide Floor
+
+'''Nylo'''
+
+''Enable'' Highlight aggressive syylos
+
+'''Verzik'''
+
+''Enable'' Hide Verzik and Hotkey, Dawnbringer Overlay and Party Integration
+
+==== Misc ====
+[https://runelite.net/plugin-hub/show/tob-qol-improvements ToB QoL Improvements]
+
+[https://runelite.net/plugin-hub/show/advanced-raid-tracker advanced raid tracker]
+
+[https://runelite.net/plugin-hub/show/tob-mistake-tracker Tob mistake tracker]
+
+Tob drop chance
+
+Tob damage counter
+
+== Maiden ==
+=== Draining and Bow Flicking ===
+Maiden has a chance to drain the combat stats of your highest attack bonus. Bow flicking (not necessarily a bow) is when you swap to a different style so that maiden drains a different stat instead of your melee stats. Since Maiden attacks on a 10-tick cycle this is as simple as equipping your ranged weapon after every 2 scythe swings then re-equipping your scythe as soon as Maidens attack animation begins.
+
+The minimum swaps required will depend on your gear, but some common swaps are listed below:
+
+<u>Blood fury:</u>
+Single way Twisted Bow | 
+Single way ZCB | 
+Single way Black chinchompa | 
+Single way Tonalztics of Ralos
+
+<u>Rancour:</u>
+Twisted Bow + Anguish | 
+Twisted Bow + Salve amulet (e) |
+Single way ZCB |
+Black chinchompa + Buckler |
+Twisted Bow + Void gloves |
+Single way Tonalztics of Ralos
+
+Additional notes:
+You should always repot with a regular super combat if you ever get drained at maiden. 
+When ranging in 4s you should repot a ranged dose before chinning if you have been drained.
+When ranging in 5s you should be south of maiden to avoid getting drained excessively before chinning 50s.
+
+=== Stacking and Cross Freezing ===
+==== Stacking ====
+Stacking is when we freeze the 50s nylos on top of the old 70s nylos, then kill them all together. We do this by staying on boss as the freezers deal with 70s, often using ZCB/claw/DPS specs to push the 50s proc. We deal damage to the various 70s/50s with a Dinh's Bulwark and let freezers freeze the clump to death. 
+
+Dinh's Bulwark has a special attack, Shield Bash, which hits up to 10 enemies in an 11×11 area around the player. This is one of the most efficient methods for quickly damaging crabs when stacking to prevent leaks. The targeted NPC is hit twice by the attack, while all other monsters are hit once. When using Dinh's special attack, it is important to target the newest or highest HP crab in the stack to maximize the double hit. This is usually the second crab in the stack. MAKE SURE YOUR DINHS IS NOT ON DEFENSIVE.
+
+==== Crossfreezing ====
+This method of freezing is better than normal freezing when stacking. Both magers need to change their playstyle for this method, so make sure to confirm with your other mager before entering the raid that you want to crossfreeze.
+
+Typically, NFRZ takes N1234 and SFRZ takes S12. Instead, both magers will now swap who freezes N1 and S1:
+
+* Nfrz will first freeze S1 1st tick, then N234.
+* Sfrz will freeze N1 1 tick after it spawns, then S2 into the clump.
+
+Why is this better?
+The N1 being frozen 1 tick later allows it to be within range of the dinh's spec that happens on N2. This is why it's important for N1 to be frozen 1 tick late by the SFRZ.
+Make sure to crossfreeze all spawns during maiden to keep it consistent.
+
+In 4s, there may not be a S1 and/or N1 spawn, in which case the following applies.
+
+NFRZ if no S1 to freeze:
+* On 70s: Freeze maiden
+* NFRZ On 50s and 30s: Freeze the clump
+
+SFRZ if no N1 to freeze:
+* On 70s: Insta-freeze N2
+* NFRZ On 50s and 30s: Freeze the clump
+
+=== Ice Rush ===
+Usually performed in lower scales and/or solo freeze scenarios. The mager instantly Ice Rushes S2 while DPS roles scythe/claw spec N1 and/or S1, then proceeds to Ice Barrage N234 as normal. This lets S2 join the clump because of shorter freeze duration when 4s get frozen.
+
+=== SBS freezing ===
+Very difficult I'm not even gonna try explaining here. Requires SBS and manual-cast freezing in the same tick, repeatedly. If SFRZ, you can 'preload' SBS to catch S1 easily and just try to get S2. NFRZ must be tick-perfect on all crabs as usual. https://www.youtube.com/watch?v=DTzzl1QTh9E
+
+== Bloat ==
+=== Pre-Firing ===
+Allows you to hit bloat with a ranged/magic weapon while he is walking before he downs
+You get 3 risk-free pre-fires (no chance of turning) at the start of the room. Every pre-fire after you risk turning (unless you know the down mechanics very well but there are feet falling so riskier.) 
+Low reward for looking extremely frickin cool.
+
+=== Flinches === 
+Allow you to chally after avoiding the bloat stomp. Always guarantees at least 1 fly. If everyone challys, 1 fly per person and it bounces.
+
+=== Phoenix Necklace Usage (PNecking) ===
+SBS/Humidify and Phoenix Necklaces are used in conjunction to stall fly damage and consequentially proc Phoenix Necklace to both
+regenerate health and void other flies while hitting Bloat. This is often used to try to get 1-downs in normal TOB for speed times. 
+The role generally falls under MDPS due to their higher inventory space. Not generally used for regular raids.
+
+== Nylo ==
+test
+
+== Sotetseg ==
+=== Death Ball Tick Eat ===
+If everyone is low health, you may choose to tick-eat the death ball. Any food will suffice, but consider that hard food
+cannot tick-eat if you are full health. Guthix Rest and Brews however, may be eaten at any time if you are below their overheal threshold.
+There's not a real reason to tick eat if everyone is full health however, besides doing a CA or just trying to impress your raider friends (don't plank!).
+To tick eat the Death Ball, either tick-eat on when the ball is "inside of you" or just sitting on your shoulders. Or when Sote does his 2nd head bob.
+The head bob is more consistent, as if you are standing a further or closer distance away from Sote, the death ball animation will proc regardless due
+to the projectile speed change.
+
+=== Fast Maze === 
+Method to do the maze as fast as possible. To do Sote Maze as fast as possible, you do "L" and diagonal movements when possible.
+If you are the runner in Sote Maze, you can do 2 tiles of movement on the path on any diagnonal, but only certain "L" movements.
+The reason being is because player pathing is done first in a cardinal direction, and then diagonal. This applies even to running,
+so therefore any L-movement in the maze that goes diagonal first, and then in a cardinal direction is a ragged tile, as the player steps off the path.
+Sote Maze Trainer https://devqhp.github.io/osrs/sotetseg/
+
+=== Off on 3 === 
+Long story short, you can consistently step off the maze from anywhere on the second last row no matter where the path leads. There are some rules to this though, and to explain the rules I'm going to have to go mechanically in-depth. 
+
+The maze is on a ⁠cycle (or instance timer). Every 4 ticks (on 0) the game checks whether there are still people on the maze. If there aren't, it despawns and the next sote phase starts. By clicking off the maze on 3 (assuming nobody else is lagging behind), you'll be off the maze on tick 0. This is the tick the maze can despawn, and any rag damage gets nulled by the maze despawning. You can use the instance timer plugin for this timing.
+
+There's a few "rules" (rather etiquette) that people should hold themselves to. First off, you can only click off on 3 when you're on the 2nd last row of the maze. If you're further, clicking on 3 wont take you off the maze on the next tick - thus not despawning the maze.
+
+Next, when you're chosen don't just run off the maze without finishing the end. There is one exclusive way that's ok; stepping on the 2nd last row and skipping the final row, indicating to your team that they should off on 3. Getting off on 3 is a good default with no downsides other than maybe looking silly. Nonetheless, the chosen one should never step on the wrong tiles in the final row, even though their team should off on 3 and not take damage anyway. 
+
+When someone falls behind during the maze and cannot make it to the 2nd last row on tick 3, you need to wait for them or just follow the actual path off the maze. If you off on 3 anyway you'll rag and take/deal unnecessary, preventable damage. Sometimes this is hard to read (when it's close) and in those cases you'll probably want to get off rather than wait. 
+
+=== Maze Skip ===
+You may skip the maze by red-Xing a dropped item and equipping a PNeck while using a stall (generally SBS).
+Unless everyone does this, you will most likely kill your teammates.
+
+== Xarpus ==
+=== 5t vs. 5.3t ===
+This will be a quick explanation of how to 5 tick Xarpus.
+
+What we mean by 5 ticking Xarpus is to use your scythe at a 5 tick rate - which is its base attack speed. The more noob-friendly method for Xarpus is to 5.3t aka 4t. These two are the same method, named from a different perspective.
+
+4t: you step back every 4 ticks, based on Xarpus' attack speed.
+5.3t: by doing the above, you lose 1 tick every 3 attacks. As such, your scythe essentially becomes a 5.3t weapon. We don't want this. 
+
+So how do we 5t? It basically comes down to knowing your attack cycle. Once you learn how to 4t Xarpus, you'll notice that your scythe will "miss a hit" once in a while. We're going to eliminate that missed hit, but in order to do so we first need to be able to identify when that missed hit occurs.
+
+If you pay a bit more attention while 4 ticking Xarpus, you'll see that there is a cycle to your scythe attacks. 
+# you swing while running in
+# you swing after moving close
+# you swing while running away
+# you "miss a hit"
+
+Step 3) is the most important to be able to recognize. You can base your next move off of seeing your scythe swing while moving away. Now that we are able to identify the missed hit, we can solve the problem. On 4), you would normally step back the same tick as your scythe comes off cooldown, which causes you to cancel the attack. As a solution we could (instead of moving back) let our scythe go off and intentionally rag a front tile. This is not as bad as it sounds, as long as you choose your rag tiles carefully and ideally re-use the same tile multiple times.
+
+So, proper 5 ticking would go:
+# you swing while running in
+# you swing after moving close
+# you swing while running away
+# you rag to win a tick
+
+In practice it can be difficult to get used to, but at the same time this is one of the first things you should master while learning max eff. Losing ticks = bad, and the difference between 5.3t and 5t is more than a full scythe attack per Xarpus.
+
+=== 22121 ===
+When xarpus screeches, he turns from a 4 tick to an 8 tick monster. As we all know, he no longer spits acid at this point but rather turns his gaze at this 8 tick "attack speed". Going forward I will be referring to the screech phase as p3 (or p3 xarp when used out of context).
+
+22121 is the method that describes how many scythes you can do each time he turns. 2 scythes, turn, 2 scythes, turn, 1 scythe, turn, 2 scythes, turn, 1 scythe, turn, and then the cycle repeats.
+
+However, that's not all. You see, based on when in your ⁠5t cycle p3 procs, the 22121 cycle starts at a different point. What I'm saying is, instead of starting at the first 2 in 22121, it might start anywhere else in this cycle 22121, 22121, etc.
+
+In order to perform this method, you need to be able to identify where you are in this cycle at the start of p3. So how do we do this? Well, you can derive it from the 1) 2) 3) 4) cycles which I explained in ⁠5t.
+
+As such there are 4 situations (really only 3 but I'll get to that); 
+# you see the screech on 1)
+# you see the screech on 2)
+# you see the screech on 3)
+# you see the screech on 4)
+
+== Verzik ==
+=== P1 ===
+Buncha tick schedules for efficient P1. HATO/RATO/etc. Involves complex and in-depth tick schedules to optimize spec energy and damage from scythes. The guide above is all you need.
+
+Pre-fires: You may get an initial ranged/magic hit before you arrive at Verzik and lose no ticks. Pretty inconsequential damage-wise (see P1 Damage Calc)
+
+=== P2 ===
+Mid SBS: You can SBS during the P2 scythe walk if done correctly. General method is on the step-back you would normally do for your rag hit, instead red-x to a dropped item 2 tiles away and immediately SBS. You will avoid a cabbage naturally. Spam click Verzik to get in cycle. More useful if you do not have 2 minute thralls. Alternatively, SBSers may just pre-SBS and also SBS on reds spawn.
+
+BOAK: Tile movement cycle used to pop crabs while losing minimal if no ticks at all. This does NOT work unless everyone does it.
+You will risk PK or die if you do it alone.
+Guide is above
+
+=== P3 ===
+P3 BOAK: See above.
+
+Pogtanking: A method of tanking Verzik enrage phase (5t) while not losing ticks on scythe, and avoiding tornados.
+
+Pogwebs: A method of getting into pogtanking if you proc enrage phase (tornados) during webs.
+
+Pogtanking/webbing is particularly useful and important in HMTs, as Verzik's enrage lasts much longer than normal tob, and often times you can kill Verzik before yellows and greenball, skipping many of HMT Verzik's hardest
+mechanics entirely.
+
+== Resources ==
+=== How to Brew+Supercombat Pot (BSCP) ===
+If you need to know why, check out scythe math below. Brew + SCP is used to heal while not losing damage at Verzik mainly.
+
+General method is:
+Scythe Hits -> Sip Brew
+A tick before your scythe comes off cooldown, sip a SCP and click boss.
+
+You will lose no unpotted ticks using this method, and you will save 18% damage on P3 Verzik for each saved brewed down scythe hit.
+If you have all scythes, you will usually get through Verzik by using 1 SCP and 1 Brew.
+If you are raiding with learners or don't have a scythe, it is then recommended to have 2 SCP and 2 Brews entering Verzik. 
+That will probably be a bigger DPS increase than any gear upgrade you could buy except scythe.
+
+Whips/4t weapons should also be able to Brew+SCP with no unpotted ticks, however you will have to SCP and click boss on the same tick.
+
+=== How to Spellbook Swap (SBSing) ===
+Spellbook Swap (SBS) is used at TOB to allow additional access to Vengenance in contrasts to just Thralls and Death charge for normal Arceuus spellbook. Vengeances contribute a considerable damage boost to the raid if used properly.
+SBS requires 6 types of runes, and therefore 2 additional spaces in the inventory. The runes needed are:
+Aethers
+Death
+Blood
+Lava
+Laws
+Astral
+I generally like to have rune pouch containing Aethers, Blood, Lava, Death + Laws & Astrals outside of inventory.
+You will be on the Lunar spellbook for SBS.
+Make sure to set up SBS left-click as Arceuus using Menu Entry Swapper.
+
+You will always SBS between rooms. Remember that you must thrall within the room, as thralls cannot cross the barrier.
+Always venge off cool-down, and venge your other teammates when possible. Timer plugins or venge reminders will help with this.
+Remember take your off-prayer venge, otherwise Venge does not really do anything. However, only take venges if you feel confident that you will not die, and know that you are below the max-hit.
+The wiki has a comprehensive list of all the max-hits you may take, so reference it as you can.
+It is never worth to venge if you risk dying during the boss. The purple chance and loss of DPS is significant.
+
+=== Scythe Math ===
+Understanding some scythe math may help you understand why certain gear or being potted/etc. will significantly impact your damage across the raid. 
+As stated previously, being potted, learning brew+SCP, and not losing ticks is the most consequential damage increase than any gear that you can buy (besides scythe).
+
+Some of this math also applies to other weapons, albeit not as drastic as scythe.
+
+Let's recap on how scythe works. The scythe does an additional hit-splat on an enemy for each size larger than 1x1 up to max of 3x3.
+Each hit-splat past the first is reduced by 50% rounded down. So a normal max-hit of 50 on a 3x3 is calculated as such.
+50 + 25 + 12 = 87
+This is the current max-hit in BIS gear (not including salve/slayer).
+You may notice that for multiple of 2 on the main max hit, the second max hit will go up by 1, effectively giving 2 max hits.
+e.g.
+49 + 24 + 12 = 85 -> 50 + 25 + 12 = 87
+Same with a multiple of 4 on the main max hit, the second and the third max hit will go up by 1, effectively giving a max hit of 3.
+e.g.
+47 + 23 + 11 = 81 -> 48 + 24 + 12 = 84
+This makes scythe have certain STR bonus thresholds important for offering much more damage.
+A main 48 max hit is a often minimum in many raiding discords. It may also be in your interest to delay a scythe rebuild 
+until you can reach a 48 main hit threshold.
+
+Some other interesting and common situations for your scythe damage: (Assumes Regular Defense Drain) (DPS assumed on P3 Verzik)
+SCP + Piety + BIS Scythe Max Hit (ATK/STR 118)
+50 + 25 + 12 = 87 | DPS: 11.81
+
+1 Brew Sipped (ATK/STR 105):
+45 + 22 + 11 = 78 | DPS: 10.32
+-11-18% damage throughout the raid (fluctuations based on accuracy)
+
+Not being potted (ATK/STR 99):
+42 + 21 + 10 = 73 | DPS: 9.5
+-19-30% damage throughout the raid
+
+2 Brews Sipped (ATK/STR 93):
+40 + 20 + 10 = 70 | DPS: 8.96
+-25-41% damage throughout the raid
+
+3 Brews Sipped (worse than a whip!) (ATK/STR 82)
+36 + 18 + 9 = 63 | DPS: 7.77
+-38-71% damage throughout the raid
+
+4 Brews Sipped (im planking!!!) (ATK/STR 72)
+32 + 16 + 8 = 56 | DPS: 6.6
+-55-115% damage throughout the raid
+
+SCP + Piety + BIS + 80 Attack (ATK/STR 80/118)
+DPS: 10.63
+-0-11% damage throughout the raid
+(Because of drained defense, the only bosses that change are Verzik and Sote!)
+
+If you're looking for gear upgrades, consider that you may want to prioritize your melee/scythe gear over role specific upgrades. 
+Sometimes spending 50m on inferno supplies to get your cape is a better TOB upgrade than getting Torva helm/Avernic treads (hint hint wink wink).
+But also consider that spending some time in entry-mode and working on getting better at not losing ticks, always being potted, and be willing to improve will likely
+get you more damage than any gear upgrade.

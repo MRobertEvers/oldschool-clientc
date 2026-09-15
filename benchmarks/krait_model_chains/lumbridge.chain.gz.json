@@ -1,0 +1,16 @@
+{
+  "scene": "lumbridge",
+  "serial": "T062809L3Z",
+  "environment": {
+    "TORIRS_PLUGINS": "0",
+    "TORIRS_PERF": "0",
+    "TORIRS_GLES2_DUALCORE": "0",
+    "TORIRS_WORLD_MAP": "50,50;51,50;50,51;51,51",
+    "TORIRS_WEDGE_CAM": "2880,-2000,2368,450,0",
+    "TORIRS_MODEL_CHAIN_CAPTURE": "/sdcard/Android/data/com.torirs.client/files/model-chain.bin",
+    "TORIRS_MODEL_CHAIN_FIRST_PASS": "120",
+    "TORIRS_MODEL_CHAIN_PASSES": "4"
+  },
+  "bytes": 7985920,
+  "sha256": "23d5d6b81ed9d6b59eaeb8447f0e7f69d667510eab58a7483b3080ede3c6104e"
+}

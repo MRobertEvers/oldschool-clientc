@@ -40,23 +40,23 @@ int g_toridraw_raster_scanline = 0;
 // clang-format off
 #include "graphics/shared_tables.c"
 
-#include "graphics/raster/flat/flat.screen.opaque.branching.s4.c"
-#include "graphics/raster/flat/flat.screen.alpha.branching.s4.c"
-#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c"
-#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c"
+#include "impl/raster/flat/raster.flat.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/flat/raster.flat.alpha.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.alpha.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
 
-#include "graphics/projection.u.c"
-#include "graphics/raster/texture/span/tex.span.u.c"
-#include "graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c"
-#include "graphics/raster/texture/texshadeflat.persp.textrans.ordered.lerp8.scanline.u.c"
-#include "graphics/raster/texture/texshadeflat.persp.texopaque.branching.lerp8.u.c"
-#include "graphics/raster/texture/texshadeflat.persp.textrans.branching.lerp8.u.c"
-#include "graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texshadeblend.affine.texopaque.branching.lerp8_v3.u.c"
-#include "graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8_v3.u.c"
+#include "impl/projection/projection.scalar_reference.u.c"
+#include "impl/raster/span/span.tex.dispatch.u.c"
+#include "impl/raster/tex/raster.texshadeflat.perspective.texopaque.nofacealpha.nomodulate.painter.scanline.lerp8.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeflat.perspective.textrans.nofacealpha.nomodulate.painter.scanline.lerp8.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeflat.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeflat.perspective.textrans.nofacealpha.nomodulate.painter.branching.lerp8.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.perspective.textrans.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.affine.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.affine.textrans.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c"
 
-#include "graphics/raster/scanline/scanline.u.c"
+#include "impl/raster/scanline/scanline.dispatch.u.c"
 // clang-format on
 
 #define W 200
@@ -109,19 +109,30 @@ static const struct Tri g_tris[] = {
 
 static int g_fail;
 
+/*
+ * The "nothing drew here" sentinel.
+ *
+ * It has to carry the framebuffer's type and not be a raw literal at each use:
+ * on a 16-bit format 0x00112233 truncates on the way INTO the buffer, and a
+ * comparison against the untruncated literal then reports every untouched
+ * pixel as written. Naming it once makes the fill and the test agree on every
+ * format.
+ */
+#define UNWRITTEN ((toripixel_t)0x00112233)
+
 static void
-buf_reset(int* buf)
+buf_reset(toripixel_t* buf)
 {
     for( int i = 0; i < BUF_LEN; i++ )
-        buf[i] = 0x00112233;
+        buf[i] = UNWRITTEN;
 }
 
 static int
-guard_intact(const int* buf, const char* variant, const char* tri)
+guard_intact(const toripixel_t* buf, const char* variant, const char* tri)
 {
     for( int i = 0; i < GUARD; i++ )
     {
-        if( buf[i] != 0x00112233 || buf[BUF_LEN - 1 - i] != 0x00112233 )
+        if( buf[i] != UNWRITTEN || buf[BUF_LEN - 1 - i] != UNWRITTEN )
         {
             printf("  FAIL %-34s %-22s wrote outside the framebuffer\n", variant, tri);
             g_fail++;
@@ -137,8 +148,8 @@ guard_intact(const int* buf, const char* variant, const char* tri)
  */
 static int
 compare(
-    const int* a,
-    const int* b,
+    const toripixel_t* a,
+    const toripixel_t* b,
     int allow_boundary,
     int* out_total_diff)
 {
@@ -167,8 +178,8 @@ static void
 report(
     const char* variant,
     const struct Tri* tri,
-    const int* ref,
-    const int* got)
+    const toripixel_t* ref,
+    const toripixel_t* got)
 {
     if( !guard_intact(got, variant, tri->name) )
         return;
@@ -201,8 +212,8 @@ static void
 report_coverage(
     const char* variant,
     const struct Tri* tri,
-    const int* a,
-    const int* b)
+    const toripixel_t* a,
+    const toripixel_t* b)
 {
     int bad = 0;
     for( int y = 0; y < H; y++ )
@@ -210,8 +221,8 @@ report_coverage(
         for( int x = 0; x < W; x++ )
         {
             int i = GUARD + y * W + x;
-            int wrote_a = a[i] != 0x00112233;
-            int wrote_b = b[i] != 0x00112233;
+            int wrote_a = a[i] != UNWRITTEN;
+            int wrote_b = b[i] != UNWRITTEN;
             if( wrote_a == wrote_b )
                 continue;
             if( tri->expect_clipped && (x >= W - 2 || x <= 1 || y >= H - 1) )
@@ -230,7 +241,7 @@ report_coverage(
 /* ------------------------------------------------------------------ flat */
 
 static void
-test_flat(int* ref, int* got)
+test_flat(toripixel_t* ref, toripixel_t* got)
 {
     printf("flat.screen.opaque / alpha\n");
 
@@ -261,7 +272,7 @@ test_flat(int* ref, int* got)
 /* --------------------------------------------------- gouraudhsllightness */
 
 static void
-test_gouraudhsllightness(int* ref, int* got)
+test_gouraudhsllightness(toripixel_t* ref, toripixel_t* got)
 {
     printf("gouraudhsllightness.screen.opaque / alpha (bary)\n");
 
@@ -321,16 +332,16 @@ test_gouraudhsllightness_palette_bounds(void)
         ICON_ROW = 16,
         ICON_X = 12,
     };
-    int icon[ICON_W * ICON_H];
+    toripixel_t icon[ICON_W * ICON_H];
     int const high_ish8 = 0x10000 << 8;
     int const low_ish8 = -1;
-    int const high_rgb = g_hsl16_to_rgb_table[0xFFFF];
-    int const low_rgb = g_hsl16_to_rgb_table[0];
+    toripixel_t const high_rgb = g_hsl16_to_pixel_table[0xFFFF];
+    toripixel_t const low_rgb = g_hsl16_to_pixel_table[0];
 
     printf("gouraudhsllightness HSL16 palette bounds (36x32 obj icon tail)\n");
 
-    if( ToriDraw_Hsl16Ish8ToRgb(high_ish8) != high_rgb ||
-        ToriDraw_Hsl16Ish8ToRgb(low_ish8) != low_rgb )
+    if( ToriDraw_Hsl16Ish8ToPixel(high_ish8) != high_rgb ||
+        ToriDraw_Hsl16Ish8ToPixel(low_ish8) != low_rgb )
     {
         printf("  FAIL interpolated HSL16 palette clamp\n");
         g_fail++;
@@ -338,7 +349,7 @@ test_gouraudhsllightness_palette_bounds(void)
     }
 
     for( int i = 0; i < ICON_W * ICON_H; i++ )
-        icon[i] = 0x00112233;
+        icon[i] = UNWRITTEN;
 
     draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip(
         icon,
@@ -400,8 +411,10 @@ static const struct TexVerts g_texverts_flat = {
  * faces they share edges with, which means it cannot be bit-identical to both
  * reference conventions at once.
  */
+
+
 static void
-test_texture_anchor(int* ref, int* got)
+test_texture_anchor(toripixel_t* ref, toripixel_t* got)
 {
     printf("texshadeflat.persp.texopaque.scanline vs branching (exact anchor)\n");
 
@@ -431,7 +444,7 @@ test_texture_anchor(int* ref, int* got)
  *   facealpha(255) == plain        by construction
  */
 static void
-test_texture_chain(int* a, int* b)
+test_texture_chain(toripixel_t* a, toripixel_t* b)
 {
     printf("scanline texture variant chain (gate / shade / space / alpha axes)\n");
 
@@ -506,16 +519,16 @@ static void
 check_facealpha(
     const char* variant,
     const struct Tri* t,
-    const int* opaque_buf,
-    const int* got,
+    const toripixel_t* opaque_buf,
+    const toripixel_t* got,
     int alpha)
 {
     int bad = 0;
     for( int p = 0; p < H * W; p++ )
     {
-        int opaque = opaque_buf[GUARD + p];
-        int expect =
-            (opaque == 0x00112233) ? 0x00112233 : alpha_blend(alpha, 0x00112233, opaque);
+        toripixel_t opaque = opaque_buf[GUARD + p];
+        toripixel_t expect =
+            (opaque == UNWRITTEN) ? UNWRITTEN : alpha_blend(alpha, UNWRITTEN, opaque);
         if( got[GUARD + p] != expect )
             bad++;
     }
@@ -533,7 +546,7 @@ check_facealpha(
 }
 
 static void
-test_texture_facealpha_blend(int* opaque_buf, int* got)
+test_texture_facealpha_blend(toripixel_t* opaque_buf, toripixel_t* got)
 {
     printf("texshade*.facealpha.scanline blend algebra (all gates / spaces)\n");
 
@@ -621,7 +634,7 @@ test_texture_facealpha_blend(int* opaque_buf, int* got)
  * solved from the three input vertices.
  */
 static void
-test_texture_shade_plane(int* got)
+test_texture_shade_plane(toripixel_t* got)
 {
     printf("texshadeblend shade plane vs analytic plane (white texture)\n");
 
@@ -660,14 +673,16 @@ test_texture_shade_plane(int* got)
         {
             for( int x = 0; x < W; x++ )
             {
-                int px = got[GUARD + y * W + x];
-                if( px == 0x00112233 )
+                toripixel_t px = got[GUARD + y * W + x];
+                if( px == UNWRITTEN )
                     continue;
 
                 /* First written pixel of this row: shade is sampled here. */
                 /* shade_blend stores floor(255 * shade8 / 256) per channel, so
-                 * the inverse is a ceiling, not a round. */
-                int channel = px & 0xFF;
+                 * the inverse is a ceiling, not a round. The channel has to be
+                 * read back through the format -- `px & 0xFF` is blue only in
+                 * an ARGB layout, and is the alpha lane in RGBA. */
+                int channel = (int)TORIPIXEL_ARGB_B(toripixel_to_argb8888(px));
                 int shade8 = (channel * 256 + 254) / 255;
 
                 /* The kernel applies a one-step nudge (+kx) to the plane base,
@@ -702,7 +717,18 @@ test_texture_shade_plane(int* got)
      * wrong plane shows up as a large worst-case *and* a large bias, so both
      * are bounded here.
      */
-    if( worst > 4 || mean_abs > 1.5 || bias < -1.0 || bias > 1.0 )
+    /*
+     * The tolerance is an 8-bit-channel tolerance, so the assertion only runs
+     * where the framebuffer has 8-bit channels. On a 16-bit format the shade
+     * comes back through five bits and the residual is dominated by that
+     * quantisation, which would be measuring the FORMAT rather than the
+     * kernel's plane -- the interpolation this checks is identical either way.
+     */
+    if( !TORIPIXEL_LANES_8BIT )
+    {
+        printf("  (skipped: 16-bit channels cannot resolve an 8-bit shade)\n");
+    }
+    else if( worst > 4 || mean_abs > 1.5 || bias < -1.0 || bias > 1.0 )
     {
         printf("  FAIL interpolated shade does not match the analytic plane\n");
         g_fail++;
@@ -770,7 +796,7 @@ test_texture_plane_32bit_normalization(void)
 int
 main(void)
 {
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
     ToriDraw_InitSinTable();
     ToriDraw_InitCosTable();
     ToriDraw_InitTanTable();
@@ -790,8 +816,8 @@ main(void)
         }
     }
 
-    int* ref = malloc(sizeof(int) * BUF_LEN);
-    int* got = malloc(sizeof(int) * BUF_LEN);
+    toripixel_t* ref = malloc(sizeof(*ref) * BUF_LEN);
+    toripixel_t* got = malloc(sizeof(*got) * BUF_LEN);
     assert(ref);
     assert(got);
 

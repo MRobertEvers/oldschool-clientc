@@ -1,0 +1,224 @@
+{{otheruses|the [[miniquest]]|the Arena itself|Mage Arena}}
+{{Has quick guide|mini=1}}
+{{Infobox Miniquest
+|name = Mage Arena II
+|image = [[File:Mage Arena II.png]]
+|release = [[23 November]] [[2017]]
+|update = Mage Arena II, Revenant Caves & Deadman Beta
+|members = Yes
+|series = None
+|developer = [[Mod Jed]]
+}}
+'''Mage Arena II''' is the sequel to [[Mage Arena I|Mage Arena I miniquest]]. Players with level 75 [[Magic]] and the ability to cast [[Saradomin Strike]], [[Flames of Zamorak]], and [[Claws of Guthix]] outside the [[Mage Arena]] can start this [[miniquest]] by talking to [[Kolodion]] in the [[Mage Arena]] bank.
+
+Here, players must defeat three powerful god followers roaming the Wilderness- [[Porazdir]], [[Justiciar Zachariah]], and [[Derwen]]- and collect their remains in order to enhance one of their [[god capes]] upon quest completion. The player is thereafter able to retrieve various imbued capes by bringing just one additional artefact of the representative boss killed to Kolodion. A single remains type will allow the player to imbue each cape affiliate.
+
+==Details==
+{{Quest details
+|start = Speak to [[Kolodion]] at the [[Mage Arena]] bank located in level 53 [[Wilderness]].
+|startmap = 2538,4716
+|difficulty = Master
+|length = Medium
+|requirements = *Completion of [[Mage Arena I]]
+*{{SCP|Magic|75|link=yes}} {{Boostable|no}} {{Questreqstart|yes}}
+*Cast [[Claws of Guthix]], [[Flames of Zamorak]], and [[Saradomin Strike]] each 100 times inside the Mage Arena.
+|kills = [[Porazdir]] (level 235), [[Justiciar Zachariah]] (level 348), and [[Derwen]] (level 235)
+|items = *[[God staves]]
+*Runes to cast [[god spells]] ([[Air rune|air]], [[Fire rune|fire]], and [[Blood rune|blood]])
+*Item to cut webs ([[knife]], [[slash weapon]] or any [[Wilderness sword]])
+|recommended = *{{SCP|Combat|80|link=yes}}
+|description = Can you defeat the followers of the gods?
+|ironman = '''{{Colour|red|Warning:}}''' [[File:Hardcore ironman chat badge.png]] This quest requires travel to the deep, level 56 Wilderness, and can require travel through various multi-combat Wilderness areas as well. Beware of Player-killers at all times.
+|leagueRegion = {{LeagueRegion|Wilderness}} - location requirement
+}}
+
+==Walkthrough==
+===Starting out===
+Head to the broken down house north-west of the [[Mage Arena]] in level 55 [[Wilderness]]. Use a [[knife]] or [[slash weapon]] to cut down the two webs in the house. Once the webs have been cut, pull the lever on the wall to be teleported into a small cave. The cave is a '''safe zone'''; you cannot be attacked by other players inside here.
+
+Speak to [[Kolodion]] about additional challenges. He will tell you that he has been working on a spell that will increase the powers given by your [[god cape]], but the components he requires are difficult for him to obtain. As the spell imbues the power of the three [[gods]], namely [[Saradomin]], [[Zamorak]], and [[Guthix]], he requires the components of three powerful opponents who are each aligned to a god. You will then receive the [[enchanted symbol]]. This acts similar to the [[enchanted key]] and [[strange device]].
+
+===Tracking===
+<!-- this isn't using the regular map template because it's not really possible to do multiple different boundaries in the same map with it, the "geojson" stuff is hugely bloating so is in mapspace and transcluded here-->
+{{Map:God followers spawn locations}}
+
+Before tracking down the followers, it is '''highly recommended''' to set the Player 'Attack' option to "Always right-click" or "Hidden" in the ''Controls'' panel in the [[Options]] interface, as well as enabling "PK Skull Prevention", so you do not accidentally become [[skulled]].
+
+After you have received the [[enchanted symbol]], you can look for the three god followers located within the deep [[Wilderness]], around [[Lava Dragon Isle]]. Most areas will be in [[multi-combat]] zones, so stay cautious! Each use of the symbol can deal up to 16 damage, and can kill the player.
+
+The three god followers can be tracked in any order, as you choose the follower to track with each use of the symbol. Once a follower is defeated, the symbol will no longer track that follower until the miniquest is complete.
+
+The symbol functions similarly to the [[Treasure Trails/Guide/Hot Cold|Hot & Cold]] from Master [[Treasure Trails]]; as the player gets closer to where the follower is residing, the symbol will glow hotter, and the farther you are, the colder it gets.
+
+When the symbol states that it is visibly shaking, the follower will appear and attack you. Since you may run out of food most of the time searching for the followers, try to pinpoint their exact location before returning to a bank to restock on food.
+
+The followers' spawn locations are random and change approximately every 45 minutes. The 45-minute rotation timer only progresses while the player is inside the Wilderness; time spent outside the Wilderness does not count. Spawn rotations are unique for each player, and the player will be notified of a rotation when using the enchanted symbol after the change.
+
+If a follower has already spawned in the location where yours is supposed to spawn, you must either [[World switching|hop worlds]] or wait for it to despawn and use the enchanted symbol again. The currently active follower locations are the same between worlds.
+{{clear}}
+
+===The followers===
+The followers are very powerful monsters, using powered up versions of their respective [[God spell|god spells]] along with powerful melee attacks. All followers can hit up to 43 (26 for Zachariah) with magic, and up to 16 damage (43 for Zachariah) with melee. Protection prayers reduce the accuracy and strength of their attacks.
+
+They can also cast [[Ice Barrage]] and [[Tele Block]]. It is possible to dodge the Ice Barrage attack by stepping off the square you were standing on when the spell was cast. Unlike other players' Tele Block, this only lasts for a minute if Protect from Magic is used, rather than two minutes. The Tele Block effect fades immediately upon killing the monster.
+
+In addition, the followers can only be harmed by their respective god spells, so you must use all three god staves for each of the three followers. Alternatively, using the [[Staff of the Dead|staff of the dead]] (or its [[Toxic staff of the dead|toxic variant]]), the [[staff of light]], or the [[staff of balance]]/[[void knight mace]] to autocast [[Flames of Zamorak]], [[Saradomin Strike]], and [[Claws of Guthix]], respectively, is recommended, as their magic attack bonuses are higher in addition to making the fight slightly easier by allowing the player to autocast god spells.
+
+Each follower also has their own unique ability, making the fight slightly more challenging:
+
+*[[Porazdir]] can launch an energy ball at the player that can hit through protection prayers. The amount of damage it deals is dependent on your distance to him. The farther you are, the less damage it deals. Near him it can hit up to 30, but if the player is at least 12 tiles away from him it will hit 0.
+*[[Justiciar Zachariah]] will occasionally swing his sword, resulting in a blue wave aimed at the player's current tile when it was used. If the player does not move, it drags them to melee distance and binds them in place, where he will also perform melee attacks. Simply move one tile elsewhere from its target tile to avoid the attack.
+*[[Derwen]] can launch energy balls on the ground. They heal him for 5 health every few seconds, and must be destroyed to stop him from healing. Each ball has 20 health. Claws of Guthix is not required to damage or destroy the orbs.
+<gallery captionalign="center" widths="180">
+Fighting Porazdir.png|A player fighting Porazdir, one of Zamorak's most trusted generals.
+Fighting Justiciar Zachariah.png|A player fighting Zachariah, one of the last remaining justiciars of Saradomin.
+Fighting Derwen.png|A player fighting Derwen, an ancient servant of Guthix.
+</gallery>
+
+===Locating the followers===
+The safest method is to do the following for each follower:
+
+1. '''Locate''' a follower using the [[enchanted symbol]] while consuming a cheap food source such as [[wine]] when the symbol deals damage. Bring a [[slash weapon]] to break through webs, [[energy potions]], wine, and a level 30 teleport out of the [[Wilderness]], such as an [[amulet of glory]], [[royal seed pod]], or [[Slayer ring]]. Make note of the location, as you will need to return to it once geared up and restocked on food.
+
+2. '''Leave''' and use the [[Ferox Enclave]] [[Pool of Refreshment]] to reset [[stats]], [[prayers]], and [[HP]]. Next, gear up. This is the ideal time to use stat-boosting potions, cast boost spells, consume overheals, drink a [[stamina]] dose, or use (and bank) an [[imbued heart]].
+
+3. '''Return''' to the location and kill the follower. Take the remains, teleport away, bank your gear, and go to [[Edgeville]]. Note that the remains themselves cannot be banked.
+
+4. '''Hand in''' the follower's remains to [[Kolodion]]. The Edgeville [[Wilderness lever]] teleports you just east of the building with the lever. A '''[[knife]] or a slash weapon is needed''' to break the two webs leading to the Arena bank.
+
+5. '''Repeat''' for the other two.
+
+===Killing the followers===
+As there's a risk of [[player killers]], it's a good strategy to take as few valuable items as possible. Additionally if one of the followers is located directly to the west of Rogues' Castle there is a chance you may also be attacked by the [[Chaos Elemental]] making the fight a lot harder. If this happens it may be worth hunting for another follower and/or wait for the spawn locations to rotate. 
+
+If the followers are not slain quick enough, they will despawn, and you will have to track it again and restart the fight. It's important to kill them quickly and efficiently, and the appropriate tools and gear must be used. The example equipment here shows a viable low-cost [[magic gear]]. Although the followers have a somewhat high Magic level, this is offset with extremely poor magical defence, so it may make sense to opt for a defensive gear, such as [[black dragonhide armour]] instead of [[magic robes]], especially if your [[Magic]] level is high.
+
+====Inventory====
+{{Inventory|align=right
+|1= Stamina_potion%281%29
+|2= Blighted super restore(4)
+|3= Saradomin brew(4)
+|4= Energy potion(4)
+|5= Energy potion(4)
+|6= Enchanted symbol
+|7= Blood rune
+|8= Fire rune
+|9= Air rune
+|10= Ring of recoil
+|11= 
+|12= Wilderness sword 1
+|13= Blighted manta ray
+|14= Blighted manta ray
+|15= Blighted manta ray
+|16= Blighted manta ray
+|17= Blighted manta ray
+|18= Blighted manta ray
+|19= Blighted manta ray
+|20= Blighted manta ray
+|21= Blighted manta ray
+|22= Blighted manta ray
+|23= Blighted manta ray
+|24= Blighted manta ray
+|25= Blighted manta ray
+|26= Blighted manta ray
+|27= Blighted manta ray
+|28= Royal seed pod
+}}
+Your inventory should contain:
+*[[Stamina potion]] and/or [[Energy potion]]s
+*[[Saradomin brew]]s
+*[[Super restore]]s
+*Food ([[sharks]] or better recommended). 
+*[[Enchanted symbol]]
+*A [[knife]] or a [[slash weapon]] (if the target is behind a spider webbed area)
+*50+ casts of the appropriate [[god spell]] (more for [[Derwen]])
+*
+*[[Ring of recoil]] (with one already equipped)
+*An escape teleport. This can be a [[royal seed pod]] or an [[amulet of glory]], as both work at level 30 [[Wilderness]].
+*An [[antipoison]] may be needed for some of the locations. Although the god followers do not inflict poison, [[Poison spider|poison spiders]] may roam in the vicinity of said locations.
+[[Blighted|Blighted supplies]] can be used, and are often significantly cheaper than their standard counterparts.
+
+====Equipment====
+{{Equipment
+| align = right
+| head = Red hat
+| cape = Saradomin cape
+| neck = Amulet of magic
+| ammo = Rada's blessing 2
+| weapon = Saradomin staff
+| torso = Black d'hide body
+| legs = Black d'hide chaps
+| shield = Black d'hide shield
+| gloves = Rune gloves
+| boots = Mystic boots
+| ring = Ring of recoil
+| caption = Low-risk gear
+}}
+
+Even with [[Protect from Magic]], they will still hit hard and accurately, up to 20+. However, their magical defence is extremely weak and not a lot of accuracy is needed to hit on them consistently. Thus, it is recommended to wear [[dragonhide armour]], along with easily replaceable items, such as the [[Culinaromancer's gloves]], the [[book of darkness]] or a [[dragonhide shield]], and a [[god cape]].
+
+At level 80 [[Magic]], casting [[Charge]] will increase the max hit of your god spells from 20 to 30. As Charge lasts for seven minutes, you may choose to cast it before gearing up to start the fight. Boosts such as the [[Ancient brew]] may be used to reach the level requirement. If you need a boost larger than 5, you may use a [[super magic potion]] within a practice dream at the [[Nightmare Zone]] and cast Charge there before heading to the [[Wilderness]].
+
+If possible, use an [[occult necklace]] and [[tormented bracelet]] for their magic damage boost to increase max hits.
+
+If players are assigned a [[black demon]] for their [[Slayer task]], wearing a [[Slayer helmet (i)]] is recommended when fighting [[Porazdir]], as the player's attacks would be more accurate.
+
+Because of the high damage dealt by them, taking at least two [[rings of recoil]] gives 80 free damage over the course of the fight, which can be very helpful.
+
+It is recommended to turn off [[Auto Retaliate]] for all the fights.
+
+====Prayer====
+Use [[Protect from Magic]] and [[Protect Item]]. If [[prayer points]] can be spared (75+ [[Prayer]]), it's also an option to enable a cheap magic accuracy prayer, such as [[Mystic Lore]].
+
+===Finishing up===
+Upon killing [[Justiciar Zachariah]], [[Porazdir]], and [[Derwen]], they'll drop a [[Justiciar's hand]], [[demon's heart]], and [[ent's roots]], respectively. Once you obtain one, run back to [[Kolodion]] so that he can hold it for safekeeping. If your supplies are low, it's best to teleport back to a safe location and restock on food and potions before giving the component to Kolodion. If you're killed, you'll have to kill the follower again.
+
+==Rewards==
+After collecting all three components, return them to Kolodion within the [[Mage Bank]] to complete the miniquest. After you have done so, you will be able to hand a [[god cape]] to Kolodion which he will then [[imbued god cape|imbue]]. To acquire another [[imbued god cape|imbued cape]], the player must either find the corresponding follower to the cape that they wish to upgrade, kill it again for another drop and take it back to Kolodion, or purchase the cape from the [[Lost Property shop]] for {{Coins|250,000}}. It's possible to kill a follower multiple times to obtain extra components (but note that if you speak to Kolodion with duplicates of either of the components in your inventory, he will take all of them and only let you imbue one cape) to obtain more [[imbued god cape]]s.
+
+The [[imbued god cape]], like most untradeable equipment, is automatically protected upon death in dangerous PvM scenarios outside of the [[Wilderness]]. However, should a player die to another player in the Wilderness, the player '''will''' lose the cape, and the killer will receive 60,000 [[coins]] as loot.
+
+==Transcript==
+{{hastranscript|Quest}}
+
+==Gallery==
+<gallery captionalign="center" widths="180">>
+File:Demon's heart detail.png|The [[demon's heart]]
+File:Justiciar's hand detail.png|The [[justiciar's hand]]
+File:Ent's roots detail.png|The [[ent's roots]]
+</gallery>
+
+==Controversy==
+On release, players instead had to kill three god-aligned demons, the [[Demon of Darkness]], [[Demon of Light|Light]], and [[Demon of Balance|Balance]], and claim their hearts to finish the miniquest. However, the miniquest was criticised by players as being rushed and of lower quality than was to be expected from the Old School Team, for several reasons:
+[[File:Mage Arena II - old demon boss.png|thumb|270px|A player fighting the now-removed [[Demon of Light]] with a [[twisted bow]].]]
+*The three bosses were simply three demons recoloured from Kolodion's final form, and all of them had the same set of attacks, except for the god spells they used.
+*The bosses had moderately high offence and defence in magic, making even the use of [[Charge]]d god spells difficult to take them down.
+*Despite the [[Update:Dev Blog: Wilderness Rejuvenation II|original Developer's Blog]] stating that only god spells will harm the demons, the [[twisted bow]] was made an exception, causing the fights to be made much easier due to its [[passive effect]], with players accusing Jagex of going against what was polled.
+*The Demon of Light and Balance contradicted established lore, since demons were followers of Zamorak and were abhorred by Saradominist and Guthixian followers.
+
+Amidst these complaints, Jagex released [[Update:In Retrospect: Wilderness Rejuvenation II & W345|a newspost]] on 20 December stating that they are aware that the content was not up to the players' standards, with the post addressing the issues listed above, among other related content, with an expected rework of the miniquest coming in early 2018.
+
+The miniquest was overhauled with [[Update:PvM QoL updates & Wilderness Rejuvenation improvements|an update]] on [[8 February]] [[2018]], addressing all the issues listed above:
+*The demons were replaced by [[Porazdir]], [[Justiciar Zachariah]], and [[Derwen]], whose appearances are unique and thematically appropriate to their alignment to [[Zamorak]], [[Saradomin]], and [[Guthix]], respectively.
+**Each boss, while having a set of attacks shared between them, has its own unique special attack.
+**Despite their magic offence being almost twice as powerful compared to the original demons, their magic defence was significantly lowered to make up for it.
+*Additional dialogue was added to Kolodion to expand the lore of the new bosses.
+*The effectiveness of the twisted bow against the bosses was removed.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 December 2017
+|update = It's Christmas Time
+|change = The Mage Arena II miniquest is now listed in the correct colour on the quest list.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Upon release, the quest journal stated prior to starting the miniquest "I must be able to defeat multiple level 257 demons", even though only one boss is a demon and is actually level 235. This was corrected in [[Update:Tournament Worlds: Theatre of Blood rewards|an update]] on [[8 March]] [[2018]].
+*Upon release, once players had imbued their first god cape, they could imbue another cape without needing another demon's heart. In addition, casting [[High Level Alchemy]] resulted in receiving 60,000 coins. This was quickly hotfixed, with capes being obtained via this glitch and the ability to alchemise it removed.
+*It is not known if the ability to dodge the [[Ice Barrage]] attack was intended, or whether this is a bug.
+
+{{Mage Arena II}}
+{{Miniquests}}
+[[Category:Jagex controversies]]

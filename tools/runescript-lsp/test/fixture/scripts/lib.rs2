@@ -1,0 +1,10 @@
+// Strings one unstrung bow, and reports whether it worked.
+//
+// The caller has already checked the player is holding both halves.
+[proc,string_bow](obj $unstrung)(boolean $ok)
+if (inv_total(inv, bow_string) < 1) {
+    mes(^dm_default);
+    return(false);
+}
+inv_del(inv, bow_string, 1);
+return(true);

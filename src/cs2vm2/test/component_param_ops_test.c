@@ -44,7 +44,11 @@ struct RecordingHost
 {
     int calls;
     enum CS2VM_HostRequestKind kind;
-    struct CS2VM_HostRequest_CC_ComponentParam param;
+    int component_id;
+    int param_id;
+    int value;
+    char const* str_value;
+    int param_kind;
     /** What the fake host answers a getter with. */
     int answer;
 };
@@ -57,7 +61,22 @@ recording_host_exec(
     struct RecordingHost* host = (struct RecordingHost*)thread->vm->user;
     host->calls++;
     host->kind = request->kind;
-    host->param = request->u.cc_component_param;
+    if( request->kind == CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM )
+    {
+        host->component_id = request->u.CC_SETCOMPONENTPARAM.component_id;
+        host->param_id = request->u.CC_SETCOMPONENTPARAM.param_id;
+        host->value = request->u.CC_SETCOMPONENTPARAM.value;
+        host->str_value = request->u.CC_SETCOMPONENTPARAM.str_value;
+        host->param_kind = request->u.CC_SETCOMPONENTPARAM.kind;
+    }
+    else if( request->kind == CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM )
+    {
+        host->component_id = request->u.CC_GETCOMPONENTPARAM.component_id;
+        host->param_id = request->u.CC_GETCOMPONENTPARAM.param_id;
+        host->value = request->u.CC_GETCOMPONENTPARAM.value;
+        host->str_value = request->u.CC_GETCOMPONENTPARAM.str_value;
+        host->param_kind = request->u.CC_GETCOMPONENTPARAM.kind;
+    }
     if( request->kind == CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM )
         return CS2VM2_PushInt(thread, host->answer);
     return CS2VM_EXECNO_OK;
@@ -150,11 +169,11 @@ main(void)
             &host, CS2_OP_CC_SETCOMPONENTPARAM, 0, pushes, 3, NULL, active, dot, NULL);
         CHECK_INT(host.calls, 1, "setter reaches the host once");
         CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM, "setter kind");
-        CHECK_INT(host.param.param_id, 2365, "setter param id (bottom of the three)");
-        CHECK_INT(host.param.value, 600, "setter value (middle)");
-        CHECK_INT(host.param.kind, 0, "setter kind arg (top)");
-        CHECK_INT(host.param.str_value == NULL, 1, "an int write carries no string");
-        CHECK_INT(host.param.component_id, active, "setter targets the active component");
+        CHECK_INT(host.param_id, 2365, "setter param id (bottom of the three)");
+        CHECK_INT(host.value, 600, "setter value (middle)");
+        CHECK_INT(host.param_kind, 0, "setter kind arg (top)");
+        CHECK_INT(host.str_value == NULL, 1, "an int write carries no string");
+        CHECK_INT(host.component_id, active, "setter targets the active component");
     }
 
     /* String setter, as script 9581 pc 109..112 assembles it: push param,
@@ -176,13 +195,13 @@ main(void)
             active,
             dot,
             &top);
-        CHECK_INT(host.param.param_id, 1017, "string write takes the param id");
-        CHECK_INT(host.param.kind, 2, "string write carries kind 2");
+        CHECK_INT(host.param_id, 1017, "string write takes the param id");
+        CHECK_INT(host.param_kind, 2, "string write carries kind 2");
         CHECK_INT(
-            host.param.str_value && strcmp(host.param.str_value, "Bank of Gielinor") == 0,
+            host.str_value && strcmp(host.str_value, "Bank of Gielinor") == 0,
             1,
             "string write carries the string");
-        CHECK_INT(host.param.component_id, dot, "operand 1 targets the dot component");
+        CHECK_INT(host.component_id, dot, "operand 1 targets the dot component");
         CHECK_INT(top, -2, "the int under a string write is left alone");
     }
 
@@ -196,8 +215,8 @@ main(void)
         run_op(&host, CS2_OP_CC_GETCOMPONENTPARAM, 0, pushes, 1, NULL, active, dot, &top);
         CHECK_INT(host.calls, 1, "getter reaches the host once");
         CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM, "getter kind");
-        CHECK_INT(host.param.param_id, 2557, "getter param id");
-        CHECK_INT(host.param.component_id, active, "getter targets the active component");
+        CHECK_INT(host.param_id, 2557, "getter param id");
+        CHECK_INT(host.component_id, active, "getter targets the active component");
         CHECK_INT(top, -1, "getter pushes the host's answer");
     }
 

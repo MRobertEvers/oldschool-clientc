@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Dat1 loc configs. "loc.dat" holds variable-length entries and "loc.idx" the
@@ -50,7 +51,7 @@ Task_Dat1LocLoad_Run(
         config_jagfile = RSCache_IO_Dat1ConfigJagfileDecode(io, 0);
         if( !config_jagfile )
         {
-            fprintf(stderr, "Failed to decode dat1 config jagfile for loc %d\n", task->loc_id);
+            TORIRS_ERR("Failed to decode dat1 config jagfile for loc %d\n", task->loc_id);
             PT_EXIT(&task->pt);
         }
 
@@ -60,14 +61,12 @@ Task_Dat1LocLoad_Run(
     loc_index = dat1_buildcache_get_loc_index(task->bc);
     if( !loc_index )
     {
-        fprintf(stderr, "dat1 loc: loc.dat/loc.idx missing from the config jagfile\n");
+        TORIRS_ERR("dat1 loc: loc.dat/loc.idx missing from the config jagfile\n");
         PT_EXIT(&task->pt);
     }
     if( task->loc_id < 0 || task->loc_id >= loc_index->offset_count )
     {
-        fprintf(
-            stderr,
-            "dat1 loc %d out of range (%d entries)\n",
+        TORIRS_LOG("dat1 loc %d out of range (%d entries)\n",
             task->loc_id,
             loc_index->offset_count);
         PT_EXIT(&task->pt);
@@ -91,7 +90,7 @@ Task_Dat1LocLoad_Run(
     RSCache_Dat2ConfigLocFreeInplace(&decoded);
     if( !torirs_loc )
     {
-        fprintf(stderr, "Failed to convert dat1 loc %d\n", task->loc_id);
+        TORIRS_ERR("Failed to convert dat1 loc %d\n", task->loc_id);
         PT_EXIT(&task->pt);
     }
 

@@ -1,0 +1,172 @@
+{{external|rs|rsc=Glider}}
+{{Infobox Scenery
+|version1 = Standard
+|version2 = Military, Deactivated
+|version3 = Military, Activated
+|name1 = Gnome glider
+|name2 = Gnome Glider
+|name3 = Gnome Glider
+|image1 = [[File:Gnome glider.png|240px]]
+|image2 = [[File:Gnome glider (deactivated).png|240px]]
+|image3 = [[File:Gnome glider (activated).png|240px]]
+|release1 = [[12 December]] [[2002]]
+|release2 = [[6 December]] [[2004]]
+|release3 = [[6 December]] [[2004]]
+|update1 = Agility skill online
+|update2 = Monkey Madness
+|update3 = Monkey Madness
+|members = Yes
+|quest = [[The Grand Tree]]
+|location = Varies
+|options = None
+|examine1 = Fly Gnome Air.
+|examine2 = It's a deactivated military Gnome glider.
+|examine3 = It's an activated military Gnome glider.
+|map = No
+|id1 = 187,5825
+|id2 = 4866
+|id3 = 4867
+}}
+'''Gnome gliders''' are a method of [[transportation]] available after completing [[The Grand Tree]] [[quest]]. They can fly to many locations and can be used in combination with [[Teleportation spells|teleport spells]], [[spirit tree]]s, and the [[fairy ring]] network to quickly travel across [[Gielinor]].
+
+The fastest way to access the glider network is by either taking the [[royal seed pod]] and climbing up to the top floor with the right-click option (requiring [[Monkey Madness II]], takes approximately 10 seconds), or using a [[ring of dueling]] to teleport to [[Emir's Arena]] and running south-west (takes approximately 13 seconds).
+
+The military gliders can be found deactivated in the [[Underground Military Glider Hangar]], and are activated during [[Monkey Madness I]]. Some crashed military gliders can be found on [[Crash Island]].
+
+==Transportation==
+{| class="wikitable"
+! Symbol !! Name !! Location
+|-
+| [[File:Ta Quir Priw symbol.png|100px]] || Ta Quir Priw || {{Map|x=2466|y=3496|mtype=pin|group=1|width=250|height=250|caption=[[Grand Tree|The Grand Tree]] (Top Level)}}
+|-
+| [[File: Sindarpos symbol.png|100px]] || Sindarpos || {{Map|x=2849|y=3499|mtype=pin|group=1|width=250|height=250|caption=The peak of [[White Wolf Mountain]]}}
+|-
+| [[File: Lemanto Andra symbol.png|100px]] || Lemanto Andra '''(one-way only)''' || {{Map|x=3325|y=3429|mtype=pin|group=1|width=250|height=250|caption=West of the [[Digsite]] }}
+|-
+| [[File: Kar-Hewo symbol.png|100px]] || Kar-Hewo || {{Map|x=3282|y=3212|mtype=pin|group=1|width=250|height=250|caption=[[Al Kharid]] }}
+|-
+| [[File: Lemantolly Undri symbol.png|100px]] || Lemantolly Undri || {{Map|x=2541|y=2971|mtype=pin|group=1|width=250|height=250|caption=[[Feldip Hills]]}}
+|-
+| [[File: Ookookolly Undri symbol.png|100px]] || Ookookolly Undri || {{Map|x=2714|y=2803|mtype=pin|group=1|width=250|height=250|caption=North-west [[Ape Atoll]]}}
+|-
+| [[File: Gandius symbol.png|100px]] || Gandius || {{Map|x=2972|y=2965|mtype=pin|group=1|width=250|height=250|caption=South of the Karamjan [[Ship Yard]]}}
+|}
+
+[[File:Gnome glider locations.png|right|thumb|400px|Glider Network map]]
+Gnome gliders are located at:
+* '''Ta Quir Priw''' – The [[Grand Tree]], piloted by [[Captain Errdo]]
+** The top level provides normal service.
+** On the {{FloorNumber|uk=1}} there is a special service during the [[Monkey Madness I]] quest.
+* '''Gandius''' – South of the Shipyard on [[Karamja]], piloted by [[Captain Klemfoodle]]
+* '''Kar-Hewo''' – [[Al Kharid]], piloted by [[Captain Dalbur]]
+* '''Sindarpos''' – The peak of [[White Wolf Mountain]], piloted by [[Captain Bleemadge]]
+* '''Lemanto Andra''' – Just west of the [[Digsite]] near [[Varrock]], piloted by Captain Errdo
+** This trip is '''one-way'''; the glider will crash and you cannot fly back from here. Also, you cannot use the closest gate unless you have 153 [[kudos]] at the [[Varrock Museum]].
+* '''Lemantolly Undri''' – Western [[Feldip Hills]], piloted by [[Gnormadium Avlafrim]]
+** Close to [[Fairy rings|Fairy Ring]]  {{Fairycode|AKS}}
+** [[One Small Favour]] must be completed to access this glider.
+* '''Ookookolly Undri''' – North-west on [[Ape Atoll]], piloted by [[Captain Shoracks]]
+** [[Monkey Madness II]] must be completed to access this glider.
+
+==Efficient travel==
+Like various other teleportation methods, the gnome gliders can be used for efficient travel, especially when doing tasks such as [[farming runs]]. The following table compares methods of reaching a glider:
+{| class="wikitable"
+!Method
+!Captain
+!Time
+!Teleports
+|-
+|Teleport to [[Grand Tree]], right-click top-floor option
+|{{chatl|Captain Errdo}}
+|9.6s
+|{{Plink|Royal seed pod}}
+|-
+|Teleport to [[Grand Tree]], climb up three floors
+|{{chatl|Captain Errdo}}
+|12s
+|{{Plink|Royal seed pod}}
+|-
+|Teleport to [[Emir's Arena]], run south-west
+|{{chatl|Captain Dalbur}}
+|13s
+|{{Plink|Ring of dueling}}
+|-
+|Teleport to [[Al Kharid Palace]], run north-west
+|{{chatl|Captain Dalbur}}
+|17s{{efn|group=n|This route may take a second or two longer if gates or doors need to be opened or if the captain has wandered.|name=time}}
+|{{Plink|Amulet of glory|pic=Amulet of glory(4)}}
+|-
+|Teleport to [[Lumbridge]], run east through toll gate
+|{{chatl|Captain Dalbur}}
+|20s{{efn|group=n|name=time}}
+|{{Plink|Lumbridge Teleport}}
+|-
+|Teleport to [[Feldip Hills]], run north around the pond
+|{{chatl|Gnormadium Avlafrim}}
+|23s{{efn|group=n|name=time}}
+|{{Plink|Feldip hills teleport}} scroll
+|-
+|Teleport to the [[Legends' Guild]], take the [[Fairy rings|Fairy]] 
+[[Fairy rings|Ring]]{{efn|group=n|A [[dramen staff]] or [[lunar staff]] is required, unless the [[Lumbridge & Draynor Diary#Elite|Lumbridge & Draynor elite diary]] is completed.}}
+to [[Feldip Hills]], run north{{efn|group=n|Teleporting to the fairy ring in a [[player-owned house]] may be faster, based on the location of the [[superior garden]] and how fast the house loads.}}
+|{{chatl|Gnormadium Avlafrim}}
+|23s{{efn|group=n|name=time}}
+|{{Plink|Quest point cape}}
+|-
+|Teleport to [[Temple of Marimbo]], run west
+|{{chatl|Captain Shoracks}}
+|33s
+|[[Standard spellbook|Standard]] {{Plink|Ape Atoll Teleport (standard)|txt=Ape Atoll Teleport}}
+|-
+|Teleport to [[Grand Exchange]], take the [[spirit tree]] 
+to the [[Tree Gnome Stronghold|Gnome Stronghold]], climb up three floors
+|{{chatl|Captain Errdo}}
+|42s
+|{{Plink|Varrock Teleport}}
+|-
+|Teleport to [[Ape Atoll Dungeon]], run north-west
+|{{chatl|Captain Shoracks}}
+|46s
+|[[Arceuus spellbook|Arceuus]] {{Plink|Ape Atoll Teleport (Arceuus)|txt=Ape Atoll Teleport}}
+|}
+{{notelist|group=n}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 July 2021
+|update = Small Changes & Tweaks
+|change = The Ape Atoll glider button now shows a 2D monkey head, rather than a 3D one, along with the other buttons.
+}}
+{{Subject changes
+|date = 7 July 2021
+|update = Small Changes & Tweaks
+|poll = Old School Content Poll 73: The :Joy: of Polls
+|change = A right-click option has been added to all glider pilots to quickly players to their last destination.
+}}
+{{Subject changes
+|date = 12 April 2018
+|update = Quality of Life Improvements
+|poll = Old School Content Poll 58: More QoL and a Quest
+|change = [[Gnormadium Avlafrim]] now has a "Glider" right-click option like other glider pilots.
+}}
+{{Subject changes
+|date = 23 March 2017
+|update = In-game Name Changing & Sortable Lists
+|change = Gnome pilots now able to fly to any destination without needing you to go via the Grand Tree.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* The names of the destinations, except for Ape Atoll, can be translated using the [[Translation book]] acquired during the Grand Tree quest.
+** '''Ta Quir Priw''' translates to "The Guardian Tree".
+** '''Gandius''' means "Jungle".
+** '''Kar-Hewo''' translates to "No Grass".
+** '''Sindarpos''' translates to "Big Rocks".
+** '''Lemanto Andra '''translates to "Man City".
+** '''Lemantolly Undri''' translates to "Stupid Man Lands".
+** '''Ookookolly Undri''' translates to "Stupid Monkey Lands".
+* Captain Klemfoodle's examine text, "Up up and away!", is a reference to {{WP|Trans World Airlines}}'s ad jingle from the 1960s.
+* Gnome glider examine text mentions [[Gnome Air]], Gielinor's only airline.
+
+[[Category:Transportation]]

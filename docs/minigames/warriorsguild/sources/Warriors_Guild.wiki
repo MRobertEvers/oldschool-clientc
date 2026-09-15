@@ -1,0 +1,284 @@
+{{External|rs}}
+{{Otheruses|the building|the music track|Warriors' Guild (music track)}}
+{{Infobox Location
+|name = Warriors' Guild
+|image = [[File:Warriors' Guild building.png|300px]]
+|release = [[13 June]] [[2006]]
+|update = Warriors' Guild
+|members = Yes
+|location = [[Burthorpe]]
+|requirement = Combined [[Attack]] and [[Strength]] level of at least 130, or level 99 in either skill.
+|music = [[Warriors' Guild (music track)|Warriors' Guild]], [[Beyond]] (basement)
+|map = {{Map|name=Warriors' Guild|mtype=polygon|2838,3556|2838,3537|2839,3537|2840,3536|2841,3536|2842,3537|2845,3537|2846,3536|2847,3536|2848,3537|2849,3537|2849,3534|2860,3534|2860,3537|2865,3537|2866,3536|2867,3536|2868,3537|2871,3537|2872,3536|2873,3536|2874,3537|2876,3537|2876,3539|2877,3540|2877,3541|2876,3542|2876,3544|2877,3545|2877,3548|2876,3549|2876,3551|2877,3552|2877,3553|2876,3554|2876,3556|2874,3556|2873,3557|2872,3557|2871,3556|2868,3556|2867,3557|2866,3557|2865,3556}}
+|type = guild
+|leagueRegion = Asgarnia
+}}
+{{Relative location
+|location = Warriors' Guild
+|north = Death Plateau (location){{!}}Death Plateau
+|east = Burthorpe
+|south = White Wolf Mountain
+|west = Mac's island
+}}
+The '''Warriors' Guild''' is a large building located in the west of [[Burthorpe]], founded by [[Harrallak Menarous]]. Only players with a combined [[Attack]] and [[Strength]] level of at least 130 (or level 99 in either skill), are allowed entry by the guild's guard [[Ghommal]] (or [[Laidee Gnonock]] after the events of [[While Guthix Sleeps]]). Temporary [[temporary skill boost|boosts]] cannot be used.
+
+Inside the guild, players may play various [[minigames]] related to [[melee]] [[combat]]. These activities reward [[warrior guild token]]s, which grant access to the top floor and basement of the guild where players can kill [[cyclopes]] for [[defender]]s. Cannons cannot be used to complete activities within the guild. Players wearing an [[Attack cape]] can enter these areas without tokens.
+
+When the rewards for the easy or medium tier of the [[combat achievements]] have been claimed from Ghommal or Laidee, the amount of tokens earned throughout the guild will be respectively doubled or tripled.
+
+==Transportation==
+The Warriors' Guild can be easily accessed in a number of ways;
+*[[Combat bracelet]] or [[Strength cape]] to teleport directly to the Warriors' Guild.
+*[[Games necklace]] to teleport to Burthorpe, then head west.
+*[[Minigame Teleport]] to the [[Burthorpe Games Room]], then head west.
+*[[Teleport to House|House teleport]] (if a player's house is in [[Taverley]]) or a [[Taverley teleport]] tablet, then head north.
+*[[Balloon transport system]] to Taverley (requires partial completion of [[Enlightened Journey]]), then head north-west.
+
+==Minigames==
+===Animation room===
+This room, created by [[Shanomi]], is located on the {{FloorNumber|uk=0}} next to the entrance hall. This is the most commonly played minigame for [[Warrior guild token]]s, as it requires little attention and is rather fast compared to the other activities. 
+
+To start, players must activate a [[magical animator]] with a set of metal armour ([[Full helmet|full helm]], [[platelegs]], and a [[platebody]]) in their inventory. Trimmed or God-aligned sets do not work. The armour will then come to life and begin attacking the player. When defeated, the [[animated armour]] drops a certain amount of tokens and possibly the equipment used to create it, depending on its armour type.
+
+Animated armour is immune to [[poison]] and [[venom]], and must be fought in melee combat. It will despawn if not defeated within five minutes. Should this happen, or should the player die against one, the equipment may be retrieved from Shanomi.
+
+{|class="wikitable" style="text-align:centre"
+|+Armour Types
+|-
+!colspan="2"|Metal
+!Combat Lvl
+!HP
+!Tokens
+!Tokens/HP
+!Recyclable<ref>Chance to regain all three equipment pieces.</ref>
+|-
+|{{plinkp|Bronze platebody}}
+|[[Animated Bronze Armour|Bronze]]
+|11
+|10
+|5
+|0.500
+|72.9%
+|-
+|{{plinkp|Iron platebody}}
+|[[Animated Iron Armour|Iron]]
+|23
+|20
+|10
+|0.500
+|90%
+|-
+|{{plinkp|Steel platebody}}
+|[[Animated Steel Armour|Steel]]
+|46
+|40
+|15
+|0.375
+|90%
+|-
+|{{plinkp|Black platebody}}
+|[[Animated Black Armour|Black]]
+|69
+|60
+|20
+|0.333
+|100%
+|-
+|{{plinkp|Mithril platebody}}
+|[[Animated Mithril Armour|Mithril]]
+|92
+|80
+|25
+|0.313
+|100%
+|-
+|{{plinkp|Adamant platebody}}
+|[[Animated Adamant Armour|Adamant]]
+|113
+|99
+|30
+|0.303
+|100%
+|-
+|{{plinkp|Rune platebody}}
+|[[Animated Rune Armour|Rune]]
+|138
+|120
+|40
+|0.333
+|100%
+|}
+<references/>
+
+It is the most efficient to use [[Animated black armour|black armour]] in this minigame. Of all non-degradable animated armour, it shares the highest token-to-hitpoint ratio while being the easiest to defeat.
+
+===Dummy room===
+[[File:Dummy room attack styles.png|thumb|320px|Combat and attack styles]]
+This minigame, hosted by [[Ajjat]], is also located next to the entrance hall. Only a weapon is required for this activity. It tests players' reflexes with dummies that each require a different combat or attack style to be hit. Players can look at the poster outside of the dummy room to know what style to use for each dummy. Each dummy correctly hit will reward players with 15 [[Attack]] experience and 2 [[warrior guild token]]s.
+
+There are seven [[Dummy (Warriors' Guild)|dummies]], one for each of the four combat styles and three melee attack styles. Two approaches can be taken to efficiently complete the room. First, a single weapon that covers all styles can be taken, such as the [[protest banner]]. This avoids having to switch weapons, and instead simply switch styles in the [[Combat Options]] tab for each dummy. Second, seven separate weapon types can be brought, one for each dummy. With each weapon set to a different style, this avoids having to switch styles in Combat Options in favour of switching weapons in the [[inventory]].
+
+Below is one example setup with seven weapons in the same order as the dummies, but many combinations will work equally well. Switch back to the top left weapon (in this example, the shortbow) between switching weapons to keep the weapons in the correct order.
+
+{{Inventory|align=right
+|Shortbow|Bronze mace|Bronze scimitar|
+|Bronze spear|||Bronze battleaxe
+|Bronze pickaxe|||Bronze spear
+||Bronze dagger|Bronze warhammer|
+}}
+
+{|class="wikitable"
+!colspan="2"|Combat style
+!colspan="2"|Weapon
+!Corresponding dummy
+|-
+|style="border-right-style:hidden;text-align:centre;padding-right:0"|[[File:Bank filler.png|link=]]||{{NA}}
+|{{plinkt|Shortbow}}
+|Placeholder to wield between weapon switches, to maintain inventory alignment
+|-
+|style="border-right-style:hidden;text-align:centre;padding-right:0"|[[File:CombatStyles (spiked, pound).png|link=Weapons/Types#Spiked]]||Pound
+|{{plinkt|Bronze mace}}
+|Accurate
+|-
+|style="border-right-style:hidden;text-align:centre;padding-right:0"|[[File:CombatStyles (slash sword, slash).png|link=Weapons/Types#Slash sword]]||Slash
+|{{plinkt|Bronze scimitar}}
+|Slash
+|-
+|style="border-right-style:hidden;text-align:centre;padding-right:0"|[[File:CombatStyles (spear, lunge).png|link=Weapons/Types#Spear]]||Lunge
+|{{plinkt|Bronze spear}}
+|Controlled
+|-
+|style="border-right-style:hidden;text-align:centre;padding-right:0"|[[File:CombatStyles (axe, hack).png|link=Weapons/Types#Axe]]||Hack
+|{{plinkt|Bronze battleaxe}}
+|Aggressive
+|-
+|style="border-right-style:hidden;text-align:centre;padding-right:0"|[[File:CombatStyles (pickaxe, block).png|link=Weapons/Types#Pickaxe]]||Block
+|{{plinkt|Bronze pickaxe}}
+|Defensive
+|-
+|style="border-right-style:hidden;text-align:centre;padding-right:0"|[[File:CombatStyles (stab sword, stab).png|link=Weapons/Types#Stab sword]]||Stab
+|{{plinkt|Bronze dagger}}
+|Stab
+|-
+|style="border-right-style:hidden;text-align:centre;padding-right:0"|[[File:CombatStyles (blunt, pound).png|link=Weapons/Types#Blunt]]||Pound
+|{{plinkt|Bronze warhammer}}
+|Crush
+|}
+
+===Catapult room===
+This activity is located on the {{FloorNumber|uk=1}} next to the stairwell. To start, players may speak with [[Gamfred]] to obtain a two-handed [[defensive shield]], which can only be equipped in this minigame. With the shield equipped, players need to block ammunition fired at them from the catapult by selecting the appropriate defensive style from their inventory. Each time players defend successfully, they will receive 10 [[Defence]] experience and 1 token. The catapult fires every 8 ticks (4.8 seconds), which equates to only 750 tokens and 7,500 defence experience per hour.
+
+===Shot put room===
+{{Main|Calculator:Shot put}}
+This room can be found east of the catapult room. Players require a [[Strength]] level of at least 50 to play this minigame, needed to pass through a [[Heavy door]]. To start, they have to pick up a shot put from the [[shot|pile]] and select one of three throwing styles. The farther a successful shot put is thrown, the more [[Strength]] experience and warrior guild tokens are earned. Rarely, the player fails the shot and has it either drop on their toe, taking one point of damage in the process, or hit the referee outside the cage.
+
+Aside from the throwing style and the player's Strength level, there are several more factors that weigh in the distance of a shot. See the calculator page for more information.
+
+For the most optimal rate of [[Warrior guild token|guild tokens]] in this minigame, players should use the [[22lb shot]] with the 'Standing throw' style at 100% [[Energy|run energy]], recovering the energy used in-between every throw.
+
+===Jimmy's challenge===
+Jimmy's challenge is located in a room adjacent to the shot put room. According to [[Jimmy (Warriors' Guild)|Jimmy]], the room is a storeroom that he is supposed to be guarding, although he spends his time inside practising [[Keg (Warriors' Guild)|keg]] balancing while intoxicated. He claims to hold the record for balancing five kegs on his head and challenges players to match it.
+
+To participate, players need to take off any headgear and have both hands empty, including any weapons, shields, or hand slot items.
+
+Players begin by picking up a keg and balancing it on their head. Additional kegs may then be stacked on top, up to a maximum of five. Picking up kegs consumes [[run energy]], and players passively gain [[Strength]] experience while balancing them.
+
+As a player's run energy decreases, the chance of dropping the kegs increases. If the kegs fall, they disappear and deal up to 4 damage to the player. Players may [[Energy#Energy-restoring action|restore their energy]] while balancing kegs to prolong the challenge. If the kegs fall, another may be picked up immediately to continue.
+
+Players earn [[Warrior guild token|guild tokens]] based on the number of kegs balanced. Although Jimmy admits that him awarding tokens is not official, he records earned tokens in the guild ledger by imitating staff signatures, allowing them to be claimed from an official member of the training staff.
+
+Any kegs being balanced disappear if the player leaves the room.
+
+==Cyclopes==
+===Top floor===
+On the {{FloorNumber|uk=2}} of the Warriors' Guild is a room filled with level 56 and 76 [[Cyclops|cyclopes]], from which players can gain [[defender]]s up to [[Rune defender|rune]]. It is guarded by [[Kamfreena]]. Any yet unrewarded tokens can be claimed from her.
+
+Players need to carry at least 100 [[warrior guild token]]s to enter this room. Ten tokens are spent upon entering the room, and another ten every minute inside. If the player runs out of tokens, they have a minute left before being teleported outside of the room.
+
+No tokens are required for players that wear the level 99 [[Attack cape]].
+
+Players have to earn the defenders in order. Without any defender, they can only receive the [[bronze defender]] as a drop. '''Every time the player obtains a defender, they have to leave the room, and then re-enter the room to be able to receive the next defender!''' Each defender that can be found in this room has a drop chance of 1/50. Cyclopes must be fought in [[melee]] combat.
+
+Defenders on the top floor are found in this order:
+
+{|class="wikitable" style="text-align:centre"
+!#
+!colspan="2"|Defender
+|-
+|1
+|{{plinkt|Bronze defender}}
+|-
+|2
+|{{plinkt|Iron defender}}
+|-
+|3
+|{{plinkt|Steel defender}}
+|-
+|4
+|{{plinkt|Black defender}}
+|-
+|5
+|{{plinkt|Mithril defender}}
+|-
+|6
+|{{plinkt|Adamant defender}}
+|-
+|7
+|{{plinkt|Rune defender}}
+|}
+
+===Basement===
+[[File:Warriors' guild basement.png|thumb|320px|Level 106 [[Cyclops|cyclopes]]]]
+Once the player has obtained the [[rune defender]], they will be able to access the room in the basement where level 106 [[Cyclops|cyclopes]] roam. These cyclopes have a 1/100 chance to drop the [[dragon defender]]. This is the second strongest defender - it can be upgraded into an [[Avernic defender]] using a [[Avernic defender hilt|hilt]] obtained from the [[Theatre of Blood]].
+
+The basement entrance is a ladder found just west outside of the back door of the guild. [[Lorelai]] guards the cyclopes here. She can also reward any unclaimed tokens. The rune defender will no longer be required once the player has shown it to her once or entered the cyclops room for the first time. The same rules as on the top floor apply here, meaning tokens are required and used up by anyone not wearing the [[Attack cape]].
+
+The track [[Beyond]] plays here.
+
+==Shops and Banking==
+The [[Warrior Guild Food Shop]] is located on the {{FloorNumber|uk=0}} near the stairwell. It is adjacent to the [[Warrior Guild Potion Shop]]. The [[Warrior Guild Armoury]], which sells weapons, can be found in the southern room on the {{FloorNumber|uk=1|nohelp=y}}.
+
+There is a [[Warriors' Guild bank|bank]] on the {{FloorNumber|uk=0|nohelp=y}} near the stairwell.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 July 2024
+|update = While Guthix Sleeps
+|change = Statues of [[Statue of Ghommal|Ghommal]] and [[Statue of Sloane|Sloane]] were added in front of the entrance.
+}}
+{{Subject changes
+|date = 22 November 2018
+|update = Bird Nest Balancing and PvP Changes
+|change = Standing on one of the tiles in the Warriors Guild bank will no longer push the player away.
+}}
+{{Subject changes
+|date = 16 March 2017
+|update = Quality of Life & Deadman Prep
+|change = The doors within the Warriors' Guild now have the same anti-spam functionality as most other doors throughout Old School.
+}}
+{{Subject changes
+|date = 3 September 2015
+|update = Barrows Features & Saradomin's Light
+|change = The trade option on [[Lilly]] in the Warriors' Guild now opens the shop interface instantly as it should.
+}}
+{{Subject changes
+|date = 5 February 2015
+|update = The Dragon Defender
+|poll = Old School Content Poll 29: Grand Exchange
+|change = 
+*Players with a [[Rune defender]] can now access the Warriors' Guild basement.
+*[[Lorelai]] has been added to the Warriors' Guild basement; she provides information about the basement.
+*Level 106 [[Cyclopes]] have been added to the Warriors' Guild basement; they have a chance of dropping [[Dragon defender]]s.
+}}
+{{Subject changes
+|date = 15 May 2014
+|update = Coal & gem bags and Attack options
+|poll = Old School feature poll 19
+|change = The Warriors' Guild bank now has a deposit box.
+}}
+{{Subject changes footer}}
+
+{{Warriors' Guild}}
+{{Guilds}}
+{{Burthorpe}}

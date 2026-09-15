@@ -1,0 +1,59 @@
+{{external|rs}}
+{{Infobox Spell
+|name = Spin Flax
+|image = [[File:Spin Flax.png]]
+|release = [[4 August]] [[2016]]
+|update = Last Man Standing
+|members = Yes
+|level = 76
+|spellbook = Lunar
+|type = Utility
+|exp = 75
+|cost = {{RuneReq|Astral=1|Nature=2|Air=5}}
+|speed = 5 ticks
+|description = Turn flax into bowstring
+|anim = [[File:Spin Flax.gif|150pxpx]]
+|sound = [[File:Spin Flax.ogg]]
+}}
+[[File:Spin Flax icon (mobile).png|left]]
+'''Spin Flax''' is a [[Lunar spell]] requiring level 76 [[Magic]] to cast. The spell spins [[flax]] into [[bow string]]s, spinning '''5''' flax and gaining 75 Magic experience, in addition to 15 [[Crafting]] experience per flax spun for a maximum of 75 Crafting experience per cast. The spell can be cast once every 5 game [[RuneScape clock|ticks]]. Attempting to cast the spell without having any flax in the inventory will display the message {{Mes|You don't have any flax to spin.}}.
+
+Experience rates are approximately 80k Crafting experience and 80k Magic experience per hour. The maximum possible experience rate achievable with the spell is 90k Crafting and 90k Magic experience per hour, if every action is performed perfectly.
+
+Producing bowstrings with this spell will yield approximately 6,000 bowstrings per hour when every action is performed perfectly. 
+
+Assuming a player uses a staff that provides [[air rune]]s and converts five flax into bow string per cast, casting Spin Flax will result in a profit of {{Coins|{{GEP|Bow string|5}}-({{GEP|Astral rune}}+{{GEP|Nature rune|2}}+{{GEP|Flax|5}})}} coins.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Astral
+|Rune1num = 1
+|Rune2 = Nature
+|Rune2num = 2
+|Rune3 = Air
+|Rune3num = 5
+}}
+
+== Strategy ==
+Perfect usage of this spell can most easily be achieved through the use of a [[Rune pouch]], [[Bow string spool]], and [[Bale of flax|Bales of flax]]. With the required runes in the rune pouch, simply open a bale of flax, cast Spin Flax five times, then open the next bale of flax while the fifth casts to continue the process.
+
+The following is recommended when utilising this method:
+
+* Upgrade the Bow string spool to minimise downtime,
+* Place the bales of flax in the inventory such that the item overlaps with the Spin Flax spell when swapping between the inventory and spell book,
+* Utilise [[Keybind|Keybindings]] to swap between the inventory and spell book using the keyboard, leaving the mouse cursor free to hover over the inventory.
+
+==Money making==
+{{Mmgsection|Casting Spin Flax}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 5 October 2022
+|update = Clan Hall Upgrades & More
+|change = The Spin Flax Lunar Spell will now queue if you cast a second Spin Flax spell before the last one finishes, akin to other spells such as High Alchemy or Tan Hides.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Utility spells}}

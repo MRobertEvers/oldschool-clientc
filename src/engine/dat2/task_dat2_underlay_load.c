@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2UnderlayLoad
 {
@@ -41,9 +42,7 @@ Task_Dat2UnderlayLoad_Run(
         archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_UNDERLAY);
         if( !archive )
         {
-            fprintf(
-                stderr,
-                "Failed to decode dat2 underlay config group for underlay %d\n",
+            TORIRS_ERR("Failed to decode dat2 underlay config group for underlay %d\n",
                 task->underlay_id);
             PT_EXIT(&task->pt);
         }
@@ -55,14 +54,14 @@ Task_Dat2UnderlayLoad_Run(
     rscache_underlay = dat2_buildcache_underlay_get(task->bc, task->underlay_id);
     if( !rscache_underlay )
     {
-        fprintf(stderr, "Failed to load dat2 underlay %d\n", task->underlay_id);
+        TORIRS_ERR("Failed to load dat2 underlay %d\n", task->underlay_id);
         PT_EXIT(&task->pt);
     }
 
     torirs_underlay = ToriRS_FlotypeFromRSCacheUnderlay(task->underlay_id, rscache_underlay);
     if( !torirs_underlay )
     {
-        fprintf(stderr, "Failed to convert dat2 underlay %d\n", task->underlay_id);
+        TORIRS_ERR("Failed to convert dat2 underlay %d\n", task->underlay_id);
         PT_EXIT(&task->pt);
     }
 

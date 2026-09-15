@@ -175,7 +175,7 @@ of fake NPCs — same server damage model, authentic visual.
   (±60 fine units); the anchor columns 22/36/48 stay inside the arena
   square and within the classic tile-anchored draw range, matching how the
   official 2012 client kept the wall on screen in this small arena.
-- Test seams: `mock230_world.c` capture stanzas that byte-decode the wire,
+- Test seams: `torirs_server_world.c` capture stanzas that byte-decode the wire,
   and the `::zukstill`-style settled-arena fixture pattern for counting
   zone packets server-side — a QBD wall stanza asserts MAP_PROJANIM
   payloads (spotanim id, duration 570, peak 0) at the pattern anchors.

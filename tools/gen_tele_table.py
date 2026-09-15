@@ -67,7 +67,7 @@ DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 # does not cover two towns.
 SAME_PLACE_BOX = 20
 
-# The rs2 word splitter in mock230_scripts.c caps an argument at 63 characters.
+# The rs2 word splitter in torirs_server_scripts.c caps an argument at 63 characters.
 MAX_SLUG = 60
 
 BUCKETS = "abcdefghijklmnopqrstuvwxyz"

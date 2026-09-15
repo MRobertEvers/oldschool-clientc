@@ -1,0 +1,54 @@
+{{External|rs}}
+{{Otheruses|the Lunar spell|the item used to cure plants|Plant cure}}
+{{Infobox Spell
+|name = Cure Plant
+|image = [[File:Cure Plant.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 66
+|spellbook = Lunar
+|type = Utility
+|exp = 60
+|cost = {{RuneReq|Astral=1|Earth=8}}
+|speed = 
+|description = Cures disease on farming patch
+|anim = [[File:Cure Plant.gif]]
+|sound = [[File:Fertile Soil.ogg]]
+}}
+[[File:Cure Plant icon (mobile).png|left]]
+'''Cure Plant''' is a [[Lunar spell]] that cures a diseased [[Farming]] patch. Unlike [[Resurrect Crops]], it cannot revive a patch that has already died from disease. 
+
+Its use is most cost effective when cast while wielding a [[Staff of earth]], or equivalent other staff. Players may find the cost of the runes required to cast Cure Plant makes its use undesireable, because a [[plant cure]] potion can be purchased from the nearby [[Group_of_Advanced_Gardeners|gardener]] for only 25 [[coins]] and performs the same function.
+
+Casting Cure Plant awards the player with 91.5 [[Farming]] experience and 60 [[Magic]] experience. As with all Lunar spells, the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Astral
+|Rune1num = 1
+|Rune2 = Earth
+|Rune2num = 8
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 March 2015
+|update = Boss Pets, Sets, Chat & More
+|change = You should now be able to use the Cure Plant and Fertile Soil lunar spells on both of Harmony Island's farming patches.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Cure Plant has multiple unique messages when attempting to use it on something that is not a diseased plant:
+** Casting the spell on a growing, non-diseased plant gives the message {{mes|It's growing just fine.}}
+** Casting the spell on a patch that is fully grown gives the message {{mes|That's not diseased.}}
+** Casting the spell on a compost bin gives the message {{mes|Bins don't often get diseased.}}
+** Casting the spell on a patch with weeds gives the message {{mes|The weeds are healthy enough already.}}
+** Casting the spell on an empty patch gives the message {{mes|There's nothing there to cure.}}
+** Casting the spell on a dead patch gives the message {{mes|It says 'Cure' not 'Resurrect'. Although death may arise from disease, it is not in itself a disease and hence cannot be cured. So there.}}
+** Casting the spell on any other object causes the player to state "''Umm... this spell won't cure that!''"
+
+{{Lunar spellbook}}
+{{Utility spells}}

@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /** Legacy id kept for the player's own bookkeeping. */
 #define MUSIC_STREAM_ID 0
@@ -32,7 +33,7 @@
     do                                                                                             \
     {                                                                                              \
         if( ToriRS_AudioTraceEnabled() )                                                           \
-            fprintf(stderr, __VA_ARGS__);                                                          \
+            TORIRS_LOG(__VA_ARGS__);                                                          \
     } while( 0 )
 
 void
@@ -467,9 +468,7 @@ ToriRS_Music_Installed(
                 missing++;
         }
         if( missing > 0 )
-            fprintf(
-                stderr,
-                "music: song %d retained %d patches but %d are absent from the bank -- "
+            TORIRS_ERR("music: song %d retained %d patches but %d are absent from the bank -- "
                 "the soundfont did not assemble\n",
                 song_id,
                 player->retained_count,

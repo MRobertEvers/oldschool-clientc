@@ -21,6 +21,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define TEST_CHECK(cond)                                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        if( !(cond) )                                                                              \
+        {                                                                                          \
+            fprintf(stderr, "FAIL: %s (%s:%d)\n", #cond, __FILE__, __LINE__);                     \
+            abort();                                                                               \
+        }                                                                                          \
+    } while( 0 )
+
 enum
 {
     READY_YIELDS = 129,
@@ -53,6 +63,24 @@ PlatformX_IO_Pending(
         if( px->pending_watchdog > 0 && px->pending_checks > px->pending_watchdog )
             px->pending = 0;
     }
+    return px->pending;
+}
+
+/*
+ * Per-slot half of Pending. The fixture models one whole-queue wait rather
+ * than a slot table, so every slot answers with that one state -- which is
+ * also what a synchronous backend does, where a read is answered inside
+ * Process and no slot is ever left outstanding.
+ */
+int
+PlatformX_IO_SlotPending(
+    struct PlatformX_IO* px,
+    struct ToriRS_IO* io,
+    int slot)
+{
+    assert(px);
+    assert(io);
+    (void)slot;
     return px->pending;
 }
 
@@ -217,7 +245,7 @@ test_ready_work_drains_without_cap(void)
 
     /* One initiating frame must cross every ready yield, including the old
      * 64-step boundary, and may publish only the completed tree. */
-    assert(settle_and_commit(&runner, &widgets, &frame) == 1);
+    TEST_CHECK(settle_and_commit(&runner, &widgets, &frame) == 1);
     assert(px.process_calls == READY_YIELDS);
     assert(runner.queue->head == NULL);
     assert(widgets.completed == 1);
@@ -244,7 +272,7 @@ test_external_wait_retains_last_frame(void)
 
     /* The task has already hidden Equipment when the external wait begins.
      * That partial state must not replace the stable published frame. */
-    assert(settle_and_commit(&runner, &widgets, &frame) == 0);
+    TEST_CHECK(settle_and_commit(&runner, &widgets, &frame) == 0);
     assert(px.pending == 1);
     assert(px.pending_checks > 0 && px.pending_checks < px.pending_watchdog);
     assert(runner.queue->head != NULL);
@@ -259,7 +287,7 @@ test_external_wait_retains_last_frame(void)
     /* Delivery resumes the same transaction.  Its first settled frame is the
      * final familiar view, published once; no mixed state was committed. */
     px.pending = 0;
-    assert(settle_and_commit(&runner, &widgets, &frame) == 1);
+    TEST_CHECK(settle_and_commit(&runner, &widgets, &frame) == 1);
     assert(runner.queue->head == NULL);
     assert(widgets.completed == 1);
     assert(widgets.mutation_count == 2);
@@ -340,7 +368,7 @@ test_cross_queue_wait_ends_the_settle(void)
 
     /* Blocked, not pending: no read is outstanding, so PENDING would send the
      * settle loop straight back into the same task. */
-    assert(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
     assert(px.pending == 0);
     /* Exactly one pass. This is the anti-spin assertion. */
     assert(px.process_calls == 1);
@@ -349,18 +377,178 @@ test_cross_queue_wait_ends_the_settle(void)
 
     /* A blocked task stays blocked while the state holds, and re-testing it
      * costs one pass per frame — not one per step. */
-    assert(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
     assert(px.process_calls == 2);
     assert(boot.mounted == 0);
 
     /* The other queue got its turn back and finished the rebuild. */
     boot.booting = 0;
-    assert(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_IDLE);
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_IDLE);
     assert(runner.queue->head == NULL);
     assert(boot.mounted == 1);
 
     fixture_free(&runner);
     printf("ok - cross-queue wait ends the settle instead of spinning\n");
+}
+
+/*
+ * The same wait, one level down.
+ *
+ * The runner only ever looks at the QUEUED task, so a child that blocks has to
+ * say so through its parent (TASK_AWAITEX). While it did not, the parent read
+ * as an ordinary io yield, the settle loop resumed it immediately, and the
+ * child's wait spun to the end of its budget inside ONE frame -- before the
+ * queue that owns the reads it is waiting for had a turn.
+ *
+ * That is not a hypothetical: every asset wait in the client is one level
+ * down. Task_WorldLoad is awaited by the REBUILD_NORMAL packet task and
+ * Task_NpcMultiLoad by the NPC_INFO one, both on the serial exec queue, and
+ * both queue their reads onto the ASSET queue. A cold region rebuild reported
+ * every map square "unavailable (missing archive)" and every npc in it
+ * "models failed to load" out of a cache that held all of them.
+ *
+ * The budget is what makes the regression visible rather than a hang, and it
+ * is the real shape: these waits give up rather than strand the npc forever.
+ */
+enum
+{
+    CHILD_WAIT_BUDGET = 64,
+};
+
+struct ChildWaitState
+{
+    int booting;
+    int mounted;
+    /* Passes of the budget the child has spent. One per frame is the whole
+     * contract; the budget in one go is the bug. */
+    int passes;
+    int gave_up;
+    /* On the shared state, not on the parent: the runner frees a task the
+     * moment it ends, so the parent is gone by the time this is read. */
+    int parent_done;
+};
+
+struct AwaitStateChildTask
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct ChildWaitState* st;
+    int i;
+};
+
+static int
+AwaitStateChildTask_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io)
+{
+    struct AwaitStateChildTask* self = (struct AwaitStateChildTask*)base;
+    (void)io;
+
+    PT_BEGIN(&self->pt);
+    for( self->i = 0; self->i < CHILD_WAIT_BUDGET && self->st->booting; self->i++ )
+    {
+        self->st->passes++;
+        self->task.blocked = 1;
+        PT_YIELD(&self->pt);
+    }
+    if( self->st->booting )
+        self->st->gave_up = 1;
+    else
+        self->st->mounted = 1;
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_await_state_child_vtable = {
+    .run = AwaitStateChildTask_Run,
+    .free = NULL,
+};
+
+static struct ToriRS_Task*
+make_await_state_child(struct ChildWaitState* st)
+{
+    struct AwaitStateChildTask* child = calloc(1, sizeof(*child));
+    assert(child);
+    child->task.vtable = &k_await_state_child_vtable;
+    strcpy(child->task.name, "await-state-child");
+    child->st = st;
+    PT_INIT(&child->pt);
+    return &child->task;
+}
+
+struct AwaitStateParentTask
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct ChildWaitState* st;
+};
+
+static int
+AwaitStateParentTask_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io)
+{
+    struct AwaitStateParentTask* self = (struct AwaitStateParentTask*)base;
+
+    PT_BEGIN(&self->pt);
+    PT_TASK_AWAITSELF(make_await_state_child(self->st));
+    self->st->parent_done = 1;
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_await_state_parent_vtable = {
+    .run = AwaitStateParentTask_Run,
+    .free = NULL,
+};
+
+static void
+test_a_childs_block_is_the_parents_block(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px;
+    struct WidgetState widgets;
+    struct PublishedFrame frame;
+    struct ChildWaitState st = {
+        .booting = 1, .mounted = 0, .passes = 0, .gave_up = 0, .parent_done = 0
+    };
+    struct AwaitStateParentTask* task;
+
+    fixture_init(&runner, &px, &widgets, &frame);
+
+    task = calloc(1, sizeof(*task));
+    TEST_CHECK(task);
+    task->task.vtable = &k_await_state_parent_vtable;
+    strcpy(task->task.name, "await-state-parent");
+    task->st = &st;
+    PT_INIT(&task->pt);
+    ToriRS_TaskQueue_Add(runner.queue, &task->task);
+
+    /* The parent is what the runner sees, and it must report the child's
+     * block as its own. */
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
+    TEST_CHECK(px.process_calls == 1);
+    /* The anti-spin assertion: ONE pass of the child's budget, not all of it. */
+    TEST_CHECK(st.passes == 1);
+    TEST_CHECK(st.gave_up == 0);
+    TEST_CHECK(st.parent_done == 0);
+
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
+    TEST_CHECK(px.process_calls == 2);
+    TEST_CHECK(st.passes == 2);
+    TEST_CHECK(st.gave_up == 0);
+
+    /* The other queue got its turn back, which is the whole point of ending
+     * the settle: the wait ends on the state changing, not on the budget. */
+    st.booting = 0;
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_IDLE);
+    TEST_CHECK(runner.queue->head == NULL);
+    TEST_CHECK(st.mounted == 1);
+    TEST_CHECK(st.gave_up == 0);
+    TEST_CHECK(st.parent_done == 1);
+    TEST_CHECK(st.passes == 2);
+
+    /* No free(task): the runner frees a task when it ends (TaskQueue_Remove). */
+    fixture_free(&runner);
+    printf("ok - a child's block reaches the runner instead of spinning its budget\n");
 }
 
 int
@@ -369,6 +557,7 @@ main(void)
     test_ready_work_drains_without_cap();
     test_external_wait_retains_last_frame();
     test_cross_queue_wait_ends_the_settle();
+    test_a_childs_block_is_the_parents_block();
     printf("cs2-frame-settle: all tests passed\n");
     return 0;
 }

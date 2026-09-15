@@ -1,0 +1,62 @@
+{{External|rs=Slayer Dart}}
+{{Has calculator|Calculator:Magic/Magic Dart}}
+{{Infobox Spell
+|name = Magic Dart
+|image = [[File:Magic Dart.png]]
+|release = [[26 January]] [[2005]]
+|update = Slayer Skill
+|members = Yes
+|level = 50
+|slayerlevel = 55
+|spellbook = Normal
+|type = Combat
+|exp = 30
+|damage = {{*}} 10% of level + 10<br/>'''Slayer's staff (e) & on task:'''<br/> {{*}} 16.6% of level + 13
+|cost = {{RuneReq|Mind=4|Death=1}}<br/>
+|speed = 5 ticks
+|description = A magic dart of slaying
+|anim = [[File:Magic Dart.gif|300px]]
+|sound = [[File:Magic Dart.ogg]]
+}}
+[[File:Magic Dart icon (mobile).png|left]]
+'''Magic Dart''' is an offensive spell that requires 50 [[Magic]] and 55 [[Slayer]] to cast. The spell '''requires''' a [[slayer's staff]], [[slayer's staff (e)]], [[Staff of the Dead|staff of the dead]], [[toxic staff of the dead]], [[staff of light]] or [[staff of balance]] to be wielded in order to cast it. All these staves can [[autocast]] the spell.
+
+Magic Dart is the only option for players who wish to slay [[Turoth]] or [[Kurasks]] using [[Magic]].
+
+If cast using a [[Slayer's staff (e)]], the projectile becomes a white colour instead of green.
+
+==Maximum hit==
+The maximum hit of Magic Dart is <math>\lfloor MagicLevel \times \frac{1}{10} \rfloor + 10</math>. For example, at 60 Magic the max hit would be 16. The spell hits a maximum of 19 at 90+ Magic, or 20 if [[Temporary skill boost|boosted]] above 99.
+
+If the [[Slayer's staff (e)]] is used while [[Slayer task|on task]], its max hit is even higher; its new formula is <math>\lfloor MagicLevel \times \frac{1}{6} \rfloor + 13</math>. Each cast consumes one charge from the slayer's staff (e) if the spell hits. Additional maximum hit values for the Slayer's staff (e) can be found [[Slayer's staff (e)|here]].
+
+===Calculator===
+{{Magic damage calculator|Magic Dart}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = death
+|Rune1num = 1
+|Rune2 = mind
+|Rune2num = 4
+|no_staff = 2
+}}
+When cast with the [[Slayer's staff (e)]] against an assigned Slayer monster, the cost of a charge of the [[Slayer's enchantment]] adds a little less than {{coins|{{#expr: ceil( {{GEP|Slayer's enchantment|1 / 2500}} ) }}|2}}, increasing the total to {{coins|{{#expr: ceil( {{GEP|Slayer's enchantment|1 / 2500}} + {{GEP|Mind rune|4}} + {{GEP|Death rune}} ) }}|2}}. Therefore, it is always recommended to use an enchanted Slayer's staff instead of a regular Slayer's staff, when fighting a slayer monster with Magic Dart.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 January 2015
+|update = Zulrah - The Solo Snake Boss
+|change = Magic Dart is now listed in the magic skill guide with the correct slayer requirement.
+}} 
+{{Subject changes footer}}
+
+==Trivia==
+*In ''RuneScape 3'', the spell was renamed to Slayer Dart in the {{RSL|Evolution of Combat}} update. Although the spell has never been called that in ''Old School RuneScape'', a few developer blogs in the early days of ''Old School'' referred to the spell as Slayer Dart.
+*Magic Dart is currently the only combat spell in the standard spellbook that does not require any elemental runes.
+*Magic Dart is one of the few magic attacks and the only spell whose max hit increases with the player's Magic level. The others are the spells used by [[Powered staff|powered staves]] (such as the [[trident of the seas]]), and the [[salamanders]]' magic attacks.
+*Although an enchanted slayer's staff turns the projectile white, splashed spells still retain their green colour.
+
+{{Standard spellbook}}
+{{Attribute_affinities}}

@@ -1,0 +1,171 @@
+{{Redirect|Scythe|scythes in general|Scythe (weapon)}}
+{{Infobox Item
+|defver = 2
+|version1 = Uncharged
+|version2 = Charged
+|name1 = Scythe of vitur (uncharged)
+|name2 = Scythe of vitur
+|image1 = [[File:Scythe of vitur (uncharged).png]]
+|image2 = [[File:Scythe of vitur.png]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|quest = No
+|tradeable1 = Yes
+|tradeable2 = No
+|equipable = Yes
+|stackable = No
+|noteable1 = Yes
+|noteable2 = No
+|options1 = Wield, Charge, Drop
+|options2 = Wield, Check, Uncharge, Drop
+|wornoptions = Check
+|examine1 = A powerful scythe. It is currently uncharged.
+|examine2 = A powerful scythe.
+|value = 4000000
+|weight = 3.175
+|exchange1 = Yes
+|exchange2 = No
+|id1 = 22486
+|id2 = 22325
+|leagueRegion = Morytania,Kourend,Desert
+}}
+{{Synced switch
+|version1 = [[File:Scythe of vitur (uncharged) detail.png|left|200px]]
+|version2 = [[File:Scythe of vitur detail.png|left|200px]]
+}}
+The '''Scythe of Vitur''' is a two-handed [[slash weapon]] requiring 80 [[Attack]] and 90 [[Strength]] to wield, available as a rare drop from the [[Theatre of Blood]]. The scythe is extremely valuable due to its immense power against most large monsters. It is only tradeable when fully uncharged.
+
+The Scythe of Vitur was once wielded by the [[Gods#Founder of House Vitur|founder]] of House Vitur, a [[vampyre]] now worshipped as a god.{{CiteNews|url=http://services.runescape.com/m=news/the-theatre-of-blood?oldschool=1|title=The Theatre of Blood|newsdate=7 June 2018|quote=Of all of Lady Verzik's possessions, one of the most valuable is the Scythe of Vitur. This legendary weapon was once wielded by the founder of House Vitur, a vampyre now worshipped as a god.}}
+
+Although the Scythe of Vitur has a stab bonus, it does not have a Stab combat style.
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Charged
+|astab1 = +50
+|astab2 = +70
+|aslash1 = +75
+|aslash2 = +125
+|acrush1 = +10
+|acrush2 = +30
+|amagic = -6
+|arange = 0
+|dstab = -2
+|dslash1 = +6
+|dslash2 = +8
+|dcrush1 = +0
+|dcrush2 = +10
+|dmagic = 0
+|drange = 0
+|str1 = +50
+|str2 = +75
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = 2h
+|speed = 5
+|attackrange = 1
+|combatstyle = Scythe
+|image1 = [[File:Scythe of vitur (uncharged) equipped male.png|190px]]
+|image2 = [[File:Scythe of vitur equipped male.png|190px]]
+|altimage1 = [[File:Scythe of vitur (uncharged) equipped female.png|190px]]
+|altimage2 = [[File:Scythe of vitur equipped female.png|190px]]
+}}
+
+{{CombatStyles|Scythe|speed=5|attackrange=1}}
+
+==Passive effect==
+[[File:Scythe of vitur attack.gif|thumb|300px|A player attacks three opponents simultaneously with the Scythe of Vitur.]]
+When the player attacks with a scythe, their attack range is increased to a 1x3 arc radius in front of the player, which can allow them to hit three 1x1 targets in front of them. When attacking a large creature (a monster that occupies more than two [[game square]]s), the scythe will instead [[Multi-hit weapons|apply as many hits as possible to them]]. A 2x2 monster (such as [[Vardorvis]]) will be hit twice per attack, while a 3x3 or larger monster (such as [[dragon]]s and [[Duke Sucellus]]) will be hit three times per attack.
+
+These attacks' accuracy and strength rolls are rolled independently on each target, though each hit will deal 50% less damage, (rounded down), than the preceding hit. Even numbered base max hits gain an additional max hit on the 2nd hit, while every base max hit evenly divisible by 4, (e.g. 44, 48, 52), gain an additional max hit on the 3rd hit.
+
+For example, on a 3x3 monster, if a player has a base max hit of 47 with the scythe, their true maximum hit is 81 (47-23-11). If the player is able to increase the base max hit by 1 to 48, the player would get a true maximum hit of 84 (48-24-12). 
+
+The scythe is essentially at its optimal performance when fighting 3x3 or larger monsters. While it can deal more damage than a [[noxious halberd]] against 2x2 enemies, missing out on a third hit significantly decreases its capabilities, and the scythe will lose out to a [[soulreaper axe]] with five soul stacks.
+
+Despite the reduced damage from the second and third hits, the scythe is still immensely powerful against large creatures, provided that they are weak against slash or equally against all styles.
+
+==Charging and degradation==
+While the scythe can be used uncharged, it is drastically stronger by charging it; once charged, it gains +20 stab/crush, +50 slash attack bonus, +4 slash and +10 crush defence bonus and +25 strength bonus.
+
+In order to charge it, players must add at least one [[vial of blood]] and a set of 200 [[blood rune]]s to the [[vyre well]] next to the bank in [[Ver Sinhaza]]. The vials of blood can be brought in noted form. This can be done without completing any quests in the Darkmeyer series. Additionally, once [[Sins of the Father]] quest is completed, there is a [[vyre well]] outside the bank in [[Darkmeyer]]. 
+
+Each vial and 200 blood runes adds 100 charges to the scythe, with it being able to hold up to 20,000 charges (costing {{NoCoins|{{GEP|Blood rune|2}}+{{GEP|Vial of blood|0.01}}}} coins per attack, and a total of {{NoCoins|{{GEP|Vial of blood|200}}+{{GEP|Blood rune|40000}}}} to fully charge it with 40,000 [[blood rune]]s and 200 [[vial of blood|vials of blood]]). One charge is deducted per attack, as long as one of the hits deals damage. The hourly rate of using the scythe is {{NoCoins|({{GEP|Blood rune|2}}+{{GEP|Vial of blood|0.01}})*1200}} coins.  The fully charged scythe will last for 16.66 hours of continuous combat before reverting to its uncharged form.
+
+Once the charges are added to the scythe, they can be returned by using the scythe on the vyre wells in Ver Sinhaza should players decide to uncharge the scythe. Charges left will be rounded down at 100 hits per charge; for example, with 1,275 hits remaining, 1,200 charges will be deposited. These charges may then be withdrawn from the well to receive the blood runes and vials of blood back. Uncharging outside the well, however, will not return blood runes or vials of blood.
+
+In the event of a PvP death, if the scythe is not protected, all charges will be lost and the person who gets the scythe will not receive any blood runes or vials of blood.
+
+==Ornament kit==
+The Scythe of Vitur can be combined with a [[holy ornament kit]] to make a [[holy Scythe of Vitur]]. Alternatively, the Scythe of Vitur can be combined with a [[Sanguine ornament kit]] to make a [[Sanguine Scythe of Vitur]]. These cosmetic enhancements do not change the stats in any way, but the [[holy Scythe of Vitur]] does count as a [[Saradomin]] item in the [[God Wars Dungeon]].
+
+==Products==
+{{Uses material list|Scythe of vitur (uncharged)}}
+
+==Item sources==
+{{Drop sources|Scythe of vitur (uncharged)}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Scythe of vitur}}
+
+==Gallery==
+<gallery>
+Scythe of Vitur work-in-progress.png|Work-in-progress concept art
+Scythe of Vitur work-in-progress 2.png
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 January 2024
+|update = Scythe & Fang Updates
+|change = * The scythe's [[slash]] accuracy has been increased from +110 to +125.
+* Charging the scythe now costs one [[vial of blood]] and 200 [[blood rune]]s for 100 charges, rather than one vial of blood and 300 blood runes for 100 charges.
+* Charges are now only used when one of the scythe's hits deal damage.
+}}
+{{Subject changes
+|date = 11 May 2022
+|update = Equipment Rebalance Tier Changes & Poll 76
+|change = The Scythe of Vitur now requires level 80 Attack and 90 Strength to wield instead of level 75 Attack and Strength.
+}}
+{{Subject changes
+|date = 12 March 2020
+|update = Phosani's Nightmare and HiScores
+|change = Female players now hold the Scythe of Vitur correctly.
+}}
+{{Subject changes
+|date = 30 August 2018
+|update = Stronghold of Security, iOS Closed Beta Launch and Ghostly Robes
+|change = The Scythe of Vitur can no longer be brought onto [[Entrana]].
+}}
+{{Subject changes
+|date = 2 August 2018
+|update = Tournament World, Mobile Enhancements and Theatre of Blood Tweaks
+|change = The Scythe of Vitur can now slash webs.
+}}
+{{Subject changes
+|prerelease = yes
+|page = Scythe of vitur (beta)
+|daterange = 8 - 17 March 2018
+|beta = Theatre of Blood Rewards Testing
+|change = First present in the Theatre of Blood Rewards beta.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The name of this weapon refers to the [[vampyre|vampyric]] [[Vampyre Houses#House Vitur|House Vitur]], whose [[Gods#Founder of House Vitur|founder]] was worshipped as a god and wielded this scythe.
+*An uncharged Scythe of Vitur, along with three [[Ghrazi rapier]]s, can be [[Weapons (Death's Office)|seen]] leaning against a wall in [[Death's Office]].
+*A [[Jagex Moderator]]-[[Scythe of vitur (rotten)|exclusive ''rotten'' variant]] of this item exists which allows the user to kill any player instantly.
+
+==References==
+{{Reflist}}
+
+{{Slash weapons}}
+{{Theatre of Blood}}
+{{Multi-hit weapons}}
+[[Category:Items subject to Grand Exchange item sink]]
+[[Category:Collection log items]]
+[[Category:Items with charges]]

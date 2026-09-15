@@ -1,0 +1,46 @@
+{
+  "ok": true,
+  "collision_ms": 1026.872,
+  "cargo_checks": 6,
+  "deck_ms": 566.722,
+  "performance": {
+    "ok": true,
+    "target_ms": 100,
+    "operations": {
+      "state": {
+        "count": 30,
+        "median_ms": 2.833,
+        "p95_ms": 2.907,
+        "max_ms": 2.909
+      },
+      "capture": {
+        "count": 30,
+        "median_ms": 47.724,
+        "p95_ms": 80.062,
+        "max_ms": 81.176
+      },
+      "step_30": {
+        "count": 30,
+        "median_ms": 17.381,
+        "p95_ms": 18.163,
+        "max_ms": 20.14
+      }
+    },
+    "query_capture_target_met": true
+  },
+  "provenance": {
+    "pid": 54509,
+    "process_identity": "Sun Sep  6 15:02:11 2026     /Users/matthewevers/Documents/git_repos/3draster/src/torirs --manifest /Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini --user sailingtest --pass test --soft3d",
+    "binary": "/Users/matthewevers/Documents/git_repos/3draster/src/torirs",
+    "manifest": "/Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini",
+    "renderer": "soft3d",
+    "user": "sailingtest",
+    "headless": true,
+    "boat": "skiff",
+    "binary_sha256": "092d1e5bfc50466e66814f55675c39f6cc1d384ffc9f864a983830893098da04",
+    "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "script_sha256": "355e1388465d2eb336fb10894bc67cf88d868f90055ffabb8cc9e7dddb05907c",
+    "allow_stale_scripts": false
+  }
+}

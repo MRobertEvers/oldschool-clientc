@@ -1,0 +1,214 @@
+# What moving the sidebar stones onto the lane's own grid changes.
+#
+#   gate_diff.py --expect tools/porcelain_gate/expect/sidebar-tab-grid.expect \
+#                <baseline>/<lane>:<outdir>/<lane> ...
+#
+# Baseline: the commit this branch left (e1ab6b493), captured with the same
+# harness and with binaries built from this worktree. Do NOT concatenate this
+# with gameframe-layout.expect, chat-housing.expect or any of the others: each
+# of those declares what a DIFFERENT change did against a different baseline,
+# and every one of their lines is stale against this one -- which the
+# comparator fails on, correctly.
+#
+# --------------------------------------------------------------------------
+# The defect.
+#
+# Classic Fixed laid its fourteen stones on a table read off its own art. The
+# two bands it blits, `backhmid1` and `backbase2`, carry the 2004 frame's
+# hollows, and the 2004 frame's tabs were not a grid: measured off the sprites
+# -- column luminance over the hollow rows, whose minima are the dividers --
+# the top band's grooves fall at 544, 571, 600, 626, 664, 697, 725 and 752, so
+# its cells are 27, 29, 26, 38, 33, 28 and 27 columns wide, the bottom band's
+# are at 544, 572, 600, 626, 663, 696, 724 and 749, and the run starts at 538.
+#
+# rev-239 puts its stones 33 apart from 526, and 161 puts them 33 apart from
+# 528. Not one tab stood on one of those cells. The leftmost stone of each row
+# sat on bare rock with its hollow twelve columns to its right; the selected
+# one wore the 44-column redstone the 2004 grid's single wide cell was cut for,
+# eleven columns wider than the tab, bleeding into both its neighbours; and
+# tabs two and five were visibly off-centre in the hollows behind them.
+#
+# The fix takes each stone's box from the tab itself -- an element of kind TAB
+# resolved through the profile's `[tabs]` map, the way the chat bar already
+# takes each filter's -- and re-cuts the art to it: one hollow out of each
+# band, laid at the seven boxes that row reports, and one lit redstone per row
+# cut the same way. Nothing here reads a lane's name; the guard on adopting the
+# grid is that the seven boxes are one size, stand on one line, and fall inside
+# the band this layout has already blitted, which is why 601's two columns of
+# stones down the window edge do not take it.
+#
+# The hollow's own box is the TAB's on both axes and the band's floor for its
+# height: a socket in either of these bands runs from its lip to the band's
+# last row while the stone standing in it is 36 rows, so a hollow cut to the
+# box would give its bottom row back to the band -- and what the 2004 art has
+# at that row is the next cell's divider, a dark line under every socket.
+#
+# The lit stone is cut from `classic_redstone2`, the strip's INTERIOR cell, and
+# FOLDED about its own centre rather than sliced across it. The strip's cells
+# are each lit for the side of the strip they stand on because they mirror
+# about the strip's middle; a row of fourteen equal boxes has no middle, so
+# there is no side for a one-sided picture to be on. Cut from `redstone1` --
+# the strip's CORNER cell, with a diagonal bite out of its lower left -- every
+# selected tab wore that bite: 9 red pixels in the leftmost eleven columns of
+# the tab against 179 in the rightmost eleven, measured on classic548. Folded
+# it is 195 against 177. TWO of them, one per row, because the two bands light
+# their sockets from opposite sides and the 2004 table says so itself: every
+# one of its bottom seven entries is a REDSTONE_FLIP_V or _HV of the picture
+# the row above wears.
+#
+# --------------------------------------------------------------------------
+# 1. The pictures land in different image slots.
+#
+# The two re-cut bands and the two re-cut stones are pictures the frame did not
+# have before, so everything allocated after them renumbers -- the four orbs
+# and the two band pieces report a different `scene` at exactly the same box.
+#
+# Four composed pictures where the frame had none, on the lane that runs two
+# layouts in one window: `remount164` reports no `verb=image result=9` on any
+# of the eight, which is the BUDGET refusal that caught an earlier attempt at
+# four MIRRORINGS of one stone. @see PORCELAIN_IMAGES_MAX.
+#
+# THE CLAIM, stated so it can be argued with: a slot id is an internal handle
+# and not behaviour. Nothing reads it, nothing persists it, and no two builds
+# are obliged to agree on it. It is the same line gameframe-layout.expect
+# carries, for the same reason.
+normalise scene = the image slot is an internal handle, and a composed picture the frame did not have before renumbers what is allocated after it
+
+# --------------------------------------------------------------------------
+# 2. The boxes the stones LEAVE: the 2004 strip's own cells.
+#
+# The boxes over the four lanes that run Classic Fixed: classic548,
+# classic161, remount164 which starts on it, and remount548 which ends on it.
+# They are the cell table's fourteen rows and the icon origins beside them, at
+# five widths -- 44, 38, 34, 33 and 30 -- which is the tell that they were read
+# off a picture rather than off a tab.
+#
+# Matched by the box and size rather than by the whole capture line, because
+# the three controls a stone has (its hit box, its face, its icon) write the
+# same line but for that box, and a stone whose three agree is the thing this
+# change produces. A box declared here that no capture has is reported STALE,
+# so the list cannot be padded.
+only-before abs=538,170 38x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=538,170 34x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=570,168 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=570,168 30x37 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=598,168 38x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=598,168 30x37 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=626,168 44x35 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=669,168 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=669,168 30x37 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=697,168 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=697,168 30x37 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=725,169 38x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=725,169 34x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=538,466 34x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=570,466 30x37 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=598,466 30x37 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=626,467 44x35 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=669,466 30x37 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=697,466 30x37 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=725,466 34x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=540,170 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=600,168 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=727,169 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=538,466 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=569,466 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=597,466 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=631,467 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=668,466 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=696,466 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=725,466 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+only-before abs=626,168 33x36 wh= = a stone at the 2004 strip's own cell, which is not where any tab of either grid stands
+
+# --------------------------------------------------------------------------
+# 3. The boxes they ARRIVE at: what the tabs report.
+#
+# Twenty-eight, which is fourteen on the 526 grid (classic548 and the two
+# remount lanes) and fourteen on the 528 grid (classic161). Every one is
+# 33x36 -- the size the lane states for every stone it has -- and each is the
+# box the lane's own `sidetab_NN` role resolves to, to the pixel. That
+# equality is the acceptance this change was written against, and it is
+# checkable from the same log: `ROLE_WIDGET role=sidetab_NN box=...` against
+# `OWNED_WIDGET key=face.NN box=...`.
+only-after  abs=526,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=560,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=593,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=626,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=659,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=692,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=726,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=526,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=560,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=593,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=626,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=659,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=692,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=726,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=528,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=562,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=595,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=628,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=661,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=694,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=728,168 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=528,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=562,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=595,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=628,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=661,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=694,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+only-after  abs=728,466 33x36 wh= = and at the box its own tab reports, which is where the hollow is cut now
+
+# --------------------------------------------------------------------------
+# 4. The same move, said about each owned control.
+#
+# Forty-two keys: fourteen hit boxes, fourteen faces and fourteen icons. Every
+# one of them MOVES -- none is added, none is dropped, and no count changes --
+# which is what distinguishes this from a port that gained or lost furniture.
+#
+# tab.03 and icon.03 are in the list because they move on 161, whose grid
+# starts at 528; on 548 they are the one stone the two grids happened to agree
+# about. A declaration that never fired anywhere would be reported stale, so
+# these two are here on the strength of the lane that needs them.
+owned-move face.00 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move face.01 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move face.02 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move face.03 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move face.04 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move face.05 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move face.06 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move face.07 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move face.08 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move face.09 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move face.10 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move face.11 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move face.12 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move face.13 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.00 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.01 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.02 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.03 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.04 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.05 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.06 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.07 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.08 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.09 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.10 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.11 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.12 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move icon.13 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.00 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.01 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.02 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.03 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.04 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.05 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.06 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.07 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.08 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.09 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.10 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.11 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.12 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it
+owned-move tab.13 = the stone takes its box from its own tab instead of from the art strip, and its picture is re-cut to it

@@ -1,0 +1,369 @@
+{{Infobox Scenery
+|defver = 2
+|version1 = Closed
+|version2 = Opened
+|name = Chest
+|image1 = [[File:Chest (Tombs of Amascut, closed).png|250px]]
+|image2 = [[File:Chest (Tombs of Amascut, open).png|250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Osmumten]]'s burial chamber
+|options1 = Open
+|options2 = Search
+|examine1 = What could be inside?
+|examine2 = It's been opened.
+|map = {{Map|name=Chest (Tombs of Amascut)|x=3680|y=5152|x:3674,y:5148|x:3674,y:5145|x:3674,y:5142|x:3674,y:5139|x:3687,y:5148|x:3687,y:5145|x:3687,y:5142|x:3687,y:5139|mapID=-1|mtype=pin}}
+|id1 = 41696,44786
+|id2 = 44787,44788,44789,44790,44791,44792
+|leagueRegion = desert
+}}
+The '''chest''' is found in [[Osmumten]]'s burial chamber in the [[Tombs of Amascut]] raid, and can be searched for rewards after defeating [[Tumeken's Warden]] and [[Elidinis' Warden]].
+
+The rewards from the chest vary; like the [[Ancient chest]] from the [[Chambers of Xeric]] and the [[Monumental chest]] from the [[Theatre of Blood]], the rewards inside are based on performance in the raid. In addition to performance, better rewards can be generally obtained with a higher raid level.
+
+If the player leaves the raid without claiming the loot from the chest, they can reclaim them by opening the [[Rewards Niche]] in the south-eastern corner of the lobby. 
+
+==Loot mechanics==
+<!--something is off, getting a fix later[[File:Toa loot tiles.png|The numbered tiles indicate which player in the orb list can open the chest containing their rewards.|thumb|300x300px]]-->
+
+Rewards are determined by a point system. Players receive room points in each room of the raid (capped at 20,000 room points), which are then added to their total reward points (capped at 64,000 total points) upon room completion. The point system works as follows:
+* Players start the raid with 5,000 total reward points.
+* Room points are awarded per damage dealt to every NPC in the raid. For most NPCs, 1 damage dealt equates to 1 room point. Some NPCs give bonus points while some NPCs give no points, as shown below:
+
+:{| class="wikitable align-center-2"
+!NPC
+!Multiplier
+|-
+|[[Core|Warden's Core]]
+|0x
+|-
+|[[Tombs_of_Amascut/Strategies#Challenge_room_4|Apmeken's Path baboons]]
+|1.2x
+|-
+|[[Ba-Ba]]
+|2x
+|-
+|[[Zebak]]
+|1.5x
+|-
+|[[Tombs_of_Amascut/Strategies#Kephri,_Guardian_of_Scabaras|Kephri's scarabs]]
+|0.5x
+|-
+|[[Het's Seal]]
+|2.5x
+|-
+|[[Obelisk_(Tombs_of_Amascut)|Obelisk]]
+|1.5x
+|-
+|[[Tombs_of_Amascut/Strategies#Phase_2|Wardens (P2)]]
+|2x
+|-
+|[[Tombs_of_Amascut/Strategies#Phase_3|Wardens (P3)]]
+|2.5x
+|-
+|}
+
+* If a player scores the most room points in their party for a room, they will be given an MVP bonus of <math>300 \times \text{TeamSize}</math> to their total points upon room completion.
+* If a player dies, they will lose 20% of their total reward points, with a minimum deduction of 1,000 points.
+* At the end of the raid, the starting 5,000 points are subtracted when calculating loot and purple percentage.{{CiteTwitter |author=JagexAsh|url=https://x.com/JagexAsh/status/1813512316086043043|date=17 July 2024|archiveurl=https://reldo.runescape.wiki/i/27963413|archivedate=7 April 2026|quote=yup." In reply to message from HeuyHui: "@JagexAsh According to https://secure.runescape.com/m=news/tombs-of-amascut-drop-mechanics--osmumtens-fang?oldschool=1 you start TOA with 5000 points, but the coin drops suggest that there is a -5000 point calculation at the end.  Can you confirm that the starting 5000 points are subtracted from the final total and the blog post left that out?|notes=Original tweet from HeuyHui https://x.com/HeuyHui/status/1813234612828574008 (https://reldo.runescape.wiki/i/27963390)}}
+
+===Uniques===
+Players will have a '''1% chance''' to receive a unique item for every <math>10,500 - 20 \times RL</math> total reward points, where <math>RL</math> is a scaled raid level given by the following:
+
+<math>RL = \begin{cases}
+\text{RaidLevel} && \text{RaidLevel} \leq 310 \\
+310 + \frac{\text{RaidLevel} - 310}{3} && 310 < \text{RaidLevel} \leq 430 \\
+350 + \frac{\text{RaidLevel} - 430}{6} && \text{RaidLevel} > 430
+\end{cases}</math>
+
+For example, at raid level 400, players will have a 1% chance for every <math>10,500 - 20\left(310 + \frac{90}{3}\right) = 3,700</math> points earned.
+
+If a unique item is rolled, the flames around [[Sarcophagus (Osmumten)|Osmumten's sarcophagus]] will glow '''purple''' rather than white, and the player who receives the item will have their corresponding chest emptied, as the common drop rolls are not made for them. Upon interacting with the sarcophagus, a short animation will play where it is opened and reveals the drop.
+
+If a player successfully rolls for a unique that is outside its associated raid level - indicated by the greyed out unique item icons in the Invocation menu during raid setup - then the game performs an additional 1/50 roll. If this roll succeeds, the raid level restriction is ignored and the player receives the item. If it fails, an untradeable tertiary item is received instead.
+
+Only one player per raid can receive a unique. For players raiding with other players, the total points of the entire group are used to determine which player will receive a unique, with the individual probabilities being proportional to the players' relative contribution to the total. In case a player disconnects or leaves the raid before it is completed, their points will still be counted when the overall unique chance for the group is determined.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1640696959445917698|date=28 March 2023|archiveurl=https://reldo.runescape.wiki/i/27964134|archivedate=23 June 2026|quote=I believe their contribution does not disappear; the game would still be aware of it when performing rolls for a unique.}}
+
+Similarly to the ancient chest from the Chambers of Xeric, the unique drop rate is capped, with a maximum rate of 55% to see a unique at the end of the raid. Excess points will not contribute towards a second roll, however.
+
+Between raid levels 305 and 500, the weightings of Osmumten's fang and the Lightbearer decrease while the relative weightings of other uniques increase. A player who is able to clear higher raid levels is encouraged to do so, as not only does the unique rate increase, but so does the chance of acquiring more lucrative items.
+{| class="wikitable"
+!Raid level
+!Osmumten's fang
+!Lightbearer
+!Elidinis' ward
+!Masori mask
+!Masori body
+!Masori chaps
+!Tumeken's shadow
+!Average Purple Value
+|-
+|150-300
+|1/3.43
+|1/3.43
+|1/8
+|1/12
+|1/12
+|1/12
+|1/24
+|{{Coins|{{GEP|Osmumten's fang}}/3.43+{{GEP|Lightbearer}}/3.43+{{GEP|Elidinis' ward}}/8+{{GEP|Masori mask}}/12+{{GEP|Masori body}}/12+{{GEP|Masori chaps}}/12+{{GEP|Tumeken's shadow (uncharged)}}/24}}
+|-
+|350
+|1/3.67
+|1/3.67
+|1/7.33
+|1/11
+|1/11
+|1/11
+|1/22
+|{{Coins|{{GEP|Osmumten's fang}}/3.67+{{GEP|Lightbearer}}/3.67+{{GEP|Elidinis' ward}}/7.33+{{GEP|Masori mask}}/11+{{GEP|Masori body}}/11+{{GEP|Masori chaps}}/11+{{GEP|Tumeken's shadow (uncharged)}}/22}}
+|-
+|400
+|1/4.75
+|1/3.8
+|1/6.33
+|1/9.5
+|1/9.5
+|1/9.5
+|1/19
+|{{Coins|{{GEP|Osmumten's fang}}/4.75+{{GEP|Lightbearer}}/3.8+{{GEP|Elidinis' ward}}/6.33+{{GEP|Masori mask}}/9.5+{{GEP|Masori body}}/9.5+{{GEP|Masori chaps}}/9.5+{{GEP|Tumeken's shadow (uncharged)}}/19}}
+|-
+|450
+|1/4.5
+|1/4.5
+|1/6
+|1/9
+|1/9
+|1/9
+|1/18
+|{{Coins|{{GEP|Osmumten's fang}}/4.5+{{GEP|Lightbearer}}/4.5+{{GEP|Elidinis' ward}}/6+{{GEP|Masori mask}}/9+{{GEP|Masori body}}/9+{{GEP|Masori chaps}}/9+{{GEP|Tumeken's shadow (uncharged)}}/18}}
+|-
+|500
+|1/5.5
+|1/4.71
+|1/5.5
+|1/8.25
+|1/8.25
+|1/8.25
+|1/16.5
+|{{Coins|{{GEP|Osmumten's fang}}/5.5+{{GEP|Lightbearer}}/4.71+{{GEP|Elidinis' ward}}/5.5+{{GEP|Masori mask}}/8.25+{{GEP|Masori body}}/8.25+{{GEP|Masori chaps}}/8.25+{{GEP|Tumeken's shadow (uncharged)}}/16.5}}
+|}
+{{Chart data|Chart data/toa unique weights|width=40vw|height=40vh}}
+
+===Common rewards===
+If the player does not receive a unique reward from the raid, then their corresponding chest will be sealed. A key-shaped icon will appear by the chest indicating which one the player can open. Three rolls are also made on the common drop table. The quantity of the items from the three rolls appears to use the following formula,
+
+<math>\text{ItemQty} = \begin{cases}
+\frac{\text{Points}}{\text{ItemDivisor}} & \text{if RaidLevel} < 300\\
+\frac{\text{Points}}{\text{ItemDivisor}} \cdot (1.15 + 0.01\cdot\frac{\text{RaidLevel}-300}{5}) & \text{if RaidLevel} \geq 300
+\end{cases} </math>
+
+where <math>Points</math> is the total amount of reward points earned from the raid (which is hidden from the player), and the item divisor's value depending on the item rewarded in the table below. The common drop table also includes [[cache of runes]], but instead of following the above formula, the quantity is set to one. 
+
+Effectively: At raid level 300, the player receives 15% additional non-unique loot relative to a Entry/Normal mode clear.  
+Every 5 additional raid levels is an additive 1% to this bonus - raid level 305 is 16%, 400 is 35%, and 450 is 45% more.
+
+{| class="wikitable align-left-2" style="text-align:center;"
+|-
+! colspan="2" | Reward
+! Divisor value
+|-
+| {{plinkt|Coins|pic=Coins 10000}} || 1
+|-
+| {{plinkt|Death rune}} || 20
+|-
+| {{plinkt|Soul rune}} || 40
+|-
+| {{plinkt|Gold ore}} || 90
+|-
+| {{plinkt|Dragon dart tip}} || 100
+|-
+| {{plinkt|Mahogany logs}} || 180
+|-
+| {{plinkt|Sapphire}} || 200
+|-
+| {{plinkt|Emerald}} || 250
+|-
+| {{plinkt|Gold bar}} || 250
+|-
+| {{plinkt|Potato cactus}} || 250
+|-
+| {{plinkt|Raw shark}} || 250
+|-
+| {{plinkt|Ruby}} || 300
+|-
+| {{plinkt|Diamond}} || 400
+|-
+| {{plinkt|Raw manta ray}} || 450
+|-
+| {{plinkt|Cactus spine}} || 600
+|-
+| {{plinkt|Dragonstone}} || 600
+|-
+| {{plinkt|Battlestaff}} || 1,100
+|-
+| {{plinkt|Coconut milk}} || 1,100
+|-
+| {{plinkt|Lily of the sands}} || 1,100
+|-
+| {{plinkt|Toadflax seed}} || 2,000
+|-
+| {{plinkt|Ranarr seed}} || 2,500
+|-
+| {{plinkt|Torstol seed}} || 3,200
+|-
+| {{plinkt|Snapdragon seed}} || 3,200
+|-
+| {{plinkt|Dragon med helm}} || 4,000
+|-
+| {{plinkt|Magic seed}} || 6,500
+|-
+| {{plinkt|Blood essence}} || 7,500
+|-
+| {{plinkt|Cache of runes}} || {{NA}}
+|}
+
+===Tertiary rewards===
+The chance of receiving a [[thread of Elidinis]] or one of the four keris partisan jewels is determined by a base rate that linearly interpolates to three times their base rate depending on kill count. The base rate for the thread is 1/10,{{CiteNews|url=https://secure.runescape.com/m=news/a=97/tombs-of-amascut-drop-mechanics--osmumtens-fang?oldschool=1|title=Tombs of Amascut Drop Mechanics & Osmumten's Fang|newsdate=28 October 2022}} and the base rate for a specific jewel is 1/50, or 4/50 for any jewel.{{CiteNews|url=https://secure.runescape.com/m=news/a=13/summer-sweep-up-combat?oldschool=1|title=Summer Sweep Up: Combat|newsdate=25 June 2025}}
+
+At 0 kill count, the chance of receiving one of these items is their base drop rate, each raid completed without receiving one of these uniques will increase their drop rate until it is received. Specifically, a kill count equivalent to 1.5x their base drop rate denominator will make the chances three times as likely. For example, at 0 kill count, players will have a 1/10 chance to receive the thread of Elidinis. However, at 15 kill count, they will have a 3/10 chance instead. Likewise, the drop rate for any remaining jewel scales from 4/50 (1/12.5) up to 12/50 (~1/4.17), when reaching a kill count of 75.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1658043649047887873|date=15 May 2023|archiveurl=https://archive.ph/RWnXt|archivedate=5 August 2023|quote=[(...) The bad luck protection for jewels. Does it cap out at 90 or 270 raids? I.E. 60x1,5 or 180×1,5. (...)] I think it's 1.5 x 180 like you said, so 270 - if I'm reading my colleagues' code directly. (...)}}
+
+Players cannot receive duplicate jewels until all of the jewels are first obtained, as long as the player either has the jewel or the partisan in their possession. Once the player has obtained all four jewels, the drop rates for the jewels revert back to their base rates. However, instead of the base rate of 1/10, the drop rate of the thread of Elidinis is set to 1/50 after one has been received for the first time.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1654554310867386368|date=5 May 2023|archiveurl=https://reldo.runescape.wiki/i/27964137|archivedate=23 June 2026|quote=[Can you confirm the drop rate of the Thread of elidinis after getting the first one? Is it 1/10? I haven't seen a single duplicate thread for almost 200 raids after losing it.] No, if I'm reading the loot code correctly (which isn't a sure thing, as it isn't something I ever worked on myself) it changes to 1/50 after you've had one of those.}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1650416621444276226|date=24 April 2023|archiveurl=https://reldo.runescape.wiki/i/27964140|archivedate=23 June 2026|quote=I'd wonder if that 1/10 advertisement was massively over-simplified. It looks to me like it's affected by whether you already have the jewels, as well as whether you already had a thread (moving the chance to 1/50 as you say).}}
+
+The pet, [[Tumeken's guardian]], is determined similarly to uniques but with different base values. Players will have a '''1% chance''' to receive the pet for every <math>350,000 - 700 \times RL</math> total reward points, where <math>RL</math> is a scaled raid level given by the following:
+
+<math>RL = \begin{cases}
+\text{RaidLevel} & \text{RaidLevel} \leq 400 \\
+400 + \frac{\text{RaidLevel} - 400}{3} & 400 < \text{RaidLevel} \leq 550 \\
+450 & \text{RaidLevel} > 550
+\end{cases}</math>
+
+===Challenge rewards===
+Meeting certain challenge requirements will always give the player the corresponding reward, detailed below.
+
+Each of these challenges includes the requirement that there are zero deaths for all party members. The game will check the player's inventory, worn equipment and bank to see if the base or modified item is in their possession; if it does, then the roll is canceled. If it is not, then the game will generate one for the player; as such, the [[drop trick]] can be used to obtain multiple items. If the warden on P4 dies on the same tick as you, combat achievements will consider this deathless, while challenge reward loot will not.
+
+Only one pet transmog can be obtained per person, per raid. If the requirements for multiple remnants are met, the following order of priority determines which one is awarded: Akkha, Zebak, Ba-Ba, Kephri, Ancient.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1683875076234522636|date=25 July 2023|archiveurl=https://reldo.runescape.wiki/i/27964142|archivedate=23 June 2026|quote=It's checking in this order: Akkha, Zebak, Baba, Kephri, Tumeken, Ancient.}}
+
+{| class="wikitable align-left-2" style="text-align:center;"
+|-
+! colspan="2" | Reward
+! Raid level
+! Other requirements
+|-
+| {{plinkt|Masori crafting kit}} || 350+ || {{NA}}
+|-
+| {{plinkt|Menaphite ornament kit}} || 425+ || {{NA}}
+|-
+| {{plinkt|Remnant of akkha}} || 450+ || All [[Akkha]] invocations and level 4 [[Akkha]]
+|-
+| {{plinkt|Remnant of ba-ba}} || 450+ || All [[Ba-ba]] invocations and level 4 [[Ba-ba]]
+|-
+| {{plinkt|Remnant of kephri}} || 450+ || All [[Kephri]] invocations and level 4 [[Kephri]]
+|-
+| {{plinkt|Remnant of zebak}} || 450+ || All [[Zebak]] invocations and level 4 [[Zebak]]
+|-
+| {{plinkt|Ancient remnant}} || 450+ || All Wardens invocations
+|-
+| {{plinkt|Cursed phalanx}} || 500+ || {{NA}}
+|}
+
+==Loot table==
+===Pre-roll===
+''If dung is received, no common rewards are given.''
+{{DropsTableHead}}
+{{DropsLineReward|name=Fossilised dung|quantity=1 (noted)|rarity=Always|raritynotes={{refn|group=d|Only obtained if a player ends the raid with less than 1,500 total reward points.}}}}
+{{DropsTableBottom}}
+
+===Uniques===
+''The chance of getting a unique depends on how much the player has contributed to the raid and also on the raid level. If one of these items is received, no common rewards are given. Tertiary rewards are still obtainable.''
+
+''Once the game has chosen whether to give a unique item, an item is chosen from the table below with the following probabilities.''
+{{DropsTableHead}}
+{{DropsLineReward|name=Osmumten's fang|quantity=1|rarity=7/24|altrarity=|raritynotes={{refn|group=d|Rate drastically reduced for raid levels 0-49, with an additional 1/50 roll.|name=FourNine}}{{refn|group=d|Drop rate decreased for raid levels above 300. See [[#Uniques|above]] for more information.|name=RL}}}}
+{{DropsLineReward|name=Tumeken's shadow (uncharged)|quantity=1|rarity=1/24|altrarity=|raritynotes={{refn|group=d|Rate drastically reduced for raid levels 0-149, with an additional 1/50 roll.|name=OneFourNine}}{{refn|group=d|Drop rate increased for raid levels above 300. See [[#Uniques|above]] for more information.|name=RL2}}}}
+{{DropsLineReward|name=Elidinis' ward|quantity=1|rarity=3/24|altrarity=|raritynotes={{refn|group=d|name=OneFourNine}}{{refn|group=d|name=RL2}}}}
+{{DropsLineReward|name=Lightbearer|quantity=1|rarity=7/24|altrarity=|raritynotes={{refn|group=d|name=FourNine}}{{refn|group=d|name=RL}}}}
+{{DropsLineReward|name=Masori mask|quantity=1|rarity=2/24|altrarity=|raritynotes={{refn|group=d|name=OneFourNine}}{{refn|group=d|name=RL2}}}}
+{{DropsLineReward|name=Masori body|quantity=1|rarity=2/24|altrarity=|raritynotes={{refn|group=d|name=OneFourNine}}{{refn|group=d|name=RL2}}}}
+{{DropsLineReward|name=Masori chaps|quantity=1|rarity=2/24|altrarity=|raritynotes={{refn|group=d|name=OneFourNine}}{{refn|group=d|name=RL2}}}}
+{{DropsTableBottom}}
+
+===Common rewards===
+''The rewards are shared across any raid level, but higher raid levels and optimal performance provide higher quantities.''
+{{DropsTableHead}}
+{{DropsLineReward|name=Cache of runes|quantity=1|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Coins|quantity=1126-51285|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Death rune|quantity=57-2564|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Soul rune|quantity=28-1282|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Gold ore|quantity=12-569 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Dragon dart tip|quantity=11-512|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Mahogany logs|quantity=6-284 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Sapphire|quantity=5-256 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Emerald|quantity=4-205 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Gold bar|quantity=4-205 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Potato cactus|quantity=4-205 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Raw shark|quantity=4-205 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Ruby|quantity=3-170 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Diamond|quantity=2-128 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Raw manta ray|quantity=2-113 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Cactus spine|quantity=1-85 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Dragonstone|quantity=1-85 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Battlestaff|quantity=1-46 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Coconut milk|quantity=1-46 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Lily of the sands|quantity=1-46 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Toadflax seed|quantity=1-36|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Ranarr seed|quantity=1-28|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Torstol seed|quantity=1-23|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Snapdragon seed|quantity=1-23|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Dragon med helm|quantity=1-12 (noted)|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Magic seed|quantity=1-7|rarity=1/27|rolls=3}}
+{{DropsLineReward|name=Blood essence|quantity=1-6|rarity=1/27|rolls=3}}
+{{DropsTableBottom}}
+
+===Tertiary rewards===
+{{DropsTableHead}}
+{{DropsLineReward|name=Thread of elidinis|quantity=1|rarity=1/10|altrarity=3/10|altraritydash=yes|raritynotes=; 1/50{{refn|group=d|The first thread of Elidinis possesses a [[Bad luck mitigation]] mechanic, where its rarity scales linearly until it is three times as common when the player's total raid completion count reaches 1.5 times the base rate denominator. In other words, the thread of Elidinis has a drop rate of 1/3.33 at 15 completions. This does not apply anymore when the player has received it at least once, after which the drop rate is set to 1/50.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1654554310867386368|date=5 May 2023|archiveurl=https://archive.ph/KYqu4|archivedate=5 May 2023|quote=[Can you confirm the drop rate of the Thread of elidinis after getting the first one? Is it 1/10? I haven't seen a single duplicate thread for almost 200 raids after losing it.] No, if I'm reading the loot code correctly (which isn't a sure thing, as it isn't something I ever worked on myself) it changes to 1/50 after you've had one of those.}}}}}}
+{{DropsLineReward|name=Eye of the corruptor|quantity=1|rarity=1/50|altrarity=3/50|altraritydash=yes|raritynotes=; 1/50{{refn|The four jewels possess a bad luck mitigation mechanic, where their rarity scales linearly until they are three times as common when the player's total raid completion count reaches 1.5 times the base rate denominator. In other words, the drop rate of any given jewel scales from 1/50 up to 3/50 after reaching a kill count of 75.|group=d|name="untradeables"}}{{refn|group=d|There is a 1/12.5 chance to get any Keris partisan jewel. If the player is missing one or more of the four jewels, they will be guaranteed to receive an unobtained one upon successfully rolling for a jewel. This effectively changes the rarity of unowned jewels to 1/37.5, 1/25, and 1/12.5 when owning one, two, or three unique jewels respectively. When the player owns all four jewels already, this mechanic does not apply.|name="jewel"}}}}
+{{DropsLineReward|name=Jewel of the sun|quantity=1|rarity=1/50|altrarity=3/50|altraritydash=yes|raritynotes=; 1/50{{refn|group=d|name="untradeables"}}{{refn|group=d|name="jewel"}}}}
+{{DropsLineReward|name=Breach of the scarab|quantity=1|rarity=1/50|altrarity=3/50|altraritydash=yes|raritynotes=; 1/50{{refn|group=d|name="untradeables"}}{{refn|group=d|name="jewel"}}}}
+{{DropsLineReward|name=Jewel of amascut|quantity=1|rarity=1/50|altrarity=3/50|altraritydash=yes|raritynotes=; 1/50{{refn|group=d|name="untradeables"}}{{refn|group=d|name="jewel"}}}}
+{{DropsLineReward|name=Clue scroll (elite)|quantity=1|rarity=Varies|raritynotes={{refn|group=d|The odds of receiving an elite clue scroll scale with one's reward points, netting a 1/100 drop rate for every 2,000 rewards points awarded, up to a maximum of 25/100.{{CiteTwitter|author=Mod Ash|url=https://xcancel.com/JagexAsh/status/1765295101956211119|date=6 March 2024|archiveurl=https://archive.ph/SP8BJ|archivedate=2026-01-10|quote=Ah! For each 2k points in your personal contribution, you get 1 percentage point of clue chance, up to a max of 25%. The elite CA multiplies this chance up by 1.05 as usual.}} The bonus drop chance received from the elite combat achievements also applies.}}}}
+{{DropsLineReward|name=Tumeken's guardian|quantity=1|rarity=Varies|raritynotes={{refn|group=d|See [[#Tertiary rewards|above]] for more information.}}}}
+{{DropsTableBottom}}
+
+===Challenge rewards===
+''The following items are a guaranteed drop, provided that the raid party meets the conditions to receive them.''
+{{DropsTableHead}}
+{{DropsLineReward|name=Cursed phalanx|quantity=1|rarity=Always|raritynotes={{refn|group=d|See [[Chest (Tombs of Amascut)#Challenge_rewards|above]] for more information.|name="challenge"}}}}
+{{DropsLineReward|name=Masori crafting kit|quantity=1|rarity=Always|raritynotes={{refn|group=d|name="challenge"}}}}
+{{DropsLineReward|name=Menaphite ornament kit|quantity=1|rarity=Always|raritynotes={{refn|group=d|name="challenge"}}}}
+{{DropsLineReward|name=Remnant of akkha|quantity=1|rarity=Always|raritynotes={{refn|group=d|name="challenge"}}}}
+{{DropsLineReward|name=Remnant of ba-ba|quantity=1|rarity=Always|raritynotes={{refn|group=d|name="challenge"}}}}
+{{DropsLineReward|name=Remnant of kephri|quantity=1|rarity=Always|raritynotes={{refn|group=d|name="challenge"}}}}
+{{DropsLineReward|name=Remnant of zebak|quantity=1|rarity=Always|raritynotes={{refn|group=d|name="challenge"}}}}
+{{DropsLineReward|name=Ancient remnant|quantity=1|rarity=Always|raritynotes={{refn|group=d|name="challenge"}}}}
+{{DropsTableBottom}}
+
+==Rewards calculator==
+{{Calculator:Tombs of Amascut loot}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = The following seeds had their divisor values increased:
+* [[Toadflax seed]]s, increased from 1400 to 2000 (effectively 30% fewer seeds)
+* [[Ranarr seed]]s, increased from 1800 to 2500 (effectively 28% fewer seeds)
+* [[Torstol seed]]s and [[Snapdragon seed]]s, increased from 2200 to 3200 (effectively 31.25% fewer seeds)
+}}
+{{Subject changes footer}}
+
+==References==
+{{reflist}}
+
+{{Chests}}
+{{Tombs of Amascut}}

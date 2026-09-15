@@ -1,0 +1,48 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Blood Barrage
+|image = [[File:Blood Barrage.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 92
+|spellbook = Ancient
+|type = Combat
+|exp = 51
+|element = Blood
+|damage = 29
+|cost = {{RuneReq|Death=4|Blood=4|Soul=1}}
+|speed = 5 ticks
+|description = A multi-target strong blood attack
+|anim = [[File:Blood Barrage.gif|180px]]
+|sound = [[File:Blood Barrage.ogg]]
+}}
+[[File:Blood Barrage icon (mobile).png|left]]
+'''Blood Barrage''' is the highest tier [[Blood spell]] from the [[Ancient Magicks]] spellbook, available at level 92 [[Magic]]. It is capable of hitting up to 29 damage (without any [[magic damage]] boosts) per cast.
+
+Blood Barrage has a [[life leech]] effect that will heal the caster's [[Hitpoints]] by 25% of the damage dealt. This can be increased by wearing [[bloodbark armour]], where each piece increases the amount healed by 2%, up to a maximum of 35%. It can also be increased by 2.5% to 27.5% when using the [[Ancient sceptre]]. These two boosts stack multiplicatively, meaning when both are used, the healing increases to 38.5% of the amount of damage inflicted. It is also able to target up to nine targets in a 3x3 grid around its primary target, just like all other [[Burst spells|burst]] and [[barrage spells]]. Even if a target has very little remaining health or is otherwise immune to damage from the spell, it will still heal for the amount of damage it would have done.
+
+As with all [[Ancient Magicks]] spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+
+The spell is sometimes used alongside various other Barrage spells, such as [[Ice Barrage]], in multi-combat [[PvP]] activities. This method is normally used by players with high [[Magic]], [[Defence]], and Hitpoints levels.
+
+The spell's accuracy rolls for each opponent individually against their magic defence, unlike [[chinchompas]]. However, if on a slayer task and you target a slayer monster (for example Tstanon Karlak on a greater demon task) your max hit will be considered on all targets as if all targets were your slayer task. This means that it is better to target your slayer task monster if given the choice between that and a non slayer monster. This also applies to Nechryael and their Death Spawn.
+
+The spell is also used by players to extend longevity at a dangerous location. In the [[God Wars Dungeon]], Blood Barrage is ideal for healing on bodyguards, such as [[Tstanon Karlak]] and [[Zakl'n Gritch]] in [[K'ril Tsutsaroth]]'s chamber, as well as on [[Flight Kilisa]] and [[Flockleader Geerin]] in [[Kree'arra]]'s chamber after their corresponding general is defeated, to conserve supplies. It is a popular spell to use in the [[Inferno]] mini game, the smaller clumped monsters work best, such as [[Jal-Nib|nibblers]] or bloblets ([[Jal-AkRek-Ket]], [[Jal-AkRek-Xil]], and [[Jal-AkRek-Mej]]). Some players also use it on [[Spinolyp]]s at [[Dagannoth Kings]].
+==Damage==
+===Calculator===
+{{Magic damage calculator|Blood Barrage|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = death
+|Rune1num = 4
+|Rune2 = blood
+|Rune2num = 4
+|Rune3 = soul
+|Rune3num = 1
+|is_offensive = y
+}}
+
+{{Ancient Magicks}}
+{{Combat spells}}

@@ -1,0 +1,43 @@
+{{External|rs|rsc}}
+{{Otheruses|the magic spell|the special attack|Darklight#Special attack}}
+{{Infobox Spell
+|name = Weaken
+|image = [[File:Weaken.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 11
+|spellbook = Normal
+|type = Combat
+|exp = 21
+|cost = {{RuneReq|Body=1|Earth=2|Water=3}}
+|speed = 5 ticks
+|description = Reduces your opponent's strength by 5%
+|anim = [[File:Weaken.gif|300px]]
+|sound = [[File:Weaken.ogg]]
+}}
+[[File:Weaken icon (mobile).png|left]]
+'''Weaken''' is a level 11 [[Magic]] [[spell]]. When cast on an opponent, their [[Strength]] is reduced by 5%. The spell gives [[experience]] whether it hits or misses, making it a popular way to gain experience cheaply. The spell can only be cast if the targets stats haven't already been lowered, meaning you can not stack stat reduction with multiple spells in a row.
+
+The spell grants 21 Magic experience and requires three [[Water rune|water]], two [[Earth rune|earth]], and one [[Body rune|body runes]] to be cast.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Body
+|Rune1num = 1
+|Rune2 = Earth
+|Rune2num = 2
+|Rune3 = Water
+|Rune3num = 3
+|uses_pages_water = yes
+}}
+
+==Failed Cursing==
+{{Main|Splashing}}
+Casting Weaken while wearing full [[metal armour]] (including an [[elemental staff]] with no more than +10 magic points) can give a magic attack as low as -65, which guarantees a "splash," or a missed hit. This provides very cheap Magic experience, as players can instantly recast the spell on the same target. Additionally, casting Weaken grants players no experience in the [[Hitpoints]] skill and, thus, is useful to [[combat pure|pures]].
+
+The usual method is to buy the Body runes needed for the cast, as well as an appropriate amount of one of the other two runes, and using the respective staff of the third rune. An expensive alternative is to buy a [[Mud battlestaff]], which provides an unlimited supply of both Water and Earth runes.
+
+When doing this method, it is helpful to position a monster so that it is just on the edge of your screen, so that there is minimal distance between it and your spellbook.
+
+{{Standard spellbook}}

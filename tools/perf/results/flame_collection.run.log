@@ -2,43 +2,43 @@ torirs: dat2 cache=cache.osrs239.baked iface=161
 torirs_perf: enabled (ring=2048 window=1000 budget=20ms)
 audio: SDL_OpenAudioDevice: CoreAudio error (AudioDeviceGetProperty (kAudioDevicePropertyDeviceIsAlive)): 560947818
 audio: no device; running silent
-mock230: features era=osrs approach=rect op_nearest=10
-mock230: obj metadata loaded (33747 records from cache.osrs239.baked, 53853 params in 1262 KB)
-mock230: npc metadata loaded (16292 records from cache.osrs239.baked, 29869 params in 700 KB)
-mock230: sequence debug names loaded (0 named — falling back to pack/seq.pack, 14429 priorities)
-mock230: loc configs loaded (62194 records from cache.osrs239.baked; 1709 param rows in 41016 bytes, 30033 names in 565681 bytes, 17309 footprints in 138472 bytes, 8407 categories in 67256 bytes)
-mock230: struct params loaded (3988 records from cache.osrs239.baked, 20751 rows in 877 KB)
-mock230: 2872 varp(s) carry varbits
-mock230: varbit table loaded (19008 records from cache.osrs239.baked)
-mock230: 1117 param types from configs/all.param
-mock230: 5862 enums from configs/all.enum
-mock230: content loaded (214190 symbols, 731 constants, 111 npc defs, 2295 loc defs, 245 varp defs, 1496 equip reqs (675 from the cache), 65 npc spawns, 12 obj spawns)
-mock230: 3 config line(s) restate a field the client's own record carries — the cache already says it, so the overlay is inert
-mock230: server band: npc.attack stays text-loaded on 40 record(s) — the band has no wire for it
-mock230: server band: npc.defence stays text-loaded on 40 record(s) — the band has no wire for it
-mock230: server band: npc.strength stays text-loaded on 40 record(s) — the band has no wire for it
-mock230: server band: npc.hitpoints stays text-loaded on 40 record(s) — the band has no wire for it
-mock230: server band: npc.magic stays text-loaded on 21 record(s) — the band has no wire for it
-mock230: server band: npc.attackrate stays text-loaded on 4 record(s) — the band has no wire for it
-mock230: server band: npc.death_drop stays text-loaded on 22 record(s) — the band has no wire for it
-mock230: server band: npc.attack_anim stays text-loaded on 55 record(s) — the band has no wire for it
-mock230: server band: npc.defend_anim stays text-loaded on 55 record(s) — the band has no wire for it
-mock230: server band: npc.death_anim stays text-loaded on 26 record(s) — the band has no wire for it
-mock230: server band: npc.wanderrange stays text-loaded on 37 record(s) — the band has no wire for it
-mock230: server band: npc.maxrange stays text-loaded on 12 record(s) — the band has no wire for it
-mock230: server band: npc.huntrange stays text-loaded on 31 record(s) — the band has no wire for it
-mock230: server band: npc.respawnrate stays text-loaded on 42 record(s) — the band has no wire for it
-mock230: server band: npc.moverestrict stays text-loaded on 13 record(s) — the band has no wire for it
-mock230: server band: npc.nomove stays text-loaded on 12 record(s) — the band has no wire for it
-mock230: server band: npc.huntmode stays text-loaded on 45 record(s) — the band has no wire for it
-mock230: server band: loc.next_loc_stage stays text-loaded on 51 record(s) — the band has no wire for it
-mock230: server band loaded: 2975 archive(s) verified identical to the text parse and applied (840 overlay authored defs, 586 field value(s) text-only, 113 archive(s) over records the runtime never loads)
-mock230: db tables loaded (273 tables, 15944 rows from cache.osrs239.baked; 245 schema(s) installed, 15418 row(s) filled; 246 archive table(s), 16711 archive row(s))
-mock230: bank tables loaded (19008 varbits, bank=1410 slots)
+torirsserver: features era=osrs approach=rect op_nearest=10
+torirsserver: obj metadata loaded (33747 records from cache.osrs239.baked, 53853 params in 1262 KB)
+torirsserver: npc metadata loaded (16292 records from cache.osrs239.baked, 29869 params in 700 KB)
+torirsserver: sequence debug names loaded (0 named — falling back to pack/seq.pack, 14429 priorities)
+torirsserver: loc configs loaded (62194 records from cache.osrs239.baked; 1709 param rows in 41016 bytes, 30033 names in 565681 bytes, 17309 footprints in 138472 bytes, 8407 categories in 67256 bytes)
+torirsserver: struct params loaded (3988 records from cache.osrs239.baked, 20751 rows in 877 KB)
+torirsserver: 2872 varp(s) carry varbits
+torirsserver: varbit table loaded (19008 records from cache.osrs239.baked)
+torirsserver: 1117 param types from configs/all.param
+torirsserver: 5862 enums from configs/all.enum
+torirsserver: content loaded (214190 symbols, 731 constants, 111 npc defs, 2295 loc defs, 245 varp defs, 1496 equip reqs (675 from the cache), 65 npc spawns, 12 obj spawns)
+torirsserver: 3 config line(s) restate a field the client's own record carries — the cache already says it, so the overlay is inert
+torirsserver: server band: npc.attack stays text-loaded on 40 record(s) — the band has no wire for it
+torirsserver: server band: npc.defence stays text-loaded on 40 record(s) — the band has no wire for it
+torirsserver: server band: npc.strength stays text-loaded on 40 record(s) — the band has no wire for it
+torirsserver: server band: npc.hitpoints stays text-loaded on 40 record(s) — the band has no wire for it
+torirsserver: server band: npc.magic stays text-loaded on 21 record(s) — the band has no wire for it
+torirsserver: server band: npc.attackrate stays text-loaded on 4 record(s) — the band has no wire for it
+torirsserver: server band: npc.death_drop stays text-loaded on 22 record(s) — the band has no wire for it
+torirsserver: server band: npc.attack_anim stays text-loaded on 55 record(s) — the band has no wire for it
+torirsserver: server band: npc.defend_anim stays text-loaded on 55 record(s) — the band has no wire for it
+torirsserver: server band: npc.death_anim stays text-loaded on 26 record(s) — the band has no wire for it
+torirsserver: server band: npc.wanderrange stays text-loaded on 37 record(s) — the band has no wire for it
+torirsserver: server band: npc.maxrange stays text-loaded on 12 record(s) — the band has no wire for it
+torirsserver: server band: npc.huntrange stays text-loaded on 31 record(s) — the band has no wire for it
+torirsserver: server band: npc.respawnrate stays text-loaded on 42 record(s) — the band has no wire for it
+torirsserver: server band: npc.moverestrict stays text-loaded on 13 record(s) — the band has no wire for it
+torirsserver: server band: npc.nomove stays text-loaded on 12 record(s) — the band has no wire for it
+torirsserver: server band: npc.huntmode stays text-loaded on 45 record(s) — the band has no wire for it
+torirsserver: server band: loc.next_loc_stage stays text-loaded on 51 record(s) — the band has no wire for it
+torirsserver: server band loaded: 2975 archive(s) verified identical to the text parse and applied (840 overlay authored defs, 586 field value(s) text-only, 113 archive(s) over records the runtime never loads)
+torirsserver: db tables loaded (273 tables, 15944 rows from cache.osrs239.baked; 245 schema(s) installed, 15418 row(s) filled; 246 archive table(s), 16711 archive row(s))
+torirsserver: bank tables loaded (19008 varbits, bank=1410 slots)
 Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
-mock230: login user='testc' session=ok
-mock230: 2922 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
-mock230: 8 opcode(s) this content uses are not implemented:
+torirsserver: login user='testc' session=ok
+torirsserver: 2922 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: 8 opcode(s) this content uses are not implemented:
   SPOTANIM_MAP                 first wanted by [label,pray_at_statue]
   BUSY                         first wanted by [proc,dark_wizard_earth_attack]
   CAM_RESET                    first wanted by [proc,p_telejump_safe]
@@ -47,8 +47,8 @@ mock230: 8 opcode(s) this content uses are not implemented:
   NPC_WALK                     first wanted by [ai_queue13,_shade]
   OC_COST                      first wanted by [label,open_shade_chest]
   OC_MEMBERS                   first wanted by [proc,dragon_melee]
-mock230: 3 engine fallback(s) still answer triggers content does not bind
-mock230: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
 net: no decoder for wire opcode 108 (osrs230) — dropped
 textures: sprite-backed system (no materials table)
 Failed to load dat2 texture 65535

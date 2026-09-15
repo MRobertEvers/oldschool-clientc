@@ -1,0 +1,272 @@
+{{External|rs}}
+[[File:Crystal armour seed detail.png|left|140px]]'''Crystal equipment''' is a range of [[Degradation|degradable]] weapons and armour made from elven [[crystal]]. Crystal combat equipment requires completion of [[Roving Elves]] to use, as well as 50 [[Agility]] (although 56 Agility is a boostable requirement to travel through [[Tirannwn]]), among other skill requirements unique to each piece. Crystal tools and crystal armour can only be obtained after [[Song of the Elves]]. There are also the [[crystal saw]] and [[crystal chime]], which are rewards from the [[quest]]s [[The Eyes of Glouphrie]] and [[The Path of Glouphrie]] respectively.
+
+Upon death in the [[Wilderness]], the killer will receive the seed form of the crystal equipment.
+
+{{clear|left}}
+
+==Creation==
+{{#vardefine:crystalshardvalue|{{#ifexpr:{{#vardefineecho:seedvalue|{{GEP|Enhanced crystal teleport seed}} / 150}} > {{#vardefineecho:divinesupercombatvalue|({{GEP|Divine super combat potion(4)}} - {{GEP|Super combat potion(4)}}) / 0.4}} | {{#var:seedvalue}} | {{#var:divinesupercombatvalue}}}}}}
+All crystal equipment may be sung from a certain type of crystal seed and varying amounts of [[crystal shard]]s by the player via the use of a [[singing bowl]], which requires various levels in [[Crafting]] and [[Smithing]]. If players do not have the requirements, they can have [[Conwenna]] or [[Reese]] nearby create the items for them for additional crystal shards.
+
+However, for items created via [[crystal weapon seed]]s, players can take them to [[Ilfeen]], who will create the items for [[coins]] rather than crystal shards.
+
+{{:Crystal singing}}
+
+==Crystal weapons==
+Standard [[crystal weapon seed]]s can be used to create three types of equipment: [[crystal bow]]s, [[crystal shield|shields]], and [[crystal halberd|halberds]]. However, the halberd can only be created after completion of the [[Hard Western Provinces Diary]].
+
+[[Enhanced crystal weapon seed]]s can be used to create the [[blade of Saeldor]] and the [[bow of Faerdhinen]]. These weapons can then be overcharged with [[crystal shard]]s to create corrupted versions, which no longer degrade.
+
+{{Infotable Bonuses|Blade of Saeldor#Charged|Bow of Faerdhinen#Charged|Crystal bow#Active|Crystal halberd#Active|Crystal shield#Active|nototals=yes}}
+
+{|class="wikitable align-center-1 align-right-3"
+! colspan="2" | Item
+! Material cost<ref group="n">Using ([[Enhanced crystal weapon seed|enhanced]]) [[crystal weapon seed]] value, plus equivalent value of [[crystal shard]]s needed.</ref>
+|-
+| {{plinkt|Blade of Saeldor}}
+| {{Coins|{{GEP|Enhanced crystal weapon seed}} + ({{#var:crystalshardvalue}} * 100)}}
+|-
+| {{plinkt|Bow of Faerdhinen}}
+| {{Coins|{{GEP|Enhanced crystal weapon seed}} + ({{#var:crystalshardvalue}} * 100)}}
+|-
+| {{plinkt|Crystal bow}}
+| {{Coins|{{GEP|Crystal weapon seed}} + ({{#var:crystalshardvalue}} * 40)}}
+|-
+| {{plinkt|Crystal halberd}}
+| {{Coins|{{GEP|Crystal weapon seed}} + ({{#var:crystalshardvalue}} * 40)}}
+|-
+| {{plinkt|Crystal shield}}
+| {{Coins|{{GEP|Crystal weapon seed}} + ({{#var:crystalshardvalue}} * 40)}}
+|-
+| {{plinkt|Blade of Saeldor (c)}}
+| {{Coins|{{GEP|Enhanced crystal weapon seed}} + ({{#var:crystalshardvalue}} * 1000)}}
+|-
+| {{plinkt|Bow of Faerdhinen (c)}}
+| {{Coins|{{GEP|Enhanced crystal weapon seed}} + ({{#var:crystalshardvalue}} * 2000)}}
+|}
+<references group="n" />
+
+===Enchantment costs===
+While players can use a [[singing bowl]] to create crystal combat equipment out of [[crystal weapon seed]]s, they can alternatively have [[Ilfeen]] enchant them to [[crystal bow]]s, [[crystal shield|shield]]s, and [[crystal halberd|halberd]]s for coins. Having her sing halberds requires completion of the [[Hard Western Provinces Diary]]. Ilfeen '''cannot''' "recharge" the crystal items themselves, players must manually revert their item to a crystal weapon seed and choose the item that they want to pay her for. While singing yourself with [[Crystal shard|shards]] always costs {{NoCoins|({{#var:crystalshardvalue}} * 40) round 0|c}}, the price she charges depends on how many times she has previously been paid to enchant weapon seeds, down to a minimum price:
+
+{|class="wikitable align-center-1 align-left-2" style="text-align:right"
+! rowspan="2" colspan="2" | Item
+! colspan="5" | Enchantment cost
+|-
+! First
+! Second
+! Third
+! Fourth
+! Fifth and thereafter
+|-
+| {{plinkt|Crystal bow}}
+| {{Coins|900,000}}
+| {{Coins|720,000}}
+| {{Coins|540,000}}
+| {{Coins|360,000}}
+| {{Coins|180,000}}
+|-
+| {{plinkt|Crystal halberd}}
+| rowspan="2" | {{Coins|750,000}}
+| rowspan="2" | {{Coins|600,000}}
+| rowspan="2" | {{Coins|450,000}}
+| rowspan="2" | {{Coins|300,000}}
+| rowspan="2" | {{Coins|150,000}}
+|-
+| {{plinkt|Crystal shield}}
+|}
+
+==Crystal armour==
+[[Crystal armour seed]]s can create three pieces of armour: the [[crystal helm]], [[crystal body|body]], and [[crystal legs|legs]]. These can only be created by the player at a [[singing bowl]], or by having [[Conwenna]] or [[Reese]] sing the crystal for them for an extra 60 [[crystal shard]]s per piece.
+
+The armour pieces start off at 2,500 charges; the maximum charges that can be stored is 20,000. One charge is depleted for each successful hit that is received from combat, except in the following cases:
+
+* Damage that is completely negated by [[protection prayers]] and [[Absorption]] potions does not deplete charges.
+* Damage from non-monster sources such as divine potions and [[Wintertodt]] attacks does not deplete charges, with the exception of damage taken from a [[strange device#Master|strange device]] which ''does'' deplete charges.
+
+Using the shard value of making [[divine super combat potion]]s, the cost per charge is {{NoCoins|({{GEP|Divine super combat potion(4)}}-{{GEP|Super combat potion(4)}})*0.025}}. Using the shard cost of trading in [[enhanced crystal teleport seed]]s to [[Amrod]], the most efficient option for buying crystal shards directly, the cost per charge is {{NoCoins|{{GEP|Enhanced crystal teleport seed}}*0.00006666666}}. Assuming continuous unprotected combat against an enemy with an attack speed of 4 ticks, each piece of armour will lose 1,500 charges per hour, costing {{NoCoins|{{GEP|Enhanced crystal teleport seed}}*0.09999999}} per hour per piece (or {{NoCoins|{{GEP|Enhanced crystal teleport seed}}*0.09999999*3}} per hour with all 3 armour pieces) using the cost of trading in enhanced crystal teleport seeds.
+
+To recharge the armour pieces, the player must load in crystal shards (this can be done before it is inactive as well), with each shard granting 100 charges. Dismantling a crystal armour piece will return the crystal armour seeds to the player but all crystal shard charges that were previously loaded will be '''lost'''.
+
+{{Infotable Bonuses|Crystal helm#Active|Crystal body#Active|Crystal legs#Active}}
+
+Each crystal armour piece has a bonus effect when equipped to give a damage and accuracy increase to the [[crystal bow]] and [[bow of Faerdhinen]], adding up to a total 15% damage and 30% accuracy bonus when the full set is equipped.
+
+While wearing the [[crystal body]] and/or [[crystal legs]] with the [[Slayer helmet (i)]], the damage bonus from crystal armour pieces is multiplied by the 15% ranged damage boost from the helmet. With both crystal body and legs, this results in a combined damage bonus of approximately 29.375%.
+
+{|class="wikitable align-left-2 align-right-5" style="text-align:center"
+! colspan="2" | Item
+! Accuracy bonus
+! Damage bonus
+! Material cost<ref group="n">Using [[crystal armour seed]] value plus equivalent value of [[crystal shard]]s needed.</ref>
+|-
+| {{plinkt|Crystal helm}}
+| 5%
+| 2.5%
+| {{Coins|{{GEP|Crystal armour seed|1}} + ({{#var:crystalshardvalue}} * 50)}}
+|-
+| {{plinkt|Crystal body}}
+| 15%
+| 7.5%
+| {{Coins|{{GEP|Crystal armour seed|3}} + ({{#var:crystalshardvalue}} * 150)}}
+|-
+| {{plinkt|Crystal legs}}
+| 10%
+| 5%
+| {{Coins|{{GEP|Crystal armour seed|2}} + ({{#var:crystalshardvalue}} * 100)}}
+|-
+! colspan="2" | Totals
+| 30%
+| style="text-align:center;" | 15%
+| style="text-align:right;" | {{Coins|{{GEP|Crystal armour seed|6}} + ({{#var:crystalshardvalue}} * 300)}}
+|}
+<references group="n" />
+
+==Crystal tools==
+[[Crystal tool seed]]s can create three pieces of equipment: the [[crystal axe]], [[crystal pickaxe|pickaxe]], and [[crystal harpoon|harpoon]], which share the same combat stats as their [[Dragon equipment|dragon]] equivalents but offer faster gathering speeds. These can only be created by the player at a [[singing bowl]], or by having [[Conwenna]] or [[Reese]] sing the crystal for them for an extra 60 [[crystal shard]]s per piece.
+
+The tools start off at 10,000 charges; the maximum charges that can be stored is 20,000. One charge is depleted for each item that is obtained using the tool. To recharge the tools, the player must load in crystal shards (this can be done before it is inactive as well), offering 100 charges per shard. Dismantling a crystal tool will return the dragon equivalent and crystal tool seed to the player and doing so will lose all crystal shard charges that were previously loaded.
+
+{{Infotable Bonuses|Crystal axe#Active|Crystal harpoon#Active|Crystal pickaxe#Active|nototals=yes}}
+
+{|class="wikitable align-center-1 align-right-3"
+! colspan="2" | Item
+! Material cost<ref group="n">Using dragon tool value, [[crystal tool seed]] value, and equivalent value of [[crystal shard]]s needed.</ref>
+|-
+| {{plinkt|Crystal axe}}
+| {{Coins|{{GEP|Dragon axe}} + {{GEP|Crystal tool seed}} + ({{#var:crystalshardvalue}} * 120)}}
+|-
+| {{plinkt|Crystal harpoon}}
+| {{Coins|{{GEP|Dragon harpoon}} + {{GEP|Crystal tool seed}} + ({{#var:crystalshardvalue}} * 120)}}
+|-
+| {{plinkt|Crystal pickaxe}}
+| {{Coins|{{GEP|Dragon pickaxe}} + {{GEP|Crystal tool seed}} + ({{#var:crystalshardvalue}} * 120)}}
+|}
+<references group="n" />
+
+==Miscellaneous==
+Other equipment made from crystal includes the [[crystal saw]], [[crystal chime]], and [[celestial signet]].
+
+A crystal saw provides a +3 [[Construction]] boost for constructing furniture using a [[saw]] which stacks with other Construction boosts. The crystal chime is required to slay [[warped creature]]s. The celestial signet combines the [[elven signet]] and [[celestial ring]] to enable the benefits of both to be used with a [[crystal pickaxe]].
+
+While not equipment, it may also be worth noting [[divine potion]]s and [[enhanced crystal key]]s which are made from [[crystal shard]]s; as well as [[teleport crystal]]s and [[eternal teleport crystal]]s which are created from their own crystal seeds.
+
+==Recolouring==
+The [[Crystal equipment#Crystal armour|crystal armour]], [[Blade of Saeldor (c)|corrupted blade of Saeldor]], and [[Bow of Faerdhinen (c)|corrupted bow of Faerdhinen]] can be recoloured to colours representing the eight [[Elven Clans]] of [[Prifddinas]] by use of crystals purchased from [[Lliann's Wares]] for {{Nocoins|500,000|c}} each. You will need one crystal per piece of armour or weapon you wish to recolour and they are used up when applied to the item. In their default colouration, the armour has the colours of the Meilyr clan, and the corrupted weapons have the colours of the Hefin clan. If an armour piece is reverted to a [[crystal armour seed]], the recolour will be lost and the recolouring crystal will not be refunded. 
+
+A Deadman variant can be unlocked for the crystal armour and corrupted bow of Faerdhinen by giving [[Nigel]] an [[annihilation weapon scroll]]. Crystal equipment reverted from the Deadman variant will be reset to the default colours of the item; the Meilyr clan colours for the armour, and the Hefin clan colours for the bow.
+
+{{Tabber
+|tab1 = Default (Meilyr)
+|tab1content = 
+<gallery heights="250" style="text-align:left">
+Crystal armour equipped male.png|The crystal armour set on body type A.
+Crystal armour (inactive) equipped male.png|The inactive crystal armour set on body type A.
+Crystal armour equipped female.png|The crystal armour set on body type B.
+Crystal armour (inactive) equipped female.png|The inactive crystal armour set on body type B.
+Blade_of_Saeldor_(c)_(Meilyr)_detail.png|The Meilyr corrupted blade of Saeldor.
+Bow_of_Faerdhinen_(c)_(Meilyr)_detail.png|The Meilyr corrupted bow of Faerdhinen.
+</gallery>
+|tab2 = Amlodd
+|tab2content = 
+<gallery heights="250" style="text-align:left">
+Crystal armour (Amlodd) equipped male.png|The Amlodd crystal armour set on body type A.
+Crystal armour (inactive) (Amlodd) equipped male.png|The inactive Amlodd crystal armour set on body type A.
+Crystal armour (Amlodd) equipped female.png|The Amlodd crystal armour set on body type B.
+Crystal armour (inactive) (Amlodd) equipped female.png|The inactive Amlodd crystal armour set on body type B.
+Blade_of_Saeldor_(c)_(Amlodd)_detail.png|The Amlodd corrupted blade of Saeldor.
+Bow_of_Faerdhinen_(c)_(Amlodd)_detail.png|The Amlodd corrupted bow of Faerdhinen.
+</gallery>
+|tab3 = Cadarn
+|tab3content = 
+<gallery heights="250" style="text-align:left">
+Crystal armour (Cadarn) equipped male.png|The Cadarn crystal armour set on body type A.
+Crystal armour (inactive) (Cadarn) equipped male.png|The inactive Cadarn crystal armour set on body type A.
+Crystal armour (Cadarn) equipped female.png|The Cadarn crystal armour set on body type B.
+Crystal armour (inactive) (Cadarn) equipped female.png|The inactive Cadarn crystal armour set on body type B.
+Blade_of_Saeldor_(c)_(Cadarn)_detail.png|The Cadarn corrupted blade of Saeldor.
+Bow_of_Faerdhinen_(c)_(Cadarn)_detail.png|The Cadarn corrupted bow of Faerdhinen.
+</gallery>
+|tab4 = Crwys
+|tab4content = 
+<gallery heights="250" style="text-align:left">
+Crystal armour (Crwys) equipped male.png|The Crwys crystal armour set on body type A.
+Crystal armour (inactive) (Crwys) equipped male.png|The inactive Crwys crystal armour set on body type A.
+Crystal armour (Crwys) equipped female.png|The Crwys crystal armour set on body type B.
+Crystal armour (inactive) (Crwys) equipped female.png|The inactive Crwys crystal armour set on body type B.
+Blade_of_Saeldor_(c)_(Crwys)_detail.png|The Crwys corrupted blade of Saeldor.
+Bow_of_Faerdhinen_(c)_(Crwys)_detail.png|The Crwys corrupted bow of Faerdhinen.
+</gallery>
+|tab5 = Hefin
+|tab5content = 
+<gallery heights="250" style="text-align:left">
+Crystal armour (Hefin) equipped male.png|The Hefin crystal armour set on body type A.
+Crystal armour (inactive) (Hefin) equipped male.png|The inactive Hefin crystal armour set on body type A.
+Crystal armour (Hefin) equipped female.png|The Hefin crystal armour set on body type B.
+Crystal armour (inactive) (Hefin) equipped female.png|The inactive Hefin crystal armour set on body type B.
+Blade_of_Saeldor_(c)_detail.png|The corrupted blade of Saeldor.
+Bow_of_Faerdhinen_(c)_detail.png|The corrupted bow of Faerdhinen.
+</gallery>
+|tab6 = Iorwerth
+|tab6content = 
+<gallery heights="250" style="text-align:left">
+Crystal armour (Iorwerth) equipped male.png|The Iorwerth crystal armour set on body type A.
+Crystal armour (inactive) (Iorwerth) equipped male.png|The inactive Iorwerth crystal armour set on body type A.
+Crystal armour (Iorwerth) equipped female.png|The Iorwerth crystal armour set on body type B.
+Crystal armour (inactive) (Iorwerth) equipped female.png|The inactive Iorwerth crystal armour set on body type B.
+Blade_of_Saeldor_(c)_(Iorwerth)_detail.png|The Iorwerth corrupted blade of Saeldor.
+Bow_of_Faerdhinen_(c)_(Iorwerth)_detail.png|The Iorwerth corrupted bow of Faerdhinen.
+</gallery>
+|tab7 = Ithell
+|tab7content = 
+<gallery heights="250" style="text-align:left">
+Crystal armour (Ithell) equipped male.png|The Ithell crystal armour set on body type A.
+Crystal armour (inactive) (Ithell) equipped male.png|The inactive Ithell crystal armour set on body type A.
+Crystal armour (Ithell) equipped female.png|The Ithell crystal armour set on body type B.
+Crystal armour (inactive) (Ithell) equipped female.png|The inactive Ithell crystal armour set on body type B.
+Blade_of_Saeldor_(c)_(Ithell)_detail.png|The Ithell corrupted blade of Saeldor.
+Bow_of_Faerdhinen_(c)_(Ithell)_detail.png|The Ithell corrupted bow of Faerdhinen.
+</gallery>
+|tab8 = Trahaearn
+|tab8content = 
+<gallery heights="250" style="text-align:left">
+Crystal armour (Trahaearn) equipped male.png|The Trahaearn crystal armour set on body type A.
+Crystal armour (inactive) (Trahaearn) equipped male.png|The inactive Trahaearn crystal armour set on body type A.
+Crystal armour (Trahaearn) equipped female.png|The Trahaearn crystal armour set on body type B.
+Crystal armour (inactive) (Trahaearn) equipped female.png|The inactive Trahaearn crystal armour set on body type B.
+Blade_of_Saeldor_(c)_(Trahaearn)_detail.png|The Trahaearn corrupted blade of Saeldor.
+Bow_of_Faerdhinen_(c)_(Trahaearn)_detail.png|The Trahaearn corrupted bow of Faerdhinen.
+</gallery>
+|tab9 = Deadman
+|tab9content = 
+<gallery heights="250" style="text-align:left">
+Crystal armour (deadman) equipped male.png|The Deadman crystal armour set on body type A.
+Crystal armour (inactive, deadman) equipped male.png|The inactive Deadman crystal armour set on body type A.
+Crystal armour (deadman) equipped female.png|The Deadman crystal armour set on body type B.
+Crystal armour (inactive, deadman) equipped female.png|The inactive Deadman crystal armour set on body type B.
+Bow_of_Faerdhinen_(c)_(deadman)_detail.png|The Deadman corrupted bow of Faerdhinen.
+</gallery>
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 March 2014
+|update = Rejuvenating the Wilderness: More risk, more reward
+|change = Crystal equipment now reverts to a seed when dropped on death.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery heights="250" style="text-align:left">
+Crystal armour (original).png|The original design of crystal armour shown in the reveal and poll blogs for Song of the Elves.
+Song of the Elves- Progress Blog (10).jpg|Revised concept art of crystal armour by [[Mod Gee]], following player feedback on the original design.
+</gallery>
+
+==Trivia==
+*There was once a [[glitch]] that allowed players to cast [[High Level Alchemy]] on crystal bows and crystal shields in [[free-to-play]] worlds and make several thousand coins per piece. Players could buy crystal seeds from other players, pay the reduced recharge cost, and make large sums of money. Because of this glitch, it is no longer possible to alchemise crystal equipment at all.
+
+{{Crystal items}}
+{{Equipment class}}
+[[Category:Elves]]

@@ -1,0 +1,12 @@
+{
+ "version": 1,
+ "description": "The four countdown-timer gates the cache runs before it builds the pie (clientscript 5477 -> proc 5479 -> these), plus the pickaxe search row 187's middle dropdown mode depends on.",
+ "cases": [
+  { "id": "ore5482",   "scriptId": 5482, "intArgs": [], "stringArgs": [] },
+  { "id": "wood5483",  "scriptId": 5483, "intArgs": [], "stringArgs": [] },
+  { "id": "tog6679",   "scriptId": 6679, "intArgs": [], "stringArgs": [] },
+  { "id": "trap6680",  "scriptId": 6680, "intArgs": [], "stringArgs": [] },
+  { "id": "pickaxe5324", "scriptId": 5324, "intArgs": [], "stringArgs": [] },
+  { "id": "axe5314",   "scriptId": 5314, "intArgs": [], "stringArgs": [] }
+ ]
+}

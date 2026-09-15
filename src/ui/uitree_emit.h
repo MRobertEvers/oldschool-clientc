@@ -3,6 +3,7 @@
 
 #include "uitree.h"
 #include "uitree_host.h"
+#include "uitree_frame.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -18,6 +19,7 @@ enum UITreeEmitKind
     UITREE_EMIT_TEXT,
     UITREE_EMIT_RECT,
     UITREE_EMIT_LINE,
+    UITREE_EMIT_ARC,
     UITREE_EMIT_MODEL,
     UITREE_EMIT_CC_OBJ,
     UITREE_EMIT_SCROLLBAR_V,
@@ -28,6 +30,14 @@ enum UITreeEmitKind
     UITREE_EMIT_ENTITY_OVERLAY,
     UITREE_EMIT_WORLDMAP,
     UITREE_EMIT_DEBUG_OVERLAY,
+};
+
+/** Host request that owns an ENTITY_OVERLAY descriptor's volatile array. */
+enum UITreeEmitOverlaySource
+{
+    UITREE_EMIT_OVERLAY_NONE = 0,
+    UITREE_EMIT_OVERLAY_ENTITY,
+    UITREE_EMIT_OVERLAY_CANVAS,
 };
 
 struct UITreeEmitClip
@@ -42,6 +52,8 @@ struct UITreeEmitDesc
 {
     enum UITreeEmitKind kind;
     int32_t node_index;
+    /** Semantic owner for ordering paint-only attachments; zero means none. */
+    int32_t frame_owner_plus_one;
     int component_id;
     int x;
     int y;
@@ -81,6 +93,9 @@ struct UITreeEmitDesc
      * Host-owned pointer, same-frame lifetime (like `minimap_dots`). */
     struct UITreeEntityOverlay const* entity_overlays;
     int entity_overlay_count;
+    /** Which host list produced entity_overlays; retained refresh must reissue
+     *  that exact request because ENTITY, CANVAS, and FRAME layer differently. */
+    uint8_t entity_overlay_source;
     /** WORLDMAP: the baked map-surface regions covering the widget this frame,
      * already positioned in absolute screen pixels by the host. Host-owned
      * pointer, same-frame lifetime (like `minimap_dots`). */
@@ -88,13 +103,22 @@ struct UITreeEmitDesc
     int worldmap_tile_count;
     /** DEBUG_OVERLAY: the retained display list, handed on by pointer — it is
      * rebuilt only when a widget changed, so a steady overlay costs one pointer
-     * copy per frame. Owned by the host's ToriDbgUI. */
-    struct ToriDbgPrim const* debug_prims;
+     * copy per frame. Owned by the host's ToriRSChrome. */
+    struct ToriRSChromePrim const* debug_prims;
     int debug_prim_count;
-    /** DEBUG_OVERLAY: scene font per enum ToriDbgFontSlot. A prim names a slot,
+    /** DEBUG_OVERLAY: scene font per enum ToriRSChromeFontSlot. A prim names a slot,
      * not a font, so the desc carries the mapping the host set up. */
-    int debug_font_id[TORIDBG_FONT_SLOT_COUNT];
+    int debug_font_id[TORIRS_CHROME_FONT_SLOT_COUNT];
+    /** DEBUG_OVERLAY: the scene the baked chrome skin was uploaded under, and
+     * the atlas index within it per enum ToriRSChromeSkinSlot. Same slot-not-id
+     * indirection as the fonts above; -1 in either means "no skin", and the
+     * chrome has already fallen back to its flat form. */
+    int debug_skin_scene_id;
+    int debug_skin_atlas[TORIRS_CHROME_SKIN_SLOT_COUNT];
     int model_id;
+    int model_anim_seq;
+    int model_anim_frame;
+    struct UITreeModelRenderCache* model_render_cache;
     int model_zoom;
     int model_xan;
     int model_yan;
@@ -103,6 +127,10 @@ struct UITreeEmitDesc
     int model_y_offset;
     uint8_t model_orthog;
     uint8_t model_fixed_zoom;
+    /* This MODEL node is drawing an OBJ (CC_SETOBJECT), so it wants the obj
+     * icon's composition: the model's own vertical centring, which an ordinary
+     * widget model does not get because its record already places it. */
+    uint8_t model_obj_composed;
     int inv_source_id;
     int inv_slot;
     int obj_id;
@@ -136,13 +164,14 @@ struct UITreeEmitDesc
     /* Type-9 LINE: cache lineWidth + lineDirection (stored as rs_line.horizontal). */
     int line_width;
     uint8_t line_direction;
+    /* Type-10 ARC: the sector's start and end angle, 65536 to a full turn, 0
+     * straight up and clockwise. `filled` and `line_width` are shared with RECT
+     * and LINE and mean the same things they do there: a filled arc is the whole
+     * disc, an unfilled one a `line_width`-pixel band along the arc. */
+    int arc_start;
+    int arc_end;
     /* WORLD: scene levels the painter may draw (bit per level). */
     uint8_t world_level_mask;
-    /* WORLD: camera gestures this viewport accepts (revconfig mmb_rotate= /
-     * wheel_zoom=). The host reads them off the cached WORLD desc, which is
-     * also what gates the pointer to the viewport rect. */
-    uint8_t world_mmb_rotate;
-    uint8_t world_wheel_zoom;
 };
 
 /** Fill a single emit descriptor for a node. Returns false if nothing to draw.
@@ -159,16 +188,133 @@ UITree_EmitFill(
 
 struct UITreeEmitBuffer
 {
+    /* Stable commands stay in cmds; only scripted entity children are rebuilt
+     * in this reusable scratch, then replace their contiguous published range. */
+    struct UITreeEmitDesc* overlay_scratch;
+    int overlay_scratch_cap;
+    int overlay_range_start, overlay_range_count;
+    uint8_t overlay_range_valid;
     struct UITreeEmitDesc* cmds;
     int count;
     int cap;
+    /** Set by `UITree_EmitWalk` when any desc in `cmds` carries a host-owned
+     *  pointer whose lifetime is this frame only — minimap dots, entity
+     *  overlays, worldmap tiles, debug prims.
+     *
+     *  Such a desc can compare byte-identical to last frame's while the buffer
+     *  behind the pointer holds entirely different contents, so a list that is
+     *  "unchanged" by memcmp is NOT evidence that the pixels are unchanged.
+     *  Emit retention must not skip a frame whose previous list had any. This is
+     *  computed by testing the pointers, not by listing the kinds that set them,
+     *  so a kind added later cannot quietly opt itself out of the check. */
+    int volatile_refs;
+    /** Non-overlay volatile descriptors which require a command-list scan to
+     * refresh (currently minimap dots and debug prims). Standing overlay
+     * sources are tracked separately, so an all-empty overlay frame can skip
+     * that scan entirely. */
+    int volatile_desc_refs;
+    /** Bitsets keyed by enum UITreeEmitOverlaySource. `seen` includes a source
+     *  that returned zero items, so retained refresh can detect its first item
+     *  without putting a no-op descriptor in the renderer's command list. */
+    uint8_t volatile_overlay_seen;
+    uint8_t volatile_overlay_nonempty;
+    /** Fully processed descriptor shapes, including node identity and common
+     *  clipping/scroll fields, retained even while a source has zero items. */
+    struct UITreeEmitDesc volatile_overlay_template[UITREE_EMIT_OVERLAY_CANVAS + 1];
+    struct UITreeEmitClip volatile_overlay_enclosing_clip[UITREE_EMIT_OVERLAY_CANVAS + 1];
+    int volatile_overlay_insert_at[UITREE_EMIT_OVERLAY_CANVAS + 1];
+    /** Set when at least one volatile desc cannot be re-issued from the desc
+     *  alone, so the whole list must be rebuilt by the walk instead of
+     *  refreshed. Today that is WORLDMAP, whose desc does not record tiles vs
+     *  overview, or a legacy entity-overlay desc with no recorded source. */
+    int volatile_unrefreshable;
+    /** External host domains actually read while constructing this list, and
+     * their versions at publication. Unlike `volatile_refs`, these cover host
+     * values copied into ordinary descriptors (camera yaw, selected tab,
+     * inventory contents, asset availability, etc.). */
+    UITreeHostInputMask host_input_dependencies;
+    struct UITreeHostInputStamp host_input_stamp;
+    /** Advances after every full walk or attempted volatile refresh. Retain
+     * gates bind to one exact buffer publication, not merely to a tree whose
+     * counters happen to match. Zero is reserved for an unpublished buffer. */
+    uint64_t publication_seq;
 };
+
+/**
+ * Publication identity retained between frames by the whole-buffer emit gate.
+ *
+ * Keep the predicate beside the emitter instead of open-coding it in App or a
+ * test harness: a new input to the emitted command list must have one shared
+ * place to join the identity.  The snapshot is intentionally per App/tree;
+ * process-global statics can make a newly initialized client inherit another
+ * client's quiet verdict.
+ */
+struct UITreeEmitRetainGate
+{
+    /** Exact tree whose publication identity was captured. Generations can
+     * coincide across two independently initialized trees, so the owner is a
+     * required part of the identity rather than an assertion-only aid. */
+    struct UITree const* source_tree;
+    /** Exact emitted publication described by this identity. */
+    struct UITreeEmitBuffer const* source_buffer;
+    uint64_t buffer_publication_seq;
+    uint32_t dirty_gen;
+    uint32_t layout_resolve_seq;
+    uint32_t tree_generation;
+    int hovered_component_id;
+    uint8_t primed;
+};
+
+void UITree_EmitSetOverlayRetain(int enabled);
+bool UITree_EmitOverlayMotionBegin(struct UITree* tree, struct UITreeHost const* host,
+    struct UITreeEmitBuffer const* buf, int hovered, struct UITreeEmitRetainGate const* gate);
+bool UITree_EmitOverlayMotionEnd(struct UITree* tree, struct UITreeEmitRetainGate const* gate,
+    struct UITreeEmitRetainGate* moved_gate);
+bool UITree_EmitOverlayMotionRefresh(struct UITree const* tree, struct UITreeHost const* host,
+    struct UITreeEmitBuffer* buf, int const* hovered, struct UITreeEmitRetainGate const* gate);
 
 void
 UITree_EmitBufferInit(struct UITreeEmitBuffer* buf);
 
 void
 UITree_EmitBufferFree(struct UITreeEmitBuffer* buf);
+
+/** True when every external host input consumed by the last full walk still
+ * has the version captured in `buf`. The retained-list gate should require
+ * this in addition to tree/layout/hover identity. */
+bool
+UITree_EmitBufferHostInputsCurrent(
+    struct UITreeEmitBuffer const* buf,
+    struct UITreeHost const* host);
+
+/** True only when a previously emitted whole command buffer is reusable. */
+bool
+UITree_EmitRetainGateQuiet(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer const* buf,
+    int hovered_component_id,
+    struct UITreeEmitRetainGate const* gate);
+
+/** Capture the identity of the tree/hover state about to be published. */
+void
+UITree_EmitRetainGateCapture(
+    struct UITree const* tree,
+    struct UITreeEmitBuffer const* buf,
+    int hovered_component_id,
+    struct UITreeEmitRetainGate* gate);
+
+/** Refresh same-frame host pointers only while the complete pre-refresh
+ * publication identity remains current. The hover pointer is read both before
+ * and after callbacks, since a callback is permitted to invalidate App state.
+ * Returns false when the caller must discard the partial refresh and full-walk. */
+bool
+UITree_EmitRetainGateRefreshVolatile(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* buf,
+    int const* hovered_component_id,
+    struct UITreeEmitRetainGate const* gate);
 
 /**
  * Full DFS walk: fill clip, EmitFill, append drawable cmds.
@@ -181,5 +327,27 @@ UITree_EmitWalk(
     struct UITreeHost const* host,
     struct UITreeEmitBuffer* out,
     int hovered_component_id);
+
+/**
+ * Re-issue the host requests behind the same-frame pointers in an already-built
+ * list, leaving every other desc untouched.
+ *
+ * The point of the emit retention gate is to skip the tree walk on a frame where
+ * nothing the walk reads has moved. On such a frame most descs are genuinely
+ * reusable, but a handful hold host-owned pointers whose *contents* change every
+ * frame regardless of the tree — health bars, hitsplats, minimap dots. Those are
+ * the reason a byte-identical list is not a byte-identical picture. Refreshing
+ * just them costs a few host calls against a walk that visits every node.
+ *
+ * Requires `volatile_unrefreshable == 0`.
+ */
+/** Returns 1 when every refreshable volatile source was re-issued in place.
+ *  The retained overlay templates also handle empty/non-empty transitions
+ *  without exposing empty commands to the renderer. */
+int
+UITree_EmitRefreshVolatile(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out);
 
 #endif

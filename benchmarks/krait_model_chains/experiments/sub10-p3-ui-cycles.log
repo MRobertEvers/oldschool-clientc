@@ -1,0 +1,12 @@
+I/torirs  (27047): ui-emit-pmu,cpu-cycles,0,0,180,514020415,0,20340
+I/torirs  (27047): ui-emit-pmu,cpu-cycles,1,1,180,208076112,169,20340
+I/torirs  (27047): ui-emit-pmu,cpu-cycles,2,1,180,208261478,164,20340
+I/torirs  (27047): ui-emit-pmu,cpu-cycles,3,0,180,523685004,0,20340
+I/torirs  (27047): ui-emit-pmu,cpu-cycles,4,0,180,525083107,0,20340
+I/torirs  (27047): ui-emit-pmu,cpu-cycles,5,1,180,208216676,169,20340
+I/torirs  (27047): ui-emit-pmu,cpu-cycles,6,1,180,200358585,168,20340
+I/torirs  (27047): ui-emit-pmu,cpu-cycles,7,0,180,509932139,0,20340
+I/torirs  (27047): ui-emit-pmu,cpu-cycles,8,0,180,517148662,0,20340
+I/torirs  (27047): ui-emit-pmu,cpu-cycles,9,1,180,204878568,166,20340
+I/torirs  (27047): ui-emit-pmu,cpu-cycles,10,1,180,211492711,166,20340
+I/torirs  (27047): ui-emit-pmu,cpu-cycles,11,0,180,512542685,0,20340

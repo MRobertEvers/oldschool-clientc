@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2MapLoad
 {
@@ -39,8 +40,8 @@ task_dat2_map_resolve_archive_id(
 
     for( int i = 0; i < table->archive_count; i++ )
     {
-        if( table->archives[i].identifier == name_hash )
-            return table->archives[i].index;
+        if( RSCache_ReferenceTableIdentifier(table, i) == name_hash )
+            return i;
     }
     return -1;
 }
@@ -60,7 +61,7 @@ task_dat2_map_resolve(
 
     int region_id = RSCache_MapSquareId(map_x, map_z);
     if( region_id >= 0 && region_id < table->archive_count &&
-        table->archives[region_id].index >= 0 )
+        RSCache_ReferenceTableHasArchive(table, region_id) )
         return region_id;
     return -1;
 }
@@ -88,7 +89,7 @@ Task_Dat2MapTerrainLoad_Run(
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
         if( !table )
         {
-            fprintf(stderr, "Failed to load maps reference table\n");
+            TORIRS_ERR("Failed to load maps reference table\n");
             PT_EXIT(&task->pt);
         }
         dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_MAPS, table);
@@ -100,7 +101,7 @@ Task_Dat2MapTerrainLoad_Run(
     archive_id = task_dat2_map_resolve(table, task->map_x, task->map_z, 0);
     if( archive_id < 0 )
     {
-        fprintf(stderr, "No terrain archive for map (%d,%d)\n", task->map_x, task->map_z);
+        TORIRS_LOG("No terrain archive for map (%d,%d)\n", task->map_x, task->map_z);
         PT_EXIT(&task->pt);
     }
 
@@ -110,27 +111,55 @@ Task_Dat2MapTerrainLoad_Run(
     archive = RSCache_IO_Dat2MapArchiveDecode(io, 0);
     if( !archive )
     {
-        fprintf(stderr, "Failed to load terrain archive for map (%d,%d)\n", task->map_x, task->map_z);
+        TORIRS_ERR("Failed to load terrain archive for map (%d,%d)\n", task->map_x, task->map_z);
         PT_EXIT(&task->pt);
     }
 
-    /* Tile attribute/overlay widths are era-dependent (u8 until OldSchool 209), so
-     * the profile picks them — not the container, which is dat2 for both widths.
-     * Region-grouped archives are split inside MapTerrainNewFromArchiveProfile. */
-    rscache_terrain = RSCache_MapTerrainNewFromArchiveProfile(
-        archive, task->map_x, task->map_z, CacheProvider_Profile(&task->bc->base));
+    /*
+     * Decoded raw, then resolved — two steps rather than one.
+     *
+     * The height fixup overwrites `height` for every tile: procedurally where
+     * the file gave none, scaled by the tile-height basis where it did. Letting
+     * the decode do it inline leaves no moment at which the square holds what
+     * the FILE said, and the client needs that moment — `authored_height` /
+     * `has_authored_height` ride across into ToriRS_MapFloor so anything that
+     * writes terrain back (the map editor) can tell "no height here, generate
+     * one" from "height zero". Resolving afterwards is what the renderer wants,
+     * and it is the same function the decode would have called.
+     *
+     * Tile attribute/overlay widths are era-dependent (u8 until OldSchool 209),
+     * so the profile picks them — not the container, which is dat2 for both.
+     * Region-grouped archives are split inside the archive decoder.
+     */
+    rscache_terrain = RSCache_MapTerrainNewFromArchiveProfileFlags(
+        archive,
+        task->map_x,
+        task->map_z,
+        CacheProvider_Profile(&task->bc->base),
+        RSCACHE_MAP_TERRAIN_DECODE_NO_FIXUP);
     RSCache_Dat2DiskArchiveFree(archive);
+    if( rscache_terrain )
+        RSCache_MapTerrainFixup(rscache_terrain, task->map_x, task->map_z);
     if( !rscache_terrain )
     {
-        fprintf(stderr, "Failed to decode terrain for map (%d,%d)\n", task->map_x, task->map_z);
+        TORIRS_ERR("Failed to decode terrain for map (%d,%d)\n", task->map_x, task->map_z);
         PT_EXIT(&task->pt);
     }
-
-    dat2_buildcache_map_terrain_add(task->bc, map_id, rscache_terrain);
 
     torirs_terrain =
         ToriRS_MapTerrainFromRSCache(task->map_x, task->map_z, rscache_terrain);
     CacheProvider_MapTerrainAdd(&task->bc->base, map_id, torirs_terrain);
+
+    /*
+     * The decode is done with. Everything the client reads terrain for comes
+     * off the ToriRS copy just made — including has_authored_height and
+     * authored_height, which is the whole reason the fixup runs after the
+     * decode rather than inside it. This used to go into the buildcache's
+     * terrain map instead, which no caller has ever read from: 1.7 MB per
+     * loaded region held for a lookup nobody makes.
+     */
+    RSCache_MapTerrainFree(rscache_terrain);
+    rscache_terrain = NULL;
 
     PT_END(&task->pt);
 }
@@ -161,7 +190,7 @@ Task_Dat2MapSceneryLoad_Run(
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
         if( !table )
         {
-            fprintf(stderr, "Failed to load maps reference table\n");
+            TORIRS_ERR("Failed to load maps reference table\n");
             PT_EXIT(&task->pt);
         }
         dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_MAPS, table);
@@ -173,7 +202,7 @@ Task_Dat2MapSceneryLoad_Run(
     archive_id = task_dat2_map_resolve(table, task->map_x, task->map_z, 1);
     if( archive_id < 0 )
     {
-        fprintf(stderr, "No scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
+        TORIRS_LOG("No scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
         PT_EXIT(&task->pt);
     }
 
@@ -183,7 +212,7 @@ Task_Dat2MapSceneryLoad_Run(
     archive = RSCache_IO_Dat2MapArchiveDecode(io, 0);
     if( !archive )
     {
-        fprintf(stderr, "Failed to load scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
+        TORIRS_ERR("Failed to load scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
         PT_EXIT(&task->pt);
     }
 
@@ -194,7 +223,7 @@ Task_Dat2MapSceneryLoad_Run(
         files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
         if( !files || files->file_count < 2 )
         {
-            fprintf(stderr, "Failed to split scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
+            TORIRS_ERR("Failed to split scenery archive for map (%d,%d)\n", task->map_x, task->map_z);
             RSCache_FileListFree(files);
             RSCache_Dat2DiskArchiveFree(archive);
             PT_EXIT(&task->pt);
@@ -208,16 +237,20 @@ Task_Dat2MapSceneryLoad_Run(
     RSCache_Dat2DiskArchiveFree(archive);
     if( !rscache_locs )
     {
-        fprintf(stderr, "Failed to decode scenery for map (%d,%d)\n", task->map_x, task->map_z);
+        TORIRS_ERR("Failed to decode scenery for map (%d,%d)\n", task->map_x, task->map_z);
         PT_EXIT(&task->pt);
     }
 
     rscache_locs->chunk_mapx = task->map_x;
     rscache_locs->chunk_mapz = task->map_z;
-    dat2_buildcache_map_scenery_add(task->bc, map_id, rscache_locs);
 
     torirs_locs = ToriRS_MapLocsFromRSCache(rscache_locs);
     CacheProvider_MapSceneryAdd(&task->bc->base, map_id, torirs_locs);
+
+    /* Same as the terrain task above: the ToriRS copy is what every reader
+     * uses, and the buildcache's raw scenery store had no reader at all. */
+    RSCache_MapLocsFree(rscache_locs);
+    rscache_locs = NULL;
 
     PT_END(&task->pt);
 }

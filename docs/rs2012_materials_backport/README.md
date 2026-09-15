@@ -12,8 +12,8 @@ Run it when you are changing the port itself.
 
 ```sh
 # rebake the lane the way it ships, then re-pack the cache
-make -C src rs2012-lane-bake          # --matte 60 --apply, into MOCK230_CONTENT_DIR
-make -C src mock230-cache-rs2012
+make -C src rs2012-lane-bake          # --matte 60 --apply, into TORIRSSERVER_CONTENT_DIR
+make -C src torirsserver-cache-rs2012
 
 # prove the bake is reproducible (two bakes into scratch dirs, must be identical)
 make -C src rs2012-lane-bake-check
@@ -410,7 +410,7 @@ affected: `proctex_generator.o` links into `test-proctex-coverage` and
 This is the part that bites, and it is not a tool problem. The baked OB3s are
 **tracked content** — they live in OSRS-Content at
 `osrs239-content/models/ported/rs2012_qbd_td/`. A machine that pulls the content
-repo and runs `make -C src mock230-cache-rs2012` therefore needs no RS727 cache
+repo and runs `make -C src torirsserver-cache-rs2012` therefore needs no RS727 cache
 and no bake at all; it packs the models the commit carries.
 
 Which means: if a rebake is not committed *and reachable from the commit the

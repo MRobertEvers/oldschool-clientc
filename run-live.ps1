@@ -15,7 +15,7 @@
     Parsing one raw argument array by hand, the same way the shell script
     shifts $1, removes that whole class of surprise.
 
-    The manifest (manifest_osrs239_rs2012.ini, manifest_osrs230.ini, ...)
+    The manifest (manifests/manifest_osrs239_rs2012.ini, manifests/manifest_osrs230.ini, ...)
     names the cache, rev, transport, host/port and RSA keys, and everything
     this script decides it reads from there:
 
@@ -24,21 +24,27 @@
         wins over both.
       * osrs230 / osrs239 without --offline run the in-process server in
         native mode: built with EMBED_SERVER=1, TORIRS_TRANSPORT=embed, and
-        MOCK230_REV set from the manifest so the embedded world writes the
+        TORIRSSERVER_REV set from the manifest so the embedded world writes the
         wire the client speaks. A web run cannot do this -- the wasm module
         has no host filesystem for the embedded server's cache, content tree,
-        or script pack -- so it starts a native mock230 child instead, and
+        or script pack -- so it starts a native ToriRSServer child instead, and
         the browser reaches it over WebSocket.
       * a manifest naming a composed cache (cache.osrs239.rs2012,
         cache.osrs239.summoning) is a manifest asking for that bake, so the
         overlay is built before the client runs -- but only when it is stale.
         tools\cache_overlay_stale.py owns that decision and is shared with
         run-live.sh, so the two launchers cannot drift.
-      * scripts=...build_summoning selects the Summoning script pack.
+      * the ordinary content bake (cache.osrs239.baked, torirsserver-cache) is
+        checked by the same script with no --lane, both when a manifest boots
+        it directly and as layer 0 under an overlay based on it. It is what
+        puts an edited config, interface, CS2 script or sprite in front of a
+        client, and nothing watched it at all until that was added.
+      * [content:lanes] names the content lanes the script pack is compiled
+        from; scripts= says where that pack lands.
       * the OSRS-Content tree is discovered, not demanded: the first checkout
         carrying both ported\ lanes wins, build\ checkouts before the submodule
         (the submodule tracks main, which has the lanes but not their facebake).
-        Override it with $env:MOCK230_CONTENT_DIR, the same variable
+        Override it with $env:TORIRSSERVER_CONTENT_DIR, the same variable
         run-live.sh honours -- there is no -ContentDir flag here either, for
         the same reason there is no -User/-Pass.
 
@@ -47,7 +53,7 @@
     tree says today. Building the binary and not the pack is how a session ends
     up running content nobody has written for weeks, with nothing anywhere
     reporting the mismatch, so the pack is checked here for every native-embed
-    or web-mock230 run and rebuilt when anything sscompile reads is newer than
+    or web-ToriRSServer run and rebuilt when anything sscompile reads is newer than
     it (tools/server_scripts_stale.py).
 
     `run-live.ps1 web <manifest.ini> [user] [pass] [client args...]` runs the
@@ -62,6 +68,7 @@
 
     Knobs (all also honoured by run-live.sh unless noted):
       TORIRS_NO_BUILD=1        run the existing exe/lane, skip every build
+      TORIRS_SKIP_CHECKS=1     use cache and server script pack as they stand
       TORIRS_NO_CACHE_BAKE=1   keep the composed cache as it stands
       TORIRS_FORCE_CACHE_BAKE=1  rebake the composed cache without asking
       TORIRS_FORCE_SCRIPT_BUILD=1  recompile the server script pack without asking
@@ -71,29 +78,31 @@
       TORIRS_WEB_PORT          web mode: page server port (default 8088)
       TORIRS_WEB_DEBUG=1       web mode: build web-debug instead of web
       TORIRS_WEB_NO_OPEN=1     web mode: print the URL instead of opening a browser
-      TORIRS_NO_MOCK=1         web mode: skip the native mock230 child
-      TORIRS_MOCK_BIN          web mode: use this mock230.exe instead of building one
+      TORIRS_NO_MOCK=1         web mode: skip the native ToriRSServer child
+      TORIRS_MOCK_BIN          web mode: use this ToriRSServer.exe instead of building one
       TORIRS_JAG_CRC           lc254: skip the CRC fetch, use this value
       plus every TORIRS_* the client itself reads (TORIRS_NET_DEBUG=1,
       TORIRS_NET_CHEAT, TORIRS_MAX_FRAMES, TORIRS_EXIT_BMP, ...)
 
 .PARAMETER RawArgs
-    `[web] <manifest.ini> [user] [pass] [client args...]`, exactly as
-    run-live.sh takes $@. The literal first value `web` switches this script
-    into web mode. Next comes the manifest path (required), then an optional
-    user, then an optional pass -- each omitted one falls back to the
-    manifest's own user=/pass=, then asdf/a. Everything left over is handed to
-    the client verbatim (--soft3d, --opengl3, --offline, --connect host:port,
-    ...). Do NOT separate client args with a bare `--`, which PowerShell
-    rejects as an ambiguous parameter name before this script is ever
-    entered.
+    `[--skip-checks] [web] <manifest.ini> [user] [pass] [client args...]`,
+    exactly as run-live.sh takes $@. The literal first value `web` switches
+    this script into web mode. `--skip-checks` skips cache-overlay and
+    server-script preparation while retaining the incremental client build.
+    Next comes the manifest path (required), then an optional user, then an
+    optional pass -- each omitted one falls back to the manifest's own
+    user=/pass=, then asdf/a. Everything left over is handed to the client
+    verbatim (--soft3d, --opengl3, --offline, --connect host:port, ...). Do NOT
+    separate client args with a bare `--`, which PowerShell rejects as an
+    ambiguous parameter name before this script is ever entered.
 
 .EXAMPLE
-    .\run-live.ps1 manifest_osrs239_rs2012.ini
-    .\run-live.ps1 manifest_osrs239_rs2012.ini --opengl3
-    .\run-live.ps1 manifest_osrs230.ini qbdrepro test --soft3d
-    .\run-live.ps1 web manifest_osrs239_rs2012.ini
-    .\run-live.ps1 web manifest_osrs230.ini qbdrepro test --offline
+    .\run-live.ps1 manifests/manifest_osrs239_rs2012.ini
+    .\run-live.ps1 manifests/manifest_osrs239_rs2012.ini --opengl3
+    .\run-live.ps1 manifests/manifest_osrs230.ini qbdrepro test --soft3d
+    .\run-live.ps1 --skip-checks manifests/manifest_osrs230.ini qbdrepro test
+    .\run-live.ps1 web manifests/manifest_osrs239_rs2012.ini
+    .\run-live.ps1 web manifests/manifest_osrs230.ini qbdrepro test --offline
 #>
 [CmdletBinding()]
 param(
@@ -107,7 +116,7 @@ $repo = $PSScriptRoot
 $exe = Join-Path $repo 'src\torirs_win64.exe'
 $make = Join-Path $repo 'make.ps1'
 
-$Usage = 'usage: run-live.ps1 [web] <manifest.ini> [user] [pass] [client args...]'
+$Usage = 'usage: run-live.ps1 [--skip-checks] [web] <manifest.ini> [user] [pass] [client args...]'
 
 # One raw argument list, shifted by hand -- the direct equivalent of
 # run-live.sh's `MANIFEST="${1:?}"; shift`. See the -Description note above
@@ -125,9 +134,19 @@ function Take-Arg {
 }
 
 $mode = 'native'
-if ($argQueue.Count -gt 0 -and $argQueue[0] -eq 'web') {
-    $mode = 'web'
-    [void](Take-Arg)
+$skipChecks = ($env:TORIRS_SKIP_CHECKS -eq '1')
+# Launcher options are leading arguments so they can never be confused with a
+# client option. Accept `web` and --skip-checks in either order.
+while ($argQueue.Count -gt 0) {
+    if ($argQueue[0] -eq 'web') {
+        $mode = 'web'
+        [void](Take-Arg)
+    } elseif ($argQueue[0] -eq '--skip-checks') {
+        $skipChecks = $true
+        [void](Take-Arg)
+    } else {
+        break
+    }
 }
 
 $Manifest = Take-Arg
@@ -165,6 +184,29 @@ function Get-ManifestValue([string]$Key) {
     return ''
 }
 
+# Which content lanes this profile's script pack is built from --
+# `[content:lanes]`, one `lane=` per line (src/serverscript/ssc_lane.h).
+#
+# Section-scoped, unlike Get-ManifestValue: `lane` is a repeated key, and a
+# manifest-wide match would also pick up a `[revconfig:...]` record that happens
+# to use the word. run-live.sh reads it with the same rule.
+#
+# This replaces guessing the lane set from the OUTPUT DIRECTORY'S NAME
+# (`*build_summoning`, `*build_curses`), which could only recognise lanes this
+# launcher had been taught: a new lane was not launchable until both launchers
+# learned its suffix.
+function Get-ManifestLanes {
+    $lanes = @()
+    $inSection = $false
+    foreach ($line in $manifestText) {
+        if ($line -match '^\s*\[') { $inSection = ($line -match '^\s*\[content:'); continue }
+        if ($inSection -and $line -match '^\s*lane\s*=\s*(.*?)\s*$' -and $Matches[1]) {
+            $lanes += $Matches[1]
+        }
+    }
+    return $lanes
+}
+
 $rev = Get-ManifestValue 'rev'
 if (-not $rev) {
     Write-Error "run-live.ps1: no rev= in [net:boot] of '$Manifest'"
@@ -172,6 +214,7 @@ if (-not $rev) {
 }
 $cacheDir = Get-ManifestValue 'dir'
 $serverScripts = Get-ManifestValue 'scripts'
+$manifestLanes = Get-ManifestLanes
 $manifestTransport = Get-ManifestValue 'transport'
 # Named $manifestHost, never $Host -- that is PowerShell's own automatic
 # variable for the hosting application, and assigning it corrupts the console.
@@ -180,7 +223,7 @@ $gamePort = Get-ManifestValue 'port'
 
 # ---------------------------------------------------------------- content tree
 #
-# Every embedded or mock run compiles the server scripts, and mock230-scripts
+# Every embedded or mock run compiles the server scripts, and torirsserver-scripts
 # reads both ported\ lanes unconditionally -- SUMMONING_CLIENT_LANE and
 # RS2012_QBD_TD_CLIENT_LANE in src/makefile, as --pack and --component-root
 # arguments to sscompile. A checkout without them does not fail anywhere near the
@@ -220,7 +263,7 @@ function Test-ContentTree([string]$Dir) {
 #
 # build\ is gitignored, so these never collide with the tree git tracks.
 # Reaching for a build\ checkout on purpose (e.g. a fresh facebake worktree
-# that hasn't been merged yet) still works via $env:MOCK230_CONTENT_DIR, which
+# that hasn't been merged yet) still works via $env:TORIRSSERVER_CONTENT_DIR, which
 # is obeyed as given, in front of this whole function.
 function Get-ContentCandidates {
     $candidates = @(Join-Path $repo 'OSRS-Content\osrs239-content')
@@ -240,9 +283,9 @@ function Set-ContentTree([string]$Dir) {
 
     # Two variables, one tree, and they must not disagree.
     #
-    # MOCK230_CONTENT_DIR is the BUILD side: src/makefile reads it to decide
+    # TORIRSSERVER_CONTENT_DIR is the BUILD side: src/makefile reads it to decide
     # which tree to compile the server script pack from and to stage the cache
-    # overlay out of. MOCK230_CONTENT is the RUNTIME side: mock230_boot.c's
+    # overlay out of. TORIRSSERVER_CONTENT is the RUNTIME side: torirs_server_boot.c's
     # resolve_content_dir() reads it, and with it unset falls back to a
     # hardcoded "OSRS-Content/osrs239-content" -- the submodule, whatever tree
     # the build just used.
@@ -255,18 +298,18 @@ function Set-ContentTree([string]$Dir) {
     # reported the mismatch, because from the build's point of view everything
     # succeeded. content_dir also resolves the world's server/pack reads, so
     # the same split silently feeds the world pre-bake npc/loc records.
-    $env:MOCK230_CONTENT_DIR = $resolved
-    $env:MOCK230_CONTENT = $resolved
+    $env:TORIRSSERVER_CONTENT_DIR = $resolved
+    $env:TORIRSSERVER_CONTENT = $resolved
 }
 
 # An explicit choice is obeyed even when it looks wrong -- warned about, not
 # overridden, because the caller may be mid-port and know better than this check.
 # No -ContentDir flag: matching run-live.sh exactly, the only override is
-# $env:MOCK230_CONTENT_DIR (set it before invoking this script).
+# $env:TORIRSSERVER_CONTENT_DIR (set it before invoking this script).
 $contentChoice = ''
-if ($env:MOCK230_CONTENT_DIR) {
-    Set-ContentTree $env:MOCK230_CONTENT_DIR
-    $contentChoice = 'MOCK230_CONTENT_DIR'
+if ($env:TORIRSSERVER_CONTENT_DIR) {
+    Set-ContentTree $env:TORIRSSERVER_CONTENT_DIR
+    $contentChoice = 'TORIRSSERVER_CONTENT_DIR'
 } else {
     foreach ($candidate in Get-ContentCandidates) {
         if (Test-ContentTree $candidate) {
@@ -276,23 +319,23 @@ if ($env:MOCK230_CONTENT_DIR) {
         }
     }
 }
-if ($contentChoice -ne 'auto' -and $env:MOCK230_CONTENT_DIR -and
-    -not (Test-ContentTree $env:MOCK230_CONTENT_DIR)) {
-    Write-Host ("run-live.ps1: $contentChoice tree $env:MOCK230_CONTENT_DIR is missing " +
+if ($contentChoice -ne 'auto' -and $env:TORIRSSERVER_CONTENT_DIR -and
+    -not (Test-ContentTree $env:TORIRSSERVER_CONTENT_DIR)) {
+    Write-Host ("run-live.ps1: $contentChoice tree $env:TORIRSSERVER_CONTENT_DIR is missing " +
         "$($ContentLanes -join ' / ') -- the bakes will likely fail") -ForegroundColor Yellow
 }
 
 # Only the builds need a content tree, so this is checked where a build is
 # about to run and not at startup: TORIRS_NO_BUILD=1 and --offline are both
 # legitimate ways to run without one. Shared by the native-embed and
-# web-mock230 branches below -- both compile the server script pack, and
-# mock230-scripts is the thing that actually requires both ported\ lanes.
+# web-ToriRSServer branches below -- both compile the server script pack, and
+# torirsserver-scripts is the thing that actually requires both ported\ lanes.
 function Assert-ContentTree {
-    if (-not $env:MOCK230_CONTENT_DIR) {
+    if (-not $env:TORIRSSERVER_CONTENT_DIR) {
         Write-Host "run-live.ps1: no OSRS-Content tree carrying $($ContentLanes -join ' and ')." -ForegroundColor Red
         Write-Host '  Looked at:' -ForegroundColor Red
         foreach ($candidate in Get-ContentCandidates) { Write-Host "    $candidate" -ForegroundColor Red }
-        Write-Host '  Set $env:MOCK230_CONTENT_DIR to the checkout that has them.' -ForegroundColor Red
+        Write-Host '  Set $env:TORIRSSERVER_CONTENT_DIR to the checkout that has them.' -ForegroundColor Red
         exit 1
     }
 }
@@ -400,10 +443,10 @@ $offline = $cliOffline -and (-not $cliConnectSet)
 
 # Native osrs230 / osrs239 live runs use the in-process server. The browser
 # cannot: the web build intentionally has no local cache/content files for that
-# server to open. It instead talks to a native mock230 child over the browser's
+# server to open. It instead talks to a native ToriRSServer child over the browser's
 # WebSocket-backed socket API.
 $useEmbed = $false
-$useMock230 = $false
+$useToriRSServer = $false
 
 if ($mode -eq 'web' -and (
         $clientRev -eq 'osrs230' -or $clientRev -eq 'osrs239' -or
@@ -419,23 +462,23 @@ if ($mode -eq 'native') {
         $useEmbed = $true
         $env:TORIRS_TRANSPORT = 'embed'
         # Embed defaults to osrs230 unless told otherwise; keep server wire = client rev.
-        if (-not $env:MOCK230_REV) { $env:MOCK230_REV = $rev }
+        if (-not $env:TORIRSSERVER_REV) { $env:TORIRSSERVER_REV = $rev }
     }
 } elseif (-not $offline) {
-    # Own only a reachable IPv4 loopback endpoint. mock230 intentionally binds
+    # Own only a reachable IPv4 loopback endpoint. ToriRSServer intentionally binds
     # 127.0.0.1 (not IPv6); a remote or explicit IPv6 endpoint belongs to the
     # caller and must not get an unused local process.
     if (($clientRev -eq 'osrs230' -or $clientRev -eq 'osrs239') -and (Test-ValidPort $webGamePort)) {
         if ($webGameHost -eq 'localhost' -or $webGameHost -eq '127.0.0.1') {
-            $useMock230 = $true
+            $useToriRSServer = $true
         }
     }
 }
 
-# mock230 binds IPv4 loopback. Keep the standard manifest's `localhost` URL
+# ToriRSServer binds IPv4 loopback. Keep the standard manifest's `localhost` URL
 # from depending on the browser's IPv6 fallback; an explicit --connect still
 # wins later in the client's normal command-line parsing.
-if ($useMock230 -and -not $cliConnectSet) {
+if ($useToriRSServer -and -not $cliConnectSet) {
     $env:TORIRS_WS_HOST = '127.0.0.1'
 }
 
@@ -472,11 +515,11 @@ if ($mode -eq 'native' -and $env:TORIRS_PRINT_ONLY -eq '1') {
     Write-Host "manifest        : $manifestPath"
     Write-Host "rev             : $rev"
     Write-Host "cache           : $cacheDir"
-    Write-Host "content tree    : $(if ($env:MOCK230_CONTENT_DIR) { "$env:MOCK230_CONTENT_DIR ($contentChoice)" } else { 'none found' })"
+    Write-Host "content tree    : $(if ($env:TORIRSSERVER_CONTENT_DIR) { "$env:TORIRSSERVER_CONTENT_DIR ($contentChoice)" } else { 'none found' })"
     Write-Host "user/pass       : $User / $Pass"
     Write-Host "offline         : $([int]$offline)"
     Write-Host "embedded server : $([int]$useEmbed)"
-    if ($useEmbed) { Write-Host "TORIRS_TRANSPORT: $env:TORIRS_TRANSPORT  MOCK230_REV: $env:MOCK230_REV" }
+    if ($useEmbed) { Write-Host "TORIRS_TRANSPORT: $env:TORIRS_TRANSPORT  TORIRSSERVER_REV: $env:TORIRSSERVER_REV" }
     Write-Host "argv            : $exe $($clientArgv -join ' ')"
     exit 0
 }
@@ -521,8 +564,16 @@ function Resolve-CachePath([string]$Path) {
 # mode of a skipped one is a session spent debugging content that was never in
 # the cache. TORIRS_FORCE_CACHE_BAKE=1 is read by the script itself, so there is
 # no branch for it here.
+#
+# An empty -Lane asks the other half of the same predicate: the ORDINARY content
+# bake (`torirsserver-cache`, which walks the tree proper and writes
+# cache.osrs239.baked) rather than a marked lane. Nothing watched that until it
+# was added, so the one cache every non-lane profile boots was the only one with
+# no freshness rule at all -- see run-live.sh's cache_base_bake.
 function Test-CacheOverlayFresh {
-    param([string]$Lane, [string]$Base, [string]$Stager)
+    param([string]$Lane, [string]$Base, [string]$Stager, [string]$Cache)
+
+    if (-not $Cache) { $Cache = $cacheDir }
 
     # Function-scoped, and deliberate: a non-zero exit is this predicate's
     # ANSWER, not a failure, and PowerShell 7.4+ raises native non-zero exits as
@@ -537,6 +588,7 @@ function Test-CacheOverlayFresh {
     }
     if (-not $py) {
         Write-Host 'run-live.ps1: no python3 on PATH -- baking rather than assuming the cache is fresh' -ForegroundColor Yellow
+        $script:CacheStaleExit = 2
         return $false
     }
 
@@ -546,7 +598,7 @@ function Test-CacheOverlayFresh {
     # predicate watches a tree nobody is building from and answers "fresh" for a
     # lane that moved.
     $treeArgs = @()
-    if ($env:MOCK230_CONTENT_DIR) { $treeArgs = @('--tree', $env:MOCK230_CONTENT_DIR) }
+    if ($env:TORIRSSERVER_CONTENT_DIR) { $treeArgs = @('--tree', $env:TORIRSSERVER_CONTENT_DIR) }
 
     # Captured, not left to flow straight to the pipeline: an uncaptured native
     # call's stdout becomes part of THIS FUNCTION's own return value, and
@@ -555,14 +607,25 @@ function Test-CacheOverlayFresh {
     # of more than one element as truthy regardless of what it contains, so the
     # $false case never reached the caller. Assignment is what stops the
     # python process's stdout from leaking into the function's output stream.
+    $laneArgs = @()
+    if ($Lane) { $laneArgs = @('--lane', $Lane, '--input', (Resolve-RepoPath $Stager)) }
+
+    # An empty -Base omits the flag rather than resolving to the repo root: a
+    # `--base` pointing at the whole checkout would make every file in it an
+    # input, and the predicate would answer "stale" forever.
+    $baseArgs = @()
+    if ($Base) { $baseArgs = @('--base', (Resolve-RepoPath $Base)) }
+
     $global:LASTEXITCODE = 0
     $stdout = & $py.Source (Join-Path $repo 'tools\cache_overlay_stale.py') `
-        --cache (Resolve-CachePath $cacheDir) --lane $Lane `
-        --base (Resolve-RepoPath $Base) @treeArgs `
-        --input (Resolve-RepoPath $Stager) `
+        --cache (Resolve-CachePath $Cache) @laneArgs @baseArgs @treeArgs `
         --input (Resolve-RepoPath 'src\makefile') `
         --input (Resolve-RepoPath '3rd\rscache\tools\cachepack')
     if ($stdout) { $stdout | ForEach-Object { Write-Host $_ } }
+    # The bool answers "skip?", which is exit 1 alone. The warn path needs the
+    # three-way answer -- 0 stale, 2 could-not-answer -- so keep the raw exit
+    # beside it rather than collapsing both into "not fresh".
+    $script:CacheStaleExit = $LASTEXITCODE
     return ($LASTEXITCODE -eq 1)
 }
 
@@ -586,15 +649,31 @@ function Build-CacheOverlay {
     $lane = switch -Wildcard ($cacheDir) {
         '*cache.osrs239.summoning' {
             @{
-                Label   = 'Summoning'
-                Lane    = 'scape2009_summoning'
-                Base    = $summoningBase
-                Stager  = 'tools\stage_summoning_overlay.py'
-                Targets = @('mock230-cache-summoning')
+                Label      = 'Summoning'
+                Lane       = 'scape2009_summoning'
+                Base       = $summoningBase
+                Stager     = 'tools\stage_summoning_overlay.py'
+                Targets    = @('torirsserver-cache-summoning')
+                # Rooted on the content bake, so layer 0 runs first: a rebuilt
+                # base is one of this overlay's own predicate inputs, which is
+                # what carries an ordinary-content edit up into it.
+                BaseAction = 'bake'
+                BaseCache  = $summoningBase
             }
             break
         }
-        # The QBD/TD lane. mock230-servpack is the server half of the same tree
+        # The ordinary bake itself (the osrs239-net profile (profiles/osrs239-net.ini)). It had no arm at
+        # all, so the one cache every non-lane profile runs on was the only one
+        # nothing ever checked.
+        '*cache.osrs239.baked' {
+            @{
+                Label      = 'content'
+                BaseAction = 'bake'
+                BaseCache  = 'cache.osrs239.baked'
+            }
+            break
+        }
+        # The QBD/TD lane. torirsserver-servpack is the server half of the same tree
         # (the npc/loc server fields the boot reads out of <content>/server/pack);
         # without it the world falls back to a text parse of content the bake has
         # already moved.
@@ -604,7 +683,12 @@ function Build-CacheOverlay {
                 Lane    = 'rs2012_qbd_td'
                 Base    = $rs2012Base
                 Stager  = 'tools\stage_rs2012_overlay.py'
-                Targets = @('mock230-cache-rs2012', 'mock230-servpack')
+                Targets = @('torirsserver-cache-rs2012', 'torirsserver-servpack')
+                # Composed on the PRISTINE cache.osrs239 (RS2012_CACHE_BASE),
+                # so the ordinary tree is not an input to this chain at any
+                # freshness and there is no bake to ask for. Report, do not
+                # bake.
+                BaseAction = 'warn'
             }
             break
         }
@@ -617,13 +701,45 @@ function Build-CacheOverlay {
         return
     }
 
-    if (Test-CacheOverlayFresh -Lane $lane.Lane -Base $lane.Base -Stager $lane.Stager) {
-        Write-Host "run-live.ps1: $($lane.Label) cache overlay is up to date (TORIRS_FORCE_CACHE_BAKE=1 to rebake)" -ForegroundColor Yellow
-        return
+    if ($lane.BaseAction -eq 'bake') {
+        $contentBase = if ($env:TORIRSSERVER_CACHE_BASE) { $env:TORIRSSERVER_CACHE_BASE } else { 'cache.osrs239' }
+        if (Test-CacheOverlayFresh -Lane '' -Base $contentBase -Cache $lane.BaseCache) {
+            Write-Host "run-live.ps1: content cache $($lane.BaseCache) is up to date (TORIRS_FORCE_CACHE_BAKE=1 to rebake)" -ForegroundColor Yellow
+        }
+        elseif ($lane.BaseCache -ne 'cache.osrs239.baked') {
+            # TORIRSSERVER_CACHE_DIR would have to reach the makefile as an MSYS path
+            # (make.ps1 passes VAR=value through untouched, but the recipe is
+            # POSIX sh). Rather than invent that translation, say what to run.
+            Write-Host "run-live.ps1: $($lane.BaseCache) is stale; bake it with .\make.ps1 torirsserver-cache TORIRSSERVER_CACHE_DIR=..." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "run-live.ps1: baking the content cache $($lane.BaseCache)..." -ForegroundColor Cyan
+            Invoke-Make -Targets @('torirsserver-cache')
+        }
     }
 
-    Write-Host "run-live.ps1: baking $cacheDir ($($lane.Targets -join ' '))..." -ForegroundColor Cyan
-    Invoke-Make -Targets $lane.Targets
+    if (-not $lane.Lane) { return }
+
+    if (Test-CacheOverlayFresh -Lane $lane.Lane -Base $lane.Base -Stager $lane.Stager) {
+        Write-Host "run-live.ps1: $($lane.Label) cache overlay is up to date (TORIRS_FORCE_CACHE_BAKE=1 to rebake)" -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "run-live.ps1: baking $cacheDir ($($lane.Targets -join ' '))..." -ForegroundColor Cyan
+        Invoke-Make -Targets $lane.Targets
+    }
+
+    # The same question where no bake can answer it: ordinary-content edits
+    # cannot enter a pristine-rooted chain. A predicate that could not answer
+    # stays SILENT here -- for a bake, "cannot answer" must mean bake; for a
+    # warning it would mean crying wolf on every launch without python3.
+    if ($lane.BaseAction -eq 'warn') {
+        Test-CacheOverlayFresh -Lane '' -Base '' -Cache $cacheDir | Out-Null
+        if ($script:CacheStaleExit -eq 0) {
+            Write-Host "run-live.ps1: ^^ $cacheDir is composed on the pristine cache.osrs239, so those" -ForegroundColor Yellow
+            Write-Host "  ordinary-content edits are NOT in it and no bake here can put them there." -ForegroundColor Yellow
+            Write-Host "  Server-side work (.rs2, params, npc/loc server fields) is unaffected." -ForegroundColor Yellow
+        }
+    }
 }
 
 # tools\server_scripts_stale.py is the only implementation of this predicate
@@ -653,7 +769,7 @@ function Test-ServerScriptsFresh {
     }
 
     $treeArgs = @()
-    if ($env:MOCK230_CONTENT_DIR) { $treeArgs = @('--tree', $env:MOCK230_CONTENT_DIR) }
+    if ($env:TORIRSSERVER_CONTENT_DIR) { $treeArgs = @('--tree', $env:TORIRSSERVER_CONTENT_DIR) }
 
     # Captured, not left to flow straight to the pipeline: see the matching
     # comment on Test-CacheOverlayFresh -- an uncaptured native call's stdout
@@ -665,27 +781,21 @@ function Test-ServerScriptsFresh {
         --out $OutDir @treeArgs `
         --input (Resolve-RepoPath 'src\serverscript') `
         --input (Resolve-RepoPath 'src\makefile') `
-        --input (Resolve-RepoPath 'tools\ss_allocate.py') `
-        --input (Resolve-RepoPath 'tools\stage_summoning_server_constants.py')
+        --input (Resolve-RepoPath 'tools\ss_allocate.py')
     if ($stdout) { $stdout | ForEach-Object { Write-Host $_ } }
     return ($LASTEXITCODE -eq 1)
 }
 
 function Build-Scripts {
-    $target = if ($serverScripts -like '*build_summoning_curses') { 'mock230-scripts-summoning-curses' }
-        elseif ($serverScripts -like '*build_summoning') { 'mock230-scripts-summoning' }
-        elseif ($serverScripts -like '*build_curses') { 'mock230-scripts-curses' }
-        else { 'mock230-scripts' }
-
-    # Most manifests carry no scripts= at all -- it only needs stating when
-    # build_summoning applies instead of mock230-scripts' own default output,
-    # which is $(MOCK230_CONTENT_DIR)/server/scripts/build (src/makefile). Assert-
-    # ContentTree has already run by every call site, so $env:MOCK230_CONTENT_DIR
+    # Most manifests carry no scripts= at all -- it only needs stating when a
+    # lane profile wants its own output instead of torirsserver-scripts' default,
+    # which is $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build (src/makefile). Assert-
+    # ContentTree has already run by every call site, so $env:TORIRSSERVER_CONTENT_DIR
     # is set.
     $outDir = if ($serverScripts) {
         Resolve-CachePath $serverScripts
     } else {
-        Join-Path $env:MOCK230_CONTENT_DIR 'server\scripts\build'
+        Join-Path $env:TORIRSSERVER_CONTENT_DIR 'server\scripts\build'
     }
 
     if (Test-ServerScriptsFresh -OutDir $outDir) {
@@ -693,8 +803,33 @@ function Build-Scripts {
         return
     }
 
-    Write-Host "run-live.ps1: building the server script pack ($target)..." -ForegroundColor Cyan
-    Invoke-Make -Targets @($target)
+    # A profile that names lanes gets exactly those, compiled where it said. A
+    # profile that names none is the pristine one and goes through
+    # `torirsserver-scripts`, the only target carrying the full set of content
+    # contracts. Same split as run-live.sh's build_scripts.
+    if ($manifestLanes.Count -gt 0 -or $serverScripts) {
+        $laneText = if ($manifestLanes.Count) { $manifestLanes -join ' ' } else { '(defaults only)' }
+        Write-Host "run-live.ps1: building the server script pack (lanes: $laneText)..." -ForegroundColor Cyan
+        Invoke-Make -Targets @(
+            'torirsserver-scripts-lanes',
+            "TORIRSSERVER_SCRIPT_LANES=$($manifestLanes -join ' ')",
+            "TORIRSSERVER_SCRIPT_OUT=$outDir")
+        return
+    }
+
+    Write-Host 'run-live.ps1: building the server script pack (torirsserver-scripts)...' -ForegroundColor Cyan
+    Invoke-Make -Targets @('torirsserver-scripts')
+}
+
+# Cache and scripts are one consistency boundary. Keep the fast path together
+# at each native and web call site so a launch cannot prepare only one half.
+function Prepare-LiveContent {
+    if ($skipChecks) {
+        Write-Host 'run-live.ps1: --skip-checks -- using the cache and server script pack as they stand (they may be stale)' -ForegroundColor Yellow
+        return
+    }
+    Build-CacheOverlay
+    Build-Scripts
 }
 
 # ------------------------------------------------------------------- web lane
@@ -775,9 +910,9 @@ function ConvertTo-WindowsArgumentString([string[]]$ArgList) {
 }
 
 # Start-Process (the cmdlet) has no way to set child-only environment overrides
-# in Windows PowerShell 5.1, so io_server and mock230 are spawned through raw
+# in Windows PowerShell 5.1, so io_server and ToriRSServer are spawned through raw
 # ProcessStartInfo instead. EnvironmentVariables starts as a copy of this
-# process's own environment, so overriding just MOCK230_CACHE/SCRIPTS/REV here
+# process's own environment, so overriding just TORIRSSERVER_CACHE/SCRIPTS/REV here
 # mirrors run-live.sh's subshell-scoped `export` -- the child sees the change,
 # this script's own $env: does not. UseShellExecute=$false with no redirection
 # lets the child inherit the console's stdout/stderr handles directly.
@@ -812,10 +947,9 @@ if ($mode -eq 'native') {
     if ($env:TORIRS_NO_BUILD -ne '1') {
         if ($useEmbed) {
             Assert-ContentTree
-            Write-Host "run-live.ps1: content tree ($contentChoice): $env:MOCK230_CONTENT_DIR" -ForegroundColor Cyan
-            Write-Host "run-live.ps1: $rev -- building with EMBED_SERVER=1 (in-process server, MOCK230_REV=$env:MOCK230_REV)" -ForegroundColor Cyan
-            Build-CacheOverlay
-            Build-Scripts
+            Write-Host "run-live.ps1: content tree ($contentChoice): $env:TORIRSSERVER_CONTENT_DIR" -ForegroundColor Cyan
+            Write-Host "run-live.ps1: $rev -- building with EMBED_SERVER=1 (in-process server, TORIRSSERVER_REV=$env:TORIRSSERVER_REV)" -ForegroundColor Cyan
+            Prepare-LiveContent
             Invoke-Make -Targets @('win64') -Parallel -EmbedServer
         } elseif (-not (Test-Path -LiteralPath $exe)) {
             Write-Host "run-live.ps1: building $exe..." -ForegroundColor Cyan
@@ -843,13 +977,13 @@ if ($mode -eq 'native') {
 $port = if ($env:TORIRS_WEB_PORT) { $env:TORIRS_WEB_PORT } else { '8088' }
 $webTarget = if ($env:TORIRS_WEB_DEBUG -eq '1') { 'web-debug' } else { 'web' }
 # TORIRS_NO_MOCK is checked here, once, rather than re-checked at every use
-# below -- matching run-live.sh's own start_mock230 gate.
-$useMockEffective = $useMock230 -and ($env:TORIRS_NO_MOCK -ne '1')
+# below -- matching run-live.sh's own start_torirsserver gate.
+$useMockEffective = $useToriRSServer -and ($env:TORIRS_NO_MOCK -ne '1')
 
 # io_server's makefile recipe names a bare `io_server`, but MinGW gcc silently
 # appends .exe to any linker output missing an extension -- confirmed on disk,
 # not assumed. IO_SERVER_OBJ_DIR is a fixed `build` (never platform-suffixed),
-# so this path does not vary by platform the way mock230's below does.
+# so this path does not vary by platform the way ToriRSServer's below does.
 $ioServerExe = Join-Path $repo 'src\build\io_server.exe'
 
 if ($env:TORIRS_NO_BUILD -ne '1') {
@@ -861,8 +995,7 @@ if ($env:TORIRS_NO_BUILD -ne '1') {
     # EMBED_SERVER=1 cannot turn this into an embedded-world module.
     if ($useMockEffective) {
         Assert-ContentTree
-        Build-CacheOverlay
-        Build-Scripts
+        Prepare-LiveContent
     }
     Invoke-Make -Targets @('EMBED_SERVER=0', $webTarget)
 
@@ -885,7 +1018,7 @@ if ($null -eq $manifestArg) {
 $webArgv = @('--manifest', $manifestArg, '--user', $User, '--pass', $Pass) + $ClientArgs
 $url = "http://localhost:$port/?$(Get-WebQueryString $webArgv)"
 
-# The IO server and mock230 are this script's children: Ctrl-C must release
+# The IO server and ToriRSServer are this script's children: Ctrl-C must release
 # both the page server and the game port. PowerShell unwinds through this
 # try/finally on Ctrl-C the same way run-live.sh's `trap cleanup EXIT` fires
 # on every exit path.
@@ -912,17 +1045,17 @@ try {
         # PLATFORM=native resolves to win64 on Windows (src/platform/platform.mk),
         # so OBJ_DIR here is build_win64_opt, not run-live.sh's build_opt --
         # a genuine Windows/Unix divergence, not a typo.
-        $mockBin = if ($env:TORIRS_MOCK_BIN) { $env:TORIRS_MOCK_BIN } else { Join-Path $repo 'src\build_win64_opt\mock230.exe' }
+        $mockBin = if ($env:TORIRS_MOCK_BIN) { $env:TORIRS_MOCK_BIN } else { Join-Path $repo 'src\build_win64_opt\ToriRSServer.exe' }
         if (-not $env:TORIRS_MOCK_BIN -and $env:TORIRS_NO_BUILD -ne '1') {
             Write-Host 'run-live.ps1: building the native mock server...' -ForegroundColor Cyan
             Invoke-Make -Targets @('PLATFORM=native', 'OPT=1', 'MEMTRACE=0', 'ENABLE_ASAN=0', 'ENABLE_UBSAN=0', `
-                    'TORIDRAW_NO_SIMD=0', 'TORIDRAW_OPT=0', 'EMBED_SERVER=0', 'mock230')
+                    'TORIDRAW_NO_SIMD=0', 'TORIDRAW_OPT=0', 'EMBED_SERVER=0', 'ToriRSServer')
         }
         if (-not (Test-Path -LiteralPath $mockBin)) {
-            $found = Get-ChildItem -LiteralPath (Join-Path $repo 'src') -Recurse -Filter 'mock230.exe' -ErrorAction SilentlyContinue |
+            $found = Get-ChildItem -LiteralPath (Join-Path $repo 'src') -Recurse -Filter 'ToriRSServer.exe' -ErrorAction SilentlyContinue |
                 Select-Object -First 1
             if ($found) {
-                Write-Host "run-live.ps1: mock230 not at $mockBin -- using $($found.FullName)" -ForegroundColor Yellow
+                Write-Host "run-live.ps1: ToriRSServer not at $mockBin -- using $($found.FullName)" -ForegroundColor Yellow
                 $mockBin = $found.FullName
             }
         }
@@ -932,9 +1065,9 @@ try {
         }
 
         $mockEnv = @{}
-        if (-not $env:MOCK230_CACHE -and $cacheDir) { $mockEnv['MOCK230_CACHE'] = Resolve-CachePath $cacheDir }
-        if (-not $env:MOCK230_SCRIPTS -and $serverScripts) { $mockEnv['MOCK230_SCRIPTS'] = Resolve-CachePath $serverScripts }
-        $mockEnv['MOCK230_REV'] = $clientRev
+        if (-not $env:TORIRSSERVER_CACHE -and $cacheDir) { $mockEnv['TORIRSSERVER_CACHE'] = Resolve-CachePath $cacheDir }
+        if (-not $env:TORIRSSERVER_SCRIPTS -and $serverScripts) { $mockEnv['TORIRSSERVER_SCRIPTS'] = Resolve-CachePath $serverScripts }
+        $mockEnv['TORIRSSERVER_REV'] = $clientRev
 
         $mockProc = Start-BackgroundProcess -FilePath $mockBin -WorkingDirectory $repo -Environment $mockEnv `
             -ArgumentList @("$webGamePort", '--rev', $clientRev)
@@ -944,7 +1077,7 @@ try {
         # block release io_server instead of silently attaching to it.
         Start-Sleep -Seconds 1
         if ($mockProc.HasExited) {
-            Write-Error "run-live.ps1: mock230 exited during startup (game port $webGamePort unavailable or mock failed to boot; see output above)"
+            Write-Error "run-live.ps1: ToriRSServer exited during startup (game port $webGamePort unavailable or mock failed to boot; see output above)"
             $mockProc = $null
             exit 1
         }
@@ -955,10 +1088,10 @@ try {
     # manifest's transport=tcp describes what the *native* client dials, and
     # says nothing about what the page ends up doing. The local mock accepts
     # that upgrade on the game port; other servers name their WebSocket
-    # endpoint with ws_port. Raw $useMock230 (not $useMockEffective) and raw
+    # endpoint with ws_port. Raw $useToriRSServer (not $useMockEffective) and raw
     # $manifestHost/$gamePort (not the computed web endpoint) match
     # run-live.sh's own warning exactly.
-    $wsEndpointKnown = [bool]($manifestWsPort -or $env:TORIRS_WS_PORT -or $useMock230)
+    $wsEndpointKnown = [bool]($manifestWsPort -or $env:TORIRS_WS_PORT -or $useToriRSServer)
     if (-not $offline -and -not $wsEndpointKnown) {
         $hostForWarning = if ($manifestHost) { $manifestHost } else { 'localhost' }
         Write-Host 'run-live.ps1: note -- a browser reaches this server over a WebSocket, and' -ForegroundColor Yellow
@@ -974,12 +1107,12 @@ try {
     }
     Write-Host "run-live.ps1: serving on port $port -- Ctrl-C to stop (child services stop with it)" -ForegroundColor Cyan
 
-    # io_server and mock230 are one live run. Do not leave a page server
+    # io_server and ToriRSServer are one live run. Do not leave a page server
     # advertising a dead game endpoint if the mock crashes after its startup
     # check.
     while (-not $ioProc.HasExited) {
         if ($mockProc -and $mockProc.HasExited) {
-            Write-Error 'run-live.ps1: mock230 stopped unexpectedly; stopping the web run'
+            Write-Error 'run-live.ps1: ToriRSServer stopped unexpectedly; stopping the web run'
             exit 1
         }
         Start-Sleep -Seconds 1

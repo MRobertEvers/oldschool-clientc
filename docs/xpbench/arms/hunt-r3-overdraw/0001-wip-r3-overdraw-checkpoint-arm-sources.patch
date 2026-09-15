@@ -1,0 +1,899 @@
+From ea8b5291d7e5e62ffb45b0c8a3daa1b29d125d64 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:16:04 -0500
+Subject: [PATCH] wip(r3-overdraw): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-overdraw.
+
+files: 3rd/toridraw/graphics/raster/flat/flat.screen.alpha.branching.s4.c 3rd/toridraw/graphics/raster/flat/flat.screen.opaque.branching.s4.c 3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c 3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c 3rd/toridraw/graphics/raster/od_census.c 3rd/toridraw/graphics/raster/od_census.h 3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c 3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c 3rd/toridraw/toridraw_raster.u.c 3rd/toridraw/toridraw_unity.c src/platform/platform_sdl2_renderer_soft3d.c src/render/torirs_frame.c src/render/torirs_render.h
+---
+ .../flat/flat.screen.alpha.branching.s4.c     |   3 +
+ .../flat/flat.screen.opaque.branching.s4.c    |   3 +
+ ...lightness.screen.alpha.bary.branching.s4.c |   3 +
+ ...ightness.screen.opaque.bary.branching.s4.c |   3 +
+ 3rd/toridraw/graphics/raster/od_census.c      | 490 ++++++++++++++++++
+ 3rd/toridraw/graphics/raster/od_census.h      |  97 ++++
+ .../raster/texture/span/tex.span.sse2.u.c     |   3 +
+ ...persp.texopaque.ordered.lerp8.scanline.u.c |   2 +
+ 3rd/toridraw/toridraw_raster.u.c              |   4 +
+ 3rd/toridraw/toridraw_unity.c                 |   1 +
+ src/platform/platform_sdl2_renderer_soft3d.c  |   6 +
+ src/render/torirs_frame.c                     |   9 +
+ src/render/torirs_render.h                    |   2 +
+ 13 files changed, 626 insertions(+)
+ create mode 100644 3rd/toridraw/graphics/raster/od_census.c
+ create mode 100644 3rd/toridraw/graphics/raster/od_census.h
+
+diff --git a/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.branching.s4.c b/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.branching.s4.c
+index 67b50d531..208aaf295 100644
+--- a/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.branching.s4.c
++++ b/3rd/toridraw/graphics/raster/flat/flat.screen.alpha.branching.s4.c
+@@ -1,6 +1,7 @@
+ #ifndef FLAT_SCREEN_ALPHA_BRANCHING_S4_C
+ #define FLAT_SCREEN_ALPHA_BRANCHING_S4_C
+ 
++#include "graphics/raster/od_census.h"
+ #include "graphics/alpha.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/raster/flat/flat_screen_edges.h"
+@@ -38,6 +39,7 @@ draw_scanline_flat_screen_alpha_branching_s4_ordered_clipped(
+     offset += x_start;
+ 
+     int span = (x_end - x_start);
++    TORIDRAW_OD_SPAN(pixel_buffer, offset, span, TORIDRAW_OD_KIND_FLAT_ALPHA);
+     assert(span > 0);
+ 
+     int steps = (span) >> 2;
+@@ -98,6 +100,7 @@ draw_scanline_flat_screen_alpha_branching_s4_ordered_noclip(
+     offset += x_start;
+ 
+     int span = (x_end - x_start);
++    TORIDRAW_OD_SPAN(pixel_buffer, offset, span, TORIDRAW_OD_KIND_FLAT_ALPHA);
+     assert(span > 0);
+ 
+     int steps = (span) >> 2;
+diff --git a/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.branching.s4.c b/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.branching.s4.c
+index 0225f1bf8..43c08418e 100644
+--- a/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.branching.s4.c
++++ b/3rd/toridraw/graphics/raster/flat/flat.screen.opaque.branching.s4.c
+@@ -1,6 +1,7 @@
+ #ifndef FLAT_SCREEN_OPAQUE_BRANCHING_S4_C
+ #define FLAT_SCREEN_OPAQUE_BRANCHING_S4_C
+ 
++#include "graphics/raster/od_census.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/raster/flat/flat_screen_edges.h"
+ 
+@@ -42,6 +43,7 @@ draw_scanline_flat_screen_opaque_branching_s4_ordered_clipped(
+     offset += x_start;
+ 
+     int span = (x_end - x_start);
++    TORIDRAW_OD_SPAN(pixel_buffer, offset, span, TORIDRAW_OD_KIND_FLAT);
+     assert(span > 0);
+ 
+     int steps = (span) >> 2;
+@@ -86,6 +88,7 @@ draw_scanline_flat_screen_opaque_branching_s4_ordered_noclip(
+     offset += x_start;
+ 
+     int span = (x_end - x_start);
++    TORIDRAW_OD_SPAN(pixel_buffer, offset, span, TORIDRAW_OD_KIND_FLAT);
+     assert(span > 0);
+ 
+     int steps = (span) >> 2;
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c
+index 5f6b7036c..8ea1d2327 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c
+@@ -1,6 +1,7 @@
+ #ifndef GOURAUDHSLLIGHTNESS_SCREEN_ALPHA_BARY_BRANCHING_S4_C
+ #define GOURAUDHSLLIGHTNESS_SCREEN_ALPHA_BARY_BRANCHING_S4_C
+ 
++#include "graphics/raster/od_census.h"
+ #include "graphics/alpha.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/int_wrap.h"
+@@ -45,6 +46,7 @@ draw_scanline_gouraudhsllightness_screen_alpha_bary_branching_s4_ordered(
+         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
+ 
+     int stride = (x_end - x_start);
++    TORIDRAW_OD_SPAN(pixel_buffer, offset, stride, TORIDRAW_OD_KIND_GOURAUD_ALPHA);
+ 
+     int steps = (stride) >> 2;
+     color_step_hsl16_ish8 <<= 2;
+@@ -118,6 +120,7 @@ draw_scanline_gouraudhsllightness_screen_alpha_bary_branching_s4_ordered_noclip(
+         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
+ 
+     int stride = (x_end - x_start);
++    TORIDRAW_OD_SPAN(pixel_buffer, offset, stride, TORIDRAW_OD_KIND_GOURAUD_ALPHA);
+ 
+     int steps = (stride) >> 2;
+     color_step_hsl16_ish8 <<= 2;
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c
+index da89af14b..9fc1934bf 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c
+@@ -1,6 +1,7 @@
+ #ifndef GOURAUDHSLLIGHTNESS_SCREEN_OPAQUE_BARY_BRANCHING_S4_C
+ #define GOURAUDHSLLIGHTNESS_SCREEN_OPAQUE_BARY_BRANCHING_S4_C
+ 
++#include "graphics/raster/od_census.h"
+ #include "graphics/int_wrap.h"
+ #include "graphics/tori_compat.h"
+ #include "graphics/dash_restrict.h"
+@@ -53,6 +54,7 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
+         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
+ 
+     int stride = (x_end - x_start);
++    TORIDRAW_OD_SPAN(pixel_buffer, offset, stride, TORIDRAW_OD_KIND_GOURAUD);
+     TORIDRAW_SPAN_CENSUS_RECORD(
+         stride, offset, 1, color_hsl16_ish8, color_step_hsl16_ish8);
+ 
+@@ -91,6 +93,7 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip
+         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
+ 
+     int stride = (x_end - x_start);
++    TORIDRAW_OD_SPAN(pixel_buffer, offset, stride, TORIDRAW_OD_KIND_GOURAUD);
+     TORIDRAW_SPAN_CENSUS_RECORD(
+         stride, offset, 0, color_hsl16_ish8, color_step_hsl16_ish8);
+ 
+diff --git a/3rd/toridraw/graphics/raster/od_census.c b/3rd/toridraw/graphics/raster/od_census.c
+new file mode 100644
+index 000000000..59ef47dd0
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/od_census.c
+@@ -0,0 +1,490 @@
++#include "graphics/raster/od_census.h"
++
++#if defined(TORIDRAW_OD_CENSUS) && TORIDRAW_OD_CENSUS
++
++#include <assert.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#define OD_MAX_FACES (1 << 19)
++#define OD_MAX_MODELS (1 << 14)
++#define OD_HIST 33
++#define OD_SURVBINS 11
++
++int g_toridraw_od_active;
++int g_toridraw_od_class;
++
++static uint8_t const* g_base;
++static size_t g_pixels;
++
++static uint8_t* g_cnt;      /* writes to this pixel this frame, saturating */
++static uint8_t* g_lastkind; /* kernel that wrote it last */
++static uint8_t* g_lastclass; /* geometry class that wrote it last */
++static uint32_t* g_owner;   /* face id that wrote it last (1-based, 0 = none) */
++
++static uint32_t* g_face_writes;
++static uint32_t* g_face_model;
++static uint32_t* g_face_surv;
++static uint32_t* g_model_writes;
++static uint32_t* g_model_surv;
++static uint8_t* g_model_class;
++static uint32_t* g_model_spans;
++static uint8_t g_cur_class;
++
++static uint32_t g_face_id;  /* faces seen this frame; ids are 1-based */
++static uint32_t g_model_id; /* models seen this frame; ids are 1-based */
++
++/* Accumulators over the whole run. */
++static double g_frames;
++static double g_hist[OD_HIST];
++static double g_covered;
++static double g_writes[TORIDRAW_OD_KINDS];
++static double g_wasted[TORIDRAW_OD_KINDS];
++static double g_hidden_faces, g_hidden_face_writes, g_drawn_faces, g_drawn_face_writes;
++static double g_hidden_models, g_hidden_model_writes, g_drawn_models;
++static double g_model_surv_hist[OD_SURVBINS]; /* models by surviving-pixel share */
++static double g_model_surv_writes[OD_SURVBINS];
++static double g_face_overflow, g_model_overflow, g_span_oob;
++static double g_spans;
++static double g_class_writes[TORIDRAW_OD_CLASSES];
++static double g_class_hidden_writes[TORIDRAW_OD_CLASSES];
++static double g_class_models[TORIDRAW_OD_CLASSES];
++static double g_class_hidden_models[TORIDRAW_OD_CLASSES];
++static double g_class_surv[TORIDRAW_OD_CLASSES];
++static double g_class_spans[TORIDRAW_OD_CLASSES];
++static double g_class_hidden_spans[TORIDRAW_OD_CLASSES];
++/* g_overmat[victim][killer]: pixels written by `victim` and later replaced by
++ * `killer`. The causal form of "wasted writes" -- it names the occluder. */
++static double g_overmat[TORIDRAW_OD_CLASSES][TORIDRAW_OD_CLASSES];
++static int g_registered;
++
++static void
++od_dump(void);
++
++static void
++od_alloc(size_t pixels)
++{
++    g_cnt = calloc(pixels, 1);
++    assert(g_cnt);
++    g_lastkind = calloc(pixels, 1);
++    assert(g_lastkind);
++    g_lastclass = calloc(pixels, 1);
++    assert(g_lastclass);
++    g_owner = calloc(pixels, sizeof(*g_owner));
++    assert(g_owner);
++    g_face_writes = calloc(OD_MAX_FACES, sizeof(*g_face_writes));
++    assert(g_face_writes);
++    g_face_model = calloc(OD_MAX_FACES, sizeof(*g_face_model));
++    assert(g_face_model);
++    g_face_surv = calloc(OD_MAX_FACES, sizeof(*g_face_surv));
++    assert(g_face_surv);
++    g_model_writes = calloc(OD_MAX_MODELS, sizeof(*g_model_writes));
++    assert(g_model_writes);
++    g_model_surv = calloc(OD_MAX_MODELS, sizeof(*g_model_surv));
++    assert(g_model_surv);
++    g_model_class = calloc(OD_MAX_MODELS, 1);
++    assert(g_model_class);
++    g_model_spans = calloc(OD_MAX_MODELS, sizeof(*g_model_spans));
++    assert(g_model_spans);
++}
++
++static size_t
++od_face_span(void)
++{
++    size_t n = (size_t)g_face_id + 1u;
++    return n < OD_MAX_FACES ? n : (size_t)OD_MAX_FACES;
++}
++
++static size_t
++od_model_span(void)
++{
++    size_t n = (size_t)g_model_id + 1u;
++    return n < OD_MAX_MODELS ? n : (size_t)OD_MAX_MODELS;
++}
++
++/*
++ * Close out the frame that just finished: fold its per-pixel counters into the
++ * run histogram, resolve who survived, then zero for the next one.
++ */
++static void
++od_flush(void)
++{
++    size_t fspan;
++    size_t mspan;
++
++    if( !g_cnt || g_face_id == 0 )
++        return;
++
++    for( size_t p = 0; p < g_pixels; p++ )
++    {
++        int c = g_cnt[p];
++        if( c == 0 )
++            continue;
++        g_covered += 1.0;
++        g_hist[c < OD_HIST - 1 ? c : OD_HIST - 1] += 1.0;
++        g_face_surv[g_owner[p]]++;
++    }
++
++    fspan = od_face_span();
++    mspan = od_model_span();
++
++    for( size_t f = 1; f < fspan; f++ )
++    {
++        uint32_t w = g_face_writes[f];
++        if( w == 0 )
++            continue;
++        if( g_face_surv[f] == 0 )
++        {
++            g_hidden_faces += 1.0;
++            g_hidden_face_writes += (double)w;
++        }
++        else
++        {
++            g_drawn_faces += 1.0;
++            g_drawn_face_writes += (double)w;
++        }
++        g_model_surv[g_face_model[f]] += g_face_surv[f];
++    }
++
++    for( size_t m = 1; m < mspan; m++ )
++    {
++        uint32_t w = g_model_writes[m];
++        int bin;
++        if( w == 0 )
++            continue;
++        int cl = g_model_class[m];
++        g_drawn_models += 1.0;
++        g_class_models[cl] += 1.0;
++        g_class_writes[cl] += (double)w;
++        g_class_surv[cl] += (double)g_model_surv[m];
++        g_class_spans[cl] += (double)g_model_spans[m];
++        if( g_model_surv[m] == 0 )
++        {
++            g_hidden_models += 1.0;
++            g_hidden_model_writes += (double)w;
++            g_class_hidden_models[cl] += 1.0;
++            g_class_hidden_writes[cl] += (double)w;
++            g_class_hidden_spans[cl] += (double)g_model_spans[m];
++        }
++        bin = (int)((double)g_model_surv[m] * (OD_SURVBINS - 1) / (double)w);
++        if( bin < 0 )
++            bin = 0;
++        if( bin > OD_SURVBINS - 1 )
++            bin = OD_SURVBINS - 1;
++        g_model_surv_hist[bin] += 1.0;
++        g_model_surv_writes[bin] += (double)w;
++    }
++
++    memset(g_cnt, 0, g_pixels);
++    memset(g_lastkind, 0, g_pixels);
++    memset(g_lastclass, 0, g_pixels);
++    memset(g_owner, 0, g_pixels * sizeof(*g_owner));
++    memset(g_face_writes, 0, fspan * sizeof(*g_face_writes));
++    memset(g_face_surv, 0, fspan * sizeof(*g_face_surv));
++    memset(g_face_model, 0, fspan * sizeof(*g_face_model));
++    memset(g_model_writes, 0, mspan * sizeof(*g_model_writes));
++    memset(g_model_surv, 0, mspan * sizeof(*g_model_surv));
++    memset(g_model_class, 0, mspan);
++    memset(g_model_spans, 0, mspan * sizeof(*g_model_spans));
++    g_face_id = 0;
++    g_model_id = 0;
++    g_frames += 1.0;
++}
++
++void
++ToriDraw_OdCensusFrame(void const* fb_base, size_t pixels)
++{
++    assert(fb_base);
++    assert(pixels > 0);
++
++    if( !g_registered )
++    {
++        g_registered = 1;
++        atexit(od_dump);
++    }
++    if( !g_cnt )
++    {
++        g_pixels = pixels;
++        od_alloc(pixels);
++    }
++    else
++    {
++        od_flush();
++    }
++    /* A resize would invalidate the counters; the bench never resizes. */
++    assert(pixels == g_pixels);
++    g_base = (uint8_t const*)fb_base;
++    g_toridraw_od_active = 1;
++}
++
++void
++ToriDraw_OdCensusModel(void)
++{
++    if( !g_toridraw_od_active )
++        return;
++    if( g_model_id + 1 >= OD_MAX_MODELS )
++    {
++        g_model_overflow += 1.0;
++        return;
++    }
++    g_model_id++;
++    g_model_class[g_model_id] =
++        (uint8_t)(g_toridraw_od_class >= 0 && g_toridraw_od_class < TORIDRAW_OD_CLASSES
++                      ? g_toridraw_od_class
++                      : TORIDRAW_OD_CLASS_OTHER);
++    g_cur_class = g_model_class[g_model_id];
++}
++
++void
++ToriDraw_OdCensusFace(void)
++{
++    if( !g_toridraw_od_active )
++        return;
++    if( g_face_id + 1 >= OD_MAX_FACES )
++    {
++        g_face_overflow += 1.0;
++        return;
++    }
++    g_face_id++;
++    g_face_model[g_face_id] = g_model_id;
++}
++
++void
++ToriDraw_OdCensusSpan(void const* first, int len, int kind)
++{
++    ptrdiff_t byte_off;
++    size_t idx;
++
++    assert(first);
++    assert(kind >= 0);
++    assert(kind < TORIDRAW_OD_KINDS);
++
++    if( len <= 0 || !g_cnt || g_face_id == 0 )
++        return;
++
++    byte_off = (uint8_t const*)first - g_base;
++    if( byte_off < 0 )
++    {
++        g_span_oob += 1.0;
++        return;
++    }
++    idx = (size_t)byte_off / 4u;
++    if( idx + (size_t)len > g_pixels )
++    {
++        g_span_oob += 1.0;
++        return;
++    }
++
++    g_spans += 1.0;
++    g_writes[kind] += (double)len;
++    g_face_writes[g_face_id] += (unsigned)len;
++    g_model_writes[g_model_id] += (unsigned)len;
++    g_model_spans[g_model_id] += 1u;
++
++    for( int i = 0; i < len; i++ )
++    {
++        size_t p = idx + (size_t)i;
++        if( g_cnt[p] )
++        {
++            g_wasted[g_lastkind[p]] += 1.0;
++            g_overmat[g_lastclass[p]][g_cur_class] += 1.0;
++        }
++        if( g_cnt[p] < 255 )
++            g_cnt[p]++;
++        g_lastkind[p] = (uint8_t)kind;
++        g_lastclass[p] = g_cur_class;
++        g_owner[p] = g_face_id;
++    }
++}
++
++static char const* const g_kind_name[TORIDRAW_OD_KINDS] = { "gouraud",    "gouraud_a",
++                                                            "flat",       "flat_a",
++                                                            "tex_opaque", "tex_trans",
++                                                            "tex_other" };
++
++static char const* const g_class_name[TORIDRAW_OD_CLASSES] = {
++    "terrain",   "elem_invalid", "elem_ground",  "scenery",       "wall_a",
++    "wall_b",    "ground_decor", "wall_decor",   "ground_object", "other/widget"
++};
++
++static void
++od_dump(void)
++{
++    char const* path = getenv("TORIDRAW_OD_CENSUS_FILE");
++    FILE* out = stderr;
++    double writes = 0.0;
++    double wasted = 0.0;
++    double f;
++
++    od_flush();
++    if( g_frames <= 0.0 )
++        return;
++    f = g_frames;
++
++    if( path )
++    {
++        FILE* fp = fopen(path, "wb");
++        if( fp )
++            out = fp;
++    }
++
++    for( int k = 0; k < TORIDRAW_OD_KINDS; k++ )
++    {
++        writes += g_writes[k];
++        wasted += g_wasted[k];
++    }
++
++    fprintf(out, "od-census: %.0f frames, %.0f fb pixels\n", f, (double)g_pixels);
++    fprintf(
++        out,
++        "  writes/frame      %.0f\n"
++        "  covered/frame     %.0f  (%.2f%% of the canvas)\n"
++        "  overdraw vs canvas   %.3fx\n"
++        "  overdraw vs covered  %.3fx\n"
++        "  wasted writes     %.0f/frame  (%.2f%% of writes)\n"
++        "  spans/frame       %.0f   px/span %.2f\n",
++        writes / f,
++        g_covered / f,
++        100.0 * (g_covered / f) / (double)g_pixels,
++        (writes / f) / (double)g_pixels,
++        writes / g_covered,
++        wasted / f,
++        100.0 * wasted / writes,
++        g_spans / f,
++        writes / g_spans);
++
++    fprintf(out, "  by kernel: kind, writes/frame, share, wasted/frame, share of own\n");
++    for( int k = 0; k < TORIDRAW_OD_KINDS; k++ )
++    {
++        if( g_writes[k] == 0.0 )
++            continue;
++        fprintf(
++            out,
++            "    %-11s %10.0f  %5.2f%%  %10.0f  %5.2f%%\n",
++            g_kind_name[k],
++            g_writes[k] / f,
++            100.0 * g_writes[k] / writes,
++            g_wasted[k] / f,
++            100.0 * g_wasted[k] / g_writes[k]);
++    }
++
++    fprintf(out, "  writes-per-pixel histogram (share of COVERED pixels):\n");
++    {
++        double run = 0.0;
++        for( int i = 1; i < OD_HIST; i++ )
++        {
++            if( g_hist[i] == 0.0 )
++                continue;
++            run += g_hist[i];
++            fprintf(
++                out,
++                "    n=%-3d %10.0f/frame %6.2f%%  cum %6.2f%%\n",
++                i,
++                g_hist[i] / f,
++                100.0 * g_hist[i] / g_covered,
++                100.0 * run / g_covered);
++        }
++    }
++
++    fprintf(
++        out,
++        "  faces:  %.0f/frame drew a visible pixel, %.0f/frame FULLY HIDDEN (%.2f%%)\n"
++        "          hidden face write mass %.0f/frame = %.2f%% of all writes\n",
++        g_drawn_faces / f,
++        g_hidden_faces / f,
++        100.0 * g_hidden_faces / (g_hidden_faces + g_drawn_faces),
++        g_hidden_face_writes / f,
++        100.0 * g_hidden_face_writes / writes);
++    fprintf(
++        out,
++        "  models: %.0f/frame drew pixels, %.0f/frame FULLY HIDDEN (%.2f%%)\n"
++        "          hidden model write mass %.0f/frame = %.2f%% of all writes\n",
++        g_drawn_models / f,
++        g_hidden_models / f,
++        100.0 * g_hidden_models / g_drawn_models,
++        g_hidden_model_writes / f,
++        100.0 * g_hidden_model_writes / writes);
++
++    fprintf(out, "  models by surviving-pixel share (0 = every pixel overdrawn):\n");
++    for( int b = 0; b < OD_SURVBINS; b++ )
++    {
++        if( g_model_surv_hist[b] == 0.0 )
++            continue;
++        fprintf(
++            out,
++            "    %3d-%3d%%  %8.1f models/frame  %10.0f writes/frame (%.2f%%)\n",
++            b * 10,
++            b * 10 + 10,
++            g_model_surv_hist[b] / f,
++            g_model_surv_writes[b] / f,
++            100.0 * g_model_surv_writes[b] / writes);
++    }
++
++    fprintf(out, "  by geometry class: models/frame, hidden, writes/frame, share, hidden writes, share of own\n");
++    for( int c = 0; c < TORIDRAW_OD_CLASSES; c++ )
++    {
++        if( g_class_models[c] == 0.0 )
++            continue;
++        fprintf(
++            out,
++            "    %-13s %7.1f  %7.1f (%5.2f%%)  %9.0f  %5.2f%%  %9.0f  %5.2f%%  surv/write %.3f\n",
++            g_class_name[c],
++            g_class_models[c] / f,
++            g_class_hidden_models[c] / f,
++            100.0 * g_class_hidden_models[c] / g_class_models[c],
++            g_class_writes[c] / f,
++            100.0 * g_class_writes[c] / writes,
++            g_class_hidden_writes[c] / f,
++            100.0 * g_class_hidden_writes[c] / g_class_writes[c],
++            g_class_surv[c] / g_class_writes[c]);
++    }
++
++    fprintf(out, "  spans by class: spans/frame, hidden spans/frame, share of own, px/span\n");
++    for( int c = 0; c < TORIDRAW_OD_CLASSES; c++ )
++    {
++        if( g_class_spans[c] == 0.0 )
++            continue;
++        fprintf(
++            out,
++            "    %-13s %9.0f  %9.0f  %5.2f%%  %.2f\n",
++            g_class_name[c],
++            g_class_spans[c] / f,
++            g_class_hidden_spans[c] / f,
++            100.0 * g_class_hidden_spans[c] / g_class_spans[c],
++            g_class_writes[c] / g_class_spans[c]);
++    }
++
++    fprintf(out, "  overdraw matrix, victim (row) covered by killer (col), px/frame:\n");
++    fprintf(out, "    %-13s", "victim\\killer");
++    for( int k = 0; k < TORIDRAW_OD_CLASSES; k++ )
++        if( g_class_models[k] != 0.0 )
++            fprintf(out, " %12s", g_class_name[k]);
++    fprintf(out, " %12s\n", "TOTAL");
++    for( int v = 0; v < TORIDRAW_OD_CLASSES; v++ )
++    {
++        double row = 0.0;
++        for( int k = 0; k < TORIDRAW_OD_CLASSES; k++ )
++            row += g_overmat[v][k];
++        if( row == 0.0 )
++            continue;
++        fprintf(out, "    %-13s", g_class_name[v]);
++        for( int k = 0; k < TORIDRAW_OD_CLASSES; k++ )
++            if( g_class_models[k] != 0.0 )
++                fprintf(out, " %12.0f", g_overmat[v][k] / f);
++        fprintf(out, " %12.0f\n", row / f);
++    }
++
++    if( g_face_overflow || g_model_overflow || g_span_oob )
++        fprintf(
++            out,
++            "  OVERFLOW face=%.0f model=%.0f span_oob=%.0f\n",
++            g_face_overflow,
++            g_model_overflow,
++            g_span_oob);
++    fflush(out);
++    if( out != stderr )
++        fclose(out);
++}
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/od_census.h b/3rd/toridraw/graphics/raster/od_census.h
+new file mode 100644
+index 000000000..a01e2cb70
+--- /dev/null
++++ b/3rd/toridraw/graphics/raster/od_census.h
+@@ -0,0 +1,97 @@
++#ifndef TORIDRAW_RASTER_OD_CENSUS_H
++#define TORIDRAW_RASTER_OD_CENSUS_H
++
++/**
++ * How many times is a world pixel actually written?
++ *
++ * Every occlusion proposal is a bet on this one distribution. "Overdraw is
++ * 2.25x" and "overdraw is 5.06x" were two different guesses about the
++ * DENOMINATOR (canvas versus a 512x334 world box), and neither had counted a
++ * single write. This counts them.
++ *
++ * -DTORIDRAW_OD_CENSUS=1 only. A census build is never timed, so this is free
++ * to keep a byte-per-pixel counter, a dword-per-pixel owner and two per-frame
++ * side tables; it must never appear in a shipping build.
++ *
++ * Three questions, three answers:
++ *
++ *   1. writes/pixel histogram  -- the real overdraw factor, over pixels the
++ *      3D pass actually touches, not over the canvas.
++ *   2. wasted writes by kernel -- a write is wasted when a later write to the
++ *      same pixel replaces it. The painter is back-to-front, so the LAST
++ *      writer is the visible one and every earlier write is dead.
++ *   3. hidden faces / hidden models -- geometry every pixel of which was
++ *      replaced. This is the exact mass a perfect FACE-level or MODEL-level
++ *      front-to-back cull would remove, which is a much cheaper scheme than a
++ *      per-pixel coverage buffer and therefore the number worth costing.
++ */
++
++#if defined(TORIDRAW_OD_CENSUS) && TORIDRAW_OD_CENSUS
++
++#include <stddef.h>
++#include <stdint.h>
++
++enum
++{
++    TORIDRAW_OD_KIND_GOURAUD = 0,
++    TORIDRAW_OD_KIND_GOURAUD_ALPHA,
++    TORIDRAW_OD_KIND_FLAT,
++    TORIDRAW_OD_KIND_FLAT_ALPHA,
++    TORIDRAW_OD_KIND_TEX_OPAQUE,
++    TORIDRAW_OD_KIND_TEX_TRANS,
++    TORIDRAW_OD_KIND_TEX_OTHER,
++    TORIDRAW_OD_KINDS
++};
++
++/** Absolute framebuffer base and pixel count, re-registered every frame. */
++void
++ToriDraw_OdCensusFrame(void const* fb_base, size_t pixels);
++
++/** One model (one ToriDraw_RasterWithFaceIndices call). */
++void
++ToriDraw_OdCensusModel(void);
++
++/** One face inside the current model. */
++void
++ToriDraw_OdCensusFace(void);
++
++/** `first` is the absolute pixel address of the span's left end. */
++void
++ToriDraw_OdCensusSpan(void const* first, int len, int kind);
++
++extern int g_toridraw_od_active;
++
++/** Geometry class of the model about to be rastered: 0 = terrain mesh,
++ *  otherwise 1 + PaintersElementKind (see src/painters/painters.h), and
++ *  TORIDRAW_OD_CLASS_OTHER for widget/non-world models. */
++extern int g_toridraw_od_class;
++
++#define TORIDRAW_OD_CLASSES 10
++#define TORIDRAW_OD_CLASS_OTHER 9
++
++#define TORIDRAW_OD_CLASS(c) (g_toridraw_od_class = (c))
++
++#define TORIDRAW_OD_SPAN(buf, off, len, kind)                                             \
++    do                                                                                    \
++    {                                                                                     \
++        if( g_toridraw_od_active )                                                        \
++            ToriDraw_OdCensusSpan((void const*)((buf) + (off)), (len), (kind));           \
++    } while( 0 )
++
++#define TORIDRAW_OD_MODEL() ToriDraw_OdCensusModel()
++#define TORIDRAW_OD_FACE() ToriDraw_OdCensusFace()
++#define TORIDRAW_OD_FRAME(base, px) ToriDraw_OdCensusFrame((base), (px))
++
++#else
++
++#define TORIDRAW_OD_SPAN(buf, off, len, kind) ((void)0)
++#define TORIDRAW_OD_MODEL() ((void)0)
++#define TORIDRAW_OD_FACE() ((void)0)
++#define TORIDRAW_OD_FRAME(base, px) ((void)0)
++#define TORIDRAW_OD_CLASS(c) ((void)(c))
++#define TORIDRAW_OD_CLASSES 10
++#define TORIDRAW_OD_CLASS_OTHER 9
++
++#endif
++
++#endif
+diff --git a/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c b/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c
+index 6954be769..694d60ca4 100644
+--- a/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c
++++ b/3rd/toridraw/graphics/raster/texture/span/tex.span.sse2.u.c
+@@ -1,3 +1,4 @@
++#include "graphics/raster/od_census.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/int_wrap.h"
+ #include "graphics/raster/raster_ablate.h"
+@@ -738,6 +739,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+     int remaining = steps & 7;
+ 
+     TORIDRAW_TEXSPAN_CENSUS_SPAN(steps);
++    TORIDRAW_OD_SPAN(pixel_buffer, offset, steps, TORIDRAW_OD_KIND_TEX_OPAQUE);
+ 
+     /* Everything above is the per-span prologue -- clip, adjust, step. This
+      * keeps it and drops the fill, the same cut TORIDRAW_ABLATE=1 makes in the
+@@ -948,6 +950,7 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
+     int remaining = steps & 7;
+ 
+     TORIDRAW_TEXSPAN_CENSUS_SPAN(steps);
++    TORIDRAW_OD_SPAN(pixel_buffer, offset, steps, TORIDRAW_OD_KIND_TEX_TRANS);
+ 
+     /* Everything above is the per-span prologue -- clip, adjust, step. This
+      * keeps it and drops the fill, the same cut TORIDRAW_ABLATE=1 makes in the
+diff --git a/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c b/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c
+index ce12e7922..0942a4e67 100644
+--- a/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c
++++ b/3rd/toridraw/graphics/raster/texture/texshadeflat.persp.texopaque.ordered.lerp8.scanline.u.c
+@@ -1,6 +1,7 @@
+ #ifndef TEXSHADEFLAT_PERSP_TEXOPAQUE_ORDERED_LERP8_SCANLINE_U_C
+ #define TEXSHADEFLAT_PERSP_TEXOPAQUE_ORDERED_LERP8_SCANLINE_U_C
+ 
++#include "graphics/raster/od_census.h"
+ #include "graphics/clamp.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/shade.h"
+@@ -68,6 +69,7 @@ raster_texshadeflat_persp_texopaque_ordered_lerp8_scanline(
+     assert(screen_x1 >= 0);
+ 
+     offset += screen_x0;
++    TORIDRAW_OD_SPAN(pixel_buffer, offset, steps, TORIDRAW_OD_KIND_TEX_OTHER);
+ 
+     assert(screen_x0 + steps < screen_width);
+ 
+diff --git a/3rd/toridraw/toridraw_raster.u.c b/3rd/toridraw/toridraw_raster.u.c
+index 43197f782..0154315b5 100644
+--- a/3rd/toridraw/toridraw_raster.u.c
++++ b/3rd/toridraw/toridraw_raster.u.c
+@@ -2,6 +2,7 @@
+ #define VERTEXINT_BITS 16
+ #endif
+ 
++#include "graphics/raster/od_census.h"
+ #include "toridraw_model.h"
+ #include "toridraw_model_internal.h"
+ #include "toridraw_types.h"
+@@ -1305,6 +1306,7 @@ ToriDraw_RasterWithFaceIndices(
+ {
+     struct ToriDrawModelRasterContext ctx;
+     context_from_handle(scene, hnd, view_port, camera, smooth, force_zbuffer, &ctx);
++    TORIDRAW_OD_MODEL();
+     {
+         int clip_left = view_port->clip_left > 0 ? view_port->clip_left : 0;
+         int clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
+@@ -1360,6 +1362,7 @@ ToriDraw_RasterWithFaceIndices(
+         {
+             if( !toridraw_raster_face_front_facing(&ctx, face) )
+                 continue;
++            TORIDRAW_OD_FACE();
+             ToriDraw_RasterModelFace(face, &ctx);
+         }
+     }
+@@ -1368,6 +1371,7 @@ ToriDraw_RasterWithFaceIndices(
+         for( int i = 0; i < scene->tmp_face_order_count; i++ )
+         {
+             int face = scene->tmp_face_order[i];
++            TORIDRAW_OD_FACE();
+             ToriDraw_RasterModelFace(face, &ctx);
+         }
+     }
+diff --git a/3rd/toridraw/toridraw_unity.c b/3rd/toridraw/toridraw_unity.c
+index e9db3a847..e117d9e8c 100644
+--- a/3rd/toridraw/toridraw_unity.c
++++ b/3rd/toridraw/toridraw_unity.c
+@@ -30,5 +30,6 @@
+ #include "graphics/raster/gouraudhsllightness/sarea_census.c"
+ #include "graphics/proj_census.c"
+ #include "graphics/raster/span_census.c"
++#include "graphics/raster/od_census.c"
+ #include "graphics/shared_tables.c"
+ #include "osrs/palette.c"
+diff --git a/src/platform/platform_sdl2_renderer_soft3d.c b/src/platform/platform_sdl2_renderer_soft3d.c
+index de701e34e..d264cea04 100644
+--- a/src/platform/platform_sdl2_renderer_soft3d.c
++++ b/src/platform/platform_sdl2_renderer_soft3d.c
+@@ -4,6 +4,7 @@
+ #include "render/torirs_frame.h"
+ 
+ #include "graphics/fb_clear.h"
++#include "graphics/raster/od_census.h"
+ #include "toridraw.h"
+ #include "toridraw_2d.h"
+ #include "toridraw_frame_ab.h"
+@@ -1100,10 +1101,12 @@ ToriRS_Soft3D_Execute(
+         break;
+ 
+     case TORIRSRC_DRAW_MODEL:
++        TORIDRAW_OD_CLASS(cmd->u.model.od_class);
+         soft3d_draw_model(soft, &cmd->u.model);
+         break;
+ 
+     case TORIRSRC_DRAW_MODEL_WIDGET:
++        TORIDRAW_OD_CLASS(TORIDRAW_OD_CLASS_OTHER);
+         soft3d_draw_model_widget(soft, &cmd->u.model_widget);
+         break;
+ 
+@@ -1564,6 +1567,9 @@ ToriRS_Soft3D_RenderFrame(
+ 
+     n = (size_t)soft->width * (size_t)soft->height;
+ 
++    /* Overdraw census: closes the frame just drawn and re-registers the base. */
++    TORIDRAW_OD_FRAME(soft->pixels, n);
++
+     /*
+      * The A/B brackets the clear AND the rasterization that follows it,
+      * because the two are coupled through the cache. Arm selection is read
+diff --git a/src/render/torirs_frame.c b/src/render/torirs_frame.c
+index ca7a84f48..9057bb4d1 100644
+--- a/src/render/torirs_frame.c
++++ b/src/render/torirs_frame.c
+@@ -2100,6 +2100,15 @@ try_emit_world_draw_model(
+             out->u.model.pick_tile_z = -1;
+             out->u.model.pick_tile_level = -1;
+         }
++        /* Overdraw census: 0 = terrain mesh, otherwise 1 + PaintersElementKind. */
++        if( out->u.model.pick_terrain )
++            out->u.model.od_class = 0;
++        else
++        {
++            struct PaintersElement* pel =
++                painter_element_at(frame->world->painter, element_id);
++            out->u.model.od_class = pel ? 1 + (int)pel->kind : 1;
++        }
+         return true;
+     }
+ 
+diff --git a/src/render/torirs_render.h b/src/render/torirs_render.h
+index 633411a56..bfeccfc36 100644
+--- a/src/render/torirs_render.h
++++ b/src/render/torirs_render.h
+@@ -109,6 +109,8 @@ struct ToriRS_RenderCommand_Model
+     int pick_tile_x; /* -1 for non-terrain */
+     int pick_tile_z;
+     int pick_tile_level;
++    /* Overdraw census only: geometry class, see od_census.h. */
++    int od_class;
+ };
+ 
+ struct ToriRS_RenderCommand_ModelWidget

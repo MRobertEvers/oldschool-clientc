@@ -1,0 +1,72 @@
+{{External|rs}}
+{{otheruses|the spell|the magic tablet|Enchant onyx}}
+{{Infobox Spell
+|name = Lvl-6 Enchant
+|image = [[File:Lvl-6 Enchant.png]]
+|release = [[4 October]] [[2005]]
+|update = TzHaar Fight Caves
+|members = Yes
+|level = 87
+|spellbook = Normal
+|type = Utility
+|exp = 97
+|cost = {{RuneReq|Earth=20|Fire=20|Cosmic=1}}
+|speed = 3 ticks (7 on autocast)
+|description = For use on onyx jewellery
+|anim = [[File:Lvl-6 Enchant.gif|300px]]
+|sound = [[File:Lvl-6 Enchant.ogg]]
+}}
+[[File:Lvl-6 Enchant icon (mobile).png|left|class=pageimage]]
+'''Lvl-6 Enchant''' is a [[utility spell]] in the [[standard spellbook]], requiring level 87 [[Magic]] to cast. The spell enchants [[onyx]] [[jewellery]], granting 97 Magic experience when doing so.
+
+This spell can be transferred to a [[Enchant onyx|magic tablet]] by bringing the required runes and a piece of [[soft clay]] to a [[lectern]] in the [[study]] of a [[player-owned house]], granting 72.8 [[Magic]] experience per tablet.
+
+==List of items==
+{| class="wikitable sortable"
+! colspan="3" | Unenchanted
+! colspan="3" | Enchanted
+! rowspan="2" | Profit{{Refn|Includes spell costs; column assumes an appropriate rune-providing item is used.|group=e}}
+|-
+! colspan="2" | Item
+![[GE]] price
+! colspan="2" | Item
+![[GE]] price
+|-
+|{{plinkt|Onyx ring}} 
+|{{Coins|{{GEP|Onyx ring}}}}
+|{{plinkt|Ring of stone}}
+|{{Coins|{{GEP|Ring of stone}}}}
+|{{coins|{{GEP|Ring of stone}} - ({{GEP|Onyx ring}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Onyx necklace}}
+|{{Coins|{{GEP|Onyx necklace}}}}
+|{{plinkt|Berserker necklace}}
+|{{Coins|{{GEP|Berserker necklace}}}}
+|{{coins|{{GEP|Berserker necklace}} - ({{GEP|Onyx necklace}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Onyx bracelet}}
+|{{Coins|{{GEP|Onyx bracelet}}}}
+|{{plinkt|Regen bracelet}} 
+|{{Coins|{{GEP|Regen bracelet}}}}
+|{{coins|{{GEP|Regen bracelet}} - ({{GEP|Onyx bracelet}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Onyx amulet}}
+|{{Coins|{{GEP|Onyx amulet}}}}
+|{{plinkt|Amulet of fury}}
+|{{Coins|{{GEP|Amulet of fury}}}}
+|{{coins|{{GEP|Amulet of fury}} - ({{GEP|Onyx amulet}} + {{GEP|Cosmic rune}})}}
+|}
+{{Reflist|group=e}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 20
+|Rune2 = fire
+|Rune2num = 20
+|Rune3 = cosmic
+|Rune3num = 1
+}}
+
+{{Utility spells}}
+{{Standard spellbook}}
