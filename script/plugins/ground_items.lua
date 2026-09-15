@@ -745,9 +745,11 @@ function plugin.on_start(api)
     -- unexpected for the life of the session.
     api.porcelain.expect_unsupported("native captions",
         "a CS1 lane runs no CS2, so the cache's own ground-item caption script does not exist")
+    -- Trimmed to PORCELAIN_DETAIL_MAX. The primitive arithmetic behind this --
+    -- a label is two, or five with the outline, against a 512 budget -- is in
+    -- the comment above the draw itself, where it belongs.
     api.porcelain.expect_unsupported("draw_refusal_readout",
-        "draw.text answers nothing at all, so the 512-primitive budget that truncates an " ..
-        "overlay is invisible here: a label is two primitives, or five with the outline")
+        "draw.text answers nothing, so a truncating draw budget is invisible")
     api.porcelain.expect_absent("role:reveal_key", "a touch lane has no keyboard frame")
 
     reveal_armed = api.porcelain.key_edge("reveal_key", function(down)
