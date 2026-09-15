@@ -40,13 +40,30 @@ static struct ToriRS_PluginDef const DEF_B = {
 
 static int g_fixture_ops;
 
+static char g_fixture_op_key[64];
+
 static void
 fixture_op(struct ToriRS_Api* api, void* user, char const* key)
 {
     (void)api;
     (void)user;
-    (void)key;
+    snprintf(g_fixture_op_key, sizeof(g_fixture_op_key), "%s", key ? key : "");
     g_fixture_ops++;
+}
+
+/* The engine's side of an operation: a listener call on the node's own ref. */
+static void
+fire_op(char const* key)
+{
+    struct TestbedControl* control = Testbed_Control(key);
+    struct ToriRS_WidgetEvent event;
+
+    if( !control || !control->op )
+        return;
+    memset(&event, 0, sizeof(event));
+    event.type = TORIRS_WIDGET_OPERATION;
+    event.widget = control->ref;
+    control->op(Testbed_Api(), control->op_user, &event);
 }
 
 struct Fixture
@@ -452,11 +469,128 @@ test_replace_target_dies(void)
     fence(porcelain);
     fence(porcelain);
     CHECK(Testbed_Control("camera") == NULL, "an unbound target removes the control");
-    CHECK(Testbed_LogCountWith("remove camera") == 1, "exactly once");
+    CHECK(Testbed_LogCountWith("remove camera~hit") == 1, "and the hit box it stood over");
+    CHECK(Testbed_LogCountWith("remove camera") == 2, "each of the two exactly once");
 
     Testbed_BindElement("report_button");
     fence(porcelain);
     CHECK(Testbed_Control("camera") != NULL, "and it comes back when the target rebinds");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * THE DEAD RING.
+ *
+ * A REPLACE takes the target's records out of the frame and puts the
+ * replacement's in their place, so the part of the target's box the
+ * replacement does not cover answers NOTHING -- the native op is gone and the
+ * control is not there. Measured on the shipped camera, that is 1,497 of the
+ * report button's 1,817 pixels: a click 7px left of the icon opened no menu,
+ * took no screenshot and wrote no file, on the CS2 lane and on CS1 alike.
+ *
+ * The layer answers it with a second owned node the size of the TARGET, armed
+ * with the item's op; the picture keeps its centred box and is disarmed while
+ * that stands, or the pointer over the art builds the row twice.
+ *
+ * MUTATION: delete the porcelain_apply_replace_hit call from the reconcile.
+ * Red: no camera~hit, and the 60x20 button answers only over 20x20.
+ * SECOND MUTATION: drop the `!applied->hit_live` term in porcelain_apply_op.
+ * Red: both nodes are armed and the icon offers Screenshot twice.
+ */
+static void
+test_replace_answers_the_whole_target(void)
+{
+    struct Fixture fixture = {
+        .image = "camera.png", .enabled = true, .replace = true};
+    struct Porcelain* porcelain;
+    struct TestbedControl const* camera;
+    struct TestbedControl const* hit;
+
+    Testbed_Reset();
+    declare_chrome();
+    Testbed_BindElement("report_button");
+    Testbed_BindElement("chat_bar");
+
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, fixture_describe, &fixture);
+    fence(porcelain);
+
+    camera = Testbed_Control("camera");
+    hit = Testbed_Control("camera~hit");
+    CHECK(camera && camera->x == 420 && camera->width == 20,
+          "the picture keeps its own size, centred on the target");
+    CHECK(hit != NULL, "and a hit box stands with it");
+    CHECK(hit && hit->x == 400 && hit->y == 470 && hit->width == 60 && hit->height == 20,
+          "covering the WHOLE box the REPLACE consumed, not the art's");
+    CHECK(hit && hit->image.value == 0, "drawing nothing: it is a hit box, not a plate");
+    CHECK(hit && hit->relation == TORIRS_WIDGET_RELATION_OVER,
+          "an ordinary sibling over the target -- REPLACE is the picture's, one to an element");
+    CHECK(hit && hit->armed && strcmp(hit->label, "Screenshot") == 0, "armed with the item's op");
+    CHECK(camera && !camera->armed,
+          "and the picture is NOT, or the art would offer the same row twice");
+
+    g_fixture_ops = 0;
+    g_fixture_op_key[0] = '\0';
+    fire_op("camera~hit");
+    CHECK(g_fixture_ops == 1, "the hit box runs the item's handler");
+    CHECK(strcmp(g_fixture_op_key, "camera") == 0,
+          "under the ITEM's key, so Porcelain_Set still finds the picture");
+
+    Testbed_ClearLog();
+    fence(porcelain);
+    CHECK(Testbed_LogCount() == 0, "and an unchanged description writes nothing for either node");
+
+    /* The target's box is the hit box's box at every fence, the same way the
+     * picture's is. */
+    Testbed_MoveElement("report_button", 300, 400);
+    fence(porcelain);
+    hit = Testbed_Control("camera~hit");
+    CHECK(hit && hit->x == 300 && hit->y == 400, "a target that moved takes the hit box with it");
+
+    /*
+     * Not merely hidden when the target stops being presented: the menu
+     * walk's gate for a node does not read its own widget_hidden bit, so a
+     * hidden hit box would keep taking clicks over a Report button the lane
+     * had put away. The picture needs no such care -- its REPLACE anchor
+     * makes the engine inherit the target's visibility both ways.
+     */
+    Testbed_PresentElement("report_button", false);
+    fence(porcelain);
+    CHECK(Testbed_Control("camera~hit") == NULL, "an unpresented target takes the hit box away");
+    CHECK(Testbed_Control("camera") != NULL, "while the picture stays and inherits the hide");
+    CHECK(Testbed_Control("camera")->armed,
+          "and takes the op back, so nothing is left with no way to answer");
+    Testbed_PresentElement("report_button", true);
+    fence(porcelain);
+    CHECK(Testbed_Control("camera~hit") != NULL, "and it comes back with the target");
+    CHECK(!Testbed_Control("camera")->armed, "with the picture disarmed again");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * A REPLACE that is not armed is paint standing in for paint: the plugin has
+ * said in as many words that nothing should answer there, and the layer does
+ * not invent a hit box to contradict it.
+ *
+ * MUTATION: drop the `item->enabled` term from porcelain_replace_wants_hit.
+ * Red.
+ */
+static void
+test_replace_without_a_hit_gets_no_hit_box(void)
+{
+    struct Fixture fixture = {
+        .image = "camera.png", .enabled = false, .replace = true};
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    declare_chrome();
+    Testbed_BindElement("report_button");
+    Testbed_BindElement("chat_bar");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, fixture_describe, &fixture);
+    fence(porcelain);
+    CHECK(Testbed_Control("camera") != NULL, "the picture stands in for Report");
+    CHECK(Testbed_Control("camera~hit") == NULL, "and nothing answers where nothing was armed");
     Porcelain_Close(porcelain);
 }
 
@@ -1152,7 +1286,16 @@ test_visibility_and_enablement(void)
  * `.image = NULL` on a Control or a Blocker is an invisible hit box. Both
  * frame providers compose a 1x1 transparent PNG to fake this today.
  *
+ * And it takes its box through set_size, because it has no image handle to
+ * carry one: the engine resolves the token before it reads the size, so the
+ * set_image an image-less control used to be given was refused whole and the
+ * blocker stayed 0x0 -- present, invisible and unclickable. The fake answered
+ * that call OK, which is why this test used to PIN the refusal by asserting
+ * the call was made.
+ *
  * MUTATION: make porcelain_push_item assert on a NULL image. Red immediately.
+ * SECOND MUTATION: route an image-less item's box back through set_image in
+ * porcelain_apply_geometry. Red: the blocker has no box.
  */
 static void
 blocker_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
@@ -1178,8 +1321,10 @@ test_blocker_needs_no_picture(void)
     Porcelain_Describe(porcelain, blocker_describe, NULL);
     fence(porcelain);
     CHECK(Testbed_Control("swallow") != NULL, "a blocker with no image exists");
-    CHECK(Testbed_LogCountWith("set_image swallow #0") == 1,
-          "with the empty picture, and no composed 1x1 PNG anywhere");
+    CHECK(Testbed_LogCountWith("set_image swallow") == 0,
+          "and asks for no picture at all, composed 1x1 PNG or otherwise");
+    CHECK(Testbed_LogCountWith("set_size swallow 100x40") == 1,
+          "its box goes through the verb that carries a box on its own");
     CHECK(Testbed_Control("swallow")->width == 100, "and it carries its stated box");
     Porcelain_Close(porcelain);
 }
@@ -6146,6 +6291,8 @@ main(void)
     test_removed_key_removes_one_control();
     test_readiness_matrix();
     test_replace_target_dies();
+    test_replace_answers_the_whole_target();
+    test_replace_without_a_hit_gets_no_hit_box();
     test_arbitration_first_claim();
     test_arbitration_relinquish();
     test_findings_coalesce();

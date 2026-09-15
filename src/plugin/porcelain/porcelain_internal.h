@@ -18,6 +18,27 @@
 /* ---------------------------------------------------------------- strings */
 
 /** A fixed, always-terminated string. Over-long input is a caller bug. */
+/*
+ * The key of the second node. Composed, never plugin-stated: the describe
+ * verbs take one key per item and this node is the layer's, not the
+ * description's. PORCELAIN_KEY_MAX is 48 and the engine's own limit 63, so
+ * the suffix always fits whole -- a truncated key would resolve to the
+ * picture's own node, because create_image is idempotent per (parent, key).
+ *
+ * The TILDE is the reserved character, and it is reserved rather than merely
+ * unusual: porcelain_push_item asserts that no described key contains one, so
+ * a plugin cannot spell a key that collides with a composed one and quietly
+ * take over the node. Every key any plugin ships today is letters, digits,
+ * underscores and dots (`tab.04`, `orb_hitpoints`).
+ *
+ * `#` was the first spelling and is wrong for a reason worth writing down:
+ * the port gate's expectation file treats `#` as a comment, so a control
+ * named with one could not be DECLARED, and a port that legitimately adds it
+ * could never pass.
+ */
+#define PORCELAIN_HIT_KEY_MARK '~'
+#define PORCELAIN_HIT_KEY_SUFFIX "~hit"
+
 struct PorcelainKey
 {
     char text[PORCELAIN_KEY_MAX];
@@ -143,6 +164,36 @@ struct PorcelainAppliedItem
      *  and the next reconcile builds it again.
      *  @see porcelain_note_item_result */
     bool stale;
+
+    /*
+     * THE HIT BOX OF A REPLACE.
+     *
+     * A REPLACE takes the target's records out of the frame -- paint, input
+     * and hover together -- and puts this control's in their place. The
+     * control is the size of its PICTURE, so everything the target's box
+     * covered and the picture does not answers NOTHING: the native op is gone
+     * and the replacement is not there. Measured on the shipped camera: the
+     * report button is 79x23 and the camera 20x16, so 1,497 of its 1,817
+     * pixels were inert on both sides.
+     *
+     * So the layer stands a second owned node, the size of the target's box,
+     * under the picture and arms the op on THAT. The picture keeps its own
+     * centred box and is disarmed while this exists, or the two would offer
+     * the same row twice wherever they overlap. Both nodes share this applied
+     * slot, so the op still reports the item's own key.
+     */
+    struct ToriRS_WidgetRef hit_ref;
+    bool hit_live;
+    struct ToriRS_WidgetBounds hit_box;
+    bool hit_box_written;
+    char hit_label[TORIRS_WIDGET_OP_LABEL_MAX];
+    struct ToriRS_WidgetRef hit_anchor_target;
+    bool hit_anchor_written;
+    /** What set_on_op last wrote on the PICTURE, so the arm can be revised on
+     *  a fence the description did not change. */
+    bool op_armed;
+    bool op_armed_written;
+    char op_label_armed[TORIRS_WIDGET_OP_LABEL_MAX];
 };
 
 /* ----------------------------------------------------------------- edits */

@@ -159,7 +159,27 @@ app_plugin_fill_player(
     out->server_pid = player->server_pid;
     out->element_id = player->element_id;
     out->combat_level = player->combat_level;
-    snprintf(out->name, sizeof(out->name), "%s", player->name);
+    /*
+     * A NAME, or nothing -- never the decoder's failure report.
+     *
+     * An appearance block carries the name as a packed base37 word, and
+     * base37tostr answers a word that is not a name with the literal string
+     * "invalid_name" (reference `fromBase37`). The entity keeps that, because
+     * the nameplate and the right-click row are TEXT and showing the
+     * reference's own token is the reference's own behaviour.
+     *
+     * This snapshot is not text: it is the plugin API's answer to "who is
+     * this", and plugins use it as an identity. The screenshot plugin files
+     * captures under it, and on the CS1 lane every capture in the programme
+     * landed in a folder called `invalid-name` -- past a guard that reads
+     * `name ~= ""`, which the sentinel is not. Two accounts would have shared
+     * that folder. So the sentinel becomes the empty string, which is what
+     * "this client does not know the name" already means to every caller, and
+     * the knowledge that it IS a sentinel stays in jbase37.h where it is
+     * written.
+     */
+    if( !Base37_IsInvalidName(player->name) )
+        snprintf(out->name, sizeof(out->name), "%s", player->name);
 }
 
 void

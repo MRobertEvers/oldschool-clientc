@@ -729,6 +729,18 @@ fake_set_image(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_ImageRe
     (void)context;
     testbed_log("set_image %s #%d %dx%d", control ? control->key : (element ? element->role : "?"),
                 image.value, width, height);
+    /*
+     * A ZERO HANDLE IS REFUSED, exactly as the engine refuses it.
+     *
+     * widget_set_image resolves the image token against the plugin's live
+     * resources BEFORE it looks at the size, and a zero token resolves to no
+     * slot: INVALID_ARGUMENT, nothing written, picture AND box both lost. The
+     * fake used to answer OK and write the box, so a control with no picture
+     * looked sized here and was 0x0 in the client -- which is how every
+     * blocker the layer ever described shipped invisible and unclickable.
+     */
+    if( !image.value )
+        return TORIRS_CONTRACT_INVALID_ARGUMENT;
     if( control )
     {
         control->width = width;

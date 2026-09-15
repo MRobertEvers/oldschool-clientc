@@ -58,7 +58,16 @@ if [ "$lane" = cs1live ]; then
   # A shot name is neither -- `live-orbs` has a hyphen and `loottracker-loot`
   # is sixteen -- and both come back as login reply 3 (invalid username), which
   # reads exactly like a wrong password and is not one.
-  lcuser=${TORIRS_LC_USER:-s$(printf '%s' "$name" | tr -c 'a-z0-9' '_' | cut -c1-11)}
+  #
+  # ELEVEN, not twelve. Twelve characters only fit in the base37 word when the
+  # FIRST one is a..f: the pack is c1*37^11 + ... and the decoder rejects
+  # anything from 0x1000000000000000 up, so `szzrephitliv` -- an `s` and eleven
+  # more, which is what this line used to build -- decodes to the literal
+  # string "invalid_name" on the way back in. Every cs1live shot in the
+  # programme therefore logged in under a name the client could not read, and
+  # the screenshot plugin filed its captures in a folder called
+  # `invalid-name`. Eleven characters always fit, whatever the first one is.
+  lcuser=${TORIRS_LC_USER:-s$(printf '%s' "$name" | tr -c 'a-z0-9' '_' | cut -c1-10)}
   extra_args+=(--user "$lcuser" --pass "${TORIRS_LC_PASS:-zuk}")
   : ${TORIRS_JAG_CRC:=$(zsh $here/lostcity.sh)} || exit 2
   export TORIRS_JAG_CRC
