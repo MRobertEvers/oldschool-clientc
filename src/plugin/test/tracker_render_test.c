@@ -19,6 +19,7 @@
  * so the two pictures can be put beside the captures they are trying to match.
  */
 
+#include "plugin/plugins/plugin_draw.h"
 #include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_api.h"
 
@@ -2180,11 +2181,195 @@ test_loot_a_pending_icon_does_not_recompose_every_frame(void)
         g_c.compose_calls - composes);
 }
 
+
+/* ---- the stat grid's per-skill key ---------------------------------------
+ *
+ * script5366 lays the right column's second key out as the static text
+ * "  Acts>Lvl: " and script5375 then RESPELLS that same component per skill:
+ * "  Kills>" for a skill script5380 owns and "  Acts>" for one it disowns,
+ * and script5381 -- `$int0 = 0 | 2 | 4 | 1 | 3 | 18` -- is the list it owns.
+ * The port froze the key at one spelling, so Fishing's box said Kills.
+ *
+ * The geometry below is xp_tracker.c's, re-spelled here on purpose: a test
+ * that read the plugin's own constants could not see them move.
+ */
+#define XP_BOX_H 48
+#define XP_BOX_PITCH 50
+#define XP_GRID_PAD 4
+#define XP_GRID_Y 4
+#define XP_LINE_H 12
+#define XP_BAR_Y 27
+#define XP_BOX_FILL_ARGB 0x7F000000u
+#define XP_INK_KEY 0xCCCCCCu
+/** The width every right-hand key column is measured at. @see xt_draw_box. */
+#define XP_KEY_WIDEST "  Kills>Goal: "
+#define XP_VALUE_WIDEST "88.888M"
+
+/** The shipped caption face, loaded the way the plugin loads it. */
+static int
+load_caption_atlas(struct PluginDraw_Atlas* atlas)
+{
+    struct FakeAsset* ini;
+    struct FakeAsset* png;
+
+    memset(atlas, 0, sizeof(*atlas));
+    if( !fake_asset_load(NULL, "text.ini") || !fake_asset_load(NULL, "text.png") )
+        return 0;
+    ini = asset_find("text.ini");
+    png = asset_find("text.png");
+    if( !ini || !png )
+        return 0;
+    if( !PluginDraw_AtlasParse(atlas, ini->bytes, (size_t)ini->size) )
+        return 0;
+    if( !PngDecode_Argb(png->bytes, png->size, &atlas->w, &atlas->h, &atlas->px) )
+        return 0;
+    atlas->ready = 1;
+    return 1;
+}
+
+/**
+ * The key cell of one box's SECOND stat row, as the plugin would have to
+ * paint it for `expect`.
+ *
+ * The cell is compared over rows [16, 27) of the box and not over the whole
+ * 12-tall line box, because the progress bar starts at row 27 and overpaints
+ * the last one. Everything else inside it is the box's flat cc_settrans(128)
+ * wash, which is why an exact compare is possible at all.
+ */
+static int
+key_cell_matches(
+    struct PluginDraw_Atlas* atlas, int box_top, char const* expect, int* out_diff)
+{
+    int const val_w = PluginDraw_TextWidth(atlas, XP_VALUE_WIDEST);
+    int const key_w = PluginDraw_TextWidth(atlas, XP_KEY_WIDEST);
+    int const key_x = g_c.comp_w - XP_GRID_PAD - val_w - key_w;
+    int const row_y = XP_GRID_Y + XP_LINE_H;
+    uint32_t* want;
+    int diff = 0;
+
+    assert(out_diff);
+    *out_diff = -1;
+    if( !g_c.comp_px || key_x < 0 || box_top + XP_BOX_H > g_c.comp_h )
+        return 0;
+    want = malloc((size_t)g_c.comp_w * XP_BOX_H * sizeof(*want));
+    assert(want);
+    for( int i = 0; i < g_c.comp_w * XP_BOX_H; i++ )
+        want[i] = XP_BOX_FILL_ARGB;
+    PluginDraw_Text(
+        want, g_c.comp_w, XP_BOX_H, key_x, row_y, atlas, expect, XP_INK_KEY);
+
+    for( int y = row_y; y < XP_BAR_Y; y++ )
+        for( int x = key_x; x < key_x + key_w; x++ )
+            if( want[y * g_c.comp_w + x] !=
+                g_c.comp_px[(box_top + y) * g_c.comp_w + x] )
+                diff++;
+    free(want);
+    *out_diff = diff;
+    return diff == 0;
+}
+
+/**
+ * Fishing says Acts, Attack says Kills, and neither moves the value column.
+ *
+ * Two boxes in one strip so the comparison is inside ONE composed picture:
+ * the same font, the same wash, the same column arithmetic, and the only
+ * variable is which skill the box is for.
+ */
+static void
+test_xp_actions_left_key_follows_the_skill(void)
+{
+    int const ATT = 0;  /* script5381 owns it -> Kills   */
+    int const FISH = 10; /* it disowns it     -> Acts    */
+    struct PluginDraw_Atlas atlas;
+    int att_diff = -1;
+    int fish_diff = -1;
+    int swap_diff = -1;
+
+    reset("xp-tracker");
+    cfg_set("save_state", "0");
+    cfg_set("hide_maxed", "0");
+    cfg_set("pause_on_logout", "1");
+    cfg_set("pause_skill_after", "0");
+    cfg_set("reset_rate_after", "0");
+    cfg_set("label_top_left", "XP/hr");
+    cfg_set("label_top_right", "XP Gained");
+    cfg_set("label_bottom_left", "XP Left");
+    cfg_set("label_bottom_right", "Actions");
+
+    g_c.level[ATT] = 70;  g_c.xp[ATT] = 737627;
+    g_c.level[FISH] = 70; g_c.xp[FISH] = 737627;
+
+    plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+    dispatch_start();
+    panel_build();
+    tick(20);
+
+    /* The same gain in both, so the two boxes differ ONLY by their skill. */
+    g_c.xp[ATT] += 1000;
+    g_c.xp[FISH] += 1000;
+    tick(60000);
+    panel_build();
+    draw_well("boxes", 264);
+
+    CHECK(g_c.comp_px != NULL, "the two-skill strip composed");
+    CHECK(
+        g_c.comp_h == 3 * XP_BOX_PITCH,
+        "overview plus the two boxes (got %d)", g_c.comp_h);
+    if( !g_c.comp_px )
+        return;
+    CHECK(load_caption_atlas(&atlas), "the shipped caption face loads");
+    if( !atlas.ready )
+        return;
+
+    /* The boxes are collected in stats-tab order, so Attack is the first. */
+    CHECK(
+        key_cell_matches(&atlas, 1 * XP_BOX_PITCH, "  Kills>Lvl: ", &att_diff),
+        "Attack's bottom-right key is script5375's Kills> spelling "
+        "(%d pixels differ)", att_diff);
+    CHECK(
+        key_cell_matches(&atlas, 2 * XP_BOX_PITCH, "  Acts>Lvl: ", &fish_diff),
+        "Fishing's bottom-right key is script5375's Acts> spelling "
+        "(%d pixels differ)", fish_diff);
+
+    /*
+     * And the regression's own signature, stated as a picture rather than as
+     * a string: before the fix BOTH boxes matched the Kills spelling, so a
+     * test that only read one of them would have passed.
+     */
+    (void)key_cell_matches(&atlas, 2 * XP_BOX_PITCH, "  Kills>Lvl: ", &swap_diff);
+    CHECK(
+        swap_diff > 0,
+        "Fishing does not print Attack's key (%d pixels differ)", swap_diff);
+
+    /*
+     * The column is measured once, at its widest spelling, which is the
+     * property that lets the key be respelled per skill without moving a
+     * value column sideways. The two spellings are NOT the same width -- in
+     * this face "  Acts>Lvl: " actually sets wider than "  Kills>Lvl: ",
+     * because l and i are the narrowest glyphs it has -- so "the wider one
+     * fits" is not enough and both are checked.
+     */
+    {
+        int const acts = PluginDraw_TextWidth(&atlas, "  Acts>Lvl: ");
+        int const kills = PluginDraw_TextWidth(&atlas, "  Kills>Lvl: ");
+        int const column = PluginDraw_TextWidth(&atlas, XP_KEY_WIDEST);
+
+        CHECK(
+            acts <= column && kills <= column,
+            "both spellings fit the column measured at \"%s\" "
+            "(Acts %d, Kills %d, column %d)", XP_KEY_WIDEST, acts, kills, column);
+    }
+
+    free(atlas.px);
+    atlas.px = NULL;
+}
+
 int
 main(void)
 {
     api_init();
     render_xp();
+    test_xp_actions_left_key_follows_the_skill();
     test_xp_ttl_advances_inside_rate_floor();
     test_xp_missing_art_is_asked_for_once();
     test_xp_wanted_art_is_a_gap_not_a_refusal();

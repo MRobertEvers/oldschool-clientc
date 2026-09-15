@@ -35,7 +35,16 @@
  *   script5366  the STATS, a 2x2 grid anchored to the box's RIGHT edge, in
  *               fontmetrics_494 with a shadow: keys 0xcccccc, values white,
  *               12px line height, the pairs being XP Gained / XP/Hr and
- *               Acts>Lvl / XP>Lvl.
+ *               Acts>Lvl / XP>Lvl. Those last two spellings are only the
+ *               STATIC text -- see 5374/5375.
+ *   script5374  rewrites the LEFT key per goal: "XP>Lvl: " while the target is
+ *               the next level, "XP>Goal: " while it is a set goal. This port
+ *               has no goal varps (see below), so it is always the former.
+ *   script5375  rewrites the RIGHT key per SKILL, which is the half that is
+ *               not a spelling choice: it asks script5380 for a kills-to-level
+ *               figure and prints "Kills>" for a skill that proc owns and
+ *               "Acts>" for one it disowns. script5381 is the list it owns.
+ *               @see xt_skill_counts_kills.
  *   script5365  the BAR: track 0x002200 and fill 0x006600, 15 tall, under the
  *               stats at y+27, with three labels over it -- the level at the
  *               left and the goal at the right in 0xcccccc, and the percentage
@@ -1027,9 +1036,85 @@ enum XtLabel
  *  spellings, so a person who has used it recognises the row. */
 static char const* const XT_LABEL_CHOICES =
     "XP Gained|XP/hr|XP Left|Actions Done|Actions/hr|Actions|TTL";
+/**
+ * The key each slot prints, at the spelling script5366 lays it out with.
+ *
+ * ACTIONS_LEFT's entry is the STATIC text and not the whole answer: the cache
+ * rewrites that one key per skill, and xt_label_key is where that happens.
+ */
 static char const* const XT_LABEL_KEY[XT_LABEL_COUNT] = {
-    "XP Gained: ", "XP/Hr: ", "XP>Lvl: ", "Actions: ", "Acts/Hr: ", "Kills>Lvl: ", "TTL: "
+    "XP Gained: ", "XP/Hr: ", "XP>Lvl: ", "Actions: ", "Acts/Hr: ", "Acts>Lvl: ", "TTL: "
 };
+
+/**
+ * The other spelling of ACTIONS_LEFT's key, for a skill measured in KILLS.
+ *
+ * script5366 sets the right column's static text to
+ * "  XP Gained: <br>  Acts>Lvl: " and script5375 then OVERWRITES that same
+ * component per skill: it asks script5380 for a kills-to-level figure and
+ * prints "  Kills>" when the proc owns the skill, "  Acts>" when it disowns it
+ * with -1. So the key is a FUNCTION OF THE SKILL, and it was ported as a
+ * constant -- which is why every box, Fishing included, said Kills.
+ */
+#define XT_LABEL_KEY_KILLS_LEFT "Kills>Lvl: "
+
+/**
+ * The stat ids script5381 names, in this client's protocol order.
+ *
+ * That proc IS the whole test -- `$int0 = 0 | 2 | 4 | 1 | 3 | 18` -- and
+ * script5380 returns -1 for everything it refuses, which is the -1 script5375
+ * reads as "Acts>". Attack, Defence, Strength, Hitpoints, Ranged and Slayer,
+ * and Magic is deliberately NOT among them: a cast grants fixed xp and is an
+ * action, so the cache counts casts and not kills for it.
+ *
+ * The ids are the client's own stat order (@see RS_GameEvent_SkillName), which
+ * is the cache's `stat` order and is the same table on every lane -- so this
+ * is a question about a SKILL, not about a revision or a toplevel.
+ */
+enum XtStat
+{
+    XT_STAT_ATTACK = 0,
+    XT_STAT_DEFENCE = 1,
+    XT_STAT_STRENGTH = 2,
+    XT_STAT_HITPOINTS = 3,
+    XT_STAT_RANGED = 4,
+    XT_STAT_SLAYER = 18
+};
+static int const XT_KILL_SKILL[] = { XT_STAT_ATTACK,    XT_STAT_DEFENCE,
+                                     XT_STAT_STRENGTH,  XT_STAT_HITPOINTS,
+                                     XT_STAT_RANGED,    XT_STAT_SLAYER };
+
+/**
+ * Is this skill's "left to level" figure a count of KILLS?
+ *
+ * The one divergence from script5375 worth naming: that script also prints
+ * "Kills>" for its -2, the answer script5380 gives a kill-measured skill whose
+ * rate it cannot work out yet, and it prints "Acts>" for the Slayer branch's
+ * own -1 when the task's xp rate is unreadable. Both are about a live rate
+ * this port does not have -- every "left" figure here is the mean of the last
+ * ten gains, for every skill alike -- so the skill alone decides the word, and
+ * a missing figure prints "-" under whichever word the skill owns.
+ */
+static bool
+xt_skill_counts_kills(int skill)
+{
+    assert(skill >= 0);
+    for( size_t i = 0; i < sizeof(XT_KILL_SKILL) / sizeof(XT_KILL_SKILL[0]); i++ )
+        if( XT_KILL_SKILL[i] == skill )
+            return true;
+    return false;
+}
+
+/** One stat slot's KEY, for one skill. @see XT_LABEL_KEY_KILLS_LEFT. */
+static char const*
+xt_label_key(int which, int skill)
+{
+    assert(which >= 0);
+    assert(which < XT_LABEL_COUNT);
+    if( which == XT_LABEL_ACTIONS_LEFT && xt_skill_counts_kills(skill) )
+        return XT_LABEL_KEY_KILLS_LEFT;
+    return XT_LABEL_KEY[which];
+}
 
 /*
  * The RIGHT column's keys carry two leading spaces and the left column's do
@@ -1213,7 +1298,7 @@ xt_draw_box(
             char key[48];
 
             /* left pair */
-            snprintf(key, sizeof(key), "%s", XT_LABEL_KEY[lhs]);
+            snprintf(key, sizeof(key), "%s", xt_label_key(lhs, skill));
             xt_label_value(api, state, skill, lhs, value, sizeof(value));
             PLUGIN_DRAW_TEXT(
                 buf, w, h, w - edge - val_r - key_r - val_r - key_l, y, key, XT_INK_KEY);
@@ -1221,7 +1306,7 @@ xt_draw_box(
                 buf, w, h, w - edge - val_r - key_r, y, value, XT_INK_VALUE);
 
             /* right pair, whose key carries the gutter */
-            snprintf(key, sizeof(key), XT_GUTTER "%s", XT_LABEL_KEY[rhs]);
+            snprintf(key, sizeof(key), XT_GUTTER "%s", xt_label_key(rhs, skill));
             xt_label_value(api, state, skill, rhs, value, sizeof(value));
             PLUGIN_DRAW_TEXT(buf, w, h, w - edge - val_r - key_r, y, key, XT_INK_KEY);
             PLUGIN_DRAW_TEXT_RIGHT(buf, w, h, w - edge, y, value, XT_INK_VALUE);
@@ -1382,6 +1467,8 @@ xt_slots(struct ToriRS_Api* api, int out[4])
      * script5366 puts "XP/Hr: <br>XP>Lvl: " in the LEFT column and
      * "  XP Gained: <br>  Acts>Lvl: " in the right one. Defaulting the left
      * slots to gained/actions swapped every box against the tracker it copies.
+     * The right pair's second key is also the one script5375 respells per
+     * skill; @see xt_label_key.
      */
     out[0] = xt_label_slot(api, "label_top_left", XT_LABEL_XP_HOUR);
     out[1] = xt_label_slot(api, "label_top_right", XT_LABEL_XP_GAINED);
