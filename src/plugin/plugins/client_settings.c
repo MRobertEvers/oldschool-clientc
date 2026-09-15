@@ -177,6 +177,10 @@ cs_frame_row(
     struct CsFrameRow* row;
     assert(api);
     assert(state);
+    /* The label is the caller's to decide -- it is where a row says something
+     * ABOUT the frame -- so every call site states one, and one that did not
+     * would be a bug here rather than a row that quietly names itself. */
+    assert(label);
     if( state->frame_row_count >= CS_FRAME_ROWS_MAX ) return;
     row = &state->frame_rows[state->frame_row_count];
     memset(row, 0, sizeof(*row));
@@ -191,7 +195,7 @@ cs_frame_row(
      * not use, with the frame's own name nowhere in it.
      */
     snprintf(row->title, sizeof(row->title), "%s", title && title[0] ? title : row->id);
-    snprintf(row->label, sizeof(row->label), "%s", label && label[0] ? label : row->title);
+    snprintf(row->label, sizeof(row->label), "%s", label[0] ? label : row->title);
     snprintf(row->detail, sizeof(row->detail), "%s", detail ? detail : "");
     /*
      * No length test here any more, and the static assertions above are why.
