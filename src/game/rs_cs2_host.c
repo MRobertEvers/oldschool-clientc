@@ -3040,7 +3040,7 @@ minimenu_find(struct RS_CS2Host* host, enum RS_ClientOpKind kind, int menu_type)
     }
     RS_ClientOpActiveSet(&host->clientop, kind, &host->clientop.mouseover);
     if( torirs_env_clientop_debug() )
-        TORIRS_LOG("minimenu_find: %s latched uid=%d type=%d '%s'\n",
+        TORIRS_REPORT("minimenu_find: %s latched uid=%d type=%d '%s'\n",
             RS_ClientOpKindName(kind),
             host->clientop.mouseover.uid,
             host->clientop.mouseover.type,
@@ -3149,7 +3149,7 @@ exec_minimenu(
             return CS2VM2_PushInt(thread, 0);
         CS2VM2_SetActiveAndDotComponentId(thread, host->clientop.mouseover_component);
         if( torirs_env_clientop_debug() )
-            TORIRS_LOG("minimenu_find: component latched %d\n",
+            TORIRS_REPORT("minimenu_find: component latched %d\n",
                 host->clientop.mouseover_component);
         return CS2VM2_PushInt(thread, 1);
     default:
@@ -8417,13 +8417,13 @@ exec_highlight_request(
 
     if( debug )
     {
-        TORIRS_LOG("highlight: op %d (%s)",
+        TORIRS_REPORT("highlight: op %d (%s)",
             opcode,
             known ? RS_HighlightKindName(kind) : "?");
         for( int i = 0; i < arg_count; i++ )
-            TORIRS_LOG(" %d", args[i]);
+            TORIRS_REPORT(" %d", args[i]);
         if( name )
-            TORIRS_LOG(" '%s'", name);
+            TORIRS_REPORT(" '%s'", name);
     }
 
     handled = RS_HighlightApply(
@@ -8431,11 +8431,11 @@ exec_highlight_request(
     if( debug )
     {
         if( known )
-            TORIRS_LOG(" -> %d %s",
+            TORIRS_REPORT(" -> %d %s",
                 kind == RS_HIGHLIGHT_PLAYER ? host->highlight.named_count
                                             : host->highlight.member_count[kind],
                 RS_HighlightKindName(kind));
-        TORIRS_LOG("\n");
+        TORIRS_REPORT("\n");
     }
     if( !handled )
     {
@@ -8461,7 +8461,7 @@ exec_clientop_request(
     char const* label)
 {
     if( torirs_env_clientop_debug() )
-        TORIRS_LOG("clientop: op %d %s slot %d script %d '%s'\n",
+        TORIRS_REPORT("clientop: op %d %s slot %d script %d '%s'\n",
             opcode,
             is_set ? "set" : "del",
             slot,
@@ -8556,7 +8556,7 @@ exec_active_player_request(
         return CS2VM_EXECNO_ERROR;
     }
     if( getenv("TORIRS_HIGHLIGHT_DEBUG") )
-        TORIRS_LOG("activeplayer: op %d (uid %d, index %d) -> %d\n",
+        TORIRS_REPORT("activeplayer: op %d (uid %d, index %d) -> %d\n",
             opcode,
             uid,
             index,

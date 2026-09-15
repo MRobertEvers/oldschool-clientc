@@ -9,10 +9,6 @@
 #include "app/app_internal.h"
 
 /* Private to this unit, declared up front so definition order is free. */
-static void
-app_minimenu_entry_publish(
-    struct App* app,
-    struct UIMinimenu const* menu);
 static bool
 app_clientop_armed(struct App const* app);
 static void
@@ -129,8 +125,185 @@ app_minimenu_view_world(
 }
 
 /*
- * MINIMENU_ENTRY (7101) and MINIMENU_NUMOPS (7110), from the menu the hover
- * line was composed from.
+ * An empty dispatch context.
+ *
+ * -1 and not 0 in every slot, per field. A zeroed COORD is the corner of the
+ * map square and a zeroed LAYER is the wall layer, so "nothing here" written as
+ * zero is a confident wrong answer rather than an absent one; the getters and
+ * the scripted-overlay store both read these directly.
+ */
+static void
+app_clientop_context_reset(struct RS_ClientOpContext* ctx)
+{
+    assert(ctx);
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->kind = -1;
+    ctx->uid = -1;
+    ctx->type = -1;
+    ctx->count = -1;
+    ctx->coord = -1;
+    ctx->layer = -1;
+}
+
+/*
+ * One world entity, as a dispatch context.
+ *
+ * The identity a script reads off a subject -- uid, type, coord, name, and for
+ * the two kinds that have one a count or a layer -- resolved from the scene by
+ * element id. Shared by the mouseover publisher and the client-op dispatch
+ * because they are answering about the same thing in the same shape; they used
+ * to hold a copy each, and the copies had drifted (only one of them set a loc's
+ * layer, which is half of a loc's identity and what the scripted-overlay store
+ * keys on).
+ *
+ * Returns false when the element is not in the scene this frame -- a pick or a
+ * menu row can outlive the entity it names by a frame, and that is a live
+ * runtime state, not a contract violation.
+ */
+static bool
+app_clientop_subject_from_element(
+    struct App* app,
+    enum RS_ClientOpKind kind,
+    int element_id,
+    struct RS_ClientOpContext* out)
+{
+    int base_x;
+    int base_z;
+
+    assert(app);
+    assert(app->world);
+    assert(out);
+
+    base_x = app->world->_base_tile_x;
+    base_z = app->world->_base_tile_z;
+    app_clientop_context_reset(out);
+    out->kind = (int)kind;
+
+    switch( kind )
+    {
+    case RS_CLIENTOP_NPC:
+    {
+        struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, element_id, NULL);
+        if( !npc )
+            return false;
+        /* The uid IS the server slot here -- see RS_ClientOpContext::uid for
+         * why that is allowed to differ from the reference's. */
+        out->uid = npc->server_slot;
+        out->type = npc->npc_id;
+        out->coord = RS_CLIENTOP_COORD(
+            npc->grid_position.level, base_x + npc->grid_position.x, base_z + npc->grid_position.z);
+        snprintf(out->name, sizeof(out->name), "%s", npc->name);
+        return true;
+    }
+    case RS_CLIENTOP_LOC:
+    {
+        struct WorldEntity_Scenery* loc = World_SceneryGetByElementId(app->world, element_id);
+        if( !loc )
+            return false;
+        out->type = loc->loc_id;
+        /* Half of a loc's identity: a tile holds one loc per layer, and the
+         * scripted-overlay store keys on it. */
+        out->layer = World_LocShapeToLayer(loc->shape);
+        out->coord = RS_CLIENTOP_COORD(
+            loc->grid_position.level, base_x + loc->grid_position.x, base_z + loc->grid_position.z);
+        snprintf(out->name, sizeof(out->name), "%s", loc->info->name);
+        return true;
+    }
+    case RS_CLIENTOP_OBJ:
+    {
+        struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(app->world, element_id);
+        if( !stack )
+            return false;
+        out->type = stack->obj_id;
+        /* `_6853`, and the other half of a ground stack's identity -- see
+         * RS_ClientOpContext::count. */
+        out->count = stack->count;
+        out->coord = RS_CLIENTOP_COORD(
+            stack->grid_position.level,
+            base_x + stack->grid_position.x,
+            base_z + stack->grid_position.z);
+        snprintf(out->name, sizeof(out->name), "%s", stack->name);
+        return true;
+    }
+    case RS_CLIENTOP_PLAYER:
+    {
+        struct WorldEntity_Player* player = World_PlayerGetByElementId(app->world, element_id);
+        if( !player )
+            return false;
+        /* The server slot, which is what a player uid is here --
+         * ACTIVEPLAYER_GETUID reports it and app_cs2_player_route resolves it
+         * back. Same choice as an npc's. */
+        out->uid = player->server_pid;
+        out->coord = RS_CLIENTOP_COORD(
+            player->grid_position.level,
+            base_x + player->grid_position.x,
+            base_z + player->grid_position.z);
+        snprintf(out->name, sizeof(out->name), "%s", player->name);
+        return true;
+    }
+    default:
+        app_clientop_context_reset(out);
+        return false;
+    }
+}
+
+/*
+ * The subject a MENU ROW is about, and the `_7100` type that names its kind.
+ *
+ * RS_MINIMENU_TYPE_NONE with `out` reset for every row that is not about a
+ * world entity -- a widget row, an inventory slot, a bare tile ("Walk here"),
+ * a sailing hull -- which is what clientscript 5350 bails on and what the four
+ * FIND ops answer 0 for. A row about an entity the scene has already dropped is
+ * the same answer: the entry names nothing this frame.
+ */
+int
+app_minimenu_pick_subject(
+    struct App* app,
+    struct UIMinimenuPick const* pick,
+    struct RS_ClientOpContext* out)
+{
+    enum RS_ClientOpKind kind;
+    int minimenu_type;
+
+    assert(app);
+    assert(pick);
+    assert(out);
+
+    app_clientop_context_reset(out);
+    if( !app->world )
+        return RS_MINIMENU_TYPE_NONE;
+
+    switch( pick->kind )
+    {
+    case UI_MINIMENU_PICK_NPC:
+        kind = RS_CLIENTOP_NPC;
+        minimenu_type = RS_MINIMENU_TYPE_NPC;
+        break;
+    case UI_MINIMENU_PICK_SCENERY:
+        kind = RS_CLIENTOP_LOC;
+        minimenu_type = RS_MINIMENU_TYPE_LOC;
+        break;
+    case UI_MINIMENU_PICK_OBJ:
+        kind = RS_CLIENTOP_OBJ;
+        minimenu_type = RS_MINIMENU_TYPE_OBJ;
+        break;
+    case UI_MINIMENU_PICK_PLAYER:
+        kind = RS_CLIENTOP_PLAYER;
+        minimenu_type = RS_MINIMENU_TYPE_PLAYER;
+        break;
+    default:
+        return RS_MINIMENU_TYPE_NONE;
+    }
+
+    if( !app_clientop_subject_from_element(app, kind, pick->id, out) )
+        return RS_MINIMENU_TYPE_NONE;
+    return minimenu_type;
+}
+
+/*
+ * The whole mouseover ENTRY -- its subject (`_7100` and the four FIND ops),
+ * its text (`_7101`), its op count (`_7110`) and its component (`_7109`) --
+ * from the menu the hover line was composed from.
  *
  * The acting row is the LAST one after the priority sort -- the same row
  * UIHoverText_Compose draws -- and `option_count - 1` is the reference's
@@ -141,17 +314,31 @@ app_minimenu_view_world(
  * The whole row goes in the OP and the target is left empty. See
  * RS_ClientOpState::mouseover_op for why the halves cannot be split back apart
  * here, and for the tooltip-width bug an empty op caused.
+ *
+ * The SUBJECT is published from this same row, and that is the point of the
+ * function: `_7100` / `_7102..7105` and `_7101` / `_7109` are four questions
+ * about ONE entry, and the reference answers all of them off the entry the menu
+ * would act on (`ScriptRunnerImpl::ExecuteCommand7100To7199`). The subject used
+ * to come from `world_pickset` in the logic tick instead -- the nearest
+ * non-terrain hit, which is a different entry whenever the priority sort moves
+ * a row. Measured on the Lumbridge fixture at 330,120: the hover line reads
+ * "Talk-to Romeo" while the pickset's first hit is loc 7143 "Fountain", so the
+ * cache's mouse-over highlighter (clientscript 5350) outlined a fountain the
+ * pointer was not on.
  */
-static void
+void
 app_minimenu_entry_publish(
     struct App* app,
     struct UIMinimenu const* menu)
 {
     struct RS_ClientOpState* clientop = &app->host.clientop;
     int const num_ops = menu ? menu->option_count - 1 : 0;
+    struct RS_ClientOpContext subject;
+    int minimenu_type = RS_MINIMENU_TYPE_NONE;
 
     assert(app);
 
+    app_clientop_context_reset(&subject);
     clientop->mouseover_op[0] = '\0';
     clientop->mouseover_target[0] = '\0';
     clientop->mouseover_opcount = num_ops > 0 ? num_ops : 0;
@@ -167,6 +354,30 @@ app_minimenu_entry_publish(
         if( acting->pick.kind == UI_MINIMENU_PICK_UI ||
             acting->pick.kind == UI_MINIMENU_PICK_INV_SLOT )
             clientop->mouseover_component = acting->pick.id;
+        minimenu_type = app_minimenu_pick_subject(app, &acting->pick, &subject);
+    }
+    RS_ClientOpMouseoverSet(clientop, &subject, minimenu_type);
+
+    if( torirs_env_clientop_debug() )
+    {
+        /* The COMPONENT is part of what the pointer is on, so a UI hover is a
+         * change of subject even when no world row won -- `_7109` reads that
+         * half. */
+        int const signature =
+            (subject.kind < 0 ? -1 : (subject.kind * 4096) ^ subject.uid ^ subject.type) ^
+            (clientop->mouseover_component * 8192);
+        if( signature != app->highlight_last_mouseover )
+        {
+            app->highlight_last_mouseover = signature;
+            TORIRS_REPORT(
+                "mouseover: type=%d kind=%d uid=%d id=%d com=%d '%s'\n",
+                minimenu_type,
+                subject.kind,
+                subject.uid,
+                subject.type,
+                clientop->mouseover_component,
+                subject.name);
+        }
     }
 }
 
@@ -477,8 +688,6 @@ app_clientop_run(
     struct RS_ClientOpSlot const* op;
     int const kind = RS_MINIMENU_CLIENTOP_KIND(opt->action_index);
     int const slot = RS_MINIMENU_CLIENTOP_SLOT(opt->action_index);
-    int base_x;
-    int base_z;
 
     assert(app);
     assert(opt);
@@ -489,84 +698,36 @@ app_clientop_run(
     if( !op )
         return 1;
 
-    base_x = app->world->_base_tile_x;
-    base_z = app->world->_base_tile_z;
-
-    memset(&ctx, 0, sizeof(ctx));
+    app_clientop_context_reset(&ctx);
     ctx.kind = kind;
-    ctx.uid = -1;
-    ctx.type = -1;
-    ctx.count = -1;
-    ctx.coord = -1;
 
     switch( (enum RS_ClientOpKind)kind )
     {
     case RS_CLIENTOP_NPC:
-    {
-        struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, opt->pick.id, NULL);
-        if( !npc )
-            return 1;
-        /* The uid IS the server slot here -- see RS_ClientOpContext::uid for
-         * why that is allowed to differ from the reference's. */
-        ctx.uid = npc->server_slot;
-        ctx.type = npc->npc_id;
-        ctx.coord = RS_CLIENTOP_COORD(
-            npc->grid_position.level, base_x + npc->grid_position.x, base_z + npc->grid_position.z);
-        snprintf(ctx.name, sizeof(ctx.name), "%s", npc->name);
-        break;
-    }
     case RS_CLIENTOP_LOC:
-    {
-        struct WorldEntity_Scenery* loc = World_SceneryGetByElementId(app->world, opt->pick.id);
-        if( !loc )
-            return 1;
-        ctx.type = loc->loc_id;
-        ctx.coord = RS_CLIENTOP_COORD(
-            loc->grid_position.level, base_x + loc->grid_position.x, base_z + loc->grid_position.z);
-        snprintf(ctx.name, sizeof(ctx.name), "%s", loc->info->name);
-        break;
-    }
     case RS_CLIENTOP_OBJ:
-    {
-        struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(app->world, opt->pick.id);
-        if( !stack )
-            return 1;
-        ctx.type = stack->obj_id;
-        ctx.count = stack->count;
-        ctx.coord = RS_CLIENTOP_COORD(
-            stack->grid_position.level,
-            base_x + stack->grid_position.x,
-            base_z + stack->grid_position.z);
-        snprintf(ctx.name, sizeof(ctx.name), "%s", stack->name);
-        break;
-    }
     case RS_CLIENTOP_PLAYER:
-    {
-        struct WorldEntity_Player* player = World_PlayerGetByElementId(app->world, opt->pick.id);
-        if( !player )
+        /* Same resolver the mouseover publisher uses, so a row dispatched by a
+         * click names the subject the same row named while it was only being
+         * hovered. */
+        if( !app_clientop_subject_from_element(
+                app, (enum RS_ClientOpKind)kind, opt->pick.id, &ctx) )
             return 1;
-        ctx.uid = player->server_pid;
-        ctx.coord = RS_CLIENTOP_COORD(
-            player->grid_position.level,
-            base_x + player->grid_position.x,
-            base_z + player->grid_position.z);
-        snprintf(ctx.name, sizeof(ctx.name), "%s", player->name);
         break;
-    }
     case RS_CLIENTOP_TILE:
         /* A TERRAIN pick carries scene tile x/z and the level, in
          * secondary/tertiary/quaternary -- see the Walk here row. */
         ctx.coord = RS_CLIENTOP_COORD(
             opt->pick.quaternary_id,
-            base_x + opt->pick.secondary_id,
-            base_z + opt->pick.tertiary_id);
+            app->world->_base_tile_x + opt->pick.secondary_id,
+            app->world->_base_tile_z + opt->pick.tertiary_id);
         break;
     default:
         return 1;
     }
 
     if( torirs_env_clientop_debug() )
-        TORIRS_LOG(
+        TORIRS_REPORT(
             "clientop: %s slot %d '%s' -> script %d (uid=%d type=%d coord=%d '%s')\n",
             RS_ClientOpKindName((enum RS_ClientOpKind)kind),
             slot,
