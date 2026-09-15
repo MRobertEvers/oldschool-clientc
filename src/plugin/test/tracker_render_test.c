@@ -2320,8 +2320,33 @@ test_loot_stateful_controls(void)
  * overview card is box 0, so the first SKILL box tops at 50, its bar runs
  * rows 77..91 and the text in it is drawn two down from the bar.
  */
-#define BOX1_BAR_Y 77
-#define BOX1_TEXT_Y (BOX1_BAR_Y + 2)
+/*
+ * MEASURED, not written down.
+ *
+ * This was `#define BOX1_BAR_Y 77`, a literal for where the first skill box's
+ * bar sits in the composed strip -- and the bar then moved two rows, because
+ * the port had transcribed interface 729's bar offsets without resolving the
+ * inset LAYER they are stated in. A literal here does not fail when that
+ * happens: it keeps scanning the old rows and reports whatever it finds there,
+ * which is how "the percentage opens on a digit" came back red for a
+ * percentage that was perfectly correct two rows lower.
+ *
+ * So the band is found the same way every other geometry check in this file
+ * finds it -- by looking for the bar's own colours. @see bar_row_span.
+ */
+static int
+box1_bar_y(void)
+{
+    int first = -1;
+    int last = -1;
+
+    assert(g_c.comp_px);
+    /* Column 8 is inside the first box's bar on every geometry this file
+     * the bar-geometry checks above use -- and BAR_INSET is a column inside
+     * the bar on every geometry this file builds. */
+    bar_row_span(g_c.comp_px, g_c.comp_w, g_c.comp_h, 50, BAR_INSET, &first, &last);
+    return first >= 0 ? 50 + first : -1;
+}
 /*
  * The bar's unfilled ground, which every pixel in it is unless something was
  * drawn over it (XT_BAR_TRACK at alpha 255). Below one percent the fill is
@@ -2354,15 +2379,22 @@ static int
 percent_ink_start(int* out_rows)
 {
     int const rows = 12;
+    int const bar_y = box1_bar_y();
+    int const text_y = bar_y >= 0 ? bar_y + 2 : -1;
     int first_x = -1;
     int inked = 0;
 
     assert(out_rows);
     assert(g_c.comp_px);
+    if( text_y < 0 )
+    {
+        *out_rows = 0;
+        return -1;
+    }
 
     for( int x = PCT_X0; x < PCT_X1 && x < g_c.comp_w; x++ )
     {
-        for( int y = BOX1_TEXT_Y; y < BOX1_TEXT_Y + rows && y < g_c.comp_h; y++ )
+        for( int y = text_y; y < text_y + rows && y < g_c.comp_h; y++ )
             if( g_c.comp_px[y * g_c.comp_w + x] != BAR_TRACK )
             {
                 first_x = x;
@@ -2377,7 +2409,7 @@ percent_ink_start(int* out_rows)
         return -1;
     }
 
-    for( int y = BOX1_TEXT_Y; y < BOX1_TEXT_Y + rows && y < g_c.comp_h; y++ )
+    for( int y = text_y; y < text_y + rows && y < g_c.comp_h; y++ )
         if( g_c.comp_px[y * g_c.comp_w + first_x] != BAR_TRACK )
             inked++;
     *out_rows = inked;
