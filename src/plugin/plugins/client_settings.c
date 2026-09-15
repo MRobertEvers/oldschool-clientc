@@ -75,10 +75,21 @@ _Static_assert(TORIRS_UI_LABEL_MAX <= PORCELAIN_OPTION_LABEL_MAX,
 _Static_assert(TORIRS_FRAME_REASON_MAX <= PORCELAIN_OPTION_DETAIL_MAX,
                "a frame status reason must fit a row option's detail");
 
+/*
+ * A row's NAME is either a provider's own title or, for a provider that is
+ * not there to be asked, the bare id the reader saved. So it is sized for
+ * whichever of those two is longer -- a name truncated to the shorter one
+ * would name a different frame in the status sentence below.
+ */
+#define CS_FRAME_NAME_MAX                                                      \
+    (TORIRS_PLUGIN_FRAME_ID_MAX > TORIRS_PLUGIN_TITLE_MAX                      \
+         ? TORIRS_PLUGIN_FRAME_ID_MAX                                          \
+         : TORIRS_PLUGIN_TITLE_MAX)
+
 struct CsFrameRow
 {
     char id[TORIRS_PLUGIN_FRAME_ID_MAX];
-    char title[TORIRS_PLUGIN_TITLE_MAX];
+    char title[CS_FRAME_NAME_MAX];
     char label[TORIRS_UI_LABEL_MAX];
     char detail[TORIRS_FRAME_REASON_MAX];
     struct ToriRS_SelectOption option;
@@ -159,18 +170,32 @@ cs_frame_row(
     struct ClientSettingsState* state,
     char const* id,
     char const* title,
+    char const* label,
     bool enabled,
     char const* detail)
 {
     struct CsFrameRow* row;
     assert(api);
     assert(state);
+    /* The label is the caller's to decide -- it is where a row says something
+     * ABOUT the frame -- so every call site states one, and one that did not
+     * would be a bug here rather than a row that quietly names itself. */
+    assert(label);
     if( state->frame_row_count >= CS_FRAME_ROWS_MAX ) return;
     row = &state->frame_rows[state->frame_row_count];
     memset(row, 0, sizeof(*row));
     snprintf(row->id, sizeof(row->id), "%s", id ? id : "");
+    /*
+     * The NAME and the LABEL are two different strings and the row keeps
+     * both. The name is what the frame is called, and it is what the status
+     * sentence puts in "Could not use %s." The label is what the control
+     * shows, which may say something ABOUT the frame as well as name it
+     * ("Unavailable: <id>"). They were one field, so the sentence read
+     * "Could not use Unavailable: <id>" -- a prefix that already means could
+     * not use, with the frame's own name nowhere in it.
+     */
     snprintf(row->title, sizeof(row->title), "%s", title && title[0] ? title : row->id);
-    snprintf(row->label, sizeof(row->label), "%s", row->title);
+    snprintf(row->label, sizeof(row->label), "%s", label[0] ? label : row->title);
     snprintf(row->detail, sizeof(row->detail), "%s", detail ? detail : "");
     /*
      * No length test here any more, and the static assertions above are why.
@@ -207,7 +232,8 @@ cs_frame_choices(
 
     memset(state->frame_rows, 0, sizeof(state->frame_rows));
     state->frame_row_count = 0;
-    cs_frame_row(api, state, "auto", "Auto", true, "Follow this lane's native gameframe");
+    cs_frame_row(
+        api, state, "auto", "Auto", "Auto", true, "Follow this lane's native gameframe");
     while( (iter = api->frame.offer_next(api, iter, &info)) >= 0 )
     {
         if( !info.id[0] || strcmp(info.id, "core/native") == 0 )
@@ -216,6 +242,7 @@ cs_frame_choices(
             api,
             state,
             info.id,
+            info.title[0] ? info.title : info.id,
             info.title[0] ? info.title : info.id,
             info.available,
             info.detail);
@@ -229,17 +256,21 @@ cs_frame_choices(
      * Found reading "Unavailable: core/native" in the rs289lc panel capture. */
     if( !selected_present && strcmp(selection->requested_id, "core/native") == 0 )
     {
-        cs_frame_row(api, state, "core/native", "Native gameframe", true,
-            "This lane's own gameframe");
+        cs_frame_row(api, state, "core/native", "Native gameframe", "Native gameframe",
+            true, "This lane's own gameframe");
         selected_present = true;
     }
     if( !selected_present && selection->requested_id[0] )
     {
         char label[TORIRS_UI_LABEL_MAX];
         snprintf(label, sizeof(label), "Unavailable: %s", selection->requested_id);
+        /* The id is the only name a missing provider has: nothing is left in
+         * the build to ask for a title. It is the NAME; the "Unavailable:"
+         * prefix belongs to the control's label alone. */
         cs_frame_row(
             api,
             state,
+            selection->requested_id,
             selection->requested_id,
             label,
             true,
@@ -259,17 +290,31 @@ cs_frame_detail(
     if( selection->status == TORIRS_FRAME_STATUS_NATIVE &&
         strcmp(selection->requested_id, "auto") == 0 )
         snprintf(out, out_size, "Active: %s. Auto follows this lane.", active);
-    /* NATIVE as well as ACTIVE: a lane whose saved choice IS its native
-     * gameframe (rs289lc's "core/native") reports NATIVE with the requested and
-     * active ids equal, and read "Switching to ... Active for now: ..." for a
-     * frame that was already up. Found by the rs289lc panel capture. */
-    else if( (selection->status == TORIRS_FRAME_STATUS_ACTIVE ||
-              selection->status == TORIRS_FRAME_STATUS_NATIVE) &&
-             strcmp(selection->requested_id, selection->active_id) == 0 )
-        snprintf(out, out_size, "Active: %s.", active);
     else if( selection->status == TORIRS_FRAME_STATUS_LOADING )
         snprintf(out, out_size, "Loading %s. Active for now: %s.%s%s",
             requested, active, selection->reason[0] ? " " : "", selection->reason);
+    /*
+     * The IDS decide this sentence, not the status.
+     *
+     * active_id is the frame that is drawing; status is what the resolver
+     * called the transition that got there, and the two can disagree. A saved
+     * request for the native frame's OWN id -- "core/native", which rs289lc
+     * writes -- resolves to FALLBACK, because that id names no catalogue
+     * provider, and carries the reason "The requested gameframe is not
+     * installed in this build". Reading the status first made the panel say
+     * "Could not use Native gameframe. Active fallback: Native gameframe."
+     * over a fully drawn rs289 native frame: it called the frame rendering
+     * the screen a failure and then named it as its own fallback.
+     *
+     * When the active id IS the requested id there is no gap between what was
+     * asked for and what is up, and every phrasing that describes a gap --
+     * "could not use", "switching to", and the reason string, which exists to
+     * explain a gap and here describes a catalogue lookup rather than
+     * anything on screen -- is false. So this arm covers NATIVE and ACTIVE as
+     * it always did, and FALLBACK and any status the host adds as well.
+     */
+    else if( strcmp(selection->requested_id, selection->active_id) == 0 )
+        snprintf(out, out_size, "Active: %s.", active);
     else if( selection->status == TORIRS_FRAME_STATUS_FALLBACK )
         snprintf(out, out_size, "Could not use %s. Active fallback: %s.%s%s",
             requested, active, selection->reason[0] ? " " : "", selection->reason);

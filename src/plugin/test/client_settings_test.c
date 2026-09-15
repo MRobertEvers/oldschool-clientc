@@ -577,16 +577,17 @@ main(void)
         "the unavailable row carries its reason");
     CHECK(fake.invalidates == invalidates,
         "a catalogue that GREW by one row costs a setter, not a rebuild");
-    /* The sentence names the frame by its catalogue TITLE, and an
-     * unavailable row's title IS "Unavailable: <id>" -- so the fallback line
-     * reads "Could not use Unavailable: ...". That is what the unported
-     * plugin said too; it is pinned here as it stands rather than improved,
-     * because a port is not the place to change a sentence. */
+    /* The sentence names the frame, and a missing provider's only name is
+     * the saved id. The row's LABEL says "Unavailable: <id>" and the sentence
+     * must not repeat that judgement: it used to read "Could not use
+     * Unavailable: <id>", a prefix that already means could not use. */
     row = fake_row("gameframe_detail");
     CHECK(row && strcmp(row->text,
-              "Could not use Unavailable: removed-provider/favourite. "
+              "Could not use removed-provider/favourite. "
               "Active fallback: Native gameframe. Starting provider.") == 0,
         "a fallback names what could not be used and what is up instead");
+    CHECK(row && strstr(row->text, "Unavailable:") == NULL,
+        "the sentence does not repeat the row label's judgement");
 
     /* ------------------------------- a catalogue that shrinks is a setter */
 
@@ -629,6 +630,23 @@ main(void)
     CHECK(row && strcmp(row->selected_value, "core/native") == 0 &&
           strcmp(row->option_label[row->option_count - 1], "Native gameframe") == 0,
         "the saved native gameframe is offered as itself, not as unavailable");
+
+    /* The host answers a saved request for the native frame's own id with
+     * FALLBACK -- "core/native" is in no catalogue -- while committing that
+     * very frame as active. The ids agree, so there is no gap to report and
+     * the resolver's catalogue reason describes nothing on screen. This read
+     * "Could not use Native gameframe. Active fallback: Native gameframe."
+     * over the drawn rs289lc frame. */
+    fake.selection.status = TORIRS_FRAME_STATUS_FALLBACK;
+    snprintf(fake.selection.reason, sizeof(fake.selection.reason), "%s",
+        "The requested gameframe is not installed in this build.");
+    fake.selection.revision++;
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+    row = fake_row("gameframe_detail");
+    CHECK(row && strcmp(row->text, "Active: Native gameframe.") == 0,
+        "a fallback whose active frame IS the requested one reads as active");
+    fake.selection.reason[0] = '\0';
+    fake.selection.status = TORIRS_FRAME_STATUS_NATIVE;
 
     /* ------------------------------- Auto under a native lane reads Auto */
 
