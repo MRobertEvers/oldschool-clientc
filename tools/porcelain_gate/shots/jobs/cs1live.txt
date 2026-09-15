@@ -114,6 +114,40 @@ itemstats-set-live item-stats          cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;
 # vocabulary, so the two lanes' ground-item pictures are comparable.
 grounditems-live   ground-items        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_GROUND_ITEMS_DEBUG=1 TORIRS_MAX_FRAMES=2200
 lootbeam-live      loot-beam           cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_MAX_FRAMES=2200
+# ~torirsbeamdrop is the SAME line with a different pile, and it is the only
+# picture of the thing loot_beam 2.0 was rewritten to do.
+#
+# The row above is a CORRECTLY dark picture and that is the problem with it.
+# The ~torirsdrop pile alches to 15,360 / 60,000 / 20,000 / 180 against a
+# shipped `high_value` of 1,000,000, so no beam can stand on it -- and a
+# beamless frame is what a broken plugin photographs as too. The one live
+# beam this programme had (lb-live-beam.png) was taken with `tier` forced down
+# to `low`, which proves the model, the scene object and the plane filter on a
+# dat1 world and proves NOTHING about the name-keyed price table, because the
+# beam it raises comes from the cache's own OC_COST.
+#
+# ~torirsbeamdrop drops two objs chosen so the cache alone cannot light
+# either: a red partyhat (this cache states no cost, so ObjType.cost is its
+# default of 1 and the alch price is floor(1 * 0.6) = 0) and a dragon
+# chainbody (cost 250,000, alch 150,000 -- a MEDIUM item, under the `high`
+# floor). prices.txt's `Red partyhat` and `Dragon chainbody` rows make them
+# 900,000,000 and 1,080,000, so the pink INSANE beam and the orange HIGH one
+# in lb-priced-live.png are both beams the NAME lookup raised on a 2004 cache.
+# Two tiles, not one pile: one beam per tile takes the best thing on it.
+#
+# The proc is not in the LostCity checkout by default. It is carried in this
+# repo -- shots/lostcity/cheat_torirsbeam.rs2 -- because a drive a picture
+# depends on is part of the picture, and ~skiptutorial / ~torirsdrop /
+# ~torirscoins / ~torirskit are not: they live only in that other tree, so a
+# fresh clone can read these rows and cannot reproduce the shots.
+lb-priced-live     loot-beam           cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsbeamdrop' TORIRS_MAX_FRAMES=2200
+# The control for it, and the only difference between the two lines is which
+# drop proc runs. Same lane, same one-plugin ini, same shipped config, same
+# 2200 frames -- so a beam in one and not the other is the price table and
+# nothing else. (lootbeam-live above is the same drive and serves as well; this
+# row exists so the pair can be re-taken together, minutes apart, when the
+# Varrock floor and the npc crowd are the same.)
+lb-ctrl-torirsdrop loot-beam           cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_MAX_FRAMES=2200
 birdnest-live      nxt-bird-nest       cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_MAX_FRAMES=2200
 cannon-live        nxt-cannon-ammo     cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
 

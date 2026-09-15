@@ -42,9 +42,30 @@ Amulet of fury      = 1800000
 # as the rows above -- their shop cost is not their value -- and they are the
 # rows that make this table mean anything at all on a 2004-era world, where
 # none of the names above exist.
+#
+# THESE THREE ARE THE ONES A 2004 WORLD ACTUALLY HAS, checked against the obj
+# table of the only dat1 world this repo boots (LostCity rev 289: red_partyhat
+# 1038, santa_hat 1050, dragon_chainbody 3140). They are the rows the live
+# capture stands on -- shots/plugins/lb-priced-live.png, an insane-tier beam
+# over a hat whose cache cost is 1 and a high-tier one over a chainbody the
+# cache alches to a medium 150,000.
 Dragon chainbody    = 1800000
+Santa hat           = 100000000
+Red partyhat        = 1500000000
+
+# THESE THREE ARE NOT. They were written under the heading above as "pre-EoC
+# staples" and none of them is in a 2004 obj table: that cache's two-handers
+# stop at rune_2h_sword (1319) and third age is a 2007-and-later set. They are
+# real OSRS items and they stay, because an id-keyed row that matches nothing
+# was never the complaint -- a name a cache does not have simply never matches,
+# which costs nothing and is the whole point of keying on names.
+#
+# What they are here as a record of is that re-keying a table does not rescope
+# it. The rows above went from obj ids to names and the NAMES were still picked
+# out of the osrs239 universe; only measuring them against the booted cache's
+# own obj table tells the two apart, and nothing in the plugin can do that for
+# you -- a row that never matches and a row that is not needed are the same
+# silence.
 Dragon 2h sword     = 2500000
 Third age longsword = 250000000
 Third age platebody = 300000000
-Santa hat           = 100000000
-Red partyhat        = 1500000000

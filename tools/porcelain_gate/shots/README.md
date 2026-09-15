@@ -398,3 +398,54 @@ coins at one gp each and two bones are worth.
 The 100M is not a rounding difference. The store held `cost * qty` in a field
 the plugin API documents as the price of ONE, so the quantity went in twice:
 10,000 * (1 * 10,000) = 100,000,000. The zoomed pair shows both halves at once.
+
+## lostcity/ — the drives the live lane needs, carried where the pictures are
+
+`jobs/cs1live.txt` names `~skiptutorial`, `~torirsdrop`, `~torirscoins` and
+`~torirskit` as though they were part of this repository. They are not: they
+were written straight into a LostCity checkout's `content/scripts/_test/
+scripts/cheats/`, and nothing here says so or ships them. A fresh clone can
+read every one of those job rows and reproduce none of those shots.
+
+`lostcity/` is where that stops. A drive a picture depends on is part of the
+picture, so a new one goes here first and is copied into the server checkout
+from here:
+
+```
+cp tools/porcelain_gate/shots/lostcity/*.rs2 \
+   <LostCity_Server>/content/scripts/_test/scripts/cheats/
+```
+
+The dev thread's file watcher rebuilds the script pack on its own — no restart
+— and a debugproc changes nothing the client downloads, because script.pack is
+not one of the nine jag archives.
+
+### `cheat_torirsbeam.rs2` — `~torirsbeamdrop`, and why it is not `~torirsdrop`
+
+`lootbeam-live.png` is a beamless picture and it is CORRECT: the ~torirsdrop
+pile alches to 15,360 / 60,000 / 20,000 / 180 against a shipped `high_value` of
+1,000,000, and nothing on that floor can raise a beam. A correct blank and a
+broken plugin are the same photograph, which is the failure this whole
+directory exists to prevent, and it is how `LB-LIVE-NEVER-LIT-CS1` was filed.
+
+The live lane did have one beam already — `lb-live-beam.png`, a blue low-tier
+column over that same pile, taken with `tier` forced to `low`. Measured inside
+the 512x334 viewport it is 193 low-hue pixels against the control's 9. What it
+proves is the MODEL, the scene object and the plane filter on a dat1 world.
+What it cannot prove is the thing loot_beam 2.0 was rewritten for: an override
+matched BY NAME on a cache that is not the one the table was written against.
+A beam raised out of `OC_COST` says nothing about the table.
+
+So `~torirsbeamdrop` drops two objs chosen so the cache alone cannot light
+either of them, on two tiles because one beam per tile takes the best thing on
+it:
+
+| obj | cache value | alched | prices.txt row | tier |
+|---|---|---|---|---|
+| `red_partyhat` | 1 (no `cost=`, so ObjType's default) | **0** | `Red partyhat = 1500000000` | insane, pink |
+| `dragon_chainbody` | 250,000 | 150,000 — MEDIUM, under the floor | `Dragon chainbody = 1800000` | high, orange |
+
+`lb-priced-live.png` against `lb-ctrl-torirsdrop.png` is the pair, and the only
+difference between the two job rows is which proc runs. Viewport hue counts:
+insane 0 -> 155, high 437 -> 1206. The report's own pink mask (r>120, b>90,
+r>g+40, b>g+20) goes 0 -> 250 over the whole frame.

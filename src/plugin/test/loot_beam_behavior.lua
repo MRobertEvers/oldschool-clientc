@@ -564,6 +564,89 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     assert(beams_up() == 1, 'and the NAME row prices it')
 
     ----------------------------------------------------------------------
+    -- 6b3. A DAT1 FLOOR AT THE SHIPPED DEFAULTS -- the case the whole
+    --      name-keyed table exists for, and the one no capture had
+    --
+    -- Every assertion above about the price table arranges its own
+    -- thresholds: `tier = low`, `low_value = 100`. That proves the LOOKUP and
+    -- it cannot prove the CLAIM, which is that on a 2004-era cache the
+    -- shipped file lights the shipped tier -- and that claim is the entire
+    -- reason the table was re-keyed from obj ids to names. It went
+    -- unphotographed for exactly as long: the live lane's drive drops a rune
+    -- scimitar, a dragon med helm, 20,000 coins and five sharks, which alch to
+    -- 15,360 / 60,000 / 20,000 / 180 against `high_value` = 1,000,000. Those
+    -- four are a CORRECTLY dark floor, so the one live picture of this plugin
+    -- was a picture of nothing and could not be told from a broken one.
+    --
+    -- The two rows below are the two the live capture now stands on
+    -- (lb-priced-live.png, ~torirsbeamdrop), and they are here in their
+    -- SHIPPED spelling with the SHIPPED defaults around them. Both are chosen
+    -- so the cache alone cannot light them:
+    --
+    --   Red partyhat      LostCity's holiday.obj states no cost, so
+    --                     ObjType.cost keeps its default of 1 and the cache
+    --                     alches the hat to floor(1 * 0.6) = 0. Nothing but
+    --                     the row can raise this beam, and the row makes it
+    --                     900,000,000 -- the INSANE tier, the pink beam the
+    --                     CS2 lanes were photographed with.
+    --
+    --   Dragon chainbody  cost 250,000, so the cache alches it to 150,000: a
+    --                     MEDIUM item, under the `high` floor and therefore
+    --                     dark. The row lifts it to 1,080,000, one rung over
+    --                     `high_value`, and it beams HIGH. This is the row
+    --                     shape an id-keyed table got subtly wrong rather
+    --                     than blankly -- a tier moved, not a beam invented.
+    --
+    -- reset_config() is deliberately NOT called: it rebinds the upvalue and
+    -- `api.config` still points at the table the plugin reads, so the six
+    -- rows this section needs are restored by name.
+    ----------------------------------------------------------------------
+
+    config.tier, config.value_mode = 'high', 'alch'
+    config.low_value, config.medium_value = 20000, 100000
+    config.high_value, config.insane_value = 1000000, 10000000
+    files['prices.txt'] = '# the two rows the live capture stands on\n'
+        .. 'Red partyhat     = 1500000000\nDragon chainbody = 1800000\n'
+    start()
+    assert(logs[1] == 'prices.txt: 2 price overrides', logs[1])
+
+    -- Two tiles, because one beam per tile is coloured by the best thing on
+    -- it: piled together the hat would have hidden the chainbody.
+    stacks = { stack(1038, 3210, 3424, 1, 1, 0, 'Red partyhat'),
+               stack(3140, 3211, 3424, 250000, 1, 0, 'Dragon chainbody') }
+    product.on_item_spawn(api, {})
+    mark = #calls
+    tick()
+    assert(beams_up() == 2, 'the shipped table lights the shipped tier on a dat1 floor')
+    assert(logs[#logs] == '2 beam(s) over 2 ground stack(s)', logs[#logs])
+    -- The want set is walked SORTED, so "0:3210:3424" is dressed before
+    -- "0:3211:3424" and these two colours are in a fixed order.
+    assert(args(mark, 'hsl_from_rgb', 1)[2] == config.insane_color,
+        'a hat the cache values at zero is an INSANE-tier beam under the row')
+    assert(args(mark, 'hsl_from_rgb', 2)[2] == config.high_color,
+        'and a chainbody the cache alches to a medium 150,000 is a HIGH one')
+    assert(args(mark, 'instance_position', 1)[3] == 3210)
+    assert(args(mark, 'instance_position', 2)[3] == 3211,
+        'each beam stands on its own tile')
+
+    -- The other half of the claim, and the half that says the rows are doing
+    -- the work: the SAME floor, the SAME shipped thresholds, a table with no
+    -- rows in it. 0 and 150,000 against a floor of 1,000,000 is dark, which
+    -- is what every dat1 capture of this plugin has been.
+    files['prices.txt'] = '# a table with no rows in it\n'
+    start()
+    assert(logs[1] == 'prices.txt: 0 price overrides', logs[1])
+    product.on_item_spawn(api, {})
+    tick()
+    assert(beams_up() == 0,
+        'without the rows the same dat1 floor is dark -- a cache cost is a shop number')
+    assert(logs[#logs] == '0 beam(s) over 2 ground stack(s)',
+        'and the count line says so out loud, which is the reading it exists to give')
+
+    files['prices.txt'] = 'Rune scimitar=39000\n# a comment\n\n'
+        .. 'DEATH RUNE = 1\nnonsense\n# Rune scimitar = 1\n1127 = 77\n'
+
+    ----------------------------------------------------------------------
     -- 6c. the PLANE
     --
     -- The client tracks every ground stack in the LOADED SCENE, not only the
