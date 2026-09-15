@@ -62,12 +62,20 @@ ltfix-live-try1        loot-tracker cs1live    'TORIRS_SIM_CMD=200,lootkill Gobl
 #                          + six TORIRS_SIM_CLICK_AT around the viewport centre.
 #                          The clicks hit Romeo and opened his dialogue; the
 #                          chicken is visible on the floor, unkilled.
-#   ltfix-livekill2-after  TORIRS_SIM_OPNPC=460,1,41 instead of pixel clicks,
-#                          which is the right instrument -- the log says
-#                          "sim_opnpc: op=1 npc=41 slot=8142", so the Attack
-#                          reached a real chicken -- but the player still has to
-#                          walk to it and the kill did not land inside 1500
-#                          frames. The page is the record's one band.
+#   ltfix-livekill2-{pre,after}   TORIRS_SIM_OPNPC=460,1,41 instead of pixel
+#                          clicks, which is the right instrument -- BOTH logs
+#                          say "sim_opnpc: op=1 npc=41 slot=8142", so the Attack
+#                          reached a real chicken on both sides -- but the player
+#                          still has to walk to it and the kill did not land
+#                          inside 1500 frames. Both pages are the record's one
+#                          band, "Goblin x 1  5K gp" over the 5000-coin cell, and
+#                          the loot-page rect (0,70,340,345) differs by 24 px
+#                          between them: x=328..338, y=84..113, which is the
+#                          Varrock fountain's animated sparkle in the viewport to
+#                          the RIGHT of the panel (the panel's stone edge is at
+#                          x~325). The pair is therefore a control that says the
+#                          merge changes nothing where the record is the only
+#                          account -- not a picture of the latch.
 #
 # So the latch is pinned by test_loot_a_cheat_kill_does_not_disable_inference
 # and its mutation, not by a picture. A drive that wants the picture should give
