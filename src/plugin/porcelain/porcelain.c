@@ -1444,6 +1444,12 @@ porcelain_push_item(struct ToriRS_PorcelainDescribe* describe, enum PorcelainIte
         /* A duplicate key would make the diff ambiguous and the later item
          * silently win. The plan's identity rule is one key, one item. */
         assert(strcmp(porcelain->scratch_items[i].key.text, source->key) != 0);
+    /* The layer composes keys for the second node a REPLACE's hit box needs,
+     * and the tilde is what it composes them with. A described key carrying
+     * one could name a node the layer means to own by itself -- and
+     * create_image is idempotent per (parent, key), so the two would silently
+     * become one widget. @see PORCELAIN_HIT_KEY_MARK. */
+    assert(strchr(source->key, PORCELAIN_HIT_KEY_MARK) == NULL);
 
     /* -1 is PORCELAIN_OPACITY_INVISIBLE; 0 is the unset field of a zeroed
      * struct. Anything below that is a plugin computing into the field. */
@@ -1979,6 +1985,10 @@ porcelain_apply_geometry(struct Porcelain* porcelain, struct PorcelainAppliedIte
         return;
     applied->desired = box;
     applied->desired_written = true;
+    /* Nothing defers for a picture that does not exist, so the flag the
+     * property pass raised for it is answered here and once. */
+    if( applied->item.kind != PORCELAIN_ITEM_TEXT && !applied->item.has_image )
+        applied->image_dirty = false;
     if( applied->live_x != box.x || applied->live_y != box.y )
     {
         porcelain->counters.engine_calls++;
@@ -1990,9 +2000,25 @@ porcelain_apply_geometry(struct Porcelain* porcelain, struct PorcelainAppliedIte
         applied->live_y = box.y;
         porcelain->dirty = true;
     }
-    if( applied->item.kind == PORCELAIN_ITEM_TEXT &&
+    if( (applied->item.kind == PORCELAIN_ITEM_TEXT || !applied->item.has_image) &&
         (applied->live_w != box.width || applied->live_h != box.height) )
     {
+        /*
+         * A control with NO PICTURE takes its box through set_size, not
+         * set_image.
+         *
+         * `image = NULL` is the layer's own spelling of "exists, draws
+         * nothing" -- an invisible hit box, which is what Porcelain_Blocker
+         * is and what a REPLACE's hit box below is. It has no image handle,
+         * and the engine refuses a zero one outright (INVALID_ARGUMENT in
+         * widget_set_image, which resolves the token before it looks at the
+         * size), so routing its box through set_image wrote the picture and
+         * the SIZE in one refused call: every blocker the layer has ever
+         * described stayed 0x0, drew nothing and hit nothing, and the two
+         * frame providers ship a 1x1 transparent PNG to get a box at all.
+         * The testbed answered OK to a zero handle, which is why the suite
+         * never saw it.
+         */
         porcelain->counters.engine_calls++;
         porcelain->counters.setters++;
         porcelain_note_item_result(
@@ -2002,8 +2028,8 @@ porcelain_apply_geometry(struct Porcelain* porcelain, struct PorcelainAppliedIte
         applied->live_h = box.height;
         porcelain->dirty = true;
     }
-    else if( applied->item.kind != PORCELAIN_ITEM_TEXT &&
-             !(applied->item.has_image && applied->image_state == PORCELAIN_ASSET_PENDING) &&
+    else if( applied->item.kind != PORCELAIN_ITEM_TEXT && applied->item.has_image &&
+             applied->image_state != PORCELAIN_ASSET_PENDING &&
              (applied->image_dirty || applied->live_w != box.width ||
               applied->live_h != box.height) )
     {
@@ -2301,21 +2327,205 @@ porcelain_apply_properties(struct Porcelain* porcelain, struct PorcelainAppliedI
         porcelain->dirty = true;
     }
 
-    if( fresh || previous.enabled != wanted->enabled || previous.hit != wanted->hit ||
-        previous.on_op != wanted->on_op || strcmp(previous.op_label, wanted->op_label) != 0 )
+}
+
+/*
+ * What the PICTURE's own op should be.
+ *
+ * Not a line inside the property pass any more, because it is no longer a
+ * function of the description alone: a REPLACE whose hit box is standing
+ * (below) must not also offer the row from the picture, or the pointer over
+ * the art builds "Take screenshot" twice. The hit box comes and goes with the
+ * target's presentation, which the description knows nothing about, so the
+ * arm is compared against what was last written rather than against the
+ * previous description.
+ */
+static void
+porcelain_apply_op(struct Porcelain* porcelain, struct PorcelainAppliedItem* applied,
+                   struct PorcelainNormalItem const* wanted)
+{
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+    /* `.enabled` false is DRAWN, INERT, NO MENU ROW -- a NULL listener, not a
+     * control that keeps a dead row the way the retained menu bug did. */
+    bool const armed = wanted->hit && wanted->enabled && wanted->on_op && !applied->hit_live;
+
+    if( applied->op_armed_written && applied->op_armed == armed &&
+        (!armed || strcmp(applied->op_label_armed, wanted->op_label) == 0) )
+        return;
+    porcelain->counters.engine_calls++;
+    porcelain->counters.setters++;
+    porcelain_note_result(
+        porcelain, "set_on_op", wanted->place.on,
+        widgets->set_on_op(widgets->context, applied->ref, armed ? wanted->op_label : NULL,
+                           armed ? porcelain_op_listener : NULL, armed ? applied : NULL),
+        wanted->key.text);
+    applied->op_armed = armed;
+    applied->op_armed_written = true;
+    Porcelain_CopyString(applied->op_label_armed, sizeof(applied->op_label_armed),
+                         wanted->op_label);
+    porcelain->dirty = true;
+}
+
+/*
+ * Does this item's REPLACE owe the target's box a hit?
+ *
+ * Only an ARMED one: a REPLACE that states `hit = false` is paint standing in
+ * for paint, and the plugin has said in as many words that nothing should
+ * answer there.
+ */
+static bool
+porcelain_replace_wants_hit(struct PorcelainNormalItem const* item)
+{
+    assert(item);
+    return item->place.kind == PORCELAIN_REPLACE && item->kind != PORCELAIN_ITEM_TEXT &&
+           item->hit && item->enabled && item->on_op != NULL;
+}
+
+static void
+porcelain_remove_hit(struct Porcelain* porcelain, struct PorcelainAppliedItem* applied)
+{
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+
+    assert(porcelain);
+    assert(applied);
+    if( !applied->hit_live )
+        return;
+    porcelain->counters.engine_calls++;
+    porcelain->counters.removes++;
+    (void)widgets->remove(widgets->context, applied->hit_ref);
+    applied->hit_live = false;
+    applied->hit_box_written = false;
+    applied->hit_anchor_written = false;
+    applied->hit_label[0] = '\0';
+    memset(&applied->hit_ref, 0, sizeof(applied->hit_ref));
+    memset(&applied->hit_box, 0, sizeof(applied->hit_box));
+    memset(&applied->hit_anchor_target, 0, sizeof(applied->hit_anchor_target));
+    porcelain->dirty = true;
+}
+
+/*
+ * THE BOX A REPLACE CONSUMED, ANSWERED.
+ *
+ * A REPLACE does not overlay the target: the frame reorder DROPS the target's
+ * records -- paint, input and hover in one list -- and writes this control's
+ * where they were (uitree_frame.c, anchor_plan_write). The control is the size
+ * of its picture, so the difference between the two boxes answers nothing at
+ * all: the native op is not there to take the click and neither is the
+ * replacement. On the shipped camera that is a ring 1,497 pixels wide around a
+ * 20x16 icon in a 79x23 button, on both lanes, and it reads as a button that
+ * ignores most of itself.
+ *
+ * So the layer stands a second owned node the size of the TARGET's box and
+ * arms the op on that one. It is an ordinary sibling anchored OVER the target,
+ * not a second REPLACE -- REPLACE is arbitrated one to an element, and the
+ * reorder writes the OVER children after the replacement anyway, so the hit
+ * box is in the frame whether or not the picture is.
+ *
+ * It draws nothing (no picture, hence no emit: `scene_id <= 0` returns false)
+ * and it shares this applied slot, so the op reports the ITEM's key and
+ * Porcelain_Set still moves the picture. The picture is disarmed while this
+ * stands -- @see porcelain_apply_op -- or the pointer over the art would build
+ * the row twice.
+ */
+static void
+porcelain_apply_replace_hit(struct Porcelain* porcelain, struct PorcelainAppliedItem* applied,
+                            struct PorcelainNormalItem const* wanted,
+                            struct PorcelainElementState const* target)
+{
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+    char key[PORCELAIN_KEY_MAX + sizeof(PORCELAIN_HIT_KEY_SUFFIX)];
+
+    assert(porcelain);
+    assert(applied);
+    assert(wanted);
+    assert(target);
+
+    /*
+     * Gone with the target's presentation, rather than merely hidden.
+     *
+     * `set_hidden` writes the node's own widget_hidden bit, and the menu
+     * walk's gate for the node ITSELF (UITree_NodeNativeGate: `hit_visible`)
+     * does not read that bit -- so a hidden invisible box would keep taking
+     * clicks over a Report button the lane had put away. The picture does not
+     * have that problem: its REPLACE anchor makes the engine inherit the
+     * target's visibility both ways.
+     */
+    if( !porcelain_replace_wants_hit(wanted) || !target->presented )
     {
-        bool const armed = wanted->hit && wanted->enabled && wanted->on_op;
+        porcelain_remove_hit(porcelain, applied);
+        return;
+    }
+    snprintf(key, sizeof(key), "%s" PORCELAIN_HIT_KEY_SUFFIX, wanted->key.text);
+    if( !applied->hit_live )
+    {
+        enum ToriRS_ContractResult const result =
+            widgets->create_image(widgets->context, applied->parent, key, &applied->hit_ref);
+        porcelain->counters.engine_calls++;
+        porcelain->counters.creates++;
+        if( result != TORIRS_CONTRACT_OK )
+        {
+            memset(&applied->hit_ref, 0, sizeof(applied->hit_ref));
+            porcelain_note_result(porcelain, "create", wanted->place.on, result, key);
+            return;
+        }
+        applied->hit_live = true;
+        applied->hit_box_written = false;
+        applied->hit_anchor_written = false;
+        applied->hit_label[0] = '\0';
+        porcelain->dirty = true;
+    }
+    if( !applied->hit_box_written || applied->hit_box.x != target->local.x ||
+        applied->hit_box.y != target->local.y )
+    {
         porcelain->counters.engine_calls++;
         porcelain->counters.setters++;
-        /* `.enabled` false is DRAWN, INERT, NO MENU ROW -- a NULL listener,
-         * not a control that keeps a dead row the way the retained menu bug
-         * did. */
         porcelain_note_result(
-            porcelain, "set_on_op", wanted->place.on,
-            widgets->set_on_op(widgets->context, applied->ref,
-                               armed ? wanted->op_label : NULL,
-                               armed ? porcelain_op_listener : NULL, armed ? applied : NULL),
-            wanted->key.text);
+            porcelain, "set_position", wanted->place.on,
+            widgets->set_position(widgets->context, applied->hit_ref, target->local.x,
+                                  target->local.y),
+            key);
+        porcelain->dirty = true;
+    }
+    if( !applied->hit_box_written || applied->hit_box.width != target->local.width ||
+        applied->hit_box.height != target->local.height )
+    {
+        porcelain->counters.engine_calls++;
+        porcelain->counters.setters++;
+        porcelain_note_result(
+            porcelain, "set_size", wanted->place.on,
+            widgets->set_size(widgets->context, applied->hit_ref, target->local.width,
+                              target->local.height),
+            key);
+        porcelain->dirty = true;
+    }
+    applied->hit_box = target->local;
+    applied->hit_box_written = true;
+    if( strcmp(applied->hit_label, wanted->op_label) != 0 )
+    {
+        porcelain->counters.engine_calls++;
+        porcelain->counters.setters++;
+        porcelain_note_result(porcelain, "set_on_op", wanted->place.on,
+                              widgets->set_on_op(widgets->context, applied->hit_ref,
+                                                 wanted->op_label, porcelain_op_listener, applied),
+                              key);
+        Porcelain_CopyString(applied->hit_label, sizeof(applied->hit_label), wanted->op_label);
+        porcelain->dirty = true;
+    }
+    if( !applied->hit_anchor_written ||
+        !ToriRS_WidgetRefEqual(applied->hit_anchor_target, target->ref) )
+    {
+        enum ToriRS_ContractResult const result = widgets->set_anchor(
+            widgets->context, applied->hit_ref, target->ref, TORIRS_WIDGET_RELATION_OVER);
+        porcelain->counters.engine_calls++;
+        porcelain->counters.setters++;
+        porcelain_note_result(porcelain, "set_anchor", wanted->place.on, result, key);
+        /* Only a WRITTEN anchor is remembered, for the reason the picture's
+         * own anchor states at length. */
+        if( result == TORIRS_CONTRACT_OK || result == TORIRS_CONTRACT_PENDING )
+        {
+            applied->hit_anchor_target = target->ref;
+            applied->hit_anchor_written = true;
+        }
         porcelain->dirty = true;
     }
 }
@@ -2434,6 +2644,10 @@ porcelain_remove_item(struct Porcelain* porcelain, struct PorcelainAppliedItem* 
 
     if( !applied->live )
         return;
+    /* The hit box first: it is this item's second node, and a slot cleared
+     * with it still live would leak an armed, invisible rectangle over the
+     * target for the rest of the session. */
+    porcelain_remove_hit(porcelain, applied);
     porcelain->counters.engine_calls++;
     porcelain->counters.removes++;
     (void)widgets->remove(widgets->context, applied->ref);
@@ -2877,6 +3091,9 @@ porcelain_reconcile(struct Porcelain* porcelain)
          * owns" has an answer. @see ToriRS_PorcelainApi::raise */
         applied->order = i;
         porcelain_refresh_image(porcelain, applied);
+        /* Before the picture's own op is decided, because whether this node
+         * exists is what decides it. @see porcelain_apply_op. */
+        porcelain_apply_replace_hit(porcelain, applied, wanted, &target);
         if( !fresh && applied->item.hash == wanted->hash )
         {
             /* Unchanged hash: NO engine call for any property. Geometry still
@@ -2884,12 +3101,14 @@ porcelain_reconcile(struct Porcelain* porcelain)
              * move. */
             porcelain_apply_geometry(porcelain, applied,
                                      porcelain_place_box(porcelain, wanted, &target));
+            porcelain_apply_op(porcelain, applied, wanted);
             porcelain_apply_anchor(porcelain, applied, &target, false);
             goto visibility;
         }
         porcelain_apply_properties(porcelain, applied, wanted, fresh);
         porcelain_apply_geometry(porcelain, applied,
                                  porcelain_place_box(porcelain, wanted, &target));
+        porcelain_apply_op(porcelain, applied, wanted);
         porcelain_apply_anchor(porcelain, applied, &target, fresh);
 
     visibility:

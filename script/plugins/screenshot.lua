@@ -41,6 +41,14 @@ local plugin = {
         -- REPLACE consumes the target's paint, input and hover, so the native
         -- "Report abuse" row is unreachable while the camera stands there.
         -- That is a consequence of the mode and is stated, not discovered.
+        --
+        -- What it consumes it also ANSWERS, all of it: the whole Report
+        -- button takes the screenshot, not just the 20x16 of it the camera
+        -- art covers. The layer stands an invisible hit box the size of the
+        -- target under the picture for exactly this -- before it did, a click
+        -- 7px left of the icon's ink was inert on both sides, because the
+        -- native op had been taken out of the frame and the camera was not
+        -- there to answer.
         { key = "camera", type = "enum",
           choices = "off|top-left|top-right|bottom-left|bottom-right|report-button",
           default = "off", label = "Camera button (report-button hides the Report abuse option)" },
@@ -120,6 +128,10 @@ end
 
 -- The press: motion, not structure, so it takes the direct path and never
 -- re-runs the describe. on_frame_start puts it back.
+--
+-- `key` is the ITEM's key whichever node the engine dispatched from: a
+-- REPLACE's hit box is a second node of the same item, so a press on the dead
+-- ring lights the same picture a press on the art does.
 local function on_camera_op(key)
     lit_key, lit_frames = key, PRESS_FRAMES
     API.porcelain.set(key, { opacity = PRESSED_OPACITY })

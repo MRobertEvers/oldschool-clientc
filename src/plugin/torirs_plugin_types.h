@@ -146,6 +146,10 @@ struct ToriRS_PlayerSnapshot
     /** ToriDraw scene element, for api->draw_hull. -1 when not drawn. */
     int element_id;
     int combat_level;
+    /** The player's name, or EMPTY when this client does not know it. Never a
+     *  decoder's failure token: a name that did not decode reads as absent,
+     *  so a plugin using this as an identity -- a folder, a key, a tag -- can
+     *  test it the one obvious way. @see Base37_IsInvalidName. */
     char name[32];
 };
 

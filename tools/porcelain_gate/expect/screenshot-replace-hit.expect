@@ -1,0 +1,30 @@
+# The REPLACE hit box.
+#
+# A REPLACE takes the target's records out of the frame and puts the
+# replacement's in their place, so whatever of the target's box the
+# replacement does not cover answers nothing at all -- the native op is gone
+# and the control is not there. On the shipped camera that was a dead ring
+# 1,497 pixels wide around a 20x16 icon in a 79x23 Report button, proven on
+# classic548 and on the CS1 live lane: a right-click 7px left of the icon's
+# ink offered Cancel and nothing else, and a left-click took no screenshot.
+#
+# Porcelain now stands a second owned node the size of the TARGET under the
+# picture and arms the item's op on that. It is what these lines are. It draws
+# nothing -- scene=0, so the emit walk drops it -- and the report button's
+# pixels are byte-identical before and after on both lanes (a 120x33 crop at
+# 440,470 on classic548 and a 120x35 crop at 400,468 on cs1live: 0 differing
+# pixels of 3,960 and of 4,200).
+#
+# stone601 states nothing here on purpose: the touch frame presents no report
+# button, the camera falls back to a viewport corner, and a corner ornament is
+# not a REPLACE -- so that lane has no hit box to declare and passes unaltered.
+#
+# A reason is ONE line. The parser splits every line on its own ` = `, so a
+# wrapped continuation is read as a second declaration with no reason and the
+# whole file is refused.
+
+owned-add camera_report~hit = the hit box a REPLACE owes the box it consumed: invisible (scene=0), carrying the item's op, so the whole Report button answers again
+
+only-after BOUNDS com=0xffffffff (65535|65535) type=15 graphic=-1 hidden=0 abs=454,480 79x23 = the same node said as a box, on the two fixed frames, whose report button's own box this is
+only-after BOUNDS com=0xffffffff (65535|65535) type=15 graphic=-1 hidden=0 abs=437,480 79x23 = the same node on the native and resizable toplevels, where the report button sits 17px further left
+only-after BOUNDS com=0xffffffff (65535|65535) type=15 graphic=-1 hidden=0 abs=408,467 100x32 = the same node on the CS1 lane, where the 2004 report pill is 100x32
