@@ -294,6 +294,21 @@ fake_loot_row_next(
  *  chat becomes undismissable in the off state. */
 static char const* g_stub_asset;
 
+/**
+ * The host under test, forward-declared for the one fake that delivers into it.
+ *
+ * Delivery cannot use the `user` pointer the engine hands back, and that was a
+ * real and very confusing bug: PluginHost_New COPIES the engine struct, so a
+ * fixture that writes `e.user = g_host` after the call has already handed the
+ * new host the PREVIOUS host's address -- freed a line earlier. Delivering
+ * through it wrote a decoded PNG into freed memory, and whether the frame's art
+ * arrived came down to whether the allocator handed the same block back. It did
+ * about half the time, so half the runs of this file failed with twenty assets
+ * stuck PENDING, no error line anywhere, and a switch glyph that had simply
+ * never decoded.
+ */
+static struct ToriRS_PluginHost* g_host;
+
 static int
 fake_asset_read(void* u, char const* plugin, char const* name)
 {
@@ -301,6 +316,8 @@ fake_asset_read(void* u, char const* plugin, char const* name)
     FILE* f;
     long size;
     void* data;
+
+    (void)u; /* @see g_host: the engine's copy of it is a host ago. */
 
     /* Read and dropped rather than refused: a file the IO queue has not
      * finished with is the ORDINARY state for the first frames of a session,
@@ -327,7 +344,7 @@ fake_asset_read(void* u, char const* plugin, char const* name)
         return 0;
     }
     fclose(f);
-    PluginHost_AssetDeliver((struct ToriRS_PluginHost*)u, plugin, name, data, (int)size);
+    PluginHost_AssetDeliver(g_host, plugin, name, data, (int)size);
     return 1;
 }
 
@@ -530,7 +547,6 @@ static uint32_t fake_hsl_to_rgb(void* u, int h) { (void)u; (void)h; return 0; }
 
 /* ------------------------------------------------------------------ tests */
 
-static struct ToriRS_PluginHost* g_host;
 static int g_plugin;
 
 /** One canvas size, declared. Mirrors what App_PluginLayoutTick does. */
@@ -1147,9 +1163,34 @@ main(void)
     declare(M_W, M_H);
     CHECK(placed("chat", -1, 17, 452, 479, 96), "and drop back to the floor when the band goes");
     printf("MOBILE pieces=%d tabs=%d icons=%d plates=%d\n", pieces_behind_viewport(), owned_count("tab."), owned_count("icon."), owned_count("plate."));
-    CHECK(pieces_behind_viewport() >= 7, "the rail plates, the sheet, the two switches and the blockers are owned pieces over the scene");
-    CHECK(owned_at("piece.02", 0, 435) || owned_at("piece.01", 0, 435) || owned_at("piece.00", 0, 435) || owned_at("piece.03", 0, 435),
-          "the torn sheet hangs at the chat's box less its fringe");
+    /*
+     * SIX over the viewport, and the sheet is deliberately not one of them.
+     *
+     * The rail plates, the two switches' plates and the blockers are drawn on
+     * the scene and belong over the viewport. The parchment is not: over the
+     * viewport put it over the 2004 chat as well, because the raise that lifts
+     * the live surfaces above this frame's chrome does not reach the client's
+     * builtin chat or the packs the server mounts into the chat modal under
+     * it. What that looked like on a live dat1 world was a blank sheet of
+     * parchment with the tutorial box, the NPC dialogue and every message line
+     * painted underneath it. @see MobileBlit::behind_chat.
+     *
+     * MUTATION: describe the sheet over the viewport again (drop the
+     * behind_chat arm in mobile_describe_chrome). Red: the next check finds no
+     * piece anchored behind the chat.
+     */
+    CHECK(pieces_behind_viewport() >= 6,
+          "the rail plates, the two switches and the blockers are owned pieces over the scene");
+    {
+        struct FakeWidget const* sheet = NULL;
+        for( int i = 0; i < g_w_count; i++ )
+            if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, "piece.", 6) == 0 &&
+                g_w[i].image >= 0 && anchored(&g_w[i], "chat", TORIRS_WIDGET_RELATION_BEHIND) )
+                sheet = &g_w[i];
+        CHECK(sheet != NULL, "and the torn sheet is behind the CHAT rather than over the viewport");
+        CHECK(sheet && owned_at(sheet->key, 0, 435),
+              "the torn sheet hangs at the chat's box less its fringe");
+    }
     CHECK(owned_count("plate.") == 4 && anchored(owned("plate.0"), "", -1) == 0 &&
               owned("plate.0")->anchor_relation == TORIRS_WIDGET_RELATION_BEHIND && owned("plate.0")->anchor_target == fw_find("chat_buttons", 0),
           "a 2004 plate stands directly behind each lane filter button");
