@@ -60,10 +60,18 @@ env_extra=()
 [ "$mobile" = 1 ] && env_extra+=(TORIRS_CLIENTTYPE=7)
 for kv in "$@"; do env_extra+=("$kv"); done
 
+# The client REWRITES its prefs file on exit. Pointing every run at the shared
+# tracked plugins_all.ini therefore made each shot edit the harness and leak its
+# own TORIRS_SIM_PLUGIN_CONFIG into every later shot -- a loot-beam capture came
+# back wearing the entity highlighter's tags. Each run gets a private copy, and
+# the tracked file stays the input it is supposed to be. (Its path was wrong
+# too: plugins_all.ini is one level up, not in a gate/ subdirectory.)
+cp ${TORIRS_SHOT_PREFS:-$here/../plugins_all.ini} $run/plugins.ini
+
 ( cd $repo && env \
     TORIRS_PREFS=$run/preferences.ini \
     TORIRSSERVER_SAVES=$run/saves \
-    TORIRS_PLUGIN_PREFS=${TORIRS_SHOT_PREFS:-$here/../gate/plugins_all.ini} \
+    TORIRS_PLUGIN_PREFS=$run/plugins.ini \
     TORIRS_PLUGINS=1 \
     TORIRS_SCRIPT_DIR=$wt/script \
     TORIRS_STDERR_UNBUFFERED=1 \

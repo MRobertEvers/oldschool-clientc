@@ -8,7 +8,9 @@
 # client has cd'd there -- so a worktree's revconfig edits would silently not be
 # under test, and a BEFORE shot would be taken with the AFTER tree's revconfig.
 #
-# Generate one set per tree you photograph:
+# It was referenced by shot.sh and never committed, so a fresh checkout could
+# not take a single shot -- the first agent to try had to write it from
+# scratch. Generate one set per tree you photograph:
 #   shot_manifests.sh <after worktree>  <shots dir>/manifests
 #   shot_manifests.sh <before worktree> <shots dir>/manifests.before
 set -u

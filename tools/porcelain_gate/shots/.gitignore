@@ -1,5 +1,6 @@
 # Generated per tree by shot_manifests.sh: absolute paths to whatever checkout
 # they were made for, so they are a function of a machine and not of a commit.
 manifests/
-# One run directory per shot: the log, the save, the bmp.
+# One run directory per shot: the log, the save, the bmp, and the prefs copy
+# each run gets so the client's write-back cannot leak into the next shot.
 runs/
