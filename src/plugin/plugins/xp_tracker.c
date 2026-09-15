@@ -1299,6 +1299,53 @@ xt_label_value(
 }
 
 /**
+ * The bar's centred percentage, exactly as script5371 spells one.
+ *
+ * TWO paddings meet in this one string and they are not interchangeable.
+ *
+ *   The SIGNIFICANCE pad is the NUMBER's. A permyriad carries two fractional
+ *   digits, so it is three characters wide before it means anything at all: 7
+ *   is "007", nought point nought seven, and the hundredths column has to BE
+ *   there for the 3/2 cut to have something to cut.
+ *
+ *   The COLUMN pad is the BOX's. Five characters, right aligned, which is what
+ *   keeps every box's decimal point in the same column down a list of them and
+ *   what a centred "%.2f" does not give.
+ *
+ * Padding once, to five, with spaces, conflated the two: the cut then handed
+ * the FRACTIONAL half whatever the column pad had left in characters 3 and 4.
+ * Every permyriad below 100 -- the whole first one percent of every level, and
+ * the exact instant a level is reached, which is where a tracker sits most
+ * often -- printed "   . 0%" or "   .98%": a bare decimal point with the
+ * tenths column blank. Only three significant digits or more escaped it, which
+ * is why the CS2 lanes' "46.36%" read correctly and the live save, sitting on
+ * the level-99 threshold, read ". 0%".
+ *
+ * So: spell the number to its own width FIRST, pad the column SECOND.
+ */
+static void
+xt_spell_percent(long long permyriad, char* out, size_t out_size)
+{
+    char digits[16];
+    char spaced[16];
+    int at = 0;
+    int n;
+
+    assert(out);
+    assert(out_size >= sizeof("100.00%"));
+    assert(permyriad >= 0);
+    assert(permyriad <= 10000);
+
+    n = snprintf(digits, sizeof(digits), "%03lld", permyriad);
+    for( int i = n; i < 5; i++ )
+        spaced[at++] = ' ';
+    memcpy(spaced + at, digits, (size_t)n);
+    at += n;
+    spaced[at] = '\0';
+    snprintf(out, out_size, "%.3s.%.2s%%", spaced, spaced + 3);
+}
+
+/**
  * One skill's box, at `top` in `buf`.
  *
  * Laid out against the cache's numbers throughout; @see the file comment for
@@ -1449,25 +1496,10 @@ xt_draw_box(
         snprintf(text, sizeof(text), "Done!");
     else
     {
-        /*
-         * The percentage, exactly as script5371 spells one: the permyriad is
-         * padded with SPACES to five characters and then cut 3/2, so 6949
-         * becomes " 69.49%" and 949 becomes "  9.49%". The padding is not
-         * decoration -- it is what keeps the decimal point in the same column
-         * down a list of boxes, which a centred "%.2f" does not.
-         */
+        /* @see xt_spell_percent for the two paddings this string is made of. */
         long long const permyriad =
             ((long long)(xp - level_xp) * 10000) / (next_xp - level_xp);
-        char pad[16];
-        int n = snprintf(pad, sizeof(pad), "%lld", permyriad);
-        char spaced[16];
-        int at = 0;
-        for( int i = n; i < 5; i++ )
-            spaced[at++] = ' ';
-        memcpy(spaced + at, pad, (size_t)n);
-        at += n;
-        spaced[at] = '\0';
-        snprintf(text, sizeof(text), "%.3s.%.2s%%", spaced, spaced + 3);
+        xt_spell_percent(permyriad, text, sizeof(text));
     }
     PLUGIN_DRAW_TEXT(
         buf, w, h, (w - PluginDraw_TextWidth(&g_font, text)) / 2, bar_y + 2, text,
