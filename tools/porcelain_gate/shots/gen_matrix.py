@@ -30,10 +30,15 @@ import sys
 
 # Resolved by lane_coords.py from tools/porcelain_gate gate captures.
 LANES = {
-    "classic548": {"inv": "615,228", "inv_hidden": False, "report": "493,491", "report_hidden": False, "npc": "330,120"},
-    "classic161": {"inv": "615,228", "inv_hidden": False, "report": "493,491", "report_hidden": False, "npc": "330,120"},
-    "modern164":  {"inv": "607,224", "inv_hidden": True,  "report": "476,491", "report_hidden": False, "npc": "456,228"},
-    "stone601":   {"inv": "534,231", "inv_hidden": True,  "report": "476,370", "report_hidden": True, "npc": "456,150"},
+    "classic548": {"inv": "615,228", "inv_hidden": False, "report": "493,491", "report_hidden": False, "npc": "330,120", "keyboard": True},
+    "classic161": {"inv": "615,228", "inv_hidden": False, "report": "493,491", "report_hidden": False, "npc": "330,120", "keyboard": True},
+    "modern164":  {"inv": "607,224", "inv_hidden": True,  "report": "476,491", "report_hidden": False, "npc": "456,228", "keyboard": True},
+    # 601 logs in as a phone, so Porcelain_KeyEdge answers ABSENT and every
+    # reveal-key feature turns itself off there. Measured rather than assumed:
+    # the run logs one key_edge/absent finding at first_frame=0 whose detail is
+    # "touch lane has no key", which is the branch inside the CALL and not the
+    # fence's later poll of the binding.
+    "stone601":   {"inv": "534,231", "inv_hidden": True,  "report": "476,370", "report_hidden": True, "npc": "456,150", "keyboard": False},
 }
 
 # plugin id -> drive. {inv} and {report} are substituted per lane; a drive
@@ -70,6 +75,32 @@ PLUGINS = [
     ("ground-items",        "grounditems",    "'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1;70,dropobj ags 1;80,dropobj abyssal_whip 1' TORIRS_GROUND_ITEMS_DEBUG=1"),
     ("loot-beam",           "lootbeam",       "'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1'"),
     ("entity-highlighter",  "highlighter",    "'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108'"),
+    # The hull is HALF of this plugin. The other half is the Tag/Untag row on
+    # the right-click menu, and every row of it is gated on the reveal key
+    # being HELD -- so the drive above, which holds no key and opens no menu,
+    # photographs a plugin whose entire menu half could be deleted without
+    # moving one pixel or one line of log. The port's own header calls the
+    # on_key forward "the whole fix" and says the rows were unreachable on
+    # EVERY lane before it; nothing in the capture set could tell.
+    #
+    # Both halves have a drive now, and each one proves itself:
+    #
+    #   ehreveal  the key held and a right-click on a TAGGED npc, left open, so
+    #             the final frame carries the row. The npc is named by TYPE and
+    #             not by coordinate for two reasons: it has to be one of the
+    #             tagged ids or the row reads "Tag" and the picture is of a
+    #             different claim, and a wandering npc makes a fixed pixel a
+    #             coin toss (which is why TORIRS_SIM_CLICK_NPC exists).
+    #   ehtag     the reverse, and the one that proves the SELECT: no tags at
+    #             all, so the row reads "Tag", TORIRS_SIM_MENU_ROW finds it by
+    #             its label and clicks it -- printing the label it found, so a
+    #             row that was never built cannot pass silently -- and the hull
+    #             in the last frame exists ONLY because that row was picked.
+    ("entity-highlighter",  "ehreveal",
+     "'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108'"
+     " {reveal} TORIRS_SIM_CLICK_NPC=620,5037,1"),
+    ("entity-highlighter",  "ehtag",
+     "{reveal} TORIRS_SIM_CLICK_NPC=560,5037,1 TORIRS_SIM_MENU_ROW=600,Tag"),
     ("nxt-highlight",       "nxthl",          "TORIRS_SIM_MOVE_AT=600,{npc} TORIRS_SIM_HOVER={npc} TORIRS_HIGHLIGHT_DEBUG=1"),
     ("nxt-bird-nest",       "birdnest",       "TORIRS_SIM_VARBIT=450,13087,0 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1'"),
     # TWO cannon rows, because the builtin has two edges and one drive cannot
@@ -104,12 +135,26 @@ PLUGINS = [
 
 TRACE = "TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all"
 
+# Hold the reveal key for the rest of the run. 42 is TORIRS_KEY_SHIFT, which is
+# the code porcelain_key_code maps the config name "shift" to and the code the
+# host puts in a ToriRS_KeyEvent -- ONE numbering, not the OSRS key space the
+# cache's own event stream carries.
+#
+# Deferred to frame 500 for a reason that has already cost a capture elsewhere:
+# a key pressed on frame 1 lands on the title screen. And it is pressed exactly
+# once -- the sim never releases it -- so a handler that misses that single
+# transition never gets a second chance, which is precisely the failure this
+# drive exists to be able to see.
+REVEAL = "TORIRS_SIM_KEYHOLD=42 TORIRS_SIM_KEYHOLD_FRAME=500"
+
 
 def main():
     print("# Every plugin on every CS2 toplevel. GENERATED by gen_matrix.py.")
     print("# 548 and 161 show the sidebar; 164 and 601 hide it, so a drive that")
     print("# points at the inventory is inert there until something opens it --")
-    print("# those lines carry NEEDS_OPEN and are NOT defects.")
+    print("# those lines carry NEEDS_OPEN and are NOT defects. A drive that holds")
+    print("# the reveal key carries NO_KEYBOARD on 601, where the plugin declares")
+    print("# the key absent and turns its rows off; that is not a defect either.")
     print("# Coordinates come from lane_coords.py, never from another toplevel.")
     for lane, box in LANES.items():
         print(f"\n# ---- {lane} " + "-" * 56)
@@ -119,10 +164,21 @@ def main():
                 needs.append("inventory hidden on this toplevel")
             if plugin == "screenshot" and box["report_hidden"]:
                 needs.append("report button hidden on this toplevel")
-            body = drive.format(inv=box["inv"], report=box["report"], npc=box.get("npc", "330,120"))
+            # A reveal-key drive on a lane with no keyboard frame is not a
+            # broken drive. The plugin DECLARES that absence and turns the rows
+            # off, and the shot showing a menu without them is the evidence for
+            # it -- so it is marked for the same reason NEEDS_OPEN is, and with
+            # its own word, because "this lane cannot answer" and "something
+            # has to be opened first" are different facts about a shot.
+            no_keyboard = "{reveal}" in drive and not box["keyboard"]
+            if no_keyboard:
+                needs.append("no keyboard frame: the reveal rows are declared off here")
+            body = drive.format(inv=box["inv"], report=box["report"],
+                                npc=box.get("npc", "330,120"), reveal=REVEAL)
             line = f"{stem}-{lane} {plugin} {lane} {body} {TRACE}".replace("  ", " ").strip()
             if needs:
-                line += "   # NEEDS_OPEN: " + "; ".join(needs)
+                line += "   # " + ("NO_KEYBOARD" if no_keyboard else "NEEDS_OPEN") + ": " \
+                    + "; ".join(needs)
             print(line)
     return 0
 

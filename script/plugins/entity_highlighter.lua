@@ -28,14 +28,22 @@
 --     rows were silently unreachable there. porcelain.key_edge answers ABSENT
 --     with one finding, and the feature turns itself off instead.
 --
--- That last one is only half true today, and the missing half is the ENGINE's.
--- key_edge decides ABSENT from core.capability("touch"), which reads
--- App.touch_ui -- and App.touch_ui is set inside frame_loop_step(), AFTER
--- PluginHost_Start. Measured with _capprobe.lua under TORIRS_TOUCH_UI=1:
--- touch=0 at on_start, touch=1 by frame 60. So the edge registered below always
--- registers, even on a touch lane, and the rows stay as dead and as quiet as
--- they were before the port. The plugin half is here and tested; the fix is to
--- set touch_ui before plugins start, or to re-ask the capability at the fence.
+-- That last one used to be only half true, and the missing half was the
+-- ENGINE's: key_edge decides ABSENT from core.capability("touch"), which reads
+-- App.touch_ui, and App.touch_ui was set inside frame_loop_step() -- AFTER
+-- PluginHost_Start, so the capability read false at every on_start and the
+-- edge registered even on a touch lane. That is fixed: touch_ui is resolved in
+-- App_Init now, beside the clientscript identity it follows, and main.c says
+-- so where the assignment used to be.
+--
+-- Re-measured on the stone601 capture, which is the only lane that logs in as
+-- a phone: one finding at FIRST_FRAME=0, `verb=key_edge element=role(reveal_key)
+-- detail=touch lane has no key expected=1`. The detail is the tell -- the
+-- fence's own absence prints the KEY NAME ("shift", "off"), so a detail of
+-- "touch lane has no key" can only have come from the branch inside the call,
+-- which means the capability was already true when on_start asked. The rows
+-- are off there and say so, which is what shots/plugins/ehreveal-stone601.png
+-- and ehtag-stone601.png photograph.
 --
 -- AND THE EDGE HAS TO BE FORWARDED, WHICH THIS FILE DID NOT DO.
 --
@@ -44,11 +52,18 @@
 -- to forward its own on_key. This one did not, so from the day it was ported
 -- until now its reveal key could never go down, reveal_down was false for the
 -- life of every session, and Tag/Untag were unreachable on EVERY lane -- not
--- just the touch lane the comment above worries about. The four lines in
+-- just the touch lane the paragraphs above are about. The four lines in
 -- plugin.on_key below are the whole fix; the behaviour test pins that the
 -- forward happens, and there is a negative control that reddens when it is
 -- taken away. Measured end to end with a probe under TORIRS_SIM_KEYHOLD=42:
 -- on_key arrives, note_key moves the edge, the callback fires.
+--
+-- AND FOR A LONG TIME NO CAPTURE COULD TELL. Five shots of this plugin were
+-- filed -- one per lane -- and not one of them held a key or opened a menu, so
+-- everything the two paragraphs above are about was photographed by drives
+-- that could not have seen it fail: a build with this on_key deleted made the
+-- same pixels and the same log as a build with it. The drives that CAN see it
+-- are jobs rows `ehreveal-*` and `ehtag-*`; see HOW TO PHOTOGRAPH IT below.
 --
 -- It owns no widget and describes no control: everything it puts on screen is
 -- a scene primitive in the world pass. There is therefore no describe
@@ -104,6 +119,31 @@
 -- armed. porcelain.hull records both, and the count it returns is what reached
 -- the screen rather than what was asked for, which is the difference between
 -- the third and fourth rows of that table.
+-- And the TAG ROWS are a second picture, not a detail of the first one. A hull
+-- shot proves nothing about them: they are built only inside a right-click
+-- menu, only while the reveal key is held, and a plugin with no on_menu_build
+-- at all makes exactly the hull shot that a working one makes. So there are
+-- two drives per lane and each proves itself:
+--
+--   ehreveal-*  holds the key (TORIRS_SIM_KEYHOLD=42, which is
+--               TORIRS_KEY_SHIFT, deferred past the title screen because a key
+--               pressed on frame 1 lands there and is never pressed again),
+--               right-clicks an npc whose id IS IN THE TAG LIST
+--               (TORIRS_SIM_CLICK_NPC=<frame>,<type>,1 -- by type, because
+--               these npcs wander and because a row over an untagged one
+--               reads "Tag" and is a different claim), and leaves the menu
+--               open, so the last frame carries the row over the hull.
+--   ehtag-*     starts with NO tags, so the row reads "Tag";
+--               TORIRS_SIM_MENU_ROW=<frame>,Tag finds the row by its label and
+--               clicks it. The hull in the last frame and the `tags=` line the
+--               run writes back into its own plugins.ini are there ONLY
+--               because that row was picked, which is the only proof of
+--               on_menu_select a picture can carry.
+--
+-- TORIRS_SIM_MENU_ROW prints the label it FOUND before it clicks it, so a row
+-- that was never built cannot pass as one that was; exercised.py --menu-row
+-- reads that line, and answers DECLARED OFF rather than INERT where the run
+-- also carries this plugin's own expected key_edge absence.
 --
 
 ---@type torirs.Plugin

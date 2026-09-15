@@ -12,7 +12,7 @@ Correct code drawing nothing is PIXEL-IDENTICAL to broken code. That is the
 whole problem: the shot is then read as evidence about the plugin when it is
 only evidence about the drive.
 
-Five separate drives in this set were inert and every one was caught downstream
+Six separate drives in this set were inert and every one was caught downstream
 by somebody reading pixels, days late:
 
   * gf-mobile-*   photographed a different provider entirely -- preferred_frame
@@ -23,15 +23,26 @@ by somebody reading pixels, days late:
   * itemstats-*   hovered inventory slot 0, which holds runes -- no stats, so
                   correctly no tooltip.
   * xporbs-*      awarded xp on the very frame the run ended.
+  * highlighter-* drove the hulls on all five lanes and held no key and opened
+                  no menu, so the Tag/Untag rows -- the half the port was FOR
+                  -- were never built in any of the five.
 
 They have nothing in common at the knob level, which is why remembering them
 one at a time does not work. They have everything in common HERE: the shot is
 indistinguishable from the same lane with the plugin absent.
 
     python3 exercised.py <shot.png> --control <control.png> [--box x,y,w,h]
+    python3 exercised.py --menu-row <label> --log runs/<shot>/log.txt
+    python3 exercised.py --selftest
     python3 exercised.py --jobs jobs/cs2_toplevels.txt --shots plugins/
 
-Two signals, because neither is sufficient alone:
+`--selftest` runs the log readers above on bodies whose answer is known and
+takes a second; run it after touching one of them, because the state each of
+them reports is SILENCE in the log, and a reader that answered "found" for the
+empty case would put back exactly the blindness it was written to remove.
+
+Four signals, because no one of them is sufficient alone, and each was added
+the day the ones before it were shown to be blind to something:
 
   INK   the shot against a no-plugin control, inside a box, against a floor
         measured from a SECOND control in that same box. Sound when --box names
@@ -42,8 +53,30 @@ Two signals, because neither is sufficient alone:
         has diagnostics: that asymmetry is how the loot-beam lane defect was
         found, CS2 logging its beam count and CS1 logging nothing.
 
+  MENU  whether a row the PLUGIN added to the right-click menu was actually
+        built. The only one of the four that can see a retained menu row, and
+        the reason it exists:
+
+          * INK cannot: the plugin's row is drawn by the client's own minimenu
+            in the client's own font, so a menu with the row and a menu without
+            it differ by a few hundred pixels of ordinary chrome inside a box
+            that moves with the click -- and a menu that is open at all swamps
+            any box you could scope the comparison to.
+          * LOG cannot: entity-highlighter prints nothing of its own, and the
+            plugins that do print from their draw pass, not their menu build.
+          * EMIT cannot: a menu row is not an owned widget and carries no
+            scene id.
+
+        So the entity highlighter's whole menu half -- the Tag/Untag rows its
+        own header calls the point of the port -- was photographed five times
+        with no key held and no menu open, and every one of those shots was
+        pixel-identical and log-identical to the same plugin with its whole
+        menu half deleted. TORIRS_SIM_MENU_ROW prints the label it FOUND, so
+        naming the label here turns "the row was never built" from a shot
+        nobody can read into a line this tool refuses.
+
   EMIT  whether a widget the plugin OWNS put a draw command in the exit draw
-        list. The only one of the three that is sound for a FRAME PROVIDER,
+        list. The only one of the four that is sound for a FRAME PROVIDER,
         and the reason it exists:
 
           * INK is zero by construction. gameframe-layout's Classic Fixed on a
@@ -132,7 +165,89 @@ def owned_draws(body):
     return owned, sum(1 for scene in drawn if scene in owned)
 
 
+def menu_row_built(body, prefix):
+    """The label TORIRS_SIM_MENU_ROW found for `prefix`, or None.
+
+    `sim_menu_row: frame=600 row 'Tag @yel@Romeo' move 326,220` is printed at
+    the moment the harness finds a row whose text starts with the prefix it was
+    given, BEFORE it clicks it -- so the line is evidence that the row existed,
+    not merely that a click was attempted. No line means no such row was ever
+    on an open menu, which is a drive that proved nothing and must not read as
+    a pass.
+
+    The prefix is matched against the label the harness reports rather than
+    trusted from the drive, because a row that starts with the prefix by
+    accident is a different row: "Tag" and "Untag" both end in the same three
+    letters and only one of them is a prefix of the other.
+    """
+    assert prefix
+    for label in re.findall(r"^sim_menu_row: frame=\d+ row '(.*)' move ", body, re.M):
+        if label.startswith(prefix):
+            return label
+    return None
+
+
+def reveal_key_declared_absent(body):
+    """The detail of a DECLARED key_edge absence, or None.
+
+    A reveal-gated row cannot be built on a lane whose key the plugin has been
+    told does not exist, and that is not the same state as a broken drive: 601
+    logs in as a phone, Porcelain_KeyEdge answers ABSENT at the call, and the
+    plugin turns its rows off and says so. Without this the check would report
+    the touch lane INERT and a reader would be invited to read a correct
+    picture as a defect -- which is the mistake this whole file exists against.
+
+    `expected=1` is required, so only an absence the plugin DECLARED excuses
+    the missing row. An undeclared one is a surprise and stays a failure.
+    """
+    for detail in re.findall(
+            r"^PORCELAIN_FINDING .*verb=key_edge .*detail=(.*?) expected=1 ", body, re.M):
+        return detail
+    return None
+
+
+def selftest():
+    """The two log readers above, on bodies whose answer is known.
+
+    It exists because the state each of them reports is SILENCE: a drive that
+    builds no row prints no line, and a reader that answered "found" for the
+    empty case would put back exactly the blindness they were written to
+    remove -- with nothing on screen to contradict it.
+    """
+    found = "sim_menu_row: frame=600 row 'Tag @yel@Romeo' move 326,220\n"
+    untag = "sim_menu_row: frame=600 row 'Untag @yel@Romeo' move 326,220\n"
+    cases = [
+        ("a built row is reported with its label", found, "Tag", "Tag @yel@Romeo"),
+        ("no line at all is no row", "boot\nSIM_READY elapsed_ms=1\n", "Tag", None),
+        ("Untag is not a Tag row", untag, "Tag", None),
+        ("Untag is its own row", untag, "Untag", "Untag @yel@Romeo"),
+        ("a row for another prefix is not this one", found, "Mark", None),
+    ]
+    for why, body, prefix, want in cases:
+        got = menu_row_built(body, prefix)
+        assert got == want, f"{why}: got {got!r}, want {want!r}"
+
+    declared = ("PORCELAIN_FINDING plugin=entity-highlighter verb=key_edge "
+                "element=role(reveal_key) result=1 detail=touch lane has no key "
+                "expected=1 why=a touch lane has no keyboard frame first_frame=0 count=1\n")
+    undeclared = declared.replace("expected=1", "expected=0")
+    absences = [
+        ("a declared key absence is named", declared, "touch lane has no key"),
+        ("an UNdeclared one excuses nothing", undeclared, None),
+        ("a run with no such finding declares nothing", found, None),
+    ]
+    for why, body, want in absences:
+        got = reveal_key_declared_absent(body)
+        assert got == want, f"{why}: got {got!r}, want {want!r}"
+
+    print("exercised.py selftest: %d menu-row and %d absence cases pass"
+          % (len(cases), len(absences)))
+    return 0
+
+
 def main(argv):
+    if argv and argv[0] == "--selftest":
+        return selftest()
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("shot", nargs="?")
@@ -141,11 +256,49 @@ def main(argv):
     parser.add_argument("--log", help="runs/<shot>/log.txt -- the plugin's own diagnostics")
     parser.add_argument("--plugin", help="plugin id, to find its lines in --log")
     parser.add_argument("--box", help="x,y,w,h to restrict the comparison to")
+    parser.add_argument("--menu-row", metavar="PREFIX",
+                        help="the drive picked a plugin menu row starting with PREFIX; "
+                             "fail unless the log shows that row was built")
     parser.add_argument("--threshold", type=int, default=40,
                         help="chrome pixels below which the drive is called inert")
     args = parser.parse_args(argv)
 
+    # MENU is asked of the LOG alone, so it is answered before the pixels and
+    # without them: a drive whose plugin row was never built has nothing for a
+    # picture to be evidence about, and saying so needs no control shot.
+    menu_label = None
+    if args.menu_row:
+        assert args.log, "--menu-row is a question about the run log; give --log"
+        if not os.path.exists(args.log):
+            print(f"CANNOT COMPARE: no log at {args.log}")
+            return 2
+        with open(args.log, errors="ignore") as handle:
+            log_body = handle.read()
+        menu_label = menu_row_built(log_body, args.menu_row)
+        declared_off = reveal_key_declared_absent(log_body)
+        if menu_label is None and declared_off:
+            print(f"{os.path.basename(args.log)}: NO MENU ROW '{args.menu_row}*' "
+                  f"DECLARED OFF ({declared_off})")
+            print("   The plugin declared this lane cannot answer its reveal key and")
+            print("   turned the rows off. The menu WITHOUT them is the evidence for")
+            print("   that, not a defect -- the job line says NO_KEYBOARD for the same")
+            print("   reason. An UNdeclared absence would still have failed here.")
+            return 0
+        if menu_label is None:
+            print(f"{os.path.basename(args.log)}: NO MENU ROW '{args.menu_row}*' INERT")
+            print("   The harness never found a row with that label on an open menu, so")
+            print("   nothing it clicked was this plugin's and the shot is evidence about")
+            print("   the drive and not the plugin. Check the DRIVE first: did the menu")
+            print("   open at all (TORIRS_SIM_CLICK_NPC ... ,1 -- the trailing 1 is the")
+            print("   right button), was the state that REVEALS the row reached (a reveal")
+            print("   key is held with TORIRS_SIM_KEYHOLD and pressed exactly once, after")
+            print("   the title screen), and can this lane answer that key at all?")
+            return 1
+        print(f"{os.path.basename(args.log)}: menu row {menu_label!r} BUILT")
+
     if not args.shot or not args.control:
+        if menu_label is not None:
+            return 0
         print(__doc__)
         return 2
 

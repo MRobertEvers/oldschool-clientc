@@ -78,57 +78,19 @@ nxthl-live         nxt-highlight       cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;
 #   781 shilop  (21,42)  \  the two children at his stall
 #   783 wilough (21,43)  /
 #
-# All three declare wanderrange=2, so they cannot WALK out of the picture, and
-# that is why they are here and 639 (romeo, two tiles away and the obvious
-# first choice) is not: romeo declares no wanderrange at all, takes the engine
-# default, and is somewhere else by frame 2200 -- tagged, correct, and
-# invisible, which would leave this capture as ambiguous as the one it
-# replaces.
-#
-# THAT ARGUMENT IS ABOUT WALKING AND THE SHOT NEEDED ONE ABOUT LOOKING.
-#
-# It used to end "so they cannot leave the forward view", which does not
-# follow: a wanderrange bounds where an npc goes, not where the camera points.
-# All three stand 11-12 tiles north and 5-8 tiles EAST of the teleport tile,
-# and the follow camera resets to yaw 0 -- due north. Measured on the shipped
-# capture, an exact #FF00FF connected-component scan gives TWO clusters, not
-# three: 232 px at x 423-440 and 80 px at x 508-515, the second one cut by the
-# viewport's right edge at x=515 with eight columns inside it. An identical
-# re-run put the same two at 461-481 and 493-511, so the drift between two runs
-# of one drive is larger than the margin the second hull had. The third npc was
-# never in frame at all, and the shot proved one and a half tags out of three.
-#
-# TORIRS_SIM_CAMERA_YAW=1878 with TORIRS_SIM_CAMERA_YAW_FRAME=1500 turns the
-# camera about 30 degrees east once the teleport has landed and the tags are
-# in, which is the whole fix and is a lever this harness did not have until
-# now: the pre-loop TORIRS_SIM_CAMERA_YAW block runs before login and wrote a
-# field the follow step overwrites on the next cycle, so no live lane could
-# aim its camera. Two runs at this yaw put all three hulls fully inside the
-# viewport, spanning x 207-341 -- 174 px clear of the right edge and 203 of the
-# left, against the ~85 px a two-tile wander is worth at this range.
-#
-# 1878 and not 170: yaw counts the other way round, and 170 turns the camera
-# WEST -- that run photographs an empty street with a zero-pixel mask, which is
-# the same picture a broken plugin makes.
-#
-# Read the shot back rather than looking at it:
-#
-#   python3 hull_margin.py plugins/highlighter-live.png --expect 3
-#
-# which counts the closed rings in the exact #FF00FF mask and prints each one's
-# margin from the 2004 viewport's four edges. It exits 1 on the shipped capture
-# (two hulls, one of them 0 px from the right edge) and 0 on this one.
-#
-# TORIRS_TRACE_PLUGIN_WORLD=1 is in the row for the other half of that: this
-# plugin prints nothing of its own when it works, so without the trace a log
-# cannot tell a tag that matched from a tag that did not. With it the run
-# carries PLUGIN_HULL lines naming the three scene elements it outlined.
+# All three spawn NORTH of the teleport tile -- the direction the camera looks
+# over the player's shoulder -- and all three declare wanderrange=2, so they
+# cannot leave the forward view during the run. That is why they are here and
+# 639 (romeo, two tiles away and the obvious first choice) is not: romeo
+# declares no wanderrange at all, takes the engine default, and is somewhere
+# else by frame 2200 -- tagged, correct, and invisible, which would leave this
+# capture as ambiguous as the one it replaces.
 #
 # The OFFLINE cs1 lane cannot photograph this plugin at all, whatever the tags:
 # it never logs in, so the npc pool is empty and app_plugin_npc_next answers
 # -1 on the first call. Measured: a cs1 run tagging 547,781,783,639,153,1,3
 # logs zero PLUGIN_NPC lines. Only this lane has npcs to highlight.
-highlighter-live   entity-highlighter  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' 'TORIRS_SIM_PLUGIN_CONFIG=1400,entity-highlighter,tags,547,781,783' TORIRS_SIM_CAMERA_YAW=1878 TORIRS_SIM_CAMERA_YAW_FRAME=1500 TORIRS_TRACE_PLUGIN_WORLD=1 TORIRS_MAX_FRAMES=2200
+highlighter-live   entity-highlighter  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' 'TORIRS_SIM_PLUGIN_CONFIG=1400,entity-highlighter,tags,547,781,783' TORIRS_MAX_FRAMES=2200
 gf-mobile-live     mobile-gameframe    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200 TORIRS_SHOT_FRAME=mobile-gameframe/stone-drawer
 # The SAME frame with its drawer OPEN, which is a different frame and not a
 # variation on the one above: opening the drawer takes the chat sheet down, and
@@ -270,3 +232,22 @@ lb-priced-live     loot-beam           cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;
 # row exists so the pair can be re-taken together, minutes apart, when the
 # Varrock floor and the npc crowd are the same.)
 lb-ctrl-torirsdrop loot-beam           cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_MAX_FRAMES=2200
+# And the OTHER half of the same plugin, which the line above cannot see.
+#
+# Everything above is the hull pass. The Tag/Untag rows live on the right-click
+# menu and only while the reveal key is HELD, so no capture in this programme
+# ever built one -- the menu code could have been deleted and this file's own
+# shot would not have changed by a pixel or a log line. 42 is TORIRS_KEY_SHIFT
+# and the press is deferred past the teleport, because a key pressed on frame 1
+# lands on the title screen; the npc is named by TYPE because these three
+# wander and a fixed pixel is a coin toss.
+#
+#   ehreveal-live  right-clicks a TAGGED id and leaves the menu open, so the
+#                  last frame carries "Untag @yel@..." over the hull.
+#   ehtag-live     starts with NO tags, so the row reads "Tag"; SIM_MENU_ROW
+#                  finds it by label, prints the label it found and clicks it.
+#                  The hull in the last frame is there only because of that
+#                  click, which is the only proof of on_menu_select that a
+#                  picture can carry.
+ehreveal-live      entity-highlighter  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' 'TORIRS_SIM_PLUGIN_CONFIG=1400,entity-highlighter,tags,547,781,783' TORIRS_SIM_KEYHOLD=42 TORIRS_SIM_KEYHOLD_FRAME=1500 TORIRS_SIM_CLICK_NPC=2100,547,1 TORIRS_MAX_FRAMES=2200
+ehtag-live         entity-highlighter  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_KEYHOLD=42 TORIRS_SIM_KEYHOLD_FRAME=1500 TORIRS_SIM_CLICK_NPC=1900,547,1 TORIRS_SIM_MENU_ROW=1950,Tag TORIRS_MAX_FRAMES=2200
