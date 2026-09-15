@@ -1412,6 +1412,100 @@ main(void)
             frame();
             CHECK(globes(many) == 0, "and the row empties once they expire");
         }
+        /*
+         * Five WIDE numbers at once -- the collision the row is spread for.
+         *
+         * A label is as wide as its digits and the column's pitch is fixed at
+         * orb_size + ORB_STEP = 50. "+13,034,431", which is what every skill
+         * gains the moment an account is maxed, measures 59px in the plugin's
+         * own p11 atlas, so each label reached nine pixels into the next
+         * one's. It was not nine pixels of background either: the neighbour
+         * painted OVER them in the neighbour's skill colour, so four of the
+         * five numbers ended in a digit that named the wrong skill. And this
+         * is not an only-a-cheat state -- a quest paying 100,000 xp is 51px,
+         * already over the pitch.
+         *
+         * The row is therefore spread from its middle, and what is checked
+         * here is the three things that makes true: no two labels share a
+         * pixel, the row is still centred where the globes are, and every
+         * label is still within half a pitch of its own globe, which is what
+         * keeps "which skill was that?" answerable.
+         */
+        {
+            struct FakeControl const* row[8];
+            struct FakeControl const* discs[8];
+            int saved_xp[25];
+            int saved_level[25];
+            int labels = 0;
+            int shown;
+
+            memcpy(saved_xp, g_xp, sizeof(saved_xp));
+            memcpy(saved_level, g_level, sizeof(saved_level));
+            g_now_ms += 30000;
+            frame();
+            g_now_ms += 600;
+            for( int i = 0; i < 5; i++ )
+            {
+                g_level[10 + i] = 99;
+                g_xp[10 + i] = g_level_xp[98];
+            }
+            tick();
+            frame();
+            shown = globes(discs);
+            for( int c = 0; c < g_control_count; c++ )
+            {
+                struct FakeControl const* label = &g_control[c];
+                if( !label->alive || !label->image )
+                    continue;
+                if( strncmp(label->key, "drop", 4) != 0 )
+                    continue;
+                CHECK(labels < 8, "no more labels than the drop table holds");
+                if( labels < 8 )
+                    row[labels++] = label;
+            }
+            /* Left to right, which is not the order the drop table is in. */
+            for( int i = 1; i < labels; i++ )
+            {
+                struct FakeControl const* hold = row[i];
+                int at = i - 1;
+                while( at >= 0 && row[at]->x > hold->x )
+                {
+                    row[at + 1] = row[at];
+                    at--;
+                }
+                row[at + 1] = hold;
+            }
+            CHECK(shown == 5, "five maxed skills fill the globe row");
+            CHECK(labels == 5, "and each of the five carries a label");
+            if( shown == 5 && labels == 5 )
+            {
+                /* The premise. Without this the block proves nothing: a label
+                 * narrower than the pitch never collided in the first place. */
+                CHECK(row[0]->w > 50, "+13,034,431 is wider than the 50px pitch");
+                for( int i = 0; i + 1 < labels; i++ )
+                    CHECK(row[i]->x + row[i]->w <= row[i + 1]->x,
+                          "no label is painted over by the one beside it");
+                {
+                    int const row_span = (row[0]->x + row[0]->w / 2) + (row[4]->x + row[4]->w / 2);
+                    int const disc_span =
+                        (discs[0]->x + discs[0]->w / 2) + (discs[4]->x + discs[4]->w / 2);
+                    CHECK(row_span == disc_span,
+                          "and the spread row is still centred where the globes are");
+                }
+                for( int i = 0; i < labels; i++ )
+                {
+                    int const label_centre = row[i]->x + row[i]->w / 2;
+                    int const disc_centre = discs[i]->x + discs[i]->w / 2;
+                    CHECK(label_centre - disc_centre < 25 && disc_centre - label_centre < 25,
+                          "each label stays within half a pitch of its own globe");
+                }
+            }
+            memcpy(g_xp, saved_xp, sizeof(saved_xp));
+            memcpy(g_level, saved_level, sizeof(saved_level));
+            g_now_ms += 30000;
+            tick();
+            frame();
+        }
         g_now_ms += 30000;
         frame();
         CHECK(control_named("drop") == NULL, "expired labels remove their controls");

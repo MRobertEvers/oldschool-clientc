@@ -758,3 +758,55 @@ not the same claim. Emptiness was reached in every one of those 307 captures.
 The transition the plugin watches for never happened in any of them — and a
 capture of a state a plugin does not fire on looks exactly like a capture of a
 plugin that does not work.
+## xporbs-collide-{live,548}-{before,after} — XP drop labels that ate each other
+
+XPORBS-DROPLABEL-COLLIDE, and it is TWO pictures because the defect has two
+axes and only one of them was reported.
+
+A drop label is as wide as its digits; the globe column's pitch is fixed at
+`orb_size + ORB_STEP` = 50. `orb_plan` centred each label on its own globe and
+nothing else looked at the row, so the moment a number was wider than the
+pitch it reached into its neighbour — and the neighbour, being a later item in
+the same description, painted OVER it.
+
+| image | drive | what it shows |
+|---|---|---|
+| `xporbs-collide-live-{before,after}` | the `xporbs-live` row of `jobs/cs1live.txt`, plus `drop_duration=10000` | five globes, five `+13,034,431` |
+| `xporbs-collide-548-{before,after}` | the `xporbs-classic548` row of `jobs/cs2_toplevels.txt`, plus `drop_duration=10000` | ONE globe, two gains 1.2s apart |
+
+`drop_duration=10000` is not decoration and it is not the fix under test. The
+climb and the fade are functions of wall-clock milliseconds since the gain, so
+two runs of the same drive stop at different points of the same 1200ms curve
+and the labels come back at different heights and different opacities — which
+is not a difference anybody can read a BEFORE/AFTER pair through. At 10,000ms
+both sides are caught at the same height, fully opaque, and the only thing
+left different between them is the binary.
+
+**The live pair is the reported half: five wide labels on five globes.**
+`"+13,034,431"` measures 59px in the plugin's own p11 atlas against a 50px
+pitch, so each label lost nine pixels to the next one. Measured as the x-extent
+of each label's own SKILL COLOUR in the band (rows 68..75):
+
+```
+before   132..188   182..238   234..288   (...)   332..388     <- runs OVERLAP
+after    114..170   173..229   232..288   (...)   350..406     <- runs are disjoint
+```
+
+Before, run 2 begins at 182 while run 1 still has ink at 188. After, the middle
+label has not moved (231), the two beside it moved 9px out and the two outside
+those 18px out, and every run is a full 122 ink pixels instead of 113 or 119.
+The picture says the same thing in one glance: four of the five numbers used to
+end in a digit painted in the NEXT skill's colour, so they did not read as
+truncated, they read as a different number attributed to the wrong skill.
+
+**The 548 pair is the half nobody reported, and it is the same rule fixing it.**
+Two gains in ONE skill want the same x exactly and are separated only by the
+12px climb, so `+15,983` and `+800` 1.2 seconds apart were printed on top of
+each other and read as `+15003`. There is no lane in this difference: the
+labels are laid out against each other once, by shared rows and then by x, and
+a column laid out VERTICALLY is untouched because consecutive globes there are
+a pitch apart in y and their labels share no row at all.
+
+Neither pair is visible to the port gate. No gate lane gains xp — `grep -c
+XP_ORBS_GAIN` over all ten is zero — so all ten lanes are identical before and
+after, which is exactly the hole this directory exists to cover.
