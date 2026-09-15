@@ -1,7 +1,8 @@
 -- Appended to the actual shipped source by plugin_lua_test.c. Exercises the
--- camera control's placement modes, the report-button presentation hide and
+-- camera control's placement modes, the report-button REPLACE anchor and
 -- its release, event/tick captures and teardown against fake widgets; native
--- ownership and clicks are covered by the C suites and native captures.
+-- ownership, clicks and the anchor's visibility inheritance are covered by the
+-- C suites and native captures.
 return { id = 'screenshot-behavior', on_start = function(host)
     local watches, captures, notices = {}, {}, {}
     local config = { destination = '', delay_ticks = 2, on_level_up = true, on_death = false,
@@ -38,6 +39,7 @@ return { id = 'screenshot-behavior', on_start = function(host)
             function control:set_position(x2, y2) self.x, self.y = x2, y2; return true end
             function control:set_opacity(value) self.opacity = value; return true end
             function control:set_on_op(label, fn) self.label, self.fn = label, fn; return true end
+            function control:set_anchor(target, relation) self.anchor, self.relation = target, relation; return true end
             function control:revalidate() return true end
             function control:bounds() return { x = self.x, y = self.y, width = self.w, height = self.h } end
             function control:remove() self.removed = true; self.children_parent.children[key] = nil end
@@ -70,24 +72,32 @@ return { id = 'screenshot-behavior', on_start = function(host)
 
     config.camera = 'report-button'; product.on_config_changed(api, 'camera')
     assert(next(viewport.children) == nil, 'leaving a corner mode removes the corner control')
-    assert(report.hidden, 'report-button mode hides only the native button presentation')
+    assert(not report.hidden, 'report-button mode never hides the native button itself')
     local small = one(bar.children)
+    assert(small.anchor == report and small.relation == 'replace',
+        'the small camera stands in place of the report button through a REPLACE anchor')
     assert(small.image == 2 and small.x == 430 + (80 - 20) // 2 and small.y == 6 + (22 - 16) // 2,
         'the small camera is centred over the report slot in the native parent')
     small.fn(small)
     assert(#captures == 2, 'the report-slot control captures too')
 
     config.camera = 'off'; product.on_config_changed(api, 'camera')
-    assert(not report.hidden and next(bar.children) == nil, 'camera off releases the native hide and the control')
+    assert(not report.hidden and next(bar.children) == nil, 'camera off removes the control, and the native button was never hidden')
 
     config.camera = 'report-button'; product.on_config_changed(api, 'camera')
     assert(one(bar.children).image == 2, 'report-button mode is re-established')
-    -- A native remount: the old bar and its owned children are gone with it.
+    -- A native remount of the report button while its parent bar SURVIVES:
+    -- the control must be removed on UNBOUND, or it floats with a native
+    -- relation at its last position, no longer inheriting the target's hide.
+    local orphan = one(bar.children)
     watches.report_button(report, { kind = 'unbound' })
+    assert(orphan.removed and next(bar.children) == nil, 'UNBOUND removes the replacement control, not just its reference')
     local bar2 = widget('chat_buttons', 0, 470, 519, 33)
     local report2 = widget('report', 430, 6, 80, 22, bar2)
     watches.report_button(report2, { kind = 'bound' })
-    assert(report2.hidden and one(bar2.children).image == 2, 'a rebound report button is hidden and covered again')
+    local small2 = one(bar2.children)
+    assert(not report2.hidden and small2.anchor == report2 and small2.relation == 'replace' and small2.image == 2,
+        'a rebound report button is replaced again, anchored to the new incarnation')
 
     product.on_game_event(api, { kind = 'death', subject = 'x', value = -1 })
     assert(#captures == 2, 'disabled event kinds do not capture')
