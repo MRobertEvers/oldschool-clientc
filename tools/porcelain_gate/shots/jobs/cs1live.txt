@@ -208,7 +208,7 @@ lootbeam-live      loot-beam           cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;
 # above being there at all. plugins/birdnest-live-before.png is the same drive
 # on the same binary without it: same picture, 24 lines, nothing to read.
 birdnest-live      nxt-bird-nest       cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_TRACE_NATIVE_UI=1 TORIRS_MAX_FRAMES=2200
-cannon-live        nxt-cannon-ammo     cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
+cannon-live        nxt-cannon-ammo     cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_TRACE_NATIVE_UI=1 TORIRS_MAX_FRAMES=2200
 
 # ~maxme is here and nowhere else: it is what puts a real number on an xp orb,
 # and it also floods the chat with level-up dialogues, so no shot that wants a
