@@ -36,6 +36,32 @@
 #include <stdio.h>
 #include <string.h>
 
+/*
+ * WHICH SURFACE THE -12 NUDGE IS WRITTEN ON, AND WHY IT IS NOT `sidebar`.
+ *
+ * The probe's third row is "read a native box, write it back twelve pixels
+ * left, read it AGAIN" -- and a readback that agrees with itself is only half
+ * the assertion. The other half is that the PAINTER honoured it, because a
+ * write the painter drops reads back exactly like one it took.
+ *
+ * `sidebar` is the frame slot, and the node a frame slot answers with is its
+ * side-modal REGION on both lanes: `slot=side_modal` on the 2004 profile, the
+ * `sidemodal` box (clientCode 1354, `[role:frame_sidebar]`) on a cache one.
+ * That region is where an interface opens OVER the tabs, so unless a side
+ * modal is up it is an empty container -- nothing is parented to it and moving
+ * it moves no pixels. On the CS1 lane that is exactly what happened: the
+ * readback said 553 -> 541 and the fourteen tab mounts, which are its
+ * SIBLINGS, stayed at 553 with the inventory drawn in one of them.
+ *
+ * So the nudge is written on the panel the lane actually draws. Every profile
+ * declares `[role:panel_<name>]` for its side panels -- `slot(sidebar, 3)` on
+ * the dat1 lane, `id(if(149, 0))` on the dat2 one -- which is one role name,
+ * one lookup and no number compiled into C. The tab this resolves to is the
+ * revision's own answer to "where does the inventory live", and a lane that
+ * declares no such panel reports UNAVAILABLE and the probe simply never binds.
+ */
+#define PANEL_ROLE "panel_inventory"
+
 struct WidgetDemoState {
     struct ToriRS_WidgetRef label, control, public_button;
     struct ToriRS_WidgetActionRef retained_action;
@@ -171,7 +197,7 @@ static void widget_demo_start(struct ToriRS_Api* api, void* user)
     api->core.log(api,"WIDGET_DEMO_SCRIPT_CALLBACKS available=%d",api->scripts.available(api->scripts.context));
     api->scripts.invalidate(api->scripts.context,"groundItemCaption");
     api->widgets.watch(api->widgets.context,"public_chat_button",widget_demo_binding,user);
-    api->widgets.watch(api->widgets.context,"sidebar",widget_demo_binding,user);
+    api->widgets.watch(api->widgets.context,PANEL_ROLE,widget_demo_binding,user);
     api->widgets.watch(api->widgets.context,"viewport",widget_demo_binding,user);
 }
 static void widget_demo_script(struct ToriRS_Api* api,void* user,struct ToriRS_ScriptEvent const* event)
