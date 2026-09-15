@@ -2684,7 +2684,10 @@ porcelain_apply_anchor(struct Porcelain* porcelain, struct PorcelainAppliedItem*
                    ? TORIRS_WIDGET_RELATION_REPLACE
                    : (applied->item.place.behind ? TORIRS_WIDGET_RELATION_BEHIND
                                                  : TORIRS_WIDGET_RELATION_OVER);
-    if( !fresh && ToriRS_WidgetRefEqual(applied->anchor_target, anchor) )
+    /* The RELATION as well as the target: the same ref in a new relation is a
+     * new anchor, and a layer that compares only the ref never writes it. */
+    if( !fresh && ToriRS_WidgetRefEqual(applied->anchor_target, anchor) &&
+        applied->anchor_relation == relation )
         return;
     if( (applied->item.place.kind == PORCELAIN_AT_CANVAS ||
          applied->item.place.kind == PORCELAIN_AT_USABLE ||
@@ -2698,6 +2701,7 @@ porcelain_apply_anchor(struct Porcelain* porcelain, struct PorcelainAppliedItem*
          * frame on osrs239. A parenting placement that STATES a depth target
          * is asking for that anchor on purpose. @see porcelain_push_item. */
         applied->anchor_target = anchor;
+        applied->anchor_relation = relation;
         return;
     }
     porcelain->counters.engine_calls++;
@@ -2725,6 +2729,7 @@ porcelain_apply_anchor(struct Porcelain* porcelain, struct PorcelainAppliedItem*
             return;
     }
     applied->anchor_target = anchor;
+    applied->anchor_relation = relation;
     porcelain->dirty = true;
 }
 
