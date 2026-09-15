@@ -1624,6 +1624,70 @@ main(void)
         g_now_ms += 30000;
         frame();
     }
+    /*
+     * The label the painter draws fits the box the plan measured for it.
+     *
+     * A drop big enough to outgrow the globe pitch is respelled short so the
+     * five labels in a row stop overpainting one another. That decision was
+     * taken in orb_plan, which sized the control from the SHORT spelling --
+     * and then orb_paint_drop re-derived the LONG one from the raw number and
+     * wrote it into that box. The engine clipped it at the edge, so
+     * "+13,034,431" reached the screen as "+13,03" plus a one-pixel slice of
+     * the next digit. A truncated number reads as a wrong number, which is a
+     * worse failure than the collision the respelling was added to fix, and no
+     * check here could see it: the control's WIDTH was right, and the width is
+     * all anything was looking at.
+     *
+     * So this looks at the pixels the plugin actually published. The label is
+     * laid out at orb_text_width + 1, so a string that fits always leaves that
+     * last column bare; a string that was cut off runs ink into it.
+     *
+     * MUTATION: in orb_paint_drop, spell picture->text yourself with
+     * orb_commas(picture->amount) instead of drawing the text the plan chose.
+     * Red on "no ink reaches the last column".
+     */
+    {
+        struct FakeControl const* drop;
+        struct FakeImage const* image = NULL;
+        int rightmost = -1;
+        int ink = 0;
+
+        PluginHost_ConfigSet(g_host, index, "show_xp_drops", "1");
+        g_now_ms += 30000;
+        frame();
+        g_now_ms += 600;
+        /* Big enough that the comma'd spelling cannot fit between two globes. */
+        g_level[15] = 99;
+        g_xp[15] = 13034431;
+        tick();
+        frame();
+
+        drop = control_named("drop");
+        CHECK(drop != NULL, "a drop of thirteen million still places a label");
+        /* FakeControl stores the slot PLUS ONE, so that 0 can mean "no
+         * picture set" -- see PLUGIN_WIDGET_SET_IMAGE in fake_widget. */
+        if( drop && drop->image > 0 && drop->image <= FAKE_IMAGE_SLOTS )
+            image = &g_image[drop->image - 1];
+        CHECK(image && image->argb, "and publishes a picture for it");
+        if( image && image->argb )
+        {
+            for( int y = 0; y < image->h; y++ )
+                for( int x = 0; x < image->w; x++ )
+                    if( image->argb[y * image->w + x] & 0xFF000000u )
+                    {
+                        ink++;
+                        if( x > rightmost )
+                            rightmost = x;
+                    }
+            CHECK(ink > 0, "the picture is not blank");
+            if( rightmost >= image->w - 1 )
+                printf("  label ink reaches column %d of %d -- the text was cut off\n",
+                       rightmost, image->w);
+            CHECK(rightmost < image->w - 1,
+                  "no ink reaches the last column: the text fits the box it was measured for");
+        }
+    }
+
     PluginHost_SetEnabled(g_host, index, false);
     CHECK(globes(g) == 0, "disabling the plugin removes every owned control");
     PluginHost_Free(g_host);
