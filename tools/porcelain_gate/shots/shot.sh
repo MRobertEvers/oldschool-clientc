@@ -11,21 +11,44 @@ set -u
 
 here=${0:A:h}
 repo=/Users/matthewevers/Documents/git_repos/3draster
-wt=${TORIRS_SHOT_WORKTREE:-/Users/matthewevers/Documents/git_repos/3draster/.claude/worktrees/agent-a0428158f40a99477}
+# The tree under test defaults to the one this script lives in, as lane.sh and
+# capture_set.sh do. It used to name one agent's worktree, which made every
+# shot anyone else took a shot of somebody else's scripts.
+wt=${TORIRS_SHOT_WORKTREE:-${here:h:h:h}}
 bin=${TORIRS_SHOT_BIN:-$wt/src/torirs_plain}
 
 name=$1 lane=$2; shift 2
 
-run=$here/runs/$name; rm -rf $run; mkdir -p $run/saves
+run=${TORIRS_SHOT_RUNS:-$here/runs}/$name; rm -rf $run; mkdir -p $run/saves
+
+# A toplevel is not a knob the client takes: it is a consequence of the save's
+# client_layout_mode and of whether the lane logs in as a phone, which is how
+# lane.sh picks one for the gate and so how it is picked here. 0 -> 548,
+# 1 -> 161, 2 -> 164, and TORIRS_CLIENTTYPE=7 -> 601. The frame under test has
+# to be the one that OWNS that toplevel, or the shot is of the wrong provider.
+mobile=0
 case $lane in
-  cs2) manifest=m239.ini; mode=0; frame='gameframe-layout/classic-fixed'; extra_args=() ;;
-  cs1) manifest=m254.ini; mode=0; frame=auto;                             extra_args=(--offline) ;;
-  *) echo "lane must be cs2 or cs1"; exit 2 ;;
+  cs2|classic548)
+        manifest=manifest_osrs239_curses.ini; mode=0; frame='gameframe-layout/classic-fixed';    extra_args=() ;;
+  classic161)
+        manifest=manifest_osrs239_curses.ini; mode=1; frame='gameframe-layout/classic-fixed';    extra_args=() ;;
+  modern164)
+        manifest=manifest_osrs239_curses.ini; mode=2; frame='gameframe-layout/modern-resizable'; extra_args=() ;;
+  stone601)
+        manifest=manifest_osrs239_curses.ini; mode=0; frame='mobile-gameframe/stone-drawer';     extra_args=(); mobile=1 ;;
+  native548)
+        manifest=manifest_osrs239_curses.ini; mode=0; frame=auto;                                extra_args=() ;;
+  cs1|dat1_254)
+        manifest=manifest_rs254lc.ini;        mode=0; frame=auto;                                extra_args=(--offline) ;;
+  *) echo "lane must be one of cs2|classic548 classic161 modern164 stone601 native548 cs1|dat1_254"; exit 2 ;;
 esac
 
 # The manifests are generated once by shot_manifests.sh, with the caches and
 # content pinned to the data checkout and revconfig to the worktree under test.
-[ -f $here/manifests/$manifest ] || { echo "run shot_manifests.sh first"; exit 2; }
+# TORIRS_SHOT_MANIFESTS selects a second set, which is what a BEFORE shot needs:
+# its revconfig must come from the tree the BEFORE binary was built from.
+mdir=${TORIRS_SHOT_MANIFESTS:-$here/manifests}
+[ -f $mdir/$manifest ] || { echo "run shot_manifests.sh first ($mdir/$manifest)"; exit 2; }
 
 printf '[preferences]\nversion=1\npreferred_frame=%s\nframe_migration_version=1\n' "$frame" \
     > $run/preferences.ini
@@ -34,6 +57,7 @@ sed -e "s/^client_layout_mode = .*/client_layout_mode = $mode/" \
     $repo/saves/testc.ini > $run/saves/testc.ini
 
 env_extra=()
+[ "$mobile" = 1 ] && env_extra+=(TORIRS_CLIENTTYPE=7)
 for kv in "$@"; do env_extra+=("$kv"); done
 
 ( cd $repo && env \
@@ -50,7 +74,7 @@ for kv in "$@"; do env_extra+=("$kv"); done
     TORIRS_EXIT_BMP=$run/out.bmp \
     TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 \
     "${env_extra[@]}" \
-    $bin --manifest $here/manifests/$manifest --windowmode resizable \
+    $bin --manifest $mdir/$manifest --windowmode resizable \
         --window ${TORIRS_SHOT_WINDOW:-765x503} "${extra_args[@]}" \
     > $run/log.txt 2>&1 )
 rc=$?
@@ -58,6 +82,6 @@ rc=$?
 if [ ! -s $run/out.bmp ]; then
   echo "$name/$lane: NO IMAGE (exit $rc)"; tail -3 $run/log.txt; exit 1
 fi
-sips -s format png $run/out.bmp --out $here/$name.png >/dev/null 2>&1
+sips -s format png $run/out.bmp --out ${TORIRS_SHOT_OUT:-$here}/$name.png >/dev/null 2>&1
 printf "%-28s %-4s exit=%s bounds=%s %s\n" "$name" "$lane" "$rc" \
-  "$(grep -c '^BOUNDS' $run/log.txt)" "$here/$name.png"
+  "$(grep -c '^BOUNDS' $run/log.txt)" "${TORIRS_SHOT_OUT:-$here}/$name.png"
