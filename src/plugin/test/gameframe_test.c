@@ -1314,6 +1314,7 @@ main(void)
               "Auto resolves to the client's native frame");
         CHECK(!PluginHost_IsEnabled(g_host, g_plugin), "Auto does not run a frame provider");
     }
+    g_frame.select_calls = 0;
     select_frame("gameframe-layout/classic-fixed", 100);
     PluginHost_WidgetsChanged(g_host, 77, 1);
     {
@@ -1327,6 +1328,39 @@ main(void)
 
     /* ---- 2. classic fixed on the 2004 lane ----------------------------- */
     declare(765, 503);
+    /*
+     * The COLLAPSED lane, under a frame whose side well is permanent.
+     *
+     * `active_tab` is -1 here, which is what a toplevel that logs in with no
+     * side panel open answers: 164's own state, and interface 164's own
+     * reference behaviour -- its native chrome draws two tab rows in the
+     * corner and no panel at all until a stone is pressed. Neither FIXED
+     * frame has that shape. Each blits a 190x261 well, two pillars and a lid
+     * whatever the lane is doing, so a collapsed lane under one put 261 rows
+     * of bare rock on screen with all fourteen stones idle -- measured on
+     * `gf-desktop-modern164`. The frame asks the lane for the inventory
+     * instead, through the same switch a stone presses.
+     *
+     * Mutation: drop the frame_seed_sidebar call out of
+     * frame_on_frame_build, make frame_sidebar_permanent answer true for
+     * FRAME_MODERN_RESIZABLE (the resizable check in section 4 goes red), or
+     * take PLUGIN_CALLBACK_LAYOUT back out of api_tab_select's dispatch gate
+     * -- the host refuses the ask and this goes red with calls=0, which is
+     * where the fix started.
+     */
+    CHECK(g_frame.select_calls == 1 && g_frame.selected_tab == 3,
+          "a fixed frame over a lane with no tab open asks for the inventory, once");
+    /*
+     * ONCE. The fixture's tab never actually opens -- `active_tab` is still
+     * -1 -- so a frame that asked on every build would count up over the
+     * rebuild below, and a panel re-opened every build is a panel the player
+     * can never close.
+     */
+    declare(765, 503);
+    frame_tick();
+    declare(765, 503);
+    CHECK(g_frame.select_calls == 1,
+          "and does not ask again on a later build: the choice after the first is the player's");
     {
         struct ToriRS_FrameSelection const selected = selected_frame();
         CHECK(strcmp(selected.active_id, "gameframe-layout/classic-fixed") == 0 && selected.status == TORIRS_FRAME_STATUS_ACTIVE,
@@ -1501,8 +1535,15 @@ main(void)
 
     /* ---- 4. modern resizable on the 2004 lane -------------------------- */
     g_frame.active_tab = -1;
+    g_frame.select_calls = 0;
     select_frame("gameframe-layout/modern-resizable", 300);
     declare(1200, 800);
+    /* The other half of the seeding rule, and the reason it is a question
+     * about the FRAME and not about the lane: this layout has a collapsed
+     * state of its own and draws it. Opening a tab for it would replace the
+     * reference's two stacked rows with a panel nobody asked for. */
+    CHECK(g_frame.select_calls == 0,
+          "the resizable frame draws the collapsed sidebar instead of opening it");
     CHECK(g_frame.canvas == TORIRS_FRAME_CANVAS_WINDOW && g_frame.fixed_w == 765 && g_frame.fixed_h == 503,
           "the resizable frame states a minimum and lets the window be the canvas");
     CHECK(placed("viewport", -1, 0, 0, 1200, 800), "the scene is the whole window");
@@ -1935,8 +1976,14 @@ main(void)
         PluginHost_WidgetsChanged(g_host, 77, 20);
         g_frame.active_tab = 3;
         g_frame.ungiven_tab = -1;
+        g_frame.select_calls = 0;
         select_frame("gameframe-layout/classic-fixed", 1000);
         declare(765, 503);
+        /* The lane logged in with a tab already open -- 548's own state --
+         * so the frame's well is filled and there is nothing to ask for.
+         * @see frame_seed_sidebar. */
+        CHECK(g_frame.select_calls == 0,
+              "a fixed frame over a lane that already has a tab open asks for nothing");
 
         /*
          * THE ACCEPTANCE: every face stands on its own tab's box.

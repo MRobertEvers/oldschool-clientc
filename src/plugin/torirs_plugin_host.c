@@ -1333,12 +1333,30 @@ api_tab_select(
     int tabno)
 {
     assert(ctx);
+    /*
+     * Who may flip a tab: a player's action, and a frame being BUILT.
+     *
+     * The first four are the player -- a key, a menu row, a panel button, an
+     * owned control's operation -- and the rule they enforce is that nothing
+     * moves the sidebar behind the player's back on an ordinary frame.
+     *
+     * PLUGIN_CALLBACK_LAYOUT is on_gameframe and nothing else (both the
+     * build and the release dispatch under it), which makes it the one
+     * moment a FRAME may ask: the player has just chosen this frame and the
+     * frame's shape is being decided. A frame whose side well is structural
+     * -- both fixed gameframes blit one whatever the lane is doing -- stands
+     * over a toplevel that logs in collapsed with 261 rows of bare rock in
+     * it and no stone lit, and the only thing that can fill it is the lane's
+     * own switch. Refusing here made that unfixable from inside a provider
+     * and said nothing about why. @see frame_seed_sidebar in gameframe.c.
+     */
     switch( ctx->host->dispatch_event )
     {
     case PLUGIN_CALLBACK_KEY:
     case PLUGIN_CALLBACK_MENU_SELECT:
     case PLUGIN_CALLBACK_PANEL_ACTION:
     case PLUGIN_CALLBACK_WIDGET_OPERATION:
+    case PLUGIN_CALLBACK_LAYOUT:
         break;
     default:
         return false;
