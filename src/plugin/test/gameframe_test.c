@@ -1986,6 +1986,67 @@ main(void)
               "a fixed frame over a lane that already has a tab open asks for nothing");
 
         /*
+         * And the chat pack is seated against THIS grid's leftmost stone.
+         *
+         * The 519-wide OldSchool pack at the 2004 origin ends at 536, which is
+         * ten columns into 548's bottom row at 526 and eight into 161's at
+         * 528: the pack's parchment and its filter rock painted over the Clan
+         * Chat stone's bevel and sliced its icon flat. Nothing above section 10
+         * could see it, because no lane in this file had a `sidetab_<n>` to
+         * stand in the way -- which is exactly why the repair that shipped was
+         * a constant 7, the minimum over the two shipped grids, correct on 548
+         * and two columns of wasted sheet on 161.
+         *
+         * Asserted as the SEAM and not as a number: the pack's right edge IS
+         * the stone's left edge, on whichever grid the lane states. The two
+         * literals below are the two grids the shipped roots state, and the
+         * arithmetic between them is the claim.
+         *
+         * MUTATION: put `chat_x` back to the constant FRAME_C_CHAT_WIDE_X and
+         * the 528 case goes red while the 526 case still passes -- which is
+         * the whole difference between a derivation and a number that happens
+         * to be right once.
+         */
+        {
+            struct FakeWidget const* chat;
+            fw_build(/*oldschool=*/1);
+            fw_tabs(/*x0=*/526, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
+            PluginHost_WidgetsChanged(g_host, 78, 21);
+            declare(765, 503);
+            chat = native("chat", -1);
+            CHECK(chat && chat->x + chat->w == 526,
+                  "the pack's right edge lands on 548's leftmost bottom stone");
+
+            fw_build(/*oldschool=*/1);
+            fw_tabs(/*x0=*/528, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
+            PluginHost_WidgetsChanged(g_host, 79, 22);
+            declare(765, 503);
+            chat = native("chat", -1);
+            CHECK(chat && chat->x + chat->w == 528,
+                  "and on 161's, which is two columns further right");
+
+            /* A row that stands ABOVE the band is not in the pack's way, and
+             * the pack keeps the 2004 origin rather than being seated against
+             * a stone it never reaches. */
+            fw_build(/*oldschool=*/1);
+            fw_tabs(/*x0=*/526, /*pitch=*/33, /*y_top=*/100, /*y_bottom=*/168, 33, 36);
+            PluginHost_WidgetsChanged(g_host, 80, 23);
+            declare(765, 503);
+            chat = native("chat", -1);
+            CHECK(chat && chat->x == 17,
+                  "a lane whose stones are all above the chat band leaves the pack at the 2004 origin");
+
+            /* Put the fixture back the way section 10 built it: everything
+             * below reads the 526 grid with its bottom row in the band. */
+            fw_build(/*oldschool=*/1);
+            fw_tabs(/*x0=*/526, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
+            PluginHost_WidgetsChanged(g_host, 81, 24);
+            g_frame.active_tab = 3;
+            g_frame.ungiven_tab = -1;
+            declare(765, 503);
+        }
+
+        /*
          * THE ACCEPTANCE: every face stands on its own tab's box.
          *
          * Face keys are SCREEN order and `sidetab_<n>` is TAB order, which is

@@ -3600,6 +3600,53 @@ static char const* const FRAME_LAYOUT_NAME[] = {
  * on and off on a 2004 world moves nothing, and anything that DOES move is a
  * bug in the machinery rather than a difference of opinion about the frame.
  */
+/*
+ * The leftmost lane stone standing in the chat band, or 0 where none does.
+ *
+ * This is the number a chat pack wider than the 2004 hole has to be seated
+ * against. The 2004 frame's own hole is 479 columns at x=17 and ends at 496,
+ * which is where `backbase2` starts and 42 columns left of that grid's first
+ * bottom stone -- so on the 2004 art nothing stands in the pack's way. An
+ * OldSchool lane mounts the same 519-wide interface 162 and stands its bottom
+ * row at 526 (548) or 528 (161), and 17 + 519 = 536 is eight to ten columns
+ * INTO that stone: the pack's parchment and its filter rock painted over the
+ * Clan Chat stone's bevel and sliced its icon flat.
+ *
+ * Asking the lane rather than writing the answer down is the difference
+ * between the two grids getting 7 and 9 -- each exactly clearing its own
+ * stone -- and both getting the minimum of the two, which clears 161's stone
+ * by two columns of wasted sheet and is a constant that means nothing on the
+ * next grid a root states. The pack's width cannot be the lever instead:
+ * interface 162 anchors `All` at +5 and `Report abuse` at -3 of its box, so
+ * its children need 511 of its 519 columns.
+ *
+ * A band with no lane stone in it answers 0 and the caller keeps the 2004
+ * origin, which is right twice over: a 2004 lane has no stones to clear, and
+ * a lane whose stones sit above the band is not standing in the pack's way.
+ */
+static int
+frame_chat_band_seam(struct FrameCall* ctx, int chat_y)
+{
+    struct FrameBox tabs[FRAME_TAB_COUNT];
+    int seam = 0;
+
+    assert(ctx);
+    if( !frame_lane_tab_boxes(ctx, tabs) )
+        return 0;
+    for( int i = 0; i < FRAME_TAB_COUNT; i++ )
+    {
+        if( tabs[i].w <= 0 || tabs[i].h <= 0 )
+            continue;
+        /* Standing in the band means its rows overlap the pack's, not merely
+         * that it is somewhere below: 548 puts a tab row at 168 as well. */
+        if( tabs[i].y + tabs[i].h <= chat_y )
+            continue;
+        if( !seam || tabs[i].x < seam )
+            seam = tabs[i].x;
+    }
+    return seam;
+}
+
 static void
 frame_layout_classic_fixed(struct FrameCall* ctx)
 {
@@ -3937,10 +3984,17 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         else
         {
             int const chat_y = FRAME_FIXED_H - native_h;
-            /* A pack that fits the hole is seated in it; a wider one is seated
-             * where it clears the tab stones. @see FRAME_C_CHAT_WIDE_X. */
-            int const chat_x =
-                native_w > FRAME_C_CHAT_W ? FRAME_C_CHAT_WIDE_X : FRAME_C_CHAT_X;
+            /*
+             * A pack that fits the hole is seated in it; a wider one is seated
+             * so its RIGHT EDGE lands on the leftmost stone the lane stands in
+             * this band, and where the lane stands none, on the 2004 origin,
+             * because there is then nothing to clear.
+             * @see frame_chat_band_seam.
+             */
+            int const seam = native_w > FRAME_C_CHAT_W
+                                 ? frame_chat_band_seam(ctx, chat_y)
+                                 : 0;
+            int const chat_x = seam > native_w ? seam - native_w : FRAME_C_CHAT_X;
 
             frame_surface(ctx, FRAME_SURFACE_CHAT, chat_x, chat_y, native_w, native_h);
             ctx->state->chat_seam_x = chat_x;
