@@ -29,6 +29,9 @@ static int g_disabled_self;
 static int g_config_dispatches;
 static char g_disable_reason[192];
 
+/* The refusals the runtime group provokes on purpose, counted. @see main. */
+#define LUA_TEST_DELIBERATE_DISABLES 15
+
 #define CHECK(condition, message)                                                       \
     do                                                                                  \
     {                                                                                   \
@@ -602,9 +605,21 @@ static void test_widget_set_anchor(struct ToriRS_PluginHost* host)
         "local p={id='widget-anchor'};function p.on_start(api) "
         " local control=assert(api.widgets.get(1));local target=assert(api.widgets.get(1));"
         " assert(control:set_anchor(target,'behind'));"
-        " assert(control:set_anchor(nil,'native'));"
-        " assert(not pcall(function() control:set_anchor(target,'sideways') end));"
-        " assert(not pcall(function() control:set_anchor(nil,'over') end)) end;return p";
+        " assert(control:set_anchor(nil,'native')) end;return p";
+    /* The two REFUSALS, each as its own script, because the sandbox removes
+     * pcall and always has: a refusal is a FAULT here, and a fault ends the
+     * callback. Written as `assert(not pcall(...))` inside the script above,
+     * both of these read as passes -- pcall was nil, the script was disabled
+     * at the call, and the only CHECK left was one the two lines before it
+     * had already satisfied. Neither claim was ever tested. */
+    static char const bad_relation[]=
+        "local p={id='widget-anchor-relation'};function p.on_start(api) "
+        " local control=assert(api.widgets.get(1));local target=assert(api.widgets.get(1));"
+        " control:set_anchor(target,'sideways') end;return p";
+    static char const nil_target[]=
+        "local p={id='widget-anchor-target'};function p.on_start(api) "
+        " local control=assert(api.widgets.get(1));"
+        " control:set_anchor(nil,'over') end;return p";
     struct FakeInstance instance={"widget-anchor",""};struct ToriRS_Api api=fake_api(&instance);
     api.widgets.get_widget=fake_lua_get_widget;api.widgets.set_anchor=fake_lua_set_anchor;
     int index=PluginLua_AddScript(host,"widget-anchor",source,(int)strlen(source));
@@ -613,6 +628,33 @@ static void test_widget_set_anchor(struct ToriRS_PluginHost* host)
     g_defs[index]->callbacks.on_start(&api,NULL);
     CHECK(lua_anchor_sets==2 && lua_anchor_relation==TORIRS_WIDGET_RELATION_NATIVE && lua_anchor_target.opaque[0]==0,
           "Lua forwards named relations and a nil target for native");
+
+    /* Its OWN instance: the runtime finds the script by core.plugin_id(), so
+     * a second script driven through the first one's api runs the FIRST one's
+     * body and proves nothing about itself. */
+    struct FakeInstance bad_instance={"widget-anchor-relation",""};
+    struct ToriRS_Api bad_api=fake_api(&bad_instance);
+    bad_api.widgets.get_widget=fake_lua_get_widget;bad_api.widgets.set_anchor=fake_lua_set_anchor;
+    int disables=g_disabled_self;
+    int bad=PluginLua_AddScript(host,"widget-anchor-relation",bad_relation,(int)strlen(bad_relation));
+    CHECK(bad>=0,"the bad-relation script registers");
+    lua_anchor_sets=0;
+    g_defs[bad]->callbacks.on_start(&bad_api,NULL);
+    CHECK(g_disabled_self==disables+1 && strstr(g_disable_reason,"sideways")!=NULL,
+          "an unnamed anchor relation is refused by name");
+    CHECK(lua_anchor_sets==0,"and never reaches the native set_anchor");
+
+    struct FakeInstance nil_instance={"widget-anchor-target",""};
+    struct ToriRS_Api nil_api=fake_api(&nil_instance);
+    nil_api.widgets.get_widget=fake_lua_get_widget;nil_api.widgets.set_anchor=fake_lua_set_anchor;
+    disables=g_disabled_self;
+    int nil_index=PluginLua_AddScript(host,"widget-anchor-target",nil_target,(int)strlen(nil_target));
+    CHECK(nil_index>=0,"the nil-target script registers");
+    lua_anchor_sets=0;
+    g_defs[nil_index]->callbacks.on_start(&nil_api,NULL);
+    CHECK(g_disabled_self==disables+1 && strstr(g_disable_reason,"torirs.widget")!=NULL,
+          "only 'native' takes a nil target; every other relation needs a widget");
+    CHECK(lua_anchor_sets==0,"and that one never reaches the native set_anchor either");
 }
 static int lua_img_slot,lua_img_w,lua_img_h,lua_img_opacity,lua_img_creates;
 static enum ToriRS_ContractResult fake_lua_create_image(void* ctx,struct ToriRS_WidgetRef parent,char const* key,struct ToriRS_WidgetRef* out)
@@ -1108,6 +1150,24 @@ main(void)
     test_widget_set_anchor(&host);
     test_widget_images(&host);
     test_menu_module(&host);
+    /*
+     * A DISABLED PLUGIN AND A WORKING ONE MAKE THE SAME SILENCE.
+     *
+     * Every refusal above is provoked on purpose and each has a CHECK on the
+     * reason it gave. Nothing reconciled the SET, though, so a script that
+     * faulted for a reason nobody intended just printed a line and left the
+     * suite green -- which is how `widget-anchor` spent its life calling a
+     * pcall the sandbox has always removed, disabling itself at the third
+     * statement, with the only CHECK after it already satisfied by the first
+     * two. Two refusals were claimed and neither was ever tested.
+     *
+     * So the count is DECLARED. Adding a negative fixture means saying so
+     * here; a disable nobody declared turns the suite red at the frame that
+     * caused it.
+     */
+    CHECK(g_disabled_self == LUA_TEST_DELIBERATE_DISABLES,
+        "every self-disable in the runtime group is one this suite provoked on purpose");
+    int const disables_after_runtime = g_disabled_self;
     PluginLua_Shutdown();
     reset_fake();
     test_bundled_scripts(&host);
@@ -1134,6 +1194,12 @@ main(void)
     test_real_porcelain_pump(&host);
     test_lua_within_placement(&host);
     test_pump_costs_an_idle_plugin_nothing(&host);
+    /* The second group has NO negative fixture in it: every bundled script,
+     * every ported product and every pump probe is meant to run to the end.
+     * One of them switching itself off at on_start is the exact failure this
+     * suite exists to catch, and it is invisible in a green run otherwise. */
+    CHECK(g_disabled_self == disables_after_runtime,
+        "no bundled script, product or pump probe disabled itself");
     PluginLua_Shutdown();
     if( g_failures )
     {

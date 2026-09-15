@@ -31,6 +31,10 @@ return { id = 'screenshot-behavior', on_start = function(host)
     local assets = { ['camera.png'] = { ready = false, ref = 1, w = 28, h = 26, requests = 0 },
                      ['camera_small.png'] = { ready = false, ref = 2, w = 20, h = 16, requests = 0 } }
     local by_ref = { [1] = assets['camera.png'], [2] = assets['camera_small.png'] }
+    -- Derived pictures are NOT assets: the layer composes them from the
+    -- plugin's own pixels, so nothing here is requested, held or released.
+    -- Keyed by name; the slot remembers the inputs it was painted for.
+    local derived_slots, derived_paints, next_derived_ref = {}, {}, 100
     local held, released = {}, {}
     -- The layer releases an image no describe run has asked for in four runs.
     local IMAGE_IDLE_RUNS = 4
@@ -43,9 +47,12 @@ return { id = 'screenshot-behavior', on_start = function(host)
 
     local function signature(item)
         -- Everything the real hash covers except the resolved box.
+        -- An item that never mentions opacity is OPAQUE, and says so with
+        -- zero: PORCELAIN_OPACITY_DEFAULT is 0 and invisible has its own
+        -- name. The plate is such an item -- it states no opacity at all.
         return table.concat({ item.image or '-', item.place.kind, item.place.on,
             tostring(item.place.corner), item.place.dx or 0, item.place.dy or 0,
-            item.w, item.h, item.opacity, item.op_label or '-',
+            item.w, item.h, item.opacity or 0, item.op_label or '-',
             tostring(item.hit), tostring(item.on_op) }, '|')
     end
 
@@ -64,6 +71,9 @@ return { id = 'screenshot-behavior', on_start = function(host)
             'only replace, inside and within are described')
         local ox = p.kind == 'within' and 0 or t.x
         local oy = p.kind == 'within' and 0 or t.y
+        if p.corner == 'centre' then
+            return ox + (t.width - w) // 2 + dx, oy + (t.height - h) // 2 + dy, w, h
+        end
         local x = (p.corner == 'top_right' or p.corner == 'bottom_right')
             and ox + t.width - w - dx or ox + dx
         local y = (p.corner == 'bottom_left' or p.corner == 'bottom_right')
@@ -117,7 +127,7 @@ return { id = 'screenshot-behavior', on_start = function(host)
                 local sig = signature(item)
                 if control.signature ~= sig then
                     control.signature = sig
-                    control.image, control.opacity = item.image, item.opacity
+                    control.image, control.opacity = item.image, item.opacity or 0
                     control.label, control.fn = item.op_label, item.on_op
                     -- armed = hit AND enabled AND a handler: a control with no
                     -- hit box is drawn, inert and has no menu row.
@@ -195,6 +205,37 @@ return { id = 'screenshot-behavior', on_start = function(host)
             if not asset.ready then return nil, 'pending' end
             return asset.ref, 'ready'
         end,
+        -- Porcelain_Derived's own two rules, and no more than those: a key
+        -- is painted AT MOST ONCE per (key, inputs, size) -- the layer hashes
+        -- the inputs -- and what comes back is the compose's state, which is
+        -- what the plugin branches on. The paint callback is the PLUGIN's
+        -- function; calling it here is what proves the plugin can fill a
+        -- whole w*h plate, which is the difference between a plate and a
+        -- plate with holes in it.
+        derived = function(key, inputs, w, h, paint)
+            assert(type(key) == 'string', 'a derived picture is named')
+            assert(type(inputs) == 'string', 'a derived picture states its inputs')
+            assert(type(paint) == 'function', 'a derived picture paints itself')
+            assert(w > 0, 'a derived picture has a width')
+            assert(h > 0, 'a derived picture has a height')
+            local slot = derived_slots[key]
+            if slot and slot.inputs == inputs and slot.w == w and slot.h == h then
+                return slot.ref, slot.state
+            end
+            local cells = paint(w, h)
+            assert(type(cells) == 'table', 'the paint callback returns a cell table')
+            assert(#cells == w * h, 'the paint callback returns exactly w*h cells')
+            for i = 1, w * h do
+                assert(math.type(cells[i]) == 'integer',
+                    'cell ' .. i .. ' of ' .. key .. ' is not an ARGB integer')
+            end
+            derived_paints[#derived_paints + 1] = key .. '|' .. inputs
+            next_derived_ref = next_derived_ref + 1
+            slot = { inputs = inputs, w = w, h = h, ref = next_derived_ref,
+                     state = 'ready', cells = cells }
+            derived_slots[key] = slot
+            return slot.ref, slot.state
+        end,
         set = function(key, motion)
             local control = applied[key]
             assert(control, 'set on a key that is not in the applied description: ' .. key)
@@ -264,6 +305,32 @@ return { id = 'screenshot-behavior', on_start = function(host)
     local function none()
         assert(next(applied) == nil, 'expected no control')
     end
+    -- The report slot is TWO controls now, and which two, in what order, is
+    -- the fix: a plate the size of the button and a camera over it.
+    local function exactly(...)
+        local want = table.pack(...)
+        local live = 0
+        for _ in pairs(applied) do live = live + 1 end
+        assert(live == want.n, 'expected ' .. want.n .. ' controls, found ' .. live)
+        local out = {}
+        for i = 1, want.n do
+            out[i] = applied[want[i]]
+            assert(out[i], 'expected the control ' .. want[i])
+        end
+        return table.unpack(out, 1, want.n)
+    end
+    local function created_in_order(first, second)
+        local seen = {}
+        for _, call in ipairs(calls) do
+            if call == 'create ' .. first or call == 'create ' .. second then
+                seen[#seen + 1] = call
+            end
+        end
+        assert(seen[#seen - 1] == 'create ' .. first,
+            first .. ' is described before ' .. second)
+        assert(seen[#seen] == 'create ' .. second,
+            second .. ' is described after ' .. first)
+    end
 
     -- ------------------------------------------------------------ lifecycle
     product.on_start(api)
@@ -320,14 +387,36 @@ return { id = 'screenshot-behavior', on_start = function(host)
     config.camera = 'report-button'; config_changed()
     assets['camera_small.png'].landed = true
     frame(); frame()
-    local small = only('camera_report')
-    assert(small.relation == 'replace' and small.anchor == 'report_button',
-        'the small camera stands in place of the report button through a REPLACE placement')
+    local plate, small = exactly('camera_plate', 'camera_report')
+    created_in_order('camera_plate', 'camera_report')
+    -- SSHOT-164-REPORT-PLATE-GONE. REPLACE consumes the target's WHOLE record
+    -- set, and on modern164 the red plate is IN that set, so replacing the
+    -- button took the plate with it and left a 79x23 hole with a 20x16 camera
+    -- floating in the middle. Nothing in a plugin can tell that root from
+    -- classic548's, where the plate belongs to the parent strip -- so the
+    -- replacement stops asking and brings its own.
+    assert(plate.relation == 'replace' and plate.anchor == 'report_button',
+        'the plate stands in place of the report button through a REPLACE placement')
+    assert(plate.image == 'camera_plate.png', 'and it is the plugin\'s own derived picture')
+    assert(plate.w == 80 and plate.h == 22,
+        'the plate is the size of the BUTTON, so nothing REPLACE removed is left as a hole')
+    assert(plate.x == 430 and plate.y == 6, 'and it sits exactly where the button was')
+    assert(plate.armed == nil,
+        'the plate carries no hit box: the camera over it owns the press')
+    assert(#derived_paints == 1 and derived_paints[1] == 'camera_plate.png|80x22',
+        'the plate is painted exactly once, keyed by the box it was painted for')
     -- REPLACE is the placement that must be a sibling: a REPLACE from a child
-    -- of the target is ANCHOR_INVALID. So this one DOES pay an anchor, and
+    -- of the target is ANCHOR_INVALID. So the plate DOES pay an anchor, and
     -- that is the difference WITHIN exists to avoid paying twice.
-    assert(small.parent == 'parent-of-report_button' and anchors == 1,
-        'a REPLACE is a sibling over its target, and pays exactly one anchor')
+    assert(plate.parent == 'parent-of-report_button',
+        'a REPLACE is a sibling over its target')
+    -- The camera is INSIDE, not WITHIN: a sibling under the same parent, so
+    -- it lands AFTER the plate in the one unit's draw order instead of
+    -- parenting itself to a native button whose subtree REPLACE just took.
+    assert(small.relation == 'inside' and small.anchor == 'report_button',
+        'the camera is anchored INSIDE the button, over the plate')
+    assert(small.parent == 'parent-of-report_button', 'and is a sibling too')
+    assert(anchors == 2, 'the plate and the camera pay one anchor each, and no more')
     assert(small.image == 'camera_small.png' and small.x == 430 + (80 - 20) // 2
         and small.y == 6 + (22 - 16) // 2,
         'the small camera is centred on the report slot in its own parent-local box')
@@ -341,16 +430,27 @@ return { id = 'screenshot-behavior', on_start = function(host)
     frame()
     assert(small.x == 300 + 30 and small.y == 40 + 3,
         'the report camera follows its element when the frame moves it')
-    element_moved('report_button', 430, 6, 80, 22); frame()
+    assert(plate.x == 300 and plate.y == 40, 'and the plate goes with it, or it is a hole again')
+    assert(#derived_paints == 1, 'a move is not a new size, so the plate is not repainted')
+    -- A new SIZE is a new picture, and the key says so: the plate covers
+    -- whatever box the lane reports, which is the whole point of deriving it.
+    element_moved('report_button', 300, 40, 100, 30); porcelain.note('element'); frame()
+    assert(#derived_paints == 2 and derived_paints[2] == 'camera_plate.png|100x30',
+        'a resized button repaints the plate at the new box')
+    assert(plate.w == 100 and plate.h == 30, 'and the plate covers the new box exactly')
+    element_moved('report_button', 430, 6, 80, 22); porcelain.note('element'); frame()
 
     -- --------------------------------------------- the target goes and comes
     elements.report_button.bind = 'pending'; porcelain.note('element'); frame()
     assert(small.removed, 'a control whose target no longer binds is removed, not left floating')
+    assert(plate.removed, 'and the plate under it goes too, rather than being left over a gap')
     none()
     elements.report_button.bind = 'bound'; porcelain.note('element'); frame()
-    local small2 = only('camera_report')
-    assert(small2.relation == 'replace' and small2.image == 'camera_small.png',
-        'a rebound report button is replaced again')
+    local plate2, small2 = exactly('camera_plate', 'camera_report')
+    assert(small2.relation == 'inside' and small2.image == 'camera_small.png',
+        'a rebound report button gets its camera back')
+    assert(plate2.relation == 'replace' and plate2.image == 'camera_plate.png',
+        'and its plate, which is what the REPLACE took away')
 
     -- ------------------------------ a lane with no report button at all
     elements.report_button.bind = 'absent'; porcelain.note('element'); frame(); frame()
@@ -359,7 +459,8 @@ return { id = 'screenshot-behavior', on_start = function(host)
         and fallback.x == 512 - 28 - 6,
         'where the lane has no report button the camera falls back to the viewport corner')
     elements.report_button.bind = 'bound'; porcelain.note('element'); frame(); frame()
-    assert(only('camera_report'), 'and it goes back to the report slot when one exists')
+    assert(exactly('camera_plate', 'camera_report'),
+        'and it goes back to the report slot, plate and all, when one exists')
 
     -- ---------------------------------------------------------- turning off
     config.camera = 'off'; config_changed(); frame()
@@ -368,7 +469,7 @@ return { id = 'screenshot-behavior', on_start = function(host)
 
     -- --------------------------------------------------- events and hotkey
     config.camera = 'report-button'; config_changed(); frame(); frame()
-    assert(only('camera_report'), 'report-button mode is re-established')
+    assert(exactly('camera_plate', 'camera_report'), 'report-button mode is re-established')
     product.on_game_event(api, { kind = 'death', subject = 'x', value = -1 })
     assert(#captures == 2, 'disabled event kinds do not capture')
     product.on_game_event(api, { kind = 'valuable_drop', subject = 'Abyssal whip', value = 50000 })
