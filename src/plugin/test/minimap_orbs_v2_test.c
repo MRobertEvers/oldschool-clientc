@@ -44,9 +44,100 @@ static int g_failures;
 #define ORB_W 57
 #define ORB_H 34
 
-/** The last picture composed for the hitpoints orb, as the painter drew it. */
-static uint32_t g_hitpoints[ORB_W * ORB_H];
+static char const* const ORB_ART[15] = {
+    "frame.png",       "frame_over.png", "fill_empty.png",    "fill_red.png",    "fill_grey.png",
+    "fill_gold.png",   "fill_cyan.png",  "fill_cyan_lit.png", "fill_prayer.png", "icon_hp.png",
+    "icon_prayer.png", "icon_walk.png",  "icon_run.png",      "icon_spec.png",   "digits.png"};
+
+static char const* const ORB_KEY[4] = {"orb_hitpoints", "orb_prayer", "orb_run", "orb_special"};
+static char const* const ORB_ROLE[4] = {"orb_hitpoints", "orb_prayer", "orb_run", "orb_spec"};
+
+/** The red byte the digit atlas signs its pixels with, above every image's. */
+#define ART_DIGITS_RED 0x1E
+
+/** The disc, and the panel the number sits in. The plugin's own geometry. */
+#define ORB_DISC_X 27
+#define ORB_DISC_Y 4
+#define ORB_DISC 26
+
+/** The last picture composed for each orb, as the painter drew it. */
+static uint32_t g_picture[4][ORB_W * ORB_H];
 static int g_composes;
+
+/**
+ * `digits.ini`, when a case wants one.
+ *
+ * NULL is the default and is the shipped web-lane shape: the file has not
+ * landed, the plugin keeps its fallback metrics, and it draws no number. A
+ * case that needs to read the number's RAMP ROW back out of a picture hands
+ * over the one-pixel-per-row atlas below instead.
+ */
+static char const* g_digits_ini;
+
+/**
+ * The atlas colour ramp, one pixel row per step instead of nine.
+ *
+ * `orbs_compose_number` samples the atlas at `glyph.y + row * row_height`,
+ * where `row` is `filled * (steps - 1) / total` -- so with `row_height=1` and
+ * one-pixel glyphs the row a picture chose is the row it read, and the fake
+ * atlas below encodes that row in the pixel it answers. The vertical metrics
+ * are the shipped file's, so the line still lands where the real one puts it.
+ */
+static char const DIGITS_INI_ONE_ROW_PER_STEP[] =
+    "line_height=10\n"
+    "max_ascent=10\n"
+    "max_descent=2\n"
+    "steps=21\n"
+    "row_height=1\n"
+    "0=0 0 6 1 1 1 7\n"
+    "1=6 0 4 1 1 1 4\n"
+    "2=10 0 6 1 1 1 7\n"
+    "3=16 0 5 1 1 1 6\n"
+    "4=21 0 5 1 1 1 5\n"
+    "5=26 0 5 1 1 1 6\n"
+    "6=31 0 6 1 1 1 7\n"
+    "7=37 0 5 1 1 1 6\n"
+    "8=42 0 6 1 1 1 7\n"
+    "9=48 0 6 1 1 1 7\n";
+
+/**
+ * What source image `index` answers, at source row `row`.
+ *
+ * Every image names itself in the composed picture, so a picture can be read
+ * back to say which of the plugin's fifteen files put a pixel there -- which
+ * is the only way to ask a question like "is the top of this disc the dark
+ * cap or the meter".
+ *
+ * `fill_empty` owns the BLUE byte and nothing else writes it. That is not
+ * decoration: the meter discs are blitted at alpha 205 or 230 OVER the plate,
+ * so their composed colour is a mixture, and a first attempt that numbered
+ * every image in one channel had fill_red-over-frame land on exactly the
+ * value fill_empty answers. A channel only one image can reach cannot be
+ * arrived at by blending, because every other source contributes zero to it.
+ *
+ * The five icons answer alpha 0, because the shipped icons are cut-outs: an
+ * opaque fake would paint over the whole disc at alpha 255 and hide the very
+ * thing this is here to read. The digit atlas signs itself in the red byte,
+ * above every other image's, and carries its own source row in the green.
+ */
+static uint32_t
+art_pixel(int index, int row)
+{
+    if( index >= 9 && index <= 13 )
+        return 0;
+    if( index == 14 )
+        return 0xFF000000u | ((uint32_t)ART_DIGITS_RED << 16) | ((uint32_t)(row & 0xFF) << 8);
+    if( index == 2 )
+        return 0xFF0000FFu;
+    return 0xFF000000u | (uint32_t)((0x10 + index) << 16);
+}
+
+/** Is this composed pixel the dark cap? Only `fill_empty` writes blue. */
+static bool
+is_fill_empty(uint32_t pixel)
+{
+    return (pixel & 0xFFu) == 0xFFu;
+}
 
 static int g_run_energy = 75;
 static int g_varp[512];
@@ -55,6 +146,9 @@ static int g_invoked_operation = -1;
 static int g_native_invokes;
 static enum ToriRS_ContractResult g_invoke_result = TORIRS_CONTRACT_OK;
 static char g_last_log[256];
+/** The last MINIMAP_ORBS_VALUE line each orb logged, kept per orb because
+ *  the covers log a CONTROL line after them and g_last_log is one slot. */
+static char g_value_line[4][256];
 static int g_notices;
 
 static bool
@@ -70,15 +164,24 @@ fake_image_size(struct ToriRS_Api* api, struct ToriRS_ImageRef image, int* width
     return true;
 }
 
+/*
+ * The testbed hands out asset values in declaration order, and `declare_art`
+ * declares the fifteen source images first on a freshly reset testbed -- so
+ * `image.value - 1` is the index into ORB_ART. That is the one thing this
+ * fake knows about the testbed's bookkeeping, and it is what lets a picture
+ * be read back at all.
+ */
 static bool
 fake_image_pixels(struct ToriRS_Api* api, struct ToriRS_ImageRef image, uint32_t* out,
                   size_t capacity, size_t* count)
 {
+    int const index = image.value - 1;
     (void)api;
     if( image.value == 0 || capacity < (size_t)(ORB_W * ORB_H) )
         return false;
-    for( int i = 0; i < ORB_W * ORB_H; i++ )
-        out[i] = 0xFF804020u;
+    for( int y = 0; y < ORB_H; y++ )
+        for( int x = 0; x < ORB_W; x++ )
+            out[y * ORB_W + x] = index >= 0 && index < 15 ? art_pixel(index, y) : 0xFF804020u;
     *count = (size_t)(ORB_W * ORB_H);
     return true;
 }
@@ -89,8 +192,9 @@ fake_compose(struct ToriRS_Api* api, char const* name, int width, int height,
 {
     (void)api;
     CHECK(width == ORB_W && height == ORB_H, "a composed orb is the plate's size");
-    if( strncmp(name, "orb_hitpoints", 13) == 0 )
-        memcpy(g_hitpoints, argb, sizeof(g_hitpoints));
+    for( int i = 0; i < 4; i++ )
+        if( strncmp(name, ORB_KEY[i], strlen(ORB_KEY[i])) == 0 )
+            memcpy(g_picture[i], argb, sizeof(g_picture[i]));
     g_composes++;
     out->value = 700 + (int)strlen(name);
     return TORIRS_ASSET_READY;
@@ -100,9 +204,11 @@ static enum ToriRS_AssetState
 fake_request(struct ToriRS_Api* api, char const* name)
 {
     (void)api;
-    (void)name;
-    /* digits.ini: absent, so the plugin keeps its fallback metrics. That is
-     * the shipped web-lane shape and it must not stop an orb drawing. */
+    /* digits.ini: absent unless a case hands one over, so the plugin keeps
+     * its fallback metrics. That is the shipped web-lane shape and it must
+     * not stop an orb drawing. */
+    if( g_digits_ini && strcmp(name, "digits.ini") == 0 )
+        return TORIRS_ASSET_READY;
     return TORIRS_ASSET_MISSING;
 }
 
@@ -110,9 +216,12 @@ static bool
 fake_bytes(struct ToriRS_Api* api, char const* name, void const** data, size_t* size)
 {
     (void)api;
-    (void)name;
-    (void)data;
-    (void)size;
+    if( g_digits_ini && strcmp(name, "digits.ini") == 0 )
+    {
+        *data = g_digits_ini;
+        *size = strlen(g_digits_ini);
+        return true;
+    }
     return false;
 }
 
@@ -246,19 +355,19 @@ fake_log(struct ToriRS_Api* api, char const* format, ...)
     va_start(arguments, format);
     vsnprintf(g_last_log, sizeof(g_last_log), format, arguments);
     va_end(arguments);
+    if( strncmp(g_last_log, "MINIMAP_ORBS_VALUE ", 19) == 0 )
+        for( int i = 0; i < 4; i++ )
+        {
+            char wanted[48];
+            snprintf(wanted, sizeof(wanted), "orb=%s ", ORB_KEY[i]);
+            if( strstr(g_last_log, wanted) )
+                snprintf(g_value_line[i], sizeof(g_value_line[i]), "%s", g_last_log);
+        }
 }
 
 /* ------------------------------------------------------------------------ */
 /* Fixtures                                                                 */
 /* ------------------------------------------------------------------------ */
-
-static char const* const ORB_ART[15] = {
-    "frame.png",       "frame_over.png", "fill_empty.png",    "fill_red.png",    "fill_grey.png",
-    "fill_gold.png",   "fill_cyan.png",  "fill_cyan_lit.png", "fill_prayer.png", "icon_hp.png",
-    "icon_prayer.png", "icon_walk.png",  "icon_run.png",      "icon_spec.png",   "digits.png"};
-
-static char const* const ORB_KEY[4] = {"orb_hitpoints", "orb_prayer", "orb_run", "orb_special"};
-static char const* const ORB_ROLE[4] = {"orb_hitpoints", "orb_prayer", "orb_run", "orb_spec"};
 
 static void* g_state;
 
@@ -399,6 +508,9 @@ reset(void)
     g_invoke_result = TORIRS_CONTRACT_OK;
     g_composes = 0;
     g_notices = 0;
+    g_digits_ini = NULL;
+    memset(g_picture, 0, sizeof(g_picture));
+    memset(g_value_line, 0, sizeof(g_value_line));
     g_last_log[0] = '\0';
     g_testbed.skill_stated = true;
 }
@@ -1048,6 +1160,134 @@ case_hitpoints_verb_is_declared_absent(void)
     stop_plugin();
 }
 
+/* ------------------------------------------------------------------------ */
+/* 10. A dead orb still holds its reading                                   */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * How many rows of `orb`'s disc the dark cap covers, read off the picture.
+ *
+ * `fill_empty` is the only image that writes the blue byte, so a capped row
+ * says so and a meter row cannot. Counted down the disc's middle column,
+ * which every blit here covers.
+ */
+static int
+capped_rows(int orb)
+{
+    int rows = 0;
+    for( int y = ORB_DISC_Y; y < ORB_DISC_Y + ORB_DISC; y++ )
+        if( is_fill_empty(g_picture[orb][y * ORB_W + ORB_DISC_X + ORB_DISC / 2]) )
+            rows++;
+    return rows;
+}
+
+/**
+ * Which row of the digit ramp `orb`'s number was tinted from, or -1 for a
+ * picture that drew no number. The fake atlas signs each pixel with its own
+ * source row, so this is a read and not an inference.
+ */
+static int
+ramp_row(int orb)
+{
+    int row = -1;
+    for( int i = 0; i < ORB_W * ORB_H; i++ )
+    {
+        uint32_t const pixel = g_picture[orb][i];
+        if( ((pixel >> 16) & 0xFFu) != ART_DIGITS_RED )
+            continue;
+        if( row >= 0 && row != (int)((pixel >> 8) & 0xFFu) )
+            return -2; /* two rows in one number: the atlas was sampled twice */
+        row = (int)((pixel >> 8) & 0xFFu);
+    }
+    return row;
+}
+
+/**
+ * The fifth dead orb, and the one this file's own painter forbids in a
+ * comment: a FULL meter under a number that is not full.
+ *
+ * Seen on rs289lc, logged in, at canvas 538,134: a 26x26 grey disc filled
+ * edge to edge with no dark cap on any row, and "70" beside it in the pure
+ * green (0,255,0) that is the ramp's LAST row -- the colour reserved for a
+ * meter that is at 100%. Both halves of the picture said full and the text
+ * said 70. A second capture of the same lane drew a green ZERO on a full
+ * disc, which is the same fault with nothing left to disguise it.
+ *
+ * The cause was one line in each of the two orbs that have an inactive
+ * state: `out->filled = out->total` beside the grey substitution. `filled`
+ * is not a colour, it is the READING -- it drives the height of the
+ * fill_empty cap and the ramp row of the digits, and both of those are about
+ * how much energy there is rather than about whether the button works. The
+ * run orb carried the identical line and hid it, because run energy is 100
+ * in every capture in this tree.
+ *
+ * The rule: inactive changes the COLOUR of a meter and never its reading.
+ *
+ * Mutation: put `out->filled = out->total` back in either arm of
+ * orbs_picture -> that orb's cap goes to 0 rows and its ramp row to 20.
+ */
+static void
+case_inactive_orb_keeps_its_reading(void)
+{
+    reset();
+    g_digits_ini = DIGITS_INI_ONE_ROW_PER_STEP;
+    declare_native_lane();
+    /*
+     * A walking player with 43 energy and 700 of 1000 special, holding
+     * nothing that specials. That is the rs289lc capture exactly: the run
+     * orb is grey because the player is walking, and the special orb is grey
+     * because the equipped weapon offers no Activate -- which is what the
+     * lane says by answering input_present=0 on the orb's action role.
+     */
+    g_run_energy = 43;
+    g_varp[300] = 700;
+    Testbed_Element("action_frame_orb_special_activate")->input_present = false;
+    start_plugin();
+    frame(8);
+
+    /*
+     * The log line the field diagnosis was made from. It carried
+     * `filled=1000 total=1000 inactive=1` for a 70% orb, which is the whole
+     * defect said in one line, so it is pinned as a line and not only as
+     * pixels: a reader of a headless run must be able to see the reading.
+     */
+    CHECK(strstr(g_value_line[3], "value=70 filled=700 total=1000 inactive=1") != NULL,
+        "the special orb's log line carries the reading, not the total");
+    CHECK(strstr(g_value_line[2], "value=43 filled=43 total=100 inactive=1") != NULL,
+        "and so does the walking run orb's");
+
+    /*
+     * 700 of 1000 caps ceil(26 - 700*26/1000) = 7 rows, and picks ramp row
+     * 700 * 20 / 1000 = 14. Before the fix both were the full-meter answer:
+     * 0 rows capped and row 20.
+     */
+    CHECK(capped_rows(3) == 7, "a 70% special caps seven rows of its disc");
+    CHECK(ramp_row(3) == 14, "and tints its number from the ramp's row 14");
+
+    /* 43 of 100 caps 26 - ceil(43*26/100) = 14 rows, and picks row 8. */
+    CHECK(capped_rows(2) == 14, "a walking player's 43 energy caps fourteen rows");
+    CHECK(ramp_row(2) == 8, "and tints its number from the ramp's row 8");
+
+    /*
+     * The positive control, and the thing the cap must not do to a meter
+     * that IS full: the prayer orb reads 30 of 40 and the hitpoints orb 42
+     * of 50, both active, both capped by the same arithmetic. An
+     * implementation that simply stopped capping would pass the two checks
+     * above by drawing nothing anywhere.
+     */
+    CHECK(capped_rows(0) == 4, "an active orb is capped by the same arithmetic");
+    CHECK(ramp_row(0) == 16, "42 of 50 is ramp row 16");
+    CHECK(capped_rows(1) == 6, "the prayer orb's 30 of 40 caps six rows");
+    CHECK(ramp_row(1) == 15, "and is ramp row 15");
+
+    /* And a meter that really is full shows no cap at all. */
+    g_run_energy = 100;
+    frame(1);
+    CHECK(capped_rows(2) == 0, "100 of 100 caps nothing");
+    CHECK(ramp_row(2) == 20, "and is the only reading that reaches the ramp's last row");
+    stop_plugin();
+}
+
 int
 main(void)
 {
@@ -1064,6 +1304,7 @@ main(void)
     case_config();
     case_unstated_skill_draws_nothing();
     case_hitpoints_verb_is_declared_absent();
+    case_inactive_orb_keeps_its_reading();
 
     printf("minimap orbs v2: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures != 0;
