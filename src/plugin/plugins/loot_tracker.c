@@ -201,7 +201,8 @@ struct LtItem
     int obj_id;
     int quantity;
     /** ObjType.cost for ONE of them, as the cache states it. The displayed
-     *  value is this through the configured price source, times quantity. */
+     *  value is cost TIMES quantity through the configured price source, in
+     *  that order: @see lt_stack_value for why the order is not free. */
     int cost;
     char name[64];
 };
@@ -233,6 +234,41 @@ struct LtPending
     bool confirmed;
 };
 
+/**
+ * The totals band's four controls, in the order interface 650 places them.
+ *
+ * Every one of the four wears the face of the state it is IN and carries an op
+ * naming the state a click moves TO. That is the cache's own arrangement and
+ * not a choice made here: script4850, script7182, script7185 and script7188
+ * each switch on the varbit that says where you are, pick the graphic for it,
+ * and then set an op for where you are going --
+ *
+ *   script7188   varbit14881 = 0 -> graphic_4912, op "High Alchemy value"
+ *                varbit14881 = 1 -> graphic_4911, op "Grand Exchange value"
+ *
+ * -- the flask being the face you wear once you ARE on high alchemy.
+ *
+ * The faces are readable both ways round on their own (an open eye is equally
+ * "ignored rows are showing" and "click to show them"), so the op is the half
+ * that settles which. This plugin drew the four faces and offered none of the
+ * ops, and a reader then read two of them as destinations and two as states
+ * and reported the band as wearing two conventions at once. @see
+ * lt_totals_button_op, which puts the missing half back.
+ */
+enum LtTotalsButton
+{
+    LT_TOTALS_BTN_NONE = -1,
+    /** 650:62, script4850: source view <-> flat drop grid. */
+    LT_TOTALS_BTN_VIEW = 0,
+    /** 650:59, script7185: show <-> hide ignored entries. */
+    LT_TOTALS_BTN_IGNORED,
+    /** 650:60, script7182: collapse <-> expand every category. */
+    LT_TOTALS_BTN_COLLAPSE,
+    /** 650:61, script7188: the value basis. */
+    LT_TOTALS_BTN_VALUE,
+    LT_TOTALS_BTN_COUNT
+};
+
 /** What the secondary-click channel has open over the well. */
 enum LtMenuKind
 {
@@ -240,7 +276,9 @@ enum LtMenuKind
     /** script2907's own three: Collapse/Expand, Clear data, Ignore. */
     LT_MENU_BAND,
     /** script3042's two: Check and Ignore. */
-    LT_MENU_CELL
+    LT_MENU_CELL,
+    /** One of the totals band's four, offering the op the cache sets on it. */
+    LT_MENU_BTN
 };
 
 struct LootTrackerState
@@ -283,38 +321,49 @@ struct LootTrackerState
     bool expanded[LT_SOURCES_MAX];
     bool drop_view;
     bool show_ignored;
-    struct ToriRS_ImageRef img_view;
-    uint32_t* view_px;
-    int view_w;
-    int view_h;
-    struct ToriRS_ImageRef img_view2;
-    uint32_t* view2_px;
-    int view2_w;
-    int view2_h;
-    struct ToriRS_ImageRef img_alch;
-    uint32_t* alch_px;
-    int alch_w;
-    int alch_h;
-    struct ToriRS_ImageRef img_cache;
-    uint32_t* cache_px;
-    int cache_w;
-    int cache_h;
-    struct ToriRS_ImageRef img_collapse;
-    uint32_t* collapse_px;
-    int collapse_w;
-    int collapse_h;
-    struct ToriRS_ImageRef img_expand;
-    uint32_t* expand_px;
-    int expand_w;
-    int expand_h;
-    struct ToriRS_ImageRef img_ignored;
-    uint32_t* ignored_px;
-    int ignored_w;
-    int ignored_h;
-    struct ToriRS_ImageRef img_ignored_hide;
-    uint32_t* ignored_hide_px;
-    int ignored_hide_w;
-    int ignored_hide_h;
+    /*
+     * The totals band's four controls, two faces each.
+     *
+     * Every one of these is named for the STATE its art depicts, because that
+     * is what the client branches on and what a reader has to check the branch
+     * against. They used to be named for the op the cache sets beside them --
+     * `btn_alch` for the face worn while the basis is the cache value, because
+     * clicking it reaches high alchemy -- and under those names every ternary
+     * in lt_draw_totals read backwards while rendering correctly, which is
+     * exactly how a reviewer came to report the band as inconsistent.
+     */
+    struct ToriRS_ImageRef img_btn_view_source;
+    uint32_t* btn_view_source_px;
+    int btn_view_source_w;
+    int btn_view_source_h;
+    struct ToriRS_ImageRef img_btn_view_drop;
+    uint32_t* btn_view_drop_px;
+    int btn_view_drop_w;
+    int btn_view_drop_h;
+    struct ToriRS_ImageRef img_btn_value_cache;
+    uint32_t* btn_value_cache_px;
+    int btn_value_cache_w;
+    int btn_value_cache_h;
+    struct ToriRS_ImageRef img_btn_value_alch;
+    uint32_t* btn_value_alch_px;
+    int btn_value_alch_w;
+    int btn_value_alch_h;
+    struct ToriRS_ImageRef img_btn_expanded;
+    uint32_t* btn_expanded_px;
+    int btn_expanded_w;
+    int btn_expanded_h;
+    struct ToriRS_ImageRef img_btn_collapsed;
+    uint32_t* btn_collapsed_px;
+    int btn_collapsed_w;
+    int btn_collapsed_h;
+    struct ToriRS_ImageRef img_btn_ignored_hidden;
+    uint32_t* btn_ignored_hidden_px;
+    int btn_ignored_hidden_w;
+    int btn_ignored_hidden_h;
+    struct ToriRS_ImageRef img_btn_ignored_shown;
+    uint32_t* btn_ignored_shown_px;
+    int btn_ignored_shown_w;
+    int btn_ignored_shown_h;
 
     int well_w;
     uint64_t next_panel_ms;
@@ -371,6 +420,8 @@ struct LootTrackerState
     char menu_item_name[64];
     int menu_item_quantity;
     int menu_item_cost;
+    /** Which of the four the menu is about. @see enum LtTotalsButton. */
+    int menu_button;
     int menu_x;
     int menu_y;
     /** The lane HAS a loot store, so the inference path must never run.
@@ -407,6 +458,7 @@ struct LootTrackerRuntime
 #define g_menu_item_name (rt->state->menu_item_name)
 #define g_menu_item_quantity (rt->state->menu_item_quantity)
 #define g_menu_item_cost (rt->state->menu_item_cost)
+#define g_menu_button (rt->state->menu_button)
 #define g_menu_x (rt->state->menu_x)
 #define g_menu_y (rt->state->menu_y)
 #define g_bold (rt->state->bold)
@@ -430,38 +482,38 @@ struct LootTrackerRuntime
 #define g_expanded (rt->state->expanded)
 #define g_drop_view (rt->state->drop_view)
 #define g_show_ignored (rt->state->show_ignored)
-#define g_img_view (rt->state->img_view)
-#define g_view_px (rt->state->view_px)
-#define g_view_w (rt->state->view_w)
-#define g_view_h (rt->state->view_h)
-#define g_img_view2 (rt->state->img_view2)
-#define g_view2_px (rt->state->view2_px)
-#define g_view2_w (rt->state->view2_w)
-#define g_view2_h (rt->state->view2_h)
-#define g_img_alch (rt->state->img_alch)
-#define g_alch_px (rt->state->alch_px)
-#define g_alch_w (rt->state->alch_w)
-#define g_alch_h (rt->state->alch_h)
-#define g_img_cache (rt->state->img_cache)
-#define g_cache_px (rt->state->cache_px)
-#define g_cache_w (rt->state->cache_w)
-#define g_cache_h (rt->state->cache_h)
-#define g_img_collapse (rt->state->img_collapse)
-#define g_collapse_px (rt->state->collapse_px)
-#define g_collapse_w (rt->state->collapse_w)
-#define g_collapse_h (rt->state->collapse_h)
-#define g_img_expand (rt->state->img_expand)
-#define g_expand_px (rt->state->expand_px)
-#define g_expand_w (rt->state->expand_w)
-#define g_expand_h (rt->state->expand_h)
-#define g_img_ignored (rt->state->img_ignored)
-#define g_ignored_px (rt->state->ignored_px)
-#define g_ignored_w (rt->state->ignored_w)
-#define g_ignored_h (rt->state->ignored_h)
-#define g_img_ignored_hide (rt->state->img_ignored_hide)
-#define g_ignored_hide_px (rt->state->ignored_hide_px)
-#define g_ignored_hide_w (rt->state->ignored_hide_w)
-#define g_ignored_hide_h (rt->state->ignored_hide_h)
+#define g_img_btn_view_source (rt->state->img_btn_view_source)
+#define g_btn_view_source_px (rt->state->btn_view_source_px)
+#define g_btn_view_source_w (rt->state->btn_view_source_w)
+#define g_btn_view_source_h (rt->state->btn_view_source_h)
+#define g_img_btn_view_drop (rt->state->img_btn_view_drop)
+#define g_btn_view_drop_px (rt->state->btn_view_drop_px)
+#define g_btn_view_drop_w (rt->state->btn_view_drop_w)
+#define g_btn_view_drop_h (rt->state->btn_view_drop_h)
+#define g_img_btn_value_cache (rt->state->img_btn_value_cache)
+#define g_btn_value_cache_px (rt->state->btn_value_cache_px)
+#define g_btn_value_cache_w (rt->state->btn_value_cache_w)
+#define g_btn_value_cache_h (rt->state->btn_value_cache_h)
+#define g_img_btn_value_alch (rt->state->img_btn_value_alch)
+#define g_btn_value_alch_px (rt->state->btn_value_alch_px)
+#define g_btn_value_alch_w (rt->state->btn_value_alch_w)
+#define g_btn_value_alch_h (rt->state->btn_value_alch_h)
+#define g_img_btn_expanded (rt->state->img_btn_expanded)
+#define g_btn_expanded_px (rt->state->btn_expanded_px)
+#define g_btn_expanded_w (rt->state->btn_expanded_w)
+#define g_btn_expanded_h (rt->state->btn_expanded_h)
+#define g_img_btn_collapsed (rt->state->img_btn_collapsed)
+#define g_btn_collapsed_px (rt->state->btn_collapsed_px)
+#define g_btn_collapsed_w (rt->state->btn_collapsed_w)
+#define g_btn_collapsed_h (rt->state->btn_collapsed_h)
+#define g_img_btn_ignored_hidden (rt->state->img_btn_ignored_hidden)
+#define g_btn_ignored_hidden_px (rt->state->btn_ignored_hidden_px)
+#define g_btn_ignored_hidden_w (rt->state->btn_ignored_hidden_w)
+#define g_btn_ignored_hidden_h (rt->state->btn_ignored_hidden_h)
+#define g_img_btn_ignored_shown (rt->state->img_btn_ignored_shown)
+#define g_btn_ignored_shown_px (rt->state->btn_ignored_shown_px)
+#define g_btn_ignored_shown_w (rt->state->btn_ignored_shown_w)
+#define g_btn_ignored_shown_h (rt->state->btn_ignored_shown_h)
 #define g_well_w (rt->state->well_w)
 #define g_next_panel_ms (rt->state->next_panel_ms)
 #define g_session_value (rt->state->session_value)
@@ -756,20 +808,37 @@ lt_infers_loot(struct LootTrackerRuntime* rt)
     return !g_store_lane;
 }
 
+/**
+ * What a whole STACK is worth through the configured basis.
+ *
+ * The basis is applied to the stack, never to one unit of it. High alchemy is
+ * three fifths, and three fifths of a 5000-coin stack is 3000 -- not five
+ * thousand lots of three fifths of one coin, which integer division floors to
+ * nothing at all. Taking the fraction per unit and multiplying afterwards cost
+ * every 1gp drop -- coins, bones, ashes, feathers -- its entire value, and
+ * every other item up to 4/5 gp a unit: a 5000-stack of a 4gp item read 10K
+ * where the game says 12K.
+ *
+ * This is why there is no `lt_unit_value` any more: a per-unit value on this
+ * basis is not a number this plugin may hold, because every use of one
+ * multiplied it.
+ */
 static long long
-lt_unit_value(struct LootTrackerRuntime* rt, struct LtItem const* item)
+lt_stack_value(struct LootTrackerRuntime* rt, int cost, int quantity)
 {
     char const* source;
+    long long gross;
 
     assert(rt);
-    assert(item);
+    assert(quantity >= 0);
 
+    gross = (long long)cost * (long long)quantity;
     source = lt_config_string(rt, "price_source");
-    /* High alchemy is three fifths of the cache cost, which is the game's own
-     * formula and not an approximation of one. */
-    if( source && lt_name_eq(source, "High alchemy") )
-        return (long long)item->cost * 3 / 5;
-    return item->cost;
+    /* Three fifths of the cache cost is the game's own formula, not an
+     * approximation of one. */
+    if( lt_name_eq(source, "High alchemy") )
+        return gross * 3 / 5;
+    return gross;
 }
 
 /** Everything one source's drops are worth. */
@@ -786,7 +855,8 @@ lt_source_value_visible(
     assert(src);
     for( int i = 0; i < src->item_count; i++ )
         if( include_ignored || !lt_listed(ignored_items, src->items[i].name) )
-            total += lt_unit_value(rt, &src->items[i]) * src->items[i].quantity;
+            total += lt_stack_value(
+                rt, src->items[i].cost, src->items[i].quantity);
     return total;
 }
 
@@ -1026,8 +1096,8 @@ lt_pending_settle(struct LootTrackerRuntime* rt, int index)
             for( int i = 0; i < pending->item_count; i++ )
             {
                 lt_source_add_item(source, &pending->items[i]);
-                value += lt_unit_value(rt, &pending->items[i]) *
-                         pending->items[i].quantity;
+                value += lt_stack_value(
+                    rt, pending->items[i].cost, pending->items[i].quantity);
             }
             lt_revalue(rt);
             lt_changed(rt);
@@ -1221,33 +1291,46 @@ lt_art_ready(struct LootTrackerRuntime* rt)
                  ? 1
                  : 0;
     /*
-     * The band's four controls, cut from the cache: graphic_4915/4916 are the
-     * two faces of the view toggle, 4912/4911 the value-basis actions,
-     * 4917/4919 collapse/expand-all, and 4913/4914 show/hide ignored. Wanted
-     * but not REQUIRED -- a band with a gap where a button belongs still
-     * reads, and a page that refuses to draw does not.
+     * The band's four controls, cut from the cache. Each is a PAIR of faces,
+     * and the cache picks between them on the varbit that says which state the
+     * control is IN, never on where a click would take it:
+     *
+     *   4915 / 4916   source view is up / drop view is up   (script4850)
+     *   4912 / 4911   the cache value / high alchemy        (script7188)
+     *   4917 / 4919   something is expanded / all shut      (script7182)
+     *   4914 / 4913   ignored rows shown / hidden           (script7185)
+     *
+     * so every file here is named for the state, and lt_draw_totals reads
+     * `state ? face_for_state : face_for_the_other`. Wanted but not REQUIRED
+     * -- a band with a gap where a button belongs still reads, and a page that
+     * refuses to draw does not.
      */
     (void)PluginDraw_ImageLoad(
-        g_api, "btn_dropview.png", &g_img_view, &g_view_px, &g_view_w, &g_view_h);
+        g_api, "btn_view_source.png", &g_img_btn_view_source,
+        &g_btn_view_source_px, &g_btn_view_source_w, &g_btn_view_source_h);
     (void)PluginDraw_ImageLoad(
-        g_api, "btn_sourceview.png", &g_img_view2, &g_view2_px, &g_view2_w,
-        &g_view2_h);
+        g_api, "btn_view_drop.png", &g_img_btn_view_drop, &g_btn_view_drop_px,
+        &g_btn_view_drop_w, &g_btn_view_drop_h);
     (void)PluginDraw_ImageLoad(
-        g_api, "btn_alch.png", &g_img_alch, &g_alch_px, &g_alch_w, &g_alch_h);
+        g_api, "btn_value_cache.png", &g_img_btn_value_cache,
+        &g_btn_value_cache_px, &g_btn_value_cache_w, &g_btn_value_cache_h);
     (void)PluginDraw_ImageLoad(
-        g_api, "btn_cache.png", &g_img_cache, &g_cache_px, &g_cache_w, &g_cache_h);
+        g_api, "btn_value_alch.png", &g_img_btn_value_alch,
+        &g_btn_value_alch_px, &g_btn_value_alch_w, &g_btn_value_alch_h);
     (void)PluginDraw_ImageLoad(
-        g_api, "btn_collapse.png", &g_img_collapse, &g_collapse_px, &g_collapse_w,
-        &g_collapse_h);
+        g_api, "btn_expanded.png", &g_img_btn_expanded, &g_btn_expanded_px,
+        &g_btn_expanded_w, &g_btn_expanded_h);
     (void)PluginDraw_ImageLoad(
-        g_api, "btn_expand.png", &g_img_expand, &g_expand_px, &g_expand_w,
-        &g_expand_h);
+        g_api, "btn_collapsed.png", &g_img_btn_collapsed, &g_btn_collapsed_px,
+        &g_btn_collapsed_w, &g_btn_collapsed_h);
     (void)PluginDraw_ImageLoad(
-        g_api, "btn_ignored.png", &g_img_ignored, &g_ignored_px, &g_ignored_w,
-        &g_ignored_h);
+        g_api, "btn_ignored_hidden.png", &g_img_btn_ignored_hidden,
+        &g_btn_ignored_hidden_px, &g_btn_ignored_hidden_w,
+        &g_btn_ignored_hidden_h);
     (void)PluginDraw_ImageLoad(
-        g_api, "btn_ignored_hide.png", &g_img_ignored_hide, &g_ignored_hide_px,
-        &g_ignored_hide_w, &g_ignored_hide_h);
+        g_api, "btn_ignored_shown.png", &g_img_btn_ignored_shown,
+        &g_btn_ignored_shown_px, &g_btn_ignored_shown_w,
+        &g_btn_ignored_shown_h);
     return ready;
 }
 
@@ -1448,33 +1531,38 @@ lt_draw_totals(struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h)
     /*
      * The band's four controls, at the offsets interface 650 places them.
      *
-     * The view toggle wears the face of the view it will move TO -- 4915 while
-     * the source bands are up, 4916 while the flat drop grid is -- which is
-     * why the two sprites read as each other's opposite rather than as an
-     * on/off pair.
+     * One convention, and it is the cache's: each wears the face of the state
+     * it is IN. Every ternary below therefore reads `state ? the face for that
+     * state : the face for the other`, and what a click DOES is said by the op
+     * on it rather than by the picture. @see enum LtTotalsButton.
      */
-    if( g_drop_view ? g_view2_px != NULL : g_view_px != NULL )
     {
-        uint32_t const* px = g_drop_view ? g_view2_px : g_view_px;
-        int const pw = g_drop_view ? g_view2_w : g_view_w;
-        int const ph = g_drop_view ? g_view2_h : g_view_h;
-        PluginDraw_Blit(
-            buf, w, h, LT_BTN_LEFT_X, LT_BTN_Y, px, pw, ph, 0, 0, pw, ph, 0);
+        uint32_t const* px =
+            g_drop_view ? g_btn_view_drop_px : g_btn_view_source_px;
+        int const pw = g_drop_view ? g_btn_view_drop_w : g_btn_view_source_w;
+        int const ph = g_drop_view ? g_btn_view_drop_h : g_btn_view_source_h;
+        if( px )
+            PluginDraw_Blit(
+                buf, w, h, LT_BTN_LEFT_X, LT_BTN_Y, px, pw, ph, 0, 0, pw, ph, 0);
     }
     {
-        uint32_t const* px = g_show_ignored ? g_ignored_hide_px : g_ignored_px;
-        int const pw = g_show_ignored ? g_ignored_hide_w : g_ignored_w;
-        int const ph = g_show_ignored ? g_ignored_hide_h : g_ignored_h;
+        uint32_t const* px =
+            g_show_ignored ? g_btn_ignored_shown_px : g_btn_ignored_hidden_px;
+        int const pw =
+            g_show_ignored ? g_btn_ignored_shown_w : g_btn_ignored_hidden_w;
+        int const ph =
+            g_show_ignored ? g_btn_ignored_shown_h : g_btn_ignored_hidden_h;
         if( px )
             PluginDraw_Blit(
                 buf, w, h, w - LT_BTN_R0 - LT_BTN, LT_BTN_Y,
                 px, pw, ph, 0, 0, pw, ph, 0);
     }
     {
-        bool const collapse = lt_any_expanded(rt);
-        uint32_t const* px = collapse ? g_collapse_px : g_expand_px;
-        int const pw = collapse ? g_collapse_w : g_expand_w;
-        int const ph = collapse ? g_collapse_h : g_expand_h;
+        bool const any_expanded = lt_any_expanded(rt);
+        uint32_t const* px =
+            any_expanded ? g_btn_expanded_px : g_btn_collapsed_px;
+        int const pw = any_expanded ? g_btn_expanded_w : g_btn_collapsed_w;
+        int const ph = any_expanded ? g_btn_expanded_h : g_btn_collapsed_h;
         if( px )
             PluginDraw_Blit(
                 buf, w, h, w - LT_BTN_R1 - LT_BTN, LT_BTN_Y,
@@ -1483,14 +1571,150 @@ lt_draw_totals(struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h)
     {
         bool const high_alch = lt_name_eq(
             lt_config_string(rt, "price_source"), "High alchemy");
-        uint32_t const* px = high_alch ? g_cache_px : g_alch_px;
-        int const pw = high_alch ? g_cache_w : g_alch_w;
-        int const ph = high_alch ? g_cache_h : g_alch_h;
+        uint32_t const* px =
+            high_alch ? g_btn_value_alch_px : g_btn_value_cache_px;
+        int const pw = high_alch ? g_btn_value_alch_w : g_btn_value_cache_w;
+        int const ph = high_alch ? g_btn_value_alch_h : g_btn_value_cache_h;
         if( px )
             PluginDraw_Blit(
                 buf, w, h, w - LT_BTN_R2 - LT_BTN, LT_BTN_Y,
                 px, pw, ph, 0, 0, pw, ph, 0);
     }
+}
+
+/**
+ * Which of the four the totals band puts under `x`.
+ *
+ * The caller has already established that the click is in the band at all,
+ * which is what makes this an x-only test: the band is 42 tall, the buttons
+ * are 30 at y=6, and a press in the 6px above or below one has always counted
+ * as a press on it.
+ *
+ * `g_well_w` is the width the strip was last COMPOSED at, which is what the
+ * right-anchored three were placed against.
+ */
+static int
+lt_totals_button_at(struct LootTrackerRuntime* rt, int x)
+{
+    int const w = g_well_w;
+
+    assert(rt);
+    if( x >= LT_BTN_LEFT_X && x < LT_BTN_LEFT_X + LT_BTN )
+        return LT_TOTALS_BTN_VIEW;
+    if( x >= w - LT_BTN_R0 - LT_BTN && x < w - LT_BTN_R0 )
+        return LT_TOTALS_BTN_IGNORED;
+    if( x >= w - LT_BTN_R1 - LT_BTN && x < w - LT_BTN_R1 )
+        return LT_TOTALS_BTN_COLLAPSE;
+    if( x >= w - LT_BTN_R2 - LT_BTN && x < w - LT_BTN_R2 )
+        return LT_TOTALS_BTN_VALUE;
+    return LT_TOTALS_BTN_NONE;
+}
+
+/**
+ * The op this control carries in the state it is in -- which names where a
+ * click GOES, and is the half of interface 650 that says what the face means.
+ *
+ * The cache sets these with if_setop and if_setopbase on 650:59..62. Two are
+ * reworded, and both rewordings are stated here rather than left to be
+ * discovered: the cache's components each carry a name the client appends to
+ * the op, and a row in a list painted into a well has nothing to append.
+ */
+static void
+lt_totals_button_op(
+    struct LootTrackerRuntime* rt, int which, char* out, size_t out_size)
+{
+    assert(rt);
+    assert(out);
+    assert(out_size > 0);
+    assert(which > LT_TOTALS_BTN_NONE);
+    assert(which < LT_TOTALS_BTN_COUNT);
+
+    switch( which )
+    {
+    case LT_TOTALS_BTN_VIEW:
+        /* script4850's opbase, verbatim. */
+        snprintf(out, out_size, "%s", g_drop_view ? "Source view" : "Drop view");
+        return;
+    case LT_TOTALS_BTN_IGNORED:
+        /* script7185 says "Show" and "Hide"; the subject is 650:59's own. */
+        snprintf(
+            out, out_size, "%s",
+            g_show_ignored ? "Hide ignored" : "Show ignored");
+        return;
+    case LT_TOTALS_BTN_COLLAPSE:
+        /* script7182 says "Collapse" and "Expand". This one is every category
+         * at once, and script2907's band menu already offers those two bare
+         * words for ONE band, so the word that separates them is not
+         * decoration. */
+        snprintf(
+            out, out_size, "%s",
+            lt_any_expanded(rt) ? "Collapse all" : "Expand all");
+        return;
+    default:
+        break;
+    }
+    /*
+     * script7188 says "High Alchemy value" and "Grand Exchange value". There
+     * is no Grand Exchange quote anywhere in this client -- @see the header's
+     * note on what an item is worth -- so the two bases wear the names the
+     * config enum gives them, and this row and the settings dropdown say the
+     * same word for the same thing.
+     */
+    snprintf(
+        out, out_size, "%s",
+        lt_name_eq(lt_config_string(rt, "price_source"), "High alchemy")
+            ? "Cache value"
+            : "High alchemy");
+}
+
+/** Perform one of the four. The op named where this goes; this is the going. */
+static void
+lt_totals_button_do(struct LootTrackerRuntime* rt, int which)
+{
+    assert(rt);
+    assert(which > LT_TOTALS_BTN_NONE);
+    assert(which < LT_TOTALS_BTN_COUNT);
+
+    switch( which )
+    {
+    case LT_TOTALS_BTN_VIEW:
+        g_drop_view = !g_drop_view;
+        break;
+    case LT_TOTALS_BTN_IGNORED:
+    {
+        /* Same show/hide ignored mode as interface 650:59. Data is retained
+         * while hidden, so the other face and the exact ignored source/item
+         * plates can be shown immediately. */
+        int detail;
+        g_show_ignored = !g_show_ignored;
+        detail = lt_detail_index(rt);
+        if( !g_show_ignored && detail >= 0 &&
+            lt_source_ignored(rt, &g_source[detail]) )
+            g_detail_source_id = 0;
+        break;
+    }
+    case LT_TOTALS_BTN_COLLAPSE:
+    {
+        /* Collapse all -- or expand all when everything is already shut,
+         * which is what makes one button enough. */
+        bool const any = lt_any_expanded(rt);
+        for( int i = 0; i < g_source_count; i++ )
+            if( lt_source_visible(rt, i) )
+                g_expanded[i] = !any;
+        break;
+    }
+    default:
+    {
+        /* The value basis, which is the same config key the settings form
+         * offers as a dropdown. */
+        char const* now = lt_config_string(rt, "price_source");
+        (void)g_api->config.set(
+            g_api, "price_source",
+            lt_name_eq(now, "High alchemy") ? "Cache value" : "High alchemy");
+        break;
+    }
+    }
+    lt_changed(rt);
 }
 
 /** The source a click at `y` landed on, and how far into it. -1 for neither. */
@@ -1890,6 +2114,11 @@ lt_menu_rows(struct LootTrackerRuntime* rt, char rows[LT_MENU_ROWS_MAX][32])
             rows[2], sizeof(rows[2]), "%s",
             lt_source_ignored(rt, &g_source[index]) ? "Stop ignoring" : "Ignore");
         return 3;
+    }
+    if( g_menu_kind == LT_MENU_BTN )
+    {
+        lt_totals_button_op(rt, g_menu_button, rows[0], sizeof(rows[0]));
+        return 1;
     }
     if( g_menu_kind == LT_MENU_CELL )
     {
@@ -2457,6 +2686,7 @@ lt_menu_close(struct LootTrackerRuntime* rt)
     g_menu_kind = LT_MENU_NONE;
     g_menu_source_id = 0;
     g_menu_obj_id = 0;
+    g_menu_button = LT_TOTALS_BTN_NONE;
     g_menu_item_name[0] = '\0';
     lt_changed(rt);
 }
@@ -2532,18 +2762,18 @@ lt_menu_pick(struct LootTrackerRuntime* rt, int picked)
     int const source_id = g_menu_source_id;
     char item[sizeof(g_menu_item_name)];
     int const quantity = g_menu_item_quantity;
-    long long unit;
+    int const cost = g_menu_item_cost;
+    int const button = g_menu_button;
 
     assert(rt);
     snprintf(item, sizeof(item), "%s", g_menu_item_name);
-    {
-        struct LtItem snapshot;
-        memset(&snapshot, 0, sizeof(snapshot));
-        snapshot.cost = g_menu_item_cost;
-        unit = lt_unit_value(rt, &snapshot);
-    }
     lt_menu_close(rt);
 
+    if( kind == LT_MENU_BTN )
+    {
+        lt_totals_button_do(rt, button);
+        return;
+    }
     if( kind == LT_MENU_BAND )
     {
         int const source = lt_source_index_by_id(rt, source_id);
@@ -2571,7 +2801,7 @@ lt_menu_pick(struct LootTrackerRuntime* rt, int picked)
          * is the one number the cell itself has no room to print. */
         char line[200];
         char amount[32];
-        lt_commas(unit * quantity, amount, sizeof(amount));
+        lt_commas(lt_stack_value(rt, cost, quantity), amount, sizeof(amount));
         snprintf(line, sizeof(line), "%s x%d: %s gp", item, quantity, amount);
         g_api->core.notify(g_api, line);
         return;
@@ -2598,10 +2828,40 @@ lt_strip_menu(
 
     g_api->panel.attention(g_api, false);
     lt_menu_close(rt);
-    /* The totals band's four controls are not a subject, so a right click
-     * there means nothing, exactly as it does in the cache's own band. */
+    /*
+     * The totals band's four controls ARE a subject, and this is the only
+     * channel that can say so.
+     *
+     * The cache puts an op on each of them -- if_setop(1, "Show") on 650:59,
+     * if_setopbase("Drop view") on 650:62 -- and that op is what tells a
+     * player which way a face points. A well has no hover text and no op
+     * bar, so the op goes in the one list this plugin can paint. Refusing
+     * the click here, as this used to on the grounds that "the cache's own
+     * band means nothing here either", dropped the only half of interface
+     * 650 that is unambiguous and left four pictures to be guessed at.
+     */
     if( action->y < LT_TOTALS_H )
+    {
+        int const which = lt_totals_button_at(rt, action->x);
+        if( which == LT_TOTALS_BTN_NONE )
+            return;
+        g_menu_kind = LT_MENU_BTN;
+        g_menu_button = which;
+        count = lt_menu_rows(rt, rows);
+        assert(count == 1);
+        g_menu_x = action->x;
+        if( g_menu_x > g_well_w - LT_MENU_W )
+            g_menu_x = g_well_w - LT_MENU_W;
+        if( g_menu_x < 0 )
+            g_menu_x = 0;
+        g_menu_y = action->y;
+        if( g_menu_y > lt_strip_h(rt) - lt_menu_h(count) )
+            g_menu_y = lt_strip_h(rt) - lt_menu_h(count);
+        if( g_menu_y < 0 )
+            g_menu_y = 0;
+        lt_changed(rt);
         return;
+    }
 
     if( lt_cell_at(rt, action->x, action->y, &item) )
     {
@@ -2703,43 +2963,9 @@ lt_strip_click(
      */
     if( action->y < LT_TOTALS_H )
     {
-        int const w = g_well_w;
-        if( action->x >= LT_BTN_LEFT_X && action->x < LT_BTN_LEFT_X + LT_BTN )
-            g_drop_view = !g_drop_view;
-        else if( action->x >= w - LT_BTN_R0 - LT_BTN && action->x < w - LT_BTN_R0 )
-        {
-            /* Same show/hide ignored mode as interface 650:59. Data is
-             * retained while hidden, so the opposite icon and the exact
-             * ignored source/item plates can be shown immediately. */
-            int detail;
-            g_show_ignored = !g_show_ignored;
-            detail = lt_detail_index(rt);
-            if( !g_show_ignored && detail >= 0 &&
-                lt_source_ignored(rt, &g_source[detail]) )
-                g_detail_source_id = 0;
-        }
-        else if( action->x >= w - LT_BTN_R1 - LT_BTN && action->x < w - LT_BTN_R1 )
-        {
-            /* Collapse all -- or expand all when everything is already shut,
-             * which is what makes one button enough. */
-            bool const any = lt_any_expanded(rt);
-            for( int i = 0; i < g_source_count; i++ )
-                if( lt_source_visible(rt, i) )
-                    g_expanded[i] = !any;
-        }
-        else if( action->x >= w - LT_BTN_R2 - LT_BTN && action->x < w - LT_BTN_R2 )
-        {
-            /* The value basis, which is the same config key the settings form
-             * offers as a dropdown. */
-            char const* now = lt_config_string(rt, "price_source");
-            (void)g_api->config.set(
-                g_api, "price_source",
-                now && lt_name_eq(now, "High alchemy") ? "Cache value"
-                                                       : "High alchemy");
-        }
-        else
-            return;
-        lt_changed(rt);
+        int const which = lt_totals_button_at(rt, action->x);
+        if( which != LT_TOTALS_BTN_NONE )
+            lt_totals_button_do(rt, which);
         return;
     }
 
@@ -2813,6 +3039,7 @@ lt_start(struct ToriRS_Api* api, void* state_ptr)
     g_paint_incomplete = false;
     g_paint_retry = 0;
     g_menu_kind = LT_MENU_NONE;
+    g_menu_button = LT_TOTALS_BTN_NONE;
     g_well_w = TORIRS_PANEL_WIDTH_DEFAULT;
     g_show_ignored = false;
     /*
@@ -2871,15 +3098,15 @@ lt_stop(struct ToriRS_Api* api, void* state_ptr)
     PluginDraw_ImageFree(g_api, &g_cell_px, &g_img_cell);
     PluginDraw_ImageFree(
         g_api, &g_cell_ignored_px, &g_img_cell_ignored);
-    PluginDraw_ImageFree(g_api, &g_view_px, &g_img_view);
-    PluginDraw_ImageFree(g_api, &g_view2_px, &g_img_view2);
-    PluginDraw_ImageFree(g_api, &g_alch_px, &g_img_alch);
-    PluginDraw_ImageFree(g_api, &g_cache_px, &g_img_cache);
-    PluginDraw_ImageFree(g_api, &g_collapse_px, &g_img_collapse);
-    PluginDraw_ImageFree(g_api, &g_expand_px, &g_img_expand);
-    PluginDraw_ImageFree(g_api, &g_ignored_px, &g_img_ignored);
+    PluginDraw_ImageFree(g_api, &g_btn_view_source_px, &g_img_btn_view_source);
+    PluginDraw_ImageFree(g_api, &g_btn_view_drop_px, &g_img_btn_view_drop);
+    PluginDraw_ImageFree(g_api, &g_btn_value_cache_px, &g_img_btn_value_cache);
+    PluginDraw_ImageFree(g_api, &g_btn_value_alch_px, &g_img_btn_value_alch);
+    PluginDraw_ImageFree(g_api, &g_btn_expanded_px, &g_img_btn_expanded);
+    PluginDraw_ImageFree(g_api, &g_btn_collapsed_px, &g_img_btn_collapsed);
+    PluginDraw_ImageFree(g_api, &g_btn_ignored_hidden_px, &g_img_btn_ignored_hidden);
     PluginDraw_ImageFree(
-        g_api, &g_ignored_hide_px, &g_img_ignored_hide);
+        g_api, &g_btn_ignored_shown_px, &g_img_btn_ignored_shown);
 }
 
 /**
