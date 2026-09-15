@@ -2105,6 +2105,153 @@ test_loot_stateful_controls(void)
 }
 
 
+/* ---------------------------------------------- the bar's own percentage */
+
+/*
+ * The first skill box's geometry, which the plugin states as
+ * XT_BOX_PITCH / XT_BOX_GAP + XT_ICON and this file cannot include. The
+ * overview card is box 0, so the first SKILL box tops at 50, its bar runs
+ * rows 77..91 and the text in it is drawn two down from the bar.
+ */
+#define BOX1_BAR_Y 77
+#define BOX1_TEXT_Y (BOX1_BAR_Y + 2)
+/*
+ * The bar's unfilled ground, which every pixel in it is unless something was
+ * drawn over it (XT_BAR_TRACK at alpha 255). Below one percent the fill is
+ * zero or one column wide, so the whole middle of the bar is this colour and
+ * "ink" needs no threshold: it is any pixel that is not this.
+ */
+#define BAR_TRACK 0xFF002200u
+/*
+ * Columns the centred percentage can occupy and the two `Lvl. NN` end labels
+ * cannot: those are drawn from x=4 and right-aligned to x=260, and neither is
+ * forty pixels wide in this face.
+ */
+#define PCT_X0 55
+#define PCT_X1 210
+
+/**
+ * Where the centred percentage's ink begins, and how TALL that first column is.
+ *
+ * Height is the measurement, not position, and ONE column is the whole window:
+ * this face's decimal point is a single pixel on the baseline and every digit
+ * in it is seven or more. A window even five columns wide reaches the next
+ * glyph along, which in "   .98%" is a '9' three pixels away, and that reads
+ * as tall -- it is how a first draft of this check passed on the broken
+ * spelling for two-digit permyriads.
+ *
+ * Returns the first inked column, or -1 when the bar carries no ink at all,
+ * and writes that column's inked-row count into `*out_rows`.
+ */
+static int
+percent_ink_start(int* out_rows)
+{
+    int const rows = 12;
+    int first_x = -1;
+    int inked = 0;
+
+    assert(out_rows);
+    assert(g_c.comp_px);
+
+    for( int x = PCT_X0; x < PCT_X1 && x < g_c.comp_w; x++ )
+    {
+        for( int y = BOX1_TEXT_Y; y < BOX1_TEXT_Y + rows && y < g_c.comp_h; y++ )
+            if( g_c.comp_px[y * g_c.comp_w + x] != BAR_TRACK )
+            {
+                first_x = x;
+                break;
+            }
+        if( first_x >= 0 )
+            break;
+    }
+    if( first_x < 0 )
+    {
+        *out_rows = 0;
+        return -1;
+    }
+
+    for( int y = BOX1_TEXT_Y; y < BOX1_TEXT_Y + rows && y < g_c.comp_h; y++ )
+        if( g_c.comp_px[y * g_c.comp_w + first_x] != BAR_TRACK )
+            inked++;
+    *out_rows = inked;
+    return first_x;
+}
+
+/**
+ * The first one percent of a level still prints an integer digit.
+ *
+ * The permyriad is padded to the box's five-character column, and the string
+ * is then cut 3/2 into an integer half and a fractional one. Padding the
+ * NUMBER to that width spills the column's spaces across the decimal point for
+ * anything under 100, which is the whole first one percent of every level and,
+ * exactly, the instant a level is reached -- the state the live save was
+ * photographed in, where two visible rows both read ". 0%": a decimal point, a
+ * blank tenths column, then "0%".
+ *
+ * The three cases below are permyriad 0, a single digit, and two digits. All
+ * three were broken; none of them is reachable from the 84.82%/9.16% reference
+ * strip, which is why no picture had ever asked.
+ *
+ * Red against the old spelling: the first inked column is the '.', one or two
+ * pixels of ink on the baseline where a digit's stem is seven or more.
+ */
+static void
+test_xp_percent_under_one_percent_keeps_its_integer_digit(void)
+{
+    int const WC = 8;
+    /* Woodcutting level 40 begins at 37,224 and 41 at 41,171: a 3,947 XP
+     * interval, so these three gains are permyriad 0, 7 and 98. */
+    int const LEVEL40 = 37224;
+    static int const gain[3] = { 0, 3, 39 };
+    static char const* const what[3] = { "0.00%", "0.07%", "0.98%" };
+
+    for( int i = 0; i < 3; i++ )
+    {
+        int ink_rows = 0;
+        int first_x;
+
+        reset("xp-tracker");
+        cfg_set("save_state", "0");
+        cfg_set("hide_maxed", "0");
+        cfg_set("pause_on_logout", "1");
+        cfg_set("pause_skill_after", "0");
+        cfg_set("reset_rate_after", "0");
+        cfg_set("label_top_left", "XP/hr");
+        cfg_set("label_top_right", "XP Gained");
+        cfg_set("label_bottom_left", "XP Left");
+        cfg_set("label_bottom_right", "Actions");
+
+        /* Seeded below the threshold and then gained onto it, because a skill
+         * that never gains XP has no box to photograph. */
+        g_c.level[WC] = 39;
+        g_c.xp[WC] = LEVEL40 - 20;
+
+        plugin_prepare(&TORIRS_PLUGIN_XP_TRACKER);
+        dispatch_start();
+        panel_build();
+        tick(20);
+        g_c.level[WC] = 40;
+        g_c.xp[WC] = LEVEL40 + gain[i];
+        tick(1000);
+        panel_build();
+        draw_well("boxes", 264);
+
+        CHECK(g_c.comp_px != NULL && g_c.comp_h >= 100,
+            "the strip has an overview card and one skill box (%d)", g_c.comp_h);
+        if( !g_c.comp_px || g_c.comp_h < 100 )
+            continue;
+
+        first_x = percent_ink_start(&ink_rows);
+        CHECK(first_x >= 0, "%s: the bar carries a centred percentage at all", what[i]);
+        CHECK(
+            ink_rows >= 5,
+            "%s: the percentage opens on a DIGIT, not on a bare decimal point -- "
+            "its first inked column (x=%d) is %d pixels tall, and this face's "
+            "'.' is one",
+            what[i], first_x, ink_rows);
+    }
+}
+
 /*
  * An obj icon that is not resident does NOT recompose the strip every frame.
  *
@@ -2188,6 +2335,7 @@ main(void)
     test_xp_ttl_advances_inside_rate_floor();
     test_xp_missing_art_is_asked_for_once();
     test_xp_wanted_art_is_a_gap_not_a_refusal();
+    test_xp_percent_under_one_percent_keeps_its_integer_digit();
     render_loot();
     test_loot_stateful_controls();
     test_loot_a_pending_icon_does_not_recompose_every_frame();
