@@ -225,6 +225,25 @@ and nothing else, the cheap check is to capture a SECOND set from one of the
 two binaries and diff same-binary against same-binary. Two sets from one binary
 that disagree in the same way is proof; "my change cannot reach that lane" is
 not, because the honest answer to "can it?" is usually longer than the rerun.
+**A whole set is not perfectly stable either, and there are two shapes of
+false red.** Both were met in one sitting, and both cost a set to identify.
+
+*A lane that reads as zero.* `gate_diff.py` printed `bounds 7195 -> 0` for
+`remount164`, and on the next invocation of the identical command printed the
+same thing for `remount548` instead while `remount164` passed. Neither log had
+changed: both hold their 7 000-odd BOUNDS lines, and `grep -c` says so. A lane
+whose after-side reads as exactly zero on one run and fine on the next is a
+failed READ, not a failed capture -- re-run the diff before you believe it, and
+check the log with `grep -c 'BOUNDS com='` if it says it twice.
+
+*A chrome piece that comes and goes.* One capture of `classic548` and
+`classic161` had a fourteenth `piece.13` at 0,338 553x165 that the same binary
+did not produce on its next run -- the layout line says `14 chrome pieces` in
+one and `15` in the other. Two before-sets and a second after-set all said 65
+owned controls; the odd set said 66. So a single added or dropped piece on the
+two Classic Fixed lanes, with no other difference anywhere in the set, is worth
+a second set before it is worth an argument. A real change moves more than one
+lane, or moves the same lane twice.
 
 ## Data versus code
 

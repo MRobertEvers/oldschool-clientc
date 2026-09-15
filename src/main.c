@@ -3469,8 +3469,25 @@ frame_loop_teardown(void)
                  * moved the pointer, so the redraw flag is the wrong question
                  * for these four.
                  */
+
+                /*
+                 * Why rendering is the fix and not a nicety: App_RunOnce only
+                 * latches the mouse point. The scene pick runs inside
+                 * App_Render -- a hittest as each visible model projects -- and
+                 * app_world_pick_finish writes world_hover_tile from it, so the
+                 * hover tile any overlay reads is the LAST RENDER'S. Four
+                 * logic-only frames moved the pointer and left the pick where
+                 * the main loop's final frame had put it: on CS2 the mouse had
+                 * never been in the viewport, so hover_tile() answered nothing
+                 * and the indicator drew no marker; on the live CS1 lane the
+                 * pointer had last been at the login click, so the marker sat
+                 * on a roof a hundred pixels from where the drive asked. Both
+                 * pictures read as a plugin that draws in the wrong place
+                 * rather than a drive that never delivered the hover.
+                 */
                 sim_render_frame(&app);
             }
+            free(hov_pixels);
             TORIRS_LOG(
                 "sim_hover: parked at %d,%d hover_com_id=%d\n", hov_x, hov_y, app.hover_com_id);
         }

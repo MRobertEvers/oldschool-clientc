@@ -24,6 +24,14 @@ widgetdemo-live    widget-demo         cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;
 control-live       none                cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
 tileind-c-live     tile-indicator-c    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=2200
 tileind-lua-live   tile-indicator-lua  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=2200
+# The same two with a WALK under them, because the two rows above photograph a
+# standing player and a standing player has no destination: the map flag is
+# only up between the click and the arrival. Without these the CS1 lane had no
+# picture of the destination marker at all -- the one marker of the three that
+# needs a live server to be worth anything. The fifth click is the walk, and
+# 2180 cuts the run twenty frames after it so the flag is still standing.
+tile-c-all-live    tile-indicator-c    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285;2160,80,120' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=2180
+tile-lua-all-live  tile-indicator-lua  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285;2160,80,120' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=2180
 clientsettings-live client-settings    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_PLUGIN_PANEL=1600,client-settings,page TORIRS_MAX_FRAMES=2200
 featureflags-live  feature-flags       cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_PLUGIN_PANEL=1600,feature-flags,page TORIRS_MAX_FRAMES=2200
 loottracker-live   loot-tracker        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,lootkill Goblin 995 5000;910,lootkill Goblin 526 1' TORIRS_SIM_PLUGIN_PANEL=1600,loot-tracker,page TORIRS_MAX_FRAMES=2200

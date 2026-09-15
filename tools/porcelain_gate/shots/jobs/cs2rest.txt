@@ -6,5 +6,7 @@ loottracker-none-cs2 loot-tracker    cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracke
 loottracker-loot-600-cs2 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page 'TORIRS_SIM_CMD=200,lootkill Goblin 995 5000;210,lootkill Goblin 526 1' TORIRS_TRACE_NATIVE_UI=1
 tile-c-all-cs2    tile-indicator-c   cs2 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_SIM_MOVE_AT=650,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
 tile-lua-all-cs2  tile-indicator-lua cs2 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_SIM_MOVE_AT=650,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
+tile-c-all-cs2    tile-indicator-c   cs2 TORIRS_SIM_CLICK_AT=620,60,120 TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=634
+tile-lua-all-cs2  tile-indicator-lua cs2 TORIRS_SIM_CLICK_AT=620,60,120 TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=634
 tileind-c-nohover-cs2   tile-indicator-c   cs2
 tileind-lua-nohover-cs2 tile-indicator-lua cs2

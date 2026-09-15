@@ -103,8 +103,20 @@ NetLinkWatch_Step(
         if( seen->frame_gap_ms >= (uint64_t)NET_LINK_STALL_MS )
             return net_link_lost(watch, "client was not running", out_reason);
 
-        /* 2. The server stopped speaking -- in the game stream only. */
-        if( seen->in_game && seen->now_ms - watch->last_recv_ms >= (uint64_t)NET_LINK_TIMEOUT_MS )
+        /*
+         * 2. The server stopped speaking -- in the game stream only.
+         *
+         * Measured only forwards. These are unsigned milliseconds, so a frame
+         * stamped EARLIER than the last packet subtracts to something near
+         * 2^64 and reads as a silence of half a billion years -- the timeout
+         * fires instantly on a session that has just been spoken to. A clock
+         * that went backwards is not evidence of anything about the server,
+         * and the stall detector above is already handed its gap with the same
+         * ordering test applied (app_net_link_watch); this is that test, said
+         * about the other detector.
+         */
+        if( seen->in_game && seen->now_ms > watch->last_recv_ms &&
+            seen->now_ms - watch->last_recv_ms >= (uint64_t)NET_LINK_TIMEOUT_MS )
             return net_link_lost(watch, "no packets for 15s", out_reason);
 
         /* 3. The transport says the socket is gone. */

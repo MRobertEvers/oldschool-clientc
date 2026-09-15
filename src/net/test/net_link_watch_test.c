@@ -200,6 +200,37 @@ test_the_server_going_quiet(void)
 }
 
 static void
+test_a_clock_that_went_backwards_is_not_silence(void)
+{
+    struct NetLinkWatch watch = live_session();
+    struct NetLinkSighting seen;
+
+    printf("TEST: a frame stamped before the last packet is not a silent server\n");
+
+    /*
+     * now_ms and last_recv_ms are unsigned. A frame whose clock reads EARLIER
+     * than the last packet subtracts to something near 2^64, which is over
+     * every threshold there is, so the naive difference declares a session
+     * that has just been spoken to dead on the spot.
+     *
+     * That is not a hypothetical: the harness drove its post-loop hover frames
+     * from a clock that restarted at 20 ms, and every screenshot taken with
+     * TORIRS_SIM_HOVER came back showing "Connection lost" over an empty
+     * world. The frames were fixed to continue the loop's clock, and this is
+     * the other half -- the detector cannot measure silence with a clock that
+     * went backwards, so it does not try.
+     */
+    seen = healthy(20);
+    CHECK(step(&watch, &seen) == NET_LINK_IDLE, "a backwards clock read as a silent server");
+    CHECK(!NetLinkWatch_Lost(&watch), "a backwards clock lost a live session");
+
+    /* And the link is still watched afterwards: once the clock is ahead of the
+     * last packet again, the ordinary timeout still bites on the bound. */
+    seen = healthy(1000 + NET_LINK_TIMEOUT_MS);
+    CHECK(step(&watch, &seen) == NET_LINK_LOST, "the timeout stopped working after the jump");
+}
+
+static void
 test_the_login_handshake_may_sit_quiet(void)
 {
     struct NetLinkWatch watch = live_session();
@@ -544,6 +575,7 @@ main(void)
     test_a_client_that_was_never_connected_loses_nothing();
     test_the_session_origin_is_the_first_packet();
     test_the_server_going_quiet();
+    test_a_clock_that_went_backwards_is_not_silence();
     test_the_login_handshake_may_sit_quiet();
     test_the_client_not_running();
     test_a_long_frame_is_not_a_stall();

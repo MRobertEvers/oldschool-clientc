@@ -65,3 +65,14 @@ tile-c-all-cs2   tile-indicator-c   cs2 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_S
 tile-lua-all-cs2 tile-indicator-lua cs2 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_SIM_MOVE_AT=650,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
 tile-c-all-cs1   tile-indicator-c   cs1 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_SIM_MOVE_AT=650,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
 tile-lua-all-cs1 tile-indicator-lua cs1 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_SIM_MOVE_AT=650,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
+# ARRIVAL, so the click has to be late and far and the capture has to be cut
+# short enough to land mid-walk. 620,120,300 with the run ending at 660 was
+# neither: forty frames is two ticks, the click was three tiles away, and the
+# walk was over before the BMP -- every one of these four came back with a true
+# tile, a hover tile and NO yellow. 60,120 is the far corner of the viewport
+# and 634 is fourteen frames after the click, which lands the frame with the
+# flag still standing (measured: NATIVE_PLAYER true=3210,3424 dest=3206,3427).
+tile-c-all-cs2   tile-indicator-c   cs2 TORIRS_SIM_CLICK_AT=620,60,120 TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=634
+tile-lua-all-cs2 tile-indicator-lua cs2 TORIRS_SIM_CLICK_AT=620,60,120 TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=634
+tile-c-all-cs1   tile-indicator-c   cs1 TORIRS_SIM_CLICK_AT=620,60,120 TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=634
+tile-lua-all-cs1 tile-indicator-lua cs1 TORIRS_SIM_CLICK_AT=620,60,120 TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=634
