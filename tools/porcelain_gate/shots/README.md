@@ -1,3 +1,49 @@
+# HOW TO INSPECT A SHOT — not optional, and not per-taste
+
+Twenty plugins were once declared "visually verified on both lanes" and that
+went into a pull request. A per-plugin pass then found **42 defects across 17 of
+those 20**, including a plugin that drew nothing at all and a settings dropdown
+that opened downward off the bottom of the window with 8 of its 9 options
+unreachable. Nothing exotic was missed: the screenshots were opened at full size
+and scanned whole, and the numbers around them were read as though they were
+evidence about the picture.
+
+They are not. `OWNED_WIDGET` counts, `BOUNDS` counts, finding counts and
+pixel-diff percentages all answer *"did something change"*. None of them answers
+*"is this right"*. And a 765x503 frame viewed whole cannot show a torn edge cut
+mid-tear, a progress bar eating an icon's last row, a 1px border overpainted, or
+a list running past the window — every one of which was found by cropping.
+
+So:
+
+```
+python3 inspect.py plugins/<shot>.png [--plugin-box x,y,w,h]
+```
+
+It cuts the same regions every time — chat band, orb column, sidebar, top strip,
+left edge, the last rows, plus the plugin's own box — at 3x nearest-neighbour,
+and writes a manifest beside them. **Open every file it writes.** The manifest is
+the artifact that makes a skipped inspection visible afterwards; there is no
+verbal equivalent of having looked.
+
+Three things it cannot do for you, each of which has already cost a defect:
+
+1. **Read the plugin's source first**, config defaults included. Without knowing
+   what it is supposed to draw, "drew nothing because a setting said no" and
+   "drew nothing because it is broken" are the same picture.
+2. **Read `runs/<shot>/log.txt`.** A plugin's own diagnostic line present on one
+   lane and absent on the other is a defect even when the picture looks fine.
+   That is exactly how the loot-beam lane bug announced itself: CS2 logged
+   `1 beam(s) over 1 ground stack(s)`, CS1 logged nothing at all.
+3. **Confirm the shot exercised the plugin.** Five shipped shots proved nothing:
+   a hover over an item with no stats to show, XP globes photographed after they
+   expired, a highlighter tagging CS2 npc ids on a lane with 3-digit LostCity
+   ids, a frame provider that was never switched on (`preferred_frame` is the
+   switch, not `enabled`), and a stale pre-fix capture.
+
+Never write "verified" or "clean" without naming the regions you cropped. "Looks
+fine" with no regions named is not a result.
+
 # Looking at the plugins
 
 The port gate answers *did anything move*. It compares component boxes, roles
