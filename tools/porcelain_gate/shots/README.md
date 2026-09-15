@@ -101,6 +101,33 @@ BEFORE on minimap states 3, 4 and 5 and only on those three, which is the same
 `frames/*-noorbs-mm*.png` is the same pair with the orb plugins off, where the
 plate has the whole native orb column to cover instead.
 
+### `chatpane-*` and `chatfurniture-*` — the desktop provider's chat pane
+
+Two defects in the same region, photographed the same way: one binary per side,
+built from this tree with only `gameframe.c` differing, the same drive, the
+same window.
+
+`chatpane-birdnest-{before,after}.png` is the proof for the pane's HEIGHT, and
+it is a notification rather than a line count on purpose. Classic Fixed asked
+the lane how big its chatbox was and used only the width, giving interface 162
+the 2004 builtin's 96 rows; the pack lays itself out to its box, so it showed
+three lines where the lane's own frame shows eight. A plugin notification is an
+ordinary game chat line, so `nxt-bird-nest`'s notice -- which the log says fired
+on both sides -- scrolled out of the pane before it could be read. In the BEFORE
+the chat ends at "Guards on the Al Kharid road"; in the AFTER "A bird's nest
+falls out of the tree." is on screen. `chatpane-birdnest-native.png` is the same
+drop with no provider, which is the reference the AFTER has to match, and its
+chat region is byte-identical between the two runs.
+
+`chatfurniture-cs1-{before,after}.png` is Classic Fixed forced over the 2004
+frame -- a state no lane preset reaches and the client settings page offers.
+The provider blitted its own parchment as ordinary chrome, which put it OVER
+the chat builtin that draws its scrollbar, its rule and its `Press Enter to
+chat...` line inside that same rectangle; the BEFORE is a bare sheet. The
+parchment is the chat's BACKING and now says so. `chatfurniture-native-cs1.png`
+is the lane's own frame, and after the fix the provider's whole chat region is
+pixel-identical to it.
+
 ## The three shipped defects the screenshots found (`lb-*`, `gi-maxcash-*`)
 
 Three defects that predate the Porcelain ports, all three photographed the way

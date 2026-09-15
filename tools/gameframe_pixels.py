@@ -680,19 +680,38 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         # The approved plain-rock band spans x=0..495, y=467..498.
         # Its 29-column source repeats without any of the four old recesses.
         # Checking all repeats also catches partially covered/late old art.
-        # Mobile puts its message area below the filters, covering part of
-        # this strip. Test the exposed rock, not the chat painted over it.
-        backing = None
+        #
+        # The question is whether a SECOND, CAPTIONLESS row of 2004 recesses
+        # is showing under the live filters, so pixels the chat pack paints
+        # over are not part of the question. Two of its parts can reach this
+        # strip and both are excluded:
+        #
+        #   162|37, the message backing. Mobile puts its message area BELOW
+        #   the filters, over part of this strip.
+        #   162|3, the pack's own stone bar. On the desktop tops the pack is
+        #   laid out flush with the canvas floor, so its bar lands at y=480 --
+        #   inside this band, and wearing the hollows this frame composes for
+        #   the eight LIVE filters that stand on it. Those hollows are the
+        #   captioned ones; a rule that called them the captionless row would
+        #   be reading the filter bar and reporting the strip.
+        #
+        # Excluding the bar does not weaken the check on 601, where the bar is
+        # ABOVE the message area and nowhere near this band.
+        def pack_part(trace, com):
+            match = re.search(rf"BOUNDS[^\n]*\(162\|{com}\)[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)",
+                              trace)
+            return tuple(map(int, match.groups())) if match else None
+        backing = bar = None
         if bounds_path:
-            match = re.search(r"BOUNDS[^\n]*\(162\|37\)[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)",
-                              Path(bounds_path).read_text())
-            if match:
-                backing = tuple(map(int, match.groups()))
+            trace = Path(bounds_path).read_text()
+            backing = pack_part(trace, 37)
+            bar = pack_part(trace, 3)
+        covers = [box for box in (backing, bar) if box]
         def exposed(x, y):
-            if backing is None:
-                return True
-            bx, by, bw, bh = backing
-            return not (bx <= x < bx + bw and by <= y < by + bh)
+            for bx, by, bw, bh in covers:
+                if bx <= x < bx + bw and by <= y < by + bh:
+                    return False
+            return True
         valid = width >= 496 and height >= 499 and (root != 601 or backing is not None)
         if valid:
             valid = all(rows[y][x] == rows[y][x % 29]

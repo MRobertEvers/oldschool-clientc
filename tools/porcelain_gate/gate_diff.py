@@ -43,8 +43,14 @@ The file is ini-ish, one declaration per line, `kind target = reason`:
 its mirror, for a line the port ADDS; a port that moves a native box states
 one of each, because the box left one place and arrived at another.
 `role-move` names a ROLE whose resolved box changed. `owned-drop` names an
-owned key that must disappear. `normalise` strips `<name>=<value>` from every
-tail before comparing. Blank lines and lines beginning with # are ignored.
+owned key that must disappear. `owned-move` names an owned key whose box
+changed -- the mirror of `role-move` for a control the plugin owns, and it
+exists for the same reason: a control anchored to a native element it does
+not own has to follow that element, so a port that legitimately moves the
+element cannot pass while the control's obedience is undeclarable. A control
+that moves for its OWN reasons is a different claim and the reason has to say
+which one it is. `normalise` strips `<name>=<value>` from every tail before
+comparing. Blank lines and lines beginning with # are ignored.
 """
 import re, sys, collections
 
@@ -55,6 +61,7 @@ class Expectations:
     def __init__(self, path=None):
         self.only_before, self.only_after = {}, {}
         self.role_move, self.owned_drop, self.normalise = {}, {}, {}
+        self.owned_move = {}
         self.fired = collections.Counter()
         if not path:
             return
@@ -80,6 +87,7 @@ class Expectations:
                 raise SystemExit(f"{path}:{lineno}: `{kind}` names nothing")
             table = {"only-before": self.only_before, "only-after": self.only_after,
                      "role-move": self.role_move, "owned-drop": self.owned_drop,
+                     "owned-move": self.owned_move,
                      "normalise": self.normalise}.get(kind)
             if table is None:
                 raise SystemExit(f"{path}:{lineno}: unknown declaration `{kind}`")
@@ -122,12 +130,27 @@ class Expectations:
             return True
         return False
 
+    def excuses_key_move(self, key):
+        """An owned control the port is declared to move.
+
+        A plugin control anchored to a native element -- the screenshot
+        camera REPLACEs the Report button -- has no box of its own: it goes
+        where its target goes. So a port that moves that target moves this
+        control too, and with no way to say so the port fails on a control
+        doing exactly what its anchor is for.
+        """
+        if key in self.owned_move:
+            self.fired[("owned-move", key)] += 1
+            return True
+        return False
+
     def report(self):
         """Print what each declaration did. A declaration nobody needed is a
         failure: it claims the port changes something it does not."""
         stale = []
         for kind, table in (("only-before", self.only_before), ("only-after", self.only_after),
                             ("role-move", self.role_move), ("owned-drop", self.owned_drop),
+                            ("owned-move", self.owned_move),
                             ("normalise", self.normalise)):
             for target, reason in table.items():
                 n = self.fired[(kind, target)]
@@ -235,7 +258,7 @@ def compare(before, after, label, expect):
     # are judged like everything else.
     measured = [k for k in diff if is_volatile(k) and ob[k][0] == oa[k][0]
                 and hidden_of(ob[k][1]) == hidden_of(oa[k][1])]
-    movedc = [k for k in diff if k not in measured]
+    movedc = [k for k in diff if k not in measured and not expect.excuses_key_move(k)]
     print(f"{label}: owned controls {len(ob)} -> {len(oa)}, missing {len(gone)}, "
           f"added {len(new)}, moved {len(movedc)}, measured-text {len(measured)}")
     for k in gone[:6]: print("    - ", k, ob[k])

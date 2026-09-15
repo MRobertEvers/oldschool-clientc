@@ -103,6 +103,13 @@ failed to place could never pass, because it could say the old box is gone and
 not that the new one is right. `role-move` names a ROLE whose resolved box
 changed, which is the same difference said about the role rather than the
 component. `owned-drop` names an owned control that must disappear.
+`owned-move` names an owned control whose box changed, and it is `role-move`'s
+mirror for a control the plugin owns: a control anchored to a native element
+has no box of its own -- the screenshot camera REPLACEs the Report button and
+goes wherever Report goes -- so a port that legitimately moves that element
+would otherwise fail on the control obeying its own anchor. Say in the reason
+WHICH it is: a control that moved because its target did is one claim, and a
+control that moved for its own reasons is a different one.
 `normalise` strips `<name>=<value>` from every tail before comparing.
 
 A declaration is not a suppression, and three rules keep it from becoming one:

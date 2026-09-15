@@ -678,6 +678,23 @@ struct FrameBlit
     int tile_h;
     /** 0 opaque, 255 invisible -- the client's own sense. */
     int trans;
+    /**
+     * Where this piece stands in the depth order, and on which side of it.
+     *
+     * Every piece of a surround is chrome the live surfaces are raised over,
+     * so the default is OVER the viewport and the surfaces climb back above
+     * it. @see frame_describe_surfaces.
+     *
+     * One piece is not chrome: the chat's own PARCHMENT. It is the backing
+     * the chat draws ON, and a backing stated as chrome is a backing drawn
+     * over the text it is supposed to be under -- on a 2004 lane that erased
+     * the scrollbar, the rule and the whole `Press Enter to chat...` line,
+     * because the chat builtin draws all three and every one of them is
+     * inside the parchment's rectangle. So a piece may name its own target
+     * and say BEHIND it. @see frame_blit_behind.
+     */
+    struct PorcelainElement depth;
+    bool behind;
 };
 
 /** A rectangle, because a tab carries two of them. @see FrameTab. */
@@ -1267,7 +1284,7 @@ frame_place_orbs(
 static void
 frame_blit_into(
     struct FrameCall* ctx, struct FrameArt image, int x, int y, int tile_w, int tile_h,
-    int trans)
+    int trans, struct PorcelainElement depth, bool behind)
 {
     struct FrameBlit* b;
     assert(ctx);
@@ -1290,20 +1307,45 @@ frame_blit_into(
     b->tile_w = tile_w;
     b->tile_h = tile_h;
     b->trans = trans;
+    b->depth = depth;
+    b->behind = behind;
 }
 
 /** Chrome behind the live surfaces. */
 static void
 frame_blit(struct FrameCall* ctx, struct FrameArt image, int x, int y)
 {
-    frame_blit_into(ctx, image, x + ctx->origin_x, y + ctx->origin_y, 0, 0, 0);
+    frame_blit_into(
+        ctx, image, x + ctx->origin_x, y + ctx->origin_y, 0, 0, 0,
+        PORCELAIN_EL(VIEWPORT), false);
+}
+
+/*
+ * The one piece that is not chrome: a live surface's own BACKING.
+ *
+ * Stated as chrome it would be drawn over the surface it backs, and the
+ * surface's raise cannot rescue it because the raise puts the surface over
+ * the plugin's LAST-described item, not over each piece in turn. So the
+ * parchment names the chat and says BEHIND, which is the same thing the 2004
+ * profile says about it in prose: `[component:chatback]` is "the chat's
+ * BACKING ... a plugin dressing the chat in another era's art replaces this
+ * and leaves the text, the buttons and the scrollbar alone".
+ */
+static void
+frame_blit_behind(
+    struct FrameCall* ctx, struct FrameArt image, int x, int y, struct PorcelainElement element)
+{
+    frame_blit_into(
+        ctx, image, x + ctx->origin_x, y + ctx->origin_y, 0, 0, 0, element, true);
 }
 
 /** Chrome behind them, REPEATED over a box. @see FrameBlit::tile_w. */
 static void
 frame_blit_tiled(struct FrameCall* ctx, struct FrameArt image, int x, int y, int w, int h, int trans)
 {
-    frame_blit_into(ctx, image, x + ctx->origin_x, y + ctx->origin_y, w, h, trans);
+    frame_blit_into(
+        ctx, image, x + ctx->origin_x, y + ctx->origin_y, w, h, trans,
+        PORCELAIN_EL(VIEWPORT), false);
 }
 
 /*
@@ -2510,9 +2552,15 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
     frame_blit(ctx, frame_art(ctx, IMG_C_BACKLEFT2), 0, 357);
     /* The 2004 chat backing only where the chat is the 2004 builtin: an
      * OldSchool chat pack brings its own and is a different size, so the
-     * classic parchment under it would show at two edges. */
+     * classic parchment under it would show at two edges.
+     *
+     * BEHIND the chat, because it is the chat's backing and not chrome around
+     * it: the 2004 builtin draws its message lines, its scrollbar, the rule
+     * under them and the `Press Enter to chat...` line all INSIDE this
+     * rectangle, so a parchment stated as ordinary chrome erases every one of
+     * them and leaves a bare sheet. @see frame_blit_behind. */
     if( !oldschool )
-        frame_blit(ctx, frame_art(ctx, IMG_C_CHATBACK), 17, 357);
+        frame_blit_behind(ctx, frame_art(ctx, IMG_C_CHATBACK), 17, 357, PORCELAIN_EL(CHAT));
     if( oldschool )
     {
         frame_blit(ctx, frame_surround_piece(ctx, &ctx->state->chat_rail,
@@ -2598,24 +2646,41 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         FRAME_C_HOLE_COMPASS_W,
         FRAME_C_HOLE_COMPASS_H);
     frame_skin_classic_map(ctx);
-    /* Keep the 2004 origin and height while accommodating the lane's pack.
-     * The surround above is re-cut for the desktop pack's 519 columns.
-     * Narrowing the content to 479 was prototyped with relative container
-     * widths and a measured-width filter calculation: the running client
-     * put All at x=-18, clipped against the left edge. The wider surround
-     * keeps all eight filters and their state lines inside a complete rail.
-     * 357 + 73 backing + 23 bar = 453, where the lower rock strip begins. */
+    /* Keep the 2004 origin while accommodating the lane's pack. The surround
+     * above is re-cut for the desktop pack's 519 columns. Narrowing the
+     * content to 479 was prototyped with relative container widths and a
+     * measured-width filter calculation: the running client put All at
+     * x=-18, clipped against the left edge. The wider surround keeps all
+     * eight filters and their state lines inside a complete rail. */
     if( oldschool )
     {
         /*
-         * ASK the lane for its chat's shape; do not assert one.
+         * ASK the lane for its chat's shape -- BOTH numbers -- and do not
+         * assert either.
          *
-         * The 2004 hole is 479x96. An OldSchool desktop pack is 519x165 and
-         * its width does not reflow (519 is authored absolute on chatbox.if's
-         * `controls` and `chatarea`, and torirs_chatbox_layout computes the
-         * filter gap from that same literal), but its HEIGHT does -- so it
-         * takes the 2004 origin and the 2004 height and keeps its own width:
-         * 357 + 73 backing + 23 bar = 453, exactly where `backbase1` starts.
+         * The 2004 hole is 479x96 and that is the size of the 2004 BUILTIN,
+         * whose geometry is fixed in code and reads nothing from its node.
+         * An OldSchool chat is not that: it is a 519x165 pack that lays
+         * itself out TO ITS BOX, and handed 96 rows it lays out a 73-row
+         * message window and shows three lines where the lane's own frame
+         * shows eight. That is not a cosmetic difference. A plugin
+         * notification is an ordinary game chat line, so a notice the
+         * player was meant to read scrolls past inside a pane too short to
+         * hold it and never reaches the screen at all -- measured with
+         * nxt-bird-nest and nxt-cannon-ammo, both of which announce
+         * correctly and neither of which was legible under this frame.
+         *
+         * So the pack takes the 2004 ORIGIN and its own authored SIZE, flush
+         * with the canvas floor, which is where the 2004 frame's own bottom
+         * band already ends. The band is 165 rows deep by construction --
+         * `backhmid2` 19 at y=338, the chat hole 96 at y=357, `backbase1` 50
+         * at y=453, and 19+96+50 is 165 -- so a 519x165 pack laid flush with
+         * the floor fills exactly that band, and every rock piece around it
+         * (`backleft2` and `backbase1` to its left, the re-cut rail and
+         * `backbase2` to its right) is already drawn where it has to be. The
+         * pack's own 23-row stone bar lands at 480, inside `backbase1`'s
+         * strip, which is where the 2004 filters stood and where the lane's
+         * own frame puts the same bar.
          *
          * The MOBILE top is a different pack: 461 wide, and its bar sits ABOVE
          * the message area rather than under it. Placed at the desktop box it
@@ -2626,6 +2691,7 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
          * @see ToriRS_FrameApi::surface_native_size, mobile_chat_native.
          */
         int native_w = FRAME_O_CHAT_PACK_W;
+        int native_h = FRAME_O_CHAT_PACK_H;
         int mobile_top = 0;
 
         /*
@@ -2641,12 +2707,12 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
          */
         {
             struct ToriRS_WidgetBounds native;
-            /* The WIDTH only. The height the classic layout gives a chat is
-             * its own -- FRAME_C_CHAT_H, the 2004 pack's 165 -- and the pack's
-             * own height is read here for nothing. */
             if( Porcelain_NativeSize(ctx->state->porcelain, PORCELAIN_EL(CHAT), &native) &&
                 native.width > 0 && native.height > 0 )
+            {
                 native_w = native.width;
+                native_h = native.height;
+            }
         }
         /* By the TOPLEVEL and not by the size: the mobile top mounts the same
          * 519-wide interface 162 and reports the same native size, and lays it
@@ -2654,11 +2720,11 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
          * two apart; the root can. */
         if( g_api->cache.named_id(g_api, "iface", "toplevel_mobile", &mobile_top) &&
             mobile_top > 0 && g_api->cache.frame_root(g_api) == mobile_top )
-            frame_place_chat(ctx, 0, 338);
+            frame_place_chat(ctx, 0, FRAME_FIXED_H - FRAME_O_CHAT_PACK_H);
         else
             frame_surface(
-                ctx, FRAME_SURFACE_CHAT, FRAME_C_CHAT_X, FRAME_C_CHAT_Y,
-                native_w, FRAME_C_CHAT_H);
+                ctx, FRAME_SURFACE_CHAT, FRAME_C_CHAT_X, FRAME_FIXED_H - native_h,
+                native_w, native_h);
     }
     else
         frame_surface(
@@ -2755,10 +2821,16 @@ frame_layout_modern_fixed(struct FrameCall* ctx)
     frame_blit(ctx, frame_art(ctx, IMG_O_SIDE_PANEL), 547, 205);
     frame_blit(ctx, frame_art(ctx, IMG_O_BACKRIGHT1), 737, 205);
     /* The chat backing and its stone bar belong to the chat PACK on an
-     * OldSchool lane, which draws both itself. @see frame_place_chat. */
+     * OldSchool lane, which draws both itself. @see frame_place_chat.
+     *
+     * The backing goes BEHIND the chat for the reason the classic frame's
+     * parchment does: the 2004 builtin centred in it draws its scrollbar, its
+     * rule and its input line inside this rectangle, and a backing stated as
+     * chrome paints over all three. The stone BAR is not a backing -- it is
+     * the strip the filter buttons stand on, and they are placed over it. */
     if( !oldschool )
     {
-        frame_blit(ctx, frame_art(ctx, IMG_O_CHATBACK), 0, 338);
+        frame_blit_behind(ctx, frame_art(ctx, IMG_O_CHATBACK), 0, 338, PORCELAIN_EL(CHAT));
         frame_blit(ctx, frame_chat_stones(ctx), 0, 338 + FRAME_O_CHAT_BODY_H);
     }
     frame_blit(ctx, frame_art(ctx, IMG_O_BACKLEFT2), 519, 338);
@@ -3032,7 +3104,7 @@ frame_layout_modern_resizable(
     if( !oldschool )
     {
         if( g_chat_open )
-            frame_blit(ctx, frame_art(ctx, IMG_O_CHATBACK), 0, chat_y);
+            frame_blit_behind(ctx, frame_art(ctx, IMG_O_CHATBACK), 0, chat_y, PORCELAIN_EL(CHAT));
         frame_blit(ctx, frame_chat_stones(ctx), 0, chat_y + FRAME_O_CHAT_BODY_H);
     }
 
@@ -3456,7 +3528,7 @@ frame_art_size(struct FrameCall* ctx, struct FrameArt art, int* out_w, int* out_
 static void
 frame_describe_piece(
     struct ToriRS_PorcelainDescribe* describe, char const* key, struct FrameArt art, int x, int y,
-    int w, int h, int trans, struct PorcelainElement depth)
+    int w, int h, int trans, struct PorcelainElement depth, bool behind)
 {
     struct PorcelainItem item;
 
@@ -3471,6 +3543,7 @@ frame_describe_piece(
     item.place.dx = x;
     item.place.dy = y;
     item.place.depth = depth;
+    item.place.behind = behind;
     /*
      * `trans` is the client's own sense: 0 opaque, 255 invisible. Porcelain's
      * is the other way up AND reserves zero for "unstated, therefore opaque",
@@ -3513,7 +3586,7 @@ frame_describe_chrome(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* de
         else if( !frame_art_size(ctx, art, &w, &h) )
             continue;
         frame_describe_piece(describe, state->piece_key[i], art, b->x, b->y, w, h, b->trans,
-                             PORCELAIN_EL(VIEWPORT));
+                             b->depth, b->behind);
     }
 
     if( g_plan.housing_placed )
@@ -3537,7 +3610,7 @@ frame_describe_chrome(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* de
         if( frame_art_size(ctx, g_plan.housing_image, &w, &h) )
             frame_describe_piece(
                 describe, "housing", g_plan.housing_image, g_plan.housing_rect.x,
-                g_plan.housing_rect.y, w, h, 0, PORCELAIN_EL(COMPASS));
+                g_plan.housing_rect.y, w, h, 0, PORCELAIN_EL(COMPASS), false);
     }
 
     for( int i = 0; i < g_plan.tab_count; i++ )
@@ -3615,10 +3688,10 @@ frame_describe_chrome(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* de
             face = frame_blank(ctx);
         if( frame_art_size(ctx, t->stone.name ? t->stone : t->stone_pressed, &w, &h) )
             frame_describe_piece(describe, state->face_key[i], face, t->box.x, t->box.y, w, h, 0,
-                                 PORCELAIN_EL(VIEWPORT));
+                                 PORCELAIN_EL(VIEWPORT), false);
         if( given && frame_art_size(ctx, t->icon, &w, &h) )
             frame_describe_piece(describe, state->icon_key[i], t->icon, t->icon_x, t->icon_y, w, h,
-                                 0, PORCELAIN_EL(VIEWPORT));
+                                 0, PORCELAIN_EL(VIEWPORT), false);
     }
 }
 

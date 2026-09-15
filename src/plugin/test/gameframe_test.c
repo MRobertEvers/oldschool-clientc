@@ -431,16 +431,39 @@ static int fake_draw_rect(void* u, int x, int y, int w, int h, uint32_t c, int a
 static void fake_draw_select_canvas(void* u, int c) { (void)u; (void)c; }
 static int fake_mouse_pos(void* u, int* x, int* y) { (void)u; (void)x; (void)y; return 0; }
 
-/** The lane states no size for any surface, so a caller falls back to its own.
- *  @see ToriRS_FrameApi::surface_native_size. */
+/*
+ * What the LANE says its chat measures, or nothing.
+ *
+ * Zero is the default and it is a real lane state -- a profile that authors
+ * its chatbox in proportions states no pixel box, which is the case the
+ * provider's declared UNSUPPORTED finding is about -- so the fallback path
+ * stays the one every other check here runs through.
+ *
+ * A test that wants to see the provider ASK sets these. It matters because
+ * the fallback and the authored size agreed on every lane this fake models,
+ * and a height that is asked for and then thrown away is indistinguishable
+ * from one that is used until the two disagree. @see the 519x200 lane below.
+ *
+ * Only the chat is answered: it is the only surface the layout asks about
+ * (Porcelain_NativeSize(EL(CHAT)) is the file's single call), and answering
+ * for a surface nobody asks about would be a fake with an opinion.
+ *
+ * @see ToriRS_FrameApi::surface_native_size.
+ */
+static int g_lane_chat_w = 0;
+static int g_lane_chat_h = 0;
+
 static int
 fake_slot_native_size(void* u, int slot, int* w, int* h)
 {
     (void)u;
-    (void)slot;
-    (void)w;
-    (void)h;
-    return 0;
+    if( slot != TORIRS_SURFACE_CHAT || g_lane_chat_w <= 0 || g_lane_chat_h <= 0 )
+        return 0;
+    if( w )
+        *w = g_lane_chat_w;
+    if( h )
+        *h = g_lane_chat_h;
+    return 1;
 }
 
 /** No member of any surface has an authored box in this fake.
@@ -1143,7 +1166,26 @@ main(void)
           "the four 2004 chat buttons stand at the reference's own columns");
     printf("GAMEFRAME classic pieces=%d tabs=%d icons=%d housing=%d\n", pieces_behind_viewport(), owned_count("tab."),
            owned_count("icon."), owned("housing") != NULL);
-    CHECK(pieces_behind_viewport() == 14, "the fourteen classic surround pieces are owned images over the scene");
+    CHECK(pieces_behind_viewport() == 13,
+          "thirteen of the fourteen classic surround pieces are owned images over the scene");
+    /*
+     * The fourteenth is the chat's PARCHMENT, and it goes BEHIND the chat.
+     *
+     * The 2004 chat is one builtin that draws its message lines, its
+     * scrollbar, the rule under them and the `Press Enter to chat...` line,
+     * and every one of them is inside this piece's rectangle. Stated as
+     * chrome -- over the scene, like the other thirteen -- the parchment
+     * lands on top of all four and the player gets a bare sheet. The
+     * surface's own raise does not save it: that anchors the chat over the
+     * LAST item the description stated, not over each piece in turn.
+     *
+     * Mutation: spell this piece `frame_blit` instead of `frame_blit_behind`
+     * in frame_layout_classic_fixed and both of these go red.
+     */
+    CHECK(anchored(owned("piece.10"), "chat", TORIRS_WIDGET_RELATION_BEHIND),
+          "the 2004 chat parchment is anchored BEHIND the chat, not over the scene");
+    CHECK(!over_scene("piece.10"),
+          "and it is not chrome: a backing over the chat erases the scrollbar, the rule and the input line");
     /*
      * Mutation: drop the `describe->raise` beside the surface move in
      * frame_describe_surfaces and this goes red -- which is the picture where
@@ -1239,7 +1281,7 @@ main(void)
         CHECK(g_frame.set_calls > published, "rebound roles make the provider ask for another plan pass");
         declare(765, 503);
         CHECK(placed("viewport", -1, 4, 4, 512, 334) && placed("chat", -1, 17, 357, 479, 96) &&
-                  pieces_behind_viewport() == 14 && owned_count("tab.") == 14,
+                  pieces_behind_viewport() == 13 && owned_count("tab.") == 14,
               "the plan is re-applied onto the rebuilt nodes");
     }
 
@@ -1257,7 +1299,8 @@ main(void)
     CHECK(placed("chat_buttons", 0, 14, 474, 100, 29) && placed("chat_buttons", 3, 401, 474, 100, 29),
           "the four 2004 filters spread evenly across the OldSchool band");
     printf("GAMEFRAME modern-fixed pieces=%d\n", pieces_behind_viewport());
-    CHECK(pieces_behind_viewport() == 14 && owned_at("housing", 545, 4), "the OldSchool surround and its housing are owned images");
+    CHECK(pieces_behind_viewport() == 13 && owned_at("housing", 545, 4),
+          "the OldSchool surround and its housing are owned images; its chat backing is behind the chat");
     CHECK(owned_count("tab.") == 14 && owned_count("icon.") == 14, "548 publishes fourteen stones and fourteen icons");
     /* The control is there wearing the invisible blank, not the stone's own
      * picture. @see the 2004 case above. */
@@ -1294,13 +1337,14 @@ main(void)
     declare(1200, 800);
     CHECK(placed("chat", -1, 20, 658, 479, 96), "and gives the rows back when the band goes");
     printf("GAMEFRAME resizable closed pieces=%d\n", pieces_behind_viewport());
-    CHECK(pieces_behind_viewport() == 4, "a collapsed sidebar draws two tab rows and the chat, no pillars and no backing");
+    CHECK(pieces_behind_viewport() == 3,
+          "a collapsed sidebar draws two tab rows and the chat's stone bar, no pillars and no backing");
     CHECK(owned_count("chatsw.") == 3 && strcmp(owned("chatsw.1")->op, "Hide chat") == 0,
           "the resizable frame's chat switches stand over the first three filters");
     g_frame.active_tab = 0;
     tick_and_declare(1200, 800);
     printf("GAMEFRAME resizable open pieces=%d\n", pieces_behind_viewport());
-    CHECK(pieces_behind_viewport() == 7, "opening a tab adds the backing and both pillars");
+    CHECK(pieces_behind_viewport() == 6, "opening a tab adds the backing and both pillars");
     {
         struct FakeWidget const* backing = NULL;
         for( int i = 0; i < g_w_count; i++ )
@@ -1340,7 +1384,55 @@ main(void)
     declare(765, 503);
     CHECK(strcmp(selected_frame().active_id, "gameframe-layout/classic-fixed") == 0 && g_frame.active == 1,
           "the provider owns the OldSchool frame too");
-    CHECK(placed("chat", -1, 17, 357, 519, 96), "the chat pack takes the 2004 origin and height and keeps its own width");
+    /*
+     * The pack takes the 2004 ORIGIN and its own authored SIZE.
+     *
+     * 17,357 519x96 -- the 2004 origin and the 2004 BUILTIN's height -- is
+     * what this asserted before, and it is the defect. A 2004 chatbox is 96
+     * rows because the builtin's geometry is fixed in code and reads nothing
+     * from its node; an OldSchool chat lays itself out TO ITS BOX, so 96 rows
+     * buys a 73-row message window and three visible lines where the lane's
+     * own frame shows eight. A plugin notification is an ordinary game chat
+     * line, so the notice a player was meant to read scrolls out of a pane
+     * too short to hold it.
+     *
+     * 338 is the canvas floor minus the pack, and it is also exactly where
+     * the 2004 frame's own bottom band starts: `backhmid2` 19 rows at 338,
+     * the chat hole 96 at 357 and `backbase1` 50 at 453 are 165 rows, which
+     * is the pack. So the pack fills the band the 2004 frame already has and
+     * every rock piece around it is already drawn where it has to be.
+     *
+     * Mutation: put FRAME_C_CHAT_Y and FRAME_C_CHAT_H back in
+     * frame_layout_classic_fixed and this goes red.
+     */
+    CHECK(placed("chat", -1, 17, 338, 519, 165),
+          "the chat pack takes the 2004 origin and its own size, flush with the canvas floor");
+    /*
+     * ASKED, not asserted.
+     *
+     * Every lane this fake models has a 519x165 pack, which is also the
+     * fallback, so the box above holds whether the height is read or written
+     * down. Here the lane states a size the fallback does not have: a chat
+     * that follows it is a chat whose height came from the lane, and one
+     * that does not is a literal. That is the whole content of the ledger's
+     * `Authored surface size` row.
+     *
+     * Mutation: assign only `native_w` from Porcelain_NativeSize and leave
+     * `native_h` on the fallback, which is what this file did, and the first
+     * of these goes red while the second still passes.
+     */
+    {
+        g_lane_chat_w = 519;
+        g_lane_chat_h = 200;
+        declare(765, 503);
+        CHECK(placed("chat", -1, 17, 303, 519, 200),
+              "a lane that states a taller chat is given a taller chat, still flush with the floor");
+        g_lane_chat_w = 0;
+        g_lane_chat_h = 0;
+        declare(765, 503);
+        CHECK(placed("chat", -1, 17, 338, 519, 165),
+              "and a lane that states no size at all falls back to the pack every OldSchool top uses");
+    }
     CHECK(placed("orbs", -1, 521, 4, 236, 163), "548's orb block sits beside the 2004 housing");
     CHECK(placed("orbs", 1, 717, 119, 30, 30) && placed("orbs", 2, 709, 139, 40, 34) && placed("orbs", 0, 723, 54, 34, 34),
           "the world map, the wiki banner and the whole adviser are seated");
