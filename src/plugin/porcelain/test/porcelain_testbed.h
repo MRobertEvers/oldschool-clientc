@@ -174,6 +174,11 @@ struct Testbed
     bool refuse_anchors;
 
     struct TestbedElement elements[TESTBED_ELEMENTS_MAX];
+    /* Refs the engine has FREED. The tree refuses one from every entry point,
+     * and a fake that could not name them made a dead node read exactly like
+     * the top of the tree. @see fake_parent. */
+    struct ToriRS_WidgetRef retired[TESTBED_ELEMENTS_MAX * 2];
+    int retired_count;
     struct
     {
         bool used;
@@ -287,6 +292,9 @@ void Testbed_RefuseAnchors(bool refuse);
  * STALE_REFERENCE, which is what a frame root swap looks like from inside the
  * layer.
  */
+/* The engine frees the element's node and reports nothing: the watch stays
+ * BOUND holding a reference the tree can no longer resolve. */
+void Testbed_KillElementNode(char const* role);
 void Testbed_KillControl(char const* key);
 struct TestbedElement* Testbed_Element(char const* role);
 

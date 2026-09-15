@@ -114,6 +114,34 @@ testbed_mint_ref(void)
     return ref;
 }
 
+/*
+ * THE REFS THE ENGINE HAS FREED.
+ *
+ * A retired ref is not "a ref the fake happens not to know": tests invent
+ * parent nodes the element table has never heard of, and those are ordinary
+ * live nodes. Only an identity this testbed has explicitly retired -- by
+ * unbinding the element or by killing its node outright -- is a corpse, and
+ * only a corpse is refused STALE_REFERENCE.
+ */
+static void
+testbed_retire_ref(struct ToriRS_WidgetRef ref)
+{
+    if( !ToriRS_WidgetRefValid(ref) )
+        return;
+    assert(g_testbed.retired_count <
+           (int)(sizeof(g_testbed.retired) / sizeof(g_testbed.retired[0])));
+    g_testbed.retired[g_testbed.retired_count++] = ref;
+}
+
+static bool
+testbed_ref_retired(struct ToriRS_WidgetRef ref)
+{
+    for( int i = 0; i < g_testbed.retired_count; i++ )
+        if( ToriRS_WidgetRefEqual(g_testbed.retired[i], ref) )
+            return true;
+    return false;
+}
+
 struct TestbedElement*
 Testbed_DeclareElement(char const* role, int x, int y, int width, int height)
 {
@@ -239,6 +267,7 @@ Testbed_UnbindElement(char const* role)
     element->bound = false;
     element->ref = testbed_mint_ref();
     element->incarnation++;
+    testbed_retire_ref(previous);
     testbed_publish_tree();
     testbed_raise_ref(role, TORIRS_WIDGET_UNBOUND, previous);
 }
@@ -261,6 +290,29 @@ void
 Testbed_RefuseAnchors(bool refuse)
 {
     g_testbed.refuse_anchors = refuse;
+}
+
+/*
+ * THE ENGINE FREES A NODE AND TELLS NOBODY.
+ *
+ * Not `Testbed_UnbindElement`, which raises UNBOUND and is the case the layer
+ * already handles. This is the window that precedes it: the tree has retired
+ * the node and the event reporting that has not been delivered, so the watch
+ * is still BOUND and its reference is a corpse. Measured on the CS1 lane at
+ * boot, where it lasted two hundred and sixteen frames.
+ *
+ * The element keeps its role and its declaration -- a later BOUND for the
+ * fresh node is what the lane really does -- so only the IDENTITY is retired.
+ */
+void
+Testbed_KillElementNode(char const* role)
+{
+    struct TestbedElement* element = Testbed_Element(role);
+
+    assert(element);
+    testbed_retire_ref(element->ref);
+    element->ref = testbed_mint_ref();
+    element->incarnation++;
 }
 
 void
@@ -612,6 +664,20 @@ fake_state(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetState
     return TORIRS_CONTRACT_OK;
 }
 
+/*
+ * `parent` HAS THREE ANSWERS, AND THE FAKE USED TO HAVE TWO.
+ *
+ * The adapter builds this reply out of the node's own `parent` field, so a
+ * node at the top of the tree answers UNAVAILABLE -- "there is no parent" --
+ * while a ref the tree can no longer RESOLVE is refused STALE_REFERENCE before
+ * the reply is built at all (torirs_plugin_bridge.u.c: UITree_ResolveRef, then
+ * PLUGIN_WIDGET_PARENT). Two different facts about two different situations.
+ *
+ * This fake answered UNAVAILABLE to both, so a freed node read exactly like
+ * the top of the tree and no test could express the state the CS1 lane spent
+ * two hundred frames in: a watch still BOUND to a node the engine had
+ * destroyed. @see Testbed_KillElementNode.
+ */
 static enum ToriRS_ContractResult
 fake_parent(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetRef* out)
 {
@@ -619,6 +685,8 @@ fake_parent(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetRef*
 
     (void)context;
     testbed_log("parent %llu", (unsigned long long)ref.opaque[1]);
+    if( testbed_ref_retired(ref) )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
     if( element )
     {
         *out = element->parent;
@@ -644,11 +712,22 @@ fake_bounds(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetBoun
     return TORIRS_CONTRACT_OK;
 }
 
+/*
+ * A CONTROL CANNOT BE PARENTED TO A NODE THAT IS NOT THERE.
+ *
+ * `UITree_WidgetCreateGraphic` resolves the parent ref first and the adapter
+ * refuses a create against a freed one, so a fake that accepted any eight
+ * bytes as a parent made the whole class invisible: the layer could hand the
+ * engine a dead frame root every fence for two hundred frames and every test
+ * would still watch a control appear.
+ */
 static enum ToriRS_ContractResult
 testbed_create(char const* what, struct ToriRS_WidgetRef parent, char const* key,
                struct ToriRS_WidgetRef* out)
 {
     testbed_log("%s %s", what, key);
+    if( testbed_ref_retired(parent) )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
     for( int i = 0; i < TESTBED_CONTROLS_MAX; i++ )
     {
         struct TestbedControl* control = &g_testbed.controls[i];

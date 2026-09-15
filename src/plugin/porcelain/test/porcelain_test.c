@@ -2424,6 +2424,149 @@ test_a_moved_target_takes_its_control_with_it(void)
 }
 
 /*
+ * A FRAME ROOT NOBODY COULD WALK TO IS NOT A FRAME ROOT.
+ *
+ * The canvas placement's parent is derived by walking up from a bound element,
+ * and `parent` has three answers, not two: OK is a hop, UNAVAILABLE is the top
+ * of the tree, and STALE_REFERENCE says the node the walk is STANDING ON has
+ * been freed. Reading the last two as one `!= OK` made a dead element answer
+ * "you are already at the root" and hand its own corpse back as the frame
+ * root, where the stamp-keyed cache then kept it.
+ *
+ * Measured on the CS1 lane at boot: `minimap` bound at a node the tree had
+ * already retired, the walk breaking at hop zero, and every AT_CANVAS create
+ * refused STALE_REFERENCE against the corpse for two hundred and sixteen
+ * frames -- six refusals coalesced, by (verb, element, result), into ONE
+ * undeclared `create ... REFUSED` finding whose detail named whichever control
+ * happened to be described first.
+ *
+ * MUTATION: in porcelain_walk_to_root, drop the STALE_REFERENCE arm so both
+ * refusals `break` again. Red: the corpse is published as the root and the
+ * create comes back refused.
+ * SECOND MUTATION: make porcelain_frame_root cache and return that root
+ * anyway. Red on the same two checks.
+ */
+static void
+canvas_on_minimap_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct PorcelainElementState state;
+    struct PorcelainItem item;
+    int* runs = user;
+
+    (*runs)++;
+    /* The minimap first, so it is the first watch in the table and so the
+     * root walk starts from it -- which is the arrangement the lane had. */
+    (void)Porcelain_Element(describe->porcelain, PORCELAIN_EL(MINIMAP), &state);
+    (void)Porcelain_Element(describe->porcelain, PORCELAIN_EL(CHAT_BAR), &state);
+    memset(&item, 0, sizeof(item));
+    item.key = "orb_run";
+    item.image = "camera.png";
+    item.place.kind = PORCELAIN_AT_CANVAS;
+    item.place.dx = 522;
+    item.place.dy = 109;
+    item.w = 57;
+    item.h = 34;
+    describe->control(describe, &item);
+}
+
+static int
+findings_with_verb(struct Porcelain* porcelain, char const* verb)
+{
+    struct PorcelainFinding found[PORCELAIN_FINDINGS_MAX];
+    int const count = Porcelain_Findings(porcelain, found, PORCELAIN_FINDINGS_MAX);
+    int matching = 0;
+
+    for( int i = 0; i < count; i++ )
+        if( strcmp(found[i].verb, verb) == 0 )
+            matching += found[i].count;
+    return matching;
+}
+
+static void
+test_a_freed_element_is_not_the_frame_root(void)
+{
+    struct Porcelain* porcelain;
+    int runs = 0;
+
+    Testbed_Reset();
+    Testbed_DeclareAsset("camera.png", TORIRS_ASSET_READY);
+    Testbed_DeclareElement("minimap", 550, 10, 146, 151);
+    Testbed_DeclareElement("chat_bar", 0, 460, 500, 22);
+    Testbed_BindElement("minimap");
+    Testbed_BindElement("chat_bar");
+
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, canvas_on_minimap_describe, &runs);
+    fence(porcelain);
+    CHECK(Testbed_LiveControls() == 1, "the canvas control hangs off the frame root");
+    CHECK(findings_with_verb(porcelain, "create") == 0, "and nothing was refused");
+
+    /*
+     * The engine frees the minimap's node and reports nothing -- the window
+     * before the UNBOUND, in which the watch is still BOUND and its reference
+     * is a corpse -- and an unrelated element goes away, which is what moves
+     * the ELEMENT stamp and so re-derives the root.
+     */
+    Testbed_KillElementNode("minimap");
+    Testbed_UnbindElement("chat_bar");
+    fence(porcelain);
+
+    CHECK(findings_with_verb(porcelain, "create") == 0,
+          "no create is filed against a node the engine has already freed");
+    CHECK(Testbed_LiveControls() == 0,
+          "and the control that hung off it is removed rather than left floating");
+
+    /* The lane comes back: the element rebinds, the walk has somewhere to
+     * start, and the control is made again under the parent it now belongs
+     * to. */
+    Testbed_BindElement("minimap");
+    fence(porcelain);
+    CHECK(Testbed_LiveControls() == 1, "the control returns when the element does");
+    CHECK(findings_with_verb(porcelain, "create") == 0, "with no refusal anywhere in the pass");
+    Porcelain_Close(porcelain);
+}
+
+/*
+ * "ANY BOUND ELEMENT" IS NOT "THE FIRST ONE IN THE TABLE".
+ *
+ * The same window with one live element left: the walk has to move on to it
+ * instead of stopping at the first bound entry, or a plugin that watches two
+ * elements loses its canvas controls whenever the earlier one dies first.
+ *
+ * MUTATION: restore the `&& !found` first-match loop in porcelain_frame_root.
+ * Red: the dead element is still the one walked from, and the control goes.
+ */
+static void
+test_the_root_walk_asks_the_next_bound_element(void)
+{
+    struct Porcelain* porcelain;
+    int runs = 0;
+
+    Testbed_Reset();
+    Testbed_DeclareAsset("camera.png", TORIRS_ASSET_READY);
+    Testbed_DeclareElement("minimap", 550, 10, 146, 151);
+    Testbed_DeclareElement("chat_bar", 0, 460, 500, 22);
+    Testbed_BindElement("minimap");
+    Testbed_BindElement("chat_bar");
+
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, canvas_on_minimap_describe, &runs);
+    fence(porcelain);
+    CHECK(Testbed_LiveControls() == 1, "the canvas control hangs off the frame root");
+
+    /* The minimap's node is freed; the chat bar's is not, and a move on it is
+     * what carries the ELEMENT stamp. */
+    Testbed_KillElementNode("minimap");
+    Testbed_MoveElement("chat_bar", 0, 455);
+    fence(porcelain);
+
+    CHECK(findings_with_verb(porcelain, "create") == 0, "nothing is refused");
+    CHECK(Testbed_LiveControls() == 1,
+          "the root is walked from the element that is still there");
+    Porcelain_Close(porcelain);
+}
+
+/*
  * A plugin can record a finding of its own.
  *
  * Two shipped ledger rows are core.log lines because it could not: a
@@ -6634,6 +6777,8 @@ main(void)
     test_draw_context_says_which_space();
     test_menu_add_refusal_is_a_finding();
     test_a_moved_target_takes_its_control_with_it();
+    test_a_freed_element_is_not_the_frame_root();
+    test_the_root_walk_asks_the_next_bound_element();
     test_world_hull_refusals_reach_the_plugin();
     test_plugin_records_its_own_finding();
     test_menu_tag_round_trips();
