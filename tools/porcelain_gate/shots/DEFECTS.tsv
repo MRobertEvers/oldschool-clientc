@@ -1,0 +1,26 @@
+# Every defect seen in a capture, and what happened to it.
+#
+# Tab-separated: id<TAB>plugin<TAB>lane<TAB>status<TAB>evidence<TAB>note
+#
+# status is one of:
+#   open      seen and reproduced, not repaired -- defect_gate.py fails on this
+#   fixed     repaired; evidence names the capture that shows it repaired
+#   refuted   re-measured, the original report was wrong; note says how
+#   accepted  the owner said in writing to ship it as it is
+#
+# Writing a row here is what makes an unrepaired defect fail a gate instead of
+# sitting in a paragraph nobody re-reads.  Add the row when you SEE it, not
+# when you get around to it.
+
+# ---- the layer itself -------------------------------------------------
+LAYER-01	porcelain	all	open		Porcelain never reads engine.screen; a BOUND watch is never re-checked, so UITree_Clear at logout leaves every bound watch holding a ref into a dead tree
+LAYER-02	porcelain	all	open		only mobile_gameframe subscribes to on_screen_changed; login -> game and game -> login are invisible to every other plugin
+LAYER-03	bridge	all	open		per-lane branch App_UiLogic(app)==APP_UI_LOGIC_CS2 on the sidebar lookup in torirs_plugin_bridge.u.c -- exactly the family this layer exists to prevent
+
+# ---- the gate cannot see a CS1 frame regression ------------------------
+GATE-01	gameframe	dat1_254	open		the 8-lane gate runs dat1_254 with frame=auto, so no lane gates a frame provider on CS1 at all
+
+# ---- frame chrome, seen across 13 of 19 interaction shots --------------
+CHROME-01	gameframe	classic548	fixed	f03db27e5	leftmost sidebar tab had no hollow under it -- the strip blit carried the 2004 frame own seven cells
+CHROME-02	gameframe	classic548	fixed	f03db27e5	selected tab plate was oversized and bled into its neighbour; face size came from the natural size of classic_redstone1/2/3
+CHROME-03	gameframe	classic548	open		two-brightness step in the sidebar edge
