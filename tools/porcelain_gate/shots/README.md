@@ -694,3 +694,67 @@ it:
 difference between the two job rows is which proc runs. Viewport hue counts:
 insane 0 -> 155, high 437 -> 1206. The report's own pink mask (r>120, b>90,
 r>g+40, b>g+20) goes 0 -> 250 over the whole frame.
+## `cannon-*` — a drive that could not produce the event it was named after
+
+Four numbers said this plugin was fine and one `grep` said it had never spoken.
+`nxt-cannon-ammo` ran on every lane, reported `enabled=1 running=1 error=0` in
+every capture, and raised no finding anywhere — and `grep -rh PLUGIN_NOTIFY
+runs/` across all 307 runs returned not one line from it.
+
+The reading that first fit was that the lane pre-empts it: `cannon.rs2`'s tick
+timer says "Your cannon is out of ammunition!" the tick after the count reaches
+zero, the builtin holds its own empty notice for two server ticks, and
+`nxt_cannon_chat` drops the duplicate when the lane speaks. All of that is true
+and **none of it is the defect** — it is the repair for a photographed
+two-lines-for-one-event bug, and on an OSRS239 lane the correct output at empty
+is silence. Believing it was the defect is how you end up "fixing" a plugin
+that is already right.
+
+The defect was in the **drive**, and it was two independent things at once:
+
+- **The threshold row was never written.** Setting 249 (`varbit 14176`,
+  `cannon_low_amount`) has no default on purpose — the row exists so the number
+  is the user's — so `threshold > 0` is false until something writes it. The
+  job rows wrote 14175 and 14177 and stopped.
+  `docs/plugin-engine/PLUGIN_PORTS.md` had been saying the drive sets
+  `14175=1, 14176=10, 14177=1` the whole time; the shipped rows had two of the
+  three. A drive and the prose about it disagreeing is worth a grep.
+- **A drop is not a crossing.** The only ammo change was loc op 3 "Empty",
+  which returns all fifteen balls in one tick. The builtin's low notice fires on
+  `previous > threshold && ammo <= threshold`, and the empty branch wins at
+  `ammo == 0`, so a one-tick 15 → 0 cannot be a crossing whatever the threshold
+  is. The count has to WALK.
+
+`::spawn goblin 20` makes it walk: twenty targets inside the cannon's eight-tile
+range, one ball a tick through `~cannon_fire_once`, 15 → 0 over fifteen server
+ticks. The chat pane now carries both halves at once —
+
+```
+Your cannon is running low on cannonballs: 10 left.   <- the plugin, at the crossing
+Your cannon is out of ammunition!                     <- the lane, at zero
+```
+
+— with nothing from the plugin after the second line, on all four CS2
+toplevels. `cannon-classic548-before.png` is the shipped drive taken with the
+same binary, the same lane, the same manifests and the same worktree, so the
+drive string is the only variable between the pair.
+
+The inventory is the other half of the measurement and is easy to miss: the
+BEFORE shot has a 15-stack of cannonballs in slot 4, because the unload put
+them back, and the AFTER has three items and no cannonballs, because they were
+fired.
+
+`cannon-thresholdonly-control.png` is the third leg, and it is what says the
+two causes above are INDEPENDENT rather than one cause said twice: the old
+`::cannon` + op-3 drive with `14176=10` added and nothing else. Its chat is the
+BEFORE's, to the line -- "You unload 15 cannonballs." then "Your cannon is out
+of ammunition!" -- and `grep -c PLUGIN_NOTIFY` on its log is 0. Writing the
+threshold is necessary and not sufficient; a drive that only ever drops to zero
+stays silent however the rows are set.
+
+**The general shape, which is not about cannons.** An edge-triggered plugin
+needs a drive that produces the EDGE, and "the state it reports is reached" is
+not the same claim. Emptiness was reached in every one of those 307 captures.
+The transition the plugin watches for never happened in any of them — and a
+capture of a state a plugin does not fire on looks exactly like a capture of a
+plugin that does not work.

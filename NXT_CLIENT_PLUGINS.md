@@ -241,6 +241,16 @@ The same publish is what makes **248 / 249 / 250** fire: `nxt-cannon-ammo` reads
 `rockthrower` and `ownedmcannon_temp` too, and until now no cannon ever wrote
 either.
 
+**250 no longer fires on this lane, and that is correct.** `cannon.rs2`'s tick
+timer says "Your cannon is out of ammunition!" the tick after the count reaches
+zero, so the builtin holds its own empty notice for two server ticks and drops
+it when the lane speaks -- two messages for one event was the defect. On an
+OSRS239 lane the only line this plugin has left is **249**'s, the low one, and
+nothing anywhere pre-empts that. It also has no default, on purpose: a harness
+that does not write `%varbit14176` is a harness in which the row can never
+fire, which is what kept this builtin silent in 307 captures. See
+`tools/porcelain_gate/shots/README.md`, `cannon-*`.
+
 **B. the cache implements it; it needs the right context** -- 11 rows
 
 Reclassified by measurement rather than by eye. For every row, the scripts that
