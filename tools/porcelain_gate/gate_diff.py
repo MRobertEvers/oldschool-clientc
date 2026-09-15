@@ -49,7 +49,9 @@ mirror, said about the plugin's own controls rather than about the lane's.
 `owned-move` is the twin of `role-move`, and it exists because without it a
 port that moves a NATIVE surface could not be declared at all: another
 plugin's control that follows that surface changes its box, and every other
-kind here is about capture lines or roles. `normalise` strips
+kind here is about capture lines or roles. Say in the reason WHICH it is: a control that moved because its
+target did is one claim, and a control that moved for its own reasons is a
+different one. `normalise` strips
 `<name>=<value>` from every tail before comparing. Blank lines and lines
 beginning with # are ignored.
 """

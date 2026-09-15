@@ -130,7 +130,9 @@ one kind a port that MOVES a native surface cannot do without: another
 plugin's control that follows that surface changes its box, and every other
 kind here is about capture lines or roles. The kinds are not interchangeable:
 `owned-move` on a control that actually vanished excuses nothing and is
-reported stale as well, which is both halves of the rule below firing at once.
+reported stale as well, which is both halves of the rule below firing at once. Say in the reason WHICH it is: a control that moved because its
+target did is one claim, and a control that moved for its own reasons is a
+different one.
 `normalise` strips `<name>=<value>` from every tail before comparing.
 
 A declaration is not a suppression, and three rules keep it from becoming one:

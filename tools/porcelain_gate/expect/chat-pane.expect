@@ -1,0 +1,92 @@
+# What the chat-pane fix changes on purpose, and why.
+#
+# Run it as:
+#   gate_diff.py --expect tools/porcelain_gate/expect/chat-pane.expect <pairs...>
+#
+# Do NOT concatenate this with gameframe-layout.expect. That file declares what
+# the Porcelain PORT changed against the tree before the port landed; this fix
+# branches from after it, so every line of it would be a stale declaration and
+# a stale declaration fails the gate.
+#
+# Every line here is a claim a reader is meant to be able to disagree with. If
+# you think one of them is wrong, the argument is with the reason, not with the
+# tool.
+
+# --------------------------------------------------------------------------
+# One change, on the three lanes that put the desktop provider over an
+# OldSchool chat pack: classic548, classic161 and remount164.
+#
+# Classic Fixed asked the lane how big its chatbox was, used the WIDTH it was
+# given and threw the HEIGHT away, substituting the 2004 builtin's 96 rows. A
+# 2004 chatbox is 96 rows because its geometry is fixed in the client's own
+# code and reads nothing from its node; an OldSchool chatbox is interface 162,
+# which lays itself out TO ITS BOX. Handed 96 rows it laid out a 73-row
+# message window and showed THREE lines where the same lane's own frame shows
+# eight, and then left fifty rows of bare rock under it.
+#
+# That is not a cosmetic difference and it is why this is declared rather than
+# argued: a plugin notification is an ordinary game chat line, so a notice the
+# player was meant to read scrolled out of a pane too short to hold it and
+# never reached the screen. Both shipped NXT notification builtins fire
+# correctly and neither was legible under this frame -- photographed in
+# shots/frames/chatpane-birdnest-before.png against -after.png, with the
+# lane's own frame beside them as the reference.
+#
+# So the pack now takes the 2004 ORIGIN and its own authored SIZE, flush with
+# the canvas floor. Nothing else about the frame moves: the surround is
+# unchanged, because the 2004 frame's own bottom band is already 165 rows deep
+# (backhmid2 19 at y=338 + the chat hole 96 at y=357 + backbase1 50 at y=453)
+# and the pack fills exactly it.
+
+# The container the toplevel gives the pack. It is the one box this fix
+# writes, and everything below is a consequence of it. One line per toplevel
+# the three lanes open -- 548 (classic548), 161 (classic161) and 164
+# (remount164, which switches to it half way through) -- because they are
+# three spellings of one component: whichever root is live, the container is
+# the layer interface 162 mounts into.
+only-before BOUNDS com=0x0224000b (548|11) type=18 graphic=-1 hidden=0 abs=17,357 519x96 = the chatbox squeezed into the 2004 BUILTIN's 96 rows, which is the defect
+only-after  BOUNDS com=0x0224000b (548|11) type=18 graphic=-1 hidden=0 abs=17,338 519x165 = and the 519x165 the lane authored, flush with the canvas floor
+only-before BOUNDS com=0x00a10060 (161|96) type=18 graphic=-1 hidden=0 abs=17,357 519x96 = the same squeeze on toplevel 161
+only-after  BOUNDS com=0x00a10060 (161|96) type=18 graphic=-1 hidden=0 abs=17,338 519x165 = and the same authored box on 161
+only-before BOUNDS com=0x00a4005d (164|93) type=18 graphic=-1 hidden=0 abs=17,357 519x96 = the same squeeze on toplevel 164, after the remount lane switches layout
+only-after  BOUNDS com=0x00a4005d (164|93) type=18 graphic=-1 hidden=0 abs=17,338 519x165 = and the same authored box on 164
+role-move frame_chat = the same box, said about the role rather than the component
+
+# Interface 162's whole subtree, because a pack given a different box lays
+# itself out again. These two lines are the broadest declaration in this file
+# and they are stated deliberately: the pack is the cache's own chatbox and
+# its internal layout is script 924's, not this plugin's, so there is no
+# smaller honest unit than "162 re-ran its layout". What bounds them is that
+# they are the ONLY prefix in the diff besides the container above and the
+# camera below -- checked, not assumed: grouping the whole bounds difference
+# by interface gives 3222 lines of 162, one of 548 and one owned control.
+only-before BOUNDS com=0x00a2 = the chat pack laid out for 96 rows
+only-after  BOUNDS com=0x00a2 = the chat pack laid out for the 165 the lane gives it
+
+# The pack's own furniture, each named. The backing is the message window and
+# it is the whole point: 73 rows of it held three lines, 142 holds the eight
+# the native frame shows. The bar and its eight plates drop 50 rows to y=480,
+# which is inside `backbase1`'s strip -- where the 2004 frame's own filters
+# stood, and where the lane's own frame puts this same bar.
+role-move chat_backing = 519x73 held three chat lines; 519x142 holds the eight the lane's own frame shows
+role-move chat_bar = the pack's stone bar moves to the floor with the pack, onto the strip the 2004 frame keeps its filters on
+role-move chat_input = the typed line follows the message window it sits under
+role-move chat_plate_0 = the filter plates ride the bar
+role-move chat_plate_1 = the filter plates ride the bar
+role-move chat_plate_2 = the filter plates ride the bar
+role-move chat_plate_3 = the filter plates ride the bar
+role-move chat_plate_4 = the filter plates ride the bar
+role-move chat_plate_5 = the filter plates ride the bar
+role-move chat_plate_6 = the filter plates ride the bar
+role-move chat_plate_7 = the filter plates ride the bar
+role-move public_chat_button = the same plate, under the name the portable role table gives it
+role-move report_button = the same plate, under the name the portable role table gives it
+role-move action_frame_chat_button_report_activate = the same plate again, under its authored action name
+
+# The screenshot plugin's camera is a REPLACE anchor on the Report button, so
+# it goes where Report goes. It is the only owned control in the diff, and it
+# moving is the anchor doing its job: a camera that stayed at y=433 while the
+# button left would be the defect.
+only-before BOUNDS com=0xffffffff (65535|65535) type=15 graphic=-1 hidden=0 abs=483,433 20x16 = the camera on the Report button's old seat
+only-after  BOUNDS com=0xffffffff (65535|65535) type=15 graphic=-1 hidden=0 abs=483,483 20x16 = and on its new one, which is what a REPLACE anchor is for
+owned-move camera_report = the same move said about the owned control: it moved because its REPLACE target moved, not for any reason of its own
