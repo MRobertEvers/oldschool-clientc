@@ -88,6 +88,15 @@
 #define LT_ROWS_MAX 24
 /** How often the page's numbers are rewritten, in ms. */
 #define LT_PANEL_REFRESH_MS 500
+/**
+ * Frames a BLANK well may ask again on before it falls back to that cadence.
+ *
+ * The art it is waiting for crosses the IO queue once. It is there within a
+ * few frames, or it is not coming at all and asking sixty times a second will
+ * not fetch it -- so this is a bound on the per-frame arm rather than a
+ * deadline for the art. Two seconds at sixty frames.
+ */
+#define LT_BLANK_RETRY_FRAMES 120
 
 /**
  * Bytes of one config value, stated here rather than included.
@@ -175,6 +184,16 @@
  *  the totals' values are. */
 #define LT_INK_HEAD 0xFF981Fu
 #define LT_INK_VALUE 0xFFFFFFu
+/*
+ * The stack count's three bands, which are the CLIENT's own and not chosen
+ * here: `uitree_emit_inv_number` writes `<col=ffff00>n</col>` below a hundred
+ * thousand, `<col=ffffff>nK</col>` below ten million and `<col=00ff80>nM</col>`
+ * above it, and the reference passes the same 16776960 as its fallback. A cell
+ * in this page has to read as the same cell the inventory draws.
+ */
+#define LT_INK_STACK_ONES 0xFFFF00u
+#define LT_INK_STACK_K 0xFFFFFFu
+#define LT_INK_STACK_M 0x00FF80u
 
 /** One item, summed across every kill of one source. */
 struct LtItem
@@ -317,6 +336,31 @@ struct LootTrackerState
      */
     bool paint_incomplete;
     uint32_t paint_retry;
+    /**
+     * The last draw pass the host asked for staged NOTHING.
+     *
+     * A pass that stages nothing is a DECLINE and not an erasure: the host
+     * keeps the retained run rather than swapping the last complete picture
+     * for an empty one. That rule is right, and for a well that has never
+     * staged anything it means "keep the nothing that is there" -- the page is
+     * blank, and stays blank until something asks for another paint.
+     *
+     * So the two kinds of nothing are not the same thing and must not share a
+     * clock. A strip that HAS a picture and is one obj icon short is a
+     * complete-enough page and waits for the refresh cadence
+     * (@see paint_incomplete). A strip showing NOTHING is an empty page and is
+     * asked again on the frame (@see lt_frame_start).
+     *
+     * "The last pass declined" and not "there is no picture yet", because the
+     * two differ for a well the host never asks to paint at all -- one
+     * scrolled out of the page, or a page with no draw pass behind it. Those
+     * are not blank, they are unasked, and a flag that could not tell them
+     * apart would ask for a redraw on every frame for ever.
+     */
+    bool strip_blank;
+    /** Frames spent asking on the frame rather than on the cadence.
+     *  @see LT_BLANK_RETRY_FRAMES. */
+    int blank_frames;
     /* What the secondary click opened, and where. @see enum LtMenuKind. */
     int menu_kind;
     int menu_source_id;
@@ -355,6 +399,8 @@ struct LootTrackerRuntime
 #define g_synced_once (rt->state->synced_once)
 #define g_paint_incomplete (rt->state->paint_incomplete)
 #define g_paint_retry (rt->state->paint_retry)
+#define g_strip_blank (rt->state->strip_blank)
+#define g_blank_frames (rt->state->blank_frames)
 #define g_menu_kind (rt->state->menu_kind)
 #define g_menu_source_id (rt->state->menu_source_id)
 #define g_menu_obj_id (rt->state->menu_obj_id)
@@ -1126,13 +1172,54 @@ lt_game_event(
 /* The strip                                                                 */
 /* ------------------------------------------------------------------------ */
 
-/** Everything the compose needs, resident. */
+/**
+ * Everything the compose needs, resident.
+ *
+ * EVERY piece is asked for on every call and the answer is the AND of them.
+ * There is no early return at the first one that has not landed, and that is
+ * the whole of what this function is careful about.
+ *
+ * `PluginDraw_AtlasLoad` and `PluginDraw_ImageLoad` do not merely REPORT
+ * whether a file is resident: calling one is what STARTS its request. So a
+ * short-circuit here did not skip a test, it skipped a load -- the six
+ * required pieces were fetched strictly one at a time, each one only asked for
+ * once its predecessor had arrived. The only thing that calls this is the
+ * well's paint, and the only thing that re-runs the paint while the art is
+ * missing is the LT_PANEL_REFRESH_MS retry, so the chain advanced one file
+ * every half second: eight polls, three and a half seconds of BLANK WELL after
+ * every open, measured the same to within forty milliseconds on every run.
+ * That is the interval the screenshots were landing inside.
+ *
+ * @see lt_frame_start for the other half -- a well with no picture at all is
+ *      an empty page rather than a stale one, and does not wait on that clock.
+ */
 static int
 lt_art_ready(struct LootTrackerRuntime* rt)
 {
+    int ready = 1;
+
     assert(rt);
-    if( !PluginDraw_AtlasLoad(g_api, &g_bold, "bold") )
-        return 0;
+    ready &= PluginDraw_AtlasLoad(g_api, &g_bold, "bold") ? 1 : 0;
+    ready &= PluginDraw_AtlasLoad(g_api, &g_text, "text") ? 1 : 0;
+    ready &= PluginDraw_ImageLoad(
+                 g_api, "cat_spine.png", &g_img_spine, &g_spine_px, &g_spine_w,
+                 &g_spine_h)
+                 ? 1
+                 : 0;
+    ready &= PluginDraw_ImageLoad(
+                 g_api, "cat_spine_ignored.png", &g_img_spine_ignored,
+                 &g_spine_ignored_px, &g_spine_ignored_w, &g_spine_ignored_h)
+                 ? 1
+                 : 0;
+    ready &= PluginDraw_ImageLoad(
+                 g_api, "cell.png", &g_img_cell, &g_cell_px, &g_cell_w, &g_cell_h)
+                 ? 1
+                 : 0;
+    ready &= PluginDraw_ImageLoad(
+                 g_api, "cell_ignored.png", &g_img_cell_ignored, &g_cell_ignored_px,
+                 &g_cell_ignored_w, &g_cell_ignored_h)
+                 ? 1
+                 : 0;
     /*
      * The band's four controls, cut from the cache: graphic_4915/4916 are the
      * two faces of the view toggle, 4912/4911 the value-basis actions,
@@ -1161,22 +1248,7 @@ lt_art_ready(struct LootTrackerRuntime* rt)
     (void)PluginDraw_ImageLoad(
         g_api, "btn_ignored_hide.png", &g_img_ignored_hide, &g_ignored_hide_px,
         &g_ignored_hide_w, &g_ignored_hide_h);
-    if( !PluginDraw_AtlasLoad(g_api, &g_text, "text") )
-        return 0;
-    if( !PluginDraw_ImageLoad(
-            g_api, "cat_spine.png", &g_img_spine, &g_spine_px, &g_spine_w,
-            &g_spine_h) )
-        return 0;
-    if( !PluginDraw_ImageLoad(
-            g_api, "cat_spine_ignored.png", &g_img_spine_ignored,
-            &g_spine_ignored_px, &g_spine_ignored_w, &g_spine_ignored_h) )
-        return 0;
-    if( !PluginDraw_ImageLoad(
-            g_api, "cell.png", &g_img_cell, &g_cell_px, &g_cell_w, &g_cell_h) )
-        return 0;
-    return PluginDraw_ImageLoad(
-        g_api, "cell_ignored.png", &g_img_cell_ignored, &g_cell_ignored_px,
-        &g_cell_ignored_w, &g_cell_ignored_h);
+    return ready;
 }
 
 /** How many five-cell rows `count` entries occupy. */
@@ -1448,17 +1520,52 @@ lt_source_at(struct LootTrackerRuntime* rt, int y, int* out_local_y)
  * above LT_HEAD_H.
  */
 /**
- * One item cell: the plate, then the client's own icon at +2,+2.
+ * A stack count as the client writes one.
+ *
+ * `uitree_emit_inv_number`'s rule, spelled the same way: the number itself
+ * below a hundred thousand, thousands with a K below ten million, and millions
+ * with an M above that. It is the inventory's rule because a cell here is the
+ * inventory's cell -- script3042 draws an obj at a quantity and the client
+ * numbers it, and a page that numbered its drops differently from the backpack
+ * two inches to the right would be the thing a reader noticed.
+ */
+static void
+lt_stack_count(int amount, char* out, size_t out_size, uint32_t* out_ink)
+{
+    assert(out);
+    assert(out_size > 0);
+    assert(out_ink);
+    if( amount < 100000 )
+    {
+        snprintf(out, out_size, "%d", amount);
+        *out_ink = LT_INK_STACK_ONES;
+        return;
+    }
+    if( amount < 10000000 )
+    {
+        snprintf(out, out_size, "%dK", amount / 1000);
+        *out_ink = LT_INK_STACK_K;
+        return;
+    }
+    snprintf(out, out_size, "%dM", amount / 1000000);
+    *out_ink = LT_INK_STACK_M;
+}
+
+/**
+ * One item cell: the plate, the client's own icon at +2,+2, and the count.
  *
  * Shared by both views, which is the point of pulling it out -- the source
  * bands and the flat drop grid draw the same cell, and two copies of a blit
  * that has to line an icon up inside a plate is two chances to line it up
  * differently.
  *
- * The BORDERED variant is what `cc_setoutline(1)` bakes, and the quantity is
- * part of the picture rather than drawn over it: the client stamps the stack
- * digits into the sprite, so the icon is asked for AT the quantity and blitted
- * as one thing.
+ * The BORDERED variant is what `cc_setoutline(1)` bakes. The QUANTITY is not
+ * baked with it, and believing it was is why these cells carried no number:
+ * `obj_image` resolves the stack VARIANT -- the art for a big pile of coins
+ * rather than one coin -- and stops there. Every stack count on screen in this
+ * client is a separate text pass the emitter makes over the icon
+ * (`emit_obj_stack_count`), and a plugin drawing into its own bitmap has to
+ * make that pass itself.
  */
 static void
 lt_draw_cell(
@@ -1466,6 +1573,7 @@ lt_draw_cell(
     struct LtItem const* item, bool ignored)
 {
     struct ToriRS_ImageRef image = { 0 };
+    enum ToriRS_AssetState state;
     int iw = 0;
     int ih = 0;
     size_t copied = 0;
@@ -1483,21 +1591,36 @@ lt_draw_cell(
             buf, w, h, x, y, plate, plate_w, plate_h, 0, 0, plate_w, plate_h, 0);
     }
 
-    if( !g_api->game ||
-        g_api->game->item_image(
-            g_api, item->obj_id, item->quantity,
-            TORIRS_ITEM_ICON_BORDERED, &image) != TORIRS_ASSET_READY ||
+    state = g_api->game ? g_api->game->item_image(
+                              g_api, item->obj_id, item->quantity,
+                              TORIRS_ITEM_ICON_BORDERED, &image)
+                        : TORIRS_ASSET_MISSING;
+    if( state != TORIRS_ASSET_READY ||
         !g_api->assets.image_size(g_api, image, &iw, &ih) )
     {
         /*
-         * The icon is not resident yet. The picture KEEPS the plate it just
-         * drew and the compose is marked incomplete; the refresh cadence
-         * retries it. Zeroing the picture key here -- which is what this did
-         * -- made every later frame miss the cache and recompose the whole
-         * strip, for ever, because one PENDING icon can stay pending.
-         * @see LootTrackerState::paint_incomplete and host fix H7.
+         * PENDING is "not yet" and everything else is "not ever", and the two
+         * are not the same answer.
+         *
+         * Not yet: the objtype and its inventory model are on their way, the
+         * picture keeps the plate it just drew, the compose is marked
+         * incomplete and the refresh cadence asks again. (Zeroing the picture
+         * key here -- which is what this did -- made every later frame miss
+         * the cache and recompose the whole strip, for ever, because one
+         * PENDING icon can stay pending. @see host fix H7.)
+         *
+         * Not yet also covers BUDGET: the client's icon cache is full of
+         * somebody else's pictures this instant and will not be for ever.
+         *
+         * Not ever: MISSING, ERROR, INVALID -- this obj has no icon and no
+         * amount of waiting will make one. Marking the compose incomplete for
+         * it would rebuild the whole strip twice a second for the rest of the
+         * session over a picture that is not coming, which is the same
+         * unbounded retry wearing a slower clock. The cell keeps its plate and
+         * the page stops asking.
          */
-        g_paint_incomplete = true;
+        if( state == TORIRS_ASSET_PENDING || state == TORIRS_ASSET_BUDGET )
+            g_paint_incomplete = true;
         if( image.value ) g_api->assets.image_release(g_api, image);
         return;
     }
@@ -1511,6 +1634,25 @@ lt_draw_cell(
         free(px);
     }
     g_api->assets.image_release(g_api, image);
+
+    /*
+     * Over the icon, exactly as the emitter stamps it on a cell. A single
+     * unstackable is not numbered -- the client numbers a stack.
+     *
+     * One pass and not two: the shadow the client draws under a stack count is
+     * already BAKED into the atlas, and the tint multiply leaves it black
+     * while colouring the ink. @see PluginDraw_Blit. A second black pass at
+     * +1,+1 is a shadow on a shadow, and at this glyph size it reads as a
+     * smudge rather than an edge.
+     */
+    if( item->quantity > 1 )
+    {
+        char count[24];
+        uint32_t ink = LT_INK_STACK_ONES;
+
+        lt_stack_count(item->quantity, count, sizeof(count), &ink);
+        PluginDraw_Text(buf, w, h, x + 3, y + 2, &g_text, count, ink);
+    }
 }
 
 static void
@@ -1898,7 +2040,11 @@ lt_paint(
     (void)key;
 
     if( !draw->context(draw, &context) || context.bounds.width <= 0 )
+    {
+        /* No region to draw into is not a blank page: there is no page. */
         return;
+    }
+    g_strip_blank = true;
     /*
      * The art crosses the IO queue, so the first passes after a start have
      * nothing to draw with. A CUSTOM paint that stages nothing keeps the last
@@ -1926,7 +2072,11 @@ lt_paint(
         g_porcelain, "strip", &inputs, sizeof(inputs), context.bounds.width,
         height, lt_paint_strip, rt->state, &state);
     if( state == PORCELAIN_DERIVED_READY && image.value )
+    {
         draw->image(draw, image, 0, 0, 255);
+        g_strip_blank = false;
+        g_blank_frames = 0;
+    }
 }
 
 /* ------------------------------------------------------------------------ */
@@ -2754,6 +2904,30 @@ lt_frame_start(
     assert(state_ptr);
     if( !g_page_visible )
         return;
+    /*
+     * A well with no picture at all is an EMPTY PAGE, and nothing else in this
+     * plugin will ask for it again before the half-second refresh. That wait
+     * is what a reader sees as a blank box: the art crosses the IO queue, the
+     * paint returns having staged nothing, the layer declines rather than
+     * erasing, and the next chance to draw is a clock tick away.
+     *
+     * A stale readout can wait half a second. A blank page cannot, so it is
+     * asked again on this frame. The poll costs the art loads and NO
+     * rasterisation -- lt_paint returns before the compose while the art is
+     * missing -- and it stops on the frame the first picture is staged.
+     *
+     * Two bounds keep this from becoming the unbounded per-frame recompose the
+     * ledger names (H7). It runs only while the last pass the host ASKED for
+     * declined, so a well nobody is painting is not asking; and it gives up
+     * after LT_BLANK_RETRY_FRAMES, because art that is two seconds late is not
+     * late, it is absent.
+     */
+    if( g_strip_blank && g_blank_frames < LT_BLANK_RETRY_FRAMES )
+    {
+        g_blank_frames++;
+        g_paint_retry++;
+        lt_changed(rt);
+    }
     Porcelain_Fence(g_porcelain);
     Porcelain_Commit(api);
 }

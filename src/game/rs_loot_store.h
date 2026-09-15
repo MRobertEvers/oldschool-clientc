@@ -34,7 +34,25 @@
 struct LootRow
 {
     int obj_id;
+    /** How many of them, summed over every kill in this group. */
     int qty;
+    /**
+     * What ONE of them is worth: `ObjType.cost` as the drop was recorded.
+     *
+     * A UNIT price and not the stack's total, which is what the only reader of
+     * this field -- ToriRS_LootRow, handed to plugins -- has always documented
+     * it to be. It used to hold `value * qty` accumulated over the group, so a
+     * reader following the stated contract multiplied by the quantity a second
+     * time: ten thousand coins at a cost of one came out of the loot tracker's
+     * totals band as a hundred million gp, and two kills of five thousand as
+     * twenty-five.
+     *
+     * The unit price is also the only form a per-item rule can be written
+     * against. High alchemy is `floor(cost * 3 / 5)` PER ITEM before the stack
+     * multiply -- the reference's GroundItem holds a per-unit haPrice and
+     * multiplies on the way out -- and that truncation cannot be recovered
+     * from a total.
+     */
     int value;
 };
 
@@ -101,8 +119,9 @@ LootStore_ResetAll(struct LootStore* store);
 /* --- Populate hook (server/engine side) --------------------------------- */
 
 /** Record one loot drop. Creates the source group if it does not exist;
- *  appends or merges a row for obj_id. Increments kill_count when event_id
- *  differs from the source's last seen event (multi-item kills share one id).
+ *  appends or merges a row for obj_id -- the quantities add up, the `value`
+ *  is the UNIT price and does not. Increments kill_count when event_id differs
+ *  from the source's last seen event (multi-item kills share one id).
  *  Does not consult ignore lists. */
 void
 LootStore_AddKillLoot(

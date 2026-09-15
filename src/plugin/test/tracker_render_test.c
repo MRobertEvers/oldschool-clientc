@@ -107,6 +107,28 @@ static struct
     int image_asks;
     int absent_asks;
 
+    /**
+     * The IO QUEUE, modelled: a file lands on the SECOND ask, never the first.
+     *
+     * Without this the fixture reads every asset straight off the disk and no
+     * plugin here has ever met a pending one -- which is precisely the state
+     * the shipped client is in for the first frames after a page opens, and
+     * the state in which the Loot Tracker's well was blank for three and a
+     * half seconds.
+     *
+     * One round trip per file, and ASKING is what starts it. That is what
+     * makes the failure deterministic instead of a race: a chain of loads that
+     * asks for its files one at a time needs one pass per file, and a pass
+     * that asks for all of them needs one pass for all of them. No clock, no
+     * load, no repetition.
+     */
+    int one_round_trip;
+    char in_flight[FAKE_ASSETS][64];
+    int in_flight_count;
+    /** Every distinct name anybody has asked for, in order. */
+    char asked[FAKE_ASSETS * 2][64];
+    int asked_count;
+
     struct FakeAsset asset[FAKE_ASSETS];
     int asset_count;
     struct FakeImage image[FAKE_IMAGES];
@@ -118,6 +140,9 @@ static struct
     uint32_t* comp_px;
     int compose_calls;
     int obj_image_calls;
+    /** The client has no icon for any obj and never will. @see item_image's
+     *  MISSING, which is not its PENDING. */
+    int obj_image_never;
     /** Wells given a fresh input identity. @see v2_panel_reidentify. */
     int reidentifies;
 
@@ -191,6 +216,37 @@ asset_find(char const* name)
     return NULL;
 }
 
+/** Has anybody asked for this file at all? @see one_round_trip. */
+static int
+asset_asked(char const* name)
+{
+    for( int i = 0; i < g_c.asked_count; i++ )
+        if( strcmp(g_c.asked[i], name) == 0 )
+            return 1;
+    return 0;
+}
+
+static void
+asset_record_ask(char const* name)
+{
+    if( asset_asked(name) )
+        return;
+    if( g_c.asked_count >= (int)(sizeof(g_c.asked) / sizeof(g_c.asked[0])) )
+        return;
+    snprintf(g_c.asked[g_c.asked_count], sizeof(g_c.asked[0]), "%s", name);
+    g_c.asked_count++;
+}
+
+static int
+asset_in_flight(char const* name)
+{
+    for( int i = 0; i < g_c.in_flight_count; i++ )
+        if( strcmp(g_c.in_flight[i], name) == 0 )
+            return 1;
+    return 0;
+}
+
+/** 1 resident, -1 in flight (ask again), 0 no such file. */
 static int
 fake_asset_load(void* ctx, char const* name)
 {
@@ -200,10 +256,19 @@ fake_asset_load(void* ctx, char const* name)
     long size;
 
     (void)ctx;
+    asset_record_ask(name);
     if( g_c.absent_asset && strcmp(g_c.absent_asset, name) == 0 )
         return 0;
     if( asset_find(name) )
         return 1;
+    if( g_c.one_round_trip && !asset_in_flight(name) )
+    {
+        assert(g_c.in_flight_count < FAKE_ASSETS);
+        snprintf(
+            g_c.in_flight[g_c.in_flight_count], sizeof(g_c.in_flight[0]), "%s", name);
+        g_c.in_flight_count++;
+        return -1;
+    }
     assert(g_c.asset_count < FAKE_ASSETS);
     snprintf(path, sizeof(path), "../script/plugins/assets/%s/%s", g_c.asset_dir, name);
     f = fopen(path, "rb");
@@ -282,8 +347,13 @@ fake_image_load(void* ctx, char const* name)
     if( g_c.composed[0] && strcmp(g_c.composed, name) == 0 && g_c.image[STRIP_SLOT].used )
         return STRIP_SLOT;
 
-    if( !fake_asset_load(ctx, name) )
-        return -1;
+    {
+        int const state = fake_asset_load(ctx, name);
+        if( state < 0 )
+            return -2; /* in flight; ask again */
+        if( state == 0 )
+            return -1;
+    }
     a = asset_find(name);
     if( !a || !PngDecode_Argb(a->bytes, a->size, &w, &h, &px) )
         return -1;
@@ -535,7 +605,54 @@ static bool fake_panel_set_value(void* c, char const* i, int v)
 { (void)c; (void)v; return w_find(i) != NULL; }
 static bool fake_panel_set_attention(void* c, bool o) { (void)c; (void)o; return true; }
 static void fake_panel_clear(void* c) { (void)c; g_w_count = 0; }
-static void fake_panel_invalidate(void* c, char const* i) { (void)c; (void)i; }
+/**
+ * Wells the host has been told to repaint.
+ *
+ * The real host calls `on_ui_draw` for a CUSTOM row only when that row asked
+ * for it -- `PluginHost_PanelNeedsDraw`, set by `panel.redraw`, by a
+ * re-identify and by the row's first declaration. This fixture used to call
+ * the paint unconditionally, which is why a page that could not get itself
+ * repainted looked healthy here: every `draw_well` was a redraw the plugin had
+ * not asked for. @see draw_well_when_asked.
+ */
+static char g_well_dirty[8][32];
+static int g_well_dirty_count;
+
+static void
+well_mark_dirty(char const* id)
+{
+    if( !id )
+        return;
+    for( int i = 0; i < g_well_dirty_count; i++ )
+        if( strcmp(g_well_dirty[i], id) == 0 )
+            return;
+    if( g_well_dirty_count >= (int)(sizeof(g_well_dirty) / sizeof(g_well_dirty[0])) )
+        return;
+    snprintf(g_well_dirty[g_well_dirty_count], sizeof(g_well_dirty[0]), "%s", id);
+    g_well_dirty_count++;
+}
+
+/** Consume the flag, as the host does when it dispatches the draw. */
+static int
+well_take_dirty(char const* id)
+{
+    for( int i = 0; i < g_well_dirty_count; i++ )
+        if( strcmp(g_well_dirty[i], id) == 0 )
+        {
+            g_well_dirty[i][0] = '\0';
+            for( int j = i; j + 1 < g_well_dirty_count; j++ )
+                memcpy(g_well_dirty[j], g_well_dirty[j + 1], sizeof(g_well_dirty[0]));
+            g_well_dirty_count--;
+            return 1;
+        }
+    return 0;
+}
+
+static void fake_panel_invalidate(void* c, char const* i)
+{
+    (void)c;
+    well_mark_dirty(i);
+}
 
 static bool
 fake_panel_set_height(void* c, char const* id, int px)
@@ -586,7 +703,13 @@ static enum ToriRS_Result v2_cfg_set(
 }
 static enum ToriRS_AssetState v2_asset_request(
     struct ToriRS_Api* api, char const* name)
-{ (void)api; return fake_asset_load(NULL, name) ? TORIRS_ASSET_READY : TORIRS_ASSET_MISSING; }
+{
+    int const state = fake_asset_load(NULL, name);
+    (void)api;
+    if( state > 0 )
+        return TORIRS_ASSET_READY;
+    return state < 0 ? TORIRS_ASSET_PENDING : TORIRS_ASSET_MISSING;
+}
 static bool v2_asset_bytes(
     struct ToriRS_Api* api, char const* name, void const** out, size_t* size)
 {
@@ -610,7 +733,9 @@ static enum ToriRS_AssetState v2_image(
     if( g_c.absent_asset && strcmp(g_c.absent_asset, name) == 0 )
         g_c.absent_asks++;
     out->value = image >= 0 ? (uint32_t)image + 1u : 0;
-    return image >= 0 ? TORIRS_ASSET_READY : TORIRS_ASSET_MISSING;
+    if( image >= 0 )
+        return TORIRS_ASSET_READY;
+    return image == -2 ? TORIRS_ASSET_PENDING : TORIRS_ASSET_MISSING;
 }
 static bool v2_image_size(
     struct ToriRS_Api* api, struct ToriRS_ImageRef image, int* w, int* h)
@@ -665,9 +790,15 @@ static enum ToriRS_AssetState v2_item_image(
     struct ToriRS_Api* api, int obj, int count, int style,
     struct ToriRS_ImageRef* out)
 {
-    int const image = fake_obj_image(NULL, obj, count, style);
+    int image;
     (void)api;
+    out->value = 0;
+    if( g_c.obj_image_never )
+        return TORIRS_ASSET_MISSING;
+    image = fake_obj_image(NULL, obj, count, style);
     out->value = image >= 0 ? (uint32_t)image + 1u : 0;
+    /* An exhausted image table is BUDGET and not MISSING: it is full of
+     * somebody else's pictures this instant and will not be for ever. */
     return image >= 0 ? TORIRS_ASSET_READY : TORIRS_ASSET_BUDGET;
 }
 static int v2_loot_source_next(
@@ -734,6 +865,7 @@ static enum ToriRS_Result v2_panel_reidentify(struct ToriRS_Api* api, char const
     (void)api;
     if( !w_find(id) )
         return TORIRS_RESULT_NOT_FOUND;
+    well_mark_dirty(id);
     g_c.reidentifies++;
     return TORIRS_RESULT_OK;
 }
@@ -756,7 +888,14 @@ static void v2_build_button(
 { (void)panel; (void)enabled; (void)fake_panel_widget(NULL, TORIRS_PANEL_BUTTON, id, label); }
 static void v2_build_custom(
     struct ToriRS_PanelBuilder* panel, char const* id, int height)
-{ (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_CUSTOM, id, ""); (void)fake_panel_set_height(NULL, id, height); }
+{
+    (void)panel;
+    (void)fake_panel_widget(NULL, TORIRS_PANEL_CUSTOM, id, "");
+    (void)fake_panel_set_height(NULL, id, height);
+    /* A freshly declared well has no bitmap, so the host paints it once
+     * without being asked. Everything after that is asked for. */
+    well_mark_dirty(id);
+}
 static void v2_build_label(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* text)
 { (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_LABEL, id, text); }
@@ -1048,6 +1187,22 @@ draw_well(char const* id, int width)
         g_plugin->callbacks.on_ui_draw(&g_api, g_plugin_state, id, &draw);
 }
 
+/**
+ * One draw pass, but ONLY if the plugin asked for one.
+ *
+ * This is the host's gate, and a case about whether a page can get itself
+ * repainted has to go through it -- calling `draw_well` in a loop tests the
+ * paint, not the asking. Returns whether the pass actually happened.
+ */
+static int
+draw_well_when_asked(char const* id, int width)
+{
+    if( !well_take_dirty(id) )
+        return 0;
+    draw_well(id, width);
+    return 1;
+}
+
 static void
 activate_well(char const* id, int x, int y)
 {
@@ -1080,6 +1235,7 @@ reset(char const* asset_dir)
     free(g_c.comp_px);
     memset(&g_c, 0, sizeof(g_c));
     g_w_count = 0;
+    g_well_dirty_count = 0;
     g_loot_revision = 1;
     g_c.asset_dir = asset_dir;
     g_c.now_ms = 1000000;
@@ -1453,6 +1609,290 @@ test_xp_wanted_art_is_a_gap_not_a_refusal(void)
         "and a gap where the stats-bars icon would have been");
 }
 
+/**
+ * Is there a stack count stamped over the cell whose top-left is (x, y)?
+ *
+ * The digits are drawn in the atlas's ink over a black shadow, inside the top
+ * strip of the icon. A cell with an icon but no number is opaque there and
+ * flat; a numbered one carries the shadow's pure black against the icon's
+ * colour, which nothing else in a cell produces.
+ */
+static int
+stack_count_over_cell(int x, int y)
+{
+    if( !g_c.comp_px )
+        return 0;
+    for( int dy = 1; dy < 14; dy++ )
+        for( int dx = 1; dx < 36; dx++ )
+        {
+            int const px = x + dx;
+            int const py = y + dy;
+            if( px < 0 || py < 0 || px >= g_c.comp_w || py >= g_c.comp_h )
+                continue;
+            if( g_c.comp_px[py * g_c.comp_w + px] == 0xFF000000u )
+                return 1;
+        }
+    return 0;
+}
+
+/**
+ * The blank well, made deterministic.
+ *
+ * This is the defect the screenshots found as a coin toss: four blank captures
+ * of eleven at one panel tick and none at any other, with the blank run's log
+ * line-for-line identical to a painted one. It is not a coin toss in the
+ * client either -- it is a fixed interval, and the capture either landed
+ * inside it or did not.
+ *
+ * `lt_art_ready` short-circuited at the first piece of art that had not
+ * arrived, and `PluginDraw_*Load` is what STARTS a request rather than merely
+ * reporting one, so the six required files were fetched strictly one at a
+ * time. The only thing that re-ran the paint while the art was missing was the
+ * LT_PANEL_REFRESH_MS retry, so the chain advanced one file every half second:
+ * measured on the real client, eight polls and 3,520 ms of blank well after
+ * every open, to within forty milliseconds on every run.
+ *
+ * The fixture models one IO round trip per file and counts PASSES, not
+ * milliseconds. A chain that asks for its files one at a time needs one pass
+ * per file; a pass that asks for all of them needs one pass for all of them.
+ *
+ * MUTATION: put `return 0;` back after the first
+ * `PluginDraw_AtlasLoad(g_api, &g_bold, "bold")` and the second assertion
+ * fails -- only bold.ini is ever asked for in the first pass.
+ */
+static void
+test_loot_art_is_all_asked_for_in_one_pass(void)
+{
+    static int const obj[] = { 526 };
+    static int const qty[] = { 1 };
+    static int const val[] = { 60 };
+    int passes = 0;
+
+    reset("loot-tracker");
+    g_c.one_round_trip = 1;
+    cfg_set("price_source", "Cache value");
+    cfg_set("kill_chat_message", "0");
+    cfg_set("chat_value_threshold", "0");
+    cfg_set("ignored_items", "");
+    cfg_set("ignored_sources", "");
+    g_loot_count = 0;
+    loot_add("Goblin", 1, obj, qty, val, 1);
+
+    plugin_prepare(&TORIRS_PLUGIN_LOOT_TRACKER);
+    dispatch_start();
+    panel_build();
+    draw_well("strip", 264);
+
+    CHECK(
+        g_c.comp_px == NULL,
+        "the first pass has no art resident and composes nothing");
+    CHECK(
+        asset_asked("bold.ini") && asset_asked("text.ini") &&
+            asset_asked("cat_spine.png") && asset_asked("cat_spine_ignored.png") &&
+            asset_asked("cell.png") && asset_asked("cell_ignored.png"),
+        "and every required piece was ASKED FOR in that one pass, not the first "
+        "of them alone");
+
+    /* Two more passes is the whole chain: the .ini files land and their .png
+     * halves go out, then those land. Nothing here advances a clock. */
+    while( g_c.comp_px == NULL && passes < 16 )
+    {
+        draw_well("strip", 264);
+        passes++;
+    }
+    CHECK(
+        g_c.comp_px != NULL && passes <= 2,
+        "and the strip has a picture two passes later (%d)", passes);
+}
+
+/**
+ * A well with no picture at all does not wait on the refresh clock.
+ *
+ * The host DECLINES a draw pass that staged nothing rather than erasing what
+ * the well is showing, which is right -- and for a well that has never staged
+ * anything it means the page stays blank until somebody asks again. The only
+ * thing that asked was the half-second retry, so "the art is a frame late"
+ * and "there is nothing on the page" were the same flag on the same clock.
+ *
+ * MUTATION: delete the `g_strip_blank` arm in lt_frame_start and the first
+ * assertion fails -- the strip is still blank after sixteen frames, because
+ * nothing between the refresh ticks asked it to try again.
+ *
+ * The OTHER half of that predicate -- "the last pass the host asked for
+ * declined" rather than "there is no picture yet" -- is pinned in
+ * tracker_test.c, whose fixture drives the page model with no draw pass behind
+ * it at all: setting the flag on a well nobody paints asks for a redraw on
+ * every frame for ever, and that suite counts retained mutations over idle
+ * frames.
+ */
+static void
+test_loot_blank_well_is_retried_on_the_frame(void)
+{
+    static int const obj[] = { 526 };
+    static int const qty[] = { 1 };
+    static int const val[] = { 60 };
+    int composes;
+    int passes;
+
+    reset("loot-tracker");
+    g_c.one_round_trip = 1;
+    cfg_set("price_source", "Cache value");
+    cfg_set("kill_chat_message", "0");
+    cfg_set("chat_value_threshold", "0");
+    cfg_set("ignored_items", "");
+    cfg_set("ignored_sources", "");
+    g_loot_count = 0;
+    loot_add("Goblin", 1, obj, qty, val, 1);
+
+    plugin_prepare(&TORIRS_PLUGIN_LOOT_TRACKER);
+    dispatch_start();
+    panel_build();
+
+    /*
+     * Frames, and NOT ticks: the clock never moves in this case, so a paint
+     * that happens at all was asked for by the frame rather than by the
+     * refresh cadence. Every pass goes through the host's own gate, so a well
+     * that cannot get itself repainted is never repainted here either.
+     */
+    for( int i = 0; i < 16; i++ )
+    {
+        dispatch_frame_start();
+        (void)draw_well_when_asked("strip", 264);
+    }
+    CHECK(
+        g_c.comp_px != NULL,
+        "sixteen frames with the clock stopped are enough to paint the strip");
+    composes = g_c.compose_calls;
+
+    /* And it stops the moment there is a picture: this is the arm that would
+     * otherwise be the unbounded per-frame recompose the ledger names. */
+    passes = 0;
+    for( int i = 0; i < 60; i++ )
+    {
+        dispatch_frame_start();
+        passes += draw_well_when_asked("strip", 264);
+    }
+    CHECK(
+        passes == 0 && g_c.compose_calls == composes,
+        "and sixty more frames over a drawn strip ask for nothing (%d passes, "
+        "%d composes)", passes, g_c.compose_calls - composes);
+}
+
+/**
+ * Art that is two seconds late is not late, it is absent.
+ *
+ * The per-frame arm above exists for a page that is blank while its art
+ * crosses the IO queue, which is a startup transient measured in frames. A
+ * file that is not there at all never ends that transient, and an arm with no
+ * bound would ask for a redraw sixty times a second for the rest of the
+ * session -- the per-frame recompose the ledger names, bought back for the
+ * price of fixing it.
+ *
+ * MUTATION: delete the `g_blank_frames < LT_BLANK_RETRY_FRAMES` test and the
+ * second assertion fails -- the well is still asking on frame two hundred.
+ */
+static void
+test_loot_a_well_that_can_never_paint_gives_up(void)
+{
+    static int const obj[] = { 526 };
+    static int const qty[] = { 1 };
+    static int const val[] = { 60 };
+    int early = 0;
+    int late = 0;
+
+    reset("loot-tracker");
+    /* One required piece of art that this client does not have. */
+    g_c.absent_asset = "cell.png";
+    cfg_set("price_source", "Cache value");
+    cfg_set("kill_chat_message", "0");
+    cfg_set("chat_value_threshold", "0");
+    cfg_set("ignored_items", "");
+    cfg_set("ignored_sources", "");
+    g_loot_count = 0;
+    loot_add("Goblin", 1, obj, qty, val, 1);
+
+    plugin_prepare(&TORIRS_PLUGIN_LOOT_TRACKER);
+    dispatch_start();
+    panel_build();
+
+    for( int i = 0; i < 130; i++ )
+    {
+        dispatch_frame_start();
+        early += draw_well_when_asked("strip", 264);
+    }
+    CHECK(
+        g_c.comp_px == NULL && early > 1,
+        "a blank well asks again while the art might still be coming (%d)", early);
+
+    for( int i = 0; i < 200; i++ )
+    {
+        dispatch_frame_start();
+        late += draw_well_when_asked("strip", 264);
+    }
+    CHECK(
+        late == 0,
+        "and stops asking once it is clear the art is not coming (%d)", late);
+}
+
+/**
+ * An obj with no icon COMING is not an obj with an icon on its way.
+ *
+ * `item_image` answers PENDING while the objtype and its inventory model are
+ * still being fetched, and that is worth retrying. It answers MISSING when
+ * there is nothing left to fetch and the icon still will not build, and that
+ * is not: a strip that marks itself incomplete for it rebuilds twice a second
+ * for the rest of the session over a picture that is not coming.
+ *
+ * MUTATION: drop the `state == TORIRS_ASSET_PENDING` test in lt_draw_cell so
+ * every non-READY answer marks the compose incomplete, and the last assertion
+ * fails -- the refresh cadence recomposes the strip over an obj that has no
+ * icon at all.
+ */
+static void
+test_loot_an_obj_with_no_icon_stops_being_asked_for(void)
+{
+    static int const obj[] = { 526 };
+    static int const qty[] = { 1 };
+    static int const val[] = { 60 };
+    int composes;
+
+    reset("loot-tracker");
+    cfg_set("price_source", "Cache value");
+    cfg_set("kill_chat_message", "0");
+    cfg_set("chat_value_threshold", "0");
+    cfg_set("ignored_items", "");
+    cfg_set("ignored_sources", "");
+    g_loot_count = 0;
+    loot_add("Goblin", 1, obj, qty, val, 1);
+
+    plugin_prepare(&TORIRS_PLUGIN_LOOT_TRACKER);
+    dispatch_start();
+    panel_build();
+    tick(1000);
+    panel_build();
+    draw_well("strip", 264);
+    CHECK(g_c.comp_px != NULL, "the strip composed");
+
+    /* From here the client answers "there is no such icon, and there never
+     * will be" for every obj. */
+    g_c.obj_image_never = 1;
+    loot_add("Goblin", 1, obj, qty, val, 2);
+    tick(600);
+    draw_well("strip", 264);
+    composes = g_c.compose_calls;
+
+    for( int i = 0; i < 6; i++ )
+    {
+        tick(600);
+        draw_well("strip", 264);
+    }
+    CHECK(
+        g_c.compose_calls == composes,
+        "six refresh cadences over an obj that has no icon rasterise nothing "
+        "(%d)",
+        g_c.compose_calls - composes);
+}
+
 /** The loot strip, seeded with the reference capture's own log. */
 static void
 render_loot(void)
@@ -1546,7 +1986,23 @@ render_loot(void)
             (g_c.comp_px[83 * g_c.comp_w + 59] >> 24) != 0,
         "script3042 leaves the first inter-cell gap and starts column two at x=58");
     CHECK(
-        argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h) == 0x862D6CF5E77B88D0ULL,
+        stack_count_over_cell(4, 79) && stack_count_over_cell(58, 79),
+        "and the stacked cells are numbered, which is what the picture below moved for");
+    /*
+     * This hash MOVED, and it moved because the cells are numbered now.
+     *
+     * Nothing about the plates, the grid, the bands or the controls is
+     * different -- the checks above pin all of them and they are unchanged.
+     * What is new is one shadowed yellow/white/green string per stacked cell,
+     * which is what the client draws over every obj icon it puts on screen
+     * (`emit_obj_stack_count`) and what this page had never drawn because it
+     * believed `obj_image` baked the digits in. It does not: it resolves the
+     * stack VARIANT -- the art for a pile rather than a coin -- and stops.
+     *
+     * Old hash, for anyone bisecting: 862d6cf5e77b88d0.
+     */
+    CHECK(
+        argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h) == 0x194AD34678011ED8ULL,
         "the Loot Tools reference strip retains its exact plates, text, grid, and controls "
         "(got %016llx)",
         (unsigned long long)argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h));
@@ -1730,6 +2186,10 @@ main(void)
     render_loot();
     test_loot_stateful_controls();
     test_loot_a_pending_icon_does_not_recompose_every_frame();
+    test_loot_an_obj_with_no_icon_stops_being_asked_for();
+    test_loot_art_is_all_asked_for_in_one_pass();
+    test_loot_blank_well_is_retried_on_the_frame();
+    test_loot_a_well_that_can_never_paint_gives_up();
     if( g_plugin_state ) dispatch_stop();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

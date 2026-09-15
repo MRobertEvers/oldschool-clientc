@@ -205,3 +205,34 @@ be, and `*-nohover-*.png` is the same plugin without it.
 
 One correction to the openers table above: `TORIRS_SIM_CLICK_AT` is
 `frame,x,y[,right]`, frame FIRST, not `x,y,<tick>`.
+
+## lt-blank-{before,after} and lt-cells-{before,after} — the Loot Tracker's two
+
+Two binaries, one drive each, under `plugins/`; the cells pair is cropped into
+`zoom/loot-cells-{before,after}.png`. Both defects are in the C plugin, so a
+BEFORE shot needs a binary built from the tree before the fix and
+`TORIRS_SHOT_BIN` selects it — pointing `TORIRS_SHOT_WORKTREE` at the old tree,
+which is how the Lua pairs were taken, would change nothing here. The drives
+are in `jobs/loottracker.txt`.
+
+**`lt-blank-*` is the coin toss, made into a picture.** `lootsweep-*` and
+`lootrepeat-*` above could not reproduce the blank well on demand — four of
+eleven at panel tick 620, six deliberate repeats that all painted — because the
+thing being raced is not the tick. The well was blank for a FIXED 3,520 ms
+after every open, measured the same to within forty milliseconds on every run,
+and a 900-frame capture either ran past that window or ended inside it.
+`TORIRS_MAX_FRAMES=621` stops one RENDERED frame after the page opens, which is
+inside it every time and is also what a person opening the rail actually sees.
+Before: an empty box. After: the totals band and "No loot to display."
+`well_ink.py` scores them 0 and 1018.
+
+**`lt-cells-*` is what a recorded drop looks like.** Two goblin kills, each five
+thousand coins and a bone. Before: two empty plates and "Total value: 100M gp" —
+the plates are the cell art, so the cells were LAID OUT correctly and had
+nothing in them. After: the coin pile at its ten-thousand stack variant under a
+yellow `10000`, the bones under a `2`, and "10K gp", which is what ten thousand
+coins at one gp each and two bones are worth.
+
+The 100M is not a rounding difference. The store held `cost * qty` in a field
+the plugin API documents as the price of ONE, so the quantity went in twice:
+10,000 * (1 * 10,000) = 100,000,000. The zoomed pair shows both halves at once.

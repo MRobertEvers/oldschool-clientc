@@ -985,6 +985,21 @@ struct ToriRS_GameApi
         struct ToriRS_Api* api,
         int obj_id,
         struct ToriRS_ItemInfo* out);
+    /**
+     * The client's own inventory icon for one obj at one stack count.
+     *
+     * PENDING is "not yet": the objtype and its inventory model are being
+     * fetched because this call asked for them, and asking again is what
+     * finishes the job. MISSING is "not ever": there is nothing left to fetch
+     * and the icon still will not build. A caller that treats the second as
+     * the first asks for a picture that is not coming, on its own cadence, for
+     * the rest of the session.
+     *
+     * The picture carries the stack VARIANT -- a pile of coins rather than a
+     * coin -- and NOT the stack digits. Every stack count on screen in this
+     * client is a separate text pass over the icon, so a caller drawing into
+     * its own bitmap draws the number itself.
+     */
     enum ToriRS_AssetState (*item_image)(
         struct ToriRS_Api* api,
         int obj_id,
