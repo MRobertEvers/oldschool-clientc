@@ -160,9 +160,6 @@ static struct
     int last_icon_style;
 } g_client;
 static int g_lane_game = TORIRS_GAME_OLDSCHOOL;
-/** -1 follows the lane; 0 and 1 state `loot_events` on their own, which is
- *  what tells a capability read apart from a lineage read. */
-static int g_force_loot_events = -1;
 
 /* ------------------------------------------------------------------ verbs */
 
@@ -684,19 +681,14 @@ static void v2_image_release(
     struct ToriRS_Api* api, struct ToriRS_ImageRef image)
 { (void)api; (void)image; }
 /*
- * The lane's capabilities, which is how the loot tracker asks whether this
- * lane HAS a loot store. It is answered from the same switch the lane fake is,
- * because the two are one fact about the fixture -- but the plugin reads only
- * this one now, and a case that flips `g_lane_game` is stating what the client
- * would answer rather than what lineage it is.
+ * The lane's capabilities. The loot tracker asks for NONE of them: whether the
+ * client is keeping its own loot record is a question about the record, and
+ * the fixture answers it by whether a case seeded the store.
  */
 static bool v2_capability(struct ToriRS_Api* api, char const* name)
 {
     (void)api;
     assert(name);
-    if( strcmp(name, "loot_events") == 0 )
-        return g_force_loot_events >= 0 ? g_force_loot_events != 0
-                                        : g_lane_game != TORIRS_GAME_RS2;
     return false;
 }
 static enum ToriRS_Result v2_panel_set_label(
@@ -1284,7 +1276,6 @@ client_reset(void)
     memset(&g_store, 0, sizeof(g_store));
     g_store.revision = 1;
     g_lane_game = TORIRS_GAME_OLDSCHOOL;
-    g_force_loot_events = -1;
     g_client.now_ms = 100000;
     g_client.logged_in = true;
     g_client.me.true_x = 3200;
@@ -2544,44 +2535,68 @@ test_loot_store_lane_announces_a_kill(void)
 }
 
 /*
- * The lane gate is a CAPABILITY and not a lineage.
+ * The RECORD decides, not the lane and not a capability standing in for one.
  *
- * `core.lane()->game == TORIRS_GAME_RS2` was the last lineage test in the tree
- * outside the frame providers. The fixture states the two apart here: an RS2
- * lineage whose client DOES raise loot events must not also infer, or one drop
- * is counted twice.
+ * Two gates preceded this case and both named a lane: first
+ * `core.lane()->game == TORIRS_GAME_RS2`, then `Porcelain_Has("loot_events")`,
+ * which the host answered `App_UiLogic == APP_UI_LOGIC_CS2`. The second one
+ * shipped a defect this case reproduces: the client's loot record is filled by
+ * App_LootNotifyKill, which every lane reaches -- `::lootkill` on the CS1 lane
+ * put two kills in it -- and the plugin, told "not your lane", read none of
+ * them and printed "No loot to display." over a record that was not empty.
+ *
+ * Both halves are the SAME lineage, so nothing here can be passing because of
+ * one. The variable is the record.
  */
 static void
-test_loot_capability_decides_the_lane(void)
+test_loot_record_decides_not_the_lane(void)
 {
     struct ToriRS_NpcSnapshot goblin;
     struct ToriRS_GroundItemSnapshot coins;
 
+    /* The record HAS taken the two kills the live capture sent. */
     client_reset();
     g_lane_game = TORIRS_GAME_RS2;
-    g_force_loot_events = 1;
     loot_start();
+    loot_add("Goblin", 995, 5000, 1, 1);
+    loot_add("Goblin", 526, 1, 1, 1);
+    settle();
+    TEST_ASSERT(
+        has_loot(),
+        "a filled record reaches the page whatever lineage the lane is");
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        detail_source() && strcmp(detail_source(), "Goblin") == 0,
+        "named after the kill the record holds (got '%s')",
+        detail_source() ? detail_source() : "(none)");
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "5,001") == 0,
+        "worth what the record priced it at (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
 
+    /* And a client keeping a record must not ALSO infer, or the one drop the
+     * record already holds is counted twice. One source, still one kill. */
     goblin = dying_npc("Goblin", 3200);
     coins = drop_at(995, 12, 1, "Coins", 3200);
     dispatch_npc_despawn(&goblin);
     dispatch_item_spawn(&coins);
     tick(1201);
+    press_strip(TEST_TOTALS_H + 4);
     TEST_ASSERT(
-        !has_loot(),
-        "an RS2 lineage that raises loot events reads the store and never "
-        "infers, so a despawn and a drop record nothing");
+        row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0,
+        "a despawn beside a kept record adds nothing (got '%s')",
+        row_text("d_kills") ? row_text("d_kills") : "(none)");
 
-    /* The same fixture with the capability off does infer, which is what makes
-     * the assertion above about the gate rather than about the fixture. */
+    /* The same lineage with an EMPTY record does infer, which is what makes
+     * the assertions above about the record rather than about the fixture. */
     client_reset();
     g_lane_game = TORIRS_GAME_RS2;
-    g_force_loot_events = 0;
     loot_start();
     dispatch_npc_despawn(&goblin);
     dispatch_item_spawn(&coins);
     tick(1201);
-    TEST_ASSERT(has_loot(), "and with no loot events it infers");
+    TEST_ASSERT(
+        has_loot(), "and with no record of its own it infers from the world");
 }
 
 /*
@@ -3251,7 +3266,7 @@ main(void)
     test_loot_ignore_caption_flips_in_place();
     test_loot_ignore_list_over_the_ceiling_is_refused();
     test_loot_store_lane_announces_a_kill();
-    test_loot_capability_decides_the_lane();
+    test_loot_record_decides_not_the_lane();
     test_loot_eviction_drops_the_poorest();
     test_loot_band_menu_carries_the_headers_ops();
     test_loot_a_click_beside_the_menu_only_closes_it();

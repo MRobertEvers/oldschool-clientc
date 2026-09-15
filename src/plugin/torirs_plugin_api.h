@@ -483,7 +483,6 @@ struct ToriRS_CoreApi
      * - `server_tick`: on_server_tick is raised (every lane);
      * - `server_tick.fenced`: the wire carries an end-of-tick packet, so the
      *   tick is a real fence rather than the player-info edge;
-     * - `loot_events`: loot/ground-item events are raised;
      * - `item_bonuses`: the loaded item records carry equipment-bonus params;
      * - `native_orbs`: the live interface resolves the native run orb;
      * - `if_settab`: the wire carries the server's set-tab packet;

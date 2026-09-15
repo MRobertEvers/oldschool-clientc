@@ -424,9 +424,11 @@ struct LootTrackerState
     int menu_button;
     int menu_x;
     int menu_y;
-    /** The lane HAS a loot store, so the inference path must never run.
-     *  Answered once, by capability, at on_start. */
-    bool store_lane;
+    /** The client's own loot record has TAKEN something this session, so it
+     *  is the truth and the inference path must never run. Latched, because
+     *  a record that has been kept once goes on being kept. @see
+     *  lt_record_is_kept. */
+    bool record_kept;
     struct ToriRS_Api* api;
     struct Porcelain* porcelain;
 };
@@ -446,7 +448,7 @@ struct LootTrackerRuntime
 #define g_next_fallback_source_id (rt->state->next_fallback_source_id)
 #define g_page_visible (rt->state->page_visible)
 #define g_porcelain (rt->state->porcelain)
-#define g_store_lane (rt->state->store_lane)
+#define g_record_kept (rt->state->record_kept)
 #define g_synced_once (rt->state->synced_once)
 #define g_paint_incomplete (rt->state->paint_incomplete)
 #define g_paint_retry (rt->state->paint_retry)
@@ -790,22 +792,50 @@ lt_list_toggle(struct LootTrackerRuntime* rt, char const* key, char const* name)
 }
 
 /**
- * Does this lane have to INFER loot from despawns and spawns?
+ * Is the client keeping its own loot record for us?
  *
- * The gate used to be `core.lane()->game == TORIRS_GAME_RS2` -- a lineage
- * read, per despawn, per spawn, per tick and per action, and the wrong shape
- * twice over: the loot store exists on every lane and answers revision 1 on
- * all of them, so neither its presence nor its revision separates the two.
- * The producers are the CS2 host's, so the question is "does this lane raise
- * loot events", which is a capability, answered once at on_start.
+ * ASK THE RECORD, not the lane. Two gates preceded this one and both named a
+ * lane: first `core.lane()->game == TORIRS_GAME_RS2`, a lineage read; then
+ * `Porcelain_Has("loot_events")`, which the host answered with
+ * `App_UiLogic(app) == APP_UI_LOGIC_CS2` -- the same lane test wearing a
+ * capability's name, in the one table whose own rule is that every answer is
+ * an expression over an ENGINE FACT and never a lane.
  *
- * @see the ledger's "Lane gate" row and host fix H6.
+ * It was not merely inelegant, it was WRONG, because the store is not the CS2
+ * lane's. `App_LootNotifyKill` fills it from `app_client_cheat`, which every
+ * lane reaches; the CS1 lane's store took two kill records from `::lootkill`
+ * and this plugin, told "not your lane", read none of them and printed "No
+ * loot to display." over a record that was not empty.
+ *
+ * So the question is about the record: has it taken anything? If it has, it
+ * is the truth and nothing may be inferred beside it -- inferring as well is
+ * how one drop gets counted twice. If it has not, there is nothing to read
+ * and despawn/spawn correlation is the only account of a kill there is.
+ *
+ * LATCHED, and latched by `lt_sync_store` rather than by a probe here, for
+ * three reasons. It makes the answer monotone within a session, so clearing
+ * the last source cannot silently hand the page back to inference and start a
+ * second, differently-derived table. It keeps this -- asked per despawn, per
+ * spawn, per tick and per action -- at a BOOL READ, where a probe of its own
+ * would be a host call on the idle path and a walk of a record the hidden
+ * page has promised not to scan. And the pass that latches it is the pass
+ * that has the record in hand.
+ *
+ * @see lt_sync_store -- "THE STORE IS THE TRUTH".
  */
+static bool
+lt_record_is_kept(struct LootTrackerRuntime* rt)
+{
+    assert(rt);
+    return g_record_kept;
+}
+
+/** Does this client have to INFER loot from despawns and spawns? */
 static bool
 lt_infers_loot(struct LootTrackerRuntime* rt)
 {
     assert(rt);
-    return !g_store_lane;
+    return !lt_record_is_kept(rt);
 }
 
 /**
@@ -2341,6 +2371,35 @@ lt_sync_store(struct LootTrackerRuntime* rt)
 
     assert(rt);
 
+    /*
+     * A record that holds nothing has said nothing.
+     *
+     * This is the latch for lt_record_is_kept, and it is here because this is
+     * the pass that has the record in hand. An empty record may not blank a
+     * table the inference path built, and the two never both own that table:
+     * the FIRST thing the record takes owns it for the rest of the session,
+     * and the pending kills go with the old owner -- they are guesses about
+     * what the record now states for itself, and settling one afterwards
+     * would add a band the record does not have.
+     *
+     * The empty pass still counts as a BASELINE, so the first thing the
+     * record takes is a delta and gets announced. A plugin started beside a
+     * record that is already full gets no baseline here and announces
+     * nothing on its first read, which is the rule below.
+     */
+    if( !g_record_kept )
+    {
+        struct ToriRS_LootSource probe;
+
+        if( g_api->game->loot_source_next(g_api, -1, &probe) < 0 )
+        {
+            g_synced_once = true;
+            return false;
+        }
+        g_record_kept = true;
+        g_pending_count = 0;
+    }
+
     for( int i = 0; i < before; i++ )
     {
         old_id[i] = g_source[i].id;
@@ -3038,6 +3097,9 @@ lt_start(struct ToriRS_Api* api, void* state_ptr)
     g_synced_once = false;
     g_paint_incomplete = false;
     g_paint_retry = 0;
+    /* A session starts owing the record nothing; the first thing the record
+     * holds latches it. @see lt_record_is_kept. */
+    g_record_kept = false;
     g_menu_kind = LT_MENU_NONE;
     g_menu_button = LT_TOTALS_BTN_NONE;
     g_well_w = TORIRS_PANEL_WIDTH_DEFAULT;
@@ -3052,11 +3114,6 @@ lt_start(struct ToriRS_Api* api, void* state_ptr)
         g_expanded[i] = true;
 
     g_porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_LOOT_TRACKER, state_ptr);
-    /*
-     * The lane gate, asked ONCE. `loot_events` is App_UiLogic == CS2, which is
-     * a boot fact: the producers are the CS2 host's. @see lt_infers_loot.
-     */
-    g_store_lane = Porcelain_Has(g_porcelain, "loot_events");
     /*
      * Event loot -- barrows, raid chests, clue caskets -- is inventory-diff
      * work needing a reliable "this interface just opened" fence per revision,
@@ -3172,9 +3229,11 @@ lt_panel_build(
     assert(api);
     assert(panel);
 
-    /* The store is read before the first declaration so the page arrives whole
-     * rather than empty and then grown, which would be a rebuild for nothing. */
-    if( view == TORIRS_PANEL_VIEW_PAGE && !lt_infers_loot(rt) )
+    /* The record is read before the first declaration so the page arrives
+     * whole rather than empty and then grown, which would be a rebuild for
+     * nothing. UNGATED: a record is read wherever one is kept, and a record
+     * that holds nothing declines the pass itself. @see lt_sync_store. */
+    if( view == TORIRS_PANEL_VIEW_PAGE )
         (void)lt_sync_changed(rt, true);
     Porcelain_PanelBuild(g_porcelain, panel, view);
 }
@@ -3232,8 +3291,7 @@ lt_panel_layout(
         g_menu_kind = LT_MENU_NONE;
         return;
     }
-    if( !lt_infers_loot(rt) )
-        (void)lt_sync_changed(rt, false);
+    (void)lt_sync_changed(rt, false);
     lt_changed(rt);
 }
 
@@ -3260,9 +3318,13 @@ lt_tick(
     if( !g_page_visible )
         return;
 
-    /* OldSchool mirrors its authoritative store; RS2 was updated directly by
-     * the inference callbacks above. */
-    if( !lt_infers_loot(rt) && lt_sync_changed(rt, false) )
+    /*
+     * The client's own record, mirrored -- on whatever lane keeps one. The
+     * revision gate above it makes an unchanged record free, so a client that
+     * keeps no record pays one integer compare per refresh and its table stays
+     * the inference callbacks' work.
+     */
+    if( lt_sync_changed(rt, false) )
         lt_changed(rt);
 
     /* The art, or an obj icon, was not resident when the picture was last
