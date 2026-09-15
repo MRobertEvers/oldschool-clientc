@@ -495,6 +495,60 @@ return {id='ground-behavior',on_start=function(host)
     assert(drawn[2].text=='Rune platebody (60 gp)','price_mode alch is the high-alchemy one')
     config.set('price_mode','both')
 
+    -- ------------------------------------------- the M-to-B roll, and coins
+    -- QuantityFormatter.quantityToStackSize gives each suffix TEN THOUSAND of
+    -- its own unit: plain below 10,000, K below 10,000,000, M below
+    -- 10,000,000,000, B after that. The K rung was right and the M one rolled
+    -- at 1e9 -- a thousand times early -- so a max cash stack printed "2B",
+    -- and every figure between 1e9 and 1e10 lost three digits to a unit the
+    -- reference does not reach for until ten times further up.
+    obj.obj_id=4151;obj.count=1
+    config.set('price_mode','value')
+    local function priced(cost)
+        obj.cost=cost;drawn={}
+        product.on_draw_world(api,graphics)
+        return drawn[2].text
+    end
+    local function prints(cost,want,why)
+        local got=priced(cost)
+        assert(got=='Rune platebody ('..want..' gp)',why..': '..got)
+    end
+    prints(2147483647,'2147M','a max cash stack is 2147M, not 2B')
+    prints(9999999999,'9999M','M runs to one under ten thousand million')
+    prints(10000000000,'10B','B begins at 1e10, where the reference begins it')
+    -- The K rung, unchanged, so a fix to the one above cannot quietly move it.
+    prints(1500000,'1500K','1500K')
+    prints(9999999,'9999K','K runs to 9999K')
+    prints(10000000,'10M','and M begins at 1e7')
+    config.set('price_mode','both')
+
+    -- COINS. A coin's cache cost is 1, floor(1 * 0.6) is 0, and the alch price
+    -- is truncated per unit -- so under the shipped `alch` value_mode a pile of
+    -- five thousand coins was worth NOTHING: no tier, and no "(HA: ...)" at
+    -- all, because label_for prints a price only when it is non-zero.
+    -- GroundItemsPlugin.buildGroundItem corrects exactly this after its price
+    -- lookup -- setHaPrice(1), setGePrice(1) -- so a coin is one gp under both
+    -- prices and a pile is worth its count.
+    config.set('hidden_items','')           -- 'Coins' is on the shipped hide list
+    obj.obj_id=995;obj.name='Coins';obj.cost=1;obj.count=5000;drawn={}
+    product.on_draw_world(api,graphics)
+    assert(drawn[2].text=='Coins (5000) (EX: 5000 gp) (HA: 5000 gp)',
+        'five thousand coins is worth five thousand gp: '..drawn[2].text)
+    -- And it is a number the thresholds can see, which is the whole defect:
+    -- with the alch price at zero no coin pile could ever earn a tier.
+    config.set('low_value',4999);drawn={}
+    product.on_draw_world(api,graphics)
+    assert(drawn[2].color==config.low_color,'5000 coins clears a threshold of 4999')
+    config.set('low_value',5000);drawn={}
+    product.on_draw_world(api,graphics)
+    assert(drawn[2].color==config.default_color,
+        'and is worth exactly 5000 -- the correction is one gp a coin, not 0.6 of one')
+    config.set('low_value',20000)
+    config.set('hidden_items','Vial, Ashes, Coins, Bones, Bucket, Jug, Seaweed')
+    -- Back to the id the block below expects: 4151 is the one prices.txt does
+    -- NOT name, so obj.cost is the lever again.
+    obj.obj_id=4151;obj.name='Rune platebody';obj.cost=100;obj.count=1
+
     -- ---------------------------------------------------- the tier zero gate
     -- The reference DISABLES a tier whose threshold is at or below zero. This
     -- plugin used to read a zero low threshold as "everything is low value",

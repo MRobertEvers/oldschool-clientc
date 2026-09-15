@@ -35,10 +35,19 @@ return { id = 'loot-beam-behavior', on_start = function(host)
 
     -- What the host has on its floor. Every field the plugin reads.
     local stacks = {}
+    -- Who is standing on it, and on which storey. nil is a real state -- the
+    -- lane before login, and between a logout and the next world -- and it is
+    -- no floor to filter against.
+    local me = { level = 0, true_x = 3210, true_z = 3424 }
     -- What the shipped asset folder holds. A name absent from here is a
     -- MISSING asset, which is the terminal state the model row is about.
+    -- `560 = 1` is the ordinary item the per-unit truncation is proved on; it
+    -- used to be 995, which is the one id that rule must not be proved on.
+    -- There is deliberately NO coin row here: section 6b's first assertion is
+    -- the shipped defect exactly as a user meets it, with nothing but the
+    -- cache's own cost of 1 behind it.
     local files = { ['beam_modern.model'] = true, ['beam_light.model'] = true,
-                    ['prices.txt'] = '1127=39000\n# a comment\n\n995 = 1\nnonsense\n' }
+                    ['prices.txt'] = '1127=39000\n# a comment\n\n560 = 1\nnonsense\n' }
 
     local function record(name, ...)
         order[#order + 1] = name
@@ -171,15 +180,23 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     local api = {
         config = config,
         core = { log = function(text) logs[#logs + 1] = text end },
-        world = { item_next = function(cursor)
+        world = {
+            -- The floor the beams are for. loot-beam did not read it at all
+            -- and lit every plane the scene had loaded; ground_items.lua has
+            -- always filtered on `obj.level == me.level`.
+            local_player = function()
+                record('local_player')
+                return me
+            end,
+            item_next = function(cursor)
             -- Recorded, because "a burst of ten spawns rebuilds once" is a
             -- claim about the WALK. Counting objects made cannot see it: a
             -- floor that qualifies for nothing makes none either way.
-            record('item_next', cursor)
-            local index = cursor + 2
-            if index > #stacks then return nil end
-            return index - 1, stacks[index]
-        end },
+                record('item_next', cursor)
+                local index = cursor + 2
+                if index > #stacks then return nil end
+                return index - 1, stacks[index]
+            end },
         -- A fixed answer per colour, so every recolour argument below is a
         -- number this file can work out by hand.
         draw = { hsl_from_rgb = function(rgb)
@@ -243,6 +260,7 @@ return { id = 'loot-beam-behavior', on_start = function(host)
                  cost = cost, count = count or 1 }
     end
     local function start()
+        me = { level = 0, true_x = 3210, true_z = 3424 }
         P.every, P.table_parsed, P.table_asks, P.tier_calls = {}, false, 0, 0
         P.model_asks, assets.model_asks = {}, {}
         scene.live, scene.destroyed, scene.next_handle = {}, {}, 100
@@ -372,11 +390,11 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     --    stack multiply -- which is where the reference truncates too
     ----------------------------------------------------------------------
 
-    -- obj 995 has a cache cost of 100 and a prices.txt override of 1, and
+    -- obj 560 has a cache cost of 100 and a prices.txt override of 1, and
     -- there are ten of it on the tile. Priced from the cache the stack alches
     -- to (100*3//5)*10 = 600; priced from the override it alches to
     -- (1*3//5)*10 = 0. A threshold of 500 tells the two apart.
-    stacks = { stack(995, 3211, 3425, 100, 10) }
+    stacks = { stack(560, 3211, 3425, 100, 10) }
     config.tier, config.low_value = 'low', 500
     product.on_config_changed(api, 'low_value')
     tick()
@@ -389,6 +407,8 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     product.on_config_changed(api, 'low_value')
     tick()
     assert(beams_up() == 0, 'the alch price is truncated per UNIT, before the stack multiply')
+    -- ...for every item but ONE. See section 6b: a coin's unit alch price
+    -- truncates to zero, which is the item this rule cannot be applied to.
     config.value_mode = 'value'
     product.on_config_changed(api, 'value_mode')
     tick()
@@ -408,6 +428,145 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     product.on_config_changed(api, 'low_value')
     tick()
     assert(beams_up() == 0, 'and not over a threshold of exactly 39000')
+
+    ----------------------------------------------------------------------
+    -- 6b. COINS, the drop this plugin could not see
+    --
+    -- A coin's cache cost is 1. floor(1 * 0.6) is 0. The alch price is
+    -- truncated per unit, and `alch` is the shipped default value_mode -- so
+    -- five thousand coins were worth ZERO and no threshold above zero could
+    -- ever be cleared by a pile of gold. The archetypal loot beam could not
+    -- fire.
+    --
+    -- The reference corrects exactly this, in GroundItemsPlugin.buildGroundItem
+    -- under the comment "Update item price in case it is coins":
+    -- setHaPrice(1) and setGePrice(1), so a coin is one gp under both prices
+    -- and a pile is worth its count.
+    ----------------------------------------------------------------------
+
+    start()
+    stacks = { stack(995, 3213, 3427, 1, 5000) }
+    config.tier, config.value_mode = 'low', 'alch'
+    config.low_value, config.medium_value = 4999, 100000
+    product.on_config_changed(api, 'low_value')
+    product.on_item_spawn(api, {})
+    tick()
+    assert(beams_up() == 1, 'five thousand coins raises a beam')
+    -- Worth EXACTLY its count, and not merely "more than nothing": a rule that
+    -- rounded the unit price UP instead of correcting it would put the pile at
+    -- 5000 too, but one that dropped the truncation altogether would not.
+    config.low_value = 5000
+    product.on_config_changed(api, 'low_value')
+    tick()
+    assert(beams_up() == 0, 'a coin is one gp: the pile is worth 5000, not 0 and not 300000')
+    config.low_value = 4999
+    product.on_config_changed(api, 'low_value')
+    tick()
+    assert(beams_up() == 1)
+    -- Both prices, so the other two modes agree with it rather than routing
+    -- around it.
+    for _, mode in ipairs({ 'value', 'highest' }) do
+        config.value_mode, config.low_value = mode, 5000
+        product.on_config_changed(api, 'value_mode')
+        tick()
+        assert(beams_up() == 0, mode .. ' mode prices a coin at one gp too')
+        config.low_value = 4999
+        product.on_config_changed(api, 'low_value')
+        tick()
+        assert(beams_up() == 1, mode .. ' mode still lights the pile')
+    end
+    config.value_mode = 'alch'
+    product.on_config_changed(api, 'value_mode')
+    -- The rule is one gp PER COIN and not a floor under the pile: the value
+    -- tracks the count all the way down to one.
+    config.low_value = 1
+    product.on_config_changed(api, 'low_value')
+    stacks = { stack(995, 3213, 3427, 1, 1) }
+    product.on_item_changed(api, {})
+    tick()
+    assert(beams_up() == 0, 'one coin is worth one, which is not OVER a threshold of one')
+    stacks = { stack(995, 3213, 3427, 1, 2) }
+    product.on_item_changed(api, {})
+    tick()
+    assert(beams_up() == 1, 'and two coins are worth two, which is')
+
+    -- The correction is written AFTER the price lookup it overrides, so a
+    -- prices.txt row for coins does not get a say either -- it is a correction
+    -- of whatever the lookup answered, not a fallback for a lookup that
+    -- answered nothing.
+    files['prices.txt'] = '995 = 100\n'
+    start()
+    assert(logs[1] == 'prices.txt: 1 price overrides', logs[1])
+    config.tier, config.value_mode = 'low', 'alch'
+    config.low_value, config.medium_value = 5000, 100000
+    product.on_config_changed(api, 'low_value')
+    stacks = { stack(995, 3213, 3427, 1, 5000) }
+    product.on_item_spawn(api, {})
+    tick()
+    assert(beams_up() == 0,
+        'a prices.txt row for coins is overridden too: the pile is 5000, not 300000')
+    config.low_value = 4999
+    product.on_config_changed(api, 'low_value')
+    tick()
+    assert(beams_up() == 1, 'and still 5000')
+    files['prices.txt'] = '1127=39000\n# a comment\n\n560 = 1\nnonsense\n'
+
+    ----------------------------------------------------------------------
+    -- 6c. the PLANE
+    --
+    -- The client tracks every ground stack in the LOADED SCENE, not only the
+    -- ones on the storey the player is standing on. loot-beam read none of
+    -- that: a drop in the room above got an object, a position, a yaw every
+    -- frame and a line in the count -- and no pixels, because the host drops a
+    -- plugin object whose level is not the camera's before the painter sees
+    -- it. So the cost was the count line lying and the 64-object budget being
+    -- spent on beams that could not be drawn. ground_items.lua has always
+    -- filtered on `obj.level == me.level`; this is the same test.
+    ----------------------------------------------------------------------
+
+    start()
+    config.tier, config.low_value, config.medium_value = 'low', 1000, 100000
+    product.on_config_changed(api, 'low_value')
+    -- Two upstairs, one on the player's own floor, all three over the
+    -- threshold.
+    stacks = { stack(1127, 3210, 3424, 200000, 1, 1),
+               stack(1127, 3211, 3425, 200000, 1, 1),
+               stack(1127, 3300, 3500, 200000, 1, 0) }
+    me.level = 0
+    product.on_item_spawn(api, {})
+    mark = #calls
+    tick()
+    assert(beams_up() == 1, 'only the stack on the player\'s own plane is lit')
+    -- And it is that stack: the two beams that used to stand here were over
+    -- tiles the player is looking at the ceiling of.
+    assert(args(mark, 'instance_position', 1)[3] == 3300 and
+           args(mark, 'instance_position', 1)[4] == 3500 and
+           args(mark, 'instance_position', 1)[5] == 0,
+        'the beam is on the player\'s storey, over the stack that is on it')
+    -- The count line is about the floor the player can see, so the TALLY is
+    -- filtered by the same test: "0 beam(s) over 3 ground stack(s)" would read
+    -- as a threshold set too high when two of the three are upstairs.
+    assert(logs[#logs] == '1 beam(s) over 1 ground stack(s)', logs[#logs])
+
+    -- Up the stairs. The same three stacks, a different floor: now it is the
+    -- two that are lit and the third that is not.
+    me.level = 1
+    product.on_item_changed(api, {})
+    tick()
+    assert(beams_up() == 2, 'the player moves a storey and the lit set moves with them')
+    assert(logs[#logs] == '2 beam(s) over 2 ground stack(s)', logs[#logs])
+
+    -- No local player -- the lane before login, and between a logout and the
+    -- next world -- is no floor to filter against, and nothing is lit.
+    me = nil
+    product.on_item_changed(api, {})
+    tick()
+    assert(beams_up() == 0, 'no player is no floor, and no beams')
+    assert(logs[#logs] == '0 beam(s) over 0 ground stack(s)', logs[#logs])
+    me = { level = 1, true_x = 3210, true_z = 3424 }
+    product.on_item_changed(api, {})
+    tick()
+    assert(beams_up() == 2, 'and they come back when the player does')
 
     ----------------------------------------------------------------------
     -- 7. one beam per TILE, coloured by the best stack on it

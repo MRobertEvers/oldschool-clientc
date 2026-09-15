@@ -353,8 +353,31 @@ local plugin = {
 -- The stack size at which the reference stops counting.
 local MAX_QUANTITY = 65535
 -- Reference ItemComposition.getHaPrice: price * HIGH_ALCHEMY_MULTIPLIER (0.6f),
--- truncated. Kept as a rational so the arithmetic stays in integers.
+-- truncated. Kept as a rational so the arithmetic stays in integers, and
+-- applied per UNIT before the stack multiply -- which is where the reference
+-- truncates too: GroundItem holds both prices per unit and its getGePrice /
+-- getHaPrice multiply by the quantity on the way out.
 local HA_NUM, HA_DEN = 3, 5
+
+-- Coins, and the one item for which that per-unit truncation is a disaster.
+--
+-- A coin's cache cost is 1; floor(1 * 0.6) is 0; a pile of five thousand of
+-- them is therefore worth nothing at all under the shipped `alch` value_mode,
+-- and prints "(HA: 0 gp)" -- which label_for then suppresses, because it only
+-- prints a price that is non-zero. The most common drop in the game was the one
+-- this plugin could not put a number on.
+--
+-- GroundItemsPlugin.buildGroundItem ends with exactly this correction, under
+-- the comment "Update item price in case it is coins":
+--
+--     if (realItemId == COINS) { groundItem.setHaPrice(1); groundItem.setGePrice(1); }
+--
+-- so a coin is worth one gp under BOTH prices and a pile is worth its count. It
+-- is written AFTER the price lookup it overrides, which is why prices.txt gets
+-- no say here either: the rule corrects whatever the lookup answered rather
+-- than standing in for a lookup that answered nothing. ItemID.COINS_995 is 995
+-- in every revision this client boots.
+local COINS = 995
 local SHADOW = 0x000000
 
 local PRICES_ASSET = "prices.txt"
@@ -472,17 +495,26 @@ local function load_lists(api)
 end
 
 -- Reference QuantityFormatter.quantityToStackSize.
+--
+-- Each suffix runs to TEN THOUSAND of its own unit and not to a thousand of
+-- them: the reference's ladder is `< 10_000` plain, `< 10_000_000` in K,
+-- `< 10_000_000_000` in M, and B after that. The K rung was right here and the
+-- M one was not -- it rolled to B at 1e9, a thousand times early -- so a max
+-- cash stack printed "2B" where the reference prints "2147M", and every number
+-- between 1e9 and 1e10 lost three digits of resolution to a unit the reference
+-- does not use until ten times further up.
 local function stack_size(n)
     if n < 0 then return "0" end
     if n < 10000 then return tostring(n) end
     if n < 10000000 then return (n // 1000) .. "K" end
-    if n < 1000000000 then return (n // 1000000) .. "M" end
+    if n < 10000000000 then return (n // 1000000) .. "M" end
     return (n // 1000000000) .. "B"
 end
 
 -- The two prices the reference reasons about, for the whole stack.
 local function prices_of(obj)
     local unit = prices[obj.obj_id] or obj.cost
+    if obj.obj_id == COINS then return obj.count, obj.count end
     return unit * obj.count, (unit * HA_NUM // HA_DEN) * obj.count
 end
 

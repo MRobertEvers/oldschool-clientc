@@ -100,3 +100,57 @@ BEFORE on minimap states 3, 4 and 5 and only on those three, which is the same
 1:1 correlation with the suppressed compass that the rule reported.
 `frames/*-noorbs-mm*.png` is the same pair with the orb plugins off, where the
 plate has the whole native orb column to cover instead.
+
+## The three shipped defects the screenshots found (`lb-*`, `gi-maxcash-*`)
+
+Three defects that predate the Porcelain ports, all three photographed the way
+this directory says to photograph one: the same drive, the same binary, the
+BEFORE tree's `script/` selected with `TORIRS_SHOT_WORKTREE`. Only the Lua
+plugins differ between BEFORE and AFTER here, so one binary is honestly both
+sides of the pair -- there is no C change for a second build to carry.
+
+The drop is `::dropobj`, which uses the ACTIVE PLAYER'S coord, so the pile
+lands under the player on the player's plane; `::tele <coord literal>` moves
+the player between storeys for the plane pair.
+
+| image | drive | what it shows |
+|---|---|---|
+| `lb-coins-{before,after}` | `60,dropobj coins 2000000` + `spin,0` | **no beam** over two million coins, then an orange one |
+| `gi-maxcash-{before,after}` | `60,dropobj coins 2147483647` + `spin,0`, `ground-items,hide_exceptions,Coins` | `Coins (Lots!) (EX: 2B gp)` in the hidden colour, then `(EX: 2147M gp) (HA: 2147M gp)` in the insane colour, under a pink beam |
+| `lb-upstairs-{before,after}` | `60,tele 1_50_53_10_32;100,dropobj abyssal_tentacle 1;160,tele 0_50_53_10_32` | a beam standing over a pile one storey up, and the log lines below |
+| `lb-otherfloor-{before,after}` | `60,dropobj abyssal_tentacle 1;140,tele 1_50_53_10_32` | the same defect from the other side: the player walks UP and leaves the beam behind |
+
+**A coin pile was worth zero.** The alch price is truncated per unit, which is
+the reference's own arithmetic, and a coin's cache cost is 1: `floor(1 * 0.6)`
+is 0, so five thousand coins alched to nothing and the shipped `alch` default
+meant no pile of gold could ever clear a threshold. `gi-maxcash-before` is the
+whole defect in one caption -- the HA price is not merely wrong, it is ABSENT,
+because `label_for` prints a price only when it is non-zero.
+
+**`2B` is not what the reference prints.** `QuantityFormatter.quantityToStackSize`
+gives each suffix ten thousand of its own unit, so B does not begin until 1e10
+and a max cash stack is `2147M`. The K rung was already right; only the M one
+rolled early.
+
+**The plane pair is a pair of LOGS, not of pixels, and that is the finding.**
+`world_cycle.c` gates every plugin object on `obj->level != local_level`, so a
+beam raised over another storey never reaches the screen -- which is why
+`lb-nodrop-{before,after}` above, taken against the fixture's own two level-1
+stacks, show no beams on either side. What the plugin was doing was creating
+and COUNTING them:
+
+```
+lb-upstairs-before   [loot-beam] 1 beam(s) over 3 ground stack(s)     <- and no line after the player comes back down
+lb-upstairs-after    [loot-beam] 1 beam(s) over 3 ground stack(s)     <- while the player is UP there, correctly
+                     [loot-beam] 0 beam(s) over 0 ground stack(s)     <- and it comes down with them
+
+lb-otherfloor-before [loot-beam] 1 beam(s) over 3 ground stack(s)     <- three stacks on two planes
+lb-otherfloor-after  [loot-beam] 1 beam(s) over 1 ground stack(s)     <- one plane, one stack
+                     [loot-beam] 0 beam(s) over 2 ground stack(s)     <- the player goes up; the floor is the two up there
+```
+
+The one line this plugin prints is its only diagnostic for "no beams appear",
+and it was counting beams nobody could see. The cost that is not cosmetic is
+the host's 64-object budget: every off-plane pile held a scene object, so a
+player in a multi-storey building could have the beams they CAN see clipped by
+beams they cannot.

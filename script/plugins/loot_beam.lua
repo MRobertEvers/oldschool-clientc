@@ -350,8 +350,32 @@ end
 -- Reference ItemComposition.getHaPrice: price * HIGH_ALCHEMY_MULTIPLIER
 -- (0.6f), truncated. Kept as a rational so the arithmetic stays in integers,
 -- and applied per UNIT before the stack multiply -- which is where the
--- reference truncates too.
+-- reference truncates too: GroundItem holds the two prices per unit and its
+-- getGePrice/getHaPrice multiply by the quantity on the way out, so a stack of
+-- n is n * floor(cost * 0.6) and never floor(n * cost * 0.6).
 local HA_NUM, HA_DEN   = 3, 5
+
+-- Coins.
+--
+-- The per-unit truncation above is the reference's, and for every ordinary
+-- item it is right. For ONE item it is catastrophic, and the reference knows
+-- it: a coin's cache cost is 1, floor(1 * 0.6) is 0, and a pile of five
+-- thousand of them is therefore worth nothing at all -- which, with `alch` as
+-- the shipped default value_mode, is a loot beam that can never fire over a
+-- pile of gold. The archetypal drop was the one drop this plugin could not
+-- see.
+--
+-- GroundItemsPlugin.buildGroundItem ends with exactly this correction, under
+-- the comment "Update item price in case it is coins":
+--
+--     if (realItemId == COINS) { groundItem.setHaPrice(1); groundItem.setGePrice(1); }
+--
+-- so a coin is worth one gp under BOTH prices and a pile is worth its count.
+-- It is written after the price lookup it overrides, which is why prices.txt
+-- does not get a say here either: the rule is not a fallback, it is a
+-- correction of whatever the lookup answered. ItemID.COINS_995 is 995 in every
+-- revision this client boots.
+local COINS            = 995
 
 -- What this stack is worth under the configured mode. `alch` is the default;
 -- see the header.
@@ -361,6 +385,9 @@ local function value_of(api, obj)
     local alch = (unit * HA_NUM // HA_DEN) * obj.count
     local mode = api.config.value_mode
 
+    if obj.obj_id == COINS then
+        exchange, alch = obj.count, obj.count
+    end
     if mode == "value" then return exchange end
     if mode == "highest" then return exchange > alch and exchange or alch end
     return alch
@@ -404,32 +431,66 @@ local function dress(api, beam, rgb, style)
     beam.rgb, beam.style = rgb, style
 end
 
+--
+-- The beams that should be standing, from the floor as it is now.
+--
+-- Filtered by PLANE, which this plugin did not do and ground_items.lua always
+-- has (`obj.level == me.level`). The client tracks every ground stack in the
+-- LOADED SCENE, not only the ones on the player's own storey, so a drop in the
+-- room above was a beam this plugin created, positioned, spun once a frame and
+-- counted.
+--
+-- What it was not was a beam anyone saw: world_cycle.c gates every plugin
+-- object on `obj->level != local_level`, so an off-plane object is dropped
+-- before the painter. That is what made this the kind of defect that survives
+-- -- there was no wrong pixel to notice. What there was:
+--
+--   * the COUNT LINE, which is the only diagnostic this plugin prints and the
+--     only thing separating "nothing on the floor clears the threshold" from
+--     "beams exist and are not being drawn". It was reporting beams nobody
+--     could see, which is the second answer given for the first question.
+--   * the OBJECT BUDGET. The host refuses instance_create past 64 objects per
+--     plugin, so every pile on another storey held a slot a visible beam
+--     wanted. In a multi-storey building that clips the beams the player CAN
+--     see in favour of beams that cannot be drawn at all.
+--
+-- The tally is filtered with the beams, for the same reason: "0 beam(s) over 20
+-- ground stack(s)" reads as a threshold set too high when all twenty of those
+-- stacks are upstairs.
+--
+-- No local player is no floor to filter against -- the lane before login, and
+-- between a logout and the next world -- and nothing is lit: the beams come
+-- down and the next obj event rebuilds them.
+--
 local function rebuild(api)
     local style = api.config.style
+    local me = api.world.local_player()
     local want = {}
     local order = {}
     local tally = 0
     local before = live
 
     for obj in items(api) do
-        local value = value_of(api, obj)
-        tally = tally + 1
-        local rgb = tier_colour(api, value)
-        if rgb then
-            -- One beam per TILE, coloured by the best thing on it: a tile with
-            -- a rune scimitar and a bone under it is one beam, not two in the
-            -- same place fighting over the same pixels.
-            local key = obj.level .. ":" .. obj.tile_x .. ":" .. obj.tile_z
-            local best = want[key]
-            if not best then order[#order + 1] = key end
-            if not best or value > best.value then
-                want[key] = {
-                    value = value,
-                    rgb = rgb,
-                    x = obj.tile_x,
-                    z = obj.tile_z,
-                    level = obj.level
-                }
+        if me and obj.level == me.level then
+            local value = value_of(api, obj)
+            local rgb = tier_colour(api, value)
+            tally = tally + 1
+            if rgb then
+                -- One beam per TILE, coloured by the best thing on it: a tile
+                -- with a rune scimitar and a bone under it is one beam, not two
+                -- in the same place fighting over the same pixels.
+                local key = obj.level .. ":" .. obj.tile_x .. ":" .. obj.tile_z
+                local best = want[key]
+                if not best then order[#order + 1] = key end
+                if not best or value > best.value then
+                    want[key] = {
+                        value = value,
+                        rgb = rgb,
+                        x = obj.tile_x,
+                        z = obj.tile_z,
+                        level = obj.level
+                    }
+                end
             end
         end
     end
