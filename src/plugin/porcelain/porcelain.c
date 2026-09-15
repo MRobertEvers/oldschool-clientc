@@ -1109,17 +1109,80 @@ porcelain_watch_respell(struct Porcelain* porcelain, struct PorcelainWatch* watc
 }
 
 /*
+ * WALK UP FROM ONE ELEMENT, AND SAY WHETHER THE WALK MEANT ANYTHING.
+ *
+ * `parent` has three answers and the walk used to read two. OK with a valid
+ * ref is a hop. UNAVAILABLE is the top of the tree -- the adapter builds the
+ * reply out of `c->parent` and answers UNAVAILABLE when there is no parent
+ * node -- so `from` IS the root and the walk is finished. STALE_REFERENCE is
+ * neither: it says the node the walk is STANDING ON has been freed, and a
+ * walk that cannot take its first step has not found a root, it has failed to
+ * look for one.
+ *
+ * Collapsing those last two into `!= OK` is what made a dead element answer
+ * "you are already at the root" and hand its own corpse back as the frame
+ * root. @see porcelain_frame_root.
+ */
+static bool
+porcelain_walk_to_root(struct Porcelain* porcelain, struct ToriRS_WidgetRef from,
+                       struct ToriRS_WidgetRef* out)
+{
+    struct ToriRS_WidgetApi const* widgets;
+    struct ToriRS_WidgetRef current = from;
+    struct ToriRS_WidgetRef parent;
+
+    assert(porcelain);
+    assert(out);
+    widgets = &porcelain->api->widgets;
+    for( int hop = 0; hop < 64; hop++ )
+    {
+        enum ToriRS_ContractResult result;
+
+        porcelain->counters.engine_calls++;
+        result = widgets->parent(widgets->context, current, &parent);
+        if( result == TORIRS_CONTRACT_STALE_REFERENCE )
+            return false;
+        if( result != TORIRS_CONTRACT_OK )
+            break;
+        if( !ToriRS_WidgetRefValid(parent) )
+            break;
+        current = parent;
+    }
+    *out = current;
+    return true;
+}
+
+/*
  * The frame root: the clipping parent of everything AT_CANVAS and AT_USABLE.
  * Derived once by walking up from any bound element and cached, because the
  * audit measured a 32-hop root walk per fence in a shipped plugin.
+ *
+ * "ANY BOUND ELEMENT" IS NOT "THE FIRST ONE IN THE TABLE".
+ *
+ * A watch is BOUND until the host says otherwise, and the host says so on its
+ * own schedule: between the engine freeing a node and the UNBOUND or BOUND
+ * event that reports it, a watch holds a reference to a widget that is gone.
+ * Every other consumer of such a watch gets a STALE_REFERENCE from the verb it
+ * calls and treats that as the layer's housekeeping; this one used to take the
+ * first bound entry, fail to walk from it, and publish the dead node as the
+ * frame root -- where it stayed until the ELEMENT stamp moved again, because
+ * the cache is keyed on that stamp and nothing revalidates a cache hit.
+ *
+ * Measured on the CS1 lane at boot: `minimap` bound at a node the tree had
+ * already freed, the walk breaking at hop zero, and every AT_CANVAS create for
+ * the next two hundred frames refused against the corpse -- six refusals
+ * coalesced into one undeclared `create ... REFUSED` finding whose detail named
+ * whichever control happened to be described first.
+ *
+ * So the table is asked until one of its bound elements can actually be walked
+ * from, and a fence where none can is answered NO ROOT -- which is the truth,
+ * and which every caller here already handles: the placement defers rather
+ * than creating against a parent that is not there.
  */
 static bool
 porcelain_frame_root(struct Porcelain* porcelain, struct ToriRS_WidgetRef* out)
 {
-    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
-    struct ToriRS_WidgetRef current;
-    struct ToriRS_WidgetRef parent;
-    bool found = false;
+    struct ToriRS_WidgetRef root;
 
     assert(out);
     if( porcelain->frame_root_known &&
@@ -1129,30 +1192,26 @@ porcelain_frame_root(struct Porcelain* porcelain, struct ToriRS_WidgetRef* out)
         return true;
     }
     memset(out, 0, sizeof(*out));
-    for( int i = 0; i < PORCELAIN_WATCHES_MAX && !found; i++ )
+    for( int i = 0; i < PORCELAIN_WATCHES_MAX; i++ )
     {
         struct PorcelainWatch const* watch = &porcelain->watches[i];
         if( !watch->used || watch->state.bind != PORCELAIN_BOUND )
             continue;
-        current = watch->state.ref;
-        found = true;
+        if( !porcelain_walk_to_root(porcelain, watch->state.ref, &root) )
+            continue;
+        *out = root;
+        porcelain->frame_root = root;
+        porcelain->frame_root_known = true;
+        porcelain->frame_root_stamp = porcelain->stamp[PORCELAIN_INPUT_ELEMENT];
+        return true;
     }
-    if( !found )
-        return false;
-    for( int hop = 0; hop < 64; hop++ )
-    {
-        porcelain->counters.engine_calls++;
-        if( widgets->parent(widgets->context, current, &parent) != TORIRS_CONTRACT_OK )
-            break;
-        if( !ToriRS_WidgetRefValid(parent) )
-            break;
-        current = parent;
-    }
-    *out = current;
-    porcelain->frame_root = current;
-    porcelain->frame_root_known = true;
-    porcelain->frame_root_stamp = porcelain->stamp[PORCELAIN_INPUT_ELEMENT];
-    return true;
+    /*
+     * NOT cached as a negative. A root nobody could walk to is a state the
+     * lane is passing through, not a fact about it, and the next fence has to
+     * be free to ask again -- the ELEMENT stamp does not move when a node the
+     * layer never hears about dies.
+     */
+    return false;
 }
 
 /*
