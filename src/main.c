@@ -2537,6 +2537,67 @@ frame_loop_step(void)
                 }
             }
 
+            /*
+             * TORIRS_SIM_CAMERA_YAW="<0..2047>" with
+             * TORIRS_SIM_CAMERA_YAW_FRAME=N: park the follow camera at a known
+             * yaw from loop frame N on, so a world overlay can be photographed
+             * with its subject IN the viewport instead of beside it.
+             *
+             * The yaw lives in `orbit`, not in world_camera: the follow step
+             * rebuilds world_camera.yaw from orbit.yaw every cycle, so a park
+             * written to world_camera survives exactly one render. The
+             * pre-loop block below got away with that because it renders and
+             * exits; from inside the loop it would simply not turn the camera.
+             * yaw_velocity goes to zero with it -- the reference's camera
+             * coasts, and a park that leaves a velocity behind drifts away
+             * from the angle the drive asked for over the frames that follow.
+             *
+             * This is the lever the entity-highlighter's live capture needed
+             * and did not have. Its three tagged npcs stand 11-12 tiles north
+             * and 5-8 tiles east of the only teleport that lane can reach;
+             * `wanderrange` keeps them from walking off, which is what the job
+             * comment argued, but nothing kept them in FRONT of a camera whose
+             * reset yaw looks north -- two of the three projected past the
+             * viewport's right edge and the drive had no way to say otherwise.
+             */
+            {
+                static int yaw_done = 0;
+                static long yaw_frame = -1;
+                if( yaw_frame < 0 )
+                {
+                    char const* at = getenv("TORIRS_SIM_CAMERA_YAW_FRAME");
+                    yaw_frame = at ? strtol(at, NULL, 0) : 1;
+                    if( yaw_frame < 1 )
+                        yaw_frame = 1;
+                }
+                if( !yaw_done && getenv("TORIRS_SIM_CAMERA_YAW") &&
+                    getenv("TORIRS_SIM_CAMERA_YAW_FRAME") && frame_count >= yaw_frame )
+                {
+                    yaw_done = 1;
+                    app.orbit.yaw = ToriDraw_NormalizeAngle(
+                        (int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
+                    app.orbit.yaw_velocity = 0;
+                    /*
+                     * Yaw only, and the pitch is deliberately NOT a second
+                     * knob beside it. Measured on this lane: the reset pitch
+                     * of 148 puts the highlighter's trio at y=13 and a park at
+                     * 190 puts them off the top of the viewport at y=4, so the
+                     * pitch band's flat end (128) is worth about four pixels
+                     * of headroom and its steep end throws the subject away
+                     * entirely. A knob that cannot move the picture in the
+                     * direction a drive needs is a knob nobody can use.
+                     *
+                     * REPORT for the same reason sim_cmd is: a drive that
+                     * asked for an angle wants the angle in the optimized
+                     * build's log, not only in a debug one.
+                     */
+                    TORIRS_REPORT(
+                        "sim_camera_yaw: frame %ld parked at %d\n",
+                        (long)frame_count,
+                        app.orbit.yaw);
+                }
+            }
+
             /* TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y...]":
              * inject a mouse click at the given main-loop frame — the
              * live-server harness (the pre-loop SIM_MOUSE_CLICK path runs
@@ -5577,8 +5638,15 @@ main(
 
     /* TORIRS_SIM_CAMERA_YAW=<0..2047>: park the camera at a yaw and run a frame,
      * so the compass/minimap can be screenshotted at known angles. The in-app
-     * yaw keys are the arrows, which the key sim above cannot send. */
-    if( getenv("TORIRS_SIM_CAMERA_YAW") )
+     * yaw keys are the arrows, which the key sim above cannot send.
+     *
+     * TORIRS_SIM_CAMERA_YAW_FRAME says the drive wants the park applied from a
+     * MAIN-LOOP frame instead -- the only placement a lane that has to log in,
+     * skip a tutorial and teleport can use -- and that block owns the variable
+     * then. Running both would spend two extra frames here on a clock that
+     * starts at 1 ms, which on a live lane is the session teardown the shots
+     * README dates its broken hover captures by. */
+    if( getenv("TORIRS_SIM_CAMERA_YAW") && !getenv("TORIRS_SIM_CAMERA_YAW_FRAME") )
     {
         struct LibToriRS_Input yaw_storage;
         struct LibToriRS_Input* yaw_input = LibToriRS_Input_Init(&yaw_storage, 0);
@@ -5589,8 +5657,15 @@ main(
         {
             if( frame == 1 )
             {
-                app.world_camera.yaw =
+                /* Both, and orbit is the one that lasts: the follow step
+                 * rebuilds world_camera.yaw from orbit.yaw, so a park written
+                 * only to world_camera is gone by the next cycle. This path
+                 * renders immediately and never saw that, which is exactly why
+                 * the in-loop twin above could not reuse it. */
+                app.orbit.yaw =
                     ToriDraw_NormalizeAngle((int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
+                app.orbit.yaw_velocity = 0;
+                app.world_camera.yaw = app.orbit.yaw;
                 TORIRS_LOG("sim_camera_yaw: %d\n", app.world_camera.yaw);
             }
             LibToriRS_Input_Begin(yaw_input, yaw_ms);
