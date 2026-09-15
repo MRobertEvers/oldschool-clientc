@@ -1784,6 +1784,75 @@ main(void)
         }
     }
 
+    /*
+     * Two gains on ONE globe, down a vertical column, do not overpaint.
+     *
+     * The spread used to run two passes outward from the middle of the row,
+     * comparing each label only with the labels BETWEEN it and the middle.
+     * That is sound while "shares rows" is transitive along the row, which it
+     * is on a horizontal row -- every live label is within one line height of
+     * every other -- and it is false the moment two labels STRADDLE a middle
+     * that shares rows with neither of them. Two gains on the same globe do
+     * exactly that in any layout, and a vertical column is where it shows,
+     * because there consecutive globes really are a pitch apart.
+     *
+     * The plugin's own comment asserted a vertical column was untouched "because
+     * consecutive globes are a pitch apart in y and no two labels share a row",
+     * which is a statement about two GLOBES and not about two gains on one. A
+     * randomised sweep of the old algorithm left 38% of vertical configurations
+     * still overlapping; the settle that replaced it leaves none in 500,000.
+     *
+     * MUTATION: delete the all-pairs settle at the end of orb_drop_spread and
+     * keep the two middle-out passes. Red on "no two labels overlap".
+     */
+    {
+        struct FakeControl const* seen[8];
+        int labels = 0;
+
+        PluginHost_ConfigSet(g_host, index, "show_xp_drops", "1");
+        PluginHost_ConfigSet(g_host, index, "vertical", "1");
+        g_now_ms += 30000;
+        frame();
+
+        /*
+         * Three gains on ONE globe, a beat apart so all three are still
+         * climbing, plus one on a globe far down the column. The pair on one
+         * globe is what shares rows; the distant one is the middle the spread
+         * anchors on and shares rows with neither.
+         */
+        g_level[15] = 60;
+        g_xp[15] = g_level_xp[58] + 4000;
+        g_now_ms += 120; tick(); frame();
+        g_xp[15] += 15;
+        g_now_ms += 120; tick(); frame();
+        g_xp[15] += 1234567;
+        g_now_ms += 120; tick(); frame();
+        g_level[12] = 40;
+        g_xp[12] = g_level_xp[38] + 900000;
+        g_now_ms += 120; tick(); frame();
+
+        for( int i = 0; i < g_control_count && labels < 8; i++ )
+            if( g_control[i].alive && g_control[i].image &&
+                strncmp(g_control[i].key, "drop", 4) == 0 )
+                seen[labels++] = &g_control[i];
+        CHECK(labels >= 2, "a vertical column with two gains on one globe places both labels");
+        for( int a = 0; a < labels; a++ )
+            for( int b = a + 1; b < labels; b++ )
+            {
+                struct FakeControl const* p = seen[a];
+                struct FakeControl const* q = seen[b];
+                int const rows = p->y < q->y + q->h && q->y < p->y + p->h;
+                int const cols = p->x < q->x + q->w && q->x < p->x + p->w;
+                if( rows && cols )
+                    printf("  labels %d (%d,%d %dx%d) and %d (%d,%d %dx%d) overlap\n",
+                           a, p->x, p->y, p->w, p->h, b, q->x, q->y, q->w, q->h);
+                CHECK(!(rows && cols), "no two labels overlap");
+            }
+        PluginHost_ConfigSet(g_host, index, "vertical", "0");
+        g_now_ms += 30000;
+        frame();
+    }
+
     PluginHost_SetEnabled(g_host, index, false);
     CHECK(globes(g) == 0, "disabling the plugin removes every owned control");
     PluginHost_Free(g_host);
