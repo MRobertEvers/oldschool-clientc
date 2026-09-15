@@ -1800,6 +1800,67 @@ main(void)
         CHECK(g_engine.notifies == 5, "native null coordinate still has no ammo events");
 
         /*
+         * ---- THE LADDER THE CAPTURE WALKS -----------------------------
+         *
+         * Every check above moves the count in one JUMP -- 30 to 12 to 9 --
+         * and the content never does that. `cannon_fire_once` spends exactly
+         * one ball per server tick, so the real sequence across a threshold is
+         * ..13, 12, 11.., and the tick that CROSSES the line and the tick that
+         * is merely below it are adjacent rather than a jump apart.
+         *
+         * The ladder is here because for the whole of this port no capture on
+         * any lane ever produced it, and for TWO independent reasons -- so
+         * repairing either one alone would still have photographed nothing:
+         *
+         *   1. the cannon drive wrote settings 248 and 250 and left 249, the
+         *      threshold, at its default of 0, which `threshold > 0` refuses;
+         *   2. its only ammunition movement was the `Empty` op taking a full
+         *      fifteen to zero in a single tick, which the `ammo == 0` branch
+         *      claims and returns from before the low test is reached.
+         *
+         * The drive in tools/porcelain_gate/shots/jobs/ now writes varbit
+         * 14176 and gives the cannon something to shoot at. These are the
+         * numbers it produces: a fifteen-ball load, a threshold of twelve, one
+         * ball a tick.
+         *
+         * MUTATION 1: drop `previous > threshold` from the crossing test --
+         *   red on "one ball a tick below the line is still not a second
+         *   event", twice, on the two ticks under the line.
+         * MUTATION 2: print `previous` instead of `ammo` in the line -- red on
+         *   "the line names the count at the crossing", and on NOTHING else in
+         *   this file, because every other crossing above jumps the line and
+         *   only asks that the word "low" is in the sentence.
+         */
+        {
+            int ammo;
+
+            PluginHost_SetEnabled(host, p_cannon, false);
+            PluginHost_SetEnabled(host, p_cannon, true);
+            g_engine.notifies = 0;
+            g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_LOW_NOTIFY)] = 1;
+            g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_LOW_AMOUNT)] = 12;
+            g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = 0x0C800C80;
+            /* What `::cannon` loads. */
+            g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 15;
+            PluginHost_ServerTick(host, ++tick);
+            CHECK(g_engine.notifies == 0, "a fresh fifteen-ball cannon is a state");
+
+            for( ammo = 14; ammo >= 10; ammo-- )
+            {
+                g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = ammo;
+                PluginHost_ServerTick(host, ++tick);
+                if( ammo > 12 )
+                    CHECK(g_engine.notifies == 0,
+                        "one ball a tick above the line is silent");
+                else
+                    CHECK(g_engine.notifies == 1,
+                        "one ball a tick below the line is still not a second event");
+            }
+            CHECK(strstr(g_engine.last_notify, "12 left") != NULL,
+                "the line names the count at the crossing, not the one after");
+        }
+
+        /*
          * What a quiet tick COSTS.
          *
          * Five names behind this builtin, and the shipped one resolved four or

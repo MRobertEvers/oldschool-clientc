@@ -72,7 +72,34 @@ PLUGINS = [
     ("entity-highlighter",  "highlighter",    "'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108'"),
     ("nxt-highlight",       "nxthl",          "TORIRS_SIM_MOVE_AT=600,{npc} TORIRS_SIM_HOVER={npc} TORIRS_HIGHLIGHT_DEBUG=1"),
     ("nxt-bird-nest",       "birdnest",       "TORIRS_SIM_VARBIT=450,13087,0 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1'"),
-    ("nxt-cannon-ammo",     "cannon",         "'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500"),
+    # TWO cannon rows, because the builtin has two edges and one drive cannot
+    # reach both.
+    #
+    # `cannon` is the EMPTY edge: ::cannon loads fifteen, loc op 3 ("Empty")
+    # takes fifteen to zero in a single tick, and the picture is the lane's own
+    # "Your cannon is out of ammunition!" with NO plugin line beside it --
+    # nxt_cannon_chat cancelling the held announcement.
+    #
+    # All three settings rows are written now, and 14176 is the one that was
+    # missing. Setting 249 (`cannon_low_amount`) is a 0..310 slider whose
+    # default is 0, and nxt_cannon_sample refuses `threshold > 0`, so the low
+    # test was unreachable on every lane and the shot could not tell "the
+    # precedence rule works" from "the row does nothing". It costs this row
+    # nothing to state -- measured, chat band pixel-identical with it at 12 --
+    # and it turns the absence of a low line into an assertion: a jump from 15
+    # to 0 crosses twelve AND reaches empty, and `ammo == 0` claims it.
+    #
+    # `cannonlow` is the LOW edge, and it needs a second thing the empty drive
+    # cannot give it: an ammunition movement that is not a jump to zero.
+    # cannon_fire_once spends ONE ball per tick and only when a live npc is
+    # inside ^cannon_range, and the fixture tile has none -- which is why the
+    # empty row still had its full fifteen at frame 1400. Five goblins are five
+    # guaranteed firing ticks (one shot a tick, so at most one dies per tick),
+    # so 15 -> 12 happens on the third and the crossing is deterministic
+    # whatever the damage roll. No loc op: the cannon must NOT reach zero here,
+    # or the empty line lands on top of the one being photographed.
+    ("nxt-cannon-ammo",     "cannon",         "'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500"),
+    ("nxt-cannon-ammo",     "cannonlow",      "'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=460,spawn goblin 5;500,cannon' TORIRS_MAX_FRAMES=1500"),
 ]
 
 TRACE = "TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all"
