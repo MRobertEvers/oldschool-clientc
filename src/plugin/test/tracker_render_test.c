@@ -809,13 +809,13 @@ static int v2_loot_row_next(
 { (void)api; return fake_loot_row_next(NULL, source, iter, out); }
 static uint64_t v2_loot_revision(struct ToriRS_Api* api)
 { (void)api; return g_loot_revision; }
-/* This fixture is the OldSchool lane: the client's own loot store is where a
- * record comes from, which is what `loot_events` states. */
+/* The loot tracker asks for no capability: a record comes from the client's
+ * own loot store, and this fixture seeds one. */
 static bool v2_capability(struct ToriRS_Api* api, char const* name)
 {
     (void)api;
     assert(name);
-    return strcmp(name, "loot_events") == 0;
+    return false;
 }
 static bool v2_loot_source_clear(struct ToriRS_Api* api, int source)
 { (void)api; (void)source; return false; }

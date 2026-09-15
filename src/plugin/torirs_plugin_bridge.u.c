@@ -1494,7 +1494,13 @@ app_plugin_packet_wire(struct App const* app, int pkt_name)
  *   server_tick          always: the tick is raised on every lane now
  *   server_tick.fenced   the wire carries SERVER_TICK_END, so the tick is a
  *                        real end-of-tick fence and not PLAYER_INFO's edge
- *   loot_events          CS2 ui logic
+ * `loot_events` USED TO BE HERE, answered `App_UiLogic == CS2`. It was a lane
+ * test in a table whose rule forbids one, and the loot tracker read it as "is
+ * the client's loot record mine to read". The record is filled by
+ * App_LootNotifyKill, which every lane reaches, so on CS1 the answer was no
+ * over a store holding two kills. A plugin asks the RECORD now
+ * (game->loot_source_next); there is no capability to ask.
+ *
  *   item_bonuses         a resident objtype carries equipment-bonus params
  *   native_orbs          the live tree resolves the `orb_run` role
  *   if_settab            the wire carries IF_SETTAB
@@ -1532,8 +1538,6 @@ app_plugin_capability(void* user, char const* name)
         return 1;
     if( strcmp(name, "server_tick.fenced") == 0 )
         return app_plugin_packet_wire(app, PKT_NAME_SERVER_TICK_END) >= 0;
-    if( strcmp(name, "loot_events") == 0 )
-        return App_UiLogic(app) == APP_UI_LOGIC_CS2;
     if( strcmp(name, "item_bonuses") == 0 )
         return app->provider &&
                CacheProvider_ObjtypeFindResident(

@@ -65,6 +65,24 @@
  *  rather than the newest refused -- a trip that met one new monster should
  *  not silently stop recording it. */
 #define LT_SOURCES_MAX 48
+
+/**
+ * Where the ids of INFERRED bands begin, so they cannot collide with the
+ * record's.
+ *
+ * The client's LootStore numbers its sources from 1 and the plugin used to
+ * number the bands it invented from 1 as well. That was safe only while the
+ * two accounts could never be on the page at once: the id is what a click, a
+ * menu and a detail block all key on, so a recorded Goblin and an inferred Imp
+ * sharing id 1 means opening the Imp opens the Goblin. Merging the two
+ * accounts is what made them able to collide -- this is what keeps them apart.
+ *
+ * Positive, because `lt_detail_index` reads `id <= 0` as "no band open", and
+ * high enough that the store would have to record sixteen million kills of
+ * distinct sources in one session to reach it. lt_sync_store asserts it never
+ * does.
+ */
+#define LT_INFERRED_ID_BASE (1 << 24)
 /** Distinct items one source may accumulate. A drop table's whole spread. */
 #define LT_ITEMS_MAX 32
 /** Deaths waiting for inferred RS2 loot. Deliberately small: a candidate lives for
@@ -218,6 +236,14 @@ struct LtSource
     int item_count;
     /** Frame clock of the last drop, for the page's ordering. */
     uint64_t last_ms;
+    /**
+     * This band is the PLUGIN's account of a kill, correlated from a despawn
+     * and the items that landed under it -- not the client's own record.
+     *
+     * The two accounts merge by NAME, and this is the flag that says which of
+     * them a band came from. @see lt_sync_store.
+     */
+    bool inferred;
 };
 
 /** A despawn waiting briefly for ground items on its footprint. */
@@ -424,9 +450,6 @@ struct LootTrackerState
     int menu_button;
     int menu_x;
     int menu_y;
-    /** The lane HAS a loot store, so the inference path must never run.
-     *  Answered once, by capability, at on_start. */
-    bool store_lane;
     struct ToriRS_Api* api;
     struct Porcelain* porcelain;
 };
@@ -446,7 +469,6 @@ struct LootTrackerRuntime
 #define g_next_fallback_source_id (rt->state->next_fallback_source_id)
 #define g_page_visible (rt->state->page_visible)
 #define g_porcelain (rt->state->porcelain)
-#define g_store_lane (rt->state->store_lane)
 #define g_synced_once (rt->state->synced_once)
 #define g_paint_incomplete (rt->state->paint_incomplete)
 #define g_paint_retry (rt->state->paint_retry)
@@ -790,22 +812,54 @@ lt_list_toggle(struct LootTrackerRuntime* rt, char const* key, char const* name)
 }
 
 /**
- * Does this lane have to INFER loot from despawns and spawns?
+ * Does the client's own loot record account for kills of this source?
  *
- * The gate used to be `core.lane()->game == TORIRS_GAME_RS2` -- a lineage
- * read, per despawn, per spawn, per tick and per action, and the wrong shape
- * twice over: the loot store exists on every lane and answers revision 1 on
- * all of them, so neither its presence nor its revision separates the two.
- * The producers are the CS2 host's, so the question is "does this lane raise
- * loot events", which is a capability, answered once at on_start.
+ * ASK THE RECORD, PER SOURCE. Three gates preceded this one and the first two
+ * named a lane: `core.lane()->game == TORIRS_GAME_RS2`, then
+ * `Porcelain_Has("loot_events")`, which the host answered with
+ * `App_UiLogic(app) == APP_UI_LOGIC_CS2` -- the same lane test wearing a
+ * capability's name, in the one table whose own rule is that every answer is
+ * an expression over an ENGINE FACT and never a lane. Both were wrong for the
+ * same reason: the record is not the CS2 lane's. It has two feeders --
+ * `CS2_OP_LOOT_ADD`, which is the game's own and runs only where CS2 scripts
+ * do, and `App_LootNotifyKill`, which `::lootkill` reaches on every lane --
+ * so neither the lineage nor the UI logic says whether a record exists.
  *
- * @see the ledger's "Lane gate" row and host fix H6.
+ * The third gate asked the record but asked it ONCE, as a whole: "has it taken
+ * anything?", latched for the session. That is still too coarse, and it cost
+ * two defects. A record that has taken a Goblin says nothing whatever about
+ * Imps, yet the latched answer erased an Imp band the page had already stated
+ * the moment the Goblin arrived; and one `::lootkill` on the 2004 lane --
+ * where the record has no other feeder -- permanently disabled the only
+ * account of a kill that lane has.
+ *
+ * So the question is per SOURCE, because a source NAME is the only place the
+ * two accounts can collide. The record owns every name it holds: its numbers
+ * are the game's own and inference beside them would count one kill twice.
+ * Inference owns every name the record does not hold, and goes on owning it,
+ * because "the record is silent about Imps" is not a statement that no Imp
+ * died.
+ *
+ * @see lt_sync_store -- the merge.
  */
 static bool
-lt_infers_loot(struct LootTrackerRuntime* rt)
+lt_record_names(struct LootTrackerRuntime* rt, char const* name)
 {
+    struct ToriRS_LootSource src;
+
     assert(rt);
-    return !g_store_lane;
+    assert(name);
+
+    for( int it = g_api->game->loot_source_next(g_api, -1, &src); it >= 0;
+         it = g_api->game->loot_source_next(g_api, it, &src) )
+    {
+        char clean[64];
+
+        lt_clean_name(src.name, clean, sizeof(clean));
+        if( clean[0] && lt_name_eq(clean, name) )
+            return true;
+    }
+    return false;
 }
 
 /**
@@ -996,7 +1050,7 @@ lt_source_find(struct LootTrackerRuntime* rt, char const* name, bool create)
     {
         int const index = g_source_count++;
         memset(&g_source[index], 0, sizeof(g_source[index]));
-        g_source[index].id = ++g_next_fallback_source_id;
+        g_source[index].id = LT_INFERRED_ID_BASE + ++g_next_fallback_source_id;
         snprintf(g_source[index].name, sizeof(g_source[index].name), "%s", name);
         g_expanded[index] = true;
         return index;
@@ -1009,7 +1063,7 @@ lt_source_find(struct LootTrackerRuntime* rt, char const* name, bool create)
     if( poorest < 0 )
         return -1;
     memset(&g_source[poorest], 0, sizeof(g_source[poorest]));
-    g_source[poorest].id = ++g_next_fallback_source_id;
+    g_source[poorest].id = LT_INFERRED_ID_BASE + ++g_next_fallback_source_id;
     snprintf(g_source[poorest].name, sizeof(g_source[poorest].name), "%s", name);
     g_expanded[poorest] = true;
     return poorest;
@@ -1083,14 +1137,27 @@ lt_pending_settle(struct LootTrackerRuntime* rt, int index)
     assert(rt);
     assert(index >= 0 && index < g_pending_count);
     pending = &g_pending[index];
+    /*
+     * The record owns the names it holds, and this is one of the two moments
+     * a band can enter the table -- so the rule is asked here as well as in
+     * lt_sync_store, and it has to be. Settling does not touch the record and
+     * so does not move its revision, which means the idle sync that would
+     * reconcile a duplicate never runs: an inferred "Goblin" laid down beside
+     * a recorded "Goblin" would stand for the rest of the session, counting
+     * one kill twice. @see lt_record_names.
+     */
     if( pending->confirmed || pending->item_count > 0 )
     {
-        int const source_index = lt_source_find(rt, pending->name, true);
+        int const source_index =
+            lt_record_names(rt, pending->name)
+                ? -1
+                : lt_source_find(rt, pending->name, true);
         if( source_index >= 0 )
         {
             struct LtSource* source = &g_source[source_index];
             long long value = 0;
 
+            source->inferred = true;
             source->kills++;
             source->last_ms = pending->at_ms;
             for( int i = 0; i < pending->item_count; i++ )
@@ -1129,7 +1196,14 @@ lt_npc_despawn(
 
     assert(api);
     assert(npc);
-    if( !lt_infers_loot(rt) || npc->npc_id < 0 || !npc->name[0] )
+    /*
+     * UNGATED. Whether a kill is the plugin's to account for is a question
+     * about the source NAME and is asked once, at settle, where the work is
+     * -- not here, per despawn. A pending is eight bounded slots and costs a
+     * memset; a client whose record holds every name it sees simply discards
+     * them, which is what this path already did invisibly on the CS1 lane.
+     */
+    if( npc->npc_id < 0 || !npc->name[0] )
         return;
     lt_clean_name(npc->name, name, sizeof(name));
     if( !name[0] )
@@ -1165,8 +1239,8 @@ lt_item_spawn(
 
     assert(api);
     assert(ground);
-    if( !lt_infers_loot(rt) )
-        return;
+    /* Free when nothing died near the player: g_pending_count is zero and
+     * this loop does not run. @see lt_npc_despawn. */
     for( int i = 0; i < g_pending_count; i++ )
     {
         struct LtPending const* pending = &g_pending[i];
@@ -1204,8 +1278,9 @@ lt_world_loaded(
     struct LootTrackerRuntime runtime = { api, state_ptr };
     struct LootTrackerRuntime* rt = &runtime;
     (void)event;
-    if( lt_infers_loot(rt) )
-        g_pending_count = 0;
+    /* The tiles a pending is waiting on stop meaning anything across a world
+     * load, on every client -- there is no lane in this. */
+    g_pending_count = 0;
 }
 
 /**
@@ -2325,6 +2400,20 @@ lt_paint(
  * one tile apart. Reading the store gets the game's answer instead of an
  * approximation of it.
  *
+ * THE STORE IS THE TRUTH ABOUT WHAT IT HOLDS, which is not the same as being
+ * the truth about everything. This pass therefore MERGES rather than replaces:
+ * every source the record names is written from the record, and every band
+ * inference built for a name the record does not name is kept, in place, with
+ * its kills and its items. Writing `source_count = count` instead -- which is
+ * what this did -- silently dropped an Imp band the page had already stated
+ * the moment the record took its first Goblin, which is the same defect as
+ * printing "No loot to display." over a record that is not empty: a page
+ * asserting something it has no basis for.
+ *
+ * A source the record COMES to name is taken over rather than duplicated: the
+ * inferred band goes and the record's stands in its place. That is a band
+ * superseded by a better account of the same kills, not a band that vanished.
+ *
  * @return true when anything changed, which is what decides a re-describe.
  */
 static bool
@@ -2338,8 +2427,34 @@ lt_sync_store(struct LootTrackerRuntime* rt)
     int old_kills[LT_SOURCES_MAX];
     long long old_value[LT_SOURCES_MAX];
     bool old_expanded[LT_SOURCES_MAX];
+    /* The record's names, so the merge below can ask "does the record hold
+     * this one?" without walking the record once per band. */
+    char claimed[LT_SOURCES_MAX][64];
+    int claimed_count = 0;
+    /* Inferred bands the record does not name, parked at the top of the array
+     * while the record pass writes the bottom of it, then moved down behind
+     * what it wrote. @see the merge, below. */
+    int kept = 0;
 
     assert(rt);
+
+    /*
+     * Which names the record holds. One cheap walk -- no row reads, no item
+     * lookups -- and it has to come first, because it decides which of the
+     * bands already on the page the pass below is allowed to overwrite.
+     */
+    for( int it = g_api->game->loot_source_next(g_api, -1, &src);
+         it >= 0 && claimed_count < LT_SOURCES_MAX;
+         it = g_api->game->loot_source_next(g_api, it, &src) )
+    {
+        char clean[64];
+
+        lt_clean_name(src.name, clean, sizeof(clean));
+        if( !clean[0] )
+            continue;
+        snprintf(claimed[claimed_count], sizeof(claimed[0]), "%s", clean);
+        claimed_count++;
+    }
 
     for( int i = 0; i < before; i++ )
     {
@@ -2347,6 +2462,55 @@ lt_sync_store(struct LootTrackerRuntime* rt)
         old_kills[i] = g_source[i].kills;
         old_value[i] = lt_source_value_visible(rt, &g_source[i], true);
         old_expanded[i] = g_expanded[i];
+    }
+
+    /*
+     * PARK the bands that survive this pass: the inferred ones whose name the
+     * record does not hold. They go to the TOP of the array because the record
+     * pass writes from index zero, and they come back down behind it once it
+     * knows how many it wrote.
+     *
+     * The copy leaves the original slots untouched on purpose. The pass below
+     * reports a band changed by comparing what it writes against what was at
+     * that index, and a slot that held an inferred band and now holds a
+     * recorded one genuinely HAS changed -- so the stale bytes give the right
+     * answer, and a slot the parking did not touch gives exactly the answer it
+     * gave before this merge existed.
+     *
+     * The record wins the ceiling as well as the name: when the two together
+     * overflow the table it is survivors that are dropped, oldest last, since
+     * the record's bands are the account this plugin cannot reconstruct.
+     */
+    {
+        int survivor[LT_SOURCES_MAX];
+        int room = LT_SOURCES_MAX - (claimed_count < LT_SOURCES_MAX
+                                         ? claimed_count
+                                         : LT_SOURCES_MAX);
+
+        for( int i = 0; i < before && kept < room; i++ )
+        {
+            bool taken_over = false;
+
+            if( !g_source[i].inferred )
+                continue;
+            for( int c = 0; c < claimed_count; c++ )
+                if( lt_name_eq(claimed[c], g_source[i].name) )
+                {
+                    taken_over = true;
+                    break;
+                }
+            if( taken_over )
+                continue;
+            survivor[kept++] = i;
+        }
+        for( int j = kept - 1; j >= 0; j-- )
+        {
+            int const park = LT_SOURCES_MAX - kept + j;
+
+            assert(park >= survivor[j]);
+            g_source[park] = g_source[survivor[j]];
+            g_expanded[park] = g_expanded[survivor[j]];
+        }
     }
 
     g_session_kills = 0;
@@ -2364,7 +2528,7 @@ lt_sync_store(struct LootTrackerRuntime* rt)
         lt_clean_name(src.name, name, sizeof(name));
         if( !name[0] )
             continue;
-        if( count >= LT_SOURCES_MAX )
+        if( count >= LT_SOURCES_MAX - kept )
             break;
 
         dst = &g_source[count];
@@ -2372,6 +2536,7 @@ lt_sync_store(struct LootTrackerRuntime* rt)
         memset(dst, 0, sizeof(*dst));
         snprintf(dst->name, sizeof(dst->name), "%s", name);
         dst->kills = src.kill_count;
+        assert(src.id < LT_INFERRED_ID_BASE);
         dst->id = src.id;
         g_expanded[count] = true;
         for( int old = 0; old < before; old++ )
@@ -2419,8 +2584,16 @@ lt_sync_store(struct LootTrackerRuntime* rt)
         count++;
     }
 
-    g_source_count = count;
-    if( before != count )
+    /* And back down, behind the record's own bands. Ascending, because the
+     * destination is at or below the parking slot. */
+    for( int j = 0; j < kept; j++ )
+    {
+        assert(count + j <= LT_SOURCES_MAX - kept + j);
+        g_source[count + j] = g_source[LT_SOURCES_MAX - kept + j];
+        g_expanded[count + j] = g_expanded[LT_SOURCES_MAX - kept + j];
+    }
+    g_source_count = count + kept;
+    if( before != g_source_count )
         changed = true;
     /* The selection is an ID, so a reorder re-finds it and a drop clears it
      * without anything here having to say so. */
@@ -2702,7 +2875,9 @@ lt_clear_source(struct LootTrackerRuntime* rt, int source_id)
     assert(rt);
     if( source < 0 )
         return;
-    if( lt_infers_loot(rt) )
+    /* Ask the BAND where it came from. The record can only clear what the
+     * record holds; a band inference built is the plugin's to drop. */
+    if( g_source[source].inferred )
     {
         lt_source_remove(rt, source);
         if( g_detail_source_id == source_id )
@@ -2743,8 +2918,7 @@ lt_ignore_source(struct LootTrackerRuntime* rt, int source_id)
     snprintf(name, sizeof(name), "%s", g_source[source].name);
     g_detail_source_id = 0;
     lt_list_toggle(rt, "ignored_sources", name);
-    if( !lt_infers_loot(rt) )
-        (void)lt_sync_changed(rt, true);
+    (void)lt_sync_changed(rt, true);
     lt_changed(rt);
 }
 
@@ -3053,11 +3227,6 @@ lt_start(struct ToriRS_Api* api, void* state_ptr)
 
     g_porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_LOOT_TRACKER, state_ptr);
     /*
-     * The lane gate, asked ONCE. `loot_events` is App_UiLogic == CS2, which is
-     * a boot fact: the producers are the CS2 host's. @see lt_infers_loot.
-     */
-    g_store_lane = Porcelain_Has(g_porcelain, "loot_events");
-    /*
      * Event loot -- barrows, raid chests, clue caskets -- is inventory-diff
      * work needing a reliable "this interface just opened" fence per revision,
      * and PVP loot needs a player-death signal the bus does not raise. Declared
@@ -3172,9 +3341,11 @@ lt_panel_build(
     assert(api);
     assert(panel);
 
-    /* The store is read before the first declaration so the page arrives whole
-     * rather than empty and then grown, which would be a rebuild for nothing. */
-    if( view == TORIRS_PANEL_VIEW_PAGE && !lt_infers_loot(rt) )
+    /* The record is read before the first declaration so the page arrives
+     * whole rather than empty and then grown, which would be a rebuild for
+     * nothing. UNGATED: a record is read wherever one is kept, and a record
+     * that holds nothing declines the pass itself. @see lt_sync_store. */
+    if( view == TORIRS_PANEL_VIEW_PAGE )
         (void)lt_sync_changed(rt, true);
     Porcelain_PanelBuild(g_porcelain, panel, view);
 }
@@ -3232,8 +3403,7 @@ lt_panel_layout(
         g_menu_kind = LT_MENU_NONE;
         return;
     }
-    if( !lt_infers_loot(rt) )
-        (void)lt_sync_changed(rt, false);
+    (void)lt_sync_changed(rt, false);
     lt_changed(rt);
 }
 
@@ -3250,8 +3420,7 @@ lt_tick(
 
     assert(api);
 
-    if( lt_infers_loot(rt) )
-        lt_pending_expire(rt, now);
+    lt_pending_expire(rt, now);
 
     if( now < g_next_panel_ms )
         return;
@@ -3260,9 +3429,13 @@ lt_tick(
     if( !g_page_visible )
         return;
 
-    /* OldSchool mirrors its authoritative store; RS2 was updated directly by
-     * the inference callbacks above. */
-    if( !lt_infers_loot(rt) && lt_sync_changed(rt, false) )
+    /*
+     * The client's own record, mirrored -- on whatever lane keeps one. The
+     * revision gate above it makes an unchanged record free, so a client that
+     * keeps no record pays one integer compare per refresh and its table stays
+     * the inference callbacks' work.
+     */
+    if( lt_sync_changed(rt, false) )
         lt_changed(rt);
 
     /* The art, or an obj icon, was not resident when the picture was last

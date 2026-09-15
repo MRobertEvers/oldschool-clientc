@@ -1744,7 +1744,7 @@ test_require_reports_the_feature(void)
     porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
     CHECK(Porcelain_Require(porcelain, "cs2_scripts", "native ground-item captions"),
           "a capability the lane answers arms its feature");
-    CHECK(!Porcelain_Require(porcelain, "loot_events", "kill announcements"),
+    CHECK(!Porcelain_Require(porcelain, "native_orbs", "kill announcements"),
           "one it does not answer disables the feature");
     count = Porcelain_Findings(porcelain, findings, 8);
     CHECK(count == 1, "with exactly one finding");

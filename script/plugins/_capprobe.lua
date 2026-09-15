@@ -15,7 +15,6 @@ local NAMES = {
     "varp:no_such_varp_here",
     "server_tick",
     "server_tick.fenced",
-    "loot_events",
     "item_bonuses",
     "native_orbs",
     "if_settab",
