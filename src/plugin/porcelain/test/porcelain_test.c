@@ -6071,6 +6071,93 @@ test_a_destroyed_node_is_rebuilt_not_reported(void)
 }
 
 /*
+ * A READOUT whose node died stops being written at, too.
+ *
+ * The test above is the same event with a MOVED BOX, and that is the whole of
+ * why it was green while the defect shipped: the geometry pass is the only
+ * one that routed its answer through porcelain_note_item_result. A readout
+ * states its rows INSIDE an element and never moves them, so after the create
+ * the only setter it makes per frame is set_text -- and set_text reported the
+ * engine's STALE_REFERENCE to the plugin as a refusal and left the slot
+ * unmarked, so the next fence wrote at the same dead node, and the next.
+ *
+ * Measured on the cs1live lane before this fix, with performance-display the
+ * only plugin enabled: its four rows die at frame 7 and their element does not
+ * rebind until 207, giving 363 dead set_text calls across the four keys and
+ * one undeclared `PORCELAIN_FINDING verb=set_text ... result=4` that no CS2
+ * lane raises. After it: zero of each.
+ *
+ * MUTATION: route set_text in porcelain_apply_properties back through
+ * porcelain_note_result. Red on both counts -- the layer reports the engine's
+ * housekeeping as the plugin's refusal, and keeps writing at the dead node for
+ * as long as the string keeps moving.
+ */
+static void
+readout_text_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct PorcelainItem item;
+
+    memset(&item, 0, sizeof(item));
+    item.key = "fps";
+    item.place.kind = PORCELAIN_INSIDE;
+    item.place.on = PORCELAIN_EL(VIEWPORT);
+    item.place.corner_or_side = PORCELAIN_TOP_LEFT;
+    item.w = 60;
+    item.h = 14;
+    item.text = *(char const**)user;
+    item.rgb = 0xffff00u;
+    describe->text(describe, &item);
+}
+
+static void
+test_a_readout_whose_node_died_is_written_once_and_no_more(void)
+{
+    struct Porcelain* porcelain;
+    struct PorcelainFinding findings[8];
+    struct TestbedControl const* fps;
+    char const* text = "Frame: 0.00 ms";
+    char strings[24][32];
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, readout_text_describe, &text);
+    fence(porcelain);
+    fps = Testbed_Control("fps");
+    CHECK(fps && fps->live, "the readout row exists");
+    CHECK(Testbed_LogCountWith("set_text fps") == 1, "and was written once, at its create");
+
+    /* The engine takes the node with the tree it hung in, and the element it
+     * is placed against has not rebound yet -- which is the real order, and
+     * the one the CS1 lane holds for two hundred frames. */
+    Testbed_KillControl("fps");
+    for( int i = 0; i < 24; i++ )
+    {
+        snprintf(strings[i], sizeof(strings[i]), "Frame: %d.%02d ms", i, i * 3);
+        text = strings[i];
+        Porcelain_Invalidate(porcelain);
+        fence(porcelain);
+    }
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 0,
+          "a string written at a node the engine destroyed is not the plugin's refusal");
+    CHECK(Testbed_LogCountWith("set_text ?") == 1,
+          "and the dead node is written exactly once, however long the string keeps moving");
+
+    /* And the ordinary repair still runs when the element comes back. */
+    Testbed_UnbindElement("viewport");
+    fence(porcelain);
+    Testbed_BindElement("viewport");
+    fence(porcelain);
+    fence(porcelain);
+    fps = Testbed_Control("fps");
+    CHECK(fps && fps->live, "the row is built again once its element rebinds");
+    CHECK(fps && strcmp(fps->text, strings[23]) == 0, "carrying the string the description holds");
+    CHECK(Porcelain_Findings(porcelain, findings, 8) == 0, "still with nothing to report");
+    Porcelain_Close(porcelain);
+}
+
+/*
  * A TAB's spelling is re-derived while it is unresolved.
  *
  * Both lanes NUMBER their tabs -- the 2004 profile's map is derived from its
@@ -6902,6 +6989,7 @@ main(void)
     test_a_refused_raise_is_retried();
     test_a_mounting_frame_is_not_an_absent_one();
     test_a_destroyed_node_is_rebuilt_not_reported();
+    test_a_readout_whose_node_died_is_written_once_and_no_more();
     test_tab_spelling_is_re_derived();
     test_tab_rows_are_bands_not_coordinates();
     test_logout_clears_the_bindings_and_a_relogin_restores_them();
