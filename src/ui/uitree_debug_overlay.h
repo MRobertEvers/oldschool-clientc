@@ -1172,6 +1172,10 @@ struct ToriRSChrome
      * wide -- so changing it dirties every panel, the same way SetScale does.
      */
     int check_style;
+    /** The drawable surface, for the popups that must fold up into it.
+     *  0 = unstated. @see ToriRSChrome_SetSurface. */
+    int surface_w;
+    int surface_h;
     struct ToriRSChromePanel panels[TORIRS_CHROME_MAX_PANELS];
     int panel_count;
     struct ToriRSChromeWidget widgets[TORIRS_CHROME_MAX_WIDGETS];
@@ -1446,6 +1450,26 @@ ToriRSChrome_SetScale(struct ToriRSChrome* ui, int scale);
 /** Device pixels per chrome pixel. */
 int
 ToriRSChrome_Scale(struct ToriRSChrome const* ui);
+
+/**
+ * The surface this chrome is drawn onto, so a POPUP can stay inside it.
+ *
+ * Panels are placed by their owner, who clamps them into the canvas itself.
+ * An open dropdown list is not a panel and is not placed by anybody: it hangs
+ * off the row that opened it and is deliberately allowed to escape that row's
+ * panel -- a 320-wide settings window would otherwise have to hold a list it
+ * has no room for. What it may NOT escape is the canvas, because the pointer
+ * cannot go there: a list opened by the last row of a full-height window drew
+ * one entry against the bottom edge and put the other eight off-screen, which
+ * is a control that cannot be used at all.
+ *
+ * So the owner states the box, in the same chrome pixels the panels are placed
+ * in, and the popups fold up into it. Zero (the Init default) means unstated,
+ * and nothing is clamped -- a caller that never says how big its surface is
+ * gets the behaviour it had before it could.
+ */
+void
+ToriRSChrome_SetSurface(struct ToriRSChrome* ui, int width, int height);
 
 /**
  * Choose which of the interfaces' two booleans every checkbox wears.

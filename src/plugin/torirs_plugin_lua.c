@@ -1586,6 +1586,9 @@ static int lua_client_feature_next(lua_State* L)
     lua_pushstring(L, feature.section); lua_setfield(L, -2, "section");
     lua_pushinteger(L, feature.kind); lua_setfield(L, -2, "kind");
     lua_pushinteger(L, feature.value); lua_setfield(L, -2, "value");
+    /* What the engine acts on, which for a sentinel field is not `value`.
+     * A Lua page that names a value to a person reads this one. */
+    lua_pushinteger(L, feature.effective); lua_setfield(L, -2, "effective");
     lua_pushinteger(L, feature.min); lua_setfield(L, -2, "min");
     lua_pushinteger(L, feature.max); lua_setfield(L, -2, "max");
     lua_pushstring(L, feature.choices); lua_setfield(L, -2, "choices");

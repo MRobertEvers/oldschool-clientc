@@ -860,12 +860,73 @@ ToriRSChrome_WrapText(
 static void
 dbg_dropdown_close(struct ToriRSChrome* ui);
 
+/* Likewise: ToriRSChrome_SetSurface damages the list where it stood. */
+static struct ToriRSChromeRect
+dbg_dropdown_rect(struct ToriRSChrome const* ui);
+
 /*
  * THE one answer to "where does the box start" -- widths, draws, hit tests and
  * the dropdown popup all ask dbg_row_box_offset / dbg_row_box_top, which is
  * what keeps a popup opening under the box it belongs to rather than under
  * where the box would have been.
  */
+
+/* Defined with the panel machinery below; needed here by the content column. */
+static int
+dbg_panel_is_framed(struct ToriRSChrome const* ui, struct ToriRSChromePanel const* p);
+
+/**
+ * The column the rows are laid out in, for a panel that HAS a stated width.
+ *
+ * Zero for a panel sized BY its content: there is no width to lay out against
+ * until the rows have been measured, and measuring them is what the answer
+ * would be feeding. The borders, the pads and the scrollbar come off, because
+ * none of them is room a row may use.
+ */
+static int
+dbg_panel_content_w(struct ToriRSChrome const* ui, int panel)
+{
+    struct ToriRSChromePanel const* p;
+    int edge;
+    int width;
+
+    assert(ui);
+    if( panel < 0 || panel >= TORIRS_CHROME_MAX_PANELS )
+        return 0;
+    p = &ui->panels[panel];
+    if( p->fixed_w <= 0 )
+        return 0;
+    edge = dbg_panel_is_framed(ui, p) ? DBG_FRAME : DBG_RULE;
+    width = p->fixed_w - 2 * edge - 2 * DBG_PAD_X - (p->scrollable ? DBG_SCROLL_W : 0);
+    return width > 0 ? width : 0;
+}
+
+/**
+ * The label column of a labelled row.
+ *
+ * TORIRS_CHROME_M_LABEL_W is the column AT THE AUTHORED WIDTH: 104 pixels of
+ * the 320-logical settings pane, which is a shade under a third of its content
+ * column. A panel with a stated width is a different page -- the plugin window
+ * at fullscreen is the whole canvas -- and holding the column at 104 there is
+ * what made three rows of Feature Flags stack their select onto a second line
+ * with six hundred pixels of the first line empty beside the caption, wearing
+ * a treatment the other thirteen rows did not. The justification for stacking
+ * ("a settings row whose name you cannot read is not a settings row") is about
+ * a caption that has nowhere to go; at that width it has somewhere to go.
+ *
+ * So: a third of the content column, never less than the authored 104. It is a
+ * function of the PANEL'S WIDTH and of nothing else -- not of the labels in it
+ * -- which keeps the property dbg_row_box_offset was written for: every row in
+ * a panel shares one column, and renaming a setting reflows nothing. A
+ * content-sized panel keeps the authored column, because its rows are given
+ * their natural width and have no column to be squeezed into.
+ */
+static int
+dbg_row_label_w(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
+{
+    int const column = dbg_panel_content_w(ui, w->panel) / 3;
+    return column > DBG_LABEL_W ? column : DBG_LABEL_W;
+}
 
 /**
  * Is this row's caption too long for the label column, so that it takes a line
@@ -884,6 +945,10 @@ dbg_dropdown_close(struct ToriRSChrome* ui);
  * has (@see TORIRS_CHROME_W_TEXTAREA) and the shape the reference's own wider
  * settings rows have.
  *
+ * Measured against dbg_row_label_w and not against the authored constant: at a
+ * width where the caption fits beside the box, stacking it is a second
+ * treatment for no reason a reader of the page can see.
+ *
  * Only the three kinds that put a BOX in the label row's right-hand column
  * answer yes. A checkbox or a list row draws its name in the space the control
  * does not use and has no column to overrun.
@@ -898,7 +963,7 @@ dbg_row_label_stacked(struct ToriRSChrome const* ui, struct ToriRSChromeWidget c
         return 0;
     return ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label) +
                DBG_ROW_NAME_GAP >
-           DBG_LABEL_W;
+           dbg_row_label_w(ui, w);
 }
 
 /**
@@ -924,7 +989,7 @@ dbg_row_box_offset(struct ToriRSChrome const* ui, struct ToriRSChromeWidget cons
      */
     if( dbg_row_label_stacked(ui, w) )
         return 0;
-    return w->label[0] ? DBG_LABEL_W : 0;
+    return w->label[0] ? dbg_row_label_w(ui, w) : 0;
 }
 
 /** Offset from a row's top to its control box. A stacked row spends its first
@@ -1816,6 +1881,25 @@ ToriRSChrome_Scale(struct ToriRSChrome const* ui)
     return ui->scale;
 }
 
+void
+ToriRSChrome_SetSurface(struct ToriRSChrome* ui, int width, int height)
+{
+    assert(ui);
+    if( ui->surface_w == width && ui->surface_h == height )
+        return;
+    ui->surface_w = width;
+    ui->surface_h = height;
+    /* Only an OPEN list is placed against it, and only its own box moves -- no
+     * panel is remeasured, so this dirties the build rather than every panel
+     * in it. The box the list is leaving is damaged first, for the same reason
+     * a moved panel damages the box it left. */
+    if( ui->dropdown_open >= 0 )
+    {
+        dbg_damage_add(ui, dbg_dropdown_rect(ui));
+        ui->dirty = 1;
+    }
+}
+
 int
 ToriRSChrome_CheckBoxMetric(int style)
 {
@@ -1986,9 +2070,6 @@ ToriRSChrome_PanelSetClosable(struct ToriRSChrome* ui, int panel, int closable)
  * so it sits where a window's close box sits and cannot land on the title text
  * -- which is left-aligned and, on this window, says which page is up.
  */
-static int
-dbg_panel_is_framed(struct ToriRSChrome const* ui, struct ToriRSChromePanel const* p);
-
 static struct ToriRSChromeRect
 dbg_panel_close_box(
     struct ToriRSChrome const* ui,
@@ -3839,8 +3920,6 @@ dbg_label_string(struct ToriRSChromeWidget const* w)
 static int
 dbg_label_wrap_w(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
 {
-    struct ToriRSChromePanel const* p;
-    int edge;
     int width;
 
     assert(ui);
@@ -3852,11 +3931,9 @@ dbg_label_wrap_w(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
         return 0;
     if( w->panel < 0 || w->panel >= TORIRS_CHROME_MAX_PANELS )
         return 0;
-    p = &ui->panels[w->panel];
-    if( p->fixed_w <= 0 )
+    width = dbg_panel_content_w(ui, w->panel);
+    if( width <= 0 )
         return 0;
-    edge = dbg_panel_is_framed(ui, p) ? DBG_FRAME : DBG_RULE;
-    width = p->fixed_w - 2 * edge - 2 * DBG_PAD_X - (p->scrollable ? DBG_SCROLL_W : 0);
     /* The same pad the draw indents a PARAGRAPH by, taken off both sides. */
     if( w->label_style != TORIRS_CHROME_LABEL_PLAIN )
         width -= 2 * DBG_INPUT_PAD_X;
@@ -6490,6 +6567,36 @@ dbg_dropdown_rect(struct ToriRSChrome const* ui)
     rect.y = w->y + w->h;
     /* Rows plus a pad above and below, which is script_9114's `$int26 + 4`. */
     rect.h = rows * DBG_DROP_ROW_H + 2 * DBG_DROP_LIST_PAD;
+
+    /*
+     * BELOW the box, unless below the box is off the surface.
+     *
+     * The reference drops its lists downward and so does this, because a list
+     * that opens upward when it did not have to reads as the row jumping. But
+     * downward-or-nothing is how the last row of a full-height window got a
+     * list with one entry against the bottom edge and eight more past it: not
+     * clipped tidily, half a glyph, and no way to reach the options at all.
+     *
+     * The box's own TOP is what it flips above -- the caption of a stacked row
+     * sits above that and is not part of the control. When neither side has
+     * room the list takes the bigger one and is pulled inside the surface,
+     * which is the only remaining answer that leaves rows on screen.
+     */
+    if( ui->surface_h > 0 && rect.y + rect.h > ui->surface_h )
+    {
+        int const box_top = w->y + dbg_row_box_top(ui, w);
+        int const below = ui->surface_h - rect.y;
+        int const above = box_top;
+
+        if( rect.h <= above )
+            rect.y = box_top - rect.h;
+        else if( above > below )
+            rect.y = 0;
+        else
+            rect.y = ui->surface_h - rect.h;
+        if( rect.y < 0 )
+            rect.y = 0;
+    }
     return rect;
 }
 

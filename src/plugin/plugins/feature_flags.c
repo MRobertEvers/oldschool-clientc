@@ -151,12 +151,21 @@ ff_options(
     char const* stored = ff_stored(api, flag);
     int const wanted = ff_stored_value(flag, stored);
     int count = 0;
-    int effective = flag->value;
-    int named;
-
-    if( flag->is_default )
-        (void)api->client->feature_get(api, flag->key, &effective);
-    named = ff_value_index(flag, effective);
+    /*
+     * The value the ENGINE ACTS ON, not the one its field holds.
+     *
+     * The two are the same for every flag but one, and for that one the field
+     * carries a sentinel: `draw_distance` stores 0 for "this era states no
+     * preference" and the painter draws the 25 tiles it resolves that to.
+     * Naming `value` here printed "Revision default (0)" -- a distance that is
+     * not one of the row's own eight choices and is below the row's own
+     * minimum, on a page whose whole job is to say what is in force.
+     *
+     * Resolving it HERE was never an option: the rule belongs to the engine
+     * and a page reproducing it is a second copy to drift.
+     */
+    int const effective = flag->effective;
+    int const named = ff_value_index(flag, effective);
     snprintf(values[count], sizeof(values[count]), "%s", FF_DEFAULT_LABEL);
     if( flag->is_default && named >= 0 )
     {

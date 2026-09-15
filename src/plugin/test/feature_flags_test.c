@@ -53,7 +53,27 @@ struct FakeFlag
     /** What this "boot" resolved, i.e. what the UNSET sentinel restores. */
     int boot;
     int value;
+    /** How the engine resolves this field's sentinel, or NULL where the field
+     *  is its own meaning. @see AppPluginFeatureDesc::effective. */
+    int (*resolve)(int stored);
 };
+
+/*
+ * The painter's own rule, in the shape the engine publishes it in: a stored 0
+ * means "this era states no preference" and draws the official minimum, and
+ * anything outside the band is clamped into it. Here so the fake engine can
+ * hold a flag whose field and whose meaning are DIFFERENT NUMBERS, which is
+ * the only state in which the page can name the wrong one.
+ */
+static int
+fake_draw_distance_effective(int stored)
+{
+    if( stored == 0 || stored < 25 )
+        return 25;
+    if( stored > 90 )
+        return 90;
+    return stored;
+}
 
 /*
  * One flag of each shape: a NUMBER whose named values are suggestions, an
@@ -69,21 +89,21 @@ static struct FakeFlag g_flags[] = {
      90, "25 tiles|40 tiles|60 tiles|90 tiles",
      { 25, 40, 60, 90 },
      4, 25,
-     25   },
+     25, fake_draw_distance_effective   },
     { "camera_zoom",
      "Zoom",          "Camera",
      TORIRS_FEATURE_ENUM, 0,
      0,  "Adjustable|Fixed",
      { 0, 1 },
      2, 0,
-     0    },
+     0, NULL    },
     { "target_mask_held",
      "Held bit",      "",
      TORIRS_FEATURE_ENUM, 0,
      0,  "0x10 (2004)|0x20 (OldSchool)",
      { 0x10, 0x20 },
      2, 0x10,
-     0x10 },
+     0x10, NULL },
 };
 
 #define FLAG_COUNT ((int)(sizeof(g_flags) / sizeof(g_flags[0])))
@@ -137,6 +157,7 @@ fake_feature_next(
     for( int v = 0; v < f->value_count; v++ )
         o->values[v] = f->values[v];
     o->value = f->value;
+    o->effective = f->resolve ? f->resolve(f->value) : f->value;
     o->is_default = f->value == f->boot;
     return at;
 }
@@ -1629,6 +1650,47 @@ main(void)
         }
         g_published = FLAG_COUNT;
         PluginHost_Free(host5);
+    }
+
+    /*
+     * A FLAG WHOSE FIELD IS A SENTINEL.
+     *
+     * The CS1 lane boots `draw_distance` at 0 -- the era states no preference
+     * -- and the painter draws the 25 tiles the engine resolves that to. The
+     * page named the FIELD and said "Revision default (0)": a distance that is
+     * not one of the row's eight choices, is below the row's own minimum, and
+     * that the row would itself refuse if you picked it.
+     */
+    {
+        struct ToriRS_PluginEngine e6 = fake_engine();
+        struct ToriRS_PluginHost* host6 = PluginHost_New(&e6);
+        int const p6 = PluginHost_Register(host6, &TORIRS_FEATURE_FLAGS);
+        int const saved_boot = g_flags[0].boot;
+
+        flags_reset();
+        g_published = FLAG_COUNT;
+        /* Boot AND live, because it is the untouched row that has to read
+         * right: a row somebody has picked on names its own choice. */
+        g_flags[0].boot = 0;
+        g_flags[0].value = 0;
+
+        PluginHost_Start(host6);
+        CHECK(PluginHost_PanelSelect(host6, p6), "the page selects on a sentinel boot");
+        {
+            struct ToriRS_PanelWidget const* w =
+                widget_named(host6, p6, "draw_distance");
+            CHECK(
+                w && w->structured_select && w->select_option_count == 5,
+                "a sentinel adds no synthetic option: nothing is stored");
+            CHECK(
+                w && strcmp(w->select_options[0].label,
+                            "Revision default (25 tiles)") == 0,
+                "the default entry names what the engine ACTS on, not the "
+                "sentinel its field holds");
+        }
+        g_flags[0].boot = saved_boot;
+        flags_reset();
+        PluginHost_Free(host6);
     }
 
     PluginHost_Free(host);
