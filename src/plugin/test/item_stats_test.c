@@ -966,11 +966,32 @@ test_food_heals(void)
     TEST_ASSERT(tip_rows() == 1, "one stat changes; got %d rows", tip_rows());
 }
 
-/* The tooltip stays inside the graphics context's canvas bounds, not inside a
- * placement area: a pointer near the canvas corner flips the panel up and left
- * of the pointer, and a smaller canvas moves that edge. An inventory hover is
- * outside the 3D viewport and must NOT flip: the canvas, not the viewport, is
- * the bound. */
+/*
+ * Where the panel goes, and what bounds it.
+ *
+ * THE RULE: a step right of the pointer and clear ABOVE it, except where
+ * there is no room above inside the rect the pass may draw on, where it drops
+ * below the pointer by IS_TIP_CAPTION_H instead -- because the one thing it
+ * must never cover is the lane's own hover caption, which every lane that
+ * captions the cursor hangs below and to the RIGHT of it.
+ *
+ * A lane that captions the cursor nowhere -- the 2004 root puts its mouseover
+ * line in the viewport's top-left corner -- takes the same placement, because
+ * above the pointer is empty there as well. The rule therefore asks the lane
+ * no question about its caption, and so has no absence to declare.
+ *
+ * ITEMSTATS-TIP-BISECTS-HOVERBOX is the defect that rule exists for: at the
+ * old pointer+(12,16) the panel landed on the caption's two lines -- measured
+ * at 613..741 x 252..285 for a pointer at 615,228 -- and cut "Wear Rune
+ * platebody / 3 more options" in half. 615,228 is an INVENTORY cell, so the
+ * rule is not about the 3D viewport and the inventory is not an exception:
+ * the caption follows the cursor wherever the cursor is.
+ *
+ * What bounds it is the graphics context's canvas, not a placement area: a
+ * pointer near the canvas corner flips the panel up and left of the pointer,
+ * and a smaller canvas moves that edge. An inventory hover is outside the 3D
+ * viewport and must NOT flip left over the minimap for that reason alone.
+ */
 static void
 test_tooltip_clamps_to_draw_canvas(void)
 {
@@ -980,12 +1001,29 @@ test_tooltip_clamps_to_draw_canvas(void)
     g_mouse_x = 100; g_mouse_y = 100;
     g_canvas_bounds = (struct ToriRS_Rect){ 0, 0, 765, 503 };
     frame(385);
-    TEST_ASSERT(g_client.draw_count == 1 && g_draw_x == 112 && g_draw_y == 116,
-        "away from the edge the panel sits right and below the pointer (%d,%d)", g_draw_x, g_draw_y);
+    /* The panel this fixture composes, pinned because every coordinate below
+     * is derived from its height: one row, TIP_BORDER top and bottom plus one
+     * TIP_PITCH. */
+    TEST_ASSERT(g_client.compose_h == TIP_BORDER * 2 + TIP_PITCH,
+        "the fixture's panel is one row tall (%dx%d)", g_client.compose_w, g_client.compose_h);
+    TEST_ASSERT(g_client.draw_count == 1 && g_draw_x == 112 && g_draw_y == 72,
+        "away from every edge nothing clamps: x = pointer.x + IS_TIP_DX (100+12), "
+        "y = pointer.y - panel height - IS_TIP_GAP (100-20-8), which is ABOVE the "
+        "pointer and off the caption (%d,%d)", g_draw_x, g_draw_y);
+    TEST_ASSERT(g_draw_y + g_client.compose_h <= g_mouse_y,
+        "and the panel's last row is above the pointer's own, so the caption hung "
+        "below the pointer is untouched (%d+%d vs %d)",
+        g_draw_y, g_client.compose_h, g_mouse_y);
     g_mouse_x = 618; g_mouse_y = 235; /* inventory slot 1 on the fixed frame */
     frame(385);
-    TEST_ASSERT(g_draw_x == 630 && g_draw_y == 251,
-        "an inventory hover outside the 3D viewport keeps the panel beside the pointer (%d,%d)", g_draw_x, g_draw_y);
+    TEST_ASSERT(g_draw_x == 630,
+        "an inventory hover is past the 3D viewport's right edge and still 618+"
+        "IS_TIP_DX: the bound is the 765-wide canvas, not the viewport, so the "
+        "panel does not flip left over the minimap (%d)", g_draw_x);
+    TEST_ASSERT(g_draw_y == 207,
+        "and it takes the same side of the pointer the world hover takes -- "
+        "235 - 20 - IS_TIP_GAP -- because the cell the defect was filed against "
+        "was an inventory cell (%d)", g_draw_y);
     g_mouse_x = 760; g_mouse_y = 495;
     frame(385);
     TEST_ASSERT(g_draw_x < 760 && g_draw_y < 495,
@@ -995,6 +1033,73 @@ test_tooltip_clamps_to_draw_canvas(void)
     frame(385);
     TEST_ASSERT(g_draw_x < 250 && g_draw_y < 190,
         "a smaller canvas moves the flip edge with it (%d,%d)", g_draw_x, g_draw_y);
+    g_mouse_x = 100; g_mouse_y = 100;
+    g_canvas_bounds = (struct ToriRS_Rect){ 0, 0, 765, 503 };
+}
+
+/*
+ * The other side of the rule: no room above.
+ *
+ * Nothing covered this branch, and it is the one that can put the panel back
+ * onto the caption it exists to avoid. Three states, each a different way of
+ * having no room: the pointer near the canvas's top row, a drawable rect whose
+ * top row is not the screen's, and a canvas with room on neither side.
+ */
+static void
+test_no_room_above_drops_the_panel_clear_of_the_caption(void)
+{
+    int const tip_h = TIP_BORDER * 2 + TIP_PITCH; /* 20, as pinned above */
+    int tip_w;
+
+    client_reset();
+    obj_add(385, "Shark");
+    g_client.current[3] = 50;
+
+    /* Ten rows down a full canvas: 10 - 20 - IS_TIP_GAP is off the top, so the
+     * panel goes below instead -- at pointer.y + IS_TIP_CAPTION_H (10+40), the
+     * row after the lane's two-line caption rather than across it. */
+    g_mouse_x = 100; g_mouse_y = 10;
+    g_canvas_bounds = (struct ToriRS_Rect){ 0, 0, 765, 503 };
+    frame(385);
+    tip_w = g_client.compose_w; /* the one frame that composes; the rest are cached */
+    TEST_ASSERT(tip_w > 0, "the fixture composed a panel to place (%d wide)", tip_w);
+    TEST_ASSERT(g_client.draw_count == 1 && g_draw_x == 112 && g_draw_y == 50,
+        "with no room above the panel goes below by IS_TIP_CAPTION_H (%d,%d)",
+        g_draw_x, g_draw_y);
+    TEST_ASSERT(g_draw_y - g_mouse_y >= 40,
+        "which clears the caption's 40 measured rows rather than bisecting them "
+        "(%d below the pointer)", g_draw_y - g_mouse_y);
+    TEST_ASSERT(g_draw_y >= 0 && g_draw_y + tip_h <= 503,
+        "and the panel is still whole on the canvas (%d..%d of 0..503)",
+        g_draw_y, g_draw_y + tip_h);
+
+    /* "Above" means above the rect this pass may draw on, not above row zero.
+     * A drawable rect starting at 120 leaves no room for a pointer at 130,
+     * even though 130-20-8 = 102 is a perfectly good screen coordinate. */
+    g_mouse_x = 100; g_mouse_y = 130;
+    g_canvas_bounds = (struct ToriRS_Rect){ 0, 120, 765, 383 };
+    frame(385);
+    TEST_ASSERT(g_draw_y == 170,
+        "the top edge is the drawable rect's own (120), so the panel drops to "
+        "130 + IS_TIP_CAPTION_H rather than to 102 outside it (%d)", g_draw_y);
+    TEST_ASSERT(g_draw_y >= 120,
+        "and nothing lands above that rect's first row (%d)", g_draw_y);
+
+    /* Room on neither side, and not at the origin either: 132 - 20 - IS_TIP_GAP
+     * is above the rect's first row, and 132 + IS_TIP_CAPTION_H + 20 is past
+     * its last. The panel cannot clear the caption here, and the only thing
+     * left to be right about is that it stays whole on the rect it may draw
+     * on -- every edge of which is the RECT's, not the screen's. */
+    g_mouse_x = 40; g_mouse_y = 132;
+    g_canvas_bounds = (struct ToriRS_Rect){ 0, 120, 120, 60 };
+    frame(385);
+    TEST_ASSERT(g_client.draw_count == 1, "a canvas with room on neither side still draws");
+    TEST_ASSERT(g_draw_y >= 120 && g_draw_y + tip_h <= 180,
+        "and the panel stays whole between the rect's own rows (%d..%d of 120..180)",
+        g_draw_y, g_draw_y + tip_h);
+    TEST_ASSERT(g_draw_x >= 0 && g_draw_x + tip_w <= 120,
+        "and between its own columns (%d..%d of 0..120)", g_draw_x, g_draw_x + tip_w);
+
     g_mouse_x = 100; g_mouse_y = 100;
     g_canvas_bounds = (struct ToriRS_Rect){ 0, 0, 765, 503 };
 }
@@ -1682,6 +1787,7 @@ main(void)
     test_unknown_item();
     test_food_heals();
     test_tooltip_clamps_to_draw_canvas();
+    test_no_room_above_drops_the_panel_clear_of_the_caption();
     test_food_at_full_health();
     test_dose_suffix_is_stripped();
     test_combo_potion();
