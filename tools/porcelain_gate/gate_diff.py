@@ -36,6 +36,9 @@ The file is ini-ish, one declaration per line, `kind target = reason`:
   only-before BOUNDS com=0x1234 ... = the empty control was the defect; a
                                       skill with no reading gets no orb
   owned-drop  orb_hitpoints        = same row, said about the owned control
+  bounds-shift 2,0                 = a container was re-seated and its whole
+                                      subtree moved with it, by this offset
+                                      and in no other way
   normalise   scene                = the image slot is an internal handle, and
                                       releasing the source art renumbers it
 
@@ -65,6 +68,7 @@ class Expectations:
         self.only_before, self.only_after = {}, {}
         self.role_move, self.owned_drop, self.normalise = {}, {}, {}
         self.owned_add, self.owned_move = {}, {}
+        self.bounds_shift = {}
         self.fired = collections.Counter()
         if not path:
             return
@@ -91,6 +95,7 @@ class Expectations:
             table = {"only-before": self.only_before, "only-after": self.only_after,
                      "role-move": self.role_move, "owned-drop": self.owned_drop,
                      "owned-add": self.owned_add, "owned-move": self.owned_move,
+                     "bounds-shift": self.bounds_shift,
                      "normalise": self.normalise}.get(kind)
             if table is None:
                 raise SystemExit(f"{path}:{lineno}: unknown declaration `{kind}`")
@@ -102,6 +107,55 @@ class Expectations:
                 self.fired[("normalise", name)] += 1
                 text = re.sub(rf"\s*\b{re.escape(name)}=\S+", "", text)
         return text
+
+    def pair_shift(self, gone, new):
+        """Match a MOVED subtree, rather than making a port enumerate it.
+
+        A port that re-seats a container legitimately moves everything inside
+        it. Declaring that with `only-before`/`only-after` means one pair of
+        lines per node -- 3225 pairs when a chat pack moves two columns on one
+        toplevel -- and three thousand declarations is not a declaration, it is
+        a diff with a reason stapled to the front. Nobody reads it, nobody can
+        check it, and a real regression hiding among them is invisible.
+
+        So `bounds-shift dx,dy = reason` says the one true thing: these boxes
+        all moved by the same offset and nothing else about them changed. It is
+        still a claim that can fail -- a line whose `abs=` does not differ by
+        exactly that offset, or which differs in any other field, is not
+        excused and is reported as before.
+
+            bounds-shift 2,0 = 161 seats the chat pack against its own stone
+
+        Returns the lines it could not pair off, from both sides.
+        """
+        if not self.bounds_shift:
+            return gone, new
+
+        def abs_of(line):
+            m = re.search(r"\babs=(-?\d+),(-?\d+)\b", line)
+            return (int(m.group(1)), int(m.group(2))) if m else None
+
+        pending_new = collections.Counter(new)
+        left_gone = []
+        for line in gone:
+            here = abs_of(line)
+            matched = False
+            if here:
+                for target, _reason in self.bounds_shift.items():
+                    try:
+                        dx, dy = (int(v) for v in target.split(","))
+                    except ValueError:
+                        raise SystemExit(f"bounds-shift wants `dx,dy`, got `{target}`")
+                    want = re.sub(r"\babs=-?\d+,-?\d+\b",
+                                  f"abs={here[0] + dx},{here[1] + dy}", line, count=1)
+                    if pending_new[want] > 0:
+                        pending_new[want] -= 1
+                        self.fired[("bounds-shift", target)] += 1
+                        matched = True
+                        break
+            if not matched:
+                left_gone.append(line)
+        return left_gone, list(pending_new.elements())
 
     def excuses_line(self, line, kind="only-before"):
         """A capture line a port is declared to add or remove.
@@ -280,6 +334,9 @@ def compare(before, after, label, expect):
     gone_lines = [l for l in (cb - ca).elements() if not expect.excuses_line(l)]
     new_lines = [l for l in (ca - cb).elements()
                  if not expect.excuses_line(l, "only-after")]
+    # Then pair off a declared subtree move, which no per-line declaration can
+    # express without becoming a diff. @see Expectations.pair_shift.
+    gone_lines, new_lines = expect.pair_shift(gone_lines, new_lines)
     only_b, only_a = len(gone_lines), len(new_lines)
     print(f"{label}: bounds {len(b)} -> {len(a)}, only-before {only_b}, only-after {only_a}")
     if only_b or only_a:
