@@ -28,7 +28,39 @@ clientsettings-live client-settings    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;
 featureflags-live  feature-flags       cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_PLUGIN_PANEL=1600,feature-flags,page TORIRS_MAX_FRAMES=2200
 loottracker-live   loot-tracker        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,lootkill Goblin 995 5000;910,lootkill Goblin 526 1' TORIRS_SIM_PLUGIN_PANEL=1600,loot-tracker,page TORIRS_MAX_FRAMES=2200
 nxthl-live         nxt-highlight       cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_MOVE_AT=1600,330,120 TORIRS_SIM_HOVER=330,120 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_MAX_FRAMES=2200
-highlighter-live   entity-highlighter  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' 'TORIRS_SIM_PLUGIN_CONFIG=1400,entity-highlighter,tags,5037,6708,2880,2899,3106,3108' TORIRS_MAX_FRAMES=2200
+# A TAG IS AN NPC ID, AND AN NPC ID IS A FACT ABOUT THE LANE'S CONTENT.
+#
+# This line used to carry the cs2 job's tag list -- 5037,6708,2880,2899,3106,
+# 3108, which are osrs239 ids. LostCity's npcs are three-digit ids from its own
+# npc.pack, so not one of those six named anything the scene contained, the
+# plugin drew nothing, and the shot came back a picture of Varrock square with
+# no highlight in it. Nothing in the run said so: the config write reported
+# applied=1 (it IS a valid tag list -- tagging a species that is not in front
+# of you is normal), and a driven run with TORIRS_TRACE_PLUGIN_WORLD=1 shows
+# zero PLUGIN_HULL lines for all 2200 frames. A dead plugin and a working one
+# photograph identically here, which is the one thing a shot must never do.
+#
+# So the ids are chosen from the spawns this drive actually walks into.
+# ~varrock lands on 0_50_53_13_31, and content/maps/m50_53.jm2's NPC block is
+# the authority for what stands near it:
+#
+#   547 baraek  (18,43)  the fur trader
+#   781 shilop  (21,42)  \  the two children at his stall
+#   783 wilough (21,43)  /
+#
+# All three spawn NORTH of the teleport tile -- the direction the camera looks
+# over the player's shoulder -- and all three declare wanderrange=2, so they
+# cannot leave the forward view during the run. That is why they are here and
+# 639 (romeo, two tiles away and the obvious first choice) is not: romeo
+# declares no wanderrange at all, takes the engine default, and is somewhere
+# else by frame 2200 -- tagged, correct, and invisible, which would leave this
+# capture as ambiguous as the one it replaces.
+#
+# The OFFLINE cs1 lane cannot photograph this plugin at all, whatever the tags:
+# it never logs in, so the npc pool is empty and app_plugin_npc_next answers
+# -1 on the first call. Measured: a cs1 run tagging 547,781,783,639,153,1,3
+# logs zero PLUGIN_NPC lines. Only this lane has npcs to highlight.
+highlighter-live   entity-highlighter  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' 'TORIRS_SIM_PLUGIN_CONFIG=1400,entity-highlighter,tags,547,781,783' TORIRS_MAX_FRAMES=2200
 gf-mobile-live     mobile-gameframe    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
 
 # ~giverunes puts 1000 of each rune in the INVENTORY, which is the only reason

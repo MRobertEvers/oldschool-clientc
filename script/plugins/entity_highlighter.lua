@@ -61,6 +61,26 @@
 -- rectangle here to derive, clamp or intersect. Calling it would be one engine
 -- call a frame for an answer nothing reads.
 --
+-- HOW TO PHOTOGRAPH IT, because this plugin is the one that can be perfectly
+-- alive and photograph as perfectly dead.
+--
+-- Everything it draws is conditional on a TAG MATCHING AN NPC THE SCENE
+-- CONTAINS, and an npc id belongs to a cache, not to the client. The cs1live
+-- capture spent its whole life carrying the cs2 job's tag list -- 5037, 6708,
+-- 2880 and friends, which are osrs239 ids -- at a LostCity scene whose npcs
+-- are three-digit ids out of its own npc.pack. Not one matched, the plugin
+-- drew nothing, the config write still reported applied=1 (a tag for a species
+-- that is not in front of you is a perfectly valid tag), and the shot was
+-- filed as clean. A dead plugin and a working one made the same picture.
+--
+-- So a capture of this plugin has to name ids from the lane's OWN content, and
+-- the tag list is part of the evidence, not part of the boilerplate:
+-- jobs/cs2all.txt carries osrs239 ids and jobs/cs1live.txt carries LostCity
+-- ones read off content/maps/m50_53.jm2, the map square ~varrock lands in.
+-- The offline cs1 lane cannot photograph it at all -- it never logs in, so the
+-- npc pool is empty and npc_next answers -1 on the first call, whatever is
+-- tagged.
+--
 
 ---@type torirs.Plugin
 local plugin = {
