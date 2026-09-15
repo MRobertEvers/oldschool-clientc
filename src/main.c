@@ -3433,13 +3433,64 @@ frame_loop_teardown(void)
             char* hov_sep = NULL;
             int hov_x = (int)strtol(getenv("TORIRS_SIM_HOVER"), &hov_sep, 0);
             int hov_y = hov_sep && *hov_sep == ',' ? (int)strtol(hov_sep + 1, NULL, 0) : 0;
+            /*
+             * These four frames continue the loop's clock; they do not start a
+             * new one.
+             *
+             * They used to be stamped 20, 40, 60, 80 ms, which on a run that
+             * had been up for half a minute handed App_RunOnce a clock that
+             * jumped THIRTY SECONDS BACKWARDS. app_net_link_watch measures the
+             * server's silence as now - last_recv_ms in unsigned milliseconds,
+             * so the jump read as a silence of some eighteen quintillion of
+             * them, the 15 s timeout fired on the first of the four, and the
+             * session was torn down before the BMP was written. Every capture
+             * driven with TORIRS_SIM_HOVER came back with "Connection lost"
+             * across the viewport, no local player, and therefore nothing for
+             * a world overlay -- a tile marker, a loot beam, an entity
+             * highlight -- to draw on: the plugin was photographed as blank
+             * and read as broken.
+             *
+             * app.last_frame_ms is the wall clock of the last completed
+             * App_RunOnce, which is exactly the frame these continue from; the
+             * step stays 20 ms so each one is still one logic tick.
+             */
+            uint64_t const hov_base = app.last_frame_ms;
+            /*
+             * And each of them RENDERS, because a frame that does not render
+             * does not pick.
+             *
+             * App_RunOnce only latches the mouse point; the scene pick runs
+             * inside App_Render (hittest as each visible model projects) and
+             * app_world_pick_finish writes world_hover_tile from it, so the
+             * hover tile any overlay reads is the LAST RENDER's. Four
+             * logic-only frames therefore moved the pointer and left the pick
+             * exactly where the main loop's final frame had put it: on the CS2
+             * lane the mouse had never been in the viewport, so hover_tile()
+             * answered "nothing" and the tile indicator drew no hover marker at
+             * all; on the live CS1 lane the pointer had last been at the login
+             * click, so the marker sat on a roof a hundred pixels from where
+             * TORIRS_SIM_HOVER asked for it -- and both pictures looked like a
+             * plugin that draws in the wrong place rather than a drive that
+             * never delivered the hover.
+             *
+             * Rendered into a scratch buffer of the same size the exit dump
+             * uses: what is wanted here is the pick and the hover state each
+             * frame leaves behind, and the picture that gets written is still
+             * the one App_Render produces below.
+             */
+            int* hov_pixels =
+                calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
+            assert(hov_pixels);
             for( int t = 0; t < 4; t++ )
             {
-                LibToriRS_Input_Begin(hov_input, (uint64_t)(t + 1) * 20);
+                uint64_t const hov_now = hov_base + (uint64_t)(t + 1) * 20;
+                LibToriRS_Input_Begin(hov_input, hov_now);
                 LibToriRS_Input_PushMouseMove(hov_input, hov_x, hov_y);
                 LibToriRS_Input_End(hov_input);
-                App_RunOnce(&app, (uint64_t)(t + 1) * 20, hov_input);
+                App_RunOnce(&app, hov_now, hov_input);
+                App_Render(&app, hov_pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             }
+            free(hov_pixels);
             TORIRS_LOG(
                 "sim_hover: parked at %d,%d hover_com_id=%d\n", hov_x, hov_y, app.hover_com_id);
         }

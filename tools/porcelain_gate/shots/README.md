@@ -222,13 +222,29 @@ the run is 700 frames after all — which is how a cannon drive scheduled at
 frame 1400 came back with no cannon fired and no error. Pass
 `TORIRS_MAX_FRAMES` in that list instead; `env` takes it last-wins.
 
-**`TORIRS_SIM_HOVER` puts "Connection lost" across the viewport.** It parks the
-pointer for four extra interact frames after the main loop has stopped, and the
-net link times out in them. Same plugin, same lane, run serially: with
-`TORIRS_SIM_HOVER` the banner is there, without it the frame is clean. It is in
-`pages/BEFORE_itemstats_hover.png` too, so it is not new and it is not load. A
-hover state that can be reached with `TORIRS_SIM_MOVE_AT` during the run should
-be, and `*-nohover-*.png` is the same plugin without it.
+**`TORIRS_SIM_HOVER` used to put "Connection lost" across the viewport, and to
+hover the wrong tile.** FIXED -- both halves were in `frame_loop_teardown`, and
+any shot older than that fix which was driven with `TORIRS_SIM_HOVER` shows one
+or both. They are worth knowing by sight, because that is how you date a shot:
+
+- The four extra interact frames after the main loop were stamped 20, 40, 60,
+  80 ms, a clock that jumps tens of seconds BACKWARDS from the loop's. The net
+  watch measures the server's silence in unsigned milliseconds, so the jump read
+  as a silence of eighteen quintillion of them and tore the session down before
+  the BMP. Every `TORIRS_SIM_HOVER` capture therefore came back with the banner,
+  no player model and nothing for a world overlay to draw on -- the tile
+  indicator's own headline shot was a blank grey floor, and read as a plugin
+  that draws nothing. It is in `pages/BEFORE_itemstats_hover.png` too.
+- Those frames also did not RENDER, and the scene pick runs inside the render.
+  So the pointer moved and the hover tile did not: the marker stayed on whatever
+  tile the main loop's last frame had picked -- nothing at all on CS2, where the
+  mouse had never been in the viewport, and the login click's tile on cs1live,
+  a hundred pixels from where the drive asked to hover.
+
+Both are gone: the frames continue `app.last_frame_ms` and each one renders. A
+hover state that can be reached with `TORIRS_SIM_MOVE_AT` during the run still
+should be -- it is one frame cheaper and it is what a real pointer does --
+and `*-nohover-*.png` is the same plugin without any hover at all.
 
 One correction to the openers table above: `TORIRS_SIM_CLICK_AT` is
 `frame,x,y[,right]`, frame FIRST, not `x,y,<tick>`.
