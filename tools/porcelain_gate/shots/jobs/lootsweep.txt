@@ -1,0 +1,22 @@
+# SERIAL ONLY. What actually blanks the Loot Tracker's well.
+#
+# The first guess was the loot: the page with no loot drew "Total count: 0 /
+# Total value: 0 gp" and "No loot to display.", and the page with four
+# ::lootkill drops drew an empty box. But a no-loot run at panel tick 620 is
+# empty too, so the loot is not the variable -- everything that drew was opened
+# at tick 600 and everything blank at 620.
+#
+# One variable, six values, nothing else different: no loot in any of them, the
+# same 900 frames, the same trace. If the well's content depends on WHEN the
+# page was opened, the sweep says so and says where the edge is.
+
+lootsweep-560 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=560,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootsweep-580 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=580,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootsweep-600 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootsweep-620 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootsweep-640 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=640,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootsweep-700 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=700,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+
+# And the same question asked of the OTHER page plugin, to see whether this is
+# the loot tracker's well or every Porcelain page.
+xpsweep-620 xp-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,xp-tracker,page 'TORIRS_SIM_CMD=300,setlevel 10 45;400,xp fishing 30000' TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1

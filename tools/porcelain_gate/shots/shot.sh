@@ -50,7 +50,15 @@ esac
 mdir=${TORIRS_SHOT_MANIFESTS:-$here/manifests}
 [ -f $mdir/$manifest ] || { echo "run shot_manifests.sh first ($mdir/$manifest)"; exit 2; }
 
-printf '[preferences]\nversion=1\npreferred_frame=%s\nframe_migration_version=1\n' "$frame" \
+# TORIRS_SHOT_FRAME overrides the lane's provider.
+#
+# preferred_frame is the MASTER SWITCH for a frame provider, not the ini:
+# `[plugin:gameframe-layout] enabled=1` with `preferred_frame=auto` leaves the
+# provider off, and `preferred_frame=<provider>/<offer>` turns it on however the
+# ini is written. So "photograph the desktop provider on the 2004 lane", which
+# the presets cannot express, needs this and not an ini row.
+printf '[preferences]\nversion=1\npreferred_frame=%s\nframe_migration_version=1\n' \
+    "${TORIRS_SHOT_FRAME:-$frame}" \
     > $run/preferences.ini
 sed -e "s/^client_layout_mode = .*/client_layout_mode = $mode/" \
     -e "s/^x = .*/x = 3210/" -e "s/^z = .*/z = 3424/" -e "s/^level = .*/level = 0/" \

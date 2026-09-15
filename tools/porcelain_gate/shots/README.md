@@ -154,3 +154,54 @@ and it was counting beams nobody could see. The cost that is not cosmetic is
 the host's 64-object budget: every off-plane pile held a scene object, so a
 player in a multi-storey building could have the beams they CAN see clipped by
 beams they cannot.
+## plugins/ — every plugin, one at a time, on both lanes
+
+`frames/` photographs the two frame providers. `plugins/` photographs all
+twenty plugins, one per picture, on the CS2 lane and on the 2004 CS1 lane.
+Thirteen of them had no named picture at all before this, and CS1 had four.
+
+```
+zsh plugin_ini.sh <out.ini> <plugin-id> ["key=value" ...]   # one on, 19 off
+zsh pshot.sh <name> <plugin-id> <lane> [ENV=v ...] [-- cfg=v ...]
+PAR_JOBS=1 zsh par.sh jobs/<file>.txt
+python3 vs_control.py plugins/control-<lane>.png plugins/<shot>.png
+python3 zoom.py <in.png> <out.png> <x> <y> <w> <h> [scale]
+python3 detail_lengths.py
+```
+
+`jobs/` is the drive for every shot, with the reason for each in place. The
+five things that cost a run each to learn, so nobody pays for them twice:
+
+**`enabled` defaults to ON.** The host only writes the flag when it differs
+from the plugin's own default, so an ini naming one plugin `enabled=1` leaves
+the other nineteen running. `plugin_ini.sh` lists every id and switches each
+one off by name.
+
+**`preferred_frame` is the master switch for a frame provider, not `enabled`.**
+`[plugin:gameframe-layout] enabled=1` with `preferred_frame=auto` leaves the
+provider off, and `preferred_frame=<provider>/<offer>` turns it on however the
+ini reads. `TORIRS_SHOT_FRAME` overrides the lane's choice, which is the only
+way to ask for the desktop provider on CS1 or the touch provider on 548.
+
+**`auto` is not `native` on the CS2 lane.** It resolves to `gameframe-layout`
+there, so `control-cs2.png` has the provider in it and a diff against that
+control cannot see anything the provider did. The native CS2 frame needs
+`TORIRS_PLUGIN_ONLY=<id>`, which registers one plugin and leaves the frame to
+the client; `control-noplugins-cs2.png` is that frame with nothing at all on.
+
+**`TORIRS_SHOT_FRAMES` is read by shot.sh, not by the client.** Passed in the
+trailing `ENV=value` list it reaches the client, where nothing reads it, and
+the run is 700 frames after all — which is how a cannon drive scheduled at
+frame 1400 came back with no cannon fired and no error. Pass
+`TORIRS_MAX_FRAMES` in that list instead; `env` takes it last-wins.
+
+**`TORIRS_SIM_HOVER` puts "Connection lost" across the viewport.** It parks the
+pointer for four extra interact frames after the main loop has stopped, and the
+net link times out in them. Same plugin, same lane, run serially: with
+`TORIRS_SIM_HOVER` the banner is there, without it the frame is clean. It is in
+`pages/BEFORE_itemstats_hover.png` too, so it is not new and it is not load. A
+hover state that can be reached with `TORIRS_SIM_MOVE_AT` during the run should
+be, and `*-nohover-*.png` is the same plugin without it.
+
+One correction to the openers table above: `TORIRS_SIM_CLICK_AT` is
+`frame,x,y[,right]`, frame FIRST, not `x,y,<tick>`.
