@@ -1243,6 +1243,106 @@ reset(char const* asset_dir)
 
 /* ------------------------------------------------------------- the cases */
 
+/*
+ * One skill box, measured out of interface 729 rather than out of
+ * xp_tracker.c. Every number here is the CACHE's, and none of them is read
+ * back from the code under test -- which is the point: the port's own
+ * constants were wrong, and so were the two nudges that followed them, so a
+ * test written against either would have agreed with the defect.
+ *
+ *     tools/dump_interface/dump_interface cache.osrs239 --dat2 --iface 729
+ *     3rd/rscache/tools/cs2/cs2 decompile --cache cache.osrs239 --rev osrs239 \
+ *         5362 5363 5364 5365 5366
+ *
+ * 729:4, :5, :6 and :12..16 -- the wash, the outline, the icon and the stat
+ * grid -- are all `503,2 244x499`. 729:7..11, the bar's five components, are
+ * `506,5 238x493`: three pixels in on every side. So script5363's
+ * `calc(%varcint562 + 2 + 1)` is a BOX offset and script5365's
+ * `calc(%varcint562 + 25 + 2)` is a BAR-LAYER one, and carrying the second
+ * across the inset is what makes the 48 rows close.
+ */
+#define BOX_H 48     /* script5364 cc_setsize(0, 48, ^setsize_minus, 0)   */
+#define ICON_TOP 3   /* script5363 cc_setposition(_, calc(_ + 2 + 1))     */
+#define ICON_H 25    /* script5363 cc_setsize(25, 25)                     */
+#define ICON_GAP 2   /* script5365's `+ 2` in calc(%varcint562 + 25 + 2)  */
+#define BAR_INSET 3  /* 729:7..11 at 506,5 against 729:4..6 at 503,2      */
+#define BAR_H 15     /* script5365 cc_setsize(0, 15, ^setsize_minus, 0)   */
+/** script5365's `25 + 2`, carried out of the bar's layer into the box's. */
+#define BAR_TOP (BAR_INSET + ICON_H + ICON_GAP)
+_Static_assert(
+    ICON_TOP + ICON_H + ICON_GAP + BAR_H + BAR_INSET == BOX_H,
+    "3 + 25 + 2 + 15 + 3 = 48: the cache's box accounts for its own rows");
+#define OUTLINE 0xFF000000u
+#define BOX_WASH 0x7F000000u
+#define BAR_TRACK 0xFF002200u
+#define BAR_FILL 0xFF006600u
+#define BAR_DONE 0xFF885500u
+
+/**
+ * How many of a box's two side columns are NOT the box's own black outline.
+ *
+ * The bar's margin is what keeps that outline unbroken behind fifteen rows of
+ * bar. Filling the bar at the box's full width instead erases both of these
+ * columns for exactly the bar's rows -- the outline is there above the bar
+ * and below it and simply absent beside it, which is a two-pixel-wide defect
+ * a whole 765x503 frame cannot show and a shipped capture had in it on every
+ * lane.
+ */
+static int
+box_outline_breaks(uint32_t const* pixels, int width, int height, int top)
+{
+    int breaks = 0;
+
+    assert(pixels);
+    for( int y = top; y < top + BOX_H && y < height; y++ )
+    {
+        if( pixels[(size_t)y * (size_t)width] != OUTLINE )
+            breaks++;
+        if( pixels[(size_t)y * (size_t)width + (size_t)(width - 1)] != OUTLINE )
+            breaks++;
+    }
+    return breaks;
+}
+
+/** True where a pixel is one of the bar's three colours and nothing else's. */
+static int
+is_bar_colour(uint32_t argb)
+{
+    return argb == BAR_TRACK || argb == BAR_FILL || argb == BAR_DONE;
+}
+
+/**
+ * The first and last row of a box, box-relative, that column `x` paints in a
+ * bar colour -- or -1 and -1 where the column carries no bar at all.
+ *
+ * This is the vertical half of the same defect `box_outline_breaks` catches
+ * horizontally, and it has to be measured rather than asserted a row at a
+ * time, because reading one row can only say what is there and not where the
+ * band begins. The bar's palette is unique inside a box: the wash is
+ * translucent black, the outline opaque black, and neither the icon strip nor
+ * the stat text carries 0x002200, 0x006600 or 0x885500.
+ */
+static void
+bar_row_span(
+    uint32_t const* pixels, int width, int height, int top, int x, int* first, int* last)
+{
+    assert(pixels);
+    assert(first);
+    assert(last);
+    assert(x >= 0);
+    assert(x < width);
+    *first = -1;
+    *last = -1;
+    for( int row = 0; row < BOX_H && top + row < height; row++ )
+    {
+        if( !is_bar_colour(pixels[(size_t)(top + row) * (size_t)width + (size_t)x]) )
+            continue;
+        if( *first < 0 )
+            *first = row;
+        *last = row;
+    }
+}
+
 static int
 dominant_colour_in_rect(
     uint32_t const* pixels,
@@ -1448,12 +1548,118 @@ render_xp(void)
         g_c.comp_px[50 * g_c.comp_w] == 0xFF000000u,
         "the skill box outline is the CS2 rectangle's default opaque black");
     CHECK(
-        dominant_colour_in_rect(g_c.comp_px, g_c.comp_w, g_c.comp_h, 1, 77, 263, 92, 1) &&
-            dominant_colour_in_rect(g_c.comp_px, g_c.comp_w, g_c.comp_h, 1, 127, 263, 142, 1),
+        dominant_colour_in_rect(
+            g_c.comp_px, g_c.comp_w, g_c.comp_h, BAR_INSET, 50 + BAR_TOP,
+            g_c.comp_w - BAR_INSET, 50 + BAR_TOP + BAR_H, 1) &&
+            dominant_colour_in_rect(
+                g_c.comp_px, g_c.comp_w, g_c.comp_h, BAR_INSET, 100 + BAR_TOP,
+                g_c.comp_w - BAR_INSET, 100 + BAR_TOP + BAR_H, 1),
         "99-cap snapshots continue as green virtual-level 120 and 110 bars");
+    /*
+     * The bar lives inside the box, not on top of it. Both halves are pinned
+     * because either one alone can be satisfied by the wrong picture: an
+     * unbroken outline would also be reported by a bar that never drew, and
+     * the bar's own two end columns would also be reported by a bar that
+     * still ran the full width and painted the outline over itself.
+     */
     CHECK(
-        argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h) == 0x11BCF2CBC800F2F1ULL,
-        "the reference strip retains its exact totals, virtual labels, bars, and alpha");
+        box_outline_breaks(g_c.comp_px, g_c.comp_w, g_c.comp_h, 50) == 0 &&
+            box_outline_breaks(g_c.comp_px, g_c.comp_w, g_c.comp_h, 100) == 0,
+        "the box outline survives the bar's fifteen rows down both sides "
+        "(got %d and %d broken columns)",
+        box_outline_breaks(g_c.comp_px, g_c.comp_w, g_c.comp_h, 50),
+        box_outline_breaks(g_c.comp_px, g_c.comp_w, g_c.comp_h, 100));
+    {
+        int const mid = 50 + BAR_TOP + BAR_H / 2;
+        uint32_t const* row = g_c.comp_px + (size_t)mid * (size_t)g_c.comp_w;
+
+        CHECK(
+            row[BAR_INSET] == BAR_FILL && row[g_c.comp_w - 1 - BAR_INSET] == BAR_TRACK,
+            "the bar's own first and last columns are its fill and its track "
+            "(got %08x and %08x)",
+            row[BAR_INSET], row[g_c.comp_w - 1 - BAR_INSET]);
+        CHECK(
+            row[BAR_INSET - 1] == BOX_WASH && row[g_c.comp_w - BAR_INSET] == BOX_WASH,
+            "and the margin beside it is the box's own translucent wash "
+            "(got %08x and %08x)",
+            row[BAR_INSET - 1], row[g_c.comp_w - BAR_INSET]);
+    }
+    /*
+     * Where the bar STARTS and STOPS, measured. The port had it at box row 27
+     * -- the icon's own last row -- because it read script5365's `25 + 2` as
+     * a box offset when it is a bar-layer one, and the nudge that followed
+     * put it at 28, which clears the icon without being the cache's row and
+     * leaves a four-row skirt under it where the cache leaves three. Two
+     * columns are scanned: one inside the bar's left margin and one down the
+     * middle of the box, so a bar at the right rows and the wrong width
+     * cannot satisfy this by accident.
+     */
+    {
+        int const columns[2] = { BAR_INSET, g_c.comp_w / 2 };
+        int const tops[2] = { 50, 100 };
+
+        for( int b = 0; b < 2; b++ )
+            for( int c = 0; c < 2; c++ )
+            {
+                int first = -2;
+                int last = -2;
+
+                bar_row_span(
+                    g_c.comp_px, g_c.comp_w, g_c.comp_h, tops[b], columns[c], &first,
+                    &last);
+                CHECK(
+                    first == BAR_TOP,
+                    "box %d column %d: the bar begins %d rows under the icon's last, "
+                    "at box row %d (got %d)",
+                    b, columns[c], ICON_GAP, BAR_TOP, first);
+                CHECK(
+                    last == BOX_H - BAR_INSET - 1,
+                    "box %d column %d: and ends with the bar layer's own inset under "
+                    "it, at box row %d (got %d)",
+                    b, columns[c], BOX_H - BAR_INSET - 1, last);
+                CHECK(
+                    last - first + 1 == BAR_H,
+                    "box %d column %d: fifteen rows of it (got %d)", b, columns[c],
+                    last - first + 1);
+            }
+    }
+    /*
+     * And the two rows the gap is made of, which is the only thing that tells
+     * the cache's bar apart from one nudged down until it stopped touching
+     * the icon. They are the box's own wash: not the icon, not the bar.
+     */
+    {
+        int const x = g_c.comp_w / 2;
+
+        for( int row = ICON_TOP + ICON_H; row < BAR_TOP; row++ )
+            CHECK(
+                g_c.comp_px[(size_t)(50 + row) * (size_t)g_c.comp_w + (size_t)x] ==
+                    BOX_WASH,
+                "box row %d is the gap between the icon and the bar (got %08x)", row,
+                g_c.comp_px[(size_t)(50 + row) * (size_t)g_c.comp_w + (size_t)x]);
+    }
+    /* The bar's margin columns carry no bar at all, over the whole 48. */
+    {
+        int first = -2;
+        int last = -2;
+
+        bar_row_span(
+            g_c.comp_px, g_c.comp_w, g_c.comp_h, 50, BAR_INSET - 1, &first, &last);
+        CHECK(
+            first == -1,
+            "the box's left outline column paints no bar row (got row %d)", first);
+        bar_row_span(
+            g_c.comp_px, g_c.comp_w, g_c.comp_h, 50, g_c.comp_w - BAR_INSET, &first,
+            &last);
+        CHECK(
+            first == -1,
+            "nor does the column inside its right outline (got row %d)", first);
+    }
+    CHECK(
+        argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h) == 0x231AA2A4A726EADDULL,
+        "the reference strip retains its exact totals, virtual labels, bars, and alpha "
+        "(got %016llx)",
+        (unsigned long long)argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h));
     {
         uint64_t const before = argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h);
         int const composed = g_c.compose_calls;

@@ -36,10 +36,12 @@
  *               fontmetrics_494 with a shadow: keys 0xcccccc, values white,
  *               12px line height, the pairs being XP Gained / XP/Hr and
  *               Acts>Lvl / XP>Lvl.
- *   script5365  the BAR: track 0x002200 and fill 0x006600, 15 tall, under the
- *               stats at y+27, with three labels over it -- the level at the
- *               left and the goal at the right in 0xcccccc, and the percentage
- *               centred in white.
+ *   script5365  the BAR: track 0x002200 and fill 0x006600, 15 tall, with three
+ *               labels over it -- the level at the left and the goal at the
+ *               right in 0xcccccc, and the percentage centred in white. Its
+ *               five components are the ones that are NOT in the box's layer,
+ *               so none of its offsets is a box offset; @see
+ *               XT_BAR_LAYER_INSET, which is the whole of that story.
  *   script5370  the fill's width, virtual levels through 126, a 200m goal
  *               beyond 126, and 0x885500 across the WHOLE bar only when that
  *               final goal is met rather than at ordinary level 99.
@@ -134,35 +136,79 @@
 #define XT_BOX_H 48
 #define XT_BOX_GAP 2
 #define XT_BOX_PITCH (XT_BOX_H + XT_BOX_GAP)
-/** The skill icon: 25x25 at x=3, y=+3. */
+/**
+ * The skill icon: 25x25, at script5363's own `cc_setposition(calc(2 + 1),
+ * calc(%varcint562 + 2 + 1))`. Those literals ARE box offsets, because
+ * script5363 creates into 729:6, which shares the box's origin; @see
+ * XT_BAR_LAYER_INSET for the five components that do not.
+ */
 #define XT_ICON 25
-#define XT_ICON_X 3
+#define XT_ICON_X (2 + 1)
+#define XT_ICON_Y (2 + 1)
+/**
+ * The BAR lives in a DIFFERENT LAYER from the rest of the box, and that is
+ * where the port's numbers came apart.
+ *
+ * Interface 729 builds one skill box out of thirteen sibling layers under
+ * 729:3, and they do NOT share an origin:
+ *
+ *     729:4      box wash        503,2  244x499  \
+ *     729:5      box outline     503,2  244x499   |  the BOX's frame
+ *     729:6      skill icon      503,2  244x499   |
+ *     729:12..16 the stat grid   503,2  244x499  /
+ *
+ *     729:7      bar track       506,5  238x493  \  the BAR's frame: three
+ *     729:8      bar fill        506,5  238x493   |  pixels inside the box's
+ *     729:9..11  the bar labels  506,5  238x493  /   on every side
+ *
+ *     tools/dump_interface/dump_interface cache.osrs239 --dat2 --iface 729
+ *
+ * Nothing moves them afterwards: 729:0's onload and the five scripts a row
+ * build calls -- 5448, 5384, 5460, 5461, 5444 -- contain no cc_setposition
+ * and no cc_setsize on 729:6..11 at all.
+ *
+ * So script5365's `calc(%varcint562 + 25 + 2)` is measured from an origin
+ * three rows BELOW script5363's and script5366's, and its `cc_setposition(0,
+ * ...)` with `cc_setsize(0, 15, ^setsize_minus, ...)` spans 238 and not 244.
+ * This file composes one flat buffer in the BOX's frame, so each of the bar's
+ * numbers has to be carried across that inset before it is used here. The
+ * port transcribed them as literals instead, as if the five scripts shared
+ * one origin, and the box's arithmetic stopped closing in both directions at
+ * once: the bar began on the icon's LAST ROW instead of two rows under it,
+ * and it ran outline to outline, erasing the box's own 1px black border for
+ * the bar's fifteen rows -- present above the bar and below it, absent
+ * beside it.
+ *
+ * Those are one defect and they take one number. Treating them as two and
+ * nudging each until it looked better -- the bar down a row to clear the
+ * icon, and in a column to clear the outline -- is what this constant
+ * replaces: it closes neither gap at the value the cache states, and it
+ * leaves the skirt under the bar four rows where the cache leaves three.
+ *
+ * Carried across, the 48 rows account for themselves exactly and
+ * symmetrically, and the bar's left edge (absolute 506) lands on the icon's
+ * (absolute 503 + 3), which is plainly the intended look:
+ *
+ *     3 over the icon + 25 icon + 2 gap + 15 bar + 3 under it = 48
+ */
+#define XT_BAR_LAYER_INSET 3
+/** script5365's own `25 + 2`, which is a BAR-layer offset as written. */
+#define XT_BAR_LAYER_Y (XT_ICON + 2)
+/** The same row, in the box's frame -- the frame this file draws in. */
+#define XT_BAR_Y (XT_BAR_LAYER_INSET + XT_BAR_LAYER_Y)
 /** The bar's height, as script5365 sets it. */
 #define XT_BAR_H 15
 /**
- * The bar's top: one row BELOW the icon's last row.
- *
- * The icon is blitted at `top + XT_BOX_GAP + 1` and is XT_ICON tall, so its
- * last row is `top + XT_BOX_GAP + XT_ICON`. At the script's own `2 + 25` the
- * bar started ON that row and won it, and seven of the twenty-five cells in
- * skills.png carry ink in source row 24 -- the Attack sword's pommel came out
- * cut flat. The +1 is the row the two were sharing.
- *
- * There is room: the bar now runs to `top + XT_BOX_GAP + XT_ICON + XT_BAR_H`
- * = top+42, five rows clear of the box's bottom border at top+47.
+ * The two end labels, anchored inside that same inset layer: the level at
+ * `calc(2 - 1)` from its left edge (729:10) and the goal at `calc(2 + 1)`
+ * from its right (729:11, `^setpos_abs_right`). Carried across the inset the
+ * left one lands on 4, which is what this file used to spell as a padding it
+ * had chosen; the right one lands on 6, which it never did.
  */
-#define XT_BAR_Y (XT_BOX_GAP + XT_ICON + 1)
-/**
- * The bar is drawn INSIDE the box's 1px outline, not over it.
- *
- * PluginDraw_Frame draws that outline at column 0 and column w-1; a bar
- * filled from 0 for w columns erased both of them for its fifteen rows, so
- * the box had an outline above and below the bar and none beside it.
- */
-#define XT_BAR_INSET 1
+#define XT_BAR_LABEL_L (XT_BAR_LAYER_INSET + (2 - 1))
+#define XT_BAR_LABEL_R (XT_BAR_LAYER_INSET + (2 + 1))
 /** The stat grid's line box. */
 #define XT_LINE_H 12
-#define XT_PAD 4
 /**
  * The grid's own inset and top, as script5366 states them: `$int7 = 2 * 2` is
  * the right-edge inset every column is anchored from, and `$y8 = row*50 + 4`
@@ -194,6 +240,19 @@
 #define XT_INK_VALUE 0xFFFFFFu
 #define XT_INK_KEY 0xCCCCCCu
 /** The virtual-level table's last level and the final XP goal after it. */
+/*
+ * The box closes. Either half of the layer-frame carry can be dropped on its
+ * own and still compile, and each way the picture is merely a little wrong
+ * rather than obviously broken -- which is how two separate nudges got
+ * written for it -- so the arithmetic says so here instead of in a comment.
+ */
+_Static_assert(
+    XT_ICON_Y + XT_ICON + 2 == XT_BAR_Y,
+    "the bar starts two rows under the icon, not on its last row");
+_Static_assert(
+    XT_BAR_Y + XT_BAR_H + XT_BAR_LAYER_INSET == XT_BOX_H,
+    "what is left under the bar is the bar layer's own inset");
+
 #define XT_VIRTUAL_LEVEL_MAX 126
 #define XT_MAX_XP 200000000
 
@@ -1197,7 +1256,7 @@ xt_draw_box(
     /* The icon, indexed BY SKILL ID -- skills.png is cut in that order. */
     if( g_skill_px && skill * XT_ICON < g_skill_w )
         PluginDraw_Blit(
-            buf, w, h, XT_ICON_X, top + XT_BOX_GAP + 1, g_skill_px, g_skill_w,
+            buf, w, h, XT_ICON_X, top + XT_ICON_Y, g_skill_px, g_skill_w,
             g_skill_h, skill * XT_ICON, 0, XT_ICON, XT_ICON, 0);
 
     /*
@@ -1263,9 +1322,9 @@ xt_draw_box(
     /* Only 200m is done. Level 99 continues through the cache's virtual-level
      * thresholds; level 126 continues to the final 200m "Max!" goal. */
     done = progress.done;
-    /* Every span below is measured in the INSET width, so a full bar stops at
-     * the outline instead of painting over it. */
-    bar_w = w - 2 * XT_BAR_INSET;
+    /* Every span below is measured in the bar LAYER's width, which is what
+     * leaves the box's outline, and three columns of its wash, beside it. */
+    bar_w = w - 2 * XT_BAR_LAYER_INSET;
     if( bar_w < 0 )
         bar_w = 0;
     fill_w = done ? bar_w
@@ -1275,9 +1334,11 @@ xt_draw_box(
     if( fill_w > bar_w )
         fill_w = bar_w;
 
-    PluginDraw_Fill(buf, w, h, XT_BAR_INSET, bar_y, bar_w, XT_BAR_H, XT_BAR_TRACK, 255);
-    PluginDraw_Fill(buf, w, h, XT_BAR_INSET, bar_y, fill_w, XT_BAR_H,
-                    done ? XT_BAR_DONE : XT_BAR_FILL, 255);
+    PluginDraw_Fill(
+        buf, w, h, XT_BAR_LAYER_INSET, bar_y, bar_w, XT_BAR_H, XT_BAR_TRACK, 255);
+    PluginDraw_Fill(
+        buf, w, h, XT_BAR_LAYER_INSET, bar_y, fill_w, XT_BAR_H,
+        done ? XT_BAR_DONE : XT_BAR_FILL, 255);
 
     /*
      * Its three labels: the level at each end, the percentage in the middle.
@@ -1288,12 +1349,13 @@ xt_draw_box(
     if( !done )
     {
         snprintf(text, sizeof(text), "Lvl. %d", level);
-        PLUGIN_DRAW_TEXT(buf, w, h, XT_PAD, bar_y + 2, text, XT_INK_KEY);
+        PLUGIN_DRAW_TEXT(buf, w, h, XT_BAR_LABEL_L, bar_y + 2, text, XT_INK_KEY);
         if( progress.max_goal )
             snprintf(text, sizeof(text), "Max!");
         else
             snprintf(text, sizeof(text), "Lvl. %d", level + 1);
-        PLUGIN_DRAW_TEXT_RIGHT(buf, w, h, w - XT_PAD, bar_y + 2, text, XT_INK_KEY);
+        PLUGIN_DRAW_TEXT_RIGHT(
+            buf, w, h, w - XT_BAR_LABEL_R, bar_y + 2, text, XT_INK_KEY);
     }
 
     if( s->paused )
