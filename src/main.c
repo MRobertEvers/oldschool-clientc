@@ -3433,12 +3433,43 @@ frame_loop_teardown(void)
             char* hov_sep = NULL;
             int hov_x = (int)strtol(getenv("TORIRS_SIM_HOVER"), &hov_sep, 0);
             int hov_y = hov_sep && *hov_sep == ',' ? (int)strtol(hov_sep + 1, NULL, 0) : 0;
+            /*
+             * These frames CONTINUE the loop's clock; they do not restart it.
+             *
+             * `now_ms` is the clock the session is judged against, and it is
+             * the one App_RunOnce hands NetLinkWatch_Step. The four frames
+             * used to be stamped 20/40/60/80 -- absolute, from zero -- so
+             * after a run of any length the clock jumped BACKWARDS by the
+             * whole session, `now_ms - last_recv_ms` wrapped unsigned, and
+             * the watch read the wrap as fifteen silent seconds. It then tore
+             * the session down: "Connection lost / Please wait - attempting
+             * to reestablish" across the viewport, and with it the local
+             * player, every npc and every minimap dot. Four frames of parked
+             * pointer are not supposed to cost a session, and every shot that
+             * asked for a hover paid for one -- which is what left the tile
+             * indicator's own headline photograph with no player to mark.
+             */
+            uint64_t const hov_base_ms = app.last_frame_ms;
             for( int t = 0; t < 4; t++ )
             {
-                LibToriRS_Input_Begin(hov_input, (uint64_t)(t + 1) * 20);
+                uint64_t const hov_ms = hov_base_ms + (uint64_t)(t + 1) * 20;
+                LibToriRS_Input_Begin(hov_input, hov_ms);
                 LibToriRS_Input_PushMouseMove(hov_input, hov_x, hov_y);
                 LibToriRS_Input_End(hov_input);
-                App_RunOnce(&app, (uint64_t)(t + 1) * 20, hov_input);
+                (void)App_RunOnce(&app, hov_ms, hov_input);
+                /*
+                 * Unconditionally, and not on App_RunOnce's redraw answer:
+                 * the world PICK is armed inside App_Render, so the parked
+                 * pointer only reaches the pickset and world_hover_tile_x/z
+                 * by rendering. Without this the pointer moved and nothing
+                 * re-picked, and hover-tile consumers kept answering the tile
+                 * the last main-loop event left -- on the CS1 lane that was
+                 * the login click, a tile the ~varrock teleport had since put
+                 * under a roof. A frame that reports no redraw has still
+                 * moved the pointer, so the redraw flag is the wrong question
+                 * for these four.
+                 */
+                sim_render_frame(&app);
             }
             TORIRS_LOG(
                 "sim_hover: parked at %d,%d hover_com_id=%d\n", hov_x, hov_y, app.hover_com_id);
