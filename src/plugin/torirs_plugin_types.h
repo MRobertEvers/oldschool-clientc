@@ -146,6 +146,10 @@ struct ToriRS_PlayerSnapshot
     /** ToriDraw scene element, for api->draw_hull. -1 when not drawn. */
     int element_id;
     int combat_level;
+    /** The player's name, or EMPTY when this client does not know it. Never a
+     *  decoder's failure token: a name that did not decode reads as absent,
+     *  so a plugin using this as an identity -- a folder, a key, a tag -- can
+     *  test it the one obvious way. @see Base37_IsInvalidName. */
     char name[32];
 };
 
@@ -393,8 +397,15 @@ struct ToriRS_LootSource
 struct ToriRS_LootRow
 {
     int obj_id;
+    /** How many of them, summed over every kill this source has recorded. */
     int quantity;
-    /** The value the store recorded, which is ObjType.cost at drop time. */
+    /**
+     * What ONE of them is worth: `ObjType.cost` at drop time.
+     *
+     * A unit price, so the row is worth `value * quantity` -- and a per-item
+     * rule such as high alchemy's `floor(cost * 3 / 5)` truncates HERE, before
+     * that multiply, exactly as the reference's per-unit haPrice does.
+     */
     int value;
 };
 
@@ -706,6 +717,23 @@ enum ToriRS_PanelActionKind
     TORIRS_PANEL_ACTION_SCROLL,
     /** A custom region received a key. `value` is a TORIRS_KEY_* code. */
     TORIRS_PANEL_ACTION_KEY,
+    /**
+     * A custom region was SECONDARY-clicked. `x`/`y` are its own logical
+     * coordinates, exactly as ACTIVATE carries them.
+     *
+     * A well is one control, so everything inside it is arithmetic on a
+     * coordinate -- and without this a well could be told where it was clicked
+     * but never which button did it. A plugin whose strip has per-band and
+     * per-cell operations therefore had nowhere to put them and left them as
+     * buttons standing under a selected row, which is the loot tracker's page
+     * and the one thing that blocked its port outright.
+     *
+     * It commits no result state. There is nothing in the widget model a
+     * secondary click MEANS -- no value moved, no text, no selection -- and a
+     * kind that wrote one would be inventing a semantic the presenters do not
+     * share.
+     */
+    TORIRS_PANEL_ACTION_MENU,
 };
 
 
@@ -720,7 +748,7 @@ enum ToriRS_PanelActionKind
 /** Bounded logical height of one custom drawing well. */
 #define TORIRS_PANEL_CUSTOM_HEIGHT_DEFAULT 120
 #define TORIRS_PANEL_CUSTOM_HEIGHT_MIN 48
-#define TORIRS_PANEL_CUSTOM_HEIGHT_MAX 512
+#define TORIRS_PANEL_CUSTOM_HEIGHT_MAX 2048
 
 /** Inert rail metadata copied by panel_request during on_start. */
 struct ToriRS_PanelDescriptor
@@ -1112,6 +1140,22 @@ struct ToriRS_FeatureInfo
     int value_count;
     /** The value the flag holds right now. */
     int value;
+    /**
+     * The value the engine ACTS on, which is not always the one it stores.
+     *
+     * A flag whose field carries a SENTINEL resolves it at the point of use:
+     * `draw_distance` stores 0 for "this era states no preference" and the
+     * painter reads that 0 as its 25-tile minimum. Nothing outside the engine
+     * can know that rule, so the engine states its answer here rather than
+     * leaving every reader to reinvent it -- a page that named `value` would
+     * tell the player the draw distance is zero tiles, which is neither one of
+     * the flag's choices nor inside its own [min, max].
+     *
+     * Equal to `value` for every flag that has no such rule, which is all but
+     * one of them today. Read it wherever a PERSON is shown the value; read
+     * `value` where the question is what the field holds.
+     */
+    int effective;
     /** 1 when the value in force is this boot's own, i.e. nothing has set it. */
     int is_default;
 };
@@ -1153,6 +1197,32 @@ enum ToriRS_HullShape
     TORIRS_HULL_BOUNDS = 0,
     /** The model's own posed geometry: tight, and linear in the mesh. */
     TORIRS_HULL_MESH = 1
+};
+
+/**
+ * Where a tile marker sits against the scene it marks.
+ *
+ * A marked tile is a place on the ground, so there are two honest answers to
+ * "what happens when something stands on it", and the cache states which it
+ * wants: bit 16 of a highlight group's flags is the settings row spelled
+ * "- Always on top", and the cache sets it on the tile-marker group and
+ * leaves it off the current-tile and hovered-tile ones.
+ *
+ * This is NOT a hint. ON_TOP composites the marker after the whole scene;
+ * IN_SCENE draws it with the tile's own ground, so the locs, npcs and players
+ * the painter puts down after that tile cover it. Nothing else about the
+ * marker changes: same quad, same wash, same border.
+ */
+enum ToriRS_TileDepth
+{
+    /**
+     * Over everything. The default, because it is what every caller got while
+     * there was no parameter, and because it is what a marker the USER placed
+     * is for -- a tile mark you cannot see behind a wall has not marked it.
+     */
+    TORIRS_TILE_ON_TOP = 0,
+    /** In the scene, under whatever stands on the tile. */
+    TORIRS_TILE_IN_SCENE = 1
 };
 
 /* ------------------------------------------------------------------------ */

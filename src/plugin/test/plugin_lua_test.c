@@ -1,3 +1,4 @@
+#include "plugin/porcelain/test/porcelain_testbed.h"
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_lua.h"
 
@@ -27,6 +28,9 @@ static int g_surfaces;
 static int g_disabled_self;
 static int g_config_dispatches;
 static char g_disable_reason[192];
+
+/* The refusals the runtime group provokes on purpose, counted. @see main. */
+#define LUA_TEST_DELIBERATE_DISABLES 15
 
 #define CHECK(condition, message)                                                       \
     do                                                                                  \
@@ -601,9 +605,21 @@ static void test_widget_set_anchor(struct ToriRS_PluginHost* host)
         "local p={id='widget-anchor'};function p.on_start(api) "
         " local control=assert(api.widgets.get(1));local target=assert(api.widgets.get(1));"
         " assert(control:set_anchor(target,'behind'));"
-        " assert(control:set_anchor(nil,'native'));"
-        " assert(not pcall(function() control:set_anchor(target,'sideways') end));"
-        " assert(not pcall(function() control:set_anchor(nil,'over') end)) end;return p";
+        " assert(control:set_anchor(nil,'native')) end;return p";
+    /* The two REFUSALS, each as its own script, because the sandbox removes
+     * pcall and always has: a refusal is a FAULT here, and a fault ends the
+     * callback. Written as `assert(not pcall(...))` inside the script above,
+     * both of these read as passes -- pcall was nil, the script was disabled
+     * at the call, and the only CHECK left was one the two lines before it
+     * had already satisfied. Neither claim was ever tested. */
+    static char const bad_relation[]=
+        "local p={id='widget-anchor-relation'};function p.on_start(api) "
+        " local control=assert(api.widgets.get(1));local target=assert(api.widgets.get(1));"
+        " control:set_anchor(target,'sideways') end;return p";
+    static char const nil_target[]=
+        "local p={id='widget-anchor-target'};function p.on_start(api) "
+        " local control=assert(api.widgets.get(1));"
+        " control:set_anchor(nil,'over') end;return p";
     struct FakeInstance instance={"widget-anchor",""};struct ToriRS_Api api=fake_api(&instance);
     api.widgets.get_widget=fake_lua_get_widget;api.widgets.set_anchor=fake_lua_set_anchor;
     int index=PluginLua_AddScript(host,"widget-anchor",source,(int)strlen(source));
@@ -612,6 +628,33 @@ static void test_widget_set_anchor(struct ToriRS_PluginHost* host)
     g_defs[index]->callbacks.on_start(&api,NULL);
     CHECK(lua_anchor_sets==2 && lua_anchor_relation==TORIRS_WIDGET_RELATION_NATIVE && lua_anchor_target.opaque[0]==0,
           "Lua forwards named relations and a nil target for native");
+
+    /* Its OWN instance: the runtime finds the script by core.plugin_id(), so
+     * a second script driven through the first one's api runs the FIRST one's
+     * body and proves nothing about itself. */
+    struct FakeInstance bad_instance={"widget-anchor-relation",""};
+    struct ToriRS_Api bad_api=fake_api(&bad_instance);
+    bad_api.widgets.get_widget=fake_lua_get_widget;bad_api.widgets.set_anchor=fake_lua_set_anchor;
+    int disables=g_disabled_self;
+    int bad=PluginLua_AddScript(host,"widget-anchor-relation",bad_relation,(int)strlen(bad_relation));
+    CHECK(bad>=0,"the bad-relation script registers");
+    lua_anchor_sets=0;
+    g_defs[bad]->callbacks.on_start(&bad_api,NULL);
+    CHECK(g_disabled_self==disables+1 && strstr(g_disable_reason,"sideways")!=NULL,
+          "an unnamed anchor relation is refused by name");
+    CHECK(lua_anchor_sets==0,"and never reaches the native set_anchor");
+
+    struct FakeInstance nil_instance={"widget-anchor-target",""};
+    struct ToriRS_Api nil_api=fake_api(&nil_instance);
+    nil_api.widgets.get_widget=fake_lua_get_widget;nil_api.widgets.set_anchor=fake_lua_set_anchor;
+    disables=g_disabled_self;
+    int nil_index=PluginLua_AddScript(host,"widget-anchor-target",nil_target,(int)strlen(nil_target));
+    CHECK(nil_index>=0,"the nil-target script registers");
+    lua_anchor_sets=0;
+    g_defs[nil_index]->callbacks.on_start(&nil_api,NULL);
+    CHECK(g_disabled_self==disables+1 && strstr(g_disable_reason,"torirs.widget")!=NULL,
+          "only 'native' takes a nil target; every other relation needs a widget");
+    CHECK(lua_anchor_sets==0,"and that one never reaches the native set_anchor either");
 }
 static int lua_img_slot,lua_img_w,lua_img_h,lua_img_opacity,lua_img_creates;
 static enum ToriRS_ContractResult fake_lua_create_image(void* ctx,struct ToriRS_WidgetRef parent,char const* key,struct ToriRS_WidgetRef* out)
@@ -727,6 +770,345 @@ test_bundled_scripts(struct ToriRS_PluginHost* host)
     CHECK(g_registered == 17, "all seventeen bundled scripts registered");
 }
 
+/* --------------------------------------------------- the real porcelain lane */
+/*
+ * Every other product-behaviour case runs the plugin against a stand-in
+ * reconciler written in its own test file. A stand-in can only pin what its
+ * author believed, and two things about the port are not the author's to
+ * believe: whether the runtime installs the pump at all, and what the layer
+ * actually spends in the steady state. This case runs the SHIPPED
+ * performance_display.lua against the real layer over the Porcelain testbed,
+ * dispatches its frames through the registered callback table -- lua_cb_frame,
+ * the pump itself -- and lets the Lua side read the handle's own counters.
+ */
+static int g_counter_logs;
+static char g_counter_log[4][192];
+
+static void
+counters_log(struct ToriRS_Api* api, char const* format, ...)
+{
+    va_list arguments;
+    (void)api;
+    if( g_counter_logs >= (int)(sizeof(g_counter_log) / sizeof(g_counter_log[0])) )
+        return;
+    va_start(arguments, format);
+    vsnprintf(g_counter_log[g_counter_logs], sizeof(g_counter_log[0]), format, arguments);
+    va_end(arguments);
+    g_counter_logs++;
+}
+
+struct CountersConfigRow
+{
+    char const* key;
+    int number;
+    char const* text;
+};
+static struct CountersConfigRow COUNTERS_CONFIG[] = {
+    {"show_fps", 1, NULL},        {"show_frame_time", 1, NULL},
+    {"show_effective_fps", 1, NULL}, {"show_memory", 1, NULL},
+    /* Long enough that the refresh window never closes inside the run: a
+     * re-latched FPS or memory figure is a string that MOVED, which is a
+     * describe the steady-state case is not measuring. */
+    {"refresh_ms", 60000, NULL},  {"x", 10, NULL}, {"y", 25, NULL},
+    {"text_color", 0xffffff, NULL},
+};
+
+static struct CountersConfigRow*
+counters_config_row(char const* key)
+{
+    for( size_t i = 0; i < sizeof(COUNTERS_CONFIG) / sizeof(COUNTERS_CONFIG[0]); i++ )
+        if( strcmp(COUNTERS_CONFIG[i].key, key) == 0 )
+            return &COUNTERS_CONFIG[i];
+    return NULL;
+}
+static bool counters_config_has(struct ToriRS_Api* api, char const* key)
+{ (void)api; return counters_config_row(key) != NULL; }
+static bool counters_config_get_bool(struct ToriRS_Api* api, char const* key, bool* out)
+{
+    struct CountersConfigRow const* row = counters_config_row(key);
+    (void)api;
+    if( !row ) return false;
+    *out = row->number != 0;
+    return true;
+}
+static bool counters_config_get_int(struct ToriRS_Api* api, char const* key, int* out)
+{
+    struct CountersConfigRow const* row = counters_config_row(key);
+    (void)api;
+    if( !row ) return false;
+    *out = row->number;
+    return true;
+}
+static bool counters_config_get_color(struct ToriRS_Api* api, char const* key, uint32_t* out)
+{
+    struct CountersConfigRow const* row = counters_config_row(key);
+    (void)api;
+    if( !row ) return false;
+    *out = (uint32_t)row->number;
+    return true;
+}
+static uint64_t counters_work_us(struct ToriRS_Api* api)
+{ (void)api; return 4000; }
+static size_t counters_memory_bytes(struct ToriRS_Api* api)
+{ (void)api; return (size_t)128u * 1024u * 1024u; }
+
+static void
+test_real_porcelain_pump(struct ToriRS_PluginHost* host)
+{
+    static struct ToriRS_Api api;
+    static struct ToriRS_ClientApi client;
+    struct FakeInstance instance = {"performance-counters", ""};
+    int product_size = 0, tail_size = 0;
+    char* product = read_file("../script/plugins/performance_display.lua", &product_size);
+    char* tail = read_file("plugin/test/performance_display_counters.lua", &tail_size);
+    char* source;
+    size_t capacity;
+    int index;
+    int errors_before;
+    int disables_before;
+
+    CHECK(product && tail, "real porcelain sources readable");
+    if( !product || !tail ) { free(product); free(tail); return; }
+    capacity = (size_t)product_size + (size_t)tail_size + 64;
+    source = malloc(capacity);
+    CHECK(source != NULL, "real porcelain source allocation");
+    if( !source ) { free(product); free(tail); return; }
+
+    Testbed_Reset();
+    /* The one element the four rows are placed inside. Parent-local 0,0 so a
+     * row's resolved box is the offset the plugin asked for. */
+    Testbed_DeclareElement("viewport", 0, 0, 512, 334);
+    Testbed_BindElement("viewport");
+
+    api = *Testbed_Api();
+    api.instance = &instance;
+    api.core.plugin_id = fake_plugin_id;
+    api.core.log = counters_log;
+    /* Neither of these is on the porcelain testbed, because no Porcelain case
+     * needed them; the plugin reads both every frame. */
+    api.core.frame_work_us = counters_work_us;
+    memset(&client, 0, sizeof(client));
+    client.struct_size = sizeof(client);
+    client.memory_bytes = counters_memory_bytes;
+    client.disable_self = fake_disable_self;
+    api.client = &client;
+    api.config.has = counters_config_has;
+    api.config.get_bool = counters_config_get_bool;
+    api.config.get_int = counters_config_get_int;
+    api.config.get_color = counters_config_get_color;
+
+    snprintf(source, capacity, "local product=(function()\n%.*s\nend)()\n%.*s",
+        product_size, product, tail_size, tail);
+    index = PluginLua_AddScript(host, "performance-counters", source, (int)strlen(source));
+    CHECK(index >= 0, "real porcelain script registers");
+    if( index >= 0 )
+    {
+        struct ToriRS_FrameEvent event;
+        errors_before = g_reported_errors;
+        disables_before = g_disabled_self;
+        g_counter_logs = 0;
+        g_defs[index]->callbacks.on_start(&api, NULL);
+        for( int i = 1; i <= 36; i++ )
+        {
+            memset(&event, 0, sizeof(event));
+            event.now_ms = (uint64_t)i * 20u;
+            event.drawn_frames = (uint32_t)i;
+            g_defs[index]->callbacks.on_frame_start(&api, NULL, &event);
+            /* Three server ticks between the counter reset and the reading.
+             * Nothing in the registered table declares on_server_tick, so a
+             * timer that fires can only have been forwarded by the pump. */
+            if( i == 20 || i == 22 || i == 24 )
+            {
+                struct ToriRS_TickEvent tick;
+                memset(&tick, 0, sizeof(tick));
+                tick.cycle = (uint32_t)i;
+                g_defs[index]->callbacks.on_server_tick(&api, NULL, &tick);
+            }
+        }
+        for( int i = 0; i < g_counter_logs; i++ )
+            printf("lua plugin test: %s\n", g_counter_log[i]);
+        /* A Lua assertion inside a handler is a FAULT, and a fault routes to
+         * client.disable_self rather than to the host error, so both have to
+         * be read -- otherwise every assertion in the tail above is a line on
+         * stderr and a green exit code. */
+        if( g_disabled_self != disables_before )
+            fprintf(stderr, "performance-counters: %s\n", g_disable_reason);
+        CHECK(g_disabled_self == disables_before,
+            "the shipped plugin runs against the real layer without faulting");
+        CHECK(g_reported_errors == errors_before,
+            "and without a host error");
+        CHECK(g_counter_logs == 2, "and reached the steady-state reading");
+        /* The pump, from the other side: four rows exist on the real engine
+         * although nothing in the plugin or this file ever called fence. */
+        CHECK(Testbed_LiveControls() == 4,
+            "open() installed the pump: four rows are live with no fence anywhere "
+            "in the plugin");
+        CHECK(Testbed_Control("performance_frame") != NULL,
+            "and they are the plugin's own keys");
+        /* The third handler the pump installs. Nothing in the registered table
+         * notes the config input any more -- performance_display recomposes
+         * its strings and nothing else -- so a row that empties can only mean
+         * the runtime noted it before calling the plugin's handler. */
+        {
+            struct ToriRS_FrameEvent later;
+            struct TestbedControl const* fps;
+            counters_config_row("show_fps")->number = 0;
+            g_defs[index]->callbacks.on_config_changed(&api, NULL, "show_fps");
+            memset(&later, 0, sizeof(later));
+            later.now_ms = 1000;
+            later.drawn_frames = 40;
+            g_defs[index]->callbacks.on_frame_start(&api, NULL, &later);
+            fps = Testbed_Control("performance_fps");
+            CHECK(fps != NULL && fps->text[0] == '\0',
+                "the pump notes the config input: a switched-off row empties although "
+                "the plugin never noted it");
+            counters_config_row("show_fps")->number = 1;
+        }
+        g_defs[index]->callbacks.on_stop(&api, NULL);
+        CHECK(Testbed_LiveControls() == 0, "stopping drops them with the handle");
+    }
+    free(source); free(product); free(tail);
+}
+
+/*
+ * What the pump costs a plugin that has nothing to reconcile.
+ *
+ * Two of the four ported Lua plugins are deliberately minimal: tile_indicator
+ * opens the layer for its refusal channel and never speaks to it again, and
+ * entity_highlighter has no description at all -- it used to guard its own
+ * fence with "only when the reveal key armed, so a lane that answered ABSENT
+ * pays nothing per frame". `open` now installs the pump for both, so that
+ * claim stops being the plugin's to make and becomes the layer's to answer.
+ *
+ * This is the answer, read off the handle rather than argued: a plugin that
+ * opens the layer, describes nothing, registers no timer, holds no asset and
+ * arms no key edge is pumped for 200 frames and makes ZERO engine calls and
+ * ZERO allocations. Nothing had to be opted out of.
+ */
+static char const IDLE_PROBE[] =
+    "local p={id='idle-probe'}\n"
+    "local opened=false\n"
+    "function p.on_start(api) opened=api.porcelain.open() end\n"
+    "function p.on_frame_start(api)\n"
+    "  if not opened then return end\n"
+    "  local c=api.porcelain.counters_read()\n"
+    "  assert(c.engine_calls==0,'an idle pumped handle makes no engine call')\n"
+    "  assert(c.allocations==0,'and allocates nothing')\n"
+    "  assert(c.describe_runs==0,'and runs no describe: there is none')\n"
+    "  assert(c.revalidates==0,'and costs no layout resolve')\n"
+    "end\n"
+    "return p\n";
+
+static void
+test_pump_costs_an_idle_plugin_nothing(struct ToriRS_PluginHost* host)
+{
+    static struct ToriRS_Api api;
+    struct FakeInstance instance = {"idle-probe", ""};
+    int index;
+    int disables_before;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+
+    api = *Testbed_Api();
+    api.instance = &instance;
+    api.core.plugin_id = fake_plugin_id;
+    api.core.log = counters_log;
+
+    index = PluginLua_AddScript(host, "idle-probe", IDLE_PROBE, (int)strlen(IDLE_PROBE));
+    CHECK(index >= 0, "idle probe registers");
+    if( index < 0 ) return;
+    disables_before = g_disabled_self;
+    g_defs[index]->callbacks.on_start(&api, NULL);
+    for( int i = 1; i <= 200; i++ )
+    {
+        struct ToriRS_FrameEvent event;
+        memset(&event, 0, sizeof(event));
+        event.now_ms = (uint64_t)i * 20u;
+        event.drawn_frames = (uint32_t)i;
+        g_defs[index]->callbacks.on_frame_start(&api, NULL, &event);
+    }
+    if( g_disabled_self != disables_before )
+        fprintf(stderr, "idle-probe: %s\n", g_disable_reason);
+    CHECK(g_disabled_self == disables_before,
+        "200 pumped frames cost a plugin with nothing to reconcile nothing at all");
+    CHECK(Testbed_LogCount() == 0,
+        "and reach the engine not once");
+    g_defs[index]->callbacks.on_stop(&api, NULL);
+}
+
+/*
+ * The Lua word "within" reaches PORCELAIN_WITHIN, and what that costs.
+ *
+ * The behaviour tests read `item.place.kind` straight off the Lua table, so
+ * they pin the plugin's intent and NOT the runtime's translation of it. This
+ * drives the real parser and the real layer and reads the engine log: WITHIN
+ * is a child of the element with no anchor, INSIDE is a sibling over it with
+ * one, and the two read their corner and offsets identically.
+ */
+static char const WITHIN_PROBE[] =
+    "local p={id='within-probe'}\n"
+    "function p.on_start(api)\n"
+    "  assert(api.porcelain.open())\n"
+    "  api.porcelain.describe(function(d)\n"
+    "    d.piece({key='child',image='camera.png',w=20,h=20,"
+    "      place={kind='within',on='viewport',corner='bottom_right',dx=4,dy=4}})\n"
+    "    d.piece({key='sibling',image='camera.png',w=20,h=20,"
+    "      place={kind='inside',on='viewport',corner='bottom_right',dx=4,dy=4}})\n"
+    "  end)\n"
+    "end\n"
+    "return p\n";
+
+static void
+test_lua_within_placement(struct ToriRS_PluginHost* host)
+{
+    static struct ToriRS_Api api;
+    struct FakeInstance instance = {"within-probe", ""};
+    struct TestbedControl const* child;
+    struct TestbedControl const* sibling;
+    int index;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_BindElement("viewport");
+    Testbed_DeclareImage("camera.png", TORIRS_ASSET_READY, 20, 20);
+
+    api = *Testbed_Api();
+    api.instance = &instance;
+    api.core.plugin_id = fake_plugin_id;
+    api.core.log = counters_log;
+
+    index = PluginLua_AddScript(host, "within-probe", WITHIN_PROBE, (int)strlen(WITHIN_PROBE));
+    CHECK(index >= 0, "within probe registers");
+    if( index < 0 ) return;
+    g_defs[index]->callbacks.on_start(&api, NULL);
+    for( int i = 1; i <= 3; i++ )
+    {
+        struct ToriRS_FrameEvent event;
+        memset(&event, 0, sizeof(event));
+        event.now_ms = (uint64_t)i * 20u;
+        event.drawn_frames = (uint32_t)i;
+        g_defs[index]->callbacks.on_frame_start(&api, NULL, &event);
+    }
+    child = Testbed_Control("child");
+    sibling = Testbed_Control("sibling");
+    CHECK(child && child->live, "a 'within' item is placed");
+    CHECK(sibling && sibling->live, "and so is the 'inside' item beside it");
+    if( !child || !sibling ) return;
+    CHECK(ToriRS_WidgetRefEqual(child->parent, Testbed_Element("viewport")->ref),
+        "'within' parents the item to the element itself");
+    CHECK(Testbed_LogCountWith("set_anchor child") == 0,
+        "and pays NO anchor for it");
+    CHECK(Testbed_LogCountWith("set_anchor sibling") == 1,
+        "while 'inside' is a sibling that pays one");
+    CHECK(child->x == 512 - 20 - 4 && child->y == 334 - 20 - 4,
+        "'within' reads the corner in the element's OWN coordinates");
+    CHECK(sibling->x == 4 + 512 - 20 - 4 && sibling->y == 4 + 334 - 20 - 4,
+        "and 'inside' reads the same corner in the element's PARENT's");
+    g_defs[index]->callbacks.on_stop(&api, NULL);
+}
+
 static void test_product_behavior(struct ToriRS_PluginHost* host,
     char const* product_path, char const* test_path, char const* id)
 {
@@ -768,6 +1150,24 @@ main(void)
     test_widget_set_anchor(&host);
     test_widget_images(&host);
     test_menu_module(&host);
+    /*
+     * A DISABLED PLUGIN AND A WORKING ONE MAKE THE SAME SILENCE.
+     *
+     * Every refusal above is provoked on purpose and each has a CHECK on the
+     * reason it gave. Nothing reconciled the SET, though, so a script that
+     * faulted for a reason nobody intended just printed a line and left the
+     * suite green -- which is how `widget-anchor` spent its life calling a
+     * pcall the sandbox has always removed, disabling itself at the third
+     * statement, with the only CHECK after it already satisfied by the first
+     * two. Two refusals were claimed and neither was ever tested.
+     *
+     * So the count is DECLARED. Adding a negative fixture means saying so
+     * here; a disable nobody declared turns the suite red at the frame that
+     * caused it.
+     */
+    CHECK(g_disabled_self == LUA_TEST_DELIBERATE_DISABLES,
+        "every self-disable in the runtime group is one this suite provoked on purpose");
+    int const disables_after_runtime = g_disabled_self;
     PluginLua_Shutdown();
     reset_fake();
     test_bundled_scripts(&host);
@@ -783,12 +1183,23 @@ main(void)
         "plugin/test/entity_highlighter_behavior.lua","entity-behavior");
     test_product_behavior(&host,"../script/plugins/ground_items.lua",
         "plugin/test/ground_items_behavior.lua","ground-behavior");
+    test_product_behavior(&host,"../script/plugins/loot_beam.lua",
+        "plugin/test/loot_beam_behavior.lua","loot-beam-behavior");
     test_product_behavior(&host,"../script/plugins/_beamprobe.lua",
         "plugin/test/overlay_probe_behavior.lua","overlay-probe-behavior-beam-probe");
     test_product_behavior(&host,"../script/plugins/_gicount.lua",
         "plugin/test/overlay_probe_behavior.lua","overlay-probe-behavior-gi-count");
     test_product_behavior(&host,"../script/plugins/_drawprobe.lua",
         "plugin/test/overlay_probe_behavior.lua","overlay-probe-behavior-drawprobe");
+    test_real_porcelain_pump(&host);
+    test_lua_within_placement(&host);
+    test_pump_costs_an_idle_plugin_nothing(&host);
+    /* The second group has NO negative fixture in it: every bundled script,
+     * every ported product and every pump probe is meant to run to the end.
+     * One of them switching itself off at on_start is the exact failure this
+     * suite exists to catch, and it is invisible in a green run otherwise. */
+    CHECK(g_disabled_self == disables_after_runtime,
+        "no bundled script, product or pump probe disabled itself");
     PluginLua_Shutdown();
     if( g_failures )
     {

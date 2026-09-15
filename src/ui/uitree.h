@@ -7,6 +7,7 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define UI_INV_SLOT_OFFSET_MAX 20
@@ -1304,11 +1305,48 @@ struct UITreeNodeRef
     int32_t index;
 };
 
+/**
+ * Scratch buffers the hit walks borrow for the length of one walk.
+ *
+ * One slot per walk FAMILY, not per call: input and hover never nest, but they
+ * do run in the same frame, and giving each its own buffer keeps the
+ * re-entrancy assert on `busy` meaningful (a trip is a real nesting bug, not
+ * two unrelated walks sharing a slot). See UITree::walk_scratch.
+ */
+enum UITreeWalkScratchSlot
+{
+    UITREE_WALK_SCRATCH_INPUT = 0,
+    UITREE_WALK_SCRATCH_HOVER = 1,
+    UITREE_WALK_SCRATCH_COUNT = 2
+};
+
+/** @see UITree::owned_counts. */
+#define UITREE_OWNED_OWNERS_MAX 64
+struct UITreeOwnedCount
+{
+    uint64_t owner;
+    int32_t live;
+};
+
 struct UITree
 {
     struct UITreeGeometryAudit* geometry_audit;
     struct UITreeComponent* components;
     uint32_t component_count;
+    /**
+     * Live owned-control count per plugin owner, so the per-owner cap is an
+     * O(1) question at create time instead of a sweep of every component. It
+     * is maintained at the only two places an owner can appear or leave: the
+     * push that stamps `plugin_owner`, and uitree_component_free_owned, which
+     * every reclaim goes through before the component is memset.
+     *
+     * A reconciler creates on a new key and only then, so this is not a hot
+     * path today; it is O(1) so that it cannot become one when a description
+     * grows. The table cannot run out for the host's plugin budget, and the
+     * create path counts by hand if it ever does.
+     */
+    struct UITreeOwnedCount owned_counts[UITREE_OWNED_OWNERS_MAX];
+    int owned_count_entries;
     uint32_t component_capacity;
     int32_t root_index;
     /** Tail of root sibling list — O(1) append while baking large packs. */
@@ -1377,6 +1415,41 @@ struct UITree
      *  instead of clearing the whole array (which was 92% of the walk on a
      *  phone); the array is cleared for real only when the stamp wraps. */
     uint8_t emit_epoch;
+    /** Per-frame scratch for the input and hover hit walks (uitree_input.c,
+     *  uitree_hover.c). One buffer per walk family, grown to the largest event
+     *  list that family has ever needed and then reused for the life of the
+     *  tree.
+     *
+     *  It exists because the plugin path made the walks allocate: the moment a
+     *  single widget anchor exists, UITree_FrameHasDepth switches HitTest,
+     *  CollectNodesAt, HitTestInteractive and PointBlocksWorld onto the ordered
+     *  event collection, which ran SIX whole-tree walks a frame, each calloc'ing
+     *  `component_count * 2 + 1` events and freeing them again in the same frame
+     *  (1,037,160 bytes/frame on rev239 root 548, 7,200 nodes).
+     *
+     *  Written through a `struct UITree const*` on purpose — the walks take the
+     *  tree read-only and this is scratch, not tree state, exactly like
+     *  `emit_visited` above.
+     *
+     *  `busy` is the re-entrancy interlock. One buffer can serve only one live
+     *  walk, so a nested acquire on the same slot would hand the inner walk the
+     *  outer walk's still-live events; that is a bug in the caller and it aborts
+     *  here rather than silently corrupting a hit result. */
+    struct UITreeWalkScratch
+    {
+        void* mem;
+        size_t bytes;
+        /** Growths of this buffer. Zero after warm-up: the tests assert on it
+         *  because "no allocation per walk" is the whole point of the buffer. */
+        uint32_t allocs;
+        uint8_t busy;
+    } walk_scratch[UITREE_WALK_SCRATCH_COUNT];
+    /** Nodes entered by the hit/hover walks since the tree was created. The
+     *  tests read it either side of a walk: the ancestor re-walks that
+     *  node_native_available used to do made availability O(n x depth), and a
+     *  visit/host-request budget linear in the node count is what proves they
+     *  are gone. */
+    uint32_t walk_node_visits;
     /** Head of the reclaimed-slot free-list (chained via component free_next). */
     int32_t free_head;
     /** Lazy id->index acceleration for UITree_FindByComponentId. Open-addressed,
@@ -1552,6 +1625,24 @@ struct UITree
     struct UITreeFrameLayout* frame_layout;
     /** Retained widget anchor edits alive on this tree; the cheap depth gate. */
     int widget_anchor_edits;
+    /** Bumped by every write that can change WHICH nodes are ordering units:
+     *  a new or rewritten anchor edit, and every site that drops one (a node
+     *  free, an owner reset). The anchor plan (ui/uitree_frame.c) rebuilds its
+     *  unit list only when this moves or when topology (`generation`) does, so
+     *  a steady frame pays nothing for the tree walk the old pass repeated on
+     *  all eight reorder calls. */
+    uint32_t anchor_generation;
+    /** Nodes that have ever carried an anchor edit -- a SUPERSET of the live
+     *  anchor sources, kept so the plan rebuild is O(anchors) instead of a walk
+     *  over every node. An entry whose edit has since gone (dropped, reset, or
+     *  its target's ref died) reads NATIVE and is compacted out at the next
+     *  rebuild; it can never come back without UITree_WidgetSetAnchor putting
+     *  it here again. */
+    int32_t* anchor_nodes;
+    uint32_t anchor_node_count, anchor_node_capacity;
+    /** Reusable scratch for the anchor reorder pass; see ui/uitree_frame.c.
+     *  Opaque here on purpose: only the reorder owns its shape. */
+    struct UITreeAnchorPlan* anchor_plan;
     /**
      * Stamps the frame roles a cache gameframe does not declare for itself,
      * before any binding is collected. NULL on a tree nobody has bound.
@@ -1846,11 +1937,60 @@ struct UITreeNodeSpec
 char const*
 UITree_ComponentTypeStr(enum UITreeComponentType type);
 
+/**
+ * Is this component, or anything above it, hidden or freed?
+ *
+ * The hide flags are per-node and are NOT propagated: hiding a subtree leaves
+ * every descendant's own flag clear and its stale abs_* box intact. So a
+ * caller that reads geometry straight off the flat component array sees a
+ * hidden subtree's boxes as live ones unless it walks up, which is what this
+ * does.
+ *
+ * The walk is bounded at 256 ancestors. A component tree is nowhere near that
+ * deep, so the bound is there to stop a cycle -- which would otherwise hang
+ * the frame rather than draw something wrong.
+ */
+int
+UITree_ComponentHiddenOrOrphaned(
+    struct UITree const* tree,
+    int32_t idx);
+
 struct UITree*
 UITree_New(uint32_t hint);
 
 void
 UITree_Free(struct UITree* tree);
+
+/**
+ * Borrow `bytes` of walk scratch from `slot`, grown (never shrunk) to fit.
+ *
+ * The buffer's contents are undefined: a walk writes every event it later
+ * reads, and zeroing a megabyte per frame is exactly the cost this replaces.
+ * Every acquire must be paired with UITree_WalkScratchRelease before the walk
+ * returns, including on its early exits — the release is what lets the next
+ * walk in, and a nested acquire on a slot that is still held aborts.
+ *
+ * `tree` is const because the scratch is not tree state; see
+ * UITree::walk_scratch.
+ */
+void*
+UITree_WalkScratchAcquire(struct UITree const* tree, int slot, size_t bytes);
+
+void
+UITree_WalkScratchRelease(struct UITree const* tree, int slot);
+
+/** Total growths across every scratch slot. Zero-delta across a walk is the
+ *  test's proof that the walk allocated nothing. */
+uint32_t
+UITree_WalkScratchAllocs(struct UITree const* tree);
+
+/** Nodes entered by the hit/hover walks so far; tests read the delta. */
+uint32_t
+UITree_WalkNodeVisits(struct UITree const* tree);
+
+/** One node entered. Called by the walks themselves. */
+void
+UITree_WalkCountNodeVisit(struct UITree const* tree);
 
 /** Tear down every live node and mount record, keeping the tree object for a
  *  subsequent root open (IF_OPENTOP remount). Freed slots stay on the free-list. */
@@ -2149,6 +2289,13 @@ enum UITreeWidgetAnchorResult UITree_WidgetSetAnchor(struct UITree*, struct UITr
  * Writes the live target index (-1 for NATIVE). */
 enum UITreeWidgetRelation UITree_WidgetAnchorAt(struct UITree const*, int32_t idx, int32_t* out_target);
 int UITree_WidgetAnchorCount(struct UITree const*);
+
+/* The process-wide monotonic clock behind every retained widget edit: each
+ * stated position, size, hidden, outline, art, mask, anchor or projection
+ * value takes the next tick, and the highest tick for an aspect is the value
+ * the readers see. Exposed so a test can pin that a frame which only restated
+ * values already in force moved nothing at all. */
+uint64_t UITree_WidgetEditSerial(void);
 
 /* Native re-skin, retained per owner like the other edits. Art applies to a
  * native sprite, graphic or compass (scene id > 0) and only while the native
@@ -2869,6 +3016,20 @@ UITree_NodeOrAncestorDisplayHiddenEx(
     struct UITree const* tree,
     int32_t node_index,
     int ignore_frame_hidden);
+
+/**
+ * FNV-1a 64 of a text node's current string, as a CHANGE token.
+ *
+ * Zero for a node that is not RS_TEXT, so "this node carries no text" and
+ * "this node carries the empty string" (the FNV offset basis) are distinct
+ * answers. Callers that want to notice a caption being rewritten under them --
+ * the plugin state pass, the owned-widget trace -- compare this and never
+ * decode it.
+ */
+uint64_t
+UITree_NodeTextHash(
+    struct UITree const* tree,
+    int32_t node_index);
 
 /** Resync timer/key/wheel/resize/sub_change set membership from current hooks.
  *  Call after writing hook slots outside UITree_ApplyRuntimeHook (tests, etc.). */

@@ -152,6 +152,12 @@ struct UITreeRoleTable
      * the role (use matchers); -1 means the native role is currently absent. */
     int32_t (*fallback)(struct UITree const*, struct UITreeRoleTable const*, uint16_t, void*);
     void* fallback_user;
+    /** Open-addressed name index: slot -> role id (0 = empty), kept at most
+     *  half full and rebuilt by UITree_RoleIntern when it grows. Every
+     *  per-frame lookup by name (a plugin's widget request, a frame binder)
+     *  used to walk `entries` with strcmp: 7,000 compares a frame. */
+    uint16_t* name_index;
+    uint32_t name_index_capacity; /* power of two, or 0 before the first intern */
 };
 
 /**

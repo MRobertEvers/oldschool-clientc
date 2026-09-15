@@ -1902,6 +1902,85 @@ test_chrome_exec_external_intent_serial(void)
         "rebinding identity removes/adds the node so old DOM listeners stay stale");
 }
 
+/**
+ * The re-identified row states WHERE it goes back, not only that it is back.
+ *
+ * A presentation that appends builds the page correctly from a snapshot and
+ * then quietly corrupts it on the first re-identify of anything but the last
+ * row -- the row drops to the bottom. Today's loot tracker keeps its strip
+ * first, which is the only reason nobody has seen it.
+ */
+static void
+test_chrome_exec_reidentify_keeps_row_position(void)
+{
+    struct ToriRSChromeCmd const* add;
+    int panel;
+    int first;
+    int middle;
+    int last;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(
+        &g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 200, "Loot");
+    first = ToriRSChrome_Label(&g_ui, panel, "Session");
+    middle = ToriRSChrome_Label(&g_ui, panel, "Coins");
+    last = ToriRSChrome_Label(&g_ui, panel, "Total");
+    ToriRSChrome_WidgetSetIntentSerial(&g_ui, middle, 8001);
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+
+    /* The snapshot walk runs in row order, so every row's successor is still
+     * unknown to the executor and append is the only answer that means
+     * anything. */
+    add = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, first);
+    TEST_ASSERT(add && add->before_widget == -1,
+        "the in-order snapshot appends rather than naming an anchor");
+    add = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, last);
+    TEST_ASSERT(add && add->before_widget == -1,
+        "including its last row");
+
+    exec_settle();
+    ToriRSChrome_WidgetSetIntentSerial(&g_ui, middle, 8002);
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+
+    add = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, middle);
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(
+            &g_rec, TORIRS_CHROME_CMD_WIDGET_REMOVE) == 1 &&
+            add && add->serial == 8002,
+        "a new identity on a middle row is one remove and one add");
+    TEST_ASSERT(add && add->before_widget == last,
+        "and the add names the row it must precede, so it lands back in place");
+    TEST_ASSERT(add && add->before_widget != first,
+        "the anchor is the row AFTER it, never the one before");
+
+    /*
+     * And the same for the shape `panel.reidentify` actually uses: remove the
+     * node, build a replacement, and put it back where the old one stood with
+     * WidgetMoveAfter. The handle comes back off the free list, so this is the
+     * same remove/add pair from the executor's side -- but the row list is
+     * rewritten under it, which is the part a position field has to survive.
+     */
+    exec_settle();
+    {
+        int before = ToriRSChrome_WidgetPrev(&g_ui, middle);
+        int fresh;
+
+        TEST_ASSERT(before == first, "the middle row's predecessor is the first");
+        ToriRSChrome_WidgetRemove(&g_ui, middle);
+        fresh = ToriRSChrome_Label(&g_ui, panel, "Coins (gp)");
+        ToriRSChrome_WidgetMoveAfter(&g_ui, fresh, before);
+        ToriRSChrome_Build(&g_ui);
+        ToriRSChromeSync_Run(&g_sync, &g_ui);
+
+        add = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, fresh);
+        TEST_ASSERT(add != NULL, "the replacement row is announced");
+        TEST_ASSERT(add->before_widget == last,
+            "a rebuilt-in-place row names the row it must precede, not the page end");
+    }
+}
+
 struct RailExecFixture
 {
     int snapshots;
@@ -2230,6 +2309,7 @@ test_chrome_exec(void)
     test_chrome_exec_custom_shape();
     test_chrome_exec_custom_resizes_in_place();
     test_chrome_exec_external_intent_serial();
+    test_chrome_exec_reidentify_keeps_row_position();
     test_chrome_exec_retained_rail();
     test_chrome_exec_invalidate_restates_the_page();
     test_chrome_exec_restate_is_announced();

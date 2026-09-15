@@ -567,6 +567,19 @@ ToriRS_Features_RunEnergyModelName(int model);
 int
 ToriRS_Features_PainterDrawDistance(struct ToriRS_FeatureTable const* features);
 
+/**
+ * The same rule, said about a bare stored number.
+ *
+ * The table's field is not the distance anything draws: 0 means "the era has
+ * no preference, use Client-TS's fixed 25" and anything outside the official
+ * band is clamped into it. Anything that REPORTS the draw distance -- a
+ * settings page naming what the sentinel resolves to, a log line -- has to
+ * apply the same rule the painter does, and the only way two callers cannot
+ * disagree about it is for there to be one of it.
+ */
+int
+ToriRS_Features_PainterDrawDistanceOf(int stored);
+
 /** The name `ToriRS_Features_NearestModelByName` would map back to a model, for
  *  logging. Unknown values read as "?". */
 char const*

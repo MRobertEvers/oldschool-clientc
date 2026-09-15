@@ -546,6 +546,79 @@ World_TileFlagGet(
     int level);
 
 /**
+ * Terrain height under a fine-unit position, in world units.
+ *
+ * The reference's getAvH, bridge clause included: a column carrying LINK_BELOW
+ * is sampled one level up, because the scene push-down moved its geometry down
+ * a plane while the heightmap kept raw cache levels. Without that, a mover on a
+ * bridge deck sinks to the underpass floor.
+ *
+ * 0 for a world with no heightmap loaded yet, and for a position outside
+ * [0, scene_size) -- the reference returns flat 0 there rather than sampling,
+ * and an entity projected past the scene edge would otherwise drive an
+ * unguarded base-corner read off the array.
+ */
+int
+World_HeightAt(
+    struct World const* world,
+    int world_x,
+    int world_z,
+    int level);
+
+/**
+ * Split a packed CS2 coord into SCENE tiles.
+ *
+ * The packed form is the one every clientscript and every server op speaks:
+ * level in bits 28..29, absolute x in 14..27, absolute z in 0..13. What the
+ * scene is indexed by is neither -- it is the tile relative to the world's
+ * base, and the world slides under the player as it rebuilds.
+ *
+ * False when the coord is negative, when no terrain is loaded, or when the
+ * tile is outside the loaded window. That last case is ordinary rather than
+ * exceptional: a coord scrolls off the scene as the player walks, and a
+ * caller that treats "outside" as an error draws a stale row instead of
+ * dropping it.
+ */
+/** Every level's roofs are shown. What "do not remove any" answers with. */
+#define WORLD_ROOF_LEVEL_SHOW_ALL 3
+
+/**
+ * The level whose roofs must be removed to see one tile from another.
+ *
+ * Answers `level` when ANY tile on the line from (from) to (to) carries a
+ * roof, and WORLD_ROOF_LEVEL_SHOW_ALL when none does. Both endpoints count:
+ * standing under a roof and looking in from under one are both cases where it
+ * has to go.
+ *
+ * The walk is the reference's own -- a 16.16 fixed-point raster line, stepping
+ * the major axis one tile at a time and the minor axis when the accumulator
+ * wraps, starting at half a step so the line is centred on the tiles rather
+ * than biased to one side. It matters that it is a LINE and not a rectangle:
+ * removing every roof in the bounding box takes the lid off buildings either
+ * side of the sightline, which is the whole difference between "roofs are
+ * removed selectively" and "roofs are all hidden".
+ *
+ * Coordinates are scene tiles. A tile outside the scene reads as unflagged,
+ * which World_TileFlagGet already answers.
+ */
+int
+World_RoofLevelAlongLine(
+    struct World const* world,
+    int level,
+    int from_tile_x,
+    int from_tile_z,
+    int to_tile_x,
+    int to_tile_z);
+
+bool
+World_CoordToSceneTile(
+    struct World const* world,
+    int coord,
+    int* out_x,
+    int* out_z,
+    int* out_level);
+
+/**
  * Bridge columns: the three level spaces a loc lives in, and how to travel
  * between them.
  *
@@ -1373,9 +1446,17 @@ World_NpcSetChat(
 
 /* ---- zone-packet world mutations ---- */
 
-/** Ground item stack add: takes ownership of an already-created scene
- * element. One stack entity per (tile, obj) pair; re-adding refreshes the
- * count. Returns the pool index or -1. */
+/**
+ * Ground item stack add: takes ownership of an already-created scene element.
+ * Returns the pool index or -1.
+ *
+ * This ALWAYS allocates. "One stack per (tile, obj) pair" is the caller's
+ * rule, not this one's -- App_WorldObjStackAdd asks World_ObjStackFind first
+ * and refreshes the count on a hit, because it also has a scene element and a
+ * model to keep rather than rebuild. Call this twice with the same obj on the
+ * same tile and the tile is two deep, which is what the CS2 ground-item
+ * opcodes will then report.
+ */
 int
 World_ObjStackAdd(
     struct World* world,
@@ -1413,6 +1494,27 @@ World_ObjStackFind(
     int scene_z,
     int level,
     int obj_id);
+
+/**
+ * How many stacks are piled on a tile, and the `index`-th of them.
+ *
+ * The count is the TOTAL on the tile and is returned whether or not `index`
+ * named one of them -- the CS2 ground-item opcodes ask "how many" and "which"
+ * with the same call, and a walk that stopped at the match would answer the
+ * first question with the second one's answer. `*out_stack` is written only
+ * when `index` is in range, and left alone otherwise.
+ *
+ * Order is pool order, which is the order the stacks were added: the reference
+ * piles a tile's objs in arrival order and its opcodes index into that.
+ */
+int
+World_ObjStackCountAt(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int index,
+    struct WorldEntity_ObjStack const** out_stack);
 
 /** Pool walk by scene element id (the world pick classifier's entry point). */
 struct WorldEntity_ObjStack*

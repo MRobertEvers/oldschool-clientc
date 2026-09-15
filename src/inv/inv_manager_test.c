@@ -201,6 +201,64 @@ test_apply_full_partial(void)
     InvManager_Free(&mgr);
 }
 
+/*
+ * Which slots still need an icon baked.
+ *
+ * A container is filled by a packet and an icon is baked asynchronously, so
+ * neither side knows when the other has finished -- the client polls. An
+ * inventory silently one icon short looks like a cache problem rather than a
+ * reconcile that has not run, which is why the predicate matters more than its
+ * three lines suggest.
+ */
+static void
+test_has_unbaked_icon(void)
+{
+    printf("TEST: unbaked icons\n");
+
+    struct InvManager mgr;
+    struct InvSlot item = { 0 };
+    struct InvSlot empty = { 0 };
+    struct InvContainer* container;
+
+    InvManager_Init(&mgr);
+    TEST_ASSERT(!InvManager_HasUnbakedIcon(&mgr), "an empty manager wants no icons");
+
+    InvManager_EnsureContainer(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 28, "Backpack");
+    TEST_ASSERT(!InvManager_HasUnbakedIcon(&mgr), "an empty container wants no icons");
+
+    /* An item arrives with no scene id: that is the whole point. */
+    item.obj_id = 4151;
+    item.obj_count = 1;
+    item.scene_id = INV_MANAGER_NO_SCENE_ID;
+    InvManager_SetSlot(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 0, &item);
+    TEST_ASSERT(InvManager_HasUnbakedIcon(&mgr), "a fresh item does not want an icon");
+
+    /* Baked. */
+    container = InvManager_GetContainer(&mgr, INV_MANAGER_CONTAINER_BACKPACK);
+    TEST_ASSERT(container != NULL, "the backpack exists");
+    container->slots[0].scene_id = 77;
+    TEST_ASSERT(!InvManager_HasUnbakedIcon(&mgr), "a baked item still wants an icon");
+
+    /* An EMPTY slot has no icon to bake, and must not keep the reconcile
+     * running forever -- obj_id 0 with no scene id is every unused slot in
+     * every container, so reading it as "wants an icon" never terminates. */
+    empty.obj_id = 0;
+    empty.obj_count = 0;
+    empty.scene_id = INV_MANAGER_NO_SCENE_ID;
+    InvManager_SetSlot(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 1, &empty);
+    TEST_ASSERT(!InvManager_HasUnbakedIcon(&mgr), "an empty slot asked for an icon");
+
+    /* One unbaked item anywhere is enough, including in a second container. */
+    InvManager_EnsureContainer(&mgr, INV_MANAGER_CONTAINER_BANK, 8, "Bank");
+    item.obj_id = 995;
+    item.obj_count = 100;
+    item.scene_id = INV_MANAGER_NO_SCENE_ID;
+    InvManager_SetSlot(&mgr, INV_MANAGER_CONTAINER_BANK, 3, &item);
+    TEST_ASSERT(InvManager_HasUnbakedIcon(&mgr), "an item in a second container was missed");
+
+    InvManager_Free(&mgr);
+}
+
 static void
 test_total_and_size(void)
 {
@@ -408,6 +466,7 @@ main(void)
     test_set_get_clear_slot();
     test_apply_full_partial();
     test_total_and_size();
+    test_has_unbaked_icon();
     test_change_callback();
     test_selection();
     test_swap_slots();

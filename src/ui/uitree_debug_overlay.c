@@ -114,6 +114,18 @@ _Static_assert(
  *  wrap puts the caret on a line that is not where the glyphs are. */
 #define DBG_TEXTAREA_LINES_MAX (TORIRS_CHROME_INPUT_MAX + 1)
 /**
+ * Lines one explanatory LABEL row may wrap to. @see dbg_label_wrap_w.
+ *
+ * A ceiling and not a budget: a label row grows the panel it is in, so an
+ * unbounded one is a plugin able to push every row under it off the bottom
+ * with one long string. Six covers the whole of TORIRS_CHROME_INPUT_MAX in
+ * the 320-logical pane this presents into -- 292 pixels of content column is
+ * about 55 characters a line -- so nothing a plugin can say today reaches it.
+ * A narrower pane would, and cutting at six is then the ceiling doing its
+ * job; the one line every label used to get cut nearly everything.
+ */
+#define DBG_LABEL_LINES_MAX 6
+/**
  * Edge of the arrow button on a closed dropdown, and the width of a scrollbar.
  *
  * One number because in the reference it is one sprite: the same 16x16 arrow
@@ -848,12 +860,73 @@ ToriRSChrome_WrapText(
 static void
 dbg_dropdown_close(struct ToriRSChrome* ui);
 
+/* Likewise: ToriRSChrome_SetSurface damages the list where it stood. */
+static struct ToriRSChromeRect
+dbg_dropdown_rect(struct ToriRSChrome const* ui);
+
 /*
  * THE one answer to "where does the box start" -- widths, draws, hit tests and
  * the dropdown popup all ask dbg_row_box_offset / dbg_row_box_top, which is
  * what keeps a popup opening under the box it belongs to rather than under
  * where the box would have been.
  */
+
+/* Defined with the panel machinery below; needed here by the content column. */
+static int
+dbg_panel_is_framed(struct ToriRSChrome const* ui, struct ToriRSChromePanel const* p);
+
+/**
+ * The column the rows are laid out in, for a panel that HAS a stated width.
+ *
+ * Zero for a panel sized BY its content: there is no width to lay out against
+ * until the rows have been measured, and measuring them is what the answer
+ * would be feeding. The borders, the pads and the scrollbar come off, because
+ * none of them is room a row may use.
+ */
+static int
+dbg_panel_content_w(struct ToriRSChrome const* ui, int panel)
+{
+    struct ToriRSChromePanel const* p;
+    int edge;
+    int width;
+
+    assert(ui);
+    if( panel < 0 || panel >= TORIRS_CHROME_MAX_PANELS )
+        return 0;
+    p = &ui->panels[panel];
+    if( p->fixed_w <= 0 )
+        return 0;
+    edge = dbg_panel_is_framed(ui, p) ? DBG_FRAME : DBG_RULE;
+    width = p->fixed_w - 2 * edge - 2 * DBG_PAD_X - (p->scrollable ? DBG_SCROLL_W : 0);
+    return width > 0 ? width : 0;
+}
+
+/**
+ * The label column of a labelled row.
+ *
+ * TORIRS_CHROME_M_LABEL_W is the column AT THE AUTHORED WIDTH: 104 pixels of
+ * the 320-logical settings pane, which is a shade under a third of its content
+ * column. A panel with a stated width is a different page -- the plugin window
+ * at fullscreen is the whole canvas -- and holding the column at 104 there is
+ * what made three rows of Feature Flags stack their select onto a second line
+ * with six hundred pixels of the first line empty beside the caption, wearing
+ * a treatment the other thirteen rows did not. The justification for stacking
+ * ("a settings row whose name you cannot read is not a settings row") is about
+ * a caption that has nowhere to go; at that width it has somewhere to go.
+ *
+ * So: a third of the content column, never less than the authored 104. It is a
+ * function of the PANEL'S WIDTH and of nothing else -- not of the labels in it
+ * -- which keeps the property dbg_row_box_offset was written for: every row in
+ * a panel shares one column, and renaming a setting reflows nothing. A
+ * content-sized panel keeps the authored column, because its rows are given
+ * their natural width and have no column to be squeezed into.
+ */
+static int
+dbg_row_label_w(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
+{
+    int const column = dbg_panel_content_w(ui, w->panel) / 3;
+    return column > DBG_LABEL_W ? column : DBG_LABEL_W;
+}
 
 /**
  * Is this row's caption too long for the label column, so that it takes a line
@@ -872,6 +945,10 @@ dbg_dropdown_close(struct ToriRSChrome* ui);
  * has (@see TORIRS_CHROME_W_TEXTAREA) and the shape the reference's own wider
  * settings rows have.
  *
+ * Measured against dbg_row_label_w and not against the authored constant: at a
+ * width where the caption fits beside the box, stacking it is a second
+ * treatment for no reason a reader of the page can see.
+ *
  * Only the three kinds that put a BOX in the label row's right-hand column
  * answer yes. A checkbox or a list row draws its name in the space the control
  * does not use and has no column to overrun.
@@ -886,7 +963,7 @@ dbg_row_label_stacked(struct ToriRSChrome const* ui, struct ToriRSChromeWidget c
         return 0;
     return ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label) +
                DBG_ROW_NAME_GAP >
-           DBG_LABEL_W;
+           dbg_row_label_w(ui, w);
 }
 
 /**
@@ -912,7 +989,7 @@ dbg_row_box_offset(struct ToriRSChrome const* ui, struct ToriRSChromeWidget cons
      */
     if( dbg_row_label_stacked(ui, w) )
         return 0;
-    return w->label[0] ? DBG_LABEL_W : 0;
+    return w->label[0] ? dbg_row_label_w(ui, w) : 0;
 }
 
 /** Offset from a row's top to its control box. A stacked row spends its first
@@ -1804,6 +1881,25 @@ ToriRSChrome_Scale(struct ToriRSChrome const* ui)
     return ui->scale;
 }
 
+void
+ToriRSChrome_SetSurface(struct ToriRSChrome* ui, int width, int height)
+{
+    assert(ui);
+    if( ui->surface_w == width && ui->surface_h == height )
+        return;
+    ui->surface_w = width;
+    ui->surface_h = height;
+    /* Only an OPEN list is placed against it, and only its own box moves -- no
+     * panel is remeasured, so this dirties the build rather than every panel
+     * in it. The box the list is leaving is damaged first, for the same reason
+     * a moved panel damages the box it left. */
+    if( ui->dropdown_open >= 0 )
+    {
+        dbg_damage_add(ui, dbg_dropdown_rect(ui));
+        ui->dirty = 1;
+    }
+}
+
 int
 ToriRSChrome_CheckBoxMetric(int style)
 {
@@ -1974,9 +2070,6 @@ ToriRSChrome_PanelSetClosable(struct ToriRSChrome* ui, int panel, int closable)
  * so it sits where a window's close box sits and cannot land on the title text
  * -- which is left-aligned and, on this window, says which page is up.
  */
-static int
-dbg_panel_is_framed(struct ToriRSChrome const* ui, struct ToriRSChromePanel const* p);
-
 static struct ToriRSChromeRect
 dbg_panel_close_box(
     struct ToriRSChrome const* ui,
@@ -2199,6 +2292,79 @@ ToriRSChrome_WidgetRemove(struct ToriRSChrome* ui, int widget)
     ui->widgets[widget].kind = TORIRS_CHROME_W_FREE;
     ui->widgets[widget].next = ui->free_widget;
     ui->free_widget = widget;
+}
+
+int
+ToriRSChrome_WidgetPrev(struct ToriRSChrome const* ui, int widget)
+{
+    struct ToriRSChromePanel const* p;
+
+    assert(ui);
+    if( !dbg_valid_widget(ui, widget) )
+        return -1;
+    p = &ui->panels[ui->widgets[widget].panel];
+    for( int at = p->first_widget; at >= 0; at = ui->widgets[at].next )
+        if( ui->widgets[at].next == widget )
+            return at;
+    return -1;
+}
+
+void
+ToriRSChrome_WidgetMoveAfter(struct ToriRSChrome* ui, int widget, int after)
+{
+    struct ToriRSChromePanel* p;
+
+    assert(ui);
+    if( !dbg_valid_widget(ui, widget) || widget == after )
+        return;
+    if( after >= 0 &&
+        (!dbg_valid_widget(ui, after) ||
+         ui->widgets[after].panel != ui->widgets[widget].panel) )
+        return;
+    p = &ui->panels[ui->widgets[widget].panel];
+
+    /* Unlink, exactly as a removal does -- a walk rather than a back pointer,
+     * for the reason stated on ToriRSChrome_WidgetRemove. */
+    if( p->first_widget == widget )
+    {
+        p->first_widget = ui->widgets[widget].next;
+    }
+    else
+    {
+        for( int prev = p->first_widget; prev >= 0; prev = ui->widgets[prev].next )
+            if( ui->widgets[prev].next == widget )
+            {
+                ui->widgets[prev].next = ui->widgets[widget].next;
+                break;
+            }
+    }
+    if( p->last_widget == widget )
+    {
+        int last = -1;
+        for( int at = p->first_widget; at >= 0; at = ui->widgets[at].next )
+            last = at;
+        p->last_widget = last;
+    }
+
+    if( after < 0 )
+    {
+        ui->widgets[widget].next = p->first_widget;
+        p->first_widget = widget;
+    }
+    else
+    {
+        ui->widgets[widget].next = ui->widgets[after].next;
+        ui->widgets[after].next = widget;
+    }
+    if( ui->widgets[widget].next < 0 )
+        p->last_widget = widget;
+    if( p->last_widget < 0 )
+        p->last_widget = widget;
+
+    /* The panel's SHAPE moved, not any widget's properties: the executors read
+     * order off this list and lay out from the top. */
+    dbg_change_panel(ui, ui->widgets[widget].panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
+    dbg_dirty_panel(ui, ui->widgets[widget].panel);
 }
 
 void
@@ -2540,9 +2706,9 @@ ToriRSChrome_CustomRegion(
     return 1;
 }
 
-int
-ToriRSChrome_CustomActivate(
-    struct ToriRSChrome* ui, int widget, int local_x, int local_y)
+static int
+dbg_custom_latch(
+    struct ToriRSChrome* ui, int widget, int local_x, int local_y, int secondary)
 {
     struct ToriRSChromeWidget const* w;
     int scale;
@@ -2562,11 +2728,53 @@ ToriRSChrome_CustomActivate(
     ui->activated = widget;
     ui->activated_action = 0;
     ui->activated_custom = 1;
+    /* The button, and nothing else about the event, is what these two verbs
+     * differ by -- so they are one body with a flag rather than two that
+     * would drift apart at the next bounds fix. */
+    ui->activated_menu = secondary;
     ui->activated_x = local_x;
     ui->activated_y = local_y;
     ui->activated_selection_generation = 0;
     ui->activated_widget_serial = 0;
     return 1;
+}
+
+int
+ToriRSChrome_CustomActivate(
+    struct ToriRSChrome* ui, int widget, int local_x, int local_y)
+{
+    return dbg_custom_latch(ui, widget, local_x, local_y, 0);
+}
+
+int
+ToriRSChrome_CustomMenu(
+    struct ToriRSChrome* ui, int widget, int local_x, int local_y)
+{
+    return dbg_custom_latch(ui, widget, local_x, local_y, 1);
+}
+
+int
+ToriRSChrome_SecondaryClick(struct ToriRSChrome* ui, int x, int y)
+{
+    struct ToriRSChromeRect region;
+    struct ToriRSChromeRect clip;
+    int scale;
+    int hit;
+
+    assert(ui);
+    /* A popup is modal to the pointer: a secondary click while a list or a
+     * picker is up belongs to dismissing it, not to whatever is underneath. */
+    if( ui->dropdown_open >= 0 || ui->colorpick_open >= 0 )
+        return 0;
+    hit = ToriRSChrome_HitTest(ui, x, y);
+    if( hit < 0 || ui->widgets[hit].kind != TORIRS_CHROME_W_CUSTOM )
+        return 0;
+    scale = ui->scale > 0 ? ui->scale : 1;
+    if( !ToriRSChrome_CustomRegion(ui, hit, &region, &clip) ||
+        !dbg_point_in_rect(x, y, clip) )
+        return 0;
+    return ToriRSChrome_CustomMenu(
+        ui, hit, (x - region.x) / scale, (y - region.y) / scale);
 }
 
 void
@@ -3423,6 +3631,29 @@ ToriRSChrome_SetLabel(struct ToriRSChrome* ui, int widget, char const* label)
     }
 }
 
+int
+ToriRSChrome_PanelScroll(struct ToriRSChrome const* ui, int panel)
+{
+    assert(ui);
+    if( panel < 0 || panel >= ui->panel_count )
+        return 0;
+    return ui->panels[panel].scroll_y;
+}
+
+void
+ToriRSChrome_PanelSetScroll(struct ToriRSChrome* ui, int panel, int scroll)
+{
+    assert(ui);
+    if( panel < 0 || panel >= ui->panel_count )
+        return;
+    if( scroll < 0 )
+        scroll = 0;
+    if( ui->panels[panel].scroll_y == scroll )
+        return;
+    ui->panels[panel].scroll_y = scroll;
+    dbg_dirty_panel(ui, panel);
+}
+
 void
 ToriRSChrome_SetColor(struct ToriRSChrome* ui, int widget, uint32_t color)
 {
@@ -3467,6 +3698,34 @@ ToriRSChrome_SetChecked(struct ToriRSChrome* ui, int widget, int checked)
         dbg_dirty_widget(ui, widget);
     else
         dbg_dirty_widget_paint(ui, widget);
+}
+
+void
+ToriRSChrome_SetDisabled(struct ToriRSChrome* ui, int widget, int disabled)
+{
+    disabled = disabled ? 1 : 0;
+    assert(ui);
+    if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].disabled == disabled )
+        return;
+    ui->widgets[widget].disabled = disabled;
+    /* A button that has just become unavailable must not keep the press it was
+     * holding, or releasing the mouse would fire the command anyway. */
+    if( disabled && ui->press == widget )
+        ui->press = -1;
+    /* A repaint and no dbg_change_widget: the command stream has no field for
+     * this yet, so queueing a mutation would spend a journal slot stating a
+     * flag that means something else. Foreign executors therefore draw the
+     * control as live until the protocol carries it; the ACTION is refused by
+     * the plugin host for every presenter (@see PluginHost_PanelDispatch), so
+     * a press on one there is ignored rather than honoured. */
+    dbg_dirty_widget_paint(ui, widget);
+}
+
+int
+ToriRSChrome_Disabled(struct ToriRSChrome const* ui, int widget)
+{
+    assert(ui);
+    return dbg_valid_widget(ui, widget) ? ui->widgets[widget].disabled : 0;
 }
 
 int
@@ -3622,6 +3881,81 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
     }
 }
 
+/** The string a LABEL row draws: its value where it has one, else its name. */
+static char const*
+dbg_label_string(struct ToriRSChromeWidget const* w)
+{
+    assert(w);
+    return w->text[0] ? w->text : w->label;
+}
+
+/**
+ * The width a PLAIN / PARAGRAPH label wraps at, or 0 for "do not wrap".
+ *
+ * A label row is a SENTENCE -- "Scaling draws the whole canvas larger, the 3D
+ * scene included" under the scaling picker -- and it was drawn with one
+ * `dbg_push_text` and given exactly one row of height, so the sentence was cut
+ * at the panel border and the rest of it did not exist. Not truncated with a
+ * mark; simply gone, mid-word, with empty panel underneath it. An explanatory
+ * line nobody can finish reading is not an explanatory line.
+ *
+ * The WIDTH is the panel's business and not the plugin's, which is why this
+ * lives here: a plugin cannot know how wide the pane it mounts into is, what
+ * the executor did to it, or whether a scrollbar took ten pixels this frame.
+ * It states a sentence; the presentation decides how many lines that is.
+ *
+ * Only a panel with a FIXED width wraps. An auto-sized panel takes its width
+ * from `dbg_widget_width`, which asks for the whole string on one line -- so
+ * there is nothing to wrap to, and wrapping against a width this measurement
+ * is itself an input to would be circular.
+ *
+ * The scrollbar column is reserved whenever the panel CAN scroll, not when it
+ * currently does. Whether it does is a function of the content height, which
+ * is a function of this number: measure without the bar, and a panel that
+ * turns out to overflow draws its rows ten pixels narrower than they were
+ * measured, so the last line of a label reappears with nowhere to go. Ten
+ * pixels of early wrapping on a panel that does not overflow is invisible;
+ * a line that disagrees with its own row height is not.
+ */
+static int
+dbg_label_wrap_w(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
+{
+    int width;
+
+    assert(ui);
+    assert(w);
+    if( w->kind != TORIRS_CHROME_W_LABEL )
+        return 0;
+    if( w->label_style != TORIRS_CHROME_LABEL_PLAIN &&
+        w->label_style != TORIRS_CHROME_LABEL_PARAGRAPH )
+        return 0;
+    if( w->panel < 0 || w->panel >= TORIRS_CHROME_MAX_PANELS )
+        return 0;
+    width = dbg_panel_content_w(ui, w->panel);
+    if( width <= 0 )
+        return 0;
+    /* The same pad the draw indents a PARAGRAPH by, taken off both sides. */
+    if( w->label_style != TORIRS_CHROME_LABEL_PLAIN )
+        width -= 2 * DBG_INPUT_PAD_X;
+    return width > 0 ? width : 0;
+}
+
+/** Display lines one label row takes. One where it does not wrap. */
+static int
+dbg_label_lines(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
+{
+    int const wrap_w = dbg_label_wrap_w(ui, w);
+    char const* text;
+
+    assert(ui);
+    assert(w);
+    text = dbg_label_string(w);
+    if( wrap_w <= 0 || !text[0] )
+        return 1;
+    return ToriRSChrome_WrapText(
+        ui->theme.font_row, ui->scale, text, wrap_w, NULL, NULL, DBG_LABEL_LINES_MAX);
+}
+
 /**
  * Row height of one widget, excluding DBG_ROW_GAP.
  *
@@ -3640,6 +3974,9 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
  * takes the ToriRSChrome, because the two kinds that genuinely cannot live in
  * the grid -- a model view, which is sized by its caller, and a tab strip,
  * which is a strip and not a row -- are measured here too.
+ *
+ * A LABEL row is the one exception the grid grew, and it is still the grid: a
+ * wrapped sentence is a whole number of these rows. @see dbg_label_wrap_w.
  */
 static int
 dbg_widget_height(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
@@ -3659,7 +3996,10 @@ dbg_widget_height(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const
         case TORIRS_CHROME_LABEL_PARAGRAPH:
         case TORIRS_CHROME_LABEL_PLAIN:
         default:
-            return DBG_ROW_H;
+            /* One row per wrapped line, so the row OWNS the space its own
+             * sentence needs and the row under it starts below the last of
+             * it. @see dbg_label_wrap_w. */
+            return DBG_ROW_H * dbg_label_lines(ui, w);
         }
     case TORIRS_CHROME_W_MODELVIEW:
         return w->view_h + 2 * DBG_RULE;
@@ -3749,6 +4089,64 @@ dbg_wrap_line(struct ToriRSChrome* ui, char const* src, int len)
     out[len] = '\0';
     ui->wrap_used += len + 1;
     return out;
+}
+
+/**
+ * `text`, cut to `width` with an ellipsis where it had to cut.
+ *
+ * A value strip is as wide as the panel leaves it and a select's value is
+ * whatever the plugin published, so the two do not negotiate: "Revision
+ * default (Mouse wheel)" in a 200-pixel strip has to give somewhere. Clipping
+ * alone -- which is all this had -- gives "Revision default (Mouse whe" with
+ * the last glyph sliced down the middle and the arrow sitting on top of it,
+ * which reads as a broken renderer rather than as a name too long for its box.
+ *
+ * It also made the ALIGNMENT look broken, which is the half that gave the
+ * defect away: the caller centres a value that fits and left-aligns one that
+ * does not, so a page of six rows had two centred and four hard against the
+ * left edge. Elided here, every value fits, so every value is centred and the
+ * column reads as a column.
+ *
+ * Three dots and not U+2026: the baked faces are the client's own, the glyph
+ * is not in them, and a missing glyph measures as something and draws as
+ * nothing -- an invisible cut is worse than a visible one.
+ *
+ * @return `text` itself when it fits, otherwise a wrap-pool copy that lives
+ *         until the end of this build. NULL never: a pool that is full gives
+ *         back the original, which clips exactly as it did before.
+ */
+static char const*
+dbg_elide_text(struct ToriRSChrome* ui, int font_slot, char const* text, int width)
+{
+    static char const DBG_ELLIPSIS[] = "...";
+    char buffer[TORIRS_CHROME_INPUT_MAX + sizeof(DBG_ELLIPSIS)];
+    int const* adv;
+    int budget;
+    int px = 0;
+    int kept = 0;
+    char const* elided;
+
+    assert(ui);
+    assert(text);
+    if( width <= 0 )
+        return text;
+    if( ToriRSChrome_MeasureText(font_slot, ui->scale, text) <= width )
+        return text;
+
+    adv = dbg_advance_table(font_slot, ui->scale);
+    budget = width - ToriRSChrome_MeasureText(font_slot, ui->scale, DBG_ELLIPSIS);
+    while( text[kept] && kept < (int)(sizeof(buffer) - sizeof(DBG_ELLIPSIS)) )
+    {
+        int const a = adv[(unsigned char)text[kept]];
+        if( px + a > budget )
+            break;
+        px += a;
+        kept++;
+    }
+    memcpy(buffer, text, (size_t)kept);
+    memcpy(buffer + kept, DBG_ELLIPSIS, sizeof(DBG_ELLIPSIS));
+    elided = dbg_wrap_line(ui, buffer, kept + (int)sizeof(DBG_ELLIPSIS) - 1);
+    return elided ? elided : text;
 }
 
 /** @param trans 0 opaque .. 255 invisible, the client's sense. */
@@ -4424,12 +4822,22 @@ dbg_push_dropdown_button(
     dbg_push_scroll_arrow(
         ui, arrow_x, box.y + (box.h - arrow) / 2, arrow, arrow_slot, !open, inside);
 
-    /* The value gets the strip left of the arrow, centred in it when it fits
-     * and left-aligned when it does not -- the reference sizes its button to
-     * the text and so only ever has the first case, and a centred string that
-     * is being clipped at both ends is unreadable. */
+    /*
+     * The value gets the strip LEFT OF THE ARROW, elided to it, and centred.
+     *
+     * Two things were wrong here and they compounded. The strip was measured
+     * to the arrow but the value was never cut to it, so a long one ran under
+     * the arrow and was sliced by the clip -- "Revision default (Mouse whe"
+     * with a chevron on top of the last glyph. And the fallback for a value
+     * that did not fit was to left-align it, so the same page showed two
+     * values centred and four hard left, which reads as a second fault.
+     *
+     * Elided first, every value fits its strip, so the centring below is not
+     * a special case any more: one rule, one column. @see dbg_elide_text.
+     */
     text_x = box.x + DBG_FIELD_INSET;
     text_w = arrow_x - text_x;
+    text = dbg_elide_text(ui, th->font_row, text, text_w);
     shown_w = ToriRSChrome_MeasureText(th->font_row, ui->scale, text);
     if( shown_w < text_w )
         text_x += (text_w - shown_w) / 2;
@@ -4701,10 +5109,26 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             th->panel_title_bg,
             1,
             clip);
+        /*
+         * ONE pixel of lead, not two, so the DESCENDERS stay in the band.
+         *
+         * The band is `head_y + DBG_RULE` for `header_bar_h` rows -- 78..93 on
+         * the shipped plugin window -- and this baseline was `head_y + 2 +
+         * lineHeight`, which put the 'g' of "Client Settings" and "Feature
+         * Flags" on row 94: panel body, in title ink (93,84,71) against body
+         * (73,64,52). At ~20/255 of contrast the tail simply vanished and the
+         * letter read as clipped.
+         *
+         * The lead moves rather than the band's height, because the band's
+         * height is the header every row below is laid out from -- growing it
+         * by one would slide every control on every panel down a pixel to fix
+         * one descender. p12's line box is not centred on its ink, which is
+         * the same reason the chrome button's caption once rode high.
+         */
         dbg_push_text(
             ui,
             p->x + edge + DBG_PX(2),
-            head_y + DBG_PX(2) + ToriRSChrome_FontLineHeight(TORIRS_CHROME_FONT_MENU, ui->scale),
+            head_y + DBG_PX(1) + ToriRSChrome_FontLineHeight(TORIRS_CHROME_FONT_MENU, ui->scale),
             p->title,
             th->panel_title_text,
             TORIRS_CHROME_FONT_MENU,
@@ -5085,18 +5509,57 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             case TORIRS_CHROME_LABEL_PARAGRAPH:
             case TORIRS_CHROME_LABEL_PLAIN:
             default:
-                dbg_push_text(
-                    ui,
-                    row_x + (w->label_style == TORIRS_CHROME_LABEL_PLAIN
-                                 ? 0
-                                 : DBG_INPUT_PAD_X),
-                    dbg_row_text_baseline(ui, row_y, row_h),
-                    w->text[0] ? w->text : w->label,
-                    w->color ? w->color : th->text,
-                    ui->theme.font_row,
-                    0,
-                    clip);
+            {
+                /*
+                 * One push per WRAPPED line, at the same width the height was
+                 * measured from, so the sentence and the space reserved for it
+                 * cannot disagree. A row that does not wrap takes this path
+                 * too: wrap_w 0 means one line and the loop runs once, which is
+                 * byte for byte what the single push did. @see dbg_label_wrap_w.
+                 */
+                char const* const text = dbg_label_string(w);
+                int const indent = w->label_style == TORIRS_CHROME_LABEL_PLAIN
+                                       ? 0
+                                       : DBG_INPUT_PAD_X;
+                int const wrap_w = dbg_label_wrap_w(ui, w);
+                uint32_t const ink = w->color ? w->color : th->text;
+                int starts[DBG_LABEL_LINES_MAX];
+                int lens[DBG_LABEL_LINES_MAX];
+                int count;
+
+                if( wrap_w <= 0 || !text[0] )
+                {
+                    dbg_push_text(
+                        ui,
+                        row_x + indent,
+                        dbg_row_text_baseline(ui, row_y, DBG_ROW_H),
+                        text,
+                        ink,
+                        ui->theme.font_row,
+                        0,
+                        clip);
+                    break;
+                }
+                count = ToriRSChrome_WrapText(
+                    ui->theme.font_row, ui->scale, text, wrap_w, starts, lens,
+                    DBG_LABEL_LINES_MAX);
+                for( int li = 0; li < count; li++ )
+                {
+                    char const* line = dbg_wrap_line(ui, text + starts[li], lens[li]);
+                    if( !line )
+                        break;
+                    dbg_push_text(
+                        ui,
+                        row_x + indent,
+                        dbg_row_text_baseline(ui, row_y + li * DBG_ROW_H, DBG_ROW_H),
+                        line,
+                        ink,
+                        ui->theme.font_row,
+                        0,
+                        clip);
+                }
                 break;
+            }
             }
             break;
 
@@ -5381,7 +5844,12 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
         {
             char const* caption = w->text[0] ? w->text : w->label;
             int const box_w = DBG_LABEL_W < w->w ? DBG_LABEL_W : w->w;
-            int const pressed = ui->press == widget && hovered;
+            /* An unavailable button answers to nothing the pointer does: no
+             * accent under it, no caption nudge, dim ink. The same vocabulary
+             * a disabled option in the dropdown list is drawn with. */
+            int const usable = !w->disabled;
+            int const lit = hovered && usable;
+            int const pressed = ui->press == widget && lit;
             int const nudge = pressed ? DBG_RULE : 0;
             int const caption_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, caption);
             struct ToriRSChromeRect box;
@@ -5391,7 +5859,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             box.w = box_w;
             box.h = row_h;
             dbg_push_field_chrome(ui, box, clip);
-            if( hovered )
+            if( lit )
                 dbg_push_rect(ui, row_x, row_y, box_w, row_h, th->accent, 0, clip);
             dbg_push_text(
                 ui,
@@ -5400,7 +5868,8 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                 row_x + (box_w - caption_w) / 2 + nudge,
                 dbg_row_text_baseline(ui, row_y, row_h) + nudge,
                 caption,
-                hovered ? th->accent : (w->color ? w->color : th->text),
+                !usable ? th->text_dim
+                        : (lit ? th->accent : (w->color ? w->color : th->text)),
                 ui->theme.font_row,
                 0,
                 dbg_rect_clip(clip, box));
@@ -6114,6 +6583,36 @@ dbg_dropdown_rect(struct ToriRSChrome const* ui)
     rect.y = w->y + w->h;
     /* Rows plus a pad above and below, which is script_9114's `$int26 + 4`. */
     rect.h = rows * DBG_DROP_ROW_H + 2 * DBG_DROP_LIST_PAD;
+
+    /*
+     * BELOW the box, unless below the box is off the surface.
+     *
+     * The reference drops its lists downward and so does this, because a list
+     * that opens upward when it did not have to reads as the row jumping. But
+     * downward-or-nothing is how the last row of a full-height window got a
+     * list with one entry against the bottom edge and eight more past it: not
+     * clipped tidily, half a glyph, and no way to reach the options at all.
+     *
+     * The box's own TOP is what it flips above -- the caption of a stacked row
+     * sits above that and is not part of the control. When neither side has
+     * room the list takes the bigger one and is pulled inside the surface,
+     * which is the only remaining answer that leaves rows on screen.
+     */
+    if( ui->surface_h > 0 && rect.y + rect.h > ui->surface_h )
+    {
+        int const box_top = w->y + dbg_row_box_top(ui, w);
+        int const below = ui->surface_h - rect.y;
+        int const above = box_top;
+
+        if( rect.h <= above )
+            rect.y = box_top - rect.h;
+        else if( above > below )
+            rect.y = 0;
+        else
+            rect.y = ui->surface_h - rect.h;
+        if( rect.y < 0 )
+            rect.y = 0;
+    }
     return rect;
 }
 
@@ -7656,7 +8155,12 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
         }
         else if( w->kind == TORIRS_CHROME_W_MENUITEM || w->kind == TORIRS_CHROME_W_BUTTON )
         {
-            ui->activated = hit;
+            /* An unavailable button is not a button that reports nothing and
+             * fires anyway: the activation is never recorded, so no caller
+             * downstream can mistake the click for a command.
+             * @see ToriRSChromeWidget::disabled. */
+            if( !w->disabled )
+                ui->activated = hit;
             /* The button repaints because its pressed state just ended. */
             if( w->kind == TORIRS_CHROME_W_BUTTON )
                 dbg_dirty_widget(ui, hit);
@@ -8122,6 +8626,7 @@ ToriRSChrome_TakeActivated(struct ToriRSChrome* ui)
         ui->taken_custom =
             ui->activated_custom && dbg_valid_widget(ui, fired) &&
             ui->widgets[fired].kind == TORIRS_CHROME_W_CUSTOM;
+        ui->taken_menu = ui->taken_custom && ui->activated_menu;
         ui->taken_x = ui->activated_x;
         ui->taken_y = ui->activated_y;
         ui->taken_selection_generation = ui->activated_selection_generation;
@@ -8129,8 +8634,16 @@ ToriRSChrome_TakeActivated(struct ToriRSChrome* ui)
         ui->activated = -1;
         ui->activated_action = 0;
         ui->activated_custom = 0;
+        ui->activated_menu = 0;
     }
     return fired;
+}
+
+int
+ToriRSChrome_ActivationWasMenu(struct ToriRSChrome const* ui)
+{
+    assert(ui);
+    return ui->taken_menu;
 }
 
 int

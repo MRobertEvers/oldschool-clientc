@@ -6,7 +6,9 @@
 #include "revconfig/revconfig.h"
 #include "ui/uitree_minimenu.h"
 
+#include "perf_audit.h"
 #include <assert.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdatomic.h>
@@ -115,7 +117,23 @@ static enum ToriRS_CallbackResult plugin_v2_event(
     void* event,
     void* userdata);
 
-#define PLUGIN_WIDGET_WATCH_MAX 32
+/*
+ * Widget watches one plugin may hold.
+ *
+ * Sixty-four, and the consumer that sets it is a frame provider described to
+ * Porcelain: the layer registers one watch per ELEMENT the description names,
+ * and the desktop frame names thirty-three on a fixed toplevel -- seven
+ * surfaces, the sidebar's fourteen mounts, the orb block's three children,
+ * eight chat plates and the chat backing -- and thirty-seven on a resizable
+ * one, where the lane's four chrome strips are asked about too.
+ *
+ * At thirty-two the last few silently failed to register: widget_subscribe
+ * answers BUDGET_EXCEEDED and a retained layer has no reason to look, so the
+ * element resolves by a find per fence instead and never hears a STATE change
+ * again. What that looks like downstream is a node the lane HID still
+ * reporting itself as painting, for the rest of the session.
+ */
+#define PLUGIN_WIDGET_WATCH_MAX 64
 struct PluginWidgetWatch
 {
     char role[TORIRS_UI_NAME_MAX];
@@ -123,6 +141,15 @@ struct PluginWidgetWatch
     uint64_t tree_instance, tree_generation;
     bool tree_notified;
     struct ToriRS_WidgetRef current;
+    /* The last state PluginHost_WidgetStates stamped for `current`, and
+     * whether there IS one. Cleared whenever `current` changes, so a rebind
+     * starts fresh instead of reporting the old node's geometry as a change.
+     * Inline, never allocated: the pass runs every frame for every watch. */
+    struct ToriRS_WidgetState last_state;
+    bool has_last_state;
+    /** Registered through watch_state: the fence stamps it and raises
+     *  STATE_CHANGED. A plain watch is never stamped. */
+    bool wants_state;
     ToriRS_WidgetListener listener;
     void* user;
 };
@@ -337,6 +364,9 @@ struct ToriRS_PluginHost
     /* Menu routes live for one build. The hover pass rebuilds the menu every
      * frame, so they are reset per build rather than accumulated. */
     struct PluginMenuRoute routes[TORIRS_PLUGIN_MENU_ROUTES_MAX];
+    /** The host-wide route budget was hit at least once this process; the
+     *  refusal is reported once so it cannot flood, and never silently. */
+    bool menu_routes_reported;
     int route_count;
     int next_action;
 
@@ -546,6 +576,19 @@ struct ToriRS_PluginHost
     int panel_size_class;
     bool panel_visible;
     bool panel_game_visible;
+    /*
+     * The reader's place in the active page, and a plugin's request to move it.
+     *
+     * Two numbers and not one because they travel in opposite directions and
+     * at different moments: the presenter publishes where the page IS with the
+     * rest of its layout facts, and a plugin asks for where it should GO,
+     * which the presenter picks up on its next sync and clamps against a page
+     * it may not have laid out yet. Collapsing them into one field would make
+     * a publish silently cancel a request made in the same frame.
+     */
+    int panel_scroll;
+    int panel_scroll_wanted;
+    bool panel_scroll_request;
 
     bool config_dirty;
 };
@@ -1290,12 +1333,30 @@ api_tab_select(
     int tabno)
 {
     assert(ctx);
+    /*
+     * Who may flip a tab: a player's action, and a frame being BUILT.
+     *
+     * The first four are the player -- a key, a menu row, a panel button, an
+     * owned control's operation -- and the rule they enforce is that nothing
+     * moves the sidebar behind the player's back on an ordinary frame.
+     *
+     * PLUGIN_CALLBACK_LAYOUT is on_gameframe and nothing else (both the
+     * build and the release dispatch under it), which makes it the one
+     * moment a FRAME may ask: the player has just chosen this frame and the
+     * frame's shape is being decided. A frame whose side well is structural
+     * -- both fixed gameframes blit one whatever the lane is doing -- stands
+     * over a toplevel that logs in collapsed with 261 rows of bare rock in
+     * it and no stone lit, and the only thing that can fill it is the lane's
+     * own switch. Refusing here made that unfixable from inside a provider
+     * and said nothing about why. @see frame_seed_sidebar in gameframe.c.
+     */
     switch( ctx->host->dispatch_event )
     {
     case PLUGIN_CALLBACK_KEY:
     case PLUGIN_CALLBACK_MENU_SELECT:
     case PLUGIN_CALLBACK_PANEL_ACTION:
     case PLUGIN_CALLBACK_WIDGET_OPERATION:
+    case PLUGIN_CALLBACK_LAYOUT:
         break;
     default:
         return false;
@@ -1389,6 +1450,50 @@ api_slot_native_size(
         return 0;
     if( w <= 0 || h <= 0 )
         return 0;
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+    return 1;
+}
+
+/*
+ * The authored box of one numbered member of a surface, block-relative.
+ *
+ * `member` is the role's OWN numbering and -1 is refused here rather than
+ * redirected to the whole surface: (0, 0, w, h) would read as a member that
+ * happens to sit at the block's origin, and a frame would seat the globe on
+ * top of the run orb without anything saying so.
+ */
+static int
+api_slot_member_native_box(
+    struct PluginContext* ctx,
+    int slot,
+    int member,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    int x = 0, y = 0, w = 0, h = 0;
+
+    if( !host_game_screen(ctx) )
+        return 0;
+
+    assert(ctx);
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
+        return 0;
+    if( member < 0 )
+        return 0;
+    if( !ctx->host->engine.slot_member_native_box(
+            ctx->host->engine.user, slot, member, &x, &y, &w, &h) )
+        return 0;
+    if( w <= 0 || h <= 0 )
+        return 0;
+    if( out_x )
+        *out_x = x;
+    if( out_y )
+        *out_y = y;
     if( out_w )
         *out_w = w;
     if( out_h )
@@ -1903,7 +2008,18 @@ api_menu_add(
     assert(host->menu_cursor);
 
     if( host->route_count >= TORIRS_PLUGIN_MENU_ROUTES_MAX )
+    {
+        if( !host->menu_routes_reported )
+        {
+            host->menu_routes_reported = true;
+            TORIRS_ERR(
+                "plugin: %s asked for a menu row past the host-wide budget of %d routes "
+                "in one build; this and later rows are refused (reported once)\n",
+                ctx->name,
+                TORIRS_PLUGIN_MENU_ROUTES_MAX);
+        }
         return 0;
+    }
 
     int const action = PLUGIN_MENU_ACTION_BASE + host->route_count;
     if( !host->engine.menu_add(host->engine.user, host->menu_cursor, text, action) )
@@ -2258,7 +2374,8 @@ api_obj_image(
     struct PluginContext* ctx,
     int obj_id,
     int count,
-    int style)
+    int style,
+    enum ToriRS_AssetState* out_state)
 {
     struct ToriRS_PluginHost* host;
     int free_entry = -1;
@@ -2268,13 +2385,18 @@ api_obj_image(
     int h = 0;
 
     assert(ctx);
+    assert(out_state);
 
     host = ctx->host;
+    *out_state = TORIRS_ASSET_PENDING;
     /* An id and a count are NUMBERS the plugin computed -- off a drop table,
      * out of a container -- so a silly one is bad input rather than a bug in
      * the caller's frame, and the honest answer is "there is no such icon". */
     if( obj_id < 0 || count < 0 || style < 0 || style > TORIRS_ITEM_ICON_SELECTED )
+    {
+        *out_state = TORIRS_ASSET_INVALID;
         return -1;
+    }
     if( count == 0 )
         count = 1;
 
@@ -2294,6 +2416,7 @@ api_obj_image(
             row->style == style )
         {
             row->used = host->icon_clock;
+            *out_state = TORIRS_ASSET_READY;
             return row->image;
         }
         if( victim < 0 || row->used < host->obj_icons[victim].used )
@@ -2330,11 +2453,24 @@ api_obj_image(
             ctx->name,
             obj_id,
             TORIRS_PLUGIN_IMAGES_MAX);
+        *out_state = TORIRS_ASSET_BUDGET;
         return -1;
     }
 
-    if( !host->engine.obj_image(host->engine.user, free_image, obj_id, count, style, &w, &h) )
-        return -1;
+    {
+        /* 1 built, 0 not yet (the engine has asked for what is missing), -1
+         * never. @see ToriRS_PluginEngine::obj_image -- the three are not the
+         * same answer, and a caller handed "not yet" for a picture that is
+         * never coming asks again twice a second for the rest of the
+         * session. */
+        int const built =
+            host->engine.obj_image(host->engine.user, free_image, obj_id, count, style, &w, &h);
+        if( built <= 0 )
+        {
+            *out_state = built < 0 ? TORIRS_ASSET_MISSING : TORIRS_ASSET_PENDING;
+            return -1;
+        }
+    }
 
     host->images[free_image].plugin = ctx->index;
     /*
@@ -2363,6 +2499,7 @@ api_obj_image(
         host->icon_revision++;
     host->obj_icons[free_entry].revision = host->icon_revision;
     host->obj_icons[free_entry].used = host->icon_clock;
+    *out_state = TORIRS_ASSET_READY;
     return free_image;
 }
 
@@ -2436,7 +2573,10 @@ api_asset_load(
     slot = plugin_asset_claim(host, ctx->index, name);
     if( !slot )
     {
-        TORIRS_LOG(
+        /* TORIRS_ERR, not TORIRS_LOG: the two frame providers alone held 165
+         * assets against the old ceiling of 128 during a provider switch, and
+         * a shipping build compiled the only line about it away. */
+        TORIRS_ERR(
             "plugin: %s asset '%s' not loaded, the resident asset table is full (%d)\n",
             ctx->name,
             name,
@@ -2491,7 +2631,7 @@ api_asset_save(
     struct PluginAsset* slot = plugin_asset_claim(host, ctx->index, name);
     if( !slot )
     {
-        TORIRS_LOG(
+        TORIRS_ERR(
             "plugin: %s asset '%s' not saved, the resident asset table is full (%d)\n",
             ctx->name,
             name,
@@ -3303,6 +3443,49 @@ api_panel_set_text(
     return true;
 }
 
+/**
+ * Which kinds are BUILT from `label`, and so can have one patched.
+ *
+ * The four here carry a name and a value as two separate strings. Every other
+ * kind's single string already travels as `text`, and accepting a label for
+ * one of those would give it two spellings -- so a later set_text would
+ * revert a rename with nothing to say it had happened.
+ */
+static bool
+plugin_panel_kind_has_label(int kind)
+{
+    return kind == TORIRS_PANEL_WIDGET_KEY_VALUE ||
+           kind == TORIRS_PANEL_WIDGET_CHECKBOX ||
+           kind == TORIRS_PANEL_WIDGET_TOGGLE ||
+           kind == TORIRS_PANEL_WIDGET_DROPDOWN ||
+           kind == TORIRS_PANEL_WIDGET_ACTION_ROW;
+}
+
+static bool
+api_panel_set_label(
+    struct PluginContext* ctx,
+    char const* id,
+    char const* label)
+{
+    struct ToriRS_PanelWidget* widget;
+    char const* next = label ? label : "";
+    int slot;
+
+    assert(ctx);
+    if( !plugin_panel_mutable(ctx, id, &slot) )
+        return false;
+    widget = &ctx->host->panel_widgets[slot];
+    if( !plugin_panel_kind_has_label(widget->kind) )
+        return false;
+    if( !plugin_copy_str_would_change(widget->label, sizeof(widget->label), next) )
+        return true;
+    plugin_copy_str(widget->label, sizeof(widget->label), next);
+    plugin_panel_bump(&ctx->host->panel_model_revision);
+    plugin_panel_change_widget(
+        ctx->host, slot, TORIRS_PLUGIN_PANEL_CHANGE_LABEL);
+    return true;
+}
+
 static bool
 api_panel_set_value(
     struct PluginContext* ctx,
@@ -3366,6 +3549,75 @@ api_panel_set_height(
     plugin_panel_bump(&ctx->host->panel_model_revision);
     plugin_panel_change_widget(
         ctx->host, slot, TORIRS_PLUGIN_PANEL_CHANGE_HEIGHT);
+    return true;
+}
+
+/**
+ * Remint one row's identity, leaving every other row's alone.
+ *
+ * The reason this exists: a row's INPUT identity can change while the page's
+ * row sequence does not. A custom well whose y-to-item mapping moved because
+ * a band arrived, a row that now stands for a different thing -- a click
+ * authored against the old picture has to be refused, and the only way to
+ * refuse it was panel.invalidate, which re-declares the whole page. The
+ * browser executor then removes and re-adds every DOM row, and the in-canvas
+ * one frees the widget list, sends the scroll back to the top and retires
+ * every retained custom run, so a well that stages nothing on the next pass
+ * goes blank. A tracker that gained one kill source paid all of that.
+ *
+ * A caller that changed only a caption or a value must NOT call this: the
+ * setters journal those, and reminting an identity throws away the row's
+ * presentation node for nothing.
+ */
+static bool
+api_panel_reidentify(
+    struct PluginContext* ctx,
+    char const* id)
+{
+    struct ToriRS_PanelWidget* widget;
+    int slot;
+
+    assert(ctx);
+    if( !plugin_panel_mutable(ctx, id, &slot) )
+        return false;
+    widget = &ctx->host->panel_widgets[slot];
+    widget->serial = plugin_widget_next_serial(ctx->host);
+    /* The old bitmap belonged to the old identity, so a custom well is dirty
+     * by construction after this -- exactly as a rebuild would have left it. */
+    if( widget->kind == TORIRS_PANEL_WIDGET_CUSTOM )
+        ctx->host->panel_invalidated[slot] = true;
+    plugin_panel_bump(&ctx->host->panel_model_revision);
+    plugin_panel_change_widget(
+        ctx->host, slot, TORIRS_PLUGIN_PANEL_CHANGE_IDENTITY);
+    return true;
+}
+
+/**
+ * Where the active page is scrolled to, or -1 when none of ours is up.
+ *
+ * -1 and not 0, because 0 is a legitimate answer -- the top of the page -- and
+ * a plugin that could not tell "at the top" from "there is no page" would
+ * restore a place that was never taken.
+ */
+static int
+api_panel_scroll(struct PluginContext* ctx)
+{
+    assert(ctx);
+    if( ctx->host->panel_active != ctx->index || !ctx->host->panel_visible )
+        return -1;
+    return ctx->host->panel_scroll;
+}
+
+static bool
+api_panel_scroll_to(struct PluginContext* ctx, int scroll)
+{
+    assert(ctx);
+    if( ctx->host->panel_active != ctx->index || !ctx->host->panel_visible )
+        return false;
+    if( scroll < 0 )
+        scroll = 0;
+    ctx->host->panel_scroll_wanted = scroll;
+    ctx->host->panel_scroll_request = true;
     return true;
 }
 
@@ -3548,7 +3800,10 @@ plugin_draw_allow(
         if( !ctx->draw_clipped )
         {
             ctx->draw_clipped = true;
-            TORIRS_LOG(
+            /* TORIRS_ERR, not TORIRS_LOG: a shipping build compiles TORIRS_LOG
+             * out, and a truncated overlay with no line is the class of
+             * silence the audit found last. Once per frame per plugin. */
+            TORIRS_ERR(
                 "plugin: %s hit its %d-item draw budget this frame; "
                 "the rest of its overlay was dropped\n",
                 ctx->name,
@@ -3578,7 +3833,20 @@ plugin_draw_require_world(struct PluginContext* ctx)
         "draw_tile/draw_hull name something in the scene; the screen surfaces have none");
 }
 
-static void
+/*
+ * The SECOND draw verb that answers, and the one the budget actually bites.
+ *
+ * A tile marker is drawn per tile of a footprint -- a 2x2 npc is four calls --
+ * so a crowded Activities set reaches the 512-item allotment by multiplication
+ * rather than by accident, and every tile past it vanished. The line
+ * `plugin_draw_allow` prints is the right line; what was missing is a caller
+ * able to READ the refusal, which is why the tile-indicator port had to declare
+ * the gap as an unsupported feature instead of reporting the event.
+ *
+ * The budget is the only refusal here. A tile is a place, so there is no entity
+ * whose appearance another plugin could hold, and no CONFLICT arm.
+ */
+static enum ToriRS_Result
 api_draw_tile(
     struct PluginContext* ctx,
     void* surface,
@@ -3586,17 +3854,38 @@ api_draw_tile(
     int tile_z,
     int level,
     uint32_t rgb,
+    int outline_width,
     uint32_t fill_rgb,
-    int fill_alpha)
+    int fill_alpha,
+    int depth)
 {
     plugin_draw_require_world(ctx);
     if( !plugin_draw_allow(ctx, surface) )
-        return;
+        return TORIRS_RESULT_BUDGET;
     ctx->draw_used += ctx->host->engine.draw_tile(
-        ctx->host->engine.user, tile_x, tile_z, level, rgb, fill_rgb, fill_alpha);
+        ctx->host->engine.user,
+        tile_x,
+        tile_z,
+        level,
+        rgb,
+        outline_width,
+        fill_rgb,
+        fill_alpha,
+        depth);
+    return TORIRS_RESULT_OK;
 }
 
-static void
+/*
+ * The draw verb with a refusal that is per ENTITY and not per frame.
+ *
+ * Every remaining api_draw_* stays void: their only refusal is the budget, and
+ * the budget already announces itself once per frame per plugin. This one
+ * also refuses on a CLAIM -- an entity whose APPEARANCE facet another plugin
+ * holds. Tag a species in a mass of npcs with a claim-holding plugin loaded and
+ * half the outlines go missing with nobody, plugin or player, able to tell. So
+ * both refusals are returned: BUDGET for the allotment, CONFLICT for the claim.
+ */
+static enum ToriRS_Result
 api_draw_hull(
     struct PluginContext* ctx,
     void* surface,
@@ -3608,13 +3897,12 @@ api_draw_hull(
     assert(shape == TORIRS_HULL_BOUNDS || shape == TORIRS_HULL_MESH);
     plugin_draw_require_world(ctx);
     if( !plugin_draw_allow(ctx, surface) )
-        return;
-    /* An entity whose APPEARANCE facet another plugin owns is that plugin's to
-     * outline. Refusal is silent, like an element that is not on screen. */
+        return TORIRS_RESULT_BUDGET;
     if( !plugin_entity_hull_allowed(ctx->host, ctx->index, element_id) )
-        return;
+        return TORIRS_RESULT_CONFLICT;
     ctx->draw_used +=
         ctx->host->engine.draw_hull(ctx->host->engine.user, element_id, rgb, fill_alpha, shape);
+    return TORIRS_RESULT_OK;
 }
 
 static void
@@ -4548,6 +4836,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->hsl_to_rgb);
     assert(engine->mouse_pos);
     assert(engine->slot_native_size);
+    assert(engine->slot_member_native_box);
     assert(engine->component_rect);
     assert(engine->menu_drop);
     assert(engine->stat);
@@ -5317,14 +5606,13 @@ plugin_v2_panel_set_options(
         return TORIRS_RESULT_NOT_FOUND;
     widget = &host->panel_widgets[slot];
     if( widget->kind != TORIRS_PANEL_WIDGET_DROPDOWN || !widget->structured_select ||
-        option_count < 0 || option_count != widget->select_option_count ||
-        (option_count > 0 && !options) ||
+        option_count < 0 || (option_count > 0 && !options) ||
         strlen(value) >= TORIRS_PLUGIN_SELECT_VALUE_MAX )
         return TORIRS_RESULT_INVALID;
+    /* Validate every option before touching the pool, so a refused call
+     * leaves the widget exactly as it was. */
     for( int i = 0; i < option_count; i++ )
     {
-        struct ToriRS_PluginSelectOption* destination = &widget->select_options[i];
-        char const* detail;
         if( options[i].struct_size < TORIRS_SELECT_OPTION_REQUIRED_SIZE ||
             !options[i].value || !options[i].value[0] || !options[i].label ||
             strlen(options[i].value) >= TORIRS_PLUGIN_SELECT_VALUE_MAX )
@@ -5332,6 +5620,43 @@ plugin_v2_panel_set_options(
         for( int j = 0; j < i; j++ )
             if( strcmp(options[i].value, options[j].value) == 0 )
                 return TORIRS_RESULT_INVALID;
+    }
+    if( option_count != widget->select_option_count )
+    {
+        /* A changed option COUNT used to be refused, and every consumer then
+         * invalidated the page and rebuilt it (a flash, a lost scroll, a
+         * retired custom well). The pool holds each widget's options as one
+         * contiguous slice; resize this slice in place and slide the slices
+         * after it, fixing their owners' pointers. */
+        int const first = (int)(widget->select_options - host->panel_select_options);
+        int const old_count = widget->select_option_count;
+        int const delta = option_count - old_count;
+        int const tail = host->panel_select_option_count - (first + old_count);
+        assert(first >= 0);
+        assert(tail >= 0);
+        if( host->panel_select_option_count + delta > TORIRS_PLUGIN_SELECT_OPTIONS_MAX )
+            return TORIRS_RESULT_BUDGET;
+        memmove(&host->panel_select_options[first + option_count],
+                &host->panel_select_options[first + old_count],
+                (size_t)tail * sizeof(host->panel_select_options[0]));
+        for( int w = 0; w < host->panel_widget_count; w++ )
+        {
+            struct ToriRS_PanelWidget* other = &host->panel_widgets[w];
+            if( other == widget || !other->structured_select || !other->select_options )
+                continue;
+            if( other->select_options > widget->select_options )
+                other->select_options += delta;
+        }
+        host->panel_select_option_count += delta;
+        for( int i = old_count; i < option_count; i++ )
+            memset(&widget->select_options[i], 0, sizeof(widget->select_options[i]));
+        widget->select_option_count = option_count;
+        changed = true;
+    }
+    for( int i = 0; i < option_count; i++ )
+    {
+        struct ToriRS_PluginSelectOption* destination = &widget->select_options[i];
+        char const* detail;
         detail = options[i].detail ? options[i].detail : "";
         if( strcmp(destination->value, options[i].value) != 0 ||
             strcmp(destination->label, options[i].label) != 0 ||
@@ -5580,6 +5905,7 @@ plugin_v2_item_image(
     uint64_t* out_revision)
 {
     struct ToriRS_PluginHost* host = user;
+    enum ToriRS_AssetState state = TORIRS_ASSET_PENDING;
     int image;
 
     assert(host);
@@ -5594,9 +5920,9 @@ plugin_v2_item_image(
         return TORIRS_ASSET_INVALID;
     if( count == 0 )
         count = 1;
-    image = api_obj_image(context, obj_id, count, style);
+    image = api_obj_image(context, obj_id, count, style, &state);
     if( image < 0 )
-        return TORIRS_ASSET_PENDING;
+        return state;
     for( int i = 0; i < TORIRS_PLUGIN_OBJ_ICONS_MAX; i++ )
         if( host->obj_icons[i].plugin == context->index &&
             host->obj_icons[i].image == image &&
@@ -5769,9 +6095,11 @@ plugin_v2_event(
                    : TORIRS_CALLBACK_CONTINUE;
     case PLUGIN_CALLBACK_DRAW_WORLD:
     {
+        struct PluginCanvasDispatch const* world = event;
         struct PluginV2DrawScope scope;
         struct ToriRS_Graphics builder;
-        plugin_v2_runtime_draw_begin(&v2->runtime, event, &scope, &builder);
+        plugin_v2_runtime_draw_begin(&v2->runtime, world->surface, &scope, &builder);
+        plugin_v2_runtime_draw_region(&scope, world->bounds);
         v2->definition->callbacks.on_draw_world(api, state, &builder);
         plugin_v2_runtime_draw_end(&scope, &builder);
         break;
@@ -6682,9 +7010,12 @@ void
 PluginHost_WidgetsChanged(struct ToriRS_PluginHost* host, uint64_t instance, uint64_t generation)
 {
     if( !host ) return;
+    PA_INC(widgets_changed_calls);
+    uint64_t const pa_t0 = PerfAudit_Now();
     if( host->widget_watch_dispatching ) { host->widget_watch_pending = true; return; }
     if( !host->widget_watch_pending && host->widget_tree_instance == instance &&
-        host->widget_tree_generation == generation ) return;
+        host->widget_tree_generation == generation )
+    { PA_ADD(widgets_changed_ns, PerfAudit_Now() - pa_t0); return; }
     host->widget_tree_instance = instance;
     host->widget_tree_generation = generation;
     host->widget_watch_pending = false;
@@ -6738,6 +7069,11 @@ PluginHost_WidgetsChanged(struct ToriRS_PluginHost* host, uint64_t instance, uin
         }
         if( memcmp(&previous, &current, sizeof(current)) == 0 ) continue;
         watch->current = current;
+        /* The stamped state described the node that just went away. Dropping
+         * it here is what keeps a rebind from opening with a STATE_CHANGED
+         * for a difference between two different widgets. */
+        watch->has_last_state = false;
+        memset(&watch->last_state, 0, sizeof(watch->last_state));
         struct ToriRS_WidgetEvent event = {.native_revision=generation, .role=role};
         if( previous.opaque[2] )
         {
@@ -6749,6 +7085,116 @@ PluginHost_WidgetsChanged(struct ToriRS_PluginHost* host, uint64_t instance, uin
             event.type = TORIRS_WIDGET_BOUND; event.widget = current;
             plugin_widget_watch_call(host, item.owner, item.slot, item.serial, &event);
         }
+    }
+    host->widget_watch_dispatching = false;
+}
+
+/*
+ * Field by field, and struct_size deliberately NOT among them: the size is the
+ * caller's declaration of its own build, not an observation about the widget,
+ * and a memcmp over the whole struct would also compare whatever padding the
+ * compiler put between the four bools and `graphic_token`.
+ */
+static bool
+plugin_widget_state_equal(
+    struct ToriRS_WidgetState const* a,
+    struct ToriRS_WidgetState const* b)
+{
+    assert(a);
+    assert(b);
+    return a->bounds.x == b->bounds.x && a->bounds.y == b->bounds.y &&
+           a->bounds.width == b->bounds.width && a->bounds.height == b->bounds.height &&
+           a->local.x == b->local.x && a->local.y == b->local.y &&
+           a->local.width == b->local.width && a->local.height == b->local.height &&
+           a->presented == b->presented && a->own_hidden == b->own_hidden &&
+           a->native_hidden == b->native_hidden && a->input_present == b->input_present &&
+           a->graphic_token == b->graphic_token && a->text_hash == b->text_hash &&
+           a->facets == b->facets && a->incarnation == b->incarnation;
+}
+
+void
+PluginHost_WidgetStates(struct ToriRS_PluginHost* host)
+{
+    static int trace = -1;
+    if( !host ) return;
+    if( !host->engine.widget_request ) return;
+    /* Re-entered from a watch callback: the outer pass owns the walk, and the
+     * callback's own edits are picked up on the next frame's stamp. */
+    if( host->widget_watch_dispatching ) return;
+    if( trace < 0 ) trace = getenv("TORIRS_TRACE_NATIVE_UI") ? 1 : 0;
+    host->widget_watch_dispatching = true;
+    /* Same snapshot shape as PluginHost_WidgetsChanged: a callback may
+     * replace, remove, disable or reload any watch here, so every entry is
+     * re-validated through plugin_widget_watch_current before it is used. */
+    struct WatchDispatch { int owner, slot; uint64_t serial; };
+    struct WatchDispatch snapshot[TORIRS_PLUGIN_MAX * PLUGIN_WIDGET_WATCH_MAX];
+    int count = 0;
+    for( int order = 0; order < host->plugin_count; ++order )
+    {
+        int owner = host->event_order[order];
+        struct PluginContext* ctx = &host->plugins[owner];
+        if( !ctx->running || !ctx->enabled || !ctx->widget_watches ) continue;
+        int const first = count;
+        for( int slot = 0; slot < PLUGIN_WIDGET_WATCH_MAX; ++slot )
+            if( ctx->widget_watches[slot].serial )
+            {
+                struct WatchDispatch item = {owner, slot, ctx->widget_watches[slot].serial};
+                int at = count++;
+                while( at > first && snapshot[at - 1].serial > item.serial )
+                { snapshot[at] = snapshot[at - 1]; --at; }
+                snapshot[at] = item;
+            }
+    }
+    for( int i = 0; i < count; ++i )
+    {
+        struct WatchDispatch item = snapshot[i];
+        struct PluginWidgetWatch* watch =
+            plugin_widget_watch_current(host, item.owner, item.slot, item.serial);
+        if( !watch ) continue;
+        /* @tree subscribes to topology, which is what WidgetsChanged already
+         * publishes; it names no widget to have a state. */
+        if( strcmp(watch->role, "@tree") == 0 ) continue;
+        struct ToriRS_WidgetRef current = watch->current;
+        if( !current.opaque[2] ) continue;
+        char role[TORIRS_UI_NAME_MAX];
+        if( !watch->wants_state ) continue;
+        snprintf(role, sizeof(role), "%s", watch->role);
+        struct ToriRS_WidgetState state;
+        memset(&state, 0, sizeof(state));
+        state.struct_size = (uint32_t)sizeof(state);
+        struct PluginWidgetRequest request = {
+            .kind = PLUGIN_WIDGET_STATE, .ref = current, .state = &state};
+        if( host->engine.widget_request(
+                host->engine.user, (uint64_t)item.owner + 1, &request) != TORIRS_CONTRACT_OK )
+            continue;
+        bool const had = watch->has_last_state;
+        struct ToriRS_WidgetState const previous = watch->last_state;
+        /* The lane's own answers, reported the first time they are seen and
+         * whenever they move -- unlike PLUGIN_STATE below, which is silent on
+         * the baseline. A facet bit is the one field of the state a reader
+         * cannot check against the pixels, so the first value is the
+         * interesting one: a tab that was never GIVEN prints once and stays
+         * quiet, which is exactly the run a facet audit is looking for. */
+        if( trace && (!had || previous.facets != state.facets) )
+            TORIRS_REPORT("PLUGIN_FACETS owner=%d role=%s facets=%02x\n", item.owner, role,
+                          state.facets);
+        watch->last_state = state;
+        watch->has_last_state = true;
+        /* The first stamp after a binding is a baseline, not a change: a plugin
+         * that just heard BOUND already knows to read the widget. */
+        if( !had ) continue;
+        if( plugin_widget_state_equal(&previous, &state) ) continue;
+        if( trace )
+            TORIRS_REPORT(
+                "PLUGIN_STATE owner=%d role=%s box=%d,%d,%d,%d presented=%d own_hidden=%d "
+                "native_hidden=%d input=%d art=%08x text=%016" PRIx64 "\n",
+                item.owner, role, state.bounds.x, state.bounds.y, state.bounds.width,
+                state.bounds.height, state.presented, state.own_hidden, state.native_hidden,
+                state.input_present, state.graphic_token, state.text_hash);
+        struct ToriRS_WidgetEvent event = {
+            .type = TORIRS_WIDGET_STATE_CHANGED, .widget = current,
+            .native_revision = host->widget_tree_generation, .role = role};
+        plugin_widget_watch_call(host, item.owner, item.slot, item.serial, &event);
     }
     host->widget_watch_dispatching = false;
 }
@@ -6939,14 +7385,19 @@ PluginHost_Key(
 }
 
 void
-PluginHost_DrawWorld(struct ToriRS_PluginHost* host)
+PluginHost_DrawWorld(struct ToriRS_PluginHost* host, int width, int height)
 {
+    struct PluginCanvasDispatch canvas;
+
     if( !host )
         return;
+    assert(width > 0);
+    assert(height > 0);
 
     /* Entity claims bind to this frame's elements before anybody draws, so
      * the draw_hull gate and the standing looks below agree about which
      * element is whose. */
+    PA_INC(draw_world_calls);
     plugin_entity_resolve_all(host);
 
     /* The surface token is the host's own address: it is not dereferenced,
@@ -6955,8 +7406,15 @@ PluginHost_DrawWorld(struct ToriRS_PluginHost* host)
     host->draw_surface = host;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
+    /* The world pass draws in canvas coordinates (projected points carry the
+     * viewport offset), so its region is the whole canvas at origin zero:
+     * the context becomes valid without moving a single coordinate. Before
+     * this the world pass never set a region, so draw->context answered
+     * false to six of the seven overlay plugins. */
+    canvas.surface = host->draw_surface;
+    canvas.bounds = (struct ToriRS_Rect){ 0, 0, width, height };
     if( host->callback_count[PLUGIN_CALLBACK_DRAW_WORLD] > 0 )
-        plugin_dispatch(host, PLUGIN_CALLBACK_DRAW_WORLD, host->draw_surface);
+        plugin_dispatch(host, PLUGIN_CALLBACK_DRAW_WORLD, &canvas);
     /* The declared looks, after the imperative drawing: a holder's standing
      * hull goes over whatever anyone else marked around it. */
     plugin_entity_paint_looks(host);
@@ -6980,6 +7438,8 @@ PluginHost_DrawCanvas(
      * there is all it takes for a handler that kept the wrong event's surface
      * to be caught by the same assert that catches drawing outside a window.
      */
+    PA_INC(draw_canvas_calls);
+    uint64_t const pa_t0 = PerfAudit_Now();
     host->draw_surface = host;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_CANVAS;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_CANVAS);
@@ -6990,6 +7450,7 @@ PluginHost_DrawCanvas(
     host->draw_surface = NULL;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
+    PA_ADD(draw_canvas_ns, PerfAudit_Now() - pa_t0);
 }
 
 static struct ToriRS_FrameOffer const*
@@ -7038,6 +7499,7 @@ PluginHost_Layout(
 
     if( !host )
         return;
+    PA_INC(plugin_host_layout_calls);
     transitioning = host->frame_layout_requested && host->frame_target_entry >= 0 &&
                     host->frame_target_entry != host->frame_active_entry;
     build_entry = transitioning ? host->frame_target_entry : host->frame_active_entry;
@@ -7957,6 +8419,48 @@ PluginHost_PanelLayout(
     return 1;
 }
 
+/*
+ * The scroll, on its own and not with the layout facts above.
+ *
+ * PanelLayout early-returns when nothing in it moved, and it is RIGHT to: it
+ * dispatches a callback, and a page whose allocation did not change must not
+ * wake every plugin every frame. The scroll moves under a finger on frames
+ * where none of those facts do, so riding it in there would either be dropped
+ * by that early-out or destroy it -- and it raises no event, because where the
+ * page is scrolled is a thing a plugin ASKS, not a thing it is told.
+ */
+void
+PluginHost_PanelSetScroll(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    int scroll)
+{
+    assert(host);
+    if( selection_generation == 0 || selection_generation != host->panel_selection_generation )
+        return;
+    host->panel_scroll = scroll < 0 ? 0 : scroll;
+}
+
+int
+PluginHost_PanelTakeScrollRequest(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    int* out_scroll)
+{
+    assert(host);
+    assert(out_scroll);
+    if( !host->panel_scroll_request )
+        return 0;
+    /* Cleared whether or not it is delivered: a request authored against a
+     * page that has since been replaced names a place in a page nobody is
+     * reading, and leaving it queued would apply it to the next one. */
+    host->panel_scroll_request = false;
+    if( selection_generation == 0 || selection_generation != host->panel_selection_generation )
+        return 0;
+    *out_scroll = host->panel_scroll_wanted;
+    return 1;
+}
+
 int
 PluginHost_PanelDispatch(
     struct ToriRS_PluginHost* host,
@@ -7990,10 +8494,17 @@ PluginHost_PanelDispatch(
     slot = plugin_panel_find_serial(host, widget_serial);
     if( slot < 0 || strcmp(host->panel_widgets[slot].id, widget_id) != 0 )
         return 0;
-    if( action < TORIRS_PANEL_ACTION_ACTIVATE || action > TORIRS_PANEL_ACTION_KEY )
+    if( action < TORIRS_PANEL_ACTION_ACTIVATE || action > TORIRS_PANEL_ACTION_MENU )
         return 0;
     widget = &host->panel_widgets[slot];
     if( action >= TORIRS_PANEL_ACTION_DRAG && widget->kind != TORIRS_PANEL_WIDGET_CUSTOM )
+        return 0;
+
+    /* A button the page says it cannot service right now does not fire. Its
+     * availability rides `value` -- which is where the builder's `enabled`
+     * argument has always been written, and which nothing used to read, so a
+     * plugin offering a command it could not honour got the click anyway. */
+    if( widget->kind == TORIRS_PANEL_WIDGET_BUTTON && !widget->value )
         return 0;
 
     /* A structured selection is identified by its stable value as well as its

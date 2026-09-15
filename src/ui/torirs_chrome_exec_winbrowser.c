@@ -383,7 +383,8 @@ static void append_command(
     json_string(json, cmd->text);
     json_append(json, ",\"detail\":");
     json_string(json, cmd->detail);
-    json_appendf(json, ",\"s\":%u}", (unsigned)cmd->serial);
+    json_appendf(
+        json, ",\"s\":%u,\"b\":%d}", (unsigned)cmd->serial, cmd->before_widget);
 }
 
 static int send_batch(struct WinBrowserExec* s)
@@ -730,7 +731,7 @@ static void drain_messages(struct WinBrowserExec* s)
             intent.selection_generation = json_u32(tail, "g", 0);
             intent.widget_serial = json_u32(tail, "s", 0);
             if( !s->open || intent.kind < TORIRS_CHROME_INTENT_ACTIVATE ||
-                intent.kind > TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE ||
+                intent.kind > TORIRS_CHROME_INTENT_CUSTOM_MENU ||
                 intent.selection_generation != effective_page_generation(s) )
                 continue;
             if( intent.kind == TORIRS_CHROME_INTENT_CLOSE )
@@ -744,7 +745,8 @@ static void drain_messages(struct WinBrowserExec* s)
                 continue;
             widget = ToriRSChromeMirror_Widget(&s->mirror, intent.widget);
             if( !widget || widget->panel != intent.panel ) continue;
-            if( intent.kind == TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE &&
+            if( (intent.kind == TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE ||
+                 intent.kind == TORIRS_CHROME_INTENT_CUSTOM_MENU) &&
                 (s->custom_panel[intent.widget] != intent.panel || intent.x < 0 ||
                  intent.y < 0 || intent.x >= s->custom_width[intent.widget] ||
                  intent.y >= s->custom_height[intent.widget]) )

@@ -300,7 +300,7 @@
 
 #define TORIRS_CHROME_M_CUSTOM_H 120
 #define TORIRS_CHROME_M_CUSTOM_H_MIN 48
-#define TORIRS_CHROME_M_CUSTOM_H_MAX 512
+#define TORIRS_CHROME_M_CUSTOM_H_MAX 2048
 
 /* ---- the open dropdown list ----------------------------------------------
  *

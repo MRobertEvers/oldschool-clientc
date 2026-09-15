@@ -977,7 +977,7 @@ RS_CS2Host_Init(
     host->ui_scale_dirty = false;
     /* Facing north; overwritten every logic tick by RS_CS2Host_SetCameraAngles
      * once a world is up, so this only covers the pre-login window. The pitch
-     * default matches app.c's orbit_pitch (the reference orbitCameraPitch). */
+     * default matches the follow camera's own pitch (the reference orbitCameraPitch). */
     host->cam_yaw = 0;
     host->cam_angle_x = 128;
     host->cam_angle_y = 0;
@@ -3040,7 +3040,7 @@ minimenu_find(struct RS_CS2Host* host, enum RS_ClientOpKind kind, int menu_type)
     }
     RS_ClientOpActiveSet(&host->clientop, kind, &host->clientop.mouseover);
     if( torirs_env_clientop_debug() )
-        TORIRS_LOG("minimenu_find: %s latched uid=%d type=%d '%s'\n",
+        TORIRS_REPORT("minimenu_find: %s latched uid=%d type=%d '%s'\n",
             RS_ClientOpKindName(kind),
             host->clientop.mouseover.uid,
             host->clientop.mouseover.type,
@@ -3149,7 +3149,7 @@ exec_minimenu(
             return CS2VM2_PushInt(thread, 0);
         CS2VM2_SetActiveAndDotComponentId(thread, host->clientop.mouseover_component);
         if( torirs_env_clientop_debug() )
-            TORIRS_LOG("minimenu_find: component latched %d\n",
+            TORIRS_REPORT("minimenu_find: component latched %d\n",
                 host->clientop.mouseover_component);
         return CS2VM2_PushInt(thread, 1);
     default:
@@ -6403,6 +6403,11 @@ rs_cs2_clear_hooks_subtree(
              child = tree->components[child].next_sibling )
         {
             int child_cid = tree->components[child].component_id;
+            /* Plugin-owned controls sit at id -1 under cache nodes; the
+             * group filter below would walk into them and clear hooks they
+             * never had. They are the plugin's to remove, not the group's. */
+            if( tree->components[child].plugin_owner )
+                continue;
             if( child_cid >= 0 && ((child_cid >> 16) & 0xffff) != group_id )
                 continue;
             if( sp >= cap )
@@ -8412,13 +8417,13 @@ exec_highlight_request(
 
     if( debug )
     {
-        TORIRS_LOG("highlight: op %d (%s)",
+        TORIRS_REPORT("highlight: op %d (%s)",
             opcode,
             known ? RS_HighlightKindName(kind) : "?");
         for( int i = 0; i < arg_count; i++ )
-            TORIRS_LOG(" %d", args[i]);
+            TORIRS_REPORT(" %d", args[i]);
         if( name )
-            TORIRS_LOG(" '%s'", name);
+            TORIRS_REPORT(" '%s'", name);
     }
 
     handled = RS_HighlightApply(
@@ -8426,11 +8431,11 @@ exec_highlight_request(
     if( debug )
     {
         if( known )
-            TORIRS_LOG(" -> %d %s",
+            TORIRS_REPORT(" -> %d %s",
                 kind == RS_HIGHLIGHT_PLAYER ? host->highlight.named_count
                                             : host->highlight.member_count[kind],
                 RS_HighlightKindName(kind));
-        TORIRS_LOG("\n");
+        TORIRS_REPORT("\n");
     }
     if( !handled )
     {
@@ -8456,7 +8461,7 @@ exec_clientop_request(
     char const* label)
 {
     if( torirs_env_clientop_debug() )
-        TORIRS_LOG("clientop: op %d %s slot %d script %d '%s'\n",
+        TORIRS_REPORT("clientop: op %d %s slot %d script %d '%s'\n",
             opcode,
             is_set ? "set" : "del",
             slot,
@@ -8551,7 +8556,7 @@ exec_active_player_request(
         return CS2VM_EXECNO_ERROR;
     }
     if( getenv("TORIRS_HIGHLIGHT_DEBUG") )
-        TORIRS_LOG("activeplayer: op %d (uid %d, index %d) -> %d\n",
+        TORIRS_REPORT("activeplayer: op %d (uid %d, index %d) -> %d\n",
             opcode,
             uid,
             index,
@@ -8632,7 +8637,17 @@ exec_widget_set_position(
      * TORIRS_DUMP_SETSIZE above; both CC_SETPOSITION and IF_SETPOSITION come
      * through here, so one line covers the whole opcode pair, and
      * host->trace_script_id names the clientscript whose ThreadRun is on the
-     * stack. Without it a moved box is a fact with no author. */
+     * stack. Without it a moved box is a fact with no author.
+     *
+     * TORIRS_REPORT, not TORIRS_LOG, for the reason TORIRS_DUMP_BOUNDS gives:
+     * the shipping lane compiles -DNDEBUG, which strips TORIRS_LOG, and the
+     * gate binary and every porcelain shot ARE that build. Printed through
+     * TORIRS_LOG this facility answered "no script moved it" about a box a
+     * clientscript had just moved -- an answer that reads as the CLIENT having
+     * moved it, and is how interface 164's own two-row tab stacking
+     * (SETPOS 164|95 0,36 modes=2,2 script=901) nearly went down as a client
+     * defect. An instrument that goes silent in the build it is used in is
+     * worse than no instrument. */
     {
         static int setpos_want = -2;
         if( setpos_want == -2 )
@@ -8644,7 +8659,7 @@ exec_widget_set_position(
         {
             int const group = (component_id >> 16) & 0xffff;
             if( group == setpos_want || setpos_want == 0 )
-                TORIRS_LOG("SETPOS com=0x%08x (%d|%d) %d,%d modes=%d,%d script=%d\n",
+                TORIRS_REPORT("SETPOS com=0x%08x (%d|%d) %d,%d modes=%d,%d script=%d\n",
                     (unsigned)component_id,
                     group,
                     component_id & 0xffff,
@@ -8672,6 +8687,8 @@ exec_widget_set_size(
     struct UITree* tree = rs_cs2_tree(host);
     if( !tree )
         return CS2VM_EXECNO_OK;
+    /* TORIRS_DUMP_SETSIZE=<group>: the twin of TORIRS_DUMP_SETPOS below, and
+     * TORIRS_REPORT for the same reason it is. */
     {
         static int setsize_want = -2;
         if( setsize_want == -2 )
@@ -8683,7 +8700,7 @@ exec_widget_set_size(
         {
             int const group = (component_id >> 16) & 0xffff;
             if( group == setsize_want )
-                TORIRS_LOG("SETSIZE com=0x%08x (%d|%d) %dx%d modes=%d,%d\n",
+                TORIRS_REPORT("SETSIZE com=0x%08x (%d|%d) %dx%d modes=%d,%d\n",
                     (unsigned)component_id,
                     group,
                     component_id & 0xffff,

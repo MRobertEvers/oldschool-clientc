@@ -75,7 +75,7 @@ Ground Items preserves the requested Highlight/Hide action and item definition t
 
 Native fixture inputs read from the real handlers: OSRS inventory rune platebody right-click `(618,235)`, then Drop `(610,280)`. Both Ground Items and Loot Beams receive the resulting real item update. On the pinned Lost City server, debugprocs require `~`; `500,~addobj2 1` creates one random item at the player's tile. Earlier plain `addobj`/`varrock` command requests are not applied-state evidence. Each connection reserved a new account. Public drops can be seen by other simultaneous fixture accounts, so do not treat unrelated nearby stacks as deterministic counts.
 
-Loot Beams' OSRS rune platebody is below its default high threshold: `tier=low` shows one blue beam. The rs289lc capture uses `tier=low,low_value=0` and a real debug-created stack, also with one blue beam. The beam probe separately shows its deliberately wide translucent column on both revisions. It now uses the client logic tick; height changes rebuild its geometry, color updates recolor it, and stop frees the probe's mesh/instance.
+Loot Beams' OSRS rune platebody is below its default high threshold: `tier=low` shows one blue beam. The rs289lc capture uses `tier=low,low_value=1` and a real debug-created stack, also with one blue beam. **That recipe said `low_value=0` before the Porcelain port** and must not be used again: `porcelain.tier` follows the reference in skipping a tier whose threshold is at or below zero, so a zero threshold now turns the low tier OFF rather than matching everything, and re-running the old recipe reads as a beam that stopped working. The capture itself was taken under the old recipe and has not been re-taken here — an rs289lc lane needs its own server checkout and seed save — so it is the one loot-beam artifact in this register that is known stale. The beam probe separately shows its deliberately wide translucent column on both revisions. It now uses the client logic tick; height changes rebuild its geometry, color updates recolor it, and stop frees the probe's mesh/instance.
 
 The draw probe now places its cyan filled tile and yellow outlined tile in the actual loaded world. Its rectangle's requested alpha 128 was lost in `ToriRS_FrameNextCommand`; forwarding the transparency restores blending on both revisions. The renderer test fails without that field, and the pixel rule rejects the earlier fully opaque capture. The native frame sprite test needed its unused model-draw link boundary closed after the previous animation changes; that stub aborts if unexpectedly invoked. General graphics line-alpha behavior and the zero-alpha rectangle/outline convention remain to reconcile during complete execution-API cutover.
 
@@ -130,6 +130,32 @@ This hidden C plugin uses the major-3 server-tick, named-cache and notification 
 Native OSRS captures use the existing `::cannon` debugproc (which bypasses placement-space checks but runs the actual timed assembly), native server varps and the client's ordinary object-operation encoder. With notification rows enabled, op 3 empties 15 cannonballs and produces the plugin's single “Your cannon has run out of cannonballs.” line. The native content also emits its separate “out of ammunition” message; this is not two plugin callbacks. With op 2, the old checkpoint (`cannon-native-pickup-before`) falsely reports empty after pickup; the fixed capture retains unload/pickup messages without that notification. Both snapshots visibly retain a cannon model after pickup despite returned parts: native loc/render removal remains an open issue, separate from the corrected notification.
 
 Inputs: frame 500 `cannon`; frame 1400 `TORIRS_SIM_OPLOC` operation 2 or 3, tile (3210,3424), loc 6. Native setting writes at frames 450–452 set varbits 14175=1, 14176=10, 14177=1. The existing fixture recorder now includes `TORIRS_SIM_OPLOC`. Enlarged captures show 8 chat/14 sidebar controls. The real rs289lc capture has 4/13 and no notification, matching its absent cannon-notification mappings. Every Lost City connection uses a newly allocated account. These screenshots do not prove native firing below the low threshold or every lifecycle/release combination.
+
+**Both paragraphs above are superseded on two points, and the second one is why
+this plugin had never emitted a line in any capture.**
+
+The "run out of cannonballs" line is no longer expected on an OSRS239 lane at
+all. `cannon.rs2`'s tick timer says "Your cannon is out of ammunition!" itself
+the tick after the count reaches zero, so the builtin holds its own empty
+notice for two server ticks and `nxt_cannon_chat` drops it when the lane
+speaks. Two messages for one event was the defect; one message is the repair.
+What the op-3 capture proves now is the SUPPRESSION, not the notice.
+
+That leaves the low-on-ammo line as the only thing this builtin says on a lane
+whose content implements the cannon -- and the shipped job rows could not
+produce it. `tools/porcelain_gate/shots/jobs/*.txt` wrote 14175 and 14177 and
+not 14176, so the threshold this paragraph already names was never set and
+`threshold > 0` was false for ever; and op 3 takes 15 to 0 in one tick, which
+has no intermediate value for a threshold to be crossed at even when it is.
+The drive is `'TORIRS_SIM_CMD=500,cannon;560,spawn goblin 20'` with
+`14176=10` and `TORIRS_MAX_FRAMES=4000` now: twenty targets make the cannon
+fire its count down one ball a tick, so the crossing at ten is real and the
+zero at the end is reached through the fire path a player uses. The sentence
+above -- "these screenshots do not prove native firing below the low
+threshold" -- was the standing note that this had never been shown; it has been
+shown on all four CS2 toplevels (`plugins/cannon-classic548.png` and its three
+siblings), each logging exactly one `PLUGIN_NOTIFY` and zero "run out of
+cannonballs".
 
 ## Live widget actions and role probe
 

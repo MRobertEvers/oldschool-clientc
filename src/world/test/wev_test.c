@@ -9,6 +9,8 @@
  *   make -C src test-wev            (runs from src/, cache at ../cache.osrs239)
  */
 #include "world/wev.h"
+#include "world/worldview.h"
+#include "toridraw_math.h"
 
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
@@ -810,6 +812,276 @@ test_footprint_tiles(void)
     printf("ok - rotated footprint tiles (heading, floor, margin ordering)\n");
 }
 
+/* ------------------------------------------------------------------ */
+/* Wev_DeckBoxInParent: the one constructor for the deck transform       */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The box is five numbers, and every one of them used to be computed in three
+ * places: here, at the deck camera, and at the frame emitter's descent
+ * transform. Nothing catches a disagreement between them -- an actor that is
+ * one deck-rectangle away from where the camera is pointed is a boat that
+ * looks empty, and a camera that is one base-tile off is a deck that looks
+ * like open water.
+ *
+ * So the cases are the terms, one at a time: the base-tile subtraction that
+ * takes an absolute wire position into the parent's scene-local space, the
+ * recenter that puts the authored deck's rotation centre over the hull, and
+ * the fact that both of those are per-axis and signed.
+ *
+ * The round trip is the property that matters: a point put into deck space and
+ * brought back must land where it started, because that is the invariant the
+ * three call sites were separately relying on.
+ */
+static void
+test_deck_box_in_parent(void)
+{
+    struct WevConfig cfg;
+    struct Wev wev;
+    struct WevDeckBox box;
+    int deck_x;
+    int deck_z;
+    int back_x;
+    int back_z;
+
+    /* The trig tables are built at runtime and read zero until they are. An
+     * uninitialised table collapses every rotation onto the origin, which
+     * looks like a transform that works at angle 0 and loses the deck at every
+     * other heading. */
+    ToriDraw_InitMath();
+    TEST_WEV_ASSERT(ToriDraw_Cos(0) == 65536, "the trig tables are not 16.16");
+    TEST_WEV_ASSERT(ToriDraw_Cos(512) == 0, "512 is not a quarter turn");
+
+    WevConfig_Init(&cfg, 7);
+    cfg.pivot_x = 0;
+    cfg.pivot_z = 0;
+
+    memset(&wev, 0, sizeof(wev));
+    wev.config = &cfg;
+    wev.x = 6400; /* absolute root fine: tile 50 */
+    wev.z = 7680; /* tile 60 */
+    wev.angle = 0;
+
+    /* The parent's base tile comes off the box, not off the caller: a hull at
+     * absolute tile 50 in a world based at tile 40 is at scene-local tile 10.
+     * Feeding the absolute value straight through is what puts every boat
+     * outside the scene, where the out-of-scene guards flatten it away. */
+    Wev_DeckBoxInParent(&wev, 8, 4, 40, 56, &box);
+    TEST_WEV_ASSERT(box.pos_x == 6400 - (40 << 7), "deck box pos_x is not scene-local");
+    TEST_WEV_ASSERT(box.pos_z == 7680 - (56 << 7), "deck box pos_z is not scene-local");
+    TEST_WEV_ASSERT(box.pos_x == 1280 && box.pos_z == 512, "deck box position arithmetic");
+
+    /* Recenter is half the deck rectangle in fine units (64 per half-tile),
+     * negated, minus the config pivot. With no pivot it is exactly the centre
+     * of the authored rectangle, per axis and independently. */
+    TEST_WEV_ASSERT(box.recenter_x == -(8 * 64), "deck box recenter_x without a pivot");
+    TEST_WEV_ASSERT(box.recenter_z == -(4 * 64), "deck box recenter_z without a pivot");
+    TEST_WEV_ASSERT(box.size_x_tiles == 8 && box.size_z_tiles == 4, "deck box carries its size");
+    TEST_WEV_ASSERT(box.angle == 0, "deck box angle");
+
+    /* The pivot is SIGNED and shifts the centre, one axis at a time. The live
+     * cache ships 0xffc0 = -64 on these, so a sign error here is not
+     * hypothetical -- it moves the whole deck half a tile the wrong way. */
+    cfg.pivot_x = -64;
+    cfg.pivot_z = 128;
+    Wev_DeckBoxInParent(&wev, 8, 4, 40, 56, &box);
+    TEST_WEV_ASSERT(box.recenter_x == -(8 * 64) + 64, "a negative pivot_x is not subtracted");
+    TEST_WEV_ASSERT(box.recenter_z == -(4 * 64) - 128, "a positive pivot_z is not subtracted");
+
+    /* The two axes do not borrow each other's terms. A box built from a
+     * rectangle that is square in neither size nor pivot catches a swap that
+     * every symmetric fixture hides. */
+    cfg.pivot_x = 0;
+    cfg.pivot_z = 0;
+    Wev_DeckBoxInParent(&wev, 8, 4, 40, 56, &box);
+    TEST_WEV_ASSERT(box.recenter_x != box.recenter_z, "the deck box axes were swapped");
+
+    /*
+     * Unrotated, the box is exact and the whole transform is a subtraction, so
+     * the numbers can be written out. Deck-local (0,0) is the rectangle's
+     * CORNER, and its image in the parent is the hull's position plus the
+     * recenter -- which is the hull's position shifted back by half the deck.
+     * That is what "the deck hangs off the hull's centre" means arithmetically,
+     * and getting the sign of it wrong parks every deck one rectangle away.
+     */
+    wev.angle = 0;
+    Wev_DeckBoxInParent(&wev, 8, 4, 40, 56, &box);
+    Wev_ParentFromDeck(&box, 0, 0, &back_x, &back_z);
+    TEST_WEV_ASSERT(
+        back_x == 1280 - 512 && back_z == 512 - 256, "the unrotated deck corner is misplaced");
+    Wev_DeckFromParent(&box, back_x, back_z, &deck_x, &deck_z);
+    TEST_WEV_ASSERT(deck_x == 0 && deck_z == 0, "the unrotated round trip is not exact");
+
+    /* The hull's own position is the deck's centre, again exactly. */
+    Wev_DeckFromParent(&box, box.pos_x, box.pos_z, &deck_x, &deck_z);
+    TEST_WEV_ASSERT(
+        deck_x == 8 * 64 && deck_z == 4 * 64, "the hull position is not the deck's centre");
+
+    /*
+     * Rotated, the round trip is a property rather than an identity: the
+     * tables are 16.16 and sin(quarter turn) is 65535, not 65536, so the
+     * forward and inverse rotations are not exact inverses. One fine unit is
+     * 1/128 of a tile and nothing renders differently for it -- but the trip
+     * has to stay bounded, because an unbounded one is a transform that is
+     * wrong rather than rounded.
+     */
+    wev.angle = 512; /* a quarter turn */
+    Wev_DeckBoxInParent(&wev, 8, 4, 40, 56, &box);
+    Wev_ParentFromDeck(&box, 0, 0, &back_x, &back_z);
+    Wev_DeckFromParent(&box, back_x, back_z, &deck_x, &deck_z);
+    TEST_WEV_ASSERT(
+        deck_x >= -2 && deck_x <= 2 && deck_z >= -2 && deck_z <= 2,
+        "the quarter-turn round trip did not land back on the deck corner");
+
+    /* A point on the deck, not at its corner: the same trip, so the box is not
+     * accidentally only correct at the origin. */
+    Wev_ParentFromDeck(&box, 300, 100, &back_x, &back_z);
+    Wev_DeckFromParent(&box, back_x, back_z, &deck_x, &deck_z);
+    TEST_WEV_ASSERT(
+        deck_x >= 298 && deck_x <= 302 && deck_z >= 98 && deck_z <= 102,
+        "the quarter-turn round trip off the corner");
+
+    /* A quarter turn swings the deck's +x axis onto the parent's -z axis --
+     * the check the tolerances above cannot make, because it is the difference
+     * between a rotation and no rotation at all. The deck's centre stays on
+     * the hull whatever the heading, which is what makes it the centre. */
+    Wev_ParentFromDeck(&box, 8 * 64, 4 * 64, &back_x, &back_z);
+    TEST_WEV_ASSERT(
+        back_x == box.pos_x && back_z == box.pos_z,
+        "the deck centre does not sit on the hull at a quarter turn");
+    Wev_ParentFromDeck(&box, 8 * 64 + 256, 4 * 64, &back_x, &back_z);
+    TEST_WEV_ASSERT(
+        back_z <= box.pos_z - 255 && back_x >= box.pos_x - 2 && back_x <= box.pos_x + 2,
+        "a quarter turn did not swing the deck's +x onto the parent's -z");
+
+    /* And membership reads off the same box: the rectangle is [0, size*128)
+     * per axis, so the far edge belongs to whatever is out there instead. */
+    TEST_WEV_ASSERT(Wev_DeckContainsDeckPoint(&box, 0, 0), "deck corner is aboard");
+    TEST_WEV_ASSERT(
+        Wev_DeckContainsDeckPoint(&box, 8 * 128 - 1, 4 * 128 - 1), "deck far corner is aboard");
+    TEST_WEV_ASSERT(
+        !Wev_DeckContainsDeckPoint(&box, 8 * 128, 0), "the x edge is not aboard");
+    TEST_WEV_ASSERT(
+        !Wev_DeckContainsDeckPoint(&box, 0, 4 * 128), "the z edge is not aboard");
+
+    printf("ok: Wev_DeckBoxInParent\n");
+}
+
+/* ------------------------------------------------------------------ */
+/* WorldviewRegistry_HomeViewForAbsTile: whose deck is this tile on?     */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Every spawned view reserves a rectangle of off-map map square, and a wire
+ * coordinate landing in one of them names a spot on that view's deck. Get this
+ * wrong in the permissive direction and an actor standing on the open map is
+ * routed into a boat's world, where it is drawn inside a hull somewhere else
+ * entirely; get it wrong in the strict direction and every actor aboard is
+ * left standing in the water the boat is sailing over.
+ *
+ * The registry is filled in directly here rather than through Register: the
+ * rectangle test is what is under test, and the registration path needs a
+ * World and a WorldBuilder that have nothing to do with it.
+ */
+static void
+test_home_view_for_abs_tile(void)
+{
+    struct WorldviewRegistry reg;
+    int local_x;
+    int local_z;
+    int id;
+
+    WorldviewRegistry_Init(&reg);
+
+    /* An unclaimed tile is the root's, and the root's local coordinates ARE
+     * the absolute ones: its rectangle is whatever no sub-view took. */
+    local_x = local_z = -1;
+    id = WorldviewRegistry_HomeViewForAbsTile(&reg, 3200, 3200, &local_x, &local_z);
+    TEST_WEV_ASSERT(id == WORLDVIEW_ROOT, "an unclaimed tile is not the root's");
+    TEST_WEV_ASSERT(local_x == 3200 && local_z == 3200, "the root does not pass tiles through");
+
+    /* View 3 reserves an 8x16 rectangle out in the staging region. */
+    reg.views[3].id = 3;
+    reg.views[3].live = true;
+    reg.views[3].base_x = 2000;
+    reg.views[3].base_z = 5000;
+    reg.views[3].size_x_tiles = 8;
+    reg.views[3].size_z_tiles = 16;
+
+    id = WorldviewRegistry_HomeViewForAbsTile(&reg, 2000, 5000, &local_x, &local_z);
+    TEST_WEV_ASSERT(id == 3, "the rectangle's own corner is not in it");
+    TEST_WEV_ASSERT(local_x == 0 && local_z == 0, "the corner is not deck-local 0,0");
+
+    id = WorldviewRegistry_HomeViewForAbsTile(&reg, 2007, 5015, &local_x, &local_z);
+    TEST_WEV_ASSERT(id == 3, "the rectangle's last tile is not in it");
+    TEST_WEV_ASSERT(local_x == 7 && local_z == 15, "the last tile's local coordinates");
+
+    /* Half-open on both axes, and the two axes are read independently -- an
+     * 8x16 rectangle catches a size swap that a square one cannot. */
+    id = WorldviewRegistry_HomeViewForAbsTile(&reg, 2008, 5000, &local_x, &local_z);
+    TEST_WEV_ASSERT(id == WORLDVIEW_ROOT, "one tile past the x edge is still aboard");
+    id = WorldviewRegistry_HomeViewForAbsTile(&reg, 2000, 5016, &local_x, &local_z);
+    TEST_WEV_ASSERT(id == WORLDVIEW_ROOT, "one tile past the z edge is still aboard");
+    id = WorldviewRegistry_HomeViewForAbsTile(&reg, 1999, 5000, &local_x, &local_z);
+    TEST_WEV_ASSERT(id == WORLDVIEW_ROOT, "one tile before the x edge is aboard");
+    id = WorldviewRegistry_HomeViewForAbsTile(&reg, 2000, 4999, &local_x, &local_z);
+    TEST_WEV_ASSERT(id == WORLDVIEW_ROOT, "one tile before the z edge is aboard");
+    id = WorldviewRegistry_HomeViewForAbsTile(&reg, 2000, 5008, &local_x, &local_z);
+    TEST_WEV_ASSERT(id == 3, "the rectangle is being read as square");
+
+    /* A view that is live but has never been rebuilt still sits at base 0,0
+     * with a size of zero. Both of those have to be refused: the first would
+     * claim the corner of the world map, and the second would claim a
+     * rectangle with nothing in it. */
+    reg.views[5].id = 5;
+    reg.views[5].live = true;
+    reg.views[5].base_x = 0;
+    reg.views[5].base_z = 0;
+    reg.views[5].size_x_tiles = 8;
+    reg.views[5].size_z_tiles = 8;
+    id = WorldviewRegistry_HomeViewForAbsTile(&reg, 0, 0, &local_x, &local_z);
+    TEST_WEV_ASSERT(id == WORLDVIEW_ROOT, "an unrebuilt view claimed the map origin");
+
+    /* A view with a rectangle of no width claims nothing, and there is no
+     * test for that: the half-open bounds are already empty at size 0. Both
+     * axes get the case, because each is only ever read on its own. */
+    reg.views[5].base_x = 2000;
+    reg.views[5].base_z = 6000;
+    reg.views[5].size_x_tiles = 0;
+    reg.views[5].size_z_tiles = 8;
+    id = WorldviewRegistry_HomeViewForAbsTile(&reg, 2000, 6000, &local_x, &local_z);
+    TEST_WEV_ASSERT(id == WORLDVIEW_ROOT, "a zero-width view claimed a tile");
+
+    reg.views[5].size_x_tiles = 8;
+    reg.views[5].size_z_tiles = 0;
+    id = WorldviewRegistry_HomeViewForAbsTile(&reg, 2000, 6000, &local_x, &local_z);
+    TEST_WEV_ASSERT(id == WORLDVIEW_ROOT, "a zero-height view claimed a tile");
+
+    /* A dead slot claims nothing, whatever its stale rectangle says. */
+    reg.views[3].live = false;
+    id = WorldviewRegistry_HomeViewForAbsTile(&reg, 2000, 5000, &local_x, &local_z);
+    TEST_WEV_ASSERT(id == WORLDVIEW_ROOT, "a released view still claimed its rectangle");
+    TEST_WEV_ASSERT(
+        local_x == 2000 && local_z == 5000, "the root fallback did not pass the tile through");
+
+    /* The root slot itself is never a candidate: it is the fallback. Even
+     * given a rectangle it has no business having, it must not be returned by
+     * the scan -- the root is the answer only when nothing else matched. */
+    reg.views[WORLDVIEW_ROOT].id = WORLDVIEW_ROOT;
+    reg.views[WORLDVIEW_ROOT].live = true;
+    reg.views[WORLDVIEW_ROOT].base_x = 2000;
+    reg.views[WORLDVIEW_ROOT].base_z = 5000;
+    reg.views[WORLDVIEW_ROOT].size_x_tiles = 8;
+    reg.views[WORLDVIEW_ROOT].size_z_tiles = 16;
+    id = WorldviewRegistry_HomeViewForAbsTile(&reg, 2004, 5004, &local_x, &local_z);
+    TEST_WEV_ASSERT(id == WORLDVIEW_ROOT, "the root is not the fallback");
+    TEST_WEV_ASSERT(
+        local_x == 2004 && local_z == 5004,
+        "the root matched its own rectangle instead of passing the tile through");
+
+    printf("ok: WorldviewRegistry_HomeViewForAbsTile\n");
+}
+
 int
 main(int argc, char** argv)
 {
@@ -821,6 +1093,8 @@ main(int argc, char** argv)
     test_frame_driver();
     test_config_decode_synthetic();
     test_footprint_tiles();
+    test_deck_box_in_parent();
+    test_home_view_for_abs_tile();
     test_config_decode_cache(cache_dir);
 
     printf("wev_test: all passed\n");

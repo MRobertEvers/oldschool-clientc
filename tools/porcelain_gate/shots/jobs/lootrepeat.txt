@@ -1,0 +1,22 @@
+# The same drive, six times, nothing changed between them.
+#
+# The blank Loot Tracker well is not the loot: a no-loot page opened at tick
+# 620 came back blank once and fully drawn the next time, and those two runs'
+# logs are line-for-line identical down to
+# `PLUGIN_PANEL_CUSTOM id=strip region=21,145,294,77` -- the well is staged at
+# the same place in both, and in one of them its paint put nothing in it. So
+# the question is a rate, and a rate needs repeats of one drive.
+#
+# RESULT: 6/6 PAINTED. Across every run of this page taken for this set the
+# tally is 4 blank of 11 at panel tick 620 and 0 blank of 8 at ticks
+# 560/600/640/700, and all four blanks were taken while other clients were
+# running. It is not deterministic and this file did not make it so.
+# `well_ink.py` is how the captures were scored without looking at each: a
+# painted well reads ink=1018, a blank one ink=0, with nothing in between.
+
+lootrepeat-1 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootrepeat-2 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootrepeat-3 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootrepeat-4 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootrepeat-5 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+lootrepeat-6 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1

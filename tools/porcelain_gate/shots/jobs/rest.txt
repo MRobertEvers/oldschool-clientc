@@ -1,0 +1,85 @@
+# The three NXT builtins, the two that need a config value in force at START,
+# and the tile indicators re-driven so the destination and hover markers are up.
+#
+# THE NXT THREE DO NOT ALL "ANNOUNCE". nxt-highlight is a world renderer -- it
+# draws the hulls and tile washes the cache's own CS2 highlight groups asked
+# for. Only bird-nest and cannon-ammo are notifications, and Porcelain_Notify
+# goes through core.notify -> RS_CS2Host_ChatAdd(RS_CHAT_TYPE_GAME), which
+# always passes the chat filter, so the line IS in the chatbox and IS
+# photographable.
+
+# Mouse-over entity group 5: no varbit, no script. The pointer on the Varrock
+# fountain is what puts a loc in a group. MOVE_AT holds it during the run;
+# SIM_HOVER re-parks it for the four teardown frames before the BMP, so the
+# capture is not of whatever the last event left behind.
+nxthl-hover-cs2 nxt-highlight cs2 TORIRS_SIM_VARBIT=450,13088,1 TORIRS_SIM_MOVE_AT=600,330,120 TORIRS_SIM_HOVER=330,120 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1
+nxthl-hover-cs1 nxt-highlight cs1 TORIRS_SIM_MOVE_AT=600,330,120 TORIRS_SIM_HOVER=330,120 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1
+# The hovered-TILE group. A varbit write alone does not arm it: 5198 is the
+# settings-panel apply form and is what states the group's colour and style.
+nxthl-tile-cs2 nxt-highlight cs2 TORIRS_SIM_VARBIT=450,12977,1 TORIRS_SIM_RUNSCRIPT=500,5198 TORIRS_SIM_MOVE_AT=600,330,200 TORIRS_SIM_HOVER=330,200 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1
+
+# Setting 189 is INVERTED, so ON is varbit 13087 == 0, and an absent row reads
+# as OFF. The nest has to land on the PLAYER'S OWN tile, which is exactly what
+# dropobj does.
+birdnest-cs2 nxt-bird-nest cs2 TORIRS_SIM_VARBIT=450,13087,0 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1' TORIRS_TRACE_NATIVE_UI=1
+birdnest-cs1 nxt-bird-nest cs1 TORIRS_SIM_VARBIT=450,13087,0 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1' TORIRS_TRACE_NATIVE_UI=1
+# The negative control: same drop, setting OFF. A picture of the notice NOT
+# being there is only worth taking beside one where it is.
+birdnest-off-cs2 nxt-bird-nest cs2 TORIRS_SIM_VARBIT=450,13087,1 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1' TORIRS_TRACE_NATIVE_UI=1
+
+# ::cannon places one on your tile with 15 balls; loc op 3 "Empty" takes 15 to 0
+# in a single tick, which is the deterministic empty-ammo edge. 1500 frames
+# because the assembly is a real 4-tick animation.
+#
+# ALL THREE settings rows are written. 249 (varbit 14176, `cannon_low_amount`)
+# is the slider, its default is 0, and `threshold > 0` refuses that -- so with
+# it unwritten the low half of this builtin could not fire in any capture on
+# any lane, and the absence of a low line said nothing. At 12 it is an
+# assertion instead: 15 to 0 crosses twelve AND reaches empty, and the empty
+# branch claims it.
+cannon-cs2 nxt-cannon-ammo cs2 'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+cannon-cs1 nxt-cannon-ammo cs1 'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+
+# The LOW edge, which the row above cannot reach: its only ammunition movement
+# is a jump straight to zero, and `ammo == 0` is checked first and returns.
+# What crosses a threshold is the fire clock -- cannon_fire_once spends ONE
+# ball per tick, and only while a live npc stands inside ^cannon_range. The
+# fixture tile has none, which is why the drive above still had all fifteen
+# balls at frame 1400. Five goblins are five guaranteed firing ticks (one shot
+# a tick, so at most one of them dies per tick), so 15 -> 12 lands on the third
+# whatever the damage rolls are. NO loc op here: the cannon must not reach zero
+# or the empty line lands on top of the line being photographed.
+cannonlow-cs2 nxt-cannon-ammo cs2 'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=460,spawn goblin 5;500,cannon' TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+
+# `camera` has to be in force at START, so it goes in the ini (the `--` args),
+# not through a tick-scheduled config write. `off` is the default, and the
+# default draws NOTHING -- the first screenshot-cs2/cs1 pair proved that and is
+# kept as the control.
+sshot-report-cs2 screenshot cs2 TORIRS_SIM_CLICK_AT=640,476,491 TORIRS_TRACE_NATIVE_UI=1 -- camera=report-button
+sshot-report-cs1 screenshot cs1 TORIRS_TRACE_NATIVE_UI=1 -- camera=report-button
+sshot-corner-cs2 screenshot cs2 TORIRS_SIM_CLICK_AT=640,24,23 TORIRS_TRACE_NATIVE_UI=1 -- camera=top-left
+sshot-corner-cs1 screenshot cs1 TORIRS_TRACE_NATIVE_UI=1 -- camera=top-left
+
+# All three markers. The destination marker is the MAP FLAG and it clears on
+# arrival, so the click is LATE -- twenty frames before the capture -- and the
+# route is long enough that the walk is nowhere near done when the shutter
+# falls.
+#
+# The old row clicked (120,300), which is toward the CAMERA and therefore
+# three tiles away, at frame 620 of 660: the walk finished inside the window
+# and the flag had cleared, so `dest == true`, the plugin correctly suppressed
+# the yellow quad, and the one shot in the set named "-all" photographed two
+# markers out of three. Measured on the fixed binary: (150,110) routes to
+# 3207,3429, five steps out, and the flag stays up from frame ~644 to past
+# frame 700 -- the capture sits in the middle of that window rather than on
+# its edge, so a slow machine cannot walk out of the shot.
+#
+# Expect the model to be drawn OFF its cyan tile here, and do not file that:
+# mid-stride the true tile is route[0], the tile being walked TO, while the
+# figure is still interpolating out of the last one. Showing that gap is the
+# entire reason this plugin distinguishes the two, and `*-nohover-*` is the
+# standing-still picture where they coincide.
+tile-c-all-cs2   tile-indicator-c   cs2 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_SIM_MOVE_AT=650,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
+tile-lua-all-cs2 tile-indicator-lua cs2 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_SIM_MOVE_AT=650,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
+tile-c-all-cs1   tile-indicator-c   cs1 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_SIM_MOVE_AT=650,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660
+tile-lua-all-cs1 tile-indicator-lua cs1 TORIRS_SIM_CLICK_AT=640,150,110 TORIRS_SIM_MOVE_AT=650,430,260 TORIRS_SIM_HOVER=430,260 TORIRS_MAX_FRAMES=660

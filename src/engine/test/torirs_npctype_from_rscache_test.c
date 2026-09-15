@@ -7,6 +7,10 @@
  * sentinel for a hidden entry, so this is a pass-through, not a translation --
  * the thing worth pinning is that it isn't dropped, which it was before this
  * struct had anywhere to put it.
+ *
+ * And then the other half of what multiNpc means: a rung record is a DELTA off
+ * its shell, so the entity's own facts are the rung's where it states them and
+ * the shell's where it does not (ToriRS_NpctypeEntityFacts, below).
  */
 #include "engine/torirs_npctype_from_rscache.h"
 
@@ -228,6 +232,207 @@ test_dat2_carries_idle_anim_restart(void)
     TEST_ASSERT(!npctype->idle_anim_restart, "absent opcode 130 stays false");
 }
 
+/*
+ * The rung/shell gap-fill.
+ *
+ * A multinpc is one shell record plus a rung per state, and this client
+ * resolves the rung before it spawns anything -- so without this the whole
+ * entity is built out of a record that was never authored to stand alone.
+ * `verzik_initial_base` states a name, a model, a chathead, two ops and
+ * nothing else; its shell carries size 5 and a readyanim. Read straight off
+ * the rung, Verzik is size 1 -- which puts her draw origin two tiles
+ * south-west of her own dais -- and readyanim -1, so nothing ever binds and
+ * she sits in the model's bind pose. One record's absent fields, two bugs that
+ * look unrelated.
+ *
+ * Which is why the cases here are about ABSENCE, and about the one asymmetry:
+ * size's "absent" is 0 or 1 while every animation's is -1, because size has no
+ * sentinel and 1 is both the default and a real answer.
+ */
+
+static int g_facts_failures;
+
+#define FACTS_CHECK(cond, msg)                                                                     \
+    do                                                                                             \
+    {                                                                                              \
+        if( !(cond) )                                                                              \
+        {                                                                                          \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, (msg));                                 \
+            g_facts_failures++;                                                                    \
+        }                                                                                          \
+    } while( 0 )
+
+/* Every animation field absent, size absent. */
+static void
+facts_blank(struct ToriRS_Npctype* type)
+{
+    memset(type, 0, sizeof(*type));
+    type->size = 0;
+    type->readyanim = -1;
+    type->walkanim = -1;
+    type->walkanim_b = -1;
+    type->walkanim_l = -1;
+    type->walkanim_r = -1;
+    type->turnanim_l = -1;
+    type->runanim = -1;
+    type->runanim_b = -1;
+    type->runanim_l = -1;
+    type->runanim_r = -1;
+}
+
+static void
+test_npc_entity_facts(void)
+{
+    struct ToriRS_Npctype rung;
+    struct ToriRS_Npctype shell;
+    struct ToriRS_NpcEntityFacts facts;
+
+    printf("TEST: multinpc rung/shell entity facts\n");
+
+    /* A record that states everything, with no shell at all. Nothing is
+     * filled, and every field lands in its own slot -- the values are
+     * distinct so a pair that swapped would show. */
+    facts_blank(&rung);
+    rung.size = 3;
+    rung.readyanim = 100;
+    rung.walkanim = 101;
+    rung.walkanim_b = 102;
+    rung.walkanim_l = 103;
+    rung.walkanim_r = 104;
+    rung.turnanim_l = 105;
+    rung.runanim = 106;
+    rung.runanim_b = 107;
+    rung.runanim_l = 108;
+    rung.runanim_r = 109;
+    ToriRS_NpctypeEntityFacts(&rung, NULL, &facts);
+    FACTS_CHECK(facts.size == 3, "size did not come from the record");
+    FACTS_CHECK(facts.readyanim == 100, "readyanim");
+    FACTS_CHECK(facts.walkanim == 101, "walkanim");
+    FACTS_CHECK(facts.walkanim_b == 102, "walkanim_b");
+    FACTS_CHECK(facts.walkanim_l == 103, "walkanim_l");
+    FACTS_CHECK(facts.walkanim_r == 104, "walkanim_r");
+    /* The one renamed field: the entity carries one turn animation and the
+     * record has a left and a right. It is the LEFT one. */
+    FACTS_CHECK(facts.turnanim == 105, "turnanim did not come from turnanim_l");
+    FACTS_CHECK(facts.runanim == 106, "runanim");
+    FACTS_CHECK(facts.runanim_b == 107, "runanim_b");
+    FACTS_CHECK(facts.runanim_l == 108, "runanim_l");
+    FACTS_CHECK(facts.runanim_r == 109, "runanim_r");
+
+    /* Verzik: a rung that states nothing but its name, under a shell that
+     * states the two fields whose absence broke her. */
+    facts_blank(&rung);
+    facts_blank(&shell);
+    shell.size = 5;
+    shell.readyanim = 7700;
+    ToriRS_NpctypeEntityFacts(&rung, &shell, &facts);
+    FACTS_CHECK(facts.size == 5, "a size-less rung did not take its shell's size");
+    FACTS_CHECK(facts.readyanim == 7700, "an animation-less rung did not take its shell's idle");
+
+    /* A rung that states the field itself keeps it -- including when it
+     * disagrees with the shell, which 49 records in this cache do. This is the
+     * half a "the shell wins" rewrite gets wrong while every gap still fills. */
+    facts_blank(&rung);
+    rung.readyanim = 42;
+    rung.size = 2;
+    facts_blank(&shell);
+    shell.readyanim = 7700;
+    shell.size = 5;
+    ToriRS_NpctypeEntityFacts(&rung, &shell, &facts);
+    FACTS_CHECK(facts.readyanim == 42, "the shell overrode a readyanim the rung stated");
+    FACTS_CHECK(facts.size == 2, "the shell overrode a size the rung stated");
+
+    /*
+     * Size's absence is not an animation's. There is no sentinel: the record
+     * default is 0 and 1 is a real, common answer, so "absent" has to mean
+     * "not bigger than one" -- and the fill only ever grows. A shell of size 1
+     * under a rung of size 1 must not move, and neither must a rung of size 3
+     * under a shell of size 1.
+     */
+    facts_blank(&rung);
+    facts_blank(&shell);
+    shell.size = 5;
+    ToriRS_NpctypeEntityFacts(&rung, &shell, &facts);
+    FACTS_CHECK(facts.size == 5, "a size-0 rung did not take the shell's size");
+
+    rung.size = 1;
+    ToriRS_NpctypeEntityFacts(&rung, &shell, &facts);
+    FACTS_CHECK(facts.size == 5, "a size-1 rung did not take the shell's size");
+
+    facts_blank(&rung);
+    rung.size = 3;
+    facts_blank(&shell);
+    shell.size = 1;
+    ToriRS_NpctypeEntityFacts(&rung, &shell, &facts);
+    FACTS_CHECK(facts.size == 3, "a shell of size 1 shrank a rung that states a size");
+
+    facts_blank(&rung);
+    facts_blank(&shell);
+    ToriRS_NpctypeEntityFacts(&rung, &shell, &facts);
+    FACTS_CHECK(facts.size == 1, "two size-less records did not settle on 1");
+
+    /*
+     * No shell at all. Every npc that is not a multinpc arrives this way, and
+     * a record with nothing in it must come back with nothing in it rather
+     * than reaching for a record that is not there.
+     */
+    facts_blank(&rung);
+    ToriRS_NpctypeEntityFacts(&rung, NULL, &facts);
+    FACTS_CHECK(facts.size == 1, "a shell-less blank record did not default to size 1");
+    FACTS_CHECK(facts.readyanim == -1, "a shell-less blank record grew a readyanim");
+    FACTS_CHECK(facts.walkanim == -1, "a shell-less blank record grew a walkanim");
+    FACTS_CHECK(facts.runanim_r == -1, "a shell-less blank record grew a run animation");
+
+    /* A record read against ITSELF is the same answer -- the drawn id and the
+     * wire id are the same for an ordinary npc, and the caller does not have
+     * to notice. */
+    facts_blank(&rung);
+    rung.size = 0;
+    ToriRS_NpctypeEntityFacts(&rung, &rung, &facts);
+    FACTS_CHECK(facts.size == 1, "a record read against itself changed");
+    FACTS_CHECK(facts.readyanim == -1, "a record read against itself grew an animation");
+
+    /*
+     * Every animation fills independently. A rung that states one and a shell
+     * that states all of them: the stated one survives and the other nine come
+     * from the shell, each into its own slot. A fill that reads the wrong
+     * source field shows up here as one value in two places.
+     */
+    facts_blank(&rung);
+    rung.walkanim = 55;
+    facts_blank(&shell);
+    shell.readyanim = 200;
+    shell.walkanim = 201;
+    shell.walkanim_b = 202;
+    shell.walkanim_l = 203;
+    shell.walkanim_r = 204;
+    shell.turnanim_l = 205;
+    shell.runanim = 206;
+    shell.runanim_b = 207;
+    shell.runanim_l = 208;
+    shell.runanim_r = 209;
+    ToriRS_NpctypeEntityFacts(&rung, &shell, &facts);
+    FACTS_CHECK(facts.walkanim == 55, "the rung's own walkanim was overwritten");
+    /* And the same shell against a rung that states nothing, so the one field
+     * held back above is filled here too -- otherwise walkanim is the one slot
+     * whose fill is never exercised. */
+    {
+        struct ToriRS_NpcEntityFacts filled;
+        facts_blank(&rung);
+        ToriRS_NpctypeEntityFacts(&rung, &shell, &filled);
+        FACTS_CHECK(filled.walkanim == 201, "walkanim did not fill");
+    }
+    FACTS_CHECK(facts.readyanim == 200, "readyanim did not fill");
+    FACTS_CHECK(facts.walkanim_b == 202, "walkanim_b did not fill");
+    FACTS_CHECK(facts.walkanim_l == 203, "walkanim_l did not fill");
+    FACTS_CHECK(facts.walkanim_r == 204, "walkanim_r did not fill");
+    FACTS_CHECK(facts.turnanim == 205, "turnanim did not fill from the shell's left turn");
+    FACTS_CHECK(facts.runanim == 206, "runanim did not fill");
+    FACTS_CHECK(facts.runanim_b == 207, "runanim_b did not fill");
+    FACTS_CHECK(facts.runanim_l == 208, "runanim_l did not fill");
+    FACTS_CHECK(facts.runanim_r == 209, "runanim_r did not fill");
+}
+
 int
 main(void)
 {
@@ -239,5 +444,6 @@ main(void)
     test_dat2_without_examine_leaves_desc_empty();
     test_dat2_no_multinpc_leaves_transform_count_zero();
     test_dat1_has_no_multinpc();
-    return g_failures ? 1 : 0;
+    test_npc_entity_facts();
+    return (g_failures || g_facts_failures) ? 1 : 0;
 }

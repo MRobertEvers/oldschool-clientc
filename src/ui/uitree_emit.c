@@ -34,6 +34,7 @@ clip_intersect(
     int h);
 
 #include <assert.h>
+#include "perf_audit.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -3281,6 +3282,9 @@ emit_hoist_entity_overlays(struct UITree const* tree, struct UITreeEmitBuffer* o
 static void
 emit_apply_frame_depth(struct UITree const* tree, struct UITreeHost const* host, struct UITreeEmitBuffer* out)
 {
+    PA_INC(emit_walk_calls);
+    PA_ADD(emit_cmds, out->count);
+    g_pa_site = 0;
     out->count = UITree_FrameReorder(tree, host, out->cmds, out->count,
                                    sizeof(*out->cmds),
                                    offsetof(struct UITreeEmitDesc, frame_owner_plus_one));

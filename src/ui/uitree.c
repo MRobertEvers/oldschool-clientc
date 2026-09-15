@@ -16,6 +16,93 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
+/* ---- TEMPORARY perf-audit instrumentation (perf audit worktree) ---- */
+#include "perf_audit.h"
+#include <time.h>
+#if defined(TORIRS_PERF_AUDIT_BUILD) && TORIRS_PERF_AUDIT_BUILD
+struct PerfAudit g_pa;
+struct PerfAudit g_pa_sum;
+int g_pa_on = -1;
+uint64_t g_pa_frame;
+int g_pa_site;
+static uint64_t g_pa_lo = 200, g_pa_hi = 600;
+int PerfAudit_On(void)
+{
+    if( g_pa_on < 0 )
+    {
+        char const* v = getenv("TORIRS_PERF_AUDIT");
+        g_pa_on = (v && *v && *v != '0') ? 1 : 0;
+        char const* lo = getenv("TORIRS_PERF_AUDIT_LO");
+        char const* hi = getenv("TORIRS_PERF_AUDIT_HI");
+        if( lo ) g_pa_lo = strtoull(lo, NULL, 10);
+        if( hi ) g_pa_hi = strtoull(hi, NULL, 10);
+    }
+    return g_pa_on;
+}
+#define PA_SUMF(f) g_pa_sum.f += g_pa.f
+void PerfAudit_EndFrame(uint64_t work_us)
+{
+    g_pa_frame++;
+    g_pa.frames = 1;
+    g_pa.frame_work_us_total = work_us;
+    if( !PerfAudit_On() ) { memset(&g_pa, 0, sizeof(g_pa)); return; }
+    if( g_pa_frame >= g_pa_lo && g_pa_frame <= g_pa_hi )
+    {
+        uint64_t* d = (uint64_t*)&g_pa_sum;
+        uint64_t const* s = (uint64_t const*)&g_pa;
+        for( size_t i = 0; i < sizeof(g_pa) / sizeof(uint64_t); i++ ) d[i] += s[i];
+    }
+    if( g_pa_frame == g_pa_hi )
+    {
+        struct PerfAudit const* a = &g_pa_sum;
+        double const F = a->frames ? (double)a->frames : 1.0;
+        fprintf(stderr, "PERF_AUDIT_WINDOW frames=%llu lo=%llu hi=%llu\n",
+                (unsigned long long)a->frames, (unsigned long long)g_pa_lo, (unsigned long long)g_pa_hi);
+#define PA_P(f) fprintf(stderr, "PA %-28s total=%-12llu perframe=%.3f\n", #f, (unsigned long long)a->f, (double)a->f / F)
+        PA_P(frame_work_us_total);
+        PA_P(reorder_calls); PA_P(reorder_bodies); PA_P(reorder_records); PA_P(reorder_n);
+        PA_P(reorder_units); PA_P(reorder_init_iters); PA_P(reorder_treefirst_calls);
+        PA_P(reorder_treefirst_iters); PA_P(reorder_writetree_iters); PA_P(reorder_root_scan_iters);
+        PA_P(reorder_unitof_iters); PA_P(reorder_bytes); PA_P(reorder_ns);
+        PA_P(reorder_site_emit); PA_P(reorder_site_input); PA_P(reorder_site_hover);
+        PA_P(reorder_rec_emit); PA_P(reorder_rec_input); PA_P(reorder_rec_hover);
+        PA_P(reorder_ns_emit); PA_P(reorder_ns_input); PA_P(reorder_ns_hover);
+        PA_P(input_events_calls); PA_P(input_events_bytes);
+        PA_P(hover_items_calls); PA_P(hover_items_bytes);
+        PA_P(create_calls); PA_P(create_hits); PA_P(create_sibling_iters); PA_P(create_cap_iters); PA_P(create_ns);
+        PA_P(set_geometry_calls); PA_P(set_geometry_same); PA_P(set_geometry_slot_iters); PA_P(set_geometry_allocs);
+        PA_P(set_hidden_calls); PA_P(set_hidden_same); PA_P(set_hidden_slot_iters);
+        PA_P(set_anchor_calls); PA_P(set_anchor_same); PA_P(set_skin_calls); PA_P(set_skin_same);
+        PA_P(set_graphic_calls); PA_P(set_transparency_calls); PA_P(set_text_calls);
+        PA_P(widget_edit_allocs); PA_P(widget_edit_bytes); PA_P(note_mutation_calls); PA_P(setter_ns);
+        PA_P(override_calls); PA_P(override_iters); PA_P(override_hits); PA_P(override_ns);
+        PA_P(reassert_calls); PA_P(frame_apply_calls); PA_P(frame_apply_equal);
+        PA_P(collect_slots_calls); PA_P(collect_slots_iters);
+        PA_P(collect_chrome_calls); PA_P(collect_chrome_iters); PA_P(collect_chrome_bytes);
+        PA_P(stretch_calls); PA_P(stretch_iters); PA_P(frame_apply_ns);
+        PA_P(layout_tick_calls); PA_P(layout_tick_ns);
+        PA_P(frame_bind_calls); PA_P(frame_bind_ns); PA_P(frame_bind_stamp_calls);
+        PA_P(slots_stale_calls); PA_P(slots_stale_bytes); PA_P(slots_stale_ns); PA_P(slots_stale_true);
+        PA_P(widgets_changed_calls); PA_P(widgets_changed_ns);
+        PA_P(plugin_host_layout_calls); PA_P(plugin_host_layout_ns);
+        PA_P(role_node_calls); PA_P(role_memo_hits); PA_P(role_memo_misses);
+        PA_P(role_find_calls); PA_P(role_find_iters); PA_P(role_authored_iters);
+        PA_P(role_matcher_calls); PA_P(role_ns);
+        PA_P(find_all_calls); PA_P(find_all_iters); PA_P(find_all_ns); PA_P(widget_request_calls);
+        PA_P(emit_walk_calls); PA_P(emit_cmds);
+        PA_P(draw_canvas_calls); PA_P(draw_world_calls); PA_P(draw_canvas_ns);
+        PA_P(plugin_mallocs); PA_P(plugin_malloc_bytes); PA_P(getenv_calls);
+#undef PA_P
+        fprintf(stderr, "PERF_AUDIT_END\n");
+        fflush(stderr);
+    }
+    memset(&g_pa, 0, sizeof(g_pa));
+}
+#else
+int g_pa_site;
+#endif /* TORIRS_PERF_AUDIT_BUILD */
+/* ---- end perf-audit ---- */
+
 struct UITreeWidgetGeometry
 {
     struct UITreeWidgetGeometry* next;
@@ -1459,6 +1546,28 @@ UITree_HotkeyEffectFromName(char const* name)
     return 0;
 }
 
+int
+UITree_ComponentHiddenOrOrphaned(
+    struct UITree const* tree,
+    int32_t idx)
+{
+    int guard;
+
+    assert(tree);
+    for( guard = 0; idx >= 0 && guard < 256; guard++ )
+    {
+        struct UITreeComponent const* component;
+
+        assert((uint32_t)idx < tree->component_count);
+        component = &tree->components[idx];
+        if( component->freed || component->behavior.hide || component->mount_hidden ||
+            component->frame_hidden )
+            return 1;
+        idx = component->parent;
+    }
+    return 0;
+}
+
 char const*
 UITree_ComponentTypeStr(enum UITreeComponentType type)
 {
@@ -1587,18 +1696,48 @@ UITree_ModelRenderCacheMut(struct UITreeComponent* component)
 
 /* Free a component's heap-owned resources and NULL the pointers so the slot is
  * safe to reuse and UITree_Free cannot double-free. */
+static struct UITreeOwnedCount*
+uitree_owned_count_find(struct UITree* tree, uint64_t owner, bool create)
+{
+    assert(tree);
+    assert(owner);
+    for( int i = 0; i < tree->owned_count_entries; i++ )
+        if( tree->owned_counts[i].owner == owner )
+            return &tree->owned_counts[i];
+    if( !create || tree->owned_count_entries >= UITREE_OWNED_OWNERS_MAX )
+        return NULL;
+    struct UITreeOwnedCount* slot = &tree->owned_counts[tree->owned_count_entries++];
+    slot->owner = owner;
+    slot->live = 0;
+    return slot;
+}
+
 static void
 uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
 {
     assert(tree);
     assert(c);
+    if( c->plugin_owner )
+    {
+        struct UITreeOwnedCount* owned = uitree_owned_count_find(tree, c->plugin_owner, false);
+        /* No slot only when the owner table overflowed, which also makes the
+         * create path count by hand; a slot that exists must not go negative. */
+        if( owned )
+        {
+            assert(owned->live > 0);
+            owned->live--;
+        }
+    }
     free(c->plugin_key);
     c->plugin_key = NULL;
     while( c->widget_geometry )
     {
         struct UITreeWidgetGeometry* next = c->widget_geometry->next;
         if( c->widget_geometry->anchor_serial )
+        {
             tree->widget_anchor_edits--;
+            tree->anchor_generation++;
+        }
         free(c->widget_geometry);
         c->widget_geometry = next;
     }
@@ -1730,6 +1869,69 @@ uitree_reclaim_subtree(
      * needs the id this memset has now cleared. */
 }
 
+void*
+UITree_WalkScratchAcquire(struct UITree const* tree, int slot, size_t bytes)
+{
+    assert(tree);
+    assert(slot >= 0);
+    assert(slot < UITREE_WALK_SCRATCH_COUNT);
+    assert(bytes > 0);
+
+    /* Scratch, not tree state — see UITree::walk_scratch. */
+    struct UITreeWalkScratch* scratch = &((struct UITree*)tree)->walk_scratch[slot];
+    /* A nested acquire would hand the inner walk the outer walk's live events.
+     * Nothing in the client does that today; if something starts to, it stops
+     * here instead of returning a corrupt hit. */
+    assert(!scratch->busy);
+    if( scratch->bytes < bytes )
+    {
+        void* grown = realloc(scratch->mem, bytes);
+        assert(grown);
+        scratch->mem = grown;
+        scratch->bytes = bytes;
+        scratch->allocs++;
+    }
+    scratch->busy = 1;
+    return scratch->mem;
+}
+
+void
+UITree_WalkScratchRelease(struct UITree const* tree, int slot)
+{
+    assert(tree);
+    assert(slot >= 0);
+    assert(slot < UITREE_WALK_SCRATCH_COUNT);
+
+    struct UITreeWalkScratch* scratch = &((struct UITree*)tree)->walk_scratch[slot];
+    assert(scratch->busy);
+    scratch->busy = 0;
+}
+
+uint32_t
+UITree_WalkScratchAllocs(struct UITree const* tree)
+{
+    assert(tree);
+
+    uint32_t total = 0;
+    for( int i = 0; i < UITREE_WALK_SCRATCH_COUNT; i++ )
+        total += tree->walk_scratch[i].allocs;
+    return total;
+}
+
+uint32_t
+UITree_WalkNodeVisits(struct UITree const* tree)
+{
+    assert(tree);
+    return tree->walk_node_visits;
+}
+
+void
+UITree_WalkCountNodeVisit(struct UITree const* tree)
+{
+    assert(tree);
+    ((struct UITree*)tree)->walk_node_visits++;
+}
+
 void
 UITree_Free(struct UITree* tree)
 {
@@ -1744,7 +1946,11 @@ UITree_Free(struct UITree* tree)
     free(tree->layout_changed);
     free(tree->layout_dirty);
     free(tree->emit_visited);
+    for( int i = 0; i < UITREE_WALK_SCRATCH_COUNT; i++ )
+        free(tree->walk_scratch[i].mem);
     free(tree->canvas_candidate_ids);
+    free(tree->anchor_nodes);
+    UITree_FrameAnchorPlanFree(tree);
     uitree_all_sets_free(tree);
     UITree_FrameForget(tree);
     free(tree->components);
@@ -2456,6 +2662,13 @@ UITree_Push(
     struct UITreeComponent* component = &tree->components[idx];
     component->type = spec->type;
     component->plugin_owner = spec->plugin_owner;
+    if( component->plugin_owner )
+    {
+        struct UITreeOwnedCount* owned =
+            uitree_owned_count_find(tree, component->plugin_owner, true);
+        if( owned )
+            owned->live++;
+    }
     component->component_id = spec->component_id;
     component->dynamic = spec->dynamic ? 1 : 0;
     uitree_id_index_note_added(tree, idx);
@@ -4016,11 +4229,15 @@ uitree_widget_geometry(struct UITreeComponent* c, uint64_t owner)
     int count = 0;
     for( struct UITreeWidgetGeometry* edit = c->widget_geometry; edit; edit = edit->next )
     {
+        PA_INC(set_geometry_slot_iters);
         if( edit->owner == owner ) return edit;
         ++count;
     }
+    PA_INC(set_geometry_slot_iters);
     if( count >= 32 ) return NULL;
     struct UITreeWidgetGeometry* edit = calloc(1, sizeof(*edit));
+    PA_INC(widget_edit_allocs);
+    PA_ADD(widget_edit_bytes, sizeof(*edit));
     if( !edit ) return NULL;
     edit->owner = owner;
     edit->next = c->widget_geometry;
@@ -4028,11 +4245,74 @@ uitree_widget_geometry(struct UITreeComponent* c, uint64_t owner)
     return edit;
 }
 
+/* The aspects a retained edit can state. Each carries its own serial, and the
+ * EFFECTIVE value of an aspect is the edit holding the highest serial for it. */
+enum UITreeWidgetAspect
+{
+    UITREE_WIDGET_ASPECT_POSITION,
+    UITREE_WIDGET_ASPECT_SIZE,
+    UITREE_WIDGET_ASPECT_HIDDEN,
+    UITREE_WIDGET_ASPECT_ART,
+    UITREE_WIDGET_ASPECT_MASK,
+    UITREE_WIDGET_ASPECT_ANCHOR,
+};
+
+static uint64_t
+uitree_widget_aspect_serial(
+    struct UITreeWidgetGeometry const* edit,
+    enum UITreeWidgetAspect aspect)
+{
+    assert(edit);
+    switch( aspect )
+    {
+    case UITREE_WIDGET_ASPECT_POSITION: return edit->position_serial;
+    case UITREE_WIDGET_ASPECT_SIZE:     return edit->size_serial;
+    case UITREE_WIDGET_ASPECT_HIDDEN:   return edit->hidden_serial;
+    case UITREE_WIDGET_ASPECT_ART:      return edit->art_serial;
+    case UITREE_WIDGET_ASPECT_MASK:     return edit->mask_serial;
+    case UITREE_WIDGET_ASPECT_ANCHOR:   return edit->anchor_serial;
+    }
+    assert(0 && "unknown widget aspect");
+    return 0;
+}
+
+/* Whether restating `edit`'s current value for `aspect` could change what the
+ * readers see. It cannot only when this edit already holds the top serial for
+ * the aspect -- then it IS the effective value, and a bumped serial would buy
+ * nothing but a dirty node.
+ *
+ * An edit that is NOT the winner must still write even when its own stored
+ * value is unchanged: re-asserting is precisely how a losing owner takes the
+ * aspect back, and that is load-bearing behaviour. */
+static bool
+uitree_widget_edit_wins_aspect(
+    struct UITreeComponent const* c,
+    struct UITreeWidgetGeometry const* edit,
+    enum UITreeWidgetAspect aspect)
+{
+    assert(c);
+    assert(edit);
+    uint64_t const mine = uitree_widget_aspect_serial(edit, aspect);
+    /* Serial 0 means "never stated": there is no value to have been the same. */
+    if( !mine ) return false;
+    for( struct UITreeWidgetGeometry const* e = c->widget_geometry; e; e = e->next )
+        if( e != edit && uitree_widget_aspect_serial(e, aspect) > mine ) return false;
+    return true;
+}
+
+static bool
+uitree_widget_ref_same(struct UITreeNodeRef a, struct UITreeNodeRef b)
+{
+    return a.tree_instance == b.tree_instance && a.incarnation == b.incarnation &&
+           a.index == b.index;
+}
+
 static bool
 uitree_widget_set_geometry(struct UITree* tree, struct UITreeNodeRef ref,
                           uint64_t owner, int a, int b, bool size)
 {
     int32_t idx = UITree_ResolveRef(tree, ref);
+    PA_INC(set_geometry_calls);
     if( idx < 0 || !owner || (size && (a < 0 || b < 0)) || widget_geometry_serial == UINT64_MAX )
         return false;
     struct UITreeComponent* c = &tree->components[idx];
@@ -4045,14 +4325,23 @@ uitree_widget_set_geometry(struct UITree* tree, struct UITreeNodeRef ref,
     if( !edit ) return false;
     if( size )
     {
+        if( edit->size_serial && edit->width == a && edit->height == b ) PA_INC(set_geometry_same);
+        if( edit->width == a && edit->height == b &&
+            uitree_widget_edit_wins_aspect(c, edit, UITREE_WIDGET_ASPECT_SIZE) )
+            return true;
         edit->width = a; edit->height = b;
         edit->size_serial = ++widget_geometry_serial;
     }
     else
     {
+        if( edit->x == a && edit->y == b &&
+            uitree_widget_edit_wins_aspect(c, edit, UITREE_WIDGET_ASPECT_POSITION) )
+            return true;
+        if( edit->position_serial && edit->x == a && edit->y == b ) PA_INC(set_geometry_same);
         edit->x = a; edit->y = b;
         edit->position_serial = ++widget_geometry_serial;
     }
+    PA_INC(note_mutation_calls);
     uitree_note_mutation(tree, idx, UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
     return true;
 }
@@ -4067,7 +4356,8 @@ static void uitree_widget_refresh_hidden(struct UITree* tree,int32_t idx)
     struct UITreeComponent* c=&tree->components[idx];
     struct UITreeWidgetGeometry const* last=NULL;
     for( struct UITreeWidgetGeometry const* e=c->widget_geometry;e;e=e->next )
-        if( e->hidden_serial && (!last || e->hidden_serial>last->hidden_serial) ) last=e;
+    { PA_INC(set_hidden_slot_iters);
+        if( e->hidden_serial && (!last || e->hidden_serial>last->hidden_serial) ) last=e; }
     bool hidden=last && last->hidden;
     last=NULL;
     for( struct UITreeWidgetGeometry const* e=c->widget_geometry;e;e=e->next )
@@ -4083,11 +4373,15 @@ static void uitree_widget_refresh_hidden(struct UITree* tree,int32_t idx)
 bool UITree_WidgetSetHidden(struct UITree* tree,struct UITreeNodeRef ref,uint64_t owner,bool hidden)
 {
     int32_t idx=UITree_ResolveRef(tree,ref);
+    PA_INC(set_hidden_calls);
     if( idx<0 || !owner || widget_geometry_serial==UINT64_MAX ) return false;
     struct UITreeComponent* c=&tree->components[idx];
     if( c->plugin_owner && c->plugin_owner!=owner ) return false;
     struct UITreeWidgetGeometry* edit=uitree_widget_geometry(c,owner);
     if( !edit ) return false;
+    if( edit->hidden_serial && edit->hidden==hidden ) PA_INC(set_hidden_same);
+    if( edit->hidden==hidden && uitree_widget_edit_wins_aspect(c,edit,UITREE_WIDGET_ASPECT_HIDDEN) )
+        return true;
     edit->hidden=hidden;
     edit->hidden_serial=++widget_geometry_serial;
     uitree_widget_refresh_hidden(tree,idx);
@@ -4121,12 +4415,41 @@ int UITree_WidgetAnchorCount(struct UITree const* tree)
     return tree->widget_anchor_edits;
 }
 
+/* Remember a node as a possible anchor source. Duplicates are the common call
+ * (a plugin restating the same anchor every frame), so membership is tested
+ * first; the list is bounded by the number of distinct anchored nodes, which
+ * the depth gate already keeps small. */
+static void
+uitree_anchor_node_remember(struct UITree* tree, int32_t idx)
+{
+    assert(tree);
+    assert(idx >= 0);
+    for( uint32_t i = 0; i < tree->anchor_node_count; i++ )
+        if( tree->anchor_nodes[i] == idx )
+            return;
+    if( tree->anchor_node_count == tree->anchor_node_capacity )
+    {
+        uint32_t const cap = tree->anchor_node_capacity ? tree->anchor_node_capacity * 2u : 8u;
+        int32_t* grown = realloc(tree->anchor_nodes, (size_t)cap * sizeof(*grown));
+        assert(grown);
+        tree->anchor_nodes = grown;
+        tree->anchor_node_capacity = cap;
+    }
+    tree->anchor_nodes[tree->anchor_node_count++] = idx;
+}
+
+uint64_t UITree_WidgetEditSerial(void)
+{
+    return widget_geometry_serial;
+}
+
 enum UITreeWidgetAnchorResult
 UITree_WidgetSetAnchor(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner,
                        struct UITreeNodeRef target, enum UITreeWidgetRelation relation)
 {
     assert(tree);
     assert(owner);
+    PA_INC(set_anchor_calls);
     int32_t idx = UITree_ResolveRef(tree, ref);
     if( idx < 0 || widget_geometry_serial == UINT64_MAX )
         return UITREE_WIDGET_ANCHOR_STALE;
@@ -4162,11 +4485,22 @@ UITree_WidgetSetAnchor(struct UITree* tree, struct UITreeNodeRef ref, uint64_t o
     struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
     if( !edit )
         return UITREE_WIDGET_ANCHOR_BUDGET;
+    struct UITreeNodeRef const stated = t >= 0 ? UITree_RefAt(tree, t) : (struct UITreeNodeRef){0};
+    if( edit->anchor_relation == (int)relation && uitree_widget_ref_same(edit->anchor_target, stated) &&
+        uitree_widget_edit_wins_aspect(c, edit, UITREE_WIDGET_ASPECT_ANCHOR) )
+    {
+        PA_INC(set_anchor_same);
+        return UITREE_WIDGET_ANCHOR_OK;
+    }
     if( !edit->anchor_serial )
         tree->widget_anchor_edits++;
     edit->anchor_serial = ++widget_geometry_serial;
     edit->anchor_relation = relation;
-    edit->anchor_target = t >= 0 ? UITree_RefAt(tree, t) : (struct UITreeNodeRef){0};
+    edit->anchor_target = stated;
+    /* The reorder's plan reads these two and nothing else to decide whether its
+     * unit list is still the truth. See UITree::anchor_generation. */
+    tree->anchor_generation++;
+    uitree_anchor_node_remember(tree, idx);
     uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
     return UITREE_WIDGET_ANCHOR_OK;
 }
@@ -4180,6 +4514,7 @@ static bool uitree_widget_set_skin(struct UITree* tree, struct UITreeNodeRef ref
 {
     assert(tree);
     assert(owner);
+    PA_INC(set_skin_calls);
     int32_t idx = UITree_ResolveRef(tree, ref);
     if( idx < 0 || widget_geometry_serial == UINT64_MAX ) return false;
     struct UITreeComponent* c = &tree->components[idx];
@@ -4189,8 +4524,22 @@ static bool uitree_widget_set_skin(struct UITree* tree, struct UITreeNodeRef ref
              : (!uitree_widget_art_type(c->type) || scene_id <= 0) ) return false;
     struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
     if( !edit ) return false;
-    if( mask ) { edit->mask_scene_id = scene_id; edit->mask_serial = ++widget_geometry_serial; }
-    else { edit->art_scene_id = scene_id; edit->art_serial = ++widget_geometry_serial; }
+    if( mask ? (edit->mask_serial && edit->mask_scene_id == scene_id)
+             : (edit->art_serial && edit->art_scene_id == scene_id) ) PA_INC(set_skin_same);
+    if( mask )
+    {
+        if( edit->mask_scene_id == scene_id &&
+            uitree_widget_edit_wins_aspect(c, edit, UITREE_WIDGET_ASPECT_MASK) )
+            return true;
+        edit->mask_scene_id = scene_id; edit->mask_serial = ++widget_geometry_serial;
+    }
+    else
+    {
+        if( edit->art_scene_id == scene_id &&
+            uitree_widget_edit_wins_aspect(c, edit, UITREE_WIDGET_ASPECT_ART) )
+            return true;
+        edit->art_scene_id = scene_id; edit->art_serial = ++widget_geometry_serial;
+    }
     uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
     return true;
 }
@@ -4250,7 +4599,10 @@ bool UITree_WidgetReset(struct UITree* tree, struct UITreeNodeRef ref, uint64_t 
             bool const anchored = edit->anchor_serial != 0;
             *link = edit->next;
             if( anchored )
+            {
                 tree->widget_anchor_edits--;
+                tree->anchor_generation++;
+            }
             free(edit);
             uitree_widget_refresh_hidden(tree,idx);
             uitree_note_mutation(tree, idx, UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF |
@@ -4304,12 +4656,20 @@ int32_t UITree_WidgetCreateText(struct UITree* tree, struct UITreeNodeRef parent
     int32_t p = UITree_ResolveRef(tree,parent);
     if( p < 0 || !owner || !key || !*key || strlen(key) > 63 ||
         (tree->components[p].plugin_owner && tree->components[p].plugin_owner != owner) ) return -1;
+    PA_INC(create_calls);
     for( int32_t child=tree->components[p].first_child; child>=0; child=tree->components[child].next_sibling )
+    {   PA_INC(create_sibling_iters);
         if( tree->components[child].plugin_owner == owner && tree->components[child].plugin_key &&
-            strcmp(tree->components[child].plugin_key,key)==0 ) return child;
-    int count=0;
-    for( uint32_t i=0; i<tree->component_count; ++i )
-        if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count;
+            strcmp(tree->components[child].plugin_key,key)==0 ) { PA_INC(create_hits); return child; } }
+    struct UITreeOwnedCount const* owned=uitree_owned_count_find(tree,owner,true);
+    int count;
+    if( owned ) count=owned->live;
+    else
+    {   /* The owner table is full: count the way this always did. */
+        count=0;
+        PA_ADD(create_cap_iters, tree->component_count);
+        for( uint32_t i=0; i<tree->component_count; ++i )
+            if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count; }
     if( count>=128 ) return -1;
     char* saved_key=strdup(key);
     if( !saved_key ) return -1;
@@ -4333,12 +4693,20 @@ static int32_t uitree_widget_create_owned(struct UITree* tree, struct UITreeNode
     int32_t p = UITree_ResolveRef(tree,parent);
     if( p < 0 || !owner || !key || !*key || strlen(key) > 63 ||
         (tree->components[p].plugin_owner && tree->components[p].plugin_owner != owner) ) return -1;
+    PA_INC(create_calls);
     for( int32_t child=tree->components[p].first_child; child>=0; child=tree->components[child].next_sibling )
+    {   PA_INC(create_sibling_iters);
         if( tree->components[child].plugin_owner == owner && tree->components[child].plugin_key &&
-            strcmp(tree->components[child].plugin_key,key)==0 ) return child;
-    int count=0;
-    for( uint32_t i=0; i<tree->component_count; ++i )
-        if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count;
+            strcmp(tree->components[child].plugin_key,key)==0 ) { PA_INC(create_hits); return child; } }
+    struct UITreeOwnedCount const* owned=uitree_owned_count_find(tree,owner,true);
+    int count;
+    if( owned ) count=owned->live;
+    else
+    {   /* The owner table is full: count the way this always did. */
+        count=0;
+        PA_ADD(create_cap_iters, tree->component_count);
+        for( uint32_t i=0; i<tree->component_count; ++i )
+            if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count; }
     if( count>=128 ) return -1;
     char* saved_key=strdup(key);
     assert(saved_key);
@@ -4360,6 +4728,7 @@ bool UITree_WidgetSetGraphic(struct UITree* tree,struct UITreeNodeRef ref,uint64
                              int scene_id,int width,int height)
 {
     int32_t idx=UITree_ResolveRef(tree,ref);
+    PA_INC(set_graphic_calls);
     if( idx<0 || !owner || scene_id<0 || width<0 || height<0 || width>4096 || height>4096 ) return false;
     struct UITreeComponent* c=&tree->components[idx];
     if( c->plugin_owner!=owner || c->type!=UIELEM_RS_GRAPHIC ) return false;
@@ -4386,6 +4755,7 @@ int UITree_WidgetClearGraphic(struct UITree* tree, int scene_id)
 bool UITree_WidgetSetTransparency(struct UITree* tree,struct UITreeNodeRef ref,uint64_t owner,int transparency)
 {
     int32_t idx=UITree_ResolveRef(tree,ref);
+    PA_INC(set_transparency_calls);
     if( idx<0 || !owner || transparency<0 || transparency>255 ) return false;
     struct UITreeComponent* c=&tree->components[idx];
     if( c->plugin_owner!=owner ) return false;
@@ -4441,12 +4811,14 @@ uitree_widget_position_override(struct UITree const* tree, int32_t idx, uint64_t
 {
     assert(tree);
     assert(out);
+    PA_INC(override_calls);
     if( idx < 0 || (uint32_t)idx >= tree->component_count ) return 0;
     struct UITreeWidgetGeometry const* position = NULL;
     struct UITreeWidgetGeometry const* size = NULL;
     for( struct UITreeWidgetGeometry const* edit = tree->components[idx].widget_geometry;
          edit; edit = edit->next )
     {
+        PA_INC(override_iters);
         if( owner && edit->owner != owner ) continue;
         if( edit->position_serial && (!position || edit->position_serial > position->position_serial) ) position = edit;
         if( edit->size_serial && (!size || edit->size_serial > size->size_serial) ) size = edit;
@@ -4466,6 +4838,7 @@ uitree_widget_position_override(struct UITree const* tree, int32_t idx, uint64_t
         out->width = size->width; out->height = size->height;
         out->width_mode = out->height_mode = 0;
     }
+    if( position || size ) PA_INC(override_hits);
     return (position ? 1 : 0) | (size ? 2 : 0);
 }
 
@@ -6396,6 +6769,29 @@ UITree_NodeOrAncestorDisplayHiddenEx(
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return 1;
     return uitree_node_or_ancestor_hidden(tree, node_index, 1, ignore_frame_hidden);
+}
+
+uint64_t
+UITree_NodeTextHash(
+    struct UITree const* tree,
+    int32_t node_index)
+{
+    struct UITreeComponent const* c;
+    uint64_t hash;
+    unsigned char const* p;
+
+    assert(tree);
+    assert(node_index >= 0);
+    assert((uint32_t)node_index < tree->component_count);
+
+    c = &tree->components[node_index];
+    if( c->type != UIELEM_RS_TEXT )
+        return 0;
+    hash = UINT64_C(14695981039346656037);
+    p = (unsigned char const*)(c->u.rs_text.text ? c->u.rs_text.text : "");
+    for( ; *p; ++p )
+        hash = (hash ^ *p) * UINT64_C(1099511628211);
+    return hash;
 }
 
 static int

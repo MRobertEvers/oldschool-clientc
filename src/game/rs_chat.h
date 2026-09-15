@@ -320,4 +320,37 @@ RS_Chat_HandleKey(
     int key_typed,
     int key_pressed);
 
+/**
+ * The ARGB an overhead message is drawn in, from the effect the sender picked
+ * and how long the message has left to live.
+ *
+ * The public-chat packet carries a colour/effect index and the client starts a
+ * 150-cycle timer with the message; both of those are what the sender chose in
+ * the chat-effects dropdown, so this is the whole implementation of that
+ * dropdown on the receiving side (reference Client.ts:4962).
+ *
+ * The first six are flat colours. 6, 7 and 8 FLASH: they switch on the scene
+ * cycle, so they blink whether or not the message is new -- which is why the
+ * cycle is a parameter and not the timer. 9, 10 and 11 GLOW: they ramp across
+ * the message's own life, three 50-cycle legs of a colour sweep, so they are a
+ * function of the timer alone and every message glows the same way regardless
+ * of when it arrived.
+ *
+ * The ramps are written the reference's way, as additions to a packed RGB
+ * rather than per-channel arithmetic -- 0x50000 is five per step of red,
+ * 0x500 five of green, 5 five of blue. Unpacking them into channels is how a
+ * rewrite of this gets a leg backwards without any single colour looking
+ * wrong.
+ *
+ * An unknown effect is yellow, which is the reference's own fallback and the
+ * flat colour at index 0.
+ *
+ * `timer` is the client's own countdown, 150 down to 0 -- it is not a wire
+ * value. Every effect produces a well-formed opaque ARGB across that whole
+ * range; nothing here clamps, because a ramp that leaves the range is a ramp
+ * that is wrong.
+ */
+uint32_t
+RS_Chat_EffectColourArgb(int chat_colour, int timer, int cycle);
+
 #endif

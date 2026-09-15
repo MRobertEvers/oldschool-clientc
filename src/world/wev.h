@@ -545,6 +545,33 @@ struct WevDeckBox
     int size_z_tiles;
 };
 
+/**
+ * The deck box of one live world entity, in its PARENT view's scene-local fine
+ * units. This is the constructor for every WevDeckBox in the client.
+ *
+ * It is one function because it used to be three. The app built the box here,
+ * open-coded the same recenter and base-tile subtraction again where it aims
+ * the deck's own camera, and a third time where it publishes the descent
+ * transform to the frame emitter -- each with a comment asking the reader to
+ * keep them identical. They answer the same question and a disagreement
+ * between them is invisible until it is a deck the camera is not looking at,
+ * or actors standing beside the hull that carries them.
+ *
+ * The deck's size in tiles comes from the VIEW the entity owns, not from its
+ * config: the config names a pivot inside a rectangle that REBUILD_WORLDENTITY
+ * reserved, and the reservation is what the view registry holds. Passing it in
+ * rather than reading it keeps this a function of its arguments -- the deck
+ * transform is geometry, and nothing here should need a registry to do it.
+ */
+void
+Wev_DeckBoxInParent(
+    struct Wev const* wev,
+    int deck_size_x_tiles,
+    int deck_size_z_tiles,
+    int parent_base_tile_x,
+    int parent_base_tile_z,
+    struct WevDeckBox* out_box);
+
 /** Parent-view fine (x,z) -> deck-local fine. Both outputs are required. */
 void
 Wev_DeckFromParent(

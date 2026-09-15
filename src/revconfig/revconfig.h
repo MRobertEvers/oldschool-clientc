@@ -307,6 +307,9 @@ enum RevConfigFieldKind
     RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN,
     RCFIELD_ROLE_MATCH,
     RCFIELD_UICOMPONENT_ROLE,
+    RCFIELD_TABS_ENTRY,
+    RCFIELD_TABS_COLUMNS,
+    RCFIELD_TABS_DETACHED,
     RCFIELD_UILAYOUT_NULL,
 };
 
@@ -341,6 +344,7 @@ enum RevConfigItemKind
     RCITEM_STRING,
     RCITEM_LOGIN_REPLY,
     RCITEM_PRELOAD,
+    RCITEM_TABS,
 };
 
 /**
@@ -1710,6 +1714,67 @@ struct RevConfigChromeItem
     int plugin_button_margin;
 };
 
+/* A revision has fourteen sidebar tabs at most so far; 32 leaves room without
+ * making the item large enough to notice. */
+#define REVCONFIG_TABS_MAX 32
+#define REVCONFIG_TABS_NAME_LEN 32
+/* Columns a root can lay its tabs out in. The mobile toplevel has two, the
+ * desktop ones none (a single row); four is headroom, not a prediction. */
+#define REVCONFIG_TABS_COLUMNS_MAX 4
+/* One column's worth of `columns=`, and the whole of `detached=`. Sized to
+ * struct RevConfigField's value, because that is what a line survives. */
+#define REVCONFIG_TABS_LIST_LEN 64
+
+struct RevConfigTabEntry
+{
+    char name[REVCONFIG_TABS_NAME_LEN];
+    int number;
+};
+
+/*
+ * `[tabs]` and `[tabs:<root>]` -- what this revision's sidebar tabs are CALLED
+ * and, per gameframe root, how they are arranged.
+ *
+ * The nameless `[tabs]` is the name -> number map, the one fact the whole
+ * sidebar vocabulary rests on: `inventory` is tab 3 on every OldSchool cache
+ * and on every 2004 one, and until now that 3 was a literal in whatever C, Lua
+ * or role name wanted it (`sidetab_3`, `frame_sidebar_3`). It resolves through
+ * RevConfigRefs under kind "tab", so `RevConfigRefs_Get(refs, "tab",
+ * "inventory")` is the only spelling a caller needs.
+ *
+ * `[tabs:<root>]` is that root's ARRANGEMENT, and is a per-toplevel fact the
+ * base map has no room for: 164 puts thirteen stones in one strip and hangs
+ * logout off the top bar on its own, while 601 stacks its thirteen in two
+ * columns and hangs logout off the chat bar. Two keys, because those are the
+ * two things that differ:
+ *
+ *   columns=  the tab names of one column, top to bottom. State one line per
+ *             column, left to right; a single line may also carry several
+ *             columns separated by `|`. The line form exists because a field
+ *             value is REVCONFIG_TABS_LIST_LEN bytes and is TRUNCATED, not
+ *             rejected, past it -- 601's two columns do not fit on one line.
+ *   detached= the tab names this root places outside every column.
+ *
+ * A root that states neither is a root whose tabs are one plain run, which is
+ * what an absent section already means -- so the desktop toplevels state
+ * nothing and 164 states only its detached logout.
+ */
+struct RevConfigTabsItem
+{
+    /* `[tabs]` -> -1, the base map. `[tabs:<root>]` -> that root's interface
+     * id. -1 and not 0 because 0 is a legal interface id. */
+    int root;
+
+    /* `[tabs]` only: the name -> number rows. */
+    struct RevConfigTabEntry entries[REVCONFIG_TABS_MAX];
+    int entry_count;
+
+    /* `[tabs:<root>]` only. */
+    char columns[REVCONFIG_TABS_COLUMNS_MAX][REVCONFIG_TABS_LIST_LEN];
+    int column_count;
+    char detached[REVCONFIG_TABS_LIST_LEN];
+};
+
 struct RevConfigItem
 {
     enum RevConfigItemKind kind;
@@ -1730,6 +1795,7 @@ struct RevConfigItem
         struct RevConfigStringItem string;
         struct RevConfigLoginReplyItem login_reply;
         struct RevConfigPreloadItem preload;
+        struct RevConfigTabsItem tabs;
     } u;
 };
 

@@ -410,8 +410,8 @@ main(void)
     {
         struct App* app = calloc(1, sizeof(*app));
         assert(app);
-        app->minimap_flag_x = -1;
-        app->minimap_flag_z = -1;
+        app->minimap.flag_tile_x = -1;
+        app->minimap.flag_tile_z = -1;
         ctx.app = app;
 
         {
@@ -422,8 +422,8 @@ main(void)
             p._set_map_flag.z = 50;
             p._set_map_flag.clear = 0;
             RS_GameProto_Exec(&ctx, &p);
-            assert(app->minimap_flag_x == 40);
-            assert(app->minimap_flag_z == 50);
+            assert(app->minimap.flag_tile_x == 40);
+            assert(app->minimap.flag_tile_z == 50);
             assert(app->need_redraw == 1);
         }
         {
@@ -434,8 +434,8 @@ main(void)
             p._set_map_flag.z = 255;
             p._set_map_flag.clear = 1;
             RS_GameProto_Exec(&ctx, &p);
-            assert(app->minimap_flag_x == -1);
-            assert(app->minimap_flag_z == -1);
+            assert(app->minimap.flag_tile_x == -1);
+            assert(app->minimap.flag_tile_z == -1);
         }
         ctx.app = NULL;
         free(app);

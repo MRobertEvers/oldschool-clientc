@@ -5,6 +5,9 @@
 /* Leaf header: `static const` advance tables plus POD structs, no includes of
  * its own. It is here so the emit desc can carry a typed display-list pointer. */
 #include "uitree_debug_overlay.h"
+#include "uitree_minimap_dot.h"
+#include "uitree_entity_overlay.h"
+#include "uitree_worldmap_tile.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -50,103 +53,6 @@ typedef uint32_t UITreeHostInputMask;
 #define UITREE_HOST_INPUT_BIT(domain) ((UITreeHostInputMask)1u << (domain))
 #define UITREE_HOST_INPUT_ALL                                                                    \
     ((UITreeHostInputMask)((1u << UITREE_HOST_INPUT_DOMAIN_COUNT) - 1u))
-
-/** Minimap overlay dot (reference minimapDrawDot output), host-computed and
- * already rotated: sprite top-left goes at (box_center_x + dx,
- * box_center_y + dy), drawn w*h. scene_id <= 0 draws a filled rect of
- * `color` instead (the local-player white square). */
-struct UITreeMinimapDot
-{
-    int dx;
-    int dy;
-    int w;
-    int h;
-    int scene_id;
-    int atlas_index;
-    uint32_t color;
-    /** Sprite-content rotation in 2048-per-turn units, pivoted at the icon
-     * centre (a sailing hull's minimap icon turns with its yaw — deob
-     * client.method2412). 0 = plain blit. */
-    int rotate;
-};
-
-/** One screen-space primitive of the entity overlay pass (reference
- * drawEntities' health bars + hitmarks, Client.ts:4897-4932). The host
- * projects the entity, applies the reference's per-slot nudges and hands the
- * draw layer flat, already-positioned primitives — ui/ stays leaf and knows
- * nothing about entities or the camera. */
-enum UITreeEntityOverlayKind
-{
-    UITREE_ENTITY_OVERLAY_RECT = 0,
-    UITREE_ENTITY_OVERLAY_SPRITE,
-    UITREE_ENTITY_OVERLAY_TEXT,
-    /** A diagonal of the (x,y,w,h) box: direction 0 runs top-left to
-     *  bottom-right, 1 bottom-left to top-right (TORIRSRC_LINE's contract).
-     *  Any projected world segment fits by picking box + direction. */
-    UITREE_ENTITY_OVERLAY_LINE,
-    /* Convex polygon, as a begin / point... / end run.
-     *
-     * Bracketed rather than one item carrying an array so that each item is
-     * still ONE render command: the emit walk produces one command per step,
-     * and this keeps a variable-length primitive from needing a sub-step
-     * counter threaded through the walk and every backend. `color` and `trans`
-     * ride on the BEGIN; the POINTs carry only x and y. */
-    UITREE_ENTITY_OVERLAY_POLY_BEGIN,
-    UITREE_ENTITY_OVERLAY_POLY_POINT,
-    UITREE_ENTITY_OVERLAY_POLY_END,
-};
-
-/* Long enough for a full overhead chat line (reference chatMessage); hitsplat
- * numbers use only the first few bytes. */
-#define UITREE_ENTITY_OVERLAY_TEXT_LEN 100
-
-struct UITreeEntityOverlay
-{
-    int kind;
-    int x;
-    int y;
-    int w;
-    int h;
-    uint32_t color;
-    int scene_id;
-    int atlas_index;
-    int font_id;
-    /** SPRITE, RECT and POLY_BEGIN: 0 = opaque, 255 = invisible.
-     *  Health bars and plugin fills retain their native transparency. */
-    int trans;
-    /** Optional extra clip, intersected with the world viewport. A zero `w` or
-     *  `h` means "no extra clip", which is what every primitive but the health
-     *  bar's filled half wants -- that one is a full-width sprite drawn cut off
-     *  at the current fill, exactly as the reference clips it. */
-    int clip_x;
-    int clip_y;
-    int clip_w;
-    int clip_h;
-    /** LINE only: which diagonal of the box, and its thickness (0 = 1px). */
-    uint8_t line_direction;
-    uint8_t line_width;
-    /** TEXT: centred on x, baseline at y (reference centreString). */
-    char text[UITREE_ENTITY_OVERLAY_TEXT_LEN];
-};
-
-/* One blit on the world map surface: a baked map region, or a map element icon
- * over it. Both are positioned by the host in absolute screen pixels — regions
- * are baked at exactly the view's pixels-per-tile, so nothing scales here — the
- * same division of labour as UITreeEntityOverlay: the host projects, the draw
- * layer draws, and ui/ knows nothing about map coordinates. */
-struct UITreeWorldMapTile
-{
-    int scene_id;
-    int atlas_index;
-    int x;
-    int y;
-    int w;
-    int h;
-    /** Stretch the sprite to w x h rather than blitting it at its own size.
-     *  Region tiles set this so a zoom change can keep drawing the bake it
-     *  already has, scaled, until the new-zoom bake replaces it. */
-    int scaled;
-};
 
 enum UITreeHostRequestKind
 {
@@ -207,6 +113,20 @@ enum UITreeHostRequestKind
      */
     UITREE_HOST_GET_MINIMAP_HIDDEN,
     UITREE_HOST_GET_COMPASS_HIDDEN,
+    /**
+     * Nonzero when a click on the minimap WALKS (MINIMAP_TOGGLE state 0 or 3).
+     *
+     * The third of the permission set and the only one that was never asked
+     * for through the host: the engine read RS_MinimapPermissions directly at
+     * the one site that needed it. It is a request now because a second reader
+     * arrived -- the widget-state facets -- and two readers of one lane fact
+     * must not each spell it out for themselves.
+     *
+     * Apart from GET_MINIMAP_HIDDEN for the reason stated above it: state 1
+     * draws the map and refuses the walk, so "withheld" and "inert" are
+     * different answers about the same surface.
+     */
+    UITREE_HOST_GET_MINIMAP_WALK,
     /**
      * Nonzero when the player is in a multi-combat zone (SET_MULTIWAY) and the
      * indicator should draw. The sprite and its place are the widget's, from
@@ -754,6 +674,57 @@ bool UITree_NodeNativeVisible(struct UITree const* tree, struct UITreeHost const
  * disabled minimap). This does not enable invisible plugin regions/children. */
 bool UITree_NodeNativeInputPresent(struct UITree const* tree, struct UITreeHost const* host,
                                    int32_t node);
+
+/**
+ * Everything `node_native_available` asks about ONE node, answered in one pass.
+ *
+ * The walks used to ask it a node at a time through UITree_NodeNativeVisible /
+ * UITree_NodeNativeInputPresent, and each of those re-walks the whole ancestor
+ * chain issuing a host request per ancestor -- O(n x depth) per walk, and
+ * `collect_nodes_recursive` asked TWICE per node. A recursive walk already
+ * knows its ancestors passed (it only descends through nodes that did), so it
+ * needs the per-node half only, plus the fact to pass down.
+ *
+ * `self_input` is the self condition of node_native_available(input=true);
+ * `children_input` is the ANCESTOR condition, which additionally demands paint.
+ * They differ, and the difference matters: a hidden MINIMAP or an unlit
+ * REDSTONE_TAB keeps input while losing paint, so it is present for input
+ * itself but must NOT let its children through.
+ *
+ * `visible` is both halves of node_native_available(input=false) -- there the
+ * self and ancestor conditions are the same test.
+ *
+ * `hit_visible` is UITree_ComponentHitTestVisibleHost(component, hovered, host),
+ * folded in because it shares the availability lookup.
+ */
+struct UITreeNativeGate
+{
+    bool self_input;
+    bool children_input;
+    bool visible;
+    bool hit_visible;
+};
+
+struct UITreeNativeGate
+UITree_NodeNativeGate(
+    struct UITreeComponent const* component,
+    int hovered_component_id,
+    struct UITreeHost const* host);
+
+/**
+ * The ancestor condition of node_native_available applied to `node` and every
+ * node above it, ending at the root. `node < 0` is the empty chain and passes.
+ *
+ * A walk calls this once, for the parent of the node it starts at, and then
+ * carries the answer down itself.
+ */
+bool
+UITree_NodeNativeChainPresent(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int32_t node,
+    int hovered_component_id,
+    bool input);
 
 bool
 UITree_ComponentVisibleHost(

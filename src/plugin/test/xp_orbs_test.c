@@ -292,9 +292,20 @@ fake_project(void* u, int fx, int fz, int hy, int* x, int* y)
     return 0;
 }
 static int
-fake_draw_tile(void* u, int x, int z, int l, uint32_t rgb, uint32_t fill, int alpha)
+fake_draw_tile(
+    void* u,
+    int x,
+    int z,
+    int l,
+    uint32_t rgb,
+    int outline_width,
+    uint32_t fill,
+    int alpha,
+    int depth)
 {
     (void)u;
+    (void)depth;
+    (void)outline_width;
     (void)x;
     (void)z;
     (void)l;
@@ -371,6 +382,16 @@ fake_slot_native_size(void* u, int slot, int* w, int* h)
     (void)slot;
     (void)w;
     (void)h;
+    return 0;
+}
+
+/** No member of any surface has an authored box in this fake.
+ *  @see ToriRS_FrameApi::surface_member_native_box. */
+static int
+fake_slot_member_native_box(
+    void* u, int slot, int member, int* x, int* y, int* w, int* h)
+{
+    (void)u; (void)slot; (void)member; (void)x; (void)y; (void)w; (void)h;
     return 0;
 }
 
@@ -482,11 +503,16 @@ fake_image_publish(void* u, int slot, void const* data, int size, int* w, int* h
 /* Composes of the tooltip, which is the only 150-wide picture this plugin
  * builds -- a globe is its orb size and a drop label is as wide as its text. */
 static int g_tip_composes;
+/* Every rasterisation, of anything. The plan's expensive half is the compose,
+ * and "an idle globe is never rasterised twice" is only a claim until this is
+ * read on a frame where nothing moved. */
+static int g_composes;
 
 static int
 fake_image_publish_argb(void* u, int slot, int w, int h, uint32_t const* argb)
 {
     (void)u;
+    g_composes++;
     if( w == 150 )
         g_tip_composes++;
     if( slot < 0 || slot >= FAKE_IMAGE_SLOTS || w <= 0 || h <= 0 )
@@ -901,12 +927,32 @@ static struct ToriRS_PluginHost* g_host;
  * Positions are viewport-local; the viewport sits at the canvas origin so
  * canvas and local coordinates coincide for the assertions below.
  */
-struct FakeControl { int alive; char key[24]; int x, y, w, h, image, opacity; char op[32]; uint64_t registration; };
+struct FakeControl { int alive; char key[24]; int x, y, w, h, image, opacity, hidden; char op[32]; uint64_t registration; };
 #define FAKE_VIEWPORT_ID 1
 #define FAKE_FIRST_OWNED 100
 static struct FakeControl g_control[64];
 static int g_control_count;
 static int g_widget_owner = -1;
+/* Is the viewport painting? The plugin must stand down entirely while it is
+ * not: the ledger row "Hidden viewport keeps working" says the old behaviour
+ * -- polling, composing, positioning and revalidating for a picture nobody
+ * could see -- was the defect. */
+static bool g_viewport_presented = true;
+/** The viewport's width. Narrow enough and the row's gap has to collapse. */
+static int g_viewport_w = CANVAS_W;
+/*
+ * Engine writes this frame, by kind.
+ *
+ * The plan's steady-state claim -- "zero engine setter calls when nothing
+ * changed, and at most one revalidate per frame" -- is only a claim until a
+ * test reads these. Counted at the ENGINE boundary rather than through
+ * Porcelain's own counters on purpose: a layer that miscounted itself would
+ * still be caught here, and this is the same seam the real client's setters
+ * go through.
+ */
+static int g_setters;
+static int g_revalidates;
+static int g_creates;
 static struct ToriRS_WidgetRef fake_ref(int id) { return (struct ToriRS_WidgetRef){{ 77, (uint64_t)id, 1 }}; }
 static int fake_id(struct ToriRS_WidgetRef r) { return r.opaque[0] == 77 && r.opaque[2] == 1 ? (int)r.opaque[1] : -1; }
 static enum ToriRS_ContractResult
@@ -928,7 +974,25 @@ fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
     if( id == FAKE_VIEWPORT_ID )
     {
         if( r->kind == PLUGIN_WIDGET_LOCAL_BOUNDS || r->kind == PLUGIN_WIDGET_BOUNDS )
-        { *r->bounds = (struct ToriRS_WidgetBounds){ 0, 0, CANVAS_W, CANVAS_H }; return TORIRS_CONTRACT_OK; }
+        { *r->bounds = (struct ToriRS_WidgetBounds){ 0, 0, g_viewport_w, CANVAS_H }; return TORIRS_CONTRACT_OK; }
+        /* The per-watch state buffer the layer reads instead of polling
+         * position and bounds every frame. */
+        if( r->kind == PLUGIN_WIDGET_STATE )
+        {
+            memset(r->state, 0, sizeof(*r->state));
+            r->state->struct_size = (uint32_t)sizeof(*r->state);
+            r->state->bounds = (struct ToriRS_WidgetBounds){ 0, 0, g_viewport_w, CANVAS_H };
+            r->state->local = r->state->bounds;
+            r->state->presented = g_viewport_presented;
+            r->state->input_present = g_viewport_presented;
+            r->state->incarnation = 1;
+            return TORIRS_CONTRACT_OK;
+        }
+        if( r->kind == PLUGIN_WIDGET_VISIBLE ) { *r->flag = g_viewport_presented; return TORIRS_CONTRACT_OK; }
+        /* Counted before it is refused: a full-tree layout resolve is a cost
+         * whatever it is aimed at, and the budget this pins is "how many
+         * reached the engine", not "how many the engine agreed to". */
+        if( r->kind == PLUGIN_WIDGET_REVALIDATE ) { g_revalidates++; return TORIRS_CONTRACT_NATIVE_BLOCKED; }
         if( r->kind == PLUGIN_WIDGET_CREATE_IMAGE )
         {
             for( int i = 0; i < g_control_count; i++ )
@@ -936,6 +1000,7 @@ fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
             assert(g_control_count < 64);
             memset(&g_control[g_control_count], 0, sizeof(g_control[0]));
             g_control[g_control_count].alive = 1;
+            g_creates++;
             snprintf(g_control[g_control_count].key, sizeof(g_control[0].key), "%s", r->name);
             *r->refs = fake_ref(FAKE_FIRST_OWNED + g_control_count++);
             return TORIRS_CONTRACT_OK;
@@ -947,15 +1012,16 @@ fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
     struct FakeControl* c = &g_control[id - FAKE_FIRST_OWNED];
     switch( r->kind )
     {
-    case PLUGIN_WIDGET_SET_IMAGE: c->image = r->id + 1; c->w = r->a; c->h = r->b; return TORIRS_CONTRACT_OK;
-    case PLUGIN_WIDGET_POSITION: c->x = r->a; c->y = r->b; return TORIRS_CONTRACT_OK;
-    case PLUGIN_WIDGET_OPACITY: c->opacity = r->a; return TORIRS_CONTRACT_OK;
-    case PLUGIN_WIDGET_SET_ON_OP: snprintf(c->op, sizeof(c->op), "%s", r->name); c->registration = r->registration; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_SET_IMAGE: g_setters++; c->image = r->id + 1; c->w = r->a; c->h = r->b; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_POSITION: g_setters++; c->x = r->a; c->y = r->b; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_OPACITY: g_setters++; c->opacity = r->a; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_HIDDEN: g_setters++; c->hidden = r->a; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_SET_ON_OP: g_setters++; snprintf(c->op, sizeof(c->op), "%s", r->name ? r->name : ""); c->registration = r->registration; return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_REMOVE: c->alive = 0; return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_BOUNDS: case PLUGIN_WIDGET_LOCAL_BOUNDS:
         *r->bounds = (struct ToriRS_WidgetBounds){ c->x, c->y, c->w, c->h }; return TORIRS_CONTRACT_OK;
-    case PLUGIN_WIDGET_VISIBLE: *r->flag = true; return TORIRS_CONTRACT_OK;
-    case PLUGIN_WIDGET_REVALIDATE: return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_VISIBLE: *r->flag = !c->hidden; return TORIRS_CONTRACT_OK;
+    case PLUGIN_WIDGET_REVALIDATE: g_revalidates++; return TORIRS_CONTRACT_OK;
     default: return TORIRS_CONTRACT_UNAVAILABLE;
     }
 }
@@ -986,8 +1052,24 @@ static int control_index(struct FakeControl const* c) { return c == &g_no_contro
 /* One client cycle, and ONLY that -- the 2004-era lanes have no server tick
  * fence, so the poll must live on the logic tick. */
 static void tick(void) { static int cycle; PluginHost_LogicTick(g_host, ++cycle); }
-/* One rendered frame: the frame-start publication places and repaints. */
-static void frame(void) { static uint64_t frames; PluginHost_FrameStart(g_host, g_now_ms, ++frames); }
+/*
+ * One rendered frame: the publication fence stamps every watched element's
+ * state, then the frame-start callback plans, describes and commits.
+ *
+ * PluginHost_WidgetStates is what the real client calls at the layout tick,
+ * and it is what feeds the element state buffer the description is placed
+ * against -- without it the layer sees a viewport that binds and never moves,
+ * which is a different plugin.
+ */
+static void frame(void)
+{
+    static uint64_t frames;
+    g_setters = 0;
+    g_revalidates = 0;
+    g_creates = 0;
+    PluginHost_WidgetStates(g_host);
+    PluginHost_FrameStart(g_host, g_now_ms, ++frames);
+}
 
 static void
 sample_drop(int plugin, int skill, char const* offset, int* out_first, int* out_last)
@@ -1049,6 +1131,7 @@ main(void)
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
     e.slot_native_size = fake_slot_native_size;
+    e.slot_member_native_box = fake_slot_member_native_box;
     e.component_rect = fake_component_rect;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
@@ -1235,12 +1318,20 @@ main(void)
         CHECK(globes(g) == 1 && drop != NULL, "a gain places its globe AND its floating label");
         CHECK(drop && drop->y > g[0]->y, "the label starts below the disc");
         first_y = drop ? drop->y : 0;
-        for( int i = 0; i < 6; i++ )
         {
-            g_now_ms += 150;
-            frame();
-            drop = control_named("drop");
-            if( drop ) { last_y = drop->y; found = 1; }
+            int most_revalidates = 0;
+            for( int i = 0; i < 6; i++ )
+            {
+                g_now_ms += 150;
+                frame();
+                if( g_revalidates > most_revalidates ) most_revalidates = g_revalidates;
+                drop = control_named("drop");
+                if( drop ) { last_y = drop->y; found = 1; }
+            }
+            /* A globe, a climbing label and the tooltip all moving is what
+             * used to cost fourteen full-tree layout resolves in one frame. */
+            CHECK(most_revalidates <= 1,
+                  "a moving label costs at most ONE revalidate a frame");
         }
         CHECK(found && last_y < first_y, "and climbs");
         CHECK(drop && drop->opacity < 255, "fading over the tail of the climb");
@@ -1252,6 +1343,168 @@ main(void)
             CHECK(hi_first - lo_first == 40, "the setting moves where it starts");
             CHECK(hi_last - lo_last == 40, "and where it finishes, by the same 40");
             PluginHost_ConfigSet(g_host, index, "drop_offset_y", "20");
+        }
+        /*
+         * Nineteen skills raised in ONE poll -- ~maxme, a quest reward, a
+         * lamp, a skill cape. The globe row holds five and the drop table
+         * eight, so the table overflows and has to choose which labels to
+         * keep; it chooses by ARRIVAL, and the five skills that own a globe
+         * are the five that arrived last, so every globe keeps its own label.
+         *
+         * Before it chose that way it compared millisecond stamps -- which in
+         * one poll are all the SAME millisecond, so the scan never left slot 0
+         * and every gain after the eighth overwrote it. Five globes, ONE
+         * label, and nothing in any log to say so.
+         */
+        {
+            struct FakeControl const* many[8];
+            int saved_xp[25];
+            int saved_level[25];
+            int shown = 0;
+            int labelled = 0;
+            /* Every skill's reading is about to move, and the blocks after
+             * this one are written against the table as it stands. */
+            memcpy(saved_xp, g_xp, sizeof(saved_xp));
+            memcpy(saved_level, g_level, sizeof(saved_level));
+            g_now_ms += 30000;
+            frame();
+            g_now_ms += 600;
+            for( int skill = 0; skill <= 20; skill++ )
+            {
+                if( skill == 18 || skill == 19 )
+                    continue;
+                g_level[skill] = 50;
+                if( g_xp[skill] < g_level_xp[48] )
+                    g_xp[skill] = g_level_xp[48];
+                g_xp[skill] += 4242;
+            }
+            tick();
+            frame();
+            shown = globes(many);
+            CHECK(shown == 5, "nineteen gains in one poll fill the five-globe row");
+            for( int i = 0; i < shown; i++ )
+            {
+                int const centre = many[i]->x + many[i]->w / 2;
+                for( int c = 0; c < g_control_count; c++ )
+                {
+                    struct FakeControl const* label = &g_control[c];
+                    int label_centre;
+                    if( !label->alive || !label->image )
+                        continue;
+                    if( strncmp(label->key, "drop", 4) != 0 )
+                        continue;
+                    label_centre = label->x + label->w / 2;
+                    if( label_centre >= centre - 2 && label_centre <= centre + 2 )
+                    {
+                        labelled++;
+                        break;
+                    }
+                }
+            }
+            CHECK(labelled == shown, "and EVERY one of those globes keeps its own label");
+            /* Put the table back. A reading that goes DOWN re-seeds rather
+             * than reporting a negative gain, so one poll leaves the plugin
+             * where this block found it. */
+            memcpy(g_xp, saved_xp, sizeof(saved_xp));
+            memcpy(g_level, saved_level, sizeof(saved_level));
+            g_now_ms += 30000;
+            tick();
+            frame();
+            CHECK(globes(many) == 0, "and the row empties once they expire");
+        }
+        /*
+         * Five WIDE numbers at once -- the collision the row is spread for.
+         *
+         * A label is as wide as its digits and the column's pitch is fixed at
+         * orb_size + ORB_STEP = 50. "+13,034,431", which is what every skill
+         * gains the moment an account is maxed, measures 59px in the plugin's
+         * own p11 atlas, so each label reached nine pixels into the next
+         * one's. It was not nine pixels of background either: the neighbour
+         * painted OVER them in the neighbour's skill colour, so four of the
+         * five numbers ended in a digit that named the wrong skill. And this
+         * is not an only-a-cheat state -- a quest paying 100,000 xp is 51px,
+         * already over the pitch.
+         *
+         * The row is therefore spread from its middle, and what is checked
+         * here is the three things that makes true: no two labels share a
+         * pixel, the row is still centred where the globes are, and every
+         * label is still within half a pitch of its own globe, which is what
+         * keeps "which skill was that?" answerable.
+         */
+        {
+            struct FakeControl const* row[8];
+            struct FakeControl const* discs[8];
+            int saved_xp[25];
+            int saved_level[25];
+            int labels = 0;
+            int shown;
+
+            memcpy(saved_xp, g_xp, sizeof(saved_xp));
+            memcpy(saved_level, g_level, sizeof(saved_level));
+            g_now_ms += 30000;
+            frame();
+            g_now_ms += 600;
+            for( int i = 0; i < 5; i++ )
+            {
+                g_level[10 + i] = 99;
+                g_xp[10 + i] = g_level_xp[98];
+            }
+            tick();
+            frame();
+            shown = globes(discs);
+            for( int c = 0; c < g_control_count; c++ )
+            {
+                struct FakeControl const* label = &g_control[c];
+                if( !label->alive || !label->image )
+                    continue;
+                if( strncmp(label->key, "drop", 4) != 0 )
+                    continue;
+                CHECK(labels < 8, "no more labels than the drop table holds");
+                if( labels < 8 )
+                    row[labels++] = label;
+            }
+            /* Left to right, which is not the order the drop table is in. */
+            for( int i = 1; i < labels; i++ )
+            {
+                struct FakeControl const* hold = row[i];
+                int at = i - 1;
+                while( at >= 0 && row[at]->x > hold->x )
+                {
+                    row[at + 1] = row[at];
+                    at--;
+                }
+                row[at + 1] = hold;
+            }
+            CHECK(shown == 5, "five maxed skills fill the globe row");
+            CHECK(labels == 5, "and each of the five carries a label");
+            if( shown == 5 && labels == 5 )
+            {
+                /* The premise. Without this the block proves nothing: a label
+                 * narrower than the pitch never collided in the first place. */
+                CHECK(row[0]->w > 50, "+13,034,431 is wider than the 50px pitch");
+                for( int i = 0; i + 1 < labels; i++ )
+                    CHECK(row[i]->x + row[i]->w <= row[i + 1]->x,
+                          "no label is painted over by the one beside it");
+                {
+                    int const row_span = (row[0]->x + row[0]->w / 2) + (row[4]->x + row[4]->w / 2);
+                    int const disc_span =
+                        (discs[0]->x + discs[0]->w / 2) + (discs[4]->x + discs[4]->w / 2);
+                    CHECK(row_span == disc_span,
+                          "and the spread row is still centred where the globes are");
+                }
+                for( int i = 0; i < labels; i++ )
+                {
+                    int const label_centre = row[i]->x + row[i]->w / 2;
+                    int const disc_centre = discs[i]->x + discs[i]->w / 2;
+                    CHECK(label_centre - disc_centre < 25 && disc_centre - label_centre < 25,
+                          "each label stays within half a pitch of its own globe");
+                }
+            }
+            memcpy(g_xp, saved_xp, sizeof(saved_xp));
+            memcpy(g_level, saved_level, sizeof(saved_level));
+            g_now_ms += 30000;
+            tick();
+            frame();
         }
         g_now_ms += 30000;
         frame();
@@ -1305,6 +1558,301 @@ main(void)
         frame();
         CHECK(globes(g) == 2, "the globes come back under the rebound viewport");
     }
+    /*
+     * The steady state, which is the whole reason the layer exists.
+     *
+     * A globe sitting still with nothing over it must cost NOTHING: no engine
+     * setter, no full-tree layout resolve, and no rasterisation. The last
+     * shape paid up to fourteen revalidates a frame -- one per moved globe,
+     * one per live label, one for the tooltip -- and each of those is a
+     * whole-tree resolve.
+     */
+    {
+        g_mouse_x = -1;
+        g_now_ms += 30000;
+        frame();
+        CHECK(globes(g) == 0, "cleared before the steady-state case");
+        g_now_ms += 600;
+        g_level[21] = 30;
+        g_xp[21] = g_level_xp[28] + 100;
+        tick();
+        frame();
+        CHECK(globes(g) == 1, "one globe for the steady-state case");
+        CHECK(g_revalidates <= 1, "placing it costs at most one revalidate");
+        /* The CLOCK moves and nothing else does, which is what a settled
+         * frame is. A picture keyed on anything that ticks -- a frame
+         * counter, the wall clock, a value the plan recomputes -- recomposes
+         * here, and that is the failure this case exists to catch. */
+        g_now_ms += 40;
+        g_composes = 0;
+        frame();
+        CHECK(g_setters == 0, "a settled frame issues zero engine setters");
+        CHECK(g_revalidates == 0, "and no full-tree layout resolve at all");
+        CHECK(g_composes == 0, "and rasterises nothing");
+        CHECK(g_creates == 0, "and creates nothing");
+        g_now_ms += 40;
+        frame();
+        CHECK(g_setters == 0 && g_revalidates == 0 && g_composes == 0,
+              "and the second settled frame costs the same");
+    }
+    /*
+     * A HIDDEN viewport stands the whole thing down.
+     *
+     * Nothing here ever called widgets.visible, so a cutscene or a full-screen
+     * modal left this plugin polling, composing, positioning and revalidating
+     * for a picture nobody could see. The ledger row "Hidden viewport keeps
+     * working" names that as the defect; the element's `presented` bit is the
+     * answer, and the column goes with it.
+     */
+    {
+        g_viewport_presented = false;
+        frame();
+        CHECK(globes(g) == 0, "a hidden viewport takes the column with it");
+        g_composes = 0;
+        frame();
+        CHECK(g_setters == 0 && g_revalidates == 0 && g_composes == 0,
+              "and costs nothing at all while it stays hidden");
+        g_viewport_presented = true;
+        frame();
+        CHECK(globes(g) == 1, "and the globe is back when the viewport paints again");
+    }
+    /*
+     * A NARROW viewport collapses the gap.
+     *
+     * Five 40px globes with ORB_STEP between them need 240px; the branch that
+     * drops the gap to zero when the run will not fit was unpinned.
+     */
+    {
+        int narrow_first, narrow_second;
+        g_now_ms += 30000;
+        frame();
+        for( int i = 0; i < 5; i++ )
+        {
+            int const skill = 2 + i * 3;
+            int const level = 45 + i;
+            g_now_ms += 600;
+            g_level[skill] = level;
+            g_xp[skill] = g_level_xp[level - 2] + 300;
+            tick();
+        }
+        frame();
+        CHECK(globes(g) == 5, "five globes for the gap case");
+        g_viewport_w = 210;
+        frame();
+        CHECK(globes(g) == 5, "still five in a narrow viewport");
+        narrow_first = g[0]->x;
+        narrow_second = g[1]->x;
+        CHECK(narrow_second - narrow_first == 40,
+              "the gap collapses to zero so the row still fits");
+        CHECK(narrow_first >= -3 && g[4]->x + g[4]->w <= 210 + 3,
+              "and the run is centred inside the narrow viewport");
+        g_viewport_w = CANVAS_W;
+        frame();
+        CHECK(g[1]->x - g[0]->x == 50, "and comes back at ORB_STEP when there is room");
+        g_now_ms += 30000;
+        frame();
+    }
+    /*
+     * A LOWER value re-seeds rather than reporting a negative gain.
+     *
+     * A different character's table that the logout reset missed, or a server
+     * correction. The row was unpinned.
+     */
+    {
+        g_now_ms += 600;
+        g_level[22] = 40;
+        g_xp[22] = g_level_xp[38] + 900;
+        tick();
+        frame();
+        CHECK(globes(g) == 1, "a gain before the re-seed case");
+        g_now_ms += 30000;
+        frame();
+        g_now_ms += 600;
+        g_xp[22] = g_level_xp[38] + 100;
+        tick();
+        frame();
+        CHECK(globes(g) == 0, "a LOWER value places no globe");
+        g_now_ms += 600;
+        g_xp[22] = g_level_xp[38] + 150;
+        tick();
+        frame();
+        CHECK(globes(g) == 1, "and the next real gain is measured from the lower value");
+        g_now_ms += 30000;
+        frame();
+    }
+    /*
+     * Hide maxed, and the virtual level past the client's own table.
+     *
+     * The client's xp table stops at 99 because its stats do; a virtual level
+     * is the same series carried on, and it is the one number the api cannot
+     * answer. Both rows were unpinned.
+     */
+    {
+        PluginHost_ConfigSet(g_host, index, "hide_maxed", "1");
+        g_now_ms += 600;
+        g_level[23] = 99;
+        g_xp[23] = 13034431;
+        tick();
+        frame();
+        CHECK(globes(g) == 0, "hide_maxed drops the globe for a maxed skill");
+        PluginHost_ConfigSet(g_host, index, "hide_maxed", "0");
+        g_now_ms += 600;
+        g_xp[23] = 14000000;
+        tick();
+        frame();
+        CHECK(globes(g) == 1, "and a maxed skill draws again when it is off");
+        g_now_ms += 30000;
+        frame();
+        PluginHost_ConfigSet(g_host, index, "show_virtual_level", "1");
+        g_mouse_x = -1;
+        g_now_ms += 600;
+        g_xp[23] = 15000000;
+        tick();
+        frame();
+        globes(g);
+        g_mouse_x = g[0]->x + g[0]->w / 2;
+        g_mouse_y = g[0]->y + g[0]->h / 2;
+        frame();
+        CHECK(control_named("tooltip") != NULL,
+              "a maxed skill still has a tooltip to carry its virtual level");
+        g_mouse_x = -1;
+        PluginHost_ConfigSet(g_host, index, "show_virtual_level", "0");
+        g_now_ms += 30000;
+        frame();
+    }
+    /*
+     * The label the painter draws fits the box the plan measured for it.
+     *
+     * A drop big enough to outgrow the globe pitch is respelled short so the
+     * five labels in a row stop overpainting one another. That decision was
+     * taken in orb_plan, which sized the control from the SHORT spelling --
+     * and then orb_paint_drop re-derived the LONG one from the raw number and
+     * wrote it into that box. The engine clipped it at the edge, so
+     * "+13,034,431" reached the screen as "+13,03" plus a one-pixel slice of
+     * the next digit. A truncated number reads as a wrong number, which is a
+     * worse failure than the collision the respelling was added to fix, and no
+     * check here could see it: the control's WIDTH was right, and the width is
+     * all anything was looking at.
+     *
+     * So this looks at the pixels the plugin actually published. The label is
+     * laid out at orb_text_width + 1, so a string that fits always leaves that
+     * last column bare; a string that was cut off runs ink into it.
+     *
+     * MUTATION: in orb_paint_drop, spell picture->text yourself with
+     * orb_commas(picture->amount) instead of drawing the text the plan chose.
+     * Red on "no ink reaches the last column".
+     */
+    {
+        struct FakeControl const* drop;
+        struct FakeImage const* image = NULL;
+        int rightmost = -1;
+        int ink = 0;
+
+        PluginHost_ConfigSet(g_host, index, "show_xp_drops", "1");
+        g_now_ms += 30000;
+        frame();
+        g_now_ms += 600;
+        /* Big enough that the comma'd spelling cannot fit between two globes. */
+        g_level[15] = 99;
+        g_xp[15] = 13034431;
+        tick();
+        frame();
+
+        drop = control_named("drop");
+        CHECK(drop != NULL, "a drop of thirteen million still places a label");
+        /* FakeControl stores the slot PLUS ONE, so that 0 can mean "no
+         * picture set" -- see PLUGIN_WIDGET_SET_IMAGE in fake_widget. */
+        if( drop && drop->image > 0 && drop->image <= FAKE_IMAGE_SLOTS )
+            image = &g_image[drop->image - 1];
+        CHECK(image && image->argb, "and publishes a picture for it");
+        if( image && image->argb )
+        {
+            for( int y = 0; y < image->h; y++ )
+                for( int x = 0; x < image->w; x++ )
+                    if( image->argb[y * image->w + x] & 0xFF000000u )
+                    {
+                        ink++;
+                        if( x > rightmost )
+                            rightmost = x;
+                    }
+            CHECK(ink > 0, "the picture is not blank");
+            if( rightmost >= image->w - 1 )
+                printf("  label ink reaches column %d of %d -- the text was cut off\n",
+                       rightmost, image->w);
+            CHECK(rightmost < image->w - 1,
+                  "no ink reaches the last column: the text fits the box it was measured for");
+        }
+    }
+
+    /*
+     * Two gains on ONE globe, down a vertical column, do not overpaint.
+     *
+     * The spread used to run two passes outward from the middle of the row,
+     * comparing each label only with the labels BETWEEN it and the middle.
+     * That is sound while "shares rows" is transitive along the row, which it
+     * is on a horizontal row -- every live label is within one line height of
+     * every other -- and it is false the moment two labels STRADDLE a middle
+     * that shares rows with neither of them. Two gains on the same globe do
+     * exactly that in any layout, and a vertical column is where it shows,
+     * because there consecutive globes really are a pitch apart.
+     *
+     * The plugin's own comment asserted a vertical column was untouched "because
+     * consecutive globes are a pitch apart in y and no two labels share a row",
+     * which is a statement about two GLOBES and not about two gains on one. A
+     * randomised sweep of the old algorithm left 38% of vertical configurations
+     * still overlapping; the settle that replaced it leaves none in 500,000.
+     *
+     * MUTATION: delete the all-pairs settle at the end of orb_drop_spread and
+     * keep the two middle-out passes. Red on "no two labels overlap".
+     */
+    {
+        struct FakeControl const* seen[8];
+        int labels = 0;
+
+        PluginHost_ConfigSet(g_host, index, "show_xp_drops", "1");
+        PluginHost_ConfigSet(g_host, index, "vertical", "1");
+        g_now_ms += 30000;
+        frame();
+
+        /*
+         * Three gains on ONE globe, a beat apart so all three are still
+         * climbing, plus one on a globe far down the column. The pair on one
+         * globe is what shares rows; the distant one is the middle the spread
+         * anchors on and shares rows with neither.
+         */
+        g_level[15] = 60;
+        g_xp[15] = g_level_xp[58] + 4000;
+        g_now_ms += 120; tick(); frame();
+        g_xp[15] += 15;
+        g_now_ms += 120; tick(); frame();
+        g_xp[15] += 1234567;
+        g_now_ms += 120; tick(); frame();
+        g_level[12] = 40;
+        g_xp[12] = g_level_xp[38] + 900000;
+        g_now_ms += 120; tick(); frame();
+
+        for( int i = 0; i < g_control_count && labels < 8; i++ )
+            if( g_control[i].alive && g_control[i].image &&
+                strncmp(g_control[i].key, "drop", 4) == 0 )
+                seen[labels++] = &g_control[i];
+        CHECK(labels >= 2, "a vertical column with two gains on one globe places both labels");
+        for( int a = 0; a < labels; a++ )
+            for( int b = a + 1; b < labels; b++ )
+            {
+                struct FakeControl const* p = seen[a];
+                struct FakeControl const* q = seen[b];
+                int const rows = p->y < q->y + q->h && q->y < p->y + p->h;
+                int const cols = p->x < q->x + q->w && q->x < p->x + p->w;
+                if( rows && cols )
+                    printf("  labels %d (%d,%d %dx%d) and %d (%d,%d %dx%d) overlap\n",
+                           a, p->x, p->y, p->w, p->h, b, q->x, q->y, q->w, q->h);
+                CHECK(!(rows && cols), "no two labels overlap");
+            }
+        PluginHost_ConfigSet(g_host, index, "vertical", "0");
+        g_now_ms += 30000;
+        frame();
+    }
+
     PluginHost_SetEnabled(g_host, index, false);
     CHECK(globes(g) == 0, "disabling the plugin removes every owned control");
     PluginHost_Free(g_host);

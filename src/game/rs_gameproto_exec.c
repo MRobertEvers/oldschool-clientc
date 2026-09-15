@@ -94,6 +94,11 @@ exec_if_clearinv_node(
     c = &tree->components[idx];
     if( c->freed )
         return;
+    /* A plugin-owned control under a cache container is not the server's
+     * inventory: it carries no obj and neither do its children. The slot
+     * remount sweep keeps owned children the same way. */
+    if( c->plugin_owner )
+        return;
     (void)UITree_SetObjectAt(tree, idx, 0, 0, -1, 0, c->item_num_mode);
     for( int32_t child = c->first_child; child >= 0; )
     {
@@ -1848,22 +1853,22 @@ RS_GameProto_Exec(
         {
             if( packet->_set_map_flag.clear )
             {
-                ctx->app->minimap_flag_x = -1;
-                ctx->app->minimap_flag_z = -1;
+                ctx->app->minimap.flag_tile_x = -1;
+                ctx->app->minimap.flag_tile_z = -1;
             }
             else if( packet->_set_map_flag.absolute )
             {
                 /* SetMapFlagV2 carries an absolute coord; the minimap draws in
                  * scene-local tiles. Same origin the projectile decode uses. */
-                ctx->app->minimap_flag_x =
+                ctx->app->minimap.flag_tile_x =
                     packet->_set_map_flag.x - (ctx->app->rebuild_zone_x - 6) * 8;
-                ctx->app->minimap_flag_z =
+                ctx->app->minimap.flag_tile_z =
                     packet->_set_map_flag.z - (ctx->app->rebuild_zone_z - 6) * 8;
             }
             else
             {
-                ctx->app->minimap_flag_x = packet->_set_map_flag.x;
-                ctx->app->minimap_flag_z = packet->_set_map_flag.z;
+                ctx->app->minimap.flag_tile_x = packet->_set_map_flag.x;
+                ctx->app->minimap.flag_tile_z = packet->_set_map_flag.z;
             }
             ctx->app->need_redraw = 1;
         }

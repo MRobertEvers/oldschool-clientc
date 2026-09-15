@@ -72,7 +72,7 @@
  * it can know -- a plugin may legitimately hold both. Slots are cheap; the
  * guess would not be.
  */
-#define TORIRS_PLUGIN_ASSETS_MAX 128
+#define TORIRS_PLUGIN_ASSETS_MAX 256
 /** Resident shipped MODELS, across every plugin. Each holds decoded geometry
  *  the host keeps for as long as the plugin runs, so the ceiling is what stops
  *  a plugin from loading a folder of art nothing stands on. */
@@ -90,7 +90,7 @@
  * At ~40 bytes a slot the whole table is under 8 KB either way, so the number
  * is bounded by what is reasonable to draw rather than by what it costs.
  */
-#define TORIRS_PLUGIN_IMAGES_MAX 192
+#define TORIRS_PLUGIN_IMAGES_MAX 255 /* the encoded resource slot is 8 bits: 255 is the ceiling without widening it */
 /**
  * Item icons the host keeps rasterised, across every plugin.
  *
@@ -124,6 +124,9 @@ enum PluginWidgetRequestKind
 {
     PLUGIN_WIDGET_FIND, PLUGIN_WIDGET_FIND_ALL, PLUGIN_WIDGET_GET, PLUGIN_WIDGET_CHILDREN,
     PLUGIN_WIDGET_BOUNDS, PLUGIN_WIDGET_LOCAL_BOUNDS, PLUGIN_WIDGET_TEXT, PLUGIN_WIDGET_PARENT, PLUGIN_WIDGET_ACTIONS, PLUGIN_WIDGET_VISIBLE,
+    /* A read: it must stay BELOW PLUGIN_WIDGET_POSITION, which is where the
+     * adapter starts refusing another owner's widget. */
+    PLUGIN_WIDGET_STATE,
     PLUGIN_WIDGET_POSITION, PLUGIN_WIDGET_SIZE,
     PLUGIN_WIDGET_REVALIDATE, PLUGIN_WIDGET_RESET, PLUGIN_WIDGET_RESET_OWNER,
     PLUGIN_WIDGET_CREATE_TEXT, PLUGIN_WIDGET_SET_TEXT, PLUGIN_WIDGET_TEXT_COLOR, PLUGIN_WIDGET_TEXT_ALIGN, PLUGIN_WIDGET_REMOVE,
@@ -139,6 +142,7 @@ struct PluginWidgetRequest
     int id, a, b;
     struct ToriRS_WidgetRef* refs;
     struct ToriRS_WidgetBounds* bounds;
+    struct ToriRS_WidgetState* state; /* STATE: filled by the adapter. */
     bool* flag;
     struct ToriRS_WidgetAction* actions;
     struct ToriRS_WidgetActionRef action;
@@ -152,6 +156,27 @@ struct PluginWidgetRequest
  * publication fence. A zero instance means no ready native tree. */
 bool PluginHost_WidgetOperation(struct ToriRS_PluginHost*,uint64_t owner,struct ToriRS_WidgetRef,uint64_t registration);
 void PluginHost_WidgetsChanged(struct ToriRS_PluginHost*, uint64_t instance, uint64_t generation);
+/* Stamp every bound watch's ToriRS_WidgetState and raise
+ * TORIRS_WIDGET_STATE_CHANGED where it moved. Called every layout tick right
+ * after PluginHost_WidgetsChanged, UNCONDITIONALLY: a hide, a move, a re-skin
+ * or a retype bumps no tree generation, so an early-out on (instance,
+ * generation) is exactly the bug this pass exists to fix. */
+void PluginHost_WidgetStates(struct ToriRS_PluginHost*);
+
+/*
+ * Install the Porcelain verb table, which every api this host mints then
+ * carries as `api->porcelain`.
+ *
+ * The host does not LINK Porcelain. Porcelain is a plugin-side library -- a
+ * client of struct ToriRS_Api and nothing else -- so a host that referenced
+ * ToriRS_PorcelainApiTable() directly would drag the library into every one
+ * of the eight test binaries that compile torirs_plugin_host.c, for a layer
+ * none of them uses. The client installs it once at startup; a host that
+ * never does answers NULL, and a plugin that needs the layer checks once.
+ *
+ * NULL clears it.
+ */
+void PluginHost_SetPorcelain(struct ToriRS_PorcelainApi const* table);
 
 /* Internal native adapter. No VM pointer or borrowed stack slot reaches a
  * plugin. The adapter and its strings live only through this dispatch. */
@@ -268,6 +293,25 @@ struct ToriRS_PluginEngine
     int (*slot_native_size)(
         void* user,
         int slot,
+        int* out_w,
+        int* out_h);
+    /**
+     * The box the LANE authored for one numbered MEMBER of a placeable
+     * surface, relative to the surface's own block. @see
+     * slot_member_native_box.
+     *
+     * The member twin of slot_native_size, and separate because the whole
+     * surface has no offset inside itself to report while a member is nothing
+     * without one: a frame that MOVES the orb block still has to re-seat the
+     * globe and the wiki banner inside it, and 548 draws the globe 30x30
+     * where 601 draws it 34x34.
+     */
+    int (*slot_member_native_box)(
+        void* user,
+        int slot,
+        int member,
+        int* out_x,
+        int* out_y,
         int* out_w,
         int* out_h);
     /** One component's box, by id. @see component_rect. */
@@ -493,10 +537,18 @@ struct ToriRS_PluginEngine
      * Rasterise the client's inventory icon for `obj_id` at `count` and
      * publish it at plugin image `slot`.
      *
-     * `style` is enum ToriRS_ItemIconStyle. Returns 1 when the slot now
-     * holds the icon, 0 when the objtype or its inventory model is not
-     * resident yet -- which is an ordinary state and not a failure, so the
-     * host answers -1 and the plugin asks again.
+     * `style` is enum ToriRS_ItemIconStyle. Three answers, and the third one
+     * is why this is not a bool:
+     *
+     *   1  the slot now holds the icon.
+     *   0  NOT YET -- the objtype or its inventory model is still coming, the
+     *      engine has asked for what is missing, and the plugin asks again.
+     *   -1 NOT EVER -- nothing is left to load and the icon still will not
+     *      build. A caller that cannot tell this from 0 retries for the rest
+     *      of the session over a picture that is not coming.
+     *
+     * An engine that only ever answers 1 or 0 is still correct; -1 is a
+     * refinement of 0, not a new obligation.
      *
      * The engine end owns the build because an icon is a scene render: the
      * interface emitter already asks the scene bridge for exactly these three
@@ -553,14 +605,24 @@ struct ToriRS_PluginEngine
         int clip_w,
         int clip_h,
         int trans);
+    /** `rgb` is the border's colour and `outline_width` its thickness in
+     *  pixels; a width of 0 draws no border at all, which is the shape the
+     *  cache's hovered-tile group asks for. `depth` is an
+     *  enum ToriRS_TileDepth and decides whether the marker is composited over
+     *  the finished scene or drawn with the tile's own ground -- the host is
+     *  the only layer that can honour the second, because only it knows the
+     *  order the painter put this frame down in.
+     *  @see ToriRS_Graphics::world_tile. */
     int (*draw_tile)(
         void* user,
         int tile_x,
         int tile_z,
         int level,
         uint32_t rgb,
+        int outline_width,
         uint32_t fill_rgb,
-        int fill_alpha);
+        int fill_alpha,
+        int depth);
     int (*draw_hull)(
         void* user,
         int element_id,
@@ -953,7 +1015,7 @@ PluginHost_Key(
 
 /** Opens the draw window, dispatches on_draw_world, closes it. */
 void
-PluginHost_DrawWorld(struct ToriRS_PluginHost* host);
+PluginHost_DrawWorld(struct ToriRS_PluginHost* host, int width, int height);
 
 /** The same, for on_draw_canvas: a different surface token, a different
  *  overlay list, and the canvas rather than the world viewport as the clip. */
@@ -1244,6 +1306,33 @@ enum ToriRS_PluginPanelChangeFlags
     TORIRS_PLUGIN_PANEL_CHANGE_VALUE = 1u << 1,
     TORIRS_PLUGIN_PANEL_CHANGE_HEIGHT = 1u << 2,
     TORIRS_PLUGIN_PANEL_CHANGE_OPTIONS = 1u << 3,
+    /**
+     * This one row's IDENTITY was reminted; every other row kept its own.
+     *
+     * Not a property at all, which is why it does not sit beside the four
+     * above: a presenter cannot patch it, it has to replace that row's
+     * presentation node and fence the intents that named the old serial. What
+     * it deliberately is NOT is a structural change -- the page's row
+     * sequence, its scroll position and every retained run belonging to the
+     * other rows all survive. @see ToriRS_PanelApi::reidentify.
+     */
+    TORIRS_PLUGIN_PANEL_CHANGE_IDENTITY = 1u << 4,
+    /**
+     * The row's LABEL moved -- its name, not its value.
+     *
+     * Its own flag and not TEXT, because on four kinds the two are different
+     * strings on the same row: a KEY_VALUE has a name and a value, a SELECT a
+     * caption and a chosen entry, and a TOGGLE and an ACTION_ROW a name beside
+     * their state. Folding them together would make renaming a key/value row
+     * overwrite its reading.
+     *
+     * KEY_VALUE, CHECKBOX/TOGGLE, DROPDOWN and ACTION_ROW are built from
+     * `label` and had no patch arm at all before this, so renaming one cost a
+     * page rebuild -- the last unnecessary rebuild left in the row model, and
+     * a rebuild is a flash with the scroll thrown away and every retained
+     * custom run retired.
+     */
+    TORIRS_PLUGIN_PANEL_CHANGE_LABEL = 1u << 5,
 };
 
 /**
@@ -1285,6 +1374,27 @@ PluginHost_PanelChangeVisits(struct ToriRS_PluginHost const* host);
 /** Changes on every active model mutation, including result-state changes. */
 uint32_t
 PluginHost_PanelModelRevision(struct ToriRS_PluginHost const* host);
+
+/**
+ * Publish where the active page is scrolled to, in logical pixels.
+ *
+ * Separate from PanelLayout because it moves on frames where no layout fact
+ * does, and because it raises no callback: where a page is scrolled is
+ * something a plugin asks for, not something it is woken about.
+ */
+void
+PluginHost_PanelSetScroll(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    int scroll);
+
+/** Take a plugin's pending scroll_to, if it made one for THIS selection.
+ *  Returns 1 and writes `out_scroll`; a stale request is dropped, not kept. */
+int
+PluginHost_PanelTakeScrollRequest(
+    struct ToriRS_PluginHost* host,
+    uint32_t selection_generation,
+    int* out_scroll);
 
 /** Publish neutral layout facts for the current selection. Returns 0 for a
  *  stale generation or invalid allocation. */

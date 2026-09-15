@@ -684,6 +684,26 @@ v2_frame_surface_native_size(
 }
 
 static bool
+v2_frame_surface_member_native_box(
+    struct ToriRS_Api* api,
+    int surface,
+    int member,
+    int* out_x,
+    int* out_y,
+    int* out_width,
+    int* out_height)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    int const surface_token = v2_surface_slot(surface);
+
+    if( surface_token < 0 )
+        return false;
+    return api_slot_member_native_box(
+               runtime->context, surface_token, member, out_x, out_y, out_width,
+               out_height) != 0;
+}
+
+static bool
 v2_draw_project(
     struct ToriRS_Api* api,
     int fine_x,
@@ -1406,6 +1426,38 @@ v2_panel_set_text(
                : TORIRS_RESULT_NOT_FOUND;
 }
 
+static int
+v2_panel_scroll(struct ToriRS_Api* api)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    return api_panel_scroll(runtime->context);
+}
+
+static enum ToriRS_Result
+v2_panel_scroll_to(
+    struct ToriRS_Api* api,
+    int scroll)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    return api_panel_scroll_to(runtime->context, scroll)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
+}
+
+static enum ToriRS_Result
+v2_panel_set_label(
+    struct ToriRS_Api* api,
+    char const* id,
+    char const* label)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    assert(id);
+    assert(label);
+    return api_panel_set_label(runtime->context, id, label)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
+}
+
 static enum ToriRS_Result
 v2_panel_set_value(
     struct ToriRS_Api* api,
@@ -1463,6 +1515,18 @@ v2_panel_redraw(
     struct PluginV2Runtime* runtime = v2_runtime(api);
     assert(id);
         api_panel_invalidate(runtime->context, id);
+}
+
+static enum ToriRS_Result
+v2_panel_reidentify(
+    struct ToriRS_Api* api,
+    char const* id)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    assert(id);
+    return api_panel_reidentify(runtime->context, id)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_NOT_FOUND;
 }
 
 static int
@@ -1686,6 +1750,22 @@ v2_client_disable_self(
         api_disable_self(runtime->context, reason);
 }
 
+/*
+ * One skill, and whether the server has STATED it.
+ *
+ * The return value is unchanged and deliberately so: false for a skill with
+ * no reading yet is what xp_orbs sizes its tables on ("before the server has
+ * stated a single stat there is no table to size"), so answering true there
+ * would seed every tracker with 25 fictional skills on the title screen. What
+ * is new is that the OUT snapshot is filled on both false paths, and tells
+ * them apart:
+ *
+ *   no such skill index -> zeroed, index -1, stated false
+ *   stated, no reading  -> index and name, zero readings, stated false
+ *   a real reading      -> everything, stated true (and returns true)
+ *
+ * @see ToriRS_SkillSnapshot::stated, RS_PlayerStats::last_seen_level.
+ */
 static bool
 v2_game_skill(
     struct ToriRS_Api* api,
@@ -1699,13 +1779,17 @@ v2_game_skill(
 
     assert(out);
     capacity = out->struct_size;
-    if( capacity < TORIRS_SKILL_SNAPSHOT_REQUIRED_SIZE || index < 0 )
-        return false;
-    name = api_skill_name(runtime->context, index);
-    if( !name )
+    if( capacity < TORIRS_SKILL_SNAPSHOT_REQUIRED_SIZE )
         return false;
     memset(&snapshot, 0, sizeof(snapshot));
     snapshot.struct_size = capacity < sizeof(snapshot) ? capacity : sizeof(snapshot);
+    snapshot.index = -1;
+    name = index >= 0 ? api_skill_name(runtime->context, index) : NULL;
+    if( !name )
+    {
+        (void)v2_output_copy(out, capacity, &snapshot, sizeof(snapshot));
+        return false;
+    }
     snapshot.index = index;
     (void)snprintf(snapshot.name, sizeof(snapshot.name), "%s", name);
     if( !api_stat(
@@ -1716,7 +1800,18 @@ v2_game_skill(
             &snapshot.xp,
             &snapshot.level_xp,
             &snapshot.next_level_xp) )
+    {
+        /* The levels api_stat may have written are the fresh-account seed and
+         * not a reading, so they go back to zero with the rest. */
+        snapshot.current_level = 0;
+        snapshot.base_level = 0;
+        snapshot.xp = 0;
+        snapshot.level_xp = 0;
+        snapshot.next_level_xp = 0;
+        (void)v2_output_copy(out, capacity, &snapshot, sizeof(snapshot));
         return false;
+    }
+    snapshot.stated = true;
     return v2_output_copy(out, capacity, &snapshot, sizeof(snapshot));
 }
 
@@ -2189,19 +2284,25 @@ v2_builder_world_tile(
     int level,
     uint32_t fill_rgb,
     uint32_t outline_rgb,
-    int alpha)
+    int outline_width,
+    int alpha,
+    int depth)
 {
     struct PluginV2DrawScope* scope = v2_draw_scope(draw);
-    api_draw_tile(
+    /* The host's answer, not a constant. This returned OK unconditionally for
+     * as long as it existed, which made the frame allotment a silent truncation
+     * for every tile overlay in the tree. */
+    return api_draw_tile(
         scope->runtime->context,
         scope->surface_token,
         tile_x,
         tile_z,
         level,
         outline_rgb,
+        outline_width,
         fill_rgb,
-        v2_alpha(alpha));
-    return TORIRS_RESULT_OK;
+        v2_alpha(alpha),
+        depth);
 }
 
 static enum ToriRS_Result
@@ -2216,9 +2317,12 @@ v2_builder_world_hull(
 
     if( shape != TORIRS_HULL_BOUNDS && shape != TORIRS_HULL_MESH )
         return TORIRS_RESULT_INVALID;
-    api_draw_hull(
+    /* The host's answer, not OK-regardless. BUDGET says the frame's allotment
+     * ran out; CONFLICT says another plugin holds this entity's APPEARANCE.
+     * Returning OK over either is what made a dropped outline invisible to
+     * the plugin that asked for it. */
+    return api_draw_hull(
         scope->runtime->context, scope->surface_token, element_id, rgb, v2_alpha(alpha), shape);
-    return TORIRS_RESULT_OK;
 }
 
 static bool
@@ -2807,6 +2911,17 @@ static enum ToriRS_ContractResult widget_text(void* u, struct ToriRS_WidgetRef r
     struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_TEXT, .ref=ref, .text=out, .capacity=cap, .count=count};
     return plugin_widget_request(u, &r);
 }
+static enum ToriRS_ContractResult widget_state(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetState* out)
+{
+    if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    /* The caller's struct_size is the only field it owns; everything else is
+     * this answer, so a stale read cannot survive a failed request. */
+    uint32_t const declared = out->struct_size;
+    memset(out, 0, sizeof(*out));
+    out->struct_size = declared;
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_STATE, .ref=ref, .state=out};
+    return plugin_widget_request(u, &r);
+}
 static enum ToriRS_ContractResult widget_local_bounds(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetBounds* out)
 {
     if( !out ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
@@ -2978,7 +3093,7 @@ static enum ToriRS_ContractResult widget_remove(void* u, struct ToriRS_WidgetRef
 }
 
 static enum ToriRS_ContractResult
-widget_subscribe(void* user, char const* role, ToriRS_WidgetListener listener, void* listener_user)
+widget_subscribe(void* user, char const* role, ToriRS_WidgetListener listener, void* listener_user, bool wants_state)
 {
     struct PluginV2Runtime* runtime = user;
     struct PluginContext* ctx = runtime ? runtime->context : NULL;
@@ -3010,17 +3125,36 @@ widget_subscribe(void* user, char const* role, ToriRS_WidgetListener listener, v
         watch->listener = listener;
         watch->user = listener_user;
         watch->serial = ++ctx->host->widget_watch_serial;
+        watch->wants_state = wants_state;
         ctx->host->widget_watch_pending = true;
     }
     return TORIRS_CONTRACT_OK;
 }
 
 static enum ToriRS_ContractResult widget_watch_tree(void* u,ToriRS_WidgetListener listener,void* user)
-{ return widget_subscribe(u,"@tree",listener,user); }
+{ return widget_subscribe(u,"@tree",listener,user,false); }
 static enum ToriRS_ContractResult widget_watch(void* u,char const* role,ToriRS_WidgetListener listener,void* user)
 {
     if( role && role[0]=='@' ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
-    return widget_subscribe(u,role,listener,user);
+    return widget_subscribe(u,role,listener,user,false);
+}
+static enum ToriRS_ContractResult widget_watch_state(void* u,char const* role,ToriRS_WidgetListener listener,void* user)
+{
+    if( role && role[0]=='@' ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    return widget_subscribe(u,role,listener,user,true);
+}
+
+/*
+ * The Porcelain verb table, or NULL. A pointer and not a link dependency:
+ * Porcelain is a plugin-side library, and eight test binaries compile this
+ * host without it. @see PluginHost_SetPorcelain
+ */
+static struct ToriRS_PorcelainApi const* g_plugin_porcelain_table;
+
+void
+PluginHost_SetPorcelain(struct ToriRS_PorcelainApi const* table)
+{
+    g_plugin_porcelain_table = table;
 }
 
 static bool
@@ -3094,9 +3228,10 @@ v2_runtime_init(
             .find_all = widget_find_all, .set_hidden = widget_set_hidden, .watch_tree = widget_watch_tree,
             .set_on_op=widget_set_on_op,.create_image=widget_create_image,.set_image=widget_set_image,.set_opacity=widget_set_opacity,.set_anchor=widget_set_anchor,.set_mask=widget_set_mask,.visible=widget_visible,.actions=widget_actions,.invoke=widget_invoke,.parent=widget_parent,.set_projection_height=widget_projection_height,.set_text_outline=widget_text_outline,
             .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
+            .state = widget_state,
             .position = widget_local_bounds,
             .set_position = widget_position, .set_size = widget_size,
-            .revalidate = widget_revalidate, .reset = widget_reset, .watch = widget_watch,
+            .revalidate = widget_revalidate, .reset = widget_reset, .watch = widget_watch, .watch_state = widget_watch_state,
             .create_text=widget_create_text,.set_text=widget_set_text,.set_text_color=widget_text_color,.set_text_align=widget_text_align,.remove=widget_remove,
         },
         .core = {
@@ -3149,6 +3284,7 @@ v2_runtime_init(
             .select = v2_frame_select,
             .invalidate = v2_frame_invalidate,
             .surface_native_size = v2_frame_surface_native_size,
+            .surface_member_native_box = v2_frame_surface_member_native_box,
         },
         .draw = {
             .struct_size = sizeof(runtime->api.draw),
@@ -3197,10 +3333,14 @@ v2_runtime_init(
             .invalidate = v2_panel_invalidate,
             .attention = v2_panel_attention,
             .set_text = v2_panel_set_text,
+            .set_label = v2_panel_set_label,
             .set_value = v2_panel_set_value,
             .set_height = v2_panel_set_height,
             .set_options = v2_panel_set_options,
             .redraw = v2_panel_redraw,
+            .reidentify = v2_panel_reidentify,
+            .scroll = v2_panel_scroll,
+            .scroll_to = v2_panel_scroll_to,
         },
         .cache = {
             .struct_size = sizeof(runtime->api.cache),
@@ -3216,6 +3356,8 @@ v2_runtime_init(
         },
         .client = &runtime->client_api,
         .game = &runtime->game_api,
+        /* NULL until the client installs the layer. @see PluginHost_SetPorcelain */
+        .porcelain = g_plugin_porcelain_table,
     };
     return true;
 }

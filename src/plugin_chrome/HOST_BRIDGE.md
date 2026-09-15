@@ -301,7 +301,11 @@ entry replaces the sole page. `-2` applies those same rules to Manage Plugins.
 ```
 
 Intent kinds are 1 activate, 2 list-row action, 3 toggle, 4 text result,
-5 dropdown pick, 6 tab, 7 close, and 8 custom-region activate. `g` is the
+5 dropdown pick, 6 tab, 7 close, 8 custom-region activate, and 9 custom-region
+secondary click. Kinds 8 and 9 are the same event with a different button and
+carry `x`/`y` the same way -- mapped through the published bitmap and back out
+of the well's scale, which is what the host fences them against. The view
+suppresses its own context menu over a well and nowhere else. `g` is the
 active page generation and `s` the widget serial captured by the listener.
 The host rejects either mismatch before mutating the model or invoking a plugin.
 For a structured dropdown pick, `v` is the row index and `text` is that row's

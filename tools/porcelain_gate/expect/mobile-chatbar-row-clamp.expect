@@ -1,0 +1,39 @@
+# What clamping the chat-bar rock to the filter ROW changes on purpose.
+#
+# Run it as:
+#   gate_diff.py --expect tools/porcelain_gate/expect/mobile-chatbar-row-clamp.expect <pairs...>
+#
+# Nine of the ten lanes are byte identical -- native548, classic548, classic161,
+# modern164, dat1_254, dat1_classic, dat1_stone, remount164 and remount548 all
+# report zero differing bounds, zero differing roles and zero moved owned
+# controls. The tenth is stone601, the only lane the Stone Drawer runs on, and
+# what differs there is one internal handle on three controls whose boxes are
+# the same number they were.
+#
+# In particular `bar-rock` is 58,473 461x23 on BOTH sides. The rock was already
+# 461 wide before this change, because the pack's right edge and the filter
+# row's right edge are the same number on a settled 601 tree; what changed is
+# WHICH of the two the frame asks for, and that is only visible on a fence
+# where the two disagree -- a boot fence, which no gate capture ends on. The
+# unit test carries that half. @see mobile_gameframe_test.c, the fence where
+# the row has no box.
+#
+# Every line here is a claim a reader is meant to be able to disagree with. If
+# you think one of them is wrong, the argument is with the reason, not with the
+# tool.
+
+# --------------------------------------------------------------------------
+# Three of the touch lane's pictures land in different image slots.
+#
+# `bar-rock`, `orb_hitpoints` and `orb_prayer` report the same box, the same
+# size, the same type and the same hidden bit before and after; the three
+# `scene=` handles renumber, and two of them are minimap-orbs' rather than this
+# frame's. The dressing now asks the layer for one more element -- the bar's own
+# container -- before it composes the rock, so the composed picture is requested
+# one step earlier in the fence and everything allocated after it shifts by one.
+#
+# THE CLAIM, stated so it can be argued with: a slot id is an internal handle
+# and not behaviour. Nothing reads it, nothing persists it, and no two builds
+# are obliged to agree on it. It is the same line the mobile-gameframe,
+# gameframe-layout and minimap-orbs ports already carry, for the same reason.
+normalise scene = the image slot is an internal handle, and asking for the filter row before composing the rock renumbers what is allocated after it

@@ -22,6 +22,7 @@
  *     lands two tiles from its south-west corner.
  */
 
+#include "plugin/porcelain/torirs_porcelain.h"
 #include "plugin/torirs_plugin_api.h"
 
 #include <assert.h>
@@ -82,6 +83,9 @@ struct FakeWidget
     int kind;
     int value;
     int height;
+    /** The identity the host would fence queued intents with. Minted on
+     *  declaration and reminted -- only for this row -- by panel.reidentify. */
+    uint32_t serial;
     bool live;
 };
 
@@ -102,6 +106,11 @@ static struct
      * exists, so "no reading" is a state the engine reports rather than a
      * zero in the table.  app_plugin_stat_xp. */
     bool xp_stated[FAKE_SKILLS];
+    /* Whether this LANE has the skill at all. The two falses are different
+     * answers -- an absent index comes back with index -1, a stated-but-unread
+     * one with its own index and name -- and a walk that could not tell them
+     * apart stopped at the first hole. app_plugin_skill_name. */
+    bool xp_present[FAKE_SKILLS];
     int level[FAKE_SKILLS];
 
     struct FakeWidget widget[FAKE_WIDGETS];
@@ -111,9 +120,22 @@ static struct
     /** Raised by panel_clear outside a build: the page wants rebuilding. */
     bool rebuild_wanted;
     int builds;
+    /** Rows given a new identity without the page being re-declared. */
+    int reidentifies;
+    uint32_t next_widget_serial;
     int exact_text_sets;
     int exact_height_sets;
+    /** Captions restated in place. The Ignore button's whole feature. */
+    int label_sets;
     int redraws;
+    /**
+     * Every retained mutation the page took, of any kind.
+     *
+     * The layer's claim is that a settled page costs NOTHING, and a test that
+     * counted only the two setters it happens to think of would pass a plugin
+     * that had started restating a third.
+     */
+    int setters;
     int loot_source_visits;
 
     struct FakeConfig config[FAKE_CONFIG];
@@ -330,7 +352,30 @@ fake_panel_widget(void* ctx, int kind, char const* id, char const* label)
     snprintf(w->label, sizeof(w->label), "%s", label ? label : "");
     w->kind = kind;
     w->value = -1;
+    w->serial = ++g_client.next_widget_serial;
     w->live = true;
+    return true;
+}
+
+/**
+ * Remint ONE row's identity, exactly as the host's panel.reidentify does.
+ *
+ * Deliberately touches nothing else: no widget is removed, no other serial
+ * moves, and the rebuild flag stays down. That is what the counter test
+ * below is reading -- a page that re-identifies a well is not a page that
+ * was re-declared.
+ */
+static bool
+fake_panel_reidentify(void* ctx, char const* id)
+{
+    struct FakeWidget* widget;
+    (void)ctx;
+    widget = fake_widget_find(id);
+    if( !widget )
+        return false;
+    widget->serial = ++g_client.next_widget_serial;
+    g_client.reidentifies++;
+    g_client.setters++;
     return true;
 }
 
@@ -343,6 +388,7 @@ fake_panel_set_text(void* ctx, char const* id, char const* text)
     if( !w )
         return false;
     g_client.exact_text_sets++;
+    g_client.setters++;
     snprintf(w->text, sizeof(w->text), "%s", text ? text : "");
     return true;
 }
@@ -355,6 +401,7 @@ fake_panel_set_value(void* ctx, char const* id, int value)
     w = fake_widget_find(id);
     if( !w )
         return false;
+    g_client.setters++;
     w->value = value;
     return true;
 }
@@ -368,7 +415,18 @@ fake_panel_set_height(void* ctx, char const* id, int height)
     if( !w )
         return false;
     g_client.exact_height_sets++;
-    w->height = height;
+    g_client.setters++;
+    /*
+     * The host's own ceiling, applied where the host applies it
+     * (torirs_plugin_host.c). Without it a page could ask for a well taller
+     * than anything can present and this fake would agree -- and the defect
+     * that models is a well which is CLIPPED: a band past the limit is not
+     * drawn and, being outside the control, is never handed a click either.
+     * @see press_strip_at.
+     */
+    w->height = height > TORIRS_PANEL_CUSTOM_HEIGHT_MAX
+                    ? TORIRS_PANEL_CUSTOM_HEIGHT_MAX
+                    : height;
     return true;
 }
 
@@ -389,7 +447,10 @@ fake_panel_clear(void* ctx)
     /* Outside a build this is a REQUEST for one, which is what the host does
      * with it. Inside one it is the clear and nothing more. */
     if( !g_client.building )
+    {
         g_client.rebuild_wanted = true;
+        g_client.setters++;
+    }
 }
 
 static void
@@ -398,6 +459,7 @@ fake_panel_invalidate(void* ctx, char const* id)
     (void)ctx;
     (void)id;
     g_client.redraws++;
+    g_client.setters++;
 }
 
 /* ---- images ---- */
@@ -423,7 +485,10 @@ fake_obj_image(void* ctx, int obj_id, int count, int style)
  * kill, rows under it, and a kill count bumped once per event id exactly as
  * LootStore_AddKillLoot bumps it.
  */
-#define FAKE_LOOT_SOURCES 8
+/* Fifty, not eight. The plugin's own ceiling is 48 sources and the band that
+ * crosses the well's height limit is the thirteenth, so a fixture at eight
+ * could not reach either -- and both are cases. */
+#define FAKE_LOOT_SOURCES 50
 #define FAKE_LOOT_ROWS 16
 
 static struct
@@ -615,23 +680,70 @@ static void v2_asset_release(struct ToriRS_Api* api, char const* name)
 static void v2_image_release(
     struct ToriRS_Api* api, struct ToriRS_ImageRef image)
 { (void)api; (void)image; }
+/*
+ * The lane's capabilities. The loot tracker asks for NONE of them: whether the
+ * client is keeping its own loot record is a question about the record, and
+ * the fixture answers it by whether a case seeded the store.
+ */
+static bool v2_capability(struct ToriRS_Api* api, char const* name)
+{
+    (void)api;
+    assert(name);
+    return false;
+}
+static enum ToriRS_Result v2_panel_set_label(
+    struct ToriRS_Api* api, char const* id, char const* label)
+{
+    struct FakeWidget* widget;
+    (void)api;
+    widget = fake_widget_find(id);
+    if( !widget ) return TORIRS_RESULT_NOT_FOUND;
+    /* A kind whose single string already travels as `text` refuses this
+     * rather than aliasing it, which is the host's own rule: two spellings
+     * for one string is how a later set_text reverts a rename nobody can see
+     * happen. @see ToriRS_PanelApi::set_label. */
+    if( widget->kind == TORIRS_PANEL_HEADING || widget->kind == TORIRS_PANEL_LABEL ||
+        widget->kind == TORIRS_PANEL_BUTTON )
+        return TORIRS_RESULT_INVALID;
+    g_client.label_sets++;
+    g_client.setters++;
+    snprintf(widget->label, sizeof(widget->label), "%s", label ? label : "");
+    return TORIRS_RESULT_OK;
+}
+
+/*
+ * One skill, answered exactly as the host answers it.
+ *
+ * The return value is false both for a skill this lane does not have and for
+ * one the server has not stated, and the SNAPSHOT is what tells them apart:
+ *
+ *   no such skill index -> zeroed, index -1, stated false
+ *   stated, no reading  -> index and name, zero readings, stated false
+ *   a real reading      -> everything, stated true (and returns true)
+ *
+ * @see ToriRS_SkillSnapshot::stated, v2_game_skill in the runtime.
+ */
 static bool v2_skill(
     struct ToriRS_Api* api, int skill, struct ToriRS_SkillSnapshot* out)
 {
     int xp = 0, level_xp = 0, next_xp = 0;
+    uint32_t const capacity = sizeof(*out);
     (void)api;
-    if( skill < 0 || skill >= FAKE_SKILLS ||
-        !fake_stat_xp(NULL, skill, &xp, &level_xp, &next_xp) )
+    memset(out, 0, capacity);
+    out->struct_size = capacity;
+    out->index = -1;
+    if( skill < 0 || skill >= FAKE_SKILLS || !g_client.xp_present[skill] )
         return false;
-    memset(out, 0, sizeof(*out));
-    out->struct_size = sizeof(*out);
     out->index = skill;
     snprintf(out->name, sizeof(out->name), "%s", FAKE_SKILL_NAME[skill]);
+    if( !fake_stat_xp(NULL, skill, &xp, &level_xp, &next_xp) )
+        return false;
     out->current_level = g_client.level[skill];
     out->base_level = g_client.level[skill];
     out->xp = xp;
     out->level_xp = level_xp;
     out->next_level_xp = next_xp;
+    out->stated = true;
     return true;
 }
 static bool v2_item_info(
@@ -688,6 +800,27 @@ static enum ToriRS_Result v2_panel_set_text(
         snprintf(widget->label, sizeof(widget->label), "%s", text ? text : "");
     return TORIRS_RESULT_OK;
 }
+/* The layer's readiness poll asks for this; a page that never asked still
+ * has to answer, because PORCELAIN_READY_STATS is read at every fence. */
+static int v2_screen(struct ToriRS_Api* api)
+{ (void)api; return g_client.logged_in ? TORIRS_SCREEN_GAME : TORIRS_SCREEN_TITLE; }
+static enum ToriRS_Result v2_panel_set_options(
+    struct ToriRS_Api* api,
+    char const* id,
+    char const* value,
+    struct ToriRS_SelectOption const* options,
+    int option_count)
+{
+    struct FakeWidget* widget;
+    (void)api;
+    (void)options;
+    (void)option_count;
+    widget = fake_widget_find(id);
+    if( !widget ) return TORIRS_RESULT_NOT_FOUND;
+    g_client.setters++;
+    snprintf(widget->text, sizeof(widget->text), "%s", value ? value : "");
+    return TORIRS_RESULT_OK;
+}
 static enum ToriRS_Result v2_panel_set_value(
     struct ToriRS_Api* api, char const* id, int value)
 { (void)api; return fake_panel_set_value(NULL, id, value) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
@@ -696,6 +829,8 @@ static enum ToriRS_Result v2_panel_set_height(
 { (void)api; return fake_panel_set_height(NULL, id, height) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
 static void v2_panel_redraw(struct ToriRS_Api* api, char const* id)
 { (void)api; fake_panel_invalidate(NULL, id); }
+static enum ToriRS_Result v2_panel_reidentify(struct ToriRS_Api* api, char const* id)
+{ (void)api; return fake_panel_reidentify(NULL, id) ? TORIRS_RESULT_OK : TORIRS_RESULT_NOT_FOUND; }
 
 static void v2_build_heading(struct ToriRS_PanelBuilder* panel, char const* text)
 {
@@ -725,18 +860,24 @@ static void v2_build_label(
 static void v2_build_key_value(
     struct ToriRS_PanelBuilder* panel, char const* id, char const* label, char const* value)
 { (void)panel; (void)fake_panel_widget(NULL, TORIRS_PANEL_KEY_VALUE, id, label); (void)fake_panel_set_text(NULL, id, value); }
+/*
+ * `node` is the only builder verb Porcelain uses, because it is the only one
+ * that takes an id for every kind -- so it is the one that has to carry every
+ * kind here too. It used to fold everything but three into LABEL, which made a
+ * BUTTON indistinguishable from a caption and left set_label's refusal rule
+ * untestable.
+ */
 static enum ToriRS_Result v2_build_node(
     struct ToriRS_PanelBuilder* panel, struct ToriRS_PanelNode const* node)
 {
-    int kind = TORIRS_PANEL_LABEL;
+    int kind = node->kind;
     (void)panel;
-    if( node->kind == TORIRS_PANEL_HEADING ) kind = TORIRS_PANEL_HEADING;
-    else if( node->kind == TORIRS_PANEL_KEY_VALUE ) kind = TORIRS_PANEL_KEY_VALUE;
-    else if( node->kind == TORIRS_PANEL_CUSTOM ) kind = TORIRS_PANEL_CUSTOM;
     if( !fake_panel_widget(NULL, kind, node->id, node->label ? node->label : node->text) )
         return TORIRS_RESULT_BUDGET;
     if( node->text ) (void)v2_panel_set_text(&g_api, node->id, node->text);
     if( node->preferred_height ) (void)fake_panel_set_height(NULL, node->id, node->preferred_height);
+    if( kind == TORIRS_PANEL_BUTTON || kind == TORIRS_PANEL_TOGGLE )
+        (void)fake_panel_set_value(NULL, node->id, node->value);
     return TORIRS_RESULT_OK;
 }
 
@@ -752,6 +893,9 @@ api_init(void)
     g_api.core.notify = v2_notify;
     g_api.core.frame_ms = v2_frame_ms;
     g_api.core.lane = v2_lane;
+    g_api.core.capability = v2_capability;
+    g_api.core.screen = v2_screen;
+    g_api.porcelain = ToriRS_PorcelainApiTable();
     g_api.config.has = v2_config_has;
     g_api.config.get_bool = v2_config_bool;
     g_api.config.get_int = v2_config_int;
@@ -767,9 +911,12 @@ api_init(void)
     g_api.panel.invalidate = v2_panel_invalidate;
     g_api.panel.attention = v2_panel_attention;
     g_api.panel.set_text = v2_panel_set_text;
+    g_api.panel.set_label = v2_panel_set_label;
+    g_api.panel.set_options = v2_panel_set_options;
     g_api.panel.set_value = v2_panel_set_value;
     g_api.panel.set_height = v2_panel_set_height;
     g_api.panel.redraw = v2_panel_redraw;
+    g_api.panel.reidentify = v2_panel_reidentify;
     g_game_api.struct_size = sizeof(g_game_api);
     g_game_api.skill = v2_skill;
     g_game_api.item_info = v2_item_info;
@@ -779,6 +926,11 @@ api_init(void)
     g_game_api.loot_revision = v2_loot_revision;
     g_game_api.loot_source_clear = v2_loot_source_clear;
     g_api.game = &g_game_api;
+    g_api.porcelain = ToriRS_PorcelainApiTable();
+    /* g_api.widgets is left entirely NULL on purpose. Neither tracker owns a
+     * widget -- every row of both pages is a panel declaration -- so a
+     * describe or a commit that reached widgets.revalidate would crash here
+     * rather than quietly add a full-tree resolve to the frame's budget. */
 }
 
 /* ---------------------------------------------------------------- driving */
@@ -816,6 +968,27 @@ dispatch_stop(void)
     free(g_plugin_state);
     g_plugin_state = NULL;
     g_plugin = NULL;
+}
+
+/**
+ * One frame's reconcile, which is the layer's fence.
+ *
+ * A Porcelain plugin describes and reconciles at on_frame_start -- the library
+ * installs no callbacks of its own -- so a case that changed something and read
+ * the page back without a frame in between would be reading the description
+ * from before the change. The client calls on_frame_start once a frame; so does
+ * this, unconditionally, which is harmless for a plugin that has no such
+ * callback.
+ */
+static void
+dispatch_frame_start(void)
+{
+    struct ToriRS_FrameEvent event;
+
+    assert(g_plugin && g_plugin_state);
+    memset(&event, 0, sizeof(event));
+    if( g_plugin->callbacks.on_frame_start )
+        g_plugin->callbacks.on_frame_start(&g_api, g_plugin_state, &event);
 }
 
 static void
@@ -929,6 +1102,7 @@ tick(uint64_t advance_ms)
     memset(&ev, 0, sizeof(ev));
     g_client.now_ms += advance_ms;
     dispatch_logic_tick(&ev);
+    dispatch_frame_start();
     if( g_client.rebuild_wanted )
         panel_build();
 }
@@ -956,6 +1130,7 @@ press(char const* id, int action, int value)
     ev.text = "";
     ev.selection_generation = 1;
     dispatch_panel_action(&ev);
+    dispatch_frame_start();
     if( g_client.rebuild_wanted )
         panel_build();
 }
@@ -975,6 +1150,7 @@ press_box(int row)
     ev.y = (row + 1) * TEST_BOX_PITCH + 10;
     ev.selection_generation = 1;
     dispatch_panel_action(&ev);
+    dispatch_frame_start();
     if( g_client.rebuild_wanted )
         panel_build();
 }
@@ -989,23 +1165,69 @@ press_box(int row)
 #define TEST_HEAD_H 33
 /** The totals band the strip opens with, which every band sits below. */
 #define TEST_TOTALS_H 44
+/** One EXPANDED band holding one item -- `lt_grid_rows(1) * LT_CELL_H + 46`,
+ *  which is what every band in these cases is. */
+#define TEST_BAND_H 82
+
+/**
+ * A click inside the well, at a point.
+ *
+ * A point BELOW the control is not delivered, because it is not in the
+ * control: the presenter hit-tests the widget's box and a well that was
+ * clipped short never sees the coordinate at all. That is the whole of the
+ * thirteenth-source defect, and a harness that delivered every y regardless
+ * could not tell the two ceilings apart.
+ */
+static void
+press_strip_at(int x, int y, int action)
+{
+    struct ToriRS_PanelActionEvent ev;
+    struct FakeWidget const* well = fake_widget_find("strip");
+
+    if( !well || y >= well->height || y < 0 )
+        return;
+    memset(&ev, 0, sizeof(ev));
+    ev.id = "strip";
+    ev.action = action;
+    ev.value = -1;
+    ev.text = "";
+    ev.x = x;
+    ev.y = y;
+    ev.selection_generation = 1;
+    dispatch_panel_action(&ev);
+    dispatch_frame_start();
+    if( g_client.rebuild_wanted )
+        panel_build();
+}
 
 static void
 press_strip(int y)
 {
-    struct ToriRS_PanelActionEvent ev;
+    press_strip_at(10, y, TORIRS_PANEL_ACTION_ACTIVATE);
+}
 
-    memset(&ev, 0, sizeof(ev));
-    ev.id = "strip";
-    ev.action = TORIRS_PANEL_ACTION_ACTIVATE;
-    ev.value = -1;
-    ev.text = "";
-    ev.x = 10;
-    ev.y = y;
-    ev.selection_generation = 1;
-    dispatch_panel_action(&ev);
-    if( g_client.rebuild_wanted )
-        panel_build();
+/** The SECONDARY click, which is the channel the band and cell ops live in. */
+static void
+menu_strip(int x, int y)
+{
+    press_strip_at(x, y, TORIRS_PANEL_ACTION_MENU);
+}
+
+/** Frames with nothing happening in them. */
+static void
+frames(int count)
+{
+    for( int i = 0; i < count; i++ )
+        dispatch_frame_start();
+}
+
+/** The strip's whole height, which is what states how many bands it holds.
+ *  @see lt_strip_h -- totals, then one block per visible source. */
+static int
+strip_h(void)
+{
+    struct FakeWidget const* w = fake_widget_find("strip");
+    return w ? w->height : -1;
 }
 
 /** Is there a band strip with anything in it? A strip with only its totals
@@ -1059,6 +1281,9 @@ static void
 client_reset(void)
 {
     if( g_plugin_state ) dispatch_stop();
+    /* Handles are process-wide and a case that left one open would arbitrate
+     * against the next case's. */
+    Porcelain_ResetForTesting();
     memset(&g_client, 0, sizeof(g_client));
     memset(&g_store, 0, sizeof(g_store));
     g_store.revision = 1;
@@ -1074,6 +1299,9 @@ client_reset(void)
         /* The ordinary case is a logged-in client whose stats have arrived; the
          * one test about the moment before that clears this itself. */
         g_client.xp_stated[i] = true;
+        /* And every skill of this 25-entry lane exists; the one test about a
+         * lane with a HOLE in its table clears one of these. */
+        g_client.xp_present[i] = true;
     }
 }
 
@@ -1083,6 +1311,7 @@ client_reset(void)
 
 #define SKILL_WOODCUTTING 8
 #define SKILL_ATTACK 0
+#define SKILL_MINING 14
 
 static void
 xp_start(void)
@@ -1724,6 +1953,103 @@ test_loot_high_alchemy_price(void)
         row_text("d_value") ? row_text("d_value") : "(none)");
 }
 
+/*
+ * The basis is a fraction of the STACK, not a fraction of one of them.
+ *
+ * Both of these read zero and ten thousand respectively when the plugin took
+ * three fifths per unit and multiplied afterwards: integer division floors
+ * 3/5 of a 1gp coin to nothing, so a 5000-coin stack -- the single commonest
+ * drop in the game -- was worth nothing at all on this basis, and the totals
+ * band read `Total value: 0 gp` over a grid with a coin cell stamped 5000 in
+ * it. Every 1gp drop went the same way: bones, ashes, feathers.
+ */
+static void
+test_loot_high_alchemy_is_a_fraction_of_the_whole_stack(void)
+{
+    client_reset();
+    loot_start();
+    fake_config_set_raw("price_source", "High alchemy");
+
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "3,000") == 0,
+        "three fifths of a 5000-coin stack is 3000, not five thousand lots of "
+        "three fifths of one coin (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+
+    /* And the 4gp item the report names: the per-unit floor lost 2gp of every
+     * 4, which is 2000 gp across the stack. */
+    client_reset();
+    loot_start();
+    fake_config_set_raw("price_source", "High alchemy");
+    loot_add("Goblin", 314, 5000, 4, 1);
+    settle();
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "12,000") == 0,
+        "a 5000-stack of a 4gp item is worth 12,000 (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+}
+
+/*
+ * The totals band's four controls carry the op the cache sets on them.
+ *
+ * Each of the four wears the face of the state it is IN -- interface 650 picks
+ * its graphic off the varbit that says where you are, and says where a click
+ * GOES in an op beside it: if_setop(1, "Show") on 650:59, if_setopbase("Drop
+ * view") on 650:62, and script7188's "High Alchemy value" on 650:61. This
+ * plugin drew the four faces and offered none of the ops, and a reader then
+ * read two of the faces as destinations and reported the band as wearing two
+ * conventions at once. A well has no hover text, so the op lives in the one
+ * list this plugin can paint.
+ */
+static void
+test_loot_totals_controls_offer_their_op(void)
+{
+    /* The value basis, third in from the right edge of a 320-wide well. */
+    int const value_x = 320 - 66 - 30 + 2;
+
+    client_reset();
+    loot_start();
+    fake_config_set_raw("price_source", "Cache value");
+    loot_add("Goblin", 526, 1, 100, 1);
+    settle();
+
+    menu_strip(value_x, 10);
+    TEST_ASSERT(
+        strcmp(fake_cfg_str(FAKE_CONTEXT, "price_source"), "Cache value") == 0,
+        "asking what the control does does not do it (got '%s')",
+        fake_cfg_str(FAKE_CONTEXT, "price_source"));
+
+    /* The one row, at the click, clamped left so the whole list is in the
+     * well: x 212..319, and row zero two pixels down from y=10. */
+    press_strip_at(220, 14, TORIRS_PANEL_ACTION_ACTIVATE);
+    TEST_ASSERT(
+        strcmp(fake_cfg_str(FAKE_CONTEXT, "price_source"), "High alchemy") == 0,
+        "picking the op performs it (got '%s')",
+        fake_cfg_str(FAKE_CONTEXT, "price_source"));
+
+    /* A click that misses the list dismisses it and reaches nothing: the
+     * control under the dismissed menu must not fire as well. */
+    menu_strip(value_x, 10);
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        strcmp(fake_cfg_str(FAKE_CONTEXT, "price_source"), "High alchemy") == 0,
+        "a click beside the list only closes it (got '%s')",
+        fake_cfg_str(FAKE_CONTEXT, "price_source"));
+
+    /* And a secondary click in the band but on none of the four is nothing at
+     * all: the keys and figures are not a subject. */
+    menu_strip(150, 10);
+    press_strip_at(160, 14, TORIRS_PANEL_ACTION_ACTIVATE);
+    TEST_ASSERT(
+        strcmp(fake_cfg_str(FAKE_CONTEXT, "price_source"), "High alchemy") == 0,
+        "the band's text opens no list to pick from (got '%s')",
+        fake_cfg_str(FAKE_CONTEXT, "price_source"));
+}
+
 static void
 test_loot_ignored_source(void)
 {
@@ -1790,9 +2116,9 @@ test_loot_clear_and_stable_detail_identity(void)
     g_store.revision++;
     settle();
     TEST_ASSERT(
-        g_client.builds == builds + 1 && detail_source() &&
+        g_client.builds == builds && detail_source() &&
             strcmp(detail_source(), "Goblin") == 0,
-        "a same-count reorder rebuilds the custom identity but keeps the selected source");
+        "a same-count reorder re-identifies the well but keeps the selected source");
 
     press("d_clear", TORIRS_PANEL_ACTION_ACTIVATE, -1);
     TEST_ASSERT(
@@ -1875,29 +2201,54 @@ test_loot_attention(void)
  * showing. The state still advances; only the page stops.
  */
 /*
- * A list that grew is a different CUSTOM input identity.
+ * A list that grew is a different CUSTOM input identity -- and NOT a
+ * different page.
  *
- * A band arriving changes the y-to-source mapping. Rebuilding gives the well
- * a new semantic serial, so a delayed click on the prior bitmap is rejected
- * instead of being delivered to the source that moved underneath it.
+ * A band arriving changes the y-to-source mapping, so a delayed click on the
+ * prior bitmap has to be rejected instead of being delivered to the source
+ * that moved underneath it. That is one row's identity. It used to be bought
+ * with panel.invalidate, which re-declares every row on the page: the reader
+ * lost the scroll position and the well blanked on any pass with nothing
+ * staged. The page's rows -- the strip, plus the detail block when one is
+ * open -- do not change because a source appeared, so nothing here rebuilds.
  */
 static void
-test_loot_growth_rebuilds_for_identity(void)
+test_loot_growth_reidentifies_without_rebuilding(void)
 {
+    uint32_t serial[FAKE_WIDGETS];
     int builds;
     int height;
     int height_sets;
     int redraws;
+    int reidentifies;
+    int widgets;
+    int strip_row = -1;
+    int kept = 0;
 
     client_reset();
     loot_start();
     loot_add("Goblin", 1319, 1, 100, 1);
     settle();
+    /* With a band open the page has rows on BOTH sides of the well, which is
+     * what makes "the rows around it survived" a claim worth reading. */
+    press_strip(TEST_TOTALS_H + 4);
+    settle();
+
     builds = g_client.builds;
+    reidentifies = g_client.reidentifies;
     height = fake_widget_find("strip")->height;
     height_sets = g_client.exact_height_sets;
     redraws = g_client.redraws;
-    TEST_ASSERT(builds > 0, "the page was declared once to begin with");
+    widgets = g_client.widget_count;
+    for( int i = 0; i < widgets; i++ )
+    {
+        serial[i] = g_client.widget[i].serial;
+        if( strcmp(g_client.widget[i].id, "strip") == 0 )
+            strip_row = i;
+    }
+    TEST_ASSERT(builds > 0, "the page was declared to begin with");
+    TEST_ASSERT(widgets > 1, "and it has rows beside the well");
+    TEST_ASSERT(strip_row >= 0, "one of which is the well");
 
     loot_add("Cerberus", 1319, 1, 500, 2);
     settle();
@@ -1911,12 +2262,84 @@ test_loot_growth_rebuilds_for_identity(void)
         "three more sources make the strip taller (%d -> %d)", height,
         fake_widget_find("strip")->height);
     TEST_ASSERT(
-        g_client.builds == builds + 3,
-        "each source re-declares the custom input identity once (%d rebuilds)",
+        g_client.builds == builds,
+        "and the page is NOT re-declared for any of them (%d rebuilds)",
         g_client.builds - builds);
     TEST_ASSERT(
-        g_client.exact_height_sets > height_sets && g_client.redraws > redraws,
-        "each rebuilt bitmap also publishes its exact height and redraw");
+        g_client.reidentifies == reidentifies + 3,
+        "each source re-identifies the one well instead (%d)",
+        g_client.reidentifies - reidentifies);
+    TEST_ASSERT(
+        strip_row >= 0 && g_client.widget[strip_row].serial != serial[strip_row],
+        "so a click queued against the old bitmap fails its serial fence");
+    for( int i = 0; i < g_client.widget_count; i++ )
+        if( i != strip_row && g_client.widget[i].serial == serial[i] )
+            kept++;
+    TEST_ASSERT(
+        g_client.widget_count == widgets && kept == widgets - 1,
+        "while every row around it keeps its identity and its place (%d of %d)",
+        kept, widgets - 1);
+    TEST_ASSERT(
+        g_client.exact_height_sets > height_sets,
+        "each re-identified bitmap also publishes its exact height");
+    /*
+     * And asks for NO redraw of its own.
+     *
+     * This assertion used to read `redraws > redraws0`, because the plugin
+     * called panel.redraw by hand after every reidentify. A re-identified well
+     * is marked dirty by the host BY CONSTRUCTION -- the old bitmap belonged to
+     * the old identity -- so that call was a second request for a repaint
+     * already queued. The layer states the rule instead: an identity change
+     * takes the new picture as already asked for, and a redraw is spent only
+     * when the picture moved and the identity did not, which is the next case.
+     */
+    TEST_ASSERT(
+        g_client.redraws == redraws,
+        "and no redraw of its own: a re-identified well is already dirty (%d)",
+        g_client.redraws - redraws);
+}
+
+/*
+ * A readout inside the well that moved, with nothing else moving.
+ *
+ * The opposite half of the rule above. Nothing the host can see changes when a
+ * band's gp figure goes up: the height is the same, the y-to-source mapping is
+ * the same, and the retained bitmap is the one already staged. Exactly one
+ * panel.redraw is what makes the new number appear, and it must not cost an
+ * identity -- a well that re-identified twice a second would refuse every
+ * click a person had already queued.
+ */
+static void
+test_loot_a_changed_figure_costs_one_redraw(void)
+{
+    int redraws;
+    int reidentifies;
+    int builds;
+
+    client_reset();
+    loot_start();
+    loot_add("Goblin", 526, 1, 100, 1);
+    settle();
+
+    redraws = g_client.redraws;
+    reidentifies = g_client.reidentifies;
+    builds = g_client.builds;
+
+    /* The same item, worth more: one row, one band, one cell, one figure. */
+    g_store.source[0].rows[0].value = 5000;
+    g_store.revision++;
+    settle();
+
+    TEST_ASSERT(
+        g_client.redraws == redraws + 1,
+        "a changed figure costs exactly one redraw (%d)",
+        g_client.redraws - redraws);
+    TEST_ASSERT(
+        g_client.reidentifies == reidentifies,
+        "and no identity, because nothing moved under a coordinate (%d)",
+        g_client.reidentifies - reidentifies);
+    TEST_ASSERT(
+        g_client.builds == builds, "and no rebuild (%d)", g_client.builds - builds);
 }
 
 static void
@@ -1941,12 +2364,1000 @@ test_loot_unchanged_revision_is_o1(void)
         "an unchanged loot revision emits no retained panel mutations");
 }
 
-/** A new visual row replaces the custom widget identity exactly once. */
+
+/*
+ * The THIRTEENTH source, which used to be invisible and inert.
+ *
+ * A band is 37 px collapsed on a 44 px totals base and an expanded zero-drop
+ * one is 56, so the strip crosses the old 512 px well ceiling part way down
+ * the list. Past it the band is not drawn AND cannot be clicked, because the
+ * click never reaches the plugin: it is outside the control. The ceiling is
+ * 2048 in both constants now -- TORIRS_PANEL_CUSTOM_HEIGHT_MAX and
+ * TORIRS_CHROME_M_CUSTOM_H_MAX -- and this is what says so.
+ *
+ * Red against 512: the well clamps at 512, press_strip_at declines a y past
+ * it, and the fourteenth band is unreachable.
+ */
 static void
-test_xp_growth_rebuilds_for_topology(void)
+test_loot_fourteenth_source_is_reachable(void)
+{
+    char name[32];
+    int height;
+
+    client_reset();
+    loot_start();
+    for( int i = 0; i < 14; i++ )
+    {
+        snprintf(name, sizeof(name), "Monster %02d", i);
+        loot_add(name, -1, 0, 0, i + 1);
+    }
+    settle();
+
+    height = fake_widget_find("strip")->height;
+    TEST_ASSERT(
+        height > 512,
+        "fourteen zero-drop bands are taller than the ceiling that used to "
+        "clip them (%d)", height);
+    TEST_ASSERT(
+        height <= TORIRS_PANEL_CUSTOM_HEIGHT_MAX,
+        "and still inside the one the host states (%d)", height);
+
+    /* Four pixels into the fourteenth header: 44 above, then thirteen bands of
+     * an expanded empty source at 56. */
+    press_strip(TEST_TOTALS_H + 56 * 13 + 4);
+    TEST_ASSERT(
+        detail_source() && strcmp(detail_source(), "Monster 13") == 0,
+        "and a click on the fourteenth band reaches the source it is drawn "
+        "over (got '%s')", detail_source() ? detail_source() : "(none)");
+}
+
+/*
+ * The Ignore caption flips IN PLACE.
+ *
+ * The button reads the state the press will produce, so it has to change the
+ * moment the list does. It only ever changed before because the action that
+ * wrote the list also re-declared the whole page -- host fix H1 made
+ * panel.set_text on a BUTTON apply instead of reporting OK and doing nothing,
+ * and this is the assertion without the invalidate.
+ *
+ * Show ignored is ON for the case, because that is the state in which an
+ * ignored source is still selected and still has a caption to flip.
+ */
+static void
+test_loot_ignore_caption_flips_in_place(void)
 {
     int builds;
+    int text_sets;
+
+    client_reset();
+    loot_start();
+    loot_add("Goblin", 526, 1, 100, 1);
+    settle();
+    /* Show ignored: the right-hand button at 4 in from the pane's edge. */
+    press_strip_at(320 - 4 - 30 + 2, 4, TORIRS_PANEL_ACTION_ACTIVATE);
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        row_text("d_ignore") && strcmp(row_text("d_ignore"), "Ignore") == 0,
+        "a source nobody ignores offers Ignore (got '%s')",
+        row_text("d_ignore") ? row_text("d_ignore") : "(none)");
+
+    builds = g_client.builds;
+    text_sets = g_client.exact_text_sets;
+    fake_cfg_set(FAKE_CONTEXT, "ignored_sources", "Goblin");
+    frames(1);
+
+    TEST_ASSERT(
+        row_text("d_ignore") && strcmp(row_text("d_ignore"), "Stop ignoring") == 0,
+        "and the list changing flips the caption (got '%s')",
+        row_text("d_ignore") ? row_text("d_ignore") : "(none)");
+    TEST_ASSERT(
+        g_client.builds == builds,
+        "without re-declaring the page (%d rebuilds)", g_client.builds - builds);
+    TEST_ASSERT(
+        g_client.exact_text_sets > text_sets,
+        "because a caption is a property of the row that already carries it");
+}
+
+/*
+ * An ignore list that will not fit is REFUSED, not truncated.
+ *
+ * The list was joined into a 192-byte local with snprintf, so the byte past
+ * the ceiling was dropped silently: the stored last entry became a prefix of
+ * the name a person had typed, matched nothing, and could never be removed
+ * again. Porcelain measures first and leaves the stored value exactly as it
+ * was, with one finding.
+ */
+static void
+test_loot_ignore_list_over_the_ceiling_is_refused(void)
+{
+    char full[200];
+    char before[256];
+    size_t at = 0;
+
+    client_reset();
+    loot_start();
+    /* Names of ten characters and a comma: eighteen of them is 188 bytes, and
+     * one more entry cannot fit whatever it is. */
+    for( int i = 0; i < 17; i++ )
+        at += (size_t)snprintf(full + at, sizeof(full) - at, "%sMonster%03d", at ? "," : "", i);
+    fake_cfg_set(FAKE_CONTEXT, "ignored_sources", full);
+    frames(1);
+
+    loot_add("A monster with a very long name indeed", 526, 1, 100, 1);
+    settle();
+    snprintf(before, sizeof(before), "%s", fake_cfg_str(FAKE_CONTEXT, "ignored_sources"));
+
+    press_strip(TEST_TOTALS_H + 4);
+    press("d_ignore", TORIRS_PANEL_ACTION_ACTIVATE, -1);
+
+    TEST_ASSERT(
+        strcmp(fake_cfg_str(FAKE_CONTEXT, "ignored_sources"), before) == 0,
+        "a list that will not fit leaves the stored one untouched (got '%s')",
+        fake_cfg_str(FAKE_CONTEXT, "ignored_sources"));
+    TEST_ASSERT(
+        strstr(fake_cfg_str(FAKE_CONTEXT, "ignored_sources"), "A monster with") == NULL,
+        "and stores no prefix of the name that did not fit");
+}
+
+/*
+ * The kill announcement, on the lane that HAS the store.
+ *
+ * This lived inside the INFERENCE path's settle, so on every CS2 lane -- which
+ * is every lane the store runs on -- the `kill_chat_message` config row was
+ * dead: setting it did nothing, ever. Red today.
+ */
+static void
+test_loot_store_lane_announces_a_kill(void)
+{
+    client_reset();
+    loot_start();
+    fake_config_set_raw("kill_chat_message", "1");
+    fake_config_set_raw("chat_value_threshold", "0");
+
+    loot_add("Goblin", 526, 1, 100, 1);
+    settle();
+    TEST_ASSERT(
+        g_client.notifies == 1,
+        "a kill in the store announces once (%d)", g_client.notifies);
+    TEST_ASSERT(
+        strstr(g_client.notify, "Goblin x1 loot: 100 gp") != NULL,
+        "with the source, the count and what THIS kill was worth (got '%s')",
+        g_client.notify);
+
+    /*
+     * And the threshold is the row it always was -- measured against what THIS
+     * kill was worth. A hundred and fifty, chosen so the running total (200)
+     * is over it while the kill (100) is not: an announcement that compared
+     * the total would fire here, and a person would be told about a drop that
+     * was never worth telling them about.
+     */
+    fake_config_set_raw("chat_value_threshold", "150");
+    loot_add("Goblin", 526, 1, 100, 2);
+    settle();
+    TEST_ASSERT(
+        g_client.notifies == 1,
+        "a kill under the threshold says nothing, even when the running total "
+        "is over it (%d)", g_client.notifies);
+
+    loot_add("Goblin", 1319, 1, 50000, 3);
+    settle();
+    TEST_ASSERT(
+        g_client.notifies == 2,
+        "and one over it does (%d)", g_client.notifies);
+}
+
+/*
+ * The RECORD decides, not the lane and not a capability standing in for one.
+ *
+ * Two gates preceded this case and both named a lane: first
+ * `core.lane()->game == TORIRS_GAME_RS2`, then `Porcelain_Has("loot_events")`,
+ * which the host answered `App_UiLogic == APP_UI_LOGIC_CS2`. The second one
+ * shipped a defect this case reproduces: the client's loot record is filled by
+ * App_LootNotifyKill, which every lane reaches -- `::lootkill` on the CS1 lane
+ * put two kills in it -- and the plugin, told "not your lane", read none of
+ * them and printed "No loot to display." over a record that was not empty.
+ *
+ * Both halves are the SAME lineage, so nothing here can be passing because of
+ * one. The variable is the record.
+ */
+static void
+test_loot_record_decides_not_the_lane(void)
+{
+    struct ToriRS_NpcSnapshot goblin;
+    struct ToriRS_GroundItemSnapshot coins;
+
+    /* The record HAS taken the two kills the live capture sent. */
+    client_reset();
+    g_lane_game = TORIRS_GAME_RS2;
+    loot_start();
+    loot_add("Goblin", 995, 5000, 1, 1);
+    loot_add("Goblin", 526, 1, 1, 1);
+    settle();
+    TEST_ASSERT(
+        has_loot(),
+        "a filled record reaches the page whatever lineage the lane is");
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        detail_source() && strcmp(detail_source(), "Goblin") == 0,
+        "named after the kill the record holds (got '%s')",
+        detail_source() ? detail_source() : "(none)");
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "5,001") == 0,
+        "worth what the record priced it at (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+
+    /* And a client keeping a record must not ALSO infer, or the one drop the
+     * record already holds is counted twice. One source, still one kill. */
+    goblin = dying_npc("Goblin", 3200);
+    coins = drop_at(995, 12, 1, "Coins", 3200);
+    dispatch_npc_despawn(&goblin);
+    dispatch_item_spawn(&coins);
+    tick(1201);
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0,
+        "a despawn beside a kept record adds nothing (got '%s')",
+        row_text("d_kills") ? row_text("d_kills") : "(none)");
+
+    /* The same lineage with an EMPTY record does infer, which is what makes
+     * the assertions above about the record rather than about the fixture. */
+    client_reset();
+    g_lane_game = TORIRS_GAME_RS2;
+    loot_start();
+    dispatch_npc_despawn(&goblin);
+    dispatch_item_spawn(&coins);
+    tick(1201);
+    TEST_ASSERT(
+        has_loot(), "and with no record of its own it infers from the world");
+}
+
+/*
+ * An EMPTY record may not blank a table the inference path built.
+ *
+ * The record is read on every lane now, which means the page build's forced
+ * read runs on a client that keeps no record at all -- and that read rebuilds
+ * the table from what it finds. Finding nothing is not the same as finding an
+ * empty record: it is the record having said nothing, and a pass that wrote
+ * `source_count = 0` there would erase every inferred kill each time the rail
+ * redrew the page.
+ */
+static void
+test_loot_empty_record_does_not_erase_inference(void)
+{
+    struct ToriRS_NpcSnapshot goblin;
+    struct ToriRS_GroundItemSnapshot coins;
+
+    client_reset();
+    g_lane_game = TORIRS_GAME_RS2;
+    loot_start();
+
+    goblin = dying_npc("Goblin", 3200);
+    coins = drop_at(995, 12, 1, "Coins", 3200);
+    dispatch_npc_despawn(&goblin);
+    dispatch_item_spawn(&coins);
+    tick(1201);
+    TEST_ASSERT(has_loot(), "the inference path recorded the kill");
+
+    /* Every forced read of the record there is: the page built again, and the
+     * shell showing it again. */
+    panel_build();
+    TEST_ASSERT(has_loot(), "and building the page again does not erase it");
+    settle();
+    TEST_ASSERT(has_loot(), "nor does an idle refresh");
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "12") == 0,
+        "with the value it was inferred to be worth (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+}
+
+/*
+ * A record that speaks may not erase a band the page already STATED.
+ *
+ * The empty-record case above is the easy half. This is the one that shipped:
+ * the record takes its first Goblin, `lt_sync_store` wrote `source_count =
+ * count` from what the record held, and the Imp band the page had been
+ * showing -- "Imp, 1 kill, 21 gp" -- was gone. Measured, that was a strip 126
+ * pixels tall against a control of 126: the SAME height as the same record
+ * with no inference beside it at all, which is the whole defect in one number.
+ *
+ * It is also the same defect as the one this branch exists to fix. "No loot to
+ * display." over a record that was not empty, and a page with no Imp on it
+ * after an Imp died, are both the page asserting something it has no basis
+ * for. The record holding a Goblin is not a statement about Imps.
+ *
+ * The rule is per SOURCE: the record owns every name it holds and inference
+ * owns the rest. @see lt_record_names.
+ */
+static void
+test_loot_record_does_not_erase_a_band_it_does_not_name(void)
+{
+    struct ToriRS_NpcSnapshot imp;
+    struct ToriRS_GroundItemSnapshot feather;
+    int inferred_only;
+    int merged;
+    int record_only;
+
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    imp = dying_npc("Imp", 3200);
+    feather = drop_at(314, 21, 1, "Feather", 3200);
+    dispatch_npc_despawn(&imp);
+    dispatch_item_spawn(&feather);
+    tick(1201);
+    inferred_only = strip_h();
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        detail_source() && strcmp(detail_source(), "Imp") == 0,
+        "the page STATED an Imp kill (got '%s')",
+        detail_source() ? detail_source() : "(none)");
+
+    /* Replayed, because opening that detail put the strip into the detail
+     * view and the three heights have to be measured in the same state. Now
+     * the record takes something else entirely. */
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    dispatch_npc_despawn(&imp);
+    dispatch_item_spawn(&feather);
+    tick(1201);
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+    merged = strip_h();
+
+    /* The control is the same record with nothing inferred beside it. If the
+     * merge dropped the Imp the two are equal, which is exactly what the
+     * shipped pass measured. */
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+    record_only = strip_h();
+
+    TEST_ASSERT(
+        merged == record_only + TEST_BAND_H,
+        "the merged strip is the record's band PLUS the inferred one "
+        "(record alone %d, merged %d, one band %d)",
+        record_only, merged, TEST_BAND_H);
+    /*
+     * Stated separately because this is the shipped defect's own measurement:
+     * the two were EQUAL, and equal is what "the Imp band is gone" looks like
+     * from outside. The inferred-only strip is the same height as the
+     * record-only one -- one band either way -- so the sum above is the only
+     * thing that can tell a merge from a replacement.
+     */
+    TEST_ASSERT(
+        merged != record_only,
+        "and not the record's strip over again (record alone %d, inferred "
+        "alone %d, merged %d)",
+        record_only, inferred_only, merged);
+}
+
+/*
+ * ...and the surviving band is still the one a click opens.
+ *
+ * Separate from the case above because the height alone cannot see this. The
+ * client's LootStore numbers its sources from 1 and the bands this plugin
+ * invents were numbered from 1 as well; that was harmless only while the two
+ * accounts could never be on the page together. Merging them made a recorded
+ * Goblin and an inferred Imp share id 1, and the id is what a click, a band
+ * menu and the detail block all key on -- so the Imp band opened the Goblin's
+ * detail, showing 5,000 gp of coins under the word "Imp". @see
+ * LT_INFERRED_ID_BASE.
+ */
+static void
+test_loot_an_inferred_band_is_not_the_records_band(void)
+{
+    struct ToriRS_NpcSnapshot imp;
+    struct ToriRS_GroundItemSnapshot feather;
+
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    imp = dying_npc("Imp", 3200);
+    feather = drop_at(314, 21, 1, "Feather", 3200);
+    dispatch_npc_despawn(&imp);
+    dispatch_item_spawn(&feather);
+    tick(1201);
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+
+    /* The record's band is first and the inferred one follows it. One press
+     * per band, because opening a detail replaces the list. */
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        detail_source() && strcmp(detail_source(), "Goblin") == 0,
+        "the record's band leads the page (got '%s')",
+        detail_source() ? detail_source() : "(none)");
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "5,000") == 0,
+        "worth what the record priced it at (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    dispatch_npc_despawn(&imp);
+    dispatch_item_spawn(&feather);
+    tick(1201);
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+    press_strip(TEST_TOTALS_H + TEST_BAND_H + 4);
+    TEST_ASSERT(
+        detail_source() && strcmp(detail_source(), "Imp") == 0,
+        "and the band below it is the inferred one, not the record's again "
+        "(got '%s')",
+        detail_source() ? detail_source() : "(none)");
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "21") == 0,
+        "with the Imp's own 21 gp under it, not the Goblin's 5,000 (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+}
+
+/*
+ * The despawn/spawn path is ARMED on a client that keeps a record, and what
+ * decides whether it accounts for a kill is the source NAME.
+ *
+ * Ungating `lt_sync_store` armed this path on every CS2 lane, where it had
+ * never run, and nothing asserted anything about it: the case it replaced
+ * pinned an RS2-lineage client whose record was FULL, and the state the
+ * ungating actually created is a CS2-lineage client whose record is EMPTY.
+ *
+ * Both halves are the OldSchool lineage, so neither can be passing because of
+ * one. The variable is whether the record holds the name.
+ */
+static void
+test_loot_infers_only_what_the_record_does_not_hold(void)
+{
+    struct ToriRS_NpcSnapshot goblin;
+    struct ToriRS_GroundItemSnapshot coins;
+
+    goblin = dying_npc("Goblin", 3200);
+    coins = drop_at(995, 5000, 1, "Coins", 3200);
+
+    /* A record that holds nothing is not an account of the kill, so the
+     * despawn is the only one there is and the page says so. */
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    fake_config_set_raw("kill_chat_message", "1");
+    g_client.notify[0] = '\0';
+    dispatch_npc_despawn(&goblin);
+    dispatch_item_spawn(&coins);
+    tick(1201);
+    TEST_ASSERT(
+        has_loot(),
+        "a client whose record holds nothing infers the kill it just saw");
+    TEST_ASSERT(
+        strstr(g_client.notify, "Goblin x1 loot: 5,000 gp") != NULL,
+        "and announces it once (got '%s')", g_client.notify);
+
+    /* The same lineage, the same despawn, the same drop -- but the record
+     * holds "Goblin", so the record's is the account and inferring beside it
+     * would count the one kill twice. */
+    client_reset();
+    g_lane_game = TORIRS_GAME_OLDSCHOOL;
+    loot_start();
+    fake_config_set_raw("kill_chat_message", "1");
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+    g_client.notify[0] = '\0';
+    dispatch_npc_despawn(&goblin);
+    dispatch_item_spawn(&coins);
+    tick(1201);
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0,
+        "the record's one kill stays one kill (got '%s')",
+        row_text("d_kills") ? row_text("d_kills") : "(none)");
+    TEST_ASSERT(
+        g_client.notify[0] == '\0',
+        "and nothing is announced a second time (got '%s')", g_client.notify);
+
+    /*
+     * The other order, which is the 2004 lane's: inference settles a Goblin
+     * first and the record comes to hold that name afterwards. The record
+     * TAKES OVER the name rather than standing a second band beside it --
+     * one kill, counted once, under the account that is the game's own.
+     */
+    client_reset();
+    g_lane_game = TORIRS_GAME_RS2;
+    loot_start();
+    dispatch_npc_despawn(&goblin);
+    dispatch_item_spawn(&coins);
+    tick(1201);
+    TEST_ASSERT(has_loot(), "the inferred Goblin is on the page");
+    {
+        int const before = strip_h();
+
+        loot_add("Goblin", 995, 5000, 1, 1);
+        settle();
+        TEST_ASSERT(
+            strip_h() == before,
+            "and the record naming it takes it over rather than doubling it "
+            "(was %d, now %d)",
+            before, strip_h());
+    }
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        row_text("d_kills") && strcmp(row_text("d_kills"), "1") == 0,
+        "one kill, not two (got '%s')",
+        row_text("d_kills") ? row_text("d_kills") : "(none)");
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "5,000") == 0,
+        "priced as the record prices it, not as the ground did (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+}
+
+/*
+ * One `::lootkill` must not disable the lane's only real loot source.
+ *
+ * The record has two feeders: `CS2_OP_LOOT_ADD`, which is the game's own and
+ * runs only where CS2 scripts do, and `App_LootNotifyKill`, which the
+ * `::lootkill` cheat reaches on EVERY lane. On the 2004 lane there is no CS2
+ * VM, so the cheat is the only thing that ever writes the record and
+ * despawn/spawn correlation is the only account of a real kill there is.
+ *
+ * A latch that read "the record has taken something, so stop inferring" turned
+ * one cheat invocation into a permanent, silent switch-off of that account for
+ * the rest of the session -- every real kill afterwards recorded nothing. It
+ * was documented in a comment and asserted nowhere.
+ */
+static void
+test_loot_a_cheat_kill_does_not_disable_inference(void)
+{
+    struct ToriRS_NpcSnapshot imp;
+    struct ToriRS_GroundItemSnapshot bones;
+    int seeded;
+
+    client_reset();
+    g_lane_game = TORIRS_GAME_RS2;
+    loot_start();
+
+    /* ::lootkill goblin 995 5000, which is what the live capture sent. */
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+    seeded = strip_h();
+
+    /* And now a real kill, which only the world can tell this lane about. */
+    imp = dying_npc("Imp", 3200);
+    bones = drop_at(526, 1, 1, "Bones", 3200);
+    dispatch_npc_despawn(&imp);
+    dispatch_item_spawn(&bones);
+    tick(1201);
+    TEST_ASSERT(
+        strip_h() > seeded,
+        "the real kill is on the page beside the seeded one (was %d, now %d)",
+        seeded, strip_h());
+    press_strip(TEST_TOTALS_H + TEST_BAND_H + 4);
+    TEST_ASSERT(
+        detail_source() && strcmp(detail_source(), "Imp") == 0,
+        "and it is the Imp that died, under its own name (got '%s')",
+        detail_source() ? detail_source() : "(none)");
+}
+
+/*
+ * Past the source ceiling the LEAST VALUABLE record is dropped.
+ *
+ * Refusing the newest instead would mean a trip that met one new monster
+ * silently stopped recording it, which is the failure a person cannot see.
+ */
+static void
+test_loot_eviction_drops_the_poorest(void)
+{
+    char name[32];
+
+    client_reset();
+    g_lane_game = TORIRS_GAME_RS2;
+    loot_start();
+
+    /* Forty-eight sources, each worth more than the last, and the first is
+     * therefore the poorest. */
+    for( int i = 0; i < 48; i++ )
+    {
+        struct ToriRS_NpcSnapshot npc;
+        struct ToriRS_GroundItemSnapshot drop;
+        snprintf(name, sizeof(name), "Monster %02d", i);
+        npc = dying_npc(name, 3200);
+        drop = drop_at(500 + i, 1, 10 + i, name, 3200);
+        dispatch_npc_despawn(&npc);
+        dispatch_item_spawn(&drop);
+        tick(1201);
+    }
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        detail_source() && strcmp(detail_source(), "Monster 00") == 0,
+        "the poorest source is the first band, in arrival order (got '%s')",
+        detail_source() ? detail_source() : "(none)");
+    /* Deselect: the eviction is about the records, not about the selection. */
+    press_strip(TEST_TOTALS_H + 40);
+
+    {
+        /* The forty-ninth. Something has to go. */
+        struct ToriRS_NpcSnapshot npc = dying_npc("Latecomer", 3200);
+        struct ToriRS_GroundItemSnapshot drop =
+            drop_at(900, 1, 100000, "Latecomer", 3200);
+        dispatch_npc_despawn(&npc);
+        dispatch_item_spawn(&drop);
+        tick(1201);
+    }
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        detail_source() && strcmp(detail_source(), "Latecomer") == 0,
+        "the forty-ninth source is RECORDED, in the slot the least valuable "
+        "record gave up, rather than being refused (got '%s')",
+        detail_source() ? detail_source() : "(none)");
+}
+
+/*
+ * The band's ops, on a SECONDARY click.
+ *
+ * script2907 offers Collapse/Expand, Clear data and Ignore as a right-click
+ * menu on a category header. A CUSTOM well had no secondary-click channel at
+ * all, so every one of them stood as a button under a selected row -- which is
+ * why selecting was a separate gesture from expanding, and the one thing that
+ * blocked this plugin's port outright.
+ */
+static void
+test_loot_band_menu_carries_the_headers_ops(void)
+{
+    int reidentifies;
+    int builds;
+
+    client_reset();
+    loot_start();
+    loot_add("Goblin", 526, 1, 100, 1);
+    settle();
+    reidentifies = g_client.reidentifies;
+    builds = g_client.builds;
+
+    /* Four pixels into the first band's header. */
+    menu_strip(10, TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        g_client.reidentifies == reidentifies + 1,
+        "opening the menu retires the well's input identity, because what "
+        "lies under a coordinate has changed (%d)",
+        g_client.reidentifies - reidentifies);
+    TEST_ASSERT(
+        g_client.builds == builds,
+        "and does not re-declare the page (%d)", g_client.builds - builds);
+    TEST_ASSERT(
+        !detail_source(),
+        "a right click does not select: it is a different question from a "
+        "left one, and folding the two would make every existing row wrong");
+
+    /* Row three of three: Collapse, Clear data, Ignore. */
+    press_strip(TEST_TOTALS_H + 4 + 2 + 15 * 2 + 1);
+    TEST_ASSERT(
+        strstr(fake_cfg_str(FAKE_CONTEXT, "ignored_sources"), "Goblin") != NULL,
+        "picking Ignore writes the list a person can also type into (got '%s')",
+        fake_cfg_str(FAKE_CONTEXT, "ignored_sources"));
+    TEST_ASSERT(!has_loot(), "and the band goes with it");
+}
+
+/*
+ * A click that MISSES an open menu dismisses it and does nothing else.
+ *
+ * A menu is modal to the pointer everywhere else in this client, and a well
+ * that let the click through would collapse whatever band happened to be
+ * under the list a person was trying to get rid of.
+ */
+static void
+test_loot_a_click_beside_the_menu_only_closes_it(void)
+{
     int height;
+
+    client_reset();
+    loot_start();
+    loot_add("Goblin", 526, 1, 100, 1);
+    settle();
+    height = fake_widget_find("strip")->height;
+
+    menu_strip(10, TEST_TOTALS_H + 4);
+    /* The band header, well clear of a menu that starts at y=48. */
+    press_strip(TEST_TOTALS_H + 1);
+    TEST_ASSERT(
+        fake_widget_find("strip")->height == height,
+        "the band under the dismissed menu did not collapse (%d -> %d)",
+        height, fake_widget_find("strip")->height);
+    TEST_ASSERT(!detail_source(), "and nothing was selected either");
+
+    /* And the well is live again: the same click now does what it says. */
+    press_strip(TEST_TOTALS_H + 1);
+    TEST_ASSERT(
+        fake_widget_find("strip")->height < height,
+        "the next click reaches the band (%d -> %d)", height,
+        fake_widget_find("strip")->height);
+}
+
+/*
+ * A settled page costs NOTHING.
+ *
+ * Not "costs little": the layer's claim is that an unchanged description makes
+ * no engine call at all, and the plugin's half of that is that nothing it owns
+ * moves an input while nothing is happening. The 2 Hz unconditional
+ * panel.redraw this plugin used to send is exactly what this counts.
+ */
+static void
+test_loot_steady_state_costs_nothing(void)
+{
+    int setters;
+    int builds;
+
+    client_reset();
+    loot_start();
+    loot_add("Goblin", 526, 1, 100, 1);
+    settle();
+    press_strip(TEST_TOTALS_H + 4);
+    settle();
+    settle();
+
+    setters = g_client.setters;
+    builds = g_client.builds;
+    frames(120);
+    /* Ten seconds of the refresh cadence over an unchanged store. */
+    for( int i = 0; i < 20; i++ )
+        settle();
+
+    TEST_ASSERT(
+        g_client.setters == setters,
+        "twenty refreshes and a hundred and twenty frames over an unchanged "
+        "store cost no retained mutation at all (%d)",
+        g_client.setters - setters);
+    TEST_ASSERT(
+        g_client.builds == builds,
+        "and no rebuild (%d)", g_client.builds - builds);
+}
+
+/*
+ * A skill earning its first box costs ONE ROW its identity, and the page
+ * nothing at all.
+ *
+ * The well is one control, so a click in it is arithmetic on y against the
+ * order that was described -- and a box arriving changes that mapping. The
+ * well therefore has to take a new input identity, so a click queued against
+ * the old bitmap is refused instead of being delivered to whichever skill
+ * moved under the same y. That is one row's serial.
+ *
+ * It used to be bought with panel.invalidate, which re-declares every row on
+ * the page: the reader lost the scroll position, the detail block's rows were
+ * torn down and rebuilt, and the well blanked for a frame. The page's row SET
+ * does not change because a skill was trained -- the strip is the strip, and
+ * the detail block is whatever was open -- so nothing here rebuilds.
+ */
+static void
+test_xp_growth_reidentifies_without_rebuilding(void)
+{
+    uint32_t serial[FAKE_WIDGETS];
+    int builds;
+    int height;
+    int height_sets;
+    int redraws;
+    int reidentifies;
+    int widgets;
+    int well_row = -1;
+    int kept = 0;
+
+    client_reset();
+    g_client.xp[SKILL_WOODCUTTING] = 50000;
+    g_client.xp[SKILL_ATTACK] = 50000;
+    g_client.xp[SKILL_MINING] = 50000;
+    xp_start();
+    tick(20);
+    g_client.xp[SKILL_WOODCUTTING] += 100;
+    tick(1000);
+    /* With a detail block open the page has rows on BOTH sides of the well,
+     * which is what makes "the rows around it survived" a claim worth
+     * reading. */
+    press_box(0);
+    tick(1000);
+
+    builds = g_client.builds;
+    reidentifies = g_client.reidentifies;
+    height = fake_widget_find("boxes")->height;
+    height_sets = g_client.exact_height_sets;
+    redraws = g_client.redraws;
+    widgets = g_client.widget_count;
+    for( int i = 0; i < widgets; i++ )
+    {
+        serial[i] = g_client.widget[i].serial;
+        if( strcmp(g_client.widget[i].id, "boxes") == 0 )
+            well_row = i;
+    }
+    TEST_ASSERT(box_count() == 1, "one skill trained, one box");
+    TEST_ASSERT(widgets > 1, "and the page has rows beside the well");
+    TEST_ASSERT(well_row >= 0, "one of which is the well");
+
+    g_client.xp[SKILL_ATTACK] += 100;
+    tick(1000);
+    g_client.xp[SKILL_MINING] += 100;
+    tick(1000);
+
+    TEST_ASSERT(box_count() == 3, "two more skills trained, two more boxes");
+    TEST_ASSERT(
+        fake_widget_find("boxes")->height > height,
+        "which makes the strip taller (%d -> %d)", height,
+        fake_widget_find("boxes")->height);
+    TEST_ASSERT(
+        g_client.builds == builds,
+        "and the page is NOT re-declared for either of them (%d rebuilds)",
+        g_client.builds - builds);
+    TEST_ASSERT(
+        g_client.reidentifies == reidentifies + 2,
+        "each new box re-identifies the one well instead (%d)",
+        g_client.reidentifies - reidentifies);
+    TEST_ASSERT(
+        well_row >= 0 && g_client.widget[well_row].serial != serial[well_row],
+        "so a click queued against the old bitmap fails its serial fence");
+    for( int i = 0; i < g_client.widget_count; i++ )
+        if( i != well_row && g_client.widget[i].serial == serial[i] )
+            kept++;
+    TEST_ASSERT(
+        g_client.widget_count == widgets && kept == widgets - 1,
+        "while every row around it keeps its identity and its place (%d of %d)",
+        kept, widgets - 1);
+    TEST_ASSERT(
+        g_client.exact_height_sets > height_sets,
+        "each re-identified strip also publishes its exact height");
+    /*
+     * And NOT a redraw on top of it. A re-identified well is repainted by
+     * construction -- the host removes the presentation node and builds a
+     * fresh one, retiring the retained run with the identity it belonged to --
+     * so asking for the pass as well would be a second request for the same
+     * repaint, once per new box.
+     */
+    TEST_ASSERT(
+        g_client.redraws == redraws,
+        "and does not ask for the repaint the reidentify already forces (%d)",
+        g_client.redraws - redraws);
+    TEST_ASSERT(
+        detail_skill() && strcmp(detail_skill(), "Woodcutting") == 0,
+        "and the block that was open is still open, on the same skill (got '%s')",
+        detail_skill() ? detail_skill() : "(none)");
+}
+
+/*
+ * A readout that moved is not an identity.
+ *
+ * The well's input identity is the ORDER of the boxes and nothing else. Fold a
+ * value into it -- the xp gained, the rate, anything that ticks -- and every
+ * readout costs the row a fresh serial: the presentation node is torn down and
+ * rebuilt twice a second, and every click in flight is refused for no reason
+ * anybody could see. The picture moving is a REDRAW; only the mapping moving
+ * is an identity.
+ */
+static void
+test_xp_a_moving_readout_is_not_an_identity(void)
+{
+    int reidentifies;
+    int builds;
+    int redraws;
+    int text_sets;
+
+    client_reset();
+    g_client.xp[SKILL_WOODCUTTING] = 50000;
+    xp_start();
+    tick(20);
+    g_client.xp[SKILL_WOODCUTTING] += 100;
+    tick(1000);
+    press_box(0);
+    tick(1000);
+
+    reidentifies = g_client.reidentifies;
+    builds = g_client.builds;
+    redraws = g_client.redraws;
+    text_sets = g_client.exact_text_sets;
+
+    /* Ten more actions on the one skill that already has a box: every figure
+     * on the page moves and the box ORDER does not. */
+    for( int i = 0; i < 10; i++ )
+    {
+        g_client.xp[SKILL_WOODCUTTING] += 10;
+        tick(1000);
+    }
+
+    TEST_ASSERT(
+        box_count() == 1, "still one box, in the same place (got %d)", box_count());
+    TEST_ASSERT(
+        g_client.reidentifies == reidentifies,
+        "so the well keeps its input identity throughout (%d mints)",
+        g_client.reidentifies - reidentifies);
+    TEST_ASSERT(
+        g_client.builds == builds, "and the page is not re-declared (%d)",
+        g_client.builds - builds);
+    TEST_ASSERT(
+        g_client.redraws > redraws,
+        "while the picture it draws is restated (%d redraws)",
+        g_client.redraws - redraws);
+    TEST_ASSERT(
+        g_client.exact_text_sets > text_sets,
+        "and so are the block's readouts (%d setters)",
+        g_client.exact_text_sets - text_sets);
+}
+
+/*
+ * The well reaches past 512 px.
+ *
+ * Overview plus nine skill boxes is 500, so the tenth box used to be where the
+ * page silently stopped growing: TORIRS_PANEL_CUSTOM_HEIGHT_MAX and the
+ * chrome's own TORIRS_CHROME_M_CUSTOM_H_MAX both clamped a well at 512, and a
+ * person training a tenth skill simply never saw it. Twelve skills is 650.
+ */
+static void
+test_xp_well_grows_past_the_old_ceiling(void)
+{
+    int const trained = 12;
+
+    client_reset();
+    for( int i = 0; i < trained; i++ )
+        g_client.xp[i] = 50000;
+    xp_start();
+    tick(20);
+    for( int i = 0; i < trained; i++ )
+        g_client.xp[i] += 100;
+    tick(1000);
+
+    TEST_ASSERT(
+        box_count() == trained, "twelve skills trained, twelve boxes (got %d)",
+        box_count());
+    TEST_ASSERT(
+        fake_widget_find("boxes") &&
+            fake_widget_find("boxes")->height == (trained + 1) * TEST_BOX_PITCH,
+        "and the well is honoured at %d px rather than clamped (got %d)",
+        (trained + 1) * TEST_BOX_PITCH,
+        fake_widget_find("boxes") ? fake_widget_find("boxes")->height : -1);
+}
+
+/*
+ * A HOLE in the lane's stat table does not truncate the walk.
+ *
+ * The walk used to stop at the first index the client refused, which conflates
+ * three different answers: a skill this lane does not have, a skill it has that
+ * the server has not stated, and the end of the table. A lane with a hole
+ * therefore lost every skill past it for the whole session -- silently, because
+ * the tracker simply never showed them. The snapshot tells the three apart.
+ */
+static void
+test_xp_a_hole_in_the_table_is_not_the_end_of_it(void)
+{
+    int const BEYOND = 20; /* Runecraft, well past the hole */
+
+    client_reset();
+    /* This lane does not have index 7 at all: no name, no reading, index -1. */
+    g_client.xp_present[7] = false;
+    g_client.xp[BEYOND] = 50000;
+    xp_start();
+    tick(20);
+
+    g_client.xp[BEYOND] += 100;
+    tick(1000);
+
+    TEST_ASSERT(
+        box_count() == 1,
+        "a skill past the hole is still tracked (got %d boxes)", box_count());
+    press_box(0);
+    TEST_ASSERT(
+        detail_skill() && strcmp(detail_skill(), FAKE_SKILL_NAME[BEYOND]) == 0,
+        "and it is the skill it says it is (got '%s')",
+        detail_skill() ? detail_skill() : "(none)");
+}
+
+/*
+ * Showing the page shows the CURRENT page.
+ *
+ * The show path used to refresh and redraw without re-collecting the box
+ * order, so a page selected after a new skill had been trained showed up to
+ * half a second of stale strip and then flashed when the next tick found the
+ * topology stale and re-declared the whole thing. The page becoming presented
+ * is an INPUT to the description, so the description is current before the
+ * first paint.
+ */
+static void
+test_xp_showing_the_page_is_not_stale(void)
+{
+    struct ToriRS_PanelLayoutEvent layout;
 
     client_reset();
     g_client.xp[SKILL_WOODCUTTING] = 50000;
@@ -1955,22 +3366,144 @@ test_xp_growth_rebuilds_for_topology(void)
     tick(20);
     g_client.xp[SKILL_WOODCUTTING] += 100;
     tick(1000);
-    builds = g_client.builds;
-    height = fake_widget_find("boxes")->height;
-    TEST_ASSERT(box_count() == 1, "one skill trained, one box");
+    TEST_ASSERT(box_count() == 1, "one skill trained while the page was up");
 
+    memset(&layout, 0, sizeof(layout));
+    layout.width = 320;
+    layout.height = 500;
+    layout.scale_milli = 1000;
+    layout.size_class = TORIRS_PANEL_SIZE_MEDIUM;
+    layout.selection_generation = 1;
+    layout.visible = false;
+    dispatch_panel_layout(&layout);
+    dispatch_frame_start();
+
+    /* A second skill trained while nobody was looking. */
     g_client.xp[SKILL_ATTACK] += 100;
     tick(1000);
+    tick(1000);
 
-    TEST_ASSERT(box_count() == 2, "a second skill trained gets a second box");
+    layout.visible = true;
+    dispatch_panel_layout(&layout);
+    dispatch_frame_start();
+    if( g_client.rebuild_wanted )
+        panel_build();
+
     TEST_ASSERT(
-        fake_widget_find("boxes")->height > height,
-        "which makes the strip taller (%d -> %d)", height,
-        fake_widget_find("boxes")->height);
+        box_count() == 2,
+        "and showing the page again states the second box before anything is "
+        "drawn (got %d)",
+        box_count());
+}
+
+/*
+ * A page with nothing happening on it makes no engine call at all.
+ *
+ * Every readout here is derived from a clock, so the description is re-derived
+ * twice a second whether or not anything moved -- and the whole of the row
+ * model's claim is that a re-derivation which produces the same rows costs
+ * nothing. A paused skill is the state where that is checkable: its rate, its
+ * TTL and its bar caption are all frozen, so every hash is stable and any
+ * setter, redraw, reidentify or rebuild below is the claim failing.
+ */
+static void
+test_xp_settled_page_costs_nothing(void)
+{
+    int builds, setters, redraws, reidentifies;
+
+    client_reset();
+    g_client.xp[SKILL_WOODCUTTING] = 50000;
+    xp_start();
+    tick(20);
+    g_client.xp[SKILL_WOODCUTTING] += 100;
+    tick(1000);
+    press_box(0);
+    press("d_pause", TORIRS_PANEL_ACTION_ACTIVATE, -1);
+    /* Two ticks for the description to settle on the paused readouts. */
+    tick(1000);
+    tick(1000);
+
     TEST_ASSERT(
-        g_client.builds == builds + 1,
-        "and re-declares once to fence clicks from the old bitmap (%d rebuilds)",
+        row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
+        "the page is up, with a block open on a paused skill");
+
+    builds = g_client.builds;
+    /*
+     * Every retained mutation of ANY kind, and not the two or three this case
+     * happens to think of. A page that had started restating a fourth thing
+     * would pass a narrower counter while costing exactly what this claim says
+     * it does not.
+     */
+    setters = g_client.setters;
+    redraws = g_client.redraws;
+    reidentifies = g_client.reidentifies;
+
+    /* Twenty seconds of a visible page with nothing on it moving, which is
+     * forty runs of the twice-a-second refresh. */
+    for( int i = 0; i < 20; i++ )
+        tick(1000);
+
+    TEST_ASSERT(
+        g_client.builds == builds, "no page is re-declared (%d)",
         g_client.builds - builds);
+    TEST_ASSERT(
+        g_client.reidentifies == reidentifies, "no row is re-identified (%d)",
+        g_client.reidentifies - reidentifies);
+    TEST_ASSERT(
+        g_client.setters == setters,
+        "and no setter of any kind fires at all (%d)",
+        g_client.setters - setters);
+    TEST_ASSERT(
+        g_client.redraws == redraws,
+        "nor is the strip asked to repaint a picture it already has (%d)",
+        g_client.redraws - redraws);
+    /* Printed as well as asserted: the claim is a NUMBER, and a report that
+     * says "the assertions passed" is not the same evidence as one that says
+     * what the forty runs cost. */
+    printf(
+        "xp settled page over 40 refresh runs: %d builds, %d reidentifies, "
+        "%d setters, %d redraws\n",
+        g_client.builds - builds, g_client.reidentifies - reidentifies,
+        g_client.setters - setters, g_client.redraws - redraws);
+}
+
+/*
+ * The Pause caption is a SETTER, not a declaration.
+ *
+ * `label` used to be part of a row's declaration identity, so flipping a
+ * button's caption was a page rebuild -- and the host's own BUTTON patch arm
+ * was an empty break that reported OK and applied nothing, so on the executors
+ * it was not even that. Now it is one set_text on one row.
+ */
+static void
+test_xp_pause_caption_is_one_setter(void)
+{
+    int builds;
+    int text_sets;
+
+    client_reset();
+    g_client.xp[SKILL_WOODCUTTING] = 50000;
+    xp_start();
+    tick(20);
+    g_client.xp[SKILL_WOODCUTTING] += 100;
+    tick(1000);
+    press_box(0);
+    tick(1000);
+
+    builds = g_client.builds;
+    text_sets = g_client.exact_text_sets;
+    press("d_pause", TORIRS_PANEL_ACTION_ACTIVATE, -1);
+
+    TEST_ASSERT(
+        row_text("d_pause") && strcmp(row_text("d_pause"), "Unpause") == 0,
+        "the caption flips on the spot (got '%s')",
+        row_text("d_pause") ? row_text("d_pause") : "(none)");
+    TEST_ASSERT(
+        g_client.builds == builds,
+        "without re-declaring the page (%d rebuilds)", g_client.builds - builds);
+    TEST_ASSERT(
+        g_client.exact_text_sets > text_sets,
+        "and it travels as the row's text, which is what the host patches");
 }
 
 static void
@@ -2057,6 +3590,8 @@ main(void)
     test_loot_multi_item_drop_is_one_kill();
     test_loot_two_kills_merge_and_sum();
     test_loot_high_alchemy_price();
+    test_loot_high_alchemy_is_a_fraction_of_the_whole_stack();
+    test_loot_totals_controls_offer_their_op();
     test_loot_ignored_source();
     test_loot_ignore_button();
     test_loot_clear_and_stable_detail_identity();
@@ -2064,9 +3599,30 @@ main(void)
     test_loot_attention();
 
     test_settings_face_is_the_generated_form();
-    test_loot_growth_rebuilds_for_identity();
+    test_loot_growth_reidentifies_without_rebuilding();
+    test_loot_a_changed_figure_costs_one_redraw();
+    test_loot_fourteenth_source_is_reachable();
+    test_loot_ignore_caption_flips_in_place();
+    test_loot_ignore_list_over_the_ceiling_is_refused();
+    test_loot_store_lane_announces_a_kill();
+    test_loot_record_decides_not_the_lane();
+    test_loot_empty_record_does_not_erase_inference();
+    test_loot_record_does_not_erase_a_band_it_does_not_name();
+    test_loot_an_inferred_band_is_not_the_records_band();
+    test_loot_infers_only_what_the_record_does_not_hold();
+    test_loot_a_cheat_kill_does_not_disable_inference();
+    test_loot_eviction_drops_the_poorest();
+    test_loot_band_menu_carries_the_headers_ops();
+    test_loot_a_click_beside_the_menu_only_closes_it();
+    test_loot_steady_state_costs_nothing();
     test_loot_unchanged_revision_is_o1();
-    test_xp_growth_rebuilds_for_topology();
+    test_xp_growth_reidentifies_without_rebuilding();
+    test_xp_a_moving_readout_is_not_an_identity();
+    test_xp_well_grows_past_the_old_ceiling();
+    test_xp_a_hole_in_the_table_is_not_the_end_of_it();
+    test_xp_showing_the_page_is_not_stale();
+    test_xp_settled_page_costs_nothing();
+    test_xp_pause_caption_is_one_setter();
     test_hidden_page_does_no_work();
 
     if( g_plugin_state ) dispatch_stop();

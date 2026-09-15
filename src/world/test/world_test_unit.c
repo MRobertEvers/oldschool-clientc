@@ -3,7 +3,11 @@
 #include "test_harness.h"
 #include "world_pickset.h"
 
+#include "entity_objstack.h"
+#include "entity_scenery.h"
+
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 void
@@ -706,6 +710,338 @@ test_scenery(void)
  * all three spaces onto one number. So the bridged column is the whole test and
  * the flat one is only there to say the helpers are inert off a bridge.
  */
+/*
+ * World_HeightAt: the terrain sample every mover, projectile and overlay
+ * anchor is placed against (the reference's getAvH).
+ *
+ * Three things about it are invisible until something floats or sinks. It
+ * interpolates between tile corners rather than stepping per tile; a position
+ * outside the scene answers flat 0 instead of reading off the end of the
+ * array; and a column carrying LINK_BELOW is sampled one level UP, because
+ * the scene push-down moved the deck's geometry down a plane while the
+ * heightmap kept raw cache levels. Without that last clause a player on a
+ * bridge deck stands at the underpass floor.
+ */
+void
+test_height_at(void)
+{
+    printf("TEST: World_HeightAt\n");
+
+    struct World* world = World_TestMakeReady(64);
+    int const tile_x = 20;
+    int const tile_z = 30;
+
+    /* A world that has not loaded terrain yet answers flat, not garbage. */
+    {
+        struct World* bare = World_New();
+        TEST_ASSERT(World_HeightAt(bare, 10 * 128, 10 * 128, 0) == 0, "no heightmap reads 0");
+        World_Free(bare);
+    }
+
+    /* heightmap_set takes tile corners; the four corners of one tile at level 0
+     * are flat at -500 and the tile beyond it rises, so the seam interpolates. */
+    for( int x = tile_x; x <= tile_x + 2; x++ )
+        for( int z = tile_z; z <= tile_z + 2; z++ )
+            heightmap_set(world->heightmap, x, z, 0, -500);
+    heightmap_set(world->heightmap, tile_x + 1, tile_z, 0, -1000);
+    heightmap_set(world->heightmap, tile_x + 1, tile_z + 1, 0, -1000);
+
+    TEST_ASSERT(
+        World_HeightAt(world, tile_x * 128, tile_z * 128, 0) == -500,
+        "flat corner samples its own height");
+    TEST_ASSERT(
+        World_HeightAt(world, tile_x * 128 + 64, tile_z * 128, 0) == -750,
+        "halfway across a sloped tile is halfway between its corners");
+
+    /* Outside [0, scene_size): flat 0, and no read off the end of the array.
+     * A border NPC at tile 65 of a 64-wide scene is the case that found this.
+     *
+     * Tile 64 is the interesting one, and it is why these corners are given a
+     * height first. The heightmap is (scene_size + 1) square, so column 64
+     * EXISTS and holds the far edge of the last tile -- an unguarded sample
+     * there reads a real, in-bounds value rather than crashing. Assert against
+     * zeroed memory instead and the guard can be deleted without the test
+     * noticing, which is exactly what it must not allow. */
+    heightmap_set(world->heightmap, 64, 10, 0, -2000);
+    heightmap_set(world->heightmap, 64, 11, 0, -2000);
+    heightmap_set(world->heightmap, 10, 64, 0, -3000);
+    heightmap_set(world->heightmap, 11, 64, 0, -3000);
+    TEST_ASSERT(
+        World_HeightAt(world, 64 * 128, 10 * 128, 0) == 0,
+        "the column past the east edge is not sampled even though it exists");
+    TEST_ASSERT(
+        World_HeightAt(world, 10 * 128, 64 * 128, 0) == 0,
+        "the column past the north edge is not sampled even though it exists");
+    TEST_ASSERT(World_HeightAt(world, 65 * 128, 10 * 128, 0) == 0, "well past the east edge reads 0");
+    TEST_ASSERT(World_HeightAt(world, -1 * 128, 10 * 128, 0) == 0, "west of the scene reads 0");
+
+    /* The bridge clause. LINK_BELOW is read at cache level 1 and speaks for the
+     * whole column, so a sample asking for level 0 gets level 1's height. */
+    {
+        int const bridge_x = 40;
+        int const bridge_z = 41;
+
+        for( int x = bridge_x; x <= bridge_x + 1; x++ )
+            for( int z = bridge_z; z <= bridge_z + 1; z++ )
+            {
+                heightmap_set(world->heightmap, x, z, 0, -100); /* underpass floor */
+                heightmap_set(world->heightmap, x, z, 1, -900); /* the deck */
+            }
+
+        TEST_ASSERT(
+            World_HeightAt(world, bridge_x * 128, bridge_z * 128, 0) == -100,
+            "an ordinary column samples the level it was asked for");
+
+        world->tile_flags[bridge_x + bridge_z * 64 + 1 * 64 * 64] = 0x02; /* LINK_BELOW */
+
+        TEST_ASSERT(
+            World_HeightAt(world, bridge_x * 128, bridge_z * 128, 0) == -900,
+            "a bridge column sampled at level 0 stands on the deck, not the floor");
+
+        /* The top level has nowhere to climb to, so the clause must not run
+         * there and read a level that does not exist. */
+        TEST_ASSERT(
+            World_HeightAt(world, bridge_x * 128, bridge_z * 128, WORLD_MAP_TERRAIN_LEVELS - 1) == 0,
+            "the top level does not climb past the heightmap");
+    }
+
+    World_Free(world);
+}
+
+/*
+ * World_CoordToSceneTile: the packed CS2 coord every clientscript and every
+ * server op speaks, turned into the scene tile the scene is indexed by.
+ *
+ * Three fields in one int -- level in bits 28..29, absolute x in 14..27,
+ * absolute z in 0..13 -- and the scene is indexed by NEITHER of those
+ * absolutes, because the world slides under the player as it rebuilds. Get
+ * the shift or the mask wrong and a script's overlay lands on a plausible
+ * wrong tile rather than failing.
+ */
+void
+test_coord_to_scene_tile(void)
+{
+    printf("TEST: World_CoordToSceneTile\n");
+
+    /* A 64-tile scene. The base tile is DERIVED -- World_ResetScene takes zone
+     * centres and the base is the south-west zone times 8 -- so the test reads
+     * it rather than assuming it, which is also the point: nothing may assume
+     * the scene starts at the coord it was centred on. */
+    struct World* world = World_TestMakeReady(64);
+    int base_x = world->_base_tile_x;
+    int base_z = world->_base_tile_z;
+    int tile_x = -1;
+    int tile_z = -1;
+    int level = -1;
+
+    TEST_ASSERT(base_x > 0 && base_z > 0, "the fixture has a base tile");
+
+    /* The scene's own origin. */
+    TEST_ASSERT(
+        World_CoordToSceneTile(world, (base_x << 14) | base_z, &tile_x, &tile_z, &level),
+        "the base tile is in the scene");
+    TEST_ASSERT(tile_x == 0 && tile_z == 0 && level == 0, "the base tile is scene 0,0 level 0");
+
+    /* An interior tile, and the level field, which lives above the x field and
+     * is the one a wrong shift silently folds into it. */
+    TEST_ASSERT(
+        World_CoordToSceneTile(
+            world, (2 << 28) | ((base_x + 10) << 14) | (base_z + 20), &tile_x, &tile_z, &level),
+        "an interior coord is in the scene");
+    TEST_ASSERT(tile_x == 10, "interior x");
+    TEST_ASSERT(tile_z == 20, "interior z");
+    TEST_ASSERT(level == 2, "the level field is read from bits 28..29");
+
+    /* Only two bits of level: 4 wraps to 0 rather than bleeding into x. */
+    TEST_ASSERT(
+        World_CoordToSceneTile(
+            world, (4 << 28) | ((base_x + 1) << 14) | base_z, &tile_x, &tile_z, &level),
+        "a level-4 coord still converts");
+    TEST_ASSERT(level == 0, "level is masked to two bits");
+    TEST_ASSERT(tile_x == 1, "a level above 3 did not disturb x");
+
+    /* The far corner is inside; one past it is not. Half-open, because the
+     * scene is scene_size tiles wide and the last index is size - 1. */
+    TEST_ASSERT(
+        World_CoordToSceneTile(
+            world, ((base_x + 63) << 14) | (base_z + 63), &tile_x, &tile_z, &level),
+        "the far corner is in the scene");
+    TEST_ASSERT(tile_x == 63 && tile_z == 63, "the far corner is scene 63,63");
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, ((base_x + 64) << 14) | base_z, &tile_x, &tile_z, &level),
+        "one tile past the east edge is outside");
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, (base_x << 14) | (base_z + 64), &tile_x, &tile_z, &level),
+        "one tile past the north edge is outside");
+
+    /* West and south of the base: negative scene tiles, which the scene has no
+     * index for. This is ordinary -- a coord scrolls off as the player walks
+     * -- so it is false, not an error. */
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, ((base_x - 1) << 14) | base_z, &tile_x, &tile_z, &level),
+        "west of the base tile is outside");
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, (base_x << 14) | (base_z - 1), &tile_x, &tile_z, &level),
+        "south of the base tile is outside");
+
+    /* A negative coord is the caller's "no coord" sentinel. */
+    TEST_ASSERT(
+        !World_CoordToSceneTile(world, -1, &tile_x, &tile_z, &level), "a negative coord converted");
+
+    World_Free(world);
+}
+
+/*
+ * World_RoofLevelAlongLine: which roofs come off so the player can be seen.
+ *
+ * The reference removes roofs SELECTIVELY -- only along the sightline from the
+ * camera to the player -- and the alternative it offers is removing all of
+ * them. There is no third option, and the difference between the two is
+ * exactly this walk. Replace the line with its bounding box and every building
+ * either side of the sightline loses its lid too, which looks like the "hide
+ * all roofs" setting turning itself on.
+ */
+void
+test_roof_level_along_line(void)
+{
+    printf("TEST: World_RoofLevelAlongLine\n");
+
+    struct World* world = World_TestMakeReady(64);
+    int const level = 0;
+    int const roof = 0x04;
+    int const stride = 64;
+
+    /* Nothing roofed anywhere: every roof stays on. */
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "an unroofed line removes nothing");
+
+    /* A roof at the FROM end -- the camera is under one. */
+    world->tile_flags[10 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == level,
+        "a roof on the camera's own tile was missed");
+    world->tile_flags[10 + 10 * stride] = 0;
+
+    /* A roof at the TO end -- the player is under one. */
+    world->tile_flags[20 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == level,
+        "a roof on the player's own tile was missed");
+    world->tile_flags[20 + 10 * stride] = 0;
+
+    /* A roof in the MIDDLE of a horizontal run. */
+    world->tile_flags[15 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == level,
+        "a roof crossed on the way was missed");
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 20, 10, 10, 10) == level,
+        "the same roof was missed walking the other way");
+    world->tile_flags[15 + 10 * stride] = 0;
+
+    /* The same, on the z axis, which is the other branch of the walk. */
+    world->tile_flags[10 + 15 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 10, 20) == level,
+        "a roof on a vertical run was missed");
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 20, 10, 10) == level,
+        "the same vertical roof was missed walking south");
+    world->tile_flags[10 + 15 * stride] = 0;
+
+    /* A diagonal, where the minor axis steps when the accumulator wraps. */
+    world->tile_flags[15 + 15 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 20) == level,
+        "a roof on the diagonal was missed");
+    world->tile_flags[15 + 15 * stride] = 0;
+
+    /*
+     * WHICH tiles a shallow diagonal crosses, which is where the walk's two
+     * biases live and where an "obvious" rewrite silently moves the line by
+     * one tile for its whole length.
+     *
+     * The line (10,10) -> (18,14) crosses (11,11) and NOT (12,10). Both of
+     * these change if the accumulator starts at 0 instead of half a step, and
+     * both change again if the wrap tests `>` instead of `>=`. The half step
+     * is what centres the line on the tiles rather than hugging one side of
+     * them, and a line one tile off for its whole length takes the roof off
+     * the building next to the one you are walking past.
+     */
+    world->tile_flags[11 + 11 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 18, 14) == level,
+        "the shallow diagonal missed (11,11); the walk's half-step bias is gone");
+    world->tile_flags[11 + 11 * stride] = 0;
+
+    world->tile_flags[12 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 18, 14) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "the shallow diagonal crossed (12,10), which is one tile off its line");
+    world->tile_flags[12 + 10 * stride] = 0;
+
+    /*
+     * An EXACT diagonal takes the z-major branch, because the major-axis test
+     * is a strict `>`. The two branches visit mirror-image sets -- x-major
+     * would cross (11,10), z-major crosses (10,11) -- so which one runs is
+     * observable, and pinning it keeps the tie-break where the reference has
+     * it.
+     */
+    world->tile_flags[10 + 11 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 20) == level,
+        "the exact diagonal missed (10,11); it is no longer taking the z-major branch");
+    world->tile_flags[10 + 11 * stride] = 0;
+
+    world->tile_flags[11 + 10 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 20) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "the exact diagonal crossed (11,10); the major-axis tie-break flipped");
+    world->tile_flags[11 + 10 * stride] = 0;
+
+    /*
+     * The selectivity itself, and the reason this is a line.
+     *
+     * A roof well off the sightline but inside its bounding box must NOT come
+     * off. Walk (10,10) -> (20,10), a straight horizontal run, and put a roof
+     * at (15,18) -- eight tiles north of it. A bounding-box test would take the
+     * lid off that building; the line does not.
+     */
+    world->tile_flags[15 + 18 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 10, 10, 20, 10) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "a roof off the sightline was removed; this is a line, not a box");
+    world->tile_flags[15 + 18 * stride] = 0;
+
+    /* Camera and player on the same tile: still checks that tile. */
+    world->tile_flags[12 + 12 * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 12, 12, 12, 12) == level,
+        "a zero-length line missed the tile it stands on");
+    world->tile_flags[12 + 12 * stride] = 0;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, 12, 12, 12, 12) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "a zero-length line on an unroofed tile removed roofs");
+
+    /* Another level's roof is not this level's business. */
+    world->tile_flags[15 + 10 * stride + 1 * stride * stride] = (uint8_t)roof;
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, 0, 10, 10, 20, 10) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "a roof on level 1 was removed while walking level 0");
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, 1, 10, 10, 20, 10) == 1,
+        "the level-1 roof was missed while walking level 1");
+    world->tile_flags[15 + 10 * stride + 1 * stride * stride] = 0;
+
+    /* Off-scene endpoints read as unflagged rather than off the array. */
+    TEST_ASSERT(
+        World_RoofLevelAlongLine(world, level, -5, -5, 3, 3) == WORLD_ROOF_LEVEL_SHOW_ALL,
+        "an off-scene line did not read as unroofed");
+
+    World_Free(world);
+}
+
 void
 test_bridge_levels(void)
 {
@@ -741,7 +1077,7 @@ test_bridge_levels(void)
     /* Pick: a terrain hit carries the mesh level, and coming back down is what
      * lets it be handed to anything that speaks the wire. The deck's mesh is
      * cache 1 and the player standing on it is level 0 — get this backwards and
-     * app_world_height adds the bridge's +1 to an already-shifted level and
+     * World_HeightAt adds the bridge's +1 to an already-shifted level and
      * samples cache 2, a whole storey of air above the deck. */
     TEST_ASSERT(World_TerrainWalkLevel(world, bx, bz, 1) == 0, "the deck mesh is walked from 0");
     TEST_ASSERT(World_TerrainWalkLevel(world, bx, bz, 3) == 2, "bridge mesh 3 is walked from 2");
@@ -1525,6 +1861,267 @@ test_npc_retype_keeps_animation(void)
                 "the running one-shot survives the retype");
     TEST_ASSERT(npc->animation.primary.frame == 2,
                 "and keeps its place rather than restarting");
+
+    World_Free(world);
+}
+
+/*
+ * The placement menu a LOC_ADD_CHANGE_V2 dresses a spawned loc with.
+ *
+ * This is what makes one cache record behave like several. A door's loctype
+ * ships "Open"; the zone change that swings it open spawns the open-door loc
+ * and hands it a menu saying slot 0 is now "Close". Get it wrong and the door
+ * offers both, or offers neither, or offers the right word on the wrong row --
+ * and the row is what the click reports, so the last one sends the server an
+ * op the player did not pick.
+ *
+ * Three rules, and each is only visible in a case the other two do not cover:
+ * a slot the mask CLEARS is gone whatever either side calls it, a replacement
+ * beats the loctype INCLUDING on a slot the loctype left empty, and `code` is
+ * never touched because renaming a row must not move it.
+ */
+
+static void
+set_action(struct WorldEntity_SceneryInfo* info, int slot, uint16_t code, char const* name)
+{
+    info->actions[slot].code = code;
+    memset(info->actions[slot].name, 0, sizeof(info->actions[slot].name));
+    snprintf(info->actions[slot].name, sizeof(info->actions[slot].name), "%s", name);
+}
+
+void
+test_scenery_placement_ops(void)
+{
+    struct WorldEntity_SceneryInfo info;
+    char const* replacements[5] = { "", "", "", "", "" };
+    bool has_action = false;
+    uint8_t overrides;
+
+    printf("TEST: placement op menu\n");
+
+    /* A loctype with two options of its own. */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 0, 11, "Open");
+    set_action(&info, 1, 12, "Study");
+
+    /* A menu that keeps both slots and renames neither: nothing moves, and
+     * nothing is claimed as an override. */
+    replacements[0] = "";
+    replacements[1] = "";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x03, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[0].name, "Open") == 0, "a kept slot lost the loctype's label");
+    TEST_ASSERT(strcmp(info.actions[1].name, "Study") == 0, "the second kept slot changed");
+    TEST_ASSERT(
+        overrides == 0x1c,
+        "a menu that renames nothing should still claim the four slots it drops");
+    TEST_ASSERT(has_action, "a loc with two options reported nothing to click");
+
+    /* The mask says what the placement SPEAKS FOR, which is not the same as
+     * what it changed: the three slots this menu drops are claimed too, because
+     * the placement is the reason they are empty. Only a slot that is kept and
+     * unnamed inherits, and those are the two that stay out of the mask. */
+
+    /* A replacement wins over the loctype's own label, on its own slot only. */
+    replacements[0] = "Close";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x03, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[0].name, "Close") == 0, "the replacement label did not win");
+    TEST_ASSERT(strcmp(info.actions[1].name, "Study") == 0, "the replacement reached another slot");
+    TEST_ASSERT(overrides == 0x1d, "the replaced slot is not marked overridden");
+
+    /*
+     * A slot the mask CLEARS is gone, and gone BEFORE its label is read. This
+     * is the swung door: the change keeps slot 0 and drops slot 1, and a
+     * reader that looks at the label first leaves "Study" beside "Close".
+     * The dropped slot counts as an override -- the placement is speaking for
+     * it, by saying it has nothing.
+     */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 0, 11, "Open");
+    set_action(&info, 1, 12, "Study");
+    replacements[0] = "Close";
+    replacements[1] = "Peer";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x01, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[0].name, "Close") == 0, "the kept slot lost its replacement");
+    TEST_ASSERT(info.actions[1].name[0] == '\0', "a cleared slot kept a label");
+    TEST_ASSERT(overrides == 0x1f, "a cleared slot is not marked as overridden");
+
+    /*
+     * A replacement on a slot the loctype left EMPTY. This is the whole
+     * mechanism -- it is how a record grows an option it never declared -- and
+     * it is the case a reader that only ever REPLACES existing labels gets
+     * wrong while every renamed door still works.
+     */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 3, 44, "");
+    replacements[0] = "";
+    replacements[1] = "";
+    replacements[3] = "Board";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x08, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[3].name, "Board") == 0, "an empty slot did not grow its option");
+    TEST_ASSERT(overrides == 0x1f, "the grown slot is not marked as overridden");
+    TEST_ASSERT(has_action, "a loc whose only option came from the placement reported nothing");
+
+    /*
+     * A menu with nothing in it at all. The masts ship with no name and no
+     * cache ops, and a placement that adds none has nothing to click -- which
+     * is what the caller reads to decide whether to override the loctype's own
+     * `active` flag.
+     */
+    memset(&info, 0, sizeof(info));
+    replacements[3] = "";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x00, replacements, &has_action);
+    TEST_ASSERT(!has_action, "an empty menu reported something to click");
+    TEST_ASSERT(overrides == 0x1f, "an all-clearing mask did not claim every slot");
+
+    /*
+     * `code` is the op slot a click reports, and a rename must not move it.
+     * Every slot keeps the code it had, including the one whose label was
+     * cleared -- the row is gone from the menu, not renumbered.
+     */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 0, 11, "Open");
+    set_action(&info, 1, 12, "Study");
+    set_action(&info, 2, 13, "Search");
+    replacements[0] = "Close";
+    replacements[1] = "";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x05, replacements, &has_action);
+    TEST_ASSERT(info.actions[0].code == 11, "the renamed slot's op code moved");
+    TEST_ASSERT(info.actions[1].code == 12, "the cleared slot's op code moved");
+    TEST_ASSERT(info.actions[2].code == 13, "an untouched slot's op code moved");
+    TEST_ASSERT(strcmp(info.actions[2].name, "Search") == 0, "slot 2 was kept and lost its label");
+
+    /*
+     * A shortened label leaves no tail behind. Interned blocks are compared
+     * byte for byte, so a name written over a longer one with only a NUL
+     * between them interns as a second, identical-looking entry -- and every
+     * placement that "shares" it then gets its own copy.
+     */
+    memset(&info, 0, sizeof(info));
+    set_action(&info, 0, 11, "Investigate");
+    replacements[0] = "Use";
+    replacements[1] = "";
+    WorldEntity_SceneryApplyPlacementOps(&info, 0x01, replacements, &has_action);
+    TEST_ASSERT(strcmp(info.actions[0].name, "Use") == 0, "the short label did not take");
+    {
+        struct WorldEntity_SceneryInfo fresh;
+        memset(&fresh, 0, sizeof(fresh));
+        set_action(&fresh, 0, 11, "Use");
+        TEST_ASSERT(
+            memcmp(&fresh, &info, sizeof(fresh)) == 0,
+            "the overwritten label left a tail past its terminator");
+    }
+
+    /* All five slots, so nothing is a four-slot loop in disguise. */
+    memset(&info, 0, sizeof(info));
+    replacements[0] = "a";
+    replacements[1] = "b";
+    replacements[2] = "c";
+    replacements[3] = "d";
+    replacements[4] = "e";
+    overrides = WorldEntity_SceneryApplyPlacementOps(&info, 0x1f, replacements, &has_action);
+    TEST_ASSERT(overrides == 0x1f, "not every slot was reached");
+    TEST_ASSERT(strcmp(info.actions[4].name, "e") == 0, "the fifth slot was not written");
+}
+
+/*
+ * The pile on a tile: how many stacks are on it, and which one is the nth.
+ *
+ * The CS2 ground-item opcodes ask both questions with the same call, which is
+ * what makes this worth pinning: the return value is the tile's TOTAL, not
+ * "how far the walk got". A walk that stops when it finds the index answers
+ * the count question with the index plus one, and the cache's own scripts read
+ * that count to decide how many rows to draw -- so a three-item pile shows one
+ * row, and the two underneath it are unreachable.
+ *
+ * The other half is that a tile holds one stack per obj id, and the order is
+ * the order they arrived. An opcode indexing into it is indexing into that.
+ */
+void
+test_obj_stack_count_at(void)
+{
+    struct World* world = World_TestMakeReady(104);
+    char actions[5][32] = { "Take", "", "", "", "" };
+    struct WorldEntity_ObjStack const* stack;
+    int count;
+
+    printf("TEST: obj stacks on a tile\n");
+
+    /* Three different objs on one tile, one on a tile beside it, and one on
+     * the same tile a level up. */
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 10, 50, 50, 0, 995, 1, "Coins", actions) >= 0, "add coins");
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 11, 50, 50, 0, 1215, 1, "Dragon dagger", actions) >= 0,
+        "add dagger");
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 12, 50, 50, 0, 526, 2, "Bones", actions) >= 0, "add bones");
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 13, 51, 50, 0, 995, 1, "Coins", actions) >= 0, "add next door");
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 14, 50, 50, 1, 995, 1, "Coins", actions) >= 0, "add upstairs");
+
+    /* The count is the whole pile, whatever index was asked for -- including
+     * an index nobody is standing on. */
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 0, &stack);
+    TEST_ASSERT(count == 3, "the tile's pile is not three deep");
+    TEST_ASSERT(stack && stack->obj_id == 995, "index 0 is not the first thing added");
+
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 2, &stack);
+    TEST_ASSERT(count == 3, "asking for the last entry changed the count");
+    TEST_ASSERT(stack && stack->obj_id == 526, "index 2 is not the last thing added");
+
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 1, &stack);
+    TEST_ASSERT(count == 3, "asking for a middle entry changed the count");
+    TEST_ASSERT(stack && stack->obj_id == 1215, "index 1 is not the second thing added");
+    TEST_ASSERT(stack && stack->count == 1, "the stack's own count did not come back");
+
+    /* Past the end: the count still answers, and the out pointer is left
+     * alone rather than being cleared or filled with the last entry. */
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 3, &stack);
+    TEST_ASSERT(count == 3, "an out-of-range index changed the count");
+    TEST_ASSERT(!stack, "an out-of-range index still wrote a stack");
+    count = World_ObjStackCountAt(world, 50, 50, 0, -1, &stack);
+    TEST_ASSERT(count == 3, "a negative index changed the count");
+    TEST_ASSERT(!stack, "a negative index wrote a stack");
+
+    /* Each of the three coordinates is read on its own. The tile next door and
+     * the same tile upstairs each hold exactly one, and neither leaks in. */
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 51, 50, 0, 0, &stack);
+    TEST_ASSERT(count == 1, "the tile east holds the wrong number");
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 1, 0, &stack);
+    TEST_ASSERT(count == 1, "the tile upstairs holds the wrong number");
+    TEST_ASSERT(stack && stack->grid_position.level == 1, "the upstairs stack is not upstairs");
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 51, 0, 0, &stack);
+    TEST_ASSERT(count == 0 && !stack, "an empty tile north holds something");
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 49, 50, 0, 0, &stack);
+    TEST_ASSERT(count == 0 && !stack, "an empty tile west holds something");
+
+    /* A tile with nothing on it answers zero and writes nothing. */
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 3, 3, 0, 0, &stack);
+    TEST_ASSERT(count == 0, "a bare tile holds something");
+    TEST_ASSERT(!stack, "a bare tile wrote a stack");
+
+    /*
+     * Adding the same obj again DEEPENS the pile. "One stack per (tile, obj)"
+     * is the caller's rule -- App_WorldObjStackAdd looks first and refreshes
+     * the count on a hit, because it has a scene element and a model to keep.
+     * World itself just allocates, and the count opcodes report what is there.
+     */
+    TEST_ASSERT(
+        World_ObjStackAdd(world, 15, 50, 50, 0, 995, 7, "Coins", actions) >= 0, "re-add coins");
+    stack = NULL;
+    count = World_ObjStackCountAt(world, 50, 50, 0, 3, &stack);
+    TEST_ASSERT(count == 4, "a second add of the same obj did not deepen the pile");
+    TEST_ASSERT(stack && stack->obj_id == 995 && stack->count == 7, "the second add is not last");
 
     World_Free(world);
 }

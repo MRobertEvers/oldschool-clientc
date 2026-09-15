@@ -20,7 +20,17 @@
 #define TORIRS_UI_NAME_MAX 128
 #define TORIRS_UI_LABEL_MAX 128
 #define TORIRS_FRAME_REASON_MAX 160
-#define TORIRS_API_V2_MODULE_RESERVED_SLOTS 8
+/*
+ * Spare function slots every module carries.
+ *
+ * Twelve and not eight. The panel module grew three verbs this round --
+ * set_label, scroll and scroll_to -- and at eight the subtraction that spends
+ * this budget went negative, which the compiler reports as "array with a
+ * negative size" on the reserved member and not as "you are out of slots".
+ * Raising it once is cheaper than having the next module to grow read that
+ * message and think the struct is corrupt.
+ */
+#define TORIRS_API_V2_MODULE_RESERVED_SLOTS 12
 #define TORIRS_DESCRIPTOR_V2_RESERVED_WORDS 8
 
 /* Existing module padding remains during the coordinated source migration.
@@ -34,6 +44,7 @@ struct ToriRS_DrawContext;
 struct ToriRS_PanelBuilder;
 struct ToriRS_ClientApi;
 struct ToriRS_GameApi;
+struct ToriRS_PluginDef;
 
 /* ------------------------------------------------------------------------ */
 /* Small value types                                                        */
@@ -122,6 +133,19 @@ struct ToriRS_SkillSnapshot
     int level_xp;
     /** Zero when this client has no further level threshold. */
     int next_level_xp;
+    /**
+     * True when the server has STATED this skill: every number above is a
+     * reading it sent. False means there is no reading yet -- the pre-login
+     * table is a fresh account's, not an empty one, so a tracker that seeded
+     * itself from it would take the login burst for one enormous gain.
+     *
+     * `skill()` still answers false for an unstated skill, as it always has.
+     * The two false answers are told apart by this snapshot: an unstated
+     * skill comes back with its own `index` and `name` and `stated` false,
+     * while a skill index this client does not have comes back zeroed with
+     * `index` -1.
+     */
+    bool stated;
 };
 
 #define TORIRS_SKILL_SNAPSHOT_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))
@@ -177,6 +201,17 @@ struct ToriRS_DrawContext
     struct ToriRS_Rect clip;
 };
 
+/**
+ * The border thickness a caller that does not state one gets.
+ *
+ * Two, because that is the width every tile border was drawn at for as long
+ * as the thickness was not a parameter: a script that names no width is
+ * unchanged by the width existing. A caller that HAS a thickness -- a cache
+ * highlight group states one, and 0 is one of the three this cache sends --
+ * passes it and never this.
+ */
+#define TORIRS_TILE_OUTLINE_WIDTH_DEFAULT 2
+
 /* Callback-scoped graphics context, like Overlay.render(Graphics2D). It draws
  * primitives only; live UI is authored through widgets. Never retain it. */
 struct ToriRS_Graphics
@@ -209,6 +244,29 @@ struct ToriRS_Graphics
         int x,
         int y,
         int alpha);
+    /**
+     * A marker on one absolute tile: a wash, a border, or both.
+     *
+     * `alpha` is the WASH and `outline_width` is the BORDER, and each is
+     * drawn only when its own number is non-zero. That is not a convenience:
+     * the cache's highlight groups describe two families that exist only
+     * because the two are independent -- a mouseover outline runs at opacity
+     * 0 (a border with no wash) and clientscript 5198's hovered tile at
+     * thickness 0 (a wash with no border). Before `outline_width` was a
+     * parameter the border was drawn unconditionally at two pixels, so the
+     * hovered tile wore a hard opaque rim the cache had switched off and
+     * every thickness the cache sent rendered the same.
+     *
+     * `depth` says whether the marker is composited over the finished scene
+     * or drawn with the tile's own ground. It is a separate argument and not a
+     * bit stolen from a colour or a width because it decides ORDER and nothing
+     * else: a marker is the same quad, the same wash and the same border
+     * either way, and the only difference is whether the player standing on
+     * the tile is over it or under it. @see enum ToriRS_TileDepth.
+     *
+     * @param outline_width border thickness in pixels; 0 draws no border.
+     * @param depth enum ToriRS_TileDepth.
+     */
     enum ToriRS_Result (*world_tile)(
         struct ToriRS_Graphics* draw,
         int tile_x,
@@ -216,7 +274,9 @@ struct ToriRS_Graphics
         int level,
         uint32_t fill_rgb,
         uint32_t outline_rgb,
-        int alpha);
+        int outline_width,
+        int alpha,
+        int depth);
     enum ToriRS_Result (*world_hull)(
         struct ToriRS_Graphics* draw,
         int element_id,
@@ -419,11 +479,32 @@ struct ToriRS_CoreApi
         struct ToriRS_Api* api,
         struct ToriRS_LaneInfo* out);
     /**
-     * Query a host/platform fact by stable name. Defined names are:
+     * Query a host/platform/engine fact by stable name. Defined names are:
      *
      * - `touch`: the application is currently using touch UI/input policy;
      * - `web`: this is the Emscripten web lane;
-     * - `browser`: this build supports the embedded BROWSER chrome transport.
+     * - `browser`: this build supports the embedded BROWSER chrome transport;
+     * - `widgets.geometry`: the widget API reports live geometry;
+     * - `scripts.callbacks`, `cs2_scripts`: this client runs CS2 UI logic;
+     * - `script_callback:<name>`: this client has a hook site that can raise
+     *   the plugin callback `<name>`. NOT the same fact as `cs2_scripts`: the
+     *   hook is a patched opcode in the CACHE, so a CS2 lane on a stock cache
+     *   runs the script and raises nothing. Ask this before installing
+     *   anything that waits for that callback;
+     * - `highlight_groups`: CS2 UI logic AND the profile declares the
+     *   hover-tile highlight script;
+     * - `varbit:<name>`, `varp:<name>`: this revision declares that var;
+     * - `server_tick`: on_server_tick is raised (every lane);
+     * - `server_tick.fenced`: the wire carries an end-of-tick packet, so the
+     *   tick is a real fence rather than the player-info edge;
+     * - `item_bonuses`: the loaded item records carry equipment-bonus params;
+     * - `native_orbs`: the live interface resolves the native run orb;
+     * - `if_settab`: the wire carries the server's set-tab packet;
+     * - `tab_select`: `frame`/sidebar tab selection can act on this lane.
+     *
+     * Every answer is one expression over an ENGINE FACT -- a packet the wire
+     * table carries, a ref the profile declares, a role the tree resolves, a
+     * param the loaded cache carries -- never a revision or lane name.
      *
      * Unknown names and unavailable capabilities return false. Plugins do not
      * infer these answers from platform preprocessor symbols.
@@ -553,7 +634,21 @@ struct ToriRS_FrameApi
         int surface,
         int* out_width,
         int* out_height);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 1])(void);
+    /** The box the LANE authored for one numbered MEMBER of `surface`,
+     *  relative to the surface's own block. `member` is the role's own
+     *  numbering, never a position in a list, and -1 is refused: the surface
+     *  as a whole is surface_native_size's question and has no offset inside
+     *  itself to report. False when the lane has no such member or when any
+     *  box between it and the block is a proportion rather than pixels. */
+    bool (*surface_member_native_box)(
+        struct ToriRS_Api* api,
+        int surface,
+        int member,
+        int* out_x,
+        int* out_y,
+        int* out_width,
+        int* out_height);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 2])(void);
 };
 
 /* The pixels themselves are emitted through ToriRS_Graphics. This module
@@ -761,6 +856,24 @@ struct ToriRS_PanelApi
         struct ToriRS_Api* api,
         char const* id,
         char const* text);
+    /**
+     * The row's NAME, not its value.
+     *
+     * KEY_VALUE, TOGGLE, SELECT and ACTION_ROW are built from a label and
+     * carry their value in a second string, so `set_text` cannot restate one:
+     * on those four it is the reading, the chosen entry or the summary. Until
+     * this existed there was no arm for their label at all, and renaming one
+     * cost a whole page rebuild -- which throws the scroll away and retires
+     * every retained custom run on the page.
+     *
+     * On a kind whose single string already travels as `text` this is refused
+     * rather than silently aliased: two spellings for one string is how a
+     * later set_text reverts a rename nobody can see happen.
+     */
+    enum ToriRS_Result (*set_label)(
+        struct ToriRS_Api* api,
+        char const* id,
+        char const* label);
     enum ToriRS_Result (*set_value)(
         struct ToriRS_Api* api,
         char const* id,
@@ -778,7 +891,43 @@ struct ToriRS_PanelApi
     void (*redraw)(
         struct ToriRS_Api* api,
         char const* id);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 5])(void);
+    /**
+     * Give ONE row a new identity without re-declaring the page.
+     *
+     * For when a row's input identity changed but the page's row sequence did
+     * not: a custom well whose y-to-item mapping moved, a row that now means
+     * a different thing. The host mints that row a fresh serial, so a click
+     * authored against the old picture is refused, and every other row keeps
+     * its identity, the page keeps its scroll, and every other retained
+     * custom run survives.
+     *
+     * Do NOT call this after changing only a caption or a value -- set_text
+     * and set_value already state those in place, and reminting an identity
+     * costs the row's presentation node for nothing. Use `invalidate` when
+     * the page's SET of rows changed; that is what a rebuild is for.
+     */
+    enum ToriRS_Result (*reidentify)(
+        struct ToriRS_Api* api,
+        char const* id);
+    /**
+     * The reader's place, in logical pixels of page scrolled past the top.
+     *
+     * Readable as well as writable, and that is the point: the number is the
+     * PRESENTER's and nothing else knows it, so a plugin that has to
+     * re-declare its page -- the one legitimate rebuild the row model still
+     * has -- could not put the reader back where they were. The host now
+     * carries it across a rebuild of the same page by itself; these two are
+     * for the plugin that wants to MOVE it, which is a different intent.
+     *
+     * Negative when there is no page of this plugin's up.
+     */
+    int (*scroll)(struct ToriRS_Api* api);
+    /** Clamped by the next layout, never here: the content to clamp against
+     *  may be a page that has not been laid out yet. */
+    enum ToriRS_Result (*scroll_to)(
+        struct ToriRS_Api* api,
+        int scroll);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 9])(void);
 };
 
 /* Explicit escape hatch for lane-specific plugins. Nothing in the widget or
@@ -876,6 +1025,21 @@ struct ToriRS_GameApi
         struct ToriRS_Api* api,
         int obj_id,
         struct ToriRS_ItemInfo* out);
+    /**
+     * The client's own inventory icon for one obj at one stack count.
+     *
+     * PENDING is "not yet": the objtype and its inventory model are being
+     * fetched because this call asked for them, and asking again is what
+     * finishes the job. MISSING is "not ever": there is nothing left to fetch
+     * and the icon still will not build. A caller that treats the second as
+     * the first asks for a picture that is not coming, on its own cadence, for
+     * the rest of the session.
+     *
+     * The picture carries the stack VARIANT -- a pile of coins rather than a
+     * coin -- and NOT the stack digits. Every stack count on screen in this
+     * client is a separate text pass over the icon, so a caller drawing into
+     * its own bitmap draws the number itself.
+     */
     enum ToriRS_AssetState (*item_image)(
         struct ToriRS_Api* api,
         int obj_id,
@@ -922,6 +1086,1170 @@ struct ToriRS_GameApi
     TORIRS_API_V2_MODULE_RESERVED;
 };
 
+/* ------------------------------------------------------------------------ */
+/* Porcelain: the retained, reconciling plugin layer                         */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Porcelain is a LIBRARY, not an engine. It is a client of this API and of
+ * nothing else: it holds no host state, owns no authority, and every verb
+ * below expands into the same `api->widgets.*`, `api->assets.*` and
+ * `api->config.*` calls a raw plugin would write by hand. It exists because
+ * the record says every plugin that wrote those calls by hand got the
+ * readiness convergence, the reconcile and the refusal reporting wrong in its
+ * own way.
+ *
+ * It is reached through this function-pointer table so that C and Lua call
+ * the same entry points and the Lua inventory test sees it the way it sees
+ * every other namespace. `api->porcelain` is NULL in a host that did not
+ * install the layer (see PluginHost_SetPorcelain); a plugin that needs it
+ * checks once at start.
+ *
+ * Three rules the whole table obeys:
+ *   - Steady state costs nothing. An unchanged description makes zero engine
+ *     calls, zero allocations and one hash compare per key.
+ *   - Motion does not go through describe. Animated properties take the
+ *     direct path (`set`), and one revalidate is issued per frame for all of
+ *     it.
+ *   - Nothing is silent. Every result that is not OK or PENDING is a finding
+ *     with a detail.
+ */
+
+struct Porcelain;
+struct ToriRS_PorcelainDescribe;
+/* Defined by the layer's own header, plugin/porcelain/torirs_porcelain.h. The
+ * vtable carries a pointer to it, so the shape belongs there and only the name
+ * has to be known here. */
+struct PorcelainCounters;
+
+/*
+ * The portable element vocabulary. A plugin names what it wants to sit
+ * beside, over or in place of; Porcelain resolves the name to whatever role
+ * the current lane binds, and answers BOUND, ABSENT or PENDING. There is no
+ * lane name anywhere in the resolution: an element a lane does not have
+ * answers ABSENT by data.
+ *
+ * PORCELAIN_EL_NONE is first so that a zeroed struct PorcelainItem means "no
+ * `visible_with`, no explicit depth target" rather than "the viewport". The
+ * plan's sketch started the enum at VIEWPORT and had no way to say
+ * "unstated"; every optional element field in this file needs one.
+ */
+enum PorcelainElementKind
+{
+    PORCELAIN_EL_NONE = 0,
+    PORCELAIN_EL_VIEWPORT,
+    PORCELAIN_EL_MINIMAP,
+    PORCELAIN_EL_COMPASS,
+    PORCELAIN_EL_ORBS,
+    PORCELAIN_EL_ORB,
+    PORCELAIN_EL_CHAT,
+    PORCELAIN_EL_CHAT_BAR,
+    PORCELAIN_EL_CHAT_BACKING,
+    PORCELAIN_EL_CHAT_INPUT,
+    PORCELAIN_EL_CHAT_FILTER,
+    PORCELAIN_EL_REPORT_BUTTON,
+    PORCELAIN_EL_PUBLIC_CHAT_BUTTON,
+    PORCELAIN_EL_SIDEBAR,
+    PORCELAIN_EL_TAB,
+    PORCELAIN_EL_PANEL,
+    PORCELAIN_EL_MODAL,
+    PORCELAIN_EL_LANE_CHROME,
+    /** The clipping root the adapter already knows; implicit parent of AT_*. */
+    PORCELAIN_EL_FRAME_ROOT,
+    PORCELAIN_EL_CANVAS,
+    PORCELAIN_EL_SAFE,
+    PORCELAIN_EL_USABLE,
+    /** The escape hatch: a role name this lane declares, spelled by hand. */
+    PORCELAIN_EL_ROLE,
+    PORCELAIN_EL_KIND_COUNT
+};
+
+/** ORB members, in the order the profiles declare their roles. */
+enum PorcelainOrb
+{
+    PORCELAIN_ORB_HITPOINTS = 0,
+    PORCELAIN_ORB_PRAYER,
+    PORCELAIN_ORB_RUN,
+    PORCELAIN_ORB_SPEC,
+    PORCELAIN_ORB_COUNT
+};
+
+/*
+ * One element. `member` numbers the families that have members (ORB,
+ * CHAT_FILTER, LANE_CHROME); `role` is the tab NAME for TAB, the panel NAME
+ * for PANEL, and the literal role name for ROLE. Everything else leaves both
+ * zero.
+ */
+struct PorcelainElement
+{
+    enum PorcelainElementKind kind;
+    int member;
+    char const* role;
+};
+
+#define PORCELAIN_EL(kind_suffix)                                                      \
+    ((struct PorcelainElement){PORCELAIN_EL_##kind_suffix, 0, NULL})
+#define PORCELAIN_ORB_EL(member_index)                                                 \
+    ((struct PorcelainElement){PORCELAIN_EL_ORB, (member_index), NULL})
+#define PORCELAIN_CHAT_FILTER_EL(member_index)                                         \
+    ((struct PorcelainElement){PORCELAIN_EL_CHAT_FILTER, (member_index), NULL})
+#define PORCELAIN_TAB_EL(tab_name)                                                     \
+    ((struct PorcelainElement){PORCELAIN_EL_TAB, 0, (tab_name)})
+#define PORCELAIN_PANEL_EL(panel_name)                                                 \
+    ((struct PorcelainElement){PORCELAIN_EL_PANEL, 0, (panel_name)})
+#define PORCELAIN_ROLE_EL(role_name)                                                   \
+    ((struct PorcelainElement){PORCELAIN_EL_ROLE, 0, (role_name)})
+#define PORCELAIN_CHROME_EL(member_index)                                              \
+    ((struct PorcelainElement){PORCELAIN_EL_LANE_CHROME, (member_index), NULL})
+
+enum PorcelainBind
+{
+    /** Expected, not resolved yet. Retried automatically; never a finding. */
+    PORCELAIN_PENDING = 0,
+    PORCELAIN_BOUND,
+    /** A fact about this lane. One finding, then silence. */
+    PORCELAIN_ABSENT
+};
+
+/*
+ * A copy of the host's per-watch state buffer, stamped at the fence. Every
+ * field but `bind` and `stamp` is ToriRS_WidgetState's, restated here so a
+ * Porcelain plugin never has to hold a widget reference to read one.
+ */
+struct PorcelainElementState
+{
+    enum PorcelainBind bind;
+    struct ToriRS_WidgetRef ref;
+    uint64_t incarnation;
+    /** Drawn canvas space. */
+    struct ToriRS_WidgetBounds box;
+    /** Native-parent-local, unscrolled. */
+    struct ToriRS_WidgetBounds local;
+    /** Paints this frame: every veto folded in. */
+    bool presented;
+    /** The node's own hide bit (a CS2 if_sethide or a dat1 IF_SETTAB). */
+    bool own_hidden;
+    /** The engine's native suppression. */
+    bool native_hidden;
+    bool input_present;
+    /** A CHANGE token, never an identity. */
+    uint32_t graphic_token;
+    uint64_t text_hash;
+    /** Lane-derived facets. Zero from every adapter that has not filled them. */
+    uint32_t facets;
+    /** Porcelain's fence counter when this state last changed. */
+    uint32_t stamp;
+};
+
+/** @see PorcelainElementState::facets. */
+enum PorcelainFacet
+{
+    PORCELAIN_FACET_GIVEN = 1u << 0,
+    PORCELAIN_FACET_SELECTED = 1u << 1,
+    PORCELAIN_FACET_FLASHING = 1u << 2,
+    PORCELAIN_FACET_DRAWN = 1u << 3,
+    PORCELAIN_FACET_ORIENTED = 1u << 4,
+    PORCELAIN_FACET_WALKABLE = 1u << 5,
+    PORCELAIN_FACET_ACTIVE = 1u << 6,
+    PORCELAIN_FACET_HIDDEN_BY_CUTSCENE = 1u << 7
+};
+
+/*
+ * Where an item goes. Porcelain OWNS the box for every one of these: the
+ * engine's anchor carries ordering and visibility and NO geometry, so
+ * REPLACE, INSIDE and BESIDE all copy the target's parent-local box (plus the
+ * centring offset) onto the control at every fence the target's box moved.
+ * Controls are created as SIBLINGS under the target's parent, because a
+ * REPLACE from a child of the target is ANCHOR_INVALID.
+ *
+ * There is deliberately no placement by parenting.
+ */
+enum PorcelainPlacementKind
+{
+    PORCELAIN_REPLACE = 0,
+    PORCELAIN_INSIDE,
+    PORCELAIN_BESIDE,
+    PORCELAIN_AT_ELEMENT,
+    PORCELAIN_AT_CANVAS,
+    PORCELAIN_AT_USABLE,
+    /*
+     * A CHILD of the element, in the element's own coordinates, with NO
+     * anchor.
+     *
+     * INSIDE makes a sibling under the target's parent and anchors it OVER,
+     * which REPLACE needs and a corner ornament does not. One live anchor is
+     * what makes UITree_FrameHasDepth true, so a mode that cost no anchor
+     * before the layer existed should still cost none through it. Corner and
+     * offsets are read exactly as INSIDE reads them.
+     *
+     * THE 13.5 ms FIGURE THIS USED TO QUOTE DOES NOT REPRODUCE, and it should
+     * stop being quoted. It is in uitree_frame.c, where it is attributed --
+     * correctly -- to the FIRST anchor implementation, the one that was
+     * O(records x nodes) and allocated eight times a call. That was replaced
+     * by UITreeAnchorPlan plus a per-call pass that allocates nothing, and
+     * with it the price of one anchor.
+     *
+     * MEASURED, on the classic548 gate lane with the shipped screenshot
+     * camera in a corner, same binary, `--uncapped` so wall clock is frame
+     * work and not the 20 ms pacer, five repetitions at 620 and at 3620
+     * frames so boot cancels in the slope:
+     *
+     *     no camera   21.00 ms/frame marginal
+     *     WITHIN      20.65
+     *     INSIDE      20.97      -> INSIDE - WITHIN = +0.32 ms/frame
+     *
+     * The spread across all fifteen long runs was 2.19 s over 3000 marginal
+     * frames, which is 0.73 ms/frame of noise: the anchor's cost is under the
+     * noise floor. 13.5 ms would have shown as 40 seconds.
+     *
+     * WITHIN is still right, and for the reason it always was -- an ornament
+     * that needs no ordering should not state one -- but not for a frame time
+     * nobody can measure.
+     */
+    PORCELAIN_WITHIN
+};
+
+/** INSIDE corners. Carried in PorcelainPlacement::corner_or_side. */
+enum PorcelainCorner
+{
+    PORCELAIN_TOP_LEFT = 0,
+    PORCELAIN_TOP_RIGHT,
+    PORCELAIN_BOTTOM_LEFT,
+    PORCELAIN_BOTTOM_RIGHT,
+    PORCELAIN_CENTRE
+};
+
+/** BESIDE sides. Carried in PorcelainPlacement::corner_or_side. */
+enum PorcelainSide
+{
+    PORCELAIN_LEFT = 0,
+    PORCELAIN_RIGHT,
+    PORCELAIN_ABOVE,
+    PORCELAIN_BELOW
+};
+
+struct PorcelainPlacement
+{
+    enum PorcelainPlacementKind kind;
+    /** The element the item belongs to. AT_CANVAS/AT_USABLE use FRAME_ROOT. */
+    struct PorcelainElement on;
+    /** INSIDE: a PorcelainCorner. BESIDE: a PorcelainSide. Else unread. */
+    int corner_or_side;
+    int dx, dy;
+    /** Optional: sit over (or behind) THIS element instead of `on`. */
+    struct PorcelainElement depth;
+    bool behind;
+};
+
+enum PorcelainItemKind
+{
+    PORCELAIN_ITEM_CONTROL = 0,
+    PORCELAIN_ITEM_PIECE,
+    PORCELAIN_ITEM_TEXT,
+    PORCELAIN_ITEM_BLOCKER
+};
+
+typedef void (*PorcelainOpFn)(struct ToriRS_Api* api, void* user, char const* key);
+
+/*
+ * One described item. The kind picks the fields that are read; everything
+ * else is ignored, so a zeroed struct plus three fields is a legal item.
+ */
+struct PorcelainItem
+{
+    /** Stable identity. A key not re-described is removed. */
+    char const* key;
+    /** Asset name or derived key. NULL means "exists, draws nothing" -- on a
+     *  Control and a Blocker that is an invisible hit box, which is what the
+     *  two frame providers ship a 1x1 transparent PNG to fake today. */
+    char const* image;
+    struct PorcelainPlacement place;
+    /** 0 = natural (the target's size). MANDATORY on Text: no verb measures a
+     *  string in the widget's face, so a text box cannot be derived. */
+    int w, h;
+    /** 255 opaque .. 1 barely there. NOT 0: a zeroed struct is the layer's
+     *  idiom for "this item does not state that field", so 0 here is UNSET
+     *  and means opaque. Say PORCELAIN_OPACITY_INVISIBLE when you mean
+     *  invisible. @see PORCELAIN_OPACITY_DEFAULT */
+    int opacity;
+    char const* text;
+    uint32_t rgb;
+    /** 0 left, 1 centre, 2 right. Centre is the default the shipped
+     *  performance readout is pinned to. */
+    int align;
+    bool outline;
+    char const* op_label;
+    PorcelainOpFn on_op;
+    void* user;
+    /** A hit box at all. False = paint only, no menu row, no click. */
+    bool hit;
+    /** Op armed AND hit box live. False = drawn, inert, no menu row. */
+    bool enabled;
+    /** An extra presented-gate. OVER inherits nothing, so a plate over the
+     *  compass says visible_with = COMPASS and is hidden in step with it. */
+    struct PorcelainElement visible_with;
+};
+
+/**
+ * `opacity` 0 in a zeroed item means opaque, not invisible.
+ *
+ * Which is the trap, and it is why there is a second constant. A fade written
+ * the obvious way -- `item.opacity = alpha` with alpha counting down --
+ * SNAPS BACK TO FULLY PAINTED on the step that reaches zero, silently,
+ * because the layer cannot tell that zero from the zero of a struct that
+ * never mentioned opacity at all. xp-drop-orbs fences its fade at 1 with a
+ * note rather than hit it.
+ *
+ * So: zero is unset, invisible has a name of its own, and a described opacity
+ * that FALLS to zero from something else is reported rather than silently
+ * inverted. @see porcelain_apply_properties.
+ */
+#define PORCELAIN_OPACITY_DEFAULT 0
+/** Invisible, said so it cannot be confused with an unset field. */
+#define PORCELAIN_OPACITY_INVISIBLE (-1)
+
+/** A member keeps its block-relative offset when the block moves. */
+#define PORCELAIN_KEEP_RELATIVE INT32_MIN
+
+/** The direct per-frame path's field selector. @see ToriRS_PorcelainApi::set */
+enum PorcelainMotionMask
+{
+    PORCELAIN_MOTION_X = 1u << 0,
+    PORCELAIN_MOTION_Y = 1u << 1,
+    PORCELAIN_MOTION_OPACITY = 1u << 2,
+    PORCELAIN_MOTION_IMAGE = 1u << 3,
+    /** A per-frame readout is a STRING that changes every frame. Without
+     *  this the direct path could not carry one, and a frame counter had to
+     *  re-describe and invalidate to move a number. */
+    PORCELAIN_MOTION_TEXT = 1u << 4,
+    PORCELAIN_MOTION_RGB = 1u << 5
+};
+
+struct PorcelainMotion
+{
+    int32_t x, y;
+    int opacity;
+    char const* image;
+    char const* text;
+    uint32_t rgb;
+    /** Which fields above to read. @see PorcelainMotionMask */
+    unsigned mask;
+};
+
+/*
+ * Findings. Every refused operation, absent element, terminal asset state,
+ * unsupported capability and lost arbitration is recorded here, coalesced on
+ * (verb, element, result), and traced once at birth under
+ * TORIRS_TRACE_NATIVE_UI as
+ *
+ *   PORCELAIN_FINDING plugin= verb= element= result= detail= expected=
+ *                     [why=] first_frame= count=
+ *
+ * and under TORIRS_PLUGIN_LOG too, because a finding is a PLUGIN diagnostic
+ * and every capture already asks for that log; gating it on the widget-tree
+ * trace alone made a plugin whose only output is a finding invisible in a
+ * shot. `why=` is written only where a declaration gave one.
+ *
+ * Silence is the class the record says hurt most: a plugin that ignores a
+ * return value has no consequence until a screenshot is zoomed.
+ */
+enum PorcelainFindingResult
+{
+    PORCELAIN_FINDING_OK = 0,
+    /** A described element this lane does not have. */
+    PORCELAIN_FINDING_ABSENT,
+    /** Declared absent through expect_absent, and absent. Ignored by the gate. */
+    PORCELAIN_FINDING_ABSENT_EXPECTED,
+    /** Declared absent through expect_absent, and it BOUND. A failure: a stale
+     *  declaration must fail loudly in both directions. */
+    PORCELAIN_FINDING_ABSENT_UNEXPECTEDLY_PRESENT,
+    /**
+     * An engine setter answered something that was not OK or PENDING.
+     *
+     * A refusal is reported only where the PLUGIN could have done otherwise.
+     * A refusal that is structurally not the plugin's fault is the LAYER's to
+     * absorb, and the rule is not a courtesy: a plugin cannot declare one of
+     * those away, because it has no element to key an absence on, the refusal
+     * is transient rather than a lane fact, and declaring it unconditionally
+     * would be a stale declaration on every lane where it never happens.
+     * Reporting it anyway makes the findings channel say "your plugin has a
+     * problem" about something the plugin did exactly right.
+     *
+     * The one absorbed today: a control the engine freed under a frame root
+     * that survived. The layer re-creates it rather than writing to the dead
+     * handle and reporting what comes back. @see PorcelainCounters::recreates.
+     */
+    PORCELAIN_FINDING_REFUSED,
+    /** Another plugin owns this aspect of this element. `detail` names it. */
+    PORCELAIN_FINDING_ARBITRATION_LOST,
+    PORCELAIN_FINDING_ASSET_MISSING,
+    PORCELAIN_FINDING_ASSET_ERROR,
+    PORCELAIN_FINDING_DERIVED_FAILED,
+    /** A per-plugin budget: items, findings, images, config value length. */
+    PORCELAIN_FINDING_BUDGET,
+    /** A capability this lane does not answer. `detail` names the feature. */
+    PORCELAIN_FINDING_UNSUPPORTED
+};
+
+struct PorcelainFinding
+{
+    char const* verb;
+    struct PorcelainElement element;
+    /** A PorcelainFindingResult. */
+    int result;
+    /** The winner of an arbitration, the asset name, the refused route label. */
+    char const* detail;
+    /** Declared through expect_absent: ignored by the clean gate. */
+    bool expected;
+    /**
+     * WHY the declaration said this was expected, or "" when nothing declared
+     * it.
+     *
+     * The reason a plugin passes to `expect_absent` / `expect_unsupported`,
+     * carried onto every finding that declaration covers. It used to be stored
+     * and never read by anything -- no accessor, no field, no trace line -- so
+     * an UNSUPPORTED finding said the feature name as its element and again as
+     * its detail and never once said the cause, and three builtins wrote a
+     * sentence expressly for the log that the log threw away.
+     *
+     * Never NULL: the empty string is "nobody declared this", which is the
+     * ordinary case for a finding that is a plain failure.
+     */
+    char const* why;
+    uint32_t first_frame, count;
+};
+
+/** The aspects arbitration hands out, one owner per element per aspect. */
+enum PorcelainAspect
+{
+    PORCELAIN_ASPECT_REPLACE = 0,
+    PORCELAIN_ASPECT_MOVE_POSITION,
+    PORCELAIN_ASPECT_MOVE_SIZE,
+    PORCELAIN_ASPECT_HIDE,
+    PORCELAIN_ASPECT_SKIN_ART,
+    PORCELAIN_ASPECT_SKIN_MASK,
+    PORCELAIN_ASPECT_OPACITY,
+    /** Where an element sits in the draw order. @see ToriRS_PorcelainApi::raise */
+    PORCELAIN_ASPECT_DEPTH,
+    PORCELAIN_ASPECT_COUNT
+};
+
+/*
+ * The six inputs a description depends on. Describe re-runs when one of them
+ * moved and NEVER per frame. ELEMENT and ASSET move by themselves, from the
+ * watch-state callback and from an asset state transition Porcelain observes
+ * at the fence; the other four are the plugin forwarding its own host events,
+ * because a library cannot install callbacks into a definition the host
+ * already registered.
+ */
+enum PorcelainInput
+{
+    PORCELAIN_INPUT_ELEMENT = 0,
+    PORCELAIN_INPUT_ASSET,
+    PORCELAIN_INPUT_CONFIG,
+    PORCELAIN_INPUT_SCREEN,
+    PORCELAIN_INPUT_CANVAS,
+    PORCELAIN_INPUT_EXPLICIT,
+    PORCELAIN_INPUT_COUNT
+};
+
+enum PorcelainCadence
+{
+    PORCELAIN_LOGIC_TICK = 0,
+    PORCELAIN_SERVER_TICK,
+    PORCELAIN_FRAME,
+    PORCELAIN_CADENCE_COUNT
+};
+
+/** @see ToriRS_PorcelainApi::when_ready. A bit set. */
+enum PorcelainReady
+{
+    PORCELAIN_READY_GAME = 1u << 0,
+    PORCELAIN_READY_WORLD = 1u << 1,
+    /** A skill has been STATED. Not "the table is populated". */
+    PORCELAIN_READY_STATS = 1u << 2,
+    PORCELAIN_READY_PLAYER = 1u << 3,
+    /** Every derived image this plugin asked for exists. */
+    PORCELAIN_READY_DERIVED = 1u << 4
+};
+
+enum PorcelainAssetState
+{
+    PORCELAIN_ASSET_READY = 0,
+    /** Web: fetched on demand. Retried; never a finding. */
+    PORCELAIN_ASSET_PENDING,
+    /** Terminal, remembered, one finding. */
+    PORCELAIN_ASSET_MISSING,
+    /** Terminal, remembered, one finding. */
+    PORCELAIN_ASSET_ERROR
+};
+
+enum PorcelainDerivedState
+{
+    PORCELAIN_DERIVED_READY = 0,
+    PORCELAIN_DERIVED_PENDING,
+    /** Terminal and one finding. A Skin whose image is FAILED is not emitted:
+     *  the masks that never built left a square minimap in a round window. */
+    PORCELAIN_DERIVED_FAILED
+};
+
+/** RuneLite's four thresholds. @see ToriRS_PorcelainApi::tier */
+struct PorcelainTiers
+{
+    int64_t low, medium, high, insane;
+};
+
+enum PorcelainTier
+{
+    PORCELAIN_TIER_NONE = 0,
+    PORCELAIN_TIER_LOW,
+    PORCELAIN_TIER_MEDIUM,
+    PORCELAIN_TIER_HIGH,
+    PORCELAIN_TIER_INSANE
+};
+
+/** @see ToriRS_PorcelainApi::setting */
+enum PorcelainSettingFlags
+{
+    /** The row's checkbox is drawn as 1 - varbit: a varbit of 0 is ticked. */
+    PORCELAIN_SETTING_INVERTED = 1u << 0
+};
+
+/* ------------------------------------------------------------------------ */
+/* The overlay verbs                                                        */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * What one draw callback may draw on, and where an element sits on it.
+ *
+ * `bounds` and `clip` are the callback's own, pass-local: the engine sets a
+ * draw region for all three passes (DRAW_WORLD, DRAW_CANVAS, PANEL_DRAW), and
+ * a builder coordinate is relative to it.
+ *
+ * `element` is a CANVAS-space answer, and it is only in the pass's own
+ * coordinates when the pass IS the canvas -- which the world and canvas
+ * passes are, at origin zero, and a panel well is not. `canvas_space` says
+ * which, rather than leaving a caller to clamp a canvas rectangle against a
+ * well's local one and flip its tooltip over the minimap.
+ *
+ * There is deliberately NO `usable` here, and there was for one release.
+ *
+ * Nothing read it. Every caller of this verb is an overlay clamping a drawing
+ * to the pass it was handed, and the usable canvas is a PLACEMENT area -- the
+ * frame root less a docked lane strip -- which is a frame provider's
+ * question, asked with Porcelain_Usable. Deriving it here charged that
+ * question to every caller of a verb they took for `bounds`: subtracting a
+ * strip means asking whether there IS one, which means four lane-chrome
+ * watches this caller never mentioned, on a lane that mostly has none.
+ */
+struct PorcelainDrawContext
+{
+    struct ToriRS_Rect bounds;
+    struct ToriRS_Rect clip;
+    /** The stated element's box. Zero when none was stated, it is not bound,
+     *  or this pass is not in canvas space. */
+    struct ToriRS_Rect element;
+    bool element_bound;
+    bool canvas_space;
+};
+
+/*
+ * Which container a hovered cell belongs to.
+ *
+ * An inventory cell, a worn slot and a bank cell are three different hovers,
+ * and a key built from the obj alone makes a bank tooltip out of an inventory
+ * one. The three named rungs are the ones the portable vocabulary can answer
+ * -- PANEL("inventory"), PANEL("equipment"), PANEL("bank") -- and a lane
+ * whose profile declares no such panel answers OTHER, carrying
+ * `container_id`, so two containers this vocabulary cannot name are still two
+ * keys.
+ */
+enum PorcelainContainer
+{
+    /** The row is not about a container cell at all. */
+    PORCELAIN_CONTAINER_NONE = 0,
+    PORCELAIN_CONTAINER_INV,
+    PORCELAIN_CONTAINER_WORN,
+    PORCELAIN_CONTAINER_BANK,
+    PORCELAIN_CONTAINER_OTHER
+};
+
+/** The hovered cell, as the menu build answered it. @see PorcelainContainer */
+struct PorcelainHover
+{
+    int obj;
+    enum PorcelainContainer container;
+    /** The cell's own `(interface << 16) | component`. Part of every key. */
+    int container_id;
+    int slot;
+    /** The Porcelain frame this was stamped in. */
+    uint32_t frame;
+};
+
+/*
+ * The CS2 caption hook's three states.
+ *
+ * SUPPRESSING: the lane has the hook, the cache's own label widgets are being
+ * hidden, and the plugin's own captions stand in for them.
+ * FORMATTING: the hook has fired once, so the natives carry the plugin's
+ * fields and the suppression is handed back.
+ * ABSENT: this lane has no such hook. ONE finding, and the callback never
+ * fires -- an overlay that quietly did nothing is the class this replaces.
+ */
+enum PorcelainNativeOverlayState
+{
+    PORCELAIN_NATIVE_OVERLAY_ABSENT = 0,
+    PORCELAIN_NATIVE_OVERLAY_SUPPRESSING,
+    PORCELAIN_NATIVE_OVERLAY_FORMATTING
+};
+
+/* ------------------------------------------------------------------------ */
+/* Panels: the row model                                                    */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Which of a plugin's two faces one description covers.
+ *
+ * The page and the settings form are two destinations, and the host clears
+ * and re-declares when it changes which one it is showing. A description that
+ * covers a face is emitted there; a face it does not cover is left to the
+ * host, which presents the form generated from the plugin's config schema --
+ * exactly what a plugin with no settings handler has always got.
+ */
+enum PorcelainFace
+{
+    PORCELAIN_FACE_PAGE = 1u << 0,
+    PORCELAIN_FACE_SETTINGS = 1u << 1
+};
+#define PORCELAIN_FACE_BOTH (PORCELAIN_FACE_PAGE | PORCELAIN_FACE_SETTINGS)
+
+/*
+ * A row kind. This is the panel vocabulary every executor presents natively,
+ * named once here so a Porcelain plugin never reaches for the host's widget
+ * enum and never picks between `builder->node` and the eight shorthands.
+ */
+enum PorcelainRowKind
+{
+    PORCELAIN_ROW_HEADING = 0,
+    PORCELAIN_ROW_PARAGRAPH,
+    PORCELAIN_ROW_LABEL,
+    PORCELAIN_ROW_KEY_VALUE,
+    PORCELAIN_ROW_TOGGLE,
+    PORCELAIN_ROW_SELECT,
+    PORCELAIN_ROW_BUTTON,
+    PORCELAIN_ROW_ACTION_ROW,
+    PORCELAIN_ROW_SEPARATOR,
+    PORCELAIN_ROW_PROGRESS,
+    PORCELAIN_ROW_CUSTOM,
+    PORCELAIN_ROW_KIND_COUNT
+};
+
+/** What a person did to one row. `kind` is a ToriRS_PanelActionKind. */
+struct PorcelainRowAction
+{
+    char const* key;
+    int kind;
+    int value;
+    /** Never NULL. For a SELECT pick this is the stable VALUE, not a label. */
+    char const* text;
+    /** CUSTOM-well-local logical coordinates; 0 for an ordinary row. */
+    int x, y;
+};
+
+typedef void (*PorcelainRowActionFn)(struct ToriRS_Api* api, void* user,
+                                     struct PorcelainRowAction const* action);
+/** One CUSTOM well's paint pass, routed by key from the plugin's on_ui_draw. */
+typedef void (*PorcelainRowPaintFn)(struct ToriRS_Api* api, void* user, char const* key,
+                                    struct ToriRS_Graphics* draw);
+
+/*
+ * One described row.
+ *
+ * A zeroed PorcelainRow is a legal, live HEADING with no text -- which is why
+ * the inert spelling is `disabled` and not the plan's `enabled`. A row model
+ * whose zero value is an inert button would have reproduced, in the verb that
+ * replaces it, exactly the silent no-op the host fix H2 had to remove.
+ *
+ * `label` is DECLARATION IDENTITY for KEY_VALUE, TOGGLE, SELECT and
+ * ACTION_ROW, because the host builds those from `label` and its patch path
+ * cannot restate one; changing it is a rebuild and Porcelain says so. For
+ * HEADING, PARAGRAPH, LABEL and BUTTON the string travels as the row's text,
+ * which IS patched, so either spelling works and neither costs a rebuild.
+ */
+struct PorcelainRow
+{
+    /** Stable identity, and the id every action and setter names. */
+    char const* key;
+    enum PorcelainRowKind kind;
+    char const* label;
+    char const* text;
+    /** TOGGLE: the checked state. PROGRESS: the bar. Unread elsewhere. */
+    int value;
+    /** SELECT. Copied: the caller's array may be a stack local. */
+    struct ToriRS_SelectOption const* options;
+    int option_count;
+    /** CUSTOM: the well's logical height. */
+    int height;
+    /** BUTTON: drawn dim, and the HOST refuses the activation -- which is
+     *  the half that holds for every presenter rather than only the one that
+     *  draws, so Porcelain states the flag and does not gate the route. */
+    bool disabled;
+    /**
+     * CUSTOM: the y-to-item identity.
+     *
+     * The strip is ONE control, so a click is arithmetic on the order that
+     * was PAINTED. When that order changes, the row takes a new input
+     * identity and a click queued against the old picture is refused --
+     * without the page, the scroll, or any other row's retained run moving.
+     * A value change must NOT be in this hash, or every readout costs an
+     * identity.
+     */
+    uint64_t hit_key;
+    /**
+     * CUSTOM: what the next paint will draw.
+     *
+     * A well is one control and its picture is retained, so a readout that
+     * changed inside it moves no property the host can see: the height is the
+     * same, the identity is the same, and nothing repaints. This is the hash
+     * of whatever the paint reads, and a change to it is one panel.redraw on
+     * that row -- which is how a tracker restates six figures twice a second
+     * without touching the page.
+     */
+    uint64_t paint_key;
+    PorcelainRowActionFn on_action;
+    /**
+     * CUSTOM: a SECONDARY click in the well, at `action->x`/`y`.
+     *
+     * Its own slot and not a kind `on_action` has to switch on, because the
+     * two are different questions about the same control and a row that wants
+     * only clicks must not silently treat a right click as one -- which is
+     * exactly what folding MENU into on_action would do to every row already
+     * written. A row with no on_menu declines the click; the host swallows it
+     * either way, so nothing underneath the page sees it.
+     *
+     * This is the channel the loot tracker's band operations (collapse,
+     * expand, clear, ignore) and cell operations (check, ignore) had no home
+     * for: a well is ONE control, so without a button in the event they had
+     * to be buttons standing under a selected row.
+     */
+    PorcelainRowActionFn on_menu;
+    PorcelainRowPaintFn paint;
+    void* user;
+};
+
+/**
+ * Which way a root runs its sidebar tabs. @see ToriRS_PorcelainApi::tab_group
+ *
+ * Both, and not one, because the two shipped roots disagree: 548 and 161 lay
+ * their stones out in horizontal ROWS and 601 stacks them in two vertical
+ * COLUMNS, and a frame that asks the wrong way round gets one group holding
+ * everything. A root answers both questions; the frame asks the one its own
+ * rail is shaped like.
+ */
+enum PorcelainTabAxis
+{
+    PORCELAIN_TAB_ROWS = 0,
+    PORCELAIN_TAB_COLUMNS
+};
+
+typedef void (*PorcelainDescribeFn)(struct ToriRS_PorcelainDescribe* describe, void* user);
+/*
+ * `elapsed_ms` is the REAL time since this timer last fired, not the interval
+ * it asked for. A frames-per-second figure is drawn_delta * 1000 / elapsed,
+ * and a clock that assumed its nominal interval printed a number that was
+ * wrong by however much the frame budget slipped.
+ */
+typedef void (*PorcelainTickFn)(struct ToriRS_Api* api, void* user, uint64_t elapsed_ms);
+typedef void (*PorcelainReadyFn)(struct ToriRS_Api* api, void* user, unsigned what);
+typedef void (*PorcelainEdgeFn)(struct ToriRS_Api* api, void* user, bool down);
+/** Fill `argb` (w*h pixels) and return true. False is a terminal FAILED. */
+typedef bool (*PorcelainPaintFn)(struct ToriRS_Api* api, void* user, uint32_t* argb, int w, int h);
+/** The lane's own caption script, once the latch has handed the natives back.
+ *  False is a parse refusal: one finding, the latch unchanged. */
+typedef bool (*PorcelainScriptFn)(struct ToriRS_Api* api, void* user,
+                                  struct ToriRS_ScriptEvent const* event);
+/** Parse a shipped data file. False is one finding; the bytes are released
+ *  either way, because a table is read once and lives in the plugin. */
+typedef bool (*PorcelainParseFn)(struct ToriRS_Api* api, void* user, void const* data,
+                                 size_t size);
+
+/*
+ * The describe builder. Handed to the describe function and legal only inside
+ * it; every verb on it asserts that. Items are applied in DESCRIPTION ORDER
+ * and a later item is over an earlier one by default -- which is the linear
+ * anchor chain both frame providers build by hand today and the sketch's
+ * "OVER or BEHIND one element" could not state.
+ */
+struct ToriRS_PorcelainDescribe
+{
+    uint32_t struct_size;
+    void* implementation;
+    /** The handle this run belongs to, for the element and helper verbs. */
+    struct Porcelain* porcelain;
+
+    /** image + op + hit box. */
+    void (*control)(struct ToriRS_PorcelainDescribe* describe, struct PorcelainItem const* item);
+    /** image, no op, no hit box. */
+    void (*piece)(struct ToriRS_PorcelainDescribe* describe, struct PorcelainItem const* item);
+    /** text in an explicit box. */
+    void (*text)(struct ToriRS_PorcelainDescribe* describe, struct PorcelainItem const* item);
+    /** an invisible, armed hit box. */
+    void (*blocker)(struct ToriRS_PorcelainDescribe* describe, char const* key, char const* label,
+                    struct PorcelainPlacement place, int w, int h, PorcelainOpFn on_op, void* user);
+
+    /* Element edits. Retained while described, released when not
+     * re-described -- moves included: there is no pre-claim snapshot in the
+     * engine, so the diff is the only thing that undoes a move. */
+    void (*move)(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element,
+                 struct ToriRS_WidgetBounds box, int anchor_modes);
+    /** A presentation hide. Never an unhide: native hide is authoritative. */
+    void (*hide)(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element);
+    /**
+     * Where a NATIVE element sits in the draw order.
+     *
+     * `move` states a box and nothing else, and for an overlay that is the
+     * whole of what it needs. A frame PROVIDER needs the other half and had
+     * no way to say it: it draws its own surround at canvas coordinates under
+     * the clipping root, so every piece of that surround is after the lane's
+     * own subtree, and the chat, the map, the panels and the orb block have
+     * to come back above it. That is one `set_anchor` per surface and the old
+     * providers each wrote it by hand.
+     *
+     * `over` of kind NONE means "above everything this plugin owns", which is
+     * the frame provider's actual sentence and the only one it can say: a
+     * depth target is an ELEMENT and an owned control is not in the element
+     * vocabulary, so "over the last piece of my chrome" is otherwise
+     * unstateable. Any other `over` is an ordinary element, and -- as with an
+     * item's `place.depth` -- it must PAINT and not merely bind, or the
+     * anchor falls back and the provider is told it lost.
+     *
+     * Undone by the diff like every other edit: an element no longer raised
+     * goes back to its native order.
+     */
+    void (*raise)(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element,
+                  struct PorcelainElement over, bool behind);
+    /** Independent halves: either may be NULL to leave that half alone. */
+    void (*skin)(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element,
+                 char const* image, char const* mask);
+    void (*opacity)(struct ToriRS_PorcelainDescribe* describe, struct PorcelainElement element,
+                    int opacity);
+    /** This plugin's feature cannot run on this lane. One finding, no items. */
+    void (*unsupported)(struct ToriRS_PorcelainDescribe* describe, char const* reason);
+
+    /* Panel rows. Described in order; the ordered (key, kind, identity label)
+     * sequence IS the page's declaration, and a change to it is the one
+     * legitimate rebuild. Everything else is a setter on the row it names. */
+    void (*row)(struct ToriRS_PorcelainDescribe* describe, struct PorcelainRow const* row);
+    /** Mint ONE row a new serial: growth without a page rebuild. Legal only
+     *  for a key described in this same run. */
+    void (*reidentify)(struct ToriRS_PorcelainDescribe* describe, char const* key);
+};
+
+/*
+ * The namespace. Every verb takes the plugin's Porcelain handle, so one
+ * process may hold many and arbitration between them is by open order, which
+ * is the host's event order.
+ */
+struct ToriRS_PorcelainApi
+{
+    uint32_t struct_size;
+
+    /* ---------------------------------------------------------- lifecycle */
+    struct Porcelain* (*open)(struct ToriRS_Api* api, struct ToriRS_PluginDef const* def,
+                              void* state);
+    /** Removes every owned control, releases every image, resets every edit,
+     *  and relinquishes every claim. NULL is accepted: this is a deallocator. */
+    void (*close)(struct Porcelain* porcelain);
+    /** One describe function per plugin. Replacing it invalidates. */
+    void (*describe)(struct Porcelain* porcelain, PorcelainDescribeFn fn, void* user);
+    /**
+     * Re-run describe at the NEXT fence. == note(PORCELAIN_INPUT_EXPLICIT).
+     *
+     * Legal from inside a describe, and it means there exactly what it means
+     * outside one: the description being written is still the description
+     * this fence reconciles, and the re-run happens at the next fence. It
+     * used to re-run the describe inside the SAME fence and reconcile that
+     * second pass instead, which discarded the description that asked.
+     */
+    void (*invalidate)(struct Porcelain* porcelain);
+    /** One of this plugin's inputs moved. @see PorcelainInput */
+    void (*note)(struct Porcelain* porcelain, enum PorcelainInput input);
+    /** Reconcile this plugin: re-describe if an input moved, diff, stage the
+     *  setters. Called once per frame, from on_frame_start. */
+    void (*fence)(struct Porcelain* porcelain);
+    /** Flush every fenced plugin with EXACTLY ONE widgets.revalidate. Called
+     *  once per frame after the last plugin has fenced; a `fence` that finds
+     *  an unflushed epoch flushes it first and records a budget finding. */
+    void (*commit)(struct ToriRS_Api* api);
+    /** Drop every claim this plugin holds, at the fence, before arbitration
+     *  runs again. A frame provider whose offer is released calls this, or a
+     *  provider switch hands the outgoing provider all eight surfaces. */
+    void (*relinquish)(struct Porcelain* porcelain);
+
+    /* ----------------------------------------------- elements and counting */
+    /** True when BOUND. Legal inside describe, where it also registers the
+     *  watch dependency that makes the describe re-run when the element
+     *  changes. `out` is filled whatever the bind state. */
+    bool (*element)(struct Porcelain* porcelain, struct PorcelainElement element,
+                    struct PorcelainElementState* out);
+    /** How many members this lane has: CHAT_FILTER 8 or 4, TAB 14 or 13,
+     *  LANE_CHROME 0..2, ORB 4 or 0. Lane DATA, never a lineage guess. */
+    int (*count)(struct Porcelain* porcelain, enum PorcelainElementKind family);
+
+    /* --------------------------------------------- the direct motion path */
+    /** From on_frame_start. The key must be in the applied description. Each
+     *  field is compare-then-set; the single revalidate is `commit`'s. */
+    enum ToriRS_Result (*set)(struct Porcelain* porcelain, char const* key,
+                              struct PorcelainMotion const* motion);
+
+    /* ------------------------------------------------------------ findings */
+    int (*findings)(struct Porcelain* porcelain, struct PorcelainFinding* out, int capacity);
+    /** Declare that this lane does not have `element`. Legal at any time --
+     *  the honest source is the element STATE, which is PENDING at on_start,
+     *  so a plugin that only wants to excuse a REAL absence must be able to
+     *  say so at the fence where the absence is first reported. Still
+     *  bidirectional: a declared-absent element that BINDS is a failure. */
+    void (*expect_absent)(struct Porcelain* porcelain, struct PorcelainElement element,
+                          char const* why);
+    /** Declare that `feature` cannot run on this lane. One expected finding,
+     *  and every later UNSUPPORTED finding naming that feature is expected
+     *  too -- which is what makes "declare rather than go quiet" reachable
+     *  for a limitation that is not an element absence known at on_start. */
+    void (*expect_unsupported)(struct Porcelain* porcelain, char const* feature,
+                               char const* why);
+    bool (*has)(struct Porcelain* porcelain, char const* capability);
+    /** False turns the feature off and records ONE finding naming it. */
+    bool (*require)(struct Porcelain* porcelain, char const* capability, char const* feature);
+
+    /* ------------------------------------------------------------- helpers */
+    /** Pure. Strictly greater at every threshold; a threshold at or below zero
+     *  disables its tier. Both shipped plugins disagreed with the reference
+     *  and with each other on exactly these two rules. */
+    int (*tier)(struct PorcelainTiers const* tiers, int64_t value);
+    /** The CALLER's own four keys. No cross-plugin config read exists. */
+    bool (*tiers_from_config)(struct Porcelain* porcelain, struct PorcelainTiers* out);
+    /** Measure before joining. Over the value ceiling: refuse, leave the
+     *  stored list unchanged, one finding. Never truncate -- a tag list cut
+     *  mid-id stores a wrong species and reads back as one. */
+    bool (*config_list_add)(struct Porcelain* porcelain, char const* key, char const* item);
+    /** Subject and intended operation both frozen into the retained menu row,
+     *  so a recycled slot cannot retarget or invert it. */
+    uint32_t (*menu_tag)(int subject, int op);
+    /** A named varbit read as a setting. Absent is OFF with ONE finding
+     *  across many reads. @see PorcelainSettingFlags */
+    bool (*setting)(struct Porcelain* porcelain, char const* varbit_name, unsigned flags);
+    /** The same named row read as a NUMBER -- a slider, a count, a coord --
+     *  spelled `varbit:<name>`, `varp:<name>` or a bare name for a varbit.
+     *  `absent` is the CALLER's answer for a row this profile does not
+     *  declare, and it is always that feature's OFF answer: a value read off
+     *  a var that does not exist would be a silent zero. The resolved id is
+     *  memoised for the handle's life -- what a profile declares cannot
+     *  change under it, and the shipped builtins were re-asking per spawn. */
+    int (*setting_value)(struct Porcelain* porcelain, char const* name, int absent);
+    /** A key edge named by a config key, whose value may be a name, a decimal
+     *  key code or a single character. ABSENT on a touch lane, with one
+     *  finding: the feature reports itself off instead of appearing to work.
+     *  The edge comes from note_key, not from a fence poll -- a poll cannot
+     *  see a press that opens and closes inside one frame. */
+    bool (*key_edge)(struct Porcelain* porcelain, char const* config_key, PorcelainEdgeFn fn,
+                     void* user);
+    /** The plugin forwarding its own on_key. */
+    void (*note_key)(struct Porcelain* porcelain, int key, bool down);
+    /** Requested on first use, released after several unused describe runs.
+     *  Terminal states are remembered and are one finding. */
+    struct ToriRS_ImageRef (*image)(struct Porcelain* porcelain, char const* name,
+                                    enum PorcelainAssetState* out_state);
+    /** The picture's own size, so an item can ask for it instead of reaching
+     *  past the layer to api->assets for the handle the layer just gave it.
+     *  False while the asset is not READY. */
+    bool (*image_size)(struct Porcelain* porcelain, char const* name, int* out_width,
+                       int* out_height);
+    struct ToriRS_ModelRef (*model)(struct Porcelain* porcelain, char const* name,
+                                    enum PorcelainAssetState* out_state);
+    /** Painted at most once per (key, hash of inputs). Keys never include a
+     *  host revision: an icon_revision that bumps on every miss never settles. */
+    struct ToriRS_ImageRef (*derived)(struct Porcelain* porcelain, char const* key,
+                                      void const* inputs, size_t inputs_len, int w, int h,
+                                      PorcelainPaintFn paint, void* user,
+                                      enum PorcelainDerivedState* out_state);
+    /** Fires once when every named bit holds, and again after a re-login. */
+    void (*when_ready)(struct Porcelain* porcelain, unsigned what, PorcelainReadyFn fn,
+                       void* user);
+    void (*every)(struct Porcelain* porcelain, enum PorcelainCadence cadence, PorcelainTickFn fn,
+                  void* user);
+    /** == every(PORCELAIN_SERVER_TICK, ...). The server tick fires on every
+     *  lane; there is no synthesised cadence. */
+    void (*every_server_tick)(struct Porcelain* porcelain, PorcelainTickFn fn, void* user);
+    /** Re-registering the same (fn, user) RE-INTERVALS in place; it does not
+     *  append. A user dragging a refresh slider leaked a timer slot per
+     *  change and then hit the budget. */
+    void (*every_ms)(struct Porcelain* porcelain, int ms, PorcelainTickFn fn, void* user);
+    /** Drop the timer registered for this (fn, user). */
+    void (*cancel_every)(struct Porcelain* porcelain, PorcelainTickFn fn, void* user);
+    /** The plugin forwarding its own tick callback. FRAME fires from `fence`
+     *  and needs no forwarding. */
+    void (*tick)(struct Porcelain* porcelain, enum PorcelainCadence cadence);
+
+    /* ------------------------------------------------------- the overlays */
+    /** The drawable rect of the pass now running, plus one element's box in
+     *  the pass's own coordinates. False when the pass set no region. */
+    bool (*draw_context)(struct Porcelain* porcelain, struct ToriRS_Graphics* draw,
+                         struct PorcelainElement element, struct PorcelainDrawContext* out);
+    /** menu.add, with the refusal turned into a finding. The bool is still
+     *  returned, because a caller that must stop adding rows still may. */
+    bool (*menu_add)(struct Porcelain* porcelain, struct ToriRS_MenuBuildEvent* menu,
+                     char const* text, uint32_t action_id);
+    /** From on_menu_build. Stamps the hovered cell on the hover pass, and
+     *  arms the menu budget. A right-click pass is not a hover. */
+    void (*note_menu)(struct Porcelain* porcelain, struct ToriRS_MenuBuildEvent const* menu);
+    /** The hovered cell, if the last menu build was this frame or the last.
+     *  The one-frame liveness window, written once. */
+    bool (*hover)(struct Porcelain* porcelain, struct PorcelainHover* out);
+    /** The suppress-then-format latch over a lane's own caption script. */
+    void (*native_overlay)(struct Porcelain* porcelain, char const* labels_role,
+                           char const* callback, PorcelainScriptFn fn, void* user);
+    /** From on_script_callback. Drives the latch and routes to the plugin. */
+    void (*note_script)(struct Porcelain* porcelain, struct ToriRS_ScriptEvent const* event);
+    /** Read, parse and release a shipped data file, once. One finding when it
+     *  is absent, errored, or the parse refuses it. */
+    bool (*table)(struct Porcelain* porcelain, char const* asset, PorcelainParseFn parse,
+                  void* user);
+    /** One announcement per (kind, subject) per frame: a stack of twelve
+     *  bones spawning is one line, not twelve. */
+    void (*notify)(struct Porcelain* porcelain, char const* kind, int subject, char const* text);
+    /* --------------------------------------------------------------- panels */
+    /** on_start ONLY: register the shared pane and say which faces this
+     *  plugin's description covers. A refused registration is a finding. */
+    void (*panel)(struct Porcelain* porcelain, char const* icon_asset, int width,
+                  unsigned faces);
+    /** The plugin forwarding on_ui_build. Emits the described rows for this
+     *  face, or nothing at all where the face is not one it covers. */
+    void (*panel_build)(struct Porcelain* porcelain, struct ToriRS_PanelBuilder* builder,
+                        int view);
+    /** The plugin forwarding on_ui_action. True when a described row took it. */
+    bool (*panel_action)(struct Porcelain* porcelain,
+                         struct ToriRS_PanelActionEvent const* event);
+    /** The plugin forwarding on_ui_draw. True when a described CUSTOM row
+     *  painted it. */
+    bool (*panel_draw)(struct Porcelain* porcelain, char const* node,
+                       struct ToriRS_Graphics* draw);
+    /** The HOST's copy of ONE row drifted from the description -- a refused
+     *  pick, which the host committed before it dispatched. That row's
+     *  setters, and nothing else: no page, no serial, no scroll. */
+    void (*panel_restate)(struct Porcelain* porcelain, char const* key);
+    /** The reader's place. -1 when no page of this plugin's is up, which is
+     *  distinct from 0 -- the top of one that is. */
+    int (*panel_scroll)(struct Porcelain* porcelain);
+    void (*panel_scroll_to)(struct Porcelain* porcelain, int scroll);
+
+    /* ------------------------------------- the refusals and the partners */
+    /** draw->world_hull with both of its refusals made loud. The engine's
+     *  world_hull was declared to answer a result and answered OK
+     *  unconditionally; what that cost was half the outlines in a mass of
+     *  tagged npcs, gone, with the plugin still reporting itself armed.
+     *  False means nothing was drawn and a finding says which refusal. */
+    bool (*hull)(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int element_id,
+                 uint32_t rgb, int alpha, int shape);
+    /** draw->world_tile with its budget refusal made loud. A tile marker is
+     *  drawn per tile of a footprint, so the 512-item frame allotment is
+     *  reached by multiplication and not by accident; the host has logged
+     *  that for a while and nothing could read it. */
+    bool (*tile)(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int tile_x,
+                 int tile_z, int level, uint32_t fill_rgb, uint32_t outline_rgb,
+                 int outline_width, int alpha, int depth);
+    /** A plugin's OWN finding, coalesced on (verb, element, result) like
+     *  every other. `result` is a PorcelainFindingResult and may not be OK. */
+    void (*finding)(struct Porcelain* porcelain, char const* verb,
+                    struct PorcelainElement element, int result, char const* detail);
+    /** The inverse of menu_tag. Without it every consumer spells the 16 by
+     *  hand, and raising it would silently re-target every retained row. */
+    void (*menu_untag)(uint32_t tag, int* out_subject, int* out_op);
+    /** Is this key held NOW, asked where the question is asked. `key` is the
+     *  edge form's VALUE vocabulary -- a name, a decimal code, or a single
+     *  character -- not a config key. */
+    bool (*key_down)(struct Porcelain* porcelain, char const* key);
+    /** Take one item out of a stored list. Absent is true and costs no
+     *  write. */
+    bool (*config_list_remove)(struct Porcelain* porcelain, char const* key, char const* item);
+    /** State the whole list: sorted, deduplicated, refused rather than
+     *  truncated. */
+    bool (*config_list_set)(struct Porcelain* porcelain, char const* key,
+                            char const* const* items, int count);
+    /* ---- Frames ---------------------------------------------------------
+     *
+     * A frame provider publishes its offers in ToriRS_PluginDef.frames, as it
+     * always did -- the host resolves auto/native before the provider starts,
+     * so registration order cannot change which offer is asked for. What
+     * these two add is the half the plugins wrote by hand: one describe
+     * function per offer, and a reconcile that owns the release.
+     */
+
+    /** Bind `offer_id` -- an id this plugin's definition publishes -- to the
+     *  description of that frame. Boot only; a second call for the same id
+     *  replaces the binding. `canvas`, `min_width` and `min_height` are what
+     *  the offer said, restated here so a description can be checked against
+     *  the canvas it was written for. */
+    void (*frame)(struct Porcelain* porcelain, char const* offer_id, int canvas,
+                  int min_width, int min_height, PorcelainDescribeFn fn, void* user);
+
+    /** The plugin forwarding its own on_gameframe. Returns a
+     *  ToriRS_FrameBuildResult and writes event->reason.
+     *
+     *  Not installed by the layer: Porcelain is a library reached from the
+     *  plugin's own callbacks and ToriRS_PluginDef is const, so the event is
+     *  handed over rather than intercepted. A RELEASE (event->active false)
+     *  runs a describe that stages nothing, which is what takes the frame's
+     *  moves, hides, skins and owned art back off -- the shipped providers
+     *  both leave a dressing behind on a provider switch because their
+     *  undress runs from on_frame_start and they never get another one. */
+    int (*frame_event)(struct Porcelain* porcelain,
+                       struct ToriRS_GameframeEvent const* event);
+
+    /** The canvas a frame may lay out in: the frame root's box, less a
+     *  LANE_CHROME strip that is PRESENTED and spans a full edge. False
+     *  before anything of this lane has bound. */
+    bool (*usable)(struct Porcelain* porcelain, struct ToriRS_WidgetBounds* out);
+
+    /** The box the LANE authored for `element`, before any plugin edit.
+     *
+     *  By ELEMENT and not by a surface number: the plugin-private enum passed
+     *  straight into frame.surface_native_size as the API's TORIRS_SURFACE_*
+     *  is a live defect, and the two numberings differ. A member element
+     *  answers block-relative x and y; a whole surface answers 0, 0. */
+    bool (*native_size)(struct Porcelain* porcelain, struct PorcelainElement element,
+                        struct ToriRS_WidgetBounds* out);
+
+    /** The number THIS lane's own icon set gives `tab`, or -1 where the lane
+     *  numbers no panel there. The files are the frame's own art; what the
+     *  lanes disagree about is the numbering. */
+    int (*lane_icon)(struct Porcelain* porcelain, struct PorcelainElement tab);
+
+    /** How many rows (or columns) of tab stones this root lays out. */
+    int (*tab_group_count)(struct Porcelain* porcelain, int axis);
+    /** The tabs of one group, in the root's own order. Returns how many were
+     *  written; a capacity smaller than the group is a budget finding. */
+    int (*tab_group)(struct Porcelain* porcelain, int axis, int group,
+                     struct PorcelainElement* out, int capacity);
+    /** The tab this root hangs outside every group (164's and 601's logout),
+     *  or an element of kind PORCELAIN_EL_NONE where there is none. */
+    struct PorcelainElement (*tab_detached)(struct Porcelain* porcelain);
+
+    /* ------------------------------------------------------------ counters */
+    /**
+     * Engine calls and allocations this handle has made since the last reset.
+     * @see struct PorcelainCounters in plugin/porcelain/torirs_porcelain.h.
+     *
+     * On the vtable and not only as a direct symbol because a plugin that
+     * cannot READ these cannot pin its own steady state: without them the
+     * best a port's test can do is assert against a stand-in reconciler it
+     * wrote itself, which pins the stand-in and not the layer.
+     */
+    void (*counters_read)(struct Porcelain* porcelain, struct PorcelainCounters* out);
+    void (*counters_reset)(struct Porcelain* porcelain);
+
+    TORIRS_API_V2_MODULE_RESERVED;
+};
+
 /* The coordinated major-3 migration may change this aggregate. */
 struct ToriRS_Api
 {
@@ -948,7 +2276,12 @@ struct ToriRS_Api
      * any field known to 2.0. Check minor_version before requiring either. */
     struct ToriRS_ClientApi const* client;
     struct ToriRS_GameApi const* game;
-    uintptr_t reserved_v2[TORIRS_DESCRIPTOR_V2_RESERVED_WORDS - 2];
+    /* The Porcelain layer, or NULL in a host that did not install it. A
+     * pointer and not an embedded namespace for the same reason `client` and
+     * `game` are: the table is a static const belonging to a LIBRARY, not to
+     * the runtime, so the host only has to know where it is. */
+    struct ToriRS_PorcelainApi const* porcelain;
+    uintptr_t reserved_v2[TORIRS_DESCRIPTOR_V2_RESERVED_WORDS - 3];
 };
 
 /* ------------------------------------------------------------------------ */

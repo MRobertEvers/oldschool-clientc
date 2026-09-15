@@ -1,0 +1,37 @@
+# <shot-name> <plugin-id> <lane> [ENV=value ...] [-- cfg=value ...]
+#
+# EH-NO-POSITIVE-DIAGNOSTIC, photographed. The entity highlighter printed
+# exactly one line in its life -- the on_start "no porcelain layer" failure --
+# so a tag list from the wrong cache drew nothing, logged nothing, and made the
+# same log and the same picture as a working plugin. It now reports its own
+# reading out of on_draw_world, and these four rows are the four states that
+# reading distinguishes, two of which are pixel-identical to each other.
+#
+# Take them as two PAIRS on the same binary: only script/plugins differs, so
+# TORIRS_SHOT_WORKTREE picks the side and one build is honestly both.
+
+# Alive. Six osrs239 ids that the Lumbridge fixture actually contains.
+#   before: nothing in the log at all
+#   after:  "6 hull(s) over 6 tagged npc(s) of 16 in scene; 6 species tagged"
+#           then 7 of 30 as the scene fills
+ehdiag4-after-cs2 entity-highlighter cs2 'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108'
+
+# The wrong universe, reproduced on purpose: jobs/cs1live.txt's LOSTCITY ids
+# carried to the osrs239 lane, which is the mirror of the mistake the plugin's
+# header records. Both sides are ZERO #FF00FF pixels and both sides report
+# applied=1, because a tag for a species that is not in front of you is a
+# perfectly valid tag.
+#   before: nothing in the log at all -- indistinguishable from a dead plugin
+#   after:  "0 hull(s) over 0 tagged npc(s) of 16 in scene; 3 species tagged"
+#           -- sixteen npcs were there and not one of them was tagged
+ehwrong-after entity-highlighter cs2 'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,547,781,783'
+
+# The same alive drive with the ENGINE's own trace on, which is the control for
+# reading the pictures above. #FF00FF counts are NOT a stable measurement here:
+# the tagged npcs walk, so the same version photographs 625..857 magenta pixels
+# across runs and the top-left hull is fully in frame in some and clipped to a
+# sliver in others -- ehtrace-after has it and ehtrace-before does not, which is
+# the reverse of the ehdiag4 pair on the same two binaries. PLUGIN_HULL is the
+# stable one, and it is byte-identical between the two sides: the same six
+# element ids, the same shape, the same emitted counts, in the same order.
+ehtrace-after entity-highlighter cs2 'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108' TORIRS_TRACE_PLUGIN_WORLD=1

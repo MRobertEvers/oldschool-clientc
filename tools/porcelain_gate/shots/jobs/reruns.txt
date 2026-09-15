@@ -1,0 +1,40 @@
+# SERIAL ONLY (PAR_JOBS=1).
+#
+# A shot is a whole client with an embedded server in it, and the server
+# announces a disconnect after fifteen seconds without a packet. Under four
+# parallel shots that happened often enough to be the commonest way a capture
+# came back wrong: the player vanishes, the minimap empties, and the picture
+# says "Connection lost / Please wait - attempting to reestablish" in the middle
+# of the viewport. Every run here is one that came back that way, or one whose
+# drive the eval in par.sh ate.
+
+nxthl-hover-cs2 nxt-highlight cs2 TORIRS_SIM_VARBIT=450,13088,1 TORIRS_SIM_MOVE_AT=600,330,120 TORIRS_SIM_HOVER=330,120 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1
+nxthl-tile-cs2 nxt-highlight cs2 TORIRS_SIM_VARBIT=450,12977,1 TORIRS_SIM_RUNSCRIPT=500,5198 TORIRS_SIM_MOVE_AT=600,330,200 TORIRS_SIM_HOVER=330,200 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1
+# The control for the line above, which shipped as a FILE with no drive: its
+# ini and its env had to be reconstructed from the run directory before it could
+# be re-taken. A capture nobody can reproduce from a job row is a capture nobody
+# re-takes, which is half of how the pair stayed pre-fix through two repairs.
+# `none` is plugin_ini.sh's every-plugin-off case, so the only thing that differs
+# from the row above is nxt-highlight, which is what makes it a control.
+nxthl-tile-none-cs2 none cs2 TORIRS_SIM_VARBIT=450,12977,1 TORIRS_SIM_RUNSCRIPT=500,5198 TORIRS_SIM_MOVE_AT=600,330,200 TORIRS_SIM_HOVER=330,200 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_TRACE_NATIVE_UI=1
+itemstats-hover-cs2 item-stats cs2 TORIRS_SIM_HOVER=627,228
+tileind-c-cs2 tile-indicator-c cs2 TORIRS_SIM_HOVER=300,180
+tileind-lua-cs2 tile-indicator-lua cs2 TORIRS_SIM_HOVER=300,180
+
+# An unquoted `;` in a jobs line is a statement separator to par.sh's eval, so
+# the first of these ran with no TORIRS_SIM_CMD at all and the rest of the line
+# became a second, failing command. Quoted now.
+cannon-cs2 nxt-cannon-ammo cs2 'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+cannon-cs1 nxt-cannon-ammo cs1 'TORIRS_SIM_VARBIT=450,14175,1;452,14176,12;454,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+
+# The loot tracker's page with ONE loot event, against the same page with none.
+# The pair is the whole finding: the empty store draws the overview band, the
+# three operation icons and "No loot to display."; one kill and the well goes
+# blank. Same env on both, so the loot is the only difference.
+loottracker-none-cs2 loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+loottracker-one-cs2  loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page 'TORIRS_SIM_CMD=200,lootkill Goblin 995 5000' TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1
+
+# The desktop provider on the 2004 lane, which no preset can ask for: the ini's
+# enabled=1 is not what turns a frame provider on, preferred_frame is.
+gf-desktop-on-cs1 gameframe-layout cs1 TORIRS_SHOT_FRAME=gameframe-layout/classic-fixed
+gf-mobile-on-cs2  mobile-gameframe  cs2 TORIRS_SHOT_FRAME=mobile-gameframe/stone-drawer

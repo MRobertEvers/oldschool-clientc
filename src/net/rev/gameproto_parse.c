@@ -790,6 +790,37 @@ gameproto_parse(
     return 0;
 }
 
+int
+gameproto_packet_may_mutate_ui(enum GameProtoPktName packet_type)
+{
+    if( packet_type >= PKT_NAME_IF_OPENCHAT && packet_type <= PKT_NAME_IF_SETPLAYERMODEL_SELF )
+        return 1;
+
+    switch( packet_type )
+    {
+    case PKT_NAME_TUT_OPEN:
+    case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
+    case PKT_NAME_UPDATE_INV_FULL:
+    case PKT_NAME_UPDATE_INV_PARTIAL:
+    case PKT_NAME_UPDATE_IGNORELIST:
+    case PKT_NAME_CHAT_FILTER_SETTINGS:
+    case PKT_NAME_UPDATE_FRIENDLIST:
+    case PKT_NAME_FRIENDLIST_LOADED:
+    case PKT_NAME_UPDATE_RUNWEIGHT:
+    case PKT_NAME_UPDATE_STAT:
+    case PKT_NAME_UPDATE_RUNENERGY:
+    case PKT_NAME_TRIGGER_ONDIALOGABORT:
+    case PKT_NAME_RUNCLIENTSCRIPT:
+    case PKT_NAME_VARP_SMALL:
+    case PKT_NAME_VARP_LARGE:
+    case PKT_NAME_VARP_SYNC:
+    case PKT_NAME_VARP_RESET:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 void
 gameproto_free(struct RevPacket* p)
 {

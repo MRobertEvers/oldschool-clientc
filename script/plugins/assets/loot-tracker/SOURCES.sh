@@ -15,12 +15,22 @@
 #   script3043  "No loot to display." in fontmetrics_494, also 0xff981f.
 #
 # The fixed overview controls live directly on interface 650. Their graphics
-# are stateful pairs, not decorative approximations:
+# are stateful pairs, not decorative approximations -- and each pair is picked
+# on the varbit that says which state the control is IN, with the op the cache
+# sets beside it naming where a click GOES. script4850, script7188, script7182
+# and script7185 are the four that do the picking, and every file below is
+# named for the STATE its art depicts, not for that op:
 #
-#   4915 / 4916   switch to drop/source view
-#   4912 / 4911   switch to high-alchemy/cache value
-#   4917 / 4919   collapse/expand all categories
-#   4913 / 4914   show/hide ignored entries
+#   4915 / 4916   source view is up / drop view is up          (script4850)
+#   4912 / 4911   the basis is cache value / high alchemy      (script7188)
+#   4917 / 4919   something is expanded / everything is shut   (script7182)
+#   4914 / 4913   ignored entries are shown / hidden           (script7185)
+#
+# Naming them for the op is what the first cut did -- `btn_alch` for the face
+# 4912 wears while the basis is the CACHE value, because clicking it reaches
+# high alchemy -- and it made every ternary in lt_draw_totals read backwards
+# while rendering correctly, which is how the band came to be reported as
+# wearing two conventions at once.
 #
 # The rail icon is the cache popout's Loot Tools graphic. enum_4067 slot 2
 # resolves to struct_4531, whose param_1412 is graphic 4900.
@@ -33,10 +43,10 @@ tools/dump_sprites/dump_sprites --dat2 --rev osrs239 cache.osrs239 \
     "panel_icon=4900:0" \
     "cat_spine=897:0" "cat_spine_ignored=4948:0" \
     "cell=1120:0" "cell_ignored=155:0" \
-    "btn_dropview=4915:0" "btn_sourceview=4916:0" \
-    "btn_alch=4912:0" "btn_cache=4911:0" \
-    "btn_collapse=4917:0" "btn_expand=4919:0" \
-    "btn_ignored=4913:0" "btn_ignored_hide=4914:0"
+    "btn_view_source=4915:0" "btn_view_drop=4916:0" \
+    "btn_value_cache=4912:0" "btn_value_alch=4911:0" \
+    "btn_expanded=4917:0" "btn_collapsed=4919:0" \
+    "btn_ignored_hidden=4913:0" "btn_ignored_shown=4914:0"
 
 # The two faces those scripts set their text in. One WHITE row each: the blit
 # multiplies the ink by a tint, so one bake serves the header orange, the

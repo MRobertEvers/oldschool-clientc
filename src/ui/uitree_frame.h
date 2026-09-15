@@ -68,6 +68,20 @@ int UITree_FrameHasDepth(struct UITree const* tree);
 int UITree_FrameReorder(struct UITree const* tree, struct UITreeHost const* host, void* records, int count,
                        size_t stride, size_t node_offset);
 
+/** Release the reorder's retained plan and scratch. Called from UITree_Free. */
+void UITree_FrameAnchorPlanFree(struct UITree* tree);
+
+/**
+ * Reorder accounting, for tests only -- never a lever and never read by the
+ * pass itself.
+ *
+ * `out_allocations` is the number of heap allocations the plan has ever made:
+ * a steady frame must not move it. `out_iterations` is the loop-step count of
+ * the LAST call, the guard on the pass staying linear.
+ */
+void UITree_FrameReorderStats(struct UITree const* tree, unsigned long* out_allocations,
+                              unsigned long* out_iterations);
+
 /**
  * The number `node` answers to WITHIN its role, or -1 when the role has no
  * numbering of its own.
@@ -139,6 +153,52 @@ int
 UITree_FrameSlotNativeSize(
     struct UITree const* tree,
     int slot,
+    int* out_w,
+    int* out_h);
+
+/**
+ * The box the LANE authored for one MEMBER of `slot`, block-relative.
+ *
+ * UITree_FrameSlotNativeSize above answers for the surface as a whole; this is
+ * the same question asked of the numbered things inside it, and it exists
+ * because a frame that MOVES the block still has to re-seat each member, and
+ * the only numbers it has otherwise are the ones the author happened to read
+ * off one toplevel. 548 draws the world-map globe 30x30 and 601 draws it
+ * 34x34; a plugin that carried 548's numbers onto 601 hung the globe's rim
+ * over the alcove and clipped the wiki banner beside it. The offsets differ the
+ * same way -- the orb pack's own scripts inset the globe and the banner from
+ * the block's right edge by 10 and 8 columns on the fixed toplevel and by
+ * nothing on the resizable ones.
+ *
+ * BLOCK-RELATIVE and not parent-relative: what a frame does is put the BLOCK
+ * somewhere, and what it needs back is where each member sat inside it. The
+ * pack a cache mounts in the block is an intermediate node with a box of its
+ * own, and a caller handed a parent-relative offset would have to rediscover
+ * and add that box itself -- which is the layout arithmetic this call exists
+ * to do once. The offsets are summed up the parent chain from the member to
+ * the slot's own node.
+ *
+ * The AUTHORED numbers, for the reason UITree_FrameSlotNativeSize states: the
+ * resolved ones are whatever a committed plugin frame last moved them to, and
+ * a provider reading those to decide where to place is reading its own answer
+ * back.
+ *
+ * @param member the role's OWN numbering, @see UITree_FrameSlotIndex. -1 is
+ *        not accepted here -- the whole surface is NativeSize's question, and
+ *        it has no offset to report.
+ * @return 1 when the frame has that member and every box between it and the
+ *         block is stated in plain pixels; 0 otherwise -- no such member, a
+ *         member the block does not contain, or a proportional/moded/relative
+ *         box on the way up, whose `width` is a percentage or a delta and
+ *         would be a silently wrong pixel count. Nothing is written on 0.
+ */
+int
+UITree_FrameSlotMemberNativeBox(
+    struct UITree const* tree,
+    int slot,
+    int member,
+    int* out_x,
+    int* out_y,
     int* out_w,
     int* out_h);
 

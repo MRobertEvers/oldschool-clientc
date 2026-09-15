@@ -4,6 +4,7 @@
 #include "perf/torirs_perf.h"
 #include "ui_if3_layout.h"
 #include "uitree_frame.h"
+#include "perf_audit.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -378,8 +379,14 @@ layout_compute_node(
     int const old_w = pos->abs_w;
     int const old_h = pos->abs_h;
 
+    /* Sampled 1-in-64 so the two clock reads do not dominate what they
+     * measure; override_ns is therefore a 64x-scaled estimate. */
+    static uint32_t pa_ov_tick;
+    int const pa_ov_sample = ((pa_ov_tick++ & 63u) == 0);
+    uint64_t const pa_ov0 = pa_ov_sample ? PerfAudit_Now() : 0;
     override = *spec;
     int const widget_override = UITree_WidgetPositionOverride(tree, (int32_t)i, &override);
+    if( pa_ov_sample ) PA_ADD(override_ns, (PerfAudit_Now() - pa_ov0) * 64);
     if( widget_override ) spec = &override;
 
     if( spec->kind == UIPOS_RELATIVE )

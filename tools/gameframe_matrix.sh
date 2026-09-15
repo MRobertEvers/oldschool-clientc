@@ -243,6 +243,9 @@ fi
 
 fail=0
 checks=0
+# How many runs actually reached a toplevel. A set where this is zero rendered
+# nothing at all, and says so loudly at the end rather than reading as a result.
+rooted=0
 printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" TAG TOP FRAME SIZE ROOT FILTERS VERDICT
 while IFS='|' read tag m f s; do
   L=$OUT/$tag/log.txt
@@ -321,8 +324,12 @@ while IFS='|' read tag m f s; do
   [[ -n "${GF_MATRIX_SCENE_OBJECTS:-}" ]] && widget_args+=(--scene-objects "$GF_MATRIX_SCENE_OBJECTS")
   # GF_MATRIX_SCREENSHOT_SAVED=1: a plugin "captured <path>" line whose file exists.
   [[ "${GF_MATRIX_SCREENSHOT_SAVED:-0}" == 1 ]] && widget_args+=(--screenshot-saved)
-  # GF_MATRIX_REPORT_REPLACED=1: the native report control is plugin-hidden (native
-  # hide untouched) and the plugin's camera control sits inside its slot.
+  # GF_MATRIX_PORCELAIN_CLEAN=1: no PORCELAIN_FINDING the plugin did not declare
+  # expected. A Porcelain plugin reports every refusal, so this is the gate that
+  # says a port did not go quiet about one.
+  [[ "${GF_MATRIX_PORCELAIN_CLEAN:-0}" == 1 ]] && widget_args+=(--porcelain-clean)
+  # GF_MATRIX_REPORT_REPLACED=1: the plugin's camera control is anchored REPLACE to
+  # the native report control (the control's own state untouched).
   [[ "${GF_MATRIX_REPORT_REPLACED:-0}" == 1 ]] && widget_args+=(--report-replaced)
   if [[ "$m" == R ]]; then
     python3 "$TOOLS_DIR/gameframe_pixels.py" "$OUT/$tag/out.bmp" --frame "$f" \
@@ -356,6 +363,7 @@ while IFS='|' read tag m f s; do
     v="FRAME NOT ACTIVE"; checks=$((checks+1))
   fi
   [ -z "$rt" ] && { v="NO ROOT"; checks=$((checks+1)); }
+  [ -n "$rt" ] && rooted=$((rooted+1))
   [ -n "$rt" ] && [ "$n" != "$want" ] && { v="FILTERS $n want $want"; checks=$((checks+1)); }
   if [[ -n "${GF_MATRIX_EXPECT_IFACE:-}" ]]; then
     grep -q "EMIT_EXIT.*($GF_MATRIX_EXPECT_IFACE|" "$L" || { v="NO SELECTED TAB PAINT"; checks=$((checks+1)); }
@@ -377,7 +385,29 @@ while IFS='|' read tag m f s; do
   [[ "$checks" != "$before" ]] && fail=$((fail+1))
   printf "%-5s %-4s %-38s %-9s %-5s %-8s %s\n" "$tag" "$m" "$f" "$s" "${rt:--}" "$n" "$v"
 done < "$OUT/index.txt"
-echo "--- $fail failures ($checks checks) / $(wc -l < "$OUT/index.txt" | tr -d ' ') --- captures in $OUT"
+runs=$(wc -l < "$OUT/index.txt" | tr -d ' ')
+echo "--- $fail failures ($checks checks) / $runs --- captures in $OUT"
+echo "--- $rooted of $runs runs reached a toplevel ---"
+#
+# A set that rendered NOTHING is worthless, and it does not look worthless.
+#
+# When the embedded server refuses a stale script pack the client never gets a
+# root, every run exits cleanly, and the table above is a wall of NO ROOT that
+# scrolls past as if it were a result. Three separate agents spent a run each
+# on that before anyone said it out loud, because the one harness that catches
+# this -- the port gate -- prints a tally per lane and this one did not.
+#
+# It is not this script's place to decide the freshness policy, so it does not
+# set TORIRSSERVER_ALLOW_STALE_SCRIPTS itself. It just refuses to let a set
+# that measured nothing be mistaken for a set that measured something.
+if [[ "$rooted" == 0 && "$runs" != 0 ]]; then
+  echo 'EVERY RUN RENDERED NOTHING. This set measures nothing at all.'
+  grep -h 'refusing to run on a stale script pack' "$OUT"/*/log.txt 2>/dev/null | head -1
+  echo 'If the fixture is blocked and you meant to capture anyway, the client'
+  echo 'still needs TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 to boot -- the port'
+  echo 'gate lane runner sets it and this harness deliberately does not.'
+  exit 2
+fi
 [[ -s "$OUT/index.txt" ]] || { echo 'no captures selected'; exit 2; }
 if [[ "${GF_MATRIX_DIAGNOSTIC:-0}" == 1 ]]; then
   echo 'DIAGNOSTIC ONLY: fixture acceptance not established'
