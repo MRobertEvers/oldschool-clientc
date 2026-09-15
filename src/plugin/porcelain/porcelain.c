@@ -195,14 +195,13 @@ Porcelain_FormatElement(struct PorcelainElement element, char* out, size_t capac
  * declaration covers all of them without a second key. Without this, a plugin
  * that honestly said "this lane cannot do X" failed the clean gate for saying
  * so, and going quiet was the only way to pass.
- */
-/*
- * The DECLARATION and not a yes-or-no, because the reason is the half a
- * reader needs. Both lookups used to answer bool, the declaration's `why` was
- * stored by the two expect verbs and read by nothing at all, and an
- * UNSUPPORTED finding therefore named its feature twice -- once as the element
- * and once as the detail -- and never said the cause. Returning the slot costs
- * the same walk and hands the caller both answers.
+ *
+ * It answers with the DECLARATION and not a yes-or-no, because the reason is
+ * the half a reader needs. Both lookups used to answer bool, the `why` the two
+ * expect verbs stored was read by nothing at all, and an UNSUPPORTED finding
+ * therefore named its feature twice -- once as the element and once as the
+ * detail -- and never said the cause. Returning the slot costs the same walk
+ * and hands the caller both answers.
  */
 static struct PorcelainExpectUnsupported*
 porcelain_unsupported_declaration(struct Porcelain* porcelain, char const* detail)
