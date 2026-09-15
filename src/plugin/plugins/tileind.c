@@ -193,6 +193,11 @@ tileind_draw(
             hover_level,
             tileind_config_color(api, "hover_fill_color", 0xFFFFFFu),
             tileind_config_color(api, "hover_color", 0xFFFFFFu),
+            /* This plugin's markers have no thickness setting -- they are an
+             * outline colour, a fill colour and the fill's opacity -- so they
+             * ask for the width every tile border was drawn at before the
+             * thickness was a parameter, and are unchanged by its existing. */
+            TORIRS_TILE_OUTLINE_WIDTH_DEFAULT,
             tileind_config_int(api, "hover_fill_alpha", 0));
 
     if( !api->world.local_player(api, &me) )
@@ -205,6 +210,7 @@ tileind_draw(
         me.level,
         tileind_config_color(api, "true_fill_color", 0x00FFFFu),
         tileind_config_color(api, "true_color", 0x00FFFFu),
+        TORIRS_TILE_OUTLINE_WIDTH_DEFAULT,
         tileind_config_int(api, "true_fill_alpha", 40));
 
     if( !tileind_config_bool(api, "show_dest", true) )
@@ -229,6 +235,7 @@ tileind_draw(
             me.level,
             tileind_config_color(api, "dest_fill_color", 0xFFFF00u),
             tileind_config_color(api, "dest_color", 0xFFFF00u),
+            TORIRS_TILE_OUTLINE_WIDTH_DEFAULT,
             tileind_config_int(api, "dest_fill_alpha", 0));
 }
 

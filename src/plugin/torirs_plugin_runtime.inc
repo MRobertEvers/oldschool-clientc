@@ -2284,6 +2284,7 @@ v2_builder_world_tile(
     int level,
     uint32_t fill_rgb,
     uint32_t outline_rgb,
+    int outline_width,
     int alpha)
 {
     struct PluginV2DrawScope* scope = v2_draw_scope(draw);
@@ -2297,6 +2298,7 @@ v2_builder_world_tile(
         tile_z,
         level,
         outline_rgb,
+        outline_width,
         fill_rgb,
         v2_alpha(alpha));
 }

@@ -347,9 +347,14 @@ bool Porcelain_Hull(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, i
 /** draw->world_tile with its one refusal made loud: BUDGET when the frame's
  *  allotment ran out. False means nothing was drawn. A tile marker is drawn
  *  per tile of a footprint, so a crowded Activities set is the one overlay
- *  that reaches the 512 ceiling by arithmetic rather than by accident. */
+ *  that reaches the 512 ceiling by arithmetic rather than by accident.
+ *
+ *  `alpha` is the wash and `outline_width` the border, each drawn only when
+ *  its own number is non-zero -- a thickness of 0 is a fill with no border,
+ *  which is what the cache's hovered-tile group asks for. */
 bool Porcelain_Tile(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int tile_x,
-                    int tile_z, int level, uint32_t fill_rgb, uint32_t outline_rgb, int alpha);
+                    int tile_z, int level, uint32_t fill_rgb, uint32_t outline_rgb,
+                    int outline_width, int alpha);
 /** A plugin's own finding, in the channel Porcelain's verbs already use.
  *  `result` is a PorcelainFindingResult and may not be OK. */
 void Porcelain_Finding(struct Porcelain* porcelain, char const* verb,

@@ -201,6 +201,17 @@ struct ToriRS_DrawContext
     struct ToriRS_Rect clip;
 };
 
+/**
+ * The border thickness a caller that does not state one gets.
+ *
+ * Two, because that is the width every tile border was drawn at for as long
+ * as the thickness was not a parameter: a script that names no width is
+ * unchanged by the width existing. A caller that HAS a thickness -- a cache
+ * highlight group states one, and 0 is one of the three this cache sends --
+ * passes it and never this.
+ */
+#define TORIRS_TILE_OUTLINE_WIDTH_DEFAULT 2
+
 /* Callback-scoped graphics context, like Overlay.render(Graphics2D). It draws
  * primitives only; live UI is authored through widgets. Never retain it. */
 struct ToriRS_Graphics
@@ -233,6 +244,21 @@ struct ToriRS_Graphics
         int x,
         int y,
         int alpha);
+    /**
+     * A marker on one absolute tile: a wash, a border, or both.
+     *
+     * `alpha` is the WASH and `outline_width` is the BORDER, and each is
+     * drawn only when its own number is non-zero. That is not a convenience:
+     * the cache's highlight groups describe two families that exist only
+     * because the two are independent -- a mouseover outline runs at opacity
+     * 0 (a border with no wash) and clientscript 5198's hovered tile at
+     * thickness 0 (a wash with no border). Before `outline_width` was a
+     * parameter the border was drawn unconditionally at two pixels, so the
+     * hovered tile wore a hard opaque rim the cache had switched off and
+     * every thickness the cache sent rendered the same.
+     *
+     * @param outline_width border thickness in pixels; 0 draws no border.
+     */
     enum ToriRS_Result (*world_tile)(
         struct ToriRS_Graphics* draw,
         int tile_x,
@@ -240,6 +266,7 @@ struct ToriRS_Graphics
         int level,
         uint32_t fill_rgb,
         uint32_t outline_rgb,
+        int outline_width,
         int alpha);
     enum ToriRS_Result (*world_hull)(
         struct ToriRS_Graphics* draw,
@@ -2095,7 +2122,8 @@ struct ToriRS_PorcelainApi
      *  reached by multiplication and not by accident; the host has logged
      *  that for a while and nothing could read it. */
     bool (*tile)(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int tile_x,
-                 int tile_z, int level, uint32_t fill_rgb, uint32_t outline_rgb, int alpha);
+                 int tile_z, int level, uint32_t fill_rgb, uint32_t outline_rgb,
+                 int outline_width, int alpha);
     /** A plugin's OWN finding, coalesced on (verb, element, result) like
      *  every other. `result` is a PorcelainFindingResult and may not be OK. */
     void (*finding)(struct Porcelain* porcelain, char const* verb,

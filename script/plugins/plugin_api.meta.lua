@@ -460,7 +460,7 @@ warn = nil
 ---@field line fun(x0: integer, y0: integer, x1: integer, y1: integer, rgb: torirs.Colour, alpha?: integer)
 ---@field text fun(x: integer, y: integer, text: string, rgb?: torirs.Colour)
 ---@field image fun(image: torirs.ImageRef, x: integer, y: integer, alpha?: integer)
----@field world_tile fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: torirs.Colour, outline_rgb?: torirs.Colour, alpha?: integer): boolean, torirs.ResultName
+---@field world_tile fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: torirs.Colour, outline_rgb?: torirs.Colour, alpha?: integer, outline_width?: integer): boolean, torirs.ResultName the wash is `alpha` and the border `outline_width` (default 2, 0 draws no border at all)
 ---@field world_hull fun(element_id: integer, rgb: torirs.Colour, alpha?: integer, shape?: 'bounds'|'mesh'|integer): boolean, torirs.ResultName
 ---@field image_clip fun(image: torirs.ImageRef, x: integer, y: integer, clip: torirs.Rect, alpha?: integer)
 ---@field context fun(): torirs.DrawContext?
@@ -719,7 +719,7 @@ warn = nil
 ---@field panel_scroll fun(): integer The reader's place; -1 when no page of this plugin's is up.
 ---@field panel_scroll_to fun(scroll: integer) Move it. Clamped by the presenter's next layout, never here.
 ---@field hull fun(element_id: integer, rgb: integer|string, alpha?: integer, shape?: 'bounds'|'mesh'): boolean draw.world_hull with both refusals recorded: false means nothing was drawn.
----@field tile fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: integer|string, outline_rgb?: integer|string, alpha?: integer): boolean draw.world_tile with its budget refusal recorded: false means the footprint was cut short.
+---@field tile fun(tile_x: integer, tile_z: integer, level: integer, fill_rgb: integer|string, outline_rgb?: integer|string, alpha?: integer, outline_width?: integer): boolean draw.world_tile with its budget refusal recorded: false means the footprint was cut short. `outline_width` defaults to 2; 0 draws no border.
 ---@field finding fun(verb: string, element: string|nil, result: torirs.PorcelainFindingName|integer, detail?: string) This plugin's OWN finding, in the channel Porcelain's verbs already use.
 ---@field menu_untag fun(tag: integer): integer, integer The inverse of menu_tag, so the operations-per-subject constant lives in one place.
 ---@field key_down fun(key: string): boolean Is this key held NOW. The edge form's VALUE vocabulary: a name, a decimal code, or one character.

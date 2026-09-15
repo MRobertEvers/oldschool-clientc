@@ -605,12 +605,16 @@ struct ToriRS_PluginEngine
         int clip_w,
         int clip_h,
         int trans);
+    /** `rgb` is the border's colour and `outline_width` its thickness in
+     *  pixels; a width of 0 draws no border at all, which is the shape the
+     *  cache's hovered-tile group asks for. @see ToriRS_Graphics::world_tile. */
     int (*draw_tile)(
         void* user,
         int tile_x,
         int tile_z,
         int level,
         uint32_t rgb,
+        int outline_width,
         uint32_t fill_rgb,
         int fill_alpha);
     int (*draw_hull)(

@@ -107,6 +107,12 @@ struct FakeEngine
     int texts;
     uint32_t last_tile_rgb;
     int last_tile_fill_alpha;
+    /** The BORDER the group asked for. Recorded because "no border" and "a
+     *  two-pixel border" were indistinguishable from outside the engine: the
+     *  colour arrived either way and the thickness was a constant inside
+     *  app_plugin_draw_tile, so the hovered tile's thickness of 0 drew a hard
+     *  opaque rim that nothing in this file could see. */
+    int last_tile_outline_width;
     char last_text[64];
 
     /* api->notify: what the player was told, and how often. */
@@ -413,6 +419,7 @@ fake_draw_tile(
     int tz,
     int level,
     uint32_t rgb,
+    int outline_width,
     uint32_t fill_rgb,
     int fill_alpha)
 {
@@ -423,6 +430,7 @@ fake_draw_tile(
     (void)fill_rgb;
     g_engine.tiles++;
     g_engine.last_tile_rgb = rgb;
+    g_engine.last_tile_outline_width = outline_width;
     g_engine.last_tile_fill_alpha = fill_alpha;
     /* What this primitive spent of the frame's allotment. The host adds the
      * return value to the plugin's `draw_used`, so a test that wants the
@@ -1227,6 +1235,18 @@ main(void)
         CHECK(
             g_engine.last_tile_fill_alpha == 70,
             "and the opacity is passed straight through -- it is already 0..255");
+        CHECK(
+            g_engine.last_tile_outline_width == 1,
+            "and the THICKNESS the group stated, not a constant");
+
+        /* The thickness is the group's, whatever it is. Two and one have to
+         * arrive as two and one: while the engine held a constant they were
+         * the same two-pixel rim, which is half of what made the hovered
+         * tile's zero invisible as a bug. */
+        g_engine.highlights[0].outline_width = 2;
+        draw_reset(host);
+        PluginHost_DrawWorld(host, 765, 503);
+        CHECK(g_engine.last_tile_outline_width == 2, "a thicker border arrives thicker");
 
         /* Thickness 0 with the outline flag set draws no outline: the
          * reference's predicate is `(flags & bit) && thickness != 0`, and this
@@ -1238,6 +1258,15 @@ main(void)
         CHECK(
             g_engine.last_tile_fill_alpha == 70,
             "as a wash -- the fill half is what makes it live");
+        /*
+         * MUTATION: pass `item.rgb` as the width, or any non-zero constant,
+         * from nxt_highlight's Porcelain_Tile call. Every other assertion in
+         * this block still passes; this is the one that fails, and the pixel
+         * it stands for is the hard opaque rim the cache switched off.
+         */
+        CHECK(
+            g_engine.last_tile_outline_width == 0,
+            "and the border is REFUSED, not drawn at the engine's own width");
         g_engine.highlights[0].outline_width = 1;
 
         /* Outline without fill: the wash is the fill flag's, not the

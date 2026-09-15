@@ -2986,6 +2986,7 @@ app_plugin_draw_tile(
     int tile_z,
     int level,
     uint32_t rgb,
+    int outline_width,
     uint32_t fill_rgb,
     int fill_alpha)
 {
@@ -3109,7 +3110,21 @@ emit:
             hull_size,
             app_plugin_overlay_argb(fill_rgb),
             255 - (fill_alpha > 255 ? 255 : fill_alpha));
-    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, app_plugin_overlay_argb(rgb));
+    /*
+     * The border, at the thickness the caller asked for and NOT at all when
+     * that is zero.
+     *
+     * This call was unconditional and the thickness was the overlay's own
+     * constant two, which is two separate wrongs in one line: the cache's
+     * hovered-tile group is `flags 2|8, thickness 0` -- a wash with no border,
+     * which the reference draws as exactly that -- and wore a hard opaque rim
+     * here; and the current-tile group's thickness of 2 was indistinguishable
+     * from it because both arrived at the same constant. push_polygon declines
+     * a width of 0 rather than this deciding it, so every caller gets the same
+     * rule.
+     */
+    app_overlay_push_polygon(
+        app, hull_x, hull_y, hull_size, app_plugin_overlay_argb(rgb), outline_width);
     return app_overlay_count(app) - before;
 }
 
@@ -3153,7 +3168,8 @@ app_plugin_draw_line(void* user, int x0, int y0, int x1, int y1, uint32_t rgb)
 
     assert(app);
     before = app_overlay_count(app);
-    app_overlay_push_segment(app, x0, y0, x1, y1, app_plugin_overlay_argb(rgb));
+    app_overlay_push_segment(
+        app, x0, y0, x1, y1, app_plugin_overlay_argb(rgb), APP_OVERLAY_SEGMENT_WIDTH);
     return app_overlay_count(app) - before;
 }
 
@@ -3216,10 +3232,10 @@ app_plugin_draw_rect(
         /* The overlay layer has no rectangle OUTLINE primitive, only a filled
          * box and a box-diagonal, so an unfilled rect is four segments. */
         uint32_t const argb = app_plugin_overlay_argb(rgb);
-        app_overlay_push_segment(app, x, y, x + w, y, argb);
-        app_overlay_push_segment(app, x + w, y, x + w, y + h, argb);
-        app_overlay_push_segment(app, x + w, y + h, x, y + h, argb);
-        app_overlay_push_segment(app, x, y + h, x, y, argb);
+        app_overlay_push_segment(app, x, y, x + w, y, argb, APP_OVERLAY_SEGMENT_WIDTH);
+        app_overlay_push_segment(app, x + w, y, x + w, y + h, argb, APP_OVERLAY_SEGMENT_WIDTH);
+        app_overlay_push_segment(app, x + w, y + h, x, y + h, argb, APP_OVERLAY_SEGMENT_WIDTH);
+        app_overlay_push_segment(app, x, y + h, x, y, argb, APP_OVERLAY_SEGMENT_WIDTH);
     }
     return app_overlay_count(app) - before;
 }

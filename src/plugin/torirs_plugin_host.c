@@ -3836,6 +3836,7 @@ api_draw_tile(
     int tile_z,
     int level,
     uint32_t rgb,
+    int outline_width,
     uint32_t fill_rgb,
     int fill_alpha)
 {
@@ -3843,7 +3844,7 @@ api_draw_tile(
     if( !plugin_draw_allow(ctx, surface) )
         return TORIRS_RESULT_BUDGET;
     ctx->draw_used += ctx->host->engine.draw_tile(
-        ctx->host->engine.user, tile_x, tile_z, level, rgb, fill_rgb, fill_alpha);
+        ctx->host->engine.user, tile_x, tile_z, level, rgb, outline_width, fill_rgb, fill_alpha);
     return TORIRS_RESULT_OK;
 }
 

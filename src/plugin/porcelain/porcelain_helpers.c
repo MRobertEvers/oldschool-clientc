@@ -1518,7 +1518,7 @@ Porcelain_Hull(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int el
  */
 bool
 Porcelain_Tile(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int tile_x, int tile_z,
-               int level, uint32_t fill_rgb, uint32_t outline_rgb, int alpha)
+               int level, uint32_t fill_rgb, uint32_t outline_rgb, int outline_width, int alpha)
 {
     enum ToriRS_Result result;
 
@@ -1527,7 +1527,8 @@ Porcelain_Tile(struct Porcelain* porcelain, struct ToriRS_Graphics* draw, int ti
     assert(draw->world_tile);
 
     porcelain->counters.engine_calls++;
-    result = draw->world_tile(draw, tile_x, tile_z, level, fill_rgb, outline_rgb, alpha);
+    result =
+        draw->world_tile(draw, tile_x, tile_z, level, fill_rgb, outline_rgb, outline_width, alpha);
     if( result == TORIRS_RESULT_OK )
         return true;
     if( result == TORIRS_RESULT_BUDGET )

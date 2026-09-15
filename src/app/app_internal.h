@@ -1113,6 +1113,12 @@ app_overlay_build_npc_headicon(
     int prayer_scene,
     int prayer_group);
 
+/** The thickness the client's OWN overlay marks are drawn at: the constant
+ *  app_overlay_push_segment used to hold. A caller with a thickness of its own
+ *  -- a cache highlight group states one, and 0 there means no border at all --
+ *  passes that instead. */
+#define APP_OVERLAY_SEGMENT_WIDTH 2
+
 void
 app_overlay_push_segment(
     struct App* app,
@@ -1120,7 +1126,8 @@ app_overlay_push_segment(
     int screen_y0,
     int screen_x1,
     int screen_y1,
-    uint32_t color);
+    uint32_t color,
+    int line_width);
 
 void
 app_overlay_push_polygon_filled(
@@ -1137,7 +1144,8 @@ app_overlay_push_polygon(
     const int* points_x,
     const int* points_y,
     int point_count,
-    uint32_t color);
+    uint32_t color,
+    int line_width);
 
 int
 app_overlay_outline_element_model_trans(
