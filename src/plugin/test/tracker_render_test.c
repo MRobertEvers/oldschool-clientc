@@ -1971,10 +1971,10 @@ render_loot(void)
         g_c.panel_icon);
     check_png_contract("panel_icon.png", 30, 30, 0x7DC96DACDD9F74B6ULL);
     CHECK(
-        asset_find("btn_dropview.png") && asset_find("btn_sourceview.png") &&
-            asset_find("btn_alch.png") && asset_find("btn_cache.png") &&
-            asset_find("btn_collapse.png") && asset_find("btn_expand.png") &&
-            asset_find("btn_ignored.png") && asset_find("btn_ignored_hide.png"),
+        asset_find("btn_view_source.png") && asset_find("btn_view_drop.png") &&
+            asset_find("btn_value_cache.png") && asset_find("btn_value_alch.png") &&
+            asset_find("btn_expanded.png") && asset_find("btn_collapsed.png") &&
+            asset_find("btn_ignored_hidden.png") && asset_find("btn_ignored_shown.png"),
         "the totals card loads both state faces for all four action icons");
     CHECK(
         g_c.comp_px[44 * g_c.comp_w] == 0xFF0E0E0Cu &&
@@ -2040,38 +2040,42 @@ test_loot_stateful_controls(void)
     panel_build();
     draw_well("strip", 264);
     CHECK(
-        sprite_opaque_matches("btn_dropview.png", 4, 6) &&
-            sprite_opaque_matches("btn_alch.png", value_x, 6) &&
-            sprite_opaque_matches("btn_collapse.png", collapse_x, 6) &&
-            sprite_opaque_matches("btn_ignored.png", ignored_x, 6),
-        "the initial totals controls show the actions they will perform");
+        sprite_opaque_matches("btn_view_source.png", 4, 6) &&
+            sprite_opaque_matches("btn_value_cache.png", value_x, 6) &&
+            sprite_opaque_matches("btn_expanded.png", collapse_x, 6) &&
+            sprite_opaque_matches("btn_ignored_hidden.png", ignored_x, 6),
+        "the initial totals controls wear the face of the state they are in");
 
     activate_well("strip", collapse_x + 5, 10);
     panel_build();
     draw_well("strip", 264);
     CHECK(
-        g_c.comp_h == 81 && sprite_opaque_matches("btn_expand.png", collapse_x, 6),
-        "Collapse all closes the source and changes to graphic4919 Expand");
+        g_c.comp_h == 81 && sprite_opaque_matches("btn_collapsed.png", collapse_x, 6),
+        "Collapse all closes the source and changes to graphic4919, the "
+        "everything-is-shut face whose op is Expand all");
     activate_well("strip", collapse_x + 5, 10);
     panel_build();
     draw_well("strip", 264);
     CHECK(
-        g_c.comp_h == 126 && sprite_opaque_matches("btn_collapse.png", collapse_x, 6),
-        "Expand all restores the grid and changes back to graphic4917 Collapse");
+        g_c.comp_h == 126 && sprite_opaque_matches("btn_expanded.png", collapse_x, 6),
+        "Expand all restores the grid and changes back to graphic4917, the "
+        "something-is-open face whose op is Collapse all");
 
     activate_well("strip", value_x + 5, 10);
     draw_well("strip", 264);
     CHECK(
         strcmp(fake_cfg_str(NULL, "price_source"), "High alchemy") == 0 &&
-            sprite_opaque_matches("btn_cache.png", value_x, 6),
-        "the value action switches basis and changes to graphic4911 Cache value");
+            sprite_opaque_matches("btn_value_alch.png", value_x, 6),
+        "the value action switches basis and changes to graphic4911, the "
+        "high-alchemy face whose op is Cache value");
 
     activate_well("strip", 9, 10);
     panel_build();
     draw_well("strip", 264);
     CHECK(
-        sprite_opaque_matches("btn_sourceview.png", 4, 6),
-        "the drop view changes its left action to the source-view graphic");
+        sprite_opaque_matches("btn_view_drop.png", 4, 6),
+        "the drop view changes its left control to graphic4916, the face that "
+        "says the flat drop grid is what is up");
     activate_well("strip", 9, 10);
     panel_build();
     draw_well("strip", 264);
@@ -2081,7 +2085,7 @@ test_loot_stateful_controls(void)
     panel_build();
     draw_well("strip", 264);
     CHECK(
-        g_c.comp_h == 77 && sprite_opaque_matches("btn_ignored.png", ignored_x, 6),
+        g_c.comp_h == 77 && sprite_opaque_matches("btn_ignored_hidden.png", ignored_x, 6),
         "ignored data is retained but hidden in ordinary mode");
 
     activate_well("strip", ignored_x + 5, 10);
@@ -2089,8 +2093,9 @@ test_loot_stateful_controls(void)
     draw_well("strip", 264);
     CHECK(
         g_c.comp_h == 126 &&
-            sprite_opaque_matches("btn_ignored_hide.png", ignored_x, 6),
-        "Show ignored restores retained rows and changes to graphic4914 Hide");
+            sprite_opaque_matches("btn_ignored_shown.png", ignored_x, 6),
+        "Show ignored restores retained rows and changes to graphic4914, the "
+        "open eye whose op is Hide ignored");
     CHECK(
         g_c.comp_px[48 * g_c.comp_w + 100] ==
                 png_pixel("cat_spine_ignored.png", 10, 2) &&

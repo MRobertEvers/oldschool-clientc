@@ -1950,6 +1950,103 @@ test_loot_high_alchemy_price(void)
         row_text("d_value") ? row_text("d_value") : "(none)");
 }
 
+/*
+ * The basis is a fraction of the STACK, not a fraction of one of them.
+ *
+ * Both of these read zero and ten thousand respectively when the plugin took
+ * three fifths per unit and multiplied afterwards: integer division floors
+ * 3/5 of a 1gp coin to nothing, so a 5000-coin stack -- the single commonest
+ * drop in the game -- was worth nothing at all on this basis, and the totals
+ * band read `Total value: 0 gp` over a grid with a coin cell stamped 5000 in
+ * it. Every 1gp drop went the same way: bones, ashes, feathers.
+ */
+static void
+test_loot_high_alchemy_is_a_fraction_of_the_whole_stack(void)
+{
+    client_reset();
+    loot_start();
+    fake_config_set_raw("price_source", "High alchemy");
+
+    loot_add("Goblin", 995, 5000, 1, 1);
+    settle();
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "3,000") == 0,
+        "three fifths of a 5000-coin stack is 3000, not five thousand lots of "
+        "three fifths of one coin (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+
+    /* And the 4gp item the report names: the per-unit floor lost 2gp of every
+     * 4, which is 2000 gp across the stack. */
+    client_reset();
+    loot_start();
+    fake_config_set_raw("price_source", "High alchemy");
+    loot_add("Goblin", 314, 5000, 4, 1);
+    settle();
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        row_text("d_value") && strcmp(row_text("d_value"), "12,000") == 0,
+        "a 5000-stack of a 4gp item is worth 12,000 (got '%s')",
+        row_text("d_value") ? row_text("d_value") : "(none)");
+}
+
+/*
+ * The totals band's four controls carry the op the cache sets on them.
+ *
+ * Each of the four wears the face of the state it is IN -- interface 650 picks
+ * its graphic off the varbit that says where you are, and says where a click
+ * GOES in an op beside it: if_setop(1, "Show") on 650:59, if_setopbase("Drop
+ * view") on 650:62, and script7188's "High Alchemy value" on 650:61. This
+ * plugin drew the four faces and offered none of the ops, and a reader then
+ * read two of the faces as destinations and reported the band as wearing two
+ * conventions at once. A well has no hover text, so the op lives in the one
+ * list this plugin can paint.
+ */
+static void
+test_loot_totals_controls_offer_their_op(void)
+{
+    /* The value basis, third in from the right edge of a 320-wide well. */
+    int const value_x = 320 - 66 - 30 + 2;
+
+    client_reset();
+    loot_start();
+    fake_config_set_raw("price_source", "Cache value");
+    loot_add("Goblin", 526, 1, 100, 1);
+    settle();
+
+    menu_strip(value_x, 10);
+    TEST_ASSERT(
+        strcmp(fake_cfg_str(FAKE_CONTEXT, "price_source"), "Cache value") == 0,
+        "asking what the control does does not do it (got '%s')",
+        fake_cfg_str(FAKE_CONTEXT, "price_source"));
+
+    /* The one row, at the click, clamped left so the whole list is in the
+     * well: x 212..319, and row zero two pixels down from y=10. */
+    press_strip_at(220, 14, TORIRS_PANEL_ACTION_ACTIVATE);
+    TEST_ASSERT(
+        strcmp(fake_cfg_str(FAKE_CONTEXT, "price_source"), "High alchemy") == 0,
+        "picking the op performs it (got '%s')",
+        fake_cfg_str(FAKE_CONTEXT, "price_source"));
+
+    /* A click that misses the list dismisses it and reaches nothing: the
+     * control under the dismissed menu must not fire as well. */
+    menu_strip(value_x, 10);
+    press_strip(TEST_TOTALS_H + 4);
+    TEST_ASSERT(
+        strcmp(fake_cfg_str(FAKE_CONTEXT, "price_source"), "High alchemy") == 0,
+        "a click beside the list only closes it (got '%s')",
+        fake_cfg_str(FAKE_CONTEXT, "price_source"));
+
+    /* And a secondary click in the band but on none of the four is nothing at
+     * all: the keys and figures are not a subject. */
+    menu_strip(150, 10);
+    press_strip_at(160, 14, TORIRS_PANEL_ACTION_ACTIVATE);
+    TEST_ASSERT(
+        strcmp(fake_cfg_str(FAKE_CONTEXT, "price_source"), "High alchemy") == 0,
+        "the band's text opens no list to pick from (got '%s')",
+        fake_cfg_str(FAKE_CONTEXT, "price_source"));
+}
+
 static void
 test_loot_ignored_source(void)
 {
@@ -3139,6 +3236,8 @@ main(void)
     test_loot_multi_item_drop_is_one_kill();
     test_loot_two_kills_merge_and_sum();
     test_loot_high_alchemy_price();
+    test_loot_high_alchemy_is_a_fraction_of_the_whole_stack();
+    test_loot_totals_controls_offer_their_op();
     test_loot_ignored_source();
     test_loot_ignore_button();
     test_loot_clear_and_stable_detail_identity();
