@@ -243,6 +243,52 @@ enum FrameLayout
  * picture, one to one with the source's own columns.
  */
 #define FRAME_C_BAND_W 553
+
+/*
+ * The two tab BANDS, and the one hollow each of them is re-cut from.
+ *
+ * `backhmid1` at 516,160 carries the top row's seven hollows and `backbase2`
+ * at 496,466 the bottom row's. In BOTH the cells are the 2004 frame's own and
+ * the 2004 frame's tabs were not a grid: measured off the art -- the column
+ * luminance over the hollow rows, whose minima are the dividers -- the top
+ * band's grooves are at 544, 571, 600, 626, 664, 697, 725 and 752, so its
+ * seven cells are 27, 29, 26, 38, 33, 28 and 27 columns wide; the bottom
+ * band's are at 544, 572, 600, 626, 663, 696, 724 and 749, within a column or
+ * three of the same. A lane that lays its stones 33 apart from 526 has not one
+ * tab standing on one of them, and no two of those cells even agree with each
+ * other.
+ *
+ * So the cells are RE-CUT, and this is the cell they are re-cut from: the
+ * second of each band -- the first one wholly inside the strip, with a whole
+ * cell either side of it -- the same choice, for the same reason, that makes
+ * FRAME_CHAT_BUTTON_X[0] the chat bar's source recess. Band-local, because a
+ * composer reads the sprite and not the screen: 544-516 on the top band and
+ * 544-496 on the bottom. The ROWS are the band's hollow row, which the row
+ * profile puts at 168..204 on the top band -- eight rows below its top edge --
+ * and at the bottom band's own first row.
+ *
+ * FRAME_C_TAB_CAP is what a three-slice keeps at each end: six columns, which
+ * is the groove and the bevel beside it, and everything between them is a
+ * smooth lit floor that may be resampled. @see FRAME_C_RECESS_CAP, ten for a
+ * recess whose ends carry a ten-column cast shadow.
+ */
+#define FRAME_C_TAB_TOP_BAND_X 516
+#define FRAME_C_TAB_TOP_BAND_Y 160
+#define FRAME_C_TAB_TOP_BAND_W 249
+#define FRAME_C_TAB_TOP_BAND_H 45
+#define FRAME_C_TAB_TOP_CELL_X 28
+#define FRAME_C_TAB_TOP_CELL_Y 8
+#define FRAME_C_TAB_BOTTOM_BAND_X 496
+#define FRAME_C_TAB_BOTTOM_BAND_Y 466
+#define FRAME_C_TAB_BOTTOM_BAND_W 269
+#define FRAME_C_TAB_BOTTOM_BAND_H 37
+#define FRAME_C_TAB_BOTTOM_CELL_X 48
+#define FRAME_C_TAB_BOTTOM_CELL_Y 0
+#define FRAME_C_TAB_CELL_W 28
+#define FRAME_C_TAB_CELL_H 37
+#define FRAME_C_TAB_CAP 6
+/** Seven stones to a row, which is what makes the fourteen two rows. */
+#define FRAME_C_TAB_ROW 7
 /*
  * How far right `backleft2` is redrawn so its rip lands on the pack's edge.
  *
@@ -981,6 +1027,15 @@ struct FrameState
     struct FrameSized chat_housing;
     /** The tiled panel backing at the box the resizable layout asked for. */
     struct FrameSized side_tiled;
+    /** The two tab bands with their hollows re-cut onto the lane's grid --
+     *  two and not one because the bands light their hollows from opposite
+     *  sides, so neither row is the other flipped. @see frame_tab_band. */
+    struct FrameSized tab_band[2];
+    /** The lit stone, re-cut to the tab's box. TWO, for the same reason the
+     *  bands are two: the rows light their hollows from opposite sides, so
+     *  the bottom row's stone is the top row's mirrored. @see
+     *  frame_tab_stone. */
+    struct FrameSized tab_stone[2];
     struct FramePlan plan;
     /** The plan is applied and the host has our answer READY. */
     int provided;
@@ -2530,6 +2585,380 @@ frame_chat_bar_art(
     cache->key = key;
     return cache->art;
 }
+
+/*
+ * A TAB BAND, with its hollows re-cut where the lane's stones actually stand.
+ *
+ * The chat bar's argument, said about the sidebar, and it is the same
+ * argument: a filter is a hollow in the rock and not a plate laid on it, so
+ * the bar is re-cut when the lane has a different number of filters than the
+ * art was drawn for. A tab is a hollow too. The 2004 bands were drawn for the
+ * 2004 frame's seven unequal cells and this lane's seven are 33 apart from
+ * 526, so the band is re-cut for the cells it is ASKED for rather than laying
+ * seven plates over the ones it has. A plate over a hollow is two hollows, and
+ * the seam between them is the rectangle you can see behind every icon.
+ *
+ * `cell_x`/`cell_y` is the source hollow's band-local origin and the cut is
+ * FRAME_C_TAB_CELL_W by FRAME_C_TAB_CELL_H. Three-sliced SIDEWAYS, exactly as
+ * a chat recess is: FRAME_C_TAB_CAP columns from each end copied so the groove
+ * and the bevel survive, the lit floor between them resampled to whatever the
+ * tab's width leaves. Rows are copied ONE TO ONE and never scaled -- the rows
+ * are the shape (the lip above, the floor, the shadow below) and both bands
+ * put their hollow row at the same rows they take it from, so there is nothing
+ * to scale and a scale would only round the lip.
+ *
+ * Everything the cells do not cover is the band's own picture, untouched: the
+ * corner rock at either end, the row above the hollows, and any column between
+ * two cells that the lane's grid leaves as a divider.
+ */
+static struct ToriRS_ImageRef
+frame_compose_tab_band(
+    struct FrameCall* ctx,
+    char const* name,
+    int width,
+    int height,
+    int source,
+    int cell_x,
+    int cell_y,
+    struct FrameChatCell const* cell,
+    int cell_count)
+{
+    uint32_t* band;
+    uint32_t* out;
+    int band_w = 0;
+    int band_h = 0;
+    size_t copied = 0;
+    struct ToriRS_ImageRef handle = { 0 };
+
+    assert(ctx);
+    assert(name);
+    assert(width > 0);
+    assert(height > 0);
+    assert(cell_x >= 0);
+    assert(cell_y >= 0);
+    assert(cell_count > 0);
+    assert(cell);
+    if( !g_api->assets.image_size(g_api, frame_image(ctx, source), &band_w, &band_h) ||
+        band_w != width || band_h != height ||
+        band_w < cell_x + FRAME_C_TAB_CELL_W || band_h < cell_y + FRAME_C_TAB_CELL_H )
+        return handle;
+
+    band = malloc((size_t)band_w * (size_t)band_h * sizeof(*band));
+    assert(band);
+    if( !g_api->assets.image_pixels(
+            g_api, frame_image(ctx, source), band, (size_t)band_w * (size_t)band_h, &copied) ||
+        copied != (size_t)band_w * (size_t)band_h )
+    {
+        free(band);
+        return handle;
+    }
+
+    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    assert(out);
+    memcpy(out, band, (size_t)width * (size_t)height * sizeof(*out));
+    for( int i = 0; i < cell_count; i++ )
+    {
+        int const cw = cell[i].w;
+
+        /* A cell too narrow to hold both caps has no three-slice to make, and
+         * a squashed bevel is worse than the band's own hollow. */
+        if( cw <= 2 * FRAME_C_TAB_CAP )
+            continue;
+        for( int y = 0; y < cell[i].h; y++ )
+        {
+            int const oy = cell[i].y + y;
+
+            if( oy < 0 || oy >= height || cell_y + y >= band_h )
+                break;
+            for( int x = 0; x < cw; x++ )
+            {
+                int const ox = cell[i].x + x;
+                int sx;
+
+                if( ox < 0 || ox >= width )
+                    continue;
+                if( x < FRAME_C_TAB_CAP )
+                    sx = x;
+                else if( x >= cw - FRAME_C_TAB_CAP )
+                    sx = FRAME_C_TAB_CELL_W - (cw - x);
+                else
+                    sx = FRAME_C_TAB_CAP +
+                         (x - FRAME_C_TAB_CAP) *
+                             (FRAME_C_TAB_CELL_W - 2 * FRAME_C_TAB_CAP) /
+                             (cw - 2 * FRAME_C_TAB_CAP);
+                out[(size_t)oy * (size_t)width + (size_t)ox] =
+                    band[(size_t)(cell_y + y) * (size_t)band_w + (size_t)(cell_x + sx)];
+            }
+        }
+    }
+    (void)frame_compose(ctx, name, width, height, out, &handle);
+    free(out);
+    free(band);
+    return handle;
+}
+
+/*
+ * One band per (size, cells), which is frame_chat_bar_art's rule for the same
+ * reason: this runs every frame and only a MOVED stone should re-cut a band.
+ */
+static struct FrameArt
+frame_tab_band_art(
+    struct FrameCall* ctx,
+    struct FrameSized* cache,
+    char const* prefix,
+    int width,
+    int height,
+    int source,
+    int cell_x,
+    int cell_y,
+    struct FrameChatCell const* cell,
+    int cell_count)
+{
+    char name[sizeof(cache->name)];
+    struct ToriRS_ImageRef art;
+    struct FrameArt const nothing = { NULL, { 0 } };
+    uint32_t key = (uint32_t)cell_count * 2654435761u;
+
+    assert(ctx);
+    assert(cache);
+    assert(prefix);
+    assert(width > 0);
+    assert(height > 0);
+    assert(cell_count > 0);
+    assert(cell);
+    key = (key * 16777619u) ^ (uint32_t)((cell_x * 31) + cell_y);
+    for( int i = 0; i < cell_count; i++ )
+        key = (key * 16777619u) ^
+              (uint32_t)((((cell[i].x * 31) + cell[i].y) * 31) + (cell[i].w * 31) + cell[i].h);
+    if( frame_art_alive(ctx, cache->art) && cache->w == width && cache->h == height &&
+        cache->key == key )
+        return cache->art;
+
+    (void)snprintf(name, sizeof(name), "%s_%dx%d_%08x.png", prefix, width, height, key);
+    art = frame_compose_tab_band(
+        ctx, name, width, height, source, cell_x, cell_y, cell, cell_count);
+    if( art.value == 0 )
+        /* Alive or nothing, for the reason frame_sized_art gives. */
+        return frame_art_alive(ctx, cache->art) ? cache->art : nothing;
+    if( cache->art.ref.value != 0 )
+        g_api->assets.image_release(g_api, cache->art.ref);
+    (void)snprintf(cache->name, sizeof(cache->name), "%s", name);
+    cache->art.name = cache->name;
+    cache->art.ref = art;
+    cache->w = width;
+    cache->h = height;
+    cache->key = key;
+    return cache->art;
+}
+
+/*
+ * One column of a re-cut stone: which source column an output column shows.
+ *
+ * A three-slice read from the MIDDLE OUT, which is a FOLD, and the fold is the
+ * answer to a row of identical tabs. A 2004 cell is lit from one side --
+ * `classic_redstone2`'s floor runs from a shadow at its left edge to its
+ * brightest columns at the right -- because the 2004 strip's cells mirror
+ * about the strip's middle and each one is cut for the side it stands on. A
+ * grid of fourteen equal boxes has no middle to mirror about, so there is no
+ * side for a one-sided picture to be on: laid at all fourteen it is the same
+ * lopsided stone fourteen times, which is the regression this fixes. Folding
+ * the source about the OUTPUT's centre answers it with one picture -- the
+ * source's outer columns at both edges of the stone and its middle at the
+ * stone's middle -- and a stone symmetric about its own centre is right at
+ * every one of the fourteen.
+ *
+ * `d` is the distance from the nearer edge, and the mapping of it is the chat
+ * recess's: the outermost FRAME_C_TAB_CAP columns copied one to one so the
+ * bevel survives at whatever width the tab has, and the half-floor inside them
+ * resampled. `t` therefore counts IN from an edge, and the outer end of the
+ * source is its right one.
+ */
+static int
+frame_tab_stone_column(int x, int width, int src_w)
+{
+    int const half = (width + 1) / 2;
+    int const run = src_w - (src_w / 2);
+    int const d = x < width - 1 - x ? x : width - 1 - x;
+    int t;
+
+    assert(x >= 0);
+    assert(x < width);
+    assert(src_w > 0);
+    /* A run with no floor between its two caps has nothing to resample, and
+     * the clamp is the picture's own last column rather than a read past it. */
+    if( half <= FRAME_C_TAB_CAP + 1 || run <= FRAME_C_TAB_CAP + 1 )
+        return d < src_w ? src_w - 1 - d : 0;
+    if( d < FRAME_C_TAB_CAP )
+        t = d;
+    else
+        t = FRAME_C_TAB_CAP +
+            (d - FRAME_C_TAB_CAP) * (run - 1 - FRAME_C_TAB_CAP) / (half - 1 - FRAME_C_TAB_CAP);
+    return src_w - 1 - t;
+}
+
+/*
+ * One row of a re-cut stone, and which way up.
+ *
+ * The same three-slice as the columns, which is a change from "rows one to
+ * one, and a source whose rows do not match is refused". One to one is only
+ * available while some shipped stone happens to have the tab's own height, and
+ * choosing the source by its row count is exactly what put the 2004 strip's
+ * corner cell on all fourteen tabs. The caps carry the shape here too -- the
+ * lip above and the cast shadow below -- so they are copied and only the floor
+ * between them resamples, which for a 37-row stone on a 36-row tab is one
+ * interior row of flat floor.
+ *
+ * `mirror` is the bottom row. The two bands are two pictures and not one
+ * flipped, but the hollows in them ARE flips of each other -- the top band
+ * lights its sockets from below and `backbase2` lights them from above -- so
+ * the stone that fills a bottom-row socket is the top row's turned over. That
+ * is the 2004 table's own answer: every one of its bottom seven entries is a
+ * REDSTONE_FLIP_V or _HV of the picture the row above wears.
+ */
+static int
+frame_tab_stone_row(int y, int height, int src_h, int mirror)
+{
+    int const n = mirror ? height - 1 - y : y;
+
+    assert(y >= 0);
+    assert(y < height);
+    assert(src_h > 0);
+    if( height <= 2 * FRAME_C_TAB_CAP + 1 || src_h <= 2 * FRAME_C_TAB_CAP + 1 )
+        return n < src_h ? n : src_h - 1;
+    if( n < FRAME_C_TAB_CAP )
+        return n;
+    if( n >= height - FRAME_C_TAB_CAP )
+        return src_h - (height - n);
+    return FRAME_C_TAB_CAP +
+           (n - FRAME_C_TAB_CAP) * (src_h - 2 * FRAME_C_TAB_CAP) /
+               (height - 2 * FRAME_C_TAB_CAP);
+}
+
+/*
+ * The LIT stone at the tab's own box.
+ *
+ * The other half of the same defect, and it is not cosmetic: a face's box is
+ * the size of the art the stone wears, so a 44-column redstone cut for the
+ * 2004 grid's one wide cell made the selected tab's face eleven columns wider
+ * than the tab -- a plate bleeding into both its neighbours.
+ *
+ * The source is `classic_redstone2`, which is the strip's INTERIOR cell: 30x37,
+ * square-shouldered, a flat lip above and a flat shadow below. The other two
+ * are its ENDS -- 34x36 has a diagonal corner cut out of its lower left and
+ * 44x35 is the one wide cell -- and an end's shape on a tab that is not at an
+ * end is a wedge of bare rock in the socket. Measured on classic548 before
+ * this, over the 36 rows under the selected tab: 9 red pixels in the leftmost
+ * eleven columns against 179 in the rightmost eleven.
+ *
+ * ONE picture per ROW, and not the 2004 table's nine. That table is three
+ * stones at three widths, each mirrored for the half of the strip it stands
+ * in, and both halves of it are answers to the strip: the widths because the
+ * cells are 27 to 39 columns, the mirroring because the cells themselves
+ * mirror about the strip's middle. A row of identical cells has one width and
+ * no mirror line, so what survives of the nine is the one distinction the two
+ * ROWS still make -- which way up the socket is lit. @see
+ * frame_tab_stone_column, frame_tab_stone_row.
+ *
+ * It is also a slot. The layer holds 48 image names at once and this frame is
+ * near that on the lane that runs two layouts in one window: composing four
+ * mirrorings of a picture a grid cannot tell apart cost two of the frame's own
+ * flipped redstones their slot, measured on `remount164`. Two is what the rows
+ * ask for and two is what this spends. @see PORCELAIN_IMAGES_MAX.
+ */
+static struct ToriRS_ImageRef
+frame_compose_tab_stone(
+    struct FrameCall* ctx,
+    char const* name,
+    int width,
+    int height,
+    struct ToriRS_ImageRef source,
+    int mirror_y)
+{
+    uint32_t* src;
+    uint32_t* out;
+    int src_w = 0;
+    int src_h = 0;
+    size_t copied = 0;
+    struct ToriRS_ImageRef handle = { 0 };
+
+    assert(ctx);
+    assert(name);
+    assert(width > 0);
+    assert(height > 0);
+    if( source.value == 0 )
+        return handle;
+    if( !g_api->assets.image_size(g_api, source, &src_w, &src_h) || src_h <= 0 ||
+        src_w <= 2 * FRAME_C_TAB_CAP || width <= 2 * FRAME_C_TAB_CAP )
+        return handle;
+
+    src = malloc((size_t)src_w * (size_t)src_h * sizeof(*src));
+    assert(src);
+    if( !g_api->assets.image_pixels(
+            g_api, source, src, (size_t)src_w * (size_t)src_h, &copied) ||
+        copied != (size_t)src_w * (size_t)src_h )
+    {
+        free(src);
+        return handle;
+    }
+
+    out = malloc((size_t)width * (size_t)height * sizeof(*out));
+    assert(out);
+    for( int y = 0; y < height; y++ )
+    {
+        int const sy = frame_tab_stone_row(y, height, src_h, mirror_y);
+
+        for( int x = 0; x < width; x++ )
+        {
+            int const sx = frame_tab_stone_column(x, width, src_w);
+
+            out[(size_t)y * (size_t)width + (size_t)x] =
+                src[(size_t)sy * (size_t)src_w + (size_t)sx];
+        }
+    }
+    (void)frame_compose(ctx, name, width, height, out, &handle);
+    free(out);
+    free(src);
+    return handle;
+}
+
+/** One lit stone per (mirroring, size), kept until either changes. */
+static struct FrameArt
+frame_tab_stone_art(
+    struct FrameCall* ctx,
+    struct FrameSized* cache,
+    char const* prefix,
+    int width,
+    int height,
+    struct ToriRS_ImageRef source,
+    int mirror_y)
+{
+    char name[sizeof(cache->name)];
+    struct ToriRS_ImageRef art;
+    struct FrameArt const nothing = { NULL, { 0 } };
+
+    assert(ctx);
+    assert(cache);
+    assert(prefix);
+    assert(width > 0);
+    assert(height > 0);
+    if( frame_art_alive(ctx, cache->art) && cache->w == width && cache->h == height )
+        return cache->art;
+
+    (void)snprintf(name, sizeof(name), "%s_%dx%d.png", prefix, width, height);
+    art = frame_compose_tab_stone(ctx, name, width, height, source, mirror_y);
+    if( art.value == 0 )
+        /* Alive or nothing, for the reason frame_sized_art gives. */
+        return frame_art_alive(ctx, cache->art) ? cache->art : nothing;
+    if( cache->art.ref.value != 0 )
+        g_api->assets.image_release(g_api, cache->art.ref);
+    (void)snprintf(cache->name, sizeof(cache->name), "%s", name);
+    cache->art.name = cache->name;
+    cache->art.ref = art;
+    cache->w = width;
+    cache->h = height;
+    return cache->art;
+}
+
 /*
  * The picture for one tab, from the set the LANE numbers its panels by.
  *
@@ -2806,6 +3235,236 @@ frame_build_classic_masks(struct FrameCall* ctx)
             return;
     g_classic_masks_built = 1;
 }
+/*
+ * Where THE LANE puts each of its fourteen tabs, in this layout's own
+ * coordinates.
+ *
+ * The one fact a tab table cannot hold. Every box in the three tables below
+ * was read off an art strip -- this frame's cells are 27..39 columns and the
+ * OldSchool strip's are 38, 33, 38, 33, 33, 33, 38 -- and a strip's cells are
+ * a fact about a PICTURE. Where a tab IS, is a fact about the tab, and the
+ * layer already answers it: an element of kind TAB resolves through the
+ * profile's `[tabs]` map to that tab's own node, the same way
+ * PORCELAIN_CHAT_FILTER_EL resolves to a filter's plate. The chat bar cuts its
+ * hollows to the boxes it gets back; this asks the sidebar the same question.
+ *
+ * By NAME and then by number, because the name is the portable spelling and
+ * the number is the lane's: Porcelain_TabNames is the vocabulary and
+ * `named_id("tab", name)` is what THIS lane calls each one. Nothing here is a
+ * lane's identity -- a root that numbers a tab the vocabulary has no word for
+ * is simply not in the answer.
+ *
+ * ALL FOURTEEN or none. A description that took the lane's box for the tabs
+ * that had bound and a table's for the rest would lay two pitches in one row,
+ * and the half-bound tree that produces it is a fence, not a state -- the next
+ * describe has them all. The origin is subtracted because a lane box is
+ * absolute and everything a layout states is relative to the canvas it was
+ * given. @see frame_usable_canvas.
+ *
+ * @return 1 when every tab this frame lays out reported a box; 0 otherwise,
+ *         and nothing is written -- a 2004 gameframe's stones are builtins of
+ *         the frame itself, with no lane node underneath to ask.
+ */
+static int
+frame_lane_tab_boxes(struct FrameCall* ctx, struct FrameBox* out)
+{
+    char const* const* names = Porcelain_TabNames();
+    struct FrameBox found[FRAME_TAB_COUNT];
+    int seen = 0;
+
+    assert(ctx);
+    assert(out);
+    memset(found, 0, sizeof(found));
+    for( int i = 0; names[i]; i++ )
+    {
+        struct PorcelainElementState state;
+        int number = -1;
+
+        if( !g_api->cache.named_id(g_api, "tab", names[i], &number) || number < 0 ||
+            number >= FRAME_TAB_COUNT )
+            continue;
+        if( !Porcelain_Element(ctx->state->porcelain, PORCELAIN_TAB_EL(names[i]), &state) )
+            continue;
+        if( state.box.width <= 0 || state.box.height <= 0 )
+            continue;
+        if( found[number].w > 0 )
+            continue;
+        found[number].x = state.box.x - ctx->origin_x;
+        found[number].y = state.box.y - ctx->origin_y;
+        found[number].w = state.box.width;
+        found[number].h = state.box.height;
+        seen++;
+    }
+    if( seen != FRAME_TAB_COUNT )
+        return 0;
+    memcpy(out, found, sizeof(found));
+    return 1;
+}
+
+/*
+ * Can this band carry this row of stones, as one run of identical hollows?
+ *
+ * The guard on adopting the lane's grid, and the only one there is. Two
+ * questions, and both are about GEOMETRY rather than about which lane is up:
+ *
+ * INSIDE the band. A layout may cut its hollows where the lane puts its tabs
+ * only where its own rock reaches that far. A root that stacks its stones in
+ * two columns down the window's edge -- 601 does -- states boxes these two
+ * horizontal bands cannot carry, and a band re-cut for them would have seven
+ * hollows hanging off the end of it. The rectangle is the band this layout has
+ * already blitted, so there is no second number to keep in step.
+ *
+ * IDENTICAL, on both axes. The hollow is cut from one cell and every stone in
+ * the row wears it, which is what makes the row a row, and the lit stone is
+ * re-cut once per row for the same reason. A run whose boxes disagree needs
+ * seven cuts and is seven different hollows -- which is the defect this
+ * replaces, not a fix for it.
+ *
+ * The SIZE is one question and the row's own line is another, and the second
+ * is not implied by the first. Seven boxes can all be 33x36, all be inside the
+ * band, and stand at seven different heights in it -- a staircase, not a row --
+ * and one lit stone cut for one lighting would then be worn by stones sitting
+ * at seven depths in the rock. Both roots that reach here state one size and
+ * one line; a root that states a staircase keeps the table, which is a picture
+ * drawn for a grid rather than a picture drawn for THIS one.
+ */
+static int
+frame_row_adoptable(struct FrameBox const* row, int count, struct FrameBox band)
+{
+    assert(row);
+    assert(count > 0);
+    for( int i = 0; i < count; i++ )
+    {
+        struct FrameBox const tab = row[i];
+
+        if( tab.w != row[0].w || tab.h != row[0].h )
+            return 0;
+        if( tab.y != row[0].y )
+            return 0;
+        if( tab.x < band.x || tab.y < band.y )
+            return 0;
+        if( tab.x + tab.w > band.x + band.w || tab.y + tab.h > band.y + band.h )
+            return 0;
+    }
+    return 1;
+}
+
+/*
+ * One tab band, re-cut for the row's stones -- or the band as it was drawn.
+ *
+ * The band as it was drawn is the answer for a frame whose stones are its OWN:
+ * a 2004 gameframe's fourteen are builtins of the frame with no lane node
+ * under them, and there the strip's cells ARE the tabs. It is also the answer
+ * while the sprite is still crossing the IO queue, which is the ordinary state
+ * for the first frames after start -- the caller blits what this returns
+ * rather than assuming a picture.
+ */
+static struct FrameArt
+frame_tab_band(
+    struct FrameCall* ctx,
+    int row,
+    struct FrameBox const* screen,
+    int adopt)
+{
+    static struct
+    {
+        int source;
+        int band_x;
+        int band_y;
+        int cell_x;
+        int cell_y;
+        char const* prefix;
+    } const BAND[2] = {
+        { IMG_C_BACKHMID1, FRAME_C_TAB_TOP_BAND_X, FRAME_C_TAB_TOP_BAND_Y,
+          FRAME_C_TAB_TOP_CELL_X, FRAME_C_TAB_TOP_CELL_Y, "classic_tabband_top" },
+        { IMG_C_BACKBASE2, FRAME_C_TAB_BOTTOM_BAND_X, FRAME_C_TAB_BOTTOM_BAND_Y,
+          FRAME_C_TAB_BOTTOM_CELL_X, FRAME_C_TAB_BOTTOM_CELL_Y, "classic_tabband_bottom" },
+    };
+    struct FrameChatCell cell[FRAME_C_TAB_ROW];
+    struct FrameArt const plain = frame_art(ctx, BAND[row].source);
+    struct FrameArt cut;
+    int band_w = 0;
+    int band_h = 0;
+
+    assert(ctx);
+    assert(screen);
+    assert(row >= 0);
+    assert(row < 2);
+    if( !adopt || plain.ref.value == 0 ||
+        !g_api->assets.image_size(g_api, plain.ref, &band_w, &band_h) || band_w <= 0 ||
+        band_h <= 0 )
+        return plain;
+    for( int i = 0; i < FRAME_C_TAB_ROW; i++ )
+    {
+        struct FrameBox const tab = screen[(row * FRAME_C_TAB_ROW) + i];
+        /*
+         * BOTH of the box's coordinates, and that is the fix for a defect the
+         * horizontal half of this line already had. `cell[i].x` came off the
+         * tab from the first version of this and `cell[i].y` was the band's
+         * own constant, so a root standing its stones two rows lower inside
+         * the same band -- which frame_row_adoptable admits, because two rows
+         * lower is still inside -- got its hollows cut two rows ABOVE them.
+         * The same defect as the leftmost stone on bare rock, rotated ninety
+         * degrees, and it does not need a lane to be wrong: it needs one to
+         * exist.
+         *
+         * The HEIGHT is not the box's, and that is not the same oversight
+         * written twice. A hollow is not the shape of the stone that fills it:
+         * in both of these bands the socket runs from its lip down to the
+         * band's last row -- 8..44 of `backhmid1`'s 45 and 0..36 of
+         * `backbase2`'s 37 -- while the stone that stands in it is 36 rows.
+         * Cut to the box, every hollow would give its bottom row back to the
+         * band and the row the 2004 art has there is the NEXT cell's divider,
+         * which is a dark line drawn under each socket. So the cut runs from
+         * the tab's own top to the floor, and no further than the cell the art
+         * has: `frame_compose_tab_band` copies rows one to one, so this is the
+         * number of them and not a scale.
+         */
+        int const top = tab.y - BAND[row].band_y;
+        int const reach = band_h - top;
+
+        cell[i].x = tab.x - BAND[row].band_x;
+        cell[i].y = top;
+        cell[i].w = tab.w;
+        cell[i].h = reach < FRAME_C_TAB_CELL_H ? reach : FRAME_C_TAB_CELL_H;
+    }
+    cut = frame_tab_band_art(
+        ctx, &ctx->state->tab_band[row], BAND[row].prefix, band_w, band_h, BAND[row].source,
+        BAND[row].cell_x, BAND[row].cell_y, cell, FRAME_C_TAB_ROW);
+    return cut.ref.value != 0 ? cut : plain;
+}
+
+/*
+ * The lit stone a selected tab wears, at the tab's own size.
+ *
+ * ONE picture per row: what the re-cut is and why there are two of it are
+ * frame_compose_tab_stone's, and this is where `row` becomes a mirroring.
+ *
+ * Falls back to the natural art, which is the 2004 grid's own and the right
+ * answer wherever that grid has not been left behind -- and the only answer at
+ * all for the frames before the source's pixels have crossed the IO queue.
+ */
+static struct FrameArt
+frame_tab_stone(struct FrameCall* ctx, int row, int width, int height)
+{
+    static char const* const PREFIX[2] = { "classic_tabstone_top",
+                                           "classic_tabstone_bottom" };
+    struct FrameArt const natural = frame_art(ctx, IMG_C_REDSTONE2);
+    struct FrameArt cut;
+
+    assert(ctx);
+    assert(row >= 0);
+    assert(row < 2);
+    assert(width > 0);
+    assert(height > 0);
+    if( natural.ref.value == 0 )
+        return natural;
+    cut = frame_tab_stone_art(
+        ctx, &ctx->state->tab_stone[row], PREFIX[row], width, height, natural.ref,
+        /*mirror_y=*/row != 0);
+    return cut.ref.value != 0 ? cut : natural;
+}
+
 /** The choices, in enum order. Also the schema's `choices` string, split. */
 static char const* const FRAME_LAYOUT_NAME[] = {
     "Classic Fixed",
@@ -2868,9 +3527,53 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         { { 725, 466, 34, 36 }, 728, 471, 0, REDSTONE_FLIP_HV},
     };
     static int const REDSTONE_BASE[3] = { IMG_C_REDSTONE1, IMG_C_REDSTONE2, IMG_C_REDSTONE3 };
+    /* The two bands, as boxes, so a row can be asked whether it fits in one. */
+    static struct FrameBox const BAND[2] = {
+        { FRAME_C_TAB_TOP_BAND_X, FRAME_C_TAB_TOP_BAND_Y, FRAME_C_TAB_TOP_BAND_W,
+          FRAME_C_TAB_TOP_BAND_H },
+        { FRAME_C_TAB_BOTTOM_BAND_X, FRAME_C_TAB_BOTTOM_BAND_Y, FRAME_C_TAB_BOTTOM_BAND_W,
+          FRAME_C_TAB_BOTTOM_BAND_H },
+    };
     int const oldschool = frame_lane_oldschool(ctx);
+    /*
+     * Where the stones REPORT they are, and whether these two bands can carry
+     * them.
+     *
+     * The table above is the 2004 strip's own cells and that is all it can
+     * ever be: it was read off `backhmid1` and `backbase2`, whose hollows are
+     * 27 to 39 columns wide on a pitch of their own. A lane that lays its
+     * stones 33 apart from 526 has not one tab standing on one of those cells
+     * -- measured on 548, where the table's first stone is at 538 and the tab
+     * is at 526 -- so the leftmost tab of each row stood on bare rock with its
+     * hollow twelve columns to the right, and the selected tab wore the
+     * 44-column redstone the 2004 grid's one wide cell was cut for.
+     *
+     * So the boxes come from the tabs and the art is cut again TO them: the
+     * band's hollows in frame_tab_band, the lit stone in frame_tab_stone.
+     * @see frame_lane_tab_boxes.
+     *
+     * Held in SCREEN order, which is the order the loop below and the two
+     * bands both walk. Holding them in tab order and indexing each reader
+     * through the screen table separately is how a band's fourth hollow ends
+     * up under a row's fifth stone: 548 runs clan, friends, account along the
+     * bottom row, so the two orders differ and one of them has to be chosen
+     * once. @see FRAME_TAB_SCREEN_ORDER.
+     */
+    struct FrameBox screen[FRAME_TAB_COUNT];
+    int lane_grid = frame_lane_tab_boxes(ctx, screen);
 
     assert(ctx);
+
+    if( lane_grid )
+    {
+        struct FrameBox by_tab[FRAME_TAB_COUNT];
+
+        memcpy(by_tab, screen, sizeof(by_tab));
+        for( int i = 0; i < FRAME_TAB_COUNT; i++ )
+            screen[i] = by_tab[oldschool ? FRAME_TAB_SCREEN_ORDER[i] : i];
+        lane_grid = frame_row_adoptable(screen, FRAME_C_TAB_ROW, BAND[0]) &&
+                    frame_row_adoptable(screen + FRAME_C_TAB_ROW, FRAME_C_TAB_ROW, BAND[1]);
+    }
 
     /* Declared in paint order, back to front: the surround, then the panels
      * that sit in it. */
@@ -2899,7 +3602,9 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
                               FRAME_C_HOUSING_W,
                               FRAME_C_HOUSING_H });
     frame_blit(ctx, frame_art(ctx, IMG_C_BACKRIGHT1), 722, 4);
-    frame_blit(ctx, frame_art(ctx, IMG_C_BACKHMID1), 516, 160);
+    frame_blit(
+        ctx, frame_tab_band(ctx, 0, screen, lane_grid), FRAME_C_TAB_TOP_BAND_X,
+        FRAME_C_TAB_TOP_BAND_Y);
     frame_blit(ctx, frame_art(ctx, IMG_C_BACKVMID2), 516, 205);
     frame_blit(ctx, frame_art(ctx, IMG_C_INVBACK), 553, 205);
     frame_blit(ctx, frame_art(ctx, IMG_C_BACKRIGHT2), 743, 205);
@@ -2948,13 +3653,28 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         frame_blit(ctx, frame_art(ctx, IMG_C_BACKVMID3), 496, 357);
         frame_blit(ctx, frame_art(ctx, IMG_C_BACKBASE1), 0, FRAME_C_STRIP_Y);
     }
-    frame_blit(ctx, frame_art(ctx, IMG_C_BACKBASE2), 496, 466);
+    frame_blit(
+        ctx, frame_tab_band(ctx, 1, screen, lane_grid), FRAME_C_TAB_BOTTOM_BAND_X,
+        FRAME_C_TAB_BOTTOM_BAND_Y);
 
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
         int const base = REDSTONE_BASE[TAB[i].stone];
+        /*
+         * The box this stone stands on, and the lit picture it wears.
+         *
+         * Off the LANE where the lane has stones of its own, and off the
+         * table where the frame's stones are its own. Both halves move
+         * together and have to: a face's box is the size of the art, so a box
+         * from one grid with a picture cut for the other is the 44-column
+         * plate on a 33-column tab that this replaces.
+         */
+        struct FrameBox const box = lane_grid ? screen[i] : TAB[i].box;
+        struct FrameArt const natural =
+            TAB[i].flip < 0 ? frame_art(ctx, base)
+                            : g_redstone_flip[TAB[i].stone][TAB[i].flip];
         struct FrameArt const pressed =
-            TAB[i].flip < 0 ? frame_art(ctx, base) : g_redstone_flip[TAB[i].stone][TAB[i].flip];
+            lane_grid ? frame_tab_stone(ctx, i / FRAME_C_TAB_ROW, box.w, box.h) : natural;
         /*
          * Which tab this box stands for: its own index on a 2004 lane, screen
          * order on an OldSchool one.
@@ -2980,12 +3700,15 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         int icon_x = TAB[i].icon_x;
         int icon_y = TAB[i].icon_y;
 
-        if( oldschool )
-            frame_tab_centre(ctx, TAB[i].box, art, &icon_x, &icon_y);
+        /* A box this frame did not author carries no stated offset to go with
+         * it, so the icon is centred on it -- which is what the two OldSchool
+         * layouts already do with theirs. @see FrameTab::icon_x. */
+        if( oldschool || lane_grid )
+            frame_tab_centre(ctx, box, art, &icon_x, &icon_y);
         frame_tab(
             ctx,
             tab,
-            TAB[i].box,
+            box,
             icon_x,
             icon_y,
             /*stone=*/(struct FrameArt){ NULL, { 0 } },
@@ -4966,6 +5689,11 @@ frame_on_stop(struct ToriRS_Api* api, void* state_ptr)
     frame_release_sized(api, &state->chat_base);
     frame_release_sized(api, &state->chat_housing);
     frame_release_sized(api, &state->side_tiled);
+    for( int i = 0; i < 2; i++ )
+    {
+        frame_release_sized(api, &state->tab_band[i]);
+        frame_release_sized(api, &state->tab_stone[i]);
+    }
     memset(state, 0, sizeof(*state));
 }
 
