@@ -1641,6 +1641,37 @@ main(void)
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 5, "a lane known to announce it never arms again");
 
+        /*
+         * ---- AND THE LOW NOTICE STILL SPEAKS ON THAT SAME LANE ---------
+         *
+         * The latch above is narrow on purpose, and this is the check that
+         * says so. A lane announcing EMPTIES has said nothing whatever about
+         * the amount the user called low: no content anywhere sends a
+         * low-on-ammo line, so setting 249 is this builtin's alone on every
+         * lane, including the ones that pre-empt 250.
+         *
+         * Without this, a plausible reading of "the plugin is silent on every
+         * lane" is that the lane's own message pre-empts everything it has,
+         * and the obvious repair is to stand the whole builtin down once
+         * `content_announces` latches. That would leave setting 249 dead on
+         * every lane that implements a cannon -- which is every lane the
+         * builtin runs on -- while looking correctly quiet in every capture.
+         * It pre-empts ONE of the two messages.
+         *
+         * MUTATION: return early from nxt_cannon_sample when
+         *   `state->content_announces` is set. Red here, green on every other
+         *   cannon check in this file -- which is exactly how the gap hid.
+         */
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_LOW_AMOUNT)] = 10;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
+        PluginHost_ServerTick(host, ++tick);
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 9;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 6,
+            "a lane that announces empties does not silence the low notice");
+        CHECK(strstr(g_engine.last_notify, "9 left") != NULL,
+            "and the count it names is the one that crossed the line");
+
         /* The sailing content spells the same statement with a full stop.
          * Re-registered so the latch above is not what is under test. */
         PluginHost_SetEnabled(host, p_cannon, false);
@@ -1653,7 +1684,7 @@ main(void)
         PluginHost_ServerTick(host, ++tick);
         PluginHost_ServerTick(host, ++tick);
         PluginHost_ServerTick(host, ++tick);
-        CHECK(g_engine.notifies == 5,
+        CHECK(g_engine.notifies == 6,
             "the sailing content's full stop is the same statement");
 
         /* Restore the fixture for the cost measurement below: no cannon, and
@@ -1667,7 +1698,7 @@ main(void)
         PluginHost_ServerTick(host, ++tick);
         PluginHost_ServerTick(host, ++tick);
         PluginHost_ServerTick(host, ++tick);
-        CHECK(g_engine.notifies == 5, "native null coordinate still has no ammo events");
+        CHECK(g_engine.notifies == 6, "native null coordinate still has no ammo events");
 
         /*
          * What a quiet tick COSTS.

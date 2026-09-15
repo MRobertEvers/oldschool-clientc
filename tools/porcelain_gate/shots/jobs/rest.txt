@@ -27,11 +27,34 @@ birdnest-cs1 nxt-bird-nest cs1 TORIRS_SIM_VARBIT=450,13087,0 'TORIRS_SIM_CMD=600
 # being there is only worth taking beside one where it is.
 birdnest-off-cs2 nxt-bird-nest cs2 TORIRS_SIM_VARBIT=450,13087,1 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1' TORIRS_TRACE_NATIVE_UI=1
 
-# ::cannon places one on your tile with 15 balls; loc op 3 "Empty" takes 15 to 0
-# in a single tick, which is the deterministic empty-ammo edge. 1500 frames
-# because the assembly is a real 4-tick animation.
-cannon-cs2 nxt-cannon-ammo cs2 'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
-cannon-cs1 nxt-cannon-ammo cs1 'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500 TORIRS_TRACE_NATIVE_UI=1
+# ::cannon places one on your tile with 15 balls, and ::spawn gives it
+# something to shoot at, so the count walks 15, 14, 13 ... 0 one ball a tick.
+#
+# THE DRIVE HAS TO BE A WALK, NOT A DROP.  It used to be `loc op 3 "Empty"`,
+# which takes 15 to 0 in one tick, plus 14175 and 14177 and nothing else -- and
+# that combination cannot produce a single line from this plugin, which is why
+# `grep PLUGIN_NOTIFY` over 307 captures found none from it:
+#
+#   * The EMPTY notice is suppressed on purpose here.  cannon.rs2's tick timer
+#     says "Your cannon is out of ammunition!" the tick after the count reaches
+#     zero, and nxt_cannon_chat cancels the builtin's line when the lane says
+#     it itself.  That is the repair for a photographed two-lines-for-one-event
+#     defect, so on every OSRS239 lane the correct output IS nothing.
+#   * The LOW notice is the one message the lane does not pre-empt -- and it
+#     was unreachable twice over.  Setting 249 (varbit 14176) is the amount,
+#     it has no default, and the drive never wrote it, so `threshold > 0` was
+#     false for ever.  And even with a threshold, a bulk unload goes straight
+#     to zero, where the empty branch wins: a crossing needs an intermediate
+#     value that a one-tick 15 -> 0 never produces.
+#
+# So: 14176=10 (which docs/plugin-engine/PLUGIN_PORTS.md already said this
+# drive set), twenty goblins for the cannon to fire at, and 4000 frames --
+# fifteen fire ticks plus the 4-tick assembly.  The capture now carries BOTH
+# halves in one chat pane: the plugin's "running low on cannonballs: 10 left."
+# at the crossing, and the lane's own "out of ammunition!" at zero with NO
+# plugin line after it.
+cannon-cs2 nxt-cannon-ammo cs2 'TORIRS_SIM_VARBIT=450,14175,1;451,14176,10;452,14177,1' 'TORIRS_SIM_CMD=500,cannon;560,spawn goblin 20' TORIRS_MAX_FRAMES=4000 TORIRS_TRACE_NATIVE_UI=1
+cannon-cs1 nxt-cannon-ammo cs1 'TORIRS_SIM_VARBIT=450,14175,1;451,14176,10;452,14177,1' 'TORIRS_SIM_CMD=500,cannon;560,spawn goblin 20' TORIRS_MAX_FRAMES=4000 TORIRS_TRACE_NATIVE_UI=1
 
 # `camera` has to be in force at START, so it goes in the ini (the `--` args),
 # not through a tick-scheduled config write. `off` is the default, and the

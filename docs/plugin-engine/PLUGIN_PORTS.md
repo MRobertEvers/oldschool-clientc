@@ -131,6 +131,32 @@ Native OSRS captures use the existing `::cannon` debugproc (which bypasses place
 
 Inputs: frame 500 `cannon`; frame 1400 `TORIRS_SIM_OPLOC` operation 2 or 3, tile (3210,3424), loc 6. Native setting writes at frames 450–452 set varbits 14175=1, 14176=10, 14177=1. The existing fixture recorder now includes `TORIRS_SIM_OPLOC`. Enlarged captures show 8 chat/14 sidebar controls. The real rs289lc capture has 4/13 and no notification, matching its absent cannon-notification mappings. Every Lost City connection uses a newly allocated account. These screenshots do not prove native firing below the low threshold or every lifecycle/release combination.
 
+**Both paragraphs above are superseded on two points, and the second one is why
+this plugin had never emitted a line in any capture.**
+
+The "run out of cannonballs" line is no longer expected on an OSRS239 lane at
+all. `cannon.rs2`'s tick timer says "Your cannon is out of ammunition!" itself
+the tick after the count reaches zero, so the builtin holds its own empty
+notice for two server ticks and `nxt_cannon_chat` drops it when the lane
+speaks. Two messages for one event was the defect; one message is the repair.
+What the op-3 capture proves now is the SUPPRESSION, not the notice.
+
+That leaves the low-on-ammo line as the only thing this builtin says on a lane
+whose content implements the cannon -- and the shipped job rows could not
+produce it. `tools/porcelain_gate/shots/jobs/*.txt` wrote 14175 and 14177 and
+not 14176, so the threshold this paragraph already names was never set and
+`threshold > 0` was false for ever; and op 3 takes 15 to 0 in one tick, which
+has no intermediate value for a threshold to be crossed at even when it is.
+The drive is `'TORIRS_SIM_CMD=500,cannon;560,spawn goblin 20'` with
+`14176=10` and `TORIRS_MAX_FRAMES=4000` now: twenty targets make the cannon
+fire its count down one ball a tick, so the crossing at ten is real and the
+zero at the end is reached through the fire path a player uses. The sentence
+above -- "these screenshots do not prove native firing below the low
+threshold" -- was the standing note that this had never been shown; it has been
+shown on all four CS2 toplevels (`plugins/cannon-classic548.png` and its three
+siblings), each logging exactly one `PLUGIN_NOTIFY` and zero "run out of
+cannonballs".
+
 ## Live widget actions and role probe
 
 `_roleprobe.lua` now uses shared live widget bindings, visibility, bounds and checked native actions. Its old named-UI references/invocation and frame-start callback are removed. Existing `tint` and `press_report` settings remain; optional Public Friends and hidden-action checks are probe controls. It draws five cyan boundaries and follows rebinding without repairing geometry.

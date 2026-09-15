@@ -72,7 +72,22 @@ PLUGINS = [
     ("entity-highlighter",  "highlighter",    "'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108'"),
     ("nxt-highlight",       "nxthl",          "TORIRS_SIM_MOVE_AT=600,{npc} TORIRS_SIM_HOVER={npc} TORIRS_HIGHLIGHT_DEBUG=1"),
     ("nxt-bird-nest",       "birdnest",       "TORIRS_SIM_VARBIT=450,13087,0 'TORIRS_SIM_CMD=600,dropobj bird_nest_egg_red 1'"),
-    ("nxt-cannon-ammo",     "cannon",         "'TORIRS_SIM_VARBIT=450,14175,1;452,14177,1' 'TORIRS_SIM_CMD=500,cannon' TORIRS_SIM_OPLOC=1400,3,3210,3424,6 TORIRS_MAX_FRAMES=1500"),
+    # The cannon drive has to be a WALK down the ammo count, not a drop to
+    # zero, and it has to write all THREE settings rows.
+    #
+    # It used to be 14175 + 14177, `::cannon`, and loc op 3 "Empty" -- which
+    # cannot produce one line from this plugin, and did not, in any of the 307
+    # captures.  The EMPTY notice is suppressed on purpose on an OSRS239 lane
+    # (cannon.rs2 says "Your cannon is out of ammunition!" itself, and
+    # nxt_cannon_chat drops the builtin's duplicate), so the only message left
+    # is the LOW one -- and 249, the amount (varbit 14176), has no default and
+    # was never written, while a one-tick 15 -> 0 unload has no intermediate
+    # value for a threshold to be crossed at even if it had been.
+    #
+    # Twenty goblins give the cannon a target every tick, so the count walks
+    # 15, 14, ... 0 and the crossing at 10 is real.  4000 frames covers the
+    # 4-tick assembly and fifteen fire ticks.
+    ("nxt-cannon-ammo",     "cannon",         "'TORIRS_SIM_VARBIT=450,14175,1;451,14176,10;452,14177,1' 'TORIRS_SIM_CMD=500,cannon;560,spawn goblin 20' TORIRS_MAX_FRAMES=4000"),
 ]
 
 TRACE = "TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all"
