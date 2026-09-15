@@ -5,8 +5,11 @@
 --
 --   * native_overlay is a three-state latch. SUPPRESSING hides every label
 --     widget at each fence; the FIRST caption callback hands them back and only
---     then does the plugin's formatting run; a lane with no cs2_scripts never
---     arms it at all and says so once.
+--     then does the plugin's formatting run; a lane with no hook SITE for that
+--     callback never arms it at all and says so once. The gate is
+--     `script_callback:<name>` and NOT `cs2_scripts` -- the hook is a patched
+--     opcode in the cache, so a CS2 lane on a stock cache answers cs2_scripts
+--     yes and then never calls back.
 --   * menu_add refuses when the host-wide route table is full and RECORDS the
 --     refusal, naming the label nobody will see.
 --   * config_list_add/_remove parse, deduplicate, sort, MEASURE against the
@@ -133,7 +136,13 @@ return {id='ground-behavior',on_start=function(host)
     -- of the run. They are counted anyway: "nothing to reconcile" and "the
     -- reconciler happened to write nothing" are not the same claim.
     local setters, revalidates, staged = 0, 0, false
-    local capabilities = { cs2_scripts = true }
+    -- TWO capabilities, and the second is the one the native half turns on.
+    -- cs2_scripts says the client runs CS2; script_callback:groundItemCaption
+    -- says this client has a hook site that can RAISE that callback, which is
+    -- a fact about patched cache bytes and not about the ui logic. The four
+    -- CS2 gate lanes answer yes to the first and no to the second.
+    local capabilities = { cs2_scripts = true,
+        ['script_callback:groundItemCaption'] = true }
     -- Keyed by NAME. `# Rune platebody = 1` is a commented-out row and
     -- `1127 = 65000` is an obj id: the first is the shape the old whole-file
     -- gmatch matched anyway, and the second is the shape that shipped -- an id
@@ -956,6 +965,7 @@ return {id='ground-behavior',on_start=function(host)
     -- DECLARED finding rather than a latch hiding captions it will never
     -- replace.
     capabilities.cs2_scripts=nil
+    capabilities['script_callback:groundItemCaption']=nil
     findings={};absences={};unsupporteds={};invalidations=0;overlay=nil
     labels={{hidden=false}}
     product.on_start(api)
@@ -973,6 +983,38 @@ return {id='ground-behavior',on_start=function(host)
         'the drawn overlay is bit-identical on a lane with no CS2')
     product.on_stop(api);porcelain.close()
     capabilities.cs2_scripts=true
+
+    -- ------------------------------------------- a CS2 lane with NO HOOK SITE
+    -- Every CS2 lane in this checkout. The cache's caption script is run by
+    -- the lane's own overlay and raises nothing, because the callback is a
+    -- RUNELITE_CALLBACK opcode that tools/plugin_engine_script_hooks.py
+    -- patches in and no shipped cache carries. cs2_scripts answers YES here,
+    -- so gating on it armed the latch and left it SUPPRESSING for the whole
+    -- session: no formatting, no callback, no finding and no log line -- the
+    -- pictures only looked right because the fallback draw ran underneath.
+    --
+    -- This is the SAME assertion set as the CS1 case above and that is the
+    -- point: the two lanes differ in ui logic and not in what this half of
+    -- the plugin can do, so they must report identically.
+    capabilities['script_callback:groundItemCaption']=nil
+    findings={};absences={};unsupporteds={};invalidations=0;overlay=nil
+    labels={{hidden=false}}
+    product.on_start(api)
+    assert(overlay==nil,'CS2 alone is not a hook site: no latch and nothing suppressed')
+    assert(invalidations==0,'and no rebuild asked for a caption that cannot be written')
+    local nohook=found('require','unsupported')
+    assert(nohook and nohook.detail=='native captions' and nohook.expected,
+        'a CS2 lane with no hook says so ONCE -- it does not suppress in silence')
+    assert(unexpected()==0,'and the declaration covers it, so the gate stays satisfiable')
+    frame_step()
+    assert(labels[1].hidden==false,
+        'the lane keeps its own labels rather than losing them to a latch that never lifts')
+    drawn={}
+    product.on_draw_world(api,graphics)
+    assert(#drawn==2 and drawn[2].text:find('Rune platebody',1,true),
+        'and the drawn overlay is what a player sees, unchanged')
+    product.on_stop(api);porcelain.close()
+    capabilities['script_callback:groundItemCaption']=true
 
     -- ------------------------------------------- a client with no prices.txt
     -- Optional: the cache's own OC_COST is the fallback, the absence is one
