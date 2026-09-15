@@ -1493,6 +1493,74 @@ main(void)
     CHECK(native("chat_plate", 0)->hidden && native("chat_plate", 7)->hidden, "the eight OldSchool plates are hidden under the lane's captions");
     CHECK(g_image[native("chat_bar", -1)->art].w == 519 && g_image[native("chat_bar", -1)->art].h == 23,
           "the bar is composed at the pack's own bar size");
+    /*
+     * The 2004 HOUSING, back over the pack that covered it.
+     *
+     * The seated pack is the whole 2004 chat band: it starts on `backhmid2`'s
+     * first row and runs past `backvmid3`'s first column, so the board over
+     * the chat hole, the torn edge under that board and the torn edge down
+     * the right-hand side all go behind a flat 519x165 sheet. What was left
+     * on screen was a rectangle -- a straight cut across the stone at the top
+     * and a straight seam at either side -- on a frame whose every other
+     * opening is ripped paper.
+     *
+     * So the frame draws them again, over the pack, and all three claims here
+     * are about WHERE that picture is rather than what is in it:
+     *
+     *  - it is a piece OVER the chat, which is the only depth that reaches
+     *    the top of a surface every other piece is raised under. Over the
+     *    VIEWPORT -- the depth the other thirteen use -- it would go under
+     *    the pack with the frame's own board and change nothing at all, which
+     *    is exactly the state it replaces;
+     *  - it stands at the BAND's origin and is the band's width, not the
+     *    pack's: `backleft2` leaves six columns of sheet outside the pack and
+     *    they are part of the same defect, so the picture covers the gutter
+     *    too;
+     *  - and it is GONE with the chat. An overlay does not inherit its
+     *    target's visibility (porcelain.c: "OVER inherits nothing"), and a
+     *    board with a torn edge around a chatbox that is not there is a hole
+     *    in the middle of the scene.
+     *
+     * Mutation: give the blit PORCELAIN_EL(VIEWPORT) and the first goes red;
+     * blit it at the pack's x instead of 0 and the second; drop the
+     * visible_with and the third.
+     */
+    {
+        char housing_key[24] = "";
+
+        for( int i = 0; i < g_w_count; i++ )
+            if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, "piece.", 6) == 0 &&
+                g_w[i].image >= 0 && anchored(&g_w[i], "chat", TORIRS_WIDGET_RELATION_OVER) )
+                snprintf(housing_key, sizeof(housing_key), "%s", g_w[i].key);
+        printf("GAMEFRAME oldschool housing key=%s box=%d,%d %dx%d\n",
+               housing_key[0] ? housing_key : "(none)", housing_key[0] ? owned(housing_key)->x : -1,
+               housing_key[0] ? owned(housing_key)->y : -1,
+               housing_key[0] ? owned(housing_key)->w : -1,
+               housing_key[0] ? owned(housing_key)->h : -1);
+        CHECK(housing_key[0] != '\0',
+              "the pack wears the 2004 housing: one piece, over the chat and not under it");
+        if( housing_key[0] )
+        {
+            /* 553 is `backhmid2`'s width, which is the band from the canvas
+             * edge to the tab column; 338 and 165 are the pack's own row and
+             * height, pinned eight checks above. */
+            CHECK(owned_at(housing_key, 0, 338) && owned(housing_key)->w == 553 &&
+                      owned(housing_key)->h == 165,
+                  "at the band's own origin and width, so the gutter beside the pack is covered too");
+            /* Looked up again rather than held: a declare is a rebuild, and
+             * this file's own rule is that a reference taken before one is a
+             * reference to the last incarnation. */
+            native("chat", -1)->hidden = 1;
+            declare(765, 503);
+            frame_tick();
+            CHECK(owned(housing_key) && owned(housing_key)->hidden,
+                  "and it goes away with the chatbox: an overlay does not inherit its target's visibility");
+            native("chat", -1)->hidden = 0;
+            declare(765, 503);
+            frame_tick();
+            CHECK(owned(housing_key) && !owned(housing_key)->hidden, "and comes back with it");
+        }
+    }
     g_frame.select_calls = 0;
     press("tab.08");
     CHECK(g_frame.selected_tab == 9, "the 2004 stones open rev-239's panels in screen order");

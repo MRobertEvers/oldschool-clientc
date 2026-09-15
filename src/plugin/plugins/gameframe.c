@@ -195,6 +195,80 @@ enum FrameLayout
  */
 #define FRAME_C_CHAT_PACK_H (FRAME_C_CHAT_H + FRAME_C_STRIP_H)
 
+/*
+ * The 2004 chat HOUSING, for a pack that has taken the whole band.
+ *
+ * The 2004 frame does not edge its chat hole with a border: it edges it with
+ * TORN PAPER. `backhmid2` is nineteen rows of board whose bottom is ripped
+ * into the sheet, `backleft2` is a board column ripped down its right side,
+ * `backvmid3` one ripped down its left, and the parchment in each of them is
+ * the sheet showing through the rip. None of that is a rectangle, and none of
+ * it is separable from the pieces it is baked into.
+ *
+ * A seated OldSchool pack covers every one of them. It starts at 338, which
+ * is where `backhmid2` starts, and runs 519 columns from 17, which is past
+ * `backvmid3` at 496 -- so the board over the chat, the rip under it and the
+ * whole right-hand rip go behind the pack's own flat sheet, and what is left
+ * on screen is a hard-edged rectangle whose top is a straight cut across the
+ * stone and whose sides butt into the frame's columns. That is the defect.
+ *
+ * So the housing is drawn AGAIN, over the pack, from the same three pieces --
+ * and the numbers below are what it costs to draw it there.
+ */
+/*
+ * The rows the housing may spend on the pack's top edge: eight.
+ *
+ * 338 is the pack's first row and 346 is the first row its top message line
+ * puts ink on, so eight is every row the pack leaves free and one more would
+ * clip a glyph. `backhmid2` spends nineteen on the same edge -- six of board
+ * and thirteen of rip -- so the rip is re-cut to eight rows: the source's own
+ * rows resampled, columns one to one, each column stopping at the rock it
+ * stops at. The silhouette survives the re-cut at about half its depth, which
+ * is the difference between an edge that is ragged and one that is straight.
+ *
+ * Measured off the capture and not read out of interface 162, because 162
+ * states no such number: its message pane is laid out to its box and the
+ * margin above the first line is a consequence. A lane that changed it would
+ * show as a nicked first line, which is why the crop is part of the
+ * acceptance.
+ */
+#define FRAME_C_CHAT_TEAR_H 8
+/*
+ * The chat band's width: `backhmid2`'s own, 553.
+ *
+ * That piece runs from the canvas edge to the tab column, which is what makes
+ * it the band's measure rather than the chat hole's 479 or the pack's 519 --
+ * and it is why the housing is composed at this width and blitted at x=0:
+ * both the gutter left of the pack and the rail right of it are inside the
+ * picture, one to one with the source's own columns.
+ */
+#define FRAME_C_BAND_W 553
+/*
+ * How far right `backleft2` is redrawn so its rip lands on the pack's edge.
+ *
+ * The strip is seventeen columns: board out to column 5..11 -- the rip -- and
+ * the sheet beyond it. The frame blits it at x=0, so on a 2004 lane the rip
+ * falls at 5..11 and the sheet carries on from there to the chat hole at 17.
+ * Under a pack that starts at 17 those last columns are the wrong six pixels
+ * in the world: a pale ledge standing between the frame's board and the
+ * pack's sheet, with a straight seam at either side of it.
+ *
+ * Redrawing the board eight columns right puts the rip at 13..19, straddling
+ * the pack's left edge, and buries the ledge under it. Eight is the offset
+ * that centres the rip on the seam: FRAME_C_CHAT_X - 9, where 9 is the middle
+ * of 5..11.
+ */
+#define FRAME_C_CHAT_EDGE_DX 8
+/*
+ * Rock, or the sheet it is ripped away from: mean channel under 120.
+ *
+ * Both pieces' pixels fall in two clumps with nothing at all between a mean
+ * of 110 and 130 -- the rock runs to 119,103,84 and the darkest sheet pixel
+ * is 170,142,105 -- so the cut is a threshold rather than a stencil, and it
+ * is a threshold no pixel sits near.
+ */
+#define FRAME_C_TEAR_ROCK_SUM 360
+
 #define FRAME_O_ORBS_FIXED_DX (-29)
 #define FRAME_O_ORBS_FIXED_DY 0
 #define FRAME_O_ORBS_FIXED_W 236
@@ -718,6 +792,18 @@ struct FrameBlit
      */
     struct PorcelainElement depth;
     bool behind;
+    /**
+     * The element this piece is GONE with, or NONE for a piece that stays.
+     *
+     * A depth target is not a lifetime: "OVER inherits nothing: a plate over
+     * a hidden compass stays unless the description says it travels with it"
+     * (@see porcelain.c). That is right for the housing plate beside the map,
+     * whose alcove is the frame's own whether a compass paints in it or not,
+     * and wrong for the chat housing: it is the rip around the pack's sheet,
+     * and a rip drawn around a chatbox the player has put away is a board and
+     * a torn edge floating over the scene with nothing inside them.
+     */
+    struct PorcelainElement visible_with;
 };
 
 /** A rectangle, because a tab carries two of them. @see FrameTab. */
@@ -878,6 +964,9 @@ struct FrameState
     struct FrameSized chat_stones;
     struct FrameSized chat_rail;
     struct FrameSized chat_base;
+    /** The 2004 board and torn edge, re-cut for the seated pack and laid back
+     *  over it. @see frame_compose_chat_housing. */
+    struct FrameSized chat_housing;
     /** The tiled panel backing at the box the resizable layout asked for. */
     struct FrameSized side_tiled;
     struct FramePlan plan;
@@ -1318,7 +1407,8 @@ frame_place_orbs(
 static void
 frame_blit_into(
     struct FrameCall* ctx, struct FrameArt image, int x, int y, int tile_w, int tile_h,
-    int trans, struct PorcelainElement depth, bool behind)
+    int trans, struct PorcelainElement depth, bool behind,
+    struct PorcelainElement visible_with)
 {
     struct FrameBlit* b;
     assert(ctx);
@@ -1343,6 +1433,7 @@ frame_blit_into(
     b->trans = trans;
     b->depth = depth;
     b->behind = behind;
+    b->visible_with = visible_with;
 }
 
 /** Chrome behind the live surfaces. */
@@ -1351,7 +1442,7 @@ frame_blit(struct FrameCall* ctx, struct FrameArt image, int x, int y)
 {
     frame_blit_into(
         ctx, image, x + ctx->origin_x, y + ctx->origin_y, 0, 0, 0,
-        PORCELAIN_EL(VIEWPORT), false);
+        PORCELAIN_EL(VIEWPORT), false, PORCELAIN_EL(NONE));
 }
 
 /*
@@ -1370,7 +1461,29 @@ frame_blit_behind(
     struct FrameCall* ctx, struct FrameArt image, int x, int y, struct PorcelainElement element)
 {
     frame_blit_into(
-        ctx, image, x + ctx->origin_x, y + ctx->origin_y, 0, 0, 0, element, true);
+        ctx, image, x + ctx->origin_x, y + ctx->origin_y, 0, 0, 0, element, true,
+        PORCELAIN_EL(NONE));
+}
+
+/*
+ * Chrome OVER one live surface, and gone with it.
+ *
+ * The other end of frame_blit_behind, and the two exist for the same reason:
+ * a surface is raised over every piece this frame owns, so a picture that has
+ * to meet the surface's own art -- under it, as the 2004 parchment does, or
+ * over it, as the chat housing's torn edge does -- cannot be stated as
+ * chrome. It names the surface and says which side.
+ *
+ * `visible_with` is the surface as well, and that is not redundant with the
+ * depth: an overlay outlives a hidden target unless the description says
+ * otherwise. @see FrameBlit::visible_with.
+ */
+static void
+frame_blit_over(
+    struct FrameCall* ctx, struct FrameArt image, int x, int y, struct PorcelainElement element)
+{
+    frame_blit_into(
+        ctx, image, x + ctx->origin_x, y + ctx->origin_y, 0, 0, 0, element, false, element);
 }
 
 /** Chrome behind them, REPEATED over a box. @see FrameBlit::tile_w. */
@@ -1379,7 +1492,7 @@ frame_blit_tiled(struct FrameCall* ctx, struct FrameArt image, int x, int y, int
 {
     frame_blit_into(
         ctx, image, x + ctx->origin_x, y + ctx->origin_y, w, h, trans,
-        PORCELAIN_EL(VIEWPORT), false);
+        PORCELAIN_EL(VIEWPORT), false, PORCELAIN_EL(NONE));
 }
 
 /*
@@ -2030,6 +2143,183 @@ frame_compose_chat_backing(
 }
 
 /*
+ * One shipped picture's pixels, or NULL while it is still crossing the IO
+ * queue. The caller frees. @see frame_chat_strip_pixels, which is this with
+ * `backbase1`'s two band offsets checked as well.
+ */
+static uint32_t*
+frame_art_pixels(struct FrameCall* ctx, int which, int* out_w, int* out_h)
+{
+    uint32_t* px;
+    int w = 0;
+    int h = 0;
+    size_t copied = 0;
+
+    assert(ctx);
+    assert(out_w);
+    assert(out_h);
+    if( !g_api->assets.image_size(g_api, frame_image(ctx, which), &w, &h) || w <= 0 || h <= 0 )
+        return NULL;
+    px = malloc((size_t)w * (size_t)h * sizeof(*px));
+    assert(px);
+    if( !g_api->assets.image_pixels(
+            g_api, frame_image(ctx, which), px, (size_t)w * (size_t)h, &copied) ||
+        copied != (size_t)w * (size_t)h )
+    {
+        free(px);
+        return NULL;
+    }
+    *out_w = w;
+    *out_h = h;
+    return px;
+}
+
+/** Rock, or the sheet it was ripped from. @see FRAME_C_TEAR_ROCK_SUM. */
+static bool
+frame_pixel_is_rock(uint32_t argb)
+{
+    unsigned const red = (argb >> 16) & 0xFFu;
+    unsigned const green = (argb >> 8) & 0xFFu;
+    unsigned const blue = argb & 0xFFu;
+
+    return (int)(red + green + blue) < FRAME_C_TEAR_ROCK_SUM;
+}
+
+/**
+ * Wrap an index into 0..count-1 by REFLECTING rather than repeating.
+ *
+ * The same trick frame_compose_chat_backing wraps the parchment with, and for
+ * the same reason: a plain repeat butts the source's last row against its
+ * first and the join is a line across a texture that has none. Negative is
+ * meaningful here -- the housing starts nineteen rows above the strip it
+ * takes its board from -- so the modulo is corrected rather than assumed
+ * positive, which C's is not.
+ */
+static int
+frame_mirror_index(int index, int count)
+{
+    int wrapped;
+
+    assert(count > 0);
+    wrapped = index % (2 * count);
+    if( wrapped < 0 )
+        wrapped += 2 * count;
+    return wrapped < count ? wrapped : 2 * count - 1 - wrapped;
+}
+
+/*
+ * The 2004 chat HOUSING, as one transparent picture laid over the pack.
+ *
+ * Everything this draws is rock the frame already ships, put back where the
+ * seated pack covered it. Nothing is authored: the top edge is `backhmid2`'s
+ * own rip resampled to the eight rows the pack leaves free, the left edge is
+ * `backleft2`'s own board slid eight columns right so its rip lands on the
+ * pack's edge instead of six pixels short of it, and every pixel that is not
+ * rock is left transparent so the pack's sheet -- and its text, its
+ * scrollbar, its rule and its bar -- shows through the rip exactly as the
+ * 2004 sheet shows through it.
+ *
+ * `height` says where the picture starts: it is the canvas floor minus the
+ * pack, so the board's texture can be lined up with the frame's own
+ * `backleft2` blit at FRAME_C_CHAT_Y without a second parameter. A lane that
+ * states a taller chat gets a taller housing with the same rip on it.
+ *
+ * NOT a nine-slice and not a border. The rip is a silhouette, and the only
+ * thing that survives re-cutting it is the silhouette: resampled rows keep it
+ * at about half its depth, a scaled picture would not keep it at all, and a
+ * rectangle drawn around the sheet is the defect this replaces.
+ */
+static struct ToriRS_ImageRef
+frame_compose_chat_housing(
+    struct FrameCall* ctx,
+    char const* name,
+    int width,
+    int height)
+{
+    uint32_t* top;
+    uint32_t* side;
+    uint32_t* out;
+    int top_w = 0;
+    int top_h = 0;
+    int side_w = 0;
+    int side_h = 0;
+    int const band_y = FRAME_FIXED_H - height;
+    struct ToriRS_ImageRef handle = { 0 };
+
+    assert(ctx);
+    assert(name);
+    assert(width > 0);
+    assert(height > 0);
+    top = frame_art_pixels(ctx, IMG_C_BACKHMID2, &top_w, &top_h);
+    if( !top )
+        return handle;
+    side = frame_art_pixels(ctx, IMG_C_BACKLEFT2, &side_w, &side_h);
+    if( !side )
+    {
+        free(top);
+        return handle;
+    }
+    /* Two rows are the fewest a resample can carry a silhouette in, and a
+     * board wider than the picture is a housing for somebody else's frame. */
+    if( top_h < 2 || top_w < width )
+    {
+        free(side);
+        free(top);
+        return handle;
+    }
+    out = calloc((size_t)width * (size_t)height, sizeof(*out));
+    assert(out);
+
+    /*
+     * The top edge. Columns one to one -- `backhmid2` is the whole band's
+     * width, so there is nothing to scale sideways -- and the rows resampled
+     * into FRAME_C_CHAT_TEAR_H. Each column stops at the first pixel that is
+     * not rock, which is what keeps the rip a rip: sampling rows
+     * independently would leave a dark pixel hanging under a gap in a column
+     * whose rock had already ended.
+     */
+    for( int x = 0; x < width; x++ )
+        for( int row = 0; row < FRAME_C_CHAT_TEAR_H && row < height; row++ )
+        {
+            int const sy = row * (top_h - 1) / (FRAME_C_CHAT_TEAR_H - 1);
+            uint32_t const pixel = top[(size_t)sy * (size_t)top_w + (size_t)x];
+
+            if( !frame_pixel_is_rock(pixel) )
+                break;
+            out[(size_t)row * (size_t)width + (size_t)x] = pixel | 0xFF000000u;
+        }
+
+    /*
+     * The left edge, over the whole height of the pack and not only the rows
+     * the 2004 hole had: the board this continues runs from the scene's
+     * bottom row to the canvas floor, and a rip that stopped where
+     * `backleft2` stops would leave the pack's sheet meeting the frame's
+     * stone in a straight line for the last fifty rows.
+     */
+    for( int y = 0; y < height; y++ )
+    {
+        int const sy = frame_mirror_index(band_y + y - FRAME_C_CHAT_Y, side_h);
+
+        for( int c = 0; c < side_w; c++ )
+        {
+            uint32_t const pixel = side[(size_t)sy * (size_t)side_w + (size_t)c];
+            int const x = c + FRAME_C_CHAT_EDGE_DX;
+
+            if( !frame_pixel_is_rock(pixel) )
+                break;
+            if( x < width )
+                out[(size_t)y * (size_t)width + (size_t)x] = pixel | 0xFF000000u;
+        }
+    }
+
+    (void)frame_compose(ctx, name, width, height, out, &handle);
+    free(out);
+    free(side);
+    free(top);
+    return handle;
+}
+
+/*
  * The OldSchool button band as ONE picture: the six rows the backing sprite
  * carries and the twenty-three of the bar sprite under them.
  *
@@ -2288,7 +2578,25 @@ frame_tab_centre(
     *out_x = box.x + (box.w - iw) / 2;
     *out_y = box.y + (box.h - ih) / 2;
 }
-/* Re-cut a surround piece for the pack's width, keeping its vertical rows. */
+/*
+ * Re-cut a surround piece for the pack's width, keeping its vertical rows.
+ *
+ * WIDER than the source is a stretch and NARROWER is a crop, and the two are
+ * not the same operation said twice. Widening has nothing else available:
+ * there are no columns to take, so the ones there are get resampled and the
+ * `backbase1` strip this widens from 496 to 536 loses nothing by it, being
+ * rock and recesses with no silhouette running down it.
+ *
+ * Narrowing had been the same resample, and on the one piece that narrows it
+ * was wrong. `backvmid3` is 57 columns of which the first thirteen are the
+ * sheet's RIGHT-HAND RIP -- a torn edge whose whole content is where, column
+ * by column, the rock starts. Subsampling 57 columns down to 17 takes every
+ * third one, which compresses that thirteen-column rip into four and leaves a
+ * boundary a player reads as a straight line. Cropping keeps the rip at its
+ * own scale and spends the seventeen columns the rail has on the part of the
+ * piece that is doing the work; what it loses is the pillar behind it, which
+ * is the part the frame's neighbours already draw.
+ */
 static struct FrameArt
 frame_surround_piece(struct FrameCall* ctx, struct FrameSized* cache,
                      int source, int width, int height, char const* name)
@@ -2305,14 +2613,15 @@ frame_surround_piece(struct FrameCall* ctx, struct FrameSized* cache,
         sw <= 0 || sh != height )
         return nothing;
     input = malloc((size_t)sw * sh * sizeof(*input));
+    assert(input);
     output = malloc((size_t)width * height * sizeof(*output));
-    assert(input && output);
+    assert(output);
     if( g_api->assets.image_pixels(g_api, frame_image(ctx, source), input,
                                    (size_t)sw * sh, &copied) && copied == (size_t)sw * sh )
     {
         for( int y = 0; y < height; y++ )
             for( int x = 0; x < width; x++ )
-                output[y * width + x] = input[y * sw + x * sw / width];
+                output[y * width + x] = input[y * sw + (width < sw ? x : x * sw / width)];
         (void)frame_compose(ctx, name, width, height, output, &art);
     }
     free(output);
@@ -2772,9 +3081,35 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
             mobile_top > 0 && g_api->cache.frame_root(g_api) == mobile_top )
             frame_place_chat(ctx, 0, FRAME_FIXED_H - FRAME_O_CHAT_PACK_H);
         else
+        {
+            int const chat_y = FRAME_FIXED_H - native_h;
+
             frame_surface(
-                ctx, FRAME_SURFACE_CHAT, FRAME_C_CHAT_X, FRAME_FIXED_H - native_h,
-                native_w, native_h);
+                ctx, FRAME_SURFACE_CHAT, FRAME_C_CHAT_X, chat_y, native_w, native_h);
+            /*
+             * And the 2004 housing back OVER it. @see FRAME_C_CHAT_TEAR_H.
+             *
+             * Last of this layout's pieces, and it has to be: a piece's owned
+             * key is its index in the blit list, so one inserted among the
+             * surround would renumber every piece after it and move thirteen
+             * controls that did not move. Its DEPTH is what puts it on top --
+             * over the chat and not over the scene, the mirror of what the
+             * 2004 parchment says when it goes behind the chat -- so where it
+             * stands in this list decides nothing but its name.
+             *
+             * The picture is the housing's whole band, gutters included: the
+             * pack covers 17..536 of it and the rip is drawn on those edges,
+             * but the six columns of sheet `backleft2` leaves outside the
+             * pack are part of the same defect and they are covered from the
+             * same picture. @see frame_compose_chat_housing.
+             */
+            frame_blit_over(
+                ctx,
+                frame_sized_art(
+                    ctx, &ctx->state->chat_housing, frame_compose_chat_housing,
+                    "classic_chat_housing", FRAME_C_BAND_W, FRAME_FIXED_H - chat_y),
+                0, chat_y, PORCELAIN_EL(CHAT));
+        }
     }
     else
         frame_surface(
@@ -3578,7 +3913,8 @@ frame_art_size(struct FrameCall* ctx, struct FrameArt art, int* out_w, int* out_
 static void
 frame_describe_piece(
     struct ToriRS_PorcelainDescribe* describe, char const* key, struct FrameArt art, int x, int y,
-    int w, int h, int trans, struct PorcelainElement depth, bool behind)
+    int w, int h, int trans, struct PorcelainElement depth, bool behind,
+    struct PorcelainElement visible_with)
 {
     struct PorcelainItem item;
 
@@ -3594,6 +3930,7 @@ frame_describe_piece(
     item.place.dy = y;
     item.place.depth = depth;
     item.place.behind = behind;
+    item.visible_with = visible_with;
     /*
      * `trans` is the client's own sense: 0 opaque, 255 invisible. Porcelain's
      * is the other way up AND reserves zero for "unstated, therefore opaque",
@@ -3636,7 +3973,7 @@ frame_describe_chrome(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* de
         else if( !frame_art_size(ctx, art, &w, &h) )
             continue;
         frame_describe_piece(describe, state->piece_key[i], art, b->x, b->y, w, h, b->trans,
-                             b->depth, b->behind);
+                             b->depth, b->behind, b->visible_with);
     }
 
     if( g_plan.housing_placed )
@@ -3660,7 +3997,8 @@ frame_describe_chrome(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* de
         if( frame_art_size(ctx, g_plan.housing_image, &w, &h) )
             frame_describe_piece(
                 describe, "housing", g_plan.housing_image, g_plan.housing_rect.x,
-                g_plan.housing_rect.y, w, h, 0, PORCELAIN_EL(COMPASS), false);
+                g_plan.housing_rect.y, w, h, 0, PORCELAIN_EL(COMPASS), false,
+                PORCELAIN_EL(NONE));
     }
 
     for( int i = 0; i < g_plan.tab_count; i++ )
@@ -3738,10 +4076,10 @@ frame_describe_chrome(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* de
             face = frame_blank(ctx);
         if( frame_art_size(ctx, t->stone.name ? t->stone : t->stone_pressed, &w, &h) )
             frame_describe_piece(describe, state->face_key[i], face, t->box.x, t->box.y, w, h, 0,
-                                 PORCELAIN_EL(VIEWPORT), false);
+                                 PORCELAIN_EL(VIEWPORT), false, PORCELAIN_EL(NONE));
         if( given && frame_art_size(ctx, t->icon, &w, &h) )
             frame_describe_piece(describe, state->icon_key[i], t->icon, t->icon_x, t->icon_y, w, h,
-                                 0, PORCELAIN_EL(VIEWPORT), false);
+                                 0, PORCELAIN_EL(VIEWPORT), false, PORCELAIN_EL(NONE));
     }
 }
 
@@ -4598,6 +4936,7 @@ frame_on_stop(struct ToriRS_Api* api, void* state_ptr)
     frame_release_sized(api, &state->chat_stones);
     frame_release_sized(api, &state->chat_rail);
     frame_release_sized(api, &state->chat_base);
+    frame_release_sized(api, &state->chat_housing);
     frame_release_sized(api, &state->side_tiled);
     memset(state, 0, sizeof(*state));
 }
