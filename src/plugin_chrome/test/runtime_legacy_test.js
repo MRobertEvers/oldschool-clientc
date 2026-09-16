@@ -262,6 +262,24 @@ while (timers.length) { timers.shift()(); }
 assert.strictEqual(posted[posted.length - 1].focused, false,
     "legacy editor blur returns IME ownership after debounce");
 
+/* railHidden: the game lane's own pop-out column carries the destinations, so
+ * the XP page hides its rail by a class on the shell (MSHTML 8 has no :not())
+ * and the rail box itself stops displaying. */
+var railCell = built.ids["tpc-rail-list"].parentNode;
+railMessage.railHidden = true;
+assert(runtime.receive(codec.stringify(railMessage)), "legacy host JSON carries railHidden");
+assert(/(^|\s)tpc-rail-hidden(\s|$)/.test(built.ids["tpc-shell"].className),
+    "a railHidden snapshot marks the legacy shell");
+assert.strictEqual(railCell.style.display, "none", "the legacy rail box does not display");
+assert.strictEqual(runtime.inspect().railHidden, true);
+assert(!/(^|\s)tpc-collapsed(\s|$)/.test(built.ids["tpc-shell"].className),
+    "the pane still expands on a selection made from the game");
+railMessage.railHidden = false;
+runtime.receive(codec.stringify(railMessage));
+assert(!/(^|\s)tpc-rail-hidden(\s|$)/.test(built.ids["tpc-shell"].className),
+    "railHidden false removes the class");
+assert.strictEqual(railCell.style.display, "");
+
 assert.deepStrictEqual(codec.parse(codec.stringify({ text: "a\nb", n: 3, yes: true })),
     { text: "a\nb", n: 3, yes: true }, "ES3 codec round-trips without native JSON");
 assert.strictEqual(runtime.receive("{bad"), false, "malformed input is rejected safely");

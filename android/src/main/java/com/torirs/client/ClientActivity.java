@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.Uri;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -760,6 +761,31 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
      * Posted to the UI thread: the caller is the frame thread, and finishing an
      * activity is not its to do.
      */
+    /**
+     * Open a url in the system browser -- the clientscript openurl command.
+     * Called from the frame thread, so the start happens on the UI thread; a
+     * url nothing can handle is dropped, as the reference client drops it.
+     */
+    @SuppressWarnings("unused") /* invoked by JNI, by name */
+    public void openUrl(final String url)
+    {
+        runOnUiThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                try
+                {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+                }
+                catch( RuntimeException e )
+                {
+                    android.util.Log.w("torirs", "unable to open url " + url, e);
+                }
+            }
+        });
+    }
+
     @SuppressWarnings("unused") /* invoked by JNI, by name */
     public void bootFailed(final String message)
     {

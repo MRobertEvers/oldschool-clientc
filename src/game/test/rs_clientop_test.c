@@ -140,13 +140,13 @@ main(void)
             "a loc getter answers nothing during a tile dispatch");
     }
 
-    /* ---- the obj block, including the COUNT (`_6853`) --------------------
+    /* ---- the obj block, including the COUNT (`OBJ_COUNT`) --------------------
      *
      * A ground stack is identified by BOTH its id and its count -- the
      * reference's own FINDOBJ matches a menu row to an obj with
      * `obj->id == entry->id && obj->count == entry->count`, which is what
      * tells two stacks of the same item on one tile apart. `_6852` is the id
-     * and `_6853` is the count.
+     * and `OBJ_COUNT` is the count.
      */
     {
         struct RS_ClientOpContext ctx;
@@ -163,7 +163,7 @@ main(void)
         RS_ClientOpContextBegin(&st, &ctx);
 
         CHECK(ctx_int(&st, CS2_OP_OBJ_TYPE, 4646) == 995, "_6852 is the obj id");
-        CHECK(ctx_int(&st, CS2_OP_OBJ_COUNT, 4646) == 250, "_6853 is the stack count");
+        CHECK(ctx_int(&st, CS2_OP_OBJ_COUNT, 4646) == 250, "OBJ_COUNT is the stack count");
         CHECK(ctx_int(&st, CS2_OP_OBJ_COORD, 4646) == coord, "_6851 is the coord");
         RS_ClientOpContextEnd(&st);
         CHECK(

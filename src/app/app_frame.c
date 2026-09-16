@@ -492,6 +492,8 @@ App_RunOnce(
      */
     app_net_link_watch(app, now_ms);
     app->last_frame_ms = now_ms;
+    /* The monotonic clock the idle-time and trading-post age commands read. */
+    app->host.client.now_ms = (int64_t)now_ms;
 
     /* Pump ordinary async work with a frame budget.  A CS2 transaction is the
      * exception: cooperative yields are drained to completion, and a genuine
@@ -1099,24 +1101,6 @@ App_RunOnce(
         app_obj_cell_at(app, out.clicked_x, out.clicked_y, &pressed_cell);
 
     /*
-     * The client's own chrome components, before the game sees them.
-     *
-     * The Manage Plugins button IS an interface component, so without this a
-     * click on it would also build a minimenu for whatever the component looks
-     * like to the game -- a layer with no armed op, which is "Walk here".
-     * Recognised by component id: the client allocates from a private high
-     * range precisely so this is a bounds test.
-     */
-    int chrome_took_click = 0;
-    if( out.clicked_com_id >= TORIRS_CHROME_ID_BASE && out.clicked_com_id < TORIRS_CHROME_ID_END &&
-        app_plugin_button_click(app, out.clicked_com_id) )
-    {
-        chrome_took_click = 1;
-        app->input_frame_consumed = 1;
-        app->need_redraw = 1;
-    }
-
-    /*
      * An IF3 text-entry field takes the caret, and any other click gives it up.
      *
      * Ahead of the minimenu because a click on the field IS the whole action:
@@ -1124,14 +1108,15 @@ App_RunOnce(
      * but a font, a colour and its input limits), so letting the click continue
      * would build a Cancel-only menu over it and, on a miss, walk the player.
      *
-     * The blur half is not an afterthought: `on_input_focus_changed` is what
-     * the hiscores panel does its lookup from, so clicking OUT of the box is
-     * how a typed name is searched for. Both halves go through the host, which
-     * owns the hook dispatch -- see RS_CS2_InputSetFocus.
+     * The blur half is not an afterthought: it fires the field's
+     * `on_input_focus_changed` hook. (The hiscores panel used to search from
+     * it, because that slot held the SUBMIT handler -- the two were swapped.
+     * The client searches on Enter; a blur runs only its guard script.) Both
+     * halves go through the host, which owns the hook dispatch -- see
+     * RS_CS2_InputSetFocus.
      */
     int input_took_click = 0;
-    if( !chrome_took_click &&
-        (out.clicked_com_id >= 0 || out.clicked_node >= 0 || out.left_click_miss) &&
+    if( (out.clicked_com_id >= 0 || out.clicked_node >= 0 || out.left_click_miss) &&
         !out.minimenu_closed && out.minimenu_select < 0 )
     {
         int const field =
@@ -1159,7 +1144,7 @@ App_RunOnce(
      * control has no component id, and keying on the id alone dropped its click
      * on the floor -- neither a UI click here nor a world click below, because
      * the interactive hit had already closed the world gate. */
-    if( !chrome_took_click && !input_took_click && app->inv_drag.component_id < 0 &&
+    if( !input_took_click && app->inv_drag.component_id < 0 &&
         !pressed_filled_obj && (out.clicked_com_id >= 0 || out.clicked_node >= 0) &&
         !out.minimenu_closed && out.minimenu_select < 0 )
     {

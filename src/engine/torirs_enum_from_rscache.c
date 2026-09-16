@@ -19,6 +19,7 @@ ToriRS_EnumFromRSCacheDat2(
     e = calloc(1, sizeof(*e));
     assert(e);
     e->id = enum_id;
+    e->input_type = entry->input_type;
     e->output_is_string = entry->output_is_string;
     e->default_int = entry->default_int;
     e->default_string = entry->default_string;

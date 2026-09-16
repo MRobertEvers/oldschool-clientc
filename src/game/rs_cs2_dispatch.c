@@ -200,7 +200,7 @@ RS_CS2_RunScript(
  * table is empty on the way out, which catches the dual defect: a flag that
  * gains a guard key but not a clear-down re-dispatches on every tick forever.
  */
-#define RS_CS2_DIRTY_FLAG_CAP 8
+#define RS_CS2_DIRTY_FLAG_CAP 16
 
 static size_t
 rs_cs2_dirty_flags(
@@ -216,6 +216,11 @@ rs_cs2_dirty_flags(
     out[n++] = &host->misc_transmit_dirty;
     out[n++] = &host->friend_transmit_dirty;
     out[n++] = &host->chat_transmit_dirty;
+    out[n++] = &host->clan_transmit_dirty;
+    out[n++] = &host->stock_transmit_dirty;
+    out[n++] = &host->active_offers_transmit_dirty;
+    out[n++] = &host->clan_settings_transmit_dirty;
+    out[n++] = &host->clan_channel_transmit_dirty;
     assert(n <= RS_CS2_DIRTY_FLAG_CAP);
     return n;
 }
@@ -402,6 +407,44 @@ RS_CS2_PumpTransmits(
         ToriRS_TaskQueue_Add(runner->queue, task);
     }
 
+    /* The server-driven transmits with no trigger list: the friends chat, the
+     * offer slots, the trading post, the clan settings and the clan channel.
+     * Each re-runs every hook registered for it. */
+    if( host->clan_transmit_dirty )
+    {
+        task = CreateTask_CS2ClanTransmitDispatch(host);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
+
+    if( host->stock_transmit_dirty )
+    {
+        task = CreateTask_CS2StockTransmitDispatch(host);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
+
+    if( host->active_offers_transmit_dirty )
+    {
+        task = CreateTask_CS2ActiveOffersTransmitDispatch(host);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
+
+    if( host->clan_settings_transmit_dirty )
+    {
+        task = CreateTask_CS2ClanSettingsTransmitDispatch(host);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
+
+    if( host->clan_channel_transmit_dirty )
+    {
+        task = CreateTask_CS2ClanChannelTransmitDispatch(host);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
+
     host->widgets_loaded_dirty = 0;
     host->var_transmit_dirty = 0;
     host->var_changed_count = 0;
@@ -415,6 +458,11 @@ RS_CS2_PumpTransmits(
     host->misc_transmit_dirty = 0;
     host->friend_transmit_dirty = 0;
     host->chat_transmit_dirty = 0;
+    host->clan_transmit_dirty = 0;
+    host->stock_transmit_dirty = 0;
+    host->active_offers_transmit_dirty = 0;
+    host->clan_settings_transmit_dirty = 0;
+    host->clan_channel_transmit_dirty = 0;
 
     /* The clear-down has to cover the whole table. A flag that is a guard key
      * but is not cleared here re-opens the guard on the very next tick and

@@ -954,6 +954,13 @@ PlatformWindow_SetTitle(struct PlatformWindow* p, char const* title)
 }
 
 void
+PlatformWindow_OpenUrl(struct PlatformWindow* p, char const* url)
+{
+    assert(p);
+    PlatformAndroidJni_OpenUrl(url);
+}
+
+void
 PlatformWindow_SetTextInput(struct PlatformWindow* p, int on)
 {
     assert(p);

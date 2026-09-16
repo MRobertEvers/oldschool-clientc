@@ -611,6 +611,19 @@ app_wants_text_input(struct App const* app)
 }
 
 int
+App_TakeOpenUrl(struct App* app, char* out, int cap)
+{
+    assert(app);
+    assert(out);
+    assert(cap > 0);
+    if( !app->host.client.pending_open_url[0] )
+        return 0;
+    snprintf(out, (size_t)cap, "%s", app->host.client.pending_open_url);
+    app->host.client.pending_open_url[0] = '\0';
+    return 1;
+}
+
+int
 App_TakeTextInputChange(
     struct App* app,
     int* out_on)

@@ -344,7 +344,8 @@ faces of one selected plugin cannot reuse the prior face's layout.
 ### `editor.focus`
 
 The modern and legacy runtimes emit this only on a deduplicated ownership
-edge for an `INPUT`, `SELECT`, or `TEXTAREA`. Focus-out is deferred one task so
+edge for an `INPUT` or `TEXTAREA`. A dropdown is a page-drawn button and list,
+not a `SELECT`, and takes no editor focus. Focus-out is deferred one task so
 moving directly between two editors does not briefly hand the IME back to the
 game.
 

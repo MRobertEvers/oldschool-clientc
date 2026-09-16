@@ -266,7 +266,7 @@ enum
     {                                                                                              \
         if( (app)->net && (app)->net->state == TORIRS_NET_GAME )                                   \
         {                                                                                          \
-            uint8_t _nsbuf[512];                                                                   \
+            uint8_t _nsbuf[1100];                                                                  \
             int _nslen = builder_call;                                                             \
             if( _nslen > 0 )                                                                       \
             {                                                                                      \
@@ -710,6 +710,22 @@ app_cs2_set_active_tile(
 
 int
 app_cs2_local_route_signature(struct App* app);
+
+int
+app_cs2_player_slot_by_name(
+    void* user,
+    char const* name);
+
+char const*
+app_cs2_worldentity_config_name(
+    void* user,
+    int config_id);
+
+int
+app_cs2_npc_by_uid(
+    void* user,
+    int uid,
+    struct RS_ClientOpContext* out);
 
 int
 app_cs2_coord_in_scene(
@@ -1450,13 +1466,19 @@ int
 app_plugin_io_down(struct App const* app);
 
 void
-app_plugin_button_sync(struct App* app);
-
-void
 app_plugin_window_set_open(struct App* app, int open);
 
+/**
+ * The owner token on every engine button in a lane's pop-out column. Far above
+ * any plugin's `index + 1`, so PluginHost_WidgetOperation refuses it even if a
+ * row carrying it reached the host.
+ */
+#define APP_PLUGIN_NAV_OWNER UINT64_C(0x746F7269524E4156)
+
+/** A click on an engine pop-out button (`plugin_owner == APP_PLUGIN_NAV_OWNER`).
+ *  @return 1 when `node` is one of them and its destination was selected. */
 int
-app_plugin_button_click(struct App* app, int component_id);
+app_plugin_popout_nav_click(struct App* app, int32_t node);
 
 int
 app_plugin_panel_overlay_visible(

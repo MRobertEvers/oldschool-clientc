@@ -2894,7 +2894,7 @@ test_loot_infers_only_what_the_record_does_not_hold(void)
 /*
  * One `::lootkill` must not disable the lane's only real loot source.
  *
- * The record has two feeders: `CS2_OP_LOOT_ADD`, which is the game's own and
+ * The record has two feeders: `CS2_OP_LOOTTRACKER_LOOTADD`, which is the game's own and
  * runs only where CS2 scripts do, and `App_LootNotifyKill`, which the
  * `::lootkill` cheat reaches on EVERY lane. On the 2004 lane there is no CS2
  * VM, so the cheat is the only thing that ever writes the record and

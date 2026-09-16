@@ -141,6 +141,9 @@ struct PlatformWindow
     /* The rail's points, as the executor that opened it asked (each executor
      * has its own number). The constant above is only the fallback. */
     int chrome_rail_point_w;
+    /* Points the window was widened by FOR THE RAIL; hiding it gives this
+     * back. 0 when the rail was carved out of the game area. */
+    int chrome_rail_grow_w;
     /* Points the window was widened by FOR THE PAGE, 0..page width. Close
      * gives back exactly this. A page carved out of the game area instead --
      * the frame belonged to the window manager, or the display had no room
@@ -152,6 +155,9 @@ struct PlatformWindow
     bool chrome_relayout_pending;
     bool chrome_open;
     bool chrome_rail_visible;
+    /* The lane's own pop-out column carries the plugin destinations, so the
+     * rail takes no points at all: see PlatformWindow_ChromeSetRailHidden. */
+    bool chrome_rail_hidden;
     bool chrome_focused;
     bool chrome_pointer_down;
     bool chrome_rail_focused;
@@ -1544,8 +1550,29 @@ static int
 sdl_chrome_rail_points(struct PlatformWindow const* platform)
 {
     assert(platform);
+    if( platform->chrome_rail_hidden )
+        return 0;
     return platform->chrome_rail_point_w > 0 ? platform->chrome_rail_point_w
                                              : SDL_CHROME_RAIL_POINTS;
+}
+
+/* The chrome surface when nothing is left to draw into it: a hidden rail with
+ * no page. The width is what the Cocoa browser view and the game viewport
+ * read, so a stale one would keep a strip reserved for a rail that is gone. */
+static void
+chrome_release_surface(struct PlatformWindow* platform)
+{
+    assert(platform);
+    if( platform->chrome_texture )
+    {
+        SDL_DestroyTexture(platform->chrome_texture);
+        platform->chrome_texture = NULL;
+    }
+    free(platform->chrome_pixels);
+    platform->chrome_pixels = NULL;
+    platform->chrome_width = 0;
+    platform->chrome_height = 0;
+    platform->chrome_dirty = false;
 }
 
 static int
@@ -1784,13 +1811,19 @@ PlatformWindow_ChromeRailOpen(
         return true;
     if( !platform->window || width <= 0 )
         return false;
+    /* Remembered, not shown: un-hiding opens it at the width it was asked. */
+    if( platform->chrome_rail_hidden )
+    {
+        platform->chrome_rail_point_w = width;
+        return true;
+    }
     SDL_GetWindowSize(platform->window, &point_w, &point_h);
     if( point_w <= 0 || point_h <= 0 )
         return false;
-    /* The rail is never given back (Close keeps it), so its growth is not
-     * remembered -- only whether the window can take it right now. */
+    /* Close keeps the rail; only hiding it gives the growth back. */
     grow_w = sdl_chrome_growth_decide(platform, width, 0, point_w - width, &shift_x) ? width : 0;
     platform->chrome_rail_point_w = width;
+    platform->chrome_rail_grow_w = grow_w;
     platform->chrome_point_w = width;
     platform->chrome_page_grow_w = 0;
     platform->chrome_rail_visible = true;
@@ -1811,6 +1844,7 @@ PlatformWindow_ChromeRailOpen(
     {
         platform->chrome_rail_visible = false;
         platform->chrome_point_w = 0;
+        platform->chrome_rail_grow_w = 0;
         if( grow_w > 0 )
             SDL_SetWindowSize(platform->window, point_w, point_h);
         return false;
@@ -1866,7 +1900,7 @@ PlatformWindow_ChromeOpen(
         if( platform->chrome_page_grow_w < 0 )
             platform->chrome_page_grow_w = 0;
         platform->chrome_open = true;
-        platform->chrome_rail_visible = true;
+        platform->chrome_rail_visible = !platform->chrome_rail_hidden;
         platform->chrome_focused = false;
         platform->chrome_pointer_down = false;
         platform->chrome_rail_focused = false;
@@ -2008,12 +2042,15 @@ PlatformWindow_ChromeClose(struct PlatformWindow* platform)
     platform->chrome_have_input = false;
     platform->chrome_rail_have_input = false;
     platform->chrome_dirty = false;
-    platform->chrome_rail_visible = true;
+    platform->chrome_rail_visible = !platform->chrome_rail_hidden;
     platform->chrome_point_w = sdl_chrome_rail_points(platform);
     platform->chrome_page_grow_w = 0;
     sdl_chrome_report(platform, "page close, giving back", give_back_w, restore_w - point_w, 0);
     if( restore_w != point_w && platform->window )
         SDL_SetWindowSize(platform->window, restore_w, point_h);
+    if( platform->chrome_rail_hidden )
+        chrome_release_surface(platform);
+    else
     {
         int rail_w = 0;
         int rail_h = 0;
@@ -2021,6 +2058,82 @@ PlatformWindow_ChromeClose(struct PlatformWindow* platform)
         (void)chrome_make_surface(platform, rail_w, rail_h);
     }
     platform->chrome_relayout_pending = true;
+}
+
+bool
+PlatformWindow_ChromeRailHidden(struct PlatformWindow const* platform)
+{
+    assert(platform);
+    return platform->chrome_rail_hidden;
+}
+
+void
+PlatformWindow_ChromeSetRailHidden(struct PlatformWindow* platform, bool hidden)
+{
+    int point_w = 0;
+    int point_h = 0;
+    int pixel_w = 0;
+    int pixel_h = 0;
+    int rail_w;
+
+    assert(platform);
+    if( platform->chrome_rail_hidden == hidden )
+        return;
+    rail_w = platform->chrome_rail_point_w > 0 ? platform->chrome_rail_point_w
+                                               : SDL_CHROME_RAIL_POINTS;
+    platform->chrome_rail_hidden = hidden;
+    if( !platform->window )
+        return;
+    platform->chrome_rail_focused = false;
+    platform->chrome_rail_pointer_down = false;
+    platform->chrome_rail_hovered = false;
+    memset(&platform->chrome_rail_input, 0, sizeof(platform->chrome_rail_input));
+    platform->chrome_rail_input.mouse_x = -1;
+    platform->chrome_rail_input.mouse_y = -1;
+    platform->chrome_rail_have_input = false;
+
+    if( platform->chrome_open )
+    {
+        /* A page is up: the window keeps its size and the game area takes the
+         * rail's points (or gives them back). Moving the navigation into the
+         * game is no reason to move the window. */
+        platform->chrome_point_w += hidden ? -rail_w : rail_w;
+        platform->chrome_rail_visible = !hidden;
+        chrome_drawable_size(platform, &pixel_w, &pixel_h);
+        (void)chrome_make_surface(platform, pixel_w, pixel_h);
+        platform->chrome_input.resized = 1;
+        platform->chrome_input.width = PlatformWindow_ChromePageWidth(platform);
+        platform->chrome_input.height = pixel_h;
+        platform->chrome_have_input = true;
+        platform->chrome_relayout_pending = true;
+        sdl_chrome_report(platform, hidden ? "rail hidden beside page" : "rail shown beside page",
+            rail_w, 0, 0);
+        return;
+    }
+
+    if( hidden )
+    {
+        if( !platform->chrome_rail_visible )
+            return;
+        /* Give back exactly what the rail grew, never while the window manager
+         * owns the frame; a carved rail simply returns its points to the game. */
+        SDL_GetWindowSize(platform->window, &point_w, &point_h);
+        if( platform->chrome_rail_grow_w > 0 && !sdl_window_frame_locked(platform) &&
+            point_w - platform->chrome_rail_grow_w > 0 )
+            SDL_SetWindowSize(platform->window, point_w - platform->chrome_rail_grow_w, point_h);
+        sdl_chrome_report(platform, "rail hidden, giving back", platform->chrome_rail_grow_w, 0, 0);
+        platform->chrome_rail_visible = false;
+        platform->chrome_point_w = 0;
+        platform->chrome_rail_grow_w = 0;
+        chrome_release_surface(platform);
+        platform->chrome_relayout_pending = true;
+        return;
+    }
+
+    /* Shown again with no page. Only a rail some presenter asked for comes
+     * back: one that was never opened stays for its presenter to open. */
+    if( platform->chrome_rail_point_w > 0 )
+        (void)PlatformWindow_ChromeRailOpen(platform, platform->chrome_rail_point_w, "Plugins");
 }
 
 bool
@@ -2495,6 +2608,16 @@ PlatformWindow_SetInterfaceScaleMode(
     platform->interface_scale_mode = mode;
     if( platform->texture )
         SDL_SetTextureScaleMode(platform->texture, sdl_interface_scale_mode(mode));
+}
+
+void
+PlatformWindow_OpenUrl(struct PlatformWindow* platform, char const* url)
+{
+    assert(platform);
+    assert(url);
+    (void)platform;
+    if( SDL_OpenURL(url) != 0 )
+        fprintf(stderr, "unable to open url %s: %s\n", url, SDL_GetError());
 }
 
 void

@@ -54,7 +54,7 @@ static struct RS_ClientOpOp const CLIENTOP_OPS[] = {
  * subsets, which is why this is a table of opcodes rather than four parallel
  * blocks of arithmetic.
  *
- * `_6853` is the obj block's fourth: the stack COUNT. The reference reads the
+ * `OBJ_COUNT` is the obj block's fourth: the stack COUNT. The reference reads the
  * active obj's second int field, and its FINDOBJ pins what that field is by
  * matching a menu entry to an obj on both of them --
  * `obj->id == entry->id && obj->count == entry->count` -- which is exactly the
@@ -119,8 +119,25 @@ RS_ClientOpReset(struct RS_ClientOpState* state)
     state->mouseover.layer = -1;
     state->mouseover_type = RS_MINIMENU_TYPE_NONE;
     state->mouseover_component = -1;
+    state->menu_entry_count = 0;
+    state->menu_hovered_index = -1;
     for( int i = 0; i < RS_CLIENTOP_KIND_COUNT; i++ )
         RS_ClientOpActiveSet(state, (enum RS_ClientOpKind)i, NULL);
+}
+
+void
+RS_ClientOpMenuEntrySet(
+    struct RS_ClientOpState* state,
+    int index,
+    int minimenu_type,
+    struct RS_ClientOpContext const* subject)
+{
+    assert(state);
+    assert(index >= 0);
+    assert(index < RS_CLIENTOP_MENU_ENTRY_MAX);
+    assert(subject);
+    state->menu_entries[index].type = minimenu_type;
+    state->menu_entries[index].subject = *subject;
 }
 
 void
@@ -141,6 +158,7 @@ RS_ClientOpActiveSet(
         reg->kind = -1;
         reg->uid = -1;
         reg->type = -1;
+        reg->count = -1;
         reg->coord = -1;
         reg->layer = -1;
         return;

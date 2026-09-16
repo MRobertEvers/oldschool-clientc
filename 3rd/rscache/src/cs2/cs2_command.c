@@ -174,28 +174,11 @@ RSCache_CS2_CommandOfName(const char* name)
             return i;
     }
 
-    /* Semantic spellings emitted by this tree before the canonical
-     * osrs-cache command catalogue was imported. Keep them as source aliases
-     * just like the numeric compatibility form below. */
-    static const struct
-    {
-        const char* name;
-        int opcode;
-    } aliases[] = {
-        { "activeplayer_setlocal", 6901 },
-        { "activeplayer_getroutelength", 6902 },
-        { "activeplayer_getroutecoord", 6903 },
-        { "activeplayer_getuid", 6904 },
-        { "localplayer_getuid", 6905 },
-        { "highlight_opgroup_setup", 7040 },
-        { "highlight_opgroup_on", 7041 },
-        { "highlight_opgroup_off", 7042 },
-        { "highlight_opgroup_get", 7043 },
-        { "highlight_opgroup_clear", 7044 },
-    };
-    for( size_t i = 0; i < sizeof(aliases) / sizeof(aliases[0]); i++ )
-        if( cs2_command_name_equals(aliases[i].name, name) )
-            return aliases[i].opcode;
+    /* Source-only spellings (old names, alternate spellings). Generated with the
+     * table, from the same name sources, so they cannot drift from it. */
+    for( size_t i = 0; i < sizeof(cs2_command_aliases) / sizeof(cs2_command_aliases[0]); i++ )
+        if( cs2_command_name_equals(cs2_command_aliases[i].name, name) )
+            return cs2_command_aliases[i].opcode;
 
     /* Numeric command spellings are the decompiler's compatibility format
      * for opcodes that were unnamed at the time source was produced.  Once an
@@ -249,9 +232,9 @@ RSCache_CS2_CommandCalcInfix(int opcode)
         return "-";
     case RSCACHE_CS2_OP_MULTIPLY:
         return "*";
-    case RSCACHE_CS2_OP_DIV:
+    case RSCACHE_CS2_OP_DIVIDE:
         return "/";
-    case RSCACHE_CS2_OP_MOD:
+    case RSCACHE_CS2_OP_MODULO:
         return "%";
     case RSCACHE_CS2_OP_AND:
         return "&";
@@ -294,8 +277,8 @@ RSCache_CS2_CommandPrecedence(int opcode)
     switch( opcode )
     {
     case RSCACHE_CS2_OP_MULTIPLY:
-    case RSCACHE_CS2_OP_DIV:
-    case RSCACHE_CS2_OP_MOD:
+    case RSCACHE_CS2_OP_DIVIDE:
+    case RSCACHE_CS2_OP_MODULO:
         return 1;
     case RSCACHE_CS2_OP_ADD:
     case RSCACHE_CS2_OP_SUB:

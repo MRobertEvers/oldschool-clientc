@@ -610,6 +610,20 @@ test_backslash_manifest_path(void)
 #endif
 }
 
+/* `[chrome] plugin_nav=`: unset is auto, `rail` keeps the rail, and a name
+ * that is no mode fails the load rather than quietly meaning auto. */
+static void
+test_plugin_nav(void)
+{
+    struct BootManifest bm;
+
+    CHECK(BootManifest_LoadFile(&bm, "bootmanifest/test/fixture_cache_optout.ini") == 0);
+    CHECK(bm.plugin_nav == TORIRS_PLUGIN_NAV_AUTO);
+    CHECK(BootManifest_LoadFile(&bm, "bootmanifest/test/fixture_plugin_nav_rail.ini") == 0);
+    CHECK(bm.plugin_nav == TORIRS_PLUGIN_NAV_RAIL);
+    CHECK(BootManifest_LoadFile(&bm, "bootmanifest/test/fixture_plugin_nav_unknown.ini") != 0);
+}
+
 int
 main(void)
 {
@@ -624,6 +638,7 @@ main(void)
     test_migrated_spawn_actions();
     test_cache_dir_default();
     test_backslash_manifest_path();
+    test_plugin_nav();
 
     if( g_fail )
     {

@@ -23,7 +23,7 @@ enum
 };
 
 _Static_assert(
-    HOST_REQUEST_PRODUCER_COUNT == 656,
+    HOST_REQUEST_PRODUCER_COUNT == 894,
     "the producer replay test must exercise every hosted opcode");
 
 struct CaptureHost
@@ -75,15 +75,15 @@ capture_input_set_exec(
 
     switch( request->kind )
     {
-    case CS2VM_HOST_REQUEST_CC_INPUT_SETCURSORWIDTH:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETCARET:
         host->component_ids[call] =
-            request->u.CC_INPUT_SETCURSORWIDTH.component_id;
-        host->values[call] = request->u.CC_INPUT_SETCURSORWIDTH.value;
+            request->u.CC_INPUT_SETCARET.component_id;
+        host->values[call] = request->u.CC_INPUT_SETCARET.value;
         break;
-    case CS2VM_HOST_REQUEST_IF_INPUT_SETCURSORWIDTH:
+    case CS2VM_HOST_REQUEST_IF_INPUT_SETCARET:
         host->component_ids[call] =
-            request->u.IF_INPUT_SETCURSORWIDTH.component_id;
-        host->values[call] = request->u.IF_INPUT_SETCURSORWIDTH.value;
+            request->u.IF_INPUT_SETCARET.component_id;
+        host->values[call] = request->u.IF_INPUT_SETCARET.value;
         break;
     case CS2VM_HOST_REQUEST_CC_SETLOCMODEL:
         host->component_ids[call] = request->u.CC_SETLOCMODEL.component_id;
@@ -159,6 +159,11 @@ exercise_producer(struct HostRequestProducerEntry const* entry)
     thread->children_iter_parent = 1;
     thread->children_iter_indices[0] = 1;
 
+    /* IF_QUERY_REFINE pops its value by the base-var-type id on top, and 1 is
+     * a long, which this VM has no stack for. 0 selects an int value. */
+    if( entry->opcode == CS2_OP_IF_QUERY_REFINE )
+        thread->ints_stack[thread->ints_stack_top - 1] = 0;
+
     first_status = CS2VM2_ThreadRun(thread, &error);
     retry_status = first_status == CS2VM2_THREAD_YIELDED
                        ? CS2VM2_ThreadResume(thread, &error)
@@ -228,7 +233,7 @@ exercise_input_set_producer(
         return 1;
     }
 
-    if( kind == CS2VM_HOST_REQUEST_CC_INPUT_SETCURSORWIDTH ||
+    if( kind == CS2VM_HOST_REQUEST_CC_INPUT_SETCARET ||
         kind == CS2VM_HOST_REQUEST_CC_SETLOCMODEL )
     {
         thread->active_component_id = dot_operand ? -1 : component_id;
@@ -348,11 +353,11 @@ main(void)
         failures += exercise_producer(&HOST_REQUEST_PRODUCERS[i]);
 
     failures += exercise_input_set_producer(
-        CS2VM_HOST_REQUEST_CC_INPUT_SETCURSORWIDTH,
+        CS2VM_HOST_REQUEST_CC_INPUT_SETCARET,
         0x13579,
         -0x2468, 0);
     failures += exercise_input_set_producer(
-        CS2VM_HOST_REQUEST_IF_INPUT_SETCURSORWIDTH,
+        CS2VM_HOST_REQUEST_IF_INPUT_SETCARET,
         0x24680,
         -0x1357, 0);
     failures += exercise_input_set_producer(

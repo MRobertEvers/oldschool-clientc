@@ -27,12 +27,6 @@
  * A synthetic id fixes that for every authored control at once, and a RANGE is
  * what makes it safe: it cannot collide with a cache uid (no interface is
  * numbered 0x7FFD) and it is one bounds test away from being recognised.
- *
- * A GROUP of its own rather than sharing the chrome's, because the chrome's
- * group is intercepted before the game's dispatch ever sees it
- * (add_component_rows returns 0 for it) -- these are the opposite: they are
- * ordinary components with ordinary menu rows, and the only thing they need
- * from the id is to have one.
  */
 #define TORIRS_REVCONFIG_GROUP 0x7FFD
 #define TORIRS_REVCONFIG_ID_BASE (TORIRS_REVCONFIG_GROUP << 16)

@@ -25,8 +25,8 @@
 #if defined(__GNUC__) || defined(__clang__)
 _Static_assert(
     !__builtin_types_compatible_p(
-        struct CS2VM_HostRequest_CC_INPUT_SETCURSORWIDTH,
-        struct CS2VM_HostRequest_IF_INPUT_SETCURSORWIDTH),
+        struct CS2VM_HostRequest_CC_INPUT_SETSELECTION,
+        struct CS2VM_HostRequest_IF_INPUT_SETSELECTION),
     "CC and IF input setters must have distinct request struct types");
 #endif
 
@@ -39,8 +39,8 @@ enum
 };
 
 _Static_assert(
-    HOST_REQUEST_MANIFEST_COUNT == 656,
-    "the CS2VM host-request manifest must contain all 656 host opcodes");
+    HOST_REQUEST_MANIFEST_COUNT == 894,
+    "the CS2VM host-request manifest must contain all 894 host opcodes");
 
 struct HostRequestKindEntry
 {

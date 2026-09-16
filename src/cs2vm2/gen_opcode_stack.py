@@ -52,6 +52,8 @@ DISPATCH_C = HERE / "cs2vm2.c"
 REPO = HERE.parent.parent
 COMMAND_GEN_H = REPO / "3rd" / "rscache" / "src" / "cs2" / "cs2_command.gen.h"
 CS2_TYPES_C = REPO / "3rd" / "rscache" / "src" / "cs2" / "cs2_types.c"
+sys.path.insert(0, str(REPO / "tools" / "cs2_gen_opcodes"))
+import catalogue  # noqa: E402
 
 
 # The table ceiling is DERIVED, never hand-maintained. An opcode above it is
@@ -65,6 +67,10 @@ CS2_TYPES_C = REPO / "3rd" / "rscache" / "src" / "cs2" / "cs2_types.c"
 MIN_MAX_OPCODE = 8025
 
 MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
+    # Ids the rev-239 client does not declare (see local_opcodes.py), so there
+    # is no catalogue signature; these record what their handlers pop.
+    1004: (1, 0, 0, 0),  # _1004: CC widget-int PINCH setter (value)
+    2004: (2, 0, 0, 0),  # _2004: IF widget-int PINCH setter (value, component)
     6599: (0, 1, 0, 0),  # RuneLite callback pops its name; remaining stacks are live.
     # CS2VM2_Op_GroundObj and exec_groundobj own these exact stack effects.
     6859: (2, 0, 1, 0),
@@ -88,39 +94,39 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # ACTIVEPLAYER_GETROUTELENGTH..LOCALPLAYER_GETUID block this client
     # implements.
     6901: (0, 0, 1, 0),
-    106: (2, 0, 0, 0),  # CC_CREATECHILD
-    107: (2, 0, 0, 0),  # CC_CREATESIBLING
+    106: (2, 0, 0, 0),  # CC_CREATE_CHILD
+    107: (2, 0, 0, 0),  # CC_CREATE_SIBLING
     # 202/203 used to be guessed here as CC_FINDROOT / CC_CHILDREN_FIND. They
     # are the scripted-entity-overlay find pair; their signatures now come
-    # from the stack doc comments on CS2_OP_OVERLAY_FIND / OVERLAY_CC_FIND.
-    204: (0, 0, 1, 0),  # CC_CHILDREN_FINDNEXTID
-    205: (2, 0, 0, 0),  # IF_CHILDREN_FIND
+    # from the stack doc comments on CS2_OP_IF_FIND_ENTITYOVERLAY / CC_FIND_ENTITYOVERLAY.
+    204: (0, 0, 1, 0),  # CC_FIND_PARENT
+    205: (0, 0, 1, 0),  # CC_FIND_LAYER() -> bool (activates the nearest static ancestor)
     # OC_* obj-config getters (4201/4202/4208/4210-4213/4217/4218/4222). Most
     # match the generic "OC_" heuristic below (pop item -> push int); listed
     # explicitly here anyway to keep this whole family's contracts in one place.
-    # OC_OP/OC_IOP/OC_EXAMINE/OC_ISUBOP push a STRING, not an int — the plain
+    # OC_OP/OC_IOP/OC_DESC/OC_ISUBOP push a STRING, not an int — the plain
     # heuristic default would be wrong for these and did dispatch through
     # StackMetaStub as (1,0,1,0) [int out] before they got real handlers.
     4201: (2, 0, 0, 1),  # OC_OP(item, one-based slot) -> ground action string
     4202: (2, 0, 0, 1),  # OC_IOP(item, one-based slot) -> inventory action string
     4208: (1, 0, 1, 0),  # OC_PLACEHOLDER(item) -> placeholder id (stub: identity)
-    4210: (0, 1, 1, 0),  # OC_FIND(query:str) -> match count (item-name search)
+    4210: (1, 1, 1, 0),  # OC_FIND(query:str, ge_tradeable_only) -> match count
     4211: (0, 0, 1, 0),  # OC_FINDNEXT -> next matched item id (or -1 when exhausted)
     4212: (0, 0, 0, 0),  # OC_FINDRESET (clears the search state; no stack effect)
     4213: (1, 0, 1, 0),  # OC_SHIFTCLICKIOP(item) -> 1-based shift-click op (or -1)
     4217: (1, 0, 1, 0),  # OC_WEIGHT(item) -> weight (stub: 0, no data)
-    4218: (1, 0, 0, 1),  # OC_EXAMINE(item) -> examine text (real data: obj.desc)
+    4218: (1, 0, 0, 1),  # OC_DESC(item) -> examine text (real data: obj.desc)
     4222: (3, 0, 0, 1),  # OC_ISUBOP(obj, opIndex, subIndex) -> sub-op string (stub: "")
-    206: (0, 0, 1, 0),  # IF_CHILDREN_FINDNEXTID
+    206: (0, 0, 1, 0),  # CC_FIND_NEXT_SIBLING
     # CC_FIND_PARAM(root, param1, value1, param2, value2, param3, value3) finds
     # a matching component and pushes whether it succeeded. All rev-239 call
     # sites have this exact shape; the generic VM stub currently returns zero.
     210: (7, 0, 1, 0),
-    211: (3, 0, 1, 0),  # IF_CHILDREN_COLLECT(start, component, unused) -> count
+    211: (3, 0, 1, 0),  # IF_QUERY(start, component, unused) -> count
     212: (1, 0, 1, 0),  # CC_CHILDREN_FIND+count(start) -> count
-    213: (0, 0, 1, 0),  # CC_CHILDREN_FINDNEXT() -> bool (set target; != FINDNEXTID)
-    214: (0, 0, 1, 0),  # CHILDREN_FINDNEXTID() -> next collected sub-id (or -1)
-    215: (0, 0, 0, 1),  # CHILDREN_ARRAY() -> string (array handle)
+    213: (0, 0, 1, 0),  # IF_QUERY_NEXT() -> bool (set target; != FINDNEXTID)
+    214: (0, 0, 1, 0),  # IF_QUERY_NEXTID() -> next collected sub-id (or -1)
+    215: (0, 0, 0, 1),  # IF_QUERY_IDS() -> string (array handle)
     6200: (2, 0, 0, 0),  # VIEWPORT_SETFOV
     6201: (2, 0, 0, 0),  # VIEWPORT_SETZOOM
     6202: (4, 0, 0, 0),  # VIEWPORT_CLAMPFOV
@@ -192,7 +198,7 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     7110: (0, 0, 1, 0),  # MINIMENU_NUMOPS:        -> 1 int (option count)
     # DB_* client-database family (7500..7510). These have dedicated handlers
     # (CS2VM2_Op_Db -> exec_db) that own the stack, so these entries only feed the
-    # debug trace. DB_FIND/GETFIELD have a value/tuple whose int-vs-string type is
+    # debug trace. DB_FIND_PRE228/GETFIELD have a value/tuple whose int-vs-string type is
     # runtime-dependent; the counts below are the common all-int shape.
     # Math / bit ops (4007..4030) — pure-VM handlers (CS2VM2_Op_*); listed so the
     # trace and known-flag are correct. All pop N ints and push one.
@@ -211,17 +217,17 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # ("we know what it does") and not the bridge's 2 ("we only know its
     # shape"). cs2_command.gen.h agrees on the shape.
     4035: (1, 0, 1, 0),  # ABS(value)
-    7500: (2, 0, 1, 0),  # DB_FIND_WITH_COUNT(dbcolumn, value) -> count
+    7500: (2, 0, 1, 0),  # DB_FIND(dbcolumn, value) -> count
     7501: (0, 0, 1, 0),  # DB_FINDNEXT() -> rowId (or -1)
     7502: (3, 0, 1, 0),  # DB_GETFIELD(dbrow, dbcolumn, index) -> field value(s)
     7503: (2, 0, 1, 0),  # DB_GETFIELDCOUNT(dbrow, dbcolumn) -> tuple count
-    7504: (1, 0, 1, 0),  # DB_FINDALL_WITH_COUNT(dbtable) -> count
+    7504: (1, 0, 1, 0),  # DB_LISTALL(dbtable) -> count
     7505: (1, 0, 1, 0),  # DB_GETROWTABLE(dbrow) -> tableId
-    7506: (1, 0, 0, 0),  # DB_GETROW(dbrow) -> (loads/activates the row)
-    7507: (2, 0, 1, 0),  # DB_FIND_FILTER_WITH_COUNT(dbcolumn, value) -> count
-    7508: (2, 0, 0, 0),  # DB_FIND(dbcolumn, value)
-    7509: (1, 0, 0, 0),  # DB_FINDALL(dbtable)
-    7510: (2, 0, 0, 0),  # DB_FIND_FILTER(dbcolumn, value)
+    7506: (1, 0, 1, 0),  # DB_FIND_GET(index) -> the find result's row at index, or -1
+    7507: (2, 0, 1, 0),  # DB_FIND_REFINE(dbcolumn, value) -> count
+    7508: (2, 0, 0, 0),  # DB_FIND_PRE228(dbcolumn, value)
+    7509: (2, 0, 0, 0),  # DB_FIND_REFINE_PRE228(dbcolumn, value) -- absent from the rev-239 dispatch
+    7510: (1, 0, 0, 0),  # DB_LISTALL_PRE228(dbtable) -- absent from the rev-239 dispatch
     # IF_CALLONRESIZE(component): run that component's on-resize listener now.
     # Dedicated dispatch in cs2vm2.c (CS2VM_HOST_REQUEST_IF_CALLONRESIZE) owns
     # the stack, so this only documents the contract — but the contract was read
@@ -234,27 +240,27 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # and no script in this cache calls it — so there is nothing to verify an
     # arity against, and a guess is exactly what StackMetaStub exists to catch.
     2927: (1, 0, 0, 0),  # IF_CALLONRESIZE(component)
-    # IF_GETCOMPONENTPARAM(param, component, fallback) -> int. The IF form of
-    # CC_GETCOMPONENTPARAM (1703), absent from the vendored table and from
+    # IF_PARAM(param, component, fallback) -> int. The IF form of
+    # CC_PARAM (1703), absent from the vendored table and from
     # 3rd/rscache's cs2_command.gen.h — which is why 20 scripts in cache.osrs239
     # fail to decompile at it. Dedicated dispatch in cs2vm2.c owns the stack;
     # see the handler for how the arity was read off the bytecode.
-    2703: (3, 0, 1, 0),  # IF_GETCOMPONENTPARAM(param, component, fallback)
+    2703: (3, 0, 1, 0),  # IF_PARAM(param, component, fallback)
     # FRIEND_COUNT is a no-arg getter (total friends), but the name heuristic gave
     # it (1,0,1,0) like the indexed FRIEND_GET* ops -> the stub popped a non-existent
     # arg and underflowed, aborting the friends-list builder (script 125).
     3600: (0, 0, 1, 0),  # FRIEND_COUNT: no args -> 1 int
     # Same class as FRIEND_COUNT: the CLAN_*/FRIEND_*/IGNORE_* name heuristic
     # assumes an index argument, which is right for the per-entry getters
-    # (CLAN_GETCHATUSERNAME(idx) etc.) but wrong for these whole-channel ones.
+    # (FRIENDSCHAT_GETCHATUSERNAME(idx) etc.) but wrong for these whole-channel ones.
     # They pop an argument that was never pushed, underflow, and abort the panel
-    # (clan sidepanel script 1658 died on CLAN_GETCHATCOUNT).
-    3611: (0, 0, 0, 1),  # CLAN_GETCHATDISPLAYNAME: no args -> channel name
-    3612: (0, 0, 1, 0),  # CLAN_GETCHATCOUNT: no args -> member count
-    3616: (0, 0, 1, 0),  # CLAN_GETCHATMINKICK: no args -> min rank to kick
-    3618: (0, 0, 1, 0),  # CLAN_GETCHATRANK: no args -> own rank
-    3620: (0, 0, 0, 0),  # CLAN_LEAVECHAT: no args, no result
-    3625: (0, 0, 0, 1),  # CLAN_GETCHATOWNERNAME: no args -> owner name
+    # (clan sidepanel script 1658 died on FRIENDSCHAT_GETCHATCOUNT).
+    3611: (0, 0, 0, 1),  # FRIENDSCHAT_GETCHATDISPLAYNAME: no args -> channel name
+    3612: (0, 0, 1, 0),  # FRIENDSCHAT_GETCHATCOUNT: no args -> member count
+    3616: (0, 0, 1, 0),  # FRIENDSCHAT_GETCHATMINKICK: no args -> min rank to kick
+    3618: (0, 0, 1, 0),  # FRIENDSCHAT_GETCHATRANK: no args -> own rank
+    3620: (0, 0, 0, 0),  # FRIENDSCHAT_LEAVECHAT: no args, no result
+    3625: (0, 0, 0, 1),  # FRIENDSCHAT_GETCHATOWNERNAME: no args -> owner name
     3621: (0, 0, 1, 0),  # IGNORE_COUNT: no args -> ignore count
     3623: (0, 1, 1, 0),  # IGNORE_TEST(name) -> bool (string arg, not an index)
     # ------------------------------------------------------------------
@@ -288,8 +294,8 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     3607: (0, 1, 0, 0),  # IGNORE_ADD(username)
     3608: (0, 1, 0, 0),  # IGNORE_DEL(username)
     3609: (0, 1, 1, 0),  # FRIEND_TEST(username) -> boolean
-    3617: (0, 1, 0, 0),  # CLAN_KICKUSER(username)
-    3619: (0, 1, 0, 0),  # CLAN_JOINCHAT(username)
+    3617: (0, 1, 0, 0),  # FRIENDSCHAT_KICKUSER(username)
+    3619: (0, 1, 0, 0),  # FRIENDSCHAT_JOINCHAT(username)
     3622: (1, 0, 0, 2),  # IGNORE_GETNAME(index) -> username, previous username
     5001: (3, 0, 0, 0),  # CHAT_SETFILTER(public, private, trade)
     5002: (2, 1, 0, 0),  # CHAT_SENDABUSEREPORT(username, type, rule)
@@ -305,13 +311,13 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # today (CHAT_GETHISTORYLENGTH answers 0, which gates script 89's loop off),
     # but their shapes were measured in the same pass and a wrong shape here is
     # the same silent desync as any other.
-    5003: (2, 0, 3, 3),  # CHAT_GETHISTORY_BYTYPEANDLINE(chattype, line)
-    5004: (1, 0, 3, 3),  # CHAT_GETHISTORY_BYUID(mesuid)
-    5030: (2, 0, 4, 4),  # CHAT_GETHISTORYEX_BYTYPEANDLINE(chattype, line)
-    5031: (1, 0, 4, 4),  # CHAT_GETHISTORYEX_BYUID(mesuid)
+    5003: (2, 0, 3, 3),  # CHAT_GETHISTORY_BYTYPEANDLINE_PRE195(chattype, line)
+    5004: (1, 0, 3, 3),  # CHAT_GETHISTORY_BYUID_PRE195(mesuid)
+    5030: (2, 0, 4, 4),  # CHAT_GETHISTORY_BYTYPEANDLINE(chattype, line)
+    5031: (1, 0, 4, 4),  # CHAT_GETHISTORY_BYUID(mesuid)
     2702: (1, 0, 1, 0),  # IF_HASSUB(component) -> bool; gates gameframe tab reveal (script 908)
     2704: (5, 0, 0, 0),  # IF_SETPARAM(param, value, uid, child, type) — xrsps; was misnamed HASCHILD
-    2705: (2, 0, 1, 0),  # IF_HASCHILD_OVERLAY(widget, parent) -> bool
+    2705: (2, 0, 1, 0),  # _2705 (not declared by the rev-239 client): (widget, parent) -> bool
     # Sort-builder families for the friend / ignore / clan lists (3628..3657).
     # These build a sort spec imperatively: CLEAR, then one ADD_* per key (each
     # taking a single "descending?" flag), then APPLY. The panels that use them
@@ -353,16 +359,16 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     3653: (1, 0, 0, 0),
     3654: (1, 0, 0, 0),  # FRIENDSCHAT_SORT_ADD(desc)
     3655: (0, 0, 0, 0),  # FRIENDSCHAT_SORT apply (confirmed: no args)
-    3656: (0, 0, 0, 0),  # CLAN_SORT_APPLY
+    3656: (1, 0, 0, 0),  # FRIENDLIST_SORT_RANK(boolean)
     3657: (1, 0, 0, 0),  # FRIENDSCHAT_SORT_ADD_RANK(desc)
     # ACTIVECLANSETTINGS/CHANNEL FIND_* (3800/3801, 3850/3851): pop clanType,
     # push bool. Script 84 (side_channels init) does `push 0; FIND_AFFINED;
     # push 1; BRANCH_EQUALS` — without a signature StackMetaStub asserts and
     # aborts the panel. Stub pushes 0 (no clan) so the not-found branch runs;
     # the subsequent GET* ops are skipped.
-    3800: (1, 0, 1, 0),  # ACTIVECLANSETTINGS_FIND_LISTENED(clanType) -> bool
+    3800: (0, 0, 1, 0),  # ACTIVECLANSETTINGS_FIND_LISTENED() -> bool
     3801: (1, 0, 1, 0),  # ACTIVECLANSETTINGS_FIND_AFFINED(clanType) -> bool
-    3850: (1, 0, 1, 0),  # ACTIVECLANCHANNEL_FIND_LISTENED(clanType) -> bool
+    3850: (0, 0, 1, 0),  # ACTIVECLANCHANNEL_FIND_LISTENED() -> bool
     3851: (1, 0, 1, 0),  # ACTIVECLANCHANNEL_FIND_AFFINED(clanType) -> bool
     # LOGOUT: no args, no return -- triggers the client's logout flow (a request
     # kind the host just flags, since nothing drives an actual disconnect yet).
@@ -401,8 +407,8 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     3130: (2, 0, 0, 0),  # _3130: pop 2 ints, discard
     3131: (1, 0, 0, 0),  # _3131: pop 1 int, discard
     3133: (1, 0, 0, 0),  # MOBILE_SETFPS(fps): pop 1 int, discard
-    3134: (0, 0, 0, 0),  # MOBILE_OPENSTORE: no args, no-op (marked known)
-    3135: (2, 0, 0, 0),  # MOBILE_OPENSTORECATEGORY: pop 2 ints, discard
+    3134: (0, 0, 0, 0),  # SHOP_OPEN: no args, no-op (marked known)
+    3135: (2, 0, 0, 0),  # SHOP_OPENSUBSET: pop 2 ints, discard
     # Audio volume (3203..3208) + client/game/device options (3209..3217).
     # Dedicated dispatch in cs2vm2.c forwards each opcode as its exact CS2VM
     # host-request kind, so they never reach StackMetaStub — these document the
@@ -436,16 +442,16 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     6707: (1, 0, 0, 0),  # CLIENTOP_PLAYER_DEL(slot)
     6708: (2, 1, 0, 0),  # CLIENTOP_TILE_SET(slot, scriptId) + label
     6709: (1, 0, 0, 0),  # CLIENTOP_TILE_DEL(slot)
-    # CC_SETOPFORCELEFTCLICK / CC_OP1309 / CLEAROPSUBMENU / SETOPSUBMENU /
+    # CC_SETALWAYSLEFTCLICK / CC_SETPINCH / CLEAROPSUBMENU / SETOPSUBMENU /
     # SETTARGETPRIORITY (1308..1312). Dedicated dispatch in cs2vm2.c; SETPINCH
     # was wrongly numbered 1308 and is now 1004.
-    1308: (1, 0, 0, 0),  # CC_SETOPFORCELEFTCLICK(flag)
-    1309: (1, 0, 0, 0),  # CC_OP1309: pop 1, discard
-    1310: (1, 0, 0, 0),  # CC_CLEAROPSUBMENU(opIndex)
-    1311: (2, 1, 0, 0),  # CC_SETOPSUBMENU(opIndex, subIndex) + text
-    1312: (1, 0, 0, 0),  # CC_SETTARGETPRIORITY(priority)
+    1308: (1, 0, 0, 0),  # CC_SETALWAYSLEFTCLICK(flag)
+    1309: (1, 0, 0, 0),  # CC_SETPINCH: pop 1, discard
+    1310: (1, 0, 0, 0),  # CC_CLEARSUBOPS(opIndex)
+    1311: (2, 1, 0, 0),  # CC_SETSUBOP(opIndex, subIndex) + text
+    1312: (1, 0, 0, 0),  # CC_SETOPPRIORITY(priority)
     1004: (1, 0, 0, 0),  # CC_SETPINCH(flag)
-    2309: (2, 0, 0, 0),  # IF_OP2309: pop component + 1 int, discard
+    2309: (2, 0, 0, 0),  # IF_SETPINCH: pop component + 1 int, discard
     # NOTE: CAM_SETFOLLOWHEIGHT (5530) / CAM_GETFOLLOWHEIGHT (5531) are NOT stubbed
     # here — they have dedicated dispatch cases in cs2vm2.c that hand off to the
     # host (rs_cs2_host.c stores/returns host->cam_follow_height), so they never
@@ -457,57 +463,57 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     # past the old 7602 ceiling. Tuples below are from local_commands.py /
     # call-site evidence against cache.osrs239, not guessed. 8019 was corrected
     # 2026-08-03: it pushes the joined string (script 9153 → gosub 9182; xrsps
-    # ARRAY_JOIN). 8023/8024 are the Overview-tab resize/append pair.
+    # STRING_JOIN). 8023/8024 are the Overview-tab resize/append pair.
     # Official method12336: two ints plus the class486 handle from field252.
-    8001: (2, 1, 0, 0),  # ARRAY_SORT_BY(handle:string, start, end)
-    8003: (0, 1, 1, 0),  # ARRAY_LENGTH(handle) -> int
-    8012: (0, 1, 0, 0),  # _8012(handle) — mutate in place; meaning unknown
-    8018: (0, 2, 0, 1),  # ARRAY_SPLIT(string, sep) -> handle
-    8019: (0, 2, 0, 1),  # ARRAY_JOIN(handle, sep) -> string
-    8021: (2, 0, 0, 1),  # _8021(int, int) -> string
-    8022: (3, 0, 0, 1),  # ARRAY_NEW(type, length, capacity) -> handle
-    8023: (1, 1, 0, 0),  # ARRAY_SETLENGTH(handle, n)
-    8024: (2, 1, 0, 0),  # ARRAY_APPEND(handle, value, type) — int-typed form
-    4036: (0, 1, 1, 0),  # STRING_TO_INT(string) -> int
+    8001: (2, 1, 0, 0),  # ARRAY_RANDOMISE(array, seed1, seed2)
+    8003: (0, 1, 1, 0),  # ARRAY_SIZE(handle) -> int
+    8012: (0, 1, 0, 0),  # ARRAY_REVERSE(array)
+    8018: (0, 2, 0, 1),  # STRING_SPLIT(string, sep) -> handle
+    8019: (0, 2, 0, 1),  # STRING_JOIN(handle, sep) -> string
+    8021: (2, 0, 0, 1),  # ENUM_GETOUTPUTS(type, enum) -> array
+    8022: (3, 0, 0, 1),  # ARRAY_CREATE(type, length, capacity) -> handle
+    8023: (1, 1, 0, 0),  # ARRAY_RESIZE(handle, n)
+    8024: (2, 1, 0, 0),  # ARRAY_PUSH(handle, value, type) — int-typed form
+    4036: (0, 1, 1, 0),  # PARSEINT(string) -> int
     # Loot-tracker native store (7600-family). Arities from local_commands.py,
     # each verified at call sites in scripts 7166/4298/4452/7200/1792.
-    7601: (0, 0, 1, 0),  # LOOT_SOURCE_COUNT() -> int
-    7602: (1, 0, 0, 1),  # LOOT_SOURCE_NAME(id) -> string
-    7603: (0, 1, 1, 0),  # LOOT_SOURCE_ITEMCOUNT(name) -> int
-    7604: (0, 1, 1, 0),  # LOOT_SOURCE_TOTALVAL(name) -> int
-    7605: (3, 0, 1, 0),  # LOOT_BEGIN_QUERY(start, limit, kind) -> count
-    7606: (1, 0, 1, 0),  # LOOT_QUERY_ID(index) -> id
-    7608: (0, 0, 1, 0),  # LOOT_AUX_COUNT_TOTAL() -> int
-    7609: (0, 1, 1, 0),  # LOOT_ROW_COUNT_BYNAME(name) -> int
-    7610: (1, 0, 1, 0),  # LOOT_ROW_COUNT_BYID(id) -> int
-    7611: (1, 1, 2, 0),  # LOOT_ROW_BYNAME(name, index) -> (obj_id, qty)
-    7612: (2, 0, 2, 0),  # LOOT_ROW_BYID(id, index) -> (obj_id, qty)
-    7613: (0, 0, 0, 0),  # LOOT_CLEAR_ALL()
-    7614: (0, 1, 0, 0),  # LOOT_CLEAR_SOURCE(name)
-    7615: (1, 0, 0, 0),  # LOOT_REMOVE_BYID(id)
-    7616: (0, 1, 0, 0),  # LOOT_IGNORE_ADD(name) — item ignore
-    7617: (0, 1, 0, 0),  # LOOT_IGNORE_REMOVE(name)
-    7619: (0, 0, 1, 0),  # LOOT_GROUND_COUNT() -> int (item-ignore count)
-    7620: (1, 0, 0, 1),  # LOOT_GROUND_NAME(index) -> string (1-based)
-    7621: (0, 0, 0, 0),  # LOOT_IGNORE_CLEAR()
-    7622: (0, 1, 0, 0),  # LOOT_SOURCE_IGNORE_ADD(name)
-    7623: (0, 1, 0, 0),  # LOOT_SOURCE_IGNORE_REMOVE(name)
-    7625: (0, 0, 1, 0),  # LOOT_SRCLIST_COUNT() -> int (source-ignore count)
-    7626: (1, 0, 0, 1),  # LOOT_SRCLIST_NAME(index) -> string (1-based)
-    7628: (3, 1, 0, 0),  # LOOT_ADD(name, obj, qty, event_id)
-    7630: (1, 0, 0, 1),  # LOOT_SOURCE_NAME2(id) -> string
+    7601: (0, 0, 1, 0),  # LOOTTRACKER_SOURCENAMECOUNT() -> int
+    7602: (1, 0, 0, 1),  # LOOTTRACKER_SOURCENAME(id) -> string
+    7603: (0, 1, 1, 0),  # LOOTTRACKER_SOURCEID(name) -> int
+    7604: (0, 1, 1, 0),  # LOOTTRACKER_SOURCECOUNT(name) -> int
+    7605: (3, 0, 1, 0),  # LOOTTRACKER_SOURCEQUERY_NEW(start, limit, kind) -> count
+    7606: (1, 0, 1, 0),  # LOOTTRACKER_SOURCEQUERY_GET(index) -> id
+    7608: (0, 0, 1, 0),  # LOOTTRACKER_GETDROPLIMIT() -> int
+    7609: (0, 1, 1, 0),  # LOOTTRACKER_LOOTCOUNT_BYNAME(name) -> int
+    7610: (1, 0, 1, 0),  # LOOTTRACKER_LOOTCOUNT_BYID(id) -> int
+    7611: (1, 1, 2, 0),  # LOOTTRACKER_LOOTGET_BYNAME(name, index) -> (obj_id, qty)
+    7612: (2, 0, 2, 0),  # LOOTTRACKER_LOOTGET_BYID(id, index) -> (obj_id, qty)
+    7613: (0, 0, 0, 0),  # LOOTTRACKER_CLEAR()
+    7614: (0, 1, 0, 0),  # LOOTTRACKER_LOOTDEL_BYNAME(name)
+    7615: (1, 0, 0, 0),  # LOOTTRACKER_LOOTDEL_BYID(id)
+    7616: (0, 1, 0, 0),  # LOOTTRACKER_IGNORELOOTADD(name) — item ignore
+    7617: (0, 1, 0, 0),  # LOOTTRACKER_IGNORELOOTDEL(name)
+    7619: (0, 0, 1, 0),  # LOOTTRACKER_IGNORELOOTCOUNT() -> int (item-ignore count)
+    7620: (1, 0, 0, 1),  # LOOTTRACKER_IGNORELOOTGET(index) -> string (1-based)
+    7621: (0, 0, 0, 0),  # LOOTTRACKER_IGNORELOOTCLEAR()
+    7622: (0, 1, 0, 0),  # LOOTTRACKER_IGNORESOURCEADD(name)
+    7623: (0, 1, 0, 0),  # LOOTTRACKER_IGNORESOURCEDEL(name)
+    7625: (0, 0, 1, 0),  # LOOTTRACKER_IGNORESOURCECOUNT() -> int (source-ignore count)
+    7626: (1, 0, 0, 1),  # LOOTTRACKER_IGNORESOURCEGET(index) -> string (1-based)
+    7628: (3, 1, 0, 0),  # LOOTTRACKER_LOOTADD(name, obj, qty, event_id)
+    7630: (1, 0, 0, 1),  # LOOTTRACKER_SOURCEDROPNAME(id) -> string
     6754: (1, 0, 0, 1),  # NC_NAME(npc) -> string
     # Loot aux-list ops (7400-family).
-    7400: (1, 1, 0, 0),  # LOOT_AUX_UPSERT2(kind, name)
-    7401: (2, 1, 0, 0),  # LOOT_AUX_UPSERT(kind, name, flag)
-    7404: (2, 1, 0, 0),  # LOOT_AUX_REMOVE(kind, name, flag)
-    7406: (2, 0, 0, 1),  # LOOT_AUX_GET(kind, index) -> string
-    7407: (1, 0, 1, 0),  # LOOT_AUX_COUNT(kind) -> int
-    7408: (3, 1, 1, 0),  # LOOT_AUX_LOOKUP(kind, name, arg3, arg4) -> int
-    7409: (1, 0, 0, 0),  # LOOT_AUX_CLEAR(kind)
+    7400: (1, 1, 0, 0),  # STRINGVECTOR_ADD(kind, name)
+    7401: (2, 1, 0, 0),  # STRINGVECTOR_ADDUNIQUE(kind, name, flag)
+    7404: (2, 1, 0, 0),  # STRINGVECTOR_REMOVE(kind, name, flag)
+    7406: (2, 0, 0, 1),  # STRINGVECTOR_GET(kind, index) -> string
+    7407: (1, 0, 1, 0),  # STRINGVECTOR_SIZE(kind) -> int
+    7408: (3, 1, 1, 0),  # STRINGVECTOR_CONTAINS(kind, name, arg3, arg4) -> int
+    7409: (1, 0, 0, 0),  # STRINGVECTOR_CLEAR(kind)
     # Hiscores stubs (7809/7811). Arities from local_commands.py.
-    7809: (0, 0, 1, 0),  # HISCORES_STATUS() -> int (non-2 = not success)
-    7811: (0, 0, 0, 1),  # HISCORES_ERROR() -> string
+    7809: (0, 0, 1, 0),  # HISCORE_GETSTATUS() -> int (non-2 = not success)
+    7811: (0, 0, 0, 1),  # HISCORE_GETERROR() -> string
 }
 
 
@@ -539,55 +545,9 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
 #      4104, 4200, 4210, 6618..6696, 7506. Left as-is rather than flipped
 #      blind; each needs its own witness before it moves.
 BRIDGE_CONFLICTS_OK: dict[int, tuple[int, int, int, int]] = {
-    102: (1, 0, 0, 0),   # cc_deleteall
-    # (d) rows the reference decompile settles against the vendored table.
-    #     `ScriptRunnerImpl_7200To7299.cpp` pops the slot in both
-    #     GetScriptedOverlayIndex forms; the vendored (0 in) would read
-    #     whatever the script left below it and answer about the wrong slot.
-    7205: (0, 0, 1, 0),  # OVERLAY_NPC_GET -- pops the slot
-    7208: (0, 0, 1, 0),  # OVERLAY_PLAYER_GET -- pops the slot
-    1006: (1, 0, 0, 0),  # cc_setnoscrollthrough
-    1100: (2, 0, 0, 0),  # cc_setscrollpos
-    1104: (1, 0, 0, 0),  # cc_setlinewid
-    1106: (1, 0, 0, 0),  # cc_set2dangle
-    1108: (1, 0, 0, 0),  # cc_setmodel
-    1109: (6, 0, 0, 0),  # cc_setmodelangle
-    1110: (1, 0, 0, 0),  # cc_setmodelanim
-    1111: (1, 0, 0, 0),  # cc_setmodelorthog
-    1118: (1, 0, 0, 0),  # cc_setvflip
-    1119: (1, 0, 0, 0),  # cc_sethflip
-    1120: (2, 0, 0, 0),  # cc_setscrollsize
-    1123: (1, 0, 0, 0),  # cc_setfillcolour
-    1126: (1, 0, 0, 0),  # cc_setlinedirection
-    1127: (1, 0, 0, 0),  # cc_setmodeltransparent
-    1201: (1, 0, 0, 0),  # cc_setnpchead
-    1205: (2, 0, 0, 0),  # cc_setobject_nonum
-    2006: (2, 0, 0, 0),  # if_setnoscrollthrough
-    2104: (2, 0, 0, 0),  # if_setlinewid
-    2106: (2, 0, 0, 0),  # if_set2dangle
-    2107: (2, 0, 0, 0),  # if_settiling
-    2109: (7, 0, 0, 0),  # if_setmodelangle
-    2110: (2, 0, 0, 0),  # if_setmodelanim
-    2111: (2, 0, 0, 0),  # if_setmodelorthog
-    2117: (2, 0, 0, 0),  # if_setgraphicshadow
-    2118: (2, 0, 0, 0),  # if_setvflip
-    2119: (2, 0, 0, 0),  # if_sethflip
-    2123: (2, 0, 0, 0),  # if_setfillcolour
-    2126: (2, 0, 0, 0),  # if_setlinedirection
-    2201: (2, 0, 0, 0),  # if_setnpchead
-    2202: (1, 0, 0, 0),  # if_setplayerhead_self
-    3129: (2, 0, 0, 0),  # _3129
-    3140: (0, 0, 0, 0),  # _3140
-    3656: (1, 0, 0, 0),  # _3656 (CLAN_SORT_APPLY here; see MANUAL_STACK)
-    3800: (0, 0, 1, 0),  # activeclansettings_find_listened
-    3850: (0, 0, 1, 0),  # activeclanchannel_find_listened
-    4104: (1, 0, 0, 1),  # fromdate
-    4200: (1, 0, 0, 1),  # oc_name
-    4210: (1, 1, 1, 0),  # oc_find
-    6618: (1, 0, 4, 0),  # _6618
-    6638: (2, 0, 2, 0),  # _6638
-    6696: (1, 0, 2, 0),  # mec_sprite
-    7506: (1, 0, 1, 0),  # db_getrow
+    # Empty since both tables take their signatures from the client's own
+    # command catalogue (tools/cs2_gen_opcodes/catalogue.py). It held 45 entries
+    # before that; every one was a hand copy disagreeing with the client.
 }
 
 
@@ -617,7 +577,7 @@ def parse_command_gen() -> tuple[dict[int, tuple[int, int, int, int]], int]:
     """Signatures from the decompiler's table, as (int_in, str_in, int_out, str_out).
 
     Only RSCACHE_CS2_CMD_BASIC rows are returned. The other kinds are variadic
-    by construction -- DB_FIND/DB_GETFIELD take their stack shape from the
+    by construction -- DB_FIND_PRE228/DB_GETFIELD take their stack shape from the
     column at run time, CLIENTSCRIPT from its trigger's arg string, PARAM from
     the param's type -- so their arg/def counts in that table are placeholders,
     not signatures, and every one of them already has dedicated dispatch in
@@ -712,6 +672,17 @@ def parse_meta_names() -> dict[int, str]:
     return names
 
 
+def parse_previous_output() -> dict[int, tuple[int, int, int, int]]:
+    """This generator's last output, as opcode -> signature ({} on a first run)."""
+    if not OUT.is_file():
+        return {}
+    pattern = re.compile(r"\[(\d+)\] = \{ (\d+), (\d+), (\d+), (\d+), \d+ \}")
+    return {
+        int(m.group(1)): tuple(int(m.group(i)) for i in range(2, 6))
+        for m in pattern.finditer(OUT.read_text(encoding="utf-8"))
+    }
+
+
 def parse_dispatched(ids_by_name: dict[str, int]) -> set[int]:
     """Opcodes cs2vm2.c actually dispatches.
 
@@ -728,10 +699,41 @@ def parse_dispatched(ids_by_name: dict[str, int]) -> set[int]:
     dispatch is right here, as explicit `case CS2_OP_X:` labels and as the
     `..._CASE(X)` macros that expand to them.
     """
+    # Every spelling an opcode can be dispatched under: its canonical name,
+    # any LOCAL_ALIASES alias (both are #defines in cs2_opcode.h -- the
+    # highlight op-group is dispatched as HIGHLIGHT_OPGROUP_* while its
+    # canonical name is HIGHLIGHT_GROUP_*), and its host-request kind name,
+    # which the ..._CASE(name) macros paste into CS2VM_HOST_REQUEST_##name.
+    ids = dict(ids_by_name)
+    for name, value in re.findall(r"^#define (CS2_OP_[A-Z0-9_]+) (\d+)$", OPCODE_H.read_text(encoding="utf-8"), re.M):
+        ids.setdefault(name, int(value))
+    kinds = HERE / "cs2vm2_host_request_kinds.def"
+    for name, value in re.findall(r"CS2VM_HOST_REQUEST_KIND\(\s*([A-Za-z0-9_]+)\s*,\s*(\d+)", kinds.read_text(encoding="utf-8")):
+        ids.setdefault("CS2_OP_" + name, int(value))
+
     text = DISPATCH_C.read_text(encoding="utf-8")
     macros = set(re.findall(r"case (CS2_OP_[A-Z0-9_]+):", text))
-    macros |= {"CS2_OP_" + m for m in re.findall(r"_CASE\(\s*([A-Z][A-Z0-9_]*)\s*[,)]", text)}
-    return {ids_by_name[m] for m in macros if m in ids_by_name}
+    macros |= {"CS2_OP_" + m for m in re.findall(r"_CASE\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*[,)]", text)}
+    return {ids[m] for m in macros if m in ids}
+
+
+def parse_client_rejected(ids_by_name: dict[str, int]) -> set[int]:
+    """Opcodes cs2vm2.c routes to CS2VM2_Op_ClientRejects.
+
+    Those are opcodes the reference client does not implement: its dispatch
+    aborts the script before popping anything, and so does this VM's. Their
+    catalogue signature is real but never exercised, so they get their own tier
+    (3) rather than claiming an implementation whose arity can be measured.
+    """
+    ids = dict(ids_by_name)
+    for name, value in re.findall(r"^#define (CS2_OP_[A-Z0-9_]+) (\d+)$", OPCODE_H.read_text(encoding="utf-8"), re.M):
+        ids.setdefault(name, int(value))
+    text = DISPATCH_C.read_text(encoding="utf-8")
+    rejected: set[int] = set()
+    for block in re.findall(r"((?:[ \t]*case CS2_OP_[A-Z0-9_]+:\n)+)[ \t]*return CS2VM2_Op_ClientRejects\(", text):
+        for name in re.findall(r"case (CS2_OP_[A-Z0-9_]+):", block):
+            rejected.add(ids[name])
+    return rejected
 
 
 def heuristic(name: str) -> tuple[int, int, int, int] | None:
@@ -878,6 +880,36 @@ def main() -> None:
         documented.add(op)
         known.add(op)
 
+    # ---- the client's own declarations (tools/cs2_gen_opcodes/catalogue.py) ----
+    # A hand-written signature (a doc comment in cs2_opcode.h, or MANUAL_STACK)
+    # that disagrees with the client's declaration is a defect in the hand copy,
+    # and it is not a harmless one: for a dispatched opcode the hand copy is
+    # usually what the handler was written against, so the handler pops the
+    # wrong number of values. Every one found when this gate went in was checked
+    # against the rev-239 dispatch and the client was right each time. So the
+    # gate refuses them outright rather than keeping an exceptions list.
+    declared = catalogue.signatures()
+    disagree = sorted(
+        (op, entries[op], sig)
+        for op, sig in declared.items()
+        if op in documented and entries.get(op) != sig
+    )
+    if disagree:
+        print(
+            "gen_opcode_stack: hand-written signatures disagree with the rev-239\n"
+            "client's command catalogue. Fix the hand copy AND the handler it was\n"
+            "written against:",
+            file=sys.stderr,
+        )
+        for op, ours, theirs in disagree:
+            print(f"  opcode {op} {names.get(op, '?')}: here {ours}, client {theirs}", file=sys.stderr)
+        raise SystemExit(1)
+    for op, sig in declared.items():
+        if op not in documented:
+            entries[op] = sig
+            documented.add(op)
+            known.add(op)
+
     # ---- the bridge (source 4; see this file's docstring) -------------------
     bridge, cmd_table_size = parse_command_gen()
     dispatched = parse_dispatched({f"CS2_OP_{n}": o for o, n in names.items()})
@@ -902,10 +934,19 @@ def main() -> None:
 
     max_opcode = ceiling(entries, names, MANUAL_STACK, bridge)
 
+    # The decoder generator fills rows it has no other source for FROM this
+    # table (gen_cs2_tables.py, "signatures taken from the client's stack
+    # table"), so a row there that equals the table as last generated is this
+    # table's own previous answer echoed back, not a second opinion. Counting it
+    # as one made the two generators a loop: a corrected row here could never be
+    # written, because the decoder still held the value it was correcting.
+    previous = parse_previous_output()
     conflicts = {
         op: (entries.get(op, (0, 0, 0, 0)), sig)
         for op, sig in sorted(bridge.items())
-        if op in known and entries.get(op, (0, 0, 0, 0)) != sig
+        if op in known
+        and entries.get(op, (0, 0, 0, 0)) != sig
+        and previous.get(op) != sig
     }
     unacknowledged = {
         op: v for op, v in conflicts.items() if BRIDGE_CONFLICTS_OK.get(op) != v[1]
@@ -972,7 +1013,10 @@ def main() -> None:
         "     *      3rd/rscache/src/cs2/cs2_command.gen.h, and nothing here",
         "     *      implements the opcode. The stack stays balanced and the",
         "     *      results are zeros/\"\" -- a plausible wrong answer, so the",
-        "     *      runtime prints one line the first time it reaches each. */",
+        "     *      runtime prints one line the first time it reaches each.",
+        "     * 3 -- the reference client does not implement the opcode: the VM",
+        "     *      routes it to CS2VM2_Op_ClientRejects, which aborts the script",
+        "     *      before popping, as the client does. */",
         "    unsigned char known;",
         "};",
         "",
@@ -987,9 +1031,12 @@ def main() -> None:
     # promote it 2 -> 1 purely because its name matched a heuristic, which
     # silenced the warning for something still unimplemented. `dispatched` is
     # the real question, so ask it directly.
+    rejected = parse_client_rejected({f"CS2_OP_{n}": o for o, n in names.items()})
     for op in range(max_opcode):
         ii, si, io, so = entries.get(op, (0, 0, 0, 0))
-        if op not in known:
+        if op in rejected:
+            kn = 3
+        elif op not in known:
             kn = 0
         elif op in dispatched:
             kn = 1

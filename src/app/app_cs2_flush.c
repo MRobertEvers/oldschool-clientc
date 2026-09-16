@@ -352,6 +352,144 @@ app_cs2_flush_notifications(struct App* app)
                         sizeof(_nsbuf),
                         (int)atol(send.text)));
                 break;
+            case RS_CS2_SOCIAL_SEND_RESUME_NAMEDIALOG:
+                APP_NET_SEND(
+                    app,
+                    net_out_resume_namedialog(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), send.text));
+                break;
+            case RS_CS2_SOCIAL_SEND_RESUME_STRINGDIALOG:
+                APP_NET_SEND(
+                    app,
+                    net_out_resume_stringdialog(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), send.text));
+                break;
+            case RS_CS2_SOCIAL_SEND_RESUME_COUNTDIALOG_LONG:
+                APP_NET_SEND(
+                    app,
+                    net_out_resume_countdialog_long(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), send.long_value));
+                break;
+            case RS_CS2_SOCIAL_SEND_RESUME_OBJDIALOG:
+                APP_NET_SEND(
+                    app,
+                    net_out_resume_objdialog(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), send.values[0]));
+                break;
+            case RS_CS2_SOCIAL_SEND_OPPLAYER:
+                APP_NET_SEND(
+                    app,
+                    net_out_opplayer(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        send.values[0],
+                        send.values[1]));
+                break;
+            case RS_CS2_SOCIAL_SEND_BUG_REPORT:
+                APP_NET_SEND(
+                    app,
+                    net_out_bug_report(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        send.text,
+                        send.text2,
+                        send.values[0]));
+                break;
+            case RS_CS2_SOCIAL_SEND_ABUSE_REPORT:
+                APP_NET_SEND(
+                    app,
+                    net_out_send_snapshot(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        send.name,
+                        send.values[0],
+                        send.values[1]));
+                break;
+            case RS_CS2_SOCIAL_SEND_FRIENDCHAT_JOIN:
+                APP_NET_SEND(
+                    app,
+                    net_out_friendchat_join_leave(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), send.name));
+                break;
+            case RS_CS2_SOCIAL_SEND_FRIENDCHAT_LEAVE:
+                /* The same packet with no name is the leave. */
+                APP_NET_SEND(
+                    app,
+                    net_out_friendchat_join_leave(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), NULL));
+                break;
+            case RS_CS2_SOCIAL_SEND_FRIENDCHAT_KICK:
+                APP_NET_SEND(
+                    app,
+                    net_out_friendchat_kick(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), send.name));
+                break;
+            case RS_CS2_SOCIAL_SEND_FRIENDCHAT_SETRANK:
+                APP_NET_SEND(
+                    app,
+                    net_out_friendchat_setrank(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        send.name,
+                        send.values[2]));
+                break;
+            case RS_CS2_SOCIAL_SEND_CLAN_KICKUSER:
+                APP_NET_SEND(
+                    app,
+                    net_out_clanchannel_kickuser(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        send.values[0],
+                        send.values[1],
+                        send.name));
+                break;
+            case RS_CS2_SOCIAL_SEND_CLAN_ADDBANNED:
+                APP_NET_SEND(
+                    app,
+                    net_out_affinedclansettings_addbanned_fromchannel(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        send.values[0],
+                        send.values[1],
+                        send.name));
+                break;
+            case RS_CS2_SOCIAL_SEND_CLAN_SETMUTED:
+                APP_NET_SEND(
+                    app,
+                    net_out_affinedclansettings_setmuted_fromchannel(
+                        app->net->rev,
+                        app->net->random_out,
+                        _nsbuf,
+                        sizeof(_nsbuf),
+                        send.values[0],
+                        send.values[1],
+                        send.values[2],
+                        send.name));
+                break;
+            case RS_CS2_SOCIAL_SEND_CLANCHANNEL_FULL_REQUEST:
+                APP_NET_SEND(
+                    app,
+                    net_out_clanchannel_full_request(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), send.values[0]));
+                break;
+            case RS_CS2_SOCIAL_SEND_CLANSETTINGS_FULL_REQUEST:
+                APP_NET_SEND(
+                    app,
+                    net_out_clansettings_full_request(
+                        app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), send.values[0]));
+                break;
             default:
                 break;
             }

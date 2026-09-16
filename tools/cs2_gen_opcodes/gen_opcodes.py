@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Generate CS2 opcode tables from vendored RuneStar Opcodes.kt."""
+"""Generate CS2 opcode tables.
+
+Names come from the rev-239 client's own command declarations (catalogue.py),
+layered over the older vendored RuneStar Opcodes.kt for the ids the client does
+not declare; LOCAL_NAMES may only name an id the catalogue does not cover.
+"""
 
 from __future__ import annotations
 
@@ -16,6 +21,7 @@ CS2DOM_GENERATED_OUT_DIR = ROOT.parent / "cs2dom" / "src" / "generated"
 CS2DOM_COMMANDS_SOURCE = ROOT.parent / "cs2dom" / "src" / "cs2_commands.js"
 DISPATCH_SOURCE = OUT_DIR / "cs2vm2.c"
 
+import catalogue
 from local_opcodes import (
     DECODE_OPERAND_OVERRIDES,
     HANDLER_OVERRIDES,
@@ -67,8 +73,8 @@ VM_OPCODES = {
     4016, 4017, 4018, 4029,  # state-independent math
     4101, 4103, 4106, 4107, 4111, 4117, 4118, 4119, 4121,  # pure strings
     6518, 6519,  # deterministic client platform constants
-    8003,  # ARRAY_LENGTH (VM-owned array handle)
-    8010, 8011,  # ARRAY_FILL, ARRAY_FILL_SEQUENCE (VM-owned arrays)
+    8003,  # ARRAY_SIZE (VM-owned array handle)
+    8010, 8011,  # ARRAY_FILL, ARRAY_GENERATERANGE (VM-owned arrays)
     3408,  # ENUM - complex, host for now
 }
 
@@ -112,16 +118,67 @@ def parse_opcodes(path: Path) -> list[tuple[str, int]]:
 
 
 def merge_local(entries: list[tuple[str, int]]) -> list[tuple[str, int]]:
-    """Layer LOCAL_NAMES over the vendor table, sorted by opcode id.
+    """Resolve one canonical name per opcode id, sorted by id.
 
-    An id named in LOCAL_NAMES drops its vendor entry: the vendor name is a
-    placeholder (_NNNN) or an older label we have since corrected, and keeping
-    both would emit two #defines for one opcode.
+    Precedence, lowest to highest:
+
+      vendor Opcodes.kt   -- RuneStar's 2021 table; a placeholder (_NNNN) or an
+                             older label for most of what it names.
+      catalogue.names()   -- the rev-239 client's own declarations. Authoritative
+                             for every id it covers.
+      LOCAL_NAMES         -- only for ids the catalogue does NOT cover: the RS2
+                             dialect's own ids, the RuneLite callback, and ids
+                             this client dispatches that the catalogue lists as
+                             a gap. validate_local_names() refuses anything else.
     """
-    merged = [(name, val) for name, val in entries if val not in LOCAL_NAMES]
-    merged += [(name, val) for val, name in LOCAL_NAMES.items()]
-    merged.sort(key=lambda e: (e[1], e[0]))
-    return merged
+    names: dict[int, str] = {val: name for name, val in entries}
+    names.update(catalogue.names())
+    names.update(LOCAL_NAMES)
+    return sorted(((name, val) for val, name in names.items()), key=lambda e: (e[1], e[0]))
+
+
+def validate_local_names() -> None:
+    """LOCAL_NAMES may not rename an id the client itself declares.
+
+    That is how 200 names came to disagree with the client: each overlay was a
+    reasonable guess from call sites, and nothing ever compared the guess with
+    the declaration. Some were only spelling (DIV for `divide`); others named a
+    different operation at the right arity (1140 was CC_INPUT_SETFOCUS,
+    and is `cc_input_setfocus`), which fails silently -- the value lands on the
+    wrong property.
+    """
+    declared = catalogue.names()
+    wrong = [
+        f"{val}: LOCAL_NAMES says {name}, the client declares {declared[val]}"
+        for val, name in sorted(LOCAL_NAMES.items())
+        if val in declared and declared[val] != name
+    ]
+    # The same failure from the other side: a local name for an id the client
+    # does not declare, spelled like a command the client declares elsewhere.
+    # 1004 was CC_SETPINCH; the client's cc_setpinch is 1309.
+    owner = {name: val for val, name in declared.items()}
+    wrong += [
+        f"{val}: LOCAL_NAMES says {name}, which the client declares as {owner[name]}"
+        for val, name in sorted(LOCAL_NAMES.items())
+        if val not in declared and name in owner
+    ]
+    if wrong:
+        raise ValueError("LOCAL_NAMES disagrees with the client's command catalogue:\n  " + "\n  ".join(wrong))
+
+
+def retired_names(entries: list[tuple[str, int]]) -> dict[str, str]:
+    """Every name that used to be canonical and no longer is -> its replacement.
+
+    `_NNNN` placeholders are not listed; they are resolved by id wherever they are
+    read. The map is emitted as cs2_opcode_renames.gen.json so the decompiler's
+    compiler keeps accepting the old spellings in existing sources.
+    """
+    canonical = {val: name for name, val in merge_local(entries)}
+    old: dict[str, str] = {}
+    for name, val in entries:
+        if not re.fullmatch(r"_\d+", name) and canonical.get(val, name) != name:
+            old[name] = canonical[val]
+    return dict(sorted(old.items()))
 
 
 def validate_documented_names(entries: list[tuple[str, int]]) -> None:
@@ -317,7 +374,7 @@ def format_opcode_comment(name: str, doc: OpcodeDoc) -> list[str]:
 
 def emit_header(entries: list[tuple[str, int]]) -> str:
     lines = [
-        "/* Generated by tools/cs2_gen_opcodes/gen_opcodes.py from RuneStar/cs2 Opcodes.kt */",
+        "/* Generated by tools/cs2_gen_opcodes/gen_opcodes.py from the rev-239 command catalogue */",
         "#ifndef CS2_OPCODE_H",
         "#define CS2_OPCODE_H",
         "",
@@ -968,13 +1025,18 @@ def main() -> int:
     if not VENDOR.is_file():
         print(f"missing {VENDOR}", file=sys.stderr)
         return 1
-    entries = merge_local(parse_opcodes(VENDOR))
+    validate_local_names()
+    vendor_entries = parse_opcodes(VENDOR)
+    entries = merge_local(vendor_entries)
     validate_documented_names(entries)
     validate_group_coverage(entries)
     validate_dispatch_grouping(entries)
     validate_opcode_semantics(entries, DISPATCH_SOURCE, operand_kind, handler_kind)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUT_DIR / "cs2_opcode.h").write_text(emit_header(entries), encoding="utf-8")
+    (OUT_DIR / "cs2_opcode_renames.gen.json").write_text(
+        json.dumps(retired_names(vendor_entries), indent=2) + "\n", encoding="utf-8"
+    )
     (OUT_DIR / "cs2_opcode_meta.h").write_text(emit_meta_h(), encoding="utf-8")
     (OUT_DIR / "cs2_opcode_meta.c").write_text(emit_meta_c(entries), encoding="utf-8")
     (OUT_DIR / "cs2_opcode_groups.json").write_text(emit_groups_json(), encoding="utf-8")

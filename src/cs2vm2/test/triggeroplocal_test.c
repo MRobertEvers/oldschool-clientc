@@ -1,5 +1,5 @@
 /*
- * Unit test for IF_TRIGGEROPLOCAL (2929), driven through the real VM dispatch
+ * Unit test for IF_SCRIPT_TRIGGER (2929), driven through the real VM dispatch
  * against a recording host.
  *
  * Before this opcode existed it fell through to CS2VM2_Op_StackMetaStub and
@@ -41,7 +41,7 @@ struct RecordingHost
 {
     int calls;
     enum CS2VM_HostRequestKind kind;
-    struct CS2VM_HostRequest_IF_TRIGGEROPLOCAL trig;
+    struct CS2VM_HostRequest_IF_SCRIPT_TRIGGER trig;
 };
 
 static int
@@ -52,7 +52,7 @@ recording_host_exec(
     struct RecordingHost* host = (struct RecordingHost*)thread->vm->user;
     host->calls++;
     host->kind = request->kind;
-    host->trig = request->u.IF_TRIGGEROPLOCAL;
+    host->trig = request->u.IF_SCRIPT_TRIGGER;
     return CS2VM_EXECNO_OK;
 }
 
@@ -94,7 +94,7 @@ run_op(
     }
     script.opcodes[3+argc] = CS2_OP_PUSH_CONSTANT_STRING;
     script.string_operands[3+argc] = strdup(signature);
-    script.opcodes[4+argc] = CS2_OP_IF_TRIGGEROPLOCAL;
+    script.opcodes[4+argc] = CS2_OP_IF_SCRIPT_TRIGGER;
 
     struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(&vm);
     CS2VM2_PushCallScript(thread, &script);
@@ -110,7 +110,7 @@ run_op(
 int
 main(void)
 {
-    printf("TEST: IF_TRIGGEROPLOCAL\n");
+    printf("TEST: IF_SCRIPT_TRIGGER\n");
 
     int const trigger = (860 << 16) | 17; /* skill_guide_v2:quest_journal_button_trigger */
     int const crc = 1707091816;
@@ -123,7 +123,7 @@ main(void)
         run_op(&host, crc, trigger, -1, quest_id, 0, "i");
         CHECK_INT(host.calls, 1, "reaches the host exactly once (no StackMetaStub abort)");
         CHECK_INT(
-            (int)host.kind, (int)CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL, "request kind");
+            (int)host.kind, (int)CS2VM_HOST_REQUEST_IF_SCRIPT_TRIGGER, "request kind");
         CHECK_INT(host.trig.component_id, trigger, "component is the trigger");
         CHECK_INT(
             host.trig.sub,
@@ -155,6 +155,6 @@ main(void)
         printf("%d failure(s)\n", g_fail);
         return 1;
     }
-    printf("All IF_TRIGGEROPLOCAL opcode tests passed.\n");
+    printf("All IF_SCRIPT_TRIGGER opcode tests passed.\n");
     return 0;
 }

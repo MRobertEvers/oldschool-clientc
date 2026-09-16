@@ -242,36 +242,69 @@ runtime.receive({
 assert.strictEqual(runtime.inspect().widgetCount, 20, 'all semantic control kinds are retained');
 assert(!ids['tpc-pane'].hidden, 'one selected page is visible');
 const dropdownRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 3);
-assert.match(dropdownRow._tpcRecord.control.style.backgroundImage,
-  /ScrollDown\.png[\s\S]*DropdownBody\.png/,
-  'the themed select retains both the authored arrow and tiled body');
-assert.strictEqual(dropdownRow._tpcRecord.control.style.backgroundSize, '14px 14px,auto',
-  'dropdown arrow uses row height minus the authored two-pixel inset');
+const plainDrop = dropdownRow._tpcRecord.control;
+assert.strictEqual(plainDrop.tagName, 'BUTTON',
+  'a dropdown is a page-drawn button, never a native select whose menu blocks the host thread');
+assert.strictEqual(plainDrop.children[0].innerText, 'Two', 'the closed button shows the selection');
+assert.match(plainDrop.style.backgroundImage, /PanelBody\.png/,
+  'the closed dropdown wears the panel tile, as dbg_push_field_chrome does');
+assert.match(plainDrop.children[1].style.backgroundImage, /ScrollDown\.png/,
+  'the closed dropdown points its arrow down');
 const structuredRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 13);
 const structured = structuredRow._tpcRecord.control;
-assert.strictEqual(structured.children.length, 3);
-assert.strictEqual(structured.children[0].innerText, structured.children[1].innerText
+assert.match(structured.children[0].innerText, /Provider is not installed/,
+  'availability detail is visible in the selected option');
+function openList() {
+  const host = ids['tpc-shell'];
+  const back = host.children.find(item => item.className === 'tpc-dropdown-backdrop');
+  return back ? back.children[0].children[0].children : null;
+}
+assert.strictEqual(openList(), null, 'no list exists until the button is pressed');
+structured.fire('click');
+let rows = openList();
+assert(rows, 'pressing the button opens the list');
+assert.strictEqual(structured.getAttribute('aria-expanded'), 'true');
+assert.match(structured.children[1].style.backgroundImage, /ScrollUp\.png/,
+  'the open dropdown points its arrow up');
+assert.strictEqual(rows.length, 3);
+assert.strictEqual(rows[0].innerText, rows[1].innerText
   .replace('Provider is not installed', 'Uses the lane default'),
   'duplicate delimiter-containing labels remain presentation, not identity');
-assert.strictEqual(structured.children[1].value, 'missing/frame');
-assert.strictEqual(structured.children[1].disabled, true);
-assert.strictEqual(structured.children[1].getAttribute('aria-disabled'), 'true');
-assert.match(structured.children[1].innerText, /Provider is not installed/,
-  'availability detail is visible in the selected option');
-assert.match(structured.children[1].getAttribute('aria-label'), /Provider is not installed/,
-  'availability detail is exposed to assistive technology');
-assert.strictEqual(structured.selectedIndex, 1,
+assert.strictEqual(rows[1].getAttribute('aria-disabled'), 'true');
+assert.strictEqual(rows[1].getAttribute('aria-selected'), 'true',
   'a missing disabled saved choice remains visibly selected');
+assert(rows[1].classList.contains('tpc-dropdown-disabled'));
+assert(rows[1].classList.contains('tpc-dropdown-alt'), 'bands alternate on the option index');
 const typedBeforeDisabled = typed.length;
-structured.selectedIndex = 1;
-structured.fire('change');
+rows[1].fire('click');
 assert.strictEqual(typed.length, typedBeforeDisabled,
   'a disabled structured row cannot emit a pick intent');
-structured.selectedIndex = 2;
-structured.fire('change');
+assert(openList(), 'and the list stays open over it');
+rows[2].fire('click');
+assert.strictEqual(openList(), null, 'a pick closes the list');
 assert.strictEqual(typed[typed.length - 1].v, 2);
 assert.strictEqual(typed[typed.length - 1].text, 'ready/frame',
   'an enabled pick returns its stable value rather than its label');
+assert.match(structured.children[0].innerText, /Ready/,
+  'the button shows the pick before the host confirms it, as a select did');
+assert.strictEqual(structured.getAttribute('aria-expanded'), 'false');
+/* The keyboard: arrows move over enabled rows only, Enter picks, Escape
+ * closes without picking. */
+structured.fire('keydown', { keyCode: 40 });
+assert(openList(), 'Down on a closed dropdown opens it');
+document.onkeydown({ keyCode: 38 });
+rows = openList();
+assert(rows[0].classList.contains('tpc-dropdown-hover'), 'Up skips the disabled row');
+document.onkeydown({ keyCode: 27 });
+assert.strictEqual(openList(), null, 'Escape closes the list');
+assert.strictEqual(document.onkeydown, null, 'and hands the keyboard back');
+assert.strictEqual(typed[typed.length - 1].v, 2, 'without picking');
+structured.fire('click');
+const typedBeforeBackdrop = typed.length;
+ids['tpc-shell'].children.find(item => item.className === 'tpc-dropdown-backdrop')
+  .fire('mousedown', { target: ids['tpc-shell'] });
+assert.strictEqual(openList(), null, 'a press outside the list closes it');
+assert.strictEqual(typed.length, typedBeforeBackdrop, 'and picks nothing');
 const buttonRow = ids['tpc-content'].children.find(item => item._tpcRecord.handle === 4);
 assert.strictEqual(buttonRow._tpcRecord.control.style.backgroundSize,
   '18px 18px,18px 18px,10px 18px', '2x button bake maps to the 1x row grid');
@@ -389,14 +422,14 @@ assert(typed[typed.length - 1].x >= 0 && typed[typed.length - 1].y >= 0,
   'custom content-box coordinates remain logical after DPR mapping');
 
 const visitsBeforeDelta = runtime.inspect().renderVisits;
-const structuredFirstOption = structured.children[0];
+const structuredValueNode = structured.children[0];
 assert.strictEqual(runtime.receive({
   protocol: 1, type: 'page.delta', pageGeneration: 20,
   commands: [command(11, { w: 8, text: 'Updated readout' })]
 }), true);
 assert.strictEqual(runtime.inspect().renderVisits, visitsBeforeDelta + 1,
   'a one-widget delta visits only that retained widget');
-assert.strictEqual(structured.children[0], structuredFirstOption,
+assert.strictEqual(structured.children[0], structuredValueNode,
   'an unrelated dropdown is neither traversed nor rebuilt');
 
 const visitsBeforeActionSummary = runtime.inspect().renderVisits;
@@ -428,9 +461,9 @@ assert.strictEqual(runtime.receive({
 }), true);
 assert.strictEqual(runtime.inspect().renderVisits, visitsBeforeSelection + 1,
   'a selection delta visits only its dropdown');
-assert.strictEqual(structured.children[0], structuredFirstOption,
-  'changing selection does not reconstruct unchanged option nodes');
-assert.strictEqual(structured.selectedIndex, 2);
+assert.strictEqual(structured.children[0], structuredValueNode,
+  'changing selection does not reconstruct the button');
+assert.match(structured.children[0].innerText, /Ready/);
 
 const visitsBeforeOptions = runtime.inspect().renderVisits;
 assert.strictEqual(runtime.receive({
@@ -444,8 +477,24 @@ assert.strictEqual(runtime.receive({
 }), true);
 assert.strictEqual(runtime.inspect().renderVisits, visitsBeforeOptions + 1,
   'an option header, its items, and selection coalesce to one widget render');
-assert.strictEqual(structured.children.length, 2);
-assert.strictEqual(structured.selectedIndex, 1);
+assert.strictEqual(structured.children[0].innerText, 'Roomy');
+structured.fire('click');
+assert.strictEqual(openList().length, 2, 'the list is built from the replaced options');
+assert.strictEqual(openList()[1].getAttribute('aria-selected'), 'true');
+const openRowsBeforeRefresh = openList();
+assert.strictEqual(runtime.receive({
+  protocol: 1, type: 'page.delta', pageGeneration: 20,
+  commands: [
+    command(17, { w: 13, v: 3, x: 1 }),
+    command(18, { w: 13, v: 0, x: 1, text: 'compact', label: 'Compact' }),
+    command(18, { w: 13, v: 1, x: 1, text: 'roomy', label: 'Roomy' }),
+    command(18, { w: 13, v: 2, x: 1, text: 'wide', label: 'Wide' })
+  ]
+}), true);
+assert.notStrictEqual(openList(), openRowsBeforeRefresh,
+  'an open list rebuilds in place when its options change');
+assert.strictEqual(openList().length, 3);
+const staleRow = openList()[2];
 
 /* Same handle/kind, new page and serial: detached old DOM must remain stale. */
 ids['tpc-content'].scrollTop = 37;
@@ -462,8 +511,8 @@ const typedBefore = typed.length;
 oldCheckbox.fire('change');
 assert.strictEqual(typed.length, typedBefore,
   'listener from prior page cannot retarget a recycled handle');
-structured.selectedIndex = 2;
-structured.fire('change');
+assert.strictEqual(openList(), null, 'a replacement page closes the list it tore down');
+staleRow.fire('click');
 assert.strictEqual(typed.length, typedBefore,
   'a structured pick from the prior generation is equally stale');
 const newCheckbox = ids['tpc-content'].children[0].children[0];
@@ -694,6 +743,88 @@ runtime.receive({
 });
 assert.deepStrictEqual(pageOrder(), [10, 1, 2, 3, 4, 9],
   'naming the first row moves the re-added one to the top, not merely near it');
+
+/*
+ * railHidden: the game lane's own pop-out column carries the destinations.
+ *
+ * The page draws no rail and reserves no width for one, but the page pane
+ * still opens and closes on the snapshot's selection. The fixture has no CSS
+ * engine, so the pane's measured width is modelled on the two stylesheets: a
+ * 362px view whose pane stops at the rail's track less the 6px frame seam
+ * (326) while the rail shows, and runs flush to the right edge (362) under
+ * tpc-rail-hidden. The layout the host is told must be the pane's own box.
+ */
+const railPane = ids['tpc-pane'];
+Object.defineProperty(railPane, 'clientWidth', {
+  configurable: true,
+  get() { return ids['tpc-shell'].classList.contains('tpc-rail-hidden') ? 362 : 326; }
+});
+const railBoxNode = ids['tpc-rail-list'].parentNode;
+const lastLayout = () => posted.filter(message => message.type === 'layout').pop();
+runtime.receive({
+  protocol: 1, type: 'rail.snapshot', registryRevision: 1,
+  selectionGeneration: 11, pageGeneration: 50, activePlugin: 0,
+  lastSelectedPlugin: 0, selectedEntry: 0, expanded: true, railHidden: true, entries
+});
+assert(ids['tpc-shell'].classList.contains('tpc-rail-hidden'),
+  'a railHidden snapshot marks the shell');
+assert.strictEqual(runtime.inspect().railHidden, true);
+assert.strictEqual(railBoxNode.hidden, true, 'the rail box takes no input while hidden');
+assert.strictEqual(railBoxNode.style.display, 'none', 'and does not display');
+assert.strictEqual(runtime.inspect().railEntries, 33, 'the entries are still retained');
+assert(!ids['tpc-shell'].classList.contains('tpc-collapsed'),
+  'a destination selected from the game still expands the pane');
+runtime.receive({
+  protocol: 1, type: 'page.snapshot', pageGeneration: 50, panel: 6,
+  title: 'XP Tracker', commands: [
+    command(3, { p: 6, text: 'XP Tracker' }),
+    command(8, { p: 6, w: 1, v: 0, text: 'Session', s: 501 })
+  ]
+});
+assert.strictEqual(runtime.inspect().pageGeneration, 50, 'the page mounts with the rail hidden');
+assert(!railPane.hidden, 'and its pane is visible');
+let hiddenLayout = lastLayout();
+assert.strictEqual(hiddenLayout.pageGeneration, 50);
+assert.strictEqual(hiddenLayout.width, 362,
+  'with the rail hidden the layout is the flush pane, no rail track excluded from it');
+
+runtime.receive({
+  protocol: 1, type: 'rail.snapshot', registryRevision: 1,
+  selectionGeneration: 11, pageGeneration: 50, activePlugin: 0,
+  lastSelectedPlugin: 0, selectedEntry: 0, expanded: true, railHidden: false, entries
+});
+assert(!ids['tpc-shell'].classList.contains('tpc-rail-hidden'),
+  'a railHidden:false snapshot removes the class');
+assert.strictEqual(railBoxNode.hidden, false);
+assert.strictEqual(railBoxNode.style.display, '');
+const shownLayout = lastLayout();
+assert.notStrictEqual(shownLayout, hiddenLayout, 'the toggle re-reports the layout');
+assert.strictEqual(shownLayout.width, 326,
+  'with the rail shown the layout is the pane alone, never the rail\'s 42px');
+
+runtime.receive({
+  protocol: 1, type: 'rail.snapshot', registryRevision: 1,
+  selectionGeneration: 11, pageGeneration: 50, activePlugin: 0,
+  lastSelectedPlugin: 0, selectedEntry: 0, expanded: true, railHidden: true, entries
+});
+hiddenLayout = lastLayout();
+assert.strictEqual(hiddenLayout.width, 362);
+runtime.receive({
+  protocol: 1, type: 'rail.snapshot', registryRevision: 1,
+  selectionGeneration: 12, pageGeneration: 50, activePlugin: -1,
+  lastSelectedPlugin: 0, selectedEntry: 0, expanded: false, railHidden: true, entries
+});
+assert(ids['tpc-shell'].classList.contains('tpc-collapsed'),
+  'a hidden rail still collapses the pane when the game deselects');
+assert.strictEqual(runtime.inspect().widgetCount, 0, 'and releases the page');
+runtime.receive({
+  protocol: 1, type: 'rail.snapshot', registryRevision: 1,
+  selectionGeneration: 12, pageGeneration: 50, activePlugin: -1,
+  lastSelectedPlugin: 0, selectedEntry: 0, expanded: false, entries
+});
+assert(!ids['tpc-shell'].classList.contains('tpc-rail-hidden'),
+  'a snapshot without the field shows the rail');
+Object.defineProperty(railPane, 'clientWidth', { configurable: true, writable: true, value: 320 });
 
 assert.strictEqual(runtime.receive('{bad json'), false, 'malformed host input is ignored');
 console.log('modern plugin chrome runtime: ok');

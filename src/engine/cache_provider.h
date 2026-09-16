@@ -75,6 +75,13 @@ struct CacheProvider
      *  OC_FIND scan needs all names resident; this lets it load them exactly
      *  once instead of on every search. */
     bool objtypes_all_loaded;
+    /** Every VarClanType's base type (config group 47), loaded at boot; count 0
+     *  until then and on a cache without the group. */
+    struct ToriRS_VarClanTypes varclan_types;
+    /** The obj config group's id space, last file id + 1, known once the
+     *  load-all above has run; 0 until then. OC_BYID bounds an id with it, as
+     *  the client bounds it with the group's file count. */
+    int objtype_count;
     /** Every world map area, loaded as one object (cache table 19). NULL until
      *  the load task runs, and on caches that have no world map at all. */
     struct ToriRS_WorldMapAreas* worldmap_areas;
@@ -780,13 +787,15 @@ CacheProvider_ObjtypeIdByName(
 
 /** OC_FIND item-name search: scans every resident objtype and collects the ids
  *  whose name is present, is not "null", and (lowercased) contains
- *  `lower_query` (which the caller must already have lowercased). On a match it
+ *  `lower_query` (which the caller must already have lowercased), and -- when
+ *  `ge_tradeable_only` -- which are Grand Exchange tradeable. On a match it
  *  mallocs an ascending-sorted id array into *out_ids (caller frees) and
  *  returns the count; returns 0 (and *out_ids = NULL) when nothing matches. */
 int
 CacheProvider_ObjtypeSearchByName(
     struct CacheProvider* provider,
     char const* lower_query,
+    bool ge_tradeable_only,
     int** out_ids);
 
 /** The id of the first RESIDENT objtype `match` accepts, or -1 when none does.

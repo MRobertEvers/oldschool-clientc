@@ -63,7 +63,7 @@ class OpcodeSemanticsContractTest(unittest.TestCase):
         by_name = {semantic.name: semantic for semantic in OPCODE_SEMANTICS}
         self.assertEqual(by_name["PUSH_CONSTANT_INT"].operand, OperandKind.INT32)
         self.assertEqual(by_name["PUSH_CONSTANT_STRING"].operand, OperandKind.STRING)
-        for name in ("ADD", "SUB", "MULTIPLY", "DIV", "MOD"):
+        for name in ("ADD", "SUB", "MULTIPLY", "DIVIDE", "MODULO"):
             with self.subTest(name=name):
                 semantic = by_name[name]
                 self.assertEqual(semantic.operand, OperandKind.INT8)
@@ -86,7 +86,7 @@ class OpcodeSemanticsContractTest(unittest.TestCase):
             "STRING_INDEXOF_STRING",
             "ON_MOBILE",
             "CLIENTTYPE",
-            "ARRAY_LENGTH",
+            "ARRAY_SIZE",
         }
         self.assertTrue(promoted.issubset(by_name))
         self.assertNotIn("PUSH_CONSTANT_NULL", by_name)
@@ -112,16 +112,16 @@ class OpcodeSemanticsContractTest(unittest.TestCase):
 
         wire = generator.emit_wire_opcodes_ts(self.entries)
         self.assertIn(
-            '{ opcode: 3170, name: "LOCAL_NOTIFICATION", operand: "int8" }', wire
+            '{ opcode: 3170, name: "NOTIFICATIONS_SENDLOCAL", operand: "int8" }', wire
         )
         self.assertIn(
             '{ opcode: 61, name: "PUSH_CONSTANT_LONG", operand: "int64" }', wire
         )
         self.assertIn(
-            '{ opcode: 6758, name: "_6758", operand: "int8" }', wire
+            '{ opcode: 6758, name: "NPC_FINDUID", operand: "int8" }', wire
         )
         self.assertIn(
-            '{ opcode: 6764, name: "_6764", operand: "int8" }', wire
+            '{ opcode: 6764, name: "NC_HEADICON", operand: "int8" }', wire
         )
         self.assertIn("51: 60", wire)
         self.assertIn("4500: 6516", wire)
@@ -215,7 +215,7 @@ int main(void)
         CS2_OP_STRING_INDEXOF_STRING,
         CS2_OP_ON_MOBILE,
         CS2_OP_CLIENTTYPE,
-        CS2_OP_ARRAY_LENGTH,
+        CS2_OP_ARRAY_SIZE,
     };
     for( unsigned i = 0; i < sizeof(promoted) / sizeof(promoted[0]); i++ )
     {

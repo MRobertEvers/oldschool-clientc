@@ -119,6 +119,70 @@ net_out_resume_countdialog(
     uint8_t* buf,
     int cap,
     int amount);
+/* The clientscript dialog resumes (3104..3106, 3114, 3115): the answer to the
+ * server's prompt, as the command's own argument. */
+int
+net_out_resume_namedialog(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name);
+int
+net_out_resume_stringdialog(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* text);
+int
+net_out_resume_countdialog_long(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int64_t amount);
+int
+net_out_resume_objdialog(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int obj_id);
+/* bug_report (3116): the two free-text fields and the template id. */
+int
+net_out_bug_report(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* description, char const* instructions, int template_id);
+/* chat_sendabusereport (5002), SEND_SNAPSHOT at rev 239. `rule_id` is what the
+ * wire carries: the script's rule minus one. */
+int
+net_out_send_snapshot(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name, int rule_id, int mute);
+/* Friends chat (legacy clan chat). `name` NULL on JOIN_LEAVE is a leave. */
+int
+net_out_friendchat_join_leave(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name);
+int
+net_out_friendchat_kick(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name);
+int
+net_out_friendchat_setrank(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name, int rank);
+/* Clans: the full-state requests and the three moderation requests, each
+ * about member `member_index` of clan `clan_id`. */
+int
+net_out_clanchannel_full_request(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id);
+int
+net_out_clansettings_full_request(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id);
+int
+net_out_clanchannel_kickuser(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id, int member_index, char const* name);
+int
+net_out_affinedclansettings_addbanned_fromchannel(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id, int member_index, char const* name);
+int
+net_out_affinedclansettings_setmuted_fromchannel(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id, int member_index, int muted, char const* name);
 int
 net_out_tut_clickside(
     struct GameProtoRevTable const* rev,

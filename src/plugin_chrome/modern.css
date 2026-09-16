@@ -81,6 +81,15 @@ button { font-weight: 700; }
 
 .tpc-shell.tpc-collapsed { grid-template-columns: 0 42px; }
 .tpc-shell.tpc-collapsed .tpc-pane { display: none !important; }
+/* The game lane's own pop-out column carries the plugin destinations
+ * (rail.snapshot railHidden): no rail, no track reserved for it, and the pane
+ * runs flush to the right edge wearing its own complete frame -- the 6px seam
+ * overlap below has no rail to share an edge with. Collapsed as well, the
+ * shell reserves nothing at all. */
+.tpc-shell.tpc-rail-hidden { grid-template-columns: minmax(0, 1fr) 0; }
+.tpc-shell.tpc-rail-hidden.tpc-collapsed { grid-template-columns: 0 0; }
+.tpc-shell.tpc-rail-hidden .tpc-rail { display: none !important; pointer-events: none; }
+.tpc-shell.tpc-rail-hidden .tpc-pane { margin-right: 0; }
 .tpc-pane[hidden], .tpc-tabs[hidden] { display: none !important; }
 
 /* The rail is the game's own stone side-tab column: the tiled panel body
@@ -363,8 +372,8 @@ button { font-weight: 700; }
 .tpc-error-label { color: #ff5555; }
 .tpc-error-detail { color: #ffd0d0; }
 .tpc-toggle-row, .tpc-field-row { min-height: 22px; }
-.tpc-row > input[type="text"], .tpc-row > input[type="color"], .tpc-row > select, .tpc-row > textarea { flex: 1 1 auto; min-width: 0; }
-.tpc-row input[type="text"], .tpc-row input[type="color"], .tpc-row select, .tpc-row textarea {
+.tpc-row > input[type="text"], .tpc-row > input[type="color"], .tpc-row > .tpc-dropdown, .tpc-row > textarea { flex: 1 1 auto; min-width: 0; }
+.tpc-row input[type="text"], .tpc-row input[type="color"], .tpc-row textarea {
   height: 18px; border: 1px solid var(--tpc-inset); border-radius: 0; background: var(--tpc-field); color: var(--tpc-text); padding: 0 4px; line-height: 16px;
 }
 .tpc-tall-row { -webkit-box-orient: vertical; -webkit-flex-direction: column; flex-direction: column; align-items: stretch; }
@@ -536,20 +545,120 @@ button { font-weight: 700; }
 .tpc-color > * + * { margin-left: 5px; }
 .tpc-color input[type="color"] { flex: 0 0 42px; }
 .tpc-color input[type="text"] { flex: 1 1 auto; min-width: 0; }
-.tpc-row input[type="text"], .tpc-row select, .tpc-row textarea {
+.tpc-row input[type="text"], .tpc-row textarea {
   background-color: #000;
   background-image: url("skin/DropdownBody.png");
   image-rendering: pixelated;
 }
-.tpc-row select {
-  -webkit-appearance: none;
-  appearance: none;
-  padding-right: 20px;
-  background-image: url("skin/ScrollDown.png"), url("skin/DropdownBody.png");
-  background-position: right 2px center, left top;
-  background-repeat: no-repeat, repeat;
-  background-size: 14px 14px, auto;
+/*
+ * The dropdown, closed: dbg_push_dropdown_button, which is script_3850's
+ * five pieces -- the PANEL tile on black, the 0x0e0e0c frame with the 0x474745
+ * inset a pixel inside it, the scrollbar's down arrow at the right inset by
+ * FIELD_INSET, and the value centred in the strip left of the arrow, elided to
+ * it, in the settings orange and the row face rather than the button face.
+ *
+ * Not a SELECT, and not for looks: see the W.DROPDOWN case in the runtime.
+ */
+.tpc-dropdown {
+  position: relative;
+  height: 18px;
+  min-height: 18px;
+  /* In from the frame: the value strip runs from FIELD_INSET to the arrow's
+   * left edge, 16 from the right. */
+  padding: 0 15px 0 1px;
+  border: 1px solid #0e0e0c;
+  border-color: var(--tpc-deep);
+  border-radius: 0;
+  box-shadow: inset 0 0 0 1px #474745;
+  box-shadow: inset 0 0 0 1px var(--tpc-inset);
+  background: #000 url("skin/PanelBody.png");
+  image-rendering: pixelated;
+  color: #ff981f;
+  color: var(--tpc-label);
+  font-weight: 400;
+  line-height: 16px;
+  text-align: center;
+  cursor: pointer;
+  outline: 0;
 }
+.tpc-dropdown-value {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* DROP_ARROW = ROW_H - 2 * FIELD_INSET; the frame takes the first pixel of
+ * the inset, so it sits one pixel inside the padding edge. */
+.tpc-dropdown-arrow {
+  position: absolute;
+  right: 1px;
+  top: 1px;
+  width: 14px;
+  height: 14px;
+  background: url("skin/ScrollDown.png") center / 14px 14px no-repeat;
+}
+.tpc-dropdown-open .tpc-dropdown-arrow { background-image: url("skin/ScrollUp.png"); }
+/* The hover veil: black at trans 220 over the whole inside, text included,
+ * because script_3850 creates it last. Not while the list is open. */
+.tpc-dropdown:hover:not(.tpc-dropdown-open)::after, .tpc-dropdown:focus-visible::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.137);
+  pointer-events: none;
+}
+/*
+ * The dropdown, open: dbg_build_dropdown_list. The lighter dropdown parchment
+ * on the body brown, the button's own frame so the two read as one control,
+ * DROP_LIST_PAD (2) of that frame and air around 20px rows, and black bands
+ * veiling the rows at trans 220 and 200 -- 240 under the cursor, so the row
+ * picked out is the one the parchment shows through most. Every row the same
+ * orange, the chosen one included; the button already says which it is.
+ */
+.tpc-dropdown-backdrop {
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+}
+.tpc-dropdown-list {
+  position: absolute;
+  padding: 1px;
+  overflow: hidden;
+  border: 1px solid #0e0e0c;
+  border-color: var(--tpc-deep);
+  box-shadow: inset 0 0 0 1px #474745;
+  box-shadow: inset 0 0 0 1px var(--tpc-inset);
+  background: #5d5447 url("skin/DropdownBody.png");
+  background-color: var(--tpc-body);
+  image-rendering: pixelated;
+  font-family: "ToriRS Chrome", "Lucida Console", Menlo, Consolas, monospace;
+}
+.tpc-dropdown-scroller { overflow-x: hidden; overflow-y: auto; }
+.tpc-dropdown-option {
+  height: 20px;
+  padding: 0 4px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.137);
+  color: #ff981f;
+  color: var(--tpc-label);
+  line-height: 20px;
+  text-align: center;
+  text-shadow: 1px 1px #000;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.tpc-dropdown-alt { background: rgba(0, 0, 0, 0.216); }
+.tpc-dropdown-hover { background: rgba(0, 0, 0, 0.059); }
+/* script_3850's disabled-setting grey: the native list leaves a disabled row
+ * orange and inert, which reads as a row that ignores the click. */
+.tpc-dropdown-disabled { color: #9f9f9f; cursor: default; }
 ::-webkit-scrollbar { width: 16px; height: 16px; background: #0e0e0c url("skin/ScrollTrack.png") repeat-y; }
 ::-webkit-scrollbar-button:vertical:decrement { height: 16px; background: #0e0e0c url("skin/ScrollUp.png") center no-repeat; }
 ::-webkit-scrollbar-button:vertical:increment { height: 16px; background: #0e0e0c url("skin/ScrollDown.png") center no-repeat; }

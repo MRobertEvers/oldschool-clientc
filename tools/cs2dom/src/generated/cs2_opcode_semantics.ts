@@ -504,7 +504,7 @@ export const CS2_OPCODE_SEMANTICS = [
     },
     {
         opcode: 4003,
-        name: "DIV",
+        name: "DIVIDE",
         operand: "int8",
         stackEffect: "fixed",
         intPops: ["lhs", "rhs"],
@@ -568,7 +568,7 @@ export const CS2_OPCODE_SEMANTICS = [
     },
     {
         opcode: 4011,
-        name: "MOD",
+        name: "MODULO",
         operand: "int8",
         stackEffect: "fixed",
         intPops: ["lhs", "rhs"],
@@ -840,7 +840,7 @@ export const CS2_OPCODE_SEMANTICS = [
     },
     {
         opcode: 8003,
-        name: "ARRAY_LENGTH",
+        name: "ARRAY_SIZE",
         operand: "int8",
         stackEffect: "fixed",
         intPops: [],

@@ -821,7 +821,7 @@ lt_list_toggle(struct LootTrackerRuntime* rt, char const* key, char const* name)
  * capability's name, in the one table whose own rule is that every answer is
  * an expression over an ENGINE FACT and never a lane. Both were wrong for the
  * same reason: the record is not the CS2 lane's. It has two feeders --
- * `CS2_OP_LOOT_ADD`, which is the game's own and runs only where CS2 scripts
+ * `CS2_OP_LOOTTRACKER_LOOTADD`, which is the game's own and runs only where CS2 scripts
  * do, and `App_LootNotifyKill`, which `::lootkill` reaches on every lane --
  * so neither the lineage nor the UI logic says whether a record exists.
  *

@@ -1370,8 +1370,8 @@ cs2_translate_db_find(struct cs2_interp* interp, int opcode)
 {
     struct RSCache_CS2_Arena* arena = cs2_arena(interp);
 
-    bool with_count = opcode == RSCACHE_CS2_OP_DB_FIND_WITH_COUNT ||
-                      opcode == RSCACHE_CS2_OP_DB_FIND_FILTER_WITH_COUNT;
+    bool with_count = opcode == RSCACHE_CS2_OP_DB_FIND ||
+                      opcode == RSCACHE_CS2_OP_DB_FIND_REFINE;
 
     /* Top to bottom: the base-type selector, the search value, the dbcolumn. */
     const struct RSCache_CS2_Value* selector = cs2_peek_value_at(interp, 0);

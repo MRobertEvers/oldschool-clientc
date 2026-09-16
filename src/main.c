@@ -3322,6 +3322,11 @@ frame_loop_step(void)
                 PlatformWindow_SetTextInput(platform, keyboard_on);
         }
         {
+            char url[512];
+            if( App_TakeOpenUrl(&app, url, (int)sizeof(url)) )
+                PlatformWindow_OpenUrl(platform, url);
+        }
+        {
             int new_mode = 0;
             if( App_TakeWindowModeChange(&app, &new_mode) )
             {
@@ -6377,6 +6382,22 @@ main(
                     "canvas\n",
                     ToriRSChromeExec_KindName(wanted));
             App_SetPluginChromeExec(&app, &chrome_exec, got, chosen);
+        }
+        /* Where plugin destinations are offered: the manifest says, and
+         * TORIRS_PLUGIN_NAV overrides it the way TORIRS_CHROME_EXECUTOR
+         * overrides the executor above. */
+        {
+            char const* want = getenv("TORIRS_PLUGIN_NAV");
+            int mode = boot_manifest.plugin_nav;
+            if( want && want[0] )
+            {
+                int const from_env = ToriRSPluginNav_ModeFromName(want);
+                if( from_env < 0 )
+                    TORIRS_LOG("chrome: TORIRS_PLUGIN_NAV must be auto|rail, got '%s'\n", want);
+                else
+                    mode = from_env;
+            }
+            App_SetPluginNavMode(&app, mode);
         }
 
 #if defined(TORIRS_HAVE_D3D9)

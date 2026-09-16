@@ -1,8 +1,8 @@
 /*
- * Unit test for CHILDREN_FINDNEXTID (214), driven through the real VM dispatch.
+ * Unit test for IF_QUERY_NEXTID (214), driven through the real VM dispatch.
  *
- * 214 is the id-returning step of the children iterator that IF_CHILDREN_COLLECT
- * (211) and CC_CHILDREN_FIND_COUNT (212) fill. rev-239 Statics.method7953 is the
+ * 214 is the id-returning step of the children iterator that IF_QUERY
+ * (211) and CC_QUERY (212) fill. rev-239 Statics.method7953 is the
  * whole body:
  *
  *     cursor >= count ? -1 : ids[cursor++]
@@ -21,7 +21,7 @@
  *   - it terminates with -1, not 0. Zero is a legitimate sub-id; a script
  *     looping on `! -1` never stops, and one looping on `>= 0` stops one
  *     element early.
- *   - it shares its cursor with CC_CHILDREN_FINDNEXT (213), which walks the
+ *   - it shares its cursor with IF_QUERY_NEXT (213), which walks the
  *     same list and resolves the id to a component instead of pushing it.
  *     Separate cursors would let a mixed walk visit a child twice.
  */
@@ -58,7 +58,7 @@ no_host_exec(
 {
     (void)thread;
     (void)request;
-    printf("  FAIL: CHILDREN_FINDNEXTID reached the host\n");
+    printf("  FAIL: IF_QUERY_NEXTID reached the host\n");
     g_fail++;
     return CS2VM_EXECNO_ERROR;
 }
@@ -72,13 +72,13 @@ findnext_host_exec(
     struct CS2VM_HostRequest* request)
 {
     (void)thread;
-    if( request->kind != CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT )
+    if( request->kind != CS2VM_HOST_REQUEST_IF_QUERY_NEXT )
     {
         printf("  FAIL: unexpected host request kind %d\n", (int)request->kind);
         g_fail++;
         return CS2VM_EXECNO_ERROR;
     }
-    g_findnext_sub_id = request->u.CC_CHILDREN_FINDNEXT.sub_id;
+    g_findnext_sub_id = request->u.IF_QUERY_NEXT.sub_id;
     return CS2VM_EXECNO_OK;
 }
 
@@ -109,7 +109,7 @@ run_findnextid(
     script.string_operands = calloc((size_t)op_count, sizeof(char*));
 
     for( int i = 0; i < steps; i++ )
-        script.opcodes[i] = (uint16_t)CS2_OP_CHILDREN_FINDNEXTID;
+        script.opcodes[i] = (uint16_t)CS2_OP_IF_QUERY_NEXTID;
     script.opcodes[steps] = (uint16_t)CS2_OP_RETURN;
 
     thread = CS2VM2_ThreadMain(&vm);
@@ -199,8 +199,8 @@ test_shares_the_cursor_with_213(void)
     script.int_operands = calloc((size_t)op_count, sizeof(int));
     script.string_operands = calloc((size_t)op_count, sizeof(char*));
 
-    script.opcodes[0] = (uint16_t)CS2_OP_CHILDREN_FINDNEXTID;
-    script.opcodes[1] = (uint16_t)CS2_OP_CC_CHILDREN_FINDNEXT;
+    script.opcodes[0] = (uint16_t)CS2_OP_IF_QUERY_NEXTID;
+    script.opcodes[1] = (uint16_t)CS2_OP_IF_QUERY_NEXT;
     script.opcodes[2] = (uint16_t)CS2_OP_RETURN;
 
     thread = CS2VM2_ThreadMain(&vm);

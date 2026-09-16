@@ -993,26 +993,6 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CAMERA_PITCH_STEEPEST";
     case RCFIELD_CAMERA_DISTANCE_SCALE:
         return "RCFIELD_CAMERA_DISTANCE_SCALE";
-    case RCFIELD_CHROME_PLUGIN_IFACE:
-        return "RCFIELD_CHROME_PLUGIN_IFACE";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_PARENT:
-        return "RCFIELD_CHROME_PLUGIN_BUTTON_PARENT";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_X:
-        return "RCFIELD_CHROME_PLUGIN_BUTTON_X";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_Y:
-        return "RCFIELD_CHROME_PLUGIN_BUTTON_Y";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_W:
-        return "RCFIELD_CHROME_PLUGIN_BUTTON_W";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_H:
-        return "RCFIELD_CHROME_PLUGIN_BUTTON_H";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_OP:
-        return "RCFIELD_CHROME_PLUGIN_BUTTON_OP";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_ANCHOR:
-        return "RCFIELD_CHROME_PLUGIN_BUTTON_ANCHOR";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN:
-        return "RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN:
-        return "RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN";
     case RCFIELD_ROLE_MATCH:
         return "RCFIELD_ROLE_MATCH";
     case RCFIELD_UICOMPONENT_ROLE:
@@ -1289,21 +1269,6 @@ revconfig_item_begin(
         item->kind = RCITEM_FRAME;
         /* As with the camera: the item carries only what the section said;
          * RevConfigProfile owns the defaults. */
-    }
-    else if( strcmp(type_value, "chrome") == 0 )
-    {
-        item->kind = RCITEM_CHROME;
-        /* -1 for every number, the same reason the cache-ref id is: 0 is a real
-         * child component, a real column slot and a real pixel size, so a key
-         * this section did not state has to read as something no INI can spell.
-         * The merge below keys off exactly that. */
-        item->u.chrome.plugin_button_parent = -1;
-        item->u.chrome.plugin_button_x = -1;
-        item->u.chrome.plugin_button_y = -1;
-        item->u.chrome.plugin_button_w = -1;
-        item->u.chrome.plugin_button_h = -1;
-        item->u.chrome.plugin_button_align = REVCONFIG_CHROME_ALIGN_NONE;
-        item->u.chrome.plugin_button_margin = -1;
     }
     else if( revconfig_type_is_cacheref(type_value) )
     {
@@ -2236,119 +2201,6 @@ revconfig_item_apply_camera_field(
     }
 }
 
-/** The INI spelling of one `[chrome]` key, for the complaints below: the reader
- *  of a bad profile is holding the INI, not this enum. */
-static char const*
-revconfig_chrome_key_str(enum RevConfigFieldKind kind)
-{
-    switch( kind )
-    {
-    case RCFIELD_CHROME_PLUGIN_BUTTON_PARENT:
-        return "plugin_button_parent";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_X:
-        return "plugin_button_x";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_Y:
-        return "plugin_button_y";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_W:
-        return "plugin_button_w";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_H:
-        return "plugin_button_h";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN:
-        return "plugin_button_align";
-    case RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN:
-        return "plugin_button_margin";
-    default:
-        return revconfig_field_kind_str(kind);
-    }
-}
-
-/**
- * One `[chrome]` key.
- *
- * A number that does not parse is REPORTED and left unstated, rather than
- * applied as the 0 atoi() hands back: a plate zero pixels tall is an invisible
- * button in the middle of the logout tab, which is a far worse answer than the
- * client simply not building one on this revision.
- */
-static void
-revconfig_item_apply_chrome_field(
-    struct RevConfigChromeItem* chrome,
-    enum RevConfigFieldKind kind,
-    const char* value)
-{
-    assert(chrome);
-    assert(value);
-
-    switch( kind )
-    {
-    case RCFIELD_CHROME_PLUGIN_IFACE:
-        strncpy(chrome->plugin_iface, value, sizeof(chrome->plugin_iface) - 1);
-        chrome->plugin_iface[sizeof(chrome->plugin_iface) - 1] = '\0';
-        break;
-    case RCFIELD_CHROME_PLUGIN_BUTTON_OP:
-        strncpy(chrome->plugin_button_op, value, sizeof(chrome->plugin_button_op) - 1);
-        chrome->plugin_button_op[sizeof(chrome->plugin_button_op) - 1] = '\0';
-        break;
-    case RCFIELD_CHROME_PLUGIN_BUTTON_ANCHOR:
-        strncpy(chrome->plugin_button_anchor, value, sizeof(chrome->plugin_button_anchor) - 1);
-        chrome->plugin_button_anchor[sizeof(chrome->plugin_button_anchor) - 1] = '\0';
-        break;
-    case RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN:
-        /* An edge, by name. An unknown word is REPORTED and left unstated, the
-         * same as an unparseable number below: guessing `top` for a profile
-         * that meant something else puts the plate over the panel's own
-         * heading, which reads as a layout bug rather than as a typo. */
-        if( strcmp(value, "top") == 0 )
-            chrome->plugin_button_align = REVCONFIG_CHROME_ALIGN_TOP;
-        else if( strcmp(value, "bottom") == 0 )
-            chrome->plugin_button_align = REVCONFIG_CHROME_ALIGN_BOTTOM;
-        else
-            TORIRS_LOG(
-                "revconfig: [chrome] plugin_button_align must be top or bottom, got '%s'\n",
-                value);
-        break;
-    case RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN:
-    case RCFIELD_CHROME_PLUGIN_BUTTON_PARENT:
-    case RCFIELD_CHROME_PLUGIN_BUTTON_X:
-    case RCFIELD_CHROME_PLUGIN_BUTTON_Y:
-    case RCFIELD_CHROME_PLUGIN_BUTTON_W:
-    case RCFIELD_CHROME_PLUGIN_BUTTON_H:
-    {
-        int const n = revconfig_parse_int(value);
-        /* A geometry of nothing is not a smaller button, it is an invisible
-         * one; a child or a position cannot be negative. */
-        int const floor_value =
-            (kind == RCFIELD_CHROME_PLUGIN_BUTTON_W ||
-             kind == RCFIELD_CHROME_PLUGIN_BUTTON_H)
-                ? 1
-                : 0;
-        if( n < floor_value )
-        {
-            TORIRS_LOG("revconfig: [chrome] %s must be >= %d, got '%s'\n",
-                revconfig_chrome_key_str(kind),
-                floor_value,
-                value);
-            break;
-        }
-        if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN )
-            chrome->plugin_button_margin = n;
-        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_PARENT )
-            chrome->plugin_button_parent = n;
-        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_X )
-            chrome->plugin_button_x = n;
-        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_Y )
-            chrome->plugin_button_y = n;
-        else if( kind == RCFIELD_CHROME_PLUGIN_BUTTON_W )
-            chrome->plugin_button_w = n;
-        else
-            chrome->plugin_button_h = n;
-        break;
-    }
-    default:
-        break;
-    }
-}
-
 /*
  * One `<name>=<number>` row of a `[tabs]` section.
  *
@@ -2583,9 +2435,6 @@ revconfig_item_apply_field(
         break;
     case RCITEM_FRAME:
         revconfig_item_apply_frame_field(&item->u.frame, kind, value);
-        break;
-    case RCITEM_CHROME:
-        revconfig_item_apply_chrome_field(&item->u.chrome, kind, value);
         break;
     case RCITEM_HOTKEY:
         if( kind == RCFIELD_HOTKEY_COMPONENT )

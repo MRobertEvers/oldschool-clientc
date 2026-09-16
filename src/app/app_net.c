@@ -128,6 +128,11 @@ App_NetSessionReset(struct App* app)
      * whose setting is the default 0 would otherwise keep the previous
      * session's choice until its own VARP arrived. */
     app_attack_options_reset(app);
+    /* The reference drops the friends chat, both clans and the Grand Exchange
+     * offers when the next login response arrives; doing it as the session
+     * ends is the same state before that session's first packet, and cannot
+     * race the login burst that refills them. */
+    RS_CS2Host_ResetSocialForLogin(&app->host);
     app->need_redraw = 1;
 }
 

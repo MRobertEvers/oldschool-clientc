@@ -90,6 +90,26 @@ assert.doesNotMatch(legacyRuntime, /ToriRSAndroid|tpc-android-fonts/,
     assert.match(css, /\.tpc-minimenu-backdrop\b/, "each page skins the popup's dismiss layer");
     assert.match(css, /\.tpc-minimenu-option\b/, "each page skins the popup's rows");
 });
+/* railHidden: the game lane's own pop-out column carries the destinations, so
+ * both pages hide the rail and give its track back to the pane by one class on
+ * the shell. XP has no :not(), so neither rule set may lean on it. */
+[modernRuntime, legacyRuntime].forEach(function (runtime) {
+    assert.match(runtime, /railHidden:\s*!!message\.railHidden/,
+        "the runtime retains the snapshot's railHidden");
+    assert.match(runtime, /toggleClass\(shell, ['"]tpc-rail-hidden['"]/,
+        "and states it as one class on the shell");
+});
+assert.match(modernCss, /\.tpc-shell\.tpc-rail-hidden\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\) 0;/,
+    "the modern shell reserves no rail track while hidden");
+assert.match(modernCss, /\.tpc-shell\.tpc-rail-hidden \.tpc-rail\s*\{\s*display:\s*none/,
+    "the modern rail does not display while hidden");
+assert.match(modernCss, /\.tpc-shell\.tpc-rail-hidden \.tpc-pane\s*\{\s*margin-right:\s*0;/,
+    "the modern pane drops the 6px seam overlap and wears its own right frame");
+assert.match(legacyCss, /\.tpc-rail-hidden \.tpc-rail\s*\{\s*display:\s*none;/,
+    "the XP rail does not display while hidden");
+assert.match(legacyCss, /\.tpc-rail-hidden \.tpc-pane\s*\{\s*right:\s*0;/,
+    "the XP pane runs flush right while the rail is hidden");
+assert.doesNotMatch(legacyCss, /:not\(/, "the XP stylesheet uses no negation pseudo-class");
 ["ToriRSBody", "ToriRSMenu", "ToriRSSmall"].forEach(function (stem) {
     ["eot", "woff", "ttf"].forEach(function (extension) {
         assert(fs.existsSync(path.join(fontRoot, stem + "." + extension)),
@@ -166,8 +186,16 @@ assert.match(modernRuntime, /borderLeftWidth = '16px'/,
     "the themed button repeats the stylesheet's cap inset inline");
 assert.match(modernRuntime, /paddingTop = '2px'/,
     "the themed button repeats the stylesheet's caption nudge inline");
-assert.match(modernCss, /\.tpc-row select\s*\{[^}]*right 2px center[^}]*14px 14px/i,
-    "dropdown arrow honors the authored two-pixel field inset");
+assert.match(modernCss, /\.tpc-dropdown-arrow\s*\{[^}]*right\s*:\s*1px[^}]*width\s*:\s*14px[^}]*height\s*:\s*14px/i,
+    "dropdown arrow is ROW_H minus two FIELD_INSETs, one inset pixel inside the frame");
+assert.match(modernCss, /\.tpc-dropdown-option\s*\{[^}]*height\s*:\s*20px/i,
+    "open dropdown rows use DROP_LIST_ROW_H");
+/* The native SELECT's open list is a host menu, and on macOS that menu runs a
+ * modal tracking loop on the game's main thread: the client froze while it
+ * stood open. No page may bring one back. */
+assert.doesNotMatch(modernRuntime, /createElement\(['"]select['"]\)/,
+    "the runtime never creates a native select");
+assert.doesNotMatch(modernCss, /\bselect\s*\{/, "no stylesheet rule styles a native select");
 assert.match(modernCss, /::\-webkit-scrollbar\s*\{[^}]*width\s*:\s*16px/i,
     "browser scrollbar uses the shared 16px strip");
 assert.match(modernCss, /\.tpc-custom img\s*,\s*\.tpc-custom canvas\s*\{[^}]*height\s*:\s*100%/i,
@@ -190,8 +218,8 @@ assert.match(modernCss, /\.tpc-action-row\s*\{[^}]*min-height\s*:\s*42px[^}]*Dro
 assert.match(legacyRuntime, /AlphaImageLoader/, "XP transparent PNG fallback is bundled");
 assert.match(legacyRuntime, /type:\s*['"]editor\.focus['"]/,
     "editor focus ownership is part of the downlevel runtime");
-assert.match(legacyRuntime, /ScrollDown\.png[\s\S]*backgroundSize = ['"]14px 14px,auto['"]/,
-    "runtime theme application preserves the skinned dropdown arrow");
+assert.match(legacyRuntime, /state\.theme\.scrollUp[\s\S]{0,120}ScrollUp\.png[\s\S]{0,120}state\.theme\.scrollDown[\s\S]{0,120}ScrollDown\.png/,
+    "runtime theme application skins the dropdown arrow, up while open and down while shut");
 assert.match(legacyRuntime, /function customHeightPx[\s\S]{0,200}Math\.max\(48, Math\.min\(512,/,
     "custom region height is bounded by one shared clamp");
 assert.match(legacyRuntime, /style\.height = customHeightPx\(/,

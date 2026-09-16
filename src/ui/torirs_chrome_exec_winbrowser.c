@@ -264,7 +264,11 @@ static int browser_rail_sync(
     uint32_t old_page_generation;
     uint32_t new_page_generation;
     int count;
-    if( !s || !snapshot || !PlatformWindow_PluginBrowserEnsure(s->platform) ) return 0;
+    if( !s || !snapshot ) return 0;
+    /* Before Ensure: a browser created while the lane's own pop-out column
+     * carries the plugins must not open (and grow the window by) a rail. */
+    PlatformWindow_ChromeSetRailHidden(s->platform, snapshot->rail_hidden != 0);
+    if( !PlatformWindow_PluginBrowserEnsure(s->platform) ) return 0;
     old_page_generation = effective_page_generation(s);
     new_page_generation = snapshot->page_generation
                               ? snapshot->page_generation
@@ -293,12 +297,13 @@ static int browser_rail_sync(
         "\"registryRevision\":%u,\"selectionGeneration\":%u,"
         "\"pageGeneration\":%u,\"activePlugin\":%d,"
         "\"lastSelectedPlugin\":%d,\"selectedEntry\":%d,"
-        "\"expanded\":%s,\"entries\":[",
+        "\"expanded\":%s,\"railHidden\":%s,\"entries\":[",
         (unsigned)snapshot->registry_revision,
         (unsigned)snapshot->selection_generation,
         (unsigned)snapshot->page_generation,
         snapshot->active_plugin, snapshot->last_selected_plugin,
-        snapshot->selected_entry, snapshot->expanded ? "true" : "false");
+        snapshot->selected_entry, snapshot->expanded ? "true" : "false",
+        snapshot->rail_hidden ? "true" : "false");
     for( int i = 0; i < count; i++ )
     {
         struct ToriRSChromeRailEntry const* entry = &snapshot->entries[i];

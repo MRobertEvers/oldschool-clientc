@@ -292,6 +292,110 @@ run_op(
     free(script.string_operands);
 }
 
+/* The friend names in list order, joined with spaces, for one CHECK. */
+static char const*
+friend_order(struct RS_Social const* social)
+{
+    static char order[512];
+    order[0] = '\0';
+    for( int i = 0; i < social->friend_count; i++ )
+    {
+        if( i )
+            strcat(order, " ");
+        strcat(order, social->friend_name[i]);
+    }
+    return order;
+}
+
+/* ==========================================================================
+ * Part 1b — sort chains (FRIENDLIST_SORT_* / IGNORELIST_SORT_*)
+ * ========================================================================== */
+
+static void
+test_sort_chains(void)
+{
+    struct RS_Social social;
+
+    printf("social: friend / ignore list sort chains\n");
+
+    RS_Social_Init(&social);
+    social.node_id = 5;
+    RS_Social_AddFriend(&social, "dave", 0);
+    RS_Social_AddFriend(&social, "bob", 7);
+    RS_Social_AddFriend(&social, "carol", 5);
+    RS_Social_AddFriend(&social, "alice", 7);
+
+    /* No chain: the client's natural order, by name. */
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(friend_order(&social), "alice bob carol dave") == 0,
+        "apply with no chain sorts by name, got \"%s\"", friend_order(&social));
+
+    /* A chaining step defers on a tie: online first, then world descending,
+     * and alice/bob (both world 7) keep their existing order -- the sort is
+     * stable, like Arrays.sort. */
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_ONLINE_STATUS, true);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_WORLD, false);
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(friend_order(&social), "alice bob carol dave") == 0,
+        "online, then world descending, stable on ties, got \"%s\"", friend_order(&social));
+
+    /* Own world first; a tie there defers to the next step. */
+    RS_Social_SortReset(&social.friend_sort);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_ONLINE_WORLD, true);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_NAME, false);
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(friend_order(&social), "carol dave bob alice") == 0,
+        "our world first, the rest by name descending, got \"%s\"", friend_order(&social));
+
+    /* A step after a terminal comparator is dropped, as the client drops it:
+     * name ascending decides everything and the world step never runs. */
+    RS_Social_SortReset(&social.friend_sort);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_NAME, true);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_WORLD, true);
+    CHECK(social.friend_sort.count == 1, "a step after a terminal comparator is not added");
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(friend_order(&social), "alice bob carol dave") == 0,
+        "the terminal name step alone orders the list, got \"%s\"", friend_order(&social));
+
+    /* "Both online" decides outright; a pair that is not both online defers to
+     * the next step. Offline dave meets world ascending there, and world 0
+     * sorts first. */
+    RS_Social_SortReset(&social.friend_sort);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_ONLINE_NAME, false);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_WORLD, true);
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(friend_order(&social), "dave carol bob alice") == 0,
+        "both online orders by name descending; offline dave defers to world, got \"%s\"",
+        friend_order(&social));
+
+    /* The world-change serial: each change takes the next serial, so the
+     * friend who changed most recently sorts last ascending. */
+    int bob = -1;
+    for( int i = 0; i < social.friend_count; i++ )
+        if( strcmp(social.friend_name[i], "bob") == 0 )
+            bob = i;
+    CHECK(bob >= 0, "bob is on the list for the serial check");
+    RS_Social_SetFriendWorld(&social, bob, 9);
+    RS_Social_SortReset(&social.friend_sort);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_LAST_WORLD_CHANGE, true);
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(social.friend_name[social.friend_count - 1], "bob") == 0,
+        "the latest world change sorts last, got \"%s\"", friend_order(&social));
+
+    /* A friend first reported offline gets a negated serial and sorts first. */
+    RS_Social_AddFriend(&social, "erin", 0);
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(social.friend_name[0], "erin") == 0,
+        "a first report of offline negates the serial, got \"%s\"", friend_order(&social));
+
+    /* Ignores: name, either direction. */
+    RS_Social_AddIgnore(&social, "zed");
+    RS_Social_AddIgnore(&social, "amy");
+    RS_Social_SortAppend(&social.ignore_sort, RS_SOCIAL_SORT_LEGACY, false);
+    RS_Social_SortIgnores(&social);
+    CHECK(strcmp(social.ignore_name[0], "zed") == 0, "ignore list sorts by name descending");
+}
+
 static void
 test_vm_dispatch(void)
 {
@@ -530,9 +634,21 @@ test_host_ops(void)
      */
     call_social(t, CS2_OP_FRIEND_GETNAME, 0, NULL);
     CHECK(CS2VM2_PopStr(t, &sv) == CS2VM_EXECNO_OK, "friend_getname pushes a second string");
-    CHECK(sv && sv[0] == '\0', "which is empty (there is no rename model)");
+    CHECK(sv && sv[0] == '\0', "which is empty for a friend who never renamed");
     CHECK(CS2VM2_PopStr(t, &sv2) == CS2VM_EXECNO_OK, "and a first");
     CHECK(sv2 && strcmp(sv2, "Bob") == 0, "which is the display name, got \"%s\"", sv2 ? sv2 : "(null)");
+
+    /* A renamed friend's previous name and rank, as UPDATE_FRIENDLIST gave them. */
+    snprintf(social.friend_previous_name[0], RS_SOCIAL_NAME_LEN, "%s", "old_bob");
+    social.friend_rank[0] = 3;
+    call_social(t, CS2_OP_FRIEND_GETNAME, 0, NULL);
+    CS2VM2_PopStr(t, &sv);
+    CS2VM2_PopStr(t, &sv2);
+    CHECK(sv && strcmp(sv, "Old Bob") == 0, "the second string is the previous display name, got \"%s\"", sv ? sv : "(null)");
+    call_social(t, CS2_OP_FRIEND_GETRANK, 0, NULL);
+    CS2VM2_PopInt(t, &iv);
+    CHECK(iv == 3, "friend_getrank answers the stored rank, got %d", iv);
+    social.friend_previous_name[0][0] = '\0';
 
     /* map_world: the header reads "World N" off this, and a friend row is only
      * green when friend_getworld equals it. Stubbed to 0 it read "World 0". */
@@ -589,9 +705,9 @@ test_host_ops(void)
         int strs_before = t->strs_stack_top;
 
         memset(&req, 0, sizeof(req));
-        req.kind = CS2VM_HOST_REQUEST_CHAT_GETHISTORY_BYUID;
-        req.u.CHAT_GETHISTORY_BYUID.opcode = CS2_OP_CHAT_GETHISTORY_BYUID;
-        req.u.CHAT_GETHISTORY_BYUID.uid = 999;
+        req.kind = CS2VM_HOST_REQUEST_CHAT_GETHISTORY_BYUID_PRE195;
+        req.u.CHAT_GETHISTORY_BYUID_PRE195.opcode = CS2_OP_CHAT_GETHISTORY_BYUID_PRE195;
+        req.u.CHAT_GETHISTORY_BYUID_PRE195.uid = 999;
         CHECK(RS_CS2Host_Exec(t, &req) == CS2VM_EXECNO_OK, "basic history lookup completes");
         CHECK(t->ints_stack_top - ints_before == 3 && t->strs_stack_top - strs_before == 3,
               "basic history pushes 3 ints/3 strings, got %d/%d",
@@ -600,9 +716,9 @@ test_host_ops(void)
         t->strs_stack_top = strs_before;
 
         memset(&req, 0, sizeof(req));
-        req.kind = CS2VM_HOST_REQUEST_CHAT_GETHISTORYEX_BYUID;
-        req.u.CHAT_GETHISTORYEX_BYUID.opcode = CS2_OP_CHAT_GETHISTORYEX_BYUID;
-        req.u.CHAT_GETHISTORYEX_BYUID.uid = 999;
+        req.kind = CS2VM_HOST_REQUEST_CHAT_GETHISTORY_BYUID;
+        req.u.CHAT_GETHISTORY_BYUID.opcode = CS2_OP_CHAT_GETHISTORY_BYUID;
+        req.u.CHAT_GETHISTORY_BYUID.uid = 999;
         CHECK(RS_CS2Host_Exec(t, &req) == CS2VM_EXECNO_OK, "extended history lookup completes");
         CHECK(t->ints_stack_top - ints_before == 4 && t->strs_stack_top - strs_before == 4,
               "extended history pushes 4 ints/4 strings, got %d/%d",
@@ -745,6 +861,7 @@ main(void)
     printf("TEST: friends / ignore / private chat — the client half\n");
 
     test_store();
+    test_sort_chains();
     test_vm_dispatch();
     test_host_ops();
     test_stack_table();

@@ -199,6 +199,11 @@ CreateTask_Dat2HitsplatLoad(
  * table empty, which is the pre-sailing world rather than an error.
  */
 struct WevConfigTable;
+/** Every VarClanType's base type into provider->varclan_types (config group
+ *  47), at boot. */
+struct ToriRS_Task*
+CreateTask_Dat2VarClanTypeLoad(struct CacheProvider* provider);
+
 struct ToriRS_Task*
 CreateTask_Dat2WevConfigLoad(
     struct CacheProvider* provider,

@@ -329,15 +329,17 @@ task_cs2_component_id_from_request(struct CS2VM_HostRequest const* request)
     case CS2VM_HOST_REQUEST_##name: return request->u.name.field
         TASK_CS2_COMPONENT_ID_CASE(CC_CREATE, parent_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_COPY, parent_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_CREATECHILD, parent_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_CREATESIBLING, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_CREATE_CHILD, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_CREATE_SIBLING, parent_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_FIND, parent_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_FIND, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_CHILDREN_FIND, uid);
-        TASK_CS2_COMPONENT_ID_CASE(IF_CHILDREN_COLLECT, uid);
-        TASK_CS2_COMPONENT_ID_CASE(CC_CHILDREN_FIND_COUNT, parent_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_CHILDREN_FINDNEXT, parent_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_SETPINCH, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_FIND_PARENT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_FIND_LAYER, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_FIND_NEXT_SIBLING, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_QUERY, uid);
+        TASK_CS2_COMPONENT_ID_CASE(CC_QUERY, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_QUERY_NEXT, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(_1004, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETNOSCROLLTHROUGH, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETLINEWID, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SET2DANGLE, component_id);
@@ -345,27 +347,27 @@ task_cs2_component_id_from_request(struct CS2VM_HostRequest const* request)
         TASK_CS2_COMPONENT_ID_CASE(CC_SETMODELORTHOG, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETVFLIP, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETHFLIP, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_SETFILLCOLOUR, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_SETTRANSBOT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_SETFILLMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETBLENDCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETBLENDTRANS, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETBLENDMODE, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETLINEDIRECTION, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETMODELTRANSPARENT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSUBMITMODE, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSELECTCOLOUR, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETACCEPTMODE, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETWRAPMODE, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETLINEWRAPPINGWIDTH, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSELECTBGCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETPLACEHOLDERTEXT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETPLACEHOLDERTEXTCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETLINEWRAPPINGWIDTH, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETLINECOUNTLIMIT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORCOLOUR, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORTRANS, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORWIDTH, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORHEIGHT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSOROFFSET, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETLINEWIDTHLIMIT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCHARFILTER, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_SETOPFORCELEFTCLICK, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_SETPINCH, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETFOCUS, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETFOCUSABLE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSELECTION, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCARET, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETWRAPMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSUBMITMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETACCEPTMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETALWAYSLEFTCLICK, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(_2004, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETNOCLICKTHROUGH, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETNOSCROLLTHROUGH, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETLINEWID, component_id);
@@ -374,28 +376,28 @@ task_cs2_component_id_from_request(struct CS2VM_HostRequest const* request)
         TASK_CS2_COMPONENT_ID_CASE(IF_SETMODELORTHOG, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETVFLIP, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETHFLIP, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_SETFILLCOLOUR, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_SETTRANSBOT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_SETFILLMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETBLENDCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETBLENDTRANS, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETBLENDMODE, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETLINEDIRECTION, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETMODELTRANSPARENT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETSUBMITMODE, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETSELECTCOLOUR, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETACCEPTMODE, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETWRAPMODE, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETLINEWRAPPINGWIDTH, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETSELECTBGCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETPLACEHOLDERTEXT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETPLACEHOLDERTEXTCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETLINEWRAPPINGWIDTH, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETLINECOUNTLIMIT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCURSORCOLOUR, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCURSORTRANS, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCURSORWIDTH, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCURSORHEIGHT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCURSOROFFSET, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETLINEWIDTHLIMIT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCHARFILTER, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETFOCUS, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETFOCUSABLE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETSELECTION, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCARET, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETWRAPMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETSUBMITMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETACCEPTMODE, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETDRAGDEADZONE, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETDRAGDEADTIME, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_SETCLICKMASK, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETALWAYSLEFTCLICK, component_id);
 #undef TASK_CS2_COMPONENT_ID_CASE
     default:
         return -1;
@@ -540,6 +542,9 @@ task_cs2_plan_enum(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
         self->await_id = self->pending->u.ENUM_GETOUTPUTCOUNT.enum_id;
         break;
+    case CS2VM_HOST_REQUEST_ENUM_GETINPUTS:
+        self->await_id = self->pending->u.ENUM_GETINPUTS.enum_id;
+        break;
     default:
         assert(0 && "task_cs2_plan_enum: unexpected kind");
         self->yield_plan = TASK_CS2_YIELD_ABORT;
@@ -563,17 +568,17 @@ task_cs2_plan_db(struct Task_CS2Run* self)
         self->await_id = self->pending->u.name.load_id;              \
         load_kind = self->pending->u.name.load_kind;                 \
         break
-        TASK_CS2_DB_CASE(DB_FIND_WITH_COUNT);
+        TASK_CS2_DB_CASE(DB_FIND);
         TASK_CS2_DB_CASE(DB_FINDNEXT);
         TASK_CS2_DB_CASE(DB_GETFIELD);
         TASK_CS2_DB_CASE(DB_GETFIELDCOUNT);
-        TASK_CS2_DB_CASE(DB_FINDALL_WITH_COUNT);
+        TASK_CS2_DB_CASE(DB_LISTALL);
         TASK_CS2_DB_CASE(DB_GETROWTABLE);
-        TASK_CS2_DB_CASE(DB_GETROW);
-        TASK_CS2_DB_CASE(DB_FIND_FILTER_WITH_COUNT);
-        TASK_CS2_DB_CASE(DB_FIND);
-        TASK_CS2_DB_CASE(DB_FINDALL);
-        TASK_CS2_DB_CASE(DB_FIND_FILTER);
+        TASK_CS2_DB_CASE(DB_FIND_GET);
+        TASK_CS2_DB_CASE(DB_FIND_REFINE);
+        TASK_CS2_DB_CASE(DB_FIND_PRE228);
+        TASK_CS2_DB_CASE(DB_FIND_REFINE_PRE228);
+        TASK_CS2_DB_CASE(DB_LISTALL_PRE228);
 #undef TASK_CS2_DB_CASE
     default:
         assert(0 && "task_cs2_plan_db: unexpected kind");
@@ -631,9 +636,6 @@ task_cs2_plan_struct(struct Task_CS2Run* self)
 {
     switch( self->pending->kind )
     {
-    case CS2VM_HOST_REQUEST_CC_GETPARAM:
-        self->await_id = self->pending->u.CC_GETPARAM.struct_id;
-        self->await_id2 = self->pending->u.CC_GETPARAM.param_id;
         break;
     case CS2VM_HOST_REQUEST_STRUCT_PARAM:
         self->await_id = self->pending->u.STRUCT_PARAM.struct_id;
@@ -686,8 +688,13 @@ task_cs2_plan_obj(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP:
         self->await_id = self->pending->u.OC_SHIFTCLICKIOP.item_id;
         break;
-    case CS2VM_HOST_REQUEST_OC_EXAMINE:
-        self->await_id = self->pending->u.OC_EXAMINE.item_id;
+    case CS2VM_HOST_REQUEST_OC_DESC:
+        self->await_id = self->pending->u.OC_DESC.item_id;
+        break;
+    case CS2VM_HOST_REQUEST_STOCKMARKET_SELLABLE:
+    case CS2VM_HOST_REQUEST_STOCKMARKET_BUYABLE:
+        self->await_id =
+            ((struct CS2VM_HostSignatureArgs const*)&self->pending->u)->ints[0];
         break;
     case CS2VM_HOST_REQUEST_OC_PARAM:
         /* Same pairing as task_cs2_plan_struct: objtype + ParamType. */
@@ -765,12 +772,12 @@ task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
         TASK_CS2_MODEL_KIND_CASE(CC_SETNPCHEAD);
         TASK_CS2_MODEL_KIND_CASE(CC_SETLOCMODEL);
         TASK_CS2_MODEL_KIND_CASE(CC_SETPLAYERHEAD_SELF);
-        TASK_CS2_MODEL_KIND_CASE(CC_SETPLAYERMODEL_SELF);
-        TASK_CS2_MODEL_KIND_CASE(CC_SETMODEL_PLAYERCHATHEAD);
+        TASK_CS2_MODEL_KIND_CASE(_1203);
+        TASK_CS2_MODEL_KIND_CASE(_1204);
         TASK_CS2_MODEL_KIND_CASE(IF_SETNPCHEAD);
         TASK_CS2_MODEL_KIND_CASE(IF_SETLOCMODEL);
         TASK_CS2_MODEL_KIND_CASE(IF_SETPLAYERHEAD_SELF);
-        TASK_CS2_MODEL_KIND_CASE(IF_SETMODEL_PLAYERCHATHEAD);
+        TASK_CS2_MODEL_KIND_CASE(_2203);
 #undef TASK_CS2_MODEL_KIND_CASE
     default:
         assert(0 && "task_cs2_plan_widget_set_model_kind: unexpected kind");
@@ -833,10 +840,10 @@ task_cs2_plan_setobject(struct Task_CS2Run* self)
         break
         TASK_CS2_SETOBJECT_CASE(CC_SETOBJECT);
         TASK_CS2_SETOBJECT_CASE(CC_SETOBJECT_NONUM);
-        TASK_CS2_SETOBJECT_CASE(CC_SETOBJECT_ALWAYS_NUM);
+        TASK_CS2_SETOBJECT_CASE(CC_SETOBJECT_ALWAYSNUM);
         TASK_CS2_SETOBJECT_CASE(IF_SETOBJECT);
         TASK_CS2_SETOBJECT_CASE(IF_SETOBJECT_NONUM);
-        TASK_CS2_SETOBJECT_CASE(IF_SETOBJECT_ALWAYS_NUM);
+        TASK_CS2_SETOBJECT_CASE(IF_SETOBJECT_ALWAYSNUM);
 #undef TASK_CS2_SETOBJECT_CASE
     default:
         assert(0 && "task_cs2_plan_setobject: unexpected kind");
@@ -911,10 +918,10 @@ task_cs2_plan_font(struct Task_CS2Run* self)
 static bool
 task_cs2_kind_is_worldmap(enum CS2VM_HostRequestKind kind)
 {
-    return (kind >= CS2VM_HOST_REQUEST_WORLDMAP_INIT &&
+    return (kind >= CS2VM_HOST_REQUEST_WORLDMAP_JUMPTOPLAYER &&
             kind <= CS2VM_HOST_REQUEST_WORLDMAP_LISTELEMENT_NEXT) ||
-           (kind >= CS2VM_HOST_REQUEST_WORLDMAP_ELEMENT &&
-            kind <= CS2VM_HOST_REQUEST_WORLDMAP_ELEMENTCOORD);
+           (kind >= CS2VM_HOST_REQUEST_MEL_TYPE &&
+            kind <= CS2VM_HOST_REQUEST_MEL_DISPLAYCOORD);
 }
 
 static bool
@@ -926,8 +933,8 @@ task_cs2_kind_is_mapelement(enum CS2VM_HostRequestKind kind)
 static bool
 task_cs2_kind_is_db(enum CS2VM_HostRequestKind kind)
 {
-    return kind >= CS2VM_HOST_REQUEST_DB_FIND_WITH_COUNT &&
-           kind <= CS2VM_HOST_REQUEST_DB_FIND_FILTER;
+    return kind >= CS2VM_HOST_REQUEST_DB_FIND &&
+           kind <= CS2VM_HOST_REQUEST_DB_LISTALL_PRE228;
 }
 
 static void
@@ -978,10 +985,10 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_CC_COPY:
         task_cs2_plan_component(self);
         break;
-    case CS2VM_HOST_REQUEST_CC_CREATECHILD:
+    case CS2VM_HOST_REQUEST_CC_CREATE_CHILD:
         task_cs2_plan_component(self);
         break;
-    case CS2VM_HOST_REQUEST_CC_CREATESIBLING:
+    case CS2VM_HOST_REQUEST_CC_CREATE_SIBLING:
         task_cs2_plan_component(self);
         break;
     case CS2VM_HOST_REQUEST_CC_FIND:
@@ -990,16 +997,18 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_IF_FIND:
         task_cs2_plan_component(self);
         break;
-    case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
+    case CS2VM_HOST_REQUEST_CC_FIND_PARENT:
+    case CS2VM_HOST_REQUEST_CC_FIND_LAYER:
+    case CS2VM_HOST_REQUEST_CC_FIND_NEXT_SIBLING:
         task_cs2_plan_component(self);
         break;
-    case CS2VM_HOST_REQUEST_IF_CHILDREN_COLLECT:
+    case CS2VM_HOST_REQUEST_IF_QUERY:
         task_cs2_plan_component(self);
         break;
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT:
+    case CS2VM_HOST_REQUEST_CC_QUERY:
         task_cs2_plan_component(self);
         break;
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT:
+    case CS2VM_HOST_REQUEST_IF_QUERY_NEXT:
         task_cs2_plan_component(self);
         break;
 
@@ -1026,29 +1035,33 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_CC_SETPLAYERHEAD_SELF:
         task_cs2_plan_widget_set_model_kind(self);
         break;
-    case CS2VM_HOST_REQUEST_CC_SETPLAYERMODEL_SELF:
+    case CS2VM_HOST_REQUEST__1203:
         task_cs2_plan_widget_set_model_kind(self);
         break;
-    case CS2VM_HOST_REQUEST_CC_SETMODEL_PLAYERCHATHEAD:
+    case CS2VM_HOST_REQUEST__1204:
         task_cs2_plan_widget_set_model_kind(self);
         break;
     case CS2VM_HOST_REQUEST_CC_SETOBJECT_NONUM:
         task_cs2_plan_setobject(self);
         break;
-    case CS2VM_HOST_REQUEST_CC_SETOBJECT_ALWAYS_NUM:
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT_ALWAYSNUM:
         task_cs2_plan_setobject(self);
-        break;
-
-    case CS2VM_HOST_REQUEST_CC_GETPARAM:
-        task_cs2_plan_struct(self);
         break;
 
     /* A component param that misses falls through to the ParamType default, so
      * only the ParamType half of the struct yield is wanted here (await_id -1
      * skips the struct load). */
-    case CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM:
+    case CS2VM_HOST_REQUEST_CC_PARAM:
         self->await_id = -1;
-        self->await_id2 = self->pending->u.CC_GETCOMPONENTPARAM.param_id;
+        self->await_id2 = self->pending->u.CC_PARAM.param_id;
+        self->yield_plan =
+            self->await_id2 >= 0 ? TASK_CS2_YIELD_STRUCT : TASK_CS2_YIELD_NONE;
+        break;
+    /* IF_QUERY_REFINE compares against the ParamType default for components
+     * with no entry: the same ParamType-only load. */
+    case CS2VM_HOST_REQUEST_IF_QUERY_REFINE:
+        self->await_id = -1;
+        self->await_id2 = self->pending->u.IF_QUERY_REFINE.param_id;
         self->yield_plan =
             self->await_id2 >= 0 ? TASK_CS2_YIELD_STRUCT : TASK_CS2_YIELD_NONE;
         break;
@@ -1075,13 +1088,13 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_IF_SETPLAYERHEAD_SELF:
         task_cs2_plan_widget_set_model_kind(self);
         break;
-    case CS2VM_HOST_REQUEST_IF_SETMODEL_PLAYERCHATHEAD:
+    case CS2VM_HOST_REQUEST__2203:
         task_cs2_plan_widget_set_model_kind(self);
         break;
     case CS2VM_HOST_REQUEST_IF_SETOBJECT_NONUM:
         task_cs2_plan_setobject(self);
         break;
-    case CS2VM_HOST_REQUEST_IF_SETOBJECT_ALWAYS_NUM:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT_ALWAYSNUM:
         task_cs2_plan_setobject(self);
         break;
 
@@ -1098,6 +1111,9 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         task_cs2_plan_enum(self);
         break;
     case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
+        task_cs2_plan_enum(self);
+        break;
+    case CS2VM_HOST_REQUEST_ENUM_GETINPUTS:
         task_cs2_plan_enum(self);
         break;
 
@@ -1142,6 +1158,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     /* OC_FIND yields once to bulk-load the whole obj group before its item-name
      * scan; there is no single id to wait on, so the load task is the wait. */
     case CS2VM_HOST_REQUEST_OC_FIND:
+    case CS2VM_HOST_REQUEST_OC_BYID:
         self->await_id = -1;
         self->yield_plan = TASK_CS2_YIELD_OBJALL;
         break;
@@ -1149,7 +1166,11 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP:
         task_cs2_plan_obj(self);
         break;
-    case CS2VM_HOST_REQUEST_OC_EXAMINE:
+    case CS2VM_HOST_REQUEST_OC_DESC:
+        task_cs2_plan_obj(self);
+        break;
+    case CS2VM_HOST_REQUEST_STOCKMARKET_SELLABLE:
+    case CS2VM_HOST_REQUEST_STOCKMARKET_BUYABLE:
         task_cs2_plan_obj(self);
         break;
     case CS2VM_HOST_REQUEST_NC_PARAM:
@@ -2848,6 +2869,36 @@ chat_transmit_slot(struct UITreeComponent const* node)
     return &UITree_Hooks(node)->on_chat_transmit;
 }
 
+static struct UITreeRuntimeScriptHook const*
+clan_transmit_slot(struct UITreeComponent const* node)
+{
+    return &UITree_Hooks(node)->on_clan_transmit;
+}
+
+static struct UITreeRuntimeScriptHook const*
+stock_transmit_slot(struct UITreeComponent const* node)
+{
+    return &UITree_Hooks(node)->on_stock_transmit;
+}
+
+static struct UITreeRuntimeScriptHook const*
+active_offers_transmit_slot(struct UITreeComponent const* node)
+{
+    return &UITree_Hooks(node)->on_active_offers_transmit;
+}
+
+static struct UITreeRuntimeScriptHook const*
+clan_settings_transmit_slot(struct UITreeComponent const* node)
+{
+    return &UITree_Hooks(node)->on_clan_settings_transmit;
+}
+
+static struct UITreeRuntimeScriptHook const*
+clan_channel_transmit_slot(struct UITreeComponent const* node)
+{
+    return &UITree_Hooks(node)->on_clan_channel_transmit;
+}
+
 struct ToriRS_Task*
 CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host)
 {
@@ -2870,6 +2921,46 @@ CreateTask_CS2FriendTransmitDispatch(struct RS_CS2Host* host)
 {
     return create_no_trigger_transmit_dispatch(
         host, "CS2FriendTransmitDispatch", friend_transmit_slot);
+}
+
+/* The friends chat changed: every CC/IF_SETONCLANTRANSMIT hook re-runs. */
+struct ToriRS_Task*
+CreateTask_CS2ClanTransmitDispatch(struct RS_CS2Host* host)
+{
+    return create_no_trigger_transmit_dispatch(
+        host, "CS2ClanTransmitDispatch", clan_transmit_slot);
+}
+
+/* The Grand Exchange offer slots changed: every CC/IF_SETONSTOCKTRANSMIT hook re-runs. */
+struct ToriRS_Task*
+CreateTask_CS2StockTransmitDispatch(struct RS_CS2Host* host)
+{
+    return create_no_trigger_transmit_dispatch(
+        host, "CS2StockTransmitDispatch", stock_transmit_slot);
+}
+
+/* The trading post offers changed: every CC/IF_SETONACTIVEOFFERSTRANSMIT hook re-runs. */
+struct ToriRS_Task*
+CreateTask_CS2ActiveOffersTransmitDispatch(struct RS_CS2Host* host)
+{
+    return create_no_trigger_transmit_dispatch(
+        host, "CS2ActiveOffersTransmitDispatch", active_offers_transmit_slot);
+}
+
+/* The clan settings changed: every CC/IF_SETONCLANSETTINGSTRANSMIT hook re-runs. */
+struct ToriRS_Task*
+CreateTask_CS2ClanSettingsTransmitDispatch(struct RS_CS2Host* host)
+{
+    return create_no_trigger_transmit_dispatch(
+        host, "CS2ClanSettingsTransmitDispatch", clan_settings_transmit_slot);
+}
+
+/* The clan channel changed: every CC/IF_SETONCLANCHANNELTRANSMIT hook re-runs. */
+struct ToriRS_Task*
+CreateTask_CS2ClanChannelTransmitDispatch(struct RS_CS2Host* host)
+{
+    return create_no_trigger_transmit_dispatch(
+        host, "CS2ClanChannelTransmitDispatch", clan_channel_transmit_slot);
 }
 
 /*

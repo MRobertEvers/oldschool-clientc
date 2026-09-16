@@ -130,6 +130,10 @@ struct PktUpdateStat
 struct PktUpdateRunEnergy
 {
     int run_energy; /* g1: 0-100 */
+    /** What the wire carried: hundredths of a percent, 0-10000, on the revisions
+     *  that send two bytes; run_energy * 100 on the one-byte wires. RUNENERGY
+     *  (3331) answers this; RUNENERGY_VISIBLE the percent. */
+    int run_energy_raw;
 };
 
 struct PktIfSetColour
@@ -660,6 +664,10 @@ struct PktUpdateFriendList
     int64_t name37; /* g8 */
     int world;      /* g1: 0=offline, >0 world/node id */
     int present;    /* 239 permits an empty update to complete initial sync */
+    /** The friend's friends-chat rank (rev 239 g1; 0 on the older wires). */
+    int rank;
+    /** The friend's previous display name, "" when none (rev 239 only). */
+    char previous_name[64];
 };
 
 struct PktSetNpcUpdateOrigin
@@ -770,6 +778,42 @@ struct PktRebuildWev
     int base_z;
     int length; /* raw grid bytes (after the u16 source-square count) */
     uint8_t* data;
+};
+
+/*
+ * A packet carried as its bytes, for a store that decodes it with client state
+ * (the friends-chat and clan packets). `data` is heap, freed by gameproto_free;
+ * NULL with `length` 0 for an empty payload, which several of these use as a
+ * meaning of its own ("left the channel").
+ */
+struct PktRawPayload
+{
+    int length;
+    uint8_t* data;
+};
+
+/* MESSAGE_CLANCHANNEL / MESSAGE_CLANCHANNEL_SYSTEM. `text` is heap, freed by
+ * gameproto_free. The system form has no sender and no crown (crown -1). */
+struct PktMessageClanChannel
+{
+    int clan_type; /* signed: 0..3 affined, negative the listened clan */
+    char sender[32];
+    int world;
+    int counter; /* g3 */
+    int crown;   /* chat crown id, -1 on the system form */
+    char* text;
+};
+
+/* UPDATE_STOCKMARKET_SLOT: one Grand Exchange offer slot, replaced whole. */
+struct PktUpdateStockmarketSlot
+{
+    int slot;   /* 0..7 */
+    int status; /* signed byte: & 7 state, & 8 sell; 0 = empty */
+    int obj;
+    int price;
+    int count;
+    int completed_count;
+    int completed_gold;
 };
 
 struct PktFriendListLoaded
@@ -1083,6 +1127,9 @@ struct RevPacket
         struct PktSetActiveWorld _set_active_world;
         struct PktWorldEntityInfo _worldentity_info;
         struct PktRebuildWev _rebuild_wev;
+        struct PktRawPayload _raw_payload;
+        struct PktMessageClanChannel _message_clanchannel;
+        struct PktUpdateStockmarketSlot _update_stockmarket_slot;
     };
 };
 

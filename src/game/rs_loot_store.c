@@ -1,6 +1,7 @@
 #include "rs_loot_store.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
@@ -88,6 +89,12 @@ ensure_query_capacity(
     store->query_cap = grown;
     return true;
 }
+
+static void
+strlist_remove_at(
+    char*** entries,
+    int* count,
+    int index);
 
 static bool
 ensure_aux_capacity(struct LootAuxList* aux)
@@ -198,13 +205,24 @@ strlist_remove(
     {
         if( (*entries)[i] && strcmp((*entries)[i], name) == 0 )
         {
-            free((*entries)[i]);
-            (*entries)[i] = (*entries)[*count - 1];
-            (*entries)[*count - 1] = NULL;
-            (*count)--;
+            strlist_remove_at(entries, count, i);
             return;
         }
     }
+}
+
+/* In order -- these lists are shown to the player by index, and swapping the
+ * last entry into the hole reshuffled them on every removal. */
+static void
+strlist_remove_at(
+    char*** entries,
+    int* count,
+    int index)
+{
+    free((*entries)[index]);
+    memmove(&(*entries)[index], &(*entries)[index + 1], (size_t)(*count - index - 1) * sizeof(char*));
+    (*count)--;
+    (*entries)[*count] = NULL;
 }
 
 static int
@@ -304,6 +322,56 @@ LootStore_ResetAll(struct LootStore* store)
 /* Populate hook                                                             */
 /* ========================================================================= */
 
+static struct LootSource*
+source_find_or_create(
+    struct LootStore* store,
+    const char* source_name)
+{
+    struct LootSource* src = find_source_by_name(store, source_name);
+    if( src )
+        return src;
+    ensure_source_capacity(store);
+    src = &store->sources[store->source_count++];
+    memset(src, 0, sizeof(*src));
+    src->id = store->next_source_id++;
+    src->name = strdup(source_name);
+    assert(src->name);
+    /* A real event id of 0 must still count as the first kill. */
+    src->last_event_id = INT_MIN;
+    src->category = -1;
+    src->level = -1;
+    return src;
+}
+
+/* One kill per distinct event id: a multi-item drop shares its death's id. */
+static void
+source_count_event(
+    struct LootSource* src,
+    int event_id)
+{
+    if( event_id == src->last_event_id )
+        return;
+    src->kill_count++;
+    src->last_event_id = event_id;
+}
+
+void
+LootStore_AddSource(
+    struct LootStore* store,
+    const char* source_name,
+    int category,
+    int level,
+    int unique_identifier)
+{
+    assert(store);
+    assert(source_name);
+    struct LootSource* src = source_find_or_create(store, source_name);
+    src->category = category;
+    src->level = level;
+    source_count_event(src, unique_identifier);
+    loot_revision_bump(store);
+}
+
 void
 LootStore_AddKillLoot(
     struct LootStore* store,
@@ -316,26 +384,8 @@ LootStore_AddKillLoot(
     assert(store);
     assert(source_name);
 
-    struct LootSource* src = find_source_by_name(store, source_name);
-    if( !src )
-    {
-        if( !ensure_source_capacity(store) )
-            return;
-        src = &store->sources[store->source_count++];
-        src->id = store->next_source_id++;
-        src->name = strdup(source_name);
-        assert(src->name);
-        /* calloc leaves last_event_id at 0; use a sentinel so a real event_id
-         * of 0 still counts as the first kill. */
-        src->last_event_id = INT_MIN;
-        src->kill_count = 0;
-    }
-
-    if( event_id != src->last_event_id )
-    {
-        src->kill_count++;
-        src->last_event_id = event_id;
-    }
+    struct LootSource* src = source_find_or_create(store, source_name);
+    source_count_event(src, event_id);
 
     for( int i = 0; i < src->row_count; i++ )
     {
@@ -505,136 +555,282 @@ LootStore_RowById(
 /* Aux string lists                                                          */
 /* ========================================================================= */
 
-void
-LootStore_AuxUpsert(
-    struct LootStore* store,
-    int kind,
-    const char* str,
-    int flag)
+bool
+LootStore_VectorValid(int vector)
 {
-    assert(store);
-    if( kind < 0 || kind >= LOOT_AUX_KIND_MAX )
-        return;
-    assert(str);
-
-    (void)flag;
-    struct LootAuxList* aux = &store->aux[kind];
-
-    for( int i = 0; i < aux->count; i++ )
-    {
-        if( aux->entries[i] && strcmp(aux->entries[i], str) == 0 )
-            return;
-    }
-
-    if( !ensure_aux_capacity(aux) )
-        return;
-    char* copy=strdup(str);
-    if( !copy ) return;
-    aux->entries[aux->count++] = copy;
-    if( !++store->aux_revision[kind] ) ++store->aux_revision[kind];
+    return vector >= 0 && vector < LOOT_AUX_KIND_MAX;
 }
 
-void
-LootStore_AuxRemove(
+static void
+vector_touched(
     struct LootStore* store,
-    int kind,
-    const char* str,
-    int flag)
+    int vector)
 {
-    assert(store);
-    if( kind < 0 || kind >= LOOT_AUX_KIND_MAX )
-        return;
-    assert(str);
+    if( !++store->aux_revision[vector] )
+        ++store->aux_revision[vector];
+}
 
-    (void)flag;
-    struct LootAuxList* aux = &store->aux[kind];
-
-    for( int i = 0; i < aux->count; i++ )
+static bool
+vector_equal(
+    const char* a,
+    const char* b,
+    bool case_sensitive)
+{
+    if( case_sensitive )
+        return strcmp(a, b) == 0;
+    for( ; *a && *b; a++, b++ )
     {
-        if( aux->entries[i] && strcmp(aux->entries[i], str) == 0 )
+        if( tolower((unsigned char)*a) != tolower((unsigned char)*b) )
+            return false;
+    }
+    return *a == *b;
+}
+
+/* `*` matches any run, including an empty one; everything else matches itself. */
+static bool
+vector_glob(
+    const char* pattern,
+    const char* str,
+    bool case_sensitive)
+{
+    while( *pattern )
+    {
+        if( *pattern == '*' )
         {
-            free(aux->entries[i]);
-            aux->entries[i] = aux->entries[aux->count - 1];
-            aux->entries[aux->count - 1] = NULL;
-            aux->count--;
-            if( !++store->aux_revision[kind] ) ++store->aux_revision[kind];
-            return;
+            while( *pattern == '*' )
+                pattern++;
+            if( !*pattern )
+                return true;
+            for( const char* s = str; *s; s++ )
+            {
+                if( vector_glob(pattern, s, case_sensitive) )
+                    return true;
+            }
+            return false;
         }
+        if( !*str )
+            return false;
+        if( case_sensitive ? *pattern != *str
+                           : tolower((unsigned char)*pattern) != tolower((unsigned char)*str) )
+            return false;
+        pattern++;
+        str++;
     }
+    return *str == '\0';
 }
 
-int
-LootStore_AuxCount(
-    const struct LootStore* store,
-    int kind)
-{
-    assert(store);
-    if( kind < 0 || kind >= LOOT_AUX_KIND_MAX )
-        return 0;
-    return store->aux[kind].count;
-}
-
-int
-LootStore_AuxLookup(
-    const struct LootStore* store,
-    int kind,
+static int
+vector_find(
+    const struct LootAuxList* list,
     const char* str,
-    int arg3,
-    int arg4)
+    bool case_sensitive)
 {
-    assert(store);
-    (void)arg3;
-    (void)arg4;
-    if( kind < 0 || kind >= LOOT_AUX_KIND_MAX || !str )
-        return 0;
-
-    const struct LootAuxList* aux = &store->aux[kind];
-    for( int i = 0; i < aux->count; i++ )
+    for( int i = 0; i < list->count; i++ )
     {
-        if( aux->entries[i] && strcmp(aux->entries[i], str) == 0 )
-            return 1;
+        if( vector_equal(list->entries[i], str, case_sensitive) )
+            return i;
     }
-    return 0;
+    return -1;
 }
 
-const char*
-LootStore_AuxGet(
-    const struct LootStore* store,
-    int kind,
+void
+LootStore_VectorInsert(
+    struct LootStore* store,
+    int vector,
+    int index,
+    const char* str)
+{
+    assert(store);
+    assert(LootStore_VectorValid(vector));
+    assert(str);
+    struct LootAuxList* list = &store->aux[vector];
+    if( index < 0 || index > list->count )
+        return;
+    ensure_aux_capacity(list);
+    char* copy = strdup(str);
+    assert(copy);
+    memmove(&list->entries[index + 1], &list->entries[index],
+        (size_t)(list->count - index) * sizeof(char*));
+    list->entries[index] = copy;
+    list->count++;
+    vector_touched(store, vector);
+}
+
+void
+LootStore_VectorAppend(
+    struct LootStore* store,
+    int vector,
+    const char* str)
+{
+    assert(store);
+    assert(LootStore_VectorValid(vector));
+    LootStore_VectorInsert(store, vector, store->aux[vector].count, str);
+}
+
+void
+LootStore_VectorAppendUnique(
+    struct LootStore* store,
+    int vector,
+    const char* str,
+    bool case_sensitive)
+{
+    assert(store);
+    assert(LootStore_VectorValid(vector));
+    assert(str);
+    if( vector_find(&store->aux[vector], str, case_sensitive) >= 0 )
+        return;
+    LootStore_VectorAppend(store, vector, str);
+}
+
+void
+LootStore_VectorSet(
+    struct LootStore* store,
+    int vector,
+    int index,
+    const char* str)
+{
+    assert(store);
+    assert(LootStore_VectorValid(vector));
+    assert(str);
+    struct LootAuxList* list = &store->aux[vector];
+    if( index < 0 || index >= list->count )
+        return;
+    char* copy = strdup(str);
+    assert(copy);
+    free(list->entries[index]);
+    list->entries[index] = copy;
+    vector_touched(store, vector);
+}
+
+void
+LootStore_VectorEraseAt(
+    struct LootStore* store,
+    int vector,
     int index)
 {
     assert(store);
-    if( kind < 0 || kind >= LOOT_AUX_KIND_MAX )
-        return "";
-    const struct LootAuxList* aux = &store->aux[kind];
-    if( index < 0 || index >= aux->count )
-        return "";
-    return aux->entries[index] ? aux->entries[index] : "";
+    assert(LootStore_VectorValid(vector));
+    struct LootAuxList* list = &store->aux[vector];
+    if( index < 0 || index >= list->count )
+        return;
+    /* In order: the client's erase is a vector::erase, and this used to swap
+     * the last entry into the hole, which reshuffled every list a script
+     * removed from. */
+    free(list->entries[index]);
+    memmove(&list->entries[index], &list->entries[index + 1],
+        (size_t)(list->count - index - 1) * sizeof(char*));
+    list->count--;
+    list->entries[list->count] = NULL;
+    vector_touched(store, vector);
 }
 
 void
-LootStore_AuxClear(
+LootStore_VectorErase(
     struct LootStore* store,
-    int kind)
+    int vector,
+    const char* str,
+    bool case_sensitive)
 {
     assert(store);
-    if( kind < 0 || kind >= LOOT_AUX_KIND_MAX )
-        return;
-    if( store->aux[kind].count && !++store->aux_revision[kind] ) ++store->aux_revision[kind];
-    free_aux(&store->aux[kind]);
+    assert(LootStore_VectorValid(vector));
+    assert(str);
+    int const index = vector_find(&store->aux[vector], str, case_sensitive);
+    if( index >= 0 )
+        LootStore_VectorEraseAt(store, vector, index);
 }
 
-uint64_t LootStore_AuxRevision(const struct LootStore* store,int kind)
-{ return store && kind>=0 && kind<LOOT_AUX_KIND_MAX ? store->aux_revision[kind] : 0; }
-
-int
-LootStore_AuxCountTotal(const struct LootStore* store)
+bool
+LootStore_VectorContains(
+    const struct LootStore* store,
+    int vector,
+    const char* str,
+    bool wildcard,
+    bool case_sensitive)
 {
     assert(store);
-    int total = 0;
-    for( int k = 0; k < LOOT_AUX_KIND_MAX; k++ )
-        total += store->aux[k].count;
-    return total;
+    assert(LootStore_VectorValid(vector));
+    assert(str);
+    const struct LootAuxList* list = &store->aux[vector];
+    for( int i = 0; i < list->count; i++ )
+    {
+        if( wildcard ? vector_glob(list->entries[i], str, case_sensitive)
+                     : vector_equal(list->entries[i], str, case_sensitive) )
+            return true;
+    }
+    return false;
+}
+
+int
+LootStore_VectorSize(
+    const struct LootStore* store,
+    int vector)
+{
+    assert(store);
+    assert(LootStore_VectorValid(vector));
+    return store->aux[vector].count;
+}
+
+const char*
+LootStore_VectorGet(
+    const struct LootStore* store,
+    int vector,
+    int index)
+{
+    assert(store);
+    assert(LootStore_VectorValid(vector));
+    const struct LootAuxList* list = &store->aux[vector];
+    if( index < 0 || index >= list->count )
+        return "";
+    return list->entries[index];
+}
+
+void
+LootStore_VectorClear(
+    struct LootStore* store,
+    int vector)
+{
+    assert(store);
+    assert(LootStore_VectorValid(vector));
+    if( store->aux[vector].count )
+        vector_touched(store, vector);
+    free_aux(&store->aux[vector]);
+}
+
+uint64_t
+LootStore_VectorRevision(
+    const struct LootStore* store,
+    int vector)
+{
+    assert(store);
+    assert(LootStore_VectorValid(vector));
+    return store->aux_revision[vector];
+}
+
+int
+LootStore_SourceIdByName(
+    const struct LootStore* store,
+    const char* source_name)
+{
+    assert(store);
+    assert(source_name);
+    const struct LootSource* src = find_source_by_name(store, source_name);
+    return src ? src->id : -1;
+}
+
+int
+LootStore_DropLimit(const struct LootStore* store)
+{
+    assert(store);
+    return store->drop_limit > 0 ? store->drop_limit : store->source_count;
+}
+
+void
+LootStore_SetDropLimit(
+    struct LootStore* store,
+    int hard_limit)
+{
+    assert(store);
+    store->drop_limit = hard_limit > 0 ? hard_limit : 0;
 }
 
 /* ========================================================================= */
@@ -661,6 +857,16 @@ LootStore_ItemIgnoreRemove(
 {
     assert(store);
     strlist_remove(&store->item_ignored, &store->item_ignored_count, name);
+}
+
+void
+LootStore_ItemIgnoreRemoveAt(
+    struct LootStore* store,
+    int index_1based)
+{
+    assert(store);
+    if( index_1based >= 1 && index_1based <= store->item_ignored_count )
+        strlist_remove_at(&store->item_ignored, &store->item_ignored_count, index_1based - 1);
 }
 
 void
@@ -725,6 +931,25 @@ LootStore_SourceIgnoreRemove(
     assert(store);
     strlist_remove(
         &store->source_ignored, &store->source_ignored_count, name);
+}
+
+void
+LootStore_SourceIgnoreRemoveAt(
+    struct LootStore* store,
+    int index_1based)
+{
+    assert(store);
+    if( index_1based >= 1 && index_1based <= store->source_ignored_count )
+        strlist_remove_at(&store->source_ignored, &store->source_ignored_count, index_1based - 1);
+}
+
+void
+LootStore_SourceIgnoreClear(struct LootStore* store)
+{
+    assert(store);
+    for( int i = 0; i < store->source_ignored_count; i++ )
+        free(store->source_ignored[i]);
+    store->source_ignored_count = 0;
 }
 
 bool

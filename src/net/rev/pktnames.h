@@ -233,6 +233,32 @@ enum GameProtoPktName
      */
     PKT_NAME_REBUILD_WORLDENTITY,
 
+    /*
+     * The social packets the clientscript social commands read (3611-3627,
+     * 3800-3890, 3903-3913). Each carries its payload raw (PktRawPayload): the
+     * stores that decode them (game/rs_friends_chat, game/rs_clan) need client
+     * state the stateless parser does not have -- the VarClanType table, the
+     * existing channel a delta applies to.
+     */
+    PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL,
+    PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER,
+    PKT_NAME_VARCLAN,
+    PKT_NAME_VARCLAN_ENABLE,
+    PKT_NAME_VARCLAN_DISABLE,
+    PKT_NAME_CLANCHANNEL_FULL,
+    PKT_NAME_CLANCHANNEL_DELTA,
+    PKT_NAME_CLANSETTINGS_FULL,
+    PKT_NAME_CLANSETTINGS_DELTA,
+    /* g1s clan, gjstr sender, g2 world, g3 counter, g1 chat crown, text. */
+    PKT_NAME_MESSAGE_CLANCHANNEL,
+    /* g1s clan, g2 world, g3 counter, text. */
+    PKT_NAME_MESSAGE_CLANCHANNEL_SYSTEM,
+    /* g1 slot, g1s status, g2 obj, g4 price, g4 count, g4 completed count,
+     * g4 completed gold; status 0 is an empty slot and the rest is padding. */
+    PKT_NAME_UPDATE_STOCKMARKET_SLOT,
+    /* Raw: the trading-post offer list (RS_CS2Host_ApplyTradingPost). */
+    PKT_NAME_UPDATE_TRADINGPOST,
+
     PKT_NAME_COUNT
 };
 
@@ -391,6 +417,23 @@ enum GameProtoPktOutName
      *  RSProt WINDOW_STATUS is op 10, but that collides with OPNPC2 here).
      *  mode is OpenRune clientMode 0/1/2, not just fixed/resizable. */
     PKTOUT_NAME_WINDOW_STATUS,
+
+    /* Clientscript-command packets: bug_report (3116), chat_sendabusereport
+     * (5002, SEND_SNAPSHOT at rev 239), opplayer ops 6..8 (3107), and the
+     * friends-chat and clan requests (36xx / 38xx). */
+    PKTOUT_NAME_BUG_REPORT,
+    PKTOUT_NAME_SEND_SNAPSHOT,
+    PKTOUT_NAME_OPPLAYER6,
+    PKTOUT_NAME_OPPLAYER7,
+    PKTOUT_NAME_OPPLAYER8,
+    PKTOUT_NAME_FRIENDCHAT_KICK,
+    PKTOUT_NAME_FRIENDCHAT_SETRANK,
+    PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE,
+    PKTOUT_NAME_CLANCHANNEL_FULL_REQUEST,
+    PKTOUT_NAME_CLANSETTINGS_FULL_REQUEST,
+    PKTOUT_NAME_CLANCHANNEL_KICKUSER,
+    PKTOUT_NAME_AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL,
+    PKTOUT_NAME_AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL,
 
     PKTOUT_NAME_COUNT
 };

@@ -302,9 +302,6 @@ struct CS2VM2_Thread
      * 213 (boolean find-next) resolves each index under this parent. */
     int children_iter_parent;
 
-    /* Handle from the last IF_CHILDREN_COLLECT (211); CHILDREN_ARRAY (215)
-     * pushes it. Raw pointer into arrays[], or NULL if none yet this run. */
-    char* children_collect_handle;
 
     /* Array pool. At this revision an array is a first-class object whose
      * HANDLE lives in a string local: DEFINE_ARRAY's operand names the string
@@ -579,6 +576,16 @@ CS2VM2_ArrayStore(
 void
 CS2VM2_ArrayStoreStr(
     struct CS2VM2_Thread* thread, struct CS2VM2_Array* array, int index, char* value);
+
+/**
+ * A new int array holding a copy of `values[0..count)`, for a host op that
+ * answers with an array (ENUM_GETINPUTS). Returns its handle -- push it with
+ * CS2VM2_PushStr -- or NULL when the thread's array pool is full, which the
+ * caller reports as a script error.
+ */
+char*
+CS2VM2_ArrayNewInts(
+    struct CS2VM2_Thread* thread, int const* values, int count);
 
 struct CS2VM2_Thread*
 CS2VM2_ThreadMain(struct CS2VM2* vm);

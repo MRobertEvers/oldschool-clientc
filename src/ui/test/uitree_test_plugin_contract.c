@@ -450,6 +450,50 @@ void test_owned_widgets(void)
     UITree_Free(t);
 }
 
+/* An engine button in a CS2 launcher column (728:6 `popout:buttons`): the
+ * column's own buttons are cc_created by sub-id on every layout pass, and the
+ * owned node beside them must survive that, never answer a sub-id, and die
+ * cleanly with the interface. The owner is an engine token far above any
+ * plugin's index + 1. */
+void test_owned_widget_in_cc_create_column(void)
+{
+    uint64_t const engine_owner=UINT64_C(0x746F7269524E4156);
+    int const column_cid=(0x2d8<<16)|6;
+    struct UITree* t=UITree_New(32);
+    int root=UITree_TestPushXy(t,-1,UIELEM_RS_LAYER,0x2d80000,0,0,42,503);
+    int column=UITree_TestPushXy(t,root,UIELEM_RS_LAYER,column_cid,6,6,30,491);
+    struct UITreeNodeRef native[3];
+    for( int sub=0; sub<3; ++sub )
+        native[sub]=UITree_RefAt(t,UITree_CcCreate(t,column,column_cid,5,sub));
+    int button=UITree_WidgetCreateGraphic(t,UITree_RefAt(t,column),engine_owner,"torirs-nav:-2");
+    struct UITreeNodeRef button_ref=UITree_RefAt(t,button);
+    TEST_ASSERT(button>=0,"an engine owner token creates an owned control");
+    TEST_ASSERT(t->components[button].component_id==-1,"the engine button has no component id");
+    TEST_ASSERT(!t->components[button].dynamic,"the engine button is not a CS2 dynamic child");
+    TEST_ASSERT(UITree_WidgetSetPosition(t,button_ref,engine_owner,0,108),"the engine owner positions its button");
+
+    /* script 5356 again: the same three sub-ids, created over the top. */
+    for( int sub=0; sub<3; ++sub )
+    {
+        int again=UITree_CcCreate(t,column,column_cid,5,sub);
+        TEST_ASSERT(again>=0,"a rebuilt lane button is created");
+        TEST_ASSERT(UITree_ResolveRef(t,native[sub])<0,"the rebuild replaces the lane's own button");
+        TEST_ASSERT(UITree_FindChildBySubid(t,column,column_cid,sub)==again,"each sub-id finds the rebuilt lane button");
+        native[sub]=UITree_RefAt(t,again);
+    }
+    TEST_ASSERT(UITree_ResolveRef(t,button_ref)==button,"a cc_create rebuild leaves the engine button alone");
+    int children[8];
+    TEST_ASSERT(UITree_CollectDynamicChildIndices(t,column_cid,0,children,8)==3,
+                "the CS2 child walk sees only the lane's three buttons");
+    TEST_ASSERT(UITree_FindChildBySubid(t,column,column_cid,3)<0,"the engine button answers no sub-id");
+    TEST_ASSERT(UITree_WidgetCreateGraphic(t,UITree_RefAt(t,column),engine_owner,"torirs-nav:-2")==button,
+                "re-creating by key returns the same button");
+
+    UITree_ReclaimInterfaceGroup(t,0x2d8);
+    TEST_ASSERT(UITree_ResolveRef(t,button_ref)<0,"closing the interface invalidates the engine button");
+    UITree_Free(t);
+}
+
 /* Owned-control operations: each label lives in the native menu option slot
  * its op number names, the registration serial takes part in the action
  * signature, and nothing native or foreign can be armed. */

@@ -780,7 +780,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/toridraw_sprite_from_torirs.c \
 	engine/toridraw_font_from_torirs.c \
 	engine/toridraw_model_from_torirs.c \
-	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
+	game/rs_cs2_host.c game/rs_cs2_client_ops.c game/rs_cs2_social_ops.c game/rs_cs2_market_ops.c game/rs_clan.c game/rs_friends_chat.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/rs_entity_sync.c game/rs_audio.c \
 	game/rs_prefs.c game/task_prefs_io.c game/preview_state.c \
@@ -795,6 +795,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c ui/torirs_chrome_shell.c \
 	ui/torirs_chrome_panel_draw.c \
 	ui/torirs_chrome_rail.c \
+	ui/torirs_chrome_popout_nav.c \
 	ui/torirs_chrome_inkwell.c \
 	ui/torirs_chrome_mirror.c \
 	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
@@ -833,7 +834,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	world/worldview.c \
-	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c \
+	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c engine/dat2/task_dat2_varclantype_load.c \
 	engine/world_builder/task_world_load.c \
 	editor/editor.c editor/editor_doc.c editor/editor_jm2.c \
 	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
@@ -1713,6 +1714,24 @@ test-cs2-children-findnextid: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_children_findnextid_test \
 		cs2vm2/test/children_findnextid_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_children_findnextid_test
+
+# The array commands that reorder, copy, insert and remove (8001..8027), with
+# ARRAY_RANDOMISE checked against orders the JDK printed. Own .PHONY line for
+# the same reason as the targets above it.
+.PHONY: test-cs2-array-mutate
+test-cs2-array-mutate: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_mutate_ops_test \
+		cs2vm2/test/array_mutate_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_array_mutate_ops_test
+
+# Every implemented opcode's HANDLER pops what the client declares -- the tables
+# can agree with each other and still not with the code. Own .PHONY line for the
+# same reason as the targets above it.
+.PHONY: test-cs2-arity-conformance
+test-cs2-arity-conformance: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_arity_conformance_test \
+		cs2vm2/test/opcode_arity_conformance_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_arity_conformance_test
 
 .PHONY: test-cs2-opcode-groups
 test-cs2-opcode-groups: $(OBJ_DIR)
@@ -3369,6 +3388,13 @@ test-rsprot-bridge: $(OBJ_DIR) $(NET_CORE_OBJS)
 		net/rev/test/rsprot_bridge_test.c $(NET_CORE_OBJS) -lm
 	./$(OBJ_DIR)/rsprot_bridge_test
 
+# The clientscript-command packets, read back by RSProt's generated decoders.
+.PHONY: test-net-out-clientscript-packets
+test-net-out-clientscript-packets: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/net_out_clientscript_packets_test \
+		net/test/net_out_clientscript_packets_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/net_out_clientscript_packets_test
+
 test-net-out-resume: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/net_out_resume_test \
 		net/test/net_out_resume_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
@@ -3633,6 +3659,13 @@ test-chrome-web-skin: $(OBJ_DIR)
 		ui/test/uitree_test_chrome_web_skin.c \
 		ui/torirs_chrome_mirror.c engine/torirs_chrome_skin_baked.c
 	./$(OBJ_DIR)/chrome_web_skin_test
+
+.PHONY: test-chrome-popout-nav
+test-chrome-popout-nav: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/chrome_popout_nav_test \
+		ui/test/torirs_chrome_popout_nav_test.c \
+		ui/torirs_chrome_popout_nav.c ui/torirs_chrome_exec_kind.c
+	./$(OBJ_DIR)/chrome_popout_nav_test
 
 # The web panel channel: the wire codec, and a two-tab handshake driven through
 # the real torirs_channel.js with two fake windows. Node only -- no browser, no
@@ -4225,11 +4258,30 @@ test-wev-rebuild: $(OBJ_DIR) $(OBJS)
 # `test-torirsserver-embed`); every bug this feature actually hit was on this side of
 # the wire, and it had none. Needs no cache and no server on purpose â a gate
 # that can SKIP is a gate that eventually only ever skips.
+.PHONY: test-cs2-client-parity-ops
+# The opcodes that decoded as raw `_<number>` (216, 1506, 4127, the indexed
+# minimenu, hiscores, enum_getinputs, the friend sort chain), through the real
+# VM dispatch and the real host, each against its reference client's behaviour.
+test-cs2-client-parity-ops: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_cs2_client_parity_ops_test \
+		game/test/rs_cs2_client_parity_ops_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/rs_cs2_client_parity_ops_test
+
 test-social: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_social_test \
 		game/test/rs_social_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/rs_social_test
+
+# The friends-chat and clan stores fed server-shaped payloads: the decoders
+# behind 3611-3627 and 3800-3890. Needs no cache.
+.PHONY: test-clan
+test-clan: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/rs_clan_test \
+		game/test/rs_clan_test.c game/rs_clan.c game/rs_friends_chat.c game/rs_social.c \
+		net/jbase37.c
+	./$(OBJ_DIR)/rs_clan_test
 
 # The ground-item pile ops (7120..7122, 6859..6863) -- the whole input to the
 # cache's ground-items overlay. All eight used to reach CS2VM2_Op_StackMetaStub

@@ -322,6 +322,7 @@ gameproto_parse(
     case PKT_NAME_UPDATE_RUNENERGY:
     {
         packet->_update_run_energy.run_energy = g1(&buffer);
+        packet->_update_run_energy.run_energy_raw = packet->_update_run_energy.run_energy * 100;
         assert(buffer.position == data_size);
         return 1;
     }
@@ -855,6 +856,25 @@ gameproto_free(struct RevPacket* p)
         p->_map_rebuild.region_keys = NULL;
         p->_map_rebuild.zones = NULL;
         p->_map_rebuild.region_count = 0;
+        break;
+    case PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL:
+    case PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER:
+    case PKT_NAME_VARCLAN:
+    case PKT_NAME_VARCLAN_ENABLE:
+    case PKT_NAME_VARCLAN_DISABLE:
+    case PKT_NAME_CLANCHANNEL_FULL:
+    case PKT_NAME_CLANCHANNEL_DELTA:
+    case PKT_NAME_CLANSETTINGS_FULL:
+    case PKT_NAME_CLANSETTINGS_DELTA:
+    case PKT_NAME_UPDATE_TRADINGPOST:
+        free(p->_raw_payload.data);
+        p->_raw_payload.data = NULL;
+        p->_raw_payload.length = 0;
+        break;
+    case PKT_NAME_MESSAGE_CLANCHANNEL:
+    case PKT_NAME_MESSAGE_CLANCHANNEL_SYSTEM:
+        free(p->_message_clanchannel.text);
+        p->_message_clanchannel.text = NULL;
         break;
     case PKT_NAME_REBUILD_WORLDENTITY:
         free(p->_rebuild_wev.data);

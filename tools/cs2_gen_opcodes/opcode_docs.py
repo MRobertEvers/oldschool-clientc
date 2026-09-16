@@ -180,13 +180,13 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("a", "b"),
         int_out=("a * b",),
     ),
-    "DIV": OpcodeDoc(
+    "DIVIDE": OpcodeDoc(
         summary="Integer divide",
         int_in=("a", "b"),
         int_out=("a / b",),
         notes="VM error if b == 0; otherwise truncates toward zero",
     ),
-    "MOD": OpcodeDoc(
+    "MODULO": OpcodeDoc(
         summary="Integer modulo",
         int_in=("a", "b"),
         int_out=("a % b",),
@@ -251,7 +251,8 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         ),
     ),
     "CC_DELETEALL": OpcodeDoc(
-        summary="Delete all dynamic children of active parent",
+        summary="Delete every dynamic child of a component",
+        int_in=("component",),
     ),
     "CC_FIND": OpcodeDoc(
         summary="Find child by sub-id",
@@ -344,7 +345,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set draggable parent/child",
         int_in=("parent_uid", "child_index"),
     ),
-    "CC_SETDRAGGABLEBEHAVIOR": OpcodeDoc(
+    "CC_SETDRAGRENDERBEHAVIOUR": OpcodeDoc(
         summary="Set drag behavior",
         operand="0 = active component, 1 = dot component",
         int_in=("behavior",),
@@ -362,15 +363,15 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set sprite graphic",
         int_in=("graphic_id",),
     ),
-    "CC_SETGRAPHIC2": OpcodeDoc(
+    "CC_SETCLICKMASK": OpcodeDoc(
         summary="Set secondary sprite graphic",
         int_in=("graphic_id",),
     ),
-    "CC_SETTRANSBOT": OpcodeDoc(
+    "CC_SETBLENDTRANS": OpcodeDoc(
         summary="Set bottom transparency",
         int_in=("trans",),
     ),
-    "CC_SETFILLMODE": OpcodeDoc(
+    "CC_SETBLENDMODE": OpcodeDoc(
         summary="Set fill mode",
         int_in=("fill_mode",),
     ),
@@ -398,28 +399,20 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set object icon on active child",
         int_in=("obj_count", "obj_id"),
     ),
-    "CC_SETOBJECT_ALWAYS_NUM": OpcodeDoc(
+    "CC_SETOBJECT_ALWAYSNUM": OpcodeDoc(
         summary="Set object icon always showing qty",
         int_in=("obj_count", "obj_id"),
     ),
     "CC_SETOBJECT_NONUM": OpcodeDoc(
-        summary="Set object icon without qty",
-        int_in=("obj_id",),
+        summary="Set the object icon, never drawing its count",
+        int_in=("obj_id", "count"),
     ),
-    "CC_SETPLAYERMODEL_SELF": OpcodeDoc(
-        summary="Set the active child's model to the local player",
-        int_in=("model_id",),
-    ),
-    "CC_SETMODEL_PLAYERCHATHEAD": OpcodeDoc(
-        summary="Set the active child's model to a player chathead",
-        int_in=("player_id",),
-    ),
-    "CC_SETCOMPONENTPARAM": OpcodeDoc(
+    "CC_SETPARAM": OpcodeDoc(
         summary="Write a param onto the component's runtime param table",
         operand="0 = active component, 1 = dot component",
         int_in=("param_id", "value", "kind"),
         notes=(
-            "OldSchool-era, distinct from CC_GETPARAM (1613): the table lives on "
+            "OldSchool-era, distinct from CC_GETBLENDMODE (1613): the table lives on "
             "the component at runtime and starts empty (IF3 files carry no param "
             "section). VARIABLE ARITY, so the counts above are the kind == 0 case "
             "only: `kind` names the ParamType's type, and kind == 2 means the value "
@@ -431,13 +424,13 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         ),
     ),
     # --- CC getters (active component) ---
-    "CC_GETCOMPONENTPARAM": OpcodeDoc(
+    "CC_PARAM": OpcodeDoc(
         summary="Read a param off the component's runtime param table",
         operand="0 = active component, 1 = dot component",
         int_in=("param_id",),
         int_out=("value",),
         notes=(
-            "Answers with what CC_SETCOMPONENTPARAM wrote, else the ParamType's "
+            "Answers with what CC_SETPARAM wrote, else the ParamType's "
             "default_int — which is what makes the scripts' `= -1` guards mean "
             "\"never tagged\"."
         ),
@@ -521,7 +514,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set draggable",
         int_in=("component", "parent_uid", "child_index"),
     ),
-    "IF_SETDRAGGABLEBEHAVIOR": OpcodeDoc(
+    "IF_SETDRAGRENDERBEHAVIOUR": OpcodeDoc(
         summary="Set drag behavior",
         int_in=("component", "behavior"),
     ),
@@ -554,19 +547,19 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set graphic",
         int_in=("graphic_id", "component"),
     ),
-    "IF_SETGRAPHIC2": OpcodeDoc(
+    "IF_SETCLICKMASK": OpcodeDoc(
         summary="Set secondary sprite graphic",
         int_in=("graphic_id", "component"),
     ),
-    "IF_SETTRANSBOT": OpcodeDoc(
+    "IF_SETBLENDTRANS": OpcodeDoc(
         summary="Set bottom transparency",
         int_in=("trans", "component"),
     ),
-    "IF_SETFILLMODE": OpcodeDoc(
+    "IF_SETBLENDMODE": OpcodeDoc(
         summary="Set fill mode",
         int_in=("fill_mode", "component"),
     ),
-    "IF_SETCLICKMASK": OpcodeDoc(
+    "IF_SETALWAYSLEFTCLICK": OpcodeDoc(
         summary="Set click mask",
         int_in=("click_mask", "component"),
     ),
@@ -601,7 +594,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set object icon",
         int_in=("obj_id", "obj_count", "component"),
     ),
-    "IF_SETOBJECT_ALWAYS_NUM": OpcodeDoc(
+    "IF_SETOBJECT_ALWAYSNUM": OpcodeDoc(
         summary="Set object icon always showing qty",
         int_in=("obj_id", "obj_count", "component"),
     ),
@@ -612,10 +605,6 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     "IF_SETMODEL": OpcodeDoc(
         summary="Set model id",
         int_in=("model_id", "component"),
-    ),
-    "IF_SETMODEL_PLAYERCHATHEAD": OpcodeDoc(
-        summary="Set a component's model to a player chathead",
-        int_in=("player_id", "component"),
     ),
     "IF_SETMODELTRANSPARENT": OpcodeDoc(
         summary="Set model transparency",
@@ -639,13 +628,13 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Clear ops",
         int_in=("component",),
     ),
-    "IF_SETOPSUBMENU": OpcodeDoc(
+    "IF_SETSUBOP": OpcodeDoc(
         summary="Set op submenu label",
         str_in=("text",),
         int_in=("op_index", "sub_index", "component"),
         notes="op_index and sub_index are 1-based in script",
     ),
-    "IF_SETTARGETPRIORITY": OpcodeDoc(
+    "IF_SETOPPRIORITY": OpcodeDoc(
         summary="Set target priority (stub)",
         int_in=("component", "priority"),
     ),
@@ -972,7 +961,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         str_out=("param value (string)",),
         notes="pushes int or str depending on param type",
     ),
-    "CC_CLEAROPSUBMENU": OpcodeDoc(
+    "CC_CLEARSUBOPS": OpcodeDoc(
         summary="Clear submenu entries for one op slot",
         operand="0 = active component, 1 = dot component",
         int_in=("op_index",),
@@ -983,11 +972,11 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("parent", "src_sub", "dst_sub"),
         notes="sets active to the copy; used by the bank tab strip builder",
     ),
-    "CC_OP1309": OpcodeDoc(
+    "CC_SETPINCH": OpcodeDoc(
         summary="Client stub that discards one int",
         int_in=("value",),
     ),
-    "CC_SETOPFORCELEFTCLICK": OpcodeDoc(
+    "CC_SETALWAYSLEFTCLICK": OpcodeDoc(
         summary="Force left-click to execute the op without opening the menu",
         operand="0 = active component, 1 = dot component",
         int_in=("flag",),
@@ -1010,7 +999,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("opindex", "keyrate", "tickrate"),
         notes="tickrate == 0 disables repeat.",
     ),
-    "CC_SETOPSUBMENU": OpcodeDoc(
+    "CC_SETSUBOP": OpcodeDoc(
         summary="Set a submenu entry label",
         operand="0 = active component, 1 = dot component",
         int_in=("op_index", "sub_index"),
@@ -1033,7 +1022,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "rather than \"corrected\" without a real-cache trace."
         ),
     ),
-    "CC_SETTARGETPRIORITY": OpcodeDoc(
+    "CC_SETOPPRIORITY": OpcodeDoc(
         summary="Set target priority",
         operand="0 = active component, 1 = dot component",
         int_in=("priority",),
@@ -1083,48 +1072,52 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "inject <col=...>/<img=...> formatting."
         ),
     ),
-    "GETKEYINPUTMODE": OpcodeDoc(
-        summary="Current keyboard capture mode",
-        int_out=("mode",),
-        notes="0 none, 1 keyboard, 2 interface-scoped, 3 widget-scoped.",
+    "SETKEYINPUTMODE_ACTIVECOMPONENT": OpcodeDoc(
+        summary="Route keyboard input to the active component",
+        notes="rev-239 Statics 3140 sets the key-input mode and takes the active (or dot) component; nothing on the stacks.",
+    ),
+    "IF_INPUT_SETPLACEHOLDERTEXT": OpcodeDoc(
+        summary="Set an input field's placeholder text",
+        int_in=("component",),
+        str_in=("text",),
     ),
     "IF_INPUT_SETACCEPTMODE": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETCHARFILTER": OpcodeDoc(
+    "IF_INPUT_SETFOCUS": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETCURSORCOLOUR": OpcodeDoc(
+    "IF_INPUT_SETCARET": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETCURSORHEIGHT": OpcodeDoc(
+    "IF_INPUT_SETWRAPMODE": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETCURSOROFFSET": OpcodeDoc(
+    "IF_INPUT_SETFOCUSABLE": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETCURSORTRANS": OpcodeDoc(
-        summary="",
-        int_in=("value", "component"),
-    ),
-    "IF_INPUT_SETCURSORWIDTH": OpcodeDoc(
-        summary="",
-        int_in=("value", "component"),
-    ),
-    "IF_INPUT_SETLINECOUNTLIMIT": OpcodeDoc(
-        summary="",
-        int_in=("value", "component"),
+    "IF_INPUT_SETSELECTION": OpcodeDoc(
+        summary="Set an input field's selected range",
+        int_in=("start", "end", "component"),
     ),
     "IF_INPUT_SETLINEWIDTHLIMIT": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
+    "IF_INPUT_SETSUBMITMODE": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
     "IF_INPUT_SETLINEWRAPPINGWIDTH": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETLINECOUNTLIMIT": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
@@ -1136,15 +1129,11 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETSUBMITMODE": OpcodeDoc(
+    "IF_INPUT_SETPLACEHOLDERTEXTCOLOUR": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETWRAPMODE": OpcodeDoc(
-        summary="",
-        int_in=("value", "component"),
-    ),
-    "IF_OP2309": OpcodeDoc(
+    "IF_SETPINCH": OpcodeDoc(
         summary="Client stub: pop component + one int and discard",
         int_in=("value", "component"),
     ),
@@ -1186,27 +1175,31 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_out=("pressed",),
         notes="edge-triggered; cleared each frame. OSRS internal key code.",
     ),
-    "LOCAL_NOTIFICATION": OpcodeDoc(
+    "NOTIFICATIONS_SENDLOCAL": OpcodeDoc(
         summary="Schedule a local notification",
         int_in=("id", "delay_ms"),
         str_in=("title", "body"),
         int_out=("handle",),
         notes=(
-            "pushes a handle for LOCAL_NOTIFICATION_CANCEL. script 5360\n"
+            "pushes a handle for NOTIFICATIONS_SENDGROUPEDLOCAL. script 5360\n"
             "(proc,local_notification) POP_INT_LOCALs it straight after the call, so\n"
             "the push is required or that store underflows."
         ),
     ),
-    "LOCAL_NOTIFICATION_CANCEL": OpcodeDoc(
-        summary="Cancel one scheduled notification",
+    "NOTIFICATIONS_SENDGROUPEDLOCAL": OpcodeDoc(
+        summary="Schedule a grouped mobile notification",
+        int_in=("x4", "x5", "x6"),
+        str_in=("x1", "x2", "x3"),
+        int_out=("handle (0 here: desktop has no notification centre)",),
+    ),
+    "NOTIFICATIONS_CANCELLOCAL": OpcodeDoc(
+        summary="Cancel one scheduled mobile notification",
         int_in=("handle",),
     ),
-    "LOCAL_NOTIFICATION_CANCELALL": OpcodeDoc(
-        summary="Cancel every scheduled notification",
-    ),
-    "LOCAL_NOTIFICATION_SUPPORTED": OpcodeDoc(
-        summary="Are local notifications available?",
-        int_out=("supported",),
+    "NOTIFICATIONS_ISLOCALSCHEDULED": OpcodeDoc(
+        summary="Is a mobile notification scheduled?",
+        int_in=("handle",),
+        int_out=("0 here",),
     ),
     "MAX": OpcodeDoc(
         summary="Maximum of two ints.  int in: a, b (b = top)  int out: max(a, b)",
@@ -1254,9 +1247,10 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("packed", "x", "plane", "z"),
         int_out=("packed + ((plane << 28) | (x << 14) | z)",),
     ),
-    "SETKEYINPUTENABLED": OpcodeDoc(
-        summary="Enable/disable keyboard capture (no-op here)",
-        int_in=("enabled",),
+    "SETFREECAMSPEED": OpcodeDoc(
+        summary="Set the free camera's speed",
+        int_in=("x1", "x2"),
+        notes="Not implemented here; the stack stub pops both.",
     ),
     "SETKEYINPUTMODE_ALL": OpcodeDoc(
         summary="Release keyboard capture (input dialog type 0)",
@@ -1265,7 +1259,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "stop the generator's \"SET* pops one\" heuristic guessing wrong."
         ),
     ),
-    "SETKEYINPUTMODE_KEYBOARD": OpcodeDoc(
+    "SETKEYINPUTMODE_NONE": OpcodeDoc(
         summary="Capture keyboard for a dialog (input dialog type 1)",
         notes="takes no args despite the SET prefix (see SETKEYINPUTMODE_ALL).",
     ),
@@ -1291,15 +1285,15 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Master switch for drawing map elements",
         int_in=("enabled",),
     ),
-    "WORLDMAP_ELEMENT": OpcodeDoc(
+    "MEL_TYPE": OpcodeDoc(
         summary="Element id of the map element event being handled",
         int_out=("elementId",),
     ),
-    "WORLDMAP_ELEMENTCOORD": OpcodeDoc(
+    "MEL_DISPLAYCOORD": OpcodeDoc(
         summary="Second coord of the map element event",
         int_out=("coord",),
     ),
-    "WORLDMAP_ELEMENTCOORD1": OpcodeDoc(
+    "MEL_SOURCECOORD": OpcodeDoc(
         summary="First coord of the map element event",
         int_out=("coord",),
     ),
@@ -1354,7 +1348,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("coord",),
         int_out=("x", "y"),
     ),
-    "WORLDMAP_GETDISPLAYCOORD_CURRENT": OpcodeDoc(
+    "WORLDMAP_GETSOURCEPOSITION": OpcodeDoc(
         summary="World coord under the view centre",
         int_out=("x", "y"),
     ),
@@ -1372,7 +1366,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("mapId",),
         str_out=("name",),
     ),
-    "WORLDMAP_GETNEARESTICON": OpcodeDoc(
+    "WORLDMAP_FINDNEARESTELEMENT": OpcodeDoc(
         summary="Display coord of the nearest icon of an element",
         int_in=("elementId", "sourceCoord"),
         int_out=("coord",),
@@ -1390,7 +1384,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Current zoom percentage (25/37/50/75/100/200)",
         int_out=("zoom",),
     ),
-    "WORLDMAP_INIT": OpcodeDoc(
+    "WORLDMAP_JUMPTOPLAYER": OpcodeDoc(
         summary="Select the map area containing the player and centre on it",
     ),
     "WORLDMAP_ISLOADED": OpcodeDoc(
@@ -1405,11 +1399,11 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Snap to a display coord",
         int_in=("coord",),
     ),
-    "WORLDMAP_JUMPTOMAP": OpcodeDoc(
+    "WORLDMAP_SETMAP_COORD": OpcodeDoc(
         summary="Switch map area, panning to the player when it is in range and to the fallback coord otherwise",
         int_in=("mapId", "fallbackCoord"),
     ),
-    "WORLDMAP_JUMPTOMAP_INSTANT": OpcodeDoc(
+    "WORLDMAP_SETMAP_COORD_OVERRIDE": OpcodeDoc(
         summary="JUMPTOMAP, always using the fallback coord",
         int_in=("mapId", "fallbackCoord"),
     ),
@@ -1434,13 +1428,13 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Flash forever instead of maxFlashCount times",
         int_in=("enabled",),
     ),
-    "WORLDMAP_RESETCYCLESPERFLASH": OpcodeDoc(
+    "WORLDMAP_SETFLASHTICS_DEFAULT": OpcodeDoc(
         summary="Restore the default flash rate",
     ),
-    "WORLDMAP_RESETMAXFLASHCOUNT": OpcodeDoc(
+    "WORLDMAP_SETFLASHLOOPS_DEFAULT": OpcodeDoc(
         summary="Restore the default flash count",
     ),
-    "WORLDMAP_SETCYCLESPERFLASH": OpcodeDoc(
+    "WORLDMAP_SETFLASHTICS": OpcodeDoc(
         summary="Client cycles between flash toggles",
         int_in=("cycles",),
     ),
@@ -1448,7 +1442,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Make a map area current (resets zoom + position)",
         int_in=("mapId",),
     ),
-    "WORLDMAP_SETMAXFLASHCOUNT": OpcodeDoc(
+    "WORLDMAP_SETFLASHLOOPS": OpcodeDoc(
         summary="How many times a flashing element blinks",
         int_in=("count",),
     ),
@@ -1460,7 +1454,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Clear every active flash",
     ),
     # --- Rev-239 component/native extensions recovered locally ---
-    "OVERLAY_CC_CREATE": OpcodeDoc(
+    "CC_CREATE_ENTITYOVERLAY": OpcodeDoc(
         summary="Create a dynamic child in a scripted entity overlay layer",
         int_in=("overlay", "type", "child_index"),
         notes=(
@@ -1469,11 +1463,11 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "gaps are rejected. See game/rs_entity_overlay.h."
         ),
     ),
-    "OVERLAY_CC_DELETEALL": OpcodeDoc(
+    "CC_DELETEALL_ENTITYOVERLAY": OpcodeDoc(
         summary="Delete every dynamic child from a scripted entity overlay layer",
         int_in=("overlay",),
     ),
-    "OVERLAY_FIND": OpcodeDoc(
+    "IF_FIND_ENTITYOVERLAY": OpcodeDoc(
         summary="Make a scripted entity overlay layer the active component",
         int_in=("overlay",),
         int_out=("1 if found (active set) else 0",),
@@ -1483,25 +1477,25 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "it as the old guessed CC_FINDROOT leaks an int."
         ),
     ),
-    "OVERLAY_CC_FIND": OpcodeDoc(
+    "CC_FIND_ENTITYOVERLAY": OpcodeDoc(
         summary="Find a dynamic child inside a scripted entity overlay layer",
         int_in=("overlay", "sub"),
         int_out=("1 if found (active set) else 0",),
         notes="Opcode 203; completes the reference overlay-layer family.",
     ),
-    "CHILDREN_FINDNEXTID": OpcodeDoc(
+    "IF_QUERY_NEXTID": OpcodeDoc(
         summary="Advance the children iterator and push the next child sub-id",
         int_out=("next collected sub-id, or -1 once the iterator is exhausted",),
         notes=(
             "Opcode 214. rev-239 Statics.method7953(class332): "
             "`cursor >= count ? -1 : ids[cursor++]` over the id list that "
-            "IF_CHILDREN_COLLECT (211) and CC_CHILDREN_FIND_COUNT (212) fill. "
-            "It shares that cursor with CC_CHILDREN_FINDNEXT (213), which "
+            "IF_QUERY (211) and CC_QUERY (212) fill. "
+            "It shares that cursor with IF_QUERY_NEXT (213), which "
             "resolves the same id to a component and makes it active instead "
             "of pushing it."
         ),
     ),
-    "IF_GETCOMPONENTPARAM": OpcodeDoc(
+    "IF_PARAM": OpcodeDoc(
         summary="Read a runtime param from a named component",
         operand="unused",
         int_in=("param", "component", "fallback"),
@@ -1523,7 +1517,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "retained only as a legacy source alias."
         ),
     ),
-    "IF_TRIGGEROPLOCAL": OpcodeDoc(
+    "IF_SCRIPT_TRIGGER": OpcodeDoc(
         summary="Synthesize a server component click with typed arguments",
         int_in=("crc", "component", "child_index", "typed ints"),
         str_in=("signature (plus any typed strings it describes)",),
@@ -1582,7 +1576,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "active-loc and OVERLAY_LOC operations address the selected location."
         ),
     ),
-    "COORD_INSCENE": OpcodeDoc(
+    "TILE_FIND": OpcodeDoc(
         summary="Test whether a packed coordinate is inside the loaded scene",
         int_in=("coord",),
         int_out=("1 if inside the build area else 0",),
@@ -1599,12 +1593,12 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "reference selects m_localPlayerIndex before pushing the result."
         ),
     ),
-    "OVERLAY_NPC_CREATE": OpcodeDoc(
+    "ENTITYOVERLAY_CREATE_NPC": OpcodeDoc(
         summary="Attach an overlay to the active NPC",
         int_in=("slot", "band", "width", "height", "source_coord"),
         int_out=("overlay index (-1 when none)",),
     ),
-    "OVERLAY_LOC_CREATE": OpcodeDoc(
+    "ENTITYOVERLAY_CREATE_LOC": OpcodeDoc(
         summary="Attach an overlay to the active location",
         int_in=("slot", "band", "width", "height", "source_coord"),
         int_out=("overlay index (-1 when none)",),
@@ -1613,17 +1607,17 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "one tile retain separate overlays."
         ),
     ),
-    "OVERLAY_PLAYER_CREATE": OpcodeDoc(
+    "ENTITYOVERLAY_CREATE_PLAYER": OpcodeDoc(
         summary="Attach an overlay to the active player",
         int_in=("slot", "band", "width", "height", "source_coord"),
         int_out=("overlay index (-1 when none)",),
     ),
-    "OVERLAY_COORD_CREATE": OpcodeDoc(
+    "ENTITYOVERLAY_CREATE_COORD": OpcodeDoc(
         summary="Attach an overlay to a bare tile",
         int_in=("coord", "slot", "band", "width", "height", "source_coord"),
         int_out=("overlay index (-1 when none)",),
     ),
-    "OVERLAY_NPC_GET": OpcodeDoc(
+    "ENTITYOVERLAY_GET_NPC": OpcodeDoc(
         summary="Get one overlay attached to the active NPC",
         int_in=("slot",),
         int_out=("overlay index (-1 when none)",),
@@ -1632,38 +1626,38 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "must be popped or the integer stack leaks."
         ),
     ),
-    "OVERLAY_LOC_GET": OpcodeDoc(
+    "ENTITYOVERLAY_GET_LOC": OpcodeDoc(
         summary="Get one overlay attached to the active location",
         int_in=("slot",),
         int_out=("overlay index (-1 when none)",),
     ),
-    "OVERLAY_PLAYER_GET": OpcodeDoc(
+    "ENTITYOVERLAY_GET_PLAYER": OpcodeDoc(
         summary="Get one overlay attached to the active player",
         int_in=("slot",),
         int_out=("overlay index (-1 when none)",),
     ),
-    "OVERLAY_COORD_GET": OpcodeDoc(
+    "ENTITYOVERLAY_GET_COORD": OpcodeDoc(
         summary="Get one overlay attached to a tile",
         int_in=("coord", "slot"),
         int_out=("overlay index (-1 when none)",),
     ),
-    "OVERLAY_NPC_DESTROY": OpcodeDoc(
+    "ENTITYOVERLAY_DELETE_NPC": OpcodeDoc(
         summary="Destroy one overlay attached to the active NPC",
         int_in=("slot",),
     ),
-    "OVERLAY_LOC_DESTROY": OpcodeDoc(
+    "ENTITYOVERLAY_DELETE_LOC": OpcodeDoc(
         summary="Destroy one overlay attached to the active location",
         int_in=("slot",),
     ),
-    "OVERLAY_PLAYER_DESTROY": OpcodeDoc(
+    "ENTITYOVERLAY_DELETE_PLAYER": OpcodeDoc(
         summary="Destroy one overlay attached to the active player",
         int_in=("slot",),
     ),
-    "OVERLAY_COORD_DESTROY": OpcodeDoc(
+    "ENTITYOVERLAY_DELETE_COORD": OpcodeDoc(
         summary="Destroy one overlay attached to a tile",
         int_in=("coord", "slot"),
     ),
-    "LOOT_SOURCE_TOTALVAL": OpcodeDoc(
+    "LOOTTRACKER_SOURCECOUNT": OpcodeDoc(
         summary="Get the recorded kill count for one loot source",
         str_in=("source_name",),
         int_out=("kill_count",),
@@ -1672,7 +1666,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "kill count. GP totals are calculated from item widgets."
         ),
     ),
-    "LOOT_ADD": OpcodeDoc(
+    "LOOTTRACKER_LOOTADD": OpcodeDoc(
         summary="Write one kill-drop row into the native loot store",
         int_in=("obj", "qty", "event_id"),
         str_in=("source_name",),
@@ -1681,7 +1675,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "count once; rows merge by (source name, object id)."
         ),
     ),
-    "ARRAY_SORT_ALL": OpcodeDoc(
+    "ARRAY_SORT": OpcodeDoc(
         summary="Sort two paired arrays by the first array",
         str_in=("primary handle", "secondary handle"),
         notes=(
@@ -1690,32 +1684,32 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "on the string stack at this revision."
         ),
     ),
-    "ARRAY_LENGTH": OpcodeDoc(
+    "ARRAY_SIZE": OpcodeDoc(
         summary="Get the element count of an array handle",
         str_in=("array handle",),
         int_out=("length",),
     ),
-    "ARRAY_SPLIT": OpcodeDoc(
+    "STRING_SPLIT": OpcodeDoc(
         summary="Split a string into a new string-array handle",
         str_in=("text", "separator"),
         str_out=("array handle",),
     ),
-    "ARRAY_JOIN": OpcodeDoc(
+    "STRING_JOIN": OpcodeDoc(
         summary="Join a string array with a separator",
         str_in=("array handle", "separator"),
         str_out=("joined text",),
     ),
-    "ARRAY_NEW": OpcodeDoc(
+    "ARRAY_CREATE": OpcodeDoc(
         summary="Create a typed array handle",
         int_in=("type_code", "length", "capacity"),
         str_out=("array handle",),
     ),
-    "ARRAY_SETLENGTH": OpcodeDoc(
+    "ARRAY_RESIZE": OpcodeDoc(
         summary="Resize an array handle",
         int_in=("length",),
         str_in=("array handle",),
     ),
-    "ARRAY_APPEND": OpcodeDoc(
+    "ARRAY_PUSH": OpcodeDoc(
         summary="Append a typed value to an array handle",
         int_in=("typed value", "value_type"),
         str_in=("array handle", "typed value when string"),

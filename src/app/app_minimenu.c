@@ -160,6 +160,54 @@ app_clientop_context_reset(struct RS_ClientOpContext* ctx)
  * menu row can outlive the entity it names by a frame, and that is a live
  * runtime state, not a contract violation.
  */
+static void
+app_clientop_subject_from_npc(
+    struct App* app,
+    struct WorldEntity_NPC const* npc,
+    struct RS_ClientOpContext* out)
+{
+    assert(app);
+    assert(app->world);
+    assert(npc);
+    assert(out);
+    app_clientop_context_reset(out);
+    out->kind = RS_CLIENTOP_NPC;
+    /* The uid IS the server slot here -- see RS_ClientOpContext::uid for
+     * why that is allowed to differ from the reference's. */
+    out->uid = npc->server_slot;
+    out->type = npc->npc_id;
+    out->coord = RS_CLIENTOP_COORD(
+        npc->grid_position.level,
+        app->world->_base_tile_x + npc->grid_position.x,
+        app->world->_base_tile_z + npc->grid_position.z);
+    snprintf(out->name, sizeof(out->name), "%s", npc->name);
+}
+
+/*
+ * NPC_FINDUID (6758): the npc a uid names, if it is in the scene. A uid here is
+ * the server slot (RS_ClientOpContext::uid), so unlike the reference's -- slot
+ * in the low 16 bits, npc type above -- there is no type half to check.
+ */
+int
+app_cs2_npc_by_uid(
+    void* user,
+    int uid,
+    struct RS_ClientOpContext* out)
+{
+    struct App* app = (struct App*)user;
+    struct WorldEntity_NPC* npc;
+
+    assert(app);
+    assert(out);
+    if( !app->world || uid < 0 )
+        return 0;
+    npc = World_NpcGetByServerSlot(app->world, uid);
+    if( !npc )
+        return 0;
+    app_clientop_subject_from_npc(app, npc, out);
+    return 1;
+}
+
 static bool
 app_clientop_subject_from_element(
     struct App* app,
@@ -186,13 +234,7 @@ app_clientop_subject_from_element(
         struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, element_id, NULL);
         if( !npc )
             return false;
-        /* The uid IS the server slot here -- see RS_ClientOpContext::uid for
-         * why that is allowed to differ from the reference's. */
-        out->uid = npc->server_slot;
-        out->type = npc->npc_id;
-        out->coord = RS_CLIENTOP_COORD(
-            npc->grid_position.level, base_x + npc->grid_position.x, base_z + npc->grid_position.z);
-        snprintf(out->name, sizeof(out->name), "%s", npc->name);
+        app_clientop_subject_from_npc(app, npc, out);
         return true;
     }
     case RS_CLIENTOP_LOC:
@@ -215,7 +257,7 @@ app_clientop_subject_from_element(
         if( !stack )
             return false;
         out->type = stack->obj_id;
-        /* `_6853`, and the other half of a ground stack's identity -- see
+        /* `OBJ_COUNT`, and the other half of a ground stack's identity -- see
          * RS_ClientOpContext::count. */
         out->count = stack->count;
         out->coord = RS_CLIENTOP_COORD(
@@ -326,6 +368,43 @@ app_minimenu_pick_subject(
  * cache's mouse-over highlighter (clientscript 5350) outlined a fountain the
  * pointer was not on.
  */
+_Static_assert(
+    RS_CLIENTOP_MENU_ENTRY_MAX == UITREE_MINIMENU_MAX_OPTIONS,
+    "the published entry list must hold every row a menu can have");
+
+/*
+ * Every entry of the menu, for the indexed MINIMENU_*AT ops. `hover_menu` is the
+ * scratch menu at the pointer; while the popup is open it is NULL (see
+ * app_hover_text_update) and the popup's own rows are the entries.
+ */
+static void
+app_minimenu_entries_publish(
+    struct App* app,
+    struct UIMinimenu const* hover_menu)
+{
+    struct RS_ClientOpState* clientop = &app->host.clientop;
+    struct UIMinimenu const* popup = &app->interact.minimenu;
+    struct UIMinimenu const* source = popup->visible ? popup : hover_menu;
+
+    clientop->menu_entry_count = 0;
+    clientop->menu_hovered_index = popup->visible ? popup->hovered_option : -1;
+    if( !source )
+        return;
+    for( int i = 0; i < source->option_count; i++ )
+    {
+        struct UIMinimenuOption const* option = &source->options[i];
+        struct RS_ClientOpContext subject;
+        int type = app_minimenu_pick_subject(app, &option->pick, &subject);
+        /* An interface row is type 7, the same derivation `_7100` uses. */
+        if( type == RS_MINIMENU_TYPE_NONE &&
+            (option->pick.kind == UI_MINIMENU_PICK_UI ||
+             option->pick.kind == UI_MINIMENU_PICK_INV_SLOT) )
+            type = RS_MINIMENU_TYPE_COMPONENT;
+        RS_ClientOpMenuEntrySet(clientop, i, type, &subject);
+    }
+    clientop->menu_entry_count = source->option_count;
+}
+
 void
 app_minimenu_entry_publish(
     struct App* app,
@@ -357,6 +436,7 @@ app_minimenu_entry_publish(
         minimenu_type = app_minimenu_pick_subject(app, &acting->pick, &subject);
     }
     RS_ClientOpMouseoverSet(clientop, &subject, minimenu_type);
+    app_minimenu_entries_publish(app, menu);
 
     if( torirs_env_clientop_debug() )
     {
@@ -2100,10 +2180,7 @@ app_minimenu_run_option(
      *
      * A profile authors this row -- `op0_action=PLUGIN_PANEL` on the
      * `manage_plugins_button` it places in the logout tab -- so the CLIENT
-     * never has to know which gameframe it is running on. The lanes whose
-     * frame comes out of a cache and cannot be authored get the same plate
-     * built for them instead (app_plugin_button_sync), and answer their own
-     * click; this is where the authored ones arrive.
+     * never has to know which gameframe it is running on.
      *
      * Before the pick.kind switch, like the client rows below it: there is no
      * engine behaviour behind this action id to fall through to, and a
@@ -2150,6 +2227,13 @@ app_minimenu_run_option(
         if( opt.pick.has_node_identity && node >= 0 && (uint32_t)node < app->tree->component_count )
         {
             struct UITreeComponent const* c = &app->tree->components[node];
+            /* The engine's own pop-out buttons are owned nodes too, but no
+             * plugin owns them. */
+            if( c->plugin_owner == APP_PLUGIN_NAV_OWNER )
+            {
+                (void)app_plugin_popout_nav_click(app, node);
+                return 0;
+            }
             PluginHost_WidgetOperation(
                 app->plugins,
                 c->plugin_owner,

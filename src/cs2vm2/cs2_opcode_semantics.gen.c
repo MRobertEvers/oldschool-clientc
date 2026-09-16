@@ -600,8 +600,8 @@ struct CS2_OpcodeSemantics const cs2_opcode_semantics[] =
         CS2_SEM_DIALECT_CANONICAL | CS2_SEM_DIALECT_RS2_DAT2,
     },
     {
-        CS2_OP_DIV,
-        "DIV",
+        CS2_OP_DIVIDE,
+        "DIVIDE",
         CS2_SEM_OPERAND_INT8,
         CS2_SEM_STACK_EFFECT_FIXED,
         2,
@@ -680,8 +680,8 @@ struct CS2_OpcodeSemantics const cs2_opcode_semantics[] =
         CS2_SEM_DIALECT_CANONICAL | CS2_SEM_DIALECT_RS2_DAT2,
     },
     {
-        CS2_OP_MOD,
-        "MOD",
+        CS2_OP_MODULO,
+        "MODULO",
         CS2_SEM_OPERAND_INT8,
         CS2_SEM_STACK_EFFECT_FIXED,
         2,
@@ -1020,8 +1020,8 @@ struct CS2_OpcodeSemantics const cs2_opcode_semantics[] =
         CS2_SEM_DIALECT_CANONICAL | CS2_SEM_DIALECT_RS2_DAT2,
     },
     {
-        CS2_OP_ARRAY_LENGTH,
-        "ARRAY_LENGTH",
+        CS2_OP_ARRAY_SIZE,
+        "ARRAY_SIZE",
         CS2_SEM_OPERAND_INT8,
         CS2_SEM_STACK_EFFECT_FIXED,
         0,

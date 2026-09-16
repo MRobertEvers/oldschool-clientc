@@ -637,10 +637,12 @@ UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge)
  *  plugin host's ceiling can be checked against it. */
 #define BRIDGE_PLUGIN_IMAGE_SLOTS UITREE_SCENE_PLUGIN_IMAGE_SLOTS
 
-int
-UITreeSceneBridge_PublishPluginImage(
+/* One ARGB picture with a real alpha channel, deep-copied into the scene at
+ * `scene_id`, replacing whatever that id held. */
+static void
+bridge_publish_argb(
     struct UITreeSceneBridge* bridge,
-    int slot,
+    int scene_id,
     int width,
     int height,
     uint32_t const* argb)
@@ -648,21 +650,13 @@ UITreeSceneBridge_PublishPluginImage(
     struct ToriDraw_Sprite** sprites;
     struct ToriDraw_Sprite* sprite;
     size_t bytes;
-    int scene_id;
 
     assert(bridge);
     assert(bridge->scene);
     assert(argb);
+    assert(width > 0);
+    assert(height > 0);
 
-    if( slot < 0 || slot >= BRIDGE_PLUGIN_IMAGE_SLOTS )
-        return -1;
-    /* Geometry comes off a decoded FILE, so a wrong one is bad input rather
-     * than a caller's bug: refuse it and let the plugin hear that its asset
-     * did not become an image. */
-    if( width <= 0 || height <= 0 || width > 4096 || height > 4096 )
-        return -1;
-
-    scene_id = UITREE_SCENE_PLUGIN_IMAGE_BASE + slot;
     bytes = (size_t)width * (size_t)height * sizeof(uint32_t);
 
     sprite = calloc(1, sizeof(*sprite));
@@ -689,6 +683,52 @@ UITreeSceneBridge_PublishPluginImage(
     /* Add over an occupied id frees what was there, which is what a re-saved
      * asset wants. */
     ToriDraw_SceneSpriteAdd(bridge->scene, scene_id, sprites, 1);
+}
+
+int
+UITreeSceneBridge_PublishPluginImage(
+    struct UITreeSceneBridge* bridge,
+    int slot,
+    int width,
+    int height,
+    uint32_t const* argb)
+{
+    int scene_id;
+
+    assert(bridge);
+    assert(argb);
+
+    if( slot < 0 || slot >= BRIDGE_PLUGIN_IMAGE_SLOTS )
+        return -1;
+    /* Geometry comes off a decoded FILE, so a wrong one is bad input rather
+     * than a caller's bug: refuse it and let the plugin hear that its asset
+     * did not become an image. */
+    if( width <= 0 || height <= 0 || width > 4096 || height > 4096 )
+        return -1;
+
+    scene_id = UITREE_SCENE_PLUGIN_IMAGE_BASE + slot;
+    bridge_publish_argb(bridge, scene_id, width, height, argb);
+    return scene_id;
+}
+
+int
+UITreeSceneBridge_PublishNavButton(
+    struct UITreeSceneBridge* bridge,
+    int slot,
+    int width,
+    int height,
+    uint32_t const* argb)
+{
+    int const scene_id = UITREE_SCENE_PLUGIN_NAV_BUTTON_BASE + slot;
+
+    assert(bridge);
+    assert(argb);
+    assert(slot >= 0);
+    assert(slot < UITREE_SCENE_PLUGIN_NAV_BUTTON_SLOTS);
+    /* Composed by the engine at a fixed size, never read off a file. */
+    assert(width > 0);
+    assert(height > 0);
+    bridge_publish_argb(bridge, scene_id, width, height, argb);
     return scene_id;
 }
 

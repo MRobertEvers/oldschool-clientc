@@ -55,11 +55,13 @@ assert.strictEqual(
   'preferred width is copied only as compatibility metadata, never used for allocation');
 assert.match(canonicalCss, /grid-template-columns:\s*minmax\(0, 1fr\) 42px/,
   'the canonical modern document consumes the same 42px rail width');
-assert.match(adapter, /GAME_MIN \+ RAIL_WIDTH \+ PANEL_WIDTH/,
+assert.match(adapter, /const railWidth = this\.rail\.railHidden \? 0 : RAIL_WIDTH;/,
+  'a rail the game lane carries itself (railHidden) reserves no width');
+assert.match(adapter, /GAME_MIN \+ railWidth \+ PANEL_WIDTH/,
   'split/exclusive mode is derived from available width');
 assert.match(adapter, /game\.hidden\s*=\s*mode\s*===\s*['"]exclusive['"]/,
   'exclusive mode replaces the game instead of covering it');
-assert.match(adapter, /mode\s*=\s*['"]collapsed['"][\s\S]*RAIL_WIDTH/,
+assert.match(adapter, /mode\s*=\s*['"]collapsed['"][\s\S]*railWidth/,
   'collapsed mode retains only the narrow rail');
 assert.match(adapter, /type:\s*['"]page\.snapshot['"][\s\S]*commands:\s*initial/,
   'a complete C sync becomes one atomic canonical snapshot');
@@ -80,6 +82,8 @@ assert.match(execWebHeader,
 assert.match(execWeb,
   /\\\"protocol\\\":1,\\\"type\\\":\\\"rail\.snapshot\\\"/,
   'C publishes the registry using protocol-1 field names');
+assert.match(execWeb, /\\\"railHidden\\\":%s[\s\S]*snapshot->rail_hidden \? "true" : "false"/,
+  'C publishes railHidden on every rail snapshot');
 assert.match(execWeb, /web_chrome_apply_batch[\s\S]*chrome_web_batch_begin[\s\S]*chrome_web_batch_end/,
   'C crosses Wasm to JS once for each atomic retained transaction');
 assert.match(adapter, /torirsChromeApplyBatch[\s\S]*Array\.isArray[\s\S]*host\.apply/,

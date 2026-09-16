@@ -56,6 +56,8 @@ enum RS_ClientOpKind
 
 /** Bytes of a subject's name, matching the entity snapshots it comes from. */
 #define RS_CLIENTOP_NAME_MAX 64
+/* UITREE_MINIMENU_MAX_OPTIONS; the App asserts they agree. */
+#define RS_CLIENTOP_MENU_ENTRY_MAX 400
 
 /** Bytes of a MINIMENU_ENTRY string. A menu row, not a name: it carries the op
  *  and the coloured target together (see mouseover_op), so it is sized like the
@@ -112,7 +114,7 @@ struct RS_ClientOpContext
     /** npc type / loc type / obj id. -1 for a tile and a player. */
     int type;
     /**
-     * A ground stack's COUNT, as `_6853` reports it; -1 for every other kind.
+     * A ground stack's COUNT, as `OBJ_COUNT` reports it; -1 for every other kind.
      *
      * Half of a ground obj's identity and not a detail: two stacks of the same
      * item with different counts are two rows on one tile, and the reference's
@@ -239,10 +241,38 @@ struct RS_ClientOpState
     int mouseover_component;
     /** Is the right-click menu open (`_7108`)? */
     bool menu_open;
+    /**
+     * EVERY entry of the menu, by index, for the indexed ops
+     * MINIMENU_TYPEAT / FINDNPCAT / FINDLOCAT / FINDOBJAT / FINDPLAYERAT
+     * (7451, 7453..7456): each entry's RS_MINIMENU_TYPE_* and its subject,
+     * resolved from the scene when it was published. Index order is the
+     * menu's own (option_count - 1 is the acting row, as above).
+     *
+     * The menu is the open popup while it is up, and otherwise the scratch
+     * menu the hover line is composed from -- the reference's entry list is
+     * the same object in both states.
+     */
+    struct
+    {
+        int type;
+        struct RS_ClientOpContext subject;
+    } menu_entries[RS_CLIENTOP_MENU_ENTRY_MAX];
+    int menu_entry_count;
+    /** The popup row under the pointer (MINIMENU_HOVERED_INDEX, 7460), or -1
+     *  when the popup is closed or no row is hovered. */
+    int menu_hovered_index;
 };
 
 /** Every slot empty, no dispatch in progress. */
 void RS_ClientOpReset(struct RS_ClientOpState* state);
+
+/** Store one menu entry for the indexed MINIMENU_*AT ops (see menu_entries).
+ *  `index` is 0..RS_CLIENTOP_MENU_ENTRY_MAX-1. */
+void RS_ClientOpMenuEntrySet(
+    struct RS_ClientOpState* state,
+    int index,
+    int minimenu_type,
+    struct RS_ClientOpContext const* subject);
 
 void RS_ClientOpSet(
     struct RS_ClientOpState* state,

@@ -210,8 +210,8 @@ main(void)
     CHECK(op2(CS2_OP_ADD, 7, 5), 12, "ADD(7,5)");
     CHECK(op2(CS2_OP_SUB, 7, 5), 2, "SUB(7,5)");
     CHECK(op2(CS2_OP_MULTIPLY, 6, 7), 42, "MULTIPLY(6,7)");
-    CHECK(op2(CS2_OP_DIV, 7, 2), 3, "DIV(7,2)");
-    CHECK(op2(CS2_OP_MOD, 7, 3), 1, "MOD(7,3)");
+    CHECK(op2(CS2_OP_DIVIDE, 7, 2), 3, "DIV(7,2)");
+    CHECK(op2(CS2_OP_MODULO, 7, 3), 1, "MOD(7,3)");
     CHECK(op2(CS2_OP_POW, 2, 10), 1024, "POW(2,10)");
     CHECK(op2(CS2_OP_OR, 6, 3), 7, "OR(6,3)");
     CHECK(op2(CS2_OP_SETBIT, 0, 3), 8, "SETBIT(0,3)");

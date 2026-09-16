@@ -123,8 +123,6 @@ app_debug_overlay_init(struct App* app)
     g_plugin_fullscreen = 0;
     g_plugin_fullscreen_built = -1;
     app->plugin_panel = -1;
-    app->plugin_button_node = -1;
-    app->plugin_button_disabled = 0;
     app->plugin_panel_built_for = -1;
     app->plugin_panel_built_rev = -1;
     app->plugin_panel_built_model_rev = 0;

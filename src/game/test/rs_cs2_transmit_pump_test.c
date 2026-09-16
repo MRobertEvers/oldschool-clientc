@@ -202,6 +202,11 @@ host_quiesce(struct RS_CS2Host* host)
     host->misc_transmit_dirty = 0;
     host->friend_transmit_dirty = 0;
     host->chat_transmit_dirty = 0;
+    host->clan_transmit_dirty = 0;
+    host->stock_transmit_dirty = 0;
+    host->active_offers_transmit_dirty = 0;
+    host->clan_settings_transmit_dirty = 0;
+    host->clan_channel_transmit_dirty = 0;
 }
 
 /* ==========================================================================
@@ -398,6 +403,66 @@ get_chat(struct RS_CS2Host const* h)
     return h->chat_transmit_dirty;
 }
 
+static void
+set_clan(struct RS_CS2Host* h)
+{
+    h->clan_transmit_dirty = 1;
+}
+
+static int
+get_clan(struct RS_CS2Host const* h)
+{
+    return h->clan_transmit_dirty;
+}
+
+static void
+set_stock(struct RS_CS2Host* h)
+{
+    h->stock_transmit_dirty = 1;
+}
+
+static int
+get_stock(struct RS_CS2Host const* h)
+{
+    return h->stock_transmit_dirty;
+}
+
+static void
+set_active_offers(struct RS_CS2Host* h)
+{
+    h->active_offers_transmit_dirty = 1;
+}
+
+static int
+get_active_offers(struct RS_CS2Host const* h)
+{
+    return h->active_offers_transmit_dirty;
+}
+
+static void
+set_clan_settings(struct RS_CS2Host* h)
+{
+    h->clan_settings_transmit_dirty = 1;
+}
+
+static int
+get_clan_settings(struct RS_CS2Host const* h)
+{
+    return h->clan_settings_transmit_dirty;
+}
+
+static void
+set_clan_channel(struct RS_CS2Host* h)
+{
+    h->clan_channel_transmit_dirty = 1;
+}
+
+static int
+get_clan_channel(struct RS_CS2Host const* h)
+{
+    return h->clan_channel_transmit_dirty;
+}
+
 static struct FlagCase const g_flag_cases[] = {
     { "widgets_loaded_dirty", set_widgets, get_widgets },
     { "chat_transmit_dirty", set_chat, get_chat },
@@ -406,6 +471,11 @@ static struct FlagCase const g_flag_cases[] = {
     { "stat_transmit_dirty", set_stat, get_stat },
     { "misc_transmit_dirty", set_misc, get_misc },
     { "friend_transmit_dirty", set_friend, get_friend },
+    { "clan_transmit_dirty", set_clan, get_clan },
+    { "stock_transmit_dirty", set_stock, get_stock },
+    { "active_offers_transmit_dirty", set_active_offers, get_active_offers },
+    { "clan_settings_transmit_dirty", set_clan_settings, get_clan_settings },
+    { "clan_channel_transmit_dirty", set_clan_channel, get_clan_channel },
 };
 
 static void
@@ -948,9 +1018,9 @@ test_queued_widget_operations(void)
         req.u.CC_TRIGGEROP.component_id = id;
         req.u.CC_TRIGGEROP.op_index = 3;
         CHECK(RS_CS2Host_Exec(thread, &req) == CS2VM_EXECNO_OK, "queue native operation");
-        req.kind = CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL;
-        req.u.IF_TRIGGEROPLOCAL.component_id = spec.component_id;
-        req.u.IF_TRIGGEROPLOCAL.sub = 0;
+        req.kind = CS2VM_HOST_REQUEST_IF_SCRIPT_TRIGGER;
+        req.u.IF_SCRIPT_TRIGGER.component_id = spec.component_id;
+        req.u.IF_SCRIPT_TRIGGER.sub = 0;
         CHECK(RS_CS2Host_Exec(thread, &req) == CS2VM_EXECNO_OK, "queue native child operation");
         if( stale )
         {

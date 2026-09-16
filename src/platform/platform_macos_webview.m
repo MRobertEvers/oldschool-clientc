@@ -116,6 +116,9 @@ _Static_assert(MAC_BROWSER_QUEUE_MAX == 64,
 @property(nonatomic, strong) ToriRSPluginWebView* view;
 @property(nonatomic, strong) ToriRSPluginChromeWindow* hostWindow;
 @property(nonatomic, assign) NSRect lastScreenFrame;
+/* Taken off screen because nothing is allocated to it: a hidden rail and no
+ * page. @see PlatformWindow_ChromeSetRailHidden. */
+@property(nonatomic, assign) BOOL hostOffScreen;
 @property(nonatomic, strong) NSURL* rootURL;
 @property(nonatomic, strong) NSURL* documentURL;
 @property(nonatomic, strong) NSMutableArray<NSString*>* inbound;
@@ -273,6 +276,26 @@ mac_url_is_below(NSURL* url, NSURL* root)
     int density = PlatformWindow_PixelDensity(self.platform);
     int pixels = PlatformWindow_ChromeWidth(self.platform);
     CGFloat width = density > 0 ? (CGFloat)pixels / (CGFloat)density : (CGFloat)pixels;
+    if( width < 1.0 && PlatformWindow_ChromeRailHidden(self.platform) )
+    {
+        /* Nothing is allocated: the game's own pop-out column carries the
+         * plugins and no page is up. A child window is ordered back in with
+         * its parent, so it is detached rather than merely ordered out. */
+        if( self.hostWindow && !self.hostOffScreen )
+        {
+            [window removeChildWindow:self.hostWindow];
+            [self.hostWindow orderOut:nil];
+            self.hostOffScreen = YES;
+            self.lastScreenFrame = NSZeroRect;
+        }
+        return;
+    }
+    if( self.hostWindow && self.hostOffScreen )
+    {
+        [window addChildWindow:self.hostWindow ordered:NSWindowAbove];
+        [self.hostWindow orderFront:nil];
+        self.hostOffScreen = NO;
+    }
     if( width < 1.0 )
         width = MAC_BROWSER_RAIL_POINTS;
     if( width > NSWidth(content.bounds) )
@@ -541,8 +564,10 @@ PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* platform)
     state.hostWindow = host;
     state.lastScreenFrame = NSZeroRect;
     g_mac_browser = state;
-    [state syncFrame];
     [host orderFront:nil];
+    /* After ordering it in, so a browser created with nothing allocated to it
+     * (a hidden rail and no page) is taken straight back off screen. */
+    [state syncFrame];
     [view loadFileURL:state.documentURL allowingReadAccessToURL:state.rootURL];
     return true;
 }

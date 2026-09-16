@@ -137,6 +137,20 @@ CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host);
 struct ToriRS_Task*
 CreateTask_CS2FriendTransmitDispatch(struct RS_CS2Host* host);
 
+/* The no-trigger server transmits (friends chat, offer slots, trading post,
+ * clan settings, clan channel): same contract as the friend dispatch. */
+struct ToriRS_Task*
+CreateTask_CS2ClanTransmitDispatch(struct RS_CS2Host* host);
+struct ToriRS_Task*
+CreateTask_CS2StockTransmitDispatch(struct RS_CS2Host* host);
+struct ToriRS_Task*
+CreateTask_CS2ActiveOffersTransmitDispatch(struct RS_CS2Host* host);
+struct ToriRS_Task*
+CreateTask_CS2ClanSettingsTransmitDispatch(struct RS_CS2Host* host);
+struct ToriRS_Task*
+CreateTask_CS2ClanChannelTransmitDispatch(struct RS_CS2Host* host);
+
+
 /*
  * Re-run every CC/IF_SETONCHATTRANSMIT hook: the chatbox scrollback.
  *

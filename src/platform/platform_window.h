@@ -228,6 +228,22 @@ PlatformWindow_ChromeOpen(
 bool PlatformWindow_ChromeRailOpen(
     struct PlatformWindow* platform, int width, char const* title);
 
+/**
+ * Take the rail away, or give it back, without touching an open page.
+ *
+ * Hidden while a lane's own pop-out column carries the plugin destinations
+ * (ToriRSChromeRailSnapshot::rail_hidden). A hidden rail takes no points: a
+ * RailOpen while hidden only remembers its width, a page opens at its own
+ * width alone, and Close leaves nothing behind. Hiding a rail that grew the
+ * window gives that growth back; hiding it beside an open page gives its
+ * points to the game area instead, so the window does not move. Showing it
+ * again re-opens a rail that was asked for.
+ */
+void PlatformWindow_ChromeSetRailHidden(struct PlatformWindow* platform, bool hidden);
+
+/** What PlatformWindow_ChromeSetRailHidden last set. */
+bool PlatformWindow_ChromeRailHidden(struct PlatformWindow const* platform);
+
 /** Resize only the attached page portion, preserving the fixed rail and the
  * game width. Used when a newly selected plugin has another preferred width. */
 bool PlatformWindow_ChromeSetPageWidth(
@@ -460,6 +476,14 @@ PlatformWindow_SetTitle(
  */
 void
 PlatformWindow_SetTextInput(struct PlatformWindow* platform, int on);
+
+/**
+ * Open `url` in the system browser (clientscript openurl). A backend with no
+ * browser to hand it to logs and does nothing, which is what the reference
+ * client does when its launcher callback fails.
+ */
+void
+PlatformWindow_OpenUrl(struct PlatformWindow* platform, char const* url);
 
 /**
  * Does this device have an ON-SCREEN keyboard -- one the client can raise, and

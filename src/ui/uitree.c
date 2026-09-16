@@ -3058,8 +3058,7 @@ UITree_ClearChildren(
      * a real server sends its login burst of IF_SETTABs, which looks like the
      * control failing to build rather than like something sweeping it away.
      *
-     * Recognised by id band (TORIRS_REVCONFIG_GROUP), the same way the chrome's
-     * own components are recognised everywhere else in this tree. */
+     * Recognised by id band (TORIRS_REVCONFIG_GROUP). */
     {
         int32_t child = c->first_child;
         int32_t kept_head = -1;
@@ -6647,11 +6646,11 @@ UITree_RootIsDisplayable(
      * (loaded-for-access, NOT displayed). Such orphan roots must not render, hover,
      * or take clicks — otherwise a full-canvas panel (e.g. interface 728) covers
      * the gameframe. Displayable = the active gameframe (which is baked as several
-     * roots sharing the toplevel group id), the app-overlay chrome (group 0x7FFE),
-     * or a group actually placed into a slot (InterfaceParent-mounted). */
+     * roots sharing the toplevel group id), or a group actually placed into a
+     * slot (InterfaceParent-mounted). */
     toplevel_group = (tree->components[tree->root_index].component_id >> 16) & 0xffff;
     group = (tree->components[root].component_id >> 16) & 0xffff;
-    if( group <= 0 || group == toplevel_group || group == 0x7FFE )
+    if( group <= 0 || group == toplevel_group )
         return 1;
     return UITree_InterfaceParentIsMountedGroup(tree, group);
 }

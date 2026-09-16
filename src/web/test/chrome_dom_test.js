@@ -380,4 +380,51 @@ assert.strictEqual(received[received.length - 2].type, 'page.close');
 assert.strictEqual(received[received.length - 1].type, 'rail.snapshot');
 assert.strictEqual(built.canvas.focused, true, 'collapse hands focus back to the game canvas');
 
+/* railHidden: the game lane's own pop-out column carries the destinations, so
+ * the dock reserves no rail track in any mode, yet a selection still opens the
+ * page beside the game. */
+built.app.clientWidth = built.layout.clientWidth = global_.innerWidth = 1200;
+global_.torirsChromeRailSync({
+  r: 4, g: 20, pg: 40, a: 2, l: 2, s: 2, x: 1, railHidden: true, entries
+});
+message = received[received.length - 1];
+assert.strictEqual(message.type, 'rail.snapshot');
+assert.strictEqual(message.railHidden, true, 'the canonical snapshot carries railHidden');
+assert.strictEqual(message.entries.length, 33, 'the entries still cross');
+assert.strictEqual(host.layoutMode, 'split');
+assert.strictEqual(built.mount.hidden, false, 'the page pane still shows');
+assert.strictEqual(built.mount.style.width, '320px', 'split reserves the pane alone');
+assert.strictEqual(built.mount.style.flex, '0 0 320px');
+assert.strictEqual(
+  built.document.documentElement.style['--torirs-dock-width'], '320px',
+  'the game reservation excludes the rail');
+
+/* 1085 = GAME_MIN + PANEL_WIDTH: room for split only because no rail is kept. */
+built.app.clientWidth = built.layout.clientWidth = global_.innerWidth = 1085;
+resize[0]();
+assert.strictEqual(host.layoutMode, 'split', 'the split threshold does not count the rail');
+global_.torirsChromeRailSync({
+  r: 4, g: 20, pg: 40, a: 2, l: 2, s: 2, x: 1, railHidden: false, entries
+});
+assert.strictEqual(host.layoutMode, 'exclusive', 'while a shown rail needs 42px more');
+built.app.clientWidth = built.layout.clientWidth = global_.innerWidth = 1200;
+resize[0]();
+assert.strictEqual(built.mount.style.width, '362px', 'railHidden false restores the rail track');
+
+global_.torirsChromeRailSync({
+  r: 4, g: 21, pg: 40, a: -1, l: 2, s: 2, x: 0, railHidden: true, entries
+});
+assert.strictEqual(host.layoutMode, 'collapsed');
+assert.strictEqual(built.mount.hidden, true, 'a collapsed hidden rail leaves no dock');
+assert.strictEqual(built.mount.style.width, '0px');
+assert.strictEqual(built.mount.style.flex, '0 0 0px');
+assert.strictEqual(built.document.documentElement.style['--torirs-dock-width'], '0px');
+assert.strictEqual(built.game.hidden, false);
+global_.torirsChromeRailSync({
+  r: 4, g: 22, pg: 40, a: -1, l: 2, s: 2, x: 0, railHidden: false, entries
+});
+assert.strictEqual(built.mount.hidden, false);
+assert.strictEqual(built.mount.style.width, '42px', 'a shown collapsed rail keeps its 42px');
+assert.strictEqual(built.document.documentElement.style['--torirs-dock-width'], '42px');
+
 console.log('web canonical plugin chrome adapter: ok');

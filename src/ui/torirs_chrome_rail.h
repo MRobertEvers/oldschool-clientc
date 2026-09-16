@@ -54,6 +54,13 @@ struct ToriRSChromeRailSnapshot
     /** Plugin index or TORIRS_CHROME_SHELL_PAGE_MANAGE. */
     int selected_entry;
     int expanded;
+    /**
+     * The lane's own pop-out column carries these destinations instead, so a
+     * presenter shows no rail of its own and reserves no width for one. The
+     * entries still arrive: the page pane and its selection are unchanged.
+     * @see ui/torirs_chrome_popout_nav.h.
+     */
+    int rail_hidden;
     int entry_count;
     struct ToriRSChromeRailEntry entries[TORIRS_CHROME_RAIL_ENTRY_MAX];
 };

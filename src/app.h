@@ -804,6 +804,57 @@ enum AppNativeLayout
  */
 #define APP_NATIVE_LAYOUT_RETRY_CYCLES (APP_SERVER_TICK_LOGIC_CYCLES * 5)
 
+/** One engine button in the lane's pop-out column. Keyed by DESTINATION, not
+ *  by position: a plugin enabled above another must not take its button. */
+struct AppPluginPopoutNavButton
+{
+    /** Plugin index, or TORIRS_CHROME_SHELL_PAGE_MANAGE. */
+    int destination;
+    struct UITreeNodeRef ref;
+    /** Its picture's scene slot, held for the button's life so a button that
+     *  moves up the column does not redraw another's art. */
+    int scene_slot;
+    /** Which icon revision the published picture was composed from. */
+    uint32_t icon_revision;
+    int composed;
+    /** What the node was last given; reset when the node is a new incarnation
+     *  (the pop-out interface was remounted), so every property is set again. */
+    int graphic_set;
+    int y;
+    int transparency;
+    char label[UITREE_MENU_OPTION_LEN];
+    /** Scratch for one tick's reconcile. */
+    int seen;
+};
+
+struct AppPluginPopoutNav
+{
+    /** enum ToriRSPluginNavMode. */
+    int mode;
+    /** The column is on screen and carries the destinations. */
+    int active;
+    /**
+     * What the rail snapshot says: `active`, and also every moment the column
+     * cannot carry them only because the game has not put it up yet -- the
+     * title screen and the first ticks of a session on a lane whose profile
+     * names one. Answering "show the rail" there grew the window by a rail on
+     * every boot and took it back at login.
+     */
+    int rail_hidden;
+    /** Logic ticks in-game with the column declared but not usable. */
+    int unusable_ticks;
+    int button_count;
+    struct AppPluginPopoutNavButton buttons[TORIRS_CHROME_RAIL_ENTRY_MAX];
+    /** The click registration stamped on every button; never 0. */
+    uint64_t op_serial;
+    /** What the last trace line said, so the trace reports changes only. */
+    int reported_active;
+    int reported_first_y;
+    int reported_capacity;
+    int reported_count;
+    int reported_rail_hidden;
+};
+
 struct App
 {
     struct AppConfig cfg;
@@ -1769,6 +1820,14 @@ struct App
     struct ToriRSChromeRailIntent plugin_rail_layout;
     int plugin_rail_has_layout;
     /**
+     * Plugin navigation inside the lane's own pop-out column, when the profile
+     * names one (`[role:plugin_nav_column]`) and it is on screen. While
+     * `active`, the rail snapshot says `rail_hidden` and the column carries
+     * one engine-owned button per rail destination.
+     * @see plugin/torirs_plugin_popout_nav.u.c.
+     */
+    struct AppPluginPopoutNav plugin_nav;
+    /**
      * The vtable the shell handed over, not yet started.
      *
      * Held unbound because begin() is what opens an OS window, and a window
@@ -1804,20 +1863,6 @@ struct App
     int chrome_merged_dbg;
     int chrome_merged_win;
     uint32_t chrome_merged_panel;
-    /** Tree node of the client-built "Manage Plugins" button, or -1. Rechecked
-     *  rather than trusted: a tree rebuild takes it, and the index alone cannot
-     *  say so. */
-    int32_t plugin_button_node;
-    /**
-     * Whether that button is currently switched off because the plugin lane's
-     * server is unreachable (app_plugin_io_down).
-     *
-     * Held so the hide/show is applied on the EDGE. The reachability test runs
-     * every frame and the tree apply marks the whole tree dirty, so reapplying
-     * it unconditionally would cost a full UI redraw per frame for as long as
-     * the server stayed down -- and equally for as long as it stayed up.
-     */
-    int plugin_button_disabled;
     /** The window's panel handle in plugin_ui, or -1 before it is built. */
     int plugin_panel;
     int plugin_panel_visible;
@@ -2305,8 +2350,10 @@ struct App
     /** Formatted countdown line handed to the reboot_timer widget; rebuilt on
      *  every read, so it is only valid until the next one. */
     char reboot_timer_text[48];
-    /** MESSAGE_PRIVATE dedupe (reference messageIds ring). */
-    int pm_message_ids[100];
+    /** The private and clan message dedupe ring (reference field1077): one
+     *  ring for both, as in the client. A private message keys by its id, a
+     *  clan message by (world << 32) + its counter. */
+    int64_t pm_message_ids[100];
     int pm_message_head;
     int tracking_enabled; /* ENABLE/FINISH_TRACKING */
     int net_cheat_sent;   /* TORIRS_NET_CHEAT one-shot latch */
@@ -2566,6 +2613,15 @@ void
 App_SetPluginChromeExec(
     struct App* app, struct ToriRSChromeExec const* exec, int kind, int explicit_choice);
 
+/**
+ * Where plugin destinations are offered: enum ToriRSPluginNavMode. `auto` (the
+ * default) uses the lane's pop-out column when its profile names one and keeps
+ * the separate rail otherwise; `rail` always keeps the rail. From the boot
+ * manifest's `[chrome] plugin_nav=`, overridden by TORIRS_PLUGIN_NAV.
+ */
+void
+App_SetPluginNavMode(struct App* app, int mode);
+
 /** Device pixels per chrome pixel. */
 int
 App_ChromeScale(struct App const* app);
@@ -2742,6 +2798,14 @@ App_PluginLayoutTick(struct App* app);
  */
 int
 App_TakeTextInputChange(struct App* app, int* out_on);
+
+/**
+ * A url a clientscript asked the client to open (openurl, 3113), copied into
+ * `out` and cleared. The same split as App_TakeTextInputChange: opening a
+ * browser is the platform's to do. @return 1 when a url was pending.
+ */
+int
+App_TakeOpenUrl(struct App* app, char* out, int cap);
 
 int
 App_TakeWindowModeChange(
