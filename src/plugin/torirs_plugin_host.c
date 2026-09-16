@@ -4996,11 +4996,19 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
             continue;
         host->dispatching = i;
         host->dispatch_event = PLUGIN_CALLBACK_STOP;
+        /* The same flag runtime teardown raises, and for the same reason: an
+         * on_stop that arms a control, subscribes a watch or claims a widget
+         * is writing into a host that is going away, and every verb tests
+         * this to refuse it. Free used to dispatch without it, so the one
+         * shutdown path a plugin cannot avoid was the one that accepted the
+         * writes -- and the registration outlived the table it was in. */
+        ctx->tearing_down = true;
         if( ctx->def->callbacks.on_stop )
             ctx->def->callbacks.on_stop(
                 &ctx->v2->runtime.api, ctx->v2->state);
         host->dispatching = -1;
         host->dispatch_event = -1;
+        ctx->tearing_down = false;
         plugin_v2_shutdown(ctx);
         ctx->running = false;
         plugin_objects_destroy_all(host, ctx);

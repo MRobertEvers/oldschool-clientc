@@ -3027,21 +3027,27 @@ static void test_widget_operations(void)
               "a row the plugin never armed is refused");
         op_mode=5;
         CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,first,1),"the arming dispatch runs");
-        CHECK(op_registration==first,
-              "a second row on the same control keeps the registration the first row's menu rows carry");
+        uint64_t const two=op_registration;
+        CHECK(two!=0 && two!=first,
+              "arming a second row mints a fresh registration, retiring rows built before it");
         CHECK(op_slot_label(2)!=NULL && strcmp(op_slot_label(2),"Setup")==0,
               "and reaches the adapter under its own number");
-        CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,first,2) && op_last_operation==2,
+        CHECK(op_slot_label(1)!=NULL && strcmp(op_slot_label(1),"Press")==0,
+              "without disturbing the row already armed");
+        CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,two,2) && op_last_operation==2,
               "the second row dispatches to the same listener, naming itself");
+        CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,two,1) && op_last_operation==1,
+              "and so does the first, under the same registration");
         op_mode=6;
-        CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,first,2),"the clearing dispatch runs");
-        CHECK(op_registration==first,"clearing one row of two leaves the control armed");
-        CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,first,2),
+        CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,two,2),"the clearing dispatch runs");
+        CHECK(op_registration==two,
+              "clearing one row of two leaves the control registered, so the other row's menu rows stand");
+        CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,two,2),
               "the cleared row no longer dispatches");
-        CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,first,1),
+        CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,two,1),
               "and the row that was left keeps working");
-        CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,first,0) &&
-                  !PluginHost_WidgetOperation(op_host,owner,op_control,first,TORIRS_WIDGET_OP_SLOTS+1),
+        CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,two,0) &&
+                  !PluginHost_WidgetOperation(op_host,owner,op_control,two,TORIRS_WIDGET_OP_SLOTS+1),
               "an operation number outside the contract's range is refused");
         op_multi=0;
     }

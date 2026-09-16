@@ -1005,6 +1005,7 @@ fake_set_on_op(void* context, struct ToriRS_WidgetRef ref, int op, char const* l
     struct TestbedElement const* element = testbed_element_by_ref(ref);
 
     (void)context;
+    (void)op; /* Read only by the assertion below, which NDEBUG removes. */
     /* The layer describes one row per item, so every arming it makes is op 1.
      * Asserted rather than recorded: a second row would change what `armed`
      * and `label` below mean, and this fake would go on answering as though
