@@ -1183,6 +1183,20 @@ struct MobileRuntime
     /** The 2004 plates under the four filter captions, behind the lane's buttons. */
     struct MobileRect plate[MOBILE_CHAT_BUTTON_COUNT];
     struct MobileArt plate_art[MOBILE_CHAT_BUTTON_COUNT];
+    /**
+     * Where the lane's XP-counter mount is PINNED -- its top-right corner, in
+     * canvas coordinates, and no size at all.
+     *
+     * A corner and not a box, because everything interface 122 draws is
+     * anchored to this slot's right edge (the counter inset 2 columns, the
+     * seven drop columns 3) and nothing at all to its left or bottom. Pinning
+     * the corner therefore places every visible part of it while leaving the
+     * cache's own width and height -- which is what sets how far a drop falls
+     * -- exactly as the toplevel authored them. @see mobile_describe_xp_drops.
+     */
+    int xp_drops_placed;
+    int xp_drops_right;
+    int xp_drops_top;
 };
 
 /** A composed picture and the box it was composed for. Held across passes: the
@@ -1517,6 +1531,17 @@ static char const* const MOBILE_HOUSING_NAME[] = { "Lizards", "Ring", "OldSchool
  * the captions standing where the bar used to be. @see [role:chat_controls].
  */
 #define MOBILE_CHAT_CONTROLS PORCELAIN_ROLE_EL("chat_controls")
+
+/**
+ * The toplevel slot the XP counter and the XP drops are mounted into.
+ *
+ * Spelled, because the element vocabulary has no name for it and it is not a
+ * member of any family it does name: it is a slot on the TOPLEVEL beside the
+ * orb block rather than anything inside interface 160. A 2004 lane declares no
+ * such rung and answers ABSENT, which is the same answer it gives for the orb
+ * block itself. @see [role:frame_xp_drops].
+ */
+#define MOBILE_XP_DROPS PORCELAIN_ROLE_EL("frame_xp_drops")
 
 /*
  * Is this an OldSchool lane -- one whose chat and orbs are packs of the
@@ -4098,6 +4123,25 @@ mobile_layout(
         map_y + g_hole_map.y + MOBILE_O_ORBS_DY + MOBILE_O_ADVISER_DY,
         MOBILE_O_ADVISER_W,
         MOBILE_O_ADVISER_H);
+    /*
+     * And the XP counter, which travels with that block but is not IN it.
+     *
+     * Interface 122 is mounted on the TOPLEVEL, not on interface 160, so
+     * moving the orb column leaves it behind -- at the lane's own right edge,
+     * which on 548 is the fixed viewport's. With the Stone Drawer over 548 at
+     * 1200x800 that stranded the counter at (395,4) while the XP orb it reads
+     * for stood at (868,31).
+     *
+     * Pinned to the block's top-left corner, which is what puts the counter
+     * just left of the XP toggle: the counter is anchored 2 columns in from
+     * this slot's right edge and sits on its top row, and the toggle is the
+     * first thing in the block at the block's own left edge. That is also the
+     * relationship 548 authors natively -- its slot's right edge IS the orb
+     * block's left -- so this states the cache's spot rather than a new one.
+     */
+    g_frame.xp_drops_placed = 1;
+    g_frame.xp_drops_right = map_x + g_hole_map.x + MOBILE_O_ORBS_DX;
+    g_frame.xp_drops_top = map_y + g_hole_map.y + MOBILE_O_ORBS_DY;
 
     /*
      * Behind the open PANEL rather than over the scene: this is that panel's
@@ -5340,6 +5384,51 @@ mobile_describe_chat_bar(
     describe->move(describe, MOBILE_CHAT_CONTROLS, box, 0);
 }
 
+/*
+ * The XP counter and the XP drops, moved to the orb column this frame drew.
+ *
+ * ONE move of ONE slot, and a move with NO SIZE in it -- which is the whole of
+ * why this is three lines rather than a second layout. Interface 122 anchors
+ * the counter 2 columns in from this slot's right edge and each of its seven
+ * drop columns 3, and anchors nothing to its left edge or its bottom; the only
+ * thing the slot's size decides is how far a drop falls, which is the cache's
+ * number and not a frame's. So the plan pins the top-right CORNER and the
+ * width is read back from the lane, unchanged: `x` is the corner less the box
+ * the toplevel gave it. A width or height in the bounds would make Porcelain
+ * call set_size as well (@see porcelain_apply_edit), and the drop travel would
+ * then be this frame's invention on every toplevel.
+ *
+ * Parent-local like every other move here, and the parent is a toplevel layer
+ * that nothing in this frame moves -- so unlike the chat bar's, this converges
+ * on the first application.
+ *
+ * Not raised. Every surface this frame places is raised over its own chrome
+ * because the chrome is drawn at canvas coordinates after the lane's subtree;
+ * this slot is pinned to the left of the orb column, where this frame paints
+ * nothing, and raising it would put a full-height transparent container over
+ * the rail and the sheet for no picture at all.
+ */
+static void
+mobile_describe_xp_drops(
+    struct MobileCall* ctx,
+    struct ToriRS_PorcelainDescribe* describe)
+{
+    struct PorcelainElementState slot;
+    struct ToriRS_WidgetBounds box;
+
+    assert(ctx);
+    assert(describe);
+    if( !g_frame.xp_drops_placed )
+        return;
+    if( !Porcelain_Element(ctx->state->porcelain, MOBILE_XP_DROPS, &slot) )
+        return;
+    box.x = (g_frame.xp_drops_right - slot.box.width) - (slot.box.x - slot.local.x);
+    box.y = g_frame.xp_drops_top - (slot.box.y - slot.local.y);
+    box.width = 0;
+    box.height = 0;
+    describe->move(describe, MOBILE_XP_DROPS, box, 0);
+}
+
 /* The two round windows' masks, and the compass rose the classic family brings
  * with it: re-skins stated as NAMES, because that is what a description
  * carries. An empty half leaves that half of the native picture alone. */
@@ -5733,6 +5822,7 @@ mobile_describe(
     mobile_describe_chrome(ctx, describe);
     mobile_describe_surfaces(ctx, describe);
     mobile_describe_chat_bar(ctx, describe);
+    mobile_describe_xp_drops(ctx, describe);
     mobile_describe_skins(ctx, describe);
     mobile_describe_chat_dress(ctx, describe);
 }
@@ -6019,6 +6109,18 @@ mobile_on_start(
         state->porcelain,
         "the lane states no pixel size for this surface",
         "the chat falls back to the size its era's chatbox is built for");
+
+    /*
+     * A 2004 lane has no XP counter, and that is a fact about the lane.
+     *
+     * The counter and the drops are interface 122, mounted into a slot only
+     * the OldSchool toplevels declare; a dat1 frame has neither the interface
+     * nor a rung to name it by. Declared rather than left to report itself,
+     * because the layout asks about this every fence on every lane -- @see
+     * mobile_describe_xp_drops.
+     */
+    Porcelain_ExpectAbsent(
+        state->porcelain, MOBILE_XP_DROPS, "a 2004 frame has no XP counter or XP drops");
 
     /*
      * The one offer, bound to the description.
