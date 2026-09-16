@@ -533,7 +533,22 @@ button { font-weight: 700; }
 .tpc-toggle-cell { width: 24px; text-align: right; }
 .tpc-toggle-cell .tpc-check { display: block; margin: 0 0 0 auto; }
 .tpc-model { width: 100%; min-height: 100px; border: 1px solid #474745; border-color: var(--tpc-inset); background: #372e22; color: #ff981f; color: var(--tpc-label); text-align: center; }
-.tpc-custom { position: relative; display: block; width: auto; min-height: 48px; border: 1px solid var(--tpc-inset); box-sizing: content-box; background: #372e22; overflow: hidden; touch-action: none; }
+/*
+ * No fill of its own: a CUSTOM well is the one place the panel's PIXELS are
+ * somebody else's, drawn by a plugin that leaves its own gaps transparent on
+ * purpose so the host's real background shows through them (@see
+ * src/plugin/plugins/loot_tracker.c's lt_draw_source/lt_draw_empty_note, and
+ * the "a picture that depends on its host's backing has two looks" note
+ * there). The native executor gets this for free -- a plugin paints straight
+ * into the panel's own composited buffer -- but this element used to paint a
+ * flat #372e22 UNDER the plugin's image, which is darker and untextured next
+ * to .tpc-pane's real `var(--tpc-body)` + `var(--tpc-panel-image)`. Every gap
+ * in a plugin's strip read as a dull, mismatched fill instead of the pane's
+ * own warm, tiled one. Falling through to that ancestor is what the native
+ * side already does, so this makes the two executors agree instead of the
+ * web one inventing a second, wrong idea of what is behind the plugin.
+ */
+.tpc-custom { position: relative; display: block; width: auto; min-height: 48px; border: 1px solid var(--tpc-inset); box-sizing: content-box; background: transparent; overflow: hidden; touch-action: none; }
 .tpc-custom img, .tpc-custom canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
 /* `min-width: 0` for the same reason `.tpc-row > input` carries it: a flex
  * item's automatic minimum is its MIN-CONTENT, so this wrapper held the
