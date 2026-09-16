@@ -499,11 +499,26 @@ capture_from_software(
     struct PlatformWindow* platform = (struct PlatformWindow*)user;
     int const* src = PlatformWindow_Pixels(platform);
 
-    if( !src )
+    int const src_w = PlatformWindow_Width(platform);
+    int const src_h = PlatformWindow_Height(platform);
+
+    if( !src || src_w <= 0 || src_h <= 0 )
         return 0;
     if( width != UITREE_LAYOUT_ROOT_W || height != UITREE_LAYOUT_ROOT_H )
         return 0;
-    memcpy(pixels, src, (size_t)width * (size_t)height * sizeof(int));
+    if( src_w == width && src_h == height )
+    {
+        memcpy(pixels, src, (size_t)width * (size_t)height * sizeof(int));
+        return 1;
+    }
+    /* A scaled buffer, sampled down to the layout the caller asked for --
+     * what the GPU lanes' ReadPixels do with their own targets. */
+    for( int y = 0; y < height; y++ )
+    {
+        int const* row = src + (size_t)((long long)y * src_h / height) * (size_t)src_w;
+        for( int x = 0; x < width; x++ )
+            pixels[(size_t)y * (size_t)width + (size_t)x] = row[(long long)x * src_w / width];
+    }
     return 1;
 }
 
@@ -522,6 +537,72 @@ touch_overlay_owns_point(
     int y)
 {
     return App_PointerOwnedByUi((struct App*)user, x, y);
+}
+
+/* The software lane's buffer for this frame: the render size the present will
+ * place the layout at. @see ClientScale_Present. */
+static void
+main_software_buffer_size(
+    struct App* app,
+    struct PlatformWindow* platform,
+    int* out_w,
+    int* out_h)
+{
+    struct ClientScaleSettings settings;
+    struct ClientScalePresent present;
+    int area_w = 0;
+    int area_h = 0;
+
+    assert(app);
+    assert(platform);
+    assert(out_w);
+    assert(out_h);
+    *out_w = UITREE_LAYOUT_ROOT_W;
+    *out_h = UITREE_LAYOUT_ROOT_H;
+    PlatformWindow_GameAreaPixels(platform, &area_w, &area_h);
+    if( area_w <= 0 || area_h <= 0 )
+        return;
+    App_ClientScaleSettings(app, &settings);
+    ClientScale_Present(
+        &settings, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, area_w, area_h, &present);
+    *out_w = present.render_w;
+    *out_h = present.render_h;
+}
+
+/* A layout-pixel damage rect in the render buffer's pixels, rounded outward
+ * so a scaled edge is never left stale. */
+static void
+main_damage_to_buffer(
+    struct PlatformWindow* platform,
+    int* x,
+    int* y,
+    int* w,
+    int* h)
+{
+    int const bw = PlatformWindow_Width(platform);
+    int const bh = PlatformWindow_Height(platform);
+    int const lw = UITREE_LAYOUT_ROOT_W;
+    int const lh = UITREE_LAYOUT_ROOT_H;
+    long long x0;
+    long long y0;
+    long long x1;
+    long long y1;
+
+    assert(platform);
+    if( bw == lw && bh == lh )
+        return;
+    x0 = (long long)*x * bw / lw;
+    y0 = (long long)*y * bh / lh;
+    x1 = ((long long)(*x + *w) * bw + lw - 1) / lw;
+    y1 = ((long long)(*y + *h) * bh + lh - 1) / lh;
+    if( x1 > bw )
+        x1 = bw;
+    if( y1 > bh )
+        y1 = bh;
+    *x = (int)x0;
+    *y = (int)y0;
+    *w = (int)(x1 - x0);
+    *h = (int)(y1 - y0);
 }
 
 /** Interactive present: Soft3D writes pixels then blits; GPU backends drain the
@@ -569,6 +650,7 @@ interactive_render_present(
         int progress = 0;
         int pick_armed = 0;
 
+        App_NoteFrameDrawn(app);
         ToriRS_D3D9_SetInterfaceScaleMode(d3d9, interface_scale_mode);
         ToriRS_D3D9_SetClientScaling(d3d9, &client_scale);
 
@@ -638,6 +720,7 @@ interactive_render_present(
         int progress = 0;
         int pick_armed = 0;
 
+        App_NoteFrameDrawn(app);
         ToriRS_GLES2_SetInterfaceScaleMode(gles2, interface_scale_mode);
         ToriRS_GLES2_SetClientScaling(gles2, &client_scale);
 
@@ -712,6 +795,7 @@ interactive_render_present(
         int const chrome_w = PlatformWindow_ChromeWidth(platform);
         int const chrome_h = PlatformWindow_ChromeHeight(platform);
 
+        App_NoteFrameDrawn(app);
         ToriRS_GL3_SetInterfaceScaleMode(gl3, interface_scale_mode);
         ToriRS_GL3_SetClientScaling(gl3, &client_scale);
         ToriRS_GL3_SetHostRightInset(gl3, chrome_w);
@@ -791,7 +875,9 @@ interactive_render_present(
     (void)gl3;
 #endif
 
-    App_Render(app, PlatformWindow_Pixels(platform), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    /* The buffer, which interface scaling makes larger than the layout. */
+    App_Render(
+        app, PlatformWindow_Pixels(platform), PlatformWindow_Width(platform), PlatformWindow_Height(platform));
     {
         /* Present only what the render actually wrote. Off unless damage
          * drawing is armed, in which case App_Render already left the rest of
@@ -808,6 +894,9 @@ interactive_render_present(
             struct ToriRS_DamageRect const* dr;
             int n;
 
+            /* Damage is measured in layout pixels; the buffer it presents is
+             * the render's. */
+            main_damage_to_buffer(platform, &dx, &dy, &dw, &dh);
             PlatformWindow_SetPresentDamage(platform, dx, dy, dw, dh);
             n = App_DamageRects(app, &dr);
             if( n > 0 )
@@ -822,6 +911,8 @@ interactive_render_present(
                     rects[i][1] = dr[i].y;
                     rects[i][2] = dr[i].w;
                     rects[i][3] = dr[i].h;
+                    main_damage_to_buffer(
+                        platform, &rects[i][0], &rects[i][1], &rects[i][2], &rects[i][3]);
                 }
                 PlatformWindow_SetPresentDamageRects(platform, (int const(*)[4])rects, n);
             }
@@ -3403,7 +3494,31 @@ frame_loop_step(void)
                 App_SetChromeScale(&app, PlatformWindow_PixelDensity(platform));
             /* > 0: pinned by the manifest; set once at boot, never followed. */
         }
-        PlatformWindow_Resize(platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        /*
+         * The layout is the pointer's space and the frame's shape; the
+         * buffer is what the renderer draws. A GPU renderer sizes its own
+         * target from the same arithmetic (ClientScale_Present), so only the
+         * software buffer is sized here -- to the render size, which is the
+         * layout only at 100% interface scaling.
+         */
+        PlatformWindow_SetLayoutSize(platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        {
+            int buffer_w = UITREE_LAYOUT_ROOT_W;
+            int buffer_h = UITREE_LAYOUT_ROOT_H;
+            bool gpu = false;
+#if defined(TORIRS_HAVE_D3D9)
+            gpu = gpu || d3d9;
+#endif
+#if defined(TORIRS_HAVE_GL3)
+            gpu = gpu || gl3;
+#endif
+#if defined(TORIRS_HAVE_GLES2)
+            gpu = gpu || gles2;
+#endif
+            if( !gpu )
+                main_software_buffer_size(&app, platform, &buffer_w, &buffer_h);
+            PlatformWindow_Resize(platform, buffer_w, buffer_h);
+        }
 #if defined(TORIRS_HAVE_D3D9)
         if( d3d9 )
             ToriRS_D3D9_SetViewport(d3d9, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);

@@ -2,8 +2,13 @@
 -- Performance Display
 --
 -- A small screen-space overlay for the numbers that answer most client
--- performance questions: rendered frames per second, how long a frame is
--- actually taking, and the client's memory footprint.
+-- performance questions: which renderer is drawing, rendered frames per
+-- second, how long a frame is actually taking, and the client's memory
+-- footprint.
+--
+-- The renderer is named because every other number here depends on it, and
+-- because the client switches renderers live: an FPS read without knowing
+-- whether it was Software or OpenGL is a number with no unit.
 --
 -- There are two frame rates here and they mean different things.
 --
@@ -21,27 +26,28 @@
 -- work in the same budget are both 50 FPS by the first number and 250 against
 -- 53 by the second, and the gap between them is the headroom.
 --
--- FPS and memory latch on the refresh interval so a late frame does not make
+-- FPS, memory and the renderer latch on the refresh interval so a late frame does not make
 -- them flicker. The work numbers update at frame start: a short window
 -- is the whole reason to have one, and a stutter surfaced a second late is one
 -- you have stopped looking for. Averaging FRAME_WINDOW frames is what keeps
 -- them readable.
 --
 -- The picture is Porcelain's. This plugin owns no widget, no watch, no
--- geometry repair and no pump: it states the four rows it wants, and re-states
+-- geometry repair and no pump: it states the five rows it wants, and re-states
 -- them only when a string or a setting moved. Everything that used to be
 -- bookkeeping here -- create on BOUND, remove on UNBOUND, re-run the layout
 -- after a config change, write four positions and four sizes that were already
 -- right, fence and commit -- is the layer's, and the reconciler compares
--- before it writes. That is what keeps the layout calls at four for a bind.
+-- before it writes. That is what keeps the layout calls at five for a bind.
 --
 
 ---@type torirs.Plugin
 local plugin = {
     id = "performance-display",
     title = "FPS and Memory",
-    version = "3.0.0",
+    version = "3.1.0",
     config = {
+        { key = "show_renderer", type = "bool", default = true, label = "Show renderer" },
         { key = "show_fps", type = "bool", default = true, label = "Show FPS" },
         { key = "show_frame_time", type = "bool", default = true, label = "Show frame time (work)" },
         { key = "show_effective_fps", type = "bool", default = true, label = "Show effective FPS" },
@@ -70,6 +76,9 @@ local sample_frames = 0
 local sample_drawn_at_start = 0
 local sampled_fps = 0
 local sampled_memory = 0
+-- nil until the host names one: before the first renderer starts there is
+-- nothing drawing, and "unknown" says that where a blank would not.
+local sampled_renderer = nil
 
 -- Ring of the last FRAME_WINDOW work times in microseconds, with a running sum
 -- so the mean costs no loop. `recent_written` is the total ever written, which
@@ -95,6 +104,13 @@ local function recent_mean_us()
     return recent_total / count
 end
 
+-- The renderer drawing now, by name; nil before the host has started one.
+local function renderer_name(api)
+    local active = api.client.display_get(api.client.display.renderer_active)
+    if not active then return nil end
+    return api.client.renderer_label[active]
+end
+
 local function format_memory(bytes)
     if bytes <= 0 then return "unavailable" end
     if bytes >= 1024 * 1024 * 1024 then
@@ -106,10 +122,11 @@ local function format_memory(bytes)
     return string.format("%.0f KiB", bytes / 1024)
 end
 
--- The four rows, in the order they stack. A metric whose switch is off keeps
+-- The five rows, in the order they stack. A metric whose switch is off keeps
 -- its row -- same key, empty string -- and yields its slot, so turning FPS off
 -- moves Frame up to the top rather than leaving a hole.
 local METRICS = {
+    { key = "renderer", visible = "show_renderer" },
     { key = "fps", visible = "show_fps" },
     { key = "frame", visible = "show_frame_time" },
     { key = "effective", visible = "show_effective_fps" },
@@ -117,10 +134,11 @@ local METRICS = {
 }
 
 -- The box is stated, not measured: nothing in the api answers how wide a
--- string is in the widget's face, so a row that overruns is clipped at 132 and
--- says nothing. Porcelain makes w,h mandatory on a text item for exactly that
--- reason.
-local ROW_WIDTH, ROW_HEIGHT, FIRST_ROW_TOP = 132, 15, 3
+-- string is in the widget's face, so a row that overruns is clipped at the
+-- width and says nothing. Porcelain makes w,h mandatory on a text item for
+-- exactly that reason. 200 holds the longest renderer name,
+-- "Renderer: Direct3D 9 (depth buffer)".
+local ROW_WIDTH, ROW_HEIGHT, FIRST_ROW_TOP = 200, 15, 3
 
 -- What each row says right now, keyed the way the controls are. This is the
 -- whole of the description that moves between frames.
@@ -136,6 +154,7 @@ local live = false
 local function compose(api)
     local work_us = recent_mean_us()
     local wanted = {
+        renderer = "Renderer: " .. (sampled_renderer or "unknown"),
         fps = string.format("FPS: %.1f", sampled_fps),
         frame = string.format("Frame: %.2f ms", work_us / 1000),
         effective = string.format("Effective FPS: %.1f", work_us > 0 and 1000000 / work_us or 0),
@@ -152,7 +171,7 @@ local function compose(api)
     return moved
 end
 
--- Alignment 1 is CENTRE. Every row is a 132 px box with its text centred in
+-- Alignment 1 is CENTRE. Every row is a ROW_WIDTH box with its text centred in
 -- it, which is what this readout has always looked like; left would be a
 -- silent change of appearance.
 local function describe(build)
@@ -216,6 +235,7 @@ function plugin.on_frame_start(api, ev)
         sample_started_ms = ev.now_ms
         sample_drawn_at_start = ev.drawn_frames
         sampled_memory = api.client.memory_bytes()
+        sampled_renderer = renderer_name(api)
     else
         -- Frames DRAWN, not on_frame_start calls: the loop runs at the pacer's
         -- rate whether or not it draws, so counting calls reads 50 while the
@@ -225,6 +245,7 @@ function plugin.on_frame_start(api, ev)
         if elapsed >= api.config.refresh_ms then
             sampled_fps = sample_frames * 1000 / elapsed
             sampled_memory = api.client.memory_bytes()
+            sampled_renderer = renderer_name(api)
             sample_frames = 0
             sample_started_ms = ev.now_ms
             sample_drawn_at_start = ev.drawn_frames
@@ -241,7 +262,7 @@ function plugin.on_frame_start(api, ev)
 end
 
 function plugin.on_stop(api)
-    -- Close drops the four controls with the handle; the ring, the window and
+    -- Close drops the five controls with the handle; the ring, the window and
     -- the latched values are cleared here so a re-enable starts from
     -- "Frame: 0.00 ms" rather than from a stale mean.
     if live then api.porcelain.close() end
@@ -251,6 +272,7 @@ function plugin.on_stop(api)
     sample_frames = 0
     sampled_fps = 0
     sampled_memory = 0
+    sampled_renderer = nil
     recent = {}
     recent_written = 0
     recent_total = 0

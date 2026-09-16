@@ -56,7 +56,7 @@
 #define CS_ID_RENDERER_NOW "renderer_now"
 #define CS_ID_SCALE "ui_scale"
 #define CS_ID_FILTER "ui_scale_filter"
-#define CS_ID_WHOLE_PIXELS "whole_pixels"
+#define CS_ID_INTEGER_SCALING "integer_scaling"
 #define CS_ID_STRETCH "stretch_mode"
 #define CS_ID_PIXEL_LIMIT "max_pixel_height"
 #define CS_ID_FRAME_FILTER "frame_filter"
@@ -68,7 +68,7 @@
 #define CS_SCALE_ROWS 13
 #define CS_FILTER_ROWS 3
 #define CS_STRETCH_ROWS 2
-/* Device option 30's integer value: offered as the Whole pixels toggle. */
+/* Device option 30's integer value: offered as the Integer scaling toggle. */
 #define CS_STRETCH_INTEGER 1
 /* The listed resolutions, plus one slot for a value only preferences.ini holds. */
 #define CS_PIXEL_LIMIT_LISTED 19
@@ -159,7 +159,7 @@ static char const* const CS_FILTER_VALUE[] = { "0", "1", "2" };
 static char const* const CS_FILTER_LABEL[] = { "Nearest", "Linear", "Bicubic" };
 
 /* Integer is not here: it changes the buffer as well as its placement, so it
- * is the Whole pixels toggle beside interface scaling. */
+ * is the Integer scaling toggle beside interface scaling. */
 static char const* const CS_STRETCH_VALUE[] = { "0", "2" };
 static char const* const CS_STRETCH_LABEL[] = {
     "Keep aspect ratio",
@@ -214,15 +214,7 @@ static char const* const CS_HIGH_DPI_NAME[CS_HIGH_DPI_ROWS] = {
 static char const* const CS_RENDERER_VALUE[TORIRS_RENDERER_COUNT] = {
     "1", "2", "3", "4", "5", "6", "7",
 };
-static char const* const CS_RENDERER_LABEL[TORIRS_RENDERER_COUNT] = {
-    "Software",
-    "OpenGL",
-    "OpenGL (depth buffer)",
-    "OpenGL ES 2",
-    "OpenGL ES 2 (depth buffer)",
-    "Direct3D 9",
-    "Direct3D 9 (depth buffer)",
-};
+static char const* const CS_RENDERER_LABEL[TORIRS_RENDERER_COUNT] = TORIRS_RENDERER_LABELS;
 
 static char const* const CS_FRAME_FILTER_VALUE[] = { "0", "1", "2", "3" };
 static char const* const CS_FRAME_FILTER_LABEL[] = {
@@ -561,10 +553,10 @@ cs_pick_display(struct ToriRS_Api* api, int setting, struct PorcelainRowAction c
         (void)api->client->display_set(api, setting, atoi(action->text));
 }
 
-/* Whole pixels on is stretch mode integer; off is keep aspect ratio, the
+/* Integer scaling on is stretch mode integer; off is keep aspect ratio, the
  * placement integer itself falls back to. */
 static void
-cs_toggle_whole_pixels(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+cs_toggle_integer_scaling(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
 {
     (void)user;
     assert(api);
@@ -687,13 +679,10 @@ cs_scaling_now(struct ToriRS_Api* api, char* out, size_t out_size)
         !cs_display_value(api, TORIRS_DISPLAY_SCALE_ADJUSTED, &adjusted) )
         return;
 
-    /* The layout IS the buffer every renderer draws. The render size rides a
-     * frame behind a change (the shell reports what it presented), so it is
-     * read for the signature only and the buffer is named from the layout. */
-    (void)render_w;
-    (void)render_h;
-    used = snprintf(out, out_size, "Now: buffer %dx%d at %d%%, shown %dx%d.", layout_w, layout_h,
-        effective, output_w, output_h);
+    /* Two sizes now: the world is drawn at the render size, and the interface
+     * is laid out at the layout size and scaled into it. */
+    used = snprintf(out, out_size, "Now: world %dx%d, interface %dx%d at %d%%, shown %dx%d.",
+        render_w, render_h, layout_w, layout_h, effective, output_w, output_h);
     if( used < 0 || (size_t)used >= out_size )
         return;
     if( (adjusted & TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT) &&
@@ -708,12 +697,12 @@ cs_scaling_now(struct ToriRS_Api* api, char* out, size_t out_size)
             " %d%% of the render resolution, not of the window.", chosen);
     else if( adjusted & TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED )
         used += snprintf(out + used, out_size - (size_t)used,
-            " %d%% rounded down for whole pixels.", chosen);
+            " %d%% rounded down for integer scaling.", chosen);
     if( used < 0 || (size_t)used >= out_size )
         return;
     if( adjusted & TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK )
         (void)snprintf(out + used, out_size - (size_t)used,
-            " Window too small for whole pixels: keeping aspect.");
+            " Window too small for integer scaling: keeping aspect.");
 }
 
 /*
@@ -1017,11 +1006,11 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
     if( api->client->display_get(api, TORIRS_DISPLAY_STRETCH_MODE, &stretch, NULL, NULL) )
     {
         memset(&row, 0, sizeof(row));
-        row.key = CS_ID_WHOLE_PIXELS;
+        row.key = CS_ID_INTEGER_SCALING;
         row.kind = PORCELAIN_ROW_TOGGLE;
-        row.label = "Whole pixels";
+        row.label = "Integer scaling";
         row.value = stretch == CS_STRETCH_INTEGER;
-        row.on_action = cs_toggle_whole_pixels;
+        row.on_action = cs_toggle_integer_scaling;
         row.user = state;
         Porcelain_Row(describe, &row);
     }
@@ -1168,16 +1157,16 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         memset(&row, 0, sizeof(row));
         row.key = CS_ID_SCALING_HOW;
         row.kind = PORCELAIN_ROW_PARAGRAPH;
-        row.text = "The game draws at the window's resolution, or the render resolution if "
-                   "smaller, divided by interface scaling. The frame filter then stretches it "
-                   "back up to the window.";
+        row.text = "The world is drawn at the window's resolution, or the render resolution if "
+                   "smaller. Interface scaling sizes only the interface drawn over it; the frame "
+                   "filter fits the result to the window.";
         Porcelain_Row(describe, &row);
     }
 
     memset(&row, 0, sizeof(row));
     row.key = "note";
     row.kind = PORCELAIN_ROW_LABEL;
-    row.text = "Scaling draws the whole canvas larger, the 3D scene included.";
+    row.text = "Interface scaling sizes the interface; the 3D world keeps its resolution.";
     Porcelain_Row(describe, &row);
 }
 

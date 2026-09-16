@@ -5,7 +5,7 @@
 -- stand-in for the real reconciler: it runs the describe callback only when an
 -- input has moved, and it COMPARES every property before it counts a write.
 -- Both halves matter. Without the compare, a plugin that re-stated an
--- unchanged box every frame would still read as four layout calls in the
+-- unchanged box every frame would still read as five layout calls in the
 -- engine; without the run-only-when-moved, "the steady state costs nothing"
 -- could not be asserted at all. What is pinned here is therefore the pair: the
 -- description the plugin states, and how often it states it.
@@ -100,15 +100,22 @@ return { id = 'performance-behavior', on_start = function(host)
             P.uncommitted = 0
         end,
     }
-    local work, memory = 4000, 128 * 1024 * 1024
+    -- TORIRS_DISPLAY_RENDERER_ACTIVE's answer, as a TORIRS_RENDERER_* kind.
+    local work, memory, renderer = 4000, 128 * 1024 * 1024, 0
     local api = {
-        config = { show_fps=true, show_frame_time=true, show_effective_fps=true,
+        config = { show_renderer=true, show_fps=true, show_frame_time=true, show_effective_fps=true,
             show_memory=true, x=10, y=25, text_color=0xffffff, refresh_ms=1000 },
         core = {
             frame_work_us=function() return work end,
             log=function() assert(false, 'the layer is present: nothing to report') end,
         },
-        client = { memory_bytes=function() return memory end },
+        client = { memory_bytes=function() return memory end,
+            display = { renderer_active = 19 },
+            renderer_label = { [0] = 'Software', [1] = 'OpenGL' },
+            display_get=function(setting)
+                assert(setting == 19, 'the readout asks for the renderer drawing and nothing else')
+                return renderer, 0, 6
+            end },
         widgets = { watch=function()
             assert(false, 'a ported plugin owns no watch')
         end },
@@ -151,15 +158,24 @@ return { id = 'performance-behavior', on_start = function(host)
     product.on_start(api)
     P.bound = true
     frame({now_ms=0,drawn_frames=10})
-    -- Exactly four rows, exactly those keys, all four alive even before a
+    -- Exactly five rows, exactly those keys, all five alive even before a
     -- single one of them has a number worth reading.
     local keys = {}
     for key in pairs(P.items) do keys[#keys+1] = key end
     table.sort(keys)
-    assert(#keys == 4 and keys[1]=='performance_effective' and keys[2]=='performance_fps'
-        and keys[3]=='performance_frame' and keys[4]=='performance_memory',
-        'four owned rows under exactly those keys')
-    assert(P.creates == 4, 'one create per row')
+    assert(#keys == 5 and keys[1]=='performance_effective' and keys[2]=='performance_fps'
+        and keys[3]=='performance_frame' and keys[4]=='performance_memory'
+        and keys[5]=='performance_renderer',
+        'five owned rows under exactly those keys')
+    assert(P.creates == 5, 'one create per row')
+    next_fence()
+    assert(text('renderer')=='Renderer: Software', 'the renderer is named from the first frame')
+    -- A live renderer switch shows at the next refresh, not at once: it
+    -- latches with FPS, whose window straddles the switch anyway.
+    renderer=1
+    frame({now_ms=10,drawn_frames=10})
+    next_fence()
+    assert(text('renderer')=='Renderer: Software', 'the renderer waits for the refresh')
     -- Fifty callbacks, but only fifteen rendered frames in one second.
     for i=1,50 do
         frame({now_ms=i*20,drawn_frames=10+math.floor(i*15/50)})
@@ -169,9 +185,10 @@ return { id = 'performance-behavior', on_start = function(host)
     assert(text('frame')=='Frame: 4.00 ms', 'frame time must exclude pacing sleep')
     assert(text('effective')=='Effective FPS: 250.0', 'effective rate uses work time')
     assert(text('memory')=='Memory: 128.0 MiB', 'memory latches on the refresh interval')
-    assert(P.positions==4, 'frame callbacks must not repair layout')
-    assert(P.sizes==4 and P.aligns==4 and P.colors==4, 'style is written once per row')
-    assert(P.creates==4 and P.removes==0, 'a frame neither creates nor removes a row')
+    assert(text('renderer')=='Renderer: OpenGL', 'a renderer switched live is named at the refresh')
+    assert(P.positions==5, 'frame callbacks must not repair layout')
+    assert(P.sizes==5 and P.aligns==5 and P.colors==5, 'style is written once per row')
+    assert(P.creates==5 and P.removes==0, 'a frame neither creates nor removes a row')
     work=20000
     for i=1,10 do frame({now_ms=1000+i*20,drawn_frames=25+i}) end
     next_fence()
@@ -201,8 +218,8 @@ return { id = 'performance-behavior', on_start = function(host)
     assert(P.describe_runs==runs+1, 'a config change re-describes exactly once')
     assert(text('fps')=='' and text('effective')=='', 'disabled metrics must disappear')
     local frame_row,mem=P.items.performance_frame,P.items.performance_memory
-    assert(frame_row.x==160 and frame_row.y==103 and mem.y==118, 'visible lines close gaps')
-    assert(frame_row.w==132 and frame_row.h==15, 'the row box is stated, not measured')
+    assert(frame_row.x==160 and frame_row.y==118 and mem.y==133, 'visible lines close gaps')
+    assert(frame_row.w==200 and frame_row.h==15, 'the row box is stated, not measured')
     assert(frame_row.rgb==0xff00ff and frame_row.align==1, 'style survives port')
     memory=2*1024*1024*1024
     frame({now_ms=2000,drawn_frames=60})
@@ -215,9 +232,9 @@ return { id = 'performance-behavior', on_start = function(host)
     P.bound=true
     local positions = P.positions
     frame({now_ms=2040,drawn_frames=62})
-    assert(text('frame')=='Frame: 20.00 ms' and P.items.performance_memory.y==118,
+    assert(text('frame')=='Frame: 20.00 ms' and P.items.performance_memory.y==133,
         'remount preserves current samples and settings')
-    assert(P.positions==positions+4, 'a remount lays out each row once and stops')
+    assert(P.positions==positions+5, 'a remount lays out each row once and stops')
 
     product.on_stop(api)
     assert(next(P.items)==nil, 'stopping drops the rows with the handle')

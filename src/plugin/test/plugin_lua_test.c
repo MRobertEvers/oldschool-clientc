@@ -2,6 +2,7 @@
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_lua.h"
 
+#include <assert.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -846,6 +847,7 @@ struct CountersConfigRow
     char const* text;
 };
 static struct CountersConfigRow COUNTERS_CONFIG[] = {
+    {"show_renderer", 1, NULL},
     {"show_fps", 1, NULL},        {"show_frame_time", 1, NULL},
     {"show_effective_fps", 1, NULL}, {"show_memory", 1, NULL},
     /* Long enough that the refresh window never closes inside the run: a
@@ -893,6 +895,21 @@ static uint64_t counters_work_us(struct ToriRS_Api* api)
 { (void)api; return 4000; }
 static size_t counters_memory_bytes(struct ToriRS_Api* api)
 { (void)api; return (size_t)128u * 1024u * 1024u; }
+/* The renderer drawing, and nothing else: the plugin asks for no other
+ * display setting. */
+static bool counters_display_get(struct ToriRS_Api* api, int setting, int* value, int* min, int* max)
+{
+    (void)api;
+    assert(value);
+    assert(min);
+    assert(max);
+    if( setting != TORIRS_DISPLAY_RENDERER_ACTIVE )
+        return false;
+    *value = TORIRS_RENDERER_OPENGL3;
+    *min = 0;
+    *max = TORIRS_RENDERER_COUNT - 1;
+    return true;
+}
 
 static void
 test_real_porcelain_pump(struct ToriRS_PluginHost* host)
@@ -932,6 +949,7 @@ test_real_porcelain_pump(struct ToriRS_PluginHost* host)
     memset(&client, 0, sizeof(client));
     client.struct_size = sizeof(client);
     client.memory_bytes = counters_memory_bytes;
+    client.display_get = counters_display_get;
     client.disable_self = fake_disable_self;
     api.client = &client;
     api.config.has = counters_config_has;
@@ -982,11 +1000,14 @@ test_real_porcelain_pump(struct ToriRS_PluginHost* host)
         CHECK(g_counter_logs == 2, "and reached the steady-state reading");
         /* The pump, from the other side: four rows exist on the real engine
          * although nothing in the plugin or this file ever called fence. */
-        CHECK(Testbed_LiveControls() == 4,
-            "open() installed the pump: four rows are live with no fence anywhere "
+        CHECK(Testbed_LiveControls() == 5,
+            "open() installed the pump: five rows are live with no fence anywhere "
             "in the plugin");
         CHECK(Testbed_Control("performance_frame") != NULL,
             "and they are the plugin's own keys");
+        CHECK(Testbed_Control("performance_renderer") != NULL &&
+                strcmp(Testbed_Control("performance_renderer")->text, "Renderer: OpenGL") == 0,
+            "the renderer row names the renderer the host reports as drawing");
         /* The third handler the pump installs. Nothing in the registered table
          * notes the config input any more -- performance_display recomposes
          * its strings and nothing else -- so a row that empties can only mean

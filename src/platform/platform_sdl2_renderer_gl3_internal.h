@@ -255,6 +255,9 @@ struct GL3SpriteVariant
     int angle;
     uint8_t flip_h;
     uint8_t flip_v;
+    /* The if3 box path clamps to the nominal box before rotating; the tiled
+     * and plain paths do not, so the same sprite bakes differently. */
+    uint8_t if3_transform;
     float u0;
     float v0;
     float u1;
@@ -272,7 +275,6 @@ struct GL3SpriteVariant
  * models must cover that or faces clip to nothing (chatheads look transparent). */
 #define GL3_WIDGET_MODEL_Z_NEAR (-8192.0f)
 #define GL3_WIDGET_MODEL_Z_FAR 8192.0f
-#define GL3_FONT_BOX_MAX_LINES 64
 /* Ephemeral arena key for UI MODEL widgets. The DYNAMIC group is reset before
  * each widget bake, so this never collides with world element ids. */
 #define GL3_WIDGET_ARENA_ELEMENT_ID 0
@@ -473,6 +475,11 @@ struct ToriRS_GL3
      * reuse one buffer instead of allocating a pixmap inside the frame. */
     struct TRSPK_RotmaskBake rotmask_bake;
     struct GL3SpriteSlot sprite_slots[TRSPK_GL3_SPRITE_CAP];
+    /* Baked outline/shadow/flip/rotation variants, as UVs into THIS renderer's
+     * sprite atlas. Per renderer, never process-wide: a renderer started again
+     * (a live renderer switch) has a fresh atlas, and a UV cached from the old
+     * one samples whatever tile now sits there -- or nothing. */
+    struct GL3SpriteVariant sprite_variants[GL3_SPRITE_VARIANT_CAP];
     struct GL3FontSlot font_slots[TRSPK_GL3_FONT_CAP];
     GLuint quad_vao;
     GLuint quad_vbo;

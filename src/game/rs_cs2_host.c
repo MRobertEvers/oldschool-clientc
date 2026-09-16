@@ -3315,16 +3315,10 @@ exec_minimenu(
     }
     case CS2_OP_MINIMENU_TYPE:
         /*
-         * The acting row's type. A world pick answers for itself; a row about
-         * an INTERFACE component is type 7, and that is a row the world pick
-         * never sees -- the two publishers are the pick set and the menu the
-         * hover line is composed from, and only the second one knows about
-         * widgets. Derived here rather than stored so neither publisher has to
-         * run after the other. See RS_MINIMENU_TYPE_COMPONENT.
+         * The acting row's type, as app_minimenu_entry_publish stored it: a
+         * world pick answers for itself and an interface row is type 7, with
+         * or without a component id. See RS_MINIMENU_TYPE_COMPONENT.
          */
-        if( host->clientop.mouseover_type == RS_MINIMENU_TYPE_NONE &&
-            host->clientop.mouseover_component >= 0 )
-            return CS2VM2_PushInt(thread, RS_MINIMENU_TYPE_COMPONENT);
         return CS2VM2_PushInt(thread, host->clientop.mouseover_type);
     /*
      * The FIND ops LATCH the acting row's subject, then say whether it was of

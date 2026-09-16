@@ -167,8 +167,10 @@ struct PlatformWindow
     HBITMAP dib;             /* top-down 32bpp DIB section                    */
     HBITMAP old_bmp;         /* default bitmap displaced from mem_dc          */
     int*    pixels;          /* DIB bits; App_Render writes here (ARGB8888)   */
-    int     width;
+    int     width;           /* the render buffer                             */
     int     height;
+    int     layout_w;        /* the interface: pointer space and placement    */
+    int     layout_h;        /* shape; 0 until set, then the buffer's         */
     int     gdi_frame_valid; /* the DIB contains one complete Soft3D frame    */
     /* One-shot damage box for the next present; w == 0 means the whole DIB.
      * @see PlatformWindow_SetPresentDamage. */
@@ -493,6 +495,29 @@ gdi_make_dib(struct PlatformWindow* p, int width, int height)
 
 /* The game area in client pixels and where the frame lands in it. The game
  * area starts at the client origin; the chrome shell sits to its right. */
+/* The interface's size, or the buffer's until one is set. */
+static int
+gdi_layout_w(struct PlatformWindow const* p)
+{
+    return p->layout_w > 0 ? p->layout_w : p->width;
+}
+
+static int
+gdi_layout_h(struct PlatformWindow const* p)
+{
+    return p->layout_h > 0 ? p->layout_h : p->height;
+}
+
+void
+PlatformWindow_SetLayoutSize(struct PlatformWindow* p, int width, int height)
+{
+    assert(p);
+    assert(width > 0);
+    assert(height > 0);
+    p->layout_w = width;
+    p->layout_h = height;
+}
+
 static void
 gdi_present_rect(struct PlatformWindow* p, int* out_area_w, int* out_area_h, struct ClientScalePresent* out)
 {
@@ -508,7 +533,7 @@ gdi_present_rect(struct PlatformWindow* p, int* out_area_w, int* out_area_h, str
         win_w = client.right - client.left;
         win_h = client.bottom - client.top;
     }
-    ClientScale_Present(&p->client_scale, p->width, p->height, win_w, win_h, out);
+    ClientScale_Present(&p->client_scale, gdi_layout_w(p), gdi_layout_h(p), win_w, win_h, out);
     if( out_area_w )
         *out_area_w = win_w;
     if( out_area_h )
@@ -528,7 +553,7 @@ map_mouse(struct PlatformWindow* p, int win_x, int win_y, int* out_x, int* out_y
     }
     gdi_present_rect(p, NULL, NULL, &present);
     ClientScale_OutputToLayout(
-        &present.output, p->width, p->height, win_x, win_y, out_x, out_y);
+        &present.output, gdi_layout_w(p), gdi_layout_h(p), win_x, win_y, out_x, out_y);
 }
 
 /* Paint the last complete software frame. Keeping every visible operation
@@ -2662,12 +2687,6 @@ PlatformWindow_PresentGL(struct PlatformWindow* p)
     (void)p; /* no GL in this backend */
 }
 
-uint64_t
-PlatformWindow_Ticks64(void)
-{
-    return PlatformWin32Timing_NowMs();
-}
-
 bool
 PlatformWindow_PresentAvailable(struct PlatformWindow const* p, enum PlatformPresent present)
 {
@@ -2706,6 +2725,12 @@ PlatformWindow_SetPresent(struct PlatformWindow* p, enum PlatformPresent present
     if( present == PLATFORM_PRESENT_NATIVE )
         p->gdi_frame_valid = 0;
     return true;
+}
+
+uint64_t
+PlatformWindow_Ticks64(void)
+{
+    return PlatformWin32Timing_NowMs();
 }
 
 uint64_t

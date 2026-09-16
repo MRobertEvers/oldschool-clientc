@@ -145,6 +145,31 @@ ToriDraw2D_BlitArgbTiledAlpha(
     int alpha,
     toripixel_t* pixel_buffer);
 
+/**
+ * BlitArgbTiledAlpha for a scaled buffer: the rect and the tile origin are in
+ * layout pixels, the view port's clip in buffer pixels, and every buffer
+ * pixel samples the tile texel of the layout pixel it lies in (buf/layout per
+ * axis).
+ */
+void
+ToriDraw2D_BlitArgbTiledScaledAlpha(
+    struct ToriDraw_ViewPort* view_port,
+    int rect_x,
+    int rect_y,
+    int rect_w,
+    int rect_h,
+    uint32_t const* src,
+    int src_w,
+    int src_h,
+    int origin_x,
+    int origin_y,
+    int buf_w,
+    int layout_w,
+    int buf_h,
+    int layout_h,
+    int alpha,
+    toripixel_t* pixel_buffer);
+
 void
 ToriDraw2D_BlitArgbMasked(
     struct ToriDraw_ViewPort* view_port,

@@ -948,11 +948,10 @@ enum ToriRS_DisplaySetting
     /**
      * Interface scale, as a PERCENT of 1:1.
      *
-     * The canvas is the window divided by it and the present stretches that
-     * back to fill the window, so 200 is half as many pixels each drawn twice
-     * the size -- the 3D scene included, which is the trade this buys: chrome
-     * and text at a readable size on a high-density display, a scene rendered
-     * at fewer pixels. 100 is untouched.
+     * The interface is laid out at the render buffer divided by it and every
+     * 2D element is drawn scaled into that buffer, so 200 is chrome and text
+     * at twice the size. The 3D world is NOT scaled: it is drawn at the
+     * buffer's own pixels whatever this says. 100 is untouched.
      */
     TORIRS_DISPLAY_UI_SCALE = 0,
     /** How interface art drawn larger than it is gets sampled: 0 nearest,
@@ -969,7 +968,7 @@ enum ToriRS_DisplaySetting
      *  differ when the buffer is not the window's shape: a fixed frame, or a
      *  resizable one the window could not hold (TORIRS_DISPLAY_ADJUSTED_
      *  LOWERED_TO_FIT). Integer also moves the buffer, which is why the
-     *  settings page offers it beside interface scaling as "Whole pixels". */
+     *  settings page offers it beside interface scaling as "Integer scaling". */
     TORIRS_DISPLAY_STRETCH_MODE,
     /** The pixel limit's height: tallest render buffer in pixels; 0 is no
      *  limit. Picked together with TORIRS_DISPLAY_MAX_PIXEL_WIDTH, as one
@@ -1041,6 +1040,15 @@ enum ToriRS_Renderer
     TORIRS_RENDERER_D3D9_DEPTH,
     TORIRS_RENDERER_COUNT
 };
+
+/** What each TORIRS_RENDERER_* is called to a player, as an initializer for a
+ *  `char const* const[TORIRS_RENDERER_COUNT]` -- one spelling for every place
+ *  that names the renderer drawing. */
+#define TORIRS_RENDERER_LABELS                                                  \
+    {                                                                           \
+        "Software", "OpenGL", "OpenGL (depth buffer)", "OpenGL ES 2",           \
+        "OpenGL ES 2 (depth buffer)", "Direct3D 9", "Direct3D 9 (depth buffer)" \
+    }
 
 /** TORIRS_DISPLAY_SCALE_ADJUSTED bits. */
 #define TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED (1 << 0)

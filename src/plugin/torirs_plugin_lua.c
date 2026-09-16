@@ -950,6 +950,40 @@ static struct { char const* name; uint32_t bit; } const LUA_WIDGET_FACETS[] = {
     {"hidden_by_cutscene", TORIRS_WIDGET_FACET_HIDDEN_BY_CUTSCENE},
 };
 
+/*
+ * The TORIRS_DISPLAY_* setting numbers api.client.display_get takes, by name,
+ * and what each TORIRS_RENDERER_* is called -- constants under `api.client`,
+ * like the facet bits, so a plugin can name the renderer drawing without
+ * spelling a setting number or a label only the C header knows.
+ */
+static struct { char const* name; int setting; } const LUA_DISPLAY_SETTINGS[] = {
+    {"ui_scale", TORIRS_DISPLAY_UI_SCALE},
+    {"ui_scale_filter", TORIRS_DISPLAY_UI_SCALE_FILTER},
+    {"stretch_mode", TORIRS_DISPLAY_STRETCH_MODE},
+    {"max_pixel_height", TORIRS_DISPLAY_MAX_PIXEL_HEIGHT},
+    {"frame_filter", TORIRS_DISPLAY_FRAME_FILTER},
+    {"max_pixel_width", TORIRS_DISPLAY_MAX_PIXEL_WIDTH},
+    {"high_dpi", TORIRS_DISPLAY_HIGH_DPI},
+    {"effective_ui_scale", TORIRS_DISPLAY_EFFECTIVE_UI_SCALE},
+    {"layout_width", TORIRS_DISPLAY_LAYOUT_WIDTH},
+    {"layout_height", TORIRS_DISPLAY_LAYOUT_HEIGHT},
+    {"render_width", TORIRS_DISPLAY_RENDER_WIDTH},
+    {"render_height", TORIRS_DISPLAY_RENDER_HEIGHT},
+    {"output_width", TORIRS_DISPLAY_OUTPUT_WIDTH},
+    {"output_height", TORIRS_DISPLAY_OUTPUT_HEIGHT},
+    {"scale_adjusted", TORIRS_DISPLAY_SCALE_ADJUSTED},
+    {"density", TORIRS_DISPLAY_DENSITY},
+    {"high_dpi_in_force", TORIRS_DISPLAY_HIGH_DPI_IN_FORCE},
+    {"window_fixed", TORIRS_DISPLAY_WINDOW_FIXED},
+    {"renderer", TORIRS_DISPLAY_RENDERER},
+    {"renderer_active", TORIRS_DISPLAY_RENDERER_ACTIVE},
+    {"renderers_available", TORIRS_DISPLAY_RENDERERS_AVAILABLE},
+    {"renderer_refused", TORIRS_DISPLAY_RENDERER_REFUSED},
+};
+_Static_assert(sizeof(LUA_DISPLAY_SETTINGS) / sizeof(LUA_DISPLAY_SETTINGS[0]) == TORIRS_DISPLAY_SETTING_COUNT,
+    "a TORIRS_DISPLAY_* setting has no Lua name");
+static char const* const LUA_RENDERER_LABELS[TORIRS_RENDERER_COUNT] = TORIRS_RENDERER_LABELS;
+
 static int lua_widget_state(lua_State* L)
 {
     struct ToriRS_WidgetApi* ui = &lua_current_api(L)->widgets;
@@ -3628,6 +3662,24 @@ lua_build_api_table(struct LuaScript* script)
                 lua_setfield(L,-2,LUA_WIDGET_FACETS[i].name);
             }
             lua_setfield(L,-2,"facet");
+        }
+        if(strcmp(module->name,"client")==0)
+        {
+            /* api.client.display.<name> and api.client.renderer_label[kind]. */
+            lua_createtable(L,0,(int)(sizeof(LUA_DISPLAY_SETTINGS)/sizeof(LUA_DISPLAY_SETTINGS[0])));
+            for(size_t i=0;i<sizeof(LUA_DISPLAY_SETTINGS)/sizeof(LUA_DISPLAY_SETTINGS[0]);i++)
+            {
+                lua_pushinteger(L,(lua_Integer)LUA_DISPLAY_SETTINGS[i].setting);
+                lua_setfield(L,-2,LUA_DISPLAY_SETTINGS[i].name);
+            }
+            lua_setfield(L,-2,"display");
+            lua_createtable(L,0,TORIRS_RENDERER_COUNT);
+            for(int kind=0;kind<TORIRS_RENDERER_COUNT;kind++)
+            {
+                lua_pushstring(L,LUA_RENDERER_LABELS[kind]);
+                lua_rawseti(L,-2,kind);
+            }
+            lua_setfield(L,-2,"renderer_label");
         }
         lua_setfield(L,-2,module->name);
     }

@@ -150,6 +150,55 @@ ToriDraw2D_DrawString(
     int shadowed,
     toripixel_t* pixel_buffer);
 
+/**
+ * Scale every later text draw on this thread from layout to buffer pixels:
+ * positions, advances and line heights stay in layout units, glyphs and rules
+ * land at buf/layout their size, and the view port's clip is read as buffer
+ * pixels. Equal sizes restore 1:1. A renderer sets it around its 2D pass.
+ */
+void
+ToriDraw2D_FontSetOutputScale(int buf_w, int layout_w, int buf_h, int layout_h);
+
+enum
+{
+    TORIDRAW_FONT_BOX_MAX_LINES = 64,
+};
+
+/** One drawable line of a laid-out text box: `x`,`y` are the glyph-walk
+ *  origin, the same x/y ToriDraw_FontVisitGlyphs and ToriDraw2D_DrawString's
+ *  internals take. `text` is NOT NUL-terminated at `len`. */
+struct ToriDraw_FontBoxLine
+{
+    char const* text;
+    int len;
+    int x;
+    int y;
+};
+
+/**
+ * Where every line of a widget text box goes (OSRS drawLines semantics):
+ * `<br>`/newline splits, auto-wrap when the box is tall enough, then x/y
+ * alignment. Lines that draw nothing -- `"Game<br> "`'s second line -- are
+ * counted for alignment but not written to `out`. Returns the number written,
+ * at most TORIDRAW_FONT_BOX_MAX_LINES.
+ *
+ * This is the only copy of the box layout. Every renderer, software or GPU,
+ * places box text through it; a renderer-local copy drifts, and the drift is
+ * a label that sits somewhere else on one renderer.
+ */
+int
+ToriDraw2D_LayoutStringBox(
+    struct ToriDraw_Font* font,
+    int x,
+    int y,
+    int w,
+    int h,
+    char const* text,
+    int x_align,
+    int y_align,
+    int line_height,
+    struct ToriDraw_FontBoxLine out[TORIDRAW_FONT_BOX_MAX_LINES]);
+
 /** Multi-line widget text with box alignment (OSRS drawLines semantics). */
 int
 ToriDraw2D_DrawStringBox(

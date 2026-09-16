@@ -225,16 +225,41 @@ test_render_buffer(void)
     struct ClientScalePresent p;
     struct ClientScaleSettings s = settings(CLIENT_SCALE_FIT_KEEP_ASPECT, 0);
 
-    /* One pipeline: every renderer draws the buffer, then it is stretched. */
+    /* The buffer is the output: the world is drawn at the window's pixels and
+     * the interface is scaled into it, whatever size the layout is. */
     ClientScale_Present(&s, 765, 503, 1920, 1080, &p);
-    CHECK(p.render_w == 765 && p.render_h == 503, "the render is the buffer, got %dx%d", p.render_w,
-        p.render_h);
-    CHECK(p.output.h == 1080, "and the output is the stretch, got %d", p.output.h);
+    CHECK(p.output.h == 1080, "the output is the stretch, got %d", p.output.h);
+    CHECK(p.render_w == p.output.w && p.render_h == p.output.h,
+        "with no limit the buffer is the output, got %dx%d for %dx%d", p.render_w, p.render_h,
+        p.output.w, p.output.h);
 
+    /* Window points: the buffer is the output in points. */
+    s.high_dpi = CLIENT_SCALE_HIGH_DPI_WINDOW_POINTS;
+    s.density_percent = 200;
+    ClientScale_Present(&s, 1512, 922, 3024, 1844, &p);
+    CHECK(p.render_w == 1512 && p.render_h == 922, "window points halves a 2x output, got %dx%d",
+        p.render_w, p.render_h);
+
+    /* The limit shrinks the buffer evenly, never the layout. */
+    s = settings(CLIENT_SCALE_FIT_KEEP_ASPECT, 768);
+    s.max_pixel_width = 1366;
+    ClientScale_Present(&s, 1008, 614, 3024, 1844, &p);
+    CHECK(p.render_w <= 1366 && p.render_h <= 768 && p.render_w >= 1250,
+        "a 1366x768 limit caps the buffer, got %dx%d", p.render_w, p.render_h);
+
+    /* Integer: whole multiples all the way down. 4x output under a 720-row
+     * limit cannot hold 2x of 503 rows, so the buffer is the layout. */
     s = settings(CLIENT_SCALE_FIT_INTEGER, 720);
     ClientScale_Present(&s, 765, 503, 3840, 2160, &p);
     CHECK(p.output.w == 3060 && p.output.h == 2012, "4x integer output");
-    CHECK(p.render_w == 765 && p.render_h == 503, "an integer frame renders the buffer too");
+    CHECK(p.render_w == 765 && p.render_h == 503, "a limit below 2x keeps the layout's size");
+    s = settings(CLIENT_SCALE_FIT_INTEGER, 1080);
+    ClientScale_Present(&s, 765, 503, 3840, 2160, &p);
+    CHECK(p.render_w == 1530 && p.render_h == 1006, "a 1080 limit holds 2x, which divides 4x, got %dx%d",
+        p.render_w, p.render_h);
+    s = settings(CLIENT_SCALE_FIT_INTEGER, 0);
+    ClientScale_Present(&s, 765, 503, 3840, 2160, &p);
+    CHECK(p.render_w == 3060, "no limit: the buffer is the 4x output, got %d", p.render_w);
 }
 
 static void

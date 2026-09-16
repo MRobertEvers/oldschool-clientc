@@ -360,10 +360,19 @@ App_Render(
     assert(pixels);
     assert(app->soft);
 
-    app->frames_rendered++;
+    App_NoteFrameDrawn(app);
 
-    if( !App_BuildFrame(app, &frame, width, height) )
+    /* Pointed at the buffer before anything draws: the boot bar and the
+     * viewport notices below write through its layer when the buffer is
+     * scaled. */
+    ToriRS_Soft3D_Init(app->soft, app->scene, pixels, width, height);
+    ToriRS_Soft3D_SetLayout(app->soft, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+
+    if( !App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
     {
+        int* layer;
+        int const layout_w = UITREE_LAYOUT_ROOT_W;
+        int const layout_h = UITREE_LAYOUT_ROOT_H;
         /*
          * The startup progress bar. @see engine/boot_bar.h for why its
          * geometry is the one screen here that is not revconfig's.
@@ -404,8 +413,9 @@ App_Render(
             for( int i = 0; i < width * height; i++ )
                 pixels[i] = 0;
         }
-        else
-            BootBar_Draw((uint32_t*)pixels, width, height, percent);
+        layer = ToriRS_Soft3D_LayerBegin(app->soft, 0, 0, layout_w, layout_h);
+        if( !App_BootTextOnly(app) )
+            BootBar_Draw((uint32_t*)layer, layout_w, layout_h, percent);
 
         /*
          * The caption -- the same words and the same face the GPU lanes get
@@ -419,22 +429,21 @@ App_Render(
         if( caption )
             app_boot_bar_caption(
                 app,
-                pixels,
-                width,
-                height,
-                BootBar_OriginX(width) + BOOT_BAR_W / 2,
-                BootBar_OriginY(height) + BOOT_BAR_TEXT_BASELINE,
+                layer,
+                layout_w,
+                layout_h,
+                BootBar_OriginX(layout_w) + BOOT_BAR_W / 2,
+                BootBar_OriginY(layout_h) + BOOT_BAR_TEXT_BASELINE,
                 caption,
                 caption_font_scene_id);
+        ToriRS_Soft3D_LayerEnd(app->soft);
         return;
     }
 
-    ToriRS_Soft3D_Init(app->soft, app->scene, pixels, width, height);
-
     /* Must follow BuildFrame: the emit list it publishes is what says which
-     * regions are live this frame. */
-    app_compute_damage(app, width, height);
-    app_damage_note(app, width, height);
+     * regions are live this frame. In layout pixels, as the emit list is. */
+    app_compute_damage(app, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    app_damage_note(app, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     /* World hittest rides the render: each visible model is tested against
      * the mouse point right after it projects (the only window where the
      * scene scratch holds its projection), then the raw hits classify into
@@ -450,13 +459,23 @@ App_Render(
     /* deob method5761 / Client-TS REBUILD_NORMAL: while the scene rebuilds,
      * the game area shows "Loading - please wait." instead of the world. */
     if( app->world_load_server_driven && app->world_load_inflight )
-        app_draw_rebuild_loading_overlay(app, pixels, width, height);
+    {
+        int* const layer = ToriRS_Soft3D_LayerBegin(
+            app->soft, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        app_draw_rebuild_loading_overlay(app, layer, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        ToriRS_Soft3D_LayerEnd(app->soft);
+    }
 
     /* And over the top of either: the session is gone. Last, so it is not the
      * thing a rebuild overlay covers — a reconnect drives a rebuild, and the
      * two would otherwise overlap with the wrong one winning. */
     if( NetLinkWatch_Lost(&app->net_link) )
-        app_draw_connection_lost_overlay(app, pixels, width, height);
+    {
+        int* const layer = ToriRS_Soft3D_LayerBegin(
+            app->soft, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        app_draw_connection_lost_overlay(app, layer, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        ToriRS_Soft3D_LayerEnd(app->soft);
+    }
 
     if( torirs_env_frame_debug() )
         TORIRS_LOG(

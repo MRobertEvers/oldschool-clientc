@@ -5,10 +5,10 @@
 -- Three things only a file with the real layer under it can say.
 --
 -- 1. The PUMP is installed. Nothing in the product and nothing in this file
---    calls fence or commit any more, and yet four rows exist on the engine.
+--    calls fence or commit any more, and yet five rows exist on the engine.
 --
 -- 2. The fence is FIRST and the commit is LAST. `creates` read at the TOP of
---    the first handler is already 4, which it could not be if the runtime
+--    the first handler is already 5, which it could not be if the runtime
 --    called the handler before fencing; and `revalidates` read at the top of
 --    the SECOND handler is already 1, which it could not be if nothing
 --    committed after the first.
@@ -49,8 +49,8 @@ return {
         local before = api.porcelain.counters_read()
         seen = seen + 1
         if seen == FIRST then
-            assert(before.creates == 4,
-                'the pump fences BEFORE the plugin handler: the four rows already ' ..
+            assert(before.creates == 5,
+                'the pump fences BEFORE the plugin handler: the five rows already ' ..
                 'exist the first time the handler is reached')
             assert(before.describe_runs == 2,
                 'and the fence ran its second pass to consume the bind its first raised')

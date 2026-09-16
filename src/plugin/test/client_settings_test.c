@@ -493,7 +493,7 @@ main(void)
         "the status line follows its dropdown and the note comes last");
     row = fake_row("note");
     CHECK(row && strcmp(row->text,
-              "Scaling draws the whole canvas larger, the 3D scene included.") == 0,
+              "Interface scaling sizes the interface; the 3D world keeps its resolution.") == 0,
         "the explanatory note is a static label");
     CHECK(fake.config_writes == 0, "the page writes no plugin config");
 
@@ -750,10 +750,10 @@ main(void)
 
     CHECK(!fake_row("stretch_mode"),
         "a resizable window hides stretch mode: its buffer is the window's shape");
-    row = fake_row("whole_pixels");
+    row = fake_row("integer_scaling");
     CHECK(row && row->kind == TORIRS_PANEL_TOGGLE && row->value == 0 &&
-          row_index("whole_pixels") == row_index("ui_scale") + 1,
-        "whole pixels is a toggle beside interface scaling, off by default");
+          row_index("integer_scaling") == row_index("ui_scale") + 1,
+        "integer scaling is a toggle beside interface scaling, off by default");
     row = fake_row("max_pixel_height");
     CHECK(row && strcmp(row->label, "Render resolution") == 0, "the limit is the render resolution");
     CHECK(row && row->option_count == 19, "nineteen listed pixel limits");
@@ -775,10 +775,10 @@ main(void)
     CHECK(!fake_row("scaling_now") && !fake_row("scaling_how"),
         "no readout before anything has been presented");
 
-    toggle(state, "whole_pixels", 1);
-    CHECK(fake.display[TORIRS_DISPLAY_STRETCH_MODE] == 1, "whole pixels on is integer");
-    toggle(state, "whole_pixels", 0);
-    CHECK(fake.display[TORIRS_DISPLAY_STRETCH_MODE] == 0, "whole pixels off is keep aspect");
+    toggle(state, "integer_scaling", 1);
+    CHECK(fake.display[TORIRS_DISPLAY_STRETCH_MODE] == 1, "integer scaling on is integer");
+    toggle(state, "integer_scaling", 0);
+    CHECK(fake.display[TORIRS_DISPLAY_STRETCH_MODE] == 0, "integer scaling off is keep aspect");
 
     /* A fixed window shows stretch mode, with integer left to the toggle. */
     fake.display[TORIRS_DISPLAY_WINDOW_FIXED] = 1;
@@ -792,8 +792,8 @@ main(void)
     fake.display[TORIRS_DISPLAY_STRETCH_MODE] = 1;
     frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
     build_page(state, TORIRS_PANEL_VIEW_PAGE);
-    CHECK(!fake_row("stretch_mode") && fake_row("whole_pixels")->value == 1,
-        "whole pixels on hides stretch mode: it places the frame itself");
+    CHECK(!fake_row("stretch_mode") && fake_row("integer_scaling")->value == 1,
+        "integer scaling on hides stretch mode: it places the frame itself");
     fake.display[TORIRS_DISPLAY_WINDOW_FIXED] = 0;
     frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
 
@@ -843,8 +843,8 @@ main(void)
     frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
     row = fake_row("scaling_now");
     CHECK(row && strcmp(row->text,
-                     "Now: buffer 1920x1080 at 100%, shown 1920x1080. "
-                     "150% rounded down for whole pixels.") == 0,
+                     "Now: world 1920x1080, interface 1920x1080 at 100%, shown 1920x1080. "
+                     "150% rounded down for integer scaling.") == 0,
         "the readout says integer rounded the chosen scale down");
     row = fake_row("high_dpi_now");
     CHECK(row && strcmp(row->text, "Display density 2.00x detected; using window points.") == 0,

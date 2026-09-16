@@ -368,6 +368,8 @@ warn = nil
 ---@class torirs.ClientApi
 ---@field display_get fun(setting: integer): integer?, integer?, integer?
 ---@field display_set fun(setting: integer, value: integer): boolean, torirs.ResultName
+---@field display table<string, integer> TORIRS_DISPLAY_* setting numbers for display_get/display_set, by lower-case name (renderer_active, render_width, ...).
+---@field renderer_label table<integer, string> What each renderer is called, keyed by the display_get(display.renderer_active) value (0 = Software).
 ---@field feature_next fun(cursor?: integer): integer?, torirs.Feature?
 ---@field feature_get fun(key: string): integer?
 ---@field feature_set fun(key: string, value: integer): boolean, torirs.ResultName

@@ -434,6 +434,15 @@ app_minimenu_entry_publish(
             acting->pick.kind == UI_MINIMENU_PICK_INV_SLOT )
             clientop->mouseover_component = acting->pick.id;
         minimenu_type = app_minimenu_pick_subject(app, &acting->pick, &subject);
+        /* An interface row is type 7 whether or not it has a component id.
+         * An engine-owned widget (the plugin buttons in the pop-out column)
+         * has none, and deriving the type from the id -- as the host did --
+         * reported it as no row at all, so proc 4728 drew no tooltip over it
+         * while the cache buttons beside it had one. */
+        if( minimenu_type == RS_MINIMENU_TYPE_NONE &&
+            (acting->pick.kind == UI_MINIMENU_PICK_UI ||
+             acting->pick.kind == UI_MINIMENU_PICK_INV_SLOT) )
+            minimenu_type = RS_MINIMENU_TYPE_COMPONENT;
     }
     RS_ClientOpMouseoverSet(clientop, &subject, minimenu_type);
     app_minimenu_entries_publish(app, menu);

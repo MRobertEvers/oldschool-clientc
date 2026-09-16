@@ -2773,188 +2773,6 @@ d3d9_ui_draw_font_rules(
 }
 
 static void
-d3d9_ui_font_vertical_metrics(
-    const struct ToriDraw_Font* font,
-    int* ascent_out,
-    int* descent_out)
-{
-    int fallback = font->line_height > 0 ? font->line_height : 1;
-    int min_y = 0;
-    int max_bottom = 0;
-    bool any = false;
-    int i;
-    for( i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
-    {
-        int bottom;
-        if( font->glyph_width[i] <= 0 || font->glyph_height[i] <= 0 ||
-            !font->glyph_alpha[i] )
-            continue;
-        bottom = font->offset_y[i] + font->glyph_height[i];
-        if( !any || font->offset_y[i] < min_y )
-            min_y = font->offset_y[i];
-        if( !any || bottom > max_bottom )
-            max_bottom = bottom;
-        any = true;
-    }
-    if( !any )
-    {
-        *ascent_out = fallback;
-        *descent_out = 0;
-        return;
-    }
-    *ascent_out = fallback - min_y;
-    *descent_out = max_bottom - fallback;
-    if( *ascent_out <= 0 )
-        *ascent_out = fallback;
-    if( *descent_out < 0 )
-        *descent_out = 0;
-}
-
-static bool
-d3d9_ui_font_append_line(
-    const char* lines[],
-    int lengths[],
-    int* count,
-    const char* text,
-    int length)
-{
-    if( *count >= D3D9_UI_FONT_BOX_MAX_LINES )
-        return false;
-    lines[*count] = text;
-    lengths[*count] = length;
-    (*count)++;
-    return true;
-}
-
-static bool
-d3d9_ui_font_segment_has_visible_content(const char* text, int length)
-{
-    int i;
-    if( length <= 0 )
-        return false;
-    assert(text);
-    for( i = 0; i < length; i++ )
-    {
-        unsigned char emit_char = 0;
-        int consumed;
-        if( text[i] == ' ' || text[i] == '|' )
-            continue;
-        consumed = ToriDraw_FontMarkupTokenLength(text, length, i, &emit_char);
-        if( consumed > 0 )
-        {
-            if( emit_char != 0 )
-                return true;
-            i += consumed - 1;
-            continue;
-        }
-        return true;
-    }
-    return false;
-}
-
-static bool
-d3d9_ui_font_wrap_segment(
-    struct ToriDraw_Font* font,
-    const char* text,
-    int length,
-    int max_width,
-    const char* lines[],
-    int lengths[],
-    int* count)
-{
-    int space_width = d3d9_ui_font_measure_range(font, " ", 1);
-    int current_start = -1;
-    int current_length = 0;
-    int current_width = 0;
-    int word_start = 0;
-    int i;
-    if( length <= 0 )
-        return d3d9_ui_font_append_line(lines, lengths, count, text, 0);
-    if( !d3d9_ui_font_segment_has_visible_content(text, length) )
-        return d3d9_ui_font_append_line(lines, lengths, count, text, 0);
-    for( i = 0; i <= length; i++ )
-    {
-        bool at_end = i == length;
-        bool space = !at_end && (text[i] == ' ' || text[i] == '|');
-        int word_length;
-        int word_width;
-        if( !at_end && !space )
-            continue;
-        word_length = i - word_start;
-        if( word_length <= 0 )
-        {
-            word_start = at_end ? i : i + 1;
-            continue;
-        }
-        word_width = d3d9_ui_font_measure_range(font, text + word_start, word_length);
-        if( current_length <= 0 )
-        {
-            current_start = word_start;
-            current_length = word_length;
-            current_width = word_width;
-        }
-        else if( current_width + space_width + word_width > max_width )
-        {
-            if( !d3d9_ui_font_append_line(
-                    lines, lengths, count, text + current_start, current_length) )
-                return false;
-            current_start = word_start;
-            current_length = word_length;
-            current_width = word_width;
-        }
-        else
-        {
-            current_length = i - current_start;
-            current_width += space_width + word_width;
-        }
-        word_start = at_end ? i : i + 1;
-    }
-    if( current_length > 0 )
-        return d3d9_ui_font_append_line(
-            lines, lengths, count, text + current_start, current_length);
-    return true;
-}
-
-static int
-d3d9_ui_font_collect_lines(
-    struct ToriDraw_Font* font,
-    const struct ToriRS_RenderCommand_Font* command,
-    const char* lines[],
-    int lengths[])
-{
-    const char* rest = command->text;
-    int line_height = command->line_height > 0
-        ? command->line_height
-        : (font->line_height > 0 ? font->line_height : 1);
-    int ascent;
-    int descent;
-    int count = 0;
-    bool wrap;
-    d3d9_ui_font_vertical_metrics(font, &ascent, &descent);
-    wrap = command->w > 0 && command->h > 0 &&
-        !(command->h < line_height + ascent + descent && command->h < line_height * 2);
-    while( rest && rest[0] && count < D3D9_UI_FONT_BOX_MAX_LINES )
-    {
-        int length = 0;
-        int advance = 0;
-        const char* line_end = d3d9_ui_font_next_line(rest, &length, &advance);
-        if( wrap )
-        {
-            if( !d3d9_ui_font_wrap_segment(
-                    font, rest, length, command->w > 0 ? command->w : 1,
-                    lines, lengths, &count) )
-                break;
-        }
-        else if( !d3d9_ui_font_append_line(lines, lengths, &count, rest, length) )
-            break;
-        if( advance == 0 )
-            break;
-        rest = line_end + advance;
-    }
-    return count;
-}
-
-static void
 d3d9_ui_draw_font_range(
     struct ToriRS_D3D9* renderer,
     struct D3D9UIFontSlot* slot,
@@ -3016,54 +2834,21 @@ d3d9_ui_draw_font(
         return;
     }
     {
-        const char* lines[D3D9_UI_FONT_BOX_MAX_LINES];
-        int lengths[D3D9_UI_FONT_BOX_MAX_LINES];
-        int count = d3d9_ui_font_collect_lines(font, command, lines, lengths);
-        int line_height = command->line_height > 0
-            ? command->line_height
-            : (font->line_height > 0 ? font->line_height : 1);
-        int font_ascent = font->line_height > 0 ? font->line_height : line_height;
-        int ascent;
-        int descent;
-        int logical_height;
-        int first_baseline;
-        int i;
-        if( count <= 0 )
-            return;
-        d3d9_ui_font_vertical_metrics(font, &ascent, &descent);
-        logical_height = command->h > 0
-            ? command->h
-            : line_height * (count - 1) + ascent + descent;
-        first_baseline = ascent;
-        if( command->y_align == 1 )
-            first_baseline = ascent +
-                (logical_height - ascent - descent - line_height * (count - 1)) / 2;
-        else if( command->y_align == 2 )
-            first_baseline = logical_height - descent - line_height * (count - 1);
-        for( i = 0; i < count; i++ )
+        struct ToriDraw_FontBoxLine lines[TORIDRAW_FONT_BOX_MAX_LINES];
+        int count = ToriDraw2D_LayoutStringBox(
+            font, command->x, command->y, command->w, command->h, command->text,
+            command->center, command->y_align, command->line_height, lines);
+        for( int i = 0; i < count; i++ )
         {
-            int x = command->x;
-            int y;
-            if( lengths[i] <= 0 )
-                continue;
-            if( command->center != 0 )
-            {
-                int text_width = d3d9_ui_font_measure_range(font, lines[i], lengths[i]);
-                if( command->center == 1 )
-                    x += ((command->w > 0 ? command->w : 1) - text_width) / 2;
-                else if( command->center == 2 )
-                    x += (command->w > 0 ? command->w : 1) - text_width;
-            }
-            y = command->y + first_baseline + i * line_height - font_ascent;
             for( int pass=0;pass<ToriDraw_FontShadowPassCount(command->shadowed);++pass )
             {
                 int dx,dy;ToriDraw_FontShadowOffset(command->shadowed,pass,&dx,&dy);
                 d3d9_ui_draw_font_range(
-                    renderer, slot, &scissor, lines[i], lengths[i], x + dx, y + dy,
-                    command->color, true);
+                    renderer, slot, &scissor, lines[i].text, lines[i].len, lines[i].x + dx,
+                    lines[i].y + dy, command->color, true);
             }
             d3d9_ui_draw_font_range(
-                renderer, slot, &scissor, lines[i], lengths[i], x, y,
+                renderer, slot, &scissor, lines[i].text, lines[i].len, lines[i].x, lines[i].y,
                 command->color, false);
         }
     }

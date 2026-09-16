@@ -177,6 +177,31 @@ test_entry_subject_is_the_acting_row(void)
         TEST_ASSERT(subject.coord == -1, "with no coord rather than coord 0");
     }
 
+    /* An interface row is type 7 even when its widget has no component id.
+     * The engine's plugin buttons in the pop-out column are owned nodes with
+     * id -1; reported as NONE, proc 4728 drew no tooltip over them. */
+    {
+        struct UIMinimenu owned_menu;
+        struct UIMinimenuPick owned_pick = {
+            .kind = UI_MINIMENU_PICK_UI,
+            .id = -1,
+        };
+        UIMinimenu_Reset(&owned_menu);
+        UIMinimenu_AddOption(
+            &owned_menu, "Cancel", REVCONFIG_MINIMENU_CANCEL, -1,
+            (struct UIMinimenuPick){ .kind = UI_MINIMENU_PICK_NONE });
+        UIMinimenu_AddOption(
+            &owned_menu, "Open <col=ff9040>XP Tracker</col>",
+            RS_MINIMENU_ACTION_PLUGIN_WIDGET, 0, owned_pick);
+        app_minimenu_entry_publish(app, &owned_menu);
+        TEST_ASSERT(
+            app->host.clientop.mouseover_type == RS_MINIMENU_TYPE_COMPONENT,
+            "an owned widget's row is an interface row");
+        TEST_ASSERT(
+            app->host.clientop.mouseover_component == -1,
+            "and names no component for `_7109` to latch");
+    }
+
     /* A menu the pointer is on nothing for clears the whole entry, subject
      * included -- the four halves go together in both directions. */
     app_minimenu_entry_publish(app, NULL);

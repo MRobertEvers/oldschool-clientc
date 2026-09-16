@@ -66,6 +66,26 @@ toridraw2d_blend_channels(
         0xFF000000u | ((uint32_t)rr << 16) | ((uint32_t)rg << 8) | (uint32_t)rb);
 }
 
+/* floor(v * num / den) for a positive den, negative v included. */
+static inline int64_t
+toridraw2d_floor_scale(int64_t v, int num, int den)
+{
+    int64_t const n = v * num;
+    int64_t q = n / den;
+    if( n % den != 0 && n < 0 )
+        q--;
+    return q;
+}
+
+/* The layout pixel a (non-negative) buffer pixel belongs to: the largest v
+ * with floor(v * buf / layout) <= p, so every layout pixel keeps the buffer
+ * pixels its own edges map to. @see toridraw2d_floor_scale. */
+static inline int64_t
+toridraw2d_owner(int64_t p, int buf, int layout)
+{
+    return ((p + 1) * layout + buf - 1) / buf - 1;
+}
+
 /* The caller has already clipped the destination coordinate. */
 static inline void
 toridraw2d_blend_argb_unclipped(
@@ -653,6 +673,79 @@ ToriDraw2D_BlitArgbTiledAlpha(
         if( ++sy == src_h )
             sy = 0;
     }
+}
+
+void
+ToriDraw2D_BlitArgbTiledScaledAlpha(
+    struct ToriDraw_ViewPort* view_port,
+    int rect_x,
+    int rect_y,
+    int rect_w,
+    int rect_h,
+    uint32_t const* src,
+    int src_w,
+    int src_h,
+    int origin_x,
+    int origin_y,
+    int buf_w,
+    int layout_w,
+    int buf_h,
+    int layout_h,
+    int alpha,
+    toripixel_t* pixel_buffer)
+{
+    assert(view_port);
+    assert(pixel_buffer);
+    assert(src);
+    assert(buf_w > 0);
+    assert(layout_w > 0);
+    assert(buf_h > 0);
+    assert(layout_h > 0);
+    if( src_w <= 0 || src_h <= 0 || rect_w <= 0 || rect_h <= 0 || alpha <= 0 )
+        return;
+    if( alpha > 255 )
+        alpha = 255;
+
+    /* The layout rect, in buffer pixels. floor() both edges so neighbouring
+     * rects share their boundary. */
+    int64_t x0 = toridraw2d_floor_scale(rect_x, buf_w, layout_w);
+    int64_t y0 = toridraw2d_floor_scale(rect_y, buf_h, layout_h);
+    int64_t x1 = toridraw2d_floor_scale((int64_t)rect_x + rect_w, buf_w, layout_w);
+    int64_t y1 = toridraw2d_floor_scale((int64_t)rect_y + rect_h, buf_h, layout_h);
+    if( x0 < view_port->clip_left )
+        x0 = view_port->clip_left;
+    if( y0 < view_port->clip_top )
+        y0 = view_port->clip_top;
+    if( x1 > view_port->clip_right )
+        x1 = view_port->clip_right;
+    if( y1 > view_port->clip_bottom )
+        y1 = view_port->clip_bottom;
+    if( x0 >= x1 || y0 >= y1 )
+        return;
+
+    int const draw_w = (int)(x1 - x0);
+    int const draw_h = (int)(y1 - y0);
+    int const stride = view_port->stride;
+    /* The tile column of every buffer column, once: a divide per pixel of a
+     * chat-sized backdrop is the whole cost of the blit otherwise. */
+    int* columns = (int*)malloc((size_t)draw_w * sizeof(int));
+    assert(columns);
+    for( int x = 0; x < draw_w; x++ )
+    {
+        int64_t const lx = toridraw2d_owner(x0 + x, buf_w, layout_w);
+        columns[x] = (int)(((lx - origin_x) % src_w + src_w) % src_w);
+    }
+
+    for( int y = 0; y < draw_h; y++ )
+    {
+        int64_t const ly = toridraw2d_owner(y0 + y, buf_h, layout_h);
+        int const sy = (int)(((ly - origin_y) % src_h + src_h) % src_h);
+        uint32_t const* srow = src + (size_t)sy * src_w;
+        toripixel_t* drow = pixel_buffer + (size_t)((int)y0 + y) * stride + (int)x0;
+        for( int x = 0; x < draw_w; x++ )
+            toridraw2d_blend_argb_unclipped(&drow[x], srow[columns[x]], alpha);
+    }
+    free(columns);
 }
 
 void

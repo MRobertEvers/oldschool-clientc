@@ -5,15 +5,21 @@
  * Client scaling: the one place that decides the sizes, which nothing else may
  * work out for itself.
  *
- *   LAYOUT  the buffer: what the interface lays itself out at
- *           (UITREE_LAYOUT_ROOT_W/H), and the pixels every renderer -- Soft3D,
- *           GL3, GLES2, D3D9 -- rasterises the world and the interface into.
- *   OUTPUT  the rectangle of the window that buffer is stretched into.
+ *   LAYOUT  what the interface lays itself out at (UITREE_LAYOUT_ROOT_W/H):
+ *           every 2D coordinate the client produces is one of these.
+ *   RENDER  the buffer: the pixels every renderer -- Soft3D, GL3, GLES2,
+ *           D3D9 -- rasterises into. The 3D world is drawn at its full
+ *           resolution; every 2D command is written into it SCALED by
+ *           RENDER / LAYOUT. Interface scaling therefore sizes the interface
+ *           and never the world.
+ *   OUTPUT  the rectangle of the window the buffer is stretched into.
  *
  * One pipeline on every renderer: draw the buffer, then stretch it to the
  * window. A GPU renderer draws into an offscreen target of the buffer's size
  * whenever that differs from the output rectangle, and blits it with the
  * frame filter; the software one uploads it and lets SDL (or GDI) stretch.
+ * The buffer is the output rectangle in the HighDPI unit, no larger than the
+ * pixel limit (ClientScale_Present), so without a limit it IS the output.
  *
  * Every lane's present, pointer mapping, touch mapping, keyboard inset and
  * readback takes its OUTPUT rectangle from ClientScale_Present. They used to
@@ -129,6 +135,9 @@ struct ClientScalePresent
 {
     /** Where the frame lands, in the output area's pixels, top-left origin. */
     struct ClientScaleRect output;
+    /** The buffer every renderer draws: the output in the HighDPI unit,
+     *  inside the pixel limit. 2D commands arrive in layout pixels and are
+     *  scaled by render / layout; the world is drawn at these pixels. */
     int render_w;
     int render_h;
     /** Stretch mode INTEGER could not fit one multiple and kept aspect. */
@@ -364,9 +373,80 @@ client_scale_keep_aspect(
     }
 }
 
+/*
+ * The buffer for an output rectangle already placed in `out`.
+ *
+ * The output in the HighDPI unit -- drawable pixels, or window points -- and
+ * shrunk evenly until it fits the pixel limit. Integer mode keeps every step
+ * a whole one: the buffer is a whole multiple of the layout that divides the
+ * output's multiple, so layout -> buffer -> output are all integer scales.
+ */
+static inline void
+client_scale_render_size(
+    struct ClientScaleSettings const* settings,
+    int layout_w,
+    int layout_h,
+    struct ClientScalePresent* out)
+{
+    int const density = ClientScale_LayoutDensityPercent(settings);
+
+    assert(settings);
+    assert(out);
+    assert(layout_w > 0);
+    assert(layout_h > 0);
+
+    if( settings->fit == CLIENT_SCALE_FIT_INTEGER && !out->integer_fell_back &&
+        out->output.w % layout_w == 0 && out->output.h % layout_h == 0 &&
+        out->output.w / layout_w == out->output.h / layout_h )
+    {
+        int const multiple = out->output.w / layout_w;
+        int most = multiple * 100 / density;
+        int buffer_multiple = 1;
+
+        if( settings->max_pixel_width > 0 && most > settings->max_pixel_width / layout_w )
+            most = settings->max_pixel_width / layout_w;
+        if( settings->max_pixel_height > 0 && most > settings->max_pixel_height / layout_h )
+            most = settings->max_pixel_height / layout_h;
+        for( int m = most; m >= 1; m-- )
+        {
+            if( multiple % m == 0 )
+            {
+                buffer_multiple = m;
+                break;
+            }
+        }
+        out->render_w = layout_w * buffer_multiple;
+        out->render_h = layout_h * buffer_multiple;
+        return;
+    }
+
+    {
+        int base = density;
+        if( settings->max_pixel_width > 0 )
+        {
+            int const needed = client_scale_percent_to_fit(out->output.w, settings->max_pixel_width);
+            if( needed > base )
+                base = needed;
+        }
+        if( settings->max_pixel_height > 0 )
+        {
+            int const needed = client_scale_percent_to_fit(out->output.h, settings->max_pixel_height);
+            if( needed > base )
+                base = needed;
+        }
+        out->render_w = (int)((long long)out->output.w * 100 / base);
+        out->render_h = (int)((long long)out->output.h * 100 / base);
+        if( out->render_w < 1 )
+            out->render_w = 1;
+        if( out->render_h < 1 )
+            out->render_h = 1;
+    }
+}
+
 /**
- * Where the buffer lands in an output area. `render_w`/`render_h` is the size
- * every renderer draws into: the buffer (layout) itself.
+ * Where the frame lands in an output area, and the buffer every renderer
+ * draws into for it. `layout_w`/`layout_h` is the interface's size; the
+ * output keeps its shape.
  */
 static inline void
 ClientScale_Present(
@@ -429,8 +509,7 @@ ClientScale_Present(
     if( out->output.h < 1 )
         out->output.h = 1;
 
-    out->render_w = layout_w;
-    out->render_h = layout_h;
+    client_scale_render_size(settings, layout_w, layout_h, out);
 }
 
 /**

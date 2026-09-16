@@ -594,7 +594,22 @@ PlatformWindow_SetWindowSize(
     int height);
 
 /**
- * Resize the logical framebuffer (pixels + streaming texture) in place. No-op
+ * The interface's size: the space every pointer and touch coordinate is
+ * reported in, and the shape the frame is placed with.
+ *
+ * Not the buffer. The buffer (PlatformWindow_Resize) is what the renderer
+ * draws -- the world at full resolution, the interface scaled into it -- and
+ * is larger than this whenever interface scaling is above 100%. Until it is
+ * set, both answer the buffer's size.
+ */
+void
+PlatformWindow_SetLayoutSize(
+    struct PlatformWindow* platform,
+    int width,
+    int height);
+
+/**
+ * Resize the render buffer (pixels + streaming texture) in place. No-op
  * when the size is unchanged or the platform is in GL mode (GL draws straight
  * to the window and owns no CPU buffer). Returns true when the size changed.
  */

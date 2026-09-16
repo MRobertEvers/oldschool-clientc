@@ -1079,27 +1079,6 @@ gl3_sprite_slot_index(
     return free_idx;
 }
 
-static void
-gl3_scale_pixel_alpha(
-    uint32_t* buf,
-    size_t count,
-    int alpha)
-{
-    size_t i;
-    if( alpha >= 255 )
-        return;
-    assert(buf);
-    if( alpha < 0 )
-        alpha = 0;
-    for( i = 0; i < count; i++ )
-    {
-        uint32_t p = buf[i];
-        int a = (int)((p >> 24) & 0xFF);
-        a = (a * alpha) / 255;
-        buf[i] = (p & 0x00FFFFFFu) | ((uint32_t)a << 24);
-    }
-}
-
 /*
  * ToriDraw sprite pixels -> what GL uploads.
  *
@@ -1243,45 +1222,39 @@ gl3_sprite_prepare_pixels(
 
 static struct GL3SpriteVariant*
 gl3_sprite_find_variant(
-    int scene_id,
-    int atlas_index,
-    int outline,
-    int graphic_shadow,
-    int angle,
-    uint8_t flip_h,
-    uint8_t flip_v,
+    struct ToriRS_GL3* renderer,
+    struct ToriRS_RenderCommand_Sprite const* cmd,
     bool create)
 {
-    static struct GL3SpriteVariant variants[GL3_SPRITE_VARIANT_CAP];
-    static bool inited = false;
-    if( !inited )
-    {
-        memset(variants, 0, sizeof(variants));
-        inited = true;
-    }
+    struct GL3SpriteVariant* free_variant = NULL;
+    uint8_t const if3_transform = (uint8_t)(cmd->if3 && !cmd->tiled);
     for( size_t i = 0; i < GL3_SPRITE_VARIANT_CAP; i++ )
     {
-        struct GL3SpriteVariant* v = &variants[i];
+        struct GL3SpriteVariant* v = &renderer->sprite_variants[i];
         if( !v->valid )
         {
-            if( !create )
-                return NULL;
-            memset(v, 0, sizeof(*v));
-            v->scene_id = scene_id;
-            v->atlas_index = atlas_index;
-            v->outline = outline;
-            v->graphic_shadow = graphic_shadow;
-            v->angle = angle;
-            v->flip_h = flip_h;
-            v->flip_v = flip_v;
-            return v;
+            if( !free_variant )
+                free_variant = v;
+            continue;
         }
-        if( v->scene_id == scene_id && v->atlas_index == atlas_index && v->outline == outline &&
-            v->graphic_shadow == graphic_shadow && v->angle == angle && v->flip_h == flip_h &&
-            v->flip_v == flip_v )
+        if( v->scene_id == cmd->scene_id && v->atlas_index == cmd->atlas_index &&
+            v->outline == cmd->outline && v->graphic_shadow == cmd->graphic_shadow &&
+            v->angle == cmd->sprite_angle_r2pi65536 && v->flip_h == cmd->flip_h &&
+            v->flip_v == cmd->flip_v && v->if3_transform == if3_transform )
             return v;
     }
-    return NULL;
+    if( !create || !free_variant )
+        return NULL;
+    memset(free_variant, 0, sizeof(*free_variant));
+    free_variant->scene_id = cmd->scene_id;
+    free_variant->atlas_index = cmd->atlas_index;
+    free_variant->outline = cmd->outline;
+    free_variant->graphic_shadow = cmd->graphic_shadow;
+    free_variant->angle = cmd->sprite_angle_r2pi65536;
+    free_variant->flip_h = cmd->flip_h;
+    free_variant->flip_v = cmd->flip_v;
+    free_variant->if3_transform = if3_transform;
+    return free_variant;
 }
 
 static bool
@@ -1399,11 +1372,12 @@ gl3_sprite_ensure_variant(
     int oy;
     int nominal_w;
     int nominal_h;
-    int alpha;
     if( !gl3_sprite_ensure_base(renderer, cmd->scene_id, cmd->atlas_index, &sp, base_uv) )
         return false;
-    if( cmd->outline <= 0 && cmd->graphic_shadow == 0 && cmd->trans <= 0 && !cmd->flip_h &&
-        !cmd->flip_v && cmd->sprite_angle_r2pi65536 == 0 )
+    /* `trans` is not baked: every draw applies it as vertex alpha, as GLES2
+     * and D3D9 do. Baking it too drew a trans=100 sprite at 37%, not 61%. */
+    if( cmd->outline <= 0 && cmd->graphic_shadow == 0 && !cmd->flip_h && !cmd->flip_v &&
+        cmd->sprite_angle_r2pi65536 == 0 )
     {
         *out_sprite = sp;
         out_uv[0] = base_uv[0];
@@ -1416,15 +1390,7 @@ gl3_sprite_ensure_variant(
         *out_sh = sp->height;
         return true;
     }
-    variant = gl3_sprite_find_variant(
-        cmd->scene_id,
-        cmd->atlas_index,
-        cmd->outline,
-        cmd->graphic_shadow,
-        cmd->sprite_angle_r2pi65536,
-        cmd->flip_h,
-        cmd->flip_v,
-        true);
+    variant = gl3_sprite_find_variant(renderer, cmd, true);
     if( !variant )
         return false;
     if( variant->valid )
@@ -1472,8 +1438,6 @@ gl3_sprite_ensure_variant(
             sh = sh2;
         }
     }
-    alpha = 255 - cmd->trans;
-    gl3_scale_pixel_alpha(spr_px, (size_t)sw * (size_t)sh, alpha);
     if( cmd->if3 && !cmd->tiled )
     {
         ToriDraw_SpriteTransformPixels(&spr_px, &sw, &sh, cmd->flip_h, cmd->flip_v, 0);
@@ -1863,294 +1827,6 @@ gl3_ensure_font_slot(
     return slot;
 }
 
-static bool
-gl3_font_char_eq_icase(
-    char a,
-    char b)
-{
-    if( a >= 'A' && a <= 'Z' )
-        a = (char)(a + ('a' - 'A'));
-    if( b >= 'A' && b <= 'Z' )
-        b = (char)(b + ('a' - 'A'));
-    return a == b;
-}
-
-static bool
-gl3_font_line_break_at(
-    char const* p,
-    int* advance_out)
-{
-    assert(p);
-    if( p[0] == '\0' )
-        return false;
-    if( p[0] == '\\' && p[1] == 'n' )
-    {
-        *advance_out = 2;
-        return true;
-    }
-    if( p[0] == '\r' && p[1] == '\n' )
-    {
-        *advance_out = 2;
-        return true;
-    }
-    if( p[0] == '\n' || p[0] == '\r' )
-    {
-        *advance_out = 1;
-        return true;
-    }
-    if( p[0] == '<' && gl3_font_char_eq_icase(p[1], 'b') && gl3_font_char_eq_icase(p[2], 'r') &&
-        p[3] == '/' && gl3_font_char_eq_icase(p[4], '>') )
-    {
-        *advance_out = 5;
-        return true;
-    }
-    if( p[0] == '<' && gl3_font_char_eq_icase(p[1], 'b') && gl3_font_char_eq_icase(p[2], 'r') &&
-        p[3] == '>' )
-    {
-        *advance_out = 4;
-        return true;
-    }
-    return false;
-}
-
-static char const*
-gl3_font_next_line(
-    char const* rest,
-    int* line_len_out,
-    int* break_advance_out)
-{
-    char const* p = rest;
-    while( p[0] != '\0' )
-    {
-        if( gl3_font_line_break_at(p, break_advance_out) )
-        {
-            *line_len_out = (int)(p - rest);
-            return p;
-        }
-        p++;
-    }
-    *line_len_out = (int)(p - rest);
-    *break_advance_out = 0;
-    return p;
-}
-
-static bool
-gl3_font_is_space(unsigned char ch)
-{
-    return ch == ' ' || ch == '|';
-}
-
-static int
-gl3_font_measure_substring(
-    struct ToriDraw_Font* font,
-    char const* text,
-    int len)
-{
-    char tmp[4096];
-    if( len <= 0 )
-        return 0;
-    if( len >= (int)sizeof(tmp) )
-        len = (int)sizeof(tmp) - 1;
-    memcpy(tmp, text, (size_t)len);
-    tmp[len] = '\0';
-    return ToriDraw2D_MeasureString(font, tmp);
-}
-
-static void
-gl3_font_vertical_metrics(
-    struct ToriDraw_Font const* font,
-    int* max_ascent_out,
-    int* max_descent_out)
-{
-    int const fallback_lh = font->line_height > 0 ? font->line_height : 1;
-    int min_oy = 0;
-    int max_bottom = 0;
-    bool any = false;
-
-    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
-    {
-        if( font->glyph_width[i] <= 0 || font->glyph_height[i] <= 0 ||
-            !font->glyph_alpha[i] )
-            continue;
-        int const oy = font->offset_y[i];
-        int const bottom = oy + font->glyph_height[i];
-        if( !any || oy < min_oy )
-            min_oy = oy;
-        if( !any || bottom > max_bottom )
-            max_bottom = bottom;
-        any = true;
-    }
-    if( !any )
-    {
-        *max_ascent_out = fallback_lh;
-        *max_descent_out = 0;
-        return;
-    }
-    int const ascent = fallback_lh;
-    int max_ascent = ascent - min_oy;
-    int max_descent = max_bottom - ascent;
-    if( max_ascent <= 0 )
-        max_ascent = fallback_lh;
-    if( max_descent < 0 )
-        max_descent = 0;
-    *max_ascent_out = max_ascent;
-    *max_descent_out = max_descent;
-}
-
-static bool
-gl3_font_should_auto_wrap(
-    int widget_height,
-    int line_height,
-    int max_ascent,
-    int max_descent)
-{
-    int const resolved_lh = line_height > 0 ? line_height : 1;
-    int const ascent = max_ascent > 0 ? max_ascent : 0;
-    int const descent = max_descent > 0 ? max_descent : 0;
-    int const height = widget_height > 0 ? widget_height : 0;
-    return !(height < resolved_lh + ascent + descent && height < resolved_lh * 2);
-}
-
-static bool
-gl3_font_append_line(
-    char const* lines[],
-    int line_lens[],
-    int* line_count,
-    int max_lines,
-    char const* start,
-    int len)
-{
-    if( *line_count >= max_lines )
-        return false;
-    lines[*line_count] = start;
-    line_lens[*line_count] = len;
-    (*line_count)++;
-    return true;
-}
-
-static bool
-gl3_font_wrap_segment(
-    struct ToriDraw_Font* font,
-    char const* text,
-    int len,
-    int max_width,
-    char const* lines[],
-    int line_lens[],
-    int* line_count,
-    int max_lines)
-{
-    int const space_adv = gl3_font_measure_substring(font, " ", 1);
-    int cur_start = -1;
-    int cur_len = 0;
-    int cur_w = 0;
-    int word_start = 0;
-
-    if( len <= 0 )
-        return gl3_font_append_line(lines, line_lens, line_count, max_lines, text, 0);
-
-    for( int i = 0; i <= len; i++ )
-    {
-        bool const at_end = i == len;
-        bool const is_space = !at_end && gl3_font_is_space((unsigned char)text[i]);
-        if( !at_end && !is_space )
-            continue;
-
-        int const word_len = i - word_start;
-        if( word_len <= 0 )
-        {
-            word_start = at_end ? i : i + 1;
-            continue;
-        }
-
-        int const word_w = gl3_font_measure_substring(font, text + word_start, word_len);
-        if( cur_len <= 0 )
-        {
-            cur_start = word_start;
-            cur_len = word_len;
-            cur_w = word_w;
-        }
-        else
-        {
-            int const candidate = cur_w + space_adv + word_w;
-            if( candidate > max_width )
-            {
-                if( !gl3_font_append_line(
-                        lines, line_lens, line_count, max_lines, text + cur_start, cur_len) )
-                    return false;
-                cur_start = word_start;
-                cur_len = word_len;
-                cur_w = word_w;
-            }
-            else
-            {
-                cur_len = i - cur_start;
-                cur_w = candidate;
-            }
-        }
-        word_start = at_end ? i : i + 1;
-    }
-    if( cur_len > 0 )
-        return gl3_font_append_line(
-            lines, line_lens, line_count, max_lines, text + cur_start, cur_len);
-    return true;
-}
-
-static int
-gl3_font_collect_lines(
-    struct ToriDraw_Font* font,
-    char const* text,
-    int w,
-    int h,
-    int line_height,
-    char const* lines[],
-    int line_lens[])
-{
-    int line_count = 0;
-    assert(text);
-    if( text[0] == '\0' )
-        return 0;
-
-    int const resolved_lh =
-        line_height > 0 ? line_height : (font->line_height > 0 ? font->line_height : 1);
-    int const logical_w = w > 0 ? w : 1;
-    int max_ascent = resolved_lh;
-    int max_descent = 0;
-    gl3_font_vertical_metrics(font, &max_ascent, &max_descent);
-    bool const auto_wrap =
-        w > 0 && h > 0 && gl3_font_should_auto_wrap(h, resolved_lh, max_ascent, max_descent);
-
-    char const* rest = text;
-    while( rest && rest[0] != '\0' && line_count < GL3_FONT_BOX_MAX_LINES )
-    {
-        int segment_len = 0;
-        int break_advance = 0;
-        char const* break_at = gl3_font_next_line(rest, &segment_len, &break_advance);
-        if( auto_wrap )
-        {
-            if( !gl3_font_wrap_segment(
-                    font,
-                    rest,
-                    segment_len,
-                    logical_w,
-                    lines,
-                    line_lens,
-                    &line_count,
-                    GL3_FONT_BOX_MAX_LINES) )
-                break;
-        }
-        else
-        {
-            if( !gl3_font_append_line(
-                    lines, line_lens, &line_count, GL3_FONT_BOX_MAX_LINES, rest, segment_len) )
-                break;
-        }
-        if( break_advance == 0 )
-            break;
-        rest = break_at + break_advance;
-    }
-    return line_count;
-}
-
 struct GL3FontGlyphCtx
 {
     struct ToriRS_GL3* renderer;
@@ -2283,47 +1959,14 @@ gl3_draw_font_box(
     struct ToriDraw_Font* font,
     struct ToriRS_RenderCommand_Font const* cmd)
 {
-    char const* lines[GL3_FONT_BOX_MAX_LINES];
-    int line_lens[GL3_FONT_BOX_MAX_LINES];
-    int const line_count =
-        gl3_font_collect_lines(font, cmd->text, cmd->w, cmd->h, cmd->line_height, lines, line_lens);
-    if( line_count <= 0 )
-        return;
-
-    int const resolved_lh = cmd->line_height > 0 ? cmd->line_height
-                                                 : (font->line_height > 0 ? font->line_height : 1);
-    int const logical_w = cmd->w > 0 ? cmd->w : 1;
-    int const font_ascent = font->line_height > 0 ? font->line_height : resolved_lh;
-    int max_ascent = resolved_lh;
-    int max_descent = 0;
-    gl3_font_vertical_metrics(font, &max_ascent, &max_descent);
-    int const block_h = line_count > 0 ? resolved_lh * (line_count - 1) + max_ascent + max_descent
-                                       : max_ascent + max_descent;
-    int const logical_h = cmd->h > 0 ? cmd->h : block_h;
-
-    int base_y0 = max_ascent;
-    if( cmd->y_align == 1 )
-    {
-        int const space = logical_h - max_ascent - max_descent - resolved_lh * (line_count - 1);
-        base_y0 = max_ascent + space / 2;
-    }
-    else if( cmd->y_align == 2 )
-        base_y0 = logical_h - max_descent - resolved_lh * (line_count - 1);
+    struct ToriDraw_FontBoxLine lines[TORIDRAW_FONT_BOX_MAX_LINES];
+    int const line_count = ToriDraw2D_LayoutStringBox(
+        font, cmd->x, cmd->y, cmd->w, cmd->h, cmd->text, cmd->center, cmd->y_align,
+        cmd->line_height, lines);
 
     for( int i = 0; i < line_count; i++ )
     {
-        int line_x = cmd->x;
-        if( line_lens[i] > 0 )
-        {
-            int const tw = gl3_font_measure_substring(font, lines[i], line_lens[i]);
-            if( cmd->center == 1 )
-                line_x = cmd->x + (logical_w - tw) / 2;
-            else if( cmd->center == 2 )
-                line_x = cmd->x + logical_w - tw;
-        }
-        int const draw_y = cmd->y + base_y0 + i * resolved_lh - font_ascent;
-        if( line_lens[i] <= 0 )
-            continue;
+        struct ToriDraw_FontBoxLine const* line = &lines[i];
         for( int pass=0;pass<ToriDraw_FontShadowPassCount(cmd->shadowed);++pass )
         {
             int dx,dy;ToriDraw_FontShadowOffset(cmd->shadowed,pass,&dx,&dy);
@@ -2331,10 +1974,10 @@ gl3_draw_font_box(
                 renderer,
                 slot,
                 font,
-                lines[i],
-                line_lens[i],
-                line_x + dx,
-                draw_y + dy,
+                line->text,
+                line->len,
+                line->x + dx,
+                line->y + dy,
                 cmd->color,
                 1.0f,
                 true);
@@ -2343,10 +1986,10 @@ gl3_draw_font_box(
             renderer,
             slot,
             font,
-            lines[i],
-            line_lens[i],
-            line_x,
-            draw_y,
+            line->text,
+            line->len,
+            line->x,
+            line->y,
             cmd->color,
             1.0f,
             false);
@@ -2511,6 +2154,10 @@ gl3_draw_sprite_tiled(
         &clip_y,
         &clip_w,
         &clip_h);
+    /* Disjoint comes back 0x0, which the batch reads as "no scissor". */
+    if( command->u.sprite.scissor_w > 0 && command->u.sprite.scissor_h > 0 &&
+        (clip_w <= 0 || clip_h <= 0) )
+        return;
     gl3_set_draw_scissor(renderer, clip_x, clip_y, clip_w, clip_h);
 
     int start_x = 0;
@@ -2575,6 +2222,12 @@ gl3_ev_sprite_unload(
                0,
                (size_t)renderer->sprite_slots[slot_i].count *
                    sizeof(*renderer->sprite_slots[slot_i].loaded));
+    /* Variants were baked from the old pixels. */
+    for( size_t i = 0; i < GL3_SPRITE_VARIANT_CAP; i++ )
+    {
+        if( renderer->sprite_variants[i].valid && renderer->sprite_variants[i].scene_id == scene_id )
+            renderer->sprite_variants[i].valid = false;
+    }
 }
 
 static void
@@ -2722,6 +2375,11 @@ gl3_ev_sprite(
             &clip_y,
             &clip_w,
             &clip_h);
+        /* A disjoint intersection comes back 0x0, which the batch reads as "no
+         * scissor": a world map region wholly outside its widget would then
+         * paint unclipped across the rest of the frame. Nothing shows. */
+        if( spr_cmd->scissor_w > 0 && spr_cmd->scissor_h > 0 && (clip_w <= 0 || clip_h <= 0) )
+            return;
         gl3_set_draw_scissor(renderer, clip_x, clip_y, clip_w, clip_h);
         gl3_draw_textured_quad(
             renderer,
@@ -2836,16 +2494,18 @@ gl3_ev_font(
         int line_count = 0;
         if( !command->u.font.baseline )
         {
-            char const* lines[GL3_FONT_BOX_MAX_LINES];
-            int line_lens[GL3_FONT_BOX_MAX_LINES];
-            line_count = gl3_font_collect_lines(
+            struct ToriDraw_FontBoxLine lines[TORIDRAW_FONT_BOX_MAX_LINES];
+            line_count = ToriDraw2D_LayoutStringBox(
                 font,
-                command->u.font.text,
+                command->u.font.x,
+                command->u.font.y,
                 command->u.font.w,
                 command->u.font.h,
+                command->u.font.text,
+                command->u.font.center,
+                command->u.font.y_align,
                 command->u.font.line_height,
-                lines,
-                line_lens);
+                lines);
         }
         fprintf(
             stderr,

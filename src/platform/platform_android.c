@@ -517,10 +517,15 @@ android_keycode_to_vk(int keycode)
 
 struct PlatformWindow
 {
-    /** The canvas: width * height ARGB8888 pixels, owned here. */
+    /** The canvas: width * height ARGB8888 pixels, owned here -- the render
+     *  buffer, which interface scaling makes larger than the layout. */
     int* pixels;
     int width;
     int height;
+    /** The interface's size: touch space and placement shape. 0 until set,
+     *  and then the buffer's. @see PlatformWindow_SetLayoutSize. */
+    int layout_w;
+    int layout_h;
 
     /** Set by InitForOpenGL3. In GL mode there is no CPU canvas and Present is
      *  a no-op; the renderer draws into the EGL surface and PresentGL swaps. */
@@ -560,13 +565,37 @@ struct PlatformWindow
 
 /* ---- placement ----------------------------------------------------------- */
 
-/* Where the canvas lands on the surface. @see ClientScale_Present. */
+static int
+android_layout_w(struct PlatformWindow const* p)
+{
+    return p->layout_w > 0 ? p->layout_w : p->width;
+}
+
+static int
+android_layout_h(struct PlatformWindow const* p)
+{
+    return p->layout_h > 0 ? p->layout_h : p->height;
+}
+
+void
+PlatformWindow_SetLayoutSize(struct PlatformWindow* p, int width, int height)
+{
+    assert(p);
+    assert(width > 0);
+    assert(height > 0);
+    p->layout_w = width;
+    p->layout_h = height;
+}
+
+/* Where the canvas lands on the surface, placed with the layout's shape.
+ * @see ClientScale_Present. */
 static void
 android_output_rect(struct PlatformWindow* p, int win_w, int win_h, struct ClientScaleRect* out)
 {
     struct ClientScalePresent present;
 
-    ClientScale_Present(&p->client_scale, p->width, p->height, win_w, win_h, &present);
+    ClientScale_Present(
+        &p->client_scale, android_layout_w(p), android_layout_h(p), win_w, win_h, &present);
     *out = present.output;
 }
 
@@ -592,7 +621,8 @@ map_surface_to_canvas(struct PlatformWindow* p, int win_x, int win_y, int* out_x
         return;
     }
     android_output_rect(p, win_w, win_h, &box);
-    ClientScale_OutputToLayout(&box, p->width, p->height, win_x, win_y, out_x, out_y);
+    ClientScale_OutputToLayout(
+        &box, android_layout_w(p), android_layout_h(p), win_x, win_y, out_x, out_y);
 }
 
 /*
@@ -611,12 +641,12 @@ keyboard_canvas_inset(struct PlatformWindow* p, int inset_px, int win_w, int win
         return 0;
     android_output_rect(p, win_w, win_h, &box);
     /* The topmost covered surface row, as a canvas row. */
-    visible_rows = (int)((long long)(win_h - inset_px - box.y) * p->height / box.h);
+    visible_rows = (int)((long long)(win_h - inset_px - box.y) * android_layout_h(p) / box.h);
     if( visible_rows < 0 )
         visible_rows = 0;
-    if( visible_rows > p->height )
-        visible_rows = p->height;
-    return p->height - visible_rows;
+    if( visible_rows > android_layout_h(p) )
+        visible_rows = android_layout_h(p);
+    return android_layout_h(p) - visible_rows;
 }
 
 /* ---- the blit -----------------------------------------------------------

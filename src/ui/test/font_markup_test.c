@@ -320,6 +320,32 @@ main(void)
     check(color_ok,"outline preserves markup foreground colors");
     check(outline_ok && outline_edges>0,"outline draws black glyph edges on all four sides");
     free(plain);
+
+    /* The chat filter buttons: "Game<br> " over "<br>On" in one centred box.
+     * The blank second line draws nothing but still takes a line of the
+     * block, or "Game" centres onto "On". The GL3 renderer's own copy of this
+     * layout dropped it; every renderer now places box text through here. */
+    printf("a blank line still counts for box alignment\n");
+    {
+        struct ToriDraw_FontBoxLine top[TORIDRAW_FONT_BOX_MAX_LINES];
+        struct ToriDraw_FontBoxLine bottom[TORIDRAW_FONT_BOX_MAX_LINES];
+        struct ToriDraw_FontBoxLine alone[TORIDRAW_FONT_BOX_MAX_LINES];
+        int const lh = font->line_height > 0 ? font->line_height : 1;
+        int const box_h = lh * 2 + 4;
+        int const top_n =
+            ToriDraw2D_LayoutStringBox(font, 0, 0, 56, box_h, "Game<br> ", 1, 1, 0, top);
+        int const bottom_n =
+            ToriDraw2D_LayoutStringBox(font, 0, 0, 56, box_h, "<br>On", 1, 1, 0, bottom);
+        int const alone_n =
+            ToriDraw2D_LayoutStringBox(font, 0, 0, 56, box_h, "Game", 1, 1, 0, alone);
+        check(top_n == 1 && bottom_n == 1 && alone_n == 1, "blank lines are not handed out to draw");
+        check(
+            top_n == 1 && bottom_n == 1 && bottom[0].y - top[0].y == lh,
+            "\"Game<br> \" and \"<br>On\" stack one line apart");
+        check(
+            top_n == 1 && alone_n == 1 && top[0].y < alone[0].y,
+            "\"Game<br> \" sits above a lone \"Game\" in the same box");
+    }
     free(canvas);
 
     if( Failures > 0 )

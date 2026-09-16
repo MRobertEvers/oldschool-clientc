@@ -738,11 +738,11 @@ than any one of them being wrong.
 | HighDPI | device option 34, in-client | automatic / device pixels / window points | What 100% interface scaling is one pixel **of** |
 | Render resolution (the pixel limit) | device options 31/35, in-client | a resolution, or Match window | The largest buffer the game renders into: it caps what 100% interface scaling is, and the scale divides that |
 | Renderer | device option 36, in-client and saved; a renderer flag (`--opengl3[-zbuffer]`, `--d3d9[-zbuffer]`, `--gles2[-zbuffer]`, `--soft3d`, on the command line or in the manifest) always wins at launch | the renderers this build and window can start | Swapped live between two frames: the old renderer is freed, the window changes how it presents, the new one starts and is handed the scene again. The game, network and plugins keep running. Desktop SDL: Software / OpenGL / OpenGL (depth buffer). Windows XP: Software (GDI) / Direct3D 9 / Direct3D 9 (depth buffer). Android and the browser keep the renderer they launched with. With no renderer flag, the saved pick is applied once preferences load. A pick that cannot start falls back and the page says so |
-| Whole pixels | device option 30 = 1, in-client toggle beside interface scaling | on/off | Interface scaling rounded to whole multiples so every buffer pixel covers a whole number of window pixels |
+| Integer scaling | device option 30 = 1, in-client toggle beside interface scaling | on/off | Interface scaling rounded to whole multiples so every buffer pixel covers a whole number of window pixels |
 | Stretch mode | device option 30 = 0/2, in-client, shown only when it can matter | keep aspect / stretch to fill | Placing a buffer that is NOT the window's shape: a fixed frame, or a resizable one the window could not hold. A resizable buffer is otherwise the window's own shape and both modes draw the same picture |
 | `chrome_scale` | `[ui:boot]`, env `TORIRS_CHROME_SCALE` | `1..4`, `dynamic`, unset | Device pixels per ToriRSChrome pixel |
 | `windowmode` | `[ui:boot]`, `--windowmode` | `fixed`/`resizable` | Whether the canvas tracks the window at all |
-| Interface scaling | device option 27, in-client | percent | Canvas divided down so the IF3 layer draws larger |
+| Interface scaling | device option 27, in-client | percent | The interface's layout size (buffer / percent); every 2D element is drawn scaled into the buffer. Never the 3D world |
 
 Precedence for `hidpi` and `chrome_scale` is env, then manifest, then the
 platform default.
@@ -759,11 +759,15 @@ live-switchable from Client Settings:
   the window server.
 
 Every renderer — Soft3D, GL3, GLES2, D3D9 — runs one pipeline: the game renders
-into a buffer the size the settings say (the window -- or the largest buffer
-inside the render resolution, when that is smaller -- divided by interface scaling),
-then stretch mode and the frame filter fit that buffer to the window. Scaling
-happens before the stretch, and the limit before the scaling, so every scale
-step still draws a different frame under a limit. A resizable window is grown
+into a buffer the size of the frame's place in the window (in HighDPI's unit, and
+no larger than the render resolution). The 3D world is drawn at the buffer's own
+pixels. The interface is laid out at the buffer divided by interface scaling and
+every 2D element — fills, sprites, text, lines, polygons, item and head models —
+is written scaled into the buffer (Soft3D scales each primitive; the GPU lanes
+scale their 2D vertices). Then stretch mode and the frame filter fit the buffer
+to the window. Interface scaling therefore never lowers the world's resolution,
+and the limit applies before the scaling, so every scale step still draws a
+different interface under a limit. A resizable window is grown
 to, and held at, the frame at the chosen scale (capped at the display and at
 what the limit can hold); only a buffer that still cannot hold the frame has
 its scale lowered.

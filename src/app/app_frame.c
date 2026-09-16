@@ -38,6 +38,14 @@ App_NoteFrameTime(
     FrameTimeRing_Add(&app->dbg_frame_times, frame_us);
 }
 
+void
+App_NoteFrameDrawn(struct App* app)
+{
+    assert(app);
+
+    app->frames_rendered++;
+}
+
 uint64_t
 App_LastFrameUs(struct App const* app)
 {

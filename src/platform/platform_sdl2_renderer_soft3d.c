@@ -49,9 +49,53 @@ struct ToriRS_Soft3DScratch
 {
     uint32_t* blit;
     size_t blit_cap;
+    /* Layout-sized canvas for the pieces drawn at layout resolution and then
+     * scaled into the buffer. @see soft3d_layer_begin. */
+    int* layer;
+    size_t layer_cap;
+    /* The region a begun layer covers, and the buffer it swapped out. */
+    int layer_open;
+    int layer_x0, layer_y0, layer_x1, layer_y1;
+    int* layer_saved_pixels;
+    int layer_saved_width, layer_saved_height, layer_saved_stride;
     struct Soft3DOutlineCacheEntry outline_cache[SOFT3D_OUTLINE_CACHE_SLOTS];
     uint64_t outline_clock;
 };
+
+/* floor(v * num / den) for a positive den, negative v included. */
+static inline int
+soft3d_floor_scale(long long v, int num, int den)
+{
+    long long const n = v * num;
+    long long q = n / den;
+    if( n % den != 0 && n < 0 )
+        q--;
+    return (int)q;
+}
+
+/* The layout pixel a (non-negative) buffer pixel belongs to: the largest v
+ * whose edge soft3d_mx(v) is at or before p. The inverse that keeps every
+ * layout pixel's own buffer pixels -- floor(p * layout / buf) gives the first
+ * of them to the neighbour and loses one-pixel-wide ones. */
+static inline int
+soft3d_owner(long long p, int buf, int layout)
+{
+    return (int)(((p + 1) * layout + buf - 1) / buf) - 1;
+}
+
+/* A layout coordinate, in buffer pixels. Edges map with floor, so two
+ * layout rects that share an edge share it in the buffer too. */
+static inline int
+soft3d_mx(struct ToriRS_Soft3D const* soft, long long x)
+{
+    return soft->scaled ? soft3d_floor_scale(x, soft->width, soft->layout_w) : (int)x;
+}
+
+static inline int
+soft3d_my(struct ToriRS_Soft3D const* soft, long long y)
+{
+    return soft->scaled ? soft3d_floor_scale(y, soft->height, soft->layout_h) : (int)y;
+}
 
 /*
  * Emitted scissor -> raster clip rect, intersected with the pixel buffer.
@@ -71,13 +115,16 @@ viewport_from_scissor(
     int scissor_h)
 {
     struct ToriDraw_ViewPort vp;
-    int right = scissor_x + scissor_w;
-    int bottom = scissor_y + scissor_h;
+    /* The scissor is a layout rect; the clip is the buffer's. */
+    int const left = soft3d_mx(soft, scissor_x);
+    int const top = soft3d_my(soft, scissor_y);
+    int const right = soft3d_mx(soft, (long long)scissor_x + scissor_w);
+    int const bottom = soft3d_my(soft, (long long)scissor_y + scissor_h);
 
     memset(&vp, 0, sizeof(vp));
     vp.stride = soft->stride;
-    vp.clip_left = scissor_x < 0 ? 0 : scissor_x;
-    vp.clip_top = scissor_y < 0 ? 0 : scissor_y;
+    vp.clip_left = left < 0 ? 0 : left;
+    vp.clip_top = top < 0 ? 0 : top;
     vp.clip_right = right > soft->width ? soft->width : right;
     vp.clip_bottom = bottom > soft->height ? soft->height : bottom;
     /* An entirely off-canvas box collapses to empty rather than inverting. */
@@ -266,6 +313,221 @@ soft3d_scale_pixel_alpha(
     }
 }
 
+/*
+ * The sprite blits, in layout pixels. Unscaled they are the ToriDraw calls
+ * themselves; scaled, the layout box maps to its buffer box and the image is
+ * stretched into it, so an image drawn 1:1 in layout lands at the interface
+ * scale.
+ */
+static void
+soft3d_blit_scaled_alpha(
+    struct ToriRS_Soft3D* soft,
+    struct ToriDraw_ViewPort* vp,
+    int x,
+    int y,
+    int w,
+    int h,
+    uint32_t const* src,
+    int src_w,
+    int src_h,
+    int alpha)
+{
+    int const x0 = soft3d_mx(soft, x);
+    int const y0 = soft3d_my(soft, y);
+    ToriDraw2D_BlitArgbScaledAlpha(
+        vp,
+        x0,
+        y0,
+        soft3d_mx(soft, (long long)x + w) - x0,
+        soft3d_my(soft, (long long)y + h) - y0,
+        src,
+        src_w,
+        src_h,
+        alpha,
+        soft->pixels);
+}
+
+static void
+soft3d_blit_alpha(
+    struct ToriRS_Soft3D* soft,
+    struct ToriDraw_ViewPort* vp,
+    int x,
+    int y,
+    uint32_t const* src,
+    int src_w,
+    int src_h,
+    int alpha)
+{
+    if( !soft->scaled )
+    {
+        ToriDraw2D_BlitArgbAlpha(vp, x, y, src, src_w, src_h, alpha, soft->pixels);
+        return;
+    }
+    soft3d_blit_scaled_alpha(soft, vp, x, y, src_w, src_h, src, src_w, src_h, alpha);
+}
+
+static void
+soft3d_blit_tiled_alpha(
+    struct ToriRS_Soft3D* soft,
+    struct ToriDraw_ViewPort* vp,
+    int x,
+    int y,
+    int w,
+    int h,
+    uint32_t const* src,
+    int src_w,
+    int src_h,
+    int origin_x,
+    int origin_y,
+    int alpha)
+{
+    if( !soft->scaled )
+    {
+        ToriDraw2D_BlitArgbTiledAlpha(
+            vp, x, y, w, h, src, src_w, src_h, origin_x, origin_y, alpha, soft->pixels);
+        return;
+    }
+    ToriDraw2D_BlitArgbTiledScaledAlpha(
+        vp,
+        x,
+        y,
+        w,
+        h,
+        src,
+        src_w,
+        src_h,
+        origin_x,
+        origin_y,
+        soft->width,
+        soft->layout_w,
+        soft->height,
+        soft->layout_h,
+        alpha,
+        soft->pixels);
+}
+
+/*
+ * The layer: a piece drawn at layout resolution by code that only knows how
+ * to write 1:1 -- a rotated sprite, a model widget -- then scaled into the
+ * buffer. Only opaque writers go through it: the region starts as a sentinel
+ * no writer produces, and every other pixel is copied across as it was
+ * written. A writer that BLENDS would blend against the sentinel, so those
+ * are scaled natively instead.
+ */
+#define SOFT3D_LAYER_EMPTY ((int)0x00FE01FD)
+
+static int*
+soft3d_layer_begin(struct ToriRS_Soft3D* soft, int x0, int y0, int x1, int y1)
+{
+    struct ToriRS_Soft3DScratch* scratch;
+    size_t n;
+
+    assert(soft);
+    assert(soft->scratch);
+    scratch = soft->scratch;
+    assert(!scratch->layer_open);
+    if( !soft->scaled )
+        return soft->pixels;
+
+    if( x0 < 0 )
+        x0 = 0;
+    if( y0 < 0 )
+        y0 = 0;
+    if( x1 > soft->layout_w )
+        x1 = soft->layout_w;
+    if( y1 > soft->layout_h )
+        y1 = soft->layout_h;
+    if( x1 < x0 )
+        x1 = x0;
+    if( y1 < y0 )
+        y1 = y0;
+
+    n = (size_t)soft->layout_w * (size_t)soft->layout_h;
+    if( n > scratch->layer_cap )
+    {
+        int* grown = (int*)realloc(scratch->layer, n * sizeof(int));
+        assert(grown);
+        scratch->layer = grown;
+        scratch->layer_cap = n;
+    }
+    for( int y = y0; y < y1; y++ )
+    {
+        int* row = scratch->layer + (size_t)y * (size_t)soft->layout_w;
+        for( int x = x0; x < x1; x++ )
+            row[x] = SOFT3D_LAYER_EMPTY;
+    }
+
+    scratch->layer_open = 1;
+    scratch->layer_x0 = x0;
+    scratch->layer_y0 = y0;
+    scratch->layer_x1 = x1;
+    scratch->layer_y1 = y1;
+    scratch->layer_saved_pixels = soft->pixels;
+    scratch->layer_saved_width = soft->width;
+    scratch->layer_saved_height = soft->height;
+    scratch->layer_saved_stride = soft->stride;
+    /* Unscaled while it is open: the writer sees a layout-sized buffer. */
+    soft->pixels = scratch->layer;
+    soft->width = soft->layout_w;
+    soft->height = soft->layout_h;
+    soft->stride = soft->layout_w;
+    soft->scaled = false;
+    ToriDraw2D_FontSetOutputScale(1, 1, 1, 1);
+    return scratch->layer;
+}
+
+static void
+soft3d_layer_end(struct ToriRS_Soft3D* soft)
+{
+    struct ToriRS_Soft3DScratch* scratch;
+    int bx0, by0, bx1, by1;
+
+    assert(soft);
+    assert(soft->scratch);
+    scratch = soft->scratch;
+    if( !scratch->layer_open )
+        return;
+    scratch->layer_open = 0;
+    soft->pixels = scratch->layer_saved_pixels;
+    soft->width = scratch->layer_saved_width;
+    soft->height = scratch->layer_saved_height;
+    soft->stride = scratch->layer_saved_stride;
+    soft->scaled = true;
+    ToriDraw2D_FontSetOutputScale(soft->width, soft->layout_w, soft->height, soft->layout_h);
+
+    bx0 = soft3d_mx(soft, scratch->layer_x0);
+    by0 = soft3d_my(soft, scratch->layer_y0);
+    bx1 = soft3d_mx(soft, scratch->layer_x1);
+    by1 = soft3d_my(soft, scratch->layer_y1);
+    if( bx1 > soft->width )
+        bx1 = soft->width;
+    if( by1 > soft->height )
+        by1 = soft->height;
+    if( bx0 >= bx1 || by0 >= by1 )
+        return;
+
+    {
+        int const columns = bx1 - bx0;
+        int* lx = (int*)malloc((size_t)columns * sizeof(int));
+        assert(lx);
+        for( int x = 0; x < columns; x++ )
+            lx[x] = soft3d_owner(bx0 + x, soft->width, soft->layout_w);
+        for( int y = by0; y < by1; y++ )
+        {
+            int const ly = soft3d_owner(y, soft->height, soft->layout_h);
+            int const* srow = scratch->layer + (size_t)ly * (size_t)soft->layout_w;
+            int* drow = soft->pixels + (size_t)y * (size_t)soft->stride;
+            for( int x = 0; x < columns; x++ )
+            {
+                int const v = srow[lx[x]];
+                if( v != SOFT3D_LAYER_EMPTY )
+                    drow[bx0 + x] = v;
+            }
+        }
+        free(lx);
+    }
+}
+
 static void
 soft3d_draw_sprite(
     struct ToriRS_Soft3D* soft,
@@ -307,15 +569,21 @@ soft3d_draw_sprite(
     if( !spr || !spr->pixels_argb || spr->width <= 0 || spr->height <= 0 )
         return;
 
-    vp =
-        viewport_from_scissor(soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
-
     /* Chrome rotated by camera yaw (compass, minimap, scrollbar arrows): inverse-map
      * the destination box through the anchor pair instead of growing a pixel buffer.
-     * Units here are 0..2047, not the IF3 spriteAngle scale used further down. */
+     * Units here are 0..2047, not the IF3 spriteAngle scale used further down.
+     * The rotator writes opaque pixels 1:1, so a scaled frame draws it into the
+     * layer over its own box and scales that. */
     if( cmd->rotated )
     {
         struct ToriDraw_Sprite* mask_spr = NULL;
+        int const box_w = cmd->w > 0 ? cmd->w : spr->width;
+        int const box_h = cmd->h > 0 ? cmd->h : spr->height;
+        bool const layered = soft->scaled;
+        if( layered )
+            (void)soft3d_layer_begin(soft, cmd->x, cmd->y, cmd->x + box_w, cmd->y + box_h);
+        vp = viewport_from_scissor(
+            soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
         if( cmd->mask_scene_id > 0 )
         {
             int mask_count = 0;
@@ -354,8 +622,15 @@ soft3d_draw_sprite(
                 cmd->src_anchor_y,
                 cmd->rotation_r2pi2048,
                 soft->pixels);
+        /* The writer clipped to the scissor, so what it did not write stays
+         * empty and is not copied. */
+        if( layered )
+            soft3d_layer_end(soft);
         return;
     }
+
+    vp =
+        viewport_from_scissor(soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
 
     nominal_w = spr->width;
     nominal_h = spr->height;
@@ -387,7 +662,8 @@ soft3d_draw_sprite(
 
         if( cmd->tiled )
         {
-            ToriDraw2D_BlitArgbTiledAlpha(
+            soft3d_blit_tiled_alpha(
+                soft,
                 &vp,
                 cmd->x,
                 cmd->y,
@@ -398,15 +674,13 @@ soft3d_draw_sprite(
                 sh,
                 cmd->x + ox,
                 cmd->y + oy,
-                alpha,
-                soft->pixels);
+                alpha);
             return;
         }
         if( !cmd->if3 )
         {
             soft3d_dbg_sprite_census_note(spr, sw * sh);
-            ToriDraw2D_BlitArgbAlpha(
-                &vp, cmd->x + ox, cmd->y + oy, spr->pixels_argb, sw, sh, alpha, soft->pixels);
+            soft3d_blit_alpha(soft, &vp, cmd->x + ox, cmd->y + oy, spr->pixels_argb, sw, sh, alpha);
             return;
         }
         /* if3 scales the *nominal* box, so a crop offset is only skippable when
@@ -416,8 +690,8 @@ soft3d_draw_sprite(
         {
             int draw_w = cmd->w > 0 ? cmd->w : sw;
             int draw_h = cmd->h > 0 ? cmd->h : sh;
-            ToriDraw2D_BlitArgbScaledAlpha(
-                &vp, cmd->x, cmd->y, draw_w, draw_h, spr->pixels_argb, sw, sh, alpha, soft->pixels);
+            soft3d_blit_scaled_alpha(
+                soft, &vp, cmd->x, cmd->y, draw_w, draw_h, spr->pixels_argb, sw, sh, alpha);
             return;
         }
     }
@@ -445,14 +719,14 @@ soft3d_draw_sprite(
                  * no pad offset to compensate. */
                 if( cox == 0 && coy == 0 && cw == nominal_w && ch == nominal_h )
                 {
-                    ToriDraw2D_BlitArgbScaled(
-                        &vp, cmd->x, cmd->y, draw_w, draw_h, cached, cw, ch, soft->pixels);
+                    soft3d_blit_scaled_alpha(
+                        soft, &vp, cmd->x, cmd->y, draw_w, draw_h, cached, cw, ch, 255);
                     return;
                 }
             }
             else
             {
-                ToriDraw2D_BlitArgb(&vp, cmd->x + cox, cmd->y + coy, cached, cw, ch, soft->pixels);
+                soft3d_blit_alpha(soft, &vp, cmd->x + cox, cmd->y + coy, cached, cw, ch, 255);
                 return;
             }
         }
@@ -553,8 +827,7 @@ soft3d_draw_sprite(
                 draw_x = cmd->x + (box_w - draw_w) / 2;
                 draw_y = cmd->y + (box_h - draw_h) / 2;
             }
-            ToriDraw2D_BlitArgbScaled(
-                &vp, draw_x, draw_y, draw_w, draw_h, spr_px, sw, sh, soft->pixels);
+            soft3d_blit_scaled_alpha(soft, &vp, draw_x, draw_y, draw_w, draw_h, spr_px, sw, sh, 255);
         }
     }
     else
@@ -563,18 +836,9 @@ soft3d_draw_sprite(
 
         if( cmd->tiled )
         {
-            ToriDraw2D_BlitArgbTiled(
-                &vp,
-                cmd->x,
-                cmd->y,
-                cmd->w,
-                cmd->h,
-                spr_px,
-                sw,
-                sh,
-                cmd->x + ox,
-                cmd->y + oy,
-                soft->pixels);
+            soft3d_blit_tiled_alpha(
+                soft, &vp, cmd->x, cmd->y, cmd->w, cmd->h, spr_px, sw, sh, cmd->x + ox, cmd->y + oy,
+                255);
         }
         else
         {
@@ -587,7 +851,7 @@ soft3d_draw_sprite(
                 draw_x = center_x - sw / 2;
                 draw_y = center_y - sh / 2;
             }
-            ToriDraw2D_BlitArgb(&vp, draw_x, draw_y, spr_px, sw, sh, soft->pixels);
+            soft3d_blit_alpha(soft, &vp, draw_x, draw_y, spr_px, sw, sh, 255);
         }
     }
 
@@ -660,14 +924,29 @@ soft3d_draw_fill_rect(
     assert(cmd);
     vp =
         viewport_from_scissor(soft, cmd->scissor_x, cmd->scissor_y, cmd->scissor_w, cmd->scissor_h);
-    x0 = cmd->x;
-    y0 = cmd->y;
-    x1 = cmd->x + cmd->w;
-    y1 = cmd->y + cmd->h;
+    x0 = soft3d_mx(soft, cmd->x);
+    y0 = soft3d_my(soft, cmd->y);
+    x1 = soft3d_mx(soft, (long long)cmd->x + cmd->w);
+    y1 = soft3d_my(soft, (long long)cmd->y + cmd->h);
     if( cmd->filled )
         ToriDraw2D_FillRect(&vp, x0, y0, x1, y1, cmd->argb, soft->pixels);
-    else
+    else if( !soft->scaled )
         ToriDraw2D_DrawRectOutline(&vp, x0, y0, x1, y1, cmd->argb, soft->pixels);
+    else if( cmd->w > 0 && cmd->h > 0 )
+    {
+        /* The outline is one LAYOUT pixel: each edge is that pixel's strip. */
+        int const inner_x0 = soft3d_mx(soft, (long long)cmd->x + 1);
+        int const inner_y0 = soft3d_my(soft, (long long)cmd->y + 1);
+        int const inner_x1 = soft3d_mx(soft, (long long)cmd->x + cmd->w - 1);
+        int const inner_y1 = soft3d_my(soft, (long long)cmd->y + cmd->h - 1);
+        ToriDraw2D_FillRect(&vp, x0, y0, x1, inner_y0, cmd->argb, soft->pixels);
+        if( inner_y1 > inner_y0 )
+        {
+            ToriDraw2D_FillRect(&vp, x0, inner_y1, x1, y1, cmd->argb, soft->pixels);
+            ToriDraw2D_FillRect(&vp, x0, inner_y0, inner_x0, inner_y1, cmd->argb, soft->pixels);
+            ToriDraw2D_FillRect(&vp, inner_x1, inner_y0, x1, inner_y1, cmd->argb, soft->pixels);
+        }
+    }
 }
 
 static void
@@ -683,11 +962,12 @@ soft3d_draw_clear_rect(
 
     assert(soft);
     assert(cmd);
-    vp = viewport_from_scissor(soft, 0, 0, soft->width, soft->height);
-    x0 = cmd->x;
-    y0 = cmd->y;
-    x1 = cmd->x + cmd->w;
-    y1 = cmd->y + cmd->h;
+    vp = viewport_from_scissor(
+        soft, 0, 0, soft->scaled ? soft->layout_w : soft->width, soft->scaled ? soft->layout_h : soft->height);
+    x0 = soft3d_mx(soft, cmd->x);
+    y0 = soft3d_my(soft, cmd->y);
+    x1 = soft3d_mx(soft, (long long)cmd->x + cmd->w);
+    y1 = soft3d_my(soft, (long long)cmd->y + cmd->h);
     ToriDraw2D_FillRect(&vp, x0, y0, x1, y1, TORIRS_SOFT3D_BG, soft->pixels);
 }
 
@@ -777,10 +1057,20 @@ soft3d_polygon_end(struct ToriRS_Soft3D* soft)
     ctx.argb = (uint32_t)soft->polygon.argb;
     ctx.trans = soft->polygon.trans;
 
-    cx = soft->polygon.scissor_w > 0 ? soft->polygon.scissor_x : 0;
-    cy = soft->polygon.scissor_w > 0 ? soft->polygon.scissor_y : 0;
-    cw = soft->polygon.scissor_w > 0 ? soft->polygon.scissor_w : soft->width;
-    ch = soft->polygon.scissor_h > 0 ? soft->polygon.scissor_h : soft->height;
+    /* In layout pixels, as the command states it; the points were scaled as
+     * they arrived and the scissor is scaled here. */
+    {
+        int const lx = soft->polygon.scissor_w > 0 ? soft->polygon.scissor_x : 0;
+        int const ly = soft->polygon.scissor_w > 0 ? soft->polygon.scissor_y : 0;
+        int const lw = soft->polygon.scissor_w > 0 ? soft->polygon.scissor_w
+                                                   : (soft->scaled ? soft->layout_w : soft->width);
+        int const lh = soft->polygon.scissor_h > 0 ? soft->polygon.scissor_h
+                                                   : (soft->scaled ? soft->layout_h : soft->height);
+        cx = soft3d_mx(soft, lx);
+        cy = soft3d_my(soft, ly);
+        cw = soft3d_mx(soft, (long long)lx + lw) - cx;
+        ch = soft3d_my(soft, (long long)ly + lh) - cy;
+    }
 
     ToriRS_PolygonFillConvex(
         soft->polygon_x,
@@ -827,6 +1117,16 @@ soft3d_draw_line(
         y2 = cmd->y + cmd->h;
     }
 
+    if( soft->scaled )
+    {
+        x1 = soft3d_mx(soft, x1);
+        y1 = soft3d_my(soft, y1);
+        x2 = soft3d_mx(soft, x2);
+        y2 = soft3d_my(soft, y2);
+        thickness = (int)((long long)thickness * soft->height / soft->layout_h);
+        if( thickness < 1 )
+            thickness = 1;
+    }
     ToriDraw2D_DrawLine(&vp, x1, y1, x2, y2, thickness, cmd->argb, soft->pixels);
 }
 
@@ -844,6 +1144,20 @@ soft3d_draw_model_widget(
     assert(cmd);
     if( !ToriDraw_ModelKindIsFull(cmd->model.kind) || !cmd->model.u.model.model )
         return;
+
+    /* The widget raster writes opaque pixels 1:1 at layout resolution; a
+     * scaled frame draws it into the layer over its clipped box. */
+    bool const layered = soft->scaled;
+    if( layered )
+    {
+        int bx0 = cmd->x > cmd->scissor_x ? cmd->x : cmd->scissor_x;
+        int by0 = cmd->y > cmd->scissor_y ? cmd->y : cmd->scissor_y;
+        int bx1 = cmd->x + cmd->w < cmd->scissor_x + cmd->scissor_w ? cmd->x + cmd->w
+                                                                    : cmd->scissor_x + cmd->scissor_w;
+        int by1 = cmd->y + cmd->h < cmd->scissor_y + cmd->scissor_h ? cmd->y + cmd->h
+                                                                    : cmd->scissor_y + cmd->scissor_h;
+        (void)soft3d_layer_begin(soft, bx0, by0, bx1, by1);
+    }
 
     (void)ToriDraw_RenderModelExtentsAtWidget(
         soft->scene,
@@ -873,6 +1187,8 @@ soft3d_draw_model_widget(
         &draw_y,
         &out_w,
         &out_h);
+    if( layered )
+        soft3d_layer_end(soft);
 }
 
 static void
@@ -982,6 +1298,66 @@ soft3d_draw_model(
     }
 }
 
+/*
+ * The world at the buffer's resolution: the layout viewport mapped into the
+ * buffer, and the projection scaled with it so the same scene fills the
+ * larger rectangle. Interface scaling sizes the interface; this is what keeps
+ * it from sizing the world.
+ */
+static void
+soft3d_scale_world(struct ToriRS_Soft3D* soft)
+{
+    struct ToriDraw_ViewPort* vp = &soft->view_port_3d;
+    struct ToriDraw_Camera* camera = &soft->camera_3d;
+    int const left = vp->x_center - vp->width / 2;
+    int const top = vp->y_center - vp->height / 2;
+    int const bleft = soft3d_mx(soft, left);
+    int const btop = soft3d_my(soft, top);
+    int const bw = soft3d_mx(soft, (long long)left + vp->width) - bleft;
+    int const bh = soft3d_my(soft, (long long)top + vp->height) - btop;
+
+    assert(soft->scaled);
+    vp->width = bw;
+    vp->height = bh;
+    vp->x_center = bleft + bw / 2;
+    vp->y_center = btop + bh / 2;
+    vp->clip_left = soft3d_mx(soft, vp->clip_left);
+    vp->clip_top = soft3d_my(soft, vp->clip_top);
+    vp->clip_right = soft3d_mx(soft, vp->clip_right);
+    vp->clip_bottom = soft3d_my(soft, vp->clip_bottom);
+    if( vp->clip_right > soft->width )
+        vp->clip_right = soft->width;
+    if( vp->clip_bottom > soft->height )
+        vp->clip_bottom = soft->height;
+
+    /* One factor for both axes -- the projection has one -- taken from the
+     * height, which is what the viewport's scale was derived from. */
+    switch( camera->projection_mode )
+    {
+    case TORIDRAW_PROJECTION_MODE_PARALLEL:
+        camera->parallel_zoom16 =
+            (int)((long long)camera->parallel_zoom16 * soft->height / soft->layout_h);
+        break;
+    case TORIDRAW_PROJECTION_MODE_FOV:
+    {
+        /* An angle does not grow with the viewport; the equivalent linear
+         * scale does. */
+        int const cot16 = toridraw_projection_cot16_from_fov(camera->fov_rpi2048);
+        camera->projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+        camera->projection_scale = (int)(((long long)cot16 * soft->height / soft->layout_h) >>
+                                         TORIDRAW_PROJECTION_COT16_SHIFT);
+        break;
+    }
+    default:
+    {
+        int const scale = camera->projection_scale > 0 ? camera->projection_scale
+                                                       : TORIDRAW_PROJECTION_SCALE_DEFAULT;
+        camera->projection_scale = (int)((long long)scale * soft->height / soft->layout_h);
+        break;
+    }
+    }
+}
+
 struct ToriRS_Soft3D*
 ToriRS_Soft3D_New(void)
 {
@@ -1005,6 +1381,7 @@ ToriRS_Soft3D_Free(struct ToriRS_Soft3D* soft)
         for( i = 0; i < SOFT3D_OUTLINE_CACHE_SLOTS; i++ )
             free(soft->scratch->outline_cache[i].pixels);
         free(soft->scratch->blit);
+        free(soft->scratch->layer);
         free(soft->scratch);
     }
     free(soft);
@@ -1042,6 +1419,43 @@ ToriRS_Soft3D_Init(
     soft->width = width;
     soft->height = height;
     soft->stride = width;
+    soft->layout_w = width;
+    soft->layout_h = height;
+    soft->scaled = false;
+}
+
+void
+ToriRS_Soft3D_SetLayout(
+    struct ToriRS_Soft3D* soft,
+    int layout_w,
+    int layout_h)
+{
+    assert(soft);
+    assert(layout_w > 0);
+    assert(layout_h > 0);
+    soft->layout_w = layout_w;
+    soft->layout_h = layout_h;
+    soft->scaled = layout_w != soft->width || layout_h != soft->height;
+}
+
+int*
+ToriRS_Soft3D_LayerBegin(
+    struct ToriRS_Soft3D* soft,
+    int x0,
+    int y0,
+    int x1,
+    int y1)
+{
+    assert(soft);
+    return soft3d_layer_begin(soft, x0, y0, x1, y1);
+}
+
+void
+ToriRS_Soft3D_LayerEnd(struct ToriRS_Soft3D* soft)
+{
+    assert(soft);
+    soft3d_layer_end(soft);
+    ToriDraw2D_FontSetOutputScale(1, 1, 1, 1);
 }
 
 void
@@ -1052,8 +1466,9 @@ ToriRS_Soft3D_SetPick(
 {
     assert(soft);
     soft->pick_enabled = true;
-    soft->pick_mouse_x = mouse_x;
-    soft->pick_mouse_y = mouse_y;
+    /* A layout point, tested against a world drawn at the buffer's pixels. */
+    soft->pick_mouse_x = soft3d_mx(soft, mouse_x);
+    soft->pick_mouse_y = soft3d_my(soft, mouse_y);
     ToriRS_PickHitsReset(&soft->pick_hits);
 }
 
@@ -1071,8 +1486,10 @@ ToriRS_Soft3D_Execute(
         soft->has_3d = true;
         soft->view_port_3d = cmd->u.begin_3d.view_port;
         soft->camera_3d = cmd->u.begin_3d.camera;
+        if( soft->scaled )
+            soft3d_scale_world(soft);
         ToriDraw_ScenePrepareProjectionCamera(soft->scene, &soft->camera_3d);
-        if( soft->view_port_3d.stride <= 0 )
+        if( soft->view_port_3d.stride <= 0 || soft->scaled )
             soft->view_port_3d.stride = soft->stride;
         break;
 
@@ -1126,8 +1543,8 @@ ToriRS_Soft3D_Execute(
          * wrapped write would destroy memory. */
         if( soft->polygon_open && soft->polygon_count < TORIRS_POLYGON_MAX_POINTS )
         {
-            soft->polygon_x[soft->polygon_count] = cmd->u.polygon_point.x;
-            soft->polygon_y[soft->polygon_count] = cmd->u.polygon_point.y;
+            soft->polygon_x[soft->polygon_count] = soft3d_mx(soft, cmd->u.polygon_point.x);
+            soft->polygon_y[soft->polygon_count] = soft3d_my(soft, cmd->u.polygon_point.y);
             soft->polygon_count++;
         }
         break;
@@ -1370,9 +1787,13 @@ ToriRS_Soft3D_RenderFrame(
     }
 
     soft->has_3d = false;
+    /* Text is the one writer that scales inside ToriDraw; its scale is this
+     * frame's and ends with it. */
+    ToriDraw2D_FontSetOutputScale(soft->width, soft->layout_w, soft->height, soft->layout_h);
     ToriRS_FrameBegin(frame);
     soft3d_run_commands(soft, frame);
     ToriRS_FrameEnd(frame);
+    ToriDraw2D_FontSetOutputScale(1, 1, 1, 1);
     SOFT3D_DBG_FB_POISON_SCAN(soft);
 
     soft3d_dbg_frame_ab_end();

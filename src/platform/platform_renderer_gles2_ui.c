@@ -2616,183 +2616,6 @@ gles2_ui_draw_font_rules(
 }
 
 static void
-gles2_ui_font_vertical_metrics(
-    const struct ToriDraw_Font* font,
-    int* ascent_out,
-    int* descent_out)
-{
-    int fallback = font->line_height > 0 ? font->line_height : 1;
-    int min_y = 0;
-    int max_bottom = 0;
-    bool any = false;
-    int glyph;
-    for( glyph = 0; glyph < TORIDRAW_FONT_GLYPH_COUNT; glyph++ )
-    {
-        int bottom;
-        if( font->glyph_width[glyph] <= 0 || font->glyph_height[glyph] <= 0 || !font->glyph_alpha[glyph] )
-            continue;
-        bottom = font->offset_y[glyph] + font->glyph_height[glyph];
-        if( !any || font->offset_y[glyph] < min_y )
-            min_y = font->offset_y[glyph];
-        if( !any || bottom > max_bottom )
-            max_bottom = bottom;
-        any = true;
-    }
-    if( !any )
-    {
-        *ascent_out = fallback;
-        *descent_out = 0;
-        return;
-    }
-    *ascent_out = fallback - min_y;
-    *descent_out = max_bottom - fallback;
-    if( *ascent_out <= 0 )
-        *ascent_out = fallback;
-    if( *descent_out < 0 )
-        *descent_out = 0;
-}
-
-static bool
-gles2_ui_font_append_line(
-    const char* lines[],
-    int lengths[],
-    int* count,
-    const char* text,
-    int length)
-{
-    if( *count >= GLES2_UI_FONT_BOX_MAX_LINES )
-        return false;
-    lines[*count] = text;
-    lengths[*count] = length;
-    (*count)++;
-    return true;
-}
-
-static bool
-gles2_ui_font_segment_has_visible_content(const char* text, int length)
-{
-    int index;
-    assert(text);
-    if( length <= 0 )
-        return false;
-    for( index = 0; index < length; index++ )
-    {
-        unsigned char emit_char = 0;
-        int consumed;
-        if( text[index] == ' ' || text[index] == '|' )
-            continue;
-        consumed = ToriDraw_FontMarkupTokenLength(text, length, index, &emit_char);
-        if( consumed > 0 )
-        {
-            if( emit_char != 0 )
-                return true;
-            index += consumed - 1;
-            continue;
-        }
-        return true;
-    }
-    return false;
-}
-
-static bool
-gles2_ui_font_wrap_segment(
-    struct ToriDraw_Font* font,
-    const char* text,
-    int length,
-    int max_width,
-    const char* lines[],
-    int lengths[],
-    int* count)
-{
-    int space_width = gles2_ui_font_measure_range(font, " ", 1);
-    int current_start = -1;
-    int current_length = 0;
-    int current_width = 0;
-    int word_start = 0;
-    int index;
-    if( length <= 0 )
-        return gles2_ui_font_append_line(lines, lengths, count, text, 0);
-    if( !gles2_ui_font_segment_has_visible_content(text, length) )
-        return gles2_ui_font_append_line(lines, lengths, count, text, 0);
-    for( index = 0; index <= length; index++ )
-    {
-        bool at_end = index == length;
-        bool space = !at_end && (text[index] == ' ' || text[index] == '|');
-        int word_length;
-        int word_width;
-        if( !at_end && !space )
-            continue;
-        word_length = index - word_start;
-        if( word_length <= 0 )
-        {
-            word_start = at_end ? index : index + 1;
-            continue;
-        }
-        word_width = gles2_ui_font_measure_range(font, text + word_start, word_length);
-        if( current_length <= 0 )
-        {
-            current_start = word_start;
-            current_length = word_length;
-            current_width = word_width;
-        }
-        else if( current_width + space_width + word_width > max_width )
-        {
-            if( !gles2_ui_font_append_line(lines, lengths, count, text + current_start, current_length) )
-                return false;
-            current_start = word_start;
-            current_length = word_length;
-            current_width = word_width;
-        }
-        else
-        {
-            current_length = index - current_start;
-            current_width += space_width + word_width;
-        }
-        word_start = at_end ? index : index + 1;
-    }
-    if( current_length > 0 )
-        return gles2_ui_font_append_line(lines, lengths, count, text + current_start, current_length);
-    return true;
-}
-
-static int
-gles2_ui_font_collect_lines(
-    struct ToriDraw_Font* font,
-    const struct ToriRS_RenderCommand_Font* command,
-    const char* lines[],
-    int lengths[])
-{
-    const char* rest = command->text;
-    int line_height = command->line_height > 0 ? command->line_height
-                                               : (font->line_height > 0 ? font->line_height : 1);
-    int ascent;
-    int descent;
-    int count = 0;
-    bool wrap;
-    gles2_ui_font_vertical_metrics(font, &ascent, &descent);
-    wrap = command->w > 0 && command->h > 0 &&
-        !(command->h < line_height + ascent + descent && command->h < line_height * 2);
-    while( rest && rest[0] && count < GLES2_UI_FONT_BOX_MAX_LINES )
-    {
-        int length = 0;
-        int advance = 0;
-        const char* line_end = gles2_ui_font_next_line(rest, &length, &advance);
-        if( wrap )
-        {
-            if( !gles2_ui_font_wrap_segment(
-                    font, rest, length, command->w > 0 ? command->w : 1, lines, lengths, &count) )
-                break;
-        }
-        else if( !gles2_ui_font_append_line(lines, lengths, &count, rest, length) )
-            break;
-        if( advance == 0 )
-            break;
-        rest = line_end + advance;
-    }
-    return count;
-}
-
-static void
 gles2_ui_draw_font_range(
     struct ToriRS_GLES2* renderer,
     struct GLES2UIFontSlot* slot,
@@ -2852,52 +2675,22 @@ gles2_ui_draw_font(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComm
         return;
     }
     {
-        const char* lines[GLES2_UI_FONT_BOX_MAX_LINES];
-        int lengths[GLES2_UI_FONT_BOX_MAX_LINES];
-        int count = gles2_ui_font_collect_lines(font, command, lines, lengths);
-        int line_height = command->line_height > 0
-            ? command->line_height
-            : (font->line_height > 0 ? font->line_height : 1);
-        int font_ascent = font->line_height > 0 ? font->line_height : line_height;
-        int ascent;
-        int descent;
-        int logical_height;
-        int first_baseline;
-        int line;
-        if( count <= 0 )
-            return;
-        gles2_ui_font_vertical_metrics(font, &ascent, &descent);
-        logical_height = command->h > 0 ? command->h
-                                        : line_height * (count - 1) + ascent + descent;
-        first_baseline = ascent;
-        if( command->y_align == 1 )
-            first_baseline = ascent + (logical_height - ascent - descent - line_height * (count - 1)) / 2;
-        else if( command->y_align == 2 )
-            first_baseline = logical_height - descent - line_height * (count - 1);
-        for( line = 0; line < count; line++ )
+        struct ToriDraw_FontBoxLine lines[TORIDRAW_FONT_BOX_MAX_LINES];
+        int count = ToriDraw2D_LayoutStringBox(
+            font, command->x, command->y, command->w, command->h, command->text,
+            command->center, command->y_align, command->line_height, lines);
+        for( int line = 0; line < count; line++ )
         {
-            int x = command->x;
-            int y;
-            if( lengths[line] <= 0 )
-                continue;
-            if( command->center != 0 )
-            {
-                int text_width = gles2_ui_font_measure_range(font, lines[line], lengths[line]);
-                if( command->center == 1 )
-                    x += ((command->w > 0 ? command->w : 1) - text_width) / 2;
-                else if( command->center == 2 )
-                    x += (command->w > 0 ? command->w : 1) - text_width;
-            }
-            y = command->y + first_baseline + line * line_height - font_ascent;
             for( int pass=0;pass<ToriDraw_FontShadowPassCount(command->shadowed);++pass )
             {
                 int dx,dy;ToriDraw_FontShadowOffset(command->shadowed,pass,&dx,&dy);
                 gles2_ui_draw_font_range(
-                    renderer, slot, &clip, lines[line], lengths[line], x + dx, y + dy,
-                    command->color, true);
+                    renderer, slot, &clip, lines[line].text, lines[line].len, lines[line].x + dx,
+                    lines[line].y + dy, command->color, true);
             }
             gles2_ui_draw_font_range(
-                renderer, slot, &clip, lines[line], lengths[line], x, y, command->color, false);
+                renderer, slot, &clip, lines[line].text, lines[line].len, lines[line].x,
+                lines[line].y, command->color, false);
         }
     }
 }

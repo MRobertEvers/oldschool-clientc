@@ -48,9 +48,17 @@ struct ToriRS_Soft3D
     struct ToriDraw_Kernel kernel_ab[2];
     int batch_ab[2];
     int* pixels;
+    /* The buffer: what `pixels` holds and the world is drawn at. */
     int width;
     int height;
     int stride;
+    /* The layout every command's 2D coordinates are in. Equal to the buffer
+     * unless interface scaling is above 100%, and then every 2D command is
+     * written scaled by width/layout_w, height/layout_h. @see
+     * ToriRS_Soft3D_SetLayout. */
+    int layout_w;
+    int layout_h;
+    bool scaled;
 
     /* Polygon run state: points accumulate between POLYGON_BEGIN and
      * POLYGON_END, and the fill happens on END. Held here rather than passed
@@ -96,6 +104,36 @@ ToriRS_Soft3D_Init(
     int* pixels,
     int width,
     int height);
+
+/**
+ * The layout the next frame's commands are in, when it is not the buffer:
+ * the world renders at the buffer's pixels and every 2D command is scaled
+ * into it. Call after Init and before SetPick (the pick point is a layout
+ * point, and is scaled here to the world it tests).
+ */
+void
+ToriRS_Soft3D_SetLayout(
+    struct ToriRS_Soft3D* soft,
+    int layout_w,
+    int layout_h);
+
+/**
+ * Draw layout-space pixels into a scaled buffer from outside the command
+ * stream (a boot bar, a viewport notice): LayerBegin hands back a
+ * layout-sized canvas whose `x0,y0 - x1,y1` region is transparent; LayerEnd
+ * scales every pixel written there into the buffer. Identity when the frame
+ * is not scaled: LayerBegin returns the buffer itself.
+ */
+int*
+ToriRS_Soft3D_LayerBegin(
+    struct ToriRS_Soft3D* soft,
+    int x0,
+    int y0,
+    int x1,
+    int y1);
+
+void
+ToriRS_Soft3D_LayerEnd(struct ToriRS_Soft3D* soft);
 
 /** Arm the world hittest for the next RenderFrame: resets pick_hits and
  * records the mouse point to test pickable models against. */

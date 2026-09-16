@@ -67,8 +67,13 @@ struct PlatformWindow
     SDL_Renderer* renderer;
     SDL_Texture* texture;
     int* pixels;
+    /* The render buffer: what `pixels` holds and the texture is. */
     int width;
     int height;
+    /* The interface's size: pointer coordinates and placement. 0 until set,
+     * and then the buffer's. @see PlatformWindow_SetLayoutSize. */
+    int layout_w;
+    int layout_h;
     bool quit;
     /* Escape is OSRS key 13 and the UI needs it (cancel dialog, close
      * interface), so it no longer quits by default. TORIRS_ESC_QUIT=1 restores
@@ -2627,6 +2632,29 @@ PlatformWindow_SetTitle(
     SDL_SetWindowTitle(platform->window, title);
 }
 
+static void
+sdl_layout_size(struct PlatformWindow const* platform, int* out_w, int* out_h)
+{
+    assert(platform);
+    assert(out_w);
+    assert(out_h);
+    *out_w = platform->layout_w > 0 ? platform->layout_w : platform->width;
+    *out_h = platform->layout_h > 0 ? platform->layout_h : platform->height;
+}
+
+void
+PlatformWindow_SetLayoutSize(
+    struct PlatformWindow* platform,
+    int width,
+    int height)
+{
+    assert(platform);
+    assert(width > 0);
+    assert(height > 0);
+    platform->layout_w = width;
+    platform->layout_h = height;
+}
+
 bool
 PlatformWindow_Resize(
     struct PlatformWindow* platform,
@@ -3021,6 +3049,8 @@ PlatformWindow_MapMouse(
     int drawable_h = 0;
     int area_w = 0;
     int area_h = 0;
+    int layout_w = 0;
+    int layout_h = 0;
     struct ClientScalePresent present;
 
     assert(platform);
@@ -3040,12 +3070,12 @@ PlatformWindow_MapMouse(
         *out_y = 0;
         return;
     }
-    ClientScale_Present(
-        &platform->client_scale, platform->width, platform->height, area_w, area_h, &present);
+    sdl_layout_size(platform, &layout_w, &layout_h);
+    ClientScale_Present(&platform->client_scale, layout_w, layout_h, area_w, area_h, &present);
     ClientScale_OutputToLayout(
         &present.output,
-        platform->width,
-        platform->height,
+        layout_w,
+        layout_h,
         (int)((long long)win_x * drawable_w / point_w),
         (int)((long long)win_y * drawable_h / point_h),
         out_x,
@@ -3772,6 +3802,8 @@ PlatformWindow_Present(struct PlatformWindow* platform)
     SDL_Rect dst;
     SDL_Rect chrome_dst;
     int pane_w = 0;
+    int layout_w = 0;
+    int layout_h = 0;
     int y;
 
     assert(platform);
@@ -3808,8 +3840,10 @@ PlatformWindow_Present(struct PlatformWindow* platform)
      * moment `hidpi` was switched on.
      */
     sdl_game_area(platform, &window_w, &window_h, &pane_w);
-    ClientScale_Present(
-        &platform->client_scale, platform->width, platform->height, window_w, window_h, &present);
+    /* Placed with the LAYOUT's shape: the texture is the buffer the renderer
+     * drew for exactly this rectangle, so it lands in it whole. */
+    sdl_layout_size(platform, &layout_w, &layout_h);
+    ClientScale_Present(&platform->client_scale, layout_w, layout_h, window_w, window_h, &present);
     dst.x = present.output.x;
     dst.y = present.output.y;
     dst.w = present.output.w;
@@ -3887,12 +3921,6 @@ PlatformWindow_PresentGL(struct PlatformWindow* platform)
         SDL_GL_SwapWindow(platform->window);
         sdl_swap_debug_end(before);
     }
-}
-
-uint64_t
-PlatformWindow_Ticks64(void)
-{
-    return SDL_GetTicks64();
 }
 
 /*
@@ -4101,6 +4129,12 @@ PlatformWindow_SetPresent(
     PlatformMacPluginBrowser_Reattach(platform);
 #endif
     return true;
+}
+
+uint64_t
+PlatformWindow_Ticks64(void)
+{
+    return SDL_GetTicks64();
 }
 
 uint64_t

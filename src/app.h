@@ -2105,7 +2105,7 @@ struct App
     int dbg_panel;
     int dbg_frame_row;
     int dbg_visible;
-    /** Frames App_Render has produced, cumulative. What a frame-rate readout
+    /** Frames drawn, cumulative, on every renderer (App_NoteFrameDrawn). What a frame-rate readout
      *  differences: the loop runs at the pacer's rate whether or not a frame
      *  is drawn, so counting iterations measures the pacer, not the screen. */
     uint64_t frames_rendered;
@@ -3820,6 +3820,16 @@ App_NoteFrameTime(
     uint64_t frame_us);
 
 /**
+ * Count one frame drawn -- what plugins read as `drawn_frames`, and what a
+ * frame-rate readout differences. App_Render counts its own; a GPU lane, which
+ * draws through App_BuildFrame and its own renderer instead, calls this once
+ * per frame it presents, boot bar included, so the count means the same thing
+ * whichever renderer is drawing.
+ */
+void
+App_NoteFrameDrawn(struct App* app);
+
+/**
  * The most recent frame time reported to App_NoteFrameTime, in microseconds.
  *
  * The newest sample, not the overlay's mean: a caller that wants a window
@@ -4001,7 +4011,14 @@ App_DrawComplete(
     App_FrameSupplier supplier,
     void* supplier_user);
 
-/** Rasterize the current emit buffer into pixels (width x height ARGB). */
+/**
+ * Rasterize the current emit buffer into pixels (width x height ARGB).
+ *
+ * `width`/`height` is the BUFFER. The interface is always laid out at
+ * UITREE_LAYOUT_ROOT_W/H; a larger buffer draws the world at its own pixels
+ * and scales every 2D command into it, which is how interface scaling sizes
+ * the interface without sizing the world. A layout-sized buffer is 1:1.
+ */
 void
 App_Render(
     struct App* app,
