@@ -753,7 +753,17 @@ fw_build(int oldschool)
      * frame relies on is still an explicit one and a hide inherited from a
      * parent can never stand in for one the frame failed to state.
      */
-    int const mount_parent = oldschool ? fw_add(root, "sidebar", -1, 553, 205, 190, 261) : root;
+    /*
+     * And on a cache lane the container stands in a layer of its own.
+     *
+     * 164's is `(164|96)`, 204x275 around the 190x261 mount parent at a 7 px
+     * inset, and it is noClickThrough: left behind at the lane's box while the
+     * drawer moved the panel out of it, it swallowed the taps on every rock it
+     * covered. Inset here as it is there, so a drawer that moved only the
+     * container inside it would be seen to. @see [role:sidebar_container].
+     */
+    int const panel_layer = oldschool ? fw_add(root, "sidebar_container", -1, 546, 198, 204, 275) : root;
+    int const mount_parent = oldschool ? fw_add(panel_layer, "sidebar", -1, 553, 205, 190, 261) : root;
     for( int i = 0; i < 14; i++ )
         if( i != g_missing_sidetab ) fw_add(mount_parent, "sidebar", i, 553, 205, 190, 261);
     fw_add(root, "main_modal", -1, 4, 4, 512, 334);
@@ -1846,6 +1856,23 @@ main(void)
                   "the open panel sits on the drawer the same frame the drawer moves");
         }
         declare(M_W, M_H);
+        /*
+         * The layer the panels stand in goes WITH them.
+         *
+         * Left at the lane's box it is an invisible rectangle over the rail,
+         * and on 164 a noClickThrough one later in the input order than the
+         * rocks: with a tab open no other tab could be picked.
+         *
+         * MUTATION: drop the MOBILE_SIDEBAR_CONTAINER move in
+         * mobile_describe_surfaces. Red: the layer stays at (546,198) 204x275.
+         */
+        {
+            struct FakeWidget const* const layer = native("sidebar_container", -1);
+            struct FakeWidget const* const drawer = native("sidebar", -1);
+            CHECK(layer && drawer && layer->moved && layer->x == drawer->x &&
+                      layer->y == drawer->y && layer->w == drawer->w && layer->h == drawer->h,
+                  "the layer the side panels stand in is moved onto the open drawer");
+        }
     }
 
     /* ---- 7. the things the apply pass could not see --------------------- */

@@ -1543,6 +1543,16 @@ static char const* const MOBILE_HOUSING_NAME[] = { "Lizards", "Ring", "OldSchool
  */
 #define MOBILE_XP_DROPS PORCELAIN_ROLE_EL("frame_xp_drops")
 
+/**
+ * The layer the side panels stand in, one level above the `sidebar` slot.
+ *
+ * Moving the sidebar alone leaves this at the lane's box, and on 164 it is a
+ * noClickThrough layer later in the input order than the rail: with a tab open
+ * it swallowed the clicks on every rock it covered. @see
+ * [role:sidebar_container], mobile_describe_surfaces.
+ */
+#define MOBILE_SIDEBAR_CONTAINER PORCELAIN_ROLE_EL("sidebar_container")
+
 /*
  * Is this an OldSchool lane -- one whose chat and orbs are packs of the
  * cache's own toplevel? Asked of the host each time rather than latched at
@@ -5136,6 +5146,18 @@ mobile_describe_surfaces(
          * the frame's own art and the buttons on it are the player's. */
         if( s != FRAME_SURFACE_CHAT_BUTTONS && surface_bound )
         {
+            /*
+             * The sidebar's container is asked about whether or not the drawer
+             * is open, so its watch is bound before the fence that needs it.
+             * Asked for the first time on the fence the drawer OPENS, it was
+             * pending there, that pass was held, and the pass after it
+             * re-applied every edit as new. @see MOBILE_SIDEBAR_CONTAINER.
+             */
+            struct PorcelainElementState container;
+            bool const container_bound =
+                s == FRAME_SURFACE_SIDEBAR &&
+                Porcelain_Element(state->porcelain, MOBILE_SIDEBAR_CONTAINER, &container);
+
             if( g_frame.surface[s].placed )
             {
                 struct ToriRS_WidgetBounds box;
@@ -5143,6 +5165,29 @@ mobile_describe_surfaces(
                 box.y = g_frame.surface[s].rect.y - (native.box.y - native.local.y);
                 box.width = g_frame.surface[s].rect.width;
                 box.height = g_frame.surface[s].rect.height;
+                /*
+                 * The open panel takes the layer it stands in along with it.
+                 *
+                 * On 164 that layer is noClickThrough and sits after the rail
+                 * in the input order, so left at the lane's (796,389) it ate
+                 * every click on the rocks under it the moment a tab opened:
+                 * the rail drew, lit on hover and did nothing. Moved onto the
+                 * panel box it blocks only where the panel's own blocker
+                 * already does.
+                 *
+                 * The sidebar is then at (0,0) inside it, which holds whatever
+                 * origin the container has now: there is no displacement to
+                 * carry, unlike the members below. @see surface_dx.
+                 */
+                if( container_bound )
+                {
+                    struct ToriRS_WidgetBounds held = box;
+                    held.x = g_frame.surface[s].rect.x - (container.box.x - container.local.x);
+                    held.y = g_frame.surface[s].rect.y - (container.box.y - container.local.y);
+                    describe->move(describe, MOBILE_SIDEBAR_CONTAINER, held, 0);
+                    box.x = 0;
+                    box.y = 0;
+                }
                 describe->move(describe, FRAME_SURFACE_ELEMENT[s], box, 0);
                 surface_dx = g_frame.surface[s].rect.x - native.box.x;
                 surface_dy = g_frame.surface[s].rect.y - native.box.y;

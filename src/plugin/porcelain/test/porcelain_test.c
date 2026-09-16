@@ -5960,6 +5960,74 @@ test_a_refused_raise_is_retried(void)
 }
 
 
+/* The chat raised over the frame's chrome, with the chat's own backing sheet
+ * described LAST and anchored behind the chat, as the Stone Drawer states it. */
+static void
+raise_over_backing_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct FrameFixture* fixture = user;
+    struct PorcelainItem item;
+
+    fixture->runs++;
+    memset(&item, 0, sizeof(item));
+    item.key = "surround";
+    item.image = "piece.png";
+    item.place.kind = PORCELAIN_AT_CANVAS;
+    item.place.depth = PORCELAIN_EL(VIEWPORT);
+    item.w = 32;
+    item.h = 32;
+    describe->piece(describe, &item);
+    item.key = "sheet";
+    item.place.depth = PORCELAIN_EL(CHAT);
+    item.place.behind = true;
+    describe->piece(describe, &item);
+    describe->raise(describe, PORCELAIN_EL(CHAT), PORCELAIN_EL(NONE), false);
+}
+
+/*
+ * A raise never anchors over an item that is itself anchored against the
+ * raised element.
+ *
+ * "Over everything this plugin owns" picks the last item the description
+ * stated. When that item is the chat's backing, which is BEHIND the chat, the
+ * pick is a cycle, and the engine refuses it as ANCHOR_INVALID on every fence.
+ * On the Stone Drawer it stayed hidden only because the raise was written
+ * before the backing existed. Anything that applied the edits again made the
+ * chat's raise fail from then on: a remount, or a pass held for a watch that
+ * had not bound yet.
+ *
+ * MUTATION: drop the `place.depth == raised` skip in porcelain_raise_anchor.
+ * Red: the chat is anchored over its own backing.
+ */
+static void
+test_a_raise_skips_items_anchored_to_the_raised_element(void)
+{
+    struct Porcelain* porcelain;
+    struct FrameFixture fixture = {.key = "surround"};
+    struct TestbedElement const* chat;
+    struct TestbedControl const* surround;
+    struct TestbedControl const* sheet;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("viewport", 4, 4, 512, 334);
+    Testbed_DeclareElement("chat", 17, 357, 519, 165);
+    Testbed_BindElement("viewport");
+    Testbed_BindElement("chat");
+    Testbed_DeclareAsset("piece.png", TORIRS_ASSET_READY);
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, raise_over_backing_describe, &fixture);
+    fence(porcelain);
+    fence(porcelain);
+    chat = Testbed_Element("chat");
+    surround = Testbed_Control("surround");
+    sheet = Testbed_Control("sheet");
+    CHECK(sheet && chat && ToriRS_WidgetRefEqual(sheet->anchor, chat->ref),
+          "the backing sheet is anchored against the chat");
+    CHECK(chat && surround && ToriRS_WidgetRefEqual(chat->anchor, surround->ref),
+          "and the chat is raised over the chrome, not over its own backing");
+    Porcelain_Close(porcelain);
+}
+
 /* A provider that asks about the whole toplevel: the viewport it gates on and
  * the chat that arrives several fences later. */
 static void
@@ -7134,6 +7202,7 @@ main(void)
     test_canvas_placement_depth_is_opt_in();
     test_a_refused_anchor_is_retried();
     test_a_refused_raise_is_retried();
+    test_a_raise_skips_items_anchored_to_the_raised_element();
     test_a_mounting_frame_is_not_an_absent_one();
     test_a_destroyed_node_is_rebuilt_not_reported();
     test_a_readout_whose_node_died_is_written_once_and_no_more();

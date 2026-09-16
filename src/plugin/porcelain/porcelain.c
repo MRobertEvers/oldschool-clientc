@@ -2796,10 +2796,28 @@ porcelain_raise_anchor(struct Porcelain* porcelain, struct PorcelainNormalEdit c
     }
     {
         struct PorcelainAppliedItem const* top = NULL;
+        uint64_t const raised = Porcelain_ElementKey(wanted->element);
         for( int i = 0; i < PORCELAIN_ITEMS_MAX; i++ )
         {
             struct PorcelainAppliedItem const* applied = &porcelain->applied_items[i];
             if( !applied->live || applied->owner != porcelain )
+                continue;
+            /*
+             * Not an item that states its depth against the element being
+             * raised.
+             *
+             * Such an item is already ordered against that element -- the
+             * chat's backing sheet is anchored BEHIND the chat -- so raising
+             * the element over it is a cycle, and the engine refuses it as
+             * ANCHOR_INVALID. It stays hidden while the raise is only written
+             * once, before that item exists. But anything that applies the
+             * edits again (a remount, or a pass held for a watch that had not
+             * bound yet) picks the backing as "the top", and after that the
+             * raise is refused on every fence with a finding each time.
+             * Measured on the Stone Drawer: `pack-sheet`, behind the chat, is
+             * the last item the description states.
+             */
+            if( Porcelain_ElementKey(applied->item.place.depth) == raised )
                 continue;
             if( !top || applied->order > top->order )
                 top = applied;
