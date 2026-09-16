@@ -463,11 +463,11 @@ struct BootManifest
      *  enum ToriRSChromeCheckStyle so unset is distinguishable from the
      *  default; BootManifest_Apply subtracts the one. */
     int chrome_checkbox;
-    /** `[ui:boot] hidpi=`: render into a device-pixel drawable. 0 = unset, 1 =
-     *  on, -1 = explicitly off. Unset keeps the platform default, which is ON
-     *  everywhere but the web lane -- so this key exists to DECLINE HighDPI on
-     *  a machine whose renderer cannot afford 4x the pixels, not to ask for it.
-     *  TORIRS_HIDPI overrides. */
+    /** `[ui:boot] hidpi=`: 0 = unset, 1 = on, -1 = explicitly off. On the web
+     *  it is the device-pixel drawable itself (default off). Everywhere else
+     *  the drawable is always device pixels and this says what HighDPI
+     *  "automatic" (device option 34) means: -1 is window points, anything
+     *  else device pixels. TORIRS_HIDPI overrides. */
     int hidpi;
     /** `[ui:boot] plugins=`: load the plugin layer at all. 0 = unset (load
      *  it), 1 = on, -1 = explicitly off. TORIRS_PLUGINS overrides.

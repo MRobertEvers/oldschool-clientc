@@ -242,15 +242,30 @@ struct RS_CS2TradingPost
  */
 /** 0 keep aspect, 1 integer, 2 stretch (enum ClientScaleFit). */
 #define RS_CS2_DEVICEOPTION_CLIENT_FIT 30
-/** Tallest render buffer in pixels; 0 is no limit. */
+/** Pixel limit, height half: tallest render buffer in pixels; 0 is no limit.
+ *  With 35 it is a resolution the player picks as one value. */
 #define RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT 31
 /** What the limit does to a layout taller than it (enum ClientScaleLimitPolicy). */
 #define RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY 32
 /** Filter for the finished frame: 0 same as option 15, else option-15 value + 1. */
 #define RS_CS2_DEVICEOPTION_OUTPUT_FILTER 33
+/** HighDPI: RS_CS2_HIGH_DPI_*. 0 is the lane's own choice, resolved by the
+ *  App (App_SetHighDpiAuto), so a stored preference never pins one lane's
+ *  default onto every other lane that shares the file. */
+#define RS_CS2_DEVICEOPTION_HIGH_DPI 34
+/** Pixel limit, width half: widest render buffer in pixels; 0 is no limit. */
+#define RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH 35
 #define RS_CS2_CLIENT_FIT_MAX 2
 #define RS_CS2_MAX_PIXEL_HEIGHT_MIN 360
 #define RS_CS2_MAX_PIXEL_HEIGHT_MAX 4320
+#define RS_CS2_MAX_PIXEL_WIDTH_MIN 640
+#define RS_CS2_MAX_PIXEL_WIDTH_MAX 7680
+#define RS_CS2_HIGH_DPI_AUTO 0
+/* The rest are enum ClientScaleHighDpi + 1. */
+#define RS_CS2_HIGH_DPI_DEVICE_PIXELS 1
+#define RS_CS2_HIGH_DPI_MATCH_DISPLAY 2
+#define RS_CS2_HIGH_DPI_WINDOW_POINTS 3
+#define RS_CS2_HIGH_DPI_MAX 3
 #define RS_CS2_PIXEL_LIMIT_POLICY_MAX 1
 #define RS_CS2_OUTPUT_FILTER_SAME_AS_INTERFACE 0
 #define RS_CS2_OUTPUT_FILTER_MAX 3
@@ -1289,7 +1304,8 @@ struct RS_CS2Host
 
     /** Raised whenever a device option that decides the canvas or the window
      *  changes value: interface scale (27), stretch mode (30), the pixel limit
-     *  (31) and its policy (32). Drained by the App, which owns the canvas —
+     *  (31, 35), its policy (32) and HighDPI (34) -- or the display density the
+     *  platform detects (App_SetDisplayDensity). Drained by the App, which owns the canvas —
      *  same shape as `window_mode_dirty`. The values are NOT separate fields:
      *  they live in `device_options` so the two spellings the cache uses for
      *  27 (deviceoption 27 and the UIZOOM_* opcode family) cannot disagree. */

@@ -726,7 +726,7 @@ Deeper guides: [WEB_SERVERS.md](docs/WEB_SERVERS.md),
 
 ## Display scaling (DPI)
 
-Four independent knobs decide how many device pixels a drawn pixel covers.
+Five independent knobs decide how many device pixels a drawn pixel covers.
 They compose, and most scaling complaints are two of them disagreeing rather
 than any one of them being wrong.
 
@@ -734,20 +734,34 @@ than any one of them being wrong.
 
 | Knob | Where | Values | What it decides |
 | --- | --- | --- | --- |
-| `hidpi` | `[ui:boot]`, env `TORIRS_HIDPI` | `0`/`1` (default **on**, off on web) | Whether the GL/render drawable is device **pixels** or window **points** |
+| `hidpi` | `[ui:boot]`, env `TORIRS_HIDPI` | `0`/`1` | Web: whether the drawable is device **pixels** (default off). Desktop: what HighDPI "automatic" means — `0` is window points, else device pixels |
+| HighDPI | device option 34, in-client | automatic / device pixels / match display / window points | What 100% interface scaling is one pixel **of**, and whether the render stops at points |
 | `chrome_scale` | `[ui:boot]`, env `TORIRS_CHROME_SCALE` | `1..4`, `dynamic`, unset | Device pixels per ToriRSChrome pixel |
 | `windowmode` | `[ui:boot]`, `--windowmode` | `fixed`/`resizable` | Whether the canvas tracks the window at all |
 | Interface scaling | device option 27, in-client | percent | Canvas divided down so the IF3 layer draws larger |
 
-Precedence for the first two is env, then manifest, then the platform default.
-`hidpi` is read once, before the window exists: `SDL_WINDOW_ALLOW_HIGHDPI` is a
-creation flag and SDL cannot add it to a live window.
+Precedence for `hidpi` and `chrome_scale` is env, then manifest, then the
+platform default.
 
-Nothing has to declare `hidpi`. It is on unless a boot declines it, because on
-a 1x display the flag is a no-op and on a 2x display the alternative is not
-fewer pixels but a magnified frame. The key exists to say **no** — for a
-renderer that cannot afford 4x the pixels — not to ask. The web lane inverts
-that and defaults off: there the density is `devicePixelRatio`, 3 on a phone
+Off the web the window is always created with `SDL_WINDOW_ALLOW_HIGHDPI`
+(`TORIRS_HIDPI=0` still declines it), so the client can always **detect** the
+display density — drawable pixels per window point — and every HighDPI mode is
+live-switchable from Client Settings:
+
+- **Device pixels** — 100% is one layout pixel per drawable pixel. Sharpest and
+  roomiest; the interface is half size on a 2x display.
+- **Match display** — 100% is one layout pixel per window point, so the
+  interface is its authored size, while a GPU renderer still rasterises at
+  device pixels (subject to the pixel limit).
+- **Window points** — laid out *and* rendered at points: what `hidpi=0` used to
+  buy by declining the drawable, magnified by the present instead of the
+  window server.
+
+"Automatic" (the stored default) resolves per lane, so a shared
+`preferences.ini` never pins one lane's choice onto another: `hidpi=0`
+manifests get window points, everything else (and every Android lane, which has
+no points layer) gets device pixels. The web lane keeps `hidpi` as the creation
+flag and defaults off: there the density is `devicePixelRatio`, 3 on a phone
 rather than 2 on a desk, against a software rasteriser in wasm.
 
 ### The two layers
@@ -798,10 +812,10 @@ shown, so a value taken at creation reports 1 on a Retina display.
 
 | Symptom | Cause |
 | --- | --- |
-| Whole frame soft/blocky, world included | `hidpi` declined on a 2x display — the window server is magnifying the finished frame. Nothing drawn can fix it |
+| Whole frame soft/blocky, world included | HighDPI in force is window points (a `hidpi=0` lane on automatic), or `TORIRS_HIDPI=0` declined the drawable. Pick match display for a sharp world at the same interface size |
 | Frame in the top-left quarter, rest black | A present path sizing its destination in points against a pixel target |
 | Panels grow just from enabling `hidpi` | A dynamic ladder reading the raw canvas — density counted twice |
-| Chrome correct, game UI half-size | `hidpi` on. Expected: the IF3 layer has no scale to follow |
+| Chrome correct, game UI half-size | HighDPI is device pixels. Match display counts interface scaling in points |
 | Chrome text crisp, arrows and scrollbars chunky | `spritebake` has no scale variants — see below |
 
 ### Known gaps
@@ -812,10 +826,12 @@ shown, so a value taken at creation reports 1 on a Retina display.
   is a true 2x bake, and the tiled fills (`PanelBody`, `DropdownBody`) keep
   tiling at *native* size, so the parchment grain stays 1x. Closing it means
   baking scaled variants, not changing the blitter.
-- **The IF3 layer cannot follow the density.** Interface scaling (option 27) is
-  the only knob that resizes it, and it works by shrinking the canvas — which
-  costs the world the resolution `hidpi` just bought. A real fix is a scale
-  factor on the IF3 layer itself.
+- **The IF3 layer follows the density only by shrinking the canvas.** HighDPI
+  match display multiplies interface scaling by the density, which on a GPU
+  renderer keeps the world at device resolution but on Soft3D renders it at
+  the smaller canvas. A real fix is a scale factor on the IF3 layer itself.
+- **Win32 GDI reports a 1x density.** The process is not DPI aware, so Windows
+  scales the finished window and every HighDPI mode lays out alike there.
 
 ## Engine notes
 

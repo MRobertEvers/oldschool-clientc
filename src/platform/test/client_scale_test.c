@@ -14,7 +14,13 @@
  *     smaller than one multiple.
  *   - stretch fills the area.
  *   - the pixel limit: ENLARGE_INTERFACE raises the percent until the layout
- *     fits (to a whole multiple in integer mode); KEEP_INTERFACE leaves it.
+ *     fits both axes of the resolution (to a whole multiple in integer mode);
+ *     KEEP_INTERFACE leaves it.
+ *   - the frame's floor lowers the percent on BOTH axes, so the layout keeps
+ *     the window's shape, and never below 1:1.
+ *   - HighDPI: device pixels ignores the density; match display and window
+ *     points multiply the percent by it; window points also caps the render
+ *     buffer at the area in points.
  *   - the render buffer: a CPU renderer is always the layout; a GPU renderer
  *     is the output, capped by the limit and never below the layout, and on
  *     the layout's grid in integer mode.
@@ -50,9 +56,12 @@ settings(
 {
     struct ClientScaleSettings s;
     s.fit = fit;
+    s.max_pixel_width = 0;
     s.max_pixel_height = max_pixel_height;
     s.limit_policy = policy;
     s.output_filter = CLIENT_SCALE_FILTER_NEAREST;
+    s.high_dpi = CLIENT_SCALE_HIGH_DPI_DEVICE_PIXELS;
+    s.density_percent = 100;
     return s;
 }
 
@@ -122,7 +131,7 @@ test_integer_mode(void)
     CHECK(ClientScale_RoundPercent(&s, 275) == 200, "275%% should round to 200%%");
     CHECK(ClientScale_RoundPercent(&s, 400) == 400, "400%% should stay");
 
-    ClientScale_WindowLayout(&s, 250, 2560, 1440, &layout);
+    ClientScale_WindowLayout(&s, 250, 2560, 1440, 0, 0, &layout);
     CHECK(layout.percent == 200 && layout.rounded_by_integer && !layout.raised_by_limit,
         "integer 250%% -> 200%%, got %d", layout.percent);
     CHECK(layout.w == 1280 && layout.h == 720, "layout %dx%d", layout.w, layout.h);
@@ -154,25 +163,25 @@ test_limit_policies(void)
     struct ClientScaleLayout layout;
     struct ClientScaleSettings s = settings(CLIENT_SCALE_FIT_KEEP_ASPECT, 1080, CLIENT_SCALE_LIMIT_ENLARGE_INTERFACE);
 
-    ClientScale_WindowLayout(&s, 100, 3840, 2160, &layout);
+    ClientScale_WindowLayout(&s, 100, 3840, 2160, 0, 0, &layout);
     CHECK(layout.percent == 200 && layout.raised_by_limit, "4K at 100%% under 1080 -> 200%%, got %d",
         layout.percent);
     CHECK(layout.h <= 1080, "layout %d must fit the limit", layout.h);
 
-    ClientScale_WindowLayout(&s, 100, 2560, 1600, &layout);
+    ClientScale_WindowLayout(&s, 100, 2560, 1600, 0, 0, &layout);
     CHECK(layout.percent == 149 && layout.h <= 1080, "1600 rows under 1080 -> 149%%, got %d (%d rows)",
         layout.percent, layout.h);
 
-    ClientScale_WindowLayout(&s, 300, 3840, 2160, &layout);
+    ClientScale_WindowLayout(&s, 300, 3840, 2160, 0, 0, &layout);
     CHECK(layout.percent == 300 && !layout.raised_by_limit, "already under the limit: untouched");
 
     s.fit = CLIENT_SCALE_FIT_INTEGER;
-    ClientScale_WindowLayout(&s, 100, 2560, 1600, &layout);
+    ClientScale_WindowLayout(&s, 100, 2560, 1600, 0, 0, &layout);
     CHECK(layout.percent == 200 && layout.raised_by_limit, "integer raise lands on 200%%, got %d",
         layout.percent);
 
     s = settings(CLIENT_SCALE_FIT_KEEP_ASPECT, 1080, CLIENT_SCALE_LIMIT_KEEP_INTERFACE);
-    ClientScale_WindowLayout(&s, 100, 3840, 2160, &layout);
+    ClientScale_WindowLayout(&s, 100, 3840, 2160, 0, 0, &layout);
     CHECK(layout.percent == 100 && !layout.raised_by_limit && layout.h == 2160,
         "KEEP_INTERFACE leaves the layout alone");
 }
@@ -207,6 +216,110 @@ test_render_buffer(void)
 }
 
 static void
+test_resolution_limit(void)
+{
+    struct ClientScaleLayout layout;
+    struct ClientScalePresent p;
+    struct ClientScaleSettings s =
+        settings(CLIENT_SCALE_FIT_KEEP_ASPECT, 1080, CLIENT_SCALE_LIMIT_ENLARGE_INTERFACE);
+
+    /* An ultrawide under 1920x1080: the WIDTH is what is over. */
+    s.max_pixel_width = 1920;
+    ClientScale_WindowLayout(&s, 100, 3440, 1440, 0, 0, &layout);
+    CHECK(layout.raised_by_limit && layout.w <= 1920 && layout.h <= 1080,
+        "3440x1440 under 1920x1080 must fit both axes, got %dx%d at %d%%", layout.w, layout.h,
+        layout.percent);
+
+    s.limit_policy = CLIENT_SCALE_LIMIT_KEEP_INTERFACE;
+    ClientScale_Present(&s, 1720, 720, 3440, 1440, 1, &p);
+    CHECK(p.render_w <= 1920 && p.render_h <= 1080 && p.render_w >= 1720,
+        "render fits the resolution box and not below the layout, got %dx%d", p.render_w,
+        p.render_h);
+    CHECK(p.render_w * 1440 / 3440 == p.render_h || p.render_w * 1440 / 3440 + 1 == p.render_h ||
+              p.render_w * 1440 / 3440 == p.render_h + 1,
+        "render keeps the output's shape, got %dx%d", p.render_w, p.render_h);
+}
+
+static void
+test_floor_keeps_the_window_shape(void)
+{
+    struct ClientScaleLayout layout;
+    struct ClientScaleSettings s = settings(CLIENT_SCALE_FIT_KEEP_ASPECT, 0, 0);
+
+    /* The reported case: 200% in a 1192x916 game area over an 807x503 floor
+     * used to become 807x503 -- a 1.6:1 frame barred inside a 1.3:1 window. */
+    ClientScale_WindowLayout(&s, 200, 1192, 916, 807, 503, &layout);
+    CHECK(layout.lowered_by_floor, "the floor must lower 200%%");
+    CHECK(layout.w >= 807 && layout.h >= 503, "layout %dx%d clears the floor", layout.w, layout.h);
+    CHECK(layout.percent == 147, "largest percent that clears 807 wide is 147, got %d",
+        layout.percent);
+    CHECK(layout.w * 916 / 1192 - layout.h <= 1 && layout.h - layout.w * 916 / 1192 <= 1,
+        "layout %dx%d keeps the window's shape", layout.w, layout.h);
+
+    /* A width-only floor wider than the window/percent: the height moves too. */
+    ClientScale_WindowLayout(&s, 200, 1192, 916, 1192, 0, &layout);
+    CHECK(layout.percent == 100 && layout.w == 1192 && layout.h == 916,
+        "a floor as wide as the window lays out at 1:1, got %dx%d at %d%%", layout.w, layout.h,
+        layout.percent);
+
+    /* Never below 1:1: the window is what is short. */
+    ClientScale_WindowLayout(&s, 200, 700, 400, 807, 503, &layout);
+    CHECK(layout.percent == 100 && layout.w == 700 && layout.h == 400,
+        "a window below the floor stops at 100%%, got %dx%d at %d%%", layout.w, layout.h,
+        layout.percent);
+
+    ClientScale_WindowLayout(&s, 200, 1920, 1080, 807, 503, &layout);
+    CHECK(!layout.lowered_by_floor && layout.percent == 200, "a floor already cleared is untouched");
+
+    s.fit = CLIENT_SCALE_FIT_INTEGER;
+    ClientScale_WindowLayout(&s, 300, 2000, 1200, 807, 503, &layout);
+    CHECK(layout.percent == 200 && layout.lowered_by_floor,
+        "integer lowering lands on a whole multiple, got %d", layout.percent);
+}
+
+static void
+test_high_dpi(void)
+{
+    struct ClientScaleLayout layout;
+    struct ClientScalePresent p;
+    struct ClientScaleSettings s = settings(CLIENT_SCALE_FIT_KEEP_ASPECT, 0, 0);
+
+    s.density_percent = 200;
+    ClientScale_WindowLayout(&s, 100, 2400, 1600, 0, 0, &layout);
+    CHECK(layout.percent == 100 && layout.w == 2400, "device pixels ignores the density");
+
+    s.high_dpi = CLIENT_SCALE_HIGH_DPI_MATCH_DISPLAY;
+    ClientScale_WindowLayout(&s, 150, 2400, 1600, 0, 0, &layout);
+    CHECK(layout.percent == 300 && layout.shown_percent == 150 && layout.w == 800,
+        "match display: 150%% on 2x is 300%% of drawable pixels, got %d (shown %d)",
+        layout.percent, layout.shown_percent);
+    ClientScale_Present(&s, 1200, 800, 2400, 1600, 1, &p);
+    CHECK(p.render_w == 2400 && p.render_h == 1600, "match display renders at drawable pixels");
+
+    s.high_dpi = CLIENT_SCALE_HIGH_DPI_WINDOW_POINTS;
+    ClientScale_WindowLayout(&s, 100, 2400, 1600, 0, 0, &layout);
+    CHECK(layout.w == 1200 && layout.h == 800, "window points lays out at points");
+    ClientScale_Present(&s, 1200, 800, 2400, 1600, 1, &p);
+    CHECK(p.render_w == 1200 && p.render_h == 800,
+        "window points renders at points, got %dx%d", p.render_w, p.render_h);
+
+    /* The floor still cannot push a HighDPI frame below 1:1 drawable pixels. */
+    s.high_dpi = CLIENT_SCALE_HIGH_DPI_MATCH_DISPLAY;
+    ClientScale_WindowLayout(&s, 100, 1400, 1000, 807, 503, &layout);
+    CHECK(layout.percent == 173 && layout.lowered_by_floor && layout.w >= 807,
+        "2x match display lowered to the floor, got %dx%d at %d%%", layout.w, layout.h,
+        layout.percent);
+
+    /* A zeroed settings struct -- a renderer before its first update -- is
+     * device pixels and reads no density. */
+    {
+        struct ClientScaleSettings zero = { 0 };
+        ClientScale_Present(&zero, 765, 503, 1530, 1006, 1, &p);
+        CHECK(p.render_w == 1530, "zeroed settings present uncapped");
+    }
+}
+
+static void
 test_mapping_round_trip(void)
 {
     struct ClientScaleSettings const s = settings(CLIENT_SCALE_FIT_STRETCH, 0, 0);
@@ -229,6 +342,9 @@ main(void)
     test_stretch_fills();
     test_limit_policies();
     test_render_buffer();
+    test_resolution_limit();
+    test_floor_keeps_the_window_shape();
+    test_high_dpi();
     test_mapping_round_trip();
 
     if( g_failures )

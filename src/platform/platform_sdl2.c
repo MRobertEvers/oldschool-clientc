@@ -284,9 +284,12 @@ sdl_refresh_pixel_density(struct PlatformWindow* platform)
  * sharper frame, it is no frame. That one is a real trade, so the web boot has
  * to opt in.
  *
- * `[ui:boot] hidpi=` overrides the default per boot, and TORIRS_HIDPI
- * overrides the manifest: =0 gives up the drawable on a machine that cannot
- * afford it, =1 turns it on for a lane whose default is off.
+ * On the web `[ui:boot] hidpi=` overrides the default per boot. Everywhere
+ * else it no longer reaches here: the drawable is always requested, so the
+ * density is detectable, and the manifest key picks what HighDPI "automatic"
+ * means instead (main.c, App_SetHighDpiAuto). TORIRS_HIDPI overrides both:
+ * =0 gives up the drawable on a machine that cannot afford it, =1 turns it on
+ * for a lane whose default is off.
  */
 #if defined(TORIRS_PLATFORM_WEB)
 static bool g_want_highdpi = false;
@@ -2478,6 +2481,24 @@ PlatformWindow_PixelDensity(struct PlatformWindow* platform)
     if( platform->window )
         sdl_refresh_pixel_density(platform);
     return platform->pixel_density > 0 ? platform->pixel_density : 1;
+}
+
+int
+PlatformWindow_DisplayDensityPercent(struct PlatformWindow* platform)
+{
+    int window_w = 0;
+    int window_h = 0;
+    int drawable_w = 0;
+
+    assert(platform);
+    if( !platform->window )
+        return 100;
+    SDL_GetWindowSize(platform->window, &window_w, &window_h);
+    sdl_drawable_size(platform, &drawable_w, NULL);
+    /* A minimised window reports no size; it is still on the display it was. */
+    if( window_w <= 0 || drawable_w <= 0 )
+        return platform->pixel_density > 0 ? platform->pixel_density * 100 : 100;
+    return (drawable_w * 100 + window_w / 2) / window_w;
 }
 
 bool

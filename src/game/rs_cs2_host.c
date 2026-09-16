@@ -1756,6 +1756,8 @@ static const struct OptionSpec device_option_spec[] = {
     { RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT, true },
     { RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY, true },
     { RS_CS2_DEVICEOPTION_OUTPUT_FILTER, true },
+    { RS_CS2_DEVICEOPTION_HIGH_DPI, true },
+    { RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH, true },
 };
 
 static const struct OptionSpec game_option_spec[] = {
@@ -1927,8 +1929,10 @@ RS_CS2Host_SetOption(
     if( kind == RS_CS2_OPTION_DEVICE &&
         (option_id == RS_CS2_DEVICEOPTION_CLIENT_FIT ||
          option_id == RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT ||
+         option_id == RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH ||
          option_id == RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY ||
-         option_id == RS_CS2_DEVICEOPTION_OUTPUT_FILTER) )
+         option_id == RS_CS2_DEVICEOPTION_OUTPUT_FILTER ||
+         option_id == RS_CS2_DEVICEOPTION_HIGH_DPI) )
     {
         int max = RS_CS2_OUTPUT_FILTER_MAX;
         if( option_id == RS_CS2_DEVICEOPTION_CLIENT_FIT )
@@ -1937,15 +1941,22 @@ RS_CS2Host_SetOption(
             max = RS_CS2_PIXEL_LIMIT_POLICY_MAX;
         else if( option_id == RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT )
             max = RS_CS2_MAX_PIXEL_HEIGHT_MAX;
+        else if( option_id == RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH )
+            max = RS_CS2_MAX_PIXEL_WIDTH_MAX;
+        else if( option_id == RS_CS2_DEVICEOPTION_HIGH_DPI )
+            max = RS_CS2_HIGH_DPI_MAX;
         if( value < 0 )
             value = 0;
         if( value > max )
             value = max;
-        /* The limit is "off" or a real height: a limit of 12 rows would be a
+        /* The limit is "off" or a real size: a limit of 12 rows would be a
          * frame nobody could read, and it is one bad preferences line away. */
         if( option_id == RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT && value > 0 &&
             value < RS_CS2_MAX_PIXEL_HEIGHT_MIN )
             value = RS_CS2_MAX_PIXEL_HEIGHT_MIN;
+        if( option_id == RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH && value > 0 &&
+            value < RS_CS2_MAX_PIXEL_WIDTH_MIN )
+            value = RS_CS2_MAX_PIXEL_WIDTH_MIN;
         /* The filter only changes how the finished frame is sampled, never a
          * size, so it raises nothing. */
         if( option_id != RS_CS2_DEVICEOPTION_OUTPUT_FILTER && table[option_id] != value )
@@ -3490,6 +3501,12 @@ exec_client_option(
             break;
         case RS_CS2_DEVICEOPTION_OUTPUT_FILTER:
             max = RS_CS2_OUTPUT_FILTER_MAX;
+            break;
+        case RS_CS2_DEVICEOPTION_HIGH_DPI:
+            max = RS_CS2_HIGH_DPI_MAX;
+            break;
+        case RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH:
+            max = RS_CS2_MAX_PIXEL_WIDTH_MAX;
             break;
         default:
             TORIRS_LOG("cs2: Unkown device option %d\n", option_id);

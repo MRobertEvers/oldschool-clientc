@@ -893,6 +893,12 @@ PlatformWindow_PixelDensity(struct PlatformWindow* p)
     return density;
 }
 
+int
+PlatformWindow_DisplayDensityPercent(struct PlatformWindow* p)
+{
+    return PlatformWindow_PixelDensity(p) * 100;
+}
+
 void
 PlatformWindow_SetWantHighDPI(bool want)
 {

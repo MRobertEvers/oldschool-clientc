@@ -882,6 +882,11 @@ struct AppClientScale
      *  case it is lower and `lowered_to_fit_window` says so. */
     int shown_percent;
     bool lowered_to_fit_window;
+    /** Drawable pixels per window point as a percent, as the platform last
+     *  detected it; 0 until it reports one. @see App_SetDisplayDensity. */
+    int density_percent;
+    /** What HighDPI "automatic" means on this lane. @see App_SetHighDpiAuto. */
+    enum ClientScaleHighDpi high_dpi_auto;
 };
 
 struct App
@@ -2769,8 +2774,45 @@ App_ApplyWindowLayout(
     int window_w,
     int window_h);
 
+/** The smallest canvas height the frame now on screen can be laid out in: the
+ *  classic frame's, or a plugin layout's own. @see App_CanvasFloorWidth. */
+int
+App_CanvasFloorHeight(struct App const* app);
+
+/** The HighDPI mode in force: the store's choice, with "automatic" resolved
+ *  to the lane's own (App_SetHighDpiAuto). */
+enum ClientScaleHighDpi
+App_HighDpiMode(struct App const* app);
+
+/** The display density the platform last reported, as a percent; 100 before
+ *  any report. */
+int
+App_DisplayDensityPercent(struct App const* app);
+
+/**
+ * The shell's report of the display the window is on: drawable pixels per
+ * window point, as a percent (200 on a Retina display). Re-lays out a
+ * resizable canvas when it changes, which is how a window dragged between a
+ * 1x and a 2x monitor keeps its HighDPI mode's size.
+ */
+void
+App_SetDisplayDensity(
+    struct App* app,
+    int density_percent);
+
+/**
+ * What HighDPI "automatic" (device option 34 = 0) resolves to on this lane.
+ * The shell states it at boot from the manifest's `[ui:boot] hidpi=`: a lane
+ * authored at window points (hidpi=0) keeps rendering at points, every other
+ * lane at device pixels. A stored choice other than automatic overrides it.
+ */
+void
+App_SetHighDpiAuto(
+    struct App* app,
+    enum ClientScaleHighDpi mode);
+
 /** The client-scaling settings the store holds now, with the output filter's
- *  "same as the interface filter" already resolved. */
+ *  "same as the interface filter" and HighDPI's "automatic" already resolved. */
 void
 App_ClientScaleSettings(
     struct App const* app,

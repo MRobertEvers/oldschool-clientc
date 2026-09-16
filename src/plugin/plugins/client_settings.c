@@ -58,15 +58,18 @@
 #define CS_ID_PIXEL_LIMIT "max_pixel_height"
 #define CS_ID_LIMIT_POLICY "pixel_limit_policy"
 #define CS_ID_FRAME_FILTER "frame_filter"
+#define CS_ID_HIGH_DPI "high_dpi"
+#define CS_ID_HIGH_DPI_NOW "high_dpi_now"
 #define CS_ID_SCALING_NOW "scaling_now"
 #define CS_ID_SCALING_HOW "scaling_how"
 #define CS_FRAME_ROWS_MAX 33
 #define CS_SCALE_ROWS 13
 #define CS_FILTER_ROWS 3
 #define CS_STRETCH_ROWS 3
-/* The listed limits, plus one slot for a value only preferences.ini holds. */
-#define CS_PIXEL_LIMIT_LISTED 6
+/* The listed resolutions, plus one slot for a value only preferences.ini holds. */
+#define CS_PIXEL_LIMIT_LISTED 19
 #define CS_PIXEL_LIMIT_ROWS (CS_PIXEL_LIMIT_LISTED + 1)
+#define CS_HIGH_DPI_ROWS 4
 #define CS_LIMIT_POLICY_ROWS 2
 #define CS_FRAME_FILTER_ROWS 4
 
@@ -125,8 +128,12 @@ struct ClientSettingsState
      * moves no Porcelain input, so it is compared here instead. */
     char display_seen[PORCELAIN_ROW_TEXT_MAX];
     /* A pixel limit the listed options do not have, labelled for its row. */
-    char pixel_limit_value[16];
-    char pixel_limit_label[32];
+    char pixel_limit_value[32];
+    char pixel_limit_label[48];
+    /* "Automatic" names what it resolved to, so its label is built per run. */
+    char high_dpi_auto_label[64];
+    /* The detected density, as last described. @see cs_high_dpi_now. */
+    char high_dpi_now[PORCELAIN_ROW_TEXT_MAX];
     /* The describe function is handed only its `user`, so the api travels
      * with the state rather than through a file-scope pointer. */
     struct ToriRS_Api* api;
@@ -153,11 +160,49 @@ static char const* const CS_STRETCH_LABEL[] = {
     "Stretch to fill",
 };
 
+/* Common resolutions, smallest to largest by pixel count. The value is the
+ * pair the two store options take; "0" clears both. A limit is a box the
+ * render buffer fits inside keeping its own shape, so a 4:3 entry on a 16:9
+ * window caps by width and a 16:9 one on an ultrawide caps by height. */
 static char const* const CS_PIXEL_LIMIT_VALUE[CS_PIXEL_LIMIT_LISTED] = {
-    "0", "720", "900", "1080", "1440", "2160",
+    "0",         "640x360",   "854x480",   "800x600",   "1024x768",
+    "1280x720",  "1280x800",  "1366x768",  "1440x900",  "1600x900",
+    "1680x1050", "1920x1080", "1920x1200", "2560x1440", "2560x1600",
+    "3200x1800", "3840x2160", "5120x2880", "7680x4320",
 };
 static char const* const CS_PIXEL_LIMIT_LABEL[CS_PIXEL_LIMIT_LISTED] = {
-    "No limit", "720 rows", "900 rows", "1080 rows", "1440 rows", "2160 rows",
+    "No limit",
+    "640x360 (360p)",
+    "854x480 (480p)",
+    "800x600 (SVGA)",
+    "1024x768 (XGA)",
+    "1280x720 (720p)",
+    "1280x800 (WXGA)",
+    "1366x768",
+    "1440x900",
+    "1600x900 (900p)",
+    "1680x1050",
+    "1920x1080 (1080p)",
+    "1920x1200 (WUXGA)",
+    "2560x1440 (1440p)",
+    "2560x1600 (WQXGA)",
+    "3200x1800",
+    "3840x2160 (4K)",
+    "5120x2880 (5K)",
+    "7680x4320 (8K)",
+};
+
+/* Device option 34's values. Row 0's label is built at describe time. */
+static char const* const CS_HIGH_DPI_VALUE[CS_HIGH_DPI_ROWS] = { "0", "1", "2", "3" };
+static char const* const CS_HIGH_DPI_LABEL[CS_HIGH_DPI_ROWS] = {
+    "Automatic",
+    "Device pixels (smaller interface)",
+    "Match display",
+    "Window points (low resolution)",
+};
+/* The resolved modes, by option value (1..3), as the readout names them. */
+static char const* const CS_HIGH_DPI_NAME[CS_HIGH_DPI_ROWS] = {
+    "automatic", "device pixels", "match display", "window points",
 };
 
 static char const* const CS_LIMIT_POLICY_VALUE[] = { "0", "1" };
@@ -510,11 +555,63 @@ cs_pick_stretch(struct ToriRS_Api* api, void* user, struct PorcelainRowAction co
     cs_pick_display(api, TORIRS_DISPLAY_STRETCH_MODE, action);
 }
 
+/* "WxH" into its two halves; "0" is both 0. False for anything else. */
+static bool
+cs_parse_resolution(char const* text, int* out_w, int* out_h)
+{
+    char* end = NULL;
+    long w;
+    long h;
+
+    assert(text);
+    assert(out_w);
+    assert(out_h);
+    if( strcmp(text, "0") == 0 )
+    {
+        *out_w = 0;
+        *out_h = 0;
+        return true;
+    }
+    w = strtol(text, &end, 10);
+    if( end == text || *end != 'x' || w <= 0 || w > INT32_MAX )
+        return false;
+    text = end + 1;
+    h = strtol(text, &end, 10);
+    if( end == text || *end != '\0' || h <= 0 || h > INT32_MAX )
+        return false;
+    *out_w = (int)w;
+    *out_h = (int)h;
+    return true;
+}
+
 static void
 cs_pick_pixel_limit(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
 {
+    int w = 0;
+    int h = 0;
+
     (void)user;
-    cs_pick_display(api, TORIRS_DISPLAY_MAX_PIXEL_HEIGHT, action);
+    if( action->kind != TORIRS_PANEL_ACTION_PICK )
+        return;
+    /* Every value this row offers is one it wrote itself. */
+    {
+        bool const parsed = cs_parse_resolution(action->text, &w, &h);
+        assert(parsed);
+        (void)parsed;
+    }
+    if( !api->client->display_get(api, TORIRS_DISPLAY_MAX_PIXEL_WIDTH, NULL, NULL, NULL) ||
+        !api->client->display_get(api, TORIRS_DISPLAY_MAX_PIXEL_HEIGHT, NULL, NULL, NULL) )
+        return;
+    /* Both in the same frame: the client applies the pair at its next sync. */
+    (void)api->client->display_set(api, TORIRS_DISPLAY_MAX_PIXEL_WIDTH, w);
+    (void)api->client->display_set(api, TORIRS_DISPLAY_MAX_PIXEL_HEIGHT, h);
+}
+
+static void
+cs_pick_high_dpi(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    (void)user;
+    cs_pick_display(api, TORIRS_DISPLAY_HIGH_DPI, action);
 }
 
 static void
@@ -577,7 +674,7 @@ cs_scaling_now(struct ToriRS_Api* api, char* out, size_t out_size)
             " Lowered from %d%%: the window is too small for the frame at that scale.", chosen);
     else if( adjusted & TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED )
         used += snprintf(out + used, out_size - (size_t)used,
-            " Raised from %d%% to stay under the pixel limit.", chosen);
+            " Raised from %d%% to stay inside the pixel limit.", chosen);
     else if( adjusted & TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED )
         used += snprintf(out + used, out_size - (size_t)used,
             " %d%% rounded down for integer scaling.", chosen);
@@ -586,6 +683,30 @@ cs_scaling_now(struct ToriRS_Api* api, char* out, size_t out_size)
     if( adjusted & TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK )
         (void)snprintf(out + used, out_size - (size_t)used,
             " Window too small for integer: keeping aspect.");
+}
+
+/*
+ * The display the client detected and what HighDPI makes of it. Its own row
+ * rather than a clause of the readout above, which is already near the row
+ * text ceiling once it has a reason to give. Empty before a frame.
+ */
+static void
+cs_high_dpi_now(struct ToriRS_Api* api, char* out, size_t out_size)
+{
+    int density = 0;
+    int in_force = 0;
+
+    assert(api);
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    if( !cs_display_value(api, TORIRS_DISPLAY_DENSITY, &density) ||
+        !cs_display_value(api, TORIRS_DISPLAY_HIGH_DPI_IN_FORCE, &in_force) )
+        return;
+    assert(in_force >= 1);
+    assert(in_force < CS_HIGH_DPI_ROWS);
+    (void)snprintf(out, out_size, "Display density %d.%02dx detected; using %s.", density / 100,
+        density % 100, CS_HIGH_DPI_NAME[in_force]);
 }
 
 static void
@@ -673,8 +794,9 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
     struct ToriRS_SelectOption limit_options[CS_PIXEL_LIMIT_ROWS];
     struct ToriRS_SelectOption policy_options[CS_LIMIT_POLICY_ROWS];
     struct ToriRS_SelectOption frame_filter_options[CS_FRAME_FILTER_ROWS];
+    struct ToriRS_SelectOption high_dpi_options[CS_HIGH_DPI_ROWS];
     struct PorcelainRow row;
-    int value = 0, min = 0, max = 0;
+    int value = 0, min = 0, max = 0, width = 0;
 
     assert(describe);
     assert(state);
@@ -747,22 +869,40 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         cs_select_row(describe, state, CS_ID_STRETCH, "Stretch mode", CS_STRETCH_VALUE[at],
             stretch_options, CS_STRETCH_ROWS, cs_pick_stretch);
     }
-    if( api->client->display_get(api, TORIRS_DISPLAY_MAX_PIXEL_HEIGHT, &value, &min, &max) )
+    if( api->client->display_get(api, TORIRS_DISPLAY_MAX_PIXEL_HEIGHT, &value, &min, &max) &&
+        api->client->display_get(api, TORIRS_DISPLAY_MAX_PIXEL_WIDTH, &width, NULL, NULL) )
     {
+        char current[32];
         int count = CS_PIXEL_LIMIT_LISTED;
-        int at = cs_value_row(CS_PIXEL_LIMIT_VALUE, CS_PIXEL_LIMIT_LISTED, value);
+        int at = -1;
         char const* selected;
+
+        if( value == 0 && width == 0 )
+            snprintf(current, sizeof(current), "0");
+        else
+            snprintf(current, sizeof(current), "%dx%d", width, value);
+        for( int i = 0; i < CS_PIXEL_LIMIT_LISTED; i++ )
+            if( strcmp(CS_PIXEL_LIMIT_VALUE[i], current) == 0 ) at = i;
         cs_static_options(
             limit_options, CS_PIXEL_LIMIT_VALUE, CS_PIXEL_LIMIT_LABEL, CS_PIXEL_LIMIT_LISTED);
         if( at >= 0 )
             selected = CS_PIXEL_LIMIT_VALUE[at];
         else
         {
-            /* A value only preferences.ini could hold. Shown as itself rather
-             * than snapped to a neighbour, which would claim a limit the client
-             * is not applying. */
-            snprintf(state->pixel_limit_value, sizeof(state->pixel_limit_value), "%d", value);
-            snprintf(state->pixel_limit_label, sizeof(state->pixel_limit_label), "%d rows", value);
+            /* A value only preferences.ini could hold -- or one half of a
+             * pair, which a file written before the limit was a resolution
+             * holds. Shown as itself rather than snapped to a neighbour, which
+             * would claim a limit the client is not applying. */
+            snprintf(state->pixel_limit_value, sizeof(state->pixel_limit_value), "%s", current);
+            if( width == 0 )
+                snprintf(state->pixel_limit_label, sizeof(state->pixel_limit_label),
+                    "Any x %d", value);
+            else if( value == 0 )
+                snprintf(state->pixel_limit_label, sizeof(state->pixel_limit_label),
+                    "%d x any", width);
+            else
+                snprintf(state->pixel_limit_label, sizeof(state->pixel_limit_label),
+                    "%dx%d", width, value);
             memset(&limit_options[count], 0, sizeof(limit_options[count]));
             limit_options[count].struct_size = sizeof(limit_options[count]);
             limit_options[count].value = state->pixel_limit_value;
@@ -780,7 +920,7 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         assert(at >= 0);
         cs_static_options(
             policy_options, CS_LIMIT_POLICY_VALUE, CS_LIMIT_POLICY_LABEL, CS_LIMIT_POLICY_ROWS);
-        cs_select_row(describe, state, CS_ID_LIMIT_POLICY, "Interface taller than the limit",
+        cs_select_row(describe, state, CS_ID_LIMIT_POLICY, "Interface larger than the limit",
             CS_LIMIT_POLICY_VALUE[at], policy_options, CS_LIMIT_POLICY_ROWS, cs_pick_limit_policy);
     }
     if( api->client->display_get(api, TORIRS_DISPLAY_FRAME_FILTER, &value, &min, &max) )
@@ -791,6 +931,36 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
             frame_filter_options, CS_FRAME_FILTER_VALUE, CS_FRAME_FILTER_LABEL, CS_FRAME_FILTER_ROWS);
         cs_select_row(describe, state, CS_ID_FRAME_FILTER, "Frame filter", CS_FRAME_FILTER_VALUE[at],
             frame_filter_options, CS_FRAME_FILTER_ROWS, cs_pick_frame_filter);
+    }
+    if( api->client->display_get(api, TORIRS_DISPLAY_HIGH_DPI, &value, &min, &max) )
+    {
+        int at = cs_value_row(CS_HIGH_DPI_VALUE, CS_HIGH_DPI_ROWS, value);
+        int in_force = 0;
+        assert(at >= 0);
+        cs_static_options(high_dpi_options, CS_HIGH_DPI_VALUE, CS_HIGH_DPI_LABEL, CS_HIGH_DPI_ROWS);
+        /* Automatic names what it means on this lane, so choosing it is not a
+         * guess. */
+        if( cs_display_value(api, TORIRS_DISPLAY_HIGH_DPI_IN_FORCE, &in_force) && in_force >= 1 &&
+            in_force < CS_HIGH_DPI_ROWS )
+        {
+            snprintf(state->high_dpi_auto_label, sizeof(state->high_dpi_auto_label),
+                "Automatic (%s)", CS_HIGH_DPI_NAME[in_force]);
+            if( value == 0 )
+                high_dpi_options[0].label = state->high_dpi_auto_label;
+            else
+                high_dpi_options[0].label = CS_HIGH_DPI_LABEL[0];
+        }
+        cs_select_row(describe, state, CS_ID_HIGH_DPI, "HighDPI", CS_HIGH_DPI_VALUE[at],
+            high_dpi_options, CS_HIGH_DPI_ROWS, cs_pick_high_dpi);
+        cs_high_dpi_now(api, state->high_dpi_now, sizeof(state->high_dpi_now));
+        if( state->high_dpi_now[0] )
+        {
+            memset(&row, 0, sizeof(row));
+            row.key = CS_ID_HIGH_DPI_NOW;
+            row.kind = PORCELAIN_ROW_LABEL;
+            row.text = state->high_dpi_now;
+            Porcelain_Row(describe, &row);
+        }
     }
 
     cs_display_signature(api, state->display_seen, sizeof(state->display_seen));
@@ -806,9 +976,9 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         memset(&row, 0, sizeof(row));
         row.key = CS_ID_SCALING_HOW;
         row.kind = PORCELAIN_ROW_PARAGRAPH;
-        row.text = "In order: interface scaling sizes the layout; stretch mode fits it to the "
-                   "window (integer rounds the scale down); the pixel limit caps rendered rows; "
-                   "the frame filter smooths the result.";
+        row.text = "In order: scaling sizes the layout (HighDPI says in what); a frame too "
+                   "big for the window lowers it evenly; stretch fits it to the window; the "
+                   "pixel limit caps the render.";
         Porcelain_Row(describe, &row);
     }
 
@@ -883,9 +1053,12 @@ cs_on_frame_start(
          * page, so both are compared, not assumed. */
         char now[PORCELAIN_ROW_TEXT_MAX];
         char seen[PORCELAIN_ROW_TEXT_MAX];
+        char dpi[PORCELAIN_ROW_TEXT_MAX];
         cs_scaling_now(api, now, sizeof(now));
         cs_display_signature(api, seen, sizeof(seen));
-        if( strcmp(now, state->scaling_now) != 0 || strcmp(seen, state->display_seen) != 0 )
+        cs_high_dpi_now(api, dpi, sizeof(dpi));
+        if( strcmp(now, state->scaling_now) != 0 || strcmp(seen, state->display_seen) != 0 ||
+            strcmp(dpi, state->high_dpi_now) != 0 )
             Porcelain_Note(state->porcelain, PORCELAIN_INPUT_EXPLICIT);
     }
     Porcelain_Fence(state->porcelain);

@@ -967,7 +967,9 @@ enum ToriRS_DisplaySetting
      *  interface scale rounds DOWN to a whole multiple of 100%, whole-pixel
      *  multiples, bars), 2 stretch to fill. */
     TORIRS_DISPLAY_STRETCH_MODE,
-    /** Tallest render buffer in pixels; 0 is no limit. */
+    /** The pixel limit's height: tallest render buffer in pixels; 0 is no
+     *  limit. Picked together with TORIRS_DISPLAY_MAX_PIXEL_WIDTH, as one
+     *  resolution. */
     TORIRS_DISPLAY_MAX_PIXEL_HEIGHT,
     /** A layout taller than the limit: 0 enlarges the interface until it fits,
      *  1 keeps the interface size and renders the layout as it is. */
@@ -975,6 +977,13 @@ enum ToriRS_DisplaySetting
     /** Sampling the finished frame onto the window: 0 same as the interface
      *  filter, 1 nearest, 2 linear, 3 bicubic. */
     TORIRS_DISPLAY_FRAME_FILTER,
+    /** The pixel limit's width: widest render buffer in pixels; 0 is no limit. */
+    TORIRS_DISPLAY_MAX_PIXEL_WIDTH,
+    /** What 100% interface scaling is one pixel OF on a high-density display:
+     *  0 automatic (the lane's own choice), 1 device pixels, 2 match the
+     *  display (window points, rendered at device pixels), 3 window points
+     *  (laid out and rendered at points). */
+    TORIRS_DISPLAY_HIGH_DPI,
 
     /*
      * Read-only: what the client is doing with those settings right now.
@@ -992,6 +1001,11 @@ enum ToriRS_DisplaySetting
     /** Why the effective scale differs from the chosen one, as a bit set of
      *  TORIRS_DISPLAY_ADJUSTED_*. */
     TORIRS_DISPLAY_SCALE_ADJUSTED,
+    /** Drawable pixels per window point the client detected, as a percent:
+     *  100 on an ordinary display, 200 on a Retina one. */
+    TORIRS_DISPLAY_DENSITY,
+    /** TORIRS_DISPLAY_HIGH_DPI with automatic resolved: 1, 2 or 3. */
+    TORIRS_DISPLAY_HIGH_DPI_IN_FORCE,
 
     TORIRS_DISPLAY_SETTING_COUNT
 };

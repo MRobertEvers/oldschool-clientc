@@ -89,14 +89,9 @@ App_SetCanvasSize(
      * strip. @see App_CanvasFloorWidth.
      */
     {
-        int min_w = App_CanvasFloorWidth(app);
-        int min_h = APP_CANVAS_MIN_H;
-        int plugin_min_w = 0;
+        int const min_w = App_CanvasFloorWidth(app);
+        int const min_h = App_CanvasFloorHeight(app);
 
-        /* Height only: the width floor already carries the frame's own and the
-         * strip's, and the strip is full-height by definition, so there is
-         * nothing to add on this axis. */
-        App_PluginLayoutMinSize(app, &plugin_min_w, &min_h);
         if( width < min_w )
             width = min_w;
         if( height < min_h )
@@ -230,6 +225,20 @@ App_CanvasFloorWidth(struct App const* app)
 }
 
 int
+App_CanvasFloorHeight(struct App const* app)
+{
+    int plugin_min_w = 0;
+    int min_h = APP_CANVAS_MIN_H;
+
+    assert(app);
+    /* Height only: the width floor already carries the frame's own and the
+     * strip's, and the strip is full-height by definition, so there is
+     * nothing to add on this axis. */
+    App_PluginLayoutMinSize(app, &plugin_min_w, &min_h);
+    return min_h;
+}
+
+int
 App_SyncFixedChromeInset(struct App* app)
 {
     int want_w;
@@ -258,6 +267,11 @@ App_SyncResizableCanvasFloor(struct App* app)
      * window actually is and is clamped by this same floor on the way in. */
     if( UITREE_LAYOUT_ROOT_W >= want_w )
         return 0;
+    /* A known window re-derives the whole layout, so a floor that grew (the
+     * strip opening) lowers the scale on BOTH axes. Raising the width alone
+     * is what turned a 200% frame into a wide strip barred top and bottom. */
+    if( app->client_scale.window_w > 0 && app->client_scale.window_h > 0 )
+        return App_ApplyWindowLayout(app, app->client_scale.window_w, app->client_scale.window_h);
     return App_SetCanvasSize(app, want_w, UITREE_LAYOUT_ROOT_H);
 }
 
@@ -274,6 +288,8 @@ App_ClientScaleSettings(
      * legal enum value here. */
     out->fit = (enum ClientScaleFit)RS_CS2Host_GetOption(
         &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_CLIENT_FIT);
+    out->max_pixel_width = RS_CS2Host_GetOption(
+        &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH);
     out->max_pixel_height = RS_CS2Host_GetOption(
         &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT);
     out->limit_policy = (enum ClientScaleLimitPolicy)RS_CS2Host_GetOption(
@@ -283,6 +299,60 @@ App_ClientScaleSettings(
     out->output_filter = output_filter == RS_CS2_OUTPUT_FILTER_SAME_AS_INTERFACE
                              ? (enum ClientScaleFilter)RS_CS2Host_UiScaleMode(&app->host)
                              : (enum ClientScaleFilter)(output_filter - 1);
+    out->high_dpi = App_HighDpiMode(app);
+    out->density_percent = App_DisplayDensityPercent(app);
+}
+
+enum ClientScaleHighDpi
+App_HighDpiMode(struct App const* app)
+{
+    int const chosen =
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_HIGH_DPI);
+
+    assert(app);
+    if( chosen == RS_CS2_HIGH_DPI_AUTO )
+        return app->client_scale.high_dpi_auto;
+    return (enum ClientScaleHighDpi)(chosen - RS_CS2_HIGH_DPI_DEVICE_PIXELS);
+}
+
+int
+App_DisplayDensityPercent(struct App const* app)
+{
+    assert(app);
+    /* 0 until a platform reports one: a headless run has no display, and 1x
+     * is what its canvas has always been. */
+    return app->client_scale.density_percent > 0 ? app->client_scale.density_percent : 100;
+}
+
+void
+App_SetDisplayDensity(
+    struct App* app,
+    int density_percent)
+{
+    assert(app);
+    assert(density_percent > 0);
+    if( app->client_scale.density_percent == density_percent )
+        return;
+    app->client_scale.density_percent = density_percent;
+    if( getenv("TORIRS_RESIZE_DEBUG") )
+        TORIRS_REPORT("resize: display density %d%%\n", density_percent);
+    /* The window moved to a display of another density: a HighDPI mode that
+     * reads it now lays out at a different percent. */
+    app->host.client_scale_dirty = true;
+}
+
+void
+App_SetHighDpiAuto(
+    struct App* app,
+    enum ClientScaleHighDpi mode)
+{
+    assert(app);
+    assert(mode >= 0);
+    assert(mode < CLIENT_SCALE_HIGH_DPI_COUNT);
+    if( app->client_scale.high_dpi_auto == mode )
+        return;
+    app->client_scale.high_dpi_auto = mode;
+    app->host.client_scale_dirty = true;
 }
 
 int
@@ -304,6 +374,8 @@ App_ApplyWindowLayout(
         RS_CS2Host_UiScalePercent(&app->host),
         window_w,
         window_h,
+        App_CanvasFloorWidth(app),
+        App_CanvasFloorHeight(app),
         &app->client_scale.layout);
     return App_SetCanvasSize(app, app->client_scale.layout.w, app->client_scale.layout.h);
 }
@@ -349,20 +421,27 @@ App_SetClientScalePresent(
         app->client_scale.layout.w = UITREE_LAYOUT_ROOT_W;
         app->client_scale.layout.h = UITREE_LAYOUT_ROOT_H;
         app->client_scale.layout.percent = ClientScale_RoundPercent(&settings, chosen);
+        app->client_scale.layout.shown_percent = app->client_scale.layout.percent;
         app->client_scale.layout.rounded_by_integer = app->client_scale.layout.percent != chosen;
         app->client_scale.layout.raised_by_limit = 0;
+        app->client_scale.layout.lowered_by_floor = 0;
     }
-    /* The floor can override the layout (App_SetCanvasSize), and then the frame
-     * is shown at the scale the output rectangle gives it, not the one the
-     * layout was computed at. Report the one on screen. */
-    app->client_scale.shown_percent = app->client_scale.layout.percent;
-    app->client_scale.lowered_to_fit_window = false;
+    /* The layout already lowered the scale for the floor on both axes. What
+     * can still override it is a window smaller than the floor even at 1:1:
+     * App_SetCanvasSize clamps the canvas up, and the frame is shown at the
+     * scale the output rectangle gives it. Report the one on screen. */
+    app->client_scale.shown_percent = app->client_scale.layout.shown_percent;
+    app->client_scale.lowered_to_fit_window = app->client_scale.layout.lowered_by_floor != 0;
     if( App_WindowMode(app) == CS2VM_WINDOW_MODE_RESIZABLE &&
         (UITREE_LAYOUT_ROOT_W > app->client_scale.layout.w ||
          UITREE_LAYOUT_ROOT_H > app->client_scale.layout.h) )
     {
-        int const shown = present->output.h * 100 / UITREE_LAYOUT_ROOT_H;
-        if( shown < app->client_scale.layout.percent )
+        int const density = App_HighDpiMode(app) == CLIENT_SCALE_HIGH_DPI_DEVICE_PIXELS
+                                 ? 100
+                                 : App_DisplayDensityPercent(app);
+        int const shown = (int)((long long)present->output.h * 100 * 100 /
+                                ((long long)UITREE_LAYOUT_ROOT_H * density));
+        if( shown < app->client_scale.shown_percent )
         {
             app->client_scale.shown_percent = shown;
             app->client_scale.lowered_to_fit_window = true;

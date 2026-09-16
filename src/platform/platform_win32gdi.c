@@ -2348,6 +2348,16 @@ PlatformWindow_PixelDensity(struct PlatformWindow* p)
     return 1;
 }
 
+int
+PlatformWindow_DisplayDensityPercent(struct PlatformWindow* p)
+{
+    /* One coordinate space, as PixelDensity says: the process is not DPI
+     * aware, so Windows scales the finished window itself and every HighDPI
+     * mode lays out alike here. */
+    (void)p;
+    return 100;
+}
+
 void
 PlatformWindow_SetWantHighDPI(bool want)
 {

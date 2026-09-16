@@ -3279,6 +3279,10 @@ frame_loop_step(void)
          *
          * A FIXED lane cannot shrink its canvas, so the branch below grows the
          * window instead. */
+        /* The display the window is on, before the scale is synced against it:
+         * a window dragged to a monitor of another density re-lays out in the
+         * same frame. */
+        App_SetDisplayDensity(&app, PlatformWindow_DisplayDensityPercent(platform));
         App_SyncClientScale(&app);
 
         /* The inset sync runs first and unconditionally: a `&&`/`||` that
@@ -6296,8 +6300,38 @@ main(
          * this after the window is a drawable at window points for the whole
          * session, which the compositor then magnifies -- the frame looks
          * scaled and nothing downstream can tell that it was. */
+#if defined(TORIRS_PLATFORM_WEB)
         if( cfg.hidpi )
             PlatformWindow_SetWantHighDPI(cfg.hidpi > 0);
+#else
+        /*
+         * Off the web, `hidpi=` no longer decides the drawable; it decides what
+         * HighDPI "automatic" means. The drawable is always device pixels, so
+         * the density is always detectable and every HighDPI mode is one the
+         * player can switch to live. `hidpi=0` asked for a frame laid out and
+         * rendered at window points, and "window points" is exactly that:
+         * the same size and the same pixel cost, magnified by the present
+         * instead of by the compositor.
+         *
+         * The web keeps the creation flag: there the density is
+         * devicePixelRatio, up to 3 on a phone, and a software rasteriser that
+         * has to opt in to that many pixels.
+         *
+         * TORIRS_HIDPI still overrides at creation (platform_sdl2.c), and =1
+         * also asks for device pixels, as it always has.
+         */
+#if !defined(TORIRS_PLATFORM_ANDROID)
+        /* Android is absent on purpose: a Surface has no points layer, so the
+         * shared manifests' hidpi=0 never shrank a phone's frame, and must not
+         * start to. */
+        {
+            char const* const env = getenv("TORIRS_HIDPI");
+            bool const env_device_pixels = env && env[0] && env[0] != '0';
+            if( cfg.hidpi < 0 && !env_device_pixels )
+                App_SetHighDpiAuto(&app, CLIENT_SCALE_HIGH_DPI_WINDOW_POINTS);
+        }
+#endif
+#endif
         /* Read on every lane so a build without a GPU renderer has no unused
          * variable; the flag was refused at parse time where it does not apply. */
         (void)use_opengl3;

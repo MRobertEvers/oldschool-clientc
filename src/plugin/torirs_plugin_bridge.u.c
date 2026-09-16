@@ -2828,6 +2828,27 @@ app_plugin_display_setting(
         min = 0;
         max = RS_CS2_OUTPUT_FILTER_MAX;
         break;
+    case TORIRS_DISPLAY_MAX_PIXEL_WIDTH:
+        value = RS_CS2Host_GetOption(
+            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH);
+        min = 0;
+        max = RS_CS2_MAX_PIXEL_WIDTH_MAX;
+        break;
+    case TORIRS_DISPLAY_HIGH_DPI:
+        value = RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_HIGH_DPI);
+        min = RS_CS2_HIGH_DPI_AUTO;
+        max = RS_CS2_HIGH_DPI_MAX;
+        break;
+    case TORIRS_DISPLAY_DENSITY:
+        value = App_DisplayDensityPercent(app);
+        min = 0;
+        max = INT32_MAX;
+        break;
+    case TORIRS_DISPLAY_HIGH_DPI_IN_FORCE:
+        value = (int)App_HighDpiMode(app) + RS_CS2_HIGH_DPI_DEVICE_PIXELS;
+        min = RS_CS2_HIGH_DPI_DEVICE_PIXELS;
+        max = RS_CS2_HIGH_DPI_MAX;
+        break;
     case TORIRS_DISPLAY_EFFECTIVE_UI_SCALE:
     case TORIRS_DISPLAY_LAYOUT_WIDTH:
     case TORIRS_DISPLAY_LAYOUT_HEIGHT:
@@ -2917,6 +2938,12 @@ app_plugin_display_setting_set(void* user, int setting, int value)
         break;
     case TORIRS_DISPLAY_FRAME_FILTER:
         option = RS_CS2_DEVICEOPTION_OUTPUT_FILTER;
+        break;
+    case TORIRS_DISPLAY_MAX_PIXEL_WIDTH:
+        option = RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH;
+        break;
+    case TORIRS_DISPLAY_HIGH_DPI:
+        option = RS_CS2_DEVICEOPTION_HIGH_DPI;
         break;
     default:
         /* Includes every read-only readout. */

@@ -422,6 +422,17 @@ int
 PlatformWindow_PixelDensity(struct PlatformWindow* platform);
 
 /**
+ * Drawable pixels per window point, as an unrounded percent: 100 on an
+ * ordinary display, 200 on a Retina one, 150 on a 150% desktop scale.
+ *
+ * PixelDensity rounds to a whole baked chrome size; client scaling needs the
+ * real ratio, because it divides the window by it. Re-read every call, for the
+ * reason PixelDensity is. 100 wherever the backend has one coordinate space.
+ */
+int
+PlatformWindow_DisplayDensityPercent(struct PlatformWindow* platform);
+
+/**
  * Ask the next window for a device-pixel (HighDPI) drawable.
  *
  * Must be called BEFORE PlatformWindow_Init / _InitForOpenGL3: the flag becomes

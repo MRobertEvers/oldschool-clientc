@@ -728,8 +728,17 @@ main(void)
     CHECK(row && strcmp(row->option_label[1], "Integer (whole pixels)") == 0, "integer is named");
     CHECK(row && strcmp(row->selected_value, "0") == 0, "keep aspect is the default");
     row = fake_row("max_pixel_height");
-    CHECK(row && row->option_count == 6, "six listed pixel limits");
+    CHECK(row && row->option_count == 19, "nineteen listed pixel limits");
     CHECK(row && strcmp(row->option_label[0], "No limit") == 0, "the first limit is none");
+    CHECK(row && strcmp(row->option_value[1], "640x360") == 0 &&
+          strcmp(row->option_value[18], "7680x4320") == 0,
+        "the limits are resolutions, from small to large");
+    CHECK(row && strcmp(row->selected_value, "0") == 0, "no limit is the default");
+    row = fake_row("high_dpi");
+    CHECK(row && row->option_count == 4, "four HighDPI modes");
+    CHECK(row && strcmp(row->selected_value, "0") == 0 &&
+          strcmp(row->option_label[0], "Automatic") == 0,
+        "automatic is the default, and unnamed before the client says what it means");
     row = fake_row("pixel_limit_policy");
     CHECK(row && row->option_count == 2, "two limit policies");
     CHECK(row && strcmp(row->option_label[0], "Enlarge the interface to fit") == 0,
@@ -742,23 +751,37 @@ main(void)
         "no readout before anything has been presented");
 
     pick(state, "stretch_mode", "1");
-    pick(state, "max_pixel_height", "1080");
+    pick(state, "max_pixel_height", "1920x1080");
     pick(state, "pixel_limit_policy", "1");
     pick(state, "frame_filter", "3");
+    pick(state, "high_dpi", "2");
     CHECK(fake.display[TORIRS_DISPLAY_STRETCH_MODE] == 1, "stretch pick writes the store");
-    CHECK(fake.display[TORIRS_DISPLAY_MAX_PIXEL_HEIGHT] == 1080, "limit pick writes the store");
+    CHECK(fake.display[TORIRS_DISPLAY_MAX_PIXEL_WIDTH] == 1920 &&
+          fake.display[TORIRS_DISPLAY_MAX_PIXEL_HEIGHT] == 1080,
+        "a resolution pick writes both halves of the limit");
+    CHECK(fake.display[TORIRS_DISPLAY_HIGH_DPI] == 2, "HighDPI pick writes the store");
     CHECK(fake.display[TORIRS_DISPLAY_PIXEL_LIMIT_POLICY] == 1, "policy pick writes the store");
     CHECK(fake.display[TORIRS_DISPLAY_FRAME_FILTER] == 3, "frame filter pick writes the store");
     CHECK(fake.config_writes == 0, "client scaling is not written to plugin config either");
 
-    /* A limit only preferences.ini could hold is shown as itself. */
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+    row = fake_row("max_pixel_height");
+    CHECK(row && strcmp(row->selected_value, "1920x1080") == 0, "the picked resolution is selected");
+
+    /* A limit only preferences.ini could hold is shown as itself -- here a
+     * height with no width, which a file from before resolutions holds. */
+    fake.display[TORIRS_DISPLAY_MAX_PIXEL_WIDTH] = 0;
     fake.display[TORIRS_DISPLAY_MAX_PIXEL_HEIGHT] = 600;
     frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
     row = fake_row("max_pixel_height");
-    CHECK(row && row->option_count == 7 && strcmp(row->selected_value, "600") == 0 &&
-          strcmp(row->option_label[6], "600 rows") == 0,
+    CHECK(row && row->option_count == 20 && strcmp(row->selected_value, "0x600") == 0 &&
+          strcmp(row->option_label[19], "Any x 600") == 0,
         "a limit written elsewhere re-describes the page, offered as its own row rather than "
         "snapped to a neighbour");
+    pick(state, "max_pixel_height", "0");
+    CHECK(fake.display[TORIRS_DISPLAY_MAX_PIXEL_WIDTH] == 0 &&
+          fake.display[TORIRS_DISPLAY_MAX_PIXEL_HEIGHT] == 0,
+        "no limit clears both halves");
 
     /* The readout: what the settings add up to, and why the scale moved. */
     fake.ui_scale = 150;
@@ -771,19 +794,28 @@ main(void)
     fake.display[TORIRS_DISPLAY_OUTPUT_WIDTH] = 1920;
     fake.display[TORIRS_DISPLAY_OUTPUT_HEIGHT] = 1080;
     fake.display[TORIRS_DISPLAY_SCALE_ADJUSTED] = TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED;
+    fake.display[TORIRS_DISPLAY_DENSITY] = 200;
+    fake.display[TORIRS_DISPLAY_HIGH_DPI_IN_FORCE] = 3;
+    fake.display[TORIRS_DISPLAY_HIGH_DPI] = 0;
     frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
     row = fake_row("scaling_now");
     CHECK(row && strcmp(row->text,
                      "Now: layout 1920x1080 at 100%, rendered 1920x1080, shown 1920x1080. "
                      "150% rounded down for integer scaling.") == 0,
         "the readout says integer rounded the chosen scale down");
+    row = fake_row("high_dpi_now");
+    CHECK(row && strcmp(row->text, "Display density 2.00x detected; using window points.") == 0,
+        "the detected density is shown under the HighDPI row");
+    row = fake_row("high_dpi");
+    CHECK(row && strcmp(row->option_label[0], "Automatic (window points)") == 0,
+        "automatic names what it resolved to");
     CHECK(fake_row("scaling_how") != NULL, "and how the settings combine");
 
     fake.display[TORIRS_DISPLAY_EFFECTIVE_UI_SCALE] = 200;
     fake.display[TORIRS_DISPLAY_SCALE_ADJUSTED] = TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED;
     frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
     row = fake_row("scaling_now");
-    CHECK(row && strstr(row->text, "at 200%") && strstr(row->text, "Raised from 150% to stay under the pixel limit."),
+    CHECK(row && strstr(row->text, "at 200%") && strstr(row->text, "Raised from 150% to stay inside the pixel limit."),
         "a readout change re-describes the page without any setting changing");
 
     /* A build with no display store declares neither row -- the same page the
