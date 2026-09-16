@@ -2727,11 +2727,12 @@ App_SyncFixedChromeInset(struct App* app);
 
 /**
  * The smallest game area, in drawable pixels, a resizable window should have:
- * the frame and the strip at 100% interface scaling. Returns 0 when not
- * resizable. The shell grows a window below it (App has no platform).
+ * the frame and the strip at the chosen interface scale. Returns 0 when not
+ * resizable. The shell grows a window below it and makes it the window's
+ * minimum, both capped at the display (App has no platform).
  *
- * This bounds the WINDOW, never the buffer: interface scaling and the pixel
- * limit decide the buffer even when that is smaller than the frame wants.
+ * Where the display cannot hold it, App_ApplyWindowLayout lowers the scale
+ * rather than hand the frame a buffer smaller than itself.
  */
 int
 App_ResizableWindowFloor(

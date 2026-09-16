@@ -2814,6 +2814,86 @@ PlatformWindow_SetCanvasFollowsWindow(
 }
 
 void
+PlatformWindow_SetGameAreaFloor(
+    struct PlatformWindow* platform,
+    int min_w,
+    int min_h)
+{
+    SDL_Rect usable = { 0, 0, 0, 0 };
+    int display;
+    int have_w = 0;
+    int have_h = 0;
+    int border_top = 0;
+    int border_left = 0;
+    int border_bottom = 0;
+    int border_right = 0;
+    int const pane_w = sdl_chrome_pane_points(platform);
+
+    assert(platform);
+    assert(min_w > 0);
+    assert(min_h > 0);
+    if( !platform->window )
+        return;
+#if defined(__EMSCRIPTEN__)
+    /* The page sizes the canvas; a small one lowers the scale instead. */
+    return;
+#endif
+
+    display = SDL_GetWindowDisplayIndex(platform->window);
+    if( display >= 0 && SDL_GetDisplayUsableBounds(display, &usable) == 0 && usable.w > 0 &&
+        usable.h > 0 )
+    {
+        /* Fails on drivers without decorations; the sizes stay zero then. */
+        (void)SDL_GetWindowBordersSize(
+            platform->window, &border_top, &border_left, &border_bottom, &border_right);
+        if( min_w > usable.w - border_left - border_right - pane_w )
+            min_w = usable.w - border_left - border_right - pane_w;
+        if( min_h > usable.h - border_top - border_bottom )
+            min_h = usable.h - border_top - border_bottom;
+        if( min_w < 1 || min_h < 1 )
+            return;
+    }
+
+    /* The minimum is the GAME AREA's, as PlatformWindow_SetCanvasFollowsWindow
+     * states it: the pane's growth policy reads it back as that. */
+    SDL_GetWindowMinimumSize(platform->window, &have_w, &have_h);
+    if( have_w != min_w || have_h != min_h )
+        SDL_SetWindowMinimumSize(platform->window, min_w, min_h);
+
+    if( sdl_window_frame_locked(platform) )
+        return;
+    SDL_GetWindowSize(platform->window, &have_w, &have_h);
+    have_w -= pane_w;
+    if( have_w >= min_w && have_h >= min_h )
+        return;
+    {
+        int const want_w = have_w > min_w ? have_w : min_w;
+        int const want_h = have_h > min_h ? have_h : min_h;
+        int window_x = 0;
+        int window_y = 0;
+
+        /* Grown right and down from the top-left corner, so a window near the
+         * display's edge would hang off it: slide it back inside first. */
+        SDL_GetWindowPosition(platform->window, &window_x, &window_y);
+        if( usable.w > 0 && usable.h > 0 )
+        {
+            int const right = usable.x + usable.w - border_right;
+            int const bottom = usable.y + usable.h - border_bottom;
+            if( window_x + want_w + pane_w > right )
+                window_x = right - want_w - pane_w;
+            if( window_y + want_h > bottom )
+                window_y = bottom - want_h;
+            if( window_x < usable.x + border_left )
+                window_x = usable.x + border_left;
+            if( window_y < usable.y + border_top )
+                window_y = usable.y + border_top;
+            SDL_SetWindowPosition(platform->window, window_x, window_y);
+        }
+        SDL_SetWindowSize(platform->window, want_w + pane_w, want_h);
+    }
+}
+
+void
 PlatformWindow_SetWindowSize(
     struct PlatformWindow* platform,
     int width,

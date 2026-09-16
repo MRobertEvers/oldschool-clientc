@@ -658,9 +658,16 @@ cs_scaling_now(struct ToriRS_Api* api, char* out, size_t out_size)
         effective, output_w, output_h);
     if( used < 0 || (size_t)used >= out_size )
         return;
-    if( adjusted & TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED )
+    if( (adjusted & TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT) &&
+        (adjusted & TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED) )
         used += snprintf(out + used, out_size - (size_t)used,
-            " Raised from %d%% to stay inside the pixel limit.", chosen);
+            " Lowered from %d%%: the pixel limit cannot fit the frame.", chosen);
+    else if( adjusted & TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT )
+        used += snprintf(out + used, out_size - (size_t)used,
+            " Lowered from %d%%: the screen cannot fit the frame.", chosen);
+    else if( adjusted & TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED )
+        used += snprintf(out + used, out_size - (size_t)used,
+            " %d%% of the pixel limit, not of the window.", chosen);
     else if( adjusted & TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED )
         used += snprintf(out + used, out_size - (size_t)used,
             " %d%% rounded down for integer scaling.", chosen);
@@ -952,9 +959,9 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         memset(&row, 0, sizeof(row));
         row.key = CS_ID_SCALING_HOW;
         row.kind = PORCELAIN_ROW_PARAGRAPH;
-        row.text = "The game renders into a buffer: the window divided by interface scaling "
-                   "(HighDPI says in what), no larger than the pixel limit. Stretch mode and "
-                   "the frame filter then fit it to the window.";
+        row.text = "The game renders into a buffer: the window, or the pixel limit if smaller, "
+                   "divided by interface scaling (HighDPI says in what). Stretch mode and the "
+                   "frame filter fit it to the window.";
         Porcelain_Row(describe, &row);
     }
 

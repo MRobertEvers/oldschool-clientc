@@ -564,6 +564,22 @@ PlatformWindow_SetCanvasFollowsWindow(
     int min_h);
 
 /**
+ * The smallest game area a resizable window may have, in window points: made
+ * the window's minimum size, and the window grown to it when it is smaller.
+ *
+ * Capped at the display's usable area, so a floor larger than the screen
+ * gives the largest window that fits rather than one hanging off it; the
+ * caller's layout covers the difference (ClientScale_LowerToFloor). Never
+ * resizes a maximised or fullscreen window. A backend with no window to size
+ * (Android) ignores it.
+ */
+void
+PlatformWindow_SetGameAreaFloor(
+    struct PlatformWindow* platform,
+    int min_w,
+    int min_h);
+
+/**
  * Resize the OS window, as if the user had dragged its corner.
  *
  * The distinction from PlatformWindow_Resize matters: this touches the window and

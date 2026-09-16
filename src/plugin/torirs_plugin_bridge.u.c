@@ -2885,9 +2885,10 @@ app_plugin_display_setting(
         default:
             value = (scale->layout.rounded_by_integer ? TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED : 0) |
                     (scale->layout.raised_by_limit ? TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED : 0) |
-                    (scale->present.integer_fell_back ? TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK : 0);
+                    (scale->present.integer_fell_back ? TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK : 0) |
+                    (scale->layout.lowered_to_fit ? TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT : 0);
             max = TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED | TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED |
-                  TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK;
+                  TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK | TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT;
             break;
         }
         break;

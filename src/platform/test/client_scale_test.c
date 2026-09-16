@@ -13,10 +13,12 @@
  *     multiples, centres, and falls back to keep-aspect when the window is
  *     smaller than one multiple.
  *   - stretch fills the area.
- *   - the pixel limit raises the percent until the layout fits both axes of
- *     the resolution (to a whole multiple in integer mode), so a CPU
- *     renderer never draws more than it.
- *   - nothing but the settings moves the buffer: no frame floor applies.
+ *   - the pixel limit caps the 100% buffer inside both axes of the
+ *     resolution, and interface scaling divides that (to a whole multiple in
+ *     integer mode), so a CPU renderer never draws more than it and every
+ *     scale step still draws a different frame.
+ *   - the frame floor lowers the percent, evenly, only when the window cannot
+ *     hold the frame at it; a window that can is left at the settings.
  *   - HighDPI: device pixels ignores the density; window points multiplies
  *     the percent by it.
  *   - one pipeline: every renderer draws the buffer (the layout) and the
@@ -167,17 +169,56 @@ test_limit_raises_the_scale(void)
     CHECK(layout.percent == 149 && layout.h <= 1080, "1600 rows under 1080 -> 149%%, got %d (%d rows)",
         layout.percent, layout.h);
 
+    /* The scale divides the LIMITED buffer: 300% of 4K under 1080 rows is a
+     * third of 1920x1080, not the same 1280x720 that 300% of 4K alone is. */
     ClientScale_WindowLayout(&s, 300, 3840, 2160, &layout);
-    CHECK(layout.percent == 300 && !layout.raised_by_limit, "already under the limit: untouched");
+    CHECK(layout.percent == 600 && layout.raised_by_limit && layout.w == 640 && layout.h == 360,
+        "300%% under a 1080 limit is 640x360, got %dx%d at %d%%", layout.w, layout.h, layout.percent);
 
     s.fit = CLIENT_SCALE_FIT_INTEGER;
     ClientScale_WindowLayout(&s, 100, 2560, 1600, &layout);
     CHECK(layout.percent == 200 && layout.raised_by_limit, "integer raise lands on 200%%, got %d",
         layout.percent);
+    ClientScale_WindowLayout(&s, 200, 2560, 1600, &layout);
+    CHECK(layout.percent == 300 && layout.h <= 540, "integer 200%% of a 149%% limit is 300%%, got %d",
+        layout.percent);
+}
+
+static void
+test_scale_steps_under_a_limit(void)
+{
+    struct ClientScaleLayout layout;
+    struct ClientScaleSettings s = settings(CLIENT_SCALE_FIT_KEEP_ASPECT, 768);
+    int const scales[] = { 100, 125, 150, 175, 200 };
+    int previous_w = 1 << 30;
+
+    /* The reported case: a Retina laptop in window points under 1366x768.
+     * Every step of the scale has to draw a different frame. */
+    s.max_pixel_width = 1366;
+    s.high_dpi = CLIENT_SCALE_HIGH_DPI_WINDOW_POINTS;
+    s.density_percent = 200;
+    for( int i = 0; i < (int)(sizeof(scales) / sizeof(scales[0])); i++ )
+    {
+        ClientScale_WindowLayout(&s, scales[i], 3024, 1844, &layout);
+        CHECK(layout.w < previous_w && layout.w <= 1366 && layout.h <= 768,
+            "%d%% under 1366x768 must shrink the buffer and stay inside it, got %dx%d", scales[i],
+            layout.w, layout.h);
+        previous_w = layout.w;
+    }
+
+    /* The window floor stops where the limit cannot hold the frame: 768 rows
+     * show 503 at 152%, so 200% asks for no more window than that. */
+    CHECK(ClientScale_WindowFloorPercent(&s, 200, 807, 503) == 304,
+        "a 200%% floor under 768 rows is 152%% of points, got %d",
+        ClientScale_WindowFloorPercent(&s, 200, 807, 503));
+    CHECK(ClientScale_WindowFloorPercent(&s, 125, 807, 503) == 250, "125%% fits: kept");
+    s.max_pixel_width = 854;
+    s.max_pixel_height = 480;
+    CHECK(ClientScale_WindowFloorPercent(&s, 150, 807, 503) == 200,
+        "a limit below the frame still owes the frame at 100%%");
 
 
 }
-
 static void
 test_render_buffer(void)
 {
@@ -218,13 +259,13 @@ test_resolution_limit(void)
 }
 
 static void
-test_settings_decide_the_buffer(void)
+test_settings_decide_the_buffer_without_a_floor(void)
 {
     struct ClientScaleLayout layout;
     struct ClientScaleSettings s = settings(CLIENT_SCALE_FIT_KEEP_ASPECT, 0);
 
-    /* The reported case: 200% in a 1192x916 game area is a 596x458 buffer,
-     * although the frame on screen would like 807x503. The settings win. */
+    /* 200% in a 1192x916 game area is a 596x458 buffer: WindowLayout applies
+     * no floor. @see test_frame_floor for what the client layers on top. */
     ClientScale_WindowLayout(&s, 200, 1192, 916, &layout);
     CHECK(layout.percent == 200 && layout.w == 596 && layout.h == 458,
         "200%% of 1192x916 is 596x458, got %dx%d at %d%%", layout.w, layout.h, layout.percent);
@@ -232,6 +273,48 @@ test_settings_decide_the_buffer(void)
     s.fit = CLIENT_SCALE_FIT_INTEGER;
     ClientScale_WindowLayout(&s, 250, 2384, 1832, &layout);
     CHECK(layout.percent == 200 && layout.w == 1192, "integer 250%% is 200%%, got %d", layout.percent);
+}
+
+static void
+test_frame_floor(void)
+{
+    struct ClientScaleLayout layout;
+    struct ClientScaleSettings s = settings(CLIENT_SCALE_FIT_KEEP_ASPECT, 0);
+
+    /* The reported case: 200% on a Retina display (400% of drawable pixels)
+     * in a 1532x1000 game area was a 383x250 buffer, and the 765x503 login
+     * screen showed a quarter of itself. */
+    s.high_dpi = CLIENT_SCALE_HIGH_DPI_WINDOW_POINTS;
+    s.density_percent = 200;
+    ClientScale_WindowLayout(&s, 200, 1532, 1000, &layout);
+    ClientScale_LowerToFloor(&s, 765, 503, 1532, 1000, &layout);
+    CHECK(layout.lowered_to_fit && layout.w >= 765 && layout.h >= 503,
+        "a window too small for 200%% lowers the scale to hold the frame, got %dx%d at %d%%",
+        layout.w, layout.h, layout.percent);
+    CHECK(layout.percent == 198 && layout.shown_percent == 99,
+        "lowered evenly to the largest that fits, got %d%% (shown %d)", layout.percent,
+        layout.shown_percent);
+
+    /* A window grown to hold it keeps the chosen scale. */
+    ClientScale_WindowLayout(&s, 200, 3228, 2012, &layout);
+    ClientScale_LowerToFloor(&s, 807, 503, 3228, 2012, &layout);
+    CHECK(!layout.lowered_to_fit && layout.percent == 400 && layout.w == 807,
+        "a window holding the frame keeps 200%%, got %dx%d at %d%%", layout.w, layout.h,
+        layout.percent);
+
+    /* Integer mode keeps a whole multiple while one fits. */
+    s = settings(CLIENT_SCALE_FIT_INTEGER, 0);
+    ClientScale_WindowLayout(&s, 300, 2000, 1400, &layout);
+    ClientScale_LowerToFloor(&s, 807, 503, 2000, 1400, &layout);
+    CHECK(layout.lowered_to_fit && layout.percent == 200 && layout.w == 1000,
+        "integer 300%% in a 2000x1400 window lowers to 200%%, got %d", layout.percent);
+
+    /* Smaller than the frame at 100%: the buffer is the frame, shrunk to fit. */
+    s = settings(CLIENT_SCALE_FIT_KEEP_ASPECT, 0);
+    ClientScale_WindowLayout(&s, 100, 600, 400, &layout);
+    ClientScale_LowerToFloor(&s, 765, 503, 600, 400, &layout);
+    CHECK(layout.w >= 765 && layout.h >= 503, "never below the frame, got %dx%d", layout.w,
+        layout.h);
 }
 
 static void
@@ -276,9 +359,11 @@ main(void)
     test_integer_mode();
     test_stretch_fills();
     test_limit_raises_the_scale();
+    test_scale_steps_under_a_limit();
     test_render_buffer();
     test_resolution_limit();
-    test_settings_decide_the_buffer();
+    test_settings_decide_the_buffer_without_a_floor();
+    test_frame_floor();
     test_high_dpi();
     test_mapping_round_trip();
 

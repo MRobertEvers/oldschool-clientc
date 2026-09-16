@@ -3330,10 +3330,11 @@ frame_loop_step(void)
          * fixed branch does. A window that refuses (maximised, or no room on
          * the display) lays the frame out in what it has.
          *
-         * GROW only, and the window only. The buffer is whatever interface
-         * scaling and the pixel limit say, even below the frame's minimum --
-         * the settings decide it (platform/client_scale.h rule 5) -- so a small
-         * buffer is never a reason to touch the window.
+         * The floor is the frame at the CHOSEN interface scale, and it is the
+         * window's minimum as well as a growth: at 100% only, a 200% scale on
+         * a Retina display laid the login screen out in a quarter of itself.
+         * The platform caps it at the display; what that leaves short, the
+         * layout lowers the scale for (platform/client_scale.h rule 5).
          *
          * The window is asked in points: on a 2x display the two differ by the
          * density, and asking for pixels there would double a window that only
@@ -3345,24 +3346,12 @@ frame_loop_step(void)
             int floor_h = 0;
             if( App_ResizableWindowFloor(&app, &floor_w, &floor_h) )
             {
-                int const density = PlatformWindow_PixelDensity(platform);
-                int area_w = 0;
-                int area_h = 0;
-                assert(density >= 1);
-                PlatformWindow_GameAreaPixels(platform, &area_w, &area_h);
-                if( area_w > 0 && area_h > 0 && (area_w < floor_w || area_h < floor_h) )
-                {
-                    int const want_w = floor_w > area_w ? floor_w : area_w;
-                    int const want_h = floor_h > area_h ? floor_h : area_h;
-                    PlatformWindow_SetWindowSize(platform, want_w / density, want_h / density);
-                    if( getenv("TORIRS_RESIZE_DEBUG") )
-                        TORIRS_LOG(
-                            "resizable-chrome: game area %dx%d below the frame %dx%d, window grown\n",
-                            area_w,
-                            area_h,
-                            floor_w,
-                            floor_h);
-                }
+                int const density = PlatformWindow_DisplayDensityPercent(platform);
+                assert(density > 0);
+                PlatformWindow_SetGameAreaFloor(
+                    platform,
+                    (int)(((long long)floor_w * 100 + density - 1) / density),
+                    (int)(((long long)floor_h * 100 + density - 1) / density));
             }
         }
 

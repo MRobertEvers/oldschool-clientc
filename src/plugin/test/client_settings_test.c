@@ -810,8 +810,14 @@ main(void)
     fake.display[TORIRS_DISPLAY_SCALE_ADJUSTED] = TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED;
     frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
     row = fake_row("scaling_now");
-    CHECK(row && strstr(row->text, "at 200%") && strstr(row->text, "Raised from 150% to stay inside the pixel limit."),
+    CHECK(row && strstr(row->text, "at 200%") && strstr(row->text, "150% of the pixel limit, not of the window."),
         "a readout change re-describes the page without any setting changing");
+    fake.display[TORIRS_DISPLAY_SCALE_ADJUSTED] =
+        TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED | TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT;
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+    row = fake_row("scaling_now");
+    CHECK(row && strstr(row->text, "Lowered from 150%: the pixel limit cannot fit the frame."),
+        "a limit too small for the frame at the scale names the limit, not the screen");
 
     /* A build with no display store declares neither row -- the same page the
      * unported plugin built, and the reason the two reads are a gate. */

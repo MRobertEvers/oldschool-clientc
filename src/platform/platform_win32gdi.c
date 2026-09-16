@@ -2487,6 +2487,24 @@ PlatformWindow_SetCanvasFollowsWindow(
 }
 
 void
+PlatformWindow_SetGameAreaFloor(struct PlatformWindow* p, int min_w, int min_h)
+{
+    int have_w = 0;
+    int have_h = 0;
+
+    assert(p);
+    assert(min_w > 0);
+    assert(min_h > 0);
+    /* Grow only: GDI has no minimum-size hook here yet, and no display cap. */
+    if( !p->hwnd || !win32_game_client_size(p, &have_w, &have_h) )
+        return;
+    if( have_w >= min_w && have_h >= min_h )
+        return;
+    PlatformWindow_SetWindowSize(
+        p, have_w > min_w ? have_w : min_w, have_h > min_h ? have_h : min_h);
+}
+
+void
 PlatformWindow_SetWindowSize(struct PlatformWindow* p, int width, int height)
 {
     if( !p->hwnd || width <= 0 || height <= 0 )

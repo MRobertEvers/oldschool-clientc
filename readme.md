@@ -736,7 +736,7 @@ than any one of them being wrong.
 | --- | --- | --- | --- |
 | `hidpi` | `[ui:boot]`, env `TORIRS_HIDPI` | `0`/`1` | Web: whether the drawable is device **pixels** (default off). Desktop: what HighDPI "automatic" means — `0` is window points, else device pixels |
 | HighDPI | device option 34, in-client | automatic / device pixels / window points | What 100% interface scaling is one pixel **of** |
-| Pixel limit | device options 31/35, in-client | a resolution | The largest buffer the game renders into |
+| Pixel limit | device options 31/35, in-client | a resolution | The largest buffer the game renders into: it caps what 100% interface scaling is, and the scale divides that |
 | `chrome_scale` | `[ui:boot]`, env `TORIRS_CHROME_SCALE` | `1..4`, `dynamic`, unset | Device pixels per ToriRSChrome pixel |
 | `windowmode` | `[ui:boot]`, `--windowmode` | `fixed`/`resizable` | Whether the canvas tracks the window at all |
 | Interface scaling | device option 27, in-client | percent | Canvas divided down so the IF3 layer draws larger |
@@ -756,10 +756,14 @@ live-switchable from Client Settings:
   the window server.
 
 Every renderer — Soft3D, GL3, GLES2, D3D9 — runs one pipeline: the game renders
-into a buffer the size the settings say (the window divided by interface
-scaling, no larger than the pixel limit), then stretch mode and the frame filter
-fit that buffer to the window. The frame's own minimum size never overrides the
-buffer; it only grows a resizable window that is smaller than the frame at 100%.
+into a buffer the size the settings say (the window -- or the largest buffer
+inside the pixel limit, when that is smaller -- divided by interface scaling),
+then stretch mode and the frame filter fit that buffer to the window. Scaling
+happens before the stretch, and the limit before the scaling, so every scale
+step still draws a different frame under a limit. A resizable window is grown
+to, and held at, the frame at the chosen scale (capped at the display and at
+what the limit can hold); only a buffer that still cannot hold the frame has
+its scale lowered.
 
 "Automatic" (the stored default) resolves per lane, so a shared
 `preferences.ini` never pins one lane's choice onto another: `hidpi=0`

@@ -33,12 +33,19 @@
  *   3. Stretch mode INTEGER rounds the chosen percent DOWN to a whole multiple
  *      of 100 before it is used, so every buffer pixel lands on a whole number
  *      of window pixels (150% becomes 100%, with bars).
- *   4. The pixel limit (a WxH resolution): a buffer larger than it on either
- *      axis raises the percent until it fits.
- *   5. Nothing else moves it. The frame's own minimum size does NOT: the
- *      settings decide the buffer, and a frame handed less room than it wants
- *      is laid out in it anyway. The minimum only stops the WINDOW being
- *      smaller than the frame at 100% (App_ResizableWindowFloor).
+ *   4. The pixel limit (a WxH resolution) caps what 100% is: a window whose
+ *      100% buffer is larger than the limit on either axis is treated as the
+ *      largest buffer that fits inside it, and interface scaling divides THAT.
+ *      The two compose rather than compete: they used to both set one percent
+ *      and the larger won, so under a 1366x768 limit on a Retina laptop 100%
+ *      and 120% drew the same frame, and under 854x480 every scale did.
+ *   5. The frame's minimum size. The window is grown to hold the frame at the
+ *      CHOSEN scale (App_ResizableWindowFloor), so the settings win whenever
+ *      the display has room. When it has not -- a 200% frame on a laptop
+ *      screen, or a window the user holds smaller -- the percent is lowered,
+ *      evenly, until the buffer holds the frame (ClientScale_LowerToFloor).
+ *      A buffer smaller than the frame crops it: the login screen showed its
+ *      top-left quarter at 200% on a Retina display.
  *   6. Stretch mode places the buffer in the window: keep aspect (fractional,
  *      centred), integer (whole multiple, centred; falls back to keep aspect
  *      when the window is smaller than the buffer), or stretch (fills it).
@@ -112,8 +119,10 @@ struct ClientScaleLayout
     int shown_percent;
     /** Stretch mode INTEGER rounded the chosen percent down. */
     int rounded_by_integer;
-    /** The pixel limit raised the percent. */
+    /** The pixel limit capped the 100% buffer, so the scale is of the limit. */
     int raised_by_limit;
+    /** The window could not hold the frame at the percent, so it was lowered. */
+    int lowered_to_fit;
 };
 
 struct ClientScalePresent
@@ -165,8 +174,8 @@ client_scale_percent_to_fit(
 /**
  * The buffer a resizable window lays out and renders at.
  *
- * `window_w`/`window_h` is the game area in drawable pixels. The settings are
- * the whole answer: no floor is applied here or after.
+ * `window_w`/`window_h` is the game area in drawable pixels. No frame floor is
+ * applied here: @see ClientScale_LowerToFloor.
  */
 static inline void
 ClientScale_WindowLayout(
@@ -178,6 +187,7 @@ ClientScale_WindowLayout(
 {
     int const density = ClientScale_LayoutDensityPercent(settings);
     int rounded;
+    int base;
     int effective;
 
     assert(settings);
@@ -189,10 +199,9 @@ ClientScale_WindowLayout(
     rounded = ClientScale_RoundPercent(settings, percent);
     out->rounded_by_integer = rounded != percent;
     out->raised_by_limit = 0;
-    effective = (int)((long long)rounded * density / 100);
-    if( effective < 1 )
-        effective = 1;
-
+    out->lowered_to_fit = 0;
+    /* What 100% is, in drawable pixels: the HighDPI unit, or the limit's. */
+    base = density;
     if( settings->max_pixel_width > 0 || settings->max_pixel_height > 0 )
     {
         int needed = 0;
@@ -204,14 +213,20 @@ ClientScale_WindowLayout(
             if( needed_h > needed )
                 needed = needed_h;
         }
-        if( settings->fit == CLIENT_SCALE_FIT_INTEGER )
-            needed = (needed + 99) / 100 * 100;
-        if( needed > effective )
+        if( needed > base )
         {
-            effective = needed;
+            base = needed;
             out->raised_by_limit = 1;
         }
     }
+    effective = (int)((long long)rounded * base / 100);
+    /* Rounded UP to a whole multiple: down would put the buffer over the
+     * limit. Only when the limit set the base -- without one, integer mode's
+     * rounding is the chosen percent's, above. */
+    if( out->raised_by_limit && settings->fit == CLIENT_SCALE_FIT_INTEGER )
+        effective = (effective + 99) / 100 * 100;
+    if( effective < 1 )
+        effective = 1;
 
     out->percent = effective;
     out->shown_percent = (int)((long long)effective * 100 / density);
@@ -221,6 +236,103 @@ ClientScale_WindowLayout(
         out->w = 1;
     if( out->h < 1 )
         out->h = 1;
+}
+
+/**
+ * The percent, in drawable pixels, a resizable window has to be of a frame of
+ * `frame_w`x`frame_h` for the frame to fit at the chosen `percent`: the size
+ * the window is grown to and held at.
+ *
+ * Capped where the pixel limit cannot hold the frame at that percent -- a
+ * 768-row limit shows a 503-row frame at 152% at most, however large the
+ * window -- because a window grown past that buys nothing but a smaller frame
+ * in a larger rectangle. Never below 100%: the frame at 1:1 is always owed.
+ */
+static inline int
+ClientScale_WindowFloorPercent(
+    struct ClientScaleSettings const* settings,
+    int percent,
+    int frame_w,
+    int frame_h)
+{
+    int floor_percent;
+
+    assert(settings);
+    assert(percent > 0);
+    assert(frame_w > 0);
+    assert(frame_h > 0);
+
+    floor_percent = ClientScale_RoundPercent(settings, percent);
+    if( settings->max_pixel_width > 0 )
+    {
+        int const cap = (int)((long long)settings->max_pixel_width * 100 / frame_w);
+        if( cap < floor_percent )
+            floor_percent = cap;
+    }
+    if( settings->max_pixel_height > 0 )
+    {
+        int const cap = (int)((long long)settings->max_pixel_height * 100 / frame_h);
+        if( cap < floor_percent )
+            floor_percent = cap;
+    }
+    if( floor_percent < 100 )
+        floor_percent = 100;
+    return (int)((long long)floor_percent * ClientScale_LayoutDensityPercent(settings) / 100);
+}
+
+/**
+ * Lower `layout`'s percent, evenly, until its buffer holds a frame of
+ * `floor_w`x`floor_h` layout pixels. Runs after ClientScale_WindowLayout, and
+ * after the pixel limit on purpose: a limit below the frame crops the frame,
+ * and a cropped frame is not a setting anybody can use.
+ *
+ * Integer mode keeps whole multiples while one still fits; a window smaller
+ * than the frame at 100% gets a buffer larger than the window, which the
+ * present then shrinks to fit.
+ */
+static inline void
+ClientScale_LowerToFloor(
+    struct ClientScaleSettings const* settings,
+    int floor_w,
+    int floor_h,
+    int window_w,
+    int window_h,
+    struct ClientScaleLayout* layout)
+{
+    int const density = ClientScale_LayoutDensityPercent(settings);
+    int fit;
+
+    assert(settings);
+    assert(layout);
+    assert(floor_w > 0);
+    assert(floor_h > 0);
+    assert(window_w > 0);
+    assert(window_h > 0);
+
+    if( layout->w >= floor_w && layout->h >= floor_h )
+        return;
+    fit = (int)((long long)window_w * 100 / floor_w);
+    {
+        int const fit_h = (int)((long long)window_h * 100 / floor_h);
+        if( fit_h < fit )
+            fit = fit_h;
+    }
+    if( settings->fit == CLIENT_SCALE_FIT_INTEGER && fit >= 100 )
+        fit = fit / 100 * 100;
+    if( fit < 1 )
+        fit = 1;
+    if( fit >= layout->percent )
+        return;
+
+    layout->lowered_to_fit = 1;
+    layout->percent = fit;
+    layout->shown_percent = (int)((long long)fit * 100 / density);
+    layout->w = (int)((long long)window_w * 100 / fit);
+    layout->h = (int)((long long)window_h * 100 / fit);
+    if( layout->w < floor_w )
+        layout->w = floor_w;
+    if( layout->h < floor_h )
+        layout->h = floor_h;
 }
 
 /* Byte-for-byte the letterbox every lane carried before this module, so the

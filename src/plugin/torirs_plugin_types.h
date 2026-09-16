@@ -1010,6 +1010,8 @@ enum ToriRS_DisplaySetting
 #define TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED (1 << 1)
 /** Integer mode could not fit one whole multiple and kept aspect instead. */
 #define TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK (1 << 2)
+/** The window could not hold the frame at the chosen scale, so it was lowered. */
+#define TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT (1 << 3)
 
 /* ------------------------------------------------------------------------ */
 /* The lane                                                                  */

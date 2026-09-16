@@ -1022,6 +1022,15 @@ PlatformWindow_SetCanvasFollowsWindow(
 }
 
 void
+PlatformWindow_SetGameAreaFloor(struct PlatformWindow* p, int min_w, int min_h)
+{
+    assert(p);
+    assert(min_w > 0);
+    assert(min_h > 0);
+    /* The window is the display: nothing to grow, nothing to hold a minimum. */
+}
+
+void
 PlatformWindow_SetWindowSize(struct PlatformWindow* p, int width, int height)
 {
     assert(p);

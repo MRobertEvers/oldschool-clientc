@@ -287,20 +287,29 @@ App_ResizableWindowFloor(
     int* out_h)
 {
     struct ClientScaleSettings settings;
-    int density;
+    int frame_w;
+    int frame_h;
+    int percent;
 
     assert(app);
     assert(out_w);
     assert(out_h);
     if( App_WindowMode(app) != CS2VM_WINDOW_MODE_RESIZABLE )
         return 0;
-    /* The frame at 100% of the unit HighDPI counts interface scaling in --
-     * drawable pixels, or window points -- so "the window holds the frame"
-     * means the same thing in both modes. */
+    /* The frame at the CHOSEN interface scale, in the unit HighDPI counts it
+     * in -- drawable pixels, or window points. At 100% it was "the window
+     * holds the frame at 1:1", and any larger scale then asked for a buffer
+     * smaller than the frame: 200% on a Retina display cut the login screen
+     * to its top-left quarter. The shell caps this at the display, and
+     * ClientScale_LowerToFloor covers what the display cannot hold. The
+     * pixel limit caps it: @see ClientScale_WindowFloorPercent. */
     App_ClientScaleSettings(app, &settings);
-    density = ClientScale_LayoutDensityPercent(&settings);
-    *out_w = (int)((long long)App_CanvasFloorWidth(app) * density / 100);
-    *out_h = (int)((long long)App_CanvasFloorHeight(app) * density / 100);
+    frame_w = App_CanvasFloorWidth(app);
+    frame_h = App_CanvasFloorHeight(app);
+    percent = ClientScale_WindowFloorPercent(
+        &settings, RS_CS2Host_UiScalePercent(&app->host), frame_w, frame_h);
+    *out_w = (int)((long long)frame_w * percent / 100);
+    *out_h = (int)((long long)frame_h * percent / 100);
     return 1;
 }
 
@@ -402,6 +411,13 @@ App_ApplyWindowLayout(
         window_w,
         window_h,
         &app->client_scale.layout);
+    ClientScale_LowerToFloor(
+        &settings,
+        App_CanvasFloorWidth(app),
+        App_CanvasFloorHeight(app),
+        window_w,
+        window_h,
+        &app->client_scale.layout);
     if( getenv("TORIRS_RESIZE_DEBUG") )
         TORIRS_REPORT(
             "resize: chose %d%% hidpi %d density %d limit %dx%d; window %dx%d -> buffer %dx%d at "
@@ -410,8 +426,8 @@ App_ApplyWindowLayout(
             settings.max_pixel_width, settings.max_pixel_height, window_w, window_h,
             app->client_scale.layout.w, app->client_scale.layout.h, app->client_scale.layout.percent,
             App_CanvasFloorWidth(app), App_CanvasFloorHeight(app));
-    /* Exact: the settings decide the buffer, the frame's minimum does not.
-     * @see platform/client_scale.h rule 5. */
+    /* Exact: the floor is already in the layout, lowered evenly rather than
+     * clamped per axis. @see platform/client_scale.h rule 5. */
     return app_set_canvas_size_exact(
         app, app->client_scale.layout.w, app->client_scale.layout.h);
 }
@@ -460,6 +476,7 @@ App_SetClientScalePresent(
         app->client_scale.layout.shown_percent = app->client_scale.layout.percent;
         app->client_scale.layout.rounded_by_integer = app->client_scale.layout.percent != chosen;
         app->client_scale.layout.raised_by_limit = 0;
+        app->client_scale.layout.lowered_to_fit = 0;
     }
     app->client_scale.shown_percent = app->client_scale.layout.shown_percent;
 }
