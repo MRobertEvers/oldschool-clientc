@@ -100,3 +100,76 @@ void test_widget_skin(void)
     UITree_EmitBufferFree(&buffer);
     UITree_Free(tree);
 }
+
+static struct UITreeEmitDesc const* desc_of(struct UITreeEmitBuffer const* buffer, int32_t node)
+{
+    for( int i = 0; i < buffer->count; i++ )
+        if( buffer->cmds[i].node_index == node ) return &buffer->cmds[i];
+    return NULL;
+}
+
+/*
+ * A script rebuild -- cc_deleteall, then cc_create of the same child -- keeps a
+ * plugin's re-skin on the rebuilt node for the frame the rebuild happens in.
+ * The skin used to be freed with the old node, so that frame emitted the
+ * lane's own art: the chatbox backing flickered on every chat filter click.
+ * A delete nothing recreates before the emit drops its edits, and a create of a
+ * different type at the same sub id does not take them.
+ */
+void test_widget_skin_survives_cc_rebuild(void)
+{
+    struct UITree* tree = UITree_New(16);
+    struct UITreeHost host;
+    struct TestHostState state;
+    struct UITreeEmitBuffer buffer;
+    int32_t const root = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 162 << 16, 0, 0, 519, 165);
+    int const root_cid = tree->components[root].component_id;
+    int32_t backing = UITree_CcCreate(tree, root, root_cid, 5, 0);
+    struct UITreeEmitDesc const* d;
+
+    TEST_ASSERT(backing >= 0, "a script-created graphic exists");
+    tree->components[backing].u.rs_graphic.scene_id = 40;
+    UITree_TestHostInit(&host, &state);
+    UITree_EmitBufferInit(&buffer);
+#define PUBLISH() do { UITree_TestResolve(tree); buffer.count = 0; UITree_EmitWalk(tree, &host, &buffer, -1); } while( 0 )
+    TEST_ASSERT(UITree_WidgetSetArt(tree, UITree_RefAt(tree, backing), 7, 900), "a plugin re-skins it");
+    PUBLISH();
+    d = desc_of(&buffer, backing);
+    TEST_ASSERT(d && d->scene_id == 900, "the graphic wears the plugin art");
+
+    /* The rebuild, as toplevel_chatbox_background runs it. */
+    UITree_CcDeleteAll(tree, root);
+    backing = UITree_CcCreate(tree, root, root_cid, 5, 0);
+    TEST_ASSERT(backing >= 0, "the script creates the graphic again");
+    tree->components[backing].u.rs_graphic.scene_id = 40;
+    PUBLISH();
+    d = desc_of(&buffer, backing);
+    TEST_ASSERT(d && d->scene_id == 900, "the rebuilt graphic still wears the plugin art the frame it is rebuilt");
+
+    /* cc_create over the same sub id is the other rebuild shape. */
+    backing = UITree_CcCreate(tree, root, root_cid, 5, 0);
+    tree->components[backing].u.rs_graphic.scene_id = 40;
+    PUBLISH();
+    d = desc_of(&buffer, backing);
+    TEST_ASSERT(d && d->scene_id == 900, "a create that replaces the child in place keeps the art");
+
+    /* A delete with no create before the emit loses its edits. */
+    UITree_CcDeleteAll(tree, root);
+    PUBLISH();
+    TEST_ASSERT(tree->parked_edit_count == 0, "an unclaimed parked edit is dropped at emit");
+    backing = UITree_CcCreate(tree, root, root_cid, 5, 0);
+    tree->components[backing].u.rs_graphic.scene_id = 40;
+    PUBLISH();
+    d = desc_of(&buffer, backing);
+    TEST_ASSERT(d && d->scene_id == 40, "a child created after the emit is a new node with the lane's art");
+
+    /* A different TYPE at the same sub id is a different node. */
+    TEST_ASSERT(UITree_WidgetSetArt(tree, UITree_RefAt(tree, backing), 7, 900), "re-skinned again");
+    UITree_CcDeleteAll(tree, root);
+    int32_t const rect = UITree_CcCreate(tree, root, root_cid, 3, 0);
+    TEST_ASSERT(rect >= 0 && tree->components[rect].widget_geometry == NULL,
+                "a rect created at the graphic's sub id does not take the graphic's skin");
+#undef PUBLISH
+    UITree_EmitBufferFree(&buffer);
+    UITree_Free(tree);
+}

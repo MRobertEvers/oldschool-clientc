@@ -266,6 +266,7 @@ void test_widget_anchor_depth(void);
 void test_input_walk_equivalence(void);
 void test_owned_budget(void);
 void test_widget_skin(void);
+void test_widget_skin_survives_cc_rebuild(void);
 void test_widget_idempotent_edits(void);
 void test_frame_provide(void);
 void test_walk_topology(void);

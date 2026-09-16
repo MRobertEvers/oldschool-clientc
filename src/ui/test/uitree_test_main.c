@@ -43,6 +43,7 @@ main(void)
     test_widget_anchor_depth();
     test_input_walk_equivalence();
     test_widget_skin();
+    test_widget_skin_survives_cc_rebuild();
     test_widget_idempotent_edits();
     test_owned_budget();
     test_frame_provide();
@@ -65,6 +66,7 @@ main(void)
     test_input_walk_equivalence();
     test_anchor_reorder();
     test_widget_skin();
+    test_widget_skin_survives_cc_rebuild();
     test_widget_idempotent_edits();
     test_owned_budget();
     test_frame_provide();

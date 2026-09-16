@@ -1712,6 +1712,108 @@ uitree_owned_count_find(struct UITree* tree, uint64_t owner, bool create)
     return slot;
 }
 
+/* Free a node's plugin widget edits -- or a parked list of them -- keeping the
+ * tree's anchor edit count true. */
+static void
+uitree_widget_geometry_free_list(struct UITree* tree, struct UITreeWidgetGeometry* edit)
+{
+    assert(tree);
+    while( edit )
+    {
+        struct UITreeWidgetGeometry* next = edit->next;
+        if( edit->anchor_serial )
+        {
+            tree->widget_anchor_edits--;
+            tree->anchor_generation++;
+        }
+        free(edit);
+        edit = next;
+    }
+}
+
+void
+UITree_ParkedEditsDrop(struct UITree* tree)
+{
+    assert(tree);
+    for( int i = 0; i < tree->parked_edit_count; i++ )
+        uitree_widget_geometry_free_list(tree, tree->parked_edits[i].edits);
+    tree->parked_edit_count = 0;
+}
+
+/*
+ * Take the plugin edits off a dynamic child a script is about to reclaim, and
+ * park them under its identity. @see UITree::parked_edits.
+ *
+ * `parent_index` is passed because the delete paths unlink before they
+ * reclaim. A node with no edits parks nothing, which is every node on a lane
+ * no plugin dresses. A full table gives up its OLDEST entry: that is a node
+ * deleted earliest in the frame, and the likeliest to stay deleted.
+ */
+static void
+uitree_park_edits(struct UITree* tree, int32_t parent_index, int32_t idx)
+{
+    struct UITreeComponent* c;
+    struct UITreeParkedEdits* slot;
+
+    assert(tree);
+    assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+    assert(parent_index >= 0 && (uint32_t)parent_index < tree->component_count);
+    c = &tree->components[idx];
+    if( !c->dynamic || c->plugin_owner || !c->widget_geometry )
+        return;
+    if( tree->parked_edit_count == UITREE_PARKED_EDITS_MAX )
+    {
+        uitree_widget_geometry_free_list(tree, tree->parked_edits[0].edits);
+        memmove(tree->parked_edits, tree->parked_edits + 1,
+                sizeof(tree->parked_edits[0]) * (UITREE_PARKED_EDITS_MAX - 1));
+        tree->parked_edit_count--;
+    }
+    slot = &tree->parked_edits[tree->parked_edit_count++];
+    slot->parent_index = parent_index;
+    slot->parent_component_id = tree->components[parent_index].component_id;
+    slot->sub_id = c->dynamic_child_index;
+    slot->type = (int)c->type;
+    slot->edits = c->widget_geometry;
+    c->widget_geometry = NULL;
+}
+
+static void uitree_anchor_node_remember(struct UITree* tree, int32_t idx);
+
+/* A freshly created dynamic child takes back the edits its predecessor at the
+ * same identity carried. */
+static void
+uitree_adopt_edits(struct UITree* tree, int32_t idx)
+{
+    struct UITreeComponent* c;
+
+    assert(tree);
+    assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+    c = &tree->components[idx];
+    for( int i = 0; i < tree->parked_edit_count; i++ )
+    {
+        struct UITreeParkedEdits const* slot = &tree->parked_edits[i];
+        bool anchored = false;
+
+        if( slot->parent_index != c->parent || slot->sub_id != c->dynamic_child_index ||
+            slot->type != (int)c->type ||
+            slot->parent_component_id != tree->components[c->parent].component_id )
+            continue;
+        assert(!c->widget_geometry);
+        c->widget_geometry = slot->edits;
+        for( struct UITreeWidgetGeometry* e = c->widget_geometry; e; e = e->next )
+            anchored = anchored || e->anchor_serial != 0;
+        if( anchored )
+        {
+            tree->anchor_generation++;
+            uitree_anchor_node_remember(tree, idx);
+        }
+        tree->parked_edit_count--;
+        memmove(tree->parked_edits + i, tree->parked_edits + i + 1,
+                sizeof(tree->parked_edits[0]) * (size_t)(tree->parked_edit_count - i));
+        return;
+    }
+}
+
 static void
 uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
 {
@@ -1730,17 +1832,8 @@ uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
     }
     free(c->plugin_key);
     c->plugin_key = NULL;
-    while( c->widget_geometry )
-    {
-        struct UITreeWidgetGeometry* next = c->widget_geometry->next;
-        if( c->widget_geometry->anchor_serial )
-        {
-            tree->widget_anchor_edits--;
-            tree->anchor_generation++;
-        }
-        free(c->widget_geometry);
-        c->widget_geometry = next;
-    }
+    uitree_widget_geometry_free_list(tree, c->widget_geometry);
+    c->widget_geometry = NULL;
     if( c->model_render_cache )
     {
         if( c->model_render_cache->release )
@@ -1939,6 +2032,7 @@ UITree_Free(struct UITree* tree)
 
     for( uint32_t i = 0; i < tree->component_count; i++ )
         uitree_component_free_owned(tree, &tree->components[i]);
+    UITree_ParkedEditsDrop(tree);
     free(tree->id_index_keys);
     free(tree->id_index_vals);
     free(tree->layout_order);
@@ -1982,6 +2076,8 @@ UITree_Clear(struct UITree* tree)
     tree->interface_parent_count = 0;
     tree->canvas_candidates_valid = 0;
     tree->generation++;
+    /* Every parent a parked entry names is gone, and its index may be reused. */
+    UITree_ParkedEditsDrop(tree);
     /* Reclaim already unregistered each node; clear empties any leftover buckets. */
     uitree_all_sets_clear(tree);
     /* A plugin layout's hold names NODES, and every one of them has just
@@ -3213,6 +3309,7 @@ UITree_CcCreate(
     int32_t existing = UITree_FindChildBySubid(tree, parent_index, parent_component_id, sub_id);
     if( existing >= 0 && tree->components[existing].dynamic )
     {
+        uitree_park_edits(tree, parent_index, existing);
         UITree_UnlinkChild(tree, parent_index, existing);
         uitree_reclaim_subtree(tree, existing);
     }
@@ -3294,6 +3391,8 @@ UITree_CcCreate(
     tree->components[idx].if3 = tree->components[parent_index].if3;
     if( widget_type == 12 )
         tree->components[idx].u.rs_text.input = 1;
+    if( tree->parked_edit_count > 0 )
+        uitree_adopt_edits(tree, idx);
     return idx;
 }
 
@@ -3565,6 +3664,7 @@ UITree_CcDelete(
     }
     if( child < 0 )
         return;
+    uitree_park_edits(tree, parent_index, index);
 
     if( prev < 0 )
         parent->first_child = node->next_sibling;
@@ -3606,6 +3706,7 @@ UITree_CcDeleteAll(
         if( tree->components[child].dynamic )
         {
             removed_any = 1;
+            uitree_park_edits(tree, parent_index, child);
             if( prev < 0 )
                 parent->first_child = next;
             else

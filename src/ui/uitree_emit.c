@@ -3373,6 +3373,10 @@ UITree_EmitWalk(
      * when topology changed since the frame was taken, before EnsureLayout
      * consumes those bindings. */
     UITree_FrameReassert((struct UITree*)tree);
+    /* Every script this frame has run: a plugin edit parked by a delete that
+     * no create adopted belongs to a node that is gone. @see
+     * UITree::parked_edits. */
+    UITree_ParkedEditsDrop((struct UITree*)tree);
     UITree_EnsureLayout(tree);
     /* Reachability scratch for the retention signal — see UITree::emit_visited.
      * Grown to the current node count and cleared here so that what it holds

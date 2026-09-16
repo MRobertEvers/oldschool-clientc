@@ -1356,6 +1356,18 @@ enum UITreeWalkScratchSlot
 
 /** @see UITree::owned_counts. */
 #define UITREE_OWNED_OWNERS_MAX 64
+
+struct UITreeWidgetGeometry;
+/** @see UITree::parked_edits. */
+#define UITREE_PARKED_EDITS_MAX 16
+struct UITreeParkedEdits
+{
+    int32_t parent_index;
+    int parent_component_id;
+    int sub_id;
+    int type;
+    struct UITreeWidgetGeometry* edits;
+};
 struct UITreeOwnedCount
 {
     uint64_t owner;
@@ -1381,6 +1393,27 @@ struct UITree
      */
     struct UITreeOwnedCount owned_counts[UITREE_OWNED_OWNERS_MAX];
     int owned_count_entries;
+    /**
+     * Plugin widget edits (skin, move, hide, anchor) taken off a DYNAMIC child
+     * a script deleted, waiting for the script to create it again.
+     *
+     * A CS2 rebuild is `cc_deleteall` then `cc_create` of the same children,
+     * and a plugin edit lives on the node -- so without this, every rebuild
+     * freed a plugin's re-skin with the node and the frame was emitted with
+     * the lane's own art until the plugin's next fence put it back: the
+     * chatbox backing under a 2004 frame flashed OldSchool's parchment for one
+     * frame on every chat filter click, because the filter scripts rebuild
+     * `toplevel_chatbox_background`.
+     *
+     * A create adopts the entry with the same parent, sub id and type -- the
+     * only identity a script-created node has, and the one a role such as
+     * `cc(iface(chat, 37), 0)` names it by. Whatever is still parked when the
+     * tree is emitted was deleted and not rebuilt, and is freed then, so a
+     * plain delete loses its edits exactly as before. @see
+     * UITree_ParkedEditsDrop.
+     */
+    struct UITreeParkedEdits parked_edits[UITREE_PARKED_EDITS_MAX];
+    int parked_edit_count;
     uint32_t component_capacity;
     int32_t root_index;
     /** Tail of root sibling list — O(1) append while baking large packs. */
@@ -1994,6 +2027,14 @@ UITree_New(uint32_t hint);
 
 void
 UITree_Free(struct UITree* tree);
+
+/**
+ * Free every parked plugin edit (@see UITree::parked_edits). Called at the top
+ * of UITree_EmitWalk: by then every script this frame has run, so an entry no
+ * create adopted belongs to a node that is gone.
+ */
+void UITree_ParkedEditsDrop(struct UITree* tree);
+
 
 /**
  * Borrow `bytes` of walk scratch from `slot`, grown (never shrunk) to fit.
