@@ -70,6 +70,7 @@ struct ToriRS_GLES2;
 #endif
 #include "pacer.h"
 #include "render/torirs_frame.h"
+#include "render/torirs_renderer_kind.h"
 #include "toridraw_eip_sample.h"
 #include "toridraw_frame_ab.h"
 #include "toridraw_math.h"
@@ -952,6 +953,333 @@ static struct ToriRS_GL3* gl3;
 static struct ToriRS_D3D9* d3d9;
 /* NULL unless the Android GLES2 renderer was built AND --gles2 was passed. */
 static struct ToriRS_GLES2* gles2;
+
+/* --- the renderer, and switching it live ---------------------------------
+ *
+ * Exactly one of the handles above is live, or none for Soft3D, and which one
+ * is `renderer_active`. The launch's flags choose the first; after that
+ * Client Settings may choose another (device option RS_CS2_DEVICEOPTION_RENDERER),
+ * and renderer_follow_request() swaps it between two frames: the old
+ * renderer is freed, the window is moved to the new way of presenting, and
+ * the new renderer is started and handed the scene's resources again. None of
+ * that touches the App, the network or the plugins -- the loop simply draws
+ * the next frame with a different renderer.
+ */
+static enum ToriRS_RendererKind renderer_active;
+/* What the launch's flags chose -- the meaning of RS_CS2_RENDERER_LAUNCH_DEFAULT.
+ * Moved to the renderer actually running if the launch's could not start. */
+static enum ToriRS_RendererKind renderer_launch;
+/* The option value whose start failed, or 0. Not retried until the pick
+ * moves, or every frame would tear the renderer down and fail again. */
+static int renderer_refused;
+/* --gles2-dualcore: the dual-core lane wraps GLES2 whenever it starts. */
+static bool renderer_gles2_dualcore;
+
+static enum PlatformPresent
+renderer_present(enum ToriRS_RendererKind kind)
+{
+    switch( kind )
+    {
+    case TORIRS_RENDERER_KIND_SOFTWARE:
+        return PLATFORM_PRESENT_SOFTWARE;
+    case TORIRS_RENDERER_KIND_OPENGL3:
+    case TORIRS_RENDERER_KIND_OPENGL3_DEPTH:
+    case TORIRS_RENDERER_KIND_GLES2:
+    case TORIRS_RENDERER_KIND_GLES2_DEPTH:
+        return PLATFORM_PRESENT_GL;
+    case TORIRS_RENDERER_KIND_D3D9:
+    case TORIRS_RENDERER_KIND_D3D9_DEPTH:
+        return PLATFORM_PRESENT_NATIVE;
+    case TORIRS_RENDERER_KIND_COUNT:
+        break;
+    }
+    assert(0 && "not a renderer kind");
+    return PLATFORM_PRESENT_SOFTWARE;
+}
+
+/* Is the renderer compiled into this binary? */
+static bool
+renderer_built(enum ToriRS_RendererKind kind)
+{
+    switch( kind )
+    {
+    case TORIRS_RENDERER_KIND_SOFTWARE:
+        return true;
+    case TORIRS_RENDERER_KIND_OPENGL3:
+    case TORIRS_RENDERER_KIND_OPENGL3_DEPTH:
+#if defined(TORIRS_HAVE_GL3)
+        return true;
+#else
+        return false;
+#endif
+    case TORIRS_RENDERER_KIND_GLES2:
+    case TORIRS_RENDERER_KIND_GLES2_DEPTH:
+#if defined(TORIRS_HAVE_GLES2)
+        return true;
+#else
+        return false;
+#endif
+    case TORIRS_RENDERER_KIND_D3D9:
+    case TORIRS_RENDERER_KIND_D3D9_DEPTH:
+#if defined(TORIRS_HAVE_D3D9)
+        return true;
+#else
+        return false;
+#endif
+    case TORIRS_RENDERER_KIND_COUNT:
+        break;
+    }
+    assert(0 && "not a renderer kind");
+    return false;
+}
+
+/* The renderers this build has AND this window can present, as
+ * TORIRS_RENDERER_KIND_BIT flags. */
+static unsigned
+renderer_available(void)
+{
+    unsigned mask = 0;
+    for( int kind = 0; kind < TORIRS_RENDERER_KIND_COUNT; kind++ )
+        if( renderer_built((enum ToriRS_RendererKind)kind) &&
+            PlatformWindow_PresentAvailable(
+                platform, renderer_present((enum ToriRS_RendererKind)kind)) )
+            mask |= TORIRS_RENDERER_KIND_BIT(kind);
+    /* A lane may be drawing with a renderer its window would not offer again
+     * (Android, the browser): that one is still on the list. */
+    return mask | TORIRS_RENDERER_KIND_BIT(renderer_active);
+}
+
+/* A renderer flag was given: the saved pick does not decide this launch. */
+static bool renderer_launch_flagged;
+
+static void
+renderer_publish(void)
+{
+    RS_CS2Host_SetRendererStatus(
+        &app.host,
+        (int)renderer_active,
+        renderer_available(),
+        renderer_refused,
+        renderer_launch_flagged);
+}
+
+/*
+ * Start `kind` on a window already presenting its way, with no other renderer
+ * live. Also puts the App in the mode that renderer draws with. On failure
+ * nothing is left behind.
+ */
+static bool
+renderer_start(enum ToriRS_RendererKind kind)
+{
+    assert(renderer_built(kind));
+#if defined(TORIRS_HAVE_GL3)
+    assert(!gl3);
+#endif
+#if defined(TORIRS_HAVE_D3D9)
+    assert(!d3d9);
+#endif
+#if defined(TORIRS_HAVE_GLES2)
+    assert(!gles2);
+#endif
+    switch( kind )
+    {
+    case TORIRS_RENDERER_KIND_SOFTWARE:
+        App_SetWorldRenderMode(&app, TORIRS_WORLD_PAINTER);
+        App_SetRendererAnimatesTextures(&app, false);
+        return true;
+#if defined(TORIRS_HAVE_GL3)
+    case TORIRS_RENDERER_KIND_OPENGL3:
+    case TORIRS_RENDERER_KIND_OPENGL3_DEPTH:
+    {
+        bool const depth = kind == TORIRS_RENDERER_KIND_OPENGL3_DEPTH;
+        gl3 = ToriRS_GL3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        assert(gl3);
+        if( !ToriRS_GL3_Init(gl3, PlatformWindow_GLWindow(platform), app.scene, depth) )
+        {
+            TORIRS_ERR("GL3 renderer init failed\n");
+            ToriRS_GL3_Free(gl3);
+            gl3 = NULL;
+            return false;
+        }
+        /* The depth pass needs the app to stop collecting the visible set
+         * through the tile wavefront and the opaque face-distance sort;
+         * that is what TORIRS_WORLD_DEPTH selects. Same contract as D3D9. */
+        App_SetWorldRenderMode(&app, depth ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
+        App_SetRendererAnimatesTextures(&app, true);
+        return true;
+    }
+#endif
+#if defined(TORIRS_HAVE_GLES2)
+    case TORIRS_RENDERER_KIND_GLES2:
+    case TORIRS_RENDERER_KIND_GLES2_DEPTH:
+    {
+        bool const depth = kind == TORIRS_RENDERER_KIND_GLES2_DEPTH;
+        gles2 = ToriRS_GLES2_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        assert(gles2);
+        if( !ToriRS_GLES2_Init(gles2, PlatformWindow_GLWindow(platform), app.scene, depth) )
+        {
+            TORIRS_ERR("GLES2 renderer init failed\n");
+            ToriRS_GLES2_Free(gles2);
+            gles2 = NULL;
+            return false;
+        }
+        /* Same contract as D3D9 and GL3: the depth pass needs the app to
+         * stop collecting the visible set through the tile wavefront and
+         * the opaque face-distance sort. */
+        App_SetWorldRenderMode(&app, depth ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
+        App_SetRendererAnimatesTextures(&app, true);
+#if defined(TORIRS_HAVE_GLES2_DUALCORE)
+        /* The lane wraps the renderer made here and keeps driving through
+         * `gles2` for everything but the frame itself. */
+        if( renderer_gles2_dualcore )
+            gles2_dualcore_lane = ToriRS_GLES2DualCore_New(gles2);
+#endif
+        return true;
+    }
+#endif
+#if defined(TORIRS_HAVE_D3D9)
+    case TORIRS_RENDERER_KIND_D3D9:
+    case TORIRS_RENDERER_KIND_D3D9_DEPTH:
+    {
+        bool const depth = kind == TORIRS_RENDERER_KIND_D3D9_DEPTH;
+        d3d9 = ToriRS_D3D9_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        if( !d3d9 ||
+            !ToriRS_D3D9_Init(d3d9, PlatformWindow_NativeWindowHandle(platform), app.scene, depth) )
+        {
+            TORIRS_ERR("D3D9 fixed-function renderer init failed\n");
+            ToriRS_D3D9_Free(d3d9);
+            d3d9 = NULL;
+            return false;
+        }
+        App_SetWorldRenderMode(&app, depth ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
+        App_SetRendererAnimatesTextures(&app, true);
+        return true;
+    }
+#endif
+    default:
+        break;
+    }
+    assert(0 && "renderer_built() said yes to a renderer with no start");
+    return false;
+}
+
+/* Free whichever GPU renderer is live. Soft3D has nothing to free. */
+static void
+renderer_stop(void)
+{
+#if defined(TORIRS_HAVE_GLES2_DUALCORE)
+    /* Before the renderer it wraps: the join must come first. */
+    ToriRS_GLES2DualCore_Free(gles2_dualcore_lane);
+    gles2_dualcore_lane = NULL;
+#endif
+#if defined(TORIRS_HAVE_GLES2)
+    ToriRS_GLES2_Free(gles2);
+    gles2 = NULL;
+#endif
+#if defined(TORIRS_HAVE_GL3)
+    ToriRS_GL3_Free(gl3);
+    gl3 = NULL;
+#endif
+#if defined(TORIRS_HAVE_D3D9)
+    ToriRS_D3D9_Free(d3d9);
+    d3d9 = NULL;
+#endif
+}
+
+/* Move the window to `kind`'s present and start it; false leaves nothing live. */
+static bool
+renderer_bring_up(enum ToriRS_RendererKind kind)
+{
+    if( !PlatformWindow_SetPresent(platform, renderer_present(kind)) )
+    {
+        TORIRS_ERR("renderer: this window cannot present for renderer %d\n", (int)kind);
+        return false;
+    }
+    return renderer_start(kind);
+}
+
+/*
+ * Replace the running renderer with `kind`. On failure the previous renderer
+ * is brought back, and Soft3D if even that will not start -- the loop always
+ * has something to draw with.
+ */
+static bool
+renderer_switch(enum ToriRS_RendererKind kind)
+{
+    enum ToriRS_RendererKind const previous = renderer_active;
+    bool started;
+    uint64_t const begin_ms = PlatformWindow_Ticks64();
+
+    assert(kind != renderer_active);
+    renderer_stop();
+    started = renderer_bring_up(kind);
+    if( started )
+        renderer_active = kind;
+    else if( renderer_bring_up(previous) )
+        renderer_active = previous;
+    else
+    {
+        bool const software = renderer_bring_up(TORIRS_RENDERER_KIND_SOFTWARE);
+        assert(software);
+        (void)software;
+        renderer_active = TORIRS_RENDERER_KIND_SOFTWARE;
+    }
+
+    /*
+     * A retained renderer learns the scene only from its load events, and the
+     * ones for everything already loaded were drained by the renderer that
+     * was just freed. Whatever is still queued is from before the switch and
+     * describes a scene the replay covers whole, so it goes first -- a load
+     * left in the queue would be baked twice. Soft3D reads the scene directly
+     * and needs no replay.
+     */
+    ToriDraw_SceneFrameEnd(app.scene);
+    if( renderer_active != TORIRS_RENDERER_KIND_SOFTWARE )
+        ToriDraw_SceneReemitRendererLoads(app.scene);
+
+    TORIRS_REPORT(
+        "renderer: %d -> %d %s in %llu ms\n",
+        (int)previous,
+        (int)kind,
+        started ? "started" : "refused",
+        (unsigned long long)(PlatformWindow_Ticks64() - begin_ms));
+    return started;
+}
+
+/*
+ * Between two frames: start the renderer Client Settings asks for, if it is
+ * not the one running.
+ */
+static void
+renderer_follow_request(void)
+{
+    int const request = RS_CS2Host_RendererRequest(&app.host);
+    enum ToriRS_RendererKind const wanted = request == RS_CS2_RENDERER_LAUNCH_DEFAULT
+                                                ? renderer_launch
+                                                : (enum ToriRS_RendererKind)(request - 1);
+
+    if( renderer_refused && request != renderer_refused )
+        renderer_refused = 0;
+    if( wanted != renderer_active && request != renderer_refused )
+    {
+        if( !(renderer_available() & TORIRS_RENDERER_KIND_BIT(wanted)) )
+        {
+            /* A pick saved on a machine or build with a renderer this one
+             * lacks. Left in the store: it is the player's, and the machine
+             * that can honour it still reads the same file. */
+            TORIRS_REPORT("renderer: %d is not available here\n", (int)wanted);
+            renderer_refused = request;
+        }
+        /* A world load mid-batch has members still to be announced; the
+         * replay would bake them before the batch does. Next frame. */
+        else if( !ToriDraw_SceneBatchBuilding(app.scene) )
+        {
+            if( !renderer_switch(wanted) )
+                renderer_refused = request;
+        }
+    }
+    renderer_publish();
+}
 static struct PlatformAudio* audio;
 static struct ToriRS_AudioCommand audio_commands[TORIRS_AUDIO_QUEUE_MAX];
 static int sim_sound_id = -1;
@@ -3260,6 +3588,11 @@ frame_loop_step(void)
         }
     }
 
+    /* Here, after the present: a frame is never half drawn by one renderer
+     * and finished by another, and the drawn frame has just emptied the scene
+     * queue the new renderer's replay goes into. */
+    renderer_follow_request();
+
     /* Fixed mode: script 5355 carves the popout strip from the canvas. Grow the
      * canvas by the measured strip so the classic frame stays APP_CANVAS_MIN_W
      * and the strip sits outside it. Must run after App_RunOnce so open/close
@@ -4320,20 +4653,7 @@ frame_loop_teardown(void)
             stats.capture_dropped_frames);
     }
     PlatformAudio_Free(audio);
-#if defined(TORIRS_HAVE_D3D9)
-    ToriRS_D3D9_Free(d3d9);
-#endif
-#if defined(TORIRS_HAVE_GL3)
-    ToriRS_GL3_Free(gl3);
-#endif
-#if defined(TORIRS_HAVE_GLES2_DUALCORE)
-    /* Before the renderer it wraps: the join must come first. */
-    ToriRS_GLES2DualCore_Free(gles2_dualcore_lane);
-    gles2_dualcore_lane = NULL;
-#endif
-#if defined(TORIRS_HAVE_GLES2)
-    ToriRS_GLES2_Free(gles2);
-#endif
+    renderer_stop();
     PlatformWindow_Free(platform);
 }
 
@@ -4550,6 +4870,9 @@ struct MainArgState
     /* The GLES2 renderer driven through the dual-core lane
      * (--gles2-dualcore / --gles2-dualcore-zbuffer). */
     int gles2_dualcore;
+    /* A renderer flag was given, by the command line or the manifest. The
+     * launch then starts with that renderer whatever Client Settings saved. */
+    int renderer_flag;
 };
 
 static void
@@ -4777,6 +5100,7 @@ main_parse_argument_layer(
             (void)zbuffer;
 #if defined(TORIRS_HAVE_GL3)
             state->use_opengl3 = 1;
+            state->renderer_flag = 1;
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
             state->gl3_zbuffer = zbuffer;
@@ -4804,6 +5128,7 @@ main_parse_argument_layer(
             (void)zbuffer;
 #if defined(TORIRS_HAVE_GLES2) && defined(TORIRS_PLATFORM_WEB)
             state->use_gles2 = 1;
+            state->renderer_flag = 1;
             state->gles2_zbuffer = zbuffer;
             state->use_opengl3 = 0;
             state->gl3_zbuffer = 0;
@@ -4838,6 +5163,7 @@ main_parse_argument_layer(
             (void)zbuffer;
 #if defined(TORIRS_HAVE_GLES2_DUALCORE)
             state->use_gles2 = 1;
+            state->renderer_flag = 1;
             state->gles2_zbuffer = zbuffer;
             state->gles2_dualcore = 1;
             state->use_opengl3 = 0;
@@ -4858,6 +5184,7 @@ main_parse_argument_layer(
             (void)zbuffer;
 #if defined(TORIRS_HAVE_GLES2) && !defined(TORIRS_PLATFORM_WEB)
             state->use_gles2 = 1;
+            state->renderer_flag = 1;
             state->gles2_zbuffer = zbuffer;
             state->use_opengl3 = 0;
             state->gl3_zbuffer = 0;
@@ -4880,6 +5207,7 @@ main_parse_argument_layer(
         {
 #if defined(TORIRS_HAVE_D3D9)
             state->use_d3d9 = 1;
+            state->renderer_flag = 1;
             state->use_opengl3 = 0;
             state->d3d9_zbuffer = 0;
             state->use_gles2 = 0;
@@ -4893,6 +5221,7 @@ main_parse_argument_layer(
         {
 #if defined(TORIRS_HAVE_D3D9)
             state->use_d3d9 = 1;
+            state->renderer_flag = 1;
             state->use_opengl3 = 0;
             state->use_gles2 = 0;
             state->d3d9_zbuffer = 1;
@@ -4904,6 +5233,7 @@ main_parse_argument_layer(
         }
         if( strcmp(argv[argi], "--soft3d") == 0 )
         {
+            state->renderer_flag = 1;
             state->use_opengl3 = 0;
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
@@ -4990,6 +5320,7 @@ main(
         .use_gles2 = 0,
         .gles2_zbuffer = 0,
         .gles2_dualcore = 0,
+        .renderer_flag = 0,
     };
     int argi;
     int i;
@@ -5066,14 +5397,7 @@ main(
     int const use_gles2 = arg_state.use_gles2;
     int const gles2_zbuffer = arg_state.gles2_zbuffer;
     int const gles2_dualcore = arg_state.gles2_dualcore;
-    /* Only the TORIRS_HAVE_GLES2 arm reads these three. */
-    (void)use_gles2;
-    (void)gles2_zbuffer;
-    (void)gles2_dualcore;
-    /* Only the TORIRS_HAVE_GL3 arm reads this one, and the win64/d3d9 lane is
-     * built without it. Kept out here with its siblings rather than moved under
-     * the #if, so the flag is parsed and rejected identically in every lane. */
-    (void)gl3_zbuffer;
+    int const renderer_flag = arg_state.renderer_flag;
 
     /* Cache identity is required. Prefer the manifest; otherwise resolve --rev
      * through the named-profile registry. Bare --dat1/--dat2 is not enough. */
@@ -6320,81 +6644,64 @@ main(
         }
 #endif
 #endif
-        /* Read on every lane so a build without a GPU renderer has no unused
-         * variable; the flag was refused at parse time where it does not apply. */
-        (void)use_opengl3;
-#if defined(TORIRS_HAVE_GLES2)
+        /*
+         * The launch's renderer, from the flags. Each flag was refused at parse
+         * time where this build cannot honour it, so the #ifs only keep the
+         * other lanes' flags from being unused variables.
+         */
+        renderer_gles2_dualcore = gles2_dualcore != 0;
+        renderer_launch_flagged = renderer_flag != 0;
+        renderer_launch = TORIRS_RENDERER_KIND_SOFTWARE;
         if( use_gles2 )
-        {
-            if( !PlatformWindow_InitForOpenGL3(
-                    platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
-            {
-                TORIRS_ERR("GLES2 surface init failed\n");
-                PlatformWindow_Free(platform);
-                App_Shutdown(&app);
-                return 1;
-            }
-            gles2 = ToriRS_GLES2_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-            if( !gles2 ||
-                !ToriRS_GLES2_Init(
-                    gles2, PlatformWindow_GLWindow(platform), app.scene, gles2_zbuffer != 0) )
-            {
-                TORIRS_ERR("GLES2 renderer init failed\n");
-                ToriRS_GLES2_Free(gles2);
-                PlatformWindow_Free(platform);
-                App_Shutdown(&app);
-                return 1;
-            }
-            /* Same contract as D3D9 and GL3: the depth pass needs the app to
-             * stop collecting the visible set through the tile wavefront and
-             * the opaque face-distance sort. */
-            App_SetWorldRenderMode(&app, gles2_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
-            App_SetRendererAnimatesTextures(&app, true);
-#if defined(TORIRS_HAVE_GLES2_DUALCORE)
-            /* The lane wraps the renderer main.c just made and keeps driving
-             * through `gles2` for everything but the frame itself. */
-            if( gles2_dualcore )
-                gles2_dualcore_lane = ToriRS_GLES2DualCore_New(gles2);
-#endif
-        }
-        else
-#endif
-#if defined(TORIRS_HAVE_GL3)
-            if( use_opengl3 )
-        {
-            if( !PlatformWindow_InitForOpenGL3(
-                    platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
-            {
-                TORIRS_ERR("SDL OpenGL3 init failed\n");
-                PlatformWindow_Free(platform);
-                App_Shutdown(&app);
-                return 1;
-            }
-            gl3 = ToriRS_GL3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-            if( !gl3 || !ToriRS_GL3_Init(
-                            gl3, PlatformWindow_GLWindow(platform), app.scene, gl3_zbuffer != 0) )
-            {
-                TORIRS_ERR("GL3 renderer init failed\n");
-                ToriRS_GL3_Free(gl3);
-                PlatformWindow_Free(platform);
-                App_Shutdown(&app);
-                return 1;
-            }
-            /* The depth pass needs the app to stop collecting the visible set
-             * through the tile wavefront and the opaque face-distance sort;
-             * that is what TORIRS_WORLD_DEPTH selects. Same contract as D3D9. */
-            App_SetWorldRenderMode(&app, gl3_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
-            App_SetRendererAnimatesTextures(&app, true);
-        }
-        else
-#endif
-            if( !PlatformWindow_Init(platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
+            renderer_launch =
+                gles2_zbuffer ? TORIRS_RENDERER_KIND_GLES2_DEPTH : TORIRS_RENDERER_KIND_GLES2;
+        else if( use_opengl3 )
+            renderer_launch =
+                gl3_zbuffer ? TORIRS_RENDERER_KIND_OPENGL3_DEPTH : TORIRS_RENDERER_KIND_OPENGL3;
+        else if( use_d3d9 )
+            renderer_launch =
+                d3d9_zbuffer ? TORIRS_RENDERER_KIND_D3D9_DEPTH : TORIRS_RENDERER_KIND_D3D9;
+        assert(renderer_built(renderer_launch));
+
+        if( renderer_present(renderer_launch) == PLATFORM_PRESENT_GL
+                ? !PlatformWindow_InitForOpenGL3(
+                      platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title)
+                : !PlatformWindow_Init(platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, title) )
         {
             TORIRS_ERR("window init failed\n");
             PlatformWindow_Free(platform);
             App_Shutdown(&app);
             return 1;
         }
+        if( !PlatformWindow_SetPresent(platform, renderer_present(renderer_launch)) ||
+            !renderer_start(renderer_launch) )
+        {
+            /* D3D9 is optional on the XP lane: GDI Soft3D draws the same
+             * frame on any machine. A GL lane that cannot start its renderer
+             * is a failed launch, as it always was -- the flag asked for it. */
+            if( renderer_present(renderer_launch) != PLATFORM_PRESENT_NATIVE )
+            {
+                PlatformWindow_Free(platform);
+                App_Shutdown(&app);
+                return 1;
+            }
+            TORIRS_ERR("renderer: falling back to GDI Soft3D\n");
+            renderer_launch = TORIRS_RENDERER_KIND_SOFTWARE;
+            {
+                bool const software = PlatformWindow_SetPresent(platform, PLATFORM_PRESENT_SOFTWARE) &&
+                                      renderer_start(TORIRS_RENDERER_KIND_SOFTWARE);
+                assert(software);
+                (void)software;
+            }
+        }
+        renderer_active = renderer_launch;
+        renderer_publish();
+        /* REPORT: which renderer a run drew with is the first question about
+         * any frame it produced, and optimized builds compile TORIRS_LOG out. */
+        TORIRS_REPORT(
+            "renderer: %d at launch (available 0x%x)\n",
+            (int)renderer_active,
+            renderer_available());
 
         /*
          * Whether this device has keys to summon, asked once and held.
@@ -6488,33 +6795,6 @@ main(
             }
             App_SetPluginNavMode(&app, mode);
         }
-
-#if defined(TORIRS_HAVE_D3D9)
-        if( use_d3d9 )
-        {
-            d3d9 = ToriRS_D3D9_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-            if( !d3d9 || !ToriRS_D3D9_Init(
-                             d3d9,
-                             PlatformWindow_NativeWindowHandle(platform),
-                             app.scene,
-                             d3d9_zbuffer != 0) )
-            {
-                TORIRS_ERR(
-                    "D3D9 fixed-function renderer init failed; falling back to GDI Soft3D\n");
-                ToriRS_D3D9_Free(d3d9);
-                d3d9 = NULL;
-            }
-            else
-            {
-                App_SetWorldRenderMode(
-                    &app, d3d9_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
-                App_SetRendererAnimatesTextures(&app, true);
-            }
-        }
-#else
-        (void)use_d3d9;
-        (void)d3d9_zbuffer;
-#endif
 
         CmdBus_Init(&bus);
 

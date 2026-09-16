@@ -52,6 +52,8 @@
 
 #define CS_ID_FRAME "gameframe"
 #define CS_ID_FRAME_DETAIL "gameframe_detail"
+#define CS_ID_RENDERER "renderer"
+#define CS_ID_RENDERER_NOW "renderer_now"
 #define CS_ID_SCALE "ui_scale"
 #define CS_ID_FILTER "ui_scale_filter"
 #define CS_ID_WHOLE_PIXELS "whole_pixels"
@@ -135,6 +137,8 @@ struct ClientSettingsState
     char high_dpi_auto_label[64];
     /* The detected density, as last described. @see cs_high_dpi_now. */
     char high_dpi_now[PORCELAIN_ROW_TEXT_MAX];
+    /* A renderer pick the client has not honoured, as last described. */
+    char renderer_now[PORCELAIN_ROW_TEXT_MAX];
     /* The describe function is handed only its `user`, so the api travels
      * with the state rather than through a file-scope pointer. */
     struct ToriRS_Api* api;
@@ -204,6 +208,20 @@ static char const* const CS_HIGH_DPI_LABEL[CS_HIGH_DPI_ROWS] = {
 /* The resolved modes, by option value (1..2), as the readout names them. */
 static char const* const CS_HIGH_DPI_NAME[CS_HIGH_DPI_ROWS] = {
     "automatic", "device pixels", "window points",
+};
+
+/* By TORIRS_RENDERER_*. A row's stable value is the store's: the kind + 1. */
+static char const* const CS_RENDERER_VALUE[TORIRS_RENDERER_COUNT] = {
+    "1", "2", "3", "4", "5", "6", "7",
+};
+static char const* const CS_RENDERER_LABEL[TORIRS_RENDERER_COUNT] = {
+    "Software",
+    "OpenGL",
+    "OpenGL (depth buffer)",
+    "OpenGL ES 2",
+    "OpenGL ES 2 (depth buffer)",
+    "Direct3D 9",
+    "Direct3D 9 (depth buffer)",
 };
 
 static char const* const CS_FRAME_FILTER_VALUE[] = { "0", "1", "2", "3" };
@@ -746,6 +764,19 @@ cs_display_signature(struct ToriRS_Api* api, char* out, size_t out_size)
             return;
         used += (size_t)wrote;
     }
+    /* The renderer moves a frame after its pick, and on its own when a start
+     * fails, so it is compared rather than assumed. */
+    for( int setting = TORIRS_DISPLAY_RENDERER; setting <= TORIRS_DISPLAY_RENDERER_REFUSED; setting++ )
+    {
+        int value = -1;
+        int wrote;
+        if( !cs_display_value(api, setting, &value) )
+            value = -1;
+        wrote = snprintf(out + used, out_size - used, "%d,", value);
+        if( wrote < 0 || (size_t)wrote >= out_size - used )
+            return;
+        used += (size_t)wrote;
+    }
 }
 
 /* A select row whose stable values are the store's values. */
@@ -772,6 +803,125 @@ cs_select_row(
     row.on_action = on_action;
     row.user = state;
     Porcelain_Row(describe, &row);
+}
+
+/*
+ * A renderer pick. The client swaps renderers between two frames and keeps
+ * the game running, so there is nothing to wait for here: the row follows the
+ * store, and the status line below it follows the renderer that came up.
+ */
+static void
+cs_pick_renderer(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    struct ClientSettingsState* state = user;
+
+    assert(api);
+    assert(api->client);
+    assert(state);
+    assert(action);
+    if( action->kind != TORIRS_PANEL_ACTION_PICK )
+        return;
+    /* The host refuses a renderer this lane cannot start; the control then
+     * shows what was asked for until it is told otherwise. */
+    if( api->client->display_set(api, TORIRS_DISPLAY_RENDERER, atoi(action->text)) != TORIRS_RESULT_OK )
+    {
+        api->core.log(api, "client-settings: renderer '%s' is not available", action->text);
+        Porcelain_Restate(state->porcelain, CS_ID_RENDERER);
+        return;
+    }
+    Porcelain_Note(state->porcelain, PORCELAIN_INPUT_EXPLICIT);
+}
+
+/*
+ * What stands between the pick and the renderer drawing, in a sentence. Empty
+ * when the renderer drawing is the one picked.
+ */
+static void
+cs_renderer_now(struct ToriRS_Api* api, char* out, size_t out_size)
+{
+    int request = 0;
+    int active = 0;
+    int refused = 0;
+
+    assert(api);
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    if( !cs_display_value(api, TORIRS_DISPLAY_RENDERER, &request) ||
+        !cs_display_value(api, TORIRS_DISPLAY_RENDERER_ACTIVE, &active) ||
+        !cs_display_value(api, TORIRS_DISPLAY_RENDERER_REFUSED, &refused) )
+        return;
+    assert(active >= 0);
+    assert(active < TORIRS_RENDERER_COUNT);
+    if( refused > 0 && refused == request )
+    {
+        assert(refused <= TORIRS_RENDERER_COUNT);
+        (void)snprintf(out, out_size, "Could not start %s. Using %s.",
+            CS_RENDERER_LABEL[refused - 1], CS_RENDERER_LABEL[active]);
+    }
+    else if( request > 0 && request - 1 != active )
+    {
+        assert(request <= TORIRS_RENDERER_COUNT);
+        (void)snprintf(out, out_size, "Switching to %s.", CS_RENDERER_LABEL[request - 1]);
+    }
+}
+
+/*
+ * The Renderer row: every renderer this lane can start, and nothing when that
+ * is only the one already drawing -- a choice of one is not a setting.
+ */
+static void
+cs_renderer_row(
+    struct ToriRS_PorcelainDescribe* describe,
+    struct ClientSettingsState* state,
+    struct ToriRS_Api* api,
+    struct ToriRS_SelectOption* options)
+{
+    int request = 0;
+    int active = 0;
+    int available = 0;
+    int count = 0;
+    char const* selected = NULL;
+
+    if( !cs_display_value(api, TORIRS_DISPLAY_RENDERER, &request) ||
+        !cs_display_value(api, TORIRS_DISPLAY_RENDERER_ACTIVE, &active) ||
+        !cs_display_value(api, TORIRS_DISPLAY_RENDERERS_AVAILABLE, &available) )
+        return;
+    assert(active >= 0);
+    assert(active < TORIRS_RENDERER_COUNT);
+    for( int kind = 0; kind < TORIRS_RENDERER_COUNT; kind++ )
+    {
+        if( !(available & (1 << kind)) )
+            continue;
+        memset(&options[count], 0, sizeof(options[count]));
+        options[count].struct_size = sizeof(options[count]);
+        options[count].value = CS_RENDERER_VALUE[kind];
+        options[count].label = CS_RENDERER_LABEL[kind];
+        options[count].enabled = true;
+        count++;
+        /* The launch's own choice is not an option of its own: it shows as
+         * the renderer it resolved to. */
+        if( kind + 1 == request || (request == 0 && kind == active) )
+            selected = CS_RENDERER_VALUE[kind];
+    }
+    if( count < 2 )
+        return;
+    /* A saved pick this lane does not offer: show what is drawing. */
+    if( !selected )
+        selected = CS_RENDERER_VALUE[active];
+    cs_select_row(describe, state, CS_ID_RENDERER, "Renderer", selected, options, count,
+        cs_pick_renderer);
+
+    cs_renderer_now(api, state->renderer_now, sizeof(state->renderer_now));
+    if( state->renderer_now[0] )
+    {
+        struct PorcelainRow row;
+        memset(&row, 0, sizeof(row));
+        row.key = CS_ID_RENDERER_NOW;
+        row.kind = PORCELAIN_ROW_LABEL;
+        row.text = state->renderer_now;
+        Porcelain_Row(describe, &row);
+    }
 }
 
 /* The index of `value` among `values`, or -1. */
@@ -811,6 +961,7 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
     struct ToriRS_SelectOption limit_options[CS_PIXEL_LIMIT_ROWS];
     struct ToriRS_SelectOption frame_filter_options[CS_FRAME_FILTER_ROWS];
     struct ToriRS_SelectOption high_dpi_options[CS_HIGH_DPI_ROWS];
+    struct ToriRS_SelectOption renderer_options[TORIRS_RENDERER_COUNT];
     struct PorcelainRow row;
     int value = 0, min = 0, max = 0, width = 0;
     int stretch = -1;
@@ -842,6 +993,9 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
     row.kind = PORCELAIN_ROW_LABEL;
     row.text = state->detail;
     Porcelain_Row(describe, &row);
+
+    state->renderer_now[0] = '\0';
+    cs_renderer_row(describe, state, api, renderer_options);
 
     if( api->client->display_get(
             api, TORIRS_DISPLAY_UI_SCALE, &value, &min, &max) )

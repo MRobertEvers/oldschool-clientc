@@ -695,9 +695,43 @@ PlatformWindow_Present(struct PlatformWindow* platform);
 bool
 PlatformWindow_CanPresent(struct PlatformWindow const* platform);
 
-/** Swap the GL backbuffer. Only valid after InitForOpenGL3. */
+/** Swap the GL backbuffer. Only valid while the window presents GL. */
 void
 PlatformWindow_PresentGL(struct PlatformWindow* platform);
+
+/**
+ * How the main window puts a frame on screen.
+ *
+ * SOFTWARE: a CPU pixel buffer, PlatformWindow_Pixels + PlatformWindow_Present.
+ * GL: a context a GL renderer makes on PlatformWindow_GLWindow, swapped by
+ * PlatformWindow_PresentGL. NATIVE: a GPU API that draws straight onto
+ * PlatformWindow_NativeWindowHandle (Direct3D 9).
+ */
+enum PlatformPresent
+{
+    PLATFORM_PRESENT_SOFTWARE = 0,
+    PLATFORM_PRESENT_GL,
+    PLATFORM_PRESENT_NATIVE
+};
+
+/** Can this window be moved to `present` without being closed? */
+bool
+PlatformWindow_PresentAvailable(
+    struct PlatformWindow const* platform,
+    enum PlatformPresent present);
+
+/**
+ * Move the window to `present`, keeping the window itself: its size, position,
+ * input and attached chrome are untouched. The caller has already freed the
+ * renderer that drew the old way, and starts the new one after this returns.
+ *
+ * @return false when the window cannot present that way (see
+ * PlatformWindow_PresentAvailable), leaving it presenting as it was.
+ */
+bool
+PlatformWindow_SetPresent(
+    struct PlatformWindow* platform,
+    enum PlatformPresent present);
 
 uint64_t
 PlatformWindow_Ticks64(void);

@@ -1381,6 +1381,27 @@ PlatformWindow_PresentGL(struct PlatformWindow* p)
     PlatformAndroidGL_SwapBuffers();
 }
 
+bool
+PlatformWindow_PresentAvailable(struct PlatformWindow const* p, enum PlatformPresent present)
+{
+    assert(p);
+    /*
+     * Only the way this run booted. The two presents cannot share one Surface
+     * in both directions: ANativeWindow_lock connects the Surface to the CPU
+     * API for as long as the Surface lives, and eglCreateWindowSurface then
+     * refuses it, so a software session could never start GLES2 without the
+     * activity recreating its SurfaceView -- which nothing here can ask for.
+     */
+    return present == (p->gl_mode ? PLATFORM_PRESENT_GL : PLATFORM_PRESENT_SOFTWARE);
+}
+
+bool
+PlatformWindow_SetPresent(struct PlatformWindow* p, enum PlatformPresent present)
+{
+    assert(p);
+    return PlatformWindow_PresentAvailable(p, present);
+}
+
 /* ---- time ---------------------------------------------------------------- */
 
 uint64_t

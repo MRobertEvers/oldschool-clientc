@@ -732,6 +732,23 @@ ToriDraw_SceneSpritesReemitLoads(struct ToriDraw_Scene* scene);
 void
 ToriDraw_SceneFontsReemitLoads(struct ToriDraw_Scene* scene);
 
+/** True between ToriDraw_SceneBatchBegin and ToriDraw_SceneBatchEnd. */
+bool
+ToriDraw_SceneBatchBuilding(struct ToriDraw_Scene const* scene);
+
+/**
+ * Queue the load events a retained renderer needs to draw the scene as it
+ * stands: every texture, and every non-dynamic element's model and animation
+ * tracks.
+ *
+ * For a renderer started after those loads were first emitted -- a live
+ * renderer switch. The queue should be empty first (ToriDraw_SceneFrameEnd),
+ * or a load still queued from before is baked twice. Must not be called while
+ * a batch is being built.
+ */
+void
+ToriDraw_SceneReemitRendererLoads(struct ToriDraw_Scene* scene);
+
 struct ToriDraw_EventQueue*
 ToriDraw_SceneEvents(struct ToriDraw_Scene* scene);
 

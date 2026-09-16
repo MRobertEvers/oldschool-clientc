@@ -731,6 +731,23 @@ PlatformMacPluginBrowser_SyncFrame(struct PlatformWindow* platform)
 }
 
 void
+PlatformMacPluginBrowser_Reattach(struct PlatformWindow* platform)
+{
+    if( !g_mac_browser || g_mac_browser.platform != platform || !g_mac_browser.hostWindow )
+        return;
+    NSWindow* window = (__bridge NSWindow*)PlatformWindow_NativeWindowHandle(platform);
+    NSWindow* parent = g_mac_browser.hostWindow.parentWindow;
+    if( !window || parent == window || g_mac_browser.hostOffScreen )
+        return;
+    if( parent )
+        [parent removeChildWindow:g_mac_browser.hostWindow];
+    [window addChildWindow:g_mac_browser.hostWindow ordered:NSWindowAbove];
+    [g_mac_browser.hostWindow orderFront:nil];
+    g_mac_browser.lastScreenFrame = NSZeroRect;
+    [g_mac_browser syncFrame];
+}
+
+void
 PlatformMacPluginBrowser_Destroy(struct PlatformWindow* platform)
 {
     if( !g_mac_browser || g_mac_browser.platform != platform )

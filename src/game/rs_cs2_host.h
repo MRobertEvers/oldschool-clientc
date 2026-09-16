@@ -269,6 +269,19 @@ struct RS_CS2TradingPost
 #define RS_CS2_OUTPUT_FILTER_SAME_AS_INTERFACE 0
 #define RS_CS2_OUTPUT_FILTER_MAX 3
 
+/**
+ * The renderer the player picked: 0 is the launch's own choice (the manifest's
+ * or the command line's renderer flag), otherwise enum ToriRS_RendererKind + 1.
+ * Client-owned and persisted like 30..35, but a launch that names a renderer
+ * flag starts with that renderer anyway (RS_CS2Host_RendererRequest). Read by
+ * main.c at a frame boundary,
+ * which restarts the renderer when it names one that is not running; what is
+ * actually running is RS_CS2Host::renderer_active.
+ */
+#define RS_CS2_DEVICEOPTION_RENDERER 36
+#define RS_CS2_RENDERER_LAUNCH_DEFAULT 0
+#define RS_CS2_RENDERER_MAX 7
+
 /* Setting-struct params the panel itself reads, and this client reads with it.
  * `param_1078` is the row KIND -- 9 is the colour row -- and 1077 / 1086 / 1230
  * are that row's setting id, its title and the swatch it shows before anyone
@@ -1243,6 +1256,21 @@ struct RS_CS2Host
     int battery_charging;
     int network_kind;
 
+    /**
+     * The renderer, as the shell reports it: which one is drawing (enum
+     * ToriRS_RendererKind), which this build and window can start (a mask of
+     * TORIRS_RENDERER_KIND_BIT), and the RS_CS2_DEVICEOPTION_RENDERER value
+     * whose start last failed (0 = none). -1 active until the shell has
+     * started one. @see RS_CS2Host_SetRendererStatus.
+     */
+    int renderer_active;
+    unsigned renderer_available;
+    int renderer_refused;
+    /* The launch named a renderer flag, so the saved pick is not applied... */
+    bool renderer_launch_flagged;
+    /* ...until the player picks a renderer this session. */
+    bool renderer_picked;
+
     /** Set by IF_CLOSE (3103) — an interface's close button. Drained by the
      *  App's tick, which sends CLOSE_MODAL; the server is what actually
      *  unmounts, so nothing here touches the tree. */
@@ -1907,6 +1935,27 @@ RS_CS2Host_SetDeviceStatus(
     int battery_percent,
     int battery_charging,
     int network_kind);
+
+/**
+ * Tell the host what the renderer is doing. Written by the shell (main.c)
+ * after every renderer start, read by the Client Settings page.
+ * @see RS_CS2Host::renderer_active.
+ */
+void
+RS_CS2Host_SetRendererStatus(
+    struct RS_CS2Host* host,
+    int active,
+    unsigned available,
+    int refused,
+    bool launch_flagged);
+
+/**
+ * The RS_CS2_DEVICEOPTION_RENDERER value the renderer should follow now: the
+ * stored pick, except RS_CS2_RENDERER_LAUNCH_DEFAULT on a launch that named a
+ * renderer flag until the player picks one this session.
+ */
+int
+RS_CS2Host_RendererRequest(struct RS_CS2Host const* host);
 
 int
 RS_CS2Host_UiScaleMode(

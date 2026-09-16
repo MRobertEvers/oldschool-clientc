@@ -2537,6 +2537,61 @@ ToriDraw_SceneFontsReemitLoads(struct ToriDraw_Scene* scene)
     ToriDraw_MapIterFree(iter);
 }
 
+bool
+ToriDraw_SceneBatchBuilding(struct ToriDraw_Scene const* scene)
+{
+    assert(scene);
+    return scene->batch_building;
+}
+
+void
+ToriDraw_SceneReemitRendererLoads(struct ToriDraw_Scene* scene)
+{
+    struct ToriDraw_TextureState* tex_state;
+
+    assert(scene);
+    /* A batch in progress has members whose BATCH_MODEL_ADD is still to come;
+     * a MODEL_LOAD for them here would bake them twice. */
+    assert(!scene->batch_building);
+
+    tex_state = ToriDraw_SceneTexState(scene);
+    if( tex_state )
+    {
+        struct ToriDraw_TextureMap* map = &tex_state->texture_map;
+        for( int id = 0; id < map->count; id++ )
+            if( map->textures[id] )
+                td_scene_emit(
+                    scene, TORIDRAW_EVENT_TEX_LOAD, 0, 0, 0, id, NULL, NULL, map->textures[id]);
+    }
+
+    /*
+     * Every retained model as a per-element MODEL_LOAD, batched ones included.
+     * A retained renderer bakes both into the same static arena, and the
+     * per-element load is the one that also clears whatever the renderer held
+     * for that id -- so the replay needs no batch ids of its own.
+     */
+    for( int id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL;
+         id = scene->elements.nodes[id].next )
+    {
+        struct ToriDraw_SceneElement* element = td_scene_element_ptr(scene, id);
+        if( !element || element->dynamic || !ToriDraw_ModelKindIsFull(element->model.kind) )
+            continue;
+        td_scene_emit(scene, TORIDRAW_EVENT_MODEL_LOAD, 0, id, 0, 0, &element->model, NULL, NULL);
+        for( int anim_index = 0; anim_index < 2; anim_index++ )
+        {
+            struct ToriDraw_Animation* animation =
+                anim_index == 0 ? element->animation : element->secondary_animation;
+            int const before = scene->event_queue.count;
+            if( !animation )
+                continue;
+            td_scene_emit(
+                scene, TORIDRAW_EVENT_ANIM_LOAD, 0, id, 0, 0, &element->model, animation, NULL);
+            if( scene->event_queue.count > before )
+                scene->event_queue.events[scene->event_queue.count - 1].anim_index = anim_index;
+        }
+    }
+}
+
 void
 ToriDraw_SceneFrameEnd(struct ToriDraw_Scene* scene)
 {

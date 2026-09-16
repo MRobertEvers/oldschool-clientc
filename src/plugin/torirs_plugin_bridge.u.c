@@ -2779,6 +2779,20 @@ app_plugin_feature_set(void* user, char const* key, int value)
  * Persistence needs nothing here: RS_Prefs_CaptureFromHost polls the option
  * store every tick and writes preferences.ini when it moves.
  */
+#include "render/torirs_renderer_kind.h"
+/* The plugin contract restates the renderer list rather than including the
+ * render header; these hold the two spellings, and the store's range, to one
+ * list. */
+_Static_assert(TORIRS_RENDERER_SOFTWARE == TORIRS_RENDERER_KIND_SOFTWARE, "renderer ids");
+_Static_assert(TORIRS_RENDERER_OPENGL3 == TORIRS_RENDERER_KIND_OPENGL3, "renderer ids");
+_Static_assert(TORIRS_RENDERER_OPENGL3_DEPTH == TORIRS_RENDERER_KIND_OPENGL3_DEPTH, "renderer ids");
+_Static_assert(TORIRS_RENDERER_GLES2 == TORIRS_RENDERER_KIND_GLES2, "renderer ids");
+_Static_assert(TORIRS_RENDERER_GLES2_DEPTH == TORIRS_RENDERER_KIND_GLES2_DEPTH, "renderer ids");
+_Static_assert(TORIRS_RENDERER_D3D9 == TORIRS_RENDERER_KIND_D3D9, "renderer ids");
+_Static_assert(TORIRS_RENDERER_D3D9_DEPTH == TORIRS_RENDERER_KIND_D3D9_DEPTH, "renderer ids");
+_Static_assert(TORIRS_RENDERER_COUNT == TORIRS_RENDERER_KIND_COUNT, "renderer ids");
+_Static_assert(RS_CS2_RENDERER_MAX == TORIRS_RENDERER_KIND_COUNT, "option 36 stores kind + 1");
+
 static int
 app_plugin_display_setting(
     void* user,
@@ -2847,6 +2861,35 @@ app_plugin_display_setting(
         value = App_WindowMode(app) == CS2VM_WINDOW_MODE_FIXED ? 1 : 0;
         min = 0;
         max = 1;
+        break;
+    case TORIRS_DISPLAY_RENDERER:
+    case TORIRS_DISPLAY_RENDERER_ACTIVE:
+    case TORIRS_DISPLAY_RENDERERS_AVAILABLE:
+    case TORIRS_DISPLAY_RENDERER_REFUSED:
+        /* The shell has not started a renderer yet: nothing to say, and a
+         * zero would name Software. */
+        if( app->host.renderer_active < 0 )
+            return 0;
+        min = 0;
+        switch( setting )
+        {
+        case TORIRS_DISPLAY_RENDERER:
+            value = RS_CS2Host_RendererRequest(&app->host);
+            max = RS_CS2_RENDERER_MAX;
+            break;
+        case TORIRS_DISPLAY_RENDERER_ACTIVE:
+            value = app->host.renderer_active;
+            max = TORIRS_RENDERER_COUNT - 1;
+            break;
+        case TORIRS_DISPLAY_RENDERERS_AVAILABLE:
+            value = (int)app->host.renderer_available;
+            max = (1 << TORIRS_RENDERER_COUNT) - 1;
+            break;
+        default:
+            value = app->host.renderer_refused;
+            max = RS_CS2_RENDERER_MAX;
+            break;
+        }
         break;
     case TORIRS_DISPLAY_EFFECTIVE_UI_SCALE:
     case TORIRS_DISPLAY_LAYOUT_WIDTH:
@@ -2940,6 +2983,19 @@ app_plugin_display_setting_set(void* user, int setting, int value)
         break;
     case TORIRS_DISPLAY_HIGH_DPI:
         option = RS_CS2_DEVICEOPTION_HIGH_DPI;
+        break;
+    case TORIRS_DISPLAY_RENDERER:
+        /* Only a renderer this lane offers: a pick of another would sit in
+         * the store, be persisted, and be refused by the shell at every
+         * launch. */
+        if( app->host.renderer_active < 0 || value < RS_CS2_RENDERER_LAUNCH_DEFAULT ||
+            value > RS_CS2_RENDERER_MAX )
+            return 0;
+        if( value != RS_CS2_RENDERER_LAUNCH_DEFAULT &&
+            !(app->host.renderer_available & (1u << (unsigned)(value - 1))) )
+            return 0;
+        option = RS_CS2_DEVICEOPTION_RENDERER;
+        app->host.renderer_picked = true;
         break;
     default:
         /* Includes every read-only readout. */

@@ -30,7 +30,7 @@ static int failures;
     fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, (m)); } } while( 0 )
 
 #define CS_FRAME_ROWS_MAX 33
-#define FAKE_ROWS_MAX 16
+#define FAKE_ROWS_MAX 20
 
 /* ------------------------------------------------------------ fake engine */
 
@@ -297,6 +297,16 @@ fake_display_set(struct ToriRS_Api* api, int setting, int value)
     }
     if( setting > TORIRS_DISPLAY_UI_SCALE_FILTER && setting < TORIRS_DISPLAY_EFFECTIVE_UI_SCALE )
     {
+        fake.display[setting] = value;
+        fake.display_sets++;
+        return TORIRS_RESULT_OK;
+    }
+    /* The client's own fence: only a renderer this lane can start. */
+    if( setting == TORIRS_DISPLAY_RENDERER )
+    {
+        if( value < 0 || value > TORIRS_RENDERER_COUNT ||
+            (value > 0 && !(fake.display[TORIRS_DISPLAY_RENDERERS_AVAILABLE] & (1 << (value - 1)))) )
+            return TORIRS_RESULT_NOT_FOUND;
         fake.display[setting] = value;
         fake.display_sets++;
         return TORIRS_RESULT_OK;
@@ -859,6 +869,63 @@ main(void)
           fake_row("stretch_mode"),
         "a limit too small for the frame names the limit, and shows stretch mode: the buffer "
         "is no longer the window's shape");
+
+    /* ------------------------------------------------------------ renderer */
+
+    /* One renderer on offer is not a choice: no row. */
+    fake.display[TORIRS_DISPLAY_RENDERER] = 0;
+    fake.display[TORIRS_DISPLAY_RENDERER_ACTIVE] = TORIRS_RENDERER_SOFTWARE;
+    fake.display[TORIRS_DISPLAY_RENDERERS_AVAILABLE] = 1 << TORIRS_RENDERER_SOFTWARE;
+    fake.display[TORIRS_DISPLAY_RENDERER_REFUSED] = 0;
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+    CHECK(!fake_row("renderer") && !fake_row("renderer_now"),
+        "a lane with a single renderer offers no renderer row");
+
+    /* A desktop GL build: Software and both OpenGL passes. The launch's own
+     * choice shows as the renderer drawing. */
+    fake.display[TORIRS_DISPLAY_RENDERERS_AVAILABLE] = (1 << TORIRS_RENDERER_SOFTWARE) |
+                                                     (1 << TORIRS_RENDERER_OPENGL3) |
+                                                     (1 << TORIRS_RENDERER_OPENGL3_DEPTH);
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+    row = fake_row("renderer");
+    CHECK(row && row->option_count == 3 && strcmp(row->option_label[0], "Software") == 0 &&
+          strcmp(row->option_label[1], "OpenGL") == 0 &&
+          strcmp(row->option_label[2], "OpenGL (depth buffer)") == 0,
+        "the renderer row lists exactly what the lane can start, in order");
+    CHECK(row && strcmp(row->selected_value, "1") == 0,
+        "the launch default shows as the renderer drawing");
+    CHECK(!fake_row("renderer_now"), "nothing to explain while the pick is what is drawing");
+
+    pick(state, "renderer", "2");
+    CHECK(fake.display[TORIRS_DISPLAY_RENDERER] == 2, "a renderer pick writes the store as kind + 1");
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+    row = fake_row("renderer_now");
+    CHECK(row && strcmp(row->text, "Switching to OpenGL.") == 0,
+        "until the client has swapped, the page says it is switching");
+
+    fake.display[TORIRS_DISPLAY_RENDERER_ACTIVE] = TORIRS_RENDERER_OPENGL3;
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+    row = fake_row("renderer");
+    CHECK(row && strcmp(row->selected_value, "2") == 0 && !fake_row("renderer_now"),
+        "the swap landing re-describes the page on its own, with no status left");
+
+    /* The start failed and the client fell back. */
+    pick(state, "renderer", "3");
+    fake.display[TORIRS_DISPLAY_RENDERER_ACTIVE] = TORIRS_RENDERER_SOFTWARE;
+    fake.display[TORIRS_DISPLAY_RENDERER_REFUSED] = 3;
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+    row = fake_row("renderer_now");
+    CHECK(row && strcmp(row->text, "Could not start OpenGL (depth buffer). Using Software.") == 0,
+        "a refused start names what was asked for and what is drawing instead");
+
+    /* A renderer this lane does not have is refused at the fence and the
+     * control is restated, not left showing it. */
+    {
+        int const logs = fake.logs;
+        pick(state, "renderer", "6");
+        CHECK(fake.display[TORIRS_DISPLAY_RENDERER] == 3 && fake.logs == logs + 1,
+            "a pick the lane cannot start is refused and logged");
+    }
 
     /* A build with no display store declares neither row -- the same page the
      * unported plugin built, and the reason the two reads are a gate. */

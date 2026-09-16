@@ -1008,8 +1008,38 @@ enum ToriRS_DisplaySetting
     /** 1 when the window is pinned to the fixed frame, 0 when the canvas
      *  follows a resizable window. Answers before any frame is presented. */
     TORIRS_DISPLAY_WINDOW_FIXED,
+    /** The renderer picked: 0 is the launch's own choice, else a
+     *  TORIRS_RENDERER_* value + 1. A pick of one this lane cannot start
+     *  (not in TORIRS_DISPLAY_RENDERERS_AVAILABLE) is refused. The client
+     *  restarts the renderer at its next frame boundary; the game, the network
+     *  and the plugins keep running through it. */
+    TORIRS_DISPLAY_RENDERER,
+    /** The TORIRS_RENDERER_* drawing now. No answer before the first start. */
+    TORIRS_DISPLAY_RENDERER_ACTIVE,
+    /** Bit (1 << TORIRS_RENDERER_*) for every renderer this build and window
+     *  can start. Always includes the active one. */
+    TORIRS_DISPLAY_RENDERERS_AVAILABLE,
+    /** The TORIRS_DISPLAY_RENDERER value whose start last failed, or 0. The
+     *  active renderer is then the one it fell back to. */
+    TORIRS_DISPLAY_RENDERER_REFUSED,
 
     TORIRS_DISPLAY_SETTING_COUNT
+};
+
+/** Renderers, as TORIRS_DISPLAY_RENDERER_ACTIVE names them. */
+enum ToriRS_Renderer
+{
+    TORIRS_RENDERER_SOFTWARE = 0,
+    /** Desktop OpenGL 3. */
+    TORIRS_RENDERER_OPENGL3,
+    TORIRS_RENDERER_OPENGL3_DEPTH,
+    /** OpenGL ES 2 (WebGL1 in a browser). */
+    TORIRS_RENDERER_GLES2,
+    TORIRS_RENDERER_GLES2_DEPTH,
+    /** Direct3D 9. */
+    TORIRS_RENDERER_D3D9,
+    TORIRS_RENDERER_D3D9_DEPTH,
+    TORIRS_RENDERER_COUNT
 };
 
 /** TORIRS_DISPLAY_SCALE_ADJUSTED bits. */

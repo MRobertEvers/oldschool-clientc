@@ -75,6 +75,9 @@ struct PlatformWindow
      * the old behaviour for headless and dev runs. */
     bool esc_quits;
     bool use_opengl;
+    /* Made as a GL window, so a GL context may be put on it later -- even if
+     * SDL's Metal renderer has since recreated it without the flag. */
+    bool gl_capable;
     /* Resizable mode: the backbuffer IS the window, so a window resize reallocs
      * pixels/texture and the client relayouts at the new size. Fixed mode keeps
      * a 765x503 backbuffer and letterboxes it into whatever the window is — the
@@ -310,6 +313,25 @@ sdl_want_highdpi(void)
     if( env && env[0] )
         return env[0] != '0';
     return g_want_highdpi;
+}
+
+/*
+ * TORIRS_WINDOW_HIDDEN=1: a real window that is never shown and never takes
+ * focus. For a headless run that needs what SDL_VIDEODRIVER=dummy cannot give
+ * -- a GL context -- on a machine someone is using: a shown test window takes
+ * their clicks, and an activated app takes their keyboard.
+ */
+static bool
+sdl_window_hidden(void)
+{
+    char const* env = getenv("TORIRS_WINDOW_HIDDEN");
+    return env && env[0] && env[0] != '0';
+}
+
+static Uint32
+sdl_window_visibility(void)
+{
+    return sdl_window_hidden() ? SDL_WINDOW_HIDDEN : SDL_WINDOW_SHOWN;
 }
 
 static SDL_ScaleMode
@@ -617,6 +639,77 @@ sdl_set_window_icon(SDL_Window* window)
     SDL_FreeSurface(icon);
 }
 
+/*
+ * The context the GL renderers are written against, asked for before SDL
+ * makes one. Restated before every context rather than once at window
+ * creation: a software present in between hands SDL's own renderer the
+ * compatibility profile it needs (sdl_gl_software_attributes).
+ */
+static void
+sdl_gl_context_attributes(void)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    /* WebGL1 is GLES 2.0. Asking for exactly that (and nothing above it) is
+     * what keeps the renderer honest about the extension-free feature set it
+     * was written against — a WebGL2 context would quietly accept more. */
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#elif defined(__APPLE__)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+#else
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+#endif
+}
+
+/*
+ * The context SDL's own GL renderer insists on: compatibility 2.1. Asked for
+ * before SDL_CreateRenderer on a GL-capable window, because that renderer
+ * RECREATES the window -- a new native window under the same SDL_Window --
+ * when the requested context is anything else, and a recreated window loses
+ * what was attached to the old one.
+ */
+static void
+sdl_gl_software_attributes(void)
+{
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+}
+
+/*
+ * The window's pixel format: fixed when the window is created, so asked for
+ * before any window that may ever carry a GL context -- the software window
+ * included, since a live renderer switch puts a context on it later.
+ */
+static void
+sdl_gl_surface_attributes(void)
+{
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+#if defined(TORIRS_PLATFORM_WEB)
+    /* In the browser these are decided HERE, not at context creation: SDL's
+     * emscripten video chooses its EGL config when the window is made, and
+     * emscripten's EGL turns each nonzero size into a WebGL context attribute
+     * (depth, stencil, antialias). No renderer in this tree touches a stencil
+     * buffer, so asking for one would only allocate a full-screen attachment
+     * the browser then has to clear and carry every frame. Depth stays at 24:
+     * the depth-buffered world pass needs it, and the request in
+     * ToriRS_GLContext_Create arrives too late to add it on this host. */
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
+#else
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+#endif
+}
+
 bool
 PlatformWindow_Init(
     struct PlatformWindow* platform,
@@ -659,6 +752,9 @@ PlatformWindow_Init(
      * one where nobody clicked.
      */
     SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
+    /* Read when the video subsystem registers the app, so before it. */
+    if( sdl_window_hidden() )
+        SDL_SetHint(SDL_HINT_MAC_BACKGROUND_APP, "1");
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -667,14 +763,41 @@ PlatformWindow_Init(
 
     platform->esc_quits = getenv("TORIRS_ESC_QUIT") != NULL;
 
+#if defined(TORIRS_HAVE_GL3) && !defined(TORIRS_PLATFORM_WEB)
+    /*
+     * A GL-capable window even though this one presents in software.
+     *
+     * SDL fixes whether a window can ever carry a GL context when it creates
+     * it, so this is what lets Client Settings switch to OpenGL without closing
+     * the window. SDL's GL renderer draws on such a window as it is, given the
+     * compatibility context the attributes below ask for. SDL's Metal renderer
+     * (macOS) recreates it as a Metal window instead, and sdl_make_gl_window
+     * turns it back at the switch. A video driver with no GL at all
+     * (SDL_VIDEODRIVER=dummy) refuses the flag; the window is then made
+     * without it and PlatformWindow_PresentAvailable says OpenGL is not on
+     * offer.
+     */
+    sdl_gl_surface_attributes();
+    sdl_gl_software_attributes();
     platform->window = SDL_CreateWindow(
         title ? title : "torirs",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
         width,
         height,
-        SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE |
+        SDL_WINDOW_OPENGL | sdl_window_visibility() | SDL_WINDOW_RESIZABLE |
             (sdl_want_highdpi() ? SDL_WINDOW_ALLOW_HIGHDPI : 0));
+    platform->gl_capable = platform->window != NULL;
+    if( !platform->window )
+#endif
+        platform->window = SDL_CreateWindow(
+            title ? title : "torirs",
+            SDL_WINDOWPOS_UNDEFINED,
+            SDL_WINDOWPOS_UNDEFINED,
+            width,
+            height,
+            sdl_window_visibility() | SDL_WINDOW_RESIZABLE |
+                (sdl_want_highdpi() ? SDL_WINDOW_ALLOW_HIGHDPI : 0));
     if( !platform->window )
     {
         fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -784,6 +907,9 @@ PlatformWindow_InitForOpenGL3(
      * one where nobody clicked.
      */
     SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
+    /* Read when the video subsystem registers the app, so before it. */
+    if( sdl_window_hidden() )
+        SDL_SetHint(SDL_HINT_MAC_BACKGROUND_APP, "1");
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -792,40 +918,8 @@ PlatformWindow_InitForOpenGL3(
 
     platform->esc_quits = getenv("TORIRS_ESC_QUIT") != NULL;
 
-#if defined(TORIRS_PLATFORM_WEB)
-    /* WebGL1 is GLES 2.0. Asking for exactly that (and nothing above it) is
-     * what keeps the renderer honest about the extension-free feature set it
-     * was written against — a WebGL2 context would quietly accept more. */
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#elif defined(__APPLE__)
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-#else
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-#endif
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-#if defined(TORIRS_PLATFORM_WEB)
-    /* In the browser these are decided HERE, not at context creation: SDL's
-     * emscripten video chooses its EGL config when the window is made, and
-     * emscripten's EGL turns each nonzero size into a WebGL context attribute
-     * (depth, stencil, antialias). No renderer in this tree touches a stencil
-     * buffer, so asking for one would only allocate a full-screen attachment
-     * the browser then has to clear and carry every frame. Depth stays at 24:
-     * the depth-buffered world pass needs it, and the request in
-     * ToriRS_GLContext_Create arrives too late to add it on this host. */
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
-    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
-    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
-#else
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-#endif
+    sdl_gl_context_attributes();
+    sdl_gl_surface_attributes();
 
     platform->window = SDL_CreateWindow(
         title ? title : "torirs",
@@ -833,7 +927,7 @@ PlatformWindow_InitForOpenGL3(
         SDL_WINDOWPOS_UNDEFINED,
         width,
         height,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE |
+        SDL_WINDOW_OPENGL | sdl_window_visibility() | SDL_WINDOW_RESIZABLE |
             (sdl_want_highdpi() ? SDL_WINDOW_ALLOW_HIGHDPI : 0));
     if( !platform->window )
     {
@@ -861,6 +955,7 @@ PlatformWindow_InitForOpenGL3(
     platform->height = height;
     platform->quit = false;
     platform->use_opengl = true;
+    platform->gl_capable = true;
     return true;
 }
 
@@ -3798,6 +3893,214 @@ uint64_t
 PlatformWindow_Ticks64(void)
 {
     return SDL_GetTicks64();
+}
+
+/*
+ * The software present's SDL renderer, streaming texture and pixel buffer, at
+ * the buffer size the window already holds. Shared by the switch below; Init
+ * builds the same three inline because it also has a window to fail on.
+ */
+static bool
+sdl_software_present_create(struct PlatformWindow* platform)
+{
+    size_t pixel_count;
+
+    assert(platform);
+    assert(platform->window);
+    assert(!platform->renderer);
+    assert(!platform->texture);
+    assert(!platform->pixels);
+    assert(platform->width > 0);
+    assert(platform->height > 0);
+
+#if defined(TORIRS_HAVE_GL3) && !defined(TORIRS_PLATFORM_WEB)
+    sdl_gl_software_attributes();
+#endif
+    platform->renderer = SDL_CreateRenderer(platform->window, -1, SDL_RENDERER_ACCELERATED);
+    if( !platform->renderer )
+        platform->renderer = SDL_CreateRenderer(platform->window, -1, 0);
+    if( !platform->renderer )
+    {
+        fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());
+        return false;
+    }
+    platform->texture = SDL_CreateTexture(
+        platform->renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        platform->width,
+        platform->height);
+    if( !platform->texture )
+    {
+        fprintf(stderr, "SDL_CreateTexture failed: %s\n", SDL_GetError());
+        SDL_DestroyRenderer(platform->renderer);
+        platform->renderer = NULL;
+        return false;
+    }
+    SDL_SetTextureScaleMode(
+        platform->texture, sdl_output_filter(platform->client_scale.output_filter));
+    pixel_count = (size_t)platform->width * (size_t)platform->height;
+    platform->pixels = calloc(pixel_count, sizeof(int));
+    assert(platform->pixels);
+    return true;
+}
+
+/*
+ * Give the window back its GL flag.
+ *
+ * SDL's Metal renderer RECREATES a GL window as a Metal one, and SDL offers no
+ * call to go back -- except its own GL renderer, which recreates the window as
+ * a GL one for the same reason. So one is made and freed at once: the window
+ * keeps its position, size and minimum size through it (SDL restates them),
+ * though on macOS it may be a new NSWindow, which is why the plugin browser is
+ * reattached after a switch.
+ */
+static bool
+sdl_make_gl_window(struct PlatformWindow* platform)
+{
+    char previous_driver[64] = "";
+    char const* hint;
+    SDL_Renderer* renderer;
+
+    assert(platform);
+    assert(platform->window);
+    assert(!platform->renderer);
+    if( SDL_GetWindowFlags(platform->window) & SDL_WINDOW_OPENGL )
+        return true;
+    hint = SDL_GetHint(SDL_HINT_RENDER_DRIVER);
+    if( hint )
+        snprintf(previous_driver, sizeof(previous_driver), "%s", hint);
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "opengl");
+    sdl_gl_software_attributes();
+    renderer = SDL_CreateRenderer(platform->window, -1, 0);
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, hint ? previous_driver : NULL);
+    if( !renderer )
+    {
+        fprintf(stderr, "renderer switch: no GL window: %s\n", SDL_GetError());
+        return false;
+    }
+    SDL_DestroyRenderer(renderer);
+    return (SDL_GetWindowFlags(platform->window) & SDL_WINDOW_OPENGL) != 0;
+}
+
+static void
+sdl_software_present_destroy(struct PlatformWindow* platform)
+{
+    assert(platform);
+    /* The chrome pane's texture belongs to the renderer; its pixels do not,
+     * and survive for the next present to upload. */
+    if( platform->chrome_texture )
+    {
+        SDL_DestroyTexture(platform->chrome_texture);
+        platform->chrome_texture = NULL;
+    }
+    if( platform->texture )
+    {
+        SDL_DestroyTexture(platform->texture);
+        platform->texture = NULL;
+    }
+    if( platform->renderer )
+    {
+        SDL_DestroyRenderer(platform->renderer);
+        platform->renderer = NULL;
+    }
+    free(platform->pixels);
+    platform->pixels = NULL;
+}
+
+bool
+PlatformWindow_PresentAvailable(
+    struct PlatformWindow const* platform,
+    enum PlatformPresent present)
+{
+    assert(platform);
+    assert(platform->window);
+#if defined(TORIRS_PLATFORM_WEB)
+    /* A canvas keeps the context type it was first asked for, so the browser
+     * presents the way it booted and no other. */
+    return present == (platform->use_opengl ? PLATFORM_PRESENT_GL : PLATFORM_PRESENT_SOFTWARE);
+#else
+    switch( present )
+    {
+    case PLATFORM_PRESENT_SOFTWARE:
+        return true;
+    case PLATFORM_PRESENT_GL:
+        return platform->gl_capable;
+    case PLATFORM_PRESENT_NATIVE:
+        return false;
+    }
+    assert(0 && "unknown PlatformPresent");
+    return false;
+#endif
+}
+
+bool
+PlatformWindow_SetPresent(
+    struct PlatformWindow* platform,
+    enum PlatformPresent present)
+{
+    bool const want_gl = present == PLATFORM_PRESENT_GL;
+
+    assert(platform);
+    assert(platform->window);
+    assert(present != PLATFORM_PRESENT_NATIVE);
+    if( want_gl == platform->use_opengl )
+        return true;
+    if( !PlatformWindow_PresentAvailable(platform, present) )
+        return false;
+
+    if( want_gl )
+    {
+        sdl_software_present_destroy(platform);
+        if( !sdl_make_gl_window(platform) )
+        {
+            bool const restored = sdl_software_present_create(platform);
+            assert(restored);
+            (void)restored;
+            return false;
+        }
+        sdl_gl_context_attributes();
+        platform->use_opengl = true;
+    }
+    else
+    {
+        /* The GL renderer has already deleted its context: GL and SDL's
+         * renderer are never live on the window together. */
+        platform->use_opengl = false;
+        if( !sdl_software_present_create(platform) )
+        {
+            platform->use_opengl = true;
+            return false;
+        }
+#if !defined(__APPLE__)
+        /* A pane that was open under GL gets its texture back now rather than
+         * at its next resize, or it would stay blank until one. Its pixels
+         * are kept: the chrome does not redraw a page that has not changed. */
+        if( platform->chrome_pixels && platform->chrome_width > 0 && platform->chrome_height > 0 )
+        {
+            platform->chrome_texture = SDL_CreateTexture(
+                platform->renderer,
+                SDL_PIXELFORMAT_ARGB8888,
+                SDL_TEXTUREACCESS_STREAMING,
+                platform->chrome_width,
+                platform->chrome_height);
+            if( platform->chrome_texture )
+            {
+                SDL_SetTextureScaleMode(platform->chrome_texture, SDL_ScaleModeNearest);
+                PlatformWindow_ChromePresent(platform);
+            }
+            else
+                fprintf(stderr, "attached chrome texture: %s\n", SDL_GetError());
+        }
+#endif
+    }
+    sdl_refresh_pixel_density(platform);
+#if defined(__APPLE__)
+    /* Belt and braces: if SDL did replace the native window, the plugin
+     * browser's child window is still ordered on the old one. */
+    PlatformMacPluginBrowser_Reattach(platform);
+#endif
+    return true;
 }
 
 uint64_t

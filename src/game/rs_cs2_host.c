@@ -928,6 +928,7 @@ RS_CS2Host_Init(
     host->battery_percent = 100;
     host->battery_charging = 1;
     host->network_kind = RS_CS2_NETWORK_WIFI;
+    host->renderer_active = -1;
     host->tree = tree;
     host->provider = provider;
     host->invs = invs;
@@ -1757,6 +1758,10 @@ static const struct OptionSpec device_option_spec[] = {
     { RS_CS2_DEVICEOPTION_OUTPUT_FILTER, true },
     { RS_CS2_DEVICEOPTION_HIGH_DPI, true },
     { RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH, true },
+    /* The renderer pick. Persisted: it is the renderer a launch with no
+     * renderer flag starts with. A flag wins over it -- see
+     * RS_CS2Host_RendererRequest. */
+    { RS_CS2_DEVICEOPTION_RENDERER, true },
 };
 
 static const struct OptionSpec game_option_spec[] = {
@@ -1958,6 +1963,16 @@ RS_CS2Host_SetOption(
         if( option_id != RS_CS2_DEVICEOPTION_OUTPUT_FILTER && table[option_id] != value )
             host->client_scale_dirty = true;
     }
+    if( kind == RS_CS2_OPTION_DEVICE && option_id == RS_CS2_DEVICEOPTION_RENDERER )
+    {
+        if( value < RS_CS2_RENDERER_LAUNCH_DEFAULT )
+            value = RS_CS2_RENDERER_LAUNCH_DEFAULT;
+        /* Not clamped to the last kind: a value past it names some other
+         * renderer (a newer build's), and the launch's own is the honest
+         * stand-in for that, not whichever renderer happens to be listed last. */
+        if( value > RS_CS2_RENDERER_MAX )
+            value = RS_CS2_RENDERER_LAUNCH_DEFAULT;
+    }
     if( kind == RS_CS2_OPTION_DEVICE &&
         option_id == RS_CS2_DEVICEOPTION_UI_SCALE_MODE )
     {
@@ -2010,6 +2025,37 @@ RS_CS2Host_SetDeviceStatus(
     host->battery_percent = battery_percent;
     host->battery_charging = battery_charging ? 1 : 0;
     host->network_kind = network_kind;
+}
+
+void
+RS_CS2Host_SetRendererStatus(
+    struct RS_CS2Host* host,
+    int active,
+    unsigned available,
+    int refused,
+    bool launch_flagged)
+{
+    assert(host);
+    assert(active >= 0);
+    assert(available & (1u << (unsigned)active));
+    assert(refused >= RS_CS2_RENDERER_LAUNCH_DEFAULT);
+    assert(refused <= RS_CS2_RENDERER_MAX);
+    host->renderer_active = active;
+    host->renderer_available = available;
+    host->renderer_refused = refused;
+    host->renderer_launch_flagged = launch_flagged;
+}
+
+int
+RS_CS2Host_RendererRequest(struct RS_CS2Host const* host)
+{
+    assert(host);
+    /* The store holds the saved pick from the moment preferences load, but a
+     * flagged launch has not been asked for it: only a pick made this session
+     * moves the renderer away from the flag's. */
+    if( host->renderer_launch_flagged && !host->renderer_picked )
+        return RS_CS2_RENDERER_LAUNCH_DEFAULT;
+    return host->device_options[RS_CS2_DEVICEOPTION_RENDERER];
 }
 
 int
@@ -3500,6 +3546,9 @@ exec_client_option(
             break;
         case RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH:
             max = RS_CS2_MAX_PIXEL_WIDTH_MAX;
+            break;
+        case RS_CS2_DEVICEOPTION_RENDERER:
+            max = RS_CS2_RENDERER_MAX;
             break;
         default:
             TORIRS_LOG("cs2: Unkown device option %d\n", option_id);

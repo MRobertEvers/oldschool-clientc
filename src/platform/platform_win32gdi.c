@@ -2668,6 +2668,46 @@ PlatformWindow_Ticks64(void)
     return PlatformWin32Timing_NowMs();
 }
 
+bool
+PlatformWindow_PresentAvailable(struct PlatformWindow const* p, enum PlatformPresent present)
+{
+    assert(p);
+    (void)p; /* the answer is the build's, not the window's */
+    switch( present )
+    {
+    case PLATFORM_PRESENT_SOFTWARE:
+        return true;
+    case PLATFORM_PRESENT_GL:
+        return false;
+    case PLATFORM_PRESENT_NATIVE:
+#if defined(TORIRS_HAVE_D3D9)
+        return true;
+#else
+        return false;
+#endif
+    }
+    assert(0 && "unknown PlatformPresent");
+    return false;
+}
+
+bool
+PlatformWindow_SetPresent(struct PlatformWindow* p, enum PlatformPresent present)
+{
+    assert(p);
+    if( !PlatformWindow_PresentAvailable(p, present) )
+        return false;
+    /*
+     * The DIB stays allocated either way -- GDI keeps it for WM_PAINT, and it
+     * costs one buffer -- so the only state to move is whether a repair paint
+     * may copy it over the window. It may not while D3D9 owns the surface: the
+     * DIB holds the last software frame, which would flash over D3D9's. The
+     * next software Present sets it again.
+     */
+    if( present == PLATFORM_PRESENT_NATIVE )
+        p->gdi_frame_valid = 0;
+    return true;
+}
+
 uint64_t
 PlatformWindow_TicksUs(void)
 {
