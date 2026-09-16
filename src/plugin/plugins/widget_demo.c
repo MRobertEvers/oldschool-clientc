@@ -73,7 +73,7 @@ static struct ToriRS_ConfigItem const WIDGET_CONFIG[]={
     /* Re-arm the owned control with a new label. Retained menu rows built for
      * the earlier registration must then die instead of firing. */
     {"rearm",TORIRS_CONFIG_BOOL,"Replace the owned control's operation","0",0,0,NULL,0},
-    {NULL},
+    {NULL, TORIRS_CONFIG_BOOL, NULL, NULL, 0, 0, NULL, 0},
 };
 static struct ToriRS_ConfigSchema const WIDGET_SCHEMA={sizeof(WIDGET_SCHEMA),WIDGET_CONFIG};
 

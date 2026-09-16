@@ -1753,6 +1753,7 @@ xt_paint_boxes(
     assert(state);
     assert(key);
     assert(draw);
+    (void)key;
 
     if( !Porcelain_DrawContext(
             state->porcelain, draw, PORCELAIN_EL(NONE), &context) ||
@@ -1880,6 +1881,7 @@ xt_well_pressed(
     assert(api);
     assert(state);
     assert(action);
+    (void)api;
     if( action->kind != TORIRS_PANEL_ACTION_ACTIVATE )
         return;
 
@@ -1906,6 +1908,7 @@ xt_pause_pressed(
     assert(api);
     assert(state);
     assert(action);
+    (void)action;
     if( g_detail < 0 || g_detail >= g_skill_count )
         return;
     g_skill[g_detail].paused = !g_skill[g_detail].paused;
@@ -1922,6 +1925,7 @@ xt_reset_pressed(
     assert(api);
     assert(state);
     assert(action);
+    (void)action;
     if( g_detail < 0 || g_detail >= g_skill_count )
         return;
     xt_reset_skill(api, state, g_detail);
@@ -1938,6 +1942,7 @@ xt_reset_others_pressed(
     assert(api);
     assert(state);
     assert(action);
+    (void)action;
     if( g_detail < 0 || g_detail >= g_skill_count )
         return;
     /* The reference's "Reset others": everything BUT this one, which is how a
@@ -1958,6 +1963,8 @@ xt_reset_rate_pressed(
     assert(api);
     assert(state);
     assert(action);
+    (void)api;
+    (void)action;
     if( g_detail < 0 || g_detail >= g_skill_count )
         return;
     /* Only the per-hour figures, keeping the session total -- @see
@@ -2290,6 +2297,7 @@ xt_refresh(struct ToriRS_Api* api, void* user, uint64_t elapsed_ms)
 
     assert(api);
     assert(state);
+    (void)api;
     (void)elapsed_ms;
     if( !g_page_visible )
         return;
@@ -2418,6 +2426,7 @@ xt_logic_tick(
 
     assert(api);
     assert(state);
+    (void)api;
     (void)event;
     /* The library installs no callbacks of its own: the definition belongs to
      * the plugin and the host already registered it, so a cadence the layer
@@ -2447,6 +2456,7 @@ xt_config_changed(struct ToriRS_Api* api, void* plugin_state, char const* key)
 
     assert(api);
     assert(state);
+    (void)api;
     (void)key;
     /* One of the layer's own six inputs, forwarded: the four label slots and
      * hide_maxed are all read by the description. */
@@ -2465,6 +2475,7 @@ xt_ui_build(
     assert(api);
     assert(state);
     assert(panel);
+    (void)api;
     Porcelain_PanelBuild(state->porcelain, panel, view);
 }
 
@@ -2479,6 +2490,7 @@ xt_ui_action(
     assert(api);
     assert(state);
     assert(event);
+    (void)api;
     (void)Porcelain_PanelAction(state->porcelain, event);
 }
 
@@ -2495,6 +2507,7 @@ xt_ui_draw(
     assert(state);
     assert(node);
     assert(draw);
+    (void)api;
     (void)Porcelain_PanelDraw(state->porcelain, node, draw);
 }
 
@@ -2519,6 +2532,7 @@ xt_ui_layout(
     assert(api);
     assert(state);
     assert(ev);
+    (void)api;
     g_page_visible = ev->visible;
     if( ev->width > 0 )
         g_well_w = ev->width;
