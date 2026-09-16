@@ -421,6 +421,27 @@ assert.strictEqual(typed[typed.length - 1].s, 107);
 assert(typed[typed.length - 1].x >= 0 && typed[typed.length - 1].y >= 0,
   'custom content-box coordinates remain logical after DPR mapping');
 
+/*
+ * A well's secondary click must never reach the document-level handler that
+ * builds the generic "Choose Option" popup: that popup's W.CUSTOM row offers
+ * only "Select", so if the click bubbled there it would bury whatever menu
+ * the well itself just answered with (Check/Ignore/Collapse -- whatever the
+ * plugin wired to on_menu) under a popup that cannot reach any of it.
+ */
+let customMenuPrevented = false;
+let customMenuStopped = false;
+custom.fire('contextmenu', {
+  clientX: 50, clientY: 25,
+  preventDefault() { customMenuPrevented = true; },
+  stopPropagation() { customMenuStopped = true; }
+});
+assert.strictEqual(typed[typed.length - 1].k, 9, 'the secondary click uses the CUSTOM_MENU intent');
+assert.strictEqual(typed[typed.length - 1].g, 20);
+assert.strictEqual(typed[typed.length - 1].s, 107);
+assert(customMenuPrevented, 'the well cancels the host view\'s own context menu');
+assert(customMenuStopped,
+  'and stops it bubbling, or the document-level popup would still open over it');
+
 const visitsBeforeDelta = runtime.inspect().renderVisits;
 const structuredValueNode = structured.children[0];
 assert.strictEqual(runtime.receive({

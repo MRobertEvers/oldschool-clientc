@@ -1116,11 +1116,21 @@
         // coordinates would name no band. The browser's own context menu is
         // suppressed here and only here, so the page's menu still works
         // everywhere a well is not.
+        //
+        // Stopped from bubbling, not just prevented: the document-level
+        // handler below has no idea a well already answered this click, and
+        // without stopPropagation it built its OWN "Choose Option" popup over
+        // whatever the well just drew from CUSTOM_MENU -- the generic
+        // W.CUSTOM row offers only "Select", so a well's real menu (Check,
+        // Ignore, Collapse -- whatever the plugin wired to on_menu) was never
+        // reachable at all.
         bind(custom, 'contextmenu', event => {
           const point = customContentPoint(custom, event);
           if (!point) return;
           if (event.preventDefault) event.preventDefault();
           else event.returnValue = false;
+          if (event.stopPropagation) event.stopPropagation();
+          else event.cancelBubble = true;
           record.pointer = null;
           postWidget(record, INTENT.CUSTOM_MENU, 0, '',
             customLocalX(record, point), customLocalY(record, point));
