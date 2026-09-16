@@ -1041,6 +1041,18 @@ fake_tab_enabled(
     (void)tabno;
     return 1;
 }
+
+/* The tab the engine says is in the dark half of the tutorial blink, or -1. */
+static int g_flash_dark_tab = -1;
+
+static int
+fake_tab_flash_hidden(
+    void* u,
+    int tabno)
+{
+    (void)u;
+    return tabno >= 0 && tabno == g_flash_dark_tab;
+}
 static int
 fake_obj_info(
     void* u,
@@ -1442,6 +1454,7 @@ fake_engine(void)
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
+    e.tab_flash_hidden = fake_tab_flash_hidden;
     e.obj_info = fake_obj_info;
     e.inv_slot = fake_inv_slot;
     e.inv_size = fake_inv_size;
@@ -2808,6 +2821,89 @@ static void test_gameframe_provider(void)
     gf_api->frame.selection(gf_api,&selection);
     CHECK(gf_events==12 && selection.status==TORIRS_FRAME_STATUS_ACTIVE && g_engine.frame_active==1,
           "a READY answer after NATIVE provides the frame");
+    PluginHost_Free(host);
+}
+/*
+ * Two offers of ONE provider, and the switch between them.
+ *
+ * The outgoing frame hears its release BEFORE the incoming one is asked for,
+ * and that is not bookkeeping. A description is applied as a DIFF against what
+ * the provider already staged, so a provision with no release in front of it
+ * dresses the new layout on top of the old one: the owned controls only the
+ * new layout declares are created after everything the shared ones already
+ * hold, and the engine draws an owned control in the order it made it. On
+ * gameframe-layout -- which offers three of the four desktop frames, so this
+ * is the ordinary case and not a corner -- that put Classic Fixed's surround
+ * over the fourteen tab stones it is supposed to sit behind: a sidebar with a
+ * slab of rock where its tabs and its inventory should be.
+ *
+ * The condition that used to gate the release was `previous != owner`, which
+ * is true of a change of PROVIDER and false of a change of OFFER. Restore it
+ * and this test sees `beta:1` with no `alpha:0` anywhere.
+ *
+ * WHAT is asserted is that the release happens at all, and that the incoming
+ * offer is asked once more afterwards. The order the two arrive in is not:
+ * the release fires from the publication point, which is after the incoming
+ * description has been built, so the pass that switches stages a layout that
+ * the release then takes straight back off and the pass after it is the one
+ * that dresses the lane. Pinning `alpha:0 beta:1` here would be pinning a
+ * place the release could reasonably move to, and moving it there was tried --
+ * releasing before the callback, with or without a pass of its own, leaves the
+ * picture exactly as broken, so the second pass is doing work that is not
+ * understood yet and an ordering assertion would claim it is.
+ */
+static char gf_sw_log[256];
+static struct ToriRS_Api* gf_sw_api;
+static enum ToriRS_FrameBuildResult
+gf_sw_on_gameframe(struct ToriRS_Api* api,void* state,struct ToriRS_GameframeEvent const* ev)
+{
+    size_t used;
+    (void)state;
+    gf_sw_api=api;
+    used=strlen(gf_sw_log);
+    /* Truncation would turn a missing release into a passing test, so the
+     * table is sized for the handful of events one switch makes and the write
+     * asserts rather than clamping. */
+    assert(used + 24 < sizeof(gf_sw_log));
+    snprintf(gf_sw_log+used,sizeof(gf_sw_log)-used,"%s%s:%d",used?" ":"",
+             ev->offer_id?ev->offer_id:"?",ev->active?1:0);
+    return TORIRS_FRAME_READY;
+}
+static struct ToriRS_FrameOffer const GF_SW_OFFERS[]={
+    {.struct_size=sizeof(struct ToriRS_FrameOffer),.id="alpha",.title="Alpha",.canvas=TORIRS_FRAME_CANVAS_FIXED,.width=765,.height=503},
+    {.struct_size=sizeof(struct ToriRS_FrameOffer),.id="beta",.title="Beta",.canvas=TORIRS_FRAME_CANVAS_FIXED,.width=765,.height=503},
+    {.struct_size=sizeof(struct ToriRS_FrameOffer)}};
+static struct ToriRS_PluginDef const GF_SW_PROVIDER={.struct_size=sizeof(GF_SW_PROVIDER),.id="gf-two",.title="Two Offers",.version="3.0.0",
+    .frames=GF_SW_OFFERS,.callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_gameframe=gf_sw_on_gameframe}};
+static void test_gameframe_offer_switch(void)
+{
+    struct ToriRS_PluginEngine engine;
+    struct ToriRS_PluginHost* host;
+    memset(&g_engine,0,sizeof(g_engine));
+    g_screen_now=TORIRS_SCREEN_GAME;
+    engine=fake_engine();engine.widget_request=fake_widget_request;
+    host=PluginHost_New(&engine);
+    CHECK(PluginHost_Register(host,&GF_SW_PROVIDER)>=0,"a provider with two offers registers");
+    g_engine.frame_preference_present=1;g_engine.frame_migration_version=1;
+    snprintf(g_engine.frame_preference,sizeof(g_engine.frame_preference),"%s","gf-two/alpha");
+    gf_sw_log[0]='\0';
+    PluginHost_Start(host);
+    PluginHost_Layout(host,900,600);
+    CHECK(strcmp(gf_sw_log,"alpha:1")==0,"the preferred offer is provided and nothing was released first");
+    gf_sw_log[0]='\0';
+    CHECK(gf_sw_api && gf_sw_api->frame.select(gf_sw_api,"gf-two/beta")==TORIRS_RESULT_OK,
+          "the provider's other offer can be selected");
+    PluginHost_FrameStart(host,1,0);
+    PluginHost_Layout(host,900,600);
+    printf("GAMEFRAME_OFFER_SWITCH %s\n",gf_sw_log);
+    CHECK(strstr(gf_sw_log,"alpha:0")!=NULL,
+          "a change of offer inside one provider releases the outgoing frame");
+    CHECK(strstr(gf_sw_log,"beta:1")!=NULL,"and provides the incoming one");
+    gf_sw_log[0]='\0';
+    PluginHost_FrameStart(host,2,0);
+    PluginHost_Layout(host,900,600);
+    CHECK(strcmp(gf_sw_log,"beta:1")==0,
+          "and the pass after the switch dresses the lane again, with nothing left to release");
     PluginHost_Free(host);
 }
 static void test_widget_images(void)
@@ -4228,6 +4324,7 @@ main(void)
     test_world_hull_answers_its_refusals();
     test_world_tile_answers_its_refusal();
     test_gameframe_provider();
+    test_gameframe_offer_switch();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

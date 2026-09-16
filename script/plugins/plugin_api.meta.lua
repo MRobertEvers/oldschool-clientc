@@ -362,6 +362,7 @@ warn = nil
 ---@field named_id fun(kind: string, name: string): integer?
 ---@field tab_active fun(): integer
 ---@field tab_enabled fun(tab: integer): boolean
+---@field tab_flash_hidden fun(tab: integer): boolean
 ---@field tab_select fun(tab: integer): boolean
 
 ---@class torirs.ClientApi

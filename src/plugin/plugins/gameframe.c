@@ -1133,6 +1133,18 @@ struct FrameState
     int tab_active_shown;
     uint32_t tab_given_shown;
     /*
+     * Which tab's icon is DARK this instant, or -1.
+     *
+     * The tutorial's blink. Polled beside the two above and for the same
+     * reason -- it is a fact about the game and not an input the layer carries
+     * -- and it is the one of the three that moves on a CLOCK: the flagged
+     * tab's bit flips every ten cycles, twice a second, and each flip is an
+     * invalidation and a described opacity. Nothing else in this file changes
+     * on its own, so the cost of the blink is exactly the frames it blinks
+     * for. @see frame_poll_tabs.
+     */
+    int tab_flash_dark_shown;
+    /*
      * The viewport's incarnation, and whether it moved since the last
      * description.
      *
@@ -1485,17 +1497,30 @@ frame_poll_tabs(struct ToriRS_Api* api, struct FrameState* state)
 {
     int active;
     uint32_t given = 0;
+    int flash_dark = -1;
     bool moved;
 
     assert(api);
     assert(state);
     active = api->cache.tab_active(api);
     for( int tabno = 0; tabno < FRAME_TAB_COUNT; tabno++ )
+    {
         if( api->cache.tab_enabled(api, tabno) )
             given |= 1u << tabno;
-    moved = active != state->tab_active_shown || given != state->tab_given_shown;
+        /*
+         * At most one tab is ever flagged, so this records WHICH and stops
+         * asking -- the engine answers false for every tab that is not the
+         * flagged one, and fourteen reads of a fact about one tab would be
+         * thirteen reads of "no".
+         */
+        if( flash_dark < 0 && api->cache.tab_flash_hidden(api, tabno) )
+            flash_dark = tabno;
+    }
+    moved = active != state->tab_active_shown || given != state->tab_given_shown ||
+            flash_dark != state->tab_flash_dark_shown;
     state->tab_active_shown = active;
     state->tab_given_shown = given;
+    state->tab_flash_dark_shown = flash_dark;
     return moved;
 }
 
@@ -5016,11 +5041,17 @@ frame_describe_piece(
     /*
      * `trans` is the client's own sense: 0 opaque, 255 invisible. Porcelain's
      * is the other way up AND reserves zero for "unstated, therefore opaque",
-     * so a fully transparent piece cannot be described. No layout ships one --
-     * the resizable panel backing is the only tiled blit and it is 0 -- and a
-     * piece nobody can see would be a piece nobody should describe.
+     * so the fully transparent end of the range has a name of its own rather
+     * than a number that inverts on arrival.
+     *
+     * Which is not a theoretical tidy-up: the tutorial blink is a piece that
+     * is described at 255 and back again twice a second (@see the icon in
+     * frame_describe_chrome), and written as the subtraction alone it would
+     * be a stone whose icon never went out. The lit half is stated as 255 and
+     * not left unset for the mirror-image reason -- an opacity that FALLS to
+     * the unset value is a fade the layer records a finding against.
      */
-    item.opacity = 255 - trans;
+    item.opacity = trans >= 255 ? PORCELAIN_OPACITY_INVISIBLE : 255 - trans;
     describe->piece(describe, &item);
 }
 
@@ -5159,9 +5190,24 @@ frame_describe_chrome(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* de
         if( frame_art_size(ctx, t->stone.name ? t->stone : t->stone_pressed, &w, &h) )
             frame_describe_piece(describe, state->face_key[i], face, t->box.x, t->box.y, w, h, 0,
                                  PORCELAIN_EL(VIEWPORT), false, PORCELAIN_EL(NONE));
+        /*
+         * And the tutorial's BLINK, which is this icon going out rather than
+         * anything being drawn over it.
+         *
+         * Transparency and not a key that stops being described, unlike
+         * `given` above. The two look alike and the clock is what separates
+         * them: a tab is handed over once, so describing its icon or not costs
+         * one create; a flash flips every ten cycles, and a key described and
+         * dropped twice a second is a control created and destroyed twice a
+         * second -- which the layer counts, and which would put the icon back
+         * at the END of this plugin's draw order on every relight. The
+         * control stays; its opacity is what moves. @see FrameState::
+         * tab_flash_dark_shown.
+         */
         if( given && frame_art_size(ctx, t->icon, &w, &h) )
             frame_describe_piece(describe, state->icon_key[i], t->icon, t->icon_x, t->icon_y, w, h,
-                                 0, PORCELAIN_EL(VIEWPORT), false, PORCELAIN_EL(NONE));
+                                 t->tabno == state->tab_flash_dark_shown ? 255 : 0,
+                                 PORCELAIN_EL(VIEWPORT), false, PORCELAIN_EL(NONE));
     }
 }
 
@@ -5193,6 +5239,30 @@ frame_describe_surfaces(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* 
         struct PorcelainElementState native;
         bool has_members = false;
         bool surface_bound;
+        /*
+         * How far this surface is about to move, carried down to its members.
+         *
+         * A member's box is stated PARENT-LOCAL and the plan is in canvas
+         * coordinates, so the conversion needs the parent's origin -- and the
+         * only origin a watch carries is the one the tree has NOW, before the
+         * container move this same description states has been applied. Every
+         * member of a surface that moves is therefore written against the
+         * pre-move origin and lands at the plan's box plus the container's own
+         * displacement, until a later describe reads the settled tree and
+         * corrects it.
+         *
+         * Two frames of the open panel drawn beside the frame rather than in
+         * it, measured on the Stone Drawer at osrs239 765x503, where the
+         * container moves on every drawer open. Here it is the boot, the
+         * resize and the toplevel switch that move a container -- rarer, the
+         * same defect, and the same one line of arithmetic.
+         *
+         * The displacement is known right here, so the members are converted
+         * against the origin the container WILL have. Zero where the plan does
+         * not move the surface. @see the member loop below.
+         */
+        int surface_dx = 0;
+        int surface_dy = 0;
 
         for( int m = 0; m < FRAME_MEMBER_MAX; m++ )
             if( g_plan.member[s][m].placed )
@@ -5223,6 +5293,8 @@ frame_describe_surfaces(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* 
                 box.width = g_plan.surface[s].rect.width;
                 box.height = g_plan.surface[s].rect.height;
                 describe->move(describe, FRAME_SURFACE_ELEMENT[s], box, 0);
+                surface_dx = g_plan.surface[s].rect.x - native.box.x;
+                surface_dy = g_plan.surface[s].rect.y - native.box.y;
                 /*
                  * And OVER this frame's own chrome.
                  *
@@ -5288,8 +5360,10 @@ frame_describe_surfaces(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* 
             if( at->placed )
             {
                 struct ToriRS_WidgetBounds box;
-                box.x = at->rect.x - (member.box.x - member.local.x);
-                box.y = at->rect.y - (member.box.y - member.local.y);
+                /* The parent's origin AFTER the container move stated
+                 * above, not the one the tree still has. @see surface_dx. */
+                box.x = at->rect.x - (member.box.x + surface_dx - member.local.x);
+                box.y = at->rect.y - (member.box.y + surface_dy - member.local.y);
                 box.width = at->rect.width;
                 box.height = at->rect.height;
                 /* No raise here: a member is a CHILD of the surface, and the
@@ -5961,6 +6035,9 @@ frame_on_start(struct ToriRS_Api* api, void* state_ptr)
     state->api = api;
     state->chat_open = true;
     state->layout = -1;
+    /* Nothing is flashing until the poll says so; a zeroed field would mean
+     * "tab 0's icon is dark" and blank the combat stone for one fence. */
+    state->tab_flash_dark_shown = -1;
     state->declined_root = -1;
     state->logged_layout = -1;
     state->native_answered = -1;

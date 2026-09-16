@@ -4421,6 +4421,37 @@ app_plugin_node_tabno(struct UITreeComponent const* c)
 }
 
 /*
+ * The sidebar tab the game has FLAGGED to flash, or -1.
+ *
+ * Two sources and they are not alternatives: a dat1 lane flags the tab in the
+ * TUT_FLASH packet, which lands in `slots.flash_tab`; a cache lane flags it in
+ * a varbit its own `toplevel_flashicon` reads, which the profile names. Both
+ * are folded here so the two things that need the answer -- the FLASHING facet
+ * on a tab's element and `cache.tab_flash_hidden` for a frame that has
+ * replaced the stones -- cannot drift apart, and so neither of them names a
+ * lane.
+ *
+ * The off-by-one is the cache script's own: it computes the tab from
+ * `varbit - 1`, which is what makes 0 mean "nothing is flashing" rather than
+ * "tab 0 is". Subtracting it here is the same arithmetic on the same varbit,
+ * not a guess about the encoding.
+ *
+ * A lane whose profile declares no such varbit has no cache-side flag, which
+ * is a fact about the revision and not a gap in the answer.
+ */
+static int
+app_plugin_tab_flagged_flash(struct App* app)
+{
+    assert(app);
+    app_plugin_facet_ids(app);
+    if( app->slots.flash_tab >= 0 )
+        return app->slots.flash_tab;
+    if( app->plugin_facet_ids.varbit_sidebar_flash >= 0 )
+        return VarPManager_GetVarbit(&app->varps, app->plugin_facet_ids.varbit_sidebar_flash) - 1;
+    return -1;
+}
+
+/*
  * Lane-derived facets for one node: the single place that answers "what does
  * the GAME say about this thing" for a plugin that dresses it.
  *
@@ -4471,24 +4502,8 @@ app_plugin_widget_facets(struct App* app, int32_t idx)
             facets |= TORIRS_WIDGET_FACET_GIVEN;
         if( app_plugin_tab_active(app) == tabno )
             facets |= TORIRS_WIDGET_FACET_SELECTED;
-        /*
-         * The flash FLAG, not the blink. Two sources and they are not
-         * alternatives: the cache lane flags the tab in a varbit its own
-         * `toplevel_flashicon` reads, and a dat1 lane flags it in TUT_FLASH.
-         *
-         * The off-by-one is the cache script's own: it computes the tab from
-         * `varbit - 1`, which is what makes 0 mean "nothing is flashing"
-         * rather than "tab 0 is". Subtracting it here is the same arithmetic
-         * on the same varbit, not a guess about the encoding.
-         */
-        if( app->plugin_facet_ids.varbit_sidebar_flash >= 0 )
-        {
-            int const flagged =
-                VarPManager_GetVarbit(&app->varps, app->plugin_facet_ids.varbit_sidebar_flash) - 1;
-            if( flagged == tabno )
-                facets |= TORIRS_WIDGET_FACET_FLASHING;
-        }
-        if( app->slots.flash_tab == tabno )
+        /* The flash FLAG, not the blink. @see app_plugin_tab_flagged_flash. */
+        if( app_plugin_tab_flagged_flash(app) == tabno )
             facets |= TORIRS_WIDGET_FACET_FLASHING;
     }
 
@@ -5561,6 +5576,46 @@ app_plugin_tab_enabled(void* user, int tabno)
     return RS_UISlots_TabGiven(app, tabno);
 }
 
+/*
+ * Is this tab's icon dark right now?
+ *
+ * The blink the client's own sidebar draws, asked on behalf of a plugin
+ * gameframe that has replaced it. The flag is the lane's (@see
+ * app_plugin_tab_flagged_flash) and the PHASE is RS_UISlots_FlashDark's, on
+ * the same clock the builtin tab icons read -- so a provided frame and the
+ * chrome it stands in for are never lit on opposite halves of the cycle.
+ *
+ * A tab the player is ALREADY LOOKING AT does not blink, and that is the one
+ * rule here that is not simply the flag times the clock. Both lanes have it
+ * and neither states it the same way, which is why it is folded in rather
+ * than left to whoever asks:
+ *
+ *   dat1  selecting the tab clears `flash_tab` outright (@see
+ *         app_host_request's SET_SELECTED_TAB), and TUT_FLASH will not even
+ *         flag the open tab -- it moves the player off it first, because a
+ *         blink under an open panel is no instruction at all.
+ *   cache the varbit is the SERVER's and a client cannot clear it, so the
+ *         cache's own `[proc,toplevel_flashicon]` does this instead: `if
+ *         ($int4 = %varcint171)` shows the icon and highlights the stone
+ *         rather than pulsing it.
+ *
+ * Without this line the cache lane would keep blinking an icon the player had
+ * already opened, for the rest of the tutorial step, while the dat1 lane
+ * stopped -- the same content driving two different pictures.
+ */
+static int
+app_plugin_tab_flash_hidden(void* user, int tabno)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( tabno < 0 || app_plugin_tab_flagged_flash(app) != tabno )
+        return 0;
+    if( app_plugin_tab_active(app) == tabno )
+        return 0;
+    return RS_UISlots_FlashDark(app->logic_cycle);
+}
+
 static int
 app_plugin_stat(void* user, int skill, int* out_current, int* out_base)
 {
@@ -5875,6 +5930,7 @@ app_plugin_engine(struct App* app)
     engine.tab_active = app_plugin_tab_active;
     engine.tab_select = app_plugin_tab_select;
     engine.tab_enabled = app_plugin_tab_enabled;
+    engine.tab_flash_hidden = app_plugin_tab_flash_hidden;
     engine.stat = app_plugin_stat;
     engine.stat_xp = app_plugin_stat_xp;
     engine.skill_name = app_plugin_skill_name;

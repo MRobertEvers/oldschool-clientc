@@ -2279,6 +2279,38 @@ lt_draw_menu(struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h)
  * a frame late would never be drawn again. The incomplete flag and the retry
  * counter are what bring it back. @see lt_draw_cell.
  */
+/**
+ * script3043's "No loot to display." -- and the ground it stands on.
+ *
+ * The note used to be text alone. Every other band on this page carries its
+ * own thinbox and its own tiled plate, so an empty page was the one state
+ * whose colour came from whatever the strip happened to be composited over:
+ * the well's (55,46,34) in the rail's pane, and a cold (33,36,40) in the
+ * plugin window. That is the same defect the drop cells had -- a picture that
+ * borrows its host's backing has as many looks as it has hosts -- and it is
+ * fixed here the same way. @see lt_draw_source.
+ *
+ * The box is the full LT_HEAD_H that lt_strip_h reserves for this note, not
+ * script3043's 20, because the remaining 13 rows would be bare well again.
+ * The note's own baseline does not move.
+ */
+static void
+lt_draw_empty_note(
+    struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h, int top)
+{
+    assert(rt);
+    assert(buf);
+
+    lt_thinbox(buf, w, h, 0, top, w, LT_HEAD_H);
+    if( g_spine_px )
+        PluginDraw_Tile(
+            buf, w, h, LT_PLATE_INSET, top + LT_PLATE_INSET,
+            w - LT_PLATE_INSET * 2, LT_HEAD_H - LT_PLATE_INSET * 2,
+            g_spine_px, g_spine_w, g_spine_h, 0);
+    PluginDraw_Text(
+        buf, w, h, 4, top + 3, &g_text, "No loot to display.", LT_INK_HEAD);
+}
+
 static bool
 lt_paint_strip(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, int height)
 {
@@ -2302,9 +2334,7 @@ lt_paint_strip(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, in
         visible_sources += lt_source_visible(rt, i) ? 1 : 0;
 
     if( visible_sources == 0 )
-        PluginDraw_Text(
-            argb, width, height, 4, top + 3, &g_text, "No loot to display.",
-            LT_INK_HEAD);
+        lt_draw_empty_note(rt, argb, width, height, top);
     else if( g_drop_view )
     {
         struct LtItem drops[LT_SOURCES_MAX * 4];
@@ -2312,9 +2342,7 @@ lt_paint_strip(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, in
             rt, drops, (int)(sizeof(drops) / sizeof(drops[0])));
 
         if( n == 0 )
-            PluginDraw_Text(
-                argb, width, height, 4, top + 3,
-                &g_text, "No loot to display.", LT_INK_HEAD);
+            lt_draw_empty_note(rt, argb, width, height, top);
         /* The flat grid stands on the same plate a band's does, and for the
          * same reason: the two views show the same cells and must show them on
          * the same ground. @see lt_draw_source. The rect is lt_strip_h's own

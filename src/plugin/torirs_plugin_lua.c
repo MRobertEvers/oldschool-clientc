@@ -1587,6 +1587,7 @@ static int lua_cache_invoke(lua_State* L) { struct ToriRS_Api* a=lua_current_api
 static int lua_cache_named_id(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);int id;if(!a->cache.named_id(a,luaL_checkstring(L,1),luaL_checkstring(L,2),&id)){lua_pushnil(L);return 1;}lua_pushinteger(L,id);return 1; }
 static int lua_cache_tab_active(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushinteger(L,a->cache.tab_active(a));return 1; }
 static int lua_cache_tab_enabled(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushboolean(L,a->cache.tab_enabled(a,(int)luaL_checkinteger(L,1)));return 1; }
+static int lua_cache_tab_flash_hidden(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushboolean(L,a->cache.tab_flash_hidden(a,(int)luaL_checkinteger(L,1)));return 1; }
 static int lua_cache_tab_select(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushboolean(L,a->cache.tab_select(a,(int)luaL_checkinteger(L,1)));return 1; }
 
 /* ------------------------------------------------------------- api.client */
@@ -3261,7 +3262,7 @@ static struct LuaFn const LUA_PANEL_FNS[] = {
 static struct LuaFn const LUA_CACHE_FNS[] = {
     {"frame_root",lua_cache_frame_root},{"varbit",lua_cache_varbit},{"varp",lua_cache_varp},
     {"component_rect",lua_cache_component_rect},{"invoke",lua_cache_invoke},{"named_id",lua_cache_named_id},
-    {"tab_active",lua_cache_tab_active},{"tab_enabled",lua_cache_tab_enabled},{"tab_select",lua_cache_tab_select},{NULL,NULL}
+    {"tab_active",lua_cache_tab_active},{"tab_enabled",lua_cache_tab_enabled},{"tab_flash_hidden",lua_cache_tab_flash_hidden},{"tab_select",lua_cache_tab_select},{NULL,NULL}
 };
 static struct LuaFn const LUA_CLIENT_FNS[] = {
     {"display_get",lua_client_display_get},{"display_set",lua_client_display_set},

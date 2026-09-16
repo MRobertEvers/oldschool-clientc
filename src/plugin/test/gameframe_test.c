@@ -144,6 +144,10 @@ static struct
     /** A tab the frame HAS and the server has not handed over, or -1. The
      *  tutorial's state: the mount exists, and cache.tab_enabled says no. */
     int ungiven_tab;
+    /** The tab whose icon the engine says is in the DARK half of the tutorial
+     *  blink, or -1. The engine folds the flag and the half-cycle together,
+     *  so this is what a frame sees change twice a second. */
+    int flash_dark_tab;
 } g_frame;
 
 static void
@@ -181,6 +185,13 @@ fake_tab_enabled(void* u, int tabno)
 {
     (void)u;
     return tabno != g_frame.ungiven_tab;
+}
+
+static int
+fake_tab_flash_hidden(void* u, int tabno)
+{
+    (void)u;
+    return tabno >= 0 && tabno == g_frame.flash_dark_tab;
 }
 
 static int
@@ -744,8 +755,17 @@ declare(int w, int h)
  * error instead. The desktop frame owns sixty-three children of its own on
  * top of everything the lane mounts, and the harness rebuilds the tree several
  * times over one run.
+ *
+ * One set per PROVISION and not one per incarnation, which is what raised this
+ * from 256. A slot is never handed back inside an incarnation -- fw_add only
+ * ever appends, and `alive` is what a destroy clears -- so the count is the
+ * number of nodes the run has ever asked for between rebuilds. Selecting a
+ * second layout is now a release and a provide (@see
+ * plugin_frame_engine_activate), so the eight layout states this file walks
+ * spend eight sets of owned children rather than reusing one, and 256 ran out
+ * in the middle of the third.
  */
-#define FW_MAX 256
+#define FW_MAX 1024
 struct FakeWidget
 {
     int alive;
@@ -1289,6 +1309,7 @@ main(void)
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
+    e.tab_flash_hidden = fake_tab_flash_hidden;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -1333,6 +1354,7 @@ main(void)
     /* asset_read answers into the host it is reading for, and the engine user
      * pointer is the only channel it has -- so the host is built twice. */
     g_frame.ungiven_tab = -1;
+    g_frame.flash_dark_tab = -1;
     g_frame.active_tab = -1;
     g_lane_game = TORIRS_GAME_RS2; /* rs289lc */
     fw_build(/*oldschool=*/0);
@@ -1523,6 +1545,42 @@ main(void)
     CHECK(owned("icon.03") == NULL, "a tab the server has not handed over shows no icon");
     CHECK(owned("face.03") != NULL, "and its stone keeps the control it was made with");
     g_frame.ungiven_tab = -1;
+    frame_tick();
+
+    /* ---- 2a. the tutorial blink ---------------------------------------- */
+    /*
+     * The server points at a tab by taking its icon AWAY for half of every
+     * twenty cycles -- there is no highlight sprite, the gap is the signal --
+     * and a frame that has replaced the lane's stones has inherited that.
+     *
+     * Two things are pinned and the second is the one worth having. The icon
+     * must go out: without it a provided frame simply ignores the flash and
+     * the tutorial points at nothing. And it must go out WITHOUT the control
+     * being destroyed: a key described and dropped on the blink's own clock is
+     * a create and a remove twice a second, and the relit icon would be
+     * remade at the end of this plugin's draw order rather than where the
+     * description put it.
+     *
+     * Mutation: state the icon's transparency unconditionally as 0 in
+     * frame_describe_chrome and the first line goes red with a tutorial that
+     * never blinks; describe the icon only while it is lit and the third goes
+     * red with a control that is remade on every flip.
+     */
+    {
+        int const created = g_w_count;
+        g_frame.flash_dark_tab = 3;
+        frame_tick();
+        CHECK(owned("icon.03") && owned("icon.03")->opacity == 0,
+              "the flagged tab's icon goes out for the dark half of the blink");
+        CHECK(owned("icon.04") && owned("icon.04")->opacity == 255,
+              "and no other tab's icon moves with it");
+        g_frame.flash_dark_tab = -1;
+        frame_tick();
+        CHECK(owned("icon.03") && owned("icon.03")->opacity == 255,
+              "it comes back for the lit half");
+        CHECK(g_w_count == created,
+              "and the blink is an opacity on one control, not a control made and destroyed twice a second");
+    }
 
     /* ---- 2b. a remount: the roles come back as new nodes ---------------- */
     {

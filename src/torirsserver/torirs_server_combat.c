@@ -1814,9 +1814,17 @@ ToriRSServer_CombatMultiway(const struct ToriRSServerNpc* npc)
     return ToriRSServer_ContentMultiway(npc->x, npc->z, npc->level);
 }
 
-/** Is this npc a live thing a claim can still be about? A corpse frees both
- *  sides at once, which is what lets a player swing at the next monster on the
- *  tick the last one died rather than eight ticks later. */
+/*
+ * Is this npc a live thing a claim can still be about?
+ *
+ * A corpse frees both sides at once, which is what lets a player swing at the
+ * next monster on the tick the last one died rather than eight ticks later.
+ *
+ * A slot outside the pool answers "no" rather than asserting, and that is the
+ * sentinel case rather than a tolerated caller bug: this is a *predicate* over
+ * a slot number, and `player->combat_claim_npc` is -1 for a player who holds no
+ * claim. "Is slot -1 claimable" has an answer, and it is no.
+ */
 static int
 claimable_npc(const struct ToriRSServer* srv, int slot)
 {
@@ -1926,6 +1934,10 @@ ToriRSServer_CombatClaim(
 
     assert(srv);
     assert(player);
+    /* A dead or dying target is a legitimate runtime state here rather than a
+     * caller bug: content can kill the npc inside the same swing that is about
+     * to re-arm `p_opnpc(2)` on it, and a claim on a corpse would be read by
+     * nothing (`claimable_npc` gates every reader too). */
     if( !claimable_npc(srv, slot) )
         return;
     npc = &srv->npcs[slot];

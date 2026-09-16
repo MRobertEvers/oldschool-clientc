@@ -362,6 +362,11 @@ struct ToriRS_PluginEngine
     int (*tab_enabled)(
         void* user,
         int tabno);
+    /** Nonzero while that tab's icon is in the DARK half of the tutorial
+     *  blink. @see tab_flash_hidden. */
+    int (*tab_flash_hidden)(
+        void* user,
+        int tabno);
     /** One skill's boosted and base level. @see stat. */
     int (*stat)(
         void* user,

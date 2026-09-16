@@ -1402,6 +1402,18 @@ api_tab_enabled(
     return ctx->host->engine.tab_enabled(ctx->host->engine.user, tabno);
 }
 
+static int
+api_tab_flash_hidden(
+    struct PluginContext* ctx,
+    int tabno)
+{
+    assert(ctx);
+    /* A tab number a plugin read off its own stone table, like tab_select's. */
+    if( tabno < 0 )
+        return 0;
+    return ctx->host->engine.tab_flash_hidden(ctx->host->engine.user, tabno);
+}
+
 /* -- layout regions ------------------------------------------------------- */
 
 struct PluginRect
@@ -4856,6 +4868,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->tab_active);
     assert(engine->tab_select);
     assert(engine->tab_enabled);
+    assert(engine->tab_flash_hidden);
     assert(engine->local_player);
     assert(engine->npc_next);
     assert(engine->npc_by_slot);
@@ -5291,12 +5304,34 @@ plugin_frame_engine_activate(
         host->layout_fixed_h == height )
         return;
 
-    /* The provider that held the frame hears the release while it still runs;
-     * its teardown, when selection drops it, follows. */
+    /*
+     * The provider that held the frame hears the release while it still runs;
+     * its teardown, when selection drops it, follows.
+     *
+     * On a change of OFFER, not only on a change of PROVIDER. The condition
+     * was `previous != owner`, and gameframe-layout offers three of the four
+     * desktop frames -- so picking Classic Fixed while Modern Resizable stood
+     * was a provision with no release in front of it, and the incoming layout
+     * was dressed on top of the outgoing one instead of on the lane.
+     *
+     * What that looks like is not a stale piece here and there. An owned
+     * control is drawn in the order the engine made it and a claimed native
+     * one keeps its place in the tree, so the frame that comes up second has
+     * its whole surround appended AFTER the fourteen tab stones: the sidebar's
+     * own rock painted over its tabs and its inventory, the chat housing over
+     * the pack's bar, and every selected tab wearing the uncut source stone
+     * because the ten re-cut ones no longer fit the layer's image table beside
+     * the outgoing layout's. Booting into the same frame was always right,
+     * which is what made it read as a defect in Classic Fixed itself.
+     *
+     * The release is the provider's own undressing path -- one empty describe,
+     * fenced and committed -- so the provision that follows starts from the
+     * lane, which is the state a boot hands it.
+     */
     {
         int const previous = plugin_frame_owner(host);
-        if( previous >= 0 && previous != owner && host->plugins[previous].v2 &&
-            host->plugins[previous].v2->gameframe_provided )
+        if( previous >= 0 && host->frame_active_entry != entry_index &&
+            host->plugins[previous].v2 && host->plugins[previous].v2->gameframe_provided )
             plugin_gameframe_release(host, previous);
     }
     host->frame_selection_epoch++;

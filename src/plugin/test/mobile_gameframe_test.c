@@ -87,6 +87,13 @@ static int g_draw_surface;
  *  private header because there is not one. @see mobile_gameframe.c. */
 #define MOBILE_TEST_MARGIN 4
 
+/** MOBILE_TOGGLE_W / MOBILE_TOGGLE_H / MOBILE_TOGGLE_GAP, mirrored the same
+ *  way: the Classic family's switch plate, which is the one every lane here
+ *  wears -- `art` defaults to Auto and Auto is Classic on every lane. */
+#define MOBILE_TEST_TOGGLE_W 36
+#define MOBILE_TEST_TOGGLE_H 25
+#define MOBILE_TEST_TOGGLE_GAP 4
+
 /* Fourteen sidebar mounts and four chat buttons: a member number is the
  * role's OWN numbering, so the table has to be as wide as the widest role. */
 
@@ -111,6 +118,10 @@ static struct
     /** A tab the frame HAS and the server has not handed over, or -1. The
      *  tutorial's state: the mount exists, and cache.tab_enabled says no. */
     int ungiven_tab;
+    /** The tab whose icon the engine says is in the DARK half of the tutorial
+     *  blink, or -1. The engine folds the flag and the half-cycle together,
+     *  so this is what a frame sees change twice a second. */
+    int flash_dark_tab;
 } g_frame;
 
 static void
@@ -168,6 +179,13 @@ fake_tab_enabled(void* u, int tabno)
 {
     (void)u;
     return tabno != g_frame.ungiven_tab;
+}
+
+static int
+fake_tab_flash_hidden(void* u, int tabno)
+{
+    (void)u;
+    return tabno >= 0 && tabno == g_frame.flash_dark_tab;
 }
 
 static int
@@ -665,6 +683,18 @@ static void fw_canvas(int id, int* x, int* y)
     *x = n->x; *y = n->y;
     if( n->owner && n->parent >= 0 ) { int px, py; fw_canvas(n->parent, &px, &py); *x += px; *y += py; }
 }
+/* @see PLUGIN_WIDGET_POSITION: a moved native node drags its native subtree. */
+static void fw_shift_native_children(int id, int dx, int dy)
+{
+    if( dx == 0 && dy == 0 )
+        return;
+    for( int i = 0; i < g_w_count; i++ )
+        if( g_w[i].alive && !g_w[i].owner && g_w[i].parent == id )
+        {
+            g_w[i].x += dx; g_w[i].y += dy;
+            fw_shift_native_children(i, dx, dy);
+        }
+}
 static void fw_clear_edits(struct FakeWidget* n)
 {
     n->hidden = 0; n->moved = 0; n->art = -1; n->mask = -2; n->anchor_target = -1; n->anchor_relation = 0;
@@ -713,16 +743,19 @@ fw_build(int oldschool)
      * frame ships for there was nothing there to hide. @see the checks on the
      * mounts themselves in scenario 1.
      *
-     * The mounts stay ROOT children on both, which is also what the 2004
-     * layout states. A cache lane parents them under the container, and this
-     * fixture not modelling that is deliberate: it makes every hide the frame
-     * relies on an explicit one, so a hide inherited from a parent can never
-     * stand in for one the frame failed to state.
+     * The mounts stay ROOT children on the 2004 lane, which is what that
+     * layout states. A cache lane parents them under the container and this
+     * fixture says so, because their PLACEMENT depends on it: a member's box
+     * is stated parent-local, so a frame that moves the container and its
+     * members in one description has to convert the members against the
+     * origin the container is about to have. Modelled as position only --
+     * `hidden` is per node here and nothing inherits it -- so every hide the
+     * frame relies on is still an explicit one and a hide inherited from a
+     * parent can never stand in for one the frame failed to state.
      */
-    if( oldschool )
-        fw_add(root, "sidebar", -1, 553, 205, 190, 261);
+    int const mount_parent = oldschool ? fw_add(root, "sidebar", -1, 553, 205, 190, 261) : root;
     for( int i = 0; i < 14; i++ )
-        if( i != g_missing_sidetab ) fw_add(root, "sidebar", i, 553, 205, 190, 261);
+        if( i != g_missing_sidetab ) fw_add(mount_parent, "sidebar", i, 553, 205, 190, 261);
     fw_add(root, "main_modal", -1, 4, 4, 512, 334);
     if( !oldschool )
         for( int i = 0; i < 4; i++ ) fw_add(root, "chat_buttons", i, 6 + i * 130, 467, 100, 32);
@@ -730,10 +763,26 @@ fw_build(int oldschool)
     {
         fw_add(root, "orbs", -1, 521, 4, 236, 163);
         for( int i = 0; i < 3; i++ ) fw_add(root, "orbs", i, 700 + i, 50, 34, 34);
-        /* The desktop toplevels draw a parchment here; the mobile one does
+        /*
+         * The desktop toplevels draw a parchment here; the mobile one does
          * not, and that is the whole of why a re-skin lands on one and is
-         * refused on the other. @see g_backing_has_art. */
-        g_w[fw_add(root, "chat_backing", -1, 0, 338, 519, 142)].graphic = g_backing_has_art;
+         * refused on the other. @see g_backing_has_art.
+         *
+         * INSET inside the pack horizontally, at the capture's own numbers.
+         * The same 765x503 stone601 capture the row below is taken from
+         * measured `chat_backing` 461 wide at x=58 while the pack is 519 wide
+         * at x=0 -- the backing is the message area, not the block. The fake
+         * kept it at x=0 and 519 wide, which is the pack's box wearing the
+         * backing's name, and every piece this frame positions FROM the
+         * backing -- the torn sheet, and now the two switches above it -- was
+         * therefore placed against a left edge the lane does not have.
+         *
+         * The rows stay this toplevel's: the capture is the mobile top, whose
+         * filter row is on top and whose backing is bottom-anchored to the
+         * canvas floor, and the fixture models a bar-at-the-bottom top so that
+         * mobile_chat_bar_on_top has a lane that answers no.
+         */
+        g_w[fw_add(root, "chat_backing", -1, 58, 338, 461, 142)].graphic = g_backing_has_art;
         /*
          * The filter row and the picture it draws first, at the two boxes the
          * LANE states -- which are not the same width, and that is the point.
@@ -877,7 +926,16 @@ fake_widget_request(void* u, uint64_t owner, struct PluginWidgetRequest* r)
     case PLUGIN_WIDGET_REVALIDATE: return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_POSITION:
         if( n->owner ) { n->x = r->a; n->y = r->b; }
-        else { int px = n->parent >= 0 ? g_w[n->parent].x : 0, py = n->parent >= 0 ? g_w[n->parent].y : 0; n->x = px + r->a; n->y = py + r->b; }
+        else
+        {
+            int px = n->parent >= 0 ? g_w[n->parent].x : 0, py = n->parent >= 0 ? g_w[n->parent].y : 0;
+            /* A native node's children TRAVEL with it. Native boxes are stored
+             * in canvas coordinates here, so the subtree is shifted by hand --
+             * and without it a container could be moved out from under its own
+             * members and the fixture would report them still in it. */
+            fw_shift_native_children(id, px + r->a - n->x, py + r->b - n->y);
+            n->x = px + r->a; n->y = py + r->b;
+        }
         n->moved = 1; return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_SIZE: n->w = r->a; n->h = r->b; n->moved = 1; return TORIRS_CONTRACT_OK;
     case PLUGIN_WIDGET_HIDDEN: n->hidden = r->a ? 1 : 0; return TORIRS_CONTRACT_OK;
@@ -1131,6 +1189,7 @@ main(void)
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
+    e.tab_flash_hidden = fake_tab_flash_hidden;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -1173,6 +1232,7 @@ main(void)
     e.widget_request = fake_widget_request;
 
     g_frame.ungiven_tab = -1;
+    g_frame.flash_dark_tab = -1;
     g_frame.active_tab = -1;
     g_lane_game = TORIRS_GAME_RS2; /* rs289lc */
     fw_build(/*oldschool=*/0);
@@ -1489,6 +1549,35 @@ main(void)
     CHECK(owned("icon.04") != NULL && owned("tab.04") && strcmp(owned("tab.04")->op, "Select") == 0,
           "and the icon and the row come back when the server hands it over");
 
+    /*
+     * The tutorial's BLINK, which is the same icon going out -- and it is NOT
+     * the same mechanism as the line above.
+     *
+     * "Not handed over" is answered once per tutorial step and costs one
+     * create; the blink flips every ten cycles, and a key described and
+     * dropped on that clock is a control made and destroyed twice a second,
+     * remade at the end of this plugin's draw order on every relight. So the
+     * rock's icon is dimmed, not dropped, and both halves of that are worth a
+     * line.
+     *
+     * MUTATION: state the icon's transparency as 0 unconditionally in
+     * mobile_describe_chrome. Red: a tutorial that points at nothing.
+     */
+    {
+        int const created = g_w_count;
+        g_frame.flash_dark_tab = 4;
+        declare_after_press(M_W, M_H);
+        CHECK(owned("icon.04") && owned("icon.04")->opacity == 0,
+              "the flagged tab's icon goes out for the dark half of the blink");
+        CHECK(owned("icon.03") && owned("icon.03")->opacity == 255,
+              "and no other rock's icon moves with it");
+        g_frame.flash_dark_tab = -1;
+        declare_after_press(M_W, M_H);
+        CHECK(owned("icon.04") && owned("icon.04")->opacity == 255, "it comes back for the lit half");
+        CHECK(g_w_count == created,
+              "and the blink is an opacity on one control, not a control made and destroyed twice a second");
+    }
+
     /* ---- 3. the chat switch --------------------------------------------- */
     press("chat-toggle");
     declare_after_press(M_W, M_H);
@@ -1530,7 +1619,61 @@ main(void)
               "the OldSchool block's last row is one margin above the canvas floor");
     }
     CHECK(placed("orbs", -1, 829 - 53, 12 + 2, 207, 197) || native("orbs", -1)->moved, "the orb block is placed beside the map");
-    CHECK(owned_at("chat-toggle", 439, 402), "the switches take the far end of the strip on this lane");
+    /*
+     * FLUSH WITH THE PARCHMENT, on the lane where the paper is not at the
+     * pack's own left edge.
+     *
+     * The pair operates the block below it, so it lines up with that block --
+     * and on this lane the block's first column of paper is the BACKING's,
+     * 58 px inside a pack that starts at 0. At the frame's own margin the two
+     * switches stood 54 px clear of the sheet they hide, over the world.
+     *
+     * Stated against the backing's box rather than as a coordinate, because a
+     * coordinate would pass just as well against a fixture that had put the
+     * backing at the pack's edge -- which is exactly what this fixture used to
+     * do. @see fw_build.
+     *
+     * MUTATION: drop the `oldschool` arm in mobile_layout that raises
+     * `toggle_x` to the backing. Red: the pair is back at the margin.
+     */
+    {
+        struct FakeWidget const* back = native("chat_backing", -1);
+        int const gap = MOBILE_TEST_TOGGLE_W + MOBILE_TEST_TOGGLE_GAP;
+        CHECK(back && owned_at("chat-toggle", back->x, 402) &&
+                  owned_at("keyboard-toggle", back->x + gap, 402),
+              "the switches line up with the chat backing's left edge, the keys beside them");
+    }
+    /*
+     * And they stay there with the sheet DOWN.
+     *
+     * The switch that brings the chat back is the one piece that must not move
+     * when the chat goes: a control the player has just pressed sliding 54 px
+     * sideways under the finger is worse than the one it used to have at the
+     * far end. It drops to the floor, which is the whole of what the sheet
+     * being down changes, and keeps its column.
+     *
+     * A hide is not an unbinding -- the backing keeps its watch and its box,
+     * and a box that reads zero falls back to the last good one -- so the
+     * column is still there to be read with nothing on screen to read it off.
+     * @see mobile_chat_backing.
+     *
+     * MUTATION: place the pair from the backing only while `chat_visible` in
+     * mobile_layout. Red: putting the sheet away moves the switch sideways.
+     */
+    {
+        struct FakeWidget const* back = native("chat_backing", -1);
+        int const left = back ? back->x : -1;
+
+        press("chat-toggle");
+        declare_after_press(M_W, M_H);
+        CHECK(left > 0 && owned("chat-toggle") &&
+                  owned_at("chat-toggle", left,
+                           M_H - MOBILE_TEST_MARGIN - MOBILE_TEST_TOGGLE_H),
+              "putting the sheet away drops the switch to the floor and does not move it sideways");
+        press("chat-toggle");
+        declare_after_press(M_W, M_H);
+        CHECK(owned_at("chat-toggle", left, 402), "and bringing it back puts the switch back");
+    }
     CHECK(owned_count("icon.") == 14, "every stone wears rev-239's icon");
     frame_tick();
     CHECK(native("chat_bar", -1)->art >= 0 && native("chat_backing", -1)->art >= 0 && !native("chat_backing", -1)->hidden,
@@ -1662,6 +1805,48 @@ main(void)
         CHECK(owned("pack-sheet") != NULL, "and the torn sheet behind it is still there");
         g_backing_has_art = 1;
     }
+    /*
+     * The panel opens IN the drawer, on the first frame and not the third.
+     *
+     * A member's box is stated parent-local and the plan is in canvas
+     * coordinates, so the conversion needs the container's origin -- and on
+     * this lane the container is one the frame is MOVING in the same
+     * description. Read before that move lands, the origin is the lane's, and
+     * every mount is written the container's own displacement away from the
+     * drawer: the open panel's item icons painted beside the rail, over the
+     * world, until a later describe read the settled tree and put them right.
+     * The lane sits the container and its mounts at one box, and so does the
+     * plan, so the two are the same rectangle or the frame got it wrong.
+     *
+     * Asked one fence after the tap, because the third fence is right either
+     * way and the flash is the whole defect.
+     *
+     * MUTATION: drop `surface_dx`/`surface_dy` from the member conversion in
+     * mobile_describe_surfaces. Red: the mount lands at the plan's box plus
+     * the container's displacement, 72 px left and 33 below the drawer.
+     */
+    {
+        fw_build(/*oldschool=*/1);
+        g_frame.active_tab = -1;
+        PluginHost_WidgetsChanged(g_host, 77, 9);
+        declare(M_W, M_H);
+        press("tab.03");
+        g_frame.active_tab = 3;
+        /* ONE fence, which is the app's own next frame and the only one the
+         * flash is visible on: `declare` drives twenty and the third is right
+         * whether or not the conversion is. */
+        frame_tick();
+        PluginHost_Layout(g_host, M_W, M_H);
+        {
+            struct FakeWidget const* const drawer = native("sidebar", -1);
+            struct FakeWidget const* const mount = native("sidebar", 3);
+            CHECK(drawer && mount && drawer->moved && mount->moved,
+                  "the drawer and the panel it opens on are both placed");
+            CHECK(drawer && mount && mount->x == drawer->x && mount->y == drawer->y,
+                  "the open panel sits on the drawer the same frame the drawer moves");
+        }
+        declare(M_W, M_H);
+    }
 
     /* ---- 7. the things the apply pass could not see --------------------- */
     /*
@@ -1779,7 +1964,7 @@ main(void)
         CHECK(owned("pack-sheet") != NULL, "the sheet is up before the view switch");
         if( old_backing >= 0 )
             g_w[old_backing].alive = 0;
-        fresh = fw_add(0, "chat_backing", -1, 0, 338, 0, 0);
+        fresh = fw_add(0, "chat_backing", -1, 58, 338, 0, 0);
         g_w[fresh].graphic = 1;
         frame_tick();
         CHECK(owned("pack-sheet") != NULL,
@@ -1787,7 +1972,7 @@ main(void)
         frame_tick();
         CHECK(owned("pack-sheet") != NULL, "and keeps it on the fence after");
         /* And the moment the lane measures it, the live box wins again. */
-        g_w[fresh].w = 519;
+        g_w[fresh].w = 461;
         g_w[fresh].h = 142;
         frame_tick();
         CHECK(owned("pack-sheet") && owned("pack-sheet")->img_h > 0,

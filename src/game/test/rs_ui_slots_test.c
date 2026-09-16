@@ -309,6 +309,36 @@ main(
         printf("PASS: TabGiven reads an unresolved sidetab_<n> as taken away\n");
     }
 
+    /*
+     * The blink's PHASE, which two lanes now share.
+     *
+     * The tutorial points at a tab by not drawing its icon for half of every
+     * twenty client cycles (reference drawSidebarIcons: `tutFlashIcon !== n ||
+     * loopCycle % 20 < 10`). A dat1 lane learns which tab from TUT_FLASH and a
+     * cache lane from a varbit, but there is only one HALF-CYCLE, and a plugin
+     * gameframe that has replaced the client's own stones reads it through
+     * `cache.tab_flash_hidden` -- so the two must land on the same ten ticks or
+     * a provided frame blinks out of step with the chrome it stands in for.
+     * This is the one definition both of them go through.
+     */
+    {
+        app.slots.flash_tab = 4;
+        TEST_CHECK(!RS_UISlots_FlashDark(0));
+        TEST_CHECK(!RS_UISlots_FlashDark(9));
+        TEST_CHECK(RS_UISlots_FlashDark(10));
+        TEST_CHECK(RS_UISlots_FlashDark(19));
+        TEST_CHECK(!RS_UISlots_FlashDark(20));
+        TEST_CHECK(RS_UISlots_TabFlashHidden(&app.slots, 4, 10));
+        TEST_CHECK(!RS_UISlots_TabFlashHidden(&app.slots, 4, 0));
+        /* Every tab that is not the flagged one, whatever the cycle: a caller
+         * walking fourteen stones asks about all of them. */
+        TEST_CHECK(!RS_UISlots_TabFlashHidden(&app.slots, 3, 10));
+        TEST_CHECK(!RS_UISlots_TabFlashHidden(&app.slots, -1, 10));
+        app.slots.flash_tab = -1;
+        TEST_CHECK(!RS_UISlots_TabFlashHidden(&app.slots, 4, 10));
+        printf("PASS: the tutorial blink is ten cycles lit and ten dark, on the flagged tab alone\n");
+    }
+
     App_Shutdown(&app);
     printf("ALL PASS\n");
     return 0;

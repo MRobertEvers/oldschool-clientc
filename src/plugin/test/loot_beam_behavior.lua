@@ -291,16 +291,13 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     local defaults = { tier = 'high', style = 'modern', value_mode = 'alch',
         low_value = '20000', medium_value = '100000', high_value = '1000000',
         insane_value = '10000000', low_color = '#66B2FF', medium_color = '#99FF99',
-        high_color = '#FF9600', insane_color = '#FF66B2' }
-    assert(#product.config == 11, 'eleven rows: three choices, four values, four colours')
+        high_color = '#FF9600', insane_color = '#FF66B2', spin = '90' }
+    assert(#product.config == 12, 'twelve rows: three choices, four values, four colours, a spin')
     for _, row in ipairs(product.config) do
         assert(defaults[row.key] == row.default, 'shipped default for ' .. row.key)
         defaults[row.key] = nil
     end
-    assert(next(defaults) == nil, 'every declared row is one of the eleven')
-    for _, row in ipairs(product.config) do
-        assert(row.key ~= 'spin', 'no spin row: the beam stands still, see the plugin header')
-    end
+    assert(next(defaults) == nil, 'every declared row is one of the twelve')
     -- The four value rows are the four porcelain.tiers_from_config reads, by
     -- the names it reads them under. A rename here silently disarms every
     -- tier: the verb would answer zeros and the zero gate would turn all four
@@ -972,29 +969,58 @@ return { id = 'loot-beam-behavior', on_start = function(host)
         'the models survive a world load: they are geometry')
 
     ----------------------------------------------------------------------
-    -- 15. a beam is placed ONCE, and the plugin is off the frame boundary
+    -- 15. the spin: the arithmetic, the per-tile phase, its stability across
+    --     a rebuild, and the early return when it is off
     --
-    -- The spin was removed with its config row (see the plugin header: every
-    -- yaw rate beats against the camera orbit somewhere, and this one beat
-    -- against the rate a player actually uses). What is asserted now is the
-    -- consequence -- there is no frame callback at all, so a beam standing in
-    -- the world costs nothing per frame, and its position is written on the
-    -- tick that placed it and on no other.
+    -- A beam TURNS. This section exists because the spin was once deleted
+    -- outright over the report that an orbiting camera cancels it -- which it
+    -- does, and which the plugin header answers -- and the deletion reached
+    -- every player who was not orbiting. What is pinned here is the motion
+    -- itself, so the next removal fails a test instead of shipping.
     ----------------------------------------------------------------------
-
-    assert(product.on_frame_start == nil,
-        'no frame callback: nothing has to happen per frame once a beam is placed')
 
     start()
     config.tier, config.low_value = 'low', 1000
     product.on_config_changed(api, 'low_value')
     stacks = { stack(1127, 3210, 3424, 200000), stack(1127, 3211, 3424, 200000) }
     product.on_item_spawn(api, {}); tick()
-    assert(beams_up() == 2, 'two beams stand')
+    local phase_a = (3210 * 137 + 3424 * 311) % 2048
+    local phase_b = (3211 * 137 + 3424 * 311) % 2048
+    assert(phase_a ~= phase_b,
+        'neighbouring tiles must not turn in lockstep, or they read as one rigid object')
     mark = #calls
-    tick(); tick(); tick()
-    assert(since(mark, 'instance_position') == 0,
-        'a placed beam is not restated: the ticks after it write no position')
+    product.on_frame_start(api, { now_ms = 1000 })
+    assert(since(mark, 'instance_position') == 2, 'one yaw per beam per frame')
+    local turn = (1000 * 90 * 2048) // 360000
+    local yaws = {}
+    yaws[args(mark, 'instance_position', 1)[7]] = true
+    yaws[args(mark, 'instance_position', 2)[7]] = true
+    assert(yaws[(turn + phase_a) % 2048] and yaws[(turn + phase_b) % 2048],
+        '2048 units to a turn, spin degrees to a second, plus the tile phase')
+    -- The yaw MOVES between frames. Every assertion above holds for a beam
+    -- pinned at one angle forever, so without this one the whole section
+    -- passes on a plugin that has stopped turning.
+    mark = #calls
+    product.on_frame_start(api, { now_ms = 2000 })
+    assert(args(mark, 'instance_position', 1)[7] ~= (turn + phase_a) % 2048 and
+           args(mark, 'instance_position', 1)[7] ~= (turn + phase_b) % 2048,
+        'a later frame is a different yaw: the beam is turning, not standing')
+    -- A rebuild must not move the phase: frame_ms alone would, and every beam
+    -- would jump on the tick that rebuilt it.
+    product.on_item_changed(api, {}); tick()
+    mark = #calls
+    product.on_frame_start(api, { now_ms = 1000 })
+    yaws = {}
+    yaws[args(mark, 'instance_position', 1)[7]] = true
+    yaws[args(mark, 'instance_position', 2)[7]] = true
+    assert(yaws[(turn + phase_a) % 2048] and yaws[(turn + phase_b) % 2048],
+        'the phase is the TILE, so it is the same across a rebuild')
+
+    config.spin = 0
+    mark = #calls
+    product.on_frame_start(api, { now_ms = 2000 })
+    assert(names(mark) == '', 'spin off returns before the walk and costs one config read')
+    config.spin = 90
 
     ----------------------------------------------------------------------
     -- 16. teardown
@@ -1013,8 +1039,8 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     -- every, tick, tier and finding is a trap above, so this run asserts the
     -- whole of "an unchanged description costs nothing" by surviving -- no
     -- describe, no fence, no commit, no setter, no draw_context -- and the
-    -- counts below say what it does cost: one forwarded logic tick, and
-    -- nothing else at all. There is no frame callback left to drive.
+    -- counts below say what it does cost: one forwarded logic tick, and one
+    -- yaw per beam per frame, which is the animation itself.
     ----------------------------------------------------------------------
 
     start()
@@ -1027,6 +1053,7 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     mark = #calls
     for i = 1, 60 do
         tick()
+        product.on_frame_start(api, { now_ms = i * 20 })
     end
     assert(since(mark, 'porcelain.tick') == 60, 'one forwarded tick per logic tick')
     assert(since(mark, 'instance_create') == 0, 'and not one object made')
@@ -1035,8 +1062,8 @@ return { id = 'loot-beam-behavior', on_start = function(host)
         'nor one asset re-asked')
     assert(P.tier_calls == reads, 'nor one ground stack re-priced: the tick returns on a boolean')
     assert(P.tiers_reads == tiers_reads, 'the thresholds are read per CHANGE, not per rebuild')
-    assert(since(mark, 'instance_position') == 0,
-        'nor one beam repositioned: a standing beam costs nothing after it is placed')
+    assert(since(mark, 'instance_position') == 60,
+        'what it does cost is the spin, which is the animation: one write per beam per frame')
     assert(#findings == 0, 'and a settled plugin has nothing to report')
 
     ----------------------------------------------------------------------
@@ -1059,6 +1086,7 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     mark = #calls
     product.on_item_spawn(api, {})
     tick()
+    product.on_frame_start(api, { now_ms = 1000 })
     product.on_asset(api, { name = 'prices.txt', ok = true })
     product.on_config_changed(api, 'tier')
     product.on_world_loaded(api, {})

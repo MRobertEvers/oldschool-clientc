@@ -205,6 +205,23 @@ RS_UISlots_TabFlashHidden(
     int tabno,
     uint64_t logic_cycle);
 
+/**
+ * Is the tutorial blink in its DARK half at `logic_cycle`?
+ *
+ * The phase alone, with no opinion about which tab is flagged -- ten cycles
+ * lit, ten dark, the reference's `loopCycle % 20 < 10` read the other way up.
+ *
+ * Split out because there are now two things that know a tab is flagged and
+ * only one thing that may know how fast it blinks. The dat1 lane's flag is
+ * `flash_tab` here, written by TUT_FLASH; a cache lane's is a varbit the
+ * profile names, which this file cannot see. A plugin gameframe that has
+ * replaced the client's own chrome asks through the plugin API and must land
+ * on the same half-cycle as the sidebar it replaced, so the two callers share
+ * this rather than each spelling `% 20` out.
+ */
+int
+RS_UISlots_FlashDark(uint64_t logic_cycle);
+
 /** IF_CLOSE: close main modal, side modal, and chat dialog. */
 void
 RS_UISlots_CloseModal(struct App* app);

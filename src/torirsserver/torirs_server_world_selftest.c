@@ -14466,8 +14466,64 @@ ToriRSServer_WorldSelftest(void)
                             }
                         }
 
-                        /* Graduation. */
-                        ToriRSServer_ScriptsRunProc(srv, "[proc,tutorial_finish]", NULL, 0);
+                        /*
+                         * The flashing redstone.
+                         *
+                         * The reference pairs every hand-over with
+                         * `tut_flash(tab)` and the hint box then says "click
+                         * the flashing icon". Rev 239 has no such packet: the
+                         * flag is varbit 3756 `flashside`, four bits of the
+                         * shared `toplevel_temp`, and the value is the tab
+                         * number PLUS ONE because the cache's own
+                         * `[proc,toplevel_flashicon]` computes the tab as
+                         * `%varbit3756 - 1`. Getting that off by one wrong
+                         * points at the wrong stone, or at none.
+                         *
+                         * Asserted here and not left to the client, because
+                         * nothing downstream can tell "the server never
+                         * flashed" from "the frame did not draw the blink".
+                         */
+                        {
+                            int flash_bit = ToriRSServer_ContentSymbol(
+                                TORIRSSERVER_PACK_VARBIT, "flashside");
+                            int32_t tab_args[1];
+
+                            SELFTEST_CHECK(flash_bit >= 0,
+                                           "varbit `flashside` should resolve, got %d",
+                                           flash_bit);
+                            if( flash_bit >= 0 )
+                            {
+                                tab_args[0] = 3; /* the inventory */
+                                SELFTEST_CHECK(
+                                    ToriRSServer_ScriptsRunProc(
+                                        srv, "[proc,tutorial_open_tab]", tab_args, 1),
+                                    "[proc,tutorial_open_tab] should run");
+                                SELFTEST_CHECK(
+                                    ToriRSServer_VarbitGet(tut, flash_bit) == 4,
+                                    "handing over tab 3 should flash it as 3 + 1, got %d",
+                                    ToriRSServer_VarbitGet(tut, flash_bit));
+                                /* One flag, not one per tab: a new flash
+                                 * replaces the last rather than joining it. */
+                                tab_args[0] = 6; /* the spellbook */
+                                ToriRSServer_ScriptsRunProc(
+                                    srv, "[proc,tutorial_open_tab]", tab_args, 1);
+                                SELFTEST_CHECK(
+                                    ToriRSServer_VarbitGet(tut, flash_bit) == 7,
+                                    "and the next hand-over replaces it, got %d",
+                                    ToriRSServer_VarbitGet(tut, flash_bit));
+                            }
+
+                            /* Graduation. */
+                            ToriRSServer_ScriptsRunProc(srv, "[proc,tutorial_finish]",
+                                                        NULL, 0);
+                            if( flash_bit >= 0 )
+                                SELFTEST_CHECK(
+                                    ToriRSServer_VarbitGet(tut, flash_bit) == 0,
+                                    "and finishing stops pointing at anything, got %d -- "
+                                    "`toplevel_temp` outlives the tutorial, so a graduate "
+                                    "would carry a blinking stone onto the mainland",
+                                    ToriRSServer_VarbitGet(tut, flash_bit));
+                        }
                         SELFTEST_CHECK(tut->varps[tutorial_varp] == 1000,
                                        "finishing should put the tutorial varp past the "
                                        "client's gate, got %d",

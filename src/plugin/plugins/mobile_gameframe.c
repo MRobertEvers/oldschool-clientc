@@ -1276,6 +1276,15 @@ struct MobileState
     int tab_active_shown;
     uint32_t tab_given_shown;
     /*
+     * Which tab's icon is DARK this instant, or -1.
+     *
+     * The tutorial's blink: the game points at a rock by taking its icon away
+     * for half of every twenty cycles. Polled beside the two above and for the
+     * same reason, and it is the one of the three that moves on a CLOCK --
+     * twice a second, and only while something is flagged.
+     */
+    int tab_flash_dark_shown;
+    /*
      * The viewport's incarnation, and whether it moved since the last
      * description.
      *
@@ -4143,44 +4152,69 @@ mobile_layout(
     g_frame.toggle_w = family == FAMILY_OLDSCHOOL ? MOBILE_O_TOGGLE_W : MOBILE_TOGGLE_W;
     g_frame.toggle_h = family == FAMILY_OLDSCHOOL ? MOBILE_O_TOGGLE_H : MOBILE_TOGGLE_H;
     /*
-     * WHICH END of that strip, and why the OldSchool lane gets the far one.
+     * WHICH END of that strip: the NEAR one, and flush with the sheet rather
+     * than with the frame's own margin.
      *
-     * That lane parks a HUD in the near one. `stat_boosts_hud` (708) is laid
-     * out by the cache's own script 4130, which reads the pair the client
-     * reports as its identity and branches on it:
+     * The pair operates the block underneath it -- one hides the sheet, the
+     * other raises the keys for the input line on it -- so the edge they line
+     * up with is that block's, and the block's left edge is not the same
+     * number on the two lanes.
+     *
+     * On a 2004 lane the sheet is this frame's own parchment, blitted at
+     * `area.x`, and the switch keeps the MOBILE_MARGIN inset every other piece
+     * pinned to this edge has.
+     *
+     * On an OldSchool lane the sheet is drawn from the PACK's backing, which
+     * is inset inside the pack: on a 765x503 stone601 capture the pack stands
+     * at x=0 519 wide and `chat_backing` at x=58 461 wide, and `pack-sheet` is
+     * placed at the backing's box. A switch at the frame's margin would then
+     * float 54 px clear of the paper it operates, over the world. So the pair
+     * starts at the backing's own left edge, which is the first column of
+     * parchment on screen.
+     *
+     * That column is still readable with the sheet DOWN, which is what keeps
+     * the switch that brings the chat back from sliding sideways under the
+     * finger that just pressed it: a hide is not an unbinding, so the backing
+     * keeps its watch and its box, and a box that reads zero -- a backing the
+     * chat view has just re-created -- falls back to the last good one.
+     * @see mobile_chat_backing.
+     *
+     * What this gives up, stated because it was the reason the pair used to
+     * take the far end of the same strip: that lane parks a HUD in this
+     * corner. `stat_boosts_hud` (708) is laid out by the cache's own script
+     * 4130, which reads the pair the client reports as its identity:
      *
      *     if (~on_mobile = 0) { if_setposition(2, 2, abs_left,  abs_bottom, ..)
      *     } else              { if_setposition(2, 0, abs_right, abs_bottom, ..) }
      *
-     * -- the boosted-stat readout goes bottom-LEFT for a desktop client and
-     * bottom-RIGHT for a mobile one, precisely because OldSchool Mobile's own
-     * chrome owns the bottom-left corner. This frame IS that chrome, but the
-     * client it runs in is a desktop client (CS2VM2_SetClientIdentity is one
-     * fact about the process, resolved at boot from the platform, and flipping
-     * it would change the login block, the toplevel the server opens and every
-     * other mobile branch in the cache) -- so the lane takes the desktop
-     * branch and the readout lands exactly under these two stones.
+     * -- bottom-LEFT for a desktop client and bottom-RIGHT for a mobile one,
+     * precisely because OldSchool Mobile's own chrome owns the bottom-left
+     * corner. This frame IS that chrome, but the client it runs in is a
+     * desktop client (CS2VM2_SetClientIdentity is one fact about the process,
+     * resolved at boot from the platform, and flipping it would change the
+     * login block, the toplevel the server opens and every other mobile branch
+     * in the cache), so the lane takes the desktop branch and the readout is
+     * one 35-row row growing rightwards from x=2 along the bottom. No frame
+     * can move it -- the dodge insets are a per-toplevel table (enum_1135/1136,
+     * 250x165 on all three OldSchool tops) and not a read of whatever chrome is
+     * on screen.
      *
-     * The bottom of that HUD is fixed: the dodge insets are a per-toplevel
-     * table (enum_1135/1136, 250x165 on all three OldSchool tops), not a read
-     * of whatever chrome is on screen, so no frame can move it and it is in
-     * this band whatever this one does. The far end of the same edge is clear:
-     * the readout is one 35-row row growing rightwards from x=2, and it would
-     * have to carry a dozen simultaneous boosts to reach the chat block's
-     * right edge.
-     *
-     * A 2004 lane has no such HUD -- nothing of the cache's floats over the
-     * viewport at all -- so it keeps the near end, which is where a frame this
-     * shape wants its switch.
+     * With the sheet UP the two do not meet: the switches sit a margin above
+     * the block's first row, and the block is 165 rows tall, so the whole of
+     * it stands between them and that band. With the sheet DOWN they share
+     * the band, and a player with a boosted stat sees the readout behind the
+     * two stones until the sheet comes back. That is the trade this makes:
+     * the switch is on the paper it operates on every frame the paper is up,
+     * at the cost of the corner it shares with the HUD on the frames it is
+     * not.
      */
     g_frame.toggle_x = area.x + MOBILE_MARGIN;
     if( oldschool )
     {
-        int const pair_w = 2 * g_frame.toggle_w + MOBILE_TOGGLE_GAP;
-        int const far_x = area.x + chat_w - MOBILE_MARGIN - pair_w;
+        struct PorcelainElementState backing;
 
-        if( far_x > g_frame.toggle_x )
-            g_frame.toggle_x = far_x;
+        if( mobile_chat_backing(ctx, &backing) && backing.box.x > g_frame.toggle_x )
+            g_frame.toggle_x = backing.box.x;
     }
     g_frame.toggle_y =
         (chat_visible ? (oldschool ? chat_y : chat_y - MOBILE_PAPER_FRINGE_T) : safe_bottom) -
@@ -4507,7 +4541,7 @@ mobile_art_size(
  * chain produced.
  */
 static void
-mobile_describe_piece(
+mobile_describe_piece_trans(
     struct ToriRS_PorcelainDescribe* describe,
     char const* key,
     struct MobileArt art,
@@ -4515,6 +4549,7 @@ mobile_describe_piece(
     int y,
     int w,
     int h,
+    int trans,
     struct PorcelainElement depth)
 {
     struct PorcelainItem item;
@@ -4530,7 +4565,34 @@ mobile_describe_piece(
     item.place.dx = x;
     item.place.dy = y;
     item.place.depth = depth;
+    /*
+     * `trans` is the client's own sense: 0 opaque, 255 invisible. Porcelain's
+     * is the other way up AND reserves zero for "unstated, therefore opaque",
+     * so the transparent end is named rather than numbered -- written as the
+     * subtraction alone, the one piece that uses it (the tutorial blink, @see
+     * the icon in mobile_describe_chrome) would never go out.
+     *
+     * The opaque end is stated as 255 and not left unset for the mirror-image
+     * reason: an opacity that FALLS to the unset value is a fade the layer
+     * records a finding against, and a blink comes back every ten cycles.
+     */
+    item.opacity = trans >= 255 ? PORCELAIN_OPACITY_INVISIBLE : 255 - trans;
     describe->piece(describe, &item);
+}
+
+/** The same picture, opaque -- which is every piece of this frame but one. */
+static void
+mobile_describe_piece(
+    struct ToriRS_PorcelainDescribe* describe,
+    char const* key,
+    struct MobileArt art,
+    int x,
+    int y,
+    int w,
+    int h,
+    struct PorcelainElement depth)
+{
+    mobile_describe_piece_trans(describe, key, art, x, y, w, h, 0, depth);
 }
 
 /*
@@ -4912,11 +4974,22 @@ mobile_describe_chrome(
                 PORCELAIN_EL(VIEWPORT));
         }
 
-        /* And its ICON, centred the same way, on a tab the server has given
+        /*
+         * And its ICON, centred the same way, on a tab the server has given
          * out. That used to be an array of last-written state and a refresh
-         * pass; it is a key that is described or is not. */
+         * pass; it is a key that is described or is not.
+         *
+         * The tutorial's BLINK is the same icon going out, and it is stated as
+         * transparency rather than as a key that stops being described --
+         * which the `given` line above could have been mistaken for. The clock
+         * is what separates them: a tab is handed over once, so a create is
+         * fair; a flash flips every ten cycles, and a control created and
+         * destroyed twice a second would be remade at the END of this
+         * plugin's draw order on every relight. @see MobileState::
+         * tab_flash_dark_shown.
+         */
         if( given && mobile_art_size(ctx, t->icon, &w, &h) )
-            mobile_describe_piece(
+            mobile_describe_piece_trans(
                 describe,
                 state->icon_key[t->tabno],
                 t->icon,
@@ -4924,6 +4997,7 @@ mobile_describe_chrome(
                 t->y + (t->h - h) / 2,
                 w,
                 h,
+                t->tabno == state->tab_flash_dark_shown ? 255 : 0,
                 PORCELAIN_EL(VIEWPORT));
     }
 
@@ -4974,6 +5048,34 @@ mobile_describe_surfaces(
         struct PorcelainElementState native;
         bool has_members = false;
         bool surface_bound;
+        /*
+         * How far this surface is about to move, carried down to its members.
+         *
+         * A member's box is stated PARENT-LOCAL and the plan is in canvas
+         * coordinates, so the conversion needs the parent's origin -- and the
+         * only origin a watch carries is the one the tree has NOW, before the
+         * container move this same description states has been applied. Every
+         * member of a surface that moves therefore lands at the plan's box
+         * plus the container's own displacement, and stays there until a later
+         * describe reads the settled tree and corrects it.
+         *
+         * On this frame that is every time the drawer opens. Measured on
+         * osrs239 at 765x503: the sidebar container went from the lane's
+         * (472,208) to the rail's (481,238), the open panel was written
+         * local (9,30) against the pre-move origin, and for two frames the
+         * inventory's item icons painted at (490,268) -- off the drawer, over
+         * the world -- before the third describe put them right. That is
+         * the "the items appear somewhere else and then jump into the panel"
+         * the drawer has always done.
+         *
+         * The displacement is known right here, so the members are converted
+         * against the origin the container WILL have. Zero where the plan does
+         * not move the surface, and zero on a 2004 dat1 lane, where the mounts
+         * are not children of a declared container at all and `surface_bound`
+         * is permanently false. @see the member loop below.
+         */
+        int surface_dx = 0;
+        int surface_dy = 0;
 
         for( int m = 0; m < FRAME_MEMBER_MAX; m++ )
             if( g_frame.member[s][m].placed )
@@ -4998,6 +5100,8 @@ mobile_describe_surfaces(
                 box.width = g_frame.surface[s].rect.width;
                 box.height = g_frame.surface[s].rect.height;
                 describe->move(describe, FRAME_SURFACE_ELEMENT[s], box, 0);
+                surface_dx = g_frame.surface[s].rect.x - native.box.x;
+                surface_dy = g_frame.surface[s].rect.y - native.box.y;
                 /*
                  * And OVER this frame's own chrome.
                  *
@@ -5129,8 +5233,10 @@ mobile_describe_surfaces(
             if( at->placed )
             {
                 struct ToriRS_WidgetBounds box;
-                box.x = at->rect.x - (member.box.x - member.local.x);
-                box.y = at->rect.y - (member.box.y - member.local.y);
+                /* The parent's origin AFTER the container move stated
+                 * above, not the one the tree still has. @see surface_dx. */
+                box.x = at->rect.x - (member.box.x + surface_dx - member.local.x);
+                box.y = at->rect.y - (member.box.y + surface_dy - member.local.y);
                 box.width = at->rect.width;
                 box.height = at->rect.height;
                 /* No raise here: a member is a CHILD of the surface, and the
@@ -5657,17 +5763,26 @@ mobile_poll_tabs(
 {
     int active;
     uint32_t given = 0;
+    int flash_dark = -1;
     bool moved;
 
     assert(api);
     assert(state);
     active = api->cache.tab_active(api);
     for( int tabno = 0; tabno < MOBILE_TAB_COUNT; tabno++ )
+    {
         if( api->cache.tab_enabled(api, tabno) )
             given |= 1u << tabno;
-    moved = active != state->tab_active_shown || given != state->tab_given_shown;
+        /* At most one tab is ever flagged, so this records WHICH and stops
+         * asking: the engine answers false for every tab that is not it. */
+        if( flash_dark < 0 && api->cache.tab_flash_hidden(api, tabno) )
+            flash_dark = tabno;
+    }
+    moved = active != state->tab_active_shown || given != state->tab_given_shown ||
+            flash_dark != state->tab_flash_dark_shown;
     state->tab_active_shown = active;
     state->tab_given_shown = given;
+    state->tab_flash_dark_shown = flash_dark;
     return moved;
 }
 
@@ -5877,6 +5992,9 @@ mobile_on_start(
     state->map_h = MOBILE_MAP_H;
     state->chat_open = true;
     state->tab_active_shown = -1;
+    /* Nothing is flashing until the poll says so; a zeroed field would mean
+     * "tab 0's icon is dark" and blank the combat rock for one fence. */
+    state->tab_flash_dark_shown = -1;
     /* Present until the first description asks, so a rail described before the
      * lane has mounted its sidebar still wears its icons. @see
      * mobile_tab_present. */

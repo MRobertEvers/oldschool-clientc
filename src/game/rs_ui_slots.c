@@ -138,6 +138,12 @@ RS_UISlots_TabFlashHidden(
     assert(slots);
     if( tabno < 0 || slots->flash_tab != tabno )
         return 0;
+    return RS_UISlots_FlashDark(logic_cycle);
+}
+
+int
+RS_UISlots_FlashDark(uint64_t logic_cycle)
+{
     /* Ten ticks lit, ten dark. */
     return (logic_cycle % 20) >= 10;
 }
