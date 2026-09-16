@@ -3831,6 +3831,42 @@ UITree_SetFrameStretchedAt(
 }
 
 bool
+UITree_SetFrameFollowsAt(
+    struct UITree* tree,
+    int32_t idx,
+    int32_t target)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    int32_t const plus1 = target >= 0 ? target + 1 : 0;
+    int32_t was;
+
+    /* A node cannot take its own box: the link would make the pair's
+     * invalidation a cycle, and there is no such thing to express. */
+    assert(target != idx);
+    if( !c )
+        return false;
+    if( c->frame_follows_plus1 == plus1 )
+        return true;
+    /* Both ends, here and nowhere else. A stale back-pointer would make
+     * everything that moves a surface invalidate a node that stopped
+     * following it -- or, worse, skip the one that now does. */
+    was = c->frame_follows_plus1 - 1;
+    if( was >= 0 && (uint32_t)was < tree->component_count )
+        tree->components[was].frame_followed_by_plus1 = 0;
+    c->frame_follows_plus1 = plus1;
+    if( target >= 0 && (uint32_t)target < tree->component_count )
+        tree->components[target].frame_followed_by_plus1 = idx + 1;
+    /* The node's own box changes, so its subtree's does too -- the compass's
+     * hit region carries the two `cc_create` children that hold the ops, and
+     * both are laid out inside it (`setsize_minus`, `setpos_abs_centre`). */
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
+bool
 UITree_SetScreenHiddenAt(
     struct UITree* tree,
     int32_t idx,
@@ -4762,16 +4798,33 @@ bool UITree_WidgetSetTransparency(struct UITree* tree,struct UITreeNodeRef ref,u
     return UITree_SetTransparencyAt(tree,idx,transparency);
 }
 
+/*
+ * One op slot of an owned control.
+ *
+ * The labels go in `ops[op-1]`, which is where a NATIVE component's op strings
+ * live -- not in the single `option` field this used to write. That field held
+ * one row, and one row is what a plugin cover could offer in place of the
+ * component it hid: minimap-orbs covers `orbs:prayerbutton`, which the cache
+ * gives `op1=*` (Quick-prayers) and `op2=Setup`, and the Setup row -- the only
+ * way to the quick-prayer panel -- was gone wherever the cover stood.
+ *
+ * An empty label clears that slot alone. `serial` is the owner's current
+ * listener registration for the whole control and is carried on the node, not
+ * per slot: one listener answers for every op, the way one [if_button] handler
+ * answers for every op of a component, and which op was chosen travels back in
+ * the menu row's action_index. The runtime passes 0 only once no slot is left.
+ */
 bool UITree_WidgetSetOperation(struct UITree* tree,struct UITreeNodeRef ref,uint64_t owner,
-                                uint64_t serial,char const* label)
+                                uint64_t serial,int op,char const* label)
 {
     int32_t idx=UITree_ResolveRef(tree,ref);
     if( idx<0 || !owner || tree->components[idx].plugin_owner!=owner ||
-        !label || strlen(label)>=UITREE_MENU_OPTION_LEN || (serial && !*label) ) return false;
+        op<1 || op>UITREE_MENU_OPTION_SLOTS ||
+        !label || strlen(label)>=UITREE_MENU_OPTION_LEN ) return false;
     struct UITreeComponent* c=&tree->components[idx];
     struct UITreeMenuOptions* options=UITree_MenuOptionsMut(c);
     if( !options ) return false;
-    snprintf(options->option,sizeof(options->option),"%s",serial ? label : "");
+    snprintf(options->ops[op-1],sizeof(options->ops[op-1]),"%s",label);
     c->plugin_op_serial=serial;
     uitree_note_mutation(tree,idx,UITREE_IMPACT_EMIT_SELF|UITREE_IMPACT_REACHABILITY);
     return true;

@@ -35,12 +35,12 @@ app_logic_tick(struct App* app)
      * would put its DISCONNECT into the outbound ring ahead of the request the
      * server is meant to act on, and the transport, which drains that ring in
      * order, would close the socket without ever writing those bytes.
+     *
+     * Draining it arms a wait rather than ending the session: the server is
+     * what ends it. @see app_logout_tick.
      */
-    if( app->logout_requested )
-    {
-        App_Logout(app);
+    if( app_logout_tick(app) )
         redraw = 1;
-    }
 
     if( app_title_tick(app) )
         redraw = 1;

@@ -2446,7 +2446,10 @@ porcelain_apply_op(struct Porcelain* porcelain, struct PorcelainAppliedItem* app
     porcelain->counters.setters++;
     porcelain_note_item_result(
         porcelain, applied, "set_on_op",
-        widgets->set_on_op(widgets->context, applied->ref, armed ? wanted->op_label : NULL,
+        /* Op 1: a described item offers one row, the left-click default.
+         * The widget API numbers ops the way the cache does, and a layer that
+         * grows a second row states the number there. */
+        widgets->set_on_op(widgets->context, applied->ref, 1, armed ? wanted->op_label : NULL,
                            armed ? porcelain_op_listener : NULL, armed ? applied : NULL),
         wanted->key.text);
     applied->op_armed = armed;
@@ -2595,7 +2598,7 @@ porcelain_apply_replace_hit(struct Porcelain* porcelain, struct PorcelainApplied
         porcelain->counters.engine_calls++;
         porcelain->counters.setters++;
         porcelain_note_item_result(porcelain, applied, "set_on_op",
-                                   widgets->set_on_op(widgets->context, applied->hit_ref,
+                                   widgets->set_on_op(widgets->context, applied->hit_ref, 1,
                                                       wanted->op_label, porcelain_op_listener,
                                                       applied),
                                    key);
@@ -3980,6 +3983,7 @@ static struct ToriRS_PorcelainApi const PORCELAIN_TABLE = {
     .config_list_set = Porcelain_ConfigListSet,
     .frame = Porcelain_Frame,
     .frame_event = Porcelain_FrameEvent,
+    .frame_native = Porcelain_FrameNative,
     .usable = Porcelain_Usable,
     .native_size = Porcelain_NativeSize,
     .lane_icon = Porcelain_LaneIcon,

@@ -540,8 +540,13 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
                 else
                 {
                     int slot = (app->host.trigger_op_head + app->host.trigger_op_count++) % RS_CS2_HOST_TRIGGER_OP_MAX;
-                    app->host.trigger_op[slot] = (struct RS_CS2TriggerOp){app->tree->components[idx].component_id, op};
-                    app->runner.frame_settle_pending = 1;
+                    /* Field by field: `ref` sits between the two ints, so a
+                     * positional {component_id, op} puts the op index inside
+                     * the ref and leaves op_index 0. @see rs_cs2_trigger_op_push. */
+                    app->host.trigger_op[slot].component_id =
+                        app->tree->components[idx].component_id;
+                    app->host.trigger_op[slot].ref = UITree_RefAt(app->tree, idx);
+                    app->host.trigger_op[slot].op_index = op;
                     app->runner.frame_settle_pending = 1;
                     app->need_redraw = 1;
                     publish_pending = 1;

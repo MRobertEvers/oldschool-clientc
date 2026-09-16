@@ -2026,14 +2026,35 @@ lt_draw_source(
 
     /* This second thinbox begins one pixel over the header's bottom border,
      * just as script2907's `y + 33 - 1` does. */
-    lt_thinbox(
-        buf,
-        w,
-        h,
-        0,
-        top + LT_HEAD_H - 1,
-        w,
-        item_count > 0 ? lt_grid_rows(item_count) * LT_CELL_H + 10 : 20);
+    {
+        int const grid_top = top + LT_HEAD_H - 1;
+        int const grid_h =
+            item_count > 0 ? lt_grid_rows(item_count) * LT_CELL_H + 10 : 20;
+
+        lt_thinbox(buf, w, h, 0, grid_top, w, grid_h);
+        /*
+         * The drops sit on a PLATE of their own, tiled inside the box exactly
+         * as the header band's is.
+         *
+         * Leaving it clear was the strip trusting whatever it is composited
+         * over to be the right brown. The rail's pane is one stone
+         * (73,64,52) and the plugin window's page is a darker one (55,46,34),
+         * so the same picture read as one continuous card in the pane and as
+         * cells floating on a dark ground in the window -- which is the
+         * report. A picture that depends on its host's backing has two looks;
+         * this one has its own.
+         *
+         * The NORMAL spine whatever the source's ignore state: script2907 and
+         * script3042 are the only two pieces of this page the cache cuts a
+         * second, red face for, so the header and the cells tint and the
+         * ground they sit on does not.
+         */
+        if( g_spine_px )
+            PluginDraw_Tile(
+                buf, w, h, LT_PLATE_INSET, grid_top + LT_PLATE_INSET,
+                w - LT_PLATE_INSET * 2, grid_h - LT_PLATE_INSET * 2,
+                g_spine_px, g_spine_w, g_spine_h, 0);
+    }
 
     if( item_count == 0 )
     {
@@ -2294,6 +2315,15 @@ lt_paint_strip(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, in
             PluginDraw_Text(
                 argb, width, height, 4, top + 3,
                 &g_text, "No loot to display.", LT_INK_HEAD);
+        /* The flat grid stands on the same plate a band's does, and for the
+         * same reason: the two views show the same cells and must show them on
+         * the same ground. @see lt_draw_source. The rect is lt_strip_h's own
+         * for this view, so the plate ends where the strip does. */
+        if( n > 0 && g_spine_px )
+            PluginDraw_Tile(
+                argb, width, height, LT_PLATE_INSET, top,
+                width - LT_PLATE_INSET * 2, lt_drop_rows(n) * LT_CELL_H + 6,
+                g_spine_px, g_spine_w, g_spine_h, 0);
         for( int i = 0; i < n; i++ )
             lt_draw_cell(
                 rt, argb, width, height,

@@ -1174,6 +1174,17 @@ struct FrameState
     /* The last plan line logged, so a PENDING re-ask every fence stays quiet. */
     int logged_layout;
     int logged_pending;
+    /*
+     * The lane's own chrome this offer was answered NATIVE with, or -1.
+     *
+     * Kept apart from `layout`, which is the layout this plugin is DESCRIBING:
+     * a NATIVE answer describes nothing, and every per-frame path that reads
+     * `layout` is a path over a provided frame. Logged once per chrome and
+     * once per refusal (@see frame_native_ask), because the ask is repeated
+     * on every selection and every login.
+     */
+    int native_answered;
+    int native_refused;
 };
 
 /** Defined at the foot of this file; Porcelain_Open names it at on_start. */
@@ -5598,6 +5609,83 @@ frame_layout_resolve(char const* offer_id)
     return FRAME_CLASSIC_FIXED;
 }
 
+/*
+ * Which of the LANE's own top-level chromes this offer is, or UNKNOWN.
+ *
+ * The two Modern layouts are OldSchool's fixed (548) and resizable-modern
+ * (164) frames, cut from that cache's own sprites. On a lane that authors
+ * those chromes the plugin's copy is the worse one: the lane grows its canvas
+ * beside its popout strip, rearranges on its own scripts and mounts every
+ * panel against the root it opened, and a frame arranged over the top of that
+ * was measured sliding its map ring under the strip. Classic Fixed is the
+ * 2004 frame, which no OldSchool cache authors, so it stays a description
+ * over whatever root is up.
+ *
+ * By OFFER, not by lane: whether the lane HAS such a chrome is the
+ * `native_layout` capability's answer, asked in frame_native_ask.
+ */
+static int
+frame_native_layout_of(char const* offer_id)
+{
+    assert(offer_id);
+    if( strcmp(offer_id, "modern-fixed") == 0 )
+        return TORIRS_NATIVE_LAYOUT_FIXED;
+    if( strcmp(offer_id, "modern-resizable") == 0 )
+        return TORIRS_NATIVE_LAYOUT_RESIZABLE_MODERN;
+    return TORIRS_NATIVE_LAYOUT_UNKNOWN;
+}
+
+/*
+ * Ask the lane to wear this offer itself, where it can.
+ *
+ * True when the lane has been asked (including when it already wears the
+ * chrome): the caller answers NATIVE and describes nothing. False when this
+ * offer is not one of the lane's chromes, the lane has none to choose between
+ * (`native_layout` is a profile fact: the roots and the settings row that
+ * selects them), or the live session refused -- no server to ask, the row not
+ * armed, the phone's root that nothing offers a way out of. On a refusal the
+ * frame is described over whatever root is up, which is what this plugin did
+ * on every lane before the lane could be asked, and the refusal is said once.
+ *
+ * The one place this plugin READS its lane is frame_lane_oldschool, and this
+ * is not a second: the branch is on a capability the engine answers from
+ * profile data, and the request is the one a player makes from the Display
+ * panel. @see ToriRS_FrameApi::native_layout_select.
+ */
+static bool
+frame_native_ask(
+    struct ToriRS_Api* api,
+    struct FrameState* state,
+    struct ToriRS_GameframeEvent const* event)
+{
+    int const layout = frame_native_layout_of(event->offer_id);
+    enum ToriRS_Result asked;
+
+    assert(api);
+    assert(state);
+    assert(event);
+    if( layout == TORIRS_NATIVE_LAYOUT_UNKNOWN )
+        return false;
+    if( !Porcelain_Has(state->porcelain, "native_layout") )
+        return false;
+    asked = api->frame.native_layout_select(api, layout);
+    if( asked == TORIRS_RESULT_OK )
+    {
+        state->native_refused = -1;
+        return true;
+    }
+    if( state->native_refused != layout )
+    {
+        api->core.log(
+            api, "layout %s: this lane has its own, but the session could not be asked for "
+                 "it (%s); describing the frame over the live root instead",
+            FRAME_LAYOUT_NAME[frame_layout_resolve(event->offer_id)],
+            asked == TORIRS_RESULT_UNSUPPORTED ? "unsupported here" : "refused");
+        state->native_refused = layout;
+    }
+    return false;
+}
+
 static void
 frame_call_init(struct FrameCall* call, struct ToriRS_Api* api, struct FrameState* state)
 {
@@ -5734,6 +5822,7 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
             (enum ToriRS_FrameBuildResult)Porcelain_FrameEvent(state->porcelain, event);
         state->provided = 0;
         state->layout = -1;
+        state->native_answered = -1;
         /* The next provide is a fresh frame over a fresh lane state. @see
          * frame_seed_sidebar. */
         state->sidebar_seeded = false;
@@ -5748,6 +5837,36 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
         (void)snprintf(event->reason, event->reason_capacity, "%s", "The gameframe is waiting for the game screen.");
         return TORIRS_FRAME_PENDING;
     }
+    /*
+     * The lane's own chrome, where this offer is one.
+     *
+     * Before the description and instead of it: a Modern frame on a lane that
+     * authors Modern frames is the lane's to lay out, and the plugin's part is
+     * the request the player would otherwise make from the Display panel. The
+     * layer stages nothing for it, which takes off whatever a previous offer
+     * of this plugin had placed, and the host reports the offer active under
+     * its own name. @see frame_native_ask, and TORIRS_FRAME_NATIVE.
+     */
+    if( frame_native_ask(api, state, event) )
+    {
+        enum ToriRS_FrameBuildResult const native =
+            (enum ToriRS_FrameBuildResult)Porcelain_FrameNative(state->porcelain, event);
+        int const layout = frame_native_layout_of(event->offer_id);
+        Porcelain_Commit(api);
+        state->provided = 0;
+        state->layout = -1;
+        state->declined_root = -1;
+        state->sidebar_seeded = false;
+        if( native == TORIRS_FRAME_NATIVE && state->native_answered != layout )
+        {
+            api->core.log(
+                api, "layout %s: the lane's own chrome; asked for it (native layout %d)",
+                FRAME_LAYOUT_NAME[frame_layout_resolve(event->offer_id)], layout);
+            state->native_answered = layout;
+        }
+        return native;
+    }
+    state->native_answered = -1;
     if( strcmp(event->offer_id, "classic-fixed") == 0 && frame_lane_oldschool(ctx) )
     {
         int mobile = -1;
@@ -5844,6 +5963,8 @@ frame_on_start(struct ToriRS_Api* api, void* state_ptr)
     state->layout = -1;
     state->declined_root = -1;
     state->logged_layout = -1;
+    state->native_answered = -1;
+    state->native_refused = -1;
 
     state->porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_GAMEFRAME, state);
     assert(state->porcelain);

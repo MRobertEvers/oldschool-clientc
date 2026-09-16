@@ -177,10 +177,11 @@ app_cs2_flush_notifications(struct App* app)
      * A CS2 script ran LOGOUT (5630) -- the modern lane's "Click here to
      * logout", whose button is script-driven and carries no cache op.
      *
-     * Parked by the host and turned into a session teardown here, the same
-     * split if_close above takes: the CS2 host knows nothing about the socket.
+     * Parked by the host and turned into a request here, the same split
+     * if_close above takes: the CS2 host knows nothing about the socket.
      * Handed to the tick's own drain rather than performed here so it lands
-     * behind whatever this tick has already queued. @see App_Logout.
+     * behind whatever this tick has already queued -- and the drain only asks;
+     * the server's answer is what ends the session. @see app_logout_tick.
      */
     if( app->host.logout_requested )
     {

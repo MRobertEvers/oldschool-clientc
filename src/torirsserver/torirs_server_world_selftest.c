@@ -1163,6 +1163,11 @@ selftest_park_player(
     player->dest_x = -1;
     player->dest_z = -1;
     player->combat_target = -1;
+    /* And the single-way claim, which outlives `combat_target` by design: a
+     * section that ended mid-fight would otherwise have the next one's first
+     * Attack click refused as "I'm already under attack". */
+    player->combat_claim_npc = -1;
+    player->combat_claim_tick = 0;
     /*
      * Topped up THROUGH the sync, because `hitpoints` and
      * `stat_boosted[HITPOINTS]` are one number and a bare assignment to the
@@ -1178,7 +1183,11 @@ selftest_park_player(
     player->hitpoints = player->max_hitpoints;
     ToriRSServer_CombatSyncHitpoints(player);
     for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+    {
         srv->npcs[i].combat_target = -1;
+        srv->npcs[i].combat_claim_pid = -1;
+        srv->npcs[i].combat_claim_tick = 0;
+    }
     /* A section that repositions the player is starting over, so anything the
      * last one left pending goes with it. Leaving it is how one section's
      * unfinished click resolved in the middle of the next one's fight.
@@ -19805,6 +19814,185 @@ ToriRSServer_WorldSelftest(void)
             player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] = hp_xp_before;
             ToriRSServer_CombatSyncHitpoints(player);
             player->hitpoints = player->max_hitpoints;
+            selftest_park_player(srv, g_home_x, g_home_z);
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: single-way combat is one fight at a time\n");
+    {
+        /*
+         * OldSchool's Multicombat rule, from the end a player feels it: outside
+         * a multicombat area you may be in combat with exactly one thing, so a
+         * second Attack click is refused with "I'm already under attack."
+         *
+         * The click, not `ToriRSServer_CombatEngage`, and that is the whole
+         * point of driving this through OPNPC2. Content owns the swing loop, so
+         * the engine's engage is only reached for npcs no `[opnpc]` script
+         * claims, and `handle_opnpc` calls
+         * `ToriRSServer_WorldClearPendingAction` two statements after the
+         * packet is decoded — which forgets the fight the click is not allowed
+         * to leave. A gate written anywhere downstream of that line passes
+         * every one of these checks while doing nothing, because by then the
+         * player really is idle. Only a test that starts at the packet can tell
+         * the two apart.
+         *
+         * Lumbridge, because `maps/multiway.csv` does not name zone 0_50_50 and
+         * the wilderness zone asserted below is the same file's answer for
+         * somewhere it does. Both directions, so an empty or unloaded zone set
+         * (which answers 0 everywhere, and single-way everywhere with it) fails
+         * the second half instead of quietly passing the first.
+         *
+         * Hunting is switched off on both fixtures for the run. An aggressive
+         * goblin latching the player on its own would decide which of the two
+         * holds the claim by tick order, and the question here is what the
+         * CLICK does.
+         */
+        int goblin_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "goblin");
+        int first = goblin_type >= 0
+                        ? npc_spawn(srv, goblin_type, g_home_x + 3, g_home_z + 5, 0)
+                        : -1;
+        int second = goblin_type >= 0
+                         ? npc_spawn(srv, goblin_type, g_home_x + 3, g_home_z + 7, 0)
+                         : -1;
+
+        SELFTEST_CHECK(first >= 0 && second >= 0 && first != second,
+                       "two goblin fixtures should spawn, got %d and %d", first, second);
+        /* The wilderness tile is zone `0_50_57_0_0` in `maps/multiway.csv`:
+         * map square 50,57 puts it at 50 * 64, 57 * 64. */
+        SELFTEST_CHECK(ToriRSServer_ContentMultiway(3200, 3648, 0) == 1,
+                       "maps/multiway.csv should name the wilderness zone 0_50_57");
+        SELFTEST_CHECK(ToriRSServer_ContentMultiway(g_home_x, g_home_z, 0) == 0,
+                       "and should not name Lumbridge");
+
+        if( first >= 0 && second >= 0 && first != second )
+        {
+            struct ToriRSServerNpc* a = &srv->npcs[first];
+            struct ToriRSServerNpc* b = &srv->npcs[second];
+            enum ToriRSServerHuntMode hunt_a = a->huntmode;
+            enum ToriRSServerHuntMode hunt_b = b->huntmode;
+            uint8_t opnpc[2];
+            /* `static` for the reason every other capture in this file is: the
+             * struct carries a packet buffer per slot and a section-local copy
+             * is a stack frame nobody budgeted for. */
+            static struct ToriRSServerCapture capture;
+            int refused = 0;
+            int b_x = b->x;
+            int b_z = b->z;
+
+            a->huntmode = TORIRSSERVER_HUNT_NONE;
+            b->huntmode = TORIRSSERVER_HUNT_NONE;
+            a->hitpoints = a->max_hitpoints;
+            b->hitpoints = b->max_hitpoints;
+            selftest_park_player(srv, a->x + 1, a->z);
+            player->level = a->level;
+            player->hitpoints = player->max_hitpoints;
+
+            SELFTEST_CHECK(ToriRSServer_NpcInfo(a->type)->ops[1] != NULL &&
+                               strcmp(ToriRSServer_NpcInfo(a->type)->ops[1], "Attack") == 0,
+                           "the goblin's Attack should be op 2");
+            SELFTEST_CHECK(ToriRSServer_CombatMultiway(a) == 0 &&
+                               ToriRSServer_CombatMultiway(b) == 0,
+                           "neither fixture should be in a multi-combat zone");
+
+            /* The first fight. Several ticks, because the claim is stamped by
+             * content's own `p_opnpc(2)` at the end of the swing rather than by
+             * the click. */
+            selftest_npc_payload(player, first, opnpc);
+            selftest_handle(player, PKTOUT_NAME_OPNPC2, opnpc, sizeof(opnpc));
+            for( int i = 0; i < 4; i++ )
+                selftest_tick(srv);
+
+            SELFTEST_CHECK(player->combat_target == first,
+                           "the first Attack click should start a fight, target %d",
+                           player->combat_target);
+            SELFTEST_CHECK(player->combat_claim_npc == first &&
+                               player->combat_claim_tick > srv->tick,
+                           "and claim the goblin for %d ticks, claim=%d until %d (now %d)",
+                           TORIRSSERVER_SINGLEWAY_COMBAT_TICKS, player->combat_claim_npc,
+                           player->combat_claim_tick, srv->tick);
+            /* Both halves, because the rule is symmetric and a one-sided stamp
+             * is a rule that only holds against the player: without this the
+             * npc stays available to everybody else for the whole fight. */
+            SELFTEST_CHECK(a->combat_claim_pid == player->pid &&
+                               a->combat_claim_tick > srv->tick,
+                           "and the goblin should claim the player back, pid %d",
+                           a->combat_claim_pid);
+
+            /* The second click. Refused, with the message, and — the part that
+             * matters — without disturbing the fight already running. */
+            selftest_npc_payload(player, second, opnpc);
+            ToriRSServer_CaptureBegin(srv, &capture);
+            selftest_handle(player, PKTOUT_NAME_OPNPC2, opnpc, sizeof(opnpc));
+            ToriRSServer_CaptureEnd(srv);
+            for( int i = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, 0);
+                 i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, i + 1) )
+            {
+                const char* text = selftest_message_text(srv, &capture.packets[i]);
+
+                if( text && strstr(text, "already under attack") )
+                    refused = 1;
+            }
+            SELFTEST_CHECK(refused,
+                           "the second Attack click should say \"I'm already under attack.\"");
+            SELFTEST_CHECK(player->combat_target == first,
+                           "and must leave the first fight running, target %d",
+                           player->combat_target);
+            SELFTEST_CHECK(player->interaction.kind == TORIRSSERVER_INTERACT_NPC &&
+                               player->interaction.npc_slot == first,
+                           "including the armed interaction, kind %d slot %d",
+                           (int)player->interaction.kind, player->interaction.npc_slot);
+            SELFTEST_CHECK(ToriRSServer_CombatSinglewayRefuses(srv, player, second) == 1,
+                           "and the predicate agrees");
+
+            /* A multi-combat zone lifts it, and the zone that counts is the
+             * TARGET's — the reference asks `map_multiway(npc_coord)`. Moved
+             * rather than ticked: no tick runs between the write and the
+             * restore, so nothing reads the coordinate the npc's zone
+             * bookkeeping still believes. */
+            b->x = 3200;
+            b->z = 3648;
+            SELFTEST_CHECK(ToriRSServer_CombatMultiway(b) == 1,
+                           "a goblin standing in zone 0_50_57 fights multi-way");
+            SELFTEST_CHECK(ToriRSServer_CombatSinglewayRefuses(srv, player, second) == 0,
+                           "so attacking it is not refused");
+            b->x = b_x;
+            b->z = b_z;
+            SELFTEST_CHECK(ToriRSServer_CombatSinglewayRefuses(srv, player, second) == 1,
+                           "and back in Lumbridge it is refused again");
+
+            /* A corpse frees both sides at once. Without this a player would
+             * wait out the claim after every kill before the next monster
+             * could be clicked, which is eight ticks of standing still. */
+            a->death_tick = srv->tick;
+            SELFTEST_CHECK(ToriRSServer_CombatSinglewayRefuses(srv, player, second) == 0,
+                           "a dying claimant releases the player at once");
+            a->death_tick = -1;
+
+            /* The npc's end of the same rule: aggression does not start on a
+             * player who is already in a single-way fight. */
+            ToriRSServer_CombatClaim(srv, player, first);
+            a->combat_target = player->pid;
+            SELFTEST_CHECK(ToriRSServer_CombatSinglewayNpcMayEngage(srv, second, player) == 0,
+                           "a second goblin may not aggress a player already in a fight");
+            a->combat_target = -1;
+            a->combat_claim_pid = -1;
+            a->combat_claim_tick = 0;
+            player->combat_claim_npc = -1;
+            player->combat_claim_tick = 0;
+            SELFTEST_CHECK(ToriRSServer_CombatSinglewayNpcMayEngage(srv, second, player) == 1,
+                           "and may once the claim has lapsed");
+            SELFTEST_CHECK(ToriRSServer_CombatSinglewayRefuses(srv, player, second) == 0,
+                           "as may the player, which is what stops the rule latching");
+
+            a->huntmode = hunt_a;
+            b->huntmode = hunt_b;
+            b->combat_target = -1;
+            b->combat_claim_pid = -1;
+            b->combat_claim_tick = 0;
+            ToriRSServer_CombatStopPlayer(srv);
+            ToriRSServer_WorldNpcFree(srv, first);
+            ToriRSServer_WorldNpcFree(srv, second);
             selftest_park_player(srv, g_home_x, g_home_z);
         }
     }

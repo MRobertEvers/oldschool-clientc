@@ -152,7 +152,10 @@ struct LuaWidgetOp
     struct LuaScript* script;
     struct ToriRS_WidgetRef widget;
     int function_ref;
-    bool armed;
+    /* Which of the control's op slots hold a label, bit `op - 1`. A mask and
+     * not a flag: one Lua callback answers for every row of a control, so the
+     * registry reference lives until the LAST of them is cleared. */
+    uint32_t armed;
 };
 
 struct LuaScript
@@ -1218,19 +1221,25 @@ static void lua_widget_op_release(struct LuaScript* script, struct LuaWidgetOp* 
     if( op->armed ) luaL_unref(script->L,LUA_REGISTRYINDEX,op->function_ref);
     memset(op,0,sizeof(*op));
 }
-/* widget:set_on_op(label, callback) arms one operation; widget:set_on_op(nil)
- * or a nil callback removes it. Registrations are keyed by checked widget. */
+/* widget:set_on_op(op, label, callback) arms one of the control's numbered
+ * menu operations -- 1 is the left-click default, and the rows read down the
+ * menu in op order; widget:set_on_op(op) or a nil callback clears that ONE and
+ * leaves the others armed. Registrations are keyed by checked widget, and a
+ * control has one callback however many rows it offers, exactly as in the C
+ * API: the newest callback answers for all of them, carrying `operation`. */
 static int lua_widget_set_on_op(lua_State* L)
 {
     struct LuaScript* script = lua_upvalue_script(L);
     struct ToriRS_WidgetApi* ui = &lua_current_api(L)->widgets;
     struct ToriRS_WidgetRef ref = lua_widget_arg(L);
-    bool remove = lua_isnoneornil(L,3);
-    char const* label = remove ? NULL : luaL_checkstring(L,2);
+    int op = (int)luaL_checkinteger(L,2);
+    bool remove = lua_isnoneornil(L,4);
+    char const* label = remove ? NULL : luaL_checkstring(L,3);
+    if( op < 1 || op > TORIRS_WIDGET_OP_SLOTS ) return luaL_argerror(L,2,"operation out of range");
     if( !remove )
     {
-        luaL_checktype(L,3,LUA_TFUNCTION);
-        if( !*label || strlen(label) >= TORIRS_WIDGET_OP_LABEL_MAX ) return luaL_argerror(L,2,"invalid operation label");
+        luaL_checktype(L,4,LUA_TFUNCTION);
+        if( !*label || strlen(label) >= TORIRS_WIDGET_OP_LABEL_MAX ) return luaL_argerror(L,3,"invalid operation label");
     }
     int at = -1;
     for( int i = 0; i < LUA_WIDGET_OP_MAX; ++i )
@@ -1255,24 +1264,34 @@ static int lua_widget_set_on_op(lua_State* L)
         }
     }
     if( at < 0 ) return lua_widget_result(L, TORIRS_CONTRACT_BUDGET_EXCEEDED);
-    struct LuaWidgetOp* op = &script->widget_ops[at];
+    struct LuaWidgetOp* op_slot = &script->widget_ops[at];
+    uint32_t const bit = 1u << (op - 1);
+    uint32_t const next_armed = remove ? (op_slot->armed & ~bit) : (op_slot->armed | bit);
     int next_ref = LUA_NOREF;
-    if( !remove ) { lua_pushvalue(L,3); next_ref=luaL_ref(L,LUA_REGISTRYINDEX); }
-    enum ToriRS_ContractResult result = ui->set_on_op(ui->context,ref,label,
-        remove ? NULL : lua_widget_operation_callback,op);
+    if( !remove ) { lua_pushvalue(L,4); next_ref=luaL_ref(L,LUA_REGISTRYINDEX); }
+    enum ToriRS_ContractResult result = ui->set_on_op(ui->context,ref,op,label,
+        remove ? NULL : lua_widget_operation_callback,op_slot);
     if( result == TORIRS_CONTRACT_OK )
     {
-        lua_widget_op_release(script,op);
-        if( !remove )
+        /* The registry reference is the CONTROL's, so it is released only when
+         * the last of its rows goes; clearing one row of several keeps the
+         * callback the remaining rows still dispatch to. */
+        if( next_armed == 0 )
+            lua_widget_op_release(script,op_slot);
+        else if( remove )
+            op_slot->armed = next_armed;
+        else
         {
-            op->script=script; op->widget=ref; op->function_ref=next_ref; op->armed=true;
+            if( op_slot->armed ) luaL_unref(L,LUA_REGISTRYINDEX,op_slot->function_ref);
+            op_slot->script=script; op_slot->widget=ref; op_slot->function_ref=next_ref;
+            op_slot->armed=next_armed;
         }
     }
     else
     {
         if( next_ref != LUA_NOREF ) luaL_unref(L,LUA_REGISTRYINDEX,next_ref);
         /* The C runtime drops a registration whose widget vanished. */
-        if( result == TORIRS_CONTRACT_STALE_REFERENCE ) lua_widget_op_release(script,op);
+        if( result == TORIRS_CONTRACT_STALE_REFERENCE ) lua_widget_op_release(script,op_slot);
     }
     return lua_widget_result(L,result);
 }
@@ -1392,6 +1411,8 @@ static int lua_frame_surface_member_native_box(lua_State* L)
 { struct ToriRS_Api* a=lua_current_api(L);int x,y,w,h;
   if(!a->frame.surface_member_native_box(a,lua_surface_from_arg(L,1),(int)luaL_checkinteger(L,2),&x,&y,&w,&h)){lua_pushnil(L);return 1;}
   lua_pushinteger(L,x);lua_pushinteger(L,y);lua_pushinteger(L,w);lua_pushinteger(L,h);return 4; }
+static int lua_frame_native_layout(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushinteger(L,a->frame.native_layout(a));return 1; }
+static int lua_frame_native_layout_select(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->frame.native_layout_select(a,(int)luaL_checkinteger(L,1)));return 2; }
 static int lua_frame_surface_native_size(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);int w,h;if(!a->frame.surface_native_size(a,lua_surface_from_arg(L,1),&w,&h)){lua_pushnil(L);return 1;}lua_pushinteger(L,w);lua_pushinteger(L,h);return 2; }
 
 /* --------------------------------------------------------------- api.draw */
@@ -2980,6 +3001,19 @@ static int lua_porcelain_frame(lua_State* L)
     return 0;
 }
 
+/* The words a Lua on_gameframe returns and porcelain.frame_event answers. */
+static char const* lua_frame_result_word(int result)
+{
+    switch( result )
+    {
+    case TORIRS_FRAME_READY: return "ready";
+    case TORIRS_FRAME_PENDING: return "pending";
+    case TORIRS_FRAME_UNSUPPORTED: return "unsupported";
+    case TORIRS_FRAME_NATIVE: return "native";
+    default: return "error";
+    }
+}
+
 static int lua_porcelain_frame_event(lua_State* L)
 {
     struct ToriRS_Api* api = lua_current_api(L);
@@ -3011,9 +3045,32 @@ static int lua_porcelain_frame_event(lua_State* L)
     event.reason = reason;
     event.reason_capacity = sizeof(reason);
     result = api->porcelain->frame_event(lua_porcelain(L), &event);
-    lua_pushstring(L, result == TORIRS_FRAME_READY ? "ready"
-                      : result == TORIRS_FRAME_PENDING ? "pending"
-                      : result == TORIRS_FRAME_UNSUPPORTED ? "unsupported" : "error");
+    lua_pushstring(L, lua_frame_result_word(result));
+    lua_pushstring(L, reason);
+    return 2;
+}
+
+/* porcelain.frame_native{offer_id=...}: the NATIVE answer, the lane's own
+ * chrome being the offer. Answers the word to hand back from on_gameframe. */
+static int lua_porcelain_frame_native(lua_State* L)
+{
+    struct ToriRS_Api* api = lua_current_api(L);
+    struct ToriRS_GameframeEvent event;
+    char reason[TORIRS_FRAME_REASON_MAX];
+    char const* id;
+    int result;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    memset(&event, 0, sizeof(event));
+    id = lua_table_string(L, 1, "offer_id");
+    if( !id ) return luaL_error(L, "a gameframe event needs an offer_id");
+    reason[0] = '\0';
+    event.offer_id = id;
+    event.active = true;
+    event.reason = reason;
+    event.reason_capacity = sizeof(reason);
+    result = api->porcelain->frame_native(lua_porcelain(L), &event);
+    lua_pushstring(L, lua_frame_result_word(result));
     lua_pushstring(L, reason);
     return 2;
 }
@@ -3169,7 +3226,8 @@ static struct LuaFn const LUA_MENU_FNS[] = {
 static struct LuaFn const LUA_FRAME_FNS[] = {
     {"offer_next",lua_frame_offer_next},{"selection",lua_frame_selection},{"select",lua_frame_select},
     {"invalidate",lua_frame_invalidate},{"surface_native_size",lua_frame_surface_native_size},
-    {"surface_member_native_box",lua_frame_surface_member_native_box},{NULL,NULL}
+    {"surface_member_native_box",lua_frame_surface_member_native_box},
+    {"native_layout",lua_frame_native_layout},{"native_layout_select",lua_frame_native_layout_select},{NULL,NULL}
 };
 static struct LuaFn const LUA_DRAW_API_FNS[] = {
     {"project",lua_draw_project},{"element_height",lua_draw_element_height},
@@ -3495,7 +3553,7 @@ static struct LuaFn const LUA_PORCELAIN_FNS[] = {
     {"config_list_remove",lua_porcelain_config_list_remove},
     {"config_list_set",lua_porcelain_config_list_set},
     /* round four: the frames */
-    {"frame",lua_porcelain_frame},{"frame_event",lua_porcelain_frame_event},
+    {"frame",lua_porcelain_frame},{"frame_event",lua_porcelain_frame_event},{"frame_native",lua_porcelain_frame_native},
     {"usable",lua_porcelain_usable},{"native_size",lua_porcelain_native_size},
     {"lane_icon",lua_porcelain_lane_icon},
     {"tab_group_count",lua_porcelain_tab_group_count},
@@ -3936,7 +3994,7 @@ static enum ToriRS_FrameBuildResult lua_cb_gameframe(struct ToriRS_Api*a,void*st
     else if(lua_type(L,-2)==LUA_TSTRING)
     {
         char const*word=lua_tostring(L,-2);
-        result=strcmp(word,"pending")==0?TORIRS_FRAME_PENDING:strcmp(word,"unsupported")==0?TORIRS_FRAME_UNSUPPORTED:TORIRS_FRAME_READY;
+        result=strcmp(word,"pending")==0?TORIRS_FRAME_PENDING:strcmp(word,"unsupported")==0?TORIRS_FRAME_UNSUPPORTED:strcmp(word,"native")==0?TORIRS_FRAME_NATIVE:TORIRS_FRAME_READY;
     }
     if(lua_type(L,-1)==LUA_TSTRING&&e->reason&&e->reason_capacity)snprintf(e->reason,e->reason_capacity,"%s",lua_tostring(L,-1));
     lua_pop(L,2);

@@ -947,14 +947,30 @@ add_component_rows(
     if( ((node->component_id >> 16) & 0xFFFF) == TORIRS_CHROME_GROUP )
         return 0;
 
+    /*
+     * An owned control's rows, one per armed op.
+     *
+     * Highest slot first, exactly as add_menu_ops_rows walks a native
+     * component's, because the menu draws bottom-to-top: the LAST row added is
+     * the one on top and the one a plain left-click takes. So op 1 must be
+     * added last, and a cover over `orbs:prayerbutton` reads
+     * "Quick-prayers / Setup" in the order the component it hides reads.
+     *
+     * `action_index` carries which op the row came from, the same channel a
+     * native op row uses, and app_minimenu_run_option hands it back to the
+     * plugin as ToriRS_WidgetEvent::operation.
+     */
     if( node->plugin_owner )
     {
-        if( node->plugin_op_serial && opts->option[0] )
-        {
-            struct UIMinimenuPick owned=pick;
-            UITree_StampMenuPick(ctx->tree,(int32_t)(node-ctx->tree->components),&owned);
-            UIMinimenu_AddOption(menu,opts->option,RS_MINIMENU_ACTION_PLUGIN_WIDGET,0,owned);
-        }
+        if( node->plugin_op_serial )
+            for( int i = UITREE_MENU_OPTION_SLOTS - 1; i >= 0; i-- )
+            {
+                struct UIMinimenuPick owned=pick;
+                if( opts->ops[i][0] == '\0' )
+                    continue;
+                UITree_StampMenuPick(ctx->tree,(int32_t)(node-ctx->tree->components),&owned);
+                UIMinimenu_AddOption(menu,opts->ops[i],RS_MINIMENU_ACTION_PLUGIN_WIDGET,i,owned);
+            }
         return menu->option_count-before;
     }
 

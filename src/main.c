@@ -6303,6 +6303,20 @@ main(
         }
 
         /*
+         * Whether this device has keys to summon, asked once and held.
+         *
+         * Here because the question needs the platform handle and App_Init has
+         * none -- the App is deliberately platform-free. Before the frame
+         * loop, and that is the point: PluginHost_Start runs from a task the
+         * loop pumps, so a capability resolved any later is false at every
+         * on_start and true from frame one, with nobody left listening. That
+         * is the exact defect touch_ui was moved out of this file to fix; @see
+         * the note beside app.touch_camera above, and App::touch_ui.
+         */
+        app.has_screen_keyboard = PlatformWindow_HasScreenKeyboard(platform);
+        TORIRS_LOG("screen_keyboard: %d\n", app.has_screen_keyboard);
+
+        /*
          * The other half of the touch viewport published every frame below:
          * which points inside it are covered by a window.
          *

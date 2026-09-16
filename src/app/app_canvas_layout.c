@@ -16,6 +16,18 @@
  * digits — this is a "something is looping" bound, not a budget. */
 #define APP_RESIZE_HOOK_MAX 256
 
+/*
+ * The Display side panel's client-layout row, as a child index of
+ * `[iface:settings_side]`.
+ *
+ * The CHILD stays in C, the way every app_iface_com caller's does: which
+ * component of that panel carries the layout dropdown is a fact about the
+ * panel's own layout and travels with it (`display_dynamic_setting_1_buttons`
+ * is the 41st section of interfaces/settings_side.if). Which id the INTERFACE
+ * has is the revision's, and that half is the profile's.
+ */
+#define APP_SETTINGS_SIDE_LAYOUT_ROW 40
+
 /* Private to this unit, declared up front so definition order is free. */
 static void
 app_dispatch_resize_hook_ids(
@@ -660,6 +672,161 @@ App_TakeClientLayoutChange(
     if( out_mode )
         *out_mode = app->host.client_layout_mode;
     return 1;
+}
+
+/*
+ * Which of the lane's four top-level roots is on screen.
+ *
+ * Off the LIVE root and not off `client_layout_mode`, because the two answer
+ * different questions and only this one answers the asker's. The mode is what
+ * the Display panel last chose; the root is what the server actually mounted,
+ * and between a choice and the remount that follows it -- three server ticks,
+ * and every one of them a frame somebody draws -- they disagree. A gameframe
+ * arranges over the root, so it must be told about the root.
+ *
+ * The four ids are the profile's ([iface:toplevel_fixed] and its siblings): a
+ * revision that declares none of them, or a lane whose frame is revconfig
+ * builtins, has no such thing and says so with -1.
+ */
+int
+app_native_layout_mode(struct App const* app)
+{
+    static char const* const roots[] = {
+        "toplevel_fixed",
+        "toplevel_resizable_classic",
+        "toplevel_resizable_modern",
+        "toplevel_mobile",
+    };
+    int root;
+
+    assert(app);
+    if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
+        return -1;
+    root = app->host.top_interface_id;
+    if( root <= 0 )
+        return -1;
+    for( int layout = 0; layout < (int)(sizeof(roots) / sizeof(roots[0])); layout++ )
+    {
+        if( RevConfigRefs_Get(&app->revconfig_refs, "iface", roots[layout]) == root )
+            return layout;
+    }
+    return -1;
+}
+
+/*
+ * Ask the lane to put the client in one of its native top-level chromes.
+ *
+ * ## Why this is a packet and not a field
+ *
+ * The client does not own which toplevel is up. The SERVER opens it
+ * (`if_opentop` out of `~gameframe_apply_mode`), and everything mounted into
+ * it -- the panels, the arming for every one of their ops, the overlay
+ * containers -- is mounted by the server against that root. A client that
+ * opened a different toplevel by itself would be looking at a frame its own
+ * server did not know about, which is a worse frame than the one being
+ * escaped.
+ *
+ * So the request is the one a player makes: the Display panel's layout row,
+ * `settings_side:display_dynamic_setting_1_buttons`, whose sub-id is the
+ * choice plus one. `[proc,settings_side_login]` arms subs 1..3 of it with op 1
+ * at login and leaves it armed for the session, which is what makes this a
+ * legitimate press rather than an invented one -- the server asked to be told
+ * about exactly this, and this client checks that it did (the arming table
+ * below) before saying anything.
+ *
+ * And it has to be that row, not WINDOW_STATUS. Revision 239's WINDOW_STATUS
+ * carries the window CLASS -- 1 fixed, 2 resizable -- so Classic and Modern
+ * are the same packet, and a client that only sent it could never move between
+ * them. The row's op is the golden client's own answer to that, and the server
+ * content says so in as many words (settings_side.rs2, the note above the
+ * if_setevents).
+ *
+ * @param layout enum AppNativeLayout, and one of the three the Display row
+ *               offers -- MOBILE is not selectable (see the enum).
+ * @return true when the lane has been asked, INCLUDING the case where it is
+ *         already wearing that chrome; false when this lane cannot be asked,
+ *         with the reason logged once.
+ */
+bool
+app_native_layout_select(
+    struct App* app,
+    int layout)
+{
+    int row;
+    int sub;
+    int live;
+
+    assert(app);
+    assert(layout >= APP_NATIVE_LAYOUT_FIXED);
+    assert(layout <= APP_NATIVE_LAYOUT_RESIZABLE_MODERN);
+
+    if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
+        return false;
+    /* No session, nothing to ask: the toplevel is the server's to open, and an
+     * offline lane has no server. */
+    if( !app->net || app->net->state != TORIRS_NET_GAME )
+        return false;
+
+    live = app_native_layout_mode(app);
+    if( live == layout )
+    {
+        /* Arrived. Drop the outstanding request rather than leaving it to
+         * suppress the NEXT one, which may be a move straight back. */
+        app->host.client_layout_wanted = -1;
+        return true;
+    }
+    /*
+     * The phone's root is not a Display choice.
+     *
+     * 601 is opened because the login's client type said phone, and the row
+     * offers no way to ask for it or to leave it. Pressing the row here would
+     * take a phone off the only chrome its cache lays out for a phone.
+     */
+    if( live == APP_NATIVE_LAYOUT_MOBILE )
+    {
+        static int said;
+        if( !said++ )
+            TORIRS_LOG("native_layout: the mobile toplevel is not one of the Display "
+                       "layouts; the lane stays on it\n");
+        return false;
+    }
+
+    row = app_iface_com(app, "settings_side", APP_SETTINGS_SIDE_LAYOUT_ROW);
+    if( row < 0 )
+    {
+        static int said;
+        if( !said++ )
+            TORIRS_LOG("native_layout: no [iface:settings_side] in this profile; "
+                       "nothing can ask this lane for a top-level chrome\n");
+        return false;
+    }
+    sub = layout + 1;
+    /* The server's own arming, and the whole licence for the packet below. A
+     * lane whose content never armed the row is one where this press would be
+     * a message nobody asked for. */
+    if( (UIIfEventTable_At(&app->if_events, row, sub) & (1u << 1)) == 0 )
+    {
+        static int said;
+        if( !said++ )
+            TORIRS_LOG("native_layout: this server has not armed the Display layout "
+                       "row (com=%d sub=%d); no chrome can be asked for\n", row, sub);
+        return false;
+    }
+
+    /* One packet per request, not one per frame: the asker is a frame
+     * provider's layout pass. @see APP_NATIVE_LAYOUT_RETRY_CYCLES. */
+    if( app->host.client_layout_wanted == layout &&
+        app->logic_cycle - app->host.client_layout_wanted_cycle <
+            APP_NATIVE_LAYOUT_RETRY_CYCLES )
+        return true;
+    app->host.client_layout_wanted = layout;
+    app->host.client_layout_wanted_cycle = app->logic_cycle;
+    APP_NET_SEND(
+        app,
+        net_out_if_button_op(
+            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), 1, row, sub));
+    TORIRS_LOG("native_layout: asked for %d (Display row com=%d sub=%d)\n", layout, row, sub);
+    return true;
 }
 
 int

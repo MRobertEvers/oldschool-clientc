@@ -1,6 +1,7 @@
 #include "test_harness.h"
 
 #include "uitree_frame.h"
+#include "uitree_input.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -1337,6 +1338,18 @@ stamping_binder(struct UITree* tree, void* user)
     tree->components[g_binder_banner].frame_member_plus1 = 2 + 1;
 }
 
+static int32_t g_binder_compass_click = -1;
+
+/* The compass's hit region alone, for the 548-shaped fixture below: a real
+ * binder stamps it from the profile's `frame_compass_click` rung. */
+static void
+compass_click_binder(struct UITree* tree, void* user)
+{
+    (void)user;
+    if( g_binder_compass_click >= 0 )
+        tree->components[g_binder_compass_click].slot_tag = UITREE_SLOT_COMPASS_CLICK;
+}
+
 static void
 test_binder_stamps_cache_regions_and_layer_chrome(void)
 {
@@ -1761,6 +1774,127 @@ test_placed_world_paints_first_and_stretched_ancestor_clips_nothing(void)
     UITree_Free(tree);
 }
 
+/*
+ * The compass is TWO nodes on a cache toplevel, and only one of them paints.
+ *
+ * 548 draws the rose with a `clientcode=1339` graphic and puts the four
+ * "Look <dir>" ops on `compassclick`, a bare sibling layer that
+ * `~torirs_compass_bind` fills with `cc_create` children at runtime -- so the
+ * layer carries no op, no click mask and no art, and nothing about the node
+ * says what it is. A provided frame moves the rose; before the hit region was
+ * bound with it, the ops stayed at the lane's own 546,6 and the compass
+ * painted beside the Stone Drawer's map while answering the pointer over the
+ * middle of it. Both halves are asserted here: the option follows the rose,
+ * and the invisible hotspot it left behind is gone.
+ */
+static void
+test_placed_compass_carries_its_hit_region(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    int32_t shell;
+    int32_t map_container;
+    int32_t compass;
+    int32_t region;
+    int32_t option;
+    int const container_x = 516;
+    int const container_y = 4;
+    int const placed_x = 120;
+    int const placed_y = 400;
+
+    UITree_TestHostInit(&host, &hs);
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    shell = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, FRAME_ROOT_ID, 0, 0, UITREE_LAYOUT_ROOT_W,
+        UITREE_LAYOUT_ROOT_H);
+    map_container = UITree_TestPushXy(
+        tree, shell, UIELEM_RS_LAYER, FRAME_CHROME_ID, container_x, container_y, 249, 163);
+    /* 548's own numbers: the rose at 29,0 32x33 and the hit region at 30,2
+     * 29x29, siblings under `mapcontainer`. */
+    compass = push_compass(
+        tree, map_container, 29, 0, 32, 33, NATIVE_COMPASS_ART, NATIVE_COMPASS_MASK);
+    region = UITree_TestPushXy(
+        tree, map_container, UIELEM_RS_LAYER, FRAME_CHROME_ID + 3, 30, 2, 29, 29);
+    /* What the script puts in it: a child filling the region, carrying the
+     * option. The region itself stays bare, which is the whole difficulty. */
+    option = UITree_CcCreate(tree, region, FRAME_CHROME_ID + 3, 4, 1);
+    TEST_ASSERT(
+        shell >= 0 && map_container >= 0 && compass >= 0 && region >= 0 && option >= 0,
+        "548-shaped compass pair builds");
+    tree->components[option].position.width = 29;
+    tree->components[option].position.height = 29;
+    strncpy(
+        UITree_MenuOptionsMut(&tree->components[option])->ops[0], "Look North",
+        UITREE_MENU_OPTION_LEN - 1);
+
+    g_binder_compass_click = region;
+    UITree_FrameSetBinder(tree, compass_click_binder, NULL);
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
+
+    TEST_ASSERT(
+        UITree_FrameCompassClickNode(tree) == region,
+        "the stamped layer is the compass's hit region");
+    TEST_ASSERT(
+        UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_COMPASS) == compass,
+        "and the compass slot is still the node that PAINTS");
+
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(tree, region, container_x + 30, container_y + 2, 29, 29),
+        "a provision that has moved nothing leaves the region on the lane's box");
+
+    TEST_ASSERT(
+        UITree_WidgetSetPosition(
+            tree, UITree_RefAt(tree, compass), PLUGIN_OWNER, placed_x - container_x,
+            placed_y - container_y) &&
+            UITree_WidgetSetSize(tree, UITree_RefAt(tree, compass), PLUGIN_OWNER, 33, 33),
+        "the provider places the compass in its own map housing");
+    /* As the app does: the provider declares, then the frame is provided
+     * again -- which is what releases `mapcontainer` from clipping so a
+     * surface it no longer contains is seen where the provider put it. */
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
+    UITree_TestResolve(tree);
+
+    TEST_ASSERT(
+        effective_box_is(tree, compass, placed_x, placed_y, 33, 33),
+        "the rose is where the provider put it");
+    TEST_ASSERT(
+        effective_box_is(tree, region, placed_x, placed_y, 33, 33),
+        "and the hit region took the same box");
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, placed_x + 16, placed_y + 16) == option,
+        "the option answers the pointer over the rose");
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, container_x + 44, container_y + 16) != option,
+        "and no longer over the lane's old map");
+
+    /* The link is a LINK: the provider re-places on a resize without the
+     * binding moving, so the region has to follow that too. */
+    TEST_ASSERT(
+        UITree_WidgetSetPosition(
+            tree, UITree_RefAt(tree, compass), PLUGIN_OWNER, 100 - container_x,
+            50 - container_y),
+        "the provider re-places the compass on a resize");
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(tree, region, 100, 50, 33, 33),
+        "the region follows every re-placement, not just the one the binding saw");
+
+    release_plugin_frame(tree);
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        tree->components[region].frame_follows_plus1 == 0 &&
+            effective_box_is(tree, region, container_x + 30, container_y + 2, 29, 29),
+        "release gives the lane its own hit region back");
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, container_x + 44, container_y + 16) == option,
+        "and the lane's compass answers the pointer where the lane draws it");
+
+    g_binder_compass_click = -1;
+    UITree_Free(tree);
+}
+
 void
 test_frame_replacement(void)
 {
@@ -1778,4 +1912,5 @@ test_frame_replacement(void)
     test_synthetic_press_sees_through_frame_hidden();
     test_synthetic_press_sees_through_widget_hidden();
     test_placed_world_paints_first_and_stretched_ancestor_clips_nothing();
+    test_placed_compass_carries_its_hit_region();
 }

@@ -147,6 +147,10 @@ struct PluginWidgetRequest
     struct ToriRS_WidgetAction* actions;
     struct ToriRS_WidgetActionRef action;
     uint64_t registration;
+    /* SET_ON_OP: which of the control's menu operations this request arms or
+     * clears, 1-based and numbered as the cache numbers a component's. A
+     * cleared slot carries an empty `name` and leaves the others armed. */
+    int op;
     char* text;
     size_t capacity;
     size_t* count;
@@ -154,7 +158,10 @@ struct PluginWidgetRequest
 
 /* Called after native frame bindings are available at the pre-input/paint
  * publication fence. A zero instance means no ready native tree. */
-bool PluginHost_WidgetOperation(struct ToriRS_PluginHost*,uint64_t owner,struct ToriRS_WidgetRef,uint64_t registration);
+/* `op` is the operation the player chose, 1-based and numbered as set_on_op
+ * armed them -- the row's own slot, which the native menu carries back as its
+ * action index. An op this owner never armed on this widget is refused. */
+bool PluginHost_WidgetOperation(struct ToriRS_PluginHost*,uint64_t owner,struct ToriRS_WidgetRef,uint64_t registration,int op);
 void PluginHost_WidgetsChanged(struct ToriRS_PluginHost*, uint64_t instance, uint64_t generation);
 /* Stamp every bound watch's ToriRS_WidgetState and raise
  * TORIRS_WIDGET_STATE_CHANGED where it moved. Called every layout tick right
@@ -450,6 +457,16 @@ struct ToriRS_PluginEngine
      *  Optional like `lane`: a harness with no notion of a cache gameframe
      *  leaves it NULL and every plugin reads -1. */
     int (*frame_root)(void* user);
+    /** Which native top-level chrome the lane wears (enum ToriRS_NativeLayout),
+     *  and a request for one of them. Both optional and paired: a harness with
+     *  no native chrome to choose leaves them NULL, every plugin reads UNKNOWN
+     *  and every request is refused. `native_layout_select` returns non-zero
+     *  when the lane has been asked -- which is not the same as changed; the
+     *  answer arrives as a new `frame_root`. @see native_layout_select. */
+    int (*native_layout)(void* user);
+    int (*native_layout_select)(
+        void* user,
+        int layout);
 
     /** One objtype, resident-only. @see obj_info. */
     int (*obj_info)(

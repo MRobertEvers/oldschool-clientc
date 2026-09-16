@@ -508,6 +508,36 @@ static int fake_lane(void* u, struct ToriRS_LaneInfo* o)
     o->revision = g_lane_game == TORIRS_GAME_OLDSCHOOL ? 239 : 289;
     return g_lane_game != TORIRS_GAME_UNKNOWN;
 }
+/*
+ * The lane's own top-level chromes, where the lane has any.
+ *
+ * `native_layout` is the capability's answer -- a PROFILE fact, the roots and
+ * the settings row that selects them -- and off by default, because every
+ * section written before this fake existed lays the plugin's frame out over
+ * the root and expects to see it there. A select records what was asked and
+ * changes nothing: the remount is the server's, several ticks away, and a test
+ * that wants the answer to arrive moves the root itself.
+ */
+static int g_lane_native_layout = 0;
+static int g_native_layout = TORIRS_NATIVE_LAYOUT_UNKNOWN;
+static int g_native_layout_asked = TORIRS_NATIVE_LAYOUT_UNKNOWN;
+static int g_native_layout_requests = 0;
+static int g_native_layout_refuse = 0;
+static int fake_capability(void* u, char const* name)
+{
+    (void)u;
+    return strcmp(name, "native_layout") == 0 && g_lane_native_layout;
+}
+static int fake_native_layout(void* u) { (void)u; return g_native_layout; }
+static int fake_native_layout_select(void* u, int layout)
+{
+    (void)u;
+    if( g_native_layout_refuse )
+        return 0;
+    g_native_layout_asked = layout;
+    g_native_layout_requests++;
+    return 1;
+}
 static int fake_project(void* u, int a, int b, int c, int* x, int* y) { (void)u; (void)a; (void)b; (void)c; (void)x; (void)y; return 0; }
 static int fake_draw_tile(void* u, int x, int z, int l, uint32_t c, int w, uint32_t f, int a, int d) { (void)u; (void)x; (void)z; (void)l; (void)c; (void)w; (void)f; (void)a; (void)d; return 0; }
 static int fake_draw_hull(void* u, int e, uint32_t c, int a, int s) { (void)u; (void)e; (void)c; (void)a; (void)s; return 0; }
@@ -1168,7 +1198,9 @@ static void press(char const* key)
     struct FakeWidget const* n = owned(key);
     CHECK(n && n->op[0], key);
     if( n && n->op[0] )
-        CHECK(PluginHost_WidgetOperation(g_host, g_widget_owner, fw_ref((int)(n - g_w)), n->registration),
+        /* The frame's controls each offer one row, so every press here is
+         * op 1 -- the left-click default the stone's click is. */
+        CHECK(PluginHost_WidgetOperation(g_host, g_widget_owner, fw_ref((int)(n - g_w)), n->registration, 1),
               "the owned control's operation dispatches");
 }
 /*
@@ -1237,6 +1269,9 @@ main(void)
     e.cache_id = fake_cache_id;
     e.lane = fake_lane;
     e.frame_root = fake_frame_root;
+    e.capability = fake_capability;
+    e.native_layout = fake_native_layout;
+    e.native_layout_select = fake_native_layout_select;
     e.project = fake_project;
     e.draw_tile = fake_draw_tile;
     e.draw_hull = fake_draw_hull;
@@ -2448,6 +2483,83 @@ main(void)
                   "and it is the top row's stone turned over, which is how the 2004 table lights the row");
         }
         printf("GAMEFRAME lane grid faces=%d at %d..%d\n", matched, TOP_ROW_X[0], TOP_ROW_X[6]);
+    }
+
+    /* ---- 11. a lane that authors the frame itself ---------------------- */
+    /*
+     * On a lane with the `native_layout` capability the two Modern offers ARE
+     * the lane's own chromes. The provider asks the lane for the chrome and
+     * answers NATIVE: nothing placed, nothing owned, the lane's chrome up, the
+     * offer ACTIVE under its own id. Found on osrs239 with the plugin popout
+     * open: Modern Resizable arranged over 164 by this plugin was clipped by
+     * the strip the lane's own 164 grows its canvas to stand beside.
+     */
+    {
+        int requests;
+
+        g_lane_game = TORIRS_GAME_OLDSCHOOL;
+        g_frame_root = 548;
+        g_native_layout = TORIRS_NATIVE_LAYOUT_FIXED;
+        g_lane_native_layout = 1;
+        g_native_layout_asked = TORIRS_NATIVE_LAYOUT_UNKNOWN;
+        g_native_layout_requests = 0;
+        fw_build(/*oldschool=*/1);
+        PluginHost_WidgetsChanged(g_host, 77, 40);
+        select_frame("gameframe-layout/modern-resizable", 1100);
+        declare(807, 503);
+        printf("GAMEFRAME native asked=%d requests=%d status=%d id=%s active=%d pieces=%d\n",
+               g_native_layout_asked, g_native_layout_requests, selected_frame().status,
+               selected_frame().active_id, g_frame.active, owned_count("piece."));
+        CHECK(g_native_layout_asked == TORIRS_NATIVE_LAYOUT_RESIZABLE_MODERN,
+              "Modern Resizable on a lane with native chromes asks the lane for its resizable-modern one");
+        CHECK(selected_frame().status == TORIRS_FRAME_STATUS_ACTIVE &&
+                  strcmp(selected_frame().active_id, "gameframe-layout/modern-resizable") == 0,
+              "and the offer is active under its own id, not a fallback to native");
+        CHECK(g_frame.active == 0, "the lane's own chrome stays up");
+        CHECK(owned_count("piece.") == 0 && owned_count("tab.") == 0 && owned("housing") == NULL &&
+                  !native("viewport", -1)->moved && !native("chat", -1)->moved,
+              "nothing is placed over the lane");
+        /* The remount answers. Neither it nor a canvas change asks again:
+         * the lane lays its own chrome out. */
+        requests = g_native_layout_requests;
+        g_frame_root = 164;
+        g_native_layout = TORIRS_NATIVE_LAYOUT_RESIZABLE_MODERN;
+        fw_build(/*oldschool=*/1);
+        PluginHost_WidgetsChanged(g_host, 77, 41);
+        declare(1200, 800);
+        CHECK(g_native_layout_requests == requests, "the remount and a canvas change ask for nothing");
+        CHECK(g_frame.active == 0 && owned_count("piece.") == 0 && !native("viewport", -1)->moved,
+              "and still nothing is placed");
+        /* Modern Fixed is the lane's fixed chrome the same way. */
+        select_frame("gameframe-layout/modern-fixed", 1200);
+        declare(1200, 800);
+        CHECK(g_native_layout_asked == TORIRS_NATIVE_LAYOUT_FIXED &&
+                  selected_frame().status == TORIRS_FRAME_STATUS_ACTIVE &&
+                  strcmp(selected_frame().active_id, "gameframe-layout/modern-fixed") == 0 && g_frame.active == 0,
+              "Modern Fixed asks for the lane's fixed chrome and is active under its own id");
+        /* Classic Fixed is the 2004 frame, which no OldSchool lane authors:
+         * it asks for nothing and is described over the root as before. */
+        g_frame_root = 548;
+        g_native_layout = TORIRS_NATIVE_LAYOUT_FIXED;
+        fw_build(/*oldschool=*/1);
+        PluginHost_WidgetsChanged(g_host, 77, 42);
+        requests = g_native_layout_requests;
+        select_frame("gameframe-layout/classic-fixed", 1300);
+        declare(765, 503);
+        CHECK(g_native_layout_requests == requests && g_frame.active == 1 && owned_count("piece.") > 0,
+              "Classic Fixed asks for no chrome and is provided over the root");
+        /* A lane that cannot be asked -- the row not armed, no session -- gets
+         * the described frame over its root, which is what every lane got
+         * before the lane could be asked. */
+        g_native_layout_refuse = 1;
+        select_frame("gameframe-layout/modern-resizable", 1400);
+        declare(807, 503);
+        CHECK(g_native_layout_requests == requests && g_frame.active == 1 &&
+                  placed("viewport", -1, 0, 0, 807, 503) &&
+                  selected_frame().status == TORIRS_FRAME_STATUS_ACTIVE,
+              "a refused ask falls back to describing the frame over the live root");
+        g_native_layout_refuse = 0;
+        g_lane_native_layout = 0;
     }
 
     PluginHost_Free(g_host);

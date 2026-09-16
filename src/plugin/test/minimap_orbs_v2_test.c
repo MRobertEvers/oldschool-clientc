@@ -266,10 +266,21 @@ fake_cache_invoke(struct ToriRS_Api* api, int component, int operation)
     return true;
 }
 
+/**
+ * Does this lane's profile carry `[varp:...]` rows at all.
+ *
+ * Every revconfig profile in the tree that declares varps declares the orbs'
+ * two, so the plugin's ORB_VARP_*_FALLBACK only ever fires on a profile that
+ * has none. This is the switch that produces such a lane.
+ */
+static bool g_profile_states_varps = true;
+
 static bool
 fake_named_id_orbs(struct ToriRS_Api* api, char const* kind, char const* name, int* out)
 {
     (void)api;
+    if( !g_profile_states_varps && strcmp(kind, "varp") == 0 )
+        return false;
     if( strcmp(kind, "varp") == 0 && strcmp(name, "run_mode") == 0 )
     {
         *out = 173;
@@ -528,6 +539,7 @@ reset(void)
     g_composes = 0;
     g_notices = 0;
     g_digits_ini = NULL;
+    g_profile_states_varps = true;
     memset(g_picture, 0, sizeof(g_picture));
     memset(g_value_line, 0, sizeof(g_value_line));
     g_last_log[0] = '\0';
@@ -1238,6 +1250,88 @@ case_hitpoints_verb_is_declared_absent(void)
     stop_plugin();
 }
 
+/*
+ * An UNDECLARED varp is a blank orb that says why -- never a guessed id.
+ *
+ * This file used to carry `ORB_VARP_RUN_FALLBACK 173` and
+ * `ORB_VARP_SPEC_FALLBACK 300` as a third resolve step, so a lane whose
+ * profile stated nothing still drew a confident orb off ids nobody had
+ * checked. There is no capture that can catch that being wrong: a spec orb
+ * reading a foreign var draws a number, and a number is what a right one draws
+ * too. So the guess is gone, and the two halves below are what replaced it.
+ *
+ * The lane facts this pins, from revconfig: osrs239, rs289lc and rs245_2lc are
+ * the only cache profiles a manifest loads, and all three declare
+ * `[varp:run_mode]` and `[varp:special_attack_energy]` -- which is why
+ * deleting the fallback moved no shipping lane's picture, and why the
+ * declaring half below is the one that runs in the field.
+ *
+ * Mutation 1: restore either fallback -> the first half fails, because the
+ * spec orb draws a reading on a lane that declared no id for it.
+ * Mutation 2: declare unconditionally -> the second half fails, because a lane
+ * carrying both rows is told it is missing them.
+ * Mutation 3: drop orbs_declare_missing -> the first half fails on the count,
+ * and a blank orb goes back to having no stated reason.
+ */
+static void
+case_undeclared_varp_draws_nothing_and_says_so(void)
+{
+    struct PorcelainFinding found[PORCELAIN_FINDINGS_MAX];
+    int count;
+    int declared = 0;
+
+    /*
+     * A lane whose profile carries no [varp:] rows. The varp STORAGE is
+     * seeded at the historical ids, so a plugin that still guessed them would
+     * find a live reading sitting there and draw it -- which is exactly the
+     * shape the fallback had in the field.
+     */
+    reset();
+    declare_native_lane();
+    g_profile_states_varps = false;
+    g_varp[300] = 700;
+    g_varp[173] = 1;
+    start_plugin();
+    frame(8);
+
+    CHECK(Testbed_Control("orb_special") == NULL,
+        "no declared id, no special orb -- not an orb read off the historical number");
+    CHECK(g_value_line[3][0] == '\0', "and no reading reaches the log either");
+
+    count = Porcelain_Findings(handle(), found, PORCELAIN_FINDINGS_MAX);
+    for( int i = 0; i < count; i++ )
+        if( found[i].element.role &&
+            (strcmp(found[i].element.role, "run_mode varp id") == 0 ||
+             strcmp(found[i].element.role, "special_attack_energy varp id") == 0) )
+        {
+            declared++;
+            CHECK(found[i].expected, "the missing row is declared, so the finding is expected");
+        }
+    CHECK(declared == 2, "both missing [varp:] rows are named in the findings channel");
+    CHECK(undeclared_findings(handle()) == 0, "and saying so keeps the run clean");
+    stop_plugin();
+
+    /*
+     * And the lane that carries the rows is told nothing -- including about
+     * the armed bit, which rs289lc and rs245_2lc genuinely do not declare.
+     * That one is a supported degradation (the orb reads, it just never
+     * lights), so declaring it would file a limitation against two shipping
+     * lanes behaving exactly as intended.
+     */
+    declared = 0;
+    reset();
+    declare_native_lane();
+    start_plugin();
+    frame(6);
+    CHECK(Testbed_Control("orb_special") != NULL, "a declared id draws its orb");
+    count = Porcelain_Findings(handle(), found, PORCELAIN_FINDINGS_MAX);
+    for( int i = 0; i < count; i++ )
+        if( found[i].element.role && strstr(found[i].element.role, "varp id") )
+            declared++;
+    CHECK(declared == 0, "a profile that states its varps is told nothing about them");
+    stop_plugin();
+}
+
 /* ------------------------------------------------------------------------ */
 /* 10. A dead orb still holds its reading                                   */
 /* ------------------------------------------------------------------------ */
@@ -1599,6 +1693,7 @@ main(void)
     case_config();
     case_unstated_skill_draws_nothing();
     case_hitpoints_verb_is_declared_absent();
+    case_undeclared_varp_draws_nothing_and_says_so();
     case_inactive_orb_keeps_its_reading();
     case_hovered_orb_lights_its_plate();
     case_covered_orb_keeps_its_op();

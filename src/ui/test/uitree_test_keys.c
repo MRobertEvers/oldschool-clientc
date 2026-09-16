@@ -622,7 +622,7 @@ test_owned_control_click_reports_node(void)
     TEST_ASSERT(out.clicked_node < 0 && out.clicked_com_id < 0 && out.left_click_miss,
         "an unarmed owned text is decoration: the click falls through to the world");
 
-    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 7, 5, "Press"), "owner arms the control");
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 7, 5, 1, "Press"), "owner arms the control");
     LibToriRS_Input_Begin(input, 2000);
     LibToriRS_Input_PushMouseMove(input, 120, 108);
     LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 120, 108);
@@ -633,7 +633,7 @@ test_owned_control_click_reports_node(void)
     TEST_ASSERT(out.clicked_com_id < 0, "an owned control still has no component id");
     TEST_ASSERT(!out.left_click_miss, "an owned control's click is not a world click");
 
-    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 7, 0, ""), "owner disarms the control");
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 7, 0, 1, ""), "owner disarms the control");
     LibToriRS_Input_Begin(input, 3000);
     LibToriRS_Input_PushMouseMove(input, 120, 108);
     LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 120, 108);

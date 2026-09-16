@@ -33,6 +33,7 @@
 #include "torirs_server.h"
 
 #include "torirs_server_content.h"
+#include "torirs_server_mapinstance.h"
 #include "torirs_server_scene.h"
 
 #include "ss_trigger.h"
@@ -1690,6 +1691,12 @@ ToriRSServer_CombatHitPlayerFrom(
         ToriRSServer_WorldPlayerUnlock(srv);
         player->dying = 1;
         ToriRSServer_CombatStopPlayer(srv);
+        /* And the single-way claim, which `CombatStopPlayer` deliberately does
+         * not touch: it outlives an interaction, but not the player. A corpse
+         * that respawned still claimed would have its first Attack click
+         * refused. */
+        player->combat_claim_npc = -1;
+        player->combat_claim_tick = 0;
         for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
         {
             if( srv->npcs[i].combat_target == player->pid )
@@ -1724,6 +1731,312 @@ ToriRSServer_CombatHitPlayer(
 /* ------------------------------------------------------------------ */
 /* Engagement                                                          */
 /* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* Single-way combat                                                   */
+/* ------------------------------------------------------------------ */
+
+/*
+ * OldSchool's Multicombat rule, and the whole of it in one place.
+ *
+ * "Outside a multicombat area you may only be in combat with one entity at a
+ * time": a player who is fighting one monster may not start on a second, and a
+ * monster somebody else is fighting is not available. Both halves are the same
+ * rule seen from the two ends, which is why they share a predicate rather than
+ * being two checks in two files.
+ *
+ * ------------------------------------------------------------------
+ * Why the claim is a timer and `combat_target` could not serve
+ * ------------------------------------------------------------------
+ *
+ * The obvious implementation — "refuse the click if `player->combat_target` is
+ * already set" — cannot work, and not for a subtle reason: by the time an
+ * Attack click reaches anything that could read it, `handle_opnpc` has called
+ * `ToriRSServer_WorldClearPendingAction` and the old target is gone. Every
+ * click ends the last interaction; that is what a click *is* here. So the rule
+ * has to look at something a click does not erase, which is what
+ * `combat_claim_*` is: stamped by each swing, read for
+ * `TORIRSSERVER_SINGLEWAY_COMBAT_TICKS` afterwards, and belonging to the fight
+ * rather than to the interaction.
+ *
+ * That is also the reference's model rather than an invention — LostCity
+ * spells the same deadline `%lastcombat` on the player and `%npc_lastcombat` on
+ * the npc. Content cannot own the npc half here (there are no varn opcodes),
+ * which is why `[proc,player_in_combat_check]` has been a flat `return(true)`
+ * since the port and why this lives in the engine.
+ *
+ * ------------------------------------------------------------------
+ * Which tile decides
+ * ------------------------------------------------------------------
+ *
+ * The npc's. `map_multiway(npc_coord)` is what the reference asks — see
+ * `SS_OP_MAP_MULTIWAY`'s header in torirs_server_scripts.c — so a fight is
+ * multi-combat when the monster is standing in a multi zone, not when the
+ * player is. `forcemulti` on the record is the second half of the same gate;
+ * the field's comment in torirs_server_content.h says why every post-2004
+ * encounter needs it.
+ *
+ * ------------------------------------------------------------------
+ * And a dynamic map instance is multi-combat, whatever its tiles say
+ * ------------------------------------------------------------------
+ *
+ * Not the reference's rule, and stated here rather than smuggled in, because
+ * it is the one place this deliberately answers "multi" where OldSchool might
+ * not.
+ *
+ * `maps/multiway.csv` is a *zone set over the real map*, and an instance has no
+ * address on the real map: the pool hands out map squares from x >= 100, past
+ * the edge of anything the file has ever described (see
+ * `ToriRSServer_MapInstanceSourceTile`). So every instanced encounter this tree
+ * has — the Chambers, the Theatre, the Tombs, the Inferno, the Gauntlet, the
+ * Fight Caves — would read as single-way, and single-way in a room full of adds
+ * does not mean "harder", it means the player is locked to the first thing that
+ * swung and the fight cannot be played at all.
+ *
+ * The direction of the error is what makes it acceptable: answering multi
+ * *relaxes* the rule, so the worst case is a restriction not enforced in a
+ * private room. The instanced fights where OldSchool really is single-way —
+ * Zulrah, Vorkath — are one monster against one player, where the rule never
+ * had anything to say. Resolving an instance's tiles back to their template
+ * square and asking the zone set about *that* is the honest fix, and it is
+ * `ToriRSServer_MapInstanceSourceTile`'s job; it is not done here because a
+ * template square answers for the whole instance and several of these
+ * encounters are built from squares whose originals are ordinary map.
+ */
+int
+ToriRSServer_CombatMultiway(const struct ToriRSServerNpc* npc)
+{
+    assert(npc);
+    if( npc_def(npc)->forcemulti )
+        return 1;
+    if( ToriRSServer_MapInstanceFind(npc->x, npc->z) )
+        return 1;
+    return ToriRSServer_ContentMultiway(npc->x, npc->z, npc->level);
+}
+
+/** Is this npc a live thing a claim can still be about? A corpse frees both
+ *  sides at once, which is what lets a player swing at the next monster on the
+ *  tick the last one died rather than eight ticks later. */
+static int
+claimable_npc(const struct ToriRSServer* srv, int slot)
+{
+    const struct ToriRSServerNpc* npc;
+
+    if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
+        return 0;
+    npc = &srv->npcs[slot];
+    if( !npc->active || npc->death_tick >= 0 )
+        return 0;
+    return 1;
+}
+
+/** The npc this player's claim still names, or -1. Resolves the generation, so
+ *  a claim whose npc died and whose slot was reused names nothing. */
+static int
+player_claimed_npc(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player)
+{
+    int slot = player->combat_claim_npc;
+
+    if( srv->tick >= player->combat_claim_tick )
+        return -1;
+    if( !claimable_npc(srv, slot) )
+        return -1;
+    if( srv->npcs[slot].generation != player->combat_claim_npc_gen )
+        return -1;
+    return slot;
+}
+
+/** Is this npc claimed by a player other than `player`? Answers the "Someone
+ *  else is fighting that" half. */
+static int
+npc_claimed_by_other(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerNpc* npc,
+    const struct ToriRSServerPlayer* player)
+{
+    const struct ToriRSServerPlayer* claimant;
+
+    /* The live latch counts as well as the timed claim: an npc that is swinging
+     * at somebody right now is plainly theirs, and it reaches that state
+     * through aggression too — where nobody has swung yet and so nothing has
+     * been stamped. */
+    if( npc->combat_target >= 0 && npc->combat_target != player->pid &&
+        npc->combat_target < TORIRSSERVER_PLAYER_MAX &&
+        srv->players[npc->combat_target].active )
+        return 1;
+    if( srv->tick >= npc->combat_claim_tick )
+        return 0;
+    if( npc->combat_claim_pid < 0 || npc->combat_claim_pid >= TORIRSSERVER_PLAYER_MAX )
+        return 0;
+    if( npc->combat_claim_pid == player->pid )
+        return 0;
+    claimant = &srv->players[npc->combat_claim_pid];
+    if( !claimant->active || claimant->login_generation != npc->combat_claim_gen )
+        return 0;
+    return 1;
+}
+
+/** Is some npc other than `slot` in combat with this player, single-way? The
+ *  "I'm already under attack" half, and the one the player actually feels:
+ *  being hit by a monster is what stops you picking a different one. */
+static int
+other_npc_engaged_with(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int slot)
+{
+    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+    {
+        const struct ToriRSServerNpc* npc = &srv->npcs[i];
+
+        if( i == slot || !claimable_npc(srv, i) )
+            continue;
+        if( npc->combat_target != player->pid )
+            continue;
+        if( ToriRSServer_CombatMultiway(npc) )
+            continue;
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * Stamp the claim — called from both ends of every swing.
+ *
+ * Both sides at once, because the rule is symmetric and a one-sided stamp is a
+ * rule that only holds in one direction: claiming the npc without claiming the
+ * player would let a second monster start on someone mid-fight, and the reverse
+ * would let a second player join a monster nobody else may touch.
+ *
+ * Unconditional on the zone. A claim taken in a multi zone costs nothing (every
+ * reader gates on `ToriRSServer_CombatMultiway` first) and a fight that crosses
+ * the wilderness line mid-swing then behaves by the rule of wherever the monster
+ * is standing when the question is asked, rather than by wherever it was when
+ * the claim happened to be written.
+ */
+void
+ToriRSServer_CombatClaim(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int slot)
+{
+    struct ToriRSServerNpc* npc;
+
+    assert(srv);
+    assert(player);
+    if( !claimable_npc(srv, slot) )
+        return;
+    npc = &srv->npcs[slot];
+
+    player->combat_claim_npc = slot;
+    player->combat_claim_npc_gen = npc->generation;
+    player->combat_claim_tick = srv->tick + TORIRSSERVER_SINGLEWAY_COMBAT_TICKS;
+
+    npc->combat_claim_pid = player->pid;
+    npc->combat_claim_gen = player->login_generation;
+    npc->combat_claim_tick = srv->tick + TORIRSSERVER_SINGLEWAY_COMBAT_TICKS;
+}
+
+/*
+ * May this player start (or continue) an attack on this npc? Refuses with the
+ * reference's own two messages, which are content's: `[proc,combat_singles_*]`
+ * in skill_combat/combat.rs2.
+ *
+ * Returns 1 when the attack must not happen. Every caller is a *start* — a
+ * click, a script's `p_opnpc(2)`, an engage — never the damage funnel: gating
+ * damage would refuse the hits of a fight the engine has already allowed, which
+ * is a fight that visibly does nothing.
+ */
+int
+ToriRSServer_CombatSinglewayRefuses(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int slot)
+{
+    struct ToriRSServerNpc* npc;
+    int claimed;
+
+    assert(srv);
+    assert(player);
+    if( !claimable_npc(srv, slot) )
+        return 0;
+    npc = &srv->npcs[slot];
+    /* The target's zone decides, and it decides first: in multi nothing below
+     * is a refusal. */
+    if( ToriRSServer_CombatMultiway(npc) )
+        return 0;
+
+    if( npc_claimed_by_other(srv, npc, player) )
+    {
+        ToriRSServer_ScriptsRunProc(srv, "[proc,combat_singles_target_taken]", NULL, 0);
+        if( srv->verbose )
+            fprintf(stderr,
+                    "torirsserver: single-way refuses slot=%d: already fought by pid %d\n",
+                    slot, npc->combat_target >= 0 ? npc->combat_target : npc->combat_claim_pid);
+        return 1;
+    }
+
+    /* Already in a fight of our own with something else. Two questions, not
+     * one: the claim answers "was I just swinging at something", the sweep
+     * answers "is something swinging at me". Either alone leaves a hole — a
+     * monster that aggressed and has not yet swung has stamped no claim, and a
+     * monster we attacked that does not fight back sets no `combat_target`. */
+    claimed = player_claimed_npc(srv, player);
+    if( claimed >= 0 && claimed != slot &&
+        !ToriRSServer_CombatMultiway(&srv->npcs[claimed]) )
+    {
+        ToriRSServer_ScriptsRunProc(srv, "[proc,combat_singles_self_busy]", NULL, 0);
+        if( srv->verbose )
+            fprintf(stderr,
+                    "torirsserver: single-way refuses slot=%d: still claimed by slot %d\n",
+                    slot, claimed);
+        return 1;
+    }
+    if( other_npc_engaged_with(srv, player, slot) )
+    {
+        ToriRSServer_ScriptsRunProc(srv, "[proc,combat_singles_self_busy]", NULL, 0);
+        if( srv->verbose )
+            fprintf(stderr, "torirsserver: single-way refuses slot=%d: under attack\n", slot);
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * The same rule from the monster's end: may THIS npc start on this player?
+ *
+ * Aggression only, and retaliation never — being hit gives an npc a target
+ * whatever this says, because the player who hit it has by definition already
+ * claimed it. What this stops is the second goblin wandering over while the
+ * first one is mid-fight, which is the visible half of single-way that no
+ * amount of gating the player's clicks would fix.
+ *
+ * No message: nobody clicked.
+ */
+int
+ToriRSServer_CombatSinglewayNpcMayEngage(
+    struct ToriRSServer* srv,
+    int slot,
+    const struct ToriRSServerPlayer* player)
+{
+    int claimed;
+
+    assert(srv);
+    assert(player);
+    if( !claimable_npc(srv, slot) )
+        return 0;
+    if( ToriRSServer_CombatMultiway(&srv->npcs[slot]) )
+        return 1;
+    claimed = player_claimed_npc(srv, player);
+    if( claimed >= 0 && claimed != slot &&
+        !ToriRSServer_CombatMultiway(&srv->npcs[claimed]) )
+        return 0;
+    if( other_npc_engaged_with(srv, player, slot) )
+        return 0;
+    return 1;
+}
 
 /** Does this npc's cache record offer an Attack option? That is the same test
  *  the client's minimenu makes, so the two ends cannot disagree about what is
@@ -1840,8 +2153,17 @@ ToriRSServer_CombatEngage(
         ToriRSServer_CombatStopPlayer(srv);
         return;
     }
+    /* Single-way. Before the latch and before the walk: a refused Attack must
+     * leave the player standing where they were, still fighting whatever they
+     * were already fighting. */
+    if( ToriRSServer_CombatSinglewayRefuses(srv, player, slot) )
+        return;
 
     player->combat_target = slot;
+    /* The player's half of the single-way claim. `p_opnpc(2)` stamps it for
+     * every content-driven swing; this covers the engine's own engage — the
+     * `Attack` fallback for an npc no `[opnpc]` script claims, and `::attack`. */
+    ToriRSServer_CombatClaim(srv, player, slot);
     /* Swing on the tick the player arrives rather than after a full interval:
      * an opening delay reads as the click having been dropped. */
     player->attack_clock = 0;
@@ -2189,6 +2511,17 @@ maybe_aggress(
 
     npc_level = ToriRSServer_NpcInfo(npc->type)->combat_level;
     if( npc_level > 0 && ToriRSServer_CombatLevel(player) > npc_level * 2 )
+        return;
+    /*
+     * Single-way: one monster on one player at a time.
+     *
+     * Aggression is the only npc-side gate, and it is the one that matters —
+     * being mobbed is what a player notices about a single-way zone. The
+     * refusal is silent and repeats every tick for as long as the player is in
+     * range and busy, which is the reference's shape too: nothing has been
+     * decided, the npc simply has no free target this turn.
+     */
+    if( !ToriRSServer_CombatSinglewayNpcMayEngage(srv, slot, player) )
         return;
 
     npc->combat_target = player->pid;
@@ -2704,6 +3037,11 @@ ToriRSServer_CombatNpcTick(
     if( srv->tick < npc->attack_clock )
         return;
     npc->attack_clock = srv->tick + npc_def(npc)->attackrate;
+    /* The npc's half of the single-way claim, on the swing rather than on the
+     * hit: a monster that misses you has still put you in combat, and the
+     * damage funnel does not know which npc it is standing in for anyway (see
+     * `ToriRSServer_HitmarkDealerFromAttackerScript`). */
+    ToriRSServer_CombatClaim(srv, player, slot);
 
     /*
      * The npc's swing is content's — [ai_opplayer2,<npc>] owns it and does
@@ -2741,6 +3079,11 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
         npc->level = npc->spawn_level;
         npc->hitpoints = npc->base_hitpoints;
         npc->combat_target = -1;
+        /* A respawn is a fresh npc down to who is allowed to fight it: a
+         * single-way claim taken on the last life would otherwise still be
+         * refusing everyone else for eight ticks of this one. */
+        npc->combat_claim_pid = -1;
+        npc->combat_claim_tick = 0;
         /*
          * A respawn is a fresh npc, and that has to include what it is *doing*.
          *

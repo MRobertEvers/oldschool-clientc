@@ -196,16 +196,29 @@ static const struct
 #define ORB_STAT_PRAYER 5
 
 /*
- * The ids the three-step resolve below falls back on.
+ * THERE ARE NO FALLBACK VARP IDS, and there is nowhere left for one to hide.
  *
- * Both have been these numbers since 2004 and are these numbers on every cache
- * in this tree, which is what makes them a reasonable LAST resort -- and why
- * they are a last resort rather than a constant: a lane that moved one says so
- * in its profile, and a lane that moved one and did not gets an orb that is
- * wrong rather than a client that is broken.
+ * This file used to carry `ORB_VARP_RUN_FALLBACK 173` and
+ * `ORB_VARP_SPEC_FALLBACK 300` as the last of three steps, defended as ids
+ * that "have been these numbers since 2004". The defence was true and it was
+ * beside the point: a varp the profile states is a fact somebody wrote down,
+ * and a varp this file guesses is a number nobody checked, and the orb draws
+ * the two identically. A run orb reading a foreign var is never lit, which
+ * looks exactly like a player who is walking -- there is no capture that can
+ * tell those apart, which is why the guess had to go rather than be watched.
+ *
+ * The mechanism it fell back to already existed: `[varp:<name>]` in the
+ * revconfig profile, asked for by NAME through `cache.named_id`. Every cache
+ * profile a manifest actually loads -- osrs239, rs289lc, rs245_2lc -- declares
+ * `[varp:run_mode]` at 173 and `[varp:special_attack_energy]` at 300, so
+ * deleting the fallback changed the picture on no lane this client can boot.
+ * What it changes is the lane nobody has written the rows for yet: that lane
+ * now draws no reading and says why, @see orbs_declare_missing, instead of
+ * drawing a confident wrong one in silence.
+ *
+ * A new revision is onboarded by adding the two rows, which is the same work
+ * as before and is now the only work that makes the orbs read.
  */
-#define ORB_VARP_SPEC_FALLBACK 300
-#define ORB_VARP_RUN_FALLBACK 173
 /** `^sa_max_energy`: the special attack bar is 0..1000, not 0..100. */
 #define ORB_SPEC_MAX 1000
 
@@ -413,7 +426,9 @@ struct OrbsState
 };
 
 static bool
-orbs_cfg_bool(struct ToriRS_Api* api, char const* key)
+orbs_cfg_bool(
+    struct ToriRS_Api* api,
+    char const* key)
 {
     bool value = false;
     assert(api);
@@ -423,7 +438,9 @@ orbs_cfg_bool(struct ToriRS_Api* api, char const* key)
 }
 
 static int
-orbs_cfg_int(struct ToriRS_Api* api, char const* key)
+orbs_cfg_int(
+    struct ToriRS_Api* api,
+    char const* key)
 {
     int value = 0;
     assert(api);
@@ -433,7 +450,9 @@ orbs_cfg_int(struct ToriRS_Api* api, char const* key)
 }
 
 static char const*
-orbs_cfg_string(struct ToriRS_Api* api, char const* key)
+orbs_cfg_string(
+    struct ToriRS_Api* api,
+    char const* key)
 {
     char const* value = "";
     assert(api);
@@ -528,66 +547,123 @@ orbs_compat_button(
 }
 
 /**
- * Which varp holds `name` on this cache: the plugin's override, the profile's
- * declaration, then the historical id.
+ * Which varp holds `name` on this cache: the plugin's override, then the
+ * profile's declaration. There is no third step.
  *
- * Three steps and not one, because the three answer different questions and
- * only the middle one is knowable from here. The config key is the escape
+ * Two steps, and only one of them is a lane fact. The config key is the escape
  * hatch for a private server that moved a var and has no profile entry to say
- * so; `[varp:<name>]` is where a lane states it properly; and the fallback is
- * what keeps a lane that has declared nothing drawing an orb instead of
- * hiding it.
+ * so; `[varp:<name>]` is where a lane states it properly. What used to follow
+ * them was this file's own guess at the id, which is the one answer nobody
+ * could check -- @see the fallbacks' epitaph above.
  *
  * Resolved ONCE, into OrbsState: it used to be recomputed several times a
  * frame, each time a string compare through the profile's ref table.
  *
- * @param key this plugin's config key holding an override.
- * @return the id, or -1 when even the fallback is switched off (`0`), or when
- * `fallback` is negative and the lane declared nothing.
+ * @param key this plugin's config key holding an override, or NULL when the
+ * var has none and the profile is the only place it can come from.
+ * @param out_undeclared set when neither step answered, so the caller can say
+ * so once rather than leave an orb blank for no stated reason.
+ * @return the id, or -1 when the override switched it off (`0`) or nothing
+ * declared it.
  */
 static int
 orbs_varp(
     struct ToriRS_Api* api,
     char const* key,
     char const* name,
-    int fallback)
+    bool* out_undeclared)
 {
     int const override = key ? orbs_cfg_int(api, key) : -1;
     int declared;
 
     assert(api);
     assert(name);
+    assert(out_undeclared);
 
+    *out_undeclared = false;
     if( override > 0 )
         return override;
     /* 0 is a legal varp id, so "switched off" needs a value of its own: a
-     * config key set to 0 means "this lane has no such var, draw nothing". */
+     * config key set to 0 means "this lane has no such var, draw nothing" --
+     * a stated absence, which is not the undeclared one below. */
     if( override == 0 )
         return -1;
 
     if( api->cache.named_id && api->cache.named_id(api, "varp", name, &declared) )
         return declared;
-    return fallback;
+    *out_undeclared = true;
+    return -1;
+}
+
+/**
+ * A row the orbs need and this lane's profile does not have.
+ *
+ * With the guess gone, an undeclared varp is a blank orb, and a blank orb on
+ * its own says nothing about why. This is the why: one expected finding naming
+ * the `[varp:]` row somebody has to write, filed the moment the resolve finds
+ * it missing rather than unconditionally -- every lane that carries the rows
+ * stays clean, and the declaration only appears where it is true.
+ */
+static void
+orbs_declare_missing(
+    struct OrbsState* state,
+    char const* name,
+    bool undeclared)
+{
+    /* Porcelain's own ceiling for both, so what is written here is what the
+     * findings channel carries rather than something it quietly cuts. */
+    char feature[PORCELAIN_DETAIL_MAX];
+    char why[PORCELAIN_DETAIL_MAX];
+
+    assert(state);
+    assert(state->porcelain);
+    assert(name);
+    if( !undeclared )
+        return;
+    snprintf(feature, sizeof(feature), "%s varp id", name);
+    snprintf(
+        why,
+        sizeof(why),
+        "this lane's profile declares no [varp:%s], so the orb has no reading",
+        name);
+    Porcelain_ExpectUnsupported(state->porcelain, feature, why);
 }
 
 static void
 orbs_resolve_ids(struct OrbsState* state)
 {
     struct ToriRS_Api* api = state->api;
+    bool run_undeclared = false;
+    bool spec_undeclared = false;
+    bool armed_undeclared = false;
 
     assert(state);
     if( state->ids_resolved )
         return;
     state->ids_resolved = true;
-    state->run_varp = orbs_varp(api, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
-    state->spec_varp = orbs_varp(api, "spec_varp", "special_attack_energy", ORB_VARP_SPEC_FALLBACK);
+    state->run_varp = orbs_varp(api, "run_varp", "run_mode", &run_undeclared);
+    state->spec_varp = orbs_varp(api, "spec_varp", "special_attack_energy", &spec_undeclared);
     /*
-     * No fallback and no config key: "armed" was `spec_varp + 1` for years,
-     * which is arithmetic over a cache id and silently wrong on a lane that
-     * put it anywhere else. A lane that has an armed bit declares it; a lane
-     * that does not has no armed bit, and the orb simply never lights.
+     * No config key: "armed" was `spec_varp + 1` for years, which is
+     * arithmetic over a cache id and silently wrong on a lane that put it
+     * anywhere else. A lane that has an armed bit declares it; a lane that
+     * does not has no armed bit, and the orb simply never lights.
      */
-    state->spec_armed_varp = orbs_varp(api, NULL, "special_attack_armed", -1);
+    state->spec_armed_varp = orbs_varp(api, NULL, "special_attack_armed", &armed_undeclared);
+
+    /*
+     * The two the orbs READ are declared when they are missing; the armed bit
+     * is not, and the difference is what the orb loses.
+     *
+     * Without run_mode or special_attack_energy there is no number to draw at
+     * all. Without the armed bit the spec orb still reads its energy and only
+     * never lights -- which is rev289's and rev245's actual shape, both of
+     * them declaring the other two and not this one, so declaring it would
+     * file a limitation against two shipping lanes that are behaving exactly
+     * as this file intends.
+     */
+    orbs_declare_missing(state, "run_mode", run_undeclared);
+    orbs_declare_missing(state, "special_attack_energy", spec_undeclared);
 }
 
 /*
@@ -620,7 +696,9 @@ orbs_resolve_ids(struct OrbsState* state)
  * not a failure".
  */
 static int
-orbs_load_digits(struct ToriRS_Api* api, struct OrbsState* state)
+orbs_load_digits(
+    struct ToriRS_Api* api,
+    struct OrbsState* state)
 {
     char const* at;
     size_t size = 0;
@@ -771,14 +849,22 @@ static struct
     char const* action;
     char const* action_role;
 } const ORB_PART[ORB_COUNT] = {
-    { "orb_hitpoints", "show_hp", "hp_button", "orb_hp_button", "Cure",
-      "action_frame_orb_hitpoints_activate" },
-    { "orb_prayer", "show_prayer", "prayer_button", "orb_prayer_button", "Quick-prayers",
-      "action_frame_orb_prayer_activate" },
-    { "orb_run", "show_run", "run_button", "orb_run_on", "Toggle Run",
-      "action_frame_orb_run_enable" },
-    { "orb_special", "show_spec", "spec_button", "orb_spec_button", "Use Special Attack",
-      "action_frame_orb_special_activate" },
+    { "orb_hitpoints",
+     "show_hp",     "hp_button",
+     "orb_hp_button",     "Cure",
+     "action_frame_orb_hitpoints_activate" },
+    { "orb_prayer",
+     "show_prayer", "prayer_button",
+     "orb_prayer_button", "Quick-prayers",
+     "action_frame_orb_prayer_activate"    },
+    { "orb_run",
+     "show_run",    "run_button",
+     "orb_run_on",        "Toggle Run",
+     "action_frame_orb_run_enable"         },
+    { "orb_special",
+     "show_spec",   "spec_button",
+     "orb_spec_button",   "Use Special Attack",
+     "action_frame_orb_special_activate"   },
 };
 
 /* ------------------------------------------------------------ compositing */
@@ -792,7 +878,11 @@ static struct
  * held for the life of the instance.
  */
 static uint32_t const*
-orbs_pixels(struct OrbsState* state, int which, int* out_w, int* out_h)
+orbs_pixels(
+    struct OrbsState* state,
+    int which,
+    int* out_w,
+    int* out_h)
 {
     struct ToriRS_Api* api = state->api;
 
@@ -834,7 +924,10 @@ orbs_pixels(struct OrbsState* state, int which, int* out_w, int* out_h)
 
 /** Source-over one ARGB pixel scaled by `alpha` (255 = as authored). */
 static uint32_t
-orbs_blend(uint32_t dst, uint32_t src, int alpha)
+orbs_blend(
+    uint32_t dst,
+    uint32_t src,
+    int alpha)
 {
     unsigned const sa = ((src >> 24) & 0xff) * (unsigned)alpha / 255u;
     if( sa == 0 )
@@ -949,7 +1042,12 @@ orbs_compose_number(
  * instead of publishing a transparent square.
  */
 static bool
-orbs_paint(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, int height)
+orbs_paint(
+    struct ToriRS_Api* api,
+    void* user,
+    uint32_t* argb,
+    int width,
+    int height)
 {
     struct OrbPaintCall const* call = user;
     struct OrbsState* state;
@@ -972,29 +1070,68 @@ orbs_paint(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, int he
     if( !orbs_pixels(state, plate, &w, &h) )
         return false;
 
-    api->core.log(api,
+    api->core.log(
+        api,
         "MINIMAP_ORBS_VALUE orb=%s value=%d filled=%d total=%d inactive=%d hovered=%d",
-        ORB_PART[call->orb].key, picture->value, picture->filled, picture->total,
-        picture->inactive, picture->hovered);
+        ORB_PART[call->orb].key,
+        picture->value,
+        picture->filled,
+        picture->total,
+        picture->inactive,
+        picture->hovered);
 
     orbs_blit(state, argb, plate, 0, 0, 0, 0, ORB_W, ORB_H, 255);
-    orbs_blit(state, argb, picture->fill_image, ORB_DISC_X, ORB_DISC_Y, ORB_DISC_X, ORB_DISC_Y,
-        ORB_DISC, ORB_DISC, 255 - trans);
+    orbs_blit(
+        state,
+        argb,
+        picture->fill_image,
+        ORB_DISC_X,
+        ORB_DISC_Y,
+        ORB_DISC_X,
+        ORB_DISC_Y,
+        ORB_DISC,
+        ORB_DISC,
+        255 - trans);
     /* The dark disc over the unfilled rows, rounded so 98 of 99 still shows
      * a sliver of dark: the orb must never read as full when it is not. */
     hidden = picture->total > 0
                  ? ORB_DISC - (picture->filled * ORB_DISC + picture->total - 1) / picture->total
                  : ORB_DISC;
-    if( hidden < 0 ) hidden = 0;
-    if( hidden > ORB_DISC ) hidden = ORB_DISC;
+    if( hidden < 0 )
+        hidden = 0;
+    if( hidden > ORB_DISC )
+        hidden = ORB_DISC;
     if( hidden > 0 )
-        orbs_blit(state, argb, ORB_IMG_FILL_EMPTY, ORB_DISC_X, ORB_DISC_Y, ORB_DISC_X, ORB_DISC_Y,
-            ORB_DISC, hidden, 255);
-    orbs_blit(state, argb, picture->icon_image, ORB_DISC_X, ORB_DISC_Y, ORB_DISC_X, ORB_DISC_Y,
-        ORB_DISC, ORB_DISC, 255);
+        orbs_blit(
+            state,
+            argb,
+            ORB_IMG_FILL_EMPTY,
+            ORB_DISC_X,
+            ORB_DISC_Y,
+            ORB_DISC_X,
+            ORB_DISC_Y,
+            ORB_DISC,
+            hidden,
+            255);
+    orbs_blit(
+        state,
+        argb,
+        picture->icon_image,
+        ORB_DISC_X,
+        ORB_DISC_Y,
+        ORB_DISC_X,
+        ORB_DISC_Y,
+        ORB_DISC,
+        ORB_DISC,
+        255);
     if( state->digits_ready )
-        orbs_compose_number(state, argb, ORB_TEXT_CX,
-            orbs_text_origin(state, ORB_TEXT_Y, ORB_TEXT_H), picture->value, picture->filled,
+        orbs_compose_number(
+            state,
+            argb,
+            ORB_TEXT_CX,
+            orbs_text_origin(state, ORB_TEXT_Y, ORB_TEXT_H),
+            picture->value,
+            picture->filled,
             picture->total);
     return true;
 }
@@ -1010,7 +1147,10 @@ orbs_paint(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, int he
  * doing the arithmetic.
  */
 static bool
-orbs_running(struct OrbsState* state, bool orb_bound, uint32_t facets)
+orbs_running(
+    struct OrbsState* state,
+    bool orb_bound,
+    uint32_t facets)
 {
     assert(state);
     if( orb_bound )
@@ -1113,8 +1253,10 @@ orbs_picture(
         if( state->spec_varp < 0 || spec_max <= 0 || !api->cache.varp )
             return false;
         energy = api->cache.varp(api, state->spec_varp);
-        if( energy < 0 ) energy = 0;
-        if( energy > spec_max ) energy = spec_max;
+        if( energy < 0 )
+            energy = 0;
+        if( energy > spec_max )
+            energy = spec_max;
         armed = orb_bound ? (facets & PORCELAIN_FACET_ACTIVE) != 0
                           : (state->spec_armed_varp >= 0 &&
                              api->cache.varp(api, state->spec_armed_varp) > 0);
@@ -1194,7 +1336,10 @@ orbs_native_action(
 
 /** Press the orb: raw override, checked native action, then compatibility. */
 static void
-orbs_press(struct ToriRS_Api* api, void* user, char const* key)
+orbs_press(
+    struct ToriRS_Api* api,
+    void* user,
+    char const* key)
 {
     struct OrbsState* state = user;
     struct ToriRS_WidgetApi* ui = &api->widgets;
@@ -1235,8 +1380,12 @@ orbs_press(struct ToriRS_Api* api, void* user, char const* key)
          * something unrelated by number, which is exactly what this used to
          * do. Stop here and say so.
          */
-        api->core.log(api, "MINIMAP_ORBS_OP orb=%s via=refused role=%s result=%d",
-            ORB_PART[i].key, role ? role : "-", result);
+        api->core.log(
+            api,
+            "MINIMAP_ORBS_OP orb=%s via=refused role=%s result=%d",
+            ORB_PART[i].key,
+            role ? role : "-",
+            result);
         return;
     }
     if( !orbs_compat_button(api, name, &component, &operation) )
@@ -1248,15 +1397,22 @@ invoke:
     if( !api->cache.invoke || !api->cache.invoke(api, component, operation) )
     {
         char message[160];
-        snprintf(message, sizeof(message),
-            "Minimap orbs: this world has no interface component %d for '%s'.", component,
+        snprintf(
+            message,
+            sizeof(message),
+            "Minimap orbs: this world has no interface component %d for '%s'.",
+            component,
             config_key);
         api->core.notify(api, message);
         api->core.log(api, "%s", message);
         return;
     }
-    api->core.log(api, "MINIMAP_ORBS_OP orb=%s via=component component=%d op=%d",
-        ORB_PART[i].key, component, operation);
+    api->core.log(
+        api,
+        "MINIMAP_ORBS_OP orb=%s via=component component=%d op=%d",
+        ORB_PART[i].key,
+        component,
+        operation);
 }
 
 /* ------------------------------------------------------------ layout */
@@ -1264,7 +1420,10 @@ invoke:
 /** The first column of the map disc's ink over rows [top, bottom), in the
  * map's parent-local space; the box's right edge when the span misses it. */
 static int
-orbs_map_ink_left(struct ToriRS_WidgetBounds const* map, int top, int bottom)
+orbs_map_ink_left(
+    struct ToriRS_WidgetBounds const* map,
+    int top,
+    int bottom)
 {
     long cx, cy, r;
     int left;
@@ -1395,8 +1554,7 @@ orbs_live_box(
     memset(&native, 0, sizeof(native));
     if( !state->described[orb] || (!state->bound[orb] && !have_map) )
         return false;
-    if( state->bound[orb] &&
-        !Porcelain_Element(state->porcelain, PORCELAIN_ORB_EL(orb), &native) )
+    if( state->bound[orb] && !Porcelain_Element(state->porcelain, PORCELAIN_ORB_EL(orb), &native) )
         return false;
     *out = orbs_canvas_box(state, orb, state->bound[orb], &native, map);
     return true;
@@ -1453,8 +1611,7 @@ orbs_action_available(
      */
     if( native_count == 0 && orbs_compat_button(api, name, &component, &operation) )
         return true;
-    if( role && state->settled >= PORCELAIN_ABSENT_FENCES &&
-        (native_count > 0 || orb == ORB_HP) &&
+    if( role && state->settled >= PORCELAIN_ABSENT_FENCES && (native_count > 0 || orb == ORB_HP) &&
         Porcelain_Element(state->porcelain, PORCELAIN_ROLE_EL(role), &action) )
         /*
          * The LANE's hides, and not `input_present`.
@@ -1487,7 +1644,9 @@ orbs_action_available(
 }
 
 static void
-orbs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+orbs_describe(
+    struct ToriRS_PorcelainDescribe* describe,
+    void* user)
 {
     struct OrbsState* state = user;
     struct Porcelain* porcelain = describe->porcelain;
@@ -1538,8 +1697,8 @@ orbs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
 
         if( Porcelain_Element(porcelain, PORCELAIN_EL(FRAME_ROOT), &root) )
         {
-            rebuilt = ToriRS_WidgetRefValid(state->root) &&
-                      !ToriRS_WidgetRefEqual(state->root, root.ref);
+            rebuilt =
+                ToriRS_WidgetRefValid(state->root) && !ToriRS_WidgetRefEqual(state->root, root.ref);
             state->root = root.ref;
         }
         if( have_map )
@@ -1650,8 +1809,16 @@ orbs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         state->painting[i] = picture;
         state->call[i].state = state;
         state->call[i].orb = i;
-        composed = Porcelain_Derived(porcelain, state->derived_key[i], &picture, sizeof(picture),
-            ORB_W, ORB_H, orbs_paint, &state->call[i], &derived);
+        composed = Porcelain_Derived(
+            porcelain,
+            state->derived_key[i],
+            &picture,
+            sizeof(picture),
+            ORB_W,
+            ORB_H,
+            orbs_paint,
+            &state->call[i],
+            &derived);
         (void)composed;
         if( derived != PORCELAIN_DERIVED_READY )
             continue;
@@ -1790,9 +1957,16 @@ orbs_log_controls(struct OrbsState* state)
             continue;
         state->reported[i] = box;
         state->reported_live[i] = true;
-        api->core.log(api, "MINIMAP_ORBS_CONTROL orb=%s native=%d armed=%d box=%d,%d,%d,%d",
-            ORB_PART[i].key, state->bound[i] ? 1 : 0, state->available[i] ? 1 : 0, box.x, box.y,
-            box.width, box.height);
+        api->core.log(
+            api,
+            "MINIMAP_ORBS_CONTROL orb=%s native=%d armed=%d box=%d,%d,%d,%d",
+            ORB_PART[i].key,
+            state->bound[i] ? 1 : 0,
+            state->available[i] ? 1 : 0,
+            box.x,
+            box.y,
+            box.width,
+            box.height);
     }
 }
 
@@ -1911,7 +2085,10 @@ orbs_numbers_moved(struct OrbsState* state)
 }
 
 static void
-orbs_frame(struct ToriRS_Api* api, void* plugin_state, struct ToriRS_FrameEvent const* event)
+orbs_frame(
+    struct ToriRS_Api* api,
+    void* plugin_state,
+    struct ToriRS_FrameEvent const* event)
 {
     struct OrbsState* state = plugin_state;
 
@@ -1937,7 +2114,9 @@ orbs_frame(struct ToriRS_Api* api, void* plugin_state, struct ToriRS_FrameEvent 
 }
 
 static void
-orbs_start(struct ToriRS_Api* api, void* plugin_state)
+orbs_start(
+    struct ToriRS_Api* api,
+    void* plugin_state)
 {
     struct OrbsState* state = plugin_state;
 
@@ -1950,8 +2129,8 @@ orbs_start(struct ToriRS_Api* api, void* plugin_state)
     state->spec_varp = -1;
     state->spec_armed_varp = -1;
     for( int i = 0; i < ORB_COUNT; i++ )
-        snprintf(state->derived_key[i], sizeof(state->derived_key[i]), "%s.composed",
-            ORB_PART[i].key);
+        snprintf(
+            state->derived_key[i], sizeof(state->derived_key[i]), "%s.composed", ORB_PART[i].key);
 
     state->porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_MINIMAP_ORBS, state);
     assert(state->porcelain);
@@ -1976,14 +2155,17 @@ orbs_start(struct ToriRS_Api* api, void* plugin_state)
      * the run stays clean while it holds, and goes red the day a profile does
      * bind one and nobody wired the orb up to it.
      */
-    Porcelain_ExpectAbsent(state->porcelain,
+    Porcelain_ExpectAbsent(
+        state->porcelain,
         PORCELAIN_ROLE_EL("action_frame_orb_hitpoints_activate"),
         "no profile in this tree binds a cure verb");
     Porcelain_Describe(state->porcelain, orbs_describe, state);
 }
 
 static void
-orbs_stop(struct ToriRS_Api* api, void* plugin_state)
+orbs_stop(
+    struct ToriRS_Api* api,
+    void* plugin_state)
 {
     struct OrbsState* state = plugin_state;
 
@@ -2001,7 +2183,10 @@ orbs_stop(struct ToriRS_Api* api, void* plugin_state)
 }
 
 static void
-orbs_changed(struct ToriRS_Api* api, void* plugin_state, char const* key)
+orbs_changed(
+    struct ToriRS_Api* api,
+    void* plugin_state,
+    char const* key)
 {
     struct OrbsState* state = plugin_state;
 
@@ -2013,7 +2198,10 @@ orbs_changed(struct ToriRS_Api* api, void* plugin_state, char const* key)
 }
 
 static void
-orbs_asset(struct ToriRS_Api* api, void* plugin_state, struct ToriRS_AssetEvent const* event)
+orbs_asset(
+    struct ToriRS_Api* api,
+    void* plugin_state,
+    struct ToriRS_AssetEvent const* event)
 {
     struct OrbsState* state = plugin_state;
 
@@ -2036,11 +2224,7 @@ static struct ToriRS_ConfigItem const ORBS_CONFIG[] = {
     { "offset_x",       TORIRS_CONFIG_INT,    "Offset from minimap left",       "6",    -512, 512,    NULL, 0 },
     { "offset_y",       TORIRS_CONFIG_INT,    "Offset from the anchor",         "-3",   -512, 512,    NULL, 0 },
     { "run_varp",       TORIRS_CONFIG_INT,    "Run mode varp (-1 auto)",        "-1",   -1,   65535,  NULL, 0 },
-    { "spec_varp",
-     TORIRS_CONFIG_INT,                       "Special attack varp (-1 auto)",
-     "-1",                                                                                  -1,
-     65535,                                                                                               NULL,
-     0                                                                                                            },
+    { "spec_varp",      TORIRS_CONFIG_INT,    "Special attack varp (-1 auto)",  "-1",   -1,   65535,  NULL, 0 },
     { "spec_max",       TORIRS_CONFIG_INT,    "Special attack bar maximum",     "1000", 1,    100000, NULL, 0 },
     /*
      * Optional raw button overrides, `<interface>:<component>[:<op>]`.
@@ -2052,11 +2236,7 @@ static struct ToriRS_ConfigItem const ORBS_CONFIG[] = {
     { "hp_button",      TORIRS_CONFIG_STRING, "Hitpoints orb button",           "",     0,    0,      NULL, 0 },
     { "prayer_button",  TORIRS_CONFIG_STRING, "Prayer orb button",              "",     0,    0,      NULL, 0 },
     { "run_button",     TORIRS_CONFIG_STRING, "Run orb button (turns run on)",  "",     0,    0,      NULL, 0 },
-    { "run_button_off",
-     TORIRS_CONFIG_STRING,                    "Run orb button (turns run off)",
-     "",                                                                                    0,
-     0,                                                                                                   NULL,
-     0                                                                                                            },
+    { "run_button_off", TORIRS_CONFIG_STRING, "Run orb button (turns run off)", "",     0,    0,      NULL, 0 },
     { "spec_button",    TORIRS_CONFIG_STRING, "Special attack orb button",      "",     0,    0,      NULL, 0 },
     { NULL,             TORIRS_CONFIG_BOOL,   NULL,                             NULL,   0,    0,      NULL, 0 },
 };

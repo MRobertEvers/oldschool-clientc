@@ -998,13 +998,18 @@ fake_set_anchor(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_Widget
 }
 
 static enum ToriRS_ContractResult
-fake_set_on_op(void* context, struct ToriRS_WidgetRef ref, char const* label,
+fake_set_on_op(void* context, struct ToriRS_WidgetRef ref, int op, char const* label,
                ToriRS_WidgetListener listener, void* user)
 {
     struct TestbedControl* control = testbed_control_by_ref(ref);
     struct TestbedElement const* element = testbed_element_by_ref(ref);
 
     (void)context;
+    /* The layer describes one row per item, so every arming it makes is op 1.
+     * Asserted rather than recorded: a second row would change what `armed`
+     * and `label` below mean, and this fake would go on answering as though
+     * it had not. */
+    assert(op == 1);
     testbed_log("set_on_op %s %s", control ? control->key : "?", label ? label : "(none)");
     /* A reference to nothing at all: the engine's answer for a node that has
      * been destroyed, from EVERY entry point. @see Testbed_KillControl. */

@@ -726,6 +726,23 @@ enum AppMinimapState
 #define APP_CLIENTSCRIPT_FENCE_MAX_CYCLES APP_SERVER_TICK_LOGIC_CYCLES
 
 /**
+ * Logic cycles the client waits for the server to answer a logout request.
+ *
+ * The reference's `logoutTimer` figure (Client.ts:11212) — 5 seconds — and it
+ * means the same thing here for the whole of that time: the session is still
+ * live, because the server has not said otherwise.
+ *
+ * Where this client departs from the reference is what it does when the window
+ * runs out. The reference does nothing at all: a server whose content never
+ * answers the button leaves the player in the world forever, which is fine for
+ * the one server it was written against and is not fine for the several this
+ * client is pointed at. Running out ends the session locally instead — the old
+ * behaviour, arriving five seconds later, and said out loud in the log so a
+ * server that is not answering can be told from one that is slow.
+ */
+#define APP_LOGOUT_WAIT_CYCLES 250
+
+/**
  * Logic cycles a settings change waits before it is written to disk.
  *
  * A slider drag reports a new volume every 20ms cycle, so writing on each one
@@ -735,6 +752,41 @@ enum AppMinimapState
  * either way.
  */
 #define APP_PREFS_SAVE_SETTLE_TICKS 25
+
+/**
+ * Which NATIVE top-level chrome a CS2 lane is wearing.
+ *
+ * The first three are the Display panel's own domain -- the `client_mode_*`
+ * constants the cache, the wire and the server content all count in, which is
+ * why they are 0/1/2 here too and not a spelling of this client's own. Each
+ * has one interface behind it, named by the profile rather than by a literal
+ * ([iface:toplevel_fixed] and its three siblings).
+ *
+ * MOBILE is the fourth root and NOT a fourth choice: the server opens 601
+ * because the login's client type said phone, and the Display row offers no
+ * way to ask for it or to leave it. It is here so that a reader can tell "the
+ * phone frame" from "no answer", which -1 would not -- a plugin that read
+ * mobile as unknown and forced Fixed would take a phone off its own chrome.
+ */
+enum AppNativeLayout
+{
+    APP_NATIVE_LAYOUT_FIXED = 0,
+    APP_NATIVE_LAYOUT_RESIZABLE_CLASSIC = 1,
+    APP_NATIVE_LAYOUT_RESIZABLE_MODERN = 2,
+    APP_NATIVE_LAYOUT_MOBILE = 3,
+};
+
+/**
+ * Logic cycles before an unanswered native-layout request is asked again.
+ *
+ * The request is one IF_BUTTON and the answer is a remount three server ticks
+ * later (the op, then `gameframe_apply_mode` two queue ticks after it), so a
+ * caller that asks on every layout pass -- which is what a gameframe provider
+ * does -- must not put a packet on the wire per frame. Five ticks is that path
+ * with room to spare, and short enough that a request the server dropped is
+ * retried while the player is still looking at the wrong frame.
+ */
+#define APP_NATIVE_LAYOUT_RETRY_CYCLES (APP_SERVER_TICK_LOGIC_CYCLES * 5)
 
 struct App
 {
@@ -990,6 +1042,24 @@ struct App
      * made, was told false on a lane where it is true.
      */
     int touch_ui;
+    /*
+     * This DEVICE can raise an on-screen keyboard, so a chrome may offer a
+     * switch for it.
+     *
+     * Not the same fact as touch_ui above, and the difference is the whole
+     * reason it is a second field. touch_ui is a POLICY: the login clienttype
+     * sets it, TORIRS_TOUCH_UI moves it either way, and a desk with it on is a
+     * desk. Whether keys can be summoned is the PLATFORM's answer and nothing
+     * above it can overrule -- @see PlatformWindow_HasScreenKeyboard, which is
+     * SDL_HasScreenKeyboardSupport on the SDL backends, yes on Android and no
+     * on win32gdi.
+     *
+     * Stated once at boot because it cannot change while the window lives, and
+     * it is what `core.capability("input.screen_keyboard")` answers. Zero on a
+     * headless or test run, which have no platform window to ask: a frame that
+     * places no KEYS switch is the right picture for a run with no keys.
+     */
+    int has_screen_keyboard;
     /* Keys a revconfig hotkey binding acted on this frame, indexed by OSRS key
      * code. Debug world hotkeys share the digit row with the rev-254 tab
      * bindings, so they check this and stand down rather than firing both. */
@@ -1250,6 +1320,10 @@ struct App
      *  member m; 0 = no such role. Built once per role-table size. */
 #define APP_FRAME_ROLE_SLOTS 32
     uint16_t plugin_frame_role_id[APP_FRAME_ROLE_SLOTS][1 + 16];
+    /** `frame_compass_click`, interned with them: the compass's hit region is
+     *  a node of its own on a cache toplevel and is not a numbered member of
+     *  anything. @see UITree_FrameCompassClickNode. */
+    uint16_t plugin_frame_compass_click_role;
     int plugin_frame_role_ids_for_count;
     /**
      * Everything app_plugin_widget_facets has to look up by NAME, resolved
@@ -1563,12 +1637,27 @@ struct App
      * The player asked to leave, and the request has not been acted on yet.
      *
      * Deferred rather than done at the click, so the button's own IF_BUTTON is
-     * already in the outbound ring when the DISCONNECT is queued behind it --
+     * already in the outbound ring when the wait below is armed behind it --
      * the server hears the request instead of a bare FIN. Raised by the CS1
      * logout clientCode and by the CS2 host's LOGOUT opcode, drained by the
      * logic tick. @see App_Logout.
      */
     int logout_requested;
+    /**
+     * Logic cycles left to wait for the server to answer that request.
+     *
+     * Non-zero means the request is on the wire and the session has NOT ended:
+     * the world is still up, the player is still in it, and the screen has not
+     * changed. What ends it is the server -- its LOGOUT packet, or the socket
+     * it closes instead of sending one (app_net_tear_down_session reads this
+     * to tell that answer apart from a connection that was lost). The
+     * reference's `logoutTimer`, armed at the same 250 cycles it uses
+     * (Client.ts:11212), and its whole point is that a logout the server never
+     * heard must not take the player off the world it is still playing.
+     *
+     * @see APP_LOGOUT_WAIT_CYCLES for what happens when nothing answers.
+     */
+    int logout_wait_cycles;
     /** Client-behaviour era table (src/features/features.h). Never NULL after
      *  App_Init — unlike `net`, it is resolved on every boot because an
      *  offline click still has to pick an approach model. Points at
@@ -2701,9 +2790,12 @@ App_NetSessionReset(struct App* app);
  * nothing is being re-established, so the reconnect watch is disarmed rather
  * than armed.
  *
- * Reached three ways, all of which mean the same thing: the logout button (via
- * App::logout_requested, so the button's IF_BUTTON goes out first), the CS2
- * LOGOUT opcode, and the server's own LOGOUT packet.
+ * This is the ENDING, not the request. The logout button does not reach it:
+ * the button sends its IF_BUTTON and arms App::logout_wait_cycles, and what
+ * calls this is the server's answer -- the LOGOUT packet, or the socket it
+ * closes instead. The three remaining ways in are that answer, a wait that ran
+ * out with no answer at all, and a click with no session to answer it (an
+ * offline profile, or a connection already gone).
  *
  * A profile that declares no [layout:title] has no login screen to return to;
  * the session still ends, and the client stays on the gameframe it booted into.

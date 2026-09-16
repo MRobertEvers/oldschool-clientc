@@ -2188,10 +2188,22 @@ render_loot(void)
             g_c.comp_px[45 * g_c.comp_w + 1] == 0xFF474745u &&
             g_c.comp_px[162 * g_c.comp_w] == 0xFF0E0E0Cu,
         "source headers and item bodies retain the two-colour CS2 thinbox outlines");
+    /*
+     * The inter-cell gap is the BODY PLATE, not a hole.
+     *
+     * This used to read `alpha == 0`, which pinned the strip's old habit of
+     * leaving the drop grid clear and letting whatever it was composited over
+     * be the ground. The rail's pane and the plugin window are two different
+     * browns, so the same picture read as one card in one and as cells
+     * floating on a dark ground in the other. The geometry the check is
+     * actually about -- a gap here, column two starting at x=58 -- is pinned
+     * the same way against the two plates' own colours.
+     */
     CHECK(
-        (g_c.comp_px[83 * g_c.comp_w + 49] >> 24) == 0 &&
-            (g_c.comp_px[83 * g_c.comp_w + 59] >> 24) != 0,
-        "script3042 leaves the first inter-cell gap and starts column two at x=58");
+        g_c.comp_px[83 * g_c.comp_w + 49] == 0xFF3E3529u &&
+            g_c.comp_px[83 * g_c.comp_w + 59] == 0xFF574D40u,
+        "script3042 leaves the first inter-cell gap on the body plate and starts "
+        "column two at x=58");
     CHECK(
         stack_count_over_cell(4, 79) && stack_count_over_cell(58, 79),
         "and the stacked cells are numbered, which is what the picture below moved for");
@@ -2207,9 +2219,17 @@ render_loot(void)
      * stack VARIANT -- the art for a pile rather than a coin -- and stops.
      *
      * Old hash, for anyone bisecting: 862d6cf5e77b88d0.
+     *
+     * It MOVED again, and this time because the drop grid stands on a plate of
+     * its own rather than on whatever the strip is composited over. Nothing in
+     * it was placed differently -- the checks above pin the thinboxes, the
+     * grid pitch and the controls and they are unchanged; what filled in is
+     * the ground between and around the cells.
+     *
+     * Previous hash: 194ad34678011ed8.
      */
     CHECK(
-        argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h) == 0x194AD34678011ED8ULL,
+        argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h) == 0xC37A44A79A3FDA26ULL,
         "the Loot Tools reference strip retains its exact plates, text, grid, and controls "
         "(got %016llx)",
         (unsigned long long)argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h));

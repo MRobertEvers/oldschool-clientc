@@ -143,6 +143,26 @@ fake_platform_safe_rect(void* u, int* out_x, int* out_y, int* out_w, int* out_h)
     return 1;
 }
 
+/*
+ * The DEVICE: does it have a soft keyboard to raise?
+ *
+ * A phone by default, because this frame's own reason to exist is a phone and
+ * every case below that does not say otherwise is describing one. The desktop
+ * answer is what `case_no_keyboard_switch_without_a_keyboard` sets, and it is
+ * a real configuration -- the Stone Drawer is offered in the Display panel on
+ * every lane, so a desktop player can pick it.
+ */
+static int g_has_screen_keyboard = 1;
+
+static int
+fake_capability(void* u, char const* name)
+{
+    (void)u;
+    if( strcmp(name, "input.screen_keyboard") == 0 )
+        return g_has_screen_keyboard;
+    return 0;
+}
+
 static int
 fake_tab_enabled(void* u, int tabno)
 {
@@ -987,7 +1007,8 @@ static void press(char const* key)
     struct FakeWidget const* n = owned(key);
     CHECK(n && n->op[0], key);
     if( n && n->op[0] )
-        CHECK(PluginHost_WidgetOperation(g_host, g_widget_owner, fw_ref((int)(n - g_w)), n->registration),
+        /* One row per control here, so every press is op 1. */
+        CHECK(PluginHost_WidgetOperation(g_host, g_widget_owner, fw_ref((int)(n - g_w)), n->registration, 1),
               "the owned control's operation dispatches");
 }
 /*
@@ -1106,6 +1127,7 @@ main(void)
     e.frame_activate = fake_frame_activate;
     e.frame_provide = fake_frame_provide;
     e.platform_safe_rect = fake_platform_safe_rect;
+    e.capability = fake_capability;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
@@ -1245,33 +1267,41 @@ main(void)
     CHECK(placed("chat", -1, 17, 452, 479, 96), "and drop back to the floor when the band goes");
     printf("MOBILE pieces=%d tabs=%d icons=%d plates=%d\n", pieces_behind_viewport(), owned_count("tab."), owned_count("icon."), owned_count("plate."));
     /*
-     * SIX over the viewport, and the sheet is deliberately not one of them.
+     * FIVE over the viewport, and the two pieces the chat stands on are
+     * deliberately not among them.
      *
-     * The rail plates, the two switches' plates and the blockers are drawn on
-     * the scene and belong over the viewport. The parchment is not: over the
-     * viewport put it over the 2004 chat as well, because the raise that lifts
-     * the live surfaces above this frame's chrome does not reach the client's
-     * builtin chat or the packs the server mounts into the chat modal under
-     * it. What that looked like on a live dat1 world was a blank sheet of
-     * parchment with the tutorial box, the NPC dialogue and every message line
-     * painted underneath it. @see MobileBlit::behind_chat.
+     * The rail plates, the two switches' plates and the rail's blocker are
+     * drawn on the scene and belong over the viewport. The parchment is not:
+     * over the viewport put it over the 2004 chat as well, because the raise
+     * that lifts the live surfaces above this frame's chrome does not reach
+     * the client's builtin chat or the packs the server mounts into the chat
+     * modal under it. What that looked like on a live dat1 world was a blank
+     * sheet of parchment with the tutorial box, the NPC dialogue and every
+     * message line painted underneath it.
      *
-     * MUTATION: describe the sheet over the viewport again (drop the
-     * behind_chat arm in mobile_describe_chrome). Red: the next check finds no
-     * piece anchored behind the chat.
+     * Nor is the chat's tap BLOCKER, for the reason the blocker exists: it is
+     * there to stop a tap on the sheet walking the player, and a blocker over
+     * the chat instead of under it takes the taps the chat's own scrollbar and
+     * message lines should answer first. Over the viewport it was under them
+     * only for as long as nothing re-created it -- and toggling the sheet off
+     * and on does exactly that. @see MobileBlit::behind.
+     *
+     * MUTATION: describe the sheet over the viewport again (pass
+     * PORCELAIN_EL(NONE) as its `behind`). Red: the next check finds no sheet
+     * behind the chat.
      */
-    CHECK(pieces_behind_viewport() >= 6,
-          "the rail plates, the two switches and the blockers are owned pieces over the scene");
-    {
-        struct FakeWidget const* sheet = NULL;
-        for( int i = 0; i < g_w_count; i++ )
-            if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, "piece.", 6) == 0 &&
-                g_w[i].image >= 0 && anchored(&g_w[i], "chat", TORIRS_WIDGET_RELATION_BEHIND) )
-                sheet = &g_w[i];
-        CHECK(sheet != NULL, "and the torn sheet is behind the CHAT rather than over the viewport");
-        CHECK(sheet && owned_at(sheet->key, 0, 435),
-              "the torn sheet hangs at the chat's box less its fringe");
-    }
+    CHECK(pieces_behind_viewport() == 5,
+          "the rail plates, the two switches and the rail's blocker are the pieces over the scene");
+    CHECK(anchored(owned("piece.sheet"), "chat", TORIRS_WIDGET_RELATION_BEHIND),
+          "and the torn sheet is behind the CHAT rather than over the viewport");
+    CHECK(owned_at("piece.sheet", 0, 435),
+          "the torn sheet hangs at the chat's box less its fringe");
+    /*
+     * MUTATION: pass PORCELAIN_EL(NONE) as the chat blocker's `behind`. Red
+     * here, and the count above goes to six.
+     */
+    CHECK(anchored(owned("piece.blocker.chat"), "chat", TORIRS_WIDGET_RELATION_BEHIND),
+          "and the chat's tap blocker is UNDER the chat, not over it");
     CHECK(owned_count("plate.") == 4 && anchored(owned("plate.0"), "", -1) == 0 &&
               owned("plate.0")->anchor_relation == TORIRS_WIDGET_RELATION_BEHIND && owned("plate.0")->anchor_target == fw_find("chat_buttons", 0),
           "a 2004 plate stands directly behind each lane filter button");
@@ -1312,6 +1342,45 @@ main(void)
             if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, "piece.", 6) == 0 && strcmp(g_w[i].op, "Type") == 0 ) typers++;
         CHECK(typers == 1, "one tap blocker under the sheet asks for the keyboard");
     }
+
+    /*
+     * AND NOT ON A DESK.
+     *
+     * This frame is in the Display panel on every lane, so a desktop player
+     * can pick it -- and did, and got a KEYS button that raised nothing. The
+     * press calls input.text_input, which reaches PlatformWindow_SetTextInput,
+     * which has no keyboard to show on a desktop backend: its own `off` arm
+     * already declines for exactly that reason. So the switch is placed only
+     * where `input.screen_keyboard` says the device has one.
+     *
+     * The plate goes with the control. Leaving `piece.switch.keys` behind
+     * would be worse than the button was -- a stone with nothing on it, in the
+     * one spot a player has learnt to reach for.
+     *
+     * The CHAT switch stays. It hides and shows the chat sheet, which every
+     * device has, and gating the pair together would take the chat away from
+     * every desktop that picked this frame.
+     *
+     * MUTATION 1: drop the gate on the control -> the dead button is back.
+     * MUTATION 2: gate on `touch` instead -> still red here, because this run
+     * is a touch lane (fake_lane) with no screen keyboard, which is exactly
+     * the desktop-with-TORIRS_TOUCH_UI=1 case the two facts are separated for.
+     * MUTATION 3: gate the chat switch with it -> the check below goes red and
+     * a desktop loses the chat.
+     */
+    g_has_screen_keyboard = 0;
+    declare(M_W, M_H);
+    CHECK(owned("keyboard-toggle") == NULL,
+          "a device with no soft keyboard is offered no keyboard switch");
+    CHECK(owned("keyboard-glyph") == NULL, "and no glyph for one");
+    CHECK(owned("piece.switch.keys") == NULL,
+          "nor the plate it stood on, which would be a stone with nothing on it");
+    CHECK(owned("chat-toggle") != NULL && owned_at("chat-toggle", 4, 406),
+          "the chat switch stays, and stays where it was -- every device has a chat");
+    g_has_screen_keyboard = 1;
+    declare(M_W, M_H);
+    CHECK(owned("keyboard-toggle") != NULL && owned("piece.switch.keys") != NULL,
+          "and the switch comes back on a device that has the keys");
 
     /* ---- 2. the drawer -------------------------------------------------- */
     /* The two plates, as the layer knows them BEFORE the drawer adds anything
@@ -1354,6 +1423,36 @@ main(void)
             if( g_w[i].alive && g_w[i].owner && strncmp(g_w[i].key, "piece.", 6) == 0 && strcmp(g_w[i].op, "Panel") == 0 ) blockers++;
         CHECK(blockers == 1, "a tap blocker stands under the open drawer");
     }
+    /*
+     * UNDER the panel: the backing the interface is drawn on, and the blocker
+     * that catches what the interface does not.
+     *
+     * Both are recorded ONLY while the drawer is open, and that is the whole
+     * defect. "Over everything this plugin owns" is said by anchoring the live
+     * surface over the LAST item the description stated, which fixes a
+     * position in the parent's children -- and a widget that comes into
+     * existence after that anchor was written is created at the END of that
+     * list, which is above it. So the panel opened UNDER its own backing:
+     * nothing but a blank sheet of drawer, with the whole tab interface
+     * painted beneath it, and the blocker over that swallowing every tap the
+     * panel's own items should have answered first. Reported on the OSRS239
+     * lane, where the cache gameframe's mounts are what goes under.
+     *
+     * The MOUNT is the target rather than the sidebar container because this
+     * lane has none -- @see fw_build -- and a depth target that does not
+     * resolve is no anchor at all, which is the defect unchanged.
+     *
+     * MUTATION: pass PORCELAIN_EL(NONE) as either piece's `behind` (or name
+     * PORCELAIN_EL(SIDEBAR), which this lane cannot resolve). Red.
+     */
+    CHECK(owned("piece.drawer") &&
+              owned("piece.drawer")->anchor_relation == TORIRS_WIDGET_RELATION_BEHIND &&
+              owned("piece.drawer")->anchor_target == fw_find("sidebar", 3),
+          "the drawer's backing is anchored BEHIND the mount whose panel is open");
+    CHECK(owned("piece.blocker.panel") &&
+              owned("piece.blocker.panel")->anchor_relation == TORIRS_WIDGET_RELATION_BEHIND &&
+              owned("piece.blocker.panel")->anchor_target == fw_find("sidebar", 3),
+          "and so is the tap blocker, so the panel's own items take their taps first");
     g_frame.select_calls = 0;
     press("tab.05");
     CHECK(g_frame.select_calls == 1 && g_frame.selected_tab == 5, "a different stone switches panels");
@@ -1647,6 +1746,52 @@ main(void)
         if( backing >= 0 )
             g_w[backing].hidden = 0;
         declare(M_W, M_H);
+    }
+
+    /*
+     * A CHAT VIEW SWITCH RE-CREATES THE BACKING, AND THE BLOCK MUST NOT MOVE.
+     *
+     * `[role:chat_backing]` is not a cache component: `cc(iface(chat,37),0)`
+     * is script-created, and `[proc,toplevel_chatbox_background]` (script 923)
+     * cc_deleteall's 162:37 and cc_creates it again from scratch. Clicking
+     * Public or Private runs it -- `~script2823` calls it before it rebuilds
+     * the box -- so the node every part of this frame's chat plan is measured
+     * from is destroyed and replaced on an action the player takes constantly.
+     * Measured on the live osrs239 lane: the element rebound from node
+     * 4344 incarnation 010066 to node 4345 incarnation 011919 on the switch.
+     *
+     * The rebind itself is the layer's and it works. What this pins is the
+     * fence in between: a node created this frame has no box until the lane's
+     * layout has run for it, and a zero box read as "this lane has no
+     * backing". The band came out false, the sheet was sized from nothing and
+     * so was not described at all -- and a key that is not described is
+     * removed. The chat wore the lane's own furniture until the next fence.
+     *
+     * MUTATION: have mobile_chat_backing return false on a zero box instead of
+     * falling back. Red: the sheet is gone for as long as the new node is
+     * unmeasured.
+     */
+    {
+        int const old_backing = fw_find("chat_backing", -1);
+        int fresh;
+
+        declare(M_W, M_H);
+        CHECK(owned("pack-sheet") != NULL, "the sheet is up before the view switch");
+        if( old_backing >= 0 )
+            g_w[old_backing].alive = 0;
+        fresh = fw_add(0, "chat_backing", -1, 0, 338, 0, 0);
+        g_w[fresh].graphic = 1;
+        frame_tick();
+        CHECK(owned("pack-sheet") != NULL,
+              "a backing re-created and not yet laid out keeps the torn sheet");
+        frame_tick();
+        CHECK(owned("pack-sheet") != NULL, "and keeps it on the fence after");
+        /* And the moment the lane measures it, the live box wins again. */
+        g_w[fresh].w = 519;
+        g_w[fresh].h = 142;
+        frame_tick();
+        CHECK(owned("pack-sheet") && owned("pack-sheet")->img_h > 0,
+              "and takes the new measurement when the lane makes one");
     }
 
     /* ---- 8. the safe rect's ORIGIN, not only its bottom ---------------- */

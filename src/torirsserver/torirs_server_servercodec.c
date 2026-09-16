@@ -71,6 +71,10 @@ static const struct ServerField k_npc_fields[] = {
     /* Ours (150..199). The bar's twin: 162 says which bar, this says whether
      * the splat rides with it. */
     { 163, WIRE_U1, offsetof(struct ToriRSServerNpcDef, hitsplat),    "hitsplat"    },
+    /* Ours (150..199). LostCity has an opcode of its own for `forcemulti` in
+     * its 200s; ours sits here rather than guessing at a number that would
+     * collide the first time one of its records is read. */
+    { 164, WIRE_U1, offsetof(struct ToriRSServerNpcDef, forcemulti),  "forcemulti"  },
     { 158, WIRE_U4, offsetof(struct ToriRSServerNpcDef, attack_sound), "attack_sound" },
     { 159, WIRE_U4, offsetof(struct ToriRSServerNpcDef, defend_sound), "defend_sound" },
     { 160, WIRE_U4, offsetof(struct ToriRSServerNpcDef, death_sound),  "death_sound"  },
