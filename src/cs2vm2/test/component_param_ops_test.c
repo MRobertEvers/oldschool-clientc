@@ -1,5 +1,5 @@
 /*
- * Unit test for CC_SETCOMPONENTPARAM / CC_GETCOMPONENTPARAM (OldSchool wire
+ * Unit test for CC_SETPARAM / CC_PARAM (OldSchool wire
  * 1704/1703), driven through the real VM dispatch against a recording host.
  *
  * What it pins is the part a reading of the bytecode cannot make obvious: the
@@ -61,23 +61,23 @@ recording_host_exec(
     struct RecordingHost* host = (struct RecordingHost*)thread->vm->user;
     host->calls++;
     host->kind = request->kind;
-    if( request->kind == CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM )
+    if( request->kind == CS2VM_HOST_REQUEST_CC_SETPARAM )
     {
-        host->component_id = request->u.CC_SETCOMPONENTPARAM.component_id;
-        host->param_id = request->u.CC_SETCOMPONENTPARAM.param_id;
-        host->value = request->u.CC_SETCOMPONENTPARAM.value;
-        host->str_value = request->u.CC_SETCOMPONENTPARAM.str_value;
-        host->param_kind = request->u.CC_SETCOMPONENTPARAM.kind;
+        host->component_id = request->u.CC_SETPARAM.component_id;
+        host->param_id = request->u.CC_SETPARAM.param_id;
+        host->value = request->u.CC_SETPARAM.value;
+        host->str_value = request->u.CC_SETPARAM.str_value;
+        host->param_kind = request->u.CC_SETPARAM.kind;
     }
-    else if( request->kind == CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM )
+    else if( request->kind == CS2VM_HOST_REQUEST_CC_PARAM )
     {
-        host->component_id = request->u.CC_GETCOMPONENTPARAM.component_id;
-        host->param_id = request->u.CC_GETCOMPONENTPARAM.param_id;
-        host->value = request->u.CC_GETCOMPONENTPARAM.value;
-        host->str_value = request->u.CC_GETCOMPONENTPARAM.str_value;
-        host->param_kind = request->u.CC_GETCOMPONENTPARAM.kind;
+        host->component_id = request->u.CC_PARAM.component_id;
+        host->param_id = request->u.CC_PARAM.param_id;
+        host->value = request->u.CC_PARAM.value;
+        host->str_value = request->u.CC_PARAM.str_value;
+        host->param_kind = request->u.CC_PARAM.kind;
     }
-    if( request->kind == CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM )
+    if( request->kind == CS2VM_HOST_REQUEST_CC_PARAM )
         return CS2VM2_PushInt(thread, host->answer);
     return CS2VM_EXECNO_OK;
 }
@@ -166,9 +166,9 @@ main(void)
         memset(&host, 0, sizeof(host));
         int const pushes[3] = { 2365, 600, CS2_CC_COMPONENTPARAM_KIND_INT };
         run_op(
-            &host, CS2_OP_CC_SETCOMPONENTPARAM, 0, pushes, 3, NULL, active, dot, NULL);
+            &host, CS2_OP_CC_SETPARAM, 0, pushes, 3, NULL, active, dot, NULL);
         CHECK_INT(host.calls, 1, "setter reaches the host once");
-        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM, "setter kind");
+        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CC_SETPARAM, "setter kind");
         CHECK_INT(host.param_id, 2365, "setter param id (bottom of the three)");
         CHECK_INT(host.value, 600, "setter value (middle)");
         CHECK_INT(host.param_kind, 0, "setter kind arg (top)");
@@ -187,7 +187,7 @@ main(void)
         int top = 0;
         run_op(
             &host,
-            CS2_OP_CC_SETCOMPONENTPARAM,
+            CS2_OP_CC_SETPARAM,
             1,
             pushes,
             4,
@@ -212,9 +212,9 @@ main(void)
         host.answer = -1;
         int const pushes[1] = { 2557 };
         int top = 0;
-        run_op(&host, CS2_OP_CC_GETCOMPONENTPARAM, 0, pushes, 1, NULL, active, dot, &top);
+        run_op(&host, CS2_OP_CC_PARAM, 0, pushes, 1, NULL, active, dot, &top);
         CHECK_INT(host.calls, 1, "getter reaches the host once");
-        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM, "getter kind");
+        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CC_PARAM, "getter kind");
         CHECK_INT(host.param_id, 2557, "getter param id");
         CHECK_INT(host.component_id, active, "getter targets the active component");
         CHECK_INT(top, -1, "getter pushes the host's answer");

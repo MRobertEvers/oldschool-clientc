@@ -855,6 +855,7 @@ porcelain_read_state(struct Porcelain* porcelain, struct PorcelainWatch* watch)
     watch->state.native_hidden = native.native_hidden;
     watch->state.input_present = native.input_present;
     watch->state.graphic_token = native.graphic_token;
+    watch->state.paints_own_art = native.paints_own_art;
     watch->state.text_hash = native.text_hash;
     watch->state.facets = native.facets;
     watch->state.incarnation = native.incarnation;
@@ -2445,7 +2446,10 @@ porcelain_apply_op(struct Porcelain* porcelain, struct PorcelainAppliedItem* app
     porcelain->counters.setters++;
     porcelain_note_item_result(
         porcelain, applied, "set_on_op",
-        widgets->set_on_op(widgets->context, applied->ref, armed ? wanted->op_label : NULL,
+        /* Op 1: a described item offers one row, the left-click default.
+         * The widget API numbers ops the way the cache does, and a layer that
+         * grows a second row states the number there. */
+        widgets->set_on_op(widgets->context, applied->ref, 1, armed ? wanted->op_label : NULL,
                            armed ? porcelain_op_listener : NULL, armed ? applied : NULL),
         wanted->key.text);
     applied->op_armed = armed;
@@ -2594,7 +2598,7 @@ porcelain_apply_replace_hit(struct Porcelain* porcelain, struct PorcelainApplied
         porcelain->counters.engine_calls++;
         porcelain->counters.setters++;
         porcelain_note_item_result(porcelain, applied, "set_on_op",
-                                   widgets->set_on_op(widgets->context, applied->hit_ref,
+                                   widgets->set_on_op(widgets->context, applied->hit_ref, 1,
                                                       wanted->op_label, porcelain_op_listener,
                                                       applied),
                                    key);
@@ -2683,7 +2687,10 @@ porcelain_apply_anchor(struct Porcelain* porcelain, struct PorcelainAppliedItem*
                    ? TORIRS_WIDGET_RELATION_REPLACE
                    : (applied->item.place.behind ? TORIRS_WIDGET_RELATION_BEHIND
                                                  : TORIRS_WIDGET_RELATION_OVER);
-    if( !fresh && ToriRS_WidgetRefEqual(applied->anchor_target, anchor) )
+    /* The RELATION as well as the target: the same ref in a new relation is a
+     * new anchor, and a layer that compares only the ref never writes it. */
+    if( !fresh && ToriRS_WidgetRefEqual(applied->anchor_target, anchor) &&
+        applied->anchor_relation == relation )
         return;
     if( (applied->item.place.kind == PORCELAIN_AT_CANVAS ||
          applied->item.place.kind == PORCELAIN_AT_USABLE ||
@@ -2697,6 +2704,7 @@ porcelain_apply_anchor(struct Porcelain* porcelain, struct PorcelainAppliedItem*
          * frame on osrs239. A parenting placement that STATES a depth target
          * is asking for that anchor on purpose. @see porcelain_push_item. */
         applied->anchor_target = anchor;
+        applied->anchor_relation = relation;
         return;
     }
     porcelain->counters.engine_calls++;
@@ -2724,6 +2732,7 @@ porcelain_apply_anchor(struct Porcelain* porcelain, struct PorcelainAppliedItem*
             return;
     }
     applied->anchor_target = anchor;
+    applied->anchor_relation = relation;
     porcelain->dirty = true;
 }
 
@@ -3974,6 +3983,7 @@ static struct ToriRS_PorcelainApi const PORCELAIN_TABLE = {
     .config_list_set = Porcelain_ConfigListSet,
     .frame = Porcelain_Frame,
     .frame_event = Porcelain_FrameEvent,
+    .frame_native = Porcelain_FrameNative,
     .usable = Porcelain_Usable,
     .native_size = Porcelain_NativeSize,
     .lane_icon = Porcelain_LaneIcon,

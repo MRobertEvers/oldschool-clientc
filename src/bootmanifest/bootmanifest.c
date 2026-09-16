@@ -546,6 +546,20 @@ bm_set_kv(
             }
             return;
         }
+        if( strcmp(key, "plugin_nav") == 0 )
+        {
+            int const mode = ToriRSPluginNav_ModeFromName(value);
+            if( mode < 0 )
+            {
+                TORIRS_LOG("bootmanifest: [chrome] plugin_nav must be "
+                    "auto|rail, got '%s'\n",
+                    value);
+                bm->plugin_nav_error = 1;
+            }
+            else
+                bm->plugin_nav = mode;
+            return;
+        }
         break;
 
     case BM_SECTION_CACHE:
@@ -1473,6 +1487,8 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     if( bm->debug_hotkey_error )
         return -1;
     if( bm->editor_panel_error )
+        return -1;
+    if( bm->plugin_nav_error )
         return -1;
     if( bm->editor_server_error )
         return -1;

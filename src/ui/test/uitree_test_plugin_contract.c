@@ -450,9 +450,53 @@ void test_owned_widgets(void)
     UITree_Free(t);
 }
 
-/* Owned-control operations: the label lives in the native menu option storage,
- * the registration serial takes part in the action signature, and nothing
- * native or foreign can be armed. */
+/* An engine button in a CS2 launcher column (728:6 `popout:buttons`): the
+ * column's own buttons are cc_created by sub-id on every layout pass, and the
+ * owned node beside them must survive that, never answer a sub-id, and die
+ * cleanly with the interface. The owner is an engine token far above any
+ * plugin's index + 1. */
+void test_owned_widget_in_cc_create_column(void)
+{
+    uint64_t const engine_owner=UINT64_C(0x746F7269524E4156);
+    int const column_cid=(0x2d8<<16)|6;
+    struct UITree* t=UITree_New(32);
+    int root=UITree_TestPushXy(t,-1,UIELEM_RS_LAYER,0x2d80000,0,0,42,503);
+    int column=UITree_TestPushXy(t,root,UIELEM_RS_LAYER,column_cid,6,6,30,491);
+    struct UITreeNodeRef native[3];
+    for( int sub=0; sub<3; ++sub )
+        native[sub]=UITree_RefAt(t,UITree_CcCreate(t,column,column_cid,5,sub));
+    int button=UITree_WidgetCreateGraphic(t,UITree_RefAt(t,column),engine_owner,"torirs-nav:-2");
+    struct UITreeNodeRef button_ref=UITree_RefAt(t,button);
+    TEST_ASSERT(button>=0,"an engine owner token creates an owned control");
+    TEST_ASSERT(t->components[button].component_id==-1,"the engine button has no component id");
+    TEST_ASSERT(!t->components[button].dynamic,"the engine button is not a CS2 dynamic child");
+    TEST_ASSERT(UITree_WidgetSetPosition(t,button_ref,engine_owner,0,108),"the engine owner positions its button");
+
+    /* script 5356 again: the same three sub-ids, created over the top. */
+    for( int sub=0; sub<3; ++sub )
+    {
+        int again=UITree_CcCreate(t,column,column_cid,5,sub);
+        TEST_ASSERT(again>=0,"a rebuilt lane button is created");
+        TEST_ASSERT(UITree_ResolveRef(t,native[sub])<0,"the rebuild replaces the lane's own button");
+        TEST_ASSERT(UITree_FindChildBySubid(t,column,column_cid,sub)==again,"each sub-id finds the rebuilt lane button");
+        native[sub]=UITree_RefAt(t,again);
+    }
+    TEST_ASSERT(UITree_ResolveRef(t,button_ref)==button,"a cc_create rebuild leaves the engine button alone");
+    int children[8];
+    TEST_ASSERT(UITree_CollectDynamicChildIndices(t,column_cid,0,children,8)==3,
+                "the CS2 child walk sees only the lane's three buttons");
+    TEST_ASSERT(UITree_FindChildBySubid(t,column,column_cid,3)<0,"the engine button answers no sub-id");
+    TEST_ASSERT(UITree_WidgetCreateGraphic(t,UITree_RefAt(t,column),engine_owner,"torirs-nav:-2")==button,
+                "re-creating by key returns the same button");
+
+    UITree_ReclaimInterfaceGroup(t,0x2d8);
+    TEST_ASSERT(UITree_ResolveRef(t,button_ref)<0,"closing the interface invalidates the engine button");
+    UITree_Free(t);
+}
+
+/* Owned-control operations: each label lives in the native menu option slot
+ * its op number names, the registration serial takes part in the action
+ * signature, and nothing native or foreign can be armed. */
 void test_owned_widget_operations(void)
 {
     struct UITree* t=UITree_New(16);
@@ -464,27 +508,48 @@ void test_owned_widget_operations(void)
     char too_long[UITREE_MENU_OPTION_LEN+1];
     memset(too_long,'x',sizeof(too_long)-1);too_long[sizeof(too_long)-1]=0;
     TEST_ASSERT(own>=0,"owned control fixture created");
-    TEST_ASSERT(!UITree_WidgetSetOperation(t,UITree_RefAt(t,native),1,5,"Toggle"),"a native widget never takes a plugin operation");
-    TEST_ASSERT(!UITree_WidgetSetOperation(t,ref,2,5,"Toggle"),"another owner cannot arm an owned control");
-    TEST_ASSERT(!UITree_WidgetSetOperation(t,ref,1,5,""),"an armed operation needs a label");
-    TEST_ASSERT(!UITree_WidgetSetOperation(t,ref,1,5,too_long),"the label must fit native menu option storage");
-    TEST_ASSERT(!t->components[own].plugin_op_serial && !UITree_MenuOptions(&t->components[own])->option[0],
+    TEST_ASSERT(!UITree_WidgetSetOperation(t,UITree_RefAt(t,native),1,5,1,"Toggle"),"a native widget never takes a plugin operation");
+    TEST_ASSERT(!UITree_WidgetSetOperation(t, ref, 2, 5, 1, "Toggle"),"another owner cannot arm an owned control");
+    TEST_ASSERT(!UITree_WidgetSetOperation(t, ref, 1, 5, 0, "Toggle"),"an operation below the first slot is refused");
+    TEST_ASSERT(!UITree_WidgetSetOperation(t, ref, 1, 5, UITREE_MENU_OPTION_SLOTS+1, "Toggle"),
+        "an operation past the last slot is refused");
+    TEST_ASSERT(!UITree_WidgetSetOperation(t, ref, 1, 5, 1, too_long),"the label must fit native menu option storage");
+    TEST_ASSERT(!t->components[own].plugin_op_serial && !UITree_MenuOptions(&t->components[own])->ops[0][0],
         "rejected arming leaves the control unarmed");
-    TEST_ASSERT(UITree_WidgetSetOperation(t,ref,1,5,"Toggle"),"the owner arms its control");
-    TEST_ASSERT(strcmp(UITree_MenuOptions(&t->components[own])->option,"Toggle")==0 && t->components[own].plugin_op_serial==5,
-        "operation label and registration are stored on the node");
+    TEST_ASSERT(UITree_WidgetSetOperation(t, ref, 1, 5, 1, "Toggle"),"the owner arms its control");
+    TEST_ASSERT(strcmp(UITree_MenuOptions(&t->components[own])->ops[0],"Toggle")==0 && t->components[own].plugin_op_serial==5,
+        "operation label and registration are stored on the node, in the slot the op names");
     uint64_t armed=UITree_ActionSignatureAt(t,own);
     TEST_ASSERT(armed!=unarmed,"arming changes the native action signature");
-    TEST_ASSERT(UITree_WidgetSetOperation(t,ref,1,6,"Toggle"),"the owner replaces its listener");
+    TEST_ASSERT(UITree_WidgetSetOperation(t, ref, 1, 6, 1, "Toggle"),"the owner replaces its listener");
     TEST_ASSERT(UITree_ActionSignatureAt(t,own)!=armed,"replacing the listener retires rows built for the old one");
-    TEST_ASSERT(UITree_WidgetSetOperation(t,ref,1,0,""),"the owner removes its operation");
-    TEST_ASSERT(!UITree_MenuOptions(&t->components[own])->option[0] && !t->components[own].plugin_op_serial,
+    /*
+     * A SECOND row, and taking it away again.
+     *
+     * The whole point of numbering these: a cover over a component offering
+     * two rows has to offer both, so a second op must land in its own slot
+     * without touching the first, and clearing it must leave the first armed.
+     * Written against `ops[]` rather than the single `option` a native
+     * component uses for its own left-click text, which is where these labels
+     * used to go and where only one of them could ever fit.
+     */
+    TEST_ASSERT(UITree_WidgetSetOperation(t, ref, 1, 6, 2, "Setup"),"the owner arms a second operation");
+    TEST_ASSERT(strcmp(UITree_MenuOptions(&t->components[own])->ops[0],"Toggle")==0 &&
+                strcmp(UITree_MenuOptions(&t->components[own])->ops[1],"Setup")==0,
+        "both rows stand, each in its own slot");
+    TEST_ASSERT(UITree_WidgetSetOperation(t, ref, 1, 6, 2, ""),"an empty label clears that one slot");
+    TEST_ASSERT(!UITree_MenuOptions(&t->components[own])->ops[1][0] &&
+                strcmp(UITree_MenuOptions(&t->components[own])->ops[0],"Toggle")==0 &&
+                t->components[own].plugin_op_serial==6,
+        "clearing one row leaves the other armed and the control registered");
+    TEST_ASSERT(UITree_WidgetSetOperation(t, ref, 1, 0, 1, ""),"the owner removes its operation");
+    TEST_ASSERT(!UITree_MenuOptions(&t->components[own])->ops[0][0] && !t->components[own].plugin_op_serial,
         "removal clears label and registration");
     TEST_ASSERT(UITree_ActionSignatureAt(t,own)==unarmed,"a disarmed control has its original signature");
     UITree_WidgetRemove(t,ref,1);
-    TEST_ASSERT(!UITree_WidgetSetOperation(t,ref,1,7,"Toggle"),"a stale reference cannot be armed");
+    TEST_ASSERT(!UITree_WidgetSetOperation(t, ref, 1, 7, 1, "Toggle"),"a stale reference cannot be armed");
     int again=UITree_WidgetCreateText(t,UITree_RefAt(t,root),1,"button",1);
-    TEST_ASSERT(again>=0 && !t->components[again].plugin_op_serial && !UITree_MenuOptions(&t->components[again])->option[0],
+    TEST_ASSERT(again>=0 && !t->components[again].plugin_op_serial && !UITree_MenuOptions(&t->components[again])->ops[0][0],
         "a recreated control starts unarmed");
     UITree_Free(t);
 }

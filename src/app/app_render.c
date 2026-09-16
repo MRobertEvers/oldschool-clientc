@@ -502,3 +502,12 @@ App_SetPluginChromeExec(
     app->plugin_exec_kind = kind;
 }
 
+void
+App_SetPluginNavMode(struct App* app, int mode)
+{
+    assert(app);
+    assert(mode >= TORIRS_PLUGIN_NAV_AUTO);
+    assert(mode <= TORIRS_PLUGIN_NAV_RAIL);
+    app->plugin_nav.mode = mode;
+}
+

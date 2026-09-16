@@ -41,10 +41,21 @@ struct TestbedElement
     bool native_hidden;
     bool input_present;
     uint32_t graphic_token;
+    /** This element (or something below it) paints a PICTURE, which is what a
+     *  REPLACE of it consumes. Off by default: a declared element is a box
+     *  with no art until a test says otherwise, and the plugins that ask are
+     *  asking precisely because most targets are not the same answer. */
+    bool paints_own_art;
     uint32_t facets;
     uint64_t incarnation;
     struct ToriRS_WidgetRef ref;
     struct ToriRS_WidgetRef parent;
+    /* The role this element lives INSIDE, empty for one that stands alone.
+     * The lane's own containment, which `parent` above does not carry: every
+     * declared element hangs off one shared synthetic parent there, so a fake
+     * that knew only that could not tell that hiding an orb takes the button
+     * in it off the screen too. @see Testbed_ElementInside. */
+    char inside[64];
     /* Where a `raise` put this native element, and against what. A frame
      * provider anchors the LANE's own nodes, so unlike every overlay verb the
      * subject here is an element and not an owned control. */
@@ -224,6 +235,13 @@ struct Testbed
     /* Named ids the profile declares, as "kind:name=value" rows. */
     char named_ids[256];
     int key_held;
+    /* The pointer, in canvas coords, and whether the lane has one at all --
+     * `input.pointer` answers false on a lane with no mouse, and a plugin
+     * that tests a rectangle against the pointer has to be driven through
+     * both answers. */
+    int pointer_x;
+    int pointer_y;
+    bool pointer_present;
     int next_ref;
 
     /* The overlay surfaces. */
@@ -297,6 +315,16 @@ void Testbed_RefuseAnchors(bool refuse);
 void Testbed_KillElementNode(char const* role);
 void Testbed_KillControl(char const* key);
 struct TestbedElement* Testbed_Element(char const* role);
+/**
+ * Declare that `role` lives inside `container_role`, as interface 160's run
+ * button lives inside the run orb.
+ *
+ * Only a hide reads it, and it is what makes one faithful: the engine's hide
+ * is a SUBTREE statement, so a plugin that hides a node it covers takes every
+ * button in it out of the picture as well -- and a plugin that then presses
+ * one of those buttons is pressing through its own hide.
+ */
+void Testbed_ElementInside(char const* role, char const* container_role);
 
 /* Assets ------------------------------------------------------------------ */
 

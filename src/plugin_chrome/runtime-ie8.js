@@ -93,7 +93,7 @@
         rail: {
             registryRevision: 0, selectionGeneration: 0, pageGeneration: 0,
             activePlugin: -1, lastSelectedPlugin: -1, selectedEntry: -1,
-            expanded: false, entries: []
+            expanded: false, railHidden: false, entries: []
         },
         railNodes: new Store(),
         icons: new Store(),
@@ -278,18 +278,22 @@
         if (!control || legacy)
             return;
         var body = safeUrl(state.theme.dropdownBody) || 'skin/DropdownBody.png';
-        var isSelect = String(control.tagName || '').toLowerCase() === 'select';
-        var arrow = isSelect && (safeUrl(state.theme.scrollDown) || 'skin/ScrollDown.png');
-        if (body && arrow) {
-            control.style.backgroundImage = "".concat(cssUrl(arrow), ",").concat(cssUrl(body));
-            control.style.backgroundPosition = 'right 2px center,left top';
-            control.style.backgroundRepeat = 'no-repeat,repeat';
-            control.style.backgroundSize = '14px 14px,auto';
-        }
-        else if (body) {
-            control.style.backgroundImage = cssUrl(body);
-            control.style.backgroundRepeat = 'repeat';
-        }
+        control.style.backgroundImage = cssUrl(body);
+        control.style.backgroundRepeat = 'repeat';
+    }
+    /* The closed dropdown, as dbg_push_dropdown_button draws it: the PANEL tile
+     * (not the lighter dropdown parchment, which is the open list's), and the
+     * scrollbar's own down arrow -- its up arrow while the list is open. */
+    function skinDropdown(record) {
+        if (!record.control || legacy)
+            return;
+        var body = safeUrl(state.theme.panelBody) || 'skin/PanelBody.png';
+        var open = dropdown.record === record;
+        var arrow = open
+            ? safeUrl(state.theme.scrollUp) || 'skin/ScrollUp.png'
+            : safeUrl(state.theme.scrollDown) || 'skin/ScrollDown.png';
+        record.control.style.backgroundImage = cssUrl(body);
+        record.arrow.style.backgroundImage = cssUrl(arrow);
     }
     function setTabsVisible(visible) {
         hidden(tabs, !visible);
@@ -406,7 +410,7 @@
         if (!node || !node.tagName)
             return false;
         var tag = String(node.tagName).toUpperCase();
-        return tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+        return tag === 'INPUT' || tag === 'TEXTAREA';
     }
     function postEditorFocus(focused) {
         focused = !!focused;
@@ -580,9 +584,18 @@
             lastSelectedPlugin: integer(message.lastSelectedPlugin, -1),
             selectedEntry: integer(message.selectedEntry, -1),
             expanded: !!message.expanded,
+            /* The game lane's own pop-out column carries the plugin destinations,
+             * so this page draws no rail and reserves no width for one. Selection
+             * still arrives in this snapshot and the page pane still opens and
+             * closes on it; only the rail box goes. The entries are retained so the
+             * rail comes back intact when the lane stops carrying them. */
+            railHidden: !!message.railHidden,
             entries: entries
         };
         toggleClass(shell, 'tpc-collapsed', !state.rail.expanded);
+        toggleClass(shell, 'tpc-rail-hidden', state.rail.railHidden);
+        if (railBox)
+            hidden(railBox, state.rail.railHidden);
         if (rebuild)
             rebuildRail();
         else
@@ -718,6 +731,7 @@
          * down. postWidget would drop them, but a menu left standing over a
          * cleared pane is a menu about nothing. */
         popupHide();
+        dropdownHide();
         postEditorFocus(false);
         state.widgets.clear();
         state.widgetsByTab.clear();
@@ -806,7 +820,7 @@
             handle: command.w, panel: command.p, generation: state.pageGeneration,
             serial: command.s, kind: command.v, tab: command.tab, shape: command.cw,
             rows: command.ch, label: command.label, text: command.text, color: command.c,
-            checked: false, selected: -1, hidden: false, focused: false,
+            checked: false, selected: -1, shown: -1, hidden: false, focused: false,
             options: [], structuredOptions: false, optionsRevision: 0,
             customRevision: 0, customScale: 1000,
             renderFlags: 0, renderQueued: false,
@@ -958,24 +972,33 @@
             }
             case W.DROPDOWN: {
                 row.className += ' tpc-field-row';
-                var select_1 = document.createElement('select');
-                select_1.className = 'tpc-field tpc-select';
-                bind(select_1, 'change', function () {
-                    var index = select_1.selectedIndex;
-                    var option = index >= 0 && index < record.options.length
-                        ? record.options[index] : null;
-                    if (record.structuredOptions) {
-                        if (!option || !option.enabled) {
-                            renderWidgetSelection(record);
-                            return;
-                        }
-                        postWidget(record, INTENT.PICK, index, option.value);
-                    }
+                /* A button and a list this page draws itself, never a SELECT: a
+                 * native select's open list is the host's own menu, and on macOS that
+                 * menu runs a modal tracking loop on the main thread -- the thread the
+                 * game's frame loop runs on -- so the whole client froze for as long
+                 * as the list stood open. @see dropdownShow. */
+                var drop = document.createElement('button');
+                drop.type = 'button';
+                drop.className = 'tpc-field tpc-dropdown';
+                drop.setAttribute('aria-haspopup', 'listbox');
+                drop.setAttribute('aria-expanded', 'false');
+                var value = document.createElement('span');
+                value.className = 'tpc-dropdown-value';
+                drop.appendChild(value);
+                var arrow = document.createElement('span');
+                arrow.className = 'tpc-dropdown-arrow';
+                drop.appendChild(arrow);
+                bind(drop, 'click', function () {
+                    if (dropdown.record === record)
+                        dropdownHide();
                     else
-                        postWidget(record, INTENT.PICK, index);
+                        dropdownShow(record);
                 });
-                attachLabel(row, record, select_1);
-                record.control = select_1;
+                bind(drop, 'keydown', function (event) { return dropdownButtonKey(record, event); });
+                attachLabel(row, record, drop);
+                record.control = drop;
+                record.valueNode = value;
+                record.arrow = arrow;
                 break;
             }
             case W.MODELVIEW: {
@@ -1176,6 +1199,8 @@
         var record = state.widgets.get(handle);
         if (!record)
             return;
+        if (dropdown.record === record)
+            dropdownHide();
         if (record.row.parentNode)
             record.row.parentNode.removeChild(record.row);
         unindexWidget(record);
@@ -1187,28 +1212,12 @@
         if (!record || !record.control)
             return;
         if (record.kind === W.DROPDOWN) {
-            var select = record.control;
-            clear(select);
-            for (var index = 0; index < record.options.length; index++) {
-                var item = record.options[index];
-                var option = document.createElement('option');
-                if (record.structuredOptions) {
-                    var detail = item && item.detail ? " \u2014 ".concat(item.detail) : '';
-                    setText(option, "".concat(item ? item.label : '').concat(detail));
-                    option.value = item ? item.value : '';
-                    option.disabled = !(item && item.enabled);
-                    option.setAttribute('aria-disabled', option.disabled ? 'true' : 'false');
-                    if (item && item.detail) {
-                        option.title = item.detail;
-                        option.setAttribute('aria-label', "".concat(item.label, ". ").concat(item.detail));
-                    }
-                }
-                else
-                    setText(option, item);
-                select.appendChild(option);
-            }
-            if (record.selected >= 0 && record.selected < record.options.length)
-                select.selectedIndex = record.selected;
+            /* The rows exist only while the list is open, so a closed dropdown's
+             * options are data and nothing to rebuild; an open one is rebuilt in
+             * place over the same button. */
+            renderDropdownValue(record, record.selected);
+            if (dropdown.record === record)
+                dropdownShow(record);
         }
         else if (record.kind === W.TABSTRIP) {
             clear(tabs);
@@ -1265,7 +1274,7 @@
                 setText(record.control, record.text || record.label);
                 break;
             case W.DROPDOWN:
-                skinField(record.control);
+                skinDropdown(record);
                 break;
             case W.MODELVIEW:
                 setText(record.control, record.label || record.text || 'Model preview');
@@ -1316,8 +1325,7 @@
     }
     function renderWidgetSelection(record) {
         if (record.kind === W.DROPDOWN && record.control)
-            record.control.selectedIndex = record.selected >= 0 &&
-                record.selected < record.options.length ? record.selected : -1;
+            renderDropdownValue(record, record.selected);
         else if (record.kind === W.LABEL && record.shape === LABEL.PROGRESS && record.control) {
             var value = Math.max(0, Math.min(100, integer(record.selected, 0)));
             if (record.progressFill)
@@ -1583,6 +1591,10 @@
             return;
         }
         var visible = pane.style.display !== 'none' && !!state.pageGeneration;
+        /* The PANE's own box, never the view: with the rail shown the pane stops
+         * at the rail's track (less the shared 6px frame seam), and with the rail
+         * hidden (tpc-rail-hidden) it runs flush to the right edge, so neither
+         * case counts the rail's 42px. */
         var width = visible ? Math.max(0, pane.clientWidth || 0) : 0;
         var height = visible ? Math.max(0, pane.clientHeight || 0) : 0;
         var customWidth = 0;
@@ -1597,7 +1609,7 @@
         var scaleMilli = Math.max(1, Math.round(Number(global.devicePixelRatio || 1) * 1000));
         var sizeClass = width < 320 ? 0 : (width >= 480 ? 2 : 1);
         var key = [state.rail.selectionGeneration, state.pageGeneration, width, height,
-            customWidth, scaleMilli, sizeClass, visible ? 1 : 0].join(':');
+            customWidth, scaleMilli, sizeClass, visible ? 1 : 0, state.rail.railHidden ? 1 : 0].join(':');
         if (key === state.lastLayout)
             return;
         state.lastLayout = key;
@@ -1745,8 +1757,7 @@
         event.returnValue = false;
         return false;
     }
-    /* The editable control a click landed in, or null. A SELECT is editable to
-     * the focus reporter and not to this menu: its own list is the popup. */
+    /* The text field a click landed in, or null. */
     function fieldOf(node) {
         if (!node || !node.tagName)
             return null;
@@ -1916,10 +1927,288 @@
         document.onkeydown = popupKeyDown;
         popupPlace(x, y);
     }
+    /* ---- the open dropdown list ---------------------------------------------
+     *
+     * dbg_build_dropdown_list in CSS: a list the same width as its button,
+     * hanging from the button's bottom edge, rows of 20 inside 2px of frame,
+     * ten rows before it scrolls, and the bar inside the frame rather than
+     * beside it. It flips above the button only when below has no room.
+     *
+     * Drawn by this page rather than by the engine because the engine's list is
+     * a native menu, and a native menu blocks the thread that opened it until it
+     * closes -- on macOS that is the game's main thread. Nothing here waits.
+     */
+    var DROP_ROW_H = 20;
+    var DROP_PAD = 2;
+    var DROP_ROWS = 10;
+    var dropdown = {
+        record: null, back: null, box: null, scroller: null, rows: [],
+        hover: -1, keydown: null
+    };
+    function optionText(record, index) {
+        var item = record.options[index];
+        if (!record.structuredOptions)
+            return text(item);
+        if (!item)
+            return '';
+        return item.detail ? "".concat(item.label, " \u2014 ").concat(item.detail) : item.label;
+    }
+    function optionEnabled(record, index) {
+        if (index < 0 || index >= record.options.length)
+            return false;
+        if (!record.structuredOptions)
+            return true;
+        var item = record.options[index];
+        return !!(item && item.enabled);
+    }
+    /* SHOWN is what the button says, which runs ahead of SELECTED between a
+     * pick and the host's answer to it -- the same lead a native select had. */
+    function renderDropdownValue(record, index) {
+        var valid = index >= 0 && index < record.options.length;
+        record.shown = valid ? index : -1;
+        var caption = valid ? optionText(record, index) : '';
+        setText(record.valueNode, caption);
+        record.control.title = text(caption, 255);
+    }
+    function dropdownHover(index) {
+        var rows = dropdown.rows;
+        if (dropdown.hover >= 0 && dropdown.hover < rows.length)
+            toggleClass(rows[dropdown.hover], 'tpc-dropdown-hover', false);
+        dropdown.hover = optionEnabled(dropdown.record, index) ? index : -1;
+        if (dropdown.hover >= 0)
+            toggleClass(rows[dropdown.hover], 'tpc-dropdown-hover', true);
+    }
+    function dropdownReveal(index) {
+        var scroller = dropdown.scroller;
+        var top = index * DROP_ROW_H;
+        var view = Math.min(dropdown.rows.length, DROP_ROWS) * DROP_ROW_H;
+        if (top < scroller.scrollTop)
+            scroller.scrollTop = top;
+        else if (top + DROP_ROW_H > scroller.scrollTop + view)
+            scroller.scrollTop = top + DROP_ROW_H - view;
+    }
+    function dropdownHide() {
+        var record = dropdown.record;
+        var back = dropdown.back;
+        if (!record)
+            return;
+        dropdown.record = null;
+        dropdown.back = null;
+        dropdown.box = null;
+        dropdown.scroller = null;
+        dropdown.rows = [];
+        dropdown.hover = -1;
+        if (back && back.parentNode)
+            back.parentNode.removeChild(back);
+        document.onkeydown = dropdown.keydown || null;
+        dropdown.keydown = null;
+        toggleClass(record.control, 'tpc-dropdown-open', false);
+        record.control.setAttribute('aria-expanded', 'false');
+        skinDropdown(record);
+    }
+    function dropdownPick(index) {
+        var record = dropdown.record;
+        if (!optionEnabled(record, index))
+            return;
+        dropdownHide();
+        if (record.control.focus)
+            record.control.focus();
+        if (index === record.shown)
+            return;
+        renderDropdownValue(record, index);
+        if (record.structuredOptions)
+            postWidget(record, INTENT.PICK, index, record.options[index].value);
+        else
+            postWidget(record, INTENT.PICK, index);
+    }
+    /* The next enabled option after FROM, walking by STEP, or -1. */
+    function dropdownStep(record, from, step) {
+        for (var at = from + step; at >= 0 && at < record.options.length; at += step)
+            if (optionEnabled(record, at))
+                return at;
+        return -1;
+    }
+    /* The next enabled option after the cursor whose caption starts with KEY,
+     * wrapping -- a select's own type-to-jump. */
+    function dropdownSeek(record, from, key) {
+        var count = record.options.length;
+        for (var i = 1; i <= count; i++) {
+            var at = (from + i + count) % count;
+            if (optionEnabled(record, at) &&
+                optionText(record, at).charAt(0).toUpperCase() === key)
+                return at;
+        }
+        return -1;
+    }
+    function dropdownKeyDown(event) {
+        event = event || global.event || {};
+        var record = dropdown.record;
+        var code = event.keyCode || event.which || 0;
+        var from = dropdown.hover >= 0 ? dropdown.hover : record.shown;
+        var next = -1;
+        switch (code) {
+            case 27:
+                dropdownHide();
+                return cancelEvent(event);
+            case 9:
+                dropdownHide();
+                return undefined;
+            case 13:
+            case 32:
+                if (dropdown.hover >= 0)
+                    dropdownPick(dropdown.hover);
+                return cancelEvent(event);
+            case 38:
+                next = dropdownStep(record, from, -1);
+                break;
+            case 40:
+                next = dropdownStep(record, from, 1);
+                break;
+            case 36:
+                next = dropdownStep(record, -1, 1);
+                break;
+            case 35:
+                next = dropdownStep(record, record.options.length, -1);
+                break;
+            case 33:
+                next = dropdownStep(record, Math.max(0, from - DROP_ROWS + 1), -1);
+                break;
+            case 34:
+                next = dropdownStep(record, Math.min(record.options.length - 1, from + DROP_ROWS - 1), 1);
+                break;
+            default:
+                if ((code >= 48 && code <= 57) || (code >= 65 && code <= 90))
+                    next = dropdownSeek(record, from, String.fromCharCode(code));
+                else
+                    return undefined;
+        }
+        if (next >= 0) {
+            dropdownHover(next);
+            dropdownReveal(next);
+        }
+        return cancelEvent(event);
+    }
+    function dropdownButtonKey(record, event) {
+        event = event || global.event || {};
+        var code = event.keyCode || event.which || 0;
+        /* Open: the document handler owns every key. Closed: the arrows open the
+         * list, and Enter/Space reach the button's own click. */
+        if (dropdown.record === record || (code !== 38 && code !== 40))
+            return undefined;
+        dropdownShow(record);
+        return cancelEvent(event);
+    }
+    function dropdownPlace(record) {
+        var doc = document.documentElement || {};
+        var viewHeight = integer(doc.clientHeight, 0) || integer(global.innerHeight, 0);
+        var bounds = record.control.getBoundingClientRect();
+        var height = Math.min(record.options.length, DROP_ROWS) * DROP_ROW_H + 2 * DROP_PAD;
+        var boxTop = Math.round(bounds.top);
+        var top = Math.round(bounds.bottom);
+        if (viewHeight && top + height > viewHeight) {
+            var below = viewHeight - top;
+            if (height <= boxTop)
+                top = boxTop - height;
+            else if (boxTop > below)
+                top = 0;
+            else
+                top = viewHeight - height;
+            if (top < 0)
+                top = 0;
+        }
+        dropdown.box.style.left = "".concat(Math.round(bounds.left), "px");
+        dropdown.box.style.top = "".concat(top, "px");
+        dropdown.box.style.width = "".concat(Math.round(bounds.right - bounds.left), "px");
+        dropdown.box.style.height = "".concat(height, "px");
+        dropdown.scroller.style.height = "".concat(height - 2 * DROP_PAD, "px");
+    }
+    function dropdownShow(record) {
+        popupHide();
+        var reopening = dropdown.record === record;
+        var scrollTop = reopening ? dropdown.scroller.scrollTop : -1;
+        dropdownHide();
+        if (!record.options.length)
+            return;
+        var back = document.createElement('div');
+        back.className = 'tpc-dropdown-backdrop';
+        var box = document.createElement('div');
+        box.className = 'tpc-dropdown-list';
+        box.setAttribute('role', 'listbox');
+        if (!legacy)
+            box.style.backgroundImage = cssUrl(safeUrl(state.theme.dropdownBody) ||
+                'skin/DropdownBody.png');
+        var scroller = document.createElement('div');
+        scroller.className = 'tpc-dropdown-scroller';
+        var rows = [];
+        var _loop_4 = function (index) {
+            var row = document.createElement('div');
+            var enabled = optionEnabled(record, index);
+            /* The bands alternate on the OPTION index, so they scroll with the text. */
+            row.className = "tpc-dropdown-option".concat(index & 1 ? ' tpc-dropdown-alt' : '') +
+                "".concat(enabled ? '' : ' tpc-dropdown-disabled');
+            row.setAttribute('role', 'option');
+            row.setAttribute('aria-selected', index === record.shown ? 'true' : 'false');
+            row.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+            var caption = optionText(record, index);
+            setText(row, caption);
+            row.title = text(caption, 255);
+            /* A row answers only while it is in the standing list: an event queued
+             * behind the list's own close, or a rebuild, must not land on a list it
+             * is no longer part of. */
+            var live = function () { return dropdown.rows[index] === row; };
+            bind(row, 'mouseover', function () { if (live())
+                dropdownHover(index); });
+            bind(row, 'mouseout', function () {
+                if (live() && dropdown.hover === index)
+                    dropdownHover(-1);
+            });
+            /* The press keeps focus on the button, as a select's list does. */
+            bind(row, 'mousedown', function (event) { return cancelEvent(event || global.event || {}); });
+            bind(row, 'click', function () { if (live())
+                dropdownPick(index); });
+            scroller.appendChild(row);
+            rows.push(row);
+        };
+        for (var index = 0; index < record.options.length; index++) {
+            _loop_4(index);
+        }
+        box.appendChild(scroller);
+        back.appendChild(box);
+        /* Any press outside the list closes it and goes no further, as the
+         * right-click popup's backdrop does -- including a press on the button,
+         * which is how the button closes its own list. */
+        bind(back, 'mousedown', function (event) {
+            event = event || global.event || {};
+            if (insideNode(event.target || event.srcElement, box))
+                return undefined;
+            dropdownHide();
+            return cancelEvent(event);
+        });
+        popupHost().appendChild(back);
+        dropdown.record = record;
+        dropdown.back = back;
+        dropdown.box = box;
+        dropdown.scroller = scroller;
+        dropdown.rows = rows;
+        dropdown.keydown = document.onkeydown;
+        document.onkeydown = dropdownKeyDown;
+        toggleClass(record.control, 'tpc-dropdown-open', true);
+        record.control.setAttribute('aria-expanded', 'true');
+        skinDropdown(record);
+        dropdownPlace(record);
+        /* The chosen option starts under the cursor and in view; a list rebuilt
+         * because its options changed keeps the scroll it had. */
+        dropdownHover(record.shown);
+        if (scrollTop >= 0)
+            scroller.scrollTop = scrollTop;
+        else if (record.shown >= 0)
+            dropdownReveal(record.shown);
+    }
     bind(document, 'contextmenu', function (event) {
         event = event || global.event || {};
         var target = event.target || event.srcElement || null;
         var repeat = popup.box && insideNode(target, popup.box);
+        dropdownHide();
         popupHide();
         if (!repeat)
             popupShow(popupRowsFor(target), integer(event.clientX, 0), integer(event.clientY, 0));
@@ -1954,6 +2243,7 @@
      * this view whenever a page opens or closes. */
     global.onresize = function () {
         popupHide();
+        dropdownHide();
         reportLayout();
     };
     sizeLegacyViewport();
@@ -1968,6 +2258,7 @@
                 railEntries: state.rail.entries.length,
                 selectedEntry: state.rail.selectedEntry,
                 expanded: state.rail.expanded,
+                railHidden: state.rail.railHidden,
                 pageGeneration: state.pageGeneration,
                 panel: state.panel,
                 widgetCount: state.widgets.count,

@@ -40,6 +40,7 @@
 #include "perf/torirs_perf.h"
 #include "ui/torirs_chrome_metrics.h"
 #include <windows.h>
+#include <shellapi.h>
 #include <objbase.h>
 
 /*
@@ -208,6 +209,10 @@ struct PlatformWindow
     int     chrome_layout_w;
     int     chrome_collapsed_client_w;
     int     chrome_open;
+    /* The lane's own pop-out column carries the plugin destinations: the
+     * browser child keeps existing but reserves no rail width. See
+     * PlatformWindow_ChromeSetRailHidden. */
+    int     chrome_rail_hidden;
 
     /* Set only for the duration of PollCommands so the WndProc can translate
      * into the caller's bus; the coalesced resize is applied after the pump. */
@@ -264,6 +269,13 @@ win32_resize_client(struct PlatformWindow* p, int width, int height)
         SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
+/* The rail's width inside the browser child: none while it is hidden. */
+static int
+win32_rail_width(struct PlatformWindow const* p)
+{
+    return p && p->chrome_rail_hwnd && !p->chrome_rail_hidden ? WIN32_CHROME_RAIL_W : 0;
+}
+
 static int
 win32_chrome_reserved_width(struct PlatformWindow const* p)
 {
@@ -271,8 +283,7 @@ win32_chrome_reserved_width(struct PlatformWindow const* p)
 
     if( !p )
         return 0;
-    if( p->chrome_rail_hwnd )
-        reserved += WIN32_CHROME_RAIL_W;
+    reserved += win32_rail_width(p);
     if( p->chrome_open )
         reserved += p->chrome_layout_w;
     return reserved;
@@ -307,7 +318,7 @@ win32_chrome_layout(struct PlatformWindow* p, int client_w, int client_h)
 
     if( !p || client_w < 0 || client_h < 0 )
         return;
-    rail_w = p->chrome_rail_hwnd ? WIN32_CHROME_RAIL_W : 0;
+    rail_w = win32_rail_width(p);
     pane_w = p->chrome_open ? p->chrome_requested_w : 0;
     if( pane_w > client_w - rail_w )
         pane_w = client_w - rail_w;
@@ -333,7 +344,8 @@ win32_chrome_layout(struct PlatformWindow* p, int client_w, int client_h)
             0,
             shell_w,
             client_h,
-            SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+            SWP_NOZORDER | SWP_NOACTIVATE |
+                (shell_w > 0 ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
     if( p->chrome_browser )
         PlatformWin32Browser_Resize(p->chrome_browser, shell_w, client_h);
 
@@ -417,11 +429,12 @@ win32_chrome_ensure_rail(struct PlatformWindow* p)
     /* Keep-game-size, RuneLite-style, where USER32 permits it.  Maximized and
      * popup/fullscreen windows are fit in place and never forced off-screen. */
     style = GetWindowLongPtr(p->hwnd, GWL_STYLE);
-    if( !(style & WS_POPUP) && !(style & WS_MAXIMIZE) )
-        win32_resize_client(p, width + WIN32_CHROME_RAIL_W, height);
+    if( !(style & WS_POPUP) && !(style & WS_MAXIMIZE) && win32_rail_width(p) > 0 )
+        win32_resize_client(p, width + win32_rail_width(p), height);
     win32_main_client_size(p, &width, &height);
     win32_chrome_layout(p, width, height);
-    ShowWindow(p->chrome_rail_hwnd, SW_SHOWNOACTIVATE);
+    if( win32_rail_width(p) > 0 )
+        ShowWindow(p->chrome_rail_hwnd, SW_SHOWNOACTIVATE);
     return 1;
 }
 
@@ -1440,7 +1453,42 @@ PlatformWindow_ChromeHeight(struct PlatformWindow const* p)
 int
 PlatformWindow_ChromeRailWidth(struct PlatformWindow const* p)
 {
-    return p && p->chrome_rail_hwnd ? WIN32_CHROME_RAIL_W : 0;
+    return win32_rail_width(p);
+}
+
+bool
+PlatformWindow_ChromeRailHidden(struct PlatformWindow const* p)
+{
+    assert(p);
+    return p->chrome_rail_hidden != 0;
+}
+
+void
+PlatformWindow_ChromeSetRailHidden(struct PlatformWindow* p, bool hidden)
+{
+    int client_w = 0;
+    int client_h = 0;
+    int const rail_before = win32_rail_width(p);
+    int rail_after;
+    LONG_PTR style;
+
+    assert(p);
+    if( (p->chrome_rail_hidden != 0) == hidden )
+        return;
+    p->chrome_rail_hidden = hidden ? 1 : 0;
+    if( !p->hwnd || !p->chrome_rail_hwnd )
+        return;
+    rail_after = win32_rail_width(p);
+    win32_main_client_size(p, &client_w, &client_h);
+    /* With no page up the rail was grown into the frame, so it goes back out
+     * of it. Beside an open page the game area takes the difference and the
+     * window stays put, as it does on the SDL platform. */
+    style = GetWindowLongPtr(p->hwnd, GWL_STYLE);
+    if( !p->chrome_open && !(style & WS_POPUP) && !(style & WS_MAXIMIZE) &&
+        client_w + rail_after - rail_before > 0 )
+        win32_resize_client(p, client_w + rail_after - rail_before, client_h);
+    win32_main_client_size(p, &client_w, &client_h);
+    win32_chrome_layout(p, client_w, client_h);
 }
 
 int
@@ -2362,10 +2410,31 @@ PlatformWindow_SetTitle(struct PlatformWindow* p, char const* title)
  * is a no-op rather than a link error.
  */
 void
+PlatformWindow_OpenUrl(struct PlatformWindow* p, char const* url)
+{
+    assert(url);
+    (void)p;
+    if( (INT_PTR)ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL) <= 32 )
+        fprintf(stderr, "unable to open url %s\n", url);
+}
+
+void
 PlatformWindow_SetTextInput(struct PlatformWindow* p, int on)
 {
     (void)p;
     (void)on;
+}
+
+int
+PlatformWindow_HasScreenKeyboard(struct PlatformWindow* p)
+{
+    (void)p;
+    /* Never. This backend has no soft keyboard to raise, which is exactly why
+     * the call above is a no-op; a chrome that offers a KEYS switch here would
+     * be offering a button whose only implementation does nothing. Windows has
+     * an on-screen keyboard of its own, but it belongs to the shell and no
+     * application switch puts it away again. */
+    return 0;
 }
 
 void

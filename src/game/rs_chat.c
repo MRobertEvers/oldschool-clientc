@@ -334,22 +334,26 @@ message_passes(
 }
 
 /* Total pixel height of the filtered message column (reference chatScrollHeight):
- * one 14px line per visible message + 7px, floored at the 78px the scrollbar
- * math and clamps assume. */
+ * one 14px line per visible message + 7px, floored at the one message window
+ * plus a pixel that the scrollbar math and the clamps assume. The floor moves
+ * with the box: a 122-row chatbox whose extent was floored at a 96-row box's
+ * 78 would report a grip with room to scroll where there is nothing to see. */
 static int
 scroll_height_of(
     struct RS_Chat const* chat,
-    struct RS_ChatFilters const* filters)
+    struct RS_ChatFilters const* filters,
+    int box_height)
 {
     int total_lines = 0;
     int scroll_height;
+    int const floor = UI_CHATVIEW_SCROLL_FLOOR(box_height);
     for( int i = 0; i < chat->message_count; i++ )
     {
         if( message_passes(filters, &chat->messages[i]) )
             total_lines++;
     }
     scroll_height = total_lines * 14 + 7;
-    return scroll_height < 78 ? 78 : scroll_height;
+    return scroll_height < floor ? floor : scroll_height;
 }
 
 static int
@@ -443,12 +447,14 @@ RS_Chat_BuildView(
     struct RS_ChatFilters const* filters,
     struct UITreeHost const* ui_host,
     int font_id,
+    int height,
     int dialog_mounted,
     int focused,
     char const* prompt,
     struct UIChatView* out)
 {
     assert(chat && filters && out);
+    assert(height > 0);
     memset(out, 0, sizeof(*out));
     out->font_id = font_id;
     out->scroll_pos = chat->scroll_pos;
@@ -487,10 +493,10 @@ RS_Chat_BuildView(
             int baseline;
             if( !message_passes(filters, msg) )
                 continue;
-            baseline = chat->scroll_pos + 70 - line * 14;
+            baseline = chat->scroll_pos + UI_CHATVIEW_LAST_BASELINE(height) - line * 14;
             line++;
             total_lines++;
-            if( baseline <= 0 || baseline >= 110 )
+            if( baseline <= 0 || baseline >= UI_CHATVIEW_BASELINE_LIMIT(height) )
                 continue;
             if( out->line_count < UI_CHATVIEW_LINE_MAX )
             {
@@ -500,14 +506,14 @@ RS_Chat_BuildView(
             }
         }
         out->scroll_height = total_lines * 14 + 7;
-        if( out->scroll_height < 78 )
-            out->scroll_height = 78;
+        if( out->scroll_height < UI_CHATVIEW_SCROLL_FLOOR(height) )
+            out->scroll_height = UI_CHATVIEW_SCROLL_FLOOR(height);
     }
 
     {
         char buf[128];
         out->has_input_line = 1;
-        out->input_line.baseline_y = 90;
+        out->input_line.baseline_y = UI_CHATVIEW_INPUT_BASELINE(height);
         /* Unfocused, the line says how to start typing instead of showing a
          * name and a caret it is not collecting anything into. The wording is
          * the profile's (`prompt=` on the chat component, which a `@mobile`
@@ -539,6 +545,7 @@ int
 RS_Chat_LineAt(
     struct RS_Chat const* chat,
     struct RS_ChatFilters const* filters,
+    int height,
     int local_x,
     int local_y,
     char* out_sender,
@@ -546,6 +553,7 @@ RS_Chat_LineAt(
     int* out_chat_type)
 {
     assert(chat && filters);
+    assert(height > 0);
     (void)local_x;
 
     if( chat->social_input_open || chat->dialog_input_open )
@@ -559,9 +567,9 @@ RS_Chat_LineAt(
             int baseline;
             if( !message_passes(filters, msg) )
                 continue;
-            baseline = chat->scroll_pos + 70 - line * 14;
+            baseline = chat->scroll_pos + UI_CHATVIEW_LAST_BASELINE(height) - line * 14;
             line++;
-            if( baseline <= 0 || baseline >= 110 )
+            if( baseline <= 0 || baseline >= UI_CHATVIEW_BASELINE_LIMIT(height) )
                 continue;
             /* Text band: baseline-13 .. baseline+1 (14px stride). */
             if( local_y < baseline - 13 || local_y > baseline + 1 )
@@ -596,40 +604,46 @@ void
 RS_Chat_Scroll(
     struct RS_Chat* chat,
     struct RS_ChatFilters const* filters,
+    int height,
     int wheel_y)
 {
     int scroll_height;
+    int const window = UI_CHATVIEW_WINDOW_H(height);
 
     assert(chat && filters);
-    scroll_height = scroll_height_of(chat, filters);
+    assert(height > 0);
+    scroll_height = scroll_height_of(chat, filters, height);
 
     chat->scroll_pos += wheel_y * 14;
     if( chat->scroll_pos < 0 )
         chat->scroll_pos = 0;
-    if( chat->scroll_pos > scroll_height - 77 )
-        chat->scroll_pos = scroll_height - 77;
+    if( chat->scroll_pos > scroll_height - window )
+        chat->scroll_pos = scroll_height - window;
 }
 
 int
 RS_Chat_ScrollbarInput(
     struct RS_Chat* chat,
     struct RS_ChatFilters const* filters,
+    int box_height,
     int x,
     int y,
     int cycle)
 {
-    /* Reference doScrollbar (Client.ts:10525) with left=463, top=0, height=77
-     * — the chat scrollbar's local geometry. scroll_pos is the non-inverted
-     * grip offset the renderer draws from (torirs_frame vertical_scrollbar_grip),
-     * so the same proportional math maps a grip drag straight back to it. */
+    /* Reference doScrollbar (Client.ts:10525) with left=463, top=0 and the
+     * message window's own height -- the chat scrollbar's local geometry.
+     * scroll_pos is the non-inverted grip offset the renderer draws from
+     * (torirs_frame vertical_scrollbar_grip), so the same proportional math
+     * maps a grip drag straight back to it. */
     int const left = RS_CHAT_SCROLLBAR_LEFT;
     int const top = 0;
-    int const height = RS_CHAT_VIEW_HEIGHT;
-    int scroll_height = scroll_height_of(chat, filters);
+    int const height = UI_CHATVIEW_WINDOW_H(box_height);
+    int scroll_height = scroll_height_of(chat, filters, box_height);
     int padding = chat->scroll_grabbed ? 32 : 0;
     int handled = 0;
 
     assert(chat && filters);
+    assert(box_height > 0);
     chat->scroll_grabbed = 0;
 
     if( x >= left && x < left + 16 && y >= top && y < top + 16 )

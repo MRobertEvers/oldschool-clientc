@@ -118,7 +118,7 @@ push_element_from_ini_header(
     else
     {
         /*
-         * A section with no `:` at all -- `[camera]`, `[features]`, `[chrome]`.
+         * A section with no `:` at all -- `[camera]`, `[features]`, `[frame]`.
          * There is exactly one of each per profile, so there is nothing to name
          * it by, and the type IS the header.
          *
@@ -308,35 +308,6 @@ push_field_from_ini_kv(
             push_field(vec, kind, value);
         return;
     }
-    if( strcmp(s_ini_item_type, "chrome") == 0 )
-    {
-        if( strcmp(key, "plugin_button_iface") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_IFACE;
-        else if( strcmp(key, "plugin_button_parent") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_BUTTON_PARENT;
-        else if( strcmp(key, "plugin_button_x") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_BUTTON_X;
-        else if( strcmp(key, "plugin_button_y") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_BUTTON_Y;
-        else if( strcmp(key, "plugin_button_w") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_BUTTON_W;
-        else if( strcmp(key, "plugin_button_h") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_BUTTON_H;
-        else if( strcmp(key, "plugin_button_op") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_BUTTON_OP;
-        else if( strcmp(key, "plugin_button_anchor") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_BUTTON_ANCHOR;
-        else if( strcmp(key, "plugin_button_align") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN;
-        else if( strcmp(key, "plugin_button_margin") == 0 )
-            kind = RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN;
-        else
-            TORIRS_LOG("revconfig: [chrome] has no key '%s'\n", key);
-        if( kind != RCFIELD_NONE )
-            push_field(vec, kind, value);
-        return;
-    }
-
     /* Section type comes from [type:name] header (e.g. component, layout, inv, sprite). */
     if( strcmp(key, "sprite") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_SPRITE;

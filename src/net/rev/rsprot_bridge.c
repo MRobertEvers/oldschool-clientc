@@ -1,6 +1,7 @@
 /* See rsprot_bridge.h — the rsprot codecs, wired into the inbound path. */
 #include "rsprot_bridge.h"
 #include <assert.h>
+#include <stdio.h>
 
 #include "rsprot_exec.h"
 
@@ -167,6 +168,7 @@ bridge_update_runenergy(int revision, uint8_t const* data, int len, struct RevPa
      * wrong, and only running both parsers over the same payload sees it.
      */
     out->_update_run_energy.run_energy = msg.runenergy / 100;
+    out->_update_run_energy.run_energy_raw = msg.runenergy;
     return 1;
 }
 
@@ -850,6 +852,9 @@ bridge_update_friendlist(int revision, uint8_t const* data, int len, struct RevP
         return 0;
     p->name37 = (int64_t)strtobase37(entries[0].name);
     p->world = entries[0].world_id;
+    p->rank = entries[0].rank;
+    snprintf(p->previous_name, sizeof(p->previous_name), "%s",
+        entries[0].previous_name ? entries[0].previous_name : "");
     p->present = 1;
     return 1;
 }

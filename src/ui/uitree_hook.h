@@ -121,6 +121,15 @@ struct UITreeRuntimeHooks
     struct UITreeRuntimeScriptHook on_input_submit;
     struct UITreeRuntimeScriptHook on_input_update;
     struct UITreeRuntimeScriptHook on_input_focus_changed;
+    /* The server-driven transmits with no trigger list (CC/IF_SETON*TRANSMIT
+     * 1421, 1425, 1426, 1428, 1429): every registered hook re-runs when the
+     * friends chat, the offer slots, the trading post, the clan settings or the
+     * clan channel change. */
+    struct UITreeRuntimeScriptHook on_clan_transmit;
+    struct UITreeRuntimeScriptHook on_stock_transmit;
+    struct UITreeRuntimeScriptHook on_active_offers_transmit;
+    struct UITreeRuntimeScriptHook on_clan_settings_transmit;
+    struct UITreeRuntimeScriptHook on_clan_channel_transmit;
 };
 
 /* ------------------------------------------------------------------ */

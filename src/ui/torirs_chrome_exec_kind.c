@@ -1,5 +1,6 @@
 #include "torirs_chrome_exec_kind.h"
 
+#include <assert.h>
 #include <string.h>
 
 static char const* const CHROME_EXEC_NAME[TORIRS_CHROME_EXEC_COUNT] = {
@@ -27,4 +28,23 @@ ToriRSChromeExec_KindFromName(char const* name)
         if( CHROME_EXEC_NAME[i] && strcmp(CHROME_EXEC_NAME[i], name) == 0 )
             return i;
     return -1;
+}
+
+int
+ToriRSPluginNav_ModeFromName(char const* name)
+{
+    assert(name);
+    if( strcmp(name, "auto") == 0 )
+        return TORIRS_PLUGIN_NAV_AUTO;
+    if( strcmp(name, "rail") == 0 )
+        return TORIRS_PLUGIN_NAV_RAIL;
+    return -1;
+}
+
+char const*
+ToriRSPluginNav_ModeName(int mode)
+{
+    assert(mode >= TORIRS_PLUGIN_NAV_AUTO);
+    assert(mode <= TORIRS_PLUGIN_NAV_RAIL);
+    return mode == TORIRS_PLUGIN_NAV_RAIL ? "rail" : "auto";
 }

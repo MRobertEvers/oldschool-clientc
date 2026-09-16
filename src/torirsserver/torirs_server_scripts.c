@@ -8655,6 +8655,25 @@ ToriRSServer_ScriptCommand(
             ToriRSServer_CombatStopPlayer(srv);
             return 1;
         }
+        /*
+         * Single-way, and here for the same reason the AFK rule above is here:
+         * this is the other way into a fight. A click arrives as OPNPC and is
+         * gated there; every script re-issue — the retaliation queue, the melee
+         * label's re-arm, the ranged loop — arrives at this opcode instead.
+         *
+         * The re-arm of a fight already running is not refused by it: the claim
+         * this player holds names this very npc, and the npc's own claim names
+         * this player, so both halves of the predicate answer "yours". What it
+         * does stop is `[queue,playerhit_n_retaliate]` swinging the player onto
+         * a second monster that should never have been able to hit them.
+         *
+         * Attack only, exactly as the AFK gate above: `p_opnpc(1)` on a
+         * shopkeeper is not combat, and refusing to talk to someone because a
+         * goblin is chasing you is not the rule.
+         */
+        if( strcmp(info->ops[op_num - 1], "Attack") == 0 &&
+            ToriRSServer_CombatSinglewayRefuses(srv, player, slot) )
+            return 1;
         ToriRSServer_WorldInteractionClear(srv);
         ToriRSServer_WorldStepsClear(player);
         ToriRSServer_WorldInteractionSet(srv, TORIRSSERVER_INTERACT_NPC, (int)op_num, slot,
@@ -8667,7 +8686,14 @@ ToriRSServer_ScriptCommand(
         }
         /* Attack keeps the engine face/approach latch; other ops do not. */
         if( strcmp(info->ops[op_num - 1], "Attack") == 0 )
+        {
             player->combat_target = slot;
+            /* The player's half of the single-way claim. Every swing comes
+             * back through here — that is what `p_opnpc(2)` at the end of
+             * `[label,player_melee_attack]` is for — so stamping it here is
+             * stamping it once per swing, which is what the rule measures. */
+            ToriRSServer_CombatClaim(srv, player, slot);
+        }
         return 1;
     }
 

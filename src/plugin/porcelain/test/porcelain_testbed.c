@@ -171,6 +171,39 @@ Testbed_DeclareElement(char const* role, int x, int y, int width, int height)
     return NULL;
 }
 
+void
+Testbed_ElementInside(char const* role, char const* container_role)
+{
+    struct TestbedElement* element = Testbed_Element(role);
+
+    assert(element);
+    assert(container_role);
+    assert(Testbed_Element(container_role));
+    snprintf(element->inside, sizeof(element->inside), "%s", container_role);
+}
+
+/** Is `element` inside `role`, at any depth? */
+static bool
+testbed_element_within(struct TestbedElement const* element, char const* role)
+{
+    char const* at;
+
+    assert(element);
+    assert(role);
+    at = element->inside;
+    for( int hops = 0; at[0] && hops < TESTBED_ELEMENTS_MAX; hops++ )
+    {
+        struct TestbedElement const* container;
+        if( strcmp(at, role) == 0 )
+            return true;
+        container = Testbed_Element(at);
+        if( !container )
+            return false;
+        at = container->inside;
+    }
+    return false;
+}
+
 /*
  * A topology publication, and what raises one.
  *
@@ -659,6 +692,9 @@ fake_state(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetState
     out->native_hidden = element->native_hidden;
     out->input_present = element->input_present;
     out->graphic_token = element->graphic_token;
+    /* The engine only walks for a node that is presented, so an element the
+     * lane has put away paints nothing whatever the test declared. */
+    out->paints_own_art = element->paints_own_art && element->presented;
     out->facets = element->facets;
     out->incarnation = element->incarnation;
     return TORIRS_CONTRACT_OK;
@@ -832,6 +868,35 @@ fake_set_hidden(void* context, struct ToriRS_WidgetRef ref, bool hidden)
         return TORIRS_CONTRACT_STALE_REFERENCE;
     if( control )
         control->hidden = hidden;
+    /*
+     * A hide of a LANE element used to be recorded nowhere at all, so no test
+     * could see any consequence of one -- which is how a plugin that hides
+     * the control it covers shipped unable to press it again. The engine
+     * writes the node's presentation bits and nothing else here: `presented`
+     * goes, `input_present` STAYS, because a plugin's own hiding is not one of
+     * the fences the lane's input answer folds in.
+     * @see UITree_NodeOrAncestorDisplayHiddenEx.
+     */
+    if( element )
+    {
+        element->presented = !hidden;
+        element->own_hidden = hidden;
+        if( element->bound )
+            testbed_raise(element->role, TORIRS_WIDGET_STATE_CHANGED);
+        /* And the subtree with it. `presented` only: `input_present` is the
+         * LANE's answer and the plugin layer's own hiding is not one of the
+         * fences folded into it, which is what lets a cover press the control
+         * it covers. */
+        for( int i = 0; i < TESTBED_ELEMENTS_MAX; i++ )
+        {
+            struct TestbedElement* below = &g_testbed.elements[i];
+            if( !below->used || !testbed_element_within(below, element->role) )
+                continue;
+            below->presented = !hidden;
+            if( below->bound )
+                testbed_raise(below->role, TORIRS_WIDGET_STATE_CHANGED);
+        }
+    }
     return TORIRS_CONTRACT_OK;
 }
 
@@ -933,13 +998,19 @@ fake_set_anchor(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_Widget
 }
 
 static enum ToriRS_ContractResult
-fake_set_on_op(void* context, struct ToriRS_WidgetRef ref, char const* label,
+fake_set_on_op(void* context, struct ToriRS_WidgetRef ref, int op, char const* label,
                ToriRS_WidgetListener listener, void* user)
 {
     struct TestbedControl* control = testbed_control_by_ref(ref);
     struct TestbedElement const* element = testbed_element_by_ref(ref);
 
     (void)context;
+    (void)op; /* Read only by the assertion below, which NDEBUG removes. */
+    /* The layer describes one row per item, so every arming it makes is op 1.
+     * Asserted rather than recorded: a second row would change what `armed`
+     * and `label` below mean, and this fake would go on answering as though
+     * it had not. */
+    assert(op == 1);
     testbed_log("set_on_op %s %s", control ? control->key : "?", label ? label : "(none)");
     /* A reference to nothing at all: the engine's answer for a node that has
      * been destroyed, from EVERY entry point. @see Testbed_KillControl. */
@@ -1442,6 +1513,19 @@ fake_key_held(struct ToriRS_Api* api, int key)
     (void)api;
     testbed_log("key_held %d", key);
     return g_testbed.key_held == key;
+}
+
+static bool
+fake_pointer(struct ToriRS_Api* api, int* out_x, int* out_y)
+{
+    (void)api;
+    assert(out_x);
+    assert(out_y);
+    if( !g_testbed.pointer_present )
+        return false;
+    *out_x = g_testbed.pointer_x;
+    *out_y = g_testbed.pointer_y;
+    return true;
 }
 
 static bool
@@ -2054,6 +2138,7 @@ Testbed_Reset(void)
 
     g_testbed.api.input.struct_size = sizeof(g_testbed.api.input);
     g_testbed.api.input.key_held = fake_key_held;
+    g_testbed.api.input.pointer = fake_pointer;
 
     g_testbed.api.world.struct_size = sizeof(g_testbed.api.world);
     g_testbed.api.world.local_player = fake_local_player;

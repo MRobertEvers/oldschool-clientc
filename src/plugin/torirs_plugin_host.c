@@ -155,10 +155,23 @@ struct PluginWidgetWatch
 };
 
 #define PLUGIN_WIDGET_OP_MAX 128
+/*
+ * One owned control's armed menu operations.
+ *
+ * A row per CONTROL and not per op, because a control has ONE listener however
+ * many rows it offers -- the way one [if_button] handler answers for every op
+ * of a cache component -- and one registration serial, which is what the
+ * native retained row carries back. `armed` is the bitmask of the ops that
+ * have a label on the node (bit `op - 1`), and it is the authority on what may
+ * be dispatched: a row built before the plugin cleared that one op names a
+ * slot this owner no longer answers for, and the serial alone cannot tell the
+ * two apart because clearing one op of several leaves the serial standing.
+ */
 struct PluginWidgetOp
 {
     struct ToriRS_WidgetRef widget;
     uint64_t serial;
+    uint32_t armed;
     ToriRS_WidgetListener listener;
     void* user;
 };
@@ -392,6 +405,13 @@ struct ToriRS_PluginHost
     /** Last completely validated and engine-committed offer. */
     int frame_active_entry;
     int frame_bound_root;
+    /** The offer whose provider answered TORIRS_FRAME_NATIVE: the lane's own
+     *  chrome is that frame, nothing is provided (frame_active_entry stays
+     *  -1) and the offer is the ACTIVE selection under its own id. Cleared by
+     *  any engine activation, any new target and any screen change, so a
+     *  re-login asks the provider again -- the server opens whatever it
+     *  opens, and the provider is the one that asks it for the frame. */
+    int frame_native_entry;
     /** Offer named by the current request, still only a candidate. */
     int frame_target_entry;
     /** One-shot request consumed by the app's next safe layout fence. */
@@ -1266,6 +1286,9 @@ api_frame_select(
      * lifecycle until the safe boundary below. */
     host->frame_selection_epoch++;
     host->frame_selection_dirty = 1;
+    /* A new request forgets a NATIVE answer, whichever offer it names: the
+     * provider is asked again at the boundary, and asks the lane again. */
+    host->frame_native_entry = -1;
     /* Never resolve lifecycle from inside a plugin callback. The next host
      * frame boundary consumes frame_selection_dirty before dispatching its
      * frame callbacks, so the current callback keeps its state/API alive
@@ -1377,6 +1400,18 @@ api_tab_enabled(
     if( tabno < 0 )
         return 0;
     return ctx->host->engine.tab_enabled(ctx->host->engine.user, tabno);
+}
+
+static int
+api_tab_flash_hidden(
+    struct PluginContext* ctx,
+    int tabno)
+{
+    assert(ctx);
+    /* A tab number a plugin read off its own stone table, like tab_select's. */
+    if( tabno < 0 )
+        return 0;
+    return ctx->host->engine.tab_flash_hidden(ctx->host->engine.user, tabno);
 }
 
 /* -- layout regions ------------------------------------------------------- */
@@ -1884,6 +1919,52 @@ api_frame_root(struct PluginContext* ctx)
     if( !ctx->host->engine.frame_root )
         return -1;
     return ctx->host->engine.frame_root(ctx->host->engine.user);
+}
+
+static int
+api_native_layout(struct PluginContext* ctx)
+{
+    assert(ctx);
+    /* Same shape as frame_root: a harness with no native chrome to wear
+     * answers UNKNOWN rather than refusing the call. */
+    if( !ctx->host->engine.native_layout )
+        return TORIRS_NATIVE_LAYOUT_UNKNOWN;
+    return ctx->host->engine.native_layout(ctx->host->engine.user);
+}
+
+/*
+ * A frame asking the LANE to change its own top level.
+ *
+ * Who may ask, and it is api_tab_select's list for api_tab_select's reasons:
+ * the first four are the player -- a key, a menu row, a panel button, an owned
+ * control's operation -- and PLUGIN_CALLBACK_LAYOUT is on_gameframe, the one
+ * moment a frame's shape is being decided and the only moment a provider can
+ * know that the root it was handed is not the one its layout is for.
+ *
+ * Nothing else: a draw or a background update that moved the whole client onto
+ * another top level would be the frame remounting itself behind the player,
+ * several server ticks after whatever prompted it.
+ */
+static bool
+api_native_layout_select(
+    struct PluginContext* ctx,
+    int layout)
+{
+    assert(ctx);
+    switch( ctx->host->dispatch_event )
+    {
+    case PLUGIN_CALLBACK_KEY:
+    case PLUGIN_CALLBACK_MENU_SELECT:
+    case PLUGIN_CALLBACK_PANEL_ACTION:
+    case PLUGIN_CALLBACK_WIDGET_OPERATION:
+    case PLUGIN_CALLBACK_LAYOUT:
+        break;
+    default:
+        return false;
+    }
+    if( !ctx->host->engine.native_layout_select )
+        return false;
+    return ctx->host->engine.native_layout_select(ctx->host->engine.user, layout) ? true : false;
 }
 
 /*
@@ -4787,6 +4868,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->tab_active);
     assert(engine->tab_select);
     assert(engine->tab_enabled);
+    assert(engine->tab_flash_hidden);
     assert(engine->local_player);
     assert(engine->npc_next);
     assert(engine->npc_by_slot);
@@ -4882,6 +4964,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     host->frame_selection.status = TORIRS_FRAME_STATUS_NATIVE;
     host->frame_selection.revision = 1;
     host->frame_active_entry = -1;
+    host->frame_native_entry = -1;
     host->frame_target_entry = -1;
     host->frame_selection_dirty = 1;
     /* 0 is a real plugin index, so an empty claim row needs a value of its
@@ -4926,11 +5009,19 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
             continue;
         host->dispatching = i;
         host->dispatch_event = PLUGIN_CALLBACK_STOP;
+        /* The same flag runtime teardown raises, and for the same reason: an
+         * on_stop that arms a control, subscribes a watch or claims a widget
+         * is writing into a host that is going away, and every verb tests
+         * this to refuse it. Free used to dispatch without it, so the one
+         * shutdown path a plugin cannot avoid was the one that accepted the
+         * writes -- and the registration outlived the table it was in. */
+        ctx->tearing_down = true;
         if( ctx->def->callbacks.on_stop )
             ctx->def->callbacks.on_stop(
                 &ctx->v2->runtime.api, ctx->v2->state);
         host->dispatching = -1;
         host->dispatch_event = -1;
+        ctx->tearing_down = false;
         plugin_v2_shutdown(ctx);
         ctx->running = false;
         plugin_objects_destroy_all(host, ctx);
@@ -5213,16 +5304,39 @@ plugin_frame_engine_activate(
         host->layout_fixed_h == height )
         return;
 
-    /* The provider that held the frame hears the release while it still runs;
-     * its teardown, when selection drops it, follows. */
+    /*
+     * The provider that held the frame hears the release while it still runs;
+     * its teardown, when selection drops it, follows.
+     *
+     * On a change of OFFER, not only on a change of PROVIDER. The condition
+     * was `previous != owner`, and gameframe-layout offers three of the four
+     * desktop frames -- so picking Classic Fixed while Modern Resizable stood
+     * was a provision with no release in front of it, and the incoming layout
+     * was dressed on top of the outgoing one instead of on the lane.
+     *
+     * What that looks like is not a stale piece here and there. An owned
+     * control is drawn in the order the engine made it and a claimed native
+     * one keeps its place in the tree, so the frame that comes up second has
+     * its whole surround appended AFTER the fourteen tab stones: the sidebar's
+     * own rock painted over its tabs and its inventory, the chat housing over
+     * the pack's bar, and every selected tab wearing the uncut source stone
+     * because the ten re-cut ones no longer fit the layer's image table beside
+     * the outgoing layout's. Booting into the same frame was always right,
+     * which is what made it read as a defect in Classic Fixed itself.
+     *
+     * The release is the provider's own undressing path -- one empty describe,
+     * fenced and committed -- so the provision that follows starts from the
+     * lane, which is the state a boot hands it.
+     */
     {
         int const previous = plugin_frame_owner(host);
-        if( previous >= 0 && previous != owner && host->plugins[previous].v2 &&
-            host->plugins[previous].v2->gameframe_provided )
+        if( previous >= 0 && host->frame_active_entry != entry_index &&
+            host->plugins[previous].v2 && host->plugins[previous].v2->gameframe_provided )
             plugin_gameframe_release(host, previous);
     }
     host->frame_selection_epoch++;
     host->frame_active_entry = entry_index;
+    host->frame_native_entry = -1;
     host->layout_canvas = canvas;
     host->layout_fixed_w = width;
     host->layout_fixed_h = height;
@@ -5298,6 +5412,7 @@ plugin_frame_target_set(
     if( host->frame_target_entry == entry_index )
         return;
     host->frame_target_entry = entry_index;
+    host->frame_native_entry = -1;
     host->frame_layout_requested = 0;
     /* Fence a builder that changed the request from inside its own callback. */
     host->frame_selection_epoch++;
@@ -5437,7 +5552,10 @@ plugin_frame_resolve(struct ToriRS_PluginHost* host)
         plugin_frame_selection_active(
             host, committed_id, TORIRS_FRAME_STATUS_LOADING, asset_reason);
     }
-    else if( host->frame_active_entry == target_index )
+    else if( host->frame_active_entry == target_index ||
+             host->frame_native_entry == target_index )
+        /* Provided, or answered NATIVE: either way the offer is the frame on
+         * screen and nothing is left to validate. */
         plugin_frame_selection_active(host, target->id, TORIRS_FRAME_STATUS_ACTIVE, "");
     else
     {
@@ -6916,6 +7034,9 @@ PluginHost_FrameStart(
             struct ToriRS_ScreenChangedEvent ev = { screen, host->last_screen };
             host->last_screen = screen;
             host->frame_selection_dirty = 1;
+            /* A NATIVE answer was about the session that gave it; the next
+             * game screen asks the provider again. */
+            host->frame_native_entry = -1;
             if( host->callback_count[PLUGIN_CALLBACK_SCREEN_CHANGE] > 0 )
                 plugin_dispatch(host, PLUGIN_CALLBACK_SCREEN_CHANGE, &ev);
         }
@@ -6960,10 +7081,15 @@ PluginHost_FrameStart(
  * availability. This only confirms that the owner still holds that exact
  * registration and delivers the operation in a mutating event context. */
 bool PluginHost_WidgetOperation(struct ToriRS_PluginHost* host,uint64_t owner,
-                                struct ToriRS_WidgetRef widget,uint64_t registration)
+                                struct ToriRS_WidgetRef widget,uint64_t registration,int op_chosen)
 {
     assert(host);
     if( !owner || owner>(uint64_t)host->plugin_count || !registration || !widget.opaque[2] ) return false;
+    /* A row the native menu built for a slot outside the contract's range, or
+     * for none at all. Refused rather than clamped to op 1: a press the plugin
+     * never armed reported as its default row is a wrong answer, not a
+     * missing one. */
+    if( op_chosen<1 || op_chosen>TORIRS_WIDGET_OP_SLOTS ) return false;
     int index=(int)owner-1;
     struct PluginContext* ctx=&host->plugins[index];
     if( !ctx->enabled || !ctx->running || ctx->tearing_down || !ctx->v2 || !ctx->widget_ops ) return false;
@@ -6972,8 +7098,11 @@ bool PluginHost_WidgetOperation(struct ToriRS_PluginHost* host,uint64_t owner,
         /* Copied: the listener may replace or remove this registration. */
         struct PluginWidgetOp op=ctx->widget_ops[i];
         if( op.serial!=registration || !ToriRS_WidgetRefEqual(op.widget,widget) ) continue;
+        /* The row outlives the build that made it by a click, and in between
+         * the plugin can have cleared this one op while keeping the others. */
+        if( (op.armed & (1u<<(op_chosen-1)))==0 ) return false;
         struct ToriRS_WidgetEvent event={.type=TORIRS_WIDGET_OPERATION,.widget=widget,
-            .operation=1,.native_revision=registration,.role=""};
+            .operation=op_chosen,.native_revision=registration,.role=""};
         int previous_owner=host->dispatching,previous_event=host->dispatch_event;
         host->dispatching=index;host->dispatch_event=PLUGIN_CALLBACK_WIDGET_OPERATION;
         op.listener(&ctx->v2->runtime.api,op.user,&event);
@@ -7108,7 +7237,8 @@ plugin_widget_state_equal(
            a->local.width == b->local.width && a->local.height == b->local.height &&
            a->presented == b->presented && a->own_hidden == b->own_hidden &&
            a->native_hidden == b->native_hidden && a->input_present == b->input_present &&
-           a->graphic_token == b->graphic_token && a->text_hash == b->text_hash &&
+           a->graphic_token == b->graphic_token && a->paints_own_art == b->paints_own_art &&
+           a->text_hash == b->text_hash &&
            a->facets == b->facets && a->incarnation == b->incarnation;
 }
 
@@ -7187,10 +7317,10 @@ PluginHost_WidgetStates(struct ToriRS_PluginHost* host)
         if( trace )
             TORIRS_REPORT(
                 "PLUGIN_STATE owner=%d role=%s box=%d,%d,%d,%d presented=%d own_hidden=%d "
-                "native_hidden=%d input=%d art=%08x text=%016" PRIx64 "\n",
+                "native_hidden=%d input=%d art=%08x paints_art=%d text=%016" PRIx64 "\n",
                 item.owner, role, state.bounds.x, state.bounds.y, state.bounds.width,
                 state.bounds.height, state.presented, state.own_hidden, state.native_hidden,
-                state.input_present, state.graphic_token, state.text_hash);
+                state.input_present, state.graphic_token, state.paints_own_art, state.text_hash);
         struct ToriRS_WidgetEvent event = {
             .type = TORIRS_WIDGET_STATE_CHANGED, .widget = current,
             .native_revision = host->widget_tree_generation, .role = role};
@@ -7592,13 +7722,40 @@ PluginHost_Layout(
     v2_result = v2->definition->callbacks.on_gameframe(&v2->runtime.api, v2->state, &gameframe);
     host->dispatching = previous_dispatching;
     host->dispatch_event = previous_event;
-    if( v2_result < TORIRS_FRAME_READY || v2_result > TORIRS_FRAME_ERROR )
+    if( v2_result < TORIRS_FRAME_READY || v2_result > TORIRS_FRAME_NATIVE )
         v2_result = TORIRS_FRAME_ERROR;
 
     if( host->frame_selection_epoch != selection_epoch ||
         (transitioning && host->frame_target_entry != build_entry) ||
         (!transitioning && host->frame_active_entry != build_entry) )
         return;
+
+    if( v2_result == TORIRS_FRAME_NATIVE )
+    {
+        /*
+         * The lane's own chrome is this frame.
+         *
+         * Nothing is published: the engine keeps (or goes back to) the lane's
+         * chrome and the lane's canvas policy, a previous provision -- this
+         * provider's or another's -- hears its release through the
+         * activation, and the offer is the ACTIVE selection under its own id
+         * rather than a fallback to native. frame_active_entry stays -1, so
+         * a canvas change does not re-ask: there is nothing to lay out, and
+         * the lane arranges its own chrome. What re-asks is a new selection
+         * or a screen change, both of which clear frame_native_entry.
+         */
+        int const old_owner = plugin_frame_owner(host);
+
+        plugin_frame_engine_activate(host, -1);
+        host->frame_native_entry = build_entry;
+        plugin_frame_selection_active(host, entry->id, TORIRS_FRAME_STATUS_ACTIVE, "");
+        if( old_owner >= 0 && old_owner != owner )
+        {
+            host->plugins[old_owner].enabled = false;
+            plugin_teardown(host, old_owner);
+        }
+        return;
+    }
 
     if( v2_result != TORIRS_FRAME_READY )
     {

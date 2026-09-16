@@ -1287,11 +1287,6 @@ uitree_builder_hide_unmounted_spillover(
         int group = (cid >> 16) & 0xffff;
         if( cid < 0 || group <= 0 )
             continue;
-        /* Reserved client chrome ids are never interface spillover. Current
-         * visual overlays come from RevConfig and normally have id -1, but
-         * retain the guard for older/custom profiles that assigned this group. */
-        if( group == 0x7FFE )
-            continue;
         if( opening_group >= 0 && group == opening_group )
             continue;
         if( UITree_InterfaceParentIsMountedGroup(tree, group) )

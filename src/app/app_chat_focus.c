@@ -51,12 +51,18 @@ app_chat_node_index(struct App const* app)
 }
 
 /* Chat node geometry + font, resolved through the slot index so nothing here
- * names coordinates or interface ids. Returns 0 when no chat region exists. */
+ * names coordinates or interface ids. Returns 0 when no chat region exists.
+ *
+ * `out_height` is the box the LAYOUT gave the chat, and every line the view
+ * builder places is measured from it -- a gameframe that seats the builtin in
+ * a 519x142 housing gets a chatbox that fills it rather than the 2004 client's
+ * five lines centred in it. @see UI_CHATVIEW_WINDOW_H. */
 int
 app_chat_region(
     struct App const* app,
     int* out_x,
     int* out_y,
+    int* out_height,
     int* out_font_id)
 {
     struct UITreeComponent const* node;
@@ -72,6 +78,8 @@ app_chat_region(
         *out_x = x;
     if( out_y )
         *out_y = y;
+    if( out_height )
+        *out_height = h > 0 ? h : UI_CHATVIEW_NATIVE_HEIGHT;
     if( out_font_id )
         *out_font_id = UITree_Chat(node)->font_id > 0 ? UITree_Chat(node)->font_id : 1;
     return 1;
@@ -308,8 +316,9 @@ app_chat_build_view(struct App* app)
 {
     struct RS_ChatFilters filters = app_chat_filters(app);
     int font_id = 1;
+    int height = UI_CHATVIEW_NATIVE_HEIGHT;
 
-    if( !app_chat_region(app, NULL, NULL, &font_id) )
+    if( !app_chat_region(app, NULL, NULL, &height, &font_id) )
     {
         memset(&app->chat_view, 0, sizeof(app->chat_view));
         return;
@@ -319,6 +328,7 @@ app_chat_build_view(struct App* app)
         &filters,
         &app->ui_host,
         font_id,
+        height,
         /* Not chat_com_id: the tutorial-progress component shares this region
          * and suppresses the log the same way a dialogue does. */
         RS_UISlots_ChatRegionIface(&app->slots) != -1,
@@ -341,9 +351,10 @@ app_chat_line_at(
     struct RS_ChatFilters filters = app_chat_filters(app);
     int rx = 0;
     int ry = 0;
+    int rh = UI_CHATVIEW_NATIVE_HEIGHT;
 
-    if( !app_chat_region(app, &rx, &ry, NULL) )
+    if( !app_chat_region(app, &rx, &ry, &rh, NULL) )
         return 0;
     return RS_Chat_LineAt(
-        &app->chat, &filters, x - rx, y - ry, out_sender, sender_cap, out_chat_type);
+        &app->chat, &filters, rh, x - rx, y - ry, out_sender, sender_cap, out_chat_type);
 }

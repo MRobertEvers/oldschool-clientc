@@ -985,6 +985,15 @@ fake_tab_enabled(
     return 1;
 }
 static int
+fake_tab_flash_hidden(
+    void* u,
+    int t)
+{
+    (void)u;
+    (void)t;
+    return 0;
+}
+static int
 fake_asset_read(
     void* u,
     char const* p,
@@ -1151,6 +1160,7 @@ fake_engine(void)
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
+    e.tab_flash_hidden = fake_tab_flash_hidden;
     e.slot_native_size = fake_slot_native_size;
     e.slot_member_native_box = fake_slot_member_native_box;
     e.component_rect = fake_component_rect;

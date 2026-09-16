@@ -99,6 +99,7 @@ argv_push(char const* value)
 static JavaVM* g_vm;
 static jobject g_activity;      /* global ref, held for the app's life */
 static jmethodID g_show_keyboard;
+static jmethodID g_open_url;
 static jmethodID g_boot_failed;
 /**
  * The frame thread has been attached to the JVM.
@@ -299,6 +300,32 @@ PlatformAndroidJni_SetSoftKeyboard(int on)
         (*env)->ExceptionClear(env);
 }
 
+void
+PlatformAndroidJni_OpenUrl(char const* url)
+{
+    JNIEnv* env = NULL;
+
+    assert(url);
+    if( !g_vm || !g_activity || !g_open_url )
+    {
+        LOGE("unable to open url %s: no activity", url);
+        return;
+    }
+    /* The frame thread, attached and left attached for the reason
+     * PlatformAndroidJni_SetSoftKeyboard gives. */
+    if( (*g_vm)->GetEnv(g_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK )
+    {
+        if( (*g_vm)->AttachCurrentThread(g_vm, &env, NULL) != JNI_OK )
+            return;
+        g_frame_thread_attached = 1;
+    }
+    jstring const text = (*env)->NewStringUTF(env, url);
+    (*env)->CallVoidMethod(env, g_activity, g_open_url, text);
+    if( (*env)->ExceptionCheck(env) )
+        (*env)->ExceptionClear(env);
+    (*env)->DeleteLocalRef(env, text);
+}
+
 /* ---- a boot that cannot proceed ------------------------------------------
  *
  * @see PlatformAndroid_BootFailed for why this is not exit().
@@ -494,6 +521,9 @@ Java_com_torirs_client_ClientActivity_nativeStart(
         g_show_keyboard = (*env)->GetMethodID(env, cls, "showSoftKeyboard", "(Z)V");
         if( (*env)->ExceptionCheck(env) )
             (*env)->ExceptionClear(env);
+        g_open_url = (*env)->GetMethodID(env, cls, "openUrl", "(Ljava/lang/String;)V");
+        if( (*env)->ExceptionCheck(env) )
+            (*env)->ExceptionClear(env);
         g_boot_failed = (*env)->GetMethodID(env, cls, "bootFailed", "(Ljava/lang/String;)V");
         if( (*env)->ExceptionCheck(env) )
             (*env)->ExceptionClear(env);
@@ -634,6 +664,7 @@ Java_com_torirs_client_ClientActivity_nativeStop(JNIEnv* env, jobject thiz)
         g_activity = NULL;
     }
     g_show_keyboard = NULL;
+    g_open_url = NULL;
     g_boot_failed = NULL;
     g_vm = NULL;
     LOGI("frame thread joined");

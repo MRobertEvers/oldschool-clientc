@@ -69,7 +69,7 @@ main(void)
     {
         CHECK(RS_ClientOpGet(&st, RS_CLIENTOP_TILE, 1) == NULL, "no op starts installed");
         CHECK(
-            ctx_int(&st, CS2_OP__6950, 4762) == -1,
+            ctx_int(&st, CS2_OP_TILE_COORD, 4762) == -1,
             "and a context getter with no dispatch answers -1, not tile 0");
     }
 
@@ -122,7 +122,7 @@ main(void)
         ctx.coord = coord;
         RS_ClientOpContextBegin(&st, &ctx);
 
-        CHECK(ctx_int(&st, CS2_OP__6950, 4762) == coord, "4762 reads the clicked tile");
+        CHECK(ctx_int(&st, CS2_OP_TILE_COORD, 4762) == coord, "4762 reads the clicked tile");
         /*
          * The identity gate. The script does not run where it is dispatched --
          * RS_CS2_RunScript queues a task -- so the context cannot be scoped by
@@ -131,22 +131,22 @@ main(void)
          * the tile of a click the user made minutes ago and mark it.
          */
         CHECK(
-            ctx_int(&st, CS2_OP__6950, 9999) == -1,
+            ctx_int(&st, CS2_OP_TILE_COORD, 9999) == -1,
             "and no other script can read it");
         /* Kind matters too: a loc getter during a TILE dispatch is asking
          * about a loc that is not there. */
         CHECK(
-            ctx_int(&st, CS2_OP__6802, 4762) == -1,
+            ctx_int(&st, CS2_OP_LOC_TYPE, 4762) == -1,
             "a loc getter answers nothing during a tile dispatch");
     }
 
-    /* ---- the obj block, including the COUNT (`_6853`) --------------------
+    /* ---- the obj block, including the COUNT (`OBJ_COUNT`) --------------------
      *
      * A ground stack is identified by BOTH its id and its count -- the
      * reference's own FINDOBJ matches a menu row to an obj with
      * `obj->id == entry->id && obj->count == entry->count`, which is what
      * tells two stacks of the same item on one tile apart. `_6852` is the id
-     * and `_6853` is the count.
+     * and `OBJ_COUNT` is the count.
      */
     {
         struct RS_ClientOpContext ctx;
@@ -162,12 +162,12 @@ main(void)
         snprintf(ctx.name, sizeof(ctx.name), "Coins");
         RS_ClientOpContextBegin(&st, &ctx);
 
-        CHECK(ctx_int(&st, CS2_OP__6852, 4646) == 995, "_6852 is the obj id");
-        CHECK(ctx_int(&st, CS2_OP__6853, 4646) == 250, "_6853 is the stack count");
-        CHECK(ctx_int(&st, CS2_OP__6851, 4646) == coord, "_6851 is the coord");
+        CHECK(ctx_int(&st, CS2_OP_OBJ_TYPE, 4646) == 995, "_6852 is the obj id");
+        CHECK(ctx_int(&st, CS2_OP_OBJ_COUNT, 4646) == 250, "OBJ_COUNT is the stack count");
+        CHECK(ctx_int(&st, CS2_OP_OBJ_COORD, 4646) == coord, "_6851 is the coord");
         RS_ClientOpContextEnd(&st);
         CHECK(
-            ctx_int(&st, CS2_OP__6853, 4646) == -1,
+            ctx_int(&st, CS2_OP_OBJ_COUNT, 4646) == -1,
             "and outside the dispatch there is no count to report");
     }
 
@@ -196,12 +196,12 @@ main(void)
         snprintf(ctx.name, sizeof(ctx.name), "Goblin");
         RS_ClientOpContextBegin(&st, &ctx);
 
-        CHECK(ctx_int(&st, CS2_OP__6751, 6688) == 11, "_6751 is the uid");
-        CHECK(ctx_int(&st, CS2_OP__6752, 6688) == coord, "_6752 is the coord");
-        CHECK(ctx_int(&st, CS2_OP__6753, 6688) == 3029, "_6753 is the type");
+        CHECK(ctx_int(&st, CS2_OP_NPC_UID, 6688) == 11, "_6751 is the uid");
+        CHECK(ctx_int(&st, CS2_OP_NPC_CREATIONCYCLE, 6688) == coord, "_6752 is the coord");
+        CHECK(ctx_int(&st, CS2_OP_NPC_TYPE, 6688) == 3029, "_6753 is the type");
         CHECK(
-            ctx_str(&st, CS2_OP__6750, 6688) &&
-                strcmp(ctx_str(&st, CS2_OP__6750, 6688), "Goblin") == 0,
+            ctx_str(&st, CS2_OP_NPC_NAME, 6688) &&
+                strcmp(ctx_str(&st, CS2_OP_NPC_NAME, 6688), "Goblin") == 0,
             "_6750 is the name");
         /*
          * The name getters answer on the STRING stack and everything else on
@@ -210,13 +210,13 @@ main(void)
          * string stack for the rest of the script -- a failure that surfaces
          * several opcodes later, in whatever ran next.
          */
-        CHECK(ctx_int(&st, CS2_OP__6750, 6688) == -3, "_6750 is string-valued");
-        CHECK(ctx_str(&st, CS2_OP__6751, 6688) == NULL, "_6751 is not");
+        CHECK(ctx_int(&st, CS2_OP_NPC_NAME, 6688) == -3, "_6750 is string-valued");
+        CHECK(ctx_str(&st, CS2_OP_NPC_UID, 6688) == NULL, "_6751 is not");
 
         /* Absent is "" and never NULL: a script doing string_length on it must
          * get 0 rather than crash the VM. */
         CHECK(
-            ctx_str(&st, CS2_OP__6750, 1) && ctx_str(&st, CS2_OP__6750, 1)[0] == '\0',
+            ctx_str(&st, CS2_OP_NPC_NAME, 1) && ctx_str(&st, CS2_OP_NPC_NAME, 1)[0] == '\0',
             "an out-of-dispatch name is empty, not NULL");
     }
 

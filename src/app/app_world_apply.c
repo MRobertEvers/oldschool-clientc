@@ -298,6 +298,47 @@ App_WorldApplyNpcType(
     app->need_redraw = 1;
 }
 
+/*
+ * Bring a just-mounted model to the pose the element is already holding.
+ *
+ * `ToriDraw_SceneElementSetModel` mounts a model at its BIND pose, and the
+ * renderer poses it later in the same frame (torirs_frame's
+ * ApplyAnimationResolved, and each backend's own call). In between, the model's
+ * bounds cylinder is the bind pose's -- and that cylinder is the ONLY thing
+ * `app_entity_model_height` reads, so it is what the overhead prayer icons, the
+ * overhead chat line, the hint arrow and the health bar all hang off.
+ *
+ * That gap is visible because a headicon rides the APPEARANCE block: turning an
+ * overhead prayer on is a model swap. The frame the prayer was enabled measured
+ * the bind pose and every frame after it measured the animated one, so the icon
+ * appeared at one height and snapped to another a frame later -- a jump the
+ * reference cannot make, because it takes `height` from the model it has just
+ * animated (ClientPlayer.getTempModel: `this.height = model.minY` after
+ * getTempModel2 has applied the frame).
+ *
+ * It costs one extra pose per model swap and nothing per frame: the renderer's
+ * own call arrives at a model already at that frame and skips.
+ */
+static void
+app_element_pose_after_model_swap(
+    struct App* app,
+    int element_id)
+{
+    struct ToriDraw_SceneElement* element;
+
+    assert(app);
+    assert(app->scene);
+    assert(element_id >= 0);
+
+    element = ToriDraw_SceneElementGet(app->scene, element_id);
+    assert(element);
+    /* An element with no bound track is not posed by anything, so its mounted
+     * bind pose IS the pose the renderer draws. */
+    if( !element->animation )
+        return;
+    ToriDraw_SceneElementApplyAnimation(app->scene, element_id, true, element->anim_frame);
+}
+
 /* Build the player appearance model from slots/colors/gender and hand it to the
  * scene element (SceneElementSetModel disposes the previous model; the element's
  * animation binding survives, so the current seq keeps driving the new model).
@@ -319,6 +360,7 @@ app_set_player_element_model(
         hnd.kind = TORIDRAWMK_MODEL;
         hnd.u.model.model = model;
         ToriDraw_SceneElementSetModel(app->scene, element_id, hnd);
+        app_element_pose_after_model_swap(app, element_id);
     }
     else if( model )
     {

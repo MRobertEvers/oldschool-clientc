@@ -533,32 +533,73 @@ static ToriRS_WidgetListener lua_op_listener;
 static void* lua_op_user;
 static char lua_op_label[64];
 static int lua_op_sets;
+static int lua_op_number;
 static enum ToriRS_ContractResult fake_lua_get_widget(void* ctx,int32_t id,struct ToriRS_WidgetRef* out)
 {
     (void)ctx;CHECK(id==1,"Lua forwards the requested component id");
     *out=(struct ToriRS_WidgetRef){{7,8,9}};return TORIRS_CONTRACT_OK;
 }
-static enum ToriRS_ContractResult fake_lua_set_on_op(void* ctx,struct ToriRS_WidgetRef widget,char const* label,
+static enum ToriRS_ContractResult fake_lua_set_on_op(void* ctx,struct ToriRS_WidgetRef widget,int op,char const* label,
     ToriRS_WidgetListener listener,void* user)
 {
     (void)ctx;++lua_op_sets;
     CHECK(widget.opaque[0]==7 && widget.opaque[1]==8 && widget.opaque[2]==9,"Lua forwards the checked control identity");
     CHECK((listener==NULL)==(label==NULL),"Lua removal sends no label and arming sends one");
+    CHECK(op>=1 && op<=TORIRS_WIDGET_OP_SLOTS,"Lua forwards an operation number inside the contract's range");
     snprintf(lua_op_label,sizeof(lua_op_label),"%s",label ? label : "");
-    lua_op_listener=listener;lua_op_user=user;
+    lua_op_listener=listener;lua_op_user=user;lua_op_number=op;
     return TORIRS_CONTRACT_OK;
 }
+/*
+ * A control with TWO rows, and clearing one of them.
+ *
+ * The motivating case for numbered ops: a cover over a component that offers
+ * two rows has to offer both, and taking one away must leave the other armed.
+ * The Lua layer keeps ONE registry reference per control, so the assertion
+ * that matters is that clearing op 2 keeps op 1's callback alive -- released
+ * too early, the remaining row dispatches into a freed reference.
+ */
+static void test_widget_second_op(struct ToriRS_PluginHost* host)
+{
+    static char const source[]=
+        "local p={id='widget-op2'};local fired=0;function p.on_start(api) "
+        " local control=assert(api.widgets.get(1));"
+        " local function press(widget,event) fired=fired+1;api.core.log('op '..event.operation) end;"
+        " assert(control:set_on_op(1,'Quick-prayers',press));"
+        " assert(control:set_on_op(2,'Setup',press)) end;"
+        "function p.on_key(api) local control=api.widgets.get(1);assert(control:set_on_op(2)) end;"
+        "return p";
+    struct FakeInstance instance={"widget-op2",""};struct ToriRS_Api api=fake_api(&instance);
+    struct ToriRS_KeyEvent key={0};
+    api.widgets.get_widget=fake_lua_get_widget;api.widgets.set_on_op=fake_lua_set_on_op;
+    int index=PluginLua_AddScript(host,"widget-op2",source,(int)strlen(source));
+    CHECK(index>=0,"two-operation script registers");
+    lua_op_sets=0;
+    g_defs[index]->callbacks.on_start(&api,NULL);
+    CHECK(lua_op_sets==2 && lua_op_number==2 && strcmp(lua_op_label,"Setup")==0,
+          "each operation reaches the adapter under its own number");
+    ToriRS_WidgetListener armed=lua_op_listener;void* armed_user=lua_op_user;
+    int logs=g_logs;
+    g_defs[index]->callbacks.on_key(&api,NULL,&key);
+    CHECK(lua_op_sets==3 && lua_op_number==2 && lua_op_listener==NULL,
+          "clearing one row sends that number with no listener");
+    struct ToriRS_WidgetEvent first={.type=TORIRS_WIDGET_OPERATION,.widget={{7,8,9}},.operation=1,.native_revision=11,.role=""};
+    armed(&api,armed_user,&first);
+    CHECK(g_logs==logs+1,"the row that was left armed still runs its callback");
+    g_defs[index]->callbacks.on_stop(&api,NULL);
+}
+
 static void test_widget_set_on_op(struct ToriRS_PluginHost* host)
 {
     static char const source[]=
         "local p={id='widget-op'};local presses=0;function p.on_start(api) "
         " local control=assert(api.widgets.get(1));"
-        " assert(control:set_on_op('Press',function(widget,event) "
+        " assert(control:set_on_op(1,'Press',function(widget,event) "
         "  presses=presses+1;"
         "  assert(type(widget)=='userdata' and event.kind=='operation' and event.operation==1 and event.native_revision==11);"
         "  api.core.log('pressed '..presses);"
-        "  if presses==2 then assert(control:set_on_op(nil)) end end)) end;"
-        "function p.on_key(api) local control=api.widgets.get(1);control:set_on_op('',function() end) end;"
+        "  if presses==2 then assert(control:set_on_op(1)) end end)) end;"
+        "function p.on_key(api) local control=api.widgets.get(1);control:set_on_op(1,'',function() end) end;"
         "return p";
     struct FakeInstance instance={"widget-op",""};struct ToriRS_Api api=fake_api(&instance);
     api.widgets.get_widget=fake_lua_get_widget;api.widgets.set_on_op=fake_lua_set_on_op;
@@ -588,6 +629,7 @@ static void test_widget_set_on_op(struct ToriRS_PluginHost* host)
     g_defs[index]->callbacks.on_key(&api,NULL,&key);
     CHECK(g_disabled_self==disables+1 && strstr(g_disable_reason,"invalid operation label"),
           "Lua rejects an empty operation label before reaching native dispatch");
+    test_widget_second_op(host);
 }
 
 static int lua_anchor_sets,lua_anchor_relation;

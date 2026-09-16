@@ -821,7 +821,7 @@ lt_list_toggle(struct LootTrackerRuntime* rt, char const* key, char const* name)
  * capability's name, in the one table whose own rule is that every answer is
  * an expression over an ENGINE FACT and never a lane. Both were wrong for the
  * same reason: the record is not the CS2 lane's. It has two feeders --
- * `CS2_OP_LOOT_ADD`, which is the game's own and runs only where CS2 scripts
+ * `CS2_OP_LOOTTRACKER_LOOTADD`, which is the game's own and runs only where CS2 scripts
  * do, and `App_LootNotifyKill`, which `::lootkill` reaches on every lane --
  * so neither the lineage nor the UI logic says whether a record exists.
  *
@@ -2026,14 +2026,35 @@ lt_draw_source(
 
     /* This second thinbox begins one pixel over the header's bottom border,
      * just as script2907's `y + 33 - 1` does. */
-    lt_thinbox(
-        buf,
-        w,
-        h,
-        0,
-        top + LT_HEAD_H - 1,
-        w,
-        item_count > 0 ? lt_grid_rows(item_count) * LT_CELL_H + 10 : 20);
+    {
+        int const grid_top = top + LT_HEAD_H - 1;
+        int const grid_h =
+            item_count > 0 ? lt_grid_rows(item_count) * LT_CELL_H + 10 : 20;
+
+        lt_thinbox(buf, w, h, 0, grid_top, w, grid_h);
+        /*
+         * The drops sit on a PLATE of their own, tiled inside the box exactly
+         * as the header band's is.
+         *
+         * Leaving it clear was the strip trusting whatever it is composited
+         * over to be the right brown. The rail's pane is one stone
+         * (73,64,52) and the plugin window's page is a darker one (55,46,34),
+         * so the same picture read as one continuous card in the pane and as
+         * cells floating on a dark ground in the window -- which is the
+         * report. A picture that depends on its host's backing has two looks;
+         * this one has its own.
+         *
+         * The NORMAL spine whatever the source's ignore state: script2907 and
+         * script3042 are the only two pieces of this page the cache cuts a
+         * second, red face for, so the header and the cells tint and the
+         * ground they sit on does not.
+         */
+        if( g_spine_px )
+            PluginDraw_Tile(
+                buf, w, h, LT_PLATE_INSET, grid_top + LT_PLATE_INSET,
+                w - LT_PLATE_INSET * 2, grid_h - LT_PLATE_INSET * 2,
+                g_spine_px, g_spine_w, g_spine_h, 0);
+    }
 
     if( item_count == 0 )
     {
@@ -2258,6 +2279,38 @@ lt_draw_menu(struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h)
  * a frame late would never be drawn again. The incomplete flag and the retry
  * counter are what bring it back. @see lt_draw_cell.
  */
+/**
+ * script3043's "No loot to display." -- and the ground it stands on.
+ *
+ * The note used to be text alone. Every other band on this page carries its
+ * own thinbox and its own tiled plate, so an empty page was the one state
+ * whose colour came from whatever the strip happened to be composited over:
+ * the well's (55,46,34) in the rail's pane, and a cold (33,36,40) in the
+ * plugin window. That is the same defect the drop cells had -- a picture that
+ * borrows its host's backing has as many looks as it has hosts -- and it is
+ * fixed here the same way. @see lt_draw_source.
+ *
+ * The box is the full LT_HEAD_H that lt_strip_h reserves for this note, not
+ * script3043's 20, because the remaining 13 rows would be bare well again.
+ * The note's own baseline does not move.
+ */
+static void
+lt_draw_empty_note(
+    struct LootTrackerRuntime* rt, uint32_t* buf, int w, int h, int top)
+{
+    assert(rt);
+    assert(buf);
+
+    lt_thinbox(buf, w, h, 0, top, w, LT_HEAD_H);
+    if( g_spine_px )
+        PluginDraw_Tile(
+            buf, w, h, LT_PLATE_INSET, top + LT_PLATE_INSET,
+            w - LT_PLATE_INSET * 2, LT_HEAD_H - LT_PLATE_INSET * 2,
+            g_spine_px, g_spine_w, g_spine_h, 0);
+    PluginDraw_Text(
+        buf, w, h, 4, top + 3, &g_text, "No loot to display.", LT_INK_HEAD);
+}
+
 static bool
 lt_paint_strip(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, int height)
 {
@@ -2281,9 +2334,7 @@ lt_paint_strip(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, in
         visible_sources += lt_source_visible(rt, i) ? 1 : 0;
 
     if( visible_sources == 0 )
-        PluginDraw_Text(
-            argb, width, height, 4, top + 3, &g_text, "No loot to display.",
-            LT_INK_HEAD);
+        lt_draw_empty_note(rt, argb, width, height, top);
     else if( g_drop_view )
     {
         struct LtItem drops[LT_SOURCES_MAX * 4];
@@ -2291,9 +2342,16 @@ lt_paint_strip(struct ToriRS_Api* api, void* user, uint32_t* argb, int width, in
             rt, drops, (int)(sizeof(drops) / sizeof(drops[0])));
 
         if( n == 0 )
-            PluginDraw_Text(
-                argb, width, height, 4, top + 3,
-                &g_text, "No loot to display.", LT_INK_HEAD);
+            lt_draw_empty_note(rt, argb, width, height, top);
+        /* The flat grid stands on the same plate a band's does, and for the
+         * same reason: the two views show the same cells and must show them on
+         * the same ground. @see lt_draw_source. The rect is lt_strip_h's own
+         * for this view, so the plate ends where the strip does. */
+        if( n > 0 && g_spine_px )
+            PluginDraw_Tile(
+                argb, width, height, LT_PLATE_INSET, top,
+                width - LT_PLATE_INSET * 2, lt_drop_rows(n) * LT_CELL_H + 6,
+                g_spine_px, g_spine_w, g_spine_h, 0);
         for( int i = 0; i < n; i++ )
             lt_draw_cell(
                 rt, argb, width, height,

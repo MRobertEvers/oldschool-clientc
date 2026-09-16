@@ -57,6 +57,67 @@ scratch declaration; the host validates it and commits the whole declaration
 at once. A partial or invalid frame is never exposed. Provider configuration
 changes call frame invalidation; they do not re-claim ownership.
 
+### Asking the lane for a native top level
+
+A provided frame does not replace the lane's own top level; it arranges over
+whichever one the lane opened, and on a CS2 lane that is one of four
+interfaces with different node numbering, surface sizes and mount points. A
+provider whose layout computes badly over the root it was handed may ask for
+the one it is authored for instead of laying out over the wrong one:
+
+```c
+if( api->frame.native_layout(api) != TORIRS_NATIVE_LAYOUT_FIXED )
+    api->frame.native_layout_select(api, TORIRS_NATIVE_LAYOUT_FIXED);
+```
+
+Rules, all of them enforced by the host:
+
+- Allowed from `on_gameframe` and from a player's own action (key, menu row,
+  panel button, owned control op). Nothing else may move the whole client onto
+  another top level.
+- The request is performed the way the lane's own settings row performs it, so
+  on a served lane the SERVER remounts and re-mounts every panel and op with
+  it. A plugin never opens a top level itself.
+- `OK` means the lane has been ASKED, including when it is already wearing
+  that chrome. It does not mean the root has changed: the remount is several
+  server ticks away and arrives as a new `frame_root`, which a provider treats
+  as any other remount — describe nothing this pass and plan against the tree
+  that is there next.
+- Asking on every layout pass is expected and costs one request, not one per
+  pass.
+- The phone's root is reported (`MOBILE`) and refused as a request: a lane
+  opens it because the session said phone, and nothing offers a way out.
+- `capability("native_layout")` says whether this lane has such chromes at
+  all; `UNSUPPORTED` from the call says the live session cannot be asked.
+
+### When the lane's own chrome IS the frame
+
+A provider whose offer reproduces a chrome the lane authors itself -- the
+gameframe plugin's Modern Resizable on an OldSchool cache is the cache's own
+resizable top level -- does not arrange over that lane at all. It asks for the
+chrome and answers `TORIRS_FRAME_NATIVE`:
+
+```c
+if( api->core.capability(api, "native_layout") &&
+    api->frame.native_layout_select(api, TORIRS_NATIVE_LAYOUT_RESIZABLE_MODERN) ==
+        TORIRS_RESULT_OK )
+    return Porcelain_FrameNative(porcelain, event);
+```
+
+`NATIVE` means: nothing is provided, the lane's chrome and canvas policy stay
+up, a previous provision (this provider's or another's) is released, and the
+offer is reported `ACTIVE` under its own id -- the settings row reads "Active:
+Modern Resizable", not a fallback. The provider is not re-asked on a canvas
+change, since the lane lays its own chrome out; a new selection or a screen
+change asks again, so a fresh login re-asks the lane for the chrome. A provider
+that could not ask -- no `native_layout` capability, or the request refused --
+runs its ordinary description over whatever root is up.
+
+This is why a plugin needs its lane: not the revision, but whether the lane
+answers a capability. `core.lane` reports the lineage for the rare question the
+capability table cannot answer; `core.capability` and Porcelain's `has` /
+`require` are the branch points a plugin is written against.
+
 ## Canonical named UI
 
 Anything another plugin may inspect, alter, or invoke has one semantic dotted

@@ -204,9 +204,12 @@ RS_WorldMap_DisplayToSource(
     struct RS_WorldMapState* state,
     int packed_coord);
 
-/** World coord under the view centre. False when there is no current area. */
+/** World (source) coord under the view centre. False when there is no current
+ *  area or the centre is off the area's surface -- rev-239 worldmap
+ *  method13046 returns null for both, and WORLDMAP_GETSOURCEPOSITION pushes
+ *  -1, -1. */
 bool
-RS_WorldMap_DisplayCoord(
+RS_WorldMap_SourcePosition(
     struct RS_WorldMapState* state,
     int* out_x,
     int* out_y);

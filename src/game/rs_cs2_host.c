@@ -569,6 +569,25 @@ rs_cs2_declared_layer_component_id(
 }
 
 /*
+ * CC_GETPARENTLAYER / IF_GETPARENTLAYER (1506 / 2506): the declared layer, and
+ * where a component has none -- it is a root of its interface -- the component
+ * that interface is mounted into. The client finds that in its open
+ * sub-interface table (Statics.java:43283 method8110); here a mounted pack is
+ * baked under its mount, so the mount is the raw tree parent across the
+ * interface seam. A top-level interface has no parent and answers -1.
+ */
+static int
+rs_cs2_parent_layer_component_id(
+    struct UITree* tree,
+    int component_id)
+{
+    int const layer = rs_cs2_declared_layer_component_id(tree, component_id);
+    if( layer >= 0 )
+        return layer;
+    return tree ? rs_cs2_parent_component_id(tree, component_id) : -1;
+}
+
+/*
  * PARAWIDTH / PARAHEIGHT: how wide, and how many lines, a string wraps to.
  *
  * Markup is skipped, and that is the whole subtlety. These are measuring what
@@ -918,6 +937,10 @@ RS_CS2Host_Init(
     host->local_coord = 0;
     host->dest_coord = -1;
     host->hover_coord = -1;
+    RS_CS2ClientState_Init(&host->client);
+    host->client.last_input_ms = -1;
+    RS_FriendsChat_Init(&host->friends_chat);
+    RS_ClanStore_Init(&host->clan);
     /* The three tile-highlight TRIGGER scripts: trigger_48, trigger_49 and
      * trigger_47 -- see the header for what fires each and why the
      * [clientscript] apply forms beside them are the cache's to run and not
@@ -1001,6 +1024,10 @@ RS_CS2Host_Init(
     host->client_layout_mode = 1; /* resizable classic — matches stretch boot */
     host->trace_script_id = -1;
     host->client_layout_dirty = false;
+    /* -1 and not 0: zero is Fixed, and a boot that read as "Fixed already
+     * asked for" would swallow the first request a plugin frame makes. */
+    host->client_layout_wanted = -1;
+    host->client_layout_wanted_cycle = 0;
     /* The Display panel's mode/apply pair (decompile names
      * settings_client_mode / settings_client_apply) and the varbit those apply
      * hubs write the pressed setting id into. */
@@ -1223,6 +1250,33 @@ RS_CS2Host_ChatAdd(
         return;
     RS_Chat_AddMessage(host->chat, type, name, sender, text, host->client_clock);
     host->chat_transmit_dirty = 1;
+}
+
+static void
+rs_cs2_social_send_push(
+    struct RS_CS2Host* host,
+    struct RS_CS2SocialSend const* send);
+
+int
+RS_CS2Host_VarClanType(
+    struct RS_CS2Host const* host,
+    int var_id)
+{
+    assert(host);
+    if( !host->provider )
+        return -1;
+    struct ToriRS_VarClanTypes const* const types = &host->provider->varclan_types;
+    if( var_id < 0 || var_id >= types->count )
+        return -1;
+    return types->base_type[var_id];
+}
+
+void
+RS_CS2Host_SendPush(
+    struct RS_CS2Host* host,
+    struct RS_CS2SocialSend const* send)
+{
+    rs_cs2_social_send_push(host, send);
 }
 
 /* Queue an outbound social request for the App to turn into a packet. */
@@ -2027,7 +2081,7 @@ RS_CS2Host_TakeTriggerOp(struct RS_CS2Host* host, struct RS_CS2TriggerOp* out)
 
 static int
 rs_cs2_triggeroplocal_push(struct RS_CS2Host* host,
-    const struct CS2VM_HostRequest_IF_TRIGGEROPLOCAL* request)
+    const struct CS2VM_HostRequest_IF_SCRIPT_TRIGGER* request)
 {
     assert(host);
     assert(request);
@@ -2224,17 +2278,17 @@ RS_CS2_InputKey(
         caret = length;
     next_caret = caret;
 
-    /* Enter: release the caret FIRST, then submit. That order is the cache's
-     * own requirement rather than a preference -- `torirs_hiscores_input_guard`
-     * (7526) opens with `if (cc_input_getfocus = 1) { return; }`, so a submit
-     * dispatched while the field still held focus would do nothing at all. The
-     * release also fires `on_input_focus_changed`, which is what runs the
-     * lookup. */
+    /* Enter: submit, THEN release the caret -- the rev-239 input manager's own
+     * order (class153, key 84: fire the submit hook, then method5041, which
+     * fires the focus-changed hook). The reverse order used to be required
+     * here, but only because the two slots were swapped: the lookup lived in the
+     * slot blur fires. `torirs_hiscores_from_text` is the submit handler and runs
+     * the lookup; `torirs_hiscores_input_guard` is the focus-changed one. */
     if( key_typed == TORIRS_OSRSKEY_ENTER )
     {
-        RS_CS2_InputSetFocus(host, runner, -1);
         rs_cs2_input_dispatch(
             host, runner, com_id, offsetof(struct UITreeRuntimeHooks, on_input_submit));
+        RS_CS2_InputSetFocus(host, runner, -1);
         return 1;
     }
     /* Escape abandons the edit. It still counts as a focus change -- the field
@@ -2298,9 +2352,24 @@ RS_CS2_InputKey(
 }
 
 void
+RS_CS2Host_ResetSocialForLogin(struct RS_CS2Host* host)
+{
+    assert(host);
+    RS_FriendsChat_Init(&host->friends_chat);
+    RS_ClanStore_Reset(&host->clan, false);
+    memset(host->stockmarket, 0, sizeof(host->stockmarket));
+    host->trading_post.present = false;
+    host->trading_post.count = 0;
+}
+
+void
 RS_CS2Host_Free(struct RS_CS2Host* host)
 {
     assert(host);
+    RS_CS2ClientState_Free(&host->client);
+    RS_ClanStore_Free(&host->clan);
+    free(host->trading_post.offers);
+    memset(&host->trading_post, 0, sizeof(host->trading_post));
     RS_WorldMap_Free(host->worldmap);
     host->worldmap = NULL;
     free(host->item_search_results);
@@ -2764,9 +2833,22 @@ exec_worldmap(
 
     switch( opcode )
     {
-    case CS2_OP_WORLDMAP_INIT:
-        RS_WorldMap_Init(map);
+    case CS2_OP_WORLDMAP_JUMPTOPLAYER:
+    {
+        /* rev-239 Statics 6600: take the local player's coord and, when it is
+         * valid, jump the map to it (method13022, instant). This was the
+         * "open the main area" init under its old name WORLDMAP_INIT, which put
+         * the map on the mainland wherever the player stood. The one thing kept
+         * from that: this map state can have no area selected at all, which the
+         * client's never does, so with no player to jump to it still gets one. */
+        int const coord = host->local_coord;
+        int const map_id = coord >= 0 ? RS_WorldMap_MapAtCoord(map, coord) : -1;
+        if( map_id >= 0 )
+            RS_WorldMap_JumpToMap(map, map_id, coord, true);
+        else if( !RS_WorldMap_CurrentArea(map) )
+            RS_WorldMap_Init(map);
         return CS2VM_EXECNO_OK;
+    }
 
     case CS2_OP_WORLDMAP_GETMAPNAME:
         area = RS_WorldMap_Area(map, arg0);
@@ -2836,8 +2918,8 @@ exec_worldmap(
         area = RS_WorldMap_Area(map, arg0);
         return CS2VM2_PushInt(thread, area ? area->zoom : -1);
 
-    case CS2_OP_WORLDMAP_GETDISPLAYCOORD_CURRENT:
-        if( !RS_WorldMap_DisplayCoord(map, &first, &second) )
+    case CS2_OP_WORLDMAP_GETSOURCEPOSITION:
+        if( !RS_WorldMap_SourcePosition(map, &first, &second) )
         {
             first = -1;
             second = -1;
@@ -2856,13 +2938,21 @@ exec_worldmap(
         return rs_cs2_push_pair(thread, first, second);
 
     case CS2_OP_WORLDMAP_GETSOURCECOORD:
+        /* Reproduces the rev-239 client, quirk included: with no current map it
+         * pushes TWO -1s (the branch is copied from GETDISPLAYCOORD, 6617), and
+         * otherwise ONE packed source coord, or -1. The command catalogue
+         * declares (int, int); see SIGNATURE_EXCEPTIONS in
+         * tools/cs2_gen_opcodes/catalogue.py. No script in
+         * cache.osrs239 calls it. */
+        if( !map->current_area )
+            return rs_cs2_push_pair(thread, -1, -1);
         return CS2VM2_PushInt(thread, RS_WorldMap_DisplayToSource(map, arg0));
 
-    case CS2_OP_WORLDMAP_JUMPTOMAP:
+    case CS2_OP_WORLDMAP_SETMAP_COORD:
         RS_WorldMap_JumpToMap(map, arg0, arg1, false);
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_WORLDMAP_JUMPTOMAP_INSTANT:
+    case CS2_OP_WORLDMAP_SETMAP_COORD_OVERRIDE:
         RS_WorldMap_JumpToMap(map, arg0, arg1, true);
         return CS2VM_EXECNO_OK;
 
@@ -2877,23 +2967,23 @@ exec_worldmap(
     case CS2_OP_WORLDMAP_GETMAP:
         return CS2VM2_PushInt(thread, RS_WorldMap_MapAtCoord(map, arg0));
 
-    case CS2_OP_WORLDMAP_SETMAXFLASHCOUNT:
+    case CS2_OP_WORLDMAP_SETFLASHLOOPS:
         RS_WorldMap_SetMaxFlashCount(map, arg0);
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_WORLDMAP_RESETMAXFLASHCOUNT:
+    case CS2_OP_WORLDMAP_SETFLASHLOOPS_DEFAULT:
         RS_WorldMap_ResetMaxFlashCount(map);
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_WORLDMAP_SETCYCLESPERFLASH:
+    case CS2_OP_WORLDMAP_SETFLASHTICS:
         RS_WorldMap_SetCyclesPerFlash(map, arg0);
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_WORLDMAP_RESETCYCLESPERFLASH:
+    case CS2_OP_WORLDMAP_SETFLASHTICS_DEFAULT:
         RS_WorldMap_ResetCyclesPerFlash(map);
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_WORLDMAP_GETNEARESTICON:
+    case CS2_OP_WORLDMAP_FINDNEARESTELEMENT:
         return CS2VM2_PushInt(thread, RS_WorldMap_NearestIcon(map, arg0, arg1));
 
     case CS2_OP_WORLDMAP_PERPETUALFLASH:
@@ -2949,13 +3039,13 @@ exec_worldmap(
         }
         return rs_cs2_push_pair(thread, first, second);
 
-    case CS2_OP_WORLDMAP_ELEMENT:
+    case CS2_OP_MEL_TYPE:
         return CS2VM2_PushInt(thread, map->event_element);
 
-    case CS2_OP_WORLDMAP_ELEMENTCOORD1:
+    case CS2_OP_MEL_SOURCECOORD:
         return CS2VM2_PushInt(thread, map->event_coord1);
 
-    case CS2_OP_WORLDMAP_ELEMENTCOORD:
+    case CS2_OP_MEL_DISPLAYCOORD:
         return CS2VM2_PushInt(thread, map->event_coord2);
 
     default:
@@ -3048,6 +3138,78 @@ minimenu_find(struct RS_CS2Host* host, enum RS_ClientOpKind kind, int menu_type)
     return 1;
 }
 
+/*
+ * The indexed minimenu ops, about entry `index` of the published menu
+ * (RS_ClientOpState::menu_entries). The native client's handlers
+ * (ExecuteCommand7400To7499), each of which answers 0 for an index out of
+ * range or an entry of another type and leaves the register alone:
+ *
+ *   7451  the entry's type
+ *   7453  type 2 and the npc still exists  -> active npc
+ *   7454  type 3                           -> active loc, no existence check
+ *   7455  type 4: the stack with the entry's obj AND count -> active obj; a
+ *         miss here does overwrite the register, with nothing
+ *   7456  type 6                           -> active player, no existence check
+ *   7460  the popup row under the pointer, -1 for none
+ */
+static int
+rs_cs2_ground_obj_latch(
+    struct RS_CS2Host* host,
+    int coord,
+    int obj_id,
+    int count);
+
+static int
+exec_minimenu_at(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    int opcode,
+    int index)
+{
+    struct RS_ClientOpState* clientop = &host->clientop;
+    bool const in_range = index >= 0 && index < clientop->menu_entry_count;
+    int const type = in_range ? clientop->menu_entries[index].type : RS_MINIMENU_TYPE_NONE;
+    struct RS_ClientOpContext const* subject = in_range ? &clientop->menu_entries[index].subject : NULL;
+
+    switch( opcode )
+    {
+    case CS2_OP_MINIMENU_TYPEAT:
+        return CS2VM2_PushInt(thread, type);
+    case CS2_OP_MINIMENU_HOVERED_INDEX:
+        return CS2VM2_PushInt(thread, clientop->menu_hovered_index);
+    case CS2_OP_MINIMENU_FINDNPCAT:
+    {
+        struct RS_ClientOpContext current;
+        if( type != RS_MINIMENU_TYPE_NPC || !host->npc_by_uid ||
+            !host->npc_by_uid(host->world_user, subject->uid, &current) )
+            return CS2VM2_PushInt(thread, 0);
+        RS_ClientOpActiveSet(clientop, RS_CLIENTOP_NPC, &current);
+        return CS2VM2_PushInt(thread, 1);
+    }
+    case CS2_OP_MINIMENU_FINDLOCAT:
+        if( type != RS_MINIMENU_TYPE_LOC )
+            return CS2VM2_PushInt(thread, 0);
+        RS_ClientOpActiveSet(clientop, RS_CLIENTOP_LOC, subject);
+        return CS2VM2_PushInt(thread, 1);
+    case CS2_OP_MINIMENU_FINDOBJAT:
+        if( type != RS_MINIMENU_TYPE_OBJ )
+            return CS2VM2_PushInt(thread, 0);
+        if( rs_cs2_ground_obj_latch(host, subject->coord, subject->type, subject->count) )
+            return CS2VM2_PushInt(thread, 1);
+        host->active_obj_valid = false;
+        RS_ClientOpActiveSet(clientop, RS_CLIENTOP_OBJ, NULL);
+        return CS2VM2_PushInt(thread, 0);
+    case CS2_OP_MINIMENU_FINDPLAYERAT:
+        if( type != RS_MINIMENU_TYPE_PLAYER )
+            return CS2VM2_PushInt(thread, 0);
+        RS_ClientOpActiveSet(clientop, RS_CLIENTOP_PLAYER, subject);
+        return CS2VM2_PushInt(thread, 1);
+    default:
+        TORIRS_LOG("exec_minimenu_at: unhandled opcode %d\n", opcode);
+        return CS2VM_EXECNO_ERROR;
+    }
+}
+
 static int
 exec_minimenu(
     struct RS_CS2Host* host,
@@ -3112,7 +3274,7 @@ exec_minimenu(
         return CS2VM2_PushInt(
             thread, minimenu_find(host, RS_CLIENTOP_PLAYER, RS_MINIMENU_TYPE_PLAYER));
     /*
-     * The acting row's TILE (`_7106`) and its OBJ id (`_7107`).
+     * The acting row's TILE (`MINIMENU_COORD`) and its OBJ id (`MINIMENU_OBJTYPE`).
      *
      * The reference reads both off the entry: the coord from the entry's own
      * packed x/z when it has one and from the mouseover ground tile when it
@@ -3121,12 +3283,12 @@ exec_minimenu(
      * the alternative is the stack stub answering a confident zero, which for
      * a COORD is the corner of the map square.
      */
-    case CS2_OP__7106:
+    case CS2_OP_MINIMENU_COORD:
         return CS2VM2_PushInt(
             thread,
             host->clientop.mouseover.coord >= 0 ? host->clientop.mouseover.coord
                                                 : host->hover_coord);
-    case CS2_OP__7107:
+    case CS2_OP_MINIMENU_OBJTYPE:
         return CS2VM2_PushInt(
             thread,
             host->clientop.mouseover_type == RS_MINIMENU_TYPE_OBJ
@@ -3254,9 +3416,42 @@ exec_client_option(
             thread, RS_CS2Host_GetOption(host, RS_CS2_OPTION_DEVICE, option_id));
     case CS2_OP_DEVICEOPTION_GETRANGE:
     {
-        /* min then max (reference range order). */
-        int max = option_id == RS_CS2_DEVICEOPTION_MASTER_VOLUME ? 100 : 255;
-        int result = CS2VM2_PushInt(thread, 0);
+        /* min then max. Statics.java:47188: 2, 3 and 4 are booleans, 5 (the
+         * frame cap) is unbounded, 6 (brightness) and 19 (master volume) are
+         * percentages, 14 (draw distance) is 25..90. The client throws for an
+         * id it does not have; the ids this client adds to the device table
+         * (15, 26, 27) answer the byte range they had before. */
+        int min = 0;
+        int max;
+        switch( option_id )
+        {
+        case 2:
+        case 3:
+        case 4:
+        case 22:
+            max = 1;
+            break;
+        case 5:
+            max = INT32_MAX;
+            break;
+        case 6:
+        case RS_CS2_DEVICEOPTION_MASTER_VOLUME:
+            max = 100;
+            break;
+        case 14:
+            min = 25;
+            max = 90;
+            break;
+        case RS_CS2_DEVICEOPTION_UI_SCALE_MODE:
+        case RS_CS2_DEVICEOPTION_FPS_CAP_BACKGROUND:
+        case RS_CS2_DEVICEOPTION_UI_SCALE:
+            max = 255;
+            break;
+        default:
+            TORIRS_LOG("cs2: Unkown device option %d\n", option_id);
+            return CS2VM_EXECNO_ERROR;
+        }
+        int result = CS2VM2_PushInt(thread, min);
         if( result != CS2VM_EXECNO_OK )
             return result;
         return CS2VM2_PushInt(thread, max);
@@ -3271,7 +3466,7 @@ exec_client_option(
  * Mobile local notifications (3170..3173). A desktop client has no notification
  * centre to schedule into, so the whole family is accepted and dropped. The two
  * answers still matter: SUPPORTED reports 0 so scripts take their "unavailable"
- * branch, and LOCAL_NOTIFICATION must still push a handle (0 — nothing to cancel)
+ * branch, and NOTIFICATIONS_SENDLOCAL must still push a handle (0 — nothing to cancel)
  * because its caller stores the result immediately (script 5360).
  */
 static int
@@ -3281,12 +3476,14 @@ exec_local_notification(
 {
     switch( opcode )
     {
-    case CS2_OP_LOCAL_NOTIFICATION:
+    case CS2_OP_NOTIFICATIONS_SENDLOCAL:
         return CS2VM2_PushInt(thread, 0);
-    case CS2_OP_LOCAL_NOTIFICATION_SUPPORTED:
+    case CS2_OP_NOTIFICATIONS_ISLOCALSCHEDULED:
         return CS2VM2_PushInt(thread, 0);
-    case CS2_OP_LOCAL_NOTIFICATION_CANCEL:
-    case CS2_OP_LOCAL_NOTIFICATION_CANCELALL:
+    case CS2_OP_NOTIFICATIONS_SENDGROUPEDLOCAL:
+        /* A handle, like SENDLOCAL -- the client pushes 0 here too. */
+        return CS2VM2_PushInt(thread, 0);
+    case CS2_OP_NOTIFICATIONS_CANCELLOCAL:
         return CS2VM_EXECNO_OK;
     default:
         TORIRS_LOG("exec_local_notification: unhandled opcode %d\n", opcode);
@@ -3942,7 +4139,7 @@ exec_safearea(
     case CS2_OP_SAFEAREA_GETMAXX:
         return CS2VM2_PushInt(thread, thread->canvas_w);
     case CS2_OP_SAFEAREA_GETMAXY:
-    case CS2_OP_SAFEAREA_GETMAXY_ALT:
+    case CS2_OP_SIDEBAR_SETWIDTH:
         return CS2VM2_PushInt(thread, thread->canvas_h);
     default:
         TORIRS_LOG("exec_safearea: unhandled opcode %d\n", opcode);
@@ -3973,6 +4170,52 @@ exec_enum_output_count(
         return CS2VM2_PushInt(thread, 0);
     }
     return CS2VM2_PushInt(thread, e->count);
+}
+
+/*
+ * ENUM_GETINPUTS (8020): the enum's keys, as an int array, in the enum's own
+ * order. Statics.java:57736 method5541 throws when the enum's input type is not
+ * the one asked for, and dereferences a null key array for an enum with no
+ * entries; both abort the script here. The client hands back one cached
+ * read-only array; this VM has no read-only arrays, so each call gets a copy.
+ */
+static int
+exec_enum_get_inputs(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest const* exact_request)
+{
+    int const enum_id = exact_request->u.ENUM_GETINPUTS.enum_id;
+    int const input_type = exact_request->u.ENUM_GETINPUTS.input_type;
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_Enum* e = provider && enum_id >= 0 ? CacheProvider_EnumGet(provider, enum_id) : NULL;
+    if( !e && enum_id >= 0 && !rs_cs2_await_spent(thread, exact_request->kind, enum_id, -1) )
+        return rs_cs2_yield_load(host, thread, exact_request, enum_id, -1);
+    if( !e )
+    {
+        TORIRS_LOG("cs2: ENUM_GETINPUTS: enum %d does not exist\n", enum_id);
+        return CS2VM_EXECNO_ERROR;
+    }
+    if( e->input_type != 0 && e->input_type != (char)input_type )
+    {
+        TORIRS_LOG("cs2: ENUM_GETINPUTS: enum %d has input type '%c', asked for '%c'\n",
+            enum_id,
+            e->input_type,
+            (char)input_type);
+        return CS2VM_EXECNO_ERROR;
+    }
+    if( !e->keys )
+    {
+        TORIRS_LOG("cs2: ENUM_GETINPUTS: enum %d has no entries\n", enum_id);
+        return CS2VM_EXECNO_ERROR;
+    }
+    char* const handle = CS2VM2_ArrayNewInts(thread, e->keys, e->count);
+    if( !handle )
+    {
+        TORIRS_LOG("cs2: ENUM_GETINPUTS: array pool exhausted\n");
+        return CS2VM_EXECNO_ERROR;
+    }
+    return CS2VM2_PushStr(thread, handle);
 }
 
 static int
@@ -4023,10 +4266,10 @@ exec_struct_param(
 }
 
 /*
- * CC_GETCOMPONENTPARAM (1703): read a component's runtime param table.
+ * CC_PARAM (1703): read a component's runtime param table.
  *
  * A miss is the common case, not an error — the table starts empty and only
- * CC_SETCOMPONENTPARAM fills it — and it answers with the ParamType's own
+ * CC_SETPARAM fills it — and it answers with the ParamType's own
  * default, which is what the scripts' `= -1` guards are testing for. That is the
  * one thing here that can need a load, hence the yield. Unlike STRUCT_PARAM this
  * never pushes a string: the opcode's arity is int-out, so a string-typed param
@@ -4060,10 +4303,10 @@ exec_cc_getcomponentparam(
 }
 
 /*
- * IF_GETCOMPONENTPARAM (2703): the same table, for a component named by
+ * IF_PARAM (2703): the same table, for a component named by
  * argument, with the caller's own answer for a miss.
  *
- * Unlike CC_GETCOMPONENTPARAM this never consults the ParamType's default and
+ * Unlike CC_PARAM this never consults the ParamType's default and
  * so never yields: the script supplied the value it wants back, which is the
  * whole point of the third argument. `value` carries it.
  */
@@ -4236,8 +4479,7 @@ exec_oc_int_param(
         value = obj->stackable;
         break;
     case CS2VM_OC_INT_MEMBERS:
-        /* Stub: members flag not on ToriRS_Objtype yet. */
-        value = 0;
+        value = obj->members;
         break;
     case CS2VM_OC_INT_ID:
         value = obj->id;
@@ -4391,7 +4633,7 @@ exec_oc_op(
     return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, action ? action : ""));
 }
 
-/* OC_EXAMINE: real data (ToriRS_Objtype.desc), following the OC_NAME shape. */
+/* OC_DESC: real data (ToriRS_Objtype.desc), following the OC_NAME shape. */
 static int
 exec_oc_examine(
     struct RS_CS2Host* host,
@@ -4442,6 +4684,87 @@ rs_cs2_objtypes_ready(struct RS_CS2Host* host)
     return false;
 }
 
+/*
+ * STOCKMARKET_SELLABLE (3931) / STOCKMARKET_BUYABLE (3939): the obj config's
+ * opcode-65 Grand Exchange flag, which the reference keeps twice (ObjType
+ * field5058 / field5059) because the two forms part company:
+ *
+ *   - a placeholder or a bought variant is neither;
+ *   - on a world without the members flag a members item cannot be bought,
+ *     but it can still be sold.
+ *
+ * An id with no config builds the reference's default type, which is neither.
+ */
+static int
+exec_stockmarket_obj_flag(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest const* exact_request)
+{
+    struct CS2VM_HostSignatureArgs const* const args =
+        (struct CS2VM_HostSignatureArgs const*)&exact_request->u;
+    int const item_id = args->ints[0];
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    if( item_id < 0 || !provider )
+        return CS2VM2_PushInt(thread, 0);
+    struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(provider, item_id);
+    if( !obj )
+    {
+        if( !rs_cs2_await_spent(thread, exact_request->kind, item_id, -1) )
+            return rs_cs2_yield_load(host, thread, exact_request, item_id, -1);
+        return CS2VM2_PushInt(thread, 0);
+    }
+    bool flag = obj->ge_tradeable && obj->placeholder_template < 0 && obj->bought_template < 0;
+    if( exact_request->kind == CS2VM_HOST_REQUEST_STOCKMARKET_BUYABLE && obj->members &&
+        (host->client.world_flags & 1) == 0 )
+        flag = false;
+    return CS2VM2_PushInt(thread, flag ? 1 : 0);
+}
+
+/*
+ * STOCKMARKET_VALUE (3932): (status, price). The Java client has no such
+ * command; the native client answers from its downloaded price database, with
+ * status READY (2 -- the one value the scripts test, torirs_gi_price) and the
+ * price when the obj has a row. This client has no price database, so every
+ * obj answers not-ready with price -1, and the scripts take their oc_cost
+ * fallback.
+ */
+#define RS_CS2_STOCKMARKET_VALUE_NOT_READY 0
+static int
+exec_stockmarket_value(struct CS2VM2_Thread* thread)
+{
+    if( CS2VM2_PushInt(thread, RS_CS2_STOCKMARKET_VALUE_NOT_READY) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return CS2VM2_PushInt(thread, -1);
+}
+
+/*
+ * OC_BYID (4224): Statics.java:54420 keeps an id in 0..(obj group file count - 1)
+ * and answers -1 for anything else. The count is only known once the obj group
+ * has been read whole, so the first call loads it the way OC_FIND does. A
+ * provider with no bulk load (dat1) has no count to bound with; there the id
+ * passes through when it is not negative.
+ */
+static int
+exec_oc_byid(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest const* exact_request,
+    int item_id)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    if( !rs_cs2_objtypes_ready(host) )
+    {
+        if( !rs_cs2_await_spent(thread, exact_request->kind, -1, -1) )
+            return rs_cs2_yield_load(host, thread, exact_request, -1, -1);
+    }
+    if( item_id < 0 )
+        return CS2VM2_PushInt(thread, -1);
+    if( provider && provider->objtype_count > 0 && item_id >= provider->objtype_count )
+        return CS2VM2_PushInt(thread, -1);
+    return CS2VM2_PushInt(thread, item_id);
+}
+
 static void
 rs_cs2_item_search_clear(struct RS_CS2Host* host)
 {
@@ -4465,6 +4788,8 @@ exec_oc_find(
     char const* query)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
+    bool const ge_tradeable_only =
+        opcode == CS2_OP_OC_FIND && exact_request->u.OC_FIND.ge_tradeable_only;
 
     if( opcode == CS2_OP_OC_FINDRESET )
     {
@@ -4510,7 +4835,8 @@ exec_oc_find(
         lower[qidx] = '\0';
 
         host->item_search_count =
-            CacheProvider_ObjtypeSearchByName(provider, lower, &host->item_search_results);
+            CacheProvider_ObjtypeSearchByName(
+                provider, lower, ge_tradeable_only, &host->item_search_results);
         host->item_search_cap = host->item_search_count;
         host->item_search_index = 0;
     }
@@ -5023,10 +5349,10 @@ exec_entity_overlay(
     switch( opcode )
     {
     /* ---- create ------------------------------------------------------- */
-    case CS2_OP_OVERLAY_NPC_CREATE:
-    case CS2_OP_OVERLAY_PLAYER_CREATE:
+    case CS2_OP_ENTITYOVERLAY_CREATE_NPC:
+    case CS2_OP_ENTITYOVERLAY_CREATE_PLAYER:
     {
-        bool const is_npc = opcode == CS2_OP_OVERLAY_NPC_CREATE;
+        bool const is_npc = opcode == CS2_OP_ENTITYOVERLAY_CREATE_NPC;
         subject = rs_cs2_overlay_subject(
             host, vm, is_npc ? RS_CLIENTOP_NPC : RS_CLIENTOP_PLAYER);
         if( subject )
@@ -5041,7 +5367,7 @@ exec_entity_overlay(
         index = index >= 0 ? rs_cs2_overlay_attach_layer(host, index) : -1;
         return CS2VM2_PushInt(vm, index);
     }
-    case CS2_OP_OVERLAY_LOC_CREATE:
+    case CS2_OP_ENTITYOVERLAY_CREATE_LOC:
     {
         subject = rs_cs2_overlay_subject(host, vm, RS_CLIENTOP_LOC);
         /* The loc's LAYER, not its type, is what makes two locs on one tile
@@ -5053,17 +5379,17 @@ exec_entity_overlay(
         index = index >= 0 ? rs_cs2_overlay_attach_layer(host, index) : -1;
         return CS2VM2_PushInt(vm, index);
     }
-    case CS2_OP_OVERLAY_COORD_CREATE:
+    case CS2_OP_ENTITYOVERLAY_CREATE_COORD:
         index = RS_OverlayCreateStatic(
             &host->overlay, a[0], RS_OVERLAY_TYPE_COORD, a[1], a[2], a[3], a[4]);
         index = index >= 0 ? rs_cs2_overlay_attach_layer(host, index) : -1;
         return CS2VM2_PushInt(vm, index);
 
     /* ---- look up ------------------------------------------------------ */
-    case CS2_OP_OVERLAY_NPC_GET:
-    case CS2_OP_OVERLAY_PLAYER_GET:
+    case CS2_OP_ENTITYOVERLAY_GET_NPC:
+    case CS2_OP_ENTITYOVERLAY_GET_PLAYER:
     {
-        bool const is_npc = opcode == CS2_OP_OVERLAY_NPC_GET;
+        bool const is_npc = opcode == CS2_OP_ENTITYOVERLAY_GET_NPC;
         subject = rs_cs2_overlay_subject(
             host, vm, is_npc ? RS_CLIENTOP_NPC : RS_CLIENTOP_PLAYER);
         if( subject )
@@ -5074,21 +5400,21 @@ exec_entity_overlay(
                 a[0]);
         return CS2VM2_PushInt(vm, index);
     }
-    case CS2_OP_OVERLAY_LOC_GET:
+    case CS2_OP_ENTITYOVERLAY_GET_LOC:
         subject = rs_cs2_overlay_subject(host, vm, RS_CLIENTOP_LOC);
         if( subject )
             index =
                 RS_OverlayFindStatic(&host->overlay, subject->coord, subject->layer, a[0]);
         return CS2VM2_PushInt(vm, index);
-    case CS2_OP_OVERLAY_COORD_GET:
+    case CS2_OP_ENTITYOVERLAY_GET_COORD:
         index = RS_OverlayFindStatic(&host->overlay, a[0], RS_OVERLAY_TYPE_COORD, a[1]);
         return CS2VM2_PushInt(vm, index);
 
     /* ---- destroy ------------------------------------------------------ */
-    case CS2_OP_OVERLAY_NPC_DESTROY:
-    case CS2_OP_OVERLAY_PLAYER_DESTROY:
+    case CS2_OP_ENTITYOVERLAY_DELETE_NPC:
+    case CS2_OP_ENTITYOVERLAY_DELETE_PLAYER:
     {
-        bool const is_npc = opcode == CS2_OP_OVERLAY_NPC_DESTROY;
+        bool const is_npc = opcode == CS2_OP_ENTITYOVERLAY_DELETE_NPC;
         subject = rs_cs2_overlay_subject(
             host, vm, is_npc ? RS_CLIENTOP_NPC : RS_CLIENTOP_PLAYER);
         if( subject )
@@ -5101,20 +5427,20 @@ exec_entity_overlay(
                     a[0]));
         return CS2VM_EXECNO_OK;
     }
-    case CS2_OP_OVERLAY_LOC_DESTROY:
+    case CS2_OP_ENTITYOVERLAY_DELETE_LOC:
         subject = rs_cs2_overlay_subject(host, vm, RS_CLIENTOP_LOC);
         if( subject )
             rs_cs2_overlay_free(
                 host,
                 RS_OverlayFindStatic(&host->overlay, subject->coord, subject->layer, a[0]));
         return CS2VM_EXECNO_OK;
-    case CS2_OP_OVERLAY_COORD_DESTROY:
+    case CS2_OP_ENTITYOVERLAY_DELETE_COORD:
         rs_cs2_overlay_free(
             host, RS_OverlayFindStatic(&host->overlay, a[0], RS_OVERLAY_TYPE_COORD, a[1]));
         return CS2VM_EXECNO_OK;
 
     /* ---- decorate ------------------------------------------------------ */
-    case CS2_OP_OVERLAY_FIND:
+    case CS2_OP_IF_FIND_ENTITYOVERLAY:
     {
         int const component_id = rs_cs2_overlay_component_id(host, a[0]);
         int found = 0;
@@ -5125,7 +5451,7 @@ exec_entity_overlay(
         }
         return CS2VM2_PushInt(vm, found);
     }
-    case CS2_OP_OVERLAY_CC_FIND:
+    case CS2_OP_CC_FIND_ENTITYOVERLAY:
     {
         int const component_id = rs_cs2_overlay_component_id(host, a[0]);
         int32_t parent = tree && component_id >= 0
@@ -5137,7 +5463,7 @@ exec_entity_overlay(
             rs_cs2_set_cc_target(vm, dot_operand, tree->components[child].component_id);
         return CS2VM2_PushInt(vm, child >= 0 ? 1 : 0);
     }
-    case CS2_OP_OVERLAY_CC_CREATE:
+    case CS2_OP_CC_CREATE_ENTITYOVERLAY:
     {
         int const component_id = rs_cs2_overlay_component_id(host, a[0]);
         int32_t parent = tree && component_id >= 0
@@ -5156,7 +5482,7 @@ exec_entity_overlay(
         rs_cs2_set_cc_target(vm, dot_operand, tree->components[child].component_id);
         return CS2VM_EXECNO_OK;
     }
-    case CS2_OP_OVERLAY_CC_DELETEALL:
+    case CS2_OP_CC_DELETEALL_ENTITYOVERLAY:
     {
         int const component_id = rs_cs2_overlay_component_id(host, a[0]);
         int32_t parent = tree && component_id >= 0
@@ -5174,7 +5500,7 @@ exec_entity_overlay(
     return CS2VM_EXECNO_ERROR;
 }
 
-/* LOC_FIND (6803) and COORD_INSCENE (6951). Both need the SCENE, which this
+/* LOC_FIND (6803) and TILE_FIND (6951). Both need the SCENE, which this
  * host has no pointer to — the App answers through the callbacks below for the
  * same reason it answers events_override_for_component. */
 static int
@@ -5187,7 +5513,7 @@ exec_subject_find(
 {
     assert(host);
 
-    if( opcode == CS2_OP_COORD_INSCENE )
+    if( opcode == CS2_OP_TILE_FIND )
     {
         int const inside =
             host->coord_in_scene ? host->coord_in_scene(host->world_user, coord) : 0;
@@ -5363,6 +5689,83 @@ exec_if_find(
     return CS2VM2_PushInt(vm, found);
 }
 
+/*
+ * CC_FIND_PARENT / CC_FIND_LAYER / CC_FIND_NEXT_SIBLING (204..206): make a
+ * component related to the active one the target, and push whether one exists.
+ * A miss pushes 0 and leaves the target alone, as the client does.
+ *
+ *   parent   the tree parent. A layer never crosses an interface-group seam
+ *            (rs_cs2_declared_layer_component_id), so a group's root has none.
+ *   layer    the nearest STATIC ancestor: the client resolves a component's
+ *            layer uid, and a dynamic component's layer is the static component
+ *            its whole dynamic subtree hangs off, however deep it is nested.
+ *   sibling  a dynamic component's next sibling under the same parent, in
+ *            sub-id order after its own; a static component has none.
+ */
+static int
+exec_cc_find_relative(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    enum CS2VM_HostRequestKind kind,
+    int component_id,
+    int dot_operand)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    int32_t idx = tree ? UITree_FindByComponentId(tree, component_id) : -1;
+    int found_id = -1;
+
+    if( idx >= 0 )
+    {
+        struct UITreeComponent const* self = &tree->components[idx];
+        switch( kind )
+        {
+        case CS2VM_HOST_REQUEST_CC_FIND_PARENT:
+            found_id = rs_cs2_declared_layer_component_id(tree, component_id);
+            break;
+        case CS2VM_HOST_REQUEST_CC_FIND_LAYER:
+        {
+            int layer = rs_cs2_declared_layer_component_id(tree, component_id);
+            while( layer >= 0 )
+            {
+                int32_t layer_idx = UITree_FindByComponentId(tree, layer);
+                if( layer_idx < 0 || !tree->components[layer_idx].dynamic )
+                    break;
+                layer = rs_cs2_declared_layer_component_id(tree, layer);
+            }
+            found_id = layer;
+            break;
+        }
+        case CS2VM_HOST_REQUEST_CC_FIND_NEXT_SIBLING:
+        {
+            if( !self->dynamic || self->parent < 0 )
+                break;
+            int best_sub = -1;
+            for( int32_t child = tree->components[self->parent].first_child; child >= 0;
+                 child = tree->components[child].next_sibling )
+            {
+                struct UITreeComponent const* c = &tree->components[child];
+                if( !c->dynamic || c->dynamic_child_index <= self->dynamic_child_index )
+                    continue;
+                if( best_sub < 0 || c->dynamic_child_index < best_sub )
+                {
+                    best_sub = c->dynamic_child_index;
+                    found_id = c->component_id;
+                }
+            }
+            break;
+        }
+        default:
+            assert(0 && "unexpected cc-find-relative request");
+            return CS2VM_EXECNO_ERROR;
+        }
+    }
+
+    if( found_id < 0 )
+        return CS2VM2_PushInt(vm, 0);
+    rs_cs2_set_cc_target(vm, dot_operand, found_id);
+    return CS2VM2_PushInt(vm, 1);
+}
+
 static int
 exec_children_find(
     struct RS_CS2Host* host,
@@ -5391,6 +5794,85 @@ exec_children_find(
             rs_cs2_set_cc_target(vm, dot_operand, parent_id);
     }
     return CS2VM_EXECNO_OK;
+}
+
+/*
+ * IF_QUERY_REFINE (216): filter the children iterator in place by one param.
+ *
+ * class332.method7945: each entry's component value is its own param entry, or
+ * the ParamType default when it has none, and the entry stays when that equals
+ * the script's value -- `value == v || (v != null && v.equals(value))`. So an
+ * Integer never equals a String, and a null value (base type -1) equals only a
+ * null, which is a string param with no entry and no default. An entry whose
+ * component is gone is dropped. Survivors keep their order; the cursor is left
+ * where it was.
+ *
+ * The ParamType is loaded BEFORE the list is touched: a yield replays the
+ * opcode, and a replay over a half-filtered list would filter it twice.
+ */
+static int
+exec_if_query_refine(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest const* exact_request)
+{
+    int const param_id = exact_request->u.IF_QUERY_REFINE.param_id;
+    int const value_type = exact_request->u.IF_QUERY_REFINE.value_type;
+    int const value = exact_request->u.IF_QUERY_REFINE.value;
+    char const* const str_value = exact_request->u.IF_QUERY_REFINE.str_value;
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_ParamType* param =
+        provider ? CacheProvider_ParamGet(provider, param_id) : NULL;
+    if( !param && param_id >= 0 )
+    {
+        if( !rs_cs2_await_spent(vm, exact_request->kind, -1, param_id) )
+            return rs_cs2_yield_load(host, vm, exact_request, -1, param_id);
+        /* Still missing after the load: the default is null. */
+    }
+
+    struct UITree* tree = rs_cs2_tree(host);
+    int const parent_id = vm->children_iter_parent;
+    int32_t const parent_idx = tree && parent_id >= 0 ? UITree_FindByComponentId(tree, parent_id) : -1;
+    int kept = 0;
+    for( int i = 0; i < vm->children_iter_count; i++ )
+    {
+        int const sub_id = vm->children_iter_indices[i];
+        int32_t const child_idx =
+            parent_idx >= 0 ? UITree_FindChildBySubid(tree, parent_idx, parent_id, sub_id) : -1;
+        if( child_idx < 0 )
+            continue;
+        int const component_id = tree->components[child_idx].component_id;
+
+        /* The component's value, as the client would hold it: a string, an
+         * int, or null. */
+        char const* component_str = UITree_ComponentParamGetStr(tree, component_id, param_id);
+        int component_int = 0;
+        bool component_is_int = false;
+        if( !component_str )
+        {
+            if( UITree_ComponentParamGet(tree, component_id, param_id, &component_int) )
+                component_is_int = true;
+            else if( param && param->is_string )
+                component_str = param->default_string;
+            else if( param )
+            {
+                component_int = param->default_int;
+                component_is_int = true;
+            }
+        }
+
+        bool match;
+        if( value_type == 0 )
+            match = component_is_int && component_int == value;
+        else if( value_type == 2 )
+            match = component_str && str_value && strcmp(component_str, str_value) == 0;
+        else
+            match = !component_is_int && !component_str;
+        if( match )
+            vm->children_iter_indices[kept++] = sub_id;
+    }
+    vm->children_iter_count = kept;
+    return CS2VM2_PushInt(vm, kept);
 }
 
 static int
@@ -6353,6 +6835,11 @@ rs_cs2_clear_reactive_hooks_at(
     UITree_HookClear(&hooks->on_misc_transmit);
     UITree_HookClear(&hooks->on_friend_transmit);
     UITree_HookClear(&hooks->on_chat_transmit);
+    UITree_HookClear(&hooks->on_clan_transmit);
+    UITree_HookClear(&hooks->on_stock_transmit);
+    UITree_HookClear(&hooks->on_active_offers_transmit);
+    UITree_HookClear(&hooks->on_clan_settings_transmit);
+    UITree_HookClear(&hooks->on_clan_channel_transmit);
     UITree_HookClear(&hooks->on_dialog_abort);
     UITree_HookClear(&hooks->on_resize);
     UITree_HookClear(&hooks->on_sub_change);
@@ -6813,22 +7300,39 @@ rs_cs2_runtime_hook_slot(
         return &hooks->on_key;
     case CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT:
         return &hooks->on_friend_transmit;
+    case CS2VM_HOST_REQUEST_CC_SETONMISCTRANSMIT:
+        return &hooks->on_misc_transmit;
+    case CS2VM_HOST_REQUEST_CC_SETONCLANTRANSMIT:
+        return &hooks->on_clan_transmit;
+    case CS2VM_HOST_REQUEST_CC_SETONSTOCKTRANSMIT:
+        return &hooks->on_stock_transmit;
+    case CS2VM_HOST_REQUEST_CC_SETONACTIVEOFFERSTRANSMIT:
+        return &hooks->on_active_offers_transmit;
+    case CS2VM_HOST_REQUEST_CC_SETONCLANSETTINGSTRANSMIT:
+        return &hooks->on_clan_settings_transmit;
+    case CS2VM_HOST_REQUEST_CC_SETONCLANCHANNELTRANSMIT:
+        return &hooks->on_clan_channel_transmit;
     case CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT:
         return &hooks->on_dialog_abort;
     case CS2VM_HOST_REQUEST_CC_SETONSUBCHANGE:
         return &hooks->on_sub_change;
     case CS2VM_HOST_REQUEST_CC_SETONRESIZE:
         return &hooks->on_resize;
-    case CS2VM_HOST_REQUEST_CC_SETONITEMONITEM:
+    case CS2VM_HOST_REQUEST_CC_SETONKEYDOWN:
         return &hooks->on_key_down;
-    case CS2VM_HOST_REQUEST_CC_SETONCLANSETTINGS:
+    case CS2VM_HOST_REQUEST_CC_SETONKEYUP:
         return &hooks->on_key_up;
-    case CS2VM_HOST_REQUEST_CC_INPUT_SETONSUBMIT:
-        return &hooks->on_input_submit;
-    case CS2VM_HOST_REQUEST_CC_INPUT_SETONUPDATE:
-        return &hooks->on_input_update;
+    /* rev-239 Statics stores 1436 in the field the input manager fires from
+     * focus/blur (class153 method5040/5041) and 1438 in the one it fires on the
+     * Enter key (key 84). These two were swapped, under swapped names, so a
+     * field's blur handler ran on Enter and its submit handler ran on blur --
+     * clicking out of the hiscores box ran a lookup. */
     case CS2VM_HOST_REQUEST_CC_INPUT_SETONFOCUSCHANGED:
         return &hooks->on_input_focus_changed;
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETONCHANGE:
+        return &hooks->on_input_update;
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETONSUBMIT:
+        return &hooks->on_input_submit;
     case CS2VM_HOST_REQUEST_IF_SETONCLICK:
         return &hooks->on_click;
     case CS2VM_HOST_REQUEST_IF_SETONHOLD:
@@ -6863,12 +7367,18 @@ rs_cs2_runtime_hook_slot(
         return &hooks->on_key;
     case CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT:
         return &hooks->on_friend_transmit;
+    case CS2VM_HOST_REQUEST_IF_SETONCLANTRANSMIT:
+        return &hooks->on_clan_transmit;
+    case CS2VM_HOST_REQUEST_IF_SETONSTOCKTRANSMIT:
+        return &hooks->on_stock_transmit;
+    case CS2VM_HOST_REQUEST_IF_SETONACTIVEOFFERSTRANSMIT:
+        return &hooks->on_active_offers_transmit;
+    case CS2VM_HOST_REQUEST_IF_SETONCLANSETTINGSTRANSMIT:
+        return &hooks->on_clan_settings_transmit;
+    case CS2VM_HOST_REQUEST_IF_SETONCLANCHANNELTRANSMIT:
+        return &hooks->on_clan_channel_transmit;
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
-        /* IF_ only — there is no CC_ misc-transmit request kind at this
-         * revision, and the CC_SETONMISCTRANSMIT opcode (1422) is parsed into
-         * the discard group rather than a host request.
-         *
-         * The "misc" transmits are the ones with no registry of their own:
+        /* The "misc" transmits are the ones with no registry of their own:
          * run energy and run weight at this revision. The field existed but
          * nothing resolved to it, so every registration was discarded and the
          * run orb never repainted on its own. */
@@ -6879,9 +7389,9 @@ rs_cs2_runtime_hook_slot(
         return &hooks->on_sub_change;
     case CS2VM_HOST_REQUEST_IF_SETONRESIZE:
         return &hooks->on_resize;
-    case CS2VM_HOST_REQUEST_IF_SETONITEMONITEM:
+    case CS2VM_HOST_REQUEST_IF_SETONKEYDOWN:
         return &hooks->on_key_down;
-    case CS2VM_HOST_REQUEST_IF_SETONCLANSETTINGS:
+    case CS2VM_HOST_REQUEST_IF_SETONKEYUP:
         return &hooks->on_key_up;
     default:
         return NULL;
@@ -6922,10 +7432,10 @@ rs_cs2_seton_kind_str(enum CS2VM_HostRequestKind kind)
         return "CC_SETONSUBCHANGE";
     case CS2VM_HOST_REQUEST_CC_SETONRESIZE:
         return "CC_SETONRESIZE";
-    case CS2VM_HOST_REQUEST_CC_SETONITEMONITEM:
-        return "CC_SETONITEMONITEM";
-    case CS2VM_HOST_REQUEST_CC_SETONCLANSETTINGS:
-        return "CC_SETONCLANSETTINGS";
+    case CS2VM_HOST_REQUEST_CC_SETONKEYDOWN:
+        return "CC_SETONKEYDOWN";
+    case CS2VM_HOST_REQUEST_CC_SETONKEYUP:
+        return "CC_SETONKEYUP";
     case CS2VM_HOST_REQUEST_IF_SETONCLICK:
         return "IF_SETONCLICK";
     case CS2VM_HOST_REQUEST_IF_SETONRELEASE:
@@ -6954,10 +7464,10 @@ rs_cs2_seton_kind_str(enum CS2VM_HostRequestKind kind)
         return "IF_SETONSUBCHANGE";
     case CS2VM_HOST_REQUEST_IF_SETONRESIZE:
         return "IF_SETONRESIZE";
-    case CS2VM_HOST_REQUEST_IF_SETONITEMONITEM:
-        return "IF_SETONITEMONITEM";
-    case CS2VM_HOST_REQUEST_IF_SETONCLANSETTINGS:
-        return "IF_SETONCLANSETTINGS";
+    case CS2VM_HOST_REQUEST_IF_SETONKEYDOWN:
+        return "IF_SETONKEYDOWN";
+    case CS2VM_HOST_REQUEST_IF_SETONKEYUP:
+        return "IF_SETONKEYUP";
     default:
         return "SETON?";
     }
@@ -7083,8 +7593,8 @@ exec_set_on_cc_event(
 /* =========================================================================
  * Client database (DB_* opcodes 7500..7510)
  *
- * DB_GETROW/DB_GETFIELD/DB_GETROWTABLE read a DBROW (config kind 38, resolved
- * through CacheProvider_DbRowGet). DB_FIND/DB_FINDALL read a table's inverted
+ * DB_FIND_GET/DB_GETFIELD/DB_GETROWTABLE read a DBROW (config kind 38, resolved
+ * through CacheProvider_DbRowGet). DB_FIND_PRE228/DB_FIND_REFINE_PRE228 read a table's inverted
  * index (cache table 21) to build the host find-iterator, which DB_FINDNEXT
  * then walks one row at a time.
  *
@@ -7174,17 +7684,17 @@ db_yield_load(
         req.u.name.load_kind = load_kind;  \
         req.u.name.load_id = load_id;      \
         break
-        RS_CS2_DB_RETRY(DB_FIND_WITH_COUNT);
+        RS_CS2_DB_RETRY(DB_FIND);
         RS_CS2_DB_RETRY(DB_FINDNEXT);
         RS_CS2_DB_RETRY(DB_GETFIELD);
         RS_CS2_DB_RETRY(DB_GETFIELDCOUNT);
-        RS_CS2_DB_RETRY(DB_FINDALL_WITH_COUNT);
+        RS_CS2_DB_RETRY(DB_LISTALL);
         RS_CS2_DB_RETRY(DB_GETROWTABLE);
-        RS_CS2_DB_RETRY(DB_GETROW);
-        RS_CS2_DB_RETRY(DB_FIND_FILTER_WITH_COUNT);
-        RS_CS2_DB_RETRY(DB_FIND);
-        RS_CS2_DB_RETRY(DB_FINDALL);
-        RS_CS2_DB_RETRY(DB_FIND_FILTER);
+        RS_CS2_DB_RETRY(DB_FIND_GET);
+        RS_CS2_DB_RETRY(DB_FIND_REFINE);
+        RS_CS2_DB_RETRY(DB_FIND_PRE228);
+        RS_CS2_DB_RETRY(DB_FIND_REFINE_PRE228);
+        RS_CS2_DB_RETRY(DB_LISTALL_PRE228);
 #undef RS_CS2_DB_RETRY
     default:
         assert(0 && "non-DB request passed to db_yield_load");
@@ -7362,7 +7872,7 @@ db_push_value(
     return CS2VM2_PushInt(vm, value->int_value);
 }
 
-/* DB_FIND value lookup: scan the column index for an entry matching `value`
+/* DB_FIND_PRE228 value lookup: scan the column index for an entry matching `value`
  * (int or string), and copy its row-id list into the iterator. A whole-tuple
  * column (nibble 0) matches on any field, which is what makes a single-field
  * query against a multi-field column work; a field selector searches only that
@@ -7432,7 +7942,7 @@ exec_db(
         return CS2VM2_PushInt(vm, row);
     }
 
-    case CS2_OP_DB_GETROW:
+    case CS2_OP_DB_FIND_GET:
     {
         /* Random access into the current find result — the indexed twin of
          * DB_FINDNEXT, not a row lookup: scripts call it as
@@ -7563,13 +8073,18 @@ exec_db(
         return CS2VM_EXECNO_OK;
     }
 
-    case CS2_OP_DB_FINDALL:
-    case CS2_OP_DB_FINDALL_WITH_COUNT:
+    /* The pre-228 ids (7508..7510) are the no-count forms of find, refine and
+     * list-all; rev 228 moved each name to its with-count id and the old ids
+     * are absent from the rev-239 dispatch. 7509 and 7510 used to sit in each
+     * other's branch -- list-all popped a find's three arguments and refine
+     * popped a table id. */
+    case CS2_OP_DB_LISTALL_PRE228:
+    case CS2_OP_DB_LISTALL:
     {
         int table_id;
         struct ToriRS_DbTableIndex* idx;
         struct RSCache_DbIndexFile* master;
-        bool with_count = (opcode == CS2_OP_DB_FINDALL_WITH_COUNT);
+        bool with_count = (opcode == CS2_OP_DB_LISTALL);
         if( CS2VM2_PopInt(vm, &table_id) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         idx = db_index_or_yield(
@@ -7603,21 +8118,21 @@ exec_db(
         return CS2VM_EXECNO_OK;
     }
 
+    case CS2_OP_DB_FIND_PRE228:
     case CS2_OP_DB_FIND:
-    case CS2_OP_DB_FIND_WITH_COUNT:
-    case CS2_OP_DB_FIND_FILTER:
-    case CS2_OP_DB_FIND_FILTER_WITH_COUNT:
+    case CS2_OP_DB_FIND_REFINE_PRE228:
+    case CS2_OP_DB_FIND_REFINE:
     {
         int column, table, col_id, tuple, type_tag;
         struct ToriRS_DbTableIndex* idx;
         bool with_count =
-            (opcode == CS2_OP_DB_FIND_WITH_COUNT || opcode == CS2_OP_DB_FIND_FILTER_WITH_COUNT);
+            (opcode == CS2_OP_DB_FIND || opcode == CS2_OP_DB_FIND_REFINE);
         /* A "filter" narrows the query already in flight rather than starting a
          * new one — that is how a script queries two columns at once
-         * (`db_find_with_count(catcol, cat, 0); db_find_filter_with_count(subcol,
-         * sub, 0); db_findnext`). */
+         * (`db_find(catcol, cat, 0); db_find_refine(subcol, sub, 0);
+         * db_findnext`). */
         bool is_filter =
-            (opcode == CS2_OP_DB_FIND_FILTER || opcode == CS2_OP_DB_FIND_FILTER_WITH_COUNT);
+            (opcode == CS2_OP_DB_FIND_REFINE_PRE228 || opcode == CS2_OP_DB_FIND_REFINE);
         bool value_is_string;
         int value_int = 0;
         char* value_str = NULL;
@@ -7775,6 +8290,50 @@ rs_cs2_ground_objs_on_coord(
     return host->objs_on_coord(host->world_user, coord, index, out);
 }
 
+/*
+ * Make the first ground stack of `obj_id` on `coord` the active obj -- both the
+ * ground-item register the timer getters read (6860..6863) and the obj subject
+ * OBJ_NAME/COORD/TYPE/COUNT read -- and say whether there was one. `count` -1
+ * matches any count (OBJ_FIND ignores it); otherwise the count must match too,
+ * the second half of a stack's identity (MINIMENU_FINDOBJAT). A miss changes
+ * nothing; the caller decides whether a miss clears.
+ */
+static int
+rs_cs2_ground_obj_latch(
+    struct RS_CS2Host* host,
+    int coord,
+    int obj_id,
+    int count)
+{
+    struct RS_CS2GroundObj entry;
+    int const total = rs_cs2_ground_objs_on_coord(host, coord, -1, &entry);
+    for( int i = 0; i < total; i++ )
+    {
+        if( rs_cs2_ground_objs_on_coord(host, coord, i, &entry) <= i )
+            break;
+        if( entry.obj_id != obj_id || (count >= 0 && entry.count != count) )
+            continue;
+        host->active_obj = entry;
+        host->active_obj_valid = true;
+
+        struct RS_ClientOpContext subject;
+        memset(&subject, 0, sizeof(subject));
+        subject.kind = RS_CLIENTOP_OBJ;
+        subject.script_id = -1;
+        subject.uid = -1;
+        subject.type = obj_id;
+        subject.count = entry.count;
+        subject.layer = -1;
+        subject.coord = coord;
+        struct CacheProvider* provider = rs_cs2_provider(host);
+        struct ToriRS_Objtype* objtype = provider ? CacheProvider_ObjtypeGet(provider, obj_id) : NULL;
+        snprintf(subject.name, sizeof(subject.name), "%s", objtype ? objtype->name : "");
+        RS_ClientOpActiveSet(&host->clientop, RS_CLIENTOP_OBJ, &subject);
+        return 1;
+    }
+    return 0;
+}
+
 static int
 exec_ground_obj(
     struct RS_CS2Host* host,
@@ -7791,16 +8350,16 @@ exec_ground_obj(
 
     switch( opcode )
     {
-    case CS2_OP_OBJSTACK_COUNT:
+    case CS2_OP_OBJSTACK_SIZE:
         return CS2VM2_PushInt(vm, rs_cs2_ground_objs_on_coord(host, coord, -1, &entry));
 
     /* -1 for an index off the end, which is the reference's own answer and is
      * what the overlay script's `if ($int12 ! null)` reads for. */
-    case CS2_OP_OBJSTACK_ID:
+    case CS2_OP_OBJSTACK_OBJ:
         count = rs_cs2_ground_objs_on_coord(host, coord, index, &entry);
         return CS2VM2_PushInt(vm, index >= 0 && index < count ? entry.obj_id : -1);
 
-    case CS2_OP_OBJSTACK_QUANTITY:
+    case CS2_OP_OBJSTACK_COUNT:
         count = rs_cs2_ground_objs_on_coord(host, coord, index, &entry);
         return CS2VM2_PushInt(vm, index >= 0 && index < count ? entry.count : -1);
 
@@ -7808,7 +8367,7 @@ exec_ground_obj(
      * and answers 1; a miss leaves the previous selection alone -- the
      * reference does the same, and every caller tests the answer before
      * reading anything. */
-    case CS2_OP_OBJ_FIND:
+    case CS2_OP_OBJ_FINDBYINDEX:
         count = rs_cs2_ground_objs_on_coord(host, coord, index, &entry);
         if( index < 0 || index >= count )
             return CS2VM2_PushInt(vm, 0);
@@ -7822,7 +8381,7 @@ exec_ground_obj(
         return CS2VM2_PushInt(
             vm, rs_cs2_ground_obj_ticks_left(host, host->active_obj.despawn_clock));
 
-    case CS2_OP_OBJ_VISIBLETIME:
+    case CS2_OP_OBJ_REVEALTIME:
         if( !host->active_obj_valid )
             return CS2VM2_PushInt(vm, -1);
         return CS2VM2_PushInt(
@@ -7830,7 +8389,7 @@ exec_ground_obj(
 
     /* "Everyone can see this now." A pile flagged neverBecomesPublic answers no
      * however far its clock has run -- that flag is the whole of what it says. */
-    case CS2_OP_OBJ_ISPUBLIC:
+    case CS2_OP_OBJ_REVEALED:
         if( !host->active_obj_valid )
             return CS2VM2_PushInt(vm, -1);
         if( host->active_obj.never_becomes_public )
@@ -7864,39 +8423,41 @@ exec_loot(
 
     switch( opcode )
     {
-    case CS2_OP_LOOT_SOURCE_COUNT:
+    case CS2_OP_LOOTTRACKER_SOURCENAMECOUNT:
         return CS2VM2_PushInt(vm, LootStore_SourceCount(loot));
 
-    case CS2_OP_LOOT_SOURCE_NAME:
-    case CS2_OP_LOOT_SOURCE_NAME2:
+    case CS2_OP_LOOTTRACKER_SOURCENAME:
+    case CS2_OP_LOOTTRACKER_SOURCEDROPNAME:
     {
         const char* name = LootStore_SourceName(loot, int_args[0]);
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name));
     }
 
-    case CS2_OP_LOOT_SOURCE_ITEMCOUNT:
-        return CS2VM2_PushInt(vm, LootStore_SourceItemCount(loot, request_name));
+    case CS2_OP_LOOTTRACKER_SOURCEID:
+        /* The source's id, -1 when unrecorded. This answered the source's ITEM
+         * COUNT, which script 7160 then used as an id to fetch rows by. */
+        return CS2VM2_PushInt(vm, LootStore_SourceIdByName(loot, request_name));
 
-    case CS2_OP_LOOT_SOURCE_TOTALVAL:
+    case CS2_OP_LOOTTRACKER_SOURCECOUNT:
         return CS2VM2_PushInt(vm, LootStore_SourceKillCount(loot, request_name));
 
-    case CS2_OP_LOOT_BEGIN_QUERY:
+    case CS2_OP_LOOTTRACKER_SOURCEQUERY_NEW:
         return CS2VM2_PushInt(vm, LootStore_BeginQuery(
             loot, int_args[0], int_args[1], int_args[2]));
 
-    case CS2_OP_LOOT_QUERY_ID:
+    case CS2_OP_LOOTTRACKER_SOURCEQUERY_GET:
         return CS2VM2_PushInt(vm, LootStore_QueryId(loot, int_args[0]));
 
-    case CS2_OP_LOOT_AUX_COUNT_TOTAL:
-        return CS2VM2_PushInt(vm, LootStore_AuxCountTotal(loot));
+    case CS2_OP_LOOTTRACKER_GETDROPLIMIT:
+        return CS2VM2_PushInt(vm, LootStore_DropLimit(loot));
 
-    case CS2_OP_LOOT_ROW_COUNT_BYNAME:
+    case CS2_OP_LOOTTRACKER_LOOTCOUNT_BYNAME:
         return CS2VM2_PushInt(vm, LootStore_RowCountByName(loot, request_name));
 
-    case CS2_OP_LOOT_ROW_COUNT_BYID:
+    case CS2_OP_LOOTTRACKER_LOOTCOUNT_BYID:
         return CS2VM2_PushInt(vm, LootStore_RowCountById(loot, int_args[0]));
 
-    case CS2_OP_LOOT_ROW_BYNAME:
+    case CS2_OP_LOOTTRACKER_LOOTGET_BYNAME:
     {
         int obj_id = 0, qty = 0;
         LootStore_RowByName(loot, request_name, int_args[0], &obj_id, &qty);
@@ -7905,7 +8466,7 @@ exec_loot(
         return CS2VM2_PushInt(vm, qty);
     }
 
-    case CS2_OP_LOOT_ROW_BYID:
+    case CS2_OP_LOOTTRACKER_LOOTGET_BYID:
     {
         int obj_id = 0, qty = 0;
         LootStore_RowById(loot, int_args[0], int_args[1], &obj_id, &qty);
@@ -7914,88 +8475,131 @@ exec_loot(
         return CS2VM2_PushInt(vm, qty);
     }
 
-    case CS2_OP_LOOT_CLEAR_ALL:
+    case CS2_OP_LOOTTRACKER_CLEAR:
         LootStore_ClearAll(loot);
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_LOOT_CLEAR_SOURCE:
+    case CS2_OP_LOOTTRACKER_LOOTDEL_BYNAME:
         LootStore_ClearSourceByName(loot, request_name ? request_name : "");
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_LOOT_REMOVE_BYID:
+    case CS2_OP_LOOTTRACKER_LOOTDEL_BYID:
         LootStore_RemoveById(loot, int_args[0]);
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_LOOT_IGNORE_ADD:
+    case CS2_OP_LOOTTRACKER_IGNORELOOTADD:
         LootStore_ItemIgnoreAdd(loot, request_name ? request_name : "");
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_LOOT_IGNORE_REMOVE:
+    case CS2_OP_LOOTTRACKER_IGNORELOOTDEL:
         LootStore_ItemIgnoreRemove(loot, request_name ? request_name : "");
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_LOOT_IGNORE_CLEAR:
+    case CS2_OP_LOOTTRACKER_IGNORELOOTCLEAR:
         LootStore_ItemIgnoreClear(loot);
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_LOOT_SOURCE_IGNORE_ADD:
+    case CS2_OP_LOOTTRACKER_IGNORESOURCEADD:
         LootStore_SourceIgnoreAdd(loot, request_name ? request_name : "");
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_LOOT_SOURCE_IGNORE_REMOVE:
+    case CS2_OP_LOOTTRACKER_IGNORESOURCEDEL:
         LootStore_SourceIgnoreRemove(loot, request_name ? request_name : "");
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_LOOT_GROUND_COUNT:
+    case CS2_OP_LOOTTRACKER_IGNORELOOTCOUNT:
         return CS2VM2_PushInt(vm, LootStore_ItemIgnoreCount(loot));
 
-    case CS2_OP_LOOT_GROUND_NAME:
+    case CS2_OP_LOOTTRACKER_IGNORELOOTGET:
     {
         const char* name = LootStore_ItemIgnoreName(loot, int_args[0]);
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name));
     }
 
-    case CS2_OP_LOOT_SRCLIST_COUNT:
+    case CS2_OP_LOOTTRACKER_IGNORESOURCECOUNT:
         return CS2VM2_PushInt(vm, LootStore_SourceIgnoreCount(loot));
 
-    case CS2_OP_LOOT_SRCLIST_NAME:
+    case CS2_OP_LOOTTRACKER_IGNORESOURCEGET:
     {
         const char* name = LootStore_SourceIgnoreName(loot, int_args[0]);
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name));
     }
 
-    /* Aux-list ops (7400-family). */
-    case CS2_OP_LOOT_AUX_UPSERT2:
-        LootStore_AuxUpsert(loot, int_args[0], request_name ? request_name : "", 0);
-        return CS2VM_EXECNO_OK;
-
-    case CS2_OP_LOOT_AUX_UPSERT:
-        LootStore_AuxUpsert(loot, int_args[0], request_name ? request_name : "", int_args[1]);
-        return CS2VM_EXECNO_OK;
-
-    case CS2_OP_LOOT_AUX_REMOVE:
-        LootStore_AuxRemove(loot, int_args[0], request_name ? request_name : "", int_args[1]);
-        return CS2VM_EXECNO_OK;
-
-    case CS2_OP_LOOT_AUX_GET:
+    /* String vectors (7400..7409): jag::oldscape::rs2lib::StringVector, by
+     * client-variable id. An unknown id is a script error, as it is in the
+     * client (GetVeccValue returns null and the op returns 2). */
+    case CS2_OP_STRINGVECTOR_ADD:
+    case CS2_OP_STRINGVECTOR_ADDUNIQUE:
+    case CS2_OP_STRINGVECTOR_INSERT:
+    case CS2_OP_STRINGVECTOR_SET:
+    case CS2_OP_STRINGVECTOR_REMOVE:
+    case CS2_OP_STRINGVECTOR_REMOVEAT:
+    case CS2_OP_STRINGVECTOR_GET:
+    case CS2_OP_STRINGVECTOR_SIZE:
+    case CS2_OP_STRINGVECTOR_CONTAINS:
+    case CS2_OP_STRINGVECTOR_CLEAR:
     {
-        const char* s = LootStore_AuxGet(loot, int_args[0], int_args[1]);
-        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, s));
+        int const vector = int_args[0];
+        char const* str = request_name ? request_name : "";
+        if( !LootStore_VectorValid(vector) )
+        {
+            TORIRS_LOG("stringvector op %d: no string vector %d\n", opcode, vector);
+            return CS2VM_EXECNO_ERROR;
+        }
+        switch( opcode )
+        {
+        case CS2_OP_STRINGVECTOR_ADD:
+            LootStore_VectorAppend(loot, vector, str);
+            return CS2VM_EXECNO_OK;
+        case CS2_OP_STRINGVECTOR_ADDUNIQUE: /* (vector, string, case_sensitive) */
+            LootStore_VectorAppendUnique(loot, vector, str, int_args[1] != 0);
+            return CS2VM_EXECNO_OK;
+        case CS2_OP_STRINGVECTOR_INSERT: /* (vector, index, string) */
+            LootStore_VectorInsert(loot, vector, int_args[1], str);
+            return CS2VM_EXECNO_OK;
+        case CS2_OP_STRINGVECTOR_SET: /* (vector, index, string) */
+            LootStore_VectorSet(loot, vector, int_args[1], str);
+            return CS2VM_EXECNO_OK;
+        case CS2_OP_STRINGVECTOR_REMOVE: /* (vector, string, case_sensitive) */
+            LootStore_VectorErase(loot, vector, str, int_args[1] != 0);
+            return CS2VM_EXECNO_OK;
+        case CS2_OP_STRINGVECTOR_REMOVEAT: /* (vector, index) */
+            LootStore_VectorEraseAt(loot, vector, int_args[1]);
+            return CS2VM_EXECNO_OK;
+        case CS2_OP_STRINGVECTOR_GET: /* (vector, index) -> string */
+            return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, LootStore_VectorGet(loot, vector, int_args[1])));
+        case CS2_OP_STRINGVECTOR_SIZE:
+            return CS2VM2_PushInt(vm, LootStore_VectorSize(loot, vector));
+        case CS2_OP_STRINGVECTOR_CONTAINS: /* (vector, string, wildcard, case_sensitive) -> boolean */
+            return CS2VM2_PushInt(
+                vm, LootStore_VectorContains(loot, vector, str, int_args[1] != 0, int_args[2] != 0) ? 1 : 0);
+        default: /* CS2_OP_STRINGVECTOR_CLEAR */
+            LootStore_VectorClear(loot, vector);
+            return CS2VM_EXECNO_OK;
+        }
     }
 
-    case CS2_OP_LOOT_AUX_COUNT:
-        return CS2VM2_PushInt(vm, LootStore_AuxCount(loot, int_args[0]));
-
-    case CS2_OP_LOOT_AUX_LOOKUP:
-        return CS2VM2_PushInt(vm, LootStore_AuxLookup(
-            loot, int_args[0], request_name ? request_name : "",
-            int_args[1], int_args[2]));
-
-    case CS2_OP_LOOT_AUX_CLEAR:
-        LootStore_AuxClear(loot, int_args[0]);
+    case CS2_OP_LOOTTRACKER_SOURCEADD: /* (name, category, level, unique identifier) */
+        LootStore_AddSource(loot, request_name ? request_name : "", int_args[0], int_args[1], int_args[2]);
         return CS2VM_EXECNO_OK;
 
-    case CS2_OP_LOOT_ADD:
+    case CS2_OP_LOOTTRACKER_IGNORELOOTDELAT:
+        LootStore_ItemIgnoreRemoveAt(loot, int_args[0]);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOTTRACKER_IGNORESOURCEDELAT:
+        LootStore_SourceIgnoreRemoveAt(loot, int_args[0]);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOTTRACKER_IGNORESOURCECLEAR:
+        LootStore_SourceIgnoreClear(loot);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOTTRACKER_SETDROPLIMIT:
+        LootStore_SetDropLimit(loot, int_args[0]);
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_LOOTTRACKER_LOOTADD:
     {
         /* int_args: [0]=event_id, [1]=qty, [2]=obj (pop order from 7192). */
         int event_id = int_args[0];
@@ -8028,36 +8632,79 @@ exec_loot(
 }
 
 /* =========================================================================
- * Hiscores stubs
+ * Hiscores
  * ========================================================================= */
 
+/*
+ * The native client's HiscoresManager (ExecuteCommand7800To7899; the rev-239
+ * Java client has no handler for any of these): a lookup (7800) asks either the
+ * game server's hiscores service or the web hiscores (7812 picks which) for one
+ * player, and the getters read per-skill and per-activity {rank, score} tables
+ * out of the answer -- -1 for anything the answer does not have.
+ *
+ * This client has neither transport: the server protocol carries no hiscores
+ * request and there is no HTTP fetch. So a lookup never produces data. It does
+ * what the reference does when the request fails -- raise the error flag, which
+ * HISCORE_GETSTATUS reports as 3 and script 7530 turns into the cache's own
+ * "Unable to load hiscores" text -- and every getter answers the no-data value.
+ * 7816 and 7820 (group ironman totals) exist in neither reference client;
+ * their answer is the same no-data -1 as the rest of the family's.
+ */
 static int
 exec_hiscores(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest const* request,
     int opcode)
 {
-    (void)host;
+    assert(host);
+    assert(request);
 
     switch( opcode )
     {
-    case CS2_OP_HISCORES_STATUS:
-        /* Script 7530 switch: 1=pending, 2=success, 3=error. Return 3 so the
-         * panel takes its failure path and shows the cache's own
-         * "Unable to load hiscores…" message (script 7530 case 3) — no
-         * fabricated ranks, no game-facing string in C. */
-        return CS2VM2_PushInt(vm, 3);
+    case CS2_OP_HISCORE_LOOKUP:
+        host->hiscore_error = true;
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_HISCORE_CLEAR:
+        host->hiscore_error = false;
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_HISCORE_SETAPI:
+        host->hiscore_source_mode = request->u.HISCORE_SETAPI.key;
+        return CS2VM_EXECNO_OK;
 
-    case CS2_OP_HISCORES_ERROR:
-        /* Optional detail after the cache's "Unable to load…" prefix.
-         * Empty is fine: script 7530 falls back to the prefix-only form.
-         * A non-empty detail must come from content (varc / future HTTP),
-         * never a C literal (PORTING_GUIDE §2.4). */
+    /* 1 pending, 2 has data, 3 error, 0 nothing yet. No request is ever in
+     * flight and no data ever arrives, so only 3 and 0 are reachable. */
+    case CS2_OP_HISCORE_GETSTATUS:
+        return CS2VM2_PushInt(vm, host->hiscore_error ? 3 : 0);
+
+    /* The error detail. Empty: script 7530 falls back to the cache's
+     * prefix-only message, and a game-facing string never comes from C. */
+    case CS2_OP_HISCORE_GETERROR:
         return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+
+    case CS2_OP_HISCORE_GETRANK:
+    case CS2_OP_HISCORE_GETVALUE:
+    case CS2_OP_HISCORE_GETSKILLRANK:
+    case CS2_OP_HISCORE_GETGAMERANK:
+    case CS2_OP_HISCORE_GETSKILLXP:
+    case CS2_OP_HISCORE_GETGAMECOMPLETIONS:
+    case CS2_OP_HISCORE_GETOVERALLRANK:
+    case CS2_OP_HISCORE_GETBOSSRANK:
+    case CS2_OP_HISCORE_GETBOSSKILLS:
+    case CS2_OP_HISCORE_GETGROUPTOTALXP:
+    case CS2_OP_HISCORE_GETMEMBERCONTRIBUTEDXP_BYNAME:
+        return CS2VM2_PushInt(vm, -1);
+
+    /* Overall xp is an int64 split into billions and the remainder; no data
+     * is -1 for both halves. */
+    case CS2_OP_HISCORE_GETOVERALLXP:
+        if( CS2VM2_PushInt(vm, -1) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM2_PushInt(vm, -1);
 
     default:
         assert(0 && "exec_hiscores: unexpected opcode");
-        return CS2VM_EXECNO_OK;
+        return CS2VM_EXECNO_ERROR;
     }
 }
 
@@ -8081,16 +8728,15 @@ exec_social(
 
     /*
      * Two strings, in source order: the display name, then the player's
-     * PREVIOUS name. There is no rename model here and no wire field carrying
-     * one, so the second is always "" — which is the answer that matters,
-     * because script 125 branches on `string_length($string1) > 0` and would
-     * otherwise offer a "Reveal previous name" op with nothing behind it.
+     * PREVIOUS name ("" when they have not renamed). Script 125 branches on
+     * `string_length($string1) > 0` to offer "Reveal previous name".
      */
     case CS2_OP_FRIEND_GETNAME:
         RS_Social_FriendName(social, index, name, (int)sizeof(name));
         if( CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name)) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+        RS_Social_FriendPreviousName(social, index, name, (int)sizeof(name));
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name));
     case CS2_OP_IGNORE_GETNAME:
         RS_Social_IgnoreName(social, index, name, (int)sizeof(name));
         if( CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, name)) != CS2VM_EXECNO_OK )
@@ -8100,9 +8746,8 @@ exec_social(
     case CS2_OP_FRIEND_GETWORLD:
         return CS2VM2_PushInt(vm, RS_Social_FriendWorld(social, index));
     case CS2_OP_FRIEND_GETRANK:
-        /* No rank model: clan ranks come with clan chat, and the friends panel
-         * never reads this at rev 230 (only script 1667 does). 0 = no rank. */
-        return CS2VM2_PushInt(vm, 0);
+        /* The friends-chat rank UPDATE_FRIENDLIST carries. */
+        return CS2VM2_PushInt(vm, RS_Social_FriendRank(social, index));
 
     case CS2_OP_FRIEND_TEST:
         return CS2VM2_PushInt(vm, RS_Social_IsFriend(social, request_name) ? 1 : 0);
@@ -8138,6 +8783,77 @@ exec_social(
         if( social && RS_Social_DelIgnore(social, request_name) )
             RS_CS2Host_NotifyFriendChanged(host);
         social_queue(host, RS_CS2_SOCIAL_SEND_IGNORE_DEL, request_name);
+        return CS2VM_EXECNO_OK;
+
+    /*
+     * Sort chains. Each comparator op appends one step (its boolean, ascending,
+     * rides in `index`); reset empties the chain; apply sorts by it. The
+     * scripts rebuild their rows themselves after applying, so nothing is
+     * notified here. See enum RS_SocialSortKey for which steps chain.
+     */
+    case CS2_OP_FRIENDLIST_SORT_RESET:
+        if( social )
+            RS_Social_SortReset(&social->friend_sort);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_FRIENDLIST_SORT_LEGACY:
+        if( social )
+            RS_Social_SortAppend(&social->friend_sort, RS_SOCIAL_SORT_LEGACY, index == 1);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_FRIENDLIST_SORT_NAME:
+        if( social )
+            RS_Social_SortAppend(&social->friend_sort, RS_SOCIAL_SORT_NAME, index == 1);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_FRIENDLIST_SORT_WORLD:
+        if( social )
+            RS_Social_SortAppend(&social->friend_sort, RS_SOCIAL_SORT_WORLD, index == 1);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_FRIENDLIST_SORT_LASTWORLDCHANGE:
+        if( social )
+            RS_Social_SortAppend(&social->friend_sort, RS_SOCIAL_SORT_LAST_WORLD_CHANGE, index == 1);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_FRIENDLIST_SORT_ONLINE_STATUS:
+        if( social )
+            RS_Social_SortAppend(&social->friend_sort, RS_SOCIAL_SORT_ONLINE_STATUS, index == 1);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_FRIENDLIST_SORT_ONLINE_NAME:
+        if( social )
+            RS_Social_SortAppend(&social->friend_sort, RS_SOCIAL_SORT_ONLINE_NAME, index == 1);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_FRIENDLIST_SORT_ONLINE_LASTWORLDCHANGE:
+        if( social )
+            RS_Social_SortAppend(&social->friend_sort, RS_SOCIAL_SORT_ONLINE_LAST_WORLD_CHANGE, index == 1);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_FRIENDLIST_SORT_ONLINE_WORLD:
+        if( social )
+            RS_Social_SortAppend(&social->friend_sort, RS_SOCIAL_SORT_ONLINE_WORLD, index == 1);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_FRIENDLIST_SORT_OWNWORLD_NAME:
+        if( social )
+            RS_Social_SortAppend(&social->friend_sort, RS_SOCIAL_SORT_OWN_WORLD_NAME, index == 1);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_FRIENDLIST_SORT_OWNWORLD_WORLD:
+        if( social )
+            RS_Social_SortAppend(&social->friend_sort, RS_SOCIAL_SORT_OWN_WORLD_LAST_WORLD_CHANGE, index == 1);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_FRIENDLIST_SORT_APPLY:
+        if( social )
+            RS_Social_SortFriends(social);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_IGNORELIST_SORT_RESET:
+        if( social )
+            RS_Social_SortReset(&social->ignore_sort);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_IGNORELIST_SORT_LEGACY:
+        if( social )
+            RS_Social_SortAppend(&social->ignore_sort, RS_SOCIAL_SORT_LEGACY, index == 1);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_IGNORELIST_SORT_NAME:
+        if( social )
+            RS_Social_SortAppend(&social->ignore_sort, RS_SOCIAL_SORT_NAME, index == 1);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_IGNORELIST_SORT_APPLY:
+        if( social )
+            RS_Social_SortIgnores(social);
         return CS2VM_EXECNO_OK;
 
     default:
@@ -8288,15 +9004,15 @@ exec_chat(
     case CS2_OP_CHAT_GETPREVUID:
         return CS2VM2_PushInt(vm, host->chat ? RS_Chat_PrevUid(host->chat, uid) : -1);
 
+    case CS2_OP_CHAT_GETHISTORY_BYUID_PRE195:
+    case CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE_PRE195:
     case CS2_OP_CHAT_GETHISTORY_BYUID:
     case CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE:
-    case CS2_OP_CHAT_GETHISTORYEX_BYUID:
-    case CS2_OP_CHAT_GETHISTORYEX_BYTYPEANDLINE:
     {
-        int const by_uid = opcode == CS2_OP_CHAT_GETHISTORY_BYUID ||
-                           opcode == CS2_OP_CHAT_GETHISTORYEX_BYUID;
-        int const extended = opcode == CS2_OP_CHAT_GETHISTORYEX_BYUID ||
-                             opcode == CS2_OP_CHAT_GETHISTORYEX_BYTYPEANDLINE;
+        int const by_uid = opcode == CS2_OP_CHAT_GETHISTORY_BYUID_PRE195 ||
+                           opcode == CS2_OP_CHAT_GETHISTORY_BYUID;
+        int const extended = opcode == CS2_OP_CHAT_GETHISTORY_BYUID ||
+                             opcode == CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE;
         struct RS_ChatNode const* node = NULL;
 
         if( host->chat )
@@ -8490,7 +9206,7 @@ exec_clientop_context_request(
         TORIRS_LOG("cs2: opcode %d is not a client-op context getter\n", opcode);
         return CS2VM_EXECNO_ERROR;
     }
-    if( opcode == CS2_OP__6950 && value < 0 )
+    if( opcode == CS2_OP_TILE_COORD && value < 0 )
         value = host->hover_coord;
     if( text )
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, text));
@@ -9200,8 +9916,7 @@ rs_cs2_host_exec_dispatch(
             host, vm, request, request->u.name.item_id, request->u.name.field)
 #define RS_CS2_OC_FIND_CASE(name)                                               \
     case CS2VM_HOST_REQUEST_##name:                                             \
-        return exec_oc_find(                                                    \
-            host, vm, request, request->u.name.opcode, request->u.name.query)
+        return exec_oc_find(host, vm, request, request->u.name.opcode, request->u.name.query)
 #define RS_CS2_STAT_CASE(name, member)                                         \
     case CS2VM_HOST_REQUEST_##name:                                            \
     {                                                                           \
@@ -9229,7 +9944,7 @@ rs_cs2_host_exec_dispatch(
             request->u.opname.int_args)
 #define RS_CS2_HISCORES_CASE(name)                                             \
     case CS2VM_HOST_REQUEST_##name:                                            \
-        return exec_hiscores(host, vm, request->u.name.opcode)
+        return exec_hiscores(host, vm, request, request->u.name.opcode)
 #define RS_CS2_CHAT_CASE(opname)                                               \
     case CS2VM_HOST_REQUEST_##opname:                                          \
         return exec_chat(                                                      \
@@ -9264,6 +9979,9 @@ rs_cs2_host_exec_dispatch(
 #define RS_CS2_MINIMENU_CASE(opname)                                            \
     case CS2VM_HOST_REQUEST_##opname:                                           \
         return exec_minimenu(host, vm, request->u.opname.opcode)
+#define RS_CS2_MINIMENU_AT_CASE(opname)                                         \
+    case CS2VM_HOST_REQUEST_##opname:                                           \
+        return exec_minimenu_at(host, vm, request->u.opname.opcode, request->u.opname.index)
 #define RS_CS2_GROUND_OBJ_CASE(opname)                                          \
     case CS2VM_HOST_REQUEST_##opname:                                           \
         return exec_ground_obj(                                                 \
@@ -9655,9 +10373,9 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
     }
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_CC_CREATE);
+        RS_CS2_OVERLAY_CASE(CC_CREATE_ENTITYOVERLAY);
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_CC_DELETEALL);
+        RS_CS2_OVERLAY_CASE(CC_DELETEALL_ENTITYOVERLAY);
 
     case CS2VM_HOST_REQUEST_CC_COPY:
         return exec_cc_copy(
@@ -9669,9 +10387,9 @@ rs_cs2_host_exec_dispatch(
             request->u.CC_COPY.dst_sub_id,
             request->u.CC_COPY.dot_operand);
 
-        RS_CS2_CREATE_CASE(CC_CREATECHILD);
+        RS_CS2_CREATE_CASE(CC_CREATE_CHILD);
 
-        RS_CS2_CREATE_CASE(CC_CREATESIBLING);
+        RS_CS2_CREATE_CASE(CC_CREATE_SIBLING);
 
         RS_CS2_CC_FIND_CASE(CC_FIND);
 
@@ -9683,25 +10401,230 @@ rs_cs2_host_exec_dispatch(
             request->u.IF_FIND.component_id,
             request->u.IF_FIND.dot_operand);
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_FIND);
+        RS_CS2_OVERLAY_CASE(IF_FIND_ENTITYOVERLAY);
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_CC_FIND);
+        RS_CS2_OVERLAY_CASE(CC_FIND_ENTITYOVERLAY);
 
-        RS_CS2_IF_CHILDREN_CASE(IF_CHILDREN_FIND);
+    case CS2VM_HOST_REQUEST_CC_FIND_PARENT:
+        return exec_cc_find_relative(
+            host, vm, request->kind, request->u.CC_FIND_PARENT.component_id,
+            request->u.CC_FIND_PARENT.dot_operand);
 
-        RS_CS2_IF_CHILDREN_CASE(IF_CHILDREN_COLLECT);
+    case CS2VM_HOST_REQUEST_CC_FIND_LAYER:
+        return exec_cc_find_relative(
+            host, vm, request->kind, request->u.CC_FIND_LAYER.component_id,
+            request->u.CC_FIND_LAYER.dot_operand);
 
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT:
+    case CS2VM_HOST_REQUEST_CC_FIND_NEXT_SIBLING:
+        return exec_cc_find_relative(
+            host, vm, request->kind, request->u.CC_FIND_NEXT_SIBLING.component_id,
+            request->u.CC_FIND_NEXT_SIBLING.dot_operand);
+
+        RS_CS2_IF_CHILDREN_CASE(IF_QUERY);
+
+    case CS2VM_HOST_REQUEST_CC_QUERY:
         return exec_children_find(
             host,
             vm,
             request,
-            request->u.CC_CHILDREN_FIND_COUNT.parent_id,
-            request->u.CC_CHILDREN_FIND_COUNT.start_index,
+            request->u.CC_QUERY.parent_id,
+            request->u.CC_QUERY.start_index,
             0,
             0);
 
-        RS_CS2_CC_FIND_CASE(CC_CHILDREN_FINDNEXT);
+        RS_CS2_CC_FIND_CASE(IF_QUERY_NEXT);
+    /* The friends-chat and clan commands (rs_cs2_social_ops.c). */
+    case CS2VM_HOST_REQUEST_FRIEND_SETRANK:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_GETCHATDISPLAYNAME:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_GETCHATCOUNT:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_GETCHATUSERNAME:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_GETCHATUSERWORLD:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_GETCHATUSERRANK:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_GETCHATMINKICK:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_KICKUSER:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_GETCHATRANK:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_JOINCHAT:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_LEAVECHAT:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_ISSELF:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_GETCHATOWNERNAME:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_ISFRIEND:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_ISIGNORE:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_SORT_RESET:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_SORT_LEGACY:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_SORT_NAME:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_SORT_WORLD:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_SORT_LASTWORLDCHANGE:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_SORT_ONLINE_STATUS:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_SORT_ONLINE_NAME:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_SORT_ONLINE_LASTWORLDCHANGE:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_SORT_ONLINE_WORLD:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_SORT_OWNWORLD_NAME:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_SORT_OWNWORLD_WORLD:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_SORT_APPLY:
+    case CS2VM_HOST_REQUEST_FRIENDLIST_SORT_RANK:
+    case CS2VM_HOST_REQUEST_FRIENDSCHAT_SORT_RANK:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_FIND_LISTENED:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_FIND_AFFINED:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETCLANNAME:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETALLOWUNAFFINED:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETRANKTALK:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETRANKKICK:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETRANKLOOTSHARE:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETCOINSHARE:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETAFFINEDCOUNT:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETAFFINEDDISPLAYNAME:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETAFFINEDRANK:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETBANNEDCOUNT:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETBANNEDDISPLAYNAME:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETAFFINEDEXTRAINFO:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETCURRENTOWNER_SLOT:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETREPLACEMENTOWNER_SLOT:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETAFFINEDSLOT:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETSORTEDAFFINEDSLOT:
+    case CS2VM_HOST_REQUEST_AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETAFFINEDJOINRUNEDAY:
+    case CS2VM_HOST_REQUEST_AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL:
+    case CS2VM_HOST_REQUEST_ACTIVECLANSETTINGS_GETAFFINEDMUTED:
+    case CS2VM_HOST_REQUEST_ACTIVECLANCHANNEL_FIND_LISTENED:
+    case CS2VM_HOST_REQUEST_ACTIVECLANCHANNEL_FIND_AFFINED:
+    case CS2VM_HOST_REQUEST_ACTIVECLANCHANNEL_GETCLANNAME:
+    case CS2VM_HOST_REQUEST_ACTIVECLANCHANNEL_GETRANKKICK:
+    case CS2VM_HOST_REQUEST_ACTIVECLANCHANNEL_GETRANKTALK:
+    case CS2VM_HOST_REQUEST_ACTIVECLANCHANNEL_GETUSERCOUNT:
+    case CS2VM_HOST_REQUEST_ACTIVECLANCHANNEL_GETUSERDISPLAYNAME:
+    case CS2VM_HOST_REQUEST_ACTIVECLANCHANNEL_GETUSERRANK:
+    case CS2VM_HOST_REQUEST_ACTIVECLANCHANNEL_GETUSERWORLD:
+    case CS2VM_HOST_REQUEST_ACTIVECLANCHANNEL_KICKUSER:
+    case CS2VM_HOST_REQUEST_ACTIVECLANCHANNEL_GETUSERSLOT:
+    case CS2VM_HOST_REQUEST_ACTIVECLANCHANNEL_GETSORTEDUSERSLOT:
+    case CS2VM_HOST_REQUEST_CLANPROFILE_FIND:
+        return RS_CS2Host_ExecSocialOp(host, vm, (struct CS2VM_HostSignatureArgs const*)&request->u);
+    case CS2VM_HOST_REQUEST_STOCKMARKET_GETOFFERTYPE:
+    case CS2VM_HOST_REQUEST_STOCKMARKET_GETOFFERITEM:
+    case CS2VM_HOST_REQUEST_STOCKMARKET_GETOFFERPRICE:
+    case CS2VM_HOST_REQUEST_STOCKMARKET_GETOFFERCOUNT:
+    case CS2VM_HOST_REQUEST_STOCKMARKET_GETOFFERCOMPLETEDCOUNT:
+    case CS2VM_HOST_REQUEST_STOCKMARKET_GETOFFERCOMPLETEDGOLD:
+    case CS2VM_HOST_REQUEST_STOCKMARKET_ISOFFEREMPTY:
+    case CS2VM_HOST_REQUEST_STOCKMARKET_ISOFFERSTABLE:
+    case CS2VM_HOST_REQUEST_STOCKMARKET_ISOFFERFINISHED:
+    case CS2VM_HOST_REQUEST_STOCKMARKET_ISOFFERADDING:
+    case CS2VM_HOST_REQUEST_TRADINGPOST_SORTBY_NAME:
+    case CS2VM_HOST_REQUEST_TRADINGPOST_SORTBY_PRICE:
+    case CS2VM_HOST_REQUEST_TRADINGPOST_SORTFILTERBY_WORLD:
+    case CS2VM_HOST_REQUEST_TRADINGPOST_SORTBY_AGE:
+    case CS2VM_HOST_REQUEST_TRADINGPOST_SORTBY_COUNT:
+    case CS2VM_HOST_REQUEST_TRADINGPOST_GETTOTALOFFERS:
+    case CS2VM_HOST_REQUEST_TRADINGPOST_GETOFFERWORLD:
+    case CS2VM_HOST_REQUEST_TRADINGPOST_GETOFFERNAME:
+    case CS2VM_HOST_REQUEST_TRADINGPOST_GETOFFERPREVIOUSNAME:
+    case CS2VM_HOST_REQUEST_TRADINGPOST_GETOFFERAGE:
+    case CS2VM_HOST_REQUEST_TRADINGPOST_GETOFFERCOUNT:
+    case CS2VM_HOST_REQUEST_TRADINGPOST_GETOFFERPRICE:
+    case CS2VM_HOST_REQUEST_TRADINGPOST_GETOFFERITEM:
+        return RS_CS2Host_ExecMarketOp(host, vm, (struct CS2VM_HostSignatureArgs const*)&request->u);
+    case CS2VM_HOST_REQUEST_STOCKMARKET_SELLABLE:
+    case CS2VM_HOST_REQUEST_STOCKMARKET_BUYABLE:
+        return exec_stockmarket_obj_flag(host, vm, request);
+    case CS2VM_HOST_REQUEST_STOCKMARKET_VALUE:
+        return exec_stockmarket_value(vm);
+    case CS2VM_HOST_REQUEST_PUSH_VARCLANSETTING:
+        return RS_CS2Host_PushVarClanSetting(host, vm, request->u.PUSH_VARCLANSETTING.setting_id);
+    case CS2VM_HOST_REQUEST_PUSH_VARCLAN:
+        return RS_CS2Host_PushVarClan(host, vm, request->u.PUSH_VARCLAN.var_id);
+
+    /* The client-state commands (rs_cs2_client_ops.c). */
+    case CS2VM_HOST_REQUEST_MES_TYPED:
+    case CS2VM_HOST_REQUEST_RESUME_NAMEDIALOG:
+    case CS2VM_HOST_REQUEST_RESUME_STRINGDIALOG:
+    case CS2VM_HOST_REQUEST_OPPLAYER:
+    case CS2VM_HOST_REQUEST_SETMOUSECAM:
+    case CS2VM_HOST_REQUEST_OPENURL:
+    case CS2VM_HOST_REQUEST_RESUME_COUNTDIALOG_LONG:
+    case CS2VM_HOST_REQUEST_RESUME_OBJDIALOG:
+    case CS2VM_HOST_REQUEST_BUG_REPORT:
+    case CS2VM_HOST_REQUEST_SETSHOWMOUSEOVERTEXT:
+    case CS2VM_HOST_REQUEST_RENDERSELF:
+    case CS2VM_HOST_REQUEST_SETDRAWPLAYERNAMES_FRIENDS:
+    case CS2VM_HOST_REQUEST_SETDRAWPLAYERNAMES_CLANMATES:
+    case CS2VM_HOST_REQUEST_SETDRAWPLAYERNAMES_OTHERS:
+    case CS2VM_HOST_REQUEST_SETDRAWPLAYERNAMES_SELF:
+    case CS2VM_HOST_REQUEST_RESETDRAWPLAYERNAMES:
+    case CS2VM_HOST_REQUEST_SETSHOWMOUSECROSS:
+    case CS2VM_HOST_REQUEST_SETSHOWLOADINGMESSAGES:
+    case CS2VM_HOST_REQUEST_SETSIMULATEDSHIFTACTIVE:
+    case CS2VM_HOST_REQUEST_GETSIMULATEDSHIFTACTIVE:
+    case CS2VM_HOST_REQUEST_SETFREECAMSPEED:
+    case CS2VM_HOST_REQUEST_SETKEYINPUTMODE_COMPONENT:
+    case CS2VM_HOST_REQUEST_SETKEYINPUTMODE_INTERFACE:
+    case CS2VM_HOST_REQUEST_SETKEYINPUTMODE_ALL:
+    case CS2VM_HOST_REQUEST_SETKEYINPUTMODE_NONE:
+    case CS2VM_HOST_REQUEST_SETHIDEUSERNAME:
+    case CS2VM_HOST_REQUEST_GETHIDEUSERNAME:
+    case CS2VM_HOST_REQUEST_SETREMEMBERUSERNAME:
+    case CS2VM_HOST_REQUEST_GETREMEMBERUSERNAME:
+    case CS2VM_HOST_REQUEST_SETTITLESCREENSOUND:
+    case CS2VM_HOST_REQUEST_GETTITLESCREENSOUND:
+    case CS2VM_HOST_REQUEST_GETTERMSANDPRIVACY:
+    case CS2VM_HOST_REQUEST_ELIGIBLEFORFREETRIAL:
+    case CS2VM_HOST_REQUEST_ELIGIBLEFORINTRODUCTORYPRICE:
+    case CS2VM_HOST_REQUEST_GETPUCHASEHISTORYSTATUS:
+    case CS2VM_HOST_REQUEST_GETLOADINGPROGRESS:
+    case CS2VM_HOST_REQUEST_GETPRELOADPROGRESS:
+    case CS2VM_HOST_REQUEST_SHOP_PURCHASEITEMSTATUS:
+    case CS2VM_HOST_REQUEST_SHOP_REQUESTDATASTATUS:
+    case CS2VM_HOST_REQUEST_SHOP_GETCATEGORYCOUNT:
+    case CS2VM_HOST_REQUEST_SHOP_GETCATEGORYID:
+    case CS2VM_HOST_REQUEST_SHOP_GETINDEXFORCATEGORYID:
+    case CS2VM_HOST_REQUEST_SHOP_GETINDEXFORCATEGORYNAME:
+    case CS2VM_HOST_REQUEST_SHOP_GETCATEGORYDESCRIPTION:
+    case CS2VM_HOST_REQUEST_SHOP_GETPRODUCTCOUNT:
+    case CS2VM_HOST_REQUEST_SHOP_ISPRODUCTAVAILABLE:
+    case CS2VM_HOST_REQUEST_SHOP_ISPRODUCTRECOMMENDED:
+    case CS2VM_HOST_REQUEST_SHOP_GETPRODUCTDETAILS:
+    case CS2VM_HOST_REQUEST_NOTIFICATIONS_GETENABLED:
+    case CS2VM_HOST_REQUEST_SETBRIGHTNESS:
+    case CS2VM_HOST_REQUEST_GETBRIGHTNESS:
+    case CS2VM_HOST_REQUEST_GETANTIDRAG:
+    case CS2VM_HOST_REQUEST_SETDRAWDISTANCE:
+    case CS2VM_HOST_REQUEST_GETDRAWDISTANCE:
+    case CS2VM_HOST_REQUEST_UNKNOWN_COMMAND_3187:
+    case CS2VM_HOST_REQUEST_UNKNOWN_COMMAND_3188:
+    case CS2VM_HOST_REQUEST_DEVICEOPTION_EXISTS:
+    case CS2VM_HOST_REQUEST_GAMEOPTION_EXISTS:
+    case CS2VM_HOST_REQUEST_GAMEOPTION_GETRANGE:
+    case CS2VM_HOST_REQUEST_RT7_SETENABLED:
+    case CS2VM_HOST_REQUEST_RT7_SD:
+    case CS2VM_HOST_REQUEST_RT7_HD:
+    case CS2VM_HOST_REQUEST_RT7_GETENABLED:
+    case CS2VM_HOST_REQUEST_TRANSLATIONS_SET:
+    case CS2VM_HOST_REQUEST_TRANSLATIONS_CLEAR:
+    case CS2VM_HOST_REQUEST_REBOOTTIMER:
+    case CS2VM_HOST_REQUEST_PLAYERMOD:
+    case CS2VM_HOST_REQUEST_WORLDFLAGS:
+    case CS2VM_HOST_REQUEST_IDLETIMER_GET:
+    case CS2VM_HOST_REQUEST_IDLETIMER_RESET:
+    case CS2VM_HOST_REQUEST_RUNENERGY:
+    case CS2VM_HOST_REQUEST_STAT_UNKNOWN:
+    case CS2VM_HOST_REQUEST_UNKNOWN_COMMAND_3333:
+    case CS2VM_HOST_REQUEST_REBOOTMESSAGE:
+    case CS2VM_HOST_REQUEST_WEC_NAME:
+    case CS2VM_HOST_REQUEST_STEAM_SETACHIEVEMENT:
+    case CS2VM_HOST_REQUEST_STEAM_SETSTAT:
+    case CS2VM_HOST_REQUEST_STEAM_STORESTATS:
+    case CS2VM_HOST_REQUEST_CHAT_SENDABUSEREPORT:
+    case CS2VM_HOST_REQUEST_FEDERATED_LOGIN:
+    case CS2VM_HOST_REQUEST_FEDERATED_LOGIN_STATE:
+    case CS2VM_HOST_REQUEST_FEDERATED_SHOP:
+    case CS2VM_HOST_REQUEST_SIDEBAR_SETWIDTH:
+    case CS2VM_HOST_REQUEST_SIDEBAR_CLEARWIDTH:
+    case CS2VM_HOST_REQUEST_SETFOLLOWEROPSLOWPRIORITY:
+    case CS2VM_HOST_REQUEST_PLATFORMTYPE:
+    case CS2VM_HOST_REQUEST_CLIENT_VERSION:
+        return RS_CS2Host_ExecClientOp(host, vm, (struct CS2VM_HostSignatureArgs const*)&request->u);
+
+    case CS2VM_HOST_REQUEST_IF_QUERY_REFINE:
+        return exec_if_query_refine(host, vm, request);
 
         RS_CS2_SET_POSITION_CASE(CC_SETPOSITION);
 
@@ -9710,7 +10633,7 @@ rs_cs2_host_exec_dispatch(
     /* ---- IF / CC mutators ---- */
         RS_CS2_SET_HIDE_CASE(CC_SETHIDE);
 
-        RS_CS2_WIDGET_INT_CASE(CC_SETPINCH);
+        RS_CS2_WIDGET_INT_CASE(_1004);
 
     case CS2VM_HOST_REQUEST_CC_SETNOCLICKTHROUGH:
         if( tree ) (void)UITree_SetNativeIntAt(tree,
@@ -9770,13 +10693,13 @@ rs_cs2_host_exec_dispatch(
      * would otherwise queue two resumes for one pause. */
         RS_CS2_RESUME_PAUSE_CASE(CC_RESUME_PAUSEBUTTON);
 
-        RS_CS2_SET_GRAPHIC2_CASE(CC_SETGRAPHIC2);
+        RS_CS2_SET_GRAPHIC2_CASE(CC_SETCLICKMASK);
 
-        RS_CS2_WIDGET_INT_CASE(CC_SETFILLCOLOUR);
+        RS_CS2_WIDGET_INT_CASE(CC_SETBLENDCOLOUR);
 
-        RS_CS2_WIDGET_INT_CASE(CC_SETTRANSBOT);
+        RS_CS2_WIDGET_INT_CASE(CC_SETBLENDTRANS);
 
-        RS_CS2_WIDGET_INT_CASE(CC_SETFILLMODE);
+        RS_CS2_WIDGET_INT_CASE(CC_SETBLENDMODE);
 
         RS_CS2_WIDGET_INT_CASE(CC_SETLINEDIRECTION);
 
@@ -9785,13 +10708,13 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_WIDGET_ARC_CASE(CC_SETARC);
 
     /* Input widget fields are not represented by UITree yet. */
-        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETSUBMITMODE);
-
         RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETSELECTCOLOUR);
 
-        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETACCEPTMODE);
+        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETSELECTBGCOLOUR);
 
-        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETWRAPMODE);
+        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETPLACEHOLDERTEXT);
+
+        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETPLACEHOLDERTEXTCOLOUR);
 
     /* The one input field with a behaviour behind it: the typing cap. Every
      * type-12 field in the cache sets it from its own width
@@ -9807,23 +10730,23 @@ rs_cs2_host_exec_dispatch(
             UITREE_NATIVE_INPUT_WRAP_WIDTH, request->u.CC_INPUT_SETLINEWRAPPINGWIDTH.value);
         return CS2VM_EXECNO_OK;
 
-        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETSELECTBGCOLOUR);
-
         RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETLINECOUNTLIMIT);
-
-        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETCURSORCOLOUR);
-
-        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETCURSORTRANS);
-
-        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETCURSORWIDTH);
-
-        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETCURSORHEIGHT);
-
-        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETCURSOROFFSET);
 
         RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETLINEWIDTHLIMIT);
 
-        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETCHARFILTER);
+        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETFOCUS);
+
+        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETFOCUSABLE);
+
+        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETSELECTION);
+
+        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETCARET);
+
+        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETWRAPMODE);
+
+        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETSUBMITMODE);
+
+        RS_CS2_UNMODELED_INPUT_CASE(CC_INPUT_SETACCEPTMODE);
 
         RS_CS2_CC_SET_OBJECT_CASE(CC_SETOBJECT);
 
@@ -9832,19 +10755,19 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_WIDGET_MODEL_KIND_CASE(CC_SETPLAYERHEAD_SELF);
 
-        RS_CS2_WIDGET_MODEL_KIND_CASE(CC_SETPLAYERMODEL_SELF);
+        RS_CS2_WIDGET_MODEL_KIND_CASE(_1203);
 
-        RS_CS2_WIDGET_MODEL_KIND_CASE(CC_SETMODEL_PLAYERCHATHEAD);
+        RS_CS2_WIDGET_MODEL_KIND_CASE(_1204);
 
         RS_CS2_CC_SET_OBJECT_CASE(CC_SETOBJECT_NONUM);
 
-        RS_CS2_CC_SET_OBJECT_CASE(CC_SETOBJECT_ALWAYS_NUM);
+        RS_CS2_CC_SET_OBJECT_CASE(CC_SETOBJECT_ALWAYSNUM);
 
         RS_CS2_SET_OP_CASE(CC_SETOP);
 
         RS_CS2_SET_DRAGGABLE_CASE(CC_SETDRAGGABLE);
 
-        RS_CS2_SET_DRAG_BEHAVIOR_CASE(CC_SETDRAGGABLEBEHAVIOR);
+        RS_CS2_SET_DRAG_BEHAVIOR_CASE(CC_SETDRAGRENDERBEHAVIOUR);
 
     case CS2VM_HOST_REQUEST_CC_SETDRAGDEADZONE:
         if( tree ) (void)UITree_SetNativeIntAt(tree,
@@ -9864,19 +10787,27 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_CLEAR_OPS_CASE(CC_CLEAROPS);
 
-        RS_CS2_WIDGET_INT_CASE(CC_SETOPFORCELEFTCLICK);
+        RS_CS2_WIDGET_INT_CASE(CC_SETALWAYSLEFTCLICK);
 
-    case CS2VM_HOST_REQUEST_CC_CLEAROPSUBMENU:
+    case CS2VM_HOST_REQUEST_CC_CLEARSUBOPS:
         if( tree )
             (void)UITree_ClearOpSubmenu(
                 tree,
-                request->u.CC_CLEAROPSUBMENU.component_id,
-                request->u.CC_CLEAROPSUBMENU.op_index);
+                request->u.CC_CLEARSUBOPS.component_id,
+                request->u.CC_CLEARSUBOPS.op_index);
         return CS2VM_EXECNO_OK;
 
-        RS_CS2_SET_OP_SUBMENU_CASE(CC_SETOPSUBMENU);
+    case CS2VM_HOST_REQUEST_IF_CLEARSUBOPS:
+        if( tree )
+            (void)UITree_ClearOpSubmenu(
+                tree,
+                request->u.IF_CLEARSUBOPS.component_id,
+                request->u.IF_CLEARSUBOPS.op_index);
+        return CS2VM_EXECNO_OK;
 
-        RS_CS2_SET_TARGET_PRIORITY_CASE(CC_SETTARGETPRIORITY);
+        RS_CS2_SET_OP_SUBMENU_CASE(CC_SETSUBOP);
+
+        RS_CS2_SET_TARGET_PRIORITY_CASE(CC_SETOPPRIORITY);
 
         RS_CS2_SET_OP_KEY_CASE(CC_SETOPKEY);
 
@@ -9931,37 +10862,42 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_CC_EVENT_CASE(CC_SETONFRIENDTRANSMIT);
 
     /* Parsed exactly; UITree does not expose these event sources yet. */
-        RS_CS2_UNMODELED_EVENT_CASE(CC_SETONCLANTRANSMIT);
+        RS_CS2_CC_EVENT_CASE(CC_SETONCLANTRANSMIT);
 
-        RS_CS2_UNMODELED_EVENT_CASE(CC_SETONMISCTRANSMIT);
+        RS_CS2_CC_EVENT_CASE(CC_SETONACTIVEOFFERSTRANSMIT);
+
+        RS_CS2_CC_EVENT_CASE(CC_SETONMISCTRANSMIT);
 
         RS_CS2_CC_EVENT_CASE(CC_SETONDIALOGABORT);
 
         RS_CS2_CC_EVENT_CASE(CC_SETONSUBCHANGE);
 
-        RS_CS2_UNMODELED_EVENT_CASE(CC_SETONSTOCKTRANSMIT);
+        RS_CS2_CC_EVENT_CASE(CC_SETONSTOCKTRANSMIT);
 
         RS_CS2_CC_EVENT_CASE(CC_SETONRESIZE);
 
-        RS_CS2_UNMODELED_EVENT_CASE(CC_SETONCLANSETTINGSTRANSMIT);
+        RS_CS2_CC_EVENT_CASE(CC_SETONCLANSETTINGSTRANSMIT);
 
-        RS_CS2_UNMODELED_EVENT_CASE(CC_SETONCLANCHANNELTRANSMIT);
+        RS_CS2_CC_EVENT_CASE(CC_SETONCLANCHANNELTRANSMIT);
 
-        RS_CS2_CC_EVENT_CASE(CC_SETONITEMONITEM);
+        RS_CS2_CC_EVENT_CASE(CC_SETONKEYDOWN);
 
-        RS_CS2_CC_EVENT_CASE(CC_SETONCLANSETTINGS);
+        RS_CS2_CC_EVENT_CASE(CC_SETONKEYUP);
 
         RS_CS2_UNMODELED_EVENT_CASE(CC_SETONMAPPOST);
 
-        RS_CS2_CC_EVENT_CASE(CC_INPUT_SETONSUBMIT);
+        RS_CS2_CC_EVENT_CASE(CC_INPUT_SETONFOCUSCHANGED);
 
     /* Nothing in cache.osrs239 registers an abort handler, so there is no slot
      * for it to land in -- see `on_input_submit` in ui/uitree_hook.h. */
-        RS_CS2_UNMODELED_EVENT_CASE(CC_INPUT_SETONABORT);
+        RS_CS2_UNMODELED_EVENT_CASE(CC_INPUT_SETONSELECT);
 
-        RS_CS2_CC_EVENT_CASE(CC_INPUT_SETONFOCUSCHANGED);
+        RS_CS2_CC_EVENT_CASE(CC_INPUT_SETONSUBMIT);
+        /* No hook slot: a CRM view never loads here, so its on-updated hook
+         * has no event to fire on (cs2vm2.c, component-appearance). */
+        RS_CS2_CC_EVENT_CASE(CC_CRMVIEW_SETONUPDATED);
 
-        RS_CS2_CC_EVENT_CASE(CC_INPUT_SETONUPDATE);
+        RS_CS2_CC_EVENT_CASE(CC_INPUT_SETONCHANGE);
 
     case CS2VM_HOST_REQUEST_CC_GETX:
         return CS2VM2_PushInt(
@@ -9996,6 +10932,22 @@ rs_cs2_host_exec_dispatch(
                         request->u.CC_INPUT_GETFOCUS.component_id
                 ? 1
                 : 0);
+
+    case CS2VM_HOST_REQUEST_IF_INPUT_GETFOCUS:
+        return CS2VM2_PushInt(
+            vm,
+            tree && UITree_InputFocusId(tree) ==
+                        request->u.IF_INPUT_GETFOCUS.component_id
+                ? 1
+                : 0);
+
+    case CS2VM_HOST_REQUEST_CC_GETPARENTLAYER:
+        return CS2VM2_PushInt(
+            vm, rs_cs2_parent_layer_component_id(tree, request->u.CC_GETPARENTLAYER.component_id));
+
+    case CS2VM_HOST_REQUEST_IF_GETPARENTLAYER:
+        return CS2VM2_PushInt(
+            vm, rs_cs2_parent_layer_component_id(tree, request->u.IF_GETPARENTLAYER.component_id));
 
     case CS2VM_HOST_REQUEST_CC_GETSCROLLX:
         node = rs_cs2_node(host, request->u.CC_GETSCROLLX.component_id);
@@ -10044,8 +10996,8 @@ rs_cs2_host_exec_dispatch(
         node = rs_cs2_node(host, request->u.CC_GETCOLOUR.component_id);
         return CS2VM2_PushInt(vm, node ? node->colour : 0);
 
-    case CS2VM_HOST_REQUEST_CC_GETFILLCOLOUR:
-        node = rs_cs2_node(host, request->u.CC_GETFILLCOLOUR.component_id);
+    case CS2VM_HOST_REQUEST_CC_GETBLENDCOLOUR:
+        node = rs_cs2_node(host, request->u.CC_GETBLENDCOLOUR.component_id);
         return CS2VM2_PushInt(vm, node ? node->fill_colour : 0);
 
         RS_CS2_WIDGET_MODEL_TRANSPARENT_GET_CASE(CC_GETMODELTRANSPARENT);
@@ -10060,13 +11012,13 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(
             vm, node && node->type == UIELEM_RS_ARC ? node->u.rs_arc.arc_end : 0);
 
-    case CS2VM_HOST_REQUEST_CC_GETPARAM:
-        return exec_struct_param(
-            host,
-            vm,
-            request,
-            request->u.CC_GETPARAM.struct_id,
-            request->u.CC_GETPARAM.param_id);
+    case CS2VM_HOST_REQUEST_CC_GETBLENDMODE:
+        /* The blend mode is not modelled: CC_/IF_SETBLENDMODE are accepted and
+         * dropped (exec_widget_set_int has no case for FILL_MODE), so the getter
+         * answers the default, 0. The RS2 command on this wire id arrives as
+         * STRUCT_PARAM instead -- see CS2VM2_Op_CC_GetParam. */
+        (void)request->u.CC_GETBLENDMODE.component_id;
+        return CS2VM2_PushInt(vm, 0);
 
     case CS2VM_HOST_REQUEST_CC_GETINVOBJECT:
         node = rs_cs2_node(host, request->u.CC_GETINVOBJECT.component_id);
@@ -10082,15 +11034,15 @@ rs_cs2_host_exec_dispatch(
 
         return CS2VM2_PushInt(vm, node->dynamic ? node->dynamic_child_index : -1);
 
-    case CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM:
+    case CS2VM_HOST_REQUEST_CC_PARAM:
         return exec_cc_getcomponentparam(
             host,
             vm,
             request,
-            request->u.CC_GETCOMPONENTPARAM.component_id,
-            request->u.CC_GETCOMPONENTPARAM.param_id);
+            request->u.CC_PARAM.component_id,
+            request->u.CC_PARAM.param_id);
 
-        RS_CS2_SET_COMPONENT_PARAM_CASE(CC_SETCOMPONENTPARAM);
+        RS_CS2_SET_COMPONENT_PARAM_CASE(CC_SETPARAM);
 
     case CS2VM_HOST_REQUEST_CC_GETTARGETMASK:
         return CS2VM2_PushInt(
@@ -10116,7 +11068,7 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_SET_HIDE_CASE(IF_SETHIDE);
 
-        RS_CS2_WIDGET_INT_CASE(IF_SETPINCH);
+        RS_CS2_WIDGET_INT_CASE(_2004);
 
         RS_CS2_WIDGET_INT_CASE(IF_SETNOCLICKTHROUGH);
 
@@ -10170,13 +11122,13 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_RESUME_PAUSE_CASE(IF_RESUME_PAUSEBUTTON);
 
-        RS_CS2_SET_GRAPHIC2_CASE(IF_SETGRAPHIC2);
+        RS_CS2_SET_GRAPHIC2_CASE(IF_SETCLICKMASK);
 
-        RS_CS2_WIDGET_INT_CASE(IF_SETFILLCOLOUR);
+        RS_CS2_WIDGET_INT_CASE(IF_SETBLENDCOLOUR);
 
-        RS_CS2_WIDGET_INT_CASE(IF_SETTRANSBOT);
+        RS_CS2_WIDGET_INT_CASE(IF_SETBLENDTRANS);
 
-        RS_CS2_WIDGET_INT_CASE(IF_SETFILLMODE);
+        RS_CS2_WIDGET_INT_CASE(IF_SETBLENDMODE);
 
         RS_CS2_WIDGET_INT_CASE(IF_SETLINEDIRECTION);
 
@@ -10184,33 +11136,33 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_WIDGET_ARC_CASE(IF_SETARC);
 
-        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETSUBMITMODE);
-
         RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETSELECTCOLOUR);
-
-        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETACCEPTMODE);
-
-        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETWRAPMODE);
-
-        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETLINEWRAPPINGWIDTH);
 
         RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETSELECTBGCOLOUR);
 
+        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETPLACEHOLDERTEXT);
+
+        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETPLACEHOLDERTEXTCOLOUR);
+
+        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETLINEWRAPPINGWIDTH);
+
         RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETLINECOUNTLIMIT);
-
-        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETCURSORCOLOUR);
-
-        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETCURSORTRANS);
-
-        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETCURSORWIDTH);
-
-        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETCURSORHEIGHT);
-
-        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETCURSOROFFSET);
 
         RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETLINEWIDTHLIMIT);
 
-        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETCHARFILTER);
+        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETFOCUS);
+
+        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETFOCUSABLE);
+
+        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETSELECTION);
+
+        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETCARET);
+
+        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETWRAPMODE);
+
+        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETSUBMITMODE);
+
+        RS_CS2_UNMODELED_INPUT_CASE(IF_INPUT_SETACCEPTMODE);
 
         RS_CS2_IF_SET_OBJECT_CASE(IF_SETOBJECT);
 
@@ -10219,17 +11171,17 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_WIDGET_MODEL_KIND_CASE(IF_SETPLAYERHEAD_SELF);
 
-        RS_CS2_WIDGET_MODEL_KIND_CASE(IF_SETMODEL_PLAYERCHATHEAD);
+        RS_CS2_WIDGET_MODEL_KIND_CASE(_2203);
 
         RS_CS2_IF_SET_OBJECT_CASE(IF_SETOBJECT_NONUM);
 
-        RS_CS2_IF_SET_OBJECT_CASE(IF_SETOBJECT_ALWAYS_NUM);
+        RS_CS2_IF_SET_OBJECT_CASE(IF_SETOBJECT_ALWAYSNUM);
 
         RS_CS2_SET_OP_CASE(IF_SETOP);
 
         RS_CS2_SET_DRAGGABLE_CASE(IF_SETDRAGGABLE);
 
-        RS_CS2_SET_DRAG_BEHAVIOR_CASE(IF_SETDRAGGABLEBEHAVIOR);
+        RS_CS2_SET_DRAG_BEHAVIOR_CASE(IF_SETDRAGRENDERBEHAVIOUR);
 
         RS_CS2_WIDGET_INT_CASE(IF_SETDRAGDEADZONE);
 
@@ -10241,11 +11193,11 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_CLEAR_OPS_CASE(IF_CLEAROPS);
 
-        RS_CS2_WIDGET_INT_CASE(IF_SETCLICKMASK);
+        RS_CS2_WIDGET_INT_CASE(IF_SETALWAYSLEFTCLICK);
 
-        RS_CS2_SET_OP_SUBMENU_CASE(IF_SETOPSUBMENU);
+        RS_CS2_SET_OP_SUBMENU_CASE(IF_SETSUBOP);
 
-        RS_CS2_SET_TARGET_PRIORITY_CASE(IF_SETTARGETPRIORITY);
+        RS_CS2_SET_TARGET_PRIORITY_CASE(IF_SETOPPRIORITY);
 
         RS_CS2_SET_OP_KEY_CASE(IF_SETOPKEY);
 
@@ -10300,7 +11252,9 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_IF_EVENT_CASE(IF_SETONFRIENDTRANSMIT);
 
-        RS_CS2_UNMODELED_EVENT_CASE(IF_SETONCLANTRANSMIT);
+        RS_CS2_IF_EVENT_CASE(IF_SETONCLANTRANSMIT);
+
+        RS_CS2_IF_EVENT_CASE(IF_SETONACTIVEOFFERSTRANSMIT);
 
         RS_CS2_IF_EVENT_CASE(IF_SETONMISCTRANSMIT);
 
@@ -10308,27 +11262,27 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_IF_EVENT_CASE(IF_SETONSUBCHANGE);
 
-        RS_CS2_UNMODELED_EVENT_CASE(IF_SETONSTOCKTRANSMIT);
+        RS_CS2_IF_EVENT_CASE(IF_SETONSTOCKTRANSMIT);
 
         RS_CS2_IF_EVENT_CASE(IF_SETONRESIZE);
 
-        RS_CS2_UNMODELED_EVENT_CASE(IF_SETONCLANSETTINGSTRANSMIT);
+        RS_CS2_IF_EVENT_CASE(IF_SETONCLANSETTINGSTRANSMIT);
 
-        RS_CS2_UNMODELED_EVENT_CASE(IF_SETONCLANCHANNELTRANSMIT);
+        RS_CS2_IF_EVENT_CASE(IF_SETONCLANCHANNELTRANSMIT);
 
-        RS_CS2_IF_EVENT_CASE(IF_SETONITEMONITEM);
+        RS_CS2_IF_EVENT_CASE(IF_SETONKEYDOWN);
 
-        RS_CS2_IF_EVENT_CASE(IF_SETONCLANSETTINGS);
+        RS_CS2_IF_EVENT_CASE(IF_SETONKEYUP);
 
         RS_CS2_UNMODELED_EVENT_CASE(IF_SETONMAPPOST);
 
-        RS_CS2_UNMODELED_EVENT_CASE(IF_INPUT_SETONSUBMIT);
-
-        RS_CS2_UNMODELED_EVENT_CASE(IF_INPUT_SETONABORT);
-
         RS_CS2_UNMODELED_EVENT_CASE(IF_INPUT_SETONFOCUSCHANGED);
 
-        RS_CS2_UNMODELED_EVENT_CASE(IF_INPUT_SETONUPDATE);
+        RS_CS2_UNMODELED_EVENT_CASE(IF_INPUT_SETONSELECT);
+
+        RS_CS2_UNMODELED_EVENT_CASE(IF_INPUT_SETONSUBMIT);
+
+        RS_CS2_UNMODELED_EVENT_CASE(IF_INPUT_SETONCHANGE);
 
     case CS2VM_HOST_REQUEST_IF_GETX:
         return CS2VM2_PushInt(
@@ -10434,8 +11388,8 @@ rs_cs2_host_exec_dispatch(
         node = rs_cs2_node(host, request->u.IF_GETCOLOUR.component_id);
         return CS2VM2_PushInt(vm, node ? node->colour : 0);
 
-    case CS2VM_HOST_REQUEST_IF_GETFILLCOLOUR:
-        node = rs_cs2_node(host, request->u.IF_GETFILLCOLOUR.component_id);
+    case CS2VM_HOST_REQUEST_IF_GETBLENDCOLOUR:
+        node = rs_cs2_node(host, request->u.IF_GETBLENDCOLOUR.component_id);
         return CS2VM2_PushInt(vm, node ? node->fill_colour : 0);
 
         RS_CS2_WIDGET_MODEL_TRANSPARENT_GET_CASE(IF_GETMODELTRANSPARENT);
@@ -10467,22 +11421,22 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(vm, has ? 1 : 0);
     }
 
-    case CS2VM_HOST_REQUEST_IF_GETCOMPONENTPARAM:
+    case CS2VM_HOST_REQUEST_IF_PARAM:
         return exec_if_getcomponentparam(
             host,
             vm,
-            request->u.IF_GETCOMPONENTPARAM.component_id,
-            request->u.IF_GETCOMPONENTPARAM.param_id,
-            request->u.IF_GETCOMPONENTPARAM.value);
+            request->u.IF_PARAM.component_id,
+            request->u.IF_PARAM.param_id,
+            request->u.IF_PARAM.value);
 
         RS_CS2_SET_COMPONENT_PARAM_CASE(IF_SETPARAM);
 
-    case CS2VM_HOST_REQUEST_IF_HASCHILD_OVERLAY:
+    case CS2VM_HOST_REQUEST__2705:
     {
         /* 2704/2705: widget has the given parent group mounted (rev 634 does
          * not distinguish modal vs overlay on the type field). */
-        int cid = request->u.IF_HASCHILD_OVERLAY.component_id;
-        int want = request->u.IF_HASCHILD_OVERLAY.group_id;
+        int cid = request->u._2705.component_id;
+        int want = request->u._2705.group_id;
         int idx = tree ? UITree_InterfaceParentFind(tree, cid) : -1;
         int has = 0;
         if( idx >= 0 && tree->interface_parents[idx].group_id == want )
@@ -10513,8 +11467,8 @@ rs_cs2_host_exec_dispatch(
         rs_cs2_call_on_resize_push(host, request->u.IF_CALLONRESIZE.component_id);
         return CS2VM_EXECNO_OK;
 
-    case CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL:
-        return rs_cs2_triggeroplocal_push(host, &request->u.IF_TRIGGEROPLOCAL);
+    case CS2VM_HOST_REQUEST_IF_SCRIPT_TRIGGER:
+        return rs_cs2_triggeroplocal_push(host, &request->u.IF_SCRIPT_TRIGGER);
 
         RS_CS2_CHAT_CASE(MES);
 
@@ -10547,13 +11501,13 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_CLIENT_OPTION_CASE(SETREMOVEROOFS);
 
-        RS_CS2_LOCAL_NOTIFICATION_CASE(LOCAL_NOTIFICATION);
+        RS_CS2_LOCAL_NOTIFICATION_CASE(NOTIFICATIONS_SENDLOCAL);
 
-        RS_CS2_LOCAL_NOTIFICATION_CASE(LOCAL_NOTIFICATION_CANCEL);
+        RS_CS2_LOCAL_NOTIFICATION_CASE(NOTIFICATIONS_SENDGROUPEDLOCAL);
 
-        RS_CS2_LOCAL_NOTIFICATION_CASE(LOCAL_NOTIFICATION_CANCELALL);
+        RS_CS2_LOCAL_NOTIFICATION_CASE(NOTIFICATIONS_CANCELLOCAL);
 
-        RS_CS2_LOCAL_NOTIFICATION_CASE(LOCAL_NOTIFICATION_SUPPORTED);
+        RS_CS2_LOCAL_NOTIFICATION_CASE(NOTIFICATIONS_ISLOCALSCHEDULED);
 
     case CS2VM_HOST_REQUEST_SETANTIDRAG:
         if( tree )
@@ -10668,7 +11622,7 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_STAT_CASE(STAT_BASE, base_level)
 
-        RS_CS2_STAT_CASE(STAT_XP, xp)
+        RS_CS2_STAT_CASE(STAT_VISIBLE_XP, xp)
 
     case CS2VM_HOST_REQUEST_COORD:
         (void)request->u.COORD._unused;
@@ -10716,10 +11670,29 @@ rs_cs2_host_exec_dispatch(
         return exec_enum_output_count(
             host, vm, request, request->u.ENUM_GETOUTPUTCOUNT.enum_id);
 
+    case CS2VM_HOST_REQUEST_ENUM_GETINPUTS:
+        return exec_enum_get_inputs(host, vm, request);
+
         RS_CS2_KEY_CASE(KEYHELD, osrs_key_held)
 
         RS_CS2_KEY_CASE(KEYPRESSED, osrs_key_pressed)
 
+        RS_CS2_SOCIAL_CASE(FRIENDLIST_SORT_RESET);
+        RS_CS2_SOCIAL_CASE(FRIENDLIST_SORT_LEGACY);
+        RS_CS2_SOCIAL_CASE(FRIENDLIST_SORT_NAME);
+        RS_CS2_SOCIAL_CASE(FRIENDLIST_SORT_WORLD);
+        RS_CS2_SOCIAL_CASE(FRIENDLIST_SORT_LASTWORLDCHANGE);
+        RS_CS2_SOCIAL_CASE(FRIENDLIST_SORT_ONLINE_STATUS);
+        RS_CS2_SOCIAL_CASE(FRIENDLIST_SORT_ONLINE_NAME);
+        RS_CS2_SOCIAL_CASE(FRIENDLIST_SORT_ONLINE_LASTWORLDCHANGE);
+        RS_CS2_SOCIAL_CASE(FRIENDLIST_SORT_ONLINE_WORLD);
+        RS_CS2_SOCIAL_CASE(FRIENDLIST_SORT_OWNWORLD_NAME);
+        RS_CS2_SOCIAL_CASE(FRIENDLIST_SORT_OWNWORLD_WORLD);
+        RS_CS2_SOCIAL_CASE(FRIENDLIST_SORT_APPLY);
+        RS_CS2_SOCIAL_CASE(IGNORELIST_SORT_RESET);
+        RS_CS2_SOCIAL_CASE(IGNORELIST_SORT_LEGACY);
+        RS_CS2_SOCIAL_CASE(IGNORELIST_SORT_NAME);
+        RS_CS2_SOCIAL_CASE(IGNORELIST_SORT_APPLY);
         RS_CS2_SOCIAL_CASE(FRIEND_COUNT);
 
         RS_CS2_SOCIAL_CASE(FRIEND_GETNAME);
@@ -10804,6 +11777,8 @@ rs_cs2_host_exec_dispatch(
             host, vm, request, request->u.OC_UNPLACEHOLDER.item_id);
 
         RS_CS2_OC_FIND_CASE(OC_FIND);
+    case CS2VM_HOST_REQUEST_OC_BYID:
+        return exec_oc_byid(host, vm, request, request->u.OC_BYID.item_id);
 
         RS_CS2_OC_FIND_CASE(OC_FINDNEXT);
 
@@ -10829,8 +11804,8 @@ rs_cs2_host_exec_dispatch(
         (void)request->u.OC_WEIGHT.item_id;
         return exec_oc_weight(vm);
 
-    case CS2VM_HOST_REQUEST_OC_EXAMINE:
-        return exec_oc_examine(host, vm, request, request->u.OC_EXAMINE.item_id);
+    case CS2VM_HOST_REQUEST_OC_DESC:
+        return exec_oc_examine(host, vm, request, request->u.OC_DESC.item_id);
 
     case CS2VM_HOST_REQUEST_OC_ISUBOP:
         (void)request->u.OC_ISUBOP.item_id;
@@ -10840,9 +11815,9 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_CHAT_CASE(CHAT_SETFILTER);
 
-        RS_CS2_CHAT_CASE(CHAT_GETHISTORY_BYTYPEANDLINE);
+        RS_CS2_CHAT_CASE(CHAT_GETHISTORY_BYTYPEANDLINE_PRE195);
 
-        RS_CS2_CHAT_CASE(CHAT_GETHISTORY_BYUID);
+        RS_CS2_CHAT_CASE(CHAT_GETHISTORY_BYUID_PRE195);
 
         RS_CS2_CHAT_CASE(CHAT_GETFILTER_PRIVATE);
 
@@ -10872,9 +11847,9 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_CHAT_CASE(CHAT_GETTIMESTAMPS);
 
-        RS_CS2_CHAT_CASE(CHAT_GETHISTORYEX_BYTYPEANDLINE);
+        RS_CS2_CHAT_CASE(CHAT_GETHISTORY_BYTYPEANDLINE);
 
-        RS_CS2_CHAT_CASE(CHAT_GETHISTORYEX_BYUID);
+        RS_CS2_CHAT_CASE(CHAT_GETHISTORY_BYUID);
 
     case CS2VM_HOST_REQUEST_SETWINDOWMODE:
         /* Reject anything outside the dialect's own domain rather than
@@ -11061,7 +12036,7 @@ rs_cs2_host_exec_dispatch(
             request->u.STRUCT_PARAM.struct_id,
             request->u.STRUCT_PARAM.param_id);
 
-        RS_CS2_WORLDMAP_CASE(WORLDMAP_INIT);
+        RS_CS2_WORLDMAP_CASE(WORLDMAP_JUMPTOPLAYER);
 
         RS_CS2_WORLDMAP_CASE(WORLDMAP_GETMAPNAME);
 
@@ -11091,7 +12066,7 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_WORLDMAP_CASE(WORLDMAP_GETCONFIGZOOM);
 
-        RS_CS2_WORLDMAP_CASE(WORLDMAP_GETDISPLAYCOORD_CURRENT);
+        RS_CS2_WORLDMAP_CASE(WORLDMAP_GETSOURCEPOSITION);
 
         RS_CS2_WORLDMAP_CASE(WORLDMAP_GETCURRENTMAP);
 
@@ -11099,9 +12074,9 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_WORLDMAP_CASE(WORLDMAP_GETSOURCECOORD);
 
-        RS_CS2_WORLDMAP_CASE(WORLDMAP_JUMPTOMAP);
+        RS_CS2_WORLDMAP_CASE(WORLDMAP_SETMAP_COORD);
 
-        RS_CS2_WORLDMAP_CASE(WORLDMAP_JUMPTOMAP_INSTANT);
+        RS_CS2_WORLDMAP_CASE(WORLDMAP_SETMAP_COORD_OVERRIDE);
 
         RS_CS2_WORLDMAP_CASE(WORLDMAP_COORDINMAP);
 
@@ -11109,13 +12084,13 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_WORLDMAP_CASE(WORLDMAP_GETMAP);
 
-        RS_CS2_WORLDMAP_CASE(WORLDMAP_SETMAXFLASHCOUNT);
+        RS_CS2_WORLDMAP_CASE(WORLDMAP_SETFLASHLOOPS);
 
-        RS_CS2_WORLDMAP_CASE(WORLDMAP_RESETMAXFLASHCOUNT);
+        RS_CS2_WORLDMAP_CASE(WORLDMAP_SETFLASHLOOPS_DEFAULT);
 
-        RS_CS2_WORLDMAP_CASE(WORLDMAP_SETCYCLESPERFLASH);
+        RS_CS2_WORLDMAP_CASE(WORLDMAP_SETFLASHTICS);
 
-        RS_CS2_WORLDMAP_CASE(WORLDMAP_RESETCYCLESPERFLASH);
+        RS_CS2_WORLDMAP_CASE(WORLDMAP_SETFLASHTICS_DEFAULT);
 
         RS_CS2_WORLDMAP_CASE(WORLDMAP_PERPETUALFLASH);
 
@@ -11137,7 +12112,7 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_WORLDMAP_CASE(WORLDMAP_GETDISABLEELEMENTCATEGORY);
 
-        RS_CS2_WORLDMAP_CASE(WORLDMAP_GETNEARESTICON);
+        RS_CS2_WORLDMAP_CASE(WORLDMAP_FINDNEARESTELEMENT);
 
         RS_CS2_WORLDMAP_CASE(WORLDMAP_LISTELEMENT_START);
 
@@ -11151,11 +12126,11 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_MEC_CASE(MEC_SPRITE);
 
-        RS_CS2_WORLDMAP_CASE(WORLDMAP_ELEMENT);
+        RS_CS2_WORLDMAP_CASE(MEL_TYPE);
 
-        RS_CS2_WORLDMAP_CASE(WORLDMAP_ELEMENTCOORD1);
+        RS_CS2_WORLDMAP_CASE(MEL_SOURCECOORD);
 
-        RS_CS2_WORLDMAP_CASE(WORLDMAP_ELEMENTCOORD);
+        RS_CS2_WORLDMAP_CASE(MEL_DISPLAYCOORD);
 
         RS_CS2_CLIENTOP_CASE(CLIENTOP_NPC_SET);
 
@@ -11188,7 +12163,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_NC_NAME:
         return exec_nc_name(host, vm, request, request->u.NC_NAME.npc_id);
 
-        RS_CS2_CLIENTOP_CONTEXT_CASE(_6800);
+        RS_CS2_CLIENTOP_CONTEXT_CASE(LOC_NAME);
 
         RS_CS2_CLIENTOP_CONTEXT_CASE(_6801);
 
@@ -11196,21 +12171,21 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_SUBJECT_FIND_CASE(LOC_FIND);
 
-        RS_CS2_CLIENTOP_CONTEXT_CASE(_6850);
+        RS_CS2_CLIENTOP_CONTEXT_CASE(OBJ_NAME);
 
         RS_CS2_CLIENTOP_CONTEXT_CASE(_6851);
 
         RS_CS2_CLIENTOP_CONTEXT_CASE(_6852);
 
-        RS_CS2_CLIENTOP_CONTEXT_CASE(_6853);
+        RS_CS2_CLIENTOP_CONTEXT_CASE(OBJ_COUNT);
 
-        RS_CS2_GROUND_OBJ_CASE(OBJ_FIND);
+        RS_CS2_GROUND_OBJ_CASE(OBJ_FINDBYINDEX);
 
         RS_CS2_GROUND_OBJ_CASE(OBJ_DESPAWNTIME);
 
-        RS_CS2_GROUND_OBJ_CASE(OBJ_VISIBLETIME);
+        RS_CS2_GROUND_OBJ_CASE(OBJ_REVEALTIME);
 
-        RS_CS2_GROUND_OBJ_CASE(OBJ_ISPUBLIC);
+        RS_CS2_GROUND_OBJ_CASE(OBJ_REVEALED);
 
         RS_CS2_GROUND_OBJ_CASE(OBJ_OWNER);
 
@@ -11228,7 +12203,7 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_CLIENTOP_CONTEXT_CASE(_6950);
 
-        RS_CS2_SUBJECT_FIND_CASE(COORD_INSCENE);
+        RS_CS2_SUBJECT_FIND_CASE(TILE_FIND);
 
         RS_CS2_HIGHLIGHT_CASE(HIGHLIGHT_NPC_SETUP);
 
@@ -11321,6 +12296,30 @@ rs_cs2_host_exec_dispatch(
         RS_CS2_HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_CLEAR);
 
         RS_CS2_MINIMENU_CASE(MINIMENU_TYPE);
+        RS_CS2_MINIMENU_AT_CASE(MINIMENU_TYPEAT);
+        RS_CS2_MINIMENU_AT_CASE(MINIMENU_FINDNPCAT);
+        RS_CS2_MINIMENU_AT_CASE(MINIMENU_FINDLOCAT);
+        RS_CS2_MINIMENU_AT_CASE(MINIMENU_FINDOBJAT);
+        RS_CS2_MINIMENU_AT_CASE(MINIMENU_FINDPLAYERAT);
+        RS_CS2_MINIMENU_AT_CASE(MINIMENU_HOVERED_INDEX);
+
+    /* NPC_FINDUID (6758), from the native client (absent from the rev-239
+     * Java): a uid that names an npc in the scene makes it the active npc and
+     * answers 1; otherwise 0 and the register is left as it was. */
+    case CS2VM_HOST_REQUEST_NPC_FINDUID:
+    {
+        struct RS_ClientOpContext found;
+        if( !host->npc_by_uid ||
+            !host->npc_by_uid(host->world_user, request->u.NPC_FINDUID.uid, &found) )
+            return CS2VM2_PushInt(vm, 0);
+        RS_ClientOpActiveSet(&host->clientop, RS_CLIENTOP_NPC, &found);
+        return CS2VM2_PushInt(vm, 1);
+    }
+    /* OBJ_FIND (6854), from the native client: the first stack of the obj on
+     * the tile, whatever its count. A miss leaves the register alone. */
+    case CS2VM_HOST_REQUEST_OBJ_FIND:
+        return CS2VM2_PushInt(
+            vm, rs_cs2_ground_obj_latch(host, request->u.OBJ_FIND.coord, request->u.OBJ_FIND.obj_id, -1));
 
         RS_CS2_MINIMENU_CASE(MINIMENU_ENTRY);
 
@@ -11332,9 +12331,9 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_MINIMENU_CASE(MINIMENU_FINDPLAYER);
 
-        RS_CS2_MINIMENU_CASE(_7106);
+        RS_CS2_MINIMENU_CASE(MINIMENU_COORD);
 
-        RS_CS2_MINIMENU_CASE(_7107);
+        RS_CS2_MINIMENU_CASE(MINIMENU_OBJTYPE);
 
         RS_CS2_MINIMENU_CASE(MINIMENU_ISOPEN);
 
@@ -11342,35 +12341,35 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_MINIMENU_CASE(MINIMENU_NUMOPS);
 
+        RS_CS2_GROUND_OBJ_CASE(OBJSTACK_SIZE);
+
+        RS_CS2_GROUND_OBJ_CASE(OBJSTACK_OBJ);
+
         RS_CS2_GROUND_OBJ_CASE(OBJSTACK_COUNT);
 
-        RS_CS2_GROUND_OBJ_CASE(OBJSTACK_ID);
+        RS_CS2_OVERLAY_CASE(ENTITYOVERLAY_CREATE_NPC);
 
-        RS_CS2_GROUND_OBJ_CASE(OBJSTACK_QUANTITY);
+        RS_CS2_OVERLAY_CASE(ENTITYOVERLAY_CREATE_LOC);
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_NPC_CREATE);
+        RS_CS2_OVERLAY_CASE(ENTITYOVERLAY_CREATE_PLAYER);
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_LOC_CREATE);
+        RS_CS2_OVERLAY_CASE(ENTITYOVERLAY_CREATE_COORD);
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_PLAYER_CREATE);
+        RS_CS2_OVERLAY_CASE(ENTITYOVERLAY_GET_NPC);
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_COORD_CREATE);
+        RS_CS2_OVERLAY_CASE(ENTITYOVERLAY_GET_LOC);
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_NPC_GET);
+        RS_CS2_OVERLAY_CASE(ENTITYOVERLAY_GET_PLAYER);
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_LOC_GET);
+        RS_CS2_OVERLAY_CASE(ENTITYOVERLAY_GET_COORD);
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_PLAYER_GET);
+        RS_CS2_OVERLAY_CASE(ENTITYOVERLAY_DELETE_NPC);
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_COORD_GET);
+        RS_CS2_OVERLAY_CASE(ENTITYOVERLAY_DELETE_LOC);
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_NPC_DESTROY);
+        RS_CS2_OVERLAY_CASE(ENTITYOVERLAY_DELETE_PLAYER);
 
-        RS_CS2_OVERLAY_CASE(OVERLAY_LOC_DESTROY);
-
-        RS_CS2_OVERLAY_CASE(OVERLAY_PLAYER_DESTROY);
-
-        RS_CS2_OVERLAY_CASE(OVERLAY_COORD_DESTROY);
+        RS_CS2_OVERLAY_CASE(ENTITYOVERLAY_DELETE_COORD);
 
         RS_CS2_MINIMAP_CASE(MINIMAP_SETZOOMABLE);
 
@@ -11380,21 +12379,27 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_MINIMAP_CASE(MINIMAP_SETICONZOOMLIMIT);
 
-        RS_CS2_LOOT_CASE(LOOT_AUX_UPSERT2);
+        RS_CS2_LOOT_CASE(STRINGVECTOR_ADD);
 
-        RS_CS2_LOOT_CASE(LOOT_AUX_UPSERT);
+        RS_CS2_LOOT_CASE(STRINGVECTOR_ADDUNIQUE);
 
-        RS_CS2_LOOT_CASE(LOOT_AUX_REMOVE);
+        RS_CS2_LOOT_CASE(STRINGVECTOR_INSERT);
 
-        RS_CS2_LOOT_CASE(LOOT_AUX_GET);
+        RS_CS2_LOOT_CASE(STRINGVECTOR_SET);
 
-        RS_CS2_LOOT_CASE(LOOT_AUX_COUNT);
+        RS_CS2_LOOT_CASE(STRINGVECTOR_REMOVEAT);
 
-        RS_CS2_LOOT_CASE(LOOT_AUX_LOOKUP);
+        RS_CS2_LOOT_CASE(STRINGVECTOR_REMOVE);
 
-        RS_CS2_LOOT_CASE(LOOT_AUX_CLEAR);
+        RS_CS2_LOOT_CASE(STRINGVECTOR_GET);
 
-        RS_CS2_DB_CASE(DB_FIND_WITH_COUNT);
+        RS_CS2_LOOT_CASE(STRINGVECTOR_SIZE);
+
+        RS_CS2_LOOT_CASE(STRINGVECTOR_CONTAINS);
+
+        RS_CS2_LOOT_CASE(STRINGVECTOR_CLEAR);
+
+        RS_CS2_DB_CASE(DB_FIND);
 
         RS_CS2_DB_CASE(DB_FINDNEXT);
 
@@ -11402,79 +12407,103 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_DB_CASE(DB_GETFIELDCOUNT);
 
-        RS_CS2_DB_CASE(DB_FINDALL_WITH_COUNT);
+        RS_CS2_DB_CASE(DB_LISTALL);
 
         RS_CS2_DB_CASE(DB_GETROWTABLE);
 
-        RS_CS2_DB_CASE(DB_GETROW);
+        RS_CS2_DB_CASE(DB_FIND_GET);
 
-        RS_CS2_DB_CASE(DB_FIND_FILTER_WITH_COUNT);
+        RS_CS2_DB_CASE(DB_FIND_REFINE);
 
-        RS_CS2_DB_CASE(DB_FIND);
+        RS_CS2_DB_CASE(DB_FIND_PRE228);
 
-        RS_CS2_DB_CASE(DB_FINDALL);
+        RS_CS2_DB_CASE(DB_FIND_REFINE_PRE228);
 
-        RS_CS2_DB_CASE(DB_FIND_FILTER);
+        RS_CS2_DB_CASE(DB_LISTALL_PRE228);
 
-        RS_CS2_LOOT_CASE(LOOT_SOURCE_COUNT);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_SOURCEADD);
 
-        RS_CS2_LOOT_CASE(LOOT_SOURCE_NAME);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_IGNORELOOTDELAT);
 
-        RS_CS2_LOOT_CASE(LOOT_SOURCE_ITEMCOUNT);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_IGNORESOURCEDELAT);
 
-        RS_CS2_LOOT_CASE(LOOT_SOURCE_TOTALVAL);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_IGNORESOURCECLEAR);
 
-        RS_CS2_LOOT_CASE(LOOT_BEGIN_QUERY);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_SETDROPLIMIT);
 
-        RS_CS2_LOOT_CASE(LOOT_QUERY_ID);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_SOURCENAMECOUNT);
 
-        RS_CS2_LOOT_CASE(LOOT_AUX_COUNT_TOTAL);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_SOURCENAME);
 
-        RS_CS2_LOOT_CASE(LOOT_ROW_COUNT_BYNAME);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_SOURCEID);
 
-        RS_CS2_LOOT_CASE(LOOT_ROW_COUNT_BYID);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_SOURCECOUNT);
 
-        RS_CS2_LOOT_CASE(LOOT_ROW_BYNAME);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_SOURCEQUERY_NEW);
 
-        RS_CS2_LOOT_CASE(LOOT_ROW_BYID);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_SOURCEQUERY_GET);
 
-        RS_CS2_LOOT_CASE(LOOT_CLEAR_ALL);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_GETDROPLIMIT);
 
-        RS_CS2_LOOT_CASE(LOOT_CLEAR_SOURCE);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_LOOTCOUNT_BYNAME);
 
-        RS_CS2_LOOT_CASE(LOOT_REMOVE_BYID);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_LOOTCOUNT_BYID);
 
-        RS_CS2_LOOT_CASE(LOOT_IGNORE_ADD);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_LOOTGET_BYNAME);
 
-        RS_CS2_LOOT_CASE(LOOT_IGNORE_REMOVE);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_LOOTGET_BYID);
 
-        RS_CS2_LOOT_CASE(LOOT_GROUND_COUNT);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_CLEAR);
 
-        RS_CS2_LOOT_CASE(LOOT_GROUND_NAME);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_LOOTDEL_BYNAME);
 
-        RS_CS2_LOOT_CASE(LOOT_IGNORE_CLEAR);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_LOOTDEL_BYID);
 
-        RS_CS2_LOOT_CASE(LOOT_SOURCE_IGNORE_ADD);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_IGNORELOOTADD);
 
-        RS_CS2_LOOT_CASE(LOOT_SOURCE_IGNORE_REMOVE);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_IGNORELOOTDEL);
 
-        RS_CS2_LOOT_CASE(LOOT_SRCLIST_COUNT);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_IGNORELOOTCOUNT);
 
-        RS_CS2_LOOT_CASE(LOOT_SRCLIST_NAME);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_IGNORELOOTGET);
 
-        RS_CS2_LOOT_CASE(LOOT_ADD);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_IGNORELOOTCLEAR);
 
-        RS_CS2_LOOT_CASE(LOOT_SOURCE_NAME2);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_IGNORESOURCEADD);
 
-        RS_CS2_HISCORES_CASE(HISCORES_STATUS);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_IGNORESOURCEDEL);
 
-        RS_CS2_HISCORES_CASE(HISCORES_ERROR);
+        RS_CS2_LOOT_CASE(LOOTTRACKER_IGNORESOURCECOUNT);
 
-    case CS2VM_HOST_REQUEST_WORLDENTITY_SETDRAWLIMIT:
-        host->world_entity_draw_limit = request->u.WORLDENTITY_SETDRAWLIMIT.limit < 0
-            ? 0 : request->u.WORLDENTITY_SETDRAWLIMIT.limit;
+        RS_CS2_LOOT_CASE(LOOTTRACKER_IGNORESOURCEGET);
+
+        RS_CS2_LOOT_CASE(LOOTTRACKER_LOOTADD);
+
+        RS_CS2_LOOT_CASE(LOOTTRACKER_SOURCEDROPNAME);
+
+        RS_CS2_HISCORES_CASE(HISCORE_LOOKUP);
+        RS_CS2_HISCORES_CASE(HISCORE_GETRANK);
+        RS_CS2_HISCORES_CASE(HISCORE_GETVALUE);
+        RS_CS2_HISCORES_CASE(HISCORE_GETSKILLRANK);
+        RS_CS2_HISCORES_CASE(HISCORE_GETGAMERANK);
+        RS_CS2_HISCORES_CASE(HISCORE_GETSKILLXP);
+        RS_CS2_HISCORES_CASE(HISCORE_GETGAMECOMPLETIONS);
+        RS_CS2_HISCORES_CASE(HISCORE_GETOVERALLRANK);
+        RS_CS2_HISCORES_CASE(HISCORE_GETOVERALLXP);
+        RS_CS2_HISCORES_CASE(HISCORE_GETSTATUS);
+        RS_CS2_HISCORES_CASE(HISCORE_CLEAR);
+        RS_CS2_HISCORES_CASE(HISCORE_GETERROR);
+        RS_CS2_HISCORES_CASE(HISCORE_SETAPI);
+        RS_CS2_HISCORES_CASE(HISCORE_GETBOSSRANK);
+        RS_CS2_HISCORES_CASE(HISCORE_GETBOSSKILLS);
+        RS_CS2_HISCORES_CASE(HISCORE_GETGROUPTOTALXP);
+        RS_CS2_HISCORES_CASE(HISCORE_GETMEMBERCONTRIBUTEDXP_BYNAME);
+
+    case CS2VM_HOST_REQUEST_WORLDENTITY_SETRENDERLIMIT:
+        host->world_entity_draw_limit = request->u.WORLDENTITY_SETRENDERLIMIT.limit < 0
+            ? 0 : request->u.WORLDENTITY_SETRENDERLIMIT.limit;
         return CS2VM_EXECNO_OK;
-    case CS2VM_HOST_REQUEST_WORLDENTITY_GETDRAWLIMIT:
+    case CS2VM_HOST_REQUEST_WORLDENTITY_GETRENDERLIMIT:
         return CS2VM2_PushInt(vm, host->world_entity_draw_limit);
 
 #undef RS_CS2_KEY_CASE
@@ -11494,6 +12523,7 @@ rs_cs2_host_exec_dispatch(
 #undef RS_CS2_ACTIVE_PLAYER_CASE
 #undef RS_CS2_DB_CASE
 #undef RS_CS2_MINIMENU_CASE
+#undef RS_CS2_MINIMENU_AT_CASE
 #undef RS_CS2_CLIENT_OPTION_CASE
 #undef RS_CS2_MINIMAP_CASE
 #undef RS_CS2_LOCAL_NOTIFICATION_CASE

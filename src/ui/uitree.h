@@ -27,12 +27,6 @@
  * A synthetic id fixes that for every authored control at once, and a RANGE is
  * what makes it safe: it cannot collide with a cache uid (no interface is
  * numbered 0x7FFD) and it is one bounds test away from being recognised.
- *
- * A GROUP of its own rather than sharing the chrome's, because the chrome's
- * group is intercepted before the game's dispatch ever sees it
- * (add_component_rows returns 0 for it) -- these are the opposite: they are
- * ordinary components with ordinary menu rows, and the only thing they need
- * from the id is to have one.
  */
 #define TORIRS_REVCONFIG_GROUP 0x7FFD
 #define TORIRS_REVCONFIG_ID_BASE (TORIRS_REVCONFIG_GROUP << 16)
@@ -258,6 +252,19 @@ enum UITreeSlotTag
     /** One chat filter button of a cache chatbox, bound by the binder the
      *  same way; a 2004 frame's are builtins and carry no tag. */
     UITREE_SLOT_CHAT_BUTTON,
+    /**
+     * The lane's own HIT REGION for the compass, bound by the binder from the
+     * profile's `frame_compass_click` rung.
+     *
+     * A cache toplevel authors the compass as two components: the graphic
+     * carrying `clientcode=1339`, which is the rose that paints and turns, and
+     * a bare sibling layer that `~torirs_compass_bind` hangs the four
+     * "Look <dir>" ops on (`cc_create` children, so the layer itself carries
+     * no op and no click mask of its own and looks like a plain container to
+     * everything that reads the tree). Neither half is the compass on its own.
+     * @see UITreeComponent::frame_follows_plus1.
+     */
+    UITREE_SLOT_COMPASS_CLICK,
 };
 
 enum UITreeElemPositionKind
@@ -814,6 +821,33 @@ struct UITreeComponent
      * Written only by the frame layout, like `frame_hidden`.
      */
     uint8_t frame_stretched;
+    /**
+     * The node whose resolved box this node takes, plus one; 0 is "its own".
+     *
+     * The lane's own hit region for a live surface a provided frame MOVED. A
+     * surface is one node to the frame -- the one that paints -- and on a cache
+     * toplevel the compass is two: the rose (`clientcode=1339`) and
+     * `compassclick`, the sibling layer holding the "Look North" ops. Moving
+     * only the rose leaves the ops where the cache put them, so the compass
+     * painted beside the drawer's map and answered the pointer over the middle
+     * of it: an invisible hotspot in one place and a dead rose in the other.
+     *
+     * The two are siblings on every toplevel that authors them (548, 161, 164,
+     * 601), which is what makes this a box and not a transform -- the provider
+     * states the surface's box in their shared parent's space, and the hit
+     * region takes that same box. The frame layout is the only writer, it pairs
+     * them only when they DO share a parent, and it clears the link when the
+     * provision ends. @see UITree_FrameCompassClickNode.
+     */
+    int32_t frame_follows_plus1;
+    /**
+     * The other end of that link: the node that takes THIS node's box, plus
+     * one. Kept because the two ends are read from opposite directions --
+     * layout asks a node what its box comes from, and everything that moves a
+     * node has to say who else just moved. Written only by
+     * UITree_SetFrameFollowsAt, which owns both ends.
+     */
+    int32_t frame_followed_by_plus1;
     /**
      * Suppressed because this title screen is not the one showing.
      *
@@ -2206,6 +2240,11 @@ UITree_SetFrameHiddenAt(struct UITree* tree, int32_t idx, int hidden);
 bool
 UITree_SetFrameStretchedAt(struct UITree* tree, int32_t idx, int stretched);
 
+/** Set frame-layout box following (`frame_follows_plus1`): `target` -1 gives
+ *  the node its own box back. */
+bool
+UITree_SetFrameFollowsAt(struct UITree* tree, int32_t idx, int32_t target);
+
 /** As above for `screen_hidden`: hide the subtree of a title screen that is
  *  not the current one. */
 bool
@@ -2315,7 +2354,13 @@ bool UITree_WidgetReset(struct UITree*, struct UITreeNodeRef, uint64_t owner);
 void UITree_WidgetResetOwner(struct UITree*, uint64_t owner);
 int32_t UITree_WidgetCreateText(struct UITree*, struct UITreeNodeRef parent, uint64_t owner,
                                char const* key, int font_id);
-bool UITree_WidgetSetOperation(struct UITree*,struct UITreeNodeRef,uint64_t owner,uint64_t serial,char const* label);
+/* Arm one of an owned control's menu operations. `op` is 1-based and numbered
+ * as the cache numbers a component's, so it indexes UITreeMenuOptions::ops --
+ * the same slots a native component's op strings live in, which is what lets a
+ * plugin cover offer every row the component it hides offered. An empty label
+ * clears that one slot and leaves the others armed; `serial` is the owner's
+ * current listener registration and is zero only once no slot is left. */
+bool UITree_WidgetSetOperation(struct UITree*,struct UITreeNodeRef,uint64_t owner,uint64_t serial,int op,char const* label);
 /* Owned image control: a plugin-owned RS_GRAPHIC child, keyed like owned text.
  * SetGraphic installs a scene sprite and the node's requested size in one
  * step; ClearGraphic blanks every plugin-owned graphic still showing a scene id
@@ -3001,21 +3046,28 @@ UITree_NodeOrAncestorDisplayHidden(
     int32_t node_index);
 
 /**
- * The same query with the gameframe plugin's own suppression excused.
+ * The same query with the PLUGIN LAYER's own suppression excused.
  *
- * `ignore_frame_hidden` drops the gameframe PLUGIN's own suppression from the
- * fence, and exists for the one caller that is not a click on pixels: a
- * synthesised button press names a component, not a place on the screen, so a
- * panel the arranger is simply not showing right now is not a reason to
- * refuse it -- while a hide the cache or a script authored still is. Every
- * other flag (behavior.hide, screen, projection, and an orphaned root) fences
- * as before.
+ * `ignore_plugin_hidden` drops the layer's presentation hides from the fence,
+ * and exists for the callers that are not a click on pixels: a synthesised
+ * button press names a component, not a place on the screen, so a region the
+ * arranger is simply not showing right now is not a reason to refuse it --
+ * while a hide the cache or a script authored still is. Every other flag
+ * (behavior.hide, screen, projection, and an orphaned root) fences as before.
+ *
+ * BOTH of the layer's hides: `frame_hidden`, which a frame provider writes
+ * when it puts a region away, and `widget_hidden`, which the widget API's
+ * set_hidden writes and which is therefore what Porcelain's `hide` verb
+ * reaches. The two say the same thing and a plugin does not choose between
+ * them by meaning, so a fence that excused only the first left a plugin that
+ * COVERS a native control unable to ask anything about the control underneath
+ * -- the minimap orbs, whose run toggle is a child of the orb they hide.
  */
 int
 UITree_NodeOrAncestorDisplayHiddenEx(
     struct UITree const* tree,
     int32_t node_index,
-    int ignore_frame_hidden);
+    int ignore_plugin_hidden);
 
 /**
  * FNV-1a 64 of a text node's current string, as a CHANGE token.

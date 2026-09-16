@@ -51,6 +51,13 @@ static char const* const ORB_ART[15] = {
 
 static char const* const ORB_KEY[4] = {"orb_hitpoints", "orb_prayer", "orb_run", "orb_special"};
 static char const* const ORB_ROLE[4] = {"orb_hitpoints", "orb_prayer", "orb_run", "orb_spec"};
+/** The action role behind each orb, in the same order. */
+static char const* const ORB_ACTION_ROLE[4] = {
+    "action_frame_orb_hitpoints_activate",
+    "action_frame_orb_prayer_activate",
+    "action_frame_orb_run_enable",
+    "action_frame_orb_special_activate",
+};
 
 /** The red byte the digit atlas signs its pixels with, above every image's. */
 #define ART_DIGITS_RED 0x1E
@@ -259,10 +266,21 @@ fake_cache_invoke(struct ToriRS_Api* api, int component, int operation)
     return true;
 }
 
+/**
+ * Does this lane's profile carry `[varp:...]` rows at all.
+ *
+ * Every revconfig profile in the tree that declares varps declares the orbs'
+ * two, so the plugin's ORB_VARP_*_FALLBACK only ever fires on a profile that
+ * has none. This is the switch that produces such a lane.
+ */
+static bool g_profile_states_varps = true;
+
 static bool
 fake_named_id_orbs(struct ToriRS_Api* api, char const* kind, char const* name, int* out)
 {
     (void)api;
+    if( !g_profile_states_varps && strcmp(kind, "varp") == 0 )
+        return false;
     if( strcmp(kind, "varp") == 0 && strcmp(name, "run_mode") == 0 )
     {
         *out = 173;
@@ -461,6 +479,18 @@ declare_native_lane(void)
     Testbed_DeclareElement("action_frame_orb_run_disable", 3, 5, 50, 26);
     Testbed_DeclareElement("action_frame_orb_prayer_activate", 3, 5, 50, 26);
     Testbed_DeclareElement("action_frame_orb_special_activate", 3, 5, 50, 26);
+    /*
+     * And where they LIVE, which is the fact the flat table was missing and
+     * the reason a whole class of defect was invisible here: on osrs239 each
+     * action is a child of the orb it belongs to -- runbutton is interface
+     * 160 component 28 inside orb_runenergy's 26, prayerbutton 20 inside 18,
+     * specbutton 36 inside 34 -- so a plugin that hides the orb hides the
+     * button it means to press.
+     */
+    Testbed_ElementInside("action_frame_orb_run_enable", "orb_run");
+    Testbed_ElementInside("action_frame_orb_run_disable", "orb_run");
+    Testbed_ElementInside("action_frame_orb_prayer_activate", "orb_prayer");
+    Testbed_ElementInside("action_frame_orb_special_activate", "orb_spec");
     declare_art(TORIRS_ASSET_READY);
     Testbed_BindElement("minimap");
     for( int i = 0; i < 4; i++ )
@@ -509,6 +539,7 @@ reset(void)
     g_composes = 0;
     g_notices = 0;
     g_digits_ini = NULL;
+    g_profile_states_varps = true;
     memset(g_picture, 0, sizeof(g_picture));
     memset(g_value_line, 0, sizeof(g_value_line));
     g_last_log[0] = '\0';
@@ -948,6 +979,65 @@ case_run_orb_follows_the_active_facet(void)
 }
 
 /*
+ * The cover takes the lane's orb OUT of the frame, and keeps pressing it.
+ *
+ * The hide is what stopped the lane's own plate showing through the cover's
+ * transparent corners. What it must not do is take the button with it: on
+ * osrs239 the orb's action is a CHILD of the node hidden here (interface 160
+ * component 28 under component 26), so every question the plugin asks about
+ * that action afterwards is asked through a subtree it hid itself. With the
+ * layer's own hiding folded into the input answer, the reply was "there is
+ * nothing to press", one fence after the plugin drew a plate that says there
+ * is -- four orbs drawn, all four inert.
+ *
+ * Mutation: have the testbed's set_hidden clear the element's
+ * `input_present` as well -- which is the engine's pre-fix answer, written
+ * into the model -> every cover here is unarmed and the press never happens.
+ * Dropping the `describe->hide` instead takes the first four checks.
+ */
+static void
+case_covered_orb_keeps_its_press(void)
+{
+    struct TestbedControl const* run;
+
+    reset();
+    declare_native_lane();
+    start_plugin();
+    frame(6);
+
+    CHECK(live_orbs() == 4, "four covers over four native orbs");
+    for( int i = 0; i < 4; i++ )
+    {
+        char wanted[64];
+        snprintf(wanted, sizeof(wanted), "set_hidden %s 1", ORB_ROLE[i]);
+        CHECK(Testbed_LogCountWith(wanted) == 1, "the lane's own orb goes under the cover");
+    }
+
+    /* Six more fences, because the defect was not the first frame: the cover
+     * was described armed and then disarmed by the consequence of its own
+     * hide. */
+    frame(6);
+    for( int i = 0; i < 4; i++ )
+    {
+        struct TestbedControl const* control = Testbed_Control(ORB_KEY[i]);
+        CHECK(control != NULL, "the cover is still there");
+        /* The hitpoints orb has no verb on this lane -- @see ORB_PART. */
+        if( control && i != 0 )
+            CHECK(control->armed, "and still carries the operation it replaced");
+    }
+
+    Testbed_ClearLog();
+    run = Testbed_Control("orb_run");
+    CHECK(run && run->armed, "the run cover is armed over a hidden orb");
+    if( run )
+        run->op(Testbed_Api(), run->op_user,
+            &(struct ToriRS_WidgetEvent){.type = TORIRS_WIDGET_OPERATION, .widget = run->ref});
+    CHECK(g_native_invokes == 1, "and its press reaches the button underneath");
+    CHECK(strstr(g_last_log, "via=native") != NULL, "through the native action, as before");
+    stop_plugin();
+}
+
+/*
  * NATIVE_BLOCKED stops. It used to fall through to the compatibility id and
  * press an unrelated component by number.
  *
@@ -1160,6 +1250,88 @@ case_hitpoints_verb_is_declared_absent(void)
     stop_plugin();
 }
 
+/*
+ * An UNDECLARED varp is a blank orb that says why -- never a guessed id.
+ *
+ * This file used to carry `ORB_VARP_RUN_FALLBACK 173` and
+ * `ORB_VARP_SPEC_FALLBACK 300` as a third resolve step, so a lane whose
+ * profile stated nothing still drew a confident orb off ids nobody had
+ * checked. There is no capture that can catch that being wrong: a spec orb
+ * reading a foreign var draws a number, and a number is what a right one draws
+ * too. So the guess is gone, and the two halves below are what replaced it.
+ *
+ * The lane facts this pins, from revconfig: osrs239, rs289lc and rs245_2lc are
+ * the only cache profiles a manifest loads, and all three declare
+ * `[varp:run_mode]` and `[varp:special_attack_energy]` -- which is why
+ * deleting the fallback moved no shipping lane's picture, and why the
+ * declaring half below is the one that runs in the field.
+ *
+ * Mutation 1: restore either fallback -> the first half fails, because the
+ * spec orb draws a reading on a lane that declared no id for it.
+ * Mutation 2: declare unconditionally -> the second half fails, because a lane
+ * carrying both rows is told it is missing them.
+ * Mutation 3: drop orbs_declare_missing -> the first half fails on the count,
+ * and a blank orb goes back to having no stated reason.
+ */
+static void
+case_undeclared_varp_draws_nothing_and_says_so(void)
+{
+    struct PorcelainFinding found[PORCELAIN_FINDINGS_MAX];
+    int count;
+    int declared = 0;
+
+    /*
+     * A lane whose profile carries no [varp:] rows. The varp STORAGE is
+     * seeded at the historical ids, so a plugin that still guessed them would
+     * find a live reading sitting there and draw it -- which is exactly the
+     * shape the fallback had in the field.
+     */
+    reset();
+    declare_native_lane();
+    g_profile_states_varps = false;
+    g_varp[300] = 700;
+    g_varp[173] = 1;
+    start_plugin();
+    frame(8);
+
+    CHECK(Testbed_Control("orb_special") == NULL,
+        "no declared id, no special orb -- not an orb read off the historical number");
+    CHECK(g_value_line[3][0] == '\0', "and no reading reaches the log either");
+
+    count = Porcelain_Findings(handle(), found, PORCELAIN_FINDINGS_MAX);
+    for( int i = 0; i < count; i++ )
+        if( found[i].element.role &&
+            (strcmp(found[i].element.role, "run_mode varp id") == 0 ||
+             strcmp(found[i].element.role, "special_attack_energy varp id") == 0) )
+        {
+            declared++;
+            CHECK(found[i].expected, "the missing row is declared, so the finding is expected");
+        }
+    CHECK(declared == 2, "both missing [varp:] rows are named in the findings channel");
+    CHECK(undeclared_findings(handle()) == 0, "and saying so keeps the run clean");
+    stop_plugin();
+
+    /*
+     * And the lane that carries the rows is told nothing -- including about
+     * the armed bit, which rs289lc and rs245_2lc genuinely do not declare.
+     * That one is a supported degradation (the orb reads, it just never
+     * lights), so declaring it would file a limitation against two shipping
+     * lanes behaving exactly as intended.
+     */
+    declared = 0;
+    reset();
+    declare_native_lane();
+    start_plugin();
+    frame(6);
+    CHECK(Testbed_Control("orb_special") != NULL, "a declared id draws its orb");
+    count = Porcelain_Findings(handle(), found, PORCELAIN_FINDINGS_MAX);
+    for( int i = 0; i < count; i++ )
+        if( found[i].element.role && strstr(found[i].element.role, "varp id") )
+            declared++;
+    CHECK(declared == 0, "a profile that states its varps is told nothing about them");
+    stop_plugin();
+}
+
 /* ------------------------------------------------------------------------ */
 /* 10. A dead orb still holds its reading                                   */
 /* ------------------------------------------------------------------------ */
@@ -1186,6 +1358,25 @@ capped_rows(int orb)
  * picture that drew no number. The fake atlas signs each pixel with its own
  * source row, so this is a read and not an inference.
  */
+/**
+ * Which of the two plates a composed picture was built on: 0 `frame`,
+ * 1 `frame_over`, -1 nothing.
+ *
+ * The plate is the only one of the fifteen that reaches the picture's own
+ * top-left corner -- the disc and the icon start at +27,+4, the cap is inside
+ * the disc and the number is inside the 23x13 panel at +4,+16 -- so the corner
+ * names it without any blending to unpick. @see art_pixel, which signs each
+ * source image with `0x10 + index` in the red byte.
+ */
+static int
+plate_index(int orb)
+{
+    uint32_t const corner = g_picture[orb][0];
+    if( ((corner >> 24) & 0xFFu) == 0 )
+        return -1;
+    return (int)((corner >> 16) & 0xFFu) - 0x10;
+}
+
 static int
 ramp_row(int orb)
 {
@@ -1237,11 +1428,12 @@ case_inactive_orb_keeps_its_reading(void)
      * nothing that specials. That is the rs289lc capture exactly: the run
      * orb is grey because the player is walking, and the special orb is grey
      * because the equipped weapon offers no Activate -- which is what the
-     * lane says by answering input_present=0 on the orb's action role.
+     * lane says by HIDING the orb's action button, exactly as
+     * `orbs_spec_draw_button` writes it: `if_sethide(true, $button)`.
      */
     g_run_energy = 43;
     g_varp[300] = 700;
-    Testbed_Element("action_frame_orb_special_activate")->input_present = false;
+    Testbed_PresentElement("action_frame_orb_special_activate", false);
     start_plugin();
     frame(8);
 
@@ -1288,6 +1480,202 @@ case_inactive_orb_keeps_its_reading(void)
     stop_plugin();
 }
 
+/* ------------------------------------------------------------------------ */
+/* 16. The chip's border never lit under the pointer                        */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Reported from a live capture: hovering an orb did nothing. Interface 160's
+ * orbs light their whole plate border under the pointer, and the plugin had
+ * shipped the art for it since the assets were first cut -- `frame_over.png`
+ * is graphic 1072, pixel for pixel -- and never once drew it. The enum slot
+ * was declared, the file was decoded into the fifteenth of fifteen pixel
+ * buffers, and nothing named it.
+ *
+ * The rule, from `orbs_update_health`, `orbs_update_prayer`,
+ * `orbs_update_runenergy` and `orbs_spec_draw_button`, which all four write it
+ * the same way:
+ *
+ *     if_setonmouserepeat("graphic_swapper($plate, 1072)", $button);
+ *     if_setonmouseleave ("graphic_swapper($plate, 1071)", $button);
+ *
+ * Three things are load-bearing in those two lines and each is checked below.
+ * The hook is on the orb's BUTTON, not on its plate, so the plate's corners do
+ * not light it. The swap names the PLATE and nothing else, so the disc, the
+ * cap, the icon and the number are untouched. And both calls are made only in
+ * the branch that also arms the operation -- the other branch passes `null`
+ * to both and hides the button -- so an orb with nothing to press has no
+ * highlight either.
+ *
+ * Mutation: blit ORB_IMG_FRAME unconditionally -> the hovered orb below stays
+ * on plate 0. Drop the `available` test in orbs_hover -> the special orb
+ * lights with no verb behind it. Test the plate's box instead of
+ * ORB_BUTTON[i] -> the corner lights.
+ */
+static void
+case_hovered_orb_lights_its_plate(void)
+{
+    static const int ORB_X[4] = {521, 521, 531, 553};
+    static const int ORB_Y[4] = {41, 75, 107, 132};
+    uint32_t idle_disc;
+
+    reset();
+    g_digits_ini = DIGITS_INI_ONE_ROW_PER_STEP;
+    declare_native_lane();
+    /* The special orb has no verb behind it: the equipped weapon offers no
+     * Activate, which the lane says by hiding the orb's action button. */
+    Testbed_PresentElement("action_frame_orb_special_activate", false);
+    g_testbed.pointer_present = true;
+    g_testbed.pointer_x = -1;
+    g_testbed.pointer_y = -1;
+    start_plugin();
+    frame(8);
+
+    CHECK(live_orbs() == 4, "four covers before any hover");
+    for( int i = 0; i < 4; i++ )
+        CHECK(plate_index(i) == 0, "an orb nobody is pointing at is on the plain plate");
+    idle_disc = g_picture[2][(ORB_DISC_Y + ORB_DISC / 2) * ORB_W + ORB_DISC_X + ORB_DISC / 2];
+
+    /* Inside the run orb's button: its plate's origin plus ORB_BUTTON[2]. */
+    g_testbed.pointer_x = ORB_X[2] + 3 + 25;
+    g_testbed.pointer_y = ORB_Y[2] + 5 + 13;
+    frame(2);
+    CHECK(plate_index(2) == 1, "the orb under the pointer wears the lit plate");
+    CHECK(plate_index(0) == 0 && plate_index(1) == 0 && plate_index(3) == 0,
+          "and only that one: the pointer is over one button");
+    /*
+     * And the swap touches the PLATE alone. `graphic_swapper` takes one
+     * component and one graphic; a hover that also moved the meter would be
+     * this plugin inventing a state the reference does not have.
+     */
+    CHECK(g_picture[2][(ORB_DISC_Y + ORB_DISC / 2) * ORB_W + ORB_DISC_X + ORB_DISC / 2] ==
+              idle_disc,
+          "the disc under the lit plate is the disc it already was");
+    CHECK(ramp_row(2) == ramp_row(2), "the number is still sampled once");
+
+    /* The plate's own top-left corner is OUTSIDE the button, and the corner is
+     * clear pixels in the shipped art -- the reference does not light there. */
+    g_testbed.pointer_x = ORB_X[2];
+    g_testbed.pointer_y = ORB_Y[2];
+    frame(2);
+    CHECK(plate_index(2) == 0, "the plate's corner is not the button and does not light");
+
+    /* One pixel past the button's right edge, for the same reason. */
+    g_testbed.pointer_x = ORB_X[2] + 3 + 50;
+    g_testbed.pointer_y = ORB_Y[2] + 5 + 13;
+    frame(2);
+    CHECK(plate_index(2) == 0, "and the column one past its right edge");
+
+    /* The special orb's button, with nothing behind it to press. */
+    g_testbed.pointer_x = ORB_X[3] + 3 + 25;
+    g_testbed.pointer_y = ORB_Y[3] + 6 + 12;
+    frame(2);
+    CHECK(plate_index(3) == 0, "an orb with no verb does not light: both hooks are null");
+
+    /* And the prayer orb, which has one. */
+    g_testbed.pointer_x = ORB_X[1] + 3 + 24;
+    g_testbed.pointer_y = ORB_Y[1] + 5 + 13;
+    frame(2);
+    CHECK(plate_index(1) == 1, "the prayer orb's own 49-wide button lights it");
+
+    /* onMouseLeave: the pointer goes away and the plate goes back. */
+    g_testbed.pointer_x = -1;
+    g_testbed.pointer_y = -1;
+    frame(2);
+    for( int i = 0; i < 4; i++ )
+        CHECK(plate_index(i) == 0, "the pointer leaves and every plate is plain again");
+
+    /* A lane with no pointer at all -- a touch lane -- has no hover, and that
+     * is an answer rather than a failure. */
+    g_testbed.pointer_present = false;
+    g_testbed.pointer_x = ORB_X[2] + 3 + 25;
+    g_testbed.pointer_y = ORB_Y[2] + 5 + 13;
+    frame(2);
+    CHECK(plate_index(2) == 0, "a lane that answers no pointer lights nothing");
+
+    CHECK(undeclared_findings(handle()) == 0, "and none of it files a finding");
+    stop_plugin();
+}
+
+/* ------------------------------------------------------------------------ */
+/* 17. Every orb on every CS2 lane was inert                                */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Measured on classic-fixed 548 at rev 239 while fixing the hover above: four
+ * plates drawn, four numbers live, and ZERO menu rows anywhere in the column.
+ * Not one orb could be clicked, and nothing said so -- the covers were simply
+ * described with `enabled = false` for the rest of the session.
+ *
+ * The cause is one field read. Availability asked the orb's action role for
+ * `input_present`, and `input_present` is the ENGINE's answer with every veto
+ * folded in -- including this plugin's own. The action button is a CHILD of
+ * the orb (160:28 inside 160:26, 160:20 inside 160:18) and the description
+ * hides that orb to stop two plates stacking, so from the SECOND describe
+ * onward the button read `presented=0 input_present=0`; the description then
+ * changed nothing, no further describe ran, and false was the answer forever.
+ * One fence after the column first appeared, it went dead.
+ *
+ * The rule: "has this orb a verb" is the LANE's question, so it is answered
+ * from the lane's own bits -- `own_hidden` and `native_hidden`, which no
+ * plugin veto reaches. That is also how the reference states it: every one of
+ * the four orb scripts says "no verb" by hiding the button layer and "a verb"
+ * by showing it.
+ *
+ * Mutation: read `input_present` again -> the armed orbs below go to zero the
+ * moment the engine answers what it actually answers.
+ */
+static void
+case_covered_orb_keeps_its_op(void)
+{
+    reset();
+    declare_native_lane();
+    start_plugin();
+    frame(8);
+
+    /*
+     * The engine's answer AFTER the cover hid the orb, measured on the live
+     * client: the button is still bound and the lane never hid it, and yet
+     * `input_present` is 0 because an ancestor this plugin hid is in its
+     * chain. The testbed models the contract's intent instead -- a plugin's
+     * own hide does not reach the lane's input answer -- so this states the
+     * engine's real answer by hand, and the orb must survive it.
+     */
+    for( int i = 0; i < 4; i++ )
+    {
+        struct TestbedElement* action = Testbed_Element(ORB_ACTION_ROLE[i]);
+        if( !action )
+            continue;
+        action->input_present = false;
+        /*
+         * And PUBLISHED, which is the whole difference between a case that
+         * measures this and one that measures nothing. Porcelain serves
+         * elements from a state it refreshes on a state change, so a field
+         * poked straight into the testbed is a fact no describe has been told
+         * -- the arming the first fences wrote stands, and every assertion
+         * below passes against the old answer. A move raises the change the
+         * way a publication fence does.
+         */
+        Testbed_MoveElement(ORB_ACTION_ROLE[i], action->local.x, action->local.y + 1);
+    }
+    frame(4);
+
+    CHECK(live_orbs() == 4, "four covers");
+    /* Prayer and run: the lane shows both buttons, so both carry a verb. The
+     * hitpoints role binds on no profile in this tree and the special orb is
+     * left to the lane, which is why only two are named here. */
+    for( int i = 1; i <= 2; i++ )
+    {
+        struct TestbedControl const* control = Testbed_Control(ORB_KEY[i]);
+        CHECK(control != NULL, "the orb is described");
+        if( !control )
+            continue;
+        CHECK(control->armed && control->label[0] != '\0',
+              "and carries its verb: a covered orb keeps the op it delegates");
+    }
+    stop_plugin();
+}
+
 int
 main(void)
 {
@@ -1298,13 +1686,17 @@ main(void)
     case_root_switch_recreates_the_column();
     case_steady_state_costs_nothing();
     case_run_orb_follows_the_active_facet();
+    case_covered_orb_keeps_its_press();
     case_blocked_action_presses_nothing();
     case_cutscene_removes_the_covers();
     case_lane_without_orbs();
     case_config();
     case_unstated_skill_draws_nothing();
     case_hitpoints_verb_is_declared_absent();
+    case_undeclared_varp_draws_nothing_and_says_so();
     case_inactive_orb_keeps_its_reading();
+    case_hovered_orb_lights_its_plate();
+    case_covered_orb_keeps_its_op();
 
     printf("minimap orbs v2: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures != 0;

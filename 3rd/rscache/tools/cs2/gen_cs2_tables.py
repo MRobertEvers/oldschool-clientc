@@ -99,14 +99,22 @@ KINDS = [
 
 
 def parse_stack_table(path: Path) -> dict[int, tuple[int, int, int, int]]:
-    """opcode -> (int_in, str_in, int_out, str_out), for entries marked known."""
+    """opcode -> (int_in, str_in, int_out, str_out), for every entry with a signature.
+
+    The stack table's fifth column is the VM's `known` tier: 0 no signature,
+    1 signature and a dispatch in cs2vm2.c, 2 signature but nothing executes
+    it. The tier used to be derived from where the signature came from, so
+    "1" doubled as "the signature is real". It is now derived from cs2vm2.c's
+    dispatch, and a real signature for an unimplemented opcode is a 2 -- still
+    exactly as real for decoding, which never needed the opcode to run.
+    """
     if not path.is_file():
         return {}
     text = path.read_text(encoding="utf-8")
     out: dict[int, tuple[int, int, int, int]] = {}
     pattern = re.compile(r"\[(\d+)\] = \{ (\d+), (\d+), (\d+), (\d+), (\d+) \}")
     for match in pattern.finditer(text):
-        if match.group(6) != "1":
+        if match.group(6) == "0":
             continue
         out[int(match.group(1))] = tuple(int(match.group(i)) for i in range(2, 6))
     return out
@@ -260,6 +268,102 @@ def c_string(s: str) -> str:
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def compiler_aliases(by_id: dict[int, str]) -> list[tuple[str, int]]:
+    """Every source spelling the compiler accepts besides an opcode's canonical name.
+
+    Two sources, both keyed to the canonical name they alias, never to a bare id:
+      tools/cs2_gen_opcodes/local_opcodes.py  LOCAL_ALIASES  (non-placeholder ones)
+      tools/cs2_gen_opcodes/retired_names.py  RETIRED        (names replaced by the
+                                                             rename to the client's
+                                                             own command names)
+    An alias equal to some opcode's canonical name is refused: it would compile a
+    source to whichever of the two the lookup order happens to prefer.
+    """
+    sys.path.insert(0, str(REPO_OPCODE_TOOLS))
+    from local_opcodes import LOCAL_ALIASES  # noqa: E402
+
+    canonical = {name.lower(): opcode for opcode, name in by_id.items() if name}
+    out: dict[str, int] = {}
+    for opcode, spellings in LOCAL_ALIASES.items():
+        for spelling in spellings:
+            if not re.fullmatch(r"_\d+", spelling):
+                out[spelling.lower()] = opcode
+    for old, new in retired_names().items():
+        if new.lower() not in canonical:
+            raise ValueError(f"retired name {old} -> {new}: {new} is not a canonical command name")
+        out[old.lower()] = canonical[new.lower()]
+    clashes = sorted(a for a in out if a in canonical and canonical[a] != out[a])
+    if clashes:
+        raise ValueError("compiler aliases shadow canonical names: " + ", ".join(clashes))
+    return sorted((a, o) for a, o in out.items() if a not in canonical)
+
+
+# The client catalogue's argument types, as this decoder's protos. A type with a
+# proto of the same name maps to it; the rest fall back by stack.
+CATALOGUE_PROTO = {"rgb": "COLOUR", "unknownarray": "STRING", "intarray": "STRING",
+                   "stringarray": "STRING", "unknown_int": "UNKNOWNINT"}
+
+
+def align_with_client(commands: dict, by_id: dict[int, str]) -> list[int]:
+    """Make every BASIC command's arity agree with the rev-239 client's declaration.
+
+    Command.kt (2021) and local_commands.py were each written without the
+    client's own declarations to check against, and the VM's stack table no
+    longer carries their mistakes (gen_opcode_stack.py refuses them), so the two
+    would disagree about how many values a command pops -- which in a decoder
+    decompiles a different program, and in a compiler emits one. Where the ARITY
+    disagrees, the client's typed argument list replaces the old one; where it
+    agrees the existing protos are kept, since they may be more specific.
+    """
+    sys.path.insert(0, str(REPO_OPCODE_TOOLS))
+    import catalogue  # noqa: E402
+
+    known = set(re.findall(r"RSCACHE_CS2_PROTO_([A-Z0-9_]+)",
+                           (HERE.parents[1] / "src" / "cs2" / "cs2_types.h").read_text(encoding="utf-8")))
+
+    def proto(t: str) -> str:
+        if t in CATALOGUE_PROTO:
+            return CATALOGUE_PROTO[t]
+        if t.upper() in known:
+            return t.upper()
+        return "STRING" if t in catalogue.STRING_TYPES else "INT"
+
+    def stacks(protos: list[str]) -> tuple[int, int]:
+        s = sum(1 for p in protos if p == "STRING")
+        return len(protos) - s, s
+
+    declared = catalogue.commands()
+    wanted = catalogue.signatures()
+    changed = []
+    for opcode, sig in sorted(wanted.items()):
+        kind, args, defs, dot, extra = commands.get(opcode, ("UNKNOWN", [], [], 100 <= opcode < 2000, "0"))
+        if kind not in ("BASIC", "UNKNOWN"):
+            continue
+        if kind == "BASIC" and stacks(args) + stacks(defs) == sig:
+            continue
+        command = declared.get(opcode)
+        if command is not None and command.signature == sig:
+            args = [proto(t) for t in command.args]
+            defs = [proto(t) for t in command.returns]
+        else:  # a SIGNATURE_EXCEPTIONS entry: the client's shape has no typed list
+            args = ["INT"] * sig[0] + ["STRING"] * sig[1]
+            defs = ["INT"] * sig[2] + ["STRING"] * sig[3]
+        commands[opcode] = ("BASIC", args, defs, dot, extra)
+        by_id.setdefault(opcode, f"_{opcode}")
+        changed.append(opcode)
+    return changed
+
+
+def retired_names() -> dict[str, str]:
+    """tools/cs2_gen_opcodes/retired_names.py RETIRED, read without importing the tree."""
+    path = REPO_OPCODES.parent.parent / "retired_names.py"
+    if not path.is_file():
+        return {}
+    namespace: dict = {}
+    exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), namespace)
+    return dict(namespace["RETIRED"])
+
+
 def main() -> int:
     opcodes_text = REPO_OPCODES if REPO_OPCODES.is_file() else LOCAL_OPCODES
     if not opcodes_text.is_file():
@@ -282,16 +386,29 @@ def main() -> int:
         # must replace an old `_1234` spelling rather than lose to setdefault().
         # Keep the placeholder in by_name: old decompiles remain valid compiler
         # input while newly decompiled source uses the established name.
-        old_name = by_id.get(opcode)
-        if old_name is None or re.fullmatch(r"_\d+", old_name):
-            by_id[opcode] = name.lower()
+        # The VM metadata is generated from the client's own command catalogue,
+        # so its name wins outright -- including over a real (non-placeholder)
+        # vendor name, which used to keep its spelling here and so made the
+        # decompiler print e.g. `setminimaplock` for what the VM calls
+        # MINIMAP_SETZOOMABLE. The vendor spelling stays resolvable in by_name
+        # for Command.kt's own signatures.
+        by_id[opcode] = name.lower()
         by_name.setdefault(name, opcode)
     for opcode, name in LOCAL_NAMES.items():
         by_id[opcode] = name.lower()
         by_name[name] = opcode
+    # Names retired by the rename to the client's own command names stay valid
+    # COMPILER INPUT, so a source written before it still compiles to the same
+    # opcode; decompiled output uses only the canonical spelling (by_id). The
+    # list excludes every old name that is now another opcode's canonical name --
+    # those cannot be aliases, and sources using them were migrated instead.
+    for old, new in retired_names().items():
+        opcode = by_name.get(new)
+        if opcode is None:
+            raise ValueError(f"retired name {old} -> {new}: {new} has no opcode id")
+        by_name.setdefault(old, opcode)
 
     basic = parse_basic(command_text)
-    basic.update(LOCAL_BASIC)
     branch_compare = parse_plain_enum(command_text, r"enum class BranchCompare :")
     discard = parse_valued_enum(command_text, r"enum class Discard\(")
     assign = parse_plain_enum(command_text, r"enum class Assign :")
@@ -322,6 +439,32 @@ def main() -> int:
     def put(name: str, kind: str, args=(), defs=(), dot=False, extra="0"):
         commands[resolve(name)] = (kind, list(args), list(defs), dot, extra)
 
+    # Command.kt names are the VENDOR's, and mean the vendor's id; LOCAL_BASIC is
+    # written in this repo's canonical names. The two used to share one
+    # name-keyed dict and one resolver, which was harmless only while no name
+    # meant different ids in the two vocabularies. Since the rename to the
+    # client's own command names, some do: at rev 195 `chat_gethistory_byuid`
+    # moved from 5004 to 5031, so Command.kt's six-return signature for 5004 and
+    # this repo's eight-return one for 5031 both resolved to 5004, and 5004
+    # decoded with two phantom returns. Each vocabulary now resolves through its
+    # own table.
+    vendor_by_name = dict(parse_opcodes(opcodes_text)[0])
+    canonical_by_name = {name.lower(): opcode for opcode, name in meta_names.items()}
+    canonical_by_name.update({name.lower(): opcode for opcode, name in LOCAL_NAMES.items()})
+    for old, new in retired_names().items():
+        if new.lower() in canonical_by_name:
+            canonical_by_name.setdefault(old.lower(), canonical_by_name[new.lower()])
+
+    def resolve_vendor(name: str) -> int:
+        if name in vendor_by_name:
+            return vendor_by_name[name]
+        return resolve(name)
+
+    def resolve_canonical(name: str) -> int:
+        if name.lower() in canonical_by_name:
+            return canonical_by_name[name.lower()]
+        return resolve(name)
+
     put("SWITCH", "SWITCH")
     put("BRANCH", "BRANCH")
     put("GOSUB_WITH_PARAMS", "PROC")
@@ -344,7 +487,9 @@ def main() -> int:
     for name, prototype in param.items():
         put(name, "PARAM", extra=proto_c(PROTO_ALIASES.get(prototype, prototype)))
     for name, (args, defs, dot) in basic.items():
-        put(name, "BASIC", args, defs, dot)
+        commands[resolve_vendor(name)] = ("BASIC", list(args), list(defs), dot, "0")
+    for name, (args, defs, dot) in LOCAL_BASIC.items():
+        commands[resolve_canonical(name)] = ("BASIC", list(args), list(defs), dot, "0")
 
     # Layer the client's stack table over anything still unsigned. Ordering
     # matters: an explicit Command.kt or local signature always wins, because it
@@ -396,6 +541,8 @@ def main() -> int:
         commands[opcode] = (kind, args, defs, dot, extra)
         if opcode not in by_id:
             by_id[opcode] = f"_{opcode}"
+
+    realigned = align_with_client(commands, by_id)
 
     max_id = max(max(by_id), max(commands))
     uncovered = sorted(
@@ -449,8 +596,9 @@ def main() -> int:
     lines.append("/*")
     lines.append(" * Generated by 3rd/rscache/tools/cs2/gen_cs2_tables.py -- do not edit.")
     lines.append(" *")
-    lines.append(" * Source: tools/cs2/vendor/{Opcodes,Command}.kt (see vendor/VERSION),")
-    lines.append(" * layered with tools/cs2/local_commands.py.")
+    lines.append(" * Names: src/cs2vm2/cs2_opcode_meta.c (itself from the rev-239 command catalogue,")
+    lines.append(" * tools/cs2_gen_opcodes/catalogue.py). Signatures: tools/cs2/vendor/Command.kt,")
+    lines.append(" * tools/cs2/local_commands.py, and src/cs2vm2/cs2vm2_opcode_stack.gen.h.")
     lines.append(" */")
     lines.append("#ifndef RSCACHE_CS2_COMMAND_GEN_H")
     lines.append("#define RSCACHE_CS2_COMMAND_GEN_H")
@@ -490,6 +638,18 @@ def main() -> int:
         )
     lines.append("};")
     lines.append("")
+
+    # Source-only spellings: accepted by the compiler, never printed by the
+    # decompiler (which prints cs2_command_table's canonical name). These used to
+    # be a hand-written list in cs2_command.c, a fourth copy of opcode knowledge
+    # that nothing checked against the other three.
+    aliases = compiler_aliases(by_id)
+    lines.append("/* Old or alternate source spellings -> opcode. See compiler_aliases(). */")
+    lines.append("static const struct { const char* name; int opcode; } cs2_command_aliases[] = {")
+    for alias, opcode in aliases:
+        lines.append(f"    {{ {c_string(alias)}, {opcode} }},")
+    lines.append("};")
+    lines.append("")
     lines.append("#endif")
     lines.append("")
 
@@ -501,6 +661,7 @@ def main() -> int:
     print(f"generated {OUT}")
     print(f"  {named} named opcodes, {signed} with signatures, pool {len(pool)} entries")
     print(f"  {from_stack} signatures taken from the client's stack table")
+    print(f"  {len(realigned)} signatures realigned to the client's own declarations: {realigned}")
     return 0
 
 

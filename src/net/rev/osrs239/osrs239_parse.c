@@ -3,6 +3,7 @@
 #include "net/rev/pktnames.h"
 #include "net/rev/revpacket.h"
 #include "net/jbase37.h"
+#include "net/wordpack.h"
 #include "zoneprot.h"
 
 #include <stdint.h>
@@ -11,6 +12,7 @@
 #include <string.h>
 
 #include "rsprot_buffer.h"
+#include "rsbuffer.h"
 #include "rsprot_exec.h"
 
 #include "packets/loc_anim.h"
@@ -1246,7 +1248,7 @@ osrs239_parse(
         name = gjstr_nul(&c);
         previous = gjstr_nul(&c);
         p->world = RSProt_BufferG2Be(&c);
-        (void)RSProt_BufferG1(&c); /* rank */
+        p->rank = RSProt_BufferG1(&c);
         (void)RSProt_BufferG1(&c); /* flags */
         if( p->world > 0 )
         {
@@ -1259,6 +1261,7 @@ osrs239_parse(
             (p->world <= 0 || extra) )
         {
             p->name37 = (int64_t)strtobase37(name);
+            snprintf(p->previous_name, sizeof(p->previous_name), "%s", previous);
             p->present = 1;
         }
         free(name);
@@ -1766,6 +1769,89 @@ osrs239_parse(
         assert(p->data);
         memcpy(p->data, data + c.rpos, (size_t)p->length);
         return 1;
+    }
+
+    /*
+     * The friends-chat and clan packets are carried raw: their stores decode
+     * them against client state this layer does not have (see pktnames.h).
+     * VARCLAN_ENABLE / VARCLAN_DISABLE are size 0, and an empty friends-chat
+     * FULL is the leave, so an empty payload is a real packet here.
+     */
+    case PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL:
+    case PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER:
+    case PKT_NAME_VARCLAN:
+    case PKT_NAME_VARCLAN_ENABLE:
+    case PKT_NAME_VARCLAN_DISABLE:
+    case PKT_NAME_CLANCHANNEL_FULL:
+    case PKT_NAME_CLANCHANNEL_DELTA:
+    case PKT_NAME_CLANSETTINGS_FULL:
+    case PKT_NAME_CLANSETTINGS_DELTA:
+    case PKT_NAME_UPDATE_TRADINGPOST:
+    {
+        struct PktRawPayload* p = &out->_raw_payload;
+
+        memset(p, 0, sizeof(*p));
+        if( len == 0 )
+            return 1;
+        p->length = len;
+        p->data = malloc((size_t)len);
+        assert(p->data);
+        memcpy(p->data, data, (size_t)len);
+        return 1;
+    }
+
+    /*
+     * The message text is the chat encoding every other chat path of this
+     * client reads (MESSAGE_PRIVATE, the PLAYER_INFO chat block): the packed
+     * tail after the header, to the end of the frame.
+     */
+    case PKT_NAME_MESSAGE_CLANCHANNEL:
+    case PKT_NAME_MESSAGE_CLANCHANNEL_SYSTEM:
+    {
+        struct PktMessageClanChannel* p = &out->_message_clanchannel;
+        struct RSCache_Buffer text_buffer;
+
+        memset(p, 0, sizeof(*p));
+        p->clan_type = RSProt_BufferG1s(&c);
+        p->crown = -1;
+        if( pkt_name == PKT_NAME_MESSAGE_CLANCHANNEL )
+        {
+            int32_t sender_length = 0;
+            char const* sender = RSProt_BufferGJStr(&c, &sender_length);
+            if( c.err || !sender || sender_length >= (int)sizeof(p->sender) )
+                return 0;
+            memcpy(p->sender, sender, (size_t)sender_length);
+            p->sender[sender_length] = '\0';
+        }
+        p->world = RSProt_BufferG2Be(&c);
+        p->counter = RSProt_BufferG3Be(&c);
+        if( pkt_name == PKT_NAME_MESSAGE_CLANCHANNEL )
+            p->crown = RSProt_BufferG1(&c);
+        if( c.err || c.rpos > len )
+            return 0;
+        RSCache_BufferInit(&text_buffer, (uint8_t*)data + c.rpos, len - c.rpos);
+        p->text = wordpack_unpack(&text_buffer, len - c.rpos);
+        assert(p->text);
+        return 1;
+    }
+
+    case PKT_NAME_UPDATE_STOCKMARKET_SLOT:
+    {
+        struct PktUpdateStockmarketSlot* p = &out->_update_stockmarket_slot;
+
+        memset(p, 0, sizeof(*p));
+        p->slot = RSProt_BufferG1(&c);
+        p->status = RSProt_BufferG1s(&c);
+        /* An empty slot's remaining 18 bytes are padding. */
+        if( p->status != 0 )
+        {
+            p->obj = RSProt_BufferG2Be(&c);
+            p->price = RSProt_BufferG4Be(&c);
+            p->count = RSProt_BufferG4Be(&c);
+            p->completed_count = RSProt_BufferG4Be(&c);
+            p->completed_gold = RSProt_BufferG4Be(&c);
+        }
+        return c.err ? 0 : 1;
     }
 
     default:

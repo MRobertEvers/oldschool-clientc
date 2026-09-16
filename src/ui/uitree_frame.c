@@ -65,6 +65,16 @@ _Static_assert(
 #define UITREE_FRAME_STRETCHED_MAX 32
 
 /*
+ * Surfaces whose hit region the lane authored as a node of its own.
+ *
+ * One today -- the compass -- and the ceiling is a ceiling rather than a 1
+ * because the shape is a property of cache toplevels and not of the compass:
+ * a surface that paints in one node and answers the pointer in another is
+ * something a later revision can author again. Checked rather than assumed.
+ */
+#define UITREE_FRAME_FOLLOW_MAX 4
+
+/*
  * A role is not a node, and the sidebar is why. The 2004 frame carries
  * FOURTEEN sidebar mounts -- one per tab, all at the same rectangle, only one
  * of them showing -- so a layout that moved "the sidebar" and meant the first
@@ -88,6 +98,13 @@ struct UITreeFrameLayout
     int32_t stretched[UITREE_FRAME_STRETCHED_MAX];
     uint64_t stretched_incarnation[UITREE_FRAME_STRETCHED_MAX];
     int stretched_count;
+    /** Hit regions that take a moved surface's box, and the surface each takes
+     *  it from. @see frame_collect_follows. */
+    int32_t follower[UITREE_FRAME_FOLLOW_MAX];
+    uint64_t follower_incarnation[UITREE_FRAME_FOLLOW_MAX];
+    int32_t followed[UITREE_FRAME_FOLLOW_MAX];
+    uint64_t followed_incarnation[UITREE_FRAME_FOLLOW_MAX];
+    int follow_count;
     /** The semantic binding this table describes. */
     uint32_t applied_generation;
     int root_group;
@@ -201,7 +218,18 @@ frame_node_is_slot(
     case UITREE_FRAME_SLOT_MINIMAP:
         return c->type == UIELEM_BUILTIN_MINIMAP;
     case UITREE_FRAME_SLOT_COMPASS:
-        return c->type == UIELEM_BUILTIN_COMPASS;
+        /*
+         * Two nodes on a cache toplevel, and only one of them paints.
+         *
+         * The rose carries `clientcode=1339` and becomes the builtin; the hit
+         * region is a bare sibling layer the binder stamps from the profile's
+         * `frame_compass_click` rung. Binding BOTH is what keeps the region
+         * out of the chrome collection and in the staleness question -- and
+         * frame_collect_follows is what then gives it the rose's box, so the
+         * compass answers the pointer where it is drawn.
+         */
+        return c->type == UIELEM_BUILTIN_COMPASS ||
+               c->slot_tag == UITREE_SLOT_COMPASS_CLICK;
     case UITREE_FRAME_SLOT_CHAT:
         return c->type == UIELEM_BUILTIN_CHAT || c->slot_tag == UITREE_SLOT_CHAT;
     case UITREE_FRAME_SLOT_SIDEBAR:
@@ -236,12 +264,21 @@ frame_node_is_slot(
 }
 
 /*
- * Is this node a member button INSIDE the orb block, as opposed to the block?
+ * Is this node a PART of the role rather than the role itself?
  *
- * The binder tags both with the slot, and the block is what "the orbs" means
- * to every whole-role query (its native size, its box, is it there): a member
- * answers only UITree_FrameSlotMemberNode. Only the orb pack has members of
- * this kind -- a sidebar mount or a chat button IS the role at its number.
+ * Two shapes, and the rule is the same for both: what the role means to every
+ * whole-role query (its native size, its box, is it there) is the one node
+ * that IS it, and a part answers only its own lookup.
+ *
+ *   ORBS          the binder tags the block and the buttons inside it with the
+ *                 same slot; the block is "the orbs", a button is a member and
+ *                 answers UITree_FrameSlotMemberNode.
+ *   COMPASS       the rose is the surface -- it is what paints, what a re-skin
+ *                 dresses and what `surface_native_size` reports; the hit
+ *                 region beside it answers UITree_FrameCompassClickNode.
+ *
+ * A sidebar mount or a chat button IS the role at its number, so neither is
+ * one of these.
  */
 static int
 frame_node_is_own_member(
@@ -249,6 +286,8 @@ frame_node_is_own_member(
     int slot)
 {
     assert(c);
+    if( slot == UITREE_FRAME_SLOT_COMPASS )
+        return c->slot_tag == UITREE_SLOT_COMPASS_CLICK;
     return slot == UITREE_FRAME_SLOT_ORBS && UITree_FrameSlotIndex(c, slot) >= 0;
 }
 
@@ -540,6 +579,25 @@ UITree_FrameSlotMemberNode(
             continue;
         if( UITree_FrameSlotIndex(c, slot) == member )
             return *cached = (int32_t)i;
+    }
+    return -1;
+}
+
+int32_t
+UITree_FrameCompassClickNode(struct UITree const* tree)
+{
+    assert(tree);
+    /*
+     * A linear walk, and affordable for the same reason UITree_FrameSlotNode's
+     * is: this is asked once per provision -- a committed selection, a resize,
+     * a rebuild -- and never per frame. The per-frame path reads the pairing
+     * off the node (`frame_follows_plus1`), which is what the provision wrote.
+     */
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        if( !c->freed && c->slot_tag == UITREE_SLOT_COMPASS_CLICK )
+            return (int32_t)i;
     }
     return -1;
 }
@@ -870,6 +928,69 @@ frame_stretch_moved_ancestors(
     }
 }
 
+/*
+ * Pair every hit region the lane authored separately with the surface it
+ * belongs to.
+ *
+ * ONE surface has this shape today. A cache toplevel draws the compass with a
+ * graphic carrying `clientcode=1339` and puts its four "Look <dir>" ops on a
+ * bare sibling layer, because the ops are made at runtime -- `toplevel_init`
+ * hands `~torirs_compass_bind` the layer and the script `cc_create`s two
+ * children into it, one to swallow the click and one to carry the options. So
+ * the layer itself has no op, no click mask and no graphic: to every rule in
+ * this file that asks what a node IS, it is an empty container, and to the
+ * provider it is not the compass. The frame moves the rose, the layer stays
+ * where the cache put it, and the compass paints beside the drawer's map while
+ * answering the pointer over the middle of it.
+ *
+ * SIBLINGS, and that is the whole of why this is a box rather than a
+ * transform: 548, 161, 164 and 601 all author the two under the same
+ * container, so the box the provider states for the surface is already in the
+ * hit region's own parent's space. A lane that authored them apart is not
+ * modelled here and is left alone -- its compass keeps the behaviour it has
+ * rather than being moved by arithmetic this does not do.
+ *
+ * The pairing is a LINK and not a copy. A provider re-places its surfaces on
+ * every window change, and a window change moves no role, so the provision
+ * below does not re-run: a box copied here would be one resize stale for the
+ * rest of the session. UITree_WidgetPositionOverride reads through the link
+ * instead (uitree_layout.c), so the region is exactly as current as the rose.
+ */
+static void
+frame_collect_follows(
+    struct UITree const* tree,
+    struct UITreeFrameLayout* fl)
+{
+    int32_t surface;
+    int32_t region;
+
+    assert(tree);
+    assert(fl);
+    surface = UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_COMPASS);
+    region = UITree_FrameCompassClickNode(tree);
+    if( surface < 0 || region < 0 )
+        return;
+    if( tree->components[region].parent != tree->components[surface].parent )
+    {
+        TORIRS_LOG(
+            "frame: the compass hit region (%d) and the compass (%d) are not "
+            "siblings; the region keeps the lane's box\n",
+            tree->components[region].component_id,
+            tree->components[surface].component_id);
+        return;
+    }
+    if( fl->follow_count >= UITREE_FRAME_FOLLOW_MAX )
+    {
+        TORIRS_LOG("frame: more than %d followed surfaces\n", UITREE_FRAME_FOLLOW_MAX);
+        return;
+    }
+    fl->follower[fl->follow_count] = region;
+    fl->follower_incarnation[fl->follow_count] = tree->components[region].incarnation;
+    fl->followed[fl->follow_count] = surface;
+    fl->followed_incarnation[fl->follow_count] = tree->components[surface].incarnation;
+    fl->follow_count++;
+}
+
 static void
 frame_collect_chrome(
     struct UITree* tree,
@@ -946,6 +1067,22 @@ frame_stretched_has(
     assert(fl);
     for( int i = 0; i < fl->stretched_count; i++ )
         if( fl->stretched[i] == idx && fl->stretched_incarnation[i] == incarnation )
+            return 1;
+    return 0;
+}
+
+static int
+frame_follow_has(
+    struct UITreeFrameLayout const* fl,
+    int32_t follower,
+    uint64_t follower_incarnation,
+    int32_t followed,
+    uint64_t followed_incarnation)
+{
+    assert(fl);
+    for( int i = 0; i < fl->follow_count; i++ )
+        if( fl->follower[i] == follower && fl->follower_incarnation[i] == follower_incarnation &&
+            fl->followed[i] == followed && fl->followed_incarnation[i] == followed_incarnation )
             return 1;
     return 0;
 }
@@ -1055,6 +1192,7 @@ frame_apply(
     next.applied_generation = tree->generation;
     next.active = 1;
     frame_collect_slots(tree, &next);
+    frame_collect_follows(tree, &next);
     frame_stretch_moved_ancestors(tree, &next);
     frame_collect_chrome(tree, &next, root_group);
     frame_trace_binding(tree, &next, root_group, provider_owner);
@@ -1124,6 +1262,30 @@ frame_apply(
             (void)UITree_SetFrameStretchedAt(tree, idx, 1);
     }
 
+    /* And the box-following link, diffed the same way: the compass's hit
+     * region takes the rose's box while a provided frame is placing it, and
+     * takes its own back the moment the pairing is gone. */
+    for( int i = 0; i < fl->follow_count; i++ )
+    {
+        int32_t const idx = fl->follower[i];
+        if( !frame_node_same(tree, idx, fl->follower_incarnation[i]) ||
+            frame_follow_has(
+                &next, idx, fl->follower_incarnation[i], fl->followed[i],
+                fl->followed_incarnation[i]) )
+            continue;
+        (void)UITree_SetFrameFollowsAt(tree, idx, -1);
+    }
+    for( int i = 0; i < next.follow_count; i++ )
+    {
+        int32_t const idx = next.follower[i];
+        if( !frame_node_same(tree, idx, next.follower_incarnation[i]) ||
+            frame_follow_has(
+                fl, idx, next.follower_incarnation[i], next.followed[i],
+                next.followed_incarnation[i]) )
+            continue;
+        (void)UITree_SetFrameFollowsAt(tree, idx, next.followed[i]);
+    }
+
     /* Mark both the outgoing and incoming bindings once, then atomically
      * replace the table. */
     frame_mark_bound_nodes(tree, fl);
@@ -1184,6 +1346,13 @@ UITree_FrameRelease(struct UITree* tree)
             continue;
         if( tree->components[idx].frame_stretched )
             (void)UITree_SetFrameStretchedAt(tree, idx, 0);
+    }
+    for( int i = 0; i < fl->follow_count; i++ )
+    {
+        int32_t const idx = fl->follower[i];
+        if( !frame_node_same(tree, idx, fl->follower_incarnation[i]) )
+            continue;
+        (void)UITree_SetFrameFollowsAt(tree, idx, -1);
     }
 
     frame_mark_bound_nodes(tree, fl);

@@ -95,6 +95,18 @@ static struct
 #define FRAME_CHAT_BUTTON_H 32
 #define FRAME_C_CHAT_PACK_H (96 + FRAME_C_STRIP_H)
 
+/*
+ * The chat hole's top row, the band's width, and the right rail's height.
+ *
+ * `backhmid2` is 553 columns -- from the canvas edge to the tab column -- so
+ * 553 is where the chat band ENDS and where the rail that closes it has to
+ * reach. `backvmid3` is 109 rows, which is what tells that piece from
+ * `backleft2`'s 96 at the same top row.
+ */
+#define FRAME_C_CHAT_Y 357
+#define FRAME_C_BAND_W 553
+#define FRAME_C_CHAT_RAIL_H 109
+
 /**
  * Draws per chat-button plate: ONE.
  *
@@ -132,6 +144,10 @@ static struct
     /** A tab the frame HAS and the server has not handed over, or -1. The
      *  tutorial's state: the mount exists, and cache.tab_enabled says no. */
     int ungiven_tab;
+    /** The tab whose icon the engine says is in the DARK half of the tutorial
+     *  blink, or -1. The engine folds the flag and the half-cycle together,
+     *  so this is what a frame sees change twice a second. */
+    int flash_dark_tab;
 } g_frame;
 
 static void
@@ -169,6 +185,13 @@ fake_tab_enabled(void* u, int tabno)
 {
     (void)u;
     return tabno != g_frame.ungiven_tab;
+}
+
+static int
+fake_tab_flash_hidden(void* u, int tabno)
+{
+    (void)u;
+    return tabno >= 0 && tabno == g_frame.flash_dark_tab;
 }
 
 static int
@@ -496,6 +519,36 @@ static int fake_lane(void* u, struct ToriRS_LaneInfo* o)
     o->revision = g_lane_game == TORIRS_GAME_OLDSCHOOL ? 239 : 289;
     return g_lane_game != TORIRS_GAME_UNKNOWN;
 }
+/*
+ * The lane's own top-level chromes, where the lane has any.
+ *
+ * `native_layout` is the capability's answer -- a PROFILE fact, the roots and
+ * the settings row that selects them -- and off by default, because every
+ * section written before this fake existed lays the plugin's frame out over
+ * the root and expects to see it there. A select records what was asked and
+ * changes nothing: the remount is the server's, several ticks away, and a test
+ * that wants the answer to arrive moves the root itself.
+ */
+static int g_lane_native_layout = 0;
+static int g_native_layout = TORIRS_NATIVE_LAYOUT_UNKNOWN;
+static int g_native_layout_asked = TORIRS_NATIVE_LAYOUT_UNKNOWN;
+static int g_native_layout_requests = 0;
+static int g_native_layout_refuse = 0;
+static int fake_capability(void* u, char const* name)
+{
+    (void)u;
+    return strcmp(name, "native_layout") == 0 && g_lane_native_layout;
+}
+static int fake_native_layout(void* u) { (void)u; return g_native_layout; }
+static int fake_native_layout_select(void* u, int layout)
+{
+    (void)u;
+    if( g_native_layout_refuse )
+        return 0;
+    g_native_layout_asked = layout;
+    g_native_layout_requests++;
+    return 1;
+}
 static int fake_project(void* u, int a, int b, int c, int* x, int* y) { (void)u; (void)a; (void)b; (void)c; (void)x; (void)y; return 0; }
 static int fake_draw_tile(void* u, int x, int z, int l, uint32_t c, int w, uint32_t f, int a, int d) { (void)u; (void)x; (void)z; (void)l; (void)c; (void)w; (void)f; (void)a; (void)d; return 0; }
 static int fake_draw_hull(void* u, int e, uint32_t c, int a, int s) { (void)u; (void)e; (void)c; (void)a; (void)s; return 0; }
@@ -702,8 +755,17 @@ declare(int w, int h)
  * error instead. The desktop frame owns sixty-three children of its own on
  * top of everything the lane mounts, and the harness rebuilds the tree several
  * times over one run.
+ *
+ * One set per PROVISION and not one per incarnation, which is what raised this
+ * from 256. A slot is never handed back inside an incarnation -- fw_add only
+ * ever appends, and `alive` is what a destroy clears -- so the count is the
+ * number of nodes the run has ever asked for between rebuilds. Selecting a
+ * second layout is now a release and a provide (@see
+ * plugin_frame_engine_activate), so the eight layout states this file walks
+ * spend eight sets of owned children rather than reusing one, and 256 ran out
+ * in the middle of the third.
  */
-#define FW_MAX 256
+#define FW_MAX 1024
 struct FakeWidget
 {
     int alive;
@@ -1156,7 +1218,9 @@ static void press(char const* key)
     struct FakeWidget const* n = owned(key);
     CHECK(n && n->op[0], key);
     if( n && n->op[0] )
-        CHECK(PluginHost_WidgetOperation(g_host, g_widget_owner, fw_ref((int)(n - g_w)), n->registration),
+        /* The frame's controls each offer one row, so every press here is
+         * op 1 -- the left-click default the stone's click is. */
+        CHECK(PluginHost_WidgetOperation(g_host, g_widget_owner, fw_ref((int)(n - g_w)), n->registration, 1),
               "the owned control's operation dispatches");
 }
 /*
@@ -1225,6 +1289,9 @@ main(void)
     e.cache_id = fake_cache_id;
     e.lane = fake_lane;
     e.frame_root = fake_frame_root;
+    e.capability = fake_capability;
+    e.native_layout = fake_native_layout;
+    e.native_layout_select = fake_native_layout_select;
     e.project = fake_project;
     e.draw_tile = fake_draw_tile;
     e.draw_hull = fake_draw_hull;
@@ -1242,6 +1309,7 @@ main(void)
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
+    e.tab_flash_hidden = fake_tab_flash_hidden;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -1286,6 +1354,7 @@ main(void)
     /* asset_read answers into the host it is reading for, and the engine user
      * pointer is the only channel it has -- so the host is built twice. */
     g_frame.ungiven_tab = -1;
+    g_frame.flash_dark_tab = -1;
     g_frame.active_tab = -1;
     g_lane_game = TORIRS_GAME_RS2; /* rs289lc */
     fw_build(/*oldschool=*/0);
@@ -1476,6 +1545,42 @@ main(void)
     CHECK(owned("icon.03") == NULL, "a tab the server has not handed over shows no icon");
     CHECK(owned("face.03") != NULL, "and its stone keeps the control it was made with");
     g_frame.ungiven_tab = -1;
+    frame_tick();
+
+    /* ---- 2a. the tutorial blink ---------------------------------------- */
+    /*
+     * The server points at a tab by taking its icon AWAY for half of every
+     * twenty cycles -- there is no highlight sprite, the gap is the signal --
+     * and a frame that has replaced the lane's stones has inherited that.
+     *
+     * Two things are pinned and the second is the one worth having. The icon
+     * must go out: without it a provided frame simply ignores the flash and
+     * the tutorial points at nothing. And it must go out WITHOUT the control
+     * being destroyed: a key described and dropped on the blink's own clock is
+     * a create and a remove twice a second, and the relit icon would be
+     * remade at the end of this plugin's draw order rather than where the
+     * description put it.
+     *
+     * Mutation: state the icon's transparency unconditionally as 0 in
+     * frame_describe_chrome and the first line goes red with a tutorial that
+     * never blinks; describe the icon only while it is lit and the third goes
+     * red with a control that is remade on every flip.
+     */
+    {
+        int const created = g_w_count;
+        g_frame.flash_dark_tab = 3;
+        frame_tick();
+        CHECK(owned("icon.03") && owned("icon.03")->opacity == 0,
+              "the flagged tab's icon goes out for the dark half of the blink");
+        CHECK(owned("icon.04") && owned("icon.04")->opacity == 255,
+              "and no other tab's icon moves with it");
+        g_frame.flash_dark_tab = -1;
+        frame_tick();
+        CHECK(owned("icon.03") && owned("icon.03")->opacity == 255,
+              "it comes back for the lit half");
+        CHECK(g_w_count == created,
+              "and the blink is an opacity on one control, not a control made and destroyed twice a second");
+    }
 
     /* ---- 2b. a remount: the roles come back as new nodes ---------------- */
     {
@@ -2007,8 +2112,28 @@ main(void)
          * the whole difference between a derivation and a number that happens
          * to be right once.
          */
+        /*
+         * And the SURROUND is cut against the same seam.
+         *
+         * The rail that closes the chat band on the right was blitted at a
+         * constant 536 -- the 2004 origin plus the pack's own 519 -- while the
+         * pack above had been moved left off the lane's stone. Nothing owned
+         * the columns between them: the band showed a dark slot beside the
+         * chat with a stray strip of the rail's own sheet stranded past it,
+         * which is what a player sees as the chatbox overflowing to the right.
+         *
+         * Stated as the two edges the piece has to meet -- the pack on its
+         * left and the band's end on its right -- because either alone is
+         * satisfied by the defect: a rail at 536 with the pack at 7 still ends
+         * at 553, and a rail seated on the pack but cut to a constant 17 stops
+         * ten columns short of the sidebar.
+         *
+         * MUTATION: put either number back to a constant and the 526 grid and
+         * the 528 grid disagree about it, which no constant can satisfy.
+         */
         {
             struct FakeWidget const* chat;
+            struct FakeWidget const* rail;
             fw_build(/*oldschool=*/1);
             fw_tabs(/*x0=*/526, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
             PluginHost_WidgetsChanged(g_host, 78, 21);
@@ -2016,6 +2141,10 @@ main(void)
             chat = native("chat", -1);
             CHECK(chat && chat->x + chat->w == 526,
                   "the pack's right edge lands on 548's leftmost bottom stone");
+            rail = owned_piece_at(526, FRAME_C_CHAT_Y);
+            CHECK(rail && rail->image >= 0 && g_image[rail->image].h == FRAME_C_CHAT_RAIL_H &&
+                      526 + g_image[rail->image].w == FRAME_C_BAND_W,
+                  "and the band's right rail runs from that edge to the end of the band");
 
             fw_build(/*oldschool=*/1);
             fw_tabs(/*x0=*/528, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
@@ -2024,6 +2153,10 @@ main(void)
             chat = native("chat", -1);
             CHECK(chat && chat->x + chat->w == 528,
                   "and on 161's, which is two columns further right");
+            rail = owned_piece_at(528, FRAME_C_CHAT_Y);
+            CHECK(rail && rail->image >= 0 && g_image[rail->image].h == FRAME_C_CHAT_RAIL_H &&
+                      528 + g_image[rail->image].w == FRAME_C_BAND_W,
+                  "and the rail is re-cut two columns narrower to meet it there");
 
             /* A row that stands ABOVE the band is not in the pack's way, and
              * the pack keeps the 2004 origin rather than being seated against
@@ -2035,6 +2168,9 @@ main(void)
             chat = native("chat", -1);
             CHECK(chat && chat->x == 17,
                   "a lane whose stones are all above the chat band leaves the pack at the 2004 origin");
+            rail = owned_piece_at(17 + 519, FRAME_C_CHAT_Y);
+            CHECK(rail && rail->image >= 0 && g_image[rail->image].w == FRAME_C_BAND_W - (17 + 519),
+                  "and the rail goes back to the seventeen columns the 2004 hole leaves it");
 
             /* Put the fixture back the way section 10 built it: everything
              * below reads the 526 grid with its bottom row in the band. */
@@ -2224,63 +2360,161 @@ main(void)
         }
 
         /*
-         * The LIT STONE, which is the picture the whole row wears.
+         * The LIT STONE, which is the picture ONE tab wears -- and which of
+         * the three that is, is a fact about THAT TAB.
          *
-         * Symmetric about its own centre, because a grid of fourteen equal
-         * boxes has no mirror line for a one-sided picture to be on. The 2004
-         * strip's cells are each cut for the side of the strip they stand on:
-         * laid at all fourteen, `classic_redstone1` put a diagonal wedge of
-         * bare rock down the left of every selected tab and crowded the red
-         * against its right edge -- measured on classic548 at 9 red pixels in
-         * the leftmost eleven columns against 179 in the rightmost eleven.
+         * The 2004 strip is cut from three cells, each shaped for where in the
+         * strip it stands: `classic_redstone1` is an END at 34x36 with a
+         * diagonal corner out of its lower left, `classic_redstone2` the
+         * INTERIOR cell at 30x37, `classic_redstone3` the one WIDE cell at
+         * 44x35. The frame's own table says which of them goes under each of
+         * the fourteen and which way round, and adopting the lane's grid
+         * changes the BOX each is re-cut to and nothing else about it.
          *
-         * Mutation: pass `folded=0` to frame_tab_stone_column and this goes
-         * red at the first column pair. Mutation: hand
-         * frame_compose_tab_stone IMG_C_REDSTONE1 and it goes red as well,
-         * because that picture's shape is not symmetric either.
+         * This used to be one folded picture per row: the source reflected
+         * about the OUTPUT's centre, which makes a stone symmetric about its
+         * own centre -- lit from neither side, identical under all fourteen
+         * and identical whichever tab the player selects. That is what the
+         * report "the classic fixed frame uses the same redstone icon for
+         * each button" was looking at.
+         *
+         * Measured at the CAPS, which is where a three-slice copies one to
+         * one: the outer six columns and the outer six rows of the output are
+         * the source's own, so the top-left 6x6 of the composed stone is the
+         * top-left 6x6 of the picture it was cut from, and the three sources
+         * disagree there in 23 of those 36 pixels.
+         *
+         * Mutation: give frame_tab_stone one source for every tab and two of
+         * the three cap assertions go red. Mutation: fold
+         * frame_tab_stone_column about the output's centre again and all three
+         * go red, because a folded stone's left cap is the source's right one.
          */
         fw_build(/*oldschool=*/1);
         fw_tabs(/*x0=*/526, /*pitch=*/33, /*y_top=*/168, /*y_bottom=*/466, 33, 36);
         PluginHost_WidgetsChanged(g_host, 77, 26);
-        g_frame.active_tab = 3;
-        declare(765, 503);
         {
-            struct FakeWidget const* face = owned("face.03");
-            int mirrored = 0;
-            int pairs = 0;
+            /* Screen position, the 2004 cell that stands under it, and the
+             * key its face is described by. @see FRAME_TAB_SCREEN_ORDER: on
+             * the top row the two numberings agree, so the tab to select is
+             * the position itself. */
+            static struct
+            {
+                int tab;
+                char const* key;
+                char const* source;
+            } const SHAPE[3] = {
+                { 0, "face.00", "classic_redstone1.png" },
+                { 1, "face.01", "classic_redstone2.png" },
+                { 3, "face.03", "classic_redstone3.png" },
+            };
+            static char const* const WHY[3] = {
+                "the row's FIRST stone is cut from classic_redstone1, the strip's end cell",
+                "an INTERIOR stone is cut from classic_redstone2, which is a different picture",
+                "and the fourth is cut from classic_redstone3, the wide cell -- three tabs, three stones",
+            };
+            uint32_t shot[3][33 * 36];
+            int alike = 0;
 
-            CHECK(face && face->image >= 0 && g_image[face->image].w == 33 &&
-                      g_image[face->image].h == 36,
-                  "the lit stone is composed at the TAB's box, not at the picture's own 30x37");
-            if( face && face->image >= 0 )
+            memset(shot, 0, sizeof(shot));
+            for( int i = 0; i < 3; i++ )
+            {
+                struct FakeWidget const* face;
+                int caps = 0;
+
+                g_frame.active_tab = SHAPE[i].tab;
+                frame_tick();
+                declare(765, 503);
+                face = owned(SHAPE[i].key);
+                CHECK(face && face->image >= 0 && g_image[face->image].w == 33 &&
+                          g_image[face->image].h == 36,
+                      "the lit stone is composed at the TAB's box, not at the picture's own size");
+                if( !face || face->image < 0 )
+                    continue;
                 for( int row = 0; row < 36; row++ )
                     for( int col = 0; col < 33; col++ )
-                    {
-                        pairs++;
-                        if( image_px(face->image, col, row) ==
-                            image_px(face->image, 32 - col, row) )
-                            mirrored++;
-                    }
-            CHECK(pairs == 33 * 36 && mirrored == 33 * 36,
-                  "and it is symmetric about its own centre: no side of a uniform grid is the lit side");
+                        shot[i][(row * 33) + col] = image_px(face->image, col, row);
+                if( !source_image(SHAPE[i].source) )
+                    CHECK(0, "the stone's source picture is readable");
+                for( int row = 0; row < 6; row++ )
+                    for( int col = 0; col < 6; col++ )
+                        if( image_px(face->image, col, row) == source_px(col, row) )
+                            caps++;
+                CHECK(caps == 36, WHY[i]);
+            }
+            /*
+             * And the three are three PICTURES, which the caps alone do not
+             * say: a stone cut from the right source but folded still has the
+             * source's cap at both edges.
+             */
+            for( int i = 0; i < 33 * 36; i++ )
+                if( shot[0][i] == shot[1][i] )
+                    alike++;
+            CHECK(alike < 33 * 36,
+                  "the first tab's stone and its neighbour's are not the same picture");
+            alike = 0;
+            for( int i = 0; i < 33 * 36; i++ )
+                if( shot[1][i] == shot[2][i] )
+                    alike++;
+            CHECK(alike < 33 * 36,
+                  "nor are the interior stone and the wide one");
+            /*
+             * The right-hand half of the row wears the same stones MIRRORED,
+             * which is what the 2004 table's REDSTONE_FLIP_H column says and
+             * what a strip lit from its middle out looks like. A fold cannot
+             * express it: a symmetric picture is its own mirror.
+             *
+             * Mutation: drop `mirror_x` in frame_compose_tab_stone and this
+             * goes red against the first tab's stone, which it then equals
+             * column for column.
+             */
+            {
+                struct FakeWidget const* face;
+                int mirrored = 0;
+                int straight = 0;
+
+                g_frame.active_tab = 6;
+                frame_tick();
+                declare(765, 503);
+                face = owned("face.06");
+                CHECK(face && face->image >= 0 && g_image[face->image].w == 33,
+                      "the row's LAST stone wears a lit stone of its own");
+                if( face && face->image >= 0 )
+                    for( int row = 0; row < 36; row++ )
+                        for( int col = 0; col < 33; col++ )
+                        {
+                            uint32_t const px = image_px(face->image, col, row);
+
+                            if( px == shot[0][(row * 33) + (32 - col)] )
+                                mirrored++;
+                            if( px == shot[0][(row * 33) + col] )
+                                straight++;
+                        }
+                CHECK(mirrored == 33 * 36 && straight < 33 * 36,
+                      "and it is the first stone MIRRORED, not the first stone again");
+            }
         }
         /*
-         * And the BOTTOM row wears it upside down.
+         * And the BOTTOM row wears its stones upside down.
          *
          * The two bands are two pictures rather than one flipped, but the
          * hollows in them are flips of each other: `backhmid1` lights its
          * sockets from below and `backbase2` from above. The 2004 table says
          * the same thing -- every one of its bottom seven entries is a
          * REDSTONE_FLIP_V or _HV of the picture the row above wears -- and a
-         * single stone for all fourteen loses it, which is a lit stone shaded
-         * against the rock it stands in.
+         * lit stone shaded against the rock it stands in is what losing it
+         * looks like.
+         *
+         * Read at the row's LAST stone, which is the table's _HV entry, so
+         * this holds the vertical mirror while the horizontal one above holds
+         * the other axis -- and neither assertion can be satisfied by the
+         * other's fix.
          *
          * Mutation: pass `mirror_y=0` for both rows in frame_tab_stone and
-         * this goes red while the symmetry assertion above stays green.
+         * this goes red while every assertion above stays green.
          */
         {
             uint32_t top[33 * 36];
-            struct FakeWidget const* face = owned("face.03");
+            struct FakeWidget const* face = owned("face.06");
             int flipped = 0;
             int pairs = 0;
 
@@ -2307,6 +2541,83 @@ main(void)
                   "and it is the top row's stone turned over, which is how the 2004 table lights the row");
         }
         printf("GAMEFRAME lane grid faces=%d at %d..%d\n", matched, TOP_ROW_X[0], TOP_ROW_X[6]);
+    }
+
+    /* ---- 11. a lane that authors the frame itself ---------------------- */
+    /*
+     * On a lane with the `native_layout` capability the two Modern offers ARE
+     * the lane's own chromes. The provider asks the lane for the chrome and
+     * answers NATIVE: nothing placed, nothing owned, the lane's chrome up, the
+     * offer ACTIVE under its own id. Found on osrs239 with the plugin popout
+     * open: Modern Resizable arranged over 164 by this plugin was clipped by
+     * the strip the lane's own 164 grows its canvas to stand beside.
+     */
+    {
+        int requests;
+
+        g_lane_game = TORIRS_GAME_OLDSCHOOL;
+        g_frame_root = 548;
+        g_native_layout = TORIRS_NATIVE_LAYOUT_FIXED;
+        g_lane_native_layout = 1;
+        g_native_layout_asked = TORIRS_NATIVE_LAYOUT_UNKNOWN;
+        g_native_layout_requests = 0;
+        fw_build(/*oldschool=*/1);
+        PluginHost_WidgetsChanged(g_host, 77, 40);
+        select_frame("gameframe-layout/modern-resizable", 1100);
+        declare(807, 503);
+        printf("GAMEFRAME native asked=%d requests=%d status=%d id=%s active=%d pieces=%d\n",
+               g_native_layout_asked, g_native_layout_requests, selected_frame().status,
+               selected_frame().active_id, g_frame.active, owned_count("piece."));
+        CHECK(g_native_layout_asked == TORIRS_NATIVE_LAYOUT_RESIZABLE_MODERN,
+              "Modern Resizable on a lane with native chromes asks the lane for its resizable-modern one");
+        CHECK(selected_frame().status == TORIRS_FRAME_STATUS_ACTIVE &&
+                  strcmp(selected_frame().active_id, "gameframe-layout/modern-resizable") == 0,
+              "and the offer is active under its own id, not a fallback to native");
+        CHECK(g_frame.active == 0, "the lane's own chrome stays up");
+        CHECK(owned_count("piece.") == 0 && owned_count("tab.") == 0 && owned("housing") == NULL &&
+                  !native("viewport", -1)->moved && !native("chat", -1)->moved,
+              "nothing is placed over the lane");
+        /* The remount answers. Neither it nor a canvas change asks again:
+         * the lane lays its own chrome out. */
+        requests = g_native_layout_requests;
+        g_frame_root = 164;
+        g_native_layout = TORIRS_NATIVE_LAYOUT_RESIZABLE_MODERN;
+        fw_build(/*oldschool=*/1);
+        PluginHost_WidgetsChanged(g_host, 77, 41);
+        declare(1200, 800);
+        CHECK(g_native_layout_requests == requests, "the remount and a canvas change ask for nothing");
+        CHECK(g_frame.active == 0 && owned_count("piece.") == 0 && !native("viewport", -1)->moved,
+              "and still nothing is placed");
+        /* Modern Fixed is the lane's fixed chrome the same way. */
+        select_frame("gameframe-layout/modern-fixed", 1200);
+        declare(1200, 800);
+        CHECK(g_native_layout_asked == TORIRS_NATIVE_LAYOUT_FIXED &&
+                  selected_frame().status == TORIRS_FRAME_STATUS_ACTIVE &&
+                  strcmp(selected_frame().active_id, "gameframe-layout/modern-fixed") == 0 && g_frame.active == 0,
+              "Modern Fixed asks for the lane's fixed chrome and is active under its own id");
+        /* Classic Fixed is the 2004 frame, which no OldSchool lane authors:
+         * it asks for nothing and is described over the root as before. */
+        g_frame_root = 548;
+        g_native_layout = TORIRS_NATIVE_LAYOUT_FIXED;
+        fw_build(/*oldschool=*/1);
+        PluginHost_WidgetsChanged(g_host, 77, 42);
+        requests = g_native_layout_requests;
+        select_frame("gameframe-layout/classic-fixed", 1300);
+        declare(765, 503);
+        CHECK(g_native_layout_requests == requests && g_frame.active == 1 && owned_count("piece.") > 0,
+              "Classic Fixed asks for no chrome and is provided over the root");
+        /* A lane that cannot be asked -- the row not armed, no session -- gets
+         * the described frame over its root, which is what every lane got
+         * before the lane could be asked. */
+        g_native_layout_refuse = 1;
+        select_frame("gameframe-layout/modern-resizable", 1400);
+        declare(807, 503);
+        CHECK(g_native_layout_requests == requests && g_frame.active == 1 &&
+                  placed("viewport", -1, 0, 0, 807, 503) &&
+                  selected_frame().status == TORIRS_FRAME_STATUS_ACTIVE,
+              "a refused ask falls back to describing the frame over the live root");
+        g_native_layout_refuse = 0;
+        g_lane_native_layout = 0;
     }
 
     PluginHost_Free(g_host);

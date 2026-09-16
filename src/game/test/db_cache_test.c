@@ -78,17 +78,17 @@ call_db(
     case CS2VM_HOST_REQUEST_##name:                                         \
         req.u.name.opcode = opcode;                                 \
         break
-        SET_DB_OPCODE(DB_FIND_WITH_COUNT);
+        SET_DB_OPCODE(DB_FIND);
         SET_DB_OPCODE(DB_FINDNEXT);
         SET_DB_OPCODE(DB_GETFIELD);
         SET_DB_OPCODE(DB_GETFIELDCOUNT);
-        SET_DB_OPCODE(DB_FINDALL_WITH_COUNT);
+        SET_DB_OPCODE(DB_LISTALL);
         SET_DB_OPCODE(DB_GETROWTABLE);
-        SET_DB_OPCODE(DB_GETROW);
-        SET_DB_OPCODE(DB_FIND_FILTER_WITH_COUNT);
-        SET_DB_OPCODE(DB_FIND);
-        SET_DB_OPCODE(DB_FINDALL);
-        SET_DB_OPCODE(DB_FIND_FILTER);
+        SET_DB_OPCODE(DB_FIND_GET);
+        SET_DB_OPCODE(DB_FIND_REFINE);
+        SET_DB_OPCODE(DB_FIND_PRE228);
+        SET_DB_OPCODE(DB_FIND_REFINE_PRE228);
+        SET_DB_OPCODE(DB_LISTALL_PRE228);
 #undef SET_DB_OPCODE
     default:
         assert(0 && "call_db: unexpected opcode");
@@ -405,7 +405,7 @@ main(void)
 
     /* DB_FINDALL_WITH_COUNT(table 0) -> 198 rows. */
     CS2VM2_PushInt(t, 0);
-    call_db(t, CS2_OP_DB_FINDALL_WITH_COUNT);
+    call_db(t, CS2_OP_DB_LISTALL);
     CS2VM2_PopInt(t, &iv);
     CHECK(iv == 198, "DB_FINDALL_WITH_COUNT(table0) == 198");
 
@@ -418,7 +418,7 @@ main(void)
     CS2VM2_PushInt(t, pack_col(0, 0, 0));  /* dbcolumn */
     CS2VM2_PushInt(t, 1);                  /* value */
     CS2VM2_PushInt(t, 0);                  /* type tag: int stack */
-    call_db(t, CS2_OP_DB_FIND_WITH_COUNT);
+    call_db(t, CS2_OP_DB_FIND);
     CS2VM2_PopInt(t, &iv);
     CHECK(iv == 1, "DB_FIND_WITH_COUNT(col0==1) == 1");
 

@@ -102,13 +102,13 @@ recording_host_exec(struct CS2VM2_Thread* thread, struct CS2VM_HostRequest* requ
         host->coord = request->u.name.coord;                                \
         host->index = request->u.name.index;                                \
         break
+        RECORD_GROUND(OBJSTACK_SIZE);
+        RECORD_GROUND(OBJSTACK_OBJ);
         RECORD_GROUND(OBJSTACK_COUNT);
-        RECORD_GROUND(OBJSTACK_ID);
-        RECORD_GROUND(OBJSTACK_QUANTITY);
-        RECORD_GROUND(OBJ_FIND);
+        RECORD_GROUND(OBJ_FINDBYINDEX);
         RECORD_GROUND(OBJ_DESPAWNTIME);
-        RECORD_GROUND(OBJ_VISIBLETIME);
-        RECORD_GROUND(OBJ_ISPUBLIC);
+        RECORD_GROUND(OBJ_REVEALTIME);
+        RECORD_GROUND(OBJ_REVEALED);
         RECORD_GROUND(OBJ_OWNER);
 #undef RECORD_GROUND
     default:
@@ -135,15 +135,15 @@ struct DispatchCase
 
 static struct DispatchCase const DISPATCH[] = {
     /* (coord) */
-    DISPATCH_CASE(OBJSTACK_COUNT, 1, 101, -1),
+    DISPATCH_CASE(OBJSTACK_SIZE, 1, 101, -1),
     /* (coord, index) -- the coord is pushed first, so it is 101. */
-    DISPATCH_CASE(OBJSTACK_ID, 2, 101, 102),
-    DISPATCH_CASE(OBJSTACK_QUANTITY, 2, 101, 102),
-    DISPATCH_CASE(OBJ_FIND, 2, 101, 102),
-    /* () -- the four getters read the entry OBJ_FIND selected. */
+    DISPATCH_CASE(OBJSTACK_OBJ, 2, 101, 102),
+    DISPATCH_CASE(OBJSTACK_COUNT, 2, 101, 102),
+    DISPATCH_CASE(OBJ_FINDBYINDEX, 2, 101, 102),
+    /* () -- the four getters read the entry OBJ_FINDBYINDEX selected. */
     DISPATCH_CASE(OBJ_DESPAWNTIME, 0, -1, -1),
-    DISPATCH_CASE(OBJ_VISIBLETIME, 0, -1, -1),
-    DISPATCH_CASE(OBJ_ISPUBLIC, 0, -1, -1),
+    DISPATCH_CASE(OBJ_REVEALTIME, 0, -1, -1),
+    DISPATCH_CASE(OBJ_REVEALED, 0, -1, -1),
     DISPATCH_CASE(OBJ_OWNER, 0, -1, -1),
 };
 
@@ -260,13 +260,13 @@ call_ground(struct CS2VM2_Thread* t, int opcode, int coord, int index)
         req.u.name_.coord = coord;                                          \
         req.u.name_.index = index;                                          \
         break
+        SET_GROUND_REQUEST(OBJSTACK_SIZE);
+        SET_GROUND_REQUEST(OBJSTACK_OBJ);
         SET_GROUND_REQUEST(OBJSTACK_COUNT);
-        SET_GROUND_REQUEST(OBJSTACK_ID);
-        SET_GROUND_REQUEST(OBJSTACK_QUANTITY);
-        SET_GROUND_REQUEST(OBJ_FIND);
+        SET_GROUND_REQUEST(OBJ_FINDBYINDEX);
         SET_GROUND_REQUEST(OBJ_DESPAWNTIME);
-        SET_GROUND_REQUEST(OBJ_VISIBLETIME);
-        SET_GROUND_REQUEST(OBJ_ISPUBLIC);
+        SET_GROUND_REQUEST(OBJ_REVEALTIME);
+        SET_GROUND_REQUEST(OBJ_REVEALED);
         SET_GROUND_REQUEST(OBJ_OWNER);
 #undef SET_GROUND_REQUEST
     default:
@@ -339,28 +339,28 @@ test_host_ops(void)
      * leave a stale one over a scene that no longer exists.
      */
     CHECK(
-        ask(t, CS2_OP_OBJSTACK_COUNT, TEST_COORD, -1) == 0,
+        ask(t, CS2_OP_OBJSTACK_SIZE, TEST_COORD, -1) == 0,
         "with no world callback every tile is empty");
     CHECK(
-        ask(t, CS2_OP_OBJSTACK_ID, TEST_COORD, 0) == -1,
+        ask(t, CS2_OP_OBJSTACK_OBJ, TEST_COORD, 0) == -1,
         "and asking what is on it answers nothing");
 
     host.objs_on_coord = stub_objs_on_coord;
     host.world_user = &pile;
 
-    CHECK(ask(t, CS2_OP_OBJSTACK_COUNT, TEST_COORD, -1) == 2, "the pile is two entries deep");
+    CHECK(ask(t, CS2_OP_OBJSTACK_SIZE, TEST_COORD, -1) == 2, "the pile is two entries deep");
     CHECK(
-        ask(t, CS2_OP_OBJSTACK_COUNT, OTHER_COORD, -1) == 0,
+        ask(t, CS2_OP_OBJSTACK_SIZE, OTHER_COORD, -1) == 0,
         "and a tile outside the scene is empty rather than an error");
 
-    CHECK(ask(t, CS2_OP_OBJSTACK_ID, TEST_COORD, 0) == 995, "entry 0 is the coins");
-    CHECK(ask(t, CS2_OP_OBJSTACK_QUANTITY, TEST_COORD, 0) == 5000, "five thousand of them");
-    CHECK(ask(t, CS2_OP_OBJSTACK_ID, TEST_COORD, 1) == 526, "entry 1 is the bones");
-    CHECK(ask(t, CS2_OP_OBJSTACK_QUANTITY, TEST_COORD, 1) == 1, "one of those");
+    CHECK(ask(t, CS2_OP_OBJSTACK_OBJ, TEST_COORD, 0) == 995, "entry 0 is the coins");
+    CHECK(ask(t, CS2_OP_OBJSTACK_COUNT, TEST_COORD, 0) == 5000, "five thousand of them");
+    CHECK(ask(t, CS2_OP_OBJSTACK_OBJ, TEST_COORD, 1) == 526, "entry 1 is the bones");
+    CHECK(ask(t, CS2_OP_OBJSTACK_COUNT, TEST_COORD, 1) == 1, "one of those");
     /* -1 and not 0: `if ($int12 ! null)` is the overlay's own test for the end
      * of the list, and obj 0 is a real obj. */
-    CHECK(ask(t, CS2_OP_OBJSTACK_ID, TEST_COORD, 2) == -1, "an index past the end answers null");
-    CHECK(ask(t, CS2_OP_OBJSTACK_ID, TEST_COORD, -1) == -1, "and so does a negative one");
+    CHECK(ask(t, CS2_OP_OBJSTACK_OBJ, TEST_COORD, 2) == -1, "an index past the end answers null");
+    CHECK(ask(t, CS2_OP_OBJSTACK_OBJ, TEST_COORD, -1) == -1, "and so does a negative one");
 
     /*
      * The four getters before anything has been selected. -1, not 0: a zero
@@ -375,15 +375,15 @@ test_host_ops(void)
         ask(t, CS2_OP_OBJ_DESPAWNTIME, -1, -1) == -1,
         "and so is the despawn time");
 
-    CHECK(ask(t, CS2_OP_OBJ_FIND, TEST_COORD, 5) == 0, "selecting past the end fails");
+    CHECK(ask(t, CS2_OP_OBJ_FINDBYINDEX, TEST_COORD, 5) == 0, "selecting past the end fails");
     CHECK(
         ask(t, CS2_OP_OBJ_OWNER, -1, -1) == -1,
         "and leaves nothing selected");
     CHECK(
-        ask(t, CS2_OP_OBJ_FIND, OTHER_COORD, 0) == 0,
+        ask(t, CS2_OP_OBJ_FINDBYINDEX, OTHER_COORD, 0) == 0,
         "selecting on an empty tile fails too");
 
-    CHECK(ask(t, CS2_OP_OBJ_FIND, TEST_COORD, 0) == 1, "entry 0 can be selected");
+    CHECK(ask(t, CS2_OP_OBJ_FINDBYINDEX, TEST_COORD, 0) == 1, "entry 0 can be selected");
     /*
      * GAME ticks out, because that is what the cache multiplies by 30 to reach
      * the 20 ms units `~buff_bar_time_string` formats. The clocks stored are
@@ -393,24 +393,24 @@ test_host_ops(void)
         ask(t, CS2_OP_OBJ_DESPAWNTIME, -1, -1) == 100,
         "its despawn is a hundred game ticks off");
     CHECK(
-        ask(t, CS2_OP_OBJ_VISIBLETIME, -1, -1) == 10,
+        ask(t, CS2_OP_OBJ_REVEALTIME, -1, -1) == 10,
         "and it goes public in ten");
-    CHECK(ask(t, CS2_OP_OBJ_ISPUBLIC, -1, -1) == 0, "so it is not public yet");
+    CHECK(ask(t, CS2_OP_OBJ_REVEALED, -1, -1) == 0, "so it is not public yet");
     CHECK(ask(t, CS2_OP_OBJ_OWNER, -1, -1) == 2, "and it is somebody else's");
 
     /* The clock runs past the public deadline: the answer floors at zero
      * rather than going negative, and the pile becomes public. */
     host.client_clock = now + 20 * RS_CS2_HOST_CLOCKS_PER_TICK;
     CHECK(
-        ask(t, CS2_OP_OBJ_VISIBLETIME, -1, -1) == 0,
+        ask(t, CS2_OP_OBJ_REVEALTIME, -1, -1) == 0,
         "once the deadline passes the countdown floors at zero");
-    CHECK(ask(t, CS2_OP_OBJ_ISPUBLIC, -1, -1) == 1, "and the pile reads as public");
+    CHECK(ask(t, CS2_OP_OBJ_REVEALED, -1, -1) == 1, "and the pile reads as public");
     CHECK(
         ask(t, CS2_OP_OBJ_DESPAWNTIME, -1, -1) == 80,
         "while the despawn keeps counting down");
     host.client_clock = now;
 
-    CHECK(ask(t, CS2_OP_OBJ_FIND, TEST_COORD, 1) == 1, "entry 1 can be selected in turn");
+    CHECK(ask(t, CS2_OP_OBJ_FINDBYINDEX, TEST_COORD, 1) == 1, "entry 1 can be selected in turn");
     /*
      * A revision whose OBJ_ADD carries no timers stores -1, and -1 is not a
      * deadline in the past: zero is the only honest duration for a question
@@ -421,12 +421,12 @@ test_host_ops(void)
         ask(t, CS2_OP_OBJ_DESPAWNTIME, -1, -1) == 0,
         "an entry the server said nothing about has no despawn timer");
     CHECK(
-        ask(t, CS2_OP_OBJ_VISIBLETIME, -1, -1) == 0,
+        ask(t, CS2_OP_OBJ_REVEALTIME, -1, -1) == 0,
         "nor a visibility one");
     /* neverBecomesPublic outranks the clock: the pile is private for its whole
      * life however far past a deadline that never existed the clock has run. */
     CHECK(
-        ask(t, CS2_OP_OBJ_ISPUBLIC, -1, -1) == 0,
+        ask(t, CS2_OP_OBJ_REVEALED, -1, -1) == 0,
         "and a never-public pile stays private whatever the clock says");
     CHECK(ask(t, CS2_OP_OBJ_OWNER, -1, -1) == 0, "its owner is the public one");
 

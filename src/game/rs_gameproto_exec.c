@@ -9,6 +9,8 @@
 #include "rs_attack_option.h"
 #include "rs_audio.h"
 #include "rs_chat.h"
+#include "rs_clan.h"
+#include "rs_friends_chat.h"
 #include "rs_clientcode.h"
 #include "rs_cs2_dispatch.h"
 #include "rs_cs2_host.h"
@@ -822,6 +824,209 @@ exec_worldentity_info(
     app->need_redraw = 1;
 }
 
+/* ---- friends chat, clans --------------------------------------------------- */
+
+static void
+exec_friends_chat(
+    struct RS_CS2Host* host,
+    int packet_type,
+    struct PktRawPayload const* payload)
+{
+    assert(host);
+    assert(payload);
+    bool const full = packet_type == PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL;
+    bool const decoded =
+        full ? RS_FriendsChat_ApplyFull(
+                   &host->friends_chat, payload->data, payload->length, host->local_player_name)
+             : RS_FriendsChat_ApplySingleUser(
+                   &host->friends_chat, payload->data, payload->length, host->local_player_name);
+    if( !decoded )
+        TORIRS_ERR(
+            "gameproto_exec: %s did not decode (%d bytes)\n",
+            full ? "UPDATE_FRIENDCHAT_CHANNEL_FULL" : "UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER",
+            payload->length);
+    /* Both bump onclantransmit whatever the payload held, and the reference
+     * re-sorts the list the next frame. */
+    RS_FriendsChat_Sort(&host->friends_chat, host->map_world);
+    host->clan_transmit_dirty = 1;
+}
+
+static int
+exec_varclan_type_of(
+    void* user,
+    int var_id)
+{
+    return RS_CS2Host_VarClanType((struct RS_CS2Host const*)user, var_id);
+}
+
+static void
+exec_clan_request_full(
+    struct RS_CS2Host* host,
+    int kind,
+    int clan_type)
+{
+    struct RS_CS2SocialSend send;
+    memset(&send, 0, sizeof(send));
+    send.kind = kind;
+    send.values[0] = clan_type;
+    RS_CS2Host_SendPush(host, &send);
+}
+
+static void
+exec_clan(
+    struct RS_CS2Host* host,
+    int packet_type,
+    struct PktRawPayload const* payload)
+{
+    assert(host);
+    assert(payload);
+    int request_full = INT32_MIN;
+    bool decoded = true;
+    char const* name = "";
+
+    switch( packet_type )
+    {
+    case PKT_NAME_VARCLAN_ENABLE:
+        RS_ClanStore_VarClanEnable(&host->clan);
+        return;
+    case PKT_NAME_VARCLAN_DISABLE:
+        RS_ClanStore_VarClanDisable(&host->clan);
+        return;
+    case PKT_NAME_VARCLAN:
+        name = "VARCLAN";
+        decoded = RS_ClanStore_ApplyVarClan(
+            &host->clan, payload->data, payload->length, exec_varclan_type_of, host);
+        break;
+    case PKT_NAME_CLANCHANNEL_FULL:
+        name = "CLANCHANNEL_FULL";
+        decoded = RS_ClanStore_ApplyChannelFull(&host->clan, payload->data, payload->length);
+        host->clan_channel_transmit_dirty = 1;
+        break;
+    case PKT_NAME_CLANCHANNEL_DELTA:
+        name = "CLANCHANNEL_DELTA";
+        decoded = RS_ClanStore_ApplyChannelDelta(
+            &host->clan, payload->data, payload->length, &request_full);
+        host->clan_channel_transmit_dirty = 1;
+        if( request_full != INT32_MIN )
+            exec_clan_request_full(host, RS_CS2_SOCIAL_SEND_CLANCHANNEL_FULL_REQUEST, request_full);
+        break;
+    case PKT_NAME_CLANSETTINGS_FULL:
+        name = "CLANSETTINGS_FULL";
+        decoded = RS_ClanStore_ApplySettingsFull(&host->clan, payload->data, payload->length);
+        host->clan_settings_transmit_dirty = 1;
+        break;
+    case PKT_NAME_CLANSETTINGS_DELTA:
+        name = "CLANSETTINGS_DELTA";
+        decoded = RS_ClanStore_ApplySettingsDelta(
+            &host->clan, payload->data, payload->length, &request_full);
+        host->clan_settings_transmit_dirty = 1;
+        if( request_full != INT32_MIN )
+            exec_clan_request_full(
+                host, RS_CS2_SOCIAL_SEND_CLANSETTINGS_FULL_REQUEST, request_full);
+        break;
+    default:
+        assert(!"exec_clan: not a clan packet");
+        return;
+    }
+    if( !decoded )
+        TORIRS_ERR("gameproto_exec: %s did not decode (%d bytes)\n", name, payload->length);
+}
+
+/* The chat crowns (the reference's class292): the image a sender's crown draws
+ * as, -1 for none, and whether the ignore list can silence its wearer. */
+static struct
+{
+    int image;
+    bool ignorable;
+} const k_chat_crowns[] = {
+    { -1, true }, { 0, true },  { 1, false }, { 2, true },  { 3, true },  { 10, true },
+    { 22, true }, { 41, true }, { 42, true }, { 43, true }, { 44, true }, { 45, true },
+    { 46, true }, { 47, true }, { 48, true }, { 49, true }, { 52, true },
+};
+
+/* The reference escapes a player's clan message for display (class2.method12):
+ * a tag in what they typed draws as the characters, not as markup. */
+static void
+exec_escape_tags(
+    char const* text,
+    char* out,
+    size_t cap)
+{
+    size_t written = 0;
+    assert(cap > 0);
+    for( ; *text; text++ )
+    {
+        char const* piece = *text == '<' ? "<lt>" : *text == '>' ? "<gt>" : NULL;
+        size_t const piece_len = piece ? 4 : 1;
+        if( written + piece_len >= cap )
+            break;
+        if( piece )
+            memcpy(out + written, piece, piece_len);
+        else
+            out[written] = *text;
+        written += piece_len;
+    }
+    out[written] = '\0';
+}
+
+static void
+exec_message_clanchannel(
+    struct RS_GameProtoCtx const* ctx,
+    bool system,
+    struct PktMessageClanChannel const* message)
+{
+    assert(ctx);
+    assert(ctx->app);
+    assert(message);
+    struct App* app = ctx->app;
+    struct RS_ClanStore const* clan = &app->host.clan;
+    struct RS_ClanChannel const* channel =
+        message->clan_type >= 0
+            ? (message->clan_type < RS_CLAN_AFFINED_SLOTS ? clan->affined_channel[message->clan_type]
+                                                          : NULL)
+            : clan->listened_channel;
+    if( !channel )
+        return;
+
+    int64_t const key = ((int64_t)message->world << 32) + message->counter;
+    for( int i = 0; i < 100; i++ )
+        if( app->pm_message_ids[i] == key )
+            return;
+
+    int crown_image = -1;
+    if( !system )
+    {
+        bool ignorable = true;
+        if( message->crown >= 0 &&
+            message->crown < (int)(sizeof(k_chat_crowns) / sizeof(k_chat_crowns[0])) )
+        {
+            crown_image = k_chat_crowns[message->crown].image;
+            ignorable = k_chat_crowns[message->crown].ignorable;
+        }
+        if( ignorable && RS_Social_IsIgnored(&app->social, message->sender) )
+            return;
+    }
+    app->pm_message_ids[app->pm_message_head] = key;
+    app->pm_message_head = (app->pm_message_head + 1) % 100;
+
+    char const* const text = message->text ? message->text : "";
+    if( system )
+    {
+        /* The reference stores the clan's name where a player line keeps its
+         * channel prefix; this store keeps that in `sender`. */
+        exec_chat_add(ctx, message->clan_type >= 0 ? RS_CHAT_TYPE_CLAN_MESSAGE : RS_CHAT_TYPE_CLAN_GUEST_MESSAGE, "", channel->name, text);
+        return;
+    }
+    char escaped[RS_CHAT_TEXT_LEN];
+    char name[RS_CHAT_SENDER_LEN];
+    exec_escape_tags(text, escaped, sizeof(escaped));
+    if( crown_image >= 0 )
+        snprintf(name, sizeof(name), "<img=%d>%s", crown_image, message->sender);
+    else
+        snprintf(name, sizeof(name), "%s", message->sender);
+    exec_chat_add(ctx, message->clan_type >= 0 ? RS_CHAT_TYPE_CLAN_CHAT : RS_CHAT_TYPE_CLAN_GUEST_CHAT, name, channel->name, escaped);
+}
+
 void
 RS_GameProto_Exec(
     struct RS_GameProtoCtx const* ctx,
@@ -877,6 +1082,7 @@ RS_GameProto_Exec(
      * and the server already change-gates these packets, so an unchanged value
      * arriving at all is unusual. */
     case PKT_NAME_UPDATE_RUNENERGY:
+        ctx->stats->run_energy_raw = packet->_update_run_energy.run_energy_raw;
         if( ctx->stats->run_energy != packet->_update_run_energy.run_energy )
         {
             ctx->stats->run_energy = packet->_update_run_energy.run_energy;
@@ -1515,13 +1721,25 @@ RS_GameProto_Exec(
             {
                 if( strcmp(social->friend_name[i], name) == 0 )
                 {
-                    social->friend_world[i] = packet->_update_friendlist.world;
+                    RS_Social_SetFriendWorld(social, i, packet->_update_friendlist.world);
+                    social->friend_rank[i] = packet->_update_friendlist.rank;
+                    snprintf(social->friend_previous_name[i], RS_SOCIAL_NAME_LEN, "%s",
+                        packet->_update_friendlist.previous_name);
                     found = 1;
                     break;
                 }
             }
-            if( !found )
-                RS_Social_AddFriend(social, name, packet->_update_friendlist.world);
+            if( !found && RS_Social_AddFriend(social, name, packet->_update_friendlist.world) )
+            {
+                int const added = social->friend_count - 1;
+                social->friend_rank[added] = packet->_update_friendlist.rank;
+                snprintf(social->friend_previous_name[added], RS_SOCIAL_NAME_LEN, "%s",
+                    packet->_update_friendlist.previous_name);
+            }
+            /* The client re-applies the scripts' sort chain on every friend
+             * update (class476.java:207), so a world change re-orders the list
+             * without the panel asking. */
+            RS_Social_SortFriends(social);
             /* The friends panel's rows are cc_created from this store by the
              * client's own script 125, so nothing repaints them but the
              * friend-transmit channel. Filling the store without this notify
@@ -1716,8 +1934,39 @@ RS_GameProto_Exec(
     case PKT_NAME_HINT_ARROW:
         if( ctx->app )
         {
-            ctx->app->hint_arrow.type =
-                packet->_hint_arrow.type == 255 ? 0 : packet->_hint_arrow.type;
+            int type = packet->_hint_arrow.type == 255 ? 0 : packet->_hint_arrow.type;
+
+            /*
+             * The five tile forms are one form with five anchors, and the
+             * reference folds them here rather than at the draw: 2 is the
+             * tile's centre, 3/4 its west/east edge, 5/6 its south/north
+             * (Client.ts's own 64/0/128 pairs, and `class268.method6676`'s
+             * at rev 239). Left as five types, every place that draws a hint
+             * would have to know all five.
+             */
+            ctx->app->hint_arrow.offset_x = 64;
+            ctx->app->hint_arrow.offset_z = 64;
+            switch( type )
+            {
+            case APP_HINT_ARROW_COORD_WEST:
+                ctx->app->hint_arrow.offset_x = 0;
+                break;
+            case APP_HINT_ARROW_COORD_EAST:
+                ctx->app->hint_arrow.offset_x = 128;
+                break;
+            case APP_HINT_ARROW_COORD_SOUTH:
+                ctx->app->hint_arrow.offset_z = 0;
+                break;
+            case APP_HINT_ARROW_COORD_NORTH:
+                ctx->app->hint_arrow.offset_z = 128;
+                break;
+            default:
+                break;
+            }
+            if( type >= APP_HINT_ARROW_COORD && type <= APP_HINT_ARROW_COORD_NORTH )
+                type = APP_HINT_ARROW_COORD;
+
+            ctx->app->hint_arrow.type = type;
             ctx->app->hint_arrow.target = packet->_hint_arrow.id;
             ctx->app->hint_arrow.tile_z = packet->_hint_arrow.z;
             ctx->app->hint_arrow.height = packet->_hint_arrow.height;
@@ -1949,6 +2198,60 @@ RS_GameProto_Exec(
              * is reading a half-applied world. */
             PluginHost_ServerTick(
                 ctx->app->plugins, ctx->app->world ? ctx->app->world->cycle : 0);
+        }
+        break;
+
+    /* ---- friends chat, clans, Grand Exchange ---- */
+    case PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL:
+    case PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER:
+        if( ctx->app )
+            exec_friends_chat(&ctx->app->host, packet->packet_type, &packet->_raw_payload);
+        break;
+    case PKT_NAME_VARCLAN:
+    case PKT_NAME_VARCLAN_ENABLE:
+    case PKT_NAME_VARCLAN_DISABLE:
+    case PKT_NAME_CLANCHANNEL_FULL:
+    case PKT_NAME_CLANCHANNEL_DELTA:
+    case PKT_NAME_CLANSETTINGS_FULL:
+    case PKT_NAME_CLANSETTINGS_DELTA:
+        if( ctx->app )
+            exec_clan(&ctx->app->host, packet->packet_type, &packet->_raw_payload);
+        break;
+    case PKT_NAME_MESSAGE_CLANCHANNEL:
+    case PKT_NAME_MESSAGE_CLANCHANNEL_SYSTEM:
+        if( ctx->app )
+            exec_message_clanchannel(
+                ctx, packet->packet_type == PKT_NAME_MESSAGE_CLANCHANNEL_SYSTEM,
+                &packet->_message_clanchannel);
+        break;
+    case PKT_NAME_UPDATE_TRADINGPOST:
+        if( ctx->app )
+        {
+            struct PktRawPayload const* p = &packet->_raw_payload;
+            if( !RS_CS2Host_ApplyTradingPost(
+                    &ctx->app->host, p->data, p->length, ctx->app->host.client.now_ms) )
+                TORIRS_ERR(
+                    "gameproto_exec: UPDATE_TRADINGPOST did not decode (%d bytes)\n", p->length);
+            ctx->app->host.active_offers_transmit_dirty = 1;
+        }
+        break;
+    case PKT_NAME_UPDATE_STOCKMARKET_SLOT:
+        if( ctx->app )
+        {
+            struct PktUpdateStockmarketSlot const* p = &packet->_update_stockmarket_slot;
+            if( p->slot < RS_CS2_STOCKMARKET_SLOTS )
+            {
+                struct RS_CS2StockmarketOffer* offer = &ctx->app->host.stockmarket[p->slot];
+                offer->status = p->status;
+                offer->obj = p->obj;
+                offer->price = p->price;
+                offer->count = p->count;
+                offer->completed_count = p->completed_count;
+                offer->completed_gold = p->completed_gold;
+            }
+            else
+                TORIRS_ERR("gameproto_exec: UPDATE_STOCKMARKET_SLOT slot %d out of range\n", p->slot);
+            ctx->app->host.stock_transmit_dirty = 1;
         }
         break;
 

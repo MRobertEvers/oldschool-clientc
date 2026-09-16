@@ -109,6 +109,20 @@ UITree_FrameSlotNode(
     struct UITree const* tree,
     int slot);
 
+/**
+ * The lane's own HIT REGION for the compass, or -1 when this frame has none.
+ *
+ * A cache toplevel authors the compass as a rose that paints
+ * (`clientcode=1339`, the builtin) and a bare sibling layer that carries its
+ * four "Look <dir>" ops -- put there at runtime by `~torirs_compass_bind`, so
+ * the layer has no op, no click mask and no art of its own to recognise it by.
+ * The binder stamps it from the profile's `frame_compass_click` rung; a
+ * revconfig frame, whose compass is one builtin, answers -1.
+ *
+ * A linear walk, asked once per provision. @see UITree_FrameSlotNode.
+ */
+int32_t UITree_FrameCompassClickNode(struct UITree const* tree);
+
 /* Common native parent of a slot's numbered members. Unlike SlotNode (any
  * representative), this identifies the actual content container. Unavailable
  * when the bound members do not share a parent; no ancestor guessing. */

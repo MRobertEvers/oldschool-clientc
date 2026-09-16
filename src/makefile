@@ -780,7 +780,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/toridraw_sprite_from_torirs.c \
 	engine/toridraw_font_from_torirs.c \
 	engine/toridraw_model_from_torirs.c \
-	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
+	game/rs_cs2_host.c game/rs_cs2_client_ops.c game/rs_cs2_social_ops.c game/rs_cs2_market_ops.c game/rs_clan.c game/rs_friends_chat.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/rs_entity_sync.c game/rs_audio.c \
 	game/rs_prefs.c game/task_prefs_io.c game/preview_state.c \
@@ -795,6 +795,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c ui/torirs_chrome_shell.c \
 	ui/torirs_chrome_panel_draw.c \
 	ui/torirs_chrome_rail.c \
+	ui/torirs_chrome_popout_nav.c \
 	ui/torirs_chrome_inkwell.c \
 	ui/torirs_chrome_mirror.c \
 	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
@@ -833,7 +834,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	world/worldview.c \
-	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c \
+	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c engine/dat2/task_dat2_varclantype_load.c \
 	engine/world_builder/task_world_load.c \
 	editor/editor.c editor/editor_doc.c editor/editor_jm2.c \
 	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
@@ -1234,7 +1235,7 @@ $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
 .PHONY: test-toridraw-mini test-toridraw-mini-16bpp test-toridraw-rscache test-toridraw-small toridraw-tables-gen test-toridraw-tables-precomputed toridraw-model-to-ppm
-.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-mouseover-entry test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
+.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-mouseover-entry test-logout-wait test-native-layout test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
@@ -1705,6 +1706,32 @@ test-cs2-discard: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_discard_ops_test \
 		cs2vm2/test/discard_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_discard_ops_test
+
+# CHILDREN_FINDNEXTID (214) - the iterator step proc 8490 loops on. Own .PHONY
+# line for the same reason as the targets above it.
+.PHONY: test-cs2-children-findnextid
+test-cs2-children-findnextid: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_children_findnextid_test \
+		cs2vm2/test/children_findnextid_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_children_findnextid_test
+
+# The array commands that reorder, copy, insert and remove (8001..8027), with
+# ARRAY_RANDOMISE checked against orders the JDK printed. Own .PHONY line for
+# the same reason as the targets above it.
+.PHONY: test-cs2-array-mutate
+test-cs2-array-mutate: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_array_mutate_ops_test \
+		cs2vm2/test/array_mutate_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_array_mutate_ops_test
+
+# Every implemented opcode's HANDLER pops what the client declares -- the tables
+# can agree with each other and still not with the code. Own .PHONY line for the
+# same reason as the targets above it.
+.PHONY: test-cs2-arity-conformance
+test-cs2-arity-conformance: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_arity_conformance_test \
+		cs2vm2/test/opcode_arity_conformance_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_arity_conformance_test
 
 .PHONY: test-cs2-opcode-groups
 test-cs2-opcode-groups: $(OBJ_DIR)
@@ -3361,6 +3388,13 @@ test-rsprot-bridge: $(OBJ_DIR) $(NET_CORE_OBJS)
 		net/rev/test/rsprot_bridge_test.c $(NET_CORE_OBJS) -lm
 	./$(OBJ_DIR)/rsprot_bridge_test
 
+# The clientscript-command packets, read back by RSProt's generated decoders.
+.PHONY: test-net-out-clientscript-packets
+test-net-out-clientscript-packets: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/net_out_clientscript_packets_test \
+		net/test/net_out_clientscript_packets_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/net_out_clientscript_packets_test
+
 test-net-out-resume: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/net_out_resume_test \
 		net/test/net_out_resume_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
@@ -3625,6 +3659,13 @@ test-chrome-web-skin: $(OBJ_DIR)
 		ui/test/uitree_test_chrome_web_skin.c \
 		ui/torirs_chrome_mirror.c engine/torirs_chrome_skin_baked.c
 	./$(OBJ_DIR)/chrome_web_skin_test
+
+.PHONY: test-chrome-popout-nav
+test-chrome-popout-nav: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/chrome_popout_nav_test \
+		ui/test/torirs_chrome_popout_nav_test.c \
+		ui/torirs_chrome_popout_nav.c ui/torirs_chrome_exec_kind.c
+	./$(OBJ_DIR)/chrome_popout_nav_test
 
 # The web panel channel: the wire codec, and a two-tab handshake driven through
 # the real torirs_channel.js with two fake windows. Node only -- no browser, no
@@ -4217,11 +4258,30 @@ test-wev-rebuild: $(OBJ_DIR) $(OBJS)
 # `test-torirsserver-embed`); every bug this feature actually hit was on this side of
 # the wire, and it had none. Needs no cache and no server on purpose â a gate
 # that can SKIP is a gate that eventually only ever skips.
+.PHONY: test-cs2-client-parity-ops
+# The opcodes that decoded as raw `_<number>` (216, 1506, 4127, the indexed
+# minimenu, hiscores, enum_getinputs, the friend sort chain), through the real
+# VM dispatch and the real host, each against its reference client's behaviour.
+test-cs2-client-parity-ops: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_cs2_client_parity_ops_test \
+		game/test/rs_cs2_client_parity_ops_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/rs_cs2_client_parity_ops_test
+
 test-social: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_social_test \
 		game/test/rs_social_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/rs_social_test
+
+# The friends-chat and clan stores fed server-shaped payloads: the decoders
+# behind 3611-3627 and 3800-3890. Needs no cache.
+.PHONY: test-clan
+test-clan: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/rs_clan_test \
+		game/test/rs_clan_test.c game/rs_clan.c game/rs_friends_chat.c game/rs_social.c \
+		net/jbase37.c
+	./$(OBJ_DIR)/rs_clan_test
 
 # The ground-item pile ops (7120..7122, 6859..6863) -- the whole input to the
 # cache's ground-items overlay. All eight used to reach CS2VM2_Op_StackMetaStub
@@ -4238,6 +4298,26 @@ test-sailing-navigation: $(OBJ_DIR) $(OBJS)
 		game/test/sailing_navigation_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/sailing_navigation_test
+
+# The logout button asks; the SERVER ends the session. Ending it locally was
+# fine against a server that always says yes, and wrong against every rule that
+# can refuse -- combat delay, a script that says not here -- because the client
+# had already gone to the title screen with the socket shut.
+test-logout-wait: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -o $(OBJ_DIR)/app_logout_wait_test \
+		app/test/app_logout_wait_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_logout_wait_test
+
+# A gameframe plugin asking the lane for the native top level its layout is
+# authored for. The act has to be the Display row's own armed press: the client
+# does not own which toplevel is up, and rev 239's WINDOW_STATUS cannot tell
+# Classic from Modern.
+test-native-layout: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -o $(OBJ_DIR)/app_native_layout_test \
+		app/test/app_native_layout_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_native_layout_test
 
 # The mouseover ENTRY's four halves all come from one row (`_7100` / the FIND
 # ops, `_7101`, `_7110`, `_7109`). The subject half used to come from the pick

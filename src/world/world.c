@@ -5,6 +5,7 @@
 #include "entity_pathing.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1850,6 +1851,41 @@ World_PlayerGetByServerPid(
     {
         struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
         if( player && player->server_pid == server_pid )
+            return player;
+    }
+    return NULL;
+}
+
+/* Usernames compare with case folded and a space equal to an underscore. */
+static bool
+world_usernames_equal(char const* a, char const* b)
+{
+    for( ;; a++, b++ )
+    {
+        char ca = *a == '_' ? ' ' : (char)tolower((unsigned char)*a);
+        char cb = *b == '_' ? ' ' : (char)tolower((unsigned char)*b);
+        if( ca != cb )
+            return false;
+        if( !ca )
+            return true;
+    }
+}
+
+struct WorldEntity_Player*
+World_PlayerFindByName(
+    struct World* world,
+    char const* name,
+    int skip_pid)
+{
+    assert(world);
+    assert(name);
+    if( !name[0] )
+        return NULL;
+    struct World_EntityPool* pool = &world->entities.player;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
+        if( player && player->server_pid != skip_pid && world_usernames_equal(player->name, name) )
             return player;
     }
     return NULL;

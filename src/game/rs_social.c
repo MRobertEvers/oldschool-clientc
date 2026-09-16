@@ -94,6 +94,24 @@ RS_Social_DisplayName(
     out[i] = '\0';
 }
 
+void
+RS_Social_SetFriendWorld(
+    struct RS_Social* social,
+    int index,
+    int world)
+{
+    assert(social);
+    assert(index >= 0);
+    assert(index < social->friend_count);
+    int const previous = social->friend_world[index];
+    if( previous == world )
+        return;
+    social->friend_world[index] = world;
+    social->friend_world_change[index] = ++social->world_change_counter;
+    if( previous == -1 && world == 0 )
+        social->friend_world_change[index] = -social->friend_world_change[index];
+}
+
 int
 RS_Social_AddFriend(
     struct RS_Social* social,
@@ -109,8 +127,14 @@ RS_Social_AddFriend(
     strncpy(social->friend_name[social->friend_count], name, RS_SOCIAL_NAME_LEN - 1);
     social->friend_name[social->friend_count][RS_SOCIAL_NAME_LEN - 1] = '\0';
     social->friend_hash[social->friend_count] = name_hash(name);
-    social->friend_world[social->friend_count] = world;
+    /* A new entry's world starts unknown (-1) and the first report is a
+     * change, as in the client, so it gets a serial like any later one. */
+    social->friend_world[social->friend_count] = -1;
+    social->friend_world_change[social->friend_count] = 0;
+    social->friend_rank[social->friend_count] = 0;
+    social->friend_previous_name[social->friend_count][0] = '\0';
     social->friend_count++;
+    RS_Social_SetFriendWorld(social, social->friend_count - 1, world);
     return 1;
 }
 
@@ -128,6 +152,9 @@ RS_Social_DelFriend(
         memcpy(social->friend_name[i], social->friend_name[i + 1], RS_SOCIAL_NAME_LEN);
         social->friend_hash[i] = social->friend_hash[i + 1];
         social->friend_world[i] = social->friend_world[i + 1];
+        social->friend_world_change[i] = social->friend_world_change[i + 1];
+        social->friend_rank[i] = social->friend_rank[i + 1];
+        memcpy(social->friend_previous_name[i], social->friend_previous_name[i + 1], RS_SOCIAL_NAME_LEN);
     }
     social->friend_count--;
     return 1;
@@ -167,6 +194,204 @@ RS_Social_DelIgnore(
     }
     social->ignore_count--;
     return 1;
+}
+
+void
+RS_Social_SortReset(struct RS_SocialSortChain* chain)
+{
+    assert(chain);
+    chain->count = 0;
+}
+
+static bool
+sort_key_is_terminal(enum RS_SocialSortKey key)
+{
+    return key == RS_SOCIAL_SORT_LEGACY || key == RS_SOCIAL_SORT_NAME ||
+           key == RS_SOCIAL_SORT_LAST_WORLD_CHANGE;
+}
+
+void
+RS_Social_SortAppend(
+    struct RS_SocialSortChain* chain,
+    enum RS_SocialSortKey key,
+    bool ascending)
+{
+    assert(chain);
+    if( chain->count > 0 && sort_key_is_terminal(chain->steps[chain->count - 1].key) )
+        return;
+    if( chain->count >= RS_SOCIAL_SORT_CHAIN_MAX )
+        return;
+    chain->steps[chain->count].key = key;
+    chain->steps[chain->count].ascending = ascending;
+    chain->count++;
+}
+
+/* The name the client compares (class5.method191, a String compareTo): the
+ * displayed form, byte-wise. */
+static int
+compare_names(char const* a_raw, char const* b_raw)
+{
+    char a[RS_SOCIAL_NAME_LEN];
+    char b[RS_SOCIAL_NAME_LEN];
+    RS_Social_DisplayName(a_raw, a, (int)sizeof(a));
+    RS_Social_DisplayName(b_raw, b, (int)sizeof(b));
+    return strcmp(a, b);
+}
+
+static int
+compare_ints(int a, int b)
+{
+    return a < b ? -1 : a > b ? 1 : 0;
+}
+
+int
+RS_Social_CompareEntries(
+    struct RS_SocialSortChain const* chain,
+    int own_world,
+    struct RS_SocialSortEntry const* a,
+    struct RS_SocialSortEntry const* b)
+{
+    assert(chain);
+    assert(a);
+    assert(b);
+    if( chain->count == 0 )
+        return compare_names(a->name, b->name);
+
+    bool const online_a = a->world != 0;
+    bool const online_b = b->world != 0;
+    bool const ours_a = a->world == own_world;
+    bool const ours_b = b->world == own_world;
+    for( int i = 0; i < chain->count; i++ )
+    {
+        bool const ascending = chain->steps[i].ascending;
+        int result = 0;
+        switch( chain->steps[i].key )
+        {
+        case RS_SOCIAL_SORT_LEGACY:
+        case RS_SOCIAL_SORT_NAME:
+            result = compare_names(a->name, b->name);
+            return ascending ? result : -result;
+        case RS_SOCIAL_SORT_LAST_WORLD_CHANGE:
+            result = compare_ints(a->world_change, b->world_change);
+            return ascending ? result : -result;
+        case RS_SOCIAL_SORT_WORLD:
+            result = compare_ints(a->world, b->world);
+            break;
+        case RS_SOCIAL_SORT_RANK:
+            result = compare_ints(a->rank, b->rank);
+            break;
+        case RS_SOCIAL_SORT_ONLINE_STATUS:
+            if( online_a != online_b )
+                result = online_a ? -1 : 1;
+            break;
+        /* These four decide outright once their condition holds -- a tie
+         * included (class143, class135, class136, class132 return the
+         * difference without deferring) -- and defer only when it does not. */
+        case RS_SOCIAL_SORT_ONLINE_NAME:
+            if( !(online_a && online_b) )
+                continue;
+            result = compare_names(a->name, b->name);
+            return ascending ? result : -result;
+        case RS_SOCIAL_SORT_ONLINE_LAST_WORLD_CHANGE:
+            if( !(online_a && online_b) )
+                continue;
+            result = compare_ints(a->world_change, b->world_change);
+            return ascending ? result : -result;
+        case RS_SOCIAL_SORT_OWN_WORLD_NAME:
+            if( !(ours_a && ours_b) )
+                continue;
+            result = compare_names(a->name, b->name);
+            return ascending ? result : -result;
+        case RS_SOCIAL_SORT_OWN_WORLD_LAST_WORLD_CHANGE:
+            if( !(ours_a && ours_b) )
+                continue;
+            result = compare_ints(a->world_change, b->world_change);
+            return ascending ? result : -result;
+        case RS_SOCIAL_SORT_ONLINE_WORLD:
+            if( ours_a != ours_b )
+                result = ours_a ? -1 : 1;
+            break;
+        }
+        if( result != 0 )
+            return ascending ? result : -result;
+    }
+    return 0;
+}
+
+static int
+compare_friends(struct RS_Social const* social, int a, int b)
+{
+    struct RS_SocialSortEntry const entry_a = {
+        social->friend_name[a], social->friend_world[a], social->friend_world_change[a], social->friend_rank[a]
+    };
+    struct RS_SocialSortEntry const entry_b = {
+        social->friend_name[b], social->friend_world[b], social->friend_world_change[b], social->friend_rank[b]
+    };
+    return RS_Social_CompareEntries(&social->friend_sort, social->node_id, &entry_a, &entry_b);
+}
+
+static void
+swap_friends(struct RS_Social* social, int a, int b)
+{
+    char name[RS_SOCIAL_NAME_LEN];
+    memcpy(name, social->friend_name[a], RS_SOCIAL_NAME_LEN);
+    memcpy(social->friend_name[a], social->friend_name[b], RS_SOCIAL_NAME_LEN);
+    memcpy(social->friend_name[b], name, RS_SOCIAL_NAME_LEN);
+    int64_t const hash = social->friend_hash[a];
+    social->friend_hash[a] = social->friend_hash[b];
+    social->friend_hash[b] = hash;
+    int const world = social->friend_world[a];
+    social->friend_world[a] = social->friend_world[b];
+    social->friend_world[b] = world;
+    int const change = social->friend_world_change[a];
+    social->friend_world_change[a] = social->friend_world_change[b];
+    social->friend_world_change[b] = change;
+    int const rank = social->friend_rank[a];
+    social->friend_rank[a] = social->friend_rank[b];
+    social->friend_rank[b] = rank;
+    memcpy(name, social->friend_previous_name[a], RS_SOCIAL_NAME_LEN);
+    memcpy(social->friend_previous_name[a], social->friend_previous_name[b], RS_SOCIAL_NAME_LEN);
+    memcpy(social->friend_previous_name[b], name, RS_SOCIAL_NAME_LEN);
+}
+
+/* Insertion sort: stable, like the client's Arrays.sort over objects, and the
+ * lists are at most a couple of hundred long. */
+void
+RS_Social_SortFriends(struct RS_Social* social)
+{
+    assert(social);
+    for( int i = 1; i < social->friend_count; i++ )
+        for( int j = i; j > 0 && compare_friends(social, j - 1, j) > 0; j-- )
+            swap_friends(social, j - 1, j);
+}
+
+/* The ignore list only ever gets the two name comparators. */
+static int
+compare_ignores(struct RS_Social const* social, int a, int b)
+{
+    int const result = compare_names(social->ignore_name[a], social->ignore_name[b]);
+    if( social->ignore_sort.count == 0 )
+        return result;
+    return social->ignore_sort.steps[0].ascending ? result : -result;
+}
+
+void
+RS_Social_SortIgnores(struct RS_Social* social)
+{
+    assert(social);
+    for( int i = 1; i < social->ignore_count; i++ )
+    {
+        for( int j = i; j > 0 && compare_ignores(social, j - 1, j) > 0; j-- )
+        {
+            char name[RS_SOCIAL_NAME_LEN];
+            memcpy(name, social->ignore_name[j - 1], RS_SOCIAL_NAME_LEN);
+            memcpy(social->ignore_name[j - 1], social->ignore_name[j], RS_SOCIAL_NAME_LEN);
+            memcpy(social->ignore_name[j], name, RS_SOCIAL_NAME_LEN);
+            int64_t const hash = social->ignore_hash[j - 1];
+            social->ignore_hash[j - 1] = social->ignore_hash[j];
+            social->ignore_hash[j] = hash;
+        }
+    }
 }
 
 int
@@ -221,6 +446,34 @@ RS_Social_IgnoreName(
     if( !social || index < 0 || index >= social->ignore_count )
         return;
     RS_Social_DisplayName(social->ignore_name[index], out, cap);
+}
+
+void
+RS_Social_FriendPreviousName(
+    struct RS_Social const* social,
+    int index,
+    char* out,
+    int cap)
+{
+    if( cap <= 0 )
+        return;
+    assert(social);
+    assert(out);
+    out[0] = '\0';
+    if( index < 0 || index >= social->friend_count )
+        return;
+    RS_Social_DisplayName(social->friend_previous_name[index], out, cap);
+}
+
+int
+RS_Social_FriendRank(
+    struct RS_Social const* social,
+    int index)
+{
+    assert(social);
+    if( index < 0 || index >= social->friend_count )
+        return 0;
+    return social->friend_rank[index];
 }
 
 int

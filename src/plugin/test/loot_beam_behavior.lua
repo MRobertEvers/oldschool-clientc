@@ -971,6 +971,12 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     ----------------------------------------------------------------------
     -- 15. the spin: the arithmetic, the per-tile phase, its stability across
     --     a rebuild, and the early return when it is off
+    --
+    -- A beam TURNS. This section exists because the spin was once deleted
+    -- outright over the report that an orbiting camera cancels it -- which it
+    -- does, and which the plugin header answers -- and the deletion reached
+    -- every player who was not orbiting. What is pinned here is the motion
+    -- itself, so the next removal fails a test instead of shipping.
     ----------------------------------------------------------------------
 
     start()
@@ -991,6 +997,14 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     yaws[args(mark, 'instance_position', 2)[7]] = true
     assert(yaws[(turn + phase_a) % 2048] and yaws[(turn + phase_b) % 2048],
         '2048 units to a turn, spin degrees to a second, plus the tile phase')
+    -- The yaw MOVES between frames. Every assertion above holds for a beam
+    -- pinned at one angle forever, so without this one the whole section
+    -- passes on a plugin that has stopped turning.
+    mark = #calls
+    product.on_frame_start(api, { now_ms = 2000 })
+    assert(args(mark, 'instance_position', 1)[7] ~= (turn + phase_a) % 2048 and
+           args(mark, 'instance_position', 1)[7] ~= (turn + phase_b) % 2048,
+        'a later frame is a different yaw: the beam is turning, not standing')
     -- A rebuild must not move the phase: frame_ms alone would, and every beam
     -- would jump on the tick that rebuilt it.
     product.on_item_changed(api, {}); tick()
@@ -1025,8 +1039,8 @@ return { id = 'loot-beam-behavior', on_start = function(host)
     -- every, tick, tier and finding is a trap above, so this run asserts the
     -- whole of "an unchanged description costs nothing" by surviving -- no
     -- describe, no fence, no commit, no setter, no draw_context -- and the
-    -- counts below say what it does cost: one forwarded tick per tick, and
-    -- one position per beam per frame, which is the animation itself.
+    -- counts below say what it does cost: one forwarded logic tick, and one
+    -- yaw per beam per frame, which is the animation itself.
     ----------------------------------------------------------------------
 
     start()

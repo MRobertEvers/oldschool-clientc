@@ -444,6 +444,9 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     CacheProvider_SpritesCleanup(provider);
     CacheProvider_FontsCleanup(provider);
     CacheProvider_EnumsCleanup(provider);
+    free(provider->varclan_types.base_type);
+    provider->varclan_types.base_type = NULL;
+    provider->varclan_types.count = 0;
     CacheProvider_StructsCleanup(provider);
     CacheProvider_ParamsCleanup(provider);
     CacheProvider_InvtypesCleanup(provider);
@@ -1988,6 +1991,8 @@ CacheProvider_ObjtypeGet(
                         : "a";
                 snprintf(objtype->desc, sizeof(objtype->desc),
                          "Swap this note at any bank for %s %s.", article, link_name);
+                /* genCert copies the base item's members flag too. */
+                objtype->members = link_entry->objtype->members;
                 changed = true;
             }
         }
@@ -2016,6 +2021,8 @@ CacheProvider_ObjtypeGet(
         {
             memcpy(objtype->name, link_entry->objtype->name, sizeof(objtype->name));
             memcpy(objtype->desc, link_entry->objtype->desc, sizeof(objtype->desc));
+            /* The reference's placeholder takes the item's members flag. */
+            objtype->members = link_entry->objtype->members;
             changed = true;
         }
     }
@@ -2114,6 +2121,7 @@ int
 CacheProvider_ObjtypeSearchByName(
     struct CacheProvider* provider,
     char const* lower_query,
+    bool ge_tradeable_only,
     int** out_ids)
 {
     struct HMapIter* iter;
@@ -2139,6 +2147,8 @@ CacheProvider_ObjtypeSearchByName(
             continue;
         objtype_name_lower_hash(objtype->name, lower, sizeof(lower));
         if( strcmp(lower, "null") == 0 )
+            continue;
+        if( ge_tradeable_only && !objtype->ge_tradeable )
             continue;
         if( !strstr(lower, lower_query) )
             continue;

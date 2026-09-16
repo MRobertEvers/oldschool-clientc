@@ -254,4 +254,8 @@ PlatformAndroidGL_SwapBuffers(void);
 void
 PlatformAndroidJni_SetSoftKeyboard(int on);
 
+/** PlatformWindow_OpenUrl's implementation: the activity's openUrl. */
+void
+PlatformAndroidJni_OpenUrl(char const* url);
+
 #endif

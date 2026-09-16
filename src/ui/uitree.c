@@ -3058,8 +3058,7 @@ UITree_ClearChildren(
      * a real server sends its login burst of IF_SETTABs, which looks like the
      * control failing to build rather than like something sweeping it away.
      *
-     * Recognised by id band (TORIRS_REVCONFIG_GROUP), the same way the chrome's
-     * own components are recognised everywhere else in this tree. */
+     * Recognised by id band (TORIRS_REVCONFIG_GROUP). */
     {
         int32_t child = c->first_child;
         int32_t kept_head = -1;
@@ -3827,6 +3826,42 @@ UITree_SetFrameStretchedAt(
         tree,
         idx,
         UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
+    return true;
+}
+
+bool
+UITree_SetFrameFollowsAt(
+    struct UITree* tree,
+    int32_t idx,
+    int32_t target)
+{
+    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
+    int32_t const plus1 = target >= 0 ? target + 1 : 0;
+    int32_t was;
+
+    /* A node cannot take its own box: the link would make the pair's
+     * invalidation a cycle, and there is no such thing to express. */
+    assert(target != idx);
+    if( !c )
+        return false;
+    if( c->frame_follows_plus1 == plus1 )
+        return true;
+    /* Both ends, here and nowhere else. A stale back-pointer would make
+     * everything that moves a surface invalidate a node that stopped
+     * following it -- or, worse, skip the one that now does. */
+    was = c->frame_follows_plus1 - 1;
+    if( was >= 0 && (uint32_t)was < tree->component_count )
+        tree->components[was].frame_followed_by_plus1 = 0;
+    c->frame_follows_plus1 = plus1;
+    if( target >= 0 && (uint32_t)target < tree->component_count )
+        tree->components[target].frame_followed_by_plus1 = idx + 1;
+    /* The node's own box changes, so its subtree's does too -- the compass's
+     * hit region carries the two `cc_create` children that hold the ops, and
+     * both are laid out inside it (`setsize_minus`, `setpos_abs_centre`). */
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
     return true;
 }
 
@@ -4762,16 +4797,33 @@ bool UITree_WidgetSetTransparency(struct UITree* tree,struct UITreeNodeRef ref,u
     return UITree_SetTransparencyAt(tree,idx,transparency);
 }
 
+/*
+ * One op slot of an owned control.
+ *
+ * The labels go in `ops[op-1]`, which is where a NATIVE component's op strings
+ * live -- not in the single `option` field this used to write. That field held
+ * one row, and one row is what a plugin cover could offer in place of the
+ * component it hid: minimap-orbs covers `orbs:prayerbutton`, which the cache
+ * gives `op1=*` (Quick-prayers) and `op2=Setup`, and the Setup row -- the only
+ * way to the quick-prayer panel -- was gone wherever the cover stood.
+ *
+ * An empty label clears that slot alone. `serial` is the owner's current
+ * listener registration for the whole control and is carried on the node, not
+ * per slot: one listener answers for every op, the way one [if_button] handler
+ * answers for every op of a component, and which op was chosen travels back in
+ * the menu row's action_index. The runtime passes 0 only once no slot is left.
+ */
 bool UITree_WidgetSetOperation(struct UITree* tree,struct UITreeNodeRef ref,uint64_t owner,
-                                uint64_t serial,char const* label)
+                                uint64_t serial,int op,char const* label)
 {
     int32_t idx=UITree_ResolveRef(tree,ref);
     if( idx<0 || !owner || tree->components[idx].plugin_owner!=owner ||
-        !label || strlen(label)>=UITREE_MENU_OPTION_LEN || (serial && !*label) ) return false;
+        op<1 || op>UITREE_MENU_OPTION_SLOTS ||
+        !label || strlen(label)>=UITREE_MENU_OPTION_LEN ) return false;
     struct UITreeComponent* c=&tree->components[idx];
     struct UITreeMenuOptions* options=UITree_MenuOptionsMut(c);
     if( !options ) return false;
-    snprintf(options->option,sizeof(options->option),"%s",serial ? label : "");
+    snprintf(options->ops[op-1],sizeof(options->ops[op-1]),"%s",label);
     c->plugin_op_serial=serial;
     uitree_note_mutation(tree,idx,UITREE_IMPACT_EMIT_SELF|UITREE_IMPACT_REACHABILITY);
     return true;
@@ -6594,11 +6646,11 @@ UITree_RootIsDisplayable(
      * (loaded-for-access, NOT displayed). Such orphan roots must not render, hover,
      * or take clicks — otherwise a full-canvas panel (e.g. interface 728) covers
      * the gameframe. Displayable = the active gameframe (which is baked as several
-     * roots sharing the toplevel group id), the app-overlay chrome (group 0x7FFE),
-     * or a group actually placed into a slot (InterfaceParent-mounted). */
+     * roots sharing the toplevel group id), or a group actually placed into a
+     * slot (InterfaceParent-mounted). */
     toplevel_group = (tree->components[tree->root_index].component_id >> 16) & 0xffff;
     group = (tree->components[root].component_id >> 16) & 0xffff;
-    if( group <= 0 || group == toplevel_group || group == 0x7FFE )
+    if( group <= 0 || group == toplevel_group )
         return 1;
     return UITree_InterfaceParentIsMountedGroup(tree, group);
 }
@@ -6673,7 +6725,7 @@ uitree_node_or_ancestor_hidden(
     struct UITree const* tree,
     int32_t idx,
     int include_plugin_hidden,
-    int ignore_frame_hidden)
+    int ignore_plugin_hidden)
 {
     int group;
     int mount_hops = 0;
@@ -6694,15 +6746,27 @@ uitree_node_or_ancestor_hidden(
         do
         {
             group_root = idx;
-            /* The Ex form can excuse the gameframe plugin's own hiding on the
+            /* The Ex form can excuse the PLUGIN LAYER's own hiding on the
              * whole walk for a caller that names a COMPONENT rather than a
              * place -- a synthesised press.
+             *
+             * Both of the layer's hides, because a plugin has two verbs for
+             * the same statement and they are not chosen by meaning: a frame
+             * provider puts a region away with `frame_hidden`, and the widget
+             * API's set_hidden -- which is what Porcelain's `hide` reaches --
+             * writes `widget_hidden`. Excusing only the first is what made the
+             * minimap orbs unclickable the moment they started hiding the
+             * lane's own orb under the cover they draw for it: the run toggle
+             * is a CHILD of that orb, so the plugin's own hide fenced every
+             * later question it asked about the button it delegates to.
              * @see UITree_NodeOrAncestorDisplayHiddenEx. */
             if( tree->components[idx].behavior.hide || tree->components[idx].mount_hidden ||
                 (include_plugin_hidden &&
-                 ((tree->components[idx].frame_hidden && !ignore_frame_hidden) ||
+                 (((tree->components[idx].frame_hidden ||
+                    tree->components[idx].widget_hidden) &&
+                   !ignore_plugin_hidden) ||
                   tree->components[idx].screen_hidden ||
-                  tree->components[idx].projection_hidden || tree->components[idx].widget_hidden)) )
+                  tree->components[idx].projection_hidden)) )
                 return 1;
             idx = tree->components[idx].parent;
         } while( idx >= 0 && (uint32_t)idx < tree->component_count );
@@ -6763,12 +6827,12 @@ int
 UITree_NodeOrAncestorDisplayHiddenEx(
     struct UITree const* tree,
     int32_t node_index,
-    int ignore_frame_hidden)
+    int ignore_plugin_hidden)
 {
     assert(tree);
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return 1;
-    return uitree_node_or_ancestor_hidden(tree, node_index, 1, ignore_frame_hidden);
+    return uitree_node_or_ancestor_hidden(tree, node_index, 1, ignore_plugin_hidden);
 }
 
 uint64_t

@@ -4,15 +4,14 @@
 #include "revconfig.h"
 
 /*
- * The `[features]`, `[camera]` and `[chrome]` sections of one boot, merged
+ * The `[features]`, `[camera]` and `[frame]` sections of one boot, merged
  * across every RevConfig source and kept for the life of the client.
  *
  * The sibling of RevConfigRefs, and here for the same reason: the UI manifest
  * is built inside Task_UITreeBuild and freed with it, but these answers are
  * read all session — the era table decides how every click routes, the camera
- * policy is consulted on every wheel notch and every middle-button drag, and
- * the plugin button is rebuilt after every gameframe rebuild. So the App parses
- * the same sources once into this struct and holds it.
+ * policy is consulted on every wheel notch and every middle-button drag. So the
+ * App parses the same sources once into this struct and holds it.
  *
  * Where RevConfigRefs answers "which id is that, on THIS cache", this answers
  * "how does THIS revision's client behave". Both are facts about the revision,
@@ -40,15 +39,9 @@ struct RevConfigProfile
     /** `[frame]`, fully resolved: no cap and revconfig as its owner until a
      *  profile says otherwise. @see struct RevConfigFrameItem */
     struct RevConfigFrameItem frame;
-
-    /** `[chrome]` — where this revision mounts the client's own plugin button.
-     *  Unlike the camera there are NO defaults: every number keeps its -1 and
-     *  every name its empty string until a profile states it, because a strip
-     *  that does not exist has no geometry to guess at. */
-    struct RevConfigChromeItem chrome;
 };
 
-/** Seed the defaults: no feature stated, no chrome mount stated, and the camera
+/** Seed the defaults: no feature stated, and the camera
  *  this tree shipped with (wheel zoom over REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN..MAX,
  *  middle button and arrow keys both live). A profile that says nothing
  *  therefore changes nothing. */
@@ -56,7 +49,7 @@ void
 RevConfigProfile_Init(struct RevConfigProfile* profile);
 
 /**
- * Merge every `[features]` / `[camera]` / `[chrome]` item in `items` into
+ * Merge every `[features]` / `[camera]` / `[frame]` item in `items` into
  * `profile`.
  *
  * Per KEY, later wins — the same rule RevConfigRefs uses for ids, so a boot

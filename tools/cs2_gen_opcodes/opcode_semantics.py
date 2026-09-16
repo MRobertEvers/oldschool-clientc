@@ -558,7 +558,7 @@ OPCODE_SEMANTICS: tuple[OpcodeSemantics, ...] = (
     ),
     OpcodeSemantics(
         opcode=4003,
-        name="DIV",
+        name="DIVIDE",
         operand=OperandKind.INT8,
         int_pops=("lhs", "rhs"),
         string_pops=(),
@@ -618,7 +618,7 @@ OPCODE_SEMANTICS: tuple[OpcodeSemantics, ...] = (
     ),
     OpcodeSemantics(
         opcode=4011,
-        name="MOD",
+        name="MODULO",
         operand=OperandKind.INT8,
         int_pops=("lhs", "rhs"),
         string_pops=(),
@@ -873,7 +873,7 @@ OPCODE_SEMANTICS: tuple[OpcodeSemantics, ...] = (
     ),
     OpcodeSemantics(
         opcode=8003,
-        name="ARRAY_LENGTH",
+        name="ARRAY_SIZE",
         operand=OperandKind.INT8,
         int_pops=(),
         string_pops=("handle",),
@@ -917,11 +917,11 @@ FOUNDATION_OPCODE_NAMES = frozenset(
         "ADD",
         "SUB",
         "MULTIPLY",
-        "DIV",
+        "DIVIDE",
         "INTERPOLATE",
         "SETBIT",
         "TESTBIT",
-        "MOD",
+        "MODULO",
         "POW",
         "MIN",
         "MAX",
@@ -938,7 +938,7 @@ FOUNDATION_OPCODE_NAMES = frozenset(
         "STRING_INDEXOF_STRING",
         "ON_MOBILE",
         "CLIENTTYPE",
-        "ARRAY_LENGTH",
+        "ARRAY_SIZE",
     }
 )
 

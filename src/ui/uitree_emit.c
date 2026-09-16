@@ -1680,9 +1680,14 @@ emit_chat(
     }
 
     {
-        /* Message window clip (reference setClipping(0,0,463,77)). */
+        /* Message window clip (reference setClipping(0,0,463,77)): 463 wide,
+         * and as tall as the node's own box leaves above the input line, so a
+         * gameframe that hands the chat a taller region gets more history
+         * rather than the same five lines floating in it.
+         * @see UI_CHATVIEW_WINDOW_H. */
         struct UITreeEmitClip msg_clip;
-        if( !clip_intersect(&msg_clip, parent_clip, x, y, w < 463 ? w : 463, 77) )
+        if( !clip_intersect(
+                &msg_clip, parent_clip, x, y, w < 463 ? w : 463, UI_CHATVIEW_WINDOW_H(h)) )
             msg_clip = *parent_clip;
         for( int i = 0; i < view->line_count; i++ )
         {
@@ -1706,7 +1711,7 @@ emit_chat(
     /* Chat scrollbar, drawn unconditionally like the reference
      * (drawScrollbar(463, 0, chatScrollHeight-chatScrollPos-77, chatScrollHeight,
      * 77), Client.ts:11485). Local x=463 puts it just right of the 463-wide
-     * message column; height is the message window (77), not the full chat node.
+     * message column; height is the message window, not the full chat node.
      * The desc-driven scrollbar_v render (torirs_frame.c) reads scroll_content /
      * scroll_off_y straight from here, so no component backing is needed. */
     {
@@ -1718,7 +1723,7 @@ emit_chat(
         desc.x = x + 463;
         desc.y = y;
         desc.w = UITREE_SCROLLBAR_THICKNESS;
-        desc.h = 77;
+        desc.h = UI_CHATVIEW_WINDOW_H(h);
         desc.scroll_content = view->scroll_height;
         desc.scroll_off_y = view->scroll_pos;
         desc.scene_id = host_scrollbar_scene(host);
@@ -1746,7 +1751,9 @@ emit_chat(
                 line->spans[s].text);
         /* Separator above the input line (reference Pix2D.hline(0, 77, 479):
          * spans the 463-wide message column plus the scrollbar, so it runs
-         * from the left edge all the way to the scrollbar's right side). */
+         * from the left edge all the way to the scrollbar's right side). It
+         * rides the bottom of the message window, wherever the node's height
+         * puts that. */
         {
             struct UITreeEmitDesc desc;
             memset(&desc, 0, sizeof(desc));
@@ -1754,7 +1761,7 @@ emit_chat(
             desc.node_index = idx;
             desc.component_id = c->component_id;
             desc.x = x;
-            desc.y = y + 77;
+            desc.y = y + UI_CHATVIEW_WINDOW_H(h);
             desc.w = 463 + UITREE_SCROLLBAR_THICKNESS;
             desc.h = 1;
             desc.color = 0x000000;
@@ -3800,6 +3807,92 @@ UITree_EmitRefreshVolatile(
                 return 0;
         }
     return 1;
+}
+
+/*
+ * DOES THIS SUBTREE PAINT A PICTURE THIS FRAME?
+ *
+ * The question a plugin has to answer before it REPLACES a native control:
+ * the frame reorder drops the target's records and writes the replacement's
+ * where they were, so a target that was painting its own button art leaves a
+ * HOLE the replacement has to fill, and a target whose art belongs to the
+ * strip behind it leaves nothing at all. The two are the same description and
+ * the same `graphic_token` -- zero on both, because the art is on a CHILD and
+ * the token is a change token rather than an identity -- and the screenshot
+ * plugin spent a morning painting a plate over the second kind for want of
+ * this answer.
+ *
+ * `out` is the emit pass's own verdict, not a second statement of it: a node
+ * paints when UITree_EmitFill fills a descriptor for it, and what it paints is
+ * a PICTURE when that descriptor is not text. A caption is not art -- a
+ * replacement that stands where a label stood owes nothing to the label.
+ *
+ * The ANCESTOR half is the caller's: every caller here has already computed
+ * the node's own `presented`, which walks the chain and the mount hops above
+ * it, so this walks DOWN and tests each node's own flags only -- the shape
+ * UITree_NodeNativeGate exists for. The four specialised emitters (chat,
+ * chat buttons, minimenu, hovertext) paint through their own walk and answer
+ * false here; they are screen chrome and never the subtree of a REPLACE
+ * target.
+ */
+static bool
+uitree_node_subtree_paints_art(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int32_t node_index,
+    int hovered_component_id,
+    struct UITreeEmitDesc* scratch,
+    int depth)
+{
+    struct UITreeComponent const* component;
+    struct UITreeNativeGate gate;
+
+    assert(tree);
+    assert(host);
+    assert(scratch);
+
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return false;
+    /* A malformed parent/child cycle is a tree bug, not a reason to hang. */
+    if( depth > (int)tree->component_count )
+        return false;
+    component = &tree->components[node_index];
+    gate = UITree_NodeNativeGate(component, hovered_component_id, host);
+    /* The OWN half of what `presented` folds in: the gate carries freed,
+     * screen, projection, the widget API's hide and the id test, and the
+     * display fence adds the script's own hide, an unmounted group and a
+     * frame provider's suppression. @see UITree_NodeOrAncestorDisplayHiddenEx.
+     */
+    if( !gate.visible || component->behavior.hide || component->mount_hidden ||
+        component->frame_hidden )
+        return false;
+    if( UITree_EmitFill(tree, host, component, node_index, hovered_component_id, scratch) &&
+        scratch->kind != UITREE_EMIT_NONE && scratch->kind != UITREE_EMIT_TEXT )
+        return true;
+    /* Still the children on a node that drew nothing itself: a fully
+     * transparent parent is exactly the case emit_walk_node keeps walking. */
+    for( int32_t child = component->first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+        if( uitree_node_subtree_paints_art(
+                tree, host, child, hovered_component_id, scratch, depth + 1) )
+            return true;
+    return false;
+}
+
+bool
+UITree_NodeSubtreePaintsArt(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int32_t node_index,
+    int hovered_component_id)
+{
+    struct UITreeEmitDesc scratch;
+
+    assert(tree);
+    assert(host);
+
+    return uitree_node_subtree_paints_art(
+        tree, host, node_index, hovered_component_id, &scratch, 0);
 }
 
 #include "uitree_emit_overlay.u.h"

@@ -18,6 +18,41 @@ app_minimap_push_dot(
     int scene_id,
     int atlas_index);
 
+/* `mapmarker` frame 0 is the destination flag and frame 1 the hint arrow --
+ * the reference's GetSpriteHintMapMarkersID is this pack, not one of its own
+ * (deob method1943 plots [0] for the flag, method2135 [1] for the hint). */
+enum
+{
+    MINIMAP_MARKER_FRAME_FLAG = 0,
+    MINIMAP_MARKER_FRAME_HINT = 1,
+};
+
+/* The sprite's own size, or the 4x4 a dot falls back to when the pack has not
+ * arrived yet. Centring is part of every placement below, so a wrong size is a
+ * marker off by half of one -- which is why this is asked rather than assumed
+ * even for the two fixed-size packs. */
+static void
+app_minimap_sprite_size(
+    struct App const* app,
+    int scene_id,
+    int atlas_index,
+    int* out_w,
+    int* out_h)
+{
+    int count = 0;
+    struct ToriDraw_Sprite** frames = ToriDraw_SceneSpriteGet(app->scene, scene_id, &count);
+
+    assert(out_w);
+    assert(out_h);
+    *out_w = 4;
+    *out_h = 4;
+    if( frames && atlas_index >= 0 && atlas_index < count && frames[atlas_index] )
+    {
+        *out_w = frames[atlas_index]->width;
+        *out_h = frames[atlas_index]->height;
+    }
+}
+
 /* One reference minimapDrawDot: rotate the entity's player-relative offset by
  * the camera yaw into widget pixels (4 px/tile => fine units / 32), cull past
  * the ring (dist^2 > 6400), store the sprite's top-left center-relative. */
@@ -35,15 +70,7 @@ app_minimap_push_dot(
     struct MinimapRotation rotation;
     struct UITreeMinimapDot* dot;
 
-    {
-        int count = 0;
-        struct ToriDraw_Sprite** frames = ToriDraw_SceneSpriteGet(app->scene, scene_id, &count);
-        if( frames && atlas_index >= 0 && atlas_index < count && frames[atlas_index] )
-        {
-            w = frames[atlas_index]->width;
-            h = frames[atlas_index]->height;
-        }
-    }
+    app_minimap_sprite_size(app, scene_id, atlas_index, &w, &h);
     yaw = ToriDraw_NormalizeAngle(app->world_camera.yaw);
     rotation.sin = ToriDraw_Sin(yaw);
     rotation.cos = ToriDraw_Cos(yaw);
@@ -59,15 +86,190 @@ app_minimap_push_dot(
     dot->scene_id = scene_id;
     dot->atlas_index = atlas_index;
     dot->color = 0;
-    /* The dots array persists across frames; only the hull-icon pass writes a
-     * rotation, so an unset field here would inherit whatever spun the slot's
+    /* The dots array persists across frames; the rotation is written after the
+     * push by the two passes that turn their art (a hull icon, the hint's rim
+     * arrow), so an unset field here would inherit whatever spun the slot's
      * previous occupant. */
     dot->rotate = 0;
 }
 
+/*
+ * The HINT ARROW on the minimap -- the same subject `app_overlay_build_hint_arrow`
+ * puts a floating arrow over in the world, marked on the map as well.
+ *
+ * It is not a duplicate of that pass and it is not decoration. The world arrow
+ * can only mark what the camera can see; the whole reason the server points at
+ * something is that the player is not there yet, so for most of the time a
+ * hint is set the map is the ONLY place it shows. That is why the reference
+ * spends a second sprite pack and a rim case on it.
+ *
+ * Where the subject is comes from the same three forms the world pass reads,
+ * and deliberately not from the world pass's projection: this is a map, so an
+ * npc behind the camera or a tile off the screen edge is an ordinary marker
+ * here rather than something that failed to project.
+ *
+ * False when the subject named is not in the scene -- an npc slot that has
+ * walked out of the loaded window, a pid this client has never seen. That is
+ * not a contract violation, it is a hint outliving the thing it points at,
+ * and the map simply says nothing that frame.
+ */
+static bool
+app_minimap_hint_offset(struct App* app, int px, int pz, int* out_fx, int* out_fz)
+{
+    int fx;
+    int fz;
+
+    assert(app);
+    assert(app->world);
+    assert(out_fx);
+    assert(out_fz);
+
+    switch( app->hint_arrow.type )
+    {
+    case APP_HINT_ARROW_NPC:
+    {
+        struct WorldEntity_NPC* npc = World_NpcGetByServerSlot(app->world, app->hint_arrow.target);
+
+        if( !npc )
+            return false;
+        fx = (int)npc->draw_position.x;
+        fz = (int)npc->draw_position.z;
+        /* Aboard a hull the draw position is deck-local, the same as it is for
+         * the dot passes above -- push it out through the hull before
+         * differencing against the viewer. NO level cull, though: the
+         * reference's hint pass does not have one, and a hint pointing at an
+         * npc one storey up is still the direction the player has to walk. */
+        app_wev_actor_root_fine(app, &npc->view_placement, &fx, &fz);
+        break;
+    }
+    case APP_HINT_ARROW_PLAYER:
+    {
+        struct WorldEntity_Player* player =
+            World_PlayerGetByServerPid(app->world, app->hint_arrow.target);
+
+        if( !player )
+            return false;
+        fx = (int)player->draw_position.x;
+        fz = (int)player->draw_position.z;
+        app_wev_actor_root_fine(app, &player->view_placement, &fx, &fz);
+        break;
+    }
+    case APP_HINT_ARROW_COORD:
+    {
+        /* Absolute, through the same origin the world pass converts with --
+         * see the note there. A tile outside the loaded window is exactly what
+         * the rim arrow is for, so nothing is clamped or rejected here. */
+        int const base_x = (app->rebuild_zone_x - 6) * 8;
+        int const base_z = (app->rebuild_zone_z - 6) * 8;
+
+        fx = ((app->hint_arrow.target - base_x) << 7) + app->hint_arrow.offset_x;
+        fz = ((app->hint_arrow.tile_z - base_z) << 7) + app->hint_arrow.offset_z;
+        break;
+    }
+    default:
+        /* A subject kind this revision does not define, already reported by
+         * the world pass's own default. */
+        return false;
+    }
+
+    *out_fx = fx - px;
+    *out_fz = fz - pz;
+    return true;
+}
+
+/*
+ * How far from the centre the rim arrow sits, per lane.
+ *
+ * Two references, two rules, and the difference is real rather than drift.
+ * Client.ts hard-codes 63 across and 57 down against its fixed 146x151 map;
+ * rev 239's `method2022` derives one radius from the map widget's own width,
+ * because that widget moves and resizes with the layout. Both land the arrow
+ * INSIDE the map rather than on its rim.
+ *
+ * False when the dat2 rule has nothing to work from -- the widget box is
+ * published by the emit walk, so the very first frame has no width yet.
+ */
+static bool
+app_minimap_hint_rim_radius(struct App const* app, int* out_radius_x, int* out_radius_z)
+{
+    assert(app);
+    assert(out_radius_x);
+    assert(out_radius_z);
+
+    if( app->cfg.cache_kind == APP_CACHE_DAT1 )
+    {
+        *out_radius_x = 63;
+        *out_radius_z = 57;
+        return true;
+    }
+    if( !app->minimap.valid )
+        return false;
+    *out_radius_x = app->minimap.w / 2 - 25;
+    *out_radius_z = *out_radius_x;
+    return *out_radius_x > 0;
+}
+
+/* The hint's marker, in whichever of the three bands its subject falls in:
+ * `mapmarker` frame 1 on the subject, the `mapedge` arrow on the rim pointing
+ * at it, or nothing at all. */
+static void
+app_minimap_push_hint(struct App* app, int rel_fx, int rel_fz, int marker_scene)
+{
+    int edge_scene;
+    int radius_x = 0, radius_z = 0;
+    int w = 4, h = 4;
+    int dx = 0, dy = 0, rotate = 0;
+    int yaw;
+    struct MinimapRotation rotation;
+    struct UITreeMinimapDot* dot;
+
+    assert(app);
+    assert(marker_scene > 0);
+
+    switch( MinimapView_HintBand(rel_fx, rel_fz) )
+    {
+    case MINIMAP_HINT_UNSHOWN:
+        return;
+    case MINIMAP_HINT_ON_MAP:
+        app_minimap_push_dot(app, rel_fx, rel_fz, marker_scene, MINIMAP_MARKER_FRAME_HINT);
+        return;
+    case MINIMAP_HINT_ON_RIM:
+        break;
+    }
+
+    edge_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPEDGE);
+    if( edge_scene <= 0 )
+        return;
+    if( !app_minimap_hint_rim_radius(app, &radius_x, &radius_z) )
+        return;
+
+    app_minimap_sprite_size(app, edge_scene, 0, &w, &h);
+    yaw = ToriDraw_NormalizeAngle(app->world_camera.yaw);
+    rotation.sin = ToriDraw_Sin(yaw);
+    rotation.cos = ToriDraw_Cos(yaw);
+    MinimapView_PlaceRimMarker(
+        &rotation, rel_fx, rel_fz, w, h, radius_x, radius_z, &dx, &dy, &rotate);
+
+    dot = MinimapDots_Push(&app->minimap_dots);
+    if( !dot )
+        return;
+    dot->dx = dx;
+    dot->dy = dy;
+    dot->w = w;
+    dot->h = h;
+    dot->scene_id = edge_scene;
+    dot->atlas_index = 0;
+    dot->color = 0;
+    /* The art is drawn pointing north and the blit turns it clockwise, so the
+     * bearing the placement used is the rotation the arrow needs -- see
+     * MinimapView_PlaceRimMarker. */
+    dot->rotate = rotate;
+}
+
 /* Reference minimapDraw overlay: ground objs (yellow), NPCs, other players
- * (white), the destination flag, then the local-player 3x3 white square.
- * mapdots frames: 0 obj, 1 npc, 2 player, 3 friend; mapmarker frame 0 flag. */
+ * (white), the hint arrow, the destination flag, then the local-player 3x3
+ * white square. mapdots frames: 0 obj, 1 npc, 2 player, 3 friend; mapmarker
+ * frame 0 the flag and frame 1 the hint. */
 int
 App_MinimapBuildDots(
     struct App* app,
@@ -264,13 +466,33 @@ App_MinimapBuildDots(
         }
     }
 
+    /*
+     * The hint, between the dots and the flag -- the reference's own order, so
+     * it covers an npc dot standing on the same spot and the player's own
+     * destination flag covers it.
+     *
+     * It BLINKS: ten client cycles shown, ten hidden (`loopCycle % 20 < 10` in
+     * Client.ts, `getGameCycle() % 20 < 10` at rev 239, and `logic_cycle` is
+     * this client's name for that counter). The blink is not decoration on a
+     * map this dense -- a steady yellow arrow reads as one more icon, and the
+     * whole point of a hint is that it is the client shouting.
+     */
+    if( app->hint_arrow.type != 0 && marker_scene > 0 && app->logic_cycle % 20 < 10 )
+    {
+        int hint_fx = 0;
+        int hint_fz = 0;
+
+        if( app_minimap_hint_offset(app, px, pz, &hint_fx, &hint_fz) )
+            app_minimap_push_hint(app, hint_fx, hint_fz, marker_scene);
+    }
+
     if( marker_scene > 0 && MinimapView_HasFlag(&app->minimap) )
         app_minimap_push_dot(
             app,
             app->minimap.flag_tile_x * 128 + 64 - px,
             app->minimap.flag_tile_z * 128 + 64 - pz,
             marker_scene,
-            0);
+            MINIMAP_MARKER_FRAME_FLAG);
 
     /* Local player: white 3x3 square at the widget center (fillRect 97,78). */
     {

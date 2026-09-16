@@ -354,6 +354,14 @@ struct BootManifest
     int chrome_executor_set;
     /** Set when the key named something that is not an executor at all. */
     int chrome_executor_error;
+    /**
+     * `[chrome] plugin_nav=` -- enum ToriRSPluginNavMode: `auto` offers plugin
+     * destinations in the lane's own pop-out column when its profile names one,
+     * `rail` always keeps the separate rail. Unset is `auto`. An unknown name
+     * fails the load. TORIRS_PLUGIN_NAV overrides it.
+     */
+    int plugin_nav;
+    int plugin_nav_error;
     /** Set when `panel=` named something unknown; the load fails on it. */
     int editor_panel_error;
 

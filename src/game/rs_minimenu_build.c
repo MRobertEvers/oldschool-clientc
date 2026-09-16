@@ -4,7 +4,6 @@
 #include "rs_ui_slots.h"
 
 #include "revconfig/revconfig.h"
-#include "ui/torirs_chrome_exec.h"
 #include "ui/uitree_input.h"
 #include "ui/uitree_inv_view.h"
 #include "ui/uitree_layout.h"
@@ -929,32 +928,29 @@ add_component_rows(
     struct UITreeMenuOptions const* rows = opts;
 
     /*
-     * CLIENT CHROME IS NOT GAME CONTENT.
+     * An owned control's rows, one per armed op.
      *
-     * The client builds its own furniture out of real interface components --
-     * today the "Manage Plugins" button. They are armed for clicks so the
-     * client hears about them -- and that arming is exactly what this function
-     * reads, so a control the game does not own grew a right-click menu
-     * offering "Continue", and the mouseover text read "Continue" with the
-     * pointer over it. That is the generic verb the reference gives a
-     * component a script enabled, and it means nothing here.
+     * Highest slot first, exactly as add_menu_ops_rows walks a native
+     * component's, because the menu draws bottom-to-top: the LAST row added is
+     * the one on top and the one a plain left-click takes. So op 1 must be
+     * added last, and a cover over `orbs:prayerbutton` reads
+     * "Quick-prayers / Setup" in the order the component it hides reads.
      *
-     * Recognised by GROUP, the same bounds test the click interception uses
-     * (TORIRS_CHROME_GROUP is the tree's own "app-overlay chrome" group).
-     * One test here covers the right-click menu, the left-click default row
-     * and the mouseover text, because all three are this one menu build.
+     * `action_index` carries which op the row came from, the same channel a
+     * native op row uses, and app_minimenu_run_option hands it back to the
+     * plugin as ToriRS_WidgetEvent::operation.
      */
-    if( ((node->component_id >> 16) & 0xFFFF) == TORIRS_CHROME_GROUP )
-        return 0;
-
     if( node->plugin_owner )
     {
-        if( node->plugin_op_serial && opts->option[0] )
-        {
-            struct UIMinimenuPick owned=pick;
-            UITree_StampMenuPick(ctx->tree,(int32_t)(node-ctx->tree->components),&owned);
-            UIMinimenu_AddOption(menu,opts->option,RS_MINIMENU_ACTION_PLUGIN_WIDGET,0,owned);
-        }
+        if( node->plugin_op_serial )
+            for( int i = UITREE_MENU_OPTION_SLOTS - 1; i >= 0; i-- )
+            {
+                struct UIMinimenuPick owned=pick;
+                if( opts->ops[i][0] == '\0' )
+                    continue;
+                UITree_StampMenuPick(ctx->tree,(int32_t)(node-ctx->tree->components),&owned);
+                UIMinimenu_AddOption(menu,opts->ops[i],RS_MINIMENU_ACTION_PLUGIN_WIDGET,i,owned);
+            }
         return menu->option_count-before;
     }
 

@@ -14,7 +14,7 @@ static void check_find(int string_array, int start, int end, int expected)
         CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT, CS2_OP_POP_ARRAY_INT,
         CS2_OP_PUSH_STRING_LOCAL, CS2_OP_PUSH_CONSTANT_INT,
         CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT,
-        CS2_OP_ARRAY_FIND, CS2_OP_RETURN,
+        CS2_OP_ARRAY_INDEXOF, CS2_OP_RETURN,
     };
     int values[] = {5, 'i', 1, 7, 0, 2, 9, 0, 3, 7, 0, 0, 7, start, end, 0, 0, 0};
     char* strings[18] = {0};
@@ -39,7 +39,7 @@ static void check_find(int string_array, int start, int end, int expected)
         thread->ints_stack_top != 1 || thread->strs_stack_top != 0 ||
         thread->ints_stack[0] != expected )
     {
-        fprintf(stderr, "ARRAY_FIND type=%d range[%d,%d) expected%d, stack%d/%d result%d\n",
+        fprintf(stderr, "ARRAY_INDEXOF type=%d range[%d,%d) expected%d, stack%d/%d result%d\n",
                 string_array, start, end, expected, thread->ints_stack_top,
                 thread->strs_stack_top, thread->ints_stack_top ? thread->ints_stack[0] : -999);
         exit(1);
@@ -59,6 +59,6 @@ int main(void)
         check_find(type, 4, 2, -1);
         for( int i = 0; i < 40; ++i ) check_find(type, 2, -1, 3);
     }
-    puts("PASS ARRAY_FIND integer/string values, bounded ranges and balanced stacks");
+    puts("PASS ARRAY_INDEXOF integer/string values, bounded ranges and balanced stacks");
     return 0;
 }

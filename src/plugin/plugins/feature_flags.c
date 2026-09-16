@@ -379,8 +379,8 @@ ff_on_ui_action(
 {
     struct FeatureFlagsState* state = state_ptr;
     (void)api;
-    if( !event )
-        return;
+    assert(state);
+    assert(event);
     (void)Porcelain_PanelAction(state->porcelain, event);
 }
 

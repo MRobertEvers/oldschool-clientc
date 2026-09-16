@@ -245,11 +245,27 @@ enum AppPluginRowKind
 /*
  * HINT_ARROW's `type` byte: what the packet's `id`/`z` fields mean.
  *
- * The reference's own values. 255 means "clear" and is normalised to 0 by
- * `rs_gameproto_exec.c`, so 0 here is simply "no arrow" and needs no name.
+ * The reference's own values -- `PktHintArrow` states them, LostCity's
+ * `HintArrowEncoder` writes them and rev 239's own `class268.method6676`
+ * reads them: 1 is an NPC slot, 2..6 a tile, 10 a player pid. 255 means
+ * "clear" and is normalised to 0 by `rs_gameproto_exec.c`, so 0 here is
+ * simply "no arrow" and needs no name.
+ *
+ * These were 1=coord/2=npc until 2026-09-15, which no lane agreed with: the
+ * embedded server mirrored the same two wrong numbers, so the pair only ever
+ * talked to itself, and a real rev289 server pointing at an npc put the arrow
+ * over whatever tile the slot number happened to name.
+ *
+ * The five tile forms differ only in where INSIDE the tile the arrow floats,
+ * which the wire says by the type itself and the client keeps as a fine-unit
+ * offset pair; `_COORD` is the centred one and the others normalise to it.
  */
-#define APP_HINT_ARROW_COORD 1
-#define APP_HINT_ARROW_NPC 2
+#define APP_HINT_ARROW_NPC 1
+#define APP_HINT_ARROW_COORD 2
+#define APP_HINT_ARROW_COORD_WEST 3
+#define APP_HINT_ARROW_COORD_EAST 4
+#define APP_HINT_ARROW_COORD_SOUTH 5
+#define APP_HINT_ARROW_COORD_NORTH 6
 #define APP_HINT_ARROW_PLAYER 10
 
 #define APP_PLUGIN_HIGHLIGHTS_MAX 256
@@ -726,6 +742,23 @@ enum AppMinimapState
 #define APP_CLIENTSCRIPT_FENCE_MAX_CYCLES APP_SERVER_TICK_LOGIC_CYCLES
 
 /**
+ * Logic cycles the client waits for the server to answer a logout request.
+ *
+ * The reference's `logoutTimer` figure (Client.ts:11212) — 5 seconds — and it
+ * means the same thing here for the whole of that time: the session is still
+ * live, because the server has not said otherwise.
+ *
+ * Where this client departs from the reference is what it does when the window
+ * runs out. The reference does nothing at all: a server whose content never
+ * answers the button leaves the player in the world forever, which is fine for
+ * the one server it was written against and is not fine for the several this
+ * client is pointed at. Running out ends the session locally instead — the old
+ * behaviour, arriving five seconds later, and said out loud in the log so a
+ * server that is not answering can be told from one that is slow.
+ */
+#define APP_LOGOUT_WAIT_CYCLES 250
+
+/**
  * Logic cycles a settings change waits before it is written to disk.
  *
  * A slider drag reports a new volume every 20ms cycle, so writing on each one
@@ -735,6 +768,92 @@ enum AppMinimapState
  * either way.
  */
 #define APP_PREFS_SAVE_SETTLE_TICKS 25
+
+/**
+ * Which NATIVE top-level chrome a CS2 lane is wearing.
+ *
+ * The first three are the Display panel's own domain -- the `client_mode_*`
+ * constants the cache, the wire and the server content all count in, which is
+ * why they are 0/1/2 here too and not a spelling of this client's own. Each
+ * has one interface behind it, named by the profile rather than by a literal
+ * ([iface:toplevel_fixed] and its three siblings).
+ *
+ * MOBILE is the fourth root and NOT a fourth choice: the server opens 601
+ * because the login's client type said phone, and the Display row offers no
+ * way to ask for it or to leave it. It is here so that a reader can tell "the
+ * phone frame" from "no answer", which -1 would not -- a plugin that read
+ * mobile as unknown and forced Fixed would take a phone off its own chrome.
+ */
+enum AppNativeLayout
+{
+    APP_NATIVE_LAYOUT_FIXED = 0,
+    APP_NATIVE_LAYOUT_RESIZABLE_CLASSIC = 1,
+    APP_NATIVE_LAYOUT_RESIZABLE_MODERN = 2,
+    APP_NATIVE_LAYOUT_MOBILE = 3,
+};
+
+/**
+ * Logic cycles before an unanswered native-layout request is asked again.
+ *
+ * The request is one IF_BUTTON and the answer is a remount three server ticks
+ * later (the op, then `gameframe_apply_mode` two queue ticks after it), so a
+ * caller that asks on every layout pass -- which is what a gameframe provider
+ * does -- must not put a packet on the wire per frame. Five ticks is that path
+ * with room to spare, and short enough that a request the server dropped is
+ * retried while the player is still looking at the wrong frame.
+ */
+#define APP_NATIVE_LAYOUT_RETRY_CYCLES (APP_SERVER_TICK_LOGIC_CYCLES * 5)
+
+/** One engine button in the lane's pop-out column. Keyed by DESTINATION, not
+ *  by position: a plugin enabled above another must not take its button. */
+struct AppPluginPopoutNavButton
+{
+    /** Plugin index, or TORIRS_CHROME_SHELL_PAGE_MANAGE. */
+    int destination;
+    struct UITreeNodeRef ref;
+    /** Its picture's scene slot, held for the button's life so a button that
+     *  moves up the column does not redraw another's art. */
+    int scene_slot;
+    /** Which icon revision the published picture was composed from. */
+    uint32_t icon_revision;
+    int composed;
+    /** What the node was last given; reset when the node is a new incarnation
+     *  (the pop-out interface was remounted), so every property is set again. */
+    int graphic_set;
+    int y;
+    int transparency;
+    char label[UITREE_MENU_OPTION_LEN];
+    /** Scratch for one tick's reconcile. */
+    int seen;
+};
+
+struct AppPluginPopoutNav
+{
+    /** enum ToriRSPluginNavMode. */
+    int mode;
+    /** The column is on screen and carries the destinations. */
+    int active;
+    /**
+     * What the rail snapshot says: `active`, and also every moment the column
+     * cannot carry them only because the game has not put it up yet -- the
+     * title screen and the first ticks of a session on a lane whose profile
+     * names one. Answering "show the rail" there grew the window by a rail on
+     * every boot and took it back at login.
+     */
+    int rail_hidden;
+    /** Logic ticks in-game with the column declared but not usable. */
+    int unusable_ticks;
+    int button_count;
+    struct AppPluginPopoutNavButton buttons[TORIRS_CHROME_RAIL_ENTRY_MAX];
+    /** The click registration stamped on every button; never 0. */
+    uint64_t op_serial;
+    /** What the last trace line said, so the trace reports changes only. */
+    int reported_active;
+    int reported_first_y;
+    int reported_capacity;
+    int reported_count;
+    int reported_rail_hidden;
+};
 
 struct App
 {
@@ -990,6 +1109,24 @@ struct App
      * made, was told false on a lane where it is true.
      */
     int touch_ui;
+    /*
+     * This DEVICE can raise an on-screen keyboard, so a chrome may offer a
+     * switch for it.
+     *
+     * Not the same fact as touch_ui above, and the difference is the whole
+     * reason it is a second field. touch_ui is a POLICY: the login clienttype
+     * sets it, TORIRS_TOUCH_UI moves it either way, and a desk with it on is a
+     * desk. Whether keys can be summoned is the PLATFORM's answer and nothing
+     * above it can overrule -- @see PlatformWindow_HasScreenKeyboard, which is
+     * SDL_HasScreenKeyboardSupport on the SDL backends, yes on Android and no
+     * on win32gdi.
+     *
+     * Stated once at boot because it cannot change while the window lives, and
+     * it is what `core.capability("input.screen_keyboard")` answers. Zero on a
+     * headless or test run, which have no platform window to ask: a frame that
+     * places no KEYS switch is the right picture for a run with no keys.
+     */
+    int has_screen_keyboard;
     /* Keys a revconfig hotkey binding acted on this frame, indexed by OSRS key
      * code. Debug world hotkeys share the digit row with the rev-254 tab
      * bindings, so they check this and stand down rather than firing both. */
@@ -1250,6 +1387,10 @@ struct App
      *  member m; 0 = no such role. Built once per role-table size. */
 #define APP_FRAME_ROLE_SLOTS 32
     uint16_t plugin_frame_role_id[APP_FRAME_ROLE_SLOTS][1 + 16];
+    /** `frame_compass_click`, interned with them: the compass's hit region is
+     *  a node of its own on a cache toplevel and is not a numbered member of
+     *  anything. @see UITree_FrameCompassClickNode. */
+    uint16_t plugin_frame_compass_click_role;
     int plugin_frame_role_ids_for_count;
     /**
      * Everything app_plugin_widget_facets has to look up by NAME, resolved
@@ -1563,12 +1704,27 @@ struct App
      * The player asked to leave, and the request has not been acted on yet.
      *
      * Deferred rather than done at the click, so the button's own IF_BUTTON is
-     * already in the outbound ring when the DISCONNECT is queued behind it --
+     * already in the outbound ring when the wait below is armed behind it --
      * the server hears the request instead of a bare FIN. Raised by the CS1
      * logout clientCode and by the CS2 host's LOGOUT opcode, drained by the
      * logic tick. @see App_Logout.
      */
     int logout_requested;
+    /**
+     * Logic cycles left to wait for the server to answer that request.
+     *
+     * Non-zero means the request is on the wire and the session has NOT ended:
+     * the world is still up, the player is still in it, and the screen has not
+     * changed. What ends it is the server -- its LOGOUT packet, or the socket
+     * it closes instead of sending one (app_net_tear_down_session reads this
+     * to tell that answer apart from a connection that was lost). The
+     * reference's `logoutTimer`, armed at the same 250 cycles it uses
+     * (Client.ts:11212), and its whole point is that a logout the server never
+     * heard must not take the player off the world it is still playing.
+     *
+     * @see APP_LOGOUT_WAIT_CYCLES for what happens when nothing answers.
+     */
+    int logout_wait_cycles;
     /** Client-behaviour era table (src/features/features.h). Never NULL after
      *  App_Init — unlike `net`, it is resolved on every boot because an
      *  offline click still has to pick an approach model. Points at
@@ -1664,6 +1820,14 @@ struct App
     struct ToriRSChromeRailIntent plugin_rail_layout;
     int plugin_rail_has_layout;
     /**
+     * Plugin navigation inside the lane's own pop-out column, when the profile
+     * names one (`[role:plugin_nav_column]`) and it is on screen. While
+     * `active`, the rail snapshot says `rail_hidden` and the column carries
+     * one engine-owned button per rail destination.
+     * @see plugin/torirs_plugin_popout_nav.u.c.
+     */
+    struct AppPluginPopoutNav plugin_nav;
+    /**
      * The vtable the shell handed over, not yet started.
      *
      * Held unbound because begin() is what opens an OS window, and a window
@@ -1699,20 +1863,6 @@ struct App
     int chrome_merged_dbg;
     int chrome_merged_win;
     uint32_t chrome_merged_panel;
-    /** Tree node of the client-built "Manage Plugins" button, or -1. Rechecked
-     *  rather than trusted: a tree rebuild takes it, and the index alone cannot
-     *  say so. */
-    int32_t plugin_button_node;
-    /**
-     * Whether that button is currently switched off because the plugin lane's
-     * server is unreachable (app_plugin_io_down).
-     *
-     * Held so the hide/show is applied on the EDGE. The reachability test runs
-     * every frame and the tree apply marks the whole tree dirty, so reapplying
-     * it unconditionally would cost a full UI redraw per frame for as long as
-     * the server stayed down -- and equally for as long as it stayed up.
-     */
-    int plugin_button_disabled;
     /** The window's panel handle in plugin_ui, or -1 before it is built. */
     int plugin_panel;
     int plugin_panel_visible;
@@ -2142,12 +2292,18 @@ struct App
      */
     struct
     {
-        /** APP_HINT_ARROW_COORD / _NPC / _PLAYER. 0 is none; the wire's 255 is
-         *  normalised to 0 on the way in. */
+        /** APP_HINT_ARROW_NPC / _COORD / _PLAYER. 0 is none; the wire's 255
+         *  is normalised to 0 on the way in, and the four off-centre tile
+         *  forms to _COORD plus the offsets below. */
         int type;
         int target; /* npc slot, player pid, or the absolute tile x */
         int tile_z;
         int height;
+        /** Where in the tile a _COORD arrow floats, in fine units (64 is the
+         *  centre). Meaningless for the two entity forms, which follow the
+         *  entity. */
+        int offset_x;
+        int offset_z;
     } hint_arrow;
     /** SET_PLAYER_OP rows for the player context menu (slot 1..5 -> [0..4]). */
     char player_ops[5][40];
@@ -2194,8 +2350,10 @@ struct App
     /** Formatted countdown line handed to the reboot_timer widget; rebuilt on
      *  every read, so it is only valid until the next one. */
     char reboot_timer_text[48];
-    /** MESSAGE_PRIVATE dedupe (reference messageIds ring). */
-    int pm_message_ids[100];
+    /** The private and clan message dedupe ring (reference field1077): one
+     *  ring for both, as in the client. A private message keys by its id, a
+     *  clan message by (world << 32) + its counter. */
+    int64_t pm_message_ids[100];
     int pm_message_head;
     int tracking_enabled; /* ENABLE/FINISH_TRACKING */
     int net_cheat_sent;   /* TORIRS_NET_CHEAT one-shot latch */
@@ -2455,6 +2613,15 @@ void
 App_SetPluginChromeExec(
     struct App* app, struct ToriRSChromeExec const* exec, int kind, int explicit_choice);
 
+/**
+ * Where plugin destinations are offered: enum ToriRSPluginNavMode. `auto` (the
+ * default) uses the lane's pop-out column when its profile names one and keeps
+ * the separate rail otherwise; `rail` always keeps the rail. From the boot
+ * manifest's `[chrome] plugin_nav=`, overridden by TORIRS_PLUGIN_NAV.
+ */
+void
+App_SetPluginNavMode(struct App* app, int mode);
+
 /** Device pixels per chrome pixel. */
 int
 App_ChromeScale(struct App const* app);
@@ -2632,6 +2799,14 @@ App_PluginLayoutTick(struct App* app);
 int
 App_TakeTextInputChange(struct App* app, int* out_on);
 
+/**
+ * A url a clientscript asked the client to open (openurl, 3113), copied into
+ * `out` and cleared. The same split as App_TakeTextInputChange: opening a
+ * browser is the platform's to do. @return 1 when a url was pending.
+ */
+int
+App_TakeOpenUrl(struct App* app, char* out, int cap);
+
 int
 App_TakeWindowModeChange(
     struct App* app,
@@ -2701,9 +2876,12 @@ App_NetSessionReset(struct App* app);
  * nothing is being re-established, so the reconnect watch is disarmed rather
  * than armed.
  *
- * Reached three ways, all of which mean the same thing: the logout button (via
- * App::logout_requested, so the button's IF_BUTTON goes out first), the CS2
- * LOGOUT opcode, and the server's own LOGOUT packet.
+ * This is the ENDING, not the request. The logout button does not reach it:
+ * the button sends its IF_BUTTON and arms App::logout_wait_cycles, and what
+ * calls this is the server's answer -- the LOGOUT packet, or the socket it
+ * closes instead. The three remaining ways in are that answer, a wait that ran
+ * out with no answer at all, and a click with no session to answer it (an
+ * offline profile, or a connection already gone).
  *
  * A profile that declares no [layout:title] has no login screen to return to;
  * the session still ends, and the client stays on the gameframe it booted into.

@@ -45,6 +45,7 @@ struct RS_PlayerStats
     int last_seen_level[RS_PLAYER_STATS_SKILL_COUNT];
 
     int run_energy; /* 0..100 */
+    int run_energy_raw; /* hundredths of a percent, 0..10000 (RUNENERGY) */
     int run_weight; /* kg */
     int combat_level;
 

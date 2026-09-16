@@ -208,6 +208,8 @@ Task_Dat2ObjLoadAll_Run(
     {
         int obj_id = task->group->file_ids ? task->group->file_ids[idx] : idx;
 
+        if( obj_id + 1 > task->bc->base.objtype_count )
+            task->bc->base.objtype_count = obj_id + 1;
         if( CacheProvider_ObjtypeHas(&task->bc->base, obj_id) )
             continue;
         (void)obj_adapt_member(task->bc, task->group, idx, obj_id);

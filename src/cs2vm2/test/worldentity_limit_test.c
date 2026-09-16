@@ -14,8 +14,8 @@
 static int run(struct RS_CS2Host* host, int set, int value)
 {
     struct CS2VM2 vm; struct CS2VM2_Script script;
-    uint16_t ops[]={CS2_OP_PUSH_CONSTANT_INT,CS2_OP_WORLDENTITY_SETDRAWLIMIT,
-                    CS2_OP_WORLDENTITY_GETDRAWLIMIT,CS2_OP_RETURN};
+    uint16_t ops[]={CS2_OP_PUSH_CONSTANT_INT,CS2_OP_WORLDENTITY_SETRENDERLIMIT,
+                    CS2_OP_WORLDENTITY_GETRENDERLIMIT,CS2_OP_RETURN};
     int operands[]={value,0,0,0}; char* strings[]={NULL,NULL,NULL,NULL};
     CS2VM2_Init(&vm); CS2VM2_BindHost(&vm,host,RS_CS2Host_Exec);
     CS2VM2_ScriptInit(&script); script.script_id=9997;

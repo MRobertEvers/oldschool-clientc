@@ -179,7 +179,7 @@ enum CS2VM_DbLoadKind
  * where the player is called, so both entry points convert the same way.
  */
 
-/** IF_TRIGGEROPLOCAL — component to click and the sub-id that becomes
+/** IF_SCRIPT_TRIGGER — component to click and the sub-id that becomes
  *  last_slot (quest id when childIndex was -1 and the signature carried "i"). */
 
 /** CC/IF_SETTARGETVERB: the selection verb used when WidgetFlags' target mask
@@ -191,7 +191,7 @@ enum CS2VM_DbLoadKind
 /** CC_GETOP / IF_GETOP: one-based operation slot on the resolved component. */
 
 /**
- * CC_SETCOMPONENTPARAM's `kind` argument: which stack the value arrived on.
+ * CC_SETPARAM's `kind` argument: which stack the value arrived on.
  *
  * It tracks the ParamType's own type — script 9581 writes param 1017 (declared
  * `s` in cache.osrs239) with kind 2 and the value on the string stack, and every
@@ -246,7 +246,7 @@ enum CS2VM_WidgetIntField
 
 /** Any 6693..6699 map element config opcode. */
 
-/** STAT / STAT_BASE / STAT_XP. `stat` is the protocol skill index. */
+/** STAT / STAT_BASE / STAT_VISIBLE_XP. `stat` is the protocol skill index. */
 
 /** CAM_SETFOLLOWHEIGHT payload; the getter carries no args. */
 
@@ -262,21 +262,21 @@ enum CS2VM_WidgetIntField
 #define CS2VM_HIGHLIGHT_ARG_MAX 5
 
 /**
- * LOC_FIND (6803) and COORD_INSCENE (6951): the two "is this still there"
+ * LOC_FIND (6803) and TILE_FIND (6951): the two "is this still there"
  * gates every static-overlay script opens with.
  *
  * LOC_FIND also has a side effect -- it makes the loc it found the ACTIVE LOC,
- * which is what the OVERLAY_LOC_* ops and the `_6800/_6801/_6802` getters then
- * answer about. `loc_type` is unused by COORD_INSCENE.
+ * which is what the OVERLAY_LOC_* ops and the `LOC_NAME/LOC_COORD/LOC_TYPE` getters then
+ * answer about. `loc_type` is unused by TILE_FIND.
  */
 
-/** Widest scripted-entity-overlay op: OVERLAY_COORD_CREATE takes six ints. */
+/** Widest scripted-entity-overlay op: ENTITYOVERLAY_CREATE_COORD takes six ints. */
 #define CS2VM_OVERLAY_ARG_MAX 6
 
 /**
  * Any scripted-entity-overlay opcode: the 7200..7214 family plus the four that
  * address an overlay's layer where the panel forms address a component id
- * (OVERLAY_FIND / OVERLAY_CC_FIND / OVERLAY_CC_CREATE / OVERLAY_CC_DELETEALL).
+ * (IF_FIND_ENTITYOVERLAY / CC_FIND_ENTITYOVERLAY / CC_CREATE_ENTITYOVERLAY / CC_DELETEALL_ENTITYOVERLAY).
  *
  * Shaped like the highlight request for the same reason: the arity comes from
  * the generated table, so the VM half never has to be edited again when a
@@ -294,7 +294,7 @@ enum CS2VM_WidgetIntField
 /** Any minimap zoom opcode (7250..7254). `value` is the setters' popped arg
  *  (unused by GETZOOM, which the host answers). */
 
-/** Any local-notification opcode (3170..3173). Only LOCAL_NOTIFICATION fills the
+/** Any local-notification opcode (3170..3173). Only NOTIFICATIONS_SENDLOCAL fills the
  *  payload; CANCEL uses `id` alone, and CANCELALL/SUPPORTED carry nothing. The
  *  strings are borrowed for the duration of the call — the op frees them. */
 
@@ -323,6 +323,29 @@ enum CS2VM_WidgetIntField
 /** Any hiscores opcode (7809/7811). Only the opcode distinguishes them. */
 
 /** SETWINDOWMODE / SETDEFAULTWINDOWMODE payload: one enum CS2VM_WindowMode. */
+
+/*
+ * The arguments of a SIGNATURE-POPPED opcode: one whose fixed stack signature
+ * (g_cs2vm2_opcode_stack, generated from the client's command catalogue) is
+ * all the VM needs to know to take its arguments. CS2VM2_Op_HostSignature pops
+ * exactly `int_in` ints and `str_in` strings and hands them over in PUSH order
+ * -- ints[0] is the deepest -- so the pop shape can never drift from the table
+ * the decoder and compiler use. Such an opcode's request kind declares
+ * `(struct CS2VM_HostSignatureArgs args;)` as its whole field list.
+ *
+ * Strings are borrowed from the VM pool; copy one to keep it past the call.
+ */
+#define CS2VM_SIGNATURE_INT_MAX 8
+#define CS2VM_SIGNATURE_STR_MAX 4
+
+struct CS2VM_HostSignatureArgs
+{
+    int opcode;
+    int ints[CS2VM_SIGNATURE_INT_MAX];
+    int int_count;
+    char* strs[CS2VM_SIGNATURE_STR_MAX];
+    int str_count;
+};
 
 /*
  * Every hosted opcode has its own public struct and union arm. The final

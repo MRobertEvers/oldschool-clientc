@@ -128,7 +128,8 @@
       this.rail = {
         protocol: PROTOCOL, type: 'rail.snapshot', registryRevision: 0,
         selectionGeneration: 0, pageGeneration: 0, activePlugin: -1,
-        lastSelectedPlugin: -1, selectedEntry: -1, expanded: false, entries: []
+        lastSelectedPlugin: -1, selectedEntry: -1, expanded: false, railHidden: false,
+        entries: []
       };
       this.ensureFrame();
       this.installResize();
@@ -269,6 +270,9 @@
           (snapshot.selectedEntry != null ? snapshot.selectedEntry : snapshot.s), -1),
         expanded: !!(snapshot &&
           (snapshot.expanded != null ? snapshot.expanded : snapshot.x)),
+        /* The game lane's own pop-out column carries the destinations: the
+         * dock reserves no rail track, and the page still opens on selection. */
+        railHidden: !!(snapshot && snapshot.railHidden),
         entries
       };
     }
@@ -665,9 +669,12 @@
       const hasRail = this.rail.entries.length > 0;
       const expanded = hasRail && this.rail.expanded;
       const paneWidth = this.preferredWidth();
+      /* A hidden rail (rail.snapshot railHidden) is drawn by the game lane's
+       * own pop-out column, so none of the modes below reserves its track. */
+      const railWidth = this.rail.railHidden ? 0 : RAIL_WIDTH;
       let mode = 'closed';
       if (expanded)
-        mode = this.availableWidth() >= GAME_MIN + RAIL_WIDTH + PANEL_WIDTH
+        mode = this.availableWidth() >= GAME_MIN + railWidth + PANEL_WIDTH
           ? 'split' : 'exclusive';
       else if (hasRail) mode = 'collapsed';
       this.layoutMode = mode;
@@ -675,21 +682,22 @@
       classSet(layout, 'torirs-chrome-exclusive', mode === 'exclusive');
       classSet(layout, 'torirs-chrome-collapsed', mode === 'collapsed');
       classSet(app, 'torirs-chrome-exclusive', mode === 'exclusive');
-      this.mount.hidden = !hasRail;
+      /* Collapsed with the rail hidden leaves the dock nothing to show. */
+      this.mount.hidden = !hasRail || (mode === 'collapsed' && !railWidth);
       if (game) game.hidden = mode === 'exclusive';
       if (this.mount.style) {
-        const total = RAIL_WIDTH + paneWidth;
+        const total = railWidth + paneWidth;
         this.mount.style.width = mode === 'split' ? `${total}px`
-          : (mode === 'exclusive' ? '100%' : (mode === 'collapsed' ? `${RAIL_WIDTH}px` : '0px'));
+          : (mode === 'exclusive' ? '100%' : (mode === 'collapsed' ? `${railWidth}px` : '0px'));
         this.mount.style.flex = mode === 'split' ? `0 0 ${total}px`
           : (mode === 'exclusive' ? '1 1 100%'
-            : (mode === 'collapsed' ? `0 0 ${RAIL_WIDTH}px` : '0 0 0px'));
+            : (mode === 'collapsed' ? `0 0 ${railWidth}px` : '0 0 0px'));
       }
       const html = this.document.documentElement || this.document.body;
       if (html && html.style && html.style.setProperty)
         html.style.setProperty('--torirs-dock-width',
-          mode === 'split' ? `${RAIL_WIDTH + paneWidth}px`
-            : (mode === 'collapsed' ? `${RAIL_WIDTH}px` : '0px'));
+          mode === 'split' ? `${railWidth + paneWidth}px`
+            : (mode === 'collapsed' ? `${railWidth}px` : '0px'));
     }
 
     publishLayout(message) {

@@ -74,16 +74,16 @@
  * indexed field's. Neither is answerable from a fixed signature, which is why
  * these have their own kinds rather than an entry in the generated table.
  */
-#define RSCACHE_CS2_OP_DB_FIND_WITH_COUNT 7500
+#define RSCACHE_CS2_OP_DB_FIND 7500
 #define RSCACHE_CS2_OP_DB_GETFIELD 7502
-#define RSCACHE_CS2_OP_DB_FIND_FILTER_WITH_COUNT 7507
-#define RSCACHE_CS2_OP_DB_FIND 7508
-#define RSCACHE_CS2_OP_DB_FIND_FILTER 7510
+#define RSCACHE_CS2_OP_DB_FIND_REFINE 7507
+#define RSCACHE_CS2_OP_DB_FIND_PRE228 7508
+#define RSCACHE_CS2_OP_DB_LISTALL_PRE228 7510
 #define RSCACHE_CS2_OP_ADD 4000
 #define RSCACHE_CS2_OP_SUB 4001
 #define RSCACHE_CS2_OP_MULTIPLY 4002
-#define RSCACHE_CS2_OP_DIV 4003
-#define RSCACHE_CS2_OP_MOD 4011
+#define RSCACHE_CS2_OP_DIVIDE 4003
+#define RSCACHE_CS2_OP_MODULO 4011
 #define RSCACHE_CS2_OP_AND 4014
 #define RSCACHE_CS2_OP_OR 4015
 

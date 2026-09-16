@@ -84,6 +84,10 @@ struct FakeEngine
     int mesh_clears;
     int native_root;
     int native_tab_selects;
+    /* The lane's native top-level chrome, and how many times something asked
+     * it for a different one. @see native_layout_select. */
+    int native_layout;
+    int native_layout_requests;
     int frame_provides;
     int layout_sets;
     int frame_active;
@@ -999,6 +1003,21 @@ fake_frame_preference_set(
     return 1;
 }
 static int
+fake_native_layout(void* u)
+{
+    return ((struct FakeEngine*)u)->native_layout;
+}
+static int
+fake_native_layout_select(
+    void* u,
+    int layout)
+{
+    struct FakeEngine* engine = (struct FakeEngine*)u;
+    engine->native_layout_requests++;
+    engine->native_layout = layout;
+    return 1;
+}
+static int
 fake_tab_active(void* u)
 {
     (void)u;
@@ -1021,6 +1040,18 @@ fake_tab_enabled(
     (void)u;
     (void)tabno;
     return 1;
+}
+
+/* The tab the engine says is in the dark half of the tutorial blink, or -1. */
+static int g_flash_dark_tab = -1;
+
+static int
+fake_tab_flash_hidden(
+    void* u,
+    int tabno)
+{
+    (void)u;
+    return tabno >= 0 && tabno == g_flash_dark_tab;
 }
 static int
 fake_obj_info(
@@ -1413,6 +1444,8 @@ fake_engine(void)
     e.component_rect = fake_component_rect;
     e.frame_activate = fake_frame_activate;
     e.frame_root = fake_frame_root;
+    e.native_layout = fake_native_layout;
+    e.native_layout_select = fake_native_layout_select;
     e.platform_safe_rect = fake_platform_safe_rect;
     e.display_setting = fake_display_setting;
     e.display_setting_set = fake_display_setting_set;
@@ -1421,6 +1454,7 @@ fake_engine(void)
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.tab_enabled = fake_tab_enabled;
+    e.tab_flash_hidden = fake_tab_flash_hidden;
     e.obj_info = fake_obj_info;
     e.inv_slot = fake_inv_slot;
     e.inv_size = fake_inv_size;
@@ -1601,9 +1635,17 @@ v2_probe_logic(
     if( state->ticks == 0 )
     {
         int const navigation_before = g_engine.native_tab_selects;
+        int const layout_before = g_engine.native_layout_requests;
         CHECK(!api->cache.tab_select(api, 3) &&
                   g_engine.native_tab_selects == navigation_before,
               "a logic tick cannot open a sidebar tab");
+        /* The same rule for the bigger act: a tick is nobody's click and no
+         * frame's shape, and remounting the whole top level from one would be
+         * the client changing chrome behind the player. */
+        CHECK(api->frame.native_layout_select(api, TORIRS_NATIVE_LAYOUT_FIXED) ==
+                      TORIRS_RESULT_UNSUPPORTED &&
+                  g_engine.native_layout_requests == layout_before,
+              "a logic tick cannot ask the lane for a native top level");
     }
     state->ticks += event->cycle;
 }
@@ -1741,6 +1783,27 @@ v2_probe_gameframe(
     CHECK(api->cache.tab_select(api, 3) &&
               g_engine.native_tab_selects == navigation_before + 1,
           "a frame being built may ask the lane to open a tab");
+    /*
+     * And may ask for the top level its layout is authored for, for the same
+     * reason and at the same moment: on_gameframe is where a provider learns
+     * which root it was handed, so it is the only place the mismatch can be
+     * noticed. A layout outside the selector's own three is the plugin's
+     * mistake and is refused without reaching the lane.
+     */
+    {
+        int const layout_before = g_engine.native_layout_requests;
+
+        CHECK(api->frame.native_layout_select(api, TORIRS_NATIVE_LAYOUT_FIXED) ==
+                      TORIRS_RESULT_OK &&
+                  g_engine.native_layout_requests == layout_before + 1,
+              "a frame being built may ask the lane for a native top level");
+        CHECK(api->frame.native_layout(api) == TORIRS_NATIVE_LAYOUT_FIXED,
+              "and reads back the chrome the lane now reports");
+        CHECK(api->frame.native_layout_select(api, TORIRS_NATIVE_LAYOUT_MOBILE) ==
+                      TORIRS_RESULT_INVALID &&
+                  g_engine.native_layout_requests == layout_before + 1,
+              "the phone's root is not one of the choices");
+    }
     CHECK(state && state->marker == 3, "selected frame receives its own v2 state");
     CHECK(strcmp(event->offer_id, "test") == 0, "frame provision receives the local offer id");
     if( !event->active )
@@ -2336,6 +2399,16 @@ static int img_slot=-1, img_w, img_h, img_sets, img_opacity=-1;
 static char op_label[64];
 static uint64_t op_registration;
 static int op_requests;
+static struct ToriRS_WidgetRef const op_control={{77,5,9}};
+/* The adapter's op slots for op_control, as the tree would hold them: an
+ * empty string is a slot with no row. The single `op_label` above is still
+ * the LAST label written, which every one-row case reads. */
+static char op_slots[TORIRS_WIDGET_OP_SLOTS][64];
+static char const* op_slot_label(int op)
+{
+    if( op<1 || op>TORIRS_WIDGET_OP_SLOTS ) return NULL;
+    return op_slots[op-1];
+}
 static int anchor_relation,anchor_sets;
 static int mask_slot,mask_sets;
 static struct ToriRS_WidgetRef anchor_target;
@@ -2380,6 +2453,8 @@ static enum ToriRS_ContractResult fake_widget_request(void* user, uint64_t owner
         ++op_requests;
         snprintf(op_label,sizeof(op_label),"%s",r->name);
         op_registration=r->registration;
+        if( r->op>=1 && r->op<=TORIRS_WIDGET_OP_SLOTS && ToriRS_WidgetRefEqual(r->ref,op_control) )
+            snprintf(op_slots[r->op-1],sizeof(op_slots[r->op-1]),"%s",r->name);
     }
     if( r->kind == PLUGIN_WIDGET_CREATE_IMAGE ) *r->refs=(struct ToriRS_WidgetRef){{77,40,1}};
     if( r->kind == PLUGIN_WIDGET_SET_IMAGE ) { img_slot=r->id; img_w=r->a; img_h=r->b; ++img_sets; }
@@ -2457,15 +2532,20 @@ static void widget_probe_stop(struct ToriRS_Api* api, void* state)
  * reentry, self-disable and context rules through the public C API. */
 static struct ToriRS_PluginHost* op_host;
 static int op_index, op_calls, op_mode;
+/* Set while the multi-row case runs: the shared listener then checks the
+ * event's `operation` against what was dispatched rather than assuming 1. */
+static int op_multi;
+static int op_last_operation;
 static uint64_t op_last_revision;
-static struct ToriRS_WidgetRef const op_control={{77,5,9}};
 static void op_listener(struct ToriRS_Api* api,void* user,struct ToriRS_WidgetEvent const* event)
 {
     struct ToriRS_WidgetApi* ui=&api->widgets;
     (void)user;
     ++op_calls;
     op_last_revision=event->native_revision;
-    CHECK(event->type==TORIRS_WIDGET_OPERATION && ToriRS_WidgetRefEqual(event->widget,op_control) && event->operation==1,
+    op_last_operation=event->operation;
+    CHECK(event->type==TORIRS_WIDGET_OPERATION && ToriRS_WidgetRefEqual(event->widget,op_control) &&
+              (op_multi ? event->operation>=1 : event->operation==1),
           "operation event names the pressed control");
     CHECK(ui->set_text(ui->context,op_control,"pressed")==TORIRS_CONTRACT_OK,
           "an operation callback may mutate widgets");
@@ -2473,29 +2553,35 @@ static void op_listener(struct ToriRS_Api* api,void* user,struct ToriRS_WidgetEv
           "an operation callback may invoke checked native actions");
     int mode=op_mode;op_mode=0;
     if( mode==1 )
-        CHECK(ui->set_on_op(ui->context,op_control,NULL,NULL,NULL)==TORIRS_CONTRACT_OK,
+        CHECK(ui->set_on_op(ui->context,op_control,1,NULL,NULL,NULL)==TORIRS_CONTRACT_OK,
               "a listener can remove its own operation while handling it");
     if( mode==2 )
         PluginHost_SetEnabled(op_host,op_index,false);
     if( mode==3 )
-        CHECK(ui->set_on_op(ui->context,op_control,"Again",op_listener,NULL)==TORIRS_CONTRACT_OK,
+        CHECK(ui->set_on_op(ui->context,op_control,1,"Again",op_listener,NULL)==TORIRS_CONTRACT_OK,
               "a listener can re-arm its control while handling it");
+    if( mode==5 )
+        CHECK(ui->set_on_op(ui->context,op_control,2,"Setup",op_listener,NULL)==TORIRS_CONTRACT_OK,
+              "a listener can arm a second row on its control");
+    if( mode==6 )
+        CHECK(ui->set_on_op(ui->context,op_control,2,NULL,NULL,NULL)==TORIRS_CONTRACT_OK,
+              "a listener can clear one row of several");
     if( mode==4 )
     {
         int ok=0;
         for( int i=0;i<126;++i )
-            if( ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,200+(uint64_t)i,1}},"Row",op_listener,NULL)==TORIRS_CONTRACT_OK ) ++ok;
+            if( ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,200+(uint64_t)i,1}},1,"Row",op_listener,NULL)==TORIRS_CONTRACT_OK ) ++ok;
         CHECK(ok==126,"the per-owner budget admits 128 armed controls");
-        CHECK(ui->set_on_op(ui->context,stale_control,"Row",op_listener,NULL)==TORIRS_CONTRACT_STALE_REFERENCE,
+        CHECK(ui->set_on_op(ui->context,stale_control,1,"Row",op_listener,NULL)==TORIRS_CONTRACT_STALE_REFERENCE,
               "arming a vanished control reports the stale reference");
-        CHECK(ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,900,1}},"Row",op_listener,NULL)==TORIRS_CONTRACT_OK,
+        CHECK(ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,900,1}},1,"Row",op_listener,NULL)==TORIRS_CONTRACT_OK,
               "the last free slot is granted");
-        CHECK(ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,901,1}},"Row",op_listener,NULL)==TORIRS_CONTRACT_BUDGET_EXCEEDED,
+        CHECK(ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,901,1}},1,"Row",op_listener,NULL)==TORIRS_CONTRACT_BUDGET_EXCEEDED,
               "a full table never evicts a live registration");
-        CHECK(ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,902,1}},NULL,NULL,NULL)==TORIRS_CONTRACT_OK,
+        CHECK(ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,902,1}},1,NULL,NULL,NULL)==TORIRS_CONTRACT_OK,
               "removing an operation that was never armed is a no-op");
         int before=op_requests;
-        CHECK(ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,903,1}},NULL,NULL,NULL)==TORIRS_CONTRACT_OK && op_requests==before,
+        CHECK(ui->set_on_op(ui->context,(struct ToriRS_WidgetRef){{77,903,1}},1,NULL,NULL,NULL)==TORIRS_CONTRACT_OK && op_requests==before,
               "a no-op removal sends nothing to the adapter");
     }
 }
@@ -2505,29 +2591,29 @@ static void op_start(struct ToriRS_Api* api,void* state)
     char too_long[TORIRS_WIDGET_OP_LABEL_MAX+1];
     (void)state;
     memset(too_long,'x',sizeof(too_long)-1);too_long[sizeof(too_long)-1]=0;
-    CHECK(ui->set_on_op(ui->context,op_control,"",op_listener,NULL)==TORIRS_CONTRACT_INVALID_ARGUMENT,
+    CHECK(ui->set_on_op(ui->context,op_control,1,"",op_listener,NULL)==TORIRS_CONTRACT_INVALID_ARGUMENT,
           "an empty operation label is rejected");
-    CHECK(ui->set_on_op(ui->context,op_control,NULL,op_listener,NULL)==TORIRS_CONTRACT_INVALID_ARGUMENT,
+    CHECK(ui->set_on_op(ui->context,op_control,1,NULL,op_listener,NULL)==TORIRS_CONTRACT_INVALID_ARGUMENT,
           "a missing operation label is rejected");
-    CHECK(ui->set_on_op(ui->context,op_control,too_long,op_listener,NULL)==TORIRS_CONTRACT_INVALID_ARGUMENT,
+    CHECK(ui->set_on_op(ui->context,op_control,1,too_long,op_listener,NULL)==TORIRS_CONTRACT_INVALID_ARGUMENT,
           "an over-long operation label is rejected");
     int before=op_requests;
-    CHECK(ui->set_on_op(ui->context,op_control,"Press",op_listener,NULL)==TORIRS_CONTRACT_OK &&
+    CHECK(ui->set_on_op(ui->context,op_control,1,"Press",op_listener,NULL)==TORIRS_CONTRACT_OK &&
           op_requests==before+1 && strcmp(op_label,"Press")==0 && op_registration!=0,
           "arming reaches the native adapter with its label and registration");
 }
 static void op_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* graphics)
 {
     (void)state;(void)graphics;
-    CHECK(api->widgets.set_on_op(api->widgets.context,op_control,"Paint",op_listener,NULL)==TORIRS_CONTRACT_WRONG_CONTEXT,
+    CHECK(api->widgets.set_on_op(api->widgets.context,op_control,1,"Paint",op_listener,NULL)==TORIRS_CONTRACT_WRONG_CONTEXT,
           "paint cannot arm an owned control");
 }
 static void op_stop(struct ToriRS_Api* api,void* state)
 {
     (void)state;
-    CHECK(api->widgets.set_on_op(api->widgets.context,op_control,"Late",op_listener,NULL)==TORIRS_CONTRACT_WRONG_CONTEXT,
+    CHECK(api->widgets.set_on_op(api->widgets.context,op_control,1,"Late",op_listener,NULL)==TORIRS_CONTRACT_WRONG_CONTEXT,
           "shutdown cannot arm an owned control");
-    CHECK(api->widgets.set_on_op(api->widgets.context,op_control,NULL,NULL,NULL)==TORIRS_CONTRACT_OK,
+    CHECK(api->widgets.set_on_op(api->widgets.context,op_control,1,NULL,NULL,NULL)==TORIRS_CONTRACT_OK,
           "shutdown removal is accepted as a no-op");
 }
 /* Owned image controls through the public C API: only this plugin's live
@@ -2695,6 +2781,129 @@ static void test_gameframe_provider(void)
     CHECK(selection.status==TORIRS_FRAME_STATUS_FALLBACK && strcmp(selection.reason,"No stones cut for this lane.")==0 &&
           g_engine.frame_active==0,
           "UNSUPPORTED falls back to native carrying the provider's reason");
+    /* NATIVE: the lane's own chrome IS the offer. Nothing is provided, the
+     * lane's chrome stays up, and the offer is ACTIVE under its own id rather
+     * than a fallback. An UNSUPPORTED answer leaves no request standing, so
+     * the selection is re-stated to make the resolver ask once more. */
+    gf_answer=TORIRS_FRAME_NATIVE;
+    CHECK(gf_api->frame.select(gf_api,"auto")==TORIRS_RESULT_OK && gf_api->frame.select(gf_api,"gf-provider/event")==TORIRS_RESULT_OK,
+          "the offer can be re-selected after a refusal");
+    PluginHost_FrameStart(host,5,0);
+    PluginHost_Layout(host,900,600);
+    gf_api->frame.selection(gf_api,&selection);
+    printf("GAMEFRAME_NATIVE events=%d status=%d id=%s active=%d needs=%d\n",
+           gf_events,selection.status,selection.active_id,g_engine.frame_active,PluginHost_FrameNeedsLayout(host));
+    CHECK(gf_events==10 && selection.status==TORIRS_FRAME_STATUS_ACTIVE && strcmp(selection.active_id,"gf-provider/event")==0,
+          "NATIVE reports the offer active under its own id");
+    CHECK(g_engine.frame_active==0 && !PluginHost_FrameNeedsLayout(host),
+          "NATIVE keeps the lane's chrome up and leaves no request standing");
+    PluginHost_Layout(host,900,600);
+    PluginHost_FrameStart(host,6,0);
+    gf_api->frame.selection(gf_api,&selection);
+    CHECK(gf_events==10 && selection.status==TORIRS_FRAME_STATUS_ACTIVE,
+          "a NATIVE offer is not re-asked on a canvas change, and the resolver leaves it active");
+    /* A screen change forgets the answer: the next game screen asks again,
+     * since the server opens whatever it opens on a fresh login. */
+    g_screen_now=TORIRS_SCREEN_TITLE;
+    PluginHost_FrameStart(host,7,0);
+    g_screen_now=TORIRS_SCREEN_GAME;
+    PluginHost_FrameStart(host,8,0);
+    PluginHost_Layout(host,900,600);
+    gf_api->frame.selection(gf_api,&selection);
+    CHECK(gf_events==11 && selection.status==TORIRS_FRAME_STATUS_ACTIVE && g_engine.frame_active==0,
+          "the next game screen asks the provider again and it answers NATIVE again");
+    /* And a provider that answers READY again after NATIVE provides as before. */
+    gf_answer=TORIRS_FRAME_READY;
+    CHECK(gf_api->frame.select(gf_api,"auto")==TORIRS_RESULT_OK && gf_api->frame.select(gf_api,"gf-provider/event")==TORIRS_RESULT_OK,
+          "re-select after NATIVE");
+    PluginHost_FrameStart(host,9,0);
+    PluginHost_Layout(host,900,600);
+    gf_api->frame.selection(gf_api,&selection);
+    CHECK(gf_events==12 && selection.status==TORIRS_FRAME_STATUS_ACTIVE && g_engine.frame_active==1,
+          "a READY answer after NATIVE provides the frame");
+    PluginHost_Free(host);
+}
+/*
+ * Two offers of ONE provider, and the switch between them.
+ *
+ * The outgoing frame hears its release BEFORE the incoming one is asked for,
+ * and that is not bookkeeping. A description is applied as a DIFF against what
+ * the provider already staged, so a provision with no release in front of it
+ * dresses the new layout on top of the old one: the owned controls only the
+ * new layout declares are created after everything the shared ones already
+ * hold, and the engine draws an owned control in the order it made it. On
+ * gameframe-layout -- which offers three of the four desktop frames, so this
+ * is the ordinary case and not a corner -- that put Classic Fixed's surround
+ * over the fourteen tab stones it is supposed to sit behind: a sidebar with a
+ * slab of rock where its tabs and its inventory should be.
+ *
+ * The condition that used to gate the release was `previous != owner`, which
+ * is true of a change of PROVIDER and false of a change of OFFER. Restore it
+ * and this test sees `beta:1` with no `alpha:0` anywhere.
+ *
+ * WHAT is asserted is that the release happens at all, and that the incoming
+ * offer is asked once more afterwards. The order the two arrive in is not:
+ * the release fires from the publication point, which is after the incoming
+ * description has been built, so the pass that switches stages a layout that
+ * the release then takes straight back off and the pass after it is the one
+ * that dresses the lane. Pinning `alpha:0 beta:1` here would be pinning a
+ * place the release could reasonably move to, and moving it there was tried --
+ * releasing before the callback, with or without a pass of its own, leaves the
+ * picture exactly as broken, so the second pass is doing work that is not
+ * understood yet and an ordering assertion would claim it is.
+ */
+static char gf_sw_log[256];
+static struct ToriRS_Api* gf_sw_api;
+static enum ToriRS_FrameBuildResult
+gf_sw_on_gameframe(struct ToriRS_Api* api,void* state,struct ToriRS_GameframeEvent const* ev)
+{
+    size_t used;
+    (void)state;
+    gf_sw_api=api;
+    used=strlen(gf_sw_log);
+    /* Truncation would turn a missing release into a passing test, so the
+     * table is sized for the handful of events one switch makes and the write
+     * asserts rather than clamping. */
+    assert(used + 24 < sizeof(gf_sw_log));
+    snprintf(gf_sw_log+used,sizeof(gf_sw_log)-used,"%s%s:%d",used?" ":"",
+             ev->offer_id?ev->offer_id:"?",ev->active?1:0);
+    return TORIRS_FRAME_READY;
+}
+static struct ToriRS_FrameOffer const GF_SW_OFFERS[]={
+    {.struct_size=sizeof(struct ToriRS_FrameOffer),.id="alpha",.title="Alpha",.canvas=TORIRS_FRAME_CANVAS_FIXED,.width=765,.height=503},
+    {.struct_size=sizeof(struct ToriRS_FrameOffer),.id="beta",.title="Beta",.canvas=TORIRS_FRAME_CANVAS_FIXED,.width=765,.height=503},
+    {.struct_size=sizeof(struct ToriRS_FrameOffer)}};
+static struct ToriRS_PluginDef const GF_SW_PROVIDER={.struct_size=sizeof(GF_SW_PROVIDER),.id="gf-two",.title="Two Offers",.version="3.0.0",
+    .frames=GF_SW_OFFERS,.callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_gameframe=gf_sw_on_gameframe}};
+static void test_gameframe_offer_switch(void)
+{
+    struct ToriRS_PluginEngine engine;
+    struct ToriRS_PluginHost* host;
+    memset(&g_engine,0,sizeof(g_engine));
+    g_screen_now=TORIRS_SCREEN_GAME;
+    engine=fake_engine();engine.widget_request=fake_widget_request;
+    host=PluginHost_New(&engine);
+    CHECK(PluginHost_Register(host,&GF_SW_PROVIDER)>=0,"a provider with two offers registers");
+    g_engine.frame_preference_present=1;g_engine.frame_migration_version=1;
+    snprintf(g_engine.frame_preference,sizeof(g_engine.frame_preference),"%s","gf-two/alpha");
+    gf_sw_log[0]='\0';
+    PluginHost_Start(host);
+    PluginHost_Layout(host,900,600);
+    CHECK(strcmp(gf_sw_log,"alpha:1")==0,"the preferred offer is provided and nothing was released first");
+    gf_sw_log[0]='\0';
+    CHECK(gf_sw_api && gf_sw_api->frame.select(gf_sw_api,"gf-two/beta")==TORIRS_RESULT_OK,
+          "the provider's other offer can be selected");
+    PluginHost_FrameStart(host,1,0);
+    PluginHost_Layout(host,900,600);
+    printf("GAMEFRAME_OFFER_SWITCH %s\n",gf_sw_log);
+    CHECK(strstr(gf_sw_log,"alpha:0")!=NULL,
+          "a change of offer inside one provider releases the outgoing frame");
+    CHECK(strstr(gf_sw_log,"beta:1")!=NULL,"and provides the incoming one");
+    gf_sw_log[0]='\0';
+    PluginHost_FrameStart(host,2,0);
+    PluginHost_Layout(host,900,600);
+    CHECK(strcmp(gf_sw_log,"beta:1")==0,
+          "and the pass after the switch dresses the lane again, with nothing left to release");
     PluginHost_Free(host);
 }
 static void test_widget_images(void)
@@ -2864,36 +3073,80 @@ static void test_widget_operations(void)
     PluginHost_Start(op_host);
     uint64_t owner=(uint64_t)op_index+1,serial=op_registration;
     CHECK(serial!=0,"startup armed the control");
-    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,0),"a zero registration never dispatches");
-    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,serial+1),"a mismatched registration is rejected");
-    CHECK(!PluginHost_WidgetOperation(op_host,owner,(struct ToriRS_WidgetRef){{77,5,10}},serial),"a different widget incarnation is rejected");
-    CHECK(!PluginHost_WidgetOperation(op_host,(uint64_t)other_index+1,op_control,serial),"another plugin's registration cannot be dispatched to a foreign owner");
-    CHECK(!PluginHost_WidgetOperation(op_host,owner+7,op_control,serial),"an unknown owner is rejected");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,0,1),"a zero registration never dispatches");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,serial+1,1),"a mismatched registration is rejected");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,(struct ToriRS_WidgetRef){{77,5,10}},serial,1),"a different widget incarnation is rejected");
+    CHECK(!PluginHost_WidgetOperation(op_host,(uint64_t)other_index+1,op_control,serial,1),"another plugin's registration cannot be dispatched to a foreign owner");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner+7,op_control,serial,1),"an unknown owner is rejected");
     CHECK(op_calls==0,"rejected dispatches reach no listener");
-    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,serial) && op_calls==1 && op_last_revision==serial,
+    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,serial,1) && op_calls==1 && op_last_revision==serial,
           "a current registration dispatches to the owner's listener");
     PluginHost_DrawCanvas(op_host,765,503);
     op_mode=3;
-    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,serial) && op_calls==2,"dispatch during which the listener re-arms");
+    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,serial,1) && op_calls==2,"dispatch during which the listener re-arms");
     uint64_t replaced=op_registration;
     CHECK(replaced!=serial && replaced!=0 && strcmp(op_label,"Again")==0,"re-arming issues a fresh registration with the new label");
-    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,serial),"a retired registration no longer dispatches");
-    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,replaced) && op_calls==3,"the replacement registration dispatches");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,serial,1),"a retired registration no longer dispatches");
+    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,replaced,1) && op_calls==3,"the replacement registration dispatches");
     op_mode=1;
-    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,replaced) && op_calls==4,"dispatch during which the listener removes itself");
+    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,replaced,1) && op_calls==4,"dispatch during which the listener removes itself");
     CHECK(op_registration==0 && op_label[0]==0,"removal clears the adapter operation");
-    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,replaced) && op_calls==4,"a removed registration no longer dispatches");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,replaced,1) && op_calls==4,"a removed registration no longer dispatches");
     PluginHost_SetEnabled(op_host,op_index,false);
-    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,replaced),"a disabled plugin receives no operations");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,replaced,1),"a disabled plugin receives no operations");
     PluginHost_SetEnabled(op_host,op_index,true);
     uint64_t fresh=op_registration;
-    CHECK(fresh!=0 && fresh!=replaced && PluginHost_WidgetOperation(op_host,owner,op_control,fresh) && op_calls==5,
+    CHECK(fresh!=0 && fresh!=replaced && PluginHost_WidgetOperation(op_host,owner,op_control,fresh,1) && op_calls==5,
           "restart re-arms with a new registration");
     op_mode=4;
-    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,fresh) && op_calls==6,"budget probe dispatched");
+    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,fresh,1) && op_calls==6,"budget probe dispatched");
     op_mode=2;
-    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,fresh) && op_calls==7,"a listener may disable its own plugin");
-    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,fresh) && op_calls==7,"nothing dispatches after self-disable");
+    CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,fresh,1) && op_calls==7,"a listener may disable its own plugin");
+    CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,fresh,1) && op_calls==7,"nothing dispatches after self-disable");
+    /*
+     * A control with more than one row.
+     *
+     * The case numbered ops exist for: a cover over a component offering two
+     * rows offers both, one listener answers for both, and taking one row away
+     * leaves the other armed. The registration is the CONTROL's, so arming the
+     * second row must not retire the rows already built for the first --
+     * minting a serial per op is exactly the bug this pins.
+     */
+    PluginHost_SetEnabled(op_host,op_index,true);
+    {
+        uint64_t const first=op_registration;
+        op_mode=0;op_multi=1;
+        CHECK(first!=0,"the control is armed on its first row");
+        CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,first,1),"op 1 dispatches");
+        CHECK(op_last_operation==1,"and the listener is told which row was chosen");
+        CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,first,2),
+              "a row the plugin never armed is refused");
+        op_mode=5;
+        CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,first,1),"the arming dispatch runs");
+        uint64_t const two=op_registration;
+        CHECK(two!=0 && two!=first,
+              "arming a second row mints a fresh registration, retiring rows built before it");
+        CHECK(op_slot_label(2)!=NULL && strcmp(op_slot_label(2),"Setup")==0,
+              "and reaches the adapter under its own number");
+        CHECK(op_slot_label(1)!=NULL && strcmp(op_slot_label(1),"Press")==0,
+              "without disturbing the row already armed");
+        CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,two,2) && op_last_operation==2,
+              "the second row dispatches to the same listener, naming itself");
+        CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,two,1) && op_last_operation==1,
+              "and so does the first, under the same registration");
+        op_mode=6;
+        CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,two,2),"the clearing dispatch runs");
+        CHECK(op_registration==two,
+              "clearing one row of two leaves the control registered, so the other row's menu rows stand");
+        CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,two,2),
+              "the cleared row no longer dispatches");
+        CHECK(PluginHost_WidgetOperation(op_host,owner,op_control,two,1),
+              "and the row that was left keeps working");
+        CHECK(!PluginHost_WidgetOperation(op_host,owner,op_control,two,0) &&
+                  !PluginHost_WidgetOperation(op_host,owner,op_control,two,TORIRS_WIDGET_OP_SLOTS+1),
+              "an operation number outside the contract's range is refused");
+        op_multi=0;
+    }
     PluginHost_Free(op_host);
 }
 
@@ -4071,6 +4324,7 @@ main(void)
     test_world_hull_answers_its_refusals();
     test_world_tile_answers_its_refusal();
     test_gameframe_provider();
+    test_gameframe_offer_switch();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

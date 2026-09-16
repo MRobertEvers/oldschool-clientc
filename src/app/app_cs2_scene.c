@@ -58,6 +58,40 @@ app_cs2_loc_at_coord(
     return 1;
 }
 
+/* OPPLAYER (3107): the slot of the first player in view with this name,
+ * never the local player. */
+int
+app_cs2_player_slot_by_name(
+    void* user,
+    char const* name)
+{
+    struct App* app = (struct App*)user;
+    struct WorldEntity_Player* player;
+
+    assert(app);
+    assert(name);
+    if( !app->world )
+        return -1;
+    player = World_PlayerFindByName(app->world, name, app->world->local_pid);
+    return player ? player->server_pid : -1;
+}
+
+/* WEC_NAME (3339): a worldentity config's name; "null" is the config's default
+ * for a record without one, and for an id the cache does not have. */
+char const*
+app_cs2_worldentity_config_name(
+    void* user,
+    int config_id)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( !WevConfigTable_Has(&app->wev_configs, config_id) )
+        return "null";
+    struct WevConfig const* const config = WevConfigTable_Get(&app->wev_configs, config_id);
+    return config->name ? config->name : "null";
+}
+
 /*
  * ACTIVEPLAYER_GETROUTELENGTH / ACTIVEPLAYER_GETROUTECOORD: one player's
  * queued route.
@@ -199,7 +233,7 @@ app_cs2_local_route_signature(struct App* app)
            (int)self->pathing.route_z[0];
 }
 
-/* COORD_INSCENE (6951). */
+/* TILE_FIND (6951). */
 int
 app_cs2_coord_in_scene(
     void* user,
@@ -217,7 +251,7 @@ app_cs2_coord_in_scene(
 }
 
 /*
- * OBJSTACK_COUNT / OBJSTACK_ID / OBJSTACK_QUANTITY, and OBJ_FIND's lookup:
+ * OBJSTACK_SIZE / OBJSTACK_OBJ / OBJSTACK_COUNT, and OBJ_FINDBYINDEX's lookup:
  * the ground-item pile on one absolute coord.
  *
  * `Client::GetObjectsOnTile` in the reference, which answers an EMPTY pile for
@@ -396,7 +430,7 @@ app_ground_items_tick(struct App* app)
      * timer notification can be missed; their revisions cannot. */
     for( int i = 0; i < 2; ++i )
     {
-        uint64_t revision = LootStore_AuxRevision(&app->loot, 3 + i);
+        uint64_t revision = LootStore_VectorRevision(&app->loot, 3 + i);
         if( revision != app->ground_items_aux_seen[i] )
         {
             app->ground_items_aux_seen[i] = revision;

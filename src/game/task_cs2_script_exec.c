@@ -167,8 +167,6 @@ DummyHostExec(
 
     switch( request->kind )
     {
-    case CS2VM_HOST_REQUEST_CC_GETPARAM:
-        return dummy_host_push_param(host, thread, request->u.CC_GETPARAM.param_id);
     case CS2VM_HOST_REQUEST_NC_PARAM:
         return dummy_host_push_param(host, thread, request->u.NC_PARAM.param_id);
     case CS2VM_HOST_REQUEST_LC_PARAM:

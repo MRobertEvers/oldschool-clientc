@@ -1,7 +1,5 @@
 #include "torirs_chrome_exec.h"
 
-#include "uitree.h"
-
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
@@ -18,28 +16,6 @@ _Static_assert(
             TORIRS_CHROME_SELECT_OPTIONS_MAX <=
         TORIRS_CHROME_PROTOCOL_COMMAND_MAX,
     "chrome: a legal full model exceeds the atomic web transaction cap");
-
-/* ---- the client-chrome group ---------------------------------------------
- *
- * Here rather than beside the one control that uses it: the group is a fact
- * about the TREE (which roots the emit walk will show), not about the button,
- * and the next piece of client furniture will want the same answer.
- */
-
-int
-ToriRSChrome_TreeAcceptsChrome(struct UITree const* tree)
-{
-    int group;
-
-    if( !tree || tree->root_index < 0 )
-        return 0;
-    if( (uint32_t)tree->root_index >= tree->component_count )
-        return 0;
-    group = (tree->components[tree->root_index].component_id >> 16) & 0xffff;
-    /* Our own group already sitting first means chrome got in ahead of the
-     * gameframe -- the state this exists to keep out of. */
-    return group != TORIRS_CHROME_GROUP;
-}
 
 /* ---- helpers ------------------------------------------------------------- */
 

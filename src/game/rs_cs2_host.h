@@ -2,7 +2,9 @@
 #define RS_CS2_HOST_H
 
 #include "cs2vm2/cs2vm2_host.h"
+#include "game/rs_clan.h"
 #include "game/rs_clientop.h"
+#include "game/rs_friends_chat.h"
 #include "game/rs_entity_overlay.h"
 #include "game/rs_highlight.h"
 #include "input/torirs_keymap.h"
@@ -58,11 +60,83 @@ enum RS_CS2SocialSendKind
      *  that the CS2 host has no socket. The number rides in `text` because
      *  that is the form the opcode pops it in. */
     RS_CS2_SOCIAL_SEND_RESUME_COUNTDIALOG,
+    /* The other dialog resumes (3105, 3106, 3114, 3115): `text`, `text`,
+     * `long_value` and `values[0]` (the obj). */
+    RS_CS2_SOCIAL_SEND_RESUME_NAMEDIALOG,
+    RS_CS2_SOCIAL_SEND_RESUME_STRINGDIALOG,
+    RS_CS2_SOCIAL_SEND_RESUME_COUNTDIALOG_LONG,
+    RS_CS2_SOCIAL_SEND_RESUME_OBJDIALOG,
+    /* opplayer (3107): values[0] the op, values[1] the player's slot. */
+    RS_CS2_SOCIAL_SEND_OPPLAYER,
+    /* bug_report (3116): `text` the description, `text2` the instructions,
+     * values[0] the template. */
+    RS_CS2_SOCIAL_SEND_BUG_REPORT,
+    /* chat_sendabusereport (5002): `name`, values[0] the wire rule (rule - 1),
+     * values[1] the mute flag. */
+    RS_CS2_SOCIAL_SEND_ABUSE_REPORT,
+    /* Friends chat and clans (36xx / 38xx). `name` the player, values[0] the
+     * clan index, values[1] the member slot, values[2] the muted flag or the
+     * friends-chat rank. */
+    RS_CS2_SOCIAL_SEND_FRIENDCHAT_JOIN,
+    RS_CS2_SOCIAL_SEND_FRIENDCHAT_LEAVE,
+    RS_CS2_SOCIAL_SEND_FRIENDCHAT_KICK,
+    RS_CS2_SOCIAL_SEND_FRIENDCHAT_SETRANK,
+    RS_CS2_SOCIAL_SEND_CLAN_KICKUSER,
+    RS_CS2_SOCIAL_SEND_CLAN_ADDBANNED,
+    RS_CS2_SOCIAL_SEND_CLAN_SETMUTED,
+    /* A clan delta was missing its base: values[0] the clan index. */
+    RS_CS2_SOCIAL_SEND_CLANCHANNEL_FULL_REQUEST,
+    RS_CS2_SOCIAL_SEND_CLANSETTINGS_FULL_REQUEST,
 };
 
 #define RS_CS2_HOST_SOCIAL_SEND_MAX 8
+
 #define RS_CS2_HOST_SOCIAL_NAME_LEN 32
-#define RS_CS2_HOST_SOCIAL_TEXT_LEN 200
+/* A bug report's two fields are each accepted up to 500 characters. */
+#define RS_CS2_HOST_SOCIAL_TEXT_LEN 501
+
+#define RS_CS2_STOCKMARKET_SLOTS 8
+
+/* One Grand Exchange offer (the client's class345). All zero is the empty
+ * offer every slot starts as. */
+struct RS_CS2StockmarketOffer
+{
+    int status; /* signed byte: & 7 the state, & 8 set for a sell offer */
+    int obj;
+    int price;
+    int count;
+    int completed_count;
+    int completed_gold;
+};
+
+/* One trading-post offer (the client's class371). */
+struct RS_CS2TradingPostOffer
+{
+    char name[RS_CS2_HOST_SOCIAL_NAME_LEN];
+    char previous_name[RS_CS2_HOST_SOCIAL_NAME_LEN];
+    int world;
+    int64_t time_ms; /* server clock, g8 */
+    int price;       /* the first g4 */
+    int count;       /* the second g4 */
+};
+
+/*
+ * The trading-post offer list UPDATE_TRADINGPOST fills (the client's class354,
+ * Statics.field4992) and the 3914-3926 commands sort and read. `present` false
+ * is the client's null list. The clock offset outlives the list, as the
+ * client's static does.
+ */
+struct RS_CS2TradingPost
+{
+    bool present;
+    int obj;
+    bool sell;
+    struct RS_CS2TradingPostOffer* offers;
+    int count;
+    int cap;
+    /* local monotonic ms minus the server's, taken when the list arrived */
+    int64_t clock_offset_ms;
+};
 
 /* Pending IF_CALLONRESIZE requests. 16 is well past what this cache asks for —
  * the seventeen call sites are all one-per-script and the longest chain a
@@ -75,7 +149,7 @@ enum RS_CS2SocialSendKind
  * RS_CS2_HOST_CALL_ON_RESIZE_MAX above — one queued pair per call site. */
 #define RS_CS2_HOST_TRIGGER_OP_MAX 16
 
-/* Pending IF_TRIGGEROPLOCAL → IF_BUTTON1 sends. One click synthesizes one
+/* Pending IF_SCRIPT_TRIGGER → IF_BUTTON1 sends. One click synthesizes one
  * packet; 16 matches the other deferred queues. */
 #define RS_CS2_HOST_TRIGGEROPLOCAL_MAX 16
 
@@ -304,7 +378,97 @@ struct RS_CS2SocialSend
     /** Packed colour/effect the line is spoken in: MESSAGE_PUBLIC only. High
      *  byte colour, low byte effect. */
     int colour_effect;
+    /** A second text: BUG_REPORT's instructions. */
+    char text2[RS_CS2_HOST_SOCIAL_TEXT_LEN];
+    /** Per-kind integer arguments; see enum RS_CS2SocialSendKind. */
+    int values[4];
+    /** RESUME_COUNTDIALOG_LONG's amount. */
+    int64_t long_value;
 };
+
+/* The draw-player-names mask (SETDRAWPLAYERNAMES_*, 3120..3124). */
+#define RS_CS2_DRAW_NAMES_FRIENDS 1
+#define RS_CS2_DRAW_NAMES_CLAN 2
+#define RS_CS2_DRAW_NAMES_OTHERS 4
+#define RS_CS2_DRAW_NAMES_SELF 8
+
+/* Which components receive key events (SETKEYINPUTMODE_*, 3136..3140). */
+enum RS_CS2KeyInputMode
+{
+    RS_CS2_KEY_INPUT_ALL = 0,
+    RS_CS2_KEY_INPUT_NONE = 1,
+    RS_CS2_KEY_INPUT_INTERFACE = 2,
+    RS_CS2_KEY_INPUT_COMPONENT = 3,
+};
+
+#define RS_CS2_SIDEBAR_SLOTS 2
+#define RS_CS2_CLIENT_STAT_COUNT 25
+#define RS_CS2_CLIENT_STRING_LEN 256
+
+/*
+ * Client state the 31xx-33xx clientscript commands set and read that is not an
+ * option-table entry (hide-username, title music, brightness and draw distance
+ * are: device options 2, 4, 6 and 14). Written by the commands in
+ * rs_cs2_client_ops.c; the renderer, input and login code read it. Fields the
+ * server or the platform supply are mirrored in by the App.
+ */
+struct RS_CS2ClientState
+{
+    bool middle_mouse_camera;        /* 3110: the middle button drives the camera */
+    bool show_mouseover_text;        /* 3118: the top-left "Walk here" line */
+    bool render_self;                /* 3119: draw the local player */
+    int draw_player_names;           /* 3120..3124: RS_CS2_DRAW_NAMES_* mask */
+    bool show_mouse_cross;           /* 3125: the click-cross sprite */
+    bool show_loading_messages;      /* 3126: the "Loading - please wait." box */
+    bool simulated_shift;            /* 3127/3128 */
+    int freecam_speed;               /* 3129: free camera step, shift up */
+    int freecam_speed_shift;         /* 3129: free camera step, shift held */
+    int key_input_mode;              /* 3136..3140: enum RS_CS2KeyInputMode */
+    int key_input_target;            /* the interface or component id */
+    bool remember_username;          /* 3143/3144 */
+    bool forget_saved_username;      /* set when remembering is turned off */
+    bool rt7_enabled;                /* 3223/3227 */
+    bool rt7_hd;                     /* 3224/3225 */
+    bool follower_ops_low_priority;  /* 6512 */
+    int sidebar_width[RS_CS2_SIDEBAR_SLOTS]; /* 6231/6232, 0 = released */
+    /* 3113: a url waiting for the platform to open; "" when none. */
+    char pending_open_url[RS_CS2_HOST_SOCIAL_TEXT_LEN];
+
+    /* 3228/3229 */
+    struct
+    {
+        char* key; /* lower-cased */
+        char* value;
+    }* translations;
+    int translation_count;
+    int translation_cap;
+
+    /* Mirrored by the App. */
+    int loading_percent;             /* 3153 */
+    int preload_progress;            /* 3154, out of 10000 */
+    bool preload_progress_done;
+    int reboot_timer_cycles;         /* 3317 */
+    char reboot_message[RS_CS2_CLIENT_STRING_LEN]; /* 3334 */
+    char server_string_3333[RS_CS2_CLIENT_STRING_LEN];
+    bool player_moderator;           /* 3323 */
+    int world_flags;                 /* 3324 */
+    int platform_type;               /* 6527: 5 under a launcher session, else 0 */
+    int64_t last_input_ms;           /* 3328/3329, -1 before any input */
+    int64_t now_ms;
+    int stat_unknown[RS_CS2_CLIENT_STAT_COUNT]; /* 3332 */
+};
+
+void
+RS_CS2ClientState_Init(struct RS_CS2ClientState* state);
+
+void
+RS_CS2ClientState_Free(struct RS_CS2ClientState* state);
+
+/** translations_set's value for `key` (any case), or NULL. */
+char const*
+RS_CS2ClientState_Translation(
+    struct RS_CS2ClientState const* state,
+    char const* key);
 
 /** A CC_TRIGGEROP request: which component's on_op to run, and the op index
  *  to report to it as event_opindex. */
@@ -460,7 +624,7 @@ struct RS_CS2Host
     struct CacheProvider* provider;
     struct InvManager* invs;
     struct VarPManager* varps;        /* may be NULL */
-    /** Skill levels and xp, for the STAT / STAT_BASE / STAT_XP opcodes. May be
+    /** Skill levels and xp, for the STAT / STAT_BASE / STAT_VISIBLE_XP opcodes. May be
      *  NULL, in which case those read 0 — which is what the skills tab used to
      *  show unconditionally. */
     struct RS_PlayerStats* stats;
@@ -518,11 +682,11 @@ struct RS_CS2Host
 
     /*
      * The scene, for the two ops that ask about it: LOC_FIND (6803) and
-     * COORD_INSCENE (6951).
+     * TILE_FIND (6951).
      *
      * Callbacks for the same reason the one above is one -- the scene lives on
      * the App and this header stays clear of the world layer. Both NULL is a
-     * host with no world, where LOC_FIND finds nothing and COORD_INSCENE says
+     * host with no world, where LOC_FIND finds nothing and TILE_FIND says
      * no; every static-overlay script then declines to draw, which is the
      * truthful answer for a client that has not loaded a map.
      *
@@ -538,6 +702,22 @@ struct RS_CS2Host
         char* out_name,
         int name_cap);
     int (*coord_in_scene)(void* user, int coord);
+    /**
+     * OPPLAYER (3107): the slot of the first player in view named `name`,
+     * never the local player; -1 when none is.
+     */
+    int (*player_slot_by_name)(void* user, char const* name);
+    /**
+     * WEC_NAME (3339): a worldentity config's name, "null" when it has none.
+     * The returned string is borrowed until the next call.
+     */
+    char const* (*worldentity_config_name)(void* user, int config_id);
+    /**
+     * NPC_FINDUID (6758): nonzero, with `*out` filled as a dispatch context,
+     * when the npc `uid` names is in the scene. NULL is a host with no world,
+     * where no uid names an npc.
+     */
+    int (*npc_by_uid)(void* user, int uid, struct RS_ClientOpContext* out);
     /**
      * One player's queued ROUTE, for ACTIVEPLAYER_GETROUTELENGTH and
      * ACTIVEPLAYER_GETROUTECOORD.
@@ -695,6 +875,20 @@ struct RS_CS2Host
     int script_ground_items_overlay;
     struct RS_CS2GroundObj active_obj;
     bool active_obj_valid;
+    /** The 31xx-33xx client state; see struct RS_CS2ClientState. */
+    struct RS_CS2ClientState client;
+    /** The friends chat (36xx) and the clans (38xx, core ops 74 / 76). */
+    struct RS_FriendsChat friends_chat;
+    struct RS_ClanStore clan;
+    /** The Grand Exchange offer slots (39xx), replaced whole by
+     *  UPDATE_STOCKMARKET_SLOT and emptied at login. */
+    struct RS_CS2StockmarketOffer stockmarket[RS_CS2_STOCKMARKET_SLOTS];
+    struct RS_CS2TradingPost trading_post;
+    /** The hiscores store's error flag (HISCORE_GETSTATUS 3), set by a lookup
+     *  this client has no transport for, cleared by HISCORE_CLEAR. */
+    bool hiscore_error;
+    /** HISCORE_SETAPI's source mode: 0 the game-server service, 1 HTTP. */
+    int hiscore_source_mode;
 
     /** The client canvas, and what GETCANVASSIZE / VIEWPORT_GETEFFECTIVESIZE
      *  return. One of three copies of the canvas size — write it through
@@ -723,6 +917,19 @@ struct RS_CS2Host
      *  calls setwindowmode; drained to WINDOW_STATUS so the server remounts. */
     int client_layout_mode;
     bool client_layout_dirty;
+    /** A layout the CLIENT has asked the lane for and not seen yet (0/1/2), or
+     *  -1 when nothing is outstanding, with the logic cycle the request went
+     *  out on.
+     *
+     *  Not a second copy of `client_layout_mode`: that one is what the lane
+     *  IS, written by the cache's own script, and this is what something in
+     *  this client wants it to be. They exist apart because the asker -- a
+     *  gameframe plugin, through app_native_layout_select -- asks on every
+     *  layout pass, and the answer is a server remount three ticks away; the
+     *  pair is what turns sixty asks a second into one packet.
+     *  @see APP_NATIVE_LAYOUT_RETRY_CYCLES. */
+    int client_layout_wanted;
+    uint64_t client_layout_wanted_cycle;
     /** The clientscript whose CS2VM2_ThreadRun is on the stack right now, or
      *  -1 between runs. Read only by the TORIRS_DUMP_SETPOS trace, so a
      *  position write can name the script that made it instead of leaving the
@@ -968,7 +1175,8 @@ struct RS_CS2Host
 
     /** Set by LOGOUT (5630) — the modern logout button's script. Drained by the
      *  App's tick, which defers it one more step onto App::logout_requested so
-     *  the teardown lands behind the packets this tick has already queued. */
+     *  the request lands behind the packets this tick has already queued. The
+     *  session then ends when the server answers it, not here. */
     bool logout_requested;
 
     /** Set by MOBILE_KEYBOARDSHOWSTRING / SHOWINTEGER (6522/6523) and
@@ -1063,7 +1271,7 @@ struct RS_CS2Host
      *  cannot disagree. */
     bool ui_scale_dirty;
 
-    /** Backing CAM_GETYAW. There is no setter opcode and no live link yet from
+    /** Backing SIDEBAR_CLEARWIDTH. There is no setter opcode and no live link yet from
      *  this host to the render-side camera (app->world_camera.yaw, reached via
      *  the separate UITree host bus RS_CS2Host cannot see) — 0 (facing north)
      *  until something wires the real value in. */
@@ -1141,6 +1349,14 @@ struct RS_CS2Host
      *  packets via RS_CS2Host_NotifyFriendChanged. Without it the friends panel
      *  paints once at mount and never again. */
     int friend_transmit_dirty;
+    /** The no-trigger server transmits: friends chat, offer slots, trading
+     *  post, clan settings and clan channel. Set when their store changes;
+     *  RS_CS2_PumpTransmits re-runs every registered hook. */
+    int clan_transmit_dirty;
+    int stock_transmit_dirty;
+    int active_offers_transmit_dirty;
+    int clan_settings_transmit_dirty;
+    int clan_channel_transmit_dirty;
     /** Set when a message reached the chat store. Same shape as misc and
      *  friend -- CC/IF_SETONCHATTRANSMIT carries no trigger list, so every
      *  registered hook re-runs. This is the stamp the reference bumps in
@@ -1217,7 +1433,7 @@ struct RS_CS2Host
     int item_search_cap;
     int item_search_index;
 
-    /** Active DB find-iterator (DB_FIND* build it, DB_FINDNEXT walks it).
+    /** Active DB find-iterator (DB_FIND_PRE228* build it, DB_FINDNEXT walks it).
      *  `db_find_rows` is a malloc'd copy of the matched row ids (count
      *  `db_find_count`); `db_find_cursor` is the FINDNEXT cursor. Freed in
      *  RS_CS2Host_Free. */
@@ -1263,7 +1479,7 @@ struct RS_CS2Host
     int sound_count;
     int sound_head;
 
-    /** (component, sub) pairs IF_TRIGGEROPLOCAL asked to send as IF_BUTTON1,
+    /** (component, sub) pairs IF_SCRIPT_TRIGGER asked to send as IF_BUTTON1,
      *  drained by the App's tick through RS_CS2Host_TakeTriggerOpLocal. */
     struct RS_CS2TriggerOpLocal triggeroplocal[RS_CS2_HOST_TRIGGEROPLOCAL_MAX];
     int triggeroplocal_count;
@@ -1356,6 +1572,46 @@ RS_CS2Host_SetChat(
  * announced is a line the cache's chatbox will not draw until something else
  * happens to repaint it. Stamps the client clock, which is the host's to know.
  */
+/** The friends-chat and clan commands (rs_cs2_social_ops.c). */
+int
+RS_CS2Host_ExecSocialOp(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostSignatureArgs const* args);
+
+/** PUSH_VARCLANSETTING (74) and PUSH_VARCLAN (76). */
+int
+RS_CS2Host_PushVarClanSetting(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    int setting_id);
+
+int
+RS_CS2Host_PushVarClan(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    int var_id);
+
+/** A varclan's base type (enum RS_VarClanType), -1 when the cache has none. */
+int
+RS_CS2Host_VarClanType(
+    struct RS_CS2Host const* host,
+    int var_id);
+
+/** Queue one outbound request for the App to send (see RS_CS2SocialSend). */
+void
+RS_CS2Host_SendPush(
+    struct RS_CS2Host* host,
+    struct RS_CS2SocialSend const* send);
+
+/** The client-state commands (rs_cs2_client_ops.c), given their popped
+ *  signature arguments. */
+int
+RS_CS2Host_ExecClientOp(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostSignatureArgs const* args);
+
 void
 RS_CS2Host_ChatAdd(
     struct RS_CS2Host* host,
@@ -1622,7 +1878,7 @@ RS_CS2Host_TakeTriggerOp(
     struct RS_CS2Host* host,
     struct RS_CS2TriggerOp* out);
 
-/** Pop the oldest queued IF_TRIGGEROPLOCAL request, FIFO. Returns false when
+/** Pop the oldest queued IF_SCRIPT_TRIGGER request, FIFO. Returns false when
  *  the queue is empty. The App drains this once per tick and sends
  *  IF_BUTTON1(component, sub); nothing else may consume it. */
 bool
@@ -1678,7 +1934,7 @@ RS_CS2Host_SetBridge(
     struct UITreeSceneBridge* bridge);
 
 /** Mirror the live orbit camera into the host so CAM_GETANGLE_XA/YA and
- *  CAM_GETYAW answer with the real thing. Call once per logic tick, in script
+ *  SIDEBAR_CLEARWIDTH answer with the real thing. Call once per logic tick, in script
  *  units (pitch 128..383, yaw 0..2047). A pending CAM_FORCEANGLE wins: the
  *  mirror is skipped until RS_CS2Host_TakeCameraForce has handed it over. */
 void
@@ -1768,6 +2024,31 @@ RS_CS2_InputKey(
     struct UITreeHost const* ui_host,
     int key_typed,
     int key_pressed);
+
+/** The Grand Exchange and trading-post commands (rs_cs2_market_ops.c) that
+ *  read no config: 3903-3913 and 3914-3926. */
+int
+RS_CS2Host_ExecMarketOp(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostSignatureArgs const* args);
+
+/** UPDATE_TRADINGPOST: g1 present; when 1, g8 server clock, g2 obj, g1 sell,
+ *  g2 count, then per offer gjstr name, gjstr previous name, g2 world, g8 time,
+ *  g4 price, g4 count. False when the payload does not decode, which leaves
+ *  the list as it was. */
+bool
+RS_CS2Host_ApplyTradingPost(
+    struct RS_CS2Host* host,
+    uint8_t const* data,
+    int length,
+    int64_t now_ms);
+
+/** A login succeeded: drop the friends chat, both clans and the Grand Exchange
+ *  offers, as the client does after reading the login response. The varclan
+ *  profile survives, as it does there. */
+void
+RS_CS2Host_ResetSocialForLogin(struct RS_CS2Host* host);
 
 /** Releases what the host owns (the world map state); the host itself is the
  *  caller's storage. */

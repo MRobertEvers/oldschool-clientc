@@ -673,14 +673,15 @@ chrome_web_rail_sync(
         "\"registryRevision\":%u,\"selectionGeneration\":%u,"
         "\"pageGeneration\":%u,\"activePlugin\":%d,"
         "\"lastSelectedPlugin\":%d,\"selectedEntry\":%d,"
-        "\"expanded\":%s,\"entries\":[",
+        "\"expanded\":%s,\"railHidden\":%s,\"entries\":[",
         (unsigned)snapshot->registry_revision,
         (unsigned)snapshot->selection_generation,
         (unsigned)snapshot->page_generation,
         snapshot->active_plugin,
         snapshot->last_selected_plugin,
         snapshot->selected_entry,
-        snapshot->expanded ? "true" : "false");
+        snapshot->expanded ? "true" : "false",
+        snapshot->rail_hidden ? "true" : "false");
     if( at < 0 || at >= (int)sizeof(json) )
         return 0;
     for( int i = 0; i < count; i++ )

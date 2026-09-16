@@ -2241,11 +2241,11 @@ cs2_cc_calc(struct cs2_cc_compiler* cc, int max_precedence)
             precedence = 1;
             break;
         case '/':
-            opcode = RSCACHE_CS2_OP_DIV;
+            opcode = RSCACHE_CS2_OP_DIVIDE;
             precedence = 1;
             break;
         case '%':
-            opcode = RSCACHE_CS2_OP_MOD;
+            opcode = RSCACHE_CS2_OP_MODULO;
             precedence = 1;
             break;
         case '+':

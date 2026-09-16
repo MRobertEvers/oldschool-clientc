@@ -19,17 +19,6 @@ RevConfigProfile_Init(struct RevConfigProfile* profile)
     profile->features.clienttype = -1;
     profile->features.on_mobile = -1;
 
-    /* Nothing stated: the client builds no plugin launcher. The memset already
-     * left both names empty; the numbers need their own sentinel because 0 is a
-     * real child, a real position and (for a size) a real-looking one. */
-    profile->chrome.plugin_button_parent = -1;
-    profile->chrome.plugin_button_x = -1;
-    profile->chrome.plugin_button_y = -1;
-    profile->chrome.plugin_button_w = -1;
-    profile->chrome.plugin_button_h = -1;
-    profile->chrome.plugin_button_align = REVCONFIG_CHROME_ALIGN_NONE;
-    profile->chrome.plugin_button_margin = -1;
-
     /* One default per key, spelled the same way the INI spells it. The has_
      * flags stay 0: nothing has been STATED yet, which is what lets the band
      * ends stay derived from a rest a later source may still move. */
@@ -230,43 +219,6 @@ profile_merge_camera(
     profile_camera_resolve_pitch(dst);
 }
 
-static void
-profile_merge_chrome(
-    struct RevConfigChromeItem* dst,
-    struct RevConfigChromeItem const* src)
-{
-    assert(dst);
-    assert(src);
-
-    /* Per key, like the two above: a later source moving the button one slot
-     * down must not take the interface, the geometry and the layout script with
-     * it. An unstated key is an empty string or a -1, which is exactly what the
-     * item carries for a key its section did not spell. */
-    if( src->plugin_iface[0] )
-        memcpy(dst->plugin_iface, src->plugin_iface, sizeof(dst->plugin_iface));
-    if( src->plugin_button_op[0] )
-        memcpy(dst->plugin_button_op, src->plugin_button_op, sizeof(dst->plugin_button_op));
-    if( src->plugin_button_parent >= 0 )
-        dst->plugin_button_parent = src->plugin_button_parent;
-    if( src->plugin_button_x >= 0 )
-        dst->plugin_button_x = src->plugin_button_x;
-    if( src->plugin_button_y >= 0 )
-        dst->plugin_button_y = src->plugin_button_y;
-    if( src->plugin_button_w >= 0 )
-        dst->plugin_button_w = src->plugin_button_w;
-    if( src->plugin_button_h >= 0 )
-        dst->plugin_button_h = src->plugin_button_h;
-    if( src->plugin_button_anchor[0] )
-        memcpy(
-            dst->plugin_button_anchor,
-            src->plugin_button_anchor,
-            sizeof(dst->plugin_button_anchor));
-    if( src->plugin_button_align != REVCONFIG_CHROME_ALIGN_NONE )
-        dst->plugin_button_align = src->plugin_button_align;
-    if( src->plugin_button_margin >= 0 )
-        dst->plugin_button_margin = src->plugin_button_margin;
-}
-
 void
 RevConfigProfile_AddItems(
     struct RevConfigProfile* profile,
@@ -295,8 +247,6 @@ RevConfigProfile_AddItems(
                 profile->frame.has_cap_source = 1;
             }
         }
-        else if( item->kind == RCITEM_CHROME )
-            profile_merge_chrome(&profile->chrome, &item->u.chrome);
     }
 }
 

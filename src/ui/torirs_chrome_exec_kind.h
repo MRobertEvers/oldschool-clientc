@@ -35,4 +35,25 @@ ToriRSChromeExec_KindName(int kind);
 int
 ToriRSChromeExec_KindFromName(char const* name);
 
+/**
+ * Where plugin destinations are offered. Here for the same reason the executor
+ * kinds are: a boot manifest and an env var name it.
+ */
+enum ToriRSPluginNavMode
+{
+    /** The lane's own pop-out column when its profile names one and it is on
+     *  screen; the separate rail otherwise. @see ui/torirs_chrome_popout_nav.h */
+    TORIRS_PLUGIN_NAV_AUTO = 0,
+    /** Always the separate rail. */
+    TORIRS_PLUGIN_NAV_RAIL,
+};
+
+/** `auto` or `rail`; -1 for anything else. */
+int
+ToriRSPluginNav_ModeFromName(char const* name);
+
+/** Never NULL. */
+char const*
+ToriRSPluginNav_ModeName(int mode);
+
 #endif

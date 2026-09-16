@@ -167,7 +167,7 @@ test_live_node_sets(void)
     /* World singleton. */
     memset(&spec, 0, sizeof(spec));
     spec.type = UIELEM_BUILTIN_WORLD;
-    spec.component_id = (0x7FFE << 16) | 1;
+    spec.component_id = (60 << 16) | 1;
     world = UITree_Push(tree, -1, &spec);
     TEST_ASSERT(tree->world_index == world, "world_index set on push");
 

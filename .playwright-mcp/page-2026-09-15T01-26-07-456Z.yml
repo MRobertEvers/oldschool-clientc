@@ -1,0 +1,306 @@
+- generic [active] [ref=f17e1]:
+  - link "Skip to content" [ref=f17e2] [cursor=pointer]:
+    - /url: "#MainContent"
+  - banner [ref=f17e4]:
+    - generic [ref=f17e5]:
+      - heading "Herring Electric" [level=1] [ref=f17e6]
+      - generic [ref=f17e8]:
+        - navigation [ref=f17e12]:
+          - list [ref=f17e15]:
+            - generic:
+              - link "Home" [ref=f17e16] [cursor=pointer]:
+                - /url: /
+              - link "Electrical Service Request Form" [ref=f17e18] [cursor=pointer]:
+                - /url: https://clienthub.getjobber.com/hubs/1c85b39e-72de-485a-b48e-34509e4fd591/public/requests/2733095/new
+              - link "Schedule Service Call NOW" [ref=f17e20] [cursor=pointer]:
+                - /url: tel:816-548-5200
+            - menuitem "More" [ref=f17e23] [cursor=pointer]
+        - generic [ref=f17e26]:
+          - button "Account" [ref=f17e28] [cursor=pointer]
+          - button "Cart" [ref=f17e34] [cursor=pointer]:
+            - generic [ref=f17e36]:
+              - status:
+                - generic [ref=f17e38]: "Total items in cart: 0"
+  - main [ref=f17e39]:
+    - link "Click Here to Submit a Service Request" [ref=f17e43] [cursor=pointer]:
+      - /url: https://clienthub.getjobber.com/hubs/1c85b39e-72de-485a-b48e-34509e4fd591/public/requests/2733095/new
+    - generic [ref=f17e50]:
+      - heading [level=1] [ref=f17e52]:
+        - strong [ref=f17e53]: Expert Home Electricians in Kansas City, Missouri
+      - generic [ref=f17e54]:
+        - heading "Our areas of expertise include:" [level=3] [ref=f17e55]
+        - paragraph [ref=f17e56]:
+          - strong [ref=f17e57]: Receptacle and Outlet Repairs
+        - paragraph [ref=f17e58]:
+          - strong [ref=f17e59]: LED Conversions & Upgrades
+        - paragraph [ref=f17e60]:
+          - strong [ref=f17e61]: Repair Outlets & Switching
+        - paragraph [ref=f17e62]:
+          - strong [ref=f17e63]: Landscape Lighting
+      - link [ref=f17e64] [cursor=pointer]:
+        - /url: /pages/contact
+    - generic [ref=f17e69]:
+      - generic [ref=f17e72]:
+        - link "Call Now" [ref=f17e73] [cursor=pointer]:
+          - /url: tel:816-548-5200
+        - generic [ref=f17e74]:
+          - heading [level=6] [ref=f17e75]:
+            - strong [ref=f17e76]: Whole Home Smoke Detection
+          - heading [level=6] [ref=f17e77]:
+            - strong [ref=f17e78]: Security Lighting
+          - heading [level=6] [ref=f17e79]:
+            - strong [ref=f17e80]: Electrical Remodels
+          - paragraph [ref=f17e81]:
+            - strong [ref=f17e82]: Dedicated Circuits and General Use Outlets
+          - paragraph [ref=f17e83]:
+            - strong [ref=f17e84]: AV & Data Cable Installations
+          - heading [level=6]
+      - generic [ref=f17e87]:
+        - link "Request Service Here" [ref=f17e88] [cursor=pointer]:
+          - /url: /pages/form
+        - generic [ref=f17e89]:
+          - heading [level=6] [ref=f17e90]:
+            - strong [ref=f17e91]: LED Cabinet Lighting
+          - heading [level=6] [ref=f17e92]:
+            - strong [ref=f17e93]: Troubleshooting
+          - heading [level=6] [ref=f17e94]:
+            - strong [ref=f17e95]: Dedicated Circuits
+          - heading [level=6] [ref=f17e96]:
+            - strong [ref=f17e97]: Workshop & Equipment Lighting
+          - heading [level=6] [ref=f17e98]:
+            - strong [ref=f17e99]: Appliance Installation
+          - heading [level=6] [ref=f17e100]:
+            - strong [ref=f17e101]: LED Conversion & Lighting Upgrades
+    - generic [ref=f17e106]:
+      - button "Load video:" [ref=f17e108] [cursor=pointer]:
+        - generic [ref=f17e109]: Play video
+      - button "Load video:" [ref=f17e115] [cursor=pointer]:
+        - generic [ref=f17e116]: Play video
+      - button "Load video:" [ref=f17e122] [cursor=pointer]:
+        - generic [ref=f17e123]: Play video
+      - generic [ref=f17e128]:
+        - link [ref=f17e129] [cursor=pointer]:
+          - /url: /pages/contact
+        - generic:
+          - generic:
+            - paragraph: Take a look at a some of our work!
+          - link "Contact Us" [ref=f17e130] [cursor=pointer]:
+            - /url: /pages/contact
+    - generic [ref=f17e137]:
+      - heading "High Quality Precision" [level=2] [ref=f17e139]
+      - list [ref=f17e141]:
+        - listitem [ref=f17e142]: Ambient, Task, & Accent Lighting
+      - link "Call US For a Quote" [ref=f17e144] [cursor=pointer]:
+        - /url: tel:816-548-5200
+    - generic [ref=f17e149]:
+      - heading "Our 6 Core Values" [level=2] [ref=f17e151]
+      - generic [ref=f17e158]:
+        - heading [level=3] [ref=f17e160]:
+          - strong [ref=f17e161]: Professionalism
+        - generic [ref=f17e162]:
+          - heading [level=3] [ref=f17e163]:
+            - strong [ref=f17e164]: We will always treat you and your property with care
+          - heading [level=3]
+          - heading [level=3]
+          - heading [level=3]
+          - heading [level=3]
+          - heading [level=3]
+      - generic [ref=f17e171]:
+        - heading [level=3] [ref=f17e173]:
+          - strong [ref=f17e174]: Confidence
+        - heading [level=3] [ref=f17e176]:
+          - strong [ref=f17e177]: Herring Electric technicians are licensed and insured experts
+      - generic [ref=f17e187]:
+        - heading [level=3] [ref=f17e189]:
+          - strong [ref=f17e190]: Innovation
+        - heading [level=3] [ref=f17e192]:
+          - strong [ref=f17e193]: We make it our business to know the latest in lighting
+    - generic [ref=f17e198]:
+      - generic [ref=f17e210]:
+        - heading [level=3] [ref=f17e212]:
+          - strong [ref=f17e213]: Safety
+        - generic [ref=f17e214]:
+          - heading [level=3] [ref=f17e215]:
+            - strong [ref=f17e216]: We will always treat you
+          - heading [level=3] [ref=f17e217]:
+            - strong [ref=f17e218]: and your property with care
+      - generic [ref=f17e225]:
+        - heading [level=3] [ref=f17e227]:
+          - strong [ref=f17e228]: Quality
+        - generic [ref=f17e229]:
+          - heading [level=3] [ref=f17e230]:
+            - strong [ref=f17e231]: We use only high-quality materials
+          - heading [level=3] [ref=f17e232]:
+            - strong [ref=f17e233]: and our work is guaranteed
+      - generic [ref=f17e241]:
+        - heading [level=3] [ref=f17e243]:
+          - strong [ref=f17e244]: Community
+        - heading [level=3] [ref=f17e246]:
+          - strong [ref=f17e247]: Herring Electric seeks to give back to the community that makes our business possible. It's our way of saying "Thank you!" to you all. We appreciate your confidence in us.
+    - generic [ref=f17e255]:
+      - heading "OUR FOUNDER" [level=2] [ref=f17e257]
+      - generic [ref=f17e258]:
+        - paragraph [ref=f17e259]: Cody Herring, founder of Herring Electric, puts his reputation on the line with every job.
+        - paragraph [ref=f17e260]: Your satisfaction is GUARANTEED.
+      - link "Call Now" [ref=f17e261] [cursor=pointer]:
+        - /url: tel:816-548-5200
+    - generic [ref=f17e267]:
+      - button "Load video:" [ref=f17e269] [cursor=pointer]:
+        - generic [ref=f17e270]: Play video
+      - generic [ref=f17e276]:
+        - heading "BEAUTIFUL HOME LIGHTING INSTALLATION IN KANSAS CITY, MO AREA" [level=3] [ref=f17e278]
+        - generic [ref=f17e279]:
+          - paragraph [ref=f17e280]: As a homeowner, you seek to enhance your living space with exquisite lighting that not only creates a unique ambiance but also ensures your home is inviting and enjoyable.
+          - paragraph [ref=f17e281]: If you've got the skills, tools, and time to bring your lighting dreams to life, that's fantastic! But let’s be real—most homeowners don't.
+          - paragraph [ref=f17e282]: Have you ever wished for expert guidance on lighting decisions and professional installation?
+          - paragraph [ref=f17e283]: You're in the right place!
+          - heading "Create Ambience with Lighting in Your Home" [level=3] [ref=f17e284]
+          - paragraph [ref=f17e285]: Since 2017, Herring Electric has been illuminating Kansas City, MO homes with the perfect ambiance—whether you’re aiming for sophisticated elegance or a cozy, inviting glow.
+          - paragraph [ref=f17e286]: We’ve got all the lighting expertise to help you achieve just the look you’re envisioning.
+        - link "Make the Call" [ref=f17e287] [cursor=pointer]:
+          - /url: tel:816-548-5200
+    - generic [ref=f17e295]:
+      - generic [ref=f17e296]:
+        - button "Previous slide" [ref=f17e306] [cursor=pointer]
+        - button "Next slide" [ref=f17e309] [cursor=pointer]
+      - generic [ref=f17e312]:
+        - button "Go to slide 1" [ref=f17e313] [cursor=pointer]
+        - button "Go to slide 2" [ref=f17e314] [cursor=pointer]
+        - button "Go to slide 3" [ref=f17e315] [cursor=pointer]
+        - button "Go to slide 4" [ref=f17e316] [cursor=pointer]
+        - button "Go to slide 5" [ref=f17e317] [cursor=pointer]
+        - button "Go to slide 6" [ref=f17e318] [cursor=pointer]
+        - button "Go to slide 7" [ref=f17e319] [cursor=pointer]
+        - button "Go to slide 8" [ref=f17e320] [cursor=pointer]
+    - generic [ref=f17e323]:
+      - heading "Company Services & Updates" [level=3] [ref=f17e326]
+      - generic [ref=f17e330]:
+        - button "Next slide" [ref=f17e331] [cursor=pointer]
+        - generic [ref=f17e332]:
+          - generic [ref=f17e335]:
+            - link "Track Lighting Explored Beyond the Bulb" [ref=f17e336] [cursor=pointer]:
+              - /url: /blogs/news/led-track-tape-lighting-for-accent-feature
+            - generic:
+              - generic:
+                - img "Track Lighting Explored Beyond the Bulb"
+              - generic:
+                - heading "Track Lighting Explored Beyond the Bulb" [level=4]:
+                  - generic:
+                    - heading "Track Lighting Explored Beyond the Bulb" [level=4]
+                - generic:
+                  - generic:
+                    - generic:
+                      - time: September 2, 2026
+                    - generic: "|"
+                    - generic: Cody Herring
+                - generic: What Is LED Track Tape Lighting? LED track tape lighting, also known as LED strip lighting or tape lights, is a modern lighting solution that combines flexibility, efficiency, and style....
+          - generic [ref=f17e340]:
+            - link "Spring Home Electrical Safety Checklist" [ref=f17e341] [cursor=pointer]:
+              - /url: /blogs/news/spring-home-electrical-safety-checklist
+            - generic:
+              - generic:
+                - img "Spring Home Electrical Safety Checklist"
+              - generic:
+                - heading "Spring Home Electrical Safety Checklist" [level=4]:
+                  - generic:
+                    - heading "Spring Home Electrical Safety Checklist" [level=4]
+                - generic:
+                  - generic:
+                    - generic:
+                      - time: April 21, 2026
+                    - generic: "|"
+                    - generic: Cody Herring
+                - generic: Spring is the perfect time to refresh your home and ensure everything is working safely. As temperatures warm up and you spend more time outdoors, it's easy to overlook potential...
+          - generic [ref=f17e345]:
+            - link "EV Charger Installation Guide for Kansas City Homeowners" [ref=f17e346] [cursor=pointer]:
+              - /url: /blogs/news/ev-charger-installation-guide-for-kansas-city-homeowners
+            - generic:
+              - generic:
+                - img "EV Charger Installation Guide for Kansas City Homeowners"
+              - generic:
+                - heading "EV Charger Installation Guide for Kansas City Homeowners" [level=4]:
+                  - generic:
+                    - heading "EV Charger Installation Guide for Kansas City Homeowners" [level=4]
+                - generic:
+                  - generic:
+                    - generic:
+                      - time: April 21, 2026
+                    - generic: "|"
+                    - generic: Cody Herring
+                - generic: "Making the switch to an electric vehicle is an exciting decision, but before you drive off the lot, there's an important step many homeowners overlook: installing a home EV charger...."
+          - generic [ref=f17e350] [cursor=pointer]:
+            - link [ref=f17e351]:
+              - /url: /blogs/news/landscape-lighting-for-kansas-city-summers
+              - generic [ref=f17e352]: Landscape Lighting for Kansas City Summers
+            - generic:
+              - generic:
+                - heading [level=4]:
+                  - generic:
+                    - heading [level=4]: Landscape Lighting for Kansas City Summers
+                - generic:
+                  - generic:
+                    - generic:
+                      - time: April 21, 2026
+                    - generic: "|"
+                    - generic: Cody Herring
+                - generic: Kansas City summers are the perfect time to enjoy your outdoor spaces, but as the sun sets earlier in the evening, proper lighting becomes essential. Landscape lighting not only enhances...
+          - generic [ref=f17e355] [cursor=pointer]:
+            - link [ref=f17e356]:
+              - /url: /blogs/news/residential-electric-repairs
+              - generic [ref=f17e357]: Home Electrical Safety Essentials
+            - generic:
+              - generic:
+                - heading [level=4]:
+                  - generic:
+                    - heading [level=4]: Home Electrical Safety Essentials
+                - generic:
+                  - generic:
+                    - generic:
+                      - time: April 16, 2026
+                    - generic: "|"
+                    - generic: Cody Herring
+                - generic: "Home Electrical Safety Essentials: Whole-Home Smoke Detection and Outlet Repairs for Modern Families In today’s homes, electricity powers nearly every aspect of daily life—from lighting and appliances to entertainment systems..."
+    - iframe [ref=f17e362]
+  - contentinfo [ref=f17e363]:
+    - paragraph [ref=f17e370]:
+      - emphasis [ref=f17e371]: "Website Desgns By:"
+      - link "ZoneExposureMarketing.com" [ref=f17e372] [cursor=pointer]:
+        - /url: https://www.zoneexposuremarketing.com/
+  - contentinfo [ref=f17e373]:
+    - generic [ref=f17e376]:
+      - link "Submit a service request; Click Here" [ref=f17e377] [cursor=pointer]:
+        - /url: https://clienthub.getjobber.com/hubs/1c85b39e-72de-485a-b48e-34509e4fd591/public/requests/2733095/new
+      - generic [ref=f17e379]:
+        - heading "Join our email list" [level=2] [ref=f17e381]
+        - generic [ref=f17e382]:
+          - heading [level=6] [ref=f17e383]:
+            - strong [ref=f17e384]: CONTACT US 24/7
+          - paragraph [ref=f17e385]:
+            - strong [ref=f17e386]: 816-548-5200
+          - paragraph [ref=f17e387]:
+            - link [ref=f17e388] [cursor=pointer]:
+              - /url: mailto:info@herringelectrickc.com
+              - strong [ref=f17e389]: info@herringelectrickc.com
+      - generic [ref=f17e390]:
+        - generic [ref=f17e391]: "MAIN OFFICE: 9300 NW 63rd Street, Ste 1, Parkville, MO 64152"
+        - generic [ref=f17e393]:
+          - generic [ref=f17e394]: Email
+          - textbox "Email" [ref=f17e395]:
+            - /placeholder: Email address
+          - button "Sign up" [ref=f17e396] [cursor=pointer]
+  - generic [ref=f17e400]:
+    - generic [ref=f17e402]:
+      - text: © 2026
+      - link "Herring Electric" [ref=f17e403] [cursor=pointer]:
+        - /url: /
+    - button "Terms and Policies" [ref=f17e405] [cursor=pointer]
+    - generic [ref=f17e406]:
+      - link "Facebook" [ref=f17e408] [cursor=pointer]:
+        - /url: https://www.facebook.com/StaylitKC
+      - link "Instagram" [ref=f17e412] [cursor=pointer]:
+        - /url: https://www.instagram.com/staylitkc
+      - link "Tiktok" [ref=f17e416] [cursor=pointer]:
+        - /url: https://www.tiktok.com/@staylitkc
+      - link "Twitter" [ref=f17e420] [cursor=pointer]:
+        - /url: https://x.comhttps//x.com/staylitkcmo
+  - iframe [ref=f17e426]

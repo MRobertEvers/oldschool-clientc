@@ -434,6 +434,60 @@ test_readiness_matrix(void)
 }
 
 /* ------------------------------------------------------------------------ */
+/* 4b. A placement that changes RELATION on the same target is re-anchored   */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * MUTATION: in porcelain_apply_anchor, drop `applied->anchor_relation ==
+ * relation` from the early-out. Red: the second fence writes no anchor and
+ * the control keeps the relation it had.
+ *
+ * PHOTOGRAPHED, classic548 and classic161: the screenshot plugin stands its
+ * camera INSIDE the report button while the button paints its own plate and
+ * REPLACES the button on the fence a frame provider hides that plate. The
+ * target ref never changes across that switch, so a compare that read only
+ * the ref decided there was nothing to do; the camera kept OVER for the rest
+ * of the session and the records the REPLACE was there to consume went on
+ * being drawn -- the lane's own "Report" caption straight through the camera.
+ */
+static void
+test_relation_change_re_anchors(void)
+{
+    struct Fixture fixture = {.image = "camera.png", .enabled = true, .replace = false};
+    struct Porcelain* porcelain;
+
+    Testbed_Reset();
+    declare_chrome();
+    Testbed_BindElement("report_button");
+    Testbed_BindElement("chat_bar");
+
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, fixture_describe, &fixture);
+    fence(porcelain);
+    CHECK(Testbed_Control("camera") != NULL, "the camera stands beside Report");
+    CHECK(Testbed_Control("camera")->relation == TORIRS_WIDGET_RELATION_OVER,
+          "over it, which is what a BESIDE placement anchors as");
+
+    Testbed_ClearLog();
+    fixture.replace = true;
+    Porcelain_Invalidate(porcelain);
+    fence(porcelain);
+    CHECK(Testbed_LogCountWith("set_anchor camera -> report_button rel=3") == 1,
+          "the same target in a new relation is a new anchor, and it is written");
+    CHECK(Testbed_Control("camera")->relation == TORIRS_WIDGET_RELATION_REPLACE,
+          "so the control REPLACES the target it used to stand over");
+
+    /* And the rule it must not cost: a relation that did NOT move still
+     * writes nothing, or every fence re-anchors every control. */
+    Testbed_ClearLog();
+    Porcelain_Invalidate(porcelain);
+    fence(porcelain);
+    CHECK(Testbed_LogCountWith("set_anchor") == 0,
+          "an unchanged relation on an unchanged target costs no anchor");
+    Porcelain_Close(porcelain);
+}
+
+/* ------------------------------------------------------------------------ */
 /* 5. A REPLACE target that dies takes the control with it                  */
 /* ------------------------------------------------------------------------ */
 
@@ -6977,6 +7031,7 @@ main(void)
     test_changed_property_pushes_one_setter();
     test_removed_key_removes_one_control();
     test_readiness_matrix();
+    test_relation_change_re_anchors();
     test_replace_target_dies();
     test_replace_answers_the_whole_target();
     test_replace_without_a_hit_gets_no_hit_box();

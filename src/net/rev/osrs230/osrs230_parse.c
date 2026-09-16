@@ -403,6 +403,7 @@ osrs230_parse(
         if( len < 2 )
             return 0;
         out->_update_run_energy.run_energy = ((data[0] << 8) | data[1]) / 100;
+        out->_update_run_energy.run_energy_raw = (data[0] << 8) | data[1];
         return 1;
     }
 

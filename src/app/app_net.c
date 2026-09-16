@@ -128,6 +128,11 @@ App_NetSessionReset(struct App* app)
      * whose setting is the default 0 would otherwise keep the previous
      * session's choice until its own VARP arrived. */
     app_attack_options_reset(app);
+    /* The reference drops the friends chat, both clans and the Grand Exchange
+     * offers when the next login response arrives; doing it as the session
+     * ends is the same state before that session's first packet, and cannot
+     * race the login burst that refills them. */
+    RS_CS2Host_ResetSocialForLogin(&app->host);
     app->need_redraw = 1;
 }
 
@@ -137,6 +142,7 @@ App_Logout(struct App* app)
     assert(app);
 
     app->logout_requested = 0;
+    app->logout_wait_cycles = 0;
     /*
      * The DISCONNECT is QUEUED, not performed: it goes into the same outbound
      * ring the logout button's IF_BUTTON is already sitting in, and the
@@ -189,6 +195,64 @@ App_Logout(struct App* app)
 }
 
 /*
+ * The logout the player asked for: send it, then WAIT.
+ *
+ * The click does not end the session. The reference arms `logoutTimer = 250`
+ * and keeps playing until the server answers (Client.ts:11212), and everything
+ * about the answer is the server's: a LOGOUT packet, or -- what every server
+ * in this tree's own content actually does, `p_logout` being a session kill --
+ * the socket simply going away. Ending it here instead is what put the title
+ * screen up while the server was still deciding whether the player was allowed
+ * to leave, which is the one moment the two can disagree: ten seconds of
+ * combat logout delay looked, from the client, exactly like a logout.
+ *
+ * Run once per logic tick. True when the screen changed.
+ */
+bool
+app_logout_tick(struct App* app)
+{
+    assert(app);
+
+    /* Ahead of this tick's request, so a wait armed below keeps its whole
+     * window rather than spending the first cycle of it on the tick that
+     * armed it. */
+    if( app->logout_wait_cycles > 0 && --app->logout_wait_cycles == 0 )
+    {
+        /* Nothing answered. @see APP_LOGOUT_WAIT_CYCLES: the reference would
+         * wait here forever, and a client pointed at more than one server
+         * cannot. */
+        TORIRS_LOG(
+            "logout: no answer from the server in %d ms; ending the session anyway\n",
+            APP_LOGOUT_WAIT_CYCLES * APP_LOGIC_TICK_MS);
+        App_Logout(app);
+        return true;
+    }
+
+    if( !app->logout_requested )
+        return false;
+    app->logout_requested = 0;
+
+    /*
+     * Nobody to wait for: an offline profile with no socket, or a session that
+     * has already ended under the player. The request IS the ending, and
+     * waiting five seconds to say so would be five seconds of a client that
+     * looks like it ignored the button.
+     */
+    if( !app->net || app->net->state != TORIRS_NET_GAME )
+    {
+        App_Logout(app);
+        return true;
+    }
+
+    /* The IF_BUTTON is already in the outbound ring -- the caller of the
+     * clientCode handler put it there, which is the whole reason the request
+     * is drained a tick late. Nothing more goes out; the answer comes back. */
+    app->logout_wait_cycles = APP_LOGOUT_WAIT_CYCLES;
+    TORIRS_LOG("logout: requested; waiting for the server\n");
+    return false;
+}
+
+/*
  * TORIRS_NET_DROP_MS=<ms>: sever the connection this long after the first
  * packet of the session. The headless equivalent of the reference's
  * `::clientdrop` -- a harness has no chat box to type into, and the path it
@@ -231,6 +295,22 @@ app_net_tear_down_session(
 {
     assert(app);
     assert(app->net);
+
+    /*
+     * A session that goes away while the player is waiting to be logged out is
+     * the server ANSWERING, not a connection that was lost -- most servers,
+     * this tree's own included, answer the button by killing the session
+     * rather than by sending LOGOUT. The reference draws the same line in
+     * `lostCon` (Client.ts:2735): logoutTimer up, log out, do not redial.
+     * Redialling here would put the player back into the world they asked to
+     * leave, and would do it automatically.
+     */
+    if( app->logout_wait_cycles > 0 )
+    {
+        TORIRS_LOG("logout: server closed the session (%s)\n", why);
+        App_Logout(app);
+        return;
+    }
 
     TORIRS_LOG("net: connection lost (%s) — attempting to reestablish\n", why);
     /* The next REBUILD must run even if it names the zone the client is

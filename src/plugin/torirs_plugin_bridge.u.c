@@ -1544,6 +1544,12 @@ app_plugin_packet_wire(struct App const* app, int pkt_name)
  * over a store holding two kills. A plugin asks the RECORD now
  * (game->loot_source_next); there is no capability to ask.
  *
+ *   native_layout        this lane HAS native top-level chromes to choose
+ *                        between, and a way to ask for one: the profile names
+ *                        the roots and the settings panel that selects them.
+ *                        A PROFILE fact, so it is answerable at on_start --
+ *                        whether the SERVER armed the row is a session fact,
+ *                        and frame.native_layout_select's own answer.
  *   item_bonuses         a resident objtype carries equipment-bonus params
  *   native_orbs          the live tree resolves the `orb_run` role
  *   if_settab            the wire carries IF_SETTAB
@@ -1583,6 +1589,10 @@ app_plugin_capability(void* user, char const* name)
         return 1;
     if( strcmp(name, "server_tick.fenced") == 0 )
         return app_plugin_packet_wire(app, PKT_NAME_SERVER_TICK_END) >= 0;
+    if( strcmp(name, "native_layout") == 0 )
+        return App_UiLogic(app) == APP_UI_LOGIC_CS2 &&
+               RevConfigRefs_Get(&app->revconfig_refs, "iface", "toplevel_fixed") >= 0 &&
+               RevConfigRefs_Get(&app->revconfig_refs, "iface", "settings_side") >= 0;
     if( strcmp(name, "item_bonuses") == 0 )
         return app->provider &&
                CacheProvider_ObjtypeFindResident(
@@ -1627,6 +1637,16 @@ app_plugin_capability(void* user, char const* name)
      */
     if( strcmp(name, "touch") == 0 )
         return app->touch_ui != 0;
+    /*
+     * The DEVICE has keys to raise -- not the same question as `touch`, and
+     * the pair is easy to confuse, which is why both are spelled out here.
+     * `touch` is an input POLICY that a login clienttype or TORIRS_TOUCH_UI
+     * can move; this is the platform's own answer and nothing overrules it.
+     * A chrome offering a keyboard switch wants THIS one: a desk with
+     * TORIRS_TOUCH_UI=1 has no keys to summon. @see App::has_screen_keyboard.
+     */
+    if( strcmp(name, "input.screen_keyboard") == 0 )
+        return app->has_screen_keyboard != 0;
     if( strcmp(name, "web") == 0 )
     {
 #if defined(TORIRS_PLATFORM_WEB)
@@ -2204,6 +2224,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Mouse wheel|Fixed",
         { REVCONFIG_CAMERA_WHEEL_LIVE, REVCONFIG_CAMERA_WHEEL_PINNED },
         2,
+        NULL,
     },
     {
         "camera_zoom_band",
@@ -2223,6 +2244,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
           APP_PLUGIN_ZOOM_BAND_CLOSE,
           APP_PLUGIN_ZOOM_BAND_UNLIMITED },
         3,
+        NULL,
     },
     {
         "camera_wheel_step",
@@ -2236,6 +2258,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Fine (20)|Small (40)|Normal (60)|Large (120)|Fastest (240)",
         { 20, 40, 60, 120, 240 },
         5,
+        NULL,
     },
     {
         "camera_distance_scale",
@@ -2254,6 +2277,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Reference (100)|Closer (85)|Close (70)|Closest (55)|Further (130)",
         { 100, 85, 70, 55, 130 },
         5,
+        NULL,
     },
     {
         "camera_pitch_distance",
@@ -2272,6 +2296,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Reference (3)|Closer overhead (2)|Closest overhead (1)|Flat (0)",
         { 3, 2, 1, 0 },
         4,
+        NULL,
     },
     {
         "camera_arrow_keys",
@@ -2285,6 +2310,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Off|On",
         { 0, 1 },
         2,
+        NULL,
     },
     {
         "camera_mmb",
@@ -2298,6 +2324,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Off|On",
         { 0, 1 },
         2,
+        NULL,
     },
 
     /* ---- clicking ------------------------------------------------------- */
@@ -2313,6 +2340,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Does nothing|Nearest tile",
         { 0, 1 },
         2,
+        NULL,
     },
     {
         "ground_click_clamp",
@@ -2326,6 +2354,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "No limit|25 tiles|50 tiles|70 tiles (deob)|104 tiles",
         { 0, 25, 50, 70, 104 },
         5,
+        NULL,
     },
     {
         "attack_options",
@@ -2339,6 +2368,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Level bump (2004)|Dropdowns (OSRS)",
         { TORIRS_ATTACK_OPTION_MODEL_CLASSIC, TORIRS_ATTACK_OPTION_MODEL_SETTINGS },
         2,
+        NULL,
     },
     {
         "target_mask_held",
@@ -2352,6 +2382,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "0x10 (2004)|0x20 (OSRS)",
         { 0x10, 0x20 },
         2,
+        NULL,
     },
 
     /* ---- what the scene looks like -------------------------------------- */
@@ -2367,6 +2398,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Per cycle (2004)|Per frame (OSRS)",
         { TORIRS_MOVER_CYCLE_INTEGER, TORIRS_MOVER_FRAME_DELTA },
         2,
+        NULL,
     },
     {
         "draw_distance",
@@ -2399,6 +2431,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Ignored (2004)|Applied (xrsps)",
         { 0, 1 },
         2,
+        NULL,
     },
     {
         "player_head_ambient",
@@ -2412,6 +2445,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Scene regime|96|128 (xrsps)|160|192",
         { 0, 96, 128, 160, 192 },
         5,
+        NULL,
     },
 
     /* ---- sound ----------------------------------------------------------- */
@@ -2427,6 +2461,7 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         "Mix freely|One at a time (2004)",
         { 0, 1 },
         2,
+        NULL,
     },
 };
 
@@ -3790,8 +3825,13 @@ app_plugin_click_node(struct App* app, int32_t node, int op)
      * built the row and was dropped without a word. A hide the CACHE or a
      * script authored (behavior.hide) still refuses, which is the difference
      * that matters -- that one means the game says this button is not there.
+     *
+     * The same statement covers a plugin that COVERS a native control and
+     * delegates to it: the minimap orbs hide the lane's own orb under their
+     * plate, and the button they press is a child of it, so the hide they
+     * applied themselves is on this walk too.
      */
-    pick.allow_frame_hidden = 1;
+    pick.allow_plugin_hidden = 1;
 
     /*
      * The action a real click on THIS button would carry, derived from its own
@@ -4381,6 +4421,37 @@ app_plugin_node_tabno(struct UITreeComponent const* c)
 }
 
 /*
+ * The sidebar tab the game has FLAGGED to flash, or -1.
+ *
+ * Two sources and they are not alternatives: a dat1 lane flags the tab in the
+ * TUT_FLASH packet, which lands in `slots.flash_tab`; a cache lane flags it in
+ * a varbit its own `toplevel_flashicon` reads, which the profile names. Both
+ * are folded here so the two things that need the answer -- the FLASHING facet
+ * on a tab's element and `cache.tab_flash_hidden` for a frame that has
+ * replaced the stones -- cannot drift apart, and so neither of them names a
+ * lane.
+ *
+ * The off-by-one is the cache script's own: it computes the tab from
+ * `varbit - 1`, which is what makes 0 mean "nothing is flashing" rather than
+ * "tab 0 is". Subtracting it here is the same arithmetic on the same varbit,
+ * not a guess about the encoding.
+ *
+ * A lane whose profile declares no such varbit has no cache-side flag, which
+ * is a fact about the revision and not a gap in the answer.
+ */
+static int
+app_plugin_tab_flagged_flash(struct App* app)
+{
+    assert(app);
+    app_plugin_facet_ids(app);
+    if( app->slots.flash_tab >= 0 )
+        return app->slots.flash_tab;
+    if( app->plugin_facet_ids.varbit_sidebar_flash >= 0 )
+        return VarPManager_GetVarbit(&app->varps, app->plugin_facet_ids.varbit_sidebar_flash) - 1;
+    return -1;
+}
+
+/*
  * Lane-derived facets for one node: the single place that answers "what does
  * the GAME say about this thing" for a plugin that dresses it.
  *
@@ -4431,24 +4502,8 @@ app_plugin_widget_facets(struct App* app, int32_t idx)
             facets |= TORIRS_WIDGET_FACET_GIVEN;
         if( app_plugin_tab_active(app) == tabno )
             facets |= TORIRS_WIDGET_FACET_SELECTED;
-        /*
-         * The flash FLAG, not the blink. Two sources and they are not
-         * alternatives: the cache lane flags the tab in a varbit its own
-         * `toplevel_flashicon` reads, and a dat1 lane flags it in TUT_FLASH.
-         *
-         * The off-by-one is the cache script's own: it computes the tab from
-         * `varbit - 1`, which is what makes 0 mean "nothing is flashing"
-         * rather than "tab 0 is". Subtracting it here is the same arithmetic
-         * on the same varbit, not a guess about the encoding.
-         */
-        if( app->plugin_facet_ids.varbit_sidebar_flash >= 0 )
-        {
-            int const flagged =
-                VarPManager_GetVarbit(&app->varps, app->plugin_facet_ids.varbit_sidebar_flash) - 1;
-            if( flagged == tabno )
-                facets |= TORIRS_WIDGET_FACET_FLASHING;
-        }
-        if( app->slots.flash_tab == tabno )
+        /* The flash FLAG, not the blink. @see app_plugin_tab_flagged_flash. */
+        if( app_plugin_tab_flagged_flash(app) == tabno )
             facets |= TORIRS_WIDGET_FACET_FLASHING;
     }
 
@@ -4590,7 +4645,7 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         /* Native widgets keep their native operations; only owned controls
          * take a plugin operation. */
         if( c->plugin_owner!=owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
-        if( !UITree_WidgetSetOperation(tree,ref,owner,r->registration,r->name) ) return TORIRS_CONTRACT_FAILED;
+        if( !UITree_WidgetSetOperation(tree,ref,owner,r->registration,r->op,r->name) ) return TORIRS_CONTRACT_FAILED;
         break;
     case PLUGIN_WIDGET_VISIBLE:
         *r->flag=!UITree_NodeOrAncestorDisplayHidden(tree,idx) &&
@@ -4599,7 +4654,16 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
     case PLUGIN_WIDGET_ACTIONS:
     case PLUGIN_WIDGET_INVOKE:
     {
-        if( UITree_NodeOrAncestorDisplayHidden(tree,idx) ||
+        /* The LANE's fences, not the plugin layer's. Both verbs name a
+         * component and ask what it offers, which is the same kind of
+         * question a synthesised press asks -- so a region a plugin is not
+         * showing is not a reason to answer "nothing", while a hide the cache
+         * or a script authored still is. A plugin that covers a native
+         * control and delegates to it hid that control ITSELF, and the strict
+         * fence answered its own hide back to it: minimap-orbs read
+         * `actions` as empty and `invoke` as blocked on the very button its
+         * cover exists to press. @see UITree_NodeOrAncestorDisplayHiddenEx. */
+        if( UITree_NodeOrAncestorDisplayHiddenEx(tree,idx,1) ||
             !UITree_NodeNativeInputPresent(tree,&app->ui_host,idx) ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
         struct UIMinimenu menu;
         app_widget_actions(app,idx,&menu);
@@ -4617,6 +4681,12 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         if( op<0 ) return TORIRS_CONTRACT_STALE_REFERENCE;
         /* The normal dispatcher repeats native availability and event checks.
          * A local action returns zero too; OK means dispatched, not server ack. */
+        /* run_option validates the pick a second time, and the row was built
+         * by a walk that knows nothing of where the press came from -- so
+         * stamp it with the statement the gate above already made, or the
+         * press is resolved, built and then dropped without a word.
+         * @see app_plugin_click_node. */
+        menu.options[op].pick.allow_plugin_hidden=1;
         struct UIMinimenu saved=app->interact.minimenu;
         app->interact.minimenu=menu;
         app_minimenu_run_option(app,op,0,0);
@@ -4682,8 +4752,16 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
             UITree_NodeNativeVisible(tree, &app->ui_host, idx, app->hover_com_id);
         state->own_hidden = c->behavior.hide != 0;
         state->native_hidden = c->native_hide != 0;
+        /* What the LANE offers here, which is not the same question as
+         * `presented` above and must not fold in the plugin layer's own
+         * hiding. A plugin that covers a native control and keeps its action
+         * -- the minimap orbs over the lane's own orb -- hides that control
+         * itself, and a fence that counted its own hide answered "there is
+         * nothing to press" about the button its cover delegates to, one
+         * fence after it drew it. A hide the cache or a script authored still
+         * says no, because that one means the game says the button is gone. */
         state->input_present = UITree_NodeNativeInputPresent(tree, &app->ui_host, idx) &&
-            !display_hidden;
+            !UITree_NodeOrAncestorDisplayHiddenEx(tree, idx, 1);
         if( c->type == UIELEM_RS_GRAPHIC )
         { scene_id = c->u.rs_graphic.scene_id; atlas_index = c->u.rs_graphic.atlas_index; }
         else if( c->type == UIELEM_BUILTIN_SPRITE || c->type == UIELEM_BUILTIN_COMPASS )
@@ -4692,6 +4770,14 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
          * number, and no caller may read a scene id back out of it. */
         state->graphic_token =
             (uint32_t)(((uint32_t)scene_id << 8) ^ ((uint32_t)atlas_index & 0xFFu));
+        /* What a REPLACE of this widget would CONSUME. The token above cannot
+         * answer it -- the art of a button is on a child, so the token is zero
+         * on every one of them -- and the walk is only reached for a node that
+         * is presented, which is where it costs nothing on a node the lane has
+         * already put away. @see UITree_NodeSubtreePaintsArt. */
+        state->paints_own_art =
+            state->presented &&
+            UITree_NodeSubtreePaintsArt(tree, &app->ui_host, idx, app->hover_com_id);
         state->text_hash = UITree_NodeTextHash(tree, idx);
         state->facets = app_plugin_widget_facets(app, idx);
         state->incarnation = r->ref.opaque[2];
@@ -5166,6 +5252,12 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
                 ids[1 + member] = UITree_RoleFind(&app->ui_roles, role);
             }
         }
+        /* Not a `frame_<slot>` rung and not a numbered member of one: the
+         * compass's hit region is a second node of the compass ROLE, which is
+         * why it is named rather than numbered. @see
+         * UITree_FrameCompassClickNode. */
+        app->plugin_frame_compass_click_role =
+            UITree_RoleFind(&app->ui_roles, "frame_compass_click");
         app->plugin_frame_role_ids_for_count = app->ui_roles.count;
     }
     for( int slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
@@ -5181,6 +5273,9 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
         for( int member = 0; member < UITREE_FRAME_SLOT_NODES_MAX; member++ )
             app_plugin_frame_stamp_role(app, tree, ids[1 + member], tag, member, next, &next_count);
     }
+    app_plugin_frame_stamp_role(
+        app, tree, app->plugin_frame_compass_click_role, UITREE_SLOT_COMPASS_CLICK, -1, next,
+        &next_count);
 
     /* One audit per root, when asked for: the rungs are hand-copied from a
      * table the cache also ships, and a mistyped one is otherwise silent. */
@@ -5261,6 +5356,44 @@ app_plugin_frame_root(void* user)
     if( App_UiLogic(app) != APP_UI_LOGIC_CS2 )
         return -1;
     return app->host.top_interface_id > 0 ? app->host.top_interface_id : -1;
+}
+
+/* The App's own enum, handed straight across. The plugin header states the
+ * lane's `client_mode_*` values for the three that are choices and one more
+ * for the phone's root; both count in the same numbers on purpose, so the
+ * asserts are what keep them doing it. @see enum ToriRS_NativeLayout. */
+_Static_assert(
+    (int)TORIRS_NATIVE_LAYOUT_FIXED == (int)APP_NATIVE_LAYOUT_FIXED &&
+        (int)TORIRS_NATIVE_LAYOUT_RESIZABLE_CLASSIC ==
+            (int)APP_NATIVE_LAYOUT_RESIZABLE_CLASSIC &&
+        (int)TORIRS_NATIVE_LAYOUT_RESIZABLE_MODERN ==
+            (int)APP_NATIVE_LAYOUT_RESIZABLE_MODERN &&
+        (int)TORIRS_NATIVE_LAYOUT_MOBILE == (int)APP_NATIVE_LAYOUT_MOBILE,
+    "plugin native-layout values drifted from the App's");
+
+/** @see native_layout. */
+static int
+app_plugin_native_layout(void* user)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    return app_native_layout_mode(app);
+}
+
+/** @see native_layout_select. */
+static int
+app_plugin_native_layout_select(void* user, int layout)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    /* The runtime refuses everything outside the three choices before the
+     * request reaches the engine; said again here because this vtable is also
+     * reachable from a harness. */
+    if( layout < APP_NATIVE_LAYOUT_FIXED || layout > APP_NATIVE_LAYOUT_RESIZABLE_MODERN )
+        return 0;
+    return app_native_layout_select(app, layout) ? 1 : 0;
 }
 
 /*
@@ -5441,6 +5574,46 @@ app_plugin_tab_enabled(void* user, int tabno)
 
     assert(app);
     return RS_UISlots_TabGiven(app, tabno);
+}
+
+/*
+ * Is this tab's icon dark right now?
+ *
+ * The blink the client's own sidebar draws, asked on behalf of a plugin
+ * gameframe that has replaced it. The flag is the lane's (@see
+ * app_plugin_tab_flagged_flash) and the PHASE is RS_UISlots_FlashDark's, on
+ * the same clock the builtin tab icons read -- so a provided frame and the
+ * chrome it stands in for are never lit on opposite halves of the cycle.
+ *
+ * A tab the player is ALREADY LOOKING AT does not blink, and that is the one
+ * rule here that is not simply the flag times the clock. Both lanes have it
+ * and neither states it the same way, which is why it is folded in rather
+ * than left to whoever asks:
+ *
+ *   dat1  selecting the tab clears `flash_tab` outright (@see
+ *         app_host_request's SET_SELECTED_TAB), and TUT_FLASH will not even
+ *         flag the open tab -- it moves the player off it first, because a
+ *         blink under an open panel is no instruction at all.
+ *   cache the varbit is the SERVER's and a client cannot clear it, so the
+ *         cache's own `[proc,toplevel_flashicon]` does this instead: `if
+ *         ($int4 = %varcint171)` shows the icon and highlights the stone
+ *         rather than pulsing it.
+ *
+ * Without this line the cache lane would keep blinking an icon the player had
+ * already opened, for the rest of the tutorial step, while the dat1 lane
+ * stopped -- the same content driving two different pictures.
+ */
+static int
+app_plugin_tab_flash_hidden(void* user, int tabno)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( tabno < 0 || app_plugin_tab_flagged_flash(app) != tabno )
+        return 0;
+    if( app_plugin_tab_active(app) == tabno )
+        return 0;
+    return RS_UISlots_FlashDark(app->logic_cycle);
 }
 
 static int
@@ -5722,6 +5895,8 @@ app_plugin_engine(struct App* app)
     engine.cache_id = app_plugin_cache_id;
     engine.lane = app_plugin_lane;
     engine.frame_root = app_plugin_frame_root;
+    engine.native_layout = app_plugin_native_layout;
+    engine.native_layout_select = app_plugin_native_layout_select;
     engine.obj_info = app_plugin_obj_info;
     engine.inv_slot = app_plugin_inv_slot;
     engine.inv_size = app_plugin_inv_size;
@@ -5755,6 +5930,7 @@ app_plugin_engine(struct App* app)
     engine.tab_active = app_plugin_tab_active;
     engine.tab_select = app_plugin_tab_select;
     engine.tab_enabled = app_plugin_tab_enabled;
+    engine.tab_flash_hidden = app_plugin_tab_flash_hidden;
     engine.stat = app_plugin_stat;
     engine.stat_xp = app_plugin_stat_xp;
     engine.skill_name = app_plugin_skill_name;

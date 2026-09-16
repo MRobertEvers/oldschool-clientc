@@ -151,6 +151,62 @@ MinimapView_PlaceDot(
     int* out_dx,
     int* out_dy);
 
+/**
+ * How a hint arrow's subject stands to the map, which is three answers and not
+ * two (reference `drawMinimapHint` / deob `method2022`).
+ *
+ * A hint points at something the player is being TOLD to go to, so unlike a
+ * dot it is not simply dropped when it leaves the map: between the two bands
+ * the reference puts an arrow on the map's rim pointing the way. Past the far
+ * band it goes quiet again -- an arrow that points at a thing four hundred
+ * tiles away is not directions, it is a compass needle.
+ */
+enum MinimapHintBand
+{
+    /** Near enough to mark the subject itself. */
+    MINIMAP_HINT_ON_MAP,
+    /** Off the map, but close enough to point the way from the rim. */
+    MINIMAP_HINT_ON_RIM,
+    /** Too far to say anything. */
+    MINIMAP_HINT_UNSHOWN,
+};
+
+/**
+ * Which of the three a subject this far from the player falls in.
+ *
+ * The thresholds are the reference's own and they are NOT the dot ring: 65
+ * pixels rather than 80, so a subject already on the map but out near its edge
+ * still gets the rim arrow instead of a marker half under the frame.
+ */
+enum MinimapHintBand
+MinimapView_HintBand(int fine_x, int fine_z);
+
+/**
+ * Where the rim arrow goes, and how far to turn it.
+ *
+ * Like MinimapView_PlaceDot the offsets are the sprite's TOP-LEFT relative to
+ * the map's centre, but this one cannot refuse: the band has already said the
+ * subject is off the map, and the whole point is to draw something anyway. The
+ * rotation is in the blit's 2048-per-turn units, clockwise, for art drawn
+ * pointing north.
+ *
+ * The two radii are separate because the 2004 reference's are (`drawMinimapHint`
+ * plots at 63 across and 57 down); rev 239 derives one from the map widget's
+ * width. Neither reaches the rim exactly -- the arrow sits inside it.
+ */
+void
+MinimapView_PlaceRimMarker(
+    struct MinimapRotation const* rotation,
+    int fine_x,
+    int fine_z,
+    int sprite_w,
+    int sprite_h,
+    int radius_x,
+    int radius_z,
+    int* out_dx,
+    int* out_dy,
+    int* out_rotate_r2pi2048);
+
 /** Begin a frame's dots. */
 void
 MinimapDots_Reset(struct MinimapDots* dots);

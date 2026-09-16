@@ -1695,6 +1695,12 @@ npc_config_key(
      * the only case worth stating, so anything but `no` means yes. */
     else if( strcmp(key, "retaliate") == 0 )
         def->retaliate = strcmp(value, "no") != 0;
+    /* The opposite shape to `givechase`/`retaliate` above, and deliberately:
+     * those two default yes and only the negative is worth stating, while this
+     * defaults no and only the positive is. `forcemulti=no` is therefore
+     * spellable and means the default. */
+    else if( strcmp(key, "forcemulti") == 0 )
+        def->forcemulti = strcmp(value, "no") != 0;
     /* A healthbar config name, or `null` for an npc that raises no bar at all.
      * Through the checked lookup because an unresolved name here would
      * otherwise read as -1 — i.e. exactly as `null` — and silently delete the
@@ -4419,6 +4425,10 @@ init_defaults(void)
     g_npc_default.givechase = 1;
     /* Everything fights back unless it says otherwise. */
     g_npc_default.retaliate = 1;
+    /* Single-way unless the zone set or the record says otherwise. See the
+     * field: the zone set describes 2004, so every post-2004 multi-combat
+     * encounter states this. */
+    g_npc_default.forcemulti = 0;
     /* Unstated, so the encoder uses the standard bar — see the field's note. */
     g_npc_default.healthbar = TORIRSSERVER_NPC_HEALTHBAR_UNSET;
     /* Everything that can be hit shows the number unless it says otherwise. */

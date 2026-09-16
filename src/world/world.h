@@ -1085,6 +1085,15 @@ World_PlayerGetByServerPid(
     struct World* world,
     int server_pid);
 
+/** Pool walk by display name, the way usernames compare (case, and spaces
+ *  against underscores, do not matter). `skip_pid`'s player is never the
+ *  answer. NULL when no other player has the name. */
+struct WorldEntity_Player*
+World_PlayerFindByName(
+    struct World* world,
+    char const* name,
+    int skip_pid);
+
 /** Pool walk by painter element id. Returns NULL when no player owns it. */
 struct WorldEntity_Player*
 World_PlayerGetByElementId(

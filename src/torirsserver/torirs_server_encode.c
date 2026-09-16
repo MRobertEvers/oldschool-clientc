@@ -3099,8 +3099,10 @@ ToriRSServer_SendUnsetMapFlag(struct ToriRSServerPlayer* player)
  * on the type, which is why this takes them raw and the four script opcodes
  * above it name the shapes:
  *
- *   1  coord   id = absolute tile x, z = absolute tile z, height above it
- *   2  npc     id = npc slot; z and height are padding
+ *   1  npc     id = npc slot; z and height are padding
+ *   2  coord   id = absolute tile x, z = absolute tile z, height above it
+ *   3..6       the same coord, anchored to one edge of the tile instead of
+ *              its centre; no script opcode reaches them
  *   10 player  id = player pid; z and height are padding
  *   255 clear
  *

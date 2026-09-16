@@ -267,6 +267,33 @@ porcelain_frame_empty_describe(struct ToriRS_PorcelainDescribe* describe, void* 
     (void)user;
 }
 
+/*
+ * Run the description that stages nothing, and fence it.
+ *
+ * The diff is the only undo there is -- the engine keeps no pre-claim
+ * snapshot -- so running one empty describe takes the moves, the hides, the
+ * skins and every owned control back off in one pass, and the claims go with
+ * them. Both shipped providers used to undress from on_frame_start instead,
+ * and on a provider switch the outgoing one never got another frame start:
+ * its chat dressing survived to teardown.
+ *
+ * Two answers share it: a RELEASE (the host took the offer back) and a NATIVE
+ * answer (the lane's own chrome is the offer, so there is nothing to stage
+ * over it). Both leave the plugin holding nothing.
+ */
+static void
+porcelain_frame_stage_nothing(struct Porcelain* porcelain, struct PorcelainFrameState* state)
+{
+    assert(porcelain);
+    assert(state);
+    state->active = -1;
+    state->unsupported = false;
+    state->waiting = false;
+    Porcelain_Describe(porcelain, porcelain_frame_empty_describe, NULL);
+    Porcelain_Fence(porcelain);
+    Porcelain_Relinquish(porcelain);
+}
+
 int
 Porcelain_FrameEvent(struct Porcelain* porcelain, struct ToriRS_GameframeEvent const* event)
 {
@@ -290,23 +317,7 @@ Porcelain_FrameEvent(struct Porcelain* porcelain, struct ToriRS_GameframeEvent c
 
     if( !event->active )
     {
-        /*
-         * A release is a description that stages nothing.
-         *
-         * The diff is the only undo there is -- the engine keeps no pre-claim
-         * snapshot -- so running one empty describe takes the moves, the
-         * hides, the skins and every owned control back off in one pass, and
-         * the claims go with them. Both shipped providers undress from
-         * on_frame_start instead, and on a provider switch the outgoing one
-         * never gets another frame start: its chat dressing survives to
-         * teardown.
-         */
-        state->active = -1;
-        state->unsupported = false;
-        state->waiting = false;
-        Porcelain_Describe(porcelain, porcelain_frame_empty_describe, NULL);
-        Porcelain_Fence(porcelain);
-        Porcelain_Relinquish(porcelain);
+        porcelain_frame_stage_nothing(porcelain, state);
         return TORIRS_FRAME_READY;
     }
 
@@ -361,6 +372,43 @@ Porcelain_FrameEvent(struct Porcelain* porcelain, struct ToriRS_GameframeEvent c
     }
     state->waiting = false;
     return TORIRS_FRAME_READY;
+}
+
+int
+Porcelain_FrameNative(struct Porcelain* porcelain, struct ToriRS_GameframeEvent const* event)
+{
+    struct PorcelainFrameState* state;
+
+    assert(porcelain);
+    assert(event);
+    assert(event->offer_id);
+    /* A NATIVE answer is an answer to an ASK. On a release the host is not
+     * listening for one, and a provider that reached here on a release has
+     * its two paths crossed; Porcelain_FrameEvent is the release verb. */
+    assert(event->active);
+
+    state = porcelain_frame_state(porcelain, false);
+    if( !state )
+    {
+        Porcelain_RecordFinding(porcelain, "frame_native", PORCELAIN_EL(NONE),
+                                PORCELAIN_FINDING_REFUSED, event->offer_id);
+        return TORIRS_FRAME_UNSUPPORTED;
+    }
+    if( porcelain_frame_find(state, event->offer_id) < 0 )
+    {
+        /* The offer is one this plugin never bound a description to. The
+         * answer is still NATIVE in spirit, but the host asked a provider that
+         * does not know the offer, and that is the finding the release path
+         * records for the same mistake. */
+        Porcelain_RecordFinding(porcelain, "frame_native", PORCELAIN_EL(NONE),
+                                PORCELAIN_FINDING_REFUSED, event->offer_id);
+        if( event->reason && event->reason_capacity > 0 )
+            snprintf(event->reason, event->reason_capacity,
+                     "no description is bound to the offer '%s'", event->offer_id);
+        return TORIRS_FRAME_UNSUPPORTED;
+    }
+    porcelain_frame_stage_nothing(porcelain, state);
+    return TORIRS_FRAME_NATIVE;
 }
 
 /* ------------------------------------------------------------------------ */

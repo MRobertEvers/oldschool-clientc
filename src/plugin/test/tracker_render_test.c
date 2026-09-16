@@ -1913,6 +1913,64 @@ test_loot_art_is_all_asked_for_in_one_pass(void)
 }
 
 /**
+ * An empty page is a CARD, not a hole.
+ *
+ * "No loot to display." used to be text and nothing else: no thinbox, no
+ * plate, 33 rows of whatever the strip happened to be composited over. That
+ * reads as one continuous card in the rail's pane, whose backing is close to
+ * the band's brown, and as a cold slab in the plugin window, whose is not --
+ * the same defect the drop grid had, in the one state nothing else covers.
+ *
+ * MUTATION: delete the tile in `lt_draw_empty_note` and the second assertion
+ * fails -- the note's band is transparent again.
+ */
+static void
+test_loot_empty_page_stands_on_a_plate(void)
+{
+    int opaque = 0;
+    int band = 0;
+
+    reset("loot-tracker");
+    cfg_set("remember_loot", "0");
+    cfg_set("price_source", "Cache value");
+    cfg_set("kill_chat_message", "0");
+    cfg_set("chat_value_threshold", "0");
+    cfg_set("ignored_items", "");
+    cfg_set("ignored_sources", "");
+    g_loot_count = 0;
+
+    plugin_prepare(&TORIRS_PLUGIN_LOOT_TRACKER);
+    dispatch_start();
+    panel_build();
+    tick(1000);
+    panel_build();
+    draw_well("strip", 264);
+
+    CHECK(g_c.comp_px != NULL, "the empty loot strip composed");
+    CHECK(
+        g_c.comp_h == 42 + 2 + 33,
+        "and reserves the totals band plus one note band (got %d)", g_c.comp_h);
+    CHECK(
+        g_c.comp_px[44 * g_c.comp_w] == 0xFF0E0E0Cu &&
+            g_c.comp_px[45 * g_c.comp_w + 1] == 0xFF474745u,
+        "the note carries the same two-colour CS2 thinbox the source headers do");
+
+    /* Inside the box's 2px inset, every row of the note's band: the ground is
+     * the strip's own, so not one pixel of it is left for the host to fill. */
+    for( int y = 46; y < 44 + 33 - 2; y++ )
+        for( int x = 2; x < g_c.comp_w - 2; x++ )
+        {
+            band++;
+            opaque += (g_c.comp_px[y * g_c.comp_w + x] >> 24) == 0xFF ? 1 : 0;
+        }
+    CHECK(
+        band > 0 && opaque == band,
+        "and the band it sits on is wholly opaque (%d of %d rows' pixels)",
+        opaque, band);
+}
+
+
+/**
  * A well with no picture at all does not wait on the refresh clock.
  *
  * The host DECLINES a draw pass that staged nothing rather than erasing what
@@ -2188,10 +2246,22 @@ render_loot(void)
             g_c.comp_px[45 * g_c.comp_w + 1] == 0xFF474745u &&
             g_c.comp_px[162 * g_c.comp_w] == 0xFF0E0E0Cu,
         "source headers and item bodies retain the two-colour CS2 thinbox outlines");
+    /*
+     * The inter-cell gap is the BODY PLATE, not a hole.
+     *
+     * This used to read `alpha == 0`, which pinned the strip's old habit of
+     * leaving the drop grid clear and letting whatever it was composited over
+     * be the ground. The rail's pane and the plugin window are two different
+     * browns, so the same picture read as one card in one and as cells
+     * floating on a dark ground in the other. The geometry the check is
+     * actually about -- a gap here, column two starting at x=58 -- is pinned
+     * the same way against the two plates' own colours.
+     */
     CHECK(
-        (g_c.comp_px[83 * g_c.comp_w + 49] >> 24) == 0 &&
-            (g_c.comp_px[83 * g_c.comp_w + 59] >> 24) != 0,
-        "script3042 leaves the first inter-cell gap and starts column two at x=58");
+        g_c.comp_px[83 * g_c.comp_w + 49] == 0xFF3E3529u &&
+            g_c.comp_px[83 * g_c.comp_w + 59] == 0xFF574D40u,
+        "script3042 leaves the first inter-cell gap on the body plate and starts "
+        "column two at x=58");
     CHECK(
         stack_count_over_cell(4, 79) && stack_count_over_cell(58, 79),
         "and the stacked cells are numbered, which is what the picture below moved for");
@@ -2207,9 +2277,17 @@ render_loot(void)
      * stack VARIANT -- the art for a pile rather than a coin -- and stops.
      *
      * Old hash, for anyone bisecting: 862d6cf5e77b88d0.
+     *
+     * It MOVED again, and this time because the drop grid stands on a plate of
+     * its own rather than on whatever the strip is composited over. Nothing in
+     * it was placed differently -- the checks above pin the thinboxes, the
+     * grid pitch and the controls and they are unchanged; what filled in is
+     * the ground between and around the cells.
+     *
+     * Previous hash: 194ad34678011ed8.
      */
     CHECK(
-        argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h) == 0x194AD34678011ED8ULL,
+        argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h) == 0xC37A44A79A3FDA26ULL,
         "the Loot Tools reference strip retains its exact plates, text, grid, and controls "
         "(got %016llx)",
         (unsigned long long)argb_hash(g_c.comp_px, g_c.comp_w * g_c.comp_h));
@@ -2764,6 +2842,7 @@ main(void)
     test_loot_a_pending_icon_does_not_recompose_every_frame();
     test_loot_an_obj_with_no_icon_stops_being_asked_for();
     test_loot_art_is_all_asked_for_in_one_pass();
+    test_loot_empty_page_stands_on_a_plate();
     test_loot_blank_well_is_retried_on_the_frame();
     test_loot_a_well_that_can_never_paint_gives_up();
     if( g_plugin_state ) dispatch_stop();

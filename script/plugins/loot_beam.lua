@@ -28,6 +28,45 @@
 -- its framemap too. The rise here is a spin instead -- the model turns on its
 -- own axis, one yaw update per beam per frame, no model rebuilt for it.
 --
+-- WHAT THE SPIN DOES WHEN THE CAMERA MOVES, AND WHY IT STAYS ANYWAY
+--
+-- Written down because this was once read as a rendering bug and the spin was
+-- deleted over it, which cost every player the motion to spare the one case.
+--
+-- Yaw is the camera's OWN axis: what a viewer sees is the beam's yaw minus the
+-- camera's. So while the player is ORBITING, the apparent rate is the beam's
+-- rate against the orbit's, and at the default they are close enough to beat:
+--
+--   camera  WorldCameraOrbit_StepAngles, arrow key held: yaw velocity tops out
+--           at 24 and is spent at velocity/2 per FRAME -> 12 yaw units a frame,
+--           and the pacer's frame is 20 ms -> 600 units a second.
+--   beam    90 deg/sec over 2048 units to the turn -> 512 units a second.
+--
+-- 600 against 512, so an arrow key held WITH the spin leaves 88 units a second
+-- on screen and reads as stopped; held against it, 1112. That is the whole of
+-- the "does not rotate one way, twice as fast the other" report, and it is
+-- also what a real spinning object does when you walk around it at its own
+-- rate. The renderer is not wrong and neither is the reading.
+--
+-- It is not worth a fix, because every candidate is worse than the symptom:
+--
+--   * A different rate only moves the beat. The middle-mouse orbit turns at
+--     whatever rate the hand does, so no constant is safe from every drag.
+--   * Adding the camera's yaw back (`phase + turn + camera_yaw`) does hold the
+--     apparent rate exactly constant, but it buys that with a plugin-visible
+--     camera accessor the API does not have, and it makes the beam's world
+--     orientation drift with the view.
+--   * The two motions an orbit cannot share each cost something real: a
+--     vertical rise lifts the models off the flared base they are seated on,
+--     which leaves the floor, and a luminance pulse restamps the object's
+--     recolor key, which is in the rebuild predicate (app_plugin_object.c) --
+--     a model rebuild per beam per frame rather than a field written in place.
+--
+-- A still camera is the case the beam is looked at in, and in it the beam
+-- turns. `spin` is a row, and 0 holds a beam still at its own phase with no
+-- per-frame work at all -- which is what the screenshot lanes pass for a
+-- deterministic shot.
+--
 -- The beam is a WORLD OBJECT, not an overlay. That is the whole reason this
 -- plugin needed anything new: an overlay is painted after the scene and is
 -- therefore always in front, so a beam drawn that way shines through the
@@ -71,9 +110,9 @@
 --
 -- WHAT PORCELAIN IS HERE FOR
 --
--- Not the picture: the beams stand on the same tiles, in the same colours, at
--- the same yaw, spun by the same arithmetic. Five pieces of this file's own
--- bookkeeping moved into the layer, and four of them were recorded defects.
+-- Not the picture: the beams stand on the same tiles, in the same colours,
+-- spun by the same arithmetic. Five pieces of this file's own bookkeeping moved into the
+-- layer, and four of them were recorded defects.
 --
 --   * the CADENCE -- porcelain.every("logic_tick"). `rebuild` is the only
 --     place a beam is created or destroyed, and it used to hang off the server
@@ -113,7 +152,8 @@
 --
 -- There is no describe and no fence: this plugin owns no widget and states no
 -- element, so nothing here is retained for the layer to reconcile, and its
--- steady state is one forwarded tick that returns on a boolean.
+-- steady state is one forwarded tick that returns on a boolean, plus the one
+-- frame callback the spin needs.
 --
 -- It does not ask for porcelain.draw_context. That verb answers the pass's
 -- drawable rectangle and whether that rectangle IS the canvas; a beam is not
@@ -205,6 +245,9 @@ local plugin           = {
         -- The one thing left that is a choice rather than a cache id. The
         -- shipped models carry their own size, so there is no height row: a
         -- beam is as tall as the model is.
+        --
+        -- 0 is a still beam, and the header says what an orbiting camera does
+        -- to any of the other values.
         {
             key = "spin",
             type = "int",
@@ -572,9 +615,14 @@ local function rebuild(api)
             -- Held for the spin, which restates the position every frame with
             -- nothing but the yaw moved.
             beam.x, beam.z, beam.level = w.x, w.z, w.level
-            -- Beams on neighbouring tiles turning in lockstep read as one
-            -- rigid object rather than as several lights; the tile is a phase
-            -- that is stable across a rebuild, which frame_ms alone is not.
+            -- A PHASE per tile, carried through the spin. The models are not
+            -- rotationally symmetric -- both carry a ribbon winding up the
+            -- shaft -- so beams on neighbouring tiles turning in lockstep read
+            -- as one rigid object rather than as several lights. The tile is
+            -- the phase because it is the one number that survives a scene
+            -- rebuild, which frame_ms alone is not: the same drop comes back
+            -- at the same angle instead of jumping when the scene reloads
+            -- under it.
             beam.phase = (w.x * 137 + w.z * 311) % 2048
             applied(api, "instance_position", api.scene.instance_position(
                 beam.handle, w.x, w.z, w.level, 0, beam.phase))
@@ -743,6 +791,10 @@ end
 -- the live element -- no model is rebuilt for it, which is what makes an
 -- animation this plugin owns affordable at all.
 --
+-- `turn` is derived from absolute time rather than accumulated per frame, so a
+-- beam that comes and goes rejoins the others in phase instead of starting its
+-- own turn from zero, and a dropped frame costs nothing.
+--
 function plugin.on_frame_start(api, ev)
     local spin = api.config.spin
     local turn
@@ -752,6 +804,8 @@ function plugin.on_frame_start(api, ev)
     turn = (ev.now_ms * spin * 2048) // 360000
 
     for _, beam in pairs(beams) do
+        -- A beam created this tick but not yet positioned has no tile to
+        -- restate; rebuild gives it one, and the next frame turns it.
         if beam.x then
             applied(api, "instance_position", api.scene.instance_position(
                 beam.handle, beam.x, beam.z, beam.level, 0, (turn + beam.phase) % 2048))

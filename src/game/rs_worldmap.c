@@ -636,7 +636,7 @@ RS_WorldMap_DisplayToSource(
 }
 
 bool
-RS_WorldMap_DisplayCoord(
+RS_WorldMap_SourcePosition(
     struct RS_WorldMapState* state,
     int* out_x,
     int* out_y)
@@ -646,17 +646,11 @@ RS_WorldMap_DisplayCoord(
     assert(state);
     if( !state->current_area )
         return false;
-    if( ToriRS_WorldMapArea_Coord(
-            state->current_area, state->display_x, state->display_y, &plane, out_x, out_y) )
-        return true;
-
-    /* Off-surface centre: report the raw display position, as the reference
-     * does, so callers still get a usable pair. */
-    if( out_x )
-        *out_x = state->display_x;
-    if( out_y )
-        *out_y = state->display_y;
-    return true;
+    /* An off-surface centre used to answer the raw DISPLAY position here, on
+     * the stated grounds that the reference did. It does not: Statics 6615
+     * pushes -1, -1 whenever method13046 has no coord. */
+    return ToriRS_WorldMapArea_Coord(
+        state->current_area, state->display_x, state->display_y, &plane, out_x, out_y);
 }
 
 bool

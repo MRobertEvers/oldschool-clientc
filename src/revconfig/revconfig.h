@@ -295,16 +295,6 @@ enum RevConfigFieldKind
     RCFIELD_CAMERA_CONTROLS,
     RCFIELD_FRAME_CAP_FPS,
     RCFIELD_FRAME_CAP_SOURCE,
-    RCFIELD_CHROME_PLUGIN_IFACE,
-    RCFIELD_CHROME_PLUGIN_BUTTON_PARENT,
-    RCFIELD_CHROME_PLUGIN_BUTTON_X,
-    RCFIELD_CHROME_PLUGIN_BUTTON_Y,
-    RCFIELD_CHROME_PLUGIN_BUTTON_W,
-    RCFIELD_CHROME_PLUGIN_BUTTON_H,
-    RCFIELD_CHROME_PLUGIN_BUTTON_OP,
-    RCFIELD_CHROME_PLUGIN_BUTTON_ANCHOR,
-    RCFIELD_CHROME_PLUGIN_BUTTON_ALIGN,
-    RCFIELD_CHROME_PLUGIN_BUTTON_MARGIN,
     RCFIELD_ROLE_MATCH,
     RCFIELD_UICOMPONENT_ROLE,
     RCFIELD_TABS_ENTRY,
@@ -339,7 +329,6 @@ enum RevConfigItemKind
     RCITEM_FEATURES,
     RCITEM_CAMERA,
     RCITEM_FRAME,
-    RCITEM_CHROME,
     RCITEM_ROLE,
     RCITEM_STRING,
     RCITEM_LOGIN_REPLY,
@@ -1622,98 +1611,6 @@ struct RevConfigFrameItem
     uint8_t has_cap_source;
 };
 
-/** Longest `[chrome]` name or op text. One field value is 64 bytes, so nothing
- *  longer than that can reach here anyway. */
-#define REVCONFIG_CHROME_NAME_LEN 64
-
-/**
- * `plugin_button_align=` -- which edge of the mount an anchored plate hangs
- * off.
- *
- * An edge and a margin rather than a y, because the y is the thing that goes
- * wrong: the mount is a panel the cache sizes and a CS2 hook re-lays out, so a
- * number measured on one frame lands on top of the panel's own button on the
- * next. "Fifteen pixels in from the top" survives both.
- */
-enum RevConfigChromeAlign
-{
-    REVCONFIG_CHROME_ALIGN_NONE = 0,
-    REVCONFIG_CHROME_ALIGN_TOP,
-    REVCONFIG_CHROME_ALIGN_BOTTOM,
-};
-
-/*
- * `[chrome]` -- where the CLIENT's own furniture mounts on this revision.
- *
- * One thing today: the plugin window's "Manage Plugins" launcher. That button
- * is not the cache's -- plugins are a client feature and no server knows about
- * them -- but WHERE it goes is entirely the cache's business: on rev-239 the
- * logout tab is interface 182 and its panel is 190x261, and neither number
- * means anything on another revision. Every one of them used to be a literal
- * in torirs_plugin_panel.u.c, which is the same silent-wrong-answer trap
- * `[iface:...]` exists to delete, one level down.
- *
- * A LANE WHOSE GAMEFRAME IS AUTHORED STATES NONE OF THIS. The 2004 profiles
- * write the same button out as `[component:manage_plugins_*]` records with a
- * layout entry inside the logout tab (revconfig/rs245_2lc), because a profile
- * that builds the whole frame can simply put it there. This section is for the
- * lanes whose frame comes out of a cache and cannot be authored -- and stating
- * it on a lane that already authors one is how you get two buttons.
- *
- * Nothing here is defaulted. An absent section, or one that leaves a key out,
- * means "the client builds no launcher on this revision".
- */
-struct RevConfigChromeItem
-{
-    /* INI: plugin_button_iface= -- the `[iface:<name>]` section naming the
-     * interface the button mounts inside. Empty when unstated. */
-    char plugin_iface[REVCONFIG_CHROME_NAME_LEN];
-
-    /* INI: plugin_button_parent= -- child component of that interface the
-     * button hangs off; 0 is the interface's own root. -1 when unstated. */
-    int plugin_button_parent;
-
-    /* INI: plugin_button_x= / plugin_button_y= -- where the plate sits inside
-     * that parent, in interface pixels. -1 when unstated. */
-    int plugin_button_x;
-    int plugin_button_y;
-
-    /* INI: plugin_button_w= / plugin_button_h= -- the plate's own box. The
-     * three baked caps are 36px, so a width under 72 has nowhere to put the
-     * tile between them. -1 when unstated. */
-    int plugin_button_w;
-    int plugin_button_h;
-
-    /* INI: plugin_button_op= -- the hover option the button advertises, e.g.
-     * "Manage Plugins". Empty means the button names nothing on hover; the
-     * plate's own caption says it either way. */
-    char plugin_button_op[REVCONFIG_CHROME_NAME_LEN];
-
-    /*
-     * INI: plugin_button_anchor= -- the `[role:<name>]` whose node the plate
-     * is CUT FROM: its width, its height and the pictures it is made of.
-     *
-     * The alternative is what this replaced: a width, a height and a baked
-     * skin written into the profile, all three of which are a guess about a
-     * panel the cache lays out and a CS2 hook re-lays out per layout. Naming
-     * the panel's own button instead makes the plate the same size and the
-     * same material as the control above it on every frame the revision has,
-     * and it is one name rather than four numbers.
-     *
-     * Empty when unstated, which is the absolute form: `plugin_button_x/y/w/h`
-     * and the client's own baked plate.
-     */
-    char plugin_button_anchor[REVCONFIG_CHROME_NAME_LEN];
-
-    /* INI: plugin_button_align= -- which edge of the parent the anchored plate
-     * sits against, enum RevConfigChromeAlign. _NONE when unstated. */
-    int plugin_button_align;
-
-    /* INI: plugin_button_margin= -- how far in from that edge, in interface
-     * pixels. -1 when unstated. */
-    int plugin_button_margin;
-};
-
 /* A revision has fourteen sidebar tabs at most so far; 32 leaves room without
  * making the item large enough to notice. */
 #define REVCONFIG_TABS_MAX 32
@@ -1790,7 +1687,6 @@ struct RevConfigItem
         struct RevConfigFeaturesItem features;
         struct RevConfigCameraItem camera;
         struct RevConfigFrameItem frame;
-        struct RevConfigChromeItem chrome;
         struct RevConfigRoleItem role;
         struct RevConfigStringItem string;
         struct RevConfigLoginReplyItem login_reply;

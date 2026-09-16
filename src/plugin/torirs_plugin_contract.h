@@ -41,6 +41,20 @@ struct ToriRS_WidgetAction
 /* Capacity of an owned control's operation label, including the terminator.
  * The native adapter checks this against its menu option storage. */
 #define TORIRS_WIDGET_OP_LABEL_MAX 64
+/*
+ * How many operations one owned control can carry, numbered 1..N the way the
+ * cache numbers a component's -- `op1`, `op2` in an .if, `cc_setop(n, ...)` in
+ * a clientscript.
+ *
+ * A control with ONE op was the whole of this API until the minimap-orbs
+ * prayer cover needed the two its target has: `orbs:prayerbutton` declares
+ * `op1=*` (Quick-prayers) and `op2=Setup`, and a cover that hides that button
+ * and offers a single row takes the quick-prayer setup panel away with it.
+ * The adapter's own storage is ten slots wide (UITREE_MENU_OPTION_SLOTS,
+ * static-asserted where the two meet), so this is the contract's cap and not
+ * the tree's.
+ */
+#define TORIRS_WIDGET_OP_SLOTS 10
 
 enum ToriRS_ContractResult
 {
@@ -171,13 +185,27 @@ struct ToriRS_WidgetState
     bool own_hidden;
     /** The engine's native suppression bits, not the script's. */
     bool native_hidden;
-    /** Present to the native hit test: a decoration that must stay clickable
-     *  follows this and not `presented`. */
+    /** Present to the native hit test AS THE LANE LEFT IT: a decoration that
+     *  must stay clickable follows this and not `presented`. The plugin
+     *  layer's own hiding is not folded in, so a plugin that covers a native
+     *  control and keeps its action can still read the control it covers;
+     *  a hide the cache or a script authored answers false as it always did. */
     bool input_present;
     /** A CHANGE token for a node that carries art, zero for one that does
      *  not. NEVER an identity: equal tokens mean "the art did not change",
      *  and nothing may be decoded back out of it. */
     uint32_t graphic_token;
+    /** This node OR ANYTHING BELOW IT paints a picture this frame -- what a
+     *  REPLACE of this widget would consume. Text does not count: a
+     *  replacement standing where a caption stood owes the caption nothing.
+     *
+     *  Distinct from `graphic_token`, which is zero on a container whose art
+     *  is on a child and therefore cannot tell a button that paints its own
+     *  plate from one whose plate belongs to the strip behind it. That is the
+     *  whole reason this field exists: the first leaves a HOLE when it is
+     *  replaced and the second leaves nothing, and a replacement that brings
+     *  a plate to the second covers the lane's own art with a slab. */
+    bool paints_own_art;
     /** FNV-1a 64 of a text node's current string; zero for a non-text node.
      *  A text node with an empty string hashes to the FNV basis, not zero. */
     uint64_t text_hash;
@@ -219,6 +247,8 @@ struct ToriRS_WidgetEvent
     /* Script fields are available only with the CS2 capability. */
     int32_t script_id;
     char const* callback_name;
+    /* TORIRS_WIDGET_OPERATION: which of the control's ops was chosen, 1-based
+     * and numbered as set_on_op armed them. One for a control with one op. */
     int32_t operation;
     /* Present for a semantic binding subscription. Borrowed for this call. */
     char const* role;
@@ -302,12 +332,17 @@ struct ToriRS_WidgetApi
     enum ToriRS_ContractResult (*set_text_color)(void*, struct ToriRS_WidgetRef, uint32_t rgb);
     enum ToriRS_ContractResult (*set_text_align)(void*, struct ToriRS_WidgetRef, int horizontal, int vertical);
     enum ToriRS_ContractResult (*remove)(void*, struct ToriRS_WidgetRef);
-    /* Owned controls only: arm one left-click/menu operation with this label
-     * (shorter than TORIRS_WIDGET_OP_LABEL_MAX). The listener receives
+    /* Owned controls only: arm menu operation `op` (1..TORIRS_WIDGET_OP_SLOTS,
+     * numbered as the cache numbers a component's) with this label (shorter
+     * than TORIRS_WIDGET_OP_LABEL_MAX). The listener receives
      * TORIRS_WIDGET_OPERATION through the normal native hit test and retained
-     * menu checks. Replacing the listener retires earlier retained rows. A NULL
-     * listener removes the operation. */
-    enum ToriRS_ContractResult (*set_on_op)(void*,struct ToriRS_WidgetRef,char const* label,ToriRS_WidgetListener,void* user);
+     * menu checks, with ToriRS_WidgetEvent::operation carrying the op that was
+     * chosen -- one listener answers for every op on the control, as one
+     * IF_BUTTON handler answers for every op on a component. Op 1 is the
+     * left-click default, and the rows read down the menu in op order.
+     * Replacing the listener retires earlier retained rows. A NULL listener
+     * removes that one operation; the control keeps the others. */
+    enum ToriRS_ContractResult (*set_on_op)(void*,struct ToriRS_WidgetRef,int op,char const* label,ToriRS_WidgetListener,void* user);
     /* Owned image controls. create_image returns this owner's keyed child
      * (idempotent like create_text). set_image installs one of this plugin's
      * live images and the control's size in canvas pixels; releasing the image

@@ -434,6 +434,11 @@ Task_AppBoot_Run(
     if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2WevConfigLoad(app->provider, &app->wev_configs));
 
+    /* VarClanTypes (clan profile vars, config group 47): the type each VARCLAN
+     * value is decoded as. dat2 only; an absent group leaves the table empty. */
+    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
+        PT_TASK_AWAITSELF_IF(CreateTask_Dat2VarClanTypeLoad(app->provider));
+
     /* Healthbar types. dat2 only for the same reason as hitsplats -- dat1 has
      * no such config group, and the table's defaults are the reference's own
      * constructor, so an absent group draws exactly what the hardcoded 30-wide

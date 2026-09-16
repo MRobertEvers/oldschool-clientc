@@ -34,10 +34,10 @@ struct UITreeHost;
 /** Messages kept per type (reference class55: a 100-entry ring, newest at 0). */
 #define RS_CHAT_TYPE_LINES 100
 
-/* Chat scrollbar geometry, region-local (reference: message column 463 wide,
- * 77px visible window; scrollbar sits just right of the column). */
+/* The chat scrollbar's column, region-local: just right of the reference's
+ * 463-wide message column. Its HEIGHT is the message window's, which follows
+ * the region's box. @see UI_CHATVIEW_WINDOW_H. */
 #define RS_CHAT_SCROLLBAR_LEFT 463
-#define RS_CHAT_VIEW_HEIGHT 77
 
 enum RS_ChatMessageType
 {
@@ -50,6 +50,12 @@ enum RS_ChatMessageType
     RS_CHAT_TYPE_PRIVATE_TO = 6,
     RS_CHAT_TYPE_PRIVATE_FROM_MOD = 7,
     RS_CHAT_TYPE_DUELREQ = 8,
+    /* The clan channel lines: a player's (CLAN_CHAT) and the channel's own
+     * notices (CLAN_MESSAGE), and the same two for the guest clan. */
+    RS_CHAT_TYPE_CLAN_CHAT = 41,
+    RS_CHAT_TYPE_CLAN_MESSAGE = 43,
+    RS_CHAT_TYPE_CLAN_GUEST_CHAT = 44,
+    RS_CHAT_TYPE_CLAN_GUEST_MESSAGE = 46,
 };
 
 /** Social-input kinds (reference socialInputType). */
@@ -245,9 +251,13 @@ RS_Chat_NodeFriendState(
 
 /**
  * Render the model into the flattened draw view (reference drawChat layout:
- * p12 lines bottom-up at 14px, baseline y = scroll + 70 - line*14, input line
- * at y 90). `dialog_mounted` suppresses message drawing while a chat
- * interface occupies the region. ui_host is used only for MEASURE_TEXT.
+ * p12 lines bottom-up at 14px, the newest baseline at `height`-26 and the
+ * input line at `height`-6). `dialog_mounted` suppresses message drawing
+ * while a chat interface occupies the region. ui_host is used only for
+ * MEASURE_TEXT.
+ *
+ * `height` is the chat region's own box height -- the node's, not a constant.
+ * @see RS_CHAT_NATIVE_HEIGHT.
  *
  * `focused` is the chat input's focus state: unfocused, the input line is the
  * prompt rather than `name: typed*`, since the caret would otherwise sit
@@ -265,6 +275,7 @@ RS_Chat_BuildView(
     struct RS_ChatFilters const* filters,
     struct UITreeHost const* ui_host,
     int font_id,
+    int height,
     int dialog_mounted,
     int focused,
     char const* prompt,
@@ -279,6 +290,7 @@ int
 RS_Chat_LineAt(
     struct RS_Chat const* chat,
     struct RS_ChatFilters const* filters,
+    int height,
     int local_x,
     int local_y,
     char* out_sender,
@@ -290,6 +302,7 @@ void
 RS_Chat_Scroll(
     struct RS_Chat* chat,
     struct RS_ChatFilters const* filters,
+    int height,
     int wheel_y);
 
 /**
@@ -303,6 +316,7 @@ int
 RS_Chat_ScrollbarInput(
     struct RS_Chat* chat,
     struct RS_ChatFilters const* filters,
+    int height,
     int local_x,
     int local_y,
     int cycle);

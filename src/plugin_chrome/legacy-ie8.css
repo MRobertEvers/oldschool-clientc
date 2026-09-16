@@ -31,13 +31,13 @@ html, body {
 }
 
 table { border-collapse: collapse; }
-input, select, textarea { font: 400 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
+input, textarea { font: 400 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 /* The reference's drop shadow, on every piece of chrome text: the game theme
  * this page projects sets text_shadowed = 1 (uitree_debug_overlay.c), one black
  * pixel down and right. Old MSHTML ignores the property and loses only the
  * shadow. */
-.tpc-shell, .tpc-shell button, .tpc-shell input, .tpc-shell select, .tpc-shell textarea { text-shadow: 1px 1px #000000; }
+.tpc-shell, .tpc-shell button, .tpc-shell input, .tpc-shell textarea { text-shadow: 1px 1px #000000; }
 .tpc-check { -webkit-appearance: none; appearance: none; width: 17px; height: 17px; margin: 0 6px 0 0; padding: 0; border: 0; background: transparent url("skin/CheckOff.png") center no-repeat; }
 .tpc-check:checked { background-image: url("skin/CheckOn.png"); }
 .tpc-shell { width: 100%; height: 100%; table-layout: fixed; background: #0e0e0c; }
@@ -77,6 +77,12 @@ button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
  * the seam between them is a single border rather than two with a groove between.
  * The rail comes later in the document and paints over the shared column. */
 .tpc-pane { position: absolute; position: fixed; left: 0; top: 0; right: 36px; bottom: 0; width: auto; height: auto; overflow: hidden; background: #5d5447 url("skin/PanelBody.png"); padding: 6px; box-sizing: border-box; }
+/* railHidden: the game lane's own pop-out column carries the destinations, so
+ * no rail and no reserved track; the pane runs flush right in its own full
+ * frame. A class on the shell: MSHTML 8 has no negation pseudo-class. */
+.tpc-rail-hidden .tpc-rail-cell { display: none; width: 0; }
+.tpc-rail-hidden .tpc-rail { display: none; }
+.tpc-rail-hidden .tpc-pane { right: 0; }
 .tpc-frame { position: absolute; z-index: 1; overflow: hidden; font-size: 1px; line-height: 1px; }
 .tpc-frame-tl, .tpc-frame-tr, .tpc-frame-bl, .tpc-frame-br { width: 32px; height: 32px; background-repeat: no-repeat; }
 .tpc-frame-tl { left: 0; top: 0; }
@@ -156,7 +162,7 @@ button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 .tpc-row td { padding: 0; vertical-align: middle; }
 .tpc-label-cell { width: 104px; color: #ff981f; }
 .tpc-control-cell { width: auto; }
-.tpc-control-cell input, .tpc-control-cell select, .tpc-control-cell textarea { width: 96%; border: 1px solid #474745; background: #000000; color: #ffffff; padding: 4px; }
+.tpc-control-cell input, .tpc-control-cell textarea { width: 96%; border: 1px solid #474745; background: #000000; color: #ffffff; padding: 4px; }
 .tpc-control-cell textarea { height: 84px; overflow: auto; }
 .tpc-separator { position: relative; width: 100%; height: 18px; min-height: 18px; overflow: hidden; background: transparent; }
 .tpc-separator-line { position: absolute; left: 0; right: 0; top: 9px; height: 1px; overflow: hidden; background: #0e0e0c; }
@@ -179,8 +185,21 @@ button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 .tpc-custom { width: auto; min-height: 48px; box-sizing: content-box; }
 .tpc-custom img, .tpc-custom canvas { display: block; width: 100%; height: 100%; }
 .tpc-status { position: absolute; left: -10000px; top: -10000px; width: 1px; height: 1px; overflow: hidden; }
-.tpc-row input[type="text"], .tpc-row select, .tpc-row textarea { background-color: #000000; background-image: url("skin/DropdownBody.png"); }
-.tpc-row select { -webkit-appearance: none; appearance: none; padding-right: 20px; background-image: url("skin/ScrollDown.png"), url("skin/DropdownBody.png"); background-position: right 2px center, left top; background-repeat: no-repeat, repeat; background-size: 14px 14px, auto; }
+.tpc-row input[type="text"], .tpc-row textarea { background-color: #000000; background-image: url("skin/DropdownBody.png"); }
+/* The page-drawn dropdown. @see modern.css. MSHTML has no rgba, box-shadow or
+ * background-size, so the frame is one rule, the arrow is its 1x sprite, and
+ * the list's bands are two flat browns the veils come out at over the body. */
+.tpc-row .tpc-dropdown { position: relative; height: 18px; padding: 0 17px 0 1px; overflow: hidden; border: 1px solid #0e0e0c; background: #000000 url("skin/PanelBody.png"); color: #ff981f; font-weight: 400; line-height: 16px; text-align: center; white-space: nowrap; cursor: hand; }
+.tpc-dropdown-value { display: block; overflow: hidden; white-space: nowrap; }
+.tpc-dropdown-arrow { position: absolute; right: 1px; top: 1px; width: 14px; height: 14px; overflow: hidden; background: url("skin/ScrollDown.png") no-repeat center center; }
+.tpc-dropdown-open .tpc-dropdown-arrow { background-image: url("skin/ScrollUp.png"); }
+.tpc-dropdown-backdrop { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 40; }
+.tpc-dropdown-list { position: absolute; padding: 1px; overflow: hidden; border: 1px solid #0e0e0c; background: #5d5447 url("skin/DropdownBody.png"); font-family: "ToriRS Chrome", "Lucida Console", monospace; }
+.tpc-dropdown-scroller { overflow-x: hidden; overflow-y: auto; }
+.tpc-dropdown-option { height: 20px; padding: 0 4px; overflow: hidden; background: #50483d; color: #ff981f; line-height: 20px; text-align: center; text-shadow: 1px 1px #000000; white-space: nowrap; cursor: hand; }
+.tpc-dropdown-alt { background: #494238; }
+.tpc-dropdown-hover { background: #584f43; }
+.tpc-dropdown-disabled { color: #9f9f9f; cursor: default; }
 ::-webkit-scrollbar { width: 16px; height: 16px; background: #0e0e0c url("skin/ScrollTrack.png") repeat-y; }
 ::-webkit-scrollbar-button:vertical:decrement { height: 16px; background: #0e0e0c url("skin/ScrollUp.png") center no-repeat; }
 ::-webkit-scrollbar-button:vertical:increment { height: 16px; background: #0e0e0c url("skin/ScrollDown.png") center no-repeat; }

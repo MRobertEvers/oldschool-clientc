@@ -692,6 +692,17 @@ struct ToriRS_Objtype
     /** Base GE/alch value (cache opcode 12). The loot tracker's value column
      *  is cost*qty; CS2 reads it through OC_COST (cs2_command 4003). */
     int cost;
+    /** Grand Exchange tradeable: dat2 obj opcode 65 (reference ObjType
+     *  field5059). OC_FIND's second argument restricts a search to these. dat1
+     *  has no Grand Exchange and leaves it 0. */
+    int ge_tradeable;
+    /** Members-only: dat2 obj opcode 16 (reference ObjType field5030, read by
+     *  OC_MEMBERS). A note or placeholder answers for the item it stands for,
+     *  copied in once that item is resident (CacheProvider_ObjtypeGet). */
+    int members;
+    /** Bought-variant template: dat2 obj opcode 140, -1 when this is not a
+     *  bought variant. Such a record is never Grand Exchange tradeable. */
+    int bought_template;
     /** Shift-click inventory op, dat2 opcode 42 (reference ObjType field5070,
      *  read by OC_SHIFTCLICKIOP). A 0-based index into `inv_actions`, -1 for
      *  "this item has no shift-click op", and **-2 for "unstated"**, which is
@@ -877,6 +888,8 @@ struct ToriRS_Font
 struct ToriRS_Enum
 {
     int id;
+    /** The key type character (config opcode 1); 0 when the record has none. */
+    char input_type;
     bool output_is_string;
     int default_int;
     char* default_string;
@@ -898,6 +911,17 @@ struct ToriRS_Struct
     int id;
     struct ToriRS_Param* params;
     int param_count;
+};
+
+/**
+ * The base type of every VarClanType (config group 47): what a VARCLAN packet
+ * carries for the var and what PUSH_VARCLAN may read. Indexed by var id;
+ * -1 for an id with no record or no type.
+ */
+struct ToriRS_VarClanTypes
+{
+    signed char* base_type; /* 0 int, 1 long, 2 string */
+    int count;
 };
 
 struct ToriRS_ParamType

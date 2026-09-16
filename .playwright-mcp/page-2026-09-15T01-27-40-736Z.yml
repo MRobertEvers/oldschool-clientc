@@ -1,0 +1,207 @@
+- generic [active] [ref=f39e1]:
+  - link "Skip To Main Content" [ref=f39e2] [cursor=pointer]:
+    - /url: "#MainZone"
+  - banner [ref=f39e3]:
+    - generic [ref=f39e5]:
+      - button "Skip to Content" [ref=f39e6]
+      - button
+      - generic [ref=f39e8]:
+        - generic [ref=f39e9]:
+          - generic "Main Menu" [ref=f39e10] [cursor=pointer]
+          - link [ref=f39e11] [cursor=pointer]:
+            - /url: /
+            - img "C.M. Mose & Son" [ref=f39e12]
+          - link [ref=f39e13]:
+            - /url: tel:8163395190
+        - navigation [ref=f39e14]:
+          - list [ref=f39e15]:
+            - listitem [ref=f39e16]:
+              - generic "Close the Menu" [ref=f39e17] [cursor=pointer]:
+                - emphasis [ref=f39e18]: Close
+            - listitem [ref=f39e19]:
+              - generic [ref=f39e21]:
+                - emphasis [ref=f39e23]: Search
+                - searchbox "Search" [ref=f39e24]
+                - button "Search Our Site" [ref=f39e25] [cursor=pointer]
+          - navigation [ref=f39e27]:
+            - menu "Mobile Navigation" [ref=f39e28]:
+              - listitem [ref=f39e29]:
+                - menuitem "Electrical Services" [ref=f39e30] [cursor=pointer]
+                - generic "Open child menu of Electrical Services" [ref=f39e31] [cursor=pointer]
+              - listitem [ref=f39e32]:
+                - menuitem "Generators" [ref=f39e33] [cursor=pointer]
+                - generic "Open child menu of Generators" [ref=f39e34] [cursor=pointer]
+              - listitem [ref=f39e35]:
+                - menuitem "Cooling" [ref=f39e36] [cursor=pointer]
+                - generic "Open child menu of Cooling" [ref=f39e37] [cursor=pointer]
+              - listitem [ref=f39e38]:
+                - menuitem "Heating" [ref=f39e39] [cursor=pointer]
+                - generic "Open child menu of Heating" [ref=f39e40] [cursor=pointer]
+              - listitem [ref=f39e41]:
+                - menuitem "Plumbing" [ref=f39e42] [cursor=pointer]
+                - generic "Open child menu of Plumbing" [ref=f39e43] [cursor=pointer]
+              - listitem [ref=f39e44]:
+                - menuitem "Indoor Air Quality" [ref=f39e45] [cursor=pointer]
+                - generic "Open child menu of Indoor Air Quality" [ref=f39e46] [cursor=pointer]
+              - listitem [ref=f39e47]:
+                - menuitem "Other HVAC Services" [ref=f39e48] [cursor=pointer]
+                - generic "Open child menu of Other HVAC Services" [ref=f39e49] [cursor=pointer]
+              - listitem [ref=f39e50]:
+                - menuitem "About Us" [ref=f39e51] [cursor=pointer]
+                - generic "Open child menu of About Us" [ref=f39e52] [cursor=pointer]
+              - listitem [ref=f39e53]:
+                - menuitem "Apply For Financing" [ref=f39e54] [cursor=pointer]
+              - listitem [ref=f39e55]:
+                - menuitem "Careers" [ref=f39e56] [cursor=pointer]
+              - listitem [ref=f39e57]:
+                - menuitem "Areas We Serve" [ref=f39e58] [cursor=pointer]
+                - generic "Open child menu of Areas We Serve" [ref=f39e59] [cursor=pointer]
+              - listitem [ref=f39e60]:
+                - menuitem "Blog" [ref=f39e61] [cursor=pointer]
+                - generic "Open child menu of Blog" [ref=f39e62] [cursor=pointer]
+              - listitem [ref=f39e63]:
+                - menuitem "Coupons" [ref=f39e64] [cursor=pointer]
+              - listitem [ref=f39e65]:
+                - menuitem "Reviews" [ref=f39e66] [cursor=pointer]
+              - listitem [ref=f39e67]:
+                - menuitem "Contact" [ref=f39e68] [cursor=pointer]
+          - list [ref=f39e72]:
+            - listitem [ref=f39e73]:
+              - link "Contact Us" [ref=f39e74] [cursor=pointer]:
+                - /url: /contact/
+            - listitem [ref=f39e75]:
+              - link "Start Your Quote" [ref=f39e76] [cursor=pointer]:
+                - /url: /shop/
+          - generic [ref=f39e77]:
+            - strong [ref=f39e79]: Follow Us
+            - list [ref=f39e80]:
+              - listitem [ref=f39e81]:
+                - link "Facebook" [ref=f39e82] [cursor=pointer]:
+                  - /url: https://www.facebook.com/CMMoseAndSonInc/
+              - listitem [ref=f39e83]:
+                - link "LinkedIn" [ref=f39e84] [cursor=pointer]:
+                  - /url: https://www.linkedin.com/company/c.m.-mose-and-son/
+              - listitem [ref=f39e85]:
+                - link "YouTube" [ref=f39e86] [cursor=pointer]:
+                  - /url: https://www.youtube.com/user/CMMoseandSonInc
+              - listitem [ref=f39e87]:
+                - link "Google Business Profile" [ref=f39e88] [cursor=pointer]:
+                  - /url: https://www.google.com/maps?cid=4981014914537366212
+              - listitem [ref=f39e89]:
+                - link "Instagram" [ref=f39e90] [cursor=pointer]:
+                  - /url: https://www.instagram.com/cmmose/
+  - main [ref=f39e91]:
+    - generic [ref=f39e95]:
+      - generic [ref=f39e97]:
+        - heading "Thank You For Contacting Us" [level=1] [ref=f39e98]
+        - paragraph [ref=f39e99]: A member of our team will be in touch shortly to confirm your contact details or address questions you may have.
+      - link "Go Back Home" [ref=f39e102] [cursor=pointer]:
+        - /url: /
+  - contentinfo [ref=f39e103]:
+    - generic [ref=f39e105]:
+      - generic [ref=f39e106]:
+        - generic [ref=f39e107]:
+          - link [ref=f39e108] [cursor=pointer]:
+            - /url: /
+            - img "C.M. Mose & Son" [ref=f39e109]
+          - generic [ref=f39e110]:
+            - generic [ref=f39e111]: Contact
+            - link "816-339-5190" [ref=f39e112]:
+              - /url: tel:8163395190
+          - list [ref=f39e114]:
+            - listitem [ref=f39e115]:
+              - link [ref=f39e116] [cursor=pointer]:
+                - /url: https://www.southernhomeservices.com/
+                - img "Southern logo" [ref=f39e117]
+            - listitem
+            - listitem
+            - listitem
+        - navigation [ref=f39e119]:
+          - strong [ref=f39e121]: Links
+          - list [ref=f39e123]:
+            - listitem [ref=f39e124]:
+              - link "Electrical Services" [ref=f39e125] [cursor=pointer]:
+                - /url: /electrical-services/
+            - listitem [ref=f39e126]:
+              - link "Generators" [ref=f39e127] [cursor=pointer]:
+                - /url: /generators/
+            - listitem [ref=f39e128]:
+              - link "Cooling" [ref=f39e129] [cursor=pointer]:
+                - /url: /cooling/
+            - listitem [ref=f39e130]:
+              - link "Heating" [ref=f39e131] [cursor=pointer]:
+                - /url: /heating/
+            - listitem [ref=f39e132]:
+              - link "Indoor Air Quality" [ref=f39e133] [cursor=pointer]:
+                - /url: /indoor-air-quality/
+            - listitem [ref=f39e134]:
+              - link "About Us" [ref=f39e135] [cursor=pointer]:
+                - /url: /about-us/
+            - listitem [ref=f39e136]:
+              - link "Areas We Serve" [ref=f39e137] [cursor=pointer]:
+                - /url: /areas-we-serve/
+            - listitem [ref=f39e138]:
+              - link "Reviews" [ref=f39e139] [cursor=pointer]:
+                - /url: /reviews/
+            - listitem [ref=f39e140]:
+              - link "Contact" [ref=f39e141] [cursor=pointer]:
+                - /url: /contact/
+      - generic [ref=f39e142]:
+        - generic [ref=f39e143]:
+          - strong [ref=f39e145]: Locations
+          - list [ref=f39e146]:
+            - listitem [ref=f39e147]:
+              - strong [ref=f39e148]: Pleasant Valley Location
+              - generic [ref=f39e149]: 6603-E Royal Street Pleasant Valley, MO 64068
+              - link "Map & Directions" [ref=f39e150] [cursor=pointer]:
+                - /url: https://www.google.com/maps?cid=4981014914537366212
+        - generic [ref=f39e152]:
+          - strong [ref=f39e154]: Follow Us
+          - list [ref=f39e155]:
+            - listitem [ref=f39e156]:
+              - link "Facebook" [ref=f39e157] [cursor=pointer]:
+                - /url: https://www.facebook.com/CMMoseAndSonInc/
+            - listitem [ref=f39e158]:
+              - link "LinkedIn" [ref=f39e159] [cursor=pointer]:
+                - /url: https://www.linkedin.com/company/c.m.-mose-and-son/
+            - listitem [ref=f39e160]:
+              - link "YouTube" [ref=f39e161] [cursor=pointer]:
+                - /url: https://www.youtube.com/user/CMMoseandSonInc
+            - listitem [ref=f39e162]:
+              - link "Google Business Profile" [ref=f39e163] [cursor=pointer]:
+                - /url: https://www.google.com/maps?cid=4981014914537366212
+            - listitem [ref=f39e164]:
+              - link "Instagram" [ref=f39e165] [cursor=pointer]:
+                - /url: https://www.instagram.com/cmmose/
+    - generic [ref=f39e169]:
+      - generic [ref=f39e170]: C.M. Mose & Son is locally managed & operated.
+      - generic [ref=f39e171]: "Electrical (KS): 2026-0003324 Electrical (MO): 202058 Plumbing (KS): 2026-0003324"
+      - paragraph [ref=f39e172]: © 2026 All Rights Reserved.
+      - navigation [ref=f39e173]:
+        - menu "Footer Navigation" [ref=f39e174]:
+          - menuitem [ref=f39e175]:
+            - link "Site Map" [ref=f39e176] [cursor=pointer]:
+              - /url: /site-map/
+          - menuitem [ref=f39e177]:
+            - link "Privacy Policy" [ref=f39e178] [cursor=pointer]:
+              - /url: /privacy-policy/
+          - menuitem [ref=f39e179]:
+            - link "Site Search" [ref=f39e180] [cursor=pointer]:
+              - /url: /site-search/
+          - menuitem [ref=f39e181]:
+            - link "Terms and Conditions" [ref=f39e182] [cursor=pointer]:
+              - /url: /documents/CM-Mose-2025-T-Cs.pdf
+  - navigation [ref=f39e183]:
+    - generic [ref=f39e184] [cursor=pointer]: Connect
+    - button [ref=f39e186] [cursor=pointer]:
+      - img "bubble icon" [ref=f39e187]
+      - text: Text
+    - button [ref=f39e192] [cursor=pointer]:
+      - img "call us icon" [ref=f39e193]
+      - text: Call
+    - button "Email" [ref=f39e197] [cursor=pointer]
+  - complementary "Accessibility options" [ref=f39e201] [cursor=pointer]:
+    - button "Explore your accessibility options" [ref=f39e202]:
+      - generic [ref=f39e206]:
+        - generic [ref=f39e207]: 
+        - generic [ref=f39e208]: 

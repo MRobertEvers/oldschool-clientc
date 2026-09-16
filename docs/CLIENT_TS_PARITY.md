@@ -250,9 +250,15 @@ that tile is a hole onto the level below; the level above where it is
 VisBelow). Verified offline: `TORIRS_WORLD_BMP=1 --dat1` gathers 245 icons and
 the baked 256×256 minimap shows tree/rock/wall icons that were absent before.
 
-Still not done: NPC `minimap`-visible flag (all NPCs dot for now), friend
-dots (needs social lookup), hint arrows (`minimapDrawArrow` ring clamping),
-and the anticheat `macroMinimapAngle/Zoom` wobble (angle/zoom sent as 0).
+Still not done: friend dots (needs social lookup) and the anticheat
+`macroMinimapAngle/Zoom` wobble (angle/zoom sent as 0). The NPC
+`minimap`-visible flag is honoured now (with `interactable`, its other half),
+and so is the hint arrow, including `drawMinimapHint`'s ring clamping —
+`mapmarker` frame 1 on the subject inside 65 px, the `mapedge` arrow turned
+toward it on the rim out to 300, nothing past that, the whole thing blinking
+ten cycles in twenty. Both lanes: the radii differ because the references' do
+(Client.ts hard-codes 63/57 against its fixed map, rev 239 derives one from the
+map widget's width).
 
 **Three fixes this session (the "minimap always shows Lumbridge" bug):**
 

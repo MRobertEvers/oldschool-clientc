@@ -290,6 +290,45 @@ main(void)
     CHECK_EQ(window_width(window), 600 + RAIL_POINTS, "leaving fixed mode restores the resizable size");
     CHECK_EQ(take_resize_width(&bus), 600, "and pushes the game area, not the whole drawable");
 
+    /* ---- H. the lane's own pop-out column carries the plugins: no rail -- */
+    stage_window(platform, &bus, window, 0, 500);
+    PlatformWindow_ChromeSetRailHidden(platform, true);
+    CHECK(PlatformWindow_ChromeRailHidden(platform), "the rail reports hidden");
+    CHECK_EQ(window_width(window), 500, "hiding a rail that was carved leaves the window alone");
+    CHECK_EQ(PlatformWindow_ChromeWidth(platform), 0, "a hidden rail with no page is allocated nothing");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500, "the game area takes the whole window");
+
+    CHECK(PlatformWindow_ChromeOpen(platform, 360, 480, "Plugins"), "a page opens with the rail hidden");
+    CHECK_EQ(window_width(window), 500 + 360, "the window grows by the page alone");
+    CHECK_EQ(PlatformWindow_ChromeWidth(platform), 360, "the pane is the page alone");
+    CHECK_EQ(PlatformWindow_ChromeRailWidth(platform), 0, "with no rail in it");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500, "the game area is untouched");
+
+    PlatformWindow_ChromeSetRailHidden(platform, false);
+    CHECK_EQ(window_width(window), 500 + 360, "showing the rail beside an open page does not move the window");
+    CHECK_EQ(PlatformWindow_ChromeWidth(platform), 360 + RAIL_POINTS, "the pane takes the rail back");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500 - RAIL_POINTS, "from the game area");
+    PlatformWindow_ChromeSetRailHidden(platform, true);
+    CHECK_EQ(window_width(window), 500 + 360, "nor does hiding it again");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500, "and the game area gets the rail's points back");
+
+    PlatformWindow_ChromeClose(platform);
+    CHECK_EQ(window_width(window), 500, "Close gives back the page");
+    CHECK_EQ(PlatformWindow_ChromeWidth(platform), 0, "and leaves no rail behind");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500, "the game area has the whole window");
+
+    CHECK(PlatformWindow_ChromeRailOpen(platform, RAIL_POINTS, "Plugins"), "a rail asked for while hidden is accepted");
+    CHECK_EQ(window_width(window), 500, "but not shown");
+    CHECK_EQ(PlatformWindow_ChromeWidth(platform), 0, "and allocated nothing");
+
+    PlatformWindow_ChromeSetRailHidden(platform, false);
+    CHECK_EQ(window_width(window), 500 + RAIL_POINTS, "showing it again grows the window where there is room");
+    CHECK_EQ(PlatformWindow_ChromeWidth(platform), RAIL_POINTS, "at the width it was asked");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500, "the game area is untouched");
+    PlatformWindow_ChromeSetRailHidden(platform, true);
+    CHECK_EQ(window_width(window), 500, "hiding a rail that grew the window gives the growth back");
+    CHECK_EQ(poll_resize_width(platform, &bus), 500, "and the game area stays");
+
     PlatformWindow_Free(platform);
     if( failures )
     {

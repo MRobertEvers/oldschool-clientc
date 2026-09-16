@@ -1610,6 +1610,82 @@ interaction_reach_position(
 }
 
 /*
+ * Does this interaction START an attack?
+ *
+ * The verb comes off the npc's own cache record — the same five ops the client
+ * built its right-click menu from — so a guard's Attack on op 1 and a goblin's
+ * on op 2 are both found without a list to keep in step. A targeted cast counts
+ * as well: the reference gates the *fight*, not the weapon, and a spell aimed
+ * at a monster is an attack on it.
+ */
+static int
+interaction_is_attack(const struct ToriRSServerInteraction* interaction)
+{
+    const struct ToriRSServerNpcInfo* info;
+    const char* verb;
+
+    if( interaction->kind != TORIRSSERVER_INTERACT_NPC || interaction->use_on )
+        return 0;
+    if( interaction->npc_slot < 0 || interaction->npc_slot >= TORIRSSERVER_NPC_MAX )
+        return 0;
+    if( interaction->spell )
+        return 1;
+    if( interaction->op < 1 || interaction->op > 5 )
+        return 0;
+    info = ToriRSServer_NpcInfo(interaction->target_id);
+    verb = info->ops[interaction->op - 1];
+    return verb && strcmp(verb, TORIRSSERVER_VERB_ATTACK) == 0;
+}
+
+/*
+ * Single-way combat, asked WHERE THE ATTACK WOULD START rather than at the
+ * click that asked for it.
+ *
+ * This used to be asked in `handle_opnpc`, on the packet, and the refusal
+ * dropped the click on the floor: the player did not turn, did not move, and
+ * the message arrived out of nowhere. That is not what the reference does. An
+ * Attack click is an interaction like every other one — it latches, it faces,
+ * it walks — and the refusal belongs at the rung where the fight would actually
+ * begin, which is content's `[label,player_combat_start]`: reached from
+ * `[apnpc2,_]` once a bow or a cast is within its own reach, and from
+ * `[opnpc2,_]` on melee adjacency. So a player already under attack walks all
+ * the way to the monster they clicked (or merely turns to it, with a weapon
+ * that out-ranges melee) and is told there.
+ *
+ * Both rungs call this and only one of them can fire, because the interaction
+ * is cleared here. The clear is also what stops the message repeating every
+ * tick the player stands there.
+ */
+static int
+interaction_attack_refused(struct ToriRSServer* srv)
+{
+    struct ToriRSServerPlayer* player = srv->active_player;
+
+    if( !interaction_is_attack(&player->interaction) )
+        return 0;
+    if( !ToriRSServer_CombatSinglewayRefuses(srv, player, player->interaction.npc_slot) )
+        return 0;
+    /*
+     * Turn to them before letting go of them.
+     *
+     * The latch is ordinarily derived once a turn, at the top of `phase_player`
+     * and ahead of the interaction — so a walk faces the monster for every tick
+     * of the approach without anything here. The path that does NOT is the
+     * packet handler's own immediate `ToriRSServer_WorldProcessInteraction`: a
+     * bow or a cast already in range resolves inside it, on the tick the click
+     * arrived, and the clear below would leave the next derivation with nothing
+     * to read. Refusing to attack somebody while facing the other way is the
+     * same "the click did nothing" this whole seam exists to remove.
+     */
+    ToriRSServer_PlayerSetFaceEntity(player);
+    steps_clear(player);
+    player->dest_x = -1;
+    player->dest_z = -1;
+    ToriRSServer_WorldInteractionClear(srv);
+    return 1;
+}
+
+/*
  * LostCity Player.tryInteract — AP then OP against live target coords. No path
  * mutation except clear-on-success.
  *
@@ -1702,6 +1778,22 @@ interaction_try(
         }
         if( ap_ok )
         {
+            /*
+             * Single-way refuses a fight that would start from HERE. A bow, a
+             * crossbow or a targeted cast resolves at range, so this rung *is*
+             * their arrival and the message belongs on it.
+             *
+             * Melee never reaches it: `ToriRSServer_CombatAtRangeReady` answers 0
+             * for a reach of 1 or less, and a melee click carries no spell. So
+             * the walk to adjacency is untouched and the op rung below is the
+             * one that asks — which is the whole point, since "path the player,
+             * then tell them" is what a melee refusal looks like.
+             */
+            if( interaction_is_attack(interaction) &&
+                (interaction->spell ||
+                 ToriRSServer_CombatAtRangeReady(srv, interaction->npc_slot)) &&
+                interaction_attack_refused(srv) )
+                return 1;
             interaction->ap_tried = 1;
             /* Cleared before the script rather than after, because it is the
              * script that sets it — `PathingEntity` resets it at the top of
@@ -1790,6 +1882,12 @@ interaction_try(
          interaction->kind == TORIRSSERVER_INTERACT_OBJ) &&
         !allow_op_scenery )
         return 0;
+
+    /* Single-way, the melee half: the walk has arrived, so this is where the
+     * swing would have been — ahead of the claim proc and every trigger below,
+     * so a refused fight runs none of content's combat start. */
+    if( interaction_attack_refused(srv) )
+        return 1;
 
     {
         int op_num = interaction->op;
@@ -3588,6 +3686,10 @@ npc_spawn(
         /* Explicit for the same reason as `combat_target` beside it: the memset
          * above makes it 0, and 0 is npc slot zero. */
         npc->combat_target_npc = -1;
+        /* Explicit for the same reason: 0 is player pool slot zero, so a fresh
+         * npc would spawn already claimed by whoever logged in first. See the
+         * field. */
+        npc->combat_claim_pid = -1;
         npc->death_tick = -1;
         npc->respawn_tick = -1;
         /* Explicit, because the memset above makes it 0 and 0 is a *tick*:
@@ -6266,6 +6368,25 @@ handle_opnpc(
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- OPNPC%d slot=%d type=%d\n", op_num, slot, npc->type);
 
+    /*
+     * Single-way combat is deliberately NOT asked here.
+     *
+     * It used to be, on this packet, and the refusal returned — so a player
+     * already in a fight who clicked a second monster neither turned nor moved,
+     * and the message appeared with nothing to attach it to. The reference
+     * refuses the *attack*, not the click: the interaction latches, the player
+     * faces the monster and walks to it, and `interaction_attack_refused` says
+     * the line at the rung where the fight would have started (melee
+     * adjacency, or the weapon's own reach for a bow or a cast).
+     *
+     * The consequence is the reference's too, and it is the one players feel:
+     * the click DOES abandon the fight already running, because
+     * `ToriRSServer_WorldClearPendingAction` below is what every other click
+     * does. Misclicking onto a second monster in singles stops you attacking
+     * the first one and walks you over to be told why you cannot attack the
+     * second.
+     */
+
     /* A new interaction ends the old one — including the facing, and including
      * a dialogue still on screen from the last one. Combat is re-established by
      * the engine handler if this op is "Attack".
@@ -6895,6 +7016,20 @@ handle_opnpct(
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- OPNPCT slot=%d type=%d spell=%d|%d\n", slot, npc->type,
                 (spell >> 16) & 0xffff, spell & 0xffff);
+
+    /*
+     * Single-way applies to a spell as much as to a sword — a cast is an
+     * attack, and the reference's gate is on the fight rather than on the
+     * weapon. It is asked where the Attack click's is, at the ap rung
+     * (`interaction_attack_refused`), so a refused cast turns the caster toward
+     * the target and answers at spell range instead of dropping the click.
+     *
+     * Every npc-targeted spell, not only the combat book's: this tree has no
+     * flag on a spell that says which are attacks, and the ones that are not
+     * (a cure, a charge) are cast on a player or a loc rather than on a
+     * monster. A refusal therefore costs nothing that a player could otherwise
+     * have done to a monster they are not allowed to attack.
+     */
 
     info = ToriRSServer_NpcInfo(npc->type);
     spell_interact(srv, TORIRSSERVER_INTERACT_NPC, slot, npc->type, npc->x, npc->z, npc->level,
@@ -12123,6 +12258,9 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     player->x = g_home_x;
     player->z = g_home_z;
     player->combat_target = -1;
+    /* Explicit for the same reason as `combat_target` beside it: 0 is npc slot
+     * zero, and a fresh login must not arrive holding a claim on it. */
+    player->combat_claim_npc = -1;
     player->level = 0;
     player->last_step_x = player->x - 1;
     player->last_step_z = player->z;
