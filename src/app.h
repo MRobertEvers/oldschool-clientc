@@ -245,11 +245,27 @@ enum AppPluginRowKind
 /*
  * HINT_ARROW's `type` byte: what the packet's `id`/`z` fields mean.
  *
- * The reference's own values. 255 means "clear" and is normalised to 0 by
- * `rs_gameproto_exec.c`, so 0 here is simply "no arrow" and needs no name.
+ * The reference's own values -- `PktHintArrow` states them, LostCity's
+ * `HintArrowEncoder` writes them and rev 239's own `class268.method6676`
+ * reads them: 1 is an NPC slot, 2..6 a tile, 10 a player pid. 255 means
+ * "clear" and is normalised to 0 by `rs_gameproto_exec.c`, so 0 here is
+ * simply "no arrow" and needs no name.
+ *
+ * These were 1=coord/2=npc until 2026-09-15, which no lane agreed with: the
+ * embedded server mirrored the same two wrong numbers, so the pair only ever
+ * talked to itself, and a real rev289 server pointing at an npc put the arrow
+ * over whatever tile the slot number happened to name.
+ *
+ * The five tile forms differ only in where INSIDE the tile the arrow floats,
+ * which the wire says by the type itself and the client keeps as a fine-unit
+ * offset pair; `_COORD` is the centred one and the others normalise to it.
  */
-#define APP_HINT_ARROW_COORD 1
-#define APP_HINT_ARROW_NPC 2
+#define APP_HINT_ARROW_NPC 1
+#define APP_HINT_ARROW_COORD 2
+#define APP_HINT_ARROW_COORD_WEST 3
+#define APP_HINT_ARROW_COORD_EAST 4
+#define APP_HINT_ARROW_COORD_SOUTH 5
+#define APP_HINT_ARROW_COORD_NORTH 6
 #define APP_HINT_ARROW_PLAYER 10
 
 #define APP_PLUGIN_HIGHLIGHTS_MAX 256
@@ -2231,12 +2247,18 @@ struct App
      */
     struct
     {
-        /** APP_HINT_ARROW_COORD / _NPC / _PLAYER. 0 is none; the wire's 255 is
-         *  normalised to 0 on the way in. */
+        /** APP_HINT_ARROW_NPC / _COORD / _PLAYER. 0 is none; the wire's 255
+         *  is normalised to 0 on the way in, and the four off-centre tile
+         *  forms to _COORD plus the offsets below. */
         int type;
         int target; /* npc slot, player pid, or the absolute tile x */
         int tile_z;
         int height;
+        /** Where in the tile a _COORD arrow floats, in fine units (64 is the
+         *  centre). Meaningless for the two entity forms, which follow the
+         *  entity. */
+        int offset_x;
+        int offset_z;
     } hint_arrow;
     /** SET_PLAYER_OP rows for the player context menu (slot 1..5 -> [0..4]). */
     char player_ops[5][40];

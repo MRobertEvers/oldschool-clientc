@@ -1706,6 +1706,14 @@ test-cs2-discard: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 		cs2vm2/test/discard_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_discard_ops_test
 
+# CHILDREN_FINDNEXTID (214) - the iterator step proc 8490 loops on. Own .PHONY
+# line for the same reason as the targets above it.
+.PHONY: test-cs2-children-findnextid
+test-cs2-children-findnextid: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_children_findnextid_test \
+		cs2vm2/test/children_findnextid_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_children_findnextid_test
+
 .PHONY: test-cs2-opcode-groups
 test-cs2-opcode-groups: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_opcode_group_test \

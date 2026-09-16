@@ -381,6 +381,119 @@ test_the_dot_buffer_hands_out_blank_slots(void)
     TEST_ASSERT(dots.count == MINIMAP_DOTS_MAX, "and does not grow the frame");
 }
 
+/*
+ * The hint's three bands.
+ *
+ * The middle one is the whole reason a hint is not a dot: a subject off the
+ * map still has a direction, and the reference spends an arrow on saying so.
+ * Collapse the bands into "on the map or not" and a player told to go
+ * somewhere twenty tiles off gets no answer at all from the map -- which is
+ * the case where they most need one.
+ */
+static void
+test_the_hint_bands_are_the_references_own(void)
+{
+    printf("TEST: a hint is marked, pointed at, or dropped, by distance\n");
+
+    /* 64 pixels out: inside 65, so the marker sits on the subject. */
+    TEST_ASSERT(
+        MinimapView_HintBand(64 * MINIMAP_FINE_PER_PIXEL, 0) == MINIMAP_HINT_ON_MAP,
+        "a near subject is marked where it is");
+    /* 66: past the marker band but nowhere near the far one. Note this is
+     * INSIDE the dot ring (80) -- the hint gives up on the marker earlier than
+     * a dot does, so it never half-hides one under the map's frame. */
+    TEST_ASSERT(
+        MinimapView_HintBand(66 * MINIMAP_FINE_PER_PIXEL, 0) == MINIMAP_HINT_ON_RIM,
+        "a subject just off the marker band gets the rim arrow");
+    TEST_ASSERT(
+        MinimapView_HintBand(299 * MINIMAP_FINE_PER_PIXEL, 0) == MINIMAP_HINT_ON_RIM,
+        "and still does at 299 pixels");
+    TEST_ASSERT(
+        MinimapView_HintBand(300 * MINIMAP_FINE_PER_PIXEL, 0) == MINIMAP_HINT_UNSHOWN,
+        "at 300 the map stops claiming to know");
+    /* Diagonals are the same circle, not a square: 212,212 is 299 away. */
+    TEST_ASSERT(
+        MinimapView_HintBand(212 * MINIMAP_FINE_PER_PIXEL, 212 * MINIMAP_FINE_PER_PIXEL) ==
+            MINIMAP_HINT_ON_RIM,
+        "the bands are rings, so a diagonal is measured as one");
+}
+
+/*
+ * Where the rim arrow lands, and which way it faces.
+ *
+ * One angle does both jobs, so an error in it is doubly wrong: the arrow moves
+ * to the wrong side of the map AND points somewhere else again. Both are
+ * plausible pictures, which is why these are the four compass points rather
+ * than an eyeball.
+ */
+static void
+test_the_rim_arrow_points_the_way_it_sits(void)
+{
+    struct MinimapRotation const north = facing_north();
+    int dx, dy, rotate;
+    int const w = 31, h = 31;
+    int const far = 100 * MINIMAP_FINE_PER_PIXEL;
+
+    printf("TEST: the rim arrow sits toward its subject and turns to face it\n");
+
+    /* Due north of the player. The sprite is authored pointing up and the blit
+     * turns it clockwise, so north is no rotation at all. */
+    MinimapView_PlaceRimMarker(&north, 0, far, w, h, 60, 60, &dx, &dy, &rotate);
+    TEST_ASSERT(dx == -w / 2, "a subject due north puts the arrow on the centre line");
+    TEST_ASSERT(dy == -60 - 10 - h / 2, "at the rim above the centre, raised by the reference's ten");
+    TEST_ASSERT(rotate == 0, "and the art needs no turn to point north");
+
+    MinimapView_PlaceRimMarker(&north, far, 0, w, h, 60, 60, &dx, &dy, &rotate);
+    TEST_ASSERT(dx == 60 - w / 2, "due east puts it on the right");
+    TEST_ASSERT(dy == -10 - h / 2, "level with the centre");
+    TEST_ASSERT(rotate == 512, "turned a quarter clockwise to point east");
+
+    MinimapView_PlaceRimMarker(&north, 0, -far, w, h, 60, 60, &dx, &dy, &rotate);
+    TEST_ASSERT(dx == -w / 2 && dy == 60 - 10 - h / 2, "due south puts it below");
+    TEST_ASSERT(rotate == 1024, "pointing down-screen");
+
+    /* West is the case a bare mask would get wrong: the bearing is negative,
+     * and a rotation that comes out negative is not an angle the blit can
+     * use. */
+    MinimapView_PlaceRimMarker(&north, -far, 0, w, h, 60, 60, &dx, &dy, &rotate);
+    TEST_ASSERT(dx == -60 - w / 2 && dy == -10 - h / 2, "due west puts it on the left");
+    TEST_ASSERT(rotate == 1536, "wrapped forward rather than left negative");
+}
+
+/* The two radii are separate because the 2004 reference's are, and a map that
+ * is not square would otherwise push the arrow off one pair of sides. */
+static void
+test_the_rim_radii_are_independent(void)
+{
+    struct MinimapRotation const north = facing_north();
+    int dx, dy, rotate;
+    int const far = 100 * MINIMAP_FINE_PER_PIXEL;
+
+    printf("TEST: the rim is an ellipse when the reference says it is\n");
+
+    MinimapView_PlaceRimMarker(&north, far, 0, 0, 0, 63, 57, &dx, &dy, &rotate);
+    TEST_ASSERT(dx == 63, "east uses the across radius");
+    MinimapView_PlaceRimMarker(&north, 0, far, 0, 0, 63, 57, &dx, &dy, &rotate);
+    TEST_ASSERT(dy == -57 - 10, "north uses the down one");
+}
+
+/* The arrow lives on the MAP, so it turns with the map and not with the world:
+ * a subject due north of the player is to the player's right once the camera
+ * has swung a quarter turn, and the arrow has to move AND re-aim. */
+static void
+test_a_turned_map_turns_the_rim_arrow(void)
+{
+    struct MinimapRotation const quarter = turned_quarter();
+    int dx, dy, rotate;
+    int const far = 100 * MINIMAP_FINE_PER_PIXEL;
+
+    printf("TEST: the rim arrow turns with the map under it\n");
+
+    MinimapView_PlaceRimMarker(&quarter, 0, far, 0, 0, 60, 60, &dx, &dy, &rotate);
+    TEST_ASSERT(dx == 60 && dy == -10, "north swings to the map's right");
+    TEST_ASSERT(rotate == 512, "and the art swings with it");
+}
+
 int
 main(void)
 {
@@ -400,6 +513,10 @@ main(void)
     test_the_flag_moves_with_a_reloaded_scene();
     test_a_flag_left_behind_is_dropped();
     test_the_dot_buffer_hands_out_blank_slots();
+    test_the_hint_bands_are_the_references_own();
+    test_the_rim_arrow_points_the_way_it_sits();
+    test_the_rim_radii_are_independent();
+    test_a_turned_map_turns_the_rim_arrow();
 
     if( g_failures )
     {

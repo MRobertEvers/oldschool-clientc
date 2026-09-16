@@ -217,7 +217,7 @@ app_cs2_coord_in_scene(
 }
 
 /*
- * OBJSTACK_COUNT / OBJSTACK_ID / OBJSTACK_QUANTITY, and OBJ_FIND's lookup:
+ * OBJSTACK_COUNT / OBJSTACK_ID / OBJSTACK_QUANTITY, and OBJ_FINDBYINDEX's lookup:
  * the ground-item pile on one absolute coord.
  *
  * `Client::GetObjectsOnTile` in the reference, which answers an EMPTY pile for

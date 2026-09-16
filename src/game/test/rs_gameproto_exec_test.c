@@ -88,7 +88,7 @@ main(void)
         assert(App_IfEventsGetAt(event_app, component, 0) == mask);
         assert(App_IfEventsGetAt(event_app, component, 27) == mask);
         assert(App_IfEventsGetAt(event_app, component, 28) == 0);
-        free(event_app->if_events);
+        UIIfEventTable_Free(&event_app->if_events);
         free(event_app);
         printf("ok - IF_SETEVENTS ranged sub-id lookup\n");
     }
@@ -123,7 +123,7 @@ main(void)
         App_IfEventsSet(event_app, component, -1, -1, 2);
         assert(App_IfEventsGetEffective(event_app, component) == 2);
 
-        free(event_app->if_events);
+        UIIfEventTable_Free(&event_app->if_events);
         free(event_app);
         UITree_Free(event_tree);
         printf("ok - rev239 WidgetFlags override/fallback lookup\n");
@@ -443,6 +443,80 @@ main(void)
     }
 
     /*
+     * HINT_ARROW: the type byte says what the other three fields MEAN, so a
+     * client holding the wrong numbers does not draw a wrong-looking arrow --
+     * it reads an npc slot as a tile coordinate and points at the map's
+     * corner. Nothing on screen says which of the two it did.
+     *
+     * The values are the wire's (LostCity's `HintArrowEncoder` writes them,
+     * rev 239's `class268.method6676` reads them) and this client had 1 and 2
+     * the other way round, agreeing only with its own server.
+     */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        struct RevPacket p;
+        assert(app);
+        ctx.app = app;
+
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_HINT_ARROW;
+        p._hint_arrow.type = 1;
+        p._hint_arrow.id = 41;
+        RS_GameProto_Exec(&ctx, &p);
+        TEST_EXEC_ASSERT(
+            app->hint_arrow.type == APP_HINT_ARROW_NPC, "type 1 is an npc slot");
+        TEST_EXEC_ASSERT(app->hint_arrow.target == 41, "and the slot is the id");
+
+        p._hint_arrow.type = 10;
+        p._hint_arrow.id = 7;
+        RS_GameProto_Exec(&ctx, &p);
+        TEST_EXEC_ASSERT(
+            app->hint_arrow.type == APP_HINT_ARROW_PLAYER, "type 10 is a player pid");
+
+        /* The five tile forms are one form with five anchors. Left as five
+         * types, every pass that draws a hint would have to know all five --
+         * so the exec folds them here and hands on a fine-unit offset. */
+        p._hint_arrow.type = 2;
+        p._hint_arrow.id = 3200;
+        p._hint_arrow.z = 3300;
+        p._hint_arrow.height = 60;
+        RS_GameProto_Exec(&ctx, &p);
+        TEST_EXEC_ASSERT(
+            app->hint_arrow.type == APP_HINT_ARROW_COORD, "type 2 is an absolute tile");
+        TEST_EXEC_ASSERT(
+            app->hint_arrow.target == 3200 && app->hint_arrow.tile_z == 3300,
+            "carried as x and z, not as one packed coord");
+        TEST_EXEC_ASSERT(app->hint_arrow.height == 60, "with the height byte");
+        TEST_EXEC_ASSERT(
+            app->hint_arrow.offset_x == 64 && app->hint_arrow.offset_z == 64,
+            "and anchored at the tile's centre");
+
+        p._hint_arrow.type = 3;
+        RS_GameProto_Exec(&ctx, &p);
+        TEST_EXEC_ASSERT(
+            app->hint_arrow.type == APP_HINT_ARROW_COORD, "type 3 folds to the same form");
+        TEST_EXEC_ASSERT(
+            app->hint_arrow.offset_x == 0 && app->hint_arrow.offset_z == 64,
+            "anchored to the tile's west edge");
+
+        p._hint_arrow.type = 6;
+        RS_GameProto_Exec(&ctx, &p);
+        TEST_EXEC_ASSERT(
+            app->hint_arrow.offset_x == 64 && app->hint_arrow.offset_z == 128,
+            "and type 6 to its north one");
+
+        /* 255 clears. Normalised on the way in so 0 means "no arrow" for every
+         * pass downstream, rather than each one knowing the sentinel. */
+        p._hint_arrow.type = 255;
+        RS_GameProto_Exec(&ctx, &p);
+        TEST_EXEC_ASSERT(app->hint_arrow.type == 0, "255 is the clear");
+
+        ctx.app = NULL;
+        free(app);
+        printf("ok - HINT_ARROW reads the wire's own type numbers\n");
+    }
+
+    /*
      * A LOC_ANIM in the same zone update as a LOC_ADD_CHANGE for the same tile
      * must apply AFTER it.
      *
@@ -512,7 +586,7 @@ main(void)
                 "MINIMAP_TOGGLE must parse");
             assert(p._minimap_toggle.state == 2);
             RS_GameProto_Exec(&ctx, &p);
-            assert(app->minimap_state == APP_MINIMAP_STATE_HIDDEN_UNCLICKABLE);
+            assert(app->minimap_state == APP_MINIMAP_STATE_HIDDEN);
             assert(app->need_redraw == 1);
         }
         printf("ok - MINIMAP_TOGGLE decodes and reaches the client\n");

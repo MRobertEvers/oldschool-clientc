@@ -515,7 +515,7 @@ One hazard worth naming because it is invisible: the hitmark block is a
 byte goes out. An extra quadruple written after a count that did not include it
 does not draw an extra icon — it shifts every extended block after it.
 
-### 6. This cache has no edge-of-screen hint arrows
+### 6. This cache has no edge-of-SCREEN hint arrows — but its other two hint packs are the MINIMAP's
 
 The previous pass left these undone on the grounds that the reference's rule for
 which edge, and where along it, was not cheaply readable out of the Ghidra
@@ -530,18 +530,36 @@ arrow in outline. **Frames 2..5 are entirely transparent.**
     --list --probe headicons_hint
 ```
 
-The reference's edge form comes from a different pack —
-`GraphicsDefaults::GetSpriteHintMapEdgeID`, beside `...HintMapMarkersID` — and
-this cache's sprite gameval table names no such group. So there is no edge
-arrow to draw here, and the honest state is "this cache does not ship one"
-rather than "not implemented yet". The code comment says so, with the command to
-re-check it.
+So there is no screen-edge form to draw, and the honest state is "this cache
+does not ship one" rather than "not implemented yet".
+
+**Corrected 2026-09-15.** This section used to go on to say that the reference's
+other two hint packs —`GraphicsDefaults::GetSpriteHintMapMarkersID` and
+`...HintMapEdgeID` — were named nowhere in this cache's sprite gameval table.
+They are, and they are not screen assets at all: they are the MINIMAP's, and
+both were already declared in `revconfig/osrs239/osrs239_dat2_cache.ini` under
+the names this client's static-sprite table uses.
+
+```sh
+3rd/rscache/tools/spritebake/spritebake --rev osrs239 cache.osrs239 \
+    --list --probe mapmarker,mapedge
+#   mapmarker  -> archive 422  frames 4  15x30
+#   mapedge    -> archive 424  frames 1  31x31
+```
+
+`mapmarker` frame 0 is the red destination flag and **frame 1 is the yellow
+hint arrow**; `mapedge` is the red arrow the reference clamps to the map's rim
+when the hint's subject is off the map. Both are drawn now — see
+`App_MinimapBuildDots` and section 3 of `docs/CLIENT_TS_PARITY.md`. The claim
+survived because the pass that wrote it was looking for a SCREEN-edge asset and
+read "no such group" off the one probe it ran.
 
 ## What is still not done, precisely
 
 - **Edge-of-screen hint arrows** are not a gap: the assets are absent from this
   cache (above). A cache that ships them would need the reference's placement
-  rule, which is still unread.
+  rule, which is still unread. The map-edge arrow, which IS in this cache and
+  is a different thing, is drawn.
 - **The world-map marker uses the synthesised flash disc**, not a cache asset.
   `worldmap_marker_0..8` are the PLAYER-PLACED markers — reusing one would make a
   server hint indistinguishable from the player's own note to themselves — and

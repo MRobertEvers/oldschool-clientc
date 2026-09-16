@@ -3,7 +3,7 @@
 #define CS2_OPCODE_H
 
 #define CS2_OPCODE_MAX 8024
-#define CS2_OPCODE_COUNT 985
+#define CS2_OPCODE_COUNT 1254
 
 #define CS2_OP_SS_AND -2
 #define CS2_OP_SS_OR -1
@@ -261,6 +261,8 @@
  * notes: varc_string[operand] = value
  */
 #define CS2_OP_POP_VARC_STRING 50
+#define CS2_OP_PUSH_VARC_LONG 51
+#define CS2_OP_POP_VARC_LONG 52
 /* SWITCH — Switch jump.
  * int stack in:   key
  * str stack in:   -
@@ -269,7 +271,17 @@
  * notes: pc = case target or fall through
  */
 #define CS2_OP_SWITCH 60
+#define CS2_OP_PUSH_CONSTANT_LONG 61
+#define CS2_OP_POP_LONG_DISCARD 62
 #define CS2_OP_PUSH_CONSTANT_NULL 63
+#define CS2_OP_PUSH_LONG_LOCAL 66
+#define CS2_OP_POP_LONG_LOCAL 67
+#define CS2_OP_LONG_BRANCH_NOT 68
+#define CS2_OP_LONG_BRANCH_EQUALS 69
+#define CS2_OP_LONG_BRANCH_LESS_THAN 70
+#define CS2_OP_LONG_BRANCH_GREATER_THAN 71
+#define CS2_OP_LONG_BRANCH_LESS_THAN_OR_EQUALS 72
+#define CS2_OP_LONG_BRANCH_GREATER_THAN_OR_EQUALS 73
 #define CS2_OP_PUSH_VARCLANSETTING 74
 #define CS2_OP_PUSH_VARCLAN 76
 /* BRANCH_IF_ONE — RS2-era (rev 634) conditional branch.
@@ -364,13 +376,29 @@
 #define CS2_OP_CC_CHILDREN_FINDNEXTID 204
 #define CS2_OP_IF_CHILDREN_FIND 205
 #define CS2_OP_IF_CHILDREN_FINDNEXTID 206
+#define CS2_OP_CC_FIND_PREV_SIBLING 207
+#define CS2_OP_CC_CHILDCOUNT 208
 #define CS2_OP_CC_PARENTID 209
 #define CS2_OP_CC_FIND_PARAM 210
 #define CS2_OP_IF_CHILDREN_COLLECT 211
 #define CS2_OP_CC_CHILDREN_FIND_COUNT 212
 #define CS2_OP_CC_CHILDREN_FINDNEXT 213
 #define CS2_OP__213 213
+/* CHILDREN_FINDNEXTID — Advance the children iterator and push the next child sub-id.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  next collected sub-id, or -1 once the iterator is exhausted
+ * str stack out:  -
+ * notes: Opcode 214. rev-239 Statics.method7953(class332): `cursor >= count ? -1 : ids[cursor++]` over the id list that IF_CHILDREN_COLLECT (211) and CC_CHILDREN_FIND_COUNT (212) fill. It shares that cursor with CC_CHILDREN_FINDNEXT (213), which resolves the same id to a component and makes it active instead of pushing it.
+ */
+#define CS2_OP_CHILDREN_FINDNEXTID 214
 #define CS2_OP_CHILDREN_ARRAY 215
+#define CS2_OP_IF_QUERY_REFINE 216
+#define CS2_OP_CC_FIND_CHILD 217
+#define CS2_OP_CC_FIND_FIRST_SIBLING 218
+#define CS2_OP_CC_FIND_LAST_SIBLING 219
+#define CS2_OP_CC_FIND_FIRST_CHILD 220
+#define CS2_OP_CC_FIND_LAST_CHILD 221
 #define CS2_OP_CC_ASSERT 222
 
 /* === CS2 opcode group: component-layout (1000..1099 / 2000..2099) ===
@@ -539,6 +567,9 @@
  */
 #define CS2_OP_CC_SETARC 1128
 #define CS2_OP_CC_SETHTTPSPRITE 1129
+#define CS2_OP_CC_CRMVIEW_INIT 1130
+#define CS2_OP_CC_CRMVIEW_SETTEXTFONT 1131
+#define CS2_OP_CC_CRMVIEW_SETSERVERTARGETS 1132
 #define CS2_OP_CC_INPUT_SETSUBMITMODE 1133
 #define CS2_OP_CC_INPUT_SETSELECTCOLOUR 1134
 #define CS2_OP_CC_INPUT_SETACCEPTMODE 1135
@@ -553,6 +584,11 @@
 #define CS2_OP_CC_INPUT_SETCURSOROFFSET 1144
 #define CS2_OP_CC_INPUT_SETLINEWIDTHLIMIT 1145
 #define CS2_OP_CC_INPUT_SETCHARFILTER 1146
+#define CS2_OP_CC_INPUT_SETCENSORMODE 1147
+#define CS2_OP_CC_INPUT_SETKEYMODE 1148
+#define CS2_OP_CC_INPUT_SETCHARMODE 1149
+#define CS2_OP_CC_CRMVIEW_SETJSON 1150
+#define CS2_OP_CC_CRMVIEW_INIT_V2 1151
 #define CS2_OP_CC_CRMVIEW_DISMISS 1152
 
 /* === CS2 opcode group: component-model (1200..1299 / 2200..2299) ===
@@ -590,6 +626,9 @@
  * str stack out:  -
  */
 #define CS2_OP_CC_SETOBJECT_NONUM 1205
+#define CS2_OP_CC_SETPLAYERMODEL_OBJ 1208
+#define CS2_OP_CC_SETPLAYERMODEL_BASECOLOUR 1209
+#define CS2_OP_CC_SETPLAYERMODEL_BODYTYPE 1210
 /* CC_SETOBJECT_ALWAYS_NUM — Set object icon always showing qty.
  * int stack in:   obj_count, obj_id  (obj_id = top)
  * str stack in:   -
@@ -597,7 +636,9 @@
  * str stack out:  -
  */
 #define CS2_OP_CC_SETOBJECT_ALWAYS_NUM 1212
+#define CS2_OP_CC_SETOBJECT_NUMMODE 1213
 #define CS2_OP_CC_SETLOCMODEL 1214
+#define CS2_OP_CC_SETNPCMODEL 1215
 
 /* === CS2 opcode group: component-op (1300..1399 / 2300..2399) ===
  * component ops, dragging and key bindings.
@@ -868,7 +909,7 @@
 #define CS2_OP_CC_SETONDIALOGABORT 1423
 #define CS2_OP_CC_SETONSUBCHANGE 1424
 #define CS2_OP_CC_SETONSTOCKTRANSMIT 1425
-#define CS2_OP__1426 1426
+#define CS2_OP_CC_SETONACTIVEOFFERSTRANSMIT 1426
 #define CS2_OP_CC_SETONRESIZE 1427
 #define CS2_OP_CC_SETONCLANSETTINGSTRANSMIT 1428
 #define CS2_OP_CC_SETONCLANCHANNELTRANSMIT 1429
@@ -877,7 +918,10 @@
  * of the family (see the CC_SETON* discard group in cs2vm2.c). */
 #define CS2_OP_CC_SETONITEMONITEM 1430
 #define CS2_OP_CC_SETONCLANSETTINGS 1431
+#define CS2_OP_CC_SETONMAPPRE 1432
 #define CS2_OP_CC_SETONMAPPOST 1433
+#define CS2_OP_CC_CRMVIEW_SETONUPDATED 1434
+#define CS2_OP_CC_SETONOPT 1435
 /*
  * Input-field (widget type 16) listeners. Signature-driven operand counts like
  * the other SETON* opcodes, so they are dispatched to the parse-and-discard
@@ -939,6 +983,7 @@
  * str stack out:  -
  */
 #define CS2_OP_CC_GETLAYER 1505
+#define CS2_OP_CC_GETPARENTLAYER 1506
 
 /* === CS2 opcode group: cc-appearance (1600..1699) ===
  * active-component appearance getters.
@@ -991,8 +1036,24 @@
 #define CS2_OP_CC_GETMODELTRANSPARENT 1614
 #define CS2_OP_CC_GETARCSTART 1615
 #define CS2_OP_CC_GETARCEND 1616
+#define CS2_OP_CC_INPUT_GETSELECTCOLOUR 1617
+#define CS2_OP_CC_INPUT_GETSELECTBGCOLOUR 1618
+#define CS2_OP_CC_INPUT_GETPLACEHOLDERTEXT 1619
+#define CS2_OP_CC_INPUT_GETPLACEHOLDERTEXTCOLOUR 1620
+#define CS2_OP_CC_INPUT_GETLINEWRAPPINGWIDTH 1621
+#define CS2_OP_CC_INPUT_GETLINECOUNTLIMIT 1622
+#define CS2_OP_CC_INPUT_GETLINEWIDTHLIMIT 1623
 #define CS2_OP_CC_INPUT_GETFOCUS 1624
+#define CS2_OP_CC_INPUT_GETFOCUSABLE 1625
+#define CS2_OP_CC_INPUT_GETSELECTIONTEXT 1626
+#define CS2_OP_CC_INPUT_GETSELECTIONBOUNDS 1627
 #define CS2_OP_CC_INPUT_GETCARETPOSITION 1628
+#define CS2_OP_CC_INPUT_GETLINEWRAPPINGMODE 1629
+#define CS2_OP_CC_INPUT_GETSUBMITMODE 1630
+#define CS2_OP_CC_INPUT_GETACCEPTMODE 1631
+#define CS2_OP_CC_INPUT_GETCENSORMODE 1632
+#define CS2_OP_CC_INPUT_GETKEYMODE 1633
+#define CS2_OP_CC_INPUT_GETCHARMODE 1634
 
 /* === CS2 opcode group: cc-inventory (1700..1799) ===
  * active-component inventory and identity getters.
@@ -1025,6 +1086,9 @@
  * notes: OldSchool-era, distinct from CC_GETPARAM (1613): the table lives on the component at runtime and starts empty (IF3 files carry no param section). VARIABLE ARITY, so the counts above are the kind == 0 case only: `kind` names the ParamType's type, and kind == 2 means the value was pushed on the STRING stack, leaving just (param_id, kind) on the int stack — script 9581 writes param 1017, declared `s`, that way. Popping three ints unconditionally steals an unrelated int from under it. Dedicated dispatch in cs2vm2.c handles both shapes, so this never reaches StackMetaStub with the wrong one.
  */
 #define CS2_OP_CC_SETCOMPONENTPARAM 1704
+#define CS2_OP_CC_CRMVIEW_GETHASRESPONSE 1707
+#define CS2_OP_CC_CRMVIEW_GETINT 1708
+#define CS2_OP_CC_CRMVIEW_GETSTRING 1709
 
 /* === CS2 opcode group: cc-target (1800..1899) ===
  * active-component target and op getters.
@@ -1045,6 +1109,9 @@
  * str stack out:  op_base
  */
 #define CS2_OP_CC_GETOPBASE 1802
+#define CS2_OP_DEEPLINK_GET 1826
+#define CS2_OP_DEEPLINK_COUNT 1827
+#define CS2_OP_DEEPLINK_CLEAR_INDEX 1828
 
 /* === CS2 opcode group: component-action (1900..1999 / 2900..2999) ===
  * component resize and trigger actions.
@@ -1230,6 +1297,10 @@
  * notes: The by-id form of CC_SETARC; same angle units.
  */
 #define CS2_OP_IF_SETARC 2128
+#define CS2_OP_IF_SETHTTPSPRITE 2129
+#define CS2_OP_IF_CRMVIEW_INIT 2130
+#define CS2_OP_IF_CRMVIEW_SETTEXTFONT 2131
+#define CS2_OP_IF_CRMVIEW_SETSERVERTARGETS 2132
 /*
  * IF_ variants of the input-field config setters. No UITree model for these
  * fields yet, so each is forwarded as its own exact host request. Their stack
@@ -1334,6 +1405,10 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_INPUT_SETCHARFILTER 2146
+#define CS2_OP_IF_INPUT_SETCENSORMODE 2147
+#define CS2_OP_IF_INPUT_SETKEYMODE 2148
+#define CS2_OP_IF_INPUT_SETCHARMODE 2149
+#define CS2_OP_IF_CRMVIEW_SETJSON 2150
 
 /* === CS2 opcode group: component-model (1200..1299 / 2200..2299) ===
  * component object and head-model setters.
@@ -1363,6 +1438,10 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_SETOBJECT_NONUM 2205
+#define CS2_OP_IF_SETPLAYERMODEL_SELF 2207
+#define CS2_OP_IF_SETPLAYERMODEL_OBJ 2208
+#define CS2_OP_IF_SETPLAYERMODEL_BASECOLOUR 2209
+#define CS2_OP_IF_SETPLAYERMODEL_BODYTYPE 2210
 /* IF_SETOBJECT_ALWAYS_NUM — Set object icon always showing qty.
  * int stack in:   obj_id, obj_count, component  (component = top)
  * str stack in:   -
@@ -1370,6 +1449,7 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_SETOBJECT_ALWAYS_NUM 2212
+#define CS2_OP_IF_SETOBJECT_NUMMODE 2213
 #define CS2_OP_IF_SETLOCMODEL 2214
 #define CS2_OP_IF_SETNPCMODEL 2215
 
@@ -1449,6 +1529,7 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_OP2309 2309
+#define CS2_OP_IF_CLEARSUBOPS 2310
 /* IF_SETOPSUBMENU — Set op submenu label.
  * int stack in:   op_index, sub_index, component  (component = top)
  * str stack in:   text
@@ -1569,7 +1650,7 @@
 #define CS2_OP_IF_SETONDIALOGABORT 2423
 #define CS2_OP_IF_SETONSUBCHANGE 2424
 #define CS2_OP_IF_SETONSTOCKTRANSMIT 2425
-#define CS2_OP__2426 2426
+#define CS2_OP_IF_SETONACTIVEOFFERSTRANSMIT 2426
 #define CS2_OP_IF_SETONRESIZE 2427
 #define CS2_OP_IF_SETONCLANSETTINGSTRANSMIT 2428
 #define CS2_OP_IF_SETONCLANCHANNELTRANSMIT 2429
@@ -1581,7 +1662,10 @@
  * fell through to StackMetaStub and aborted, blanking the spell icons. */
 #define CS2_OP_IF_SETONITEMONITEM 2430
 #define CS2_OP_IF_SETONCLANSETTINGS 2431
+#define CS2_OP_IF_SETONMAPPRE 2432
 #define CS2_OP_IF_SETONMAPPOST 2433
+#define CS2_OP_IF_CRMVIEW_SETONUPDATED 2434
+#define CS2_OP_IF_SETONOPT 2435
 #define CS2_OP_IF_INPUT_SETONSUBMIT 2436
 #define CS2_OP_IF_INPUT_SETONABORT 2437
 #define CS2_OP_IF_INPUT_SETONFOCUSCHANGED 2438
@@ -1633,6 +1717,7 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_GETLAYER 2505
+#define CS2_OP_IF_GETPARENTLAYER 2506
 
 /* === CS2 opcode group: if-appearance (2600..2699) ===
  * explicit-component appearance getters.
@@ -1678,13 +1763,31 @@
 #define CS2_OP_IF_GETMODELANGLE_Z 2607
 #define CS2_OP_IF_GETMODELANGLE_Y 2608
 #define CS2_OP_IF_GETTRANS 2609
-#define CS2_OP__2610 2610
+#define CS2_OP_IF_GETBLENDTRANS 2610
 #define CS2_OP_IF_GETCOLOUR 2611
 #define CS2_OP_IF_GETFILLCOLOUR 2612
-#define CS2_OP__2613 2613
+#define CS2_OP_IF_GETBLENDMODE 2613
 #define CS2_OP_IF_GETMODELTRANSPARENT 2614
-#define CS2_OP__2615 2615
-#define CS2_OP__2616 2616
+#define CS2_OP_IF_GETARCSTART 2615
+#define CS2_OP_IF_GETARCEND 2616
+#define CS2_OP_IF_INPUT_GETSELECTCOLOUR 2617
+#define CS2_OP_IF_INPUT_GETSELECTBGCOLOUR 2618
+#define CS2_OP_IF_INPUT_GETPLACEHOLDERTEXT 2619
+#define CS2_OP_IF_INPUT_GETPLACEHOLDERTEXTCOLOUR 2620
+#define CS2_OP_IF_INPUT_GETLINEWRAPPINGWIDTH 2621
+#define CS2_OP_IF_INPUT_GETLINECOUNTLIMIT 2622
+#define CS2_OP_IF_INPUT_GETLINEWIDTHLIMIT 2623
+#define CS2_OP_IF_INPUT_GETFOCUS 2624
+#define CS2_OP_IF_INPUT_GETFOCUSABLE 2625
+#define CS2_OP_IF_INPUT_GETSELECTIONTEXT 2626
+#define CS2_OP_IF_INPUT_GETSELECTIONBOUNDS 2627
+#define CS2_OP_IF_INPUT_GETCARETPOSITION 2628
+#define CS2_OP_IF_INPUT_GETLINEWRAPPINGMODE 2629
+#define CS2_OP_IF_INPUT_GETSUBMITMODE 2630
+#define CS2_OP_IF_INPUT_GETACCEPTMODE 2631
+#define CS2_OP_IF_INPUT_GETCENSORMODE 2632
+#define CS2_OP_IF_INPUT_GETKEYMODE 2633
+#define CS2_OP_IF_INPUT_GETCHARMODE 2634
 
 /* === CS2 opcode group: if-inventory (2700..2799) ===
  * interface inventory, parent and identity getters.
@@ -1727,6 +1830,9 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_GETTOP 2706
+#define CS2_OP_IF_CRMVIEW_GETHASRESPONSE 2707
+#define CS2_OP_IF_CRMVIEW_GETINT 2708
+#define CS2_OP_IF_CRMVIEW_GETSTRING 2709
 
 /* === CS2 opcode group: if-target (2800..2899) ===
  * explicit-component target and op getters.
@@ -1783,15 +1889,16 @@
 #define CS2_OP_GETREMOVEROOFS 3111
 #define CS2_OP_SETREMOVEROOFS 3112
 #define CS2_OP_OPENURL 3113
+#define CS2_OP_RESUME_COUNTDIALOG_LONG 3114
 #define CS2_OP_RESUME_OBJDIALOG 3115
 #define CS2_OP_BUG_REPORT 3116
 #define CS2_OP_SETSHIFTCLICKDROP 3117
 #define CS2_OP_SETSHOWMOUSEOVERTEXT 3118
 #define CS2_OP_RENDERSELF 3119
 #define CS2_OP_SETDRAWPLAYERNAMES_FRIENDS 3120
-#define CS2_OP__3121 3121
+#define CS2_OP_SETDRAWPLAYERNAMES_CLANMATES 3121
 #define CS2_OP_SETDRAWPLAYERNAMES_OTHERS 3122
-#define CS2_OP__3123 3123
+#define CS2_OP_SETDRAWPLAYERNAMES_SELF 3123
 #define CS2_OP_RESETDRAWPLAYERNAMES 3124
 #define CS2_OP_SETSHOWMOUSECROSS 3125
 #define CS2_OP_SETSHOWLOADINGMESSAGES 3126
@@ -1810,8 +1917,8 @@
 #define CS2_OP_MOBILE_SETFPS 3133
 #define CS2_OP_MOBILE_OPENSTORE 3134
 #define CS2_OP_MOBILE_OPENSTORECATEGORY 3135
-#define CS2_OP__3136 3136
-#define CS2_OP__3137 3137
+#define CS2_OP_SETKEYINPUTMODE_COMPONENT 3136
+#define CS2_OP_SETKEYINPUTMODE_INTERFACE 3137
 /* SETKEYINPUTMODE_ALL — Release keyboard capture (input dialog type 0).
  * int stack in:   -
  * str stack in:   -
@@ -1842,7 +1949,29 @@
 #define CS2_OP_SETREMEMBERUSERNAME 3143
 #define CS2_OP_GETREMEMBERUSERNAME 3144
 #define CS2_OP_SHOW_IOS_REVIEW 3145
+#define CS2_OP_SETTITLESCREENSOUND 3146
+#define CS2_OP_GETTITLESCREENSOUND 3147
+#define CS2_OP_SETTERMSANDPRIVACY 3148
+#define CS2_OP_GETTERMSANDPRIVACY 3149
+#define CS2_OP_ELIGIBLEFORFREETRIAL 3150
+#define CS2_OP_ELIGIBLEFORINTRODUCTORYPRICE 3151
+#define CS2_OP_GETPUCHASEHISTORYSTATUS 3152
+#define CS2_OP_GETLOADINGPROGRESS 3153
+#define CS2_OP_GETPRELOADPROGRESS 3154
+#define CS2_OP_SHOP_PURCHASEITEM 3155
+#define CS2_OP_SHOP_REQUESTDATA 3156
 #define CS2_OP_SHOP_OPENCATEGORIES 3157
+#define CS2_OP_SHOP_PURCHASEITEMSTATUS 3158
+#define CS2_OP_SHOP_REQUESTDATASTATUS 3159
+#define CS2_OP_SHOP_GETCATEGORYCOUNT 3160
+#define CS2_OP_SHOP_GETCATEGORYID 3161
+#define CS2_OP_SHOP_GETINDEXFORCATEGORYID 3162
+#define CS2_OP_SHOP_GETINDEXFORCATEGORYNAME 3163
+#define CS2_OP_SHOP_GETCATEGORYDESCRIPTION 3164
+#define CS2_OP_SHOP_GETPRODUCTCOUNT 3165
+#define CS2_OP_SHOP_ISPRODUCTAVAILABLE 3166
+#define CS2_OP_SHOP_ISPRODUCTRECOMMENDED 3167
+#define CS2_OP_SHOP_GETPRODUCTDETAILS 3168
 /*
  * Mobile local (push) notifications, 3170..3173. Newer than the vendored RuneStar
  * table, which has nothing between 3157 and 3181. Desktop has no notification
@@ -1880,6 +2009,7 @@
  * str stack out:  -
  */
 #define CS2_OP_LOCAL_NOTIFICATION_SUPPORTED 3173
+#define CS2_OP_NOTIFICATIONS_GETENABLED 3175
 #define CS2_OP_MARKETING_INITANALYTICS 3177
 #define CS2_OP_MARKETING_SENDANALYTICSEVENT 3178
 #define CS2_OP_MARKETING_INITATTRIBUTION 3179
@@ -1887,7 +2017,9 @@
 #define CS2_OP_SETBRIGHTNESS 3181
 #define CS2_OP_GETBRIGHTNESS 3182
 #define CS2_OP_SETANTIDRAG 3183
-#define CS2_OP__3184 3184
+#define CS2_OP_GETANTIDRAG 3184
+#define CS2_OP_SETDRAWDISTANCE 3185
+#define CS2_OP_GETDRAWDISTANCE 3186
 #define CS2_OP_SEQ_PREFETCH 3189
 
 /* === CS2 opcode group: audio-options (3200..3299) ===
@@ -1929,7 +2061,11 @@
 #define CS2_OP_GAMEOPTION_SET 3213
 #define CS2_OP_DEVICEOPTION_GET 3214
 #define CS2_OP_GAMEOPTION_GET 3215
+#define CS2_OP_DEVICEOPTION_EXISTS 3216
 #define CS2_OP_DEVICEOPTION_GETRANGE 3217
+#define CS2_OP_GAMEOPTION_EXISTS 3218
+#define CS2_OP_GAMEOPTION_GETRANGE 3219
+#define CS2_OP_SOUND_SONG_STOP 3220
 /* SOUND_SONG_WITHSECONDARY — Play a song with a secondary track and cross-fade settings.
  * int stack in:   primary, secondary, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed  (fade_in_speed = top)
  * str stack in:   -
@@ -1938,9 +2074,13 @@
  * notes: Named _3221 upstream. Script 9630 falls back to SOUND_SONG when its secondary lookup returns -1, which identifies the operation.
  */
 #define CS2_OP_SOUND_SONG_WITHSECONDARY 3221
+#define CS2_OP_SOUND_SONG_SWAP 3222
 #define CS2_OP_RT7_SETENABLED 3223
 #define CS2_OP_RT7_SD 3224
 #define CS2_OP_RT7_HD 3225
+#define CS2_OP_RT7_GETENABLED 3227
+#define CS2_OP_TRANSLATIONS_SET 3228
+#define CS2_OP_TRANSLATIONS_CLEAR 3229
 
 /* === CS2 opcode group: client-state (3300..3399) ===
  * client state, inventory, stats and coordinates.
@@ -2054,6 +2194,10 @@
 #define CS2_OP_IDLETIMER_RESET 3329
 #define CS2_OP_DESTINATIONCOORD 3330
 #define CS2_OP__3330 3330
+#define CS2_OP_RUNENERGY 3331
+#define CS2_OP_STAT_UNKNOWN 3332
+#define CS2_OP_REBOOTMESSAGE 3334
+#define CS2_OP_WEC_NAME 3339
 
 /* === CS2 opcode group: enum (3400..3499) ===
  * enum lookups.
@@ -2095,6 +2239,7 @@
  * notes: edge-triggered; cleared each frame. OSRS internal key code.
  */
 #define CS2_OP_KEYPRESSED 3501
+#define CS2_OP_KEYRELEASED 3502
 
 /* === CS2 opcode group: social (3600..3699) ===
  * friends, ignores and legacy clan chat.
@@ -2130,30 +2275,30 @@
 #define CS2_OP_FRIENDLIST_SORT_RESET 3628
 #define CS2_OP_FRIENDLIST_SORT_LEGACY 3629
 #define CS2_OP_FRIENDLIST_SORT_NAME 3630
-#define CS2_OP__3631 3631
-#define CS2_OP__3632 3632
-#define CS2_OP__3633 3633
-#define CS2_OP__3634 3634
-#define CS2_OP__3635 3635
-#define CS2_OP__3636 3636
-#define CS2_OP__3637 3637
-#define CS2_OP__3638 3638
+#define CS2_OP_FRIENDLIST_SORT_WORLD 3631
+#define CS2_OP_FRIENDLIST_SORT_LASTWORLDCHANGE 3632
+#define CS2_OP_FRIENDLIST_SORT_ONLINE_STATUS 3633
+#define CS2_OP_FRIENDLIST_SORT_ONLINE_NAME 3634
+#define CS2_OP_FRIENDLIST_SORT_ONLINE_LASTWORLDCHANGE 3635
+#define CS2_OP_FRIENDLIST_SORT_ONLINE_WORLD 3636
+#define CS2_OP_FRIENDLIST_SORT_OWNWORLD_NAME 3637
+#define CS2_OP_FRIENDLIST_SORT_OWNWORLD_WORLD 3638
 #define CS2_OP_FRIENDLIST_SORT_APPLY 3639
-#define CS2_OP__3640 3640
-#define CS2_OP__3641 3641
-#define CS2_OP__3642 3642
-#define CS2_OP__3643 3643
+#define CS2_OP_IGNORELIST_SORT_RESET 3640
+#define CS2_OP_IGNORELIST_SORT_LEGACY 3641
+#define CS2_OP_IGNORELIST_SORT_NAME 3642
+#define CS2_OP_IGNORELIST_SORT_APPLY 3643
 #define CS2_OP_FRIENDSCHAT_SORT_RESET 3644
 #define CS2_OP_FRIENDSCHAT_SORT_LEGACY 3645
 #define CS2_OP_FRIENDSCHAT_SORT_NAME 3646
 #define CS2_OP_FRIENDSCHAT_SORT_WORLD 3647
 #define CS2_OP_FRIENDSCHAT_SORT_LASTWORLDCHANGE 3648
-#define CS2_OP__3649 3649
-#define CS2_OP__3650 3650
-#define CS2_OP__3651 3651
+#define CS2_OP_FRIENDSCHAT_SORT_ONLINE_STATUS 3649
+#define CS2_OP_FRIENDSCHAT_SORT_ONLINE_NAME 3650
+#define CS2_OP_FRIENDSCHAT_SORT_ONLINE_LASTWORLDCHANGE 3651
 #define CS2_OP_FRIENDSCHAT_SORT_ONLINE_WORLD 3652
-#define CS2_OP__3653 3653
-#define CS2_OP__3654 3654
+#define CS2_OP_FRIENDSCHAT_SORT_OWNWORLD_NAME 3653
+#define CS2_OP_FRIENDSCHAT_SORT_OWNWORLD_WORLD 3654
 #define CS2_OP_FRIENDSCHAT_SORT_APPLY 3655
 #define CS2_OP_FRIENDLIST_SORT_RANK 3656
 #define CS2_OP_FRIENDSCHAT_SORT_RANK 3657
@@ -2235,6 +2380,7 @@
 #define CS2_OP_TRADINGPOST_GETOFFERITEM 3926
 #define CS2_OP_STOCKMARKET_SELLABLE 3931
 #define CS2_OP_STOCKMARKET_VALUE 3932
+#define CS2_OP_STOCKMARKET_BUYABLE 3939
 
 /* === CS2 opcode group: math (4000..4099) ===
  * integer maths and bit operations.
@@ -2371,9 +2517,32 @@
 #define CS2_OP_SETBIT_RANGE_VALUE 4030
 #define CS2_OP_SIN_DEG 4032
 #define CS2_OP_COS_DEG 4033
-#define CS2_OP__4034 4034
+#define CS2_OP_ATAN2 4034
 #define CS2_OP_ABS 4035
 #define CS2_OP_STRING_TO_INT 4036
+#define CS2_OP_LONG_ADD 4037
+#define CS2_OP_LONG_SUB 4038
+#define CS2_OP_LONG_MULTIPLY 4039
+#define CS2_OP_LONG_DIVIDE 4040
+#define CS2_OP_LONG_MIN 4041
+#define CS2_OP_LONG_MAX 4042
+#define CS2_OP_LONG_SCALE 4043
+#define CS2_OP_INT_TO_LONG 4044
+#define CS2_OP_LONG_SETBIT 4047
+#define CS2_OP_LONG_CLEARBIT 4048
+#define CS2_OP_LONG_TESTBIT 4049
+#define CS2_OP_LONG_BITCOUNT 4050
+#define CS2_OP_LONG_TOGGLEBIT 4051
+#define CS2_OP_LONG_SETBIT_RANGE 4052
+#define CS2_OP_LONG_CLEARBIT_RANGE 4053
+#define CS2_OP_LONG_GETBIT_RANGE 4054
+#define CS2_OP_LONG_MODULO 4055
+#define CS2_OP_LONG_AND 4056
+#define CS2_OP_LONG_OR 4057
+#define CS2_OP_LONG_NOT 4058
+#define CS2_OP_LONG_SETBIT_RANGE_TOLONG 4059
+#define CS2_OP_LONG_PACK 4060
+#define CS2_OP_LONG_UNPACK 4061
 
 /* === CS2 opcode group: string (4100..4199) ===
  * string operations.
@@ -2493,6 +2662,9 @@
 #define CS2_OP_UPPERCASE 4122
 #define CS2_OP_TEXT_PRONOUN 4123
 #define CS2_OP_PRONOUN 4124
+#define CS2_OP_TOSTRING_LONG 4125
+#define CS2_OP_TOSTRING_SPACER_LONG 4126
+#define CS2_OP_SAFEPARSEINT 4127
 
 /* === CS2 opcode group: obj (4200..4299) ===
  * object definitions and object search.
@@ -2523,7 +2695,11 @@
 #define CS2_OP_OC_WEARPOS3 4216
 #define CS2_OP_OC_WEIGHT 4217
 #define CS2_OP_OC_EXAMINE 4218
+#define CS2_OP_OC_CATEGORY 4219
+#define CS2_OP_OC_TRADEABLE 4220
 #define CS2_OP_OC_ISUBOP 4222
+#define CS2_OP_OC_ID 4223
+#define CS2_OP_OC_BYID 4224
 
 /* === CS2 opcode group: chat (4300..5099) ===
  * chat commands.
@@ -2538,6 +2714,7 @@
 #define CS2_OP_CHAT_SENDPUBLIC 5008
 #define CS2_OP_CHAT_SENDPRIVATE 5009
 #define CS2_OP_CHAT_SENDCLAN 5010
+#define CS2_OP_CHAT_GETHISTORYCLAN 5011
 #define CS2_OP_CHAT_PLAYERNAME 5015
 #define CS2_OP_CHAT_GETFILTER_TRADE 5016
 #define CS2_OP_CHAT_GETHISTORYLENGTH 5017
@@ -2561,8 +2738,8 @@
 #define CS2_OP_GETDEFAULTWINDOWMODE 5308
 #define CS2_OP_SETDEFAULTWINDOWMODE 5309
 #define CS2_OP__5310 5310
-#define CS2_OP__5311 5311
-#define CS2_OP__5312 5312
+#define CS2_OP_SETWINDOWSIZE 5311
+#define CS2_OP_SETWINDOWTOPMOST 5312
 #define CS2_OP__5350 5350
 #define CS2_OP__5351 5351
 
@@ -2598,6 +2775,7 @@
 #define CS2_OP_UIZOOM_SET 6210
 #define CS2_OP_UIZOOM_GET 6211
 #define CS2_OP_UIZOOM_RESET 6212
+#define CS2_OP_UIZOOM_SETMODE 6213
 #define CS2_OP_UIZOOM_GETDEFAULT 6214
 #define CS2_OP_SAFEAREA_GETMINX 6220
 #define CS2_OP_SAFEAREA_GETMINY 6221
@@ -2615,7 +2793,7 @@
 #define CS2_OP_WORLDLIST_NEXT 6502
 #define CS2_OP_WORLDLIST_SPECIFIC 6506
 #define CS2_OP_WORLDLIST_SORT 6507
-#define CS2_OP__6511 6511
+#define CS2_OP_WORLDLIST_GET 6511
 #define CS2_OP_SETFOLLOWEROPSLOWPRIORITY 6512
 #define CS2_OP_NC_PARAM 6513
 #define CS2_OP_LC_PARAM 6514
@@ -2650,7 +2828,7 @@
  *         10 Steam / enhanced variant
  */
 #define CS2_OP_CLIENTTYPE 6519
-#define CS2_OP__6520 6520
+#define CS2_OP_MOBILE_KEYBOARDSHOW 6520
 #define CS2_OP_MOBILE_KEYBOARDHIDE 6521
 #define CS2_OP_MOBILE_KEYBOARDSHOWSTRING 6522
 #define CS2_OP_MOBILE_KEYBOARDSHOWINTEGER 6523
@@ -2679,6 +2857,8 @@
  */
 #define CS2_OP_MOBILE_WIFIAVAILABLE 6526
 #define CS2_OP_PLATFORMTYPE 6527
+#define CS2_OP_INV_PARAM 6528
+#define CS2_OP_HAPTIC 6530
 #define CS2_OP_CLIENT_VERSION 6531
 /* RUNELITE_CALLBACK — Invoke a synchronous named plugin callback.
  * int stack in:   -
@@ -3058,14 +3238,23 @@
 #define CS2_OP_NPC_TYPE 6753
 #define CS2_OP__6753 6753
 #define CS2_OP_NC_NAME 6754
+#define CS2_OP_NPC_ROUTE_LENGTH 6755
+#define CS2_OP_NPC_ROUTE_GET 6756
+#define CS2_OP_NPC_SAY 6757
+#define CS2_OP_NPC_FINDUID 6758
+#define CS2_OP_NPC_GETOPBASE 6759
+#define CS2_OP_NPC_GETOP 6760
 #define CS2_OP_NC_GETOPBASE 6761
 #define CS2_OP_NC_GETOP 6762
+#define CS2_OP_NC_GETMULTINPC 6763
+#define CS2_OP_NC_HEADICON 6764
+#define CS2_OP_NC_VISLEVEL 6765
 
 /* === CS2 opcode group: clientop-loc (6800..6899) ===
  * active location and object queries.
  * rev-239 dispatch: Statics.method6889 -> method3101.
  */
-#define CS2_OP__6800 6800
+#define CS2_OP_LOC_NAME 6800
 #define CS2_OP_LOC_COORD 6801
 #define CS2_OP__6801 6801
 #define CS2_OP_LOC_TYPE 6802
@@ -3078,18 +3267,26 @@
  * notes: Static-overlay scripts use this as their scene-presence gate; later active-loc and OVERLAY_LOC operations address the selected location.
  */
 #define CS2_OP_LOC_FIND 6803
+#define CS2_OP_LOC_GETOPBASE 6804
+#define CS2_OP_LOC_GETOP 6805
 #define CS2_OP_LC_GETOPBASE 6806
 #define CS2_OP_LC_GETOP 6807
+#define CS2_OP_LC_GETMULTILOC 6808
 #define CS2_OP_LC_NAME 6809
-#define CS2_OP__6850 6850
+#define CS2_OP_LOC_WIDTH 6810
+#define CS2_OP_LOC_LENGTH 6811
+#define CS2_OP_OBJ_NAME 6850
 #define CS2_OP_OBJ_COORD 6851
 #define CS2_OP__6851 6851
 #define CS2_OP_OBJ_TYPE 6852
 #define CS2_OP__6852 6852
-#define CS2_OP__6853 6853
+#define CS2_OP_OBJ_COUNT 6853
+#define CS2_OP_OBJ_FIND 6854
+#define CS2_OP_OBJ_GETOPBASE 6855
+#define CS2_OP_OBJ_GETOP 6856
 #define CS2_OP_OC_GETOPBASE 6857
 #define CS2_OP_OC_GETOP 6858
-#define CS2_OP_OBJ_FIND 6859
+#define CS2_OP_OBJ_FINDBYINDEX 6859
 #define CS2_OP_OBJ_DESPAWNTIME 6860
 #define CS2_OP_OBJ_VISIBLETIME 6861
 #define CS2_OP_OBJ_ISPUBLIC 6862
@@ -3155,6 +3352,8 @@
  */
 #define CS2_OP_SELF_PLAYER_UID 6905
 #define CS2_OP_LOCALPLAYER_GETUID 6905
+#define CS2_OP_P_SAY 6906
+#define CS2_OP_P_GETOP 6907
 /* LOGIN_INT24 — rev 634 login/account int getter (Class24.anInt359).
  * operand: unused
  * int stack in:   -
@@ -3500,6 +3699,21 @@
  */
 #define CS2_OP_HIGHLIGHT_GROUP_CLEAR 7044
 #define CS2_OP_HIGHLIGHT_OPGROUP_CLEAR 7044
+#define CS2_OP_OBJTAG_ADD 7060
+#define CS2_OP_OBJTAG_DEL 7061
+#define CS2_OP_OBJTAG_REMOVE 7062
+#define CS2_OP_OBJTAG_FINDTAGS_BYOBJ 7063
+#define CS2_OP_OBJTAG_FINDTAGS_BYGROUP 7064
+#define CS2_OP_OBJTAG_FINDTAGS_NEXT 7065
+#define CS2_OP_OBJTAG_FINDTAGS_RESET 7066
+#define CS2_OP_OBJTAG_FINDOBJS_BYTAG 7067
+#define CS2_OP_OBJTAG_FINDOBJS_BYGROUP 7068
+#define CS2_OP_OBJTAG_FINDOBJS_NEXT 7069
+#define CS2_OP_OBJTAG_FINDOBJS_RESET 7070
+#define CS2_OP_OBJTAG_HAS 7071
+#define CS2_OP_OBJTAG_ALLEMPTY 7072
+#define CS2_OP_OBJTAG_DELALL 7073
+#define CS2_OP_OBJTAG_DELGROUP 7074
 
 /* === CS2 opcode group: minimenu (7100..7199) ===
  * minimenu introspection.
@@ -3511,8 +3725,8 @@
 #define CS2_OP_MINIMENU_FINDLOC 7103
 #define CS2_OP_MINIMENU_FINDOBJ 7104
 #define CS2_OP_MINIMENU_FINDPLAYER 7105
-#define CS2_OP__7106 7106
-#define CS2_OP__7107 7107
+#define CS2_OP_MINIMENU_COORD 7106
+#define CS2_OP_MINIMENU_OBJTYPE 7107
 #define CS2_OP_MINIMENU_ISOPEN 7108
 #define CS2_OP_MINIMENU_FINDCOMPONENT 7109
 #define CS2_OP_MINIMENU_NUMOPS 7110
@@ -3619,21 +3833,49 @@
  */
 #define CS2_OP_OVERLAY_COORD_DESTROY 7214
 #define CS2_OP_MINIMAP_SETZOOMABLE 7250
+#define CS2_OP_MINIMAP_GETZOOMABLE 7251
 #define CS2_OP_MINIMAP_SETZOOM 7252
 #define CS2_OP_MINIMAP_GETZOOM 7253
 #define CS2_OP_MINIMAP_SETICONZOOMLIMIT 7254
+#define CS2_OP_MINIMAP_GETICONZOOMLIMIT 7255
+#define CS2_OP_MINIMAP_REDRAW 7256
+#define CS2_OP_MINIMAP_SETDOTSTYLE 7257
+#define CS2_OP_MINIMAP_GETDOTSTYLE 7258
+#define CS2_OP_MINIMAP_SETDOTVISIBLE 7259
+#define CS2_OP_MINIMAP_GETDOTVISIBLE 7260
+#define CS2_OP_MINIMAP_SETDRAWDISPLAYNAME 7263
+#define CS2_OP_MINIMAP_GETDRAWDISPLAYNAME 7264
 /* Loot-tracker auxiliary-list ops inside the 7200..7499 native group. */
 #define CS2_OP_LOOT_AUX_UPSERT2 7400
 #define CS2_OP_LOOT_AUX_UPSERT 7401
+#define CS2_OP_STRINGVECTOR_INSERT 7402
+#define CS2_OP_STRINGVECTOR_SET 7403
 #define CS2_OP_LOOT_AUX_REMOVE 7404
+#define CS2_OP_STRINGVECTOR_REMOVEAT 7405
 #define CS2_OP_LOOT_AUX_GET 7406
 #define CS2_OP_LOOT_AUX_COUNT 7407
 #define CS2_OP_LOOT_AUX_LOOKUP 7408
 #define CS2_OP_LOOT_AUX_CLEAR 7409
+#define CS2_OP_MINIMENU_NUMENTRIES 7450
+#define CS2_OP_MINIMENU_TYPEAT 7451
+#define CS2_OP_MINIMENU_ENTRYAT 7452
+#define CS2_OP_MINIMENU_FINDNPCAT 7453
+#define CS2_OP_MINIMENU_FINDLOCAT 7454
+#define CS2_OP_MINIMENU_FINDOBJAT 7455
+#define CS2_OP_MINIMENU_FINDPLAYERAT 7456
+#define CS2_OP_MINIMENU_COORDAT 7457
+#define CS2_OP_MINIMENU_OBJTYPEAT 7458
+#define CS2_OP_MINIMENU_FINDCOMPONENTAT 7459
 #define CS2_OP_MINIMENU_HOVERED_INDEX 7460
+#define CS2_OP_MINIMENU_SETADDMODE 7461
 #define CS2_OP_MINIMENU_SETBLOCKMODE 7462
+#define CS2_OP_MINIMENU_SETSINGLECLICK 7463
+#define CS2_OP_MINIMENU_SETPRIORITYMODE 7464
 #define CS2_OP_MINIMENU_RESETORDER 7465
 #define CS2_OP_MINIMENU_SETORDEREDIT 7466
+#define CS2_OP_MINIMENU_GETORDEREDIT 7467
+#define CS2_OP_MINIMENU_SETSCROLLHEIGHT 7468
+#define CS2_OP_MINIMENU_GETSCROLLHEIGHT 7469
 #define CS2_OP_MINIMENU_TOGGLESCROLL 7470
 #define CS2_OP_MINIMENU_GETSCROLL 7471
 
@@ -3659,6 +3901,7 @@
  * loot-tracker native commands.
  * rev-239 dispatch: Statics.method6889 -> method10020.
  */
+#define CS2_OP_LOOTTRACKER_SOURCEADD 7600
 /* Loot-tracker native store (7600-family host ops). The rev-239 Java
  * range handler returns unhandled; this port implements the cache's
  * native loot-tracker extension. */
@@ -3685,13 +3928,16 @@
 #define CS2_OP_LOOT_REMOVE_BYID 7615
 #define CS2_OP_LOOT_IGNORE_ADD 7616
 #define CS2_OP_LOOT_IGNORE_REMOVE 7617
+#define CS2_OP_LOOTTRACKER_IGNORELOOTDELAT 7618
 #define CS2_OP_LOOT_GROUND_COUNT 7619
 #define CS2_OP_LOOT_GROUND_NAME 7620
 #define CS2_OP_LOOT_IGNORE_CLEAR 7621
 #define CS2_OP_LOOT_SOURCE_IGNORE_ADD 7622
 #define CS2_OP_LOOT_SOURCE_IGNORE_REMOVE 7623
+#define CS2_OP_LOOTTRACKER_IGNORESOURCEDELAT 7624
 #define CS2_OP_LOOT_SRCLIST_COUNT 7625
 #define CS2_OP_LOOT_SRCLIST_NAME 7626
+#define CS2_OP_LOOTTRACKER_IGNORESOURCECLEAR 7627
 /* LOOT_ADD — Write one kill-drop row into the native loot store.
  * int stack in:   obj, qty, event_id  (event_id = top)
  * str stack in:   source_name
@@ -3700,20 +3946,37 @@
  * notes: event_id batches multi-item kills so each event increments the kill count once; rows merge by (source name, object id).
  */
 #define CS2_OP_LOOT_ADD 7628
+#define CS2_OP_LOOTTRACKER_SETDROPLIMIT 7629
 #define CS2_OP_LOOT_SOURCE_NAME2 7630
 
 /* === CS2 opcode group: extension (7700..7999) ===
  * native extension and client-setting commands.
  * rev-239 dispatch: Statics.method6889 -> method11128.
  */
+#define CS2_OP_HISCORE_LOOKUP 7800
 #define CS2_OP_HISCORE_GETRANK 7801
 #define CS2_OP_HISCORE_GETVALUE 7802
+#define CS2_OP_HISCORE_GETSKILLRANK 7803
+#define CS2_OP_HISCORE_GETGAMERANK 7804
+#define CS2_OP_HISCORE_GETSKILLXP 7805
+#define CS2_OP_HISCORE_GETGAMECOMPLETIONS 7806
+#define CS2_OP_HISCORE_GETOVERALLRANK 7807
+#define CS2_OP_HISCORE_GETOVERALLXP 7808
 /* Hiscores native-extension stubs (7809/7811). */
 #define CS2_OP_HISCORES_STATUS 7809
 #define CS2_OP_HISCORE_CLEAR 7810
 #define CS2_OP_HISCORES_ERROR 7811
 #define CS2_OP_HISCORE_SETAPI 7812
+#define CS2_OP_HISCORE_GETBOSSRANK 7813
+#define CS2_OP_HISCORE_GETBOSSKILLS 7814
+#define CS2_OP_HISCORE_GETGROUPTOTALLEVEL 7815
+#define CS2_OP_HISCORE_GETGROUPTOTALXP 7816
+#define CS2_OP_HISCORE_GETGROUPSIZE 7817
+#define CS2_OP_HISCORE_GETMEMBERCOUNT 7818
 #define CS2_OP_HISCORE_GETMEMBERLEVEL 7819
+#define CS2_OP_HISCORE_GETMEMBERCONTRIBUTEDXP_BYNAME 7820
+#define CS2_OP_HISCORE_GETMEMBERLEVEL_BYINDEX 7821
+#define CS2_OP_HISCORE_GETMEMBERCONTRIBUTEDXP_BYINDEX 7822
 #define CS2_OP_HISCORE_GETMEMBERNAME 7823
 #define CS2_OP_HISCORE_GETMEMBERHISCORES 7824
 #define CS2_OP_WORLDENTITY_SETDRAWLIMIT 7900
@@ -3731,6 +3994,8 @@
  * notes: Sorts primary ascending (lexically for strings, numerically otherwise) and applies the same permutation to secondary. Array handles travel on the string stack at this revision.
  */
 #define CS2_OP_ARRAY_SORT_ALL 8000
+#define CS2_OP_ARRAY_RANDOMISE 8001
+#define CS2_OP_ARRAY_ISNULL 8002
 /* ARRAY_LENGTH — Get the element count of an array handle.
  * int stack in:   -
  * str stack in:   array handle
@@ -3738,14 +4003,24 @@
  * str stack out:  -
  */
 #define CS2_OP_ARRAY_LENGTH 8003
+#define CS2_OP_ARRAY_COMPARE 8004
 #define CS2_OP_ARRAY_FIND 8005
+#define CS2_OP_ARRAY_LASTINDEXOF 8006
 /* ARRAY_COUNT_MATCHES — count cells in [start, end) equal to a typed value.
  * A negative end means "to the end". The array is a handle on the
  * string stack; value_type selects whether the search value is popped
  * from the int or string stack, so this opcode has variable arity. */
 #define CS2_OP_ARRAY_COUNT_MATCHES 8007
+#define CS2_OP_ARRAY_MIN 8008
+#define CS2_OP_ARRAY_MAX 8009
 #define CS2_OP_ARRAY_FILL 8010
 #define CS2_OP_ARRAY_FILL_SEQUENCE 8011
+#define CS2_OP_ARRAY_REVERSE 8012
+#define CS2_OP_ARRAY_ROTATE 8013
+#define CS2_OP_ARRAY_SWAP 8014
+#define CS2_OP_ARRAY_COPY 8015
+#define CS2_OP_ARRAY_TOTAL 8016
+#define CS2_OP_ARRAY_INDEXOFSUM 8017
 /* ARRAY_SPLIT — Split a string into a new string-array handle.
  * int stack in:   -
  * str stack in:   text, separator  (separator = top)
@@ -3760,6 +4035,7 @@
  * str stack out:  joined text
  */
 #define CS2_OP_ARRAY_JOIN 8019
+#define CS2_OP_ENUM_GETINPUTS 8020
 #define CS2_OP_ENUM_GETOUTPUTS 8021
 /* ARRAY_NEW — Create a typed array handle.
  * int stack in:   type_code, length, capacity  (capacity = top)

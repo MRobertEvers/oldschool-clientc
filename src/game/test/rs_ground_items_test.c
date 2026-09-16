@@ -105,7 +105,7 @@ recording_host_exec(struct CS2VM2_Thread* thread, struct CS2VM_HostRequest* requ
         RECORD_GROUND(OBJSTACK_COUNT);
         RECORD_GROUND(OBJSTACK_ID);
         RECORD_GROUND(OBJSTACK_QUANTITY);
-        RECORD_GROUND(OBJ_FIND);
+        RECORD_GROUND(OBJ_FINDBYINDEX);
         RECORD_GROUND(OBJ_DESPAWNTIME);
         RECORD_GROUND(OBJ_VISIBLETIME);
         RECORD_GROUND(OBJ_ISPUBLIC);
@@ -139,8 +139,8 @@ static struct DispatchCase const DISPATCH[] = {
     /* (coord, index) -- the coord is pushed first, so it is 101. */
     DISPATCH_CASE(OBJSTACK_ID, 2, 101, 102),
     DISPATCH_CASE(OBJSTACK_QUANTITY, 2, 101, 102),
-    DISPATCH_CASE(OBJ_FIND, 2, 101, 102),
-    /* () -- the four getters read the entry OBJ_FIND selected. */
+    DISPATCH_CASE(OBJ_FINDBYINDEX, 2, 101, 102),
+    /* () -- the four getters read the entry OBJ_FINDBYINDEX selected. */
     DISPATCH_CASE(OBJ_DESPAWNTIME, 0, -1, -1),
     DISPATCH_CASE(OBJ_VISIBLETIME, 0, -1, -1),
     DISPATCH_CASE(OBJ_ISPUBLIC, 0, -1, -1),
@@ -263,7 +263,7 @@ call_ground(struct CS2VM2_Thread* t, int opcode, int coord, int index)
         SET_GROUND_REQUEST(OBJSTACK_COUNT);
         SET_GROUND_REQUEST(OBJSTACK_ID);
         SET_GROUND_REQUEST(OBJSTACK_QUANTITY);
-        SET_GROUND_REQUEST(OBJ_FIND);
+        SET_GROUND_REQUEST(OBJ_FINDBYINDEX);
         SET_GROUND_REQUEST(OBJ_DESPAWNTIME);
         SET_GROUND_REQUEST(OBJ_VISIBLETIME);
         SET_GROUND_REQUEST(OBJ_ISPUBLIC);

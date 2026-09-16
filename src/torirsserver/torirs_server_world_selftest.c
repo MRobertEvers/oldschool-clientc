@@ -19884,13 +19884,17 @@ ToriRSServer_WorldSelftest(void)
          * The click, not `ToriRSServer_CombatEngage`, and that is the whole
          * point of driving this through OPNPC2. Content owns the swing loop, so
          * the engine's engage is only reached for npcs no `[opnpc]` script
-         * claims, and `handle_opnpc` calls
-         * `ToriRSServer_WorldClearPendingAction` two statements after the
-         * packet is decoded — which forgets the fight the click is not allowed
-         * to leave. A gate written anywhere downstream of that line passes
-         * every one of these checks while doing nothing, because by then the
-         * player really is idle. Only a test that starts at the packet can tell
-         * the two apart.
+         * claims; a test that called the engage directly would measure a path
+         * no click takes.
+         *
+         * And the refusal is measured ACROSS THE WALK, not on the packet. A
+         * refused Attack is still a click: the player turns to the monster and
+         * walks to it, and the line arrives when they get there (or at once,
+         * for a weapon that out-ranges melee). That is `interaction_attack_
+         * refused` at the ap/op rung. Asserting the message on the tick the
+         * packet is handled is what pinned the old behaviour — the click
+         * dropped on the floor, with the player standing still — so this ticks
+         * the walk out and checks where the player ended up.
          *
          * Lumbridge, because `maps/multiway.csv` does not name zone 0_50_50 and
          * the wilderness zone asserted below is the same file's answer for
@@ -19907,8 +19911,11 @@ ToriRSServer_WorldSelftest(void)
         int first = goblin_type >= 0
                         ? npc_spawn(srv, goblin_type, g_home_x + 3, g_home_z + 5, 0)
                         : -1;
+        /* Four tiles beyond the first, not two, and that distance is the
+         * assertion: a refusal the player can reach without taking a step
+         * cannot tell a walk from a click dropped on the floor. */
         int second = goblin_type >= 0
-                         ? npc_spawn(srv, goblin_type, g_home_x + 3, g_home_z + 7, 0)
+                         ? npc_spawn(srv, goblin_type, g_home_x + 3, g_home_z + 11, 0)
                          : -1;
 
         SELFTEST_CHECK(first >= 0 && second >= 0 && first != second,
@@ -19934,6 +19941,11 @@ ToriRSServer_WorldSelftest(void)
             int refused = 0;
             int b_x = b->x;
             int b_z = b->z;
+            int hp_level_before = player->stat_level[TORIRSSERVER_STAT_HITPOINTS];
+            int hp_boost_before = player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
+            int hp_xp_before = player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS];
+            int option_nodef = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "option_nodef");
+            int nodef_before = option_nodef >= 0 ? player->varps[option_nodef] : 0;
 
             a->huntmode = TORIRSSERVER_HUNT_NONE;
             b->huntmode = TORIRSSERVER_HUNT_NONE;
@@ -19941,7 +19953,37 @@ ToriRSServer_WorldSelftest(void)
             b->hitpoints = b->max_hitpoints;
             selftest_park_player(srv, a->x + 1, a->z);
             player->level = a->level;
+            /*
+             * Hitpoints the fixture can survive the section on, and this is not
+             * housekeeping.
+             *
+             * Whatever ran before leaves the player on ONE hitpoint, which no
+             * goblin swing fails to kill — and a dead player has no claim, no
+             * interaction and no walk, so every check below measures a corpse
+             * and agrees with itself. It stayed hidden while the section ended
+             * on the tick the packet was handled: the walk the refusal now has
+             * to survive is what made the fixture's health matter.
+             *
+             * Restored by hand at the end of the section, the way the section
+             * above restores it: `ToriRSServer_CombatSetLevel` would re-derive the
+             * xp from the level and later sections read both.
+             */
+            player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = 20;
+            player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 20;
+            ToriRSServer_CombatSyncHitpoints(player);
             player->hitpoints = player->max_hitpoints;
+            /*
+             * Auto-retaliate OFF for the section (1 is off; 0 is on).
+             *
+             * The first goblin keeps hitting the player all the way across the
+             * walk below, and `[queue,playerhit_n_retaliate]` answers a hit with
+             * `p_opnpc(2)` — which re-arms the interaction onto the goblin doing
+             * the hitting and abandons the walk two tiles in. That is correct
+             * behaviour and it is a different rule; leaving it on would decide
+             * this section by whether a goblin rolled a hit.
+             */
+            if( option_nodef >= 0 )
+                player->varps[option_nodef] = 1;
 
             SELFTEST_CHECK(ToriRSServer_NpcInfo(a->type)->ops[1] != NULL &&
                                strcmp(ToriRSServer_NpcInfo(a->type)->ops[1], "Attack") == 0,
@@ -19974,11 +20016,14 @@ ToriRSServer_WorldSelftest(void)
                            "and the goblin should claim the player back, pid %d",
                            a->combat_claim_pid);
 
-            /* The second click. Refused, with the message, and — the part that
-             * matters — without disturbing the fight already running. */
+            /* The second click. It walks — a refused Attack is still a click —
+             * and the message lands when the player gets there. Melee, so the
+             * rung that answers is the op one, on adjacency. */
             selftest_npc_payload(player, second, opnpc);
             ToriRSServer_CaptureBegin(srv, &capture);
             selftest_handle(player, PKTOUT_NAME_OPNPC2, opnpc, sizeof(opnpc));
+            for( int i = 0; i < 6; i++ )
+                selftest_tick(srv);
             ToriRSServer_CaptureEnd(srv);
             for( int i = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
@@ -19991,15 +20036,109 @@ ToriRSServer_WorldSelftest(void)
             }
             SELFTEST_CHECK(refused,
                            "the second Attack click should say \"I'm already under attack.\"");
-            SELFTEST_CHECK(player->combat_target == first,
-                           "and must leave the first fight running, target %d",
+            /* Walked, which is the half the old packet-time refusal skipped:
+             * the player is standing next to the goblin they were told they may
+             * not attack, not where they clicked from. */
+            {
+                int gap_x = player->x > b->x ? player->x - b->x : b->x - player->x;
+                int gap_z = player->z > b->z ? player->z - b->z : b->z - player->z;
+
+                SELFTEST_CHECK(gap_x + gap_z == 1,
+                               "and must have walked to it, player %d,%d goblin %d,%d",
+                               player->x, player->z, b->x, b->z);
+            }
+            /* Nothing armed and nothing engaged: the refusal cleared the
+             * interaction, which is also what stops the line repeating every
+             * tick the player stands there. */
+            SELFTEST_CHECK(player->combat_target != second,
+                           "and must not have started the second fight, target %d",
                            player->combat_target);
-            SELFTEST_CHECK(player->interaction.kind == TORIRSSERVER_INTERACT_NPC &&
-                               player->interaction.npc_slot == first,
-                           "including the armed interaction, kind %d slot %d",
+            SELFTEST_CHECK(player->interaction.kind != TORIRSSERVER_INTERACT_NPC ||
+                               player->interaction.npc_slot != second,
+                           "nor left the refused interaction armed, kind %d slot %d",
                            (int)player->interaction.kind, player->interaction.npc_slot);
             SELFTEST_CHECK(ToriRSServer_CombatSinglewayRefuses(srv, player, second) == 1,
                            "and the predicate agrees");
+
+            /*
+             * The ranged half: a weapon that out-ranges melee POINTS rather
+             * than paths.
+             *
+             * Same refusal, a different rung. `[apnpc2,_]` is a bow's arrival —
+             * `~player_attackrange` says ten tiles, so the fight would start
+             * where the player is standing — and that is where the line has to
+             * arrive too. Walking a bow into melee to be told it may not shoot
+             * is the melee answer given to a weapon that never asked the melee
+             * question.
+             *
+             * No tick at all, which is the point: `handle_opnpc` runs the
+             * interaction itself, so an in-range refusal is finished before the
+             * packet handler returns. What that leaves to check is the facing —
+             * the derivation at the top of `phase_player` never gets a look at
+             * this interaction, so the refusal has to set the latch itself.
+             *
+             * The claim is stamped by hand rather than fought for: parking
+             * clears it (the harness does, deliberately), and what this half
+             * measures is the rung the refusal answers on, not how the claim got
+             * there.
+             */
+            {
+                int bow = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ,
+                                                  "bow_of_faerdhinen_infinite");
+                int weapon_before = player->worn[TORIRSSERVER_WEAR_WEAPON].obj_id;
+                int gap = 0;
+                int pointed = 0;
+
+                SELFTEST_CHECK(bow > 0, "bow_of_faerdhinen_infinite should resolve, got %d",
+                               bow);
+                if( bow > 0 )
+                {
+                    selftest_park_player(srv, b->x - 4, b->z);
+                    player->level = b->level;
+                    player->hitpoints = player->max_hitpoints;
+                    worn_set(player, TORIRSSERVER_WEAR_WEAPON, bow, 1);
+                    ToriRSServer_ScriptsRunProc(srv, "[proc,player_combat_stat]", NULL, 0);
+                    ToriRSServer_CombatClaim(srv, player, first);
+
+                    refused = 0;
+                    selftest_npc_payload(player, second, opnpc);
+                    ToriRSServer_CaptureBegin(srv, &capture);
+                    selftest_handle(player, PKTOUT_NAME_OPNPC2, opnpc, sizeof(opnpc));
+                    ToriRSServer_CaptureEnd(srv);
+                    for( int i = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, 0);
+                         i >= 0;
+                         i = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, i + 1) )
+                    {
+                        const char* text = selftest_message_text(srv, &capture.packets[i]);
+
+                        if( text && strstr(text, "already under attack") )
+                            refused = 1;
+                    }
+                    {
+                        int gap_x = player->x > b->x ? player->x - b->x : b->x - player->x;
+                        int gap_z = player->z > b->z ? player->z - b->z : b->z - player->z;
+
+                        gap = gap_x > gap_z ? gap_x : gap_z;
+                    }
+                    pointed = player->face_entity == second;
+
+                    SELFTEST_CHECK(refused,
+                                   "a refused bow shot should say it from range too");
+                    SELFTEST_CHECK(gap == 4,
+                                   "without taking a step toward the goblin: %d tile(s) "
+                                   "from it, player %d,%d goblin %d,%d",
+                                   gap, player->x, player->z, b->x, b->z);
+                    SELFTEST_CHECK(pointed,
+                                   "and must have turned to face it, face_entity %d want %d",
+                                   player->face_entity, second);
+
+                    worn_set(player, TORIRSSERVER_WEAR_WEAPON, weapon_before,
+                             weapon_before >= 0 ? 1 : 0);
+                    ToriRSServer_ScriptsRunProc(srv, "[proc,player_combat_stat]", NULL, 0);
+                    ToriRSServer_CombatStopPlayer(srv);
+                    ToriRSServer_CombatClaim(srv, player, first);
+                }
+            }
 
             /* A multi-combat zone lifts it, and the zone that counts is the
              * TARGET's — the reference asks `map_multiway(npc_coord)`. Moved
@@ -20046,6 +20185,13 @@ ToriRSServer_WorldSelftest(void)
             b->combat_target = -1;
             b->combat_claim_pid = -1;
             b->combat_claim_tick = 0;
+            if( option_nodef >= 0 )
+                player->varps[option_nodef] = nodef_before;
+            player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = hp_level_before;
+            player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = hp_boost_before;
+            player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] = hp_xp_before;
+            ToriRSServer_CombatSyncHitpoints(player);
+            player->hitpoints = player->max_hitpoints;
             ToriRSServer_CombatStopPlayer(srv);
             ToriRSServer_WorldNpcFree(srv, first);
             ToriRSServer_WorldNpcFree(srv, second);
@@ -56541,7 +56687,7 @@ ToriRSServer_WorldSelftest(void)
                 if( pkt->len == 6 )
                 {
                     SELFTEST_CHECK(pkt->data[0] == TORIRSSERVER_HINT_ARROW_NPC,
-                                   "the npc form states type 2, saw %d", pkt->data[0]);
+                                   "the npc form states type 1, saw %d", pkt->data[0]);
                     SELFTEST_CHECK((pkt->data[1] << 8 | pkt->data[2]) == 41,
                                    "... and carries the npc slot");
                 }
@@ -56555,7 +56701,7 @@ ToriRSServer_WorldSelftest(void)
                 uint8_t* d = capture.packets[at].data;
 
                 SELFTEST_CHECK(d[0] == TORIRSSERVER_HINT_ARROW_COORD,
-                               "the coord form states type 1, saw %d", d[0]);
+                               "the coord form states type 2, saw %d", d[0]);
                 /* ABSOLUTE, not scene-local: the arrow's job is to point at
                  * somewhere the player is not, and a scene-local coord cannot
                  * name a tile outside the loaded window. The client converts

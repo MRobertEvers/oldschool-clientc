@@ -606,7 +606,7 @@ CS2VM2_IsTargetingOpcode(int opcode)
     case CS2_OP_OVERLAY_CC_FIND:
     case CS2_OP_CC_CHILDREN_FIND_COUNT:
     case CS2_OP_CC_CHILDREN_FINDNEXTID:
-    case CS2_OP__213:
+    case CS2_OP_CC_CHILDREN_FINDNEXT:
     case CS2_OP_IF_CHILDREN_FIND:
     case CS2_OP_IF_CHILDREN_FINDNEXTID:
     case CS2_OP_IF_CHILDREN_COLLECT:
@@ -8269,6 +8269,12 @@ CS2VM2_Op_CC_ChildrenFindNext(
     int operand);
 
 int
+CS2VM2_Op_ChildrenFindNextId(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand);
+
+int
 CS2VM2_Op_IF_ChildrenFind(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
@@ -8696,7 +8702,7 @@ CS2VM2_Op_EntityOverlay(struct CS2VM2_Thread* vm, int opcode, int operand)
  *
  * Two shapes, both here because they are one subsystem: the three OBJSTACK_*
  * ops take a coord (and, past the count, an index) and read the pile; the five
- * OBJ_* ops read the ENTRY that OBJ_FIND last selected, so four of them pop
+ * OBJ_* ops read the ENTRY that OBJ_FINDBYINDEX last selected, so four of them pop
  * nothing at all. The reference splits them across two dispatch files for no
  * reason but their opcode numbers.
  *
@@ -8718,7 +8724,7 @@ CS2VM2_Op_GroundObj(
     /* (coord, index) */
     case CS2_OP_OBJSTACK_ID:
     case CS2_OP_OBJSTACK_QUANTITY:
-    case CS2_OP_OBJ_FIND:
+    case CS2_OP_OBJ_FINDBYINDEX:
         if( CS2VM2_PopInt(vm, &index) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         if( CS2VM2_PopInt(vm, &coord) != CS2VM_EXECNO_OK )
@@ -8756,7 +8762,7 @@ CS2VM2_Op_GroundObj(
         CS2VM_GROUNDOBJ_CASE(OBJSTACK_COUNT);
         CS2VM_GROUNDOBJ_CASE(OBJSTACK_ID);
         CS2VM_GROUNDOBJ_CASE(OBJSTACK_QUANTITY);
-        CS2VM_GROUNDOBJ_CASE(OBJ_FIND);
+        CS2VM_GROUNDOBJ_CASE(OBJ_FINDBYINDEX);
         CS2VM_GROUNDOBJ_CASE(OBJ_DESPAWNTIME);
         CS2VM_GROUNDOBJ_CASE(OBJ_VISIBLETIME);
         CS2VM_GROUNDOBJ_CASE(OBJ_ISPUBLIC);
@@ -11324,6 +11330,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_ChildrenFindNext(vm, frame, operand);
     case CS2_OP_CC_CHILDREN_FIND_COUNT:
         return CS2VM2_Op_CC_ChildrenFindCount(vm, frame, operand);
+    case CS2_OP_CHILDREN_FINDNEXTID:
+        return CS2VM2_Op_ChildrenFindNextId(vm, frame, operand);
     case CS2_OP_IF_CHILDREN_FIND:
         return CS2VM2_Op_IF_ChildrenFind(vm, frame, operand);
     case CS2_OP_IF_CHILDREN_FINDNEXTID:
@@ -12164,7 +12172,7 @@ CS2VM2_RunOp(
      * stack-meta stub and answered 0, which is a real tile -- so clientscript
      * 5210's `if (_3330 ! null)` was always true and the destination-tile
      * highlight marked the corner of the map. */
-    case CS2_OP__3330:
+    case CS2_OP_DESTINATIONCOORD:
     {
         struct CS2VM_HostRequest request;
         (void)frame;
@@ -12811,22 +12819,22 @@ CS2VM2_RunOp(
      * player block's 6902.. are about a route -- and a range would have
      * routed those here too and answered them with a confident zero.
      */
-    case CS2_OP__6750: /* npc name   */
-    case CS2_OP__6751: /* npc uid    */
-    case CS2_OP__6752: /* npc coord  */
-    case CS2_OP__6753: /* npc type   */
+    case CS2_OP_NPC_NAME: /* npc name   */
+    case CS2_OP_NPC_UID: /* npc uid    */
+    case CS2_OP_NPC_CREATIONCYCLE: /* npc coord  */
+    case CS2_OP_NPC_TYPE: /* npc type   */
         return CS2VM2_Op_ClientOpContext(vm, opcode);
 
     /* === CS2 opcode group: clientop-loc (6800..6899) ===
      * active location and object queries.
      * rev-239 dispatch: Statics.method6889 -> method3101. */
-    case CS2_OP__6800: /* loc name   */
-    case CS2_OP__6801: /* loc coord  */
-    case CS2_OP__6802: /* loc type   */
-    case CS2_OP__6850: /* obj name   */
-    case CS2_OP__6851: /* obj coord  */
-    case CS2_OP__6852: /* obj id     */
-    case CS2_OP__6853: /* obj count  */
+    case CS2_OP_LOC_NAME: /* loc name   */
+    case CS2_OP_LOC_COORD: /* loc coord  */
+    case CS2_OP_LOC_TYPE: /* loc type   */
+    case CS2_OP_OBJ_NAME: /* obj name   */
+    case CS2_OP_OBJ_COORD: /* obj coord  */
+    case CS2_OP_OBJ_TYPE: /* obj id     */
+    case CS2_OP_OBJ_COUNT: /* obj count  */
         return CS2VM2_Op_ClientOpContext(vm, opcode);
     case CS2_OP_LOC_FIND:
         return CS2VM2_Op_SubjectFind(vm, opcode);
@@ -12834,7 +12842,7 @@ CS2VM2_RunOp(
      * whichever entry it left active. Numbered here because a ground obj is
      * what this block is about; answered beside OBJSTACK_* (7120..7122), which
      * is the same subsystem seen from the tile's side. */
-    case CS2_OP_OBJ_FIND:
+    case CS2_OP_OBJ_FINDBYINDEX:
     case CS2_OP_OBJ_DESPAWNTIME:
     case CS2_OP_OBJ_VISIBLETIME:
     case CS2_OP_OBJ_ISPUBLIC:
@@ -12846,8 +12854,8 @@ CS2VM2_RunOp(
      * rev-239 dispatch: Statics.method6889 -> method6167. */
     case CS2_OP_LOGIN_INT24:
         return CS2VM2_Op_LoginInt24(vm, frame, operand);
-    case CS2_OP__6900: /* player name  */
-    case CS2_OP__6950: /* tile coord */
+    case CS2_OP_P_NAME: /* player name  */
+    case CS2_OP_TILE_COORD: /* tile coord */
         return CS2VM2_Op_ClientOpContext(vm, opcode);
     /* The active player's route (6902/6903) and the two player uids
      * (6904/6905). Numerically inside the player block above, but a different
@@ -12939,8 +12947,8 @@ CS2VM2_RunOp(
     /* The acting row's TILE and its OBJ id. Numbered inside the minimenu block
      * and answered from the same acting row; nothing in this cache calls
      * either, which is why they sat unrouted and faked a zero. */
-    case CS2_OP__7106:
-    case CS2_OP__7107:
+    case CS2_OP_MINIMENU_COORD:
+    case CS2_OP_MINIMENU_OBJTYPE:
         return CS2VM2_Op_Minimenu(vm, opcode);
     /* OBJSTACK_* (7120..7122): the ground-item pile on an absolute coord.
      * Numerically inside the minimenu block and nothing to do with the menu --
@@ -13842,6 +13850,32 @@ CS2VM2_Op_CC_ChildrenFindNext(
     if( result == CS2VM_EXECNO_OK )
         vm->children_iter_index++;
     return result;
+}
+
+/*
+ * Opcode 214 — CHILDREN_FINDNEXTID() -> int.
+ * The id-returning step of the same children iterator 211/212 fill. rev-239
+ * Statics.java pushes method7953(class332), which is
+ * `cursor >= count ? -1 : ids[cursor++]` — the very cursor CC_CHILDREN_FINDNEXT
+ * (213) walks, except 213 resolves the id to a component and makes it active
+ * instead of pushing it. Procs 8490/8491 loop on this until it answers -1 to
+ * find the first free child slot under a parent, so a missing handler left
+ * every dynamic-child allocation dead.
+ */
+int
+CS2VM2_Op_ChildrenFindNextId(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    (void)frame;
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    if( vm->children_iter_index >= vm->children_iter_count )
+        return CS2VM2_PushInt(vm, -1);
+    return CS2VM2_PushInt(vm, vm->children_iter_indices[vm->children_iter_index++]);
 }
 
 int

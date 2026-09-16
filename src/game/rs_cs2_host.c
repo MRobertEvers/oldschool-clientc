@@ -3125,12 +3125,12 @@ exec_minimenu(
      * the alternative is the stack stub answering a confident zero, which for
      * a COORD is the corner of the map square.
      */
-    case CS2_OP__7106:
+    case CS2_OP_MINIMENU_COORD:
         return CS2VM2_PushInt(
             thread,
             host->clientop.mouseover.coord >= 0 ? host->clientop.mouseover.coord
                                                 : host->hover_coord);
-    case CS2_OP__7107:
+    case CS2_OP_MINIMENU_OBJTYPE:
         return CS2VM2_PushInt(
             thread,
             host->clientop.mouseover_type == RS_MINIMENU_TYPE_OBJ
@@ -7812,7 +7812,7 @@ exec_ground_obj(
      * and answers 1; a miss leaves the previous selection alone -- the
      * reference does the same, and every caller tests the answer before
      * reading anything. */
-    case CS2_OP_OBJ_FIND:
+    case CS2_OP_OBJ_FINDBYINDEX:
         count = rs_cs2_ground_objs_on_coord(host, coord, index, &entry);
         if( index < 0 || index >= count )
             return CS2VM2_PushInt(vm, 0);
@@ -8494,7 +8494,7 @@ exec_clientop_context_request(
         TORIRS_LOG("cs2: opcode %d is not a client-op context getter\n", opcode);
         return CS2VM_EXECNO_ERROR;
     }
-    if( opcode == CS2_OP__6950 && value < 0 )
+    if( opcode == CS2_OP_TILE_COORD && value < 0 )
         value = host->hover_coord;
     if( text )
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, text));
@@ -11208,7 +11208,7 @@ rs_cs2_host_exec_dispatch(
 
         RS_CS2_CLIENTOP_CONTEXT_CASE(_6853);
 
-        RS_CS2_GROUND_OBJ_CASE(OBJ_FIND);
+        RS_CS2_GROUND_OBJ_CASE(OBJ_FINDBYINDEX);
 
         RS_CS2_GROUND_OBJ_CASE(OBJ_DESPAWNTIME);
 

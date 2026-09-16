@@ -1489,6 +1489,18 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_out=("1 if found (active set) else 0",),
         notes="Opcode 203; completes the reference overlay-layer family.",
     ),
+    "CHILDREN_FINDNEXTID": OpcodeDoc(
+        summary="Advance the children iterator and push the next child sub-id",
+        int_out=("next collected sub-id, or -1 once the iterator is exhausted",),
+        notes=(
+            "Opcode 214. rev-239 Statics.method7953(class332): "
+            "`cursor >= count ? -1 : ids[cursor++]` over the id list that "
+            "IF_CHILDREN_COLLECT (211) and CC_CHILDREN_FIND_COUNT (212) fill. "
+            "It shares that cursor with CC_CHILDREN_FINDNEXT (213), which "
+            "resolves the same id to a component and makes it active instead "
+            "of pushing it."
+        ),
+    ),
     "IF_GETCOMPONENTPARAM": OpcodeDoc(
         summary="Read a runtime param from a named component",
         operand="unused",

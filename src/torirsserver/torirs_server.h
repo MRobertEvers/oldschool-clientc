@@ -5288,10 +5288,15 @@ ToriRSServer_CombatClaim(
  * Must this attack be refused because the fight is single-way? Non-zero yes,
  * having already told the player which of the two reasons it was.
  *
- * Call it on anything that STARTS an attack — an Attack click, a targeted cast,
- * a script's `p_opnpc(2)`, `ToriRSServer_CombatEngage`. Never on the damage
- * funnel: a refusal there would produce a fight that is allowed to begin and
- * unable to land, which is indistinguishable from the swing being dropped.
+ * Call it where an attack STARTS, which is not the same place as where it was
+ * asked for: the ap/op rung a click resolves at (`interaction_attack_refused`),
+ * a script's `p_opnpc(2)`, `ToriRSServer_CombatEngage`. A refusal on the
+ * *packet* would be a click the player never sees happen — no turn, no walk,
+ * and a message with nothing attached to it.
+ *
+ * Never on the damage funnel either: a refusal there would produce a fight that
+ * is allowed to begin and unable to land, which is indistinguishable from the
+ * swing being dropped.
  */
 int
 ToriRSServer_CombatSinglewayRefuses(
@@ -7313,13 +7318,21 @@ ToriRSServer_SendMessage(
     struct ToriRSServerPlayer* player,
     const char* text);
 /*
- * HINT_ARROW's `type` byte. The reference's own values; the client mirrors them
- * as APP_HINT_ARROW_* in src/app.h.
+ * HINT_ARROW's `type` byte. The reference's own values -- LostCity's
+ * `HintArrowEncoder` writes them and rev 239's `class268.method6676` reads
+ * them; the client mirrors them as APP_HINT_ARROW_* in src/app.h.
+ *
+ * COORD and NPC were 1 and 2 the other way round here until 2026-09-15, and
+ * the client had the same pair reversed, so the two agreed with each other and
+ * with no real server on either lane.
+ *
+ * The four off-centre coord forms (3..6: west, east, south, north edge of the
+ * tile) have no script opcode and so no name here; the client reads them.
  */
 enum
 {
-    TORIRSSERVER_HINT_ARROW_COORD = 1,
-    TORIRSSERVER_HINT_ARROW_NPC = 2,
+    TORIRSSERVER_HINT_ARROW_NPC = 1,
+    TORIRSSERVER_HINT_ARROW_COORD = 2,
     TORIRSSERVER_HINT_ARROW_PLAYER = 10,
     TORIRSSERVER_HINT_ARROW_CLEAR = 255
 };
@@ -7327,7 +7340,7 @@ enum
 /**
  * HINT_ARROW: point the player at an npc, a player, or an absolute tile.
  *
- * `type` is the wire's own selector -- 1 coord, 2 npc, 10 player, 255 clear --
+ * `type` is the wire's own selector -- 1 npc, 2..6 coord, 10 player, 255 clear --
  * and the remaining three fields mean different things per type. The four
  * `hint_*` script opcodes are the intended callers; see the definition.
  */

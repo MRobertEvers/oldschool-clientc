@@ -47,20 +47,22 @@ HERE = Path(__file__).resolve().parent
 OPCODE_H = HERE / "cs2_opcode.h"
 META_C = HERE / "cs2_opcode_meta.c"
 OUT = HERE / "cs2vm2_opcode_stack.gen.h"
+DISPATCH_C = HERE / "cs2vm2.c"
 
 REPO = HERE.parent.parent
 COMMAND_GEN_H = REPO / "3rd" / "rscache" / "src" / "cs2" / "cs2_command.gen.h"
 CS2_TYPES_C = REPO / "3rd" / "rscache" / "src" / "cs2" / "cs2_types.c"
 
 
-# RSCACHE_CS2_OPCODE_TABLE_SIZE (3rd/rscache/src/cs2/cs2_command.gen.h) — the
-# highest defined opcode there is 8024 (ARRAY_INSERT / append), so this is the
-# measured ceiling, not a guess. Used to top out at 7602, which put the entire
-# 8000-series permanently out of reach: not implemented, not asserted, just
-# silently absent from this table and from CS2VM2_Op_StackMetaStub's
-# `opcode < CS2VM2_OPCODE_STACK_MAX` gate. Raised 8023→8025 when Overview's
-# 8023/8024 landed (skill_guide.md §5).
-MAX_OPCODE = 8025
+# The table ceiling is DERIVED, never hand-maintained. An opcode above it is
+# absent from this table, which sends it to CS2VM2_Op_StackMetaStub with a
+# zeroed meta: the script aborts and nothing says why. That has now happened
+# twice — at 7602 it swallowed the whole 8000-series, and at 8025 it swallowed
+# array_delete (8026) and array_pushall (8027), 64 call sites between them. A
+# hand-written constant is re-broken by the next opcode anyone names, so
+# `ceiling()` takes the max of every id this script can see. This is only its
+# floor.
+MIN_MAX_OPCODE = 8025
 
 MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     6599: (0, 1, 0, 0),  # RuneLite callback pops its name; remaining stacks are live.
@@ -117,6 +119,7 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     211: (3, 0, 1, 0),  # IF_CHILDREN_COLLECT(start, component, unused) -> count
     212: (1, 0, 1, 0),  # CC_CHILDREN_FIND+count(start) -> count
     213: (0, 0, 1, 0),  # CC_CHILDREN_FINDNEXT() -> bool (set target; != FINDNEXTID)
+    214: (0, 0, 1, 0),  # CHILDREN_FINDNEXTID() -> next collected sub-id (or -1)
     215: (0, 0, 0, 1),  # CHILDREN_ARRAY() -> string (array handle)
     6200: (2, 0, 0, 0),  # VIEWPORT_SETFOV
     6201: (2, 0, 0, 0),  # VIEWPORT_SETZOOM
@@ -450,7 +453,7 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     #
     # The 8000-series array family (arrays are handles on the STRING stack at
     # this revision). 8000/8007 already carry real doc comments in cs2_opcode.h
-    # and need nothing here; the rest were unreachable until MAX_OPCODE widened
+    # and need nothing here; the rest were unreachable until the ceiling widened
     # past the old 7602 ceiling. Tuples below are from local_commands.py /
     # call-site evidence against cache.osrs239, not guessed. 8019 was corrected
     # 2026-08-03: it pushes the joined string (script 9153 → gosub 9182; xrsps
@@ -709,6 +712,28 @@ def parse_meta_names() -> dict[int, str]:
     return names
 
 
+def parse_dispatched(ids_by_name: dict[str, int]) -> set[int]:
+    """Opcodes cs2vm2.c actually dispatches.
+
+    The heuristic below answers (0,0,0,0) for whole families of SET-shaped
+    names. That value is not a signature -- it is a MARKER meaning "a dedicated
+    handler in cs2vm2.c pops this opcode's arguments itself, so the table entry
+    only feeds the debug trace" (see this file's docstring). The marker is only
+    true where such a handler exists. On an opcode nobody dispatches it is a
+    claim of zero arity, which is the silent-wrong-arity failure this whole file
+    is built to prevent: the stub pops nothing, the real arguments stay on the
+    operand stack, and the script dies later somewhere unrelated.
+
+    That distinction used to be untestable, so it was assumed. It is not: the
+    dispatch is right here, as explicit `case CS2_OP_X:` labels and as the
+    `..._CASE(X)` macros that expand to them.
+    """
+    text = DISPATCH_C.read_text(encoding="utf-8")
+    macros = set(re.findall(r"case (CS2_OP_[A-Z0-9_]+):", text))
+    macros |= {"CS2_OP_" + m for m in re.findall(r"_CASE\(\s*([A-Z][A-Z0-9_]*)\s*[,)]", text)}
+    return {ids_by_name[m] for m in macros if m in ids_by_name}
+
+
 def heuristic(name: str) -> tuple[int, int, int, int] | None:
     # These commands have no dedicated VM handler. Their established compiler
     # signatures already populated the checked-in table as inherited (2).
@@ -827,6 +852,16 @@ def heuristic(name: str) -> tuple[int, int, int, int] | None:
     return None
 
 
+def ceiling(*id_sources) -> int:
+    """One past the highest opcode id any of this script's sources names."""
+    top = MIN_MAX_OPCODE - 1
+    for ids in id_sources:
+        for op in ids:
+            if op > top:
+                top = op
+    return top + 1
+
+
 def main() -> None:
     entries, documented = parse_opcode_h()
     names = parse_meta_names()
@@ -843,6 +878,10 @@ def main() -> None:
         documented.add(op)
         known.add(op)
 
+    # ---- the bridge (source 4; see this file's docstring) -------------------
+    bridge, cmd_table_size = parse_command_gen()
+    dispatched = parse_dispatched({f"CS2_OP_{n}": o for o, n in names.items()})
+
     for op, name in names.items():
         if op in documented:
             continue
@@ -850,12 +889,18 @@ def main() -> None:
             known.add(op)
             continue
         h = heuristic(name)
-        if h is not None:
-            entries[op] = h
-            known.add(op)
+        if h is None:
+            continue
+        # A name-shaped guess loses to a real command table unless cs2vm2.c
+        # dispatches the opcode -- see parse_dispatched. Skipping it here lets
+        # the bridge fill the row as inherited (known = 2), which is both the
+        # right arity and honestly labelled "nothing implements this".
+        if op not in dispatched and bridge.get(op, h) != h:
+            continue
+        entries[op] = h
+        known.add(op)
 
-    # ---- the bridge (source 4; see this file's docstring) -------------------
-    bridge, cmd_table_size = parse_command_gen()
+    max_opcode = ceiling(entries, names, MANUAL_STACK, bridge)
 
     conflicts = {
         op: (entries.get(op, (0, 0, 0, 0)), sig)
@@ -897,7 +942,7 @@ def main() -> None:
     # "we know its shape" reads the 2.
     inherited = set()
     for op, sig in bridge.items():
-        if op in known or op >= MAX_OPCODE:
+        if op in known or op >= max_opcode:
             continue
         entries[op] = sig
         known.add(op)
@@ -909,7 +954,7 @@ def main() -> None:
         "#ifndef CS2VM2_OPCODE_STACK_GEN_H",
         "#define CS2VM2_OPCODE_STACK_GEN_H",
         "",
-        f"#define CS2VM2_OPCODE_STACK_MAX {MAX_OPCODE}",
+        f"#define CS2VM2_OPCODE_STACK_MAX {max_opcode}",
         "",
         "struct CS2VM2OpcodeStack {",
         "    unsigned char int_in;",
@@ -933,15 +978,30 @@ def main() -> None:
         "",
         "static struct CS2VM2OpcodeStack const g_cs2vm2_opcode_stack[CS2VM2_OPCODE_STACK_MAX] = {",
     ]
-    for op in range(MAX_OPCODE):
+    # `known` is what the RUNTIME acts on, so it has to mean what the runtime
+    # says it means. Tier 2 prints "no implementation -- results faked", and
+    # that is a statement about cs2vm2.c, not about which table the signature
+    # came from. Deriving the tier from provenance got that wrong in both
+    # directions: a bridged row for an opcode the VM *does* dispatch was
+    # announced as faked, and -- the damaging half -- naming an opcode could
+    # promote it 2 -> 1 purely because its name matched a heuristic, which
+    # silenced the warning for something still unimplemented. `dispatched` is
+    # the real question, so ask it directly.
+    for op in range(max_opcode):
         ii, si, io, so = entries.get(op, (0, 0, 0, 0))
-        kn = 2 if op in inherited else (1 if op in known else 0)
+        if op not in known:
+            kn = 0
+        elif op in dispatched:
+            kn = 1
+        else:
+            kn = 2
         lines.append(f"    [{op}] = {{ {ii}, {si}, {io}, {so}, {kn} }},")
     lines.extend(["};", "", "#endif", ""])
     OUT.write_text("\n".join(lines))
     print(
         f"wrote {OUT} ({len(entries)} opcodes with metadata, "
-        f"{len(known)} known; {bridged} inherited from cs2_command.gen.h "
+        f"{len(known)} with a signature, {len(known & dispatched)} implemented; "
+        f"{bridged} inherited from cs2_command.gen.h "
         f"[table size {cmd_table_size}], {len(conflicts)} acknowledged conflicts)"
     )
 

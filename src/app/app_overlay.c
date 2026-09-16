@@ -521,9 +521,10 @@ app_overlay_build_player_headicons(
  * ## The three subject kinds
  *
  * The wire's `type` byte selects what `id`/`z` mean, and the reference's own
- * values are 1 = a COORD (id is x, z is z, and the height byte is how far above
- * the tile the arrow floats), 2 = an NPC by slot, 10 = a PLAYER by pid. 255
- * clears, which `rs_gameproto_exec.c` already normalises to 0.
+ * values are 1 = an NPC by slot, 2..6 = a COORD (id is x, z is z, the height
+ * byte is how far above the tile the arrow floats and the type itself picks
+ * which point of the tile), 10 = a PLAYER by pid. 255 clears, and
+ * `rs_gameproto_exec.c` normalises that to 0 and 3..6 to 2.
  *
  * A subject that is out of view is not an error and not a clear: an npc can
  * walk behind the camera and come back. It simply does not project this frame,
@@ -565,13 +566,16 @@ app_overlay_build_hint_arrow(struct App* app)
          *
          * The packet's `height` is in the projector's units above the tile, not
          * a pixel offset -- the reference floats a coord arrow clear of the
-         * ground so it stays readable over scenery.
+         * ground so it stays readable over scenery. The offsets are where in
+         * the tile it floats: types 3..6 anchor it to an edge instead of the
+         * centre, which `rs_gameproto_exec.c` has already folded into a fine
+         * offset pair.
          */
         int const base_x = (app->rebuild_zone_x - 6) * 8;
         int const base_z = (app->rebuild_zone_z - 6) * 8;
 
-        world_x = ((app->hint_arrow.target - base_x) << 7) + 64;
-        world_z = ((app->hint_arrow.tile_z - base_z) << 7) + 64;
+        world_x = ((app->hint_arrow.target - base_x) << 7) + app->hint_arrow.offset_x;
+        world_z = ((app->hint_arrow.tile_z - base_z) << 7) + app->hint_arrow.offset_z;
         height = app->hint_arrow.height * 2;
         break;
     }
@@ -622,11 +626,13 @@ app_overlay_build_hint_arrow(struct App* app)
          * the solid arrow and frame 1 is the same arrow in outline. Frames 2..5
          * are entirely transparent.
          *
-         * The reference's edge form comes from a different pack --
-         * `GraphicsDefaults::GetSpriteHintMapEdgeID`, beside
-         * `...HintMapMarkersID` -- and this cache's sprite gameval table names
-         * no such group: `headicons_hint` is its only hint asset. So an
-         * off-screen arrow here would need artwork invented for it.
+         * The reference has no screen-edge form either: its other two hint
+         * packs are the MINIMAP's, not this pass's --
+         * `GraphicsDefaults::GetSpriteHintMapMarkersID` is `mapmarker` frame 1
+         * (the yellow arrow) and `...HintMapEdgeID` is `mapedge` (the rim
+         * arrow for a subject off the map), and `App_MinimapBuildDots` draws
+         * both. A subject behind the camera simply does not project here,
+         * which is what the minimap is for.
          *
          * Re-derive with:
          *   3rd/rscache/tools/spritebake/spritebake --rev osrs239 cache.osrs239 \

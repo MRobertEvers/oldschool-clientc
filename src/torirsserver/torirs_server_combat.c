@@ -2165,9 +2165,12 @@ ToriRSServer_CombatEngage(
         ToriRSServer_CombatStopPlayer(srv);
         return;
     }
-    /* Single-way. Before the latch and before the walk: a refused Attack must
-     * leave the player standing where they were, still fighting whatever they
-     * were already fighting. */
+    /* Single-way. Before the latch and before the walk, because this entry
+     * point IS the start of the attack — it engages on the spot. The click path
+     * no longer arrives here refused: `interaction_attack_refused` answers at
+     * the ap/op rung, ahead of the trigger dispatch that reaches this fallback,
+     * so what this gate still covers is the engage with no interaction behind
+     * it (`::fight`, and content that calls it). */
     if( ToriRSServer_CombatSinglewayRefuses(srv, player, slot) )
         return;
 

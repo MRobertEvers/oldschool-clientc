@@ -1716,8 +1716,39 @@ RS_GameProto_Exec(
     case PKT_NAME_HINT_ARROW:
         if( ctx->app )
         {
-            ctx->app->hint_arrow.type =
-                packet->_hint_arrow.type == 255 ? 0 : packet->_hint_arrow.type;
+            int type = packet->_hint_arrow.type == 255 ? 0 : packet->_hint_arrow.type;
+
+            /*
+             * The five tile forms are one form with five anchors, and the
+             * reference folds them here rather than at the draw: 2 is the
+             * tile's centre, 3/4 its west/east edge, 5/6 its south/north
+             * (Client.ts's own 64/0/128 pairs, and `class268.method6676`'s
+             * at rev 239). Left as five types, every place that draws a hint
+             * would have to know all five.
+             */
+            ctx->app->hint_arrow.offset_x = 64;
+            ctx->app->hint_arrow.offset_z = 64;
+            switch( type )
+            {
+            case APP_HINT_ARROW_COORD_WEST:
+                ctx->app->hint_arrow.offset_x = 0;
+                break;
+            case APP_HINT_ARROW_COORD_EAST:
+                ctx->app->hint_arrow.offset_x = 128;
+                break;
+            case APP_HINT_ARROW_COORD_SOUTH:
+                ctx->app->hint_arrow.offset_z = 0;
+                break;
+            case APP_HINT_ARROW_COORD_NORTH:
+                ctx->app->hint_arrow.offset_z = 128;
+                break;
+            default:
+                break;
+            }
+            if( type >= APP_HINT_ARROW_COORD && type <= APP_HINT_ARROW_COORD_NORTH )
+                type = APP_HINT_ARROW_COORD;
+
+            ctx->app->hint_arrow.type = type;
             ctx->app->hint_arrow.target = packet->_hint_arrow.id;
             ctx->app->hint_arrow.tile_z = packet->_hint_arrow.z;
             ctx->app->hint_arrow.height = packet->_hint_arrow.height;
