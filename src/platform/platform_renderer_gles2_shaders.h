@@ -209,6 +209,28 @@ static const char* const gles2_rotmask_fragment_shader =
     "    gl_FragColor = c;\n"
     "}\n";
 
+/*
+ * Client scaling's present: the offscreen frame sampled onto the output rect.
+ * Positions are clip space; alpha is forced opaque because the direct path
+ * shows the colour whatever the frame's alpha channel holds.
+ */
+static const char* const gles2_present_vertex_shader =
+    "attribute vec3 a_position;\n"
+    "attribute vec2 a_texcoord;\n"
+    "varying vec2 v_texcoord;\n"
+    "void main() {\n"
+    "    gl_Position = vec4(a_position.xy, 0.0, 1.0);\n"
+    "    v_texcoord = a_texcoord;\n"
+    "}\n";
+
+static const char* const gles2_present_fragment_shader =
+    GLES2_FRAGMENT_PRECISION_PREAMBLE
+    "uniform sampler2D s_texture;\n"
+    "varying vec2 v_texcoord;\n"
+    "void main() {\n"
+    "    gl_FragColor = vec4(texture2D(s_texture, v_texcoord).rgb, 1.0);\n"
+    "}\n";
+
 /* clang-format on */
 
 #endif

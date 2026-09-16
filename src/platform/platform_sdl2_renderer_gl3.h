@@ -4,6 +4,7 @@
 #include "render/torirs_pick.h"
 #include "render/torirs_render.h"
 
+#include "platform/client_scale.h"
 #include "platform/platform_gl_context.h"
 #include <stdbool.h>
 
@@ -34,6 +35,12 @@ void
 ToriRS_GL3_SetInterfaceScaleMode(
     struct ToriRS_GL3* gl3,
     int mode);
+
+/** Stretch mode, pixel limit and output filter; read at the next frame. */
+void
+ToriRS_GL3_SetClientScaling(
+    struct ToriRS_GL3* gl3,
+    struct ClientScaleSettings const* settings);
 
 /** Reserve drawable pixels at the trailing edge for application chrome. */
 void
@@ -96,19 +103,16 @@ ToriRS_GL3_PickHits(struct ToriRS_GL3 const* gl3);
 /**
  * Read the presented frame back off the device into `pixels`, top-down ARGB.
  *
- * `width`/`height` are the CANVAS size, not the window's: the drawable is
- * letterboxed and possibly scaled by the display's DPI, so the readback is
- * sampled back down onto the canvas grid the rest of the client thinks in.
- * That is what makes a GPU capture the same size as a software one.
+ * `width`/`height` are the CANVAS size, not the window's: the frame fills only
+ * its client-scale output rect, at the display's DPI, or a smaller scale FBO
+ * when the pixel limit applies, so the readback is sampled back down onto the
+ * canvas grid the rest of the client thinks in. That is what makes a GPU
+ * capture the same size as a software one.
  *
- * Call it BEFORE the buffer swap: it reads GL_BACK, which holds the finished
- * frame right up to the swap and is undefined immediately after one. Returns
+ * Call it AFTER the buffer swap: without the scale FBO it reads GL_FRONT, the
+ * buffer the swap moved the frame into (RuneLite's pairing). With the FBO it
+ * reads the FBO, which holds the last frame until the next one draws. Returns
  * false when there is no context to read.
- *
- * (RuneLite reads after its swapBuffers, which is the other valid pairing
- * rather than a disagreement -- rlawt's getBufferMode hands it GL_FRONT, the
- * buffer the swap moved the frame into. Mixing the two, back-buffer-after,
- * reads whatever the driver happened to leave behind.)
  *
  * This is a pipeline stall and is meant to be called rarely: the app asks for
  * it only when a capture is actually pending (App_DrawComplete), the same way

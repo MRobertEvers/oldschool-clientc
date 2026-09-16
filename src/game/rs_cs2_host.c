@@ -996,8 +996,8 @@ RS_CS2Host_Init(
     host->viewport_aspect_max = 32767;
     /* The interface scale is device_options[27], already seeded to 100% by the
      * OptionDefault loop above; a boot value is not a player choice, so it must
-     * not raise ui_scale_dirty. */
-    host->ui_scale_dirty = false;
+     * not raise client_scale_dirty. */
+    host->client_scale_dirty = false;
     /* Facing north; overwritten every logic tick by RS_CS2Host_SetCameraAngles
      * once a world is up, so this only covers the pre-login window. The pitch
      * default matches the follow camera's own pitch (the reference orbitCameraPitch). */
@@ -1751,6 +1751,11 @@ static const struct OptionSpec device_option_spec[] = {
      * before it, RS_CS2Host_ClientOptionKind answered -1 and the write was
      * dropped on the floor. */
     { RS_CS2_DEVICEOPTION_UI_SCALE, true },
+    /* Client scaling. Client-owned, persisted for the same reason as 27. */
+    { RS_CS2_DEVICEOPTION_CLIENT_FIT, true },
+    { RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT, true },
+    { RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY, true },
+    { RS_CS2_DEVICEOPTION_OUTPUT_FILTER, true },
 };
 
 static const struct OptionSpec game_option_spec[] = {
@@ -1917,7 +1922,34 @@ RS_CS2Host_SetOption(
         if( value > RS_CS2_UI_SCALE_MAX )
             value = RS_CS2_UI_SCALE_MAX;
         if( table[option_id] != value )
-            host->ui_scale_dirty = true;
+            host->client_scale_dirty = true;
+    }
+    if( kind == RS_CS2_OPTION_DEVICE &&
+        (option_id == RS_CS2_DEVICEOPTION_CLIENT_FIT ||
+         option_id == RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT ||
+         option_id == RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY ||
+         option_id == RS_CS2_DEVICEOPTION_OUTPUT_FILTER) )
+    {
+        int max = RS_CS2_OUTPUT_FILTER_MAX;
+        if( option_id == RS_CS2_DEVICEOPTION_CLIENT_FIT )
+            max = RS_CS2_CLIENT_FIT_MAX;
+        else if( option_id == RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY )
+            max = RS_CS2_PIXEL_LIMIT_POLICY_MAX;
+        else if( option_id == RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT )
+            max = RS_CS2_MAX_PIXEL_HEIGHT_MAX;
+        if( value < 0 )
+            value = 0;
+        if( value > max )
+            value = max;
+        /* The limit is "off" or a real height: a limit of 12 rows would be a
+         * frame nobody could read, and it is one bad preferences line away. */
+        if( option_id == RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT && value > 0 &&
+            value < RS_CS2_MAX_PIXEL_HEIGHT_MIN )
+            value = RS_CS2_MAX_PIXEL_HEIGHT_MIN;
+        /* The filter only changes how the finished frame is sampled, never a
+         * size, so it raises nothing. */
+        if( option_id != RS_CS2_DEVICEOPTION_OUTPUT_FILTER && table[option_id] != value )
+            host->client_scale_dirty = true;
     }
     if( kind == RS_CS2_OPTION_DEVICE &&
         option_id == RS_CS2_DEVICEOPTION_UI_SCALE_MODE )
@@ -3446,6 +3478,18 @@ exec_client_option(
         case RS_CS2_DEVICEOPTION_FPS_CAP_BACKGROUND:
         case RS_CS2_DEVICEOPTION_UI_SCALE:
             max = 255;
+            break;
+        case RS_CS2_DEVICEOPTION_CLIENT_FIT:
+            max = RS_CS2_CLIENT_FIT_MAX;
+            break;
+        case RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT:
+            max = RS_CS2_MAX_PIXEL_HEIGHT_MAX;
+            break;
+        case RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY:
+            max = RS_CS2_PIXEL_LIMIT_POLICY_MAX;
+            break;
+        case RS_CS2_DEVICEOPTION_OUTPUT_FILTER:
+            max = RS_CS2_OUTPUT_FILTER_MAX;
             break;
         default:
             TORIRS_LOG("cs2: Unkown device option %d\n", option_id);

@@ -955,11 +955,55 @@ enum ToriRS_DisplaySetting
      * at fewer pixels. 100 is untouched.
      */
     TORIRS_DISPLAY_UI_SCALE = 0,
-    /** How that stretch is filtered: 0 nearest, 1 linear, 2 bicubic. */
+    /** How interface art drawn larger than it is gets sampled: 0 nearest,
+     *  1 linear, 2 bicubic. Also the frame filter's default. */
     TORIRS_DISPLAY_UI_SCALE_FILTER,
+
+    /*
+     * Client scaling. Client-owned: no cache has these rows. How they combine
+     * with interface scaling is stated once, in platform/client_scale.h.
+     */
+    /** Placing the frame in the window: 0 keep aspect ratio, 1 integer (the
+     *  interface scale rounds DOWN to a whole multiple of 100%, whole-pixel
+     *  multiples, bars), 2 stretch to fill. */
+    TORIRS_DISPLAY_STRETCH_MODE,
+    /** Tallest render buffer in pixels; 0 is no limit. */
+    TORIRS_DISPLAY_MAX_PIXEL_HEIGHT,
+    /** A layout taller than the limit: 0 enlarges the interface until it fits,
+     *  1 keeps the interface size and renders the layout as it is. */
+    TORIRS_DISPLAY_PIXEL_LIMIT_POLICY,
+    /** Sampling the finished frame onto the window: 0 same as the interface
+     *  filter, 1 nearest, 2 linear, 3 bicubic. */
+    TORIRS_DISPLAY_FRAME_FILTER,
+
+    /*
+     * Read-only: what the client is doing with those settings right now.
+     * display_set refuses every one of these.
+     */
+    /** The scale the frame is really shown at, after integer rounding, the
+     *  pixel limit, and a window too small for the frame. */
+    TORIRS_DISPLAY_EFFECTIVE_UI_SCALE,
+    TORIRS_DISPLAY_LAYOUT_WIDTH,
+    TORIRS_DISPLAY_LAYOUT_HEIGHT,
+    TORIRS_DISPLAY_RENDER_WIDTH,
+    TORIRS_DISPLAY_RENDER_HEIGHT,
+    TORIRS_DISPLAY_OUTPUT_WIDTH,
+    TORIRS_DISPLAY_OUTPUT_HEIGHT,
+    /** Why the effective scale differs from the chosen one, as a bit set of
+     *  TORIRS_DISPLAY_ADJUSTED_*. */
+    TORIRS_DISPLAY_SCALE_ADJUSTED,
 
     TORIRS_DISPLAY_SETTING_COUNT
 };
+
+/** TORIRS_DISPLAY_SCALE_ADJUSTED bits. */
+#define TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED (1 << 0)
+#define TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED (1 << 1)
+/** Integer mode could not fit one whole multiple and kept aspect instead. */
+#define TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK (1 << 2)
+/** The window is too small for the frame at the chosen scale, so it is shown
+ *  at the largest scale that fits. */
+#define TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT (1 << 3)
 
 /* ------------------------------------------------------------------------ */
 /* The lane                                                                  */

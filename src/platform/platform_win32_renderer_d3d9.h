@@ -90,6 +90,18 @@ ToriRS_D3D9_SetInterfaceScaleMode(
     struct ToriRS_D3D9* d3d9,
     int mode);
 
+struct ClientScaleSettings;
+
+/**
+ * Where the frame lands in the game area, the render size cap, and the filter
+ * that stretches a capped render onto its output rectangle.
+ * @see platform/client_scale.h. Takes effect at the next frame.
+ */
+void
+ToriRS_D3D9_SetClientScaling(
+    struct ToriRS_D3D9* d3d9,
+    struct ClientScaleSettings const* settings);
+
 void
 ToriRS_D3D9_SetPick(struct ToriRS_D3D9* d3d9, int mouse_x, int mouse_y);
 

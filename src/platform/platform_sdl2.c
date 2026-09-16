@@ -1,4 +1,5 @@
 #include "platform/platform_window.h"
+#include "platform/client_scale.h"
 
 #include "cmd/cmdbus.h"
 #include "input/torirs_input.h"
@@ -11,6 +12,9 @@
 #endif
 
 #include <SDL.h>
+#if defined(TORIRS_PLATFORM_WEB)
+#include <emscripten.h>
+#endif
 
 #include <assert.h>
 #include <stdio.h>
@@ -85,7 +89,11 @@ struct PlatformWindow
      * been resizable-and-larger, so there is nothing to go back to. */
     int resizable_w;
     int resizable_h;
-    int interface_scale_mode;
+    /** @see PlatformWindow_SetClientScaling. */
+    struct ClientScaleSettings client_scale;
+#if defined(TORIRS_PLATFORM_WEB)
+    bool web_client_scaling_told;
+#endif
 
     /*
      * The auxiliary window: one extra, optional, never a render target.
@@ -302,11 +310,11 @@ sdl_want_highdpi(void)
 }
 
 static SDL_ScaleMode
-sdl_interface_scale_mode(int mode)
+sdl_output_filter(enum ClientScaleFilter filter)
 {
-    if( mode <= 0 )
+    if( filter == CLIENT_SCALE_FILTER_NEAREST )
         return SDL_ScaleModeNearest;
-    if( mode == 1 )
+    if( filter == CLIENT_SCALE_FILTER_LINEAR )
         return SDL_ScaleModeLinear;
     return SDL_ScaleModeBest;
 }
@@ -553,49 +561,16 @@ sdl_mouse_button_to_torirs(int mouse_button)
     }
 }
 
-static void
-letterbox_dst(
-    int logical_w,
-    int logical_h,
-    int window_w,
-    int window_h,
-    SDL_Rect* dst)
-{
-    assert(dst);
-    dst->x = 0;
-    dst->y = 0;
-    dst->w = logical_w;
-    dst->h = logical_h;
-
-    if( window_w <= 0 || window_h <= 0 )
-        return;
-
-    float src_aspect = (float)logical_w / (float)logical_h;
-    float window_aspect = (float)window_w / (float)window_h;
-
-    if( src_aspect > window_aspect )
-    {
-        dst->w = window_w;
-        dst->h = (int)(window_w / src_aspect);
-        dst->x = 0;
-        dst->y = (window_h - dst->h) / 2;
-    }
-    else
-    {
-        dst->h = window_h;
-        dst->w = (int)(window_h * src_aspect);
-        dst->y = 0;
-        dst->x = (window_w - dst->w) / 2;
-    }
-}
-
 struct PlatformWindow*
 PlatformWindow_New(void)
 {
     struct PlatformWindow* platform = malloc(sizeof(struct PlatformWindow));
     assert(platform);
     memset(platform, 0, sizeof(struct PlatformWindow));
-    platform->interface_scale_mode = 2;
+    platform->client_scale.fit = CLIENT_SCALE_FIT_KEEP_ASPECT;
+    platform->client_scale.max_pixel_height = 0;
+    platform->client_scale.limit_policy = CLIENT_SCALE_LIMIT_ENLARGE_INTERFACE;
+    platform->client_scale.output_filter = CLIENT_SCALE_FILTER_BICUBIC;
     /* A zeroed finger table would read as eight fingers all holding id 0. */
     ToriRS_TouchReset(&platform->touch);
     return platform;
@@ -745,7 +720,7 @@ PlatformWindow_Init(
         return false;
     }
     SDL_SetTextureScaleMode(
-        platform->texture, sdl_interface_scale_mode(platform->interface_scale_mode));
+        platform->texture, sdl_output_filter(platform->client_scale.output_filter));
 
     size_t const pixel_count = (size_t)width * (size_t)height;
     platform->pixels = malloc(pixel_count * sizeof(int));
@@ -2574,7 +2549,7 @@ PlatformWindow_Resize(
         return false;
     }
     SDL_SetTextureScaleMode(
-        texture, sdl_interface_scale_mode(platform->interface_scale_mode));
+        texture, sdl_output_filter(platform->client_scale.output_filter));
 
     pixel_count = (size_t)width * (size_t)height;
     pixels = malloc(pixel_count * sizeof(int));
@@ -2593,21 +2568,87 @@ PlatformWindow_Resize(
     return true;
 }
 
+#if defined(TORIRS_PLATFORM_WEB)
+/*
+ * The page scales the canvas ELEMENT itself in its full-canvas and fullscreen
+ * views (src/web/index.html fit()), after this client has already placed the
+ * frame in the backbuffer. So it is told the placement rules too, or a page
+ * would stretch a frame the player asked to keep square. EM_JS rather than
+ * EM_ASM: the latter is rejected in -std=c* modes.
+ */
+EM_JS(void, web_client_scaling_changed, (int fit, int filter), {
+    if (globalThis.torirsClientScaling)
+        globalThis.torirsClientScaling(fit, filter);
+});
+#endif
+
 void
-PlatformWindow_SetInterfaceScaleMode(
+PlatformWindow_SetClientScaling(
     struct PlatformWindow* platform,
-    int mode)
+    struct ClientScaleSettings const* settings)
 {
     assert(platform);
-    if( mode < 0 )
-        mode = 0;
-    if( mode > 2 )
-        mode = 2;
-    if( platform->interface_scale_mode == mode )
-        return;
-    platform->interface_scale_mode = mode;
-    if( platform->texture )
-        SDL_SetTextureScaleMode(platform->texture, sdl_interface_scale_mode(mode));
+    assert(settings);
+    enum ClientScaleFilter const previous_filter = platform->client_scale.output_filter;
+#if defined(TORIRS_PLATFORM_WEB)
+    if( previous_filter != settings->output_filter || platform->client_scale.fit != settings->fit ||
+        !platform->web_client_scaling_told )
+    {
+        web_client_scaling_changed((int)settings->fit, (int)settings->output_filter);
+        platform->web_client_scaling_told = true;
+    }
+#endif
+    platform->client_scale = *settings;
+    if( platform->texture && previous_filter != settings->output_filter )
+        SDL_SetTextureScaleMode(platform->texture, sdl_output_filter(settings->output_filter));
+}
+
+/*
+ * The game area in drawable pixels -- the drawable less the plugin pane --
+ * and where the frame lands in it.
+ *
+ * Present and MapMouse both come through here, in the same unit. They used to
+ * build their letterbox in different ones (pixels for the present, points for
+ * the mouse, with the pane subtracted in each), so a rounding in one was a
+ * click a pixel away from what was drawn.
+ */
+static void
+sdl_game_area(
+    struct PlatformWindow* platform,
+    int* out_w,
+    int* out_h,
+    int* out_pane_w)
+{
+    int area_w = 0;
+    int area_h = 0;
+    int pane_w = 0;
+
+    assert(platform);
+    assert(out_w);
+    assert(out_h);
+    sdl_drawable_size(platform, &area_w, &area_h);
+    if( platform->chrome_open || platform->chrome_rail_visible )
+    {
+        chrome_drawable_size(platform, &pane_w, NULL);
+        if( pane_w > area_w )
+            pane_w = area_w;
+        area_w -= pane_w;
+    }
+    *out_w = area_w;
+    *out_h = area_h;
+    if( out_pane_w )
+        *out_pane_w = pane_w;
+}
+
+void
+PlatformWindow_GameAreaPixels(
+    struct PlatformWindow* platform,
+    int* out_w,
+    int* out_h)
+{
+    assert(platform);
+    assert(platform->window);
+    sdl_game_area(platform, out_w, out_h, NULL);
 }
 
 void
@@ -2779,45 +2820,41 @@ PlatformWindow_MapMouse(
     int* out_x,
     int* out_y)
 {
-    int window_w = 0;
-    int window_h = 0;
-    SDL_Rect dst;
-    int x;
-    int y;
+    int point_w = 0;
+    int point_h = 0;
+    int drawable_w = 0;
+    int drawable_h = 0;
+    int area_w = 0;
+    int area_h = 0;
+    struct ClientScalePresent present;
 
     assert(platform);
     assert(out_x);
     assert(out_y);
     assert(platform->window);
 
-    SDL_GetWindowSize(platform->window, &window_w, &window_h);
-    if( platform->chrome_open || platform->chrome_rail_visible )
-        window_w -= platform->chrome_point_w;
-    if( window_w < 1 )
-        window_w = 1;
-    letterbox_dst(platform->width, platform->height, window_w, window_h, &dst);
-
-    if( dst.w <= 0 || dst.h <= 0 )
+    /* SDL delivers the pointer in window points and the frame is placed in
+     * drawable pixels, so the point is converted once, here, and everything
+     * after it is the present's own arithmetic. */
+    SDL_GetWindowSize(platform->window, &point_w, &point_h);
+    sdl_drawable_size(platform, &drawable_w, &drawable_h);
+    sdl_game_area(platform, &area_w, &area_h, NULL);
+    if( point_w <= 0 || point_h <= 0 || area_w <= 0 || area_h <= 0 )
     {
         *out_x = 0;
         *out_y = 0;
         return;
     }
-
-    x = (win_x - dst.x) * platform->width / dst.w;
-    y = (win_y - dst.y) * platform->height / dst.h;
-
-    if( x < 0 )
-        x = 0;
-    else if( x >= platform->width )
-        x = platform->width - 1;
-    if( y < 0 )
-        y = 0;
-    else if( y >= platform->height )
-        y = platform->height - 1;
-
-    *out_x = x;
-    *out_y = y;
+    ClientScale_Present(
+        &platform->client_scale, platform->width, platform->height, area_w, area_h, 0, &present);
+    ClientScale_OutputToLayout(
+        &present.output,
+        platform->width,
+        platform->height,
+        (int)((long long)win_x * drawable_w / point_w),
+        (int)((long long)win_y * drawable_h / point_h),
+        out_x,
+        out_y);
 }
 
 #if !defined(__APPLE__)
@@ -3536,6 +3573,7 @@ PlatformWindow_Present(struct PlatformWindow* platform)
     int texture_w;
     int window_w = 0;
     int window_h = 0;
+    struct ClientScalePresent present;
     SDL_Rect dst;
     SDL_Rect chrome_dst;
     int pane_w = 0;
@@ -3569,26 +3607,18 @@ PlatformWindow_Present(struct PlatformWindow* platform)
      *
      * These are the same number until the window is HighDPI, and then they are
      * not: RenderCopy's destination rect is in the render target's own pixels,
-     * while SDL_GetWindowSize answers in points. Sizing the letterbox from
+     * while SDL_GetWindowSize answers in points. Sizing the placement from
      * points puts a full-size texture into a half-size rect in the top-left
      * corner and clears the rest to black -- which is what soft3d did the
-     * moment `hidpi` was switched on, and what the GL path never showed
-     * because its viewport is set from the canvas in drawable pixels already.
-     *
-     * MapMouse keeps SDL_GetWindowSize deliberately: SDL delivers mouse
-     * positions in points, so its letterbox has to be built in points too. The
-     * two call sites disagree because their inputs are in different units, not
-     * because one of them is stale.
+     * moment `hidpi` was switched on.
      */
-    sdl_drawable_size(platform, &window_w, &window_h);
-    if( platform->chrome_open || platform->chrome_rail_visible )
-    {
-        chrome_drawable_size(platform, &pane_w, NULL);
-        if( pane_w > window_w )
-            pane_w = window_w;
-        window_w -= pane_w;
-    }
-    letterbox_dst(platform->width, platform->height, window_w, window_h, &dst);
+    sdl_game_area(platform, &window_w, &window_h, &pane_w);
+    ClientScale_Present(
+        &platform->client_scale, platform->width, platform->height, window_w, window_h, 0, &present);
+    dst.x = present.output.x;
+    dst.y = present.output.y;
+    dst.w = present.output.w;
+    dst.h = present.output.h;
 
     /* When the letterbox fills the output, RenderCopy overwrites every pixel —
      * skip the clear (and the software-renderer SDL_FillRect4 it becomes under
@@ -3613,6 +3643,38 @@ PlatformWindow_Present(struct PlatformWindow* platform)
 #else
     (void)chrome_dst;
 #endif
+    /* TORIRS_PRESENT_BMP=path writes the PRESENTED frame once, after
+     * TORIRS_PRESENT_BMP_FRAME presents (default 60): bars, placement and
+     * filter exactly as the window shows them. TORIRS_EXIT_BMP cannot -- it
+     * re-renders the canvas, before anything is placed. */
+    {
+        static long presents;
+        static int written;
+        char const* path = getenv("TORIRS_PRESENT_BMP");
+        long const at = getenv("TORIRS_PRESENT_BMP_FRAME") ? atol(getenv("TORIRS_PRESENT_BMP_FRAME")) : 60;
+        if( path && path[0] && !written && ++presents >= at )
+        {
+            int out_w = 0;
+            int out_h = 0;
+            int* shot;
+            void bmp_write_file(const char* filename, int* px, int w, int h);
+
+            SDL_GetRendererOutputSize(platform->renderer, &out_w, &out_h);
+            shot = malloc((size_t)out_w * (size_t)out_h * sizeof(int));
+            assert(shot);
+            if( SDL_RenderReadPixels(
+                    platform->renderer, NULL, SDL_PIXELFORMAT_ARGB8888, shot, out_w * (int)sizeof(int)) == 0 )
+            {
+                bmp_write_file(path, shot, out_w, out_h);
+                fprintf(stderr, "present_bmp: wrote %s (%dx%d, frame at %d,%d %dx%d)\n", path, out_w,
+                    out_h, dst.x, dst.y, dst.w, dst.h);
+            }
+            else
+                fprintf(stderr, "present_bmp: SDL_RenderReadPixels failed: %s\n", SDL_GetError());
+            free(shot);
+            written = 1;
+        }
+    }
     sdl_present_timed(platform);
     /* Software already uploaded and composited the retained chrome texture in
      * this present. GL clears the same latch through ChromeTakeDirty. */

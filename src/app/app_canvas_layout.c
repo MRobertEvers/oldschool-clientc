@@ -180,6 +180,30 @@ App_FixedCanvasWidth(struct App const* app)
     return APP_CANVAS_MIN_W + App_MeasureRightChromeStripWidth(app);
 }
 
+static int
+app_fixed_window_percent(struct App const* app)
+{
+    struct ClientScaleSettings settings;
+
+    assert(app);
+    App_ClientScaleSettings(app, &settings);
+    return ClientScale_RoundPercent(&settings, RS_CS2Host_UiScalePercent(&app->host));
+}
+
+int
+App_FixedWindowWidth(struct App const* app)
+{
+    assert(app);
+    return App_FixedCanvasWidth(app) * app_fixed_window_percent(app) / 100;
+}
+
+int
+App_FixedWindowHeight(struct App const* app)
+{
+    assert(app);
+    return APP_CANVAS_MIN_H * app_fixed_window_percent(app) / 100;
+}
+
 int
 App_CanvasFloorWidth(struct App const* app)
 {
@@ -237,37 +261,120 @@ App_SyncResizableCanvasFloor(struct App* app)
     return App_SetCanvasSize(app, want_w, UITREE_LAYOUT_ROOT_H);
 }
 
-/* One window axis through the interface scale. Rounds down, so 100% is exact
- * and every other scale errs towards a slightly larger element rather than a
- * canvas that overruns the window it is stretched into. */
-int
-app_ui_scaled_axis(
+void
+App_ClientScaleSettings(
     struct App const* app,
-    int window_px)
+    struct ClientScaleSettings* out)
 {
-    int const percent = RS_CS2Host_UiScalePercent(&app->host);
+    int output_filter;
 
     assert(app);
-    assert(percent >= RS_CS2_UI_SCALE_MIN);
-    if( window_px <= 0 )
-        return window_px;
-    return window_px * 100 / percent;
+    assert(out);
+    /* The store clamps every one of these on the way in, so each is already a
+     * legal enum value here. */
+    out->fit = (enum ClientScaleFit)RS_CS2Host_GetOption(
+        &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_CLIENT_FIT);
+    out->max_pixel_height = RS_CS2Host_GetOption(
+        &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT);
+    out->limit_policy = (enum ClientScaleLimitPolicy)RS_CS2Host_GetOption(
+        &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY);
+    output_filter = RS_CS2Host_GetOption(
+        &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_OUTPUT_FILTER);
+    out->output_filter = output_filter == RS_CS2_OUTPUT_FILTER_SAME_AS_INTERFACE
+                             ? (enum ClientScaleFilter)RS_CS2Host_UiScaleMode(&app->host)
+                             : (enum ClientScaleFilter)(output_filter - 1);
 }
 
 int
-App_SyncUiScale(struct App* app)
+App_ApplyWindowLayout(
+    struct App* app,
+    int window_w,
+    int window_h)
+{
+    struct ClientScaleSettings settings;
+
+    assert(app);
+    assert(window_w > 0);
+    assert(window_h > 0);
+    app->client_scale.window_w = window_w;
+    app->client_scale.window_h = window_h;
+    App_ClientScaleSettings(app, &settings);
+    ClientScale_WindowLayout(
+        &settings,
+        RS_CS2Host_UiScalePercent(&app->host),
+        window_w,
+        window_h,
+        &app->client_scale.layout);
+    return App_SetCanvasSize(app, app->client_scale.layout.w, app->client_scale.layout.h);
+}
+
+int
+App_SyncClientScale(struct App* app)
 {
     assert(app);
-    if( !app->host.ui_scale_dirty )
+    /* Fixed mode applies the scale to the WINDOW instead
+     * (App_FixedWindowWidth/Height), and consumes this flag itself. Taking it
+     * here too would let whichever of the two runs first in a frame eat the
+     * change before the other one sees it. */
+    if( App_WindowMode(app) != CS2VM_WINDOW_MODE_RESIZABLE )
+        return 0;
+    if( !app->host.client_scale_dirty )
         return 0;
     /* Nothing has told us how big the window is yet — a boot-time restore from
      * preferences lands here before the shell's first resize. Keep the flag:
-     * the scale is real, it just has nothing to divide yet. */
-    if( app->window_w <= 0 || app->window_h <= 0 )
+     * the change is real, it just has nothing to divide yet. */
+    if( app->client_scale.window_w <= 0 || app->client_scale.window_h <= 0 )
         return 0;
-    app->host.ui_scale_dirty = false;
-    return App_SetCanvasSize(
-        app, app_ui_scaled_axis(app, app->window_w), app_ui_scaled_axis(app, app->window_h));
+    app->host.client_scale_dirty = false;
+    return App_ApplyWindowLayout(app, app->client_scale.window_w, app->client_scale.window_h);
+}
+
+void
+App_SetClientScalePresent(
+    struct App* app,
+    struct ClientScalePresent const* present)
+{
+    assert(app);
+    assert(present);
+    app->client_scale.present = *present;
+    app->client_scale.present_known = true;
+    /* Fixed mode never runs App_ApplyWindowLayout, so its layout is stated
+     * here: the pinned canvas, and the percent the window was sized by. */
+    if( App_WindowMode(app) == CS2VM_WINDOW_MODE_FIXED )
+    {
+        struct ClientScaleSettings settings;
+        int const chosen = RS_CS2Host_UiScalePercent(&app->host);
+
+        App_ClientScaleSettings(app, &settings);
+        app->client_scale.layout.w = UITREE_LAYOUT_ROOT_W;
+        app->client_scale.layout.h = UITREE_LAYOUT_ROOT_H;
+        app->client_scale.layout.percent = ClientScale_RoundPercent(&settings, chosen);
+        app->client_scale.layout.rounded_by_integer = app->client_scale.layout.percent != chosen;
+        app->client_scale.layout.raised_by_limit = 0;
+    }
+    /* The floor can override the layout (App_SetCanvasSize), and then the frame
+     * is shown at the scale the output rectangle gives it, not the one the
+     * layout was computed at. Report the one on screen. */
+    app->client_scale.shown_percent = app->client_scale.layout.percent;
+    app->client_scale.lowered_to_fit_window = false;
+    if( App_WindowMode(app) == CS2VM_WINDOW_MODE_RESIZABLE &&
+        (UITREE_LAYOUT_ROOT_W > app->client_scale.layout.w ||
+         UITREE_LAYOUT_ROOT_H > app->client_scale.layout.h) )
+    {
+        int const shown = present->output.h * 100 / UITREE_LAYOUT_ROOT_H;
+        if( shown < app->client_scale.layout.percent )
+        {
+            app->client_scale.shown_percent = shown;
+            app->client_scale.lowered_to_fit_window = true;
+        }
+    }
+}
+
+struct AppClientScale const*
+App_ClientScale(struct App const* app)
+{
+    assert(app);
+    return &app->client_scale;
 }
 
 int

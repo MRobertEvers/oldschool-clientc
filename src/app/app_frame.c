@@ -136,18 +136,27 @@ App_DrainCommands(
             {
                 struct ToriRS_CmdWindowResize const* cmd =
                     (struct ToriRS_CmdWindowResize const*)payload;
-                /* The raw window size is latched before the scale divides it:
-                 * the canvas is what the client draws, but the window is what
-                 * a later scale change has to be recomputed from. Both fixed
-                 * and resizable pushes are latched — leaving fixed restores
-                 * the real window size through the same command. */
+                /* A resizable push is latched before scaling divides it: the
+                 * canvas is what the client draws, but the window is what a
+                 * later setting change has to be recomputed from. Leaving fixed
+                 * pushes the real window size through this same command. */
                 if( getenv("TORIRS_RESIZE_DEBUG") )
                     TORIRS_REPORT("resize: game area %dx%d\n", (int)cmd->width, (int)cmd->height);
-                app->window_w = cmd->width;
-                app->window_h = cmd->height;
-                app->host.ui_scale_dirty = false;
-                App_SetCanvasSize(
-                    app, app_ui_scaled_axis(app, cmd->width), app_ui_scaled_axis(app, cmd->height));
+                if( App_WindowMode(app) == CS2VM_WINDOW_MODE_RESIZABLE && cmd->width > 0 &&
+                    cmd->height > 0 )
+                {
+                    /* The resize re-derives the canvas from every setting, so a
+                     * pending change is applied by it. */
+                    app->host.client_scale_dirty = false;
+                    App_ApplyWindowLayout(app, cmd->width, cmd->height);
+                }
+                else
+                {
+                    /* Fixed: the shell pushes the frame's own size on the way
+                     * in, and scaling that would only be undone by the floor.
+                     * The flag stays for the shell's fixed-window branch. */
+                    App_SetCanvasSize(app, cmd->width, cmd->height);
+                }
             }
             break;
         case TORIRS_CMD_KEYBOARD_INSET:

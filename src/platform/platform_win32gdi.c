@@ -28,6 +28,7 @@
  */
 
 #include "platform/platform_window.h"
+#include "platform/client_scale.h"
 #include "platform/platform_app_icon.h"
 #include "platform/platform_win32_chrome.h"
 #include "platform/platform_win32_browser_backend.h"
@@ -187,7 +188,8 @@ struct PlatformWindow
     int     canvas_follows_window;
     int     resizable_w;
     int     resizable_h;
-    int     interface_scale_mode;
+    /** @see PlatformWindow_SetClientScaling. */
+    struct ClientScaleSettings client_scale;
 
     /*
      * The ONE plugin-chrome shell inside hwnd.
@@ -489,90 +491,48 @@ gdi_make_dib(struct PlatformWindow* p, int width, int height)
     return 1;
 }
 
-/* ---- letterbox math (mirrors the SDL backend) --------------------------- */
-
+/* The game area in client pixels and where the frame lands in it. The game
+ * area starts at the client origin; the chrome shell sits to its right. */
 static void
-letterbox_dst(int logical_w, int logical_h, int win_w, int win_h, RECT* dst)
+gdi_present_rect(struct PlatformWindow* p, int* out_area_w, int* out_area_h, struct ClientScalePresent* out)
 {
-    float src_aspect;
-    float win_aspect;
+    RECT client;
+    int win_w;
+    int win_h;
 
-    dst->left = 0;
-    dst->top = 0;
-    dst->right = logical_w;
-    dst->bottom = logical_h;
-    if( win_w <= 0 || win_h <= 0 )
-        return;
-
-    src_aspect = (float)logical_w / (float)logical_h;
-    win_aspect = (float)win_w / (float)win_h;
-    if( src_aspect > win_aspect )
+    assert(p);
+    assert(p->hwnd);
+    if( !win32_game_client_size(p, &win_w, &win_h) )
     {
-        int w = win_w;
-        int h = (int)(win_w / src_aspect);
-        dst->left = 0;
-        dst->top = (win_h - h) / 2;
-        dst->right = w;
-        dst->bottom = h;
+        GetClientRect(p->hwnd, &client);
+        win_w = client.right - client.left;
+        win_h = client.bottom - client.top;
     }
-    else
-    {
-        int h = win_h;
-        int w = (int)(win_h * src_aspect);
-        dst->left = (win_w - w) / 2;
-        dst->top = 0;
-        dst->right = w;
-        dst->bottom = h;
-    }
+    ClientScale_Present(&p->client_scale, p->width, p->height, win_w, win_h, 0, out);
+    if( out_area_w )
+        *out_area_w = win_w;
+    if( out_area_h )
+        *out_area_h = win_h;
 }
 
 static void
 map_mouse(struct PlatformWindow* p, int win_x, int win_y, int* out_x, int* out_y)
 {
-    RECT client;
-    RECT box;
-    int win_w;
-    int win_h;
-    int x;
-    int y;
+    struct ClientScalePresent present;
 
-    if( !p->hwnd )
+    if( !p->hwnd || p->width <= 0 || p->height <= 0 )
     {
         *out_x = win_x;
         *out_y = win_y;
         return;
     }
-    GetClientRect(p->hwnd, &client);
-    if( !win32_game_client_size(p, &win_w, &win_h) )
-    {
-        win_w = client.right - client.left;
-        win_h = client.bottom - client.top;
-    }
-    letterbox_dst(p->width, p->height, win_w, win_h, &box);
-    if( box.right <= 0 || box.bottom <= 0 )
-    {
-        *out_x = 0;
-        *out_y = 0;
-        return;
-    }
-    x = (win_x - box.left) * p->width / box.right;
-    y = (win_y - box.top) * p->height / box.bottom;
-    if( x < 0 )
-        x = 0;
-    else if( x >= p->width )
-        x = p->width - 1;
-    if( y < 0 )
-        y = 0;
-    else if( y >= p->height )
-        y = p->height - 1;
-    *out_x = x;
-    *out_y = y;
+    gdi_present_rect(p, NULL, NULL, &present);
+    ClientScale_OutputToLayout(
+        &present.output, p->width, p->height, win_x, win_y, out_x, out_y);
 }
 
-/* Paint the last complete software frame. RECT.right/bottom in `box` are the
- * destination width/height (letterbox_dst predates this helper), not absolute
- * coordinates. Keeping every visible operation here makes normal presents,
- * repair paints, and PrintWindow captures agree. */
+/* Paint the last complete software frame. Keeping every visible operation
+ * here makes normal presents, repair paints, and PrintWindow captures agree. */
 static void
 gdi_fill_black(HDC dc, int left, int top, int right, int bottom)
 {
@@ -600,8 +560,8 @@ gdi_abl_present_vp(void)
 static void
 gdi_paint_latest(struct PlatformWindow* p, HDC dc)
 {
-    RECT client;
-    RECT box;
+    struct ClientScalePresent present;
+    struct ClientScaleRect box;
     int win_w;
     int win_h;
     int image_right;
@@ -612,18 +572,13 @@ gdi_paint_latest(struct PlatformWindow* p, HDC dc)
         return;
     assert(dc);
 
-    GetClientRect(p->hwnd, &client);
-    if( !win32_game_client_size(p, &win_w, &win_h) )
-    {
-        win_w = client.right - client.left;
-        win_h = client.bottom - client.top;
-    }
+    gdi_present_rect(p, &win_w, &win_h, &present);
     if( win_w <= 0 || win_h <= 0 )
         return;
 
-    letterbox_dst(p->width, p->height, win_w, win_h, &box);
-    image_right = box.left + box.right;
-    image_bottom = box.top + box.bottom;
+    box = present.output;
+    image_right = box.x + box.w;
+    image_bottom = box.y + box.h;
 
     /*
      * Consume the one-shot damage box, whoever is painting. Taking it here
@@ -643,8 +598,7 @@ gdi_paint_latest(struct PlatformWindow* p, HDC dc)
 
         /* Only the unscaled path can honour it: under StretchBlt a destination
          * pixel samples a source area the box does not bound. */
-        if( dmg_w > 0 && dmg_h > 0 && box.right == p->width &&
-            box.bottom == p->height )
+        if( dmg_w > 0 && dmg_h > 0 && box.w == p->width && box.h == p->height )
         {
             int nrects = p->present_dmg_rect_count;
 
@@ -654,8 +608,8 @@ gdi_paint_latest(struct PlatformWindow* p, HDC dc)
                 for( int i = 0; i < nrects; i++ )
                     BitBlt(
                         dc,
-                        box.left + p->present_dmg_rects[i][0],
-                        box.top + p->present_dmg_rects[i][1],
+                        box.x + p->present_dmg_rects[i][0],
+                        box.y + p->present_dmg_rects[i][1],
                         p->present_dmg_rects[i][2],
                         p->present_dmg_rects[i][3],
                         p->mem_dc,
@@ -667,8 +621,8 @@ gdi_paint_latest(struct PlatformWindow* p, HDC dc)
             {
                 BitBlt(
                     dc,
-                    box.left + dmg_x,
-                    box.top + dmg_y,
+                    box.x + dmg_x,
+                    box.y + dmg_y,
                     dmg_w,
                     dmg_h,
                     p->mem_dc,
@@ -687,18 +641,18 @@ gdi_paint_latest(struct PlatformWindow* p, HDC dc)
      * blitting exposed an observable black frame between the two GDI calls. */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT_FILL)
     {
-        gdi_fill_black(dc, 0, 0, win_w, box.top);
+        gdi_fill_black(dc, 0, 0, win_w, box.y);
         gdi_fill_black(dc, 0, image_bottom, win_w, win_h);
-        gdi_fill_black(dc, 0, box.top, box.left, image_bottom);
-        gdi_fill_black(dc, image_right, box.top, win_w, image_bottom);
+        gdi_fill_black(dc, 0, box.y, box.x, image_bottom);
+        gdi_fill_black(dc, image_right, box.y, win_w, image_bottom);
         TORIRS_PERF_COUNT(
             TORIRS_PERF_CTR_PRESENT_FILL_PIXELS,
-            (int64_t)win_w * win_h - (int64_t)box.right * box.bottom);
+            (int64_t)win_w * win_h - (int64_t)box.w * box.h);
     }
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT_BLIT)
     {
-        if( box.right == p->width && box.bottom == p->height )
+        if( box.w == p->width && box.h == p->height )
         {
             int blit_w = p->width;
             int blit_h = p->height;
@@ -721,12 +675,12 @@ gdi_paint_latest(struct PlatformWindow* p, HDC dc)
                 if( blit_h > 334 )
                     blit_h = 334;
             }
-            BitBlt(dc, box.left, box.top, blit_w, blit_h, p->mem_dc, 0, 0, SRCCOPY);
+            BitBlt(dc, box.x, box.y, blit_w, blit_h, p->mem_dc, 0, 0, SRCCOPY);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PRESENT_BLIT_1TO1, 1);
         }
         else
         {
-            if( p->interface_scale_mode == 0 )
+            if( p->client_scale.output_filter == CLIENT_SCALE_FILTER_NEAREST )
                 SetStretchBltMode(dc, COLORONCOLOR);
             else
             {
@@ -734,15 +688,15 @@ gdi_paint_latest(struct PlatformWindow* p, HDC dc)
                  * highest-quality resampler and is the closest native match for
                  * both the Linear and Bicubic settings. */
                 SetStretchBltMode(dc, HALFTONE);
-                SetBrushOrgEx(dc, box.left, box.top, NULL);
+                SetBrushOrgEx(dc, box.x, box.y, NULL);
             }
             StretchBlt(
-                dc, box.left, box.top, box.right, box.bottom,
+                dc, box.x, box.y, box.w, box.h,
                 p->mem_dc, 0, 0, p->width, p->height, SRCCOPY);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PRESENT_BLIT_STRETCH, 1);
         }
         TORIRS_PERF_COUNT(
-            TORIRS_PERF_CTR_PRESENT_BLIT_PIXELS, (int64_t)box.right * box.bottom);
+            TORIRS_PERF_CTR_PRESENT_BLIT_PIXELS, (int64_t)box.w * box.h);
     }
 }
 
@@ -1054,23 +1008,40 @@ PlatformWindow_New(void)
     memset(p, 0, sizeof(*p));
     p->pending_resize_w = -1;
     p->pending_resize_h = -1;
-    p->interface_scale_mode = 2;
+    p->client_scale.output_filter = CLIENT_SCALE_FILTER_BICUBIC;
     return p;
 }
 
 void
-PlatformWindow_SetInterfaceScaleMode(struct PlatformWindow* p, int mode)
+PlatformWindow_SetClientScaling(
+    struct PlatformWindow* p,
+    struct ClientScaleSettings const* settings)
 {
+    int changed;
+
     assert(p);
-    if( mode < 0 )
-        mode = 0;
-    if( mode > 2 )
-        mode = 2;
-    if( p->interface_scale_mode == mode )
-        return;
-    p->interface_scale_mode = mode;
-    if( p->hwnd && p->gdi_frame_valid )
+    assert(settings);
+    changed = memcmp(&p->client_scale, settings, sizeof(*settings)) != 0;
+    p->client_scale = *settings;
+    if( changed && p->hwnd && p->gdi_frame_valid )
         InvalidateRect(p->hwnd, NULL, FALSE);
+}
+
+void
+PlatformWindow_GameAreaPixels(struct PlatformWindow* p, int* out_w, int* out_h)
+{
+    RECT client;
+
+    assert(p);
+    assert(p->hwnd);
+    assert(out_w);
+    assert(out_h);
+    if( !win32_game_client_size(p, out_w, out_h) )
+    {
+        GetClientRect(p->hwnd, &client);
+        *out_w = client.right - client.left;
+        *out_h = client.bottom - client.top;
+    }
 }
 
 /* The window icon, from the RGBA that tools/make_app_icons.py embedded.

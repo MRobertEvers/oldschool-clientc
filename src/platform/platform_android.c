@@ -13,7 +13,7 @@
  * backed by ANativeWindow. It is the exact counterpart of platform_win32gdi.c,
  * which does the same job for raw Win32 + GDI, and the two are deliberately
  * shaped alike: hand out a 32bpp top-down ARGB buffer as the canvas, then
- * letterbox-blit it to the window.
+ * blit it into the rectangle ClientScale_Present places it in.
  *
  * WHAT THIS FILE DOES NOT KNOW
  *
@@ -34,6 +34,7 @@
  * divergence. @see swizzle_argb_to_rgba.
  */
 
+#include "platform/client_scale.h"
 #include "platform/platform_window.h"
 #include "platform/platform_android.h"
 
@@ -526,7 +527,10 @@ struct PlatformWindow
     int gl_mode;
 
     int quit;
-    int interface_scale_mode;
+    /** @see PlatformWindow_SetClientScaling. Read in GL mode too: the GLES2
+     *  renderer places the frame from the same settings, and touch and the
+     *  keyboard inset must map through the rectangle it drew. */
+    struct ClientScaleSettings client_scale;
 
     int canvas_follows_window;
     /** The surface size seen by the last poll, so a change can be noticed once
@@ -554,57 +558,26 @@ struct PlatformWindow
     struct ToriRS_Touch touch;
 };
 
-/* ---- letterbox math (the same box every PlatformWindow backend computes) -- */
+/* ---- placement ----------------------------------------------------------- */
 
-struct android_rect
-{
-    int x;
-    int y;
-    int w;
-    int h;
-};
-
+/* Where the canvas lands on the surface. @see ClientScale_Present; a CPU
+ * canvas, so renders_at_output is 0 (the output rectangle does not depend on
+ * it, so GL mode maps through the same one). */
 static void
-letterbox_dst(int logical_w, int logical_h, int win_w, int win_h, struct android_rect* dst)
+android_output_rect(struct PlatformWindow* p, int win_w, int win_h, struct ClientScaleRect* out)
 {
-    float src_aspect;
-    float win_aspect;
+    struct ClientScalePresent present;
 
-    dst->x = 0;
-    dst->y = 0;
-    dst->w = logical_w;
-    dst->h = logical_h;
-    if( win_w <= 0 || win_h <= 0 )
-        return;
-
-    src_aspect = (float)logical_w / (float)logical_h;
-    win_aspect = (float)win_w / (float)win_h;
-    if( src_aspect > win_aspect )
-    {
-        int const h = (int)((float)win_w / src_aspect);
-        dst->x = 0;
-        dst->y = (win_h - h) / 2;
-        dst->w = win_w;
-        dst->h = h;
-    }
-    else
-    {
-        int const w = (int)((float)win_h * src_aspect);
-        dst->x = (win_w - w) / 2;
-        dst->y = 0;
-        dst->w = w;
-        dst->h = win_h;
-    }
+    ClientScale_Present(&p->client_scale, p->width, p->height, win_w, win_h, 0, &present);
+    *out = present.output;
 }
 
 static void
 map_surface_to_canvas(struct PlatformWindow* p, int win_x, int win_y, int* out_x, int* out_y)
 {
-    struct android_rect box;
+    struct ClientScaleRect box;
     int win_w;
     int win_h;
-    int x;
-    int y;
 
     PlatformAndroid_WindowSize(&win_w, &win_h);
     if( win_w <= 0 || win_h <= 0 )
@@ -613,46 +586,34 @@ map_surface_to_canvas(struct PlatformWindow* p, int win_x, int win_y, int* out_x
         *out_y = win_y;
         return;
     }
-    letterbox_dst(p->width, p->height, win_w, win_h, &box);
-    if( box.w <= 0 || box.h <= 0 )
+    /* No canvas yet: nothing to map into. */
+    if( p->width <= 0 || p->height <= 0 )
     {
         *out_x = 0;
         *out_y = 0;
         return;
     }
-    x = (win_x - box.x) * p->width / box.w;
-    y = (win_y - box.y) * p->height / box.h;
-    if( x < 0 )
-        x = 0;
-    else if( x >= p->width )
-        x = p->width - 1;
-    if( y < 0 )
-        y = 0;
-    else if( y >= p->height )
-        y = p->height - 1;
-    *out_x = x;
-    *out_y = y;
+    android_output_rect(p, win_w, win_h, &box);
+    ClientScale_OutputToLayout(&box, p->width, p->height, win_x, win_y, out_x, out_y);
 }
 
 /*
  * The soft keyboard's coverage, mapped from surface rows into canvas rows
- * through the same letterbox the touch mapping uses. The IME is a band across
- * the surface's bottom, so only the vertical mapping matters; the part of the
- * band lying on the letterbox bar (below the canvas) maps to zero.
+ * through the same output rectangle the touch mapping uses. The IME is a band
+ * across the surface's bottom, so only the vertical scale (box.h / height)
+ * matters; the part of the band lying on a bar below the canvas maps to zero.
  */
 static int
 keyboard_canvas_inset(struct PlatformWindow* p, int inset_px, int win_w, int win_h)
 {
-    struct android_rect box;
+    struct ClientScaleRect box;
     int visible_rows;
 
-    if( inset_px <= 0 || win_w <= 0 || win_h <= 0 || p->height <= 0 )
+    if( inset_px <= 0 || win_w <= 0 || win_h <= 0 || p->width <= 0 || p->height <= 0 )
         return 0;
-    letterbox_dst(p->width, p->height, win_w, win_h, &box);
-    if( box.h <= 0 )
-        return 0;
+    android_output_rect(p, win_w, win_h, &box);
     /* The topmost covered surface row, as a canvas row. */
-    visible_rows = (win_h - inset_px - box.y) * p->height / box.h;
+    visible_rows = (int)((long long)(win_h - inset_px - box.y) * p->height / box.h);
     if( visible_rows < 0 )
         visible_rows = 0;
     if( visible_rows > p->height )
@@ -701,7 +662,7 @@ swizzle_row(uint32_t* dst, uint32_t const* src, int count)
 }
 
 /**
- * Copy the canvas into the locked window buffer, letterboxed and scaled.
+ * Copy the canvas into the locked window buffer, placed and scaled.
  *
  * `stride` is in PIXELS, which is what ANativeWindow_Buffer reports and which
  * is very often larger than the width -- graphics buffers are aligned, and
@@ -711,11 +672,13 @@ swizzle_row(uint32_t* dst, uint32_t const* src, int count)
 static void
 present_blit(struct PlatformWindow* p, uint32_t* dst, int stride, int win_w, int win_h)
 {
-    struct android_rect box;
+    struct ClientScaleRect box;
     int y;
 
-    letterbox_dst(p->width, p->height, win_w, win_h, &box);
-    if( box.w <= 0 || box.h <= 0 )
+    android_output_rect(p, win_w, win_h, &box);
+    /* ClientScale_Present gives the layout size for an empty surface; never
+     * write past the buffer the lock handed back. */
+    if( box.x < 0 || box.y < 0 || box.x + box.w > win_w || box.y + box.h > win_h )
         return;
 
     /*
@@ -743,13 +706,17 @@ present_blit(struct PlatformWindow* p, uint32_t* dst, int stride, int win_w, int
     }
 
     /*
-     * Nearest-neighbour, in fixed point. The source step is computed once per
-     * axis; a per-pixel divide here would be the most expensive thing in the
+     * Nearest-neighbour, in fixed point, with an independent step per axis so a
+     * stretched (non-uniform) rectangle scales correctly. The steps are computed
+     * once; a per-pixel divide here would be the most expensive thing in the
      * frame on the hardware this lane targets.
+     *
+     * The linear and bicubic output filters are not implemented on this
+     * software path: every filter samples nearest here.
      */
     {
-        uint32_t const x_step = ((uint32_t)p->width << 16) / (uint32_t)box.w;
-        uint32_t const y_step = ((uint32_t)p->height << 16) / (uint32_t)box.h;
+        uint32_t const x_step = (uint32_t)(((uint64_t)p->width << 16) / (uint64_t)box.w);
+        uint32_t const y_step = (uint32_t)(((uint64_t)p->height << 16) / (uint64_t)box.h);
         uint32_t src_y = 0;
 
         for( y = 0; y < box.h; y++, src_y += y_step )
@@ -774,7 +741,10 @@ PlatformWindow_New(void)
     struct PlatformWindow* p = (struct PlatformWindow*)malloc(sizeof(*p));
     assert(p);
     memset(p, 0, sizeof(*p));
-    p->interface_scale_mode = 2;
+    p->client_scale.fit = CLIENT_SCALE_FIT_KEEP_ASPECT;
+    p->client_scale.max_pixel_height = 0;
+    p->client_scale.limit_policy = CLIENT_SCALE_LIMIT_ENLARGE_INTERFACE;
+    p->client_scale.output_filter = CLIENT_SCALE_FILTER_BICUBIC;
     p->last_seen_w = -1;
     p->last_seen_h = -1;
     /* No plausible battery percentage, so the first poll always reports what
@@ -995,14 +965,26 @@ PlatformWindow_SetTouchOverlayTest(struct PlatformWindow* p, ToriRS_TouchOverlay
 }
 
 void
-PlatformWindow_SetInterfaceScaleMode(struct PlatformWindow* p, int mode)
+PlatformWindow_SetClientScaling(struct PlatformWindow* p, struct ClientScaleSettings const* settings)
 {
     assert(p);
-    if( mode < 0 )
-        mode = 0;
-    if( mode > 2 )
-        mode = 2;
-    p->interface_scale_mode = mode;
+    assert(settings);
+    p->client_scale = *settings;
+}
+
+/* The whole surface: Android has no plugin pane beside the game. */
+void
+PlatformWindow_GameAreaPixels(struct PlatformWindow* p, int* out_w, int* out_h)
+{
+    int win_w = 0;
+    int win_h = 0;
+
+    assert(p);
+    assert(out_w);
+    assert(out_h);
+    PlatformAndroid_WindowSize(&win_w, &win_h);
+    *out_w = win_w;
+    *out_h = win_h;
 }
 
 void
@@ -1123,12 +1105,12 @@ PlatformWindow_PollCommands(struct PlatformWindow* p, struct ToriRS_CmdBus* bus)
             else if( ev.action == PLATFORM_ANDROID_TOUCH_UP )
                 phase = TORIRS_TOUCH_ENDED;
 
-            /* Mapped HERE, not where the event was posted: the letterbox that
+            /* Mapped HERE, not where the event was posted: the placement that
              * decides the mapping belongs to the frame thread and can change
              * between the finger landing and this drain. */
             map_surface_to_canvas(p, ev.x, ev.y, &cx, &cy);
             /* TORIRS_TOUCH_DEBUG=1: the finger, the window it was measured in,
-             * the canvas it was mapped into, and the letterbox that did it --
+             * the canvas it was mapped into, and the rectangle that did it --
              * the four numbers that decide whether a tap lands where it was
              * made, printed for the tap rather than argued about. */
             {
@@ -1137,11 +1119,12 @@ PlatformWindow_PollCommands(struct PlatformWindow* p, struct ToriRS_CmdBus* bus)
                     dbg = getenv("TORIRS_TOUCH_DEBUG") != NULL;
                 if( dbg && ev.action != PLATFORM_ANDROID_TOUCH_MOVE )
                 {
-                    struct android_rect box;
+                    struct ClientScaleRect box = { 0, 0, 0, 0 };
                     int ww = 0;
                     int wh = 0;
                     PlatformAndroid_WindowSize(&ww, &wh);
-                    letterbox_dst(p->width, p->height, ww, wh, &box);
+                    if( p->width > 0 && p->height > 0 )
+                        android_output_rect(p, ww, wh, &box);
                     __android_log_print(
                         ANDROID_LOG_INFO,
                         ANDROID_LOG_TAG,
@@ -1210,7 +1193,7 @@ PlatformWindow_PollCommands(struct PlatformWindow* p, struct ToriRS_CmdBus* bus)
     /*
      * The keyboard's coverage, likewise coalesced -- recomputed rather than
      * change-detected on the raw report, because the CANVAS answer also moves
-     * when the letterbox or the canvas size does (an interface-scaling change
+     * when the placement or the canvas size does (an interface-scaling change
      * with the keyboard up), and those never touch g_keyboard_inset_px.
      */
     {

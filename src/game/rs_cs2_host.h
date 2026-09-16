@@ -231,6 +231,30 @@ struct RS_CS2TradingPost
 #define RS_CS2_UI_SCALE_MIN 100
 #define RS_CS2_UI_SCALE_MAX 400
 
+/*
+ * Client scaling: how the frame is placed in the window and how many pixels it
+ * is rendered at. @see platform/client_scale.h, which states how these combine
+ * with interface scaling.
+ *
+ * CLIENT-owned ids. No cache has a row for any of them -- OldSchool offers
+ * interface scaling and its filter and nothing else -- and no cache script
+ * touches 30..63, so these cannot collide with a script's write.
+ */
+/** 0 keep aspect, 1 integer, 2 stretch (enum ClientScaleFit). */
+#define RS_CS2_DEVICEOPTION_CLIENT_FIT 30
+/** Tallest render buffer in pixels; 0 is no limit. */
+#define RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT 31
+/** What the limit does to a layout taller than it (enum ClientScaleLimitPolicy). */
+#define RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY 32
+/** Filter for the finished frame: 0 same as option 15, else option-15 value + 1. */
+#define RS_CS2_DEVICEOPTION_OUTPUT_FILTER 33
+#define RS_CS2_CLIENT_FIT_MAX 2
+#define RS_CS2_MAX_PIXEL_HEIGHT_MIN 360
+#define RS_CS2_MAX_PIXEL_HEIGHT_MAX 4320
+#define RS_CS2_PIXEL_LIMIT_POLICY_MAX 1
+#define RS_CS2_OUTPUT_FILTER_SAME_AS_INTERFACE 0
+#define RS_CS2_OUTPUT_FILTER_MAX 3
+
 /* Setting-struct params the panel itself reads, and this client reads with it.
  * `param_1078` is the row KIND -- 9 is the colour row -- and 1077 / 1086 / 1230
  * are that row's setting id, its title and the swatch it shows before anyone
@@ -1263,13 +1287,13 @@ struct RS_CS2Host
     int viewport_aspect_min;
     int viewport_aspect_max;
 
-    /** Raised whenever the interface scale (device option 27) changes value.
-     *  Drained by the App, which owns the canvas — same shape as
-     *  `window_mode_dirty`. The scale itself is NOT a separate field: it lives
-     *  in `device_options[RS_CS2_DEVICEOPTION_UI_SCALE]` so the two spellings
-     *  the cache uses for it (deviceoption 27 and the UIZOOM_* opcode family)
-     *  cannot disagree. */
-    bool ui_scale_dirty;
+    /** Raised whenever a device option that decides the canvas or the window
+     *  changes value: interface scale (27), stretch mode (30), the pixel limit
+     *  (31) and its policy (32). Drained by the App, which owns the canvas —
+     *  same shape as `window_mode_dirty`. The values are NOT separate fields:
+     *  they live in `device_options` so the two spellings the cache uses for
+     *  27 (deviceoption 27 and the UIZOOM_* opcode family) cannot disagree. */
+    bool client_scale_dirty;
 
     /** Backing SIDEBAR_CLEARWIDTH. There is no setter opcode and no live link yet from
      *  this host to the render-side camera (app->world_camera.yaw, reached via

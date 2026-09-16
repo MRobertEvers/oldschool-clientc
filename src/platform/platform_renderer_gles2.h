@@ -42,6 +42,7 @@
 
 #include <stdbool.h>
 
+struct ClientScaleSettings;
 struct ToriDraw_Scene;
 struct ToriRS_Frame;
 struct ToriRS_GLES2;
@@ -82,6 +83,16 @@ void
 ToriRS_GLES2_SetInterfaceScaleMode(
     struct ToriRS_GLES2* renderer,
     int mode);
+
+/**
+ * The client scaling settings (platform/client_scale.h), copied. When they
+ * make the render size differ from the output size, frames are drawn into an
+ * offscreen buffer and sampled onto the output rect with the output filter.
+ */
+void
+ToriRS_GLES2_SetClientScaling(
+    struct ToriRS_GLES2* renderer,
+    struct ClientScaleSettings const* settings);
 
 void
 ToriRS_GLES2_SetPick(struct ToriRS_GLES2* renderer, int mouse_x, int mouse_y);
@@ -129,8 +140,10 @@ ToriRS_GLES2_RotmaskSourceChanged(void);
  *
  * Call it before the swap: GLES2 has no glReadBuffer, so this reads whatever
  * the default framebuffer holds, which is the finished frame right up to
- * eglSwapBuffers and undefined after it. A pipeline stall by nature; the app
- * asks only when a capture is actually pending.
+ * eglSwapBuffers and undefined after it. A frame drawn offscreen (client
+ * scaling's render size differs from the output) is read from that buffer
+ * instead. A pipeline stall by nature; the app asks only when a capture is
+ * actually pending.
  */
 bool
 ToriRS_GLES2_ReadPixels(

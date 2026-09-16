@@ -583,11 +583,6 @@ app_world_camera_follow(struct App* app);
 
 /* ---- app_canvas_layout.c ---- */
 int
-app_ui_scaled_axis(
-    struct App const* app,
-    int window_px);
-
-int
 app_wants_text_input(struct App const* app);
 
 int

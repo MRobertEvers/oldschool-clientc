@@ -54,9 +54,21 @@
 #define CS_ID_FRAME_DETAIL "gameframe_detail"
 #define CS_ID_SCALE "ui_scale"
 #define CS_ID_FILTER "ui_scale_filter"
+#define CS_ID_STRETCH "stretch_mode"
+#define CS_ID_PIXEL_LIMIT "max_pixel_height"
+#define CS_ID_LIMIT_POLICY "pixel_limit_policy"
+#define CS_ID_FRAME_FILTER "frame_filter"
+#define CS_ID_SCALING_NOW "scaling_now"
+#define CS_ID_SCALING_HOW "scaling_how"
 #define CS_FRAME_ROWS_MAX 33
 #define CS_SCALE_ROWS 13
 #define CS_FILTER_ROWS 3
+#define CS_STRETCH_ROWS 3
+/* The listed limits, plus one slot for a value only preferences.ini holds. */
+#define CS_PIXEL_LIMIT_LISTED 6
+#define CS_PIXEL_LIMIT_ROWS (CS_PIXEL_LIMIT_LISTED + 1)
+#define CS_LIMIT_POLICY_ROWS 2
+#define CS_FRAME_FILTER_ROWS 4
 
 /*
  * Every string this page puts in a row option fits, by construction.
@@ -104,6 +116,17 @@ struct ClientSettingsState
     /* The status line, held rather than built on the stack: PorcelainRow
      * borrows its strings for the length of the Porcelain_Row call. */
     char detail[PORCELAIN_ROW_TEXT_MAX];
+    /* What the client is doing with the scaling settings, as last described.
+     * on_frame_start rebuilds it and re-describes only when it moved -- a
+     * window drag changes it without any setting changing. */
+    char scaling_now[PORCELAIN_ROW_TEXT_MAX];
+    /* Every display value the page shows, as last described. A value written
+     * by someone else -- the cache's own settings panel, a preferences load --
+     * moves no Porcelain input, so it is compared here instead. */
+    char display_seen[PORCELAIN_ROW_TEXT_MAX];
+    /* A pixel limit the listed options do not have, labelled for its row. */
+    char pixel_limit_value[16];
+    char pixel_limit_label[32];
     /* The describe function is handed only its `user`, so the api travels
      * with the state rather than through a file-scope pointer. */
     struct ToriRS_Api* api;
@@ -122,6 +145,31 @@ static char const* const CS_SCALE_LABEL[] = {
 
 static char const* const CS_FILTER_VALUE[] = { "0", "1", "2" };
 static char const* const CS_FILTER_LABEL[] = { "Nearest", "Linear", "Bicubic" };
+
+static char const* const CS_STRETCH_VALUE[] = { "0", "1", "2" };
+static char const* const CS_STRETCH_LABEL[] = {
+    "Keep aspect ratio",
+    "Integer (whole pixels)",
+    "Stretch to fill",
+};
+
+static char const* const CS_PIXEL_LIMIT_VALUE[CS_PIXEL_LIMIT_LISTED] = {
+    "0", "720", "900", "1080", "1440", "2160",
+};
+static char const* const CS_PIXEL_LIMIT_LABEL[CS_PIXEL_LIMIT_LISTED] = {
+    "No limit", "720 rows", "900 rows", "1080 rows", "1440 rows", "2160 rows",
+};
+
+static char const* const CS_LIMIT_POLICY_VALUE[] = { "0", "1" };
+static char const* const CS_LIMIT_POLICY_LABEL[] = {
+    "Enlarge the interface to fit",
+    "Keep the interface size",
+};
+
+static char const* const CS_FRAME_FILTER_VALUE[] = { "0", "1", "2", "3" };
+static char const* const CS_FRAME_FILTER_LABEL[] = {
+    "Same as interface filter", "Nearest", "Linear", "Bicubic",
+};
 
 /* Named by cs_on_start, which opens the layer against this plugin's own
  * definition; the definition itself is at the foot of the file. */
@@ -441,6 +489,164 @@ cs_pick_filter(struct ToriRS_Api* api, void* user, struct PorcelainRowAction con
             api, TORIRS_DISPLAY_UI_SCALE_FILTER, min + atoi(action->text));
 }
 
+/* A client-scaling select, written straight through: each row's stable value
+ * IS the store's value, and the store clamps. */
+static void
+cs_pick_display(struct ToriRS_Api* api, int setting, struct PorcelainRowAction const* action)
+{
+    assert(api);
+    assert(api->client);
+    assert(action);
+    if( action->kind != TORIRS_PANEL_ACTION_PICK )
+        return;
+    if( api->client->display_get(api, setting, NULL, NULL, NULL) )
+        (void)api->client->display_set(api, setting, atoi(action->text));
+}
+
+static void
+cs_pick_stretch(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    (void)user;
+    cs_pick_display(api, TORIRS_DISPLAY_STRETCH_MODE, action);
+}
+
+static void
+cs_pick_pixel_limit(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    (void)user;
+    cs_pick_display(api, TORIRS_DISPLAY_MAX_PIXEL_HEIGHT, action);
+}
+
+static void
+cs_pick_limit_policy(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    (void)user;
+    cs_pick_display(api, TORIRS_DISPLAY_PIXEL_LIMIT_POLICY, action);
+}
+
+static void
+cs_pick_frame_filter(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    (void)user;
+    cs_pick_display(api, TORIRS_DISPLAY_FRAME_FILTER, action);
+}
+
+static bool
+cs_display_value(struct ToriRS_Api* api, int setting, int* out)
+{
+    return api->client->display_get(api, setting, out, NULL, NULL);
+}
+
+/*
+ * One sentence saying what the settings add up to right now: the layout and
+ * the percent it really uses, the pixels rendered, the pixels shown, and why
+ * the percent is not the one picked. This is how the interactions are made
+ * visible rather than described -- pick Integer at 150% and the line says
+ * 100%, and why.
+ *
+ * Empty when the client has not presented a frame yet.
+ */
+static void
+cs_scaling_now(struct ToriRS_Api* api, char* out, size_t out_size)
+{
+    int layout_w = 0, layout_h = 0, render_w = 0, render_h = 0, output_w = 0, output_h = 0;
+    int effective = 0, chosen = 0, adjusted = 0;
+    int used;
+
+    assert(api);
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    if( !cs_display_value(api, TORIRS_DISPLAY_EFFECTIVE_UI_SCALE, &effective) ||
+        !cs_display_value(api, TORIRS_DISPLAY_UI_SCALE, &chosen) ||
+        !cs_display_value(api, TORIRS_DISPLAY_LAYOUT_WIDTH, &layout_w) ||
+        !cs_display_value(api, TORIRS_DISPLAY_LAYOUT_HEIGHT, &layout_h) ||
+        !cs_display_value(api, TORIRS_DISPLAY_RENDER_WIDTH, &render_w) ||
+        !cs_display_value(api, TORIRS_DISPLAY_RENDER_HEIGHT, &render_h) ||
+        !cs_display_value(api, TORIRS_DISPLAY_OUTPUT_WIDTH, &output_w) ||
+        !cs_display_value(api, TORIRS_DISPLAY_OUTPUT_HEIGHT, &output_h) ||
+        !cs_display_value(api, TORIRS_DISPLAY_SCALE_ADJUSTED, &adjusted) )
+        return;
+
+    used = snprintf(out, out_size, "Now: layout %dx%d at %d%%, rendered %dx%d, shown %dx%d.",
+        layout_w, layout_h, effective, render_w, render_h, output_w, output_h);
+    if( used < 0 || (size_t)used >= out_size )
+        return;
+    if( adjusted & TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT )
+        used += snprintf(out + used, out_size - (size_t)used,
+            " Lowered from %d%%: the window is too small for the frame at that scale.", chosen);
+    else if( adjusted & TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED )
+        used += snprintf(out + used, out_size - (size_t)used,
+            " Raised from %d%% to stay under the pixel limit.", chosen);
+    else if( adjusted & TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED )
+        used += snprintf(out + used, out_size - (size_t)used,
+            " %d%% rounded down for integer scaling.", chosen);
+    if( used < 0 || (size_t)used >= out_size )
+        return;
+    if( adjusted & TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK )
+        (void)snprintf(out + used, out_size - (size_t)used,
+            " Window too small for integer: keeping aspect.");
+}
+
+static void
+cs_display_signature(struct ToriRS_Api* api, char* out, size_t out_size)
+{
+    size_t used = 0;
+
+    assert(api);
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    for( int setting = 0; setting < TORIRS_DISPLAY_EFFECTIVE_UI_SCALE; setting++ )
+    {
+        int value = -1;
+        int wrote;
+        if( !cs_display_value(api, setting, &value) )
+            value = -1;
+        wrote = snprintf(out + used, out_size - used, "%d,", value);
+        if( wrote < 0 || (size_t)wrote >= out_size - used )
+            return;
+        used += (size_t)wrote;
+    }
+}
+
+/* A select row whose stable values are the store's values. */
+static void
+cs_select_row(
+    struct ToriRS_PorcelainDescribe* describe,
+    struct ClientSettingsState* state,
+    char const* key,
+    char const* label,
+    char const* selected,
+    struct ToriRS_SelectOption const* options,
+    int option_count,
+    PorcelainRowActionFn on_action)
+{
+    struct PorcelainRow row;
+
+    memset(&row, 0, sizeof(row));
+    row.key = key;
+    row.kind = PORCELAIN_ROW_SELECT;
+    row.label = label;
+    row.text = selected;
+    row.options = options;
+    row.option_count = option_count;
+    row.on_action = on_action;
+    row.user = state;
+    Porcelain_Row(describe, &row);
+}
+
+/* The index of `value` among `values`, or -1. */
+static int
+cs_value_row(char const* const* values, int count, int value)
+{
+    char text[16];
+    snprintf(text, sizeof(text), "%d", value);
+    for( int i = 0; i < count; i++ )
+        if( strcmp(values[i], text) == 0 ) return i;
+    return -1;
+}
+
 /*
  * The page, described.
  *
@@ -463,6 +669,10 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
     struct ToriRS_SelectOption frame_options[CS_FRAME_ROWS_MAX];
     struct ToriRS_SelectOption scale_options[CS_SCALE_ROWS];
     struct ToriRS_SelectOption filter_options[CS_FILTER_ROWS];
+    struct ToriRS_SelectOption stretch_options[CS_STRETCH_ROWS];
+    struct ToriRS_SelectOption limit_options[CS_PIXEL_LIMIT_ROWS];
+    struct ToriRS_SelectOption policy_options[CS_LIMIT_POLICY_ROWS];
+    struct ToriRS_SelectOption frame_filter_options[CS_FRAME_FILTER_ROWS];
     struct PorcelainRow row;
     int value = 0, min = 0, max = 0;
 
@@ -520,12 +730,85 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         memset(&row, 0, sizeof(row));
         row.key = CS_ID_FILTER;
         row.kind = PORCELAIN_ROW_SELECT;
-        row.label = "Scaling filter";
+        row.label = "Interface filter";
         row.text = CS_FILTER_VALUE[at];
         row.options = filter_options;
         row.option_count = CS_FILTER_ROWS;
         row.on_action = cs_pick_filter;
         row.user = state;
+        Porcelain_Row(describe, &row);
+    }
+
+    if( api->client->display_get(api, TORIRS_DISPLAY_STRETCH_MODE, &value, &min, &max) )
+    {
+        int at = cs_value_row(CS_STRETCH_VALUE, CS_STRETCH_ROWS, value);
+        assert(at >= 0);
+        cs_static_options(stretch_options, CS_STRETCH_VALUE, CS_STRETCH_LABEL, CS_STRETCH_ROWS);
+        cs_select_row(describe, state, CS_ID_STRETCH, "Stretch mode", CS_STRETCH_VALUE[at],
+            stretch_options, CS_STRETCH_ROWS, cs_pick_stretch);
+    }
+    if( api->client->display_get(api, TORIRS_DISPLAY_MAX_PIXEL_HEIGHT, &value, &min, &max) )
+    {
+        int count = CS_PIXEL_LIMIT_LISTED;
+        int at = cs_value_row(CS_PIXEL_LIMIT_VALUE, CS_PIXEL_LIMIT_LISTED, value);
+        char const* selected;
+        cs_static_options(
+            limit_options, CS_PIXEL_LIMIT_VALUE, CS_PIXEL_LIMIT_LABEL, CS_PIXEL_LIMIT_LISTED);
+        if( at >= 0 )
+            selected = CS_PIXEL_LIMIT_VALUE[at];
+        else
+        {
+            /* A value only preferences.ini could hold. Shown as itself rather
+             * than snapped to a neighbour, which would claim a limit the client
+             * is not applying. */
+            snprintf(state->pixel_limit_value, sizeof(state->pixel_limit_value), "%d", value);
+            snprintf(state->pixel_limit_label, sizeof(state->pixel_limit_label), "%d rows", value);
+            memset(&limit_options[count], 0, sizeof(limit_options[count]));
+            limit_options[count].struct_size = sizeof(limit_options[count]);
+            limit_options[count].value = state->pixel_limit_value;
+            limit_options[count].label = state->pixel_limit_label;
+            limit_options[count].enabled = true;
+            count++;
+            selected = state->pixel_limit_value;
+        }
+        cs_select_row(describe, state, CS_ID_PIXEL_LIMIT, "Pixel limit", selected, limit_options,
+            count, cs_pick_pixel_limit);
+    }
+    if( api->client->display_get(api, TORIRS_DISPLAY_PIXEL_LIMIT_POLICY, &value, &min, &max) )
+    {
+        int at = cs_value_row(CS_LIMIT_POLICY_VALUE, CS_LIMIT_POLICY_ROWS, value);
+        assert(at >= 0);
+        cs_static_options(
+            policy_options, CS_LIMIT_POLICY_VALUE, CS_LIMIT_POLICY_LABEL, CS_LIMIT_POLICY_ROWS);
+        cs_select_row(describe, state, CS_ID_LIMIT_POLICY, "Interface taller than the limit",
+            CS_LIMIT_POLICY_VALUE[at], policy_options, CS_LIMIT_POLICY_ROWS, cs_pick_limit_policy);
+    }
+    if( api->client->display_get(api, TORIRS_DISPLAY_FRAME_FILTER, &value, &min, &max) )
+    {
+        int at = cs_value_row(CS_FRAME_FILTER_VALUE, CS_FRAME_FILTER_ROWS, value);
+        assert(at >= 0);
+        cs_static_options(
+            frame_filter_options, CS_FRAME_FILTER_VALUE, CS_FRAME_FILTER_LABEL, CS_FRAME_FILTER_ROWS);
+        cs_select_row(describe, state, CS_ID_FRAME_FILTER, "Frame filter", CS_FRAME_FILTER_VALUE[at],
+            frame_filter_options, CS_FRAME_FILTER_ROWS, cs_pick_frame_filter);
+    }
+
+    cs_display_signature(api, state->display_seen, sizeof(state->display_seen));
+    cs_scaling_now(api, state->scaling_now, sizeof(state->scaling_now));
+    if( state->scaling_now[0] )
+    {
+        memset(&row, 0, sizeof(row));
+        row.key = CS_ID_SCALING_NOW;
+        row.kind = PORCELAIN_ROW_LABEL;
+        row.text = state->scaling_now;
+        Porcelain_Row(describe, &row);
+
+        memset(&row, 0, sizeof(row));
+        row.key = CS_ID_SCALING_HOW;
+        row.kind = PORCELAIN_ROW_PARAGRAPH;
+        row.text = "In order: interface scaling sizes the layout; stretch mode fits it to the "
+                   "window (integer rounds the scale down); the pixel limit caps rendered rows; "
+                   "the frame filter smooths the result.";
         Porcelain_Row(describe, &row);
     }
 
@@ -593,6 +876,17 @@ cs_on_frame_start(
     {
         cs_remember(state, &selection);
         Porcelain_Note(state->porcelain, PORCELAIN_INPUT_EXPLICIT);
+    }
+    {
+        /* The readout moves without any setting moving -- a window drag, the
+         * pixel limit raising the scale -- and a setting can move without this
+         * page, so both are compared, not assumed. */
+        char now[PORCELAIN_ROW_TEXT_MAX];
+        char seen[PORCELAIN_ROW_TEXT_MAX];
+        cs_scaling_now(api, now, sizeof(now));
+        cs_display_signature(api, seen, sizeof(seen));
+        if( strcmp(now, state->scaling_now) != 0 || strcmp(seen, state->display_seen) != 0 )
+            Porcelain_Note(state->porcelain, PORCELAIN_INPUT_EXPLICIT);
     }
     Porcelain_Fence(state->porcelain);
     Porcelain_Commit(api);

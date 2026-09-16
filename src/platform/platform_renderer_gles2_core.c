@@ -433,34 +433,77 @@ gles2_create_programs(struct ToriRS_GLES2* renderer)
                gles2_rotmask_fragment_shader,
                true,
                false,
-               "rotmask");
+               "rotmask") &&
+        gles2_link_program(
+               &renderer->program_present,
+               gles2_present_vertex_shader,
+               gles2_present_fragment_shader,
+               false,
+               false,
+               "present");
 }
 
 /* ---- letterbox and rectangles ---------------------------------------------- */
 
+/* The output rect, the render target and the letterbox inside it.
+ * `allow_offscreen` false draws direct even when the render size differs
+ * (the boot bar, which has no frame end to present from). */
 static void
-gles2_update_letterbox(struct ToriRS_GLES2* renderer)
+gles2_update_letterbox(struct ToriRS_GLES2* renderer, bool allow_offscreen)
 {
-    struct TRSPK_Letterbox box;
+    struct ClientScalePresent present;
     if( renderer->width <= 0 || renderer->height <= 0 || renderer->drawable_width <= 0 ||
         renderer->drawable_height <= 0 )
     {
         renderer->letterbox_x = 0;
         renderer->letterbox_y = 0;
+        renderer->letterbox_top = 0;
         renderer->letterbox_width = 0;
         renderer->letterbox_height = 0;
+        renderer->output_x = 0;
+        renderer->output_y = 0;
+        renderer->output_width = 0;
+        renderer->output_height = 0;
+        renderer->target_width = renderer->drawable_width;
+        renderer->target_height = renderer->drawable_height;
+        renderer->target_offscreen = false;
         return;
     }
-    trspk_compute_letterbox(
+    ClientScale_Present(
+        &renderer->client_scale,
         renderer->width,
         renderer->height,
         renderer->drawable_width,
         renderer->drawable_height,
-        &box);
-    renderer->letterbox_x = box.x;
-    renderer->letterbox_y = box.y;
-    renderer->letterbox_width = box.w;
-    renderer->letterbox_height = box.h;
+        1,
+        &present);
+    renderer->output_x = present.output.x;
+    /* Top-left origin -> GL's bottom-left. */
+    renderer->output_y = renderer->drawable_height - present.output.y - present.output.h;
+    renderer->output_width = present.output.w;
+    renderer->output_height = present.output.h;
+    renderer->target_offscreen = allow_offscreen &&
+        (present.render_w != present.output.w || present.render_h != present.output.h);
+    if( renderer->target_offscreen )
+    {
+        renderer->target_width = present.render_w;
+        renderer->target_height = present.render_h;
+        renderer->letterbox_x = 0;
+        renderer->letterbox_y = 0;
+        renderer->letterbox_top = 0;
+        renderer->letterbox_width = present.render_w;
+        renderer->letterbox_height = present.render_h;
+    }
+    else
+    {
+        renderer->target_width = renderer->drawable_width;
+        renderer->target_height = renderer->drawable_height;
+        renderer->letterbox_x = renderer->output_x;
+        renderer->letterbox_y = renderer->output_y;
+        renderer->letterbox_top = present.output.y;
+        renderer->letterbox_width = renderer->output_width;
+        renderer->letterbox_height = renderer->output_height;
+    }
     trspk_mat4_ortho2d_top_left(
         renderer->projection_2d, 0.0f, (float)renderer->width, (float)renderer->height, 0.0f);
     /* The 2D programs hold the previous matrix until it is pushed again. */
@@ -503,24 +546,24 @@ gles2_scissor_rect(
         return false;
     left = renderer->letterbox_x +
         (int)((int64_t)x0 * renderer->letterbox_width / renderer->width);
-    top = renderer->letterbox_y +
+    top = renderer->letterbox_top +
         (int)((int64_t)y0 * renderer->letterbox_height / renderer->height);
     right = renderer->letterbox_x +
         (int)(((int64_t)x1 * renderer->letterbox_width + renderer->width - 1) /
               renderer->width);
-    bottom = renderer->letterbox_y +
+    bottom = renderer->letterbox_top +
         (int)(((int64_t)y1 * renderer->letterbox_height + renderer->height - 1) /
               renderer->height);
-    left = gles2_clampi(left, 0, renderer->drawable_width);
-    right = gles2_clampi(right, left, renderer->drawable_width);
-    top = gles2_clampi(top, 0, renderer->drawable_height);
-    bottom = gles2_clampi(bottom, top, renderer->drawable_height);
+    left = gles2_clampi(left, 0, renderer->target_width);
+    right = gles2_clampi(right, left, renderer->target_width);
+    top = gles2_clampi(top, 0, renderer->target_height);
+    bottom = gles2_clampi(bottom, top, renderer->target_height);
     if( right <= left || bottom <= top )
         return false;
     out->x = left;
     out->width = right - left;
-    /* GL's origin is the bottom-left corner of the surface. */
-    out->y = renderer->drawable_height - bottom;
+    /* GL's origin is the bottom-left corner of the target. */
+    out->y = renderer->target_height - bottom;
     out->height = bottom - top;
     return true;
 }
@@ -2711,17 +2754,17 @@ gles2_begin_3d(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand_
     logical_x = viewport->x_center - pass_w / 2;
     logical_y = viewport->y_center - pass_h / 2;
     left = renderer->letterbox_x + (int)((int64_t)logical_x * renderer->letterbox_width / renderer->width);
-    top = renderer->letterbox_y + (int)((int64_t)logical_y * renderer->letterbox_height / renderer->height);
+    top = renderer->letterbox_top + (int)((int64_t)logical_y * renderer->letterbox_height / renderer->height);
     right = renderer->letterbox_x +
         (int)((int64_t)(logical_x + pass_w) * renderer->letterbox_width / renderer->width);
-    bottom = renderer->letterbox_y +
+    bottom = renderer->letterbox_top +
         (int)((int64_t)(logical_y + pass_h) * renderer->letterbox_height / renderer->height);
     if( right <= left )
         right = left + 1;
     if( bottom <= top )
         bottom = top + 1;
     renderer->world_viewport.x = left;
-    renderer->world_viewport.y = renderer->drawable_height - bottom;
+    renderer->world_viewport.y = renderer->target_height - bottom;
     renderer->world_viewport.width = right - left;
     renderer->world_viewport.height = bottom - top;
     glViewport(
@@ -3702,6 +3745,195 @@ gles2_report_retained_memory(struct ToriRS_GLES2* renderer)
     gles2_zbuffer_report_memory(renderer);
 }
 
+/* ---- client scaling's offscreen target --------------------------------------- */
+
+static void
+gles2_scale_target_destroy_buffers(struct ToriRS_GLES2* renderer)
+{
+    assert(renderer);
+    if( renderer->scale_fbo )
+        glDeleteFramebuffers(1, &renderer->scale_fbo);
+    if( renderer->scale_texture )
+    {
+        /* Deleting a bound texture reverts the unit to 0; the cache follows. */
+        if( renderer->bound_texture0 == renderer->scale_texture )
+            renderer->bound_texture0 = 0u;
+        glDeleteTextures(1, &renderer->scale_texture);
+    }
+    if( renderer->scale_depth )
+        glDeleteRenderbuffers(1, &renderer->scale_depth);
+    renderer->scale_fbo = 0u;
+    renderer->scale_texture = 0u;
+    renderer->scale_depth = 0u;
+    renderer->scale_fbo_width = 0;
+    renderer->scale_fbo_height = 0;
+    renderer->scale_texture_filter = 0;
+}
+
+static void
+gles2_scale_target_destroy(struct ToriRS_GLES2* renderer)
+{
+    assert(renderer);
+    gles2_scale_target_destroy_buffers(renderer);
+    if( renderer->present_vbo )
+    {
+        if( renderer->bound_array_buffer == renderer->present_vbo )
+            renderer->bound_array_buffer = 0u;
+        if( renderer->stream_buffer == renderer->present_vbo )
+            renderer->stream_layout = GLES2_STREAM_NONE;
+        glDeleteBuffers(1, &renderer->present_vbo);
+    }
+    renderer->present_vbo = 0u;
+}
+
+/* The offscreen target at this frame's render size, (re)made only when the
+ * size changes. Colour is an RGBA texture with no mipmaps and clamped edges,
+ * which WebGL1 accepts at any size; depth only on the depth-buffered lane. */
+static void
+gles2_scale_target_ensure(struct ToriRS_GLES2* renderer)
+{
+    GLint filter;
+    GLenum status;
+
+    assert(renderer);
+    assert(renderer->target_width > 0);
+    assert(renderer->target_height > 0);
+    filter = renderer->client_scale.output_filter == CLIENT_SCALE_FILTER_NEAREST ? GL_NEAREST
+                                                                                  : GL_LINEAR;
+    if( !renderer->present_vbo )
+    {
+        /* Two triangles over clip space; v = 0 is the texture's bottom row,
+         * which is GL's bottom row of the frame too. */
+        static const float corners[6][4] = {
+            { -1.0f, -1.0f, 0.0f, 0.0f }, { 1.0f, -1.0f, 1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },
+            { -1.0f, -1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },  { -1.0f, 1.0f, 0.0f, 1.0f },
+        };
+        struct GLES2VertexUI vertices[6];
+        int i;
+        for( i = 0; i < 6; i++ )
+        {
+            vertices[i].x = corners[i][0];
+            vertices[i].y = corners[i][1];
+            vertices[i].w = 1.0f;
+            vertices[i].u = corners[i][2];
+            vertices[i].v = corners[i][3];
+            vertices[i].rgba = 0xffffffffu;
+            vertices[i].sel = 0.0f;
+        }
+        glGenBuffers(1, &renderer->present_vbo);
+        assert(renderer->present_vbo);
+        gles2_bind_array_buffer(renderer, renderer->present_vbo);
+        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(vertices), vertices, GL_STATIC_DRAW);
+    }
+    if( renderer->scale_fbo && renderer->scale_fbo_width == renderer->target_width &&
+        renderer->scale_fbo_height == renderer->target_height )
+    {
+        if( renderer->scale_texture_filter != filter )
+        {
+            gles2_bind_texture0(renderer, renderer->scale_texture);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+            renderer->scale_texture_filter = filter;
+            /* Never left bound while the frame draws into it. */
+            gles2_bind_texture0(renderer, 0u);
+        }
+        return;
+    }
+
+    gles2_scale_target_destroy_buffers(renderer);
+    glGenTextures(1, &renderer->scale_texture);
+    assert(renderer->scale_texture);
+    gles2_bind_texture0(renderer, renderer->scale_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        renderer->target_width,
+        renderer->target_height,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        NULL);
+    gles2_bind_texture0(renderer, 0u);
+    renderer->scale_texture_filter = filter;
+
+    glGenFramebuffers(1, &renderer->scale_fbo);
+    assert(renderer->scale_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, renderer->scale_fbo);
+    glFramebufferTexture2D(
+        GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderer->scale_texture, 0);
+    if( renderer->zbuffer )
+    {
+        glGenRenderbuffers(1, &renderer->scale_depth);
+        assert(renderer->scale_depth);
+        glBindRenderbuffer(GL_RENDERBUFFER, renderer->scale_depth);
+        glRenderbufferStorage(
+            GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, renderer->target_width, renderer->target_height);
+        glFramebufferRenderbuffer(
+            GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderer->scale_depth);
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    }
+    status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if( status != GL_FRAMEBUFFER_COMPLETE )
+        TORIRS_ERR(
+            "GLES2: offscreen target %dx%d incomplete: 0x%x\n",
+            renderer->target_width,
+            renderer->target_height,
+            (unsigned)status);
+    assert(status == GL_FRAMEBUFFER_COMPLETE);
+    renderer->scale_fbo_width = renderer->target_width;
+    renderer->scale_fbo_height = renderer->target_height;
+}
+
+/* The finished offscreen frame onto the output rect of the drawable, with
+ * the bars cleared black. GLES2 has no blit: one textured quad. */
+static void
+gles2_scale_target_present(struct ToriRS_GLES2* renderer)
+{
+    const GLsizei stride = (GLsizei)sizeof(struct GLES2VertexUI);
+
+    assert(renderer);
+    assert(renderer->scale_fbo);
+    assert(renderer->present_vbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    gles2_set_scissor(renderer, NULL);
+    gles2_set_blend(renderer, false);
+    gles2_set_cull(renderer, false);
+    /* Depth write on so the clear reaches the depth buffer. */
+    gles2_set_depth(renderer, false, true);
+    glViewport(0, 0, renderer->drawable_width, renderer->drawable_height);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glViewport(
+        renderer->output_x, renderer->output_y, renderer->output_width, renderer->output_height);
+
+    gles2_use_program(renderer, &renderer->program_present);
+    gles2_bind_texture0(renderer, renderer->scale_texture);
+    gles2_bind_array_buffer(renderer, renderer->present_vbo);
+    /* Every enabled array points at valid data, used by the program or not:
+     * a stray enabled array drops the draw on some drivers. */
+    glVertexAttribPointer(
+        GLES2_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, stride,
+        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, x));
+    glVertexAttribPointer(
+        GLES2_ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, stride,
+        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, u));
+    glVertexAttribPointer(
+        GLES2_ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride,
+        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, rgba));
+    glVertexAttribPointer(
+        GLES2_ATTRIB_TEXINFO, 1, GL_FLOAT, GL_FALSE, stride,
+        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, sel));
+    renderer->stream_buffer = renderer->present_vbo;
+    renderer->stream_byte_offset = 0u;
+    renderer->stream_layout = GLES2_STREAM_NONE;
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
 static void
 gles2_destroy_gl_resources(struct ToriRS_GLES2* renderer)
 {
@@ -3714,6 +3946,8 @@ gles2_destroy_gl_resources(struct ToriRS_GLES2* renderer)
     gles2_delete_program(&renderer->program_world_fast_cutout);
     gles2_delete_program(&renderer->program_ui);
     gles2_delete_program(&renderer->program_rotmask);
+    gles2_delete_program(&renderer->program_present);
+    gles2_scale_target_destroy(renderer);
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
     {
         /* A per-frame group's buffers belong to the dynamic stream set. */
@@ -3892,7 +4126,7 @@ ToriRS_GLES2_SetViewport(struct ToriRS_GLES2* renderer, int width, int height)
         return;
     renderer->width = width;
     renderer->height = height;
-    gles2_update_letterbox(renderer);
+    gles2_update_letterbox(renderer, renderer->target_offscreen);
     renderer->in2d = false;
     gles2_ui_batch_reset(renderer);
 }
@@ -3906,6 +4140,16 @@ ToriRS_GLES2_SetInterfaceScaleMode(struct ToriRS_GLES2* renderer, int mode)
         return;
     renderer->interface_scale_mode = mode;
     renderer->ui_filter_dirty = true;
+}
+
+void
+ToriRS_GLES2_SetClientScaling(
+    struct ToriRS_GLES2* renderer,
+    struct ClientScaleSettings const* settings)
+{
+    assert(renderer);
+    assert(settings);
+    renderer->client_scale = *settings;
 }
 
 GLenum
@@ -3941,7 +4185,7 @@ ToriRS_GLES2_Execute(struct ToriRS_GLES2* renderer, struct ToriRS_RenderCommand 
 /* Bring the surface up for a frame: current, measured, letterboxed, cleared.
  * False when there is no surface to draw on (a stopped activity). */
 static bool
-gles2_begin_frame(struct ToriRS_GLES2* renderer, bool clear_to_black_only)
+gles2_begin_frame(struct ToriRS_GLES2* renderer, bool clear_to_black_only, bool allow_offscreen)
 {
     struct GLES2Rect letterbox;
     assert(renderer);
@@ -3953,10 +4197,21 @@ gles2_begin_frame(struct ToriRS_GLES2* renderer, bool clear_to_black_only)
         renderer->window, &renderer->drawable_width, &renderer->drawable_height);
     if( renderer->drawable_width <= 0 || renderer->drawable_height <= 0 )
         return false;
-    gles2_update_letterbox(renderer);
+    gles2_update_letterbox(renderer, allow_offscreen);
     gles2_state_reset(renderer);
     gles2_stream_sets_begin_frame(renderer);
-    glViewport(0, 0, renderer->drawable_width, renderer->drawable_height);
+    if( renderer->target_offscreen )
+    {
+        gles2_scale_target_ensure(renderer);
+        glBindFramebuffer(GL_FRAMEBUFFER, renderer->scale_fbo);
+    }
+    else
+    {
+        /* The limit is off or no longer binds: give the memory back now. */
+        gles2_scale_target_destroy_buffers(renderer);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+    glViewport(0, 0, renderer->target_width, renderer->target_height);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     if( !clear_to_black_only && renderer->letterbox_width > 0 && renderer->letterbox_height > 0 )
@@ -4012,7 +4267,7 @@ ToriRS_GLES2_DrawBootBar(
     assert(renderer);
     /* progress < 0: clear only, no bar -- the post-login loading screen,
      * which is a black screen and the sentence alone on every lane. */
-    if( !gles2_begin_frame(renderer, progress < 0) )
+    if( !gles2_begin_frame(renderer, progress < 0, false) )
         return;
     if( progress >= 0 )
     {
@@ -4046,7 +4301,7 @@ bool
 gles2_render_frame_begin(struct ToriRS_GLES2* renderer)
 {
     assert(renderer);
-    if( !gles2_begin_frame(renderer, false) )
+    if( !gles2_begin_frame(renderer, false, true) )
         return false;
     renderer->has_3d = false;
     renderer->in3d = false;
@@ -4095,6 +4350,8 @@ gles2_render_frame_end(struct ToriRS_GLES2* renderer)
         gles2_end_3d(renderer);
     if( renderer->in2d )
         gles2_end_2d(renderer);
+    if( renderer->target_offscreen )
+        gles2_scale_target_present(renderer);
 
     /* TORIRS_GLES2_READBACK=path dumps one frame (after
      * TORIRS_GLES2_READBACK_FRAME, default 90) through the same readback the
@@ -4135,9 +4392,11 @@ gles2_render_frame_end(struct ToriRS_GLES2* renderer)
 /*
  * The frame that is about to be presented, sampled back onto the canvas grid.
  *
- * Two conversions: the drawable is letterboxed, and GL reports rows bottom-up
- * while the client's buffers are top-down. GLES2 reads GL_RGBA only, so the
- * bytes are repacked into the ARGB words the rest of the client thinks in.
+ * Two conversions: the frame is letterboxed inside the buffer it was drawn
+ * into, and GL reports rows bottom-up while the client's buffers are top-down.
+ * GLES2 reads GL_RGBA only, so the bytes are repacked into the ARGB words the
+ * rest of the client thinks in. An offscreen frame is read from its own
+ * buffer, at render resolution, not from the scaled copy on the drawable.
  */
 bool
 ToriRS_GLES2_ReadPixels(struct ToriRS_GLES2* renderer, int* pixels, int width, int height)
@@ -4147,6 +4406,7 @@ ToriRS_GLES2_ReadPixels(struct ToriRS_GLES2* renderer, int* pixels, int width, i
     uint8_t* framebuffer;
     float scale_x;
     float scale_y;
+    bool offscreen;
     int y;
 
     assert(renderer);
@@ -4155,14 +4415,25 @@ ToriRS_GLES2_ReadPixels(struct ToriRS_GLES2* renderer, int* pixels, int width, i
     assert(height > 0);
     if( !renderer->gl_context || !renderer->window )
         return false;
-    ToriRS_GLContext_DrawableSize(renderer->window, &framebuffer_w, &framebuffer_h);
+    offscreen = renderer->target_offscreen && renderer->scale_fbo;
+    if( offscreen )
+    {
+        framebuffer_w = renderer->scale_fbo_width;
+        framebuffer_h = renderer->scale_fbo_height;
+    }
+    else
+        ToriRS_GLContext_DrawableSize(renderer->window, &framebuffer_w, &framebuffer_h);
     if( framebuffer_w <= 0 || framebuffer_h <= 0 || renderer->letterbox_width <= 0 ||
         renderer->letterbox_height <= 0 )
         return false;
     framebuffer = (uint8_t*)malloc((size_t)framebuffer_w * (size_t)framebuffer_h * 4u);
     assert(framebuffer);
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    if( offscreen )
+        glBindFramebuffer(GL_FRAMEBUFFER, renderer->scale_fbo);
     glReadPixels(0, 0, framebuffer_w, framebuffer_h, GL_RGBA, GL_UNSIGNED_BYTE, framebuffer);
+    if( offscreen )
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
     scale_x = (float)renderer->letterbox_width / (float)width;
     scale_y = (float)renderer->letterbox_height / (float)height;
     for( y = 0; y < height; y++ )
@@ -4174,9 +4445,13 @@ ToriRS_GLES2_ReadPixels(struct ToriRS_GLES2* renderer, int* pixels, int width, i
         {
             int source_x = renderer->letterbox_x + (int)((float)x * scale_x);
             const uint8_t* source;
+            uint32_t alpha;
             source_x = gles2_clampi(source_x, 0, framebuffer_w - 1);
             source = framebuffer + ((size_t)source_y * (size_t)framebuffer_w + (size_t)source_x) * 4u;
-            pixels[y * width + x] = (int)(((uint32_t)source[3] << 24) | ((uint32_t)source[0] << 16) |
+            /* The offscreen alpha channel is blend residue; the presented
+             * picture is opaque (the present shader writes alpha 1). */
+            alpha = offscreen ? 0xffu : (uint32_t)source[3];
+            pixels[y * width + x] = (int)((alpha << 24) | ((uint32_t)source[0] << 16) |
                                           ((uint32_t)source[1] << 8) | (uint32_t)source[2]);
         }
     }

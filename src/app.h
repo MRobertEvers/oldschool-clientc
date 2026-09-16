@@ -41,6 +41,7 @@
 #include "game/rs_minimenu_build.h"
 #include "game/rs_player_stats.h"
 #include "game/rs_prefs.h"
+#include "platform/client_scale.h"
 #include "game/rs_social.h"
 #include "game/rs_ui_slots.h"
 #include "game/rs_worldmap_drag.h"
@@ -853,6 +854,34 @@ struct AppPluginPopoutNav
     int reported_capacity;
     int reported_count;
     int reported_rail_hidden;
+};
+
+/**
+ * Client scaling, as the App knows it. @see platform/client_scale.h for how
+ * interface scaling, stretch mode and the pixel limit combine.
+ */
+struct AppClientScale
+{
+    /** The last unscaled game-area size the shell reported
+     *  (TORIRS_CMD_WINDOW_RESIZE), before scaling divides it into the canvas.
+     *  Kept because the canvas is a lossy function of it: at 200% a 1600x900
+     *  window and a 1601x901 one both become 800x450, so the canvas cannot be
+     *  scaled back up when a setting changes. 0 until the first resize. */
+    int window_w;
+    int window_h;
+    /** The layout the last resize or setting change asked for (before the
+     *  canvas floor), and the percent it really used. In fixed mode the
+     *  percent is the one the window was sized by. */
+    struct ClientScaleLayout layout;
+    /** What the shell presented the last frame with. Reported, not decided:
+     *  the shell calls ClientScale_Present itself. */
+    struct ClientScalePresent present;
+    bool present_known;
+    /** The scale the frame is really shown at: `layout.percent`, unless the
+     *  canvas floor made the layout bigger than window / percent, in which
+     *  case it is lower and `lowered_to_fit_window` says so. */
+    int shown_percent;
+    bool lowered_to_fit_window;
 };
 
 struct App
@@ -2490,14 +2519,8 @@ struct App
      *  locally unmounting type-0/3 subs, nested if_close must not re-enter. */
     int closing_modals;
 
-    /** The last unscaled window size the shell reported (TORIRS_CMD_WINDOW_RESIZE),
-     *  before interface scaling divides it into the canvas. Kept because the
-     *  canvas is a lossy function of it: at 200% a 1600x900 window and a
-     *  1601x901 one both become 800x450, so the canvas cannot be scaled back up
-     *  when the player changes the scale again. 0 until the first resize
-     *  arrives. */
-    int window_w;
-    int window_h;
+    /** Client scaling state. @see struct AppClientScale. */
+    struct AppClientScale client_scale;
 
     /** CANVAS rows the OS soft keyboard covers at the bottom, 0 when it is
      *  away (TORIRS_CMD_KEYBOARD_INSET; only touch platforms ever push it).
@@ -2664,6 +2687,19 @@ int
 App_FixedCanvasWidth(struct App const* app);
 
 /**
+ * The window size fixed mode snaps to: the fixed canvas scaled by "Interface
+ * scaling" (device option 27), rounded down to a whole multiple in integer
+ * stretch mode. The canvas cannot move -- App_SetCanvasSize floors it at the
+ * classic frame -- so the window grows and the present stretches the same
+ * pixels into it.
+ */
+int
+App_FixedWindowWidth(struct App const* app);
+
+int
+App_FixedWindowHeight(struct App const* app);
+
+/**
  * The narrowest canvas the frame now on screen can be laid out in: the FRAME's
  * floor (a plugin layout's when one holds the frame, the revconfig gameframe's
  * APP_CANVAS_MIN_W otherwise) PLUS the right-docked chrome strip.
@@ -2702,24 +2738,52 @@ int
 App_SyncResizableCanvasFloor(struct App* app);
 
 /**
- * Apply a pending "Interface scaling" change (device option 27), if a
- * clientscript made one since the last call. Returns 1 if the canvas changed.
+ * Apply a pending client-scaling change -- interface scale (27), stretch mode
+ * (30), pixel limit (31) or its policy (32) -- to a resizable canvas. Returns 1
+ * if the canvas changed.
  *
- * The scale is realised as a *smaller canvas*, not as a second coordinate
- * space: the whole client — UI tree, world viewport, backbuffer — lays out and
- * draws at window/scale, and the shell's existing letterbox blows that up to
- * the window. 200% therefore means "half as many pixels across, each twice the
- * size", which is what makes every interface element twice as big without a
- * single widget knowing about it. The cost is the honest one and the same one
- * the mobile client pays: the 3D viewport renders at the reduced resolution
- * too.
+ * The interface scale is realised as a *smaller canvas*, not as a second
+ * coordinate space: the UI tree lays out at window/scale and the present blows
+ * that up to the window. 200% therefore means "half as many layout pixels
+ * across, each twice the size", which makes every interface element twice as
+ * big without a single widget knowing about it. A CPU renderer also rasterises
+ * at that size; a GPU one rasterises at the render size ClientScale_Present
+ * chose, up to the pixel limit.
  *
- * Fixed mode is deliberately unaffected — its canvas is pinned to the classic
- * frame and already letterboxed to fill the window, so there is nothing left
- * for a scale to do. App_SetCanvasSize's floor enforces that on its own.
+ * Resizable only. Fixed mode's canvas is pinned to the classic frame, so the
+ * shell applies the scale to the window it snaps to instead
+ * (App_FixedWindowWidth/Height) and consumes the flag there.
  */
 int
-App_SyncUiScale(struct App* app);
+App_SyncClientScale(struct App* app);
+
+/**
+ * The resizable canvas for a game area of `window_w` x `window_h` output
+ * pixels under the current settings, applied through App_SetCanvasSize (and so
+ * its floor). Records the window and the layout. Returns 1 if the canvas
+ * changed.
+ */
+int
+App_ApplyWindowLayout(
+    struct App* app,
+    int window_w,
+    int window_h);
+
+/** The client-scaling settings the store holds now, with the output filter's
+ *  "same as the interface filter" already resolved. */
+void
+App_ClientScaleSettings(
+    struct App const* app,
+    struct ClientScaleSettings* out);
+
+/** Record what the shell presented with, for the settings page's readout. */
+void
+App_SetClientScalePresent(
+    struct App* app,
+    struct ClientScalePresent const* present);
+
+struct AppClientScale const*
+App_ClientScale(struct App const* app);
 
 /**
  * Apply the committed frame's canvas policy, or restore the lane policy.

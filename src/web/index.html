@@ -267,7 +267,8 @@
 
   Scaling is CSS-only: the backbuffer keeps whatever size the client gave it
   (765x503 fixed, or the size it picked in resizable window mode) and the
-  element is stretched over it. Input needs no adjustment for that — the
+  element is stretched over it, following the client's stretch mode and frame
+  filter (torirsClientScaling below). Input needs no adjustment for that — the
   runtime converts a page coordinate with canvas.width / boundingRect.width,
   so a scaled canvas reports backbuffer pixels either way.
 -->
@@ -316,10 +317,31 @@
     const srcW = canvas.width || 1;
     const srcH = canvas.height || 1;
     if (availW <= 0 || availH <= 0) { return; }
-    const scale = Math.min(availW / srcW, availH / srcH);
-    canvas.style.width = `${Math.max(1, Math.floor(srcW * scale))}px`;
-    canvas.style.height = `${Math.max(1, Math.floor(srcH * scale))}px`;
+    // The client's own stretch mode (Client Settings), the same three rules
+    // platform/client_scale.h applies natively: 0 keep aspect, 1 integer
+    // (whole multiples, keep aspect when not even 1x fits), 2 stretch.
+    let scaleX = Math.min(availW / srcW, availH / srcH);
+    let scaleY = scaleX;
+    if (clientScaling.fit === 1 && Math.floor(scaleX) >= 1) {
+      scaleX = scaleY = Math.floor(scaleX);
+    } else if (clientScaling.fit === 2) {
+      scaleX = availW / srcW;
+      scaleY = availH / srcH;
+    }
+    canvas.style.width = `${Math.max(1, Math.floor(srcW * scaleX))}px`;
+    canvas.style.height = `${Math.max(1, Math.floor(srcH * scaleY))}px`;
   }
+
+  // Set by the client (platform_sdl2.c web_client_scaling_changed) whenever
+  // stretch mode or the frame filter changes. Nearest keeps the pixelated
+  // look; linear and bicubic let the browser smooth the stretch.
+  const clientScaling = { fit: 0, filter: 0 };
+  globalThis.torirsClientScaling = (fitMode, filter) => {
+    clientScaling.fit = fitMode;
+    clientScaling.filter = filter;
+    canvas.style.imageRendering = filter === 0 ? 'pixelated' : 'auto';
+    fit();
+  };
 
   function setFullCanvas(on) {
     body.classList.toggle('fullcanvas', on);

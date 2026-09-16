@@ -69,6 +69,7 @@
  * plain/cutout program boundary.
  */
 
+#include "platform/client_scale.h"
 #include "platform/platform_renderer_gles2.h"
 
 #include "core/trspk_atlas.h"
@@ -592,10 +593,38 @@ struct ToriRS_GLES2
     int height;
     int drawable_width;
     int drawable_height;
+    /* Where frame pixels go inside the current target, GL origin: the
+     * output rect when drawing direct, the whole buffer when offscreen. */
     int letterbox_x;
     int letterbox_y;
+    /* letterbox_y with a top-left origin, for the maths that maps canvas rows
+     * down the target and flips once at the end (scissors, world viewport). */
+    int letterbox_top;
     int letterbox_width;
     int letterbox_height;
+    /* --- client scaling (platform/client_scale.h) ----------------------- */
+    struct ClientScaleSettings client_scale;
+    /* The frame's rect on the drawable, GL origin (bottom-left). */
+    int output_x;
+    int output_y;
+    int output_width;
+    int output_height;
+    /* The buffer this frame draws into: the drawable, or scale_fbo. */
+    int target_width;
+    int target_height;
+    /* The render size differs from the output size: the frame is drawn into
+     * scale_fbo and sampled onto the output rect at frame end. */
+    bool target_offscreen;
+    GLuint scale_fbo;
+    GLuint scale_texture;
+    GLuint scale_depth; /* 0 on the painter lane */
+    int scale_fbo_width;
+    int scale_fbo_height;
+    GLint scale_texture_filter;
+    /* Six UI-layout vertices covering clip space, and the program that
+     * samples scale_texture through them. */
+    GLuint present_vbo;
+    struct GLES2Program program_present;
     /* All Settings' interface scaling mode: 0 nearest, 1/2 linear. */
     int interface_scale_mode;
     bool ui_filter_dirty;

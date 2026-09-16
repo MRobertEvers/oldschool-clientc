@@ -24,6 +24,7 @@
  */
 
 #include "platform/platform_win32_renderer_d3d9.h"
+#include "platform/client_scale.h"
 
 #include "core/trspk_atlas.h"
 #include "core/trspk_batch16.h"
@@ -273,10 +274,28 @@ struct ToriRS_D3D9
     int height;
     int client_w;
     int client_h;
+    /* The frame's box in the surface being drawn into: the output rectangle in
+     * the back buffer, or all of the offscreen target. */
     int lb_x;
     int lb_y;
     int lb_w;
     int lb_h;
+    /* Size of the surface being drawn into; clamps viewports and scissors. */
+    int target_w;
+    int target_h;
+    struct ClientScaleSettings client_scale;
+    /* Where the frame lands in the back buffer (the game area). */
+    struct ClientScaleRect output;
+    /* The render size differs from the output size, so the frame is drawn
+     * into `offscreen` and StretchRect'd onto `output` after EndScene. */
+    bool offscreen_wanted;
+    bool offscreen_bound;
+    /* The last finished frame lives in `offscreen`, not the back buffer. */
+    bool frame_in_offscreen;
+    /* D3DPOOL_DEFAULT: released before every Reset, recreated lazily. */
+    IDirect3DSurface9* offscreen;
+    int offscreen_w;
+    int offscreen_h;
     /* All Settings' interface scaling mode. D3D9's fixed-function UI path
      * uses point for 0 and its best portable reconstruction, linear, for 1/2. */
     int interface_scale_mode;

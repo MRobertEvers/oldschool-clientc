@@ -2073,6 +2073,13 @@ test-wedge-camera-path: $(OBJ_DIR)
 		render/test/wedge_camera_path_test.c render/torirs_wedge_camera_path.c $(LDFLAGS)
 	./$(OBJ_DIR)/wedge_camera_path_test$(PLATFORM_EXE_SUFFIX)
 
+# Client scaling: the layout, render and output sizes every lane presents with.
+.PHONY: test-client-scale
+test-client-scale: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/client_scale_test$(PLATFORM_EXE_SUFFIX) \
+		platform/test/client_scale_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/client_scale_test$(PLATFORM_EXE_SUFFIX)
+
 .PHONY: test-pacer
 test-pacer: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/pacer_test$(PLATFORM_EXE_SUFFIX) \

@@ -80,6 +80,11 @@ struct Fake
     int ui_scale;
     int ui_scale_filter;
     bool display_present;
+    /* Every setting past the filter, by its enum value. */
+    int display[TORIRS_DISPLAY_SETTING_COUNT];
+    /* The read-only readouts answer only once a frame has been "presented". */
+    bool readout_present;
+    int display_sets;
 };
 static struct Fake fake;
 
@@ -259,6 +264,16 @@ fake_display_get(struct ToriRS_Api* api, int setting, int* value, int* min, int*
         if( max ) *max = 12;
         return true;
     }
+    if( setting >= TORIRS_DISPLAY_EFFECTIVE_UI_SCALE && setting < TORIRS_DISPLAY_SETTING_COUNT &&
+        !fake.readout_present )
+        return false;
+    if( setting > TORIRS_DISPLAY_UI_SCALE_FILTER && setting < TORIRS_DISPLAY_SETTING_COUNT )
+    {
+        if( value ) *value = fake.display[setting];
+        if( min ) *min = 0;
+        if( max ) *max = 4320;
+        return true;
+    }
     return false;
 }
 
@@ -275,6 +290,12 @@ fake_display_set(struct ToriRS_Api* api, int setting, int value)
     if( setting == TORIRS_DISPLAY_UI_SCALE_FILTER )
     {
         fake.ui_scale_filter = value;
+        return TORIRS_RESULT_OK;
+    }
+    if( setting > TORIRS_DISPLAY_UI_SCALE_FILTER && setting < TORIRS_DISPLAY_EFFECTIVE_UI_SCALE )
+    {
+        fake.display[setting] = value;
+        fake.display_sets++;
         return TORIRS_RESULT_OK;
     }
     return TORIRS_RESULT_NOT_FOUND;
@@ -699,6 +720,71 @@ main(void)
     CHECK(fake.ui_scale_filter == 12,
         "a filter pick offsets its index by the store's minimum");
     CHECK(fake.config_writes == 0, "no display setting is written to plugin config");
+
+    /* ------------------------------------------------ client scaling rows */
+
+    row = fake_row("stretch_mode");
+    CHECK(row && row->option_count == 3, "three stretch modes");
+    CHECK(row && strcmp(row->option_label[1], "Integer (whole pixels)") == 0, "integer is named");
+    CHECK(row && strcmp(row->selected_value, "0") == 0, "keep aspect is the default");
+    row = fake_row("max_pixel_height");
+    CHECK(row && row->option_count == 6, "six listed pixel limits");
+    CHECK(row && strcmp(row->option_label[0], "No limit") == 0, "the first limit is none");
+    row = fake_row("pixel_limit_policy");
+    CHECK(row && row->option_count == 2, "two limit policies");
+    CHECK(row && strcmp(row->option_label[0], "Enlarge the interface to fit") == 0,
+        "the policies say what happens to the interface");
+    row = fake_row("frame_filter");
+    CHECK(row && row->option_count == 4, "four frame filters");
+    CHECK(row && strcmp(row->option_label[0], "Same as interface filter") == 0,
+        "the frame filter defaults to following the interface filter");
+    CHECK(!fake_row("scaling_now") && !fake_row("scaling_how"),
+        "no readout before anything has been presented");
+
+    pick(state, "stretch_mode", "1");
+    pick(state, "max_pixel_height", "1080");
+    pick(state, "pixel_limit_policy", "1");
+    pick(state, "frame_filter", "3");
+    CHECK(fake.display[TORIRS_DISPLAY_STRETCH_MODE] == 1, "stretch pick writes the store");
+    CHECK(fake.display[TORIRS_DISPLAY_MAX_PIXEL_HEIGHT] == 1080, "limit pick writes the store");
+    CHECK(fake.display[TORIRS_DISPLAY_PIXEL_LIMIT_POLICY] == 1, "policy pick writes the store");
+    CHECK(fake.display[TORIRS_DISPLAY_FRAME_FILTER] == 3, "frame filter pick writes the store");
+    CHECK(fake.config_writes == 0, "client scaling is not written to plugin config either");
+
+    /* A limit only preferences.ini could hold is shown as itself. */
+    fake.display[TORIRS_DISPLAY_MAX_PIXEL_HEIGHT] = 600;
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+    row = fake_row("max_pixel_height");
+    CHECK(row && row->option_count == 7 && strcmp(row->selected_value, "600") == 0 &&
+          strcmp(row->option_label[6], "600 rows") == 0,
+        "a limit written elsewhere re-describes the page, offered as its own row rather than "
+        "snapped to a neighbour");
+
+    /* The readout: what the settings add up to, and why the scale moved. */
+    fake.ui_scale = 150;
+    fake.readout_present = true;
+    fake.display[TORIRS_DISPLAY_EFFECTIVE_UI_SCALE] = 100;
+    fake.display[TORIRS_DISPLAY_LAYOUT_WIDTH] = 1920;
+    fake.display[TORIRS_DISPLAY_LAYOUT_HEIGHT] = 1080;
+    fake.display[TORIRS_DISPLAY_RENDER_WIDTH] = 1920;
+    fake.display[TORIRS_DISPLAY_RENDER_HEIGHT] = 1080;
+    fake.display[TORIRS_DISPLAY_OUTPUT_WIDTH] = 1920;
+    fake.display[TORIRS_DISPLAY_OUTPUT_HEIGHT] = 1080;
+    fake.display[TORIRS_DISPLAY_SCALE_ADJUSTED] = TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED;
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+    row = fake_row("scaling_now");
+    CHECK(row && strcmp(row->text,
+                     "Now: layout 1920x1080 at 100%, rendered 1920x1080, shown 1920x1080. "
+                     "150% rounded down for integer scaling.") == 0,
+        "the readout says integer rounded the chosen scale down");
+    CHECK(fake_row("scaling_how") != NULL, "and how the settings combine");
+
+    fake.display[TORIRS_DISPLAY_EFFECTIVE_UI_SCALE] = 200;
+    fake.display[TORIRS_DISPLAY_SCALE_ADJUSTED] = TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED;
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+    row = fake_row("scaling_now");
+    CHECK(row && strstr(row->text, "at 200%") && strstr(row->text, "Raised from 150% to stay under the pixel limit."),
+        "a readout change re-describes the page without any setting changing");
 
     /* A build with no display store declares neither row -- the same page the
      * unported plugin built, and the reason the two reads are a gate. */

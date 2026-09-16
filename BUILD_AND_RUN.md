@@ -605,6 +605,8 @@ Selected variables (`src/main.c` reads ~70; these are the ones you reach for):
 | `TORIRS_EXIT_BMP=<path>` | write the final frame as a BMP |
 | `TORIRS_BMP_SERIES=<prefix>` | write a BMP per frame |
 | `TORIRS_GL3_READBACK=<path>` | read back the **real** GPU framebuffer (`TORIRS_EXIT_BMP` writes what the software rasterizer drew, whatever the GPU showed) |
+| `TORIRS_PRESENT_BMP=<path>` | write the **presented** Soft3D frame once (after `TORIRS_PRESENT_BMP_FRAME` presents, default 60): bars, stretch mode and output filter as the window shows them; works under `SDL_VIDEODRIVER=dummy` |
+| `TORIRS_PREFS=<file>` | preferences file to load and save; a `[device_options]` section sets client scaling headlessly (`27` interface %, `30` stretch mode, `31` pixel limit, `32` limit policy, `33` frame filter — see `src/platform/client_scale.h`) |
 | `TORIRS_SIM_MOUSE_CLICK`, `TORIRS_SIM_CLICK_AT`, `TORIRS_SIM_HOVER`, `TORIRS_SIM_CAMERA_YAW` | drive input without a human |
 | `TORIRS_NET_DEBUG=1` | log packets |
 | `TORIRS_NET_CHEAT="tele 0,50,50,21,21"` | send a server command at boot |

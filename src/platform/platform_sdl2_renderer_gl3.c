@@ -291,6 +291,18 @@ gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
     renderer->chrome_texture = 0u;
     renderer->chrome_texture_w = 0;
     renderer->chrome_texture_h = 0;
+    if( renderer->scale_fbo )
+        glDeleteFramebuffers(1, &renderer->scale_fbo);
+    if( renderer->scale_color_texture )
+        glDeleteTextures(1, &renderer->scale_color_texture);
+    if( renderer->scale_depth_stencil )
+        glDeleteRenderbuffers(1, &renderer->scale_depth_stencil);
+    renderer->scale_fbo = 0u;
+    renderer->scale_color_texture = 0u;
+    renderer->scale_depth_stencil = 0u;
+    renderer->scale_fbo_w = 0;
+    renderer->scale_fbo_h = 0;
+    renderer->frame_used_scale_fbo = false;
 }
 
 static void
@@ -4088,34 +4100,6 @@ gl3_ev_end_3d(
 
     gl3_unbind_attribs(renderer);
 
-    /* TORIRS_GL3_READBACK=path.ppm: dump the GL back buffer right after the 3D
-     * pass. TORIRS_EXIT_BMP re-renders through the software path, so it cannot
-     * show a GL-only defect. */
-    {
-        static int readback = -1;
-        static long rb_frame;
-        if( readback < 0 )
-            readback = getenv("TORIRS_GL3_READBACK") != NULL;
-        if( readback && ++rb_frame % 64 == 0 )
-        {
-            int w = renderer->width, h = renderer->height;
-            unsigned char* px = malloc((size_t)w * h * 3);
-            assert(px);
-            FILE* f;
-            glPixelStorei(GL_PACK_ALIGNMENT, 1);
-            glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, px);
-            f = fopen(getenv("TORIRS_GL3_READBACK"), "wb");
-            if( f )
-            {
-                fprintf(f, "P6\n%d %d\n255\n", w, h);
-                for( int y = h - 1; y >= 0; y-- )
-                    fwrite(px + (size_t)y * w * 3, 1, (size_t)w * 3, f);
-                fclose(f);
-            }
-            free(px);
-        }
-    }
-
 done:
     if( renderer->scene )
         ToriDraw_SceneClearProjectionCamera(renderer->scene);
@@ -4916,6 +4900,16 @@ ToriRS_GL3_SetViewport(
 }
 
 void
+ToriRS_GL3_SetClientScaling(
+    struct ToriRS_GL3* renderer,
+    struct ClientScaleSettings const* settings)
+{
+    assert(renderer);
+    assert(settings);
+    renderer->client_scale = *settings;
+}
+
+void
 ToriRS_GL3_SetHostRightInset(struct ToriRS_GL3* renderer, int pixels)
 {
     assert(renderer);
@@ -5392,6 +5386,72 @@ gl3_draw_boot_caption(
     gl3_ev_end_2d(gl3, &command);
 }
 
+/* The output rect for the game area (drawable minus the plugin pane), with its
+ * y turned into GL's bottom-left origin. */
+static void
+gl3_client_scale_present(
+    struct ToriRS_GL3* gl3,
+    int area_w,
+    int area_h,
+    struct ClientScalePresent* present,
+    int* out_gl_y)
+{
+    assert(gl3);
+    assert(present);
+    assert(out_gl_y);
+    ClientScale_Present(
+        &gl3->client_scale, gl3->width, gl3->height, area_w, area_h, 1, present);
+    *out_gl_y = area_h - present->output.y - present->output.h;
+}
+
+/* (Re)allocate the scale FBO at render_w x render_h; no-op when the size holds. */
+static void
+gl3_ensure_scale_fbo(
+    struct ToriRS_GL3* gl3,
+    int render_w,
+    int render_h)
+{
+    assert(gl3);
+    assert(render_w > 0);
+    assert(render_h > 0);
+    if( gl3->scale_fbo && gl3->scale_fbo_w == render_w && gl3->scale_fbo_h == render_h )
+        return;
+
+    if( !gl3->scale_fbo )
+        glGenFramebuffers(1, &gl3->scale_fbo);
+    if( !gl3->scale_color_texture )
+        glGenTextures(1, &gl3->scale_color_texture);
+    if( !gl3->scale_depth_stencil )
+        glGenRenderbuffers(1, &gl3->scale_depth_stencil);
+    assert(gl3->scale_fbo);
+    assert(gl3->scale_color_texture);
+    assert(gl3->scale_depth_stencil);
+
+    glBindTexture(GL_TEXTURE_2D, gl3->scale_color_texture);
+    glTexImage2D(
+        GL_TEXTURE_2D, 0, GL_RGBA8, render_w, render_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glBindRenderbuffer(GL_RENDERBUFFER, gl3->scale_depth_stencil);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, render_w, render_h);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, gl3->scale_fbo);
+    glFramebufferTexture2D(
+        GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl3->scale_color_texture, 0);
+    glFramebufferRenderbuffer(
+        GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, gl3->scale_depth_stencil);
+    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    gl3->scale_fbo_w = render_w;
+    gl3->scale_fbo_h = render_h;
+}
+
 void
 ToriRS_GL3_DrawBootBar(
     struct ToriRS_GL3* gl3,
@@ -5421,13 +5481,18 @@ ToriRS_GL3_DrawBootBar(
             drawable_w = 1;
     }
 
-    struct TRSPK_Letterbox lb;
-    trspk_compute_letterbox(gl3->width, gl3->height, drawable_w, drawable_h, &lb);
-    gl3->lb_x = lb.x;
-    gl3->lb_y = lb.y;
-    gl3->lb_w = lb.w;
-    gl3->lb_h = lb.h;
+    /* No frame to scale yet: the bar draws straight onto the output rect. */
+    struct ClientScalePresent present;
+    int output_gl_y = 0;
+    gl3_client_scale_present(gl3, drawable_w, drawable_h, &present, &output_gl_y);
+    gl3->lb_x = present.output.x;
+    gl3->lb_y = output_gl_y;
+    gl3->lb_w = present.output.w;
+    gl3->lb_h = present.output.h;
+    gl3->frame_used_scale_fbo = false;
 
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDisable(GL_SCISSOR_TEST);
     glViewport(0, 0, full_drawable_w, drawable_h);
     if( clear_only )
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -5517,17 +5582,36 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
             drawable_w = 1;
     }
 
-    {
-        struct TRSPK_Letterbox lb;
-        trspk_compute_letterbox(gl3->width, gl3->height, drawable_w, drawable_h, &lb);
-        gl3->lb_x = lb.x;
-        gl3->lb_y = lb.y;
-        gl3->lb_w = lb.w;
-        gl3->lb_h = lb.h;
-    }
+    struct ClientScalePresent present;
+    int output_gl_y = 0;
+    gl3_client_scale_present(gl3, drawable_w, drawable_h, &present, &output_gl_y);
+    /* The pixel limit made the render buffer smaller than the output rect:
+     * draw into the scale FBO and blit it up. Otherwise draw in place. */
+    bool const use_fbo =
+        present.render_w != present.output.w || present.render_h != present.output.h;
 
-    glViewport(0, 0, full_drawable_w, drawable_h);
+    glDisable(GL_SCISSOR_TEST);
     glClearColor(0.125f, 0.141f, 0.157f, 1.0f);
+    if( use_fbo )
+    {
+        gl3_ensure_scale_fbo(gl3, present.render_w, present.render_h);
+        glBindFramebuffer(GL_FRAMEBUFFER, gl3->scale_fbo);
+        gl3->lb_x = 0;
+        gl3->lb_y = 0;
+        gl3->lb_w = present.render_w;
+        gl3->lb_h = present.render_h;
+        glViewport(0, 0, present.render_w, present.render_h);
+    }
+    else
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        gl3->lb_x = present.output.x;
+        gl3->lb_y = output_gl_y;
+        gl3->lb_w = present.output.w;
+        gl3->lb_h = present.output.h;
+        glViewport(0, 0, full_drawable_w, drawable_h);
+    }
+    gl3->frame_used_scale_fbo = use_fbo;
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     gl3->in3d = false;
@@ -5540,9 +5624,33 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
         ToriRS_GL3_Execute(gl3, &command);
     ToriRS_FrameEnd(frame);
 
+    if( use_fbo )
+    {
+        gl3_flush_2d_batch(gl3);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDisable(GL_SCISSOR_TEST);
+        glViewport(0, 0, full_drawable_w, drawable_h);
+        glClearColor(0.125f, 0.141f, 0.157f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, gl3->scale_fbo);
+        glBlitFramebuffer(
+            0,
+            0,
+            present.render_w,
+            present.render_h,
+            present.output.x,
+            output_gl_y,
+            present.output.x + present.output.w,
+            output_gl_y + present.output.h,
+            GL_COLOR_BUFFER_BIT,
+            gl3->client_scale.output_filter == CLIENT_SCALE_FILTER_NEAREST ? GL_NEAREST
+                                                                           : GL_LINEAR);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
     /* TORIRS_GL3_READBACK=path dumps one GL frame (after READBACK_FRAME, default 90).
      * The readback itself is ToriRS_GL3_ReadPixels, which the app also uses for
-     * plugin screenshots -- one path, so a bug in the letterbox arithmetic
+     * plugin screenshots -- one path, so a bug in the output-rect arithmetic
      * cannot show up in a debug dump and not in a screenshot. */
     {
         char const* path = getenv("TORIRS_GL3_READBACK");
@@ -5636,7 +5744,7 @@ ToriRS_GL3_DrawChromePixels(
     }
 
     /* One retained textured quad after the game. The game renderer already
-     * cleared the full drawable and restricted its own letterbox to the space
+     * cleared the full drawable and restricted its output rect to the space
      * left of host_right_inset, so this cannot cover a gameframe pixel. */
     gl3_flush_2d_batch(gl3);
     glViewport(drawable_w - pane_w, 0, pane_w, drawable_h);
@@ -5665,11 +5773,9 @@ ToriRS_GL3_DrawChromePixels(
 /*
  * The frame that is on screen, sampled back onto the canvas grid.
  *
- * Two conversions, and both are why this cannot just be a glReadPixels into
- * the caller's buffer:
- *
- *   - The drawable is letterboxed. lb_x/lb_y/lb_w/lb_h is where the canvas
- *     actually landed inside it, and everything outside that is bars.
+ *   - A frame drawn through the scale FBO is read whole from it; otherwise the
+ *     front buffer is read and lb_x/lb_y/lb_w/lb_h is the output rect inside
+ *     it (everything outside is bars).
  *   - GL reports rows bottom-up. The client's buffers are top-down, so the
  *     row index is walked backwards -- RuneLite's GpuPlugin.screenshot ends
  *     with the same flip, for the same reason.
@@ -5683,6 +5789,10 @@ ToriRS_GL3_ReadPixels(
 {
     int fb_w = 0;
     int fb_h = 0;
+    int src_x0 = 0;
+    int src_y0 = 0;
+    int src_w = 0;
+    int src_h = 0;
     int* fb;
     float sx;
     float sy;
@@ -5695,24 +5805,52 @@ ToriRS_GL3_ReadPixels(
     if( !gl3->window )
         return false;
 
-    ToriRS_GLContext_DrawableSize(gl3->window, &fb_w, &fb_h);
-    if( fb_w <= 0 || fb_h <= 0 )
-        return false;
+    if( gl3->frame_used_scale_fbo )
+    {
+        assert(gl3->scale_fbo);
+        fb_w = gl3->scale_fbo_w;
+        fb_h = gl3->scale_fbo_h;
+        src_w = fb_w;
+        src_h = fb_h;
+    }
+    else
+    {
+        ToriRS_GLContext_DrawableSize(gl3->window, &fb_w, &fb_h);
+        if( fb_w <= 0 || fb_h <= 0 )
+            return false;
+        src_x0 = gl3->lb_x;
+        src_y0 = gl3->lb_y;
+        src_w = gl3->lb_w;
+        src_h = gl3->lb_h;
+    }
 
     fb = (int*)malloc((size_t)fb_w * (size_t)fb_h * sizeof(int));
     assert(fb);
 
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
-    /* App_DrawComplete requests the presented frame after the swap. The back
-     * buffer is then reusable/undefined and can contain the next clear. */
-    glReadBuffer(GL_FRONT);
-    glReadPixels(0, 0, fb_w, fb_h, TORIRS_GL_READ_FORMAT, GL_UNSIGNED_BYTE, fb);
+    if( gl3->frame_used_scale_fbo )
+    {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, gl3->scale_fbo);
+        glReadBuffer(GL_COLOR_ATTACHMENT0);
+        glReadPixels(0, 0, fb_w, fb_h, TORIRS_GL_READ_FORMAT, GL_UNSIGNED_BYTE, fb);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    }
+    else
+    {
+        /* App_DrawComplete requests the presented frame after the swap. The
+         * back buffer is then reusable/undefined and can contain the next
+         * clear. */
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+        glReadBuffer(GL_FRONT);
+        glReadPixels(0, 0, fb_w, fb_h, TORIRS_GL_READ_FORMAT, GL_UNSIGNED_BYTE, fb);
+    }
+    glReadBuffer(GL_BACK);
 
-    sx = (float)gl3->lb_w / (float)width;
-    sy = (float)gl3->lb_h / (float)height;
+    sx = (float)src_w / (float)width;
+    sy = (float)src_h / (float)height;
     for( int y = 0; y < height; y++ )
     {
-        int src_y = gl3->lb_y + (int)((float)(height - 1 - y) * sy);
+        int src_y = src_y0 + (int)((float)(height - 1 - y) * sy);
 
         if( src_y < 0 )
             src_y = 0;
@@ -5720,7 +5858,7 @@ ToriRS_GL3_ReadPixels(
             src_y = fb_h - 1;
         for( int x = 0; x < width; x++ )
         {
-            int src_x = gl3->lb_x + (int)((float)x * sx);
+            int src_x = src_x0 + (int)((float)x * sx);
 
             if( src_x < 0 )
                 src_x = 0;

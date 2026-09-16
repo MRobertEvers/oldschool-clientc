@@ -6,6 +6,7 @@
 
 struct PlatformWindow;
 struct ToriRS_CmdBus;
+struct ClientScaleSettings;
 
 /* The GL window handle, opaque and windowing-library-free.
  * @see platform/platform_gl_context.h. */
@@ -576,15 +577,29 @@ PlatformWindow_Resize(
     int width,
     int height);
 
-/** Select how the logical interface framebuffer is sampled when it is scaled
- *  into the window: 0 nearest-neighbour, 1 linear, 2 best/bicubic. Backends
- *  use their closest supported high-quality filter for mode 2. */
+/**
+ * How the layout-sized frame is placed in the window and filtered on the way
+ * there. @see platform/client_scale.h. Idempotent; called every frame.
+ *
+ * `output_filter` samples the frame onto its output rectangle: nearest,
+ * linear, or the backend's best filter for bicubic.
+ */
 void
-PlatformWindow_SetInterfaceScaleMode(
+PlatformWindow_SetClientScaling(
     struct PlatformWindow* platform,
-    int mode);
+    struct ClientScaleSettings const* settings);
 
-/** Map window-pixel mouse coords into the letterboxed logical framebuffer. */
+/**
+ * The game area in OUTPUT pixels: the drawable, less the plugin pane. The
+ * area ClientScale_Present places the frame in on this window.
+ */
+void
+PlatformWindow_GameAreaPixels(
+    struct PlatformWindow* platform,
+    int* out_w,
+    int* out_h);
+
+/** Map window-pixel mouse coords into the placed logical framebuffer. */
 void
 PlatformWindow_MapMouse(
     struct PlatformWindow* platform,

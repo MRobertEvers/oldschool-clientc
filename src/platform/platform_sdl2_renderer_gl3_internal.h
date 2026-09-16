@@ -356,10 +356,22 @@ struct ToriRS_GL3
     ToriRS_GLContext gl_context;
     int width;
     int height;
+    /* Where the canvas is drawn in the bound framebuffer, GL bottom-left y:
+     * the output rect on the default framebuffer, or all of the scale FBO. */
     int lb_x;
     int lb_y;
     int lb_w;
     int lb_h;
+    struct ClientScaleSettings client_scale;
+    /* Render target used when the pixel limit makes the render buffer smaller
+     * than the output rect; blitted onto it at the end of the frame. */
+    GLuint scale_fbo;
+    GLuint scale_color_texture;
+    GLuint scale_depth_stencil;
+    int scale_fbo_w;
+    int scale_fbo_h;
+    /** The last RenderFrame drew through scale_fbo (ReadPixels reads it). */
+    bool frame_used_scale_fbo;
     /** Drawable pixels reserved at the right for the attached plugin shell. */
     int host_right_inset;
     /* All Settings' interface scaling mode. GL has nearest and linear

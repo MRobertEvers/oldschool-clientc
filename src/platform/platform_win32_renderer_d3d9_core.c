@@ -120,10 +120,10 @@ d3d9_ui_scissor_rect(
         (LONG)(((int64_t)x1 * renderer->lb_w + renderer->width - 1) / renderer->width);
     out->bottom = renderer->lb_y +
         (LONG)(((int64_t)y1 * renderer->lb_h + renderer->height - 1) / renderer->height);
-    out->left = d3d9_clampi((int)out->left, 0, renderer->client_w);
-    out->top = d3d9_clampi((int)out->top, 0, renderer->client_h);
-    out->right = d3d9_clampi((int)out->right, (int)out->left, renderer->client_w);
-    out->bottom = d3d9_clampi((int)out->bottom, (int)out->top, renderer->client_h);
+    out->left = d3d9_clampi((int)out->left, 0, renderer->target_w);
+    out->top = d3d9_clampi((int)out->top, 0, renderer->target_h);
+    out->right = d3d9_clampi((int)out->right, (int)out->left, renderer->target_w);
+    out->bottom = d3d9_clampi((int)out->bottom, (int)out->top, renderer->target_h);
     return out->right > out->left && out->bottom > out->top;
 }
 
@@ -551,9 +551,17 @@ d3d9_read_client_size(struct ToriRS_D3D9* renderer, int* out_w, int* out_h)
 }
 
 static void
+d3d9_release_offscreen(struct ToriRS_D3D9* renderer);
+
+/* Not called inside a scene (d3d9_device_ready returns first), so the box
+ * never moves under a bound target. */
+static void
 d3d9_update_letterbox(struct ToriRS_D3D9* renderer)
 {
-    struct TRSPK_Letterbox box;
+    struct ClientScalePresent present;
+    renderer->target_w = renderer->client_w;
+    renderer->target_h = renderer->client_h;
+    renderer->offscreen_wanted = false;
     if( renderer->width <= 0 || renderer->height <= 0 ||
         renderer->client_w <= 0 || renderer->client_h <= 0 )
     {
@@ -563,12 +571,192 @@ d3d9_update_letterbox(struct ToriRS_D3D9* renderer)
         renderer->lb_h = 0;
         return;
     }
-    trspk_compute_letterbox(
-        renderer->width, renderer->height, renderer->client_w, renderer->client_h, &box);
-    renderer->lb_x = box.x;
-    renderer->lb_y = box.y;
-    renderer->lb_w = box.w;
-    renderer->lb_h = box.h;
+    ClientScale_Present(
+        &renderer->client_scale,
+        renderer->width,
+        renderer->height,
+        renderer->client_w,
+        renderer->client_h,
+        1,
+        &present);
+    renderer->output = present.output;
+    if( present.render_w == present.output.w && present.render_h == present.output.h )
+    {
+        /* The limit is off or no longer binds: give the VRAM back now rather
+         * than at the next Reset. Nothing is bound outside a scene. */
+        if( renderer->offscreen )
+            d3d9_release_offscreen(renderer);
+        renderer->lb_x = present.output.x;
+        renderer->lb_y = present.output.y;
+        renderer->lb_w = present.output.w;
+        renderer->lb_h = present.output.h;
+        return;
+    }
+    renderer->offscreen_wanted = true;
+    renderer->lb_x = 0;
+    renderer->lb_y = 0;
+    renderer->lb_w = present.render_w;
+    renderer->lb_h = present.render_h;
+    renderer->target_w = present.render_w;
+    renderer->target_h = present.render_h;
+}
+
+/* The back buffer, referenced; the caller releases it. GetBackBuffer can
+ * only fail on a bad call, device loss or not. */
+static IDirect3DSurface9*
+d3d9_back_buffer(struct ToriRS_D3D9* renderer)
+{
+    IDirect3DSurface9* back = NULL;
+    HRESULT hr = IDirect3DDevice9_GetBackBuffer(
+        renderer->device, 0u, 0u, D3DBACKBUFFER_TYPE_MONO, &back);
+    assert(SUCCEEDED(hr));
+    (void)hr;
+    assert(back);
+    return back;
+}
+
+/* Put the back buffer back as render target 0. The device holds a reference
+ * to whatever is bound, and Reset refuses while it is a DEFAULT-pool one. */
+static void
+d3d9_unbind_offscreen(struct ToriRS_D3D9* renderer)
+{
+    IDirect3DSurface9* back;
+    HRESULT hr;
+    if( !renderer->offscreen_bound || !renderer->device )
+        return;
+    back = d3d9_back_buffer(renderer);
+    hr = IDirect3DDevice9_SetRenderTarget(renderer->device, 0u, back);
+    IDirect3DSurface9_Release(back);
+    assert(SUCCEEDED(hr));
+    (void)hr;
+    renderer->offscreen_bound = false;
+}
+
+static void
+d3d9_release_offscreen(struct ToriRS_D3D9* renderer)
+{
+    d3d9_unbind_offscreen(renderer);
+    if( renderer->offscreen )
+    {
+        IDirect3DSurface9_Release(renderer->offscreen);
+        renderer->offscreen = NULL;
+    }
+    renderer->offscreen_bound = false;
+    renderer->offscreen_w = 0;
+    renderer->offscreen_h = 0;
+    renderer->frame_in_offscreen = false;
+}
+
+/*
+ * A DEFAULT-pool create or bind that failed while the device was being lost
+ * (a lock screen, UAC, alt-tab out of fullscreen) can report INVALIDCALL or
+ * OUTOFVIDEOMEMORY rather than DEVICELOST. Ask the device which it was: lost
+ * is a runtime state and schedules the Reset; a device that says it is fine
+ * leaves the failure to the caller's assert.
+ */
+static bool
+d3d9_offscreen_device_lost(struct ToriRS_D3D9* renderer)
+{
+    HRESULT const state = IDirect3DDevice9_TestCooperativeLevel(renderer->device);
+    if( state == D3D_OK )
+        return false;
+    renderer->reset_pending = true;
+    return true;
+}
+
+/*
+ * Draw into a render_w x render_h target instead of the back buffer.
+ *
+ * The auto depth-stencil stays bound: it is the back buffer's size, render is
+ * never larger than output, and D3D9 accepts a depth surface at least as large
+ * as the target. Format follows the back buffer so StretchRect can copy it.
+ */
+static bool
+d3d9_bind_offscreen(struct ToriRS_D3D9* renderer)
+{
+    HRESULT hr;
+    assert(renderer->offscreen_wanted);
+    assert(!renderer->offscreen_bound);
+    if( renderer->offscreen &&
+        (renderer->offscreen_w != renderer->lb_w || renderer->offscreen_h != renderer->lb_h) )
+        d3d9_release_offscreen(renderer);
+    if( !renderer->offscreen )
+    {
+        D3DSURFACE_DESC desc;
+        IDirect3DSurface9* back = d3d9_back_buffer(renderer);
+        hr = IDirect3DSurface9_GetDesc(back, &desc);
+        IDirect3DSurface9_Release(back);
+        assert(SUCCEEDED(hr));
+        hr = IDirect3DDevice9_CreateRenderTarget(
+            renderer->device,
+            (UINT)renderer->lb_w,
+            (UINT)renderer->lb_h,
+            desc.Format,
+            D3DMULTISAMPLE_NONE,
+            0u,
+            FALSE,
+            &renderer->offscreen,
+            NULL);
+        if( FAILED(hr) && d3d9_offscreen_device_lost(renderer) )
+        {
+            renderer->offscreen = NULL;
+            return false;
+        }
+        assert(SUCCEEDED(hr));
+        assert(renderer->offscreen);
+        renderer->offscreen_w = renderer->lb_w;
+        renderer->offscreen_h = renderer->lb_h;
+    }
+    hr = IDirect3DDevice9_SetRenderTarget(renderer->device, 0u, renderer->offscreen);
+    if( FAILED(hr) && d3d9_offscreen_device_lost(renderer) )
+        return false;
+    assert(SUCCEEDED(hr));
+    renderer->offscreen_bound = true;
+    return true;
+}
+
+/* After EndScene: back to the back buffer, black bars, and the offscreen
+ * frame stretched onto the output rectangle. */
+static void
+d3d9_resolve_offscreen(struct ToriRS_D3D9* renderer)
+{
+    IDirect3DSurface9* back;
+    RECT source;
+    RECT destination;
+    D3DTEXTUREFILTERTYPE filter = D3DTEXF_POINT;
+    HRESULT hr;
+
+    d3d9_unbind_offscreen(renderer);
+    /* The offscreen frame is complete whether or not the copy below works, so
+     * a capture reads it rather than the cleared back buffer. */
+    renderer->frame_in_offscreen = true;
+    back = d3d9_back_buffer(renderer);
+    /* SetRenderTarget reset the viewport to the whole back buffer. */
+    IDirect3DDevice9_Clear(
+        renderer->device, 0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0u);
+    /* A device without linear StretchRect magnification can only point
+     * sample; that is a capability, not a failure. */
+    if( renderer->client_scale.output_filter != CLIENT_SCALE_FILTER_NEAREST &&
+        (renderer->caps.StretchRectFilterCaps & D3DPTFILTERCAPS_MAGFLINEAR) )
+        filter = D3DTEXF_LINEAR;
+    source.left = 0;
+    source.top = 0;
+    source.right = renderer->offscreen_w;
+    source.bottom = renderer->offscreen_h;
+    destination.left = renderer->output.x;
+    destination.top = renderer->output.y;
+    destination.right = renderer->output.x + renderer->output.w;
+    destination.bottom = renderer->output.y + renderer->output.h;
+    hr = IDirect3DDevice9_StretchRect(
+        renderer->device, renderer->offscreen, &source, back, &destination, filter);
+    IDirect3DSurface9_Release(back);
+    if( hr == D3DERR_DEVICELOST )
+    {
+        renderer->reset_pending = true;
+        return;
+    }
+    if( FAILED(hr) )
+        d3d9_log_hr("StretchRect(client scale)", hr);
 }
 
 static void
@@ -577,6 +765,7 @@ d3d9_mark_active_static_batches_dirty(struct ToriRS_D3D9* renderer);
 static void
 d3d9_release_default_pool(struct ToriRS_D3D9* renderer)
 {
+    d3d9_release_offscreen(renderer);
     /* SetIndices retains a device-side reference. Unbind it before dropping
      * our reference or Reset can still see a live DEFAULT-pool resource. */
     if( renderer->device )
@@ -697,6 +886,9 @@ d3d9_begin_frame_scene(struct ToriRS_D3D9* renderer)
     if( !d3d9_device_ready(renderer) )
         return false;
 
+    renderer->frame_in_offscreen = false;
+    if( renderer->offscreen_wanted && !d3d9_bind_offscreen(renderer) )
+        return false;
     IDirect3DDevice9_Clear(
         renderer->device, 0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0u);
     if( renderer->lb_w > 0 && renderer->lb_h > 0 )
@@ -718,6 +910,7 @@ d3d9_begin_frame_scene(struct ToriRS_D3D9* renderer)
     if( FAILED(hr) )
     {
         d3d9_log_hr("BeginScene", hr);
+        d3d9_unbind_offscreen(renderer);
         return false;
     }
     renderer->scene_active = true;
@@ -735,6 +928,8 @@ d3d9_end_frame_scene(struct ToriRS_D3D9* renderer)
     renderer->scene_active = false;
     if( FAILED(hr) )
         d3d9_log_hr("EndScene", hr);
+    if( renderer->offscreen_bound )
+        d3d9_resolve_offscreen(renderer);
 }
 
 static uint32_t
@@ -5134,19 +5329,19 @@ d3d9_begin_3d(
     d3d_viewport.X = (DWORD)d3d9_clampi(
         renderer->lb_x + logical_x * renderer->lb_w / renderer->width,
         0,
-        renderer->client_w - 1);
+        renderer->target_w - 1);
     d3d_viewport.Y = (DWORD)d3d9_clampi(
         renderer->lb_y + logical_y * renderer->lb_h / renderer->height,
         0,
-        renderer->client_h - 1);
+        renderer->target_h - 1);
     d3d_viewport.Width = (DWORD)d3d9_clampi(
         pass_w * renderer->lb_w / renderer->width,
         1,
-        renderer->client_w - (int)d3d_viewport.X);
+        renderer->target_w - (int)d3d_viewport.X);
     d3d_viewport.Height = (DWORD)d3d9_clampi(
         pass_h * renderer->lb_h / renderer->height,
         1,
-        renderer->client_h - (int)d3d_viewport.Y);
+        renderer->target_h - (int)d3d_viewport.Y);
     d3d_viewport.MinZ = 0.0f;
     d3d_viewport.MaxZ = 1.0f;
     IDirect3DDevice9_SetViewport(renderer->device, &d3d_viewport);
@@ -5370,11 +5565,11 @@ static void
 d3d9_set_full_viewport(struct ToriRS_D3D9* renderer)
 {
     D3DVIEWPORT9 viewport;
-    if( renderer->client_w <= 0 || renderer->client_h <= 0 )
+    if( renderer->target_w <= 0 || renderer->target_h <= 0 )
         return;
     memset(&viewport, 0, sizeof(viewport));
-    viewport.Width = (DWORD)renderer->client_w;
-    viewport.Height = (DWORD)renderer->client_h;
+    viewport.Width = (DWORD)renderer->target_w;
+    viewport.Height = (DWORD)renderer->target_h;
     viewport.MinZ = 0.0f;
     viewport.MaxZ = 1.0f;
     IDirect3DDevice9_SetViewport(renderer->device, &viewport);
@@ -6609,6 +6804,16 @@ ToriRS_D3D9_SetInterfaceScaleMode(struct ToriRS_D3D9* renderer, int mode)
 }
 
 void
+ToriRS_D3D9_SetClientScaling(
+    struct ToriRS_D3D9* renderer,
+    struct ClientScaleSettings const* settings)
+{
+    assert(renderer);
+    assert(settings);
+    renderer->client_scale = *settings;
+}
+
+void
 ToriRS_D3D9_SetPick(struct ToriRS_D3D9* renderer, int mouse_x, int mouse_y)
 {
     assert(renderer);
@@ -6786,11 +6991,22 @@ ToriRS_D3D9_ReadPixels(
     if( !d3d9_device_ready(renderer) )
         return false;
 
-    hr = IDirect3DDevice9_GetRenderTarget(renderer->device, 0u, &target);
-    if( FAILED(hr) || !target )
+    /* A capped render was stretched onto the back buffer; read the render
+     * itself, whose whole surface is the frame (lb is 0,0,render). */
+    if( renderer->frame_in_offscreen )
     {
-        d3d9_log_hr("GetRenderTarget(readback)", hr);
-        return false;
+        assert(renderer->offscreen);
+        target = renderer->offscreen;
+        IDirect3DSurface9_AddRef(target);
+    }
+    else
+    {
+        hr = IDirect3DDevice9_GetRenderTarget(renderer->device, 0u, &target);
+        if( FAILED(hr) || !target )
+        {
+            d3d9_log_hr("GetRenderTarget(readback)", hr);
+            return false;
+        }
     }
     hr = IDirect3DSurface9_GetDesc(target, &desc);
     if( FAILED(hr) )
@@ -6816,12 +7032,16 @@ ToriRS_D3D9_ReadPixels(
         if( SUCCEEDED(hr) )
         {
             uint8_t const* base = (uint8_t const*)locked.pBits;
-            float const sx = (float)renderer->lb_w / (float)width;
-            float const sy = (float)renderer->lb_h / (float)height;
+            int const box_x = renderer->frame_in_offscreen ? 0 : renderer->lb_x;
+            int const box_y = renderer->frame_in_offscreen ? 0 : renderer->lb_y;
+            int const box_w = renderer->frame_in_offscreen ? renderer->offscreen_w : renderer->lb_w;
+            int const box_h = renderer->frame_in_offscreen ? renderer->offscreen_h : renderer->lb_h;
+            float const sx = (float)box_w / (float)width;
+            float const sy = (float)box_h / (float)height;
 
             for( int y = 0; y < height; y++ )
             {
-                int src_y = renderer->lb_y + (int)((float)y * sy);
+                int src_y = box_y + (int)((float)y * sy);
                 uint32_t const* row;
 
                 if( src_y < 0 )
@@ -6833,7 +7053,7 @@ ToriRS_D3D9_ReadPixels(
 
                 for( int x = 0; x < width; x++ )
                 {
-                    int src_x = renderer->lb_x + (int)((float)x * sx);
+                    int src_x = box_x + (int)((float)x * sx);
 
                     if( src_x < 0 )
                         src_x = 0;

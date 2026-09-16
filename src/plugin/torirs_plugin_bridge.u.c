@@ -2768,7 +2768,8 @@ app_plugin_feature_set(void* user, char const* key, int value)
  * The client's own display preferences, as a plugin page may edit them.
  *
  * The SAME store the cache's All Settings panel writes -- device options 27
- * and 15 -- and deliberately: a lane with that panel would otherwise show one
+ * and 15, plus the client-owned client-scaling options 30..33 no cache has a
+ * row for -- and deliberately: a lane with that panel would otherwise show one
  * value in two places and disagree with itself, and the whole reason these
  * verbs exist is the lane WITHOUT it. A 2004 dat1 cache has no All Settings
  * interface at all, so before this there was no way to reach interface
@@ -2804,6 +2805,79 @@ app_plugin_display_setting(
         min = RS_CS2_UI_SCALE_MODE_NEAREST;
         max = RS_CS2_UI_SCALE_MODE_BICUBIC;
         break;
+    case TORIRS_DISPLAY_STRETCH_MODE:
+        value = RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_CLIENT_FIT);
+        min = 0;
+        max = RS_CS2_CLIENT_FIT_MAX;
+        break;
+    case TORIRS_DISPLAY_MAX_PIXEL_HEIGHT:
+        value = RS_CS2Host_GetOption(
+            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT);
+        min = 0;
+        max = RS_CS2_MAX_PIXEL_HEIGHT_MAX;
+        break;
+    case TORIRS_DISPLAY_PIXEL_LIMIT_POLICY:
+        value = RS_CS2Host_GetOption(
+            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY);
+        min = 0;
+        max = RS_CS2_PIXEL_LIMIT_POLICY_MAX;
+        break;
+    case TORIRS_DISPLAY_FRAME_FILTER:
+        value = RS_CS2Host_GetOption(
+            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_OUTPUT_FILTER);
+        min = 0;
+        max = RS_CS2_OUTPUT_FILTER_MAX;
+        break;
+    case TORIRS_DISPLAY_EFFECTIVE_UI_SCALE:
+    case TORIRS_DISPLAY_LAYOUT_WIDTH:
+    case TORIRS_DISPLAY_LAYOUT_HEIGHT:
+    case TORIRS_DISPLAY_RENDER_WIDTH:
+    case TORIRS_DISPLAY_RENDER_HEIGHT:
+    case TORIRS_DISPLAY_OUTPUT_WIDTH:
+    case TORIRS_DISPLAY_OUTPUT_HEIGHT:
+    case TORIRS_DISPLAY_SCALE_ADJUSTED:
+    {
+        struct AppClientScale const* scale = App_ClientScale(app);
+        /* Nothing has been presented yet: there is no answer to give, and a
+         * zero would read as a real size. */
+        if( !scale->present_known )
+            return 0;
+        min = 0;
+        max = INT32_MAX;
+        switch( setting )
+        {
+        case TORIRS_DISPLAY_EFFECTIVE_UI_SCALE:
+            value = scale->shown_percent;
+            break;
+        case TORIRS_DISPLAY_LAYOUT_WIDTH:
+            value = UITREE_LAYOUT_ROOT_W;
+            break;
+        case TORIRS_DISPLAY_LAYOUT_HEIGHT:
+            value = UITREE_LAYOUT_ROOT_H;
+            break;
+        case TORIRS_DISPLAY_RENDER_WIDTH:
+            value = scale->present.render_w;
+            break;
+        case TORIRS_DISPLAY_RENDER_HEIGHT:
+            value = scale->present.render_h;
+            break;
+        case TORIRS_DISPLAY_OUTPUT_WIDTH:
+            value = scale->present.output.w;
+            break;
+        case TORIRS_DISPLAY_OUTPUT_HEIGHT:
+            value = scale->present.output.h;
+            break;
+        default:
+            value = (scale->layout.rounded_by_integer ? TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED : 0) |
+                    (scale->layout.raised_by_limit ? TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED : 0) |
+                    (scale->present.integer_fell_back ? TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK : 0) |
+                    (scale->lowered_to_fit_window ? TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT : 0);
+            max = TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED | TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED |
+                  TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK | TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT;
+            break;
+        }
+        break;
+    }
     default:
         return 0;
     }
@@ -2832,7 +2906,20 @@ app_plugin_display_setting_set(void* user, int setting, int value)
     case TORIRS_DISPLAY_UI_SCALE_FILTER:
         option = RS_CS2_DEVICEOPTION_UI_SCALE_MODE;
         break;
+    case TORIRS_DISPLAY_STRETCH_MODE:
+        option = RS_CS2_DEVICEOPTION_CLIENT_FIT;
+        break;
+    case TORIRS_DISPLAY_MAX_PIXEL_HEIGHT:
+        option = RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT;
+        break;
+    case TORIRS_DISPLAY_PIXEL_LIMIT_POLICY:
+        option = RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY;
+        break;
+    case TORIRS_DISPLAY_FRAME_FILTER:
+        option = RS_CS2_DEVICEOPTION_OUTPUT_FILTER;
+        break;
     default:
+        /* Includes every read-only readout. */
         return 0;
     }
     /* Clamped by the store rather than refused here, which is what every other

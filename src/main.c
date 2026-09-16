@@ -534,11 +534,36 @@ interactive_render_present(
     struct ToriRS_GLES2* gles2)
 {
     int const interface_scale_mode = RS_CS2Host_UiScaleMode(&app->host);
+    struct ClientScaleSettings client_scale;
 
-    /* Device option 15 is presentation state, just like option 27's canvas
-     * size. Apply it immediately after the click that changed it and to every
-     * renderer lane; each setter is a no-op while the value is unchanged. */
-    PlatformWindow_SetInterfaceScaleMode(platform, interface_scale_mode);
+    /* Device options 15 and 30..33 are presentation state, just like option
+     * 27's canvas size. Apply them immediately after the click that changed
+     * them and to every renderer lane; each setter is cheap while the value is
+     * unchanged. The interface filter (15) samples interface art a GPU lane
+     * draws larger than it is; the output filter samples the finished frame
+     * onto the window. */
+    App_ClientScaleSettings(app, &client_scale);
+    PlatformWindow_SetClientScaling(platform, &client_scale);
+    {
+        /* The readout the settings page shows. The renderers place the frame
+         * with the same function and the same inputs, so this is what they
+         * drew, not an estimate of it. */
+        struct ClientScalePresent present;
+        int area_w = 0;
+        int area_h = 0;
+        int const renders_at_output = (gl3 != NULL) || (d3d9 != NULL) || (gles2 != NULL);
+
+        PlatformWindow_GameAreaPixels(platform, &area_w, &area_h);
+        ClientScale_Present(
+            &client_scale,
+            UITREE_LAYOUT_ROOT_W,
+            UITREE_LAYOUT_ROOT_H,
+            area_w,
+            area_h,
+            renders_at_output,
+            &present);
+        App_SetClientScalePresent(app, &present);
+    }
 #if defined(TORIRS_HAVE_D3D9)
     if( d3d9 )
     {
@@ -547,6 +572,7 @@ interactive_render_present(
         int pick_armed = 0;
 
         ToriRS_D3D9_SetInterfaceScaleMode(d3d9, interface_scale_mode);
+        ToriRS_D3D9_SetClientScaling(d3d9, &client_scale);
 
         if( App_IsBooting(app, &progress) )
         {
@@ -615,6 +641,7 @@ interactive_render_present(
         int pick_armed = 0;
 
         ToriRS_GLES2_SetInterfaceScaleMode(gles2, interface_scale_mode);
+        ToriRS_GLES2_SetClientScaling(gles2, &client_scale);
 
         if( App_IsBooting(app, &progress) )
         {
@@ -688,6 +715,7 @@ interactive_render_present(
         int const chrome_h = PlatformWindow_ChromeHeight(platform);
 
         ToriRS_GL3_SetInterfaceScaleMode(gl3, interface_scale_mode);
+        ToriRS_GL3_SetClientScaling(gl3, &client_scale);
         ToriRS_GL3_SetHostRightInset(gl3, chrome_w);
 
         if( App_IsBooting(app, &progress) )
@@ -3242,22 +3270,31 @@ frame_loop_step(void)
      * drain/resize/present picks up the new size. */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_WINDOW_SYNC)
     {
-        /* "Interface scaling" (device option 27) shrinks the canvas the window
-         * is letterboxed from, so it is a canvas change and nothing else — no
-         * window call, and no bus round trip, because the click that caused it
-         * is already in the recorded stream and the canvas is a pure function
-         * of it and the window size. The surface reconcile at the top of the
-         * next frame picks up the new backbuffer size. */
-        App_SyncUiScale(&app);
+        /* "Interface scaling" (device option 27) on a RESIZABLE lane shrinks the
+         * canvas the window is letterboxed from, so it is a canvas change and
+         * nothing else — no window call, and no bus round trip, because the
+         * click that caused it is already in the recorded stream and the canvas
+         * is a pure function of it and the window size. The surface reconcile
+         * at the top of the next frame picks up the new backbuffer size.
+         *
+         * A FIXED lane cannot shrink its canvas, so the branch below grows the
+         * window instead. */
+        App_SyncClientScale(&app);
 
-        if( App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED && App_SyncFixedChromeInset(&app) )
+        /* The inset sync runs first and unconditionally: a `&&`/`||` that
+         * short-circuited past it would stop the strip from ever measuring. */
+        int const fixed_inset_changed =
+            App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED ? App_SyncFixedChromeInset(&app) : 0;
+        if( App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED &&
+            (fixed_inset_changed || app.host.client_scale_dirty) )
         {
-            int const fw = UITREE_LAYOUT_ROOT_W;
-            int const fh = UITREE_LAYOUT_ROOT_H;
+            int const window_w = App_FixedWindowWidth(&app);
+            int const window_h = App_FixedWindowHeight(&app);
+            app.host.client_scale_dirty = false;
             /*
              * Clear the follow gate FIRST, then snap the window.
              *
-             * Both calls end in the same SDL_SetWindowSize(fw + pane, fh), so
+             * Both calls end in the same SDL_SetWindowSize(w + pane, h), so
              * the order looks free -- but leaving resizable is where the
              * platform records the window size to hand back on the way in
              * again (PlatformWindow_SetCanvasFollowsWindow's `resizable_w`),
@@ -3269,10 +3306,16 @@ frame_loop_step(void)
              * Resizable layout came up in a 765x503 window on a 1200x800
              * desktop.
              */
-            PlatformWindow_SetCanvasFollowsWindow(platform, &bus, false, fw, fh);
-            PlatformWindow_SetWindowSize(platform, fw, fh);
+            PlatformWindow_SetCanvasFollowsWindow(platform, &bus, false, window_w, window_h);
+            PlatformWindow_SetWindowSize(platform, window_w, window_h);
             if( getenv("TORIRS_RESIZE_DEBUG") )
-                TORIRS_LOG("fixed-chrome: canvas %dx%d (strip inset)\n", fw, fh);
+                TORIRS_REPORT(
+                    "fixed-chrome: canvas %dx%d window %dx%d (scale %d%%)\n",
+                    UITREE_LAYOUT_ROOT_W,
+                    UITREE_LAYOUT_ROOT_H,
+                    window_w,
+                    window_h,
+                    RS_CS2Host_UiScalePercent(&app.host));
         }
         /*
          * Resizable mode: the SAME strip, carved from a canvas nobody grew.
@@ -3287,19 +3330,37 @@ frame_loop_step(void)
          * the display) letterboxes the floor-sized canvas instead -- the same
          * trade sdl_chrome_growth_decide makes for the plugin pane.
          *
-         * The canvas is the DRAWABLE in this mode, so the window is asked in
-         * points: on a 2x display the two differ by the density, and asking for
-         * pixels there would double a window that only needed 42 more columns.
+         * GROW only. The canvas is the window divided by the interface scale, so
+         * a canvas raised to the floor is NOT a window that is too small: at
+         * 200% a 1300x700 window gives a 650x350 canvas, the floor raises it to
+         * 807x503, and asking the window for 807x503 used to SHRINK it. The
+         * window is only asked for what it lacks at 1:1; a frame that does not
+         * fit at the chosen scale is shown at the largest one that does, and
+         * the settings page says so.
+         *
+         * The window is asked in points: on a 2x display the two differ by the
+         * density, and asking for pixels there would double a window that only
+         * needed 42 more columns.
          */
         else if( App_SyncResizableCanvasFloor(&app) )
         {
             int const density = PlatformWindow_PixelDensity(platform);
-            int const fw = UITREE_LAYOUT_ROOT_W;
-            int const fh = UITREE_LAYOUT_ROOT_H;
+            int area_w = 0;
+            int area_h = 0;
+            int want_w;
+            int want_h;
             assert(density >= 1);
-            PlatformWindow_SetWindowSize(platform, fw / density, fh / density);
+            PlatformWindow_GameAreaPixels(platform, &area_w, &area_h);
+            want_w = UITREE_LAYOUT_ROOT_W > area_w ? UITREE_LAYOUT_ROOT_W : area_w;
+            want_h = UITREE_LAYOUT_ROOT_H > area_h ? UITREE_LAYOUT_ROOT_H : area_h;
+            if( want_w != area_w || want_h != area_h )
+                PlatformWindow_SetWindowSize(platform, want_w / density, want_h / density);
             if( getenv("TORIRS_RESIZE_DEBUG") )
-                TORIRS_LOG("resizable-chrome: canvas %dx%d (strip floor)\n", fw, fh);
+                TORIRS_LOG(
+                    "resizable-chrome: canvas %dx%d (strip floor), window %s\n",
+                    UITREE_LAYOUT_ROOT_W,
+                    UITREE_LAYOUT_ROOT_H,
+                    want_w != area_w || want_h != area_h ? "grown" : "unchanged");
         }
 
         /*
@@ -3332,8 +3393,14 @@ frame_loop_step(void)
             {
                 bool const resizable = new_mode == CS2VM_WINDOW_MODE_RESIZABLE;
                 TORIRS_LOG("windowmode: %s\n", resizable ? "resizable" : "fixed");
+                /* Resizable reads these as the window's floor only; fixed
+                 * snaps the window to them, so they carry the scale. */
                 PlatformWindow_SetCanvasFollowsWindow(
-                    platform, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+                    platform,
+                    &bus,
+                    resizable,
+                    resizable ? APP_CANVAS_MIN_W : App_FixedWindowWidth(&app),
+                    resizable ? APP_CANVAS_MIN_H : App_FixedWindowHeight(&app));
                 if( !resizable )
                     CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
                 /* Strip inset is applied next frame once layout has measured it. */
@@ -6482,8 +6549,13 @@ main(
         {
             int const boot_mode = App_WindowMode(&app);
             bool const resizable = boot_mode == CS2VM_WINDOW_MODE_RESIZABLE;
+            /* A scale restored from preferences is already in the host here. */
             PlatformWindow_SetCanvasFollowsWindow(
-                platform, &bus, resizable, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
+                platform,
+                &bus,
+                resizable,
+                resizable ? APP_CANVAS_MIN_W : App_FixedWindowWidth(&app),
+                resizable ? APP_CANVAS_MIN_H : App_FixedWindowHeight(&app));
             if( !resizable )
                 CmdBus_PushWindowResize(&bus, APP_CANVAS_MIN_W, APP_CANVAS_MIN_H);
             if( getenv("TORIRS_RESIZE_DEBUG") )
