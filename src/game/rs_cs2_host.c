@@ -1754,7 +1754,6 @@ static const struct OptionSpec device_option_spec[] = {
     /* Client scaling. Client-owned, persisted for the same reason as 27. */
     { RS_CS2_DEVICEOPTION_CLIENT_FIT, true },
     { RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT, true },
-    { RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY, true },
     { RS_CS2_DEVICEOPTION_OUTPUT_FILTER, true },
     { RS_CS2_DEVICEOPTION_HIGH_DPI, true },
     { RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH, true },
@@ -1930,15 +1929,12 @@ RS_CS2Host_SetOption(
         (option_id == RS_CS2_DEVICEOPTION_CLIENT_FIT ||
          option_id == RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT ||
          option_id == RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH ||
-         option_id == RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY ||
          option_id == RS_CS2_DEVICEOPTION_OUTPUT_FILTER ||
          option_id == RS_CS2_DEVICEOPTION_HIGH_DPI) )
     {
         int max = RS_CS2_OUTPUT_FILTER_MAX;
         if( option_id == RS_CS2_DEVICEOPTION_CLIENT_FIT )
             max = RS_CS2_CLIENT_FIT_MAX;
-        else if( option_id == RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY )
-            max = RS_CS2_PIXEL_LIMIT_POLICY_MAX;
         else if( option_id == RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT )
             max = RS_CS2_MAX_PIXEL_HEIGHT_MAX;
         else if( option_id == RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH )
@@ -3495,9 +3491,6 @@ exec_client_option(
             break;
         case RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT:
             max = RS_CS2_MAX_PIXEL_HEIGHT_MAX;
-            break;
-        case RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY:
-            max = RS_CS2_PIXEL_LIMIT_POLICY_MAX;
             break;
         case RS_CS2_DEVICEOPTION_OUTPUT_FILTER:
             max = RS_CS2_OUTPUT_FILTER_MAX;

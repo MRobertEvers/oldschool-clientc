@@ -508,7 +508,7 @@ gdi_present_rect(struct PlatformWindow* p, int* out_area_w, int* out_area_h, str
         win_w = client.right - client.left;
         win_h = client.bottom - client.top;
     }
-    ClientScale_Present(&p->client_scale, p->width, p->height, win_w, win_h, 0, out);
+    ClientScale_Present(&p->client_scale, p->width, p->height, win_w, win_h, out);
     if( out_area_w )
         *out_area_w = win_w;
     if( out_area_h )

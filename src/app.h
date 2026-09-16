@@ -877,11 +877,8 @@ struct AppClientScale
      *  the shell calls ClientScale_Present itself. */
     struct ClientScalePresent present;
     bool present_known;
-    /** The scale the frame is really shown at: `layout.percent`, unless the
-     *  canvas floor made the layout bigger than window / percent, in which
-     *  case it is lower and `lowered_to_fit_window` says so. */
+    /** The scale the frame is shown at, in the unit it was chosen in. */
     int shown_percent;
-    bool lowered_to_fit_window;
     /** Drawable pixels per window point as a percent, as the platform last
      *  detected it; 0 until it reports one. @see App_SetDisplayDensity. */
     int density_percent;
@@ -2729,18 +2726,18 @@ int
 App_SyncFixedChromeInset(struct App* app);
 
 /**
- * When window_mode is resizable, raise the canvas to App_CanvasFloorWidth if
- * the window it follows is too narrow to hold the frame and the strip both.
- * Returns 1 if the canvas size changed.
+ * The smallest game area, in drawable pixels, a resizable window should have:
+ * the frame and the strip at 100% interface scaling. Returns 0 when not
+ * resizable. The shell grows a window below it (App has no platform).
  *
- * Raise only: the window owns the canvas whenever it is big enough, and its
- * own size comes back with the next resize command, clamped by the same floor.
- * The shell must then ask the window for the canvas it could not supply (App
- * has no platform); a window that cannot grow letterboxes the floor-sized
- * canvas, which is the answer App_SetCanvasSize's clamp has always given.
+ * This bounds the WINDOW, never the buffer: interface scaling and the pixel
+ * limit decide the buffer even when that is smaller than the frame wants.
  */
 int
-App_SyncResizableCanvasFloor(struct App* app);
+App_ResizableWindowFloor(
+    struct App const* app,
+    int* out_w,
+    int* out_h);
 
 /**
  * Apply a pending client-scaling change -- interface scale (27), stretch mode

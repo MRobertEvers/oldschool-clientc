@@ -56,7 +56,6 @@
 #define CS_ID_FILTER "ui_scale_filter"
 #define CS_ID_STRETCH "stretch_mode"
 #define CS_ID_PIXEL_LIMIT "max_pixel_height"
-#define CS_ID_LIMIT_POLICY "pixel_limit_policy"
 #define CS_ID_FRAME_FILTER "frame_filter"
 #define CS_ID_HIGH_DPI "high_dpi"
 #define CS_ID_HIGH_DPI_NOW "high_dpi_now"
@@ -69,8 +68,7 @@
 /* The listed resolutions, plus one slot for a value only preferences.ini holds. */
 #define CS_PIXEL_LIMIT_LISTED 19
 #define CS_PIXEL_LIMIT_ROWS (CS_PIXEL_LIMIT_LISTED + 1)
-#define CS_HIGH_DPI_ROWS 4
-#define CS_LIMIT_POLICY_ROWS 2
+#define CS_HIGH_DPI_ROWS 3
 #define CS_FRAME_FILTER_ROWS 4
 
 /*
@@ -193,22 +191,15 @@ static char const* const CS_PIXEL_LIMIT_LABEL[CS_PIXEL_LIMIT_LISTED] = {
 };
 
 /* Device option 34's values. Row 0's label is built at describe time. */
-static char const* const CS_HIGH_DPI_VALUE[CS_HIGH_DPI_ROWS] = { "0", "1", "2", "3" };
+static char const* const CS_HIGH_DPI_VALUE[CS_HIGH_DPI_ROWS] = { "0", "1", "2" };
 static char const* const CS_HIGH_DPI_LABEL[CS_HIGH_DPI_ROWS] = {
     "Automatic",
-    "Device pixels (smaller interface)",
-    "Match display",
-    "Window points (low resolution)",
+    "Device pixels",
+    "Window points",
 };
-/* The resolved modes, by option value (1..3), as the readout names them. */
+/* The resolved modes, by option value (1..2), as the readout names them. */
 static char const* const CS_HIGH_DPI_NAME[CS_HIGH_DPI_ROWS] = {
-    "automatic", "device pixels", "match display", "window points",
-};
-
-static char const* const CS_LIMIT_POLICY_VALUE[] = { "0", "1" };
-static char const* const CS_LIMIT_POLICY_LABEL[] = {
-    "Enlarge the interface to fit",
-    "Keep the interface size",
+    "automatic", "device pixels", "window points",
 };
 
 static char const* const CS_FRAME_FILTER_VALUE[] = { "0", "1", "2", "3" };
@@ -615,13 +606,6 @@ cs_pick_high_dpi(struct ToriRS_Api* api, void* user, struct PorcelainRowAction c
 }
 
 static void
-cs_pick_limit_policy(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
-{
-    (void)user;
-    cs_pick_display(api, TORIRS_DISPLAY_PIXEL_LIMIT_POLICY, action);
-}
-
-static void
 cs_pick_frame_filter(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
 {
     (void)user;
@@ -665,14 +649,16 @@ cs_scaling_now(struct ToriRS_Api* api, char* out, size_t out_size)
         !cs_display_value(api, TORIRS_DISPLAY_SCALE_ADJUSTED, &adjusted) )
         return;
 
-    used = snprintf(out, out_size, "Now: layout %dx%d at %d%%, rendered %dx%d, shown %dx%d.",
-        layout_w, layout_h, effective, render_w, render_h, output_w, output_h);
+    /* The layout IS the buffer every renderer draws. The render size rides a
+     * frame behind a change (the shell reports what it presented), so it is
+     * read for the signature only and the buffer is named from the layout. */
+    (void)render_w;
+    (void)render_h;
+    used = snprintf(out, out_size, "Now: buffer %dx%d at %d%%, shown %dx%d.", layout_w, layout_h,
+        effective, output_w, output_h);
     if( used < 0 || (size_t)used >= out_size )
         return;
-    if( adjusted & TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT )
-        used += snprintf(out + used, out_size - (size_t)used,
-            " Lowered from %d%%: the window is too small for the frame at that scale.", chosen);
-    else if( adjusted & TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED )
+    if( adjusted & TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED )
         used += snprintf(out + used, out_size - (size_t)used,
             " Raised from %d%% to stay inside the pixel limit.", chosen);
     else if( adjusted & TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED )
@@ -792,7 +778,6 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
     struct ToriRS_SelectOption filter_options[CS_FILTER_ROWS];
     struct ToriRS_SelectOption stretch_options[CS_STRETCH_ROWS];
     struct ToriRS_SelectOption limit_options[CS_PIXEL_LIMIT_ROWS];
-    struct ToriRS_SelectOption policy_options[CS_LIMIT_POLICY_ROWS];
     struct ToriRS_SelectOption frame_filter_options[CS_FRAME_FILTER_ROWS];
     struct ToriRS_SelectOption high_dpi_options[CS_HIGH_DPI_ROWS];
     struct PorcelainRow row;
@@ -914,15 +899,6 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         cs_select_row(describe, state, CS_ID_PIXEL_LIMIT, "Pixel limit", selected, limit_options,
             count, cs_pick_pixel_limit);
     }
-    if( api->client->display_get(api, TORIRS_DISPLAY_PIXEL_LIMIT_POLICY, &value, &min, &max) )
-    {
-        int at = cs_value_row(CS_LIMIT_POLICY_VALUE, CS_LIMIT_POLICY_ROWS, value);
-        assert(at >= 0);
-        cs_static_options(
-            policy_options, CS_LIMIT_POLICY_VALUE, CS_LIMIT_POLICY_LABEL, CS_LIMIT_POLICY_ROWS);
-        cs_select_row(describe, state, CS_ID_LIMIT_POLICY, "Interface larger than the limit",
-            CS_LIMIT_POLICY_VALUE[at], policy_options, CS_LIMIT_POLICY_ROWS, cs_pick_limit_policy);
-    }
     if( api->client->display_get(api, TORIRS_DISPLAY_FRAME_FILTER, &value, &min, &max) )
     {
         int at = cs_value_row(CS_FRAME_FILTER_VALUE, CS_FRAME_FILTER_ROWS, value);
@@ -976,9 +952,9 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         memset(&row, 0, sizeof(row));
         row.key = CS_ID_SCALING_HOW;
         row.kind = PORCELAIN_ROW_PARAGRAPH;
-        row.text = "In order: scaling sizes the layout (HighDPI says in what); a frame too "
-                   "big for the window lowers it evenly; stretch fits it to the window; the "
-                   "pixel limit caps the render.";
+        row.text = "The game renders into a buffer: the window divided by interface scaling "
+                   "(HighDPI says in what), no larger than the pixel limit. Stretch mode and "
+                   "the frame filter then fit it to the window.";
         Porcelain_Row(describe, &row);
     }
 

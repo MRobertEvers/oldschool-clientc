@@ -577,7 +577,6 @@ d3d9_update_letterbox(struct ToriRS_D3D9* renderer)
         renderer->height,
         renderer->client_w,
         renderer->client_h,
-        1,
         &present);
     renderer->output = present.output;
     if( present.render_w == present.output.w && present.render_h == present.output.h )

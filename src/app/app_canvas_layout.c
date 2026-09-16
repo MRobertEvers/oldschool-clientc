@@ -61,8 +61,9 @@ app_dispatch_resize_hook_ids(
     }
 }
 
-int
-App_SetCanvasSize(
+/* The canvas, exactly as asked. @see App_SetCanvasSize for the clamped entry. */
+static int
+app_set_canvas_size_exact(
     struct App* app,
     int width,
     int height)
@@ -73,30 +74,8 @@ App_SetCanvasSize(
     int changed_count = 0;
 
     assert(app);
-
-    /*
-     * The floor is the FRAME's, and a plugin layout brings its own.
-     *
-     * APP_CANVAS_MIN_W/H is a fact about a revconfig gameframe -- its children
-     * are insets off 765x503 and a smaller canvas gives them zero-sized
-     * viewports -- so it is the right floor for exactly as long as that frame
-     * is the one on screen. While a plugin arranges the frame it is not, and
-     * clamping a phone-shaped layout up to a desktop canvas is how a mobile
-     * frame ends up letterboxed inside the size it was written to avoid.
-     *
-     * And the frame's floor is not the CANVAS's: the lane docks its popout
-     * strip inside the canvas, so the canvas has to hold the frame AND the
-     * strip. @see App_CanvasFloorWidth.
-     */
-    {
-        int const min_w = App_CanvasFloorWidth(app);
-        int const min_h = App_CanvasFloorHeight(app);
-
-        if( width < min_w )
-            width = min_w;
-        if( height < min_h )
-            height = min_h;
-    }
+    assert(width > 0);
+    assert(height > 0);
 
     /* All three copies are tested, not just the layout one: they are set
      * together here and nowhere else, so disagreement means somebody wrote one
@@ -147,6 +126,41 @@ App_SetCanvasSize(
     if( getenv("TORIRS_RESIZE_DEBUG") )
         TORIRS_REPORT("canvas: %dx%d\n", width, height);
     return 1;
+}
+
+int
+App_SetCanvasSize(
+    struct App* app,
+    int width,
+    int height)
+{
+    assert(app);
+
+    /*
+     * The floor is the FRAME's, and a plugin layout brings its own.
+     *
+     * APP_CANVAS_MIN_W/H is a fact about a revconfig gameframe -- its children
+     * are insets off 765x503 and a smaller canvas gives them zero-sized
+     * viewports -- so it is the right floor for exactly as long as that frame
+     * is the one on screen. While a plugin arranges the frame it is not, and
+     * clamping a phone-shaped layout up to a desktop canvas is how a mobile
+     * frame ends up letterboxed inside the size it was written to avoid.
+     *
+     * And the frame's floor is not the CANVAS's: the lane docks its popout
+     * strip inside the canvas, so the canvas has to hold the frame AND the
+     * strip. @see App_CanvasFloorWidth.
+     */
+    {
+        int const min_w = App_CanvasFloorWidth(app);
+        int const min_h = App_CanvasFloorHeight(app);
+
+        if( width < min_w )
+            width = min_w;
+        if( height < min_h )
+            height = min_h;
+    }
+
+    return app_set_canvas_size_exact(app, width, height);
 }
 
 /*
@@ -212,7 +226,21 @@ App_CanvasFloorWidth(struct App const* app)
      * toplevel, and a toplevel handed less than it can use spills them out of
      * the area the plugin frame was given. @see App_MeasureLaneFrameCoreWidth. */
     {
-        int const lane_core_w = App_MeasureLaneFrameCoreWidth(app);
+        /*
+         * Capped at the classic frame. The measurement reads a block that
+         * overflows the carved area, and a resizable toplevel's block follows
+         * the canvas a layout behind it: at any canvas wider than 765 it reads
+         * as "the last canvas's width", so the floor became last canvas +
+         * strip, the canvas grew to it, and every re-layout added another
+         * strip. Interface scaling crept back to 1:1 within a few frames, and
+         * before the scale lowered evenly it showed as a wide short strip.
+         * What the measurement exists to restore is the toplevel's own clamp
+         * -- 765, @see UITree_MeasureLaneFrameCoreWidth -- so no more than
+         * that is a floor.
+         */
+        int lane_core_w = App_MeasureLaneFrameCoreWidth(app);
+        if( lane_core_w > APP_CANVAS_MIN_W )
+            lane_core_w = APP_CANVAS_MIN_W;
         if( frame_min_w < lane_core_w )
             frame_min_w = lane_core_w;
     }
@@ -253,26 +281,27 @@ App_SyncFixedChromeInset(struct App* app)
 }
 
 int
-App_SyncResizableCanvasFloor(struct App* app)
+App_ResizableWindowFloor(
+    struct App const* app,
+    int* out_w,
+    int* out_h)
 {
-    int want_w;
+    struct ClientScaleSettings settings;
+    int density;
 
     assert(app);
+    assert(out_w);
+    assert(out_h);
     if( App_WindowMode(app) != CS2VM_WINDOW_MODE_RESIZABLE )
         return 0;
-    want_w = App_CanvasFloorWidth(app);
-    /* Raise only. The canvas a resizable window follows is the window's, and
-     * the window is the authority whenever it is big enough; shrinking back
-     * belongs to the next TORIRS_CMD_WINDOW_RESIZE, which carries the size the
-     * window actually is and is clamped by this same floor on the way in. */
-    if( UITREE_LAYOUT_ROOT_W >= want_w )
-        return 0;
-    /* A known window re-derives the whole layout, so a floor that grew (the
-     * strip opening) lowers the scale on BOTH axes. Raising the width alone
-     * is what turned a 200% frame into a wide strip barred top and bottom. */
-    if( app->client_scale.window_w > 0 && app->client_scale.window_h > 0 )
-        return App_ApplyWindowLayout(app, app->client_scale.window_w, app->client_scale.window_h);
-    return App_SetCanvasSize(app, want_w, UITREE_LAYOUT_ROOT_H);
+    /* The frame at 100% of the unit HighDPI counts interface scaling in --
+     * drawable pixels, or window points -- so "the window holds the frame"
+     * means the same thing in both modes. */
+    App_ClientScaleSettings(app, &settings);
+    density = ClientScale_LayoutDensityPercent(&settings);
+    *out_w = (int)((long long)App_CanvasFloorWidth(app) * density / 100);
+    *out_h = (int)((long long)App_CanvasFloorHeight(app) * density / 100);
+    return 1;
 }
 
 void
@@ -292,8 +321,6 @@ App_ClientScaleSettings(
         &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH);
     out->max_pixel_height = RS_CS2Host_GetOption(
         &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT);
-    out->limit_policy = (enum ClientScaleLimitPolicy)RS_CS2Host_GetOption(
-        &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY);
     output_filter = RS_CS2Host_GetOption(
         &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_OUTPUT_FILTER);
     out->output_filter = output_filter == RS_CS2_OUTPUT_FILTER_SAME_AS_INTERFACE
@@ -374,10 +401,19 @@ App_ApplyWindowLayout(
         RS_CS2Host_UiScalePercent(&app->host),
         window_w,
         window_h,
-        App_CanvasFloorWidth(app),
-        App_CanvasFloorHeight(app),
         &app->client_scale.layout);
-    return App_SetCanvasSize(app, app->client_scale.layout.w, app->client_scale.layout.h);
+    if( getenv("TORIRS_RESIZE_DEBUG") )
+        TORIRS_REPORT(
+            "resize: chose %d%% hidpi %d density %d limit %dx%d; window %dx%d -> buffer %dx%d at "
+            "%d%% (frame floor %dx%d)\n",
+            RS_CS2Host_UiScalePercent(&app->host), (int)settings.high_dpi, settings.density_percent,
+            settings.max_pixel_width, settings.max_pixel_height, window_w, window_h,
+            app->client_scale.layout.w, app->client_scale.layout.h, app->client_scale.layout.percent,
+            App_CanvasFloorWidth(app), App_CanvasFloorHeight(app));
+    /* Exact: the settings decide the buffer, the frame's minimum does not.
+     * @see platform/client_scale.h rule 5. */
+    return app_set_canvas_size_exact(
+        app, app->client_scale.layout.w, app->client_scale.layout.h);
 }
 
 int
@@ -424,29 +460,8 @@ App_SetClientScalePresent(
         app->client_scale.layout.shown_percent = app->client_scale.layout.percent;
         app->client_scale.layout.rounded_by_integer = app->client_scale.layout.percent != chosen;
         app->client_scale.layout.raised_by_limit = 0;
-        app->client_scale.layout.lowered_by_floor = 0;
     }
-    /* The layout already lowered the scale for the floor on both axes. What
-     * can still override it is a window smaller than the floor even at 1:1:
-     * App_SetCanvasSize clamps the canvas up, and the frame is shown at the
-     * scale the output rectangle gives it. Report the one on screen. */
     app->client_scale.shown_percent = app->client_scale.layout.shown_percent;
-    app->client_scale.lowered_to_fit_window = app->client_scale.layout.lowered_by_floor != 0;
-    if( App_WindowMode(app) == CS2VM_WINDOW_MODE_RESIZABLE &&
-        (UITREE_LAYOUT_ROOT_W > app->client_scale.layout.w ||
-         UITREE_LAYOUT_ROOT_H > app->client_scale.layout.h) )
-    {
-        int const density = App_HighDpiMode(app) == CLIENT_SCALE_HIGH_DPI_DEVICE_PIXELS
-                                 ? 100
-                                 : App_DisplayDensityPercent(app);
-        int const shown = (int)((long long)present->output.h * 100 * 100 /
-                                ((long long)UITREE_LAYOUT_ROOT_H * density));
-        if( shown < app->client_scale.shown_percent )
-        {
-            app->client_scale.shown_percent = shown;
-            app->client_scale.lowered_to_fit_window = true;
-        }
-    }
 }
 
 struct AppClientScale const*

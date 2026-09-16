@@ -572,7 +572,6 @@ PlatformWindow_New(void)
     memset(platform, 0, sizeof(struct PlatformWindow));
     platform->client_scale.fit = CLIENT_SCALE_FIT_KEEP_ASPECT;
     platform->client_scale.max_pixel_height = 0;
-    platform->client_scale.limit_policy = CLIENT_SCALE_LIMIT_ENLARGE_INTERFACE;
     platform->client_scale.output_filter = CLIENT_SCALE_FILTER_BICUBIC;
     /* A zeroed finger table would read as eight fingers all holding id 0. */
     ToriRS_TouchReset(&platform->touch);
@@ -2867,7 +2866,7 @@ PlatformWindow_MapMouse(
         return;
     }
     ClientScale_Present(
-        &platform->client_scale, platform->width, platform->height, area_w, area_h, 0, &present);
+        &platform->client_scale, platform->width, platform->height, area_w, area_h, &present);
     ClientScale_OutputToLayout(
         &present.output,
         platform->width,
@@ -3635,7 +3634,7 @@ PlatformWindow_Present(struct PlatformWindow* platform)
      */
     sdl_game_area(platform, &window_w, &window_h, &pane_w);
     ClientScale_Present(
-        &platform->client_scale, platform->width, platform->height, window_w, window_h, 0, &present);
+        &platform->client_scale, platform->width, platform->height, window_w, window_h, &present);
     dst.x = present.output.x;
     dst.y = present.output.y;
     dst.w = present.output.w;

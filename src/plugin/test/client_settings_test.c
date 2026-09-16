@@ -735,14 +735,11 @@ main(void)
         "the limits are resolutions, from small to large");
     CHECK(row && strcmp(row->selected_value, "0") == 0, "no limit is the default");
     row = fake_row("high_dpi");
-    CHECK(row && row->option_count == 4, "four HighDPI modes");
+    CHECK(row && row->option_count == 3, "three HighDPI modes");
     CHECK(row && strcmp(row->selected_value, "0") == 0 &&
           strcmp(row->option_label[0], "Automatic") == 0,
         "automatic is the default, and unnamed before the client says what it means");
-    row = fake_row("pixel_limit_policy");
-    CHECK(row && row->option_count == 2, "two limit policies");
-    CHECK(row && strcmp(row->option_label[0], "Enlarge the interface to fit") == 0,
-        "the policies say what happens to the interface");
+    CHECK(!fake_row("pixel_limit_policy"), "the limit has no policy: it always caps the pixels");
     row = fake_row("frame_filter");
     CHECK(row && row->option_count == 4, "four frame filters");
     CHECK(row && strcmp(row->option_label[0], "Same as interface filter") == 0,
@@ -752,7 +749,6 @@ main(void)
 
     pick(state, "stretch_mode", "1");
     pick(state, "max_pixel_height", "1920x1080");
-    pick(state, "pixel_limit_policy", "1");
     pick(state, "frame_filter", "3");
     pick(state, "high_dpi", "2");
     CHECK(fake.display[TORIRS_DISPLAY_STRETCH_MODE] == 1, "stretch pick writes the store");
@@ -760,7 +756,6 @@ main(void)
           fake.display[TORIRS_DISPLAY_MAX_PIXEL_HEIGHT] == 1080,
         "a resolution pick writes both halves of the limit");
     CHECK(fake.display[TORIRS_DISPLAY_HIGH_DPI] == 2, "HighDPI pick writes the store");
-    CHECK(fake.display[TORIRS_DISPLAY_PIXEL_LIMIT_POLICY] == 1, "policy pick writes the store");
     CHECK(fake.display[TORIRS_DISPLAY_FRAME_FILTER] == 3, "frame filter pick writes the store");
     CHECK(fake.config_writes == 0, "client scaling is not written to plugin config either");
 
@@ -795,12 +790,12 @@ main(void)
     fake.display[TORIRS_DISPLAY_OUTPUT_HEIGHT] = 1080;
     fake.display[TORIRS_DISPLAY_SCALE_ADJUSTED] = TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED;
     fake.display[TORIRS_DISPLAY_DENSITY] = 200;
-    fake.display[TORIRS_DISPLAY_HIGH_DPI_IN_FORCE] = 3;
+    fake.display[TORIRS_DISPLAY_HIGH_DPI_IN_FORCE] = 2;
     fake.display[TORIRS_DISPLAY_HIGH_DPI] = 0;
     frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
     row = fake_row("scaling_now");
     CHECK(row && strcmp(row->text,
-                     "Now: layout 1920x1080 at 100%, rendered 1920x1080, shown 1920x1080. "
+                     "Now: buffer 1920x1080 at 100%, shown 1920x1080. "
                      "150% rounded down for integer scaling.") == 0,
         "the readout says integer rounded the chosen scale down");
     row = fake_row("high_dpi_now");

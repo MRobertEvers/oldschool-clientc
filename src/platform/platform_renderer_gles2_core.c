@@ -475,7 +475,6 @@ gles2_update_letterbox(struct ToriRS_GLES2* renderer, bool allow_offscreen)
         renderer->height,
         renderer->drawable_width,
         renderer->drawable_height,
-        1,
         &present);
     renderer->output_x = present.output.x;
     /* Top-left origin -> GL's bottom-left. */

@@ -2,49 +2,47 @@
 #define TORIRS_PLATFORM_CLIENT_SCALE_H
 
 /*
- * Client scaling: the one place that decides three sizes, which nothing else
- * may work out for itself.
+ * Client scaling: the one place that decides the sizes, which nothing else may
+ * work out for itself.
  *
- *   LAYOUT  what the interface lays itself out at (UITREE_LAYOUT_ROOT_W/H).
- *   RENDER  the pixels the world and the interface are rasterised into.
- *   OUTPUT  the rectangle of the window those pixels are shown in.
+ *   LAYOUT  the buffer: what the interface lays itself out at
+ *           (UITREE_LAYOUT_ROOT_W/H), and the pixels every renderer -- Soft3D,
+ *           GL3, GLES2, D3D9 -- rasterises the world and the interface into.
+ *   OUTPUT  the rectangle of the window that buffer is stretched into.
+ *
+ * One pipeline on every renderer: draw the buffer, then stretch it to the
+ * window. A GPU renderer draws into an offscreen target of the buffer's size
+ * whenever that differs from the output rectangle, and blits it with the
+ * frame filter; the software one uploads it and lets SDL (or GDI) stretch.
  *
  * Every lane's present, pointer mapping, touch mapping, keyboard inset and
  * readback takes its OUTPUT rectangle from ClientScale_Present. They used to
  * carry four copies of one letterbox, and a fifth in the web page's CSS; a
  * copy that drifted put clicks somewhere other than where the frame was drawn.
  *
- * How the settings combine, in the order they apply:
+ * How the settings size the buffer, in the order they apply:
  *
- *   1. Interface scaling (device option 27) sets the LAYOUT. Resizable: the
- *      window divided by the percent. Fixed: the classic frame, unchanged --
- *      the window is sized to frame x percent instead.
+ *   1. Interface scaling (device option 27): resizable, the window divided by
+ *      the percent. Fixed: the classic frame, unchanged -- the window is sized
+ *      to frame x percent instead.
  *   2. HighDPI (device option 34) says what that percent is OF. Device pixels:
- *      100% is one layout pixel per drawable pixel, so a 2x display shows the
- *      interface at half its authored size. Match display and window points:
- *      100% is one layout pixel per window POINT, so the percent is multiplied
- *      by the display density the platform detected. A fixed window is sized
- *      in points already, so on a fixed frame this step changes nothing.
+ *      100% is one buffer pixel per drawable pixel. Window points: 100% is one
+ *      buffer pixel per window POINT, so the percent is multiplied by the
+ *      display density the platform detected. A fixed window is sized in
+ *      points already, so on a fixed frame this step changes nothing.
  *   3. Stretch mode INTEGER rounds the chosen percent DOWN to a whole multiple
- *      of 100 before it is used, so every layout pixel lands on a whole number
+ *      of 100 before it is used, so every buffer pixel lands on a whole number
  *      of window pixels (150% becomes 100%, with bars).
- *   4. The pixel limit (a WxH resolution), policy ENLARGE_INTERFACE: a
- *      resizable layout larger than the limit on either axis raises the
- *      percent until it fits -- the interface grows rather than the frame
- *      going over budget. Policy KEEP_INTERFACE leaves the layout alone.
- *   5. The frame's floor: a layout smaller than the frame can be laid out in
- *      LOWERS the percent until both axes clear it, never below 1:1 drawable
- *      pixels. Both axes move together, so the frame keeps the window's shape;
- *      clamping only the short axis is what used to show a 200% frame as a
- *      wide strip with bars above and below it.
- *   6. Stretch mode places the frame in the window: keep aspect (fractional,
+ *   4. The pixel limit (a WxH resolution): a buffer larger than it on either
+ *      axis raises the percent until it fits.
+ *   5. Nothing else moves it. The frame's own minimum size does NOT: the
+ *      settings decide the buffer, and a frame handed less room than it wants
+ *      is laid out in it anyway. The minimum only stops the WINDOW being
+ *      smaller than the frame at 100% (App_ResizableWindowFloor).
+ *   6. Stretch mode places the buffer in the window: keep aspect (fractional,
  *      centred), integer (whole multiple, centred; falls back to keep aspect
- *      when the window is smaller than the layout), or stretch (fills it).
- *   7. The pixel limit caps the RENDER buffer of a renderer that draws at
- *      output resolution (GL3, GLES2, D3D9), never below the layout; HighDPI
- *      "window points" caps it at the window's size in points too. A CPU
- *      renderer always renders at the layout size.
- *   8. The output filter smooths the render buffer onto the output rectangle.
+ *      when the window is smaller than the buffer), or stretch (fills it).
+ *   7. The frame filter smooths the buffer onto the output rectangle.
  *
  * Header-only on purpose: every lane includes it, and none of their source
  * lists should have to agree about one more translation unit.
@@ -60,13 +58,6 @@ enum ClientScaleFit
     CLIENT_SCALE_FIT_COUNT
 };
 
-enum ClientScaleLimitPolicy
-{
-    CLIENT_SCALE_LIMIT_ENLARGE_INTERFACE = 0,
-    CLIENT_SCALE_LIMIT_KEEP_INTERFACE,
-    CLIENT_SCALE_LIMIT_POLICY_COUNT
-};
-
 /* Same values as RS_CS2_UI_SCALE_MODE_*, which is what the cache stores. */
 enum ClientScaleFilter
 {
@@ -80,11 +71,9 @@ enum ClientScaleFilter
  * zeroed struct is DEVICE_PIXELS, which reads no density. */
 enum ClientScaleHighDpi
 {
-    /** 100% is one layout pixel per drawable pixel. */
+    /** 100% is one buffer pixel per drawable pixel. */
     CLIENT_SCALE_HIGH_DPI_DEVICE_PIXELS = 0,
-    /** 100% is one layout pixel per window point; rendered at drawable pixels. */
-    CLIENT_SCALE_HIGH_DPI_MATCH_DISPLAY,
-    /** 100% is one layout pixel per window point, and rendered at points. */
+    /** 100% is one buffer pixel per window point. */
     CLIENT_SCALE_HIGH_DPI_WINDOW_POINTS,
     CLIENT_SCALE_HIGH_DPI_COUNT
 };
@@ -92,10 +81,9 @@ enum ClientScaleHighDpi
 struct ClientScaleSettings
 {
     enum ClientScaleFit fit;
-    /** Largest render buffer, in pixels, per axis. 0: no limit on that axis. */
+    /** Largest buffer, in pixels, per axis. 0: no limit on that axis. */
     int max_pixel_width;
     int max_pixel_height;
-    enum ClientScaleLimitPolicy limit_policy;
     /** Already resolved: "same as the interface filter" is the caller's. */
     enum ClientScaleFilter output_filter;
     enum ClientScaleHighDpi high_dpi;
@@ -126,8 +114,6 @@ struct ClientScaleLayout
     int rounded_by_integer;
     /** The pixel limit raised the percent. */
     int raised_by_limit;
-    /** The frame's floor lowered the percent. */
-    int lowered_by_floor;
 };
 
 struct ClientScalePresent
@@ -177,14 +163,10 @@ client_scale_percent_to_fit(
 }
 
 /**
- * The layout a resizable window lays out at.
+ * The buffer a resizable window lays out and renders at.
  *
- * `window_w`/`window_h` is the game area in drawable pixels. `floor_w` and
- * `floor_h` are the smallest layout the frame on screen can be laid out in
- * (0: no floor on that axis); a floor is a fact about the frame, which this
- * module does not know, so the caller states it. A window smaller than the
- * floor even at 1:1 still gets a layout below it, and the caller's own clamp
- * (App_SetCanvasSize) letterboxes that case as it always has.
+ * `window_w`/`window_h` is the game area in drawable pixels. The settings are
+ * the whole answer: no floor is applied here or after.
  */
 static inline void
 ClientScale_WindowLayout(
@@ -192,8 +174,6 @@ ClientScale_WindowLayout(
     int percent,
     int window_w,
     int window_h,
-    int floor_w,
-    int floor_h,
     struct ClientScaleLayout* out)
 {
     int const density = ClientScale_LayoutDensityPercent(settings);
@@ -205,19 +185,15 @@ ClientScale_WindowLayout(
     assert(percent > 0);
     assert(window_w > 0);
     assert(window_h > 0);
-    assert(floor_w >= 0);
-    assert(floor_h >= 0);
 
     rounded = ClientScale_RoundPercent(settings, percent);
     out->rounded_by_integer = rounded != percent;
     out->raised_by_limit = 0;
-    out->lowered_by_floor = 0;
     effective = (int)((long long)rounded * density / 100);
     if( effective < 1 )
         effective = 1;
 
-    if( settings->limit_policy == CLIENT_SCALE_LIMIT_ENLARGE_INTERFACE &&
-        (settings->max_pixel_width > 0 || settings->max_pixel_height > 0) )
+    if( settings->max_pixel_width > 0 || settings->max_pixel_height > 0 )
     {
         int needed = 0;
         if( settings->max_pixel_width > 0 )
@@ -234,28 +210,6 @@ ClientScale_WindowLayout(
         {
             effective = needed;
             out->raised_by_limit = 1;
-        }
-    }
-
-    if( (floor_w > 0 && window_w * 100 / effective < floor_w) ||
-        (floor_h > 0 && window_h * 100 / effective < floor_h) )
-    {
-        /* The largest percent whose layout clears the floor on BOTH axes. */
-        int lowered = effective;
-        if( floor_w > 0 && window_w * 100 / floor_w < lowered )
-            lowered = window_w * 100 / floor_w;
-        if( floor_h > 0 && window_h * 100 / floor_h < lowered )
-            lowered = window_h * 100 / floor_h;
-        if( settings->fit == CLIENT_SCALE_FIT_INTEGER )
-            lowered = lowered / 100 * 100;
-        /* Never below 1:1: a frame drawn at fewer drawable pixels than it has
-         * throws interface pixels away. The window is what is short then. */
-        if( lowered < 100 )
-            lowered = 100;
-        if( lowered < effective )
-        {
-            effective = lowered;
-            out->lowered_by_floor = 1;
         }
     }
 
@@ -299,11 +253,8 @@ client_scale_keep_aspect(
 }
 
 /**
- * Where a layout-sized frame lands in an output area, and how big a buffer
- * a renderer should draw it into.
- *
- * `renders_at_output`: 1 for a renderer that rasterises at output resolution
- * (the GPU lanes), 0 for one that fills a layout-sized CPU buffer.
+ * Where the buffer lands in an output area. `render_w`/`render_h` is the size
+ * every renderer draws into: the buffer (layout) itself.
  */
 static inline void
 ClientScale_Present(
@@ -312,11 +263,8 @@ ClientScale_Present(
     int layout_h,
     int area_w,
     int area_h,
-    int renders_at_output,
     struct ClientScalePresent* out)
 {
-    int integer_k = 0;
-
     assert(settings);
     assert(out);
     assert(layout_w > 0);
@@ -346,7 +294,7 @@ ClientScale_Present(
     {
         int const kx = area_w / layout_w;
         int const ky = area_h / layout_h;
-        integer_k = kx < ky ? kx : ky;
+        int const integer_k = kx < ky ? kx : ky;
         if( integer_k >= 1 )
         {
             out->output.w = layout_w * integer_k;
@@ -369,83 +317,8 @@ ClientScale_Present(
     if( out->output.h < 1 )
         out->output.h = 1;
 
-    if( !renders_at_output )
-    {
-        out->render_w = layout_w;
-        out->render_h = layout_h;
-        return;
-    }
-    out->render_w = out->output.w;
-    out->render_h = out->output.h;
-    {
-        /* The render box: the pixel limit, and under HighDPI "window points"
-         * the game area in points. 0 is no cap on that axis. */
-        int cap_w = settings->max_pixel_width;
-        int cap_h = settings->max_pixel_height;
-
-        if( settings->high_dpi == CLIENT_SCALE_HIGH_DPI_WINDOW_POINTS )
-        {
-            int points_w;
-            int points_h;
-            assert(settings->density_percent > 0);
-            points_w = (int)((long long)area_w * 100 / settings->density_percent);
-            points_h = (int)((long long)area_h * 100 / settings->density_percent);
-            if( cap_w <= 0 || points_w < cap_w )
-                cap_w = points_w;
-            if( cap_h <= 0 || points_h < cap_h )
-                cap_h = points_h;
-        }
-        /* Never below the layout: under the limit's KEEP_INTERFACE policy a
-         * layout may be larger than the limit, and drawing it into fewer
-         * pixels than it has would throw interface pixels away. */
-        if( cap_w > 0 && cap_w < layout_w )
-            cap_w = layout_w;
-        if( cap_h > 0 && cap_h < layout_h )
-            cap_h = layout_h;
-        if( (cap_w > 0 && out->render_w > cap_w) || (cap_h > 0 && out->render_h > cap_h) )
-        {
-            if( integer_k >= 1 )
-            {
-                /* Stay on the layout's grid, so a capped integer frame is
-                 * still whole pixels all the way down. */
-                int k = integer_k;
-                if( cap_w > 0 && cap_w / layout_w < k )
-                    k = cap_w / layout_w;
-                if( cap_h > 0 && cap_h / layout_h < k )
-                    k = cap_h / layout_h;
-                out->render_w = layout_w * k;
-                out->render_h = layout_h * k;
-            }
-            else
-            {
-                /* One factor for both axes, so the buffer keeps the output's
-                 * shape; the tighter axis sets it. */
-                long long num = 1;
-                long long den = 1;
-                if( cap_w > 0 && out->render_w > cap_w )
-                {
-                    num = cap_w;
-                    den = out->render_w;
-                }
-                if( cap_h > 0 && out->render_h > cap_h &&
-                    (long long)cap_h * den < num * out->render_h )
-                {
-                    num = cap_h;
-                    den = out->render_h;
-                }
-                out->render_w = (int)((long long)out->output.w * num / den);
-                out->render_h = (int)((long long)out->output.h * num / den);
-                if( out->render_w < layout_w && out->output.w >= layout_w )
-                    out->render_w = layout_w;
-                if( out->render_h < layout_h && out->output.h >= layout_h )
-                    out->render_h = layout_h;
-                if( out->render_w < 1 )
-                    out->render_w = 1;
-                if( out->render_h < 1 )
-                    out->render_h = 1;
-            }
-        }
-    }
+    out->render_w = layout_w;
+    out->render_h = layout_h;
 }
 
 /**

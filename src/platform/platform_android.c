@@ -560,15 +560,13 @@ struct PlatformWindow
 
 /* ---- placement ----------------------------------------------------------- */
 
-/* Where the canvas lands on the surface. @see ClientScale_Present; a CPU
- * canvas, so renders_at_output is 0 (the output rectangle does not depend on
- * it, so GL mode maps through the same one). */
+/* Where the canvas lands on the surface. @see ClientScale_Present. */
 static void
 android_output_rect(struct PlatformWindow* p, int win_w, int win_h, struct ClientScaleRect* out)
 {
     struct ClientScalePresent present;
 
-    ClientScale_Present(&p->client_scale, p->width, p->height, win_w, win_h, 0, &present);
+    ClientScale_Present(&p->client_scale, p->width, p->height, win_w, win_h, &present);
     *out = present.output;
 }
 
@@ -743,7 +741,6 @@ PlatformWindow_New(void)
     memset(p, 0, sizeof(*p));
     p->client_scale.fit = CLIENT_SCALE_FIT_KEEP_ASPECT;
     p->client_scale.max_pixel_height = 0;
-    p->client_scale.limit_policy = CLIENT_SCALE_LIMIT_ENLARGE_INTERFACE;
     p->client_scale.output_filter = CLIENT_SCALE_FILTER_BICUBIC;
     p->last_seen_w = -1;
     p->last_seen_h = -1;

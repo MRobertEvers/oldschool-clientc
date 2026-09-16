@@ -245,8 +245,8 @@ struct RS_CS2TradingPost
 /** Pixel limit, height half: tallest render buffer in pixels; 0 is no limit.
  *  With 35 it is a resolution the player picks as one value. */
 #define RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT 31
-/** What the limit does to a layout taller than it (enum ClientScaleLimitPolicy). */
-#define RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY 32
+/* 32 was the pixel limit's policy, retired: the limit always caps the
+ * pixels. Not persisted, so a stored `32=` line is dropped on the next save. */
 /** Filter for the finished frame: 0 same as option 15, else option-15 value + 1. */
 #define RS_CS2_DEVICEOPTION_OUTPUT_FILTER 33
 /** HighDPI: RS_CS2_HIGH_DPI_*. 0 is the lane's own choice, resolved by the
@@ -261,12 +261,11 @@ struct RS_CS2TradingPost
 #define RS_CS2_MAX_PIXEL_WIDTH_MIN 640
 #define RS_CS2_MAX_PIXEL_WIDTH_MAX 7680
 #define RS_CS2_HIGH_DPI_AUTO 0
-/* The rest are enum ClientScaleHighDpi + 1. */
+/* The rest are enum ClientScaleHighDpi + 1. A stored value past the max (the
+ * retired "match display" was 2 of 3) clamps to window points. */
 #define RS_CS2_HIGH_DPI_DEVICE_PIXELS 1
-#define RS_CS2_HIGH_DPI_MATCH_DISPLAY 2
-#define RS_CS2_HIGH_DPI_WINDOW_POINTS 3
-#define RS_CS2_HIGH_DPI_MAX 3
-#define RS_CS2_PIXEL_LIMIT_POLICY_MAX 1
+#define RS_CS2_HIGH_DPI_WINDOW_POINTS 2
+#define RS_CS2_HIGH_DPI_MAX 2
 #define RS_CS2_OUTPUT_FILTER_SAME_AS_INTERFACE 0
 #define RS_CS2_OUTPUT_FILTER_MAX 3
 
@@ -1304,7 +1303,7 @@ struct RS_CS2Host
 
     /** Raised whenever a device option that decides the canvas or the window
      *  changes value: interface scale (27), stretch mode (30), the pixel limit
-     *  (31, 35), its policy (32) and HighDPI (34) -- or the display density the
+     *  (31, 35) and HighDPI (34) -- or the display density the
      *  platform detects (App_SetDisplayDensity). Drained by the App, which owns the canvas —
      *  same shape as `window_mode_dirty`. The values are NOT separate fields:
      *  they live in `device_options` so the two spellings the cache uses for

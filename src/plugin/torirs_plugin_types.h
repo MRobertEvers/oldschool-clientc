@@ -971,18 +971,13 @@ enum ToriRS_DisplaySetting
      *  limit. Picked together with TORIRS_DISPLAY_MAX_PIXEL_WIDTH, as one
      *  resolution. */
     TORIRS_DISPLAY_MAX_PIXEL_HEIGHT,
-    /** A layout taller than the limit: 0 enlarges the interface until it fits,
-     *  1 keeps the interface size and renders the layout as it is. */
-    TORIRS_DISPLAY_PIXEL_LIMIT_POLICY,
     /** Sampling the finished frame onto the window: 0 same as the interface
      *  filter, 1 nearest, 2 linear, 3 bicubic. */
     TORIRS_DISPLAY_FRAME_FILTER,
     /** The pixel limit's width: widest render buffer in pixels; 0 is no limit. */
     TORIRS_DISPLAY_MAX_PIXEL_WIDTH,
     /** What 100% interface scaling is one pixel OF on a high-density display:
-     *  0 automatic (the lane's own choice), 1 device pixels, 2 match the
-     *  display (window points, rendered at device pixels), 3 window points
-     *  (laid out and rendered at points). */
+     *  0 automatic (the lane's own choice), 1 device pixels, 2 window points. */
     TORIRS_DISPLAY_HIGH_DPI,
 
     /*
@@ -1004,7 +999,7 @@ enum ToriRS_DisplaySetting
     /** Drawable pixels per window point the client detected, as a percent:
      *  100 on an ordinary display, 200 on a Retina one. */
     TORIRS_DISPLAY_DENSITY,
-    /** TORIRS_DISPLAY_HIGH_DPI with automatic resolved: 1, 2 or 3. */
+    /** TORIRS_DISPLAY_HIGH_DPI with automatic resolved: 1 or 2. */
     TORIRS_DISPLAY_HIGH_DPI_IN_FORCE,
 
     TORIRS_DISPLAY_SETTING_COUNT
@@ -1015,9 +1010,6 @@ enum ToriRS_DisplaySetting
 #define TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED (1 << 1)
 /** Integer mode could not fit one whole multiple and kept aspect instead. */
 #define TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK (1 << 2)
-/** The window is too small for the frame at the chosen scale, so it is shown
- *  at the largest scale that fits. */
-#define TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT (1 << 3)
 
 /* ------------------------------------------------------------------------ */
 /* The lane                                                                  */

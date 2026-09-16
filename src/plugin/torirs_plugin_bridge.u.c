@@ -2816,12 +2816,6 @@ app_plugin_display_setting(
         min = 0;
         max = RS_CS2_MAX_PIXEL_HEIGHT_MAX;
         break;
-    case TORIRS_DISPLAY_PIXEL_LIMIT_POLICY:
-        value = RS_CS2Host_GetOption(
-            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY);
-        min = 0;
-        max = RS_CS2_PIXEL_LIMIT_POLICY_MAX;
-        break;
     case TORIRS_DISPLAY_FRAME_FILTER:
         value = RS_CS2Host_GetOption(
             &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_OUTPUT_FILTER);
@@ -2891,10 +2885,9 @@ app_plugin_display_setting(
         default:
             value = (scale->layout.rounded_by_integer ? TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED : 0) |
                     (scale->layout.raised_by_limit ? TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED : 0) |
-                    (scale->present.integer_fell_back ? TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK : 0) |
-                    (scale->lowered_to_fit_window ? TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT : 0);
+                    (scale->present.integer_fell_back ? TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK : 0);
             max = TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED | TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED |
-                  TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK | TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT;
+                  TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK;
             break;
         }
         break;
@@ -2932,9 +2925,6 @@ app_plugin_display_setting_set(void* user, int setting, int value)
         break;
     case TORIRS_DISPLAY_MAX_PIXEL_HEIGHT:
         option = RS_CS2_DEVICEOPTION_MAX_PIXEL_HEIGHT;
-        break;
-    case TORIRS_DISPLAY_PIXEL_LIMIT_POLICY:
-        option = RS_CS2_DEVICEOPTION_PIXEL_LIMIT_POLICY;
         break;
     case TORIRS_DISPLAY_FRAME_FILTER:
         option = RS_CS2_DEVICEOPTION_OUTPUT_FILTER;

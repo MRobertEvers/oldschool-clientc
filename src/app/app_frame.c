@@ -141,7 +141,8 @@ App_DrainCommands(
                  * later setting change has to be recomputed from. Leaving fixed
                  * pushes the real window size through this same command. */
                 if( getenv("TORIRS_RESIZE_DEBUG") )
-                    TORIRS_REPORT("resize: game area %dx%d\n", (int)cmd->width, (int)cmd->height);
+                    TORIRS_REPORT("resize: game area %dx%d (%s)\n", (int)cmd->width, (int)cmd->height,
+                        App_WindowMode(app) == CS2VM_WINDOW_MODE_RESIZABLE ? "resizable" : "fixed");
                 if( App_WindowMode(app) == CS2VM_WINDOW_MODE_RESIZABLE && cmd->width > 0 &&
                     cmd->height > 0 )
                 {

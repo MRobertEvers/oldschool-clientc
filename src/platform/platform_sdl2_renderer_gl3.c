@@ -5400,7 +5400,7 @@ gl3_client_scale_present(
     assert(present);
     assert(out_gl_y);
     ClientScale_Present(
-        &gl3->client_scale, gl3->width, gl3->height, area_w, area_h, 1, present);
+        &gl3->client_scale, gl3->width, gl3->height, area_w, area_h, present);
     *out_gl_y = area_h - present->output.y - present->output.h;
 }
 

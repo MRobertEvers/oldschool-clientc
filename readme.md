@@ -735,7 +735,8 @@ than any one of them being wrong.
 | Knob | Where | Values | What it decides |
 | --- | --- | --- | --- |
 | `hidpi` | `[ui:boot]`, env `TORIRS_HIDPI` | `0`/`1` | Web: whether the drawable is device **pixels** (default off). Desktop: what HighDPI "automatic" means — `0` is window points, else device pixels |
-| HighDPI | device option 34, in-client | automatic / device pixels / match display / window points | What 100% interface scaling is one pixel **of**, and whether the render stops at points |
+| HighDPI | device option 34, in-client | automatic / device pixels / window points | What 100% interface scaling is one pixel **of** |
+| Pixel limit | device options 31/35, in-client | a resolution | The largest buffer the game renders into |
 | `chrome_scale` | `[ui:boot]`, env `TORIRS_CHROME_SCALE` | `1..4`, `dynamic`, unset | Device pixels per ToriRSChrome pixel |
 | `windowmode` | `[ui:boot]`, `--windowmode` | `fixed`/`resizable` | Whether the canvas tracks the window at all |
 | Interface scaling | device option 27, in-client | percent | Canvas divided down so the IF3 layer draws larger |
@@ -748,14 +749,17 @@ Off the web the window is always created with `SDL_WINDOW_ALLOW_HIGHDPI`
 display density — drawable pixels per window point — and every HighDPI mode is
 live-switchable from Client Settings:
 
-- **Device pixels** — 100% is one layout pixel per drawable pixel. Sharpest and
+- **Device pixels** — 100% is one buffer pixel per drawable pixel. Sharpest and
   roomiest; the interface is half size on a 2x display.
-- **Match display** — 100% is one layout pixel per window point, so the
-  interface is its authored size, while a GPU renderer still rasterises at
-  device pixels (subject to the pixel limit).
-- **Window points** — laid out *and* rendered at points: what `hidpi=0` used to
-  buy by declining the drawable, magnified by the present instead of the
-  window server.
+- **Window points** — 100% is one buffer pixel per window point: what `hidpi=0`
+  used to buy by declining the drawable, stretched by the present instead of
+  the window server.
+
+Every renderer — Soft3D, GL3, GLES2, D3D9 — runs one pipeline: the game renders
+into a buffer the size the settings say (the window divided by interface
+scaling, no larger than the pixel limit), then stretch mode and the frame filter
+fit that buffer to the window. The frame's own minimum size never overrides the
+buffer; it only grows a resizable window that is smaller than the frame at 100%.
 
 "Automatic" (the stored default) resolves per lane, so a shared
 `preferences.ini` never pins one lane's choice onto another: `hidpi=0`
@@ -812,10 +816,10 @@ shown, so a value taken at creation reports 1 on a Retina display.
 
 | Symptom | Cause |
 | --- | --- |
-| Whole frame soft/blocky, world included | HighDPI in force is window points (a `hidpi=0` lane on automatic), or `TORIRS_HIDPI=0` declined the drawable. Pick match display for a sharp world at the same interface size |
+| Whole frame soft/blocky, world included | The buffer is smaller than the window: HighDPI is window points (a `hidpi=0` lane on automatic), interface scaling is above 100%, or the pixel limit is below the window |
 | Frame in the top-left quarter, rest black | A present path sizing its destination in points against a pixel target |
 | Panels grow just from enabling `hidpi` | A dynamic ladder reading the raw canvas — density counted twice |
-| Chrome correct, game UI half-size | HighDPI is device pixels. Match display counts interface scaling in points |
+| Chrome correct, game UI half-size | HighDPI is device pixels. Window points counts interface scaling in points |
 | Chrome text crisp, arrows and scrollbars chunky | `spritebake` has no scale variants — see below |
 
 ### Known gaps
@@ -826,10 +830,8 @@ shown, so a value taken at creation reports 1 on a Retina display.
   is a true 2x bake, and the tiled fills (`PanelBody`, `DropdownBody`) keep
   tiling at *native* size, so the parchment grain stays 1x. Closing it means
   baking scaled variants, not changing the blitter.
-- **The IF3 layer follows the density only by shrinking the canvas.** HighDPI
-  match display multiplies interface scaling by the density, which on a GPU
-  renderer keeps the world at device resolution but on Soft3D renders it at
-  the smaller canvas. A real fix is a scale factor on the IF3 layer itself.
+- **The IF3 layer follows the density only by shrinking the buffer.** A larger
+  interface is a smaller buffer, the 3D world included, on every renderer.
 - **Win32 GDI reports a 1x density.** The process is not DPI aware, so Windows
   scales the finished window and every HighDPI mode lays out alike there.
 

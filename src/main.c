@@ -551,8 +551,6 @@ interactive_render_present(
         struct ClientScalePresent present;
         int area_w = 0;
         int area_h = 0;
-        int const renders_at_output = (gl3 != NULL) || (d3d9 != NULL) || (gles2 != NULL);
-
         PlatformWindow_GameAreaPixels(platform, &area_w, &area_h);
         ClientScale_Present(
             &client_scale,
@@ -560,7 +558,6 @@ interactive_render_present(
             UITREE_LAYOUT_ROOT_H,
             area_w,
             area_h,
-            renders_at_output,
             &present);
         App_SetClientScalePresent(app, &present);
     }
@@ -3328,43 +3325,45 @@ frame_loop_step(void)
          * and lay themselves out beside it, so a window at the 765x503 minimum
          * gave the frame 723 columns -- below the floor the whole frame is
          * authored to, and the chatbox ran under the sidebar. The floor is the
-         * frame's, so the canvas has to carry the strip on top of it; when the
-         * window is too narrow for that, ask the window for it, exactly as the
+         * frame's, so the WINDOW has to carry the strip on top of it at 100%;
+         * when it is too small for that, ask the window for it, exactly as the
          * fixed branch does. A window that refuses (maximised, or no room on
-         * the display) letterboxes the floor-sized canvas instead -- the same
-         * trade sdl_chrome_growth_decide makes for the plugin pane.
+         * the display) lays the frame out in what it has.
          *
-         * GROW only. The canvas is the window divided by the interface scale, so
-         * a canvas raised to the floor is NOT a window that is too small: at
-         * 200% a 1300x700 window gives a 650x350 canvas, the floor raises it to
-         * 807x503, and asking the window for 807x503 used to SHRINK it. The
-         * window is only asked for what it lacks at 1:1; a frame that does not
-         * fit at the chosen scale is shown at the largest one that does, and
-         * the settings page says so.
+         * GROW only, and the window only. The buffer is whatever interface
+         * scaling and the pixel limit say, even below the frame's minimum --
+         * the settings decide it (platform/client_scale.h rule 5) -- so a small
+         * buffer is never a reason to touch the window.
          *
          * The window is asked in points: on a 2x display the two differ by the
          * density, and asking for pixels there would double a window that only
          * needed 42 more columns.
          */
-        else if( App_SyncResizableCanvasFloor(&app) )
+        else
         {
-            int const density = PlatformWindow_PixelDensity(platform);
-            int area_w = 0;
-            int area_h = 0;
-            int want_w;
-            int want_h;
-            assert(density >= 1);
-            PlatformWindow_GameAreaPixels(platform, &area_w, &area_h);
-            want_w = UITREE_LAYOUT_ROOT_W > area_w ? UITREE_LAYOUT_ROOT_W : area_w;
-            want_h = UITREE_LAYOUT_ROOT_H > area_h ? UITREE_LAYOUT_ROOT_H : area_h;
-            if( want_w != area_w || want_h != area_h )
-                PlatformWindow_SetWindowSize(platform, want_w / density, want_h / density);
-            if( getenv("TORIRS_RESIZE_DEBUG") )
-                TORIRS_LOG(
-                    "resizable-chrome: canvas %dx%d (strip floor), window %s\n",
-                    UITREE_LAYOUT_ROOT_W,
-                    UITREE_LAYOUT_ROOT_H,
-                    want_w != area_w || want_h != area_h ? "grown" : "unchanged");
+            int floor_w = 0;
+            int floor_h = 0;
+            if( App_ResizableWindowFloor(&app, &floor_w, &floor_h) )
+            {
+                int const density = PlatformWindow_PixelDensity(platform);
+                int area_w = 0;
+                int area_h = 0;
+                assert(density >= 1);
+                PlatformWindow_GameAreaPixels(platform, &area_w, &area_h);
+                if( area_w > 0 && area_h > 0 && (area_w < floor_w || area_h < floor_h) )
+                {
+                    int const want_w = floor_w > area_w ? floor_w : area_w;
+                    int const want_h = floor_h > area_h ? floor_h : area_h;
+                    PlatformWindow_SetWindowSize(platform, want_w / density, want_h / density);
+                    if( getenv("TORIRS_RESIZE_DEBUG") )
+                        TORIRS_LOG(
+                            "resizable-chrome: game area %dx%d below the frame %dx%d, window grown\n",
+                            area_w,
+                            area_h,
+                            floor_w,
+                            floor_h);
+                }
+            }
         }
 
         /*
