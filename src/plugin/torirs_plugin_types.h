@@ -965,7 +965,11 @@ enum ToriRS_DisplaySetting
      */
     /** Placing the frame in the window: 0 keep aspect ratio, 1 integer (the
      *  interface scale rounds DOWN to a whole multiple of 100%, whole-pixel
-     *  multiples, bars), 2 stretch to fill. */
+     *  multiples, bars), 2 stretch to fill. Keep aspect and stretch only
+     *  differ when the buffer is not the window's shape: a fixed frame, or a
+     *  resizable one the window could not hold (TORIRS_DISPLAY_ADJUSTED_
+     *  LOWERED_TO_FIT). Integer also moves the buffer, which is why the
+     *  settings page offers it beside interface scaling as "Whole pixels". */
     TORIRS_DISPLAY_STRETCH_MODE,
     /** The pixel limit's height: tallest render buffer in pixels; 0 is no
      *  limit. Picked together with TORIRS_DISPLAY_MAX_PIXEL_WIDTH, as one
@@ -1001,6 +1005,9 @@ enum ToriRS_DisplaySetting
     TORIRS_DISPLAY_DENSITY,
     /** TORIRS_DISPLAY_HIGH_DPI with automatic resolved: 1 or 2. */
     TORIRS_DISPLAY_HIGH_DPI_IN_FORCE,
+    /** 1 when the window is pinned to the fixed frame, 0 when the canvas
+     *  follows a resizable window. Answers before any frame is presented. */
+    TORIRS_DISPLAY_WINDOW_FIXED,
 
     TORIRS_DISPLAY_SETTING_COUNT
 };

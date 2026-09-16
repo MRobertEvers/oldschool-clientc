@@ -54,6 +54,7 @@
 #define CS_ID_FRAME_DETAIL "gameframe_detail"
 #define CS_ID_SCALE "ui_scale"
 #define CS_ID_FILTER "ui_scale_filter"
+#define CS_ID_WHOLE_PIXELS "whole_pixels"
 #define CS_ID_STRETCH "stretch_mode"
 #define CS_ID_PIXEL_LIMIT "max_pixel_height"
 #define CS_ID_FRAME_FILTER "frame_filter"
@@ -64,7 +65,9 @@
 #define CS_FRAME_ROWS_MAX 33
 #define CS_SCALE_ROWS 13
 #define CS_FILTER_ROWS 3
-#define CS_STRETCH_ROWS 3
+#define CS_STRETCH_ROWS 2
+/* Device option 30's integer value: offered as the Whole pixels toggle. */
+#define CS_STRETCH_INTEGER 1
 /* The listed resolutions, plus one slot for a value only preferences.ini holds. */
 #define CS_PIXEL_LIMIT_LISTED 19
 #define CS_PIXEL_LIMIT_ROWS (CS_PIXEL_LIMIT_LISTED + 1)
@@ -151,10 +154,11 @@ static char const* const CS_SCALE_LABEL[] = {
 static char const* const CS_FILTER_VALUE[] = { "0", "1", "2" };
 static char const* const CS_FILTER_LABEL[] = { "Nearest", "Linear", "Bicubic" };
 
-static char const* const CS_STRETCH_VALUE[] = { "0", "1", "2" };
+/* Integer is not here: it changes the buffer as well as its placement, so it
+ * is the Whole pixels toggle beside interface scaling. */
+static char const* const CS_STRETCH_VALUE[] = { "0", "2" };
 static char const* const CS_STRETCH_LABEL[] = {
     "Keep aspect ratio",
-    "Integer (whole pixels)",
     "Stretch to fill",
 };
 
@@ -169,7 +173,7 @@ static char const* const CS_PIXEL_LIMIT_VALUE[CS_PIXEL_LIMIT_LISTED] = {
     "3200x1800", "3840x2160", "5120x2880", "7680x4320",
 };
 static char const* const CS_PIXEL_LIMIT_LABEL[CS_PIXEL_LIMIT_LISTED] = {
-    "No limit",
+    "Match window",
     "640x360 (360p)",
     "854x480 (480p)",
     "800x600 (SVGA)",
@@ -539,6 +543,22 @@ cs_pick_display(struct ToriRS_Api* api, int setting, struct PorcelainRowAction c
         (void)api->client->display_set(api, setting, atoi(action->text));
 }
 
+/* Whole pixels on is stretch mode integer; off is keep aspect ratio, the
+ * placement integer itself falls back to. */
+static void
+cs_toggle_whole_pixels(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
+{
+    (void)user;
+    assert(api);
+    assert(api->client);
+    assert(action);
+    if( action->kind != TORIRS_PANEL_ACTION_TOGGLE )
+        return;
+    if( api->client->display_get(api, TORIRS_DISPLAY_STRETCH_MODE, NULL, NULL, NULL) )
+        (void)api->client->display_set(
+            api, TORIRS_DISPLAY_STRETCH_MODE, action->value ? CS_STRETCH_INTEGER : 0);
+}
+
 static void
 cs_pick_stretch(struct ToriRS_Api* api, void* user, struct PorcelainRowAction const* action)
 {
@@ -661,21 +681,21 @@ cs_scaling_now(struct ToriRS_Api* api, char* out, size_t out_size)
     if( (adjusted & TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT) &&
         (adjusted & TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED) )
         used += snprintf(out + used, out_size - (size_t)used,
-            " Lowered from %d%%: the pixel limit cannot fit the frame.", chosen);
+            " Lowered from %d%%: the render resolution cannot fit the frame.", chosen);
     else if( adjusted & TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT )
         used += snprintf(out + used, out_size - (size_t)used,
             " Lowered from %d%%: the screen cannot fit the frame.", chosen);
     else if( adjusted & TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED )
         used += snprintf(out + used, out_size - (size_t)used,
-            " %d%% of the pixel limit, not of the window.", chosen);
+            " %d%% of the render resolution, not of the window.", chosen);
     else if( adjusted & TORIRS_DISPLAY_ADJUSTED_INTEGER_ROUNDED )
         used += snprintf(out + used, out_size - (size_t)used,
-            " %d%% rounded down for integer scaling.", chosen);
+            " %d%% rounded down for whole pixels.", chosen);
     if( used < 0 || (size_t)used >= out_size )
         return;
     if( adjusted & TORIRS_DISPLAY_ADJUSTED_INTEGER_FELL_BACK )
         (void)snprintf(out + used, out_size - (size_t)used,
-            " Window too small for integer: keeping aspect.");
+            " Window too small for whole pixels: keeping aspect.");
 }
 
 /*
@@ -711,11 +731,15 @@ cs_display_signature(struct ToriRS_Api* api, char* out, size_t out_size)
     assert(out);
     assert(out_size > 0);
     out[0] = '\0';
-    for( int setting = 0; setting < TORIRS_DISPLAY_EFFECTIVE_UI_SCALE; setting++ )
+    for( int setting = 0; setting <= TORIRS_DISPLAY_EFFECTIVE_UI_SCALE; setting++ )
     {
+        /* The window mode stands in the readout's slot: it decides whether
+         * Stretch mode is shown, and it moves without any setting moving. */
+        int const read = setting == TORIRS_DISPLAY_EFFECTIVE_UI_SCALE ? TORIRS_DISPLAY_WINDOW_FIXED
+                                                                      : setting;
         int value = -1;
         int wrote;
-        if( !cs_display_value(api, setting, &value) )
+        if( !cs_display_value(api, read, &value) )
             value = -1;
         wrote = snprintf(out + used, out_size - used, "%d,", value);
         if( wrote < 0 || (size_t)wrote >= out_size - used )
@@ -789,6 +813,7 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
     struct ToriRS_SelectOption high_dpi_options[CS_HIGH_DPI_ROWS];
     struct PorcelainRow row;
     int value = 0, min = 0, max = 0, width = 0;
+    int stretch = -1;
 
     assert(describe);
     assert(state);
@@ -835,6 +860,17 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         row.user = state;
         Porcelain_Row(describe, &row);
     }
+    if( api->client->display_get(api, TORIRS_DISPLAY_STRETCH_MODE, &stretch, NULL, NULL) )
+    {
+        memset(&row, 0, sizeof(row));
+        row.key = CS_ID_WHOLE_PIXELS;
+        row.kind = PORCELAIN_ROW_TOGGLE;
+        row.label = "Whole pixels";
+        row.value = stretch == CS_STRETCH_INTEGER;
+        row.on_action = cs_toggle_whole_pixels;
+        row.user = state;
+        Porcelain_Row(describe, &row);
+    }
     if( api->client->display_get(
             api, TORIRS_DISPLAY_UI_SCALE_FILTER, &value, &min, &max) )
     {
@@ -853,13 +889,32 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         Porcelain_Row(describe, &row);
     }
 
-    if( api->client->display_get(api, TORIRS_DISPLAY_STRETCH_MODE, &value, &min, &max) )
+    /*
+     * Stretch mode only where it can be seen.
+     *
+     * A resizable buffer is the window's own shape -- the pixel limit and the
+     * interface scale shrink both axes by one factor -- so keep aspect and
+     * stretch draw the same picture there. They differ only when the buffer
+     * could not follow the window: a fixed frame, or a resizable one raised
+     * to the frame's minimum because the window could not hold it. Whole
+     * pixels decides the placement itself, so the row is not offered then.
+     */
+    if( stretch >= 0 && stretch != CS_STRETCH_INTEGER )
     {
-        int at = cs_value_row(CS_STRETCH_VALUE, CS_STRETCH_ROWS, value);
-        assert(at >= 0);
-        cs_static_options(stretch_options, CS_STRETCH_VALUE, CS_STRETCH_LABEL, CS_STRETCH_ROWS);
-        cs_select_row(describe, state, CS_ID_STRETCH, "Stretch mode", CS_STRETCH_VALUE[at],
-            stretch_options, CS_STRETCH_ROWS, cs_pick_stretch);
+        int fixed = 0;
+        int adjusted = 0;
+        bool const shape_can_differ =
+            (cs_display_value(api, TORIRS_DISPLAY_WINDOW_FIXED, &fixed) && fixed) ||
+            (cs_display_value(api, TORIRS_DISPLAY_SCALE_ADJUSTED, &adjusted) &&
+             (adjusted & TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT));
+        if( shape_can_differ )
+        {
+            int at = cs_value_row(CS_STRETCH_VALUE, CS_STRETCH_ROWS, stretch);
+            assert(at >= 0);
+            cs_static_options(stretch_options, CS_STRETCH_VALUE, CS_STRETCH_LABEL, CS_STRETCH_ROWS);
+            cs_select_row(describe, state, CS_ID_STRETCH, "Stretch mode", CS_STRETCH_VALUE[at],
+                stretch_options, CS_STRETCH_ROWS, cs_pick_stretch);
+        }
     }
     if( api->client->display_get(api, TORIRS_DISPLAY_MAX_PIXEL_HEIGHT, &value, &min, &max) &&
         api->client->display_get(api, TORIRS_DISPLAY_MAX_PIXEL_WIDTH, &width, NULL, NULL) )
@@ -903,7 +958,7 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
             count++;
             selected = state->pixel_limit_value;
         }
-        cs_select_row(describe, state, CS_ID_PIXEL_LIMIT, "Pixel limit", selected, limit_options,
+        cs_select_row(describe, state, CS_ID_PIXEL_LIMIT, "Render resolution", selected, limit_options,
             count, cs_pick_pixel_limit);
     }
     if( api->client->display_get(api, TORIRS_DISPLAY_FRAME_FILTER, &value, &min, &max) )
@@ -959,9 +1014,9 @@ cs_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         memset(&row, 0, sizeof(row));
         row.key = CS_ID_SCALING_HOW;
         row.kind = PORCELAIN_ROW_PARAGRAPH;
-        row.text = "The game renders into a buffer: the window, or the pixel limit if smaller, "
-                   "divided by interface scaling (HighDPI says in what). Stretch mode and the "
-                   "frame filter fit it to the window.";
+        row.text = "The game draws at the window's resolution, or the render resolution if "
+                   "smaller, divided by interface scaling. The frame filter then stretches it "
+                   "back up to the window.";
         Porcelain_Row(describe, &row);
     }
 

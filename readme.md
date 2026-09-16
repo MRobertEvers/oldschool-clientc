@@ -736,7 +736,9 @@ than any one of them being wrong.
 | --- | --- | --- | --- |
 | `hidpi` | `[ui:boot]`, env `TORIRS_HIDPI` | `0`/`1` | Web: whether the drawable is device **pixels** (default off). Desktop: what HighDPI "automatic" means — `0` is window points, else device pixels |
 | HighDPI | device option 34, in-client | automatic / device pixels / window points | What 100% interface scaling is one pixel **of** |
-| Pixel limit | device options 31/35, in-client | a resolution | The largest buffer the game renders into: it caps what 100% interface scaling is, and the scale divides that |
+| Render resolution (the pixel limit) | device options 31/35, in-client | a resolution, or Match window | The largest buffer the game renders into: it caps what 100% interface scaling is, and the scale divides that |
+| Whole pixels | device option 30 = 1, in-client toggle beside interface scaling | on/off | Interface scaling rounded to whole multiples so every buffer pixel covers a whole number of window pixels |
+| Stretch mode | device option 30 = 0/2, in-client, shown only when it can matter | keep aspect / stretch to fill | Placing a buffer that is NOT the window's shape: a fixed frame, or a resizable one the window could not hold. A resizable buffer is otherwise the window's own shape and both modes draw the same picture |
 | `chrome_scale` | `[ui:boot]`, env `TORIRS_CHROME_SCALE` | `1..4`, `dynamic`, unset | Device pixels per ToriRSChrome pixel |
 | `windowmode` | `[ui:boot]`, `--windowmode` | `fixed`/`resizable` | Whether the canvas tracks the window at all |
 | Interface scaling | device option 27, in-client | percent | Canvas divided down so the IF3 layer draws larger |
@@ -757,7 +759,7 @@ live-switchable from Client Settings:
 
 Every renderer — Soft3D, GL3, GLES2, D3D9 — runs one pipeline: the game renders
 into a buffer the size the settings say (the window -- or the largest buffer
-inside the pixel limit, when that is smaller -- divided by interface scaling),
+inside the render resolution, when that is smaller -- divided by interface scaling),
 then stretch mode and the frame filter fit that buffer to the window. Scaling
 happens before the stretch, and the limit before the scaling, so every scale
 step still draws a different frame under a limit. A resizable window is grown
@@ -820,7 +822,7 @@ shown, so a value taken at creation reports 1 on a Retina display.
 
 | Symptom | Cause |
 | --- | --- |
-| Whole frame soft/blocky, world included | The buffer is smaller than the window: HighDPI is window points (a `hidpi=0` lane on automatic), interface scaling is above 100%, or the pixel limit is below the window |
+| Whole frame soft/blocky, world included | The buffer is smaller than the window: HighDPI is window points (a `hidpi=0` lane on automatic), interface scaling is above 100%, or the render resolution is below the window |
 | Frame in the top-left quarter, rest black | A present path sizing its destination in points against a pixel target |
 | Panels grow just from enabling `hidpi` | A dynamic ladder reading the raw canvas — density counted twice |
 | Chrome correct, game UI half-size | HighDPI is device pixels. Window points counts interface scaling in points |

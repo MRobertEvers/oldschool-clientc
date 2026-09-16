@@ -2843,6 +2843,11 @@ app_plugin_display_setting(
         min = RS_CS2_HIGH_DPI_DEVICE_PIXELS;
         max = RS_CS2_HIGH_DPI_MAX;
         break;
+    case TORIRS_DISPLAY_WINDOW_FIXED:
+        value = App_WindowMode(app) == CS2VM_WINDOW_MODE_FIXED ? 1 : 0;
+        min = 0;
+        max = 1;
+        break;
     case TORIRS_DISPLAY_EFFECTIVE_UI_SCALE:
     case TORIRS_DISPLAY_LAYOUT_WIDTH:
     case TORIRS_DISPLAY_LAYOUT_HEIGHT:

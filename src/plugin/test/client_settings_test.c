@@ -45,6 +45,7 @@ struct FakeRow
     char option_label[CS_FRAME_ROWS_MAX][TORIRS_UI_LABEL_MAX];
     char option_detail[CS_FRAME_ROWS_MAX][TORIRS_FRAME_REASON_MAX];
     char selected_value[TORIRS_PLUGIN_FRAME_ID_MAX];
+    int value;
 };
 
 struct Fake
@@ -240,6 +241,7 @@ fake_node(struct ToriRS_PanelBuilder* panel, struct ToriRS_PanelNode const* node
     snprintf(row->label, sizeof(row->label), "%s", node->label ? node->label : "");
     snprintf(row->text, sizeof(row->text), "%s", node->text ? node->text : "");
     row->kind = node->kind;
+    row->value = node->value;
     if( node->option_count > 0 )
         fake_store_options(row, node->text, node->options, node->option_count);
     return TORIRS_RESULT_OK;
@@ -264,8 +266,9 @@ fake_display_get(struct ToriRS_Api* api, int setting, int* value, int* min, int*
         if( max ) *max = 12;
         return true;
     }
+    /* The window mode answers before a frame, as the client's does. */
     if( setting >= TORIRS_DISPLAY_EFFECTIVE_UI_SCALE && setting < TORIRS_DISPLAY_SETTING_COUNT &&
-        !fake.readout_present )
+        setting != TORIRS_DISPLAY_WINDOW_FIXED && !fake.readout_present )
         return false;
     if( setting > TORIRS_DISPLAY_UI_SCALE_FILTER && setting < TORIRS_DISPLAY_SETTING_COUNT )
     {
@@ -356,6 +359,18 @@ pick(void* state, char const* id, char const* value)
     action.id = id;
     action.action = TORIRS_PANEL_ACTION_PICK;
     action.text = value;
+    TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_ui_action(&api, state, &action);
+}
+
+static void
+toggle(void* state, char const* id, int value)
+{
+    struct ToriRS_PanelActionEvent action;
+    memset(&action, 0, sizeof(action));
+    action.id = id;
+    action.action = TORIRS_PANEL_ACTION_TOGGLE;
+    action.value = value;
+    action.text = "";
     TORIRS_PLUGIN_CLIENT_SETTINGS.callbacks.on_ui_action(&api, state, &action);
 }
 
@@ -723,13 +738,16 @@ main(void)
 
     /* ------------------------------------------------ client scaling rows */
 
-    row = fake_row("stretch_mode");
-    CHECK(row && row->option_count == 3, "three stretch modes");
-    CHECK(row && strcmp(row->option_label[1], "Integer (whole pixels)") == 0, "integer is named");
-    CHECK(row && strcmp(row->selected_value, "0") == 0, "keep aspect is the default");
+    CHECK(!fake_row("stretch_mode"),
+        "a resizable window hides stretch mode: its buffer is the window's shape");
+    row = fake_row("whole_pixels");
+    CHECK(row && row->kind == TORIRS_PANEL_TOGGLE && row->value == 0 &&
+          row_index("whole_pixels") == row_index("ui_scale") + 1,
+        "whole pixels is a toggle beside interface scaling, off by default");
     row = fake_row("max_pixel_height");
+    CHECK(row && strcmp(row->label, "Render resolution") == 0, "the limit is the render resolution");
     CHECK(row && row->option_count == 19, "nineteen listed pixel limits");
-    CHECK(row && strcmp(row->option_label[0], "No limit") == 0, "the first limit is none");
+    CHECK(row && strcmp(row->option_label[0], "Match window") == 0, "the first limit is none");
     CHECK(row && strcmp(row->option_value[1], "640x360") == 0 &&
           strcmp(row->option_value[18], "7680x4320") == 0,
         "the limits are resolutions, from small to large");
@@ -747,11 +765,31 @@ main(void)
     CHECK(!fake_row("scaling_now") && !fake_row("scaling_how"),
         "no readout before anything has been presented");
 
-    pick(state, "stretch_mode", "1");
+    toggle(state, "whole_pixels", 1);
+    CHECK(fake.display[TORIRS_DISPLAY_STRETCH_MODE] == 1, "whole pixels on is integer");
+    toggle(state, "whole_pixels", 0);
+    CHECK(fake.display[TORIRS_DISPLAY_STRETCH_MODE] == 0, "whole pixels off is keep aspect");
+
+    /* A fixed window shows stretch mode, with integer left to the toggle. */
+    fake.display[TORIRS_DISPLAY_WINDOW_FIXED] = 1;
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+    row = fake_row("stretch_mode");
+    CHECK(row && row->option_count == 2 && strcmp(row->option_label[0], "Keep aspect ratio") == 0 &&
+          strcmp(row->option_label[1], "Stretch to fill") == 0,
+        "a fixed window offers keep aspect and stretch");
+    pick(state, "stretch_mode", "2");
+    CHECK(fake.display[TORIRS_DISPLAY_STRETCH_MODE] == 2, "stretch pick writes the store");
+    fake.display[TORIRS_DISPLAY_STRETCH_MODE] = 1;
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+    build_page(state, TORIRS_PANEL_VIEW_PAGE);
+    CHECK(!fake_row("stretch_mode") && fake_row("whole_pixels")->value == 1,
+        "whole pixels on hides stretch mode: it places the frame itself");
+    fake.display[TORIRS_DISPLAY_WINDOW_FIXED] = 0;
+    frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
+
     pick(state, "max_pixel_height", "1920x1080");
     pick(state, "frame_filter", "3");
     pick(state, "high_dpi", "2");
-    CHECK(fake.display[TORIRS_DISPLAY_STRETCH_MODE] == 1, "stretch pick writes the store");
     CHECK(fake.display[TORIRS_DISPLAY_MAX_PIXEL_WIDTH] == 1920 &&
           fake.display[TORIRS_DISPLAY_MAX_PIXEL_HEIGHT] == 1080,
         "a resolution pick writes both halves of the limit");
@@ -796,7 +834,7 @@ main(void)
     row = fake_row("scaling_now");
     CHECK(row && strcmp(row->text,
                      "Now: buffer 1920x1080 at 100%, shown 1920x1080. "
-                     "150% rounded down for integer scaling.") == 0,
+                     "150% rounded down for whole pixels.") == 0,
         "the readout says integer rounded the chosen scale down");
     row = fake_row("high_dpi_now");
     CHECK(row && strcmp(row->text, "Display density 2.00x detected; using window points.") == 0,
@@ -810,14 +848,17 @@ main(void)
     fake.display[TORIRS_DISPLAY_SCALE_ADJUSTED] = TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED;
     frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
     row = fake_row("scaling_now");
-    CHECK(row && strstr(row->text, "at 200%") && strstr(row->text, "150% of the pixel limit, not of the window."),
+    CHECK(row && strstr(row->text, "at 200%") && strstr(row->text, "150% of the render resolution, not of the window."),
         "a readout change re-describes the page without any setting changing");
+    fake.display[TORIRS_DISPLAY_STRETCH_MODE] = 0;
     fake.display[TORIRS_DISPLAY_SCALE_ADJUSTED] =
         TORIRS_DISPLAY_ADJUSTED_LIMIT_RAISED | TORIRS_DISPLAY_ADJUSTED_LOWERED_TO_FIT;
     frame_with_page(state, TORIRS_PANEL_VIEW_PAGE);
     row = fake_row("scaling_now");
-    CHECK(row && strstr(row->text, "Lowered from 150%: the pixel limit cannot fit the frame."),
-        "a limit too small for the frame at the scale names the limit, not the screen");
+    CHECK(row && strstr(row->text, "Lowered from 150%: the render resolution cannot fit the frame.") &&
+          fake_row("stretch_mode"),
+        "a limit too small for the frame names the limit, and shows stretch mode: the buffer "
+        "is no longer the window's shape");
 
     /* A build with no display store declares neither row -- the same page the
      * unported plugin built, and the reason the two reads are a gate. */
