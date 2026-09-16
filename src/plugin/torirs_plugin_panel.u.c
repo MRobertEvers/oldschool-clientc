@@ -3032,7 +3032,21 @@ app_plugin_panel_raster_custom(
             (int*)app->panel_custom_pixels,
             row->custom_region.w,
             row->custom_region.h);
-        ToriRS_Soft3D_RenderFrame(app->soft_chrome, &frame);
+        /*
+         * Drained by hand, never ToriRS_Soft3D_RenderFrame: that call clears
+         * the canvas to TORIRS_SOFT3D_BG (an OPAQUE 0xFF202428) first, which
+         * overwrote the transparent memset above. Every gap a plugin leaves
+         * clear on purpose -- the loot tracker's spacing between its bands --
+         * then reached the page as a cold slate fill, and no stylesheet under
+         * the well could show through an opaque pixel.
+         */
+        {
+            struct ToriRS_RenderCommand cmd;
+            ToriRS_FrameBegin(&frame);
+            while( ToriRS_FrameNextCommand(&frame, &cmd) )
+                ToriRS_Soft3D_Execute(app->soft_chrome, &cmd);
+            ToriRS_FrameEnd(&frame);
+        }
     }
 
     memset(out, 0, sizeof(*out));

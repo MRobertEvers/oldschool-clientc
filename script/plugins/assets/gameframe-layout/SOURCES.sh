@@ -77,3 +77,13 @@ DUMP=tools/dump_sprites/dump_sprites
   classic_redstone1=redstone1.dat classic_redstone2=redstone2.dat \
   classic_redstone3=redstone3.dat \
   classic_sideicon=sideicons.dat:0-12
+
+# The fourteen lit tab stones, cut from the redstone sprites dumped just
+# above. @see cut_tab_stones.py for the geometry and how it
+# was checked against the 2004 frame.
+python3 "$OUT/cut_tab_stones.py"
+
+# The chat filter stone is NOT cut here: it is the Stone Drawer's hand-masked
+# script/plugins/assets/mobile-gameframe/chat_button.png (the 2004 hollow with
+# its slab taken off, at 3x), copied so this plugin ships its own art.
+cp script/plugins/assets/mobile-gameframe/chat_button.png "$OUT/classic_chat_button.png"
