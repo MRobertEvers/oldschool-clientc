@@ -590,6 +590,14 @@ app_ui_scaled_axis(
 int
 app_wants_text_input(struct App const* app);
 
+int
+app_native_layout_mode(struct App const* app);
+
+bool
+app_native_layout_select(
+    struct App* app,
+    int layout);
+
 
 /* ---- app_chat_focus.c ---- */
 struct RS_ChatFilters
@@ -603,6 +611,7 @@ app_chat_region(
     struct App const* app,
     int* out_x,
     int* out_y,
+    int* out_height,
     int* out_font_id);
 
 int
@@ -1069,6 +1078,16 @@ app_client_cheat(
 
 void
 app_attack_options_reset(struct App* app);
+
+/**
+ * Drain App::logout_requested and run the wait it arms. Once per logic tick.
+ *
+ * The request is sent and then waited on -- the server's LOGOUT packet, or the
+ * socket it closes instead, is what actually ends the session. True when the
+ * screen changed, which is only ever on the tick the session ends.
+ */
+bool
+app_logout_tick(struct App* app);
 
 void
 app_net_lost(

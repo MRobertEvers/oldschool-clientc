@@ -1272,7 +1272,7 @@ main(void)
     CHECK(control_named("tooltip") != NULL, "hovering a globe adds the tooltip control");
     CHECK(control_named("tooltip") && control_named("tooltip")->w == 150, "which is the reference's own width");
     /* Flip: the globe's operation, dispatched as the native menu would. */
-    CHECK(PluginHost_WidgetOperation(g_host, (uint64_t)index + 1, fake_ref(control_index(g[2])), g[2]->registration),
+    CHECK(PluginHost_WidgetOperation(g_host, (uint64_t)index + 1, fake_ref(control_index(g[2])), g[2]->registration, 1),
         "the Flip operation dispatches to the owning plugin");
     g_mouse_x = -1;
     frame();
@@ -1283,7 +1283,7 @@ main(void)
         CHECK(stacked, "Flip stacks them into a column");
     }
     globes(g);
-    CHECK(PluginHost_WidgetOperation(g_host, (uint64_t)index + 1, fake_ref(control_index(g[0])), g[0]->registration), "Flip again");
+    CHECK(PluginHost_WidgetOperation(g_host, (uint64_t)index + 1, fake_ref(control_index(g[0])), g[0]->registration, 1), "Flip again");
     g_now_ms += 11000;
     frame();
     CHECK(globes(g) == 0, "a globe past its duration is gone with its control");

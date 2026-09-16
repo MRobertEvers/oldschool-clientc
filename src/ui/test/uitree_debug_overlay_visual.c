@@ -62,6 +62,26 @@ struct WorldEntity_Scenery;
 struct WorldEntity_NPC;
 struct WorldEntity_Player;
 struct WorldEntity_ObjStack;
+struct UITreeModelRenderCache;
+
+/* torirs_frame.c's model branch, closed the same way: an overlay-only emit
+ * buffer never reaches it, so entering it is a fixture bug rather than a case
+ * to answer. */
+struct ToriDraw_ModelHandle
+UITreeAnim_ModelForDraw(
+    struct ToriDraw_Scene* scene,
+    struct UITreeModelRenderCache* cache,
+    int model,
+    int sequence,
+    int frame)
+{
+    (void)scene;
+    (void)cache;
+    (void)model;
+    (void)sequence;
+    (void)frame;
+    abort();
+}
 
 int
 World_TerrainElementAt(struct World* world, int x, int z, int level)

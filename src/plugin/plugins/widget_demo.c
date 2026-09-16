@@ -178,7 +178,7 @@ static void widget_demo_binding(struct ToriRS_Api* api, void* user, struct ToriR
         ui->set_position(ui->context,state->control,12,label_y+16);
         ui->set_text(ui->context,state->control,"Public: Friends");
         ui->set_text_color(ui->context,state->control,0x00ffff);
-        enum ToriRS_ContractResult armed=ui->set_on_op(ui->context,state->control,"Set public chat to friends",widget_demo_operation,user);
+        enum ToriRS_ContractResult armed=ui->set_on_op(ui->context,state->control,1,"Set public chat to friends",widget_demo_operation,user);
         ui->revalidate(ui->context,state->control);
         struct ToriRS_WidgetBounds box={0};
         ui->bounds(ui->context,state->control,&box);
@@ -208,7 +208,7 @@ static void widget_demo_config(struct ToriRS_Api* api,void* user,char const* key
     if( strcmp(key,"rearm")!=0 || !state->control.opaque[2] ) return;
     api->config.get_bool(api,"rearm",&rearm);
     if( !rearm ) return;
-    enum ToriRS_ContractResult result=ui->set_on_op(ui->context,state->control,"Re-armed: set public chat to friends",widget_demo_operation,user);
+    enum ToriRS_ContractResult result=ui->set_on_op(ui->context,state->control,1,"Re-armed: set public chat to friends",widget_demo_operation,user);
     api->core.log(api,"WIDGET_DEMO_REARM result=%d",result);
 }
 static void widget_demo_start(struct ToriRS_Api* api, void* user)

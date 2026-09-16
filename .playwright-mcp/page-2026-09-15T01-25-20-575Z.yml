@@ -1,0 +1,195 @@
+- generic [active] [ref=f4e1]:
+  - generic [ref=f4e3]:
+    - banner [ref=f4e4]:
+      - generic [ref=f4e5]:
+        - generic [ref=f4e6]:
+          - generic [ref=f4e7]:
+            - link [ref=f4e10] [cursor=pointer]:
+              - /url: https://lightningelectricllcmo.com
+              - img "lightning-logo" [ref=f4e12]
+            - paragraph [ref=f4e16]: Electrical ContractorsServing Missouri & Kansas
+            - generic [ref=f4e17]:
+              - link "Request Free Estimate 5" [ref=f4e19] [cursor=pointer]:
+                - /url: /contact/
+              - list [ref=f4e22]:
+                - listitem [ref=f4e23]:
+                  - generic [ref=f4e27]:
+                    - generic [ref=f4e28]: 
+                    - heading "(816) 934-5858" [level=4] [ref=f4e32]
+              - list [ref=f4e35]:
+                - listitem [ref=f4e36]:
+                  - generic [ref=f4e40]:
+                    - generic [ref=f4e41]: 
+                    - heading "(417) 614-5848" [level=4] [ref=f4e45]
+          - generic [ref=f4e50]:
+            - navigation [ref=f4e52]:
+              - list [ref=f4e53]:
+                - listitem [ref=f4e54]:
+                  - link "Home" [ref=f4e55] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/
+                - listitem [ref=f4e56]:
+                  - link "Commercial" [ref=f4e57] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/services/commercial-electrician/
+                - listitem [ref=f4e58]:
+                  - link "Residential" [ref=f4e59] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/services/residential-electrician/
+                - listitem [ref=f4e60]:
+                  - link "Electrical Panels" [ref=f4e61] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/services/electrical-panel-upgrades/
+                - listitem [ref=f4e62]:
+                  - link "Electrical Services 3" [ref=f4e63] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/services/
+                - listitem [ref=f4e64]:
+                  - link "About 3" [ref=f4e65] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/about-us/
+                - listitem [ref=f4e66]:
+                  - link "Contact" [ref=f4e67] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/contact-us/
+            - text: a
+        - text: 3 3 a 5 5
+    - generic [ref=f4e68]:
+      - article [ref=f4e70]:
+        - generic [ref=f4e73]:
+          - generic [ref=f4e75]:
+            - generic [ref=f4e78]:
+              - heading "Contact Lightning Electric LLC Today" [level=2] [ref=f4e79]
+              - heading "A Technician can be On-Site Today" [level=4] [ref=f4e80]
+              - heading "Installation, Repair & Maintenance" [level=4] [ref=f4e81]
+              - heading "For 24/7 comprehensive reliable, affordable, electrical services performed by licensed electricians in the Kansas City Area." [level=3] [ref=f4e82]
+              - paragraph [ref=f4e83]: Home | Residential | Commercial | Office | Retail | Multi Family | HOA | Facility Maintenance
+            - generic [ref=f4e84]:
+              - heading "Get a Free Estimate" [level=3] [ref=f4e87]
+              - generic [ref=f4e91]:
+                - generic [ref=f4e93]:
+                  - generic [ref=f4e94]:
+                    - generic [ref=f4e95]:
+                      - text: Name
+                      - generic [ref=f4e96]: "*"
+                    - textbox "Name* Name* Name*" [ref=f4e98]:
+                      - /placeholder: Name
+                  - generic [ref=f4e99]:
+                    - generic [ref=f4e100]: Email
+                    - textbox "Email Email Email" [ref=f4e102]:
+                      - /placeholder: Email
+                  - generic [ref=f4e103]:
+                    - generic [ref=f4e104]: Phone
+                    - textbox "Phone Phone Phone" [ref=f4e106]:
+                      - /placeholder: Phone
+                  - generic [ref=f4e107]:
+                    - generic [ref=f4e108]:
+                      - text: Tell Us About Your Project
+                      - generic [ref=f4e109]: "*"
+                    - textbox "Tell Us About Your Project* Tell Us About Your Project* Tell Us About Your Project*" [ref=f4e111]:
+                      - /placeholder: Tell Us More About Your project
+                - button "SEND NOW" [ref=f4e113] [cursor=pointer]
+          - heading "RESIDENTIAL, COMMERCIAL ELECTRICAL AND LIGHTING" [level=2] [ref=f4e119]
+          - generic [ref=f4e121]:
+            - generic [ref=f4e122]:
+              - heading "Contact Information" [level=1] [ref=f4e125]
+              - paragraph [ref=f4e128]: Contact Information2024 Swift St Suite 102North Kansas City, MISSOURI 64116
+              - link "Call Us Now 5" [ref=f4e130] [cursor=pointer]:
+                - /url: tel:8169345858
+              - generic [ref=f4e132]:
+                - heading "Hours of Service" [level=3] [ref=f4e133]
+                - paragraph [ref=f4e134]: "Monday – Friday: 7:00AM – 5:00PM Saturday – Sunday: By Appointment"
+                - paragraph [ref=f4e135]: Emergency Service Available
+                - paragraph [ref=f4e136]:
+                  - strong [ref=f4e137]: Methods of Payment
+                - paragraph [ref=f4e138]:
+                  - img "Visa payment icon" [ref=f4e139]
+                  - img "Mastercard payment icon" [ref=f4e140]
+                  - img "American Express payment icon" [ref=f4e141]
+                  - img "Cash payment icon" [ref=f4e142]
+                  - img "Check payment icon" [ref=f4e143]
+                  - img "Discover payment icon" [ref=f4e144]
+                  - img "PayPal payment icon" [ref=f4e145]
+                  - img "Debit Card payment icon" [ref=f4e146]
+                  - img "Venmo Icon" [ref=f4e147]
+                  - img "Cash App Icon" [ref=f4e148]
+                - paragraph [ref=f4e149]: Money Transfer Also Accepted
+            - generic [ref=f4e154]:
+              - generic [ref=f4e156]:
+                - generic [ref=f4e157]:
+                  - generic [ref=f4e158]:
+                    - text: Name
+                    - generic [ref=f4e159]: "*"
+                  - textbox "Name" [ref=f4e161]
+                - generic [ref=f4e162]:
+                  - generic [ref=f4e163]: Email
+                  - textbox "Email" [ref=f4e165]
+                - generic [ref=f4e166]:
+                  - generic [ref=f4e167]: Phone
+                  - textbox "Phone" [ref=f4e169]
+                - generic [ref=f4e170]:
+                  - generic [ref=f4e171]:
+                    - text: Tell Us About Your Project
+                    - generic [ref=f4e172]: "*"
+                  - textbox "Tell Us More About Your project" [ref=f4e174]
+              - button "SEND NOW" [ref=f4e176] [cursor=pointer]
+      - contentinfo [ref=f4e177]:
+        - generic [ref=f4e178]:
+          - generic [ref=f4e181]:
+            - heading "Lightning Electric Proudly Serves Missouri & Kansas" [level=2] [ref=f4e184]
+            - list [ref=f4e187]:
+              - listitem [ref=f4e188]:
+                - generic [ref=f4e192]:
+                  - generic [ref=f4e193]: 
+                  - heading [level=4] [ref=f4e197]:
+                    - link "(816) 934-5858" [ref=f4e198] [cursor=pointer]:
+                      - /url: tel:8169345858
+          - generic [ref=f4e203]:
+            - generic [ref=f4e204]:
+              - generic [ref=f4e205]:
+                - img "lightning-logo" [ref=f4e208]
+                - generic [ref=f4e210]:
+                  - paragraph [ref=f4e211]:
+                    - strong [ref=f4e212]: BUSINESS HOURS
+                  - paragraph [ref=f4e213]: "Monday – Friday: 7:00AM – 5:00PM"
+                  - paragraph [ref=f4e214]: "Saturday – Sunday: By Appointment"
+                - list [ref=f4e217]:
+                  - listitem [ref=f4e218]:
+                    - generic [ref=f4e222]:
+                      - generic [ref=f4e223]: 
+                      - heading [level=4] [ref=f4e227]:
+                        - link "(816) 934-5858" [ref=f4e228] [cursor=pointer]:
+                          - /url: tel:8169345858
+                - list [ref=f4e231]:
+                  - listitem [ref=f4e232]:
+                    - generic [ref=f4e236]:
+                      - generic [ref=f4e237]: 
+                      - heading [level=4] [ref=f4e241]:
+                        - link "(417) 614-5848" [ref=f4e242] [cursor=pointer]:
+                          - /url: tel:4176145848
+                - link "Our Service Areas 5" [ref=f4e244] [cursor=pointer]:
+                  - /url: https://lightningelectricllcmo.com/service-areas/
+              - generic [ref=f4e245]:
+                - heading "Our Services" [level=2] [ref=f4e248]
+                - paragraph [ref=f4e251]: Service, Repair & MaintenanceCommercial Outdoor & Exterior Lighting24 Hour Emergency ServiceLighting Control SystemsGround-up Electrical ConstructionTenant Build Outs & ImprovementsParking Lot & Garage LightingNew Construction & RemodelsPanel Replacements & Service Upgrades
+                - link "Read Our Blog 5" [ref=f4e253] [cursor=pointer]:
+                  - /url: https://lightningelectricllcmo.com/about-us/blog/
+              - generic [ref=f4e254]:
+                - heading "Request a Quote" [level=2] [ref=f4e257]
+                - generic [ref=f4e261]:
+                  - generic [ref=f4e263]:
+                    - generic [ref=f4e264]:
+                      - generic [ref=f4e265]:
+                        - text: Name
+                        - generic [ref=f4e266]: "*"
+                      - textbox "Name" [ref=f4e268]
+                    - generic [ref=f4e269]:
+                      - generic [ref=f4e270]: Email
+                      - textbox "Email" [ref=f4e272]
+                    - generic [ref=f4e273]:
+                      - generic [ref=f4e274]: Phone
+                      - textbox "Phone" [ref=f4e276]
+                    - generic [ref=f4e277]:
+                      - generic [ref=f4e278]:
+                        - text: Tell Us About Your Project
+                        - generic [ref=f4e279]: "*"
+                      - textbox "Tell Us More About Your project" [ref=f4e281]
+                  - button "SEND NOW" [ref=f4e283] [cursor=pointer]
+            - paragraph [ref=f4e288]: Fully insured and bonded, Lightning Electric LLC electricians are available on call, 24/7, for emergency repairs when prompt response to any electrical emergency is crucial.
+  - iframe [ref=f4e293]:
+    - generic [ref=f6e6]:
+      - text: protected by
+      - strong [ref=f6e7]: reCAPTCHA

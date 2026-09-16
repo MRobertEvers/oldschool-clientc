@@ -960,6 +960,19 @@ PlatformWindow_SetTextInput(struct PlatformWindow* p, int on)
     PlatformAndroidJni_SetSoftKeyboard(on);
 }
 
+int
+PlatformWindow_HasScreenKeyboard(struct PlatformWindow* p)
+{
+    assert(p);
+    (void)p;
+    /* Always. A phone's only keyboard is the soft one, which is the whole
+     * reason PlatformWindow_SetTextInput has a JNI implementation here at all
+     * -- there is no hardware keyboard to fall back on if this said no. A
+     * device with a physical keyboard attached still has the soft one to
+     * raise, so the answer does not move. */
+    return 1;
+}
+
 void
 PlatformWindow_SetTouchViewport(struct PlatformWindow* p, int x, int y, int w, int h)
 {

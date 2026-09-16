@@ -190,8 +190,8 @@ the player between storeys for the plane pair.
 
 | image | drive | what it shows |
 |---|---|---|
-| `lb-coins-{before,after}` | `60,dropobj coins 2000000` + `spin,0` | **no beam** over two million coins, then an orange one |
-| `gi-maxcash-{before,after}` | `60,dropobj coins 2147483647` + `spin,0`, `ground-items,hide_exceptions,Coins` | `Coins (Lots!) (EX: 2B gp)` in the hidden colour, then `(EX: 2147M gp) (HA: 2147M gp)` in the insane colour, under a pink beam |
+| `lb-coins-{before,after}` | `60,dropobj coins 2000000` (`spin,0` on the before binary only) | **no beam** over two million coins, then an orange one |
+| `gi-maxcash-{before,after}` | `60,dropobj coins 2147483647` (`spin,0` on the before binary only), `ground-items,hide_exceptions,Coins` | `Coins (Lots!) (EX: 2B gp)` in the hidden colour, then `(EX: 2147M gp) (HA: 2147M gp)` in the insane colour, under a pink beam |
 | `lb-upstairs-{before,after}` | `60,tele 1_50_53_10_32;100,dropobj abyssal_tentacle 1;160,tele 0_50_53_10_32` | a beam standing over a pile one storey up, and the log lines below |
 | `lb-otherfloor-{before,after}` | `60,dropobj abyssal_tentacle 1;140,tele 1_50_53_10_32` | the same defect from the other side: the player walks UP and leaves the beam behind |
 

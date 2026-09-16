@@ -118,6 +118,19 @@ struct PorcelainAppliedItem
     struct ToriRS_WidgetRef parent;
     struct ToriRS_WidgetRef anchor_target;
     /*
+     * And WHICH relation was written to it.
+     *
+     * The target alone is not the anchor. A description that keeps the same
+     * target and changes the placement -- a camera that stood INSIDE the
+     * report button while the button painted its own plate, and REPLACES it
+     * on the fence a frame provider hides that plate -- asked for a new
+     * relation against a ref the layer had already written, and the compare
+     * below said there was nothing to do. The control kept OVER for the rest
+     * of the session, so the records the REPLACE was there to consume went on
+     * being drawn: the lane's own caption straight through the camera.
+     */
+    enum ToriRS_WidgetRelation anchor_relation;
+    /*
      * Two boxes, not one. `desired` is what the last describe plus the
      * target's current geometry say the box should be; `live_*` is what was
      * actually written. The direct motion path writes live_* and leaves

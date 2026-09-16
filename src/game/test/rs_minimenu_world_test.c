@@ -1592,7 +1592,7 @@ test_owned_widget_operation_rows(void)
     TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 0,
         "an unarmed owned control offers no rows");
 
-    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 41, "Toggle"),
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 41, 1, "Toggle"),
         "owner arms the control");
     RS_Minimenu_Build(&ctx, 10, 10, &menu);
     TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 1,
@@ -1607,7 +1607,7 @@ test_owned_widget_operation_rows(void)
     TEST_ASSERT(row >= 0 && UITree_MenuPickCurrent(tree, &menu.options[row].pick), "a fresh row is current");
 
     struct UIMinimenuOption retained = menu.options[row >= 0 ? row : 0];
-    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 42, "Toggle"),
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 42, 1, "Toggle"),
         "owner replaces the listener");
     TEST_ASSERT(!UITree_MenuPickCurrent(tree, &retained.pick),
         "replacing the listener retires the retained row");
@@ -1616,12 +1616,47 @@ test_owned_widget_operation_rows(void)
     for( int i = 0; i < menu.option_count; i++ )
         if( menu.options[i].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET ) row = i;
     retained = menu.options[row];
-    UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 0, "");
+    UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 0, 1, "");
     TEST_ASSERT(!UITree_MenuPickCurrent(tree, &retained.pick), "removing the operation retires the retained row");
     RS_Minimenu_Build(&ctx, 10, 10, &menu);
     TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 0, "a disarmed control offers no rows");
 
-    UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 43, "Toggle");
+    UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 43, 1, "Toggle");
+    /*
+     * Two rows on one control, in the order the menu reads them.
+     *
+     * The menu draws bottom-to-top, so the builder walks the slots highest
+     * first and op 1 is added LAST -- which puts it on top, where the
+     * left-click default belongs. A cover over a component offering
+     * "Quick-prayers" and "Setup" must read the way the component it hides
+     * reads, and adding the rows in slot order is what gets that backwards.
+     */
+    UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 43, 2, "Setup");
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 2,
+        "a control with two armed operations offers two rows");
+    {
+        int first = -1, last = -1;
+        for( int i = 0; i < menu.option_count; i++ )
+            if( menu.options[i].action == RS_MINIMENU_ACTION_PLUGIN_WIDGET )
+            {
+                if( first < 0 ) first = i;
+                last = i;
+            }
+        TEST_ASSERT(first >= 0 && strcmp(menu.options[first].text, "Setup") == 0 &&
+                    menu.options[first].action_index == 1,
+            "the higher slot is added first and carries its own op index");
+        TEST_ASSERT(last >= 0 && strcmp(menu.options[last].text, "Toggle") == 0 &&
+                    menu.options[last].action_index == 0,
+            "op 1 is added last, so it is the row on top");
+        TEST_ASSERT(RS_Minimenu_DefaultOptionIndex(&menu) == last,
+            "and the left-click default is op 1, not the last slot armed");
+    }
+    UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 43, 2, "");
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+    TEST_ASSERT(menu_action_count(&menu, RS_MINIMENU_ACTION_PLUGIN_WIDGET) == 1,
+        "clearing one operation leaves the other offering its row");
+
     struct UIMinimenu widget_menu;
     UIMinimenu_Reset(&widget_menu);
     TEST_ASSERT(RS_Minimenu_AddWidgetRows(&ctx, own, &widget_menu) == 1 &&
@@ -1666,7 +1701,7 @@ test_owned_widget_row_over_native_button(void)
     int native = UITree_Push(tree, root, &button);
     int own = UITree_WidgetCreateText(tree, UITree_RefAt(tree, root), 3, "cover", 0);
     TEST_ASSERT(root >= 0 && native >= 0 && own >= 0, "cover fixture pushed");
-    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 51, "Owned"), "cover armed");
+    TEST_ASSERT(UITree_WidgetSetOperation(tree, UITree_RefAt(tree, own), 3, 51, 1, "Owned"), "cover armed");
     UITree_LayoutResolve(tree, 0, 0, 400, 300);
     RS_Minimenu_Build(&ctx, 10, 10, &menu);
     for( int i = 0; i < menu.option_count; i++ )

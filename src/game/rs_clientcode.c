@@ -75,7 +75,6 @@ friends_row_tick(
     struct RS_Social const* social,
     int client_code)
 {
-    struct UITreeComponent* c = &tree->components[idx];
     int changed = 0;
     int count = social->server_status == RS_SOCIAL_SERVER_CONNECTED ? social->friend_count : 0;
 
@@ -117,7 +116,6 @@ friends_world_row_tick(
     struct RS_Social const* social,
     int client_code)
 {
-    struct UITreeComponent* c = &tree->components[idx];
     int changed = 0;
     int count = social->server_status == RS_SOCIAL_SERVER_CONNECTED ? social->friend_count : 0;
     int row = client_code > 800 ? client_code - RS_CC_FRIENDS2_UPDATE_START
@@ -152,7 +150,6 @@ ignores_row_tick(
     struct RS_Social const* social,
     int client_code)
 {
-    struct UITreeComponent* c = &tree->components[idx];
     int changed = 0;
     int row = client_code - RS_CC_IGNORES_START;
 
@@ -520,13 +517,12 @@ RS_ClientCode_Button(
         /*
          * "Click here to logout".
          *
-         * The reference arms logoutTimer=250 and waits for the server's own
-         * LOGOUT packet to end the session. That wait only works against a
-         * server whose content answers the button; this one is asked either
-         * way, and the client ends the session itself once the request is on
-         * the wire -- which is what the deferral is for. Returning 1 is what
-         * sends it: the caller notifies the server with IF_BUTTON after this
-         * returns, and the logout is performed a tick later, behind it.
+         * Asks; does not leave. Returning 1 is what sends the request -- the
+         * caller notifies the server with IF_BUTTON after this returns -- and
+         * the tick behind it arms the wait for the server's answer, the
+         * reference's logoutTimer=250. Until that answer lands the player is
+         * still in the world, which is the point: only the server knows
+         * whether they are allowed out of it yet. @see app_logout_tick.
          */
         app->logout_requested = 1;
         return 1;

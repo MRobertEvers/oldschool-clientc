@@ -308,7 +308,19 @@ button { font-weight: 700; }
 .tpc-tabs button { height: 20px; min-width: 12px; padding: 0 5px; border: 0; border-right: 1px solid var(--tpc-inset); background: var(--tpc-deep); color: var(--tpc-label); }
 .tpc-tabs button[aria-selected="true"] { color: var(--tpc-text); box-shadow: inset 0 -2px var(--tpc-accent); }
 
-.tpc-content { -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-height: 0; padding: 6px; overflow: auto; }
+/*
+ * Scrolls DOWN only, exactly as .tpc-rail-list does.
+ *
+ * `overflow: auto` reserved a horizontal bar the moment any row refused to
+ * shrink into the column the vertical bar had just narrowed -- and the
+ * ::-webkit-scrollbar rules below dress a VERTICAL bar, so what the page got
+ * was a 16px black strip under the last row with one track tile at its end and
+ * no grip at all. Nothing on a settings page is addressed sideways (a custom
+ * well is laid out to this box's content width, not past it), so a row that
+ * still will not fit is clipped rather than given furniture that does not
+ * work.
+ */
+.tpc-content { -webkit-box-flex: 1; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-height: 0; padding: 6px; overflow-x: hidden; overflow-y: auto; }
 .tpc-pane.tpc-no-tabs .tpc-content { padding-top: 4px; }
 .tpc-pane:not(.tpc-no-tabs) .tpc-content { padding-top: 0; }
 .tpc-row { display: -webkit-box; display: -webkit-flex; display: flex; align-items: center; min-height: 18px; margin-bottom: 3px; color: #fff; color: var(--tpc-text); }
@@ -514,7 +526,13 @@ button { font-weight: 700; }
 .tpc-model { width: 100%; min-height: 100px; border: 1px solid #474745; border-color: var(--tpc-inset); background: #372e22; color: #ff981f; color: var(--tpc-label); text-align: center; }
 .tpc-custom { position: relative; display: block; width: auto; min-height: 48px; border: 1px solid var(--tpc-inset); box-sizing: content-box; background: #372e22; overflow: hidden; touch-action: none; }
 .tpc-custom img, .tpc-custom canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
-.tpc-color { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-flex: 1 1 auto; flex: 1 1 auto; }
+/* `min-width: 0` for the same reason `.tpc-row > input` carries it: a flex
+ * item's automatic minimum is its MIN-CONTENT, so this wrapper held the
+ * swatch's 42px plus the field's default 20-character width -- 202px inside a
+ * 182px column -- and pushed its row 20px past the content box. One row doing
+ * that is the whole of the horizontal scrollbar that appeared under the page,
+ * and the colour row was the only one of the twenty control kinds that did. */
+.tpc-color { display: -webkit-box; display: -webkit-flex; display: flex; -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0; }
 .tpc-color > * + * { margin-left: 5px; }
 .tpc-color input[type="color"] { flex: 0 0 42px; }
 .tpc-color input[type="text"] { flex: 1 1 auto; min-width: 0; }

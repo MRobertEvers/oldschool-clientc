@@ -441,6 +441,26 @@ struct ToriRSServerNpcDef
      */
     int retaliate;
     /**
+     * `forcemulti=yes`: this npc fights by multi-combat rules wherever it
+     * stands, whatever `maps/multiway.csv` says about the zone.
+     *
+     * The reference's own escape hatch — `player_combat.rs2` and
+     * `npc_combat.rs2` both open with `if (map_multiway(npc_coord) = false &
+     * nc_param(npc_type, npc_forcemulti) = ^false)` before refusing a second
+     * attacker, so the zone set is only half the gate.
+     *
+     * It is not a convenience. `maps/multiway.csv` is ported verbatim from the
+     * reference, which means it describes the multi-combat geography of 2004:
+     * the wilderness and a handful of dungeons. Every encounter this tree has
+     * that OldSchool made multi-combat afterwards — God Wars, the Inferno, the
+     * Chambers, the Theatre, the Tombs, the Fight Caves — is in a zone that
+     * file has never heard of, and without a per-npc override enforcing
+     * single-way would lock a player to the first add that swung at them and
+     * make every one of those fights unwinnable. Default no, so the rule still
+     * applies to everything the zone set does describe.
+     */
+    int forcemulti;
+    /**
      * Which healthbar config this npc's hits raise, `-1` for none.
      *
      * The reference's headbar update mask carries a healthbar id, and a bar

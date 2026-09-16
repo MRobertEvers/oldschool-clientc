@@ -2368,6 +2368,18 @@ PlatformWindow_SetTextInput(struct PlatformWindow* p, int on)
     (void)on;
 }
 
+int
+PlatformWindow_HasScreenKeyboard(struct PlatformWindow* p)
+{
+    (void)p;
+    /* Never. This backend has no soft keyboard to raise, which is exactly why
+     * the call above is a no-op; a chrome that offers a KEYS switch here would
+     * be offering a button whose only implementation does nothing. Windows has
+     * an on-screen keyboard of its own, but it belongs to the shell and no
+     * application switch puts it away again. */
+    return 0;
+}
+
 void
 PlatformWindow_SetTouchViewport(struct PlatformWindow* p, int x, int y, int w, int h)
 {

@@ -676,6 +676,9 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
             raise ValueError("rs289lc requires its matching native trace")
         check_rs289(rows, Path(bounds_path).read_text(), failures, rs289_scenario, frame, public_chat_mode, report_replaced)
         return failures
+    # The seated chat pack's box, read once: both classic-fixed rules below are
+    # stated against its right edge rather than against a column of the frame.
+    pack = None
     if frame == "gameframe-layout/classic-fixed" and root != 601:
         # The 2004 filter band -- rows 467..498, where the four dat1 recesses
         # are cut -- must be BEHIND the lane's chat pack, not beside it.
@@ -697,7 +700,6 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
         # left of the frame's chat hole, reach at least to where `backbase1`
         # ends, begin above the band and end at or below it. Pixels cannot
         # tell "covered by the pack" from "painted to look like the pack".
-        pack = None
         if bounds_path:
             match = re.search(r"BOUNDS[^\n]*\(162\|0\)[^\n]*abs=(-?\d+),(-?\d+) (\d+)x(\d+)",
                               Path(bounds_path).read_text())
@@ -714,15 +716,34 @@ def check(path, frame, root, bounds_path=None, minimap_state=None, server_hide=N
             failures.append("no_captionless_2004_hollows")
     if frame == "gameframe-layout/classic-fixed":
         if root != 601:
-            # Approved running-client crop. The pre-fix 519-wide parchment
-            # covered 40 columns of the old rail; its surviving right edge
-            # does not match this complete re-cut border.
-            fixture = Path(__file__).parent / "testdata/gameframe/classic-chat-rail.bmp"
-            rw, rh, expected = read_bmp(fixture)
-            valid = width >= 536 + rw and height >= 357 + rh
+            # The band's right RAIL: every column between the pack's right edge
+            # and the end of the chat band, against the shipped `backvmid3` it
+            # is cut from, one source column to one screen column.
+            #
+            # Said against the ART and against the PACK, not against an
+            # approved crop at a fixed x. The crop this replaces was taken when
+            # the rail was subsampled from 57 columns to 17 and blitted at a
+            # constant 536, and it outlived both: the cut became a crop, then
+            # the pack was seated on the lane's own stone at 526 and the rail
+            # stayed at 536 -- ten columns owned by nobody, which is the dark
+            # slot beside the chat with a stray strip of sheet past it. A
+            # fixture at one x cannot tell that from a re-cut it has not been
+            # re-approved for; the pack's edge and the band's end can.
+            fixture = Path(__file__).parent / "testdata/gameframe/classic-backvmid3.bmp"
+            rw, rh, art = read_bmp(fixture)
+            band_w, rail_y = 553, 357
+            seam = cut = 0
+            valid = pack is not None
+            detail = "no chat pack in the trace"
             if valid:
-                valid = all(rows[357 + y][536:536 + rw] == expected[y] for y in range(rh))
-            print(f"PIXEL chat_inside_complete_surround={'PASS' if valid else 'FAIL'} root={root}")
+                seam = pack[0] + pack[2]
+                cut = band_w - seam
+                detail = f"seam={seam} cut={cut}"
+                valid = 0 < cut <= rw and width >= band_w and height >= rail_y + rh
+            if valid:
+                valid = all(rows[rail_y + y][seam:band_w] == art[y][:cut] for y in range(rh))
+            print(f"PIXEL chat_inside_complete_surround={'PASS' if valid else 'FAIL'} "
+                  f"root={root} {detail}")
             if not valid:
                 failures.append("chat_inside_complete_surround")
     if native_focus_hide:

@@ -462,6 +462,30 @@ void
 PlatformWindow_SetTextInput(struct PlatformWindow* platform, int on);
 
 /**
+ * Does this device have an ON-SCREEN keyboard -- one the client can raise, and
+ * therefore one a person can be offered a switch for?
+ *
+ * The other half of PlatformWindow_SetTextInput, and the same question its
+ * `off` arm already asks itself privately: SDL answers "is there a keyboard to
+ * put away", Android's only keyboard is the soft one, and a desktop has none.
+ * That answer decided whether an OFF was honoured and went no further, so
+ * nothing above the platform seam could see it -- and a frame that wanted to
+ * offer a KEY switch had no way to ask whether the keys existed. It does now.
+ *
+ * This is a fact about the DEVICE and not about input policy. `touch` (@see
+ * App::touch_ui) is a policy the player and the login clienttype can both
+ * move, and TORIRS_TOUCH_UI=1 turns it on over a desk; neither conjures a soft
+ * keyboard. A chrome that asks the wrong one of the two offers a button that
+ * cannot work.
+ *
+ * Constant for the life of the window, so a caller may read it once.
+ *
+ * @return 1 when the platform can raise and lower a soft keyboard, 0 otherwise.
+ */
+int
+PlatformWindow_HasScreenKeyboard(struct PlatformWindow* platform);
+
+/**
  * Where the 3D world sits on the canvas, for the touch gesture policy.
  *
  * A one-finger drag that begins inside this box turns the camera instead of

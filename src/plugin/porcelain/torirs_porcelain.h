@@ -492,6 +492,11 @@ void Porcelain_Frame(struct Porcelain* porcelain, char const* offer_id, int canv
                      int min_width, int min_height, PorcelainDescribeFn fn, void* user);
 int Porcelain_FrameEvent(struct Porcelain* porcelain,
                          struct ToriRS_GameframeEvent const* event);
+/** The TORIRS_FRAME_NATIVE answer: the lane's own chrome is the offer, so the
+ *  description stages nothing and every retained edit comes off. Asked after
+ *  frame.native_layout_select answered OK. @see ToriRS_PorcelainApi. */
+int Porcelain_FrameNative(struct Porcelain* porcelain,
+                          struct ToriRS_GameframeEvent const* event);
 bool Porcelain_Usable(struct Porcelain* porcelain, struct ToriRS_WidgetBounds* out);
 bool Porcelain_NativeSize(struct Porcelain* porcelain, struct PorcelainElement element,
                           struct ToriRS_WidgetBounds* out);

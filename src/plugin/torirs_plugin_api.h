@@ -160,12 +160,34 @@ enum ToriRS_FrameCanvas
     TORIRS_FRAME_CANVAS_WINDOW,
 };
 
+/**
+ * A frame provider's answer to on_gameframe.
+ *
+ * READY        the provider's retained widget edits ARE the frame; the host
+ *              suppresses the lane's own chrome under them.
+ * PENDING      ask again next fence: roles have not bound, art is in flight.
+ *              The lane's chrome stays up meanwhile.
+ * UNSUPPORTED  this lane cannot take the frame; the resolver falls back to
+ *              the lane's chrome and reports the provider's reason.
+ * ERROR        the provider faulted; treated as UNSUPPORTED with a stock reason.
+ * NATIVE       the lane's own chrome IS this frame. A provider answers it on a
+ *              lane that authors the frame it was asked for as one of its own
+ *              top-level chromes -- an OldSchool cache's resizable, say -- after
+ *              asking the lane for it through frame.native_layout_select.
+ *              Nothing is provided: the lane's chrome stays up, its canvas
+ *              policy stands, the provider is not re-asked on a canvas change,
+ *              and the offer is reported ACTIVE under its own id. The provider
+ *              must stage nothing on this answer (Porcelain_FrameNative does
+ *              exactly that), since the host takes the retained edits of a
+ *              previous provision off through the release it raises.
+ */
 enum ToriRS_FrameBuildResult
 {
     TORIRS_FRAME_READY = 0,
     TORIRS_FRAME_PENDING,
     TORIRS_FRAME_UNSUPPORTED,
     TORIRS_FRAME_ERROR,
+    TORIRS_FRAME_NATIVE,
 };
 
 enum ToriRS_FrameStatus
@@ -347,6 +369,32 @@ struct ToriRS_FrameSelection
 
 #define TORIRS_FRAME_SELECTION_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))
 
+/**
+ * The NATIVE top-level chrome a lane is wearing, for a frame that arranges
+ * over one.
+ *
+ * A provided frame does not replace the lane's top level -- it stands on it,
+ * and the lane's own node numbering, surface sizes and mount points differ per
+ * root. So "which root is this" is a question every provider on such a lane
+ * has, and `native_layout_select` is how one that computes badly over the
+ * wrong root asks for the right one instead of laying out over it anyway.
+ *
+ * The first three are the lane's own domain -- the values its Display panel,
+ * its wire and its server content all count in. MOBILE is a fourth ROOT and
+ * not a fourth choice: a lane opens it because the session said phone, and
+ * nothing offers a way in or out of it, so `native_layout_select` refuses it.
+ * It is reported rather than hidden behind UNKNOWN so that a provider cannot
+ * read "the phone frame" as "no answer" and ask a phone for a desk's chrome.
+ */
+enum ToriRS_NativeLayout
+{
+    TORIRS_NATIVE_LAYOUT_UNKNOWN = -1,
+    TORIRS_NATIVE_LAYOUT_FIXED = 0,
+    TORIRS_NATIVE_LAYOUT_RESIZABLE_CLASSIC = 1,
+    TORIRS_NATIVE_LAYOUT_RESIZABLE_MODERN = 2,
+    TORIRS_NATIVE_LAYOUT_MOBILE = 3,
+};
+
 /* ------------------------------------------------------------------------ */
 /* Panel builder                                                            */
 /* ------------------------------------------------------------------------ */
@@ -482,6 +530,14 @@ struct ToriRS_CoreApi
      * Query a host/platform/engine fact by stable name. Defined names are:
      *
      * - `touch`: the application is currently using touch UI/input policy;
+     * - `input.screen_keyboard`: this DEVICE can raise and lower an on-screen
+     *   keyboard. Distinct from `touch`, and a chrome that offers a keyboard
+     *   switch wants this one: `touch` is a policy the login clienttype and
+     *   TORIRS_TOUCH_UI can both move, so a desk can be running it, and a desk
+     *   has no keys to summon. Answered by the platform backend
+     *   (SDL_HasScreenKeyboardSupport, yes on Android, no on win32gdi) and
+     *   constant for the life of the window, so it may be read once at
+     *   on_start;
      * - `web`: this is the Emscripten web lane;
      * - `browser`: this build supports the embedded BROWSER chrome transport;
      * - `widgets.geometry`: the widget API reports live geometry;
@@ -648,7 +704,44 @@ struct ToriRS_FrameApi
         int* out_y,
         int* out_width,
         int* out_height);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 2])(void);
+    /** Which native top-level chrome the lane is wearing right now
+     *  (enum ToriRS_NativeLayout), UNKNOWN on a lane that has no such choice
+     *  and between a request and the remount that answers it. Read it at a
+     *  fence and plan against it; it is the root a provided frame stands on. */
+    int (*native_layout)(struct ToriRS_Api* api);
+    /**
+     * Ask the lane for one of its native top-level chromes.
+     *
+     * For the provider that computes badly over the root it was handed: a
+     * layout authored against the fixed root's numbering standing on a
+     * resizable one, a frame whose surfaces have no members where it expects
+     * them. Asking for the root the frame is FOR is better than arranging over
+     * the wrong one, and it is a request a player could make -- the host
+     * performs it the way the lane's own settings row does, which on a served
+     * lane means the server remounts and every panel and op is re-mounted with
+     * it. Nothing is claimed, hidden or moved by this call.
+     *
+     * Allowed from a player's own action and from on_gameframe, where the
+     * frame's shape is being decided -- the same gate `cache.tab_select`
+     * carries, and for the same reason.
+     *
+     * TORIRS_RESULT_OK means the lane has been asked, INCLUDING when it is
+     * already wearing that chrome; it does NOT mean the root has changed yet.
+     * The remount is several server ticks away and arrives as a new
+     * `frame_root`, so a provider treats it as it treats any other remount:
+     * describe nothing this pass, and plan against the tree that is there
+     * next. Asking on every layout pass is expected and costs one request,
+     * not one per pass.
+     *
+     * TORIRS_RESULT_UNSUPPORTED when this lane cannot be asked -- a lane with
+     * no such chrome, no session to ask, or a root nothing offers a way out of
+     * (MOBILE). TORIRS_RESULT_INVALID for a layout outside the three the
+     * selector offers.
+     */
+    enum ToriRS_Result (*native_layout_select)(
+        struct ToriRS_Api* api,
+        int layout);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 4])(void);
 };
 
 /* The pixels themselves are emitted through ToriRS_Graphics. This module
@@ -1231,9 +1324,14 @@ struct PorcelainElementState
     bool own_hidden;
     /** The engine's native suppression. */
     bool native_hidden;
+    /** @see ToriRS_WidgetState::input_present -- the LANE's answer, with the
+     * plugin layer's own hiding left out of it. */
     bool input_present;
     /** A CHANGE token, never an identity. */
     uint32_t graphic_token;
+    /** @see ToriRS_WidgetState::paints_own_art -- this element or something
+     * below it paints a picture, which is what a REPLACE of it consumes. */
+    bool paints_own_art;
     uint64_t text_hash;
     /** Lane-derived facets. Zero from every adapter that has not filled them. */
     uint32_t facets;
@@ -2205,6 +2303,16 @@ struct ToriRS_PorcelainApi
     int (*frame_event)(struct Porcelain* porcelain,
                        struct ToriRS_GameframeEvent const* event);
 
+    /** The plugin answering its on_gameframe with TORIRS_FRAME_NATIVE: the
+     *  lane's own chrome is the frame it was asked for, so the description
+     *  stages nothing. Runs the same empty describe a release runs -- every
+     *  move, hide, skin and owned control of a previous provision comes off
+     *  -- fences it, drops the claims and returns TORIRS_FRAME_NATIVE. Asked
+     *  AFTER frame.native_layout_select has been answered OK; a provider that
+     *  could not ask the lane has an ordinary description to run instead. */
+    int (*frame_native)(struct Porcelain* porcelain,
+                        struct ToriRS_GameframeEvent const* event);
+
     /** The canvas a frame may lay out in: the frame root's box, less a
      *  LANE_CHROME strip that is PRESENTED and spans a full edge. False
      *  before anything of this lane has bound. */
@@ -2247,7 +2355,8 @@ struct ToriRS_PorcelainApi
     void (*counters_read)(struct Porcelain* porcelain, struct PorcelainCounters* out);
     void (*counters_reset)(struct Porcelain* porcelain);
 
-    TORIRS_API_V2_MODULE_RESERVED;
+    /* One slot fewer: frame_native took it. */
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 1])(void);
 };
 
 /* The coordinated major-3 migration may change this aggregate. */

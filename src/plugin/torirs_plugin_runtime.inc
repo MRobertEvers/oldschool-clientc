@@ -703,6 +703,30 @@ v2_frame_surface_member_native_box(
                out_height) != 0;
 }
 
+static int
+v2_frame_native_layout(struct ToriRS_Api* api)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+
+    return api_native_layout(runtime->context);
+}
+
+static enum ToriRS_Result
+v2_frame_native_layout_select(
+    struct ToriRS_Api* api,
+    int layout)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+
+    /* The three the lane's own selector offers. MOBILE is a root and not a
+     * choice, so asking for it is a plugin's mistake and not a lane's
+     * limitation -- INVALID, not UNSUPPORTED. */
+    if( layout < TORIRS_NATIVE_LAYOUT_FIXED || layout > TORIRS_NATIVE_LAYOUT_RESIZABLE_MODERN )
+        return TORIRS_RESULT_INVALID;
+    return api_native_layout_select(runtime->context, layout) ? TORIRS_RESULT_OK
+                                                             : TORIRS_RESULT_UNSUPPORTED;
+}
+
 static bool
 v2_draw_project(
     struct ToriRS_Api* api,
@@ -2977,8 +3001,27 @@ static enum ToriRS_ContractResult widget_text_align(void* u, struct ToriRS_Widge
     struct PluginWidgetRequest r={.kind=PLUGIN_WIDGET_TEXT_ALIGN,.ref=ref,.a=h,.b=v};
     return plugin_widget_request(u,&r);
 }
+/*
+ * Arm or clear ONE of an owned control's menu operations.
+ *
+ * The table is keyed by CONTROL and not by op: a control has one listener
+ * however many rows it offers -- the way one [if_button] handler answers for
+ * every op of a cache component -- and one registration serial, which is what
+ * the native retained row carries back. `armed` says which of its op slots
+ * currently hold a label. So a second op on a control already in the table
+ * costs no slot, and clearing one op leaves the control armed until its last
+ * row goes.
+ *
+ * Every ARMING mints a fresh registration, as it always did: that is what
+ * retires the retained rows built before it, and it costs the control's other
+ * rows nothing -- the tree keeps one `plugin_op_serial` per component, the
+ * host's record moves with it, and both rows go on dispatching under the new
+ * one. A CLEAR keeps the registration while any row is left, because the rows
+ * that remain are still the same offer; the host refuses the cleared op from
+ * its armed mask. The last row out takes the registration with it.
+ */
 static enum ToriRS_ContractResult widget_set_on_op(void* u,struct ToriRS_WidgetRef ref,
-    char const* label,ToriRS_WidgetListener listener,void* user)
+    int op,char const* label,ToriRS_WidgetListener listener,void* user)
 {
     struct PluginV2Runtime* runtime=u;
     struct PluginContext* ctx=runtime ? runtime->context : NULL;
@@ -2986,6 +3029,7 @@ static enum ToriRS_ContractResult widget_set_on_op(void* u,struct ToriRS_WidgetR
         plugin_ev_is_draw(ctx->host->dispatch_event) ) return TORIRS_CONTRACT_WRONG_CONTEXT;
     /* Teardown already dropped the registrations and resets the owned widgets. */
     if( ctx->tearing_down ) return listener ? TORIRS_CONTRACT_WRONG_CONTEXT : TORIRS_CONTRACT_OK;
+    if( op<1 || op>TORIRS_WIDGET_OP_SLOTS ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
     if( listener && (!label || !*label || strlen(label)>=TORIRS_WIDGET_OP_LABEL_MAX) )
         return TORIRS_CONTRACT_INVALID_ARGUMENT;
     if( !ctx->host->engine.widget_request ) return TORIRS_CONTRACT_UNAVAILABLE;
@@ -2997,16 +3041,15 @@ static enum ToriRS_ContractResult widget_set_on_op(void* u,struct ToriRS_WidgetR
         assert(ctx->widget_ops);
     }
     int slot=-1;
+    bool matched=false;
     for( int i=0;i<PLUGIN_WIDGET_OP_MAX;++i )
     {
-        if( ctx->widget_ops[i].serial && ToriRS_WidgetRefEqual(ctx->widget_ops[i].widget,ref) ) { slot=i;break; }
-        if( slot<0 && !ctx->widget_ops[i].serial ) slot=i;
+        if( ctx->widget_ops[i].armed && ToriRS_WidgetRefEqual(ctx->widget_ops[i].widget,ref) )
+        { slot=i;matched=true;break; }
+        if( slot<0 && !ctx->widget_ops[i].armed ) slot=i;
     }
-    if( slot<0 || ctx->widget_ops[slot].serial==0 )
-    {
-        /* Removing an operation that was never armed changes nothing. */
-        if( !listener ) return TORIRS_CONTRACT_OK;
-    }
+    /* Removing an operation from a control that has none changes nothing. */
+    if( !matched && !listener ) return TORIRS_CONTRACT_OK;
     if( slot<0 )
     {
         /* Every slot is armed: reclaim one whose widget no longer exists.
@@ -3018,19 +3061,29 @@ static enum ToriRS_ContractResult widget_set_on_op(void* u,struct ToriRS_WidgetR
         }
     }
     if( slot<0 ) return TORIRS_CONTRACT_BUDGET_EXCEEDED;
-    uint64_t serial=listener ? ++ctx->host->widget_watch_serial : 0;
+    struct PluginWidgetOp const previous=matched ? ctx->widget_ops[slot] : (struct PluginWidgetOp){0};
+    uint32_t const bit=1u<<(op-1);
+    uint32_t const armed=listener ? (previous.armed|bit) : (previous.armed&~bit);
+    /* A clear never changes the listener: it is the same control answering
+     * for one row fewer. */
+    ToriRS_WidgetListener const next_listener=listener ? listener : previous.listener;
+    void* const next_user=listener ? user : previous.user;
+    uint64_t serial;
+    if( !armed ) serial=0;
+    else if( listener ) serial=++ctx->host->widget_watch_serial;
+    else serial=previous.serial;
     struct PluginWidgetRequest request={.kind=PLUGIN_WIDGET_SET_ON_OP,.ref=ref,
-        .name=listener ? label : "",.registration=serial};
+        .name=listener ? label : "",.registration=serial,.op=op};
     enum ToriRS_ContractResult result=plugin_widget_request(u,&request);
     if( result!=TORIRS_CONTRACT_OK )
     {
         /* A registration whose widget vanished is dead either way. */
-        if( result==TORIRS_CONTRACT_STALE_REFERENCE && ctx->widget_ops[slot].serial )
+        if( result==TORIRS_CONTRACT_STALE_REFERENCE && matched )
             ctx->widget_ops[slot]=(struct PluginWidgetOp){0};
         return result;
     }
-    ctx->widget_ops[slot]=listener ? (struct PluginWidgetOp){ref,serial,listener,user}
-                                   : (struct PluginWidgetOp){0};
+    ctx->widget_ops[slot]= armed ? (struct PluginWidgetOp){ref,serial,armed,next_listener,next_user}
+                                 : (struct PluginWidgetOp){0};
     return TORIRS_CONTRACT_OK;
 }
 static enum ToriRS_ContractResult widget_create_image(void* u, struct ToriRS_WidgetRef parent, char const* key, struct ToriRS_WidgetRef* out)
@@ -3285,6 +3338,8 @@ v2_runtime_init(
             .invalidate = v2_frame_invalidate,
             .surface_native_size = v2_frame_surface_native_size,
             .surface_member_native_box = v2_frame_surface_member_native_box,
+            .native_layout = v2_frame_native_layout,
+            .native_layout_select = v2_frame_native_layout_select,
         },
         .draw = {
             .struct_size = sizeof(runtime->api.draw),

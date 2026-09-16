@@ -2527,6 +2527,17 @@ PlatformWindow_SetTextInput(struct PlatformWindow* platform, int on)
         SDL_StopTextInput();
 }
 
+int
+PlatformWindow_HasScreenKeyboard(struct PlatformWindow* platform)
+{
+    assert(platform);
+    (void)platform;
+    /* The same question the `off` arm above asks itself, answered out loud.
+     * SDL knows it per backend -- Android and iOS yes, emscripten in a mobile
+     * browser yes, a desktop no -- so there is nothing here to keep in step. */
+    return SDL_HasScreenKeyboardSupport() ? 1 : 0;
+}
+
 void
 PlatformWindow_SetTouchViewport(struct PlatformWindow* p, int x, int y, int w, int h)
 {
@@ -2686,6 +2697,7 @@ PlatformWindow_MapMouse(
     *out_y = y;
 }
 
+#if !defined(__APPLE__)
 static void
 chrome_region_point_to_pixel(
     struct PlatformWindow const* platform,
@@ -3036,6 +3048,7 @@ sdl_chrome_event(struct PlatformWindow* platform, SDL_Event const* event)
         return false;
     }
 }
+#endif
 
 void
 PlatformWindow_PollCommands(
@@ -3299,6 +3312,7 @@ PlatformWindow_SetPresentDamage(
      * (SDL_UpdateTexture sub-rects) and the win is not the same one. Ignoring
      * it presents more than asked, which is always correct. */
     assert(platform);
+    (void)platform;
     (void)x;
     (void)y;
     (void)w;
@@ -3313,6 +3327,7 @@ PlatformWindow_SetPresentDamageRects(
 {
     /* Accepted and ignored, for the same reason as the box above. */
     assert(platform);
+    (void)platform;
     (void)rects;
     (void)count;
 }

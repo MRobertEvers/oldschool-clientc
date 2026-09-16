@@ -307,6 +307,11 @@ enum FrameLayout
 #define FRAME_C_TAB_CELL_W 28
 #define FRAME_C_TAB_CELL_H 37
 #define FRAME_C_TAB_CAP 6
+/* The 2004 strip is cut from three cells -- an END, an INTERIOR one and the
+ * one WIDE one -- and every tab in both rows stands under one of them, flipped
+ * for the half of the strip it is in. @see the TAB table in
+ * frame_layout_classic_fixed. */
+#define FRAME_C_STONE_COUNT 3
 /** Seven stones to a row, which is what makes the fourteen two rows. */
 #define FRAME_C_TAB_ROW 7
 /*
@@ -1071,11 +1076,12 @@ struct FrameState
      *  two and not one because the bands light their hollows from opposite
      *  sides, so neither row is the other flipped. @see frame_tab_band. */
     struct FrameSized tab_band[2];
-    /** The lit stone, re-cut to the tab's box. TWO, for the same reason the
-     *  bands are two: the rows light their hollows from opposite sides, so
-     *  the bottom row's stone is the top row's mirrored. @see
-     *  frame_tab_stone. */
-    struct FrameSized tab_stone[2];
+    /** The lit stone, re-cut to the tab's box: one per 2004 cell and per
+     *  mirroring, because WHICH of the three a tab wears and which way round
+     *  is a fact about that tab and not about the row. Indexed
+     *  [stone][mirror_x][mirror_y]; ten of the twelve are ever composed.
+     *  @see frame_tab_stone. */
+    struct FrameSized tab_stone[FRAME_C_STONE_COUNT][2][2];
     struct FramePlan plan;
     /** The plan is applied and the host has our answer READY. */
     int provided;
@@ -1168,6 +1174,17 @@ struct FrameState
     /* The last plan line logged, so a PENDING re-ask every fence stays quiet. */
     int logged_layout;
     int logged_pending;
+    /*
+     * The lane's own chrome this offer was answered NATIVE with, or -1.
+     *
+     * Kept apart from `layout`, which is the layout this plugin is DESCRIBING:
+     * a NATIVE answer describes nothing, and every per-frame path that reads
+     * `layout` is a path over a provided frame. Logged once per chrome and
+     * once per refusal (@see frame_native_ask), because the ask is repeated
+     * on every selection and every login.
+     */
+    int native_answered;
+    int native_refused;
 };
 
 /** Defined at the foot of this file; Porcelain_Open names it at on_start. */
@@ -2873,46 +2890,41 @@ frame_tab_band_art(
 /*
  * One column of a re-cut stone: which source column an output column shows.
  *
- * A three-slice read from the MIDDLE OUT, which is a FOLD, and the fold is the
- * answer to a row of identical tabs. A 2004 cell is lit from one side --
- * `classic_redstone2`'s floor runs from a shadow at its left edge to its
- * brightest columns at the right -- because the 2004 strip's cells mirror
- * about the strip's middle and each one is cut for the side it stands on. A
- * grid of fourteen equal boxes has no middle to mirror about, so there is no
- * side for a one-sided picture to be on: laid at all fourteen it is the same
- * lopsided stone fourteen times, which is the regression this fixes. Folding
- * the source about the OUTPUT's centre answers it with one picture -- the
- * source's outer columns at both edges of the stone and its middle at the
- * stone's middle -- and a stone symmetric about its own centre is right at
- * every one of the fourteen.
+ * A plain three-slice, the chat recess's: the outermost FRAME_C_TAB_CAP
+ * columns copied one to one so the bevel survives at whatever width the tab
+ * has, and the floor between them resampled.
  *
- * `d` is the distance from the nearer edge, and the mapping of it is the chat
- * recess's: the outermost FRAME_C_TAB_CAP columns copied one to one so the
- * bevel survives at whatever width the tab has, and the half-floor inside them
- * resampled. `t` therefore counts IN from an edge, and the outer end of the
- * source is its right one.
+ * It does NOT fold the source about the output's centre, and the difference is
+ * the whole of what a 2004 stone is. Each of the three is lit from one side --
+ * `classic_redstone2`'s floor runs from a shadow at its left edge to its
+ * brightest columns at the right -- because the strip's cells mirror about the
+ * strip's middle, and which side a cell is lit from is a fact about WHICH TAB
+ * it stands under. Folding answers that by throwing the lighting away: it
+ * makes one stone symmetric about its own centre, correct for no tab in
+ * particular and identical under all fourteen, which is what "every button
+ * wears the same redstone" looked like on screen. The side is carried instead,
+ * by `mirror_x` at the call, off the 2004 table's own flip column.
+ *
+ * @see frame_tab_stone, whose table says which of the three and which way
+ *      round each of the fourteen wears.
  */
 static int
 frame_tab_stone_column(int x, int width, int src_w)
 {
-    int const half = (width + 1) / 2;
-    int const run = src_w - (src_w / 2);
-    int const d = x < width - 1 - x ? x : width - 1 - x;
-    int t;
-
     assert(x >= 0);
     assert(x < width);
     assert(src_w > 0);
     /* A run with no floor between its two caps has nothing to resample, and
      * the clamp is the picture's own last column rather than a read past it. */
-    if( half <= FRAME_C_TAB_CAP + 1 || run <= FRAME_C_TAB_CAP + 1 )
-        return d < src_w ? src_w - 1 - d : 0;
-    if( d < FRAME_C_TAB_CAP )
-        t = d;
-    else
-        t = FRAME_C_TAB_CAP +
-            (d - FRAME_C_TAB_CAP) * (run - 1 - FRAME_C_TAB_CAP) / (half - 1 - FRAME_C_TAB_CAP);
-    return src_w - 1 - t;
+    if( width <= 2 * FRAME_C_TAB_CAP + 1 || src_w <= 2 * FRAME_C_TAB_CAP + 1 )
+        return x < src_w ? x : src_w - 1;
+    if( x < FRAME_C_TAB_CAP )
+        return x;
+    if( x >= width - FRAME_C_TAB_CAP )
+        return src_w - (width - x);
+    return FRAME_C_TAB_CAP +
+           (x - FRAME_C_TAB_CAP) * (src_w - 2 * FRAME_C_TAB_CAP) /
+               (width - 2 * FRAME_C_TAB_CAP);
 }
 
 /*
@@ -2959,30 +2971,30 @@ frame_tab_stone_row(int y, int height, int src_h, int mirror)
  * The other half of the same defect, and it is not cosmetic: a face's box is
  * the size of the art the stone wears, so a 44-column redstone cut for the
  * 2004 grid's one wide cell made the selected tab's face eleven columns wider
- * than the tab -- a plate bleeding into both its neighbours.
+ * than the tab -- a plate bleeding into both its neighbours. Re-cutting
+ * answers that, and it is the box that changes, never the picture's identity.
  *
- * The source is `classic_redstone2`, which is the strip's INTERIOR cell: 30x37,
- * square-shouldered, a flat lip above and a flat shadow below. The other two
- * are its ENDS -- 34x36 has a diagonal corner cut out of its lower left and
- * 44x35 is the one wide cell -- and an end's shape on a tab that is not at an
- * end is a wedge of bare rock in the socket. Measured on classic548 before
- * this, over the 36 rows under the selected tab: 9 red pixels in the leftmost
- * eleven columns against 179 in the rightmost eleven.
+ * WHICH picture is the caller's, off the same table the 2004 grid draws from:
+ * three stones, each cut for the part of the strip it stands under --
+ * `classic_redstone2` is the interior cell at 30x37, `classic_redstone1` an
+ * END at 34x36 with a diagonal corner out of its lower left, and
+ * `classic_redstone3` the one wide cell at 44x35 -- and a flip that says which
+ * side of the strip's middle the tab is on. `mirror_x` and `mirror_y` are that
+ * flip.
  *
- * ONE picture per ROW, and not the 2004 table's nine. That table is three
- * stones at three widths, each mirrored for the half of the strip it stands
- * in, and both halves of it are answers to the strip: the widths because the
- * cells are 27 to 39 columns, the mirroring because the cells themselves
- * mirror about the strip's middle. A row of identical cells has one width and
- * no mirror line, so what survives of the nine is the one distinction the two
- * ROWS still make -- which way up the socket is lit. @see
- * frame_tab_stone_column, frame_tab_stone_row.
+ * It was ONE folded picture per row before this, and that is what the report
+ * "every button uses the same redstone" was: a fold makes a stone symmetric
+ * about its own centre, which is a stone lit from neither side, the same under
+ * all fourteen and the same whichever one the player selects. The lane's grid
+ * being uniform says the tabs are the same SIZE; it says nothing about which
+ * of the three cells the 2004 frame puts under each of them, and that is a
+ * fact about the frame rather than about the grid.
  *
  * It is also a slot. The layer holds 48 image names at once and this frame is
- * near that on the lane that runs two layouts in one window: composing four
- * mirrorings of a picture a grid cannot tell apart cost two of the frame's own
- * flipped redstones their slot, measured on `remount164`. Two is what the rows
- * ask for and two is what this spends. @see PORCELAIN_IMAGES_MAX.
+ * near that on the lane that runs two layouts in one window, so the ten this
+ * spends -- five shapes a row, mirrored for the row below -- are paid for by
+ * the nine `frame_build_redstones` no longer composes on a lane that has a
+ * grid of its own. @see PORCELAIN_IMAGES_MAX, frame_tab_stone.
  */
 static struct ToriRS_ImageRef
 frame_compose_tab_stone(
@@ -2991,6 +3003,7 @@ frame_compose_tab_stone(
     int width,
     int height,
     struct ToriRS_ImageRef source,
+    int mirror_x,
     int mirror_y)
 {
     uint32_t* src;
@@ -3028,7 +3041,13 @@ frame_compose_tab_stone(
 
         for( int x = 0; x < width; x++ )
         {
-            int const sx = frame_tab_stone_column(x, width, src_w);
+            /* The MIRROR is of the output column, not of the source one the
+             * three-slice answers with. Read the other way round -- slice
+             * first, then reflect the answer -- the six copied cap columns
+             * land at the far edge from the cap they were cut for, which is
+             * the bevel of one side drawn down the other. */
+            int const sx = frame_tab_stone_column(
+                mirror_x ? width - 1 - x : x, width, src_w);
 
             out[(size_t)y * (size_t)width + (size_t)x] =
                 src[(size_t)sy * (size_t)src_w + (size_t)sx];
@@ -3040,7 +3059,9 @@ frame_compose_tab_stone(
     return handle;
 }
 
-/** One lit stone per (mirroring, size), kept until either changes. */
+/** One lit stone per (picture, mirroring, size), kept until any of them
+ *  changes. `prefix` names the first two, so it is the cache slot's key as
+ *  well as the composed picture's name. */
 static struct FrameArt
 frame_tab_stone_art(
     struct FrameCall* ctx,
@@ -3049,6 +3070,7 @@ frame_tab_stone_art(
     int width,
     int height,
     struct ToriRS_ImageRef source,
+    int mirror_x,
     int mirror_y)
 {
     char name[sizeof(cache->name)];
@@ -3064,7 +3086,7 @@ frame_tab_stone_art(
         return cache->art;
 
     (void)snprintf(name, sizeof(name), "%s_%dx%d.png", prefix, width, height);
-    art = frame_compose_tab_stone(ctx, name, width, height, source, mirror_y);
+    art = frame_compose_tab_stone(ctx, name, width, height, source, mirror_x, mirror_y);
     if( art.value == 0 )
         /* Alive or nothing, for the reason frame_sized_art gives. */
         return frame_art_alive(ctx, cache->art) ? cache->art : nothing;
@@ -3144,8 +3166,9 @@ frame_tab_centre(
  * WIDER than the source is a stretch and NARROWER is a crop, and the two are
  * not the same operation said twice. Widening has nothing else available:
  * there are no columns to take, so the ones there are get resampled and the
- * `backbase1` strip this widens from 496 to 536 loses nothing by it, being
- * rock and recesses with no silhouette running down it.
+ * `backbase1` strip this widens from its own 496 to the pack's right edge
+ * loses nothing by it, being rock and recesses with no silhouette running
+ * down it.
  *
  * Narrowing had been the same resample, and on the one piece that narrows it
  * was wrong. `backvmid3` is 57 columns of which the first thirteen are the
@@ -3153,14 +3176,15 @@ frame_tab_centre(
  * by column, the rock starts. Subsampling 57 columns down to 17 takes every
  * third one, which compresses that thirteen-column rip into four and leaves a
  * boundary a player reads as a straight line. Cropping keeps the rip at its
- * own scale and spends the seventeen columns the rail has on the part of the
- * piece that is doing the work; what it loses is the pillar behind it, which
- * is the part the frame's neighbours already draw.
+ * own scale and spends the columns the rail has on the part of the piece that
+ * is doing the work; what it loses is the pillar behind it, which is the part
+ * the frame's neighbours already draw.
  */
 static struct FrameArt
 frame_surround_piece(struct FrameCall* ctx, struct FrameSized* cache,
-                     int source, int width, int height, char const* name)
+                     int source, int width, int height, char const* prefix)
 {
+    char name[64];
     int sw = 0, sh = 0;
     size_t copied = 0;
     uint32_t* input;
@@ -3172,6 +3196,17 @@ frame_surround_piece(struct FrameCall* ctx, struct FrameSized* cache,
     if( !g_api->assets.image_size(g_api, frame_image(ctx, source), &sw, &sh) ||
         sw <= 0 || sh != height )
         return nothing;
+    /*
+     * The name carries the BOX, like every other composed picture in this
+     * file, and for a reason this one learned late: the host keys a composed
+     * image by (plugin, name) and hands the same slot back for the same name,
+     * so a re-cut under a literal name wrote the slot the release below then
+     * dropped -- the picture the frame had just made, freed by the line meant
+     * to free the one it replaced. Invisible while these two pieces were cut
+     * once at a constant width; the rail is cut to the lane's own seam now and
+     * a root that states a different grid re-cuts it.
+     */
+    (void)snprintf(name, sizeof(name), "%s_%dx%d.png", prefix, width, height);
     input = malloc((size_t)sw * sh * sizeof(*input));
     assert(input);
     output = malloc((size_t)width * height * sizeof(*output));
@@ -3190,10 +3225,11 @@ frame_surround_piece(struct FrameCall* ctx, struct FrameSized* cache,
         return nothing;
     if( cache->art.ref.value )
         g_api->assets.image_release(g_api, cache->art.ref);
-    /* `name` is a literal at every call site, so the cache points straight at
-     * it: unlike the sized art above, this picture's name does not carry its
-     * box and does not have to be built. */
-    cache->art.name = name;
+    /* The name is copied INTO the cache, and `art.name` points at the copy: a
+     * description holds the name across fences and the buffer above is this
+     * call's. */
+    (void)snprintf(cache->name, sizeof(cache->name), "%s", name);
+    cache->art.name = cache->name;
     cache->art.ref = art;
     cache->w = width;
     cache->h = height;
@@ -3469,6 +3505,45 @@ frame_row_adoptable(struct FrameBox const* row, int count, struct FrameBox band)
 }
 
 /*
+ * Does the classic layout stand its fourteen stones on the LANE's grid?
+ *
+ * The one question both halves of that layout turn on -- which boxes the
+ * stones take, which hollows the two bands are cut with, and which picture
+ * each selected tab wears -- so it is asked once and written down once. `out`
+ * receives the fourteen boxes in SCREEN order when the answer is yes, and is
+ * left alone when it is no.
+ *
+ * It is also asked from frame_describe, before the layout runs, because
+ * frame_build_redstones has to know the answer BEFORE the first piece is
+ * declared. @see frame_layout_classic_fixed.
+ */
+static int
+frame_classic_lane_grid(struct FrameCall* ctx, struct FrameBox* out)
+{
+    static struct FrameBox const BAND[2] = {
+        { FRAME_C_TAB_TOP_BAND_X, FRAME_C_TAB_TOP_BAND_Y, FRAME_C_TAB_TOP_BAND_W,
+          FRAME_C_TAB_TOP_BAND_H },
+        { FRAME_C_TAB_BOTTOM_BAND_X, FRAME_C_TAB_BOTTOM_BAND_Y, FRAME_C_TAB_BOTTOM_BAND_W,
+          FRAME_C_TAB_BOTTOM_BAND_H },
+    };
+    struct FrameBox by_tab[FRAME_TAB_COUNT];
+    struct FrameBox screen[FRAME_TAB_COUNT];
+    int const oldschool = frame_lane_oldschool(ctx);
+
+    assert(ctx);
+    assert(out);
+    if( !frame_lane_tab_boxes(ctx, by_tab) )
+        return 0;
+    for( int i = 0; i < FRAME_TAB_COUNT; i++ )
+        screen[i] = by_tab[oldschool ? FRAME_TAB_SCREEN_ORDER[i] : i];
+    if( !frame_row_adoptable(screen, FRAME_C_TAB_ROW, BAND[0]) ||
+        !frame_row_adoptable(screen + FRAME_C_TAB_ROW, FRAME_C_TAB_ROW, BAND[1]) )
+        return 0;
+    memcpy(out, screen, sizeof(screen));
+    return 1;
+}
+
+/*
  * One tab band, re-cut for the row's stones -- or the band as it was drawn.
  *
  * The band as it was drawn is the answer for a frame whose stones are its OWN:
@@ -3556,31 +3631,48 @@ frame_tab_band(
 /*
  * The lit stone a selected tab wears, at the tab's own size.
  *
- * ONE picture per row: what the re-cut is and why there are two of it are
- * frame_compose_tab_stone's, and this is where `row` becomes a mirroring.
+ * `stone` is which of the three 2004 cells this tab stands under and the two
+ * mirrors are which way round; the re-cut and why the identity is the caller's
+ * are frame_compose_tab_stone's. Ten of the twelve combinations exist on a
+ * lane grid -- five shapes across a row, mirrored again for the row below --
+ * and each is composed once and kept until the box changes.
  *
  * Falls back to the natural art, which is the 2004 grid's own and the right
  * answer wherever that grid has not been left behind -- and the only answer at
  * all for the frames before the source's pixels have crossed the IO queue.
  */
 static struct FrameArt
-frame_tab_stone(struct FrameCall* ctx, int row, int width, int height)
+frame_tab_stone(struct FrameCall* ctx, int stone, int mirror_x, int mirror_y, int width, int height)
 {
-    static char const* const PREFIX[2] = { "classic_tabstone_top",
-                                           "classic_tabstone_bottom" };
-    struct FrameArt const natural = frame_art(ctx, IMG_C_REDSTONE2);
+    static int const SRC[FRAME_C_STONE_COUNT] = { IMG_C_REDSTONE1, IMG_C_REDSTONE2,
+                                                  IMG_C_REDSTONE3 };
+    /* The name a composed picture is published under, and the only thing that
+     * tells two of these ten apart inside the layer. A prefix per shape and
+     * per mirroring, so a stone re-cut for one tab can never be handed to
+     * another that asked for a different one. */
+    static char const* const PREFIX[FRAME_C_STONE_COUNT][2][2] = {
+        { { "classic_tabstone1", "classic_tabstone1_v" },
+          { "classic_tabstone1_h", "classic_tabstone1_hv" } },
+        { { "classic_tabstone2", "classic_tabstone2_v" },
+          { "classic_tabstone2_h", "classic_tabstone2_hv" } },
+        { { "classic_tabstone3", "classic_tabstone3_v" },
+          { "classic_tabstone3_h", "classic_tabstone3_hv" } },
+    };
+    struct FrameArt const natural = frame_art(ctx, SRC[stone]);
     struct FrameArt cut;
 
     assert(ctx);
-    assert(row >= 0);
-    assert(row < 2);
+    assert(stone >= 0);
+    assert(stone < FRAME_C_STONE_COUNT);
     assert(width > 0);
     assert(height > 0);
+    mirror_x = mirror_x ? 1 : 0;
+    mirror_y = mirror_y ? 1 : 0;
     if( natural.ref.value == 0 )
         return natural;
     cut = frame_tab_stone_art(
-        ctx, &ctx->state->tab_stone[row], PREFIX[row], width, height, natural.ref,
-        /*mirror_y=*/row != 0);
+        ctx, &ctx->state->tab_stone[stone][mirror_x][mirror_y],
+        PREFIX[stone][mirror_x][mirror_y], width, height, natural.ref, mirror_x, mirror_y);
     return cut.ref.value != 0 ? cut : natural;
 }
 
@@ -3647,6 +3739,121 @@ frame_chat_band_seam(struct FrameCall* ctx, int chat_y)
     return seam;
 }
 
+/*
+ * Whether the lane's toplevel is the MOBILE one.
+ *
+ * By the root and not by the size: the mobile top mounts the same 519-wide
+ * interface 162 and reports the same native size, and lays it out with the bar
+ * ABOVE the message area. The size cannot tell the two apart; the root can.
+ */
+static bool
+frame_lane_mobile_top(struct FrameCall* ctx)
+{
+    int mobile_top = 0;
+
+    assert(ctx);
+    return g_api->cache.named_id(g_api, "iface", "toplevel_mobile", &mobile_top) &&
+           mobile_top > 0 && g_api->cache.frame_root(g_api) == mobile_top;
+}
+
+/*
+ * Where this layout seats the lane's chat pack -- the one derivation the whole
+ * band is dressed from.
+ *
+ * It is asked TWICE: the surface is placed on it, and the surround's right
+ * rail is cut to the columns between its right edge and the band's end. Those
+ * were two answers once, and the second was a constant. The rail was blitted
+ * at 536 -- the 2004 origin plus the pack's own 519 -- while the pack had been
+ * moved left to clear the leftmost stone the lane stands in the band, at 526
+ * on 548 and 528 on 161. The ten columns between the two belonged to nobody:
+ * no surround piece reaches them and the pack no longer does, so the band
+ * showed a dark slot beside the chat with a stray strip of the rail's own
+ * sheet stranded to the right of it. A seam two pieces are cut against cannot
+ * be written down twice.
+ *
+ * The MOBILE top is a different pack -- 461 wide, with its bar above the
+ * message area rather than under it -- and this frame is not the one that
+ * dresses it: it is left at the canvas floor at the 2004 frame's own left
+ * edge, which is where frame_place_chat puts it. @see frame_lane_mobile_top.
+ */
+static struct FrameBox
+frame_classic_chat_seat(struct FrameCall* ctx)
+{
+    struct ToriRS_WidgetBounds native;
+    struct FrameBox seat;
+    int native_w = FRAME_O_CHAT_PACK_W;
+    int native_h = FRAME_O_CHAT_PACK_H;
+    int seam;
+
+    assert(ctx);
+    if( frame_lane_mobile_top(ctx) )
+    {
+        seat.x = 0;
+        seat.y = FRAME_FIXED_H - FRAME_O_CHAT_PACK_H;
+        seat.w = FRAME_O_CHAT_PACK_W;
+        seat.h = FRAME_O_CHAT_PACK_H;
+        return seat;
+    }
+    /*
+     * ASK the lane for its chat's shape -- BOTH numbers -- and do not assert
+     * either.
+     *
+     * The 2004 hole is 479x96 and that is the size of the 2004 BUILTIN, whose
+     * geometry is fixed in code and reads nothing from its node. An OldSchool
+     * chat is not that: it is a 519x165 pack that lays itself out TO ITS BOX,
+     * and handed 96 rows it lays out a 73-row message window and shows three
+     * lines where the lane's own frame shows eight. That is not a cosmetic
+     * difference. A plugin notification is an ordinary game chat line, so a
+     * notice the player was meant to read scrolls past inside a pane too short
+     * to hold it and never reaches the screen at all -- measured with
+     * nxt-bird-nest and nxt-cannon-ammo, both of which announce correctly and
+     * neither of which was legible under this frame.
+     *
+     * Asked by ELEMENT, which is the whole of the G55 fix. This used to pass
+     * FRAME_SURFACE_CHAT -- this file's own private enum -- straight into the
+     * api as though it were TORIRS_SURFACE_*. The two numberings disagree
+     * (this file's COMPASS is 2, SIDEBAR 5 and MODAL 6 against the api's
+     * SIDEBAR 2, MODAL 5 and COMPASS 6) and CHAT matched by luck, which is the
+     * only reason the call worked at all.
+     */
+    if( Porcelain_NativeSize(ctx->state->porcelain, PORCELAIN_EL(CHAT), &native) &&
+        native.width > 0 && native.height > 0 )
+    {
+        native_w = native.width;
+        native_h = native.height;
+    }
+    /*
+     * The pack takes the 2004 ORIGIN and its own authored SIZE, flush with the
+     * canvas floor, which is where the 2004 frame's own bottom band already
+     * ends. The band is 165 rows deep by construction -- `backhmid2` 19 at
+     * y=338, the chat hole 96 at y=357, `backbase1` 50 at y=453, and 19+96+50
+     * is 165 -- so a 519x165 pack laid flush with the floor fills exactly that
+     * band, and every rock piece around it is already drawn where it has to
+     * be. The pack's own 23-row stone bar lands at 480, inside `backbase1`'s
+     * strip, which is where the 2004 filters stood and where the lane's own
+     * frame puts the same bar.
+     *
+     * Seating it flush with the floor also retires the second bar. At the 2004
+     * hole's own 96 rows the pack's filter row landed at 430 and the frame's
+     * own bar band stood under it at 467, with the strip's parchment lip
+     * showing between them at 453: a filter row, a pale ledge, and a second
+     * row of empty sockets. The pack's bar IS the frame's bar now, so there is
+     * no band left to paint out.
+     */
+    seat.y = FRAME_FIXED_H - native_h;
+    seat.w = native_w;
+    seat.h = native_h;
+    /*
+     * A pack that fits the hole is seated in it; a wider one is seated so its
+     * RIGHT EDGE lands on the leftmost stone the lane stands in this band, and
+     * where the lane stands none, on the 2004 origin, because there is then
+     * nothing to clear. @see frame_chat_band_seam.
+     */
+    seam = native_w > FRAME_C_CHAT_W ? frame_chat_band_seam(ctx, seat.y) : 0;
+    seat.x = seam > native_w ? seam - native_w : FRAME_C_CHAT_X;
+    return seat;
+}
+
 static void
 frame_layout_classic_fixed(struct FrameCall* ctx)
 {
@@ -3692,14 +3899,11 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         { { 697, 466, 30, 37 }, 704, 471, 1, REDSTONE_FLIP_HV},
         { { 725, 466, 34, 36 }, 728, 471, 0, REDSTONE_FLIP_HV},
     };
-    static int const REDSTONE_BASE[3] = { IMG_C_REDSTONE1, IMG_C_REDSTONE2, IMG_C_REDSTONE3 };
-    /* The two bands, as boxes, so a row can be asked whether it fits in one. */
-    static struct FrameBox const BAND[2] = {
-        { FRAME_C_TAB_TOP_BAND_X, FRAME_C_TAB_TOP_BAND_Y, FRAME_C_TAB_TOP_BAND_W,
-          FRAME_C_TAB_TOP_BAND_H },
-        { FRAME_C_TAB_BOTTOM_BAND_X, FRAME_C_TAB_BOTTOM_BAND_Y, FRAME_C_TAB_BOTTOM_BAND_W,
-          FRAME_C_TAB_BOTTOM_BAND_H },
-    };
+    static int const REDSTONE_BASE[FRAME_C_STONE_COUNT] = { IMG_C_REDSTONE1, IMG_C_REDSTONE2,
+                                                            IMG_C_REDSTONE3 };
+    /* The two bands as boxes, and whether these two can carry the lane's
+     * stones, are frame_classic_lane_grid's -- one copy of the question, asked
+     * here and again from frame_describe. */
     int const oldschool = frame_lane_oldschool(ctx);
     /*
      * Where the stones REPORT they are, and whether these two bands can carry
@@ -3726,20 +3930,11 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
      * once. @see FRAME_TAB_SCREEN_ORDER.
      */
     struct FrameBox screen[FRAME_TAB_COUNT];
-    int lane_grid = frame_lane_tab_boxes(ctx, screen);
+    int lane_grid;
 
     assert(ctx);
-
-    if( lane_grid )
-    {
-        struct FrameBox by_tab[FRAME_TAB_COUNT];
-
-        memcpy(by_tab, screen, sizeof(by_tab));
-        for( int i = 0; i < FRAME_TAB_COUNT; i++ )
-            screen[i] = by_tab[oldschool ? FRAME_TAB_SCREEN_ORDER[i] : i];
-        lane_grid = frame_row_adoptable(screen, FRAME_C_TAB_ROW, BAND[0]) &&
-                    frame_row_adoptable(screen + FRAME_C_TAB_ROW, FRAME_C_TAB_ROW, BAND[1]);
-    }
+    memset(screen, 0, sizeof(screen));
+    lane_grid = frame_classic_lane_grid(ctx, screen);
 
     /* Declared in paint order, back to front: the surround, then the panels
      * that sit in it. */
@@ -3789,15 +3984,41 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
         frame_blit_behind(ctx, frame_art(ctx, IMG_C_CHATBACK), 17, 357, PORCELAIN_EL(CHAT));
     if( oldschool )
     {
-        frame_blit(ctx, frame_surround_piece(ctx, &ctx->state->chat_rail,
-                   IMG_C_BACKVMID3, 17, 109, "classic_chat_rail_wide.png"), 536, 357);
+        /*
+         * The chat band's right RAIL, cut to the columns the seated pack
+         * leaves between its own right edge and the band's end.
+         *
+         * Both numbers are the seat's. `backvmid3` is 57 columns of which the
+         * first thirteen are the sheet's right-hand rip, and the rip has to
+         * fall ON the pack's edge -- so the piece is blitted there and cropped
+         * to what is left of the band: 27 columns on 548, 25 on 161, 19 on
+         * 164, and the piece's own 17 on a lane that stands no stone in the
+         * pack's way and leaves it at the 2004 origin. Each of those is the
+         * band's own 553 minus a seam the lane stated, which is why neither
+         * end of this piece can be written down.
+         *
+         * Blitted at a constant 536 it was none of those. @see
+         * frame_classic_chat_seat for the ten-column slot that opened beside
+         * the chat when the pack moved and this piece did not.
+         */
+        struct FrameBox const seat = frame_classic_chat_seat(ctx);
+        int const rail_x = seat.x + seat.w;
+
+        if( rail_x < FRAME_C_BAND_W )
+            frame_blit(ctx, frame_surround_piece(ctx, &ctx->state->chat_rail,
+                       IMG_C_BACKVMID3, FRAME_C_BAND_W - rail_x, 109,
+                       "classic_chat_rail_wide"), rail_x, FRAME_C_CHAT_Y);
         /*
          * Still blitted, and still the frame's own stone -- but BACKING now
          * rather than a bar. The pack seated on it reaches the canvas's last
          * row (@see FRAME_C_CHAT_PACK_H), so all that shows of this piece is
-         * the seventeen columns left of the pack, where it continues
-         * `backleft2` to the bottom edge. Its four hollows are behind the
-         * pack's own bar.
+         * the columns left of the pack, where it continues `backleft2` to the
+         * bottom edge. Its four hollows are behind the pack's own bar.
+         *
+         * Widened to the RAIL's seam and not past it: this strip and the rail
+         * above it meet on the pack's right edge, so a base that reached
+         * further would paint the frame's filter rock over the rail's bottom
+         * rows, and one that stopped short would leave the same slot in them.
          *
          * There used to be a second picture here: `classic_base_flat`, a
          * 536x32 band composed to cover those hollows because the pack's bar
@@ -3811,8 +4032,8 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
          * shadow -- which is why the band is not re-cut but retired.
          */
         frame_blit(ctx, frame_surround_piece(ctx, &ctx->state->chat_base,
-                   IMG_C_BACKBASE1, 536, FRAME_C_STRIP_H,
-                   "classic_chat_base_wide.png"), 0, FRAME_C_STRIP_Y);
+                   IMG_C_BACKBASE1, rail_x, FRAME_C_STRIP_H,
+                   "classic_chat_base_wide"), 0, FRAME_C_STRIP_Y);
     }
     else
     {
@@ -3827,6 +4048,16 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
     {
         int const base = REDSTONE_BASE[TAB[i].stone];
         /*
+         * WHICH way round this tab's stone is, read off the table's own flip
+         * column so the two grids cannot disagree about it. `flip < 0` is the
+         * unmirrored picture -- the top row's left half -- and the three named
+         * flips are the other three quadrants of the strip.
+         */
+        int const mirror_x =
+            TAB[i].flip == REDSTONE_FLIP_H || TAB[i].flip == REDSTONE_FLIP_HV;
+        int const mirror_y =
+            TAB[i].flip == REDSTONE_FLIP_V || TAB[i].flip == REDSTONE_FLIP_HV;
+        /*
          * The box this stone stands on, and the lit picture it wears.
          *
          * Off the LANE where the lane has stones of its own, and off the
@@ -3834,13 +4065,22 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
          * together and have to: a face's box is the size of the art, so a box
          * from one grid with a picture cut for the other is the 44-column
          * plate on a 33-column tab that this replaces.
+         *
+         * What does NOT move with the box is WHICH of the three cells the tab
+         * wears. The stone is re-cut to the lane's grid and it is still this
+         * tab's stone: `stone` and the two mirrors come from the same table on
+         * both lanes, so the wide cell stays under the fourth tab and the ends
+         * stay at the ends. Handing every tab one folded picture instead --
+         * which is what the box being uniform was taken to imply -- is the
+         * "same redstone under every button" this replaces.
          */
         struct FrameBox const box = lane_grid ? screen[i] : TAB[i].box;
         struct FrameArt const natural =
             TAB[i].flip < 0 ? frame_art(ctx, base)
                             : g_redstone_flip[TAB[i].stone][TAB[i].flip];
         struct FrameArt const pressed =
-            lane_grid ? frame_tab_stone(ctx, i / FRAME_C_TAB_ROW, box.w, box.h) : natural;
+            lane_grid ? frame_tab_stone(ctx, TAB[i].stone, mirror_x, mirror_y, box.w, box.h)
+                      : natural;
         /*
          * Which tab this box stands for: its own index on a 2004 lane, screen
          * order on an OldSchool one.
@@ -3908,96 +4148,26 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
     if( oldschool )
     {
         /*
-         * ASK the lane for its chat's shape -- BOTH numbers -- and do not
-         * assert either.
-         *
-         * The 2004 hole is 479x96 and that is the size of the 2004 BUILTIN,
-         * whose geometry is fixed in code and reads nothing from its node.
-         * An OldSchool chat is not that: it is a 519x165 pack that lays
-         * itself out TO ITS BOX, and handed 96 rows it lays out a 73-row
-         * message window and shows three lines where the lane's own frame
-         * shows eight. That is not a cosmetic difference. A plugin
-         * notification is an ordinary game chat line, so a notice the
-         * player was meant to read scrolls past inside a pane too short to
-         * hold it and never reaches the screen at all -- measured with
-         * nxt-bird-nest and nxt-cannon-ammo, both of which announce
-         * correctly and neither of which was legible under this frame.
-         *
-         * So the pack takes the 2004 ORIGIN and its own authored SIZE, flush
-         * with the canvas floor, which is where the 2004 frame's own bottom
-         * band already ends. The band is 165 rows deep by construction --
-         * `backhmid2` 19 at y=338, the chat hole 96 at y=357, `backbase1` 50
-         * at y=453, and 19+96+50 is 165 -- so a 519x165 pack laid flush with
-         * the floor fills exactly that band, and every rock piece around it
-         * (`backleft2` and `backbase1` to its left, the re-cut rail and
-         * `backbase2` to its right) is already drawn where it has to be. The
-         * pack's own 23-row stone bar lands at 480, inside `backbase1`'s
-         * strip, which is where the 2004 filters stood and where the lane's
-         * own frame puts the same bar.
-         *
-         * Seating it flush with the floor also retires the second bar. At
-         * the 2004 hole's own 96 rows the pack's filter row landed at 430
-         * and the frame's own bar band stood under it at 467, with the
-         * strip's parchment lip showing between them at 453: a filter row,
-         * a pale ledge, and a second row of empty sockets. The pack's bar
-         * IS the frame's bar now, so there is no band left to paint out.
+         * The seat the surround above was already cut against.
+         * @see frame_classic_chat_seat, which states the whole derivation.
          *
          * The MOBILE top is a different pack: 461 wide, and its bar sits ABOVE
          * the message area rather than under it. Placed at the desktop box it
          * leaves an unpainted gap and its filters keep the lane's own plates,
          * because everything this frame composes for a chat assumes the bar is
          * the strip along the bottom. That is the Stone Drawer's frame to
-         * dress, not this one, so here the pack is left where the lane put it.
+         * dress, not this one, so here the pack is left where the lane put it
+         * and no housing is drawn back over it.
          * @see ToriRS_FrameApi::surface_native_size, mobile_chat_native.
          */
-        int native_w = FRAME_O_CHAT_PACK_W;
-        int native_h = FRAME_O_CHAT_PACK_H;
-        int mobile_top = 0;
+        struct FrameBox const seat = frame_classic_chat_seat(ctx);
 
-        /*
-         * Asked by ELEMENT, which is the whole of the G55 fix.
-         *
-         * This used to pass FRAME_SURFACE_CHAT -- this file's own private
-         * enum -- straight into the api as though it were TORIRS_SURFACE_*.
-         * The two numberings disagree (this file's COMPASS is 2, SIDEBAR 5 and
-         * MODAL 6 against the api's SIDEBAR 2, MODAL 5 and COMPASS 6) and CHAT
-         * matched by luck, which is the only reason the call worked at all.
-         * Naming an element cannot make that mistake, and the next surface
-         * this frame asks about is not going to be the lucky one.
-         */
-        {
-            struct ToriRS_WidgetBounds native;
-            if( Porcelain_NativeSize(ctx->state->porcelain, PORCELAIN_EL(CHAT), &native) &&
-                native.width > 0 && native.height > 0 )
-            {
-                native_w = native.width;
-                native_h = native.height;
-            }
-        }
-        /* By the TOPLEVEL and not by the size: the mobile top mounts the same
-         * 519-wide interface 162 and reports the same native size, and lays it
-         * out with the bar ABOVE the message area. The size cannot tell the
-         * two apart; the root can. */
-        if( g_api->cache.named_id(g_api, "iface", "toplevel_mobile", &mobile_top) &&
-            mobile_top > 0 && g_api->cache.frame_root(g_api) == mobile_top )
-            frame_place_chat(ctx, 0, FRAME_FIXED_H - FRAME_O_CHAT_PACK_H);
+        if( frame_lane_mobile_top(ctx) )
+            frame_place_chat(ctx, seat.x, seat.y);
         else
         {
-            int const chat_y = FRAME_FIXED_H - native_h;
-            /*
-             * A pack that fits the hole is seated in it; a wider one is seated
-             * so its RIGHT EDGE lands on the leftmost stone the lane stands in
-             * this band, and where the lane stands none, on the 2004 origin,
-             * because there is then nothing to clear.
-             * @see frame_chat_band_seam.
-             */
-            int const seam = native_w > FRAME_C_CHAT_W
-                                 ? frame_chat_band_seam(ctx, chat_y)
-                                 : 0;
-            int const chat_x = seam > native_w ? seam - native_w : FRAME_C_CHAT_X;
-
-            frame_surface(ctx, FRAME_SURFACE_CHAT, chat_x, chat_y, native_w, native_h);
-            ctx->state->chat_seam_x = chat_x;
+            frame_surface(ctx, FRAME_SURFACE_CHAT, seat.x, seat.y, seat.w, seat.h);
+            ctx->state->chat_seam_x = seat.x;
             /*
              * And the 2004 housing back OVER it. @see FRAME_C_CHAT_TEAR_H.
              *
@@ -4019,8 +4189,8 @@ frame_layout_classic_fixed(struct FrameCall* ctx)
                 ctx,
                 frame_sized_art(
                     ctx, &ctx->state->chat_housing, frame_compose_chat_housing,
-                    "classic_chat_housing", FRAME_C_BAND_W, FRAME_FIXED_H - chat_y),
-                0, chat_y, PORCELAIN_EL(CHAT));
+                    "classic_chat_housing", FRAME_C_BAND_W, FRAME_FIXED_H - seat.y),
+                0, seat.y, PORCELAIN_EL(CHAT));
         }
     }
     else
@@ -5317,8 +5487,31 @@ frame_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
     canvas_h = state->canvas_h;
     frame_usable_canvas(ctx, &canvas_w, &canvas_h);
 
-    frame_build_redstones(ctx);
     frame_build_classic_masks(ctx);
+    /*
+     * The nine mirrored redstones, and ONLY where the classic layout's stones
+     * stand on the 2004 grid.
+     *
+     * They are that layout's alone -- no other reads one -- and a lane with a
+     * grid of its own never draws one: its stones are re-cut to its boxes by
+     * frame_tab_stone, which mirrors as it cuts. Composing them anyway spent
+     * nine of the layer's 48 image names on pictures nothing would name, and
+     * this frame is near that ceiling on the lane that runs two layouts in one
+     * window -- which is what the ten re-cut stones would otherwise push out.
+     *
+     * HERE and not inside the layout, though the question is the layout's,
+     * because a compose staged part way through a description costs the pieces
+     * already declared their pictures: the same nine composed after the
+     * surround had named its art left two of its thirteen pieces with none.
+     * @see PORCELAIN_IMAGES_MAX, frame_classic_lane_grid.
+     */
+    if( state->layout == FRAME_CLASSIC_FIXED )
+    {
+        struct FrameBox screen[FRAME_TAB_COUNT];
+
+        if( !frame_classic_lane_grid(ctx, screen) )
+            frame_build_redstones(ctx);
+    }
 
     memset(&g_plan, 0, sizeof(g_plan));
     g_plan.layout = state->layout;
@@ -5414,6 +5607,83 @@ frame_layout_resolve(char const* offer_id)
     if( strcmp(offer_id, "modern-resizable") == 0 )
         return FRAME_MODERN_RESIZABLE;
     return FRAME_CLASSIC_FIXED;
+}
+
+/*
+ * Which of the LANE's own top-level chromes this offer is, or UNKNOWN.
+ *
+ * The two Modern layouts are OldSchool's fixed (548) and resizable-modern
+ * (164) frames, cut from that cache's own sprites. On a lane that authors
+ * those chromes the plugin's copy is the worse one: the lane grows its canvas
+ * beside its popout strip, rearranges on its own scripts and mounts every
+ * panel against the root it opened, and a frame arranged over the top of that
+ * was measured sliding its map ring under the strip. Classic Fixed is the
+ * 2004 frame, which no OldSchool cache authors, so it stays a description
+ * over whatever root is up.
+ *
+ * By OFFER, not by lane: whether the lane HAS such a chrome is the
+ * `native_layout` capability's answer, asked in frame_native_ask.
+ */
+static int
+frame_native_layout_of(char const* offer_id)
+{
+    assert(offer_id);
+    if( strcmp(offer_id, "modern-fixed") == 0 )
+        return TORIRS_NATIVE_LAYOUT_FIXED;
+    if( strcmp(offer_id, "modern-resizable") == 0 )
+        return TORIRS_NATIVE_LAYOUT_RESIZABLE_MODERN;
+    return TORIRS_NATIVE_LAYOUT_UNKNOWN;
+}
+
+/*
+ * Ask the lane to wear this offer itself, where it can.
+ *
+ * True when the lane has been asked (including when it already wears the
+ * chrome): the caller answers NATIVE and describes nothing. False when this
+ * offer is not one of the lane's chromes, the lane has none to choose between
+ * (`native_layout` is a profile fact: the roots and the settings row that
+ * selects them), or the live session refused -- no server to ask, the row not
+ * armed, the phone's root that nothing offers a way out of. On a refusal the
+ * frame is described over whatever root is up, which is what this plugin did
+ * on every lane before the lane could be asked, and the refusal is said once.
+ *
+ * The one place this plugin READS its lane is frame_lane_oldschool, and this
+ * is not a second: the branch is on a capability the engine answers from
+ * profile data, and the request is the one a player makes from the Display
+ * panel. @see ToriRS_FrameApi::native_layout_select.
+ */
+static bool
+frame_native_ask(
+    struct ToriRS_Api* api,
+    struct FrameState* state,
+    struct ToriRS_GameframeEvent const* event)
+{
+    int const layout = frame_native_layout_of(event->offer_id);
+    enum ToriRS_Result asked;
+
+    assert(api);
+    assert(state);
+    assert(event);
+    if( layout == TORIRS_NATIVE_LAYOUT_UNKNOWN )
+        return false;
+    if( !Porcelain_Has(state->porcelain, "native_layout") )
+        return false;
+    asked = api->frame.native_layout_select(api, layout);
+    if( asked == TORIRS_RESULT_OK )
+    {
+        state->native_refused = -1;
+        return true;
+    }
+    if( state->native_refused != layout )
+    {
+        api->core.log(
+            api, "layout %s: this lane has its own, but the session could not be asked for "
+                 "it (%s); describing the frame over the live root instead",
+            FRAME_LAYOUT_NAME[frame_layout_resolve(event->offer_id)],
+            asked == TORIRS_RESULT_UNSUPPORTED ? "unsupported here" : "refused");
+        state->native_refused = layout;
+    }
+    return false;
 }
 
 static void
@@ -5552,6 +5822,7 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
             (enum ToriRS_FrameBuildResult)Porcelain_FrameEvent(state->porcelain, event);
         state->provided = 0;
         state->layout = -1;
+        state->native_answered = -1;
         /* The next provide is a fresh frame over a fresh lane state. @see
          * frame_seed_sidebar. */
         state->sidebar_seeded = false;
@@ -5566,6 +5837,36 @@ frame_on_gameframe(struct ToriRS_Api* api, void* state_ptr, struct ToriRS_Gamefr
         (void)snprintf(event->reason, event->reason_capacity, "%s", "The gameframe is waiting for the game screen.");
         return TORIRS_FRAME_PENDING;
     }
+    /*
+     * The lane's own chrome, where this offer is one.
+     *
+     * Before the description and instead of it: a Modern frame on a lane that
+     * authors Modern frames is the lane's to lay out, and the plugin's part is
+     * the request the player would otherwise make from the Display panel. The
+     * layer stages nothing for it, which takes off whatever a previous offer
+     * of this plugin had placed, and the host reports the offer active under
+     * its own name. @see frame_native_ask, and TORIRS_FRAME_NATIVE.
+     */
+    if( frame_native_ask(api, state, event) )
+    {
+        enum ToriRS_FrameBuildResult const native =
+            (enum ToriRS_FrameBuildResult)Porcelain_FrameNative(state->porcelain, event);
+        int const layout = frame_native_layout_of(event->offer_id);
+        Porcelain_Commit(api);
+        state->provided = 0;
+        state->layout = -1;
+        state->declined_root = -1;
+        state->sidebar_seeded = false;
+        if( native == TORIRS_FRAME_NATIVE && state->native_answered != layout )
+        {
+            api->core.log(
+                api, "layout %s: the lane's own chrome; asked for it (native layout %d)",
+                FRAME_LAYOUT_NAME[frame_layout_resolve(event->offer_id)], layout);
+            state->native_answered = layout;
+        }
+        return native;
+    }
+    state->native_answered = -1;
     if( strcmp(event->offer_id, "classic-fixed") == 0 && frame_lane_oldschool(ctx) )
     {
         int mobile = -1;
@@ -5662,6 +5963,8 @@ frame_on_start(struct ToriRS_Api* api, void* state_ptr)
     state->layout = -1;
     state->declined_root = -1;
     state->logged_layout = -1;
+    state->native_answered = -1;
+    state->native_refused = -1;
 
     state->porcelain = Porcelain_Open(api, &TORIRS_PLUGIN_GAMEFRAME, state);
     assert(state->porcelain);
@@ -5882,10 +6185,11 @@ frame_on_stop(struct ToriRS_Api* api, void* state_ptr)
     frame_release_sized(api, &state->chat_housing);
     frame_release_sized(api, &state->side_tiled);
     for( int i = 0; i < 2; i++ )
-    {
         frame_release_sized(api, &state->tab_band[i]);
-        frame_release_sized(api, &state->tab_stone[i]);
-    }
+    for( int i = 0; i < FRAME_C_STONE_COUNT; i++ )
+        for( int x = 0; x < 2; x++ )
+            for( int y = 0; y < 2; y++ )
+                frame_release_sized(api, &state->tab_stone[i][x][y]);
     memset(state, 0, sizeof(*state));
 }
 

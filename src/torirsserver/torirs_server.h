@@ -959,6 +959,29 @@ enum
 #define TORIRSSERVER_AFK_COMBAT_TICKS 2000
 
 /*
+ * How long a swing keeps the two sides of a fight claimed to each other, for
+ * the purposes of single-way combat.
+ *
+ * OldSchool's Multicombat rule: outside a multicombat area a player may be in
+ * combat with exactly one entity, and the claim is a *timer* rather than a
+ * latch — the wiki states it as eight ticks from the last attack, after which
+ * either side is free. A timer is what the rule needs to be, because walking
+ * out of a fight does not end it: run away from a goblin and you still may not
+ * start on the next one until it has stopped chasing you.
+ *
+ * Eight ticks, and not `attackrate`: it is one number for the whole game on
+ * purpose, so a slow weapon cannot buy a longer or shorter claim than a fast
+ * one.
+ *
+ * Engine and not content for the same reason the AFK rule above is: the claim
+ * lives on `ToriRSServerPlayer` and `ToriRSServerNpc`, and content has no varn
+ * to keep the npc half in (see `[proc,player_in_combat_check]`'s header in
+ * skill_combat/scripts/player/player_magic.rs2, which is the stub this
+ * replaces).
+ */
+#define TORIRSSERVER_SINGLEWAY_COMBAT_TICKS 8
+
+/*
  * TORIRSSERVER_FAMILIAR_DEBUG=1 — one stderr line per tick per owned npc (mode,
  * waypoint, both combat targets, tile, face) plus every `npc_setmode` on one.
  *
@@ -2588,6 +2611,25 @@ struct ToriRSServerNpc
     int combat_target_npc;
     uint16_t combat_target_npc_gen;
     /**
+     * The single-way claim: who this npc has been swinging at or swung at, and
+     * the tick the claim lapses on (`TORIRSSERVER_SINGLEWAY_COMBAT_TICKS`).
+     *
+     * `combat_target` beside it is not the same fact and cannot serve. That one
+     * is a live latch — it is dropped the moment the npc gives up, is out of
+     * leash, or its target walks away — and single-way is a rule about the
+     * fight that has just been happening, not the one still happening. An npc
+     * that has lost its target has not stopped being somebody else's fight for
+     * another eight ticks.
+     *
+     * `combat_claim_gen` is the claimant's `login_generation`, so a pool slot
+     * reused by the next login does not inherit a stranger's claim. -1 / 0 is
+     * "unclaimed"; `combat_claim_tick` is a deadline in `srv->tick`, as
+     * `attack_clock` above is.
+     */
+    int combat_claim_pid;
+    uint32_t combat_claim_gen;
+    int combat_claim_tick;
+    /**
      * The tick this npc's next swing is due on — a DEADLINE in `srv->tick`,
      * not a countdown of ticks remaining.
      *
@@ -3826,6 +3868,21 @@ struct ToriRSServerPlayer
     uint16_t follower_gen;
     int combat_target;
     int attack_clock;
+    /**
+     * The single-way claim's player half — which npc this player has been
+     * trading blows with, and the tick the claim lapses on.
+     *
+     * The npc slot is paired with the npc's `generation` for the usual reason:
+     * slots are recycled, and a claim that outlived its npc would otherwise be
+     * inherited by whatever spawned into the slot next. `combat_target` above
+     * cannot stand in — a click on anything else clears it (that is how
+     * `ToriRSServer_WorldClearPendingAction` ends the last interaction), and
+     * the click is exactly the moment the rule has to be able to look back at
+     * what the player was doing a tick ago.
+     */
+    int combat_claim_npc;
+    uint16_t combat_claim_npc_gen;
+    int combat_claim_tick;
 
     /*
      * The enemy health overlay's session state (torirs_server_hpbar.c).
@@ -5202,6 +5259,57 @@ void
 ToriRSServer_CombatStopNpc(
     struct ToriRSServer* srv,
     int slot);
+
+/**
+ * Does this npc fight by multi-combat rules where it stands?
+ *
+ * `maps/multiway.csv` over the npc's own tile (the reference asks
+ * `map_multiway(npc_coord)`, not the player's), or `forcemulti` on its record.
+ * Every single-way refusal below opens with this.
+ */
+int
+ToriRSServer_CombatMultiway(const struct ToriRSServerNpc* npc);
+
+/**
+ * Stamp the single-way claim on both halves of a fight — the player and the
+ * npc — for TORIRSSERVER_SINGLEWAY_COMBAT_TICKS.
+ *
+ * Called from wherever a swing is dispatched, at both ends: the player's
+ * `p_opnpc(2)` / engage and the npc's `[ai_opplayer2]`. A *swing*, not a landed
+ * hit: a miss is an attack, and the claim is what "in combat" means.
+ */
+void
+ToriRSServer_CombatClaim(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int slot);
+
+/**
+ * Must this attack be refused because the fight is single-way? Non-zero yes,
+ * having already told the player which of the two reasons it was.
+ *
+ * Call it on anything that STARTS an attack — an Attack click, a targeted cast,
+ * a script's `p_opnpc(2)`, `ToriRSServer_CombatEngage`. Never on the damage
+ * funnel: a refusal there would produce a fight that is allowed to begin and
+ * unable to land, which is indistinguishable from the swing being dropped.
+ */
+int
+ToriRSServer_CombatSinglewayRefuses(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int slot);
+
+/**
+ * The same rule from the npc's end: may this npc take this player as a target?
+ *
+ * For aggression only. Retaliation is not gated by it — being hit fights back
+ * whatever the zone says, since whoever landed the hit already holds the claim.
+ */
+int
+ToriRSServer_CombatSinglewayNpcMayEngage(
+    struct ToriRSServer* srv,
+    int slot,
+    const struct ToriRSServerPlayer* player);
 
 /** The player's combat level, by OldSchool's melee formula. Shared by the
  *  aggression check and the combat tab's `combat_level` varbit. */

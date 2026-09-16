@@ -10,7 +10,6 @@
   "C_Cpp.intelliSenseEngine": "disabled",
   "C_Cpp.autocomplete": "disabled",
   "C_Cpp.errorSquiggles": "disabled",
-
   "clangd.path": "/usr/bin/clangd",
   "clangd.checkUpdates": false,
   "clangd.onConfigChanged": "restart",
@@ -32,7 +31,6 @@
     "-I${workspaceFolder}/3rd/rscache/src",
     "-I/opt/homebrew/include/SDL2"
   ],
-
   // Formatting is the standalone clang-format extension (homebrew clang-format 20).
   // Apple's bundled clangd is 17 and cannot parse this repo's .clang-format, so it
   // must not be the formatter for C/C++.
@@ -52,7 +50,6 @@
   "[objective-cpp]": {
     "editor.defaultFormatter": "ms-vscode.cpptools"
   },
-
   "terminal.integrated.profiles.windows": {
     "PowerShell": {
       "source": "PowerShell",
@@ -103,7 +100,6 @@
     }
   },
   "terminal.integrated.defaultProfile.windows": "PowerShell",
-
   "files.associations": {
     "*.u.c": "c",
     "*.u.h": "c",
@@ -148,8 +144,8 @@
     "uv_pnm.h": "c",
     "toridraw_math.h": "c"
   },
-
   "lldb.displayFormat": "auto",
   "lldb.dereferencePointers": true,
-  "lldb.consoleMode": "commands"
+  "lldb.consoleMode": "commands",
+  "cmake.sourceDirectory": "/Users/matthewevers/Documents/git_repos/3draster/tools/runescript-lsp"
 }

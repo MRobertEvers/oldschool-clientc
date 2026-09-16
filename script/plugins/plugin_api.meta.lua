@@ -40,7 +40,7 @@ warn = nil
 ---@alias torirs.Verdict boolean|'consume'|nil
 ---@alias torirs.PanelView 'page'|'settings'
 ---@alias torirs.Surface 'viewport'|'minimap'|'sidebar'|'chat'|'chat_buttons'|'modal'|'compass'|'orbs'|integer
----@alias torirs.FrameBuildResultName 'ready'|'pending'|'unsupported'|'error'
+---@alias torirs.FrameBuildResultName 'ready'|'pending'|'unsupported'|'error'|'native'
 ---@alias torirs.KeyName 'shift'|'ctrl'|'space'|'tab'|'escape'
 ---@alias torirs.ImageRef integer
 ---@alias torirs.ModelRef integer
@@ -257,6 +257,8 @@ warn = nil
 ---@field invalidate fun()
 ---@field surface_native_size fun(surface: torirs.Surface): integer?, integer?
 ---@field surface_member_native_box fun(surface: torirs.Surface, member: integer): integer?, integer?, integer?, integer? The authored box of one numbered MEMBER of that surface, relative to the surface's own block. The role's own numbering; -1 is refused.
+---@field native_layout fun(): integer Which native top-level chrome the lane wears now: 0 fixed, 1 resizable-classic, 2 resizable-modern, 3 mobile, -1 unknown or between a request and its remount.
+---@field native_layout_select fun(layout: integer): boolean, torirs.ResultName Ask the lane for one of its own chromes (0..2), the way its Display row does. From on_gameframe or a player's own action only. true means asked, not yet changed; the remount arrives as a new frame root.
 
 ---@class torirs.FrameOfferInfo
 ---@field id string Canonical `<plugin-id>/<local-id>`.
@@ -529,7 +531,7 @@ warn = nil
 ---@field set_mask fun(self:torirs.Widget,image:integer?):boolean,string Native minimap, compass or sprite only: retained clip where the image is transparent; nil removes the native mask.
 ---@field set_opacity fun(self:torirs.Widget,opacity:integer):boolean,string Owned widgets only; 255 opaque, 0 invisible.
 ---@field set_anchor fun(self:torirs.Widget,target:torirs.Widget?,relation:"native"|"over"|"behind"|"replace"):boolean,string Retained depth relation to another widget: drawn and hit directly over it, behind it, or in its place (replace inherits the target's native visibility both ways). "native" with a nil target clears this owner's relation; self, ancestor/descendant pairs and cycles are invalid_argument.
----@field set_on_op fun(self:torirs.Widget,label:string?,callback:fun(widget:torirs.Widget,event:torirs.WidgetOperationEvent)?):boolean,string Owned controls only. Arms one left-click/menu operation delivered through the native hit test and retained-menu checks; replacing the callback retires earlier menu rows; nil removes it.
+---@field set_on_op fun(self:torirs.Widget,op:integer,label:string?,callback:fun(widget:torirs.Widget,event:torirs.WidgetOperationEvent)?):boolean,string Owned controls only. Arms menu operation `op` (1..10, numbered as the cache numbers a component's; 1 is the left-click default and the rows read down the menu in op order) with this label, delivered through the native hit test and retained-menu checks. One callback answers for every row of a control and the event carries which was chosen; replacing it retires earlier menu rows. A nil callback clears that one operation and leaves the others armed.
 ---@field remove fun(self:torirs.Widget):boolean,string Removes only this owner's widget.
 ---@field position fun(self:torirs.Widget):torirs.Rect? Native-parent-local, unscrolled geometry.
 ---@field bounds fun(self:torirs.Widget):torirs.Rect? Drawn canvas geometry, including scroll/drag.
@@ -556,8 +558,9 @@ warn = nil
 ---@field presented boolean Paints this frame; the same answer as :visible().
 ---@field own_hidden boolean The node's own hide bit: a CS2 if_sethide or a dat1 IF_SETTAB.
 ---@field native_hidden boolean The engine's native suppression, not the script's.
----@field input_present boolean Reachable by the native hit test.
+---@field input_present boolean Reachable by the native hit test as the lane left it; a plugin's own hiding is not folded in.
 ---@field graphic_token integer Change token for a node that carries art, 0 for one that does not. Never an identity.
+---@field paints_own_art boolean This node or something below it paints a PICTURE this frame -- what a REPLACE of it would consume. Text does not count. Zero graphic_token does not answer this: a button's art is on a child.
 ---@field text_hash integer FNV-1a 64 of a text node's string, 0 for a non-text node.
 ---@field facets integer What the LANE says about this widget, as a mask of api.widgets.facet values. 0 is 'no', never 'unknown'.
 ---@field facet torirs.WidgetFacets The same bits already unpacked.
@@ -727,6 +730,7 @@ warn = nil
 ---@field config_list_set fun(key: string, items: string[]): boolean State the whole list: sorted, deduplicated, refused rather than truncated.
 ---@field frame fun(offer_id: string, canvas: 'fixed'|'window', min_width: integer, min_height: integer, fn: fun(d: torirs.PorcelainDescribe)) Bind a description to one offer this plugin's definition publishes. Boot only.
 ---@field frame_event fun(event: torirs.GameframeEvent): torirs.FrameBuildResultName, string Forward on_gameframe. A release (active = false) runs a description that stages nothing, which is what takes the frame back off.
+---@field frame_native fun(event: {offer_id: string}): torirs.FrameBuildResultName, string The 'native' answer: the lane's own chrome is the offer, so the description stages nothing and every retained edit comes off. Return its word from on_gameframe, after frame.native_layout_select answered true.
 ---@field usable fun(): torirs.PorcelainBox? The canvas a frame may lay out in: the frame root less a PRESENTED lane strip spanning a full edge. nil before anything of this lane has bound.
 ---@field native_size fun(element: string): torirs.PorcelainBox? The box the LANE authored for that element, before any plugin edit. A member answers block-relative x and y; a whole surface answers 0, 0. nil when the lane states no pixel box.
 ---@field lane_icon fun(tab: string): integer This lane's own number for that tab's panel, or -1 where the lane numbers none or mounts none.
@@ -852,6 +856,7 @@ warn = nil
 ---@field native_hidden boolean The engine's native suppression.
 ---@field input_present boolean
 ---@field graphic_token integer A CHANGE token, never an identity.
+---@field paints_own_art boolean This element or something below it paints a PICTURE -- what a REPLACE of it consumes. Text does not count.
 ---@field facets integer
 ---@field incarnation integer
 ---@field box torirs.PorcelainBox Canvas space.

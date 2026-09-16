@@ -183,6 +183,25 @@ UITree_LayoutInvalidateNode(struct UITree* tree, int32_t idx)
         tree->layout_dirty_cap = cap;
     }
     tree->layout_dirty[tree->layout_dirty_count++] = idx;
+
+    /*
+     * And whatever takes this node's box with it.
+     *
+     * Seeded HERE rather than at each of the places that move a node, because
+     * this is the one choke point all of them pass through -- a provider's
+     * retained edit, a CS2 `cc_setposition`, a mode change. A follower whose
+     * source moved and which nothing re-seeded keeps last frame's box while
+     * the source draws at the new one, which is the exact defect the link
+     * exists to close, one indirection further along.
+     * @see UITreeComponent::frame_followed_by_plus1.
+     */
+    if( tree->components[idx].frame_followed_by_plus1 )
+    {
+        int32_t const follower = tree->components[idx].frame_followed_by_plus1 - 1;
+        if( (uint32_t)follower < tree->component_count &&
+            !tree->components[follower].freed )
+            UITree_LayoutInvalidateNode(tree, follower);
+    }
 }
 
 void
@@ -385,7 +404,24 @@ layout_compute_node(
     int const pa_ov_sample = ((pa_ov_tick++ & 63u) == 0);
     uint64_t const pa_ov0 = pa_ov_sample ? PerfAudit_Now() : 0;
     override = *spec;
-    int const widget_override = UITree_WidgetPositionOverride(tree, (int32_t)i, &override);
+    /*
+     * A hit region reads the SURFACE's edit, not its own.
+     *
+     * `frame_follows_plus1` pairs the lane's own click layer for a live
+     * surface with the node that paints it -- today the compass's
+     * `compassclick` with the `clientcode=1339` rose. The pair are siblings, so
+     * the provider's box is already in this node's parent's space and lands
+     * here unchanged; with no edit on the surface there is nothing to read and
+     * the region keeps the box the cache authored, which is exactly right for
+     * a lane no provided frame has moved. Read here rather than copied at
+     * provision time because the provider re-places its surfaces whenever the
+     * window changes and the binding does not: a copy would be a frame behind
+     * on every resize. @see UITreeComponent::frame_follows_plus1.
+     */
+    int32_t const follows = c->frame_follows_plus1 - 1;
+    int const widget_override = UITree_WidgetPositionOverride(
+        tree, follows >= 0 && (uint32_t)follows < tree->component_count ? follows : (int32_t)i,
+        &override);
     if( pa_ov_sample ) PA_ADD(override_ns, (PerfAudit_Now() - pa_ov0) * 64);
     if( widget_override ) spec = &override;
 

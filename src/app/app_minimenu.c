@@ -1829,7 +1829,7 @@ app_minimenu_ui_pick_live(
             app->tree->components[pick->node_index].component_id != pick->id )
             return 0;
         if( UITree_NodeOrAncestorDisplayHiddenEx(
-                app->tree, pick->node_index, pick->allow_frame_hidden) )
+                app->tree, pick->node_index, pick->allow_plugin_hidden) )
             return 0;
         idx = pick->node_index;
     }
@@ -2135,11 +2135,14 @@ app_minimenu_run_option(
      * A plugin canvas region's row -- an orb, a bar, anything a plugin drew on
      * the canvas and claimed.
      *
-     * `action_index` is the region's index in this frame's list. Re-checked
-     * against the count rather than trusted, because the row outlives the
-     * build that made it by a click: a menu opened on one frame is chosen from
-     * on a later one, and in between a plugin can have been switched off and
-     * its regions cleared.
+     * `action_index` is the op slot the row was built from (add_component_rows'
+     * owned-control loop), so a control carrying more than one op -- the
+     * minimap-orbs prayer cover, which has to offer both rows of the
+     * `orbs:prayerbutton` it hides -- tells the plugin WHICH was chosen rather
+     * than reporting every row as the same press. Re-checked against the tree
+     * rather than trusted, because the row outlives the build that made it by a
+     * click: a menu opened on one frame is chosen from on a later one, and in
+     * between a plugin can have been switched off and its controls cleared.
      */
     if( opt.action == RS_MINIMENU_ACTION_PLUGIN_WIDGET )
     {
@@ -2151,7 +2154,8 @@ app_minimenu_run_option(
                 app->plugins,
                 c->plugin_owner,
                 app_widget_ref(app->tree, node),
-                c->plugin_op_serial);
+                c->plugin_op_serial,
+                opt.action_index + 1);
         }
         return 0;
     }

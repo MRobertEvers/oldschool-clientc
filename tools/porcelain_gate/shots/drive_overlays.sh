@@ -17,7 +17,10 @@
 #   xp-drop-orbs  the "+N" label climbs over drop_duration ms -> xpslow-* pins
 #                 it by slowing the climb 6.7x, and xporbs-cs2-repeat measures
 #                 the same-binary noise floor.
-#   loot-beam     the column spins at `spin` deg/sec -> lb-nospin-* sets spin=0.
+#   loot-beam     the column USED to spin at `spin` deg/sec -> lb-nospin-* set
+#                 spin=0 to hold it. The spin is gone (loot_beam.lua's header
+#                 says why), so a beam is already still on the after binary and
+#                 only the `old` shots below still have a key to pin.
 #   highlighter   Romeo wanders and animates -> highlighter-cs2-repeat measures
 #                 the floor, which turns out to equal the before/after "signal".
 set -u
@@ -60,10 +63,10 @@ shot gi-tile-outline-cs2    cs2 TORIRS_SIM_CMD=$TENT \
 shot lootbeam-cs2        cs2 TORIRS_SIM_CMD=$TENT $T      # defaults: insane, pink
 shot lootbeam-cs1        cs1 TORIRS_SIM_CMD=$TENT $T
 old  lootbeam-cs2-before cs2 TORIRS_SIM_CMD=$TENT $T
-shot lb-nospin-after  cs2 TORIRS_SIM_CMD=$TENT TORIRS_SIM_PLUGIN_CONFIG='100,loot-beam,spin,0'
-shot lb-nospin-after2 cs2 TORIRS_SIM_CMD=$TENT TORIRS_SIM_PLUGIN_CONFIG='100,loot-beam,spin,0'
+shot lb-nospin-after  cs2 TORIRS_SIM_CMD=$TENT
+shot lb-nospin-after2 cs2 TORIRS_SIM_CMD=$TENT
 old  lb-nospin-before cs2 TORIRS_SIM_CMD=$TENT TORIRS_SIM_PLUGIN_CONFIG='100,loot-beam,spin,0'
-shot lb-light-cs2        cs2 TORIRS_SIM_CMD=$TENT TORIRS_SIM_PLUGIN_CONFIG='100,loot-beam,style,light;110,loot-beam,spin,0'
+shot lb-light-cs2        cs2 TORIRS_SIM_CMD=$TENT TORIRS_SIM_PLUGIN_CONFIG='100,loot-beam,style,light'
 old  lb-light-cs2-before cs2 TORIRS_SIM_CMD=$TENT TORIRS_SIM_PLUGIN_CONFIG='100,loot-beam,style,light;110,loot-beam,spin,0'
 # The port changed two tier rules. No drop: the fixture's own Spade and Knife are
 # the only stacks, and one of them is worth EXACTLY the threshold, so >= and >
@@ -72,9 +75,9 @@ shot lb-nodrop-after  cs2 TORIRS_SIM_PLUGIN_CONFIG='100,loot-beam,tier,low;110,l
 old  lb-nodrop-before cs2 TORIRS_SIM_PLUGIN_CONFIG='100,loot-beam,tier,low;110,loot-beam,low_value,1' $T
 # The same change as a colour: only the low tier left enabled. A 0 threshold now
 # DISABLES its tier; it used to match everything, so insane won first.
-TIER='100,loot-beam,tier,low;102,loot-beam,low_value,1;104,loot-beam,medium_value,0;106,loot-beam,high_value,0;108,loot-beam,insane_value,0;110,loot-beam,spin,0'
+TIER='100,loot-beam,tier,low;102,loot-beam,low_value,1;104,loot-beam,medium_value,0;106,loot-beam,high_value,0;108,loot-beam,insane_value,0'
 shot lootbeam-tierrule-cs2        cs2 TORIRS_SIM_CMD=$TENT TORIRS_SIM_PLUGIN_CONFIG=$TIER
-old  lootbeam-tierrule-cs2-before cs2 TORIRS_SIM_CMD=$TENT TORIRS_SIM_PLUGIN_CONFIG=$TIER
+old  lootbeam-tierrule-cs2-before cs2 TORIRS_SIM_CMD=$TENT TORIRS_SIM_PLUGIN_CONFIG="$TIER;110,loot-beam,spin,0"
 
 # ----------------------------------------------------------- entity-highlighter
 shot  highlighter-cs2        cs2 TORIRS_SIM_PLUGIN_CONFIG=$HL $T

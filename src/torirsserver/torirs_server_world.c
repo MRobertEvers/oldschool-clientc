@@ -3588,6 +3588,10 @@ npc_spawn(
         /* Explicit for the same reason as `combat_target` beside it: the memset
          * above makes it 0, and 0 is npc slot zero. */
         npc->combat_target_npc = -1;
+        /* Explicit for the same reason: 0 is player pool slot zero, so a fresh
+         * npc would spawn already claimed by whoever logged in first. See the
+         * field. */
+        npc->combat_claim_pid = -1;
         npc->death_tick = -1;
         npc->respawn_tick = -1;
         /* Explicit, because the memset above makes it 0 and 0 is a *tick*:
@@ -6266,6 +6270,26 @@ handle_opnpc(
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- OPNPC%d slot=%d type=%d\n", op_num, slot, npc->type);
 
+    /*
+     * Single-way combat, and it has to be asked HERE — before
+     * `ToriRSServer_WorldClearPendingAction` below, which is the line that
+     * forgets what the player was doing. Ask it one statement later and the
+     * fight this click is not allowed to leave has already been left: the
+     * interaction is cleared, the walk is cleared, and the only honest answer
+     * available is "yes, go ahead".
+     *
+     * The npc record is read here rather than reusing `info` further down for
+     * the same reason — `info` is resolved after the clear.
+     */
+    {
+        const struct ToriRSServerNpcInfo* clicked = ToriRSServer_NpcInfo(npc->type);
+        const char* verb = (op_num >= 1 && op_num <= 5) ? clicked->ops[op_num - 1] : NULL;
+
+        if( verb && strcmp(verb, TORIRSSERVER_VERB_ATTACK) == 0 &&
+            ToriRSServer_CombatSinglewayRefuses(srv, srv->active_player, slot) )
+            return;
+    }
+
     /* A new interaction ends the old one — including the facing, and including
      * a dialogue still on screen from the last one. Combat is re-established by
      * the engine handler if this op is "Attack".
@@ -6895,6 +6919,21 @@ handle_opnpct(
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- OPNPCT slot=%d type=%d spell=%d|%d\n", slot, npc->type,
                 (spell >> 16) & 0xffff, spell & 0xffff);
+
+    /*
+     * Single-way applies to a spell as much as to a sword — a cast is an
+     * attack, and the reference's gate is on the fight rather than on the
+     * weapon. Asked before `spell_interact`, which clears the pending action
+     * the same way the Attack click above does.
+     *
+     * Every npc-targeted spell, not only the combat book's: this tree has no
+     * flag on a spell that says which are attacks, and the ones that are not
+     * (a cure, a charge) are cast on a player or a loc rather than on a
+     * monster. A refusal therefore costs nothing that a player could otherwise
+     * have done to a monster they are not allowed to attack.
+     */
+    if( ToriRSServer_CombatSinglewayRefuses(srv, srv->active_player, slot) )
+        return;
 
     info = ToriRSServer_NpcInfo(npc->type);
     spell_interact(srv, TORIRSSERVER_INTERACT_NPC, slot, npc->type, npc->x, npc->z, npc->level,
@@ -12123,6 +12162,9 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     player->x = g_home_x;
     player->z = g_home_z;
     player->combat_target = -1;
+    /* Explicit for the same reason as `combat_target` beside it: 0 is npc slot
+     * zero, and a fresh login must not arrive holding a claim on it. */
+    player->combat_claim_npc = -1;
     player->level = 0;
     player->last_step_x = player->x - 1;
     player->last_step_z = player->z;
