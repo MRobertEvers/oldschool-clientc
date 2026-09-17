@@ -253,54 +253,10 @@ def write_manifest(stage: Path, game_port: int, ws_host: str) -> None:
         out_lines.append(line)
     if section == "net:boot":
         close_net_boot()
-    out_lines.append(PRELOAD_FILL)
     dst = stage / "manifests" / "manifest_osrs239.ini"
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text("".join(out_lines), encoding="utf-8")
 
-
-# A streamed cache pays a network round trip per group it did not already
-# hold, and a running client resolves CS2 scripts and sprites one at a time
-# as interface hooks execute: measured, 1149 round trips after login on the
-# public deployment, most of them exactly that. The deob's loading screen
-# avoids it by downloading these archives whole before the title screen, and
-# `groups=all` on a [preload:] index step is the same thing here. Inline in
-# the manifest (the `revconfig:` prefix) so only this deployment opts in; a
-# same-name step replaces the revconfig one wholesale, so every key is
-# restated.
-PRELOAD_FILL = """
-; Whole-archive preload for a streamed cache: see tools/deploy/build_osrs239_package.py.
-[revconfig:preload:sprites]
-order=30
-kind=index
-archive=sprites
-id=8
-percent=30
-weight=36
-say=checking_updates
-render=yes
-groups=all
-[revconfig:preload:interfaces]
-order=31
-kind=index
-archive=interfaces
-id=3
-percent=30
-weight=4
-say=checking_updates
-render=yes
-groups=all
-[revconfig:preload:clientscript]
-order=32
-kind=index
-archive=clientscript
-id=12
-percent=30
-weight=8
-say=checking_updates
-render=yes
-groups=all
-"""
 
 RUN_CMD = r"""@echo off
 setlocal

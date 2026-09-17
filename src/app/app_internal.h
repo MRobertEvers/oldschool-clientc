@@ -427,6 +427,9 @@ struct Task_AppBoot
     struct ToriRS_Task task;
     struct pt pt;
     struct App* app;
+    /** The profile's preload task, queued as a joined sibling ahead of this
+     *  one; the boot does not begin until it has ended. */
+    int preload_pending;
 };
 
 

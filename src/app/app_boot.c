@@ -340,6 +340,13 @@ Task_AppBoot_Run(
 
     PT_BEGIN(&self->pt);
 
+    /* The profile's loading screen runs to its end first; see app_open_tree. */
+    while( self->preload_pending > 0 )
+    {
+        self->task.blocked = 1;
+        PT_YIELD(&self->pt);
+    }
+
     /* This stage's place in the profile's own list, where it declares
      * one. The modern lane's boot is numbered by the deob and continues
      * from where its cache-index steps left off; a lane that names no
@@ -974,6 +981,13 @@ app_open_tree(
      * NULL on a profile that names no cache indices, which is every dat1
      * lane: their list is jag archives, loaded by other machinery.
      */
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_AppBoot_VTable;
+    strncpy(task->task.name, "AppBoot", sizeof(task->task.name) - 1);
+    task->app = app;
+    PT_INIT(&task->pt);
+
     if( app->provider )
     {
         /* One of the two answers, never both: a profile lists cache indices
@@ -992,16 +1006,19 @@ app_open_tree(
                 app->cache_on_demand && !app->dat1_prefetch_queued);
             app->dat1_prefetch_queued = 1;
         }
-        if( preload )
-            ToriRS_TaskQueue_Add(app->runner.queue, preload);
+        /*
+         * Joined, not merely queued ahead: the boot waits for the loading
+         * screen to end before it starts its own work (Task_AppBoot_Run), as
+         * the deob's does. It used to run on regardless, which was harmless
+         * while a preload was eight index reads that finished within the
+         * frame -- and a use-after-free once a `groups=all` fill took
+         * seconds: a second boot pass created a second preload task, both
+         * found the same index absent, and the second one's decode replaced
+         * (freed) the table the first one's fill was still walking.
+         */
+        ToriRS_TaskQueue_AddJoined(app->runner.queue, preload, &task->preload_pending);
     }
 
-    task = calloc(1, sizeof(*task));
-    assert(task);
-    task->task.vtable = &Task_AppBoot_VTable;
-    strncpy(task->task.name, "AppBoot", sizeof(task->task.name) - 1);
-    task->app = app;
-    PT_INIT(&task->pt);
     ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
 }
 

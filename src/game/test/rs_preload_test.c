@@ -223,9 +223,51 @@ test_inline_groups_all(char const* scratch_dir)
             others_flagged++;
     }
     TEST_ASSERT(sprites_seen == 1, "the inline step replaced the shipped one, not doubled it");
-    TEST_ASSERT(others_flagged == 0, "no other step gained the flag");
+    TEST_ASSERT(others_flagged > 0, "the shipped list flags other archives on its own");
     RS_Preload_Free(&table);
     remove(path);
+}
+
+/* The osrs239 list downloads what the deob's loading screen downloads whole
+ * (its "Loading X - N%" captions), and does not download the sounds and music
+ * the deob leaves on demand. */
+static void
+test_shipped_osrs239_whole_archives(void)
+{
+    struct RS_PreloadTable table;
+    static char const* const whole[] = {
+        "configs", "sprites", "fontmetrics", "interfaces", "textures", "binary",
+        "worldmap_geography", "worldmap", "worldmap_ground",
+    };
+    static char const* const index_only[] = {
+        "soundeffects", "musictracks", "musicsamples", "musicpatches",
+    };
+
+    RS_Preload_Init(&table);
+    RS_Preload_LoadSources(&table, k_dat2_ini, NULL, NULL);
+    for( size_t w = 0; w < sizeof(whole) / sizeof(whole[0]); w++ )
+    {
+        int found = 0;
+        for( int i = 0; i < table.count; i++ )
+        {
+            struct RS_PreloadStep const* step = RS_Preload_At(&table, i);
+            if( strcmp(step->name, whole[w]) == 0 )
+            {
+                found = 1;
+                TEST_ASSERT(step->kind == RS_PRELOAD_KIND_INDEX, "a whole-archive step is an index step");
+                TEST_ASSERT(step->groups_all == 1, "the deob downloads this archive whole");
+            }
+        }
+        TEST_ASSERT(found, "every archive the deob downloads whole has a step");
+    }
+    for( size_t w = 0; w < sizeof(index_only) / sizeof(index_only[0]); w++ )
+        for( int i = 0; i < table.count; i++ )
+        {
+            struct RS_PreloadStep const* step = RS_Preload_At(&table, i);
+            if( strcmp(step->name, index_only[w]) == 0 )
+                TEST_ASSERT(step->groups_all == 0, "sounds and music stay on demand");
+        }
+    RS_Preload_Free(&table);
 }
 
 int
@@ -242,6 +284,7 @@ main(int argc, char** argv)
     test_a_later_source_restates();
     test_each_lane_has_work_to_do();
     test_inline_groups_all(scratch_dir);
+    test_shipped_osrs239_whole_archives();
 
     if( g_failures )
     {

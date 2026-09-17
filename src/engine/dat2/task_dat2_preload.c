@@ -81,6 +81,20 @@ struct Task_Dat2Preload
  * OldSchool ships client defaults at 17 and RS2 at 28. The name is the stable
  * half.
  */
+/* See the comment above the `groups=all` fill in Task_Dat2Preload_Run. */
+static int
+preload_fill_enabled(void)
+{
+#if defined(TORIRS_PLATFORM_WEB)
+    return 1;
+#else
+    static int enabled = -1;
+    if( enabled < 0 )
+        enabled = getenv("TORIRS_PRELOAD_FILL") != NULL;
+    return enabled;
+#endif
+}
+
 static int
 table_from_name(
     char const* name,
@@ -108,6 +122,9 @@ table_from_name(
         { "skeletons", RSCACHE_DAT2_TABLE_SKELETONS },
         { "maps", RSCACHE_DAT2_TABLE_MAPS },
         { "clientscript", RSCACHE_DAT2_TABLE_CLIENTSCRIPT },
+        { "worldmap_geography", RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY },
+        { "worldmap", RSCACHE_DAT2_TABLE_WORLDMAP },
+        { "worldmap_ground", RSCACHE_DAT2_TABLE_WORLDMAP_GROUND },
     };
 
     assert(name);
@@ -212,7 +229,14 @@ Task_Dat2Preload_Run(
                 TORIRS_ERR("preload: no reference table for '%s'\n", task->step->archive);
                 continue;
             }
-            dat2_buildcache_reference_table_add(task->bc, task->table_id, table);
+            /* Never replace a table another task filed while this one was
+             * yielded: a replacement frees the old one under any fill that
+             * is walking it (the boot joins on its preload now, so two of
+             * these no longer overlap -- this is the belt to that brace). */
+            if( dat2_buildcache_reference_table_has(task->bc, task->table_id) )
+                RSCache_ReferenceTableFree(table);
+            else
+                dat2_buildcache_reference_table_add(task->bc, task->table_id, table);
         }
 
         /*
@@ -227,12 +251,19 @@ Task_Dat2Preload_Run(
          *
          * Fetched in joined waves of siblings on the asset queue, so this
          * task never resumes past a wave with a group half done, and the
-         * boot bar can advance between waves. On a local cache the same
-         * reads are disk hits and nothing is kept, which is why the step is
-         * opt-in per manifest: a deployment that streams its cache says so.
+         * boot bar can advance between waves.
+         *
+         * The revision's list (revconfig) says WHICH archives; whether to
+         * act on it is the lane's: the point of the fetch is to make the
+         * group resident in the client's store, and on a cache read from
+         * local disk every group already is, so the desktop client would
+         * spend a boot re-reading and decompressing ~15 MB for nothing. The
+         * browser has no local disk (TORIRS_PLATFORM_WEB), and
+         * TORIRS_PRELOAD_FILL=1 forces it elsewhere -- a native client on a
+         * streamed cache, or a test of this path.
          */
         if( task->step->groups_all && task->bc->base.asset_queue &&
-            !task->bc->reference_table_filled[task->table_id] )
+            !task->bc->reference_table_filled[task->table_id] && preload_fill_enabled() )
         {
             enum
             {
@@ -288,9 +319,12 @@ Task_Dat2Preload_Run(
             }
             fprintf(
                 stderr,
-                "preload: %s filled, %d groups\n",
+                "preload: %s (table %d) filled, %d groups, ids %d..%d\n",
                 task->step->archive,
-                task->fill_ref->id_count);
+                (int)task->table_id,
+                task->fill_ref->id_count,
+                task->fill_ref->id_count ? task->fill_ref->ids[0] : -1,
+                task->fill_ref->id_count ? task->fill_ref->ids[task->fill_ref->id_count - 1] : -1);
         }
 
         task->weight_done += task->step->weight;
