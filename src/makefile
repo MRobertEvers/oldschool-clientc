@@ -637,6 +637,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	app/app_plugin_object.c \
 	app/app_plugin_panel.c \
 	app/app_render.c \
+	app/app_session_resume.c \
 	app/app_textures.c \
 	app/app_tick.c \
 	app/app_title.c \
@@ -3704,6 +3705,7 @@ test-web-channel:
 	node web/test/host_plugin_files_test.js
 	node web/test/hostio_read_file_test.js
 	node web/test/js5_reconnect_test.js
+	node web/test/session_resume_test.js
 	$(MAKE) test-chrome-web-skin
 
 test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \

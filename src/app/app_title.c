@@ -637,6 +637,18 @@ app_title_tick(struct App* app)
      * exactly as a networked boot used to do straight out of App_Init. */
     if( RS_TitleSession_LoginSucceeded(app_title_phase(app), app_title_link_state(app)) )
     {
+        /*
+         * The one moment these credentials are known to work.
+         *
+         * A browser tab that is reloaded loses the heap and the socket with
+         * it; handing the page what the session was dialled with is what lets
+         * the next boot log straight back in instead of opening on an empty
+         * form. Taken from the network rather than from the form because that
+         * is what was actually sent -- the same pair the in-process reconnect
+         * redials with. Native lanes keep the record and have nothing to hand
+         * it to. @see app_session_resume.c.
+         */
+        app_session_resume_remember(app->net->username, app->net->password);
         App_OpenRootInterface(app, -1);
         return 1;
     }

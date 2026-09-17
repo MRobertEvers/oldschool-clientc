@@ -167,6 +167,15 @@ App_Logout(struct App* app)
      */
     NetLinkWatch_Reset(&app->net_link);
 
+    /*
+     * And forget the session a reloaded page would have come back into.
+     *
+     * Before the title-screen branch below, not inside it: the socket is gone
+     * either way, and a profile with nowhere to send the player is not a
+     * profile whose next boot should log back in. @see app_session_resume.c.
+     */
+    app_session_resume_forget();
+
     if( !App_HasTitleScreen(app) )
     {
         /* Undeclared means absent (App_HasTitleScreen): this profile boots

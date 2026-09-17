@@ -30,6 +30,9 @@
 //   ?ws=wss://host/path | ?ws=ws  the game socket's URL; JS5 follows it
 //   ?js5_host= ?js5_port= ?js5_url=   where JS5 is, when not the page's host
 //
+// A tab that is already logged in appends its own `--user`/`--pass` to that
+// command line when the page is reloaded -- see createResumeSession.
+//
 // Repeated `arg=` is the form run-live.sh generates and the one to prefer:
 // each value is percent-encoded on its own, so an argument may contain a comma,
 // a space or an `&` — a password, a TORIRS_NET_CHEAT string. The comma-joined
@@ -72,7 +75,149 @@
     return out;
   }
 
-  const args = readArgs();
+  /*
+   * The session a refresh comes back to.
+   *
+   * A browser tab is reloaded all the time -- F5, a dropped wifi, a phone that
+   * killed the page while it was in the background -- and each one takes the
+   * whole client with it: the wasm heap, the socket, and the credentials the
+   * player typed into the login form. What came back was the title screen with
+   * two empty boxes, in the middle of a fight.
+   *
+   * There is nothing to resume on the wire. The reconnect handshake presents
+   * the previous session's cipher seeds (net.h), and those went with the heap;
+   * what the page can do is log in again, which is what a player would have
+   * done by hand. So the credentials of a login that SUCCEEDED are kept for
+   * the tab, put back on the client's command line at the next boot, and the
+   * existing autologin submits them once (RS_TitleSession) -- the same path a
+   * clicked Login takes, which is why the player watches the form fill in and
+   * say "Connecting to server..." rather than being teleported past it.
+   *
+   * WHAT IS KEPT, AND FOR HOW LONG. sessionStorage, not localStorage: the
+   * entry is scoped to this tab and this origin, survives a reload, and is
+   * gone when the tab closes. A password that outlives the tab is a password
+   * nobody asked us to keep, and localStorage would also hand one tab's
+   * account to another's.
+   *
+   * WHEN IT IS WRITTEN. Only on a login the server accepted (app_title.c), so
+   * a boot can never resume credentials that have never worked.
+   *
+   * WHEN IT IS DROPPED. On a logout (app_net.c App_Logout), because the player
+   * ended that session on purpose and coming back into it is the one thing
+   * they did not ask for. NOT on a rejected login: "this world is full" and
+   * "your account is still logged in" are the two most likely answers a
+   * reloading client gets, and forgetting a working password over either of
+   * them is what would make the feature unreliable exactly when it is needed.
+   *
+   * WHICH BOOT MAY HAVE IT. The manifest the entry was written under, and only
+   * that one: a page opened on another profile is another world, and sending
+   * one world's credentials to another's server is not a thing to do quietly.
+   */
+  function createResumeSession(storage) {
+    const KEY = 'torirs.session';
+
+    function manifestOf(argv) {
+      const at = argv.indexOf('--manifest');
+      return at >= 0 && at + 1 < argv.length ? argv[at + 1] : '';
+    }
+
+    return {
+      /* Which profile this page booted, filled in by boot() and quoted back
+       * into every entry written afterwards. */
+      manifest: '',
+
+      /*
+       * The client's command line, with a resumable session appended.
+       *
+       * Appended rather than inserted: main.c applies the manifest's
+       * `[client:args]` first and the process argv second, and within a layer
+       * the last value of a flag is the one that stands -- so the tail is the
+       * one position that wins over both without having to know what either
+       * said.
+       */
+      boot(argv) {
+        this.manifest = manifestOf(argv);
+        /* An explicit credential on the page's command line is the operator's
+         * and outranks anything this tab remembers -- including the case where
+         * the two disagree, which is somebody deliberately logging in as
+         * somebody else. */
+        if (argv.indexOf('--user') >= 0) { return argv; }
+
+        const held = this.read();
+        if (!held || held.manifest !== this.manifest) { return argv; }
+        return argv.concat(['--user', held.user, '--pass', held.password]);
+      },
+
+      /* The client says a login was accepted. */
+      remember(user, password) {
+        if (!storage || typeof user !== 'string' || user === '') { return false; }
+        try {
+          storage.setItem(KEY, JSON.stringify({
+            manifest: this.manifest,
+            user,
+            password: typeof password === 'string' ? password : ''
+          }));
+          return true;
+        } catch (e) {
+          /* A quota or a browser that refuses storage: the session simply is
+           * not resumable, which is where the client was before this existed. */
+          return false;
+        }
+      },
+
+      /* The client says the player logged out. */
+      forget() {
+        if (!storage) { return; }
+        try { storage.removeItem(KEY); } catch (e) { /* see remember() */ }
+      },
+
+      read() {
+        if (!storage) { return null; }
+        let raw;
+        try { raw = storage.getItem(KEY); } catch (e) { return null; }
+        if (!raw) { return null; }
+        let held;
+        /* Anything but an entry this file wrote -- a truncated string, an
+         * older shape, another script's key -- is not a session. */
+        try { held = JSON.parse(raw); } catch (e) { return null; }
+        if (!held || typeof held.user !== 'string' || held.user === '' ||
+            typeof held.password !== 'string' || typeof held.manifest !== 'string') {
+          return null;
+        }
+        return held;
+      }
+    };
+  }
+
+  /* Reading it can throw outright: a browser configured to block site data
+   * fails on the property itself, not on the get. */
+  function sessionStorageOrNull() {
+    try { return window.sessionStorage || null; } catch (e) { return null; }
+  }
+
+  /*
+   * A password in the console log is a password on a screenshot. The argv line
+   * is worth keeping -- it is the first thing to ask about a boot -- so the
+   * value is replaced rather than the line dropped.
+   */
+  function redactArgs(argv) {
+    const out = argv.slice();
+    for (let i = 0; i + 1 < out.length; i++) {
+      if (out[i] === '--pass') { out[i + 1] = '****'; }
+    }
+    return out;
+  }
+
+  const resumeSession = createResumeSession(sessionStorageOrNull());
+  /* The page's own command line, plus whatever this tab is still logged into.
+   * The client is told nothing new: the resumed credentials arrive as the
+   * --user/--pass the autologin path has always read. */
+  const args = resumeSession.boot(readArgs());
+  /* C -> page, from app/app_session_resume.c. Both are one-liners here because
+   * the rules about what may be kept are the comment above createResumeSession,
+   * and the rules about WHEN belong to the client. */
+  window.torirsSessionRemember = (user, password) => resumeSession.remember(user, password);
+  window.torirsSessionForget = () => resumeSession.forget();
   /*
    * The directory this page was served from, with its trailing slash: `/` at
    * the root, `/torirs/` behind a reverse proxy that mounts io_server under a
@@ -611,7 +756,7 @@
         (cacheKey ? ` (${cacheKey})` : '') +
         `, js5 ${js5Url || `ws://${js5Host}:${js5Port}`}` +
         (gameWsUrl ? `, game ${gameWsUrl}` : ''));
-    log(`torirs: argv ${JSON.stringify(args)}`);
+    log(`torirs: argv ${JSON.stringify(redactArgs(args))}`);
     // Which cache the server has open. Changing the manifest in the URL
     // changes the client but not the server, and a client booting one
     // generation against another's cache just fails to decode anything —

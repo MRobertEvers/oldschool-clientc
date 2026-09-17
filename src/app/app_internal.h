@@ -1488,6 +1488,36 @@ void
 app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input);
 
 
+/* ---- app_session_resume.c ---- */
+/**
+ * Hand the page the credentials a reload should log back in with.
+ *
+ * Called on a login the server ACCEPTED, and never anywhere else: a boot can
+ * then only ever resume a login that has worked. `user` must be the name that
+ * was dialled -- see app_session_resume.c for what the page does with it, and
+ * for how long.
+ */
+void
+app_session_resume_remember(
+    char const* user,
+    char const* password);
+
+/**
+ * Drop it. The player logged out, and coming back into the session they just
+ * left is the one thing they did not ask for.
+ *
+ * Idempotent, and legal before anything was ever remembered.
+ */
+void
+app_session_resume_forget(void);
+
+/** Whose session is being held, or "" for none. The page holds the password;
+ *  this side keeps only the name, which is what makes the rule observable
+ *  from a test on a lane that has no page. */
+char const*
+app_session_resume_user(void);
+
+
 /* ---- app_textures.c ---- */
 int
 app_tex_trace_enabled(void);

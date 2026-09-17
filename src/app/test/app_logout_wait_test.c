@@ -177,6 +177,69 @@ test_a_closed_socket_with_no_logout_pending_still_reconnects(void)
     free(net);
 }
 
+/*
+ * A logout also ends the session a RELOADED PAGE would come back into.
+ *
+ * The browser client keeps the credentials of a successful login for the tab
+ * so that a refresh logs straight back in (app/app_session_resume.c). A
+ * logout is the player saying that session is over, and a tab that then
+ * reloads must open on an empty form -- being put back into the world you
+ * just walked out of is the one outcome nobody asks for.
+ *
+ * Observed through app_session_resume_user() because the fixture has no page:
+ * the native lane keeps the record and has nothing to hand it to, which is
+ * exactly what makes the RULE testable here rather than only in a browser.
+ */
+static void
+test_a_logout_forgets_the_resumable_session(void)
+{
+    struct ToriRS_Network* net = make_net_in_game();
+    struct App* app = make_app(net);
+
+    printf("TEST: a logout drops the session a reload would resume\n");
+
+    app_session_resume_remember("zezima", "hunter2");
+    TEST_ASSERT(
+        strcmp(app_session_resume_user(), "zezima") == 0, "the session was there to lose");
+
+    app->logout_requested = 1;
+    app_logout_tick(app);
+    app_net_lost(app, "socket closed"); /* the server's answer: see above */
+
+    TEST_ASSERT(
+        app_session_resume_user()[0] == '\0',
+        "a reload would have logged back into the world the player left");
+
+    free(app);
+    free(net);
+}
+
+/*
+ * The control for the one above, and the reason forgetting is a LOGOUT's job
+ * and not a closed socket's: a connection that is merely lost is the case the
+ * whole resume exists for. A phone that killed the page, a proxy that dropped
+ * the WebSocket, F5 -- the credentials are the way back in.
+ */
+static void
+test_a_lost_connection_keeps_the_resumable_session(void)
+{
+    struct ToriRS_Network* net = make_net_in_game();
+    struct App* app = make_app(net);
+
+    printf("TEST: a lost connection keeps it -- that is what it is for\n");
+
+    app_session_resume_remember("zezima", "hunter2");
+    app_net_lost(app, "socket closed");
+
+    TEST_ASSERT(
+        strcmp(app_session_resume_user(), "zezima") == 0,
+        "a dropped socket threw away the credentials that get the player back");
+
+    app_session_resume_forget();
+    free(app);
+    free(net);
+}
+
 /* Nothing to wait for: an offline profile, or a session already gone. The
  * request is the ending, and making the player watch five seconds of a client
  * that looks like it ignored the button is not a fidelity improvement. */
@@ -203,6 +266,8 @@ main(void)
     test_a_wait_that_nothing_answers_ends_it_anyway();
     test_a_closed_socket_is_the_answer();
     test_a_closed_socket_with_no_logout_pending_still_reconnects();
+    test_a_logout_forgets_the_resumable_session();
+    test_a_lost_connection_keeps_the_resumable_session();
     test_no_session_means_no_wait();
 
     if( g_failures )
