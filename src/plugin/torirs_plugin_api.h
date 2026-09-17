@@ -198,7 +198,8 @@ enum ToriRS_FrameStatus
 };
 
 /* The live surfaces a lane lays out. The numbering is public only as the
- * argument of ToriRS_FrameApi::surface_native_size; a provided frame moves
+ * argument of ToriRS_FrameApi::surface_native_size and its siblings
+ * (surface_member_native_box, surface_fit); a provided frame moves
  * the surfaces themselves through the widget API. */
 enum ToriRS_Surface
 {
@@ -746,7 +747,34 @@ struct ToriRS_FrameApi
     enum ToriRS_Result (*native_layout_select)(
         struct ToriRS_Api* api,
         int layout);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 4])(void);
+    /**
+     * The largest box, inside `width` x `height`, that `surface` lays itself
+     * out to fill.
+     *
+     * surface_native_size says what the lane authored; this says what else the
+     * surface can BE. Most surfaces are one size: a box bigger than the
+     * authored one is the same picture with empty space around it. The 2004
+     * chat builtin is not -- it lays its message window out to its own height,
+     * a line per 14 rows -- so a frame whose housing has room for more history
+     * than 96 rows asks here with the housing's inner rectangle and places the
+     * surface at the answer, centred in the room it asked about.
+     *
+     * The answer is never smaller than the authored size and never bigger
+     * than the box asked about, and it lands on a whole line: a height the
+     * engine would draw a sliver of text into is not one it hands back.
+     *
+     * False, writing nothing, when the surface has only its authored size
+     * (the frame places it at surface_native_size), when the box asked about
+     * is smaller than that size, or when the lane has no such surface.
+     */
+    bool (*surface_fit)(
+        struct ToriRS_Api* api,
+        int surface,
+        int width,
+        int height,
+        int* out_width,
+        int* out_height);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 5])(void);
 };
 
 /* The pixels themselves are emitted through ToriRS_Graphics. This module

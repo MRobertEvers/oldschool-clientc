@@ -3,6 +3,7 @@
 #include "plugin/torirs_plugin_host_types.h"
 #include "uitree_layout.h"
 #include "uitree_host.h"
+#include "uitree_chatview.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -319,6 +320,48 @@ UITree_FrameSlotNativeSize(
         *out_w = c->position.width;
     if( out_h )
         *out_h = c->position.height;
+    return 1;
+}
+
+int
+UITree_FrameSlotFit(
+    struct UITree const* tree,
+    int slot,
+    int w,
+    int h,
+    int* out_w,
+    int* out_h)
+{
+    int native_w = 0;
+    int native_h = 0;
+    int lines;
+    int fit_h;
+    int32_t node;
+
+    assert(tree);
+    assert(out_w);
+    assert(out_h);
+    node = UITree_FrameSlotNode(tree, slot);
+    if( node < 0 )
+        return 0;
+    /* A cache chatbox is an interface that lays itself out in CS2, and every
+     * other surface is one picture: only the builtin grows. */
+    if( tree->components[node].type != UIELEM_BUILTIN_CHAT )
+        return 0;
+    if( !UITree_FrameSlotNativeSize(tree, slot, &native_w, &native_h) )
+        return 0;
+    if( w < native_w || h < native_h )
+        return 0;
+    lines = UI_CHATVIEW_LINES_FOR_HEIGHT(h);
+    if( lines > UI_CHATVIEW_LINES_MAX_VISIBLE )
+        lines = UI_CHATVIEW_LINES_MAX_VISIBLE;
+    fit_h = UI_CHATVIEW_HEIGHT_FOR_LINES(lines);
+    /* The authored box is the floor even where it is not a whole-line height
+     * itself -- 96 is not -- because it is what the lane chose to draw. */
+    if( fit_h < native_h )
+        fit_h = native_h;
+    *out_w = native_w;
+    *out_h = fit_h;
     return 1;
 }
 

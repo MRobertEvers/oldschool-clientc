@@ -4219,6 +4219,22 @@ app_plugin_slot_member_native_box(
 }
 
 /*
+ * The largest box inside `w` x `h` a surface fills. @see slot_fit.
+ */
+static int
+app_plugin_slot_fit(void* user, int slot, int w, int h, int* out_w, int* out_h)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( !app->tree )
+        return 0;
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
+        return 0;
+    return UITree_FrameSlotFit(app->tree, slot, w, h, out_w, out_h);
+}
+
+/*
  * Where a component is. @see component_rect.
  *
  * The same node->rect the region readouts end in, reached by id rather than by
@@ -6094,6 +6110,7 @@ app_plugin_engine(struct App* app)
     engine.mouse_pos = app_plugin_mouse_pos;
     engine.slot_native_size = app_plugin_slot_native_size;
     engine.slot_member_native_box = app_plugin_slot_member_native_box;
+    engine.slot_fit = app_plugin_slot_fit;
     engine.component_rect = app_plugin_component_rect;
     engine.menu_drop = app_plugin_menu_drop;
     engine.frame_activate = app_plugin_frame_activate;

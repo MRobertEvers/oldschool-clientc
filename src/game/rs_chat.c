@@ -466,15 +466,18 @@ RS_Chat_BuildView(
     if( chat->social_input_open || chat->dialog_input_open )
     {
         char buf[128];
+        /* The reference's 40 and 60 are the 96-row box's middle; a taller box
+         * keeps the pair on its own. */
+        int const middle = (height - UI_CHATVIEW_NATIVE_HEIGHT) / 2;
         out->centered = 1;
         out->center_count = 2;
-        out->center_lines[0].baseline_y = 40;
+        out->center_lines[0].baseline_y = middle + 40;
         line_add_span(
             &out->center_lines[0],
             0,
             CHAT_COLOR_BLACK,
             chat->social_input_open ? chat->social_header : "Enter amount:");
-        out->center_lines[1].baseline_y = 60;
+        out->center_lines[1].baseline_y = middle + 60;
         snprintf(
             buf,
             sizeof(buf),

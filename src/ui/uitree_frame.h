@@ -171,6 +171,33 @@ UITree_FrameSlotNativeSize(
     int* out_h);
 
 /**
+ * The largest box inside `w` x `h` that `slot`'s surface lays itself out to
+ * fill.
+ *
+ * NativeSize says what the lane authored; this says what else the surface can
+ * be. Almost every surface is one picture at one size, and a bigger box is
+ * that picture with empty space round it -- those answer 0. The 2004 chat
+ * builtin is the exception: its message window, scrollbar, rule and input line
+ * all follow the node's HEIGHT (@see UI_CHATVIEW_WINDOW_H), while its message
+ * column and scrollbar stay 479 wide whatever the box says. So it answers its
+ * authored width and the tallest whole-line height that fits -- more history,
+ * never a sliver of a line against the top border.
+ *
+ * @return 1 with the box written when the surface has a size other than its
+ * authored one to offer, or when the box asked about is exactly room for the
+ * authored one; 0, writing nothing, for a one-size surface, for a box smaller
+ * than the authored size, or for a lane with no such surface.
+ */
+int
+UITree_FrameSlotFit(
+    struct UITree const* tree,
+    int slot,
+    int w,
+    int h,
+    int* out_w,
+    int* out_h);
+
+/**
  * The box the LANE authored for one MEMBER of `slot`, block-relative.
  *
  * UITree_FrameSlotNativeSize above answers for the surface as a whole; this is

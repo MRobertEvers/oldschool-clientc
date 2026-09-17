@@ -257,6 +257,7 @@ warn = nil
 ---@field invalidate fun()
 ---@field surface_native_size fun(surface: torirs.Surface): integer?, integer?
 ---@field surface_member_native_box fun(surface: torirs.Surface, member: integer): integer?, integer?, integer?, integer? The authored box of one numbered MEMBER of that surface, relative to the surface's own block. The role's own numbering; -1 is refused.
+---@field surface_fit fun(surface: torirs.Surface, width: integer, height: integer): integer?, integer? The largest box inside width x height that surface lays itself out to fill -- never below its authored size, always on a whole line. nil when the surface has only its authored size (the 2004 chat builtin is the one that grows) or the box is smaller than it.
 ---@field native_layout fun(): integer Which native top-level chrome the lane wears now: 0 fixed, 1 resizable-classic, 2 resizable-modern, 3 mobile, -1 unknown or between a request and its remount.
 ---@field native_layout_select fun(layout: integer): boolean, torirs.ResultName Ask the lane for one of its own chromes (0..2), the way its Display row does. From on_gameframe or a player's own action only. true means asked, not yet changed; the remount arrives as a new frame root.
 

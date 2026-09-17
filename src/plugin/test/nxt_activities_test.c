@@ -903,6 +903,14 @@ fake_slot_native_size(void* u, int slot, int* w, int* h)
 
 /** No member of any surface has an authored box in this fake.
  *  @see ToriRS_FrameApi::surface_member_native_box. */
+/** One size per surface under test.  @see ToriRS_FrameApi::surface_fit. */
+static int
+fake_slot_fit(void* u, int slot, int w, int h, int* ow, int* oh)
+{
+    (void)u; (void)slot; (void)w; (void)h; (void)ow; (void)oh;
+    return 0;
+}
+
 static int
 fake_slot_member_native_box(
     void* u, int slot, int member, int* x, int* y, int* w, int* h)
@@ -1108,6 +1116,7 @@ fake_engine(void)
     e.mouse_pos = fake_mouse_pos;
     e.slot_native_size = fake_slot_native_size;
     e.slot_member_native_box = fake_slot_member_native_box;
+    e.slot_fit = fake_slot_fit;
     e.component_rect = fake_component_rect;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;

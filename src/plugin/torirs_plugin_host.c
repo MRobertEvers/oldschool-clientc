@@ -1537,6 +1537,38 @@ api_slot_member_native_box(
 }
 
 /*
+ * The largest box inside `w` x `h` a surface fills. @see surface_fit.
+ */
+static int
+api_slot_fit(
+    struct PluginContext* ctx,
+    int slot,
+    int w,
+    int h,
+    int* out_w,
+    int* out_h)
+{
+    int fit_w = 0, fit_h = 0;
+
+    assert(ctx);
+    assert(out_w);
+    assert(out_h);
+    if( !host_game_screen(ctx) )
+        return 0;
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
+        return 0;
+    if( w <= 0 || h <= 0 )
+        return 0;
+    if( !ctx->host->engine.slot_fit(ctx->host->engine.user, slot, w, h, &fit_w, &fit_h) )
+        return 0;
+    if( fit_w <= 0 || fit_h <= 0 || fit_w > w || fit_h > h )
+        return 0;
+    *out_w = fit_w;
+    *out_h = fit_h;
+    return 1;
+}
+
+/*
  * Where a component is. @see component_rect.
  *
  * No range test on the id, unlike the region verbs above: every 32-bit value
@@ -4919,6 +4951,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->mouse_pos);
     assert(engine->slot_native_size);
     assert(engine->slot_member_native_box);
+    assert(engine->slot_fit);
     assert(engine->component_rect);
     assert(engine->menu_drop);
     assert(engine->stat);

@@ -1455,6 +1455,10 @@ static int lua_frame_surface_member_native_box(lua_State* L)
 { struct ToriRS_Api* a=lua_current_api(L);int x,y,w,h;
   if(!a->frame.surface_member_native_box(a,lua_surface_from_arg(L,1),(int)luaL_checkinteger(L,2),&x,&y,&w,&h)){lua_pushnil(L);return 1;}
   lua_pushinteger(L,x);lua_pushinteger(L,y);lua_pushinteger(L,w);lua_pushinteger(L,h);return 4; }
+static int lua_frame_surface_fit(lua_State* L)
+{ struct ToriRS_Api* a=lua_current_api(L);int w,h;
+  if(!a->frame.surface_fit(a,lua_surface_from_arg(L,1),(int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3),&w,&h)){lua_pushnil(L);return 1;}
+  lua_pushinteger(L,w);lua_pushinteger(L,h);return 2; }
 static int lua_frame_native_layout(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushinteger(L,a->frame.native_layout(a));return 1; }
 static int lua_frame_native_layout_select(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->frame.native_layout_select(a,(int)luaL_checkinteger(L,1)));return 2; }
 static int lua_frame_surface_native_size(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);int w,h;if(!a->frame.surface_native_size(a,lua_surface_from_arg(L,1),&w,&h)){lua_pushnil(L);return 1;}lua_pushinteger(L,w);lua_pushinteger(L,h);return 2; }
@@ -3277,7 +3281,7 @@ static struct LuaFn const LUA_MENU_FNS[] = {
 static struct LuaFn const LUA_FRAME_FNS[] = {
     {"offer_next",lua_frame_offer_next},{"selection",lua_frame_selection},{"select",lua_frame_select},
     {"invalidate",lua_frame_invalidate},{"surface_native_size",lua_frame_surface_native_size},
-    {"surface_member_native_box",lua_frame_surface_member_native_box},
+    {"surface_member_native_box",lua_frame_surface_member_native_box},{"surface_fit",lua_frame_surface_fit},
     {"native_layout",lua_frame_native_layout},{"native_layout_select",lua_frame_native_layout_select},{NULL,NULL}
 };
 static struct LuaFn const LUA_DRAW_API_FNS[] = {

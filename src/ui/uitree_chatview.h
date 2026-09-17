@@ -50,6 +50,20 @@
 #define UI_CHATVIEW_BASELINE_LIMIT(h) ((h) + 14)
 /** The scroll extent's floor: one message window plus the reference's 1px. */
 #define UI_CHATVIEW_SCROLL_FLOOR(h) (UI_CHATVIEW_WINDOW_H(h) + 1)
+/**
+ * The whole-line heights: 14n + 24 shows n lines, the oldest with its ascent
+ * on the top row (its baseline at 12). The 2004 box's 96 shows the same five
+ * as 94 does, with two rows to spare. @see UITree_FrameSlotFit.
+ */
+#define UI_CHATVIEW_HEIGHT_FOR_LINES(n) ((n) * 14 + 24)
+#define UI_CHATVIEW_LINES_FOR_HEIGHT(h) (((h) - 24) / 14)
+/**
+ * The most whole lines a box may be sized for. The view keeps every line whose
+ * baseline is in (0, UI_CHATVIEW_BASELINE_LIMIT(h)), an open run of 14n + 38
+ * rows, and a scrolled box can put n + 3 baselines in it -- each of which has
+ * to fit the view's line table or the oldest is silently dropped.
+ */
+#define UI_CHATVIEW_LINES_MAX_VISIBLE (UI_CHATVIEW_LINE_MAX - 3)
 
 struct UIChatViewSpan
 {

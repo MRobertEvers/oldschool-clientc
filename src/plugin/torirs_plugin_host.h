@@ -322,6 +322,20 @@ struct ToriRS_PluginEngine
         int* out_y,
         int* out_w,
         int* out_h);
+    /**
+     * The largest box inside `w` x `h` that a placeable surface lays itself
+     * out to fill. @see slot_fit.
+     *
+     * The engine's because the answer is the surface's own layout arithmetic
+     * -- the chat builtin's line stride -- and nothing a plugin states.
+     */
+    int (*slot_fit)(
+        void* user,
+        int slot,
+        int w,
+        int h,
+        int* out_w,
+        int* out_h);
     /** One component's box, by id. @see component_rect. */
     int (*component_rect)(
         void* user,

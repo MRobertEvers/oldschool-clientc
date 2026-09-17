@@ -593,6 +593,35 @@ fake_slot_native_size(void* u, int slot, int* w, int* h)
     return 1;
 }
 
+/*
+ * What the ENGINE says the chat can grow to, or nothing.
+ *
+ * Zero is the default -- a one-size surface, which is every surface on every
+ * lane but the 2004 builtin -- so every placement check below runs through the
+ * authored-box fallback unless a test says otherwise. A test that sets
+ * `g_chat_fit_h` stands in for the builtin: the fake records the box it was
+ * ASKED about, so the room the frame offers is checked as well as where it
+ * puts the answer. @see ToriRS_FrameApi::surface_fit.
+ */
+static int g_chat_fit_h = 0;
+static int g_chat_fit_asked_w = 0;
+static int g_chat_fit_asked_h = 0;
+
+static int
+fake_slot_fit(void* u, int slot, int w, int h, int* ow, int* oh)
+{
+    (void)u;
+    if( slot != TORIRS_SURFACE_CHAT || g_chat_fit_h <= 0 )
+        return 0;
+    g_chat_fit_asked_w = w;
+    g_chat_fit_asked_h = h;
+    if( w < 479 || h < g_chat_fit_h )
+        return 0;
+    *ow = 479;
+    *oh = g_chat_fit_h;
+    return 1;
+}
+
 /** No member of any surface has an authored box in this fake.
  *  @see ToriRS_FrameApi::surface_member_native_box. */
 static int
@@ -1302,6 +1331,7 @@ main(void)
     e.mouse_pos = fake_mouse_pos;
     e.slot_native_size = fake_slot_native_size;
     e.slot_member_native_box = fake_slot_member_native_box;
+    e.slot_fit = fake_slot_fit;
     e.component_rect = fake_component_rect;
     e.frame_activate = fake_frame_activate;
     e.frame_provide = fake_frame_provide;
@@ -1615,7 +1645,17 @@ main(void)
     CHECK(placed("viewport", -1, 4, 4, 512, 334) && placed("minimap", -1, 570, 9, 145, 151) &&
               placed("compass", -1, 545, 4, 32, 33) && placed("sidebar", -1, 547, 205, 190, 261),
           "548's surfaces at 548's boxes");
-    CHECK(placed("chat", -1, 20, 361, 479, 96), "the 2004 chat is centred in the OldSchool housing");
+    CHECK(placed("chat", -1, 20, 361, 479, 96),
+          "a chat the engine offers no other size for is centred in the OldSchool housing at its own");
+    g_chat_fit_h = 122;
+    declare(765, 503);
+    printf("GAMEFRAME modern-fixed chat fit asked=%dx%d\n", g_chat_fit_asked_w, g_chat_fit_asked_h);
+    CHECK(g_chat_fit_asked_w == 506 && g_chat_fit_asked_h == 129,
+          "the room offered to the 2004 chat is the housing's whole parchment");
+    CHECK(placed("chat", -1, 20, 348, 479, 122),
+          "and a chat that grows takes the engine's height, centred on the parchment: seven lines, not five");
+    g_chat_fit_h = 0;
+    declare(765, 503);
     CHECK(native("compass", -1)->art >= 0 && native("compass", -1)->mask >= 0 && native("minimap", -1)->mask >= 0,
           "the OldSchool frame brings its own rose and both masks");
     CHECK(placed("chat_buttons", 0, 14, 474, 100, 29) && placed("chat_buttons", 3, 401, 474, 100, 29),
@@ -1655,6 +1695,12 @@ main(void)
     CHECK(placed("minimap", -1, 1042, 8, 152, 152) && placed("compass", -1, 1023, 5, 35, 35), "the map ring hangs off the top-right corner");
     CHECK(placed("sidebar", -1, 980, 498, 190, 261), "the panel hangs off the bottom-right corner");
     CHECK(placed("chat", -1, 20, 658, 479, 96), "the chat hangs off the bottom-left corner");
+    g_chat_fit_h = 122;
+    declare(1200, 800);
+    CHECK(placed("chat", -1, 20, 645, 479, 122),
+          "the resizable frame gives a chat that grows the same parchment, off the same corner");
+    g_chat_fit_h = 0;
+    declare(1200, 800);
     CHECK(placed("main_modal", -1, 344, 233, 512, 334), "the modal is centred");
     /* The platform band: a keyboard covering the bottom 300 rows is stated
      * as the safe rect, and everything hung off the bottom edge follows it. */

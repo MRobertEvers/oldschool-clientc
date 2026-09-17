@@ -1,5 +1,6 @@
 #include "test_harness.h"
 
+#include "uitree_chatview.h"
 #include "uitree_frame.h"
 #include "uitree_input.h"
 
@@ -1483,6 +1484,52 @@ test_binder_stamps_cache_regions_and_layer_chrome(void)
     TEST_ASSERT(
         UITree_FrameSlotNode(tree, UITREE_FRAME_SLOT_CHAT) == chat,
         "the stamped layer is the chat slot");
+
+    /*
+     * What else the chat can be. A cache chatbox is an interface that lays
+     * itself out, so it has no size but its own to offer; the 2004 builtin
+     * lays its message window out to its height and grows by whole lines.
+     * The builtin is stood in by retyping the stamped layer -- the answer
+     * reads the node's type and authored box and nothing else.
+     */
+    {
+        struct UITreeComponent* const node = &tree->components[chat];
+        struct UITreeComponent const saved = *node;
+        int fit_w = -1, fit_h = -1;
+
+        TEST_ASSERT(
+            !UITree_FrameSlotFit(tree, UITREE_FRAME_SLOT_CHAT, 506, 129, &fit_w, &fit_h) &&
+                fit_w == -1,
+            "a cache chatbox offers no size but its own");
+        node->type = UIELEM_BUILTIN_CHAT;
+        node->position.kind = UIPOS_XY;
+        node->position.width_mode = 0;
+        node->position.height_mode = 0;
+        node->position.width = 479;
+        node->position.height = 96;
+        TEST_ASSERT(
+            UITree_FrameSlotFit(tree, UITREE_FRAME_SLOT_CHAT, 506, 129, &fit_w, &fit_h) &&
+                fit_w == 479 && fit_h == 122,
+            "the builtin grows to the tallest whole-line box in the room: 479 wide, seven lines");
+        TEST_ASSERT(
+            UITree_FrameSlotFit(tree, UITREE_FRAME_SLOT_CHAT, 479, 100, &fit_w, &fit_h) &&
+                fit_w == 479 && fit_h == 96,
+            "room for no whole line more answers the authored box, not a shorter whole-line one");
+        TEST_ASSERT(
+            UITree_FrameSlotFit(tree, UITREE_FRAME_SLOT_CHAT, 600, 2000, &fit_w, &fit_h) &&
+                fit_h == UI_CHATVIEW_HEIGHT_FOR_LINES(UI_CHATVIEW_LINES_MAX_VISIBLE),
+            "and never more lines than the view's line table can hold while scrolled");
+        fit_w = fit_h = -1;
+        TEST_ASSERT(
+            !UITree_FrameSlotFit(tree, UITREE_FRAME_SLOT_CHAT, 478, 129, &fit_w, &fit_h) &&
+                !UITree_FrameSlotFit(tree, UITREE_FRAME_SLOT_CHAT, 506, 95, &fit_w, &fit_h) &&
+                fit_w == -1,
+            "a room smaller than the authored box is refused, writing nothing");
+        TEST_ASSERT(
+            !UITree_FrameSlotFit(tree, UITREE_FRAME_SLOT_VIEWPORT, 506, 129, &fit_w, &fit_h),
+            "and a surface the frame has none of answers nothing");
+        *node = saved;
+    }
     TEST_ASSERT(
         UITree_FrameSlotMemberNode(tree, UITREE_FRAME_SLOT_SIDEBAR, 3) == side3,
         "the stamped side panel answers as member 3");

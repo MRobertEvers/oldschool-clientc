@@ -579,6 +579,22 @@ struct FrameChatCell
 #define FRAME_O_CHAT_INNER_H 96
 #define FRAME_O_CHAT_INNER_X ((FRAME_O_CHAT_W - FRAME_O_CHAT_INNER_W) / 2)
 #define FRAME_O_CHAT_INNER_Y ((FRAME_O_CHAT_H - FRAME_O_CHAT_INNER_H) / 2)
+/*
+ * The PARCHMENT inside `osrs_chatback`: columns 7..512 and rows 7..135,
+ * measured off the art. Seven rows of frame above it, and below it the six
+ * rows of the band's lip (FRAME_O_CHAT_BAND_LIP).
+ *
+ * The box the 2004 surface above is centred in was "the size it was
+ * authored", and it left twenty-three empty rows over the history and
+ * twenty under the input line. The builtin lays its message window out to its
+ * own height, so the room it is OFFERED is this, and what it takes is the
+ * engine's answer -- the tallest whole-line box that fits, seven lines here
+ * against the 2004 box's five. @see ToriRS_FrameApi::surface_fit.
+ */
+#define FRAME_O_CHAT_PARCHMENT_X 7
+#define FRAME_O_CHAT_PARCHMENT_Y 7
+#define FRAME_O_CHAT_PARCHMENT_W 506
+#define FRAME_O_CHAT_PARCHMENT_H 129
 
 /* ------------------------------------------------------------------- assets */
 
@@ -1580,21 +1596,39 @@ frame_surface_member(
  * blits nothing for it. One helper so the three layouts cannot disagree.
  *
  * `x`/`y` are the OldSchool housing's origin (where the 519x142 backing
- * would go); the 2004 surface is centred in it. @see FRAME_O_CHAT_INNER_X.
+ * would go). The 2004 surface is given as much of the housing's parchment as
+ * the engine says it fills, centred in it -- the whole height of it, on the
+ * builtin chat -- and falls back to its authored 479x96, centred in the
+ * housing, where the engine offers nothing else. @see
+ * FRAME_O_CHAT_PARCHMENT_X, FRAME_O_CHAT_INNER_X.
  */
 static void
 frame_place_chat(struct FrameCall* ctx, int x, int y)
 {
+    struct ToriRS_Rect chat;
+    int fit_w = 0;
+    int fit_h = 0;
+
     assert(ctx);
     if( frame_lane_oldschool(ctx) )
+    {
         frame_surface_at(
             ctx, FRAME_SURFACE_CHAT,
             (struct ToriRS_Rect){ x, y, FRAME_O_CHAT_PACK_W, FRAME_O_CHAT_PACK_H });
-    else
-        frame_surface_at(
-            ctx, FRAME_SURFACE_CHAT,
-            (struct ToriRS_Rect){ x + FRAME_O_CHAT_INNER_X, y + FRAME_O_CHAT_INNER_Y,
-                                  FRAME_O_CHAT_INNER_W, FRAME_O_CHAT_INNER_H });
+        return;
+    }
+    chat = (struct ToriRS_Rect){ x + FRAME_O_CHAT_INNER_X, y + FRAME_O_CHAT_INNER_Y,
+                                 FRAME_O_CHAT_INNER_W, FRAME_O_CHAT_INNER_H };
+    if( g_api->frame.surface_fit(
+            g_api, TORIRS_SURFACE_CHAT, FRAME_O_CHAT_PARCHMENT_W, FRAME_O_CHAT_PARCHMENT_H,
+            &fit_w, &fit_h) )
+        chat = (struct ToriRS_Rect){
+            x + FRAME_O_CHAT_PARCHMENT_X + (FRAME_O_CHAT_PARCHMENT_W - fit_w) / 2,
+            y + FRAME_O_CHAT_PARCHMENT_Y + (FRAME_O_CHAT_PARCHMENT_H - fit_h) / 2,
+            fit_w,
+            fit_h
+        };
+    frame_surface_at(ctx, FRAME_SURFACE_CHAT, chat);
 }
 
 /*

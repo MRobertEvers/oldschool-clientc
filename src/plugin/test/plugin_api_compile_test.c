@@ -98,6 +98,7 @@ example_gameframe(
     if( api->widgets.find(api->widgets.context, "minimap", &minimap) != TORIRS_CONTRACT_OK )
         return TORIRS_FRAME_PENDING;
     (void)api->frame.surface_native_size(api, TORIRS_SURFACE_CHAT, &chat_w, &chat_h);
+    (void)api->frame.surface_fit(api, TORIRS_SURFACE_CHAT, 506, 129, &chat_w, &chat_h);
     (void)api->widgets.set_position(api->widgets.context, minimap, event->width - 200, 0);
     return TORIRS_FRAME_READY;
 }

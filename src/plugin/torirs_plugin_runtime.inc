@@ -703,6 +703,26 @@ v2_frame_surface_member_native_box(
                out_height) != 0;
 }
 
+static bool
+v2_frame_surface_fit(
+    struct ToriRS_Api* api,
+    int surface,
+    int width,
+    int height,
+    int* out_width,
+    int* out_height)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    int const surface_token = v2_surface_slot(surface);
+
+    assert(out_width);
+    assert(out_height);
+    if( surface_token < 0 )
+        return false;
+    return api_slot_fit(
+               runtime->context, surface_token, width, height, out_width, out_height) != 0;
+}
+
 static int
 v2_frame_native_layout(struct ToriRS_Api* api)
 {
@@ -3350,6 +3370,7 @@ v2_runtime_init(
             .invalidate = v2_frame_invalidate,
             .surface_native_size = v2_frame_surface_native_size,
             .surface_member_native_box = v2_frame_surface_member_native_box,
+            .surface_fit = v2_frame_surface_fit,
             .native_layout = v2_frame_native_layout,
             .native_layout_select = v2_frame_native_layout_select,
         },
