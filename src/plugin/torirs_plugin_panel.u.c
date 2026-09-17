@@ -35,6 +35,10 @@
 
 #include "plugin/torirs_plugin_panel_route.h"
 
+#if defined(TORIRS_PLATFORM_WEB)
+#include "ui/torirs_chrome_exec_web.h"
+#endif
+
 /*
  * Split a `"a|b|c"` choice list into the window's pool and hand back the slice
  * the chrome should borrow.

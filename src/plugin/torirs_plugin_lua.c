@@ -3870,7 +3870,7 @@ SIMPLE_EVENT_CB(lua_cb_game_event,LUA_ON_GAME_EVENT,struct ToriRS_GameEvent,lua_
  * A plugin that spells the pump ANYWAY fences twice in one frame; the second
  * fence finds the epoch already fenced, records a `fence without commit`
  * budget finding and flushes. The API inventory test refuses any
- * script/plugins/*.lua that spells one, because that finding is an undeclared
+ * .lua file under script/plugins/ that spells one, because that finding is an undeclared
  * PORCELAIN_FINDING line and therefore a port-gate failure on every lane.
  *
  * ORDER, and why the frame pump brackets rather than precedes:

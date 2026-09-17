@@ -1059,6 +1059,8 @@ orbs_paint(
     assert(argb);
     assert(width == ORB_W);
     assert(height == ORB_H);
+    (void)width;
+    (void)height;
 
     state = call->state;
     picture = &state->painting[call->orb];
@@ -2192,6 +2194,7 @@ orbs_changed(
 
     assert(api);
     assert(state);
+    (void)api;
     (void)key;
     if( state->porcelain )
         Porcelain_Note(state->porcelain, PORCELAIN_INPUT_CONFIG);
@@ -2207,6 +2210,7 @@ orbs_asset(
 
     assert(api);
     assert(state);
+    (void)api;
     (void)event;
     if( state->porcelain )
         Porcelain_Note(state->porcelain, PORCELAIN_INPUT_ASSET);

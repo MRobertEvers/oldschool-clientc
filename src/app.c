@@ -25,16 +25,18 @@
  * a page that defines no hook (or a browser that blocks the popup) leaves the
  * editor running without its chrome rather than failing the boot.
  */
+// clang-format off
 EM_JS(
     void,
     web_editor_open_panel_tab,
     (void),
     {
-        if( typeof window.torirsOpenPanelTab == = 'function' )
+        if( typeof window.torirsOpenPanelTab === 'function' )
             window.torirsOpenPanelTab();
         else
             console.warn('[torirs] panel=tab, but the page defines no torirsOpenPanelTab()');
     });
+// clang-format on
 #endif
 
 /* Private to this unit, declared up front so definition order is free. */

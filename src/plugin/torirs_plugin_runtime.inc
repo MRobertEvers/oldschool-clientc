@@ -1115,7 +1115,7 @@ v2_scene_mesh_destroy(
         mesh.value);
     if( mesh_slot < 0 )
         return;
-        api_mesh_destroy(runtime->context, mesh_slot);
+    api_mesh_destroy(runtime->context, mesh_slot);
     v2_resource_invalidate(
         runtime->mesh_tokens,
         TORIRS_PLUGIN_V2_MESH_TOKENS_MAX,
@@ -1214,7 +1214,7 @@ v2_scene_instance_destroy(
         instance.value);
     if( instance_slot < 0 )
         return;
-        api_object_destroy(runtime->context, instance_slot);
+    api_object_destroy(runtime->context, instance_slot);
     v2_resource_invalidate(
         runtime->instance_tokens,
         TORIRS_PLUGIN_V2_INSTANCE_TOKENS_MAX,
@@ -2237,7 +2237,7 @@ v2_builder_text(
         (x < scope->clip.x || y < scope->clip.y ||
          x >= scope->clip.x + scope->clip.width || y >= scope->clip.y + scope->clip.height) )
         return;
-        api_draw_text(scope->runtime->context, scope->surface_token, x, y, text, rgb);
+    api_draw_text(scope->runtime->context, scope->surface_token, x, y, text, rgb);
 }
 
 static void

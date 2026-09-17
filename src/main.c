@@ -976,11 +976,12 @@ interactive_present_retained(
 #if defined(TORIRS_PLATFORM_WEB)
 /* Is the page hidden? EM_JS rather than EM_ASM: the latter is rejected in
  * `-std=c*` modes, and this file is built as C11. */
+// clang-format off
 EM_JS(
     int,
     web_document_hidden,
     (void),
-    { return (typeof document != = 'undefined' && document.hidden) ? 1 : 0; });
+    { return (typeof document !== 'undefined' && document.hidden) ? 1 : 0; });
 
 /* TORIRS_PERF=1 only (see torirs_perf.h): drops a User Timing mark plus a
  * console.warn at `label`, so a captured DevTools trace shows *why* a frame
@@ -995,10 +996,11 @@ EM_JS(
     (const char* label),
     {
         var s = UTF8ToString(label);
-        if( typeof performance != = 'undefined' && performance.mark )
+        if( typeof performance !== 'undefined' && performance.mark )
             performance.mark(s);
         console.warn('[torirs] ' + s);
     });
+// clang-format on
 
 /* Tell whoever embedded this page that the module will take commands now.
  *
@@ -1008,14 +1010,16 @@ EM_JS(
  * exist, the ring exists, and anything pushed from here on drains on the next
  * iteration. A page with no such hook is the ordinary case and costs the call.
  */
+// clang-format off
 EM_JS(
     void,
     web_announce_ready,
     (void),
     {
-        if( typeof window != = 'undefined' && typeof window.torirsAnnounceReady == = 'function' )
+        if( typeof window !== 'undefined' && typeof window.torirsAnnounceReady === 'function' )
             window.torirsAnnounceReady();
     });
+// clang-format on
 #endif
 
 static struct App app;
