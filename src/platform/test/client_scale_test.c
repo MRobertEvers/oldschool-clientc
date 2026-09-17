@@ -128,10 +128,15 @@ test_integer_mode(void)
     CHECK(ClientScale_RoundPercent(&s, 275) == 200, "275%% should round to 200%%");
     CHECK(ClientScale_RoundPercent(&s, 400) == 400, "400%% should stay");
 
+    /* The fixed window's size is rounded; a resizable layout never is. Every
+     * step but 100% and 200% used to be refused on a Retina laptop. */
     ClientScale_WindowLayout(&s, 250, 2560, 1440, &layout);
-    CHECK(layout.percent == 200 && layout.rounded_by_integer && !layout.raised_by_limit,
-        "integer 250%% -> 200%%, got %d", layout.percent);
-    CHECK(layout.w == 1280 && layout.h == 720, "layout %dx%d", layout.w, layout.h);
+    CHECK(layout.percent == 250 && !layout.rounded_by_integer && !layout.raised_by_limit,
+        "integer 250%% stays 250%%, got %d", layout.percent);
+    CHECK(layout.w == 1024 && layout.h == 576, "layout %dx%d", layout.w, layout.h);
+    ClientScale_Present(&s, layout.w, layout.h, 2560, 1440, &p);
+    CHECK(p.output.w == 2048 && p.output.h == 1152 && !p.integer_fell_back,
+        "250%% shows at the largest whole multiple, 2x, got %dx%d", p.output.w, p.output.h);
 
     ClientScale_Present(&s, 765, 503, 1920, 1080, &p);
     CHECK(p.output.w == 1530 && p.output.h == 1006, "2x integer, got %dx%d", p.output.w, p.output.h);
@@ -175,12 +180,14 @@ test_limit_raises_the_scale(void)
     CHECK(layout.percent == 600 && layout.raised_by_limit && layout.w == 640 && layout.h == 360,
         "300%% under a 1080 limit is 640x360, got %dx%d at %d%%", layout.w, layout.h, layout.percent);
 
+    /* Integer mode raises exactly as keep aspect does: whole multiples are
+     * the present's, not the percent's. */
     s.fit = CLIENT_SCALE_FIT_INTEGER;
     ClientScale_WindowLayout(&s, 100, 2560, 1600, &layout);
-    CHECK(layout.percent == 200 && layout.raised_by_limit, "integer raise lands on 200%%, got %d",
+    CHECK(layout.percent == 149 && layout.raised_by_limit, "integer raise is 149%% too, got %d",
         layout.percent);
     ClientScale_WindowLayout(&s, 200, 2560, 1600, &layout);
-    CHECK(layout.percent == 300 && layout.h <= 540, "integer 200%% of a 149%% limit is 300%%, got %d",
+    CHECK(layout.percent == 298 && layout.h <= 540, "integer 200%% of a 149%% limit is 298%%, got %d",
         layout.percent);
 }
 
@@ -297,7 +304,7 @@ test_settings_decide_the_buffer_without_a_floor(void)
 
     s.fit = CLIENT_SCALE_FIT_INTEGER;
     ClientScale_WindowLayout(&s, 250, 2384, 1832, &layout);
-    CHECK(layout.percent == 200 && layout.w == 1192, "integer 250%% is 200%%, got %d", layout.percent);
+    CHECK(layout.percent == 250 && layout.w == 953, "integer 250%% stays 250%%, got %d", layout.percent);
 }
 
 static void
@@ -327,12 +334,28 @@ test_frame_floor(void)
         "a window holding the frame keeps 200%%, got %dx%d at %d%%", layout.w, layout.h,
         layout.percent);
 
-    /* Integer mode keeps a whole multiple while one fits. */
+    /* Integer mode lowers exactly as far as the frame needs, as the official
+     * client does; it used to drop to a whole 100 on top. */
     s = settings(CLIENT_SCALE_FIT_INTEGER, 0);
     ClientScale_WindowLayout(&s, 300, 2000, 1400, &layout);
     ClientScale_LowerToFloor(&s, 807, 503, 2000, 1400, &layout);
-    CHECK(layout.lowered_to_fit && layout.percent == 200 && layout.w == 1000,
-        "integer 300%% in a 2000x1400 window lowers to 200%%, got %d", layout.percent);
+    CHECK(layout.lowered_to_fit && layout.percent == 247 && layout.w >= 807,
+        "integer 300%% in a 2000x1400 window lowers to 247%%, got %d", layout.percent);
+
+    /* The screenshot: 375% of window points, integer, on a 1192x917-point
+     * Retina window. Was lowered to 100%; the frame fits at 147%. */
+    s = settings(CLIENT_SCALE_FIT_INTEGER, 0);
+    s.high_dpi = CLIENT_SCALE_HIGH_DPI_WINDOW_POINTS;
+    s.density_percent = 200;
+    ClientScale_WindowLayout(&s, 375, 2384, 1834, &layout);
+    ClientScale_LowerToFloor(&s, 807, 503, 2384, 1834, &layout);
+    CHECK(layout.shown_percent == 147 && layout.w >= 807 && layout.h >= 503,
+        "375%% on a 1192x917 window lowers only to 147%%, got %d%% (%dx%d)", layout.shown_percent,
+        layout.w, layout.h);
+    ClientScale_WindowLayout(&s, 125, 2384, 1834, &layout);
+    ClientScale_LowerToFloor(&s, 807, 503, 2384, 1834, &layout);
+    CHECK(!layout.lowered_to_fit && layout.shown_percent == 125, "125%% fits and is kept, got %d%%",
+        layout.shown_percent);
 
     /* Smaller than the frame at 100%: the buffer is the frame, shrunk to fit. */
     s = settings(CLIENT_SCALE_FIT_KEEP_ASPECT, 0);

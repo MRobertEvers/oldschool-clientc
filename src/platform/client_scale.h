@@ -36,9 +36,15 @@
  *      buffer pixel per window POINT, so the percent is multiplied by the
  *      display density the platform detected. A fixed window is sized in
  *      points already, so on a fixed frame this step changes nothing.
- *   3. Stretch mode INTEGER rounds the chosen percent DOWN to a whole multiple
- *      of 100 before it is used, so every buffer pixel lands on a whole number
- *      of window pixels (150% becomes 100%, with bars).
+ *   3. Stretch mode INTEGER never changes a resizable window's percent: 150%
+ *      lays out at 150%, and step 6 shows that layout at the largest whole
+ *      multiple the window holds, with bars. It used to round the percent DOWN
+ *      to a whole 100 first, which on a Retina laptop left 100% the only scale
+ *      that took -- every other step became 100% or 200%, and 200% cannot hold
+ *      the frame. The official client's integer scaling is the same: it trims
+ *      the stretched size to a multiple of the layout and never touches the
+ *      layout (client.getStretchedDimensions). A FIXED window is sized by the
+ *      percent, so there it is still rounded: @see ClientScale_RoundPercent.
  *   4. The pixel limit (a WxH resolution) caps what 100% is: a window whose
  *      100% buffer is larger than the limit on either axis is treated as the
  *      largest buffer that fits inside it, and interface scaling divides THAT.
@@ -123,7 +129,8 @@ struct ClientScaleLayout
     /** The same scale in the units the player picked it in: `percent` with
      *  the HighDPI density taken back out. What a readout should show. */
     int shown_percent;
-    /** Stretch mode INTEGER rounded the chosen percent down. */
+    /** Stretch mode INTEGER rounded the chosen percent down: a fixed window
+     *  only, whose size the percent is. */
     int rounded_by_integer;
     /** The pixel limit capped the 100% buffer, so the scale is of the limit. */
     int raised_by_limit;
@@ -156,7 +163,8 @@ ClientScale_LayoutDensityPercent(struct ClientScaleSettings const* settings)
     return settings->density_percent;
 }
 
-/** The percent stretch mode INTEGER will actually use. */
+/** The percent a FIXED window is sized by under stretch mode INTEGER. A
+ *  resizable window's percent is never rounded: see rule 3 above. */
 static inline int
 ClientScale_RoundPercent(
     struct ClientScaleSettings const* settings,
@@ -195,7 +203,6 @@ ClientScale_WindowLayout(
     struct ClientScaleLayout* out)
 {
     int const density = ClientScale_LayoutDensityPercent(settings);
-    int rounded;
     int base;
     int effective;
 
@@ -205,8 +212,7 @@ ClientScale_WindowLayout(
     assert(window_w > 0);
     assert(window_h > 0);
 
-    rounded = ClientScale_RoundPercent(settings, percent);
-    out->rounded_by_integer = rounded != percent;
+    out->rounded_by_integer = 0;
     out->raised_by_limit = 0;
     out->lowered_to_fit = 0;
     /* What 100% is, in drawable pixels: the HighDPI unit, or the limit's. */
@@ -228,12 +234,7 @@ ClientScale_WindowLayout(
             out->raised_by_limit = 1;
         }
     }
-    effective = (int)((long long)rounded * base / 100);
-    /* Rounded UP to a whole multiple: down would put the buffer over the
-     * limit. Only when the limit set the base -- without one, integer mode's
-     * rounding is the chosen percent's, above. */
-    if( out->raised_by_limit && settings->fit == CLIENT_SCALE_FIT_INTEGER )
-        effective = (effective + 99) / 100 * 100;
+    effective = (int)((long long)percent * base / 100);
     if( effective < 1 )
         effective = 1;
 
@@ -271,7 +272,7 @@ ClientScale_WindowFloorPercent(
     assert(frame_w > 0);
     assert(frame_h > 0);
 
-    floor_percent = ClientScale_RoundPercent(settings, percent);
+    floor_percent = percent;
     if( settings->max_pixel_width > 0 )
     {
         int const cap = (int)((long long)settings->max_pixel_width * 100 / frame_w);
@@ -295,9 +296,11 @@ ClientScale_WindowFloorPercent(
  * after the pixel limit on purpose: a limit below the frame crops the frame,
  * and a cropped frame is not a setting anybody can use.
  *
- * Integer mode keeps whole multiples while one still fits; a window smaller
- * than the frame at 100% gets a buffer larger than the window, which the
- * present then shrinks to fit.
+ * Lowered to exactly the largest percent that fits, in every stretch mode, as
+ * the official client does (client.getRealDimensions: min(window / 765,
+ * window / 503)); integer mode's whole multiples are the present's business.
+ * A window smaller than the frame at 100% gets a buffer larger than the
+ * window, which the present then shrinks to fit.
  */
 static inline void
 ClientScale_LowerToFloor(
@@ -326,8 +329,6 @@ ClientScale_LowerToFloor(
         if( fit_h < fit )
             fit = fit_h;
     }
-    if( settings->fit == CLIENT_SCALE_FIT_INTEGER && fit >= 100 )
-        fit = fit / 100 * 100;
     if( fit < 1 )
         fit = 1;
     if( fit >= layout->percent )
