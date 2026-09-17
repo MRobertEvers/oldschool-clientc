@@ -59,6 +59,7 @@ UITree_LayoutSetSafeBottomInset(int inset)
  * old behaviour. */
 #define UITREE_LAYOUT_DIRTY_MAX 256
 
+#if !defined(__EMSCRIPTEN__)
 #define UITREE_LAYOUT_BLAME_SLOTS 512
 
 static struct
@@ -125,9 +126,19 @@ uitree_layout_blame(void* ra)
     }
     g_layout_blame_lost++;
 }
+#endif /* !__EMSCRIPTEN__ */
 
 /* The 0->1 transition is the whole signal; see uitree_layout_blame. */
+#if defined(__EMSCRIPTEN__)
+/* wasm has no return address to read: emscripten routes
+ * __builtin_return_address through convertFrameToPC, which aborts the whole
+ * module unless it was linked with -sUSE_OFFSET_CONVERTER -- and did, on the
+ * first layout invalidation of a browser boot (2026-09-17). The blame table is
+ * a native diagnostic; the browser build simply does not keep one. */
+#define UITREE_LAYOUT_BLAME_HERE(tree) ((void)(tree))
+#else
 #define UITREE_LAYOUT_BLAME_HERE(tree)     do     {         if( !(tree)->layout_stale )             uitree_layout_blame(__builtin_return_address(0));     } while( 0 )
+#endif
 
 void
 UITree_LayoutInvalidate(struct UITree* tree)
