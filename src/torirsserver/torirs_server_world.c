@@ -12861,6 +12861,23 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
         ToriRSServer_SendReconnectOk(player);
         player->session->reconnect = 0;
     }
+    /*
+     * 0c. The deferred LoginResponse.Ok, for the same reason one line up and a
+     * different missing fact.
+     *
+     * RECONNECT_OK waited on the save; this waits on the pool slot. The
+     * response states the index the client will treat as itself, and the
+     * handshake that would have written it runs BEFORE any host has handed
+     * this session a player — so it used to state slot 1 for everyone, which
+     * is the first player's index. One client never noticed. Two did: the
+     * second was told it was the first, so its GPI table was skewed by one
+     * slot and its camera locked onto the other player.
+     *
+     * A no-op for a reconnect and for every pre-239 wire; see
+     * ToriRSServer_SessionSendLoginOk.
+     */
+    if( player->session )
+        ToriRSServer_SessionSendLoginOk(player->session);
 
     player->login_pending = 0;
     player->login_scene_pending = srv->wire && srv->wire->revision >= 239;

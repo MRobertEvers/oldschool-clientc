@@ -24,6 +24,7 @@
 
 #include <rsareabuf.h>
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -224,6 +225,35 @@ login_is_239(const struct ToriRSServer* srv)
     const struct ToriRSServerWire* wire = (srv && srv->wire) ? srv->wire
                                                         : ToriRSServer_WireDefault();
     return wire->revision >= 239;
+}
+
+/*
+ * TORIRSSERVER_STAFF_LEVEL: the staffModLevel the login response advertises.
+ *
+ * Keep normal sessions at the golden value 0, but let an isolated integration
+ * run opt into the client's own CLIENT_CHEAT path.  The mock already exposes
+ * ::commands specifically so a session can be steered repeatably; rev239 will
+ * only encode those commands as CLIENT_CHEAT when the login response
+ * advertises staff privileges. Without this switch, real AWT input silently
+ * becomes public chat and never reaches handle_cheat().
+ */
+static int
+login_staff_level(void)
+{
+    char const* configured = getenv("TORIRSSERVER_STAFF_LEVEL");
+    char* end = NULL;
+    long parsed;
+
+    if( !configured || !configured[0] )
+        return 0;
+    parsed = strtol(configured, &end, 10);
+    if( end == configured || *end != '\0' )
+        return 0;
+    if( parsed < 0 )
+        return 0;
+    if( parsed > 3 )
+        return 3;
+    return (int)parsed;
 }
 
 /* ------------------------------------------------------------------ */
@@ -716,7 +746,19 @@ step_login(
     else if( login_is_239(srv) )
     {
         /*
-         * LoginResponse.Ok — 34 bytes of body behind a var-byte length.
+         * LoginResponse.Ok is composed here and sent by the world login.
+         *
+         * Everything it carries except one field is known now; that field is
+         * `index`, the slot the client will treat as itself, and it is not.
+         * See `login_ok_pending` in torirs_server_session.h — the pool slot is
+         * handed out by whichever host answers the login this function is
+         * about to raise, so reading `session->player` here named nobody and
+         * every client was told it was index 1.
+         *
+         * The body below is therefore written by
+         * ToriRSServer_SessionSendLoginOk, which runs once there is a player
+         * to ask. Only the staff level is resolved here, because it is a
+         * property of the connection rather than of the slot.
          *
          * A bare `0x02` is what this server used to send, and at 239 that is
          * not "a shorter response", it is a desync: the client reads a length
@@ -725,64 +767,12 @@ step_login(
          * then starts mid-packet. Nothing reports an error — the client simply
          * never sees the packets it ate, which reads as "the server didn't send
          * them".
-         *
-         * The length byte over-reports by 3. RSProt adds `Byte + Short` to it
-         * for this response alone, and OldSchool has apparently always done so;
-         * matching it matters more than explaining it.
-         *
-         * `index` is the slot the client will treat as itself, and it must be
-         * the same number the GPI init block skipped and PLAYER_INFO keys on.
          */
-        uint8_t body[64];
-        struct RSAreaBuf out;
-        int index = ToriRSServer_WirePlayerIndex(
-            session->player ? session->player->pid : 0);
-        int staff_mod_level = 0;
-        char const* configured_staff = getenv("TORIRSSERVER_STAFF_LEVEL");
-
-        /*
-         * Keep normal sessions at the golden value 0, but let an isolated
-         * integration run opt into the client's own CLIENT_CHEAT path.  The
-         * mock already exposes ::commands specifically so a session can be
-         * steered repeatably; rev239 will only encode those commands as
-         * CLIENT_CHEAT when the login response advertises staff privileges.
-         * Without this switch, real AWT input silently becomes public chat and
-         * never reaches handle_cheat().
-         */
-        if( configured_staff && configured_staff[0] )
-        {
-            char* end = NULL;
-            long parsed = strtol(configured_staff, &end, 10);
-            if( end != configured_staff && *end == '\0' )
-            {
-                if( parsed < 0 )
-                    parsed = 0;
-                if( parsed > 3 )
-                    parsed = 3;
-                staff_mod_level = (int)parsed;
-            }
-        }
-
-        rsab_wrap(&out, body, sizeof(body));
-        rsab_p1(&out, OSRS239_LOGINRES_OK);
-        rsab_p1(&out, 34 + 3);
-        rsab_p1(&out, 0); /* no authenticator */
-        rsab_p4(&out, 0); /* ...and no code */
-        rsab_p1(&out, staff_mod_level);
-        rsab_p1(&out, 0); /* playerMod */
-        rsab_p2(&out, index);
-        rsab_p1(&out, 1); /* member */
-        rsab_p8(&out, 0); /* accountHash */
-        rsab_p8(&out, 0); /* userId */
-        rsab_p8(&out, 0); /* userHash */
-        if( ToriRSServer_SessionSend(session, body, (int)rsab_len(&out)) < 0 )
-        {
-            session->state = TORIRSSERVER_SESSION_DEAD;
-            return 1;
-        }
-        if( staff_mod_level > 0 )
+        session->login_ok_staff_level = login_staff_level();
+        session->login_ok_pending = 1;
+        if( session->login_ok_staff_level > 0 )
             fprintf(stderr, "torirsserver: rev239 control privilege staffModLevel=%d\n",
-                    staff_mod_level);
+                    session->login_ok_staff_level);
     }
     else if( ToriRSServer_SessionSend(session, &ok, 1) < 0 )
     {
@@ -805,6 +795,53 @@ step_login(
 
     session->state = TORIRSSERVER_SESSION_ONLINE;
     session->login_raised = 1;
+    return 1;
+}
+
+int
+ToriRSServer_SessionSendLoginOk(struct ToriRSServerSession* session)
+{
+    uint8_t body[64];
+    struct RSAreaBuf out;
+    int index;
+
+    assert(session);
+    if( !session->login_ok_pending )
+        return 1;
+    /* The whole point of the deferral: the response cannot state a slot the
+     * session does not have yet, and reaching this with no player would put
+     * the old bug back with an extra step in front of it. */
+    assert(session->player);
+    session->login_ok_pending = 0;
+    index = ToriRSServer_WirePlayerIndex(session->player->pid);
+
+    /*
+     * 34 bytes of body behind a var-byte length.
+     *
+     * The length byte over-reports by 3. RSProt adds `Byte + Short` to it
+     * for this response alone, and OldSchool has apparently always done so;
+     * matching it matters more than explaining it.
+     *
+     * `index` is the slot the client will treat as itself, and it must be
+     * the same number the GPI init block skipped and PLAYER_INFO keys on.
+     */
+    rsab_wrap(&out, body, sizeof(body));
+    rsab_p1(&out, OSRS239_LOGINRES_OK);
+    rsab_p1(&out, 34 + 3);
+    rsab_p1(&out, 0); /* no authenticator */
+    rsab_p4(&out, 0); /* ...and no code */
+    rsab_p1(&out, session->login_ok_staff_level);
+    rsab_p1(&out, 0); /* playerMod */
+    rsab_p2(&out, index);
+    rsab_p1(&out, 1); /* member */
+    rsab_p8(&out, 0); /* accountHash */
+    rsab_p8(&out, 0); /* userId */
+    rsab_p8(&out, 0); /* userHash */
+    if( ToriRSServer_SessionSend(session, body, (int)rsab_len(&out)) < 0 )
+    {
+        session->state = TORIRSSERVER_SESSION_DEAD;
+        return 0;
+    }
     return 1;
 }
 

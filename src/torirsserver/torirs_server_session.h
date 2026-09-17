@@ -125,6 +125,34 @@ struct ToriRSServerSession
      */
     int reconnect;
 
+    /**
+     * A revision-239 LoginResponse.Ok that has been composed but not sent.
+     *
+     * The response states `index`, the slot the client will treat as itself,
+     * and the client learns it from there and nowhere else. That index is
+     * `ToriRSServer_WirePlayerIndex(player->pid)` — so it cannot be written
+     * during the handshake, because the handshake is what *raises* the login
+     * and the pool slot is not handed out until a host answers that raise
+     * (host_stage_login, pump_client). Sending it there read
+     * `session->player ? session->player->pid : 0` against a field that is
+     * still NULL, so every client was told it was index 1: correct for the
+     * first player by coincidence, and for the second a client that believes
+     * it is the first one. That is not a cosmetic mismatch — the GPI init
+     * block skips the local slot, so the client reads every rough position one
+     * slot out, and PLAYER_INFO's high-resolution records for the real local
+     * player land on a slot the client thinks is someone else.
+     *
+     * So it waits, exactly as RECONNECT_OK does and for the same reason:
+     * `ToriRSServer_WorldLogin` sends it once the player exists, ahead of
+     * every game packet.
+     */
+    int login_ok_pending;
+
+    /** The staffModLevel the pending response will carry
+     *  (TORIRSSERVER_STAFF_LEVEL). Resolved during the handshake, with the
+     *  rest of the response's fields, so the deferral moved only the send. */
+    int login_ok_staff_level;
+
     /** The login header's clientType / platformType (rsprot LoginClientType /
      *  LoginPlatformType), kept for the player the session becomes: a mobile
      *  client (enhanced android 7 / ios 8, or platform android 2 / apple 3)
@@ -180,6 +208,19 @@ ToriRSServer_SessionPump(
  *  it by initialising the world and sending the login burst. */
 int
 ToriRSServer_SessionTakeLogin(struct ToriRSServerSession* session);
+
+/**
+ * Send the revision-239 LoginResponse.Ok the handshake held back.
+ *
+ * Called by `ToriRSServer_WorldLogin` once the session has its pool slot, and
+ * a no-op for anything with nothing pending — a reconnect (RECONNECT_OK is the
+ * response there) or a pre-239 wire (a bare `0x02` goes out inline, and the
+ * local index arrives later as UPDATE_PID).
+ *
+ * Returns 0 and kills the session if the write fails.
+ */
+int
+ToriRSServer_SessionSendLoginOk(struct ToriRSServerSession* session);
 
 /** Frame-level write. Bytes are already scrambled and framed by the encoder. */
 int
