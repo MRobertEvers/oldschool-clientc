@@ -307,7 +307,10 @@ mergeInto(LibraryManager.library, {
        * first readers of a table must share one decode. */
       let pending = inst.refTablesOwned.get(table);
       if (!pending) {
-        pending = this.refTableDecode(inst, table).then(ptr => ptr || null);
+        pending = this.refTableDecode(inst, table).then(ptr => {
+          inst.refTablesReady.set(table, ptr || null);
+          return ptr || null;
+        });
         inst.refTablesOwned.set(table, pending);
       }
       return pending;
@@ -412,6 +415,78 @@ mergeInto(LibraryManager.library, {
      * a hit re-inserts -- so eviction is the Map's first key.
      */
     DECODED_BUDGET_BYTES: 64 * 1024 * 1024,
+
+    /*
+     * Raw containers kept in memory, so that a group read a second time is
+     * answered INSIDE Process rather than a frame later.
+     *
+     * Every answer the web executor gives is asynchronous, because IndexedDB
+     * is: a read costs at least one turn of the event loop, and a task that
+     * resolves one script or sprite per read pays a frame per item. After
+     * login the interface hooks resolve about 900 of them one at a time --
+     * 18 s of "Loading - please wait" for groups the loading screen had
+     * already downloaded (browser_probe + TORIRS_IO_TRACE, 2026-09-17). The
+     * desktop never sees it: its executor reads the disk inside Process and
+     * the runner resumes the task in the same pass.
+     *
+     * So the bytes of every container that passes through here are kept,
+     * bounded, and a request whose container AND reference table are both
+     * resident is decoded and answered before Process returns; the runner
+     * then steps the task again this pass, as on the desktop. The loading
+     * screen's whole-archive fill is what makes the post-login groups
+     * resident. Compressed bytes, so 48 MB holds far more than the 17 MB a
+     * boot downloads; insertion order is recency, a hit re-inserts.
+     */
+    RESIDENT_BUDGET_BYTES: 48 * 1024 * 1024,
+
+    residentKeep: function (inst, key, bytes) {
+      const old = inst.resident.get(key);
+      if (old) { inst.resident.delete(key); inst.residentBytes -= old.length; }
+      inst.resident.set(key, bytes);
+      inst.residentBytes += bytes.length;
+      for (const [k, v] of inst.resident) {
+        if (inst.residentBytes <= this.RESIDENT_BUDGET_BYTES || inst.resident.size <= 1) { break; }
+        inst.resident.delete(k);
+        inst.residentBytes -= v.length;
+      }
+    },
+
+    residentGet: function (inst, key) {
+      const hit = inst.resident.get(key);
+      if (!hit) { return null; }
+      inst.resident.delete(key);
+      inst.resident.set(key, hit);
+      return hit;
+    },
+
+    /*
+     * Answer a dat2 group from memory, or say it cannot be.
+     *
+     * Everything here is synchronous: the decoded-archive LRU, the resident
+     * container bytes, the settled reference table. The one thing the
+     * asynchronous path awaits that has no synchronous twin is the XTEA key,
+     * and the host answers null for every key, so nothing is lost.
+     */
+    answerSync: function (inst, req, item) {
+      if (req.table < 0 || this.isDat1(req.flags)) { return false; }
+      const cached = this.decodedArchive(inst, req.flags, req.table, req.archive);
+      if (cached) {
+        this.answer(item, { ptr: cached, size: _ToriRS_WebApi_ArchiveStructSize() });
+        inst.syncHits++;
+        return true;
+      }
+      if (!inst.refTablesReady.has(req.table)) { return false; }
+      const bytes = this.residentGet(inst, `${req.flags}|${req.table}|${req.archive}`);
+      if (!bytes) { return false; }
+      const ptr = this.decodeArchive(bytes, req.table, req.archive, null);
+      if (!ptr) { return false; }
+      const table = inst.refTablesReady.get(req.table);
+      if (table) { _ToriRS_WebApi_ArchiveApplyMetadata(ptr, table); }
+      this.decodedArchiveKeep(inst, req.flags, req.table, req.archive, ptr);
+      this.answer(item, { ptr: ptr, size: _ToriRS_WebApi_ArchiveStructSize() });
+      inst.syncHits++;
+      return true;
+    },
 
     decodedArchive: function (inst, flags, table, archive) {
       const key = `${flags}|${table}|${archive}`;
@@ -548,6 +623,9 @@ mergeInto(LibraryManager.library, {
           inst.host.xteaKey(req.table, req.archive),
         ]);
         if (!bytes) { return null; }
+        if (!this.isDat1(req.flags)) {
+          this.residentKeep(inst, `${req.flags}|${req.table}|${req.archive}`, bytes);
+        }
 
         /*
          * WHICH DECODER, decided here, from the flags the item carries.
@@ -621,14 +699,56 @@ mergeInto(LibraryManager.library, {
      * around the whole thing so Pending is accurate from the instant Process
      * returns to the instant the slot is filled.
      */
+    /*
+     * TORIRS_IO_TRACE=1 (an ?env= boot parameter) records every Process batch
+     * and every answer with a millisecond clock into window.__torirs_io_trace,
+     * which tools/web/browser_probe.py --log saves. It is what the desktop
+     * executor's TORIRS_IO_TRACE is for: seeing which reads a stall is made
+     * of, and whether they went out together or one after another.
+     */
+    traceOn: function () {
+      if (this.trace === undefined) {
+        const env = typeof ENV !== 'undefined' ? ENV : {};
+        this.trace = env.TORIRS_IO_TRACE ? [] : null;
+        if (this.trace) { globalThis.__torirs_io_trace = this.trace; }
+      }
+      return this.trace !== null;
+    },
+    traceName: function (inst, req) {
+      if (!inst.kindNames) {
+        inst.kindNames = {};
+        for (const name of Object.keys(inst.kinds)) { inst.kindNames[inst.kinds[name]] = name; }
+      }
+      const kind = inst.kindNames[req.kind] || String(req.kind);
+      if (req.path) { return `${kind}:${req.path.replace(/^.*\//, '')}`; }
+      if (req.table !== undefined && req.archive !== undefined) { return `${kind}:${req.table}/${req.archive}`; }
+      if (req.table !== undefined) { return `${kind}:${req.table}`; }
+      return kind;
+    },
+
     run: async function (inst, io, slot) {
       const req = this.describe(inst, this.itemPtr(io, slot));
+      const traced = this.traceOn();
+      const started = traced ? performance.now() : 0;
+      /* Answered before Process returns: no inflight count, no slot mark,
+       * and the runner steps the asking task again this pass. */
+      if (req.kind === inst.kinds.CACHE && this.answerSync(inst, req, this.itemPtr(io, slot))) {
+        if (traced) {
+          this.trace.push(`${performance.now().toFixed(1)} sync ${this.traceName(inst, req)} ${(performance.now() - started).toFixed(2)}ms`);
+        }
+        return;
+      }
       this.addInflight(io, 1);
       this.markSlot(io, slot, true);
       try {
         const bytes = await this.execute(inst, req);
         /* itemPtr recomputed AFTER the await: see describe. */
         this.answer(this.itemPtr(io, slot), bytes);
+        if (traced) {
+          const now = performance.now();
+          const size = !bytes ? 0 : (bytes.length !== undefined ? bytes.length : bytes.size);
+          this.trace.push(`${now.toFixed(1)} done ${this.traceName(inst, req)} ${(now - started).toFixed(1)}ms ${size}B`);
+        }
       } catch (err) {
         /* A transport that answered nothing is a different fact from a file
          * that is not there, and only the first is an outage. */
@@ -657,9 +777,17 @@ mergeInto(LibraryManager.library, {
        * Two maps because the two have different owners -- see refTableBytes. */
       refTableBytes: new Map(),
       refTablesOwned: new Map(),
+      /* table id -> decoded reference table pointer (or null: the table has
+       * none), filled when refTableForMetadata settles. What lets a later
+       * group be decoded without awaiting anything. */
+      refTablesReady: new Map(),
       decoded: new Map(),
       decodedBytes: 0,
       decodedHits: 0,
+      /* Raw containers by "flags|table|archive", most recent last. */
+      resident: new Map(),
+      residentBytes: 0,
+      syncHits: 0,
       /* Mirrors of enum ToriRS_IOKind. Not read from the ABI: the ABI
        * describes the LAYOUT, and these are values -- appending a kind does
        * not move a field, so the two change for different reasons. */
@@ -749,6 +877,15 @@ mergeInto(LibraryManager.library, {
     const inst = S.instances.get(px);
     const activeCount = HEAP32[(io + a.activeCountOff) >> 2];
 
+    if (activeCount > 0 && S.traceOn()) {
+      const names = [];
+      for (let i = 0; i < activeCount && i < 16; i++) {
+        const slot = HEAP32[(HEAP32[(io + a.activeOff) >> 2] >> 2) + i];
+        names.push(S.traceName(inst, S.describe(inst, S.itemPtr(io, slot))));
+      }
+      S.trace.push(`${performance.now().toFixed(1)} batch n=${activeCount} inflight=${S.inflight.get(io) || 0} ` +
+        names.join(' ') + (activeCount > 16 ? ' ...' : ''));
+    }
     for (let i = 0; i < activeCount; i++) {
       S.run(inst, io, HEAP32[(HEAP32[(io + a.activeOff) >> 2] >> 2) + i]);
     }
