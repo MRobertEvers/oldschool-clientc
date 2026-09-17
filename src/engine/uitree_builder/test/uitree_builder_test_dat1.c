@@ -91,7 +91,9 @@ main(
         return 0;
     }
 
-    struct TaskRunner runner = { 0 };
+    /* Parallel, as the client's asset runner is: the builder fans its loads out
+     * as siblings behind itself and joins them, which strict FIFO never steps. */
+    struct TaskRunner runner = { .parallel = 1 };
     runner.io = ToriRS_IO_New();
     runner.queue = ToriRS_TaskQueue_New();
     runner.px = PlatformX_IO_New();
@@ -100,6 +102,7 @@ main(
 
     struct Dat1BuildCache* bc = dat1_buildcache_new();
     struct CacheProvider* provider = dat1_buildcache_as_provider(bc);
+    CacheProvider_SetAssetQueue(provider, runner.queue);
 
     struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     assert(scene);

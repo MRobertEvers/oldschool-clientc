@@ -307,6 +307,7 @@ test_world_builder_cache_render(void)
     struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
     struct Dat2BuildCache* bc = dat2_buildcache_new();
     struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
+    CacheProvider_SetAssetQueue(provider, queue);
     struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
     {
@@ -719,6 +720,7 @@ test_world_builder_bench(void)
     struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
     struct Dat2BuildCache* bc = dat2_buildcache_new();
     struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
+    CacheProvider_SetAssetQueue(provider, queue);
     struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !disk )
     {

@@ -35,9 +35,6 @@ struct Task_Dat2HealthbarLoad
     struct pt pt;
     struct Dat2BuildCache* bc;
     struct RS_Healthbars* healthbars;
-    /* Both the cursor and the half-of-the-pair selector outlive a PT_YIELD. */
-    int preload_index;
-    int preload_half;
     /* Siblings still running from the fan-out below. */
     int pending;
 };
@@ -137,49 +134,27 @@ Task_Dat2HealthbarLoad_Run(
      * and joined, since awaited one after another they were a network round
      * trip apiece on a streamed cache (see task_dat2_hitsplat_load.c). The
      * task does not pass the join until every sibling has ended. */
-    if( task->bc->base.asset_queue )
+    assert(task->bc->base.asset_queue);
+    for( int i = 0; i < task->healthbars->count; i++ )
     {
-        for( int i = 0; i < task->healthbars->count; i++ )
+        int const sprites[2] = {
+            task->healthbars->types[i].front_sprite,
+            task->healthbars->types[i].back_sprite,
+        };
+        for( int half = 0; half < 2; half++ )
         {
-            int const sprites[2] = {
-                task->healthbars->types[i].front_sprite,
-                task->healthbars->types[i].back_sprite,
-            };
-            for( int half = 0; half < 2; half++ )
-            {
-                if( sprites[half] < 0 )
-                    continue;
-                ToriRS_TaskQueue_AddJoined(
-                    task->bc->base.asset_queue,
-                    CreateTask_SpriteLoad(&task->bc->base, sprites[half]),
-                    &task->pending);
-            }
-        }
-        while( task->pending > 0 )
-        {
-            task->task.blocked = 1;
-            PT_YIELD(&task->pt);
+            if( sprites[half] < 0 )
+                continue;
+            ToriRS_TaskQueue_AddJoined(
+                task->bc->base.asset_queue,
+                CreateTask_SpriteLoad(&task->bc->base, sprites[half]),
+                &task->pending);
         }
     }
-    else
+    while( task->pending > 0 )
     {
-        for( task->preload_index = 0; task->preload_index < task->healthbars->count;
-             task->preload_index++ )
-        {
-            for( task->preload_half = 0; task->preload_half < 2; task->preload_half++ )
-            {
-                int sprite = task->preload_half == 0
-                                 ? task->healthbars->types[task->preload_index].front_sprite
-                                 : task->healthbars->types[task->preload_index].back_sprite;
-                if( sprite < 0 )
-                    continue;
-                /* The _IF form skips a NULL child, which is what CreateTask_SpriteLoad
-                 * returns for a sprite already resident — and it clears its own child
-                 * pointer afterwards, which is what makes it safe inside a loop. */
-                TASK_AWAITEX_IF(
-                    &task->task, &task->pt, io, CreateTask_SpriteLoad(&task->bc->base, sprite));
-            }
-        }
+        task->task.blocked = 1;
+        PT_YIELD(&task->pt);
     }
 
     PT_END(&task->pt);

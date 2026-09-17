@@ -103,41 +103,40 @@ Task_UIBuilderAssetsLoad_Run(
      * name yields a NULL task, which AddJoined does not count. The defaults,
      * title-panel and from-source loads stay serial: there are a handful.
      */
-    if( self->builder->provider->asset_queue )
+    assert(self->builder->provider->asset_queue);
+    for( int k = 0; k < self->manifest->sprite_count; k++ )
     {
-        struct ToriRS_TaskQueue* queue = self->builder->provider->asset_queue;
-        for( int k = 0; k < self->manifest->sprite_count; k++ )
-        {
-            struct UIBuilderSpriteReq const* req = &self->manifest->sprites[k];
-            if( req->archive_id >= 0 )
-                ToriRS_TaskQueue_AddJoined(
-                    queue,
-                    CreateTask_SpriteLoad(self->builder->provider, req->archive_id),
-                    &self->pending);
-            else if( req->defaults_slot >= 0 && strcmp(req->table, "defaults") == 0 )
-                continue;
-            else if(
-                strcmp(req->table, "binary") == 0 && req->archive[0] != '\0' &&
-                strcmp(req->format, TORIRS_TITLE_PANEL_FORMAT) == 0 )
-                continue;
-            else if( req->archive[0] != '\0' && req->data_filename[0] == '\0' )
-                ToriRS_TaskQueue_AddJoined(
-                    queue,
-                    CreateTask_SpriteLoadByName(self->builder->provider, req->archive),
-                    &self->pending);
-        }
-        PT_TASK_JOIN(pending);
+        struct UIBuilderSpriteReq const* req = &self->manifest->sprites[k];
+        if( req->archive_id >= 0 )
+            ToriRS_TaskQueue_AddJoined(
+                self->builder->provider->asset_queue,
+                CreateTask_SpriteLoad(self->builder->provider, req->archive_id),
+                &self->pending);
+        else if( req->defaults_slot >= 0 && strcmp(req->table, "defaults") == 0 )
+            continue;
+        else if(
+            strcmp(req->table, "binary") == 0 && req->archive[0] != '\0' &&
+            strcmp(req->format, TORIRS_TITLE_PANEL_FORMAT) == 0 )
+            continue;
+        else if( req->archive[0] != '\0' && req->data_filename[0] == '\0' )
+            /* Dat2 name-keyed sprite: `table=sprites archive=<name>`. The
+             * sprites table is addressed by archive NAME on this era, and the
+             * id it lands on differs between caches — which is the whole reason
+             * the name belongs in RevConfig and not in a C table. The dat1
+             * spelling is distinguished by carrying filename=, since a dat1
+             * section names both a jagfile archive and a file inside it. */
+            ToriRS_TaskQueue_AddJoined(
+                self->builder->provider->asset_queue,
+                CreateTask_SpriteLoadByName(self->builder->provider, req->archive),
+                &self->pending);
     }
+    PT_TASK_JOIN(pending);
     for( self->i = 0; self->i < self->manifest->sprite_count; self->i++ )
     {
         struct UIBuilderSpriteReq const* req = &self->manifest->sprites[self->i];
         if( req->archive_id >= 0 )
-        {
-            if( !self->builder->provider->asset_queue )
-                PT_TASK_AWAITSELF_IF(
-                    CreateTask_SpriteLoad(self->builder->provider, req->archive_id));
-        }
-        else if( req->defaults_slot >= 0 && strcmp(req->table, "defaults") == 0 )
+            continue;
+        if( req->defaults_slot >= 0 && strcmp(req->table, "defaults") == 0 )
         {
             /*
              * `table=defaults slot=<n>`: read the id out of the defaults record,
@@ -164,18 +163,6 @@ Task_UIBuilderAssetsLoad_Run(
              * name, and assembled by the same composite the dat1 lane uses. */
             PT_TASK_AWAITSELF_IF(CreateTask_Dat2TitlePanelLoad(
                 self->builder->provider, req->archive, req->name));
-        }
-        else if( req->archive[0] != '\0' && req->data_filename[0] == '\0' )
-        {
-            /* Dat2 name-keyed sprite: `table=sprites archive=<name>`. The
-             * sprites table is addressed by archive NAME on this era, and the
-             * id it lands on differs between caches — which is the whole reason
-             * the name belongs in RevConfig and not in a C table. The dat1
-             * spelling is distinguished by carrying filename=, since a dat1
-             * section names both a jagfile archive and a file inside it. */
-            if( !self->builder->provider->asset_queue )
-                PT_TASK_AWAITSELF_IF(
-                CreateTask_SpriteLoadByName(self->builder->provider, req->archive));
         }
         else if( req->format[0] != '\0' && req->data_filename[0] != '\0' )
         {
@@ -235,76 +222,45 @@ Task_UIBuilderAssetsLoad_Run(
         UITreeBuilder_RegisterFont(
             self->builder, req->name, req->archive_id, req->cache_font_id);
     }
-    if( self->builder->provider->asset_queue )
+    for( int k = 0; k < self->manifest->font_count; k++ )
     {
-        struct ToriRS_TaskQueue* queue = self->builder->provider->asset_queue;
-        for( int k = 0; k < self->manifest->font_count; k++ )
-        {
-            struct UIBuilderFontReq const* req = &self->manifest->fonts[k];
-            if( req->archive_id >= 0 )
-                ToriRS_TaskQueue_AddJoined(
-                    queue,
-                    CreateTask_FontLoad(self->builder->provider, req->archive_id),
-                    &self->pending);
-        }
-        PT_TASK_JOIN(pending);
+        struct UIBuilderFontReq const* req = &self->manifest->fonts[k];
+        if( req->archive_id >= 0 )
+            ToriRS_TaskQueue_AddJoined(
+                self->builder->provider->asset_queue,
+                CreateTask_FontLoad(self->builder->provider, req->archive_id),
+                &self->pending);
     }
+    PT_TASK_JOIN(pending);
     for( self->i = 0; self->i < self->manifest->font_count; self->i++ )
     {
         struct UIBuilderFontReq const* req = &self->manifest->fonts[self->i];
-        if( req->archive_id >= 0 )
-        {
-            if( !self->builder->provider->asset_queue )
-                PT_TASK_AWAITSELF_IF(
-                    CreateTask_FontLoad(self->builder->provider, req->archive_id));
-        }
-        else if( req->cache_font_id >= 0 && req->font_name[0] != '\0' )
+        if( req->archive_id < 0 && req->cache_font_id >= 0 && req->font_name[0] != '\0' )
             PT_TASK_AWAITSELF_IF(CreateTask_FontLoadByName(
                 self->builder->provider, req->font_name, req->cache_font_id));
     }
 
     /* Unique inv objs */
     collect_unique_objs(self);
-    if( self->builder->provider->asset_queue )
-    {
-        struct ToriRS_TaskQueue* queue = self->builder->provider->asset_queue;
-        for( int k = 0; k < self->unique_obj_count; k++ )
-            ToriRS_TaskQueue_AddJoined(
-                queue,
-                CreateTask_ObjLoad(self->builder->provider, self->unique_objs[k]),
-                &self->pending);
-        PT_TASK_JOIN(pending);
-    }
-    else
-    {
-        for( self->i = 0; self->i < self->unique_obj_count; self->i++ )
-        {
-            PT_TASK_AWAITSELF_IF(
-                CreateTask_ObjLoad(self->builder->provider, self->unique_objs[self->i]));
-        }
-    }
+    for( int k = 0; k < self->unique_obj_count; k++ )
+        ToriRS_TaskQueue_AddJoined(
+            self->builder->provider->asset_queue,
+            CreateTask_ObjLoad(self->builder->provider, self->unique_objs[k]),
+            &self->pending);
+    PT_TASK_JOIN(pending);
 
-    /* Components / packs. Locals do not survive the yields between the two
-     * awaits — index through self each time. */
-    /* The component packs first, together; then each pack's own assets, in
-     * order, because a pack's asset list is read out of the loaded pack. The
-     * pack loader fans its assets out itself. */
-    if( self->builder->provider->asset_queue )
-    {
-        struct ToriRS_TaskQueue* queue = self->builder->provider->asset_queue;
-        for( int k = 0; k < self->manifest->component_count; k++ )
-            ToriRS_TaskQueue_AddJoined(
-                queue,
-                CreateTask_ComponentLoad(
-                    self->builder->provider, self->manifest->components[k].packed_id),
-                &self->pending);
-        PT_TASK_JOIN(pending);
-    }
+    /* Components / packs: the packs first, together; then each pack's own
+     * assets, in order, because a pack's asset list is read out of the loaded
+     * pack. The pack loader fans its assets out itself. */
+    for( int k = 0; k < self->manifest->component_count; k++ )
+        ToriRS_TaskQueue_AddJoined(
+            self->builder->provider->asset_queue,
+            CreateTask_ComponentLoad(
+                self->builder->provider, self->manifest->components[k].packed_id),
+            &self->pending);
+    PT_TASK_JOIN(pending);
     for( self->i = 0; self->i < self->manifest->component_count; self->i++ )
     {
-        if( !self->builder->provider->asset_queue )
-            PT_TASK_AWAITSELF_IF(CreateTask_ComponentLoad(
-                self->builder->provider, self->manifest->components[self->i].packed_id));
         /* Prefetch pack-referenced assets (MODEL widgets especially; dat1 sprite
          * refs resolve during the pack load itself, so those awaits no-op). */
         PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(

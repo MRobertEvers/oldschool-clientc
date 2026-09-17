@@ -1438,6 +1438,7 @@ main(
 
     viewer.buildcache = dat1_buildcache_new();
     viewer.provider = dat1_buildcache_as_provider(viewer.buildcache);
+    CacheProvider_SetAssetQueue(viewer.provider, viewer.runner.queue);
 
     /* The decoders branch on cache identity, and the world load asserts it has
      * been stated. cache254 is the rev-254 RS2 dat1 cache (manifests/manifest_rs254lc.ini

@@ -32,10 +32,8 @@ struct Task_Dat2HitsplatLoad
     struct ToriRS_Task task;
     struct pt pt;
     struct Dat2BuildCache* bc;
+    /* The table has to outlive a PT_YIELD, so it cannot be a local. */
     struct RS_Hitsplats* hitsplats;
-    /* The sprite-preload walk. Both the cursor and the table have to outlive a
-     * PT_YIELD, so neither can be a local. */
-    int preload_index;
     /* Siblings still running from the fan-out below. */
     int pending;
 };
@@ -215,40 +213,20 @@ Task_Dat2HitsplatLoad_Run(
      * until every sibling has ended. AddJoined does not count the NULL that
      * CreateTask_SpriteLoad returns for a sprite already resident.
      */
-    if( task->bc->base.asset_queue )
+    assert(task->bc->base.asset_queue);
+    for( int i = 0; i < task->hitsplats->count; i++ )
     {
-        for( int i = 0; i < task->hitsplats->count; i++ )
-        {
-            if( task->hitsplats->sprite_ids[i] < 0 )
-                continue;
-            ToriRS_TaskQueue_AddJoined(
-                task->bc->base.asset_queue,
-                CreateTask_SpriteLoad(&task->bc->base, task->hitsplats->sprite_ids[i]),
-                &task->pending);
-        }
-        while( task->pending > 0 )
-        {
-            task->task.blocked = 1;
-            PT_YIELD(&task->pt);
-        }
+        if( task->hitsplats->sprite_ids[i] < 0 )
+            continue;
+        ToriRS_TaskQueue_AddJoined(
+            task->bc->base.asset_queue,
+            CreateTask_SpriteLoad(&task->bc->base, task->hitsplats->sprite_ids[i]),
+            &task->pending);
     }
-    else
+    while( task->pending > 0 )
     {
-        for( task->preload_index = 0; task->preload_index < task->hitsplats->count;
-             task->preload_index++ )
-        {
-            if( task->hitsplats->sprite_ids[task->preload_index] < 0 )
-                continue;
-            /* The _IF form skips a NULL child, which is what CreateTask_SpriteLoad
-             * returns for a sprite already resident — and it clears its own child
-             * pointer afterwards, which is what makes it safe inside a loop. */
-            TASK_AWAITEX_IF(
-                &task->task,
-                &task->pt,
-                io,
-                CreateTask_SpriteLoad(&task->bc->base,
-                                      task->hitsplats->sprite_ids[task->preload_index]));
-        }
+        task->task.blocked = 1;
+        PT_YIELD(&task->pt);
     }
 
     PT_END(&task->pt);

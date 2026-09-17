@@ -344,8 +344,7 @@ App_Init(
     }
     /* Every loader that fans out needs somewhere to put its siblings, and the
      * parallel asset queue is that place -- see CacheProvider::asset_queue. */
-    if( app->provider )
-        CacheProvider_SetAssetQueue(app->provider, app->runner.queue);
+    CacheProvider_SetAssetQueue(app->provider, app->runner.queue);
     app_provider_set_cache_profile(app, cfg);
     if( !TorirsModelInstCache_Init(&app->model_inst_cache) )
         assert(0 && "model_inst_cache init");

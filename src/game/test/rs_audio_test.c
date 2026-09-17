@@ -740,6 +740,7 @@ harness_init(
         harness->provider = dat2_buildcache_as_provider(harness->dat2_bc);
     }
     CacheProvider_SetProfile(harness->provider, profile);
+    CacheProvider_SetAssetQueue(harness->provider, harness->task_queue);
 
     harness->runner.queue = harness->task_queue;
     harness->runner.io = harness->io;

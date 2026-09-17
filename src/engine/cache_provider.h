@@ -117,7 +117,7 @@ struct CacheProvider
     struct RSCache profile;
 
     /**
-     * Where a loader puts the loads it fans out, or NULL.
+     * Where a loader puts the loads it fans out. Required.
      *
      * The parallel asset queue (App's `runner`). A task that needs several
      * independent records -- an interface's sprites and fonts, an npc's body
@@ -125,10 +125,10 @@ struct CacheProvider
      * on the set (ToriRS_TaskQueue_AddJoined / PT_TASK_JOIN), so the runner
      * has every read on the wire at once instead of one per round trip.
      *
-     * NULL on a provider whose owner runs a single serial queue -- the offline
-     * tools and the unit harnesses -- and every loader that fans out falls back
-     * to awaiting its records one at a time. A legitimate configuration, not a
-     * missing one: those harnesses have no second queue to give.
+     * There is no serial fallback: a loader that fans out asserts this is set.
+     * An owner with a single queue names that queue here and runs it with
+     * TaskRunner::parallel on, since a strict-FIFO runner never steps the
+     * siblings queued behind a parent parked on PT_TASK_JOIN.
      */
     struct ToriRS_TaskQueue* asset_queue;
 };
