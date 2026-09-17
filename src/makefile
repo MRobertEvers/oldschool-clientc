@@ -746,7 +746,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/dat2/task_dat2_map_load.c engine/dat2/task_dat2_loc_load.c \
 	engine/dat2/task_dat2_flotype_load.c engine/dat2/task_dat2_underlay_load.c \
 	engine/dat2/task_dat2_texture_load.c \
-	engine/dat2/task_dat2_preload.c \
+	engine/dat2/task_dat2_preload.c engine/dat2/task_dat2_group_touch.c \
 	engine/dat1/task_dat1_preload.c \
 	engine/dat2/task_dat2_sprite_load.c engine/dat2/task_dat2_font_load.c \
 	engine/dat2/task_dat2_defaults_sprite_load.c \
@@ -3851,8 +3851,8 @@ test-title-flames: $(OBJ_DIR)
 test-preload: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_preload_test \
 		game/test/rs_preload_test.c game/rs_preload.c game/rs_login_replies.c \
-		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC)
-	./$(OBJ_DIR)/rs_preload_test
+		revconfig/revconfig.c revconfig/revconfig_load.c ui/torirs_chrome_inkwell.c $(INI_SRC)
+	./$(OBJ_DIR)/rs_preload_test $(OBJ_DIR)
 
 test-login-replies: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_login_replies_test \

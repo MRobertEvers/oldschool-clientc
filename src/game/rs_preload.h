@@ -68,6 +68,10 @@ struct RS_PreloadStep
      *  TASK_YIELD_TO_RENDER for why it is not the default. */
     int render;
     int order;
+    /** `groups=all`: an index step also fetches every group of its archive,
+     *  the way the deob's loading screen does for interfaces, scripts and
+     *  sprites. Only meaningful with kind=index. */
+    int groups_all;
 };
 
 struct RS_PreloadTable

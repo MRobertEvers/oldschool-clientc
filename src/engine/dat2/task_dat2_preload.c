@@ -52,6 +52,15 @@ struct Task_Dat2Preload
      */
     struct RS_PreloadStep const* step;
     enum RSCache_Dat2Table table_id;
+    /* The `groups=all` fill of the step's archive: where the next wave starts
+     * in the reference table's id list, and how many siblings of the current
+     * wave are still running. Both outlive yields, so both live here. */
+    int fill_at;
+    int fill_end;
+    int pending;
+    /* The table being filled. Owned by the build cache, so holding the
+     * pointer across yields is safe; a local would not be. */
+    struct RSCache_ReferenceTable const* fill_ref;
     /*
      * The caption, owned here.
      *
@@ -204,6 +213,84 @@ Task_Dat2Preload_Run(
                 continue;
             }
             dat2_buildcache_reference_table_add(task->bc, task->table_id, table);
+        }
+
+        /*
+         * `groups=all`: the whole archive, not just its index.
+         *
+         * What the deob's loading screen does for interfaces, scripts and
+         * sprites, and why its client is never caught fetching a script in
+         * the middle of an interface hook. Without it a browser boot of
+         * osrs239 paid 1149 network round trips after login -- 682 of them a
+         * single CS2 script or sprite an interface open resolved on demand,
+         * one after another -- and the game froze until they were in.
+         *
+         * Fetched in joined waves of siblings on the asset queue, so this
+         * task never resumes past a wave with a group half done, and the
+         * boot bar can advance between waves. On a local cache the same
+         * reads are disk hits and nothing is kept, which is why the step is
+         * opt-in per manifest: a deployment that streams its cache says so.
+         */
+        if( task->step->groups_all && task->bc->base.asset_queue &&
+            !task->bc->reference_table_filled[task->table_id] )
+        {
+            enum
+            {
+                WAVE = 256
+            };
+            /* Marked before the waves rather than after: a second preload
+             * task queued while this one is mid-fill must not start a second
+             * fill of the same table. */
+            task->bc->reference_table_filled[task->table_id] = 1;
+            task->fill_ref = dat2_buildcache_reference_table_get(task->bc, task->table_id);
+            if( !task->fill_ref )
+            {
+                TORIRS_ERR(
+                    "preload: '%s' has no reference table to fill from\n", task->step->archive);
+                continue;
+            }
+            for( task->fill_at = 0; task->fill_at < task->fill_ref->id_count;
+                 task->fill_at += WAVE )
+            {
+                task->fill_end = task->fill_at + WAVE < task->fill_ref->id_count
+                                     ? task->fill_at + WAVE
+                                     : task->fill_ref->id_count;
+                for( int k = task->fill_at; k < task->fill_end; k++ )
+                    ToriRS_TaskQueue_AddJoined(
+                        task->bc->base.asset_queue,
+                        CreateTask_Dat2GroupTouch(
+                            &task->bc->base, task->table_id, task->fill_ref->ids[k]),
+                        &task->pending);
+                while( task->pending > 0 )
+                {
+                    task->task.blocked = 1;
+                    PT_YIELD(&task->pt);
+                }
+                if( task->step->render )
+                {
+                    compose_caption(task, task->step);
+                    {
+                        size_t n = strlen(task->caption);
+                        snprintf(
+                            task->caption + n,
+                            sizeof(task->caption) - n,
+                            "%s%d%%",
+                            n ? " " : "",
+                            task->fill_end * 100 / task->fill_ref->id_count);
+                    }
+                    TASK_YIELD_TO_RENDER(
+                        &task->task,
+                        &task->pt,
+                        TORIRS_RENDER_BOOT_BAR,
+                        task->step->percent,
+                        task->caption);
+                }
+            }
+            fprintf(
+                stderr,
+                "preload: %s filled, %d groups\n",
+                task->step->archive,
+                task->fill_ref->id_count);
         }
 
         task->weight_done += task->step->weight;

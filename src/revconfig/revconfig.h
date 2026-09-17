@@ -213,6 +213,7 @@ enum RevConfigFieldKind
     RCFIELD_PRELOAD_WEIGHT,
     RCFIELD_PRELOAD_RENDER,
     RCFIELD_PRELOAD_ORDER,
+    RCFIELD_PRELOAD_GROUPS,
     RCFIELD_LOGIN_REPLY_SCREEN,
     RCFIELD_LOGIN_REPLY_LINE1,
     RCFIELD_LOGIN_REPLY_LINE2,
@@ -384,6 +385,10 @@ struct RevConfigPreloadItem
     char say[64];
     /** INI: weight= -- share of the bar this step owns, deob-style. */
     int weight;
+    /** INI: groups=all -- for an index step, fetch every group of the archive
+     *  too, not only its reference table. The deob's boot does this for the
+     *  archives a running client cannot afford to fetch one group at a time. */
+    int groups_all;
     /** INI: render= -- publish a frame before running this step. */
     int render;
     /** INI: order= -- ascending; ties keep file order. */

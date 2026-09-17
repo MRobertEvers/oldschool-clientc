@@ -26,6 +26,11 @@ struct Dat2BuildCache
     struct HMap* clientscripts_hmap;
     /** Indexed by enum RSCache_Dat2Table — see dat2_buildcache_reference_table_add. */
     struct RSCache_ReferenceTable* reference_tables[RSCACHE_DAT2_TABLE_COUNT];
+    /** Which tables a `[preload:] groups=all` step has fetched whole this
+     *  process. The boot task runs more than once per boot and creates a
+     *  preload task each time; the reference tables above are what stop the
+     *  index steps repeating, and this is what stops the fills repeating. */
+    uint8_t reference_table_filled[RSCACHE_DAT2_TABLE_COUNT];
     /** (name hash, group id) pairs from the clientscript reference table,
      *  sorted by hash. Built lazily by dat2_clientscript_id_by_name_hash; see
      *  game/rs_client_trigger.h for what names them. */

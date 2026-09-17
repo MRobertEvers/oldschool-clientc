@@ -183,9 +183,55 @@ test_each_lane_has_work_to_do(void)
     RS_Preload_Free(&dat2);
 }
 
-int
-main(void)
+/*
+ * `groups=all` on an inline step: the flag arrives, and the inline step
+ * replaces the shipped one by name -- which is how a deployment that streams
+ * its cache opts into whole-archive fetches without editing the revision's
+ * list. Unstated, the flag is off.
+ */
+static void
+test_inline_groups_all(char const* scratch_dir)
 {
+    char path[512];
+    FILE* f;
+    struct RS_PreloadTable table;
+    int sprites_seen = 0;
+    int others_flagged = 0;
+
+    snprintf(path, sizeof(path), "%s/rs_preload_groups_test.ini", scratch_dir);
+    f = fopen(path, "w");
+    TEST_ASSERT(f != NULL, "scratch ini opens for writing");
+    fprintf(f,
+            "[revconfig:preload:sprites]\n"
+            "order=30\nkind=index\narchive=sprites\nid=8\npercent=30\nweight=36\n"
+            "say=checking_updates\nrender=yes\ngroups=all\n");
+    fclose(f);
+
+    RS_Preload_Init(&table);
+    RS_Preload_LoadSources(&table, k_dat2_ini, NULL, path);
+    for( int i = 0; i < table.count; i++ )
+    {
+        struct RS_PreloadStep const* step = RS_Preload_At(&table, i);
+        if( strcmp(step->name, "sprites") == 0 )
+        {
+            sprites_seen++;
+            TEST_ASSERT(step->groups_all == 1, "inline groups=all reaches the step");
+            TEST_ASSERT(step->kind == RS_PRELOAD_KIND_INDEX, "the restated kind survives");
+            TEST_ASSERT(step->id == 8, "the restated id survives");
+        }
+        else if( step->groups_all )
+            others_flagged++;
+    }
+    TEST_ASSERT(sprites_seen == 1, "the inline step replaced the shipped one, not doubled it");
+    TEST_ASSERT(others_flagged == 0, "no other step gained the flag");
+    RS_Preload_Free(&table);
+    remove(path);
+}
+
+int
+main(int argc, char** argv)
+{
+    char const* scratch_dir = argc > 1 ? argv[1] : ".";
     g_failures = 0;
     g_checks = 0;
 
@@ -195,6 +241,7 @@ main(void)
     test_absent_profile();
     test_a_later_source_restates();
     test_each_lane_has_work_to_do();
+    test_inline_groups_all(scratch_dir);
 
     if( g_failures )
     {

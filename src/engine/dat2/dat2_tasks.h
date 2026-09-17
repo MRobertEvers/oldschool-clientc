@@ -107,6 +107,21 @@ CreateTask_Dat2SpriteLoad(
     int sprite_id);
 
 /**
+ * Make one group of a dat2 table resident and keep nothing.
+ *
+ * The whole point is the side effect: on a streamed cache the executor
+ * writes the container it fetched into the browser's store before this task
+ * ever sees it, so a later read of the same group is local. The decoded
+ * archive is released as soon as it arrives. Queued in joined waves by the
+ * preload task for a `[preload:] groups=all` step; never on its own.
+ */
+struct ToriRS_Task*
+CreateTask_Dat2GroupTouch(
+    struct CacheProvider* provider,
+    int table_id,
+    int group_id);
+
+/**
  * The title backdrop, from the BINARY table's `archive_name`.
  *
  * OldSchool keeps the title image there rather than in a jagfile, which is the

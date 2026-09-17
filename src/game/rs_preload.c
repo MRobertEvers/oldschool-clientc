@@ -100,6 +100,7 @@ RS_Preload_AddFromItems(
         dst->weight = src->weight;
         dst->render = src->render;
         dst->order = src->order;
+        dst->groups_all = src->groups_all;
     }
 }
 

@@ -460,6 +460,8 @@ push_field_from_ini_kv(
             kind = RCFIELD_PRELOAD_RENDER;
         if( strcmp(key, "order") == 0 )
             kind = RCFIELD_PRELOAD_ORDER;
+        if( strcmp(key, "groups") == 0 )
+            kind = RCFIELD_PRELOAD_GROUPS;
     }
     else if( strcmp(s_ini_item_type, "login_reply") == 0 )
     {
