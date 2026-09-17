@@ -90,6 +90,7 @@ struct PorcelainNormalItem
     struct PorcelainPlacement place;
     char place_on_role[PORCELAIN_NAME_MAX];
     char place_depth_role[PORCELAIN_NAME_MAX];
+    char place_sibling_role[PORCELAIN_NAME_MAX];
     char visible_with_role[PORCELAIN_NAME_MAX];
     int width, height;
     int opacity;

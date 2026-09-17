@@ -4455,7 +4455,16 @@ uitree_widget_set_geometry(struct UITree* tree, struct UITreeNodeRef ref,
     if( c->plugin_owner )
     {
         if( c->plugin_owner != owner ) return false;
-        return size ? UITree_SetSizeAt(tree,idx,a,b) : UITree_SetPositionAt(tree,idx,a,b);
+        if( size )
+            return UITree_SetSizeAt(tree,idx,a,b);
+        /* A parent-local position is the other placement: it ends a canvas pin. */
+        if( c->plugin_canvas_pinned )
+        {
+            c->plugin_canvas_pinned = 0;
+            c->position.layout_resolved = 0;
+            uitree_note_mutation(tree, idx, UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
+        }
+        return UITree_SetPositionAt(tree,idx,a,b);
     }
     struct UITreeWidgetGeometry* edit = uitree_widget_geometry(c, owner);
     if( !edit ) return false;
@@ -4486,6 +4495,30 @@ bool UITree_WidgetSetPosition(struct UITree* t, struct UITreeNodeRef r, uint64_t
 { return uitree_widget_set_geometry(t, r, owner, x, y, false); }
 bool UITree_WidgetSetSize(struct UITree* t, struct UITreeNodeRef r, uint64_t owner, int w, int h)
 { return uitree_widget_set_geometry(t, r, owner, w, h, true); }
+
+bool
+UITree_WidgetSetCanvasPosition(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner, int x, int y)
+{
+    int32_t idx;
+    struct UITreeComponent* c;
+
+    assert(tree);
+    idx = UITree_ResolveRef(tree, ref);
+    if( idx < 0 || !owner )
+        return false;
+    c = &tree->components[idx];
+    /* Native nodes keep their authored place; only a control this owner made
+     * can be pinned. */
+    if( c->plugin_owner != owner )
+        return false;
+    if( c->plugin_canvas_pinned && c->plugin_canvas_x == x && c->plugin_canvas_y == y )
+        return true;
+    c->plugin_canvas_pinned = 1;
+    c->plugin_canvas_x = x;
+    c->plugin_canvas_y = y;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
 
 static void uitree_widget_refresh_hidden(struct UITree* tree,int32_t idx)
 {

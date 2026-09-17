@@ -216,6 +216,19 @@ app_plugin_page_select(struct App* app, int page, int view)
         page >= 0 && view == APP_PLUGIN_VIEW_PAGE
             ? page
             : TORIRS_CHROME_SHELL_PAGE_MANAGE);
+    /*
+     * Announce the new page identity NOW, before this frame's page transaction.
+     *
+     * A page-retaining executor stamps a transaction with the page generation
+     * of the last rail snapshot it saw, and closes any page whose generation a
+     * later snapshot contradicts. The tick's own publish runs at the top of the
+     * NEXT frame, so a selection made by a row in the page (Manage -> Client
+     * Settings) went out as page 1, was followed by a rail saying page 2, and
+     * the browser pane flickered and emptied. The shell's selection did not
+     * move there -- a settings face stays on Manage -- so only the host's page
+     * generation told the two apart.
+     */
+    app_plugin_rail_publish(app);
     if( getenv("TORIRS_CHROME_DEBUG") )
         fprintf(
             stderr, "chrome: page_select page=%d view=%s -> host active=%d view=%d has_page=%d\n",

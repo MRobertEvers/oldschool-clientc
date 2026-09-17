@@ -544,6 +544,7 @@ warn = nil
 ---@field set_projection_height fun(self:torirs.Widget,height:integer):boolean,string World-unit lift for an anchored overlay layer; camera projection stays native.
 ---@field text fun(self:torirs.Widget):string? Current native text input.
 ---@field set_position fun(self:torirs.Widget,x:integer,y:integer):boolean,string
+---@field set_canvas_position fun(self:torirs.Widget,x:integer,y:integer):boolean,string Owned controls only: the box at canvas x,y under whatever parent the control was created in; the parent decides draw order, this decides screen position. Retained until set_position.
 ---@field set_size fun(self:torirs.Widget,width:integer,height:integer):boolean,string
 ---@field set_hidden fun(self:torirs.Widget,hidden:boolean):boolean,string Presentation only; native hiding remains authoritative. Reset/disable reveals current native state or another owner's edit.
 ---@field revalidate fun(self:torirs.Widget):boolean,string
@@ -815,6 +816,7 @@ warn = nil
 ---@field kind torirs.PorcelainPlacementKind
 ---@field on? string The element this item belongs to.
 ---@field depth? string Sit over (or behind) THIS element instead.
+---@field sibling_of? string at_canvas/at_usable only: create the control under THIS element's parent (its place in the tree), keeping the canvas box.
 ---@field behind? boolean
 ---@field corner? torirs.PorcelainCorner For kind 'inside' and kind 'within'.
 ---@field side? torirs.PorcelainSide For kind 'beside'.

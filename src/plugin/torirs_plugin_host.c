@@ -5332,7 +5332,25 @@ plugin_frame_engine_activate(
         int const previous = plugin_frame_owner(host);
         if( previous >= 0 && host->frame_active_entry != entry_index &&
             host->plugins[previous].v2 && host->plugins[previous].v2->gameframe_provided )
+        {
             plugin_gameframe_release(host, previous);
+            /*
+             * And when the outgoing offer is the SAME provider's, that release
+             * just took off the description it built for the incoming one: one
+             * layer handle holds both, and an empty describe is an empty
+             * describe whichever offer it was run for. So the pass after the
+             * switch has to happen, and it is asked for here rather than left
+             * to whatever next moves the tree.
+             *
+             * An OldSchool lane recreates cc nodes every tick and so always had
+             * that pass. rs289lc's tree goes quiet once logged in, and Classic
+             * Fixed -> Modern Fixed there stayed a bare lane -- no surround, no
+             * stones, no icons -- until a resize. The pass this asks for finds
+             * the entry already active and releases nothing, so it asks once.
+             */
+            if( entry_index >= 0 && previous == owner )
+                host->frame_layout_requested = 1;
+        }
     }
     host->frame_selection_epoch++;
     host->frame_active_entry = entry_index;

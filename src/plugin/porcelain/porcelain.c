@@ -1449,6 +1449,7 @@ porcelain_item_hash(struct PorcelainNormalItem const* item)
     hash = Porcelain_HashBytes(hash, &item->place.behind, sizeof(item->place.behind));
     hash = Porcelain_HashString(hash, item->place_on_role);
     hash = Porcelain_HashString(hash, item->place_depth_role);
+    hash = Porcelain_HashString(hash, item->place_sibling_role);
     hash = Porcelain_HashString(hash, item->visible_with_role);
     hash = Porcelain_HashBytes(hash, &item->width, sizeof(item->width));
     hash = Porcelain_HashBytes(hash, &item->height, sizeof(item->height));
@@ -1506,6 +1507,10 @@ porcelain_push_item(struct ToriRS_PorcelainDescribe* describe, enum PorcelainIte
     assert(source->key);
     assert(source->key[0]);
     assert(source->place.on.kind > PORCELAIN_EL_NONE ||
+           source->place.kind == PORCELAIN_AT_CANVAS || source->place.kind == PORCELAIN_AT_USABLE);
+    /* The tree position of a placement that already has one -- a sibling or a
+     * child of `on` -- is not the plugin's to restate. */
+    assert(source->place.sibling_of.kind <= PORCELAIN_EL_NONE ||
            source->place.kind == PORCELAIN_AT_CANVAS || source->place.kind == PORCELAIN_AT_USABLE);
     /* A text item has no measurable width: nothing answers a string's extent
      * in the widget's face, so the box is the plugin's to state. */
@@ -1575,6 +1580,8 @@ porcelain_push_item(struct ToriRS_PorcelainDescribe* describe, enum PorcelainIte
                                 sizeof(item->place_on_role));
     porcelain_element_role_copy(porcelain, source->place.depth, item->place_depth_role,
                                 sizeof(item->place_depth_role));
+    porcelain_element_role_copy(porcelain, source->place.sibling_of, item->place_sibling_role,
+                                sizeof(item->place_sibling_role));
     porcelain_element_role_copy(porcelain, source->visible_with, item->visible_with_role,
                                 sizeof(item->visible_with_role));
     item->width = source->w;
@@ -1603,6 +1610,8 @@ porcelain_push_item(struct ToriRS_PorcelainDescribe* describe, enum PorcelainIte
         (void)Porcelain_WatchFor(porcelain, source->place.on, true);
     if( source->place.depth.kind > PORCELAIN_EL_NONE )
         (void)Porcelain_WatchFor(porcelain, source->place.depth, true);
+    if( source->place.sibling_of.kind > PORCELAIN_EL_NONE )
+        (void)Porcelain_WatchFor(porcelain, source->place.sibling_of, true);
     if( source->visible_with.kind > PORCELAIN_EL_NONE )
         (void)Porcelain_WatchFor(porcelain, source->visible_with, true);
 
@@ -1617,6 +1626,11 @@ porcelain_push_item(struct ToriRS_PorcelainDescribe* describe, enum PorcelainIte
             return;
         }
     }
+    /* Named THIS run, before the run's first Porcelain_Image can meet a full
+     * table: an unchanged control's picture is otherwise last touched by the
+     * previous reconcile and looks like the oldest one to give up. */
+    if( item->has_image )
+        Porcelain_ImageTouch(porcelain, item->image.text);
     porcelain->scratch_item_count++;
 }
 
@@ -1732,6 +1746,10 @@ porcelain_commit_edit(struct Porcelain* porcelain, struct PorcelainNormalEdit* e
         return;
     }
     edit->hash = porcelain_edit_hash(edit);
+    if( edit->has_image )
+        Porcelain_ImageTouch(porcelain, edit->image.text);
+    if( edit->has_mask )
+        Porcelain_ImageTouch(porcelain, edit->mask.text);
     porcelain->scratch_edit_count++;
 }
 
@@ -2069,7 +2087,13 @@ porcelain_item_target(struct Porcelain* porcelain, struct PorcelainNormalItem co
     if( item->place.kind == PORCELAIN_AT_CANVAS || item->place.kind == PORCELAIN_AT_USABLE )
     {
         struct ToriRS_WidgetRef root;
+        struct PorcelainElementState sibling;
         memset(out, 0, sizeof(*out));
+        /* No parent to create under yet: deferred exactly like an unbound
+         * `on`, and the element's own absence finding is the only one. */
+        if( item->place.sibling_of.kind > PORCELAIN_EL_NONE &&
+            !Porcelain_Element(porcelain, item->place.sibling_of, &sibling) )
+            return false;
         if( !porcelain_frame_root(porcelain, &root) )
             return false;
         out->bind = PORCELAIN_BOUND;
@@ -2078,6 +2102,26 @@ porcelain_item_target(struct Porcelain* porcelain, struct PorcelainNormalItem co
         return true;
     }
     return Porcelain_Element(porcelain, item->place.on, out);
+}
+
+/*
+ * Write a control's position in the space its description states it in.
+ *
+ * A canvas box under a parent that is not the canvas is placed by the engine,
+ * because only the engine knows that parent's box when it draws.
+ * @see PorcelainPlacement::sibling_of
+ */
+static enum ToriRS_ContractResult
+porcelain_write_position(struct Porcelain* porcelain, struct PorcelainAppliedItem const* applied,
+                         int32_t x, int32_t y)
+{
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+
+    assert(porcelain);
+    assert(applied);
+    if( applied->item.place.sibling_of.kind > PORCELAIN_EL_NONE )
+        return widgets->set_canvas_position(widgets->context, applied->ref, x, y);
+    return widgets->set_position(widgets->context, applied->ref, x, y);
 }
 
 static void
@@ -2124,10 +2168,9 @@ porcelain_apply_geometry(struct Porcelain* porcelain, struct PorcelainAppliedIte
     {
         porcelain->counters.engine_calls++;
         porcelain->counters.setters++;
-        porcelain_note_item_result(
-            porcelain, applied, "set_position",
-            widgets->set_position(widgets->context, applied->ref, box.x, box.y),
-            applied->item.key.text);
+        porcelain_note_item_result(porcelain, applied, "set_position",
+                                   porcelain_write_position(porcelain, applied, box.x, box.y),
+                                   applied->item.key.text);
         applied->live_x = box.x;
         applied->live_y = box.y;
         porcelain->dirty = true;
@@ -2257,6 +2300,18 @@ porcelain_item_parent(struct Porcelain* porcelain, struct PorcelainNormalItem co
     assert(item);
     assert(target);
     assert(out);
+    if( (item->place.kind == PORCELAIN_AT_CANVAS || item->place.kind == PORCELAIN_AT_USABLE) &&
+        item->place.sibling_of.kind > PORCELAIN_EL_NONE )
+    {
+        struct PorcelainElementState sibling;
+        if( !Porcelain_Element(porcelain, item->place.sibling_of, &sibling) )
+            return false;
+        porcelain->counters.engine_calls++;
+        if( widgets->parent(widgets->context, sibling.ref, out) != TORIRS_CONTRACT_OK ||
+            !ToriRS_WidgetRefValid(*out) )
+            return false;
+        return true;
+    }
     if( item->place.kind == PORCELAIN_AT_CANVAS || item->place.kind == PORCELAIN_AT_USABLE ||
         item->place.kind == PORCELAIN_WITHIN )
     {
@@ -2293,6 +2348,9 @@ porcelain_item_target_moved(struct Porcelain const* porcelain,
                             struct PorcelainElementState const* target)
 {
     if( applied->item.place.kind != wanted->place.kind )
+        return true;
+    /* A new tree position is a new parent, whatever the target says. */
+    if( strcmp(applied->item.place_sibling_role, wanted->place_sibling_role) != 0 )
         return true;
     if( !ToriRS_WidgetRefEqual(applied->target_ref, target->ref) )
         return true;
@@ -3709,8 +3767,7 @@ Porcelain_Set(struct Porcelain* porcelain, char const* key, struct PorcelainMoti
             porcelain->counters.engine_calls++;
             porcelain->counters.setters++;
             porcelain_note_item_result(
-                porcelain, applied, "set",
-                widgets->set_position(widgets->context, applied->ref, x, y), key);
+                porcelain, applied, "set", porcelain_write_position(porcelain, applied, x, y), key);
             applied->live_x = x;
             applied->live_y = y;
             porcelain->dirty = true;

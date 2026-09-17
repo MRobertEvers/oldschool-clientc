@@ -5041,6 +5041,11 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
                 : UITree_WidgetSetSize(tree, ref, owner, r->a, r->b)) )
             return TORIRS_CONTRACT_FAILED;
         break;
+    case PLUGIN_WIDGET_CANVAS_POSITION:
+        if( c->plugin_owner != owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        if( !UITree_WidgetSetCanvasPosition(tree, ref, owner, r->a, r->b) )
+            return TORIRS_CONTRACT_FAILED;
+        break;
     case PLUGIN_WIDGET_REVALIDATE:
         UITree_EnsureLayout(tree);
         break;

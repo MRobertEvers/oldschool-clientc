@@ -23,7 +23,7 @@
 #define TESTBED_ELEMENTS_MAX 32
 #define TESTBED_WATCHES_MAX 64
 #define TESTBED_CONTROLS_MAX 64
-#define TESTBED_ASSETS_MAX 32
+#define TESTBED_ASSETS_MAX 128
 #define TESTBED_CONFIG_MAX 16
 #define TESTBED_SURFACES_MAX 24
 #define TESTBED_LOG_MAX 512
@@ -72,6 +72,8 @@ struct TestbedControl
     struct ToriRS_WidgetRef anchor;
     enum ToriRS_WidgetRelation relation;
     int32_t x, y, width, height;
+    /** x/y were written by set_canvas_position, not set_position. */
+    bool canvas_positioned;
     int opacity;
     bool hidden;
     bool armed;

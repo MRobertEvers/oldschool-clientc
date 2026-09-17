@@ -2965,6 +2965,11 @@ static enum ToriRS_ContractResult widget_position(void* u, struct ToriRS_WidgetR
     struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_POSITION, .ref=ref, .a=x, .b=y};
     return plugin_widget_request(u, &r);
 }
+static enum ToriRS_ContractResult widget_canvas_position(void* u, struct ToriRS_WidgetRef ref, int32_t x, int32_t y)
+{
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_CANVAS_POSITION, .ref=ref, .a=x, .b=y};
+    return plugin_widget_request(u, &r);
+}
 static enum ToriRS_ContractResult widget_size(void* u, struct ToriRS_WidgetRef ref, int32_t w, int32_t h)
 {
     if( w < 0 || h < 0 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
@@ -3290,7 +3295,7 @@ v2_runtime_init(
             .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
             .state = widget_state,
             .position = widget_local_bounds,
-            .set_position = widget_position, .set_size = widget_size,
+            .set_position = widget_position, .set_canvas_position = widget_canvas_position, .set_size = widget_size,
             .revalidate = widget_revalidate, .reset = widget_reset, .watch = widget_watch, .watch_state = widget_watch_state,
             .create_text=widget_create_text,.set_text=widget_set_text,.set_text_color=widget_text_color,.set_text_align=widget_text_align,.remove=widget_remove,
         },

@@ -803,6 +803,20 @@ struct UITreeComponent
     char* plugin_key;
     uint64_t plugin_op_serial; /* Host listener version; never copied with native content. */
     /**
+     * An owned control's box pinned to a CANVAS origin, whatever its parent's
+     * box is. @see UITree_WidgetSetCanvasPosition.
+     *
+     * Which parent a control is created under decides where it draws in the
+     * ORDER -- a child is painted inside its parent's subtree, under anything
+     * the tree lists after that parent -- and this decides where it draws on
+     * the SCREEN. The two are separate questions, and a control that could only
+     * be placed parent-locally had to be parented to the root to be placed on
+     * the canvas at all, which drew it over the minimenu.
+     */
+    uint8_t plugin_canvas_pinned;
+    int32_t plugin_canvas_x;
+    int32_t plugin_canvas_y;
+    /**
      * A layer the plugin frame released from clipping.
      *
      * Every ancestor of a surface the provider moved: the lane's shell and
@@ -2339,6 +2353,12 @@ int32_t UITree_ResolveRef(struct UITree const* tree, struct UITreeNodeRef ref);
  * Position is native-parent-local, unscrolled. Reset exposes current native
  * inputs or the most recent remaining owner's edit, without saved snapshots. */
 bool UITree_WidgetSetPosition(struct UITree*, struct UITreeNodeRef, uint64_t owner, int x, int y);
+/* Owned controls only: place the control's layout box at canvas (x, y) under
+ * whatever parent it was created in. Retained -- the parent moving does not move
+ * it -- until UITree_WidgetSetPosition states a parent-local position instead.
+ * The box is in layout space, so a SCROLLING ancestor still scrolls it, exactly
+ * as it scrolls every other child. */
+bool UITree_WidgetSetCanvasPosition(struct UITree*, struct UITreeNodeRef, uint64_t owner, int x, int y);
 bool UITree_WidgetSetSize(struct UITree*, struct UITreeNodeRef, uint64_t owner, int w, int h);
 bool UITree_WidgetSetHidden(struct UITree*, struct UITreeNodeRef, uint64_t owner, bool hidden);
 

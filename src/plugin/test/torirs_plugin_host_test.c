@@ -2899,11 +2899,17 @@ static void test_gameframe_offer_switch(void)
     CHECK(strstr(gf_sw_log,"alpha:0")!=NULL,
           "a change of offer inside one provider releases the outgoing frame");
     CHECK(strstr(gf_sw_log,"beta:1")!=NULL,"and provides the incoming one");
+    /* The release ran after the incoming description, on the same provider,
+     * so it took that description off. The pass that puts it back is the
+     * host's to ask for: a lane whose tree goes quiet (rs289lc) never asks. */
+    CHECK(PluginHost_FrameNeedsLayout(host),
+          "a same-provider switch asks for the pass after it rather than waiting on the tree");
     gf_sw_log[0]='\0';
     PluginHost_FrameStart(host,2,0);
     PluginHost_Layout(host,900,600);
     CHECK(strcmp(gf_sw_log,"beta:1")==0,
           "and the pass after the switch dresses the lane again, with nothing left to release");
+    CHECK(!PluginHost_FrameNeedsLayout(host),"and that pass asks for no other");
     PluginHost_Free(host);
 }
 static void test_widget_images(void)

@@ -478,6 +478,13 @@ layout_compute_node(
 
     pos->abs_x = px + rx;
     pos->abs_y = py + ry;
+    /* Still a pure function of the node's own fields: a pinned control's
+     * origin is its own, not its parent's. @see UITree_WidgetSetCanvasPosition */
+    if( c->plugin_canvas_pinned )
+    {
+        pos->abs_x = c->plugin_canvas_x;
+        pos->abs_y = c->plugin_canvas_y;
+    }
     pos->abs_w = w;
     pos->abs_h = h;
     apply_safe_area(pos);

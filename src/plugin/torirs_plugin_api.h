@@ -1469,6 +1469,19 @@ struct PorcelainPlacement
     /** Optional: sit over (or behind) THIS element instead of `on`. */
     struct PorcelainElement depth;
     bool behind;
+    /**
+     * AT_CANVAS / AT_USABLE only, optional: WHERE IN THE TREE the control
+     * lives. It is created under this element's parent, after that parent's
+     * own children, and its box stays the canvas box the placement states
+     * (the engine's set_canvas_position).
+     *
+     * Without it a canvas control is a child of the frame root, which puts it
+     * after every subtree the lane has -- the minimenu and the mouseover line
+     * included. A cover for a native element belongs where that element is:
+     * under the same parent, clipped like it, and under everything the lane
+     * draws over it. Deferred while the element is not bound.
+     */
+    struct PorcelainElement sibling_of;
 };
 
 enum PorcelainItemKind

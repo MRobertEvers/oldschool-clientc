@@ -2536,6 +2536,164 @@ findings_with_verb(struct Porcelain* porcelain, char const* verb)
     return matching;
 }
 
+/*
+ * A description that swaps its WHOLE picture set in one run, as a gameframe
+ * switched from one layout to another does.
+ *
+ * The outgoing set still holds every slot of the image table when the
+ * incoming one asks: the idle release waits PORCELAIN_IMAGE_IDLE_RUNS runs.
+ * The incoming pictures used to be refused with a budget finding and never
+ * asked for again, because nothing re-runs a describe that has settled --
+ * rs289lc's Modern Fixed came up with no stones, no sideicons and no compass
+ * after a switch from Classic Fixed, and stayed that way.
+ *
+ * MUTATION: drop the eviction arm in Porcelain_Image. Red: the second set
+ * takes budget findings and its controls wear no picture.
+ */
+static void
+picture_set_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    int const* set = user;
+    struct PorcelainElementState state;
+
+    (void)Porcelain_Element(describe->porcelain, PORCELAIN_EL(MINIMAP), &state);
+    for( int i = 0; i < PORCELAIN_IMAGES_MAX; i++ )
+    {
+        struct PorcelainItem item;
+        char key[32];
+        char name[32];
+        int width = 0;
+        int height = 0;
+
+        snprintf(key, sizeof(key), "piece_%d", i);
+        snprintf(name, sizeof(name), "set%d_%d.png", *set, i);
+        if( !Porcelain_ImageSize(describe->porcelain, name, &width, &height) )
+            continue;
+        memset(&item, 0, sizeof(item));
+        item.key = key;
+        item.image = name;
+        item.place.kind = PORCELAIN_AT_CANVAS;
+        item.place.dx = i;
+        item.w = width;
+        item.h = height;
+        describe->control(describe, &item);
+    }
+}
+
+/*
+ * A canvas box, placed IN THE TREE beside the element it covers.
+ *
+ * Without `sibling_of` a canvas control is a child of the frame root: after
+ * every subtree the lane has, the minimenu included -- which is how the orb
+ * covers came to draw over an open "Choose Option". With it the control is
+ * created under the element's own parent and its box is still the canvas box,
+ * written through set_canvas_position so the engine resolves it against that
+ * parent.
+ *
+ * MUTATION: in porcelain_item_parent, drop the sibling_of arm. Red: the cover
+ * is a child of the frame root. SECOND: make porcelain_write_position always
+ * call set_position. Red: the box is not canvas-positioned.
+ */
+static void
+sibling_canvas_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
+{
+    struct PorcelainItem item;
+    int const* dx = user;
+
+    memset(&item, 0, sizeof(item));
+    item.key = "cover";
+    item.image = "camera.png";
+    item.place.kind = PORCELAIN_AT_CANVAS;
+    item.place.sibling_of = PORCELAIN_ORB_EL(PORCELAIN_ORB_RUN);
+    item.place.dx = *dx;
+    item.place.dy = 109;
+    item.w = 57;
+    item.h = 34;
+    describe->control(describe, &item);
+}
+
+static void
+test_a_canvas_control_lives_beside_its_element_in_the_tree(void)
+{
+    struct Porcelain* porcelain;
+    struct TestbedControl const* cover;
+    struct TestbedElement* orbs;
+    int dx = 522;
+
+    Testbed_Reset();
+    orbs = Testbed_DeclareElement("orbs", 500, 80, 200, 150);
+    Testbed_DeclareElement("orb_run", 22, 29, 57, 34);
+    Testbed_Element("orb_run")->parent = orbs->ref;
+    Testbed_BindElement("orb_run");
+    Testbed_DeclareImage("camera.png", TORIRS_ASSET_READY, 57, 34);
+
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, sibling_canvas_describe, &dx);
+    fence(porcelain);
+    cover = Testbed_Control("cover");
+    CHECK(cover != NULL, "the cover is created");
+    CHECK(cover && ToriRS_WidgetRefEqual(cover->parent, orbs->ref),
+          "under the element's own parent, not the frame root");
+    CHECK(cover && cover->canvas_positioned && cover->x == 522 && cover->y == 109,
+          "at the canvas box the description states");
+    CHECK(findings_with_verb(porcelain, "create") == 0, "with no create finding");
+
+    /* The direct motion path writes the same space. */
+    {
+        struct PorcelainMotion motion;
+        memset(&motion, 0, sizeof(motion));
+        motion.mask = PORCELAIN_MOTION_X;
+        motion.x = 530;
+        (void)Porcelain_Set(porcelain, "cover", &motion);
+    }
+    cover = Testbed_Control("cover");
+    CHECK(cover && cover->canvas_positioned && cover->x == 530,
+          "a direct move stays a canvas position");
+    Porcelain_Close(porcelain);
+}
+
+static void
+test_a_whole_new_picture_set_is_not_refused(void)
+{
+    struct Porcelain* porcelain;
+    int set = 0;
+    int dressed = 0;
+
+    Testbed_Reset();
+    Testbed_DeclareElement("minimap", 550, 10, 146, 151);
+    Testbed_BindElement("minimap");
+    for( int s = 0; s < 2; s++ )
+        for( int i = 0; i < PORCELAIN_IMAGES_MAX; i++ )
+        {
+            char name[32];
+            snprintf(name, sizeof(name), "set%d_%d.png", s, i);
+            Testbed_DeclareImage(name, TORIRS_ASSET_READY, 8, 8);
+        }
+
+    porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
+    Porcelain_Describe(porcelain, picture_set_describe, &set);
+    fence(porcelain);
+    CHECK(Testbed_LiveControls() == PORCELAIN_IMAGES_MAX, "the first set fills the table exactly");
+
+    set = 1;
+    Porcelain_Describe(porcelain, picture_set_describe, &set);
+    fence(porcelain);
+    fence(porcelain);
+    CHECK(findings_with_verb(porcelain, "image") == 0,
+          "the second set is not refused while the first still holds the table");
+    for( int i = 0; i < PORCELAIN_IMAGES_MAX; i++ )
+    {
+        char key[32];
+        struct TestbedControl const* control;
+        snprintf(key, sizeof(key), "piece_%d", i);
+        control = Testbed_Control(key);
+        if( control && control->image.value != 0 )
+            dressed++;
+    }
+    CHECK(dressed == PORCELAIN_IMAGES_MAX, "and every control wears its new picture");
+    Porcelain_Close(porcelain);
+}
+
 static void
 test_a_freed_element_is_not_the_frame_root(void)
 {
@@ -7151,6 +7309,7 @@ main(void)
     test_notify_coalesces_per_subject();
     test_a_late_picture_still_arrives();
     test_zero_size_is_the_pictures_own();
+    test_a_whole_new_picture_set_is_not_refused();
     test_an_absence_can_be_declared_when_it_is_found();
     test_a_limitation_can_be_declared();
     test_within_is_a_child_with_no_anchor();
@@ -7212,6 +7371,7 @@ main(void)
     test_repeated_logins_do_not_grow_the_watch_table();
     test_a_screen_change_re_runs_a_description_that_watches_nothing();
     test_a_recomposed_picture_reaches_the_control_wearing_it();
+    test_a_canvas_control_lives_beside_its_element_in_the_tree();
 
     printf("porcelain: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

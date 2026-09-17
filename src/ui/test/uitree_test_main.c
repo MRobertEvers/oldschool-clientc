@@ -46,6 +46,7 @@ main(void)
     test_widget_skin_survives_cc_rebuild();
     test_widget_idempotent_edits();
     test_owned_budget();
+    test_owned_canvas_position();
     test_frame_provide();
         test_plugin_contract_copy();
         return g_failures ? 1 : 0;
@@ -69,6 +70,7 @@ main(void)
     test_widget_skin_survives_cc_rebuild();
     test_widget_idempotent_edits();
     test_owned_budget();
+    test_owned_canvas_position();
     test_frame_provide();
     test_plugin_contract_copy();
     test_canvas_queries();

@@ -1885,13 +1885,22 @@ orbs_describe(
          * has no orb block either, so that gate would be ABSENT and therefore
          * never satisfied on exactly the lane that needs the invented column
          * most.
+         *
+         * WHERE IN THE TREE is a separate answer from where on the canvas.
+         * Parented to the frame root, the cover was after every subtree the
+         * lane has and drew over the open minimenu. A cover for a native orb
+         * lives where that orb lives: a sibling under the orb block, clipped
+         * like it and under everything the lane draws over the orbs -- while
+         * its box stays the canvas box above.
          */
         {
             struct ToriRS_WidgetBounds const box = orbs_canvas_box(state, i, orb_bound, &orb, &map);
             item.place.kind = PORCELAIN_AT_CANVAS;
             item.place.dx = box.x;
             item.place.dy = box.y;
-            if( !orb_bound )
+            if( orb_bound )
+                item.place.sibling_of = PORCELAIN_ORB_EL(i);
+            else
                 item.visible_with = PORCELAIN_EL(MINIMAP);
         }
         describe->control(describe, &item);

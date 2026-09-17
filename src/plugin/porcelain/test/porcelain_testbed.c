@@ -823,12 +823,32 @@ fake_set_position(void* context, struct ToriRS_WidgetRef ref, int32_t x, int32_t
     {
         control->x = x;
         control->y = y;
+        control->canvas_positioned = false;
     }
     else if( element )
     {
         element->local.x = x;
         element->local.y = y;
     }
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
+fake_set_canvas_position(void* context, struct ToriRS_WidgetRef ref, int32_t x, int32_t y)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+    struct TestbedElement* element = testbed_element_by_ref(ref);
+
+    (void)context;
+    testbed_log("set_canvas_position %s %d,%d",
+                control ? control->key : (element ? element->role : "?"), (int)x, (int)y);
+    if( element )
+        return TORIRS_CONTRACT_NATIVE_BLOCKED;
+    if( !control )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
+    control->x = x;
+    control->y = y;
+    control->canvas_positioned = true;
     return TORIRS_CONTRACT_OK;
 }
 
@@ -2078,6 +2098,7 @@ Testbed_Reset(void)
     g_testbed.api.widgets.create_image = fake_create_image;
     g_testbed.api.widgets.create_text = fake_create_text;
     g_testbed.api.widgets.set_position = fake_set_position;
+    g_testbed.api.widgets.set_canvas_position = fake_set_canvas_position;
     g_testbed.api.widgets.set_size = fake_set_size;
     g_testbed.api.widgets.set_hidden = fake_set_hidden;
     g_testbed.api.widgets.set_image = fake_set_image;

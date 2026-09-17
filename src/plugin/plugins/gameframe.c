@@ -1638,11 +1638,19 @@ frame_blit_into(
 {
     struct FrameBlit* b;
     assert(ctx);
-    /* A picture with no name is a layout asking for art it does not ship; a
-     * named one whose bytes have not landed is still described, and the
-     * describe leaves it out until the size is known. @see frame_describe. */
-    if( !image.name )
-        return;
+    /*
+     * A picture with no name still takes its POSITION, and the describe leaves
+     * it out. A named one whose bytes have not landed is the same: described
+     * once the size is known. @see frame_describe_chrome.
+     *
+     * The position is the piece's key (`piece.NN`), so a blit that returned
+     * here without one renumbered every piece after it. The chat stone bar is
+     * composed a pass or two after the frame is first described and has no
+     * name until then; when it arrived, the bottom tab strip and the rock
+     * beside it moved to keys nobody had created yet, and a new key is created
+     * LAST -- so Modern Fixed on rs289lc painted its bottom tab strip over the
+     * seven bottom-row icons, on boot and on a switch alike.
+     */
     if( g_plan.blit_count >= FRAME_BLIT_MAX )
     {
         /* Said rather than silently dropped: a frame missing one stone reads
@@ -4681,6 +4689,10 @@ frame_describe_chrome(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* de
         int w = 0;
         int h = 0;
 
+        /* A position held for a picture that has no name yet. @see
+         * frame_blit_into. */
+        if( !b->image.name )
+            continue;
         if( b->tile_w > 0 && b->tile_h > 0 )
         {
             art = frame_tiled_art(ctx, &state->side_tiled, b->image.ref, b->tile_w, b->tile_h);

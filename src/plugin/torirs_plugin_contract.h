@@ -319,6 +319,13 @@ struct ToriRS_WidgetApi
      * a difference, so a plugin that only wants to REACT need never call it. */
     enum ToriRS_ContractResult (*state)(void*, struct ToriRS_WidgetRef, struct ToriRS_WidgetState* out);
     enum ToriRS_ContractResult (*set_position)(void*, struct ToriRS_WidgetRef, int32_t x, int32_t y);
+    /* Owned controls only: the control's box at CANVAS (x, y), under whatever
+     * parent it was created in. The parent decides where it draws in the tree's
+     * order -- inside that parent's subtree, under whatever the tree lists after
+     * it -- and this decides where it draws on screen; the parent moving does
+     * not move it. Retained until set_position states a parent-local position.
+     * A scrolling ancestor still scrolls it. Native widgets: NATIVE_BLOCKED. */
+    enum ToriRS_ContractResult (*set_canvas_position)(void*, struct ToriRS_WidgetRef, int32_t x, int32_t y);
     enum ToriRS_ContractResult (*set_size)(void*, struct ToriRS_WidgetRef, int32_t width, int32_t height);
     enum ToriRS_ContractResult (*set_hidden)(void*, struct ToriRS_WidgetRef, bool hidden);
     enum ToriRS_ContractResult (*set_projection_height)(void*,struct ToriRS_WidgetRef,int32_t height);

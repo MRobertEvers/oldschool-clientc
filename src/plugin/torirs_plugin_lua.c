@@ -1014,18 +1014,28 @@ static int lua_widget_state(lua_State* L)
 }
 static int lua_widget_position(lua_State* L) { return lua_widget_box(L, true); }
 static int lua_widget_bounds(lua_State* L) { return lua_widget_box(L, false); }
-static int lua_widget_set_geometry(lua_State* L, bool size)
+enum LuaWidgetGeometry { LUA_WIDGET_POSITION, LUA_WIDGET_CANVAS_POSITION, LUA_WIDGET_SIZE };
+static int lua_widget_set_geometry(lua_State* L, enum LuaWidgetGeometry which)
 {
     struct ToriRS_WidgetApi* ui = &lua_current_api(L)->widgets;
     struct ToriRS_WidgetRef ref = lua_widget_arg(L);
     lua_Integer a = luaL_checkinteger(L, 2), b = luaL_checkinteger(L, 3);
     if( a < INT32_MIN || a > INT32_MAX || b < INT32_MIN || b > INT32_MAX )
         return luaL_error(L, "widget coordinate out of range");
-    return lua_widget_result(L, size ? ui->set_size(ui->context, ref, (int)a, (int)b)
-                                     : ui->set_position(ui->context, ref, (int)a, (int)b));
+    switch( which )
+    {
+    case LUA_WIDGET_SIZE:
+        return lua_widget_result(L, ui->set_size(ui->context, ref, (int)a, (int)b));
+    case LUA_WIDGET_CANVAS_POSITION:
+        return lua_widget_result(L, ui->set_canvas_position(ui->context, ref, (int)a, (int)b));
+    case LUA_WIDGET_POSITION:
+        break;
+    }
+    return lua_widget_result(L, ui->set_position(ui->context, ref, (int)a, (int)b));
 }
-static int lua_widget_set_position(lua_State* L) { return lua_widget_set_geometry(L, false); }
-static int lua_widget_set_size(lua_State* L) { return lua_widget_set_geometry(L, true); }
+static int lua_widget_set_position(lua_State* L) { return lua_widget_set_geometry(L, LUA_WIDGET_POSITION); }
+static int lua_widget_set_canvas_position(lua_State* L) { return lua_widget_set_geometry(L, LUA_WIDGET_CANVAS_POSITION); }
+static int lua_widget_set_size(lua_State* L) { return lua_widget_set_geometry(L, LUA_WIDGET_SIZE); }
 static int lua_widget_revalidate(lua_State* L)
 {
     struct ToriRS_WidgetApi* ui = &lua_current_api(L)->widgets;
@@ -1414,7 +1424,7 @@ static struct LuaFn const LUA_WIDGET_METHOD_FNS[] = {
     {"visible",lua_widget_visible},{"actions",lua_widget_actions},{"position",lua_widget_position},{"bounds",lua_widget_bounds},
     {"state",lua_widget_state},
     {"children",lua_widget_children},{"text",lua_widget_text},
-    {"set_text_outline",lua_widget_text_outline},{"parent",lua_widget_parent},{"set_projection_height",lua_widget_projection_height},{"set_hidden",lua_widget_set_hidden},{"set_position",lua_widget_set_position},{"set_size",lua_widget_set_size},
+    {"set_text_outline",lua_widget_text_outline},{"parent",lua_widget_parent},{"set_projection_height",lua_widget_projection_height},{"set_hidden",lua_widget_set_hidden},{"set_position",lua_widget_set_position},{"set_canvas_position",lua_widget_set_canvas_position},{"set_size",lua_widget_set_size},
     {"revalidate",lua_widget_revalidate},{"reset",lua_widget_reset},
     {"create_text",lua_widget_create_text},{"set_text",lua_widget_set_text},
     {"create_image",lua_widget_create_image},{"set_image",lua_widget_set_image},{"set_opacity",lua_widget_set_opacity},{"set_anchor",lua_widget_set_anchor},{"set_mask",lua_widget_set_mask},
@@ -2133,6 +2143,12 @@ lua_porcelain_place_field(lua_State* L, int table)
         lua_pop(L, 1);
         place.on = lua_porcelain_element_field(L, at, "on");
         place.depth = lua_porcelain_element_field(L, at, "depth");
+        /* Where in the tree an at_canvas/at_usable control lives. The C layer
+         * asserts it on any other kind; a script gets an error instead. */
+        place.sibling_of = lua_porcelain_element_field(L, at, "sibling_of");
+        if( place.sibling_of.kind > PORCELAIN_EL_NONE && place.kind != PORCELAIN_AT_CANVAS &&
+            place.kind != PORCELAIN_AT_USABLE )
+            luaL_error(L, "place.sibling_of is only for at_canvas and at_usable");
         place.dx = lua_table_int(L, at, "dx", 0);
         place.dy = lua_table_int(L, at, "dy", 0);
         lua_raw_getfield(L, at, "behind");

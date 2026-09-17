@@ -887,6 +887,38 @@ Porcelain_Image(struct Porcelain* porcelain, char const* name, enum PorcelainAss
         *out_state = slot->state;
         return slot->ref;
     }
+    /*
+     * A full table gives up the oldest picture THIS run has not named before
+     * it refuses the one it is being asked for.
+     *
+     * The idle release in Porcelain_HelpersFence waits PORCELAIN_IMAGE_IDLE_RUNS
+     * describe runs, and a description that swaps its whole picture set in one
+     * run -- gameframe-layout switched from Classic Fixed to Modern Fixed --
+     * meets the outgoing set still holding the table. Refused, the incoming
+     * stones, sideicons and compass never came back: a refusal is not
+     * remembered, and nothing re-runs a describe whose inputs have settled, so
+     * the frame went without them for the rest of the session. A picture not
+     * named this run is one the idle release would free anyway; freeing it
+     * early costs a decode if it is wanted again.
+     */
+    if( !free_slot )
+    {
+        struct PorcelainImageSlot* oldest = NULL;
+        for( int i = 0; i < PORCELAIN_IMAGES_MAX; i++ )
+        {
+            struct PorcelainImageSlot* slot = &porcelain->images[i];
+            if( slot->state == PORCELAIN_ASSET_PENDING || slot->last_used_run >= porcelain->run )
+                continue;
+            if( !oldest || slot->last_used_run < oldest->last_used_run )
+                oldest = slot;
+        }
+        if( oldest && oldest->state == PORCELAIN_ASSET_READY )
+        {
+            porcelain->counters.engine_calls++;
+            porcelain->api->assets.image_release(porcelain->api, oldest->ref);
+        }
+        free_slot = oldest;
+    }
     if( !free_slot )
     {
         Porcelain_RecordFinding(porcelain, "image", PORCELAIN_ROLE_EL(name),
