@@ -114,6 +114,33 @@ def server_binary(name: str, built_after: float | None) -> Path:
 
 
 # ------------------------------------------------------------------ staging
+def stage_runtime_dlls(bin_dir: Path) -> None:
+    """Windows: the MinGW runtime DLLs the binaries import, beside them.
+
+    torirsserver links libwinpthread-1.dll dynamically; on the build box it is
+    found through the toolchain on PATH, and an unpacked package has no such
+    PATH, so the process died before main() with nothing in its log. Every
+    import that resolves inside the toolchain's bin/ is copied; system DLLs
+    (kernel32, ws2_32, msvcrt) resolve nowhere there and are left alone."""
+    if not IS_WINDOWS:
+        return
+    tc_bin = REPO / "toolchains" / "mingw64" / "bin"
+    objdump = tc_bin / "objdump.exe"
+    if not objdump.is_file():
+        die(f"{objdump} missing -- cannot resolve the binaries' DLL imports")
+    for exe in sorted(bin_dir.glob("*.exe")):
+        dump = subprocess.check_output([str(objdump), "-p", str(exe)], text=True)
+        for line in dump.splitlines():
+            line = line.strip()
+            if not line.startswith("DLL Name:"):
+                continue
+            dll = line.split(":", 1)[1].strip()
+            src = tc_bin / dll
+            if src.is_file() and not (bin_dir / dll).exists():
+                shutil.copy2(src, bin_dir / dll)
+                log(f"runtime: {dll} (imported by {exe.name})")
+
+
 def copy_tree(src: Path, dst: Path, keep=None) -> int:
     """Copy src into dst, `keep(relative_path) -> bool` deciding per file.
     Returns the byte count copied."""
@@ -290,17 +317,21 @@ $env:TORIRSSERVER_CONTENT = "content/osrs239-content"
 $env:TORIRSSERVER_SAVES = "saves"
 
 function Start-Game {{
-    Start-Process -FilePath (Join-Path $PSScriptRoot "bin\torirsserver.exe") `
+    $p = Start-Process -FilePath (Join-Path $PSScriptRoot "bin\torirsserver.exe") `
         -ArgumentList @("$GamePort", "--rev", "osrs239") -WorkingDirectory $PSScriptRoot `
         -NoNewWindow -PassThru -RedirectStandardError "logs\torirsserver.log" `
         -RedirectStandardOutput "logs\torirsserver.out.log"
+    $null = $p.Handle   # without this ExitCode reads back empty after the exit
+    $p
 }}
 function Start-Web {{
-    Start-Process -FilePath (Join-Path $PSScriptRoot "bin\io_server.exe") `
+    $p = Start-Process -FilePath (Join-Path $PSScriptRoot "bin\io_server.exe") `
         -ArgumentList @("--manifest", "manifests/manifest_osrs239.ini", "--root", "build-web",
                         "--boot-root", ".", "--port", "$WebPort") `
         -WorkingDirectory $PSScriptRoot -NoNewWindow -PassThru `
         -RedirectStandardError "logs\io_server.log" -RedirectStandardOutput "logs\io_server.out.log"
+    $null = $p.Handle
+    $p
 }}
 
 $game = $null; $web = $null
@@ -412,6 +443,17 @@ TORIRSSERVER_SAVES (default saves/), TORIRSSERVER_VERBOSE=1.
 Logs append under logs/. Player saves live in saves/ -- keep that directory
 when unpacking a newer package over this one.
 
+Starting it over SSH on Windows: a process started from an OpenSSH session
+dies with the session. Either register the startup task (above) or create
+the supervisor outside the session:
+
+    Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{{
+      CommandLine = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File C:\torirs\osrs239\supervise.ps1'
+      CurrentDirectory = 'C:\torirs\osrs239' }}
+
+The firewall must admit whoever fronts it: install-windows-task.ps1 opens
+the two ports for -Remote (default the 10.0.0.0/24 VPN and the local subnet).
+
 Built from {sha} on {date} (content {content_sha}).
 """
 
@@ -496,6 +538,7 @@ def main() -> int:
     shutil.copy2(game_bin, stage / "bin" / f"torirsserver{EXE}")
     shutil.copy2(io_bin, stage / "bin" / f"io_server{EXE}")
     log(f"servers: {game_bin.relative_to(REPO)}, {io_bin.relative_to(REPO)}")
+    stage_runtime_dlls(stage / "bin")
     stage_web(stage)
     cache_bytes = copy_tree(REPO / "cache.osrs239", stage / "cache.osrs239")
     log(f"cache.osrs239: {cache_bytes / 1e6:.0f} MB")
