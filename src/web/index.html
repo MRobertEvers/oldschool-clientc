@@ -106,15 +106,16 @@
      `fit` is on whenever the canvas should grow past its 1:1 size: full
      canvas, fullscreen, or both. The canvas leaves the flow and is centred
      absolutely inside the stage, so its size can never feed back into the
-     box being measured; the script sizes it to the largest rectangle of the
-     backbuffer's aspect that fits, which is what the native window does when
-     it letterboxes a fixed frame. */
+     box being measured; the script sizes it to the whole stage, and the
+     client places its frame inside by its own stretch mode, as a native
+     window does. */
   body.fit #game-region { flex-wrap: nowrap; }
   body.fit #stage { position: relative; flex: 1 1 auto; align-self: stretch; }
   /* The panels are capped at the fixed frame's height; once the canvas is
      taller than that, they should be too. */
   body.fit .panel { max-height: none; align-self: stretch; }
   body.fit canvas#canvas {
+    border: 0;
     position: absolute;
     left: 50%;
     top: 50%;
@@ -265,12 +266,12 @@
   and independent of Module, so the toggles still work on a page whose wasm
   never loaded.
 
-  Scaling is CSS-only: the backbuffer keeps whatever size the client gave it
-  (765x503 fixed, or the size it picked in resizable window mode) and the
-  element is stretched over it, following the client's stretch mode and frame
-  filter (torirsClientScaling below). Input needs no adjustment for that — the
-  runtime converts a page coordinate with canvas.width / boundingRect.width,
-  so a scaled canvas reports backbuffer pixels either way.
+  Scaling: outside full canvas and fullscreen the element is the stylesheet's
+  765x503. Inside them it is the whole stage, the client's window follows it
+  (fit() below), and the client fits its frame into that by its own stretch
+  mode. Input needs no adjustment either way — the runtime converts a page
+  coordinate with canvas.width / boundingRect.width, so a scaled canvas
+  reports backbuffer pixels.
 -->
 <script>
 (() => {
@@ -278,7 +279,8 @@
 
   const body = document.body;
   const app = document.getElementById('torirs-app');
-  const canvas = document.getElementById('canvas');
+  // `let`: a renderer switch replaces the element (torirs-canvas-replaced).
+  let canvas = document.getElementById('canvas');
   const stage = document.getElementById('stage');
   const btnCanvas = document.getElementById('btn-fullcanvas');
   const btnFull = document.getElementById('btn-fullscreen');
@@ -300,50 +302,44 @@
     return null;
   }
 
-  // The largest rectangle of the backbuffer's aspect that fits the stage.
-  // Cleared, not recomputed, outside fit mode: the stylesheet's 1:1 size is
-  // then the one that applies.
+  // The whole stage, when the canvas is scaled at all. SDL's resizable window
+  // follows the element's CSS box (its emscripten resize handler), so the
+  // backbuffer becomes the stage's shape and the client's own present fits the
+  // frame into it -- render resolution, interface scaling, stretch mode and
+  // frame filter, exactly as a native window does. The page used to fit the
+  // element to the backbuffer's aspect instead; with the backbuffer following
+  // the element that loop froze whatever shape the canvas once had, and the
+  // rest of the stage became gutters.
+  //
+  // SDL only re-reads the box on a window `resize`, so a change the window did
+  // not see (a panel appearing, the fit turning on) is announced as one. The
+  // re-entry into fit() finds nothing changed and stops there.
+  globalThis.torirsPageSizesCanvas = () => body.classList.contains('fit');
   function fit() {
     const fullCanvas = body.classList.contains('fullcanvas');
     const fitting = fullCanvas || !!fullscreenElement();
     body.classList.toggle('fit', fitting);
-    if (!fitting) {
-      canvas.style.width = '';
-      canvas.style.height = '';
-      return;
+    let width = '';
+    let height = '';
+    if (fitting) {
+      const availW = Math.floor(stage.clientWidth);
+      const availH = Math.floor(stage.clientHeight);
+      if (availW <= 0 || availH <= 0) { return; }
+      width = `${availW}px`;
+      height = `${availH}px`;
     }
-    const availW = stage.clientWidth;
-    const availH = stage.clientHeight;
-    const srcW = canvas.width || 1;
-    const srcH = canvas.height || 1;
-    if (availW <= 0 || availH <= 0) { return; }
-    // The client's own stretch mode (Client Settings), the same three rules
-    // platform/client_scale.h applies natively: 0 keep aspect, 1 integer
-    // (whole multiples, keep aspect when not even 1x fits), 2 stretch, 3 none
-    // (1:1, shrunk keeping aspect only when the stage cannot hold it).
-    let scaleX = Math.min(availW / srcW, availH / srcH);
-    let scaleY = scaleX;
-    if (clientScaling.fit === 1 && Math.floor(scaleX) >= 1) {
-      scaleX = scaleY = Math.floor(scaleX);
-    } else if (clientScaling.fit === 3) {
-      scaleX = scaleY = Math.min(scaleX, 1);
-    } else if (clientScaling.fit === 2) {
-      scaleX = availW / srcW;
-      scaleY = availH / srcH;
-    }
-    canvas.style.width = `${Math.max(1, Math.floor(srcW * scaleX))}px`;
-    canvas.style.height = `${Math.max(1, Math.floor(srcH * scaleY))}px`;
+    if (canvas.style.width === width && canvas.style.height === height) { return; }
+    canvas.style.width = width;
+    canvas.style.height = height;
+    window.dispatchEvent(new Event('resize'));
   }
 
   // Set by the client (platform_sdl2.c web_client_scaling_changed) whenever
-  // stretch mode or the frame filter changes. Nearest keeps the pixelated
-  // look; linear and bicubic let the browser smooth the stretch.
-  const clientScaling = { fit: 0, filter: 0 };
+  // stretch mode or the frame filter changes. Placement is the client's; the
+  // filter decides how the browser magnifies a canvas that is not at device
+  // pixels. Nearest keeps the pixelated look.
   globalThis.torirsClientScaling = (fitMode, filter) => {
-    clientScaling.fit = fitMode;
-    clientScaling.filter = filter;
     canvas.style.imageRendering = filter === 0 ? 'pixelated' : 'auto';
-    fit();
   };
 
   function setFullCanvas(on) {
@@ -382,10 +378,19 @@
   // attributes, so a mutation observer sees that.
   window.addEventListener('resize', fit);
   if (window.ResizeObserver) { new window.ResizeObserver(fit).observe(stage); }
-  if (window.MutationObserver) {
-    new window.MutationObserver(fit).observe(
-      canvas, { attributes: true, attributeFilter: ['width', 'height'] });
-  }
+  const sizeObserver = window.MutationObserver ? new window.MutationObserver(fit) : null;
+  const observeCanvas = () => {
+    if (sizeObserver) {
+      sizeObserver.observe(canvas, { attributes: true, attributeFilter: ['width', 'height'] });
+    }
+  };
+  observeCanvas();
+  window.addEventListener('torirs-canvas-replaced', e => {
+    if (sizeObserver) { sizeObserver.disconnect(); }
+    canvas = e.detail.canvas;
+    observeCanvas();
+    fit();
+  });
 
   let stored = null;
   try { stored = window.localStorage.getItem(STORE_KEY); } catch (e) { /* private mode */ }

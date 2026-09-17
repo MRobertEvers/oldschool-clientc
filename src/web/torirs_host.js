@@ -552,16 +552,18 @@
   }
 
   Module.arguments = args;
-  Module.canvas = (() => {
-    const canvas = document.getElementById('canvas');
-    // Without this a lost WebGL context fails silently and the page just
-    // stops painting, which looks exactly like a hung client.
+  // Without this a lost WebGL context fails silently and the page just stops
+  // painting, which looks exactly like a hung client.
+  const watchContextLoss = canvas => {
     canvas.addEventListener('webglcontextlost', e => {
       log('webgl context lost', true);
       e.preventDefault();
     }, false);
     return canvas;
-  })();
+  };
+  Module.canvas = watchContextLoss(document.getElementById('canvas'));
+  // A renderer switch replaces the element (platform_sdl2.c web_canvas_replace).
+  window.addEventListener('torirs-canvas-replaced', e => { watchContextLoss(e.detail.canvas); });
 
   Module.print = text => { log(text, false); };
   Module.printErr = text => { log(text, true); };

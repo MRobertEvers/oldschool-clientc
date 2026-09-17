@@ -1715,6 +1715,21 @@ sdl_chrome_sync_drawable(struct PlatformWindow* platform)
  * user never asked for. Nothing here changes the window's size while this is
  * true; the pane is carved out of the game area instead.
  */
+#if defined(TORIRS_PLATFORM_WEB)
+/*
+ * Whether the page owns the canvas's size: its full-canvas and fullscreen
+ * views (src/web/index.html fit()) size the element to the whole stage, and
+ * SDL's resize handler follows that CSS box. A window size set from here would
+ * only fight it -- the backbuffer would take the fixed frame's shape while the
+ * element kept the stage's, and the browser would stretch one into the other.
+ */
+// clang-format off
+EM_JS(int, web_page_sizes_canvas, (void), {
+    return (globalThis.torirsPageSizesCanvas && globalThis.torirsPageSizesCanvas()) ? 1 : 0;
+});
+// clang-format on
+#endif
+
 static bool
 sdl_window_frame_locked(struct PlatformWindow const* platform)
 {
@@ -1723,6 +1738,13 @@ sdl_window_frame_locked(struct PlatformWindow const* platform)
     assert(platform);
     if( !platform->window )
         return true;
+#if defined(TORIRS_PLATFORM_WEB)
+    /* The browser's equivalent of a maximised window: the frame is placed in
+     * the canvas by the present (stretch mode, frame filter), not by resizing
+     * the canvas to the frame. */
+    if( web_page_sizes_canvas() )
+        return true;
+#endif
     flags = SDL_GetWindowFlags(platform->window);
     return (flags & (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_FULLSCREEN |
                      SDL_WINDOW_FULLSCREEN_DESKTOP)) != 0;
@@ -2713,11 +2735,12 @@ PlatformWindow_Resize(
 
 #if defined(TORIRS_PLATFORM_WEB)
 /*
- * The page scales the canvas ELEMENT itself in its full-canvas and fullscreen
- * views (src/web/index.html fit()), after this client has already placed the
- * frame in the backbuffer. So it is told the placement rules too, or a page
- * would stretch a frame the player asked to keep square. EM_JS rather than
- * EM_ASM: the latter is rejected in -std=c* modes.
+ * The page is told the frame filter, so the browser's own scaling of the
+ * element (a canvas without HighDPI is magnified by devicePixelRatio) smooths
+ * or keeps pixels the way the present does. Placement is not the page's: the
+ * canvas is the whole stage in its scaled views, and the present fits the
+ * frame into it by the stretch mode. EM_JS rather than EM_ASM: the latter is
+ * rejected in -std=c* modes.
  */
 EM_JS(void, web_client_scaling_changed, (int fit, int filter), {
     if (globalThis.torirsClientScaling)
@@ -4037,6 +4060,133 @@ sdl_software_present_destroy(struct PlatformWindow* platform)
     platform->pixels = NULL;
 }
 
+#if defined(TORIRS_PLATFORM_WEB)
+/*
+ * Put a fresh <canvas> where the old one stood.
+ *
+ * Two browser rules make the old element unusable for the other present. A
+ * canvas keeps the context it first handed out -- getContext with different
+ * attributes returns that same context, so the GL renderer's depth buffer
+ * could never be added to the one SDL's renderer made. And emscripten's
+ * GL.deleteContext strips EVERY JS handler from its canvas, SDL's mouse and
+ * keyboard handlers included, so a switch on the same element leaves a client
+ * that draws and takes no input.
+ *
+ * The clone carries the id, classes, inline style and attribute handlers, so
+ * the stylesheet and `#canvas` lookups see the same element they always did.
+ * The page's own JS references are moved by the event.
+ */
+// clang-format off
+EM_JS(void, web_canvas_replace, (void), {
+    var previous = Module['canvas'];
+    var fresh = previous.cloneNode(false);
+    var focused = document.activeElement === previous;
+    previous.parentNode.replaceChild(fresh, previous);
+    Module['canvas'] = fresh;
+    if (focused)
+        fresh.focus();
+    window.dispatchEvent(new CustomEvent('torirs-canvas-replaced',
+        { detail: { canvas: fresh, previous: previous } }));
+});
+
+/* Does the canvas still carry SDL's input handlers? A GL renderer's context
+ * delete strips them (GL.deleteContext -> JSEvents.removeAllHandlersOnTarget)
+ * even when the renderer that follows presents the same way. */
+EM_JS(int, web_canvas_listening, (void), {
+    var canvas = Module['canvas'];
+    return JSEvents.eventHandlers.some(function(handler) { return handler.target === canvas; }) ? 1 : 0;
+});
+// clang-format on
+
+/*
+ * Put the new window back at the size the old one had.
+ *
+ * SDL's emscripten video sizes a RESIZABLE window from the canvas's CSS box
+ * when it is created, and that box includes the page's 1px border: every
+ * switch otherwise grew the backbuffer by two pixels on each axis and the
+ * frame was resampled into a canvas that no longer matched it.
+ */
+static void
+sdl_web_restore_size(SDL_Window* window, int point_w, int point_h)
+{
+    int now_w = 0;
+    int now_h = 0;
+
+    assert(window);
+    SDL_GetWindowSize(window, &now_w, &now_h);
+    if( now_w != point_w || now_h != point_h )
+        SDL_SetWindowSize(window, point_w, point_h);
+}
+
+/*
+ * The browser's renderer switch: a new SDL window on a new canvas.
+ *
+ * The desktop keeps its window and changes how it presents; here the window is
+ * what binds the canvas (SDL's emscripten video resolves `#canvas` and
+ * registers its input handlers when the window is CREATED), so it is made
+ * again after the element is replaced. The live present is already gone on
+ * the way in: the GL renderer deleted its context before this, and the
+ * software present is destroyed below.
+ *
+ * @return false when a GL window could not be made; the window then presents
+ * in software, which always can.
+ */
+static bool
+sdl_web_recreate_window(struct PlatformWindow* platform, bool want_gl)
+{
+    char title[256];
+    Uint32 flags;
+    int point_w = 0;
+    int point_h = 0;
+
+    assert(platform);
+    assert(platform->window);
+    sdl_software_present_destroy(platform);
+    SDL_GetWindowSize(platform->window, &point_w, &point_h);
+    flags = SDL_GetWindowFlags(platform->window) & (SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    snprintf(title, sizeof(title), "%s", SDL_GetWindowTitle(platform->window));
+    SDL_DestroyWindow(platform->window);
+    platform->window = NULL;
+    platform->use_opengl = false;
+
+    web_canvas_replace();
+
+    if( want_gl )
+    {
+        sdl_gl_context_attributes();
+        sdl_gl_surface_attributes();
+        platform->window = SDL_CreateWindow(
+            title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, point_w, point_h,
+            flags | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+        if( platform->window )
+        {
+            sdl_web_restore_size(platform->window, point_w, point_h);
+            platform->use_opengl = true;
+            sdl_drawable_size(platform, &platform->width, &platform->height);
+            return true;
+        }
+        fprintf(stderr, "renderer switch: no WebGL window: %s\n", SDL_GetError());
+    }
+
+    platform->window = SDL_CreateWindow(
+        title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, point_w, point_h,
+        flags | SDL_WINDOW_SHOWN);
+    assert(platform->window);
+    sdl_web_restore_size(platform->window, point_w, point_h);
+    /* Pixels, as Init takes them: the present's buffer is sized from these. */
+    SDL_GetWindowSizeInPixels(platform->window, &platform->width, &platform->height);
+    {
+        bool const software = sdl_software_present_create(platform);
+        assert(software);
+        (void)software;
+    }
+    /* Again: SDL's renderer on this backend is its GLES2 one, which recreates
+     * the window with the GL flag and so measures the CSS box a second time. */
+    sdl_web_restore_size(platform->window, point_w, point_h);
+    return !want_gl;
+}
+#endif
+
 bool
 PlatformWindow_PresentAvailable(
     struct PlatformWindow const* platform,
@@ -4045,9 +4195,11 @@ PlatformWindow_PresentAvailable(
     assert(platform);
     assert(platform->window);
 #if defined(TORIRS_PLATFORM_WEB)
-    /* A canvas keeps the context type it was first asked for, so the browser
-     * presents the way it booted and no other. */
-    return present == (platform->use_opengl ? PLATFORM_PRESENT_GL : PLATFORM_PRESENT_SOFTWARE);
+    /* Either, by replacing the canvas (sdl_web_recreate_window). Whether this
+     * browser has WebGL at all is learned by trying: a refused context fails
+     * the switch and the renderer switch falls back. */
+    (void)platform;
+    return present != PLATFORM_PRESENT_NATIVE;
 #else
     switch( present )
     {
@@ -4073,11 +4225,24 @@ PlatformWindow_SetPresent(
     assert(platform);
     assert(platform->window);
     assert(present != PLATFORM_PRESENT_NATIVE);
+#if defined(TORIRS_PLATFORM_WEB)
+    /* The same present is only kept while its canvas still takes input: one
+     * GL renderer replacing another must still move to a fresh canvas. */
+    if( want_gl == platform->use_opengl && web_canvas_listening() )
+        return true;
+#else
     if( want_gl == platform->use_opengl )
         return true;
+#endif
     if( !PlatformWindow_PresentAvailable(platform, present) )
         return false;
 
+#if defined(TORIRS_PLATFORM_WEB)
+    if( !sdl_web_recreate_window(platform, want_gl) )
+        return false;
+    sdl_refresh_pixel_density(platform);
+    return true;
+#endif
     if( want_gl )
     {
         sdl_software_present_destroy(platform);
