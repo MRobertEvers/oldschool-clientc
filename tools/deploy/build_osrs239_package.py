@@ -418,7 +418,7 @@ Write-Host "task $task registered (at startup, as $user) and started"
 Write-Host "page: http://localhost:$WebPort/?args=--manifest,manifests/manifest_osrs239.ini"
 """
 
-README = """# torirs-osrs239
+README = r"""# torirs-osrs239
 
 The osrs239 world, packaged: the game server, the page server, the browser
 client, the cache and the content the server reads. Unpack anywhere and run.
