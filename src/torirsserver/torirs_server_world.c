@@ -12437,6 +12437,9 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     /* This client has no names for anybody yet. Explicit rather than relying on
      * the memset above, because 0 is a valid client slot and -1 is "free". */
     ToriRSServer_SlotMapReset(player);
+    /* And no arrow, and no record of having sent one. Same reason: a stale
+     * `sent_type` would suppress the first real HINT_ARROW of the session. */
+    ToriRSServer_HintArrowReset(player);
 }
 
 /* ------------------------------------------------------------------ */

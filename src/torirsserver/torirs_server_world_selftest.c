@@ -56717,8 +56717,157 @@ ToriRSServer_WorldSelftest(void)
                                capture.packets[at].data[0] == TORIRSSERVER_HINT_ARROW_CLEAR,
                            "hint_stop sends the 255 clear the client normalises to none");
 
+            /*
+             * WHICH npc slot the arrow names, which is a different question
+             * from the byte layout above and the one that was wrong.
+             *
+             * `hint_npc` has the WORLD pool slot; the client keys its npc table
+             * by the private name NPC_INFO gave it (struct
+             * ToriRSServerPlayerSlotMap). Sending the world slot raw is not a
+             * missing arrow, it is an arrow over whichever npc happens to answer
+             * to that number — the tutorial pointing confidently at a duck
+             * instead of the Survival Instructor.
+             *
+             * Driven through `ToriRSServer_SendNpcInfo` rather than a private
+             * flush helper because the ORDER is half the fix: the name is only
+             * current after the npc stream, and a hint sent at the moment the
+             * script ran would be translated against last tick's map.
+             */
+            {
+                /* The top of the pool: nothing spawns there, so the name below
+                 * is this test's and no enter-view add can take it. */
+                int const world_slot = TORIRSSERVER_NPC_MAX - 1;
+                int const client_slot = ToriRSServer_SlotMapAcquire(hint_player, world_slot);
+                uint8_t* d;
+
+                SELFTEST_CHECK(client_slot >= 0 && client_slot != world_slot,
+                               "the fixture needs a client name that is NOT the world slot, "
+                               "got %d for world slot %d", client_slot, world_slot);
+
+                ToriRSServer_SetHintArrow(
+                    hint_player, TORIRSSERVER_HINT_ARROW_NPC, world_slot, 0, 0);
+                ToriRSServer_SendNpcInfo(hint_player);
+                at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_HINT_ARROW, at + 1);
+                SELFTEST_CHECK(at >= 0, "the npc arrow is re-stated after NPC_INFO");
+                if( at >= 0 && capture.packets[at].len == 6 )
+                {
+                    d = capture.packets[at].data;
+                    SELFTEST_CHECK(d[0] == TORIRSSERVER_HINT_ARROW_NPC,
+                                   "... as the npc form, saw type %d", d[0]);
+                    SELFTEST_CHECK((d[1] << 8 | d[2]) == client_slot,
+                                   "... naming the npc as THIS CLIENT does (%d), not by world "
+                                   "slot (%d) -- saw %d",
+                                   client_slot, world_slot, d[1] << 8 | d[2]);
+                }
+
+                /* Nothing changed, so nothing is said again: a tutorial step
+                 * holds one arrow for minutes and this is what stops it being
+                 * six bytes a tick. */
+                ToriRSServer_SendNpcInfo(hint_player);
+                SELFTEST_CHECK(
+                    ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_HINT_ARROW, at + 1) < 0,
+                    "an unchanged arrow is not re-sent every tick");
+
+                /*
+                 * An npc this client has no name for. The arrow is CLEARED
+                 * rather than left pointing at a number: the alternative is the
+                 * bug's other half, where a released name is handed to a
+                 * different npc and the arrow silently moves on to it.
+                 *
+                 * A hint set while its subject is across the map — which is
+                 * every `~tut_hint_npc` in the tutorial — starts here and turns
+                 * into the real arrow on the tick the npc enters view.
+                 */
+                ToriRSServer_SlotMapRelease(hint_player, world_slot);
+                ToriRSServer_SendNpcInfo(hint_player);
+                at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_HINT_ARROW, at + 1);
+                SELFTEST_CHECK(at >= 0 && capture.packets[at].len == 6 &&
+                                   capture.packets[at].data[0] == TORIRSSERVER_HINT_ARROW_CLEAR,
+                               "an npc this client is not tracking clears the arrow rather "
+                               "than naming a slot it cannot resolve");
+            }
+
+            /*
+             * And WHICH player the arrow names, which is the same class of
+             * mistake one namespace over.
+             *
+             * `hint_pl` has the pool pid; every revision-239 field that names a
+             * player writes the GPI index, `pool pid + 1`
+             * (ToriRSServer_WirePlayerIndex). Raw, the arrow lands on the player
+             * one slot below the one meant -- and for the first player to log
+             * in, pool pid 0, it names client slot 0, which is never occupied,
+             * so no arrow is drawn at all and nothing on the wire looks wrong.
+             */
+            ToriRSServer_SetHintArrow(
+                hint_player, TORIRSSERVER_HINT_ARROW_PLAYER, hint_player->pid, 0, 0);
+            ToriRSServer_SendNpcInfo(hint_player);
+            at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_HINT_ARROW, at + 1);
+            SELFTEST_CHECK(at >= 0, "the player arrow reaches the wire");
+            if( at >= 0 && capture.packets[at].len == 6 )
+            {
+                uint8_t* d = capture.packets[at].data;
+                int const want = ToriRSServer_WirePlayerIndex(hint_player->pid);
+
+                SELFTEST_CHECK(d[0] == TORIRSSERVER_HINT_ARROW_PLAYER,
+                               "... as the player form, saw type %d", d[0]);
+                SELFTEST_CHECK((d[1] << 8 | d[2]) == want,
+                               "... naming the player by the GPI index (%d), not the pool pid "
+                               "(%d) -- saw %d",
+                               want, hint_player->pid, d[1] << 8 | d[2]);
+            }
+
             ToriRSServer_CaptureEnd(srv);
             ToriRSServer_WorldRemovePlayer(srv, hint_player);
+        }
+    }
+
+    /*
+     * LOC_MERGE names a player too, and it is the same GPI index.
+     *
+     * `p_locmerge` is how an agility obstacle makes the loc ride with the
+     * player climbing it (skill_agility/scripts/agility.rs2). The event carries
+     * the pool pid because that is what the script has; the packet has to carry
+     * what the CLIENT calls that player, which at 239 is `pool pid + 1` and at
+     * the classic revisions is the pid itself -- its low-resolution add writes
+     * an 11-bit pool pid and nothing shifts it.
+     *
+     * Asserted on the encoder rather than through a zone flush because the
+     * field is what is being checked, not the delivery: LOC_MERGE's byte order
+     * differs between the two revisions and the offsets below are the two
+     * layouts stated once each.
+     *
+     * The failure this pins is entirely silent. Written raw at 239, the loc
+     * hides exactly when content asked and rides with nobody -- the player
+     * climbs through empty air and the packet, the log and the capture all look
+     * correct.
+     */
+    {
+        struct ToriRSServerZoneEvent merge;
+        uint8_t blob[64];
+        int len;
+        /* Not 0: at 239 a pool pid of 0 and an unset field encode alike, so a
+         * fixture on the first player cannot tell the fix from the bug. */
+        int const pool_pid = 3;
+        int const v5 = srv->wire && srv->wire->revision >= 239;
+        int const want = v5 ? ToriRSServer_WirePlayerIndex(pool_pid) : pool_pid;
+
+        memset(&merge, 0, sizeof(merge));
+        merge.kind = TORIRSSERVER_ZONE_EV_LOC_MERGE;
+        merge.receiver_pid = -1;
+        merge.player_pid = pool_pid;
+        len = ToriRSServer_EncodeZoneSub(srv->wire, blob, (int)sizeof(blob), &merge);
+        SELFTEST_CHECK(len == 15, "LOC_MERGE is a code byte and fourteen, saw %d", len);
+        if( len == 15 )
+        {
+            /* 239: p1 minX, then p2Alt1 (little-endian) index.
+             * classic: p1 pos, p1 props, p2 id, p2 start, p2 end, then p2 pid. */
+            int const got = v5 ? (blob[2] | (blob[3] << 8)) : (blob[9] << 8 | blob[10]);
+
+            SELFTEST_CHECK(got == want,
+                           "LOC_MERGE names the player as the client does (%d) for pool pid %d "
+                           "at revision %s -- saw %d",
+                           want, pool_pid, srv->wire && srv->wire->name ? srv->wire->name : "?",
+                           got);
         }
     }
 

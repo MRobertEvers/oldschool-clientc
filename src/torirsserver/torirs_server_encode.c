@@ -2357,7 +2357,7 @@ void
 ToriRSServer_SendIfSetnpcheadActive(
     struct ToriRSServerPlayer* player,
     int uid,
-    int index)
+    int client_npc_slot)
 {
     struct RSAreaBuf buf;
     const struct ToriRSServerWirePayload* pl = wire_payload(player);
@@ -2365,7 +2365,8 @@ ToriRSServer_SendIfSetnpcheadActive(
     if( !pl || !pl->if_setnpchead_active )
         return;
     open_packet(&buf, 6);
-    pl->if_setnpchead_active(&buf, uid, index);
+    /* Already this client's name for the npc; see the declaration. */
+    pl->if_setnpchead_active(&buf, uid, client_npc_slot);
     flush(player, &buf, OP_IF_SETNPCHEAD_ACTIVE, 0);
 }
 
@@ -3129,6 +3130,150 @@ ToriRSServer_SendHintArrow(
     rsab_p2(&buf, z & 0xffff);
     rsab_p1(&buf, height & 0xff);
     flush(player, &buf, OP_HINT_ARROW, 0);
+}
+
+void
+ToriRSServer_SetHintArrow(
+    struct ToriRSServerPlayer* player,
+    int type,
+    int id,
+    int z,
+    int height)
+{
+    struct ToriRSServerPlayerHintArrow* hint;
+
+    assert(player);
+    hint = &player->hint_arrow;
+    switch( type )
+    {
+    case TORIRSSERVER_HINT_ARROW_NPC:
+        hint->type = type;
+        hint->world_slot = id;
+        break;
+    case TORIRSSERVER_HINT_ARROW_PLAYER:
+        hint->type = type;
+        hint->pid = id;
+        break;
+    case TORIRSSERVER_HINT_ARROW_COORD:
+        hint->type = type;
+        hint->x = id;
+        hint->z = z;
+        hint->height = height;
+        break;
+    default:
+        /* TORIRSSERVER_HINT_ARROW_CLEAR, and anything else a caller could mean by
+         * "stop". Held as 0 rather than 255 so that "no arrow" is one value
+         * here and the wire's spelling of it stays the encoder's business. */
+        hint->type = 0;
+        break;
+    }
+    /* Not sent here. `hint_arrow_flush` does it after NPC_INFO; sending now
+     * would beat the npc's name on to the wire. */
+}
+
+void
+ToriRSServer_HintArrowReset(struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    memset(&player->hint_arrow, 0, sizeof(player->hint_arrow));
+}
+
+/*
+ * Re-state the arrow for whatever this client now calls its subject.
+ *
+ * Called at the tail of every NPC_INFO, which is the earliest point in the tick
+ * at which the npc names are current. Three transitions matter and all three
+ * are the same line of code:
+ *
+ *   untracked -> tracked   the arrow appears the tick the npc enters view,
+ *                          which is what makes a hint set from across the map
+ *                          work at all;
+ *   tracked -> untracked   the arrow is cleared rather than left pointing at a
+ *                          name the client may hand to a different npc;
+ *   re-added under a new name  the arrow follows.
+ *
+ * Silent while nothing changes: the common case is a subject whose name is the
+ * same as last tick, and a HINT_ARROW every tick for the length of a tutorial
+ * step is six bytes of noise in every capture.
+ */
+static void
+hint_arrow_flush(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServerPlayerHintArrow* hint = &player->hint_arrow;
+    int type = hint->type;
+    int id = 0;
+    int z = 0;
+    int height = 0;
+
+    switch( type )
+    {
+    case TORIRSSERVER_HINT_ARROW_NPC:
+    {
+        /* Client, not Acquire: an arrow must not mint a name for an npc the
+         * client has never been told about. That name would be unresolvable
+         * and held against a real npc entering view later. */
+        int const client_slot = ToriRSServer_SlotMapClient(player, hint->world_slot);
+
+        if( client_slot < 0 )
+            type = TORIRSSERVER_HINT_ARROW_CLEAR;
+        else
+            id = client_slot;
+        break;
+    }
+    case TORIRSSERVER_HINT_ARROW_PLAYER:
+        /*
+         * The player, in the CLIENT's numbering -- the same adjustment
+         * MAP_PROJANIM's target and LOC_MERGE's index carry. `pid` is the pool
+         * slot; this revision's player table is 1..2047 with 0 unused
+         * (ToriRSServer_WirePlayerIndex), so a raw pool pid names the player
+         * BELOW the one meant, and pool pid 0 -- the first player to log in --
+         * names the slot that is never occupied at all.
+         *
+         * Revision-gated because the classic stream keys on the pool pid
+         * directly (its low-resolution add writes an 11-bit pid). Only 239
+         * defines HINT_ARROW today, so the else branch is unreachable now and
+         * is here to keep the two halves from disagreeing the day it is not.
+         */
+        id = wire_is_v5(player) ? ToriRSServer_WirePlayerIndex(hint->pid) : hint->pid;
+        break;
+    case TORIRSSERVER_HINT_ARROW_COORD:
+        id = hint->x;
+        z = hint->z;
+        height = hint->height;
+        break;
+    default:
+        type = TORIRSSERVER_HINT_ARROW_CLEAR;
+        break;
+    }
+
+    /* A client that has never been sent an arrow has nothing to clear, and
+     * saying so on every login would be the one HINT_ARROW in most captures. */
+    if( type == TORIRSSERVER_HINT_ARROW_CLEAR && hint->sent_type == 0 )
+        return;
+    if( type == hint->sent_type && id == hint->sent_id && z == hint->sent_z &&
+        height == hint->sent_height )
+        return;
+    hint->sent_type = type;
+    hint->sent_id = id;
+    hint->sent_z = z;
+    hint->sent_height = height;
+    ToriRSServer_SendHintArrow(player, type, id, z, height);
+}
+
+/* Defined further down, next to the rest of the npc stream. */
+static void
+npc_info_encode(struct ToriRSServerPlayer* player);
+
+void
+ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
+{
+    npc_info_encode(player);
+    /*
+     * After the npc stream, never before it. The arrow's npc form carries this
+     * client's private name for the creature, and the packet that mints that
+     * name is the one immediately above.
+     */
+    hint_arrow_flush(player);
 }
 
 void
@@ -5764,8 +5909,13 @@ npc_view_radius_update(
     player->npc_view_tiles = r;
 }
 
-void
-ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
+/*
+ * The body. Wrapped by ToriRSServer_SendNpcInfo so that the hint arrow is
+ * re-stated after it -- the v5 branch returns from the middle, so a call at the
+ * tail of this function would only cover half the revisions.
+ */
+static void
+npc_info_encode(struct ToriRSServerPlayer* player)
 {
     /*
      * `tracked` is the *player's* list: which npcs this client holds, and in

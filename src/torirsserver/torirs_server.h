@@ -2957,6 +2957,38 @@ struct ToriRSServerPlayerSlotMap
     int next;
 };
 
+/*
+ * The hint arrow this client is being pointed with, as the SERVER names its
+ * subject.
+ *
+ * It is held rather than sent because the npc form's wire field is a per-client
+ * name (struct ToriRSServerPlayerSlotMap) and the script that asks for the arrow
+ * runs long before the client has one. `~tut_hint_npc(coord, survival_instructor)`
+ * fires while the instructor is twenty tiles away and untracked: translating at
+ * the call site gives -1, and sending the world slot raw gives whichever npc
+ * happens to answer to that number -- an arrow planted confidently over the
+ * wrong creature, which is the symptom this exists to stop.
+ *
+ * So the subject is kept in world terms and re-stated after every NPC_INFO,
+ * where the name is known. `sent_*` is what is actually on this client's wire,
+ * so a subject that has not changed its name costs nothing.
+ */
+struct ToriRSServerPlayerHintArrow
+{
+    /** TORIRSSERVER_HINT_ARROW_NPC / _COORD / _PLAYER, or 0 for no arrow. */
+    int type;
+    /** _NPC: the WORLD pool slot. Translated per client at send. */
+    int world_slot;
+    /** _PLAYER: the absolute pid, which is already the same on every stream. */
+    int pid;
+    /** _COORD: the absolute tile, and the height above it. */
+    int x, z, height;
+
+    /** The last tuple written to this client's wire. `sent_type` 0 means
+     *  nothing has been sent, which is not the same as having sent a clear. */
+    int sent_type, sent_id, sent_z, sent_height;
+};
+
 struct ToriRSServerPlayerZoneMap
 {
     struct ToriRSServerPlayerZone zones[TORIRSSERVER_ZONE_ACTIVE_MAX];
@@ -3536,6 +3568,8 @@ struct ToriRSServerPlayer
     struct ToriRSServerPlayerZoneMap zonemap;
     /** What this client calls each npc it is being told about. See the type. */
     struct ToriRSServerPlayerSlotMap npc_slots;
+    /** Where this client's hint arrow points, in world terms. See the type. */
+    struct ToriRSServerPlayerHintArrow hint_arrow;
     /** Packed zone this client was last in, or -1. */
     int zone_index;
     /**
@@ -7081,11 +7115,24 @@ ToriRSServer_SendIfSetangle(
     int zoom,
     int angle_x,
     int angle_y);
+/**
+ * Render a live npc's head in a model component.
+ *
+ * `client_npc_slot` is THIS CLIENT's name for the npc, not the world pool slot:
+ * the client resolves it with `RS_EntitySync_FindNpc`, which is keyed by the
+ * slot NPC_INFO published (struct ToriRSServerPlayerSlotMap). A caller holding a
+ * world slot must put it through ToriRSServer_SlotMapClient first and skip the
+ * packet when there is no name, exactly as the hint arrow does.
+ *
+ * Spelled out because nothing reaches this from content yet -- the two callers
+ * are selftests passing a literal -- so the first real one will be writing the
+ * call from scratch with a world slot in hand.
+ */
 void
 ToriRSServer_SendIfSetnpcheadActive(
     struct ToriRSServerPlayer* player,
     int uid,
-    int index);
+    int client_npc_slot);
 void
 ToriRSServer_SendIfSetplayermodelBasecolour(
     struct ToriRSServerPlayer* player,
@@ -7351,6 +7398,31 @@ ToriRSServer_SendHintArrow(
     int id,
     int z,
     int height);
+
+/**
+ * Point this client's hint arrow at something, in the server's own terms.
+ *
+ * The same five arguments as ToriRSServer_SendHintArrow with one difference that
+ * is the whole reason both exist: for TORIRSSERVER_HINT_ARROW_NPC, `id` is the
+ * WORLD pool slot, not the client's name for it. Nothing goes on the wire here
+ * -- the arrow is re-stated after each NPC_INFO, which is the only point at
+ * which that name is known. See struct ToriRSServerPlayerHintArrow.
+ *
+ * This is what the four `hint_*` script opcodes call. ToriRSServer_SendHintArrow
+ * remains the raw encoder for callers that already hold a client slot.
+ */
+void
+ToriRSServer_SetHintArrow(
+    struct ToriRSServerPlayer* player,
+    int type,
+    int id,
+    int z,
+    int height);
+
+/** Forget the arrow and the record of what was sent. For a client that has
+ *  just been handed a fresh set of npc names. */
+void
+ToriRSServer_HintArrowReset(struct ToriRSServerPlayer* player);
 
 void
 ToriRSServer_SendUnsetMapFlag(struct ToriRSServerPlayer* player);

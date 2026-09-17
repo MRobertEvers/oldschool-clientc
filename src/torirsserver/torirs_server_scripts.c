@@ -8876,8 +8876,10 @@ ToriRSServer_ScriptCommand(
             SSVM_Abort(state, "hint_npc with no active npc");
             return 1;
         }
+        /* The WORLD slot. NPC_INFO translates it to this client's own name for
+          * the npc on its way out; see ToriRSServer_SetHintArrow. */
         if( srv->active_player )
-            ToriRSServer_SendHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_NPC, slot, 0, 0);
+            ToriRSServer_SetHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_NPC, slot, 0, 0);
         return 1;
     }
 
@@ -8889,8 +8891,8 @@ ToriRSServer_ScriptCommand(
          * spelling for it in this opcode's metadata (zero arguments), so this
          * does not invent one. */
         if( srv->active_player )
-            ToriRSServer_SendHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_PLAYER,
-                                   srv->active_player->pid, 0, 0);
+            ToriRSServer_SetHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_PLAYER,
+                                  srv->active_player->pid, 0, 0);
         return 1;
     }
 
@@ -8906,9 +8908,9 @@ ToriRSServer_ScriptCommand(
         /* (coord, height, unused). The coord is a packed server coord; the wire
          * wants absolute x and z, which is what the client converts back. */
         if( srv->active_player )
-            ToriRSServer_SendHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_COORD,
-                                   ToriRSServer_CoordX(values[0]),
-                                   ToriRSServer_CoordZ(values[0]), values[1]);
+            ToriRSServer_SetHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_COORD,
+                                  ToriRSServer_CoordX(values[0]),
+                                  ToriRSServer_CoordZ(values[0]), values[1]);
         return 1;
     }
 
@@ -8917,7 +8919,7 @@ ToriRSServer_ScriptCommand(
         /* 255 is the wire's clear, which `rs_gameproto_exec.c` normalises to
          * type 0 on the way in. */
         if( srv->active_player )
-            ToriRSServer_SendHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_CLEAR, 0, 0, 0);
+            ToriRSServer_SetHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_CLEAR, 0, 0, 0);
         return 1;
     }
 

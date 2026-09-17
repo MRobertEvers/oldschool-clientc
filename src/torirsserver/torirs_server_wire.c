@@ -1393,10 +1393,19 @@ w239_zone_payload(
      * Fourteen bytes at both revisions and every field in a different place --
      * the classic order is coord, properties, id, start, end, pid, then the
      * four bounds. `index` is the player the merged loc belongs to.
+     *
+     * In the CLIENT's numbering, the same way MAP_PROJANIM's target below is:
+     * the event carries the pool pid and this revision's player table is
+     * 1..2047 with 0 unused (ToriRSServer_WirePlayerIndex). Written raw, an
+     * agility obstacle's merged loc names client index 0 -- the slot that is
+     * never occupied -- so the loc hides on schedule and rides with nobody.
+     * Nothing about it looks like an off-by-one: the packet is well formed, the
+     * loc disappears exactly when content said, and the player simply climbs
+     * through empty air.
      */
     case PKT_NAME_LOC_MERGE:
         rsab_p1(buf, event->west);
-        rsab_p2_alt1(buf, event->player_pid);
+        rsab_p2_alt1(buf, ToriRSServer_WirePlayerIndex(event->player_pid));
         rsab_p1(buf, props);
         rsab_p1(buf, event->south);
         rsab_p2_alt1(buf, id);
