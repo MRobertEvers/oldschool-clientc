@@ -5245,6 +5245,7 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
     struct ClientScalePresent present;
     int output_gl_y = 0;
     gl3_client_scale_present(gl3, drawable_w, drawable_h, &present, &output_gl_y);
+    { static int pw,ph,ox,oy,ow,oh,lw,lh,aw,ah; if(getenv("TORIRS_PROBE") && (pw!=present.render_w||ph!=present.render_h||ox!=present.output.x||oy!=present.output.y||ow!=present.output.w||oh!=present.output.h||lw!=gl3->width||lh!=gl3->height||aw!=drawable_w||ah!=drawable_h)){pw=present.render_w;ph=present.render_h;ox=present.output.x;oy=present.output.y;ow=present.output.w;oh=present.output.h;lw=gl3->width;lh=gl3->height;aw=drawable_w;ah=drawable_h; fprintf(stderr,"PROBE gl3 frame %.0f layout %dx%d area %dx%d -> render %dx%d output %d,%d %dx%d\n",gl3->frame_clock,lw,lh,aw,ah,pw,ph,ox,oy,ow,oh);} }
     /* The pixel limit made the render buffer smaller than the output rect:
      * draw into the scale FBO and blit it up. Otherwise draw in place. */
     bool const use_fbo =
@@ -5306,6 +5307,35 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
             gl3->client_scale.output_filter == CLIENT_SCALE_FILTER_NEAREST ? GL_NEAREST
                                                                            : GL_LINEAR);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+    if( getenv("TORIRS_PROBE_DIR") && use_fbo )
+    {
+        static int probe_last = -1;
+        int const f = (int)gl3->frame_clock;
+        if( f % 40 == 0 && f != probe_last )
+        {
+            void bmp_write_file(const char* filename, int* px, int w, int h);
+            int const w = present.render_w, h = present.render_h;
+            unsigned char* raw = malloc((size_t)w * h * 4);
+            int* px = malloc((size_t)w * h * sizeof(int));
+            char path[512];
+            probe_last = f;
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, gl3->scale_fbo);
+            glPixelStorei(GL_PACK_ALIGNMENT, 1);
+            glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, raw);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+            for( int y = 0; y < h; y++ )
+                for( int x = 0; x < w; x++ )
+                {
+                    unsigned char* c = raw + ((size_t)(h - 1 - y) * w + x) * 4;
+                    px[y * w + x] = (c[0] << 16) | (c[1] << 8) | c[2];
+                }
+            snprintf(path, sizeof(path), "%s/gl_%04d.bmp", getenv("TORIRS_PROBE_DIR"), f);
+            bmp_write_file(path, px, w, h);
+            fprintf(stderr, "PROBE wrote %s layout %dx%d render %dx%d\n", path, gl3->width, gl3->height, w, h);
+            free(raw);
+            free(px);
+        }
     }
 
     /* TORIRS_GL3_READBACK=path dumps one GL frame (after READBACK_FRAME, default 90).

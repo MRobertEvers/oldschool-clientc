@@ -3844,6 +3844,7 @@ PlatformWindow_Present(struct PlatformWindow* platform)
      * drew for exactly this rectangle, so it lands in it whole. */
     sdl_layout_size(platform, &layout_w, &layout_h);
     ClientScale_Present(&platform->client_scale, layout_w, layout_h, window_w, window_h, &present);
+    { static int pw,ph,ox,oy,ow,oh,lw,lh,aw,ah; if(getenv("TORIRS_PROBE") && (pw!=present.render_w||ph!=present.render_h||ox!=present.output.x||oy!=present.output.y||ow!=present.output.w||oh!=present.output.h||lw!=layout_w||lh!=layout_h||aw!=window_w||ah!=window_h)){pw=present.render_w;ph=present.render_h;ox=present.output.x;oy=present.output.y;ow=present.output.w;oh=present.output.h;lw=layout_w;lh=layout_h;aw=window_w;ah=window_h; fprintf(stderr,"PROBE soft layout %dx%d area %dx%d -> render %dx%d output %d,%d %dx%d tex %dx%d\n",lw,lh,aw,ah,pw,ph,ox,oy,ow,oh,platform->width,platform->height);} }
     dst.x = present.output.x;
     dst.y = present.output.y;
     dst.w = present.output.w;
