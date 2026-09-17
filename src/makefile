@@ -1298,7 +1298,12 @@ else
 LINK_OBJS_ARG = $(OBJS)
 endif
 
-$(TARGET): $(OBJS) $(ASAN_DYLD_SHIM)
+# $(PLATFORM_JS_LIBRARY) is the web lane's IO executor, passed to the linker
+# with --js-library: it is as much a link input as any object, and a module
+# linked before an edit to it ships the old executor. Empty on every other
+# lane. (2026-09-17: a deploy carried a stale platform_web_io.js because this
+# rule only knew about the objects.)
+$(TARGET): $(OBJS) $(ASAN_DYLD_SHIM) $(PLATFORM_JS_LIBRARY)
 	@mkdir -p $(dir $@)
 	$(file >$(OBJ_DIR)/link_objs.rsp,$(OBJS))
 	$(CC) $(CFLAGS) -o $@ $(LINK_OBJS_ARG) $(LDFLAGS) $(ASAN_DYLD_SHIM)
