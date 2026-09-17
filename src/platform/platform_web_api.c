@@ -275,4 +275,25 @@ ToriRS_WebApi_ArchiveFree(struct RSCache_Dat2DiskArchive* archive)
     RSCache_Dat2DiskArchiveFree(archive);
 }
 
+/*
+ * The executor's decoded-archive LRU (platform_web_io.js) holds one reference
+ * to each archive it keeps and hands the consumer another: the consumer's
+ * Free is then a release, and the archive lives until both are gone -- the
+ * same arrangement the desktop executor's LRU has with its consumers.
+ */
+EMSCRIPTEN_KEEPALIVE void
+ToriRS_WebApi_ArchiveRetain(struct RSCache_Dat2DiskArchive* archive)
+{
+    assert(archive);
+    RSCache_Dat2DiskArchiveRetain(archive);
+}
+
+/* What the LRU's byte budget counts: the decoded payload. */
+EMSCRIPTEN_KEEPALIVE int
+ToriRS_WebApi_ArchiveDataSize(struct RSCache_Dat2DiskArchive const* archive)
+{
+    assert(archive);
+    return archive->data_size;
+}
+
 #endif /* __EMSCRIPTEN__ */

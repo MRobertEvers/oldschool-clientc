@@ -379,6 +379,54 @@ mergeInto(LibraryManager.library, {
     },
 
     /*
+     * The decoded-archive LRU, per executor instance.
+     *
+     * Keyed by the group's address in its container space (flags, table,
+     * archive); the value is the decoded archive's pointer and its payload
+     * size. The LRU holds ONE reference to every archive it keeps, and a hit
+     * hands the consumer another (ArchiveRetain), so the consumer's Free --
+     * the queue's contract: whoever asked frees `data` -- is a release, and
+     * an archive evicted while a consumer still holds it lives on until that
+     * consumer is done. That is what makes a pointer cache safe here where
+     * the reference-table note above rules one out: those are handed over
+     * unretained. Every dat2 group goes through here, whatever its table: a
+     * config group, an animation's frames, a sprite sheet, an interface pack
+     * are all one container with entries inside. dat1 archives are a
+     * different C type with no holder count and are not cached.
+     *
+     * Bounded by decoded bytes, not entries: one loc group decodes to a few
+     * MB and one sprite to a few KB, and a count would either starve the
+     * former or hoard the latter. Insertion order is the recency order --
+     * a hit re-inserts -- so eviction is the Map's first key.
+     */
+    DECODED_BUDGET_BYTES: 64 * 1024 * 1024,
+
+    decodedArchive: function (inst, flags, table, archive) {
+      const key = `${flags}|${table}|${archive}`;
+      const hit = inst.decoded.get(key);
+      if (!hit) { return 0; }
+      inst.decoded.delete(key);
+      inst.decoded.set(key, hit);
+      _ToriRS_WebApi_ArchiveRetain(hit.ptr);
+      inst.decodedHits++;
+      return hit.ptr;
+    },
+
+    decodedArchiveKeep: function (inst, flags, table, archive, ptr) {
+      const bytes = _ToriRS_WebApi_ArchiveDataSize(ptr);
+      /* The consumer gets its own reference now; the LRU keeps the creator's. */
+      _ToriRS_WebApi_ArchiveRetain(ptr);
+      inst.decoded.set(`${flags}|${table}|${archive}`, { ptr: ptr, bytes: bytes });
+      inst.decodedBytes += bytes;
+      for (const [k, v] of inst.decoded) {
+        if (inst.decodedBytes <= this.DECODED_BUDGET_BYTES || inst.decoded.size <= 1) { break; }
+        inst.decoded.delete(k);
+        inst.decodedBytes -= v.bytes;
+        _ToriRS_WebApi_ArchiveFree(v.ptr);
+      }
+    },
+
+    /*
      * Hand raw container bytes to the cache format's own decoder.
      *
      * The decode is C (platform_web_api.c -> 3rd/rscache) and deliberately so:
@@ -510,6 +558,17 @@ mergeInto(LibraryManager.library, {
           return { ptr: dat1, size: _ToriRS_WebApi_Dat1ArchiveStructSize() };
         }
 
+        /*
+         * Decoded once, then handed out retained: see decodedArchive. A
+         * config group holds thousands of records, and a world load reads
+         * one record per loc it places -- 664 reads of the 600 KB bzip2 loc
+         * group in one login, measured -- so decoding per read was a
+         * bzip2 pass per record. The desktop executor has had this LRU
+         * since it was measured there.
+         */
+        const cached = this.decodedArchive(inst, req.flags, req.table, req.archive);
+        if (cached) { return { ptr: cached, size: _ToriRS_WebApi_ArchiveStructSize() }; }
+
         const ptr = this.decodeArchive(bytes, req.table, req.archive, xtea);
         if (!ptr) { return null; }
 
@@ -520,6 +579,7 @@ mergeInto(LibraryManager.library, {
         const table = await this.refTableForMetadata(inst, req.table);
         if (table) { _ToriRS_WebApi_ArchiveApplyMetadata(ptr, table); }
 
+        this.decodedArchiveKeep(inst, req.flags, req.table, req.archive, ptr);
         return { ptr: ptr, size: _ToriRS_WebApi_ArchiveStructSize() };
       }
 
@@ -585,6 +645,9 @@ mergeInto(LibraryManager.library, {
        * Two maps because the two have different owners -- see refTableBytes. */
       refTableBytes: new Map(),
       refTablesOwned: new Map(),
+      decoded: new Map(),
+      decodedBytes: 0,
+      decodedHits: 0,
       /* Mirrors of enum ToriRS_IOKind. Not read from the ABI: the ABI
        * describes the LAYOUT, and these are values -- appending a kind does
        * not move a field, so the two change for different reasons. */
