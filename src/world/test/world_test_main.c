@@ -45,6 +45,7 @@ main(void)
     test_route_coordinate_coincidence();
     test_tile_stack_dedup();
     test_minusedlevel_entity_draw();
+    test_spawned_entity_first_placement_snaps();
     test_rebuild_shift();
     test_obj_raise();
     test_action_anim_restarts_the_readyanim();

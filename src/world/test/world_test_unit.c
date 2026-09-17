@@ -1499,6 +1499,68 @@ test_mover_model_flag(void)
     }
 }
 
+/*
+ * A spawned entity's first placement is a teleport even when the wire says
+ * jump=0 and the destination is within 8 tiles (entity_facets.h `unplaced`).
+ *
+ * The LostCity servers add every npc and player with jump=0, and the port
+ * spawns the new entity on the local player's tile; without the flag the
+ * classic ≤8-tile rule in World_EntityPathingJump queued a WALK from the
+ * spawn tile, so everything added within 8 tiles of the player appeared at
+ * their feet and walked out. Negative control: clearing `.unplaced = 1` from
+ * World_NpcSpawn makes the first assertion below read route_length == 1.
+ */
+void
+test_spawned_entity_first_placement_snaps(void)
+{
+    printf("TEST: spawned entity's first placement snaps\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+
+    /* npc: spawned on the local player's tile, placed 3,2 away with jump=0. */
+    int ni = World_NpcSpawn(world, 2, 5, 0, 50, 50, 1, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+    TEST_ASSERT(npc->pathing.unplaced == 1, "spawn leaves the npc unplaced");
+    World_NpcPathJump(world, ni, false, 53, 52);
+    TEST_ASSERT(npc->pathing.route_length == 0, "first placement queued no walk");
+    TEST_ASSERT(npc->pathing.route_x[0] == 53 && npc->pathing.route_z[0] == 52,
+                "first placement set the route head");
+    TEST_ASSERT(npc->grid_position.x == 53 && npc->grid_position.z == 52,
+                "first placement moved the grid position");
+    TEST_ASSERT(npc->draw_position.x == (uint32_t)(53 * 128 + 64) &&
+                    npc->draw_position.z == (uint32_t)(52 * 128 + 64),
+                "first placement moved the draw position");
+    TEST_ASSERT(npc->pathing.unplaced == 0, "placement clears unplaced");
+
+    /* The same op on a placed entity is the classic walk. */
+    World_NpcPathJump(world, ni, false, 55, 52);
+    TEST_ASSERT(npc->pathing.route_length == 1 && npc->pathing.route_x[0] == 55,
+                "second non-jump placement within 8 tiles walks");
+
+    /* A relative step is a placement too: it clears the flag and walks. */
+    int stepped = World_NpcSpawn(world, 3, 5, 0, 50, 50, 1, idle);
+    struct WorldEntity_NPC* stepped_npc = World_EntityPoolGet(&world->entities.npc, stepped);
+    World_NpcPathPushStep(world, stepped, WORLD_PATHSTEP_WALK, 4);
+    TEST_ASSERT(stepped_npc->pathing.unplaced == 0 && stepped_npc->pathing.route_length == 1,
+                "a step places the entity and walks");
+
+    /* player, through the collision-aware jump: the run-route smoothing must
+     * not queue tiles ahead of a first placement. */
+    int pi = World_PlayerSpawn(world, 1, 0, 50, 50, idle);
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+    World_PlayerPathJumpCollisionAware(
+        world, pi, world->collision_maps[0], false, 52, 51, WORLD_PATHSTEP_RUN);
+    TEST_ASSERT(player->pathing.route_length == 0 && player->pathing.route_x[0] == 52 &&
+                    player->pathing.route_z[0] == 51,
+                "collision-aware first placement snaps");
+    TEST_ASSERT(player->draw_position.x == (uint32_t)(52 * 128 + 64) &&
+                    player->draw_position.fx == (float)(52 * 128 + 64),
+                "collision-aware first placement moved both draw halves");
+
+    World_Free(world);
+}
+
 /* REBUILD_NORMAL relocation (Client-TS rebuild handler): the scene base moved
  * by (dx, dz) tiles; kept entities shift by the negation, out-of-scene ones
  * park on tile 255, and projectiles/spotanims clear at scene build. */
@@ -1540,6 +1602,12 @@ test_rebuild_shift(void)
     TEST_ASSERT(player->draw_position.x == (uint32_t)(52 * 128 + 64) &&
                     player->draw_position.z == (uint32_t)(54 * 128 + 64),
                 "player draw shifted");
+    /* The float half the frame mover integrates from moves with the integer
+     * half (entity_facets.h invariant). Left at the old base, the entity's
+     * first step after the rebuild measured as a whole-zone jump and snapped. */
+    TEST_ASSERT(player->draw_position.fx == (float)player->draw_position.x &&
+                    player->draw_position.fz == (float)player->draw_position.z,
+                "player float draw position shifted with the integer one");
 
     struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
     TEST_ASSERT(npc->pathing.route_x[0] == 12 && npc->pathing.route_z[0] == 14, "npc shifted");
@@ -1551,6 +1619,9 @@ test_rebuild_shift(void)
     /* 3 - 8 < 0: parked out-of-scene, still tracked, route dropped. */
     struct WorldEntity_NPC* parked = World_EntityPoolGet(&world->entities.npc, near_ni);
     TEST_ASSERT(World_EntityPoolIsActive(&world->entities.npc, near_ni), "parked npc kept");
+    TEST_ASSERT(parked->draw_position.fx == (float)parked->draw_position.x &&
+                    parked->draw_position.fz == (float)parked->draw_position.z,
+                "parked float draw position pinned with the integer one");
     TEST_ASSERT(parked->pathing.route_x[0] == 255 && parked->pathing.route_length == 0,
                 "parked npc out of scene");
 

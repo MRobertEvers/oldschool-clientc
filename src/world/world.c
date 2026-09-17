@@ -1008,6 +1008,7 @@ World_PlayerSpawn(
                            .fz = (float)(scene_z * 128 + 64) },
         .orientation = { .yaw = 0, .dst_yaw = 0 },
         .pathing = { .route_length = 0,
+                     .unplaced = 1,
                      .route_x = { (uint8_t)scene_x },
                      .route_z = { (uint8_t)scene_z } },
         .idle_animations = idle_animations,
@@ -1075,6 +1076,7 @@ World_NpcSpawn(
                            .fz = (float)(scene_z * 128 + size * 64) },
         .orientation = { .yaw = 0, .dst_yaw = 0 },
         .pathing = { .route_length = 0,
+                     .unplaced = 1,
                      .route_x = { (uint8_t)scene_x },
                      .route_z = { (uint8_t)scene_z } },
         .base_npc_id = npc_id,
@@ -1401,8 +1403,8 @@ world_shift_mover(
         /* Parked out-of-scene: pin the draw position to the parked tile so
          * nothing interpolates across the scene if the entity comes back. */
         pathing->route_length = 0;
-        draw->x = (uint32_t)(pathing->route_x[0] * 128 + 64);
-        draw->z = (uint32_t)(pathing->route_z[0] * 128 + 64);
+        World_DrawPositionSet(
+            draw, pathing->route_x[0] * 128 + 64, pathing->route_z[0] * 128 + 64);
     }
     else
     {
@@ -1412,8 +1414,11 @@ world_shift_mover(
             fine_x = pathing->route_x[0] * 128 + 64;
         if( fine_z < 0 )
             fine_z = pathing->route_z[0] * 128 + 64;
-        draw->x = (uint32_t)fine_x;
-        draw->z = (uint32_t)fine_z;
+        /* Both halves (entity_facets.h invariant). Writing only the integer
+         * half left fx/fz at the OLD base, and the frame mover integrates from
+         * those: every kept entity's first step after a rebuild then measured
+         * as a whole-zone jump and snapped instead of walking. */
+        World_DrawPositionSet(draw, fine_x, fine_z);
     }
 
     if( exact && (exact->move_start != 0 || exact->move_end != 0) )

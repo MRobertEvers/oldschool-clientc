@@ -1038,6 +1038,10 @@ test_route_coordinate_coincidence(void)
         struct CollisionMap* cm = world->collision_maps[0];
         int start_x = 30 * 128 + 64;
 
+        /* A tracked player, not a fresh add: the corner smoothing is a
+         * displacement on an entity the server has already placed, and a
+         * spawn's first placement snaps (entity_facets.h `unplaced`). */
+        World_PlayerPathJump(world, corner_pi, true, 30, 30);
         collision_map_add_floor(cm, 31, 30);
         World_EntityPathingJumpCollisionAware(
             &corner->pathing, cm, false, 31, 31, WORLD_PATHSTEP_RUN);

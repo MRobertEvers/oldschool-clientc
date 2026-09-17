@@ -88,6 +88,20 @@ struct WorldEntityFacet_Pathing
     uint8_t route_x[10];
     uint8_t route_z[10];
     uint8_t route_run[10];
+    /*
+     * Set by spawn, cleared by the first positional op. While it is set the
+     * entity has no position the server has confirmed, and its first
+     * placement is a teleport whatever the wire's jump bit says.
+     *
+     * The reference gets this by accident: it constructs a fresh entity with a
+     * zeroed route, so the "walk if within 8 tiles" test in its teleport()
+     * measures from tile 0,0 and always fails. This port spawns the entity on
+     * the local player's tile (the only origin it has), which put the 8-tile
+     * test right next to the destination -- every npc or player added within
+     * 8 tiles with jump=0 (the LostCity servers' normal add) appeared at the
+     * local player's feet and walked out to its tile.
+     */
+    uint8_t unplaced;
 };
 
 /* Bit-packed tile coords: 9 bits x, 9 bits z, 4 bits level. */
