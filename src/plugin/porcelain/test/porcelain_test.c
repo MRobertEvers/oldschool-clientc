@@ -2591,7 +2591,8 @@ picture_set_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
  * parent.
  *
  * MUTATION: in porcelain_item_parent, drop the sibling_of arm. Red: the cover
- * is a child of the frame root. SECOND: make porcelain_write_position always
+ * is a child of the frame root. THIRD: drop porcelain_apply_order. Red: the
+ * cover is appended, which on a flat frame is after the minimenu. SECOND: make porcelain_write_position always
  * call set_position. Red: the box is not canvas-positioned.
  */
 static void
@@ -2637,6 +2638,13 @@ test_a_canvas_control_lives_beside_its_element_in_the_tree(void)
     CHECK(cover && cover->canvas_positioned && cover->x == 522 && cover->y == 109,
           "at the canvas box the description states");
     CHECK(findings_with_verb(porcelain, "create") == 0, "with no create finding");
+    CHECK(cover && ToriRS_WidgetRefEqual(cover->after, Testbed_Element("orb_run")->ref),
+          "and directly after that element among its siblings, not appended");
+    Testbed_ClearLog();
+    fence(porcelain);
+    Porcelain_Invalidate(porcelain);
+    fence(porcelain);
+    CHECK(Testbed_LogCountWith("move_after") == 0, "an unchanged sibling is not re-ordered");
 
     /* The direct motion path writes the same space. */
     {

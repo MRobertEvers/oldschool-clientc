@@ -163,7 +163,7 @@ static char const* const PORCELAIN_KIND_NAMES[PORCELAIN_EL_KIND_COUNT] = {
     "orb",        "chat",      "chat_bar",    "chat_backing", "chat_input",
     "chat_filter","report",    "public_chat", "sidebar",      "tab",
     "panel",      "modal",     "lane_chrome", "frame_root",   "canvas",
-    "safe",       "usable",    "role"};
+    "safe",       "usable",    "role",        "minimap_edge"};
 
 void
 Porcelain_FormatElement(struct PorcelainElement element, char* out, size_t capacity)
@@ -652,7 +652,8 @@ static char const* const PORCELAIN_ROLE_BY_KIND[PORCELAIN_EL_KIND_COUNT] = {
     NULL,                     /* CANVAS: derived */
     NULL,                     /* SAFE: derived */
     NULL,                     /* USABLE: derived */
-    NULL                      /* ROLE: spelled by the caller */
+    NULL,                     /* ROLE: spelled by the caller */
+    "minimap_edge"            /* MINIMAP_EDGE */
 };
 
 static char const* const PORCELAIN_ORB_ROLES[PORCELAIN_ORB_COUNT] = {
@@ -2291,6 +2292,35 @@ porcelain_refresh_image(struct Porcelain* porcelain, struct PorcelainAppliedItem
  * port carries about a hundred lines of settle counters and incarnation
  * guards to work around.
  */
+/*
+ * Is a `sibling_of` parent lookup that just failed a state the lane is passing
+ * through, rather than a refusal?
+ *
+ * The sibling's watch can still be BOUND to a node a rebuild has freed -- the
+ * host reports that on its own schedule -- and `parent` then answers
+ * STALE_REFERENCE. That is the frame root's corpse case (@see
+ * porcelain_walk_to_root), and it is answered the same way: not yet, no
+ * finding, ask at the next fence. Measured on rs289lc at login: two
+ * `reparent ... no parent` refusals at frame 7 for a housing that bound a
+ * fence later.
+ */
+static bool
+porcelain_sibling_parent_pending(struct Porcelain* porcelain, struct PorcelainNormalItem const* item)
+{
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+    struct PorcelainElementState sibling;
+    struct ToriRS_WidgetRef parent;
+    enum ToriRS_ContractResult result;
+
+    if( item->place.sibling_of.kind <= PORCELAIN_EL_NONE )
+        return false;
+    if( !Porcelain_Element(porcelain, item->place.sibling_of, &sibling) )
+        return true;
+    porcelain->counters.engine_calls++;
+    result = widgets->parent(widgets->context, sibling.ref, &parent);
+    return result == TORIRS_CONTRACT_STALE_REFERENCE || result == TORIRS_CONTRACT_UNAVAILABLE;
+}
+
 static bool
 porcelain_item_parent(struct Porcelain* porcelain, struct PorcelainNormalItem const* item,
                       struct PorcelainElementState const* target, struct ToriRS_WidgetRef* out)
@@ -2383,6 +2413,38 @@ porcelain_item_alive(struct Porcelain* porcelain, struct PorcelainAppliedItem co
            TORIRS_CONTRACT_STALE_REFERENCE;
 }
 
+/*
+ * Put a `sibling_of` control directly after its sibling.
+ *
+ * A create APPENDS, and appending is only "beside the element" when the
+ * element's parent holds nothing else after it. A flat frame -- the 2004
+ * shell, where the map, its housing and the minimenu are all children of one
+ * node -- put the control after the minimenu, which is the bug this placement
+ * exists to fix. Asked again only when the sibling is a different node.
+ */
+static void
+porcelain_apply_order(struct Porcelain* porcelain, struct PorcelainAppliedItem* applied)
+{
+    struct ToriRS_WidgetApi const* widgets = &porcelain->api->widgets;
+    struct PorcelainElementState sibling;
+    enum ToriRS_ContractResult result;
+
+    if( applied->item.place.sibling_of.kind <= PORCELAIN_EL_NONE )
+        return;
+    if( !Porcelain_Element(porcelain, applied->item.place.sibling_of, &sibling) )
+        return;
+    if( ToriRS_WidgetRefEqual(applied->ordered_after, sibling.ref) )
+        return;
+    porcelain->counters.engine_calls++;
+    porcelain->counters.setters++;
+    result = widgets->move_after(widgets->context, applied->ref, sibling.ref);
+    porcelain_note_item_result(porcelain, applied, "move_after", result, applied->item.key.text);
+    if( result != TORIRS_CONTRACT_OK )
+        return;
+    applied->ordered_after = sibling.ref;
+    porcelain->dirty = true;
+}
+
 static bool
 porcelain_create_item(struct Porcelain* porcelain, struct PorcelainAppliedItem* applied,
                       struct PorcelainElementState const* target)
@@ -2395,8 +2457,9 @@ porcelain_create_item(struct Porcelain* porcelain, struct PorcelainAppliedItem* 
     {
         /* Without the target's parent there is no sibling to create, and a
          * control parented to the target itself cannot take REPLACE. */
-        Porcelain_RecordFinding(porcelain, "create", applied->item.place.on,
-                                PORCELAIN_FINDING_REFUSED, "no parent");
+        if( !porcelain_sibling_parent_pending(porcelain, &applied->item) )
+            Porcelain_RecordFinding(porcelain, "create", applied->item.place.on,
+                                    PORCELAIN_FINDING_REFUSED, "no parent");
         return false;
     }
 
@@ -3214,8 +3277,9 @@ porcelain_reconcile(struct Porcelain* porcelain)
             if( !porcelain_item_parent(porcelain, wanted, &target, &parent) )
             {
                 porcelain_remove_item(porcelain, applied);
-                Porcelain_RecordFinding(porcelain, "reparent", wanted->place.on,
-                                        PORCELAIN_FINDING_REFUSED, "no parent");
+                if( !porcelain_sibling_parent_pending(porcelain, wanted) )
+                    Porcelain_RecordFinding(porcelain, "reparent", wanted->place.on,
+                                            PORCELAIN_FINDING_REFUSED, "no parent");
                 continue;
             }
             if( !ToriRS_WidgetRefEqual(parent, applied->parent) )
@@ -3337,6 +3401,7 @@ porcelain_reconcile(struct Porcelain* porcelain)
             /* Unchanged hash: NO engine call for any property. Geometry still
              * follows the target, and that costs nothing when it did not
              * move. */
+            porcelain_apply_order(porcelain, applied);
             porcelain_apply_geometry(porcelain, applied,
                                      porcelain_place_box(porcelain, wanted, &target));
             porcelain_apply_op(porcelain, applied, wanted);
@@ -3344,6 +3409,7 @@ porcelain_reconcile(struct Porcelain* porcelain)
             goto visibility;
         }
         porcelain_apply_properties(porcelain, applied, wanted, fresh);
+        porcelain_apply_order(porcelain, applied);
         porcelain_apply_geometry(porcelain, applied,
                                  porcelain_place_box(porcelain, wanted, &target));
         porcelain_apply_op(porcelain, applied, wanted);

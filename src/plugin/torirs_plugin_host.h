@@ -132,7 +132,7 @@ enum PluginWidgetRequestKind
     PLUGIN_WIDGET_CREATE_TEXT, PLUGIN_WIDGET_SET_TEXT, PLUGIN_WIDGET_TEXT_COLOR, PLUGIN_WIDGET_TEXT_ALIGN, PLUGIN_WIDGET_REMOVE,
     PLUGIN_WIDGET_HIDDEN, PLUGIN_WIDGET_PROJECTION_HEIGHT, PLUGIN_WIDGET_TEXT_OUTLINE, PLUGIN_WIDGET_INVOKE, PLUGIN_WIDGET_SET_ON_OP,
     PLUGIN_WIDGET_CREATE_IMAGE, PLUGIN_WIDGET_SET_IMAGE, PLUGIN_WIDGET_OPACITY, PLUGIN_WIDGET_ANCHOR, PLUGIN_WIDGET_SET_MASK,
-    PLUGIN_WIDGET_CANVAS_POSITION
+    PLUGIN_WIDGET_CANVAS_POSITION, PLUGIN_WIDGET_MOVE_AFTER
 };
 struct PluginWidgetRequest
 {
@@ -336,6 +336,15 @@ struct ToriRS_PluginEngine
         int h,
         int* out_w,
         int* out_h);
+    /**
+     * Centre the content mounted into a placeable surface in the box the
+     * frame gave it. @see surface_center_content. 0 when the lane has no tree
+     * to state it on.
+     */
+    int (*slot_center_content)(
+        void* user,
+        int slot,
+        int centered);
     /** One component's box, by id. @see component_rect. */
     int (*component_rect)(
         void* user,

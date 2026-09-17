@@ -622,6 +622,19 @@ fake_slot_fit(void* u, int slot, int w, int h, int* ow, int* oh)
     return 1;
 }
 
+/** What the frame last stated about centring the chat's mounted content,
+ *  -1 before it said anything. @see ToriRS_FrameApi::surface_center_content. */
+static int g_chat_center_content = -1;
+
+static int
+fake_slot_center_content(void* u, int slot, int centered)
+{
+    (void)u;
+    if( slot == TORIRS_SURFACE_CHAT )
+        g_chat_center_content = centered;
+    return 1;
+}
+
 /** No member of any surface has an authored box in this fake.
  *  @see ToriRS_FrameApi::surface_member_native_box. */
 static int
@@ -1332,6 +1345,7 @@ main(void)
     e.slot_native_size = fake_slot_native_size;
     e.slot_member_native_box = fake_slot_member_native_box;
     e.slot_fit = fake_slot_fit;
+    e.slot_center_content = fake_slot_center_content;
     e.component_rect = fake_component_rect;
     e.frame_activate = fake_frame_activate;
     e.frame_provide = fake_frame_provide;
@@ -1654,8 +1668,10 @@ main(void)
           "the room offered to the 2004 chat is the housing's whole parchment");
     CHECK(placed("chat", -1, 20, 348, 479, 122),
           "and a chat that grows takes the engine's height, centred on the parchment: seven lines, not five");
+    CHECK(g_chat_center_content == 1, "and a dialog mounted into the grown chat is centred in it");
     g_chat_fit_h = 0;
     declare(765, 503);
+    CHECK(g_chat_center_content == 0, "a chat at its authored size has nothing to centre, and says so");
     CHECK(native("compass", -1)->art >= 0 && native("compass", -1)->mask >= 0 && native("minimap", -1)->mask >= 0,
           "the OldSchool frame brings its own rose and both masks");
     CHECK(placed("chat_buttons", 0, 14, 474, 100, 29) && placed("chat_buttons", 3, 401, 474, 100, 29),

@@ -774,7 +774,31 @@ struct ToriRS_FrameApi
         int height,
         int* out_width,
         int* out_height);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 5])(void);
+    /**
+     * Centre what the lane MOUNTS into `surface` inside the box this frame
+     * gave it.
+     *
+     * A frame that grows a surface past its authored size (surface_fit) grows
+     * the node the lane mounts its interfaces into, and those were authored
+     * for the old box: a 2004 chat dialog is 479x96, and in a taller chat it
+     * sits against the top with every spare row underneath it. With
+     * `centered` true each mounted interface is laid out in the surface's
+     * authored size, centred in the placed box; the surface's own drawing --
+     * the chat history -- keeps the whole box.
+     *
+     * The frame's statement and kept with the provision: stated once it holds
+     * across re-provisions until stated false or the frame is released. A
+     * surface the frame did not grow is unaffected either way.
+     *
+     * From on_gameframe only -- it is part of the frame's shape.
+     * TORIRS_RESULT_UNSUPPORTED outside it or on a lane with no such surface,
+     * TORIRS_RESULT_INVALID for a surface outside TORIRS_SURFACE_*.
+     */
+    enum ToriRS_Result (*surface_center_content)(
+        struct ToriRS_Api* api,
+        int surface,
+        bool centered);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 6])(void);
 };
 
 /* The pixels themselves are emitted through ToriRS_Graphics. This module
@@ -1316,6 +1340,13 @@ enum PorcelainElementKind
     PORCELAIN_EL_USABLE,
     /** The escape hatch: a role name this lane declares, spelled by hand. */
     PORCELAIN_EL_ROLE,
+    /**
+     * The LAST piece of the frame's map assembly -- the housing plate the
+     * lane paints over the map. Anything hung beside the map sits on top of
+     * it, so this, not the map surface, is where such a control goes in the
+     * tree. Only a frame that draws its own housing declares it.
+     */
+    PORCELAIN_EL_MINIMAP_EDGE,
     PORCELAIN_EL_KIND_COUNT
 };
 

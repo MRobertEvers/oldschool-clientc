@@ -1395,6 +1395,13 @@ static int lua_widget_set_anchor(lua_State* L)
         target=*(struct ToriRS_WidgetRef*)luaL_checkudata(L,2,LUA_WIDGET_MT);
     return lua_widget_result(L,ui->set_anchor(ui->context,self,target,(enum ToriRS_WidgetRelation)relation));
 }
+static int lua_widget_move_after(lua_State* L)
+{
+    struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
+    struct ToriRS_WidgetRef self=lua_widget_arg(L);
+    struct ToriRS_WidgetRef sibling=*(struct ToriRS_WidgetRef*)luaL_checkudata(L,2,LUA_WIDGET_MT);
+    return lua_widget_result(L,ui->move_after(ui->context,self,sibling));
+}
 static int lua_widget_set_text(lua_State* L)
 {
     struct ToriRS_WidgetApi* ui=&lua_current_api(L)->widgets;
@@ -1427,7 +1434,7 @@ static struct LuaFn const LUA_WIDGET_METHOD_FNS[] = {
     {"set_text_outline",lua_widget_text_outline},{"parent",lua_widget_parent},{"set_projection_height",lua_widget_projection_height},{"set_hidden",lua_widget_set_hidden},{"set_position",lua_widget_set_position},{"set_canvas_position",lua_widget_set_canvas_position},{"set_size",lua_widget_set_size},
     {"revalidate",lua_widget_revalidate},{"reset",lua_widget_reset},
     {"create_text",lua_widget_create_text},{"set_text",lua_widget_set_text},
-    {"create_image",lua_widget_create_image},{"set_image",lua_widget_set_image},{"set_opacity",lua_widget_set_opacity},{"set_anchor",lua_widget_set_anchor},{"set_mask",lua_widget_set_mask},
+    {"create_image",lua_widget_create_image},{"set_image",lua_widget_set_image},{"set_opacity",lua_widget_set_opacity},{"set_anchor",lua_widget_set_anchor},{"move_after",lua_widget_move_after},{"set_mask",lua_widget_set_mask},
     {"set_text_color",lua_widget_set_text_color},{"set_text_align",lua_widget_set_text_align},{"set_on_op",lua_widget_set_on_op},{"remove",lua_widget_remove},{NULL,NULL}
 };
 
@@ -1459,6 +1466,7 @@ static int lua_frame_surface_fit(lua_State* L)
 { struct ToriRS_Api* a=lua_current_api(L);int w,h;
   if(!a->frame.surface_fit(a,lua_surface_from_arg(L,1),(int)luaL_checkinteger(L,2),(int)luaL_checkinteger(L,3),&w,&h)){lua_pushnil(L);return 1;}
   lua_pushinteger(L,w);lua_pushinteger(L,h);return 2; }
+static int lua_frame_surface_center_content(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->frame.surface_center_content(a,lua_surface_from_arg(L,1),lua_toboolean(L,2)));return 2; }
 static int lua_frame_native_layout(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushinteger(L,a->frame.native_layout(a));return 1; }
 static int lua_frame_native_layout_select(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_push_result(L,a->frame.native_layout_select(a,(int)luaL_checkinteger(L,1)));return 2; }
 static int lua_frame_surface_native_size(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);int w,h;if(!a->frame.surface_native_size(a,lua_surface_from_arg(L,1),&w,&h)){lua_pushnil(L);return 1;}lua_pushinteger(L,w);lua_pushinteger(L,h);return 2; }
@@ -1863,6 +1871,7 @@ static struct
     {"safe", PORCELAIN_EL_SAFE},
     {"usable", PORCELAIN_EL_USABLE},
     {"role", PORCELAIN_EL_ROLE},
+    {"minimap_edge", PORCELAIN_EL_MINIMAP_EDGE},
     {NULL, PORCELAIN_EL_NONE}};
 
 static char const* const LUA_PORCELAIN_ORBS[PORCELAIN_ORB_COUNT] = {"hitpoints", "prayer", "run",
@@ -3281,7 +3290,7 @@ static struct LuaFn const LUA_MENU_FNS[] = {
 static struct LuaFn const LUA_FRAME_FNS[] = {
     {"offer_next",lua_frame_offer_next},{"selection",lua_frame_selection},{"select",lua_frame_select},
     {"invalidate",lua_frame_invalidate},{"surface_native_size",lua_frame_surface_native_size},
-    {"surface_member_native_box",lua_frame_surface_member_native_box},{"surface_fit",lua_frame_surface_fit},
+    {"surface_member_native_box",lua_frame_surface_member_native_box},{"surface_fit",lua_frame_surface_fit},{"surface_center_content",lua_frame_surface_center_content},
     {"native_layout",lua_frame_native_layout},{"native_layout_select",lua_frame_native_layout_select},{NULL,NULL}
 };
 static struct LuaFn const LUA_DRAW_API_FNS[] = {

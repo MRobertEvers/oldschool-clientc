@@ -112,6 +112,11 @@ struct UITreeFrameLayout
     /** The providing plugin's widget-edit owner id, whose retained moves are
      *  the ones that release containment (frame_stretch_moved_ancestors). */
     uint64_t provider_owner;
+    /** Slots whose MOUNTED content the provider wants centred in the box it
+     *  gave the surface, one bit per UITREE_FRAME_SLOT_*. The provider's
+     *  statement, not the binding's: carried across a re-provision, cleared
+     *  with the rest on release. @see UITree_FrameSetCenterContent. */
+    uint32_t center_content_slots;
     uint8_t active;
 };
 
@@ -378,6 +383,80 @@ frame_box_is_authored_pixels(struct UITreeComponent const* c)
     if( c->position.width_mode > 0 )
         return 0;
     return c->position.height_mode <= 0;
+}
+
+int
+UITree_FrameSetCenterContent(
+    struct UITree* tree,
+    int slot,
+    int centered)
+{
+    struct UITreeFrameLayout* fl;
+    uint32_t bit;
+    uint32_t wanted;
+
+    assert(tree);
+    if( slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT )
+        return 0;
+    /* Nothing to clear on a tree no provider has touched, and no reason to
+     * allocate the table to say so. */
+    if( !centered && !tree->frame_layout )
+        return 1;
+    fl = frame_state(tree);
+    bit = (uint32_t)1 << slot;
+    wanted = centered ? (fl->center_content_slots | bit) : (fl->center_content_slots & ~bit);
+    if( wanted == fl->center_content_slots )
+        return 1;
+    fl->center_content_slots = wanted;
+    UITree_LayoutInvalidate(tree);
+    return 1;
+}
+
+int
+UITree_FrameContentBox(
+    struct UITree const* tree,
+    int32_t parent,
+    int* io_x,
+    int* io_y,
+    int* io_w,
+    int* io_h)
+{
+    struct UITreeFrameLayout const* fl;
+    struct UITreeComponent const* p;
+    int slot;
+
+    assert(tree);
+    assert(io_x);
+    assert(io_y);
+    assert(io_w);
+    assert(io_h);
+    fl = tree->frame_layout;
+    if( !fl || !fl->center_content_slots )
+        return 0;
+    if( parent < 0 || (uint32_t)parent >= tree->component_count )
+        return 0;
+    p = &tree->components[parent];
+    for( slot = 0; slot < UITREE_FRAME_SLOT_COUNT; slot++ )
+        if( (fl->center_content_slots & ((uint32_t)1 << slot)) &&
+            UITree_FrameSlotNode(tree, slot) == parent )
+            break;
+    if( slot == UITREE_FRAME_SLOT_COUNT )
+        return 0;
+    /* Only an authored PIXEL box has a size to centre: a proportional one is
+     * already the box it was given. */
+    if( !frame_box_is_authored_pixels(p) || p->position.width <= 0 || p->position.height <= 0 )
+        return 0;
+    if( *io_w > p->position.width )
+    {
+        *io_x += (*io_w - p->position.width) / 2;
+        *io_w = p->position.width;
+    }
+    if( *io_h > p->position.height )
+    {
+        *io_y += (*io_h - p->position.height) / 2;
+        *io_h = p->position.height;
+    }
+    return 1;
 }
 
 int
@@ -1241,6 +1320,7 @@ frame_apply(
     frame_trace_binding(tree, &next, root_group, provider_owner);
 
     fl = frame_state(tree);
+    next.center_content_slots = fl->center_content_slots;
     if( fl->active )
     {
         /* `generation` is intentionally excluded from semantic equality. A

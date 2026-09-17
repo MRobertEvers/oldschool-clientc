@@ -1464,28 +1464,65 @@ orbs_map_ink_left(
  */
 static void
 orbs_beside_map(
-    struct ToriRS_Api* api,
+    struct OrbsState* state,
     struct ToriRS_WidgetBounds const* map,
     int orb,
     int* out_dx,
     int* out_dy)
 {
+    struct ToriRS_Api* api;
+    uint32_t const* plate;
+    int plate_w = 0, plate_h = 0;
     int x;
     int y;
-    int limit;
 
-    assert(api);
+    assert(state);
     assert(map);
     assert(out_dx);
     assert(out_dy);
     assert(orb >= 0);
     assert(orb < ORB_SLOT_COUNT);
+    api = state->api;
     x = map->x + orbs_cfg_int(api, "offset_x") - ORB_W + ORB_SLOT[orb].dx;
     y = map->y + map->height / 4 + orbs_cfg_int(api, "offset_y") - ORB_SLOT[0].dy +
         ORB_SLOT[orb].dy;
-    limit = orbs_map_ink_left(map, y, y + ORB_H);
-    if( x + ORB_W > limit )
-        x = limit - ORB_W;
+    /*
+     * Out of the disc by the plate's INK, row by row, not by its box.
+     *
+     * The plate is round on a 57x34 canvas, so its right corners are clear,
+     * and a clamp on the box held the lowest orb off the map by exactly that
+     * clear margin -- a visible gap between the special orb and the housing
+     * that interface 160 does not have. Each plate row's rightmost opaque
+     * pixel stops at the first column of the disc on the same screen row.
+     * Before the plate has decoded there is no ink to measure, and the box is
+     * the conservative answer.
+     */
+    plate = orbs_pixels(state, ORB_IMG_FRAME, &plate_w, &plate_h);
+    if( !plate || plate_w < ORB_W || plate_h < ORB_H )
+    {
+        int const limit = orbs_map_ink_left(map, y, y + ORB_H);
+        if( x + ORB_W > limit )
+            x = limit - ORB_W;
+    }
+    else
+    {
+        for( int row = 0; row < ORB_H; row++ )
+        {
+            int right = -1;
+            int limit;
+            for( int col = ORB_W - 1; col >= 0; col-- )
+                if( (plate[row * plate_w + col] >> 24) != 0 )
+                {
+                    right = col;
+                    break;
+                }
+            if( right < 0 )
+                continue;
+            limit = orbs_map_ink_left(map, y + row, y + row + 1);
+            if( x + right + 1 > limit )
+                x = limit - right - 1;
+        }
+    }
     *out_dx = x - map->x;
     *out_dy = y - map->y;
 }
@@ -1522,7 +1559,7 @@ orbs_canvas_box(
     }
     {
         int dx = 0, dy = 0;
-        orbs_beside_map(state->api, &map->local, orb, &dx, &dy);
+        orbs_beside_map(state, &map->local, orb, &dx, &dy);
         box.x = map->box.x + dx;
         box.y = map->box.y + dy;
     }
@@ -1901,7 +1938,17 @@ orbs_describe(
             if( orb_bound )
                 item.place.sibling_of = PORCELAIN_ORB_EL(i);
             else
+            {
+                /* The invented column stands for the map's chrome, so it lives
+                 * with the map in the tree too: after the frame's housing when
+                 * the frame draws one -- or the housing paints over the plates
+                 * -- and after the map surface when it does not. Asked by
+                 * count, so a lane with no housing files no absence. */
+                item.place.sibling_of = Porcelain_Count(porcelain, PORCELAIN_EL_MINIMAP_EDGE) > 0
+                                            ? PORCELAIN_EL(MINIMAP_EDGE)
+                                            : PORCELAIN_EL(MINIMAP);
                 item.visible_with = PORCELAIN_EL(MINIMAP);
+            }
         }
         describe->control(describe, &item);
         /*

@@ -124,6 +124,39 @@ void test_owned_canvas_position(void)
     TEST_ASSERT(!UITree_WidgetSetCanvasPosition(tree, UITree_RefAt(tree, native), 7, 1, 1),
                 "a native node cannot be pinned");
 
+    /* Tree order: a create appends, so on a flat parent the cover follows
+     * everything -- a later sibling standing for the minimenu included. Moving
+     * it after the native orb puts it back in front of that sibling. */
+    {
+        int32_t const menu = UITree_TestPushXy(tree, block, UIELEM_RS_RECT, (548 << 16) | 3, 0, 0, 8, 8);
+        int32_t order[4];
+        int n = 0;
+        TEST_ASSERT(menu >= 0, "a later sibling pushed");
+        /* Stand the cover where a create leaves it on a flat parent: last. */
+        TEST_ASSERT(UITree_WidgetMoveAfter(tree, UITree_RefAt(tree, cover), 7, UITree_RefAt(tree, menu)),
+                    "the cover can be put last");
+        uint64_t const generation = tree->generation;
+
+        TEST_ASSERT(UITree_WidgetMoveAfter(tree, UITree_RefAt(tree, cover), 7, UITree_RefAt(tree, native)),
+                    "the owner orders its control after the native orb");
+        for( int32_t c = tree->components[block].first_child; c >= 0 && n < 4; c = tree->components[c].next_sibling )
+            order[n++] = c;
+        TEST_ASSERT(n == 3, "no child lost or duplicated by the move");
+        TEST_ASSERT(n == 3 && order[0] == native && order[1] == cover && order[2] == menu,
+                    "native orb, then the cover, then the later sibling");
+        TEST_ASSERT(tree->generation != generation, "a real move is a topology change");
+        {
+            uint64_t const moved = tree->generation;
+            TEST_ASSERT(UITree_WidgetMoveAfter(tree, UITree_RefAt(tree, cover), 7, UITree_RefAt(tree, native)),
+                        "restating the order succeeds");
+            TEST_ASSERT(tree->generation == moved, "and changes nothing");
+        }
+        TEST_ASSERT(!UITree_WidgetMoveAfter(tree, UITree_RefAt(tree, cover), 7, UITree_RefAt(tree, block)),
+                    "a node under another parent is not a sibling");
+        TEST_ASSERT(!UITree_WidgetMoveAfter(tree, UITree_RefAt(tree, cover), 9, UITree_RefAt(tree, native)),
+                    "another owner cannot order it");
+    }
+
     /* A parent-local position is the other placement and ends the pin. */
     TEST_ASSERT(UITree_WidgetSetPosition(tree, UITree_RefAt(tree, cover), 7, 5, 6),
                 "the owner states a parent-local position");

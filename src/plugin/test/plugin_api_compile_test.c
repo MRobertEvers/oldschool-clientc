@@ -99,6 +99,7 @@ example_gameframe(
         return TORIRS_FRAME_PENDING;
     (void)api->frame.surface_native_size(api, TORIRS_SURFACE_CHAT, &chat_w, &chat_h);
     (void)api->frame.surface_fit(api, TORIRS_SURFACE_CHAT, 506, 129, &chat_w, &chat_h);
+    (void)api->frame.surface_center_content(api, TORIRS_SURFACE_CHAT, true);
     (void)api->widgets.set_position(api->widgets.context, minimap, event->width - 200, 0);
     return TORIRS_FRAME_READY;
 }

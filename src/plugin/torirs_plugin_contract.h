@@ -326,6 +326,12 @@ struct ToriRS_WidgetApi
      * not move it. Retained until set_position states a parent-local position.
      * A scrolling ancestor still scrolls it. Native widgets: NATIVE_BLOCKED. */
     enum ToriRS_ContractResult (*set_canvas_position)(void*, struct ToriRS_WidgetRef, int32_t x, int32_t y);
+    /* Owned controls only: move the control to directly after `sibling` among
+     * their shared parent's children -- its place in the tree's draw order.
+     * A creation appends, which on a flat frame is after the minimenu. A
+     * sibling under another parent is INVALID_ARGUMENT; a dead one is
+     * STALE_REFERENCE; restating the current order changes nothing. */
+    enum ToriRS_ContractResult (*move_after)(void*, struct ToriRS_WidgetRef, struct ToriRS_WidgetRef sibling);
     enum ToriRS_ContractResult (*set_size)(void*, struct ToriRS_WidgetRef, int32_t width, int32_t height);
     enum ToriRS_ContractResult (*set_hidden)(void*, struct ToriRS_WidgetRef, bool hidden);
     enum ToriRS_ContractResult (*set_projection_height)(void*,struct ToriRS_WidgetRef,int32_t height);

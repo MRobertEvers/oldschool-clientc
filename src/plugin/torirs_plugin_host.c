@@ -1569,6 +1569,26 @@ api_slot_fit(
 }
 
 /*
+ * Centre a surface's mounted content. @see surface_center_content.
+ *
+ * on_gameframe only, for the reason tab_select allows it there: it is part of
+ * the frame's shape, and on_gameframe is dispatched to the provider alone.
+ */
+static int
+api_slot_center_content(
+    struct PluginContext* ctx,
+    int slot,
+    int centered)
+{
+    assert(ctx);
+    if( ctx->host->dispatch_event != PLUGIN_CALLBACK_LAYOUT )
+        return 0;
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
+        return 0;
+    return ctx->host->engine.slot_center_content(ctx->host->engine.user, slot, centered);
+}
+
+/*
  * Where a component is. @see component_rect.
  *
  * No range test on the id, unlike the region verbs above: every 32-bit value
@@ -4952,6 +4972,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->slot_native_size);
     assert(engine->slot_member_native_box);
     assert(engine->slot_fit);
+    assert(engine->slot_center_content);
     assert(engine->component_rect);
     assert(engine->menu_drop);
     assert(engine->stat);

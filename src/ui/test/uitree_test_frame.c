@@ -1942,6 +1942,83 @@ test_placed_compass_carries_its_hit_region(void)
     UITree_Free(tree);
 }
 
+/*
+ * Content MOUNTED into a grown surface, centred in it.
+ *
+ * The provider moves the chat from the lane's 479x96 to 503x119. Whatever the
+ * lane mounts into the chat -- a 2004 dialog, here the fixture's content rect
+ * at 3,4 -- was authored for 479x96 and, left alone, hangs off the grown box's
+ * top-left corner. Stated centred, it resolves against the authored box placed
+ * in the middle of the grown one; the chat node itself keeps the grown box.
+ */
+static void
+test_centred_content_rides_the_middle_of_a_grown_surface(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct FrameNodes frame;
+    int32_t shell;
+    int const dx = (PLUGIN_CHAT_W - NATIVE_CHAT_W) / 2;
+    int const dy = (PLUGIN_CHAT_H - NATIVE_CHAT_H) / 2;
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    shell = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    frame = push_cache_frame(tree, shell, 0);
+    provide_plugin_frame(tree, &frame);
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(tree, frame.content, PLUGIN_CHAT_X + 3, PLUGIN_CHAT_Y + 4, 11, 12),
+        "unstated, mounted content hangs off the grown surface's corner");
+
+    TEST_ASSERT(
+        UITree_FrameSetCenterContent(tree, UITREE_FRAME_SLOT_CHAT, 1),
+        "the provider asks for the chat's content centred");
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(
+            tree, frame.content, PLUGIN_CHAT_X + dx + 3, PLUGIN_CHAT_Y + dy + 4, 11, 12),
+        "stated, it rides the authored box centred in the grown one");
+    TEST_ASSERT(
+        effective_box_is(tree, frame.chat, PLUGIN_CHAT_X, PLUGIN_CHAT_Y, PLUGIN_CHAT_W, PLUGIN_CHAT_H),
+        "and the surface itself keeps the whole grown box");
+
+    /* A re-provision rebuilds the binding table; the statement is the
+     * provider's and must come through it. */
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(
+            tree, frame.content, PLUGIN_CHAT_X + dx + 3, PLUGIN_CHAT_Y + dy + 4, 11, 12),
+        "a re-provision keeps the content centred");
+
+    TEST_ASSERT(
+        UITree_FrameSetCenterContent(tree, UITREE_FRAME_SLOT_CHAT, 0),
+        "the provider takes it back off");
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(tree, frame.content, PLUGIN_CHAT_X + 3, PLUGIN_CHAT_Y + 4, 11, 12),
+        "and the content returns to the corner");
+
+    TEST_ASSERT(UITree_FrameSetCenterContent(tree, UITREE_FRAME_SLOT_CHAT, 1), "stated again");
+    release_plugin_frame(tree);
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(tree, frame.content, NATIVE_CHAT_X + 3, NATIVE_CHAT_Y + 4, 11, 12),
+        "a released frame gives the content back its native place");
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
+    provide_plugin_edits(tree, &frame);
+    UITree_FrameProvide(tree, FRAME_GROUP, PLUGIN_OWNER);
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(tree, frame.content, PLUGIN_CHAT_X + 3, PLUGIN_CHAT_Y + 4, 11, 12),
+        "and the release forgot the statement: the next provider starts uncentred");
+    TEST_ASSERT(
+        !UITree_FrameSetCenterContent(tree, UITREE_FRAME_SLOT_COUNT, 1),
+        "a slot outside the table is refused");
+    UITree_Free(tree);
+}
+
 void
 test_frame_replacement(void)
 {
@@ -1949,6 +2026,7 @@ test_frame_replacement(void)
     test_binder_stamps_cache_regions_and_layer_chrome();
 
     test_frame_keeps_native_state_beneath_effective_layout();
+    test_centred_content_rides_the_middle_of_a_grown_surface();
     test_frame_reconciles_rebuilt_nodes_before_emit();
     test_retained_overlay_refresh_preserves_source();
     test_retained_empty_entity_keeps_final_no_world_order();

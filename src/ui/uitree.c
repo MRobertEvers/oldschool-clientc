@@ -4974,6 +4974,54 @@ bool UITree_WidgetRemove(struct UITree* tree, struct UITreeNodeRef ref, uint64_t
     return true;
 }
 
+bool
+UITree_WidgetMoveAfter(struct UITree* tree, struct UITreeNodeRef ref, uint64_t owner,
+                       struct UITreeNodeRef sibling_ref)
+{
+    int32_t idx;
+    int32_t sibling;
+    int32_t parent_index;
+    struct UITreeComponent* parent;
+    int32_t prev = -1;
+
+    assert(tree);
+    idx = UITree_ResolveRef(tree, ref);
+    sibling = UITree_ResolveRef(tree, sibling_ref);
+    if( idx < 0 || sibling < 0 || !owner || idx == sibling )
+        return false;
+    if( tree->components[idx].plugin_owner != owner )
+        return false;
+    parent_index = tree->components[idx].parent;
+    /* An order among SIBLINGS: re-parenting is a remove and a create. */
+    if( parent_index < 0 || tree->components[sibling].parent != parent_index )
+        return false;
+    /* Already there: no topology change, so no publication for a restatement. */
+    if( tree->components[sibling].next_sibling == idx )
+        return true;
+
+    parent = &tree->components[parent_index];
+    for( int32_t walk = parent->first_child; walk >= 0; walk = tree->components[walk].next_sibling )
+    {
+        if( walk == idx )
+            break;
+        prev = walk;
+    }
+    if( prev < 0 )
+        parent->first_child = tree->components[idx].next_sibling;
+    else
+        tree->components[prev].next_sibling = tree->components[idx].next_sibling;
+    tree->components[idx].next_sibling = tree->components[sibling].next_sibling;
+    tree->components[sibling].next_sibling = idx;
+    /* The tail hint is validated on use; a moved tail simply costs one walk. */
+    parent->last_child_hint = -1;
+    parent->is_dirty = 1;
+    uitree_topo_bump(tree, __LINE__);
+    tree->canvas_candidates_valid = 0;
+    tree->generation++;
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
+    return true;
+}
+
 void UITree_WidgetResetOwner(struct UITree* tree, uint64_t owner)
 {
     if( !tree || !owner ) return;

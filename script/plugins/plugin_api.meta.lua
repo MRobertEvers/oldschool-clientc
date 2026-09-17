@@ -258,6 +258,7 @@ warn = nil
 ---@field surface_native_size fun(surface: torirs.Surface): integer?, integer?
 ---@field surface_member_native_box fun(surface: torirs.Surface, member: integer): integer?, integer?, integer?, integer? The authored box of one numbered MEMBER of that surface, relative to the surface's own block. The role's own numbering; -1 is refused.
 ---@field surface_fit fun(surface: torirs.Surface, width: integer, height: integer): integer?, integer? The largest box inside width x height that surface lays itself out to fill -- never below its authored size, always on a whole line. nil when the surface has only its authored size (the 2004 chat builtin is the one that grows) or the box is smaller than it.
+---@field surface_center_content fun(surface: torirs.Surface, centered: boolean): boolean, torirs.ResultName Lay what the lane mounts into that surface (a 2004 chat dialog) out at the surface's authored size, centred in the box the frame gave it. From on_gameframe only; holds until stated false or the frame is released.
 ---@field native_layout fun(): integer Which native top-level chrome the lane wears now: 0 fixed, 1 resizable-classic, 2 resizable-modern, 3 mobile, -1 unknown or between a request and its remount.
 ---@field native_layout_select fun(layout: integer): boolean, torirs.ResultName Ask the lane for one of its own chromes (0..2), the way its Display row does. From on_gameframe or a player's own action only. true means asked, not yet changed; the remount arrives as a new frame root.
 
@@ -545,6 +546,7 @@ warn = nil
 ---@field set_projection_height fun(self:torirs.Widget,height:integer):boolean,string World-unit lift for an anchored overlay layer; camera projection stays native.
 ---@field text fun(self:torirs.Widget):string? Current native text input.
 ---@field set_position fun(self:torirs.Widget,x:integer,y:integer):boolean,string
+---@field move_after fun(self:torirs.Widget,sibling:torirs.Widget):boolean,string Owned controls only: move this control to directly after `sibling` among their shared parent's children, its place in the draw order.
 ---@field set_canvas_position fun(self:torirs.Widget,x:integer,y:integer):boolean,string Owned controls only: the box at canvas x,y under whatever parent the control was created in; the parent decides draw order, this decides screen position. Retained until set_position.
 ---@field set_size fun(self:torirs.Widget,width:integer,height:integer):boolean,string
 ---@field set_hidden fun(self:torirs.Widget,hidden:boolean):boolean,string Presentation only; native hiding remains authoritative. Reset/disable reveals current native state or another owner's edit.

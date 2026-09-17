@@ -198,6 +198,47 @@ UITree_FrameSlotFit(
     int* out_h);
 
 /**
+ * Lay the content MOUNTED into `slot`'s surface out in the surface's authored
+ * size, centred in the box a provided frame gave it.
+ *
+ * A frame that grows a surface (@see UITree_FrameSlotFit) grows the node the
+ * lane mounts its interfaces into, and those interfaces were authored for the
+ * old box: a 2004 chat dialog is 479x96 and sits against the top of a taller
+ * chat with the spare rows all underneath it. With this set, every child of
+ * the slot's node resolves against the authored box centred in the effective
+ * one -- the node itself, and anything that draws from its own origin rather
+ * than through children (the chat builtin's history), keep the whole box.
+ *
+ * The provider's statement and kept with the provision: it survives a
+ * re-provision and is cleared by UITree_FrameRelease. A slot whose authored
+ * box is proportional, or no bigger than its effective one, is unaffected.
+ *
+ * @return 0 for a slot outside the table; 1 otherwise, including when nothing
+ *         changed.
+ */
+int
+UITree_FrameSetCenterContent(
+    struct UITree* tree,
+    int slot,
+    int centered);
+
+/**
+ * The box a child of `parent` resolves against, when `parent` is a slot whose
+ * mounted content is centred. `io_*` is the parent's resolved box on the way
+ * in and the centred authored box on the way out.
+ *
+ * @return 1 when the box was replaced; 0, leaving it alone, otherwise.
+ */
+int
+UITree_FrameContentBox(
+    struct UITree const* tree,
+    int32_t parent,
+    int* io_x,
+    int* io_y,
+    int* io_w,
+    int* io_h);
+
+/**
  * The box the LANE authored for one MEMBER of `slot`, block-relative.
  *
  * UITree_FrameSlotNativeSize above answers for the surface as a whole; this is

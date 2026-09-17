@@ -834,6 +834,22 @@ fake_set_position(void* context, struct ToriRS_WidgetRef ref, int32_t x, int32_t
 }
 
 static enum ToriRS_ContractResult
+fake_move_after(void* context, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetRef sibling)
+{
+    struct TestbedControl* control = testbed_control_by_ref(ref);
+    struct TestbedElement const* element = testbed_element_by_ref(sibling);
+
+    (void)context;
+    testbed_log("move_after %s %s", control ? control->key : "?", element ? element->role : "?");
+    if( !control )
+        return TORIRS_CONTRACT_STALE_REFERENCE;
+    if( !element || !ToriRS_WidgetRefEqual(element->parent, control->parent) )
+        return TORIRS_CONTRACT_INVALID_ARGUMENT;
+    control->after = sibling;
+    return TORIRS_CONTRACT_OK;
+}
+
+static enum ToriRS_ContractResult
 fake_set_canvas_position(void* context, struct ToriRS_WidgetRef ref, int32_t x, int32_t y)
 {
     struct TestbedControl* control = testbed_control_by_ref(ref);
@@ -2099,6 +2115,7 @@ Testbed_Reset(void)
     g_testbed.api.widgets.create_text = fake_create_text;
     g_testbed.api.widgets.set_position = fake_set_position;
     g_testbed.api.widgets.set_canvas_position = fake_set_canvas_position;
+    g_testbed.api.widgets.move_after = fake_move_after;
     g_testbed.api.widgets.set_size = fake_set_size;
     g_testbed.api.widgets.set_hidden = fake_set_hidden;
     g_testbed.api.widgets.set_image = fake_set_image;

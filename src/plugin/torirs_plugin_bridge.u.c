@@ -4235,6 +4235,22 @@ app_plugin_slot_fit(void* user, int slot, int w, int h, int* out_w, int* out_h)
 }
 
 /*
+ * Centre a surface's mounted content. @see slot_center_content.
+ */
+static int
+app_plugin_slot_center_content(void* user, int slot, int centered)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( !app->tree )
+        return 0;
+    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
+        return 0;
+    return UITree_FrameSetCenterContent(app->tree, slot, centered);
+}
+
+/*
  * Where a component is. @see component_rect.
  *
  * The same node->rect the region readouts end in, reached by id rather than by
@@ -5062,6 +5078,17 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         if( !UITree_WidgetSetCanvasPosition(tree, ref, owner, r->a, r->b) )
             return TORIRS_CONTRACT_FAILED;
         break;
+    case PLUGIN_WIDGET_MOVE_AFTER:
+    {
+        struct UITreeNodeRef sibling;
+        if( c->plugin_owner != owner ) return TORIRS_CONTRACT_NATIVE_BLOCKED;
+        if( !r->target.opaque[1] || r->target.opaque[1] > INT32_MAX ) return TORIRS_CONTRACT_STALE_REFERENCE;
+        sibling = (struct UITreeNodeRef){.tree_instance=r->target.opaque[0],
+            .index=(int32_t)r->target.opaque[1]-1, .incarnation=r->target.opaque[2]};
+        if( UITree_ResolveRef(tree, sibling) < 0 ) return TORIRS_CONTRACT_STALE_REFERENCE;
+        if( !UITree_WidgetMoveAfter(tree, ref, owner, sibling) ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
+        break;
+    }
     case PLUGIN_WIDGET_REVALIDATE:
         UITree_EnsureLayout(tree);
         break;
@@ -6111,6 +6138,7 @@ app_plugin_engine(struct App* app)
     engine.slot_native_size = app_plugin_slot_native_size;
     engine.slot_member_native_box = app_plugin_slot_member_native_box;
     engine.slot_fit = app_plugin_slot_fit;
+    engine.slot_center_content = app_plugin_slot_center_content;
     engine.component_rect = app_plugin_component_rect;
     engine.menu_drop = app_plugin_menu_drop;
     engine.frame_activate = app_plugin_frame_activate;

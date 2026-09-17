@@ -723,6 +723,24 @@ v2_frame_surface_fit(
                runtime->context, surface_token, width, height, out_width, out_height) != 0;
 }
 
+static enum ToriRS_Result
+v2_frame_surface_center_content(
+    struct ToriRS_Api* api,
+    int surface,
+    bool centered)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    int const surface_token = v2_surface_slot(surface);
+
+    if( surface < 0 || surface >= TORIRS_SURFACE_COUNT )
+        return TORIRS_RESULT_INVALID;
+    if( surface_token < 0 )
+        return TORIRS_RESULT_UNSUPPORTED;
+    return api_slot_center_content(runtime->context, surface_token, centered ? 1 : 0)
+               ? TORIRS_RESULT_OK
+               : TORIRS_RESULT_UNSUPPORTED;
+}
+
 static int
 v2_frame_native_layout(struct ToriRS_Api* api)
 {
@@ -2990,6 +3008,11 @@ static enum ToriRS_ContractResult widget_canvas_position(void* u, struct ToriRS_
     struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_CANVAS_POSITION, .ref=ref, .a=x, .b=y};
     return plugin_widget_request(u, &r);
 }
+static enum ToriRS_ContractResult widget_move_after(void* u, struct ToriRS_WidgetRef ref, struct ToriRS_WidgetRef sibling)
+{
+    struct PluginWidgetRequest r = {.kind=PLUGIN_WIDGET_MOVE_AFTER, .ref=ref, .target=sibling};
+    return plugin_widget_request(u, &r);
+}
 static enum ToriRS_ContractResult widget_size(void* u, struct ToriRS_WidgetRef ref, int32_t w, int32_t h)
 {
     if( w < 0 || h < 0 ) return TORIRS_CONTRACT_INVALID_ARGUMENT;
@@ -3315,7 +3338,7 @@ v2_runtime_init(
             .children = widget_children, .bounds = widget_bounds, .get_text = widget_text,
             .state = widget_state,
             .position = widget_local_bounds,
-            .set_position = widget_position, .set_canvas_position = widget_canvas_position, .set_size = widget_size,
+            .set_position = widget_position, .set_canvas_position = widget_canvas_position, .move_after = widget_move_after, .set_size = widget_size,
             .revalidate = widget_revalidate, .reset = widget_reset, .watch = widget_watch, .watch_state = widget_watch_state,
             .create_text=widget_create_text,.set_text=widget_set_text,.set_text_color=widget_text_color,.set_text_align=widget_text_align,.remove=widget_remove,
         },
@@ -3371,6 +3394,7 @@ v2_runtime_init(
             .surface_native_size = v2_frame_surface_native_size,
             .surface_member_native_box = v2_frame_surface_member_native_box,
             .surface_fit = v2_frame_surface_fit,
+            .surface_center_content = v2_frame_surface_center_content,
             .native_layout = v2_frame_native_layout,
             .native_layout_select = v2_frame_native_layout_select,
         },

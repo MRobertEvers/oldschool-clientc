@@ -74,6 +74,8 @@ struct TestbedControl
     int32_t x, y, width, height;
     /** x/y were written by set_canvas_position, not set_position. */
     bool canvas_positioned;
+    /** The sibling move_after last put this control behind. */
+    struct ToriRS_WidgetRef after;
     int opacity;
     bool hidden;
     bool armed;

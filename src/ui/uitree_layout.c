@@ -370,6 +370,11 @@ layout_parent_box(
         if( p->u.rs_layer.scroll_height > 0 )
             *out_h = p->u.rs_layer.scroll_height;
     }
+    /* A surface a provided frame grew, whose mounted content it wants
+     * centred: still a function of the parent's own fields -- its authored
+     * box and its resolved one. @see UITree_FrameSetCenterContent. */
+    if( tree->frame_layout )
+        (void)UITree_FrameContentBox(tree, parent, out_x, out_y, out_w, out_h);
 }
 
 /*

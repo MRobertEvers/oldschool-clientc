@@ -117,6 +117,8 @@ struct PorcelainAppliedItem
     struct PorcelainNormalItem item;
     struct ToriRS_WidgetRef ref;
     struct ToriRS_WidgetRef parent;
+    /** The sibling a `sibling_of` control was last ordered after. */
+    struct ToriRS_WidgetRef ordered_after;
     struct ToriRS_WidgetRef anchor_target;
     /*
      * And WHICH relation was written to it.

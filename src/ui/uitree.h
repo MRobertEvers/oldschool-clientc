@@ -2359,6 +2359,12 @@ bool UITree_WidgetSetPosition(struct UITree*, struct UITreeNodeRef, uint64_t own
  * The box is in layout space, so a SCROLLING ancestor still scrolls it, exactly
  * as it scrolls every other child. */
 bool UITree_WidgetSetCanvasPosition(struct UITree*, struct UITreeNodeRef, uint64_t owner, int x, int y);
+/* Owned controls only: move the control to directly after `sibling` among its
+ * parent's children, which is where it draws in the tree's order. The sibling
+ * must share the control's parent. Structural, not retained: a restatement is
+ * free, and a rebuilt child list is answered by stating it again. */
+bool UITree_WidgetMoveAfter(struct UITree*, struct UITreeNodeRef, uint64_t owner,
+                            struct UITreeNodeRef sibling);
 bool UITree_WidgetSetSize(struct UITree*, struct UITreeNodeRef, uint64_t owner, int w, int h);
 bool UITree_WidgetSetHidden(struct UITree*, struct UITreeNodeRef, uint64_t owner, bool hidden);
 

@@ -992,6 +992,9 @@ struct FramePlan
     int layout;
     int canvas_w;
     int canvas_h;
+    /** The chat was grown past its authored box, so what the lane mounts into
+     *  it -- a 2004 dialog -- is centred in it. @see frame_place_chat. */
+    int chat_center_content;
     struct FrameBlit blit[FRAME_BLIT_MAX];
     int blit_count;
     int housing_placed;
@@ -1628,6 +1631,9 @@ frame_place_chat(struct FrameCall* ctx, int x, int y)
             fit_w,
             fit_h
         };
+    /* A dialog the lane mounts into the chat was authored for 479x96 and
+     * would otherwise sit against the top of the grown box. */
+    g_plan.chat_center_content = chat.height > FRAME_O_CHAT_INNER_H;
     frame_surface_at(ctx, FRAME_SURFACE_CHAT, chat);
 }
 
@@ -5260,6 +5266,11 @@ frame_describe(struct ToriRS_PorcelainDescribe* describe, void* user)
         frame_layout_classic_fixed(ctx);
         break;
     }
+    /* Every layout states it, false included: a switch from a grown chat to
+     * Classic Fixed must take the centring back off. Refused outside
+     * on_gameframe, where the last statement stands. */
+    (void)g_api->frame.surface_center_content(
+        g_api, TORIRS_SURFACE_CHAT, g_plan.chat_center_content != 0);
 
     /*
      * Nothing at all until the lane has a scene to arrange around.
