@@ -146,10 +146,15 @@
   }
 
   class Js5Client {
-    constructor(host, port, revision) {
+    constructor(host, port, revision, url) {
       this.host = host;
       this.port = port;
       this.revision = revision;
+      /* A complete socket URL beats host:port. Behind a TLS-terminating
+       * reverse proxy the server is reached by a path (wss://host/x/ws), and
+       * that is the same socket the game uses: the server picks JS5 or game
+       * off the first byte, so one upgrade route serves both. */
+      this.url = url || null;
       this.socket = null;
       /* key -> {resolve, reject}. What the C client called its in-flight table;
        * here the continuation IS the promise. */
@@ -184,7 +189,7 @@
     }
 
     async #connect() {
-      const url = `ws://${this.host}:${this.port}/`;
+      const url = this.url || `ws://${this.host}:${this.port}/`;
       const socket = new WebSocket(url);
       socket.binaryType = 'arraybuffer';
       this.socket = socket;
@@ -367,7 +372,7 @@
     }
   }
 
-  window.ToriRS_CreateJs5 = function (host, port, revision) {
-    return new Js5Client(host, port, revision);
+  window.ToriRS_CreateJs5 = function (host, port, revision, url) {
+    return new Js5Client(host, port, revision, url);
   };
 })();

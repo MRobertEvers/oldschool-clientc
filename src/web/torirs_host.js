@@ -539,6 +539,24 @@
   if (gameWsUrl) { Module.websocket = { url: gameWsUrl }; }
 
   /*
+   * JS5 rides the same socket. The game server serves JS5 and the game on one
+   * port, choosing by the first byte, so when the game socket has been named
+   * by URL and nothing named JS5 separately, JS5 dials that URL too. An
+   * explicit ?js5_url= (absolute or page-relative, like ws=) or ?js5_host=
+   * /?js5_port= still wins.
+   */
+  const js5Url = (() => {
+    const given = params.get('js5_url');
+    if (given) {
+      if (/^wss?:\/\//.test(given)) { return given; }
+      const scheme = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+      return scheme + window.location.host + new URL(given, window.location.href).pathname;
+    }
+    if (gameWsUrl && !params.has('js5_host') && !params.has('js5_port')) { return gameWsUrl; }
+    return null;
+  })();
+
+  /*
    * The two cache producers, built on the first read that needs one.
    *
    * Lazy, not eager: a boot uses exactly one of them -- which one is decided
@@ -552,7 +570,7 @@
 
   const js5Producer = () => {
     if (!js5Client) {
-      js5Client = window.ToriRS_CreateJs5(js5Host, js5Port, js5Revision());
+      js5Client = window.ToriRS_CreateJs5(js5Host, js5Port, js5Revision(), js5Url);
     }
     return js5Client;
   };
@@ -613,7 +631,7 @@
   Module.onRuntimeInitialized = () => {
     log(`torirs: runtime up, cache in IndexedDB` +
         (cacheKey ? ` (${cacheKey})` : '') +
-        `, js5 ws://${js5Host}:${js5Port}` +
+        `, js5 ${js5Url || `ws://${js5Host}:${js5Port}`}` +
         (gameWsUrl ? `, game ${gameWsUrl}` : ''));
     log(`torirs: argv ${JSON.stringify(args)}`);
     // Which cache the server has open. Changing the manifest in the URL
