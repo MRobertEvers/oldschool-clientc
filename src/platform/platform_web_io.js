@@ -264,11 +264,19 @@ mergeInto(LibraryManager.library, {
      * A table the cache does not ship is remembered as null rather than
      * retried, so a miss costs one fetch and not one per group.
      */
-    refTableBytes: async function (inst, table) {
-      if (inst.refTableBytes.has(table)) { return inst.refTableBytes.get(table); }
-      const bytes = (await inst.host.readReferenceTable(table)) || null;
-      inst.refTableBytes.set(table, bytes);
-      return bytes;
+    refTableBytes: function (inst, table) {
+      /* The PROMISE is what is memoised, not its result. This is async, and
+       * a fan-out of hundreds of model reads calls it in one frame: with
+       * the result cached, every one of them missed, fetched and decoded
+       * its own copy of the 61,615-entry models table, and only the last
+       * copy landed in the map -- 621 decodes, 1.06 GB of wasm heap that
+       * nothing ever freed, on one login (memtrace, 2026-09-17). */
+      let pending = inst.refTableBytes.get(table);
+      if (!pending) {
+        pending = inst.host.readReferenceTable(table).then(bytes => bytes || null);
+        inst.refTableBytes.set(table, pending);
+      }
+      return pending;
     },
 
     /* One decode of that container. Every call returns a NEW table, owned by
@@ -294,11 +302,15 @@ mergeInto(LibraryManager.library, {
      * differ: this one belongs to the executor for as long as the queue lives
      * and is never given to anybody, which is what makes caching it safe.
      */
-    refTableForMetadata: async function (inst, table) {
-      if (inst.refTablesOwned.has(table)) { return inst.refTablesOwned.get(table); }
-      const ptr = await this.refTableDecode(inst, table);
-      inst.refTablesOwned.set(table, ptr || null);
-      return ptr || null;
+    refTableForMetadata: function (inst, table) {
+      /* Memoised as a promise for the reason refTableBytes is: concurrent
+       * first readers of a table must share one decode. */
+      let pending = inst.refTablesOwned.get(table);
+      if (!pending) {
+        pending = this.refTableDecode(inst, table).then(ptr => ptr || null);
+        inst.refTablesOwned.set(table, pending);
+      }
+      return pending;
     },
 
     // ---------------------------------------------------------- execution
