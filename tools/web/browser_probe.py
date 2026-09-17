@@ -147,6 +147,8 @@ def main() -> int:
     ap.add_argument("--port", type=int, default=9333, help="DevTools port")
     ap.add_argument("--memtrace", help="after the last sample, flush the memtrace and save it here")
     ap.add_argument("--headed", action="store_true", help="show the window (default headless)")
+    ap.add_argument("--log", help="after the last sample, save the page's client log (the CLIENT pane) here")
+    ap.add_argument("--shots", help="save a PNG of the page at every sample into this directory")
     args = ap.parse_args()
 
     profile = tempfile.mkdtemp(prefix="torirs-probe-")
@@ -177,6 +179,22 @@ def main() -> int:
                 d = {}
             print(f"t+{int(time.time() - t0):4}s  heap {d.get('heap', 0) // 1048576:5} MB  "
                   f"{d.get('status', '')[:90]}  |  {d.get('last', '')[:80]}", flush=True)
+            if args.shots:
+                os.makedirs(args.shots, exist_ok=True)
+                try:
+                    shot = cdp.call("Page.captureScreenshot", {"format": "png"})
+                    with open(os.path.join(args.shots, f"t{int(time.time() - t0):04}.png"), "wb") as out:
+                        out.write(base64.b64decode(shot["data"]))
+                except Exception as err:
+                    print(f"shot failed: {err}", flush=True)
+        if args.log:
+            text = cdp.evaluate("(document.getElementById('log') || {}).textContent || ''")
+            trace = cdp.evaluate("(globalThis.__torirs_io_trace || []).join('\\n')")
+            with open(args.log, "w") as out:
+                out.write(text)
+                if trace:
+                    out.write("\n=== io trace (TORIRS_IO_TRACE=1) ===\n" + trace + "\n")
+            print(f"log: saved {text.count(chr(10))} log lines and {trace.count(chr(10))} trace lines to {args.log}", flush=True)
         if args.memtrace:
             info = cdp.evaluate(FLUSH_JS)
             total = int(info.split()[-1])
