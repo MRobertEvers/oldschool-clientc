@@ -36,6 +36,8 @@ struct Task_Dat2HitsplatLoad
     /* The sprite-preload walk. Both the cursor and the table have to outlive a
      * PT_YIELD, so neither can be a local. */
     int preload_index;
+    /* Siblings still running from the fan-out below. */
+    int pending;
 };
 
 static int
@@ -204,20 +206,49 @@ Task_Dat2HitsplatLoad_Run(
      * hit would mean the first hit of a session draws no splat, which is
      * precisely the bug this is fixing.
      */
-    for( task->preload_index = 0; task->preload_index < task->hitsplats->count;
-         task->preload_index++ )
+    /*
+     * Queued as siblings on the asset queue and joined: the sprites are
+     * independent of one another, and awaited one after another they were a
+     * network round trip apiece on a streamed cache -- this loop and the
+     * healthbar one were 200 of the 251 round trips a browser paid before the
+     * title screen. The fan-out is this task's: it does not pass the join
+     * until every sibling has ended. AddJoined does not count the NULL that
+     * CreateTask_SpriteLoad returns for a sprite already resident.
+     */
+    if( task->bc->base.asset_queue )
     {
-        if( task->hitsplats->sprite_ids[task->preload_index] < 0 )
-            continue;
-        /* The _IF form skips a NULL child, which is what CreateTask_SpriteLoad
-         * returns for a sprite already resident — and it clears its own child
-         * pointer afterwards, which is what makes it safe inside a loop. */
-        TASK_AWAITEX_IF(
-            &task->task,
-            &task->pt,
-            io,
-            CreateTask_SpriteLoad(&task->bc->base,
-                                  task->hitsplats->sprite_ids[task->preload_index]));
+        for( int i = 0; i < task->hitsplats->count; i++ )
+        {
+            if( task->hitsplats->sprite_ids[i] < 0 )
+                continue;
+            ToriRS_TaskQueue_AddJoined(
+                task->bc->base.asset_queue,
+                CreateTask_SpriteLoad(&task->bc->base, task->hitsplats->sprite_ids[i]),
+                &task->pending);
+        }
+        while( task->pending > 0 )
+        {
+            task->task.blocked = 1;
+            PT_YIELD(&task->pt);
+        }
+    }
+    else
+    {
+        for( task->preload_index = 0; task->preload_index < task->hitsplats->count;
+             task->preload_index++ )
+        {
+            if( task->hitsplats->sprite_ids[task->preload_index] < 0 )
+                continue;
+            /* The _IF form skips a NULL child, which is what CreateTask_SpriteLoad
+             * returns for a sprite already resident — and it clears its own child
+             * pointer afterwards, which is what makes it safe inside a loop. */
+            TASK_AWAITEX_IF(
+                &task->task,
+                &task->pt,
+                io,
+                CreateTask_SpriteLoad(&task->bc->base,
+                                      task->hitsplats->sprite_ids[task->preload_index]));
+        }
     }
 
     PT_END(&task->pt);
