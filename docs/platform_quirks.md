@@ -882,22 +882,32 @@ one lane only.
 
 ## Web (Emscripten and WebGL1)
 
-### WEB-IO-001 - Cache IO is remote and has two pump modes
+### WEB-IO-001 - The IO executor is JavaScript; a task's items complete before it resumes
 
 - **Status:** Contract
 - **Applies to:** Web build
-- **Behavior:** The module has no local cache disk. `platform_x_io_web.c`
-  serializes logical cache-item requests to the native `io_server` over
-  `POST /io`. The server alone opens the real cache. Boot manifests and the
-  RevConfig files they name are fetched through `/boot/` into Emscripten's
-  virtual filesystem before `main()`.
-- **Transport quirk:** The host uses synchronous XHR by default so a boot task
-  can drain immediately, which temporarily blocks the browser main thread. Add
-  `io_sync=0` to the query string for asynchronous fetch; pending tasks then
-  complete on later browser turns and must remain frame-gated.
-- **Reason:** Keeping cache interpretation on the native side avoids duplicating
-  cache generation, map/XTEA, and archive semantics in JavaScript.
-- **Sources:** [`src/platform/platform_x_io_web.c`](../src/platform/platform_x_io_web.c),
+- **Behavior:** The module has no cache disk. The IO queue (`asyncio.h`) is
+  answered by `platform/platform_web_io.js`, linked as an emscripten JS
+  library so its functions define the `PlatformWeb_IO_*` symbols. It reads
+  each item at offsets the queue reports about itself, awaits the host for the
+  bytes -- IndexedDB, then JS5 for a dat2 group or `io_server`'s dat1 proxy
+  for a dat1 container, then `io_server`'s `/boot/` for a file -- and hands
+  them to C (`platform_web_api.c`) to decode. `PlatformX_IO_Pending` counts
+  items still in flight per queue, and `TaskRunner_Step` does not resume a
+  task while it has any: every item a task queued is filled when it resumes.
+  Boot manifests and the RevConfig files they name are fetched through
+  `/boot/` into the virtual filesystem before `main()`.
+- **Transport quirk:** Every answer arrives after an await, so a task that
+  queues one item per yield pays a network round trip per archive. Parallelism
+  is the task's: queue independent reads together (32 slots). The executor
+  and the producers never prefetch or resume early -- a producer that fetched
+  on a task's behalf broke the contract above once.
+- **Reason:** Keeping cache decoding in C avoids duplicating container framing,
+  compression, XTEA and reference-table semantics in JavaScript; keeping the
+  executor in JavaScript avoids a second reader of the queue in the seam.
+- **Sources:** [`src/platform/platform_web_io.js`](../src/platform/platform_web_io.js),
+  [`src/platform/platform_web_api.c`](../src/platform/platform_web_api.c),
+  [`src/web/torirs_hostio.js`](../src/web/torirs_hostio.js),
   [`src/ioserver/`](../src/ioserver/), [web build detail](web_build.md)
 
 ### WEB-LOOP-001 - The browser owns pacing; Asyncify stays off

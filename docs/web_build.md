@@ -11,20 +11,18 @@ same decoders, same renderer — with three things swapped underneath it: where
 cache reads come from, who owns the frame clock, and what plays sound.
 
 ```
-  browser tab                              your machine
-  ┌───────────────────────────────┐        ┌──────────────────────────┐
-  │ torirs.wasm                   │        │ io_server                │
-  │   App / tasks / decoders      │        │   PlatformX_IO_LoadItem  │
-  │   platform_x_io_web.c ──┐     │        │   RSCache_Dat*Disk       │
-  │                         │     │        │        ▲                 │
-  │ torirs_host.js          │     │        │        │                 │
-  │   pumpSync() ◄──────────┘     │        │        │                 │
-  │      │                        │        │        │                 │
-  └──────┼────────────────────────┘        └────────┼─────────────────┘
-         │        POST /io    (IOWire batch)        │
-         │        GET /boot/… (manifests, INIs)     │
-         └──────────────────────────────────────────┘
-                     GET /  (torirs.js, .wasm)
+  browser tab                                       your machine
+  ┌─────────────────────────────────────────┐       ┌────────────────────────┐
+  │ torirs.wasm                             │       │ torirsserver           │
+  │   App / tasks / decoders                │  JS5  │   game + JS5 on one    │
+  │   IO queue (asyncio.h) ◄─┐              │◄──ws──┤   port, first byte     │
+  │                          │              │       │   picks                │
+  │ platform_web_io.js ──────┘ the executor │       └────────────────────────┘
+  │   IndexedDB (torirs_idb.js)             │       ┌────────────────────────┐
+  │   ◄── torirs_js5.js / torirs_ondemand.js│       │ io_server              │
+  │ torirs_host.js: argv, ENV, boot files   │◄──────┤  GET /  GET /boot/…    │
+  └─────────────────────────────────────────┘       │  GET /cache/dat1/…     │
+                                                    └────────────────────────┘
 ```
 
 ## Choosing a platform target
@@ -38,7 +36,6 @@ make -C src all              # native, debug      -> src/torirs
 make -C src release          # native, optimized  -> src/torirs
 make -C src web              # emscripten, -O3    -> build-web/torirs.js
 make -C src web-debug        # emscripten, -Og + assertions
-make -C src web-idb          # emscripten, cache in IndexedDB (see below)
 make -C src win64            # modern Windows x64 -> src/torirs_win64.exe
 make -C src winxp            # Windows XP i686    -> src/torirs.exe
 make -C src io-server        # the web build's cache backend (always native)
@@ -56,28 +53,30 @@ still be showing you the bug you opened it for. `-Og` keeps locals inspectable
 and does not reorder code, so stepping still works. `make -C src lane-check
 PLATFORM=web OPT=0` asserts `-O0` stays out.
 
-### Two web lanes, two places the cache lives
+### One web lane: the cache lives in IndexedDB
 
-`make -C src web` is the lane this page describes: there is no cache in the
-browser, and every `ToriRS_IOItem` crosses a socket to `io_server`, which holds
-one and runs the real `PlatformX_IO_LoadItem` against it.
+The browser gets a cache of its own -- one raw container per archive in
+IndexedDB -- and fills it on demand over the cache's own protocol: JS5 for a
+dat2 world, the 2004 on-demand protocol (proxied by `io_server`) for a dat1
+one. The queue the game writes items to is the same `asyncio.h` queue the
+desktop uses; what differs is the *executor* that answers it, which here is
+JavaScript (`platform/platform_web_io.js`, linked as an emscripten JS library
+so that its functions are the definitions of the `PlatformWeb_IO_*` symbols).
+Decoding stays in C (`platform_web_api.c` over `3rd/rscache`): the executor
+fetches bytes, C turns them into archives. **[The browser's cache: IndexedDB
+behind a dat2 facade](WEB_CACHE_INDEXEDDB.md)** is that design's page.
+
+A "wire" lane once existed beside it, in which the browser held no cache and
+every item crossed a socket to `io_server` as a `POST /io` batch. It needed a
+second C backend and a duplicate of every decision the executor makes, and was
+removed; the reasoning is kept in `src/platform/platform.mk`. `io_server`
+still answers `/io` and `test-io-wire` still exercises the codec, but no client
+build sends to it.
 
 `make -C src servers` builds both server processes; every web target depends on
 it, so a build that produces the module also produces what feeds it. Their
 routes, ports and staleness behaviour are in
 [The servers a browser run needs](WEB_SERVERS.md).
-
-`make -C src web-idb` is the other answer. The browser gets a cache of its own —
-archive records in IndexedDB behind a dat2 facade, filled incrementally over
-JS5 — so the page needs a `js5_server` and a static file server, and no
-`io_server` at all. It links `platform_x_io.c`, the desktop backend, rather than
-`platform_x_io_web.c`. **[The browser's cache: IndexedDB behind a dat2
-facade](WEB_CACHE_INDEXEDDB.md)** is that lane's page; everything below here
-describes the wire lane.
-
-The two cannot coexist in one module (both define `PlatformX_IO`), which is why
-the choice is a link-time lane with its own object directory rather than a
-runtime flag.
 
 `PLATFORM` values are `macos`, `linux`, `win32`, `win64`, and `web`; the
 default, `native`, resolves to `macos`, `linux`, or modern Windows `win64`.
@@ -100,7 +99,7 @@ What the web block swaps:
 
 | | native | web |
 |---|---|---|
-| IO | `platform_x_io.c` (reads the cache) | `platform_x_io_web.c` (asks the IO server) |
+| IO executor | `platform_x_io.c` (reads the cache) | `platform_web_io.js` (IndexedDB, then JS5 / the dat1 proxy) |
 | audio | `platform_audio_sdl2.c` | `platform_audio_wasm.c` (WebAudio) |
 | 3D | Soft3D, or `--opengl3` for GL 3.2 | Soft3D, or `--webgl1` for WebGL1 |
 | frame loop | `while (frame_loop_step())` | `emscripten_set_main_loop` |
@@ -113,10 +112,11 @@ What the web block swaps:
 
 Same script, same arguments as a native run — `web` is the only difference. It
 builds what is missing, starts the IO server, and opens the page. For a local
-live `osrs230`/`osrs239` manifest it also starts a native `ToriRSServer` child: the
-browser reaches that server over WebSocket while cache reads still use
-`io_server`. Ctrl-C (or any signal that stops the script) stops both children,
-so no stale listener holds either port.
+live `osrs230`/`osrs239` manifest it also starts a native `ToriRSServer` child:
+the browser reaches it over one WebSocket for the game and another for JS5,
+which fills the browser's cache. Ctrl-C (or any signal that stops the script)
+stops both children, so no stale listener holds either port. `./launch run
+osrs239-web` is the profile-driven equivalent.
 
 Nothing about the build depends on which manifest you name — the page fetches
 it from the server (see below), so one module opens any of them. Web-only
@@ -132,9 +132,10 @@ make -C src io-server
 ./src/build/io_server --manifest manifests/manifest_rs254lc.ini      # http://localhost:8088/
 ```
 
-The server serves `build-web/` over `GET` and answers cache reads on `POST /io`.
-It is the only process needed for an offline run; a local live
-`osrs230`/`osrs239` run also needs `ToriRSServer` on the game port. `io_server`
+The server serves `build-web/` over `GET` and the boot files over `GET /boot/`.
+An offline run of a cache the browser already holds needs nothing else; a
+dat2 world's first boot needs a JS5 source on the game port (`ToriRSServer`
+serves one), and a live run needs that server anyway. `io_server`
 options: `--manifest <boot.ini>` (recommended — it is the same file the native
 client reads, so the two cannot disagree about cache identity), or `--rev
 <name> <cache_dir>`; plus `--port`, `--root`, `--boot-root`, `--config`,
@@ -151,7 +152,8 @@ different way, so a web run is configured exactly like a native one.
 | `?arg=--manifest&arg=manifests/manifest_osrs230.ini&arg=--offline` | one argument per param — what `run-live.sh` generates |
 | `?args=--manifest,manifests/manifest_osrs230.ini,--offline` | the same, comma-joined; easier to type |
 | `?env=TORIRS_TASK_LOG=1&env=TORIRS_NET_DEBUG=1` | environment `getenv` will see (`;`-joined also accepted) |
-| `?io=http://host:8088/io` | IO endpoint, when the page is served from somewhere else |
+| `?io=http://host:8088/io` | io_server, when the page is served from somewhere else (`/boot`, `/stats` and the dat1 proxy derive from it; default: this page's directory) |
+| `?ws=wss://host/path` or `?ws=ws` | the game socket's URL, absolute or page-relative; JS5 follows it unless `?js5_url=` says otherwise |
 | `?fullcanvas=1` | start with the log panels hidden — page chrome, not argv; see [View controls](#view-controls) |
 
 Prefer repeated `arg=`: each value is percent-encoded on its own, so an argument
@@ -373,89 +375,44 @@ to this context", with nothing saying why.
 
 ## How cache reads work
 
-The seam is `PlatformX_IO_LoadItem` — the single place the native build touches
-a file. The web build moves that call across a socket instead of reimplementing
-it: [`io_wire.c`](../src/platform/io_wire.c) encodes a `struct ToriRS_IOItem`
-and its result, the server runs the real `PlatformX_IO_LoadItem` against a real
-cache, and the browser decodes an item indistinguishable from one the native
-backend filled in.
+The seam is the IO queue in [`asyncio.h`](../src/asyncio.h): a task queues
+items and yields, the platform's executor fills them, and the runner resumes
+the task once every item it queued is filled. The desktop executor is
+`platform_x_io.c`; the browser's is
+[`platform_web_io.js`](../src/platform/platform_web_io.js), which reads the
+queue in wasm memory at offsets the queue reports about itself
+(`ToriRS_IO_DescribeAbi`), awaits the host for each item's bytes, and hands
+the bytes to C to decode (`platform_web_api.c`). Nothing in C is suspended --
+there is no ASYNCIFY -- because C only ever asks whether an item is done.
 
-Encoding at the *item* seam rather than the file seam is what keeps the cache's
-semantics on one side of the wire. Resolving a logical table to this cache's
-table id, deciding whether a map archive is XTEA-encrypted, and mapping a dat1
-map square through the versionlist all need the open cache to answer, so they
-stay with the cache. What crosses is a decompressed archive and some ints.
+Where the bytes come from, per kind, is the table at the top of
+[WEB_SERVERS.md](WEB_SERVERS.md); the store and its producers are
+[WEB_CACHE_INDEXEDDB.md](WEB_CACHE_INDEXEDDB.md).
 
-`make -C src test-io-wire` is the check on that claim: it loads the same
-request twice, once directly and once through encode/decode on both sides, and
-compares the two items field for field and byte for byte.
+### The rule every task can rely on
 
-```sh
-make -C src test-io-wire                                        # dat1 only
-make -C src test-io-wire DAT2_CACHE=../cache.osrs230 DAT2_REV=osrs230
-```
+**Every item a task queued is complete by the time the task resumes.**
+`PlatformX_IO_Pending` reports items still in flight, and `TaskRunner_Step`
+does not resume a task while it has any; a task that reads `data` after its
+yield reads a filled slot or does not run. Per-`io`, not global: the app runs
+two task pipelines over one executor, and one being blocked must not stall the
+other.
 
-### Asynchrony
+The corollary is where parallelism lives: in the task. A task that queues one
+item, yields, and repeats pays a network round trip per archive -- measured at
+about 70 ms through a reverse proxy, with the server happy to answer twenty at
+once -- while a task that queues its independent reads together pays one. The
+queue holds 32 slots. The executor does not prefetch, batch across tasks, or
+resume anything early; a producer that fetched on a task's behalf would break
+the rule above, and has.
 
-The backend is built to answer late even though it usually does not have to.
-`PlatformX_IO_Process` encodes the batch and records what is outstanding;
-`PlatformX_IO_Pending` then tells `TaskRunner_Step` not to resume a task whose
-slot has not been filled yet, because resuming it would run the code after its
-`PT_YIELD` against an empty slot and report a decode failure. Per-`io`, not
-global: the app runs two task pipelines over one platform pump, and one being
-blocked must not stall the other. The synchronous native backend returns 0
-always, so its scheduling is unchanged.
+### Pacing while reads are outstanding
 
-With the default synchronous pump the page answers before Process returns, so
-nothing is ever pending and the loop behaves like the native one. The gate is
-what makes the frame-gated fallback (`?io_sync=0`) work on the same code.
-
-One read, end to end:
-
-1. `PlatformX_IO_Process` encodes the item into the outgoing batch and records
-   `req_id -> (io, slot)`.
-2. `frame_loop_step` calls `PlatformXIO_Web_Pump()`, which reaches
-   `Module.torirsIO.pump()` in the harness.
-3. The harness copies the batch out of wasm memory and POSTs it.
-4. `torirs_io_response_submit` decodes the reply, fills the slots, and drops
-   the pending records.
-5. `PlatformX_IO_Pending` now says 0 and the task resumes.
-
-Everything a task queued before it yielded goes out together, so a frame costs
-one round trip rather than one per archive. Responses are also cached
-client-side (as the encoded record, re-applied through the same decoder) —
-a dat2 config group is requested once per id it contains, and each of those
-would otherwise be its own round trip.
-
-### Pumping
-
-A task pipeline is serial: it issues a read, parks, and cannot resume until the
-answer lands. If the answer only arrives on a later turn of the event loop, a
-frame satisfies exactly one read — and a boot that reads several hundred
-archives then costs several hundred frames, while the client's 20ms logic ticks
-keep queueing more work behind them.
-
-So the default pump is **synchronous**, and runs from inside the client's
-`PlatformX_IO_Process`: requests go out and data comes back before Process
-returns, exactly as the native backend behaves, and the scheduler drains its
-whole per-frame budget. The rs254 boot's 414 archives arrive across 4 frames
-rather than ~410.
-
-The cost is a blocked main thread while it happens, so the page reports it: the
-status bar counts frames whose IO exceeded one frame's time and names the worst
-one, and the IO log lists every round trip with the frame that asked for it.
-
-```
-heap 256MB · io sync req 414 hit 0 done 414 fail 0 pending 0
-  · 1.2MB in 414 batches · slow frames 1 (worst 129ms)
-```
-
-`?io_sync=0` falls back to `fetch()`, which does not block but is frame-gated;
-IO log rows then show how many frames a round trip spanned. Both work because
-`PlatformX_IO_Pending` is what tells the client's scheduler whether a read is
-still outstanding — and while any is, `frame_loop_step` paces the loop from
-`EM_TIMING_SETTIMEOUT` rather than `requestAnimationFrame`, since logic ticks
-are wall-clock driven and so a faster loop drains without producing more.
+While any item is in flight `frame_loop_step` paces the loop from
+`EM_TIMING_SETTIMEOUT` rather than `requestAnimationFrame`: a WebSocket
+delivers between turns of the event loop, so a display-rate loop would cap a
+download at one round trip per frame. Logic ticks are wall-clock driven, so
+the faster loop drains without producing more.
 
 ## The JS host harness
 
@@ -468,10 +425,11 @@ browser cannot get for free:
 - **The files `main()` opens by name.** Fetched from `/boot/<path>` into the
   virtual filesystem during `preRun`, so the manifest named in the query string
   is there by the time the client looks for it.
-- **The IO pump.** Synchronously from inside `PlatformX_IO_Process` by default;
-  in the frame-gated mode it also runs on the harness's own animation frame,
-  because the wasm loop can be blocked on exactly the IO the pump delivers and
-  a pump that only ran when the client ran would deadlock there.
+- **The cache producers.** `Module.torirsHostIO` (`torirs_hostio.js`) is what
+  the executor asks for bytes: IndexedDB first, then JS5 (`torirs_js5.js`) for
+  a dat2 group or the dat1 proxy (`torirs_ondemand.js`) for a dat1 container,
+  then `/boot/` for a file. The page names where those sockets go (`?ws=`,
+  `?js5_url=`, `?io=`); the executor never chooses an endpoint.
 
 It is loaded before `torirs.js` — it defines the `Module` object the runtime
 reads on load. The page shows wasm heap size, IO counters and a per-round-trip

@@ -12,9 +12,12 @@
 //      virtual filesystem before main() runs, which is why any manifest works
 //      against any build.
 //
-//   3. The IO pump. The client has no disk: its cache reads pile up in wasm
-//      memory as an encoded batch and stay there until something carries them
-//      to the IO server.
+//   3. The cache. The client has no disk: its reads go on the IO queue and
+//      are answered by platform/platform_web_io.js (the executor), which reads
+//      IndexedDB and, on a miss, a producer this file creates -- JS5 for a
+//      dat2 world, the dat1 on-demand proxy on io_server for a dat1 one. A
+//      task is not resumed until every item it queued is filled
+//      (PlatformX_IO_Pending), so no read is ever observed half-done.
 //
 // Load this BEFORE torirs.js: it defines the Module object the runtime reads.
 //
@@ -22,41 +25,15 @@
 //   ?arg=--manifest&arg=manifests/manifest_rs254lc.ini&arg=--offline   one arg per param
 //   ?args=--manifest,manifests/manifest_rs254lc.ini,--offline          same, comma-joined
 //   ?env=TORIRS_TASK_LOG=1&env=TORIRS_NET_DEBUG=1          environment
-//   ?io=http://host:port/io                                IO endpoint (/io)
-//   ?io_sync=0                                             see "Pumping" below
+//   ?io=http://host:port/io       io_server; /boot, /stats and the dat1 proxy
+//                                 derive from it (default: this page's directory)
+//   ?ws=wss://host/path | ?ws=ws  the game socket's URL; JS5 follows it
+//   ?js5_host= ?js5_port= ?js5_url=   where JS5 is, when not the page's host
 //
 // Repeated `arg=` is the form run-live.sh generates and the one to prefer:
 // each value is percent-encoded on its own, so an argument may contain a comma,
 // a space or an `&` — a password, a TORIRS_NET_CHEAT string. The comma-joined
 // `args=` form stays because it is far easier to type by hand.
-//
-// ## Pumping
-//
-// A task pipeline is serial: it issues a read, parks, and cannot resume until
-// the answer lands. If the answer only arrives on a later turn of the event
-// loop, a frame can satisfy exactly one read — and a boot that reads several
-// hundred archives then takes several hundred frames, while the client's 20ms
-// logic ticks keep queueing more work behind them.
-//
-// So the boot's pump is synchronous, and runs from inside the client's
-// PlatformX_IO_Process: requests go out and data comes back before Process
-// returns, exactly as the native backend behaves. A boot then costs a handful
-// of frames rather than hundreds. The cost is a blocked main thread while it
-// happens, which is why the IO log below reports what each frame spent.
-//
-// A live client pays that cost for nothing. A synchronous XMLHttpRequest
-// freezes the main thread for much longer than the request takes (measured on
-// localhost: 4.4ms average, 17ms worst, against a 3.55ms round trip), and the
-// reads a live client still issues are the ones that coincide with something
-// new on screen — the first play of an npc's hit sound is a fetch on the frame
-// its hitsplat is drawn. So the client stops asking for the blocking pump once
-// it reaches APP_STATE_READY (PlatformXIO_Web_SetBlockingReads) and this file's
-// frame-gated fetch carries the batch instead. Both paths run in one session;
-// pump() must therefore always be willing to deliver.
-//
-// ?io_sync=0 declines the blocking pump outright, boot included: everything is
-// frame-gated fetch. The client supports both — PlatformX_IO_Pending is what
-// tells its scheduler whether a read is still outstanding.
 
 /*
  * One function wrapped around the file, because these load as plain <script>

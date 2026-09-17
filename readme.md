@@ -157,7 +157,7 @@ The order inside one iteration is a contract, not a style choice:
 
 | # | step | why it must be here |
 |---|---|---|
-| 1 | `PlatformXIO_Web_Pump()` (web only) | carry last frame's queued cache reads to the server; a request nobody carries parks the task queue forever |
+| 1 | `PlatformX_IO_Process` / `Pending` (inside step 5, per task runner) | the platform executor takes what a task queued and reports what is still in flight; a task is not resumed until every item it queued is filled |
 | 2 | drain SDL/JS events → `ToriRS_CmdBus` | input and network bytes enter as recordable frames |
 | 3 | `App_DrainCommands` | bus → `ToriRS_Input` / `ToriRS_Network` / canvas resize |
 | 4 | surface reconcile (canvas size, DPI, chrome scale) | layout is computed against the canvas, so it must be settled before logic |
@@ -496,41 +496,27 @@ Both are always built native, even from a web build:
 different exposure, which is why they are separate executables with separate
 bind addresses. Full detail in [docs/WEB_SERVERS.md](docs/WEB_SERVERS.md).
 
-#### `io_server` — the web build's disk
+#### `io_server` — the page, the boot files, and the dat1 proxy
 
-[`src/ioserver/`](src/ioserver/). A browser tab cannot open a 170 MB cache
-directory and would not want to. So this process keeps the cache open and runs
-**the same `PlatformX_IO_LoadItem` the native client runs** — there is no second
-implementation of "what does this archive request mean" anywhere.
+[`src/ioserver/`](src/ioserver/). Serves `build-web/`, revalidates the files
+the client opens by name, and stands in for the one cache source a page
+cannot reach itself: a LostCity dat1 cache, whose on-demand half is raw TCP and
+whose jag archives carry no CORS header.
 
 | route | method | what |
 |---|---|---|
-| `/io` | POST | one `IOWire` batch of cache reads |
-| `/boot/<path>` | GET | a manifest or RevConfig INI, under `--boot-root` |
+| `/boot/<path>` | GET | a manifest, RevConfig INI or plugin script, under `--boot-root`, with a validator |
+| `/cache/dat1/<table>/<archive>` | GET | one raw dat1 container, proxied off the LostCity server the manifest names |
+| `/cache/dat1/batch` | POST | several of those on one connection |
 | `/stats` | GET | what it served, which caches are open |
+| `/io` | POST | an `IOWire` batch — the removed wire lane's route; `test-io-wire` still checks the codec, no client sends to it |
 | everything else | GET | static files under `--root` (default `build-web/`) |
 
-The wire codec is [`src/platform/io_wire.h`](src/platform/io_wire.h), and the
-seam is deliberately the **item**, not the file:
-
-```
-'T''R''I''O' | u32 version | u32 count | cache | record * count
-```
-
-Encoding at the item seam keeps the cache's semantics on one side of the wire —
-resolving a logical table, deciding whether a map archive is XTEA'd, and mapping
-a dat1 square through the versionlist all need the open cache. What crosses is a
-decompressed archive and its metadata: bytes and ints. Batching is what makes it
-affordable — everything a task queued before it yielded goes out together, so a
-frame costs one round trip instead of one per archive.
-
-Each batch carries an `IOWireCache` descriptor (epoch, game, revision, quirks,
-dir) — per batch rather than per record (repetitive) or once at connect
-(stateful). One server therefore answers clients booting different generations,
-and each open cache gets **its own `PlatformX_IO`**, which is what makes the
-archive LRU correct rather than a hazard. Client-supplied cache directories are
-treated as input: resolved under `--boot-root`, rejected if absolute or escaping
-the tree.
+What crosses the dat1 proxy is the container exactly as the server serves it,
+undecoded: the browser stores raw containers for dat2 already, and one shape
+for both keeps a single decode step at the far end (`platform_web_api.c`).
+Client-supplied cache directories and manifest paths are treated as input:
+resolved under `--boot-root`, rejected if absolute or escaping the tree.
 
 Boot files carry `ETag: "<mtime>-<size>"` + `Cache-Control: no-cache` +
 `Access-Control-Expose-Headers: ETag`, so a hand-edited manifest is picked up
@@ -572,59 +558,30 @@ Readiness line: `READY 127.0.0.1 43594 239`.
 
 ---
 
-### The two web lanes
+### The web lane
 
-They are different architectures, not a runtime flag — both define
-`PlatformX_IO`, so the choice is made at link time and each owns its object
-directory ([`src/platform/platform.mk`](src/platform/platform.mk)).
+One lane, and its cache is in the browser: one raw container per archive in
+IndexedDB (`src/web/torirs_idb.js`), filled on demand by a producer that
+speaks the cache's own protocol -- JS5 (`torirs_js5.js`) for a dat2 world,
+the 2004 on-demand protocol proxied through `io_server` (`torirs_ondemand.js`)
+for a dat1 one. The IO queue the game writes to is the desktop's
+(`asyncio.h`); the *executor* that answers it is JavaScript
+([`platform_web_io.js`](src/platform/platform_web_io.js), linked as an
+emscripten JS library so its functions define the `PlatformWeb_IO_*` symbols),
+and decoding stays in C (`platform_web_api.c` over `3rd/rscache`). No ASYNCIFY:
+C queues and asks whether an item is done; `PlatformX_IO_Pending` keeps
+`TaskRunner_Step` from resuming a task until every item it queued is filled.
 
-| | `make -C src web` (`CACHE=wire`) | `make -C src web-idb` (`CACHE=idb`) |
-|---|---|---|
-| IO backend | `platform_x_io_web.c` + `io_wire.c` | `platform_x_io.c` + `platform_x_io_js5_cache.c` — *the desktop one* |
-| where the cache is | on the server; nothing persists in the tab | IndexedDB records behind a dat2 facade |
-| `io_server` | **required** (every read is `POST /io`) | page + `/boot/` only; `/io` never called |
-| `js5_server` | no | **required** |
-| objdir | `build_web` | `build_web_idb` |
+The earlier "wire" lane -- no cache in the tab, every read a `POST /io` to
+`io_server` -- was removed; `src/platform/platform.mk` keeps the reasoning.
+`io_server` serves the page, revalidates the boot files (`GET /boot/`, ETag),
+proxies dat1 containers, and still answers `/io` for `test-io-wire` only.
 
-**Wire lane.** `Process()` encodes into the outgoing batch and remembers
-`(req_id → io, slot)`; next frame the JS pump copies the batch out of wasm
-memory and POSTs it; `response_submit()` decodes and fills the slots; `Pending()`
-drops to 0 and the task resumes. A 1024-slot / 32 MB response cache keeps the
-encoded record and re-applies it through the same decoder, so a hit and a miss
-build an identical item — no second materialization path to keep in step.
-
-**IndexedDB lane.** [`dat2_web_store.h`](src/platform/dat2_web_store.h) stores
-one record per archive keyed by `(cache, table, archive)`, holding exactly what
-an idx record would have addressed: the JS5 container plus its version trailer.
-A sector chain over a key-value store buys nothing and costs twice (520-byte
-sector headers, plus orphaned sectors on rewrite). Records live in the **JS
-heap**, hydrated in one cursor pass before `main()`, because this lane has no
-ASYNCIFY and a `get()` that had to reach the database could not answer the
-synchronous call it stands in for. Consequences, both deliberate: a cache larger
-than the 4 GB wasm ceiling is not itself a reason to run out of memory, and a
-record the hydration missed reads as *absent* — JS5 re-downloads it. Nothing is
-evicted mid-session, because JS5 believing a group is ready and the store having
-dropped it would turn a completed download into a failed read.
-
-[`web_cache_boot.c`](src/platform/web_cache_boot.c) inverts the metadata
-barrier so the *page* drives it (`torirs_web_cache_prime_begin/step/stats`),
-since a spin loop cannot exist in a browser.
-
-Two web-only pacing rules, both in `frame_loop_step`:
-
-- **Blocking reads during boot, never after.** A blocking read returns inside
-  the frame that asked, which keeps a boot's serial chain of hundreds of
-  archives from costing an event-loop turn apiece. Past `APP_STATE_READY` the
-  remaining reads are exactly the ones that coincide with something new on
-  screen (the first play of an npc's sound), and a synchronous XHR freezes the
-  main thread for longer than the request takes. `PlatformXIO_Web_SetBlockingReads`.
-- **`raf` vs `setTimeout(0)`.** While reads are outstanding the loop must run at
-  event-loop rate: a WebSocket delivers *between* turns of the event loop, so a
-  display-rate loop caps the download at one round trip per frame.
-
-Also note `TORIRS_IOK_FILE_READ/WRITE` on the IDB lane goes to the durable
-store, **not** MEMFS — MEMFS lives for the life of the tab, and a client file is
-the player's saved options, precisely the thing that must survive a reload.
+The store keeps no JavaScript mirror and no hydrate pass: records are read
+from IndexedDB when asked, since everything that touches the store is
+asynchronous. `TORIRS_IOK_FILE_READ/WRITE` go to the durable `files` store,
+**not** MEMFS -- MEMFS lives for the life of the tab, and a client file is the
+player's saved options, precisely the thing that must survive a reload.
 
 ---
 

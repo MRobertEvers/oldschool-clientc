@@ -1,50 +1,51 @@
 # The servers a browser run needs
 
-> Build them together: `make -C src servers`. Every web target
-> (`web`, `web-debug`, `web-idb`, `web-idb-debug`) depends on it, so a build
-> that produces the module also produces the processes that feed it.
+> Build them together: `make -C src servers`. Both web targets (`web`,
+> `web-debug`) depend on it, so a build that produces the module also produces
+> the processes that feed it.
 
 A desktop client opens a cache directory and a socket. A browser tab can do
-neither, so both jobs move into servers, and which servers depends on where the
-client's cache lives.
+neither. The cache moves into the browser -- one record per archive in
+IndexedDB, filled on demand by a *producer* that speaks the cache's own
+protocol -- and everything the tab cannot reach directly is answered by a
+native process.
 
 ```
-                    ┌──────────────── the browser tab ────────────────┐
-                    │                                                 │
-                    │  index.html ── torirs_host.js ── torirs.wasm    │
-                    │                     │                │          │
-                    └─────────────────────┼────────────────┼──────────┘
-                                          │                │
-                    GET /                 │                │  emscripten
-                    GET /boot/<path>      │                │  socket
-                    POST /io  (wire lane) │                │  (WebSocket)
-                                          ▼                ▼
-                            ┌──────────────────┐   ┌──────────────────┐
-                            │    io_server     │   │    js5_server    │
-                            │  HTTP, native    │   │  JS5, native     │
-                            └────────┬─────────┘   └────────┬─────────┘
-                                     │                      │
-                                     └──── the cache on disk ┘
+              ┌────────────────── the browser tab ──────────────────┐
+              │ index.html ── torirs_host.js ── torirs.wasm         │
+              │       torirs_hostio.js  (files, boot, one archive)  │
+              │       torirs_idb.js     (IndexedDB: groups/files)   │
+              │       torirs_js5.js     torirs_ondemand.js          │
+              └──────┬───────────────────┬────────────────┬─────────┘
+   GET /             │        JS5 over   │     emscripten │  game
+   GET /boot/<path>  │        WebSocket  │     socket     │  (WebSocket)
+   GET /cache/dat1/… │                   │                │
+                     ▼                   ▼                ▼
+             ┌──────────────┐    ┌───────────────┐  ┌────────────────┐
+             │  io_server   │    │ JS5 source:   │  │ game server    │
+             │  HTTP        │    │ torirsserver  │  │ torirsserver / │
+             │              │    │ (game port)   │  │ LostCity       │
+             │              │    │ or js5_server │  │                │
+             └──────┬───────┘    └───────┬───────┘  └────────────────┘
+                    └── the cache on disk ┘
 ```
 
-Two processes, deliberately. They have different jobs, different lifetimes and
-very different exposure — `js5_server` hands out every byte of a cache to
-anything that connects, and `io_server` serves a source tree — so they are
-separate executables with separate bind addresses. What is unified is the
-*build*: one target produces both, because needing two and being told about one
-is how a web build ends up half-runnable.
+Who answers what, by kind of read:
 
-## Which servers each lane needs
+| the client asks for | where it comes from |
+| --- | --- |
+| a dat2 group or reference table (osrs239, osrs230) | IndexedDB, else **JS5** over a WebSocket -- `torirsserver` serves JS5 on its game port (first byte picks), or a standalone `js5_server` |
+| a dat1 container or map square (LostCity rs254 / rs289) | IndexedDB, else **io_server's dat1 proxy**, `GET /cache/dat1/…`: a page cannot speak the 2004 on-demand protocol (raw TCP) and the jag archives have no CORS |
+| the manifest, RevConfig INIs, plugin scripts | IndexedDB with a validator, revalidated against **io_server** `GET /boot/<path>` |
+| the player's own files | IndexedDB only |
 
-| lane | `io_server` | `js5_server` | why |
-| --- | --- | --- | --- |
-| `make -C src web` (wire) | **required** | no | there is no cache in the browser; every read is a `POST /io` |
-| `make -C src web-idb` | for the page and boot files | **required** | the browser holds its own cache and fills it over JS5 |
-
-On the IndexedDB lane `io_server`'s `/io` route is never called — the client
-does not link the wire backend at all. It is still the right thing to serve the
-page from, because it also serves `/boot/`, and `/boot/` is where the staleness
-checking lives (below).
+The page and the module come from `io_server` too. So a run always has
+`io_server` plus a game server, and for a dat2 world the game server is also
+the JS5 source. There is one web lane; the "wire" lane, in which the browser
+held no cache and every read was a `POST /io` to io_server, was removed (see
+the note in `src/platform/platform.mk`). io_server still answers `POST /io`
+and `make -C src test-io-wire` still checks the codec, but no client build
+sends to it.
 
 ---
 
@@ -58,27 +59,26 @@ checking lives (below).
 | route | method | what it does |
 | --- | --- | --- |
 | `/` and everything else | GET | static files under `--root` (default `build-web`) |
-| `/boot/<path>` | GET | a file the client opens by name, under `--boot-root` |
-| `/io` | POST | one `IOWire` batch — the wire lane's cache reads |
-| `/stats` | GET | what it has served, and which caches it has open |
+| `/boot/<path>` | GET | a file the client opens by name, under `--boot-root`, with a validator |
+| `/cache/dat1/<table>/<archive>` | GET | one raw dat1 container, proxied off the LostCity server the manifest names |
+| `/cache/dat1/batch` | POST | several of those, pipelined on one connection |
+| `/stats` | GET | one line: which caches are open, what was served |
+| `/status` | GET | the same, as a page |
+| `/io` | POST | an `IOWire` batch; kept for `test-io-wire`, unused by the client |
 
 `--boot-root` is separate from `--root` on purpose: one is build output, the
 other is the source tree the manifests live in, and a server that conflated
 them would serve either the wrong file or the whole repository.
 
-### Caches are opened on demand, one per identity
+### Caches and worlds are opened on demand
 
-Every `/io` batch carries a cache descriptor — epoch, game, revision, quirks,
-directory — and the server opens what it is asked for on first use and keeps it
-open. One server therefore answers clients booting different generations, and
-changing the manifest in the page's URL needs no restart.
-
-Each open cache gets its own `PlatformX_IO`, which is what makes the
-decompressed-archive LRU inside it correct rather than a hazard: a group cached
-for one generation must never answer a read against another.
-
-Cache directories arrive from another process, so they are treated as input —
-resolved under `--boot-root`, and rejected if absolute or containing `..`.
+`--manifest` is only a preopen. A dat1 proxy request names the manifest it is
+booting -- the same path the page fetched through `/boot/` moments earlier --
+and the server opens that world's on-demand connection on first use and keeps
+it. One process serves every world at once, and changing the manifest in the
+page's URL needs no restart. Cache directories arrive from another process, so
+they are treated as input: resolved under `--boot-root`, and rejected if
+absolute or escaping it.
 
 ### Staleness: conditional GETs
 
@@ -103,8 +103,8 @@ Three details that are load-bearing:
 
 - **`no-cache`, not `no-store`.** `no-store` forbids the browser from keeping
   the copy it would revalidate, which defeats the whole mechanism. Responses
-  without a validator — an `/io` batch, `/stats` — still say `no-store`,
-  because those genuinely may not be reused.
+  without a validator — a proxied dat1 container, `/stats` — still say
+  `no-store`, because those genuinely may not be reused.
 - **`Access-Control-Expose-Headers`.** A cross-origin response's `ETag` is
   hidden from script unless it is exposed, and a validator nobody can read is
   the same as no validator.
@@ -117,13 +117,17 @@ The host's side of this is in [WEB_CACHE_INDEXEDDB.md](WEB_CACHE_INDEXEDDB.md).
 
 ---
 
-## js5_server
+## JS5: torirsserver's game port, or js5_server
 
 ```sh
+./src/build_opt/torirsserver 43594 --rev osrs239          # game + JS5 on one socket
 ./src/build_opt/js5_server --cache cache.osrs239 --revision 239 --port 43594
 ```
 
-A read-only revision-239 cache service. The protocol is documented in full in
+The osrs239 launch profile has no separate JS5 process: `torirsserver` serves
+JS5 on its game port, and the page's default JS5 port is that game port.
+`js5_server` is the standalone form of the same service -- a read-only
+revision-239 cache service. The protocol is documented in full in
 [JS5_SERVER.md](JS5_SERVER.md); what matters here is how it fits the browser.
 
 ### One port, two framings
@@ -184,41 +188,43 @@ controls who can reach it.
 
 ---
 
-## Running the pair
+## Running it
 
 ```sh
-make -C src web-idb          # module + both servers
-
-./src/build_opt/js5_server --cache cache.osrs239 --revision 239 --port 43594 &
-./src/build/io_server --root build-web --boot-root . --port 8099
+./launch run osrs239-web        # torirsserver + io_server, then the page URL
 ```
 
-```
-http://localhost:8099/index.html?arg=--manifest&arg=manifests/manifest_osrs239.ini&arg=--offline
-```
-
-The wire lane is one command, since it needs no cache server:
+By hand, the same two processes:
 
 ```sh
-make -C src web
-./src/build/io_server --manifest manifests/manifest_osrs239.ini    # http://localhost:8088/
+make -C src web                                  # module + both servers
+TORIRSSERVER_CACHE=cache.osrs239 ./src/build_opt/torirsserver 43594 --rev osrs239 &
+./src/build/io_server --manifest manifests/manifest_osrs239.ini --root build-web --boot-root .
 ```
 
-`run-live.sh web <manifest> …` drives the wire lane end to end, starting
+```
+http://localhost:8088/?args=--manifest,manifests/manifest_osrs239.ini
+```
+
+`run-live.sh web <manifest> …` drives the same pair from a script, starting
 `io_server` as its own child so a stopped script does not leave a process
-holding the port. For a local live `osrs230`/`osrs239` manifest it also starts
-native `ToriRSServer` on the game port; the browser reaches it over WebSocket.
+holding the port, and a native `ToriRSServer` for a local live world.
 
-## Ports
+## Ports and where the page dials
 
 | | default | changed with |
 | --- | --- | --- |
-| `io_server` HTTP | 8088 | `--port`, or `TORIRS_WEB_PORT` via `run-live.sh` |
-| `js5_server` | 43594 | `--port`, and `?js5_port=` on the page |
+| `io_server` HTTP | 8088 | `--port`; the page derives `/boot`, `/stats`, `/cache/dat1` from its own URL, `?io=` overrides |
+| JS5 | `ws://<page host>:43594` | `?js5_host=`, `?js5_port=`, or `?js5_url=` |
+| game socket | the manifest's `ws_host:ws_port` | `?ws=` |
 
-The page derives the JS5 host from its own origin, so serving the page and the
-cache from one machine needs no configuration; `?js5_host=` overrides it when
-they are not.
+Two WebSockets leave the page, JS5 and the game, and both default to a plain
+`ws://host:port`. That is right on a LAN and wrong behind anything that
+terminates TLS: an `https:` page may not open `ws:` (mixed content, refused
+before connecting), and a reverse proxy reaches a server by path, not port.
+`?ws=<url-or-path>` names the game socket; JS5 then dials the same URL, since
+the server picks JS5 or game off the first byte. `?js5_url=` names JS5
+separately if the two ever split.
 
 ---
 
@@ -238,11 +244,11 @@ it. The servers are native binaries, so run it on the OS that will host the
 package. The zip's README covers running it; `install-windows-task.ps1`
 registers a startup task and the firewall rules on Windows.
 
-Behind a TLS-terminating reverse proxy the page cannot dial `ws://host:port`
-directly (mixed content, and a proxy routes by path). The host page takes
-`?ws=<url-or-path>`: `ws=ws` on `https://host/torirs/` sets the game socket to
-`wss://host/torirs/ws`, which the proxy pipes raw to the game port -- the
-server terminates the WebSocket itself. Every other default endpoint (`/io`,
-`/boot`) is relative to the page's directory, so a prefix mount needs no
-other configuration.
+Behind a TLS-terminating reverse proxy: `ws=ws` on `https://host/torirs/`
+sets the game socket to `wss://host/torirs/ws`, and JS5 follows it; the proxy
+pipes that path's upgrade raw to the game port, where the server terminates
+the WebSocket itself. Every HTTP default (`/boot`, `/stats`) is relative to the
+page's directory, so a prefix mount needs no other configuration. This was
+learned the hard way: the first public deployment routed the game socket and
+not JS5, and every cache read came back empty.
 
