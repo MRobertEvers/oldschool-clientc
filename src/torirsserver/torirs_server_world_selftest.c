@@ -3084,6 +3084,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
 #include "test/sailing_lifecycle_selftest.u.h"
+#include "test/tutorial_island_selftest.u.h"
 #include "test/quest_doric_selftest.u.h"
 #include "test/quest_imp_selftest.u.h"
 #include "test/quest_cook_selftest.u.h"
@@ -36326,6 +36327,7 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    selftest_tutorial_island(srv, player);
     selftest_quest_doric(srv, player);
     selftest_quest_cook(srv, player);
     selftest_quest_druid(srv, player);
