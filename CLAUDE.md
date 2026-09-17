@@ -144,3 +144,37 @@ if( fread(data, 1, size, f) != size )
 `TEST_ASSERT(f(NULL) == 0, "f tolerates NULL")` freezes the exact habit above.
 If NULL is a contract violation, delete the line rather than keeping the guard
 alive to satisfy it.
+
+## Never mutate source in this working tree to prove a test fails
+
+Several sessions build from this checkout at once, into shared object
+directories (`src/build_opt_es`, `src/build_opt`, ...). A mutation check that
+edits a real file, runs a test, and restores it leaves a window in which any
+other build compiles the mutant. The restore does not undo that: the object
+can finish after the restore, and GNU Make 3.81 here compares whole-second
+mtimes, so the object never looks stale again.
+
+This happened on 2026-09-16. A check deleted the blank-line rule from
+`3rd/toridraw/toridraw_font.c` for eight seconds; a concurrent build compiled
+`src/build_opt_es/toridraw_unity.o` from it in the same second as the restore,
+and every later `./launch` linked the mutant. The chat filter labels overlapped
+"On" on every renderer while the source, the tests, and every clean private
+build said the bug was fixed.
+
+```sh
+# NO — mutates the tree other builds are reading.
+sed -i '' 's/rule/(void)0/' 3rd/toridraw/toridraw_font.c && make test-x; git checkout 3rd/toridraw/toridraw_font.c
+
+# YES — mutate a throwaway worktree; the shared tree never sees the mutant.
+git worktree add --detach "$SCRATCH/mut" HEAD
+cp 3rd/toridraw/toridraw_font.c src/ui/test/font_markup_test.c ...   # uncommitted work the test needs
+( cd "$SCRATCH/mut" && <apply mutation> && make -C src PLATFORM_OBJ_BASE=build_mut test-x )
+git worktree remove --force "$SCRATCH/mut"
+```
+
+The same holds for any temporary edit to a source file that is not the change
+itself (a probe, a forced branch, a commented-out call): do it in a worktree,
+or make it the committed change.
+
+If a build ever disagrees with its source, delete the object and rebuild; do
+not trust `make` to notice.
