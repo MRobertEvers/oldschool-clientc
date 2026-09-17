@@ -343,7 +343,44 @@ struct Task_ExecPlayerInfo
     int pending_seq;
     int pending_delay;
     int held_vals[2]; /* replaceheld left/right, as canonical appearance slots */
+    /* Siblings queued on the provider's asset queue and joined on (PT_TASK_JOIN). */
+    int pending;
 };
+
+/*
+ * Queue a loader for every distinct model id as a SIBLING, counted on
+ * `pending`, instead of awaiting each inline.
+ *
+ * An appearance is a dozen models and none of them depends on another, so
+ * awaiting them one at a time cost a round trip per model: on the web lane,
+ * where a miss is a JS5 request, a player took a second to dress and every
+ * player in view added another (browser_probe, 2026-09-17). The world loader
+ * fans its models out the same way; this is the entity path catching up.
+ * Duplicates are skipped here because CreateTask_ModelLoad only declines a
+ * model that is already RESIDENT, and two loaders for one id in flight at
+ * once would both decode it.
+ */
+static void
+entity_fanout_models(
+    struct CacheProvider* provider,
+    int const* ids,
+    int count,
+    int* pending)
+{
+    assert(provider);
+    assert(provider->asset_queue);
+    assert(pending);
+    for( int i = 0; i < count; i++ )
+    {
+        int dup = 0;
+        for( int j = 0; j < i && !dup; j++ )
+            dup = ids[j] == ids[i];
+        if( dup )
+            continue;
+        ToriRS_TaskQueue_AddJoined(
+            provider->asset_queue, CreateTask_ModelLoad(provider, ids[i]), pending);
+    }
+}
 
 /*
  * Resolve the current target's world-pool index (and optionally its scene
@@ -851,8 +888,8 @@ player_slot_cfg_task(struct Task_ExecPlayerInfo* self)
     }
 }
 
-static struct ToriRS_Task*
-player_appearance_seq_task(struct Task_ExecPlayerInfo* self)
+static int
+player_appearance_seq_id(struct Task_ExecPlayerInfo const* self, int i)
 {
     int ids[7] = {
         self->app_decoded.readyanim,   self->app_decoded.turnanim,
@@ -860,7 +897,25 @@ player_appearance_seq_task(struct Task_ExecPlayerInfo* self)
         self->app_decoded.walkanim_l,  self->app_decoded.walkanim_r,
         self->app_decoded.runanim,
     };
-    int seq_id = ids[self->seq_i];
+    assert(i >= 0 && i < 7);
+    return ids[i];
+}
+
+/* Does stance `seq_i` name a sequence an earlier stance already named? */
+static int
+player_appearance_seq_repeats(struct Task_ExecPlayerInfo const* self)
+{
+    int seq_id = player_appearance_seq_id(self, self->seq_i);
+    for( int i = 0; i < self->seq_i; i++ )
+        if( player_appearance_seq_id(self, i) == seq_id )
+            return 1;
+    return 0;
+}
+
+static struct ToriRS_Task*
+player_appearance_seq_task(struct Task_ExecPlayerInfo* self)
+{
+    int seq_id = player_appearance_seq_id(self, self->seq_i);
     if( seq_id < 0 )
         return NULL;
     return CreateTask_SequenceLoad(self->app->provider, self->app->scene, seq_id);
@@ -929,15 +984,21 @@ Task_ExecPlayerInfo_Run(
                     self->app_decoded.gender,
                     self->model_ids,
                     (int)(sizeof(self->model_ids) / sizeof(self->model_ids[0])));
-                for( self->model_i = 0; self->model_i < self->model_count; self->model_i++ )
-                {
-                    PT_TASK_AWAITSELF_IF(
-                        CreateTask_ModelLoad(app->provider, self->model_ids[self->model_i]));
-                }
+                /* Models and the seven stance sequences are independent reads:
+                 * all of them go on the wire together and this task parks
+                 * until the last lands. Each sequence id is queued once even
+                 * when the appearance names it for several stances, since
+                 * CreateTask_SequenceLoad only declines one already
+                 * REGISTERED and two in flight would register it twice. */
+                entity_fanout_models(app->provider, self->model_ids, self->model_count, &self->pending);
                 for( self->seq_i = 0; self->seq_i < 7; self->seq_i++ )
                 {
-                    PT_TASK_AWAITSELF_IF(player_appearance_seq_task(self));
+                    if( player_appearance_seq_repeats(self) )
+                        continue;
+                    ToriRS_TaskQueue_AddJoined(
+                        app->provider->asset_queue, player_appearance_seq_task(self), &self->pending);
                 }
+                PT_TASK_JOIN(pending);
                 /* Re-resolve after the yields, for the same reason the npc
                  * path does: world pool indices and scene element ids are
                  * recycled, and the awaits above let the world move underneath
@@ -1015,9 +1076,8 @@ Task_ExecPlayerInfo_Run(
                         self->model_ids,
                         (int)(sizeof(self->model_ids) / sizeof(self->model_ids[0])));
                 }
-                for( self->model_i = 0; self->model_i < self->model_count; self->model_i++ )
-                    PT_TASK_AWAITSELF_IF(
-                        CreateTask_ModelLoad(app->provider, self->model_ids[self->model_i]));
+                entity_fanout_models(app->provider, self->model_ids, self->model_count, &self->pending);
+                PT_TASK_JOIN(pending);
 
                 {
                     int const world_idx = player_target(self, NULL);

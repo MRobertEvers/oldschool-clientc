@@ -55,6 +55,8 @@ struct Task_PlayerAppearanceLoad
     int kits[PLAYER_APPEARANCE_PARTS];
     int model_part;
     int model_i;
+    /* Model loaders queued as siblings on the provider's asset queue. */
+    int pending;
 };
 
 static void
@@ -138,18 +140,26 @@ Task_PlayerAppearanceLoad_Run(
             self->kits[5],
             self->kits[6]);
 
-    /* Load every model referenced by the chosen kits. */
+    /* Load every model referenced by the chosen kits: as siblings, all on
+     * the wire at once, rather than one awaited round trip per model. The
+     * ids are distinct by construction (one kit per body part, and a kit's
+     * models are its own), so nothing is queued twice. */
+    assert(self->provider->asset_queue);
     for( self->model_part = 0; self->model_part < PLAYER_APPEARANCE_PARTS; self->model_part++ )
     {
         for( self->model_i = 0;
              self->model_i < player_kit_model_count(self->provider, self->kits[self->model_part]);
              self->model_i++ )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(
-                self->provider,
-                player_kit_model_id(self->provider, self->kits[self->model_part], self->model_i)));
+            ToriRS_TaskQueue_AddJoined(
+                self->provider->asset_queue,
+                CreateTask_ModelLoad(
+                    self->provider,
+                    player_kit_model_id(self->provider, self->kits[self->model_part], self->model_i)),
+                &self->pending);
         }
     }
+    PT_TASK_JOIN(pending);
 
     PT_END(&self->pt);
 }
