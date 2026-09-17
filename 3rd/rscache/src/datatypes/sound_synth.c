@@ -27,9 +27,16 @@ RSCache_SoundCodecVersion(const struct RSCache* cache)
 int
 RSCache_SoundFlags(const struct RSCache* cache)
 {
-    return RSCache_SoundCodecVersion(cache) == RSCACHE_CODEC_SOUND_SYNTH
-               ? RSCACHE_SOUND_HAS_FILTER
-               : 0;
+    /* The filter arrived before the mixer rewrite, so it is gated on its own
+     * boundary rather than on the codec generation: rs2/dat1 289 carries it
+     * (every one of LostCity 289's 975 .synth records consumes exactly with it,
+     * none without) while still mixing the WAVE way (webclient JagFX.ts). */
+    if( RSCache_IsDat1(cache) )
+        return RSCache_RevisionAtLeastRs2(
+                   cache, RSCACHE_TYPE_SOUND, 289, RSCACHE_GROUP_REVISION_UNKNOWN, false)
+                   ? RSCACHE_SOUND_HAS_FILTER
+                   : 0;
+    return RSCACHE_SOUND_HAS_FILTER;
 }
 
 enum RSCache_SoundSampleKind
