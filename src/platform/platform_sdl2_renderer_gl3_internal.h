@@ -376,9 +376,33 @@ struct ToriRS_GL3
     bool frame_used_scale_fbo;
     /** Drawable pixels reserved at the right for the attached plugin shell. */
     int host_right_inset;
-    /* All Settings' interface scaling mode. GL has nearest and linear
-     * sampling; the Bicubic choice uses the highest portable one, linear. */
+    /* All Settings' interface scaling mode: 0 nearest, 1 linear, 2 bicubic.
+     * @see gl3_ui_layer_wanted. */
     int interface_scale_mode;
+    /*
+     * The interface layer. With a Linear or Bicubic interface filter and an
+     * interface drawn larger than it is, each 2D segment draws 1:1 into this
+     * layout-sized, premultiplied-alpha target and END_2D filters the finished
+     * picture onto the output rect once. Filtering every sprite and glyph on
+     * its own instead bled neighbouring atlas cells into each other, showed
+     * every tile boundary as a seam, and was never bicubic at all.
+     */
+    GLuint ui_layer_fbo;
+    GLuint ui_layer_texture;
+    int ui_layer_w;
+    int ui_layer_h;
+    bool ui_layer_open;
+    GLint ui_layer_saved_fbo;
+    int ui_layer_saved_lb_x;
+    int ui_layer_saved_lb_y;
+    int ui_layer_saved_lb_w;
+    int ui_layer_saved_lb_h;
+    GLuint ui_composite_program;
+    GLuint ui_composite_vao;
+    GLuint ui_composite_vbo;
+    GLint ui_composite_u_layer;
+    GLint ui_composite_u_size;
+    GLint ui_composite_u_filter;
 
     struct TRSPK_Atlas atlas;
     /*

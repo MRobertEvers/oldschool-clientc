@@ -591,10 +591,16 @@ main_damage_to_buffer(
     assert(platform);
     if( bw == lw && bh == lh )
         return;
-    x0 = (long long)*x * bw / lw;
-    y0 = (long long)*y * bh / lh;
-    x1 = ((long long)(*x + *w) * bw + lw - 1) / lw;
-    y1 = ((long long)(*y + *h) * bh + lh - 1) / lh;
+    /* Two layout pixels wider each way: a Linear or Bicubic interface filter
+     * reads that far past a changed texel (soft3d_segment_end). */
+    x0 = ((long long)*x - 2) * bw / lw;
+    y0 = ((long long)*y - 2) * bh / lh;
+    x1 = ((long long)(*x + *w + 2) * bw + lw - 1) / lw;
+    y1 = ((long long)(*y + *h + 2) * bh + lh - 1) / lh;
+    if( x0 < 0 )
+        x0 = 0;
+    if( y0 < 0 )
+        y0 = 0;
     if( x1 > bw )
         x1 = bw;
     if( y1 > bh )

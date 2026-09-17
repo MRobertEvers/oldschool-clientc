@@ -771,7 +771,7 @@ PlatformWindow_New(void)
     memset(p, 0, sizeof(*p));
     p->client_scale.fit = CLIENT_SCALE_FIT_KEEP_ASPECT;
     p->client_scale.max_pixel_height = 0;
-    p->client_scale.output_filter = CLIENT_SCALE_FILTER_BICUBIC;
+    p->client_scale.output_filter = CLIENT_SCALE_FILTER_NEAREST;
     p->last_seen_w = -1;
     p->last_seen_h = -1;
     /* No plausible battery percentage, so the first poll always reports what

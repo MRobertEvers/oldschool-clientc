@@ -59,6 +59,9 @@ struct ToriRS_Soft3D
     int layout_w;
     int layout_h;
     bool scaled;
+    /* All Settings' interface scaling mode: 0 nearest, 1 linear, 2 bicubic.
+     * @see ToriRS_Soft3D_SetInterfaceScaleMode. */
+    int interface_scale_mode;
 
     /* Polygon run state: points accumulate between POLYGON_BEGIN and
      * POLYGON_END, and the fill happens on END. Held here rather than passed
@@ -116,6 +119,19 @@ ToriRS_Soft3D_SetLayout(
     struct ToriRS_Soft3D* soft,
     int layout_w,
     int layout_h);
+
+/**
+ * The interface filter for the next frame (device option 15: 0 nearest,
+ * 1 linear, 2 bicubic). Call after Init, which resets it to nearest.
+ *
+ * Nearest writes every 2D command scaled straight into the buffer. Linear and
+ * bicubic draw each 2D segment 1:1 into a layout-sized layer and filter that
+ * picture into the buffer once, the way the GPU lanes do.
+ */
+void
+ToriRS_Soft3D_SetInterfaceScaleMode(
+    struct ToriRS_Soft3D* soft,
+    int mode);
 
 /**
  * Draw layout-space pixels into a scaled buffer from outside the command

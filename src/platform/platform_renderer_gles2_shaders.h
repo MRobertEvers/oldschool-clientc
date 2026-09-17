@@ -231,6 +231,60 @@ static const char* const gles2_present_fragment_shader =
     "    gl_FragColor = vec4(texture2D(s_texture, v_texcoord).rgb, 1.0);\n"
     "}\n";
 
+/*
+ * The interface layer composite (gles2_ui_layer_composite): one quad over the
+ * output rect sampling the layout-sized, premultiplied interface picture. The
+ * vertex shader is the present's. u_filter 1 is linear (the texture's own
+ * GL_LINEAR); 2 is Catmull-Rom bicubic over the 4x4 texel centres around the
+ * sample, with the texture GL_NEAREST. Catmull-Rom overshoots, so the result
+ * is clamped back into premultiplied range: alpha in [0,1], colour <= alpha.
+ *
+ * GLSL ES 1.00: the loops have constant bounds, and indexing a vec4 by a loop
+ * index is a constant-index-expression (Appendix A), so WebGL1 accepts it.
+ * u_filter is a float, compared with a margin, so no integer uniform meets
+ * mediump rounding.
+ */
+static const char* const gles2_ui_composite_fragment_shader =
+    GLES2_FRAGMENT_PRECISION_PREAMBLE
+    "uniform sampler2D s_texture;\n"
+    "uniform vec2 u_size;\n"
+    "uniform float u_filter;\n"
+    "varying vec2 v_texcoord;\n"
+    "vec4 cr_weights(float t) {\n"
+    "    float t2 = t * t;\n"
+    "    float t3 = t2 * t;\n"
+    "    return vec4(-0.5 * t3 + t2 - 0.5 * t,\n"
+    "                1.5 * t3 - 2.5 * t2 + 1.0,\n"
+    "                -1.5 * t3 + 2.0 * t2 + 0.5 * t,\n"
+    "                0.5 * t3 - 0.5 * t2);\n"
+    "}\n"
+    "void main() {\n"
+    "    vec4 c;\n"
+    "    if (u_filter > 1.5) {\n"
+    "        vec2 p = v_texcoord * u_size - 0.5;\n"
+    "        vec2 base = floor(p);\n"
+    "        vec2 f = p - base;\n"
+    "        vec4 wx = cr_weights(f.x);\n"
+    "        vec4 wy = cr_weights(f.y);\n"
+    "        c = vec4(0.0);\n"
+    "        for (int j = 0; j < 4; j++) {\n"
+    "            vec4 row = vec4(0.0);\n"
+    "            for (int i = 0; i < 4; i++) {\n"
+    "                vec2 texel = clamp(base + vec2(float(i - 1), float(j - 1)),\n"
+    "                                   vec2(0.0), u_size - 1.0);\n"
+    "                row += texture2D(s_texture, (texel + 0.5) / u_size) * wx[i];\n"
+    "            }\n"
+    "            c += row * wy[j];\n"
+    "        }\n"
+    "        c.a = clamp(c.a, 0.0, 1.0);\n"
+    "        c.rgb = clamp(c.rgb, vec3(0.0), vec3(c.a));\n"
+    "    } else {\n"
+    "        c = texture2D(s_texture, v_texcoord);\n"
+    "    }\n"
+    "    if (c.a < 0.002) discard;\n"
+    "    gl_FragColor = c;\n"
+    "}\n";
+
 /* clang-format on */
 
 #endif

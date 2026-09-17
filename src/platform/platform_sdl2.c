@@ -599,7 +599,7 @@ PlatformWindow_New(void)
     memset(platform, 0, sizeof(struct PlatformWindow));
     platform->client_scale.fit = CLIENT_SCALE_FIT_KEEP_ASPECT;
     platform->client_scale.max_pixel_height = 0;
-    platform->client_scale.output_filter = CLIENT_SCALE_FILTER_BICUBIC;
+    platform->client_scale.output_filter = CLIENT_SCALE_FILTER_NEAREST;
     /* A zeroed finger table would read as eight fingers all holding id 0. */
     ToriRS_TouchReset(&platform->touch);
     return platform;

@@ -367,6 +367,7 @@ App_Render(
      * scaled. */
     ToriRS_Soft3D_Init(app->soft, app->scene, pixels, width, height);
     ToriRS_Soft3D_SetLayout(app->soft, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    ToriRS_Soft3D_SetInterfaceScaleMode(app->soft, RS_CS2Host_UiScaleMode(&app->host));
 
     if( !App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
     {

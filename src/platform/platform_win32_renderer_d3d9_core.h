@@ -295,9 +295,43 @@ struct ToriRS_D3D9
     IDirect3DSurface9* offscreen;
     int offscreen_w;
     int offscreen_h;
-    /* All Settings' interface scaling mode. D3D9's fixed-function UI path
-     * uses point for 0 and its best portable reconstruction, linear, for 1/2. */
+    /* All Settings' interface scaling mode: 0 nearest, 1 linear, 2 bicubic.
+     * @see d3d9_ui_layer_wanted. */
     int interface_scale_mode;
+    /*
+     * The interface layer. With a Linear or Bicubic interface filter and an
+     * interface drawn at a size other than its layout size, each 2D segment
+     * draws 1:1 into this layout-sized, premultiplied-alpha render target and
+     * END_2D filters the finished picture onto the output rect once. Filtering
+     * every sprite and glyph on its own instead bled neighbouring atlas cells
+     * into each other, showed every tile boundary as a seam, and was never
+     * bicubic at all. Interface art itself is always point sampled.
+     *
+     * ::ui_layer_supported is the device's answer, probed once at Init:
+     * separate alpha blending, a non-power-of-two A8R8G8B8 render-target
+     * texture. Without it the interface draws directly, point sampled.
+     */
+    bool ui_layer_supported;
+    /* D3DPOOL_DEFAULT: released before every Reset, recreated lazily. */
+    IDirect3DTexture9* ui_layer_texture;
+    IDirect3DSurface9* ui_layer_surface;
+    int ui_layer_w;
+    int ui_layer_h;
+    bool ui_layer_open;
+    /* What the segment redirected away from, referenced while it is open. */
+    IDirect3DSurface9* ui_layer_saved_target;
+    IDirect3DSurface9* ui_layer_saved_depth;
+    int ui_layer_saved_lb_x;
+    int ui_layer_saved_lb_y;
+    int ui_layer_saved_lb_w;
+    int ui_layer_saved_lb_h;
+    int ui_layer_saved_target_w;
+    int ui_layer_saved_target_h;
+    /* The Bicubic composite (ps_2_0; not a pool resource, survives Reset).
+     * NULL and ::ui_composite_bicubic_unavailable set when the device has no
+     * ps_2_0 or refused it; Bicubic then composites linear. */
+    IDirect3DPixelShader9* ui_composite_bicubic;
+    bool ui_composite_bicubic_unavailable;
 
     struct TRSPK_Atlas atlas;
     IDirect3DTexture9* atlas_texture;

@@ -1858,11 +1858,11 @@ RS_CS2Host_OptionDefault(
      * is a division by zero. */
     if( kind == RS_CS2_OPTION_DEVICE && option_id == RS_CS2_DEVICEOPTION_UI_SCALE )
         return RS_CS2_UI_SCALE_MIN;
-    /* The cache presents Bicubic as the initial selection. It is value 2 in
-     * enum_4033, not the zero an otherwise untouched option would return. */
-    if( kind == RS_CS2_OPTION_DEVICE &&
-        option_id == RS_CS2_DEVICEOPTION_UI_SCALE_MODE )
-        return RS_CS2_UI_SCALE_MODE_BICUBIC;
+    /* Interface scaling mode (option 15) is deliberately NOT special-cased:
+     * its default is Nearest, value 0 in enum_4033, which is the zero below.
+     * The cache presents Bicubic as the initial selection; this client does
+     * not follow it -- scaled pixel art should stay sharp until the player
+     * asks for smoothing. */
     /* Full volume for the per-bus ones: an option nothing has written must not
      * read back as silence, or unmuting would restore nothing. Every other
      * option is zero, which is CS2's answer for an option no script has set. */

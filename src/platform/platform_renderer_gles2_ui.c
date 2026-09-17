@@ -132,27 +132,21 @@ gles2_ui_intersect_scissor_rect(
     return gles2_scissor_rect(renderer, x, y, w, h, out);
 }
 
-static void
-gles2_ui_set_texture_filter(struct ToriRS_GLES2* renderer, GLuint texture)
-{
-    GLenum filter = gles2_ui_filter(renderer);
-    if( !texture )
-        return;
-    gles2_bind_texture0(renderer, texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, (GLint)filter);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, (GLint)filter);
-}
-
+/*
+ * Interface art is always sampled nearest. The interface filter is not a
+ * property of each texture: a Linear or Bicubic interface is drawn 1:1 into
+ * the interface layer and filtered once as a picture
+ * (gles2_ui_layer_composite), and a Nearest one is nearest either way.
+ */
 static GLuint
 gles2_ui_new_texture(struct ToriRS_GLES2* renderer)
 {
     GLuint texture = 0u;
-    GLenum filter = gles2_ui_filter(renderer);
     glGenTextures(1, &texture);
     assert(texture);
     gles2_bind_texture0(renderer, texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, (GLint)filter);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, (GLint)filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     return texture;
@@ -679,23 +673,152 @@ gles2_ui_append_quad_clipped(
 
 /* ---- passes ------------------------------------------------------------------------ */
 
-static void
-gles2_ui_refresh_filters(struct ToriRS_GLES2* renderer)
+/* ---- the interface layer ------------------------------------------------------- */
+
+/* A layer only where it changes the picture: an interface filter that is not
+ * Nearest, on an interface drawn at a size other than its own. */
+static bool
+gles2_ui_layer_wanted(const struct ToriRS_GLES2* renderer)
 {
-    int font;
-    uint32_t slot;
-    if( !renderer->ui_filter_dirty )
+    return renderer->interface_scale_mode != 0 && renderer->width > 0 && renderer->height > 0 &&
+        renderer->letterbox_width > 0 && renderer->letterbox_height > 0 &&
+        (renderer->letterbox_width != renderer->width ||
+         renderer->letterbox_height != renderer->height);
+}
+
+/* The layout-sized colour target, (re)made only when the layout size changes.
+ * An RGBA / UNSIGNED_BYTE texture with no mipmaps and clamped edges: a
+ * complete colour attachment in core ES2 and in WebGL1 at any (NPOT) size.
+ * No depth or stencil: 2D runs with both off, widget models included. */
+static void
+gles2_ui_layer_ensure(struct ToriRS_GLES2* renderer)
+{
+    GLenum status;
+    int const width = renderer->width;
+    int const height = renderer->height;
+
+    if( renderer->ui_layer_fbo && renderer->ui_layer_width == width &&
+        renderer->ui_layer_height == height )
         return;
-    renderer->ui_filter_dirty = false;
-    gles2_ui_set_texture_filter(renderer, renderer->ui_sprite_atlas_texture);
-    gles2_ui_set_texture_filter(renderer, renderer->white_texture);
-    for( font = 0; font < GLES2_UI_FONT_CAP; font++ )
-        gles2_ui_set_texture_filter(renderer, renderer->ui_fonts[font].texture);
-    for( slot = 0u; slot < renderer->ui_rotmask_count; slot++ )
+    if( !renderer->ui_layer_texture )
     {
-        gles2_ui_set_texture_filter(renderer, renderer->ui_rotmasks[slot].source_texture);
-        gles2_ui_set_texture_filter(renderer, renderer->ui_rotmasks[slot].mask_texture);
+        glGenTextures(1, &renderer->ui_layer_texture);
+        assert(renderer->ui_layer_texture);
     }
+    if( !renderer->ui_layer_fbo )
+    {
+        glGenFramebuffers(1, &renderer->ui_layer_fbo);
+        assert(renderer->ui_layer_fbo);
+    }
+    gles2_bind_texture0(renderer, renderer->ui_layer_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    /* Never left bound on a unit while a draw renders into it. */
+    gles2_bind_texture0(renderer, 0u);
+    glBindFramebuffer(GL_FRAMEBUFFER, renderer->ui_layer_fbo);
+    glFramebufferTexture2D(
+        GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderer->ui_layer_texture, 0);
+    status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if( status != GL_FRAMEBUFFER_COMPLETE )
+        TORIRS_ERR("GLES2: interface layer %dx%d incomplete: 0x%x\n", width, height, (unsigned)status);
+    assert(status == GL_FRAMEBUFFER_COMPLETE);
+    renderer->ui_layer_width = width;
+    renderer->ui_layer_height = height;
+}
+
+/*
+ * Redirect the 2D segment into the layer: layout-sized, 1:1, transparent.
+ *
+ * The letterbox and target fields are swapped for the layer's while it is
+ * open, so gles2_scissor_rect (the rotated sprites, polygons, widget models)
+ * and the viewport map logical pixels 1:1 into it. On the deferred arm a
+ * record captures its scissor when it is RECORDED and draws when the pass is
+ * submitted; both happen inside the segment -- anything recorded before it
+ * is submitted here first, to the frame's own target, and END_2D submits the
+ * rest before compositing -- so a record never straddles the two targets.
+ */
+static void
+gles2_ui_layer_begin(struct ToriRS_GLES2* renderer)
+{
+    assert(!renderer->ui_layer_open);
+    /* Records left over from before this segment belong to the frame, and go
+     * to it now. An open batch is dropped, as gles2_begin_2d always did. */
+    gles2_ui_batch_reset(renderer);
+    gles2_ui_flush(renderer);
+    gles2_ui_layer_ensure(renderer);
+    glBindFramebuffer(GL_FRAMEBUFFER, renderer->ui_layer_fbo);
+    /* gles2_begin_frame binds exactly one of these. */
+    renderer->ui_layer_saved_fbo = renderer->target_offscreen ? renderer->scale_fbo : 0u;
+    renderer->ui_layer_saved_letterbox_x = renderer->letterbox_x;
+    renderer->ui_layer_saved_letterbox_y = renderer->letterbox_y;
+    renderer->ui_layer_saved_letterbox_top = renderer->letterbox_top;
+    renderer->ui_layer_saved_letterbox_width = renderer->letterbox_width;
+    renderer->ui_layer_saved_letterbox_height = renderer->letterbox_height;
+    renderer->ui_layer_saved_target_width = renderer->target_width;
+    renderer->ui_layer_saved_target_height = renderer->target_height;
+    renderer->letterbox_x = 0;
+    renderer->letterbox_y = 0;
+    renderer->letterbox_top = 0;
+    renderer->letterbox_width = renderer->width;
+    renderer->letterbox_height = renderer->height;
+    renderer->target_width = renderer->width;
+    renderer->target_height = renderer->height;
+    gles2_set_scissor(renderer, NULL);
+    glViewport(0, 0, renderer->width, renderer->height);
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    renderer->ui_layer_open = true;
+}
+
+/* Filter the finished segment onto the output rect it would have drawn to. */
+static void
+gles2_ui_layer_composite(struct ToriRS_GLES2* renderer)
+{
+    GLint const filter = renderer->interface_scale_mode == 1 ? GL_LINEAR : GL_NEAREST;
+
+    assert(renderer->ui_layer_open);
+    renderer->ui_layer_open = false;
+    glBindFramebuffer(GL_FRAMEBUFFER, renderer->ui_layer_saved_fbo);
+    renderer->letterbox_x = renderer->ui_layer_saved_letterbox_x;
+    renderer->letterbox_y = renderer->ui_layer_saved_letterbox_y;
+    renderer->letterbox_top = renderer->ui_layer_saved_letterbox_top;
+    renderer->letterbox_width = renderer->ui_layer_saved_letterbox_width;
+    renderer->letterbox_height = renderer->ui_layer_saved_letterbox_height;
+    renderer->target_width = renderer->ui_layer_saved_target_width;
+    renderer->target_height = renderer->ui_layer_saved_target_height;
+    glViewport(
+        renderer->letterbox_x,
+        renderer->letterbox_y,
+        renderer->letterbox_width,
+        renderer->letterbox_height);
+
+    gles2_set_scissor(renderer, NULL);
+    gles2_set_depth(renderer, false, false);
+    gles2_set_cull(renderer, false);
+    gles2_set_blend(renderer, true);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    gles2_use_program(renderer, &renderer->program_ui_composite);
+    glUniform2f(
+        renderer->ui_composite_u_size,
+        (float)renderer->ui_layer_width,
+        (float)renderer->ui_layer_height);
+    glUniform1f(renderer->ui_composite_u_filter, (float)renderer->interface_scale_mode);
+    gles2_bind_texture0(renderer, renderer->ui_layer_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+    /* A unit the program does not sample still must not hold the target. */
+    gles2_bind_texture1(renderer, 0u);
+    gles2_bind_present_quad(renderer);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
+    if( renderer->debug )
+        (void)gles2_check_error("interface layer composite");
+    gles2_blend_func_default();
+    /* The next 2D draw re-binds the layer only through a new segment. */
+    gles2_bind_texture0(renderer, 0u);
 }
 
 void
@@ -707,12 +830,13 @@ gles2_begin_2d(struct ToriRS_GLES2* renderer)
         renderer->in2d = false;
         return;
     }
+    if( !renderer->ui_layer_open && gles2_ui_layer_wanted(renderer) )
+        gles2_ui_layer_begin(renderer);
     glViewport(
         renderer->letterbox_x,
         renderer->letterbox_y,
         renderer->letterbox_width,
         renderer->letterbox_height);
-    gles2_ui_refresh_filters(renderer);
     gles2_ui_apply_states(renderer);
     gles2_set_scissor(renderer, NULL);
     gles2_ui_batch_reset(renderer);
@@ -723,11 +847,16 @@ void
 gles2_end_2d(struct ToriRS_GLES2* renderer)
 {
     assert(renderer);
-    if( !renderer->in2d )
-        return;
-    gles2_ui_flush(renderer);
-    gles2_set_scissor(renderer, NULL);
-    renderer->in2d = false;
+    if( renderer->in2d )
+    {
+        gles2_ui_flush(renderer);
+        gles2_set_scissor(renderer, NULL);
+        renderer->in2d = false;
+    }
+    /* Outside the in2d test: a segment whose in2d was cleared under it (a
+     * canvas resize) must still give the frame its target back. */
+    if( renderer->ui_layer_open )
+        gles2_ui_layer_composite(renderer);
 }
 
 void
@@ -3185,6 +3314,13 @@ gles2_ui_destroy_gl(struct ToriRS_GLES2* renderer)
     gles2_ui_delete_texture(renderer, &renderer->ui_sprite_atlas_texture);
     renderer->ui_sprite_atlas_allocated = false;
     gles2_ui_delete_texture(renderer, &renderer->white_texture);
+    gles2_ui_delete_texture(renderer, &renderer->ui_layer_texture);
+    if( renderer->ui_layer_fbo )
+        glDeleteFramebuffers(1, &renderer->ui_layer_fbo);
+    renderer->ui_layer_fbo = 0u;
+    renderer->ui_layer_width = 0;
+    renderer->ui_layer_height = 0;
+    renderer->ui_layer_open = false;
     for( font = 0; font < GLES2_UI_FONT_CAP; font++ )
         gles2_ui_font_release_slot(renderer, &renderer->ui_fonts[font]);
     for( slot = 0u; slot < renderer->ui_rotmask_count; slot++ )

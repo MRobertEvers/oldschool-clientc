@@ -3735,6 +3735,19 @@ test-frame-tile-mark: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
 	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/frame_tile_mark_test
 
+# Soft3D's Linear/Bicubic interface filter: coverage is what a 2D segment drew
+# (not what differs from the world under it), and its per-segment cache.
+.PHONY: test-soft3d-interface-filter
+test-soft3d-interface-filter: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/soft3d_interface_filter_test \
+		platform/test/soft3d_interface_filter_test.c \
+		platform/platform_sdl2_renderer_soft3d.c \
+		render/torirs_frame.c render/torirs_pick.c \
+		render/torirs_polygon.c render/torirs_arc.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
+	$(FRAME_ENTITY_OVERLAY_TEST_ENV) ./$(OBJ_DIR)/soft3d_interface_filter_test
+
 .PHONY: test-frame-flat
 test-frame-flat: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)

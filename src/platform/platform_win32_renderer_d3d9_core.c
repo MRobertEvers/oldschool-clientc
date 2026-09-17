@@ -18,6 +18,7 @@
 #include "engine/boot_bar.h"
 #include "platform/platform_win32_chrome.h"
 #include "platform/platform_win32_renderer_d3d9_core.h"
+#include "platform/platform_win32_renderer_d3d9_ui_composite_ps.h"
 #include "toridraw_element_id.h"
 #include <assert.h>
 
@@ -167,20 +168,46 @@ d3d9_ui_rect_equal(const RECT* a, const RECT* b)
         a->bottom == b->bottom;
 }
 
-static D3DTEXTUREFILTERTYPE
-d3d9_ui_filter(struct ToriRS_D3D9 const* renderer)
-{
-    return renderer->interface_scale_mode == 0 ? D3DTEXF_POINT : D3DTEXF_LINEAR;
-}
-
+/*
+ * Interface art is always sampled point. The interface filter is not a
+ * property of each sprite: a Linear or Bicubic interface is drawn 1:1 into the
+ * interface layer and filtered once as a picture (d3d9_ui_layer_composite), and
+ * a Nearest one is point either way.
+ */
 static void
 d3d9_set_ui_sampler(struct ToriRS_D3D9* renderer, DWORD sampler)
 {
-    D3DTEXTUREFILTERTYPE const filter = d3d9_ui_filter(renderer);
     IDirect3DDevice9_SetSamplerState(
-        renderer->device, sampler, D3DSAMP_MINFILTER, filter);
+        renderer->device, sampler, D3DSAMP_MINFILTER, D3DTEXF_POINT);
     IDirect3DDevice9_SetSamplerState(
-        renderer->device, sampler, D3DSAMP_MAGFILTER, filter);
+        renderer->device, sampler, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+}
+
+/*
+ * The 2D (and world) blend. Colour is ordinary straight-alpha "over"; alpha
+ * accumulates as a + dst*(1-a). On the back buffer the alpha channel is never
+ * read. In the interface layer, cleared to transparent black, the pair leaves
+ * the layer holding premultiplied colour and coverage, which is what makes it
+ * filterable without dark fringes and composable with (ONE, INVSRCALPHA).
+ *
+ * A device without separate alpha blending keeps the plain pair; such a device
+ * never opens the layer (::ui_layer_supported), so nothing reads its alpha.
+ */
+static void
+d3d9_blend_ui(struct ToriRS_D3D9* renderer)
+{
+    IDirect3DDevice9* device = renderer->device;
+    IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHABLENDENABLE, TRUE);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_BLENDOP, D3DBLENDOP_ADD);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    if( renderer->caps.PrimitiveMiscCaps & D3DPMISCCAPS_SEPARATEALPHABLEND )
+    {
+        IDirect3DDevice9_SetRenderState(device, D3DRS_SEPARATEALPHABLENDENABLE, TRUE);
+        IDirect3DDevice9_SetRenderState(device, D3DRS_BLENDOPALPHA, D3DBLENDOP_ADD);
+        IDirect3DDevice9_SetRenderState(device, D3DRS_SRCBLENDALPHA, D3DBLEND_ONE);
+        IDirect3DDevice9_SetRenderState(device, D3DRS_DESTBLENDALPHA, D3DBLEND_INVSRCALPHA);
+    }
 }
 
 static bool
@@ -197,9 +224,7 @@ d3d9_ui_set_states(struct ToriRS_D3D9* renderer)
     IDirect3DDevice9_SetRenderState(device, D3DRS_CULLMODE, D3DCULL_NONE);
     IDirect3DDevice9_SetRenderState(device, D3DRS_ZENABLE, D3DZB_FALSE);
     IDirect3DDevice9_SetRenderState(device, D3DRS_ZWRITEENABLE, FALSE);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHABLENDENABLE, TRUE);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    d3d9_blend_ui(renderer);
     IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHATESTENABLE, TRUE);
     IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
     IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHAREF, 1u);
@@ -401,9 +426,7 @@ d3d9_set_world_states(struct ToriRS_D3D9* renderer)
     else
         d3d9_painter_apply_world_states(renderer);
     IDirect3DDevice9_SetRenderState(device, D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHABLENDENABLE, TRUE);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
-    IDirect3DDevice9_SetRenderState(device, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    d3d9_blend_ui(renderer);
     IDirect3DDevice9_SetRenderState(device, D3DRS_COLORVERTEX, TRUE);
     IDirect3DDevice9_SetRenderState(device, D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_COLOR1);
     IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHATESTENABLE, TRUE);
@@ -762,9 +785,13 @@ static void
 d3d9_mark_active_static_batches_dirty(struct ToriRS_D3D9* renderer);
 
 static void
+d3d9_ui_layer_release(struct ToriRS_D3D9* renderer);
+
+static void
 d3d9_release_default_pool(struct ToriRS_D3D9* renderer)
 {
     d3d9_release_offscreen(renderer);
+    d3d9_ui_layer_release(renderer);
     /* SetIndices retains a device-side reference. Unbind it before dropping
      * our reference or Reset can still see a live DEFAULT-pool resource. */
     if( renderer->device )
@@ -5727,6 +5754,323 @@ done:
     d3d9_set_full_viewport(renderer);
 }
 
+/* ---- interface layer --------------------------------------------------- */
+
+/*
+ * Whether this device can hold the interface layer at all, asked once after
+ * CreateDevice. The layer needs separate alpha blending (to accumulate
+ * coverage) and a layout-sized A8R8G8B8 render-target texture, which is not a
+ * power of two. A device that says no draws the interface directly, point
+ * sampled, and says so in the log.
+ */
+static void
+d3d9_ui_layer_probe(struct ToriRS_D3D9* renderer)
+{
+    D3DDISPLAYMODE mode;
+    DWORD const texture_caps = renderer->caps.TextureCaps;
+    char const* missing = NULL;
+
+    assert(renderer->d3d);
+    renderer->ui_layer_supported = false;
+    if( !(renderer->caps.PrimitiveMiscCaps & D3DPMISCCAPS_SEPARATEALPHABLEND) )
+        missing = "separate alpha blending";
+    else if( (texture_caps & D3DPTEXTURECAPS_POW2) &&
+             !(texture_caps & D3DPTEXTURECAPS_NONPOW2CONDITIONAL) )
+        missing = "non-power-of-two textures";
+    else if( FAILED(IDirect3D9_GetAdapterDisplayMode(renderer->d3d, D3DADAPTER_DEFAULT, &mode)) ||
+             FAILED(IDirect3D9_CheckDeviceFormat(
+                 renderer->d3d,
+                 D3DADAPTER_DEFAULT,
+                 D3DDEVTYPE_HAL,
+                 mode.Format,
+                 D3DUSAGE_RENDERTARGET,
+                 D3DRTYPE_TEXTURE,
+                 D3DFMT_A8R8G8B8)) )
+        missing = "A8R8G8B8 render-target textures";
+    if( missing )
+    {
+        TORIRS_LOG(
+            "D3D9: no %s; a Linear/Bicubic interface filter draws point sampled\n", missing);
+        return;
+    }
+    renderer->ui_layer_supported = true;
+}
+
+/* A layer only where it changes the picture: an interface filter that is not
+ * Nearest, on an interface drawn at a size other than its own. */
+static bool
+d3d9_ui_layer_wanted(struct ToriRS_D3D9 const* renderer)
+{
+    return renderer->interface_scale_mode != 0 && renderer->ui_layer_supported &&
+        renderer->lb_w > 0 && renderer->lb_h > 0 &&
+        (DWORD)renderer->width <= renderer->caps.MaxTextureWidth &&
+        (DWORD)renderer->height <= renderer->caps.MaxTextureHeight &&
+        (renderer->lb_w != renderer->width || renderer->lb_h != renderer->height);
+}
+
+static void
+d3d9_ui_layer_release(struct ToriRS_D3D9* renderer)
+{
+    assert(!renderer->ui_layer_open);
+    if( renderer->ui_layer_surface )
+    {
+        IDirect3DSurface9_Release(renderer->ui_layer_surface);
+        renderer->ui_layer_surface = NULL;
+    }
+    if( renderer->ui_layer_texture )
+    {
+        IDirect3DTexture9_Release(renderer->ui_layer_texture);
+        renderer->ui_layer_texture = NULL;
+    }
+    renderer->ui_layer_w = 0;
+    renderer->ui_layer_h = 0;
+}
+
+/* The layout-sized target. False only when the device is being lost, which
+ * schedules the Reset; the segment then draws directly this frame. */
+static bool
+d3d9_ui_layer_ensure(struct ToriRS_D3D9* renderer)
+{
+    int const w = renderer->width;
+    int const h = renderer->height;
+    HRESULT hr;
+
+    if( renderer->ui_layer_texture && renderer->ui_layer_w == w && renderer->ui_layer_h == h )
+        return true;
+    d3d9_ui_layer_release(renderer);
+    hr = IDirect3DDevice9_CreateTexture(
+        renderer->device,
+        (UINT)w,
+        (UINT)h,
+        1u,
+        D3DUSAGE_RENDERTARGET,
+        D3DFMT_A8R8G8B8,
+        D3DPOOL_DEFAULT,
+        &renderer->ui_layer_texture,
+        NULL);
+    if( FAILED(hr) && d3d9_offscreen_device_lost(renderer) )
+    {
+        renderer->ui_layer_texture = NULL;
+        return false;
+    }
+    assert(SUCCEEDED(hr));
+    assert(renderer->ui_layer_texture);
+    hr = IDirect3DTexture9_GetSurfaceLevel(
+        renderer->ui_layer_texture, 0u, &renderer->ui_layer_surface);
+    assert(SUCCEEDED(hr));
+    assert(renderer->ui_layer_surface);
+    (void)hr;
+    renderer->ui_layer_w = w;
+    renderer->ui_layer_h = h;
+    return true;
+}
+
+/*
+ * Redirect the 2D segment into the layer: layout-sized, 1:1, transparent.
+ *
+ * The 2D mapping (d3d9_ui_x/y, d3d9_ui_scissor_rect, d3d9_set_full_viewport)
+ * reads lb_* and target_*, so pointing those at the layer is the whole
+ * redirect; every draw in the segment, model widgets included, lands at layout
+ * resolution. The depth surface is unbound for the segment: D3D9 refuses a
+ * depth surface smaller than the target, the layer can be larger than the
+ * output, and nothing in a 2D segment depth tests.
+ */
+static void
+d3d9_ui_layer_begin(struct ToriRS_D3D9* renderer)
+{
+    IDirect3DDevice9* device = renderer->device;
+    IDirect3DSurface9* target = NULL;
+    IDirect3DSurface9* depth = NULL;
+    HRESULT hr;
+
+    assert(!renderer->ui_layer_open);
+    if( !d3d9_ui_layer_ensure(renderer) )
+        return;
+    hr = IDirect3DDevice9_GetRenderTarget(device, 0u, &target);
+    assert(SUCCEEDED(hr));
+    assert(target);
+    /* NOTFOUND is the painter lane, which has no depth surface. */
+    hr = IDirect3DDevice9_GetDepthStencilSurface(device, &depth);
+    assert(SUCCEEDED(hr) || hr == D3DERR_NOTFOUND);
+    if( FAILED(hr) )
+        depth = NULL;
+    hr = IDirect3DDevice9_SetRenderTarget(device, 0u, renderer->ui_layer_surface);
+    if( FAILED(hr) && d3d9_offscreen_device_lost(renderer) )
+    {
+        IDirect3DSurface9_Release(target);
+        if( depth )
+            IDirect3DSurface9_Release(depth);
+        return;
+    }
+    assert(SUCCEEDED(hr));
+    if( depth )
+        IDirect3DDevice9_SetDepthStencilSurface(device, NULL);
+
+    renderer->ui_layer_saved_target = target;
+    renderer->ui_layer_saved_depth = depth;
+    renderer->ui_layer_saved_lb_x = renderer->lb_x;
+    renderer->ui_layer_saved_lb_y = renderer->lb_y;
+    renderer->ui_layer_saved_lb_w = renderer->lb_w;
+    renderer->ui_layer_saved_lb_h = renderer->lb_h;
+    renderer->ui_layer_saved_target_w = renderer->target_w;
+    renderer->ui_layer_saved_target_h = renderer->target_h;
+    renderer->lb_x = 0;
+    renderer->lb_y = 0;
+    renderer->lb_w = renderer->width;
+    renderer->lb_h = renderer->height;
+    renderer->target_w = renderer->width;
+    renderer->target_h = renderer->height;
+    renderer->ui_layer_open = true;
+
+    /* SetRenderTarget already reset the viewport to the layer; the scissor
+     * test must be off or Clear is clipped to a stale rect. */
+    d3d9_set_full_viewport(renderer);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_SCISSORTESTENABLE, FALSE);
+    IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0u);
+}
+
+/* The Bicubic program, created on first use. False when the device has no
+ * ps_2_0 or cannot create it now; Bicubic then composites linear. */
+static bool
+d3d9_ui_composite_bicubic_ready(struct ToriRS_D3D9* renderer)
+{
+    HRESULT hr;
+
+    if( renderer->ui_composite_bicubic )
+        return true;
+    if( renderer->ui_composite_bicubic_unavailable )
+        return false;
+    if( renderer->caps.PixelShaderVersion < (DWORD)D3DPS_VERSION(2, 0) )
+    {
+        TORIRS_LOG("D3D9: no ps_2_0; the Bicubic interface filter composites linear\n");
+        renderer->ui_composite_bicubic_unavailable = true;
+        return false;
+    }
+    hr = IDirect3DDevice9_CreatePixelShader(
+        renderer->device, d3d9_ui_composite_bicubic_ps, &renderer->ui_composite_bicubic);
+    /* On a ps_2_0 device INVALIDCALL means the bytecode was rejected, which is
+     * a bug in platform_win32_renderer_d3d9_ui_composite_ps.h, not a state. */
+    assert(hr != D3DERR_INVALIDCALL);
+    if( FAILED(hr) )
+    {
+        d3d9_log_hr("CreatePixelShader(interface bicubic)", hr);
+        renderer->ui_composite_bicubic = NULL;
+        renderer->ui_composite_bicubic_unavailable = true;
+        return false;
+    }
+    assert(renderer->ui_composite_bicubic);
+    return true;
+}
+
+/*
+ * Filter the finished segment onto the output rect it would have drawn to.
+ *
+ * One quad over the output rect, (ONE, INVSRCALPHA) because the layer holds
+ * premultiplied colour. Its corners sit half a pixel up-left of the rect's
+ * edges: D3D9 puts pixel centres on integer coordinates, so pixel lb_x + i
+ * then samples u = (i + 0.5) / lb_w, exactly the GL composite's v_uv.
+ */
+static void
+d3d9_ui_layer_composite(struct ToriRS_D3D9* renderer)
+{
+    IDirect3DDevice9* device = renderer->device;
+    struct D3D9OverlayVertex quad[4];
+    D3DTEXTUREFILTERTYPE filter = D3DTEXF_POINT;
+    DWORD const linear_caps = D3DPTFILTERCAPS_MINFLINEAR | D3DPTFILTERCAPS_MAGFLINEAR;
+    bool bicubic = false;
+    bool restored;
+    float x0;
+    float y0;
+    float x1;
+    float y1;
+    HRESULT hr;
+
+    assert(renderer->ui_layer_open);
+    assert(renderer->ui_layer_saved_target);
+    renderer->ui_layer_open = false;
+    hr = IDirect3DDevice9_SetRenderTarget(device, 0u, renderer->ui_layer_saved_target);
+    restored = SUCCEEDED(hr);
+    /* Only a device being lost may refuse the restore; that schedules the
+     * Reset, and the composite is skipped for this frame. */
+    if( !restored && !d3d9_offscreen_device_lost(renderer) )
+        assert(restored);
+    IDirect3DSurface9_Release(renderer->ui_layer_saved_target);
+    renderer->ui_layer_saved_target = NULL;
+    if( renderer->ui_layer_saved_depth )
+    {
+        IDirect3DDevice9_SetDepthStencilSurface(device, renderer->ui_layer_saved_depth);
+        IDirect3DSurface9_Release(renderer->ui_layer_saved_depth);
+        renderer->ui_layer_saved_depth = NULL;
+    }
+    renderer->lb_x = renderer->ui_layer_saved_lb_x;
+    renderer->lb_y = renderer->ui_layer_saved_lb_y;
+    renderer->lb_w = renderer->ui_layer_saved_lb_w;
+    renderer->lb_h = renderer->ui_layer_saved_lb_h;
+    renderer->target_w = renderer->ui_layer_saved_target_w;
+    renderer->target_h = renderer->ui_layer_saved_target_h;
+    d3d9_set_full_viewport(renderer);
+    if( !restored )
+    {
+        d3d9_ui_set_states(renderer);
+        return;
+    }
+
+    if( renderer->interface_scale_mode == 2 && d3d9_ui_composite_bicubic_ready(renderer) )
+        bicubic = true;
+    else if( (renderer->caps.TextureFilterCaps & linear_caps) == linear_caps )
+        filter = D3DTEXF_LINEAR;
+
+    x0 = (float)renderer->lb_x - 0.5f;
+    y0 = (float)renderer->lb_y - 0.5f;
+    x1 = (float)(renderer->lb_x + renderer->lb_w) - 0.5f;
+    y1 = (float)(renderer->lb_y + renderer->lb_h) - 0.5f;
+    quad[0] = (struct D3D9OverlayVertex){ x0, y0, 0.0f, 1.0f, 0xffffffffu, 0.0f, 0.0f };
+    quad[1] = (struct D3D9OverlayVertex){ x1, y0, 0.0f, 1.0f, 0xffffffffu, 1.0f, 0.0f };
+    quad[2] = (struct D3D9OverlayVertex){ x0, y1, 0.0f, 1.0f, 0xffffffffu, 0.0f, 1.0f };
+    quad[3] = (struct D3D9OverlayVertex){ x1, y1, 0.0f, 1.0f, 0xffffffffu, 1.0f, 1.0f };
+
+    /* The UI baseline (overlay FVF, no Z, no scissor, stage 1 off, clamp, no
+     * texture transform), then what differs for the composite. */
+    d3d9_ui_set_states(renderer);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHATESTENABLE, FALSE);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_SEPARATEALPHABLENDENABLE, FALSE);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_SRCBLEND, D3DBLEND_ONE);
+    IDirect3DDevice9_SetRenderState(device, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    IDirect3DDevice9_SetTexture(device, 0u, (IDirect3DBaseTexture9*)renderer->ui_layer_texture);
+    IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+    IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+    IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+    IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_MINFILTER, filter);
+    IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_MAGFILTER, filter);
+    if( bicubic )
+    {
+        float const w = (float)renderer->ui_layer_w;
+        float const h = (float)renderer->ui_layer_h;
+        float const constants[D3D9_UI_COMPOSITE_PS_CONSTANT_COUNT * 4u] = {
+            w,          h,          0.0f, 0.0f, /* c0 */
+            -1.0f / w,  -1.0f / h,  0.0f, 0.0f, /* c1 */
+            1.0f / w,   0.0f,       0.0f, 0.0f, /* c2 */
+            -1.0f / w,  -1.0f / h,  0.0f, 0.0f, /* c3: row base - 1 */
+            -1.0f / w,  0.0f,       0.0f, 0.0f, /* c4: row base */
+            -1.0f / w,  1.0f / h,   0.0f, 0.0f, /* c5: row base + 1 */
+            -1.0f / w,  2.0f / h,   0.0f, 0.0f, /* c6: row base + 2 */
+            -0.5f,      -2.5f,      1.5f, 1.0f, /* c7 */
+            0.5f,       0.0f,       0.0f, 0.0f, /* c8 */
+        };
+        IDirect3DDevice9_SetPixelShader(device, renderer->ui_composite_bicubic);
+        IDirect3DDevice9_SetPixelShaderConstantF(
+            device, 0u, constants, D3D9_UI_COMPOSITE_PS_CONSTANT_COUNT);
+    }
+    IDirect3DDevice9_DrawPrimitiveUP(
+        device, D3DPT_TRIANGLESTRIP, 2u, quad, (UINT)sizeof(quad[0]));
+    /* The device must not keep a reference to the DEFAULT-pool layer: Reset
+     * refuses while one is bound. d3d9_ui_set_states clears the shader and
+     * puts the 2D blend back. */
+    IDirect3DDevice9_SetTexture(device, 0u, NULL);
+    d3d9_ui_set_states(renderer);
+}
+
 static void
 d3d9_begin_2d(
     struct ToriRS_D3D9* renderer,
@@ -5742,6 +6086,8 @@ d3d9_begin_2d(
     d3d9_ui_set_states(renderer);
     d3d9_ui_flush(renderer);
     d3d9_ui_batch_reset(renderer);
+    if( d3d9_ui_layer_wanted(renderer) )
+        d3d9_ui_layer_begin(renderer);
     renderer->in2d = true;
 }
 
@@ -5755,6 +6101,8 @@ d3d9_end_2d(
         return;
     d3d9_ui_flush(renderer);
     IDirect3DDevice9_SetRenderState(renderer->device, D3DRS_SCISSORTESTENABLE, FALSE);
+    if( renderer->ui_layer_open )
+        d3d9_ui_layer_composite(renderer);
     renderer->in2d = false;
 }
 
@@ -6407,6 +6755,8 @@ ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
     }
     if( renderer->static_batch_vbo )
         IDirect3DVertexBuffer9_Release(renderer->static_batch_vbo);
+    if( renderer->ui_composite_bicubic )
+        IDirect3DPixelShader9_Release(renderer->ui_composite_bicubic);
     if( renderer->device )
         IDirect3DDevice9_Release(renderer->device);
     if( renderer->d3d )
@@ -6544,6 +6894,7 @@ ToriRS_D3D9_Init(
         return false;
     }
     (void)IDirect3DDevice9_GetDeviceCaps(renderer->device, &renderer->caps);
+    d3d9_ui_layer_probe(renderer);
     d3d9_update_letterbox(renderer);
     d3d9_restore_after_reset(renderer);
     if( !d3d9_upload_atlas(renderer) )
@@ -6578,12 +6929,12 @@ ToriRS_D3D9_SetViewport(struct ToriRS_D3D9* renderer, int width, int height)
 void
 ToriRS_D3D9_SetInterfaceScaleMode(struct ToriRS_D3D9* renderer, int mode)
 {
-    if( !renderer )
-        return;
+    assert(renderer);
     if( mode < 0 )
         mode = 0;
     if( mode > 2 )
         mode = 2;
+    /* Read at the next BEGIN_2D; no texture is refiltered. */
     renderer->interface_scale_mode = mode;
 }
 

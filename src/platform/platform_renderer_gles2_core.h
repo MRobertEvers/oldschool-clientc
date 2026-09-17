@@ -624,9 +624,40 @@ struct ToriRS_GLES2
      * samples scale_texture through them. */
     GLuint present_vbo;
     struct GLES2Program program_present;
-    /* All Settings' interface scaling mode: 0 nearest, 1/2 linear. */
+    /* All Settings' interface scaling mode: 0 nearest, 1 linear, 2 bicubic.
+     * @see gles2_ui_layer_wanted. */
     int interface_scale_mode;
-    bool ui_filter_dirty;
+    /*
+     * The interface layer. With a Linear or Bicubic interface filter and an
+     * interface drawn at a size other than its layout size, each 2D segment
+     * draws 1:1 into this layout-sized, premultiplied-alpha target and END_2D
+     * filters the finished picture onto the output rect once
+     * (gles2_ui_layer_composite). Filtering every sprite and glyph on its own
+     * instead bled neighbouring atlas cells into each other, showed every tile
+     * boundary as a seam, and was never bicubic at all. Interface art itself
+     * is always sampled nearest.
+     *
+     * While the layer is open the letterbox and target fields below describe
+     * the layer (origin 0, layout size), so every scissor and viewport the 2D
+     * stack computes lands 1:1 in it; the saved_* fields hold the frame's own
+     * values until the composite restores them.
+     */
+    GLuint ui_layer_fbo;
+    GLuint ui_layer_texture;
+    int ui_layer_width;
+    int ui_layer_height;
+    bool ui_layer_open;
+    GLuint ui_layer_saved_fbo;
+    int ui_layer_saved_letterbox_x;
+    int ui_layer_saved_letterbox_y;
+    int ui_layer_saved_letterbox_top;
+    int ui_layer_saved_letterbox_width;
+    int ui_layer_saved_letterbox_height;
+    int ui_layer_saved_target_width;
+    int ui_layer_saved_target_height;
+    struct GLES2Program program_ui_composite;
+    GLint ui_composite_u_size;
+    GLint ui_composite_u_filter;
 
     /* --- programs and cached GL state ----------------------------------- */
     struct GLES2Program program_world_plain;
@@ -1292,8 +1323,18 @@ gles2_upload_atlas(struct ToriRS_GLES2* renderer);
 void
 gles2_map_atlas_uv(int slot, float local_u, float local_v, float* out_u, float* out_v);
 
-GLenum
-gles2_ui_filter(const struct ToriRS_GLES2* renderer);
+/** The 2D (and world) blend function: straight-alpha "over" for colour,
+ *  alpha accumulating as a + dst*(1-a). On the frame's own target the alpha
+ *  channel is never shown; in the interface layer, cleared to transparent
+ *  black, the pair leaves premultiplied colour and coverage behind, which is
+ *  what makes the layer filterable without dark fringes. */
+void
+gles2_blend_func_default(void);
+
+/** Point the attributes at the clip-space present quad (six UI-layout
+ *  vertices, v = 0 at the bottom), creating it on first use. */
+void
+gles2_bind_present_quad(struct ToriRS_GLES2* renderer);
 
 /** RGBA bytes in memory order from a ToriDraw ARGB word. */
 static inline uint32_t

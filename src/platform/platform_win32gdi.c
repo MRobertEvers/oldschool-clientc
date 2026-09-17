@@ -1033,7 +1033,7 @@ PlatformWindow_New(void)
     memset(p, 0, sizeof(*p));
     p->pending_resize_w = -1;
     p->pending_resize_h = -1;
-    p->client_scale.output_filter = CLIENT_SCALE_FILTER_BICUBIC;
+    p->client_scale.output_filter = CLIENT_SCALE_FILTER_NEAREST;
     return p;
 }
 

@@ -246,11 +246,17 @@ gles2_bind_array_buffer(struct ToriRS_GLES2* renderer, GLuint buffer)
 /* Put GL into a known state and make the cache agree with it. Every frame
  * starts here: the context is shared with nothing, but the cost is a dozen
  * calls and it makes a stale cache impossible rather than unlikely. */
+void
+gles2_blend_func_default(void)
+{
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+}
+
 static void
 gles2_state_reset(struct ToriRS_GLES2* renderer)
 {
     glDisable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    gles2_blend_func_default();
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LEQUAL);
@@ -392,6 +398,26 @@ gles2_delete_program(struct GLES2Program* program)
     memset(program, 0, sizeof(*program));
 }
 
+/* The interface layer's composite: the present's vertex shader, and the
+ * two uniforms GLES2Program has no field for. */
+static bool
+gles2_link_ui_composite_program(struct ToriRS_GLES2* renderer)
+{
+    if( !gles2_link_program(
+            &renderer->program_ui_composite,
+            gles2_present_vertex_shader,
+            gles2_ui_composite_fragment_shader,
+            false,
+            false,
+            "ui composite") )
+        return false;
+    renderer->ui_composite_u_size =
+        glGetUniformLocation(renderer->program_ui_composite.id, "u_size");
+    renderer->ui_composite_u_filter =
+        glGetUniformLocation(renderer->program_ui_composite.id, "u_filter");
+    return true;
+}
+
 static bool
 gles2_create_programs(struct ToriRS_GLES2* renderer)
 {
@@ -440,7 +466,8 @@ gles2_create_programs(struct ToriRS_GLES2* renderer)
                gles2_present_fragment_shader,
                false,
                false,
-               "present");
+               "present") &&
+        gles2_link_ui_composite_program(renderer);
 }
 
 /* ---- letterbox and rectangles ---------------------------------------------- */
@@ -728,7 +755,7 @@ gles2_upload_ui_atlas_texture(struct ToriRS_GLES2* renderer, int64_t* out_bytes)
         &renderer->ui_sprite_atlas,
         renderer->ui_sprite_atlas_texture,
         &renderer->ui_sprite_atlas_allocated,
-        gles2_ui_filter(renderer),
+        GL_NEAREST,
         out_bytes);
 }
 
@@ -3769,6 +3796,57 @@ gles2_scale_target_destroy_buffers(struct ToriRS_GLES2* renderer)
     renderer->scale_texture_filter = 0;
 }
 
+void
+gles2_bind_present_quad(struct ToriRS_GLES2* renderer)
+{
+    const GLsizei stride = (GLsizei)sizeof(struct GLES2VertexUI);
+
+    assert(renderer);
+    if( !renderer->present_vbo )
+    {
+        /* Two triangles over clip space; v = 0 is the texture's bottom row,
+         * which is GL's bottom row of the frame too. */
+        static const float corners[6][4] = {
+            { -1.0f, -1.0f, 0.0f, 0.0f }, { 1.0f, -1.0f, 1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },
+            { -1.0f, -1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },  { -1.0f, 1.0f, 0.0f, 1.0f },
+        };
+        struct GLES2VertexUI vertices[6];
+        int i;
+        for( i = 0; i < 6; i++ )
+        {
+            vertices[i].x = corners[i][0];
+            vertices[i].y = corners[i][1];
+            vertices[i].w = 1.0f;
+            vertices[i].u = corners[i][2];
+            vertices[i].v = corners[i][3];
+            vertices[i].rgba = 0xffffffffu;
+            vertices[i].sel = 0.0f;
+        }
+        glGenBuffers(1, &renderer->present_vbo);
+        assert(renderer->present_vbo);
+        gles2_bind_array_buffer(renderer, renderer->present_vbo);
+        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(vertices), vertices, GL_STATIC_DRAW);
+    }
+    gles2_bind_array_buffer(renderer, renderer->present_vbo);
+    /* Every enabled array points at valid data, used by the program or not:
+     * a stray enabled array drops the draw on some drivers. */
+    glVertexAttribPointer(
+        GLES2_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, stride,
+        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, x));
+    glVertexAttribPointer(
+        GLES2_ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, stride,
+        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, u));
+    glVertexAttribPointer(
+        GLES2_ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride,
+        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, rgba));
+    glVertexAttribPointer(
+        GLES2_ATTRIB_TEXINFO, 1, GL_FLOAT, GL_FALSE, stride,
+        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, sel));
+    renderer->stream_buffer = renderer->present_vbo;
+    renderer->stream_byte_offset = 0u;
+    renderer->stream_layout = GLES2_STREAM_NONE;
+}
+
 static void
 gles2_scale_target_destroy(struct ToriRS_GLES2* renderer)
 {
@@ -3799,31 +3877,6 @@ gles2_scale_target_ensure(struct ToriRS_GLES2* renderer)
     assert(renderer->target_height > 0);
     filter = renderer->client_scale.output_filter == CLIENT_SCALE_FILTER_NEAREST ? GL_NEAREST
                                                                                   : GL_LINEAR;
-    if( !renderer->present_vbo )
-    {
-        /* Two triangles over clip space; v = 0 is the texture's bottom row,
-         * which is GL's bottom row of the frame too. */
-        static const float corners[6][4] = {
-            { -1.0f, -1.0f, 0.0f, 0.0f }, { 1.0f, -1.0f, 1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },
-            { -1.0f, -1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },  { -1.0f, 1.0f, 0.0f, 1.0f },
-        };
-        struct GLES2VertexUI vertices[6];
-        int i;
-        for( i = 0; i < 6; i++ )
-        {
-            vertices[i].x = corners[i][0];
-            vertices[i].y = corners[i][1];
-            vertices[i].w = 1.0f;
-            vertices[i].u = corners[i][2];
-            vertices[i].v = corners[i][3];
-            vertices[i].rgba = 0xffffffffu;
-            vertices[i].sel = 0.0f;
-        }
-        glGenBuffers(1, &renderer->present_vbo);
-        assert(renderer->present_vbo);
-        gles2_bind_array_buffer(renderer, renderer->present_vbo);
-        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(vertices), vertices, GL_STATIC_DRAW);
-    }
     if( renderer->scale_fbo && renderer->scale_fbo_width == renderer->target_width &&
         renderer->scale_fbo_height == renderer->target_height )
     {
@@ -3893,11 +3946,8 @@ gles2_scale_target_ensure(struct ToriRS_GLES2* renderer)
 static void
 gles2_scale_target_present(struct ToriRS_GLES2* renderer)
 {
-    const GLsizei stride = (GLsizei)sizeof(struct GLES2VertexUI);
-
     assert(renderer);
     assert(renderer->scale_fbo);
-    assert(renderer->present_vbo);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     gles2_set_scissor(renderer, NULL);
     gles2_set_blend(renderer, false);
@@ -3912,24 +3962,7 @@ gles2_scale_target_present(struct ToriRS_GLES2* renderer)
 
     gles2_use_program(renderer, &renderer->program_present);
     gles2_bind_texture0(renderer, renderer->scale_texture);
-    gles2_bind_array_buffer(renderer, renderer->present_vbo);
-    /* Every enabled array points at valid data, used by the program or not:
-     * a stray enabled array drops the draw on some drivers. */
-    glVertexAttribPointer(
-        GLES2_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, stride,
-        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, x));
-    glVertexAttribPointer(
-        GLES2_ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, stride,
-        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, u));
-    glVertexAttribPointer(
-        GLES2_ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride,
-        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, rgba));
-    glVertexAttribPointer(
-        GLES2_ATTRIB_TEXINFO, 1, GL_FLOAT, GL_FALSE, stride,
-        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, sel));
-    renderer->stream_buffer = renderer->present_vbo;
-    renderer->stream_byte_offset = 0u;
-    renderer->stream_layout = GLES2_STREAM_NONE;
+    gles2_bind_present_quad(renderer);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
@@ -3946,6 +3979,7 @@ gles2_destroy_gl_resources(struct ToriRS_GLES2* renderer)
     gles2_delete_program(&renderer->program_ui);
     gles2_delete_program(&renderer->program_rotmask);
     gles2_delete_program(&renderer->program_present);
+    gles2_delete_program(&renderer->program_ui_composite);
     gles2_scale_target_destroy(renderer);
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
     {
@@ -4134,11 +4168,9 @@ void
 ToriRS_GLES2_SetInterfaceScaleMode(struct ToriRS_GLES2* renderer, int mode)
 {
     assert(renderer);
-    mode = gles2_clampi(mode, 0, 2);
-    if( renderer->interface_scale_mode == mode )
-        return;
-    renderer->interface_scale_mode = mode;
-    renderer->ui_filter_dirty = true;
+    /* Read at the next BEGIN_2D (gles2_ui_layer_wanted); interface art is
+     * always sampled nearest, so no texture is refiltered. */
+    renderer->interface_scale_mode = gles2_clampi(mode, 0, 2);
 }
 
 void
@@ -4149,13 +4181,6 @@ ToriRS_GLES2_SetClientScaling(
     assert(renderer);
     assert(settings);
     renderer->client_scale = *settings;
-}
-
-GLenum
-gles2_ui_filter(const struct ToriRS_GLES2* renderer)
-{
-    assert(renderer);
-    return renderer->interface_scale_mode == 0 ? GL_NEAREST : GL_LINEAR;
 }
 
 void
@@ -4196,6 +4221,8 @@ gles2_begin_frame(struct ToriRS_GLES2* renderer, bool clear_to_black_only, bool 
         renderer->window, &renderer->drawable_width, &renderer->drawable_height);
     if( renderer->drawable_width <= 0 || renderer->drawable_height <= 0 )
         return false;
+    /* An interface layer is opened and composited inside one 2D segment. */
+    assert(!renderer->ui_layer_open);
     gles2_update_letterbox(renderer, allow_offscreen);
     gles2_state_reset(renderer);
     gles2_stream_sets_begin_frame(renderer);

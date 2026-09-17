@@ -44,22 +44,31 @@
  * Helpers
  * ----------------------------------------------------------------------- */
 
+/*
+ * Interface art is always sampled nearest. The interface filter is not a
+ * property of each sprite: a Linear or Bicubic interface is drawn 1:1 into the
+ * interface layer and filtered once as a picture (gl3_ui_layer_composite), and
+ * a Nearest one is nearest either way.
+ */
 static GLint
 gl3_interface_filter(struct ToriRS_GL3 const* renderer)
 {
-    return renderer->interface_scale_mode == 0 ? GL_NEAREST : GL_LINEAR;
+    (void)renderer;
+    return GL_NEAREST;
 }
 
+/*
+ * The 2D blend. Colour is ordinary straight-alpha "over"; alpha accumulates as
+ * a + dst*(1-a). On the default framebuffer the alpha channel is never read.
+ * In the interface layer, cleared to transparent black, the pair leaves the
+ * layer holding premultiplied colour and coverage, which is what makes it
+ * filterable without dark fringes and composable with (ONE, 1-SRC_ALPHA).
+ */
 static void
-gl3_set_ui_texture_filter(struct ToriRS_GL3 const* renderer, GLuint texture)
+gl3_blend_ui(void)
 {
-    GLint filter;
-    if( !texture )
-        return;
-    filter = gl3_interface_filter(renderer);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 /*
@@ -298,6 +307,23 @@ gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
     if( renderer->scale_depth_stencil )
         glDeleteRenderbuffers(1, &renderer->scale_depth_stencil);
     renderer->scale_fbo = 0u;
+    if( renderer->ui_layer_fbo )
+        glDeleteFramebuffers(1, &renderer->ui_layer_fbo);
+    if( renderer->ui_layer_texture )
+        glDeleteTextures(1, &renderer->ui_layer_texture);
+    if( renderer->ui_composite_program )
+        glDeleteProgram(renderer->ui_composite_program);
+    if( renderer->ui_composite_vao )
+        glDeleteVertexArrays(1, &renderer->ui_composite_vao);
+    if( renderer->ui_composite_vbo )
+        glDeleteBuffers(1, &renderer->ui_composite_vbo);
+    renderer->ui_layer_fbo = 0u;
+    renderer->ui_layer_texture = 0u;
+    renderer->ui_layer_w = 0;
+    renderer->ui_layer_h = 0;
+    renderer->ui_composite_program = 0u;
+    renderer->ui_composite_vao = 0u;
+    renderer->ui_composite_vbo = 0u;
     renderer->scale_color_texture = 0u;
     renderer->scale_depth_stencil = 0u;
     renderer->scale_fbo_w = 0;
@@ -861,8 +887,7 @@ gl3_flush_2d_batch(struct ToriRS_GL3* renderer)
     else
         glDisable(GL_SCISSOR_TEST);
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    gl3_blend_ui();
     glUseProgram(renderer->program2d);
     glUniformMatrix4fv(renderer->u2d_projection, 1, GL_FALSE, renderer->proj2d);
     gl3_bind_quad_attribs(renderer);
@@ -2064,6 +2089,148 @@ gl3_ev_fill_rect(
     }
 }
 
+/* ---- interface layer --------------------------------------------------- */
+
+/* A layer only where it changes the picture: an interface filter that is not
+ * Nearest, on an interface drawn at a size other than its own. */
+static bool
+gl3_ui_layer_wanted(struct ToriRS_GL3 const* renderer)
+{
+    return renderer->interface_scale_mode != 0 &&
+           (renderer->lb_w != renderer->width || renderer->lb_h != renderer->height);
+}
+
+static void
+gl3_ui_layer_ensure(struct ToriRS_GL3* renderer)
+{
+    int const w = renderer->width;
+    int const h = renderer->height;
+
+    if( renderer->ui_layer_fbo && renderer->ui_layer_w == w && renderer->ui_layer_h == h )
+        return;
+    if( !renderer->ui_layer_fbo )
+        glGenFramebuffers(1, &renderer->ui_layer_fbo);
+    if( !renderer->ui_layer_texture )
+        glGenTextures(1, &renderer->ui_layer_texture);
+    assert(renderer->ui_layer_fbo);
+    assert(renderer->ui_layer_texture);
+    glBindTexture(GL_TEXTURE_2D, renderer->ui_layer_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    /* No depth or stencil: 2D disables both, and the one 3D draw inside a
+     * segment (a model widget) runs with the depth test off. */
+    glBindFramebuffer(GL_FRAMEBUFFER, renderer->ui_layer_fbo);
+    glFramebufferTexture2D(
+        GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderer->ui_layer_texture, 0);
+    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+    renderer->ui_layer_w = w;
+    renderer->ui_layer_h = h;
+}
+
+static void
+gl3_ui_composite_ensure(struct ToriRS_GL3* renderer)
+{
+    static float const quad[8] = { -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f };
+    GLuint vs;
+    GLuint fs;
+    GLint link_ok = 0;
+
+    if( renderer->ui_composite_program )
+        return;
+    vs = gl3_compile_shader(GL_VERTEX_SHADER, trspk_opengl3_ui_composite_vertex_shader);
+    fs = gl3_compile_shader(GL_FRAGMENT_SHADER, trspk_opengl3_ui_composite_fragment_shader);
+    assert(vs);
+    assert(fs);
+    renderer->ui_composite_program = glCreateProgram();
+    assert(renderer->ui_composite_program);
+    glAttachShader(renderer->ui_composite_program, vs);
+    glAttachShader(renderer->ui_composite_program, fs);
+    glBindAttribLocation(renderer->ui_composite_program, 0, "a_position");
+    glLinkProgram(renderer->ui_composite_program);
+    glGetProgramiv(renderer->ui_composite_program, GL_LINK_STATUS, &link_ok);
+    assert(link_ok);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    renderer->ui_composite_u_layer = glGetUniformLocation(renderer->ui_composite_program, "u_layer");
+    renderer->ui_composite_u_size = glGetUniformLocation(renderer->ui_composite_program, "u_size");
+    renderer->ui_composite_u_filter =
+        glGetUniformLocation(renderer->ui_composite_program, "u_filter");
+
+    glGenVertexArrays(1, &renderer->ui_composite_vao);
+    glGenBuffers(1, &renderer->ui_composite_vbo);
+    assert(renderer->ui_composite_vao);
+    assert(renderer->ui_composite_vbo);
+    glBindVertexArray(renderer->ui_composite_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->ui_composite_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quad), quad, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+    glBindVertexArray(0);
+}
+
+/* Redirect the 2D segment into the layer: layout-sized, 1:1, transparent. */
+static void
+gl3_ui_layer_begin(struct ToriRS_GL3* renderer)
+{
+    GLint bound = 0;
+
+    assert(!renderer->ui_layer_open);
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &bound);
+    gl3_ui_layer_ensure(renderer);
+    glBindFramebuffer(GL_FRAMEBUFFER, renderer->ui_layer_fbo);
+    renderer->ui_layer_saved_fbo = bound;
+    renderer->ui_layer_saved_lb_x = renderer->lb_x;
+    renderer->ui_layer_saved_lb_y = renderer->lb_y;
+    renderer->ui_layer_saved_lb_w = renderer->lb_w;
+    renderer->ui_layer_saved_lb_h = renderer->lb_h;
+    renderer->lb_x = 0;
+    renderer->lb_y = 0;
+    renderer->lb_w = renderer->width;
+    renderer->lb_h = renderer->height;
+    glViewport(0, 0, renderer->width, renderer->height);
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    renderer->ui_layer_open = true;
+}
+
+/* Filter the finished segment onto the output rect it would have drawn to. */
+static void
+gl3_ui_layer_composite(struct ToriRS_GL3* renderer)
+{
+    GLint const filter = renderer->interface_scale_mode == 1 ? GL_LINEAR : GL_NEAREST;
+
+    assert(renderer->ui_layer_open);
+    renderer->ui_layer_open = false;
+    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)renderer->ui_layer_saved_fbo);
+    renderer->lb_x = renderer->ui_layer_saved_lb_x;
+    renderer->lb_y = renderer->ui_layer_saved_lb_y;
+    renderer->lb_w = renderer->ui_layer_saved_lb_w;
+    renderer->lb_h = renderer->ui_layer_saved_lb_h;
+    glViewport(renderer->lb_x, renderer->lb_y, renderer->lb_w, renderer->lb_h);
+
+    gl3_ui_composite_ensure(renderer);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(renderer->ui_composite_program);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, renderer->ui_layer_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+    glUniform1i(renderer->ui_composite_u_layer, 0);
+    glUniform2f(
+        renderer->ui_composite_u_size, (float)renderer->ui_layer_w, (float)renderer->ui_layer_h);
+    glUniform1i(renderer->ui_composite_u_filter, renderer->interface_scale_mode);
+    glBindVertexArray(renderer->ui_composite_vao);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
+    gl3_blend_ui();
+    glUseProgram(renderer->program2d);
+}
+
 static void
 gl3_ev_begin_2d(
     struct ToriRS_GL3* renderer,
@@ -2079,8 +2246,9 @@ gl3_ev_begin_2d(
     glDisable(GL_CULL_FACE);
     glDisable(GL_STENCIL_TEST);
     glDisable(GL_SCISSOR_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    gl3_blend_ui();
+    if( gl3_ui_layer_wanted(renderer) )
+        gl3_ui_layer_begin(renderer);
     glUseProgram(renderer->program2d);
     glViewport(renderer->lb_x, renderer->lb_y, renderer->lb_w, renderer->lb_h);
     trspk_mat4_ortho2d_top_left(renderer->proj2d, 0.0f, (float)renderer->width, (float)renderer->height, 0.0f);
@@ -2110,6 +2278,8 @@ gl3_ev_end_2d(
     gl3_unbind_attribs(renderer);
     glDisable(GL_SCISSOR_TEST);
     glDisable(GL_STENCIL_TEST);
+    if( renderer->ui_layer_open )
+        gl3_ui_layer_composite(renderer);
     renderer->in2d = false;
 }
 
@@ -2700,8 +2870,7 @@ gl3_bind_world_draw_state(struct ToriRS_GL3* renderer)
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, renderer->atlas_texture);
     }
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    gl3_blend_ui();
     if( renderer->z_buffer_enabled )
         GL3ZB_BindDrawState(renderer);
     else
@@ -4005,6 +4174,68 @@ gl3_widget_model_project_vertex(
     return true;
 }
 
+/*
+ * Order a widget model's faces the way Soft3D does: back to front by depth
+ * within the face render priorities, with back faces dropped. The widget pass
+ * runs with the depth test OFF (a hidden face written to depth would punch a
+ * hole through a chathead), so submission order is the only visibility this
+ * draw has. Submitting in model index order drew a far foot over the near leg
+ * and the back of the torso over its front as the character designer's player
+ * turned. GLES2 and D3D9 already sort here; this is the same sort.
+ *
+ * Only the winding and relative depth reach the sort, so the screen positions
+ * are left origin-free.
+ */
+static int
+gl3_widget_model_sort_faces(
+    struct ToriRS_GL3* renderer,
+    struct ToriDraw_ModelHandle model_handle,
+    struct ToriDraw_WidgetModelTransform const* xf,
+    int mid_z)
+{
+    struct ToriDraw_Scene* scene = renderer->scene;
+    int const vc = ToriDraw_ModelGetVertexCount(model_handle);
+    vertexint_t* vertices_x = ToriDraw_ModelGetVerticesX(model_handle);
+    vertexint_t* vertices_y = ToriDraw_ModelGetVerticesY(model_handle);
+    vertexint_t* vertices_z = ToriDraw_ModelGetVerticesZ(model_handle);
+    int const ortho_scale = xf->zoom2d > 100 ? xf->zoom2d : 100;
+
+    assert(scene);
+    if( vc <= 0 || vc > scene->max_vertices ||
+        trspk_toridraw_face_count(model_handle) > scene->max_faces )
+        return 0;
+    scene->active_hnd = model_handle;
+    scene->near_clipped = false;
+    for( int i = 0; i < vc; i++ )
+    {
+        int cx;
+        int cy;
+        int cz;
+        gl3_widget_model_transform_vertex(
+            xf, vertices_x[i], vertices_y[i], vertices_z[i], &cx, &cy, &cz);
+        scene->orthographic_vertices_x[i] = cx;
+        scene->orthographic_vertices_y[i] = cy;
+        scene->orthographic_vertices_z[i] = cz;
+        scene->screen_vertices_z[i] = cz - mid_z;
+        if( xf->orthographic )
+        {
+            scene->screen_vertices_x[i] = (int)((int64_t)cx * xf->zoom3d / ortho_scale);
+            scene->screen_vertices_y[i] = (int)((int64_t)cy * xf->zoom3d / ortho_scale);
+        }
+        else if( cz <= GL3_WIDGET_MODEL_NEAR )
+        {
+            scene->screen_vertices_x[i] = -5000;
+            scene->screen_vertices_y[i] = 0;
+        }
+        else
+        {
+            scene->screen_vertices_x[i] = (int)((int64_t)cx * xf->zoom3d / cz);
+            scene->screen_vertices_y[i] = (int)((int64_t)cy * xf->zoom3d / cz);
+        }
+    }
+    return ToriDraw_RenderModel2SortFacesWithTable(model_handle, scene, renderer->kernel);
+}
+
 static uint32_t
 gl3_bake_widget_model(
     struct ToriRS_GL3* renderer,
@@ -4012,7 +4243,8 @@ gl3_bake_widget_model(
     struct ToriDraw_ModelHandle model_handle,
     struct ToriDraw_WidgetModelTransform const* xf,
     float origin_x,
-    float origin_y)
+    float origin_y,
+    uint32_t* out_tri_count)
 {
     int face_count_faces;
     int vc;
@@ -4026,8 +4258,12 @@ gl3_bake_widget_model(
     struct TRSPK_ModelSlot const* model_slot;
     uint32_t base;
     uint32_t tri_count;
+    int const* face_order;
+    int sorted_face_count;
 
     assert(g->arena && g->vbo_cpu);
+    assert(out_tri_count);
+    *out_tri_count = 0u;
     face_count_faces = trspk_toridraw_face_count(model_handle);
     if( face_count_faces <= 0 )
         return UINT32_MAX;
@@ -4055,20 +4291,26 @@ gl3_bake_widget_model(
         mid_z = z_count > 0 ? z_sum / z_count : 0;
     }
 
+    sorted_face_count = gl3_widget_model_sort_faces(renderer, model_handle, xf, mid_z);
+    if( sorted_face_count <= 0 )
+        return UINT32_MAX;
+    face_order = ToriDraw_FaceOrder(renderer->scene);
+
     {
-        uint32_t const vert_count = (uint32_t)face_count_faces * 3u;
+        uint32_t const vert_count = (uint32_t)sorted_face_count * 3u;
         slot_index = trspk_modelarena_load(g->arena, GL3_WIDGET_ARENA_ELEMENT_ID, 0, vert_count);
         model_slot = trspk_modelarena_get(g->arena, slot_index);
         if( !model_slot )
             return UINT32_MAX;
         base = model_slot->vertex_base;
-        tri_count = (uint32_t)face_count_faces;
+        tri_count = 0u;
 
-        for( uint32_t face_index = 0; face_index < tri_count; face_index++ )
+        for( int order_index = 0; order_index < sorted_face_count; order_index++ )
         {
             struct ToriDraw_Scene* ctx = renderer->scene;
             struct TRSPK_ToriDrawBakeFaceVerts face;
-            uint32_t const vi = base + face_index * 3u;
+            int const face_index = face_order[order_index];
+            uint32_t const vi = base + tri_count * 3u;
             float sx[3];
             float sy[3];
             float sz[3];
@@ -4079,8 +4321,8 @@ gl3_bake_widget_model(
                     model_handle, face_index, &trspk_world_placement_identity, ctx, true,
                     TRSPK_BAKE_COLOR_FLOAT, &face) )
                 continue;
-            /* Soft3D never rasterizes HIDDEN / fully-transparent faces. Leave
-             * the slot zeroed (alpha 0) so painter order cannot punch holes. */
+            /* Soft3D never rasterizes HIDDEN / fully-transparent faces. Such a
+             * face takes no slot, so it cannot punch a hole in painter order. */
             if( face.color_a[3] <= (1.0f / 255.0f) )
                 continue;
 
@@ -4089,7 +4331,6 @@ gl3_bake_widget_model(
                 face.tex_id_encoded = trspk_encode_vertex_tex_id(
                     slot, face.tex_cutout, (int)renderer->tex_cap);
             }
-            trspk_triangles_set(&g->triangles, (base / 3u) + face_index, TRSPK_TRIANGLES_ATLAS);
 
             {
                 int const locals[3][3] = {
@@ -4129,6 +4370,8 @@ gl3_bake_widget_model(
                 }
             }
 
+            trspk_triangles_set(&g->triangles, (base / 3u) + tri_count, TRSPK_TRIANGLES_ATLAS);
+            tri_count++;
             gl3_write_vertex_opengl3(
                 g->vbo_cpu,
                 vi + 0u,
@@ -4164,6 +4407,7 @@ gl3_bake_widget_model(
                 face.uv_mode);
         }
     }
+    *out_tri_count = tri_count;
     return base;
 }
 
@@ -4213,6 +4457,7 @@ gl3_ev_model_widget(
     struct GL3ModelGroup* g;
     int face_count;
     uint32_t vertex_base;
+    uint32_t tri_count = 0u;
     float model_view[16];
     float widget_proj[16];
     int scissor_x;
@@ -4245,8 +4490,9 @@ gl3_ev_model_widget(
         return;
     origin_x = (float)(wcmd->x + (wcmd->w > 0 ? wcmd->w / 2 : 0));
     origin_y = (float)(wcmd->y + (wcmd->h > 0 ? wcmd->h / 2 : 0));
-    vertex_base = gl3_bake_widget_model(renderer, g, wcmd->model, &xf, origin_x, origin_y);
-    if( vertex_base == UINT32_MAX )
+    vertex_base =
+        gl3_bake_widget_model(renderer, g, wcmd->model, &xf, origin_x, origin_y, &tri_count);
+    if( vertex_base == UINT32_MAX || tri_count == 0u )
         return;
     if( !gl3_upload_group(g) )
         return;
@@ -4283,7 +4529,7 @@ gl3_ev_model_widget(
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_FALSE);
     gl3_bind_group_attribs(renderer, g, 0u);
-    glDrawArrays(GL_TRIANGLES, (GLint)vertex_base, (GLsizei)(face_count * 3));
+    glDrawArrays(GL_TRIANGLES, (GLint)vertex_base, (GLsizei)(tri_count * 3u));
     gl3_unbind_attribs(renderer);
     glDisable(GL_DEPTH_TEST);
     glDepthFunc(GL_ALWAYS);
@@ -4966,26 +5212,13 @@ ToriRS_GL3_SetPick(struct ToriRS_GL3* gl3, int mouse_x, int mouse_y)
 void
 ToriRS_GL3_SetInterfaceScaleMode(struct ToriRS_GL3* gl3, int mode)
 {
-    if( !gl3 )
-        return;
+    assert(gl3);
     if( mode < 0 )
         mode = 0;
     if( mode > 2 )
         mode = 2;
-    if( gl3->interface_scale_mode == mode )
-        return;
+    /* Read at the next BEGIN_2D; no texture is refiltered. */
     gl3->interface_scale_mode = mode;
-    if( !gl3->gl_context || !gl3->window )
-        return;
-
-    ToriRS_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
-    gl3_set_ui_texture_filter(gl3, gl3->sprite_atlas_texture);
-    gl3_set_ui_texture_filter(gl3, gl3->white_texture);
-    for( int i = 0; i < GL3_ROTMASK_DEDICATED_CAP; i++ )
-        gl3_set_ui_texture_filter(gl3, gl3->rotmask_slots[i].texture);
-    for( int i = 0; i < TRSPK_GL3_FONT_CAP; i++ )
-        gl3_set_ui_texture_filter(gl3, gl3->font_slots[i].texture);
-    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 struct ToriRS_PickHits const*
@@ -5167,8 +5400,7 @@ ToriRS_GL3_DrawBootBar(
     }
 
     glDisable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    gl3_blend_ui();
     glUseProgram(gl3->program2d);
     glViewport(gl3->lb_x, gl3->lb_y, gl3->lb_w, gl3->lb_h);
     trspk_mat4_ortho2d_top_left(gl3->proj2d, 0.0f, (float)gl3->width, (float)gl3->height, 0.0f);

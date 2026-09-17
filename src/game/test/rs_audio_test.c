@@ -463,8 +463,8 @@ test_prefs_persistence(void)
         "a missing file leaves defaults, not zeroes");
     CHECK(
         loaded.options[RS_CS2_OPTION_DEVICE][RS_CS2_DEVICEOPTION_UI_SCALE_MODE] ==
-            RS_CS2_UI_SCALE_MODE_BICUBIC,
-        "a missing file uses the cache's Bicubic scaling default");
+            RS_CS2_UI_SCALE_MODE_NEAREST,
+        "a missing file uses the Nearest scaling default");
 
     RS_CS2Host_SetOption(
         &host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_UI_SCALE_MODE, 99);

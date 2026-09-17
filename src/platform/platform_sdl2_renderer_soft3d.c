@@ -14,6 +14,7 @@
 #include "toridraw_types.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +24,20 @@
  * Each site below is a single call into it, and a default build takes one
  * predicted branch per frame or per model for the lot. */
 #include "platform_sdl2_renderer_soft3d_debug.u.c"
+
+#define SOFT3D_SEGMENT_CACHES 4
+#define SOFT3D_SEGMENT_TILE 16
+
+struct Soft3DSegmentCache
+{
+    int out_w, out_h, layout_w, layout_h, mode;
+    /* Per layout texel: the interface's colour where it drew, -1 where not. */
+    int* encoded;
+    /* Per output pixel: premultiplied colour, coverage in the top byte. */
+    int* filtered;
+    unsigned char* dirty;
+    int has_coverage;
+};
 
 struct Soft3DOutlineCacheEntry
 {
@@ -58,6 +73,28 @@ struct ToriRS_Soft3DScratch
     int layer_x0, layer_y0, layer_x1, layer_y1;
     int* layer_saved_pixels;
     int layer_saved_width, layer_saved_height, layer_saved_stride;
+    /* The interface segment layer: what the 2D segment drew, over a marked
+     * picture of the buffer. @see soft3d_segment_begin. */
+    int* segment;
+    size_t segment_cap;
+    int segment_open;
+    int* segment_saved_pixels;
+    int segment_saved_width, segment_saved_height, segment_saved_stride;
+    /* Per output column / row: the first tap's layout index and each tap's
+     * weight in Q10, for the (output, layout, mode) they were built for. */
+    int* taps_x;
+    int* taps_y;
+    size_t taps_x_cap;
+    size_t taps_y_cap;
+    int taps_x_key[3];
+    int taps_y_key[3];
+    /* One output row's vertical sums per layout column: r, g, b, coverage. */
+    int* column_sums;
+    size_t column_sums_cap;
+    /* Filtered output kept across frames, one per segment in frame order.
+     * @see soft3d_segment_end. */
+    struct Soft3DSegmentCache segment_caches[SOFT3D_SEGMENT_CACHES];
+    int segment_index;
     struct Soft3DOutlineCacheEntry outline_cache[SOFT3D_OUTLINE_CACHE_SLOTS];
     uint64_t outline_clock;
 };
@@ -495,10 +532,38 @@ soft3d_layer_end(struct ToriRS_Soft3D* soft)
     soft->scaled = true;
     ToriDraw2D_FontSetOutputScale(soft->width, soft->layout_w, soft->height, soft->layout_h);
 
-    bx0 = soft3d_mx(soft, scratch->layer_x0);
-    by0 = soft3d_my(soft, scratch->layer_y0);
-    bx1 = soft3d_mx(soft, scratch->layer_x1);
-    by1 = soft3d_my(soft, scratch->layer_y1);
+    /* Composite only what was written. A layer can be far larger than its
+     * content (a model widget's spans its whole enclosing clip), and the
+     * composite below is paid in OUTPUT pixels while this scan is paid in
+     * layout pixels. */
+    {
+        int wx0 = scratch->layer_x1;
+        int wy0 = scratch->layer_y1;
+        int wx1 = scratch->layer_x0;
+        int wy1 = scratch->layer_y0;
+        for( int y = scratch->layer_y0; y < scratch->layer_y1; y++ )
+        {
+            int const* row = scratch->layer + (size_t)y * (size_t)soft->layout_w;
+            for( int x = scratch->layer_x0; x < scratch->layer_x1; x++ )
+            {
+                if( row[x] == SOFT3D_LAYER_EMPTY )
+                    continue;
+                if( x < wx0 )
+                    wx0 = x;
+                if( x >= wx1 )
+                    wx1 = x + 1;
+                if( y < wy0 )
+                    wy0 = y;
+                wy1 = y + 1;
+            }
+        }
+        if( wx0 >= wx1 || wy0 >= wy1 )
+            return;
+        bx0 = soft3d_mx(soft, wx0);
+        by0 = soft3d_my(soft, wy0);
+        bx1 = soft3d_mx(soft, wx1);
+        by1 = soft3d_my(soft, wy1);
+    }
     if( bx1 > soft->width )
         bx1 = soft->width;
     if( by1 > soft->height )
@@ -1131,6 +1196,12 @@ soft3d_draw_line(
 }
 
 static void
+soft3d_segment_begin(struct ToriRS_Soft3D* soft);
+
+static void
+soft3d_segment_end(struct ToriRS_Soft3D* soft);
+
+static void
 soft3d_draw_model_widget(
     struct ToriRS_Soft3D* soft,
     struct ToriRS_RenderCommand_ModelWidget const* cmd)
@@ -1146,18 +1217,20 @@ soft3d_draw_model_widget(
         return;
 
     /* The widget raster writes opaque pixels 1:1 at layout resolution; a
-     * scaled frame draws it into the layer over its clipped box. */
+     * scaled frame draws it into the layer over the SCISSOR, not the widget
+     * box. A model overflows its box by design -- the 2004 character designer
+     * centres a 168px-tall player on a box that holds only its legs, and the
+     * reference clips it to the enclosing layer alone. A box-sized layer cut
+     * off everything above the box, on this renderer only: the unscaled path
+     * and GL3 both clip to the scissor. */
     bool const layered = soft->scaled;
     if( layered )
-    {
-        int bx0 = cmd->x > cmd->scissor_x ? cmd->x : cmd->scissor_x;
-        int by0 = cmd->y > cmd->scissor_y ? cmd->y : cmd->scissor_y;
-        int bx1 = cmd->x + cmd->w < cmd->scissor_x + cmd->scissor_w ? cmd->x + cmd->w
-                                                                    : cmd->scissor_x + cmd->scissor_w;
-        int by1 = cmd->y + cmd->h < cmd->scissor_y + cmd->scissor_h ? cmd->y + cmd->h
-                                                                    : cmd->scissor_y + cmd->scissor_h;
-        (void)soft3d_layer_begin(soft, bx0, by0, bx1, by1);
-    }
+        (void)soft3d_layer_begin(
+            soft,
+            cmd->scissor_x,
+            cmd->scissor_y,
+            cmd->scissor_x + cmd->scissor_w,
+            cmd->scissor_y + cmd->scissor_h);
 
     (void)ToriDraw_RenderModelExtentsAtWidget(
         soft->scene,
@@ -1382,6 +1455,16 @@ ToriRS_Soft3D_Free(struct ToriRS_Soft3D* soft)
             free(soft->scratch->outline_cache[i].pixels);
         free(soft->scratch->blit);
         free(soft->scratch->layer);
+        free(soft->scratch->segment);
+        free(soft->scratch->taps_x);
+        free(soft->scratch->taps_y);
+        free(soft->scratch->column_sums);
+        for( int i = 0; i < SOFT3D_SEGMENT_CACHES; i++ )
+        {
+            free(soft->scratch->segment_caches[i].encoded);
+            free(soft->scratch->segment_caches[i].filtered);
+            free(soft->scratch->segment_caches[i].dirty);
+        }
         free(soft->scratch);
     }
     free(soft);
@@ -1408,6 +1491,8 @@ ToriRS_Soft3D_Init(
     scratch = soft->scratch;
     memset(soft, 0, sizeof(*soft));
     soft->scratch = scratch;
+    /* A frame's 2D segments are numbered from its first. */
+    scratch->segment_index = 0;
     soft->scene = scene;
     /* Taking it is also checking it: ToriDraw_KernelTake validates the table
      * against this scene and provisions the scratch its three stages need, so
@@ -1499,7 +1584,13 @@ ToriRS_Soft3D_Execute(
         break;
 
     case TORIRSRC_BEGIN_2D:
+        if( soft->scaled && soft->interface_scale_mode != 0 )
+            soft3d_segment_begin(soft);
+        break;
+
     case TORIRSRC_END_2D:
+        if( soft->scratch->segment_open )
+            soft3d_segment_end(soft);
         break;
 
     case TORIRSRC_CLEAR_RECT:
@@ -1747,6 +1838,454 @@ soft3d_clear_framebuffer(struct ToriRS_Soft3D* soft)
 
 #endif
 
+
+/* ---- interface segment layer -------------------------------------------- */
+
+#define SOFT3D_TAPS_MAX 4
+/* Stride of one axis-table entry: first tap, then SOFT3D_TAPS_MAX weights. */
+#define SOFT3D_TAP_ENTRY (1 + SOFT3D_TAPS_MAX)
+#define SOFT3D_WEIGHT_ONE 1024
+
+static void
+soft3d_grow_ints(int** buffer, size_t* cap, size_t needed)
+{
+    if( needed <= *cap )
+        return;
+    free(*buffer);
+    *buffer = (int*)malloc(needed * sizeof(int));
+    assert(*buffer);
+    *cap = needed;
+}
+
+/*
+ * Where each output pixel of one axis samples the layout: pixel centres map
+ * to p = (o + 0.5) * layout / output - 0.5, the taps straddle floor(p), and
+ * the weights are linear or Catmull-Rom in the fraction. Taps past an edge
+ * clamp to it. Fixed point, and every row of weights sums to exactly one.
+ */
+static int*
+soft3d_axis_taps(
+    int** table,
+    size_t* cap,
+    int key[3],
+    int output,
+    int layout,
+    int mode)
+{
+    int const taps = mode == 2 ? 4 : 2;
+
+    if( key[0] == output && key[1] == layout && key[2] == mode && *table )
+        return *table;
+    soft3d_grow_ints(table, cap, (size_t)output * SOFT3D_TAP_ENTRY);
+    for( int o = 0; o < output; o++ )
+    {
+        int* entry = *table + (size_t)o * SOFT3D_TAP_ENTRY;
+        double const p = ((double)o + 0.5) * (double)layout / (double)output - 0.5;
+        double const base_floor = floor(p);
+        double const t = p - base_floor;
+        double w[SOFT3D_TAPS_MAX] = { 0.0, 0.0, 0.0, 0.0 };
+        int first;
+        int sum = 0;
+
+        if( taps == 4 )
+        {
+            double const t2 = t * t;
+            double const t3 = t2 * t;
+            w[0] = -0.5 * t3 + t2 - 0.5 * t;
+            w[1] = 1.5 * t3 - 2.5 * t2 + 1.0;
+            w[2] = -1.5 * t3 + 2.0 * t2 + 0.5 * t;
+            w[3] = 0.5 * t3 - 0.5 * t2;
+            first = (int)base_floor - 1;
+        }
+        else
+        {
+            w[0] = 1.0 - t;
+            w[1] = t;
+            first = (int)base_floor;
+        }
+        entry[0] = first;
+        for( int k = 0; k < SOFT3D_TAPS_MAX; k++ )
+        {
+            int const q = (int)(w[k] * SOFT3D_WEIGHT_ONE + (w[k] < 0.0 ? -0.5 : 0.5));
+            entry[1 + k] = k < taps ? q : 0;
+            sum += entry[1 + k];
+        }
+        /* Rounding residue onto the heaviest tap. */
+        entry[taps == 4 ? (t < 0.5 ? 2 : 3) : (t < 0.5 ? 1 : 2)] += SOFT3D_WEIGHT_ONE - sum;
+    }
+    key[0] = output;
+    key[1] = layout;
+    key[2] = mode;
+    return *table;
+}
+
+static inline int
+soft3d_clamp_index(int i, int n)
+{
+    return i < 0 ? 0 : (i >= n ? n - 1 : i);
+}
+
+/* The top byte of every layer texel nothing has drawn over. An xrgb8888
+ * write leaves 0x00 there (alpha_blend masks it away) or 0xFF (an opaque
+ * pack); no writer produces 0x01. */
+#define SOFT3D_SEGMENT_UNDRAWN 0x01u
+
+/*
+ * Open a 2D segment in the layer. The layer starts as a layout-sized picture
+ * of the buffer under it, so translucent interface blends against what is
+ * really there, with SOFT3D_SEGMENT_UNDRAWN in each texel's top byte: any
+ * draw replaces the byte, and that is what soft3d_segment_end reads as
+ * coverage.
+ *
+ * Coverage is not "the texel changed". A player standing in the world
+ * behind the character designer is the same model, lit the same way, as the
+ * one on the panel, and every texel where the two agreed read as uncovered:
+ * the filter rang around each hole and speckled the model's face seams.
+ */
+static void
+soft3d_segment_begin(struct ToriRS_Soft3D* soft)
+{
+    struct ToriRS_Soft3DScratch* scratch = soft->scratch;
+    int const lw = soft->layout_w;
+    int const lh = soft->layout_h;
+    size_t const n = (size_t)lw * (size_t)lh;
+
+    assert(!scratch->segment_open);
+    assert(!scratch->layer_open);
+    soft3d_grow_ints(&scratch->segment, &scratch->segment_cap, n);
+    for( int y = 0; y < lh; y++ )
+    {
+        int const by = (int)(((long long)y * 2 + 1) * soft->height / (2LL * lh));
+        int const* src = soft->pixels + (size_t)by * (size_t)soft->stride;
+        int* row = scratch->segment + (size_t)y * (size_t)lw;
+        for( int x = 0; x < lw; x++ )
+        {
+            unsigned const under = (unsigned)src[((long long)x * 2 + 1) * soft->width / (2LL * lw)];
+            row[x] = (int)((under & 0xFFFFFFu) | (SOFT3D_SEGMENT_UNDRAWN << 24));
+        }
+    }
+
+    scratch->segment_open = 1;
+    scratch->segment_saved_pixels = soft->pixels;
+    scratch->segment_saved_width = soft->width;
+    scratch->segment_saved_height = soft->height;
+    scratch->segment_saved_stride = soft->stride;
+    soft->pixels = scratch->segment;
+    soft->width = lw;
+    soft->height = lh;
+    soft->stride = lw;
+    soft->scaled = false;
+    ToriDraw2D_FontSetOutputScale(1, 1, 1, 1);
+}
+
+/* One output row of one cached segment: filter the interface texels its taps
+ * reach into `cache` for output columns [ox0, ox1). */
+static void
+soft3d_segment_filter_span(
+    struct ToriRS_Soft3DScratch* scratch,
+    int const* encoded,
+    int* cache_row,
+    int const* yt,
+    int const* tx,
+    int taps,
+    int lw,
+    int lh,
+    int ox0,
+    int ox1)
+{
+    int* sums = scratch->column_sums;
+    int const* first = tx + (size_t)ox0 * SOFT3D_TAP_ENTRY;
+    int const* last = tx + (size_t)(ox1 - 1) * SOFT3D_TAP_ENTRY;
+    int const cx0 = soft3d_clamp_index(first[0], lw);
+    int const cx1 = soft3d_clamp_index(last[0] + taps - 1, lw) + 1;
+    int rows[SOFT3D_TAPS_MAX];
+
+    for( int k = 0; k < taps; k++ )
+        rows[k] = soft3d_clamp_index(yt[0] + k, lh) * lw;
+
+    for( int cx = cx0; cx < cx1; cx++ )
+    {
+        int r = 0;
+        int g = 0;
+        int b = 0;
+        int a = 0;
+        for( int k = 0; k < taps; k++ )
+        {
+            int const e = encoded[rows[k] + cx];
+            int const w = yt[1 + k];
+            if( e < 0 )
+                continue;
+            r += w * ((e >> 16) & 0xFF);
+            g += w * ((e >> 8) & 0xFF);
+            b += w * (e & 0xFF);
+            a += w * 255;
+        }
+        sums[(size_t)cx * 4] = r;
+        sums[(size_t)cx * 4 + 1] = g;
+        sums[(size_t)cx * 4 + 2] = b;
+        sums[(size_t)cx * 4 + 3] = a;
+    }
+
+    for( int ox = ox0; ox < ox1; ox++ )
+    {
+        int const* xt = tx + (size_t)ox * SOFT3D_TAP_ENTRY;
+        long long r = 0;
+        long long g = 0;
+        long long b = 0;
+        long long a = 0;
+        int ai;
+        for( int k = 0; k < taps; k++ )
+        {
+            size_t const c = (size_t)soft3d_clamp_index(xt[0] + k, lw) * 4;
+            int const w = xt[1 + k];
+            r += (long long)w * sums[c];
+            g += (long long)w * sums[c + 1];
+            b += (long long)w * sums[c + 2];
+            a += (long long)w * sums[c + 3];
+        }
+        /* Q10 * Q10, rounded. Catmull-Rom overshoots, so clamp back into
+         * premultiplied range. */
+        a = (a + (1 << 19)) >> 20;
+        if( a <= 0 )
+        {
+            cache_row[ox] = 0;
+            continue;
+        }
+        ai = a > 255 ? 255 : (int)a;
+        r = (r + (1 << 19)) >> 20;
+        g = (g + (1 << 19)) >> 20;
+        b = (b + (1 << 19)) >> 20;
+        r = r < 0 ? 0 : (r > ai ? ai : r);
+        g = g < 0 ? 0 : (g > ai ? ai : g);
+        b = b < 0 ? 0 : (b > ai ? ai : b);
+        cache_row[ox] = (int)(((unsigned)ai << 24) | ((unsigned)r << 16) | ((unsigned)g << 8) | (unsigned)b);
+    }
+}
+
+/*
+ * Close the segment: filter what the interface drew into the buffer.
+ *
+ * Per output pixel the filter sums weight * coverage and weight * coverage *
+ * colour over the taps -- premultiplied, so an interface edge fades into the
+ * full-resolution world instead of into the low-resolution backdrop, and
+ * never darkens. Separable: one pass down the taps of each output row into
+ * per-column sums, one pass across them.
+ *
+ * That is ~20 ms of a 2295x1509 frame for a full-screen interface, and almost
+ * none of an interface changes between frames. So each segment (by its order
+ * in the frame) keeps its interface texels and its filtered output; a frame
+ * re-filters only the tiles whose texels changed, and composites the rest
+ * from the cache.
+ */
+static void
+soft3d_segment_end(struct ToriRS_Soft3D* soft)
+{
+    struct ToriRS_Soft3DScratch* scratch = soft->scratch;
+    int const lw = soft->layout_w;
+    int const lh = soft->layout_h;
+    int const mode = soft->interface_scale_mode;
+    int const taps = mode == 2 ? 4 : 2;
+    int const tiles_w = (lw + SOFT3D_SEGMENT_TILE - 1) / SOFT3D_SEGMENT_TILE;
+    int const tiles_h = (lh + SOFT3D_SEGMENT_TILE - 1) / SOFT3D_SEGMENT_TILE;
+    struct Soft3DSegmentCache* cache;
+    int bw;
+    int bh;
+    int x0 = lw;
+    int y0 = lh;
+    int x1 = 0;
+    int y1 = 0;
+    int any_dirty = 0;
+    int const* tx;
+    int const* ty;
+
+    assert(scratch->segment_open);
+    scratch->segment_open = 0;
+    soft->pixels = scratch->segment_saved_pixels;
+    soft->width = scratch->segment_saved_width;
+    soft->height = scratch->segment_saved_height;
+    soft->stride = scratch->segment_saved_stride;
+    soft->scaled = true;
+    ToriDraw2D_FontSetOutputScale(soft->width, soft->layout_w, soft->height, soft->layout_h);
+    bw = soft->width;
+    bh = soft->height;
+
+    cache = &scratch->segment_caches[
+        scratch->segment_index < SOFT3D_SEGMENT_CACHES ? scratch->segment_index
+                                                        : SOFT3D_SEGMENT_CACHES - 1];
+    scratch->segment_index++;
+    if( cache->out_w != bw || cache->out_h != bh || cache->layout_w != lw ||
+        cache->layout_h != lh || cache->mode != mode )
+    {
+        size_t const layout_n = (size_t)lw * (size_t)lh;
+        size_t const out_n = (size_t)bw * (size_t)bh;
+        free(cache->encoded);
+        free(cache->filtered);
+        free(cache->dirty);
+        cache->encoded = (int*)malloc(layout_n * sizeof(int));
+        cache->filtered = (int*)calloc(out_n, sizeof(int));
+        cache->dirty = (unsigned char*)malloc((size_t)tiles_w * (size_t)tiles_h);
+        assert(cache->encoded);
+        assert(cache->filtered);
+        assert(cache->dirty);
+        /* An encoding no texel can have, so the first frame is all dirty. */
+        for( size_t i = 0; i < layout_n; i++ )
+            cache->encoded[i] = -2;
+        cache->out_w = bw;
+        cache->out_h = bh;
+        cache->layout_w = lw;
+        cache->layout_h = lh;
+        cache->mode = mode;
+        cache->has_coverage = 0;
+    }
+
+    /* Encode each texel as its colour where the interface drew, -1 where it
+     * did not; a tile is dirty where the encoding moved. */
+    memset(cache->dirty, 0, (size_t)tiles_w * (size_t)tiles_h);
+    for( int y = 0; y < lh; y++ )
+    {
+        int const* seg = scratch->segment + (size_t)y * (size_t)lw;
+        int* enc = cache->encoded + (size_t)y * (size_t)lw;
+        unsigned char* dirty_row = cache->dirty + (size_t)(y / SOFT3D_SEGMENT_TILE) * (size_t)tiles_w;
+        for( int x = 0; x < lw; x++ )
+        {
+            int const e = ((unsigned)seg[x] >> 24) == SOFT3D_SEGMENT_UNDRAWN ? -1 : (seg[x] & 0xFFFFFF);
+            if( e >= 0 )
+            {
+                if( x < x0 )
+                    x0 = x;
+                if( x >= x1 )
+                    x1 = x + 1;
+                if( y < y0 )
+                    y0 = y;
+                y1 = y + 1;
+            }
+            if( e != enc[x] )
+            {
+                enc[x] = e;
+                dirty_row[x / SOFT3D_SEGMENT_TILE] = 1;
+                any_dirty = 1;
+            }
+        }
+    }
+    if( x0 >= x1 && !cache->has_coverage )
+        return;
+
+    if( any_dirty )
+    {
+        /* The filter reads up to two texels past a changed one: grow each
+         * dirty tile by one tile, which is wider than that. Marked 2 so the
+         * growth does not feed itself. */
+        for( int t = 0; t < tiles_h; t++ )
+            for( int u = 0; u < tiles_w; u++ )
+            {
+                if( cache->dirty[t * tiles_w + u] != 1 )
+                    continue;
+                for( int dt = -1; dt <= 1; dt++ )
+                    for( int du = -1; du <= 1; du++ )
+                    {
+                        int const tt = t + dt;
+                        int const uu = u + du;
+                        if( tt < 0 || uu < 0 || tt >= tiles_h || uu >= tiles_w )
+                            continue;
+                        if( !cache->dirty[tt * tiles_w + uu] )
+                            cache->dirty[tt * tiles_w + uu] = 2;
+                    }
+            }
+
+        tx = soft3d_axis_taps(&scratch->taps_x, &scratch->taps_x_cap, scratch->taps_x_key, bw, lw, mode);
+        ty = soft3d_axis_taps(&scratch->taps_y, &scratch->taps_y_cap, scratch->taps_y_key, bh, lh, mode);
+        soft3d_grow_ints(&scratch->column_sums, &scratch->column_sums_cap, (size_t)lw * 4);
+
+        for( int oy = 0; oy < bh; oy++ )
+        {
+            /* The layout row this output row is centred in owns its tiles. */
+            int const ly = (int)(((long long)oy * 2 + 1) * lh / (2LL * bh));
+            unsigned char const* dirty_row =
+                cache->dirty + (size_t)(ly / SOFT3D_SEGMENT_TILE) * (size_t)tiles_w;
+            int* cache_row = cache->filtered + (size_t)oy * (size_t)bw;
+            int u = 0;
+            while( u < tiles_w )
+            {
+                int run_end;
+                int ox0;
+                int ox1;
+                if( !dirty_row[u] )
+                {
+                    u++;
+                    continue;
+                }
+                run_end = u;
+                while( run_end < tiles_w && dirty_row[run_end] )
+                    run_end++;
+                ox0 = (int)((long long)u * SOFT3D_SEGMENT_TILE * bw / lw);
+                ox1 = (int)((long long)run_end * SOFT3D_SEGMENT_TILE * bw / lw);
+                if( run_end == tiles_w || ox1 > bw )
+                    ox1 = bw;
+                if( ox1 > ox0 )
+                    soft3d_segment_filter_span(
+                        scratch,
+                        cache->encoded,
+                        cache_row,
+                        ty + (size_t)oy * SOFT3D_TAP_ENTRY,
+                        tx,
+                        taps,
+                        lw,
+                        lh,
+                        ox0,
+                        ox1);
+                u = run_end;
+            }
+        }
+    }
+    cache->has_coverage = x0 < x1;
+    if( !cache->has_coverage )
+        return;
+
+    /* Composite the cache over the buffer, where the interface can reach. */
+    {
+        int ox0 = (int)(((long long)x0 - SOFT3D_TAPS_MAX) * bw / lw);
+        int ox1 = (int)((((long long)x1 + SOFT3D_TAPS_MAX) * bw + lw - 1) / lw);
+        int oy0 = (int)(((long long)y0 - SOFT3D_TAPS_MAX) * bh / lh);
+        int oy1 = (int)((((long long)y1 + SOFT3D_TAPS_MAX) * bh + lh - 1) / lh);
+        ox0 = ox0 < 0 ? 0 : ox0;
+        oy0 = oy0 < 0 ? 0 : oy0;
+        ox1 = ox1 > bw ? bw : ox1;
+        oy1 = oy1 > bh ? bh : oy1;
+        for( int oy = oy0; oy < oy1; oy++ )
+        {
+            int const* src = cache->filtered + (size_t)oy * (size_t)bw;
+            int* dst = soft->pixels + (size_t)oy * (size_t)soft->stride;
+            for( int ox = ox0; ox < ox1; ox++ )
+            {
+                unsigned const c = (unsigned)src[ox];
+                unsigned const a = c >> 24;
+                if( a == 0 )
+                    continue;
+                if( a == 255 )
+                    dst[ox] = (int)c;
+                else
+                {
+                    unsigned const d = (unsigned)dst[ox];
+                    unsigned const inv = 255u - a;
+                    unsigned const r = ((d >> 16) & 0xFFu) * inv / 255u + ((c >> 16) & 0xFFu);
+                    unsigned const g = ((d >> 8) & 0xFFu) * inv / 255u + ((c >> 8) & 0xFFu);
+                    unsigned const b = (d & 0xFFu) * inv / 255u + (c & 0xFFu);
+                    dst[ox] = (int)((d & 0xFF000000u) | (r << 16) | (g << 8) | b);
+                }
+            }
+        }
+    }
+}
+
+void
+ToriRS_Soft3D_SetInterfaceScaleMode(
+    struct ToriRS_Soft3D* soft,
+    int mode)
+{
+    assert(soft);
+    soft->interface_scale_mode = mode < 0 ? 0 : (mode > 2 ? 2 : mode);
+}
+
 static void
 soft3d_run_commands(
     struct ToriRS_Soft3D* soft,
@@ -1787,12 +2326,15 @@ ToriRS_Soft3D_RenderFrame(
     }
 
     soft->has_3d = false;
+    soft->scratch->segment_index = 0;
     /* Text is the one writer that scales inside ToriDraw; its scale is this
      * frame's and ends with it. */
     ToriDraw2D_FontSetOutputScale(soft->width, soft->layout_w, soft->height, soft->layout_h);
     ToriRS_FrameBegin(frame);
     soft3d_run_commands(soft, frame);
     ToriRS_FrameEnd(frame);
+    /* Every BEGIN_2D the stream emits is closed by an END_2D. */
+    assert(!soft->scratch->segment_open);
     ToriDraw2D_FontSetOutputScale(1, 1, 1, 1);
     SOFT3D_DBG_FB_POISON_SCAN(soft);
 
