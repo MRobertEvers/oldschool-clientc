@@ -96,7 +96,14 @@
   }
 
   const args = readArgs();
-  const ioUrl = params.get('io') || '/io';
+  /*
+   * The directory this page was served from, with its trailing slash: `/` at
+   * the root, `/torirs/` behind a reverse proxy that mounts io_server under a
+   * prefix. Every default endpoint below hangs off it, so the same page works
+   * at either without a query string saying where it is.
+   */
+  const pageDir = window.location.pathname.replace(/\/[^/]*$/, '/');
+  const ioUrl = params.get('io') || (pageDir + 'io');
   const bootUrl = ioUrl.replace(/\/io$/, '/boot');
   const statsUrl = ioUrl.replace(/\/io$/, '/stats');
   /* io_server's origin, which is also where the dat1 proxy answers. Derived
@@ -246,7 +253,9 @@
       let bytes = null;
       let sawResponse = false;
 
-      for (const url of [`${bootUrl}/${path}`, `/${path}`]) {
+      /* The bare path is tried beside the page: bootUrl's own directory, so
+       * a page mounted under a prefix does not fall back to the site root. */
+      for (const url of [`${bootUrl}/${path}`, `${bootUrl.replace(/\/boot$/, '/')}${path}`]) {
         let response;
         try {
           const headers = cached && cached.etag ? { 'If-None-Match': cached.etag } : undefined;
@@ -508,6 +517,28 @@
   Module.noInitialRun = true;
 
   /*
+   * Where the game socket goes, when the manifest's host and port cannot say.
+   *
+   * emscripten turns the client's connect() into a WebSocket to
+   * ws://<ws_host>:<ws_port>/, which is right on a LAN and wrong from a page
+   * served over HTTPS through a reverse proxy: the browser refuses ws: from an
+   * https: page, and the proxy reaches the server by a path, not a port. A
+   * `ws=` query parameter names the socket URL instead. Absolute (`wss://...`)
+   * is used as given; anything else is a path resolved against this page's
+   * directory, with wss: when the page is https: -- so `ws=ws` on
+   * https://host/torirs/ dials wss://host/torirs/ws. Absent, nothing changes:
+   * the runtime keeps dialling the manifest's endpoint.
+   */
+  const gameWsUrl = (() => {
+    const given = params.get('ws');
+    if (!given) { return null; }
+    if (/^wss?:\/\//.test(given)) { return given; }
+    const scheme = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    return scheme + window.location.host + new URL(given, window.location.href).pathname;
+  })();
+  if (gameWsUrl) { Module.websocket = { url: gameWsUrl }; }
+
+  /*
    * The two cache producers, built on the first read that needs one.
    *
    * Lazy, not eager: a boot uses exactly one of them -- which one is decided
@@ -582,7 +613,8 @@
   Module.onRuntimeInitialized = () => {
     log(`torirs: runtime up, cache in IndexedDB` +
         (cacheKey ? ` (${cacheKey})` : '') +
-        `, js5 ws://${js5Host}:${js5Port}`);
+        `, js5 ws://${js5Host}:${js5Port}` +
+        (gameWsUrl ? `, game ${gameWsUrl}` : ''));
     log(`torirs: argv ${JSON.stringify(args)}`);
     // Which cache the server has open. Changing the manifest in the URL
     // changes the client but not the server, and a client booting one

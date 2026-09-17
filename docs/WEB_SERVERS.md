@@ -219,3 +219,30 @@ native `ToriRSServer` on the game port; the browser reaches it over WebSocket.
 The page derives the JS5 host from its own origin, so serving the page and the
 cache from one machine needs no configuration; `?js5_host=` overrides it when
 they are not.
+
+---
+
+## Deploying it: one zip
+
+```sh
+make -C src deploy-osrs239          # -> build/deploy/torirs-osrs239-<date>-<sha>.zip
+python tools/deploy/build_osrs239_package.py --skip-build   # restage what is built
+```
+
+`tools/deploy/build_osrs239_package.py` builds the script pack (if stale), the
+web client and both servers, then stages `bin/`, `build-web/`,
+`cache.osrs239/`, the slice of `OSRS-Content/osrs239-content` torirsserver
+opens (not the 11 GB selftest corpus, and only the `.jm2` maps), the manifest
+rewritten for that layout, `revconfig/`, `script/` and start scripts, and zips
+it. The servers are native binaries, so run it on the OS that will host the
+package. The zip's README covers running it; `install-windows-task.ps1`
+registers a startup task and the firewall rules on Windows.
+
+Behind a TLS-terminating reverse proxy the page cannot dial `ws://host:port`
+directly (mixed content, and a proxy routes by path). The host page takes
+`?ws=<url-or-path>`: `ws=ws` on `https://host/torirs/` sets the game socket to
+`wss://host/torirs/ws`, which the proxy pipes raw to the game port -- the
+server terminates the WebSocket itself. Every other default endpoint (`/io`,
+`/boot`) is relative to the page's directory, so a prefix mount needs no
+other configuration.
+
