@@ -4982,9 +4982,12 @@ frame_describe_surfaces(struct FrameCall* ctx, struct ToriRS_PorcelainDescribe* 
             {
                 struct ToriRS_WidgetBounds box;
                 /* The parent's origin AFTER the container move stated
-                 * above, not the one the tree still has. @see surface_dx. */
-                box.x = at->rect.x - (member.box.x + surface_dx - member.local.x);
-                box.y = at->rect.y - (member.box.y + surface_dy - member.local.y);
+                 * above, not the one the tree still has -- where the
+                 * container IS an ancestor. @see surface_dx. */
+                bool const carried = (surface_dx || surface_dy) &&
+                                     Porcelain_Inside(state->porcelain, &member, &native);
+                box.x = at->rect.x - (member.box.x + (carried ? surface_dx : 0) - member.local.x);
+                box.y = at->rect.y - (member.box.y + (carried ? surface_dy : 0) - member.local.y);
                 box.width = at->rect.width;
                 box.height = at->rect.height;
                 /* No raise here: a member is a CHILD of the surface, and the

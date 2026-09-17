@@ -5124,9 +5124,15 @@ mobile_describe_surfaces(
          *
          * The displacement is known right here, so the members are converted
          * against the origin the container WILL have. Zero where the plan does
-         * not move the surface, and zero on a 2004 dat1 lane, where the mounts
-         * are not children of a declared container at all and `surface_bound`
-         * is permanently false. @see the member loop below.
+         * not move the surface.
+         *
+         * And carried only to a member that is INSIDE the surface. On rs289lc
+         * SIDEBAR binds to the node at the 2004 inventory box, but the
+         * fourteen mounts are seated BESIDE it under `fixed_shell`, so their
+         * parent does not move at all. Carrying the region's (-72,+33) into
+         * them cancelled their own move exactly: the tab the player opened
+         * painted at the lane's (553,205) for two frames and then jumped into
+         * the drawer. @see Porcelain_Inside.
          */
         int surface_dx = 0;
         int surface_dy = 0;
@@ -5323,9 +5329,12 @@ mobile_describe_surfaces(
             {
                 struct ToriRS_WidgetBounds box;
                 /* The parent's origin AFTER the container move stated
-                 * above, not the one the tree still has. @see surface_dx. */
-                box.x = at->rect.x - (member.box.x + surface_dx - member.local.x);
-                box.y = at->rect.y - (member.box.y + surface_dy - member.local.y);
+                 * above, not the one the tree still has -- where the
+                 * container IS an ancestor. @see surface_dx. */
+                bool const carried = (surface_dx || surface_dy) &&
+                                     Porcelain_Inside(state->porcelain, &member, &native);
+                box.x = at->rect.x - (member.box.x + (carried ? surface_dx : 0) - member.local.x);
+                box.y = at->rect.y - (member.box.y + (carried ? surface_dy : 0) - member.local.y);
                 box.width = at->rect.width;
                 box.height = at->rect.height;
                 /* No raise here: a member is a CHILD of the surface, and the

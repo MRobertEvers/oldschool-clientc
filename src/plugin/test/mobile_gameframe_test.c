@@ -764,6 +764,19 @@ fw_build(int oldschool)
      */
     int const panel_layer = oldschool ? fw_add(root, "sidebar_container", -1, 546, 198, 204, 275) : root;
     int const mount_parent = oldschool ? fw_add(panel_layer, "sidebar", -1, 553, 205, 190, 261) : root;
+    /*
+     * But the 2004 lane's SIDEBAR does bind -- to a node BESIDE the mounts.
+     *
+     * No `[role:sidebar]` does not mean the element is absent: on rs289lc it
+     * resolves to a root child at the inventory box, 553,205 190x261 with a
+     * local box of the same numbers, while every mount's parent is still the
+     * root. Leaving it out made `surface_bound` false here, so the frame never
+     * moved a surface on this lane and the displacement it carries into a
+     * moved surface's members was never exercised against members that are
+     * not inside it. @see Porcelain_Inside.
+     */
+    if( !oldschool )
+        fw_add(root, "sidebar", -1, 553, 205, 190, 261);
     for( int i = 0; i < 14; i++ )
         if( i != g_missing_sidetab ) fw_add(mount_parent, "sidebar", i, 553, 205, 190, 261);
     fw_add(root, "main_modal", -1, 4, 4, 512, 334);
@@ -1461,7 +1474,24 @@ main(void)
     press("tab.03");
     CHECK(g_frame.select_calls == 1 && g_frame.selected_tab == 3, "tapping a stone selects that tab, once");
     g_frame.active_tab = 3;
-    declare_after_press(M_W, M_H);
+    /*
+     * In the drawer on the FIRST fence, not beside it.
+     *
+     * The drawer moves the lane's SIDEBAR, and on this lane that node is not
+     * the mounts' parent. Carrying its displacement into the mount's
+     * parent-local box put the panel back at the 2004 inventory box for two
+     * frames -- the displacement exactly cancelling the move -- before a later
+     * describe, reading a region that had already moved, put it in the drawer.
+     *
+     * MUTATION: drop the Porcelain_Inside test from the member conversion in
+     * mobile_describe_surfaces (carry the displacement to every member). Red:
+     * the mount is written at (553,205).
+     */
+    frame_tick();
+    PluginHost_Layout(g_host, M_W, M_H);
+    CHECK(placed("sidebar", 3, 740, 335, 190, 261),
+          "the panel is in the drawer on the fence the tap opens it");
+    declare(M_W, M_H);
     CHECK(placed("sidebar", 3, 740, 335, 190, 261) && sidebar_mounts_showing() == 14,
           "the drawer opens on that panel, and every mount is back");
     /*

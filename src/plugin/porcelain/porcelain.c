@@ -1335,6 +1335,51 @@ Porcelain_Element(struct Porcelain* porcelain, struct PorcelainElement element,
     return watch->state.bind == PORCELAIN_BOUND;
 }
 
+/*
+ * A walk up from `inner` until it meets `outer` or runs out of parents.
+ *
+ * The element vocabulary says what a node is FOR, not where it hangs, and the
+ * two part company on a 2004 lane: SIDEBAR there resolves to the node at the
+ * inventory box, while the fourteen mounts that are the sidebar's members are
+ * seated beside it under `fixed_shell`. A frame that moved the region and
+ * carried the region's displacement into every mount's parent-local box wrote
+ * each mount back at the lane's own (553,205) -- the displacement cancelling
+ * the move exactly -- and the open panel painted there for two frames before
+ * the next describe, reading a region that no longer moved, put it in the
+ * drawer. Measured on rs289lc, Stone Drawer, 765x503.
+ *
+ * Paid only by a describe that moves a container, once per member it places.
+ */
+bool
+Porcelain_Inside(struct Porcelain* porcelain, struct PorcelainElementState const* inner,
+                 struct PorcelainElementState const* outer)
+{
+    struct ToriRS_WidgetApi const* widgets;
+    struct ToriRS_WidgetRef current;
+
+    assert(porcelain);
+    assert(inner);
+    assert(outer);
+    assert(inner->bind == PORCELAIN_BOUND);
+    assert(outer->bind == PORCELAIN_BOUND);
+    widgets = &porcelain->api->widgets;
+    current = inner->ref;
+    for( int hop = 0; hop < 64; hop++ )
+    {
+        struct ToriRS_WidgetRef parent;
+
+        porcelain->counters.engine_calls++;
+        if( widgets->parent(widgets->context, current, &parent) != TORIRS_CONTRACT_OK )
+            return false;
+        if( !ToriRS_WidgetRefValid(parent) )
+            return false;
+        if( ToriRS_WidgetRefEqual(parent, outer->ref) )
+            return true;
+        current = parent;
+    }
+    return false;
+}
+
 int
 Porcelain_Count(struct Porcelain* porcelain, enum PorcelainElementKind family)
 {

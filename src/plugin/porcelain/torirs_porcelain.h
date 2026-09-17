@@ -253,6 +253,19 @@ void Porcelain_Relinquish(struct Porcelain* porcelain);
 bool Porcelain_Element(struct Porcelain* porcelain, struct PorcelainElement element,
                        struct PorcelainElementState* out);
 int Porcelain_Count(struct Porcelain* porcelain, enum PorcelainElementKind family);
+/**
+ * Whether `inner`'s node lies somewhere under `outer`'s -- a strict descendant,
+ * however deep. Both are states Porcelain_Element answered BOUND.
+ *
+ * Asked where a description moves a container and one of its members together:
+ * the member's box is parent-local, and the move of the container is only
+ * staged, so the member has to be converted against the origin its parent is
+ * about to have -- which is the container's displacement only if the member is
+ * actually inside the container. An element named after a region is not always
+ * the node its members hang under. @see the definition.
+ */
+bool Porcelain_Inside(struct Porcelain* porcelain, struct PorcelainElementState const* inner,
+                      struct PorcelainElementState const* outer);
 
 enum ToriRS_Result Porcelain_Set(struct Porcelain* porcelain, char const* key,
                                  struct PorcelainMotion const* motion);
