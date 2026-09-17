@@ -1607,6 +1607,12 @@ struct UITree
     uint16_t next_dynamic_uid;
     /** Retained focus is checked by tree, slot, and incarnation on every read. */
     struct UITreeNodeRef input_focus;
+    /** The component whose pausebutton has been clicked and whose answer the
+     *  server still owes (reference class545.field6272). While it is set, that
+     *  one component draws "Please wait..." instead of its own text -- see
+     *  UITree_PausePendingIndex. Cleared by any interface open or close, and
+     *  self-clearing when the node it names is reclaimed. */
+    struct UITreeNodeRef pause_pending;
     /** Mounted sub-interfaces (TS WidgetManager.interfaceParents). */
     struct UITreeInterfaceParent interface_parents[UITREE_INTERFACE_PARENT_MAX];
     int interface_parent_count;
@@ -2450,6 +2456,32 @@ int UITree_WidgetPositionOverrideByOwner(struct UITree const*, int32_t, uint64_t
 /** Current live focus component ID, or -1. Never transfers across node reuse. */
 int
 UITree_InputFocusId(struct UITree const* tree);
+
+/*
+ * The "Please wait..." latch.
+ *
+ * Clicking a resume-pausebutton sends the click and then blocks: the reference
+ * replaces THAT component's text with "Please wait..." until the server's
+ * answer -- the next dialogue page, or the close -- lands. It is a draw-time
+ * substitution on one node, not a write to the component's text, so the page
+ * the server sent is still there underneath and comes back if the latch is
+ * dropped without a remount.
+ *
+ * Reference: class545.field6272, read by the widget draw (class163) and
+ * cleared by if_opentop / if_opensub / if_closesub / close-modal.
+ */
+
+/** The node index the latch names, or -1. Stale when its node was reclaimed. */
+int32_t
+UITree_PausePendingIndex(struct UITree const* tree);
+
+/** Latch `com_id` (-1 clears). Marks the affected nodes for redraw. */
+void
+UITree_SetPausePending(struct UITree* tree, int com_id);
+
+/** Nonzero while a pausebutton answer is outstanding. */
+int
+UITree_PausePendingActive(struct UITree const* tree);
 
 /**
  * Give the caret to `com_id`, or drop it with -1. Returns the id that LOST the

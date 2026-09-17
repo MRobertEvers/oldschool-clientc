@@ -5108,6 +5108,46 @@ UITree_InputFocusId(struct UITree const* tree)
     return tree->components[idx].component_id;
 }
 
+int32_t
+UITree_PausePendingIndex(struct UITree const* tree)
+{
+    assert(tree);
+    return UITree_ResolveRef(tree, tree->pause_pending);
+}
+
+int
+UITree_PausePendingActive(struct UITree const* tree)
+{
+    assert(tree);
+    return UITree_PausePendingIndex(tree) >= 0;
+}
+
+void
+UITree_SetPausePending(
+    struct UITree* tree,
+    int com_id)
+{
+    int32_t const was = UITree_PausePendingIndex(tree);
+
+    assert(tree);
+    /* The node that stops saying "Please wait..." has to be repainted as surely
+     * as the one that starts, and a stale ref names nobody -- which is why this
+     * resolves through UITree_PausePendingIndex rather than trusting the ref's
+     * index. */
+    if( was >= 0 )
+        UITree_MarkNodeDirty(tree, was);
+    tree->pause_pending = (struct UITreeNodeRef){ 0 };
+    if( com_id >= 0 )
+    {
+        int32_t const idx = UITree_FindByComponentId(tree, com_id);
+        if( idx >= 0 && !tree->components[idx].freed )
+        {
+            tree->pause_pending = UITree_RefAt(tree, idx);
+            UITree_MarkNodeDirty(tree, idx);
+        }
+    }
+}
+
 int
 UITree_InputSetFocusId(
     struct UITree* tree,

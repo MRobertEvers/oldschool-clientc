@@ -212,6 +212,12 @@ app_cs2_flush_notifications(struct App* app)
         app->host.resume_pausebutton_component_id = -1;
         if( app->button_sink.resume_pausebutton )
             app->button_sink.resume_pausebutton(app->button_sink.user, com_id);
+        /* Same latch a minimenu resume sets (RS_IF1_ApplyButtonClick): the
+         * component that carried the click says "Please wait..." until the
+         * server answers. A script-driven resume is the cache lane's spelling
+         * of the same gesture, and the reference marks the widget on both. */
+        if( app->tree )
+            UITree_SetPausePending(app->tree, com_id);
     }
 
     /*

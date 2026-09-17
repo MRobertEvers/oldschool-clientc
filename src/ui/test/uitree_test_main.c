@@ -117,6 +117,7 @@ main(void)
     test_clear_hooks_preserves_sibling_on_op();
     test_click_hook_inherits_nearest_parent();
     test_mount_slot_reclaim_no_shadow_text();
+    test_pause_pending_please_wait();
     test_live_node_sets();
     test_debug_overlay();
     test_chrome_exec();

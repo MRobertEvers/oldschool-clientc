@@ -594,3 +594,122 @@ test_mount_slot_reclaim_no_shadow_text(void)
 
     UITree_Free(tree);
 }
+
+/*
+ * The "Please wait..." latch a clicked resume-pausebutton sets.
+ *
+ * The reference replaces that ONE component's text at draw time until the
+ * server answers (class163, reading class545.field6272), so the page it is
+ * still holding is untouched and comes back the moment the latch is dropped.
+ * The three things that have to hold:
+ *
+ *   - the latched node draws "Please wait..." in its own colour, and nothing
+ *     else in the tree changes;
+ *   - the text underneath survives, because the latch is a substitution;
+ *   - a latch on a node that has been reclaimed names nobody, so a remount
+ *     cannot leave a dialogue saying "Please wait..." at a page that arrived.
+ */
+void
+test_pause_pending_please_wait(void)
+{
+    struct UITree* tree = UITree_New(0);
+    struct UITreeNodeSpec spec;
+    struct UITreeEmitDesc desc;
+    int32_t root;
+    int32_t continue_node;
+    int32_t body_node;
+    int const group = 231;
+    int const continue_cid = (group << 16) | 5;
+    int const body_cid = (group << 16) | 6;
+
+    printf("TEST: pausebutton latch — \"Please wait...\"\n");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (group << 16) | 0;
+    spec.width = 479;
+    spec.height = 96;
+    root = UITree_Push(tree, -1, &spec);
+    TEST_ASSERT(root >= 0, "dialogue root");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_TEXT;
+    spec.component_id = body_cid;
+    spec.width = 380;
+    spec.height = 67;
+    spec.u.rs_text.font_id = 1;
+    spec.u.rs_text.color = 0x000000;
+    spec.u.rs_text.text = "Hello there, adventurer!";
+    body_node = UITree_Push(tree, root, &spec);
+    TEST_ASSERT(body_node >= 0, "dialogue body");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_TEXT;
+    spec.component_id = continue_cid;
+    spec.width = 380;
+    spec.height = 20;
+    spec.u.rs_text.font_id = 1;
+    spec.u.rs_text.color = 0x0000FF;
+    spec.u.rs_text.text = "Click here to continue";
+    continue_node = UITree_Push(tree, root, &spec);
+    TEST_ASSERT(continue_node >= 0, "continue prompt");
+    /* The prompt is a hovered one: that is when it is clicked, and the hover
+     * colour is one of the two things the substitution drops. */
+    tree->components[continue_node].behavior.over_color = 0xFFFFFF;
+
+    TEST_ASSERT(!UITree_PausePendingActive(tree), "nothing pending on a fresh tree");
+    memset(&desc, 0, sizeof(desc));
+    TEST_ASSERT(
+        UITree_EmitFill(tree, NULL, &tree->components[continue_node], continue_node,
+                        continue_cid, &desc),
+        "the prompt draws before the click");
+    TEST_ASSERT(
+        strcmp(desc.text, "Click here to continue") == 0,
+        "before the click the prompt says what the server wrote");
+    TEST_ASSERT(desc.color == 0xFFFFFF, "and takes its hover colour");
+
+    UITree_SetPausePending(tree, continue_cid);
+    TEST_ASSERT(UITree_PausePendingActive(tree), "the click latches");
+    TEST_ASSERT(
+        UITree_PausePendingIndex(tree) == continue_node, "the latch names the clicked node");
+
+    memset(&desc, 0, sizeof(desc));
+    TEST_ASSERT(
+        UITree_EmitFill(tree, NULL, &tree->components[continue_node], continue_node,
+                        continue_cid, &desc),
+        "the latched prompt still draws");
+    TEST_ASSERT(strcmp(desc.text, "Please wait...") == 0, "the latched prompt waits");
+    TEST_ASSERT(desc.color == 0x0000FF, "waiting drops the hover colour for its own");
+    TEST_ASSERT(
+        tree->components[continue_node].u.rs_text.text &&
+            strcmp(tree->components[continue_node].u.rs_text.text, "Click here to continue") == 0,
+        "the latch is a substitution, not a write");
+
+    /* One node, not the dialogue. */
+    memset(&desc, 0, sizeof(desc));
+    TEST_ASSERT(
+        UITree_EmitFill(tree, NULL, &tree->components[body_node], body_node, -1, &desc),
+        "the body still draws");
+    TEST_ASSERT(
+        strcmp(desc.text, "Hello there, adventurer!") == 0, "the page itself does not wait");
+
+    /* Dropping the latch gives the prompt back without a remount. */
+    UITree_SetPausePending(tree, -1);
+    TEST_ASSERT(!UITree_PausePendingActive(tree), "the latch drops");
+    memset(&desc, 0, sizeof(desc));
+    TEST_ASSERT(
+        UITree_EmitFill(tree, NULL, &tree->components[continue_node], continue_node, -1, &desc),
+        "the prompt draws again");
+    TEST_ASSERT(
+        strcmp(desc.text, "Click here to continue") == 0, "and says what it said before");
+
+    /* A latched node that is reclaimed names nobody: the next page's prompt
+     * occupies the same slot and the same component id, and must not inherit
+     * the wait. */
+    UITree_SetPausePending(tree, continue_cid);
+    TEST_ASSERT(UITree_PausePendingActive(tree), "latched again");
+    UITree_ReclaimInterfaceGroup(tree, group);
+    TEST_ASSERT(!UITree_PausePendingActive(tree), "a reclaimed latch names nobody");
+
+    UITree_Free(tree);
+}

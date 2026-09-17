@@ -260,6 +260,11 @@ slot_mount(
     struct Task_SlotMountRefresh* task;
 
     assert(app);
+    /* The dat1 lane's half of the rule in app_enqueue_open_sub: an open or a
+     * close is the answer the "Please wait..." latch was waiting for. Before
+     * the region test, because a slot with no mount region still answered. */
+    if( app->tree )
+        UITree_SetPausePending(app->tree, -1);
     if( owner_index < 0 )
     {
         if( iface_id > 0 )

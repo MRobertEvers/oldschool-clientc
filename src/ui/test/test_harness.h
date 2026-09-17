@@ -309,6 +309,7 @@ void test_mounted_component_inherits_container_hidden(void);
 void test_clear_hooks_preserves_sibling_on_op(void);
 void test_click_hook_inherits_nearest_parent(void);
 void test_mount_slot_reclaim_no_shadow_text(void);
+void test_pause_pending_please_wait(void);
 void test_live_node_sets(void);
 void test_debug_overlay(void);
 void test_chrome_exec(void);

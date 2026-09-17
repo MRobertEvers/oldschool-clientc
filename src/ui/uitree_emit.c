@@ -427,6 +427,23 @@ UITree_EmitFill(
         {
             color = component->behavior.over_color;
         }
+        /*
+         * The click has gone out and the server has not answered yet: this one
+         * component says "Please wait..." instead of whatever page it is still
+         * holding, in its OWN colour -- the reference drops the active/hover
+         * override here too (class163: `var44 = "Please wait..."; var45 =
+         * field4064`), so the prompt stops looking clickable while it is not.
+         *
+         * A substitution and not a write, so the page underneath survives: the
+         * latch is dropped by the next interface open or close, which is also
+         * what replaces the text.
+         */
+        int32_t const pause_index = UITree_PausePendingIndex(tree);
+        if( pause_index >= 0 && pause_index == node_index )
+        {
+            text = "Please wait...";
+            color = component->u.rs_text.color;
+        }
         /* An editable field with the caret in it draws even while empty --
          * the caret IS the content, and a box that shows nothing until the
          * first keystroke looks exactly like a box that did not take the

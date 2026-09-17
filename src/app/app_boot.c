@@ -1213,6 +1213,19 @@ app_enqueue_open_sub(
     struct Task_OpenSubRefresh* task;
 
     assert(app);
+    /*
+     * Any mount change drops the "Please wait..." latch — the reference clears
+     * it on if_opentop, if_opensub and if_closesub alike, because whatever the
+     * pausebutton was waiting for has now arrived.
+     *
+     * It has to be spelled out here rather than left to the node ref going
+     * stale: re-opening the SAME group into the same slot deliberately does
+     * not reclaim the group (see Task_OpenSubRefresh_Run), and a dialogue pack
+     * is exactly that — page after page of interface 231 — so the latched
+     * node survives the remount that answered it.
+     */
+    if( app->tree )
+        UITree_SetPausePending(app->tree, -1);
     task = calloc(1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_OpenSubRefresh_VTable;
