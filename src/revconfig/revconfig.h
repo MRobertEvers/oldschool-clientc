@@ -214,6 +214,7 @@ enum RevConfigFieldKind
     RCFIELD_PRELOAD_RENDER,
     RCFIELD_PRELOAD_ORDER,
     RCFIELD_PRELOAD_GROUPS,
+    RCFIELD_PRELOAD_FILL_SAY,
     RCFIELD_LOGIN_REPLY_SCREEN,
     RCFIELD_LOGIN_REPLY_LINE1,
     RCFIELD_LOGIN_REPLY_LINE2,
@@ -389,6 +390,9 @@ struct RevConfigPreloadItem
      *  too, not only its reference table. The deob's boot does this for the
      *  archives a running client cannot afford to fetch one group at a time. */
     int groups_all;
+    /** INI: fill_say= -- the [string:] drawn while `groups=all` fetches, as
+     *  "<words> - N%" ("Loading sprites - 37%"); the index phase keeps say=. */
+    char fill_say[64];
     /** INI: render= -- publish a frame before running this step. */
     int render;
     /** INI: order= -- ascending; ties keep file order. */

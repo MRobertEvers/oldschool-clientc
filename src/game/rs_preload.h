@@ -72,6 +72,9 @@ struct RS_PreloadStep
      *  the way the deob's loading screen does for interfaces, scripts and
      *  sprites. Only meaningful with kind=index. */
     int groups_all;
+    /** The [string:] drawn during that fetch, "<words> - N%". Empty falls
+     *  back to `say`. */
+    char fill_say[RS_PRELOAD_NAME_LEN];
 };
 
 struct RS_PreloadTable

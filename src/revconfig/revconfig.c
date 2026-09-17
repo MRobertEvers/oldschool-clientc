@@ -2387,6 +2387,9 @@ revconfig_item_apply_field(
         case RCFIELD_PRELOAD_GROUPS:
             item->u.preload.groups_all = strcmp(value, "all") == 0 ? 1 : 0;
             break;
+        case RCFIELD_PRELOAD_FILL_SAY:
+            strncpy(item->u.preload.fill_say, value, sizeof(item->u.preload.fill_say) - 1);
+            break;
         case RCFIELD_PRELOAD_RENDER:
             item->u.preload.render = (strcmp(value, "true") == 0 ||
                                       strcmp(value, "yes") == 0 || strcmp(value, "1") == 0)

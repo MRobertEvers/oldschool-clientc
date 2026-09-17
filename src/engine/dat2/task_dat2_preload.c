@@ -265,9 +265,13 @@ Task_Dat2Preload_Run(
         if( task->step->groups_all && task->bc->base.asset_queue &&
             !task->bc->reference_table_filled[task->table_id] && preload_fill_enabled() )
         {
+            /* Groups in flight per wave. The server pipelines happily and
+             * the store writes in batches; what bounds this is that the bar
+             * only advances between waves, and ten steps across the largest
+             * archive (clientscript, 9725 groups) reads as movement. */
             enum
             {
-                WAVE = 256
+                WAVE = 1024
             };
             /* Marked before the waves rather than after: a second preload
              * task queued while this one is mid-fill must not start a second
@@ -299,16 +303,20 @@ Task_Dat2Preload_Run(
                 }
                 if( task->step->render )
                 {
-                    compose_caption(task, task->step);
-                    {
-                        size_t n = strlen(task->caption);
-                        snprintf(
-                            task->caption + n,
-                            sizeof(task->caption) - n,
-                            "%s%d%%",
-                            n ? " " : "",
-                            task->fill_end * 100 / task->fill_ref->id_count);
-                    }
+                    /* The deob's own shape for this phase: "Loading sprites -
+                     * 37%". Its caption, not the index phase's, and one
+                     * percentage -- the fill's, not the weighted sum's. */
+                    char const* name = task->step->fill_say[0] ? task->step->fill_say
+                                                               : task->step->say;
+                    char const* words = name[0] && task->strings
+                                            ? RS_LoginReplies_String(task->strings, name)
+                                            : NULL;
+                    snprintf(
+                        task->caption,
+                        sizeof(task->caption),
+                        "%s - %d%%",
+                        words ? words : task->step->archive,
+                        task->fill_end * 100 / task->fill_ref->id_count);
                     TASK_YIELD_TO_RENDER(
                         &task->task,
                         &task->pt,
@@ -319,12 +327,14 @@ Task_Dat2Preload_Run(
             }
             fprintf(
                 stderr,
-                "preload: %s (table %d) filled, %d groups, ids %d..%d\n",
+                "preload: %s (table %d) filled, %d groups, ids %d..%d, bar \"%s\" at %d%%\n",
                 task->step->archive,
                 (int)task->table_id,
                 task->fill_ref->id_count,
                 task->fill_ref->id_count ? task->fill_ref->ids[0] : -1,
-                task->fill_ref->id_count ? task->fill_ref->ids[task->fill_ref->id_count - 1] : -1);
+                task->fill_ref->id_count ? task->fill_ref->ids[task->fill_ref->id_count - 1] : -1,
+                task->caption,
+                task->step->percent);
         }
 
         task->weight_done += task->step->weight;

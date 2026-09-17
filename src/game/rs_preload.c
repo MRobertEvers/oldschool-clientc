@@ -101,6 +101,7 @@ RS_Preload_AddFromItems(
         dst->render = src->render;
         dst->order = src->order;
         dst->groups_all = src->groups_all;
+        strncpy(dst->fill_say, src->fill_say, sizeof(dst->fill_say) - 1);
     }
 }
 
