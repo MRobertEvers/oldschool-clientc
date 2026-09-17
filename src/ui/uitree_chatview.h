@@ -88,7 +88,9 @@ struct UIChatView
     struct UIChatViewLine lines[UI_CHATVIEW_LINE_MAX];
     int line_count;
 
-    /** Scrollbar model (reference chatScrollHeight/chatScrollPos). */
+    /** Scrollbar model (reference chatScrollHeight/chatScrollPos). scroll_pos
+     *  counts up from the newest line, so the drawn grip is its mirror:
+     *  scroll_height - scroll_pos - window. */
     int scroll_height;
     int scroll_pos;
 

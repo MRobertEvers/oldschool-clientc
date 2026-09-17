@@ -635,28 +635,35 @@ RS_Chat_ScrollbarInput(
 {
     /* Reference doScrollbar (Client.ts:10525) with left=463, top=0 and the
      * message window's own height -- the chat scrollbar's local geometry.
-     * scroll_pos is the non-inverted grip offset the renderer draws from
-     * (torirs_frame vertical_scrollbar_grip), so the same proportional math
-     * maps a grip drag straight back to it. */
+     *
+     * The chat scrollbar is INVERTED. scroll_pos counts pixels up from the
+     * newest line (0 = pinned to the bottom, so a new message stays in view),
+     * but the grip travels down the track toward the newest line. The reference
+     * converts at both ends (Client.ts:4186 and :4192): it hands doScrollbar
+     * the grip offset scroll_height - scroll_pos - window, and reads the moved
+     * grip back the same way. The up arrow therefore walks toward OLDER lines,
+     * and the grip sits at the bottom of the track at rest. */
     int const left = RS_CHAT_SCROLLBAR_LEFT;
     int const top = 0;
     int const height = UI_CHATVIEW_WINDOW_H(box_height);
     int scroll_height = scroll_height_of(chat, filters, box_height);
+    int grip_offset = scroll_height - chat->scroll_pos - height;
     int padding = chat->scroll_grabbed ? 32 : 0;
     int handled = 0;
 
-    assert(chat && filters);
+    assert(chat);
+    assert(filters);
     assert(box_height > 0);
     chat->scroll_grabbed = 0;
 
     if( x >= left && x < left + 16 && y >= top && y < top + 16 )
     {
-        chat->scroll_pos -= cycle * 4; /* up arrow */
+        grip_offset -= cycle * 4; /* up arrow */
         handled = 1;
     }
     else if( x >= left && x < left + 16 && y >= top + height - 16 && y < top + height )
     {
-        chat->scroll_pos += cycle * 4; /* down arrow */
+        grip_offset += cycle * 4; /* down arrow */
         handled = 1;
     }
     else if(
@@ -672,15 +679,16 @@ RS_Chat_ScrollbarInput(
         grip_y = y - top - grip_size / 2 - 16;
         max_y = height - grip_size - 32;
         if( max_y > 0 )
-            chat->scroll_pos = ((scroll_height - height) * grip_y) / max_y;
+            grip_offset = ((scroll_height - height) * grip_y) / max_y;
         chat->scroll_grabbed = 1;
         handled = 1;
     }
 
-    if( chat->scroll_pos > scroll_height - height )
-        chat->scroll_pos = scroll_height - height;
-    if( chat->scroll_pos < 0 )
-        chat->scroll_pos = 0;
+    if( grip_offset < 0 )
+        grip_offset = 0;
+    if( grip_offset > scroll_height - height )
+        grip_offset = scroll_height - height;
+    chat->scroll_pos = scroll_height - grip_offset - height;
     return handled;
 }
 

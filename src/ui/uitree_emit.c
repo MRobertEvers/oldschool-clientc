@@ -1710,10 +1710,15 @@ emit_chat(
 
     /* Chat scrollbar, drawn unconditionally like the reference
      * (drawScrollbar(463, 0, chatScrollHeight-chatScrollPos-77, chatScrollHeight,
-     * 77), Client.ts:11485). Local x=463 puts it just right of the 463-wide
+     * 77), Client.ts:11482). Local x=463 puts it just right of the 463-wide
      * message column; height is the message window, not the full chat node.
      * The desc-driven scrollbar_v render (torirs_frame.c) reads scroll_content /
-     * scroll_off_y straight from here, so no component backing is needed. */
+     * scroll_off_y straight from here, so no component backing is needed.
+     *
+     * INVERTED: scroll_pos counts up from the newest line, so the grip offset
+     * is its mirror -- at rest (scroll_pos 0) the grip sits at the bottom of
+     * the track, beside the newest message. RS_Chat_ScrollbarInput reads a
+     * moved grip back through the same mirror. */
     {
         struct UITreeEmitDesc desc;
         memset(&desc, 0, sizeof(desc));
@@ -1725,7 +1730,7 @@ emit_chat(
         desc.w = UITREE_SCROLLBAR_THICKNESS;
         desc.h = UI_CHATVIEW_WINDOW_H(h);
         desc.scroll_content = view->scroll_height;
-        desc.scroll_off_y = view->scroll_pos;
+        desc.scroll_off_y = view->scroll_height - UI_CHATVIEW_WINDOW_H(h) - view->scroll_pos;
         desc.scene_id = host_scrollbar_scene(host);
         desc.atlas_index = 0;
         desc.if3 = 0;

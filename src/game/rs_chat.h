@@ -138,6 +138,9 @@ struct RS_Chat
     /** CHAT_SETTIMESTAMPS / CHAT_GETTIMESTAMPS: the timestamp display mode. */
     int timestamps;
 
+    /** Pixels scrolled up from the newest line (reference chatScrollPos): 0 is
+     *  pinned to the bottom. The scrollbar draws and reads it INVERTED -- the
+     *  grip offset is scroll_height - scroll_pos - window. */
     int scroll_pos;
     /** Scrollbar grip held this frame (reference scrollGrabbed); widens the
      *  grab hit area so a fast drag doesn't slip off the 16px column. */

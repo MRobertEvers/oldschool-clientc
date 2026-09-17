@@ -370,6 +370,53 @@ main(void)
         CHECK(RS_Chat_EffectColourArgb(11, -5, 0) == 0xffffff00u, "an overdue glow 3 is not yellow");
     }
 
+    /* ---- the chat scrollbar is inverted ------------------------------ */
+    /*
+     * scroll_pos counts up from the newest line, and the grip runs the other
+     * way: at rest it sits at the bottom of the track (reference Client.ts:4186
+     * and :11482). Read straight, the up arrow would walk toward newer lines,
+     * which from the bottom means it does nothing, and dragging the grip to
+     * the top would pin the view to the newest message instead of the oldest.
+     */
+    {
+        struct RS_Chat chat;
+        struct RS_ChatFilters const filters = { 0, 0, 0, NULL };
+        int const box_h = UI_CHATVIEW_NATIVE_HEIGHT;
+        int const window = UI_CHATVIEW_WINDOW_H(box_h);
+        int const x = RS_CHAT_SCROLLBAR_LEFT + 8;
+        int const lines = 20;
+        int const range = lines * 14 + 7 - window;
+
+        RS_Chat_Init(&chat, "Player");
+        for( int i = 0; i < lines; i++ )
+            RS_Chat_AddMessage(&chat, TYPE_GAME, NULL, NULL, "line", i);
+        CHECK(chat.scroll_pos == 0, "a fresh chat is pinned to the newest line");
+
+        RS_Chat_ScrollbarInput(&chat, &filters, box_h, x, window - 8, 3);
+        CHECK(chat.scroll_pos == 0, "the down arrow at rest stays on the newest line, got %d",
+              chat.scroll_pos);
+
+        RS_Chat_ScrollbarInput(&chat, &filters, box_h, x, 8, 3);
+        CHECK(chat.scroll_pos == 12, "the up arrow walks toward older lines, got %d",
+              chat.scroll_pos);
+
+        RS_Chat_ScrollbarInput(&chat, &filters, box_h, x, window - 8, 1);
+        CHECK(chat.scroll_pos == 8, "the down arrow walks back toward newer lines, got %d",
+              chat.scroll_pos);
+
+        /* Grip centre dragged to the top of the track: the oldest line. */
+        RS_Chat_ScrollbarInput(&chat, &filters, box_h, x, 16, 1);
+        CHECK(chat.scroll_pos == range, "the grip at the top of the track shows the oldest line, "
+              "got %d want %d", chat.scroll_pos, range);
+
+        /* ...and to the bottom: the newest. */
+        RS_Chat_ScrollbarInput(&chat, &filters, box_h, x, window - 17, 1);
+        CHECK(chat.scroll_pos == 0, "the grip at the bottom of the track shows the newest line, "
+              "got %d", chat.scroll_pos);
+
+        RS_Chat_Free(&chat);
+    }
+
     if( g_failures )
     {
         fprintf(stderr, "chat store: %d failure(s)\n", g_failures);
