@@ -223,6 +223,12 @@
       return row ? asBytes(row.d) : null;
     },
 
+    /** The stored copy WITH its validator, for a read that revalidates. */
+    async fileEntry(path) {
+      const row = await get('files', path);
+      return row ? { bytes: asBytes(row.d), etag: row.e || null } : null;
+    },
+
     async filePut(path, bytes, etag) {
       await put('files', { k: path, d: asBuffer(bytes), e: etag || null });
     },

@@ -84,20 +84,29 @@
       return err;
     };
 
+    /* Files already settled against the server this session. A plugin asks
+     * for its assets every frame; one conditional request per path per session
+     * is the price of never running a stale script, and the rest are local. */
+    const settled = new Set();
+
     /*
-     * One GET, over the two routes a file may be served by.
+     * One conditional GET, over the two routes a file may be served by.
      *
      * `/boot/<path>` is io_server's source route and is tried first; the bare
      * path is the fallback, because a page may be served by anything that hands
      * out files and need not have an io_server at all.
+     *
+     * @return `{ bytes, etag }` for a 200, `'unchanged'` for a 304 against
+     * `etag`, or null when every route that answered said "not here".
      */
-    async function fetchFile(path) {
+    async function fetchFile(path, etag) {
       let sawResponse = false;
 
       for (const url of [`${bootUrl}/${path}`, `/${path}`]) {
         let response;
         try {
-          response = await fetch(url, { cache: 'no-store' });
+          const headers = etag ? { 'If-None-Match': etag } : undefined;
+          response = await fetch(url, { cache: 'no-store', headers });
         } catch (err) {
           /* Network-level failure. Try the other route before concluding
            * anything: io_server may be gone while the static host serving the
@@ -105,7 +114,13 @@
           continue;
         }
         sawResponse = true;
-        if (response.ok) { return new Uint8Array(await response.arrayBuffer()); }
+        if (response.status === 304 && etag) { return 'unchanged'; }
+        if (response.ok) {
+          return {
+            bytes: new Uint8Array(await response.arrayBuffer()),
+            etag: response.headers.get('ETag')
+          };
+        }
         /* A 404 from one route is not the end; the other may have it. Any other
          * status is the server refusing, and refusing is still being there. */
       }
@@ -115,17 +130,42 @@
     }
 
     return {
-      /* A server-backed file: a plugin script, its manifest, a shipped asset, a
-       * config file. Database first, then io_server. */
+      /*
+       * A server-backed file: a plugin script, its manifest, a shipped asset, a
+       * config file.
+       *
+       * The server is the authority and the database is its copy. The first
+       * read of a path in a session revalidates the stored copy (a 304 costs a
+       * header); later reads are local. This used to be "database first", which
+       * meant a script stored once was never fetched again: every plugin
+       * rewritten since a browser first loaded it kept running the old text.
+       *
+       * Nothing answering is not "not there": the stored copy is served, and
+       * only with no copy does the outage reach the executor.
+       */
       async readFile(path) {
-        const held = await idb.fileGet(path);
-        if (held) { return held; }
         if (denied.has(path)) { return null; }
+        const held = await idb.fileEntry(path);
+        if (held && settled.has(path)) { return held.bytes; }
 
-        const bytes = await fetchFile(path);
-        if (bytes) { await idb.filePut(path, bytes, null); }
-        else { denied.add(path); }
-        return bytes;
+        let fetched;
+        try {
+          fetched = await fetchFile(path, held && held.etag);
+        } catch (err) {
+          if (held && err.torirsUnreachable) { return held.bytes; }
+          throw err;
+        }
+
+        settled.add(path);
+        if (fetched === 'unchanged') { return held.bytes; }
+        if (fetched) {
+          await idb.filePut(path, fetched.bytes, fetched.etag);
+          return fetched.bytes;
+        }
+        /* The server answered and does not have it. A stored copy of a file
+         * the server has deleted is exactly the staleness this guards against. */
+        denied.add(path);
+        return null;
       },
 
       /*
