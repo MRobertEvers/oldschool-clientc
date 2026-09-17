@@ -339,17 +339,19 @@ ToriDraw_ProjectedTileMouseHitTest(
  * models handed to ToriDraw_ProjectWithVTable, where each left, and for the
  * ones projected their vertex total and how many had a vertex count that is
  * not a multiple of four (the kernels' scalar tail). A renderer that prints
- * frame statistics reads and clears it.
+ * frame statistics reads and clears it; every other renderer lets it run for
+ * the life of the process, so the counters are 64-bit. A 32-bit vertex total
+ * crossed INT_MAX a few minutes into an OpenGL3 session (UBSan, 2026-09-17).
  */
 struct ToriDraw_ProjectCensus
 {
-    int calls;
-    int cull_fast;
-    int cull_error;
-    int cull_aabb;
-    int projected;
-    int projected_vertices;
-    int tail_models;
+    uint64_t calls;
+    uint64_t cull_fast;
+    uint64_t cull_error;
+    uint64_t cull_aabb;
+    uint64_t projected;
+    uint64_t projected_vertices;
+    uint64_t tail_models;
 };
 extern struct ToriDraw_ProjectCensus g_toridraw_project_census;
 

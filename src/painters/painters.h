@@ -1080,15 +1080,16 @@ painter_add_world_entity(
  * (camera tile and level, cull span, draw distance, level mask) were the
  * previous walk's -- what a cached walk would hit -- tiles popped, commands
  * emitted and how many of those were entities rather than static scenery.
- * A renderer that prints frame statistics reads and clears it.
+ * A renderer that prints frame statistics reads and clears it; every other
+ * renderer lets it run for the life of the process, hence 64-bit.
  */
 struct TorirsPaintCensus
 {
-    int walks;
-    int same_inputs;
-    int pops;
-    int commands;
-    int entity_commands;
+    uint64_t walks;
+    uint64_t same_inputs;
+    uint64_t pops;
+    uint64_t commands;
+    uint64_t entity_commands;
 };
 extern struct TorirsPaintCensus g_torirs_paint_census;
 
