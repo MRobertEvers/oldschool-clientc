@@ -87,7 +87,12 @@ def make(targets: list[str], jobs: int) -> None:
             argv.append(f"-j{jobs}")
         argv += targets
     log("make " + " ".join(targets))
-    subprocess.run(argv, cwd=REPO, check=True)
+    # Run from `make -C src deploy-osrs239` (or make.ps1 deploy-osrs239, which
+    # adds CC=gcc), the parent make's MAKEFLAGS would reach this sub-make and
+    # its CC=gcc would win over the web lane's emcc: every wasm object then
+    # fails on -sUSE_SDL=2. This is a fresh top-level make, not a child.
+    env = {k: v for k, v in os.environ.items() if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")}
+    subprocess.run(argv, cwd=REPO, check=True, env=env)
 
 
 def scripts_stale() -> bool:
