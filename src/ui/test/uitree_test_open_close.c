@@ -713,3 +713,94 @@ test_pause_pending_please_wait(void)
 
     UITree_Free(tree);
 }
+
+/*
+ * Closing a tab takes the panel mounted INSIDE it with it — the mount record
+ * as well as the nodes.
+ *
+ * The shape is the one the gameframe login burst produces every time: the
+ * enum mounts `side_journal` (629) into the sidebar's tab slot, 629's own
+ * `[if_open]` mounts `account_summary_sidepanel` (712) into 629's
+ * `tab_container`, and a tick later the tutorial's tab table closes the slot
+ * again because a fresh account has not earned the quest tab yet.
+ *
+ * The reclaim frees 712's nodes with 629's subtree, so what is left to get
+ * wrong is the bookkeeping: a surviving `interface_parents` record for 712
+ * makes UITree_InterfaceParentIsMountedGroup answer "live", and
+ * uitree_builder_hide_unmounted_spillover then refuses to hide the copy the
+ * CS2 runtime bakes the next time a script addresses 712 — which is a tree
+ * root, so it draws at the canvas origin over whatever is there.
+ */
+void
+test_reclaim_drops_nested_mount_records(void)
+{
+    struct UITree* tree = UITree_New(0);
+    struct UITreeNodeSpec spec;
+    int32_t tab_slot;
+    int32_t journal_root;
+    int32_t tab_container;
+    int32_t summary_root;
+    int const gameframe_group = 161;
+    int const journal_group = 629;
+    int const summary_group = 712;
+    int const tab_slot_uid = (gameframe_group << 16) | 61;
+    int const tab_container_uid = (journal_group << 16) | 43;
+
+    printf("TEST: reclaim drops the mounts nested inside the closed group\n");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = tab_slot_uid;
+    spec.width = 190;
+    spec.height = 261;
+    tab_slot = UITree_Push(tree, -1, &spec);
+    TEST_ASSERT(tab_slot >= 0, "sidebar tab slot");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (journal_group << 16) | 0;
+    spec.width = 190;
+    spec.height = 261;
+    journal_root = UITree_Push(tree, tab_slot, &spec);
+    TEST_ASSERT(journal_root >= 0, "journal root");
+    (void)UITree_InterfaceParentSet(tree, tab_slot_uid, journal_group, 1);
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = tab_container_uid;
+    spec.width = 184;
+    spec.height = 233;
+    tab_container = UITree_Push(tree, journal_root, &spec);
+    TEST_ASSERT(tab_container >= 0, "journal tab container");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (summary_group << 16) | 0;
+    spec.width = 184;
+    spec.height = 233;
+    summary_root = UITree_Push(tree, tab_container, &spec);
+    TEST_ASSERT(summary_root >= 0, "summary panel root");
+    (void)UITree_InterfaceParentSet(tree, tab_container_uid, summary_group, 1);
+
+    TEST_ASSERT(
+        UITree_InterfaceParentIsMountedGroup(tree, summary_group),
+        "summary panel is mounted before the close");
+
+    /* IF_CLOSESUB on the tab slot: reclaim the group, then drop the slot's own
+     * record — the order app_boot's close path uses. */
+    UITree_ReclaimInterfaceGroup(tree, journal_group);
+    UITree_InterfaceParentClear(tree, tab_slot_uid);
+
+    TEST_ASSERT(!UITree_GroupPresent(tree, journal_group), "journal gone");
+    TEST_ASSERT(!UITree_GroupPresent(tree, summary_group), "summary nodes gone");
+    TEST_ASSERT(
+        !UITree_InterfaceParentIsMountedGroup(tree, journal_group),
+        "journal mount record gone");
+    TEST_ASSERT(
+        !UITree_InterfaceParentIsMountedGroup(tree, summary_group),
+        "summary mount record gone — nothing claims it is still on screen");
+    TEST_ASSERT(tree->interface_parent_count == 0, "no mount records left at all");
+    TEST_ASSERT(tree->components[tab_slot].freed == 0, "the slot itself survives");
+
+    UITree_Free(tree);
+}

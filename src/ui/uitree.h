@@ -2997,6 +2997,13 @@ UITree_InterfaceParentIsMountedGroup(
  *
  * Same root selection as the hide-on-close loop: a node whose parent is also
  * in `group_id` is pack-internal and is reclaimed with its ancestor.
+ *
+ * Sub-interfaces mounted inside the group go with it, records and all: their
+ * nodes are part of the subtree being freed, and the `interface_parents`
+ * entries naming them are dropped in the same cascade the server's
+ * ToriRSServer_IfStateCloseSub runs. A record kept past its container still
+ * answers UITree_InterfaceParentIsMountedGroup, which is what the spillover
+ * sweep asks before it hides an unmounted pack.
  */
 void
 UITree_ReclaimInterfaceGroup(

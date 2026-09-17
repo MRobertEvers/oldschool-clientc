@@ -626,3 +626,74 @@ test_hover_input(void)
     (void)graphic;
     UITree_Free(tree);
 }
+
+/*
+ * A script-created LAYER stays pass-through, and does not eat the canvas.
+ *
+ * `cc_create` takes the cache's own widget-type numbers, where 0 is LAYER. The
+ * type switch in UITree_CcCreate had no case for it, so a layer fell through to
+ * the "unknown type" default and came back as CC_OBJ -- an item box, which is a
+ * menu target simply for being one. That is invisible while its item id is 0,
+ * so nothing on screen changes; what changes is that it becomes the topmost
+ * interactive hit over every pixel it covers.
+ *
+ * The shape below is the cache's, not an invented one: `ui_highlight_update`
+ * (script 8477) creates one of these under `toplevel_osrs_stretch:ui_highlights`
+ * and immediately sizes it `cc_setsize(0, 0, ^setsize_minus, ^setsize_minus)`,
+ * and that host is itself full-canvas -- so the mistyped node covered the whole
+ * client and every click and hover in the session resolved to it, world,
+ * sidebar, minimap and chat alike, while the frame loop went on rendering
+ * normally. Tutorial Island lights the first fire straight into it: the step
+ * sets `%flashside` to flash the Stats tab, which is the session's first UI
+ * highlight.
+ */
+void
+test_cc_create_layer_is_passthrough(void)
+{
+    struct UITree* tree = UITree_New(16);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    int32_t highlights;
+    int32_t button;
+    int32_t scripted;
+
+    printf("TEST: a cc_create'd layer is pass-through, not a canvas-wide item box\n");
+
+    UITree_TestHostInit(&host, &hs);
+
+    /* The gameframe: a clickable widget, and beside it the full-canvas layer
+     * the highlight scripts build into. Later sibling, so it is drawn -- and
+     * hit-tested -- over the button. */
+    button = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 500, 20, 20, 60, 40);
+    tree->components[button].behavior.button_type = 1;
+    highlights = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 501, 0, 0, 800, 500);
+
+    /* cc_create(ui_highlights, ^iftype_layer, sub, 0) */
+    scripted = UITree_CcCreate(tree, highlights, 501, 0, 255);
+    TEST_ASSERT(scripted >= 0, "the scripted child is created");
+    TEST_ASSERT(
+        tree->components[scripted].type == UIELEM_RS_LAYER,
+        "widget type 0 is a LAYER, not the unknown-type item box");
+
+    /* cc_setsize(0, 0, ^setsize_minus, ^setsize_minus): zero size in a mode
+     * that resolves against the parent, which here is the whole canvas. */
+    tree->components[scripted].position.width = 0;
+    tree->components[scripted].position.height = 0;
+    tree->components[scripted].position.width_mode = 1;
+    tree->components[scripted].position.height_mode = 1;
+    UITree_LayoutInvalidate(tree);
+    UITree_TestResolve(tree);
+
+    TEST_ASSERT(
+        tree->components[scripted].position.abs_w >= 800 &&
+            tree->components[scripted].position.abs_h >= 500,
+        "the scripted layer does cover the canvas -- that is the point");
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, 40, 40) == button,
+        "a click over the button still reaches the button through it");
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, 700, 400) < 0,
+        "and a click over nothing else still hits nothing");
+
+    UITree_Free(tree);
+}

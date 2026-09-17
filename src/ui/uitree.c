@@ -3327,6 +3327,29 @@ UITree_CcCreate(
 
     switch( widget_type )
     {
+    case 0: /* TORIRS_COMPONENT_LAYER */
+        /*
+         * A script-created LAYER, which is the one type that must never fall
+         * through to the default below.
+         *
+         * A layer is chrome: it groups children and is pass-through for input.
+         * CC_OBJ is an item box, which is a MENU TARGET on the strength of
+         * being one -- so a layer answered as CC_OBJ becomes the topmost
+         * interactive hit over every pixel it covers. The cache's own
+         * `ui_highlight_update` (script 8477) creates exactly that and then
+         * sizes it `cc_setsize(0, 0, ^setsize_minus, ^setsize_minus)` against
+         * `toplevel_osrs_stretch:ui_highlights`, whose own width/height modes
+         * make it the WHOLE CANVAS: one invisible item box over the entire
+         * screen, drawing nothing (item_id stays 0) and swallowing every click
+         * and every hover the client has -- world, sidebar, minimap and chat
+         * alike -- while the frame loop carries on rendering.
+         *
+         * Tutorial Island reaches it first: `~tutorial_open_tab` sets
+         * `%flashside` to flash the Stats tab the moment a fire is lit, which
+         * is the session's first UI highlight.
+         */
+        spec.type = UIELEM_RS_LAYER;
+        break;
     case 5: /* TORIRS_COMPONENT_GRAPHIC */
         spec.type = UIELEM_RS_GRAPHIC;
         break;
@@ -6708,6 +6731,77 @@ UITree_InterfaceParentIsMountedGroup(
     return 0;
 }
 
+static int
+uitree_group_in_list(
+    int const* groups,
+    int count,
+    int group_id)
+{
+    int slot;
+    for( slot = 0; slot < count; slot++ )
+    {
+        if( groups[slot] == group_id )
+            return 1;
+    }
+    return 0;
+}
+
+/*
+ * An unloaded group takes the sub-interfaces mounted INSIDE it with it.
+ *
+ * uitree_reclaim_subtree has already freed those packs' nodes -- they hang off
+ * a container that belonged to `group_id` -- but their mount records live in
+ * `interface_parents`, keyed by a container uid that has just stopped
+ * existing. A record left behind still answers
+ * UITree_InterfaceParentIsMountedGroup, so uitree_builder_hide_unmounted_spillover
+ * reads the group as part of the live tree and never hides the copy the CS2
+ * runtime bakes the next time a script addresses it. That copy is a tree root,
+ * so it draws at the canvas origin: the account-summary side panel (712,
+ * mounted under side_journal's tab_container) sat on top of the character
+ * creator for the rest of the session, because the login burst mounted the
+ * journal tab and the tutorial's tab table closed it again a tick later.
+ *
+ * The cascade is ToriRSServer_IfStateCloseSub's, which is the reference
+ * client's: closing a group drops the mounts addressed into it, then the
+ * mounts addressed into those, to a fixed point.
+ */
+static void
+uitree_drop_mounts_inside_group(
+    struct UITree* tree,
+    int group_id)
+{
+    int closed[UITREE_INTERFACE_PARENT_MAX];
+    int closed_count = 0;
+    int changed;
+
+    assert(tree);
+    closed[closed_count++] = group_id;
+    do
+    {
+        int record;
+        changed = 0;
+        for( record = 0; record < tree->interface_parent_count; )
+        {
+            int host_group = (tree->interface_parents[record].container_uid >> 16) & 0xffff;
+            int last;
+            if( !uitree_group_in_list(closed, closed_count, host_group) )
+            {
+                record++;
+                continue;
+            }
+            if( closed_count < UITREE_INTERFACE_PARENT_MAX &&
+                !uitree_group_in_list(
+                    closed, closed_count, tree->interface_parents[record].group_id) )
+                closed[closed_count++] = tree->interface_parents[record].group_id;
+            last = tree->interface_parent_count - 1;
+            if( record != last )
+                tree->interface_parents[record] = tree->interface_parents[last];
+            tree->interface_parent_count--;
+            changed = 1;
+        }
+    } while( changed );
+}
+
 void
 UITree_ReclaimInterfaceGroup(
     struct UITree* tree,
@@ -6728,6 +6822,14 @@ UITree_ReclaimInterfaceGroup(
     assert(tree);
     if( group_id < 0 )
         return;
+
+    /* Before the node walk, and whether or not there is anything left to walk:
+     * a group whose nodes are already gone can still be naming mounts, and
+     * those records are exactly as stale as the ones a full reclaim leaves.
+     * Group 0 is not an interface — `container_uid >> 16` is 0 for the
+     * builder's own nodes, and sweeping on it would take the whole table. */
+    if( group_id > 0 )
+        uitree_drop_mounts_inside_group(tree, group_id);
 
     gset = UITree_GroupNodes(tree, group_id);
     if( !gset || gset->count <= 0 )

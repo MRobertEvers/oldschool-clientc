@@ -80,6 +80,7 @@ main(void)
     test_walk_topology();
     test_mounted_world_resize();
     test_hover_input();
+    test_cc_create_layer_is_passthrough();
     test_click_event_coords();
     test_pointer_owner_blocks_tree();
     test_layout_build();
@@ -118,6 +119,7 @@ main(void)
     test_click_hook_inherits_nearest_parent();
     test_mount_slot_reclaim_no_shadow_text();
     test_pause_pending_please_wait();
+    test_reclaim_drops_nested_mount_records();
     test_live_node_sets();
     test_debug_overlay();
     test_chrome_exec();
