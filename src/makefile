@@ -1375,6 +1375,15 @@ web-debug: servers
 		cp $(WEB_PLUGIN_CHROME_FONT) $(REPO_ROOT)/build-web/plugin_chrome/font/; \
 	fi
 
+# --- osrs239 deployment package ------------------------------------------
+# One zip that runs the osrs239 world anywhere: both servers (built native,
+# so run this on the host OS), the web client, the cache, the content slice
+# the server reads, and start scripts. tools/deploy/build_osrs239_package.py
+# owns the layout; this target is the spelling `make` users expect.
+.PHONY: deploy-osrs239
+deploy-osrs239:
+	$(if $(filter Windows_NT,$(OS)),python,python3) $(REPO_ROOT)/tools/deploy/build_osrs239_package.py $(DEPLOY_ARGS)
+
 # --- Windows XP target ---------------------------------------------------
 # `make -C src winxp` is the XP lane's entry point, shaped like `web` above so
 # every platform is reached the same way. It needs an i686 MinGW toolchain on
