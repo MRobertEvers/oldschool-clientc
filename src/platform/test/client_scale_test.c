@@ -13,6 +13,8 @@
  *     multiples, centres, and falls back to keep-aspect when the window is
  *     smaller than one multiple.
  *   - stretch fills the area.
+ *   - none keeps the frame at its unstretched size, centred, and shrinks it
+ *     keeping aspect only when the area cannot hold it.
  *   - the pixel limit caps the 100% buffer inside both axes of the
  *     resolution, and interface scaling divides that (to a whole multiple in
  *     integer mode), so a CPU renderer never draws more than it and every
@@ -59,6 +61,7 @@ settings(
     s.output_filter = CLIENT_SCALE_FILTER_NEAREST;
     s.high_dpi = CLIENT_SCALE_HIGH_DPI_DEVICE_PIXELS;
     s.density_percent = 100;
+    s.unstretched_percent = 100;
     return s;
 }
 
@@ -386,6 +389,35 @@ test_high_dpi(void)
 }
 
 static void
+test_none_does_not_stretch(void)
+{
+    struct ClientScaleSettings s = settings(CLIENT_SCALE_FIT_NONE, 0);
+    struct ClientScalePresent p;
+
+    /* A fixed 807x503 frame at 100% on a 2x display, in a maximised window. */
+    s.high_dpi = CLIENT_SCALE_HIGH_DPI_WINDOW_POINTS;
+    s.density_percent = 200;
+    s.unstretched_percent = 200;
+    ClientScale_Present(&s, 807, 503, 3024, 1834, &p);
+    CHECK(p.output.w == 1614 && p.output.h == 1006, "none got %dx%d", p.output.w, p.output.h);
+    CHECK(p.output.x == (3024 - 1614) / 2 && p.output.y == (1834 - 1006) / 2,
+        "none centred, got %d,%d", p.output.x, p.output.y);
+    CHECK(p.render_w == 807 && p.render_h == 503, "buffer %dx%d", p.render_w, p.render_h);
+
+    /* 150% on a 1x display. */
+    s = settings(CLIENT_SCALE_FIT_NONE, 0);
+    s.unstretched_percent = 150;
+    ClientScale_Present(&s, 765, 503, 1920, 1080, &p);
+    CHECK(p.output.w == 1147 && p.output.h == 754, "150%% none got %dx%d", p.output.w, p.output.h);
+
+    /* An area smaller than the frame keeps aspect rather than cropping. */
+    ClientScale_Present(&s, 765, 503, 1000, 700, &p);
+    CHECK(p.output.w <= 1000 && p.output.h <= 700, "none shrinks to fit, got %dx%d", p.output.w,
+        p.output.h);
+    CHECK(p.output.w == 1000, "shrunk keeping aspect, got %dx%d", p.output.w, p.output.h);
+}
+
+static void
 test_mapping_round_trip(void)
 {
     struct ClientScaleSettings const s = settings(CLIENT_SCALE_FIT_STRETCH, 0);
@@ -406,6 +438,7 @@ main(void)
     test_keep_aspect_is_the_legacy_letterbox();
     test_integer_mode();
     test_stretch_fills();
+    test_none_does_not_stretch();
     test_limit_raises_the_scale();
     test_scale_steps_under_a_limit();
     test_render_buffer();

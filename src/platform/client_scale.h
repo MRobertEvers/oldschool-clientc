@@ -60,7 +60,10 @@
  *      top-left quarter at 200% on a Retina display.
  *   6. Stretch mode places the buffer in the window: keep aspect (fractional,
  *      centred), integer (whole multiple, centred; falls back to keep aspect
- *      when the window is smaller than the buffer), or stretch (fills it).
+ *      when the window is smaller than the buffer), stretch (fills it), or
+ *      none (the frame at the interface scale, centred; shrunk keeping aspect
+ *      only when the window cannot hold it). A fixed frame in a window larger
+ *      than its own size had no way to stay at that size before none.
  *   7. The frame filter smooths the buffer onto the output rectangle.
  *
  * Header-only on purpose: every lane includes it, and none of their source
@@ -74,6 +77,8 @@ enum ClientScaleFit
     CLIENT_SCALE_FIT_KEEP_ASPECT = 0,
     CLIENT_SCALE_FIT_INTEGER,
     CLIENT_SCALE_FIT_STRETCH,
+    /** The frame at `unstretched_percent`, centred, never enlarged. */
+    CLIENT_SCALE_FIT_NONE,
     CLIENT_SCALE_FIT_COUNT
 };
 
@@ -110,6 +115,11 @@ struct ClientScaleSettings
      *  display, 200 on a Retina one. Read only when `high_dpi` is not
      *  DEVICE_PIXELS, and must be positive then. */
     int density_percent;
+    /** Drawable pixels per 100 layout pixels when the frame is not stretched:
+     *  the size stretch mode NONE shows it at. A fixed window's percent times
+     *  the display density; a resizable window's layout percent. Read only
+     *  when `fit` is NONE, and must be positive then. */
+    int unstretched_percent;
 };
 
 struct ClientScaleRect
@@ -497,6 +507,22 @@ ClientScale_Present(
             break;
         }
         out->integer_fell_back = 1;
+        client_scale_keep_aspect(layout_w, layout_h, area_w, area_h, &out->output);
+        break;
+    }
+    case CLIENT_SCALE_FIT_NONE:
+    {
+        long long const w = (long long)layout_w * settings->unstretched_percent / 100;
+        long long const h = (long long)layout_h * settings->unstretched_percent / 100;
+        assert(settings->unstretched_percent > 0);
+        if( w <= area_w && h <= area_h )
+        {
+            out->output.w = (int)w;
+            out->output.h = (int)h;
+            out->output.x = (area_w - out->output.w) / 2;
+            out->output.y = (area_h - out->output.h) / 2;
+            break;
+        }
         client_scale_keep_aspect(layout_w, layout_h, area_w, area_h, &out->output);
         break;
     }

@@ -67,7 +67,7 @@
 #define CS_FRAME_ROWS_MAX 33
 #define CS_SCALE_ROWS 13
 #define CS_FILTER_ROWS 3
-#define CS_STRETCH_ROWS 2
+#define CS_STRETCH_ROWS 3
 /* Device option 30's integer value: offered as the Integer scaling toggle. */
 #define CS_STRETCH_INTEGER 1
 /* The listed resolutions, plus one slot for a value only preferences.ini holds. */
@@ -160,10 +160,11 @@ static char const* const CS_FILTER_LABEL[] = { "Nearest", "Linear", "Bicubic" };
 
 /* Integer is not here: it changes the buffer as well as its placement, so it
  * is the Integer scaling toggle beside interface scaling. */
-static char const* const CS_STRETCH_VALUE[] = { "0", "2" };
+static char const* const CS_STRETCH_VALUE[] = { "0", "2", "3" };
 static char const* const CS_STRETCH_LABEL[] = {
     "Keep aspect ratio",
     "Stretch to fill",
+    "Don't stretch",
 };
 
 /* Common resolutions, smallest to largest by pixel count. The value is the

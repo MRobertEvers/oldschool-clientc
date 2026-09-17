@@ -255,7 +255,7 @@ struct RS_CS2TradingPost
 #define RS_CS2_DEVICEOPTION_HIGH_DPI 34
 /** Pixel limit, width half: widest render buffer in pixels; 0 is no limit. */
 #define RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH 35
-#define RS_CS2_CLIENT_FIT_MAX 2
+#define RS_CS2_CLIENT_FIT_MAX 3
 #define RS_CS2_MAX_PIXEL_HEIGHT_MIN 360
 #define RS_CS2_MAX_PIXEL_HEIGHT_MAX 4320
 #define RS_CS2_MAX_PIXEL_WIDTH_MIN 640

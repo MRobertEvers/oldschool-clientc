@@ -337,6 +337,19 @@ App_ClientScaleSettings(
                              : (enum ClientScaleFilter)(output_filter - 1);
     out->high_dpi = App_HighDpiMode(app);
     out->density_percent = App_DisplayDensityPercent(app);
+    /* Stretch mode NONE's size. A fixed window is sized in points by its
+     * percent (App_FixedWindowWidth), so the frame unstretched is that
+     * percent of the display density. A resizable layout is the window
+     * divided by its percent, so undoing the division is the window; before
+     * the first layout, 100% of the HighDPI unit. */
+    if( App_WindowMode(app) == CS2VM_WINDOW_MODE_FIXED )
+        out->unstretched_percent =
+            (int)((long long)ClientScale_RoundPercent(out, RS_CS2Host_UiScalePercent(&app->host)) *
+                  App_DisplayDensityPercent(app) / 100);
+    else if( app->client_scale.layout.percent > 0 )
+        out->unstretched_percent = app->client_scale.layout.percent;
+    else
+        out->unstretched_percent = ClientScale_LayoutDensityPercent(out);
 }
 
 enum ClientScaleHighDpi
