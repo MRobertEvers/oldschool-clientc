@@ -3703,6 +3703,7 @@ test-web-channel:
 	node web/test/chrome_layout_test.js
 	node web/test/host_plugin_files_test.js
 	node web/test/hostio_read_file_test.js
+	node web/test/js5_reconnect_test.js
 	$(MAKE) test-chrome-web-skin
 
 test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \

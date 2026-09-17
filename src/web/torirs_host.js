@@ -447,6 +447,7 @@
       (cacheKey ? `  ·  cache ${cacheKey}` : '') +
       (js5 ? `  ·  js5 ${js5.groups} groups ${kb(js5.bytes)}` +
              (js5.inflight ? ` (${js5.inflight} in flight)` : '') +
+             (js5.drops ? `  ·  js5 reconnected ${js5.drops}x` : '') +
              (js5.failed ? '  ·  JS5 DOWN' : '') : '') +
       (od ? `  ·  ondemand ${od.files} files ${kb(od.bytes)}` +
             (od.failed ? '  ·  ONDEMAND DOWN' : '') : '')

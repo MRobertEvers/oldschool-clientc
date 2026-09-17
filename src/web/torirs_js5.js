@@ -161,6 +161,14 @@
       this.pending = new Map();
       this.readyPromise = null;
       this.failed = null;
+      /* True between a completed handshake and the socket dropping. A request
+       * made while it is false waits for ready(), and #connect sends it. */
+      this.online = false;
+      /* Sockets lost after a good handshake. Each one is reconnected, on the
+       * spot if requests are outstanding and otherwise on the next request:
+       * an idle title screen outlives any proxy's or server's idle timeout,
+       * and a drop there is not an outage. */
+      this.drops = 0;
       /* The master index, parsed into "which tables exist" — see
        * #tablesPresent. One request per session. */
       this.tablesPromise = null;
@@ -224,9 +232,43 @@
           this.#fail(err.message);
         }
       };
-      socket.onclose = () => this.#fail('the JS5 server closed the connection');
-      socket.onerror = () => this.#fail('the JS5 connection failed');
+      socket.onclose = () => this.#dropped(socket, 'the JS5 server closed the connection');
+      socket.onerror = () => this.#dropped(socket, 'the JS5 connection failed');
+      this.online = true;
+      /* Everything registered while there was no socket -- a first request,
+       * or the requests in flight when the previous socket dropped -- goes
+       * out now. A group request is idempotent, so a re-send can only cost
+       * one duplicate answer, which the reassembler drops. */
+      for (const waiter of this.pending.values()) { this.#send(waiter); }
       return this;
+    }
+
+    /*
+     * The socket went away after a good handshake.
+     *
+     * Not a failure: the next request reconnects, and if requests are
+     * outstanding the reconnect starts now and re-sends them. The old
+     * socket's error and close both land here, so the identity check keeps
+     * the second one from tearing down the replacement.
+     */
+    #dropped(socket, message) {
+      if (socket !== this.socket || this.failed) { return; }
+      this.drops++;
+      this.online = false;
+      this.socket = null;
+      this.readyPromise = null;
+      this.reader.reset();
+      console.warn(`js5: ${message}; reconnecting ` +
+        (this.pending.size ? `now (${this.pending.size} outstanding)` : 'on the next request'));
+      if (this.pending.size) { this.ready().catch(() => {}); }
+    }
+
+    #send(waiter) {
+      try {
+        this.socket.send(waiter.request);
+      } catch (err) {
+        this.#dropped(this.socket, err.message);
+      }
     }
 
     #handshake() {
@@ -290,19 +332,17 @@
 
       let resolve, reject;
       const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
-      this.pending.set(key, { resolve, reject, promise });
-
       const request = new Uint8Array(4);
       request[0] = urgent ? 1 : 0;
       request[1] = archive & 0xFF;
       request[2] = (group >> 8) & 0xFF;
       request[3] = group & 0xFF;
-      try {
-        this.socket.send(request);
-      } catch (err) {
-        this.pending.delete(key);
-        throw this.#fail(err.message);
-      }
+      const waiter = { resolve, reject, promise, request };
+      /* Registered before the send, so a socket lost between here and the
+       * answer re-sends it from #connect instead of losing it. */
+      this.pending.set(key, waiter);
+      if (this.online) { this.#send(waiter); }
+      else { await this.ready(); }
       return await promise;
     }
 
@@ -367,6 +407,7 @@
         groups: this.groupsReceived,
         bytes: this.bytesReceived,
         inflight: this.pending.size,
+        drops: this.drops,
         failed: this.failed ? this.failed.message : null,
       };
     }
