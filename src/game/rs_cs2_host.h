@@ -769,6 +769,20 @@ struct RS_CS2Host
      * where no uid names an npc.
      */
     int (*npc_by_uid)(void* user, int uid, struct RS_ClientOpContext* out);
+    /*
+     * A widget model or chathead the script set whose assets are not resident:
+     * hand it to the app to load and bind LATER, and let the script go on.
+     *
+     * The reference never waits here -- IfType.getModel resolves on every
+     * draw and draws nothing until the model exists -- and neither should a
+     * script: a yield here held the frame for the model's round trip, and on
+     * a browser cache every dialogue's first chathead paid it. The app keeps
+     * the request (App_SetInterfaceModel / App_SetInterfaceNpcHead) and its
+     * per-frame poll binds the scene model when it has been composited.
+     * Optional: with either NULL the host yields the script as before.
+     */
+    void (*widget_model_lazy)(void* user, int component_id, int model_id);
+    void (*widget_npc_head_lazy)(void* user, int component_id, int npc_id);
     /**
      * One player's queued ROUTE, for ACTIVEPLAYER_GETROUTELENGTH and
      * ACTIVEPLAYER_GETROUTECOORD.

@@ -258,7 +258,12 @@ app_if_head_enqueue(
     task->component_id = component_id;
     task->npc_id = npc_id;
     PT_INIT(&task->pt);
-    TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
+    /* The asset runner, as a stream: the request is already stored and
+     * app_if_head_poll binds the scene model on whichever frame it is
+     * composited, so nothing orders this against the packets, and holding
+     * the frame for a chathead's round trip is exactly the pause the store
+     * exists to avoid. */
+    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
 }
 
 /* Persist the head request keyed by component id (reference IfType.list keeps
@@ -524,6 +529,29 @@ app_if_player_model_enqueue(
     task->arg1 = arg1;
     PT_INIT(&task->pt);
     TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
+}
+
+/* The CS2 host's lazy-model hooks (RS_CS2Host.widget_model_lazy and
+ * widget_npc_head_lazy): the same store-then-land path the IF1 setters use,
+ * reached through the host's world_user. */
+void
+app_cs2_widget_model_lazy(
+    void* user,
+    int component_id,
+    int model_id)
+{
+    assert(user);
+    App_SetInterfaceModel((struct App*)user, component_id, model_id);
+}
+
+void
+app_cs2_widget_npc_head_lazy(
+    void* user,
+    int component_id,
+    int npc_id)
+{
+    assert(user);
+    App_SetInterfaceNpcHead((struct App*)user, component_id, npc_id);
 }
 
 void

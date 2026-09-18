@@ -5982,6 +5982,13 @@ exec_widget_set_model(
 {
     if( model_id >= 0 && !rs_cs2_model_ready(host, model_id) )
     {
+        /* Not resident: the app loads and binds it off the script's back and
+         * the script continues -- see RS_CS2Host.widget_model_lazy. */
+        if( host->widget_model_lazy )
+        {
+            host->widget_model_lazy(host->world_user, component_id, model_id);
+            return CS2VM_EXECNO_OK;
+        }
         if( !rs_cs2_await_spent(vm, exact_request->kind, model_id, -1) )
             return rs_cs2_yield_load(host, vm, exact_request, model_id, -1);
         /* Model still missing after its load: leave the widget as it was. */
@@ -6015,6 +6022,13 @@ exec_widget_set_model_kind(
     if( model_kind == CS2VM_MODEL_KIND_PLAIN && model_id >= 0 &&
         !rs_cs2_model_ready(host, model_id) )
     {
+        /* Not resident: the app loads and binds it off the script's back and
+         * the script continues -- see RS_CS2Host.widget_model_lazy. */
+        if( host->widget_model_lazy )
+        {
+            host->widget_model_lazy(host->world_user, component_id, model_id);
+            return CS2VM_EXECNO_OK;
+        }
         if( !rs_cs2_await_spent(vm, exact_request->kind, model_id, -1) )
             return rs_cs2_yield_load(host, vm, exact_request, model_id, -1);
         /* Model still missing after its load: leave the widget as it was. */
@@ -6049,6 +6063,11 @@ exec_widget_set_model_kind(
     {
         if( !rs_cs2_npc_head_ready(host, model_id) )
         {
+            if( host->widget_npc_head_lazy )
+            {
+                host->widget_npc_head_lazy(host->world_user, component_id, model_id);
+                return CS2VM_EXECNO_OK;
+            }
             if( !rs_cs2_await_spent(vm, exact_request->kind, model_id, -1) )
                 return rs_cs2_yield_load(
                     host, vm, exact_request, model_id, -1);

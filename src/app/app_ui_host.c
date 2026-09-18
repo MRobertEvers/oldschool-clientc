@@ -518,8 +518,13 @@ static struct ToriRS_TaskVTable Task_InvIconReconcile_VTable = {
 };
 
 /* Per-tick hook: enqueue one reconcile if any item icon is still unresolved and
- * none is already running. Serial on the exec pipeline so it applies after the
- * inventory packets that dirtied the slots. */
+ * none is already running. On the ASSET runner: it is enqueued from the tick
+ * that applied the inventory packets, so it already runs after them, and the
+ * slots stay pending until an icon is built -- ordering needs nothing from
+ * the packet FIFO. What the FIFO cost was the frame: equipping a set of
+ * unseen items parked every packet, and the picture, on a wave of obj and
+ * model reads (100 ms at ::maxrange through a browser cache). Now the world
+ * moves and the cells fill as the icons land. */
 void
 app_inv_icon_reconcile_tick(struct App* app)
 {
@@ -535,7 +540,7 @@ app_inv_icon_reconcile_tick(struct App* app)
     task->app = app;
     PT_INIT(&task->pt);
     app->inv_icon_reconcile_inflight = 1;
-    TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
+    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
 }
 
 static int

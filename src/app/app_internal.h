@@ -694,6 +694,20 @@ enum TaskRunnerStat
 app_settle_cs2_frame(struct App* app);
 
 
+/* ---- app_if_models.c: the CS2 host's lazy-model hooks ---- */
+void
+app_cs2_widget_model_lazy(
+    void* user,
+    int component_id,
+    int model_id);
+
+void
+app_cs2_widget_npc_head_lazy(
+    void* user,
+    int component_id,
+    int npc_id);
+
+
 /* ---- app_cs2_scene.c ---- */
 int
 app_cs2_loc_at_coord(

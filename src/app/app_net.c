@@ -525,12 +525,20 @@ app_pump_net_packets(struct App* app)
             if( getenv("TORIRS_FRAME_LATCH") )
             {
                 struct ToriRS_Task* head = app->exec_runner.queue->head;
+                /* The head's own read, when it has one: which table and
+                 * which archive the pipeline is waiting on. That is the
+                 * difference between "a packet parked" and knowing which
+                 * loader to take off the FIFO next. */
                 TORIRS_LOG(
-                    "frame_latch: exec parked stat=%d head=%s blocked=%d reads_out=%d cycle=%d\n",
+                    "frame_latch: exec parked stat=%d head=%s blocked=%d reads_out=%d "
+                    "read=%d/%d/%d cycle=%d\n",
                     (int)stat,
                     head ? head->name : "(none)",
                     head ? head->blocked : -1,
                     TaskRunner_ReadsOutstanding(&app->exec_runner),
+                    head ? (int)head->io.kind : -1,
+                    head && head->io.kind == TORIRS_IOK_CACHE ? head->io.u.cache.table_id : -1,
+                    head && head->io.kind == TORIRS_IOK_CACHE ? head->io.u.cache.archive_id : -1,
                     (int)app->logic_cycle);
             }
             app->exec_runner_had_work = 1;
