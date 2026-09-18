@@ -1397,6 +1397,13 @@ app_spawn_effect_world(struct Task_AppSpawn const* self)
             (int)self->kind);
         return NULL;
     }
+    /* Mid-rebuild: the scene is being reset under this runner, which the
+     * rebuild itself is pumping. An effect that lands now lands in a scene
+     * being torn down; one that arrives after belongs to the old scene
+     * anyway (the generation above). Dropped, as the reference drops its
+     * pending spot anims on a rebuild. */
+    if( !wv->world->load_complete )
+        return NULL;
     return wv->world;
 }
 

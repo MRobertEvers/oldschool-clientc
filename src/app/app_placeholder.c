@@ -111,7 +111,47 @@ app_placeholder_world(struct Task_AppPlaceholder const* self)
             (int)self->kind);
         return NULL;
     }
+    /*
+     * Mid-rebuild: the heightmap and the scene are being torn down and rebuilt
+     * under it, and this runner is being pumped BY that rebuild. Landing now
+     * would create an element in a scene being reset. The rebuild's finish
+     * sweeps every stack still without a model and queues it again against
+     * the new generation (app_placeholder_obj_stacks_sweep), so dropping here
+     * loses nothing.
+     */
+    if( !wv->world->load_complete )
+    {
+        TORIRS_LOG("placeholder: kind=%d dropped, scene mid-rebuild\n", (int)self->kind);
+        return NULL;
+    }
     return wv->world;
+}
+
+void
+app_placeholder_obj_stacks_sweep(
+    struct App* app,
+    struct World* world)
+{
+    struct World_EntityPool* pool;
+
+    assert(app);
+    assert(world);
+    assert(world->load_complete);
+    pool = &world->entities.obj_stack;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_ObjStack const* stack = World_EntityPoolGet(pool, i);
+        if( !stack || stack->element_id >= 0 )
+            continue;
+        app_placeholder_obj_stack(
+            app,
+            stack->grid_position.x,
+            stack->grid_position.z,
+            stack->grid_position.level,
+            stack->obj_id,
+            stack->count);
+    }
 }
 
 static void
@@ -223,14 +263,22 @@ Task_AppPlaceholder_Run(
     struct App* app = self->app;
 
     PT_BEGIN(&self->pt);
-    switch( self->kind )
+    /*
+     * Dispatched on `kind` with if/else, never a switch: a protothread IS a
+     * switch on its resume point, and a nested switch captures the await's
+     * `case` label. The task then resumed into the inner switch's dead end,
+     * ended without stepping its child, and its item still held the child's
+     * landed archive -- freed by the wrong deallocator on the way out
+     * (ASan double-free on model 7760, 2026-09-18).
+     */
+    if( self->kind == APP_PLACEHOLDER_OBJ_STACK )
     {
-    case APP_PLACEHOLDER_OBJ_STACK:
         PT_TASK_AWAITSELF_IF(
             CreateTask_ObjModelLoad(app->provider, &self->obj_id, &self->count, 1));
         app_placeholder_land_obj_stack(self);
-        break;
     }
+    else
+        assert(0 && "unknown placeholder kind");
     PT_END(&self->pt);
 }
 

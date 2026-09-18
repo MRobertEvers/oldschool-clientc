@@ -397,6 +397,10 @@ App_WorldLoadFinish(struct App* app)
          * plugin seam because a trigger script can create overlays, and the
          * object rebuild sweeps anything placed before it. */
         app_client_triggers_world_loaded(app);
+        /* Ground items that were still waiting for a model when the scene was
+         * rebuilt: their placeholders dropped themselves for the rebuild and
+         * take new ones now, against this generation. */
+        app_placeholder_obj_stacks_sweep(app, app->world);
         World_SetHeightFn(app->world, app_world_height, app);
         {
             struct World_SeqSource seq_source;

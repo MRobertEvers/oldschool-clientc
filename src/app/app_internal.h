@@ -715,6 +715,14 @@ app_placeholder_obj_stack(
     int obj_id,
     int count);
 
+/* After a rebuild lands: every stack still without a model takes a fresh
+ * placeholder against the new scene generation (the one it had was dropped
+ * for the rebuild). Called from App_WorldLoadFinish, after load_complete. */
+void
+app_placeholder_obj_stacks_sweep(
+    struct App* app,
+    struct World* world);
+
 /* app_world_rebuild.c: give a stack added as a placeholder its model and
  * scene element for the count it has now. 1 if it landed, 0 if the model is
  * still not resident (the caller decides whether to ask again). */

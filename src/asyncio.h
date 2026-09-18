@@ -193,8 +193,33 @@ static inline void
 ToriRS_IO_ClearItem(struct ToriRS_IOItem* item)
 {
     assert(item != NULL);
-    if( item->kind != TORIRS_IOK_FILE_WRITE && item->kind != TORIRS_IOK_CACHE_PREFETCH )
+    switch( item->kind )
+    {
+    case TORIRS_IOK_CONFIG_FILE:
+    case TORIRS_IOK_SCRIPT:
+    case TORIRS_IOK_FILE_READ:
+        /* A plain buffer the executor malloc'd for this item. */
         free(item->data);
+        break;
+    case TORIRS_IOK_CACHE:
+    case TORIRS_IOK_REFERENCE_TABLE:
+        /*
+         * An executor-typed object -- a holder-counted archive the executor's
+         * LRU may still share, a decoded reference table -- with its own
+         * deallocator in the cache library. The consumer takes it out of the
+         * item (data = NULL) before clearing, so a payload still here is a
+         * consumer that ended without consuming: plain free() on a shared
+         * archive leaves the LRU holding freed memory (ASan double-free,
+         * 2026-09-18), which is why this asserts instead.
+         */
+        assert(item->data == NULL);
+        break;
+    case TORIRS_IOK_NONE:
+    case TORIRS_IOK_FILE_WRITE:
+    case TORIRS_IOK_CACHE_PREFETCH:
+        /* Nothing owned: FILE_WRITE and PREFETCH lend the caller's bytes. */
+        break;
+    }
     item->kind = TORIRS_IOK_NONE;
     item->error_code = 0;
     item->data = NULL;
@@ -368,9 +393,19 @@ static inline void
 task_free(struct ToriRS_Task* task)
 {
     assert(task != NULL);
-    /* A task that ends with an answer it never consumed would leak it; one
-     * that ends with a read still queued would leave the executor an item to
-     * fill that no longer exists. Both are released here, once. */
+    /*
+     * A task freed with an answer it never consumed. The queue's Remove has
+     * already asserted that a task which ENDED consumed its item; what reaches
+     * here with one is a queue freed whole at shutdown, parked tasks and all.
+     * A plain buffer is released below; an executor-typed object (archive,
+     * reference table) has no deallocator this header can name and is leaked
+     * deliberately -- freeing it with free() corrupts the executor's LRU.
+     */
+    if( task->io.kind == TORIRS_IOK_CACHE || task->io.kind == TORIRS_IOK_REFERENCE_TABLE )
+    {
+        task->io.data = NULL;
+        task->io.data_size = 0;
+    }
     ToriRS_IO_ClearItem(&task->io);
     if( task->vtable->free )
         task->vtable->free(task);
@@ -741,6 +776,16 @@ ToriRS_TaskQueue_Remove(
         queue->head = task->next;
     if( queue->tail == task )
         queue->tail = task->prev;
+
+    /*
+     * A task ends with its item consumed and nothing on the wire. One that
+     * ends holding a landed answer never stepped the child that asked for it
+     * (a protothread resumed into the wrong switch does exactly this), and
+     * one that ends with a read still pending leaves the executor an item to
+     * fill that is about to be freed. Both are the task's bug; stop here.
+     */
+    assert(task->io.kind == TORIRS_IOK_NONE);
+    assert(task->io.pending == 0);
 
     /* One fewer sibling outstanding, whichever way this one ended -- a load
      * that exited early on a bad record counts exactly like one that landed,
