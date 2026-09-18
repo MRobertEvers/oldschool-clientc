@@ -267,7 +267,7 @@ world_load_scan_chunk_refs(struct Task_WorldLoad* self)
 static int
 Task_WorldLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_WorldLoad* self = (struct Task_WorldLoad*)task_base;
     struct CacheProvider* p = self->provider;

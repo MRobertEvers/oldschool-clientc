@@ -228,7 +228,7 @@ struct Task_SlotMountRefresh
 static int
 Task_SlotMountRefresh_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_SlotMountRefresh* self = (struct Task_SlotMountRefresh*)base;
 

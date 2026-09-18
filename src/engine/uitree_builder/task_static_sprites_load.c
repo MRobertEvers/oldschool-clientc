@@ -23,7 +23,7 @@ struct Task_StaticSpritesLoad
 static int
 Task_StaticSpritesLoad_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_StaticSpritesLoad* self = (struct Task_StaticSpritesLoad*)base;
 

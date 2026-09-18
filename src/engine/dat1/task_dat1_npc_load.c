@@ -23,7 +23,7 @@ struct Task_Dat1NpcLoad
 static int
 Task_Dat1NpcLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat1NpcLoad* task = (struct Task_Dat1NpcLoad*)task_base;
     struct RSCache_Dat1ConfigNpc* rscache_npc = NULL;

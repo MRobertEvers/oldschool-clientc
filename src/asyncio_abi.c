@@ -106,10 +106,10 @@ ToriRS_IO_DescribeAbi(int32_t* out)
 
     out[TORIRS_IO_ABI_MAGIC_SLOT] = TORIRS_IO_ABI_MAGIC;
 
-    out[TORIRS_IO_ABI_IO_SIZE] = (int32_t)sizeof(struct ToriRS_IO);
-    out[TORIRS_IO_ABI_IO_ACTIVE_OFF] = (int32_t)offsetof(struct ToriRS_IO, active);
+    out[TORIRS_IO_ABI_IO_SIZE] = (int32_t)sizeof(struct ToriRS_IOBatch);
+    out[TORIRS_IO_ABI_IO_ACTIVE_OFF] = (int32_t)offsetof(struct ToriRS_IOBatch, active);
     out[TORIRS_IO_ABI_IO_ACTIVE_COUNT_OFF] =
-        (int32_t)offsetof(struct ToriRS_IO, active_count);
+        (int32_t)offsetof(struct ToriRS_IOBatch, active_count);
 
     out[TORIRS_IO_ABI_ITEM_SIZE] = (int32_t)sizeof(struct ToriRS_IOItem);
     out[TORIRS_IO_ABI_ITEM_KIND_OFF] = (int32_t)offsetof(struct ToriRS_IOItem, kind);

@@ -999,7 +999,7 @@ mergeInto(LibraryManager.library, {
       S.run(inst, io, S.batchItem(io, i));
     }
 
-    /* ToriRS_IO_ResetActive, done here because the queue expects Process to
+    /* ToriRS_IOBatch_Reset, done here because the queue expects Process to
      * have consumed the batch by the time it returns. The items themselves
      * stay outstanding -- the batch is what is new THIS pass, not what is
      * unanswered. */

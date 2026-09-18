@@ -529,7 +529,7 @@ test_widgets_loaded_queues_stat_unhide(void)
 {
     struct Fixture fx;
     struct UITreeNodeSpec spec = { 0 };
-    struct ToriRS_IO* io;
+    struct ToriRS_IOBatch* io;
     int32_t listener;
 
     printf("pump: reopening the XP tracker resumes a stat update received while hidden\n");
@@ -554,11 +554,11 @@ test_widgets_loaded_queues_stat_unhide(void)
 
     RS_CS2Host_NotifyStatChanged(&fx.host, 0);
     RS_CS2_PumpTransmits(&fx.host, &fx.runner);
-    io = ToriRS_IO_New();
+    io = ToriRS_IOBatch_New();
     CHECK(
         ToriRS_TaskQueue_Run(fx.runner.queue, io) == TORIRS_ASYNCIO_STAT_DONE,
         "the hidden stat dispatch drains without running its clientscript");
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
     CHECK(
         fx.host.stat_transmit_hooks[0].pending_unhide == 1,
         "the hidden skill update remains pending");
@@ -939,7 +939,7 @@ test_transmit_registry_identity(void)
     UITree_CcDelete(fx.tree, source);
     fx.tree->next_dynamic_uid = (uint16_t)(id & 0xffff);
     int replacement = UITree_CcCreate(fx.tree, parent, spec.component_id, 3, 0);
-    struct ToriRS_IO* io = ToriRS_IO_New();
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
     for( int i = 0; i < 2; ++i )
     {
         UITree_SetColourAt(fx.tree, replacement, 0);
@@ -996,7 +996,7 @@ test_transmit_registry_identity(void)
         task_free(tasks[i]);
     }
 #undef REGISTER
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
     CS2VM2_Release(vm);
     fixture_free(&fx);
 }
@@ -1073,7 +1073,7 @@ test_callback_context_across_asset_yield(void)
             .int_operands=operands, .string_operands=strings, .int_stack_depth=1};
         struct ToriRS_Task* callback = CreateTask_CS2RunScript(&fx.host, &script,
             fx.tree->components[active_node].component_id, fx.tree->components[dot_node].component_id, NULL, 0);
-        struct ToriRS_IO* io = ToriRS_IO_New();
+        struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
         io->task = callback;
         CHECK(task_run(callback, io) == PT_YIELDED, "native callback yields for missing callee");
         CHECK(io->active_count == 1 && io->active[0]->kind == TORIRS_IOK_CACHE,
@@ -1096,14 +1096,14 @@ test_callback_context_across_asset_yield(void)
             RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY, archive->data, cap);
         CHECK(archive->data_size > 0, "encode callee for native cache decoder");
         io->active[0]->data = archive;
-        ToriRS_IO_ResetActive(io);
+        ToriRS_IOBatch_Reset(io);
         CHECK(task_run(callback, io) == PT_ENDED, "native callback resumes through loaded callee");
         CHECK(fx.tree->components[child].colour == (stale ? 0 : dot ? 0x345678 : 0x234567),
               "resumed callback respects widget incarnation dot=%d stale=%d", dot, stale);
         CHECK(fx.tree->components[dot ? active_node : dot_node].colour == (dot ? 0x234567 : 0x345678),
               "stale context does not cancel independent live context dot=%d stale=%d", dot, stale);
         task_free(callback);
-        ToriRS_IO_Free(io);
+        ToriRS_IOBatch_Free(io);
         fixture_free(&fx);
     }
 }
@@ -1172,7 +1172,7 @@ test_registry_compaction_during_callback(void)
                                    i == 1 ? 99991 : 99993);
         UITree_CcDelete(fx.tree, nodes[0]);
         struct ToriRS_Task* dispatch = test_transmit_task(&fx.host, channel);
-        struct ToriRS_IO* io = ToriRS_IO_New();
+        struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
         io->task = dispatch;
         CHECK(task_run(dispatch, io) == PT_YIELDED, "dispatch pauses in native callback channel=%d", channel);
         /* Adding D compacts the dead first entry. A and B move, while the
@@ -1189,7 +1189,7 @@ test_registry_compaction_during_callback(void)
         archive->data_size = RSCache_ClientScriptEncodeFlags(&callee,
             RSCACHE_CLIENTSCRIPT_DECODE_TRAILER_LEGACY, archive->data, cap);
         io->active[0]->data = archive;
-        ToriRS_IO_ResetActive(io);
+        ToriRS_IOBatch_Reset(io);
         CHECK(task_run(dispatch, io) == PT_ENDED, "dispatch finishes after compaction channel=%d", channel);
         CHECK(fx.tree->components[nodes[2]].colour == 0x56789a,
               "compaction cannot skip original listener channel=%d", channel);
@@ -1203,7 +1203,7 @@ test_registry_compaction_during_callback(void)
               "new listener gets its initial update channel=%d", channel);
         task_free(dispatch);
         CS2VM2_Release(vm);
-        ToriRS_IO_Free(io);
+        ToriRS_IOBatch_Free(io);
         fixture_free(&fx);
     }
 }

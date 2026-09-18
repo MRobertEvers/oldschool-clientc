@@ -45,10 +45,10 @@ PlatformX_IO_Pump(struct PlatformX_IO* px)
 }
 
 int
-PlatformX_IO_Process(struct PlatformX_IO* px, struct ToriRS_IO* io)
+PlatformX_IO_Process(struct PlatformX_IO* px, struct ToriRS_IOBatch* io)
 {
     px->process_calls++;
-    ToriRS_IO_ResetActive(io);
+    ToriRS_IOBatch_Reset(io);
     return 0;
 }
 
@@ -65,7 +65,7 @@ struct Loader
 };
 
 static int
-Loader_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
+Loader_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
 {
     struct Loader* self = (struct Loader*)base;
     (void)io;
@@ -115,7 +115,7 @@ struct Parent
 };
 
 static int
-Parent_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
+Parent_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
 {
     struct Parent* self = (struct Parent*)base;
     (void)io;
@@ -162,7 +162,7 @@ test_fanout_joins_when_every_sibling_ends(void)
     struct Parent* parent;
 
     runner.queue = ToriRS_TaskQueue_New();
-    runner.io = ToriRS_IO_New();
+    runner.io = ToriRS_IOBatch_New();
     runner.px = &px;
     runner.parallel = 1;
 
@@ -201,7 +201,7 @@ test_fanout_joins_when_every_sibling_ends(void)
     printf("ok - 200 siblings (50 refusing) go out in one pass and join in the next\n");
 
     ToriRS_TaskQueue_Free(runner.queue);
-    ToriRS_IO_Free(runner.io);
+    ToriRS_IOBatch_Free(runner.io);
 }
 
 static void
@@ -214,7 +214,7 @@ test_refusals_do_not_stall_the_join(void)
     int resumes;
 
     runner.queue = ToriRS_TaskQueue_New();
-    runner.io = ToriRS_IO_New();
+    runner.io = ToriRS_IOBatch_New();
     runner.px = &px;
     runner.parallel = 1;
 
@@ -235,7 +235,7 @@ test_refusals_do_not_stall_the_join(void)
         pass_clock + 1);
 
     ToriRS_TaskQueue_Free(runner.queue);
-    ToriRS_IO_Free(runner.io);
+    ToriRS_IOBatch_Free(runner.io);
 }
 
 static void
@@ -247,7 +247,7 @@ test_nothing_to_load_joins_at_once(void)
     struct Parent* parent;
 
     runner.queue = ToriRS_TaskQueue_New();
-    runner.io = ToriRS_IO_New();
+    runner.io = ToriRS_IOBatch_New();
     runner.px = &px;
     runner.parallel = 1;
 
@@ -262,7 +262,7 @@ test_nothing_to_load_joins_at_once(void)
     printf("ok - a fan-out with nothing to load joins in its first pass\n");
 
     ToriRS_TaskQueue_Free(runner.queue);
-    ToriRS_IO_Free(runner.io);
+    ToriRS_IOBatch_Free(runner.io);
 }
 
 int

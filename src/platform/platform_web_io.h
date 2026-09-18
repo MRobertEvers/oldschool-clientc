@@ -95,7 +95,7 @@ int
 PlatformWeb_IO_LoadItem(struct PlatformWeb_IO* px, struct ToriRS_IOItem* item);
 
 int
-PlatformWeb_IO_Process(struct PlatformWeb_IO* px, struct ToriRS_IO* io);
+PlatformWeb_IO_Process(struct PlatformWeb_IO* px, struct ToriRS_IOBatch* io);
 
 /**
  * Nothing to do: every answer on this platform lands on its own, between

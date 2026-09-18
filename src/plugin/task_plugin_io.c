@@ -200,7 +200,7 @@ plugin_manifest_parse(struct Task_PluginBoot* task, char const* data, int size)
 }
 
 static int
-Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
+Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
 {
     struct Task_PluginBoot* task = (struct Task_PluginBoot*)task_base;
     struct ToriRS_IOItem* item;
@@ -386,7 +386,7 @@ plugin_asset_take(struct Task_PluginAssetRead* task, struct ToriRS_IOItem* item)
 }
 
 static int
-Task_PluginAssetRead_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
+Task_PluginAssetRead_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
 {
     struct Task_PluginAssetRead* task = (struct Task_PluginAssetRead*)task_base;
     struct ToriRS_IOItem* item;
@@ -501,7 +501,7 @@ struct Task_PluginAssetWrite
 };
 
 static int
-Task_PluginAssetWrite_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
+Task_PluginAssetWrite_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
 {
     struct Task_PluginAssetWrite* task = (struct Task_PluginAssetWrite*)task_base;
     struct ToriRS_IOItem* item;
@@ -577,7 +577,7 @@ struct Task_PluginSave
 };
 
 static int
-Task_PluginSave_Run(struct ToriRS_Task* task_base, struct ToriRS_IO* io)
+Task_PluginSave_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
 {
     struct Task_PluginSave* task = (struct Task_PluginSave*)task_base;
     struct ToriRS_IOItem* item;

@@ -313,7 +313,7 @@ obj_model_batch_needs_work(
 static int
 Task_ObjModelLoad_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_ObjModelLoad* self = (struct Task_ObjModelLoad*)base;
     assert(self->provider);

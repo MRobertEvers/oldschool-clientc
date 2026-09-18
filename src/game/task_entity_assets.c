@@ -203,7 +203,7 @@ npc_body_land_forget(
 static int
 Task_NpcBodyLand_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_NpcBodyLand* self = (struct Task_NpcBodyLand*)base;
     struct App* app = self->app;
@@ -322,7 +322,7 @@ struct Task_PlayerBodyLand
 static int
 Task_PlayerBodyLand_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_PlayerBodyLand* self = (struct Task_PlayerBodyLand*)base;
     struct App* app = self->app;
@@ -410,7 +410,7 @@ struct Task_PlayerHeldLand
 static int
 Task_PlayerHeldLand_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_PlayerHeldLand* self = (struct Task_PlayerHeldLand*)base;
     struct App* app = self->app;

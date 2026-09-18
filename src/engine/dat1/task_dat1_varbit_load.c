@@ -41,7 +41,7 @@ struct Task_Dat1VarbitLoad
 static int
 Task_Dat1VarbitLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat1VarbitLoad* task = (struct Task_Dat1VarbitLoad*)task_base;
     struct RSCache_FileListDat* config_jagfile = NULL;

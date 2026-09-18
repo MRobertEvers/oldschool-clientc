@@ -49,7 +49,7 @@ struct Task_ClientTriggerSubject
 static int
 Task_ClientTriggerSubject_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io);
+    struct ToriRS_IOBatch* io);
 static void
 Task_ClientTriggerSubject_Free(struct ToriRS_Task* task_base);
 static void
@@ -89,7 +89,7 @@ app_client_trigger_npc(
 static int
 Task_ClientTriggerSubject_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_ClientTriggerSubject* task = (struct Task_ClientTriggerSubject*)task_base;
 

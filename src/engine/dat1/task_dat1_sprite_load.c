@@ -43,7 +43,7 @@ struct Task_Dat1SpriteLoadFromSource
 static int
 Task_Dat1SpriteLoadFromSource_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat1SpriteLoadFromSource* task = (struct Task_Dat1SpriteLoadFromSource*)task_base;
     struct ToriRS_Sprite* sprite = NULL;

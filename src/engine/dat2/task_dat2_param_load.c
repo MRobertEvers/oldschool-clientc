@@ -26,7 +26,7 @@ struct Task_Dat2ParamLoad
 static int
 Task_Dat2ParamLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2ParamLoad* task = (struct Task_Dat2ParamLoad*)task_base;
     struct RSCache_Dat2ConfigParam entry = { 0 };

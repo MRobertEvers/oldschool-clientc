@@ -38,13 +38,13 @@ struct Task_AppNpcTransform
 static int
 Task_NpcMultiResolve_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io);
+    struct ToriRS_IOBatch* io);
 static void
 Task_NpcMultiResolve_Free(struct ToriRS_Task* base);
 static int
 Task_NpcMultiLoad_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io);
+    struct ToriRS_IOBatch* io);
 static void
 Task_NpcMultiLoad_Free(struct ToriRS_Task* base);
 static int
@@ -55,7 +55,7 @@ app_npc_transform_depends_on_varp(
 static int
 Task_AppNpcTransform_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io);
+    struct ToriRS_IOBatch* io);
 static void
 Task_AppNpcTransform_Free(struct ToriRS_Task* base);
 static void
@@ -75,7 +75,7 @@ app_varp_refresh_loc_transforms(
 static int
 Task_NpcMultiResolve_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_NpcMultiResolve* self = (struct Task_NpcMultiResolve*)base;
     struct App* app = self->app;
@@ -151,7 +151,7 @@ CreateTask_NpcMultiResolve(
 static int
 Task_NpcMultiLoad_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_NpcMultiLoad* self = (struct Task_NpcMultiLoad*)base;
     struct App* app = self->app;
@@ -293,7 +293,7 @@ app_npc_transform_depends_on_varp(
 static int
 Task_AppNpcTransform_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_AppNpcTransform* self = (struct Task_AppNpcTransform*)base;
     struct App* app = self->app;

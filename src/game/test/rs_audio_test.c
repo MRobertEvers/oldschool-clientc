@@ -332,7 +332,7 @@ test_prefs_persistence(void)
     struct RS_Prefs loaded;
     struct RS_CS2Host host;
     struct PlatformX_IO* px;
-    struct ToriRS_IO* io;
+    struct ToriRS_IOBatch* io;
     struct ToriRS_Task* task;
 
     printf("client preferences round trip\n");
@@ -365,7 +365,7 @@ test_prefs_persistence(void)
      * reads is the one the platform wrote. */
     px = PlatformX_IO_New();
     CHECK(px != NULL, "platform io available");
-    io = ToriRS_IO_New();
+    io = ToriRS_IOBatch_New();
     task = CreateTask_PrefsSave(&saved, path);
     io->task = task;
     while( task_run(task, io) == PT_YIELDED )
@@ -473,7 +473,7 @@ test_prefs_persistence(void)
     CHECK(
         RS_CS2Host_UiScaleMode(&host) == RS_CS2_UI_SCALE_MODE_BICUBIC,
         "an invalid scaling mode is clamped to the dropdown domain");
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
     PlatformX_IO_Free(px);
 }
 
@@ -649,7 +649,7 @@ struct harness
     struct PlatformAudio* platform;
     struct CacheProvider* provider;
     struct TaskRunner runner;
-    struct ToriRS_IO* io;
+    struct ToriRS_IOBatch* io;
     struct ToriRS_TaskQueue* task_queue;
     struct PlatformX_IO* px;
     struct Dat1BuildCache* dat1_bc;
@@ -666,7 +666,7 @@ harness_free(struct harness* harness)
     if( harness->task_queue )
         ToriRS_TaskQueue_Free(harness->task_queue);
     if( harness->io )
-        ToriRS_IO_Free(harness->io);
+        ToriRS_IOBatch_Free(harness->io);
     PlatformX_IO_Free(harness->px);
     if( harness->dat1_bc )
         dat1_buildcache_free(harness->dat1_bc);
@@ -710,7 +710,7 @@ harness_init(
         &harness->audio, dat1 ? ToriRS_Features_LostCity() : ToriRS_Features_OSRS());
     ToriRS_AudioQueue_Reset(&harness->queue);
 
-    harness->io = ToriRS_IO_New();
+    harness->io = ToriRS_IOBatch_New();
     harness->task_queue = ToriRS_TaskQueue_New();
     harness->px = PlatformX_IO_New();
 

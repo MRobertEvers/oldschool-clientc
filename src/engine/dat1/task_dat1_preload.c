@@ -133,7 +133,7 @@ ondemand_pass_for(char const* archive)
  * off the slot and free it. The fetch itself is what warmed the on-demand
  * source's write-back cache. */
 static void
-io_slot_discard(struct ToriRS_IO* io)
+io_slot_discard(struct ToriRS_IOBatch* io)
 {
     struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, 0);
     struct RSCache_Dat1DiskArchive* archive;
@@ -249,7 +249,7 @@ compose_caption(
 static int
 Task_Dat1Preload_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat1Preload* task = (struct Task_Dat1Preload*)task_base;
     struct RSCache_FileListDat* jagfile = NULL;

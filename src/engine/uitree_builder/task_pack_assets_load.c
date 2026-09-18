@@ -110,7 +110,7 @@ collect_from_pack(
 static int
 Task_PackAssetsLoad_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_PackAssetsLoad* self = (struct Task_PackAssetsLoad*)base;
     assert(self->provider);

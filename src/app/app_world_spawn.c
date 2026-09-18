@@ -66,7 +66,7 @@ app_loc_change_apply_ops(
 static int
 Task_AppSpawn_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io);
+    struct ToriRS_IOBatch* io);
 static void
 Task_AppSpawn_Free(struct ToriRS_Task* base);
 
@@ -1374,7 +1374,7 @@ app_spawn_effect_late(
 static int
 Task_AppSpawn_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_AppSpawn* self = (struct Task_AppSpawn*)base;
     struct App* app = self->app;

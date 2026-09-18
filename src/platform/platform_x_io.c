@@ -1389,7 +1389,7 @@ PlatformX_IO_ServerReachable(struct PlatformX_IO* px)
 int
 PlatformX_IO_Process(
     struct PlatformX_IO* px,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     assert(px);
     assert(io);
@@ -1447,7 +1447,7 @@ PlatformX_IO_Process(
             processed++;
     }
 
-    ToriRS_IO_ResetActive(io);
+    ToriRS_IOBatch_Reset(io);
 
 #if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
     /* The pass's requests go out now rather than on the next Pump, so a

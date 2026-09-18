@@ -68,7 +68,7 @@ PlatformX_IO_Pump(struct PlatformX_IO* px)
 int
 PlatformX_IO_Process(
     struct PlatformX_IO* px,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     assert(px);
     assert(io);
@@ -85,7 +85,7 @@ PlatformX_IO_Process(
         else
             item->error_code = 0;
     }
-    ToriRS_IO_ResetActive(io);
+    ToriRS_IOBatch_Reset(io);
     return 0;
 }
 
@@ -118,7 +118,7 @@ struct MutateTask
 static int
 MutateTask_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct MutateTask* self = (struct MutateTask*)base;
 
@@ -212,7 +212,7 @@ fixture_init(
     memset(runner, 0, sizeof(*runner));
 
     runner->queue = ToriRS_TaskQueue_New();
-    runner->io = ToriRS_IO_New();
+    runner->io = ToriRS_IOBatch_New();
     runner->px = px;
 
     widgets->equipment_visible = 1;
@@ -225,7 +225,7 @@ static void
 fixture_free(struct TaskRunner* runner)
 {
     ToriRS_TaskQueue_Free(runner->queue);
-    ToriRS_IO_Free(runner->io);
+    ToriRS_IOBatch_Free(runner->io);
 }
 
 static void
@@ -336,7 +336,7 @@ struct AwaitStateTask
 static int
 AwaitStateTask_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct AwaitStateTask* self = (struct AwaitStateTask*)base;
     (void)io;
@@ -446,7 +446,7 @@ struct AwaitStateChildTask
 static int
 AwaitStateChildTask_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct AwaitStateChildTask* self = (struct AwaitStateChildTask*)base;
     (void)io;
@@ -492,7 +492,7 @@ struct AwaitStateParentTask
 static int
 AwaitStateParentTask_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct AwaitStateParentTask* self = (struct AwaitStateParentTask*)base;
 

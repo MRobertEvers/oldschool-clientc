@@ -318,7 +318,7 @@ struct ToriRS_Task
  * stream instead of dribble. Nothing here outlives a pass except `task`,
  * which the queue sets around each run.
  */
-struct ToriRS_IO
+struct ToriRS_IOBatch
 {
     /** The task whose item ToriRS_IO_TaskSlot answers with. Set by
      *  ToriRS_TaskQueue_RunTask around each run; a caller running a task by
@@ -334,7 +334,7 @@ struct ToriRS_TaskVTable
 {
     int (*run)(
         struct ToriRS_Task* task,
-        struct ToriRS_IO* io);
+        struct ToriRS_IOBatch* io);
     void (*free)(struct ToriRS_Task* task);
 };
 
@@ -354,7 +354,7 @@ struct ToriRS_TaskQueue
  */
 static inline struct ToriRS_IOItem*
 ToriRS_IO_TaskSlot(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io != NULL);
@@ -384,7 +384,7 @@ task_free(struct ToriRS_Task* task)
 static inline int
 task_run(
     struct ToriRS_Task* task,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     assert(task != NULL);
     assert(io != NULL);
@@ -447,7 +447,7 @@ task_run(
  * may be in flight, and no number is right for every scene. */
 static inline void
 push_active(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     struct ToriRS_IOItem* item)
 {
     assert(io != NULL);
@@ -461,16 +461,16 @@ push_active(
     io->active[io->active_count++] = item;
 }
 
-static inline struct ToriRS_IO*
-ToriRS_IO_New(void)
+static inline struct ToriRS_IOBatch*
+ToriRS_IOBatch_New(void)
 {
-    struct ToriRS_IO* io = calloc(1, sizeof(struct ToriRS_IO));
+    struct ToriRS_IOBatch* io = calloc(1, sizeof(struct ToriRS_IOBatch));
     assert(io != NULL);
     return io;
 }
 
 static inline void
-ToriRS_IO_Free(struct ToriRS_IO* io)
+ToriRS_IOBatch_Free(struct ToriRS_IOBatch* io)
 {
     assert(io != NULL);
     free(io->active);
@@ -483,7 +483,7 @@ ToriRS_IO_Free(struct ToriRS_IO* io)
  * place. */
 static inline struct ToriRS_IOItem*
 io_item_to_fill(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot_id);
@@ -495,7 +495,7 @@ io_item_to_fill(
 
 static inline void
 ToriRS_IO_QueueCache(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int epoch,
     int table_id,
@@ -519,7 +519,7 @@ ToriRS_IO_QueueCache(
 
 static inline void
 ToriRS_IO_QueueConfigFile(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     const char* path)
 {
@@ -535,7 +535,7 @@ ToriRS_IO_QueueConfigFile(
 
 static inline void
 ToriRS_IO_QueueScript(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     const char* path)
 {
@@ -552,7 +552,7 @@ ToriRS_IO_QueueScript(
 /** Read a client-owned file whole. `path` is used as given. */
 static inline void
 ToriRS_IO_QueueFileRead(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     const char* path)
 {
@@ -575,7 +575,7 @@ ToriRS_IO_QueueFileRead(
  */
 static inline void
 ToriRS_IO_QueueFileWrite(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     const char* path,
     void* data,
@@ -603,7 +603,7 @@ ToriRS_IO_QueueFileWrite(
  */
 static inline void
 ToriRS_IO_QueueCachePrefetch(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int epoch,
     int table_id,
@@ -632,7 +632,7 @@ ToriRS_IO_QueueCachePrefetch(
 /** How many of a prefetch's groups landed, once the item has been answered. */
 static inline int
 ToriRS_IO_PrefetchLanded(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     struct ToriRS_IOItem* item;
@@ -645,7 +645,7 @@ ToriRS_IO_PrefetchLanded(
 
 static inline void
 ToriRS_IO_QueueReferenceTable(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int table_id)
 {
@@ -662,7 +662,7 @@ ToriRS_IO_QueueReferenceTable(
 /** The executor has taken this pass's batch. The items stay wherever they
  *  are -- what is outstanding is on them, not here. */
 static inline void
-ToriRS_IO_ResetActive(struct ToriRS_IO* io)
+ToriRS_IOBatch_Reset(struct ToriRS_IOBatch* io)
 {
     assert(io != NULL);
     io->active_count = 0;
@@ -779,7 +779,7 @@ torirs_task_log_enabled(void)
 static inline int
 ToriRS_TaskQueue_RunTask(
     struct ToriRS_TaskQueue* queue,
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     struct ToriRS_Task* task)
 {
     int res;
@@ -840,7 +840,7 @@ ToriRS_TaskQueue_RunTask(
 static inline int
 ToriRS_TaskQueue_Run(
     struct ToriRS_TaskQueue* queue,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     assert(queue != NULL);
     while( queue->head != NULL )

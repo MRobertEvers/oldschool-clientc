@@ -44,7 +44,7 @@ static int g_fail = 0;
 static void
 run_task(
     struct ToriRS_TaskQueue* queue,
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     struct PlatformX_IO* px,
     struct ToriRS_Task* task)
 {
@@ -158,7 +158,7 @@ main(void)
         return 0;
     }
 
-    struct ToriRS_IO* io = ToriRS_IO_New();
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
     struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
     struct Dat2BuildCache* bc = dat2_buildcache_new();
     struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
@@ -437,7 +437,7 @@ main(void)
     RSCache_Dat2DiskFree(disk);
     dat2_buildcache_free(bc);
     ToriRS_TaskQueue_Free(queue);
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
 
     if( g_fail )
     {

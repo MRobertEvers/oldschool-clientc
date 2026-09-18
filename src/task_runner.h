@@ -34,7 +34,7 @@
 struct TaskRunner
 {
     struct ToriRS_TaskQueue* queue;
-    struct ToriRS_IO* io;
+    struct ToriRS_IOBatch* io;
     Platform_IO* px;
     /** May the walk pass over a parked task and run the ones behind it? */
     int parallel;

@@ -33,7 +33,7 @@ struct Task_Dat2ClientScriptTableLoad
 static int
 Task_Dat2ClientScriptTableLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2ClientScriptTableLoad* task =
         (struct Task_Dat2ClientScriptTableLoad*)task_base;

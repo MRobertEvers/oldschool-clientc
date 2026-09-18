@@ -231,7 +231,7 @@ struct Task_Dat2IndexOpen
 static int
 Task_Dat2IndexOpen_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2IndexOpen* task = (struct Task_Dat2IndexOpen*)task_base;
     struct RSCache_ReferenceTable* table;
@@ -312,7 +312,7 @@ struct Task_Dat2PrefetchWave
 static int
 Task_Dat2PrefetchWave_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2PrefetchWave* task = (struct Task_Dat2PrefetchWave*)task_base;
 
@@ -456,7 +456,7 @@ preload_fill_caption(struct Task_Dat2Preload* task)
 static int
 Task_Dat2Preload_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2Preload* task = (struct Task_Dat2Preload*)task_base;
 

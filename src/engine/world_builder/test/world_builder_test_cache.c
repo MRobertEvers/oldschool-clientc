@@ -121,7 +121,7 @@ intset_add(
 static void
 run_task(
     struct ToriRS_TaskQueue* queue,
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     struct PlatformX_IO* px,
     struct ToriRS_Task* task)
 {
@@ -303,7 +303,7 @@ test_world_builder_cache_render(void)
         return;
     }
 
-    struct ToriRS_IO* io = ToriRS_IO_New();
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
     struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
     struct Dat2BuildCache* bc = dat2_buildcache_new();
     struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
@@ -313,7 +313,7 @@ test_world_builder_cache_render(void)
     {
         printf("SKIP: could not open dat2 disk cache at %s\n", cache_dir);
         ToriRS_TaskQueue_Free(queue);
-        ToriRS_IO_Free(io);
+        ToriRS_IOBatch_Free(io);
         dat2_buildcache_free(bc);
         return;
     }
@@ -327,7 +327,7 @@ test_world_builder_cache_render(void)
             cache_dir);
         RSCache_Dat2DiskFree(disk);
         ToriRS_TaskQueue_Free(queue);
-        ToriRS_IO_Free(io);
+        ToriRS_IOBatch_Free(io);
         dat2_buildcache_free(bc);
         return;
     }
@@ -656,7 +656,7 @@ cleanup:
     PlatformX_IO_Free(px);
     RSCache_Dat2DiskFree(disk);
     ToriRS_TaskQueue_Free(queue);
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
     dat2_buildcache_free(bc);
 }
 
@@ -716,7 +716,7 @@ test_world_builder_bench(void)
         return;
     }
 
-    struct ToriRS_IO* io = ToriRS_IO_New();
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
     struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
     struct Dat2BuildCache* bc = dat2_buildcache_new();
     struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
@@ -726,7 +726,7 @@ test_world_builder_bench(void)
     {
         printf("SKIP: could not open dat2 disk cache at %s\n", cache_dir);
         ToriRS_TaskQueue_Free(queue);
-        ToriRS_IO_Free(io);
+        ToriRS_IOBatch_Free(io);
         dat2_buildcache_free(bc);
         return;
     }
@@ -738,7 +738,7 @@ test_world_builder_bench(void)
         printf("SKIP: cache dir %s has no labelled profile\n", cache_dir);
         RSCache_Dat2DiskFree(disk);
         ToriRS_TaskQueue_Free(queue);
-        ToriRS_IO_Free(io);
+        ToriRS_IOBatch_Free(io);
         dat2_buildcache_free(bc);
         return;
     }
@@ -882,6 +882,6 @@ test_world_builder_bench(void)
     PlatformX_IO_Free(px);
     RSCache_Dat2DiskFree(disk);
     ToriRS_TaskQueue_Free(queue);
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
     dat2_buildcache_free(bc);
 }

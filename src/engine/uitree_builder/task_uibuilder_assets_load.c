@@ -65,7 +65,7 @@ collect_unique_objs(struct Task_UIBuilderAssetsLoad* self)
 static int
 Task_UIBuilderAssetsLoad_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_UIBuilderAssetsLoad* self = (struct Task_UIBuilderAssetsLoad*)base;
     assert(self->builder);

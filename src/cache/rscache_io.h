@@ -32,7 +32,7 @@ RSCache_IO_ProfileHasDat2Table(
 
 static inline void
 RSCache_IO_Dat2ModelLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int model_id)
 {
@@ -44,7 +44,7 @@ RSCache_IO_Dat2ModelLoad(
 
 static inline struct RSCache_Model*
 RSCache_IO_Dat2ModelDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -74,7 +74,7 @@ RSCache_IO_Dat2ModelDecode(
 
 static inline void
 RSCache_IO_Dat1ModelLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int model_id)
 {
@@ -86,7 +86,7 @@ RSCache_IO_Dat1ModelLoad(
 
 static inline struct RSCache_Model*
 RSCache_IO_Dat1ModelDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -116,7 +116,7 @@ RSCache_IO_Dat1ModelDecode(
 
 static inline void
 RSCache_IO_ModelLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int model_id)
 {
@@ -125,7 +125,7 @@ RSCache_IO_ModelLoad(
 
 static inline struct RSCache_Model*
 RSCache_IO_ModelDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     return RSCache_IO_Dat2ModelDecode(io, slot_id);
@@ -133,7 +133,7 @@ RSCache_IO_ModelDecode(
 
 static inline void
 RSCache_IO_Dat2ComponentPackLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int component_id)
 {
@@ -154,7 +154,7 @@ RSCache_IO_Dat2ComponentPackLoad(
  * the identified cache. Passing NULL keeps the OldSchool layout. */
 static inline struct RSCache_Dat2ComponentPack*
 RSCache_IO_Dat2ComponentPackDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int interfaces_revision,
     const struct RSCache* profile)
@@ -190,7 +190,7 @@ RSCache_IO_Dat2ComponentPackDecode(
 
 static inline void
 RSCache_IO_ClientScriptLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int script_id)
 {
@@ -217,7 +217,7 @@ RSCache_IO_ClientScriptLoad(
  */
 static inline struct RSCache_ClientScript*
 RSCache_IO_ClientScriptDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int script_id)
 {
@@ -258,7 +258,7 @@ RSCache_IO_ClientScriptDecode(
 /** Queue a CONFIGS-table jagfile archive (RSCACHE_DAT1_CONFIG_* archive id). */
 static inline void
 RSCache_IO_Dat1JagfileLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int jag_archive_id)
 {
@@ -270,7 +270,7 @@ RSCache_IO_Dat1JagfileLoad(
 
 static inline struct RSCache_FileListDat*
 RSCache_IO_Dat1JagfileDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int expected_archive_id)
 {
@@ -309,7 +309,7 @@ RSCache_IO_Dat1JagfileDecode(
  */
 static inline void
 RSCache_IO_Dat1MapTerrainLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int map_x,
     int map_z)
@@ -327,7 +327,7 @@ RSCache_IO_Dat1MapTerrainLoad(
 
 static inline struct RSCache_MapTerrain*
 RSCache_IO_Dat1MapTerrainDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int map_x,
     int map_z)
@@ -356,7 +356,7 @@ RSCache_IO_Dat1MapTerrainDecode(
 
 static inline void
 RSCache_IO_Dat1MapSceneryLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int map_x,
     int map_z)
@@ -374,7 +374,7 @@ RSCache_IO_Dat1MapSceneryLoad(
 
 static inline struct RSCache_MapLocs*
 RSCache_IO_Dat1MapSceneryDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -399,7 +399,7 @@ RSCache_IO_Dat1MapSceneryDecode(
 /** Queue an ANIMATIONS-table archive (one AnimBaseFrames set). */
 static inline void
 RSCache_IO_Dat1AnimBaseFramesLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int animbaseframes_id)
 {
@@ -416,7 +416,7 @@ RSCache_IO_Dat1AnimBaseFramesLoad(
 
 static inline struct RSCache_Dat1AnimBaseFrames*
 RSCache_IO_Dat1AnimBaseFramesDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -440,7 +440,7 @@ RSCache_IO_Dat1AnimBaseFramesDecode(
 
 static inline void
 RSCache_IO_Dat1ConfigJagfileLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     RSCache_IO_Dat1JagfileLoad(io, slot_id, RSCACHE_DAT1_CONFIG_CONFIGS);
@@ -448,7 +448,7 @@ RSCache_IO_Dat1ConfigJagfileLoad(
 
 static inline struct RSCache_FileListDat*
 RSCache_IO_Dat1ConfigJagfileDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     return RSCache_IO_Dat1JagfileDecode(io, slot_id, RSCACHE_DAT1_CONFIG_CONFIGS);
@@ -466,7 +466,7 @@ RSCache_IO_Dat1ConfigJagfileDecode(
  */
 static inline void
 RSCache_IO_Dat2RecordGroupLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int table_id,
     int group_id)
@@ -478,7 +478,7 @@ RSCache_IO_Dat2RecordGroupLoad(
 
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2RecordGroupDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int table_id)
 {
@@ -497,7 +497,7 @@ RSCache_IO_Dat2RecordGroupDecode(
 
 static inline void
 RSCache_IO_Dat2ConfigGroupLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int config_kind)
 {
@@ -509,7 +509,7 @@ RSCache_IO_Dat2ConfigGroupLoad(
 
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2ConfigGroupDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int expected_config_kind)
 {
@@ -538,7 +538,7 @@ RSCache_IO_Dat2ConfigGroupDecode(
 
 static inline void
 RSCache_IO_Dat2ReferenceTableLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int table_id)
 {
@@ -549,7 +549,7 @@ RSCache_IO_Dat2ReferenceTableLoad(
 
 static inline struct RSCache_ReferenceTable*
 RSCache_IO_Dat2ReferenceTableDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -566,7 +566,7 @@ RSCache_IO_Dat2ReferenceTableDecode(
 
 static inline void
 RSCache_IO_Dat2MapArchiveLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int archive_id)
 {
@@ -578,7 +578,7 @@ RSCache_IO_Dat2MapArchiveLoad(
 
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2MapArchiveDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -607,7 +607,7 @@ RSCache_IO_Dat2MapArchiveDecode(
  */
 static inline void
 RSCache_IO_Dat2WorldMapGeographyLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int group_id)
 {
@@ -619,7 +619,7 @@ RSCache_IO_Dat2WorldMapGeographyLoad(
 
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2WorldMapGeographyDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -641,7 +641,7 @@ RSCache_IO_Dat2WorldMapGeographyDecode(
  *  geography. */
 static inline void
 RSCache_IO_Dat2WorldMapGroundLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int group_id)
 {
@@ -653,7 +653,7 @@ RSCache_IO_Dat2WorldMapGroundLoad(
 
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2WorldMapGroundDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -672,7 +672,7 @@ RSCache_IO_Dat2WorldMapGroundDecode(
 
 static inline void
 RSCache_IO_Dat2WorldMapArchiveLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int archive_id)
 {
@@ -684,7 +684,7 @@ RSCache_IO_Dat2WorldMapArchiveLoad(
 
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2WorldMapArchiveDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -710,7 +710,7 @@ RSCache_IO_Dat2WorldMapArchiveDecode(
  * table's index files (master + one per column). */
 static inline void
 RSCache_IO_Dat2DbTableIndexLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int table_id)
 {
@@ -722,7 +722,7 @@ RSCache_IO_Dat2DbTableIndexLoad(
 
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2DbTableIndexDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -746,7 +746,7 @@ RSCache_IO_Dat2DbTableIndexDecode(
 
 static inline void
 RSCache_IO_Dat2TextureGroupLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -756,7 +756,7 @@ RSCache_IO_Dat2TextureGroupLoad(
 
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2TextureGroupDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -789,7 +789,7 @@ RSCache_IO_Dat2TextureGroupDecode(
  */
 static inline void
 RSCache_IO_Dat2MaterialTableLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -800,7 +800,7 @@ RSCache_IO_Dat2MaterialTableLoad(
 
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2MaterialTableDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -818,7 +818,7 @@ RSCache_IO_Dat2MaterialTableDecode(
 
 static inline void
 RSCache_IO_Dat2ProcTextureLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int texture_id)
 {
@@ -830,7 +830,7 @@ RSCache_IO_Dat2ProcTextureLoad(
 
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2ProcTextureDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -848,7 +848,7 @@ RSCache_IO_Dat2ProcTextureDecode(
 
 static inline void
 RSCache_IO_Dat2SpriteLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int sprite_id)
 {
@@ -862,7 +862,7 @@ RSCache_IO_Dat2SpriteLoad(
  *  Returns NULL when the platform failed to load the archive. */
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2SpriteDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -894,7 +894,7 @@ RSCache_IO_Dat2SpriteDecode(
  */
 static inline void
 RSCache_IO_Dat2MusicLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int table_id,
     int archive_id)
@@ -909,7 +909,7 @@ RSCache_IO_Dat2MusicLoad(
  *  does not carry. */
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2MusicDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int table_id)
 {
@@ -938,7 +938,7 @@ RSCache_IO_Dat2MusicDecode(
  * over whole and the caller splits it — see task_dat2_sound_load.c. */
 static inline void
 RSCache_IO_Dat2SoundLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int sound_id)
 {
@@ -953,7 +953,7 @@ RSCache_IO_Dat2SoundLoad(
  *  not carry. */
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2SoundDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);
@@ -977,7 +977,7 @@ RSCache_IO_Dat2SoundDecode(
 
 static inline void
 RSCache_IO_Dat2FontLoad(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id,
     int font_id)
 {
@@ -991,7 +991,7 @@ RSCache_IO_Dat2FontLoad(
  *  Returns NULL when the platform failed to load the archive. */
 static inline struct RSCache_Dat2DiskArchive*
 RSCache_IO_Dat2FontDecode(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot_id)
 {
     assert(io);

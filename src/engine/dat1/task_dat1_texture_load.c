@@ -149,7 +149,7 @@ task_dat1_texture_decode(struct Task_Dat1TextureLoad* task)
 static int
 Task_Dat1TextureLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat1TextureLoad* task = (struct Task_Dat1TextureLoad*)task_base;
     struct ToriRS_Texture* torirs_texture = NULL;

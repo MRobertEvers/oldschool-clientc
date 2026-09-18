@@ -77,7 +77,7 @@ PlatformX_IO_LoadItem(
 int
 PlatformX_IO_Process(
     struct PlatformX_IO* px,
-    struct ToriRS_IO* io);
+    struct ToriRS_IOBatch* io);
 
 /**
  * Give the remote sources a turn, and land every parked read that has come
