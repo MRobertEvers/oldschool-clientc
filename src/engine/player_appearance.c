@@ -103,7 +103,7 @@ player_kit_model_id(struct CacheProvider* provider, int kit_id, int i)
 static int
 Task_PlayerAppearanceLoad_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_PlayerAppearanceLoad* self = (struct Task_PlayerAppearanceLoad*)base;
     assert(self->provider);
@@ -151,7 +151,7 @@ Task_PlayerAppearanceLoad_Run(
              self->model_i < player_kit_model_count(self->provider, self->kits[self->model_part]);
              self->model_i++ )
         {
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 self->provider->asset_queue,
                 CreateTask_ModelLoad(
                     self->provider,

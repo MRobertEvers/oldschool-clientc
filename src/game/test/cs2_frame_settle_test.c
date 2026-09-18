@@ -36,63 +36,56 @@ enum
     READY_YIELDS = 129,
 };
 
-/* platform_x_io.h intentionally keeps this type opaque.  A test-local backend
- * lets us distinguish a ready protothread yield from a genuine external wait
- * without starting SDL, JS5, or a cache server. */
+/*
+ * platform_x_io.h intentionally keeps this type opaque.  A test-local backend
+ * models the seam exactly as the real ones honour it: Process answers an item
+ * on the spot or parks it (item->pending = 1), and Pump lands a parked item
+ * once the wire has answered -- without starting SDL, JS5, or a cache server.
+ */
 struct PlatformX_IO
 {
+    /** The wire: 1 while nothing answers. Flipped by the test. */
     int pending;
-    int pending_checks;
-    int pending_watchdog;
+    /** The one item parked on the wire, or NULL. */
+    struct ToriRS_IOItem* parked;
     int process_calls;
+    int pump_calls;
 };
 
-int
-PlatformX_IO_Pending(
-    struct PlatformX_IO* px,
-    struct ToriRS_IO* io)
+void
+PlatformX_IO_Pump(struct PlatformX_IO* px)
 {
     assert(px);
-    assert(io);
-    if( px->pending )
+    px->pump_calls++;
+    if( px->parked && !px->pending )
     {
-        px->pending_checks++;
-        /* Turn a broken blocking drain into an assertion failure instead of a
-         * hung test process.  A correct settle call returns on its first true
-         * pending observation and never reaches this watchdog. */
-        if( px->pending_watchdog > 0 && px->pending_checks > px->pending_watchdog )
-            px->pending = 0;
+        px->parked->error_code = 0;
+        px->parked->pending = 0;
+        px->parked = NULL;
     }
-    return px->pending;
-}
-
-/*
- * Per-slot half of Pending. The fixture models one whole-queue wait rather
- * than a slot table, so every slot answers with that one state -- which is
- * also what a synchronous backend does, where a read is answered inside
- * Process and no slot is ever left outstanding.
- */
-int
-PlatformX_IO_SlotPending(
-    struct PlatformX_IO* px,
-    struct ToriRS_IO* io,
-    int slot)
-{
-    assert(px);
-    assert(io);
-    (void)slot;
-    return px->pending;
 }
 
 int
 PlatformX_IO_Process(
     struct PlatformX_IO* px,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     assert(px);
     assert(io);
     px->process_calls++;
-    ToriRS_IO_ResetActive(io);
+    for( int i = 0; i < io->active_count; i++ )
+    {
+        struct ToriRS_IOItem* item = io->active[i];
+        if( px->pending )
+        {
+            assert(px->parked == NULL);
+            item->pending = 1;
+            px->parked = item;
+        }
+        else
+            item->error_code = 0;
+    }
+    ToriRS_IOBatch_Reset(io);
     return 0;
 }
 
@@ -125,10 +118,9 @@ struct MutateTask
 static int
 MutateTask_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct MutateTask* self = (struct MutateTask*)base;
-    (void)io;
 
     PT_BEGIN(&self->pt);
 
@@ -139,10 +131,11 @@ MutateTask_Run(
 
     if( self->wait_external )
     {
+        /* A real read, which the wire will not answer until the test says. */
         self->px->pending = 1;
-        self->px->pending_checks = 0;
-        self->px->pending_watchdog = 16;
+        ToriRS_IO_QueueConfigFile(io, 0, "sidebar.if");
         PT_YIELD(&self->pt);
+        ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
     }
     else
     {
@@ -215,13 +208,11 @@ fixture_init(
     memset(widgets, 0, sizeof(*widgets));
     memset(frame, 0, sizeof(*frame));
     /* The runner is a stack local in every test, and its telemetry table's
-     * count is read on the first step: left to the stack it was whatever the
-     * previous test's frames had put there, and the row walk strcmp'd off the
-     * end of the table. */
+     * count is read on the first step. */
     memset(runner, 0, sizeof(*runner));
 
     runner->queue = ToriRS_TaskQueue_New();
-    runner->io = ToriRS_IO_New();
+    runner->io = ToriRS_IOBatch_New();
     runner->px = px;
 
     widgets->equipment_visible = 1;
@@ -234,7 +225,7 @@ static void
 fixture_free(struct TaskRunner* runner)
 {
     ToriRS_TaskQueue_Free(runner->queue);
-    ToriRS_IO_Free(runner->io);
+    ToriRS_IOBatch_Free(runner->io);
 }
 
 static void
@@ -273,16 +264,22 @@ test_external_wait_retains_last_frame(void)
     struct PlatformX_IO px;
     struct WidgetState widgets;
     struct PublishedFrame frame;
+    struct ToriRS_Task* task;
 
     fixture_init(&runner, &px, &widgets, &frame);
-    TaskRunner_AddSettling(&runner, new_mutate_task(&widgets, &px, 1));
+    task = new_mutate_task(&widgets, &px, 1);
+    TaskRunner_AddSettling(&runner, task);
 
     /* The task has already hidden Equipment when the external wait begins.
-     * That partial state must not replace the stable published frame. */
+     * That partial state must not replace the stable published frame -- and
+     * the settle ends after exactly ONE pass: its read is on the wire, and
+     * nothing this queue does can answer it. */
     TEST_CHECK(settle_and_commit(&runner, &widgets, &frame) == 0);
     assert(px.pending == 1);
-    assert(px.pending_checks > 0 && px.pending_checks < px.pending_watchdog);
-    assert(runner.queue->head != NULL);
+    assert(px.parked == &task->io);
+    assert(task->io.pending == 1);
+    assert(px.process_calls == 1);
+    assert(runner.queue->head == task);
     assert(widgets.equipment_visible == 0);
     assert(widgets.familiar_visible == 0);
     assert(widgets.completed == 0);
@@ -295,6 +292,8 @@ test_external_wait_retains_last_frame(void)
      * final familiar view, published once; no mixed state was committed. */
     px.pending = 0;
     TEST_CHECK(settle_and_commit(&runner, &widgets, &frame) == 1);
+    assert(px.parked == NULL);
+    assert(px.process_calls == 2);
     assert(runner.queue->head == NULL);
     assert(widgets.completed == 1);
     assert(widgets.mutation_count == 2);
@@ -337,7 +336,7 @@ struct AwaitStateTask
 static int
 AwaitStateTask_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct AwaitStateTask* self = (struct AwaitStateTask*)base;
     (void)io;
@@ -373,8 +372,9 @@ test_cross_queue_wait_ends_the_settle(void)
     PT_INIT(&task->pt);
     TaskRunner_AddSettling(&runner, &task->task);
 
-    /* Blocked, not pending: no read is outstanding, so PENDING would send the
-     * settle loop straight back into the same task. */
+    /* Blocked, not waiting: no read is outstanding, so WAITING would be a
+     * lie and PROGRESSED would send the settle loop straight back into the
+     * same task. */
     TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
     assert(px.pending == 0);
     /* Exactly one pass. This is the anti-spin assertion. */
@@ -446,7 +446,7 @@ struct AwaitStateChildTask
 static int
 AwaitStateChildTask_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct AwaitStateChildTask* self = (struct AwaitStateChildTask*)base;
     (void)io;
@@ -492,7 +492,7 @@ struct AwaitStateParentTask
 static int
 AwaitStateParentTask_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct AwaitStateParentTask* self = (struct AwaitStateParentTask*)base;
 
@@ -577,7 +577,7 @@ test_a_stream_does_not_hold_the_frame(void)
     fixture_init(&runner, &px, &widgets, &frame);
     /* Plain Add: the task carries no settles_frame, like every asset load.
      * The same task flagged is test_external_wait_retains_last_frame, which
-     * gets PENDING out of the identical wait -- the flag is the difference. */
+     * gets WAITING out of the identical read -- the flag is the difference. */
     stream = new_mutate_task(&widgets, &px, 1);
     ToriRS_TaskQueue_Add(runner.queue, stream);
     runner.frame_settle_pending = 1;
@@ -587,6 +587,7 @@ test_a_stream_does_not_hold_the_frame(void)
      * after exactly one pass. */
     TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_IDLE);
     TEST_CHECK(px.pending == 1);
+    TEST_CHECK(stream->io.pending == 1);
     TEST_CHECK(px.process_calls == 1);
     TEST_CHECK(runner.queue->head == stream);
     TEST_CHECK(widgets.completed == 0);

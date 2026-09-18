@@ -59,7 +59,7 @@ dat1_pack_resolve_sprite_refs(
 static int
 Task_Dat1ComponentPackLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat1ComponentPackLoad* task = (struct Task_Dat1ComponentPackLoad*)task_base;
     struct ToriRS_ComponentPack* torirs_pack = NULL;

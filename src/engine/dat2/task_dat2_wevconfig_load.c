@@ -36,7 +36,7 @@ struct Task_Dat2WevConfigLoad
 static int
 Task_Dat2WevConfigLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2WevConfigLoad* task = (struct Task_Dat2WevConfigLoad*)task_base;
     struct RSCache_Dat2DiskArchive* archive = NULL;

@@ -1430,7 +1430,7 @@ main(
     if( start_in_world )
         forced_model = -1;
 
-    viewer.runner.io = ToriRS_IO_New();
+    viewer.runner.io = ToriRS_IOBatch_New();
     viewer.runner.queue = ToriRS_TaskQueue_New();
     viewer.runner.px = PlatformX_IO_New();
     assert(viewer.runner.io && viewer.runner.queue && viewer.runner.px);

@@ -69,7 +69,7 @@ task_dat2_map_resolve(
 static int
 Task_Dat2MapTerrainLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2MapLoad* task = (struct Task_Dat2MapLoad*)task_base;
     struct RSCache_ReferenceTable* table = NULL;
@@ -178,7 +178,7 @@ Task_Dat2MapTerrainLoad_Run(
 static int
 Task_Dat2MapSceneryLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2MapLoad* task = (struct Task_Dat2MapLoad*)task_base;
     struct RSCache_ReferenceTable* table = NULL;

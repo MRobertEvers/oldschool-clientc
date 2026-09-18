@@ -68,7 +68,7 @@ app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self);
 static int
 Task_AppSpawn_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io);
+    struct ToriRS_IOBatch* io);
 static void
 Task_AppSpawn_Free(struct ToriRS_Task* base);
 
@@ -1351,12 +1351,12 @@ app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self)
     self->seq_id = spot ? spot->seq : -1;
 
     if( self->model_id > 0 )
-        ToriRS_TaskQueue_AddJoined(
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
             app->runner.queue,
             CreateTask_ModelLoad(app->provider, self->model_id),
             &self->pending);
     if( self->seq_id >= 0 )
-        ToriRS_TaskQueue_AddJoined(
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
             app->runner.queue,
             CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id),
             &self->pending);
@@ -1416,7 +1416,7 @@ app_spawn_effect_late(
 static int
 Task_AppSpawn_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_AppSpawn* self = (struct Task_AppSpawn*)base;
     struct App* app = self->app;
@@ -1631,13 +1631,13 @@ Task_AppSpawn_Run(
                 for( int i = 0; i < entries; i++ )
                     for( int j = 0; j < cfg->lengths[i]; j++ )
                         if( cfg->models[i][j] >= 0 )
-                            ToriRS_TaskQueue_AddJoined(
+                            ToriRS_TaskQueue_AddParallelPoolSubTask(
                                 app->runner.queue,
                                 CreateTask_ModelLoad(app->provider, cfg->models[i][j]),
                                 &self->pending);
                 self->seq_id = cfg && cfg->seq_id >= 0 ? cfg->seq_id : self->loc_base_seq;
                 if( self->seq_id >= 0 )
-                    ToriRS_TaskQueue_AddJoined(
+                    ToriRS_TaskQueue_AddParallelPoolSubTask(
                         app->runner.queue,
                         CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id),
                         &self->pending);

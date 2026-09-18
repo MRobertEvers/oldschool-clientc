@@ -22,7 +22,7 @@ struct Task_Dat2ClientScriptLoad
 static int
 Task_Dat2ClientScriptLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2ClientScriptLoad* task = (struct Task_Dat2ClientScriptLoad*)task_base;
     struct RSCache_ClientScript* rscache_script = NULL;

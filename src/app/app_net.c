@@ -509,11 +509,11 @@ app_pump_net_packets(struct App* app)
                     n++;
                 TORIRS_REPORT(
                     "frame_latch: blocked exec -> assets stat=%d progressed=%d queued=%d "
-                    "io_pending=%d cycle=%d\n",
+                    "reads_out=%d cycle=%d\n",
                     (int)assets,
                     app->runner.progressed,
                     n,
-                    Platform_IO_Pending(app->runner.px, app->runner.io),
+                    TaskRunner_ReadsOutstanding(&app->runner),
                     (int)app->logic_cycle);
             }
             if( assets != TASK_RUNNER_RENDER && app->runner.progressed )
@@ -526,17 +526,21 @@ app_pump_net_packets(struct App* app)
             {
                 struct ToriRS_Task* head = app->exec_runner.queue->head;
                 TORIRS_LOG(
-                    "frame_latch: exec parked stat=%d head=%s blocked=%d io_pending=%d cycle=%d\n",
+                    "frame_latch: exec parked stat=%d head=%s blocked=%d reads_out=%d cycle=%d\n",
                     (int)stat,
                     head ? head->name : "(none)",
                     head ? head->blocked : -1,
-                    Platform_IO_Pending(app->exec_runner.px, app->exec_runner.io),
+                    TaskRunner_ReadsOutstanding(&app->exec_runner),
                     (int)app->logic_cycle);
             }
             app->exec_runner_had_work = 1;
             break;
         }
         app->exec_runner_had_work = 0;
+        /* Every packet is added with TaskRunner_AddSettling, which arms this;
+         * the FIFO's transaction is closed the moment it settles, and nothing
+         * else on this runner reads the flag. */
+        app->exec_runner.frame_settle_pending = 0;
 
         /* Do not cross a server-tick fence before that tick's newly
          * dispatched client scripts have settled against its final state. */
@@ -585,7 +589,7 @@ app_pump_net_packets(struct App* app)
                 app->net_first_packet_marked = 1;
                 ToriRS_BootTelemetry_Markf("net:first_packet:%d", (int)packet.packet_type);
             }
-            ToriRS_TaskQueue_Add(app->exec_runner.queue, CreateTask_GameProtoExec(app, &packet));
+            TaskRunner_AddSettling(&app->exec_runner, CreateTask_GameProtoExec(app, &packet));
             redraw = 1;
         }
     }

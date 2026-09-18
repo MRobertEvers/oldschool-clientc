@@ -35,7 +35,7 @@ struct Task_Dat2DbTableLoad
 static int
 Task_Dat2DbTableLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2DbTableLoad* task = (struct Task_Dat2DbTableLoad*)task_base;
     struct RSCache_Dat2ConfigDbTable* table = NULL;

@@ -192,7 +192,7 @@ seq_next_missing_archive(struct Task_Dat1SequenceLoad* self)
 static int
 Task_Dat1SequenceLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat1SequenceLoad* self = (struct Task_Dat1SequenceLoad*)task_base;
 

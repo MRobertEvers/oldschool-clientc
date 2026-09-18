@@ -86,7 +86,7 @@ task_dat1_flotype_decode_all(struct Task_Dat1FlotypeLoad* task)
 static int
 Task_Dat1FlotypeLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat1FlotypeLoad* task = (struct Task_Dat1FlotypeLoad*)task_base;
 

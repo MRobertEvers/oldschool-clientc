@@ -94,7 +94,7 @@ main(
     /* Parallel, as the client's asset runner is: the builder fans its loads out
      * as siblings behind itself and joins them, which strict FIFO never steps. */
     struct TaskRunner runner = { .parallel = 1 };
-    runner.io = ToriRS_IO_New();
+    runner.io = ToriRS_IOBatch_New();
     runner.queue = ToriRS_TaskQueue_New();
     runner.px = PlatformX_IO_New();
     assert(runner.io && runner.queue && runner.px);

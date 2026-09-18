@@ -497,7 +497,7 @@ pool_snapshot_assert_gone(
 static void
 run_task(
     struct ToriRS_TaskQueue* queue,
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     struct PlatformX_IO* px,
     struct ToriRS_Task* task)
 {
@@ -623,7 +623,7 @@ static void
 test_raft_deck_rebuild(char const* cache_dir)
 {
     struct stat st;
-    struct ToriRS_IO* io;
+    struct ToriRS_IOBatch* io;
     struct ToriRS_TaskQueue* queue;
     struct Dat2BuildCache* bc;
     struct CacheProvider* provider;
@@ -665,7 +665,7 @@ test_raft_deck_rebuild(char const* cache_dir)
         return;
     }
 
-    io = ToriRS_IO_New();
+    io = ToriRS_IOBatch_New();
     queue = ToriRS_TaskQueue_New();
     bc = dat2_buildcache_new();
     provider = dat2_buildcache_as_provider(bc);
@@ -943,7 +943,7 @@ test_raft_deck_rebuild(char const* cache_dir)
     PlatformX_IO_Free(px);
     RSCache_Dat2DiskFree(disk);
     ToriRS_TaskQueue_Free(queue);
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
     dat2_buildcache_free(bc);
     printf("ok - 1-zone raft deck rebuilt into the boat world against %s\n", cache_dir);
     printf("ok - boat and root rebuilds isolate their scene pools, despawn frees only the deck\n");

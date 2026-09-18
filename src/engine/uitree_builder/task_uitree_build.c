@@ -108,7 +108,7 @@ bind_seed_obj_icons(struct Task_UITreeBuild* self)
 static int
 Task_UITreeBuild_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_UITreeBuild* self = (struct Task_UITreeBuild*)base;
     assert(self->builder);

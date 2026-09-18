@@ -31,7 +31,7 @@ struct Task_Dat1MapLoad
 static int
 Task_Dat1MapTerrainLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat1MapLoad* task = (struct Task_Dat1MapLoad*)task_base;
     struct RSCache_MapTerrain* rscache_terrain = NULL;
@@ -66,7 +66,7 @@ Task_Dat1MapTerrainLoad_Run(
 static int
 Task_Dat1MapSceneryLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat1MapLoad* task = (struct Task_Dat1MapLoad*)task_base;
     struct RSCache_MapLocs* rscache_locs = NULL;

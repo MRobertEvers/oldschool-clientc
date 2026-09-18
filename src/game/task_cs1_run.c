@@ -146,7 +146,7 @@ task_cs1_plan_yield(struct Task_CS1Eval* self)
 static int
 Task_CS1Eval_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_CS1Eval* self = (struct Task_CS1Eval*)task_base;
 

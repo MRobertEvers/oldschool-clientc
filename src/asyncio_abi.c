@@ -1,10 +1,10 @@
 /*
- * The IO queue's own binary layout, published for an executor that is not
+ * The IO item's own binary layout, published for an executor that is not
  * written in C.
  *
- * The architecture is [game -> IO Queue] :> [platform IO executor], and on the
+ * The architecture is [game -> IO batch] :> [platform IO executor], and on the
  * browser that executor is JavaScript (platform/platform_web_io.js). It reads
- * the queue out of the wasm heap directly -- that is what "reads the queue"
+ * the batch out of the wasm heap directly -- that is what "reads the batch"
  * means when the reader has no struct declarations -- so it needs the offset of
  * every field it touches.
  *
@@ -20,7 +20,7 @@
  * is paired with -- a different -m32/-m64, a different packing, an
  * #if that moved a field -- and the failure mode is not a build error but a
  * silently misread queue: an item whose `kind` is read out of the middle of a
- * path, dispatched to the wrong loader, filling the wrong slot.
+ * path, dispatched to the wrong loader, filling the wrong item.
  *
  * The reader checks TORIRS_IO_ABI_MAGIC and TORIRS_IO_ABI_COUNT before trusting
  * any of it, so a field added here without updating the reader stops the page
@@ -57,15 +57,14 @@ enum
 {
     TORIRS_IO_ABI_MAGIC_SLOT = 0,
     TORIRS_IO_ABI_IO_SIZE,
-    TORIRS_IO_ABI_IO_SLOTS_OFF,
     TORIRS_IO_ABI_IO_ACTIVE_OFF,
     TORIRS_IO_ABI_IO_ACTIVE_COUNT_OFF,
-    TORIRS_IO_ABI_MAX_ITEMS,
     TORIRS_IO_ABI_ITEM_SIZE,
     TORIRS_IO_ABI_ITEM_KIND_OFF,
     TORIRS_IO_ABI_ITEM_ERROR_OFF,
     TORIRS_IO_ABI_ITEM_DATA_OFF,
     TORIRS_IO_ABI_ITEM_DATA_SIZE_OFF,
+    TORIRS_IO_ABI_ITEM_PENDING_OFF,
     TORIRS_IO_ABI_ITEM_U_OFF,
     TORIRS_IO_ABI_CACHE_EPOCH_OFF,
     TORIRS_IO_ABI_CACHE_TABLE_OFF,
@@ -80,15 +79,16 @@ enum
     TORIRS_IO_ABI_COUNT
 };
 
-/* Changes with the slot order above, so a reader built against a different
- * order refuses rather than misreads. */
 /*
- * IOA2, not IOA1: `io_slots` and `active` used to BE the arrays and are now
- * POINTERS to them (the table grows on demand). A reader that indexes the old
- * way would read the item table out of two pointers and a length -- so the
- * magic changes, and a stale reader stops with a message instead.
+ * Changes with the slot order above, so a reader built against a different
+ * order refuses rather than misreads.
+ *
+ * IOA3: the batch is a list of ITEM POINTERS (`active`), each item living in
+ * the task that queued it, and an item carries its own `pending` count. IOA2
+ * had a slot table hanging off the queue and `active` indexed into it; a
+ * reader that still does that would read task memory as a table.
  */
-#define TORIRS_IO_ABI_MAGIC 0x494f4132 /* "IOA2" */
+#define TORIRS_IO_ABI_MAGIC 0x494f4133 /* "IOA3" */
 
 /**
  * Fill `out` with TORIRS_IO_ABI_COUNT int32 values, in the order above.
@@ -106,20 +106,17 @@ ToriRS_IO_DescribeAbi(int32_t* out)
 
     out[TORIRS_IO_ABI_MAGIC_SLOT] = TORIRS_IO_ABI_MAGIC;
 
-    out[TORIRS_IO_ABI_IO_SIZE] = (int32_t)sizeof(struct ToriRS_IO);
-    out[TORIRS_IO_ABI_IO_SLOTS_OFF] = (int32_t)offsetof(struct ToriRS_IO, io_slots);
-    out[TORIRS_IO_ABI_IO_ACTIVE_OFF] = (int32_t)offsetof(struct ToriRS_IO, active);
+    out[TORIRS_IO_ABI_IO_SIZE] = (int32_t)sizeof(struct ToriRS_IOBatch);
+    out[TORIRS_IO_ABI_IO_ACTIVE_OFF] = (int32_t)offsetof(struct ToriRS_IOBatch, active);
     out[TORIRS_IO_ABI_IO_ACTIVE_COUNT_OFF] =
-        (int32_t)offsetof(struct ToriRS_IO, active_count);
-    /* The table's opening size, not a ceiling -- the reader takes the base
-     * pointer out of the struct on every access and never needs the length. */
-    out[TORIRS_IO_ABI_MAX_ITEMS] = TORIRS_IO_MAX_ITEMS;
+        (int32_t)offsetof(struct ToriRS_IOBatch, active_count);
 
     out[TORIRS_IO_ABI_ITEM_SIZE] = (int32_t)sizeof(struct ToriRS_IOItem);
     out[TORIRS_IO_ABI_ITEM_KIND_OFF] = (int32_t)offsetof(struct ToriRS_IOItem, kind);
     out[TORIRS_IO_ABI_ITEM_ERROR_OFF] = (int32_t)offsetof(struct ToriRS_IOItem, error_code);
     out[TORIRS_IO_ABI_ITEM_DATA_OFF] = (int32_t)offsetof(struct ToriRS_IOItem, data);
     out[TORIRS_IO_ABI_ITEM_DATA_SIZE_OFF] = (int32_t)offsetof(struct ToriRS_IOItem, data_size);
+    out[TORIRS_IO_ABI_ITEM_PENDING_OFF] = (int32_t)offsetof(struct ToriRS_IOItem, pending);
     out[TORIRS_IO_ABI_ITEM_U_OFF] = (int32_t)offsetof(struct ToriRS_IOItem, u);
 
     /* Offsets WITHIN the union member, so the reader adds them to ITEM_U_OFF.

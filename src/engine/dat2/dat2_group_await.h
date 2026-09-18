@@ -22,7 +22,7 @@
 
 static inline struct RSCache_Dat2DiskArchive*
 Dat2Group_TakeArchive(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot)
 {
     struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot);

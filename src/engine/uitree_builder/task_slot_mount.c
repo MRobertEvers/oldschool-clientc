@@ -29,7 +29,7 @@ struct Task_SlotMount
 static int
 Task_SlotMount_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_SlotMount* self = (struct Task_SlotMount*)base;
     struct UITree* tree = self->builder->tree;

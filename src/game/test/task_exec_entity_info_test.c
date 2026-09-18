@@ -97,8 +97,9 @@ trace_has_id(
 static void
 run_task_to_done(struct ToriRS_Task* task)
 {
-    struct ToriRS_IO* io = ToriRS_IO_New();
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
     int st;
+    io->task = task;
     do
         st = task_run(task, io);
     while( st == PT_WAITING || st == PT_YIELDED );
@@ -106,7 +107,7 @@ run_task_to_done(struct ToriRS_Task* task)
      * to TORIRS_ASYNCIO_STAT_DONE — call task_run directly here. */
     TEST_ASSERT(st == PT_ENDED || st == PT_EXITED, "entity-info task completes");
     task_free(task);
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
 }
 
 static void
@@ -555,7 +556,7 @@ test_multinpc_interface_head_loads_selected_child(void)
     struct VarPType varp_type = { 0 };
     struct ToriRS_Npctype* shell = calloc(1, sizeof(*shell));
     struct ToriRS_Npctype* child = calloc(1, sizeof(*child));
-    struct ToriRS_IO* io;
+    struct ToriRS_IOBatch* io;
 
     memset(&app, 0, sizeof(app));
     memset(&provider, 0, sizeof(provider));
@@ -572,7 +573,7 @@ test_multinpc_interface_head_loads_selected_child(void)
         "chathead fixture varps initialized");
     app.provider = &provider;
     app.exec_runner.queue = ToriRS_TaskQueue_New();
-    io = ToriRS_IO_New();
+    io = ToriRS_IOBatch_New();
     app.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     TEST_ASSERT(app.scene != NULL, "chathead fixture scene initialized");
     UITreeSceneBridge_Init(&app.bridge, app.scene, &provider);
@@ -607,7 +608,7 @@ test_multinpc_interface_head_loads_selected_child(void)
     free(app.if_heads);
     UITreeSceneBridge_Free(&app.bridge);
     ToriDraw_SceneFree(app.scene);
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
     ToriRS_TaskQueue_Free(app.exec_runner.queue);
     VarPManager_Free(&app.varps);
     CacheProvider_FreeEngineCaches(&provider);

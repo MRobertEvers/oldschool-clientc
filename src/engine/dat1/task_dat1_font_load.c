@@ -26,7 +26,7 @@ struct Task_Dat1FontLoadByName
 static int
 Task_Dat1FontLoadByName_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat1FontLoadByName* task = (struct Task_Dat1FontLoadByName*)task_base;
     struct ToriRS_Font* font = NULL;
