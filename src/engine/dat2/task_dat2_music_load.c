@@ -33,82 +33,45 @@
  * typically plays a dozen of them; loading all 128 would be several times the
  * memory and a much longer wait before the first bar.
  *
- * ## Two dependencies, not forty-four
+ * ## Three tasks, because there are three things
  *
- * Only two of those arrows are real: the track names the patches, and a patch
- * names its samples. Everything else is a SET, and this used to walk each set
- * an archive at a time -- 44 reads for a track, each one a round trip waited
- * out before the next was asked for, which on the browser is 1.0 to 1.6 s of
- * loading (runner telemetry, 2026-09-18: a MusicLoad chain 44 deep, the
- * longest in the client).
+ * Only two of those arrows are dependencies: the track names the instruments,
+ * an instrument names its samples. The rest are SETS, and a set is one
+ * sub-task per member (ToriRS_TaskQueue_AddParallelPoolSubTask) waited for
+ * once at the end (PT_TASK_JOIN). So this file is a song task that fans out
+ * instruments, an instrument task that fans out samples, and a sample task.
  *
- * So each set goes out as one wave (TORIRS_IOK_CACHE_PREFETCH) and is then
- * read back out of the resident store without touching the wire. Between the
- * two waves sits the survey, which unpacks every patch -- that is what turns
- * the first set into the second. Three round trips, and the walk at the end
- * is the same walk it always was.
+ * That is also why none of the three carries a walk cursor. A loop that waits
+ * in the middle of itself has to keep every loop variable in the task, because
+ * a protothread forgets its locals at each yield -- which is where this file's
+ * previous 28 fields came from, first as a frame cursor and then as a survey
+ * with prefetch waves bolted beside it. The loops below queue tasks and do not
+ * wait, so their variables are ordinary locals and the structs stay small.
  *
- * Every loop counter lives in the task struct: a protothread's locals do not
- * survive a yield, and this yields once per cache read.
+ * Speed is unchanged by that: every sibling of a fan-out queues its read in
+ * the same pass, so all of an instrument's samples go onto the wire in one
+ * batch exactly as a prefetch wave did. A cold twelve-instrument track is four
+ * round trips -- track, setup, all instruments, all samples -- against the
+ * forty-four it once walked one at a time.
  */
 
-struct Task_Dat2MusicLoad
+/* --- one sample ---------------------------------------------------------- */
+
+struct Task_Dat2MusicSampleLoad
 {
     struct ToriRS_Task task;
     struct pt pt;
     struct Dat2BuildCache* bc;
     struct ToriRS_MusicPlayer* player;
-
-    int song_id;
-    enum ToriRS_MusicSource source;
-    int song_table;
-
-    struct RSCache_MusicSong* song;
-
-    /*
-     * Walk state.
-     *
-     * `patch_id` is here and not a loop local for the reason the header states
-     * and this file got wrong once: a protothread resumes by jumping to a label
-     * *inside* the loop body, so a declaration-with-initialiser above the yield
-     * is skipped and the variable holds whatever was on the stack. Every patch
-     * then installs under one garbage id, the soundbank collapses to a single
-     * slot, and the song plays with one instrument or none at all.
-     */
-    int patch_index;
-    int patch_id;
-    int note_index;
-    int pending_sample_table;
-    int pending_sample_id;
-    struct RSCache_MusicPatch* pending_patch;
-    bool pending_patch_borrowed;
-
-    /*
-     * The survey: what the three prefetch waves need to know, gathered before
-     * any of the loads below go out. @see the wave note in the run body.
-     *
-     * `decoded` holds the patch each survey step unpacked, and the walk below
-     * TAKES it (setting the entry NULL) rather than reading the archive a
-     * second time -- so a patch is fetched once and decoded once. Whatever the
-     * walk never reaches is this task's to free.
-     */
-    int survey_index;
-    int survey_count;
-    int* patch_ids;
-    int patch_id_count;
-    struct RSCache_MusicPatch* decoded[TORIRS_MUSIC_MAX_PATCHES];
-    int* sample_music_ids;
-    int sample_music_count;
-    int* sample_effect_ids;
-    int sample_effect_count;
-
-    /** These two raw rev-727 tracks must decode against setup 14:16000. */
+    /** TORIRS_SOUNDBANK_TABLE_MUSIC (pitched) or _EFFECTS (percussion). */
+    int table;
+    int id;
     bool rs2012_audio;
-
-    int retained[TORIRS_MUSIC_MAX_PATCHES];
-    int retained_count;
-
-    bool failed;
+    /* The song's flag, shared down the fan-out exactly as the join count is:
+     * a required sample that does not land fails the whole track, and only
+     * the song can refuse to install. The song outlives us -- it is parked on
+     * the join that counts us -- so the pointer is good for our whole life. */
+    bool* failed;
 };
 
 /** Widen a sound-effect render (8-bit unsigned) into the bank's 16-bit form. */
@@ -127,7 +90,7 @@ widen_effect(
 /** Decode the percussion sample at `id` out of the sound-effect table. */
 static bool
 add_effect_sample(
-    struct Task_Dat2MusicLoad* task,
+    struct Task_Dat2MusicSampleLoad* task,
     struct RSCache_Dat2DiskArchive* archive,
     int id)
 {
@@ -165,7 +128,7 @@ add_effect_sample(
 /** Decode a Vorbis music sample against the shared setup. */
 static bool
 add_music_sample(
-    struct Task_Dat2MusicLoad* task,
+    struct Task_Dat2MusicSampleLoad* task,
     struct RSCache_Dat2DiskArchive* archive,
     int id)
 {
@@ -198,109 +161,218 @@ add_music_sample(
     return ok;
 }
 
-/**
- * Next note of the current patch that still needs a sample.
- *
- * Returns false when the patch is fully covered. Writes the table and id of the
- * sample to fetch.
- */
-static bool
-next_missing_sample(
-    struct Task_Dat2MusicLoad* task,
-    const struct RSCache_MusicSong* song,
-    const struct RSCache_MusicPatch* patch,
-    int* out_table,
-    int* out_id)
+static int
+Task_Dat2MusicSampleLoad_Run(
+    struct ToriRS_Task* task_base,
+    struct ToriRS_IOBatch* io)
 {
-    for( ; task->note_index < 128; task->note_index++ )
+    struct Task_Dat2MusicSampleLoad* task = (struct Task_Dat2MusicSampleLoad*)task_base;
+    struct RSCache_Dat2DiskArchive* archive;
+    int const table = task->table == TORIRS_SOUNDBANK_TABLE_MUSIC
+                          ? RSCACHE_DAT2_TABLE_MUSIC_SAMPLES
+                          : RSCACHE_DAT2_TABLE_SOUND_EFFECTS;
+
+    PT_BEGIN(&task->pt);
+
+    RSCache_IO_Dat2MusicLoad(io, 0, table, task->id);
+    PT_YIELD(&task->pt);
+    archive = RSCache_IO_Dat2MusicDecode(io, 0, table);
+
+    if( task->table == TORIRS_SOUNDBANK_TABLE_MUSIC )
     {
-        int note = task->note_index;
-        int id;
-        int table;
-
-        if( !RSCache_MusicSongPatchUsesNote(&song->patches[task->patch_index], note) )
-            continue;
-        id = RSCache_MusicPatchNoteSampleId(patch, note);
-        if( id < 0 )
-            continue;
-        table = RSCache_MusicPatchNoteIsMusicSample(patch, note)
-                    ? TORIRS_SOUNDBANK_TABLE_MUSIC
-                    : TORIRS_SOUNDBANK_TABLE_EFFECTS;
-        if( ToriRS_SoundBank_FindSample(&task->player->bank, table, id) )
-            continue;
-        *out_table = table;
-        *out_id = id;
-        return true;
+        if( !add_music_sample(task, archive, task->id) && task->rs2012_audio )
+        {
+            TORIRS_ERR("music: rev-727 QBD sample %d is absent or invalid\n", task->id);
+            *task->failed = true;
+        }
     }
-    return false;
+    else
+        add_effect_sample(task, archive, task->id);
+    RSCache_Dat2DiskArchiveFree(archive);
+
+    PT_END(&task->pt);
 }
 
-/** Append `id` to a survey list unless it is already there. The lists are
- *  tens of entries at their worst, so the linear scan is the cheap half. */
-static void
-id_list_add(
-    int** ids,
-    int* count,
-    int id)
-{
-    assert(ids);
-    assert(count);
-    for( int i = 0; i < *count; i++ )
-        if( (*ids)[i] == id )
-            return;
-    *ids = realloc(*ids, (size_t)(*count + 1) * sizeof(int));
-    assert(*ids);
-    (*ids)[(*count)++] = id;
-}
+static struct ToriRS_TaskVTable Task_Dat2MusicSampleLoad_VTable = {
+    .run = Task_Dat2MusicSampleLoad_Run,
+    .free = NULL,
+};
 
-/**
- * Every sample `patch` needs for the notes THIS song plays on it, named into
- * the two prefetch lists.
- *
- * The same walk next_missing_sample does, without the task's cursors: that one
- * finds the next sample to fetch, this one names the whole set so that one
- * wave can fetch it. The bank test is the same, so a sample an earlier song
- * already decoded is not asked for again.
- */
-static void
-survey_patch_samples(
-    struct Task_Dat2MusicLoad* task,
-    int patch_index,
-    const struct RSCache_MusicPatch* patch)
+static struct ToriRS_Task*
+create_sample_load(
+    struct Dat2BuildCache* bc,
+    struct ToriRS_MusicPlayer* player,
+    int table,
+    int id,
+    bool rs2012_audio,
+    bool* failed)
 {
+    struct Task_Dat2MusicSampleLoad* task;
+
+    assert(bc);
+    assert(player);
+    assert(failed);
+    /* Already decoded by an earlier song, or by the instrument next door:
+     * NULL is what AddParallelPoolSubTask takes for "nothing to do". */
+    if( id < 0 || ToriRS_SoundBank_FindSample(&player->bank, table, id) )
+        return NULL;
+
+    task = calloc(1, sizeof(*task));
     assert(task);
-    assert(patch);
-    for( int note = 0; note < 128; note++ )
-    {
-        int id;
-        int table;
-
-        if( !RSCache_MusicSongPatchUsesNote(&task->song->patches[patch_index], note) )
-            continue;
-        id = RSCache_MusicPatchNoteSampleId(patch, note);
-        if( id < 0 )
-            continue;
-        table = RSCache_MusicPatchNoteIsMusicSample(patch, note)
-                    ? TORIRS_SOUNDBANK_TABLE_MUSIC
-                    : TORIRS_SOUNDBANK_TABLE_EFFECTS;
-        if( ToriRS_SoundBank_FindSample(&task->player->bank, table, id) )
-            continue;
-        if( table == TORIRS_SOUNDBANK_TABLE_MUSIC )
-            id_list_add(&task->sample_music_ids, &task->sample_music_count, id);
-        else
-            id_list_add(&task->sample_effect_ids, &task->sample_effect_count, id);
-    }
+    task->task.vtable = &Task_Dat2MusicSampleLoad_VTable;
+    strcpy(task->task.name, "Dat2MusicSampleLoad");
+    task->bc = bc;
+    task->player = player;
+    task->table = table;
+    task->id = id;
+    task->rs2012_audio = rs2012_audio;
+    task->failed = failed;
+    PT_INIT(&task->pt);
+    return &task->task;
 }
 
-/** One prefetch wave: `count` groups of `table` made resident together. Worth
- *  a round trip only for more than one group; a single group is one read
- *  either way, and the read is coming regardless. */
-static bool
-survey_wave_wanted(
-    int count)
+/* --- one instrument ------------------------------------------------------ */
+
+struct Task_Dat2MusicPatchLoad
 {
-    return count > 1;
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct Dat2BuildCache* bc;
+    struct ToriRS_MusicPlayer* player;
+    /** The song's manifest, for which notes THIS track plays on this patch.
+     *  Borrowed: the song is parked on the join that counts us. */
+    const struct RSCache_MusicSong* song;
+    int patch_index;
+    int patch_id;
+    struct RSCache_MusicPatch* patch;
+    /** The patch was already in the bank; we neither own nor install it. A
+     *  later song can still play notes the earlier one never touched, which
+     *  is why a resident patch is walked again rather than skipped. */
+    bool borrowed;
+    bool rs2012_audio;
+    bool* failed;
+};
+
+static int
+Task_Dat2MusicPatchLoad_Run(
+    struct ToriRS_Task* task_base,
+    struct ToriRS_IOBatch* io)
+{
+    struct Task_Dat2MusicPatchLoad* task = (struct Task_Dat2MusicPatchLoad*)task_base;
+    struct RSCache_Dat2DiskArchive* archive;
+    struct ToriRS_SoundBankPatch* slot;
+
+    PT_BEGIN(&task->pt);
+
+    slot = ToriRS_SoundBank_FindPatch(&task->player->bank, task->patch_id);
+    if( slot )
+    {
+        task->borrowed = true;
+        task->patch = slot->patch;
+    }
+    else
+    {
+        RSCache_IO_Dat2MusicLoad(io, 0, RSCACHE_DAT2_TABLE_MUSIC_PATCHES, task->patch_id);
+        PT_YIELD(&task->pt);
+        archive = RSCache_IO_Dat2MusicDecode(io, 0, RSCACHE_DAT2_TABLE_MUSIC_PATCHES);
+        if( archive )
+        {
+            task->patch = RSCache_MusicPatchNewDecode(archive->data, archive->data_size);
+            RSCache_Dat2DiskArchiveFree(archive);
+        }
+        if( !task->patch )
+        {
+            /* A song naming a patch this cache does not carry is ordinary;
+             * for the two raw rev-727 tracks it is not. */
+            if( task->rs2012_audio )
+                *task->failed = true;
+            PT_EXIT(&task->pt);
+        }
+    }
+
+    if( task->borrowed )
+        PT_EXIT(&task->pt);
+
+    if( ToriRS_SoundBank_AddPatch(&task->player->bank, task->patch_id, task->patch) )
+        task->patch = NULL; /* the bank owns it now; our Free must not */
+
+    PT_END(&task->pt);
 }
+
+static void
+Task_Dat2MusicPatchLoad_Free(struct ToriRS_Task* task_base)
+{
+    struct Task_Dat2MusicPatchLoad* task = (struct Task_Dat2MusicPatchLoad*)task_base;
+
+    /* Only what we decoded ourselves and never handed over. */
+    if( !task->borrowed )
+        RSCache_MusicPatchFree(task->patch);
+    free(task);
+}
+
+static struct ToriRS_TaskVTable Task_Dat2MusicPatchLoad_VTable = {
+    .run = Task_Dat2MusicPatchLoad_Run,
+    .free = Task_Dat2MusicPatchLoad_Free,
+};
+
+static struct ToriRS_Task*
+create_patch_load(
+    struct Dat2BuildCache* bc,
+    struct ToriRS_MusicPlayer* player,
+    const struct RSCache_MusicSong* song,
+    int patch_index,
+    bool rs2012_audio,
+    bool* failed)
+{
+    struct Task_Dat2MusicPatchLoad* task;
+
+    assert(bc);
+    assert(player);
+    assert(song);
+    assert(failed);
+    assert(patch_index >= 0);
+    assert(patch_index < song->patch_count);
+
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_Dat2MusicPatchLoad_VTable;
+    strcpy(task->task.name, "Dat2MusicPatchLoad");
+    task->bc = bc;
+    task->player = player;
+    task->song = song;
+    task->patch_index = patch_index;
+    task->patch_id = song->patches[patch_index].patch_id;
+    task->rs2012_audio = rs2012_audio;
+    task->failed = failed;
+    PT_INIT(&task->pt);
+    return &task->task;
+}
+
+/* --- one song ------------------------------------------------------------ */
+
+struct Task_Dat2MusicLoad
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct Dat2BuildCache* bc;
+    struct ToriRS_MusicPlayer* player;
+
+    int song_id;
+    enum ToriRS_MusicSource source;
+    int song_table;
+
+    struct RSCache_MusicSong* song;
+
+    /** These two raw rev-727 tracks must decode against setup 14:16000. */
+    bool rs2012_audio;
+    bool failed;
+
+    /** Instruments still loading. */
+    int pending;
+
+    int retained[TORIRS_MUSIC_MAX_PATCHES];
+    int retained_count;
+};
 
 static int
 Task_Dat2MusicLoad_Run(
@@ -368,224 +440,116 @@ Task_Dat2MusicLoad_Run(
     }
 
     /*
-     * 2a-2c. THE WAVES.
+     * 3. Every instrument the song names.
      *
-     * Everything above named one archive and had to wait for it to name the
-     * next: the track names the patches, a patch names its samples. That is
-     * genuine sequencing and stays. What was NOT genuine was asking for each
-     * of those archives on its own once the set was known -- a song with a
-     * dozen instruments walked its way through 44 reads, one round trip after
-     * another, which on the browser is 1.0 to 1.6 s of loading for a track
-     * (runner telemetry: a MusicLoad chain 44 deep).
-     *
-     * The set is known in two steps, so it goes out in two waves. First every
-     * patch the song names, together; the survey then unpacks each one -- off
-     * the resident store, no wire -- and that is what names every sample. Then
-     * every sample, together. The walk below is unchanged except that it takes
-     * the patch the survey already decoded instead of asking for it again, so
-     * each archive is fetched once and decoded once. Three round trips where
-     * there were forty-four.
+     * Bounded by what the bank will hold: a song naming more patches than
+     * TORIRS_MUSIC_MAX_PATCHES cannot retain them all, and queuing loads for
+     * instruments that can never be installed is work thrown away.
      */
-    task->survey_count = task->song->patch_count;
-    if( task->survey_count > TORIRS_MUSIC_MAX_PATCHES )
-        task->survey_count = TORIRS_MUSIC_MAX_PATCHES;
-
-    for( task->survey_index = 0; task->survey_index < task->survey_count; task->survey_index++ )
+    for( int i = 0; i < task->song->patch_count && i < TORIRS_MUSIC_MAX_PATCHES; i++ )
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
+            task->bc->base.asset_queue,
+            create_patch_load(
+                task->bc, task->player, task->song, i, task->rs2012_audio, &task->failed),
+            &task->pending);
+    /* PT_TASK_JOIN's shape, written out because that macro names its task
+     * `self` and this file names it `task`. @see task_dat2_healthbar_load.c. */
+    while( task->pending > 0 )
     {
-        int id = task->song->patches[task->survey_index].patch_id;
-        /* Resident from an earlier song: neither fetched nor decoded again.
-         * Its notes are still surveyed -- see the borrowed-patch case below,
-         * where a later song plays notes the earlier one never touched. */
-        if( ToriRS_SoundBank_FindPatch(&task->player->bank, id) )
-            continue;
-        id_list_add(&task->patch_ids, &task->patch_id_count, id);
-    }
-    if( survey_wave_wanted(task->patch_id_count) )
-    {
-        ToriRS_IO_QueueCachePrefetch(
-            io,
-            0,
-            0,
-            RSCACHE_DAT2_TABLE_MUSIC_PATCHES,
-            TORIRS_IO_CACHE_DAT2,
-            task->patch_ids,
-            task->patch_id_count);
+        task->task.blocked = 1;
         PT_YIELD(&task->pt);
-        ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
     }
-    free(task->patch_ids);
-    task->patch_ids = NULL;
 
-    /* 2b. Unpack each patch and let it name its samples. Every read here is
-     * answered out of the store the wave above filled, so the yields cost
-     * passes and not round trips. */
-    for( task->survey_index = 0; task->survey_index < task->survey_count; task->survey_index++ )
+    /*
+     * 4. Every sample those instruments play, fetched together.
+     *
+     * Fanned out HERE and not from each instrument, which is what a first cut
+     * did: instruments share samples, and siblings all queue in the same pass
+     * before any of them lands, so each one asked for the shared sample again.
+     * Measured on a cold track that was 58 fetches where 13 were wanted. The
+     * song is the only place that sees the whole set, so it is the only place
+     * that can ask for each sample once.
+     *
+     * `seen` is a local, and may be: nothing below it yields until the fan-out
+     * is finished and the list is freed. That is the same reason the loop's
+     * counters are locals -- see the note at the top of this file.
+     */
     {
-        struct ToriRS_SoundBankPatch* resident = ToriRS_SoundBank_FindPatch(
-            &task->player->bank, task->song->patches[task->survey_index].patch_id);
+        int const max_ids = task->song->patch_count * 128;
+        int* seen = malloc((size_t)(max_ids > 0 ? max_ids : 1) * sizeof(int));
+        int seen_count = 0;
 
-        if( resident )
+        assert(seen);
+        for( int i = 0; i < task->song->patch_count && i < TORIRS_MUSIC_MAX_PATCHES; i++ )
         {
-            survey_patch_samples(task, task->survey_index, resident->patch);
+            struct ToriRS_SoundBankPatch* slot =
+                ToriRS_SoundBank_FindPatch(&task->player->bank, task->song->patches[i].patch_id);
+            if( !slot )
+                continue;
+            for( int note = 0; note < 128; note++ )
+            {
+                int id;
+                int table;
+                int key;
+                bool dup = false;
+
+                if( !RSCache_MusicSongPatchUsesNote(&task->song->patches[i], note) )
+                    continue;
+                id = RSCache_MusicPatchNoteSampleId(slot->patch, note);
+                if( id < 0 )
+                    continue;
+                table = RSCache_MusicPatchNoteIsMusicSample(slot->patch, note)
+                            ? TORIRS_SOUNDBANK_TABLE_MUSIC
+                            : TORIRS_SOUNDBANK_TABLE_EFFECTS;
+                /* One key over both tables: percussion and pitched samples
+                 * share an id space only by accident. */
+                key = (table << 24) | id;
+                for( int k = 0; k < seen_count; k++ )
+                    if( seen[k] == key )
+                        dup = true;
+                if( dup )
+                    continue;
+                seen[seen_count++] = key;
+                ToriRS_TaskQueue_AddParallelPoolSubTask(
+                    task->bc->base.asset_queue,
+                    create_sample_load(
+                        task->bc, task->player, table, id, task->rs2012_audio, &task->failed),
+                    &task->pending);
+            }
+        }
+        free(seen);
+    }
+    while( task->pending > 0 )
+    {
+        task->task.blocked = 1;
+        PT_YIELD(&task->pt);
+    }
+
+    /*
+     * 5. What actually landed. The instruments installed themselves and their
+     * samples are in now, so each one can be bound and held; the song only
+     * has to hold what it is playing, which it can read back out of the bank
+     * because it has known the ids since step 1.
+     */
+    for( int i = 0; i < task->song->patch_count && i < TORIRS_MUSIC_MAX_PATCHES; i++ )
+    {
+        int const patch_id = task->song->patches[i].patch_id;
+        struct ToriRS_SoundBankPatch* slot =
+            ToriRS_SoundBank_FindPatch(&task->player->bank, patch_id);
+        if( !slot )
+        {
+            /* Ordinary for an OSRS cache that simply lacks the record; fatal
+             * for the two rev-727 tracks, which have no silent-instrument
+             * rendition worth playing. */
+            if( task->rs2012_audio )
+                task->failed = true;
             continue;
         }
-        RSCache_IO_Dat2MusicLoad(
-            io,
-            0,
-            RSCACHE_DAT2_TABLE_MUSIC_PATCHES,
-            task->song->patches[task->survey_index].patch_id);
-        PT_YIELD(&task->pt);
-        archive = RSCache_IO_Dat2MusicDecode(io, 0, RSCACHE_DAT2_TABLE_MUSIC_PATCHES);
-        if( !archive )
-            continue;
-        task->decoded[task->survey_index] =
-            RSCache_MusicPatchNewDecode(archive->data, archive->data_size);
-        RSCache_Dat2DiskArchiveFree(archive);
-        if( task->decoded[task->survey_index] )
-            survey_patch_samples(
-                task, task->survey_index, task->decoded[task->survey_index]);
-    }
-
-    /* 2c. Every sample those patches named, in one wave per table. */
-    if( survey_wave_wanted(task->sample_music_count) )
-    {
-        ToriRS_IO_QueueCachePrefetch(
-            io,
-            0,
-            0,
-            RSCACHE_DAT2_TABLE_MUSIC_SAMPLES,
-            TORIRS_IO_CACHE_DAT2,
-            task->sample_music_ids,
-            task->sample_music_count);
-        PT_YIELD(&task->pt);
-        ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
-    }
-    if( survey_wave_wanted(task->sample_effect_count) )
-    {
-        ToriRS_IO_QueueCachePrefetch(
-            io,
-            0,
-            0,
-            RSCACHE_DAT2_TABLE_SOUND_EFFECTS,
-            TORIRS_IO_CACHE_DAT2,
-            task->sample_effect_ids,
-            task->sample_effect_count);
-        PT_YIELD(&task->pt);
-        ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
-    }
-    free(task->sample_music_ids);
-    task->sample_music_ids = NULL;
-    free(task->sample_effect_ids);
-    task->sample_effect_ids = NULL;
-
-    /* 3 and 4. Each patch, then each sample its used notes reference. */
-    for( task->patch_index = 0;
-         !task->failed && task->patch_index < task->survey_count;
-         task->patch_index++ )
-    {
-        task->patch_id = task->song->patches[task->patch_index].patch_id;
-
         if( task->retained_count >= TORIRS_MUSIC_MAX_PATCHES )
             break;
-        struct ToriRS_SoundBankPatch* resident =
-            ToriRS_SoundBank_FindPatch(&task->player->bank, task->patch_id);
-        task->pending_patch_borrowed = resident != NULL;
-        if( resident )
-        {
-            /* A later song can use different notes of the same patch. Walk its
-             * note manifest again and load any samples the earlier song did not
-             * need; QBD 1119 -> 1118 is exactly this case. */
-            task->pending_patch = resident->patch;
-        }
-        else
-        {
-            /* Taken from the survey, which fetched and unpacked it above. NULL
-             * is the same two failures it used to read as here -- the cache
-             * has no such patch, or it did not unpack -- and is handled the
-             * same way. */
-            task->pending_patch = task->decoded[task->patch_index];
-            task->decoded[task->patch_index] = NULL;
-            if( !task->pending_patch )
-            {
-                if( task->rs2012_audio ) task->failed = true;
-                continue;
-            }
-        }
-
-        for( task->note_index = 0; !task->failed && task->note_index < 128; )
-        {
-            if( !next_missing_sample(
-                    task,
-                    task->song,
-                    task->pending_patch,
-                    &task->pending_sample_table,
-                    &task->pending_sample_id) )
-                break;
-
-            RSCache_IO_Dat2MusicLoad(
-                io,
-                0,
-                task->pending_sample_table == TORIRS_SOUNDBANK_TABLE_MUSIC
-                    ? RSCACHE_DAT2_TABLE_MUSIC_SAMPLES
-                    : RSCACHE_DAT2_TABLE_SOUND_EFFECTS,
-                task->pending_sample_id);
-            PT_YIELD(&task->pt);
-            archive = RSCache_IO_Dat2MusicDecode(
-                io,
-                0,
-                task->pending_sample_table == TORIRS_SOUNDBANK_TABLE_MUSIC
-                    ? RSCACHE_DAT2_TABLE_MUSIC_SAMPLES
-                    : RSCACHE_DAT2_TABLE_SOUND_EFFECTS);
-            if( task->pending_sample_table == TORIRS_SOUNDBANK_TABLE_MUSIC )
-            {
-                bool added = add_music_sample(task, archive, task->pending_sample_id);
-                if( task->rs2012_audio && !added )
-                {
-                    TORIRS_ERR("music: rev-727 QBD sample %d is absent or invalid\n",
-                            task->pending_sample_id);
-                    task->failed = true;
-                }
-            }
-            else
-                add_effect_sample(task, archive, task->pending_sample_id);
-            RSCache_Dat2DiskArchiveFree(archive);
-            /* Whether or not it landed, move past this note: a sample the cache
-             * does not have would otherwise be requested forever. */
-            task->note_index++;
-        }
-
-        /* A required foreign sample failed after the patch was decoded (or
-         * borrowed).  Do not retain or publish that incomplete patch: doing
-         * so would make a later retry appear resident while one of its notes
-         * is still unresolved. */
-        if( task->failed )
-        {
-            if( !task->pending_patch_borrowed )
-                RSCache_MusicPatchFree(task->pending_patch);
-            task->pending_patch = NULL;
-            task->pending_patch_borrowed = false;
-            break;
-        }
-
-        if( task->pending_patch_borrowed )
-        {
-            struct ToriRS_SoundBankPatch* slot =
-                ToriRS_SoundBank_FindPatch(&task->player->bank, task->patch_id);
-            ToriRS_SoundBank_ResolvePatch(&task->player->bank, slot);
-            ToriRS_SoundBank_RetainPatch(&task->player->bank, task->patch_id);
-            task->retained[task->retained_count++] = task->patch_id;
-        }
-        else if( ToriRS_SoundBank_AddPatch(
-                     &task->player->bank, task->patch_id, task->pending_patch) )
-        {
-            struct ToriRS_SoundBankPatch* slot =
-                ToriRS_SoundBank_FindPatch(&task->player->bank, task->patch_id);
-            ToriRS_SoundBank_ResolvePatch(&task->player->bank, slot);
-            ToriRS_SoundBank_RetainPatch(&task->player->bank, task->patch_id);
-            task->retained[task->retained_count++] = task->patch_id;
-        }
-        task->pending_patch = NULL;
-        task->pending_patch_borrowed = false;
+        ToriRS_SoundBank_ResolvePatch(&task->player->bank, slot);
+        ToriRS_SoundBank_RetainPatch(&task->player->bank, patch_id);
+        task->retained[task->retained_count++] = patch_id;
     }
 
 done:
@@ -617,18 +581,10 @@ Task_Dat2MusicLoad_Free(struct ToriRS_Task* task_base)
 {
     struct Task_Dat2MusicLoad* task = (struct Task_Dat2MusicLoad*)task_base;
 
-    /* A task killed mid-walk still owns whatever it had decoded: the song, the
-     * patch in hand, and every patch the survey unpacked that the walk never
-     * reached (a failure part way through, or a song naming more patches than
-     * the bank will hold). */
+    /* A task killed mid-load still owns the song it decoded. Its instruments
+     * own nothing of ours: each one freed whatever it held when the queue
+     * reaped it. */
     RSCache_MusicSongFree(task->song);
-    if( !task->pending_patch_borrowed )
-        RSCache_MusicPatchFree(task->pending_patch);
-    for( int i = 0; i < TORIRS_MUSIC_MAX_PATCHES; i++ )
-        RSCache_MusicPatchFree(task->decoded[i]);
-    free(task->patch_ids);
-    free(task->sample_music_ids);
-    free(task->sample_effect_ids);
     free(task);
 }
 
