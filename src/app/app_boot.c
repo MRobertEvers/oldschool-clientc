@@ -1237,7 +1237,7 @@ app_enqueue_open_sub(
     task->interface_id = interface_id;
     task->type = type;
     PT_INIT(&task->pt);
-    TaskRunner_AddSettling(&app->exec_runner, &task->task);
+    TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
 }
 
 void

@@ -541,39 +541,44 @@ main(void)
         assert(app);
         app->exec_runner.queue = ToriRS_TaskQueue_New();
 
+        app->runner.queue = ToriRS_TaskQueue_New();
         App_WorldLocChange(app, 12, 34, 0, 32744 /* loc */, 22 /* grounddecor */, 0);
         App_WorldSceneryAnim(app, 12, 34, 0, 22, 8068 /* seq */);
 
-        head = app->exec_runner.queue->head;
+        /* Both are AppSpawn tasks on the LOC LANE: the asset queue, in
+         * enqueue order, each holding the next ticket. The change loads off
+         * the packet FIFO and the anim applies only once the change has
+         * (App.loc_lane_applied) -- the ticket, not a place in the FIFO, is
+         * what keeps a LOC_ANIM behind the LOC_ADD_CHANGE it animates. */
+        assert(app->exec_runner.queue->head == NULL);
+        head = app->runner.queue->head;
         assert(head != NULL);
         assert(head->next != NULL);
         assert(head->next->next == NULL);
-        /* Both are AppSpawn tasks; the change was enqueued first and a FIFO
-         * keeps it there. `ToriRS_TaskQueue_Run` runs the head until it yields
-         * and leaves the rest queued in order, so this ordering IS the fix. */
         assert(strcmp(head->name, "AppSpawn") == 0);
         assert(strcmp(head->next->name, "AppSpawn") == 0);
+        assert(app->loc_lane_enqueued == 2);
+        assert(app->loc_lane_applied == 0);
 
-        /* An EFFECT takes the other queue. A spotanim or a projectile is
-         * ordered against nothing behind it, and on the FIFO its asset chain
-         * parked every later packet (200-400 ms a graphic through a browser
-         * cache); so it loads on the asset runner and the FIFO stays two long. */
-        app->runner.queue = ToriRS_TaskQueue_New();
+        /* An EFFECT takes the same queue with no ticket: a spotanim or a
+         * projectile is ordered against nothing behind it, and on the FIFO
+         * its asset chain parked every later packet (200-400 ms a graphic
+         * through a browser cache). The FIFO stays empty. */
         App_WorldSpotanimSpawn(app, 12, 34, 0, 1234 /* spotanim */, 92, 0);
         App_WorldProjectileSpawn(app, 10, 30, 12, 34, 0, 1235, 43, 31, 41, 60, 16, 15, 0);
-        assert(app->exec_runner.queue->head == head);
-        assert(head->next->next == NULL);
-        assert(app->runner.queue->head != NULL);
-        assert(strcmp(app->runner.queue->head->name, "AppSpawn") == 0);
-        assert(app->runner.queue->head->next != NULL);
-        assert(app->runner.queue->head->next->next == NULL);
+        assert(app->exec_runner.queue->head == NULL);
+        assert(head->next->next != NULL);
+        assert(head->next->next->next != NULL);
+        assert(head->next->next->next->next == NULL);
+        assert(app->loc_lane_enqueued == 2);
 
-        /* The queue's own teardown: each task's vtable Free owns its
-         * allocation, so hand-freeing them here double-frees. */
+        /* Freeing the queue with the lane tasks unrun releases their tickets:
+         * a ticket that never released would hold every later loc change. */
         ToriRS_TaskQueue_Free(app->exec_runner.queue);
         ToriRS_TaskQueue_Free(app->runner.queue);
+        assert(app->loc_lane_applied == 2);
         free(app);
-        printf("ok - LOC_ANIM queues behind a same-tile LOC_ADD_CHANGE; effects take the asset queue\n");
+        printf("ok - a LOC_ANIM takes the ticket behind its LOC_ADD_CHANGE on the loc lane; effects take the asset queue\n");
     }
 
     /*

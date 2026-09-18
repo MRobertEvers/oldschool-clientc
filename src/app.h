@@ -1601,6 +1601,19 @@ struct App
     int world_hover_view_level;
 
     /* Projectile hotkey latch: first press = src tile, second = dst + fire. */
+    /*
+     * The loc lane: zone loc changes and loc anims apply in the order they
+     * were enqueued, but load off the packet FIFO. A task takes a ticket when
+     * it is queued (loc_lane_enqueued), loads whatever it needs on the
+     * parallel asset runner alongside the others, and only then waits for
+     * loc_lane_applied to reach the ticket before it -- so a LOC_ANIM still
+     * lands after the LOC_ADD_CHANGE it animates, a LOC_DEL after the add it
+     * deletes, and nine rock changes at the Inferno's door cost one model
+     * wave instead of nine, none of it parking the packets behind them.
+     * See app_spawn_loc_lane_queue (app_world_edit.c).
+     */
+    unsigned loc_lane_enqueued;
+    unsigned loc_lane_applied;
     int proj_src_tile_x; /* -1 = unarmed */
     int proj_src_tile_z;
     int proj_src_tile_level;

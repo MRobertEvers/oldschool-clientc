@@ -71,6 +71,8 @@ Task_AppSpawn_Run(
     struct ToriRS_IOBatch* io);
 static void
 Task_AppSpawn_Free(struct ToriRS_Task* base);
+static void
+app_spawn_loc_lane_release(struct Task_AppSpawn* self);
 
 static struct ToriRS_TaskVTable Task_AppSpawn_VTable = {
     .run = Task_AppSpawn_Run,
@@ -1561,18 +1563,23 @@ Task_AppSpawn_Run(
     }
     else if( self->kind == APP_SPAWN_LOC_ANIM )
     {
-        /* Nothing to await: the point of the task is its PLACE IN THE FIFO,
-         * behind any LOC_ADD_CHANGE for the same tile in the same packet. See
-         * App_WorldSceneryAnim. */
-        if( WorldviewRegistry_IsLive(&app->worldviews, self->view) )
-            app_world_scenery_anim_apply(
-                app,
-                WorldviewRegistry_Get(&app->worldviews, self->view)->world,
-                self->tile_x,
-                self->tile_z,
-                self->level,
-                self->loc_shape,
-                self->seq_id);
+        /* Nothing to load: the point of the task is its TICKET on the loc
+         * lane, behind any LOC_ADD_CHANGE for the same tile in the same
+         * packet. See App_WorldSceneryAnim and app_spawn_loc_lane_queue. */
+        TASK_AWAIT_STATE(&self->task, &self->pt, app->loc_lane_applied + 1 == self->loc_ticket);
+        {
+            struct World* world = app_spawn_effect_world(self);
+            if( world )
+                app_world_scenery_anim_apply(
+                    app,
+                    world,
+                    self->tile_x,
+                    self->tile_z,
+                    self->level,
+                    self->loc_shape,
+                    self->seq_id);
+        }
+        app_spawn_loc_lane_release(self);
     }
     else if( self->kind == APP_SPAWN_LOC_CHANGE )
     {
@@ -1644,13 +1651,16 @@ Task_AppSpawn_Run(
             }
             PT_TASK_JOIN(pending);
         }
-        /* Resolve the view captured at enqueue — the change queued behind the
-         * asset waits, so the live cursor moved on long ago. IsLive is a
-         * guard, not an assert: the view can legitimately die mid-flight. */
-        struct Worldview* wv = WorldviewRegistry_IsLive(&app->worldviews, self->view)
-                                   ? WorldviewRegistry_Get(&app->worldviews, self->view)
-                                   : NULL;
-        struct World* world = wv ? wv->world : NULL;
+        /* Loaded; now its turn. The wait is on the lane's counter, which
+         * only the task before this one advances -- state this queue does
+         * not own in the runner's sense, so it is a blocked yield, retested
+         * once per pass and never spun. */
+        TASK_AWAIT_STATE(&self->task, &self->pt, app->loc_lane_applied + 1 == self->loc_ticket);
+        /* The scene captured at enqueue: the view can die and the world can be
+         * rebuilt while the change loaded, and both drop it (see
+         * app_spawn_effect_world). */
+        struct World* world = app_spawn_effect_world(self);
+        struct Worldview* wv = world ? WorldviewRegistry_Get(&app->worldviews, self->view) : NULL;
         if( wv && wv->builder && world && world->load_complete )
         {
             int old_type = -1;
@@ -1731,6 +1741,7 @@ Task_AppSpawn_Run(
             app_sync_textures(app);
             app->need_redraw = 1;
         }
+        app_spawn_loc_lane_release(self);
     }
     else
     {
@@ -1752,9 +1763,25 @@ Task_AppSpawn_Run(
     PT_END(&self->pt);
 }
 
+/*
+ * Give the loc lane its next turn. Exactly once per lane task, whether it
+ * applied, was dropped for a dead scene, or was freed unrun with its queue:
+ * a ticket that never released would hold every loc change after it forever.
+ */
+static void
+app_spawn_loc_lane_release(struct Task_AppSpawn* self)
+{
+    assert(self);
+    if( self->loc_ticket == 0 || self->loc_ticket_released )
+        return;
+    self->loc_ticket_released = 1;
+    self->app->loc_lane_applied++;
+}
+
 static void
 Task_AppSpawn_Free(struct ToriRS_Task* base)
 {
+    app_spawn_loc_lane_release((struct Task_AppSpawn*)base);
     free(base);
 }
 

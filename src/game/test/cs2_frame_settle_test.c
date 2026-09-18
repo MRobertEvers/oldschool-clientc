@@ -237,7 +237,7 @@ test_ready_work_drains_without_cap(void)
     struct PublishedFrame frame;
 
     fixture_init(&runner, &px, &widgets, &frame);
-    TaskRunner_AddSettling(&runner, new_mutate_task(&widgets, &px, 0));
+    TaskRunner_AddRenderBlockingSerialTask(&runner, new_mutate_task(&widgets, &px, 0));
 
     /* One initiating frame must cross every ready yield, including the old
      * 64-step boundary, and may publish only the completed tree. A task that
@@ -268,7 +268,7 @@ test_external_wait_retains_last_frame(void)
 
     fixture_init(&runner, &px, &widgets, &frame);
     task = new_mutate_task(&widgets, &px, 1);
-    TaskRunner_AddSettling(&runner, task);
+    TaskRunner_AddRenderBlockingSerialTask(&runner, task);
 
     /* The task has already hidden Equipment when the external wait begins.
      * That partial state must not replace the stable published frame -- and
@@ -370,7 +370,7 @@ test_cross_queue_wait_ends_the_settle(void)
     strcpy(task->task.name, "await-state");
     task->boot = &boot;
     PT_INIT(&task->pt);
-    TaskRunner_AddSettling(&runner, &task->task);
+    TaskRunner_AddRenderBlockingSerialTask(&runner, &task->task);
 
     /* Blocked, not waiting: no read is outstanding, so WAITING would be a
      * lie and PROGRESSED would send the settle loop straight back into the
@@ -527,7 +527,7 @@ test_a_childs_block_is_the_parents_block(void)
     strcpy(task->task.name, "await-state-parent");
     task->st = &st;
     PT_INIT(&task->pt);
-    TaskRunner_AddSettling(&runner, &task->task);
+    TaskRunner_AddRenderBlockingSerialTask(&runner, &task->task);
 
     /* The parent is what the runner sees, and it must report the child's
      * block as its own. */
@@ -575,7 +575,7 @@ test_a_stream_does_not_hold_the_frame(void)
     struct ToriRS_Task* stream;
 
     fixture_init(&runner, &px, &widgets, &frame);
-    /* Plain Add: the task carries no settles_frame, like every asset load.
+    /* Plain Add: the task carries no render_blocking, like every asset load.
      * The same task flagged is test_external_wait_retains_last_frame, which
      * gets WAITING out of the identical read -- the flag is the difference. */
     stream = new_mutate_task(&widgets, &px, 1);

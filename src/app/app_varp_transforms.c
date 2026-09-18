@@ -367,7 +367,7 @@ app_varp_refresh_npc_transforms(
         task->base_npc_id = npc->base_npc_id;
         task->resolved_npc_id = npc->npc_id;
         PT_INIT(&task->pt);
-        TaskRunner_AddSettling(&app->exec_runner, &task->task);
+        TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
     }
 }
 

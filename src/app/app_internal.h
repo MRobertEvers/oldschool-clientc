@@ -472,6 +472,10 @@ struct Task_AppSpawn
      */
     unsigned world_load_seq;
     int enqueue_cycle;
+    /* The loc lane's ticket (App.loc_lane_enqueued at enqueue), 0 for every
+     * other kind; released exactly once, on apply or on free. */
+    unsigned loc_ticket;
+    int loc_ticket_released;
     enum AppSpawnKind kind;
     int tile_x;
     int tile_z;
@@ -2089,6 +2093,12 @@ app_world_bind_pending_seqs(struct App* app);
 
 
 /* ---- app_world_spawn.c ---- */
+/* Queue a LOC_CHANGE or LOC_ANIM on the loc lane (App.loc_lane_*). */
+void
+app_spawn_loc_lane_queue(
+    struct App* app,
+    struct Task_AppSpawn* task);
+
 struct Task_AppSpawn*
 app_spawn_task_new(
     struct App* app,

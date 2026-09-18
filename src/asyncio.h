@@ -272,7 +272,7 @@ struct ToriRS_Task
      * This task is part of a frame's CS2 visual transaction: the tree it
      * mutates must not be published until it has finished.
      *
-     * Set by TaskRunner_AddSettling (task_runner.h) and by nothing else.
+     * Set by TaskRunner_AddRenderBlockingSerialTask (task_runner.h) and by nothing else.
      * TaskRunner_SettleFrame steps the runner only while such a task remains
      * queued; every task added with a plain ToriRS_TaskQueue_Add is a stream
      * -- a music track, a sound, an npc's body -- and a frame published over
@@ -284,7 +284,7 @@ struct ToriRS_Task
      * parent stays queued, parked on the join, and that is what holds the
      * frame.
      */
-    int settles_frame;
+    int render_blocking;
 
     /*
      * The fan-out this task belongs to, or NULL.

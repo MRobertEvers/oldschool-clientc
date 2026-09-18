@@ -258,7 +258,7 @@ app_if_head_enqueue(
     task->component_id = component_id;
     task->npc_id = npc_id;
     PT_INIT(&task->pt);
-    TaskRunner_AddSettling(&app->exec_runner, &task->task);
+    TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
 }
 
 /* Persist the head request keyed by component id (reference IfType.list keeps
@@ -523,7 +523,7 @@ app_if_player_model_enqueue(
     task->arg0 = arg0;
     task->arg1 = arg1;
     PT_INIT(&task->pt);
-    TaskRunner_AddSettling(&app->exec_runner, &task->task);
+    TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
 }
 
 void

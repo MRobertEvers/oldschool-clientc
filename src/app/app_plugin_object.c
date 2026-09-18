@@ -86,7 +86,7 @@ app_plugin_object_sync(
         obj->load_pending = 1;
         struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_PLUGIN_OBJECT, 0, 0, 0);
         task->plugin_object = handle;
-        TaskRunner_AddSettling(&app->exec_runner, &task->task);
+        TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, &task->task);
         return;
     }
 

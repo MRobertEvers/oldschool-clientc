@@ -38,7 +38,7 @@ struct TaskRunner
     Platform_IO* px;
     /** May the walk pass over a parked task and run the ones behind it? */
     int parallel;
-    /* A CS2 task has been enqueued (TaskRunner_AddSettling) and the tree must
+    /* A CS2 task has been enqueued (TaskRunner_AddRenderBlockingSerialTask) and the tree must
      * not be published until its whole host follow-up fixed point has settled
      * (app_settle_cs2_frame clears it). */
     int frame_settle_pending;
@@ -72,7 +72,7 @@ enum TaskRunnerStat
 /*
  * Enqueue a task that belongs to the frame's CS2 visual transaction.
  *
- * The one way a task gets its `settles_frame` flag (asyncio.h). It also arms
+ * The one way a task gets its `render_blocking` flag (asyncio.h). It also arms
  * the runner's frame_settle_pending, so the two facts cannot drift apart:
  * a settle that is pending has a flagged task to wait for, and a flagged
  * task always has a settle pending to run it before the frame publishes.
@@ -82,13 +82,13 @@ enum TaskRunnerStat
  * ordered application IS a transaction, so app_net.c adds with this too.
  */
 static inline void
-TaskRunner_AddSettling(
+TaskRunner_AddRenderBlockingSerialTask(
     struct TaskRunner* runner,
     struct ToriRS_Task* task)
 {
     assert(runner);
     assert(task);
-    task->settles_frame = 1;
+    task->render_blocking = 1;
     ToriRS_TaskQueue_Add(runner->queue, task);
     runner->frame_settle_pending = 1;
 }
@@ -97,14 +97,14 @@ TaskRunner_AddSettling(
  * tens of tasks at the worst of a login -- so a walk per settle pass is
  * cheaper than keeping a count in step with every exit a task has. */
 static inline int
-TaskRunner_SettlingRemains(struct TaskRunner const* runner)
+TaskRunner_RenderBlockingRemains(struct TaskRunner const* runner)
 {
     struct ToriRS_Task const* task;
 
     assert(runner);
     assert(runner->queue);
     for( task = runner->queue->head; task; task = task->next )
-        if( task->settles_frame )
+        if( task->render_blocking )
             return 1;
     return 0;
 }
@@ -264,7 +264,7 @@ TaskRunner_Drain(struct TaskRunner* runner)
  * task asked for this frame to be seen (RENDER). Callers retain the last
  * settled frame on anything but IDLE and resume on the next host turn.
  *
- * "Done" is when no task carrying settles_frame remains, whatever else the
+ * "Done" is when no task carrying render_blocking remains, whatever else the
  * queue still holds: it is shared with every asset stream, and none of those
  * mutates the tree. `runner->progressed` reports whether ANY pass of this
  * call ran something, for a caller interleaving two queues (app_net.c). */
@@ -280,7 +280,7 @@ TaskRunner_SettleFrame(struct TaskRunner* runner)
         progressed |= runner->progressed;
         if( stat == TASK_RUNNER_RENDER )
             break;
-        if( !TaskRunner_SettlingRemains(runner) )
+        if( !TaskRunner_RenderBlockingRemains(runner) )
         {
             stat = TASK_RUNNER_IDLE;
             break;

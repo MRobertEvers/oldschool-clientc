@@ -537,7 +537,7 @@ app_pump_net_packets(struct App* app)
             break;
         }
         app->exec_runner_had_work = 0;
-        /* Every packet is added with TaskRunner_AddSettling, which arms this;
+        /* Every packet is added with TaskRunner_AddRenderBlockingSerialTask, which arms this;
          * the FIFO's transaction is closed the moment it settles, and nothing
          * else on this runner reads the flag. */
         app->exec_runner.frame_settle_pending = 0;
@@ -589,7 +589,7 @@ app_pump_net_packets(struct App* app)
                 app->net_first_packet_marked = 1;
                 ToriRS_BootTelemetry_Markf("net:first_packet:%d", (int)packet.packet_type);
             }
-            TaskRunner_AddSettling(&app->exec_runner, CreateTask_GameProtoExec(app, &packet));
+            TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, CreateTask_GameProtoExec(app, &packet));
             redraw = 1;
         }
     }

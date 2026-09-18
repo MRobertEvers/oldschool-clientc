@@ -137,7 +137,7 @@ RS_CS2_DispatchHook(
         return;
     /* Enqueue only — the app's per-frame pump drives it. The task queue is a
      * strict serial FIFO, so hook ordering is preserved across IO yields. */
-    TaskRunner_AddSettling(runner, task);
+    TaskRunner_AddRenderBlockingSerialTask(runner, task);
 }
 
 void
@@ -170,7 +170,7 @@ RS_CS2_RunScript(
         str_arg_count);
     if( !task )
         return;
-    TaskRunner_AddSettling(runner, task);
+    TaskRunner_AddRenderBlockingSerialTask(runner, task);
 }
 
 /*
@@ -292,13 +292,13 @@ RS_CS2_PumpTransmits(
             container = host->inv_changed_ids[0];
         task = CreateTask_CS2InvTransmitDispatch(host, container);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
     if( host->widgets_loaded_dirty )
     {
         task = CreateTask_CS2InvTransmitUnhideDispatch(host);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     /* An unhide resumes hooks that recorded a relevant update while hidden. A
@@ -322,13 +322,13 @@ RS_CS2_PumpTransmits(
         }
         task = CreateTask_CS2VarTransmitDispatchSet(host, ids, count);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
     if( host->widgets_loaded_dirty )
     {
         task = CreateTask_CS2VarTransmitUnhideDispatch(host);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     /*
@@ -360,13 +360,13 @@ RS_CS2_PumpTransmits(
         }
         task = CreateTask_CS2StatTransmitDispatchSet(host, ids, count);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
     if( host->widgets_loaded_dirty )
     {
         task = CreateTask_CS2StatTransmitUnhideDispatch(host);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     /* Misc transmits (run energy, run weight). No trigger set to filter on —
@@ -377,7 +377,7 @@ RS_CS2_PumpTransmits(
     {
         task = CreateTask_CS2MiscTransmitDispatch(host);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     /* Friend transmits (the friends and ignore side panels). Like misc there is
@@ -390,7 +390,7 @@ RS_CS2_PumpTransmits(
     {
         task = CreateTask_CS2FriendTransmitDispatch(host);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     /* Chat transmits (the chatbox scrollback). No trigger set either, and no
@@ -402,7 +402,7 @@ RS_CS2_PumpTransmits(
     {
         task = CreateTask_CS2ChatTransmitDispatch(host);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     /* The server-driven transmits with no trigger list: the friends chat, the
@@ -412,35 +412,35 @@ RS_CS2_PumpTransmits(
     {
         task = CreateTask_CS2ClanTransmitDispatch(host);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     if( host->stock_transmit_dirty )
     {
         task = CreateTask_CS2StockTransmitDispatch(host);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     if( host->active_offers_transmit_dirty )
     {
         task = CreateTask_CS2ActiveOffersTransmitDispatch(host);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     if( host->clan_settings_transmit_dirty )
     {
         task = CreateTask_CS2ClanSettingsTransmitDispatch(host);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     if( host->clan_channel_transmit_dirty )
     {
         task = CreateTask_CS2ClanChannelTransmitDispatch(host);
         assert(task);
-        TaskRunner_AddSettling(runner, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     host->widgets_loaded_dirty = 0;
