@@ -3111,6 +3111,9 @@ World_ObjStackGetByElementId(
     struct World_EntityPool* pool;
 
     assert(world);
+    /* A placeholder stack carries -1 until its model lands; a lookup by -1
+     * would hand it back as if it were the picked one. Nobody picks -1. */
+    assert(element_id >= 0);
     pool = &world->entities.obj_stack;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
          i = World_EntityPoolNext(pool, i) )
@@ -3137,6 +3140,43 @@ World_ObjStackDel(
     stack = World_EntityPoolGet(pool, idx);
     World_EmitEntityRemoved(world, stack->element_id);
     World_EntityPoolRelease(pool, idx);
+}
+
+void
+World_ObjStackSetElement(
+    struct World* world,
+    int idx,
+    int element_id)
+{
+    struct WorldEntity_ObjStack* stack;
+
+    assert(world);
+    assert(idx >= 0);
+    assert(element_id >= 0);
+    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
+    assert(stack);
+    assert(stack->element_id < 0);
+    stack->element_id = element_id;
+}
+
+void
+World_ObjStackSetMenu(
+    struct World* world,
+    int idx,
+    char const* name,
+    char const actions[5][32])
+{
+    struct WorldEntity_ObjStack* stack;
+
+    assert(world);
+    assert(idx >= 0);
+    assert(name);
+    assert(actions);
+    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
+    assert(stack);
+    strncpy(stack->name, name, sizeof(stack->name) - 1);
+    stack->name[sizeof(stack->name) - 1] = '\0';
+    World_CopyMenuActions(stack->actions, actions);
 }
 
 void

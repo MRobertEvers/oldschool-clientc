@@ -13,6 +13,7 @@ main(void)
     test_terrain();
     test_player_npc();
     test_projectile();
+    test_obj_stack_placeholder();
     test_projectile_target();
     test_spotanim();
     test_spotanim_immediate_activation();

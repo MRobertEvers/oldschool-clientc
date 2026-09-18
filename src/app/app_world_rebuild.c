@@ -183,8 +183,35 @@ App_WorldObjStackAdd(
     /* The BASE objtype carries the name and the ground ops the minimenu reads;
      * the model comes from whichever count variant `count` selects. */
     obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
-    if( !obj )
-        return -1;
+    /*
+     * Not resident yet -- the objtype, its count variant, the inventory model
+     * or a texture it wears: the stack exists NOW without a scene element and
+     * a placeholder lands the model when it arrives (app_placeholder.c). This
+     * used to be the packet handler's own wait, on the FIFO, one round trip
+     * per first-seen drop with every packet and the frame behind it.
+     */
+    if( !obj || ObjModelLoad_NeedsWork(app->provider, obj_id, count) )
+    {
+        static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
+        int idx;
+        if( obj )
+        {
+            char actions32[5][32];
+            for( int a = 0; a < 5; a++ )
+                snprintf(actions32[a], sizeof(actions32[a]), "%s", obj->ground_actions[a]);
+            idx = World_ObjStackAdd(
+                world, -1, scene_x, scene_z, level, obj_id, count, obj->name, actions32);
+        }
+        else
+            idx = World_ObjStackAdd(world, -1, scene_x, scene_z, level, obj_id, count, "", none);
+        if( idx < 0 )
+            return -1;
+        app_placeholder_obj_stack(app, scene_x, scene_z, level, obj_id, count);
+        app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_SPAWN);
+        app_ground_items_mark(app, world, scene_x, scene_z, level);
+        app->need_redraw = 1;
+        return idx;
+    }
     model = app_obj_stack_build_model(app, obj_id, count);
     if( !model )
         return -1;
@@ -220,6 +247,63 @@ App_WorldObjStackAdd(
         app_ground_items_mark(app, world, scene_x, scene_z, level);
         return idx;
     }
+}
+
+int
+app_obj_stack_land(
+    struct App* app,
+    struct World* world,
+    int idx)
+{
+    struct WorldEntity_ObjStack* stack;
+    struct ToriRS_Objtype* obj;
+    struct ToriDraw_Model* model;
+    int world_x, world_z, world_y;
+    int element_id;
+
+    assert(app);
+    assert(world);
+    assert(idx >= 0);
+    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
+    assert(stack);
+    assert(stack->element_id < 0);
+    obj = CacheProvider_ObjtypeGet(app->provider, stack->obj_id);
+    if( !obj || ObjModelLoad_NeedsWork(app->provider, stack->obj_id, stack->count) )
+        return 0;
+    model = app_obj_stack_build_model(app, stack->obj_id, stack->count);
+    if( !model )
+        return 0;
+    world_x = stack->grid_position.x * 128 + 64;
+    world_z = stack->grid_position.z * 128 + 64;
+    /* LocType.raiseobject, as in App_WorldObjStackAdd. */
+    world_y = app_world_height(app, world_x, world_z, stack->grid_position.level) -
+              World_ObjRaiseGet(
+                  world, stack->grid_position.x, stack->grid_position.z, stack->grid_position.level);
+    element_id = app_world_scene_element_create(
+        app, TORIDRAW_ELEMENT_KIND_OBJSTACK, model, world_x, world_y, world_z);
+    if( element_id < 0 )
+        return 0;
+    World_ObjStackSetElement(world, idx, element_id);
+    {
+        char actions32[5][32];
+        for( int a = 0; a < 5; a++ )
+            snprintf(actions32[a], sizeof(actions32[a]), "%s", obj->ground_actions[a]);
+        World_ObjStackSetMenu(world, idx, obj->name, actions32);
+    }
+    if( torirs_env_net_debug() )
+        TORIRS_LOG(
+            "objstack: obj=%d tile=%d,%d,%d element=%d (landed)\n",
+            stack->obj_id,
+            stack->grid_position.x,
+            stack->grid_position.z,
+            stack->grid_position.level,
+            element_id);
+    app_sync_textures(app);
+    app_plugin_obj_notify(app, idx, APP_PLUGIN_ITEM_CHANGE);
+    app_ground_items_mark(
+        app, world, stack->grid_position.x, stack->grid_position.z, stack->grid_position.level);
+    app->need_redraw = 1;
+    return 1;
 }
 
 void

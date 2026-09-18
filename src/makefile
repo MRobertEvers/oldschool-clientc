@@ -632,6 +632,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_net.c \
 	app/app_overlay.c \
 	app/app_overlay_entities.c \
+	app/app_placeholder.c \
 	app/app_plugin_api.c \
 	app/app_plugin_assets.c \
 	app/app_plugin_bridge.c \

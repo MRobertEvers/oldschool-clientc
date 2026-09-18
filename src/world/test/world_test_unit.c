@@ -391,6 +391,40 @@ test_height_fn(
     return 500;
 }
 
+/* A ground stack added before its model is resident (app/app_placeholder.c):
+ * it exists with no scene element, is found by tile, is never handed back for
+ * a picked element, takes its element and menu once when they land, and its
+ * removal queues nothing for the drain to free. */
+void
+test_obj_stack_placeholder(void)
+{
+    printf("TEST: obj stack placeholder\n");
+    struct World* world = World_TestMakeReady(104);
+    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
+    char actions[5][32] = { "Take", "", "", "", "Examine" };
+    int idx = World_ObjStackAdd(world, -1, 10, 12, 0, 995 /* coins */, 1440, "", none);
+    struct WorldEntity_ObjStack* stack;
+    TEST_ASSERT(idx >= 0, "placeholder stack added");
+    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
+    TEST_ASSERT(stack && stack->element_id < 0, "no element until the model lands");
+    TEST_ASSERT(World_ObjStackFind(world, 10, 12, 0, 995) == idx, "found by tile and obj");
+    TEST_ASSERT(World_ObjStackGetByElementId(world, 7) == NULL, "a picked element never matches it");
+    World_ObjStackSetCount(world, idx, 2000);
+    TEST_ASSERT(stack->count == 2000, "a count change lands on the placeholder too");
+    World_ObjStackSetElement(world, idx, 7);
+    World_ObjStackSetMenu(world, idx, "Coins", actions);
+    TEST_ASSERT(stack->element_id == 7, "element set once");
+    TEST_ASSERT(World_ObjStackGetByElementId(world, 7) == stack, "picked by its element after landing");
+    TEST_ASSERT(strcmp(stack->name, "Coins") == 0, "name from the landed objtype");
+    TEST_ASSERT(strcmp(stack->actions[0].name, "Take") == 0, "menu from the landed objtype");
+    World_EventsClear(world);
+    idx = World_ObjStackAdd(world, -1, 11, 12, 0, 526 /* bones */, 1, "", none);
+    World_ObjStackDel(world, idx);
+    TEST_ASSERT(World_EventsCount(world) == 0, "a removed placeholder has no element for the drain to free");
+    World_EventsClear(world);
+    World_Free(world);
+}
+
 void
 test_projectile(void)
 {

@@ -1544,6 +1544,23 @@ World_ObjStackSetCount(
     int idx,
     int count);
 
+/** Give a stack that was added without a scene element (a placeholder, see
+ * app/app_placeholder.c) its element, once. */
+void
+World_ObjStackSetElement(
+    struct World* world,
+    int idx,
+    int element_id);
+
+/** The stack's name and menu, for one whose objtype was not decoded when it
+ * was added; overwrites what the add recorded. */
+void
+World_ObjStackSetMenu(
+    struct World* world,
+    int idx,
+    char const* name,
+    char const actions[5][32]);
+
 /** Map a loc shape (0-22) to its layer (0=WALL, 1=WALL_DECOR, 2=GROUND,
  * 3=GROUND_DECOR), matching Client-TS LOC_SHAPE_TO_LAYER. Returns -1 for an
  * out-of-range shape. */

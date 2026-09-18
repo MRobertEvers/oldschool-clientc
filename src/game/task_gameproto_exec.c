@@ -6,7 +6,6 @@
 #include "plugin/torirs_plugin_host.h"
 #include "net/net.h"
 #include "task_exec_entity_info.h"
-#include "engine/task_obj_model_load.h"
 #include "engine/world_builder/task_world_load.h"
 #include "world/world.h"
 
@@ -33,13 +32,6 @@ struct Task_GameProtoExec
     int had_world;
     int zone_x;
     int zone_z;
-    /* Obj-load cursors (ground item models must be cached before exec). The
-     * count travels with the id because a stackable's model is the count
-     * variant's, not the base objtype's -- see ObjModelLoad_RenderObjId. */
-    int zone_i;
-    int pending_obj_id;
-    int pending_obj_count;
-
     /* REBUILD_WORLDENTITY (SAILING_PLAN C2): the target view id (the
      * SET_ACTIVE_WORLD cursor, captured before the first await because
      * SERVER_TICK_END resets the cursor), the descriptor grid decoded against
@@ -70,40 +62,6 @@ wev_view(struct Task_GameProtoExec* self)
     return WorldviewRegistry_Get(&self->app->worldviews, self->wev_view_id);
 }
 
-/* Obj id + stack count referenced by a zone entry that draws a ground item, or
- * -1. OBJ_COUNT is one of them: crossing a count_co threshold re-points the
- * stack at a different variant's model, which has to be resident first. */
-static int
-zone_entry_obj_id(struct PktZoneSubPacket const* entry, int* out_count)
-{
-    assert(out_count);
-    if( entry->name == PKT_NAME_OBJ_ADD )
-    {
-        *out_count = entry->_obj_add.count;
-        return entry->_obj_add.obj_id;
-    }
-    if( entry->name == PKT_NAME_OBJ_REVEAL )
-    {
-        *out_count = entry->_obj_reveal.count;
-        return entry->_obj_reveal.obj_id;
-    }
-    if( entry->name == PKT_NAME_OBJ_COUNT )
-    {
-        *out_count = entry->_obj_count.new_count;
-        return entry->_obj_count.obj_id;
-    }
-    *out_count = 1;
-    return -1;
-}
-
-/* Objtype + count variant + inventory model + its textures, for the pending
- * ground obj. */
-static struct ToriRS_Task*
-obj_ground_model_task(struct Task_GameProtoExec* self)
-{
-    return CreateTask_ObjModelLoad(
-        self->app->provider, &self->pending_obj_id, &self->pending_obj_count, 1);
-}
 
 void
 rebuild_square_rect(
@@ -430,23 +388,10 @@ Task_GameProtoExec_Run(
              self->packet.packet_type == PKT_NAME_OBJ_REVEAL ||
              self->packet.packet_type == PKT_NAME_OBJ_COUNT )
     {
-        /* Ground item model must be cached before the exec spawns it. */
-        if( self->packet.packet_type == PKT_NAME_OBJ_ADD )
-        {
-            self->pending_obj_id = self->packet._obj_add.obj_id;
-            self->pending_obj_count = self->packet._obj_add.count;
-        }
-        else if( self->packet.packet_type == PKT_NAME_OBJ_REVEAL )
-        {
-            self->pending_obj_id = self->packet._obj_reveal.obj_id;
-            self->pending_obj_count = self->packet._obj_reveal.count;
-        }
-        else
-        {
-            self->pending_obj_id = self->packet._obj_count.obj_id;
-            self->pending_obj_count = self->packet._obj_count.new_count;
-        }
-        PT_TASK_AWAITSELF_IF(obj_ground_model_task(self));
+        /* A ground item's model is NOT awaited here: App_WorldObjStackAdd
+         * creates the stack at once and a placeholder lands the model
+         * (app/app_placeholder.c). The wait used to be one round trip per
+         * first-seen drop, with every packet and the frame behind it. */
         {
             struct RS_GameProtoCtx ctx = {
                 .tree = app->tree,
@@ -462,16 +407,7 @@ Task_GameProtoExec_Run(
     }
     else if( self->packet.packet_type == PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED )
     {
-        for( self->zone_i = 0; self->zone_i < self->packet._update_zone_enclosed.count;
-             self->zone_i++ )
-        {
-            self->pending_obj_id = zone_entry_obj_id(
-                &self->packet._update_zone_enclosed.entries[self->zone_i],
-                &self->pending_obj_count);
-            if( self->pending_obj_id < 0 )
-                continue;
-            PT_TASK_AWAITSELF_IF(obj_ground_model_task(self));
-        }
+        /* Its obj entries land through placeholders too -- see above. */
         {
             struct RS_GameProtoCtx ctx = {
                 .tree = app->tree,

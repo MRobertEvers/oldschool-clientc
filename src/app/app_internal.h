@@ -694,6 +694,37 @@ enum TaskRunnerStat
 app_settle_cs2_frame(struct App* app);
 
 
+/* ---- app_placeholder.c ----
+ *
+ * A thing that exists NOW with an asset it does not have yet, and the task
+ * that lands the asset later. The rule, the guards and the family are in the
+ * unit's comment. Add a kind there rather than a wait to a packet handler. */
+enum AppPlaceholderKind
+{
+    /* A ground item added before its model was resident: the stack entity
+     * exists with element_id -1 and draws nothing until the model lands. */
+    APP_PLACEHOLDER_OBJ_STACK = 0,
+};
+
+void
+app_placeholder_obj_stack(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int count);
+
+/* app_world_rebuild.c: give a stack added as a placeholder its model and
+ * scene element for the count it has now. 1 if it landed, 0 if the model is
+ * still not resident (the caller decides whether to ask again). */
+int
+app_obj_stack_land(
+    struct App* app,
+    struct World* world,
+    int idx);
+
+
 /* ---- app_if_models.c: the CS2 host's lazy-model hooks ---- */
 void
 app_cs2_widget_model_lazy(

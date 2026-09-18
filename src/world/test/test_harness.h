@@ -119,6 +119,7 @@ void test_pickset(void);
 void test_terrain(void);
 void test_player_npc(void);
 void test_projectile(void);
+void test_obj_stack_placeholder(void);
 void test_projectile_target(void);
 void test_spotanim(void);
 void test_spotanim_immediate_activation(void);
