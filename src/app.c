@@ -1194,12 +1194,11 @@ app_prefs_flush(struct App* app)
         return; /* everything the player chose is already on disk */
     app->prefs_dirty_cycle = 0;
 
-    /* A real IO list, not a zeroed struct on the stack: the slot table is
-     * heap-grown (ToriRS_IO_SlotReserve), so a zeroed one has no slots and
-     * the task's first queue is a write through NULL -- a crash on the way
-     * out, on exactly the exit where the player had changed a setting. */
+    /* Run by hand, outside any queue: the io context names the task so its
+     * "slot 0" is its own item, as the queue would have done. */
     io = ToriRS_IO_New();
     task = CreateTask_PrefsSave(&app->prefs, app->prefs_path);
+    io->task = task;
     while( task_run(task, io) == PT_YIELDED && guard++ < 8 )
         Platform_IO_Process(app->runner.px, io);
     task_free(task);

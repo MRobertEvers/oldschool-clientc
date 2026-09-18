@@ -80,34 +80,13 @@ PlatformX_IO_Process(
     struct ToriRS_IO* io);
 
 /**
- * Number of requests issued for `io` that have not been answered yet.
- *
- * The synchronous backends always return 0: Process satisfies every item
- * before it returns, so by the time anyone could ask, nothing is outstanding.
- * The web backend only *starts* its reads, so this is what tells the scheduler
- * not to resume a task that is still waiting — resuming it would run the code
- * after its PT_YIELD against an empty slot and report a decode failure.
- *
- * Per-io, not global: the app runs two task pipelines over one platform pump,
- * and one of them being blocked must not stall the other.
+ * Give the remote sources a turn, and land every parked read that has come
+ * back: its item is filled and its `pending` count reaches 0. Nothing to do
+ * on a cache with no remote backing -- a disk read was answered inside
+ * Process and never parked.
  */
-/**
- * @brief Is the read queued in `slot` still outstanding?
- *
- * Asked per task by the runner, so one task parked on a JS5 miss does not stop
- * the rest of the queue from being stepped. Always 0 for a purely synchronous
- * read: it was answered inside Process.
- */
-int
-PlatformX_IO_SlotPending(
-    struct PlatformX_IO* px,
-    struct ToriRS_IO* io,
-    int slot);
-
-int
-PlatformX_IO_Pending(
-    struct PlatformX_IO* px,
-    struct ToriRS_IO* io);
+void
+PlatformX_IO_Pump(struct PlatformX_IO* px);
 
 /**
  * Can this backend still reach whatever answers its reads?

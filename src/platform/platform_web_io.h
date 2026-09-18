@@ -29,10 +29,11 @@
  * ## Answers arrive later
  *
  * A browser cannot read anything synchronously without freezing the tab, so
- * Process starts work and returns, and Pending reports what has not been
- * answered yet. That is the queue's own outstanding-item contract -- the same
- * one a JS5 miss uses on the desktop -- so nothing above the queue can tell
- * which executor it is talking to. No ASYNCIFY is involved, and none is
+ * Process starts work and returns, having marked every item it could not
+ * answer on the spot as pending; the answer clears the mark when it lands.
+ * That is the queue's own outstanding-item contract -- the same one a JS5
+ * miss uses on the desktop -- so nothing above the queue can tell which
+ * executor it is talking to. No ASYNCIFY is involved, and none is
  * permitted on this lane (platform_check.mk): nothing in C is ever suspended,
  * because C hands the work over and asks later whether it is done.
  */
@@ -96,18 +97,13 @@ PlatformWeb_IO_LoadItem(struct PlatformWeb_IO* px, struct ToriRS_IOItem* item);
 int
 PlatformWeb_IO_Process(struct PlatformWeb_IO* px, struct ToriRS_IO* io);
 
-int
-PlatformWeb_IO_Pending(struct PlatformWeb_IO* px, struct ToriRS_IO* io);
-
 /**
- * Is the read queued in `slot` still outstanding?
- *
- * The per-task half of Pending: the runner steps several tasks in a pass and
- * has to know which of them are still waiting on this executor, rather than
- * whether any of them is.
+ * Nothing to do: every answer on this platform lands on its own, between
+ * turns of the event loop, and clears its item's `pending` as it does. Here
+ * because the runner's pass has one shape on every platform.
  */
-int
-PlatformWeb_IO_SlotPending(struct PlatformWeb_IO* px, struct ToriRS_IO* io, int slot);
+void
+PlatformWeb_IO_Pump(struct PlatformWeb_IO* px);
 
 /**
  * Can the executor still reach whatever answers its reads?

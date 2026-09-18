@@ -327,7 +327,7 @@ app_world_sync_one_entity_spotanim(
                 app_spawn_task_new(app, APP_SPAWN_ENTITY_SPOTANIM, 0, 0, 0);
             task->spotanim_id = spot->id;
             task->entity_element_id = element_id;
-            ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+            TaskRunner_AddSettling(&app->exec_runner, &task->task);
             entry->load_enqueued = 1;
         }
         return;

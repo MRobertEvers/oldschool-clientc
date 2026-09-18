@@ -1238,7 +1238,7 @@ app_enqueue_open_sub(
     task->interface_id = interface_id;
     task->type = type;
     PT_INIT(&task->pt);
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    TaskRunner_AddSettling(&app->exec_runner, &task->task);
 }
 
 void

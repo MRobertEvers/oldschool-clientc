@@ -366,8 +366,8 @@ test_prefs_persistence(void)
     px = PlatformX_IO_New();
     CHECK(px != NULL, "platform io available");
     io = ToriRS_IO_New();
-    io->slot_base = ToriRS_IO_SlotAlloc(io);
     task = CreateTask_PrefsSave(&saved, path);
+    io->task = task;
     while( task_run(task, io) == PT_YIELDED )
         PlatformX_IO_Process(px, io);
     task_free(task);
@@ -380,6 +380,7 @@ test_prefs_persistence(void)
     RS_CS2Host_SetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME, 100);
     RS_CS2Host_SetOption(&host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME, 100);
     task = CreateTask_PrefsLoad(&loaded, path);
+    io->task = task;
     while( task_run(task, io) == PT_YIELDED )
         PlatformX_IO_Process(px, io);
     task_free(task);
@@ -455,6 +456,7 @@ test_prefs_persistence(void)
     remove(path);
     memset(&loaded, 0, sizeof(loaded));
     task = CreateTask_PrefsLoad(&loaded, path);
+    io->task = task;
     while( task_run(task, io) == PT_YIELDED )
         PlatformX_IO_Process(px, io);
     task_free(task);

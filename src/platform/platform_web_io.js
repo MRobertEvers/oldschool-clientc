@@ -33,10 +33,11 @@
  * language does for free, and it is not what the queue asks for either.
  *
  * What the queue asks for is only this: while an item has not been answered,
- * say so. Process kicks off the async loop and returns immediately, Pending
- * reports how many items for that queue are still in flight (which is what
- * stops the task runner resuming a task against an empty slot), and the loop
- * fills each slot in as its await resolves. The C side needs no ASYNCIFY --
+ * say so. Process kicks off the async loop and returns immediately, having
+ * marked each item it could not answer on the spot as pending (the item's
+ * own `pending` word, which is what stops the task runner resuming a task
+ * against an empty item), and the loop fills each item in and clears the
+ * mark as its await resolves. The C side needs no ASYNCIFY --
  * a forbidden flag on this lane (platform_check.mk) -- because nothing in C is
  * ever suspended: C hands the work over and asks later whether it is done.
  */
@@ -62,25 +63,14 @@ mergeInto(LibraryManager.library, {
     /*
      * How many items are still in flight, per queue pointer.
      *
-     * A COUNT, not a table of parked entries. The async loop below already
-     * knows which slot it is filling -- that is what a local variable in an
-     * async function is -- so the only thing left for anyone else to ask is
-     * "are you done?", and a number answers it. Per-io because the app runs
-     * two pipelines over one executor and one being blocked must not stall the
-     * other.
+     * A COUNT, for the frame loop's pacing (PlatformWeb_PendingTotal) and the
+     * idle-wire telemetry; the runner never asks it. What the runner reads is
+     * each item's own `pending` word, written by run() below: 1 from the
+     * moment Process could not answer the item on the spot until its answer
+     * is in the item, then 0. The async loop already knows which item it is
+     * filling -- that is what a local variable in an async function is.
      */
     inflight: null,
-
-    /*
-     * WHICH slots are outstanding, not just how many.
-     *
-     * The count above answers the queue's old question ("is anything out?").
-     * The runner now runs several tasks per pass and needs the per-task one --
-     * "is THIS task's read still coming?" -- so a task whose read has landed
-     * can be resumed while its neighbours are still waiting. Map io -> Set of
-     * slot indices.
-     */
-    inflightSlots: null,
 
     addInflight: function (io, delta) {
       const now = (this.inflight.get(io) || 0) + delta;
@@ -88,16 +78,9 @@ mergeInto(LibraryManager.library, {
       else { this.inflight.delete(io); }
     },
 
-    markSlot: function (io, slot, busy) {
-      let slots = this.inflightSlots.get(io);
-      if (busy) {
-        if (!slots) { slots = new Set(); this.inflightSlots.set(io, slots); }
-        slots.add(slot);
-        return;
-      }
-      if (!slots) { return; }
-      slots.delete(slot);
-      if (slots.size === 0) { this.inflightSlots.delete(io); }
+    /* The platform seam's one word: is this item still on the wire? */
+    setPending: function (item, busy) {
+      HEAP32[(item + this.layout().pendingOff) >> 2] = busy ? 1 : 0;
     },
 
     init: function () {
@@ -116,7 +99,6 @@ mergeInto(LibraryManager.library, {
        * necessarily set anything up. */
       this.instances = new Map();
       this.inflight = new Map();
-      this.inflightSlots = new Map();
       this.telemetry = {
         batches: 0, items: 0, sync: 0, landed: 0, prefetched: 0,
         pumps: 0, pumpMs: 0, pumpSteps: 0,
@@ -188,8 +170,8 @@ mergeInto(LibraryManager.library, {
       if (this.abi) { return this.abi; }
 
       const count = _ToriRS_IO_DescribeAbiCount();
-      const EXPECTED_MAGIC = 0x494f4132; /* "IOA2", see asyncio_abi.c */
-      const EXPECTED_COUNT = 21;
+      const EXPECTED_MAGIC = 0x494f4133; /* "IOA3", see asyncio_abi.c */
+      const EXPECTED_COUNT = 20;
 
       if (count !== EXPECTED_COUNT) {
         throw new Error(
@@ -208,15 +190,14 @@ mergeInto(LibraryManager.library, {
             `${EXPECTED_MAGIC.toString(16)}; the field order changed.`);
         }
         this.abi = {
-          ioSize: v[1], slotsOff: v[2], activeOff: v[3], activeCountOff: v[4],
-          maxItems: v[5],
-          itemSize: v[6], kindOff: v[7], errorOff: v[8], dataOff: v[9],
-          dataSizeOff: v[10], uOff: v[11],
-          cacheEpochOff: v[12], cacheTableOff: v[13], cacheArchiveOff: v[14],
-          cacheFlagsOff: v[15],
-          configPathOff: v[16], scriptPathOff: v[17],
-          refTableOff: v[18], filePathOff: v[19],
-          maxPath: v[20],
+          ioSize: v[1], activeOff: v[2], activeCountOff: v[3],
+          itemSize: v[4], kindOff: v[5], errorOff: v[6], dataOff: v[7],
+          dataSizeOff: v[8], pendingOff: v[9], uOff: v[10],
+          cacheEpochOff: v[11], cacheTableOff: v[12], cacheArchiveOff: v[13],
+          cacheFlagsOff: v[14],
+          configPathOff: v[15], scriptPathOff: v[16],
+          refTableOff: v[17], filePathOff: v[18],
+          maxPath: v[19],
         };
       } finally {
         _free(ptr);
@@ -226,13 +207,13 @@ mergeInto(LibraryManager.library, {
 
     // ------------------------------------------------------- queue access
 
-    /* The slot table hangs OFF the queue rather than sitting inside it, and it
-     * moves when it grows -- so the base is re-read here on every access. That
-     * is the same discipline the awaits already needed: a pointer taken before
-     * one may be stale after it. */
-    itemPtr: function (io, slot) {
+    /* The batch: `active_count` item POINTERS at `active`. Each item lives in
+     * the task that queued it and never moves, so a pointer read here is good
+     * across every await below -- only the HEAP views need re-taking, and
+     * those are globals emscripten refreshes on growth. */
+    batchItem: function (io, index) {
       const a = this.layout();
-      return HEAP32[(io + a.slotsOff) >> 2] + slot * a.itemSize;
+      return HEAP32[(HEAP32[(io + a.activeOff) >> 2] >> 2) + index];
     },
 
     /* The `kind` field is an enum, which is an int in this ABI. */
@@ -410,10 +391,10 @@ mergeInto(LibraryManager.library, {
      * Everything the host needs to know about one item, read BEFORE any await.
      *
      * Read up front on purpose. Once this function awaits, the wasm heap may
-     * have grown and moved -- every HEAPU8/HEAP32 view taken before the await
-     * is detached afterwards -- so reading the request out of the queue late
-     * is a use-after-move. The pointer arithmetic is re-done after the await
-     * instead (itemPtr), which is cheap and always current.
+     * have grown -- every HEAPU8/HEAP32 view taken before the await is
+     * detached afterwards -- so reading the request out of the item late is
+     * a read through a dead view. The item's ADDRESS is stable (it lives in
+     * its task); only the views are re-taken after the await.
      *
      * FILE_WRITE's payload is copied here for a second reason as well: the
      * queue only LENDS those bytes for the duration of the request, and the
@@ -797,12 +778,13 @@ mergeInto(LibraryManager.library, {
     },
 
     /*
-     * Run one item to completion and fill its slot in.
+     * Run one item to completion and fill it in.
      *
      * Kicked off by Process and never awaited by it -- that is what makes the
-     * item outstanding rather than blocking the frame. The count is adjusted
-     * around the whole thing so Pending is accurate from the instant Process
-     * returns to the instant the slot is filled.
+     * item outstanding rather than blocking the frame. The item's `pending`
+     * word is set before the first await and cleared after the answer is in
+     * the item, so it is truthful from the instant Process returns to the
+     * instant the runner could look.
      */
     /*
      * TORIRS_IO_TRACE=1 (an ?env= boot parameter) records every Process batch
@@ -832,13 +814,13 @@ mergeInto(LibraryManager.library, {
       return kind;
     },
 
-    run: async function (inst, io, slot) {
-      const req = this.describe(inst, this.itemPtr(io, slot));
+    run: async function (inst, io, item) {
+      const req = this.describe(inst, item);
       const traced = this.traceOn();
       const started = traced ? performance.now() : 0;
-      /* Answered before Process returns: no inflight count, no slot mark,
-       * and the runner steps the asking task again this pass. */
-      if (req.kind === inst.kinds.CACHE && this.answerSync(inst, req, this.itemPtr(io, slot))) {
+      /* Answered before Process returns: never pending, and the runner steps
+       * the asking task again this pass. */
+      if (req.kind === inst.kinds.CACHE && this.answerSync(inst, req, item)) {
         this.telemetry.sync++;
         if (traced) {
           this.trace.push(`${performance.now().toFixed(1)} sync ${this.traceName(inst, req)} ${(performance.now() - started).toFixed(2)}ms`);
@@ -846,11 +828,10 @@ mergeInto(LibraryManager.library, {
         return;
       }
       this.addInflight(io, 1);
-      this.markSlot(io, slot, true);
+      this.setPending(item, true);
       try {
         const bytes = await this.execute(inst, req);
-        /* itemPtr recomputed AFTER the await: see describe. */
-        this.answer(this.itemPtr(io, slot), bytes);
+        this.answer(item, bytes);
         if (traced) {
           const now = performance.now();
           const size = !bytes ? 0
@@ -864,13 +845,13 @@ mergeInto(LibraryManager.library, {
          * that is not there, and only the first is an outage. */
         if (err && err.torirsUnreachable) { inst.transportDown = true; }
         else { err && console.error(`torirs io: ${err.message}`); }
-        this.answer(this.itemPtr(io, slot), null);
+        this.answer(item, null);
       } finally {
         this.addInflight(io, -1);
-        this.markSlot(io, slot, false);
+        this.setPending(item, false);
         this.noteWireIdle();
       }
-      /* After the finally: the slot must read "not pending" by the time the
+      /* After the finally: the item must read "not pending" by the time the
        * runner is stepped, or the task whose answer this is stays parked. */
       this.landed();
     },
@@ -983,7 +964,7 @@ mergeInto(LibraryManager.library, {
    * Deliberately NOT async and deliberately not awaited: Process is called
    * from the frame loop, and a Process that waited for its reads would be the
    * frozen tab this whole design exists to avoid. Each item runs on its own,
-   * and Pending is how the caller learns when one is finished.
+   * and its `pending` word is how the caller learns when it is finished.
    */
   PlatformWeb_IO_Process__deps: ['$TORIRS_WEB_IO'],
   PlatformWeb_IO_Process: function (px, io) {
@@ -1009,45 +990,30 @@ mergeInto(LibraryManager.library, {
     if (activeCount > 0 && S.traceOn()) {
       const names = [];
       for (let i = 0; i < activeCount && i < 16; i++) {
-        const slot = HEAP32[(HEAP32[(io + a.activeOff) >> 2] >> 2) + i];
-        names.push(S.traceName(inst, S.describe(inst, S.itemPtr(io, slot))));
+        names.push(S.traceName(inst, S.describe(inst, S.batchItem(io, i))));
       }
       S.trace.push(`${performance.now().toFixed(1)} batch n=${activeCount} inflight=${S.inflight.get(io) || 0} ` +
         names.join(' ') + (activeCount > 16 ? ' ...' : ''));
     }
     for (let i = 0; i < activeCount; i++) {
-      S.run(inst, io, HEAP32[(HEAP32[(io + a.activeOff) >> 2] >> 2) + i]);
+      S.run(inst, io, S.batchItem(io, i));
     }
 
     /* ToriRS_IO_ResetActive, done here because the queue expects Process to
-     * have consumed the active list by the time it returns. The items
-     * themselves stay outstanding -- the active list is what is new THIS pass,
-     * not what is unanswered. */
-    {
-      const activePtr = HEAP32[(io + a.activeOff) >> 2];
-      HEAPU8.fill(0, activePtr, activePtr + activeCount * 4);
-    }
+     * have consumed the batch by the time it returns. The items themselves
+     * stay outstanding -- the batch is what is new THIS pass, not what is
+     * unanswered. */
     HEAP32[(io + a.activeCountOff) >> 2] = 0;
 
     return activeCount;
   },
 
-  PlatformWeb_IO_Pending__deps: ['$TORIRS_WEB_IO'],
-  PlatformWeb_IO_Pending: function (px, io) {
-    return TORIRS_WEB_IO.inflight.get(io) || 0;
-  },
-
   /*
-   * Is the read in THIS slot still coming?
-   *
-   * What the runner asks per task, so one task waiting on the network does not
-   * hold up every other task's turn -- which is what made cache reads serial.
+   * Nothing to do. An answer lands on its own, between turns of the event
+   * loop, and clears its item's `pending` as it does; the runner's pass has
+   * the same shape on every platform, so the call exists.
    */
-  PlatformWeb_IO_SlotPending__deps: ['$TORIRS_WEB_IO'],
-  PlatformWeb_IO_SlotPending: function (px, io, slot) {
-    const slots = TORIRS_WEB_IO.inflightSlots.get(io);
-    return slots && slots.has(slot) ? 1 : 0;
-  },
+  PlatformWeb_IO_Pump: function (px) {},
 
   /*
    * Everything outstanding, across every queue.

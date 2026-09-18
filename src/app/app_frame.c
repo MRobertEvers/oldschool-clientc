@@ -457,53 +457,22 @@ App_PumpAsync(
         }
         else
         {
+            /*
+             * Step while passes make progress. Every other answer a pass can
+             * give ends the frame's pumping: IDLE (nothing left), RENDER (a
+             * task asked for this frame to be seen -- spending the budget
+             * here is exactly what the request exists to interrupt), WAITING
+             * (the answers are not here yet; the frame has to end for them
+             * to arrive) and BLOCKED (the other queue has to run). Stepping
+             * past any of them is a busy-wait into the tripwire below.
+             */
             for( int i = 0; i < budget; i++ )
             {
                 steps++;
                 if( booting )
                     app->boot_steps++;
                 stat = TaskRunner_Step(&app->runner);
-                if( stat == TASK_RUNNER_IDLE )
-                    break;
-                /* A task asked for the screen. Stop stepping and let this
-                 * frame out: spending the rest of the budget here is
-                 * exactly the behaviour the request exists to interrupt,
-                 * and it is why the whole boot used to land in one frame
-                 * with the bar never drawn below 100. */
-                if( stat == TASK_RUNNER_RENDER )
-                    break;
-                /*
-                 * Nothing more can happen this frame, so stepping again is a
-                 * busy-wait into the tripwire below rather than progress.
-                 *
-                 * BLOCKED says so outright: the head is parked on state this
-                 * queue does not own, and ToriRS_TaskQueue_Run only ever runs
-                 * the head -- every further pass returns BLOCKED again without
-                 * running anything.
-                 *
-                 * PENDING says so only together with two other facts. An
-                 * asynchronous backend answers a read after the host's next
-                 * turn, so a frame that sat here waiting for one would spin the
-                 * whole budget and abort as a task that will not converge --
-                 * the frame has to END for the answer to arrive.
-                 *
-                 * But "something is outstanding" is no longer the same as
-                 * "nothing can happen": the runner keeps a dozen reads in
-                 * flight now, and the ones that have LANDED are work this
-                 * frame can still do. Ending on the first outstanding read
-                 * capped the client at one batch per frame -- with answers
-                 * arriving in well under a millisecond, that is the difference
-                 * between draining a boot and dribbling it. So the frame ends
-                 * when a pass advanced NOTHING and is still waiting on the
-                 * platform, which is precisely "the answers are not here yet".
-                 *
-                 * TaskRunner_SettleFrame draws the same lines for the same
-                 * reason.
-                 */
-                if( stat == TASK_RUNNER_BLOCKED )
-                    break;
-                if( stat == TASK_RUNNER_PENDING && !app->runner.progressed &&
-                    Platform_IO_Pending(app->runner.px, app->runner.io) )
+                if( stat != TASK_RUNNER_PROGRESSED )
                     break;
             }
             /*

@@ -38,21 +38,10 @@ struct PlatformX_IO
     int process_calls;
 };
 
-int
-PlatformX_IO_Pending(struct PlatformX_IO* px, struct ToriRS_IO* io)
+void
+PlatformX_IO_Pump(struct PlatformX_IO* px)
 {
     (void)px;
-    (void)io;
-    return 0;
-}
-
-int
-PlatformX_IO_SlotPending(struct PlatformX_IO* px, struct ToriRS_IO* io, int slot)
-{
-    (void)px;
-    (void)io;
-    (void)slot;
-    return 0;
 }
 
 int
@@ -185,7 +174,7 @@ test_fanout_joins_when_every_sibling_ends(void)
     /* Pass 1: the parent fans out and parks; every sibling runs and yields
      * for its read -- all in this one pass, which is the whole point. */
     pass_clock = 1;
-    TEST_CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_PENDING);
+    TEST_CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_PROGRESSED);
     TEST_CHECK(parent->pending == 200);
     {
         int started_now = 0;

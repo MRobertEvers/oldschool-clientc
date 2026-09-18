@@ -72,7 +72,7 @@ struct Dat2ArchiveCacheSlot
  * A read parked on a remote source.
  *
  * One table for both remote backings, because to the queue they are the same
- * thing: a slot whose answer is coming later. `archive`/`group` are the
+ * thing: an item whose answer is coming later. `archive`/`group` are the
  * source's own address -- the resolved JS5 archive and group, or the dat1
  * table and the resolved archive id -- so servicing never re-resolves.
  *
@@ -85,10 +85,10 @@ enum RemoteSource
 {
     REMOTE_SOURCE_JS5 = 1,
     REMOTE_SOURCE_ON_DEMAND = 2,
-    /* One row per group of a PREFETCH item, all naming the same slot. The
-     * slot stays pending until the last row is cleared, and no row loads
-     * anything: the group is in the disk the JS5 client filled, which is all
-     * a prefetch asked for. */
+    /* One row per group of a PREFETCH item, all naming the same item, whose
+     * pending count is the number of rows left. No row loads anything: the
+     * group is in the disk the JS5 client filled, which is all a prefetch
+     * asked for. */
     REMOTE_SOURCE_JS5_PREFETCH = 3,
 };
 
@@ -96,8 +96,9 @@ struct RemotePendingItem
 {
     int in_use;
     int source;
-    struct ToriRS_IO* io;
-    int slot;
+    /* The item this row answers into. It lives in its task, which the runner
+     * will not resume, and so cannot free, while the item is pending. */
+    struct ToriRS_IOItem* item;
     int archive;
     int group;
 };
@@ -918,10 +919,8 @@ remote_pending_alloc(struct PlatformX_IO* px)
 static int
 js5_queue_cache_item(
     struct PlatformX_IO* px,
-    struct ToriRS_IO* io,
-    int slot)
+    struct ToriRS_IOItem* item)
 {
-    struct ToriRS_IOItem* item = &io->io_slots[slot];
     int archive = dat2_resolve_table(px, item->u.cache.table_id);
     int group = item->u.cache.archive_id;
     enum Js5RequestResult request;
@@ -942,10 +941,10 @@ js5_queue_cache_item(
     pending = remote_pending_alloc(px);
     pending->in_use = 1;
     pending->source = REMOTE_SOURCE_JS5;
-    pending->io = io;
-    pending->slot = slot;
+    pending->item = item;
     pending->archive = archive;
     pending->group = group;
+    item->pending++;
     return 0;
 }
 
@@ -960,10 +959,8 @@ js5_queue_cache_item(
 static int
 js5_queue_prefetch_item(
     struct PlatformX_IO* px,
-    struct ToriRS_IO* io,
-    int slot)
+    struct ToriRS_IOItem* item)
 {
-    struct ToriRS_IOItem* item = &io->io_slots[slot];
     int archive = dat2_resolve_table(px, item->u.cache.table_id);
     int const* ids = item->data;
     int count = item->u.cache.archive_id;
@@ -988,10 +985,10 @@ js5_queue_prefetch_item(
         pending = remote_pending_alloc(px);
         pending->in_use = 1;
         pending->source = REMOTE_SOURCE_JS5_PREFETCH;
-        pending->io = io;
-        pending->slot = slot;
+        pending->item = item;
         pending->archive = archive;
         pending->group = ids[i];
+        item->pending++;
     }
     return 0;
 }
@@ -1019,11 +1016,11 @@ js5_service_pending(
                                                         pending->group) )
             continue;
 
-        item = &pending->io->io_slots[pending->slot];
+        item = pending->item;
         if( pending->source == REMOTE_SOURCE_JS5_PREFETCH )
         {
             /* Nothing to load: the group is in the disk now, or refused,
-             * and either way the row is what held the slot. */
+             * and either way the row is what held the item. */
             if( terminal_failure )
                 item->error_code = -1;
         }
@@ -1031,6 +1028,8 @@ js5_service_pending(
             item->error_code = -1;
         else
             load_cache_item_dat2(px, item);
+        assert(item->pending > 0);
+        item->pending--;
         memset(pending, 0, sizeof(*pending));
     }
 }
@@ -1140,10 +1139,8 @@ load_cache_item_dat1(
 static int
 od_queue_cache_item(
     struct PlatformX_IO* px,
-    struct ToriRS_IO* io,
-    int slot)
+    struct ToriRS_IOItem* item)
 {
-    struct ToriRS_IOItem* item = &io->io_slots[slot];
     int table_id = item->u.cache.table_id;
     int archive_id = item->u.cache.archive_id;
     int flags = item->u.cache.flags;
@@ -1185,10 +1182,10 @@ od_queue_cache_item(
     pending = remote_pending_alloc(px);
     pending->in_use = 1;
     pending->source = REMOTE_SOURCE_ON_DEMAND;
-    pending->io = io;
-    pending->slot = slot;
+    pending->item = item;
     pending->archive = table_id;
     pending->group = archive_id;
+    item->pending++;
     return 0;
 }
 
@@ -1210,7 +1207,7 @@ od_service_pending(struct PlatformX_IO* px)
         if( !PlatformXIOOnDemand_ArchiveLoadPoll(
                 px->dat1_on_demand, pending->archive, pending->group, &archive) )
             continue;
-        item = &pending->io->io_slots[pending->slot];
+        item = pending->item;
         if( archive )
         {
             item->data = archive;
@@ -1219,6 +1216,8 @@ od_service_pending(struct PlatformX_IO* px)
         }
         else
             item->error_code = -1;
+        assert(item->pending > 0);
+        item->pending--;
         memset(pending, 0, sizeof(*pending));
     }
 }
@@ -1347,16 +1346,15 @@ PlatformX_IO_LoadItem(
     }
 }
 
-/* Local hits remain synchronous. A remote miss parks only the ToriRS_IO
- * instance that requested it; bounded pumping here also keeps native
- * TaskRunner_Drain live when there is no outer frame loop yet. */
-int
-PlatformX_IO_Pending(
-    struct PlatformX_IO* px,
-    struct ToriRS_IO* io)
+/*
+ * Local hits never park: a disk read is answered inside Process. Only a
+ * remote miss leaves an item pending, and this is where such an item is
+ * answered -- the JS5 client and the on-demand proxy get a turn, and every
+ * row whose group has come back fills its item and lets its count down.
+ */
+void
+PlatformX_IO_Pump(struct PlatformX_IO* px)
 {
-    int count = 0;
-
     assert(px);
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     if( px->js5 )
@@ -1365,32 +1363,6 @@ PlatformX_IO_Pending(
 #if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
     od_service_pending(px);
 #endif
-    for( int i = 0; i < px->pending_count; i++ )
-        if( px->pending[i].in_use && px->pending[i].io == io )
-            count++;
-    return count;
-}
-
-/*
- * Is the read in THIS slot still coming?
- *
- * The per-task half of Pending above, and the reason a task waiting on a
- * remote miss no longer holds up every other task's turn. A synchronous read
- * has already landed by the time anyone can ask, so on a cache with neither
- * remote backing attached this is always no -- which is exactly what it was
- * before the runner learned to ask.
- */
-int
-PlatformX_IO_SlotPending(
-    struct PlatformX_IO* px,
-    struct ToriRS_IO* io,
-    int slot)
-{
-    assert(px);
-    for( int i = 0; i < px->pending_count; i++ )
-        if( px->pending[i].in_use && px->pending[i].io == io && px->pending[i].slot == slot )
-            return 1;
-    return 0;
 }
 
 /*
@@ -1425,8 +1397,7 @@ PlatformX_IO_Process(
     int processed = 0;
     for( int i = 0; i < io->active_count; i++ )
     {
-        int slot = io->active[i];
-        struct ToriRS_IOItem* item = &io->io_slots[slot];
+        struct ToriRS_IOItem* item = io->active[i];
 
         /* A write carries its payload in these two fields — see LoadItem —
          * and a prefetch lends its id array the same way. */
@@ -1440,8 +1411,8 @@ PlatformX_IO_Process(
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5) || !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
         /* A source that parks is the only reason this loop does anything other
          * than call LoadItem. Asked as a question about the SOURCE, and both
-         * remote backings answer yes: each is put on its wire here and
-         * answered by the pump once it has landed. */
+         * remote backings answer yes: each is put on its wire here, its item
+         * marked pending, and answered by Pump once it has landed. */
         if( (item->kind == TORIRS_IOK_CACHE || item->kind == TORIRS_IOK_CACHE_PREFETCH) &&
             cache_source_parks(cache_source_for(px, item)) )
         {
@@ -1449,8 +1420,8 @@ PlatformX_IO_Process(
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
             if( cache_source_for(px, item) == CACHE_SOURCE_JS5 )
                 queued = item->kind == TORIRS_IOK_CACHE_PREFETCH
-                             ? js5_queue_prefetch_item(px, io, slot)
-                             : js5_queue_cache_item(px, io, slot);
+                             ? js5_queue_prefetch_item(px, item)
+                             : js5_queue_cache_item(px, item);
 #endif
 #if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
             if( cache_source_for(px, item) == CACHE_SOURCE_ON_DEMAND )
@@ -1464,7 +1435,7 @@ PlatformX_IO_Process(
                     queued = 0;
                 }
                 else
-                    queued = od_queue_cache_item(px, io, slot);
+                    queued = od_queue_cache_item(px, item);
             }
 #endif
             if( queued == 0 )
@@ -1479,7 +1450,7 @@ PlatformX_IO_Process(
     ToriRS_IO_ResetActive(io);
 
 #if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
-    /* The pass's requests go out now rather than on the next Pending, so a
+    /* The pass's requests go out now rather than on the next Pump, so a
      * local server's answers are already back when the runner next asks. */
     od_service_pending(px);
 #endif

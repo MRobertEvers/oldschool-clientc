@@ -535,7 +535,7 @@ app_inv_icon_reconcile_tick(struct App* app)
     task->app = app;
     PT_INIT(&task->pt);
     app->inv_icon_reconcile_inflight = 1;
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    TaskRunner_AddSettling(&app->exec_runner, &task->task);
 }
 
 static int

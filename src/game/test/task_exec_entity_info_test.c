@@ -99,6 +99,7 @@ run_task_to_done(struct ToriRS_Task* task)
 {
     struct ToriRS_IO* io = ToriRS_IO_New();
     int st;
+    io->task = task;
     do
         st = task_run(task, io);
     while( st == PT_WAITING || st == PT_YIELDED );

@@ -287,7 +287,7 @@ slot_mount(
     task->owner_index = owner_index;
     task->iface_id = iface_id;
     PT_INIT(&task->pt);
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    TaskRunner_AddSettling(&app->exec_runner, &task->task);
 }
 
 void

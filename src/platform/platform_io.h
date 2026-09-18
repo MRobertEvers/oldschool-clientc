@@ -25,8 +25,19 @@
  *
  * Callers use the Platform_IO_* names below and get whichever executor their
  * platform builds. Nothing above this line names a platform -- app.c and
- * task_runner.h queue work and ask what is outstanding; where the bytes come
- * from is settled here, once.
+ * task_runner.h queue work; where the bytes come from is settled here, once.
+ *
+ * The runner uses exactly two of these per pass, and they are the seam:
+ *
+ *   Platform_IO_Pump     give the wire a turn, so answers that have arrived
+ *                        land in their items (item->pending reaches 0).
+ *                        Nothing to do in the browser, whose answers land on
+ *                        their own between turns of the event loop.
+ *   Platform_IO_Process  take this pass's batch (io->active). Answer what
+ *                        can be answered now; put the rest on a wire and
+ *                        mark each such item pending.
+ *
+ * An item's `pending` count is the whole of what the runner reads back.
  */
 
 #if defined(TORIRS_PLATFORM_WEB)
@@ -42,8 +53,7 @@
 #define Platform_IO_InitCacheId PlatformWeb_IO_InitCacheId
 #define Platform_IO_LoadItem PlatformWeb_IO_LoadItem
 #define Platform_IO_Process PlatformWeb_IO_Process
-#define Platform_IO_Pending PlatformWeb_IO_Pending
-#define Platform_IO_SlotPending PlatformWeb_IO_SlotPending
+#define Platform_IO_Pump PlatformWeb_IO_Pump
 #define Platform_IO_ServerReachable PlatformWeb_IO_ServerReachable
 
 /* The opaque handle. A browser's executor keeps its state on the JavaScript
@@ -64,8 +74,7 @@
 #define Platform_IO_InitCacheId PlatformX_IO_InitCacheId
 #define Platform_IO_LoadItem PlatformX_IO_LoadItem
 #define Platform_IO_Process PlatformX_IO_Process
-#define Platform_IO_Pending PlatformX_IO_Pending
-#define Platform_IO_SlotPending PlatformX_IO_SlotPending
+#define Platform_IO_Pump PlatformX_IO_Pump
 #define Platform_IO_ServerReachable PlatformX_IO_ServerReachable
 
 #define Platform_IO struct PlatformX_IO
