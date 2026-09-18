@@ -58,8 +58,63 @@ RS_TitleSession_TakePrefill(
         return false;
     if( session->autologin_spent || !RS_TitleSession_HasCredentials(session) )
         return false;
+    /* A reload's name is not a prefill. It came out of the page's stored
+     * entry, and typing it into a form the player never asked to see is the
+     * whole thing the resume exists to stop; RS_TitleSession_TakeResume owns
+     * this boot instead. */
+    if( session->resume_pending )
+        return false;
     session->autologin_spent = true;
     return true;
+}
+
+void
+RS_TitleSession_ArmResume(struct RS_TitleSession* session)
+{
+    assert(session);
+    session->resume_pending = true;
+}
+
+bool
+RS_TitleSession_TakeResume(
+    struct RS_TitleSession* session,
+    bool ready,
+    enum RS_TitleScreenPhase phase)
+{
+    assert(session);
+    /* The same wait the prefill makes, for a different reason: the bar the
+     * reconnect shows through is a widget of the title tree, so a reconnect
+     * dialled before that tree exists runs behind a blank screen. */
+    if( !ready || phase != RS_TITLE_PHASE_TITLE )
+        return false;
+    if( session->autologin_spent || !session->resume_pending )
+        return false;
+    /* The name travels in GAMERECONNECT's body exactly as it does in a login
+     * -- the seed replaces the PASSWORD, not the identity -- so a token with
+     * no name beside it names no save for the server to hand back. */
+    if( !RS_TitleSession_HasCredentials(session) )
+        return false;
+    session->autologin_spent = true;
+    /* Spent here, not on the answer. What is owed is ONE reconnect, and this
+     * is it; leaving the flag up would hold the caller's loading bar at
+     * "reconnecting" over the next bake it settles -- the gameframe this
+     * handshake is about to open, and the title screen a later logout returns
+     * to. `resume_dial` is what the dial itself reads. */
+    session->resume_pending = false;
+    session->resume_dial = true;
+    return true;
+}
+
+void
+RS_TitleSession_ResumeRefused(struct RS_TitleSession* session)
+{
+    assert(session);
+    session->resume_pending = false;
+    session->resume_dial = false;
+    /* And the name goes with them. @see the header: what is left here is what
+     * the form would be shown holding. */
+    session->user[0] = '\0';
+    session->password[0] = '\0';
 }
 
 bool
@@ -112,4 +167,9 @@ RS_TitleSession_Abandon(struct RS_TitleSession* session)
     assert(session);
     session->autologin_spent = true;
     session->connect_pending = false;
+    /* A logout ends the resumable session too -- the page is told to forget it
+     * at the same moment (app_session_resume.c). Left armed, the next title
+     * tick would reconnect into the world the player just walked out of. */
+    session->resume_pending = false;
+    session->resume_dial = false;
 }

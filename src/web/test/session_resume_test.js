@@ -68,22 +68,31 @@ function fakeStorage() {
 }
 
 const MANIFEST = ['--manifest', 'manifests/manifest_osrs239.ini'];
+const TOKEN = '11,-22,33,-44,5';
 let passed = 0;
 
-/* 1. A tab that logged in and was reloaded comes back with its credentials on
- *    the command line, at the END of it -- the only position that outranks
- *    both argv layers main.c applies. */
+/* 1. A tab that was in the world and was reloaded comes back asking for THAT
+ *    session -- the name it belongs to and the key it authenticated on, at the
+ *    END of the command line, the only position that outranks both argv layers
+ *    main.c applies. No password, because none is kept: the client shows a
+ *    reconnect, not a login. */
 {
   const storage = fakeStorage();
   const first = createResumeSession(storage);
   assert.deepStrictEqual(first.boot(MANIFEST), MANIFEST, 'a first boot has nothing to resume');
-  assert.strictEqual(first.remember('zezima', 'hunter2'), true);
+  assert.strictEqual(first.remember('zezima', TOKEN), true);
 
   const reload = createResumeSession(storage);
   assert.deepStrictEqual(
     reload.boot(MANIFEST),
-    MANIFEST.concat(['--user', 'zezima', '--pass', 'hunter2']),
+    MANIFEST.concat(['--user', 'zezima', '--resume', TOKEN]),
     'the reload did not resume the session');
+  /* Whatever the tab holds, it is not a password. Checked on the stored text
+   * rather than on the command line, because a password that never reaches
+   * argv but sits in sessionStorage is still a password being kept. */
+  assert.ok(
+    !/hunter2|password|pass/.test(storage.entries.get('torirs.session')),
+    'the tab kept a password');
   passed++;
 }
 
@@ -93,7 +102,7 @@ let passed = 0;
   const storage = fakeStorage();
   const live = createResumeSession(storage);
   live.boot(MANIFEST);
-  live.remember('zezima', 'hunter2');
+  live.remember('zezima', TOKEN);
   live.forget();
   assert.deepStrictEqual(
     createResumeSession(storage).boot(MANIFEST), MANIFEST, 'the logout was not honoured');
@@ -102,28 +111,26 @@ let passed = 0;
   passed++;
 }
 
-/* 3. A rejected login must NOT drop it. "This world is full" and "your account
- *    is still logged in" are the two most likely answers a reloading client
- *    gets, and the credentials are still the ones that worked -- the page is
- *    never told otherwise, so the only way to lose them is a logout or the
- *    tab closing. */
+/* 3. A refused reconnect drops it, and that is the page's half of the rule the
+ *    client states: the key names a session the server no longer has, so a
+ *    second refresh must present nothing and get the login form rather than
+ *    replaying a dead key. The client calls forget() on that path
+ *    (app_title_resume_to_login); here it is the same call a logout makes. */
 {
   const storage = fakeStorage();
   const live = createResumeSession(storage);
   live.boot(MANIFEST);
-  live.remember('zezima', 'hunter2');
+  live.remember('zezima', TOKEN);
 
-  const rejected = createResumeSession(storage);
+  const reload = createResumeSession(storage);
   assert.deepStrictEqual(
-    rejected.boot(MANIFEST),
-    MANIFEST.concat(['--user', 'zezima', '--pass', 'hunter2']),
+    reload.boot(MANIFEST),
+    MANIFEST.concat(['--user', 'zezima', '--resume', TOKEN]),
     'the first reload did not resume');
-  /* The login that boot armed was refused, the player is back on the form,
-   * and they press F5 again. */
+  reload.forget();
   assert.deepStrictEqual(
-    createResumeSession(storage).boot(MANIFEST),
-    MANIFEST.concat(['--user', 'zezima', '--pass', 'hunter2']),
-    'a refused login lost a password that works');
+    createResumeSession(storage).boot(MANIFEST), MANIFEST,
+    'a retired key survived the refusal and would be presented again');
   passed++;
 }
 
@@ -134,7 +141,7 @@ let passed = 0;
   const storage = fakeStorage();
   const live = createResumeSession(storage);
   live.boot(MANIFEST);
-  live.remember('zezima', 'hunter2');
+  live.remember('zezima', TOKEN);
 
   const explicit = MANIFEST.concat(['--user', 'asdf', '--pass', 'a']);
   assert.deepStrictEqual(
@@ -143,40 +150,49 @@ let passed = 0;
   passed++;
 }
 
-/* 5. Another profile is another world. One world's credentials do not go to
- *    another's server, and the entry survives for the profile it belongs to. */
+/* 5. Another profile is another world. One world's session key means nothing
+ *    to another's server, and the entry survives for the profile it belongs
+ *    to. */
 {
   const storage = fakeStorage();
   const live = createResumeSession(storage);
   live.boot(MANIFEST);
-  live.remember('zezima', 'hunter2');
+  live.remember('zezima', TOKEN);
 
   const other = ['--manifest', 'manifests/manifest_rs254lc.ini'];
   assert.deepStrictEqual(
-    createResumeSession(storage).boot(other), other, 'credentials crossed profiles');
+    createResumeSession(storage).boot(other), other, 'a session crossed profiles');
   assert.deepStrictEqual(
     createResumeSession(storage).boot(MANIFEST),
-    MANIFEST.concat(['--user', 'zezima', '--pass', 'hunter2']),
+    MANIFEST.concat(['--user', 'zezima', '--resume', TOKEN]),
     'the visit to another profile spent the entry');
   passed++;
 }
 
 /* 6. Anything that is not an entry this file wrote is not a session: a
- *    truncated string, another script's key, an older shape from a page this
- *    tab loaded last week. Each one boots the client rather than appending
- *    half a login -- `--pass undefined` is a password, and the server would be
- *    told it. The junk carries THIS boot's manifest, because an entry that
- *    names another profile is turned away before its shape is ever looked at
- *    (5), and it is the one written here under the right name that gets as far
- *    as the command line. */
+ *    truncated string, another script's key, the shape a page from last week
+ *    wrote. Each one boots the client into an ordinary login rather than
+ *    appending half a reconnect -- `--resume undefined` is a boot the client
+ *    logs as broken, having already decided not to show a form. The junk
+ *    carries THIS boot's manifest, because an entry naming another profile is
+ *    turned away before its shape is ever looked at (5). */
 {
   const m = MANIFEST[1];
   for (const junk of ['', 'not json', 'null', '{}',
                       `{"manifest":"${m}","user":"zezima"}`,
-                      `{"manifest":"${m}","password":"hunter2"}`,
-                      `{"manifest":"${m}","user":"","password":"hunter2"}`,
-                      `{"manifest":"${m}","user":["zezima"],"password":"hunter2"}`,
-                      `["${m}","zezima","hunter2"]`]) {
+                      `{"manifest":"${m}","resume":"${TOKEN}"}`,
+                      `{"manifest":"${m}","user":"","resume":"${TOKEN}"}`,
+                      `{"manifest":"${m}","user":["zezima"],"resume":"${TOKEN}"}`,
+                      `{"manifest":"${m}","user":"zezima","resume":""}`,
+                      `{"manifest":"${m}","user":"zezima","resume":"1,2,3,4"}`,
+                      `{"manifest":"${m}","user":"zezima","resume":"1,2,3,4,5,6"}`,
+                      `{"manifest":"${m}","user":"zezima","resume":"hunter2"}`,
+                      `{"manifest":"${m}","user":"zezima","resume":"1,2,3,4,x"}`,
+                      /* The shape the build before this one wrote: a password
+                       * where the key should be. Read as a token it is junk,
+                       * and the entry is not a session. */
+                      `{"manifest":"${m}","user":"zezima","password":"hunter2"}`,
+                      `["${m}","zezima","${TOKEN}"]`]) {
     const storage = fakeStorage();
     storage.entries.set('torirs.session', junk);
     assert.deepStrictEqual(
@@ -191,99 +207,71 @@ let passed = 0;
 {
   assert.deepStrictEqual(
     createResumeSession(null).boot(MANIFEST), MANIFEST, 'no storage broke the boot');
-  assert.strictEqual(createResumeSession(null).remember('zezima', 'hunter2'), false);
+  assert.strictEqual(createResumeSession(null).remember('zezima', TOKEN), false);
   createResumeSession(null).forget();
 
   const storage = fakeStorage();
   storage.throwOnWrite = true;
   const live = createResumeSession(storage);
   live.boot(MANIFEST);
-  assert.strictEqual(live.remember('zezima', 'hunter2'), false, 'a refused write reported success');
+  assert.strictEqual(live.remember('zezima', TOKEN), false, 'a refused write reported success');
 
   storage.throwOnWrite = false;
-  live.remember('zezima', 'hunter2');
+  live.remember('zezima', TOKEN);
   storage.throwOnRead = true;
   assert.deepStrictEqual(
     createResumeSession(storage).boot(MANIFEST), MANIFEST, 'a throwing read broke the boot');
   passed++;
 }
 
-/* 8. A session with no name is not a session. The client asserts on one
- *    (app_session_resume.c) and a page from another build must not write one
- *    for a later boot to submit. */
+/* 8. A session with no name is not a session, and neither is one with no key.
+ *    The client asserts on both (app_session_resume.c) and a page from another
+ *    build must not write one for a later boot to present: a reconnect is the
+ *    one boot that shows no login form, so one that cannot be performed is a
+ *    loading bar the player can only close the tab out of. */
 {
   const storage = fakeStorage();
   const live = createResumeSession(storage);
   live.boot(MANIFEST);
-  assert.strictEqual(live.remember('', 'hunter2'), false);
-  assert.strictEqual(live.remember(undefined, 'hunter2'), false);
+  assert.strictEqual(live.remember('', TOKEN), false);
+  assert.strictEqual(live.remember(undefined, TOKEN), false);
+  assert.strictEqual(live.remember('zezima', ''), false);
+  assert.strictEqual(live.remember('zezima', undefined), false);
+  /* A revision whose login has no seed reconnect produces no token at all --
+   * the client forgets rather than writing one of these, and if it did write
+   * one the page refuses it. */
+  assert.strictEqual(live.remember('zezima', 'hunter2'), false, 'a password was taken as a key');
   assert.strictEqual(storage.entries.size, 0);
-  /* A password is allowed to be empty -- servers here accept one. */
-  assert.strictEqual(live.remember('zezima', ''), true);
-  assert.deepStrictEqual(
-    createResumeSession(storage).boot(MANIFEST),
-    MANIFEST.concat(['--user', 'zezima', '--pass', '']));
   passed++;
 }
 
-/* 9. The argv line the page logs is the first thing to ask about a boot, and
- *    a password in it is a password on a screenshot. */
+/* 9. The argv line the page logs is the first thing to ask about a boot, and a
+ *    session key in it is as good as a password until the session ends. */
 {
   assert.deepStrictEqual(
-    redactArgs(MANIFEST.concat(['--user', 'zezima', '--pass', 'hunter2'])),
-    MANIFEST.concat(['--user', 'zezima', '--pass', '****']));
-  /* A trailing --pass names nothing; the line is still printed. */
+    redactArgs(MANIFEST.concat(['--user', 'zezima', '--resume', TOKEN])),
+    MANIFEST.concat(['--user', 'zezima', '--resume', '****']));
+  /* An operator may still type a password on the page's own command line. */
+  assert.deepStrictEqual(
+    redactArgs(['--user', 'zezima', '--pass', 'hunter2']),
+    ['--user', 'zezima', '--pass', '****']);
+  /* A trailing flag names nothing; the line is still printed. */
   assert.deepStrictEqual(redactArgs(['--pass']), ['--pass']);
   passed++;
 }
 
-/* 10. A reload asks for the SAME session back: the token the client handed
- *     over rides behind the credentials as --resume, which makes the first
- *     dial a GAMERECONNECT. The credentials stay, for when the server says
- *     that session is gone. */
+/* 10. Every handshake re-keys the session, and the newest key is the one a
+ *     reload presents. Presenting a retired one is a reconnect the server
+ *     refuses, which costs the player the world they were standing in. */
 {
   const storage = fakeStorage();
   const live = createResumeSession(storage);
   live.boot(MANIFEST);
-  live.remember('zezima', 'hunter2', '11,-22,33,-44,5');
-  assert.deepStrictEqual(
-    createResumeSession(storage).boot(MANIFEST),
-    MANIFEST.concat(['--user', 'zezima', '--pass', 'hunter2', '--resume', '11,-22,33,-44,5']),
-    'the reload logged in afresh instead of reconnecting');
-
-  /* Every handshake re-keys the session; the newest token is the one sent. */
-  live.remember('zezima', 'hunter2', '1,2,3,4,5');
+  live.remember('zezima', TOKEN);
+  live.remember('zezima', '1,2,3,4,5');
   assert.deepStrictEqual(
     createResumeSession(storage).boot(MANIFEST).slice(-2), ['--resume', '1,2,3,4,5'],
     'a retired key was presented');
-  passed++;
-}
-
-/* 11. No token (a revision without the seed reconnect, or an entry written
- *     before tokens existed) is a fresh login, not a broken boot. */
-{
-  const storage = fakeStorage();
-  const live = createResumeSession(storage);
-  live.boot(MANIFEST);
-  live.remember('zezima', 'hunter2', '');
-  assert.deepStrictEqual(
-    createResumeSession(storage).boot(MANIFEST),
-    MANIFEST.concat(['--user', 'zezima', '--pass', 'hunter2']));
-
-  storage.entries.set('torirs.session', JSON.stringify(
-    { manifest: MANIFEST[1], user: 'zezima', password: 'hunter2' }));
-  assert.deepStrictEqual(
-    createResumeSession(storage).boot(MANIFEST),
-    MANIFEST.concat(['--user', 'zezima', '--pass', 'hunter2']),
-    'an older entry stopped resuming');
-  passed++;
-}
-
-/* 12. The token is a session key, and is redacted like the password. */
-{
-  assert.deepStrictEqual(
-    redactArgs(['--user', 'zezima', '--resume', '1,2,3,4,5']),
-    ['--user', 'zezima', '--resume', '****']);
   passed++;
 }
 

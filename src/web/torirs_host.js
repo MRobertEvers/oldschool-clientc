@@ -80,45 +80,58 @@
    *
    * A browser tab is reloaded all the time -- F5, a dropped wifi, a phone that
    * killed the page while it was in the background -- and each one takes the
-   * whole client with it: the wasm heap, the socket, and the credentials the
-   * player typed into the login form. What came back was the title screen with
-   * two empty boxes, in the middle of a fight.
+   * whole client with it: the wasm heap, the socket, and everything the player
+   * typed into the login form. What came back was the title screen with two
+   * empty boxes, in the middle of a fight.
    *
-   * What comes back is the SAME session, not a new login. The client hands
-   * the page a resume token after every successful handshake -- the cipher
-   * seed the session authenticated with and the slot it was given
-   * (app_session_resume_token) -- and the next boot passes it as `--resume`,
-   * so its first dial is a GAMERECONNECT presenting that seed. A plain
-   * GAMELOGIN looked, to the server, like a second player arriving under the
-   * same name. If the server no longer has the session (logged out, saved,
-   * slot reused), it refuses the reconnect and the client logs in with the
-   * credentials kept beside the token. Either way the existing autologin
-   * submits once (RS_TitleSession) -- the same path a clicked Login takes,
-   * which is why the player watches the form fill in and say "Connecting to
-   * server..." rather than being teleported past it.
+   * What comes back is the SAME session, not a new login. The client hands the
+   * page a resume token after every successful handshake -- the cipher seed
+   * the session authenticated with and the slot it was given
+   * (app_session_resume_token) -- and the next boot passes it as `--resume`
+   * beside the name it belongs to, so its first dial is a GAMERECONNECT
+   * presenting that seed. A plain GAMELOGIN looked, to the server, like a
+   * second player arriving under the same name.
+   *
+   * WHAT THE PLAYER SEES. Not a login form. The boot's loading bar simply
+   * carries on into "Reconnecting to server..." and the world comes back
+   * behind it; the form is never filled and never shown, because nobody asked
+   * to log in -- they asked for the page they already had. If the server no
+   * longer has the session (logged out, saved, slot reused, or older than it
+   * keeps one), the bar comes down and the login form appears EMPTY.
+   *
+   * WHICH IS WHY NO PASSWORD IS KEPT. One is only good for a silent second
+   * login attempt, and a silent login is the thing this must not do. The
+   * entry is a name and a session key; when the key stops working there is
+   * nothing here that could log anybody in, and the player types.
    *
    * WHAT IS KEPT, AND FOR HOW LONG. sessionStorage, not localStorage: the
    * entry is scoped to this tab and this origin, survives a reload, and is
-   * gone when the tab closes. A password that outlives the tab is a password
+   * gone when the tab closes. A session key that outlives the tab is a key
    * nobody asked us to keep, and localStorage would also hand one tab's
-   * account to another's.
+   * session to another's.
    *
-   * WHEN IT IS WRITTEN. Only on a login the server accepted (app_title.c), so
-   * a boot can never resume credentials that have never worked.
+   * WHEN IT IS WRITTEN. Only on a handshake the server accepted (app_title.c),
+   * so a boot can never present a key that has never worked. Every handshake
+   * re-keys the session, so the newest token replaces the last.
    *
    * WHEN IT IS DROPPED. On a logout (app_net.c App_Logout), because the player
    * ended that session on purpose and coming back into it is the one thing
-   * they did not ask for. NOT on a rejected login: "this world is full" and
-   * "your account is still logged in" are the two most likely answers a
-   * reloading client gets, and forgetting a working password over either of
-   * them is what would make the feature unreliable exactly when it is needed.
+   * they did not ask for -- and on a refused reconnect, because the key it
+   * holds names a session that is gone and a second refresh would present the
+   * same dead key.
    *
    * WHICH BOOT MAY HAVE IT. The manifest the entry was written under, and only
-   * that one: a page opened on another profile is another world, and sending
-   * one world's credentials to another's server is not a thing to do quietly.
+   * that one: a page opened on another profile is another world, and one
+   * world's session key means nothing to another's server.
    */
   function createResumeSession(storage) {
     const KEY = 'torirs.session';
+    /* app_session_resume_token's own shape: four signed seed words and the
+     * local index. Checked rather than trusted because the entry can be a
+     * page's own older format, another script's key, or a hand-edited string
+     * -- and what the client does with a token it cannot parse is log the
+     * boot as broken, having already decided not to show a login form. */
+    const TOKEN = /^-?\d+(?:,-?\d+){4}$/;
 
     function manifestOf(argv) {
       const at = argv.indexOf('--manifest');
@@ -149,21 +162,23 @@
 
         const held = this.read();
         if (!held || held.manifest !== this.manifest) { return argv; }
-        const out = argv.concat(['--user', held.user, '--pass', held.password]);
-        return held.resume ? out.concat(['--resume', held.resume]) : out;
+        /* Both, always. The name is not a prefill for a form -- the client
+         * never shows one on this boot -- it is the identity GAMERECONNECT
+         * carries in its body, beside the key that replaces the password. */
+        return argv.concat(['--user', held.user, '--resume', held.resume]);
       },
 
-      /* The client says a handshake was accepted; `resume` is its token, or ''
-       * on a revision with no seed reconnect. */
-      remember(user, password, resume) {
+      /* The client says a handshake was accepted, and hands over the key it
+       * authenticated on. */
+      remember(user, resume) {
         if (!storage || typeof user !== 'string' || user === '') { return false; }
+        /* A session with no key is not resumable, and an entry claiming to be
+         * one would put the next boot on a reconnect it cannot perform.
+         * Nothing is better than that: the boot shows a login form, which is
+         * what a client without this feature always did. */
+        if (typeof resume !== 'string' || !TOKEN.test(resume)) { return false; }
         try {
-          storage.setItem(KEY, JSON.stringify({
-            manifest: this.manifest,
-            user,
-            password: typeof password === 'string' ? password : '',
-            resume: typeof resume === 'string' ? resume : ''
-          }));
+          storage.setItem(KEY, JSON.stringify({ manifest: this.manifest, user, resume }));
           return true;
         } catch (e) {
           /* A quota or a browser that refuses storage: the session simply is
@@ -172,7 +187,8 @@
         }
       },
 
-      /* The client says the player logged out. */
+      /* The client says the player logged out, or that the server would not
+       * hand this session back. */
       forget() {
         if (!storage) { return; }
         try { storage.removeItem(KEY); } catch (e) { /* see remember() */ }
@@ -185,14 +201,16 @@
         if (!raw) { return null; }
         let held;
         /* Anything but an entry this file wrote -- a truncated string, an
-         * older shape, another script's key -- is not a session. */
+         * older shape, another script's key -- is not a session. An entry
+         * from the build that also stored a password is one of those: its
+         * token is checked like any other, and the password is simply not
+         * read. */
         try { held = JSON.parse(raw); } catch (e) { return null; }
         if (!held || typeof held.user !== 'string' || held.user === '' ||
-            typeof held.password !== 'string' || typeof held.manifest !== 'string') {
+            typeof held.manifest !== 'string' ||
+            typeof held.resume !== 'string' || !TOKEN.test(held.resume)) {
           return null;
         }
-        /* An entry from before the token existed resumes as a fresh login. */
-        if (typeof held.resume !== 'string') { held.resume = ''; }
         return held;
       }
     };
@@ -205,30 +223,29 @@
   }
 
   /*
-   * A password in the console log is a password on a screenshot. The argv line
-   * is worth keeping -- it is the first thing to ask about a boot -- so the
-   * value is replaced rather than the line dropped.
+   * A password in the console log is a password on a screenshot, and a session
+   * key is as good as one until the session it names ends. The argv line is
+   * worth keeping -- it is the first thing to ask about a boot -- so the value
+   * is replaced rather than the line dropped. `--pass` stays in the list
+   * because an operator may still type one on the page's own command line.
    */
   function redactArgs(argv) {
     const out = argv.slice();
     for (let i = 0; i + 1 < out.length; i++) {
-      /* The resume token is a session key: as good as the password until the
-       * session it names ends. */
       if (out[i] === '--pass' || out[i] === '--resume') { out[i + 1] = '****'; }
     }
     return out;
   }
 
   const resumeSession = createResumeSession(sessionStorageOrNull());
-  /* The page's own command line, plus whatever this tab is still logged into.
-   * The client is told nothing new: the resumed credentials arrive as the
-   * --user/--pass the autologin path has always read. */
+  /* The page's own command line, plus whatever session this tab is still in.
+   * `--resume` is what makes it a reconnect rather than a login, and the
+   * client's title screen keeps its loading bar up for it. */
   const args = resumeSession.boot(readArgs());
   /* C -> page, from app/app_session_resume.c. Both are one-liners here because
    * the rules about what may be kept are the comment above createResumeSession,
    * and the rules about WHEN belong to the client. */
-  window.torirsSessionRemember =
-    (user, password, resume) => resumeSession.remember(user, password, resume);
+  window.torirsSessionRemember = (user, resume) => resumeSession.remember(user, resume);
   window.torirsSessionForget = () => resumeSession.forget();
   /*
    * The directory this page was served from, with its trailing slash: `/` at

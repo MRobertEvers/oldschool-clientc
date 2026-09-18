@@ -44,6 +44,8 @@ test_a_fresh_session_asks_for_nothing(void)
     TEST_ASSERT(!RS_TitleSession_HasCredentials(&session), "nothing to log in with");
     TEST_ASSERT(!session.connect_pending, "nothing waiting to dial");
     TEST_ASSERT(!session.autologin_spent, "the automatic submit is unspent");
+    TEST_ASSERT(!session.resume_pending, "and no session to come back into");
+    TEST_ASSERT(!session.resume_dial, "so nothing dials round the form");
     TEST_ASSERT(!session.pending_after_boot, "no title screen queued behind a bake");
 }
 
@@ -141,6 +143,141 @@ test_a_profile_with_no_title_screen_dials_anyway(void)
     TEST_ASSERT(
         RS_TitleSession_TakePrefill(&session, true, RS_TITLE_PHASE_TITLE),
         "and the automatic login is still there for the form");
+}
+
+/** A boot a reloaded page made: the name and the key it was given, no
+ *  password, and the link has taken the token. */
+static void
+resumed(struct RS_TitleSession* session)
+{
+    RS_TitleSession_Reset(session);
+    RS_TitleSession_SetCredentials(session, "tester", "");
+    RS_TitleSession_SetConnectTarget(session, "localhost");
+    RS_TitleSession_ArmResume(session);
+}
+
+static void
+test_a_reload_reconnects_instead_of_filling_in_the_form(void)
+{
+    struct RS_TitleSession session;
+
+    /* The whole point. A prefill types somebody's credentials into the form
+     * and submits them where the player can watch it happen; a reload was
+     * already in the world and is owed it back, not a login screen with their
+     * own account typed into it. So the prefill must not fire on this boot --
+     * and it would, because a resumed boot carries a name just like a
+     * scripted one does. */
+    resumed(&session);
+    TEST_ASSERT(
+        !RS_TitleSession_TakePrefill(&session, true, RS_TITLE_PHASE_TITLE),
+        "a reload filled in the login form");
+    TEST_ASSERT(
+        RS_TitleSession_TakeResume(&session, true, RS_TITLE_PHASE_TITLE),
+        "and did not reconnect either");
+    TEST_ASSERT(session.resume_dial, "the armed dial is the reconnect's, not the form's");
+    /* Spent on being made, not on being answered. The caller's loading bar is
+     * held up by this flag, and every later bake settles through the same
+     * check -- the gameframe this handshake opens, and the title screen a
+     * logout returns to. Left up, both come back saying "reconnecting". */
+    TEST_ASSERT(!session.resume_pending, "a reconnect that has been made is still owed");
+
+    /* Once, by the shared latch: a reconnect that re-arms itself after a
+     * refusal is the same server-hammering loop the prefill's latch prevents. */
+    TEST_ASSERT(
+        !RS_TitleSession_TakeResume(&session, true, RS_TITLE_PHASE_TITLE),
+        "the reconnect fired twice");
+    TEST_ASSERT(
+        !RS_TitleSession_TakePrefill(&session, true, RS_TITLE_PHASE_TITLE),
+        "and left the prefill to fire after it");
+}
+
+static void
+test_the_reconnect_waits_for_the_screen_it_shows_through(void)
+{
+    struct RS_TitleSession session;
+
+    /* The bar that says "reconnecting" is a widget of the title tree. Dialled
+     * before that tree exists, the reconnect runs behind a blank screen and
+     * the player watches nothing at all -- and the latch is spent, so the
+     * caption never arrives. */
+    resumed(&session);
+    TEST_ASSERT(
+        !RS_TitleSession_TakeResume(&session, false, RS_TITLE_PHASE_TITLE),
+        "not before the title tree is up");
+    TEST_ASSERT(
+        !RS_TitleSession_TakeResume(&session, true, RS_TITLE_PHASE_OTHER),
+        "not during the boot");
+    TEST_ASSERT(
+        !RS_TitleSession_TakeResume(&session, true, RS_TITLE_PHASE_CONNECTING),
+        "not while a dial is already in flight");
+    TEST_ASSERT(
+        RS_TitleSession_TakeResume(&session, true, RS_TITLE_PHASE_TITLE),
+        "still unspent when the screen finally arrives");
+}
+
+static void
+test_a_boot_with_no_token_is_an_ordinary_one(void)
+{
+    struct RS_TitleSession session;
+
+    /* Nothing armed the resume -- an ordinary first visit, or a revision whose
+     * login has no seed reconnect and turned the token down. Holding a
+     * "reconnecting" bar over a handshake that is really a passwordless
+     * GAMELOGIN is a bar that waits for a reply nothing will send. */
+    with_credentials(&session);
+    TEST_ASSERT(
+        !RS_TitleSession_TakeResume(&session, true, RS_TITLE_PHASE_TITLE),
+        "a boot with no token reconnected anyway");
+    TEST_ASSERT(
+        RS_TitleSession_TakePrefill(&session, true, RS_TITLE_PHASE_TITLE),
+        "and the ordinary prefill is untouched by it");
+
+    /* A token with no name beside it names no save for the server to hand
+     * back: GAMERECONNECT's seed replaces the PASSWORD, not the identity. */
+    RS_TitleSession_Reset(&session);
+    RS_TitleSession_ArmResume(&session);
+    TEST_ASSERT(
+        !RS_TitleSession_TakeResume(&session, true, RS_TITLE_PHASE_TITLE),
+        "a nameless token was presented");
+}
+
+static void
+test_a_refused_reconnect_leaves_nothing_to_log_in_with(void)
+{
+    struct RS_TitleSession session;
+
+    /* The server no longer has that session. There is no password kept
+     * anywhere -- the page stores a name and a key and nothing else -- so the
+     * player is about to be shown the login form, and the name must not be
+     * sitting in it. Leaving it there is the auto-filled form the reload
+     * exists to avoid, arriving one step later. */
+    resumed(&session);
+    RS_TitleSession_TakeResume(&session, true, RS_TITLE_PHASE_TITLE);
+    RS_TitleSession_ResumeRefused(&session);
+
+    TEST_ASSERT(!RS_TitleSession_HasCredentials(&session), "the form would open holding a name");
+    TEST_ASSERT(!session.resume_dial, "and would still dial the dead session");
+    TEST_ASSERT(
+        !RS_TitleSession_TakeResume(&session, true, RS_TITLE_PHASE_TITLE),
+        "a refused reconnect asked again");
+    TEST_ASSERT(
+        !RS_TitleSession_TakePrefill(&session, true, RS_TITLE_PHASE_TITLE),
+        "nor submitted itself as a login");
+}
+
+static void
+test_leaving_spends_the_reconnect_too(void)
+{
+    struct RS_TitleSession session;
+
+    /* A logout ends the session the reconnect would ask for. Left armed, the
+     * next title tick walks the player straight back into the world they just
+     * left -- and does it behind a loading bar, with no form to cancel from. */
+    resumed(&session);
+    RS_TitleSession_Abandon(&session);
+    TEST_ASSERT(
+        !RS_TitleSession_TakeResume(&session, true, RS_TITLE_PHASE_TITLE),
+        "logging out left the reconnect armed");
 }
 
 static void
@@ -345,6 +482,11 @@ main(void)
     test_the_prefill_fires_once();
     test_the_prefill_waits_for_a_form_to_fill();
     test_a_profile_with_no_title_screen_dials_anyway();
+    test_a_reload_reconnects_instead_of_filling_in_the_form();
+    test_the_reconnect_waits_for_the_screen_it_shows_through();
+    test_a_boot_with_no_token_is_an_ordinary_one();
+    test_a_refused_reconnect_leaves_nothing_to_log_in_with();
+    test_leaving_spends_the_reconnect_too();
     test_the_two_automatic_paths_share_one_latch();
     test_an_offline_profile_does_not_dial();
     test_a_submit_needs_something_to_submit();

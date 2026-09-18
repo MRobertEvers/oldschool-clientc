@@ -205,10 +205,15 @@ ToriRS_Network_Reconnect(struct ToriRS_Network* net);
  * A reloaded browser tab loses both with the wasm heap, and without them all
  * it can send is a fresh GAMELOGIN -- which a server reads as a new arrival,
  * not as the same player coming back. Armed, the next ToriRS_Network_ConnectLogin
- * sends GAMERECONNECT with this seed instead, once. Revisions without the
- * seed reconnect ignore it and log in as before.
+ * sends GAMERECONNECT with this seed instead, once.
+ *
+ * Returns 0 when this revision has no seed reconnect, and the answer matters
+ * to the caller: the title screen holds its loading bar over a reconnect
+ * rather than showing a login form, and doing that over a handshake that is
+ * really a passwordless GAMELOGIN is a bar that waits for a reply nothing can
+ * send.
  */
-void
+int
 ToriRS_Network_ArmResume(
     struct ToriRS_Network* net,
     int32_t const seed[4],

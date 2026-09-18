@@ -14532,9 +14532,70 @@ ToriRSServer_WorldSelftest(void)
                         SELFTEST_CHECK(tut->x == g_home_x && tut->z == g_home_z,
                                        "and the graduate on the home tile, got %d,%d",
                                        tut->x, tut->z);
-                        SELFTEST_CHECK(ToriRSServer_BankCount(srv, 995) == 250000,
-                                       "and this world's kit finally dealt (bank coins "
-                                       "%d)", ToriRSServer_BankCount(srv, 995));
+                        /*
+                         * What a graduate owns, and what they must not.
+                         *
+                         * `~tutorial_finish` clears the island's kit and deals
+                         * eighteen objs -- the reference's own list, obj for
+                         * obj. That is the whole of it.
+                         *
+                         * It used to call `~newplayer_seed_kit` as well, this
+                         * world's DEVELOPMENT fixture: bronze armour, an
+                         * abyssal whip, 15k coins, a 250k bank. Fourteen objs
+                         * on top of eighteen is 32 into a 28-slot backpack, so
+                         * a player who answered "I'm an experienced player"
+                         * arrived in Lumbridge holding ten slots of gear the
+                         * island never mentioned, with the fixture's own tail
+                         * silently dropped and no way to tell the halves
+                         * apart. This check used to assert the bank coins were
+                         * there, which is to say it pinned the bug.
+                         *
+                         * The fixture still reaches a world whose characters
+                         * are created on the mainland (`~newplayer_setup`,
+                         * player/newplayer.rs2) -- the stanza above this one
+                         * covers that, and every selftest fixture takes it,
+                         * because `tools/content_selftest.py` points
+                         * TORIRSSERVER_TUTORIAL_HOME at the home tile.
+                         *
+                         * The count is the assertion that matters: a free slot
+                         * is the same statement as "nothing extra", and it
+                         * cannot be satisfied by a kit that happens to overlap.
+                         */
+                        {
+                            static const char* const not_dealt[] = {
+                                "bronze_full_helm", "abyssal_whip", "coins"
+                            };
+                            int grad_kit = 0;
+
+                            for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                                if( tut->inv[i].obj_id >= 0 )
+                                    grad_kit++;
+                            SELFTEST_CHECK(grad_kit == 18,
+                                           "and holding the 18 objs ~tutorial_finish "
+                                           "deals and nothing else, got %d",
+                                           grad_kit);
+                            SELFTEST_CHECK(
+                                selftest_count(
+                                    tut,
+                                    ToriRSServer_ContentSymbol(
+                                        TORIRSSERVER_PACK_OBJ, "bronze_axe")) == 1,
+                                "including the axe the island gave them");
+                            for( int i = 0;
+                                 i < (int)(sizeof(not_dealt) / sizeof(not_dealt[0]));
+                                 i++ )
+                            {
+                                int obj = ToriRSServer_ContentSymbol(
+                                    TORIRSSERVER_PACK_OBJ, not_dealt[i]);
+
+                                SELFTEST_CHECK(selftest_count(tut, obj) == 0,
+                                               "and none of this world's development "
+                                               "kit: %s is in the backpack",
+                                               not_dealt[i]);
+                            }
+                            SELFTEST_CHECK(ToriRSServer_BankCount(srv, 995) == 0,
+                                           "nor in the bank, got %d coins",
+                                           ToriRSServer_BankCount(srv, 995));
+                        }
                     }
                     ToriRSServer_WorldRemovePlayer(srv, tut);
                 }

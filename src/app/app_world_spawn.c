@@ -62,6 +62,8 @@ app_loc_change_apply_ops(
     struct App* app,
     struct World* world,
     const struct Task_AppSpawn* self);
+static void
+app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self);
 static int
 Task_AppSpawn_Run(
     struct ToriRS_Task* base,
@@ -1275,6 +1277,46 @@ app_loc_change_apply_ops(
     }
 }
 
+/*
+ * A spotanim's model and its sequence, fanned out TOGETHER.
+ *
+ * Both ids come off the one spotanimtype and neither read feeds the other, so
+ * awaiting them one after another was a round trip apiece on a streamed cache
+ * — the same shape the loc-change branch below already fixed for a door. The
+ * first attack after a login is where it showed worst: every combat graphic the
+ * browser's cache had never seen paid model-then-sequence in series, and
+ * because the spawn runs on the EXEC runner, the packet pipeline behind it —
+ * every other player, npc, tick — waited out both.
+ *
+ * Fills in model_id and seq_id for the apply that follows; the caller joins on
+ * `pending`.
+ */
+static void
+app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self)
+{
+    struct App* app;
+    struct ToriRS_Spotanimtype* spot;
+
+    assert(self);
+    app = self->app;
+    assert(app);
+
+    spot = CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
+    self->model_id = (spot && spot->model > 0) ? spot->model : -1;
+    self->seq_id = spot ? spot->seq : -1;
+
+    if( self->model_id > 0 )
+        ToriRS_TaskQueue_AddJoined(
+            app->runner.queue,
+            CreateTask_ModelLoad(app->provider, self->model_id),
+            &self->pending);
+    if( self->seq_id >= 0 )
+        ToriRS_TaskQueue_AddJoined(
+            app->runner.queue,
+            CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id),
+            &self->pending);
+}
+
 static int
 Task_AppSpawn_Run(
     struct ToriRS_Task* base,
@@ -1340,20 +1382,8 @@ Task_AppSpawn_Run(
     else if( self->kind == APP_SPAWN_SPOTANIM )
     {
         PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
-        {
-            struct ToriRS_Spotanimtype* spot =
-                CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
-            self->model_id = (spot && spot->model > 0) ? spot->model : -1;
-        }
-        if( self->model_id > 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
-        {
-            struct ToriRS_Spotanimtype* spot =
-                CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
-            self->seq_id = spot ? spot->seq : -1;
-        }
-        if( self->seq_id >= 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+        app_spawn_fan_spotanim_assets(self);
+        PT_TASK_JOIN(pending);
         /* Guarded, not asserted: the captured view can die while the task is
          * parked, and a late effect on a despawned boat is simply dropped. */
         if( WorldviewRegistry_IsLive(&app->worldviews, self->view) )
@@ -1373,39 +1403,15 @@ Task_AppSpawn_Run(
          * free-standing spotanim. No completion callback — once resident,
          * app_world_sync_entity_spotanims combines synchronously next frame. */
         PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
-        {
-            struct ToriRS_Spotanimtype* spot =
-                CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
-            self->model_id = (spot && spot->model > 0) ? spot->model : -1;
-        }
-        if( self->model_id > 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
-        {
-            struct ToriRS_Spotanimtype* spot =
-                CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
-            self->seq_id = spot ? spot->seq : -1;
-        }
-        if( self->seq_id >= 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+        app_spawn_fan_spotanim_assets(self);
+        PT_TASK_JOIN(pending);
         app->need_redraw = 1;
     }
     else if( self->kind == APP_SPAWN_PROJECTILE_SPOT )
     {
         PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
-        {
-            struct ToriRS_Spotanimtype* spot =
-                CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
-            self->model_id = (spot && spot->model > 0) ? spot->model : -1;
-        }
-        if( self->model_id > 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
-        {
-            struct ToriRS_Spotanimtype* spot =
-                CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
-            self->seq_id = spot ? spot->seq : -1;
-        }
-        if( self->seq_id >= 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+        app_spawn_fan_spotanim_assets(self);
+        PT_TASK_JOIN(pending);
         /* Guarded, not asserted: see the spotanim branch. */
         if( WorldviewRegistry_IsLive(&app->worldviews, self->view) )
             app_world_spawn_projectile_spot_now(

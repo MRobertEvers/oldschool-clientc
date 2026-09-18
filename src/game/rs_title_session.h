@@ -4,7 +4,7 @@
 /*
  * Getting from the title screen to the world, once.
  *
- * Four rules, and every one of them fails as something other than what it is.
+ * Five rules, and every one of them fails as something other than what it is.
  *
  * ONCE. Credentials that came from the command line or the manifest prefill
  * the form and submit themselves -- and must never do it twice. A rejected
@@ -31,6 +31,13 @@
  * SPENT ON LEAVING. Logging out ends the session the automatic submit was for.
  * Leaving it armed would dial straight back into the world the player just
  * asked to leave.
+ *
+ * A RELOAD IS NOT A LOGIN. A browser tab that comes back is asking for the
+ * session it was already in, not starting a new one, and the difference is
+ * visible: no form is filled, no form is shown, and the loading bar carries on
+ * into a reconnect. Treating it as a login instead is what produces the thing
+ * nobody asked for -- a title screen with the player's own name and password
+ * typed into it, submitting itself, in the middle of a fight.
  *
  * Nothing here opens a socket, reads a form or draws a screen. The caller says
  * where the session is and what the link is doing; this says what to do about
@@ -82,6 +89,34 @@ struct RS_TitleSession
     char connect_target[256];
     /** The one automatic submit has fired, or been written off. */
     bool autologin_spent;
+    /**
+     * This boot came back INTO a session rather than starting one: the page
+     * handed it a resume token (--resume), and its first dial is a
+     * GAMERECONNECT presenting that session's own key.
+     *
+     * A different thing from the prefill above, and the difference is what is
+     * on the screen. A prefill is somebody's credentials typed for them: the
+     * form fills in and submits itself, and the player watches it happen. A
+     * resume is a page reload, and the player never asked to see a login
+     * screen at all -- they were in the world a second ago. So the form is
+     * neither filled nor shown; the loading bar the boot has just run stays up
+     * with the reconnect's caption, and the player sees the refresh finish.
+     *
+     * Which is also why there is no password behind it. The page keeps the
+     * token and the name and nothing else, so a session the server will not
+     * hand back has nowhere to fall through to: it becomes an EMPTY form and a
+     * login the player performs. @see RS_TitleSession_ResumeRefused.
+     */
+    bool resume_pending;
+    /**
+     * The armed dial is that reconnect.
+     *
+     * It says where the credentials come from. An ordinary submit reads the
+     * form, because the form IS the state -- what the player typed is what
+     * gets sent. A reconnect has no form to read: nothing was typed, and the
+     * boxes are empty and hidden. It dials the session's own name instead.
+     */
+    bool resume_dial;
     /** A submitted login, waiting for the frame that shows it before it dials. */
     bool connect_pending;
     /**
@@ -146,6 +181,41 @@ RS_TitleSession_TakePrefill(
     struct RS_TitleSession* session,
     bool ready,
     enum RS_TitleScreenPhase phase);
+
+/**
+ * This boot carries a resume token the link has accepted.
+ *
+ * Called once, at init, and only after ToriRS_Network_ArmResume has taken the
+ * token: a revision whose login has no seed reconnect refuses it, and a title
+ * screen holding a "reconnecting" bar over a plain GAMELOGIN with no password
+ * would be waiting for a handshake nothing can complete.
+ */
+void
+RS_TitleSession_ArmResume(struct RS_TitleSession* session);
+
+/**
+ * Dial the reconnect now?
+ *
+ * True once, on the first tick with a built title tree -- the same latch the
+ * prefill and the headless login share, so a session performs one automatic
+ * login by exactly one route. The caller submits without touching the form.
+ */
+bool
+RS_TitleSession_TakeResume(
+    struct RS_TitleSession* session,
+    bool ready,
+    enum RS_TitleScreenPhase phase);
+
+/**
+ * The server did not hand that session back. Nothing is resumable any more.
+ *
+ * The credentials go with it, and that is the point rather than tidiness: the
+ * name came out of the page's entry, and leaving it behind is what would put
+ * it into the form the player is about to be shown -- which is the one thing
+ * a reload must not do.
+ */
+void
+RS_TitleSession_ResumeRefused(struct RS_TitleSession* session);
 
 /**
  * A submit was made. Should the screen change to "connecting"?

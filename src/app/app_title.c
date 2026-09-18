@@ -18,6 +18,8 @@ static enum RS_TitleScreenPhase
 app_title_phase(struct App const* app);
 static enum RS_TitleLinkState
 app_title_link_state(struct App const* app);
+static void
+app_title_resume_to_login(struct App* app);
 
 /*
  * The system-update line, or NULL when no update is pending.
@@ -376,6 +378,76 @@ app_title_progress(
 }
 
 /*
+ * What the finished boot hands the screen over to.
+ *
+ * Normally the bar comes down: one left standing at 100 keeps the loading
+ * group in front of whatever it was covering, which on a title bake is the
+ * login form and after a login is the gameframe.
+ *
+ * Except on the boot a reloaded page makes. That client is not going to show a
+ * login form at all -- it is going to ask for its session back -- and the bar
+ * is the only thing on screen saying so. Clearing it here uncovers the form
+ * for however many frames pass before the first logic tick arms the reconnect,
+ * and the accumulator makes that a real number rather than a theoretical one:
+ * a frame that pays out no 20 ms cycle runs no title tick at all. What the
+ * player would see is an empty login box flashing up over a refresh they
+ * asked for. So the bar stays where the boot left it and takes the
+ * reconnect's own caption.
+ */
+void
+app_title_boot_settled(struct App* app)
+{
+    assert(app);
+    if( app->screen == APP_SCREEN_TITLE && app->title_session.resume_pending )
+    {
+        /* 100, because the boot really did finish: everything this bar was
+         * counting is loaded, and what is left is a handshake. */
+        app_title_progress(app, 100, "reconnecting");
+        return;
+    }
+    RS_Title_SetProgress(&app->title, -1, NULL);
+}
+
+/*
+ * Give up on the resumed session and hand the screen to the player.
+ *
+ * Both ways out of a reconnect that will not happen come here: the server
+ * saying it no longer has that session, and a client with nothing to dial it
+ * with. Three things have to happen together, which is what makes it one
+ * function rather than three lines at each site.
+ *
+ * The page's entry is DROPPED, because it names a session that is gone and a
+ * second refresh would present the same retired key. The bar comes DOWN,
+ * because it is the only thing on screen and it says "reconnecting". And the
+ * form comes up EMPTY -- not because the fields are worth clearing, but
+ * because they were never filled: the page handed this boot a name and a key
+ * and no password, and a login is now the player's to perform.
+ */
+static void
+app_title_resume_to_login(struct App* app)
+{
+    assert(app);
+    app_session_resume_forget();
+    RS_TitleSession_ResumeRefused(&app->title_session);
+    RS_Title_SetProgress(&app->title, -1, NULL);
+    RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_USERNAME, "");
+    RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, "");
+    /* After the fields, so the caret starts in the username rather than in the
+     * password a prefilled name would have sent it to. */
+    RS_Title_SetScreen(&app->title, RS_TITLE_LOGIN_FORM);
+    /* What happened, then what to do about it -- and both are the profile's
+     * words. A revision that declares neither shows a bare form, which is
+     * still the right screen. */
+    RS_Title_SetMessages(
+        &app->title,
+        RS_LoginReplies_String(&app->login_replies, "session_expired"),
+        RS_LoginReplies_String(&app->login_replies, "enter_credentials"),
+        NULL);
+    app->screen = APP_SCREEN_TITLE;
+    app_title_state_changed(app);
+}
+
+/*
  * Compose one credential line: prefix, the value (masked if the widget asked),
  * and the caret when this field has focus and the blink is showing.
  *
@@ -598,6 +670,36 @@ app_title_tick(struct App* app)
     if( app->app_state != APP_STATE_READY )
         return 0;
 
+    /*
+     * A reloaded page, asking for the session it was already in.
+     *
+     * Ahead of the prefill because it replaces it. The page hands a reload a
+     * name and a resume token, and the name is NOT typed into the form: the
+     * player refreshed a tab, and what they are owed is the world back, not a
+     * login screen with their own account already filled into it. Nothing is
+     * shown of the form at all -- the bar app_title_boot_settled left standing
+     * covers it and says "reconnecting" -- and the dial that arms here reads
+     * the session rather than the two empty boxes behind that bar.
+     */
+    if( RS_TitleSession_TakeResume(
+            &app->title_session, app->app_state == APP_STATE_READY, app_title_phase(app)) )
+    {
+        ToriRS_BootTelemetry_Mark("resume_submit");
+        if( RS_TitleSession_Submit(&app->title_session, app->net_enabled && app->net != NULL, true) )
+        {
+            app->screen = APP_SCREEN_CONNECTING;
+            app_title_state_changed(app);
+        }
+        else
+        {
+            /* Nothing to dial it through. Left alone, the bar would say
+             * "reconnecting" until the player closed the tab. */
+            TORIRS_ERR("login: a resumed session has no link to reconnect through\n");
+            app_title_resume_to_login(app);
+        }
+        return 1;
+    }
+
     /* Credentials from the command line or the manifest: prefill and submit
      * once. */
     if( RS_TitleSession_TakePrefill(
@@ -625,13 +727,21 @@ app_title_tick(struct App* app)
      */
     else if( RS_TitleSession_TakePendingConnect(&app->title_session) )
     {
+        /* Except a reconnect, which has no form to read: nothing was typed
+         * into one and the boxes behind the bar are empty. It dials the name
+         * the page handed back, and GAMERECONNECT presents the session's key
+         * where a login would put the password. */
+        bool const resumed = app->title_session.resume_dial;
+
         app_login_refresh_jag_checksums(app);
         app_login_set_client_identity(app);
         ToriRS_Network_ConnectLogin(
             app->net,
             app->title_session.connect_target,
-            RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME),
-            RS_Title_FieldText(&app->title, RS_TITLE_FIELD_PASSWORD));
+            resumed ? app->title_session.user
+                    : RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME),
+            resumed ? app->title_session.password
+                    : RS_Title_FieldText(&app->title, RS_TITLE_FIELD_PASSWORD));
         redraw = 1;
     }
 
@@ -682,14 +792,20 @@ app_title_tick(struct App* app)
         /*
          * A reloaded page's GAMERECONNECT was refused: the session it named has
          * gone (logged out, saved, its slot reused, or older than the server
-         * keeps one). Not the player's failure and not one to show them -- the
-         * form already holds the credentials, so log in with those, exactly
-         * as a second Login click would.
+         * keeps one).
+         *
+         * This is where the reload stops being special. There is no password
+         * kept anywhere to log in with -- deliberately, see
+         * app_session_resume.c -- so the client stops pretending the refresh
+         * is still in progress and hands the screen to the player. The reply
+         * code is not shown: it is an answer about a session the player never
+         * asked about, and "invalid username or password" over an empty form
+         * would be a lie about the one they are about to type.
          */
         if( ToriRS_Network_TakeResumeRefused(app->net) )
         {
-            TORIRS_LOG("login: the resumed session was not handed back; logging in afresh\n");
-            RS_TitleSession_Submit(&app->title_session, true, true);
+            TORIRS_LOG("login: the resumed session was not handed back; back to the form\n");
+            app_title_resume_to_login(app);
             return 1;
         }
         reply = RS_LoginReplies_Get(&app->login_replies, app->net->login_reply);

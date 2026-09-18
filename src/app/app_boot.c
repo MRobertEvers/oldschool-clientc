@@ -848,9 +848,8 @@ Task_AppBoot_Run(
     app_update_world_viewport(app);
 
     app->boot_progress = 100;
-    /* Cleared, not filled: a bar left at 100 keeps the loading group in
-     * front of the login form it was covering. */
-    RS_Title_SetProgress(&app->title, -1, NULL);
+    /* Cleared, or held for a reconnect: @see app_title_boot_settled. */
+    app_title_boot_settled(app);
     app->app_state = APP_STATE_READY;
     ToriRS_BootTelemetry_Mark(app->screen == APP_SCREEN_GAME ? "ready:game" : "ready:title");
     /* A freshly baked title tree shows every screen's group at once until it is

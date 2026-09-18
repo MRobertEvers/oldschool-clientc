@@ -1149,11 +1149,16 @@ App_Init(
             int32_t seed[4];
             int local_index = -1;
 
-            if( app_session_resume_parse(cfg->connect_resume, seed, &local_index) )
-                ToriRS_Network_ArmResume(app->net, seed, local_index);
-            else
+            /* The title screen is told only once the LINK has taken the token.
+             * A revision with no seed reconnect turns it down, and a title
+             * that went on to hold a "reconnecting" bar over what is really a
+             * passwordless GAMELOGIN would sit there until the player gave up
+             * on it. */
+            if( !app_session_resume_parse(cfg->connect_resume, seed, &local_index) )
                 TORIRS_ERR("net: --resume '%s' is not a resume token; logging in afresh\n",
                            cfg->connect_resume);
+            else if( ToriRS_Network_ArmResume(app->net, seed, local_index) )
+                RS_TitleSession_ArmResume(&app->title_session);
         }
         RS_TitleSession_SetConnectTarget(&app->title_session, cfg->connect_target);
     }

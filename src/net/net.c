@@ -306,7 +306,7 @@ ToriRS_Network_ConnectLogin(
     connect_login(net, host, username, password, /* reconnect */ resume);
 }
 
-void
+int
 ToriRS_Network_ArmResume(
     struct ToriRS_Network* net,
     int32_t const seed[4],
@@ -318,12 +318,13 @@ ToriRS_Network_ArmResume(
     {
         TORIRS_LOG("net: %s has no seed reconnect; the resumed session logs in afresh\n",
                    net->rev->name ? net->rev->name : "this revision");
-        return;
+        return 0;
     }
     memcpy(net->prev_seed, seed, sizeof(net->prev_seed));
     net->has_prev_seed = 1;
     net->local_index = local_index;
     net->resume_armed = 1;
+    return 1;
 }
 
 int

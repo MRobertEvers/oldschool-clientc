@@ -6,19 +6,26 @@
  * page owns what is stored and for how long; this owns WHEN, because only the
  * client knows which of the two just happened.
  *
- * What crosses is what the next boot needs to ask for the SAME session back:
- * the resume token -- the cipher seed the session authenticated with, which
- * GAMERECONNECT presents in place of a password, and the slot RECONNECT_OK
- * does not restate -- plus the credentials, for when the server says that
- * session is gone and the boot has to log in afresh instead. A reload that
- * sent a plain GAMELOGIN was indistinguishable, to the server, from a second
- * player arriving under the same name.
+ * What crosses is what the next boot needs to ask for the SAME session back,
+ * and nothing else: the resume token -- the cipher seed the session
+ * authenticated with, which GAMERECONNECT presents in place of a password, and
+ * the slot RECONNECT_OK does not restate -- and the name that session belongs
+ * to, because the seed replaces the password on the wire and not the identity.
+ * A reload that sent a plain GAMELOGIN was indistinguishable, to the server,
+ * from a second player arriving under the same name.
  *
- * The credentials handed over are the ones the session was DIALLED with
- * (ToriRS_Network::username/password), which are already kept for the
- * in-process reconnect the link watch drives. A page reload is the same fact
- * one layer out: the same session, wanted back, by a client that no longer has
- * a socket to keep it on.
+ * NO PASSWORD CROSSES, and that is a rule rather than an oversight. A stored
+ * password is only useful for one thing: logging in again, silently, when the
+ * server says that session is gone. That is not a reload -- it is a fresh
+ * login the player did not ask for, performed on a screen they never saw. So
+ * a refused reconnect shows the login form instead, and there is then nothing
+ * kept anywhere that could perform a login on its own.
+ *
+ * The name handed over is the one the session was DIALLED with
+ * (ToriRS_Network::username), which is already kept for the in-process
+ * reconnect the link watch drives. A page reload is the same fact one layer
+ * out: the same session, wanted back, by a client that no longer has a socket
+ * to keep it on.
  *
  * Native builds have no page to reload into, so every body below is dead code
  * off the web lane -- but the RULE is not web-specific and is tested on the
@@ -52,13 +59,12 @@
  * behaves as it did before, not a failed login.
  */
 // clang-format off
-EM_JS(void, web_session_remember, (char const* user, char const* password, char const* resume), {
+EM_JS(void, web_session_remember, (char const* user, char const* resume), {
     if( typeof window.torirsSessionRemember !== 'function' )
         return;
     try
     {
-        window.torirsSessionRemember(
-            UTF8ToString(user), UTF8ToString(password), UTF8ToString(resume));
+        window.torirsSessionRemember(UTF8ToString(user), UTF8ToString(resume));
     }
     catch( e )
     {
@@ -87,30 +93,30 @@ EM_JS(void, web_session_forget, (void), {
  * session -- and struct App is not the place for it (`make check-app-boundary`
  * counts its fields, and this is not one of them).
  *
- * The PASSWORD is deliberately not here. It crosses to the page and is not
- * kept a second time in this process; the username alone answers the only
- * question anything on this side asks, which is whether a session is being
- * held and whose.
+ * The username alone answers the only question anything on this side asks,
+ * which is whether a session is being held and whose.
  */
 static char g_resume_user[64];
 
 void
 app_session_resume_remember(
     char const* user,
-    char const* password,
     char const* resume_token)
 {
     assert(user);
-    assert(password);
     assert(resume_token);
     /* Not a live check: RS_TitleSession_Submit refuses an empty name, so a
      * session that reached the game has one. A caller that got here without
      * one is asking the page to hold a login nothing can perform. */
     assert(user[0] != '\0');
+    /* And a session with no key is not resumable at all -- the next boot
+     * would present nothing and be answered as a new arrival. The caller
+     * decides what to do about that; @see app_session_resume_remember_net. */
+    assert(resume_token[0] != '\0');
 
     strncpy(g_resume_user, user, sizeof(g_resume_user) - 1);
     g_resume_user[sizeof(g_resume_user) - 1] = '\0';
-    web_session_remember(user, password, resume_token);
+    web_session_remember(user, resume_token);
 }
 
 void
@@ -137,7 +143,21 @@ app_session_resume_remember_net(struct ToriRS_Network const* net)
 
     assert(net);
     app_session_resume_token(net, token, (int)sizeof(token));
-    app_session_resume_remember(net->username, net->password, token);
+    /*
+     * No key, no resumable session -- and the old entry goes with it.
+     *
+     * A revision whose login has no seed reconnect produces no token, and so
+     * does a session that has not authenticated. Keeping a nameless entry
+     * would put the next boot on a "reconnecting" bar it can never leave;
+     * keeping the PREVIOUS session's entry would be worse, because that key
+     * is retired and the boot would present it.
+     */
+    if( token[0] == '\0' )
+    {
+        app_session_resume_forget();
+        return;
+    }
+    app_session_resume_remember(net->username, token);
 }
 
 int

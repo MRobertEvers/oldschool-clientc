@@ -1507,17 +1507,20 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input);
 
 /* ---- app_session_resume.c ---- */
 /**
- * Hand the page the credentials a reload should log back in with.
+ * Hand the page the session a reload should ask for back.
  *
  * Called on a login the server ACCEPTED, and never anywhere else: a boot can
- * then only ever resume a login that has worked. `user` must be the name that
- * was dialled -- see app_session_resume.c for what the page does with it, and
- * for how long.
+ * then only ever resume a session that has existed. `user` must be the name
+ * that was dialled and `resume_token` the key that session authenticated on --
+ * see app_session_resume.c for what the page does with them, and for how long.
+ *
+ * No password crosses. A reload presents the token instead, and a token the
+ * server will not honour ends on the login form rather than behind a silent
+ * second login attempt.
  */
 void
 app_session_resume_remember(
     char const* user,
-    char const* password,
     char const* resume_token);
 
 /**
@@ -1526,6 +1529,9 @@ app_session_resume_remember(
  * successful handshake, the in-process reconnect's included: each one
  * authenticates on a new seed, and a reload presenting the previous one is
  * presenting a key the server has already retired.
+ *
+ * A session with no token is forgotten rather than half-kept: without one
+ * there is nothing a reload could ask for.
  */
 void
 app_session_resume_remember_net(struct ToriRS_Network const* net);
@@ -1562,7 +1568,7 @@ app_session_resume_parse(
 void
 app_session_resume_forget(void);
 
-/** Whose session is being held, or "" for none. The page holds the password;
+/** Whose session is being held, or "" for none. The page holds the token;
  *  this side keeps only the name, which is what makes the rule observable
  *  from a test on a lane that has no page. */
 char const*
@@ -1619,6 +1625,14 @@ app_title_progress(
     struct App* app,
     int percent,
     char const* string_key);
+
+/**
+ * Take the loading bar down now that the boot is finished -- or, on the boot a
+ * reloaded page makes, leave it standing with the reconnect's caption so the
+ * login form it covers is never uncovered for a frame.
+ */
+void
+app_title_boot_settled(struct App* app);
 
 int
 app_title_field_line(

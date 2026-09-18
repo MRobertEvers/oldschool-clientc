@@ -180,8 +180,8 @@ test_a_closed_socket_with_no_logout_pending_still_reconnects(void)
 /*
  * A logout also ends the session a RELOADED PAGE would come back into.
  *
- * The browser client keeps the credentials of a successful login for the tab
- * so that a refresh logs straight back in (app/app_session_resume.c). A
+ * The browser client keeps the key a successful handshake authenticated on
+ * so that a refresh reconnects into it (app/app_session_resume.c). A
  * logout is the player saying that session is over, and a tab that then
  * reloads must open on an empty form -- being put back into the world you
  * just walked out of is the one outcome nobody asks for.
@@ -198,7 +198,7 @@ test_a_logout_forgets_the_resumable_session(void)
 
     printf("TEST: a logout drops the session a reload would resume\n");
 
-    app_session_resume_remember("zezima", "hunter2", "");
+    app_session_resume_remember("zezima", "1,2,3,4,5");
     TEST_ASSERT(
         strcmp(app_session_resume_user(), "zezima") == 0, "the session was there to lose");
 
@@ -218,7 +218,7 @@ test_a_logout_forgets_the_resumable_session(void)
  * The control for the one above, and the reason forgetting is a LOGOUT's job
  * and not a closed socket's: a connection that is merely lost is the case the
  * whole resume exists for. A phone that killed the page, a proxy that dropped
- * the WebSocket, F5 -- the credentials are the way back in.
+ * the WebSocket, F5 -- that key is the way back in.
  */
 static void
 test_a_lost_connection_keeps_the_resumable_session(void)
@@ -228,12 +228,12 @@ test_a_lost_connection_keeps_the_resumable_session(void)
 
     printf("TEST: a lost connection keeps it -- that is what it is for\n");
 
-    app_session_resume_remember("zezima", "hunter2", "");
+    app_session_resume_remember("zezima", "1,2,3,4,5");
     app_net_lost(app, "socket closed");
 
     TEST_ASSERT(
         strcmp(app_session_resume_user(), "zezima") == 0,
-        "a dropped socket threw away the credentials that get the player back");
+        "a dropped socket threw away the session key that gets the player back");
 
     app_session_resume_forget();
     free(app);

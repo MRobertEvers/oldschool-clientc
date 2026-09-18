@@ -315,7 +315,16 @@ app_world_sync_one_entity_spotanim(
 
     /* Asset gate: spotanimtype + model + seq must be resident. Kick the async
      * load chain once; the frame it lands the combine below runs synchronously
-     * (reference precondition: SpotType.getTempModel2 assumes loaded). */
+     * (reference precondition: SpotType.getTempModel2 assumes loaded).
+     *
+     * On the ASSET runner, not the exec one. The load has no completion step
+     * and no place in the packet order — the residency test above is re-run
+     * every frame and combines the graphic the frame it lands — while the exec
+     * queue is strict FIFO, so parking it there stopped the world from
+     * receiving packets for the round trips the load takes. On a streamed
+     * cache (the browser's) that was most of the stall on the first attack
+     * after a login: the combat graphics are the first spotanims a session
+     * ever asks for. */
     type = CacheProvider_SpotanimtypeGet(app->provider, spot->id);
     anim = (type && type->seq >= 0) ? ToriDraw_SceneAnimationGet(app->scene, type->seq) : NULL;
     if( !type || !CacheProvider_ModelGet(app->provider, type->model) || !anim ||
@@ -327,7 +336,7 @@ app_world_sync_one_entity_spotanim(
                 app_spawn_task_new(app, APP_SPAWN_ENTITY_SPOTANIM, 0, 0, 0);
             task->spotanim_id = spot->id;
             task->entity_element_id = element_id;
-            ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+            ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
             entry->load_enqueued = 1;
         }
         return;
