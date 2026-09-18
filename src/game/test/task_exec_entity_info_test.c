@@ -11,6 +11,7 @@
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_entity_sync.h"
 #include "game/task_exec_entity_info.h"
+#include "net/rev/packets/pkt_npc_info.h"
 #include "test_harness.h"
 #include "toridraw_scene.h"
 #include "world.h"
@@ -52,6 +53,32 @@ trace_model_load(
     if( g_head_load_trace.model_count < (int)(sizeof(g_head_load_trace.model_ids) /
                                                sizeof(g_head_load_trace.model_ids[0])) )
         g_head_load_trace.model_ids[g_head_load_trace.model_count++] = model_id;
+    return NULL;
+}
+
+/*
+ * A sequence loader that answers "already registered".
+ *
+ * That is CreateTask_*Load's documented no-op -- a NULL task means the record
+ * is resident and there is nothing to fetch -- and it is the ORDINARY answer
+ * for an ANIM: the first one an npc plays loads the seq, and every later ANIM
+ * naming it (an npc repeating its attack, a shopkeeper's gesture) gets NULL.
+ * The one thing the consumer must not do with that absence is hand it to the
+ * queue, which takes a task and dereferences it.
+ */
+static int g_seq_load_requests;
+static int g_seq_load_last_id;
+
+static struct ToriRS_Task*
+trace_sequence_load_resident(
+    struct CacheProvider* provider,
+    struct ToriDraw_Scene* scene,
+    int seq_id)
+{
+    (void)provider;
+    (void)scene;
+    g_seq_load_requests++;
+    g_seq_load_last_id = seq_id;
     return NULL;
 }
 
@@ -350,6 +377,76 @@ test_player_info_count_zero_despawns_others(void)
     World_Free(app.world);
 }
 
+/*
+ * An ANIM naming a sequence the scene already holds must put NOTHING on the
+ * asset queue.
+ *
+ * The loader answers a resident record with NULL -- that is its contract, and
+ * the second and every later ANIM for one seq gets it. Passing that NULL to
+ * ToriRS_TaskQueue_Add is a null write: the queue asserts on a debug build and
+ * dereferences it on the shipping one, so the client died the moment an npc
+ * repeated an animation. Equipping a weapon and attacking with it was the
+ * everyday way in -- the npc fights back, and its second swing is the second
+ * ANIM.
+ *
+ * Negative control: handing the queue what the loader returned, unchecked,
+ * crashes this test rather than failing it.
+ */
+static void
+test_npc_info_resident_sequence_queues_nothing(void)
+{
+    printf("TEST: NPC_INFO ANIM for an already-resident sequence queues nothing\n");
+
+    struct App app;
+    struct CacheProvider provider;
+    struct CacheProviderVTable vtable;
+    struct WorldEntity_NPC* npc;
+
+    memset(&app, 0, sizeof(app));
+    memset(&provider, 0, sizeof(provider));
+    memset(&vtable, 0, sizeof(vtable));
+    vtable.Task_SequenceLoad = trace_sequence_load_resident;
+    provider.vtable = &vtable;
+    /* The multiNpc resolve walks the npctype cache for every entry carrying
+     * extended info; an uninitialised provider has no cache to walk. */
+    CacheProvider_InitEngineCaches(&provider);
+    g_seq_load_requests = 0;
+    g_seq_load_last_id = -1;
+
+    app.world = World_TestMakeReady(104);
+    RS_EntitySync_Init(&app.esync);
+    app.provider = &provider;
+    app.runner.queue = ToriRS_TaskQueue_New();
+
+    register_npc(&app, 601, 500, 30, 30, 30);
+
+    /*
+     * count=1 (8 bits), entry 0 info=1 (1 bit) move_op=0 (2 bits), then the
+     * 14-bit all-ones terminator that closes the new-npc section -- 25 bits,
+     * so the byte-aligned extended block starts at byte 4: mask=ANIM, seq 60
+     * (g2), delay 0 (g1).
+     */
+    uint8_t packet[] = { 0x01, 0x9f, 0xff, 0x80, PKT_NPC_MASK_ANIM, 0x00, 0x3c, 0x00 };
+    run_task_to_done(CreateTask_ExecNpcInfo(&app, packet, (int)sizeof(packet)));
+
+    TEST_ASSERT(g_seq_load_requests == 1, "the ANIM asked the provider for its sequence");
+    TEST_ASSERT(g_seq_load_last_id == 60, "it asked for the sequence the wire named");
+    TEST_ASSERT(
+        app.runner.queue->head == NULL,
+        "a loader that answered \"already resident\" put nothing on the queue");
+
+    npc = World_EntityPoolGet(&app.world->entities.npc, 0);
+    TEST_ASSERT(npc != NULL, "the npc survived the packet");
+    TEST_ASSERT(
+        npc && npc->animation.primary.anim_id == 60,
+        "the animation is on the npc whether or not anything had to be loaded");
+
+    ToriRS_TaskQueue_Free(app.runner.queue);
+    RS_EntitySync_Free(&app.esync);
+    World_Free(app.world);
+    CacheProvider_FreeEngineCaches(&provider);
+}
+
 /* One shared server wrapper must resolve against each client's own varps. This
  * is the multiplayer invariant quest NPCs rely on: advancing Alice's quest may
  * reveal/change the NPC for Alice without changing what Bob sees. */
@@ -523,6 +620,7 @@ main(void)
     test_npc_info_count_zero_despawns_all();
     test_npc_info_count_shrink_keeps_prefix();
     test_npc_info_unresolvable_entry_keeps_list_positions();
+    test_npc_info_resident_sequence_queues_nothing();
     test_player_info_count_zero_despawns_others();
     test_player_info_unresolvable_entry_keeps_list_positions();
     test_multinpc_resolution_is_per_player();

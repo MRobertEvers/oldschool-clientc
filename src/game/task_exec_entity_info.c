@@ -1654,9 +1654,18 @@ Task_ExecNpcInfo_Run(
                     World_NpcSetPrimaryAnimation(
                         app->world, world_idx, self->pending_seq, self->pending_delay);
                 if( self->pending_seq >= 0 )
-                    ToriRS_TaskQueue_Add(
-                        app->runner.queue,
-                        CreateTask_SequenceLoad(app->provider, app->scene, self->pending_seq));
+                {
+                    /* NULL means "already registered" -- the loader's
+                     * documented no-op, and the ordinary case for the second
+                     * and every later ANIM naming one seq (an npc repeating
+                     * its attack, a shopkeeper's gesture). The queue takes a
+                     * task, never the absence of one; the npc-body fetch above
+                     * reads the same way. */
+                    struct ToriRS_Task* load =
+                        CreateTask_SequenceLoad(app->provider, app->scene, self->pending_seq);
+                    if( load )
+                        ToriRS_TaskQueue_Add(app->runner.queue, load);
+                }
             }
         }
     }

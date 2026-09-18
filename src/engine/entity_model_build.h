@@ -51,6 +51,22 @@ int
 PlayerModel_DesignColourCount(int part);
 
 /*
+ * Wear position of design part `part` (0 hair, 1 jaw, 2 torso, 3 arms,
+ * 4 hands, 5 legs, 6 feet) — PlayerComposition's own table
+ * (Statics.method8884 in the 239 client). The appearance array is indexed by
+ * WEAR POSITION while the design panel and the idk table speak in body parts,
+ * so anything that writes an identity kit into an appearance goes through
+ * this. Returns -1 for an out-of-range part.
+ *
+ * The server derives the same seven numbers from the other end
+ * (`k_idk_bodypart_wearpos`, torirs_server_content.c, transcribed from the
+ * reference's `Player.body`). The two agreeing is the check worth recording:
+ * they came from different sources.
+ */
+int
+PlayerModel_DesignPartWearpos(int part);
+
+/*
  * List the cache model ids the appearance references (idk part models +
  * worn-equipment models), so a task can await CreateTask_ModelLoad for each.
  * Configs (idk/obj) must already be loaded for the listing to be complete.

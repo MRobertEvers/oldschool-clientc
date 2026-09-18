@@ -54,6 +54,20 @@ PlayerModel_DesignColourCount(int part)
     return k_recol1d[part].count;
 }
 
+/* PlayerComposition's seven design-part -> wear-slot table (Statics.method8884
+ * / class389.field4882 in the 239 client). @see PlayerModel_DesignPartWearpos. */
+static int const k_design_part_wearpos[7] = {
+    8, 11, 4, 6, 9, 7, 10,
+};
+
+int
+PlayerModel_DesignPartWearpos(int part)
+{
+    if( part < 0 || part >= (int)(sizeof(k_design_part_wearpos) / sizeof(int)) )
+        return -1;
+    return k_design_part_wearpos[part];
+}
+
 static void
 obj_wear_models(
     struct ToriRS_Objtype const* obj,

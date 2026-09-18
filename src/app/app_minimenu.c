@@ -2691,6 +2691,12 @@ app_minimenu_run_option(
                             target,
                             sub));
                     if_button_sent = 1;
+                    /* After the send, never instead of it: the character
+                     * designer's arrows step the local player here so the
+                     * figure moves on this frame rather than on the tick the
+                     * server answers in. Every other component is unaffected —
+                     * this answers only the panel's own children. */
+                    (void)App_DesignPredictIfButton(app, target, op_num);
                 }
                 else if(
                     opt.action == REVCONFIG_MINIMENU_IF_BUTTON && opt.action_index == 0 &&

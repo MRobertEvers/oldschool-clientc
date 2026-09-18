@@ -296,12 +296,6 @@ app_if_head_store(
     app->need_redraw = 1;
 }
 
-/* PlayerComposition's seven design-part -> equipment-slot table
- * (Statics.method8884 / class389.field4882 in the 239 client). */
-static int const app_ifplayer_design_slots[PLAYER_APPEARANCE_PARTS] = {
-    8, 11, 4, 6, 9, 7, 10,
-};
-
 static struct AppIfPlayerModel*
 app_if_player_model_find(
     struct App* app,
@@ -430,7 +424,7 @@ Task_AppIfPlayerModel_Run(
                 self->gender = body_type;
                 for( int part = 0; part < PLAYER_APPEARANCE_PARTS; part++ )
                 {
-                    int slot = app_ifplayer_design_slots[part];
+                    int slot = PlayerModel_DesignPartWearpos(part);
                     /* PlayerComposition only remaps a design-kit value. Worn
                      * objs remain exactly where they are. Returning to the
                      * local player's type restores the cloned underneath kit;

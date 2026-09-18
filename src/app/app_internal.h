@@ -871,6 +871,23 @@ int
 app_targetsel_wire_component(struct App const* app);
 
 
+/* ---- app_design_predict.c ---- */
+/**
+ * Step the character-design panel's arrow `com_id` on the local player NOW,
+ * so the figure does not wait out the tick the server answers in. Returns
+ * nonzero when it was one of the panel's arrows and the appearance moved.
+ *
+ * Called from the click path AFTER the IF_BUTTON has been sent: the server is
+ * still the authority and its appearance overwrites this within a tick. @see
+ * game/rs_design_panel.h.
+ */
+int
+App_DesignPredictIfButton(
+    struct App* app,
+    int com_id,
+    int op_num);
+
+
 /* ---- app_if_models.c ---- */
 void
 app_if_head_poll(struct App* app);
