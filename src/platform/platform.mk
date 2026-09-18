@@ -435,7 +435,19 @@ else ifeq ($(PLATFORM),web)
   # RSCache_Dat2Disk means to app.c AND how the vendored rscache unit is built,
   # so a definition only the client saw would give the two halves different
   # ideas of the same struct.
-  PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_WEB=1 -D_GNU_SOURCE $(WEB_CACHE_CFLAGS)
+  #
+  # WEB_SIMD_CFLAGS is in BASE for toridraw's sake: the raster, projection,
+  # facesort and blit kernels pick their ISA lane at compile time off
+  # __SSE2__/__SSE4_1__, and toridraw is a vendored unit that only sees BASE.
+  # -msimd128 turns on wasm SIMD (and clang's autovectorizer for it); -msse4.1
+  # is emscripten's SSE-intrinsics layer over wasm SIMD, which defines those
+  # macros and so selects the same hand-written lanes the x86 Android ABI
+  # builds with. No -mavx: emscripten's AVX layer is 128-bit pairs and the
+  # AVX lanes were written for 256-bit registers. Every browser the client
+  # otherwise needs (WebGL1, BigInt, modern ES) has shipped wasm SIMD since
+  # 2021-2023; a browser without it refuses to compile the module.
+  WEB_SIMD_CFLAGS := -msimd128 -msse4.1
+  PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_WEB=1 -D_GNU_SOURCE $(WEB_CACHE_CFLAGS) $(WEB_SIMD_CFLAGS)
   # --- The GPU variant is the GLES2 renderer, shared with Android ------------
   #
   # WebGL1 IS OpenGL ES 2.0 with no extensions, which is exactly the ceiling
