@@ -698,6 +698,23 @@ Task_Dat2TextureLoad_Run(
                     dep->sprite_dependencies[i]);
         }
 
+        /* Every dependency, fetched together: the list is complete the moment
+         * the loop above finished collecting it, so the walk below reads them
+         * out of the resident store rather than paying a round trip apiece. */
+        if( task->dep_sprite_count > 1 )
+        {
+            ToriRS_IO_QueueCachePrefetch(
+                io,
+                0,
+                0,
+                RSCACHE_DAT2_TABLE_SPRITES,
+                TORIRS_IO_CACHE_DAT2,
+                task->dep_sprites,
+                task->dep_sprite_count);
+            PT_YIELD(&task->pt);
+            ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
+        }
+
         /* Sprite dependencies: decode each pack once and flatten to ARGB for the generator. */
         for( task->dep_sprite_cursor = 0;
              task->dep_sprite_cursor < task->dep_sprite_count;
@@ -797,6 +814,23 @@ Task_Dat2TextureLoad_Run(
     task->packs = calloc((size_t)task->def->sprite_ids_count, sizeof(*task->packs));
     assert(task->packs);
     task->sprite_index = 0;
+
+    /* Every layer's sprite, fetched together. The definition named them all,
+     * so the walk below is a decode loop rather than a round trip apiece; the
+     * def owns the array and outlives the yield, so it is lent, not copied. */
+    if( task->def->sprite_ids_count > 1 )
+    {
+        ToriRS_IO_QueueCachePrefetch(
+            io,
+            0,
+            0,
+            RSCACHE_DAT2_TABLE_SPRITES,
+            TORIRS_IO_CACHE_DAT2,
+            task->def->sprite_ids,
+            task->def->sprite_ids_count);
+        PT_YIELD(&task->pt);
+        ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
+    }
 
     for( ; task->sprite_index < task->def->sprite_ids_count; task->sprite_index++ )
     {

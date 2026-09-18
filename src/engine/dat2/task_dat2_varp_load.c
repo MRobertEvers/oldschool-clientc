@@ -156,6 +156,25 @@ Task_Dat2VarpLoad_Run(
             PT_EXIT(&task->pt);
         }
 
+        /* Every group the table names, fetched together. @see the same wave in
+         * task_dat2_varbit_load.c: the ids are all known the instant the
+         * reference table lands, so the walk below reads them out of the
+         * resident store instead of paying a round trip apiece. The table owns
+         * the id array and outlives the yield, so it is lent, not copied. */
+        if( task->ref->id_count > 1 )
+        {
+            ToriRS_IO_QueueCachePrefetch(
+                io,
+                0,
+                0,
+                task->addr.table,
+                TORIRS_IO_CACHE_DAT2,
+                task->ref->ids,
+                task->ref->id_count);
+            PT_YIELD(&task->pt);
+            ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
+        }
+
         for( task->group_index = 0; task->group_index < task->ref->id_count;
              task->group_index++ )
         {
