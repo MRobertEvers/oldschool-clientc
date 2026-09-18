@@ -23,7 +23,7 @@ struct Task_Dat1IdkLoad
 static int
 Task_Dat1IdkLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat1IdkLoad* task = (struct Task_Dat1IdkLoad*)task_base;
     struct RSCache_Dat1ConfigIdk* rscache_idk = NULL;

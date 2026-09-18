@@ -501,7 +501,7 @@ collect_sub_change_hooks(struct Task_InterfaceOpen* self)
 static int
 Task_InterfaceOpen_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_InterfaceOpen* self = (struct Task_InterfaceOpen*)base;
     assert(self->provider);

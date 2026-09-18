@@ -33,7 +33,7 @@ app_boot_bar_font_scene_id(struct App* app);
 static int
 Task_AppBoot_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io);
+    struct ToriRS_IOBatch* io);
 static void
 Task_AppBoot_Free(struct ToriRS_Task* base);
 static void
@@ -45,7 +45,7 @@ app_open_tree(
 static int
 Task_OpenSubRefresh_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io);
+    struct ToriRS_IOBatch* io);
 static void
 Task_OpenSubRefresh_Free(struct ToriRS_Task* base);
 static void
@@ -334,7 +334,7 @@ app_boot_bar_caption(
 static int
 Task_AppBoot_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_AppBoot* self = (struct Task_AppBoot*)base;
     struct App* app = self->app;
@@ -1017,7 +1017,7 @@ app_open_tree(
          * found the same index absent, and the second one's decode replaced
          * (freed) the table the first one's fill was still walking.
          */
-        ToriRS_TaskQueue_AddJoined(app->runner.queue, preload, &task->preload_pending);
+        ToriRS_TaskQueue_AddParallelPoolSubTask(app->runner.queue, preload, &task->preload_pending);
     }
 
     ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
@@ -1094,7 +1094,7 @@ app_title_swap_if_pending(struct App* app)
 static int
 Task_OpenSubRefresh_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_OpenSubRefresh* self = (struct Task_OpenSubRefresh*)base;
     struct App* app = self->app;
@@ -1237,7 +1237,7 @@ app_enqueue_open_sub(
     task->interface_id = interface_id;
     task->type = type;
     PT_INIT(&task->pt);
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    TaskRunner_AddSettling(&app->exec_runner, &task->task);
 }
 
 void

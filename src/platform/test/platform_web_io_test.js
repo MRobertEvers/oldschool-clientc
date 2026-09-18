@@ -4,8 +4,9 @@
  *   node src/platform/test/platform_web_io_test.js
  *
  * The point is the ASYNC CONTRACT, not the byte fiddling: Process must return
- * without waiting, Pending must be truthful from that instant until the slot is
- * filled, and the answer must land in the slot it was started for.
+ * without waiting, an item's `pending` word must be truthful from that instant
+ * until the item is filled, and the answer must land in the item it was
+ * started for.
  *
  * Node rather than the C test harness because the subject is JavaScript -- this
  * file IS the platform executor on the browser lane, and running it under the
@@ -23,12 +24,12 @@ const vm = require('vm');
 const SRC = path.join(__dirname, '..', 'platform_web_io.js');
 
 // --- the layout the stub heap uses, mirroring wasm32 C ---------------------
-const ITEM = { kind: 0, u: 4, error: 260, data: 264, dataSize: 268, size: 272 };
-const IO = { slots: 0, active: 8704, activeCount: 8832, size: 8836 };
-const MAX_ITEMS = 32, MAX_PATH = 256;
+const ITEM = { kind: 0, u: 4, error: 260, data: 264, dataSize: 268, pending: 272, size: 276 };
+const IO = { active: 0, activeCount: 4, size: 8 };
+const MAX_PATH = 256;
 const ABI = [
-  0x494f4131, IO.size, IO.slots, IO.active, IO.activeCount, MAX_ITEMS,
-  ITEM.size, ITEM.kind, ITEM.error, ITEM.data, ITEM.dataSize, ITEM.u,
+  0x494f4133, IO.size, IO.active, IO.activeCount,
+  ITEM.size, ITEM.kind, ITEM.error, ITEM.data, ITEM.dataSize, ITEM.pending, ITEM.u,
   0, 4, 8, 12,   // cache epoch/table/archive/flags
   0, 0, 0, 0,    // config, script, reftable, file
   MAX_PATH,
@@ -46,6 +47,8 @@ const calls = { decode: [], metadata: [], reftable: [] };
 
 const ctx = {
   console,
+  /* The executor stamps its telemetry with the page clock. */
+  performance,
   HEAPU8, HEAP32,
   _malloc(n) { const p = brk; brk += (n + 7) & ~7; allocations.add(p); return p; },
   _free(p) { allocations.delete(p); },
@@ -63,6 +66,12 @@ const ctx = {
   },
   _ToriRS_WebApi_ArchiveStructSize: () => 28,
   _ToriRS_WebApi_ReferenceTableStructSize: () => 64,
+  /* The executor's decoded-archive LRU holds and releases references, and
+   * resolves the client's logical table to the cache's disk table. */
+  _ToriRS_WebApi_ArchiveRetain: () => {},
+  _ToriRS_WebApi_ArchiveFree: () => {},
+  _ToriRS_WebApi_ArchiveDataSize: () => 4,
+  _ToriRS_WebApi_Dat2TableDiskId: (game, logical) => logical,
   _ToriRS_IO_DescribeAbiCount: () => ABI.length,
   _ToriRS_IO_DescribeAbi(ptr) { for (let i = 0; i < ABI.length; i++) HEAP32[(ptr >> 2) + i] = ABI[i]; },
   UTF8ToString(p) { let e = p; while (HEAPU8[e]) e++; return Buffer.from(HEAPU8.slice(p, e)).toString('utf8'); },
@@ -78,6 +87,9 @@ vm.runInContext(fs.readFileSync(SRC, 'utf8'), ctx, { filename: 'platform_web_io.
 // would hoist it to a global. Do that by hand.
 const L = ctx.LibraryManager.library;
 ctx.TORIRS_WEB_IO = L.$TORIRS_WEB_IO;
+// ...and runs its `__postset` at module init, which is where the executor
+// builds its maps. Do that by hand too.
+ctx.TORIRS_WEB_IO.init();
 
 // --- the host the executor calls -----------------------------------------
 let resolveRead;
@@ -88,15 +100,23 @@ ctx.Module.torirsHostIO = {
   writeClientFile(p, b) { served.push(`W:${p}`); return Promise.resolve(); },
 };
 
-// --- lay one SCRIPT item into slot 3 --------------------------------------
+// --- one queue, a batch of item pointers, items living "in their tasks" ----
 const IO_PTR = 0x100;
-const SLOT = 3;
+const ACTIVE_BASE = 0x200;               // the batch: item pointers
+const ITEMS_BASE = 0x1000;               // where the stub's tasks keep their items
+HEAP32[(IO_PTR + IO.active) >> 2] = ACTIVE_BASE;
+const itemAt = (n) => ITEMS_BASE + n * ITEM.size;
+const pendingOf = (item) => HEAP32[(item + ITEM.pending) >> 2];
+/* Queue ONE item as the whole batch, the way a pass with one read does. */
+const batchOne = (item) => {
+  HEAP32[ACTIVE_BASE >> 2] = item;
+  HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
+};
 const KIND_SCRIPT = 3;
-const itemPtr = IO_PTR + IO.slots + SLOT * ITEM.size;
+const itemPtr = itemAt(3);
 HEAP32[(itemPtr + ITEM.kind) >> 2] = KIND_SCRIPT;
 Buffer.from('plugins/plugins.ini\0', 'utf8').forEach((b, i) => { HEAPU8[itemPtr + ITEM.u + i] = b; });
-HEAP32[(IO_PTR + IO.active) >> 2] = SLOT;
-HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
+batchOne(itemPtr);
 
 (async () => {
   const fail = (m) => { console.error(`FAIL: ${m}`); process.exit(1); };
@@ -105,24 +125,31 @@ HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
   const dir = brk; brk += 64;
   Buffer.from('script\0', 'utf8').forEach((b, i) => { HEAPU8[dir + i] = b; });
   L.PlatformWeb_IO_InitScriptPath(px, dir);
+  /* A dat2 read resolves its table through the cache id named here. */
+  L.PlatformWeb_IO_InitCacheId(px, 0, 1, 0, 0, 0);
 
   // Process must NOT block.
   const t0 = Date.now();
   L.PlatformWeb_IO_Process(px, IO_PTR);
   if (Date.now() - t0 > 50) fail('Process blocked');
 
-  // Active list consumed, item outstanding.
-  if (HEAP32[(IO_PTR + IO.activeCount) >> 2] !== 0) fail('active list not reset');
-  if (L.PlatformWeb_IO_Pending(px, IO_PTR) !== 1) fail('Pending should be 1 while in flight');
+  // Batch consumed, item outstanding: its own word says so.
+  if (HEAP32[(IO_PTR + IO.activeCount) >> 2] !== 0) fail('batch not reset');
+  if (pendingOf(itemPtr) !== 1) fail('item should read pending while in flight');
+  if (L.PlatformWeb_PendingTotal() !== 1) fail('one read in flight across every queue');
   if (HEAP32[(itemPtr + ITEM.error) >> 2] !== 0) fail('outstanding item must not look failed');
   if (served[0] !== 'script/plugins/plugins.ini') fail(`wrong path: ${served[0]}`);
+  // Pump has nothing to do here and must be callable.
+  L.PlatformWeb_IO_Pump(px);
+  if (pendingOf(itemPtr) !== 1) fail('Pump must not fake an answer');
 
   // Answer it.
   const payload = Buffer.from('[plugin:x]\nsource=x.lua\n', 'utf8');
   resolveRead(new Uint8Array(payload));
   await new Promise(r => setImmediate(r));
 
-  if (L.PlatformWeb_IO_Pending(px, IO_PTR) !== 0) fail('Pending should be 0 once answered');
+  if (pendingOf(itemPtr) !== 0) fail('item should read answered once filled');
+  if (L.PlatformWeb_PendingTotal() !== 0) fail('nothing in flight once answered');
   if (HEAP32[(itemPtr + ITEM.error) >> 2] !== 0) fail('answered item should not be an error');
   const size = HEAP32[(itemPtr + ITEM.dataSize) >> 2];
   const ptr = HEAP32[(itemPtr + ITEM.data) >> 2];
@@ -131,23 +158,23 @@ HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
     fail('payload mismatch');
 
   // A failing read must land as error_code -1, and must not be an outage.
-  const item2 = IO_PTR + IO.slots + 5 * ITEM.size;
+  const item2 = itemAt(5);
   HEAP32[(item2 + ITEM.kind) >> 2] = KIND_SCRIPT;
   Buffer.from('missing.lua\0', 'utf8').forEach((b, i) => { HEAPU8[item2 + ITEM.u + i] = b; });
-  HEAP32[(IO_PTR + IO.active) >> 2] = 5;
-  HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
+  batchOne(item2);
   ctx.Module.torirsHostIO.readFile = () => Promise.reject(new Error('404'));
   L.PlatformWeb_IO_Process(px, IO_PTR);
+  if (pendingOf(item2) !== 1) fail('a read that will fail is still pending until it does');
   await new Promise(r => setImmediate(r));
+  if (pendingOf(item2) !== 0) fail('a failed read must clear pending');
   if (HEAP32[(item2 + ITEM.error) >> 2] !== -1) fail('a failed read must be error -1');
   if (L.PlatformWeb_IO_ServerReachable(px) !== 1) fail('a 404 must NOT read as unreachable');
 
   // Only an explicitly-unreachable error is an outage.
-  const item3 = IO_PTR + IO.slots + 6 * ITEM.size;
+  const item3 = itemAt(6);
   HEAP32[(item3 + ITEM.kind) >> 2] = KIND_SCRIPT;
   Buffer.from('x.lua\0', 'utf8').forEach((b, i) => { HEAPU8[item3 + ITEM.u + i] = b; });
-  HEAP32[(IO_PTR + IO.active) >> 2] = 6;
-  HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
+  batchOne(item3);
   ctx.Module.torirsHostIO.readFile = () => {
     const e = new Error('nothing answered'); e.torirsUnreachable = true; return Promise.reject(e);
   };
@@ -155,9 +182,30 @@ HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
   await new Promise(r => setImmediate(r));
   if (L.PlatformWeb_IO_ServerReachable(px) !== 0) fail('an unreachable transport must read as down');
 
-  // Two queues must not see each other's pending.
-  const IO_B = 0x8000;
-  if (L.PlatformWeb_IO_Pending(px, IO_B) !== 0) fail('pending must be per-queue');
+  // Two items in one batch go out together and land independently.
+  {
+    const a = itemAt(12), b = itemAt(13);
+    const resolvers = [];
+    ctx.Module.torirsHostIO.readFile = () => new Promise(r => { resolvers.push(r); });
+    for (const [it, name] of [[a, 'a.lua\0'], [b, 'b.lua\0']]) {
+      HEAPU8.fill(0, it, it + ITEM.size);
+      HEAP32[(it + ITEM.kind) >> 2] = KIND_SCRIPT;
+      Buffer.from(name, 'utf8').forEach((c, i) => { HEAPU8[it + ITEM.u + i] = c; });
+    }
+    HEAP32[ACTIVE_BASE >> 2] = a;
+    HEAP32[(ACTIVE_BASE >> 2) + 1] = b;
+    HEAP32[(IO_PTR + IO.activeCount) >> 2] = 2;
+    L.PlatformWeb_IO_Process(px, IO_PTR);
+    if (resolvers.length !== 2) fail('both items of a batch must go out in the one Process');
+    if (pendingOf(a) !== 1 || pendingOf(b) !== 1) fail('both pending');
+    resolvers[1](new Uint8Array([1]));
+    await new Promise(r => setImmediate(r));
+    if (pendingOf(b) !== 0) fail('the second answer lands on its own item');
+    if (pendingOf(a) !== 1) fail('the first is still out: pending is per item, not per batch');
+    resolvers[0](new Uint8Array([2]));
+    await new Promise(r => setImmediate(r));
+    if (pendingOf(a) !== 0 || L.PlatformWeb_PendingTotal() !== 0) fail('then nothing is out');
+  }
 
   // --- cache reads go through the C decode API ----------------------------
   const KIND_CACHE = 1, KIND_REFTABLE = 4;
@@ -169,15 +217,14 @@ HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
     return Promise.resolve(new Uint8Array([9, 9]));
   };
 
-  const runOne = async (slotN, kind, fill) => {
-    const p = IO_PTR + IO.slots + slotN * ITEM.size;
+  const runOne = async (n, kind, fill) => {
+    const p = itemAt(n);
     HEAPU8.fill(0, p, p + ITEM.size);
     HEAP32[(p + ITEM.kind) >> 2] = kind;
     fill(p);
-    HEAP32[(IO_PTR + IO.active) >> 2] = slotN;
-    HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
+    batchOne(p);
     L.PlatformWeb_IO_Process(px, IO_PTR);
-    while (L.PlatformWeb_IO_Pending(px, IO_PTR) > 0) await new Promise(r => setImmediate(r));
+    while (pendingOf(p)) await new Promise(r => setImmediate(r));
     return p;
   };
 
@@ -218,8 +265,8 @@ HEAP32[(IO_PTR + IO.activeCount) >> 2] = 1;
   const gone = await runOne(11, KIND_CACHE, p => { HEAP32[(p + ITEM.u + 4) >> 2] = 7; });
   if (HEAP32[(gone + ITEM.error) >> 2] !== -1) fail('a missing group must be error -1');
 
-  console.log('PASS: Process non-blocking, Pending truthful, slot filled, ' +
-              '404 != outage, unreachable == outage, pending is per-queue, ' +
+  console.log('PASS: Process non-blocking, pending word truthful, item filled, ' +
+              '404 != outage, unreachable == outage, pending is per item, ' +
               'cache decode via the C API, reference table fetched once, ' +
               'handed-out table is a fresh decode, missing group fails cleanly');
 })();

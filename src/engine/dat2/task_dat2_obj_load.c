@@ -71,7 +71,7 @@ obj_adapt_member(
 static int
 Task_Dat2ObjLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2ObjLoad* task = (struct Task_Dat2ObjLoad*)task_base;
     int pos;
@@ -184,7 +184,7 @@ struct Task_Dat2ObjLoadAll
 static int
 Task_Dat2ObjLoadAll_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* cache_io)
+    struct ToriRS_IOBatch* cache_io)
 {
     struct Task_Dat2ObjLoadAll* task = (struct Task_Dat2ObjLoadAll*)task_base;
     int idx;

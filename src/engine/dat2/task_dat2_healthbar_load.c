@@ -42,7 +42,7 @@ struct Task_Dat2HealthbarLoad
 static int
 Task_Dat2HealthbarLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2HealthbarLoad* task = (struct Task_Dat2HealthbarLoad*)task_base;
     struct RSCache_Dat2DiskArchive* archive = NULL;
@@ -145,7 +145,7 @@ Task_Dat2HealthbarLoad_Run(
         {
             if( sprites[half] < 0 )
                 continue;
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 task->bc->base.asset_queue,
                 CreateTask_SpriteLoad(&task->bc->base, sprites[half]),
                 &task->pending);

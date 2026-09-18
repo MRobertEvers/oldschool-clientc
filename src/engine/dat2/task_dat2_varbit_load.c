@@ -106,7 +106,7 @@ varbit_decode_group(
 static int
 Task_Dat2VarbitLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2VarbitLoad* task = (struct Task_Dat2VarbitLoad*)task_base;
     struct RSCache_Dat2DiskArchive* archive = NULL;
@@ -132,6 +132,29 @@ Task_Dat2VarbitLoad_Run(
         {
             TORIRS_LOG("varbit: table %d absent; varbits will read 0\n", task->addr.table);
             PT_EXIT(&task->pt);
+        }
+
+        /* Every group the table names, fetched together.
+         *
+         * The walk below reads them one at a time, and each read used to be a
+         * round trip waited out before the next was asked for -- the whole
+         * sharded varbit space, in a line, on the one load that every varbit
+         * lookup in the client waits behind. The ids are all known the instant
+         * the reference table lands, so they go out as one wave and the reads
+         * below are answered out of the resident store. The table owns the id
+         * array and outlives the yield, so it is lent rather than copied. */
+        if( task->ref->id_count > 1 )
+        {
+            ToriRS_IO_QueueCachePrefetch(
+                io,
+                0,
+                0,
+                task->addr.table,
+                TORIRS_IO_CACHE_DAT2,
+                task->ref->ids,
+                task->ref->id_count);
+            PT_YIELD(&task->pt);
+            ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
         }
 
         for( task->group_index = 0; task->group_index < task->ref->id_count; task->group_index++ )

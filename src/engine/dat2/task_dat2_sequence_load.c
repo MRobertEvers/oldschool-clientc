@@ -267,7 +267,7 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
 
 static struct RSCache_Dat2DiskArchive*
 seq_take_archive(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot)
 {
     struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot);
@@ -295,7 +295,7 @@ seq_drop_frame_temporaries(struct Task_Dat2SequenceLoad* self)
 static int
 Task_Dat2SequenceLoad_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2SequenceLoad* self = (struct Task_Dat2SequenceLoad*)base;
 

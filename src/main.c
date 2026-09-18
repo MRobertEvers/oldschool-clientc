@@ -2981,6 +2981,45 @@ frame_loop_step(void)
             }
 
             /*
+             * TORIRS_SIM_SONG="frame,id": start a music track at that frame.
+             *
+             * A track is server-driven -- a content script's `midi_song` -- so
+             * a lane whose scripts never reach that op plays nothing, and the
+             * longest load chain in the client goes unexercised. That is a
+             * measurement hole rather than a content one: the music loader's
+             * cost is its round trips (runner telemetry, MusicLoad), and there
+             * was no headless way to make it pay them. Same shape and same
+             * reason as TORIRS_SIM_CMD above; the frame must land after login,
+             * since the load needs the cache the session opened.
+             */
+            {
+                static int song_init = 0;
+                static long song_frame = -1;
+                static long song_id = -1;
+                if( !song_init )
+                {
+                    char const* spec = getenv("TORIRS_SIM_SONG");
+                    song_init = 1;
+                    if( spec && *spec )
+                    {
+                        char* end = NULL;
+                        song_frame = strtol(spec, &end, 0);
+                        if( end && *end == ',' )
+                            song_id = strtol(end + 1, NULL, 0);
+                        else
+                            song_frame = -1;
+                    }
+                }
+                if( song_id >= 0 && song_frame >= 0 && frame_count >= song_frame &&
+                    app.app_state == APP_STATE_READY )
+                {
+                    TORIRS_REPORT("sim_song: play %ld\n", song_id);
+                    App_PlaySong(&app, (int)song_id, true, 0, 0);
+                    song_id = -1;
+                }
+            }
+
+            /*
              * TORIRS_SIM_KEYHOLD="<LibToriRS_KeyCode>[,<code>...]": press these
              * keys once, on the first frame, and never release them.
              *

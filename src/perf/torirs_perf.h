@@ -137,9 +137,8 @@ enum TorirsPerfStage
      *  exec_runner settles on its own). Subtracting non-nested stages is what
      *  produced the "183 us of task machinery" that never existed. */
     TORIRS_PERF_STAGE_CS2_SCRIPT_IN,
-    /** `Platform_IO_Pending` + `Platform_IO_Process`. Two Pending calls per
-     *  settle iteration (loop head and loop condition), so a linear scan here is
-     *  paid ~10 times a frame whether or not any IO is outstanding. */
+    /** `Platform_IO_Pump` + `Platform_IO_Process`: the two platform calls of
+     *  every runner pass, whether or not any IO is outstanding. */
     TORIRS_PERF_STAGE_TASK_IO,
     /* The `render` stage split by what the command stream asked for. `render`
      * is 77% of the i686 frame, and as one opaque bracket it made every

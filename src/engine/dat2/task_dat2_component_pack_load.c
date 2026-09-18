@@ -22,7 +22,7 @@ struct Task_Dat2ComponentPackLoad
 static int
 Task_Dat2ComponentPackLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2ComponentPackLoad* task = (struct Task_Dat2ComponentPackLoad*)task_base;
     struct RSCache_Dat2ComponentPack* rscache_pack = NULL;

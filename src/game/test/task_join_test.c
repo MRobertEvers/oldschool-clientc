@@ -10,7 +10,7 @@
  *      exactly like one that landed. This is the case the residency wait
  *      got wrong: it spent a 600-pass budget, two passes a frame, on one
  *      texture id the loader had refused -- six seconds per rebuild.
- *   3. A NULL handed to AddJoined (the "already resident" answer every
+ *   3. A NULL handed to AddParallelPoolSubTask (the "already resident" answer every
  *      CreateTask_*Load gives) is not counted, so a fan-out with nothing to
  *      load joins at once.
  */
@@ -38,28 +38,17 @@ struct PlatformX_IO
     int process_calls;
 };
 
-int
-PlatformX_IO_Pending(struct PlatformX_IO* px, struct ToriRS_IO* io)
+void
+PlatformX_IO_Pump(struct PlatformX_IO* px)
 {
     (void)px;
-    (void)io;
-    return 0;
 }
 
 int
-PlatformX_IO_SlotPending(struct PlatformX_IO* px, struct ToriRS_IO* io, int slot)
-{
-    (void)px;
-    (void)io;
-    (void)slot;
-    return 0;
-}
-
-int
-PlatformX_IO_Process(struct PlatformX_IO* px, struct ToriRS_IO* io)
+PlatformX_IO_Process(struct PlatformX_IO* px, struct ToriRS_IOBatch* io)
 {
     px->process_calls++;
-    ToriRS_IO_ResetActive(io);
+    ToriRS_IOBatch_Reset(io);
     return 0;
 }
 
@@ -76,7 +65,7 @@ struct Loader
 };
 
 static int
-Loader_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
+Loader_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
 {
     struct Loader* self = (struct Loader*)base;
     (void)io;
@@ -126,14 +115,14 @@ struct Parent
 };
 
 static int
-Parent_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
+Parent_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
 {
     struct Parent* self = (struct Parent*)base;
     (void)io;
     self->resumes++;
     PT_BEGIN(&self->pt);
     for( int i = 0; i < self->fanout; i++ )
-        ToriRS_TaskQueue_AddJoined(
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
             self->queue,
             new_loader(
                 &self->landed,
@@ -142,7 +131,7 @@ Parent_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
                 self->pass_clock),
             &self->pending);
     if( self->add_null )
-        TEST_CHECK(ToriRS_TaskQueue_AddJoined(self->queue, NULL, &self->pending) == 0);
+        TEST_CHECK(ToriRS_TaskQueue_AddParallelPoolSubTask(self->queue, NULL, &self->pending) == 0);
     PT_TASK_JOIN(pending);
     self->joined_in_pass = *self->pass_clock;
     PT_END(&self->pt);
@@ -173,7 +162,7 @@ test_fanout_joins_when_every_sibling_ends(void)
     struct Parent* parent;
 
     runner.queue = ToriRS_TaskQueue_New();
-    runner.io = ToriRS_IO_New();
+    runner.io = ToriRS_IOBatch_New();
     runner.px = &px;
     runner.parallel = 1;
 
@@ -185,7 +174,7 @@ test_fanout_joins_when_every_sibling_ends(void)
     /* Pass 1: the parent fans out and parks; every sibling runs and yields
      * for its read -- all in this one pass, which is the whole point. */
     pass_clock = 1;
-    TEST_CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_PENDING);
+    TEST_CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_PROGRESSED);
     TEST_CHECK(parent->pending == 200);
     {
         int started_now = 0;
@@ -212,7 +201,7 @@ test_fanout_joins_when_every_sibling_ends(void)
     printf("ok - 200 siblings (50 refusing) go out in one pass and join in the next\n");
 
     ToriRS_TaskQueue_Free(runner.queue);
-    ToriRS_IO_Free(runner.io);
+    ToriRS_IOBatch_Free(runner.io);
 }
 
 static void
@@ -225,7 +214,7 @@ test_refusals_do_not_stall_the_join(void)
     int resumes;
 
     runner.queue = ToriRS_TaskQueue_New();
-    runner.io = ToriRS_IO_New();
+    runner.io = ToriRS_IOBatch_New();
     runner.px = &px;
     runner.parallel = 1;
 
@@ -246,7 +235,7 @@ test_refusals_do_not_stall_the_join(void)
         pass_clock + 1);
 
     ToriRS_TaskQueue_Free(runner.queue);
-    ToriRS_IO_Free(runner.io);
+    ToriRS_IOBatch_Free(runner.io);
 }
 
 static void
@@ -258,7 +247,7 @@ test_nothing_to_load_joins_at_once(void)
     struct Parent* parent;
 
     runner.queue = ToriRS_TaskQueue_New();
-    runner.io = ToriRS_IO_New();
+    runner.io = ToriRS_IOBatch_New();
     runner.px = &px;
     runner.parallel = 1;
 
@@ -266,14 +255,14 @@ test_nothing_to_load_joins_at_once(void)
     parent->add_null = 1;
     ToriRS_TaskQueue_Add(runner.queue, &parent->task);
 
-    /* Every record already resident: AddJoined counted nothing, and the join
+    /* Every record already resident: AddParallelPoolSubTask counted nothing, and the join
      * falls straight through in the pass the parent first ran. */
     TEST_CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_IDLE);
     TEST_CHECK(runner.queue->head == NULL);
     printf("ok - a fan-out with nothing to load joins in its first pass\n");
 
     ToriRS_TaskQueue_Free(runner.queue);
-    ToriRS_IO_Free(runner.io);
+    ToriRS_IOBatch_Free(runner.io);
 }
 
 int

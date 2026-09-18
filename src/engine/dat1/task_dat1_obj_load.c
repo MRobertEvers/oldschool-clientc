@@ -23,7 +23,7 @@ struct Task_Dat1ObjLoad
 static int
 Task_Dat1ObjLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat1ObjLoad* task = (struct Task_Dat1ObjLoad*)task_base;
     struct RSCache_Dat1ConfigObj* rscache_obj = NULL;

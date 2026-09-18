@@ -65,7 +65,7 @@ app_world_spawn_player(
     int level)
 {
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_PLAYER, tile_x, tile_z, level);
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    TaskRunner_AddSettling(&app->exec_runner, &task->task);
 }
 
 void
@@ -79,7 +79,7 @@ app_world_spawn_npc(
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_NPC, tile_x, tile_z, level);
     task->npc_id =
         ToriRS_EnvNamedArgOrEnv(args, "id", "TORIRS_SPAWN_NPC", 3106 /* OSRS-era "Man" */);
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    TaskRunner_AddSettling(&app->exec_runner, &task->task);
 }
 
 /* Hotkey 7: ground item on the hovered tile — the same App_WorldObjStackAdd
@@ -96,7 +96,7 @@ app_world_spawn_obj(
     struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_OBJ, tile_x, tile_z, level);
     task->obj_id = ToriRS_EnvNamedArgOrEnv(
         args, "id", "TORIRS_SPAWN_OBJ", 1265 /* bronze pickaxe: named, with ground ops */);
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    TaskRunner_AddSettling(&app->exec_runner, &task->task);
 }
 
 /* Free-standing spotanim spawn (reference MapSpotAnim / MAP_ANIM zone packet):
@@ -203,7 +203,7 @@ App_WorldLocChangeOps(
     task->loc_angle = angle;
     task->loc_op_flags = op_flags;
     memcpy(task->loc_ops, ops, sizeof(task->loc_ops));
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    TaskRunner_AddSettling(&app->exec_runner, &task->task);
 }
 
 void

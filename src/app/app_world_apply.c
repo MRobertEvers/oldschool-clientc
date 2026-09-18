@@ -64,7 +64,7 @@ App_WorldSceneryAnim(
     task = app_spawn_task_new(app, APP_SPAWN_LOC_ANIM, scene_x, scene_z, level);
     task->loc_shape = loc_shape;
     task->seq_id = seq_id;
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    TaskRunner_AddSettling(&app->exec_runner, &task->task);
 }
 
 void

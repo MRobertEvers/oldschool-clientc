@@ -58,7 +58,7 @@ resolve_by_name(
 static int
 Task_Dat2TitlePanelLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2TitlePanelLoad* task = (struct Task_Dat2TitlePanelLoad*)task_base;
     struct RSCache_ReferenceTable* table = NULL;

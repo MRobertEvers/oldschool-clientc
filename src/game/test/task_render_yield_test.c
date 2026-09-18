@@ -50,7 +50,7 @@ struct StagedTask
 };
 
 static int
-StagedTask_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
+StagedTask_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
 {
     struct StagedTask* self = (struct StagedTask*)base;
     (void)io;
@@ -73,7 +73,7 @@ struct QuietTask
 };
 
 static int
-QuietTask_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
+QuietTask_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
 {
     struct QuietTask* self = (struct QuietTask*)base;
     (void)io;
@@ -112,7 +112,7 @@ static void
 test_render_yield_stops_the_queue(void)
 {
     struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
-    struct ToriRS_IO* io = ToriRS_IO_New();
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
     static struct StagedTask staged;
 
     memset(&staged, 0, sizeof(staged));
@@ -141,7 +141,7 @@ test_render_yield_stops_the_queue(void)
     TEST_ASSERT(staged.completed == 3, "every stage ran");
 
     ToriRS_TaskQueue_Free(queue);
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
 }
 
 /*
@@ -154,7 +154,7 @@ static void
 test_a_plain_yield_still_settles_through(void)
 {
     struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
-    struct ToriRS_IO* io = ToriRS_IO_New();
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
     static struct QuietTask quiet;
     int stat;
     int passes = 0;
@@ -174,7 +174,7 @@ test_a_plain_yield_still_settles_through(void)
     TEST_ASSERT(quiet.completed == 3, "the quiet task ran every step");
 
     ToriRS_TaskQueue_Free(queue);
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
 }
 
 /*
@@ -187,7 +187,7 @@ static void
 test_the_request_does_not_persist(void)
 {
     struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
-    struct ToriRS_IO* io = ToriRS_IO_New();
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
     static struct StagedTask staged;
 
     memset(&staged, 0, sizeof(staged));
@@ -204,7 +204,7 @@ test_the_request_does_not_persist(void)
         "the second stage overwrote the first's request rather than inheriting it");
 
     ToriRS_TaskQueue_Free(queue);
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
 }
 
 /* A child awaited by a parent, which asks for the screen from down there. */
@@ -215,7 +215,7 @@ struct ChildTask
 };
 
 static int
-ChildTask_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
+ChildTask_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
 {
     struct ChildTask* self = (struct ChildTask*)base;
     (void)io;
@@ -253,7 +253,7 @@ struct ParentTask
 };
 
 static int
-ParentTask_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
+ParentTask_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
 {
     struct ParentTask* self = (struct ParentTask*)base;
     PT_BEGIN(&self->pt);
@@ -280,7 +280,7 @@ static void
 test_a_child_can_ask_for_the_screen(void)
 {
     struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
-    struct ToriRS_IO* io = ToriRS_IO_New();
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
     static struct ParentTask parent;
     int stat;
 
@@ -303,7 +303,7 @@ test_a_child_can_ask_for_the_screen(void)
     TEST_ASSERT(parent.done == 1, "the parent ran on");
 
     ToriRS_TaskQueue_Free(queue);
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
 }
 
 int

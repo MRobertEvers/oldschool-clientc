@@ -23,7 +23,7 @@ struct Task_Dat2SpriteLoad
 static int
 Task_Dat2SpriteLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2SpriteLoad* task = (struct Task_Dat2SpriteLoad*)task_base;
     struct RSCache_Dat2DiskArchive* archive = NULL;
@@ -122,7 +122,7 @@ dat2_resolve_sprite_archive_by_name(
 static int
 Task_Dat2SpriteLoadByName_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2SpriteLoadByName* task = (struct Task_Dat2SpriteLoadByName*)task_base;
     struct RSCache_ReferenceTable* table = NULL;

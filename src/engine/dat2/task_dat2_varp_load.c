@@ -131,7 +131,7 @@ varp_install(struct Task_Dat2VarpLoad* task)
 static int
 Task_Dat2VarpLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2VarpLoad* task = (struct Task_Dat2VarpLoad*)task_base;
     struct RSCache_Dat2DiskArchive* archive = NULL;
@@ -154,6 +154,25 @@ Task_Dat2VarpLoad_Run(
             TORIRS_LOG("varp: table %d absent; every clientcode will read 0\n",
                 task->addr.table);
             PT_EXIT(&task->pt);
+        }
+
+        /* Every group the table names, fetched together. @see the same wave in
+         * task_dat2_varbit_load.c: the ids are all known the instant the
+         * reference table lands, so the walk below reads them out of the
+         * resident store instead of paying a round trip apiece. The table owns
+         * the id array and outlives the yield, so it is lent, not copied. */
+        if( task->ref->id_count > 1 )
+        {
+            ToriRS_IO_QueueCachePrefetch(
+                io,
+                0,
+                0,
+                task->addr.table,
+                TORIRS_IO_CACHE_DAT2,
+                task->ref->ids,
+                task->ref->id_count);
+            PT_YIELD(&task->pt);
+            ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
         }
 
         for( task->group_index = 0; task->group_index < task->ref->id_count;

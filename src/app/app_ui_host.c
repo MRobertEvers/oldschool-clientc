@@ -56,13 +56,13 @@ struct Task_AppCS1Eval
 static int
 Task_InvIconReconcile_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io);
+    struct ToriRS_IOBatch* io);
 static void
 Task_InvIconReconcile_Free(struct ToriRS_Task* base);
 static int
 Task_AppCS1Eval_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io);
+    struct ToriRS_IOBatch* io);
 static void
 Task_AppCS1Eval_Free(struct ToriRS_Task* base);
 
@@ -409,7 +409,7 @@ app_inv_ui_host_change(
 static int
 Task_InvIconReconcile_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_InvIconReconcile* self = (struct Task_InvIconReconcile*)base;
     struct App* app = self->app;
@@ -535,13 +535,13 @@ app_inv_icon_reconcile_tick(struct App* app)
     task->app = app;
     PT_INIT(&task->pt);
     app->inv_icon_reconcile_inflight = 1;
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    TaskRunner_AddSettling(&app->exec_runner, &task->task);
 }
 
 static int
 Task_AppCS1Eval_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_AppCS1Eval* self = (struct Task_AppCS1Eval*)base;
     struct App* app = self->app;

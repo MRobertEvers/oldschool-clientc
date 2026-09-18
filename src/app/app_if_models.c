@@ -83,7 +83,7 @@ struct Task_AppIfPlayerModel
 static int
 Task_AppIfHead_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io);
+    struct ToriRS_IOBatch* io);
 static void
 Task_AppIfHead_Free(struct ToriRS_Task* base);
 static void
@@ -114,7 +114,7 @@ app_if_player_model_find_kit(
 static int
 Task_AppIfPlayerModel_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io);
+    struct ToriRS_IOBatch* io);
 static void
 Task_AppIfPlayerModel_Free(struct ToriRS_Task* base);
 static void
@@ -128,7 +128,7 @@ app_if_player_model_enqueue(
 static int
 Task_AppIfHead_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_AppIfHead* self = (struct Task_AppIfHead*)base;
     struct App* app = self->app;
@@ -258,7 +258,7 @@ app_if_head_enqueue(
     task->component_id = component_id;
     task->npc_id = npc_id;
     PT_INIT(&task->pt);
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    TaskRunner_AddSettling(&app->exec_runner, &task->task);
 }
 
 /* Persist the head request keyed by component id (reference IfType.list keeps
@@ -372,7 +372,7 @@ app_if_player_model_find_kit(
 static int
 Task_AppIfPlayerModel_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_AppIfPlayerModel* self = (struct Task_AppIfPlayerModel*)base;
     struct App* app = self->app;
@@ -523,7 +523,7 @@ app_if_player_model_enqueue(
     task->arg0 = arg0;
     task->arg1 = arg1;
     PT_INIT(&task->pt);
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    TaskRunner_AddSettling(&app->exec_runner, &task->task);
 }
 
 void

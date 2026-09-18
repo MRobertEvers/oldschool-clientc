@@ -16,8 +16,8 @@
 //      are answered by platform/platform_web_io.js (the executor), which reads
 //      IndexedDB and, on a miss, a producer this file creates -- JS5 for a
 //      dat2 world, the dat1 on-demand proxy on io_server for a dat1 one. A
-//      task is not resumed until every item it queued is filled
-//      (PlatformX_IO_Pending), so no read is ever observed half-done.
+//      task is not resumed until the item it queued is filled (the item's
+//      own `pending` word), so no read is ever observed half-done.
 //
 // Load this BEFORE torirs.js: it defines the Module object the runtime reads.
 //

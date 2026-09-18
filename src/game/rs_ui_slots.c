@@ -228,7 +228,7 @@ struct Task_SlotMountRefresh
 static int
 Task_SlotMountRefresh_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_SlotMountRefresh* self = (struct Task_SlotMountRefresh*)base;
 
@@ -287,7 +287,7 @@ slot_mount(
     task->owner_index = owner_index;
     task->iface_id = iface_id;
     PT_INIT(&task->pt);
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    TaskRunner_AddSettling(&app->exec_runner, &task->task);
 }
 
 void

@@ -195,7 +195,7 @@ rebuild_instance_compute_chunks(
 static int
 Task_GameProtoExec_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_GameProtoExec* self = (struct Task_GameProtoExec*)base;
     struct App* app = self->app;

@@ -41,7 +41,7 @@ struct Task_Dat2HitsplatLoad
 static int
 Task_Dat2HitsplatLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2HitsplatLoad* task = (struct Task_Dat2HitsplatLoad*)task_base;
     struct RSCache_Dat2DiskArchive* archive = NULL;
@@ -210,7 +210,7 @@ Task_Dat2HitsplatLoad_Run(
      * network round trip apiece on a streamed cache -- this loop and the
      * healthbar one were 200 of the 251 round trips a browser paid before the
      * title screen. The fan-out is this task's: it does not pass the join
-     * until every sibling has ended. AddJoined does not count the NULL that
+     * until every sibling has ended. AddParallelPoolSubTask does not count the NULL that
      * CreateTask_SpriteLoad returns for a sprite already resident.
      */
     assert(task->bc->base.asset_queue);
@@ -218,7 +218,7 @@ Task_Dat2HitsplatLoad_Run(
     {
         if( task->hitsplats->sprite_ids[i] < 0 )
             continue;
-        ToriRS_TaskQueue_AddJoined(
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
             task->bc->base.asset_queue,
             CreateTask_SpriteLoad(&task->bc->base, task->hitsplats->sprite_ids[i]),
             &task->pending);

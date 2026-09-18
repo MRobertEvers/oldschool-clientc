@@ -200,7 +200,7 @@ struct Task_CS2ScriptExec
 static int
 Task_CS2ScriptExec_Run(
     struct ToriRS_Task* task,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_CS2ScriptExec* exec = (struct Task_CS2ScriptExec*)task;
     struct CS2VM2_Script* vm_script = NULL;

@@ -1209,7 +1209,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
 static int
 Task_CS2Run_Run(
     struct ToriRS_Task* task,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_CS2Run* self = (struct Task_CS2Run*)task;
     struct CS2VM2_Thread* thread = NULL;
@@ -2030,7 +2030,7 @@ hook_matches_container(
 static int
 Task_CS2InvTransmitDispatch_Run(
     struct ToriRS_Task* task,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_CS2InvTransmitDispatch* self = (struct Task_CS2InvTransmitDispatch*)task;
     struct RS_CS2InvTransmitHook* hook;
@@ -2221,7 +2221,7 @@ var_hook_debug_on(void)
 static int
 Task_CS2VarTransmitDispatch_Run(
     struct ToriRS_Task* task,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_CS2VarTransmitDispatch* self = (struct Task_CS2VarTransmitDispatch*)task;
     struct RS_CS2VarTransmitHook* hook;
@@ -2462,7 +2462,7 @@ hook_matches_stat(
 static int
 Task_CS2StatTransmitDispatch_Run(
     struct ToriRS_Task* task,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_CS2StatTransmitDispatch* self = (struct Task_CS2StatTransmitDispatch*)task;
     struct RS_CS2StatTransmitHook* hook;
@@ -2631,7 +2631,7 @@ struct Task_CS2SubChangeDispatch
 static int
 Task_CS2SubChangeDispatch_Run(
     struct ToriRS_Task* task,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_CS2SubChangeDispatch* self = (struct Task_CS2SubChangeDispatch*)task;
 
@@ -2750,7 +2750,7 @@ struct Task_CS2MiscTransmitDispatch
 static int
 Task_CS2MiscTransmitDispatch_Run(
     struct ToriRS_Task* task,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_CS2MiscTransmitDispatch* self = (struct Task_CS2MiscTransmitDispatch*)task;
 

@@ -37,7 +37,7 @@ struct Task_PrefsLoad
 static int
 Task_PrefsLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_PrefsLoad* task = (struct Task_PrefsLoad*)task_base;
     struct ToriRS_IOItem* item;
@@ -104,7 +104,7 @@ struct Task_PrefsSave
 static int
 Task_PrefsSave_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_PrefsSave* task = (struct Task_PrefsSave*)task_base;
 

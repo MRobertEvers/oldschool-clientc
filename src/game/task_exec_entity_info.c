@@ -833,7 +833,7 @@ player_apply_op(
 static int
 Task_ExecPlayerInfo_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_ExecPlayerInfo* self = (struct Task_ExecPlayerInfo*)base;
     struct App* app = self->app;
@@ -1510,7 +1510,7 @@ npc_apply_op(
 static int
 Task_ExecNpcInfo_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_ExecNpcInfo* self = (struct Task_ExecNpcInfo*)base;
     struct App* app = self->app;

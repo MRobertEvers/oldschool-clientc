@@ -146,7 +146,7 @@ App_Init(
 
     /* Phase 1: task runtime + disk. The runner owns the async pipeline every
      * other phase loads through. */
-    app->runner.io = ToriRS_IO_New();
+    app->runner.io = ToriRS_IOBatch_New();
     app->runner.queue = ToriRS_TaskQueue_New();
     app->runner.px = Platform_IO_New();
     assert(app->runner.px != NULL);
@@ -168,7 +168,7 @@ App_Init(
 
     /* Serial game-action pipeline: own queue + io slots, SHARED platform
      * pump (there is exactly one IO backend). */
-    app->exec_runner.io = ToriRS_IO_New();
+    app->exec_runner.io = ToriRS_IOBatch_New();
     app->exec_runner.queue = ToriRS_TaskQueue_New();
     app->exec_runner.px = app->runner.px;
 
@@ -1190,7 +1190,7 @@ static void
 app_prefs_flush(struct App* app)
 {
     struct ToriRS_Task* task;
-    struct ToriRS_IO* io;
+    struct ToriRS_IOBatch* io;
     int guard = 0;
 
     if( !app->prefs_path )
@@ -1199,16 +1199,15 @@ app_prefs_flush(struct App* app)
         return; /* everything the player chose is already on disk */
     app->prefs_dirty_cycle = 0;
 
-    /* A real IO list, not a zeroed struct on the stack: the slot table is
-     * heap-grown (ToriRS_IO_SlotReserve), so a zeroed one has no slots and
-     * the task's first queue is a write through NULL -- a crash on the way
-     * out, on exactly the exit where the player had changed a setting. */
-    io = ToriRS_IO_New();
+    /* Run by hand, outside any queue: the io context names the task so its
+     * "slot 0" is its own item, as the queue would have done. */
+    io = ToriRS_IOBatch_New();
     task = CreateTask_PrefsSave(&app->prefs, app->prefs_path);
+    io->task = task;
     while( task_run(task, io) == PT_YIELDED && guard++ < 8 )
         Platform_IO_Process(app->runner.px, io);
     task_free(task);
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
 }
 
 void
@@ -1287,9 +1286,9 @@ App_Shutdown(struct App* app)
     if( app->dat1_disk )
         RSCache_Dat1DiskFree(app->dat1_disk);
     ToriRS_TaskQueue_Free(app->exec_runner.queue);
-    ToriRS_IO_Free(app->exec_runner.io);
+    ToriRS_IOBatch_Free(app->exec_runner.io);
     ToriRS_TaskQueue_Free(app->runner.queue);
-    ToriRS_IO_Free(app->runner.io);
+    ToriRS_IOBatch_Free(app->runner.io);
     /* After the queues: freeing a task releases its VM back into the pool. */
     CS2VM2_PoolDrain();
     /* Also after the queues. A parked entity-info task borrows the scratch and

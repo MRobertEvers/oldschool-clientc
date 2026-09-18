@@ -231,7 +231,7 @@ struct Task_Dat2IndexOpen
 static int
 Task_Dat2IndexOpen_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2IndexOpen* task = (struct Task_Dat2IndexOpen*)task_base;
     struct RSCache_ReferenceTable* table;
@@ -312,7 +312,7 @@ struct Task_Dat2PrefetchWave
 static int
 Task_Dat2PrefetchWave_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2PrefetchWave* task = (struct Task_Dat2PrefetchWave*)task_base;
 
@@ -456,7 +456,7 @@ preload_fill_caption(struct Task_Dat2Preload* task)
 static int
 Task_Dat2Preload_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2Preload* task = (struct Task_Dat2Preload*)task_base;
 
@@ -490,7 +490,7 @@ Task_Dat2Preload_Run(
         if( !task->index_step )
             task->index_step = task->step;
         if( task->bc->base.asset_queue )
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 task->bc->base.asset_queue,
                 CreateTask_Dat2IndexOpen(task->bc, task->table_id, task->step->archive),
                 &task->pending);
@@ -599,7 +599,7 @@ Task_Dat2Preload_Run(
             int n = task->fill_ref->id_count - task->fill_at;
             if( n > PREFETCH_WAVE )
                 n = PREFETCH_WAVE;
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 task->bc->base.asset_queue,
                 CreateTask_Dat2PrefetchWave(
                     task->bc,
