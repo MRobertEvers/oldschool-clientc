@@ -179,6 +179,42 @@ enum TaskRunnerStat
  * reaches the screen, and stepping other tasks past it would publish their
  * work on it too.
  */
+/*
+ * Enqueue a task that belongs to the frame's CS2 visual transaction.
+ *
+ * The one way a task gets its `settles_frame` flag (asyncio.h). It also arms
+ * the runner's frame_settle_pending, so the two facts cannot drift apart:
+ * a settle that is pending has a flagged task to wait for, and a flagged
+ * task always has a settle pending to run it before the frame publishes.
+ */
+static inline void
+TaskRunner_AddSettling(
+    struct TaskRunner* runner,
+    struct ToriRS_Task* task)
+{
+    assert(runner);
+    assert(task);
+    task->settles_frame = 1;
+    ToriRS_TaskQueue_Add(runner->queue, task);
+    runner->frame_settle_pending = 1;
+}
+
+/* Is any task of the frame's transaction still queued? The queue is short --
+ * tens of tasks at the worst of a login -- so a walk per settle pass is
+ * cheaper than keeping a count in step with every exit a task has. */
+static inline int
+TaskRunner_SettlingRemains(struct TaskRunner const* runner)
+{
+    struct ToriRS_Task const* task;
+
+    assert(runner);
+    assert(runner->queue);
+    for( task = runner->queue->head; task; task = task->next )
+        if( task->settles_frame )
+            return 1;
+    return 0;
+}
+
 static inline enum TaskRunnerStat
 TaskRunner_Step(struct TaskRunner* runner)
 {
@@ -412,6 +448,22 @@ TaskRunner_SettleFrame(struct TaskRunner* runner)
          * because nothing more can be done, but because the task asked for
          * this frame to be seen. Settling past it would draw the finished
          * state and the request would have achieved nothing. */
+        if( stat == TASK_RUNNER_RENDER )
+            break;
+        /*
+         * The transaction is settled once no task of it remains, whatever
+         * else the queue still holds. The queue is shared with every asset
+         * stream -- music, sounds, entity bodies, the animations a new npc
+         * binds -- and none of those mutates the tree, so a frame published
+         * over them is a correct frame. Waiting for them was the largest
+         * single freeze at the Inferno's door: 1.6 s of retained frame while
+         * the unlocked track's 44 reads came back one by one.
+         */
+        if( stat != TASK_RUNNER_IDLE && !TaskRunner_SettlingRemains(runner) )
+        {
+            stat = TASK_RUNNER_IDLE;
+            break;
+        }
         if( stat != TASK_RUNNER_PENDING )
             break;
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)

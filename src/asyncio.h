@@ -363,6 +363,24 @@ struct ToriRS_Task
      * child needs a slot of its own.
      */
     int io_slot;
+    /*
+     * This task is part of a frame's CS2 visual transaction: the tree it
+     * mutates must not be published until it has finished.
+     *
+     * Set by TaskRunner_AddSettling (task_runner.h), which is how every CS2
+     * script, hook and transmit painter is enqueued (game/rs_cs2_dispatch.c).
+     * TaskRunner_SettleFrame steps the runner only while such a task remains
+     * queued. Before the flag existed the settle waited for the WHOLE queue to
+     * go idle -- and the queue also carries every asset stream: a music track
+     * chaining 44 reads through the browser held the visual latch shut for
+     * 1.6 s at the Inferno's door, and a new npc's animation did the same
+     * for a few hundred ms, with no CS2 task anywhere near it.
+     *
+     * Children joined on a settling task (AddJoined) do not carry it: the
+     * parent stays queued, parked on the join, and that is what holds the
+     * frame.
+     */
+    int settles_frame;
 
     /*
      * How many reads this task has issued back to back.

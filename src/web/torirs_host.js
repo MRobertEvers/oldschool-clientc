@@ -315,10 +315,28 @@
   const logLines = [];
   const LOG_MAX = 400;
 
+  /*
+   * The pane is written once per animation frame, not once per line.
+   *
+   * Rewriting a 400-line pane's textContent and then reading scrollHeight
+   * forces a synchronous layout, about 2 ms a line on a laptop. The client
+   * logs in bursts -- a level-up's three plugin lines, a tick's worth of
+   * narration in a debug build -- and each burst landed inside one rAF
+   * callback: with narration on, 14 lines turned an 8 ms frame into 90 ms
+   * (long-animation-frame attributed 92 ms of it to forced layout). Deferring
+   * the write to hostFrame bounds the cost at one layout per frame.
+   */
+  let logDirty = false;
   function log(line, isError) {
     if (isError) { console.error(line); } else { console.log(line); }
     logLines.push(line);
     if (logLines.length > LOG_MAX) { logLines.shift(); }
+    logDirty = true;
+  }
+
+  function flushLog() {
+    if (!logDirty) { return; }
+    logDirty = false;
     if (!logEl) { logEl = document.getElementById('log'); }
     if (logEl) {
       logEl.textContent = logLines.join('\n');
@@ -596,6 +614,7 @@
    * status line.
    */
   function hostFrame() {
+    flushLog();
     const js5 = js5Client ? js5Client.stats() : null;
     const od = onDemandClient ? onDemandClient.stats() : null;
 
