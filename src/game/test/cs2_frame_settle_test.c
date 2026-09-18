@@ -214,6 +214,11 @@ fixture_init(
     memset(px, 0, sizeof(*px));
     memset(widgets, 0, sizeof(*widgets));
     memset(frame, 0, sizeof(*frame));
+    /* The runner is a stack local in every test, and its telemetry table's
+     * count is read on the first step: left to the stack it was whatever the
+     * previous test's frames had put there, and the row walk strcmp'd off the
+     * end of the table. */
+    memset(runner, 0, sizeof(*runner));
 
     runner->queue = ToriRS_TaskQueue_New();
     runner->io = ToriRS_IO_New();
@@ -241,12 +246,14 @@ test_ready_work_drains_without_cap(void)
     struct PublishedFrame frame;
 
     fixture_init(&runner, &px, &widgets, &frame);
-    ToriRS_TaskQueue_Add(runner.queue, new_mutate_task(&widgets, &px, 0));
+    TaskRunner_AddSettling(&runner, new_mutate_task(&widgets, &px, 0));
 
     /* One initiating frame must cross every ready yield, including the old
-     * 64-step boundary, and may publish only the completed tree. */
+     * 64-step boundary, and may publish only the completed tree. A task that
+     * yields N times is stepped N + 1 times: the last pass is the one that
+     * runs it to its end. */
     TEST_CHECK(settle_and_commit(&runner, &widgets, &frame) == 1);
-    assert(px.process_calls == READY_YIELDS);
+    assert(px.process_calls == READY_YIELDS + 1);
     assert(runner.queue->head == NULL);
     assert(widgets.completed == 1);
     assert(widgets.mutation_count == 2);
@@ -268,7 +275,7 @@ test_external_wait_retains_last_frame(void)
     struct PublishedFrame frame;
 
     fixture_init(&runner, &px, &widgets, &frame);
-    ToriRS_TaskQueue_Add(runner.queue, new_mutate_task(&widgets, &px, 1));
+    TaskRunner_AddSettling(&runner, new_mutate_task(&widgets, &px, 1));
 
     /* The task has already hidden Equipment when the external wait begins.
      * That partial state must not replace the stable published frame. */
@@ -364,7 +371,7 @@ test_cross_queue_wait_ends_the_settle(void)
     strcpy(task->task.name, "await-state");
     task->boot = &boot;
     PT_INIT(&task->pt);
-    ToriRS_TaskQueue_Add(runner.queue, &task->task);
+    TaskRunner_AddSettling(&runner, &task->task);
 
     /* Blocked, not pending: no read is outstanding, so PENDING would send the
      * settle loop straight back into the same task. */
@@ -520,7 +527,7 @@ test_a_childs_block_is_the_parents_block(void)
     strcpy(task->task.name, "await-state-parent");
     task->st = &st;
     PT_INIT(&task->pt);
-    ToriRS_TaskQueue_Add(runner.queue, &task->task);
+    TaskRunner_AddSettling(&runner, &task->task);
 
     /* The parent is what the runner sees, and it must report the child's
      * block as its own. */
@@ -551,6 +558,43 @@ test_a_childs_block_is_the_parents_block(void)
     printf("ok - a child's block reaches the runner instead of spinning its budget\n");
 }
 
+/*
+ * A task that is NOT part of the transaction -- a music track, a sound, an
+ * npc's body landing -- shares the queue with the CS2 tasks and must not hold
+ * the frame. Before the flag the settle waited for the whole queue to go
+ * idle, and a 44-read music chain kept the last frame on screen for 1.6 s at
+ * the Inferno's door with no script anywhere near the tree.
+ */
+static void
+test_a_stream_does_not_hold_the_frame(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px;
+    struct WidgetState widgets;
+    struct PublishedFrame frame;
+    struct ToriRS_Task* stream;
+
+    fixture_init(&runner, &px, &widgets, &frame);
+    /* Plain Add: the task carries no settles_frame, like every asset load.
+     * The same task flagged is test_external_wait_retains_last_frame, which
+     * gets PENDING out of the identical wait -- the flag is the difference. */
+    stream = new_mutate_task(&widgets, &px, 1);
+    ToriRS_TaskQueue_Add(runner.queue, stream);
+    runner.frame_settle_pending = 1;
+
+    /* The stream parks on its read and the settle reports IDLE at once: the
+     * frame publishes over the outstanding read, which stays outstanding,
+     * after exactly one pass. */
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_IDLE);
+    TEST_CHECK(px.pending == 1);
+    TEST_CHECK(px.process_calls == 1);
+    TEST_CHECK(runner.queue->head == stream);
+    TEST_CHECK(widgets.completed == 0);
+
+    fixture_free(&runner);
+    printf("ok - an asset stream on the queue does not hold the frame\n");
+}
+
 int
 main(void)
 {
@@ -558,6 +602,7 @@ main(void)
     test_external_wait_retains_last_frame();
     test_cross_queue_wait_ends_the_settle();
     test_a_childs_block_is_the_parents_block();
+    test_a_stream_does_not_hold_the_frame();
     printf("cs2-frame-settle: all tests passed\n");
     return 0;
 }

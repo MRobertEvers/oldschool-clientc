@@ -17,6 +17,46 @@ app_world_npc_target_at_tile(
     int tile_z,
     int level);
 
+/*
+ * Queue a spawn that is an EFFECT -- a spotanim, a projectile -- on the asset
+ * runner, not the exec FIFO.
+ *
+ * Nothing downstream in the packet stream depends on an effect having been
+ * placed: no later packet addresses it, no tick fence waits for it. What the
+ * FIFO gave it was only a place in line, and the price of that place was the
+ * whole line: the task parks on the effect's asset chain -- spotanim config,
+ * then model and sequence, then the sequence's frames -- one round trip a
+ * link, and every packet behind it (other players, the npc that fired it,
+ * SERVER_TICK_END) waited it out while the frame latch held the last frame.
+ * Measured at the Inferno's door through the public proxy: 200-400 ms of
+ * frozen world for every graphic the browser's cache had not seen, once per
+ * new attack, per new npc, per seal breaking. The reference client never
+ * blocks here either -- its spot anims are created at once and drawn when
+ * their assets exist.
+ *
+ * Kinds that ARE ordered against later packets stay on the FIFO: a loc
+ * change must apply before the LOC_ANIM queued behind it for the same tile
+ * (game/test/rs_gameproto_exec_test.c pins it), a ground item before the
+ * OBJ_DEL that may follow. Off the FIFO the task captures the scene it was
+ * aimed at (Task_AppSpawn.world_load_seq) so a rebuild landing first makes
+ * it a no-op instead of a graphic in the wrong scene.
+ */
+static void
+app_spawn_effect_queue(
+    struct App* app,
+    struct Task_AppSpawn* task)
+{
+    struct World const* world = NULL;
+
+    assert(app);
+    assert(task);
+    if( WorldviewRegistry_IsLive(&app->worldviews, task->view) )
+        world = WorldviewRegistry_Get(&app->worldviews, task->view)->world;
+    task->world_load_seq = world ? world->load_seq : 0;
+    task->enqueue_cycle = world ? world->cycle : 0;
+    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+}
+
 void
 app_world_spawn_player(
     struct App* app,
@@ -78,7 +118,7 @@ App_WorldSpotanimSpawn(
     task->spotanim_id = spotanim_id;
     task->spotanim_height = height;
     task->spotanim_delay = delay;
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    app_spawn_effect_queue(app, task);
 }
 
 /* Server-driven projectile (reference ClientProj / MAP_PROJANIM). Public so the
@@ -118,7 +158,7 @@ App_WorldProjectileSpawn(
     task->proj_peak = peak;
     task->proj_arc = arc;
     task->proj_target = target;
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    app_spawn_effect_queue(app, task);
 }
 
 /* Zone LOC_ADD_CHANGE / LOC_DEL (reference locChangeCreate + locChangeDoQueue):
@@ -344,7 +384,7 @@ app_world_spawn_projectile(
     task->proj_target = app_world_npc_target_at_tile(app, tile_x, tile_z, level);
     app->proj_src_tile_x = -1;
     app->proj_src_tile_z = -1;
-    ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+    app_spawn_effect_queue(app, task);
 }
 
 /* Hotkey 6: hit every live player/npc for a test hitsplat + half health and

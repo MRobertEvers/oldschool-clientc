@@ -461,6 +461,17 @@ struct Task_AppSpawn
      * mid-flight), so applies guard on WorldviewRegistry_IsLive rather than
      * asserting. */
     int view;
+    /*
+     * For the EFFECT kinds (spotanim, projectile) that run on the asset
+     * runner rather than the exec FIFO: the scene generation and cycle AS OF
+     * ENQUEUE. Off the FIFO nothing orders the apply against a later REBUILD,
+     * so the apply compares load_seq and drops an effect the scene it was
+     * aimed at has been torn down under; and the cycles it spent loading are
+     * taken off its delays, so a projectile whose graphic took 300 ms to
+     * arrive appears mid-flight where it belongs rather than launching late.
+     */
+    unsigned world_load_seq;
+    int enqueue_cycle;
     enum AppSpawnKind kind;
     int tile_x;
     int tile_z;
@@ -2156,7 +2167,8 @@ app_world_spawn_spotanim_now(
     int tile_z,
     int level,
     int height,
-    int delay);
+    int delay,
+    int late);
 
 struct AppPluginAssetModel*
 app_plugin_asset_model_at(

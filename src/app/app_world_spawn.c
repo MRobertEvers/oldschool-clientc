@@ -56,7 +56,8 @@ app_world_spawn_projectile_spot_now(
     int end_delay,
     int peak,
     int arc,
-    int target);
+    int target,
+    int late);
 static void
 app_loc_change_apply_ops(
     struct App* app,
@@ -990,15 +991,27 @@ app_world_spawn_projectile_spot_now(
     int end_delay,
     int peak,
     int arc,
-    int target)
+    int target,
+    int late)
 {
     struct ToriRS_Spotanimtype* spot;
     struct ToriDraw_Model* model;
     int src_x, src_z, dst_x, dst_z, src_y;
     int element_id;
+    int idx;
 
     assert(app);
     assert(world);
+    assert(late >= 0);
+    /* Its assets arrived after the server had it land: nothing to show. */
+    if( late > end_delay )
+    {
+        TORIRS_LOG(
+            "spawn_projectile_spot: spotanim %d landed %d cycles before its assets\n",
+            spotanim_id,
+            late - end_delay);
+        return;
+    }
     spot = CacheProvider_SpotanimtypeGet(app->provider, spotanim_id);
     if( !spot )
     {
@@ -1041,7 +1054,7 @@ app_world_spawn_projectile_spot_now(
      * dst y as height_fn(dst) - end_height, matching getAvH(dst) - h2). `target`
      * goes through in its wire encoding so World re-aims the arc at that
      * entity's live position every cycle (reference addProjectiles). */
-    World_ProjectileSpawn(
+    idx = World_ProjectileSpawn(
         world,
         element_id,
         dst_level,
@@ -1056,6 +1069,18 @@ app_world_spawn_projectile_spot_now(
         peak,
         arc,
         target);
+    /* The projectile's clock starts at enqueue, not at apply: aged by the
+     * cycles its assets took, the next world cycle aims it from where it
+     * stands to the target in the time that is left (World_ProjectileSetTarget
+     * recomputes the velocity from the current position), so a graphic that
+     * took 300 ms to arrive joins the flight rather than restarting it. */
+    if( late > 0 )
+    {
+        struct WorldEntity_Projectile* p =
+            World_EntityPoolGet(&world->entities.projectile, idx);
+        assert(p);
+        p->cycle = late;
+    }
     /* Reference ClientProj.move wraps animFrame to 0 at the end of the frame
      * list and never drops the sequence. Flight time routinely outlasts the
      * sequence — a 12-cycle spotanim seq against a 30+ cycle flight is normal —
@@ -1107,7 +1132,8 @@ app_world_spawn_spotanim_now(
     int tile_z,
     int level,
     int height,
-    int delay)
+    int delay,
+    int late)
 {
     struct ToriRS_Spotanimtype* spot;
     struct ToriDraw_Model* model;
@@ -1117,11 +1143,30 @@ app_world_spawn_spotanim_now(
 
     assert(app);
     assert(world);
+    assert(late >= 0);
     spot = CacheProvider_SpotanimtypeGet(app->provider, spotanim_id);
     if( !spot )
     {
         TORIRS_LOG("spawn_spotanim: spotanim %d not resident\n", spotanim_id);
         return;
+    }
+    /* Loaded late: the wait comes off its delay first, and a graphic whose
+     * whole life passed while its assets were on the wire is not shown at
+     * all -- the reference's spot anims are gone by then too. */
+    delay -= late;
+    if( delay < 0 )
+    {
+        int const overdue = -delay;
+        delay = 0;
+        lifetime = WorldSeqSourceToriDraw_TotalDuration(&app->seq_source, spot->seq);
+        if( lifetime > 0 && overdue >= lifetime )
+        {
+            TORIRS_LOG(
+                "spawn_spotanim: id=%d expired %d cycles before its assets\n",
+                spotanim_id,
+                overdue - lifetime);
+            return;
+        }
     }
 
     model = app_world_build_spotanim_model(app, spot);
@@ -1317,6 +1362,57 @@ app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self)
             &self->pending);
 }
 
+/*
+ * The world an EFFECT applies to, or NULL when it must be dropped.
+ *
+ * Effects load on the asset runner (app_spawn_effect_queue, app_world_edit.c),
+ * so nothing orders their apply against the packets that came after them --
+ * including a REBUILD. A rebuild finishing first tears down the scene the
+ * effect was aimed at, and the same tile coordinates then name a different
+ * place; the reference drops its pending spot anims on rebuild for the same
+ * reason. The view dying (a boat despawning) is the other way the scene can
+ * go, and both are guards, not asserts: a task cannot be told the world
+ * moved under it while it was parked.
+ */
+static struct World*
+app_spawn_effect_world(struct Task_AppSpawn const* self)
+{
+    struct App* app;
+    struct Worldview* wv;
+
+    assert(self);
+    app = self->app;
+    assert(app);
+    if( !WorldviewRegistry_IsLive(&app->worldviews, self->view) )
+        return NULL;
+    wv = WorldviewRegistry_Get(&app->worldviews, self->view);
+    if( !wv->world )
+        return NULL;
+    if( wv->world->load_seq != self->world_load_seq )
+    {
+        TORIRS_LOG(
+            "spawn: effect kind=%d dropped, scene rebuilt while its assets loaded\n",
+            (int)self->kind);
+        return NULL;
+    }
+    return wv->world;
+}
+
+/* Cycles the effect spent loading: what its delays are shortened by, so it
+ * appears where the server's timeline has it, not late by its own load. */
+static int
+app_spawn_effect_late(
+    struct Task_AppSpawn const* self,
+    struct World const* world)
+{
+    int late;
+
+    assert(self);
+    assert(world);
+    late = world->cycle - self->enqueue_cycle;
+    return late > 0 ? late : 0;
+}
+
 static int
 Task_AppSpawn_Run(
     struct ToriRS_Task* base,
@@ -1384,18 +1480,20 @@ Task_AppSpawn_Run(
         PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
         app_spawn_fan_spotanim_assets(self);
         PT_TASK_JOIN(pending);
-        /* Guarded, not asserted: the captured view can die while the task is
-         * parked, and a late effect on a despawned boat is simply dropped. */
-        if( WorldviewRegistry_IsLive(&app->worldviews, self->view) )
-            app_world_spawn_spotanim_now(
-                app,
-                WorldviewRegistry_Get(&app->worldviews, self->view)->world,
-                self->spotanim_id,
-                self->tile_x,
-                self->tile_z,
-                self->level,
-                self->spotanim_height,
-                self->spotanim_delay);
+        {
+            struct World* world = app_spawn_effect_world(self);
+            if( world )
+                app_world_spawn_spotanim_now(
+                    app,
+                    world,
+                    self->spotanim_id,
+                    self->tile_x,
+                    self->tile_z,
+                    self->level,
+                    self->spotanim_height,
+                    self->spotanim_delay,
+                    app_spawn_effect_late(self, world));
+        }
     }
     else if( self->kind == APP_SPAWN_ENTITY_SPOTANIM )
     {
@@ -1412,25 +1510,28 @@ Task_AppSpawn_Run(
         PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
         app_spawn_fan_spotanim_assets(self);
         PT_TASK_JOIN(pending);
-        /* Guarded, not asserted: see the spotanim branch. */
-        if( WorldviewRegistry_IsLive(&app->worldviews, self->view) )
-            app_world_spawn_projectile_spot_now(
-                app,
-                WorldviewRegistry_Get(&app->worldviews, self->view)->world,
-                self->spotanim_id,
-                self->src_tile_x,
-                self->src_tile_z,
-                self->src_level,
-                self->tile_x,
-                self->tile_z,
-                self->level,
-                self->proj_src_height,
-                self->proj_dst_height,
-                self->proj_start_delay,
-                self->proj_end_delay,
-                self->proj_peak,
-                self->proj_arc,
-                self->proj_target);
+        {
+            struct World* world = app_spawn_effect_world(self);
+            if( world )
+                app_world_spawn_projectile_spot_now(
+                    app,
+                    world,
+                    self->spotanim_id,
+                    self->src_tile_x,
+                    self->src_tile_z,
+                    self->src_level,
+                    self->tile_x,
+                    self->tile_z,
+                    self->level,
+                    self->proj_src_height,
+                    self->proj_dst_height,
+                    self->proj_start_delay,
+                    self->proj_end_delay,
+                    self->proj_peak,
+                    self->proj_arc,
+                    self->proj_target,
+                    app_spawn_effect_late(self, world));
+        }
     }
     else if( self->kind == APP_SPAWN_PLUGIN_OBJECT )
     {
@@ -1634,10 +1735,10 @@ Task_AppSpawn_Run(
     else
     {
         PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
-        if( WorldviewRegistry_IsLive(&app->worldviews, self->view) )
+        if( app_spawn_effect_world(self) )
             app_world_spawn_projectile_now(
                 app,
-                WorldviewRegistry_Get(&app->worldviews, self->view)->world,
+                app_spawn_effect_world(self),
                 self->model_id,
                 self->seq_id,
                 self->src_tile_x,

@@ -554,11 +554,26 @@ main(void)
         assert(strcmp(head->name, "AppSpawn") == 0);
         assert(strcmp(head->next->name, "AppSpawn") == 0);
 
+        /* An EFFECT takes the other queue. A spotanim or a projectile is
+         * ordered against nothing behind it, and on the FIFO its asset chain
+         * parked every later packet (200-400 ms a graphic through a browser
+         * cache); so it loads on the asset runner and the FIFO stays two long. */
+        app->runner.queue = ToriRS_TaskQueue_New();
+        App_WorldSpotanimSpawn(app, 12, 34, 0, 1234 /* spotanim */, 92, 0);
+        App_WorldProjectileSpawn(app, 10, 30, 12, 34, 0, 1235, 43, 31, 41, 60, 16, 15, 0);
+        assert(app->exec_runner.queue->head == head);
+        assert(head->next->next == NULL);
+        assert(app->runner.queue->head != NULL);
+        assert(strcmp(app->runner.queue->head->name, "AppSpawn") == 0);
+        assert(app->runner.queue->head->next != NULL);
+        assert(app->runner.queue->head->next->next == NULL);
+
         /* The queue's own teardown: each task's vtable Free owns its
          * allocation, so hand-freeing them here double-frees. */
         ToriRS_TaskQueue_Free(app->exec_runner.queue);
+        ToriRS_TaskQueue_Free(app->runner.queue);
         free(app);
-        printf("ok - LOC_ANIM queues behind a same-tile LOC_ADD_CHANGE\n");
+        printf("ok - LOC_ANIM queues behind a same-tile LOC_ADD_CHANGE; effects take the asset queue\n");
     }
 
     /*
