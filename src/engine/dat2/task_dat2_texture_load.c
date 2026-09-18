@@ -39,7 +39,9 @@ struct Task_Dat2TextureLoad
     int texture_id;
     struct RSCache_Dat2Texture* def;
     struct RSCache_Dat2SpritePack** packs;
-    int sprite_index;
+    /** Sprites still loading, and whether any of them refused. */
+    int pending;
+    bool failed;
     struct RSCache_Dat2ProcTexture* proc_def;
 
     /* Procedural dependency closure, walked one item per await. Both are worklists that grow
@@ -50,7 +52,6 @@ struct Task_Dat2TextureLoad
     int dep_texture_cursor;
     int dep_sprites[64];
     int dep_sprite_count;
-    int dep_sprite_cursor;
     /*
      * The id currently being awaited, per worklist.
      *
@@ -62,7 +63,6 @@ struct Task_Dat2TextureLoad
      * index that would trip a bounds check.
      */
     int dep_texture_id;
-    int dep_sprite_id;
 };
 
 /* Size procedural textures are baked at. The material's `small` flag selects 64 in the
@@ -374,7 +374,6 @@ task_dat2_texture_load_clear_packs(struct Task_Dat2TextureLoad* task)
     free(task->packs);
     task->packs = NULL;
     task->def = NULL;
-    task->sprite_index = 0;
 }
 
 
@@ -563,6 +562,130 @@ texture_from_sprite_packs(
     return texture;
 }
 
+/* --- one sprite, fetched as a sibling --------------------------------------
+ *
+ * Both sprite sets below -- a texture's layers, and a procedural program's
+ * dependencies -- are known in full before the first read, so each is one
+ * sub-task per sprite rather than a loop that waits in the middle of itself.
+ * That is what keeps the cursors out of the task struct, and the reads still
+ * leave in one batch because every sibling queues in the same pass.
+ */
+
+struct Task_Dat2TextureSpriteLoad
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct Dat2BuildCache* bc;
+    int sprite_id;
+    /* Where the decoded pack goes. NULL means the procedural store instead:
+     * that consumer wants the first frame flattened to ARGB and keyed by id,
+     * while a texture layer wants the pack itself. */
+    struct RSCache_Dat2SpritePack** out_pack;
+    /* The texture's flag: a layer that will not decode makes the whole bake
+     * pointless, and only the texture can abandon it. Unused by the
+     * procedural side, where a missing dependency is recorded and survived. */
+    bool* failed;
+};
+
+static int
+Task_Dat2TextureSpriteLoad_Run(
+    struct ToriRS_Task* task_base,
+    struct ToriRS_IOBatch* io)
+{
+    struct Task_Dat2TextureSpriteLoad* task = (struct Task_Dat2TextureSpriteLoad*)task_base;
+    struct RSCache_Dat2DiskArchive* archive;
+    struct RSCache_Dat2SpritePack* pack;
+
+    PT_BEGIN(&task->pt);
+
+    RSCache_IO_Dat2SpriteLoad(io, 0, task->sprite_id);
+    PT_YIELD(&task->pt);
+    archive = RSCache_IO_Dat2SpriteDecode(io, 0);
+    if( !archive )
+    {
+        if( task->out_pack )
+        {
+            TORIRS_ERR("Failed to decode sprite %d for a texture layer\n", task->sprite_id);
+            *task->failed = true;
+        }
+        else
+            /* Record the miss so the resolver fails fast instead of re-searching. */
+            proctex_sprite_put(task->bc, task->sprite_id, NULL, 0, 0);
+        PT_EXIT(&task->pt);
+    }
+
+    pack = RSCache_Dat2SpritePackNewDecode(
+        (const unsigned char*)archive->data, archive->data_size, RSCACHE_SPRITELOAD_FLAG_NORMALIZE);
+    RSCache_Dat2DiskArchiveFree(archive);
+
+    if( task->out_pack )
+    {
+        if( !pack || pack->count <= 0 )
+        {
+            TORIRS_ERR("Failed to decode sprite pack %d for a texture layer\n", task->sprite_id);
+            if( pack )
+                RSCache_Dat2SpritePackFree(pack);
+            *task->failed = true;
+            PT_EXIT(&task->pt);
+        }
+        /* Handed to the texture, which owns every pack it collected. */
+        *task->out_pack = pack;
+        PT_EXIT(&task->pt);
+    }
+
+    if( pack && pack->count > 0 )
+    {
+        struct RSCache_Dat2Sprite* sprite = &pack->sprites[0];
+        int count = sprite->width * sprite->height;
+        int32_t* argb = malloc((size_t)(count > 0 ? count : 1) * sizeof(*argb));
+
+        assert(argb);
+        for( int i = 0; i < count; i++ )
+            argb[i] = pack->palette[sprite->palette_pixels[i]];
+        proctex_sprite_put(task->bc, task->sprite_id, argb, sprite->width, sprite->height);
+    }
+    else
+        proctex_sprite_put(task->bc, task->sprite_id, NULL, 0, 0);
+    if( pack )
+        RSCache_Dat2SpritePackFree(pack);
+
+    PT_END(&task->pt);
+}
+
+static struct ToriRS_TaskVTable Task_Dat2TextureSpriteLoad_VTable = {
+    .run = Task_Dat2TextureSpriteLoad_Run,
+    .free = NULL,
+};
+
+static struct ToriRS_Task*
+create_sprite_load(
+    struct Dat2BuildCache* bc,
+    int sprite_id,
+    struct RSCache_Dat2SpritePack** out_pack,
+    bool* failed)
+{
+    struct Task_Dat2TextureSpriteLoad* task;
+
+    assert(bc);
+    if( sprite_id < 0 )
+        return NULL;
+    /* Already resident in the procedural store: nothing to do, and NULL is
+     * what AddParallelPoolSubTask takes for that. */
+    if( !out_pack && proctex_sprite_get(bc, sprite_id) )
+        return NULL;
+
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_Dat2TextureSpriteLoad_VTable;
+    strcpy(task->task.name, "Dat2TextureSpriteLoad");
+    task->bc = bc;
+    task->sprite_id = sprite_id;
+    task->out_pack = out_pack;
+    task->failed = failed;
+    PT_INIT(&task->pt);
+    return &task->task;
+}
+
 static int
 Task_Dat2TextureLoad_Run(
     struct ToriRS_Task* task_base,
@@ -698,72 +821,19 @@ Task_Dat2TextureLoad_Run(
                     dep->sprite_dependencies[i]);
         }
 
-        /* Every dependency, fetched together: the list is complete the moment
-         * the loop above finished collecting it, so the walk below reads them
-         * out of the resident store rather than paying a round trip apiece. */
-        if( task->dep_sprite_count > 1 )
+        /* Every dependency, fetched together. The closure above is a real
+         * chain -- a program names programs, and each has to be decoded
+         * before it can name the next -- but the SPRITES it reaches are a set
+         * the moment that walk ends. */
+        for( int i = 0; i < task->dep_sprite_count; i++ )
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
+                task->bc->base.asset_queue,
+                create_sprite_load(task->bc, task->dep_sprites[i], NULL, NULL),
+                &task->pending);
+        while( task->pending > 0 )
         {
-            ToriRS_IO_QueueCachePrefetch(
-                io,
-                0,
-                0,
-                RSCACHE_DAT2_TABLE_SPRITES,
-                TORIRS_IO_CACHE_DAT2,
-                task->dep_sprites,
-                task->dep_sprite_count);
+            task->task.blocked = 1;
             PT_YIELD(&task->pt);
-            ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
-        }
-
-        /* Sprite dependencies: decode each pack once and flatten to ARGB for the generator. */
-        for( task->dep_sprite_cursor = 0;
-             task->dep_sprite_cursor < task->dep_sprite_count;
-             task->dep_sprite_cursor++ )
-        {
-            struct RSCache_Dat2SpritePack* pack;
-
-            task->dep_sprite_id = task->dep_sprites[task->dep_sprite_cursor];
-            if( proctex_sprite_get(task->bc, task->dep_sprite_id) )
-                continue;
-
-            RSCache_IO_Dat2SpriteLoad(io, 0, task->dep_sprite_id);
-            PT_YIELD(&task->pt);
-            archive = RSCache_IO_Dat2SpriteDecode(io, 0);
-            if( !archive )
-            {
-                /* Record the miss so the resolver fails fast instead of re-searching. */
-                proctex_sprite_put(task->bc, task->dep_sprite_id, NULL, 0, 0);
-                continue;
-            }
-
-            pack = RSCache_Dat2SpritePackNewDecode(
-                (const unsigned char*)archive->data,
-                archive->data_size,
-                RSCACHE_SPRITELOAD_FLAG_NORMALIZE);
-            RSCache_Dat2DiskArchiveFree(archive);
-            archive = NULL;
-
-            if( pack && pack->count > 0 )
-            {
-                struct RSCache_Dat2Sprite* sprite = &pack->sprites[0];
-                int count = sprite->width * sprite->height;
-                int32_t* argb = malloc((size_t)(count > 0 ? count : 1) * sizeof(*argb));
-                assert(argb);
-                for( int i = 0; i < count; i++ )
-                    argb[i] = pack->palette[sprite->palette_pixels[i]];
-                proctex_sprite_put(
-                    task->bc,
-                    task->dep_sprite_id,
-                    argb,
-                    sprite->width,
-                    sprite->height);
-            }
-            else
-            {
-                proctex_sprite_put(task->bc, task->dep_sprite_id, NULL, 0, 0);
-            }
-            if( pack )
-                RSCache_Dat2SpritePackFree(pack);
         }
 
         proc_texture = proctex_bake(
@@ -813,53 +883,25 @@ Task_Dat2TextureLoad_Run(
 
     task->packs = calloc((size_t)task->def->sprite_ids_count, sizeof(*task->packs));
     assert(task->packs);
-    task->sprite_index = 0;
 
-    /* Every layer's sprite, fetched together. The definition named them all,
-     * so the walk below is a decode loop rather than a round trip apiece; the
-     * def owns the array and outlives the yield, so it is lent, not copied. */
-    if( task->def->sprite_ids_count > 1 )
+    /* Every layer's sprite, fetched together: the definition named them all.
+     * Each sibling hands its decoded pack back into the slot it was given,
+     * which is stable because we are parked on the join that counts them. */
+    for( int i = 0; i < task->def->sprite_ids_count; i++ )
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
+            task->bc->base.asset_queue,
+            create_sprite_load(
+                task->bc, task->def->sprite_ids[i], &task->packs[i], &task->failed),
+            &task->pending);
+    while( task->pending > 0 )
     {
-        ToriRS_IO_QueueCachePrefetch(
-            io,
-            0,
-            0,
-            RSCACHE_DAT2_TABLE_SPRITES,
-            TORIRS_IO_CACHE_DAT2,
-            task->def->sprite_ids,
-            task->def->sprite_ids_count);
+        task->task.blocked = 1;
         PT_YIELD(&task->pt);
-        ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
     }
-
-    for( ; task->sprite_index < task->def->sprite_ids_count; task->sprite_index++ )
+    if( task->failed )
     {
-        RSCache_IO_Dat2SpriteLoad(io, 0, task->def->sprite_ids[task->sprite_index]);
-        PT_YIELD(&task->pt);
-
-        archive = RSCache_IO_Dat2SpriteDecode(io, 0);
-        if( !archive )
-        {
-            TORIRS_ERR("Failed to decode sprite %d for texture %d\n",
-                task->def->sprite_ids[task->sprite_index],
-                task->texture_id);
-            task_dat2_texture_load_clear_packs(task);
-            PT_EXIT(&task->pt);
-        }
-
-        task->packs[task->sprite_index] = RSCache_Dat2SpritePackNewDecode(
-            (const unsigned char*)archive->data,
-            archive->data_size,
-            RSCACHE_SPRITELOAD_FLAG_NORMALIZE);
-        RSCache_Dat2DiskArchiveFree(archive);
-        if( !task->packs[task->sprite_index] || task->packs[task->sprite_index]->count <= 0 )
-        {
-            TORIRS_ERR("Failed to decode sprite pack %d for texture %d\n",
-                task->def->sprite_ids[task->sprite_index],
-                task->texture_id);
-            task_dat2_texture_load_clear_packs(task);
-            PT_EXIT(&task->pt);
-        }
+        task_dat2_texture_load_clear_packs(task);
+        PT_EXIT(&task->pt);
     }
 
     torirs_texture = texture_from_sprite_packs(task->packs, task->def, 128);
