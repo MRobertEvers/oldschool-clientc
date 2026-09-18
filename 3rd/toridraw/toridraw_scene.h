@@ -547,6 +547,96 @@ ToriDraw_SceneElementOcclusionHeight(
     return h > 0 ? h : 0;
 }
 
+/**
+ * The element's horizontal (XZ) reach from its own origin, in scene fine units
+ * — reference Model.radius, = max(|x|,|z|) over the posed vertices.
+ *
+ * What the painter's span gate needs and cannot get from a config: an entity
+ * registers over the tiles its *declared* size covers, and a model whose
+ * geometry reaches past that draws on tiles the gate never waited for. Returns
+ * 0 when the element is dead, the handle is not a full model, or the model
+ * carries no bounds — every one of which means "no claim", not "no reach".
+ */
+static inline int
+ToriDraw_SceneElementModelRadius(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    struct ToriDraw_SceneElement* el;
+    struct ToriDraw_Model* model;
+
+    assert(scene);
+    if( element_id < 0 )
+        return 0;
+    if( !ToriDraw_SceneElementIsLive(scene, element_id) )
+        return 0;
+    el = ToriDraw_SceneElementGet(scene, element_id);
+    if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) )
+        return 0;
+    model = el->model.u.model.model;
+    if( !model || !model->has_bounds_cylinder )
+        return 0;
+    return model->bounds_cylinder.radius > 0 ? model->bounds_cylinder.radius : 0;
+}
+
+/**
+ * The element's axis-aligned XZ reach from its own origin, in scene fine units
+ * — max(|x|) and max(|z|) over the posed vertices, in MODEL space.
+ *
+ * The cylinder radius beside it is the CORNER diagonal, so a model that fills
+ * its tiles exactly reports radius = half_extent * sqrt(2) and reads as a model
+ * that overhangs by 41%. Reading a span decision off that number is how a
+ * correctly-sized entity gets a footprint two tiles too wide. This is the
+ * number a span wants, and the caller owes it the entity's yaw.
+ *
+ * O(vertex_count): this walks the model. Diagnostics and per-cycle registration
+ * only — not a per-frame-per-element call on a hot path.
+ */
+static inline void
+ToriDraw_SceneElementModelReachXZ(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int* out_reach_x,
+    int* out_reach_z)
+{
+    struct ToriDraw_SceneElement* element;
+    struct ToriDraw_Model* model;
+    int reach_x = 0;
+    int reach_z = 0;
+
+    assert(scene);
+    assert(out_reach_x);
+    assert(out_reach_z);
+    *out_reach_x = 0;
+    *out_reach_z = 0;
+    if( element_id < 0 )
+        return;
+    if( !ToriDraw_SceneElementIsLive(scene, element_id) )
+        return;
+    element = ToriDraw_SceneElementGet(scene, element_id);
+    if( !element || !ToriDraw_ModelKindIsFull(element->model.kind) )
+        return;
+    model = element->model.u.model.model;
+    if( !model || model->vertex_count <= 0 || !model->vertices_x || !model->vertices_z )
+        return;
+    for( int i = 0; i < model->vertex_count; i++ )
+    {
+        int vx = (int)model->vertices_x[i];
+        int vz = (int)model->vertices_z[i];
+
+        if( vx < 0 )
+            vx = -vx;
+        if( vz < 0 )
+            vz = -vz;
+        if( vx > reach_x )
+            reach_x = vx;
+        if( vz > reach_z )
+            reach_z = vz;
+    }
+    *out_reach_x = reach_x;
+    *out_reach_z = reach_z;
+}
+
 int
 ToriDraw_SceneElementSlotCount(struct ToriDraw_Scene* scene);
 

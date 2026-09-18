@@ -157,6 +157,14 @@ painter_dump_command_order(
  *                decor_alt, decor_back, decor_back_alt, grounddecor, item,
  *                item_back, loc, entity, and the `:bridge` variants).
  *
+ * A geometry row carrying an element also carries `fp=<sx>,<sz>[+<w>x<h>]` --
+ * the ELEMENT's own anchor and tile footprint, which is not what `x`/`z` say.
+ * Those name the tile the walk emitted from, and for a multi-tile element that
+ * is whichever footprint tile popped last. The footprint is what says which
+ * tiles' ground was supposed to be down first, so it is what any
+ * "the floor drew on top of that" question is answered from
+ * (tools/zuk_glyph/check_draw_order.py).
+ *
  * TORIRS_WEDGELOG_AT=<n>      capture on the n-th painter_paint_bucket call
  *                             (default 700 — the camera must have settled).
  * TORIRS_WEDGELOG_FRAMES=<n>  number of consecutive frames to record (default 1).
@@ -406,7 +414,7 @@ painter_wedgelog_paint(
     t = &g_wedgelog.painter->tiles[ti];
     fprintf(
         g_wedgelog.fp,
-        "%ld %d %d %d %d %d %s p=%ld ent=%d elem=%d spans=0x%x flags=0x%x\n",
+        "%ld %d %d %d %d %d %s p=%ld ent=%d elem=%d spans=0x%x flags=0x%x",
         ++g_wedgelog.seq,
         (int)painters_tile_get_paintgrid_level(t),
         (int)t->sx,
@@ -419,6 +427,29 @@ painter_wedgelog_paint(
         element_idx,
         (unsigned)t->spans,
         (unsigned)painters_tile_get_flags(t));
+    /* The element's OWN anchor and footprint, not the emitting tile's.
+     *
+     * The row names the tile the walk happened to emit from, which for a
+     * multi-tile scenery element is whichever footprint tile popped last --
+     * so "which tiles did this element's span gate actually cover" cannot be
+     * read off the row at all. That is the only question worth asking when a
+     * floor lands on top of an npc, and answering it used to mean a second
+     * run under TORIRS_PAINTER_DUMP and a join by element index. */
+    if( element_idx >= 0 && element_idx < g_wedgelog.painter->element_count )
+    {
+        const struct PaintersElement* element = &g_wedgelog.painter->elements[element_idx];
+        if( element->kind == PNTRELEM_SCENERY )
+            fprintf(
+                g_wedgelog.fp,
+                " fp=%d,%d+%dx%d",
+                (int)element->sx,
+                (int)element->sz,
+                (int)element->_scenery.size_x,
+                (int)element->_scenery.size_z);
+        else
+            fprintf(g_wedgelog.fp, " fp=%d,%d", (int)element->sx, (int)element->sz);
+    }
+    fputc('\n', g_wedgelog.fp);
 }
 
 /* ---------------------------------------------------------------------------

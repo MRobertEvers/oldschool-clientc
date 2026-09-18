@@ -1488,9 +1488,43 @@ world_dyn_register_mover(
     int forward_padding)
 {
     struct World_PainterFootprint footprint;
+    /* TORIRS_MOVER_FOOTPRINT_DEBUG=1: the span the entity's SIZE claims beside
+     * the reach its MODEL actually has. A span short of its model is invisible
+     * except as an intermittent floor-over-npc seam, and a screenshot cannot
+     * say which of the two numbers is the wrong one -- so the first question a
+     * report of one gets asked is answered here rather than guessed at.
+     * `radius` is the cylinder's CORNER diagonal and over-states a square model
+     * by 41%; `reach` is the axis-aligned pair. Read once. */
+    static int footprint_debug = -1;
+
+    if( footprint_debug < 0 )
+        footprint_debug = getenv("TORIRS_MOVER_FOOTPRINT_DEBUG") != NULL;
+
     if( !World_EntityPainterFootprint(
             draw_x, draw_z, padding, yaw, forward_padding, world->_scene_size, &footprint) )
         return; /* padded span pokes off the scene edge: reference draws nothing */
+    if( footprint_debug )
+    {
+        int reach_x = 0;
+        int reach_z = 0;
+
+        if( world->scene )
+            ToriDraw_SceneElementModelReachXZ(world->scene, element_id, &reach_x, &reach_z);
+        fprintf(
+            stderr,
+            "mover footprint: el=%d at %d,%d pad=%d radius=%d reach=%d,%d span=%d,%d+%dx%d\n",
+            element_id,
+            draw_x,
+            draw_z,
+            padding,
+            world->scene ? ToriDraw_SceneElementModelRadius(world->scene, element_id) : 0,
+            reach_x,
+            reach_z,
+            footprint.sx,
+            footprint.sz,
+            footprint.size_x,
+            footprint.size_z);
+    }
     painter_add_normal_scenery(
         world->painter,
         footprint.sx,

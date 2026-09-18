@@ -52,8 +52,13 @@ struct TilePaint
      */
     uint8_t occlusion;
     /** Bucket painter: the ground pass was let through by the seam exception
-     *  while a far neighbour was still pending. The tile's scenery and completion then wait for the plain
-     *  reference gate (see painter_paint_bucket). Cleared in the classify pass. */
+     *  while a far neighbour was still pending, so this tile has put down its
+     *  TERRAIN and nothing else -- its walls, decor, ground objects and ground
+     *  decor are deferred to the release site. Two things wait on the plain
+     *  reference gate because of that: the tile's own scenery and completion,
+     *  and (painter_paint_bucket's readiness test) any element whose footprint
+     *  covers this tile, which would otherwise be emitted BEFORE the ground
+     *  decor it is standing on. Cleared in the classify pass. */
     uint8_t seam_relaxed;
     /** Bucket painter: memoized seam-exception scan of THIS tile as a
      *  neighbour. 0 = not yet scanned this paint (cleared in classify).

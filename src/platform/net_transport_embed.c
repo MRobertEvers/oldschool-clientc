@@ -57,7 +57,47 @@ struct NetTransportEmbed
     long next_tick_ms;
     int test_clock;
     unsigned long long test_now;
+    /* TORIRS_EMBED_CLOCK_MS: ms this transport pretends have passed per poll,
+     * instead of reading the wall clock. @see embed_poll_clock_ms. */
+    int poll_clock_ms;
+    unsigned long long poll_clock_now;
 };
+
+/*
+ * TORIRS_EMBED_CLOCK_MS=<ms> — drive the server's 600 ms tick off the POLL
+ * COUNT instead of the wall clock.
+ *
+ * `TORIRS_MAX_FRAMES` already frame-locks the client half: app_frame.c pays
+ * exactly one 20 ms logic tick per frame "so that three frames mean the same
+ * three cycles every run". The server half was still on the wall clock, so the
+ * world ticked whenever the host machine happened to get there — and a bounded
+ * headless run of a live world came out DIFFERENT every time. Two runs of the
+ * Zuk encounter under an identical command line put the glyph in different
+ * places and its animation on a different frame, which is enough to make an
+ * A/B of anything in the scene meaningless (tools/zuk_glyph/ needs exactly
+ * that A/B).
+ *
+ * 20 matches the client's own logic tick, so 30 polls make one server tick.
+ * Unset, nothing changes: a real session stays on the real clock, because a
+ * client that stalls must not have the world stall with it.
+ *
+ * Read once.
+ */
+static int
+embed_poll_clock_ms(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* env = getenv("TORIRS_EMBED_CLOCK_MS");
+
+        cached = (env && env[0]) ? atoi(env) : 0;
+        if( cached < 0 )
+            cached = 0;
+    }
+    return cached;
+}
 
 static void
 emit_status(
@@ -134,7 +174,15 @@ embed_poll(
         return;
 
     /* 2. let the server act, and tick it on its own schedule */
-    now = self->test_clock ? (long)self->test_now : (long)PlatformWindow_Ticks64();
+    if( self->test_clock )
+        now = (long)self->test_now;
+    else if( self->poll_clock_ms > 0 )
+    {
+        self->poll_clock_now += (unsigned long long)self->poll_clock_ms;
+        now = (long)self->poll_clock_now;
+    }
+    else
+        now = (long)PlatformWindow_Ticks64();
     run_tick = self->next_tick_ms == 0 || now >= self->next_tick_ms;
     if( run_tick )
     {
@@ -237,6 +285,7 @@ NetTransport_NewEmbed(int default_port, char const* rev_name)
     self->base.vtable = &k_embed_vtable;
     self->rev_name = rev_name;
     self->last_status = -1;
+    self->poll_clock_ms = embed_poll_clock_ms();
     /* The server is started on CONNECT rather than here, so a client that never
      * logs in does not pay for loading the cache and the content tree. */
     return &self->base;

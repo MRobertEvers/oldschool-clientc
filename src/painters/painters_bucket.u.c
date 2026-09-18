@@ -882,6 +882,42 @@ bucket_paint_world(
     struct PaintersElement* elements = painter->elements;
     struct ElementPaint* element_paints = painter->element_paints;
     struct SceneryNode* scenery_pool = painter->scenery_pool;
+    /*
+     * GROUND is not "this tile is finished with its floor" when the seam
+     * exception let the tile through.
+     *
+     * A relaxed tile emits its terrain meshes, reaches PAINT_STEP_GROUND, and
+     * DEFERS bucket_emit_tile_features -- its walls, its wall decor, its ground
+     * objects and its GROUND DECOR -- until the reference gate passes. The
+     * scenery readiness test below reads that step as "the ground under this
+     * element is down", and for a relaxed tile it is not: the decor is still
+     * coming. An element standing on one was emitted first and the tile's decor
+     * landed on top of it, a whole floor plate over a boss for the handful of
+     * frames the exception held the tile open.
+     *
+     * That is what the Inferno reported: shape-22 lava planes are ground decor
+     * (@see painter_ground_decor_enabled), so the lava under the Ancestral
+     * Glyph drew over it while it walked. @see docs/glyph_lava_overdraw.md.
+     *
+     * A mask rather than a branch: this is read once per element per tile in
+     * the drain's innermost loop, and `seam_relaxed` shares a cache line with
+     * the `step` beside it. TORIRS_PAINTER_RELAXED_READY=1 clears the mask and
+     * restores the old behaviour, which is the only way to A/B a draw-order
+     * defect without building a second binary -- and this tree forbids
+     * mutating itself to do that. Read once.
+     */
+    uint8_t relaxed_not_ready;
+    {
+        static int cached = -1;
+
+        if( cached < 0 )
+        {
+            char const* env = getenv("TORIRS_PAINTER_RELAXED_READY");
+
+            cached = (env && env[0] == '1') ? 0 : 1;
+        }
+        relaxed_not_ready = (uint8_t)(cached ? 0xFFu : 0u);
+    }
     int64_t perf_pops = 0;
     int64_t perf_gate_rejects = 0;
     int64_t perf_pushes = 0;
@@ -1417,7 +1453,8 @@ bucket_paint_world(
             {
                 for( int ox = min_tile_x, ti = row; ox <= max_tile_x; ox++, ti++ )
                 {
-                    if( paints[ti].step < PAINT_STEP_GROUND )
+                    if( paints[ti].step < PAINT_STEP_GROUND ||
+                        (paints[ti].seam_relaxed & relaxed_not_ready) )
                     {
                         all_base = 0;
                         break;
