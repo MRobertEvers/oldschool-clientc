@@ -2042,6 +2042,11 @@ app_world_build_model(
     int light_contrast,
     int light_ambient);
 
+int
+app_world_npc_models_resident(
+    struct App* app,
+    struct ToriRS_Npctype const* npctype);
+
 struct ToriDraw_Model*
 app_world_build_npc_model(
     struct App* app,

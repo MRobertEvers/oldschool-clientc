@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "boot_telemetry.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static bool
@@ -575,6 +576,13 @@ app_pump_net_packets(struct App* app)
                 fence_queued = 1;
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PROTO_PACKETS, 1);
             last_exec_packet_type = packet.packet_type;
+            /* The first packet of the session, for the boot report: the
+             * gap between login_ok and this is the server's, not ours. */
+            if( !app->net_first_packet_marked )
+            {
+                app->net_first_packet_marked = 1;
+                ToriRS_BootTelemetry_Markf("net:first_packet:%d", (int)packet.packet_type);
+            }
             ToriRS_TaskQueue_Add(app->exec_runner.queue, CreateTask_GameProtoExec(app, &packet));
             redraw = 1;
         }

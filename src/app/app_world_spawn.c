@@ -300,6 +300,22 @@ app_world_build_model(
     return model;
 }
 
+/* Is every model the type names resident? A body that is not is expected
+ * while its load is on the wire (game/task_entity_assets.c), and then the
+ * spawn and the retype mount nothing rather than report a failure. */
+int
+app_world_npc_models_resident(
+    struct App* app,
+    struct ToriRS_Npctype const* npctype)
+{
+    assert(app);
+    assert(npctype);
+    for( int i = 0; i < npctype->models_count; i++ )
+        if( npctype->models[i] >= 0 && !CacheProvider_ModelHas(app->provider, npctype->models[i]) )
+            return 0;
+    return 1;
+}
+
 /*
  * The lit/transformed base for an npc type, cached like the spotanim path
  * (Client-TS NpcType model cache, 30 entries).
@@ -625,6 +641,15 @@ app_world_spawn_npc_now(
          * the world and draws nothing; its zeroed bounds cylinder gives
          * height 0, which anchors overlays at the marker's own tile.
          */
+        model = ToriDraw_ModelNew(0, 0, 0);
+        if( model )
+            ToriDraw_ModelSetBoundsCylinder(model);
+    }
+    else if( !app_world_npc_models_resident(app, npctype) )
+    {
+        /* The body is still on the wire: the same empty placeholder, without
+         * the error below -- this is the expected state between the packet
+         * and NpcBodyLand, not a failure. */
         model = ToriDraw_ModelNew(0, 0, 0);
         if( model )
             ToriDraw_ModelSetBoundsCylinder(model);

@@ -8,6 +8,7 @@
 #include "engine/player_appearance.h"
 #include "game/rs_chat.h"
 #include "game/rs_entity_sync.h"
+#include "game/task_entity_assets.h"
 #include "net/net.h"
 #include "net/rev/packets/pkt_npc_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
@@ -338,49 +339,9 @@ struct Task_ExecPlayerInfo
     int cfg_i;
     int model_ids[64];
     int model_count;
-    int model_i;
-    int seq_i;
     int pending_seq;
     int pending_delay;
-    int held_vals[2]; /* replaceheld left/right, as canonical appearance slots */
-    /* Siblings queued on the provider's asset queue and joined on (PT_TASK_JOIN). */
-    int pending;
 };
-
-/*
- * Queue a loader for every distinct model id as a SIBLING, counted on
- * `pending`, instead of awaiting each inline.
- *
- * An appearance is a dozen models and none of them depends on another, so
- * awaiting them one at a time cost a round trip per model: on the web lane,
- * where a miss is a JS5 request, a player took a second to dress and every
- * player in view added another (browser_probe, 2026-09-17). The world loader
- * fans its models out the same way; this is the entity path catching up.
- * Duplicates are skipped here because CreateTask_ModelLoad only declines a
- * model that is already RESIDENT, and two loaders for one id in flight at
- * once would both decode it.
- */
-static void
-entity_fanout_models(
-    struct CacheProvider* provider,
-    int const* ids,
-    int count,
-    int* pending)
-{
-    assert(provider);
-    assert(provider->asset_queue);
-    assert(pending);
-    for( int i = 0; i < count; i++ )
-    {
-        int dup = 0;
-        for( int j = 0; j < i && !dup; j++ )
-            dup = ids[j] == ids[i];
-        if( dup )
-            continue;
-        ToriRS_TaskQueue_AddJoined(
-            provider->asset_queue, CreateTask_ModelLoad(provider, ids[i]), pending);
-    }
-}
 
 /*
  * Resolve the current target's world-pool index (and optionally its scene
@@ -889,39 +850,6 @@ player_slot_cfg_task(struct Task_ExecPlayerInfo* self)
 }
 
 static int
-player_appearance_seq_id(struct Task_ExecPlayerInfo const* self, int i)
-{
-    int ids[7] = {
-        self->app_decoded.readyanim,   self->app_decoded.turnanim,
-        self->app_decoded.walkanim,    self->app_decoded.walkanim_b,
-        self->app_decoded.walkanim_l,  self->app_decoded.walkanim_r,
-        self->app_decoded.runanim,
-    };
-    assert(i >= 0 && i < 7);
-    return ids[i];
-}
-
-/* Does stance `seq_i` name a sequence an earlier stance already named? */
-static int
-player_appearance_seq_repeats(struct Task_ExecPlayerInfo const* self)
-{
-    int seq_id = player_appearance_seq_id(self, self->seq_i);
-    for( int i = 0; i < self->seq_i; i++ )
-        if( player_appearance_seq_id(self, i) == seq_id )
-            return 1;
-    return 0;
-}
-
-static struct ToriRS_Task*
-player_appearance_seq_task(struct Task_ExecPlayerInfo* self)
-{
-    int seq_id = player_appearance_seq_id(self, self->seq_i);
-    if( seq_id < 0 )
-        return NULL;
-    return CreateTask_SequenceLoad(self->app->provider, self->app->scene, seq_id);
-}
-
-static int
 Task_ExecPlayerInfo_Run(
     struct ToriRS_Task* base,
     struct ToriRS_IO* io)
@@ -990,101 +918,63 @@ Task_ExecPlayerInfo_Run(
                  * when the appearance names it for several stances, since
                  * CreateTask_SequenceLoad only declines one already
                  * REGISTERED and two in flight would register it twice. */
-                entity_fanout_models(app->provider, self->model_ids, self->model_count, &self->pending);
-                for( self->seq_i = 0; self->seq_i < 7; self->seq_i++ )
-                {
-                    if( player_appearance_seq_repeats(self) )
-                        continue;
-                    ToriRS_TaskQueue_AddJoined(
-                        app->provider->asset_queue, player_appearance_seq_task(self), &self->pending);
-                }
-                PT_TASK_JOIN(pending);
-                /* Re-resolve after the yields, for the same reason the npc
-                 * path does: world pool indices and scene element ids are
-                 * recycled, and the awaits above let the world move underneath
-                 * the pair cached before them. `cur_pid` is the stable
-                 * identity. Applying a stale pair here dresses some other
-                 * player in this one's appearance. */
-                /* Resolved AFTER the awaits above, never before them. */
+                /*
+                 * Applied NOW, from whatever is resident: the body build
+                 * drops a model that is not in, so a player whose models are
+                 * still on the wire dresses partially and is finished by
+                 * PlayerBodyLand on the asset runner once they land. The
+                 * packet pipeline used to park here until every model and
+                 * stance was in -- a second per player on a streamed cache,
+                 * and every packet behind it with it. The serial is what
+                 * lets a later appearance packet make the earlier completion
+                 * a no-op. See game/task_entity_assets.h.
+                 */
                 {
                     int element_id;
                     int const world_idx = player_target(self, &element_id);
+                    int const seqs[7] = {
+                        self->app_decoded.readyanim,   self->app_decoded.turnanim,
+                        self->app_decoded.walkanim,    self->app_decoded.walkanim_b,
+                        self->app_decoded.walkanim_l,  self->app_decoded.walkanim_r,
+                        self->app_decoded.runanim,
+                    };
                     if( world_idx >= 0 )
+                    {
+                        struct WorldEntity_Player* player =
+                            World_EntityPoolGet(&app->world->entities.player, world_idx);
+                        unsigned serial = player ? ++player->appearance_serial : 0;
                         App_WorldApplyPlayerAppearance(
                             app, world_idx, element_id, &self->app_decoded);
+                        if( player &&
+                            !EntityAssets_PlayerBodyResident(
+                                app, self->model_ids, self->model_count, seqs, 7) )
+                            ToriRS_TaskQueue_Add(
+                                app->runner.queue,
+                                CreateTask_PlayerBodyLand(
+                                    app,
+                                    self->cur_pid,
+                                    serial,
+                                    &self->app_decoded,
+                                    self->model_ids,
+                                    self->model_count));
+                    }
                 }
             }
             else if( need == PLAYER_NEED_SEQ )
             {
-                PT_TASK_AWAITSELF_IF(
-                    self->pending_seq >= 0
-                        ? CreateTask_SequenceLoad(app->provider, app->scene, self->pending_seq)
-                        : NULL);
-
-                /* Held-item replacement (reference ClientPlayer.getTempModel2 via
-                 * SeqType.replaceheldleft/right, opcodes 6/7): a woodcutting/
-                 * mining-style seq swaps a worn item for an obj that is NOT part
-                 * of the player's appearance, so its config + wear models were
-                 * never fetched by the APPEARANCE path. Ensure them now — the
-                 * per-frame swap (app_world_apply_player_held_items) builds the
-                 * player model synchronously and silently drops any wear model
-                 * that is not resident, so the swapped item would otherwise never
-                 * appear. The reference defers the model build until
-                 * ObjType.checkWearModel loads; we pre-load instead. Loading is
-                 * idempotent, so re-issuing on every SEQ is cheap. */
-                {
-                    struct ToriDraw_Animation* prim =
-                        self->pending_seq >= 0
-                            ? ToriDraw_SceneAnimationGet(app->scene, self->pending_seq)
-                            : NULL;
-                    self->held_vals[0] =
-                        Appearance_FromCacheValue(prim ? prim->replaceheldleft : -1);
-                    self->held_vals[1] =
-                        Appearance_FromCacheValue(prim ? prim->replaceheldright : -1);
-                }
-                /* Obj configs first — the seq's replaceheld values are appearance
-                 * slots, so only an obj-range one names an obj; anything lower
-                 * hides the item and needs no model. */
-                for( self->cfg_i = 0; self->cfg_i < 2; self->cfg_i++ )
-                    PT_TASK_AWAITSELF_IF(
-                        Appearance_SlotKind(self->held_vals[self->cfg_i]) ==
-                                APPEARANCE_SLOT_OBJ
-                            ? CreateTask_ObjLoad(
-                                  app->provider,
-                                  Appearance_SlotObj(self->held_vals[self->cfg_i]))
-                            : NULL);
-                /* Then their gendered wear models (slot 3 = right hand, slot 5 =
-                 * left hand — same appearance encoding the swap feeds the build). */
-                {
-                    struct WorldEntity_Player* held_player = World_EntityPoolGet(
-                        &app->world->entities.player, player_target(self, NULL));
-                    int held_slots[12];
-                    for( int k = 0; k < 12; k++ )
-                        held_slots[k] = -1;
-                    held_slots[3] =
-                        Appearance_SlotKind(self->held_vals[1]) == APPEARANCE_SLOT_OBJ
-                            ? self->held_vals[1]
-                            : -1;
-                    held_slots[5] =
-                        Appearance_SlotKind(self->held_vals[0]) == APPEARANCE_SLOT_OBJ
-                            ? self->held_vals[0]
-                            : -1;
-                    self->model_count = PlayerModel_CollectAppearanceModelIds(
-                        app->provider,
-                        held_slots,
-                        held_player ? held_player->gender : 0,
-                        self->model_ids,
-                        (int)(sizeof(self->model_ids) / sizeof(self->model_ids[0])));
-                }
-                entity_fanout_models(app->provider, self->model_ids, self->model_count, &self->pending);
-                PT_TASK_JOIN(pending);
-
-                {
-                    int const world_idx = player_target(self, NULL);
-                    if( world_idx >= 0 )
-                        World_PlayerSetPrimaryAnimation(
-                            app->world, world_idx, self->pending_seq, self->pending_delay);
-                }
+                /* Applied now; the track binder fetches the sequence, and
+                 * PlayerHeldLand fetches whatever the seq swaps into the
+                 * player's hands and asks the per-frame held-item pass to
+                 * rebuild once those are in. The packet pipeline no longer
+                 * waits out either. */
+                int const world_idx = player_target(self, NULL);
+                if( world_idx >= 0 )
+                    World_PlayerSetPrimaryAnimation(
+                        app->world, world_idx, self->pending_seq, self->pending_delay);
+                if( self->pending_seq >= 0 && self->cur_pid >= 0 )
+                    ToriRS_TaskQueue_Add(
+                        app->runner.queue,
+                        CreateTask_PlayerHeldLand(app, self->cur_pid, self->pending_seq));
             }
         }
     }
@@ -1721,7 +1611,19 @@ Task_ExecNpcInfo_Run(
             if( need == NPC_NEED_SPAWN || need == NPC_NEED_CHANGE_TYPE )
             {
                 g_bd_spawns++;
-                PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiLoad(
+                /*
+                 * The CONFIG walk only -- the wrapper and its transform rungs
+                 * -- which is answered inside the pass once the config group
+                 * is resident (the boot fills it). The body is not awaited
+                 * here any more: this queue is the packet pipeline, strict
+                 * FIFO, and every packet behind this one waited out the
+                 * npc's models and stances, three or four round trips per
+                 * new type on a streamed cache. The entity is applied now,
+                 * with an empty body when the models are not in, and
+                 * NpcBodyLand on the asset runner dresses it when they are.
+                 * See game/task_entity_assets.h.
+                 */
+                PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiResolve(
                     app, self->pending_npc_base_type, &self->pending_npc_type));
                 /* A hidden transform still needs a live entity for later
                  * masks and varp-driven reappearance. Mount the model-less
@@ -1775,23 +1677,30 @@ Task_ExecNpcInfo_Run(
                         BD_ADD(g_bd_retype, bd_t);
                     }
                 }
+                if( self->cur_slot >= 0 && self->pending_npc_type >= 0 &&
+                    !EntityAssets_NpcBodyResident(app, self->pending_npc_type) )
+                {
+                    struct ToriRS_Task* land = CreateTask_NpcBodyLand(
+                        app, self->pending_npc_base_type, self->pending_npc_type);
+                    if( land )
+                        ToriRS_TaskQueue_Add(app->runner.queue, land);
+                }
             }
             else if( need == NPC_NEED_SEQ )
             {
-                PT_TASK_AWAITSELF_IF(
-                    self->pending_seq >= 0
-                        ? CreateTask_SequenceLoad(app->provider, app->scene, self->pending_seq)
-                        : NULL);
-                {
-                    int const world_idx = npc_target(self, NULL);
-                    if( world_idx >= 0 )
-                        World_NpcSetPrimaryAnimation(
-                            app->world, world_idx, self->pending_seq, self->pending_delay);
-                    else if( getenv("TORIRS_ANIM_DEBUG") )
-                        TORIRS_LOG("anim: npc seq %d DROPPED - slot %d no longer resolves "
-                                "(reaped while the sequence load was awaiting)\n",
-                                self->pending_seq, self->cur_slot);
-                }
+                /* Applied now, not after the sequence lands: the entity's
+                 * track names the seq by id, and the per-frame track binder
+                 * (app_world_apply_entity_anim_tracks) requests the load and
+                 * binds it the frame it registers. The packet pipeline no
+                 * longer waits out the load. */
+                int const world_idx = npc_target(self, NULL);
+                if( world_idx >= 0 )
+                    World_NpcSetPrimaryAnimation(
+                        app->world, world_idx, self->pending_seq, self->pending_delay);
+                if( self->pending_seq >= 0 )
+                    ToriRS_TaskQueue_Add(
+                        app->runner.queue,
+                        CreateTask_SequenceLoad(app->provider, app->scene, self->pending_seq));
             }
         }
     }

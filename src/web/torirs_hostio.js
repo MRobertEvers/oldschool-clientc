@@ -84,6 +84,58 @@
       return err;
     };
 
+    /*
+     * The page's picture of the database, per (cache, table, flags): one
+     * key-range scan, memoised as a promise that also carries its result
+     * once it has one (`settled`), plus what this session has written since.
+     * What lets a cold miss be answered without a transaction -- see
+     * readArchive -- and a prefetch wave ask the database only for what it
+     * holds.
+     */
+    const presentIds = new Map();
+    const stored = new Set();
+    /* Whole-table reads in progress for a warm prefetch, by scan key. */
+    const wholeTables = new Map();
+
+    function scanTable(key, table, flags) {
+      const scanKey = `${key}|${table}|${flags | 0}`;
+      let scan = presentIds.get(scanKey);
+      if (!scan) {
+        scan = typeof idb.groupIdsPresent === 'function'
+          ? idb.groupIdsPresent(key, table, flags).then(set => { scan.settled = set; return set; })
+          : Promise.resolve(new Set());
+        scan.settled = null;
+        presentIds.set(scanKey, scan);
+      }
+      return scan;
+    }
+
+    /*
+     * The files store's keys, scanned once (a promise carrying its result
+     * in `settled`), plus what this session has written. A path the scan
+     * does not list and the session has not written is a miss decided
+     * here, without a transaction -- see readFile and readClientFile.
+     */
+    let fileScan = null;
+    const storedFiles = new Set();
+
+    function scanFiles() {
+      if (!fileScan) {
+        /* A store that cannot list its keys (an older page, a test's
+         * fake) leaves `settled` null for good: unknown, never absent. */
+        fileScan = typeof idb.fileKeysPresent === 'function'
+          ? idb.fileKeysPresent().then(set => { fileScan.settled = set; return set; })
+          : Promise.resolve(null);
+        fileScan.settled = null;
+      }
+      return fileScan;
+    }
+
+    const fileKnownAbsent = (path) => {
+      const scan = scanFiles();
+      return scan.settled !== null && !scan.settled.has(path) && !storedFiles.has(path);
+    };
+
     /* Files already settled against the server this session. A plugin asks
      * for its assets every frame; one conditional request per path per session
      * is the price of never running a stale script, and the rest are local. */
@@ -145,7 +197,7 @@
        */
       async readFile(path) {
         if (denied.has(path)) { return null; }
-        const held = await idb.fileEntry(path);
+        const held = fileKnownAbsent(path) ? null : await idb.fileEntry(path);
         if (held && settled.has(path)) { return held.bytes; }
 
         let fetched;
@@ -160,6 +212,7 @@
         if (fetched === 'unchanged') { return held.bytes; }
         if (fetched) {
           await idb.filePut(path, fetched.bytes, fetched.etag);
+          storedFiles.add(path);
           return fetched.bytes;
         }
         /* The server answered and does not have it. A stored copy of a file
@@ -178,11 +231,13 @@
        * means "not saved yet", which is an answer.
        */
       async readClientFile(path) {
+        if (fileKnownAbsent(path)) { return null; }
         return await idb.fileGet(path);
       },
 
       async writeClientFile(path, bytes) {
         await idb.filePut(path, bytes, null);
+        storedFiles.add(path);
       },
 
       /*
@@ -196,11 +251,32 @@
        */
       async readArchive(table, archive, flags) {
         const key = cacheKey();
+        /*
+         * A miss decided in memory, when the table has been scanned.
+         *
+         * A database read is a transaction, and a transaction on the
+         * groups store queues behind every batched write ahead of it: the
+         * two sound effects the title screen asks for arrived right after
+         * a 17 MB fill and waited 600 ms for the fill's commits before
+         * being told "no". The scan (see scanTable) is one key-range read
+         * per table per session, taken when the table's index is opened --
+         * before the fills -- so a cold read costs no transaction at all.
+         */
+        const scan = presentIds.get(`${key}|${table}|${flags | 0}`);
+        if (scan && scan.settled && !scan.settled.has(archive) &&
+            !stored.has(`${key}|${table}|${flags | 0}|${archive}`)) {
+          return await this.produceArchive(key, table, archive, flags);
+        }
         /* `flags` addresses the record as well as choosing the producer: on
          * dat1 a square's terrain and its locs share a table and an archive id
          * and differ only here. See ToriRS_IDB.groupKey. */
         const held = await idb.groupGet(key, table, archive, flags);
         if (held) { return held; }
+        return await this.produceArchive(key, table, archive, flags);
+      },
+
+      /* The producer half of readArchive: fetch, store, hand over. */
+      async produceArchive(key, table, archive, flags) {
 
         const producer = isDat1(flags) ? onDemand() : js5();
         if (!producer) { return null; }
@@ -217,13 +293,80 @@
         /* Persisted before it is returned, so the next read of the same
          * container is local and the next SESSION starts warm. */
         await idb.groupPut(key, table, archive, flags, bytes);
+        stored.add(`${key}|${table}|${flags | 0}|${archive}`);
         return bytes;
+      },
+
+      /*
+       * Many containers of one table at once: the database in one
+       * transaction, then the producer for every miss, together.
+       *
+       * What a prefetch wave calls (TORIRS_IOK_CACHE_PREFETCH). The single
+       * readArchive above is the right shape for a read that wants one
+       * answer; a wave of 512 wants 512 answers and one storage round trip,
+       * not 512 of them queued ahead of the first request to the server.
+       * Returns bytes-or-null per id, in the order asked.
+       */
+      async readArchives(table, ids, flags) {
+        const key = cacheKey();
+        /* Which of these the database holds, from one key scan per table
+         * per session -- a cold cache then asks the database for nothing
+         * and goes straight to the producer. In-session writes are counted
+         * by the writer's queue at scan time and by `stored` after it. */
+        const scanKey = `${key}|${table}|${flags | 0}`;
+        const present = await scanTable(key, table, flags);
+        const want = ids.filter(id => present.has(id) || stored.has(`${scanKey}|${id}`));
+        /*
+         * The database's share of the wave. A table that is mostly there
+         * (a warm start) is read WHOLE, once, with a single getAll, and
+         * the waves take their rows out of that one answer; a table that
+         * is mostly absent asks for the few it holds one by one. The
+         * whole-table read is dropped as soon as it has been picked clean,
+         * so a fill holds one table's bytes twice for a moment and never
+         * three tables' for a session.
+         */
+        let held;
+        if (want.length > 0 && present.size >= ids.length / 2 && typeof idb.groupGetAll === 'function') {
+          let whole = wholeTables.get(scanKey);
+          if (!whole) {
+            whole = idb.groupGetAll(key, table, flags);
+            wholeTables.set(scanKey, whole);
+          }
+          const rows = await whole;
+          held = new Map();
+          for (const id of want) {
+            const bytes = rows.get(id);
+            if (bytes) { held.set(id, bytes); rows.delete(id); }
+          }
+          if (rows.size === 0) { wholeTables.delete(scanKey); }
+        } else {
+          held = want.length ? await idb.groupGetMany(key, table, want, flags) : new Map();
+        }
+        const producer = isDat1(flags) ? onDemand() : js5();
+        return await Promise.all(ids.map(async id => {
+          const hit = held.get(id);
+          if (hit) { return hit; }
+          if (!producer) { return null; }
+          const bytes = isDat1(flags)
+            ? await producer.file(table, id, flags)
+            : await producer.group(table, id);
+          if (!bytes) { return null; }
+          await idb.groupPut(key, table, id, flags, bytes);
+          stored.add(`${scanKey}|${id}`);
+          return bytes;
+        }));
       },
 
       /* Archive 255 of a table is its reference table -- the same container
        * shape as any group, addressed the way the cache addresses it. dat2
        * only: dat1 has no reference tables, it has a versionlist. */
       async readReferenceTable(table) {
+        /* Opening a table's index is the moment to learn which of its
+         * groups are stored: it happens before any fill writes, so the scan
+         * never queues behind a commit, and every later read of the table
+         * decides its misses in memory. Kicked, not awaited. */
+        scanTable(cacheKey(), table, CACHE_DAT2).catch(() => null);
+        scanFiles().catch(() => null);
         return await this.readArchive(255, table, CACHE_DAT2);
       },
 

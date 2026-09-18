@@ -117,6 +117,64 @@ mergeInto(LibraryManager.library, {
       this.instances = new Map();
       this.inflight = new Map();
       this.inflightSlots = new Map();
+      this.telemetry = {
+        batches: 0, items: 0, sync: 0, landed: 0, prefetched: 0,
+        pumps: 0, pumpMs: 0, pumpSteps: 0,
+        /* Milliseconds the wire spent with nothing in flight between one
+         * answer landing and the next batch going out. The stall this whole
+         * design measures: work the client could have had on the wire and
+         * did not. */
+        idleMs: 0, idleGaps: 0, maxIdleMs: 0,
+      };
+      this.lastLandedAt = 0;
+      this.pumpScheduled = false;
+      /*
+       * How a landed answer reaches the runner between frames.
+       *
+       * A MessageChannel message is a macrotask with no clamp: it runs after
+       * every promise continuation of the turn that delivered the bytes and
+       * before the browser's next timer, so the C side is stepped within a
+       * fraction of a millisecond of the answer instead of at the next
+       * animation frame -- or the 4 ms a nested setTimeout(0) degrades to,
+       * which is what the boot's settimeout pacing actually pays per turn.
+       * One message is outstanding at a time; a burst of answers costs one
+       * pump. Absent (a worker, a test), the frame loop still drains as it
+       * always did.
+       */
+      this.pumpChannel = typeof MessageChannel === 'function' ? new MessageChannel() : null;
+      if (this.pumpChannel) {
+        this.pumpChannel.port1.onmessage = () => this.pumpNow();
+      }
+      globalThis.__torirs_io_telemetry = this.telemetry;
+    },
+
+    /* A batch of reads has been answered: step the runner now. */
+    landed: function () {
+      this.telemetry.landed++;
+      if (this.pumpScheduled || !this.pumpChannel) { return; }
+      this.pumpScheduled = true;
+      this.pumpChannel.port2.postMessage(0);
+    },
+
+    pumpNow: function () {
+      this.pumpScheduled = false;
+      /* The C side owns the decision of whether it may be stepped (main.c,
+       * web_pump_armed); this only asks. Not exported in a build that does
+       * not link main.c's hook (a bare library test), which is a no-op. */
+      if (typeof _torirs_web_io_pump !== 'function') { return; }
+      const t0 = performance.now();
+      const stepped = _torirs_web_io_pump();
+      this.telemetry.pumps++;
+      this.telemetry.pumpSteps += stepped ? 1 : 0;
+      this.telemetry.pumpMs += performance.now() - t0;
+    },
+
+    /* Nothing is in flight any more: remember when, so the next batch can
+     * say how long the wire sat idle. */
+    noteWireIdle: function () {
+      let total = 0;
+      this.inflight.forEach(n => { total += n; });
+      if (total === 0) { this.lastLandedAt = performance.now(); }
     },
 
     /*
@@ -234,6 +292,14 @@ mergeInto(LibraryManager.library, {
       if (result.ptr !== undefined) {
         HEAP32[(item + a.dataOff) >> 2] = result.ptr;
         HEAP32[(item + a.dataSizeOff) >> 2] = result.size;
+        HEAP32[(item + a.errorOff) >> 2] = 0;
+        return;
+      }
+      if (result.prefetched !== undefined) {
+        /* No payload: the groups are resident, and how many landed is the
+         * whole answer. The id array the item lent stays the caller's. */
+        HEAP32[(item + a.dataOff) >> 2] = 0;
+        HEAP32[(item + a.dataSizeOff) >> 2] = result.prefetched;
         HEAP32[(item + a.errorOff) >> 2] = 0;
         return;
       }
@@ -382,6 +448,18 @@ mergeInto(LibraryManager.library, {
          * are what says which container space this read is in. */
         const table = this.isDat1(c.flags) ? c.table : this.dat2DiskTable(inst, c.table);
         return { kind: kind, table: table, archive: c.archive, flags: c.flags, epoch: c.epoch };
+      }
+      if (kind === K.CACHE_PREFETCH) {
+        /* Addressed like a CACHE item with the count in archive_id and the
+         * ids lent through data -- copied out of the heap here, before any
+         * await, for the reason FILE_WRITE's bytes are. */
+        const c = this.itemCache(item);
+        const ptr = HEAP32[(item + a.dataOff) >> 2];
+        const table = this.isDat1(c.flags) ? c.table : this.dat2DiskTable(inst, c.table);
+        return {
+          kind: kind, table: table, flags: c.flags, epoch: c.epoch,
+          ids: Array.from(new Int32Array(HEAP32.buffer, ptr, c.archive)),
+        };
       }
       if (kind === K.REFERENCE_TABLE) {
         /* dat2 only — dat1 has a versionlist, not reference tables. */
@@ -673,6 +751,33 @@ mergeInto(LibraryManager.library, {
         return { ptr: ptr, size: _ToriRS_WebApi_ArchiveStructSize() };
       }
 
+      if (req.kind === K.CACHE_PREFETCH) {
+        /*
+         * Every group through the host and into the resident store, nothing
+         * decoded. The point of a fill is that the reads after login are
+         * answered inside Process, and that takes the raw container AND the
+         * table's metadata -- so the executor's own reference table is
+         * primed here too, rather than on the first post-login decode.
+         */
+        if (req.table < 0) { return { prefetched: 0 }; }
+        const dat1 = this.isDat1(req.flags);
+        if (!dat1) { this.refTableForMetadata(inst, req.table).catch(() => null); }
+        /* The host's many-at-once read when it has one (one database
+         * transaction for the wave); one read per id otherwise. */
+        const answers = typeof inst.host.readArchives === 'function'
+          ? await inst.host.readArchives(req.table, req.ids, req.flags)
+          : await Promise.all(req.ids.map(id => inst.host.readArchive(req.table, id, req.flags)));
+        let n = 0;
+        for (let i = 0; i < req.ids.length; i++) {
+          const bytes = answers[i];
+          if (!bytes) { continue; }
+          if (!dat1) { this.residentKeep(inst, `${req.flags}|${req.table}|${req.ids[i]}`, bytes); }
+          n++;
+        }
+        this.telemetry.prefetched += n;
+        return { prefetched: n };
+      }
+
       if (req.kind === K.REFERENCE_TABLE) {
         if (req.table < 0) { return null; }
         /* A FRESH decode, because this one is handed over and freed by whoever
@@ -721,6 +826,7 @@ mergeInto(LibraryManager.library, {
       }
       const kind = inst.kindNames[req.kind] || String(req.kind);
       if (req.path) { return `${kind}:${req.path.replace(/^.*\//, '')}`; }
+      if (req.ids) { return `${kind}:${req.table}x${req.ids.length}`; }
       if (req.table !== undefined && req.archive !== undefined) { return `${kind}:${req.table}/${req.archive}`; }
       if (req.table !== undefined) { return `${kind}:${req.table}`; }
       return kind;
@@ -733,6 +839,7 @@ mergeInto(LibraryManager.library, {
       /* Answered before Process returns: no inflight count, no slot mark,
        * and the runner steps the asking task again this pass. */
       if (req.kind === inst.kinds.CACHE && this.answerSync(inst, req, this.itemPtr(io, slot))) {
+        this.telemetry.sync++;
         if (traced) {
           this.trace.push(`${performance.now().toFixed(1)} sync ${this.traceName(inst, req)} ${(performance.now() - started).toFixed(2)}ms`);
         }
@@ -746,7 +853,10 @@ mergeInto(LibraryManager.library, {
         this.answer(this.itemPtr(io, slot), bytes);
         if (traced) {
           const now = performance.now();
-          const size = !bytes ? 0 : (bytes.length !== undefined ? bytes.length : bytes.size);
+          const size = !bytes ? 0
+            : bytes.length !== undefined ? bytes.length
+            : bytes.prefetched !== undefined ? bytes.prefetched
+            : bytes.size;
           this.trace.push(`${now.toFixed(1)} done ${this.traceName(inst, req)} ${(now - started).toFixed(1)}ms ${size}B`);
         }
       } catch (err) {
@@ -758,7 +868,11 @@ mergeInto(LibraryManager.library, {
       } finally {
         this.addInflight(io, -1);
         this.markSlot(io, slot, false);
+        this.noteWireIdle();
       }
+      /* After the finally: the slot must read "not pending" by the time the
+       * runner is stepped, or the task whose answer this is stays parked. */
+      this.landed();
     },
   },
 
@@ -794,6 +908,7 @@ mergeInto(LibraryManager.library, {
       kinds: {
         NONE: 0, CACHE: 1, CONFIG_FILE: 2, SCRIPT: 3,
         REFERENCE_TABLE: 4, FILE_READ: 5, FILE_WRITE: 6,
+        CACHE_PREFETCH: 7,
       },
       join: function (base, path) {
         return base && base.length ? `${base}/${path}` : path;
@@ -877,6 +992,20 @@ mergeInto(LibraryManager.library, {
     const inst = S.instances.get(px);
     const activeCount = HEAP32[(io + a.activeCountOff) >> 2];
 
+    if (activeCount > 0) {
+      S.telemetry.batches++;
+      S.telemetry.items += activeCount;
+      /* A batch going out onto an idle wire: how long was it idle? Only
+       * once something has landed, so the page's own startup is not
+       * counted as a stall. */
+      if (S.lastLandedAt && S.inflight.size === 0) {
+        const gap = performance.now() - S.lastLandedAt;
+        S.telemetry.idleMs += gap;
+        S.telemetry.idleGaps++;
+        if (gap > S.telemetry.maxIdleMs) { S.telemetry.maxIdleMs = gap; }
+        S.lastLandedAt = 0;
+      }
+    }
     if (activeCount > 0 && S.traceOn()) {
       const names = [];
       for (let i = 0; i < activeCount && i < 16; i++) {

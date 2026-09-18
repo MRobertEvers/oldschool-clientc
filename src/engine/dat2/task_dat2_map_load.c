@@ -81,12 +81,23 @@ Task_Dat2MapTerrainLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_MAPS) )
+    /* One fetch for the whole fan-out: the first square to get here loads
+     * the table, the rest wait on it (dat2_buildcache.h,
+     * reference_table_loading). */
+    while( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_MAPS) )
     {
+        if( task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_MAPS] )
+        {
+            task->task.blocked = 1;
+            PT_YIELD(&task->pt);
+            continue;
+        }
+        task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_MAPS] = 1;
         RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_TABLE_MAPS);
         PT_YIELD(&task->pt);
 
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
+        task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_MAPS] = 0;
         if( !table )
         {
             TORIRS_ERR("Failed to load maps reference table\n");
@@ -182,12 +193,23 @@ Task_Dat2MapSceneryLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    if( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_MAPS) )
+    /* One fetch for the whole fan-out: the first square to get here loads
+     * the table, the rest wait on it (dat2_buildcache.h,
+     * reference_table_loading). */
+    while( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_MAPS) )
     {
+        if( task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_MAPS] )
+        {
+            task->task.blocked = 1;
+            PT_YIELD(&task->pt);
+            continue;
+        }
+        task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_MAPS] = 1;
         RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_TABLE_MAPS);
         PT_YIELD(&task->pt);
 
         table = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
+        task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_MAPS] = 0;
         if( !table )
         {
             TORIRS_ERR("Failed to load maps reference table\n");

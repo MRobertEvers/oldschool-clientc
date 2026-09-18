@@ -2227,6 +2227,8 @@ struct App
      * Its partially-applied tree is not eligible for frame publication. */
     int exec_runner_had_work;
     int world_load_inflight;
+    /** The boot report has been told about the session's first packet. */
+    int net_first_packet_marked;
     /** Send MAP_BUILD_COMPLETE when the in-flight world load finishes (set by
      * the REBUILD_NORMAL packet task, not by hotkey/lazy loads). */
     int world_load_server_driven;
@@ -2238,6 +2240,15 @@ struct App
     struct RS_EntitySync esync;
     /** Dedupe for entity movement-seq load requests. */
     struct SeqLoadTracker entity_seq_loads;
+    /** Npc bodies on their way in (game/task_entity_assets.c): one load per
+     *  (base, resolved) type however many npcs of it a packet spawns; the
+     *  completion dresses every one of them. */
+    struct AppNpcBodyLands
+    {
+        int base[64];
+        int type[64];
+        int count;
+    } npc_body_lands;
     /** Entity attached-graphic (SPOTANIM mask) combine state, keyed by the
      * entity's body scene element. While the graphic is active the element's
      * model is the reference getTempModel Model.combine([body, spot]) — `body`
@@ -3304,6 +3315,18 @@ App_NpctypeResolveMultiId(
  * models and movement sequences needed to spawn/retype it. `*out_npc_id` is
  * the selected leaf or -1 for a hidden entry. The caller must keep the output
  * storage alive until the returned task completes. */
+/**
+ * The config half of CreateTask_NpcMultiLoad alone: load the wrapper's config
+ * and walk its transform rungs to the child this client's varps select,
+ * without fetching that child's body. What the packet handlers await now
+ * that the body lands on its own (game/task_entity_assets.h).
+ */
+struct ToriRS_Task*
+CreateTask_NpcMultiResolve(
+    struct App* app,
+    int base_npc_id,
+    int* out_npc_id);
+
 struct ToriRS_Task*
 CreateTask_NpcMultiLoad(
     struct App* app,
@@ -3813,6 +3836,17 @@ App_DrainAudio(
 /** Whether the last App_RunOnce left async work queued. */
 int
 App_AsyncPending(const struct App* app);
+
+/**
+ * Step the asset runner until nothing more can happen without the host's
+ * turn. The frame's own async stage, and also what the browser platform runs
+ * between frames when reads land (see App_PumpAsync in app_frame.c).
+ * `from_frame` is 1 from App_RunOnce and 0 from a platform pump.
+ */
+enum TaskRunnerStat
+App_PumpAsync(
+    struct App* app,
+    int from_frame);
 
 void
 App_NoteFrameTime(

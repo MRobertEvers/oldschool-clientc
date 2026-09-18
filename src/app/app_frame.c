@@ -388,6 +388,184 @@ app_frame_latch_note(
     }
 }
 
+/*
+ * One pump of the asset runner: every task that can make progress, stepped.
+ *
+ * Extracted from App_RunOnce so it has two callers. The frame calls it once,
+ * as it always has. The browser platform calls it again between frames, from
+ * the executor's landed hook (torirs_web_io_pump, main.c), the moment a batch
+ * of reads has been answered -- so a task whose answer arrived does not wait
+ * for the next animation frame, or the next 4 ms setTimeout, to be resumed.
+ * On a cold boot the difference is the whole of a serial chain's latency:
+ * a CS2 script resolving its sprites one per yield paid a frame per sprite.
+ *
+ * `from_frame` says which caller this is. Both step exactly the same way and
+ * update the same flags; only the per-frame accounting (boot frames, busy
+ * frames) belongs to the frame, because a pump is not a frame.
+ *
+ * Safe to run outside a frame for the same reason a task may yield at any
+ * pass: nothing a task does assumes it is inside App_RunOnce. The CS2 settle
+ * does its layout resolve here when it reaches its fixed point, which is
+ * what the frame would do at the same point; publication of the tree stays
+ * with the frame, which sees runner_had_work cleared and refreshes.
+ */
+enum TaskRunnerStat
+App_PumpAsync(
+    struct App* app,
+    int from_frame)
+{
+    enum TaskRunnerStat result = TASK_RUNNER_IDLE;
+
+    assert(app);
+    app->runner.telemetry.in_pump = !from_frame;
+    /* Pump ordinary async work with a frame budget.  A CS2 transaction is the
+     * exception: cooperative yields are drained to completion, and a genuine
+     * external wait retains the last settled frame until it can resume. */
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_ASYNC)
+    {
+        int booting = app->app_state == APP_STATE_BOOTING;
+        /*
+         * Drain it. The bound this replaces came in with 8f3028ede (2026-07-22)
+         * under the note "once READY a small budget keeps frame pacing", and
+         * that had the relationship backwards: frame pacing was never what
+         * needed protecting. What the bound actually did was cap the async
+         * pipeline at budget-times-framerate -- 32 x 50 = 1600 steps a second
+         * once past boot -- and this client streams its entire world through
+         * that pipeline, 516 containers on a cold rev-289 boot. The frame cap
+         * was deciding how fast the game could load.
+         *
+         * A step is cooperative and returns; the loop below still exits the
+         * moment the runner goes idle. The guard is a runaway backstop, not a
+         * pacing device, which is why it is large enough that no real frame
+         * reaches it -- and main() no longer sleeps while work is queued, so a
+         * frame that does hit it resumes immediately instead of waiting out
+         * the cap.
+         */
+        int budget = APP_ASYNC_STEP_LIMIT;
+        enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
+        int steps = 0;
+
+        /* Cleared here and set below, so it describes THIS frame. The caller
+         * uses it to decide whether to sleep: work still queued means the
+         * frame cap would be pacing the pipeline rather than the screen. */
+        app->async_pending = 0;
+        int settling_cs2 = !booting && (app->runner_had_work || app->runner.frame_settle_pending);
+
+        if( settling_cs2 )
+        {
+            stat = app_settle_cs2_frame(app);
+        }
+        else
+        {
+            for( int i = 0; i < budget; i++ )
+            {
+                steps++;
+                if( booting )
+                    app->boot_steps++;
+                stat = TaskRunner_Step(&app->runner);
+                if( stat == TASK_RUNNER_IDLE )
+                    break;
+                /* A task asked for the screen. Stop stepping and let this
+                 * frame out: spending the rest of the budget here is
+                 * exactly the behaviour the request exists to interrupt,
+                 * and it is why the whole boot used to land in one frame
+                 * with the bar never drawn below 100. */
+                if( stat == TASK_RUNNER_RENDER )
+                    break;
+                /*
+                 * Nothing more can happen this frame, so stepping again is a
+                 * busy-wait into the tripwire below rather than progress.
+                 *
+                 * BLOCKED says so outright: the head is parked on state this
+                 * queue does not own, and ToriRS_TaskQueue_Run only ever runs
+                 * the head -- every further pass returns BLOCKED again without
+                 * running anything.
+                 *
+                 * PENDING says so only together with two other facts. An
+                 * asynchronous backend answers a read after the host's next
+                 * turn, so a frame that sat here waiting for one would spin the
+                 * whole budget and abort as a task that will not converge --
+                 * the frame has to END for the answer to arrive.
+                 *
+                 * But "something is outstanding" is no longer the same as
+                 * "nothing can happen": the runner keeps a dozen reads in
+                 * flight now, and the ones that have LANDED are work this
+                 * frame can still do. Ending on the first outstanding read
+                 * capped the client at one batch per frame -- with answers
+                 * arriving in well under a millisecond, that is the difference
+                 * between draining a boot and dribbling it. So the frame ends
+                 * when a pass advanced NOTHING and is still waiting on the
+                 * platform, which is precisely "the answers are not here yet".
+                 *
+                 * TaskRunner_SettleFrame draws the same lines for the same
+                 * reason.
+                 */
+                if( stat == TASK_RUNNER_BLOCKED )
+                    break;
+                if( stat == TASK_RUNNER_PENDING && !app->runner.progressed &&
+                    Platform_IO_Pending(app->runner.px, app->runner.io) )
+                    break;
+            }
+            /*
+             * Reaching the limit is not a cap doing its job -- it is a task
+             * that will not converge, a runner that never returns IDLE.
+             *
+             * abort() rather than assert(): OPT=1 compiles -DNDEBUG, and this
+             * has to fail the same way in the build people actually run. A
+             * client that silently capped here would present as "slow to
+             * load" with nothing anywhere saying why, which is the failure
+             * this whole change exists to remove.
+             */
+            if( steps >= budget )
+            {
+                TORIRS_ERR(
+                    "app: the async pipeline ran %d steps in one frame without "
+                    "going idle (limit %d, booting=%d). A task is not "
+                    "converging.\n",
+                    steps,
+                    budget,
+                    booting);
+                fflush(stderr);
+                abort();
+            }
+        }
+        if( !from_frame )
+        {
+            /* A pump is not a frame: none of the per-frame counts below. */
+        }
+        else if( booting )
+        {
+            app->boot_frames++;
+            if( steps >= budget )
+                app->boot_frames_budget_capped++;
+        }
+        else if( !settling_cs2 && steps >= budget )
+        {
+            /* Post-boot frame that used its whole budget with work still
+             * queued: the async pipeline is being drip-fed rather than run. */
+            app->busy_frames++;
+            app->busy_steps += steps;
+        }
+
+        /* Anything left to do -- a budget that ran out, or a runner that is
+         * simply not idle -- means the next frame should start immediately
+         * instead of waiting out the cap. */
+        if( stat != TASK_RUNNER_IDLE )
+            app->async_pending = 1;
+        if( settling_cs2 && stat != TASK_RUNNER_IDLE )
+            app->runner_had_work = 1;
+        /* Tree-affecting async work (CS2 hooks/transmits) finished: refresh. */
+        if( settling_cs2 && stat == TASK_RUNNER_IDLE )
+        {
+            app->runner_had_work = 0;
+            app->pending_tree_refresh = 1;
+        }
+        result = stat;
+    }
+    app->runner.telemetry.in_pump = 0;
+    return result;
+}
+
 int
 App_RunOnce(
     struct App* app,
@@ -513,145 +691,7 @@ App_RunOnce(
     /* The monotonic clock the idle-time and trading-post age commands read. */
     app->host.client.now_ms = (int64_t)now_ms;
 
-    /* Pump ordinary async work with a frame budget.  A CS2 transaction is the
-     * exception: cooperative yields are drained to completion, and a genuine
-     * external wait retains the last settled frame until it can resume. */
-    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_ASYNC)
-    {
-        int booting = app->app_state == APP_STATE_BOOTING;
-        /*
-         * Drain it. The bound this replaces came in with 8f3028ede (2026-07-22)
-         * under the note "once READY a small budget keeps frame pacing", and
-         * that had the relationship backwards: frame pacing was never what
-         * needed protecting. What the bound actually did was cap the async
-         * pipeline at budget-times-framerate -- 32 x 50 = 1600 steps a second
-         * once past boot -- and this client streams its entire world through
-         * that pipeline, 516 containers on a cold rev-289 boot. The frame cap
-         * was deciding how fast the game could load.
-         *
-         * A step is cooperative and returns; the loop below still exits the
-         * moment the runner goes idle. The guard is a runaway backstop, not a
-         * pacing device, which is why it is large enough that no real frame
-         * reaches it -- and main() no longer sleeps while work is queued, so a
-         * frame that does hit it resumes immediately instead of waiting out
-         * the cap.
-         */
-        int budget = APP_ASYNC_STEP_LIMIT;
-        enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
-        int steps = 0;
-
-        /* Cleared here and set below, so it describes THIS frame. The caller
-         * uses it to decide whether to sleep: work still queued means the
-         * frame cap would be pacing the pipeline rather than the screen. */
-        app->async_pending = 0;
-        int settling_cs2 = !booting && (app->runner_had_work || app->runner.frame_settle_pending);
-
-        if( settling_cs2 )
-        {
-            stat = app_settle_cs2_frame(app);
-        }
-        else
-        {
-            for( int i = 0; i < budget; i++ )
-            {
-                steps++;
-                if( booting )
-                    app->boot_steps++;
-                stat = TaskRunner_Step(&app->runner);
-                if( stat == TASK_RUNNER_IDLE )
-                    break;
-                /* A task asked for the screen. Stop stepping and let this
-                 * frame out: spending the rest of the budget here is
-                 * exactly the behaviour the request exists to interrupt,
-                 * and it is why the whole boot used to land in one frame
-                 * with the bar never drawn below 100. */
-                if( stat == TASK_RUNNER_RENDER )
-                    break;
-                /*
-                 * Nothing more can happen this frame, so stepping again is a
-                 * busy-wait into the tripwire below rather than progress.
-                 *
-                 * BLOCKED says so outright: the head is parked on state this
-                 * queue does not own, and ToriRS_TaskQueue_Run only ever runs
-                 * the head -- every further pass returns BLOCKED again without
-                 * running anything.
-                 *
-                 * PENDING says so only together with two other facts. An
-                 * asynchronous backend answers a read after the host's next
-                 * turn, so a frame that sat here waiting for one would spin the
-                 * whole budget and abort as a task that will not converge --
-                 * the frame has to END for the answer to arrive.
-                 *
-                 * But "something is outstanding" is no longer the same as
-                 * "nothing can happen": the runner keeps a dozen reads in
-                 * flight now, and the ones that have LANDED are work this
-                 * frame can still do. Ending on the first outstanding read
-                 * capped the client at one batch per frame -- with answers
-                 * arriving in well under a millisecond, that is the difference
-                 * between draining a boot and dribbling it. So the frame ends
-                 * when a pass advanced NOTHING and is still waiting on the
-                 * platform, which is precisely "the answers are not here yet".
-                 *
-                 * TaskRunner_SettleFrame draws the same lines for the same
-                 * reason.
-                 */
-                if( stat == TASK_RUNNER_BLOCKED )
-                    break;
-                if( stat == TASK_RUNNER_PENDING && !app->runner.progressed &&
-                    Platform_IO_Pending(app->runner.px, app->runner.io) )
-                    break;
-            }
-            /*
-             * Reaching the limit is not a cap doing its job -- it is a task
-             * that will not converge, a runner that never returns IDLE.
-             *
-             * abort() rather than assert(): OPT=1 compiles -DNDEBUG, and this
-             * has to fail the same way in the build people actually run. A
-             * client that silently capped here would present as "slow to
-             * load" with nothing anywhere saying why, which is the failure
-             * this whole change exists to remove.
-             */
-            if( steps >= budget )
-            {
-                TORIRS_ERR(
-                    "app: the async pipeline ran %d steps in one frame without "
-                    "going idle (limit %d, booting=%d). A task is not "
-                    "converging.\n",
-                    steps,
-                    budget,
-                    booting);
-                fflush(stderr);
-                abort();
-            }
-        }
-        if( booting )
-        {
-            app->boot_frames++;
-            if( steps >= budget )
-                app->boot_frames_budget_capped++;
-        }
-        else if( !settling_cs2 && steps >= budget )
-        {
-            /* Post-boot frame that used its whole budget with work still
-             * queued: the async pipeline is being drip-fed rather than run. */
-            app->busy_frames++;
-            app->busy_steps += steps;
-        }
-
-        /* Anything left to do -- a budget that ran out, or a runner that is
-         * simply not idle -- means the next frame should start immediately
-         * instead of waiting out the cap. */
-        if( stat != TASK_RUNNER_IDLE )
-            app->async_pending = 1;
-        if( settling_cs2 && stat != TASK_RUNNER_IDLE )
-            app->runner_had_work = 1;
-        /* Tree-affecting async work (CS2 hooks/transmits) finished: refresh. */
-        if( settling_cs2 && stat == TASK_RUNNER_IDLE )
-        {
-            app->runner_had_work = 0;
-            app->pending_tree_refresh = 1;
-        }
-    }
+    App_PumpAsync(app, 1);
 
     /* Before the BOOTING test: the swap puts the session straight back into
      * BOOTING for the title bake, so the frame that saw the warm gameframe

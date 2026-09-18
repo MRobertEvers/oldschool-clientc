@@ -139,6 +139,105 @@ def find_chrome() -> str:
     return found
 
 
+def print_telemetry(t) -> None:
+    """The page's __torirs_telemetry(): boot marks with gaps, runner counters, wire stats."""
+    if not t:
+        print("summary: no telemetry (page too old, or main() never ran)", flush=True)
+        return
+    native = t.get("native") or {}
+    marks = native.get("marks") or []
+    print("=== boot marks (ms since the first mark; +gap to the previous) ===")
+    prev = 0
+    for m in marks:
+        print(f"  {m['ms']:8d}  +{m['ms'] - prev:<6d} {m['name']}")
+        prev = m["ms"]
+    for label in ("assets", "exec"):
+        r = native.get(label)
+        if not r:
+            continue
+        print(f"=== runner {label}: passes={r['passes']} pump_passes={r['pump_passes']} "
+              f"waiting_passes={r['waiting_passes']} tasks_run={r['tasks_run']} reads={r['reads']} "
+              f"batches={r['batches']} max_batch={r['max_batch']} ===")
+        rows = [x for x in r.get("tasks", []) if x["reads"]]
+        rows.sort(key=lambda x: -x["chained"])
+        for x in rows[:16]:
+            print(f"  {x['name']:<28} runs={x['runs']:<6} reads={x['reads']:<6} "
+                  f"chained={x['chained']:<6} max_chain={x['max_chain']}")
+    io = t.get("io")
+    if io:
+        print(f"=== executor: batches={io['batches']} items={io['items']} sync={io['sync']} "
+              f"landed={io['landed']} prefetched={io['prefetched']} pumps={io['pumps']} "
+              f"pump_ms={io['pumpMs']:.0f} wire_idle={io['idleMs']:.0f}ms over {io['idleGaps']} gaps "
+              f"(max {io['maxIdleMs']:.0f}ms) ===")
+    js5 = t.get("js5")
+    if js5:
+        print(f"=== js5: sent={js5.get('sent')} received={js5['groups']} bytes={js5['bytes']} "
+              f"max_inflight={js5.get('maxInflight')} avg_latency={js5.get('avgLatencyMs', 0):.1f}ms "
+              f"max_latency={js5.get('maxLatencyMs', 0):.0f}ms "
+              f"wire={js5.get('wireBytesPerSec', 0) / 1048576:.2f} MB/s drops={js5['drops']} ===")
+    idb = t.get("idb")
+    if idb:
+        print(f"=== idb writer: written={idb['written']} flushes={idb['flushes']} "
+              f"queued={idb['queued']} errors={idb['errors']} ===")
+
+
+def summarize_trace(lines) -> None:
+    """Idle gaps and serialized chains out of a TORIRS_IO_TRACE=1 trace.
+
+    An idle gap is time with nothing in flight between one answer landing and
+    the next batch going out. A serialized chain is a run of one-item batches
+    each issued with nothing in flight: a task asking for things one at a time.
+    """
+    ev = []
+    for line in lines:
+        m = re.match(r"([\d.]+) (batch|done|sync) (.*)", line)
+        if not m:
+            continue
+        t, kind, rest = float(m.group(1)), m.group(2), m.group(3)
+        if kind == "batch":
+            n = int(re.search(r"n=(\d+)", rest).group(1))
+            infl = int(re.search(r"inflight=(\d+)", rest).group(1))
+            names = rest.split(" ", 2)[2] if rest.count(" ") >= 2 else ""
+            ev.append((t, kind, n, infl, names))
+        else:
+            parts = rest.split(" ")
+            ev.append((t, kind, parts[0], 0, ""))
+    if not ev:
+        return
+    last_land = None
+    gaps, chains, chain = [], [], []
+    for e in ev:
+        t, kind = e[0], e[1]
+        if kind == "batch":
+            n, infl = e[2], e[3]
+            if infl == 0 and last_land is not None:
+                gaps.append((t - last_land, t, n, e[4][:70]))
+            if n == 1 and infl == 0:
+                chain.append((t, e[2:]))
+            else:
+                if len(chain) > 1:
+                    chains.append(chain)
+                chain = []
+        else:
+            last_land = t
+    if len(chain) > 1:
+        chains.append(chain)
+    t0, t1 = ev[0][0], max(e[0] for e in ev)
+    n_batch = sum(1 for e in ev if e[1] == "batch")
+    n_done = sum(1 for e in ev if e[1] == "done")
+    n_sync = sum(1 for e in ev if e[1] == "sync")
+    print(f"=== io trace: {t0:.0f}..{t1:.0f} ms ({(t1 - t0) / 1000:.2f}s) batches={n_batch} "
+          f"async={n_done} sync={n_sync} ===")
+    big = [g for g in gaps if g[0] >= 2.0]
+    print(f"  idle gaps: {len(gaps)} totalling {sum(g[0] for g in gaps):.0f} ms; "
+          f">=2ms: {len(big)} totalling {sum(g[0] for g in big):.0f} ms")
+    for g in sorted(gaps, reverse=True)[:12]:
+        print(f"    {g[0]:8.1f} ms idle before t={g[1]:.0f} batch n={g[2]} {g[3]}")
+    print(f"  serialized chains (n=1 batches issued onto an empty wire): {len(chains)}")
+    for c in sorted(chains, key=lambda c: -(c[-1][0] - c[0][0]))[:10]:
+        print(f"    {len(c):4d} reads over {c[-1][0] - c[0][0]:7.0f} ms from t={c[0][0]:.0f}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("url")
@@ -149,9 +248,17 @@ def main() -> int:
     ap.add_argument("--headed", action="store_true", help="show the window (default headless)")
     ap.add_argument("--log", help="after the last sample, save the page's client log (the CLIENT pane) here")
     ap.add_argument("--shots", help="save a PNG of the page at every sample into this directory")
+    ap.add_argument("--summary", action="store_true",
+                    help="after the last sample, print the boot telemetry (marks, runner counters, "
+                         "wire stats) and, with TORIRS_IO_TRACE=1 in the URL, the IO trace's idle "
+                         "gaps and serialized read chains")
+    ap.add_argument("--until", help="stop early once the client log contains this text "
+                         "(e.g. 'boot: world ready'), checked every sample")
+    ap.add_argument("--profile", help="reuse this Chrome profile directory instead of a fresh one, "
+                         "so a second run boots WARM against the IndexedDB the first one filled")
     args = ap.parse_args()
 
-    profile = tempfile.mkdtemp(prefix="torirs-probe-")
+    profile = args.profile or tempfile.mkdtemp(prefix="torirs-probe-")
     argv = [find_chrome(), "--no-first-run", "--disable-gpu", f"--user-data-dir={profile}",
             f"--remote-debugging-port={args.port}", "--window-size=1280,860", "about:blank"]
     if not args.headed:
@@ -179,6 +286,14 @@ def main() -> int:
                 d = {}
             print(f"t+{int(time.time() - t0):4}s  heap {d.get('heap', 0) // 1048576:5} MB  "
                   f"{d.get('status', '')[:90]}  |  {d.get('last', '')[:80]}", flush=True)
+            if args.until:
+                try:
+                    text = cdp.evaluate("(document.getElementById('log') || {}).textContent || ''")
+                except Exception:
+                    text = ""
+                if args.until in text:
+                    print(f"until: saw {args.until!r} at t+{time.time() - t0:.1f}s", flush=True)
+                    break
             if args.shots:
                 os.makedirs(args.shots, exist_ok=True)
                 try:
@@ -195,6 +310,15 @@ def main() -> int:
                 if trace:
                     out.write("\n=== io trace (TORIRS_IO_TRACE=1) ===\n" + trace + "\n")
             print(f"log: saved {text.count(chr(10))} log lines and {trace.count(chr(10))} trace lines to {args.log}", flush=True)
+        if args.summary:
+            try:
+                raw = cdp.evaluate("JSON.stringify(window.__torirs_telemetry ? window.__torirs_telemetry() : null)")
+                print_telemetry(json.loads(raw) if raw else None)
+            except Exception as err:
+                print(f"summary: telemetry unavailable: {err}", flush=True)
+            trace = cdp.evaluate("(globalThis.__torirs_io_trace || []).join('\\n')")
+            if trace:
+                summarize_trace(trace.splitlines())
         if args.memtrace:
             info = cdp.evaluate(FLUSH_JS)
             total = int(info.split()[-1])
@@ -212,7 +336,8 @@ def main() -> int:
                   f"next: python3 tools/memtrace/summarize.py {args.memtrace}", flush=True)
     finally:
         chrome.terminate()
-        shutil.rmtree(profile, ignore_errors=True)
+        if not args.profile:
+            shutil.rmtree(profile, ignore_errors=True)
     return 0
 
 

@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "boot_telemetry.h"
 
 /* IF_OPENSUB wrapper: mount a cache interface pack under a component slot of an
  * already-open root, then relayout + re-request CS1 over the new subtree. Runs
@@ -851,6 +852,7 @@ Task_AppBoot_Run(
      * front of the login form it was covering. */
     RS_Title_SetProgress(&app->title, -1, NULL);
     app->app_state = APP_STATE_READY;
+    ToriRS_BootTelemetry_Mark(app->screen == APP_SCREEN_GAME ? "ready:game" : "ready:title");
     /* A freshly baked title tree shows every screen's group at once until it is
      * told which one is current. */
     if( app->screen == APP_SCREEN_TITLE || app->screen == APP_SCREEN_CONNECTING )
@@ -1061,6 +1063,7 @@ void
 App_BootGameframeThenTitle(struct App* app)
 {
     assert(app);
+    ToriRS_BootTelemetry_Mark("boot_bake");
     /* The loading half of the boot, run FIRST: the same gameframe bake the
      * login used to pay for. Everything it fetches -- interface packs, media,
      * fonts, the profile's preload list -- lands in the provider's caches

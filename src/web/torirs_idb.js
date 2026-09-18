@@ -131,6 +131,7 @@
   let writeErrors = 0;
 
   async function get(storeName, key) {
+    lastReadAt = nowMs();
     const handle = await db();
     if (!handle) { return null; }
     try {
@@ -178,6 +179,119 @@
   const asBytes = (d) => (d ? new Uint8Array(d) : null);
   const asBuffer = (bytes) => bytes.slice().buffer;
 
+  /*
+   * Group writes are BATCHED: one transaction per flush, not one per group.
+   *
+   * A transaction is the unit IndexedDB commits, and a commit is a round trip
+   * to the browser's storage process. The loading screen writes 24,000 groups
+   * on a cold start, and awaiting a transaction apiece put every one of them
+   * on the critical path of the read it belonged to: the answer could not be
+   * given until its own commit had come back. Measured on the browser lane
+   * (2026-09-17) the answers landed one at a time, about 0.15 ms apart,
+   * behind a wire that had delivered them in bulk.
+   *
+   * So groupPut queues the row and returns; a flush runs when the queue
+   * reaches GROUP_FLUSH_ROWS or GROUP_FLUSH_MS after the first queued row,
+   * whichever comes first, and writes the whole queue in one transaction. A
+   * read of a group that is still queued is answered from the queue, so
+   * nothing observes the delay. What a tab that closes mid-flush loses is
+   * at most one batch of a warm start, never this session's bytes -- those
+   * were handed to the reader before the row was queued.
+   */
+  /*
+   * Small transactions, one at a time. A transaction on the store holds the
+   * next one -- and any READ created meanwhile -- until it commits, so the
+   * size of a write batch is the longest a read can be made to wait: at
+   * ~1000 rows per commit the title screen's first file read waited 700 ms
+   * behind the fill's tail. 96 rows commit in a few milliseconds, and the
+   * queue drains through as many of them as it takes.
+   */
+  const GROUP_FLUSH_ROWS = 96;
+  /* ...and large ones once nobody is reading: a commit of a thousand rows
+   * costs about what a commit of a hundred does, and the queue a cold boot
+   * leaves behind (20,000 rows) would otherwise take seconds to drain --
+   * seconds a tab closed early loses. `lastReadAt` moves on every read of
+   * either store; a queue that has not been read past for this long is
+   * drained in big commits. */
+  const GROUP_FLUSH_ROWS_IDLE = 1024;
+  const GROUP_FLUSH_IDLE_MS = 250;
+  const GROUP_FLUSH_MS = 20;
+  let lastReadAt = 0;
+  const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const groupQueue = new Map();
+  let groupFlushTimer = null;
+  let groupFlushing = null;
+  let groupsWritten = 0;
+  let groupFlushes = 0;
+
+  /* One commit of up to GROUP_FLUSH_ROWS rows, awaited to completion. */
+  async function commitGroups(rows) {
+    const handle = await db();
+    if (!handle) { return; }
+    try {
+      const tx = handle.transaction(['groups'], 'readwrite');
+      const store = tx.objectStore('groups');
+      for (const row of rows) { store.put(row); }
+      await new Promise(resolve => {
+        tx.oncomplete = resolve;
+        tx.onabort = resolve;
+        tx.onerror = () => {
+          if (writeErrors++ === 0) {
+            const why = tx.error ? tx.error.name : 'unknown';
+            console.warn(`torirs cache: IndexedDB refused a write (${why}) — this ` +
+                         'session is fine, but the cache will not persist');
+          }
+          resolve();
+        };
+      });
+      groupsWritten += rows.length;
+      groupFlushes++;
+    } catch (err) {
+      if (writeErrors++ === 0) {
+        console.warn(`torirs cache: could not write to IndexedDB — ${err.message}`);
+      }
+    }
+  }
+
+  /*
+   * Drain the queue, one small transaction after another, until it is
+   * empty -- including rows that arrive while it runs. ONE drain at a
+   * time: a second caller joins the running one rather than opening a
+   * transaction beside it.
+   */
+  function flushGroups() {
+    if (groupFlushTimer !== null) { clearTimeout(groupFlushTimer); groupFlushTimer = null; }
+    if (groupFlushing) { return groupFlushing; }
+    groupFlushing = (async () => {
+      while (groupQueue.size > 0) {
+        const rows = [];
+        const limit = nowMs() - lastReadAt > GROUP_FLUSH_IDLE_MS ? GROUP_FLUSH_ROWS_IDLE : GROUP_FLUSH_ROWS;
+        for (const [key, row] of groupQueue) {
+          rows.push(row);
+          groupQueue.delete(key);
+          if (rows.length >= limit) { break; }
+        }
+        await commitGroups(rows);
+      }
+    })().finally(() => { groupFlushing = null; });
+    return groupFlushing;
+  }
+
+  function scheduleGroupFlush() {
+    if (groupFlushing) { return; }
+    if (groupQueue.size >= GROUP_FLUSH_ROWS) { flushGroups(); return; }
+    if (groupFlushTimer === null) {
+      groupFlushTimer = setTimeout(() => { groupFlushTimer = null; flushGroups(); }, GROUP_FLUSH_MS);
+    }
+  }
+
+  /* A tab going away flushes what it has: `pagehide` is the one event a
+   * closing tab reliably delivers, and a transaction started here is allowed
+   * to finish. */
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('pagehide', () => { flushGroups(); });
+  }
+
   window.ToriRS_IDB = {
     /* Which database this cache is in. Resolved on first use and stable after,
      * so a caller that reports it reports what is actually open. */
@@ -207,15 +321,158 @@
       `${cacheKey}|${table}|${archive}|${flags | 0}`,
 
     async groupGet(cacheKey, table, archive, flags) {
-      const row = await get('groups', this.groupKey(cacheKey, table, archive, flags));
+      const key = this.groupKey(cacheKey, table, archive, flags);
+      /* Queued, not yet committed: the write is the answer. */
+      const queued = groupQueue.get(key);
+      if (queued) { return asBytes(queued.d); }
+      const row = await get('groups', key);
       return row ? asBytes(row.d) : null;
     },
 
+    /*
+     * Many groups of one table in ONE readonly transaction, for a prefetch.
+     *
+     * A miss is the common case on a cold start, and a transaction per
+     * lookup put 24,000 storage round trips ahead of the first JS5 request
+     * of each wave. One transaction, one get per id, all settled together.
+     * Returns a Map id -> bytes for the hits only.
+     */
+    async groupGetMany(cacheKey, table, ids, flags) {
+      lastReadAt = nowMs();
+      const found = new Map();
+      const want = [];
+      for (const id of ids) {
+        const queued = groupQueue.get(this.groupKey(cacheKey, table, id, flags));
+        if (queued) { found.set(id, asBytes(queued.d)); }
+        else { want.push(id); }
+      }
+      if (want.length === 0) { return found; }
+      const handle = await db();
+      if (!handle) { return found; }
+      try {
+        const tx = handle.transaction(['groups'], 'readonly');
+        const store = tx.objectStore('groups');
+        const requests = want.map(id => reqPromise(store.get(this.groupKey(cacheKey, table, id, flags))));
+        const rows = await Promise.all(requests);
+        for (let i = 0; i < want.length; i++) {
+          if (rows[i]) { found.set(want[i], asBytes(rows[i].d)); }
+        }
+      } catch (err) {
+        /* Reads that failed are misses; the producer refills them. */
+      }
+      return found;
+    },
+
+    /*
+     * Which archives of one table the database holds, as a Set of ids.
+     *
+     * One key-range scan (getAllKeys over the table's key prefix) instead of
+     * one get per id: a prefetch wave on a cold cache asked 512 questions per
+     * wave whose answer was "no" every time, and the transaction that asked
+     * them sat ahead of the wave's first request to the server. The keys
+     * are strings, so the range is the prefix and the prefix plus the
+     * largest character. Queued-but-uncommitted rows count as present.
+     */
+    async groupIdsPresent(cacheKey, table, flags) {
+      lastReadAt = nowMs();
+      const present = new Set();
+      const prefix = `${cacheKey}|${table}|`;
+      const suffix = `|${flags | 0}`;
+      for (const key of groupQueue.keys()) {
+        if (key.startsWith(prefix) && key.endsWith(suffix)) {
+          present.add(parseInt(key.substring(prefix.length), 10));
+        }
+      }
+      const handle = await db();
+      if (!handle) { return present; }
+      try {
+        const tx = handle.transaction(['groups'], 'readonly');
+        const range = IDBKeyRange.bound(prefix, prefix + '\uffff');
+        const keys = await reqPromise(tx.objectStore('groups').getAllKeys(range));
+        for (const key of keys) {
+          if (key.startsWith(prefix) && key.endsWith(suffix)) {
+            present.add(parseInt(key.substring(prefix.length), 10));
+          }
+        }
+      } catch (err) {
+        /* An unreadable index reads as empty; the producer refills. */
+      }
+      return present;
+    },
+
+    /*
+     * Every stored group of one table, in ONE request: a Map id -> bytes.
+     *
+     * What a warm prefetch wants. A wave of 512 gets in one transaction is
+     * 512 answers marshalled one at a time; getAll over the table's key
+     * range is one answer, and a boot that fills sprites, interfaces and
+     * scripts reads three of them. Queued rows are included.
+     */
+    async groupGetAll(cacheKey, table, flags) {
+      lastReadAt = nowMs();
+      const found = new Map();
+      const prefix = `${cacheKey}|${table}|`;
+      const suffix = `|${flags | 0}`;
+      const handle = await db();
+      if (handle) {
+        try {
+          const tx = handle.transaction(['groups'], 'readonly');
+          const range = IDBKeyRange.bound(prefix, prefix + '\uffff');
+          const rows = await reqPromise(tx.objectStore('groups').getAll(range));
+          for (const row of rows) {
+            if (row.k.startsWith(prefix) && row.k.endsWith(suffix)) { found.set(row.a, asBytes(row.d)); }
+          }
+        } catch (err) {
+          /* Unreadable reads as empty; the producer refills. */
+        }
+      }
+      for (const [key, row] of groupQueue) {
+        if (key.startsWith(prefix) && key.endsWith(suffix)) { found.set(row.a, asBytes(row.d)); }
+      }
+      return found;
+    },
+
+    /* Queued for the next batched transaction; resolves at once. See
+     * flushGroups. */
     async groupPut(cacheKey, table, archive, flags, bytes) {
-      await put('groups', {
+      groupQueue.set(this.groupKey(cacheKey, table, archive, flags), {
         k: this.groupKey(cacheKey, table, archive, flags),
         c: cacheKey, t: table, a: archive, f: flags | 0, d: asBuffer(bytes),
       });
+      scheduleGroupFlush();
+    },
+
+    /** Commit every queued group write now. */
+    async flush() {
+      await flushGroups();
+    },
+
+    /** How the batched writer has been doing: for the status line and the
+     *  probe. */
+    writeStats() {
+      return { queued: groupQueue.size, written: groupsWritten, flushes: groupFlushes, errors: writeErrors };
+    },
+
+    /*
+     * Which paths the files store holds, as a Set: one key scan, for the
+     * same reason groupIdsPresent exists. The store is a few hundred rows
+     * of plugin scripts, assets and settings, and a cold boot asks for
+     * most of them right after the fill -- each ask a transaction queued
+     * behind the fill's commits.
+     */
+    async fileKeysPresent() {
+      lastReadAt = nowMs();
+      const present = new Set();
+      const handle = await db();
+      if (!handle) { return present; }
+      try {
+        const tx = handle.transaction(['files'], 'readonly');
+        const keys = await reqPromise(tx.objectStore('files').getAllKeys());
+        for (const key of keys) { present.add(key); }
+      } catch (err) {
+        /* Unreadable reads as empty; every path is then asked for. */
+      }
+      return present;
     },
 
     async fileGet(path) {

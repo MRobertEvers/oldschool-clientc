@@ -7,6 +7,7 @@
  */
 
 #include "app/app_internal.h"
+#include "boot_telemetry.h"
 
 struct WevDeckBox;
 
@@ -330,6 +331,7 @@ app_world_load_begin(
 
     app->world_load_attempted = 1;
     app->world_load_inflight = 1;
+    ToriRS_BootTelemetry_Mark("world_load");
     App_WorldDrainEntityRemoved(app);
 
     /*
@@ -375,6 +377,7 @@ void
 App_WorldLoadFinish(struct App* app)
 {
     app->world_load_inflight = 0;
+    ToriRS_BootTelemetry_Mark("world_loaded");
 
     if( app->world->load_complete )
     {

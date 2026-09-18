@@ -37,6 +37,10 @@ struct WorldEntity_Player
      * in slot 5 (left) / slot 3 (right), where an empty one hides the held item
      * rather than swapping it. Tracked so
      * the model is rebuilt only when the effective override changes. */
+    /* Bumped by every appearance applied to this player. A deferred body
+     * load (game/task_entity_assets.c) re-applies only the appearance whose
+     * serial it was queued for. */
+    unsigned appearance_serial;
     int held_left_applied;
     int held_right_applied;
 

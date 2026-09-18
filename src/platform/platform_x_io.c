@@ -85,6 +85,11 @@ enum RemoteSource
 {
     REMOTE_SOURCE_JS5 = 1,
     REMOTE_SOURCE_ON_DEMAND = 2,
+    /* One row per group of a PREFETCH item, all naming the same slot. The
+     * slot stays pending until the last row is cleared, and no row loads
+     * anything: the group is in the disk the JS5 client filled, which is all
+     * a prefetch asked for. */
+    REMOTE_SOURCE_JS5_PREFETCH = 3,
 };
 
 struct RemotePendingItem
@@ -944,6 +949,53 @@ js5_queue_cache_item(
     return 0;
 }
 
+/*
+ * A PREFETCH item on the JS5 wire: every group requested, one parked row per
+ * group still to come. Answered NOW when nothing had to be asked for.
+ *
+ * `data_size` is left as the count the caller stated; on this lane a group
+ * the server refuses is one the disk simply never gains, and the caller's
+ * contract (asyncio.h) is that only a dead transport answers -1.
+ */
+static int
+js5_queue_prefetch_item(
+    struct PlatformX_IO* px,
+    struct ToriRS_IO* io,
+    int slot)
+{
+    struct ToriRS_IOItem* item = &io->io_slots[slot];
+    int archive = dat2_resolve_table(px, item->u.cache.table_id);
+    int const* ids = item->data;
+    int count = item->u.cache.archive_id;
+
+    assert(ids);
+    assert(count > 0);
+    item->error_code = 0;
+    item->data_size = count;
+    if( archive == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+    {
+        item->data_size = 0;
+        return 0;
+    }
+    for( int i = 0; i < count; i++ )
+    {
+        enum Js5RequestResult request =
+            PlatformXIOJs5Cache_RequestGroup(px->js5, archive, ids[i]);
+        struct RemotePendingItem* pending;
+
+        if( request != JS5_REQUEST_QUEUED )
+            continue;
+        pending = remote_pending_alloc(px);
+        pending->in_use = 1;
+        pending->source = REMOTE_SOURCE_JS5_PREFETCH;
+        pending->io = io;
+        pending->slot = slot;
+        pending->archive = archive;
+        pending->group = ids[i];
+    }
+    return 0;
+}
+
 static void
 js5_service_pending(
     struct PlatformX_IO* px,
@@ -955,7 +1007,9 @@ js5_service_pending(
         struct ToriRS_IOItem* item;
         int group_failed;
 
-        if( !pending->in_use || pending->source != REMOTE_SOURCE_JS5 )
+        if( !pending->in_use ||
+            (pending->source != REMOTE_SOURCE_JS5 &&
+             pending->source != REMOTE_SOURCE_JS5_PREFETCH) )
             continue;
         group_failed = PlatformXIOJs5Cache_GroupFailed(
             px->js5, pending->archive, pending->group);
@@ -966,7 +1020,14 @@ js5_service_pending(
             continue;
 
         item = &pending->io->io_slots[pending->slot];
-        if( terminal_failure || group_failed )
+        if( pending->source == REMOTE_SOURCE_JS5_PREFETCH )
+        {
+            /* Nothing to load: the group is in the disk now, or refused,
+             * and either way the row is what held the slot. */
+            if( terminal_failure )
+                item->error_code = -1;
+        }
+        else if( terminal_failure || group_failed )
             item->error_code = -1;
         else
             load_cache_item_dat2(px, item);
@@ -1254,6 +1315,15 @@ PlatformX_IO_LoadItem(
         item->error_code = 0;
         return write_client_file_item(item);
     }
+    /* A prefetch on a source that answers inside LoadItem is already
+     * resident by definition -- the disk is the store -- so every group
+     * "landed" without a read. The lent id array stays the caller's. */
+    if( item->kind == TORIRS_IOK_CACHE_PREFETCH )
+    {
+        item->error_code = 0;
+        item->data_size = item->u.cache.archive_id;
+        return 0;
+    }
 
     item->data = NULL;
     item->data_size = 0;
@@ -1358,8 +1428,9 @@ PlatformX_IO_Process(
         int slot = io->active[i];
         struct ToriRS_IOItem* item = &io->io_slots[slot];
 
-        /* A write carries its payload in these two fields — see LoadItem. */
-        if( item->kind != TORIRS_IOK_FILE_WRITE )
+        /* A write carries its payload in these two fields — see LoadItem —
+         * and a prefetch lends its id array the same way. */
+        if( item->kind != TORIRS_IOK_FILE_WRITE && item->kind != TORIRS_IOK_CACHE_PREFETCH )
         {
             item->data = NULL;
             item->data_size = 0;
@@ -1371,17 +1442,30 @@ PlatformX_IO_Process(
          * than call LoadItem. Asked as a question about the SOURCE, and both
          * remote backings answer yes: each is put on its wire here and
          * answered by the pump once it has landed. */
-        if( item->kind == TORIRS_IOK_CACHE &&
+        if( (item->kind == TORIRS_IOK_CACHE || item->kind == TORIRS_IOK_CACHE_PREFETCH) &&
             cache_source_parks(cache_source_for(px, item)) )
         {
             int queued = -1;
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
             if( cache_source_for(px, item) == CACHE_SOURCE_JS5 )
-                queued = js5_queue_cache_item(px, io, slot);
+                queued = item->kind == TORIRS_IOK_CACHE_PREFETCH
+                             ? js5_queue_prefetch_item(px, io, slot)
+                             : js5_queue_cache_item(px, io, slot);
 #endif
 #if !defined(TORIRS_PLATFORM_X_IO_NO_ONDEMAND)
             if( cache_source_for(px, item) == CACHE_SOURCE_ON_DEMAND )
-                queued = od_queue_cache_item(px, io, slot);
+            {
+                /* No dat1 prefetch: that era's preload has its own wire.
+                 * Answered as "all landed" rather than refused, so a profile
+                 * that ever asks is merely uncached, not broken. */
+                if( item->kind == TORIRS_IOK_CACHE_PREFETCH )
+                {
+                    item->data_size = item->u.cache.archive_id;
+                    queued = 0;
+                }
+                else
+                    queued = od_queue_cache_item(px, io, slot);
+            }
 #endif
             if( queued == 0 )
                 processed++;

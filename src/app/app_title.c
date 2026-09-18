@@ -7,6 +7,7 @@
  */
 
 #include "app/app_internal.h"
+#include "boot_telemetry.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
@@ -525,6 +526,7 @@ app_title_submit(struct App* app)
 
     assert(app);
     app->title.submit_requested = 0;
+    ToriRS_BootTelemetry_Mark("login_submit");
 
     /* The password is not read here: the connect happens a tick later and
      * takes both straight off the form -- see RS_TitleSession. */
@@ -637,6 +639,7 @@ app_title_tick(struct App* app)
      * exactly as a networked boot used to do straight out of App_Init. */
     if( RS_TitleSession_LoginSucceeded(app_title_phase(app), app_title_link_state(app)) )
     {
+        ToriRS_BootTelemetry_Mark("login_ok");
         /*
          * The one moment these credentials are known to work.
          *

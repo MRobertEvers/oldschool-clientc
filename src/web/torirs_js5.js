@@ -53,6 +53,10 @@
    *  is the index OF those tables. */
   const MASTER_ARCHIVE = 255;
 
+  /* A clock for the wire stats. `performance` is the page's; a test harness
+   * evaluating this file in a bare context has only Date. */
+  const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
   /*
    * A byte sink that reassembles JS5 responses.
    *
@@ -174,20 +178,53 @@
       this.tablesPromise = null;
       this.bytesReceived = 0;
       this.groupsReceived = 0;
+      /* The wire, measured: how long each group took from request to last
+       * byte, how many were out at the most, and when the first and last
+       * bytes of the session arrived -- what says whether the SERVER or the
+       * asking is the slow half. */
+      this.groupsSent = 0;
+      this.latencyMs = 0;
+      this.maxLatencyMs = 0;
+      this.maxPending = 0;
+      this.firstByteAt = 0;
+      this.lastByteAt = 0;
 
+      /*
+       * A test knob: hold every answer for this many milliseconds before it
+       * is handed on, so a loopback server behaves like one a continent
+       * away. ?js5_delay=80 on the page. Chrome's own network throttling
+       * does not reach a WebSocket, which is why this exists here.
+       */
+      this.delayMs = 0;
       this.reader = new ResponseReader(done => {
+        if (this.delayMs > 0) {
+          setTimeout(() => this.#deliver(done), this.delayMs);
+          return;
+        }
+        this.#deliver(done);
+      });
+    }
+
+    #deliver(done) {
+      {
         const key = (done.archive << 16) | done.group;
         const waiter = this.pending.get(key);
+        const now = nowMs();
         this.bytesReceived += done.bytes.length;
         this.groupsReceived++;
+        if (!this.firstByteAt) { this.firstByteAt = now; }
+        this.lastByteAt = now;
         if (waiter) {
           this.pending.delete(key);
+          const took = now - waiter.sentAt;
+          this.latencyMs += took;
+          if (took > this.maxLatencyMs) { this.maxLatencyMs = took; }
           waiter.resolve(done.bytes);
         }
         /* A response nobody is waiting for is dropped rather than treated as a
          * protocol error: a request can be abandoned while its bytes are in
          * flight, and the server is not wrong to have finished sending. */
-      });
+      }
     }
 
     /** Connected and past the handshake. Idempotent; every caller awaits the
@@ -337,10 +374,12 @@
       request[1] = archive & 0xFF;
       request[2] = (group >> 8) & 0xFF;
       request[3] = group & 0xFF;
-      const waiter = { resolve, reject, promise, request };
+      const waiter = { resolve, reject, promise, request, sentAt: nowMs() };
       /* Registered before the send, so a socket lost between here and the
        * answer re-sends it from #connect instead of losing it. */
       this.pending.set(key, waiter);
+      this.groupsSent++;
+      if (this.pending.size > this.maxPending) { this.maxPending = this.pending.size; }
       if (this.online) { this.#send(waiter); }
       else { await this.ready(); }
       return await promise;
@@ -405,8 +444,15 @@
     stats() {
       return {
         groups: this.groupsReceived,
+        sent: this.groupsSent,
         bytes: this.bytesReceived,
         inflight: this.pending.size,
+        maxInflight: this.maxPending,
+        avgLatencyMs: this.groupsReceived ? this.latencyMs / this.groupsReceived : 0,
+        maxLatencyMs: this.maxLatencyMs,
+        /* Bytes per second over the span the wire was actually delivering. */
+        wireBytesPerSec: this.lastByteAt > this.firstByteAt
+          ? this.bytesReceived * 1000 / (this.lastByteAt - this.firstByteAt) : 0,
         drops: this.drops,
         failed: this.failed ? this.failed.message : null,
       };

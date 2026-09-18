@@ -18,6 +18,79 @@
  * and the browser loop resumes us next frame — Drain must not be used there.
  */
 
+/*
+ * What the runner can say about how a queue is being driven.
+ *
+ * Counted, never sampled, so the numbers answer a question exactly: how many
+ * passes ran nothing because every answer was still on the wire (the frame
+ * had to end), how many reads each KIND of task issued and how many of those
+ * were issued one after another by a task that had just been resumed on the
+ * previous one landing. That last number is the serialized-request count --
+ * a CS2 script resolving sprites one per yield, a map load asking for a
+ * reference table then a square then a loc -- and it is what says whether
+ * the platform is slow or the client is asking one thing at a time.
+ *
+ * Read by boot_telemetry.c (the report and the JSON the browser page pulls)
+ * and by nothing else; it changes no decision.
+ */
+#define TASK_RUNNER_TELEMETRY_TASKS 48
+
+struct TaskRunnerTaskTelemetry
+{
+    char name[32];
+    long runs;
+    long reads;
+    /** Reads issued by a task resumed on its previous read landing. */
+    long chained_reads;
+    int max_chain;
+};
+
+struct TaskRunnerTelemetry
+{
+    long passes;
+    long tasks_run;
+    long reads_issued;
+    /** Process calls that were handed at least one item. */
+    long batches;
+    int max_batch;
+    /** Passes that stepped nothing while reads were still out. */
+    long passes_waiting;
+    /** Passes driven by the platform's landed hook rather than the frame. */
+    long pump_passes;
+    /** Set by the host around a pump-driven step; see App_PumpAsync. */
+    int in_pump;
+    struct TaskRunnerTaskTelemetry by_task[TASK_RUNNER_TELEMETRY_TASKS];
+    int by_task_count;
+    int by_task_overflow;
+};
+
+/* The row for a task's NAME, made on first sight; NULL once the table is
+ * full, which is counted rather than asserted because a name is not a bug. */
+static inline struct TaskRunnerTaskTelemetry*
+TaskRunnerTelemetry_Row(
+    struct TaskRunnerTelemetry* t,
+    struct ToriRS_Task const* task)
+{
+    struct TaskRunnerTaskTelemetry* row;
+
+    assert(t);
+    assert(task);
+    for( int i = 0; i < t->by_task_count; i++ )
+    {
+        if( strcmp(t->by_task[i].name, task->name) == 0 )
+            return &t->by_task[i];
+    }
+    if( t->by_task_count == TASK_RUNNER_TELEMETRY_TASKS )
+    {
+        t->by_task_overflow++;
+        return NULL;
+    }
+    row = &t->by_task[t->by_task_count++];
+    memset(row, 0, sizeof(*row));
+    strncpy(row->name, task->name, sizeof(row->name) - 1);
+    return row;
+}
+
 struct TaskRunner
 {
     struct ToriRS_TaskQueue* queue;
@@ -54,6 +127,7 @@ struct TaskRunner
     /* What the head task asked to be drawn, valid only while the last Step
      * returned TASK_RUNNER_RENDER. */
     struct ToriRS_RenderRequest render;
+    struct TaskRunnerTelemetry telemetry;
 };
 
 enum TaskRunnerStat
@@ -117,6 +191,9 @@ TaskRunner_Step(struct TaskRunner* runner)
 
     assert(runner && runner->queue && runner->io && runner->px);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_STEPS, 1);
+    runner->telemetry.passes++;
+    if( runner->telemetry.in_pump )
+        runner->telemetry.pump_passes++;
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_QUEUE_RUN)
     {
@@ -163,9 +240,40 @@ TaskRunner_Step(struct TaskRunner* runner)
             /* Remembered because RunTask may free the task, and the slot has
              * to be given back either way. */
             slot = task->io_slot;
-            runner->io->slot_base = slot;
-            stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
-            runner->io->slot_base = 0;
+            /* The row is taken BEFORE the run: a task that ends is freed by
+             * RunTask, and its name with it. */
+            {
+                struct TaskRunnerTaskTelemetry* row =
+                    TaskRunnerTelemetry_Row(&runner->telemetry, task);
+                if( row )
+                    row->runs++;
+                runner->telemetry.tasks_run++;
+                runner->io->slot_base = slot;
+                stat = ToriRS_TaskQueue_RunTask(runner->queue, runner->io, task);
+                runner->io->slot_base = 0;
+
+                /* Did this run queue a read? Counted per task name, and as a
+                 * chain when the task was resumed on its previous read
+                 * landing and immediately asked for the next -- see
+                 * TaskRunnerTelemetry. */
+                if( stat != TORIRS_ASYNCIO_STAT_DONE )
+                {
+                    if( runner->io->io_slots[slot].kind != TORIRS_IOK_NONE )
+                    {
+                        task->read_chain++;
+                        if( row )
+                        {
+                            row->reads++;
+                            if( task->read_chain >= 2 )
+                                row->chained_reads++;
+                            if( task->read_chain > row->max_chain )
+                                row->max_chain = task->read_chain;
+                        }
+                    }
+                    else
+                        task->read_chain = 0;
+                }
+            }
 
             /*
              * Re-read the successor of a task that is still here: a task that
@@ -223,12 +331,21 @@ TaskRunner_Step(struct TaskRunner* runner)
 
     /* Every read this pass produced, handed over together -- which is the
      * whole point of the walk above. */
+    if( runner->io->active_count > 0 )
+    {
+        runner->telemetry.batches++;
+        runner->telemetry.reads_issued += runner->io->active_count;
+        if( runner->io->active_count > runner->telemetry.max_batch )
+            runner->telemetry.max_batch = runner->io->active_count;
+    }
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
     {
         Platform_IO_Process(runner->px, runner->io);
     }
 
     runner->progressed = ran;
+    if( !ran && waiting_io )
+        runner->telemetry.passes_waiting++;
 
     if( render_task )
     {

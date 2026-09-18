@@ -1,4 +1,5 @@
 #include "app.h"
+#include "boot_telemetry.h"
 #include "bootmanifest/bootmanifest.h"
 #include "cmd/cmdbus.h"
 #include "engine/uitree_scene_bridge.h"
@@ -1523,6 +1524,7 @@ static int sim_openchat_done;
 static int boot_stats;
 static uint64_t boot_start_ms;
 static int boot_reported;
+static int world_reported;
 static char const* sim_sethide;
 static int sim_sethide_done;
 static char const* sim_setvarp;
@@ -2033,6 +2035,16 @@ frame_loop_step(void)
             app.boot_frames,
             app.boot_steps,
             app.boot_frames_budget_capped);
+        ToriRS_BootTelemetry_Report(stderr, &app.runner, &app.exec_runner);
+    }
+    /* The whole startup, once the world is in: the title's report above ends
+     * before login, and the marks after it (login, world load) are what a
+     * networked boot is mostly made of. */
+    if( boot_stats && !world_reported && app.app_state == APP_STATE_READY && app.world_active )
+    {
+        world_reported = 1;
+        TORIRS_ERR("boot: world ready\n");
+        ToriRS_BootTelemetry_Report(stderr, &app.runner, &app.exec_runner);
     }
     if( boot_stats && frame_count == max_frames - 1 )
         TORIRS_ERR(
@@ -4783,6 +4795,47 @@ frame_loop_teardown(void)
 }
 
 #if defined(__EMSCRIPTEN__)
+/*
+ * May the platform step the runner between frames?
+ *
+ * Set the moment the frame loop is handed to the browser and cleared when it
+ * ends, so a pump can never run against an App that is still being built or
+ * has been torn down. Everything before the loop is main() running to
+ * completion on one JavaScript task, which nothing can interleave with.
+ */
+static int web_pump_armed;
+
+/*
+ * The executor's landed hook: reads have been answered, step whatever they
+ * unblocked NOW rather than on the next animation frame.
+ *
+ * Called from platform_web_io.js (TORIRS_WEB_IO.pumpNow) on a MessageChannel
+ * task it posts after answering a batch -- a macrotask, so it runs after
+ * every promise continuation of the turn that delivered the bytes and never
+ * from inside a C call. A 4 ms setTimeout clamp, which is what the boot's
+ * settimeout(0) pacing degrades to once nested, is exactly the latency this
+ * exists to remove: a task chain that asks for one group at a time paid it
+ * per link.
+ *
+ * Returns 1 when it stepped anything, 0 when it was not armed.
+ */
+EMSCRIPTEN_KEEPALIVE int
+torirs_web_io_pump(void)
+{
+    if( !web_pump_armed )
+        return 0;
+    App_PumpAsync(&app, 0);
+    return 1;
+}
+
+/* The boot marks and both runners' counters as JSON, malloc'd; the page
+ * frees it with _free. See boot_telemetry.h. */
+EMSCRIPTEN_KEEPALIVE char*
+torirs_telemetry_json(void)
+{
+    return ToriRS_BootTelemetry_Json(&app.runner, &app.exec_runner);
+}
+
 /* The browser owns the frame clock, so the loop is inverted: instead of the
  * client calling the platform once per iteration, the platform calls the
  * client. Same step function either way. */
@@ -4791,6 +4844,7 @@ frame_loop_tick(void)
 {
     if( frame_loop_step() )
         return;
+    web_pump_armed = 0;
     emscripten_cancel_main_loop();
     /* Close the final CPU calibration interval before capture/destruction. */
     TorirsPerf_Shutdown();
@@ -5709,7 +5763,9 @@ main(
     if( executor_prepare_js5_cache() != 0 )
         return 1;
 #endif
+    ToriRS_BootTelemetry_Mark("app_init");
     App_Init(&app, &cfg);
+    ToriRS_BootTelemetry_Mark("app_init:done");
     if( getenv("TORIRS_PREVIEW_BMP") )
     {
         /* Default to the fixed-mode main/modal slot used by cs2dom. App_Init
@@ -7197,6 +7253,8 @@ main(
         boot_stats = getenv("TORIRS_BOOT_STATS") ? 1 : 0;
         boot_start_ms = PlatformWindow_Ticks64();
         boot_reported = 0;
+        world_reported = 0;
+        ToriRS_BootTelemetry_Mark("frame_loop");
 
         sim_sethide = getenv("TORIRS_SIM_SETHIDE");
         sim_sethide_done = 0;
@@ -7222,6 +7280,7 @@ main(
         /* Before the unwind, not after: there is no "after". */
         web_announce_ready();
 #endif
+        web_pump_armed = 1;
         emscripten_set_main_loop(frame_loop_tick, 0, 1);
         return 0;
 #else

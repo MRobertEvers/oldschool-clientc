@@ -606,7 +606,7 @@ PORCELAIN_SRCS = plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
 
-SRCS = main.c executor_config.c app.c pacer.c \
+SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_audio.c \
 	app/app_boot.c \
 	app/app_camera.c \
@@ -783,7 +783,7 @@ SRCS = main.c executor_config.c app.c pacer.c \
 	engine/toridraw_model_from_torirs.c \
 	game/rs_cs2_host.c game/rs_cs2_client_ops.c game/rs_cs2_social_ops.c game/rs_cs2_market_ops.c game/rs_clan.c game/rs_friends_chat.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
-	game/task_gameproto_exec.c game/task_exec_entity_info.c game/rs_entity_sync.c game/rs_audio.c \
+	game/task_gameproto_exec.c game/task_exec_entity_info.c game/task_entity_assets.c game/rs_entity_sync.c game/rs_audio.c \
 	game/rs_prefs.c game/task_prefs_io.c game/preview_state.c \
 	audio/torirs_pcm.c audio/torirs_mixer.c audio/torirs_midi_file.c \
 	audio/torirs_soundbank.c audio/torirs_midi_synth.c audio/torirs_music.c \
@@ -3702,6 +3702,7 @@ test-web-channel:
 	node web/test/chrome_enum_sync_test.js
 	node web/test/chrome_dom_test.js
 	node web/test/chrome_layout_test.js
+	node web/test/idb_batch_write_test.js
 	node web/test/host_plugin_files_test.js
 	node web/test/hostio_read_file_test.js
 	node web/test/js5_reconnect_test.js

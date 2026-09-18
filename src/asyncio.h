@@ -64,6 +64,28 @@ enum ToriRS_IOKind
      */
     TORIRS_IOK_FILE_READ,
     TORIRS_IOK_FILE_WRITE,
+    /*
+     * Make a set of cache groups RESIDENT without decoding any of them.
+     *
+     * The loading screen's `groups=all` fill wants exactly this: every group
+     * of a table pulled through the producer and into the local store, so
+     * that the reads which come after login are local. Asking for each group
+     * as an ordinary CACHE read did that too, and paid for it three times
+     * over -- one task, one slot and one executor round trip per group, plus
+     * a decode whose result was freed on the spot. On the browser lane that
+     * was 24,000 tasks and 24,000 bzip2 passes for bytes nobody looked at.
+     *
+     * Addressed like a CACHE item (the same union member: epoch, table,
+     * flags) with `archive_id` holding the COUNT and `data` LENDING an array
+     * of that many group ids, exactly as FILE_WRITE lends its bytes: the
+     * executor reads the ids before it does anything asynchronous and never
+     * frees them. It answers with error_code 0 once every group has either
+     * landed or been refused, and `data_size` says how many landed. A group
+     * the cache does not hold is not a failure -- the reference table listed
+     * it, the producer has nothing to say -- so only a dead transport
+     * answers -1.
+     */
+    TORIRS_IOK_CACHE_PREFETCH,
 };
 
 struct IOItem_Cache
@@ -343,6 +365,18 @@ struct ToriRS_Task
     int io_slot;
 
     /*
+     * How many reads this task has issued back to back.
+     *
+     * Telemetry, kept by the runner: it goes up each time a resumed task
+     * queues another read and back to zero the moment it yields for any
+     * other reason. A task whose chain climbs into the hundreds is one that
+     * is walking a list one round trip at a time -- which is the shape of
+     * every "the game froze while it loaded" this client has had, and the
+     * thing TaskRunnerTelemetry exists to name (task_runner.h).
+     */
+    int read_chain;
+
+    /*
      * The fan-out this task belongs to, or NULL.
      *
      * A task queued as a SIBLING on another task's behalf (ToriRS_TaskQueue_AddJoined)
@@ -577,6 +611,53 @@ ToriRS_IO_QueueFileWrite(
     push_active(io, io->slot_base + slot_id);
 }
 
+/**
+ * Make `count` groups of `table_id` resident, without decoding them.
+ *
+ * `ids` is borrowed for the duration of the request, as FILE_WRITE's bytes
+ * are: it must outlive the yield that waits for this item, and freeing it is
+ * still the caller's job. See TORIRS_IOK_CACHE_PREFETCH.
+ */
+static inline void
+ToriRS_IO_QueueCachePrefetch(
+    struct ToriRS_IO* io,
+    int slot_id,
+    int epoch,
+    int table_id,
+    int flags,
+    int* ids,
+    int count)
+{
+    assert(io != NULL);
+    assert(table_id >= 0);
+    assert(flags >= 0);
+    assert(count > 0);
+    assert(ids != NULL);
+    struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot_id);
+    memset(item, 0, sizeof(struct ToriRS_IOItem));
+
+    item->kind = TORIRS_IOK_CACHE_PREFETCH;
+    item->u.cache.epoch = epoch;
+    item->u.cache.table_id = table_id;
+    item->u.cache.archive_id = count;
+    item->u.cache.flags = flags;
+    item->data = ids;
+    item->data_size = count * (int)sizeof(int);
+    push_active(io, io->slot_base + slot_id);
+}
+
+/** How many of a prefetch's groups landed, once the item has been answered. */
+static inline int
+ToriRS_IO_PrefetchLanded(
+    struct ToriRS_IO* io,
+    int slot_id)
+{
+    assert(io != NULL);
+    struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot_id);
+    assert(item->kind == TORIRS_IOK_CACHE_PREFETCH);
+    return item->error_code == 0 ? item->data_size : 0;
+}
+
 static inline void
 ToriRS_IO_QueueReferenceTable(
     struct ToriRS_IO* io,
@@ -625,7 +706,8 @@ static inline void
 ToriRS_IO_ClearItem(struct ToriRS_IOItem* item)
 {
     assert(item != NULL);
-    if( item->kind != TORIRS_IOK_FILE_WRITE )
+    /* PREFETCH lends its id array the same way -- see QueueCachePrefetch. */
+    if( item->kind != TORIRS_IOK_FILE_WRITE && item->kind != TORIRS_IOK_CACHE_PREFETCH )
         free(item->data);
     item->kind = TORIRS_IOK_NONE;
     item->error_code = 0;

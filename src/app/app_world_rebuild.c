@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "boot_telemetry.h"
 
 /* Tell the plugins about a ground-item stack, by pool index. One helper for
  * all three edges so the snapshot is filled the same way every time -- and so
@@ -372,6 +373,7 @@ App_WorldRebuildBegin(
     app->rebuild_zone_z = zone_z;
     app->world_load_attempted = 1;
     app->world_load_inflight = 1;
+    ToriRS_BootTelemetry_Mark("world_load:rebuild");
     app->world_load_server_driven = 1;
     app->need_redraw = 1;
     return 1;

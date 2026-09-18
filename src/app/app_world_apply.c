@@ -169,6 +169,13 @@ App_WorldApplyNpcType(
         if( model )
             ToriDraw_ModelSetBoundsCylinder(model);
     }
+    else if( !app_world_npc_models_resident(app, npctype) )
+    {
+        /* The body is on the wire (NpcBodyLand re-applies this type when it
+         * lands): keep whatever model the element has rather than mount
+         * nothing, and say nothing -- it is not a failure. */
+        model = NULL;
+    }
     else
     {
         model = app_world_build_npc_model(app, npc_type, npctype);

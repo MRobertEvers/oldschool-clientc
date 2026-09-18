@@ -694,6 +694,8 @@
   const js5Producer = () => {
     if (!js5Client) {
       js5Client = window.ToriRS_CreateJs5(js5Host, js5Port, js5Revision(), js5Url);
+      /* ?js5_delay=<ms>: a loopback server made to answer like a remote one. */
+      js5Client.delayMs = parseInt(params.get('js5_delay') || '0', 10) || 0;
     }
     return js5Client;
   };
@@ -750,6 +752,33 @@
   /* Nothing to flush on the way out. Records are written straight through to
    * IndexedDB as they arrive (torirs_idb.js), so a tab that goes away loses
    * nothing -- which is what the write-behind batch used to risk. */
+
+  /*
+   * Everything measurable about this boot, in one object.
+   *
+   * The C side's marks and runner counters (torirs_telemetry_json), the
+   * executor's counters (platform_web_io.js), the JS5 wire's and the
+   * database writer's. tools/web/browser_probe.py --summary prints it; it
+   * is also the thing to paste when a boot is slow, because it says WHICH
+   * gap was slow rather than that the total was.
+   */
+  window.__torirs_telemetry = () => {
+    let native = null;
+    try {
+      if (typeof Module._torirs_telemetry_json === 'function') {
+        const ptr = Module._torirs_telemetry_json();
+        native = JSON.parse(Module.UTF8ToString(ptr));
+        Module._free(ptr);
+      }
+    } catch (err) { native = { error: String(err && err.message) }; }
+    return {
+      native,
+      io: window.__torirs_io_telemetry || null,
+      js5: js5Client ? js5Client.stats() : null,
+      ondemand: onDemandClient ? onDemandClient.stats() : null,
+      idb: window.ToriRS_IDB && window.ToriRS_IDB.writeStats ? window.ToriRS_IDB.writeStats() : null,
+    };
+  };
 
   Module.onRuntimeInitialized = () => {
     log(`torirs: runtime up, cache in IndexedDB` +
