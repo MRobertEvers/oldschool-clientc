@@ -280,7 +280,7 @@ struct ToriRS_Task
      * for the WHOLE queue: a music track chaining 44 reads through the
      * browser held the last frame on screen for 1.6 s at the Inferno's door.
      *
-     * Children joined on a settling task (AddJoined) do not carry it: the
+     * Children joined on a settling task (AddParallelPoolSubTask) do not carry it: the
      * parent stays queued, parked on the join, and that is what holds the
      * frame.
      */
@@ -289,7 +289,7 @@ struct ToriRS_Task
     /*
      * The fan-out this task belongs to, or NULL.
      *
-     * A task queued as a SIBLING on another task's behalf (ToriRS_TaskQueue_AddJoined)
+     * A task queued as a SIBLING on another task's behalf (ToriRS_TaskQueue_AddParallelPoolSubTask)
      * carries a pointer to that task's outstanding count, and the queue
      * decrements it when this task ends -- however it ends. That is what lets
      * the parent wait for "every load I queued has finished" (PT_TASK_JOIN)
@@ -710,7 +710,7 @@ ToriRS_TaskQueue_Add(
  * tasks were actually queued (0 or 1), so a caller can tally a fan-out.
  */
 static inline int
-ToriRS_TaskQueue_AddJoined(
+ToriRS_TaskQueue_AddParallelPoolSubTask(
     struct ToriRS_TaskQueue* queue,
     struct ToriRS_Task* task,
     int* join)
@@ -975,7 +975,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
 
 /**
  * Wait until every sibling counted by `join_field` (an int on `self`, filled
- * by ToriRS_TaskQueue_AddJoined) has ended.
+ * by ToriRS_TaskQueue_AddParallelPoolSubTask) has ended.
  *
  * The siblings run on their own queue -- the parallel asset queue, where the
  * runner puts all their reads on the wire together -- so this is a wait on

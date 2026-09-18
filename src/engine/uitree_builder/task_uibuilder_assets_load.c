@@ -95,7 +95,7 @@ Task_UIBuilderAssetsLoad_Run(
      * form this manifest uses throughout) resolves its id from the sprites
      * reference table, already resident by now, and then reads one archive,
      * so it is just as independent and goes in the same fan-out; a duplicate
-     * name yields a NULL task, which AddJoined does not count. The defaults,
+     * name yields a NULL task, which AddParallelPoolSubTask does not count. The defaults,
      * title-panel and from-source loads stay serial: there are a handful.
      */
     assert(self->builder->provider->asset_queue);
@@ -103,7 +103,7 @@ Task_UIBuilderAssetsLoad_Run(
     {
         struct UIBuilderSpriteReq const* req = &self->manifest->sprites[k];
         if( req->archive_id >= 0 )
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 self->builder->provider->asset_queue,
                 CreateTask_SpriteLoad(self->builder->provider, req->archive_id),
                 &self->pending);
@@ -120,7 +120,7 @@ Task_UIBuilderAssetsLoad_Run(
              * the name belongs in RevConfig and not in a C table. The dat1
              * spelling is distinguished by carrying filename=, since a dat1
              * section names both a jagfile archive and a file inside it. */
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 self->builder->provider->asset_queue,
                 CreateTask_SpriteLoadByName(self->builder->provider, req->archive),
                 &self->pending);
@@ -220,7 +220,7 @@ Task_UIBuilderAssetsLoad_Run(
     {
         struct UIBuilderFontReq const* req = &self->manifest->fonts[k];
         if( req->archive_id >= 0 )
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 self->builder->provider->asset_queue,
                 CreateTask_FontLoad(self->builder->provider, req->archive_id),
                 &self->pending);
@@ -237,7 +237,7 @@ Task_UIBuilderAssetsLoad_Run(
     /* Unique inv objs */
     collect_unique_objs(self);
     for( int k = 0; k < self->unique_obj_count; k++ )
-        ToriRS_TaskQueue_AddJoined(
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
             self->builder->provider->asset_queue,
             CreateTask_ObjLoad(self->builder->provider, self->unique_objs[k]),
             &self->pending);
@@ -247,7 +247,7 @@ Task_UIBuilderAssetsLoad_Run(
      * assets, in order, because a pack's asset list is read out of the loaded
      * pack. The pack loader fans its assets out itself. */
     for( int k = 0; k < self->manifest->component_count; k++ )
-        ToriRS_TaskQueue_AddJoined(
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
             self->builder->provider->asset_queue,
             CreateTask_ComponentLoad(
                 self->builder->provider, self->manifest->components[k].packed_id),

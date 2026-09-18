@@ -10,7 +10,7 @@
  *      exactly like one that landed. This is the case the residency wait
  *      got wrong: it spent a 600-pass budget, two passes a frame, on one
  *      texture id the loader had refused -- six seconds per rebuild.
- *   3. A NULL handed to AddJoined (the "already resident" answer every
+ *   3. A NULL handed to AddParallelPoolSubTask (the "already resident" answer every
  *      CreateTask_*Load gives) is not counted, so a fan-out with nothing to
  *      load joins at once.
  */
@@ -122,7 +122,7 @@ Parent_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
     self->resumes++;
     PT_BEGIN(&self->pt);
     for( int i = 0; i < self->fanout; i++ )
-        ToriRS_TaskQueue_AddJoined(
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
             self->queue,
             new_loader(
                 &self->landed,
@@ -131,7 +131,7 @@ Parent_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
                 self->pass_clock),
             &self->pending);
     if( self->add_null )
-        TEST_CHECK(ToriRS_TaskQueue_AddJoined(self->queue, NULL, &self->pending) == 0);
+        TEST_CHECK(ToriRS_TaskQueue_AddParallelPoolSubTask(self->queue, NULL, &self->pending) == 0);
     PT_TASK_JOIN(pending);
     self->joined_in_pass = *self->pass_clock;
     PT_END(&self->pt);
@@ -255,7 +255,7 @@ test_nothing_to_load_joins_at_once(void)
     parent->add_null = 1;
     ToriRS_TaskQueue_Add(runner.queue, &parent->task);
 
-    /* Every record already resident: AddJoined counted nothing, and the join
+    /* Every record already resident: AddParallelPoolSubTask counted nothing, and the join
      * falls straight through in the pass the parent first ran. */
     TEST_CHECK(TaskRunner_Step(&runner) == TASK_RUNNER_IDLE);
     TEST_CHECK(runner.queue->head == NULL);

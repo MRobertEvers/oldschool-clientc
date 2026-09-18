@@ -60,7 +60,7 @@ obj_model_fanout_textures(
     {
         int const texture_id = obj_model_face_texture(self->provider, model_id, f);
         if( texture_id >= 0 && !CacheProvider_TextureHas(self->provider, texture_id) )
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 self->provider->asset_queue,
                 CreateTask_TextureLoad(self->provider, texture_id),
                 &self->pending);
@@ -338,7 +338,7 @@ Task_ObjModelLoad_Run(
         {
             if( self->obj_ids[k] <= 0 )
                 continue;
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 self->provider->asset_queue,
                 CreateTask_ObjModelLoad(
                     self->provider, &self->obj_ids[k], self->counts ? &self->counts[k] : NULL, 1),

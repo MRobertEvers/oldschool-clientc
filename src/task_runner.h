@@ -132,7 +132,7 @@ TaskRunner_ReadsOutstanding(struct TaskRunner const* runner)
  * is pending -- something this pass cannot deliver. A task that awaits
  * another (PT_TASK_AWAITSELF) runs its child inline, in its own item, so a
  * chain stays a chain. A task that fans loads out appends them behind itself
- * (ToriRS_TaskQueue_AddJoined), and they belong to THIS pass: their reads are
+ * (ToriRS_TaskQueue_AddParallelPoolSubTask), and they belong to THIS pass: their reads are
  * the ones meant to go out together, so the successor is re-read after the
  * run.
  *

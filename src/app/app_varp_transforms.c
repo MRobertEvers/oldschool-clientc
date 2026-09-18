@@ -189,7 +189,7 @@ Task_NpcMultiLoad_Run(
                  self->model_i++ )
             {
                 if( npctype->models[self->model_i] >= 0 )
-                    ToriRS_TaskQueue_AddJoined(
+                    ToriRS_TaskQueue_AddParallelPoolSubTask(
                         app->runner.queue,
                         CreateTask_ModelLoad(app->provider, npctype->models[self->model_i]),
                         &self->pending);
@@ -203,7 +203,7 @@ Task_NpcMultiLoad_Run(
                 for( self->seq_i = 0; self->seq_i < 5; self->seq_i++ )
                 {
                     if( seqs[self->seq_i] >= 0 )
-                        ToriRS_TaskQueue_AddJoined(
+                        ToriRS_TaskQueue_AddParallelPoolSubTask(
                             app->runner.queue,
                             CreateTask_SequenceLoad(app->provider, app->scene, seqs[self->seq_i]),
                             &self->pending);

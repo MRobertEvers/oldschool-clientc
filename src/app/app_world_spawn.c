@@ -1625,13 +1625,13 @@ Task_AppSpawn_Run(
                 for( int i = 0; i < entries; i++ )
                     for( int j = 0; j < cfg->lengths[i]; j++ )
                         if( cfg->models[i][j] >= 0 )
-                            ToriRS_TaskQueue_AddJoined(
+                            ToriRS_TaskQueue_AddParallelPoolSubTask(
                                 app->runner.queue,
                                 CreateTask_ModelLoad(app->provider, cfg->models[i][j]),
                                 &self->pending);
                 self->seq_id = cfg && cfg->seq_id >= 0 ? cfg->seq_id : self->loc_base_seq;
                 if( self->seq_id >= 0 )
-                    ToriRS_TaskQueue_AddJoined(
+                    ToriRS_TaskQueue_AddParallelPoolSubTask(
                         app->runner.queue,
                         CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id),
                         &self->pending);

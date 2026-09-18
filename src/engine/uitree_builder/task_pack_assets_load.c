@@ -145,22 +145,22 @@ Task_PackAssetsLoad_Run(
      */
     assert(self->provider->asset_queue);
     for( int k = 0; k < self->sprite_count; k++ )
-        ToriRS_TaskQueue_AddJoined(
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
             self->provider->asset_queue,
             CreateTask_SpriteLoad(self->provider, self->sprite_ids[k]),
             &self->pending);
     for( int k = 0; k < self->font_count; k++ )
-        ToriRS_TaskQueue_AddJoined(
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
             self->provider->asset_queue,
             CreateTask_FontLoad(self->provider, self->font_ids[k]),
             &self->pending);
     for( int k = 0; k < self->model_count; k++ )
-        ToriRS_TaskQueue_AddJoined(
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
             self->provider->asset_queue,
             CreateTask_ModelLoad(self->provider, self->model_ids[k]),
             &self->pending);
     for( int k = 0; k < self->npc_count; k++ )
-        ToriRS_TaskQueue_AddJoined(
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
             self->provider->asset_queue,
             CreateTask_NpcLoad(self->provider, self->npc_ids[k]),
             &self->pending);

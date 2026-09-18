@@ -145,7 +145,7 @@ Task_Dat2HealthbarLoad_Run(
         {
             if( sprites[half] < 0 )
                 continue;
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 task->bc->base.asset_queue,
                 CreateTask_SpriteLoad(&task->bc->base, sprites[half]),
                 &task->pending);

@@ -151,7 +151,7 @@ Task_PlayerAppearanceLoad_Run(
              self->model_i < player_kit_model_count(self->provider, self->kits[self->model_part]);
              self->model_i++ )
         {
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 self->provider->asset_queue,
                 CreateTask_ModelLoad(
                     self->provider,

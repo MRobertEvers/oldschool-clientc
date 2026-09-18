@@ -490,7 +490,7 @@ Task_Dat2Preload_Run(
         if( !task->index_step )
             task->index_step = task->step;
         if( task->bc->base.asset_queue )
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 task->bc->base.asset_queue,
                 CreateTask_Dat2IndexOpen(task->bc, task->table_id, task->step->archive),
                 &task->pending);
@@ -599,7 +599,7 @@ Task_Dat2Preload_Run(
             int n = task->fill_ref->id_count - task->fill_at;
             if( n > PREFETCH_WAVE )
                 n = PREFETCH_WAVE;
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 task->bc->base.asset_queue,
                 CreateTask_Dat2PrefetchWave(
                     task->bc,

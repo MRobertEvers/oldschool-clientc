@@ -1018,7 +1018,7 @@ app_open_tree(
          * found the same index absent, and the second one's decode replaced
          * (freed) the table the first one's fill was still walking.
          */
-        ToriRS_TaskQueue_AddJoined(app->runner.queue, preload, &task->preload_pending);
+        ToriRS_TaskQueue_AddParallelPoolSubTask(app->runner.queue, preload, &task->preload_pending);
     }
 
     ToriRS_TaskQueue_Add(app->runner.queue, &task->task);

@@ -162,7 +162,7 @@ world_load_fanout(
     {
         if( has(self->provider, ids->items[i]) )
             continue;
-        ToriRS_TaskQueue_AddJoined(self->queue, make(self->provider, ids->items[i]), &self->pending);
+        ToriRS_TaskQueue_AddParallelPoolSubTask(self->queue, make(self->provider, ids->items[i]), &self->pending);
     }
 }
 
@@ -321,10 +321,10 @@ Task_WorldLoad_Run(
         int const map_id = CacheProvider_MapId(map_x, map_z);
 
         if( !CacheProvider_MapTerrainHas(p, map_id) )
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 self->queue, CreateTask_MapTerrainLoad(p, map_x, map_z), &self->pending);
         if( !CacheProvider_MapSceneryHas(p, map_id) )
-            ToriRS_TaskQueue_AddJoined(
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
                 self->queue, CreateTask_MapSceneryLoad(p, map_x, map_z), &self->pending);
     }
     PT_TASK_JOIN(pending);
@@ -416,7 +416,7 @@ Task_WorldLoad_Run(
      */
     world_load_fanout(self, &self->models, CacheProvider_ModelHas, CreateTask_ModelLoad);
     for( self->i = 0; self->i < self->seqs.count; self->i++ )
-        ToriRS_TaskQueue_AddJoined(
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
             self->queue,
             CreateTask_SequenceLoad(p, self->builder->scene, self->seqs.items[self->i]),
             &self->pending);

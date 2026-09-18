@@ -122,7 +122,7 @@ struct CacheProvider
      * The parallel asset queue (App's `runner`). A task that needs several
      * independent records -- an interface's sprites and fonts, an npc's body
      * parts, a region's models -- queues one loader per record here and joins
-     * on the set (ToriRS_TaskQueue_AddJoined / PT_TASK_JOIN), so the runner
+     * on the set (ToriRS_TaskQueue_AddParallelPoolSubTask / PT_TASK_JOIN), so the runner
      * has every read on the wire at once instead of one per round trip.
      *
      * There is no serial fallback: a loader that fans out asserts this is set.
