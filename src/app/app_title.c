@@ -692,8 +692,7 @@ app_title_tick(struct App* app)
             RS_TitleSession_Submit(&app->title_session, true, true);
             return 1;
         }
-        reply = 
-            RS_LoginReplies_Get(&app->login_replies, app->net->login_reply);
+        reply = RS_LoginReplies_Get(&app->login_replies, app->net->login_reply);
 
         app->screen = APP_SCREEN_TITLE;
         if( reply )
