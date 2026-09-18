@@ -21,10 +21,32 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <windows.h>
 #define save_mkdir(p) _mkdir(p)
 #else
 #define save_mkdir(p) mkdir(p, 0755)
 #endif
+
+/*
+ * Put the finished temp file where the save lives, replacing it.
+ *
+ * Not plain rename() on Windows: the CRT's rename refuses an existing
+ * destination, so there every save after a character's first failed here, the
+ * temp was removed, and the character logged back in as they were the first
+ * time they left -- or, if that first save never happened, as a new character.
+ * MoveFileEx with REPLACE_EXISTING is the atomic replace POSIX rename already is.
+ */
+static int
+save_replace(
+    const char* temp,
+    const char* path)
+{
+#ifdef _WIN32
+    return MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) ? 0 : -1;
+#else
+    return rename(temp, path);
+#endif
+}
 
 /*
  * Bumped when a field changes meaning rather than when one is added.
@@ -427,7 +449,7 @@ ToriRSServer_SavePlayer(
 
     fclose(file);
 
-    if( rename(temp, path) != 0 )
+    if( save_replace(temp, path) != 0 )
     {
         fprintf(stderr, "torirsserver: cannot replace %s\n", path);
         remove(temp);

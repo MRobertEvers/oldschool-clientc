@@ -13,7 +13,12 @@
 static int
 app_appearance_team(
     struct App* app,
-    struct PktPlayerAppearance const* appearance);
+    int const slots[APPEARANCE_SLOT_COUNT]);
+static void
+app_player_wanted_body(
+    struct App* app,
+    struct WorldEntity_Player const* player,
+    int slots[12]);
 
 /*
  * LOC_ANIM: attach a sequence to the scenery element on a tile.
@@ -346,76 +351,134 @@ app_element_pose_after_model_swap(
     ToriDraw_SceneElementApplyAnimation(app->scene, element_id, true, element->anim_frame);
 }
 
-/* Build the player appearance model from slots/colors/gender and hand it to the
- * scene element (SceneElementSetModel disposes the previous model; the element's
- * animation binding survives, so the current seq keeps driving the new model).
- * Shared by the appearance packet and the per-frame held-item swap. */
-void
-app_set_player_element_model(
-    struct App* app,
-    int element_id,
-    int const slots[12],
-    int const colors[5],
-    int gender)
-{
-    struct ToriDraw_Model* model =
-        PlayerModel_BuildFromAppearance(app->provider, slots, colors, gender);
-    if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
-    {
-        struct ToriDraw_ModelHandle hnd;
-        memset(&hnd, 0, sizeof(hnd));
-        hnd.kind = TORIDRAWMK_MODEL;
-        hnd.u.model.model = model;
-        ToriDraw_SceneElementSetModel(app->scene, element_id, hnd);
-        app_element_pose_after_model_swap(app, element_id);
-    }
-    else if( model )
-    {
-        ToriDraw_ModelFree(model);
-    }
-}
-
 /*
- * Team-cape id carried by this appearance (reference
+ * Team-cape id carried by these slots (reference
  * ClientPlayer.decodeAppearance: while reading the 12 worn slots it keeps the
  * ObjType.team of every equipped obj, so the LAST non-zero one wins).
  *
- * Resolved off resident objtypes only, which is safe here and nowhere else:
- * task_exec_entity_info awaits a config load for all 12 slots before calling
- * this, for the same reason the model build below can look models up directly.
+ * Resolved off resident objtypes, which is safe only where the body was just
+ * built from the same slots: the build refuses an appearance whose configs are
+ * not all resident.
  */
 static int
 app_appearance_team(
     struct App* app,
-    struct PktPlayerAppearance const* appearance)
+    int const slots[APPEARANCE_SLOT_COUNT])
 {
     int team = 0;
 
     for( int s = 0; s < APPEARANCE_SLOT_COUNT; s++ )
     {
-        int obj_id = Appearance_SlotObj(appearance->slots[s]);
+        int obj_id = Appearance_SlotObj(slots[s]);
         struct ToriRS_Objtype const* obj;
         if( obj_id < 0 )
             continue;
         obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
-        if( obj && obj->team != 0 )
+        assert(obj);
+        if( obj->team != 0 )
             team = obj->team;
     }
     return team;
+}
+
+/*
+ * The body the player wants right now: the appearance, with the held-item
+ * override of a playing primary seq folded in (reference
+ * ClientPlayer.getSequencedModel via SeqType.replaceheldleft/right, opcodes
+ * 6/7 -- a woodcutting or mining seq swaps the worn item for an obj that is
+ * not part of the appearance), in slot 5 (left) / slot 3 (right).
+ */
+static void
+app_player_wanted_body(
+    struct App* app,
+    struct WorldEntity_Player const* player,
+    int slots[12])
+{
+    struct WorldEntityFacet_Animation const* anim = &player->animation;
+
+    memcpy(slots, player->appearance.slots, sizeof(player->appearance.slots));
+    if( anim->primary.anim_id != (uint16_t)-1 && anim->primary.anim_id != 0 &&
+        anim->primary.delay == 0 )
+    {
+        struct ToriDraw_Animation* prim =
+            ToriDraw_SceneAnimationGet(app->scene, anim->primary.anim_id);
+        if( prim && prim->frame_count > 0 )
+        {
+            /* Cache-sourced appearance slots -- converted here so the override
+             * is in the same vocabulary as the appearance it overwrites. */
+            if( prim->replaceheldright >= 0 )
+                slots[3] = Appearance_FromCacheValue(prim->replaceheldright);
+            if( prim->replaceheldleft >= 0 )
+                slots[5] = Appearance_FromCacheValue(prim->replaceheldleft);
+        }
+    }
+}
+
+void
+app_world_reconcile_player_body(
+    struct App* app,
+    struct WorldEntity_Player* player)
+{
+    int slots[12];
+    struct ToriDraw_Model* model;
+    struct ToriDraw_ModelHandle hnd;
+
+    assert(app);
+    assert(player);
+
+    app_player_wanted_body(app, player, slots);
+    if( memcmp(slots, player->body.slots, sizeof(slots)) == 0 &&
+        memcmp(player->appearance.colors, player->body.colors, sizeof(player->body.colors)) ==
+            0 &&
+        player->gender == player->body.gender )
+        return;
+
+    /* Not yet while any part is still loading (PlayerBodyLand /
+     * PlayerHeldLand are fetching it): the element keeps the last whole body,
+     * and the next frame asks again. The appearance itself must be whole too
+     * when a held item stands in for part of it -- the team below reads its
+     * configs, and the override ends back on it. */
+    if( !PlayerModel_AppearanceResident(app->provider, player->appearance.slots, player->gender) )
+        return;
+    model = PlayerModel_BuildFromAppearance(
+        app->provider, slots, player->appearance.colors, player->gender);
+    if( !model )
+        return;
+    if( !ToriDraw_SceneElementIsLive(app->scene, player->element_id) )
+    {
+        ToriDraw_ModelFree(model);
+        return;
+    }
+
+    /* SceneElementSetModel disposes the previous model; the element's
+     * animation binding survives, so the current seq keeps driving the new
+     * model. */
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = model;
+    ToriDraw_SceneElementSetModel(app->scene, player->element_id, hnd);
+    app_element_pose_after_model_swap(app, player->element_id);
+
+    memcpy(player->body.slots, slots, sizeof(slots));
+    memcpy(player->body.colors, player->appearance.colors, sizeof(player->body.colors));
+    player->body.gender = player->gender;
+    /* Every obj config of the appearance is resident (checked above). */
+    player->team = app_appearance_team(app, player->appearance.slots);
+    app_sync_textures(app);
+    app->need_redraw = 1;
 }
 
 void
 App_WorldApplyPlayerAppearance(
     struct App* app,
     int world_idx,
-    int element_id,
     struct PktPlayerAppearance const* appearance)
 {
-    assert(app && appearance);
+    assert(app);
+    assert(appearance);
 
-    app_set_player_element_model(
-        app, element_id, appearance->slots, appearance->colors, appearance->gender);
-
+    /* Data only. The body is derived from it by
+     * app_world_reconcile_player_body on the next frame, once whole. */
     {
         struct WorldEntityFacet_IdleAnimations idle = {
             .readyanim = appearance->readyanim,
@@ -447,11 +510,6 @@ App_WorldApplyPlayerAppearance(
             if( ent )
             {
                 ent->headicon = appearance->headicon;
-                ent->team = app_appearance_team(app, appearance);
-                /* The element now holds the un-overridden base model; the
-                 * per-frame held-item pass will rebuild if a seq demands it. */
-                ent->held_left_applied = -1;
-                ent->held_right_applied = -1;
             }
         }
 
@@ -482,6 +540,5 @@ App_WorldApplyPlayerAppearance(
             }
         }
     }
-    app_sync_textures(app);
     app->need_redraw = 1;
 }

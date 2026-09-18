@@ -237,4 +237,54 @@ let passed = 0;
   passed++;
 }
 
+/* 10. A reload asks for the SAME session back: the token the client handed
+ *     over rides behind the credentials as --resume, which makes the first
+ *     dial a GAMERECONNECT. The credentials stay, for when the server says
+ *     that session is gone. */
+{
+  const storage = fakeStorage();
+  const live = createResumeSession(storage);
+  live.boot(MANIFEST);
+  live.remember('zezima', 'hunter2', '11,-22,33,-44,5');
+  assert.deepStrictEqual(
+    createResumeSession(storage).boot(MANIFEST),
+    MANIFEST.concat(['--user', 'zezima', '--pass', 'hunter2', '--resume', '11,-22,33,-44,5']),
+    'the reload logged in afresh instead of reconnecting');
+
+  /* Every handshake re-keys the session; the newest token is the one sent. */
+  live.remember('zezima', 'hunter2', '1,2,3,4,5');
+  assert.deepStrictEqual(
+    createResumeSession(storage).boot(MANIFEST).slice(-2), ['--resume', '1,2,3,4,5'],
+    'a retired key was presented');
+  passed++;
+}
+
+/* 11. No token (a revision without the seed reconnect, or an entry written
+ *     before tokens existed) is a fresh login, not a broken boot. */
+{
+  const storage = fakeStorage();
+  const live = createResumeSession(storage);
+  live.boot(MANIFEST);
+  live.remember('zezima', 'hunter2', '');
+  assert.deepStrictEqual(
+    createResumeSession(storage).boot(MANIFEST),
+    MANIFEST.concat(['--user', 'zezima', '--pass', 'hunter2']));
+
+  storage.entries.set('torirs.session', JSON.stringify(
+    { manifest: MANIFEST[1], user: 'zezima', password: 'hunter2' }));
+  assert.deepStrictEqual(
+    createResumeSession(storage).boot(MANIFEST),
+    MANIFEST.concat(['--user', 'zezima', '--pass', 'hunter2']),
+    'an older entry stopped resuming');
+  passed++;
+}
+
+/* 12. The token is a session key, and is redacted like the password. */
+{
+  assert.deepStrictEqual(
+    redactArgs(['--user', 'zezima', '--resume', '1,2,3,4,5']),
+    ['--user', 'zezima', '--resume', '****']);
+  passed++;
+}
+
 console.log(`session_resume_test: ${passed} passed`);

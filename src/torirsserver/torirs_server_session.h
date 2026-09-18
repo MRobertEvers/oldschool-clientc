@@ -126,6 +126,19 @@ struct ToriRSServerSession
     int reconnect;
 
     /**
+     * The cipher seed this session's handshake established -- the key a later
+     * GAMERECONNECT for the same character has to present to be handed it.
+     */
+    int32_t seed[4];
+
+    /**
+     * What a GAMERECONNECT presented as the previous session's seed. Zero for
+     * a fresh login. The host compares it against the session being reclaimed
+     * (torirs_server_host.c, host_claim_character).
+     */
+    int32_t presented_seed[4];
+
+    /**
      * A revision-239 LoginResponse.Ok that has been composed but not sent.
      *
      * The response states `index`, the slot the client will treat as itself,

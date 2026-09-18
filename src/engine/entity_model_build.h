@@ -4,8 +4,8 @@
 /*
  * Entity model composition from ALREADY-CACHED configs/models — pure CPU, no
  * IO. Callers (the entity-sync exec tasks, spawn tasks) await the idk / obj
- * / model loads first; anything still missing is skipped, matching the
- * reference's skip-render-until-loaded behavior.
+ * / model loads first. The player body is all or nothing: it is not built
+ * until every part is resident, matching the reference's isReady gate.
  */
 
 #include <stdint.h>
@@ -19,13 +19,26 @@ struct ToriDraw_Model;
  * Appearance_PackKit / Appearance_PackObj), 5 design colours
  * (reference ClientPlayer.recol1d/recol2d), gender picks manwear/womanwear
  * models. Lights + captures the model (ready for a dynamic scene element).
- * Returns an owned model or NULL when nothing resolved.
+ * Returns an owned model, or NULL when the appearance is not resident (see
+ * PlayerModel_AppearanceResident) or names no model at all. Never a partial
+ * body: the caller keeps whatever it drew before and asks again later.
  */
 struct ToriDraw_Model*
 PlayerModel_BuildFromAppearance(
     struct CacheProvider* provider,
     int const slots[12],
     int const colors[5],
+    int gender);
+
+/*
+ * Is every idk / obj config the appearance names resident, and every model
+ * those configs name for `gender`? What PlayerModel_BuildFromAppearance
+ * requires before it builds anything.
+ */
+int
+PlayerModel_AppearanceResident(
+    struct CacheProvider* provider,
+    int const slots[12],
     int gender);
 
 /*

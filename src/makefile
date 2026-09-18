@@ -921,7 +921,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_friends.c \
 	torirsserver/torirs_server_ids.c \
 	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
-	torirsserver/torirs_server_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
+	torirsserver/torirs_server_embed.c torirsserver/torirs_server_claim.c content/content_register.c content/content_fields.c $(INI_SRC) \
 	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
 	world/wev.c \
 	torirsserver/torirs_server_zone.c torirsserver/torirs_server_zone_index.c torirsserver/torirs_server_worldmap.c torirsserver/torirs_server_varbit.c \
@@ -5982,6 +5982,15 @@ test-torirsserver-login-index: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OB
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginIndexTest
+
+# Revision 239 GAMERECONNECT: a reload hands the character back in the slot the
+# client holds, only to the session's own key, and never seats a second copy.
+test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_ReconnectClaimTest \
+		torirsserver/test/reconnect_claim_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		net/net_out.c \
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_ReconnectClaimTest
 
 # mDNS response parser: name compression (including a pointer chain and a
 # self-referential one), truncation, out-of-range RDLENGTH, reserved label

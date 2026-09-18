@@ -198,7 +198,7 @@ test_a_logout_forgets_the_resumable_session(void)
 
     printf("TEST: a logout drops the session a reload would resume\n");
 
-    app_session_resume_remember("zezima", "hunter2");
+    app_session_resume_remember("zezima", "hunter2", "");
     TEST_ASSERT(
         strcmp(app_session_resume_user(), "zezima") == 0, "the session was there to lose");
 
@@ -228,7 +228,7 @@ test_a_lost_connection_keeps_the_resumable_session(void)
 
     printf("TEST: a lost connection keeps it -- that is what it is for\n");
 
-    app_session_resume_remember("zezima", "hunter2");
+    app_session_resume_remember("zezima", "hunter2", "");
     app_net_lost(app, "socket closed");
 
     TEST_ASSERT(

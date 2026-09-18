@@ -336,9 +336,6 @@ struct Task_ExecPlayerInfo
     int op_consumed;
 
     struct PktPlayerAppearance app_decoded;
-    int cfg_i;
-    int model_ids[64];
-    int model_count;
     int pending_seq;
     int pending_delay;
 };
@@ -833,22 +830,6 @@ player_apply_op(
     return PLAYER_NEED_NONE;
 }
 
-static struct ToriRS_Task*
-player_slot_cfg_task(struct Task_ExecPlayerInfo* self)
-{
-    int value = self->app_decoded.slots[self->cfg_i];
-    switch( Appearance_SlotKind(value) )
-    {
-    case APPEARANCE_SLOT_KIT:
-        return CreateTask_IdkLoad(self->app->provider, Appearance_SlotKit(value));
-    case APPEARANCE_SLOT_OBJ:
-        return CreateTask_ObjLoad(self->app->provider, Appearance_SlotObj(value));
-    case APPEARANCE_SLOT_EMPTY:
-    default:
-        return NULL;
-    }
-}
-
 static int
 Task_ExecPlayerInfo_Run(
     struct ToriRS_Task* base,
@@ -902,36 +883,21 @@ Task_ExecPlayerInfo_Run(
             int need = player_apply_op(self, &self->ops[self->op_i]);
             if( need == PLAYER_NEED_APPEARANCE )
             {
-                for( self->cfg_i = 0; self->cfg_i < 12; self->cfg_i++ )
-                {
-                    PT_TASK_AWAITSELF_IF(player_slot_cfg_task(self));
-                }
-                self->model_count = PlayerModel_CollectAppearanceModelIds(
-                    app->provider,
-                    self->app_decoded.slots,
-                    self->app_decoded.gender,
-                    self->model_ids,
-                    (int)(sizeof(self->model_ids) / sizeof(self->model_ids[0])));
-                /* Models and the seven stance sequences are independent reads:
-                 * all of them go on the wire together and this task parks
-                 * until the last lands. Each sequence id is queued once even
-                 * when the appearance names it for several stances, since
-                 * CreateTask_SequenceLoad only declines one already
-                 * REGISTERED and two in flight would register it twice. */
                 /*
-                 * Applied NOW, from whatever is resident: the body build
-                 * drops a model that is not in, so a player whose models are
-                 * still on the wire dresses partially and is finished by
-                 * PlayerBodyLand on the asset runner once they land. The
-                 * packet pipeline used to park here until every model and
-                 * stance was in -- a second per player on a streamed cache,
-                 * and every packet behind it with it. The serial is what
-                 * lets a later appearance packet make the earlier completion
-                 * a no-op. See game/task_entity_assets.h.
+                 * Applied NOW, as data: slots, colours, stances, name. The
+                 * body is not part of it -- it is derived from the appearance
+                 * each frame (app_world_reconcile_player_body), and rebuilt
+                 * only once every part is resident, so the element keeps its
+                 * last whole body meanwhile and nothing ever sees a partial
+                 * one. PlayerBodyLand is only the fetch: configs, then the
+                 * models they name, then the stances, on the asset runner,
+                 * so the packet pipeline never parks on them. A later
+                 * appearance needs nothing from an earlier fetch -- the
+                 * reconcile reads the entity, not the task.
+                 * See game/task_entity_assets.h.
                  */
                 {
-                    int element_id;
-                    int const world_idx = player_target(self, &element_id);
+                    int const world_idx = player_target(self, NULL);
                     int const seqs[7] = {
                         self->app_decoded.readyanim,   self->app_decoded.turnanim,
                         self->app_decoded.walkanim,    self->app_decoded.walkanim_b,
@@ -940,23 +906,13 @@ Task_ExecPlayerInfo_Run(
                     };
                     if( world_idx >= 0 )
                     {
-                        struct WorldEntity_Player* player =
-                            World_EntityPoolGet(&app->world->entities.player, world_idx);
-                        unsigned serial = player ? ++player->appearance_serial : 0;
-                        App_WorldApplyPlayerAppearance(
-                            app, world_idx, element_id, &self->app_decoded);
-                        if( player &&
-                            !EntityAssets_PlayerBodyResident(
-                                app, self->model_ids, self->model_count, seqs, 7) )
+                        App_WorldApplyPlayerAppearance(app, world_idx, &self->app_decoded);
+                        if( !EntityAssets_PlayerBodyResident(
+                                app, self->app_decoded.slots, self->app_decoded.gender, seqs, 7) )
                             ToriRS_TaskQueue_Add(
                                 app->runner.queue,
                                 CreateTask_PlayerBodyLand(
-                                    app,
-                                    self->cur_pid,
-                                    serial,
-                                    &self->app_decoded,
-                                    self->model_ids,
-                                    self->model_count));
+                                    app, self->app_decoded.slots, self->app_decoded.gender, seqs, 7));
                     }
                 }
             }
@@ -964,9 +920,9 @@ Task_ExecPlayerInfo_Run(
             {
                 /* Applied now; the track binder fetches the sequence, and
                  * PlayerHeldLand fetches whatever the seq swaps into the
-                 * player's hands and asks the per-frame held-item pass to
-                 * rebuild once those are in. The packet pipeline no longer
-                 * waits out either. */
+                 * player's hands -- the per-frame body reconcile puts them
+                 * there once they are in. The packet pipeline waits out
+                 * neither. */
                 int const world_idx = player_target(self, NULL);
                 if( world_idx >= 0 )
                     World_PlayerSetPrimaryAnimation(

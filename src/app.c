@@ -1144,6 +1144,17 @@ App_Init(
          */
         RS_TitleSession_SetCredentials(
             &app->title_session, cfg->connect_user, cfg->connect_pass);
+        if( cfg->connect_resume && cfg->connect_resume[0] )
+        {
+            int32_t seed[4];
+            int local_index = -1;
+
+            if( app_session_resume_parse(cfg->connect_resume, seed, &local_index) )
+                ToriRS_Network_ArmResume(app->net, seed, local_index);
+            else
+                TORIRS_ERR("net: --resume '%s' is not a resume token; logging in afresh\n",
+                           cfg->connect_resume);
+        }
         RS_TitleSession_SetConnectTarget(&app->title_session, cfg->connect_target);
     }
 }

@@ -1,10 +1,9 @@
-#include "uitree_builder.h"
-#include "uitree_builder_manifest.h"
-
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/title_panel.h"
 #include "engine/uitree_builder/task_pack_assets_load.h"
+#include "uitree_builder.h"
+#include "uitree_builder_manifest.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -80,11 +79,7 @@ Task_UIBuilderAssetsLoad_Run(
     {
         struct UIBuilderSpriteReq const* req = &self->manifest->sprites[self->i];
         UITreeBuilder_RegisterSprite(
-            self->builder,
-            req->name,
-            req->archive_id,
-            req->atlas_index,
-            req->atlas_count);
+            self->builder, req->name, req->archive_id, req->atlas_index, req->atlas_count);
     }
     /*
      * Every load below that is addressed by a cache id -- a sprite archive, a
@@ -161,8 +156,8 @@ Task_UIBuilderAssetsLoad_Run(
             /* The title backdrop, which OldSchool keeps in the BINARY table
              * rather than among the sprites -- so it is addressed by table and
              * name, and assembled by the same composite the dat1 lane uses. */
-            PT_TASK_AWAITSELF_IF(CreateTask_Dat2TitlePanelLoad(
-                self->builder->provider, req->archive, req->name));
+            PT_TASK_AWAITSELF_IF(
+                CreateTask_Dat2TitlePanelLoad(self->builder->provider, req->archive, req->name));
         }
         else if( req->format[0] != '\0' && req->data_filename[0] != '\0' )
         {
@@ -219,8 +214,7 @@ Task_UIBuilderAssetsLoad_Run(
     for( self->i = 0; self->i < self->manifest->font_count; self->i++ )
     {
         struct UIBuilderFontReq const* req = &self->manifest->fonts[self->i];
-        UITreeBuilder_RegisterFont(
-            self->builder, req->name, req->archive_id, req->cache_font_id);
+        UITreeBuilder_RegisterFont(self->builder, req->name, req->archive_id, req->cache_font_id);
     }
     for( int k = 0; k < self->manifest->font_count; k++ )
     {

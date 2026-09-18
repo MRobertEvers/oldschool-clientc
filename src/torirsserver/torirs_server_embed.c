@@ -20,6 +20,7 @@
 #include "torirs_server_container.h"
 #include "torirs_server_shop.h"
 #include "torirs_server_boot.h"
+#include "torirs_server_claim.h"
 #include "torirs_server_session.h"
 #include "torirs_server_transport.h"
 
@@ -47,7 +48,20 @@ struct ToriRSServerEmbed
     struct ToriRSServer srv;
     struct ToriRSServerEmbedClient clients[TORIRSSERVER_EMBED_CLIENT_MAX];
     struct ToriRSServerBootConfig config;
+    /* Recently ended sessions, for a GAMERECONNECT to reclaim. */
+    struct ToriRSServerClaims claims;
 };
+
+/* Milliseconds on a monotonic clock, for the reconnect window. */
+static long
+embed_now_ms(void)
+{
+    struct timespec ts;
+
+    if( clock_gettime(CLOCK_MONOTONIC, &ts) != 0 )
+        return 0;
+    return (long)ts.tv_sec * 1000L + (long)(ts.tv_nsec / 1000000L);
+}
 
 /*
  * Static data is process-wide (the cache decoders and the content tree are all
@@ -162,6 +176,8 @@ ToriRSServer_EmbedDisconnect(
     /* Order matters and is the socket server's: the world lets go of the player
      * while the session is still addressable, because that is what makes the
      * packets a logout generates reach everyone *else* before the queues go. */
+    if( client->session.player )
+        ToriRSServer_ClaimNoteDeparted(&embed->claims, client->session.player, embed_now_ms());
     ToriRSServer_WorldRemovePlayer(&embed->srv, client->session.player);
     client->session.player = NULL;
     client->online = 0;
@@ -301,11 +317,40 @@ pump_client(
     if( ToriRSServer_SessionTakeLogin(&client->session) )
     {
         struct ToriRSServerPlayer* player;
+        struct ToriRSServerPlayer* evict;
+        int claim = ToriRSServer_ClaimSlot(&embed->claims, &embed->srv, &client->session,
+                                           embed_now_ms(), &evict);
+
+        if( evict )
+        {
+            /* The old session dies first, then the world lets go of its player
+             * -- which writes the save this login is about to read. */
+            for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
+            {
+                struct ToriRSServerEmbedClient* other = &embed->clients[i];
+
+                if( !other->open || other->session.player != evict )
+                    continue;
+                ToriRSServer_SessionKill(&other->session);
+                other->session.player = NULL;
+                other->online = 0;
+            }
+            ToriRSServer_WorldRemovePlayer(&embed->srv, evict);
+        }
+        /* The client reads the closed link as a failed reconnect and logs in
+         * with its password instead (ToriRS_Network_TakeResumeRefused). */
+        if( claim == TORIRSSERVER_CLAIM_REFUSE )
+        {
+            ToriRSServer_SessionKill(&client->session);
+            return 0;
+        }
 
         ToriRSServer_ScriptsLoad(&embed->srv, embed->config.script_dir);
         ToriRSServer_WorldInit(&embed->srv, ToriRSServer_BootZone(embed->config.home_x),
                            ToriRSServer_BootZone(embed->config.home_z));
-        player = ToriRSServer_WorldAddPlayer(&embed->srv, &client->session);
+        player = claim == TORIRSSERVER_CLAIM_ANY_SLOT
+                     ? ToriRSServer_WorldAddPlayer(&embed->srv, &client->session)
+                     : ToriRSServer_WorldAddPlayerAt(&embed->srv, &client->session, claim);
         if( !player )
             return 0;
         client->session.player = player;

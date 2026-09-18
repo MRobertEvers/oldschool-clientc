@@ -644,14 +644,15 @@ app_title_tick(struct App* app)
          * The one moment these credentials are known to work.
          *
          * A browser tab that is reloaded loses the heap and the socket with
-         * it; handing the page what the session was dialled with is what lets
-         * the next boot log straight back in instead of opening on an empty
-         * form. Taken from the network rather than from the form because that
-         * is what was actually sent -- the same pair the in-process reconnect
-         * redials with. Native lanes keep the record and have nothing to hand
-         * it to. @see app_session_resume.c.
+         * it; handing the page this session's resume token and what it was
+         * dialled with is what lets the next boot ask for the same session
+         * back instead of opening on an empty form. Taken from the network
+         * rather than from the form because that is what was actually sent --
+         * the same pair the in-process reconnect redials with. Native lanes
+         * keep the record and have nothing to hand it to.
+         * @see app_session_resume.c.
          */
-        app_session_resume_remember(app->net->username, app->net->password);
+        app_session_resume_remember_net(app->net);
         App_OpenRootInterface(app, -1);
         return 1;
     }
@@ -676,7 +677,22 @@ app_title_tick(struct App* app)
     if( RS_TitleSession_LoginFailed(
             &app->title_session, app_title_phase(app), app_title_link_state(app)) )
     {
-        struct RS_LoginReply const* reply =
+        struct RS_LoginReply const* reply;
+
+        /*
+         * A reloaded page's GAMERECONNECT was refused: the session it named has
+         * gone (logged out, saved, its slot reused, or older than the server
+         * keeps one). Not the player's failure and not one to show them -- the
+         * form already holds the credentials, so log in with those, exactly
+         * as a second Login click would.
+         */
+        if( ToriRS_Network_TakeResumeRefused(app->net) )
+        {
+            TORIRS_LOG("login: the resumed session was not handed back; logging in afresh\n");
+            RS_TitleSession_Submit(&app->title_session, true, true);
+            return 1;
+        }
+        reply = 
             RS_LoginReplies_Get(&app->login_replies, app->net->login_reply);
 
         app->screen = APP_SCREEN_TITLE;

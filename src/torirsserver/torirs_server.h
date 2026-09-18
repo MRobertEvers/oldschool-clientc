@@ -4843,6 +4843,17 @@ ToriRSServer_WorldAddPlayer(
     struct ToriRSServerSession* session);
 
 /**
+ * WorldAddPlayer into slot `pid` exactly, for a reconnect: RECONNECT_OK states
+ * no index, so the character has to come back in the slot the client already
+ * holds. The slot must not be active; a `pending_free` one is allowed.
+ */
+struct ToriRSServerPlayer*
+ToriRSServer_WorldAddPlayerAt(
+    struct ToriRSServer* srv,
+    struct ToriRSServerSession* session,
+    int pid);
+
+/**
  * Release a slot, and take the player out of everyone else's view.
  *
  * The removal is not "stop encoding them": every other client is holding a pid

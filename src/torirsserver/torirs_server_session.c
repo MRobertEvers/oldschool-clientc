@@ -628,19 +628,20 @@ step_login(
     }
     for( int i = 0; i < 4; i++ )
         seed[i] = rsab_g4(&in);
+    memcpy(session->seed, seed, sizeof(session->seed));
+    memset(session->presented_seed, 0, sizeof(session->presented_seed));
     claimed = (uint64_t)rsab_g8(&in);
     if( session->reconnect )
     {
         /*
          * GameReconnectDecoder's authentication section: the four ints of the
          * previous session's cipher seed, and nothing else — no OTP block, no
-         * auth type, no password. This server authenticates nobody, so the key
-         * is read and discarded; what matters is that it is read, because the
-         * XTEA body offset was computed from the RSA size and the username
-         * still has to come out of the body below.
+         * auth type, no password. Kept for the host, which hands a character
+         * back only to the session that presents the seed it was playing on
+         * (torirs_server_host.c, host_claim_character).
          */
         for( int i = 0; i < 4; i++ )
-            (void)rsab_g4(&in);
+            session->presented_seed[i] = rsab_g4(&in);
         pass[0] = '\0';
     }
     else if( login_is_239(srv) )

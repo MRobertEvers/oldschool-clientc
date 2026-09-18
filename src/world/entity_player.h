@@ -29,20 +29,20 @@ struct WorldEntity_Player
     int team;
     /** Server player slot (pid) this entity mirrors; -1 = local/unsynced. */
     int server_pid;
-    /** Held-item override currently baked into the rendered appearance model
-     * (reference ClientPlayer.getSequencedModel: a primary seq's
-     * replaceheldleft/right swaps the left-hand/right-hand worn item). -1 =
-     * base appearance is on the element (no active override); >= 0 = the model
-     * was rebuilt with this canonical appearance slot (pkt_player_appearance.h)
-     * in slot 5 (left) / slot 3 (right), where an empty one hides the held item
-     * rather than swapping it. Tracked so
-     * the model is rebuilt only when the effective override changes. */
-    /* Bumped by every appearance applied to this player. A deferred body
-     * load (game/task_entity_assets.c) re-applies only the appearance whose
-     * serial it was queued for. */
-    unsigned appearance_serial;
-    int held_left_applied;
-    int held_right_applied;
+    /** What the scene element's model was built from: the appearance
+     *  slots with any held-item override of the playing seq folded in
+     *  (reference ClientPlayer.getSequencedModel: replaceheldleft/right swap
+     *  slot 5 / slot 3), the colours and the gender. The body is DERIVED --
+     *  the per-frame pass rebuilds it whenever the wanted key differs from
+     *  this one and every part of the wanted body is resident, and until
+     *  then the element keeps the last whole body. Content, not a counter:
+     *  whatever changed the wanted body, the comparison sees it. */
+    struct
+    {
+        int slots[12];
+        int colors[5];
+        int gender;
+    } body;
 
     /** P_LOCMERGE / LOC_MERGE (ClientPlayer.locStartCycle/locStopCycle): while
      *  world->cycle is in [loc_start_cycle, loc_stop_cycle) the loc's model is

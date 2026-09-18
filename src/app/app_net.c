@@ -387,6 +387,8 @@ app_net_link_watch(
         TORIRS_LOG(
             "net: session re-established after %d attempt(s)\n",
             app->net_link.reconnect_attempts);
+        /* A new seed: the page's token named the session this one replaced. */
+        app_session_resume_remember_net(app->net);
         app->need_redraw = 1;
         break;
     case NET_LINK_RECONNECT:

@@ -530,7 +530,7 @@ test_dat2_stacking_behaviour_is_not_boolean(void)
     ToriRS_ObjtypeFree(obj);
 }
 
-/* ObjType.team (opcode 115) is what App_WorldApplyPlayerAppearance folds into
+/* ObjType.team (opcode 115) is what app_world_reconcile_player_body folds into
  * WorldEntity_Player::team for the Attack row's team-cape override. It reached
  * the engine struct only after this adaptor line was added — before it, every
  * team read 0 and the override silently never fired. */

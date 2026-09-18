@@ -20,21 +20,22 @@
  * The reference client never waits there: it applies the packet and fetches
  * the model lazily at draw time, drawing nothing for the entity until it is
  * in. These tasks are that shape. The packet handler applies the op at once
- * -- the entity exists, with an empty placeholder body when the models are
- * not resident -- and queues one of these on the ASSET runner, which loads
- * what is missing and then re-applies the type or appearance.
+ * and queues one of these on the ASSET runner.
  *
- * Every task re-resolves its entities when the loads land, never by a world
- * index or scene element cached at queue time: both are recycled across
+ * An npc load re-applies the type when it lands: it finds its npcs by
+ * walking the pool for the (base, resolved) type it loaded, never by a world
+ * index or scene element cached at queue time -- both are recycled across
  * yields, and a stale pair would dress somebody else in this entity's body.
- * An npc load finds its npcs by walking the pool for the (base, resolved)
- * type it loaded; a player load finds its player by the server's pid and a
- * serial on the appearance it was queued for, so a completion the world
- * has moved past is a no-op.
+ *
+ * The player loads apply nothing. A player's body is derived from its
+ * appearance (and the held-item override of its playing seq) every frame by
+ * app_world_reconcile_player_body, which rebuilds only when that body is
+ * wholly resident and keeps the last whole one until then. So a player load
+ * is a plain fetch: it names no player, and a completion the world has moved
+ * past needs no detecting -- the reconcile reads the entity as it is now.
  */
 
 struct App;
-struct PktPlayerAppearance;
 
 /** Is every model and stance sequence of `npc_id` resident already? */
 int
@@ -42,12 +43,13 @@ EntityAssets_NpcBodyResident(
     struct App* app,
     int npc_id);
 
-/** Is every model in `model_ids` and every sequence in `seq_ids` resident? */
+/** Is every config and model of the appearance `slots` (for `gender`) and
+ * every sequence in `seq_ids` resident? */
 int
 EntityAssets_PlayerBodyResident(
     struct App* app,
-    int const* model_ids,
-    int model_count,
+    int const slots[12],
+    int gender,
     int const* seq_ids,
     int seq_count);
 
@@ -66,23 +68,21 @@ CreateTask_NpcBodyLand(
     int npc_id);
 
 /**
- * Load the appearance's models and stance sequences, then re-apply the
- * appearance to the player with `server_pid` if its appearance serial is
- * still `serial`. The appearance and the ids are copied.
+ * Fetch the configs of the appearance `slots`, the models they name for
+ * `gender`, and the stance sequences `seq_ids`. The arrays are copied.
  */
 struct ToriRS_Task*
 CreateTask_PlayerBodyLand(
     struct App* app,
-    int server_pid,
-    unsigned serial,
-    struct PktPlayerAppearance const* appearance,
-    int const* model_ids,
-    int model_count);
+    int const slots[12],
+    int gender,
+    int const* seq_ids,
+    int seq_count);
 
 /**
  * Load sequence `seq_id`, then the obj configs and wear models it swaps into
- * the player's hands (replaceheldleft/right), then mark the player with
- * `server_pid` for a held-item rebuild.
+ * the player's hands (replaceheldleft/right), gendered as the player with
+ * `server_pid` is when the configs are in.
  */
 struct ToriRS_Task*
 CreateTask_PlayerHeldLand(

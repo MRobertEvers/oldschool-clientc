@@ -483,6 +483,11 @@ struct AppConfig
     char const* connect_target;
     char const* connect_user;
     char const* connect_pass;
+    /** --resume "s0,s1,s2,s3,index": a previous session's resume token
+     *  (app_session_resume_token), from a reloaded browser tab. The first
+     *  login then asks for that session back with GAMERECONNECT rather than
+     *  logging in afresh. NULL = none. */
+    char const* connect_resume;
     /** `[net:boot] scripts` — compiled script pack for the embedded mock
      * server. TORIRSSERVER_SCRIPTS still overrides it. NULL/"" = server default. */
     char const* net_server_scripts;
@@ -1552,10 +1557,9 @@ struct App
         int identkit[12];
         int colors[5];
         int gender;
-        int anim_id;            /* IF_SETANIM modelAnim, or -1 */
-        uint32_t version;       /* composition revision requested by packets */
-        uint32_t built_version; /* revision currently uploaded to scene_id */
-        uint32_t applied_gen;   /* tree generation scene_id was bound into */
+        int anim_id;          /* IF_SETANIM modelAnim, or -1 */
+        int built;            /* scene_id holds this composition, built whole */
+        uint32_t applied_gen; /* tree generation scene_id was bound into */
     }* if_player_models;
     int if_player_model_count;
     int if_player_model_cap;
@@ -3345,13 +3349,13 @@ App_MinimapBuildDots(
 
 struct PktPlayerAppearance;
 
-/** Rebuild + swap the player's composited model and apply the decoded
- * appearance (idle anims, name, combat level) to the World entity. */
+/** Apply the decoded appearance (slots, colours, idle anims, name, combat
+ * level, headicon) to the World entity. Data only: the body is derived from
+ * it per frame once every part is resident (app_world_reconcile_player_body). */
 void
 App_WorldApplyPlayerAppearance(
     struct App* app,
     int world_idx,
-    int element_id,
     struct PktPlayerAppearance const* appearance);
 
 /** NPC transmog (CHANGE_TYPE): rebuild the model + apply the new config's

@@ -1500,7 +1500,41 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input);
 void
 app_session_resume_remember(
     char const* user,
-    char const* password);
+    char const* password,
+    char const* resume_token);
+
+/**
+ * app_session_resume_remember with what `net` just dialled, and the token its
+ * handshake left behind (app_session_resume_token). Called after EVERY
+ * successful handshake, the in-process reconnect's included: each one
+ * authenticates on a new seed, and a reload presenting the previous one is
+ * presenting a key the server has already retired.
+ */
+void
+app_session_resume_remember_net(struct ToriRS_Network const* net);
+
+/**
+ * The resume token for `net`'s current session: "s0,s1,s2,s3,index", the
+ * cipher seed a GAMERECONNECT presents and the slot RECONNECT_OK will not
+ * restate. "" when the revision has no seed reconnect or no session has
+ * authenticated yet.
+ */
+void
+app_session_resume_token(
+    struct ToriRS_Network const* net,
+    char* out,
+    int out_size);
+
+/**
+ * Read a token written by app_session_resume_token. 0 for anything else --
+ * it arrives on the command line, from a page that may be older than this
+ * client.
+ */
+int
+app_session_resume_parse(
+    char const* token,
+    int32_t out_seed[4],
+    int* out_local_index);
 
 /**
  * Drop it. The player logged out, and coming back into the session they just
@@ -1754,13 +1788,14 @@ app_world_scenery_anim_apply(
     int loc_shape,
     int seq_id);
 
+/* Rebuild the player's body when the one it wants (appearance + held-item
+ * override) differs from the one its element holds and is wholly resident;
+ * otherwise leave the element alone. Per frame, from
+ * app_world_sync_entity_animations. */
 void
-app_set_player_element_model(
+app_world_reconcile_player_body(
     struct App* app,
-    int element_id,
-    int const slots[12],
-    int const colors[5],
-    int gender);
+    struct WorldEntity_Player* player);
 
 
 /* ---- app_world_click.c ---- */

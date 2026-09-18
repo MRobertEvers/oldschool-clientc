@@ -135,6 +135,20 @@ struct ToriRS_Network
     /** The local player's slot as last stated by a login response, or -1.
      * A reconnect keeps it: RECONNECT_OK restates nothing. */
     int local_index;
+
+    /**
+     * A previous session's seed and slot were handed in from outside this
+     * process (ToriRS_Network_ArmResume) and the next ConnectLogin presents
+     * them as a reconnect, once. What a reloaded browser tab boots with.
+     */
+    int resume_armed;
+
+    /**
+     * The handshake in flight is that armed reconnect. Left standing if it
+     * fails, so the caller can learn so once (ToriRS_Network_TakeResumeRefused)
+     * and log in with the password instead.
+     */
+    int resume_in_flight;
 };
 
 /** Initialize with a revision table and RSA key (hex exponent/modulus). */
@@ -183,6 +197,30 @@ ToriRS_Network_ConnectLogin(
  */
 int
 ToriRS_Network_Reconnect(struct ToriRS_Network* net);
+
+/**
+ * Hand this network a session that another process was playing: the cipher
+ * seed that session authenticated with, and the slot it was told it had.
+ *
+ * A reloaded browser tab loses both with the wasm heap, and without them all
+ * it can send is a fresh GAMELOGIN -- which a server reads as a new arrival,
+ * not as the same player coming back. Armed, the next ToriRS_Network_ConnectLogin
+ * sends GAMERECONNECT with this seed instead, once. Revisions without the
+ * seed reconnect ignore it and log in as before.
+ */
+void
+ToriRS_Network_ArmResume(
+    struct ToriRS_Network* net,
+    int32_t const seed[4],
+    int local_index);
+
+/**
+ * 1, once, when the armed reconnect was refused (or its link dropped) -- the
+ * caller then logs in with the credentials it has. The seed is dropped with
+ * it: whatever session it named is not coming back.
+ */
+int
+ToriRS_Network_TakeResumeRefused(struct ToriRS_Network* net);
 
 /**
  * Handle one TORIRS_CMD_NET_* command (raw-byte semantics):

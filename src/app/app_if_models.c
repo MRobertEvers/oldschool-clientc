@@ -71,10 +71,12 @@ struct Task_AppIfPlayerModel
     int model_i;
     int model_count;
     int model_ids[APP_IFPLAYER_MAX_MODELS];
+    /* The composition this op produces, committed to the widget's record
+     * only once it has been built whole. */
     int slots[12];
+    int identkit[12];
     int colors[5];
     int gender;
-    uint32_t version;
 };
 
 /* Private to this unit, declared up front so definition order is free. */
@@ -397,27 +399,35 @@ Task_AppIfPlayerModel_Run(
         if( !model || !lp )
             PT_EXIT(&self->pt);
 
+        /* Work on a copy. The executor is strict FIFO, so the next op on this
+         * widget starts from whatever this one commits -- and it commits only
+         * a composition that built. */
+        memcpy(self->slots, model->slots, sizeof(self->slots));
+        memcpy(self->identkit, model->identkit, sizeof(self->identkit));
+        memcpy(self->colors, model->colors, sizeof(self->colors));
+        self->gender = model->gender;
+
         if( self->op == APP_IFPLAYER_SELF )
         {
-            memcpy(model->identkit, lp->appearance.identkit, sizeof(model->identkit));
-            memcpy(model->colors, lp->appearance.colors, sizeof(model->colors));
-            model->gender = lp->gender;
+            memcpy(self->identkit, lp->appearance.identkit, sizeof(self->identkit));
+            memcpy(self->colors, lp->appearance.colors, sizeof(self->colors));
+            self->gender = lp->gender;
             memcpy(
-                model->slots,
+                self->slots,
                 self->arg0 ? lp->appearance.slots : lp->appearance.identkit,
-                sizeof(model->slots));
+                sizeof(self->slots));
         }
         else if( self->op == APP_IFPLAYER_BASECOLOUR )
         {
             if( self->arg0 >= 0 && self->arg0 < 5 )
-                model->colors[self->arg0] = self->arg1;
+                self->colors[self->arg0] = self->arg1;
         }
         else if( self->op == APP_IFPLAYER_BODYTYPE )
         {
             int body_type = self->arg0;
-            if( model->gender != body_type )
+            if( self->gender != body_type )
             {
-                model->gender = body_type;
+                self->gender = body_type;
                 for( int part = 0; part < PLAYER_APPEARANCE_PARTS; part++ )
                 {
                     int slot = app_ifplayer_design_slots[part];
@@ -425,17 +435,17 @@ Task_AppIfPlayerModel_Run(
                      * objs remain exactly where they are. Returning to the
                      * local player's type restores the cloned underneath kit;
                      * switching away takes the first selectable target kit. */
-                    if( Appearance_SlotKind(model->slots[slot]) != APPEARANCE_SLOT_KIT )
+                    if( Appearance_SlotKind(self->slots[slot]) != APPEARANCE_SLOT_KIT )
                         continue;
                     if( body_type == lp->gender )
                     {
-                        model->slots[slot] = model->identkit[slot];
+                        self->slots[slot] = self->identkit[slot];
                     }
                     else
                     {
                         int id = app_if_player_model_find_kit(app, part, body_type);
                         if( id >= 0 )
-                            model->slots[slot] = Appearance_PackKit(id);
+                            self->slots[slot] = Appearance_PackKit(id);
                     }
                 }
             }
@@ -445,21 +455,13 @@ Task_AppIfPlayerModel_Run(
             struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, self->arg0);
             if( obj && obj->wearpos >= 0 && obj->wearpos < 12 )
             {
-                model->slots[obj->wearpos] = Appearance_PackObj(self->arg0);
+                self->slots[obj->wearpos] = Appearance_PackObj(self->arg0);
                 if( obj->wearpos2 >= 0 && obj->wearpos2 < 12 )
-                    model->slots[obj->wearpos2] = 0;
+                    self->slots[obj->wearpos2] = 0;
                 if( obj->wearpos3 >= 0 && obj->wearpos3 < 12 )
-                    model->slots[obj->wearpos3] = 0;
+                    self->slots[obj->wearpos3] = 0;
             }
         }
-
-        model->version++;
-        if( model->version == 0 )
-            model->version = 1;
-        self->version = model->version;
-        memcpy(self->slots, model->slots, sizeof(self->slots));
-        memcpy(self->colors, model->colors, sizeof(self->colors));
-        self->gender = model->gender;
     }
 
     /* Resolve all configs referenced by the snapshot before collecting model
@@ -479,14 +481,17 @@ Task_AppIfPlayerModel_Run(
 
     {
         struct AppIfPlayerModel* model = app_if_player_model_find(app, self->component_id);
-        /* A stale build must never overwrite a newer composition. This is
-         * mostly defensive—the packet queue is serial—but also makes direct
-         * harness calls deterministic. */
-        if( model && model->version == self->version &&
-            UITreeSceneBridge_BuildInterfacePlayerModel(
+        /* A composition whose parts did not all load does not build, and is
+         * not committed: the widget keeps its last whole one. */
+        assert(model);
+        if( UITreeSceneBridge_BuildInterfacePlayerModel(
                 &app->bridge, model->scene_id, self->slots, self->colors, self->gender) >= 0 )
         {
-            model->built_version = self->version;
+            memcpy(model->slots, self->slots, sizeof(model->slots));
+            memcpy(model->identkit, self->identkit, sizeof(model->identkit));
+            memcpy(model->colors, self->colors, sizeof(model->colors));
+            model->gender = self->gender;
+            model->built = 1;
             model->applied_gen = 0;
             app->need_redraw = 1;
         }
@@ -731,8 +736,7 @@ app_if_player_model_poll(struct App* app)
     for( int i = 0; i < app->if_player_model_count; i++ )
     {
         struct AppIfPlayerModel* model = &app->if_player_models[i];
-        if( model->built_version == 0 || model->built_version != model->version ||
-            model->applied_gen == app->tree->generation )
+        if( !model->built || model->applied_gen == app->tree->generation )
             continue;
         if( UITree_ApplyModel(app->tree, model->com_id, model->scene_id) )
         {
@@ -797,6 +801,7 @@ app_player_model_poll(struct App* app)
     int seq_frame;
     int yan;
     int bound = 0;
+    int rebuilt = 0;
 
     if( !app->tree || !app->world )
         return;
@@ -811,23 +816,22 @@ app_player_model_poll(struct App* app)
         memcmp(app->player_model.colors, lp->appearance.colors, sizeof(app->player_model.colors)) !=
             0;
 
-    if( changed )
+    /* Keyed by content, like the body itself. A new appearance whose parts
+     * are still loading does not build (the builder is all or nothing), so
+     * the figure keeps the last whole body and asks again next tick. */
+    if( changed &&
+        UITreeSceneBridge_BuildLocalPlayerModel(
+            &app->bridge, lp->appearance.slots, lp->appearance.colors, lp->gender) >= 0 )
     {
-        scene_id = UITreeSceneBridge_BuildLocalPlayerModel(
-            &app->bridge, lp->appearance.slots, lp->appearance.colors, lp->gender);
-        if( scene_id < 0 )
-            return; /* nothing composited yet — retry next frame */
         memcpy(app->player_model.slots, lp->appearance.slots, sizeof(app->player_model.slots));
         memcpy(app->player_model.colors, lp->appearance.colors, sizeof(app->player_model.colors));
         app->player_model.gender = lp->gender;
         app->player_model.built = 1;
+        rebuilt = 1;
     }
-    else
-    {
-        scene_id = app->bridge.local_player_scene_id;
-        if( scene_id < 0 )
-            return;
-    }
+    scene_id = app->bridge.local_player_scene_id;
+    if( scene_id < 0 )
+        return; /* nothing whole composited yet */
 
     /* The entity's movement track — the one the walk/run/idle seqs live on, and
      * the one the viewport model is playing. Its readyanim is the fallback for
@@ -871,7 +875,7 @@ app_player_model_poll(struct App* app)
         bound = 1;
     }
 
-    if( changed && getenv("TORIRS_ANIM_DEBUG") )
+    if( rebuilt && getenv("TORIRS_ANIM_DEBUG") )
         TORIRS_LOG(
             "player_model: rebuilt cycle=%llu scene=%d seq=%d frame=%d bound=%d\n",
             (unsigned long long)app->logic_cycle,

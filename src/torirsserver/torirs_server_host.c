@@ -8,6 +8,7 @@
 
 #include "torirs_server.h"
 #include "torirs_server_boot.h"
+#include "torirs_server_claim.h"
 #include "torirs_server_session.h"
 #include "torirs_server_transport.h"
 #include "torirs_server_ws.h"
@@ -116,6 +117,9 @@ struct ToriRSServerHost
     int job_count;
 
     long next_tick;
+
+    /* Recently ended sessions, for a GAMERECONNECT to reclaim. */
+    struct ToriRSServerClaims claims;
 };
 
 static void
@@ -224,6 +228,7 @@ host_conn_release(
      */
     if( c->session.player )
     {
+        ToriRSServer_ClaimNoteDeparted(&host->claims, c->session.player, now_ms());
         ToriRSServer_WorldRemovePlayer(host->srv, c->session.player);
         c->session.player = NULL;
     }
@@ -356,11 +361,36 @@ host_stage_login(
 {
     struct ToriRSServerHostConn* c = &host->conns[index];
     struct ToriRSServerPlayer* player;
+    struct ToriRSServerPlayer* evict;
+    int claim;
 
     c->awaiting_login = 0;
     /* The peer can leave between raising the login and this stage running. */
     if( c->state != TORIRSSERVER_HOST_CONN_LIVE )
         return;
+
+    claim = ToriRSServer_ClaimSlot(&host->claims, host->srv, &c->session, now_ms(), &evict);
+    if( evict )
+    {
+        /* Kill before removing, the order host_conn_release keeps: the session
+         * is closing but still addressable while the world lets go. Its queued
+         * release then finds no player and only frees the session. */
+        for( int other = 0; other < TORIRSSERVER_HOST_CONN_MAX; other++ )
+        {
+            if( host->conns[other].session.player != evict )
+                continue;
+            host_conn_kill(host, other);
+            host->conns[other].session.player = NULL;
+        }
+        ToriRSServer_WorldRemovePlayer(host->srv, evict);
+    }
+    if( claim == TORIRSSERVER_CLAIM_REFUSE )
+    {
+        /* The client reads the closed link as a failed reconnect and logs in
+         * with its password instead (ToriRS_Network_TakeResumeRefused). */
+        host_conn_kill(host, index);
+        return;
+    }
 
     /* Both idempotent, and both are the first login's bill rather than the
      * world's: the pack is already loaded at boot, and the world is built
@@ -369,7 +399,9 @@ host_stage_login(
     ToriRSServer_WorldInit(host->srv, ToriRSServer_BootZone(host->config->home_x),
                            ToriRSServer_BootZone(host->config->home_z));
 
-    player = ToriRSServer_WorldAddPlayer(host->srv, &c->session);
+    player = claim == TORIRSSERVER_CLAIM_ANY_SLOT
+                 ? ToriRSServer_WorldAddPlayer(host->srv, &c->session)
+                 : ToriRSServer_WorldAddPlayerAt(host->srv, &c->session, claim);
     if( !player )
     {
         /* The world is full and said so. The connection goes rather than

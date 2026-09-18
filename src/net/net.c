@@ -173,6 +173,29 @@ push_out(
     CmdRing_Push(&net->out, type, data, (uint16_t)len);
 }
 
+/*
+ * A handshake ended without reaching the game.
+ *
+ * If it was a seed reconnect, the seed goes with it: the server either has no
+ * session under that key any more (logged out and saved, its slot reused, or
+ * -- over the embedded transport -- a whole new server started for the
+ * redial) or never had one. Presenting it again can only be refused again, so
+ * the next attempt goes out as a fresh login with the password, which is what
+ * the osrs239 driver sends when it has no seed. Without this the link watch
+ * retried the dead key until it gave up.
+ */
+static void
+login_failed(struct ToriRS_Network* net)
+{
+    if( net->state == TORIRS_NET_LOGIN && net->reconnect && net->has_prev_seed )
+    {
+        TORIRS_LOG("net: the reconnect was not accepted; the next attempt logs in afresh\n");
+        net->has_prev_seed = 0;
+    }
+    net->reconnect = 0;
+    net->state = TORIRS_NET_DISCONNECTED;
+}
+
 static void
 connect_login(
     struct ToriRS_Network* net,
@@ -274,7 +297,45 @@ ToriRS_Network_ConnectLogin(
     char const* username,
     char const* password)
 {
-    connect_login(net, host, username, password, /* reconnect */ 0);
+    int resume;
+
+    assert(net);
+    resume = net->resume_armed;
+    net->resume_armed = 0;
+    net->resume_in_flight = resume;
+    connect_login(net, host, username, password, /* reconnect */ resume);
+}
+
+void
+ToriRS_Network_ArmResume(
+    struct ToriRS_Network* net,
+    int32_t const seed[4],
+    int local_index)
+{
+    assert(net);
+    assert(seed);
+    if( net->rev->reconnect_kind != NET_RECONNECT_SEED )
+    {
+        TORIRS_LOG("net: %s has no seed reconnect; the resumed session logs in afresh\n",
+                   net->rev->name ? net->rev->name : "this revision");
+        return;
+    }
+    memcpy(net->prev_seed, seed, sizeof(net->prev_seed));
+    net->has_prev_seed = 1;
+    net->local_index = local_index;
+    net->resume_armed = 1;
+}
+
+int
+ToriRS_Network_TakeResumeRefused(struct ToriRS_Network* net)
+{
+    assert(net);
+    if( !net->resume_in_flight || net->state != TORIRS_NET_DISCONNECTED )
+        return 0;
+    net->resume_in_flight = 0;
+    net->has_prev_seed = 0;
+    net->local_index = -1;
+    return 1;
 }
 
 void
@@ -392,15 +453,13 @@ loginproto_drive(struct ToriRS_Network* net)
                 osrs239_playerinfo_init(block, block_len);
         }
         net->reconnect = 0;
+        net->resume_in_flight = 0;
         login_free(net);
         packetbuffer_init(&net->packet_buffer, net->random_in, net->rev);
         net->state = TORIRS_NET_GAME;
     }
     else if( poll_result == LOGINPROTO_ERROR )
-    {
-        net->reconnect = 0;
-        net->state = TORIRS_NET_DISCONNECTED;
-    }
+        login_failed(net);
 }
 
 static int
@@ -596,7 +655,7 @@ ToriRS_Network_HandleCmd(
                 /* The transport lost the connection. If the handshake had
                  * already read a verdict, that is the better explanation. */
                 login_reply_latch(net);
-                net->state = TORIRS_NET_DISCONNECTED;
+                login_failed(net);
             }
         }
         break;

@@ -84,14 +84,18 @@
    * player typed into the login form. What came back was the title screen with
    * two empty boxes, in the middle of a fight.
    *
-   * There is nothing to resume on the wire. The reconnect handshake presents
-   * the previous session's cipher seeds (net.h), and those went with the heap;
-   * what the page can do is log in again, which is what a player would have
-   * done by hand. So the credentials of a login that SUCCEEDED are kept for
-   * the tab, put back on the client's command line at the next boot, and the
-   * existing autologin submits them once (RS_TitleSession) -- the same path a
-   * clicked Login takes, which is why the player watches the form fill in and
-   * say "Connecting to server..." rather than being teleported past it.
+   * What comes back is the SAME session, not a new login. The client hands
+   * the page a resume token after every successful handshake -- the cipher
+   * seed the session authenticated with and the slot it was given
+   * (app_session_resume_token) -- and the next boot passes it as `--resume`,
+   * so its first dial is a GAMERECONNECT presenting that seed. A plain
+   * GAMELOGIN looked, to the server, like a second player arriving under the
+   * same name. If the server no longer has the session (logged out, saved,
+   * slot reused), it refuses the reconnect and the client logs in with the
+   * credentials kept beside the token. Either way the existing autologin
+   * submits once (RS_TitleSession) -- the same path a clicked Login takes,
+   * which is why the player watches the form fill in and say "Connecting to
+   * server..." rather than being teleported past it.
    *
    * WHAT IS KEPT, AND FOR HOW LONG. sessionStorage, not localStorage: the
    * entry is scoped to this tab and this origin, survives a reload, and is
@@ -145,17 +149,20 @@
 
         const held = this.read();
         if (!held || held.manifest !== this.manifest) { return argv; }
-        return argv.concat(['--user', held.user, '--pass', held.password]);
+        const out = argv.concat(['--user', held.user, '--pass', held.password]);
+        return held.resume ? out.concat(['--resume', held.resume]) : out;
       },
 
-      /* The client says a login was accepted. */
-      remember(user, password) {
+      /* The client says a handshake was accepted; `resume` is its token, or ''
+       * on a revision with no seed reconnect. */
+      remember(user, password, resume) {
         if (!storage || typeof user !== 'string' || user === '') { return false; }
         try {
           storage.setItem(KEY, JSON.stringify({
             manifest: this.manifest,
             user,
-            password: typeof password === 'string' ? password : ''
+            password: typeof password === 'string' ? password : '',
+            resume: typeof resume === 'string' ? resume : ''
           }));
           return true;
         } catch (e) {
@@ -184,6 +191,8 @@
             typeof held.password !== 'string' || typeof held.manifest !== 'string') {
           return null;
         }
+        /* An entry from before the token existed resumes as a fresh login. */
+        if (typeof held.resume !== 'string') { held.resume = ''; }
         return held;
       }
     };
@@ -203,7 +212,9 @@
   function redactArgs(argv) {
     const out = argv.slice();
     for (let i = 0; i + 1 < out.length; i++) {
-      if (out[i] === '--pass') { out[i + 1] = '****'; }
+      /* The resume token is a session key: as good as the password until the
+       * session it names ends. */
+      if (out[i] === '--pass' || out[i] === '--resume') { out[i + 1] = '****'; }
     }
     return out;
   }
@@ -216,7 +227,8 @@
   /* C -> page, from app/app_session_resume.c. Both are one-liners here because
    * the rules about what may be kept are the comment above createResumeSession,
    * and the rules about WHEN belong to the client. */
-  window.torirsSessionRemember = (user, password) => resumeSession.remember(user, password);
+  window.torirsSessionRemember =
+    (user, password, resume) => resumeSession.remember(user, password, resume);
   window.torirsSessionForget = () => resumeSession.forget();
   /*
    * The directory this page was served from, with its trailing slash: `/` at

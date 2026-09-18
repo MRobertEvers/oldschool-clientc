@@ -11707,6 +11707,71 @@ ToriRSServer_WorldSetActive(
  * `ToriRSServer_WorldPlayerFree` and docs/torirs_server_npc_slot_reap.md, which is the
  * npc-side writeup of the identical hazard.
  */
+static struct ToriRSServerPlayer*
+world_seat_player(
+    struct ToriRSServer* srv,
+    int pid,
+    struct ToriRSServerSession* session)
+{
+    struct ToriRSServerPlayer* player = &srv->players[pid];
+    uint32_t generation;
+
+    generation = player->login_generation + 1;
+    if( generation == 0 )
+        generation = 1;
+    /* Clears `pending_free` too. A queued free command for this slot is then
+     * stale, and WorldPlayerReap already ignores one whose generation is not
+     * the slot's. */
+    memset(player, 0, sizeof(*player));
+    player->active = 1;
+    player->world = srv;
+    player->pid = pid;
+    player->login_generation = generation;
+    player->session = session;
+    /* A selftest player has no session (see `last_input_tick` below):
+     * it logs in as the desktop client. */
+    if( session )
+    {
+        player->client_type = session->client_type;
+        player->platform_type = session->platform_type;
+    }
+    /* Logging in is input, and it has to be stated: the memset's 0 reads as
+     * "idle since tick 0", so anyone joining a world older than
+     * TORIRSSERVER_AFK_COMBAT_TICKS would arrive unable to fight. A slot with no
+     * session has no client to time out — see `last_input_tick`. */
+    player->last_input_tick =
+        session ? (int32_t)srv->tick : TORIRSSERVER_INPUT_TICK_NEVER;
+    ToriRSServer_IfStateInit(&player->interfaces);
+    if( pid >= srv->player_count )
+        srv->player_count = pid + 1;
+    ToriRSServer_WorldSetActive(srv, player);
+    return player;
+}
+
+/*
+ * Seat a login in one particular slot: the one a reconnecting client already
+ * believes it is.
+ *
+ * RECONNECT_OK carries no index, so the client keeps the one its previous
+ * session was told, and a character handed back anywhere else has its own
+ * player-info keyed on a stranger. The slot may still be `pending_free` from
+ * the logout this reconnect is undoing -- deliberately allowed: the deferral
+ * exists so nobody ELSE inherits a pid that observers still track, and every
+ * holder of a player reference checks `login_generation`, which the seat bumps.
+ */
+struct ToriRSServerPlayer*
+ToriRSServer_WorldAddPlayerAt(
+    struct ToriRSServer* srv,
+    struct ToriRSServerSession* session,
+    int pid)
+{
+    assert(srv);
+    assert(pid >= 0);
+    assert(pid < TORIRSSERVER_PLAYER_MAX);
+    assert(!srv->players[pid].active);
+    return world_seat_player(srv, pid, session);
+}
+
 struct ToriRSServerPlayer*
 ToriRSServer_WorldAddPlayer(
     struct ToriRSServer* srv,
@@ -11715,37 +11780,10 @@ ToriRSServer_WorldAddPlayer(
     for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
     {
         struct ToriRSServerPlayer* player = &srv->players[i];
-        uint32_t generation;
 
         if( player->active || player->pending_free )
             continue;
-        generation = player->login_generation + 1;
-        if( generation == 0 )
-            generation = 1;
-        memset(player, 0, sizeof(*player));
-        player->active = 1;
-        player->world = srv;
-        player->pid = i;
-        player->login_generation = generation;
-        player->session = session;
-        /* A selftest player has no session (see `last_input_tick` below):
-         * it logs in as the desktop client. */
-        if( session )
-        {
-            player->client_type = session->client_type;
-            player->platform_type = session->platform_type;
-        }
-        /* Logging in is input, and it has to be stated: the memset's 0 reads as
-         * "idle since tick 0", so anyone joining a world older than
-         * TORIRSSERVER_AFK_COMBAT_TICKS would arrive unable to fight. A slot with no
-         * session has no client to time out — see `last_input_tick`. */
-        player->last_input_tick =
-            session ? (int32_t)srv->tick : TORIRSSERVER_INPUT_TICK_NEVER;
-        ToriRSServer_IfStateInit(&player->interfaces);
-        if( i >= srv->player_count )
-            srv->player_count = i + 1;
-        ToriRSServer_WorldSetActive(srv, player);
-        return player;
+        return world_seat_player(srv, i, session);
     }
 
     /* Full. Refusing loudly is the only honest answer: silently overwriting

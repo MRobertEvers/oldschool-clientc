@@ -5202,6 +5202,11 @@ main_parse_argument_layer(
             cfg.connect_pass = argv[++argi];
             continue;
         }
+        if( strcmp(argv[argi], "--resume") == 0 && argi + 1 < argc )
+        {
+            cfg.connect_resume = argv[++argi];
+            continue;
+        }
         if( strcmp(argv[argi], "--rev") == 0 && argi + 1 < argc )
         {
             cfg.rev_name = argv[++argi];
@@ -5475,7 +5480,8 @@ main_argument_takes_value(char const* argument)
     return strcmp(argument, "--manifest") == 0 || strcmp(argument, "--port") == 0 ||
            strcmp(argument, "--revconfig") == 0 || strcmp(argument, "--revconfig-cache") == 0 ||
            strcmp(argument, "--connect") == 0 || strcmp(argument, "--user") == 0 ||
-           strcmp(argument, "--pass") == 0 || strcmp(argument, "--rev") == 0 ||
+           strcmp(argument, "--pass") == 0 || strcmp(argument, "--resume") == 0 ||
+           strcmp(argument, "--rev") == 0 ||
            strcmp(argument, "--js5-host") == 0 || strcmp(argument, "--js5-port") == 0 ||
            strcmp(argument, "--js5-fallback-port") == 0 ||
            strcmp(argument, "--js5-revision") == 0 || strcmp(argument, "--windowmode") == 0 ||

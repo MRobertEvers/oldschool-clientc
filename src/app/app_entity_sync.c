@@ -11,10 +11,6 @@
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
-app_world_apply_player_held_items(
-    struct App* app,
-    struct WorldEntity_Player* player);
-static void
 app_entity_spotanim_detach(
     struct App* app,
     struct AppEntitySpotanim* entry,
@@ -162,49 +158,6 @@ app_world_apply_entity_anim_tracks(
     el->anim_frame = 0;
 }
 
-static void
-app_world_apply_player_held_items(
-    struct App* app,
-    struct WorldEntity_Player* player)
-{
-    struct WorldEntityFacet_Animation const* anim = &player->animation;
-    int want_left = -1;
-    int want_right = -1;
-
-    if( anim->primary.anim_id != (uint16_t)-1 && anim->primary.anim_id != 0 &&
-        anim->primary.delay == 0 )
-    {
-        struct ToriDraw_Animation* prim =
-            ToriDraw_SceneAnimationGet(app->scene, anim->primary.anim_id);
-        if( prim && prim->frame_count > 0 )
-        {
-            /* Cache-sourced appearance slots — converted here so the override
-             * is in the same vocabulary as the appearance it overwrites. */
-            if( prim->replaceheldleft >= 0 )
-                want_left = Appearance_FromCacheValue(prim->replaceheldleft);
-            if( prim->replaceheldright >= 0 )
-                want_right = Appearance_FromCacheValue(prim->replaceheldright);
-        }
-    }
-
-    if( want_left == player->held_left_applied && want_right == player->held_right_applied )
-        return;
-
-    player->held_left_applied = want_left;
-    player->held_right_applied = want_right;
-
-    {
-        int slots[12];
-        memcpy(slots, player->appearance.slots, sizeof(slots));
-        if( want_right >= 0 )
-            slots[3] = want_right;
-        if( want_left >= 0 )
-            slots[5] = want_left;
-        app_set_player_element_model(
-            app, player->element_id, slots, player->appearance.colors, player->gender);
-    }
-}
-
 /* Push World animation state to the entity scene elements each frame (the
  * per-element modulo tick skips anim_external elements). */
 void
@@ -221,7 +174,7 @@ app_world_sync_entity_animations(struct App* app)
         {
             app_world_apply_entity_anim_tracks(
                 app, player->element_id, &player->animation, &player->idle_animations);
-            app_world_apply_player_held_items(app, player);
+            app_world_reconcile_player_body(app, player);
         }
     }
 

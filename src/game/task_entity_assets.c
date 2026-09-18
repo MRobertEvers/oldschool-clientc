@@ -57,17 +57,16 @@ EntityAssets_NpcBodyResident(
 int
 EntityAssets_PlayerBodyResident(
     struct App* app,
-    int const* model_ids,
-    int model_count,
+    int const slots[12],
+    int gender,
     int const* seq_ids,
     int seq_count)
 {
     assert(app);
-    assert(model_ids || model_count == 0);
+    assert(slots);
     assert(seq_ids || seq_count == 0);
-    for( int i = 0; i < model_count; i++ )
-        if( model_ids[i] >= 0 && !CacheProvider_ModelHas(app->provider, model_ids[i]) )
-            return 0;
+    if( !PlayerModel_AppearanceResident(app->provider, slots, gender) )
+        return 0;
     for( int i = 0; i < seq_count; i++ )
         if( seq_ids[i] >= 0 && !ToriDraw_SceneAnimationHas(app->scene, seq_ids[i]) )
             return 0;
@@ -120,6 +119,40 @@ fanout_seqs(
             app->runner.queue,
             CreateTask_SequenceLoad(app->provider, app->scene, ids[i]),
             pending);
+    }
+}
+
+/* The idk / obj config behind every slot, one sibling each (a kit and an
+ * obj config never share an id space, so only same-kind duplicates skip). */
+static void
+fanout_slot_configs(
+    struct App* app,
+    int const slots[12],
+    int* pending)
+{
+    for( int i = 0; i < 12; i++ )
+    {
+        int dup = 0;
+        struct ToriRS_Task* task;
+        for( int j = 0; j < i && !dup; j++ )
+            dup = slots[j] == slots[i];
+        if( dup )
+            continue;
+        switch( Appearance_SlotKind(slots[i]) )
+        {
+        case APPEARANCE_SLOT_KIT:
+            task = CreateTask_IdkLoad(app->provider, Appearance_SlotKit(slots[i]));
+            break;
+        case APPEARANCE_SLOT_OBJ:
+            task = CreateTask_ObjLoad(app->provider, Appearance_SlotObj(slots[i]));
+            break;
+        case APPEARANCE_SLOT_EMPTY:
+        default:
+            task = NULL;
+            break;
+        }
+        if( task )
+            ToriRS_TaskQueue_AddJoined(app->runner.queue, task, pending);
     }
 }
 
@@ -277,9 +310,10 @@ struct Task_PlayerBodyLand
     struct ToriRS_Task task;
     struct pt pt;
     struct App* app;
-    int server_pid;
-    unsigned serial;
-    struct PktPlayerAppearance appearance;
+    int slots[12];
+    int gender;
+    int seq_ids[7];
+    int seq_count;
     int model_ids[64];
     int model_count;
     int pending;
@@ -296,33 +330,24 @@ Task_PlayerBodyLand_Run(
     (void)io;
     PT_BEGIN(&self->pt);
 
-    {
-        int const seqs[7] = {
-            self->appearance.readyanim,  self->appearance.turnanim,
-            self->appearance.walkanim,   self->appearance.walkanim_b,
-            self->appearance.walkanim_l, self->appearance.walkanim_r,
-            self->appearance.runanim,
-        };
-        fanout_models(app, self->model_ids, self->model_count, &self->pending);
-        fanout_seqs(app, seqs, 7, &self->pending);
-    }
+    /* The configs name the models, so they land first; the stances need
+     * nothing and ride along with them. */
+    fanout_slot_configs(app, self->slots, &self->pending);
+    fanout_seqs(app, self->seq_ids, self->seq_count, &self->pending);
     PT_TASK_JOIN(pending);
 
-    {
-        int world_idx = -1;
-        int element_id = -1;
-        struct WorldEntity_Player* player;
+    self->model_count = PlayerModel_CollectAppearanceModelIds(
+        app->provider,
+        self->slots,
+        self->gender,
+        self->model_ids,
+        (int)(sizeof(self->model_ids) / sizeof(self->model_ids[0])));
+    fanout_models(app, self->model_ids, self->model_count, &self->pending);
+    PT_TASK_JOIN(pending);
 
-        if( !RS_EntitySync_FindPlayer(&app->esync, self->server_pid, &world_idx, &element_id) ||
-            world_idx < 0 )
-            PT_EXIT(&self->pt);
-        player = World_EntityPoolGet(&app->world->entities.player, world_idx);
-        /* A newer appearance arrived meanwhile and queued its own completion. */
-        if( !player || player->appearance_serial != self->serial )
-            PT_EXIT(&self->pt);
-        App_WorldApplyPlayerAppearance(app, world_idx, element_id, &self->appearance);
-        app->need_redraw = 1;
-    }
+    /* Nothing to apply: every player whose wanted body this completes
+     * rebuilds on the next frame's reconcile. */
+    app->need_redraw = 1;
 
     PT_END(&self->pt);
 }
@@ -341,31 +366,27 @@ static struct ToriRS_TaskVTable Task_PlayerBodyLand_VTable = {
 struct ToriRS_Task*
 CreateTask_PlayerBodyLand(
     struct App* app,
-    int server_pid,
-    unsigned serial,
-    struct PktPlayerAppearance const* appearance,
-    int const* model_ids,
-    int model_count)
+    int const slots[12],
+    int gender,
+    int const* seq_ids,
+    int seq_count)
 {
     struct Task_PlayerBodyLand* task;
 
     assert(app);
-    assert(server_pid >= 0);
-    assert(appearance);
-    assert(model_ids || model_count == 0);
-    assert(model_count >= 0);
+    assert(slots);
+    assert(seq_ids || seq_count == 0);
+    assert(seq_count >= 0);
     task = calloc(1, sizeof(*task));
     assert(task);
+    assert(seq_count <= (int)(sizeof(task->seq_ids) / sizeof(task->seq_ids[0])));
     task->task.vtable = &Task_PlayerBodyLand_VTable;
     strncpy(task->task.name, "PlayerBodyLand", sizeof(task->task.name) - 1);
     task->app = app;
-    task->server_pid = server_pid;
-    task->serial = serial;
-    task->appearance = *appearance;
-    if( model_count > (int)(sizeof(task->model_ids) / sizeof(task->model_ids[0])) )
-        model_count = (int)(sizeof(task->model_ids) / sizeof(task->model_ids[0]));
-    memcpy(task->model_ids, model_ids, (size_t)model_count * sizeof(int));
-    task->model_count = model_count;
+    memcpy(task->slots, slots, sizeof(task->slots));
+    task->gender = gender;
+    memcpy(task->seq_ids, seq_ids, (size_t)seq_count * sizeof(int));
+    task->seq_count = seq_count;
     PT_INIT(&task->pt);
     return &task->task;
 }
@@ -403,10 +424,9 @@ Task_PlayerHeldLand_Run(
      * SeqType.replaceheldleft/right, opcodes 6/7): a woodcutting or mining
      * style seq swaps a worn item for an obj that is NOT part of the
      * player's appearance, so its config and wear models were never fetched
-     * by the APPEARANCE path. The per-frame swap
-     * (app_world_apply_player_held_items) builds the model synchronously and
-     * silently drops any wear model that is not resident, so they are
-     * fetched here and the swap is asked to run again once they are in.
+     * by the APPEARANCE path. The per-frame body reconcile
+     * (app_world_reconcile_player_body) keeps the last whole body until the
+     * held obj is resident, so it is fetched here.
      */
     {
         struct ToriDraw_Animation* prim = ToriDraw_SceneAnimationGet(app->scene, self->seq_id);
@@ -452,23 +472,8 @@ Task_PlayerHeldLand_Run(
     fanout_models(app, self->model_ids, self->model_count, &self->pending);
     PT_TASK_JOIN(pending);
 
-    {
-        int world_idx = -1;
-        struct WorldEntity_Player* player;
-
-        if( !RS_EntitySync_FindPlayer(&app->esync, self->server_pid, &world_idx, NULL) ||
-            world_idx < 0 )
-            PT_EXIT(&self->pt);
-        player = World_EntityPoolGet(&app->world->entities.player, world_idx);
-        if( !player )
-            PT_EXIT(&self->pt);
-        /* The per-frame pass rebuilds the model when these do not match the
-         * seq's demand; clearing them makes it look again now that the
-         * models are in. */
-        player->held_left_applied = -1;
-        player->held_right_applied = -1;
-        app->need_redraw = 1;
-    }
+    /* The per-frame body reconcile puts them in the player's hands. */
+    app->need_redraw = 1;
 
     PT_END(&self->pt);
 }
