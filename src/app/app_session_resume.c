@@ -44,8 +44,16 @@
 #else
 /* So the file still compiles natively for a syntax check, exactly as
  * ui/torirs_chrome_exec_web.c does. Every EM_JS body below is then dead code
- * that never runs. */
-#define EM_JS(ret, name, args, ...) static ret name args { return (ret)0; }
+ * that never runs.
+ *
+ * The stub has no use for the arguments the JS body reads, so it silences
+ * -Wunused-parameter -- around the stub itself, so that a genuinely unused
+ * parameter anywhere else in the file is still reported. */
+#define EM_JS(ret, name, args, ...)                        \
+    _Pragma("GCC diagnostic push")                         \
+    _Pragma("GCC diagnostic ignored \"-Wunused-parameter\"") \
+    static ret name args { return (ret)0; }                \
+    _Pragma("GCC diagnostic pop")
 #endif
 
 /* ---- the page's side of the wall ----------------------------------------- */

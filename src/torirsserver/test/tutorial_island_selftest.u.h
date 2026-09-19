@@ -461,6 +461,7 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     npc_mining = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "newbie_mining_instructor");
     npc_combat = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "newbie_combat_instructor");
     npc_banker = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "noobbanker");
+    (void)npc_banker;
     npc_financial = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "newbie_account_instructor");
     npc_brace = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "brother_noob");
     npc_magic = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "newbie_magic_instructor");
@@ -472,6 +473,7 @@ selftest_tutorial_island(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     loc_door4 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbie_door4");
     loc_ladder_down = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbieladdertop1");
     loc_ladder_up = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbieladder1");
+    (void)loc_ladder_up;
     loc_mine_gate = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbiedoor4l");
     loc_pit_gate = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbiedoor5_l");
     loc_ladder_out = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "newbieladder2");

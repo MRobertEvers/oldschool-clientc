@@ -173,6 +173,7 @@ bio_talk(struct ToriRSServer* srv, struct ToriRSServerPlayer* player, int npc_id
 {
     assert(srv);
     assert(player);
+    (void)player;
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_id, -1, slot);
 }
 

@@ -178,6 +178,7 @@ hazeel_talk(
 {
     assert(srv);
     assert(player);
+    (void)player;
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_id, -1, slot);
 }
 
@@ -288,6 +289,7 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     (void)npc_alomone;
     npc_alomone_1op = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "alomone_hazeel_cultist_1op");
     npc_alomone_2op = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "alomone_hazeel_cultist_2op");
+    (void)npc_alomone_2op;
     npc_jones = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "butler_jones_hazeel_cultist");
     npc_guard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "guard_carnillean");
     varp_quest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "hazeelcultquest");
