@@ -78,6 +78,8 @@
 extern int app_plugin_world_op(struct App* app, enum DrivePickKind kind, int element_id, int option);
 extern int app_plugin_world_walk_to(struct App* app, int abs_x, int abs_z);
 extern int app_plugin_world_walk_near(struct App* app, enum DrivePickKind kind, int element_id);
+extern int app_plugin_inv_op(
+    struct App* app, int component_id, int slot, int obj_id, int count, int option);
 
 /* See the file banner: core-scheduler's seam, not landed yet. */
 extern struct ToriRS_CmdBus* PluginDriveCore_CmdBus(void);
@@ -99,6 +101,12 @@ drive_pointer_local_player(struct App* app)
         return NULL;
     return World_EntityPoolGet(&app->world->entities.player, world_idx);
 }
+
+/* Defined below, beside the element-id resolver that is its other caller:
+ * the loc projector ranks candidates by distance to the local player rather
+ * than to the viewport centre, and needs the player's scene tile to do it. */
+static int
+drive_pointer_player_tile(struct App* app, int* out_x, int* out_z);
 
 /* -------------------------------------------------------------- projection */
 
@@ -213,8 +221,32 @@ drive_pointer_screen_position_loc(struct App* app, int id, int* out_x, int* out_
     if( !app->world || !app->world_view_valid )
         return DRIVE_NOT_VISIBLE;
     pool = &app->world->entities.scenery;
-    centre_x = app->world_emit_desc.x + app->world_emit_desc.w / 2;
-    centre_z = app->world_emit_desc.y + app->world_emit_desc.h / 2;
+    /*
+     * Ranked by distance to the LOCAL PLAYER in scene tiles, not by distance
+     * to the viewport centre the way App_NpcScreenPosition ranks npcs.
+     *
+     * The centre rule is right for an npc, which is a body in the open; it is
+     * wrong for scenery, because a loc TYPE is usually planted dozens of
+     * times across the scene and the copy nearest the middle of the frame is
+     * routinely a distant one standing behind a nearer, larger loc. Lumbridge
+     * is the case that named this: the "tree" nearest the viewport centre was
+     * 23 tiles north, its projected point landed inside the castle fountain's
+     * model, and the right-click menu there offered "Examine Fountain" and
+     * nothing else -- a real `covered`, on a tree the player could have
+     * touched. The copy a quest test means is the one it is standing next to.
+     */
+    centre_x = 0;
+    centre_z = 0;
+    if( !drive_pointer_player_tile(app, &centre_x, &centre_z) )
+    {
+        centre_x = app->world_emit_desc.x + app->world_emit_desc.w / 2;
+        centre_z = app->world_emit_desc.y + app->world_emit_desc.h / 2;
+    }
+    else
+    {
+        centre_x *= 128;
+        centre_z *= 128;
+    }
     for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Scenery* loc = World_EntityPoolGet(pool, i);
@@ -244,7 +276,10 @@ drive_pointer_screen_position_loc(struct App* app, int id, int* out_x, int* out_
             continue;
         if( !drive_pointer_in_viewport(app, x, y) )
             continue;
-        distance = (long)(x - centre_x) * (x - centre_x) + (long)(y - centre_z) * (y - centre_z);
+        /* Over the loc's own FINE position against the player's, both in
+         * scene fine units -- see the ranking note above. */
+        distance = (long)(fine_x - centre_x) * (fine_x - centre_x) +
+                   (long)(fine_z - centre_z) * (fine_z - centre_z);
         if( best_element >= 0 && distance >= best_distance )
             continue;
         best_element = loc->element_id;
@@ -272,8 +307,25 @@ drive_pointer_screen_position_obj(struct App* app, int id, int* out_x, int* out_
     if( !app->world || !app->world_view_valid )
         return DRIVE_NOT_VISIBLE;
     pool = &app->world->entities.obj_stack;
-    centre_x = app->world_emit_desc.x + app->world_emit_desc.w / 2;
-    centre_z = app->world_emit_desc.y + app->world_emit_desc.h / 2;
+    /* Ranked by distance to the LOCAL PLAYER, for the reason the loc
+     * projector above gives: one obj id is commonly on the floor in several
+     * places at once (a test that drops the same item twice makes two), and
+     * the stack a caller means is the one it walked to. Ranking by distance
+     * to the viewport centre instead chose a DIFFERENT stack from the one
+     * player.click_obj had just walked up to, pressed at it across the map,
+     * and reported `covered`. */
+    centre_x = 0;
+    centre_z = 0;
+    if( !drive_pointer_player_tile(app, &centre_x, &centre_z) )
+    {
+        centre_x = app->world_emit_desc.x + app->world_emit_desc.w / 2;
+        centre_z = app->world_emit_desc.y + app->world_emit_desc.h / 2;
+    }
+    else
+    {
+        centre_x *= 128;
+        centre_z *= 128;
+    }
     for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, i);
@@ -298,7 +350,12 @@ drive_pointer_screen_position_obj(struct App* app, int id, int* out_x, int* out_
             continue;
         if( !drive_pointer_in_viewport(app, x, y) )
             continue;
-        distance = (long)(x - centre_x) * (x - centre_x) + (long)(y - centre_z) * (y - centre_z);
+        /* Over the stack's own fine draw position against the player's -- see
+         * the ranking note above. */
+        distance = (long)((int)stack->draw_position.x - centre_x) *
+                       ((int)stack->draw_position.x - centre_x) +
+                   (long)((int)stack->draw_position.z - centre_z) *
+                       ((int)stack->draw_position.z - centre_z);
         if( best_element >= 0 && distance >= best_distance )
             continue;
         best_element = stack->element_id;
@@ -624,14 +681,252 @@ DrivePointer_ActionForSlot(enum DrivePickKind kind, int slot, int* out_action)
     }
 }
 
+/* ------------------------------------------- type id -> live element id */
+
+/*
+ * Everything a quest test names is a CONTENT SYMBOL, so `target.id` is an
+ * npc_id / loc_id / obj_id -- while every dispatcher below the minimenu is
+ * keyed by ELEMENT id (World_NpcGetByElementId and friends). The projectors
+ * above have always done that conversion on the way to a pixel; the two
+ * bypasses did not, and handed the type id straight to a by-element lookup,
+ * which is exactly why drive.op answered not_found on an npc standing in
+ * front of the player ("op 1 -> nil -- npc 3106").
+ *
+ * Nearest the local player wins, on the same reasoning App_NpcScreenPosition
+ * picks the candidate nearest the viewport centre: with several of a type in
+ * the scene, the one a test means is the one it is standing next to. The
+ * distance is over SCENE tiles, which is all three pools' common frame.
+ */
+static int
+drive_pointer_player_tile(struct App* app, int* out_x, int* out_z)
+{
+    struct WorldEntity_Player const* player;
+
+    assert(app);
+    assert(out_x);
+    assert(out_z);
+    player = drive_pointer_local_player(app);
+    if( !player )
+        return 0;
+    *out_x = player->grid_position.x;
+    *out_z = player->grid_position.z;
+    return 1;
+}
+
+static long
+drive_pointer_tile_distance(int have_origin, int origin_x, int origin_z, int x, int z)
+{
+    if( !have_origin )
+        return 0;
+    return (long)(x - origin_x) * (x - origin_x) + (long)(z - origin_z) * (z - origin_z);
+}
+
+enum DriveResult
+DrivePointer_ElementId(struct App* app, enum DrivePickKind kind, int id, int* out_element_id)
+{
+    struct World_EntityPool* pool;
+    int origin_x = 0;
+    int origin_z = 0;
+    int have_origin;
+    int best = -1;
+    long best_distance = 0;
+    int i;
+
+    assert(app);
+    assert(out_element_id);
+    *out_element_id = -1;
+    if( !app->world )
+        return DRIVE_NOT_FOUND;
+    have_origin = drive_pointer_player_tile(app, &origin_x, &origin_z);
+    if( kind == DRIVE_PICK_NPC )
+        pool = &app->world->entities.npc;
+    else if( kind == DRIVE_PICK_LOC )
+        pool = &app->world->entities.scenery;
+    else if( kind == DRIVE_PICK_OBJ )
+        pool = &app->world->entities.obj_stack;
+    else if( kind == DRIVE_PICK_PLAYER )
+        pool = &app->world->entities.player;
+    else
+        return DRIVE_UNSUPPORTED;
+    for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        void* entry = World_EntityPoolGet(pool, i);
+        int element_id;
+        int tile_x;
+        int tile_z;
+        long distance;
+
+        if( !entry )
+            continue;
+        if( kind == DRIVE_PICK_NPC )
+        {
+            struct WorldEntity_NPC* npc = entry;
+            /* npc_id OR base_npc_id, the same pair QD.npc.by_symbol matches
+             * on: a multiNpc's wrapper is the id a test can name, and the
+             * child is what the local varp state selected. */
+            if( npc->server_slot < 0 )
+                continue;
+            if( id >= 0 && npc->npc_id != id && npc->base_npc_id != id )
+                continue;
+            if( npc->multinpc_hidden )
+                continue;
+            element_id = npc->element_id;
+            tile_x = npc->grid_position.x;
+            tile_z = npc->grid_position.z;
+        }
+        else if( kind == DRIVE_PICK_LOC )
+        {
+            struct WorldEntity_Scenery* loc = entry;
+            if( id >= 0 && loc->loc_id != id )
+                continue;
+            element_id = loc->element_id;
+            tile_x = loc->grid_position.x;
+            tile_z = loc->grid_position.z;
+        }
+        else if( kind == DRIVE_PICK_OBJ )
+        {
+            struct WorldEntity_ObjStack* stack = entry;
+            if( id >= 0 && stack->obj_id != id )
+                continue;
+            element_id = stack->element_id;
+            tile_x = stack->grid_position.x;
+            tile_z = stack->grid_position.z;
+        }
+        else
+        {
+            struct WorldEntity_Player* player = entry;
+            if( id >= 0 && player->server_pid != id )
+                continue;
+            element_id = player->element_id;
+            tile_x = player->grid_position.x;
+            tile_z = player->grid_position.z;
+        }
+        distance = drive_pointer_tile_distance(have_origin, origin_x, origin_z, tile_x, tile_z);
+        if( best >= 0 && distance >= best_distance )
+            continue;
+        best = element_id;
+        best_distance = distance;
+    }
+    if( best < 0 )
+        return DRIVE_NOT_FOUND;
+    *out_element_id = best;
+    return DRIVE_OK;
+}
+
+/*
+ * Does this target OFFER op `option`?
+ *
+ * app_minimenu_ui_pick_live answers 1 unconditionally for a world pick (it
+ * only validates UI and INV_SLOT ones), so the fabricated row a bypass builds
+ * is dispatched whatever number it carries, the packet goes out naming an op
+ * the entity does not have, and the server answers nothing at all -- a verb
+ * that looks like it worked and did not. The row builders in
+ * src/game/rs_minimenu_world.c are the authority on which ops exist, and this
+ * asks them the same three questions they ask: the npc's visible_ops mask and
+ * op name, the loc's interned config ops, the obj stack's ops -- including
+ * add_obj_rows' synthesized "Take", which exists only for slot index 2 and
+ * only when that slot is empty.
+ */
+enum DriveResult
+DrivePointer_OpAvailable(
+    struct App* app, enum DrivePickKind kind, int id, int option, int* out_available)
+{
+    int element_id = -1;
+    int slot = option - 1;
+    enum DriveResult resolved;
+
+    assert(app);
+    assert(out_available);
+    *out_available = 0;
+    resolved = DrivePointer_ElementId(app, kind, id, &element_id);
+    if( resolved != DRIVE_OK )
+        return resolved;
+    /* Examine is built for every world target unconditionally (each of the
+     * three builders ends with its own OP*6 row), so it is always available
+     * and has no slot to test. */
+    if( option <= 0 )
+    {
+        *out_available = 1;
+        return DRIVE_OK;
+    }
+    if( slot < 0 || slot > 4 )
+        return DRIVE_OK;
+    if( kind == DRIVE_PICK_NPC )
+    {
+        struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, element_id, NULL);
+        if( !npc )
+            return DRIVE_NOT_FOUND;
+        *out_available =
+            (npc->visible_ops & (1u << slot)) != 0 && npc->actions[slot].name[0] != '\0';
+        return DRIVE_OK;
+    }
+    if( kind == DRIVE_PICK_LOC )
+    {
+        struct WorldEntity_Scenery* loc = World_SceneryGetByElementId(app->world, element_id);
+        if( !loc || !loc->info )
+            return DRIVE_NOT_FOUND;
+        *out_available = loc->info->actions[slot].name[0] != '\0';
+        return DRIVE_OK;
+    }
+    if( kind == DRIVE_PICK_OBJ )
+    {
+        struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(app->world, element_id);
+        if( !stack )
+            return DRIVE_NOT_FOUND;
+        /* add_obj_rows: the defaulted "Take" is emitted for slot index 2 when
+         * the config leaves that slot empty, and for no other slot. */
+        *out_available = stack->actions[slot].name[0] != '\0' || slot == 2;
+        return DRIVE_OK;
+    }
+    return DRIVE_UNSUPPORTED;
+}
+
 enum DriveResult
 DrivePointer_WorldOp(struct App* app, enum DrivePickKind kind, int id, int option)
 {
+    int element_id = -1;
+    int available = 0;
+    enum DriveResult resolved;
+
     assert(app);
     if( kind != DRIVE_PICK_NPC && kind != DRIVE_PICK_LOC && kind != DRIVE_PICK_OBJ )
         return DRIVE_UNSUPPORTED;
-    if( !app_plugin_world_op(app, kind, id, option) )
+    /* `id` is a CONTENT TYPE id (see DrivePointer_ElementId): the bridge takes
+     * an element id, and handing it the type id is what made this answer
+     * not_found for every npc in the world. */
+    resolved = DrivePointer_ElementId(app, kind, id, &element_id);
+    if( resolved != DRIVE_OK )
+        return resolved;
+    resolved = DrivePointer_OpAvailable(app, kind, id, option, &available);
+    if( resolved != DRIVE_OK )
+        return resolved;
+    if( !available )
+        return DRIVE_NO_ROW;
+    if( !app_plugin_world_op(app, kind, element_id, option) )
         return DRIVE_NOT_FOUND;
+    return DRIVE_OK;
+}
+
+enum DriveResult
+DrivePointer_InvOp(
+    struct App* app, int component_id, int slot, int obj_id, int count, int option)
+{
+    assert(app);
+    if( option > 5 )
+        return DRIVE_UNSUPPORTED;
+    if( !app_plugin_inv_op(app, component_id, slot, obj_id, count, option) )
+        return DRIVE_NOT_FOUND;
+    /*
+     * The arming half of use_on has an observable effect in this process and
+     * nothing else does: OPHELD1..5 leave as a packet whose answer arrives
+     * ticks later (the Lua verb awaits that), while OPHELDT_START's whole job
+     * is to put this item into app->objsel. Checking it here is what stops
+     * "the dispatcher ran" from being mistaken for "the item is armed" -- a
+     * cell whose config never offered a Use row runs the same code and arms
+     * nothing.
+     */
+    if( option < 0 && (!app->objsel.active || app->objsel.obj_id != obj_id) )
+        return DRIVE_REFUSED;
     return DRIVE_OK;
 }
 
@@ -647,10 +942,19 @@ DrivePointer_MoveTo(struct App* app, int tile_x, int tile_z)
 enum DriveResult
 DrivePointer_MoveNear(struct App* app, enum DrivePickKind kind, int id)
 {
+    int element_id = -1;
+    enum DriveResult resolved;
+
     assert(app);
     if( kind != DRIVE_PICK_NPC && kind != DRIVE_PICK_LOC )
         return DRIVE_UNSUPPORTED;
-    if( !app_plugin_world_walk_near(app, kind, id) )
+    /* Same type-id/element-id conversion DrivePointer_WorldOp needs: the
+     * bridge routes by element id and player.walk_near was passing the
+     * content type id, so it answered not_found on every target. */
+    resolved = DrivePointer_ElementId(app, kind, id, &element_id);
+    if( resolved != DRIVE_OK )
+        return resolved;
+    if( !app_plugin_world_walk_near(app, kind, element_id) )
         return DRIVE_NOT_FOUND;
     return DRIVE_OK;
 }
@@ -912,6 +1216,42 @@ lua_drive_world_op(struct lua_State* L)
 }
 
 static int
+lua_drive_inv_op(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int component_id = PluginDrive_ArgInt(L, 1);
+    int slot = PluginDrive_ArgInt(L, 2);
+    int obj_id = PluginDrive_ArgInt(L, 3);
+    int count = PluginDrive_ArgInt(L, 4);
+    int option = PluginDrive_ArgInt(L, 5);
+    enum DriveResult result;
+
+    assert(app);
+    result = DrivePointer_InvOp(app, component_id, slot, obj_id, count, option);
+    return PluginDrive_PushResult(L, result, NULL);
+}
+
+static int
+lua_drive_op_available(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    char const* kind_name = PluginDrive_ArgString(L, 1);
+    int id = PluginDrive_ArgInt(L, 2);
+    int option = PluginDrive_ArgInt(L, 3);
+    int kind = drive_pointer_kind_from_name(kind_name);
+    int available = 0;
+    enum DriveResult result;
+
+    assert(app);
+    if( kind < 0 )
+        return luaL_error(L, "drive.op_available: unknown kind '%s'", kind_name);
+    result = DrivePointer_OpAvailable(app, (enum DrivePickKind)kind, id, option, &available);
+    lua_pushstring(L, DriveResultName(result));
+    lua_pushboolean(L, available);
+    return 2;
+}
+
+static int
 lua_drive_move_to(struct lua_State* L)
 {
     struct App* app = PluginDrive_App();
@@ -979,6 +1319,8 @@ static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"menu_row_find", lua_drive_menu_row_find},
     {"action_for_slot", lua_drive_action_for_slot},
     {"world_op", lua_drive_world_op},
+    {"op_available", lua_drive_op_available},
+    {"inv_op", lua_drive_inv_op},
     {"move_to", lua_drive_move_to},
     {"move_near", lua_drive_move_near},
     {"camera", lua_drive_camera},

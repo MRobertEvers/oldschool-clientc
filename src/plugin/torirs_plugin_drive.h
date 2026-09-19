@@ -525,6 +525,32 @@ enum DriveWidgetModelKind
 enum DriveResult DriveRead_WidgetModel(
     struct App* app, int component_id, int* out_kind, int* out_id);
 
+/*
+ * Text / presented / own-hidden reads for a live component.  Read
+ * struct App::tree directly -- the same UITree_FindByComponentId +
+ * UITree_NodeOrAncestorDisplayHidden + UITree_NodeNativeVisible walk
+ * torirs_plugin_bridge.u.c's PLUGIN_WIDGET_TEXT/PLUGIN_WIDGET_STATE cases use
+ * for the general plugin API -- rather than through api.widgets, which no
+ * part file but core.lua can reach today (quest_driver/core.lua's
+ * core_bind captures only api.drive as the chunk-local `api_drive` upvalue,
+ * and extending that is core-scheduler's file). verbs-chat solved the same
+ * problem the same way for chatmenu's rows (DriveChat_Options /
+ * DriveChat_OptionRow, above) rather than route through api.widgets.
+ *
+ * DRIVE_NOT_FOUND when component_id does not resolve to a live node --
+ * *out_text is "", out_presented / out_own_hidden are 0/1 (this header takes
+ * no stdbool dependency; 1 = own_hidden true, so a not-found component reads
+ * as hidden) even in that case, so a caller that only checks DRIVE_OK still
+ * gets a safe default. *out_text is "" (not NULL) for a component that
+ * resolves but is not a text node.
+ */
+enum DriveResult DriveRead_WidgetText(
+    struct App* app, int component_id, char const** out_text);
+enum DriveResult DriveRead_WidgetPresented(
+    struct App* app, int component_id, int* out_presented);
+enum DriveResult DriveRead_WidgetOwnHidden(
+    struct App* app, int component_id, int* out_own_hidden);
+
 /* ------------------------------------------------------------ verbs-pointer */
 
 /* verbs-pointer, src/plugin/torirs_plugin_drive_pointer.c */
@@ -535,6 +561,20 @@ enum DrivePickKind
     DRIVE_PICK_PLAYER,
     DRIVE_PICK_LOC,
     DRIVE_PICK_OBJ,
+    /*
+     * A carried item's CELL, which is a UI pick and not a world one: it has no
+     * element_id, no tile and no screen projection, so it never reaches
+     * DrivePointer_ScreenPosition, DrivePointer_MenuRowFind or
+     * DrivePointer_WorldOp.  It exists because the four backpack verbs
+     * (player.inv_op/equip/drop and use_on's arming half) dispatch through
+     * app_minimenu_inv_action's OPHELD ladder, which app_minimenu_run_option
+     * reaches ONLY from its UI_MINIMENU_PICK_INV_SLOT case -- the
+     * UI_MINIMENU_PICK_UI pick app_plugin_click_node fabricates is a different
+     * branch that sends IF_BUTTON instead, and on rev-239's backpack op 1 is
+     * the shift-click-drop script, so borrowing it dropped the item on the
+     * floor.  See DrivePointer_InvOp.
+     */
+    DRIVE_PICK_INV_SLOT,
     DRIVE_PICK_KIND_COUNT
 };
 
@@ -607,6 +647,52 @@ enum DriveResult DrivePointer_ActionForSlot(
 enum DriveResult DrivePointer_WorldOp(
     struct App* app, enum DrivePickKind kind, int id, int option);
 
+/*
+ * The backpack half of the same bypass: fabricate the one INV_SLOT row a real
+ * right-click on that cell would carry and run the real dispatcher, so the op
+ * leaves through app_minimenu_inv_action (net_out_opheld) exactly as a hand
+ * click does.  `component_id` is the inv node's component id, `slot` its cell
+ * index, `obj_id`/`count` what that cell holds -- all four because a
+ * UIMinimenuPick of this kind carries all four and
+ * app_minimenu_ui_pick_live re-resolves (container, slot) and refuses when the
+ * item there is not `obj_id`.
+ *
+ * `option` 1..5 is the numbered held op (OPHELD1..5); 0 is Examine (OPHELD6),
+ * the same "<= 0 means examine" reading DrivePointer_WorldOp gives; and a
+ * NEGATIVE option arms the held-item selection (OPHELDT_START, the "Use"
+ * row), which is use_on's phase 1 and has no op number of its own.
+ *
+ * DRIVE_NOT_FOUND when the component is not in the tree or the dispatcher
+ * refused the row -- which is the ordinary answer when the container's tab is
+ * not the displayed one, because app_minimenu_ui_pick_live rejects a cell
+ * whose node or ancestor is display-hidden.
+ */
+enum DriveResult DrivePointer_InvOp(
+    struct App* app, int component_id, int slot, int obj_id, int count, int option);
+
+/*
+ * Is `option` (1..5) a row this target would actually offer?  The world
+ * bypass needs its own answer: app_minimenu_ui_pick_live returns 1
+ * unconditionally for a world pick, so a fabricated row for an op the entity
+ * does not have is dispatched happily and the server answers nothing.  NPC
+ * reads visible_ops + the op name; loc and obj read their config's op list.
+ * DRIVE_NOT_FOUND when nothing of `kind` carries `id`.
+ */
+enum DriveResult DrivePointer_OpAvailable(
+    struct App* app, enum DrivePickKind kind, int id, int option, int* out_available);
+
+/*
+ * The live element id a content TYPE id resolves to, nearest the local player
+ * first.  Everything a quest test names is a content symbol, so `target.id`
+ * is an npc_id/loc_id/obj_id -- while every dispatcher below the menu is
+ * keyed by ELEMENT id.  DrivePointer_ScreenPosition has always done this
+ * conversion on its way to a pixel; WorldOp and MoveNear were handed the type
+ * id and looked it up as an element id, which is why drive.op answered
+ * not_found on an npc standing in front of the player.
+ */
+enum DriveResult DrivePointer_ElementId(
+    struct App* app, enum DrivePickKind kind, int id, int* out_element_id);
+
 /** app_try_move to an ABSOLUTE tile.  A 0 return from the engine is
  *  DRIVE_REFUSED with no await registered. */
 enum DriveResult DrivePointer_MoveTo(struct App* app, int tile_x, int tile_z);
@@ -643,6 +729,14 @@ enum DriveResult DriveUi_IfClick(struct App* app, int component_id, int op);
 /** app_plugin_tab_select, which branches CS2 vs dat1 internally -- so no lane
  *  handling and no sidetab_N precheck here. */
 enum DriveResult DriveUi_Tab(struct App* app, int tab_number);
+
+/** Tab NAME to tab NUMBER, through app->revconfig_refs' "tab" kind: the
+ *  profile's `[tabs]` map, or (on a lane with no `[tabs]` section) the
+ *  `[role:panel_<name>] match=slot(sidebar, <n>)` derivation
+ *  refs_add_tab_from_panel_role already folds into the same table
+ *  (revconfig_refs.c). DRIVE_NO_ROW for a name neither source declares --
+ *  the test author's typo, not a contract violation. */
+enum DriveResult DriveUi_TabByName(struct App* app, char const* name, int* out_tab_number);
 
 /** modal_host_uid, RE-VERIFIED live (D4).  A bare non-zero test is wrong at
  *  boot and permanently wrong after the session's first dialogue. */

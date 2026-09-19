@@ -4165,6 +4165,100 @@ app_plugin_world_op(struct App* app, enum DrivePickKind kind, int element_id, in
 }
 
 /*
+ * The backpack half of the same bypass (verbs-pointer, ARCHITECT.md S1: this
+ * function sits inside "the app_plugin_world_op case" of this shared file).
+ *
+ * app_plugin_click_node above fabricates a UI_MINIMENU_PICK_UI pick, and
+ * app_minimenu_run_option's UI case sends IF_BUTTON -- which on rev-239's
+ * backpack is the shift-click-drop script, not the item's op. The OPHELD
+ * ladder lives behind app_minimenu_inv_action, and the ONLY branch that
+ * reaches it is the UI_MINIMENU_PICK_INV_SLOT one, so this builds that pick
+ * instead: id = the inv node's component id, secondary = the cell index,
+ * tertiary = the obj in it, quaternary = its stack count, exactly as
+ * pick_inv_slot does (src/game/rs_minimenu_build.c).
+ *
+ * `option` 1..5 is OPHELD1..5, 0 is Examine (OPHELD6) -- the same "<= 0 means
+ * examine" reading app_plugin_world_op gives -- and a NEGATIVE option arms
+ * the held-item selection (OPHELDT_START, the "Use" row), which is use_on's
+ * phase 1 and carries no op number.
+ *
+ * Returns 0 when the component is not in the tree or the option is not one of
+ * those.  It cannot report the dispatcher's own refusal: app_minimenu_run_option
+ * validates the pick itself (app_minimenu_ui_pick_live, which rejects a cell
+ * whose node or ancestor is display-hidden -- the ordinary case while the
+ * container's tab is not the shown one) and then simply returns, and that
+ * helper is static to app_minimenu.c, which is not this translation unit.
+ * The caller's own completion check is what separates "dispatched" from
+ * "happened": see quest_driver/pointer.lua's _inv_op_until_gone, which waits
+ * for the item to leave the backpack rather than trusting this 1.
+ */
+int
+app_plugin_inv_op(
+    struct App* app, int component_id, int slot, int obj_id, int count, int option)
+{
+    /* OPHELD1..5 in op order. app_minimenu_inv_action switches on these five
+     * ids; there is no exported opheld_action_for_slot to borrow, and the
+     * ladder is five entries rather than a formula. */
+    static int const opheld[5] = {
+        REVCONFIG_MINIMENU_OPHELD1,
+        REVCONFIG_MINIMENU_OPHELD2,
+        REVCONFIG_MINIMENU_OPHELD3,
+        REVCONFIG_MINIMENU_OPHELD4,
+        REVCONFIG_MINIMENU_OPHELD5,
+    };
+    struct UIMinimenu scratch;
+    struct UIMinimenu saved;
+    struct UIMinimenuPick pick;
+    int action;
+    int action_index;
+
+    assert(app);
+    if( option > 5 )
+        return 0;
+    if( UITree_FindByComponentId(app->tree, component_id) < 0 )
+        return 0;
+    memset(&pick, 0, sizeof(pick));
+    pick.kind = UI_MINIMENU_PICK_INV_SLOT;
+    pick.id = component_id;
+    pick.secondary_id = slot;
+    pick.tertiary_id = obj_id;
+    pick.quaternary_id = count;
+    if( option < 0 )
+    {
+        action = REVCONFIG_MINIMENU_OPHELDT_START;
+        action_index = 0;
+    }
+    else if( option == 0 )
+    {
+        action = REVCONFIG_MINIMENU_OPHELD6;
+        action_index = 0;
+    }
+    else
+    {
+        action = opheld[option - 1];
+        action_index = option - 1;
+    }
+    TORIRS_REPORT(
+        "quest-driver: inv op bypass com=%d slot=%d obj=%d count=%d option=%d action=%d\n",
+        component_id,
+        slot,
+        obj_id,
+        count,
+        option,
+        action);
+
+    UIMinimenu_Reset(&scratch);
+    scratch.font_id = app->interact.minimenu.font_id;
+    if( !UIMinimenu_AddOption(&scratch, "", action, action_index, pick) )
+        return 0;
+    saved = app->interact.minimenu;
+    app->interact.minimenu = scratch;
+    app_minimenu_run_option(app, 0, 0, 0);
+    app->interact.minimenu = saved;
+    return 1;
+}
+
+/*
  * player.walk_to's engine seam: app_try_move on an ABSOLUTE tile, converted
  * scene-local against the world's own base
  * (docs/QUEST_DRIVER_PLAN.md S5.2). A 0 return is a refusal with no route

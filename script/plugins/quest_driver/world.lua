@@ -13,9 +13,13 @@
 -- (src/plugin/torirs_plugin_drive_ui.c, DriveUi_Locs/Objs/PlayerTile); this
 -- file only composes them with a content-symbol lookup. `locs`/`objs` return
 -- `result, rows` where `rows` is a 1-indexed array of tables mirroring
--- struct DriveLocRow/DriveObjRow's fields (loc_id/obj_id, tile_x, tile_z,
--- level, element_id, plus obj's count) -- confirmed against
--- torirs_plugin_drive_ui.c's lua_drive_locs/lua_drive_objs. `player_tile`
+-- struct DriveLocRow/DriveObjRow's fields, EXCEPT that the two coordinates
+-- are spelled `x`/`z` on the Lua side (loc_id/obj_id, x, z, level,
+-- element_id, plus obj's count): lua_drive_locs/lua_drive_objs rename
+-- tile_x/tile_z on the way out, and reading the C spelling here filled
+-- this verb's own tile_x/tile_z with nil for the life of the file --
+-- nothing noticed until pointer.lua's _target_tile needed those two
+-- numbers to frame a camera on the loc. `player_tile`
 -- returns TWO values, `result, tile` where `tile` is already a table
 -- `{x, z, level}` (lua_drive_player_tile, torirs_plugin_drive_ui.c:754-777)
 -- -- the four-value `result, x, z, level` this banner originally assumed was
@@ -37,8 +41,8 @@ function QD.world.loc_near(sym, radius)
                 kind = "loc",
                 id = id,
                 element_id = rows[i].element_id,
-                tile_x = rows[i].tile_x,
-                tile_z = rows[i].tile_z,
+                tile_x = rows[i].x,
+                tile_z = rows[i].z,
                 level = rows[i].level,
             }
         end
@@ -62,8 +66,8 @@ function QD.world.obj_near(sym, radius)
                 id = id,
                 element_id = rows[i].element_id,
                 count = rows[i].count,
-                tile_x = rows[i].tile_x,
-                tile_z = rows[i].tile_z,
+                tile_x = rows[i].x,
+                tile_z = rows[i].z,
                 level = rows[i].level,
             }
         end

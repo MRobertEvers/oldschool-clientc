@@ -977,6 +977,9 @@ except the plain readers marked as returning a value.
 ---@field option_row fun(row: integer): string, integer A live chatmenu row's component id, for arming resume; row is 1..5.
 --- verbs-read
 ---@field widget_model fun(component_id: integer): string, table { kind, id }: the raw identity the server sent, not the composite.
+---@field widget_text fun(component_id: integer): string, string A text component's string, "" if it has none or is not a text node.
+---@field widget_presented fun(component_id: integer): string, boolean Visible right now: not display-hidden and natively visible.
+---@field widget_own_hidden fun(component_id: integer): string, boolean What the cache or a script said, independent of native hiding. not_found reads as hidden.
 --- verbs-pointer
 ---@field screen_position fun(kind: string, id: integer): string, table { x, y, element_id }.
 ---@field pick_holds fun(element_id: integer): string, boolean Does this frame's pickset hold it. Meaningless before a frame rendered at the moved-to point.
@@ -987,6 +990,8 @@ except the plain readers marked as returning a value.
 ---@field menu_row_find fun(action: integer, kind: string, target_id: integer): string, table Action < 0 is the wildcard the collapsed use-item row needs.
 ---@field action_for_slot fun(kind: string, slot: integer): string, integer The action id the client's own builder would use for that op.
 ---@field world_op fun(kind: string, id: integer, option: integer): string, string The LOGGED bypass. Never the default; every call is a ledger note.
+---@field op_available fun(kind: string, id: integer, option: integer): string, boolean Does this world target actually OFFER that op? app_minimenu_ui_pick_live validates only UI and INV_SLOT picks, so the bypass owes its own answer.
+---@field inv_op fun(component_id: integer, slot: integer, obj_id: integer, count: integer, option: integer): string, string A backpack/worn CELL's numbered held op. 1..5 = OPHELD1..5, 0 = Examine, negative arms the held-item selection (Use) and is refused unless objsel came back holding it.
 ---@field move_to fun(tile_x: integer, tile_z: integer): string, string
 ---@field move_near fun(kind: string, id: integer): string, string Re-issued every tick while pending: the target can walk.
 ---@field camera fun(yaw: integer, pitch: integer, zoom: integer): string, string
@@ -996,6 +1001,7 @@ except the plain readers marked as returning a value.
 ---@field component fun(symbol: string, sub: integer): string, integer Qualified "<iface>:<child>" symbol to a component id.
 ---@field if_click fun(component_id: integer, op: integer): string, string One path for IF1 button types and IF3 numbered ops.
 ---@field tab fun(tab_number: integer): string, string
+---@field tab_by_name fun(name: string): string, integer|nil Tab NAME through app->revconfig_refs' "tab" kind (the [tabs] map, else a panel_<name> role); no_row for a name neither source declares.
 ---@field modal_live fun(): string, boolean Re-verified; modal_host_uid is never cleared on close.
 ---@field npcs fun(radius: integer): string, table Nearest first; names normalised of <col=..>.
 ---@field locs fun(radius: integer): string, table

@@ -1,24 +1,27 @@
 -- quest-driver / read: what the page SAYS and what it SHOWS.
 -- Owner: verbs-read (docs/ARCHITECT.md).
 --
--- Text and presented-state reads go through api.widgets (plan 5.6: "No
--- engine change"): api.widgets.get(component_id) is the same reverse lookup
--- chat.lua's chat.options/options_title use, and :text()/:state().presented
--- answer everything below that is not an IDENTITY. The component id itself
--- comes from api.drive.component(symbol, sub) -- the qualified
--- "<iface>:<child>" content symbol (D11), never a numeric literal and never
--- a client op string.
+-- Text and presented-state reads go through api.drive.widget_text/
+-- widget_presented/widget_own_hidden (torirs_plugin_drive_read.c), which
+-- read struct App::tree directly -- the same fields
+-- torirs_plugin_bridge.u.c's PLUGIN_WIDGET_TEXT/PLUGIN_WIDGET_STATE cases
+-- read for api.widgets. Plan 5.6 says this goes "through api.widgets" ("No
+-- engine change"), but no part file besides core.lua can reach api.widgets
+-- (only api_drive is captured as a chunk-local upvalue by
+-- quest_driver/core.lua's core_bind, core-scheduler's file), and a bare
+-- `api_widgets` global that nothing assigned made every read verb raise --
+-- the sandbox has no pcall, so that ended the whole conformance run (phase B
+-- finding 1). Fixed the way chat.lua's own rows solved the identical problem
+-- (DriveChat_Options / DriveChat_OptionRow): a driver-local reader owned
+-- here, not a route through api.widgets. The component id itself comes from
+-- api.drive.component(symbol, sub) -- the qualified "<iface>:<child>"
+-- content symbol (D11), never a numeric literal and never a client op
+-- string.
 --
 -- Identity reads (chat.head, chat.item) go through api.drive.widget_model,
 -- which returns the raw identity the server sent on
 -- IF_SETNPCHEAD / IF_SETOBJECT / IF_SETMODEL. The composite scene model id
 -- cannot answer "which npc is this" and must not be used.
---
--- This file, like quest_driver/chat.lua, reads `api_widgets` as a
--- chunk-local upvalue it does not itself declare: today only `api_drive` is
--- captured by quest_driver/core.lua's core_bind (core-scheduler's file).
--- The one-line addition (`api_widgets = api.widgets`) is reported in this
--- pass, not made here -- see the report.
 --
 -- Private helpers hang off QD.read as PLAIN FIELDS, never a top-level
 -- `local`: every one of these eight files is concatenated into ONE chunk
@@ -75,40 +78,43 @@ function QD.read._component_of(symbol)
 end
 
 function QD.read._text_of(component_id)
-    local widget = api_widgets.get(component_id)
-    if not widget then
+    local result, text = api_drive.widget_text(component_id)
+    if result ~= "ok" then
         return nil
     end
-    return widget:text()
+    return text
 end
 
 function QD.read._is_presented(component_id)
-    local widget = api_widgets.get(component_id)
-    if not widget then
-        return false
-    end
-    local state = widget:state()
-    return state ~= nil and state.presented == true
+    local result, presented = api_drive.widget_presented(component_id)
+    return result == "ok" and presented == true
 end
 
 function QD.read._is_own_hidden(component_id)
-    local widget = api_widgets.get(component_id)
-    if not widget then
+    local result, own_hidden = api_drive.widget_own_hidden(component_id)
+    if result ~= "ok" then
         return true
     end
-    local state = widget:state()
-    return state == nil or state.own_hidden == true
+    return own_hidden == true
 end
 
--- First of `symbols` (in order) that is currently mounted AND presented, as
--- text -- or nil while nothing in the set is showing. chat.text/name poll
--- this every level check; a dialogue side that has not mounted yet is
--- exactly the state the polling loop exists to step past.
+-- First of `symbols` (in order) whose text is currently mounted, presented
+-- AND NON-EMPTY -- or nil while nothing in the set is showing yet.
+-- chat.text/name poll this every level check; a dialogue side that mounted
+-- (presented) but has not had IF_SETTEXT land on it yet is the same
+-- not-ready state as one that has not mounted at all, and must not be read
+-- as "the page is showing empty text" -- a presented-but-still-empty
+-- component made chat.text answer "ok" with "" one poll early (a real run:
+-- ::objbox's item message is set the same tick the container mounts, but
+-- not necessarily the same virtual frame this poll lands on).
 function QD.read._presented_text(symbols)
     for _, sym in ipairs(symbols) do
         local component_id = QD.read._component_of(sym)
         if component_id and QD.read._is_presented(component_id) then
-            return QD.read._text_of(component_id) or ""
+            local text = QD.read._text_of(component_id)
+            if text ~= nil and text ~= "" then
+                return text
+            end
         end
     end
     return nil
@@ -382,19 +388,20 @@ function QD.read._levelup_universe_presented()
     return component_id ~= nil and QD.read._is_presented(component_id)
 end
 
--- The box has no content opener anywhere in this tree today (plan U16), so
--- phase-1 gates this as a synthetic-tree unit test: a stored/derived tree
--- state that raises levelup_display:universe presented with exactly one of
--- the 25 skill containers unhidden. Re-gate against a real mount only if the
--- product decision is to open it.
+-- The box has no content opener anywhere in this tree today (plan U16):
+-- every [advancestat,*] trigger in this content pack routes to the
+-- account-summary side panel instead, never to levelup_display. That is a
+-- static fact about the content pack, not a runtime race, so answering
+-- "unsupported" immediately -- rather than waiting out an 8-tick await that
+-- can never resolve -- documents it as the recorded, justified gap plan U16
+-- calls for instead of costing the gate 8 idle ticks on every run it is
+-- exercised. Re-gate against a real mount only if the product decision is
+-- to open it: the scan below (skill container, text1/text2) is kept ready
+-- for that day, gated on the same presented check.
 function QD.levelup.skill()
-    local result, detail = await({
-        event = "sub_mounted",
-        level = QD.read._levelup_universe_presented,
-        note = "levelup.skill",
-    }, 8)
-    if result ~= "ok" then
-        return result, detail
+    if not QD.read._levelup_universe_presented() then
+        return "unsupported",
+            "levelup.skill: levelup_display has no content opener in this tree (plan U16)"
     end
 
     local skill_name = nil
@@ -422,10 +429,16 @@ end
 -- drives (D1: RESUME_PAUSEBUTTON, action_index -1) -- api.drive.resume
 -- directly, not QD.chat.continue_, which is scoped to chat_modal_host and
 -- would refuse to arm a component outside it.
+--
+-- Same plan-U16 gap as levelup.skill above: nothing in this content pack
+-- ever opens levelup_display, so the role never resolves to a live
+-- component and this answers "unsupported" rather than the bare "no_row" a
+-- content-pack bug would leave behind.
 function QD.levelup.continue_()
     local continue_id = QD.read._component_of("levelup_display:continue")
     if not continue_id then
-        return "no_row", "levelup.continue: no continue role"
+        return "unsupported",
+            "levelup.continue: levelup_display has no content opener in this tree (plan U16)"
     end
 
     local pending_result, pending_id = api_drive.pause_pending()

@@ -203,6 +203,29 @@ function QD.chat.drain(opts)
             QD.t.shot(kind)
         end
 
+        -- QD.t.shot pumps real frames waiting for the capture (D8/A1: a
+        -- screenshot is not free), and the PREVIOUS iteration's own click can
+        -- land during that pump -- the page mounted here can already be
+        -- stop_at, or a terminal kind, by the time this line runs, even
+        -- though `kind` above (read BEFORE the pump) still said otherwise.
+        -- Calling continue_ against that NEW page is wrong twice over: for
+        -- stop_at it burns a page the caller asked to stop before touching,
+        -- and for chatmenu/levelup_display/questscroll it always answers
+        -- `unsupported` (chat.continue_ has no seam for those on purpose --
+        -- see this file's own banner), which used to end drain right there
+        -- instead of reporting the stop_at it had actually reached.
+        -- Measured 2026-09-19: the cook's Talk-to page (~chatnpc_anim) lands
+        -- its reply during exactly this window and drain read "chatmenu has
+        -- no continue seam" on what was really a clean stop at "options".
+        local settled_kind = QD.chat.kind()
+        if settled_kind == stop_at then
+            return "ok", settled_kind
+        end
+        if settled_kind == "none" or settled_kind == "count" or settled_kind == "name"
+            or settled_kind == "other_input" then
+            return "ok", settled_kind
+        end
+
         local r, d = QD.chat.continue_()
         if r == "closed" then
             return "ok", "closed"

@@ -88,6 +88,16 @@ local NPC_DISPLAY_NAME = "Man"      -- npc.by_name matches the DISPLAY name
 local COOK_SYMBOL = "cook"          -- the head the cook's dialogue shows
 local LOC_SYMBOL = "tree"           -- Lumbridge has these in every direction
 local OBJ_SYMBOL = "airrune"        -- ::runes puts 25 in the backpack
+-- A fresh tutorial-graduate's own starting body slot (fresh_lumbridge.ini
+-- carries no [inv] section, so this is the fresh-character default, the
+-- same one inv.slot's own row already reads at slot 1) -- NOT OBJ_SYMBOL:
+-- `[opheld2,_] ~equip(last_slot)` (player/scripts/equip.rs2) is a real
+-- wildcard, but it still refuses an item with no worn slot, and air runes
+-- have none. player.equip answering "refused" every run on a rune is not a
+-- driver defect, it is the harness handing the verb a subject that can never
+-- pass -- QD.player.equip's own banner already says as much ("must read as
+-- refused, with the server's own sentence, not as success").
+local WEARABLE_OBJ_SYMBOL = "bronze_platebody"
 local ABSENT_OBJ_SYMBOL = "knife"   -- nothing here puts one in the backpack
 local VARP_SYMBOL = "tutorial"      -- the fixture pins it (perm scope)
 local VARP_VALUE = 1000             -- "tutorial finished" (docs/WORKTREE_SETUP.md)
@@ -634,14 +644,27 @@ return {
         step("player.inv_op", function()
             local fn = verb("player", "inv_op")
             if not fn then return missing("player", "inv_op") end
-            local result, detail = fn(OBJ_SYMBOL, 1)
+            -- NOT op 1. On rev-239 the backpack's IF3 cell carries a
+            -- CLIENT-SIDE on_op hook at op index 1 that is the shift-click-
+            -- drop chain (script 6014 -- app_minimenu.c's own comment on
+            -- app_inv_cell_op_flash, "the inventory slot builder puts the
+            -- shift-click-drop handler there"): app_inv_cell_op_flash fires
+            -- that hook for EVERY OPHELD1..5 dispatch, keyed on the SLOT,
+            -- not the item, so `inv_op(airrune, 1)` silently drops the whole
+            -- stack no matter what op 1 is "supposed" to mean for this obj.
+            -- Measured: the stack goes 26 -> 0 within the same tick this
+            -- verb's own settle resolves, and every verb after it that
+            -- needs the item (player.equip, player.drop) then answers
+            -- not_found. Op 3 carries no such client-side binding and is a
+            -- clean probe of the OPHELD dispatch path.
+            local result, detail = fn(OBJ_SYMBOL, 3)
             return result, describe(detail)
         end)
 
         step("player.equip", function()
             local fn = verb("player", "equip")
             if not fn then return missing("player", "equip") end
-            local result, detail = fn(OBJ_SYMBOL)
+            local result, detail = fn(WEARABLE_OBJ_SYMBOL)
             return result, describe(detail)
         end)
 
@@ -794,9 +817,21 @@ return {
 
         -- setup: the cook's quest-start dialogue -- an npc page (a head and a
         -- name) that runs on into a chatmenu.
+        --
+        -- NOT ::cookbmp_choice: that debugproc jumps straight to
+        -- @cooks_assistant_start, which opens with ~p_choice4(...) -- a bare
+        -- options menu with no head or name behind it at all
+        -- (quest_cook.rs2:41-42). chat.head/chat.name/chat.expect_head then
+        -- have nothing to read and answered unsupported/timeout every run.
+        -- ::cookbmp_talk drives the real Talk-to path instead (p_opnpc(1) ->
+        -- [opnpc1,cook], quest_cook.rs2:11-20): for a fresh %cookquest it
+        -- shows `~chatnpc_anim(^chat_sad, "What am I to do?")` -- a genuine
+        -- chat_left/right head+name+text page -- FIRST, and only then falls
+        -- into the same @cooks_assistant_start chatmenu this stage always
+        -- meant to reach.
         stage(function()
             settle(4)
-            setup_cheat("::cookbmp_choice")
+            setup_cheat("::cookbmp_talk")
             settle(4)
         end)
 
@@ -876,18 +911,44 @@ return {
 
         -- ------------------------ phase 7: the scroll and the levelup box
 
+        -- setup: a real questscroll on screen.  Nothing else in this harness
+        -- ever opens one, so scroll.title/rewards/close answered
+        -- not_visible/no_row every run and said nothing about the reader
+        -- behind them.  ::cookbmp_reward sets %cookquest = ^cook_complete and
+        -- calls ~quest_complete_rewards directly
+        -- (OSRS-Content/osrs239-content/server/scripts/quests/quest_cook/
+        -- scripts/quest_cook.rs2:297-300), which is the same completion scroll
+        -- the quest itself puts up -- with no inventory or dialogue
+        -- prerequisite of its own, so it works from whatever state phase 6
+        -- left behind.
+        stage(function()
+            settle(2)
+            setup_cheat("::cookbmp_reward")
+            settle(4)
+        end)
+
         step("scroll.title", function()
             local fn = verb("scroll", "title")
             if not fn then return missing("scroll", "title") end
             local result, detail = fn()
-            return answered(result, detail, "", is_text, "the title came back empty")
+            -- scroll.title answers a TABLE, `{name, points}`
+            -- (QUEST_DRIVER_PLAN.md S5: "scroll.title | () -> result,
+            -- {name,points}"), not a bare string -- this row used to test the
+            -- whole table with is_text, which no correct answer could ever
+            -- satisfy. The quest's NAME is the thing only a real scroll can
+            -- carry, so that is what is asserted.
+            return answered(result, detail, "", field("name", is_text),
+                "the quest name came back empty")
         end)
 
         step("scroll.rewards", function()
             local fn = verb("scroll", "rewards")
             if not fn then return missing("scroll", "rewards") end
             local result, detail = fn()
-            return answered(result, detail, "", field(1, is_text),
+            -- `{lines, icon}` (QUEST_DRIVER_PLAN.md S5), so the first line is
+            -- detail.lines[1] -- not detail[1], which is always nil and made
+            -- this row unsatisfiable by construction.
+            return answered(result, detail, "", field("lines", field(1, is_text)),
                 "a reward scroll with no first line is not a scroll")
         end)
 

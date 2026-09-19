@@ -113,6 +113,28 @@ DriveUi_Tab(struct App* app, int tab_number)
 }
 
 enum DriveResult
+DriveUi_TabByName(struct App* app, char const* name, int* out_tab_number)
+{
+    int number;
+
+    assert(app);
+    assert(name);
+    assert(out_tab_number);
+
+    *out_tab_number = -1;
+    /* RevConfigRefs_Get answers -1 for "this revision does not have that",
+     * which folds the two sources plan 5.8 names -- an explicit [tabs] row
+     * and the [role:panel_<name>] derivation -- into one table already
+     * built at boot (RevConfigRefs_AddItems, revconfig_refs.c:refs_add_tab_
+     * from_panel_role): nothing here re-derives either. */
+    number = RevConfigRefs_Get(&app->revconfig_refs, "tab", name);
+    if( number < 0 )
+        return DRIVE_NO_ROW;
+    *out_tab_number = number;
+    return DRIVE_OK;
+}
+
+enum DriveResult
 DriveUi_ModalLive(struct App* app, int* out_live)
 {
     assert(app);
@@ -307,6 +329,12 @@ DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int*
      * -- so this matches npc_json's narrower, root-only scope instead of
      * guessing at the aboard-view base tile math). */
     pool = &app->world->entities.scenery;
+    if( getenv("TORIRS_DRIVE_DEBUG") )
+        fprintf(stderr,
+            "drive_locs: world=%p scenery_pool=%d head=%d have_player=%d at %d,%d base=%d,%d "
+            "radius=%d\n",
+            (void*)app->world, pool->count, World_EntityPoolHead(pool), have_player, px, pz,
+            base_x, base_z, radius);
     for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
@@ -318,6 +346,13 @@ DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int*
             continue;
         tile_x = base_x + sc->grid_position.x;
         tile_z = base_z + sc->grid_position.z;
+        if( getenv("TORIRS_DRIVE_DEBUG") )
+        {
+            char sym[128] = "?";
+            DriveSymbol_Name(DRIVE_SYMBOL_LOC, sc->loc_id, sym, (int)sizeof(sym));
+            fprintf(stderr, "drive_locs: index %d loc_id=%d(%s) at %d,%d\n", i, sc->loc_id, sym,
+                tile_x, tile_z);
+        }
         if( have_player && !drive_ui_within_radius(tile_x, tile_z, px, pz, radius) )
             continue;
 
@@ -670,6 +705,24 @@ lua_drive_tab(struct lua_State* L)
 }
 
 static int
+lua_drive_tab_by_name(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    char const* name = PluginDrive_ArgString(L, 1);
+    int tab_number = -1;
+    enum DriveResult result;
+
+    assert(app);
+    result = DriveUi_TabByName(app, name, &tab_number);
+    lua_pushstring(L, DriveResultName(result));
+    if( result == DRIVE_OK )
+        lua_pushinteger(L, tab_number);
+    else
+        lua_pushnil(L);
+    return 2;
+}
+
+static int
 lua_drive_modal_live(struct lua_State* L)
 {
     struct App* app = PluginDrive_App();
@@ -734,13 +787,27 @@ lua_drive_npcs(struct lua_State* L)
 static int
 lua_drive_locs(struct lua_State* L)
 {
+    /*
+     * R-B (locs): 64 was the npc-pool figure, carried over without checking
+     * the scenery pool's own scale. A live Lumbridge walk (TORIRS_DRIVE_DEBUG=1)
+     * found 8,515 scenery entities in the world and 7,479 inside radius 60 of
+     * the player -- walls, fences and floor decor alone dwarf 64, so the
+     * nearest-K insertion above filled entirely with those and every "tree"
+     * (53 within that same radius) ranked outside the kept window and never
+     * reached DriveUi_Locs's caller. world.loc_near's own linear scan for a
+     * matching loc_id then saw a truncated table and answered not_found on a
+     * symbol the map is "full of" (test/quests/_conformance.lua's own
+     * comment on LOC_SYMBOL) -- this cap, not the symbol table or the pool
+     * walk, was R-B's remaining bug. 8192 covers the observed pool with
+     * headroom; `static` (like g_drive_ui_shot_path above) keeps a buffer
+     * this size off the stack. */
     enum
     {
-        DRIVE_UI_POOL_CAP = 64
+        DRIVE_UI_POOL_CAP = 8192
     };
     struct App* app = PluginDrive_App();
     int radius = PluginDrive_ArgOptInt(L, 1, 0);
-    struct DriveLocRow rows[DRIVE_UI_POOL_CAP];
+    static struct DriveLocRow rows[DRIVE_UI_POOL_CAP];
     int count = 0;
     enum DriveResult result;
     int i;
@@ -770,13 +837,18 @@ lua_drive_locs(struct lua_State* L)
 static int
 lua_drive_objs(struct lua_State* L)
 {
+    /* Same audit as lua_drive_locs above (R-B): ground-item stacks are far
+     * fewer than static scenery in the areas this driver has actually
+     * walked, so 64 has not been observed to truncate one, but the failure
+     * mode is identical if a quest test ever drops enough loot nearby --
+     * raised alongside locs' fix rather than leaving a same-shaped trap. */
     enum
     {
-        DRIVE_UI_POOL_CAP = 64
+        DRIVE_UI_POOL_CAP = 2048
     };
     struct App* app = PluginDrive_App();
     int radius = PluginDrive_ArgOptInt(L, 1, 0);
-    struct DriveObjRow rows[DRIVE_UI_POOL_CAP];
+    static struct DriveObjRow rows[DRIVE_UI_POOL_CAP];
     int count = 0;
     enum DriveResult result;
     int i;
@@ -876,6 +948,7 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"component", lua_drive_component},
     {"if_click", lua_drive_if_click},
     {"tab", lua_drive_tab},
+    {"tab_by_name", lua_drive_tab_by_name},
     {"modal_live", lua_drive_modal_live},
     {"npcs", lua_drive_npcs},
     {"locs", lua_drive_locs},

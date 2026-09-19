@@ -15,12 +15,10 @@
 -- `api.drive.*` and `QD.await` are both wrong here, `api_drive.*` and
 -- `await` are right.
 --
--- ui.invoke and ui.tab compose api_drive.if_click / api_drive.tab, which are
--- UNSUPPORTED today (see torirs_plugin_drive_ui.c's file banner and the
--- BUILDER report): neither app_plugin_if_click nor app_plugin_tab_select is
--- reachable outside torirs_plugin_bridge.u.c yet. The composition below is
--- complete and will start working the moment that seam lands -- nothing here
--- needs to change.
+-- ui.invoke and ui.tab compose api_drive.if_click / api_drive.tab, both wired
+-- through the test-only exports App_PluginDriveIfClick / App_PluginDriveTabSelect
+-- (torirs_plugin_drive_ui.c's file banner) -- this stale note used to say they
+-- were unreachable; a live run (verb conformance) shows both PASS.
 
 -- ui.open deviates from plan 5.8's single-argument ui.open(interface): no
 -- name -> debugproc table exists anywhere in this tree (every interface's
@@ -82,18 +80,26 @@ function QD.ui.invoke(widget, op)
 end
 
 -- "the numbering the ini already documents" (plan 5.8): no name -> tab
--- number table is reachable from Lua today (porcelain_frames.c's own
--- PORCELAIN_TAB_NAME is a different plugin layer's table, and the
--- profile's [tabs] map it defers to is read through RevConfigRefs_Get, a
--- C-only call this group has no seam exposing). A numeric tab still works
--- end to end once api_drive.tab is unblocked; a name does not yet. Flagged
--- in the BUILDER report.
+-- number table (porcelain_frames.c's own PORCELAIN_TAB_NAME is a different
+-- plugin layer's table, not this one). api_drive.tab_by_name resolves a name
+-- through app->revconfig_refs' "tab" kind, the same table RevConfigRefs_Get
+-- answers everywhere else in the engine: the profile's [tabs] map when a lane
+-- states one, else the [role:panel_<name>] match=slot(sidebar, <n>) rows a
+-- 2004 profile already carries (refs_add_tab_from_panel_role,
+-- revconfig_refs.c) -- one question, one spelling, on every lane. A numeric
+-- name is still passed straight through: it means "this tab number", not
+-- "a name that happens to parse as one".
 function QD.ui.tab(name)
     local tab_number = tonumber(name)
-    if not tab_number then
-        return "no_row", "ui.tab: no name->number table wired yet, pass a tab number"
+    if tab_number then
+        return api_drive.tab(tab_number)
     end
-    return api_drive.tab(tab_number)
+    local sym_result, number = api_drive.tab_by_name(name)
+    if sym_result ~= "ok" then
+        return "no_row", string.format(
+            "ui.tab: %s is in neither the [tabs] map nor a panel_%s role", name, name)
+    end
+    return api_drive.tab(number)
 end
 
 function QD.ui.is_modal()

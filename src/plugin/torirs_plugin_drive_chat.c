@@ -139,6 +139,7 @@ enum DriveResult
 DriveChat_ClickArmed(struct App* app, int component_id, int* out_armed)
 {
     int32_t idx;
+    unsigned effective;
 
     assert(app);
     assert(out_armed);
@@ -154,7 +155,23 @@ DriveChat_ClickArmed(struct App* app, int component_id, int* out_armed)
     /* The same test add_component_rows makes per row (rs_minimenu_build.c:1073),
      * through the effective (IF_SETEVENTS-overridden) mask, not the
      * cache-authored one alone. */
-    *out_armed = (App_IfEventsGetEffective(app, component_id) & RS_MINIMENU_EVENT_CLICK) ? 1 : 0;
+    effective = App_IfEventsGetEffective(app, component_id);
+    /* objectbox has no continue child (D1): if_addresumebutton arms
+     * objectbox:universe itself, a PLAIN (non-dynamic) leaf with no
+     * cache-baked click_mask of its own -- unlike chat_left:continue and
+     * friends, which read armed off that baked mask regardless. The
+     * server's SS_OP_IF_ADDRESUMEBUTTON (torirs_server_scripts.c) always
+     * registers its range starting at sub 0 (never sub -1, "a plain
+     * component has no sub-ids" per that handler's own banner), while
+     * UIIfEventTable_Effective's own-identity probe for a non-dynamic node
+     * is sub -1 (uitree_if_events.c: UIIfEventTable_Effective ->
+     * UIIfEventTable_Lookup(table, com_id, -1, ...)) -- a range that starts
+     * at 0 never covers -1, so the dynamic arm is invisible to Effective()
+     * for exactly this shape of component. Fall back to the same sub=0 the
+     * server actually wrote before concluding "not armed". */
+    if( !(effective & RS_MINIMENU_EVENT_CLICK) )
+        effective = (unsigned)App_IfEventsGetAt(app, component_id, 0);
+    *out_armed = (effective & RS_MINIMENU_EVENT_CLICK) ? 1 : 0;
     return DRIVE_OK;
 }
 
