@@ -851,6 +851,8 @@ Task_AppBoot_Run(
     /* Cleared, or held for a reconnect: @see app_title_boot_settled. */
     app_title_boot_settled(app);
     app->app_state = APP_STATE_READY;
+    /* The tree can draw now, so there is nothing left to hold. */
+    app->boot_hold_last_frame = 0;
     ToriRS_BootTelemetry_Mark(app->screen == APP_SCREEN_GAME ? "ready:game" : "ready:title");
     /* A freshly baked title tree shows every screen's group at once until it is
      * told which one is current. */
@@ -960,6 +962,9 @@ app_open_tree(
     app->builder_active = 1;
 
     app->app_state = APP_STATE_BOOTING;
+    /* Every bake decides for itself whether it may paint; the default is that
+     * it may. Only App_Logout says otherwise, and it says so after this. */
+    app->boot_hold_last_frame = 0;
     app->boot_interface_id = interface_id;
     /* A quiet bake leaves the bar where the loud one parked it (100) instead
      * of walking it back to zero for work the first bake already narrated.

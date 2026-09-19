@@ -2192,6 +2192,29 @@ struct App
      *  tree has finished baking, this says which tree it is. */
     int screen;
     int boot_progress; /* 0..100, drives the loading bar while BOOTING */
+    /**
+     * This bake must not paint: the screen keeps the frame it already has.
+     *
+     * A logout bake is the one bake with something worth keeping behind it.
+     * Everything else that rebakes a tree either has nothing on screen yet
+     * (the boot) or is covered by the bar the boot left standing (the title
+     * swap, the post-login gameframe); a logout comes off a live world, and
+     * the reference goes from that world straight to the login form. Drawing
+     * the boot bar over it puts a loading screen between two screens that
+     * were both ready -- and since the bake is quiet the bar is not even
+     * moving, so what the player sees is a full bar flashing on a cleared
+     * canvas for as many frames as the bake takes.
+     *
+     * So the frame declines instead: App_RunOnce returns no commit while this
+     * is set, and the host presents its retained frame (the software surface
+     * re-uploads its pixels; the GPU lanes leave their front buffer alone).
+     * The world stands still -- it is gone, the session ended -- until the
+     * title tree can draw the login screen in one step.
+     *
+     * Set by App_Logout, cleared by the next bake that starts and by the bake
+     * that settles. @see App_BootHoldsLastFrame.
+     */
+    int boot_hold_last_frame;
     /* Boot pump accounting (TORIRS_BOOT_STATS): how many frames the boot took,
      * how many scheduler steps ran in total, and how many of those frames hit
      * the per-frame step budget — the last one is what says whether the boot is
@@ -4124,6 +4147,16 @@ bool
 App_IsBooting(
     struct App* app,
     int* out_progress);
+
+/**
+ * Is this bake one that must show nothing at all?
+ *
+ * True only for the title bake a logout starts. A host that gets no commit
+ * from App_RunOnce already retains its last frame; this is why it got none.
+ * @see App::boot_hold_last_frame.
+ */
+int
+App_BootHoldsLastFrame(struct App const* app);
 
 /**
  * The boot bar's caption, and the scene font id to draw it with.

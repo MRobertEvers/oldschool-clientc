@@ -202,6 +202,23 @@ App_Logout(struct App* app)
     RS_TitleSession_Abandon(&app->title_session);
     TORIRS_LOG("logout: session ended; back to the title screen\n");
     App_OpenTitleScreen(app);
+    /*
+     * And nothing is drawn until that tree is ready.
+     *
+     * The bake this just started clears the gameframe and puts the session
+     * back into BOOTING, which is the loading screen -- a full, motionless bar
+     * on a cleared canvas, because a post-boot bake is quiet and leaves the
+     * bar at 100. Between a world that was on screen and a login form that is
+     * about to be, that is a flicker and nothing else: neither screen was
+     * waiting on anything the player can see. So the frames the bake takes
+     * show the last one that was committed, and the next thing drawn is the
+     * login screen. @see App::boot_hold_last_frame.
+     *
+     * After App_OpenTitleScreen, not before: app_open_tree clears this at the
+     * head of every bake, so that the flag can never outlive the one it was
+     * set for.
+     */
+    app->boot_hold_last_frame = 1;
 }
 
 /*

@@ -65,6 +65,15 @@ App_IsBooting(
     return app->app_state == APP_STATE_BOOTING;
 }
 
+int
+App_BootHoldsLastFrame(struct App const* app)
+{
+    assert(app);
+    /* Both halves, because the flag outlives nothing but its own bake: a bake
+     * that has settled is READY and draws normally whatever the flag says. */
+    return app->app_state == APP_STATE_BOOTING && app->boot_hold_last_frame;
+}
+
 bool
 App_BuildFrame(
     struct App* app,

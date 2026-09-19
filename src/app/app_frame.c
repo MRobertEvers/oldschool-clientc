@@ -671,6 +671,12 @@ App_RunOnce(
     {
         /* Loading screen frame; no logic/interaction until the tree exists. */
         app->last_logic_ms = now_ms;
+        /* Unless this bake has a frame worth keeping behind it: no commit, so
+         * the host presents the one it already has, and need_redraw stays set
+         * for the frame that finds the tree finished. @see
+         * App_BootHoldsLastFrame. */
+        if( App_BootHoldsLastFrame(app) )
+            return 0;
         app->need_redraw = 0;
         return 1;
     }
@@ -848,6 +854,22 @@ App_RunOnce(
          * They read the fraction where the logic reads whole cycles, which is
          * the only difference between the two that should exist. */
         app_world_frame(app, ticks, (float)app->logic_frame_ms / (float)APP_LOGIC_TICK_MS);
+    }
+
+    /* A logout inside one of those ticks took the gameframe down with it: the
+     * tree below is empty and the bake that replaces it has asked for the last
+     * frame to stand. Leave before the interaction pass rebuilds an emit list
+     * from nothing -- this is the frame that would otherwise draw the boot bar
+     * the hold exists to avoid, the early-out above catching only the frames
+     * after it. @see App_BootHoldsLastFrame. */
+    if( App_BootHoldsLastFrame(app) )
+    {
+        /* The frame still TOOK this input: the click it carried is the one
+         * that logged out. Leaving it unconsumed would hold it over (a press
+         * still held survives a BOOTING frame by design) and replay it on the
+         * login form that is about to appear. */
+        app->input_frame_consumed = 1;
+        return 0;
     }
 
     /* Resume a parked packet pipeline at frame rate, not tick rate. A packet
