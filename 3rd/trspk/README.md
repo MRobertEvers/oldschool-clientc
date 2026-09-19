@@ -15,6 +15,10 @@ defects are registered in
 - `opengl3/` — GL proc loader, vertex layout, embedded GLSL
 - `gles2/`, `webgl1/`, `d3d9/` — vertex layouts (kept for the VBO union;
   `gles2/` is the layout the shared GLES2/WebGL1 renderer bakes)
+- `webgl2/` — not a fourth layout: the browser's WebGL2 renderer bakes the
+  `gles2/` vertex too, so the two share every TRSPK helper. The header records
+  which GL calls read those 28 bytes differently, and why the vertex is
+  deliberately not widened for ES 3.0
 
 ## Build
 

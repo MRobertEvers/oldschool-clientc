@@ -76,20 +76,29 @@ LANE_FORBID_win64  := -march=i686 -march=pentium4 -mfpmath=387 console:5.01 -dea
                       TORIRS_CHROME_EXEC_WEB_AVAILABLE \
                       ui/torirs_chrome_exec_web.c
 
-# --- Web: WebGL1 pinned, and no ASYNCIFY ------------------------------------
+# --- Web: both GPU renderers, and no ASYNCIFY -------------------------------
 # The IO path yields to the main loop and lets torirs_host.js pump responses
 # back in (docs/web_build.md). ASYNCIFY would rewrite the entire module to buy
 # the same behaviour at a large size and speed cost, so its absence is a
 # property of the design rather than an accident worth re-deciding.
 #
-# TORIRS_HAVE_GLES2 is the GPU renderer here -- the same four GLES2 units the
-# Android lane links, against WebGL1. TORIRS_HAVE_GL3 and TORIRS_GL_ES2 are
-# forbidden: the first would offer main.c a GL 3.2 renderer no browser can
-# create, the second was the switch of the retired WebGL1 fork of that
-# renderer, and webgl1_index16 was that fork's index-splitting object.
-LANE_REQUIRE_web := -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1 \
+# This lane carries TWO GPU renderers: TORIRS_HAVE_GLES2, the four GLES2 units
+# the Android lane also links, run against WebGL1; and TORIRS_HAVE_WEBGL2, the
+# four platform_renderer_webgl2_*.c units, run against WebGL2 (WEB-GL2-000).
+# MAX_WEBGL_VERSION is therefore 2 -- the runtime has to be able to make either
+# context -- and which one each renderer gets is decided per renderer at
+# creation, not by the runtime; check-webgl1-es2 below is what keeps the first
+# one honest now that the link-time pin cannot.
+#
+# TORIRS_HAVE_GL3 and TORIRS_GL_ES2 stay forbidden: the first would offer
+# main.c a GL 3.2 renderer no browser can create, the second was the switch of
+# the retired WebGL1 fork of the GLES2 renderer, and webgl1_index16 was that
+# fork's index-splitting object.
+LANE_REQUIRE_web := -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=2 \
                     GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 \
                     TORIRS_HAVE_GLES2=1 \
+                    TORIRS_HAVE_WEBGL2=1 \
+                    platform/platform_renderer_webgl2_core.c \
                     TORIRS_CHROME_EXEC_WEB_AVAILABLE=1 \
                     ui/torirs_chrome_exec_web.c
 # -O0 is forbidden here at any OPT level, which is the one lane where that is
@@ -98,6 +107,7 @@ LANE_REQUIRE_web := -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1 \
 # (PLATFORM_DEBUG_O_LEVEL in platform.mk) rather than the -O0 every other lane
 # gets. Check it with: make -C src lane-check PLATFORM=web OPT=0
 LANE_FORBID_web  := ASYNCIFY -dead_strip -O0 TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl1_index16 \
+                    -sMAX_WEBGL_VERSION=1 \
                     TORIRS_CHROME_EXEC_BROWSER_AVAILABLE \
                     ui/torirs_chrome_exec_winbrowser.c
 
@@ -168,10 +178,14 @@ LANE_EXTRA_CHECKS_win64 := lane-check-toolchain-win64 lane-check-fixed-function-
 # proves it of the ARTIFACT: a linked library with an SDL symbol in it would
 # mean SDL arrived some way the flags do not show.
 LANE_EXTRA_CHECKS_android := lane-check-no-sdl-android
+# The web lane carries both GPU renderers, so the ES2 one's ceiling is no
+# longer guaranteed by the link. It is checked in its sources instead.
+LANE_EXTRA_CHECKS_web := lane-check-webgl1-es2 lane-check-webgl2-no-extensions
 
 .PHONY: lane-check lane-check-flags lane-check-all lane-check-artifact \
         lane-check-toolchain-win32 lane-check-toolchain-win64 \
-        lane-check-fixed-function-win32 lane-check-no-sdl-android
+        lane-check-fixed-function-win32 lane-check-no-sdl-android \
+        lane-check-webgl1-es2 lane-check-webgl2-no-extensions
 
 lane-check: lane-check-flags $(LANE_EXTRA_CHECKS_$(PLATFORM))
 
@@ -194,6 +208,30 @@ lane-check-flags:
 # x86_64; each Windows wrapper runs the full check with its own compiler.
 lane-check-all:
 	@for p in $(PLATFORM_LIST); do $(MAKE) --no-print-directory PLATFORM=$$p lane-check-flags || exit 1; done
+
+# The WebGL1 renderer must stay inside OpenGL ES 2.0 core, and neither web GPU
+# renderer may reach for an extension. Both are source questions, not flag
+# ones, so they are asked of the files by tools/webgl_lane_audit.py -- which
+# also says, at length, why the link can no longer answer the first.
+WEBGL1_ES2_SRCS := platform/platform_renderer_gles2_core.c \
+                   platform/platform_renderer_gles2_core.h \
+                   platform/platform_renderer_gles2_ui.c \
+                   platform/platform_renderer_gles2_painter.c \
+                   platform/platform_renderer_gles2_zbuffer.c \
+                   platform/platform_renderer_gles2_shaders.h
+WEBGL2_SRCS := platform/platform_renderer_webgl2_core.c \
+               platform/platform_renderer_webgl2_core.h \
+               platform/platform_renderer_webgl2_ui.c \
+               platform/platform_renderer_webgl2_painter.c \
+               platform/platform_renderer_webgl2_zbuffer.c \
+               platform/platform_renderer_webgl2_shaders.h
+
+lane-check-webgl1-es2:
+	@python3 $(REPO_ROOT)/tools/webgl_lane_audit.py --es2 $(WEBGL1_ES2_SRCS)
+
+lane-check-webgl2-no-extensions:
+	@python3 $(REPO_ROOT)/tools/webgl_lane_audit.py --no-extensions \
+		$(WEBGL2_SRCS) $(WEBGL1_ES2_SRCS)
 
 # 32-bitness is not forced with -m32 (on an x86_64 MinGW without multilib that
 # fails deep in the assembler with nothing pointing at the cause). The triple is

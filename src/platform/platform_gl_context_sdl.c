@@ -25,9 +25,32 @@ as_sdl_window(ToriRS_GLWindow* window)
 }
 
 ToriRS_GLContext
-ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits)
+ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLClient client)
 {
     SDL_GLContext context;
+
+    if( client != TORIRS_GL_CLIENT_DEFAULT )
+    {
+        /*
+         * Asked for BEFORE the context, like the depth request below, and for
+         * the same reason: SDL reads it in SDL_GL_CreateContext and nowhere
+         * else.
+         *
+         * In the browser this is the whole difference between the two GPU
+         * renderers. SDL's emscripten backend passes the major version
+         * through EGL as EGL_CONTEXT_CLIENT_VERSION, and emscripten's EGL
+         * maps 2 to a WebGL1 canvas context and 3 to a WebGL2 one. So the
+         * WebGL1 renderer still gets a WebGL1 context on a build that can
+         * make both, and a GLES3 call from it would fail here rather than in
+         * someone else's browser -- which is what the build's old
+         * MAX_WEBGL_VERSION=1 pin used to guarantee and can no longer, now
+         * that the module contains a renderer that needs WebGL2.
+         */
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+        SDL_GL_SetAttribute(
+            SDL_GL_CONTEXT_MAJOR_VERSION, client == TORIRS_GL_CLIENT_ES3 ? 3 : 2);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    }
 
     if( depth_bits > 0 )
     {

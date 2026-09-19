@@ -61,6 +61,15 @@ static struct ToriRS_GLES2DualCore* gles2_dualcore_lane;
 #else
 struct ToriRS_GLES2;
 #endif
+#if defined(TORIRS_HAVE_WEBGL2)
+/* The browser's second GPU renderer: OpenGL ES 3.0 on a WebGL2 context
+ * (--webgl2 / --webgl2-zbuffer). A separate renderer from the WebGL1 one --
+ * its own files, its own type, its own entry in ToriRS_RendererKind -- and
+ * not a mode of it; see platform/platform_renderer_webgl2.h for why. */
+#include "platform/platform_renderer_webgl2.h"
+#else
+struct ToriRS_WebGL2;
+#endif
 /* GL/WebGL remains opt-in. The XP lane instead defaults to classic fixed-
  * function D3D9; --soft3d explicitly selects its GDI fallback. */
 #define TORIRS_GPU_DEFAULT 0
@@ -490,6 +499,18 @@ capture_from_gles2(
 }
 #endif
 
+#if defined(TORIRS_HAVE_WEBGL2)
+static int
+capture_from_webgl2(
+    void* user,
+    int* pixels,
+    int width,
+    int height)
+{
+    return ToriRS_WebGL2_ReadPixels((struct ToriRS_WebGL2*)user, pixels, width, height) ? 1 : 0;
+}
+#endif
+
 static int
 capture_from_software(
     void* user,
@@ -620,7 +641,8 @@ interactive_render_present(
     struct PlatformWindow* platform,
     struct ToriRS_GL3* gl3,
     struct ToriRS_D3D9* d3d9,
-    struct ToriRS_GLES2* gles2)
+    struct ToriRS_GLES2* gles2,
+    struct ToriRS_WebGL2* webgl2)
 {
     int const interface_scale_mode = RS_CS2Host_UiScaleMode(&app->host);
     struct ClientScaleSettings client_scale;
@@ -793,6 +815,70 @@ interactive_render_present(
     (void)gles2;
 #endif
 
+#if defined(TORIRS_HAVE_WEBGL2)
+    if( webgl2 )
+    {
+        struct ToriRS_Frame frame;
+        int progress = 0;
+        int pick_armed = 0;
+
+        App_NoteFrameDrawn(app);
+        ToriRS_WebGL2_SetInterfaceScaleMode(webgl2, interface_scale_mode);
+        ToriRS_WebGL2_SetClientScaling(webgl2, &client_scale);
+
+        if( App_IsBooting(app, &progress) )
+        {
+            int caption_font_id = -1;
+            char const* caption = App_BootBarCaption(app, &caption_font_id);
+
+            ToriRS_WebGL2_DrawBootBar(
+                webgl2, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+        }
+        else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
+        {
+            if( app->world_mouse_in_viewport )
+            {
+                ToriRS_WebGL2_SetPick(webgl2, app->world_mouse_x, app->world_mouse_y);
+                pick_armed = 1;
+            }
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
+            {
+                ToriRS_WebGL2_RenderFrame(webgl2, &frame);
+            }
+            if( torirs_env_frame_debug() )
+                TORIRS_LOG(
+                    "frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+                    frame.dbg_emit_element,
+                    frame.dbg_emit_terrain,
+                    frame.dbg_drop_not_live,
+                    frame.dbg_drop_no_model);
+            if( pick_armed )
+            {
+                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
+                {
+                    App_PickFinish(app, ToriRS_WebGL2_PickHits(webgl2));
+                }
+            }
+        }
+        /* BEFORE the swap, for the same reason the WebGL1 lane reads there:
+         * the drawable's contents are undefined once it has been presented. */
+        App_DrawComplete(app, capture_from_webgl2, webgl2);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
+        {
+#if defined(TORIRS_FRAME_TIMES)
+            uint64_t before_us = PlatformWindow_TicksUs();
+#endif
+            PlatformWindow_PresentGL(platform);
+#if defined(TORIRS_FRAME_TIMES)
+            ToriRS_FrameTimes_Present(before_us, PlatformWindow_TicksUs());
+#endif
+        }
+        return;
+    }
+#else
+    (void)webgl2;
+#endif
+
 #if defined(TORIRS_HAVE_GL3)
     if( gl3 )
     {
@@ -945,7 +1031,8 @@ interactive_present_retained(
     struct PlatformWindow* platform,
     struct ToriRS_GL3* gl3,
     struct ToriRS_D3D9* d3d9,
-    struct ToriRS_GLES2* gles2)
+    struct ToriRS_GLES2* gles2,
+    struct ToriRS_WebGL2* webgl2)
 {
 #if defined(TORIRS_HAVE_D3D9)
     if( d3d9 )
@@ -958,6 +1045,12 @@ interactive_present_retained(
         return;
 #else
     (void)gles2;
+#endif
+#if defined(TORIRS_HAVE_WEBGL2)
+    if( webgl2 )
+        return;
+#else
+    (void)webgl2;
 #endif
 #if defined(TORIRS_HAVE_GL3)
     if( gl3 )
@@ -1055,6 +1148,8 @@ static struct ToriRS_GL3* gl3;
 static struct ToriRS_D3D9* d3d9;
 /* NULL unless the Android GLES2 renderer was built AND --gles2 was passed. */
 static struct ToriRS_GLES2* gles2;
+/* NULL unless the WebGL2 renderer was built AND --webgl2 was passed. */
+static struct ToriRS_WebGL2* webgl2;
 
 /* --- the renderer, and switching it live ---------------------------------
  *
@@ -1088,6 +1183,8 @@ renderer_present(enum ToriRS_RendererKind kind)
     case TORIRS_RENDERER_KIND_OPENGL3_DEPTH:
     case TORIRS_RENDERER_KIND_GLES2:
     case TORIRS_RENDERER_KIND_GLES2_DEPTH:
+    case TORIRS_RENDERER_KIND_WEBGL2:
+    case TORIRS_RENDERER_KIND_WEBGL2_DEPTH:
         return PLATFORM_PRESENT_GL;
     case TORIRS_RENDERER_KIND_D3D9:
     case TORIRS_RENDERER_KIND_D3D9_DEPTH:
@@ -1124,6 +1221,13 @@ renderer_built(enum ToriRS_RendererKind kind)
     case TORIRS_RENDERER_KIND_D3D9:
     case TORIRS_RENDERER_KIND_D3D9_DEPTH:
 #if defined(TORIRS_HAVE_D3D9)
+        return true;
+#else
+        return false;
+#endif
+    case TORIRS_RENDERER_KIND_WEBGL2:
+    case TORIRS_RENDERER_KIND_WEBGL2_DEPTH:
+#if defined(TORIRS_HAVE_WEBGL2)
         return true;
 #else
         return false;
@@ -1183,6 +1287,9 @@ renderer_start(enum ToriRS_RendererKind kind)
 #if defined(TORIRS_HAVE_GLES2)
     assert(!gles2);
 #endif
+#if defined(TORIRS_HAVE_WEBGL2)
+    assert(!webgl2);
+#endif
     switch( kind )
     {
     case TORIRS_RENDERER_KIND_SOFTWARE:
@@ -1239,6 +1346,28 @@ renderer_start(enum ToriRS_RendererKind kind)
         return true;
     }
 #endif
+#if defined(TORIRS_HAVE_WEBGL2)
+    case TORIRS_RENDERER_KIND_WEBGL2:
+    case TORIRS_RENDERER_KIND_WEBGL2_DEPTH:
+    {
+        bool const depth = kind == TORIRS_RENDERER_KIND_WEBGL2_DEPTH;
+        webgl2 = ToriRS_WebGL2_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        assert(webgl2);
+        if( !ToriRS_WebGL2_Init(webgl2, PlatformWindow_GLWindow(platform), app.scene, depth) )
+        {
+            TORIRS_ERR("WebGL2 renderer init failed\n");
+            ToriRS_WebGL2_Free(webgl2);
+            webgl2 = NULL;
+            return false;
+        }
+        /* Same contract as every other GPU renderer: the depth pass needs the
+         * app to stop collecting the visible set through the tile wavefront
+         * and the opaque face-distance sort. */
+        App_SetWorldRenderMode(&app, depth ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
+        App_SetRendererAnimatesTextures(&app, true);
+        return true;
+    }
+#endif
 #if defined(TORIRS_HAVE_D3D9)
     case TORIRS_RENDERER_KIND_D3D9:
     case TORIRS_RENDERER_KIND_D3D9_DEPTH:
@@ -1277,6 +1406,10 @@ renderer_stop(void)
 #if defined(TORIRS_HAVE_GLES2)
     ToriRS_GLES2_Free(gles2);
     gles2 = NULL;
+#endif
+#if defined(TORIRS_HAVE_WEBGL2)
+    ToriRS_WebGL2_Free(webgl2);
+    webgl2 = NULL;
 #endif
 #if defined(TORIRS_HAVE_GL3)
     ToriRS_GL3_Free(gl3);
@@ -3592,6 +3725,10 @@ frame_loop_step(void)
         if( gles2 )
             ToriRS_GLES2_SetViewport(gles2, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
+#if defined(TORIRS_HAVE_WEBGL2)
+        if( webgl2 )
+            ToriRS_WebGL2_SetViewport(webgl2, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+#endif
     }
 
     app_redraw = 0;
@@ -3753,14 +3890,14 @@ frame_loop_step(void)
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
         {
-            interactive_render_present(&app, platform, gl3, d3d9, gles2);
+            interactive_render_present(&app, platform, gl3, d3d9, gles2, webgl2);
         }
     }
     else
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
-            interactive_present_retained(platform, gl3, d3d9, gles2);
+            interactive_present_retained(platform, gl3, d3d9, gles2, webgl2);
         }
     }
 
@@ -3802,22 +3939,25 @@ frame_loop_step(void)
             int const window_h = App_FixedWindowHeight(&app);
             app.host.client_scale_dirty = false;
             /*
-             * Clear the follow gate FIRST, then snap the window.
+             * Clearing the follow gate IS the snap: with follow=false the
+             * platform states the floor and sizes the window to it, in that
+             * order, and it is the one path that caps both at the display.
+             * The frame times the interface scale is not a size any display
+             * has to hold -- at 300% it is 2295x1509 points, and the window
+             * that came back from a screen change was larger than the desk,
+             * with a minimum size to match. @see platform_window.h.
              *
-             * Both calls end in the same SDL_SetWindowSize(w + pane, h), so
-             * the order looks free -- but leaving resizable is where the
-             * platform records the window size to hand back on the way in
-             * again (PlatformWindow_SetCanvasFollowsWindow's `resizable_w`),
-             * and it records what SDL reports at that moment. Snapping first
-             * meant it read the already-snapped 765x503, remembered nothing,
-             * and a later return to resizable restored the fixed frame's size
-             * instead of the window the user had. Visible the moment a lane
-             * pins fixed before a resizable plugin frame commits: the Modern
-             * Resizable layout came up in a 765x503 window on a 1200x800
-             * desktop.
+             * It also has to run BEFORE anything else resizes the window:
+             * leaving resizable is where the platform records the size to
+             * hand back on the way in again (`resizable_w`), and it records
+             * what SDL reports at that moment. A snap first meant it read the
+             * already-snapped 765x503, remembered nothing, and a later return
+             * to resizable restored the fixed frame's size instead of the
+             * window the user had. Visible the moment a lane pins fixed
+             * before a resizable plugin frame commits: the Modern Resizable
+             * layout came up in a 765x503 window on a 1200x800 desktop.
              */
             PlatformWindow_SetCanvasFollowsWindow(platform, &bus, false, window_w, window_h);
-            PlatformWindow_SetWindowSize(platform, window_w, window_h);
             if( getenv("TORIRS_RESIZE_DEBUG") )
                 TORIRS_REPORT(
                     "fixed-chrome: canvas %dx%d window %dx%d (scale %d%%)\n",
@@ -5088,6 +5228,10 @@ struct MainArgState
     /* The GLES2 renderer driven through the dual-core lane
      * (--gles2-dualcore / --gles2-dualcore-zbuffer). */
     int gles2_dualcore;
+    /* The browser's WebGL2 renderer, and its depth-buffered pass
+     * (--webgl2 / --webgl2-zbuffer). */
+    int use_webgl2;
+    int webgl2_zbuffer;
     /* A renderer flag was given, by the command line or the manifest. The
      * launch then starts with that renderer whatever Client Settings saved. */
     int renderer_flag;
@@ -5105,7 +5249,8 @@ main_print_usage(char const* program)
         "[--js5-fallback-port N] [--js5-revision N] [--uncapped] "
         "[--pacer gameshell|deadline] "
         "[--windowmode fixed|resizable] [--window WxH] "
-        "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|--gles2|"
+        "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|"
+        "--webgl2|--webgl2-zbuffer|--gles2|"
         "--gles2-zbuffer|--gles2-dualcore|--gles2-dualcore-zbuffer|"
         "--d3d9|--d3d9-zbuffer|--soft3d]\n",
         program);
@@ -5309,12 +5454,16 @@ main_parse_argument_layer(
          *   --opengl3[-zbuffer]   desktop GL 3.2 (TORIRS_HAVE_GL3)
          *   --webgl1[-zbuffer]    the browser: the GLES2 renderer on a WebGL1
          *                         context (TORIRS_HAVE_GLES2 + TORIRS_PLATFORM_WEB)
+         *   --webgl2[-zbuffer]    the browser: the WebGL2 renderer, OpenGL ES
+         *                         3.0 (TORIRS_HAVE_WEBGL2)
          *   --gles2[-zbuffer]     Android: the same GLES2 renderer on EGL
          *                         (TORIRS_HAVE_GLES2, not web)
          *
          * --webgl1 and --gles2 select the same renderer; they are kept as two
          * names because a manifest carrying the browser's flag must not be
-         * aliased onto a phone unnoticed, or the reverse.
+         * aliased onto a phone unnoticed, or the reverse. --webgl2 is a
+         * DIFFERENT renderer from both (platform_renderer_webgl2_*.c), so it
+         * is a third name and not a modifier of the first.
          */
         if( strcmp(argv[argi], "--opengl3") == 0 || strcmp(argv[argi], "--opengl3-zbuffer") == 0 )
         {
@@ -5328,6 +5477,8 @@ main_parse_argument_layer(
             state->d3d9_zbuffer = 0;
             state->gl3_zbuffer = zbuffer;
             state->use_gles2 = 0;
+            state->use_webgl2 = 0;
+            state->webgl2_zbuffer = 0;
             continue;
 #elif defined(TORIRS_HAVE_GLES2) && defined(TORIRS_PLATFORM_WEB)
             TORIRS_ERR(
@@ -5357,6 +5508,8 @@ main_parse_argument_layer(
             state->gl3_zbuffer = 0;
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
+            state->use_webgl2 = 0;
+            state->webgl2_zbuffer = 0;
             continue;
 #elif defined(TORIRS_HAVE_GLES2)
             /* WebGL1 is a browser API. The renderer is the same one, but the
@@ -5379,6 +5532,34 @@ main_parse_argument_layer(
             return 0;
 #endif
         }
+        if( strcmp(argv[argi], "--webgl2") == 0 || strcmp(argv[argi], "--webgl2-zbuffer") == 0 )
+        {
+            int const zbuffer = strcmp(argv[argi], "--webgl2-zbuffer") == 0;
+            /* Read in every branch below but the "not built here" one. */
+            (void)zbuffer;
+#if defined(TORIRS_HAVE_WEBGL2)
+            state->use_webgl2 = 1;
+            state->renderer_flag = 1;
+            state->webgl2_zbuffer = zbuffer;
+            state->use_gles2 = 0;
+            state->gles2_zbuffer = 0;
+            state->gles2_dualcore = 0;
+            state->use_opengl3 = 0;
+            state->gl3_zbuffer = 0;
+            state->use_d3d9 = 0;
+            state->d3d9_zbuffer = 0;
+            continue;
+#elif defined(TORIRS_HAVE_GLES2) && defined(TORIRS_PLATFORM_WEB)
+            TORIRS_ERR(
+                "torirs: this build has no WebGL2 renderer — use --webgl1%s\n",
+                zbuffer ? "-zbuffer" : "");
+            return 0;
+#else
+            TORIRS_LOG(
+                "torirs: %s is the browser build's flag and is not available here\n", argv[argi]);
+            return 0;
+#endif
+        }
         if( strcmp(argv[argi], "--gles2-dualcore") == 0 ||
             strcmp(argv[argi], "--gles2-dualcore-zbuffer") == 0 )
         {
@@ -5393,6 +5574,8 @@ main_parse_argument_layer(
             state->gl3_zbuffer = 0;
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
+            state->use_webgl2 = 0;
+            state->webgl2_zbuffer = 0;
             continue;
 #else
             TORIRS_ERR(
@@ -5413,6 +5596,8 @@ main_parse_argument_layer(
             state->gl3_zbuffer = 0;
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
+            state->use_webgl2 = 0;
+            state->webgl2_zbuffer = 0;
             continue;
 #elif defined(TORIRS_HAVE_GLES2)
             TORIRS_ERR(
@@ -5544,6 +5729,8 @@ main(
         .use_gles2 = 0,
         .gles2_zbuffer = 0,
         .gles2_dualcore = 0,
+        .use_webgl2 = 0,
+        .webgl2_zbuffer = 0,
         .renderer_flag = 0,
     };
     int argi;
@@ -5621,6 +5808,8 @@ main(
     int const use_gles2 = arg_state.use_gles2;
     int const gles2_zbuffer = arg_state.gles2_zbuffer;
     int const gles2_dualcore = arg_state.gles2_dualcore;
+    int const use_webgl2 = arg_state.use_webgl2;
+    int const webgl2_zbuffer = arg_state.webgl2_zbuffer;
     int const renderer_flag = arg_state.renderer_flag;
 
     /* Cache identity is required. Prefer the manifest; otherwise resolve --rev
@@ -6878,7 +7067,10 @@ main(
         renderer_gles2_dualcore = gles2_dualcore != 0;
         renderer_launch_flagged = renderer_flag != 0;
         renderer_launch = TORIRS_RENDERER_KIND_SOFTWARE;
-        if( use_gles2 )
+        if( use_webgl2 )
+            renderer_launch =
+                webgl2_zbuffer ? TORIRS_RENDERER_KIND_WEBGL2_DEPTH : TORIRS_RENDERER_KIND_WEBGL2;
+        else if( use_gles2 )
             renderer_launch =
                 gles2_zbuffer ? TORIRS_RENDERER_KIND_GLES2_DEPTH : TORIRS_RENDERER_KIND_GLES2;
         else if( use_opengl3 )
@@ -7171,7 +7363,7 @@ main(
             }
         }
 
-        interactive_render_present(&app, platform, gl3, d3d9, gles2);
+        interactive_render_present(&app, platform, gl3, d3d9, gles2, webgl2);
 
         /* TORIRS_MAX_FRAMES=N: exit after N loop iterations (headless smoke
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */

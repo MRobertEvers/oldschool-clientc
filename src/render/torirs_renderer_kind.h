@@ -29,6 +29,10 @@ enum ToriRS_RendererKind
     /** Fixed-function Direct3D 9, the Windows XP lane. */
     TORIRS_RENDERER_KIND_D3D9,
     TORIRS_RENDERER_KIND_D3D9_DEPTH,
+    /** OpenGL ES 3.0: WebGL2 in the browser. A separate renderer from the
+     *  GLES2 one, not a mode of it. */
+    TORIRS_RENDERER_KIND_WEBGL2,
+    TORIRS_RENDERER_KIND_WEBGL2_DEPTH,
 
     TORIRS_RENDERER_KIND_COUNT
 };

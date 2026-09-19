@@ -4919,7 +4919,7 @@ ToriRS_GL3_Init(
      * make-current step here; the calls later in the frame exist because this
      * renderer is written to survive sharing a thread with another context.
      */
-    gl3->gl_context = ToriRS_GLContext_Create(window, z_buffer ? 24 : 0);
+    gl3->gl_context = ToriRS_GLContext_Create(window, z_buffer ? 24 : 0, TORIRS_GL_CLIENT_DEFAULT);
     if( !gl3->gl_context )
     {
         fprintf(

@@ -84,9 +84,10 @@ The XP-compatible `win32` lane is always explicit. Each
 `(PLATFORM, OPT)` pair owns its own object directory (`build`, `build_opt`,
 `build_web`, `build_web_opt`, `build_win32`, …), so flavors never share a `.o`.
 
-The web lane's invariants — WebGL1 pinned, and **no `-sASYNCIFY`** (the IO path
-below buys the same behaviour by yielding to the main loop instead) — are
-asserted rather than merely intended:
+The web lane's invariants — both GPU renderers present and each getting the
+WebGL version it was written for, and **no `-sASYNCIFY`** (the IO path below
+buys the same behaviour by yielding to the main loop instead) — are asserted
+rather than merely intended:
 
 ```sh
 make -C src lane-check PLATFORM=web
@@ -101,7 +102,7 @@ What the web block swaps:
 |---|---|---|
 | IO executor | `platform_x_io.c` (reads the cache) | `platform_web_io.js` (IndexedDB, then JS5 / the dat1 proxy) |
 | audio | `platform_audio_sdl2.c` | `platform_audio_wasm.c` (WebAudio) |
-| 3D | Soft3D, or `--opengl3` for GL 3.2 | Soft3D, or `--webgl1` for WebGL1 |
+| 3D | Soft3D, or `--opengl3` for GL 3.2 | Soft3D, `--webgl1` for WebGL1, or `--webgl2` for the WebGL2 renderer |
 | frame loop | `while (frame_loop_step())` | `emscripten_set_main_loop` |
 
 ## Running it
@@ -262,8 +263,12 @@ this one; a fix lands on both hosts at once.
 is the contract, and `ANDROID-GLES2-001` / `WEB-GL1-000` in
 [`platform_quirks.md`](platform_quirks.md) register it.
 
-It is opt-in, like every GPU path in this tree: `--webgl1` (painter order) or
-`--webgl1-zbuffer` (hardware depth), so `…&arg=--webgl1` in the page's query
+There are two of them. `--webgl1` / `--webgl1-zbuffer` is the renderer shared
+with Android, on a WebGL1 context; `--webgl2` / `--webgl2-zbuffer` is a
+separate renderer written to OpenGL ES 3.0 (WEB-GL2-000 in
+[platform_quirks.md](platform_quirks.md)), which indexes the retained world in
+place instead of copying it through a ring every frame. Either is opt-in, like
+every GPU path in this tree, so `…&arg=--webgl1` in the page's query
 string. Each build accepts only the spelling it can honour and names the right
 one otherwise: the desktop says `--opengl3`, Android says `--gles2`, and the
 browser refuses both by name rather than aliasing them, so a manifest written

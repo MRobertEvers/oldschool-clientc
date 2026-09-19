@@ -119,7 +119,7 @@ android_gl_sync_surface(void)
 }
 
 ToriRS_GLContext
-ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits)
+ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLClient client)
 {
     /*
      * EGL_OPENGL_ES2_BIT, and a config whose depth size is what the caller
@@ -136,7 +136,11 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits)
         EGL_DEPTH_SIZE,      depth_bits > 0 ? depth_bits : 0,
         EGL_NONE
     };
-    EGLint const context_attribs[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE };
+    /* ES2 is the only client this lane's renderer asks for; the parameter
+     * exists for the browser, where it picks WebGL1 or WebGL2. */
+    EGLint const context_attribs[] = {
+        EGL_CONTEXT_CLIENT_VERSION, client == TORIRS_GL_CLIENT_ES3 ? 3 : 2, EGL_NONE
+    };
     EGLint config_count = 0;
 
     (void)window; /* there is exactly one Surface; @see platform_gl_context.h */

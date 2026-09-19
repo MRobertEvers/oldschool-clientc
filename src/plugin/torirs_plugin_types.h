@@ -1038,16 +1038,19 @@ enum ToriRS_Renderer
     /** Direct3D 9. */
     TORIRS_RENDERER_D3D9,
     TORIRS_RENDERER_D3D9_DEPTH,
+    TORIRS_RENDERER_WEBGL2,
+    TORIRS_RENDERER_WEBGL2_DEPTH,
     TORIRS_RENDERER_COUNT
 };
 
 /** What each TORIRS_RENDERER_* is called to a player, as an initializer for a
  *  `char const* const[TORIRS_RENDERER_COUNT]` -- one spelling for every place
  *  that names the renderer drawing. */
-#define TORIRS_RENDERER_LABELS                                                  \
-    {                                                                           \
-        "Software", "OpenGL", "OpenGL (depth buffer)", "OpenGL ES 2",           \
-        "OpenGL ES 2 (depth buffer)", "Direct3D 9", "Direct3D 9 (depth buffer)" \
+#define TORIRS_RENDERER_LABELS                                                   \
+    {                                                                            \
+        "Software", "OpenGL", "OpenGL (depth buffer)", "OpenGL ES 2",            \
+        "OpenGL ES 2 (depth buffer)", "Direct3D 9", "Direct3D 9 (depth buffer)", \
+        "WebGL 2", "WebGL 2 (depth buffer)"                                      \
     }
 
 /** TORIRS_DISPLAY_SCALE_ADJUSTED bits. */

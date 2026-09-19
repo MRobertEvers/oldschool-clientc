@@ -41,6 +41,26 @@
 
 typedef struct ToriRS_GLWindow ToriRS_GLWindow;
 
+/**
+ * Which GL the renderer needs the context to speak.
+ *
+ * A creation parameter for the same reason `depth_bits` is: it is fixed when
+ * the context is made and there is no attribute to set afterwards. It is what
+ * decides, in a browser, whether the canvas hands back a WebGL1 or a WebGL2
+ * context -- the two GPU renderers on that lane differ by exactly this, and
+ * nothing else about the window changes between them.
+ */
+enum ToriRS_GLClient
+{
+    /** Whatever the lane already asked for. The desktop GL 3.2 renderer,
+     *  whose profile is a core profile and not an ES one. */
+    TORIRS_GL_CLIENT_DEFAULT = 0,
+    /** OpenGL ES 2.0 -- WebGL1 in a browser. */
+    TORIRS_GL_CLIENT_ES2,
+    /** OpenGL ES 3.0 -- WebGL2 in a browser. */
+    TORIRS_GL_CLIENT_ES3,
+};
+
 /** A host GL context. NULL means "none"/"failed". */
 typedef void* ToriRS_GLContext;
 
@@ -52,12 +72,13 @@ typedef void* ToriRS_GLContext;
  * because that is what it actually is on both backends -- SDL wants it before
  * the context, and EGL wants it in the config -- and a two-call form invites
  * setting it after the context exists, where it silently does nothing.
- * Pass 0 for "no depth buffer needed".
+ * Pass 0 for "no depth buffer needed". `client` names the GL the renderer was
+ * written against; see enum ToriRS_GLClient.
  *
  * @return NULL on failure, with ToriRS_GLContext_LastError() naming the cause.
  */
 ToriRS_GLContext
-ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits);
+ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLClient client);
 
 /**
  * Make `context` current on `window`.

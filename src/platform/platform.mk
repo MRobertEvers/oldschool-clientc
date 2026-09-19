@@ -332,8 +332,9 @@ else ifeq ($(PLATFORM),win64)
 else ifeq ($(PLATFORM),web)
   PLATFORM_CC       := emcc
   PLATFORM_TARGET   := $(REPO_ROOT)/build-web/torirs.js
-  # No out-of-tree GPU binding object: the GLES2 renderer's GL calls are all
-  # in its own translation units, and <GLES2/gl2.h> is emscripten's.
+  # No out-of-tree GPU binding object: both GPU renderers' GL calls are all in
+  # their own translation units, and <GLES2/gl2.h> and <GLES3/gl3.h> are
+  # emscripten's.
   PLATFORM_GPU_OBJ_NAMES :=
   # emcc names its own outputs (PLATFORM_TARGET is explicit); host tools built
   # alongside a web build are native and take the host's suffix, which on the
@@ -401,7 +402,11 @@ else ifeq ($(PLATFORM),web)
                        platform/platform_renderer_gles2_core.c \
                        platform/platform_renderer_gles2_ui.c \
                        platform/platform_renderer_gles2_painter.c \
-                       platform/platform_renderer_gles2_zbuffer.c
+                       platform/platform_renderer_gles2_zbuffer.c \
+                       platform/platform_renderer_webgl2_core.c \
+                       platform/platform_renderer_webgl2_ui.c \
+                       platform/platform_renderer_webgl2_painter.c \
+                       platform/platform_renderer_webgl2_zbuffer.c
   # The queue's ABI reporter. Not in PLATFORM_SRCS because it belongs to the
   # QUEUE, not to any platform: a second non-C executor would need the same
   # numbers, and putting it beside the platform that reads it today would make
@@ -466,8 +471,25 @@ else ifeq ($(PLATFORM),web)
   # string). Neither TORIRS_HAVE_GL3 nor TORIRS_GL_ES2 is defined here, and
   # lane-check forbids both: the first would offer a GL 3.2 renderer no browser
   # can create, the second was the retired fork's switch.
+  #
+  # --- And the modern one: the WebGL2 renderer -------------------------------
+  #
+  # platform_renderer_webgl2_*.c, four more translation units, a SEPARATE
+  # renderer from the one above and not a build of it (WEB-GL2-000). It is
+  # OpenGL ES 3.0 core, which is what a WebGL2 context speaks, and it exists
+  # because most of what ES 2.0 costs the shared renderer is not a missing
+  # feature but a missing index: a 16-bit element cannot reach past 65,536
+  # vertices, so the retained world has to be paged, a draw ends at every page
+  # edge, and the painter path cannot index the retained world at all.
+  #
+  # TORIRS_HAVE_WEBGL2 says it exists; main.c spells the opt-in --webgl2 /
+  # --webgl2-zbuffer. Both renderers are in the module and either can be
+  # running, because Client Settings switches renderer between two frames and
+  # a browser that cannot give a WebGL2 context must still be able to run the
+  # WebGL1 one.
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -sUSE_SDL=2 \
                       -DTORIRS_HAVE_GLES2=1 \
+                      -DTORIRS_HAVE_WEBGL2=1 \
                       -Wno-unknown-warning-option
 
   # Nothing is baked into the module. The files the client opens by name — the
@@ -484,12 +506,22 @@ else ifeq ($(PLATFORM),web)
   # the default allocator past the 2GB ceiling. mimalloc handles the mixed-size
   # churn, and the 4GB maximum is the wasm32 limit, i.e. headroom rather than a
   # reservation (growth is on demand).
-  # This is what makes "WebGL1, no extensions" a guarantee rather than an
-  # intention. MIN/MAX_WEBGL_VERSION=1 stops the runtime handing the client a
-  # WebGL2 context, so a GLES3-only call fails here instead of in someone
-  # else's browser; GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 stops emscripten
-  # quietly enabling every extension the browser offers, so a renderer that
-  # reached for one would fail here too.
+  # MIN_WEBGL_VERSION=1 MAX_WEBGL_VERSION=2: the module contains both GPU
+  # renderers, so the runtime has to be able to make either context.
+  #
+  # Which one a renderer GETS is not left to the runtime. SDL passes
+  # SDL_GL_CONTEXT_MAJOR_VERSION through EGL as EGL_CONTEXT_CLIENT_VERSION, and
+  # emscripten's EGL maps 2 to a WebGL1 canvas context and 3 to a WebGL2 one;
+  # platform_gl_context_sdl.c sets it from the ToriRS_GLClient the renderer
+  # asks for. So the WebGL1 renderer still runs on a WebGL1 context here, and a
+  # GLES3 call from it still fails on this build rather than in someone else's
+  # browser -- which is what MAX_WEBGL_VERSION=1 used to guarantee and cannot
+  # once a WebGL2 renderer is in the same module. `make lane-check PLATFORM=web`
+  # additionally greps the ES2 renderer's own sources for GLES3 entry points.
+  #
+  # GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 stays, and now covers both: NEITHER
+  # renderer queries or requires an extension, so one that reached for one would
+  # fail here.
   #
   # There is deliberately no -sASYNCIFY. The IO path yields to
   # emscripten_set_main_loop and lets torirs_host.js pump responses back in
@@ -498,7 +530,7 @@ else ifeq ($(PLATFORM),web)
   # stays absent.
   PLATFORM_LDFLAGS := -lm -sUSE_SDL=2 \
                       -sMIN_WEBGL_VERSION=1 \
-                      -sMAX_WEBGL_VERSION=1 \
+                      -sMAX_WEBGL_VERSION=2 \
                       -sGL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 \
                       -sMALLOC=mimalloc \
                       -sALLOW_MEMORY_GROWTH=1 \

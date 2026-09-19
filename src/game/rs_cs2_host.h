@@ -280,7 +280,7 @@ struct RS_CS2TradingPost
  */
 #define RS_CS2_DEVICEOPTION_RENDERER 36
 #define RS_CS2_RENDERER_LAUNCH_DEFAULT 0
-#define RS_CS2_RENDERER_MAX 7
+#define RS_CS2_RENDERER_MAX 9
 
 /* Setting-struct params the panel itself reads, and this client reads with it.
  * `param_1078` is the row KIND -- 9 is the colour row -- and 1077 / 1086 / 1230

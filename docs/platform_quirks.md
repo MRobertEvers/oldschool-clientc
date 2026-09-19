@@ -39,7 +39,7 @@ the client.
 | Linux | `make -C src all` or `release` | `src/torirs` | SDL2 window/input/audio, stdio cache IO | Soft3D by default; `--opengl3` opts into desktop GL |
 | Modern Windows | `make -C src win64` or `win64-debug`; normally use `build_windows.ps1` | `src/torirs_win64.exe`, staged as `dist/win64/torirs.exe` | raw Win32 window/input, stdio cache IO, null audio | fixed-function D3D9 by default; `--soft3d` opts into GDI presentation |
 | Windows XP | `make -C src winxp` or `winxp-debug`; normally use `build_winxp.ps1` | `src/torirs.exe`, staged as `dist/win32/torirs.exe` | raw Win32 window/input, stdio cache IO, null audio | fixed-function D3D9 by default; `--soft3d` opts into GDI presentation |
-| Web | `make -C src web` or `web-debug` | `build-web/torirs.js` plus Wasm and host assets | browser SDL2, HTTP cache IO, WebAudio | Soft3D by default; `--webgl1` opts into WebGL1 |
+| Web | `make -C src web` or `web-debug` | `build-web/torirs.js` plus Wasm and host assets | browser SDL2, HTTP cache IO, WebAudio | Soft3D by default; `--webgl1` opts into WebGL1, `--webgl2` into the separate WebGL2 renderer |
 
 Every `(PLATFORM, OPT, TORIDRAW_OPT, MEMTRACE, EMBED_SERVER)` flavor has a
 separate object directory. Never share or manually copy object files between
@@ -48,9 +48,9 @@ lanes. Both native optimization levels link the same output name, so
 
 Renderer flags are deliberately host-specific. A build rejects a renderer flag
 it cannot honor instead of silently falling back: desktop SDL accepts
-`--opengl3`, the browser accepts `--webgl1`, and Win32 accepts `--d3d9` and
-`--soft3d`. Keep shared manifests platform-neutral unless they are intended for
-one lane only.
+`--opengl3`, the browser accepts `--webgl1` and `--webgl2`, and Win32 accepts
+`--d3d9` and `--soft3d`. Keep shared manifests platform-neutral unless they are
+intended for one lane only.
 
 ## Common runtime rules
 
@@ -1002,14 +1002,90 @@ one lane only.
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
   [`src/platform/platform_renderer_gles2.h`](../src/platform/platform_renderer_gles2.h)
 
+### WEB-GL2-000 - The browser has a second, modern GPU renderer
+
+- **Status:** Contract
+- **Applies to:** Web `--webgl2` / `--webgl2-zbuffer`
+- **Behavior:** The browser lane carries TWO GPU world renderers, in two
+  disjoint sets of files, with no preprocessor switch between them and no call
+  from one to the other:
+
+  | | files | context | flags |
+  |---|---|---|---|
+  | WebGL1 | `platform_renderer_gles2_{core,ui,painter,zbuffer}.c` | WebGL1 (OpenGL ES 2.0) | `--webgl1`, `--webgl1-zbuffer` |
+  | WebGL2 | `platform_renderer_webgl2_{core,ui,painter,zbuffer}.c` | WebGL2 (OpenGL ES 3.0) | `--webgl2`, `--webgl2-zbuffer` |
+
+  Both are in the module and either can be running: Client Settings switches
+  renderer between two frames (device option `RS_CS2_DEVICEOPTION_RENDERER`),
+  and a browser that cannot give a WebGL2 context must still be able to run the
+  WebGL1 one. They are `TORIRS_RENDERER_KIND_WEBGL2` / `_WEBGL2_DEPTH`,
+  appended after the D3D9 entries, and `RS_CS2_RENDERER_MAX` is 9.
+
+  Which context each renderer gets is decided per renderer, not by the runtime.
+  `ToriRS_GLContext_Create` takes an `enum ToriRS_GLClient`; SDL passes
+  `SDL_GL_CONTEXT_MAJOR_VERSION` through EGL as `EGL_CONTEXT_CLIENT_VERSION`,
+  and emscripten's EGL maps 2 to a WebGL1 canvas context and 3 to a WebGL2 one.
+- **Why a second renderer rather than a mode of the first:** the WebGL1
+  renderer is shared with Android (WEB-GL1-000) and is written to ES 2.0 core.
+  Most of what that ceiling costs is not a missing feature but a missing INDEX:
+  a 16-bit element cannot reach past 65,536 vertices from wherever the
+  attributes are bound, so the retained world is addressed in pages, a draw ends
+  at every page crossing, and the painter path cannot index the retained world
+  at all -- it copies each drawn model into a GPU ring first, with per-entry
+  placement serials, an overwrite guard and a fragmentation compaction with
+  hysteresis. Making that conditional inside one renderer would put two shapes
+  of the scene bake, the draw sequence, the painter and the depth path in one
+  set of files under runtime tests. What is genuinely shared already is shared:
+  the bake pipeline, the 28-byte vertex (`TRSPK_VertexGLES2`), the atlas, the
+  pose tables and every TRSPK helper. Only the GL layer differs.
+- **What the WebGL2 renderer uses that the WebGL1 one cannot:** 32-bit indices
+  (the big one: the retained world is indexed where it was baked, so a settled
+  static scene is a handful of `glDrawRangeElements` and the resident ring is
+  gone); vertex array objects; a std140 uniform block for the world matrix and
+  clock; `glVertexAttribIPointer` for the tile/scroll word;
+  `GL_UNPACK_ROW_LENGTH` for in-place sub-rectangle texture uploads; sized
+  internal formats with a `GL_R8` plus swizzle font atlas in place of
+  `GL_LUMINANCE_ALPHA`; `glInvalidateFramebuffer` on the client-scaling
+  offscreen; `GL_DEPTH_COMPONENT24` renderbuffers; and a readback clipped to the
+  letterbox. Neither renderer queries or requires an extension.
+- **Failure mode this replaces:** the lane used to pin
+  `-sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1`, which made "the WebGL1 renderer
+  stays inside ES 2.0" a link-time guarantee -- a GLES3 entry point could not
+  resolve to a working context, so a mistake failed on that build rather than in
+  someone else's browser. A module containing a WebGL2 renderer cannot keep that
+  pin. The guarantee moved into the sources instead: `make lane-check
+  PLATFORM=web` runs `tools/webgl_lane_audit.py --es2` over the four WebGL1
+  files and fails on any ES 3.0 entry point or token, comments excluded and
+  string literals included (a shader's `#version 300 es` is source; a comment
+  saying "ES2 has no `GL_UNPACK_ROW_LENGTH`" is documentation of the rule). A
+  second pass proves neither renderer reaches for an extension.
+- **Verification:** `make -C src lane-check PLATFORM=web` prints `total 0` from
+  both audits and requires `-sMAX_WEBGL_VERSION=2`, `TORIRS_HAVE_GLES2=1` and
+  `TORIRS_HAVE_WEBGL2=1` while forbidding `-sMAX_WEBGL_VERSION=1`. With
+  `TORIRS_WEBGL2_DEBUG=1`, a settled painter frame reports its static world as
+  faces indexed with `gathered` at zero -- the WebGL1 renderer's same readout
+  has the traffic the other way round.
+- **Sources:** [`src/platform/platform_renderer_webgl2.h`](../src/platform/platform_renderer_webgl2.h),
+  [`src/platform/platform_renderer_webgl2_core.h`](../src/platform/platform_renderer_webgl2_core.h),
+  [`src/platform/platform_renderer_webgl2_painter.c`](../src/platform/platform_renderer_webgl2_painter.c),
+  [`src/platform/platform_gl_context.h`](../src/platform/platform_gl_context.h),
+  [`src/platform/platform.mk`](../src/platform/platform.mk),
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
+  [`tools/webgl_lane_audit.py`](../tools/webgl_lane_audit.py)
+
 ### WEB-GL1-001 - WebGL1 means no extensions
 
 - **Status:** Contract
 - **Applies to:** Web `--webgl1`
-- **Behavior:** The build pins both the minimum and maximum WebGL version to 1
-  and disables automatic extension enablement. It uses no VAOs, 32-bit element
-  indices, uniform blocks, sized GLES3 texture formats, BGRA upload, instancing,
-  derivative, depth-texture, or float-texture extensions.
+- **Behavior:** This renderer uses no VAOs, 32-bit element indices, uniform
+  blocks, sized GLES3 texture formats, BGRA upload, instancing, derivative,
+  depth-texture, or float-texture extensions, and the build disables automatic
+  extension enablement. The build no longer pins the maximum WebGL version to 1
+  -- it cannot, since the module also contains a WebGL2 renderer (WEB-GL2-000)
+  -- so this renderer's ceiling is checked in its sources by
+  `tools/webgl_lane_audit.py` instead of by the link. It still RUNS on a WebGL1
+  context: `ToriRS_GLContext_Create` is told `TORIRS_GL_CLIENT_ES2` and SDL asks
+  the browser for WebGL1 by name.
 - **Required alternatives:** those of ANDROID-GLES2-001, because it is that
   renderer: 65,536-vertex pages selected by re-pointing the attributes, plain
   uniforms and ES2 formats, ToriDraw ARGB swizzled to RGBA at upload, a
@@ -1021,7 +1097,9 @@ one lane only.
   bug in it cannot hide on the host nobody tests.
 - **Reason:** The renderer must work on a conforming WebGL1 implementation,
   rather than only on browsers that happen to expose a desktop-like extension
-  set.
+  set. It is also the Android lane's renderer, where the target genuinely is
+  ES 2.0 with no extensions, so a WebGL2-shaped fix landing here would break a
+  phone. The modern feature set has its own renderer (WEB-GL2-000).
 - **Browser specifics the shared code does not see:** depth and stencil are
   fixed when the SDL WINDOW is created (SDL's emscripten backend chooses its
   EGL config there), so `platform_sdl2.c` asks for depth 24 and stencil 0 on
