@@ -2543,7 +2543,13 @@ Task_CS2StatTransmitDispatch_Run(
 static void
 Task_CS2StatTransmitDispatch_Free(struct ToriRS_Task* task)
 {
-    free(task);
+    struct Task_CS2StatTransmitDispatch* self = (struct Task_CS2StatTransmitDispatch*)task;
+
+    /* The hook snapshot is this task's, exactly as it is in the inv and var
+     * dispatchers above; freeing only the task leaked one refs array per stat
+     * change (99 of them over a 98-rebuild walk). */
+    free(self->snapshot.refs);
+    free(self);
 }
 
 static struct ToriRS_TaskVTable Task_CS2StatTransmitDispatch_VTable = {

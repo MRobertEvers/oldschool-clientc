@@ -713,6 +713,15 @@ decode_tile(
         td->face_texture_coords = TILE_BLOCK_TAKE(faceint_t, face_count);
         for( int i = 0; i < face_count; i++ )
             td->face_texture_coords[i] = 0;
+
+        /* Scratch only: the ids live in td->face_textures now, which came out
+         * of the tile block and dies with the model. The model does NOT own
+         * this buffer, so nothing downstream will ever release it — a textured
+         * tile leaked one of these on every rebuild, which is ~2,000 blocks per
+         * world load and the single largest source of live blocks in a session
+         * (macOS `leaks`: 207,643 unreachable blocks after 98 rebuilds). */
+        free(face_texture_ids);
+        face_texture_ids = NULL;
         td->textured_p_coordinate[0] = 0;
         td->textured_m_coordinate[0] = 1;
         td->textured_n_coordinate[0] = 3;

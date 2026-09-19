@@ -350,6 +350,29 @@ cache_provider_hmap_prepare_insert(struct HMap** map_out)
         cache_provider_hmap_maybe_grow(map_out);
 }
 
+/*
+ * Why every CacheProvider_*Add below releases the value it displaces.
+ *
+ * `hmap_search(..., HMAP_INSERT)` returns the EXISTING entry when the key is
+ * already present -- only a fresh slot is memset, which hmap.h states as the
+ * contract ("callers test value fields to decide whether to free"). So an Add
+ * for an id the map already holds overwrites the stored pointer in place. The
+ * maps are the sole owner of what they hold (every reader borrows; each
+ * CacheProvider_*Cleanup is what finally frees them), so the displaced value is
+ * this map's to release, and an Add that just assigns over it leaks it.
+ *
+ * It is not a rare path. The dat2/dat1 load tasks guard on CacheProvider_*Has()
+ * when they are CREATED, and a second task for the same id can be created and
+ * land before the first one's Add runs -- ordinary once a world load fans its
+ * model/loc/texture loads out as siblings. Measured over a 98-rebuild walk of
+ * the osrs239 surface, macOS `leaks` found ~1,300 unreachable objects rooted
+ * here: 839 whole ToriRS_Models (4.3 MB, each dragging its bones tree), 1,079
+ * loc configs, 185 client scripts, plus npctypes, sprites and sounds.
+ *
+ * The `!= incoming` half of each test is what keeps a caller that Gets a value
+ * and Adds the same pointer back from freeing the thing it is installing.
+ */
+
 void
 CacheProvider_SetProfile(
     struct CacheProvider* provider,
@@ -542,6 +565,9 @@ CacheProvider_ModelAdd(
     assert(entry && "Model must be inserted into hmap");
 
     entry->id = model_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->model && entry->model != model )
+        ToriRS_ModelFree(entry->model);
     entry->model = model;
     entry->last_used = ++provider->derived_clock;
     cache_provider_ui_assets_changed(provider);
@@ -857,6 +883,9 @@ CacheProvider_SpriteAdd(
     assert(entry && "Sprite must be inserted into hmap");
 
     entry->id = sprite_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->sprite && entry->sprite != sprite )
+        ToriRS_SpriteFree(entry->sprite);
     entry->sprite = sprite;
     entry->last_used = ++provider->derived_clock;
     cache_provider_ui_assets_changed(provider);
@@ -996,6 +1025,9 @@ CacheProvider_FontAdd(
     assert(entry && "Font must be inserted into hmap");
 
     entry->id = font_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->font && entry->font != font )
+        ToriRS_FontFree(entry->font);
     entry->font = font;
     cache_provider_ui_assets_changed(provider);
 }
@@ -1067,6 +1099,9 @@ CacheProvider_EnumAdd(
     assert(entry && "Enum must be inserted into hmap");
 
     entry->id = enum_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->e && entry->e != e )
+        ToriRS_EnumFree(entry->e);
     entry->e = e;
 }
 
@@ -1133,6 +1168,9 @@ CacheProvider_StructAdd(
     assert(entry && "Struct must be inserted into hmap");
 
     entry->id = struct_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->s && entry->s != s )
+        ToriRS_StructFree(entry->s);
     entry->s = s;
 }
 
@@ -1200,6 +1238,9 @@ CacheProvider_ParamAdd(
     assert(entry && "Param must be inserted into hmap");
 
     entry->id = param_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->param && entry->param != param )
+        ToriRS_ParamTypeFree(entry->param);
     entry->param = param;
 }
 
@@ -1323,6 +1364,9 @@ CacheProvider_DbRowAdd(
     assert(entry && "DbRow must be inserted into hmap");
 
     entry->id = row_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->row && entry->row != row )
+        ToriRS_DbRowFree(entry->row);
     entry->row = row;
 }
 
@@ -1389,6 +1433,9 @@ CacheProvider_DbTableAdd(
     assert(entry && "DbTable must be inserted into hmap");
 
     entry->id = table_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->table && entry->table != table )
+        ToriRS_DbTableFree(entry->table);
     entry->table = table;
 }
 
@@ -1456,6 +1503,9 @@ CacheProvider_DbTableIndexAdd(
     assert(entry && "DbTableIndex must be inserted into hmap");
 
     entry->id = table_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->index && entry->index != index )
+        ToriRS_DbTableIndexFree(entry->index);
     entry->index = index;
 }
 
@@ -1544,6 +1594,14 @@ CacheProvider_WorldMapGeographyAdd(
     assert(entry && "World map geography must be inserted into hmap");
 
     entry->id = key;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->geography && entry->geography != geography )
+    {
+        /* Two steps, as CacheProvider_WorldMapGeographyRemove does it: the
+         * struct's interior is freed in place, then the struct itself. */
+        RSCache_WorldMapGeographyFreeInplace(entry->geography);
+        free(entry->geography);
+    }
     entry->geography = geography;
 }
 
@@ -1611,6 +1669,9 @@ CacheProvider_MapElementAdd(
     assert(entry && "Map element must be inserted into hmap");
 
     entry->id = element_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->element && entry->element != element )
+        ToriRS_MapElementFree(entry->element);
     entry->element = element;
 }
 
@@ -1680,6 +1741,9 @@ CacheProvider_ComponentPackAdd(
     assert(entry && "Component pack must be inserted into hmap");
 
     entry->id = iface_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->pack && entry->pack != pack )
+        ToriRS_ComponentPackFree(entry->pack);
     entry->pack = pack;
 }
 
@@ -1802,6 +1866,9 @@ CacheProvider_ClientScriptAdd(
     assert(entry && "Client script must be inserted into hmap");
 
     entry->id = script_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->script && entry->script != script )
+        CS2VM2_ScriptFree(entry->script);
     entry->script = script;
 }
 
@@ -1897,6 +1964,9 @@ CacheProvider_ObjtypeAdd(
     assert(entry && "Objtype must be inserted into hmap");
 
     entry->id = obj_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->objtype && entry->objtype != objtype )
+        ToriRS_ObjtypeFree(entry->objtype);
     entry->objtype = objtype;
 
     /* Mirror the insert into the name index so CacheProvider_ObjtypeIdByName and
@@ -2222,6 +2292,9 @@ CacheProvider_NpctypeAdd(
     assert(entry && "Npctype must be inserted into hmap");
 
     entry->id = npc_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->npctype && entry->npctype != npctype )
+        ToriRS_NpctypeFree(entry->npctype);
     entry->npctype = npctype;
 }
 
@@ -2289,6 +2362,9 @@ CacheProvider_SpotanimtypeAdd(
     assert(entry && "Spotanimtype must be inserted into hmap");
 
     entry->id = spotanim_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->spotanimtype && entry->spotanimtype != spotanimtype )
+        ToriRS_SpotanimtypeFree(entry->spotanimtype);
     entry->spotanimtype = spotanimtype;
 }
 
@@ -2363,6 +2439,9 @@ CacheProvider_SoundAdd(
     assert(entry && "Sound must be inserted into hmap");
 
     entry->id = sound_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->sound && entry->sound != sound )
+        ToriRS_SoundFree(entry->sound);
     entry->sound = sound;
 }
 
@@ -2429,6 +2508,9 @@ CacheProvider_IdkAdd(
     assert(entry && "Idk must be inserted into hmap");
 
     entry->id = idk_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->idk && entry->idk != idk )
+        ToriRS_IdkFree(entry->idk);
     entry->idk = idk;
 }
 
@@ -2497,6 +2579,9 @@ CacheProvider_MapTerrainAdd(
     assert(entry && "Map terrain must be inserted into hmap");
 
     entry->id = map_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->terrain && entry->terrain != terrain )
+        ToriRS_MapTerrainFree(entry->terrain);
     entry->terrain = terrain;
     entry->last_used = ++provider->derived_clock;
 }
@@ -2566,6 +2651,9 @@ CacheProvider_MapSceneryAdd(
     assert(entry && "Map scenery must be inserted into hmap");
 
     entry->id = map_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->locs && entry->locs != locs )
+        ToriRS_MapLocsFree(entry->locs);
     entry->locs = locs;
     entry->last_used = ++provider->derived_clock;
 }
@@ -2635,6 +2723,9 @@ CacheProvider_LocationAdd(
     assert(entry && "Location must be inserted into hmap");
 
     entry->id = loc_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->location && entry->location != location )
+        ToriRS_LocationFree(entry->location);
     entry->location = location;
 }
 
@@ -2762,6 +2853,9 @@ CacheProvider_FlotypeAdd(
     assert(entry && "Flotype must be inserted into hmap");
 
     entry->id = flo_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->flotype && entry->flotype != flotype )
+        ToriRS_FlotypeFree(entry->flotype);
     entry->flotype = flotype;
 }
 
@@ -2829,6 +2923,9 @@ CacheProvider_UnderlayAdd(
     assert(entry && "Underlay must be inserted into hmap");
 
     entry->id = underlay_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->flotype && entry->flotype != underlay )
+        ToriRS_FlotypeFree(entry->flotype);
     entry->flotype = underlay;
 }
 
@@ -2896,6 +2993,9 @@ CacheProvider_TextureAdd(
     assert(entry && "Texture must be inserted into hmap");
 
     entry->id = texture_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->texture && entry->texture != texture )
+        ToriRS_TextureFree(entry->texture);
     entry->texture = texture;
 }
 
