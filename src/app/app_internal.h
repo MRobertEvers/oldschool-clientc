@@ -727,6 +727,18 @@ app_placeholder_obj_stacks_sweep(
     struct App* app,
     struct World* world);
 
+/* The world a task that deferred its load may land in, or NULL when the
+ * scene it was aimed at is gone. Shared by the placeholder kinds and the
+ * effect spawns -- both defer onto the asset runner, so both drop for the
+ * same three reasons. The unit comment has them. */
+struct World*
+app_deferred_land_world(
+    struct App* app,
+    int view,
+    unsigned world_load_seq,
+    char const* owner,
+    int kind);
+
 void
 app_placeholder_widget_icon(
     struct App* app,

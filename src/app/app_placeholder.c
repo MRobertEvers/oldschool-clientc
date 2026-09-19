@@ -135,43 +135,62 @@ static struct ToriRS_TaskVTable Task_AppPlaceholder_VTable = {
     .free = Task_AppPlaceholder_Free,
 };
 
-/* The world a placeholder lands in, or NULL when the scene it was made for
- * is gone -- the view died, or a rebuild replaced the world under it. */
-static struct World*
-app_placeholder_world(struct Task_AppPlaceholder const* self)
+/*
+ * The world a deferred land belongs to, or NULL when the scene it was aimed
+ * at is gone.
+ *
+ * Shared with the effect spawns in app_world_spawn.c, which had a copy of
+ * this function to the line: the two mechanisms defer for the same reason,
+ * so they drop for the same reasons too. Three of them, and all three are
+ * guards rather than asserts -- a parked task cannot be told the world moved
+ * under it:
+ *
+ *   - the VIEW died (a boat despawned);
+ *   - a REBUILD replaced the world, and the same tile coordinates now name a
+ *     different place (the reference drops its pending spot anims here too);
+ *   - a rebuild is IN PROGRESS, and this runner is the one pumping it, so
+ *     landing would put an element in a scene being reset. The rebuild's
+ *     finish re-queues what still needs it (app_placeholder_obj_stacks_sweep),
+ *     so dropping here loses nothing.
+ *
+ * `owner` and `kind` only name the dropped task in the log.
+ */
+struct World*
+app_deferred_land_world(
+    struct App* app,
+    int view,
+    unsigned world_load_seq,
+    char const* owner,
+    int kind)
 {
-    struct App* app;
     struct Worldview* wv;
 
-    assert(self);
-    app = self->app;
     assert(app);
-    if( !WorldviewRegistry_IsLive(&app->worldviews, self->view) )
+    assert(owner);
+    if( !WorldviewRegistry_IsLive(&app->worldviews, view) )
         return NULL;
-    wv = WorldviewRegistry_Get(&app->worldviews, self->view);
+    wv = WorldviewRegistry_Get(&app->worldviews, view);
     if( !wv->world )
         return NULL;
-    if( wv->world->load_seq != self->world_load_seq )
+    if( wv->world->load_seq != world_load_seq )
     {
-        TORIRS_LOG(
-            "placeholder: kind=%d dropped, scene rebuilt while its asset loaded\n",
-            (int)self->kind);
+        TORIRS_LOG("%s: kind=%d dropped, scene rebuilt while its assets loaded\n", owner, kind);
         return NULL;
     }
-    /*
-     * Mid-rebuild: the heightmap and the scene are being torn down and rebuilt
-     * under it, and this runner is being pumped BY that rebuild. Landing now
-     * would create an element in a scene being reset. The rebuild's finish
-     * sweeps every stack still without a model and queues it again against
-     * the new generation (app_placeholder_obj_stacks_sweep), so dropping here
-     * loses nothing.
-     */
     if( !wv->world->load_complete )
     {
-        TORIRS_LOG("placeholder: kind=%d dropped, scene mid-rebuild\n", (int)self->kind);
+        TORIRS_LOG("%s: kind=%d dropped, scene mid-rebuild\n", owner, kind);
         return NULL;
     }
     return wv->world;
+}
+
+static struct World*
+app_placeholder_world(struct Task_AppPlaceholder const* self)
+{
+    assert(self);
+    return app_deferred_land_world(
+        self->app, self->view, self->world_load_seq, "placeholder", (int)self->kind);
 }
 
 void

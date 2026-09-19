@@ -1369,42 +1369,17 @@ app_spawn_fan_spotanim_assets(struct Task_AppSpawn* self)
  *
  * Effects load on the asset runner (app_spawn_effect_queue, app_world_edit.c),
  * so nothing orders their apply against the packets that came after them --
- * including a REBUILD. A rebuild finishing first tears down the scene the
- * effect was aimed at, and the same tile coordinates then name a different
- * place; the reference drops its pending spot anims on rebuild for the same
- * reason. The view dying (a boat despawning) is the other way the scene can
- * go, and both are guards, not asserts: a task cannot be told the world
- * moved under it while it was parked.
+ * including a REBUILD. That is the same position a placeholder is in, and the
+ * three ways the scene can go out from under a parked task are the same three
+ * for both, so the guard is one function now: app_deferred_land_world, in
+ * app_placeholder.c, which owns the shape.
  */
 static struct World*
 app_spawn_effect_world(struct Task_AppSpawn const* self)
 {
-    struct App* app;
-    struct Worldview* wv;
-
     assert(self);
-    app = self->app;
-    assert(app);
-    if( !WorldviewRegistry_IsLive(&app->worldviews, self->view) )
-        return NULL;
-    wv = WorldviewRegistry_Get(&app->worldviews, self->view);
-    if( !wv->world )
-        return NULL;
-    if( wv->world->load_seq != self->world_load_seq )
-    {
-        TORIRS_LOG(
-            "spawn: effect kind=%d dropped, scene rebuilt while its assets loaded\n",
-            (int)self->kind);
-        return NULL;
-    }
-    /* Mid-rebuild: the scene is being reset under this runner, which the
-     * rebuild itself is pumping. An effect that lands now lands in a scene
-     * being torn down; one that arrives after belongs to the old scene
-     * anyway (the generation above). Dropped, as the reference drops its
-     * pending spot anims on a rebuild. */
-    if( !wv->world->load_complete )
-        return NULL;
-    return wv->world;
+    return app_deferred_land_world(
+        self->app, self->view, self->world_load_seq, "spawn: effect", (int)self->kind);
 }
 
 /* Cycles the effect spent loading: what its delays are shortened by, so it
