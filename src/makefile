@@ -3988,6 +3988,16 @@ check-pt-switch:
 check-revconfig-roles:
 	python3 $(REPO_ROOT)/tools/revconfig_roles_from_pack.py --check
 
+# The quest driver's Lua/C ABI: every api_drive.<name>(...) call site in
+# script/plugins/quest_driver/*.lua matched against its C registration
+# (arity read, values pushed) in src/plugin/torirs_plugin_drive*.c. Shaped
+# like check-pt-switch and check-revconfig-roles: the tool is the gate, the
+# makefile only names it. A permanent gate (R3) -- it stays after the verbs
+# it currently flags are fixed.
+.PHONY: check-drive-abi
+check-drive-abi:
+	python3 $(REPO_ROOT)/tools/quest_gate/check_drive_abi.py
+
 # The quest gate: one private-session client process per quest test, a ledger
 # and a numbered screenshot per interaction, red on any FAIL row, any missing
 # or undersized shot, and any duplicate shot MD5.

@@ -734,6 +734,28 @@ void PluginDriveCore_SetCmdBus(struct ToriRS_CmdBus* bus);
  *  first content-test frame. */
 struct ToriRS_CmdBus* PluginDriveCore_CmdBus(void);
 
+/*
+ * True while the one outstanding drive.await has a LEVEL predicate armed
+ * (g_await.level_ref != LUA_NOREF) -- core.lua's own EDGE+LEVEL rule
+ * (QUEST_DRIVER_DESIGN.md) means that predicate is re-read from live
+ * rendered/engine state (the pickset, menu_visible, player_idle, ...) on
+ * every pump, not just once on an event. content_test.c's
+ * ContentTest_DrawRequested has no quest-mode equivalent of the mailbox's
+ * `active && (capture_path[0] || click_phase >= 0 || hover_requested)`
+ * forced-draw branch (docs/QUEST_DRIVER_REMAINING.md B0): quest mode never
+ * sets `active`, so that whole branch is dead there, and a world frame with
+ * nothing else marking need_redraw (no animation, no camera drift) can go
+ * an unbounded number of logic frames without ever rendering again --
+ * measured B0 spike: exactly one render at boot, then app->world_pickset
+ * frozen at that one frame's contents for the rest of the run. Forcing a
+ * draw while this is true gives a level-await's next poll a current frame
+ * to read, the same way `hover_requested` does for the mailbox. An
+ * edge-only await (event= with no level=) does not need this: it resolves
+ * off a discrete event, not off rendered state, so it is deliberately left
+ * out.
+ */
+int PluginDriveCore_LevelAwaitPending(void);
+
 /* --------------------------------------------------------- core-revconfig */
 
 /*

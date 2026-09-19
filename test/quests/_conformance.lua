@@ -34,6 +34,25 @@
 --     normal quest test's `setup = { ... }` is.  The t.cheat row is its own
 --     dedicated call, and every setup cheat is marked `-- setup` below.
 --
+-- A verb that answers "ok" and does nothing is the failure this file is
+-- pointed at (QUEST_DRIVER_REMAINING.md phase E, mutation 4), and a row that
+-- only forwards the verb's own result word cannot see it.  So every row whose
+-- ANSWER is knowable from the world the setup cheats built checks the answer
+-- through `answered(...)` and downgrades an empty ok to "hollow", which is not
+-- ok and so lands as FAIL naming what was missing.  Measured, 2026-09-19, by
+-- running this harness against a driver copy (in a throwaway script tree,
+-- never this checkout) whose t.cheat, world.tile, npc.by_name and var.varp
+-- were each cut down to `return "ok"`: the rows read
+--   [ok] ::xp -> nil / [ok] {} / [ok] Man -> nil / [ok] tutorial -> 0
+-- and PASSED before this, and now read
+--   [hollow] ::xp answered ok but cooking experience stayed 0
+--   [hollow] answered ok but the tile carried no x/z -- {}
+--   [hollow] answered ok but the row is not the npc that was asked for
+--   [hollow] answered ok but the fixture pins it at 1000 -- tutorial -> 0
+-- A verb whose whole answer is `nil` (t.ticks, t.settle, drive.camera, the
+-- expect_* assertions) still cannot be caught this way from Lua; those rows
+-- say so by forwarding the result word and nothing more.
+--
 -- Two rows cannot grade themselves from inside Lua, and are re-graded by
 -- tools/quest_gate/conformance.py against evidence outside the coroutine:
 --   * "note" -- t.note folds its text into the NEXT row's detail, which is
@@ -118,6 +137,41 @@ local function describe(value, depth)
         return "{" .. table.concat(parts, " ") .. "}"
     end
     return "<" .. kind .. ">"
+end
+
+-- A verb that answers "ok" with nothing behind it is exactly the failure this
+-- harness exists to catch (QUEST_DRIVER_REMAINING.md phase E, mutation 4:
+-- "make a verb silently return ok without doing its work, and the conformance
+-- harness must still go red").  A row that only forwards the verb's own result
+-- word cannot catch it, so every row whose ANSWER is knowable checks the
+-- answer here and downgrades an empty ok to "hollow", which is not ok and so
+-- lands as a FAIL row naming what was missing.
+local function is_table(value) return type(value) == "table" end
+local function is_number(value) return type(value) == "number" end
+local function is_text(value) return type(value) == "string" and value ~= "" end
+
+local function field(name, test)
+    return function(value)
+        return type(value) == "table" and test(value[name])
+    end
+end
+
+local function equals(wanted)
+    return function(value) return value == wanted end
+end
+
+local function at_least(floor)
+    return function(value) return type(value) == "number" and value >= floor end
+end
+
+-- (result, detail) in, (result, detail) out -- except that an "ok" whose
+-- answer does not hold becomes "hollow", with what was expected in the row.
+local function answered(result, detail, prefix, holds, wanted)
+    local text = prefix .. describe(detail)
+    if result == "ok" and not holds(detail) then
+        return "hollow", "answered ok but " .. wanted .. " -- " .. text
+    end
+    return result, text
 end
 
 return {
@@ -220,8 +274,39 @@ return {
         step("t.cheat", function()
             local fn = verb("t", "cheat")
             if not fn then return missing("t", "cheat") end
+            -- ::xp is a [debugproc] whose whole observable effect is a stat
+            -- reading, so the row reads that stat on both sides of the call.
+            -- A cheat that answered ok and dispatched nothing has the same
+            -- experience after as before, and that is the row's verdict.
+            local read = verb("skill")
+            local before = nil
+            if read then
+                local state, reading = read(STAT_SYMBOL)
+                if state == "ok" and type(reading) == "table" then
+                    before = reading.experience
+                end
+            end
             local result, detail = fn("::xp " .. STAT_SYMBOL .. " 100")
-            return result, "::xp -> " .. describe(detail)
+            settle(3)
+            if result ~= "ok" then
+                return result, "::xp -> " .. describe(detail)
+            end
+            if before == nil then
+                return "ok", "::xp -> " .. describe(detail)
+                    .. " (no experience reading to confirm the effect with)"
+            end
+            local state, reading = read(STAT_SYMBOL)
+            local after = type(reading) == "table" and reading.experience or nil
+            if state ~= "ok" or not is_number(after) then
+                return "ok", "::xp -> " .. describe(detail)
+                    .. " (the stat read back " .. describe(reading) .. ")"
+            end
+            if after <= before then
+                return "hollow", "::xp answered ok but " .. STAT_SYMBOL
+                    .. " experience stayed " .. describe(before)
+            end
+            return "ok", "::xp -> " .. STAT_SYMBOL .. " experience "
+                .. describe(before) .. " -> " .. describe(after)
         end)
 
         step("t.ticks", function()
@@ -242,7 +327,7 @@ return {
             local fn = verb("t", "shot")
             if not fn then return missing("t", "shot") end
             local result, detail = fn("conformance-world")
-            return result, describe(detail)
+            return answered(result, detail, "", is_text, "no file was named")
         end)
 
         -- ------------------------------------- phase 1: naming the world
@@ -254,49 +339,58 @@ return {
             if result == "ok" and type(detail) == "table" then
                 player_tile = detail
             end
-            return result, describe(detail)
+            return answered(result, detail, "",
+                function(value)
+                    return is_table(value) and is_number(value.x) and is_number(value.z)
+                end, "the tile carried no x/z")
         end)
 
         step("world.level", function()
             local fn = verb("world", "level")
             if not fn then return missing("world", "level") end
             local result, detail = fn()
-            return result, describe(detail)
+            return answered(result, detail, "", is_number, "no level number came back")
         end)
 
         step("npc.by_name", function()
             local fn = verb("npc", "by_name")
             if not fn then return missing("npc", "by_name") end
             local result, detail = fn(NPC_DISPLAY_NAME)
-            return result, NPC_DISPLAY_NAME .. " -> " .. describe(detail)
+            return answered(result, detail, NPC_DISPLAY_NAME .. " -> ",
+                field("name", equals(NPC_DISPLAY_NAME)),
+                "the row is not the npc that was asked for")
         end)
 
         step("npc.by_symbol", function()
             local fn = verb("npc", "by_symbol")
             if not fn then return missing("npc", "by_symbol") end
             local result, detail = fn(NPC_SYMBOL)
-            return result, NPC_SYMBOL .. " -> " .. describe(detail)
+            return answered(result, detail, NPC_SYMBOL .. " -> ",
+                field("npc_id", is_number), "the row carried no npc id")
         end)
 
         step("npc.nearest", function()
             local fn = verb("npc", "nearest")
             if not fn then return missing("npc", "nearest") end
             local result, detail = fn(NPC_SYMBOL, 40)
-            return result, NPC_SYMBOL .. " r=40 -> " .. describe(detail)
+            return answered(result, detail, NPC_SYMBOL .. " r=40 -> ",
+                field("npc_id", is_number), "the row carried no npc id")
         end)
 
         step("world.loc_near", function()
             local fn = verb("world", "loc_near")
             if not fn then return missing("world", "loc_near") end
             local result, detail = fn(LOC_SYMBOL, 60)
-            return result, LOC_SYMBOL .. " r=60 -> " .. describe(detail)
+            return answered(result, detail, LOC_SYMBOL .. " r=60 -> ",
+                field("id", is_number), "the row carried no loc id")
         end)
 
         step("world.obj_near", function()
             local fn = verb("world", "obj_near")
             if not fn then return missing("world", "obj_near") end
             local result, detail = fn(OBJ_SYMBOL, 20)
-            return result, OBJ_SYMBOL .. " r=20 -> " .. describe(detail)
+            return answered(result, detail, OBJ_SYMBOL .. " r=20 -> ",
+                field("id", is_number), "the row carried no obj id")
         end)
 
         step("player.by_symbol", function()
@@ -317,21 +411,28 @@ return {
             local fn = verb("var", "varp")
             if not fn then return missing("var", "varp") end
             local result, detail = fn(VARP_SYMBOL)
-            return result, VARP_SYMBOL .. " -> " .. describe(detail)
+            -- The fixture pins this one, so the reading is knowable: a reader
+            -- that answers ok with 0 (or with nothing) is not reading.
+            return answered(result, detail, VARP_SYMBOL .. " -> ",
+                equals(VARP_VALUE), "the fixture pins it at " .. VARP_VALUE)
         end)
 
         step("var.varbit", function()
             local fn = verb("var", "varbit")
             if not fn then return missing("var", "varbit") end
             local result, detail = fn(VARBIT_SYMBOL)
-            return result, VARBIT_SYMBOL .. " -> " .. describe(detail)
+            return answered(result, detail, VARBIT_SYMBOL .. " -> ",
+                is_number, "no varbit value came back")
         end)
 
         step("var.server", function()
             local fn = verb("var", "server")
             if not fn then return missing("var", "server") end
             local result, detail = fn(VARP_SYMBOL)
-            return result, VARP_SYMBOL .. " -> " .. describe(detail)
+            -- The server's own copy of a varp the fixture pins: same value,
+            -- read down the other side of the seam.
+            return answered(result, detail, VARP_SYMBOL .. " -> ",
+                equals(VARP_VALUE), "the fixture pins it at " .. VARP_VALUE)
         end)
 
         step("var.expect", function()
@@ -352,35 +453,42 @@ return {
             local fn = verb("skill")
             if not fn then return missing("skill") end
             local result, detail = fn(STAT_SYMBOL)
-            return result, STAT_SYMBOL .. " -> " .. describe(detail)
+            return answered(result, detail, STAT_SYMBOL .. " -> ",
+                field("level", at_least(1)), "the reading carried no level")
         end)
 
         step("inv.count", function()
             local fn = verb("inv", "count")
             if not fn then return missing("inv", "count") end
             local result, detail = fn(OBJ_SYMBOL)
-            return result, OBJ_SYMBOL .. " -> " .. describe(detail)
+            -- ::runes put 25 in the backpack, so 0 here is a reader that is
+            -- not reading, not an empty backpack.
+            return answered(result, detail, OBJ_SYMBOL .. " -> ",
+                at_least(1), "::runes put " .. OBJ_SYMBOL .. " in the backpack")
         end)
 
         step("inv.has", function()
             local fn = verb("inv", "has")
             if not fn then return missing("inv", "has") end
             local result, detail = fn(OBJ_SYMBOL)
-            return result, OBJ_SYMBOL .. " -> " .. describe(detail)
+            return answered(result, detail, OBJ_SYMBOL .. " -> ",
+                equals(true), "::runes put " .. OBJ_SYMBOL .. " in the backpack")
         end)
 
         step("inv.slot", function()
             local fn = verb("inv", "slot")
             if not fn then return missing("inv", "slot") end
             local result, detail = fn(1)
-            return result, "slot 1 -> " .. describe(detail)
+            return answered(result, detail, "slot 1 -> ",
+                field("name", is_text), "the slot answered with no obj name")
         end)
 
         step("inv.expect_has", function()
             local fn = verb("inv", "expect_has")
             if not fn then return missing("inv", "expect_has") end
             local result, detail = fn(OBJ_SYMBOL, 1)
-            return result, OBJ_SYMBOL .. " >= 1 -> " .. describe(detail)
+            return answered(result, detail, OBJ_SYMBOL .. " >= 1 -> ",
+                at_least(1), "the assertion passed with no count behind it")
         end)
 
         step("inv.expect_absent", function()
@@ -401,7 +509,11 @@ return {
             local fn = verb("msg", "last")
             if not fn then return missing("msg", "last") end
             local result, detail = fn(5)
-            return result, "last 5 -> " .. describe(detail)
+            -- The setup cheats have already put lines in the chatbox, so an
+            -- empty list is a reader that is not reading.
+            return answered(result, detail, "last 5 -> ",
+                field(1, field("text", is_text)),
+                "the setup cheats already wrote lines to the chatbox")
         end)
 
         step("msg.expect", function()
@@ -549,7 +661,9 @@ return {
             if result == "ok" then
                 inventory_widget = detail
             end
-            return result, INVENTORY_ITEMS_COMPONENT .. " -> " .. describe(detail)
+            return answered(result, detail, INVENTORY_ITEMS_COMPONENT .. " -> ",
+                function(value) return value ~= nil end,
+                "no component came back to invoke")
         end)
 
         step("ui.invoke", function()
@@ -595,6 +709,16 @@ return {
 
         -- ------------------------------- phase 5: the objectbox dialogue
 
+        -- setup: let the player go idle before the dialogue phase.  Both
+        -- ::objbox and the cook's quest-start run behind `p_finduid(uid)`, a
+        -- PROTECTED access: a player still walking off the pointer phase's
+        -- clicks silently gets no dialogue at all, which shows up as four
+        -- chat verbs flipping between runs rather than as anything naming a
+        -- busy player.
+        stage(function()
+            settle(6)
+        end)
+
         step("ui.open", function()
             local fn = verb("ui", "open")
             if not fn then return missing("ui", "open") end
@@ -606,7 +730,10 @@ return {
             local fn = verb("ui", "is_modal")
             if not fn then return missing("ui", "is_modal") end
             local result, detail = fn()
-            return result, describe(detail)
+            -- ::objbox is up, and an objectbox IS modal: "false" here is the
+            -- reader answering from nothing.
+            return answered(result, detail, "", equals(true),
+                "the objectbox opened by the row above is modal")
         end)
 
         step("chat.kind", function()
@@ -623,7 +750,9 @@ return {
             local fn = verb("chat", "item")
             if not fn then return missing("chat", "item") end
             local result, detail = fn()
-            return result, describe(detail)
+            return answered(result, detail, "",
+                function(value) return value ~= nil end,
+                "the objectbox is showing an obj")
         end)
 
         step("chat.expect_item", function()
@@ -637,7 +766,7 @@ return {
             local fn = verb("chat", "text")
             if not fn then return missing("chat", "text") end
             local result, detail = fn()
-            return result, describe(detail)
+            return answered(result, detail, "", is_text, "the page read back empty")
         end)
 
         step("chat.expect_text", function()
@@ -666,22 +795,26 @@ return {
         -- setup: the cook's quest-start dialogue -- an npc page (a head and a
         -- name) that runs on into a chatmenu.
         stage(function()
+            settle(4)
             setup_cheat("::cookbmp_choice")
-            settle(3)
+            settle(4)
         end)
 
         step("chat.head", function()
             local fn = verb("chat", "head")
             if not fn then return missing("chat", "head") end
             local result, detail = fn()
-            return result, describe(detail)
+            return answered(result, detail, "",
+                function(value) return value ~= nil end,
+                "no head came back from a chathead page")
         end)
 
         step("chat.name", function()
             local fn = verb("chat", "name")
             if not fn then return missing("chat", "name") end
             local result, detail = fn()
-            return result, describe(detail)
+            return answered(result, detail, "", is_text,
+                "a chathead page names its speaker")
         end)
 
         step("chat.expect_head", function()
@@ -702,14 +835,15 @@ return {
             local fn = verb("chat", "options")
             if not fn then return missing("chat", "options") end
             local result, detail = fn()
-            return result, describe(detail)
+            return answered(result, detail, "", field(1, is_text),
+                "an options menu with no first row is not a menu")
         end)
 
         step("chat.options_title", function()
             local fn = verb("chat", "options_title")
             if not fn then return missing("chat", "options_title") end
             local result, detail = fn()
-            return result, describe(detail)
+            return answered(result, detail, "", is_text, "the title came back empty")
         end)
 
         step("chat.choose", function()
@@ -746,14 +880,15 @@ return {
             local fn = verb("scroll", "title")
             if not fn then return missing("scroll", "title") end
             local result, detail = fn()
-            return result, describe(detail)
+            return answered(result, detail, "", is_text, "the title came back empty")
         end)
 
         step("scroll.rewards", function()
             local fn = verb("scroll", "rewards")
             if not fn then return missing("scroll", "rewards") end
             local result, detail = fn()
-            return result, describe(detail)
+            return answered(result, detail, "", field(1, is_text),
+                "a reward scroll with no first line is not a scroll")
         end)
 
         step("scroll.close", function()
@@ -767,7 +902,8 @@ return {
             local fn = verb("levelup", "skill")
             if not fn then return missing("levelup", "skill") end
             local result, detail = fn()
-            return result, describe(detail)
+            return answered(result, detail, "", is_text,
+                "a levelup box names the stat that went up")
         end)
 
         step("levelup.continue_", function()

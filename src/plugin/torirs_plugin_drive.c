@@ -399,6 +399,14 @@ static uint32_t g_event_cursor;
 static struct DriveAwait g_await;
 static char g_quest_name[64];
 
+/* See the doc comment on the declaration (torirs_plugin_drive.h): B0's
+ * answer to content_test.c's forced-draw gap in quest mode. */
+int
+PluginDriveCore_LevelAwaitPending(void)
+{
+    return g_await.active && g_await.level_ref != LUA_NOREF;
+}
+
 static int g_ledger_index;
 static int g_ledger_pass;
 static int g_ledger_fail;

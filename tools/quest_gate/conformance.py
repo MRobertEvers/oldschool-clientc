@@ -48,12 +48,17 @@ def run(command, **kwargs):
 
 
 def build(label):
-    objdir = os.path.join(REPO_ROOT, "src", "build_qd_%s_opt_es" % label)
-    warm = os.path.join(REPO_ROOT, "src", "build_qd_check_opt_es")
-    if not os.path.isdir(objdir) and os.path.isdir(warm):
-        # A cold objdir is a twenty-minute build; several sessions build from
-        # this checkout at once, so it is a COPY of a warm one, never a share.
-        shutil.copytree(warm, objdir)
+    """Build into THIS gate's own objdir, and never seed it from another one.
+
+    Seeding from a warm objdir was tried and it poisoned the answer: `cp -Rp`
+    preserves mtimes, GNU Make 3.81 here compares whole seconds, and make then
+    declared 465 of 540 copied objects fresh.  The binary that came out ran a
+    client whose npc pool stayed empty, whose backpack never synced and whose
+    tile never moved -- a fabricated R-B "reproduction" that a clean build does
+    not show.  That is CLAUDE.md's "if a build ever disagrees with its source,
+    delete the object and rebuild", and the whole point of this gate is that
+    its answer is real, so the first build here is a cold one.
+    """
     target = "torirs_qd_%s" % label
     code = run(["make", "-C", os.path.join(REPO_ROOT, "src"), "OPT=1", "EMBED_SERVER=1",
                 "PLATFORM_OBJ_BASE=build_qd_%s" % label,
@@ -61,11 +66,20 @@ def build(label):
     return code, os.path.join(REPO_ROOT, "src", target)
 
 
-def manifest(label):
+def manifest():
     """The shipped manifest points at a sparse JS5 cache this tree does not
-    have; the content test rewrites it the same way (tools/content_selftest.py)."""
+    have; the content test rewrites it the same way (tools/content_selftest.py).
+
+    It is written INTO manifests/, not into the run's own directory, because
+    the manifest's own directory is load-bearing: the same rewritten file, run
+    from the session dir instead, boots a client where ::objbox and the cook's
+    quest-start mount nothing at all -- four chat verbs flip from PASS to
+    not_visible and nothing in the log says why. Measured A/B, 2026-09-19:
+    manifests/ 50/78, session dir 46/78. The name is a dotfile this gate owns
+    and rewrites every run; `dir=` inside it is absolute, so two sessions
+    racing it write the same bytes.""" 
     source = os.path.join(REPO_ROOT, "manifests", "manifest_osrs239.ini")
-    out = os.path.join(REPO_ROOT, "manifests", ".%s.ini" % label)
+    out = os.path.join(REPO_ROOT, "manifests", ".conformance.ini")
     lines = []
     with open(source, "r", encoding="utf-8") as handle:
         for line in handle:
@@ -141,7 +155,14 @@ def client(binary, manifest_path, directory, saves, log_path, script):
                "--soft3d", "--window", "765x503"]
     print("+ " + " ".join(command), flush=True)
     with open(log_path, "wb") as log:
-        return subprocess.call(command, env=environment, stdout=log, stderr=subprocess.STDOUT)
+        # cwd is the repo root, ALWAYS: TORIRS_PLUGIN_MANIFEST resolves under
+        # script/ relative to the working directory, so running this from
+        # src/ (which is what `make -C src test-quest-conformance` does) finds
+        # no quest_driver.ini, silently loads the default plugin set instead,
+        # and the run reads exactly like a dead driver -- no QUEST line, no
+        # ledger, nothing to say why.
+        return subprocess.call(command, env=environment, cwd=REPO_ROOT,
+                               stdout=log, stderr=subprocess.STDOUT)
 
 
 def read_ledger(path):
@@ -235,7 +256,7 @@ def main():
     if os.path.isdir(root) and not arguments.keep:
         shutil.rmtree(root)
     os.makedirs(root, exist_ok=True)
-    manifest_path = manifest(arguments.label)
+    manifest_path = manifest()
 
     order = verb_list.verbs_from_harness()
     collected = {}          # verb -> (verdict, detail)
@@ -258,6 +279,11 @@ def main():
             if row[1] in ("script-error", "conformance-plan"):
                 continue
             collected.setdefault(row[1], (row[2], row[5]))
+
+        if not rows:
+            print("conformance: attempt %d wrote no ledger row at all -- the driver "
+                  "never ran; see %s" % (attempt, log_path), file=sys.stderr)
+            break
 
         remaining = [name for name in order if name not in collected]
         if not remaining:

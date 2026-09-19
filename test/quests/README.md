@@ -37,3 +37,40 @@ Rules the runner and the gate depend on:
   one only when the quest genuinely waits longer (a cutscene, a long walk).
 
 Fixtures live in `test/quests/fixtures/*.ini` and are server saves.
+
+## `_conformance.lua` -- the verb conformance harness
+
+`test/quests/_conformance.lua` is not a quest. It is the gate that replaced
+"it compiles": it calls **every** verb the driver exposes on `t`, exactly once,
+against a live world, and leaves one ledger row per verb saying what that verb
+actually did.
+
+```sh
+make -C src test-quest-conformance   # builds, runs, prints the table, red on any failure
+make -C src check-quest-verbs        # just the drift check, no client
+```
+
+- The underscore prefix keeps it out of the quest set: `tools/quest_gate/run.py
+  --all` runs quests, this runs verbs.
+- `tools/quest_gate/verb_list.py` enumerates the verbs from
+  `script/plugins/quest_driver/*.lua` and `--check` refuses to agree unless the
+  harness plans exactly one row for each. **A verb added to the driver with no
+  row here fails a make gate**, rather than being quietly never called.
+- The sandbox has no `pcall`, so a verb that *raises* instead of answering ends
+  the run where it stands. `tools/quest_gate/conformance.py` attributes the
+  error to the first verb with no row, records it as `ERROR` with the message,
+  and re-runs with that verb skipped -- so an unrunnable verb costs its own row
+  and nobody else's, and all 78 verbs are always scored.
+- Two rows are re-graded outside the coroutine, because Lua cannot check them:
+  `note` (its probe must appear in the row it folds into) and `t.finish` (the
+  ledger's `SUMMARY exit=0` and the process exit code).
+- Cheats that state the world are **setup**, not rows, and every one of them is
+  a `[debugproc]`: `DriveCore_Cheat` dispatches only through
+  `ToriRSServer_RunDebugprocForTest`, so `::give` / `::spawn` / `::setlevel`
+  (torirs_server_world.c's own ladder) answer `no_row` and do nothing.
+- The rewritten manifest stays in `manifests/.conformance.ini`: the manifest's
+  own directory is load-bearing -- the same file run from the session dir boots
+  a client where `::objbox` and the cook's quest-start mount nothing (measured
+  A/B 2026-09-19: 50/78 from `manifests/`, 46/78 from the session dir).
+- Artefacts land under `build/quest_gate/_conformance/attempt-NN/`: the exact
+  generated script, `ledger.tsv`, `log.txt` and `shots/`.
