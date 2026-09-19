@@ -39,6 +39,94 @@
 -- the family lacked -- frame the target, then WAIT for the projection to land
 -- inside the viewport -- and every verb that needs a pixel goes through it.
 
+-- THE REFUSAL LINES -- the sentences that mean THE CLICK DID NOT LAND.
+--
+-- Why this table exists, measured: the 2026-09-19 Haiku pilot's Romeo & Juliet
+-- test stood the player on the wrong side of a closed door, clicked Juliet,
+-- and the server answered "I can't reach that!".  That sentence is a chat
+-- line, `_settle_after_click`'s second arm resolves on any new chat line, and
+-- the ledger row therefore read `PASS ... chat_message` for a conversation
+-- that never happened.  The author read the green row and went looking for a
+-- content bug.  A settle that cannot tell "the npc answered" from "the engine
+-- said you could not get there" is not a fence, and every click verb in this
+-- file was behind it.
+--
+-- Every string here is EXACT and every one is content's -- the client prints
+-- none of them (`grep -rn "reach that" src` finds only comments and a
+-- selftest).  They reach the chatbox through ToriRSServer_Say, so they arrive
+-- as ordinary game messages, indistinguishable from an npc's `mes` except by
+-- their text.  Where each one comes from:
+--
+--   "I can't reach that!"          [proc,cannot_reach_message] --
+--       OSRS-Content/osrs239-content/server/scripts/player/messages.rs2:123,
+--       said by the engine at src/torirsserver/torirs_server_world.c:2276 and
+--       :2306 when an interaction cannot close the distance (the route failed,
+--       or the player stalled with no waypoints left and no step taken).
+--   "Nothing interesting happens." [proc,nothing_interesting_message] --
+--       messages.rs2:116, said from nine engine sites (torirs_server_world.c
+--       :1981 :2019 :2078 :2109 :2119 :5969 :6788 :7162 and
+--       torirs_server_scripts.c:12375) when an interaction REACHED its target
+--       and no content script claimed it: the op number was wrong, or that
+--       target has no script for it.
+--   "You can't reach that."        [proc,cant_reach_message] --
+--       messages.rs2:101, the take-object refusal.  No engine call site today
+--       (the proc is declared and unreferenced); it is here because the
+--       sentence exists and a fence that only knows today's call graph is one
+--       commit from being wrong again.
+--   "You can't go any further."    [proc,blocked_message] -- messages.rs2:72,
+--       reached from ladders_stairs/scripts/ladders.rs2:75 when a climb would
+--       leave the 0-3 plane range: the ladder click landed and moved nobody.
+--
+-- What is deliberately NOT here: the "You need to have a <skill> level of
+-- <n>." family (messages.rs2:47 and :50, and the inventory-space and bank
+-- refusals beside them).  Those answer a click that DID land -- content read
+-- the request and refused it on its merits -- which is a legitimate outcome a
+-- quest test may be asserting, and the first of them is a template with a
+-- number in it rather than a fixed line.  A verb that answered `refused` for
+-- those would be making the opposite mistake to the one above.
+QD.player.CLICK_REFUSAL_LINES = {
+    "I can't reach that!",
+    "Nothing interesting happens.",
+    "You can't reach that.",
+    "You can't go any further.",
+}
+
+-- The refusal `text` IS, or nil.  Exact equality after trimming the ends, not
+-- a substring test: a content line that quotes one of these sentences inside a
+-- longer one is an npc talking, and turning that into `refused` would be this
+-- fence making the same class of mistake in the other direction.
+function QD.player._refusal_line(text)
+    if type(text) ~= "string" then
+        return nil
+    end
+    local trimmed = string.match(text, "^%s*(.-)%s*$") or text
+    for i = 1, #QD.player.CLICK_REFUSAL_LINES do
+        if trimmed == QD.player.CLICK_REFUSAL_LINES[i] then
+            return QD.player.CLICK_REFUSAL_LINES[i]
+        end
+    end
+    return nil
+end
+
+-- The text of the chat line a `chat_message` event names.  The event carries
+-- a=type and b=SERIAL only (rs_chat.c's DRIVE_STAMP, RS_Chat_AddMessage), and
+-- the stamp fires after the line is stored in the ring, so the line the event
+-- announces is always readable here -- by serial, never by position, because
+-- a second line can land in the same frame.  "" when the ring no longer holds
+-- it.
+function QD.player._line_by_serial(serial)
+    local result, rows = api_drive.messages()
+    if result ~= "ok" or type(rows) ~= "table" then
+        return ""
+    end
+    for i = 1, #rows do
+        if rows[i].serial == serial then
+            return tostring(rows[i].text)
+        end
+    end
+    return ""
+end
+
 function QD.player.by_symbol(kind, name)
     local result, id = api_drive.symbol(kind, name)
     if result ~= "ok" then
@@ -805,11 +893,34 @@ end
 -- reads as evidence rather than as a bare PASS -- and so a mutation that
 -- deletes one arm's stamp shows up as a different word in the row before it
 -- shows up as a timeout.
+-- THE FENCE -- the fifth thing this function does, and the one that makes the
+-- second arm mean anything.
+--
+-- The second arm resolves on any new chat line, and "the engine told you the
+-- click did not land" is a chat line (QD.player.CLICK_REFUSAL_LINES at the top
+-- of this file, with each sentence's file:line).  So a chat_message whose text
+-- is one of those resolves the await and answers `refused` with that exact
+-- sentence as its detail -- immediately, on the line itself, never `ok`, and
+-- never by waiting out the deadline.  `t.exec` grades the row FAIL, the
+-- detail IS the server's own sentence, and the author reads what the world
+-- actually said instead of a green row.
+--
+-- The scan at the tail is the same fence for the case the event arm cannot
+-- see: another arm (a map_flag clear when the route ran out beside a closed
+-- door, a page that changed for its own reasons) resolving in the same window
+-- a refusal landed in.  Anything since the pre-click serial is attributable to
+-- this click, so it is read after the await as well as during it.
+--
+-- Returns (result, detail, arm, line): `arm` is which of the five resolved --
+-- talk_to needs that word, not a parse of the detail string -- and `line` is
+-- the chat line the chat_message arm resolved on, "" for every other arm.
 function QD.player._settle_after_click(ticks, before_kind, before_text)
     local serial_result, since = api_drive.message_serial()
     local chat_result, chat_interface_id = api_drive.symbol("interface", "chat")
     local route_issued = false
     local resolved_by = nil
+    local settle_line = ""
+    local refusal = nil
 
     if before_kind == nil then
         before_kind, before_text = QD.player._chat_page()
@@ -826,6 +937,8 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
             end
             if ev.kind == "chat_message" then
                 if serial_result == "ok" and ev.b > since then
+                    settle_line = QD.player._line_by_serial(ev.b)
+                    refusal = QD.player._refusal_line(settle_line)
                     resolved_by = "chat_message"
                     return true
                 end
@@ -855,10 +968,38 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
         end,
         note = "settle_after_click",
     }, ticks)
-    if result == "ok" then
-        return "ok", resolved_by or "settled"
+    if not refusal and serial_result == "ok" then
+        refusal = QD.player._refusal_since(since)
     end
-    return result, detail
+    if refusal then
+        return "refused", refusal, "refusal", refusal
+    end
+    if result == "ok" then
+        return "ok", resolved_by or "settled", resolved_by or "settled", settle_line
+    end
+    return result, detail, "timeout", settle_line
+end
+
+-- The first refusal line newer than `since`, or nil.  Newest-first is what
+-- api_drive.messages answers in (torirs_plugin_drive_state.c: messages[0] is
+-- the newest, and DriveState_MessageSerial reads that same cell), so the walk
+-- stops at the OLDEST refusal in the window by taking the last match -- the
+-- one the click itself provoked, rather than a later consequence of it.
+function QD.player._refusal_since(since)
+    local result, rows = api_drive.messages()
+    local found = nil
+    if result ~= "ok" or type(rows) ~= "table" then
+        return nil
+    end
+    for i = 1, #rows do
+        if rows[i].serial > since then
+            local line = QD.player._refusal_line(rows[i].text)
+            if line then
+                found = line
+            end
+        end
+    end
+    return found
 end
 
 function QD.player.talk_to(npc, op)
@@ -875,7 +1016,28 @@ function QD.player.talk_to(npc, op)
     if click_result ~= "ok" then
         return click_result, click
     end
-    return QD.player._settle_after_click(20, before_kind, before_text)
+    -- WHAT A SETTLED TALK HAS TO SHOW, over and above the settle.
+    --
+    -- The refusal fence above already answers `refused` to "I can't reach
+    -- that!" and its three siblings.  This is the other half of the same
+    -- question, and it is here rather than in the fence because it is only
+    -- true of TALKING: a talk that settled on a chat line and left NO
+    -- dialogue on screen is an npc that said nothing.  It is not automatically
+    -- a failure -- content answers plenty of `[opnpc1]`s with a bare `mes`,
+    -- and the fence has already ruled out the four sentences that mean the
+    -- click died -- but the difference belongs in the row, not in the
+    -- author's imagination.  So the detail names WHICH of the two held: the
+    -- dialogue kind that is up, or the content line that came instead.
+    local result, detail, arm, line = QD.player._settle_after_click(
+        20, before_kind, before_text)
+    if result == "ok" and arm == "chat_message" then
+        local kind = QD.chat.kind()
+        if kind ~= "none" then
+            return "ok", detail .. ": dialogue " .. kind .. " is up"
+        end
+        return "ok", detail .. ": no dialogue, content line '" .. tostring(line) .. "'"
+    end
+    return result, detail
 end
 
 -- Walks into range BEFORE the click, which a world click on scenery needs and
@@ -892,11 +1054,61 @@ function QD.player.click_loc(loc, op)
         return sym_result, sym_name
     end
     QD.player.walk_near(target)
+    -- A DOOR SAYS NOTHING, and the settle has no arm for silence.
+    --
+    -- Measured 2026-09-19 (build/quest_gate/door_fence): the closed door
+    -- between the player and Juliet, `fai_varrock_castle_door` at
+    -- 3158,3426,1, opened on this click -- the very next `talk_to juliet`
+    -- answered ok with "Romeo, Romeo, wherefore art thou Romeo?" -- and this
+    -- verb answered `timeout` for it anyway, because opening a door mounts no
+    -- dialogue, prints no chat line, and issues no route: `~door_open_active`
+    -- (doors/scripts/doors.rs2:93) swaps one loc for another and says
+    -- nothing at all.  An author photographing a FAIL row for a door that
+    -- visibly opened is the mirror image of the row this pass exists to kill.
+    --
+    -- So the loc itself is the evidence, read BEFORE the click and again if
+    -- the settle runs out: the closed door is no longer the nearest copy of
+    -- its own symbol, because it is now the OPENED loc with a different id.
+    -- This is deliberately a check AFTER the timeout and not a fifth arm of
+    -- the settle -- it cannot resolve anything earlier than the code without
+    -- it did, so no verb's timing changes; it only stops a click that
+    -- demonstrably landed from being reported as one that did not.
+    --
+    -- Both reads are of the NEAREST copy (DriveUi_Locs inserts by distance,
+    -- torirs_plugin_drive_ui.c:359-384) and so are only comparable from the
+    -- same tile: a player who walked between them can change which copy is
+    -- nearest with no loc having changed at all.  The player's tile is
+    -- therefore read alongside, and a click that moved him keeps its timeout
+    -- rather than claiming an answer this cannot actually give.
+    local before_result, before_row = QD.world.loc_near(loc, 3)
+    local before_tile_result, before_tile = QD.world.tile()
     local click_result, click = QD.drive.click_minimenu(target, op)
     if click_result ~= "ok" then
         return click_result, click
     end
-    return QD.player._settle_after_click(20)
+    local result, detail = QD.player._settle_after_click(20)
+    if result ~= "timeout" or before_result ~= "ok" or before_tile_result ~= "ok" then
+        return result, detail
+    end
+    local after_tile_result, after_tile = QD.world.tile()
+    if after_tile_result ~= "ok"
+        or after_tile.x ~= before_tile.x
+        or after_tile.z ~= before_tile.z
+        or after_tile.level ~= before_tile.level then
+        return result, detail
+    end
+    local where = string.format("%d,%d,%d",
+        before_row.tile_x, before_row.tile_z, before_row.level)
+    local after_result, after_row = QD.world.loc_near(loc, 3)
+    if after_result ~= "ok" then
+        return "ok", loc .. " left " .. where .. " (no event; the loc changed)"
+    end
+    if after_row.tile_x ~= before_row.tile_x
+        or after_row.tile_z ~= before_row.tile_z
+        or after_row.element_id ~= before_row.element_id then
+        return "ok", loc .. " changed at " .. where .. " (no event; the loc changed)"
+    end
+    return result, detail
 end
 
 -- Default op 3, not 1: the synthesized Take row is emitted only for slot
@@ -1045,7 +1257,7 @@ function QD.player.inv_op(item, op)
     end
     -- The op left as a packet; the server answers on a later tick and every
     -- caller that knows WHAT to expect (equip, drop) asserts it itself.
-    local settle_result = QD.player._settle_after_click(10)
+    local settle_result, settle_detail = QD.player._settle_after_click(10)
     -- And then wait for the BACKPACK to stop moving.  A held op's effect is
     -- the server's answer plus, on rev-239's backpack, whatever the cell's own
     -- on_op hook did -- op 1 there is the shift-click-drop chain, and its drop
@@ -1056,8 +1268,21 @@ function QD.player.inv_op(item, op)
     QD.settle()
     QD.player._inv_quiet(item)
     local count_result, after = QD.inv.count(item)
-    return settle_result, where .. " -> " .. tostring(count_result == "ok" and after or count_result)
+    -- The settle's own word only reaches the caller as a RESULT; on anything
+    -- but ok its reason has to travel too, or the row says `refused` and not
+    -- what refused it.  Since the settle fence (the banner at the top of this
+    -- file) that reason is frequently the server's own sentence -- "Nothing
+    -- interesting happens." for an op no script claims -- and a caller that
+    -- wants to assert WHICH refusal it got (test/quests/_conformance.lua's
+    -- no_script_probe) can only do that if the sentence is in the detail.
+    -- Appended, never substituted: the count half is this verb's own evidence
+    -- and an `ok` row's detail is unchanged by this.
+    local text = where .. " -> " .. tostring(count_result == "ok" and after or count_result)
         .. " left"
+    if settle_result ~= "ok" and settle_detail ~= nil then
+        text = text .. " [" .. tostring(settle_detail) .. "]"
+    end
+    return settle_result, text
 end
 
 -- Neither of these settles for "the dispatcher ran", and neither settles for

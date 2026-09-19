@@ -19,6 +19,8 @@
 -- to depend on:
 --
 --     ::give      an item reaches the BACKPACK, not just the server struct
+--     ::clearinv  the backpack is empty AT THE CLIENT afterwards -- every
+--                 slot, not only the one the row above filled
 --     ::setlevel  a stat level lands, and is still there ten ticks later
 --     ::setvar    a named varp takes a ^constant, seen by the CLIENT's mirror
 --     ::spawn     an npc appears in the client's own npc pool
@@ -121,6 +123,60 @@ return {
                 .. "; backpack egg " .. tostring(before_count) .. " -> "
                 .. tostring(after_count) .. " (delta " .. tostring(gained) .. ", want 1)"
                 .. " reads=" .. tostring(before_result) .. "/" .. tostring(after_result))
+
+        -- ------------------------------------------------------ ::clearinv
+        -- Straight after ::give, so the backpack certainly holds something
+        -- this file put there AND the fourteen the fixture's tutorial
+        -- character boots with -- the pile a quest needing twenty free slots
+        -- (Sheep Shearer's twenty balls of wool) has to get rid of.
+        --
+        -- Two halves, because either alone would pass while the cheat was
+        -- half-broken: the egg is gone (the one item this file KNOWS was
+        -- there), and every slot of the backpack is empty (a clear that only
+        -- reached the slot ::give wrote would pass the first half).
+        --
+        -- The slot scan is 0..27, not 1..28: DriveState_InvSlot indexes from
+        -- zero (torirs_plugin_drive_state.c:186 answers not_found for a slot
+        -- outside 0..slot_count-1), so a 1-based sweep would skip the first
+        -- cell -- the one an empty backpack's next ::give lands in. Slot 28
+        -- is read too, and must answer `not_found`: that is the capacity edge
+        -- saying the scan covered the whole container rather than stopping
+        -- short of it.
+        local clear_result = t.cheat("::clearinv")
+        t.ticks(3)
+        local egg_result, egg_count = t.inv.count("egg")
+        local occupied = ""
+        local slot_reads_ok = true
+        for slot = 0, 27 do
+            local slot_result, cell = t.inv.slot(slot)
+            if slot_result == "ok" then
+                if cell.name ~= "" or cell.count ~= 0 then
+                    occupied = occupied .. slot .. "=" .. tostring(cell.name)
+                        .. "x" .. tostring(cell.count) .. " "
+                end
+            elseif slot_result ~= "not_found" then
+                slot_reads_ok = false
+                occupied = occupied .. slot .. "=<" .. tostring(slot_result) .. "> "
+            end
+        end
+        local past_end = t.inv.slot(28)
+        -- The ladder's own sentence, for the detail: "Cleared N item(s)."
+        -- names how many cells it emptied, and a reader comparing that count
+        -- to the scan above can see the two agree.
+        local said = "?"
+        local lines_result, lines = t.msg.last(1)
+        if lines_result == "ok" and type(lines) == "table" and lines[1] then
+            said = tostring(lines[1].text)
+        end
+        record("cheats.clearinv",
+            clear_result == "ok" and egg_result == "ok" and egg_count == 0
+                and occupied == "" and slot_reads_ok and past_end == "not_found",
+            "::clearinv -> " .. tostring(clear_result)
+                .. "; egg " .. tostring(egg_result) .. "=" .. tostring(egg_count)
+                .. " (want 0); slots 0..27 still holding: "
+                .. (occupied == "" and "<none>" or occupied)
+                .. "; slot 28 -> " .. tostring(past_end) .. " (want not_found)"
+                .. "; server said '" .. said .. "'")
 
         -- ------------------------------------------------------ ::setlevel
         -- 40 rather than a small number so it cannot be mistaken for a level

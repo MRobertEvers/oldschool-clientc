@@ -719,6 +719,76 @@ def resolve_quest_prereq(token: str, inventory: list[dict]) -> str | None:
     return row["dir"] if row else None
 
 
+# ------------------------------------------------------------- rewards
+#
+# QuestHelper's own base class (questhelpers/QuestHelper.java) declares
+# getQuestPointReward()/getExperienceRewards()/getItemRewards() returning
+# null by default -- a subclass overrides only the ones it has, so absence
+# here means "this quest really has none of these", not "this tool missed
+# it". Scoped to each method's own body (find_method_body, the same helper
+# getItemRequirements() already uses above) rather than a whole-file regex,
+# so an unrelated ExperienceReward/ItemReward mentioned elsewhere (a
+# different override, a comment) cannot leak in.
+EXP_REWARD_RE = re.compile(
+    r"\bnew\s+ExperienceReward\s*\(\s*Skill\.(\w+)\s*,\s*(-?\d+)\s*\)"
+)
+ITEM_REWARD_RE = re.compile(
+    r'\bnew\s+ItemReward\s*\(\s*"[^"]*"\s*,\s*ItemID\.([A-Z0-9_]+)\s*,\s*(-?\d+)\s*\)'
+)
+QP_REWARD_RE = re.compile(r"\bnew\s+QuestPointReward\s*\(\s*(-?\d+)\s*\)")
+
+
+def parse_experience_rewards(text: str) -> list[tuple[str, int]]:
+    """[(skill_lowercase, xp), ...] from getExperienceRewards()'s own body,
+    in the order Quest Helper lists them -- t.skill.expect_gain's `name`
+    argument wants exactly this lowercase spelling (QUEST_AUTHORING.md's
+    verb table)."""
+    body = find_method_body(text, r"getExperienceRewards\s*\(\s*\)")
+    if not body:
+        return []
+    return [(sk.lower(), int(xp)) for sk, xp in EXP_REWARD_RE.findall(body)]
+
+
+def parse_item_rewards(text: str) -> list[tuple[str, int]]:
+    """[(compack_symbol, qty), ...] from getItemRewards()'s own body -- the
+    ItemID gameval resolved through resolve_symbol, same as every other item
+    this tool names (module banner's leading-underscore/`+` gaps apply here
+    too)."""
+    body = find_method_body(text, r"getItemRewards\s*\(\s*\)")
+    if not body:
+        return []
+    out: list[tuple[str, int]] = []
+    for raw_name, qty in ITEM_REWARD_RE.findall(body):
+        name = qhe.normalize_gameval_name("ItemID", raw_name)
+        out.append((resolve_symbol("ItemID", name), int(qty)))
+    return out
+
+
+def reward_local(item_sym: str) -> str:
+    """The Lua local name that holds one item reward's before/after count.
+
+    A compack symbol is not automatically a Lua Name -- the module banner's
+    own gap list has symbols carrying `+` and a leading `_` -- and a local
+    spelled `reward_bones+1_before` is a syntax error that takes the whole
+    generated file down, not one row. Every character outside [A-Za-z0-9_]
+    becomes `_`, which can only collide with another symbol that differs
+    ONLY in those characters (see the module's open issues)."""
+    assert item_sym
+    return "reward_" + re.sub(r"\W", "_", item_sym)
+
+
+def parse_quest_point_reward(text: str) -> int | None:
+    """getQuestPointReward()'s own `new QuestPointReward(N)` -- the
+    authoritative reward value, preferred over the `*_questpoints` constant
+    guess `generate()` used alone before this pass (docs/QUEST_SUITE_KIT.md
+    H2)."""
+    body = find_method_body(text, r"getQuestPointReward\s*\(\s*\)")
+    if not body:
+        return None
+    m = QP_REWARD_RE.search(body)
+    return int(m.group(1)) if m else None
+
+
 # -------------------------------------------------------------- emission
 
 # `fixture = "fresh_lumbridge.ini"` (the only fixture generate() ever emits,
@@ -945,20 +1015,35 @@ def generate(
     if not_started_value is not None:
         constants_lua["not_started"] = not_started_value
 
-    points = None
-    for name, value in const_values.items():
-        if name.endswith("questpoints"):
-            points = value
-            break
-    if points is None:
-        qm = re.search(r"new\s+QuestPointReward\s*\(\s*(\d+)", text)
-        if qm:
-            points = int(qm.group(1))
-    if points is None:
-        points = 1
-        checks.append("points: no *_questpoints constant or QuestPointReward(N) found -- defaulted to 1")
+    # getQuestPointReward() is Quest Helper's own authoritative reward value
+    # -- preferred over the `*_questpoints` constant guess (H2,
+    # docs/QUEST_SUITE_KIT.md: "Use QuestPointReward(N) ... instead of the
+    # current guess when present").
+    qp_reward = parse_quest_point_reward(text)
+    if qp_reward is not None:
+        points = qp_reward
+    else:
+        points = None
+        for name, value in const_values.items():
+            if name.endswith("questpoints"):
+                points = value
+                break
+        if points is None:
+            points = 1
+            checks.append("points: no QuestPointReward(N) or *_questpoints constant found -- defaulted to 1")
 
-    setup_cheats: list[str] = []
+    # ::clearinv is ALWAYS the first setup line -- the fresh character
+    # (fresh_lumbridge.ini) carries fourteen occupied backpack slots --
+    # content's [proc,newplayer_inv] (player/newplayer.rs2:119) is what
+    # puts them there, and build/quest_gate/closer_setup2 counted them --
+    # and they block a
+    # non-stackable requirement fitting in the backpack (H2,
+    # docs/QUEST_SUITE_KIT.md: sheep's REJECTED pass had to drop tutorial
+    # items one by one by hand to fit 20 balls of wool). It is on the engine
+    # cheat ladder (torirs_server_world.c) and proved by a live row of
+    # test/quests/_cheats.lua ("cheats.clearinv"), so a generated file can be
+    # run as it stands.
+    setup_cheats: list[str] = ["::clearinv"]
     if inv_row.get("has_reset") == "yes" and inv_row.get("reset_name") not in (None, "", "?"):
         setup_cheats.append(f"::{inv_row['reset_name']}")
     else:
@@ -1015,6 +1100,23 @@ def generate(
     boss_fight = inv_row.get("boss_fight") == "yes"
     boss_npcs = inv_row.get("boss_npcs", "")
 
+    # Reward checks (H2, docs/QUEST_SUITE_KIT.md): sheep's REJECTED pass
+    # never checked its own reward, so every generated file now snapshots
+    # before the FINAL hand-in step and asserts the gain after
+    # expect_complete(). Only meaningful when the route actually reaches
+    # expect_complete() -- a boss_fight quest always ends at a t.blocked()
+    # stub instead (see the emission loop below), so no reward_before/check
+    # lines are emitted for one; the reward is real, but nothing in this
+    # generated file will ever observe it landing.
+    exp_rewards = parse_experience_rewards(text)
+    item_rewards = parse_item_rewards(text)
+    emit_rewards = bool(not boss_fight and (exp_rewards or item_rewards))
+    if boss_fight and (exp_rewards or item_rewards):
+        checks.append(
+            "rewards: getExperienceRewards()/getItemRewards() found real rewards, but this "
+            "quest ends at a t.blocked() skipboss stub -- no reward_before/reward.* rows emitted"
+        )
+
     # ----------------------------------------------------------- emit Lua
     lines: list[str] = []
     lines.append(f"-- Generated by tools/quest_gate/new_quest.py from Quest Helper's")
@@ -1025,6 +1127,18 @@ def generate(
     lines.append(
         f"-- Items from getItemRequirements(): {given_count} given in setup (::give), "
         f"{gathered_count} left as '-- CHECK gather' markers (Quest Helper canBeObtainedDuringQuest())."
+    )
+    lines.append(
+        "-- Setup always starts with ::clearinv: the fresh character carries fourteen"
+    )
+    lines.append(
+        "-- slots of tutorial kit that block a non-stackable requirement fitting in the backpack."
+    )
+    lines.append(
+        f"-- Rewards from Quest Helper: {len(exp_rewards)} experience, {len(item_rewards)} item, "
+        f"quest points {points} ({'QuestPointReward' if qp_reward is not None else 'guessed from a constant/default'})."
+        + ("" if emit_rewards or (not exp_rewards and not item_rewards) else
+           " Reward checks NOT emitted -- see the CHECK near boss_fight above.")
     )
     lines.append("--")
     lines.append(
@@ -1062,7 +1176,11 @@ def generate(
     if setup_cheats:
         lines.append("    setup = {")
         for cheat in setup_cheats:
-            lines.append(f"        {lua_string(cheat)},")
+            suffix = (
+                " -- the fixture's fourteen tutorial slots, so a requirement fits"
+                if cheat == "::clearinv" else ""
+            )
+            lines.append(f"        {lua_string(cheat)},{suffix}")
         lines.append("    },")
     else:
         lines.append("    setup = {}, -- CHECK: nothing resolved automatically")
@@ -1126,6 +1244,21 @@ def generate(
     fight_stub_emitted = False
     route_pos = RoutePosition()
 
+    # The last "step" route entry is the FINAL hand-in step -- reward_before
+    # is snapshotted right ahead of it (H2, docs/QUEST_SUITE_KIT.md). Only
+    # meaningful when the route actually reaches expect_complete()
+    # (emit_rewards is already False for a boss_fight quest, which always
+    # ends at a t.blocked() stub before or at this point -- see above).
+    last_hand_in_idx = None
+    if emit_rewards:
+        for ridx in range(len(route) - 1, -1, -1):
+            if route[ridx][0] == "step":
+                last_hand_in_idx = ridx
+                break
+        if last_hand_in_idx is None:
+            emit_rewards = False
+            checks.append("rewards: no driven step found to anchor reward_before -- reward checks not emitted")
+
     # Every discoverable route step is walked and emitted REGARDLESS of
     # boss_fight -- a fight the manifest lists does not usually sit at step
     # 0, and the earlier draft of this function threw away every pre-fight
@@ -1137,7 +1270,7 @@ def generate(
     # replaced AT THE FIGHT STEP ITSELF (the first walked step whose own
     # npc gameval is in the manifest's boss_npcs), not at the end of the
     # file: docs/QUEST_SUITE_KIT.md phase 3, module banner item 3.
-    for kind, var in route:
+    for route_idx, (kind, var) in enumerate(route):
         if fight_stub_emitted:
             # Past the fight -- still emitted, so a human/phase-4 pass sees
             # exactly what would run, just commented out until `::skipboss`
@@ -1186,6 +1319,45 @@ def generate(
                 lines.append(gather_check_line(gather_items[gvar]))
                 placed_gather.add(gvar)
 
+        if emit_rewards and route_idx == last_hand_in_idx:
+            lines.append("")
+            lines.append(
+                "        -- Reward snapshot before the FINAL hand-in step (H2, "
+                "docs/QUEST_SUITE_KIT.md) -- sheep's"
+            )
+            lines.append(
+                "        -- REJECTED pass never checked its own reward; reward.* below does."
+            )
+            if exp_rewards:
+                # BOTH returns, never just the first: t.skill.snapshot answers
+                # (result, snapshot) like every other verb in this driver
+                # (script/plugins/quest_driver/state.lua), so `local s =
+                # t.skill.snapshot()` binds the STRING "ok" and every
+                # expect_gain against it answers `no_row: snapshot is not a
+                # table`. Measured on the first generated sheep file, 2026-09-19.
+                lines.append(
+                    "        local reward_snapshot_result, reward_before = t.skill.snapshot()"
+                )
+                # The snapshot gets its own row, as cooks_assistant.lua's
+                # hand-written one does: a snapshot that did not read the
+                # stats makes every reward check below answer `no_row`, and
+                # the row that says so should be the snapshot's, not the
+                # reward's. t.step, not t.exec -- it takes no shot and
+                # gate.py's one-PNG-per-t.exec-row rule does not reach it.
+                lines.append(
+                    '        t.step("reward.snapshot", '
+                    'reward_snapshot_result == "ok" and "PASS" or "FAIL", '
+                    '"skill.snapshot before the hand-in -> " '
+                    ".. tostring(reward_snapshot_result))"
+                )
+            for item_sym, _qty in item_rewards:
+                local = reward_local(item_sym)
+                lines.append(
+                    f"        local {local}_before_result, {local}_before = "
+                    f"t.inv.count({lua_string(item_sym)})"
+                )
+            lines.append("")
+
         if boss_fight and gameval is not None and gameval[0] == "NpcID" and gameval[1] in boss_npc_set:
             desc = info["desc"] or var
             lines.append("        -- " + desc)
@@ -1226,6 +1398,38 @@ def generate(
         blocked_stubs += 1
     elif not fight_stub_emitted:
         lines.append("        t.quest.expect_complete()")
+        if emit_rewards:
+            lines.append("")
+            lines.append(
+                "        -- Reward checks -- the quest's actual reward, not just its completion"
+                " (H2, docs/QUEST_SUITE_KIT.md)."
+            )
+            for skill, xp in exp_rewards:
+                lines.append(
+                    f'        t.check("reward.{skill}", '
+                    f"t.skill.expect_gain({lua_string(skill)}, {xp}, reward_before))"
+                )
+            for item_sym, qty in item_rewards:
+                local = reward_local(item_sym)
+                lines.append(
+                    f"        local {local}_after_result, {local}_after = "
+                    f"t.inv.count({lua_string(item_sym)})"
+                )
+                # Both reads are asserted, and the detail is built with %s
+                # over tostring(): t.inv.count answers (result, count) but
+                # hands back (result, THE SYMBOL) when the symbol does not
+                # resolve, and there is no pcall in this sandbox -- a bare
+                # `count + qty` on that string ends the whole run at this
+                # line instead of failing one row.
+                lines.append(
+                    f'        t.check("reward.{item_sym}", '
+                    f'{local}_before_result == "ok" and {local}_after_result == "ok" '
+                    f"and {local}_after == {local}_before + {qty}, "
+                    f'string.format("{item_sym} %s -> %s (want +{qty}), reads %s/%s", '
+                    f"tostring({local}_before), tostring({local}_after), "
+                    f"tostring({local}_before_result), tostring({local}_after_result)))"
+                )
+            lines.append("")
         lines.append("        t.finish(0)")
     lines.append("    end,")
     lines.append("}")

@@ -188,6 +188,16 @@ def write_wrapper_script(quest_file, out_path):
     dialogue. `no_row` (nothing in the server understood the line) and
     `refused` (a debugproc or a ladder branch understood it and said no) are
     both this failure; only `ok` is a setup that happened.
+
+    The loop is preceded by one tick and a settle, for the sibling failure
+    that `ok` cannot catch either: a cheat that ran against a world the
+    server had not finished building. The fixture's starting backpack is
+    granted on the tick AFTER the script's first frame, so `::clearinv` as a
+    setup line -- which every generated file now opens with -- answered
+    "Cleared 0 item(s)." and left the fourteen tutorial slots to land behind
+    it (build/quest_gate/closer_setup2, row 1, 2026-09-19). That is a setup
+    that reported ok and did nothing, which is exactly what this wrapper
+    exists to make impossible.
     """
     with open(quest_file, "r", encoding="utf-8") as handle:
         source = handle.read()
@@ -201,6 +211,35 @@ def write_wrapper_script(quest_file, out_path):
         "local quest_setup = QUEST.setup\n"
         "local quest_run = QUEST.run\n"
         "QUEST.run = function(t)\n"
+        "    -- WAIT FOR THE LOGIN GRANT before the first setup cheat.\n"
+        "    --\n"
+        "    -- The backpack a fixture starts with is not in the fixture: the\n"
+        "    -- containers are adopted EMPTY (torirs_server_world.c, \"what goes\n"
+        "    -- in them the first time a character connects is content's\") and\n"
+        "    -- content's [login,_] -> [proc,newplayer_inv] fills them on a\n"
+        "    -- later tick than the one this script starts on.  Measured\n"
+        "    -- 2026-09-19 (build/quest_gate/closer_setup2 row 1,\n"
+        "    -- closer_setup3): `::clearinv` issued on the first frame answers\n"
+        "    -- \"Cleared 0 item(s).\", the fourteen tutorial slots land behind\n"
+        "    -- it, and a `::give` before the grant is overwritten by it -- a\n"
+        "    -- setup list that answered `ok` three times and left the world it\n"
+        "    -- promised in none of them.  A fixed `t.ticks(n)` does not fix it\n"
+        "    -- (the grant landed on tick 1 in one run and after three cheats in\n"
+        "    -- the next); the arrival itself is the signal, so wait for it.\n"
+        "    --\n"
+        "    -- Bounded, and proceeding either way: a fixture whose character\n"
+        "    -- really does hold nothing pays the budget and runs its setup\n"
+        "    -- anyway, rather than failing a quest over an empty backpack.\n"
+        "    t.await({ level = function()\n"
+        "        for slot = 0, 27 do\n"
+        "            local slot_result, cell = t.inv.slot(slot)\n"
+        "            if slot_result == \"ok\" and cell.name ~= \"\" and cell.count ~= 0 then\n"
+        "                return true\n"
+        "            end\n"
+        "        end\n"
+        "        return false\n"
+        "    end, note = \"setup: the login grant\" }, 10)\n"
+        "    t.settle()\n"
         "    if type(quest_setup) == \"table\" then\n"
         "        for _, cheat in ipairs(quest_setup) do\n"
         "            local setup_result, setup_detail = t.cheat(cheat)\n"

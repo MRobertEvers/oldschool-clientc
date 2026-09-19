@@ -50,10 +50,10 @@ return {
 }
 ```
 
-An excerpt, not a whole quest: every line above ran against the real client
-and every row PASSed, but a file this short fails section 7's minimum shape.
-The complete green file is `test/quests/cooks_assistant.lua`; read it next,
-then `test/quests/hans.lua` (a test with no quest varp).
+An excerpt, not a whole quest (every line above ran and PASSed, but a file
+this short fails section 7's minimum shape). The complete green file is
+`test/quests/cooks_assistant.lua`; read it next, then `test/quests/hans.lua`
+(a test with no quest varp).
 
 ## 2. Where you start, and how to get there
 
@@ -77,6 +77,9 @@ then `test/quests/hans.lua` (a test with no quest varp).
 - `chat.play` / `chat.choose` / `chat.continue_` act on a dialogue already
   open, never opening one; `not_visible: no dialogue is open` means the
   click before them did not land -- fix that click, not the chat call.
+- Doors: `I can't reach that!` after a click means a door, gate or wall blocks the path -- `click_loc` it (op 1, its symbol from the area's `configs/*.loc`) or `goto_tile` past it; `talk_to` now answers `refused` with that line, not `ok`.
+- Inventory: the fresh character carries fourteen slots of tutorial kit (content's `[proc,newplayer_inv]`, granted a tick after login); every generated file's `setup` starts with `::clearinv` -- add it yourself too when hand-writing `setup`, and never in `run`: the runner waits for that grant before the first setup cheat, nothing waits for you.
+- Floors and ladders: `click_loc` the ladder, then `goto_tile` the destination tile with ITS level; a scene that fails to load after a multi-region jump (`talk_to` answers `screen_position`, npc lookups `no_row`) is a known seam -- `t.blocked` it, naming the tile.
 - Your quest file is the ONLY file you may create or edit -- no fixture,
   no helper `.lua`, nothing else under `test/`.
 
@@ -244,6 +247,8 @@ verdicts are `PASS`, `FAIL`, `BLOCKED`.
 
 ## 6. Picking one up, scaffolding it, running it
 
+- Resuming: if `test/quests/<id>.lua` already exists and `queue.py show <id>` reports status `todo` with a `last_failure`, that file is the PREVIOUS author's rejected attempt -- read the failure and continue from it, never regenerate over it (`new_quest.py` refuses without `--force` anyway).
+
 ```sh
 # The queue (test/quests/QUEUE.tsv) hands out the work, one row per test:
 python3 tools/quest_gate/queue.py next --tier 1 --claim <you>   # claims it
@@ -261,14 +266,9 @@ python3 tools/quest_gate/queue.py set <test_id> --status green --owner <you>
 python3 tools/quest_gate/queue.py set <test_id> --status blocked --failure "<why>"
 ```
 
-The scaffold never `::give`s an item Quest Helper marks
-`canBeObtainedDuringQuest()`; it leaves a `-- CHECK gather` comment at the
-first step that needs it instead -- drive the gathering, or delete the
-marker and give it deliberately, but never leave the marker in.
+The scaffold never `::give`s an item Quest Helper marks `canBeObtainedDuringQuest()`; it leaves a `-- CHECK gather` comment at the first step that needs it instead -- drive the gathering, or delete the marker and give it deliberately, but never leave the marker in.
 
-A non-green run prints a `---- failures ----` block (last FAIL/BLOCKED
-row, its `-FAIL.png`/`TIMEOUT.png`, the last `client.log` lines) -- start
-there. Artefacts live in `build/quest_gate/<quest>/`, replaced every run.
+A non-green run prints a `---- failures ----` block (last FAIL/BLOCKED row, its `-FAIL.png`/`TIMEOUT.png`, the last `client.log` lines) -- start there. Artefacts live in `build/quest_gate/<quest>/`, replaced every run.
 
 ## 7. Definition of done
 
@@ -280,11 +280,10 @@ file if this drifts. A quest is green when:
 - The ledger has a trailing `SUMMARY` row whose counted `pass=`/`fail=`
   agree with the rows, whose verdict is `PASS` iff `fail==0`, and whose
   `blocked=` token (present only when count>0) agrees too.
-- Every row's claimed shot exists on disk and is >=1000 bytes.
-- No two shots in `shots/` share an MD5.
-- No shot's top-left 64x64 corner matches the Character-Creator or
-  pre-login fingerprint (`tools/quest_gate/fingerprints/`) -- a run stuck at
-  boot cannot pass by answering `refused`/`timeout` quietly.
+- Every row's claimed shot exists on disk (>=1000 bytes); no two shots in `shots/` share an MD5.
+- No shot's top-left 64x64 corner matches the Character-Creator or pre-login
+  fingerprint (`tools/quest_gate/fingerprints/`) -- a run stuck at boot cannot pass by answering `refused`/`timeout` quietly.
+- (the reviewer's rule, not `gate.py`'s) A reward row for every reward Quest Helper lists: `skill.snapshot()` before the hand-in, `skill.expect_gain`/a coins delta after `quest.expect_complete()` -- the scaffold emits both; a quest with a reward and no reward row is rejected.
 - **Minimum shape**, gated on your file using the verb each rule is about
   (a `t.step`/`t.expect`-only file is exempt from the `quest.bind`/`t.exec`
   rules below, never from the row/shot counts):

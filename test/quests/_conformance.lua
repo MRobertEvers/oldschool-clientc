@@ -225,6 +225,35 @@ local function answered(result, detail, prefix, holds, wanted)
     return result, text
 end
 
+-- The DELIBERATE NO-OP PROBE, and the one answer that proves it.
+--
+-- Two rows below (player.use_on, player.inv_op) name an interaction no
+-- content script claims: an air rune used on a Man, and op 3 on an air rune.
+-- Nothing can make either of them do something -- that is the point. The rows
+-- exist to prove the OPHELDU / OPHELD dispatch reaches the server at all, on
+-- a pairing chosen because it cannot leave a side effect a later row would
+-- inherit (the row below says why op 1 cannot be used).
+--
+-- The world's honest answer to such a click is the engine's own
+-- "Nothing interesting happens." ([proc,nothing_interesting_message],
+-- OSRS-Content/.../player/messages.rs2:116), said only when the interaction
+-- REACHED its target and no script claimed it. Before the 2026-09-19 settle
+-- fence both rows read `[ok] chat_message` -- which is the bug that pass
+-- exists to kill: a refusal counted as a conversation. pointer.lua now
+-- answers `refused` carrying that sentence, so this is where the row states
+-- what it actually expects: THAT sentence, not any refusal and not any chat
+-- line. Anything else -- a reachability failure, a timeout, a plain `ok` with
+-- nothing behind it -- is forwarded unchanged and still fails the row.
+local NO_SCRIPT_LINE = "Nothing interesting happens."
+local function no_script_probe(result, detail, prefix)
+    local text = prefix .. describe(detail)
+    if result == "refused" and string.find(tostring(detail), NO_SCRIPT_LINE, 1, true) then
+        return "ok", "the engine's own no-script refusal -- the dispatch reached "
+            .. "the server and no script claimed it: " .. text
+    end
+    return result, text
+end
+
 return {
     id = "_conformance",
     fixture = "fresh_lumbridge.ini",
@@ -842,8 +871,11 @@ return {
         step("player.use_on", function()
             local fn = verb("player", "use_on")
             if not fn then return missing("player", "use_on") end
+            -- A deliberate no-op pairing: no [opheldu] claims an air rune on
+            -- a Man, so the world's honest answer is the engine's
+            -- "Nothing interesting happens." -- see no_script_probe above.
             local result, detail = fn(OBJ_SYMBOL, npc_target)
-            return result, describe(detail)
+            return no_script_probe(result, detail, OBJ_SYMBOL .. " on " .. NPC_SYMBOL .. " -> ")
         end)
 
         step("player.inv_op", function()
@@ -861,9 +893,11 @@ return {
             -- verb's own settle resolves, and every verb after it that
             -- needs the item (player.equip, player.drop) then answers
             -- not_found. Op 3 carries no such client-side binding and is a
-            -- clean probe of the OPHELD dispatch path.
+            -- clean probe of the OPHELD dispatch path -- and, being clean, one
+            -- no script claims either, so the answer this row expects is the
+            -- engine's "Nothing interesting happens." (no_script_probe above).
             local result, detail = fn(OBJ_SYMBOL, 3)
-            return result, describe(detail)
+            return no_script_probe(result, detail, "")
         end)
 
         step("player.equip", function()

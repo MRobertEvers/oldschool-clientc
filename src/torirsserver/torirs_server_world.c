@@ -8590,6 +8590,57 @@ ToriRSServer_RunCheatLadder(
         return TORIRSSERVER_TRIGGER_RAN;
     }
 
+    if( strncmp(text, "clearinv", 8) == 0 )
+    {
+        /*
+         * `::clearinv` — `::give` run backwards over the whole backpack.
+         *
+         * Why a quest suite needs it: a fresh character in this tree boots
+         * carrying fourteen slots of tutorial kit (content's
+         * `[proc,newplayer_inv]`, player/newplayer.rs2:119), and a quest that has to
+         * hold twenty of something (Sheep Shearer's twenty balls of wool)
+         * cannot fit them. The 2026-09-19 Haiku pilot's author dropped those
+         * fourteen one `player.drop` at a time, which is fourteen clicks of a
+         * test that is not about dropping things and fourteen more ways for
+         * it to go red.
+         *
+         * Emptied through `ToriRSServer_ContainerClearSlot`, the removal half
+         * of the `ToriRSServer_ContainerAdd` `::give` uses thirty lines up,
+         * for the same reason: the registry owns the dirty state
+         * (torirs_server_container.h's Mutation banner), so the backpack's
+         * listener sends its UPDATE_INV without this branch knowing a packet
+         * exists. Writing `items[slot].obj_id = -1` here instead -- the shape
+         * `SS_OP_INV_CLEAR` still has -- would empty the server's copy and
+         * leave the client drawing the old backpack until something else
+         * marked the row.
+         *
+         * The count is SLOTS emptied, not units: a stack of 100 coins is one
+         * item to this line, which is the number a reader of the chatbox can
+         * check against the cells that just went blank.
+         */
+        struct ToriRSServerContainer* backpack;
+        int cleared = 0;
+        int slot;
+
+        backpack =
+            ToriRSServer_ContainerResolve(srv, player, ToriRSServer_Ids()->inv_backpack);
+        if( !backpack )
+        {
+            say(srv, "No backpack container.");
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+        assert(backpack->items);
+        for( slot = 0; slot < backpack->slots; slot++ )
+        {
+            if( backpack->items[slot].obj_id < 0 )
+                continue;
+            ToriRSServer_ContainerClearSlot(backpack, slot);
+            cleared++;
+        }
+        say(srv, "Cleared %d item(s).", cleared);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
     if( strncmp(text, "spawn", 5) == 0 )
     {
         /*
