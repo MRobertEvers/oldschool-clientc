@@ -1,5 +1,5 @@
-#ifndef SRC_PLATFORM_PLATFORM_RENDERER_GLES2_SHADERS_H
-#define SRC_PLATFORM_PLATFORM_RENDERER_GLES2_SHADERS_H
+#ifndef SRC_PLATFORM_PLATFORM_RENDERER_ES2_SHADERS_H
+#define SRC_PLATFORM_PLATFORM_RENDERER_ES2_SHADERS_H
 
 /*
  * GLSL ES 1.00, and deliberately as little of it as possible.
@@ -41,7 +41,7 @@
  * chathead's texture from swimming. UI textures are sampled at their final
  * coordinates; nothing in the UI scrolls.
  *
- * Attribute locations are fixed (GLES2_ATTRIB_*) and identical across the
+ * Attribute locations are fixed (ES2_ATTRIB_*) and identical across the
  * programs, so switching program never means re-enabling arrays.
  */
 
@@ -49,16 +49,16 @@
 
 /* 128 / 2048: one tile's extent in atlas coordinates. Spelled once here and
  * checked against the atlas constants in the core. */
-#define GLES2_SHADER_ATLAS_CELL "0.0625"
+#define ES2_SHADER_ATLAS_CELL "0.0625"
 
-#define GLES2_FRAGMENT_PRECISION_PREAMBLE \
+#define ES2_FRAGMENT_PRECISION_PREAMBLE \
     "#ifdef GL_FRAGMENT_PRECISION_HIGH\n" \
     "precision highp float;\n" \
     "#else\n" \
     "precision mediump float;\n" \
     "#endif\n"
 
-static const char* const gles2_world_vertex_shader =
+static const char* const es2_world_vertex_shader =
     "attribute vec3 a_position;\n"
     "attribute vec2 a_texcoord;\n"
     "attribute vec4 a_color;\n"
@@ -75,72 +75,72 @@ static const char* const gles2_world_vertex_shader =
     "    vec2 anim = (a_texinfo.zw - 128.0) * (1.0 / 128.0);\n"
     "    v_texcoord = a_texcoord + u_clock * anim;\n"
     "    v_wrap = step(0.001, abs(anim));\n"
-    "    v_tile = a_texinfo.xy * " GLES2_SHADER_ATLAS_CELL ";\n"
+    "    v_tile = a_texinfo.xy * " ES2_SHADER_ATLAS_CELL ";\n"
     "}\n";
 
-#define GLES2_WORLD_FRAGMENT_SAMPLE \
+#define ES2_WORLD_FRAGMENT_SAMPLE \
     "    vec2 local = mix(v_texcoord, fract(v_texcoord), v_wrap);\n" \
     "    local.x = clamp(local.x, 0.008, 0.992);\n" \
     "    local.y = clamp(fract(local.y), 0.008, 0.992);\n" \
-    "    vec4 c = v_color * texture2D(s_texture, v_tile + local * " GLES2_SHADER_ATLAS_CELL ");\n"
+    "    vec4 c = v_color * texture2D(s_texture, v_tile + local * " ES2_SHADER_ATLAS_CELL ");\n"
 
-static const char* const gles2_world_plain_fragment_shader =
-    GLES2_FRAGMENT_PRECISION_PREAMBLE
+static const char* const es2_world_plain_fragment_shader =
+    ES2_FRAGMENT_PRECISION_PREAMBLE
     "uniform sampler2D s_texture;\n"
     "varying vec4 v_color;\n"
     "varying vec2 v_texcoord;\n"
     "varying vec2 v_tile;\n"
     "varying vec2 v_wrap;\n"
     "void main() {\n"
-    GLES2_WORLD_FRAGMENT_SAMPLE
+    ES2_WORLD_FRAGMENT_SAMPLE
     "    gl_FragColor = c;\n"
     "}\n";
 
-static const char* const gles2_world_cutout_fragment_shader =
-    GLES2_FRAGMENT_PRECISION_PREAMBLE
+static const char* const es2_world_cutout_fragment_shader =
+    ES2_FRAGMENT_PRECISION_PREAMBLE
     "uniform sampler2D s_texture;\n"
     "varying vec4 v_color;\n"
     "varying vec2 v_texcoord;\n"
     "varying vec2 v_tile;\n"
     "varying vec2 v_wrap;\n"
     "void main() {\n"
-    GLES2_WORLD_FRAGMENT_SAMPLE
+    ES2_WORLD_FRAGMENT_SAMPLE
     "    if (c.a < 0.002) discard;\n"
     "    gl_FragColor = c;\n"
     "}\n";
 
 /* Slot zero is an opaque white tile. All three vertices of a face carry
  * the same tile, so untextured faces can return their interpolated colour. */
-#define GLES2_WORLD_FRAGMENT_FAST_SAMPLE \
+#define ES2_WORLD_FRAGMENT_FAST_SAMPLE \
     "    vec4 c;\n" \
     "    if (v_tile.x == 0.0 && v_tile.y == 0.0) { c = v_color; }\n" \
     "    else {\n" \
     "        vec2 local = mix(v_texcoord, fract(v_texcoord), v_wrap);\n" \
     "        local.x = clamp(local.x, 0.008, 0.992);\n" \
     "        local.y = clamp(fract(local.y), 0.008, 0.992);\n" \
-    "        c = v_color * texture2D(s_texture, v_tile + local * " GLES2_SHADER_ATLAS_CELL ");\n" \
+    "        c = v_color * texture2D(s_texture, v_tile + local * " ES2_SHADER_ATLAS_CELL ");\n" \
     "    }\n"
-static const char* const gles2_world_fast_plain_fragment_shader =
-    GLES2_FRAGMENT_PRECISION_PREAMBLE
+static const char* const es2_world_fast_plain_fragment_shader =
+    ES2_FRAGMENT_PRECISION_PREAMBLE
     "uniform sampler2D s_texture;\nvarying vec4 v_color;\nvarying vec2 v_texcoord;\nvarying vec2 v_tile;\nvarying vec2 v_wrap;\nvoid main() {\n"
-    GLES2_WORLD_FRAGMENT_FAST_SAMPLE
+    ES2_WORLD_FRAGMENT_FAST_SAMPLE
     "    gl_FragColor = c;\n}\n";
-static const char* const gles2_world_fast_cutout_fragment_shader =
-    GLES2_FRAGMENT_PRECISION_PREAMBLE
+static const char* const es2_world_fast_cutout_fragment_shader =
+    ES2_FRAGMENT_PRECISION_PREAMBLE
     "uniform sampler2D s_texture;\nvarying vec4 v_color;\nvarying vec2 v_texcoord;\nvarying vec2 v_tile;\nvarying vec2 v_wrap;\nvoid main() {\n"
-    GLES2_WORLD_FRAGMENT_FAST_SAMPLE
+    ES2_WORLD_FRAGMENT_FAST_SAMPLE
     "    if (c.a < 0.002) discard;\n    gl_FragColor = c;\n}\n";
 
 /*
- * a_texinfo is the per-vertex sampler select (struct GLES2VertexUI.sel): 0 the
+ * a_texinfo is the per-vertex sampler select (struct ES2VertexUI.sel): 0 the
  * sprite atlas (s_texture, unit 0), 1 the batch's texture (s_mask, unit 1 --
  * the name is the linker's convention for "the unit-1 sampler", see
- * gles2_link_program), 2 flat colour. Both textures are sampled and mixed
+ * es2_link_program), 2 flat colour. Both textures are sampled and mixed
  * rather than branched on: the select is constant across a quad, and two
  * fetches are cheaper on this class of GPU than a divergent branch would be
  * where it is not. It is what lets text, sprites and fills share one draw.
  */
-static const char* const gles2_ui_vertex_shader =
+static const char* const es2_ui_vertex_shader =
     "attribute vec3 a_position;\n"
     "attribute vec2 a_texcoord;\n"
     "attribute vec4 a_color;\n"
@@ -156,8 +156,8 @@ static const char* const gles2_ui_vertex_shader =
     "    v_sel = a_texinfo;\n"
     "}\n";
 
-static const char* const gles2_ui_fragment_shader =
-    GLES2_FRAGMENT_PRECISION_PREAMBLE
+static const char* const es2_ui_fragment_shader =
+    ES2_FRAGMENT_PRECISION_PREAMBLE
     "uniform sampler2D s_texture;\n"
     "uniform sampler2D s_mask;\n"
     "varying vec4 v_color;\n"
@@ -177,7 +177,7 @@ static const char* const gles2_ui_fragment_shader =
  * u_mask_invert selects which side of the mask is the window, the way D3D9's
  * D3DTA_COMPLEMENT did on its second texture stage.
  */
-static const char* const gles2_rotmask_vertex_shader =
+static const char* const es2_rotmask_vertex_shader =
     "attribute vec3 a_position;\n"
     "attribute vec2 a_texcoord;\n"
     "attribute vec4 a_color;\n"
@@ -193,8 +193,8 @@ static const char* const gles2_rotmask_vertex_shader =
     "    v_mask_texcoord = a_mask_texcoord;\n"
     "}\n";
 
-static const char* const gles2_rotmask_fragment_shader =
-    GLES2_FRAGMENT_PRECISION_PREAMBLE
+static const char* const es2_rotmask_fragment_shader =
+    ES2_FRAGMENT_PRECISION_PREAMBLE
     "uniform sampler2D s_texture;\n"
     "uniform sampler2D s_mask;\n"
     "uniform float u_mask_invert;\n"
@@ -214,7 +214,7 @@ static const char* const gles2_rotmask_fragment_shader =
  * Positions are clip space; alpha is forced opaque because the direct path
  * shows the colour whatever the frame's alpha channel holds.
  */
-static const char* const gles2_present_vertex_shader =
+static const char* const es2_present_vertex_shader =
     "attribute vec3 a_position;\n"
     "attribute vec2 a_texcoord;\n"
     "varying vec2 v_texcoord;\n"
@@ -223,8 +223,8 @@ static const char* const gles2_present_vertex_shader =
     "    v_texcoord = a_texcoord;\n"
     "}\n";
 
-static const char* const gles2_present_fragment_shader =
-    GLES2_FRAGMENT_PRECISION_PREAMBLE
+static const char* const es2_present_fragment_shader =
+    ES2_FRAGMENT_PRECISION_PREAMBLE
     "uniform sampler2D s_texture;\n"
     "varying vec2 v_texcoord;\n"
     "void main() {\n"
@@ -232,7 +232,7 @@ static const char* const gles2_present_fragment_shader =
     "}\n";
 
 /*
- * The interface layer composite (gles2_ui_layer_composite): one quad over the
+ * The interface layer composite (es2_ui_layer_composite): one quad over the
  * output rect sampling the layout-sized, premultiplied interface picture. The
  * vertex shader is the present's. u_filter 1 is linear (the texture's own
  * GL_LINEAR); 2 is Catmull-Rom bicubic over the 4x4 texel centres around the
@@ -244,8 +244,8 @@ static const char* const gles2_present_fragment_shader =
  * u_filter is a float, compared with a margin, so no integer uniform meets
  * mediump rounding.
  */
-static const char* const gles2_ui_composite_fragment_shader =
-    GLES2_FRAGMENT_PRECISION_PREAMBLE
+static const char* const es2_ui_composite_fragment_shader =
+    ES2_FRAGMENT_PRECISION_PREAMBLE
     "uniform sampler2D s_texture;\n"
     "uniform vec2 u_size;\n"
     "uniform float u_filter;\n"

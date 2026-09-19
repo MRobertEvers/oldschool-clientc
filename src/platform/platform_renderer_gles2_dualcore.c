@@ -5,8 +5,8 @@
 
 #include "log/torirs_log.h"
 #include "painters/painters.h"
-#include "platform/platform_renderer_gles2.h"
-#include "platform/platform_renderer_gles2_core.h"
+#include "platform/platform_renderer_es2.h"
+#include "platform/platform_renderer_es2_core.h"
 #include "platform/platform_renderer_gles2_dualcore_stage.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
@@ -96,7 +96,7 @@ struct GLES2DualCore_KernelKnob
 
 struct ToriRS_GLES2DualCore
 {
-    struct ToriRS_GLES2* renderer;
+    struct ToriRS_ES2* renderer;
 
     /* The scratch view of the renderer's scene, and which scene it views. */
     struct ToriDraw_Scene* view;
@@ -104,7 +104,7 @@ struct ToriRS_GLES2DualCore
 
     struct GLES2DualCoreStageArena arena;
     struct GLES2DualCoreStageContext context;
-    struct GLES2ModelStageSource source;
+    struct ES2ModelStageSource source;
 
     /* --- the dispatch cursor (draw thread only) --------------------------- */
     /* Inside a world pass the draw translates into the arena's feed and
@@ -229,11 +229,11 @@ struct ToriRS_GLES2DualCore
 };
 
 #if defined(TORIRS_PIPELINE_PMU)
-#include "../../tools/perf/gles2_pipeline_pmu.u.h"
+#include "../../tools/perf/es2_pipeline_pmu.u.h"
 #endif
 
 #if defined(TORIRS_GPU_COUNTERS)
-#include "../../tools/perf/gles2_gpu_counters.u.h"
+#include "../../tools/perf/es2_gpu_counters.u.h"
 #endif
 
 /* ---- crash breadcrumbs (TORIRS_GLES2_DUALCORE_DEBUG) --------------------------
@@ -575,7 +575,7 @@ static bool
 dualcore_source_take(
     void* user,
     const struct ToriRS_RenderCommand_Model* command,
-    struct GLES2ModelStage* out)
+    struct ES2ModelStage* out)
 {
     struct ToriRS_GLES2DualCore* lane = (struct ToriRS_GLES2DualCore*)user;
     struct GLES2DualCoreStageArena* arena;
@@ -755,7 +755,7 @@ dualcore_join_worker(struct ToriRS_GLES2DualCore* lane)
 static bool
 dualcore_arm(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
 {
-    struct ToriRS_GLES2* renderer = lane->renderer;
+    struct ToriRS_ES2* renderer = lane->renderer;
 
     if( !lane->enabled || !renderer->scene || !frame->world || !frame->painters )
         return false;
@@ -900,18 +900,18 @@ dualcore_ahead_element_id(const struct ToriRS_GLES2DualCore* lane, uint32_t ahea
 static void
 dualcore_render_frame_commands(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
 {
-    struct ToriRS_GLES2* renderer = lane->renderer;
+    struct ToriRS_ES2* renderer = lane->renderer;
     const struct ToriRS_RenderCommand* command;
 
     while( (command = dualcore_next_command(lane, frame)) != NULL )
     {
         /* The cursor has moved past `command`: entry 0 is the one after it. */
-        gles2_prefetch_ahead_ids(
+        es2_prefetch_ahead_ids(
             renderer,
             dualcore_ahead_element_id(lane, 0u),
             dualcore_ahead_element_id(lane, 1u),
             dualcore_ahead_element_id(lane, 2u));
-        ToriRS_GLES2_Execute(renderer, command);
+        ToriRS_ES2_Execute(renderer, command);
     }
     GLES2DualCoreStageArena_FeedClose(&lane->arena);
 }
@@ -1136,7 +1136,7 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
 void
 ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
 {
-    struct ToriRS_GLES2* renderer;
+    struct ToriRS_ES2* renderer;
 
     assert(lane);
     assert(frame);
@@ -1145,7 +1145,7 @@ ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriR
     lane->armed = false;
     lane->kicked = false;
 
-    if( !gles2_render_frame_begin(renderer) )
+    if( !es2_render_frame_begin(renderer) )
         return;
 #if defined(TORIRS_PIPELINE_PMU)
     pipeline_pmu_frame_begin(renderer);
@@ -1161,7 +1161,7 @@ ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriR
         dualcore_render_frame_commands(lane, frame);
     }
     else
-        gles2_render_frame_commands(renderer, frame);
+        es2_render_frame_commands(renderer, frame);
     if( lane->armed )
     {
         /* Before the frame ends: ToriRS_FrameEnd frees the scene's pending
@@ -1178,7 +1178,7 @@ ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriR
     }
     renderer->poses_prepared=false;
     ToriRS_FrameEnd(frame);
-    gles2_render_frame_end(renderer);
+    es2_render_frame_end(renderer);
 #if defined(TORIRS_PIPELINE_PMU)
     pipeline_pmu_frame_end(lane);
 #endif
@@ -1192,7 +1192,7 @@ ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriR
 /* ---- lifetime -------------------------------------------------------------------- */
 
 struct ToriRS_GLES2DualCore*
-ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer)
+ToriRS_GLES2DualCore_New(struct ToriRS_ES2* renderer)
 {
     struct ToriRS_GLES2DualCore* lane;
     long warmup;

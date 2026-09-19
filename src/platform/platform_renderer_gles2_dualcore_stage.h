@@ -2,7 +2,7 @@
 #define SRC_PLATFORM_PLATFORM_RENDERER_GLES2_DUALCORE_STAGE_H
 
 /*
- * The dual-core lane's model stage: the CPU half of gles2_draw_model, with
+ * The dual-core lane's model stage: the CPU half of es2_draw_model, with
  * no GL in it.
  *
  * For one DRAW_MODEL command the GLES2 renderer poses the model, culls it,
@@ -416,7 +416,7 @@ extern struct GLES2DualCoreStageCrumb g_gles2_dualcore_stage_crumb;
  *
  * Returns false when the arena had no room -- NOTHING was appended, and the
  * producer must stop for the frame (the consumer takes over at exactly this
- * command). The stage's steps and their order are gles2_draw_model's own;
+ * command). The stage's steps and their order are es2_draw_model's own;
  * a change to one must be made in both.
  */
 bool
@@ -427,7 +427,7 @@ GLES2DualCoreStage_ComputeModel(
 
 /**
  * Whether the depth path will sort this model: does it have a face that is
- * drawn AND translucent? The same test as gles2_world_face_pass's alpha
+ * drawn AND translucent? The same test as es2_world_face_pass's alpha
  * branch, made without the renderer (the texture half of that
  * classification can only make a face opaque-or-cutout, never blended, so
  * it is not needed here). The depth path's emit tolerates a disagreement --

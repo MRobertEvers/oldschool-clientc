@@ -25,28 +25,37 @@
  * A 32-bit index makes both unnecessary. Here a retained model is drawn
  * WHERE IT WAS BAKED: six bytes of index per face, no vertex traffic, no
  * residency to track, and no copy. Consecutive models merge into one draw
- * whatever part of the buffer they live in, so a settled scene's static
- * world is a single glDrawRangeElements.
+ * whatever part of the buffer they live in.
+ *
+ * What that is worth, measured on a settled Lumbridge scene in a browser
+ * (TORIRS_ES3_DEBUG=1 against TORIRS_GLES2_DEBUG=1, same world, same
+ * camera): both renderers index the same 7,187 static faces a frame and
+ * issue a similar handful of draws, because the ES2 ring does its job while
+ * the camera is still. What this renderer does not do is the rest of it --
+ * ~670 residency lookups a frame, a placement and its upload every time the
+ * camera reaches new geometry, a 4 x 65,536-vertex ring on the GPU, its CPU
+ * staging buffer, and a 64-bit serial per batch entry. The draw count is not
+ * where the difference is; the machinery is.
  *
  * What still goes through the per-frame stream is an actor: its pose is this
  * frame's, it has no retained home, and the core bakes it straight into the
  * stream in sorted face order, which is an array draw with no indices at all.
  *
  * Every item asks for the cutout program, and order is the sequence order,
- * whichever buffer an item draws from. platform_renderer_webgl2_zbuffer.c is
+ * whichever buffer an item draws from. platform_renderer_es3_zbuffer.c is
  * the depth-tested alternative; the two are peers and neither calls the other.
  */
 
-#include "platform/platform_renderer_webgl2_core.h"
+#include "platform/platform_renderer_es3_core.h"
 
-#include "platform/platform_renderer_webgl2_indices.h"
+#include "platform/platform_renderer_es3_indices.h"
 #include "toridraw.h"
 
 #include <assert.h>
 #include <string.h>
 
 void
-webgl2_painter_setup_projection(struct ToriRS_WebGL2* renderer)
+es3_painter_setup_projection(struct ToriRS_ES3* renderer)
 {
     /* trspk_compute_pass_matrices leaves clip z at a constant, which is right
      * for a pass that never reads depth. Nothing to remap. */
@@ -55,20 +64,20 @@ webgl2_painter_setup_projection(struct ToriRS_WebGL2* renderer)
 }
 
 void
-webgl2_painter_apply_world_states(struct ToriRS_WebGL2* renderer)
+es3_painter_apply_world_states(struct ToriRS_ES3* renderer)
 {
     assert(renderer);
     /* Painter order: the submission order IS the depth order, so the depth
      * test must never reject. And no culling: the painter sorts faces and has
      * its own reasons to see every one of them. */
-    webgl2_set_depth(renderer, false, false);
-    webgl2_set_cull(renderer, false);
-    webgl2_set_blend(renderer, true);
+    es3_set_depth(renderer, false, false);
+    es3_set_cull(renderer, false);
+    es3_set_blend(renderer, true);
 }
 
 int
-webgl2_painter_sort_faces(
-    struct ToriRS_WebGL2* renderer,
+es3_painter_sort_faces(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     int* out_sorted_face_count)
 {
@@ -86,7 +95,7 @@ webgl2_painter_sort_faces(
 }
 
 void
-webgl2_painter_flush(struct ToriRS_WebGL2* renderer)
+es3_painter_flush(struct ToriRS_ES3* renderer)
 {
     /* Nothing is staged on the way to the GPU any more: a retained model is
      * drawn where it was baked. Kept as the core's end-of-pass hook because
@@ -97,9 +106,9 @@ webgl2_painter_flush(struct ToriRS_WebGL2* renderer)
 }
 
 void
-webgl2_painter_batch_reset(
-    struct ToriRS_WebGL2* renderer,
-    struct WebGL2StaticBatch* batch,
+es3_painter_batch_reset(
+    struct ToriRS_ES3* renderer,
+    struct ES3StaticBatch* batch,
     uint32_t entry_count)
 {
     /* The GLES2 painter keeps a placement serial per batch entry and clears
@@ -122,8 +131,8 @@ webgl2_painter_batch_reset(
  * model merged into it.
  */
 static void
-webgl2_painter_push_indexed(
-    struct ToriRS_WebGL2* renderer,
+es3_painter_push_indexed(
+    struct ToriRS_ES3* renderer,
     uint32_t binding,
     uint32_t address,
     uint32_t source_face_limit,
@@ -140,17 +149,17 @@ webgl2_painter_push_indexed(
     span = source_face_limit * 3u;
     renderer->painter_stat_faces_indexed += count;
     /* Written straight into the draw sequence's staging: no scratch, no copy. */
-    indices = webgl2_sequence_reserve_indexed(renderer, count * 3u);
+    indices = es3_sequence_reserve_indexed(renderer, count * 3u);
     assert(indices);
-    webgl2_painter_write_indices(indices, address, source_face_limit, faces, count);
-    webgl2_sequence_commit_indexed(
+    es3_painter_write_indices(indices, address, source_face_limit, faces, count);
+    es3_sequence_commit_indexed(
         renderer, binding, address, address + span - 1u, true, false, count * 3u);
 }
 
 void
-webgl2_painter_emit_model(
-    struct ToriRS_WebGL2* renderer,
-    const struct WebGL2ModelPlacement* placement)
+es3_painter_emit_model(
+    struct ToriRS_ES3* renderer,
+    const struct ES3ModelPlacement* placement)
 {
     const struct TRSPK_VBO* source_vbo;
     const struct TRSPK_Triangles* source_triangles;
@@ -166,12 +175,12 @@ webgl2_painter_emit_model(
 
     /* An actor was baked into the stream in sorted order by the core; its
      * placement already names the stream. */
-    if( placement->binding == WEBGL2_FRAME_STREAM_BINDING )
+    if( placement->binding == ES3_FRAME_STREAM_BINDING )
     {
         renderer->painter_stat_faces_actor += face_count;
-        webgl2_sequence_push_array(
+        es3_sequence_push_array(
             renderer,
-            WEBGL2_FRAME_STREAM_BINDING,
+            ES3_FRAME_STREAM_BINDING,
             placement->absolute_base,
             face_count * 3u,
             true,
@@ -190,12 +199,12 @@ webgl2_painter_emit_model(
      * chunk's CPU vertices for every model it places, because placing means
      * copying them.
      */
-    if( placement->binding == WEBGL2_STATIC_PAGE_BINDING &&
+    if( placement->binding == ES3_STATIC_PAGE_BINDING &&
         placement->entry_index != UINT32_MAX && placement->entry_vertex_count > 0u )
     {
-        webgl2_painter_push_indexed(
+        es3_painter_push_indexed(
             renderer,
-            WEBGL2_STATIC_PAGE_BINDING,
+            ES3_STATIC_PAGE_BINDING,
             placement->absolute_base,
             placement->entry_vertex_count / 3u,
             face_order,
@@ -210,7 +219,7 @@ webgl2_painter_emit_model(
      * runs past the sorted count, so placement->face_count is NOT a bound on
      * face indices; the bake is.
      */
-    if( !webgl2_binding_cpu_source(
+    if( !es3_binding_cpu_source(
             renderer, placement->binding, placement->page_id, &source_vbo, &source_triangles) ||
         source_vbo->format != TRSPK_VERTEX_FORMAT_GLES2 )
         return;
@@ -218,7 +227,7 @@ webgl2_painter_emit_model(
     if( placement->chunk_base > source_vbo->vertex_count )
         return;
     source_face_limit = (source_vbo->vertex_count - placement->chunk_base) / 3u;
-    webgl2_painter_push_indexed(
+    es3_painter_push_indexed(
         renderer,
         placement->binding,
         placement->absolute_base,

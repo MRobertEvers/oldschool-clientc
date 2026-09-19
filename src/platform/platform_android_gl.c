@@ -122,13 +122,29 @@ ToriRS_GLContext
 ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLClient client)
 {
     /*
-     * EGL_OPENGL_ES2_BIT, and a config whose depth size is what the caller
-     * asked for. Requested in the CONFIG rather than afterwards because that is
-     * the only place EGL will honour it -- there is no equivalent of setting an
-     * attribute on an existing context.
+     * The renderable type the caller's GL needs, and a config whose depth size
+     * is what it asked for. Both go in the CONFIG rather than afterwards
+     * because that is the only place EGL will honour them -- there is no
+     * equivalent of setting an attribute on an existing context.
+     *
+     * The renderable type must follow the client version, not just the
+     * context attribute below: EGL requires an ES3 context to come from a
+     * config advertising EGL_OPENGL_ES3_BIT_KHR. Drivers that are lenient
+     * about it hand back an ES3 context from an ES2 config anyway, which is
+     * exactly what makes getting this wrong a trap -- it works on the device
+     * in front of you and fails on the next one. 0x0040 is spelled out
+     * because EGL_OPENGL_ES3_BIT_KHR is an extension token that an older
+     * <EGL/egl.h> in an NDK sysroot may not declare, while every EGL 1.4
+     * implementation that can make an ES3 context understands the value.
+     *
+     * No Android renderer asks for ES3 today: the ES 3.0 renderer in this
+     * tree is the browser's (platform_renderer_webgl2_*.c) and the Android
+     * lane does not build it. This is here so that the day one does, the
+     * seam is not the thing that is wrong.
      */
+    EGLint const renderable = client == TORIRS_GL_CLIENT_ES3 ? 0x0040 : EGL_OPENGL_ES2_BIT;
     EGLint const attribs[] = {
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+        EGL_RENDERABLE_TYPE, renderable,
         EGL_SURFACE_TYPE,    EGL_WINDOW_BIT,
         EGL_RED_SIZE,        8,
         EGL_GREEN_SIZE,      8,
@@ -136,8 +152,6 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
         EGL_DEPTH_SIZE,      depth_bits > 0 ? depth_bits : 0,
         EGL_NONE
     };
-    /* ES2 is the only client this lane's renderer asks for; the parameter
-     * exists for the browser, where it picks WebGL1 or WebGL2. */
     EGLint const context_attribs[] = {
         EGL_CONTEXT_CLIENT_VERSION, client == TORIRS_GL_CLIENT_ES3 ? 3 : 2, EGL_NONE
     };

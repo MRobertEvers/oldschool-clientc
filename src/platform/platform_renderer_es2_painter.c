@@ -20,7 +20,7 @@
  * random 84-byte gather per face, ten thousand faces a frame.
  *
  * What a frame actually draws is ~40k static vertices: it fits a U16 window.
- * So the painter keeps a RESIDENT WINDOW -- a ring of GLES2_HOT_RING_VERTICES
+ * So the painter keeps a RESIDENT WINDOW -- a ring of ES2_HOT_RING_VERTICES
  * on the GPU. A static model is copied into it the first time it is drawn
  * (one sequential copy of its bake, staged and sent once per frame), stays
  * while it keeps being drawn, and is evicted when the ring wraps over it.
@@ -32,14 +32,14 @@
  * a static model that cannot be resident (bigger than the ring, or not a
  * batch entry) is gathered into the stream as before. Every item asks for the
  * cutout program, and order is the sequence order, whichever buffer an item
- * draws from. platform_renderer_gles2_zbuffer.c is the depth-tested
+ * draws from. platform_renderer_es2_zbuffer.c is the depth-tested
  * alternative; the two are peers and neither calls the other.
  */
 
-#include "platform/platform_renderer_gles2_core.h"
+#include "platform/platform_renderer_es2_core.h"
 
 #include "toridraw.h"
-#include "platform/platform_renderer_gles2_indices.h"
+#include "platform/platform_renderer_es2_indices.h"
 
 #include <assert.h>
 #include <string.h>
@@ -57,14 +57,14 @@
  * only inlines the copy below the threshold it happens to have; five
  * intrinsics do not depend on that. Exact length, no over-read: the source
  * face may be the last one in its buffer. */
-struct GLES2FaceVertices
+struct ES2FaceVertices
 {
     struct TRSPK_VertexGLES2 corner[3];
 };
-_Static_assert(sizeof(struct GLES2FaceVertices) == 84u, "three packed vertices");
+_Static_assert(sizeof(struct ES2FaceVertices) == 84u, "three packed vertices");
 
 static inline void
-gles2_face_copy(struct GLES2FaceVertices* destination, const struct GLES2FaceVertices* source)
+es2_face_copy(struct ES2FaceVertices* destination, const struct ES2FaceVertices* source)
 {
 #if defined(__ARM_NEON) || defined(__ARM_NEON__)
     const uint8_t* source_bytes = (const uint8_t*)source;
@@ -85,7 +85,7 @@ gles2_face_copy(struct GLES2FaceVertices* destination, const struct GLES2FaceVer
 }
 
 void
-gles2_painter_setup_projection(struct ToriRS_GLES2* renderer)
+es2_painter_setup_projection(struct ToriRS_ES2* renderer)
 {
     /* trspk_compute_pass_matrices leaves clip z at a constant, which is right
      * for a pass that never reads depth. Nothing to remap. */
@@ -94,20 +94,20 @@ gles2_painter_setup_projection(struct ToriRS_GLES2* renderer)
 }
 
 void
-gles2_painter_apply_world_states(struct ToriRS_GLES2* renderer)
+es2_painter_apply_world_states(struct ToriRS_ES2* renderer)
 {
     assert(renderer);
     /* Painter order: the submission order IS the depth order, so the depth
      * test must never reject. And no culling: the painter sorts faces and has
      * its own reasons to see every one of them. */
-    gles2_set_depth(renderer, false, false);
-    gles2_set_cull(renderer, false);
-    gles2_set_blend(renderer, true);
+    es2_set_depth(renderer, false, false);
+    es2_set_cull(renderer, false);
+    es2_set_blend(renderer, true);
 }
 
 int
-gles2_painter_sort_faces(
-    struct ToriRS_GLES2* renderer,
+es2_painter_sort_faces(
+    struct ToriRS_ES2* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     int* out_sorted_face_count)
 {
@@ -131,9 +131,9 @@ gles2_painter_sort_faces(
  * model index, which can run past the bake) becomes a degenerate triangle,
  * so the reservation stays contiguous. */
 static void
-gles2_painter_gather(
-    struct GLES2FaceVertices* destination,
-    const struct GLES2FaceVertices* source,
+es2_painter_gather(
+    struct ES2FaceVertices* destination,
+    const struct ES2FaceVertices* source,
     uint32_t source_face_limit,
     const int* faces,
     uint32_t count)
@@ -143,7 +143,7 @@ gles2_painter_gather(
      * The order array names the faces ahead of time, so ask for them ahead
      * of time: a prefetch a few faces out overlaps that miss with this
      * face's copy. */
-    enum { GLES2_GATHER_PREFETCH_AHEAD = 4 };
+    enum { ES2_GATHER_PREFETCH_AHEAD = 4 };
     uint32_t index;
 
     assert(destination);
@@ -152,9 +152,9 @@ gles2_painter_gather(
     for( index = 0u; index < count; index++ )
     {
         uint32_t face = (uint32_t)faces[index];
-        if( index + GLES2_GATHER_PREFETCH_AHEAD < count )
+        if( index + ES2_GATHER_PREFETCH_AHEAD < count )
         {
-            uint32_t ahead = (uint32_t)faces[index + GLES2_GATHER_PREFETCH_AHEAD];
+            uint32_t ahead = (uint32_t)faces[index + ES2_GATHER_PREFETCH_AHEAD];
             if( ahead < source_face_limit )
             {
                 __builtin_prefetch(&source[ahead], 0, 0);
@@ -162,7 +162,7 @@ gles2_painter_gather(
             }
         }
         if( face < source_face_limit )
-            gles2_face_copy(&destination[index], &source[face]);
+            es2_face_copy(&destination[index], &source[face]);
         else
             memset(&destination[index], 0, sizeof(destination[index]));
     }
@@ -171,7 +171,7 @@ gles2_painter_gather(
 /* ---- the resident window ---------------------------------------------------------- */
 
 static bool
-gles2_painter_hot_ensure(struct ToriRS_GLES2* renderer)
+es2_painter_hot_ensure(struct ToriRS_ES2* renderer)
 {
     assert(renderer);
     if( renderer->hot_vbo )
@@ -179,13 +179,13 @@ gles2_painter_hot_ensure(struct ToriRS_GLES2* renderer)
     if( !renderer->gl_context )
         return false;
     glGenBuffers(1, &renderer->hot_vbo);
-    gles2_bind_array_buffer(renderer, renderer->hot_vbo);
+    es2_bind_array_buffer(renderer, renderer->hot_vbo);
     glBufferData(
         GL_ARRAY_BUFFER,
-        (GLsizeiptr)((size_t)GLES2_HOT_RING_VERTICES * sizeof(struct TRSPK_VertexGLES2)),
+        (GLsizeiptr)((size_t)ES2_HOT_RING_VERTICES * sizeof(struct TRSPK_VertexGLES2)),
         NULL,
         GL_DYNAMIC_DRAW);
-    if( !gles2_check_error("resident window buffer") )
+    if( !es2_check_error("resident window buffer") )
     {
         glDeleteBuffers(1, &renderer->hot_vbo);
         renderer->hot_vbo = 0u;
@@ -197,16 +197,16 @@ gles2_painter_hot_ensure(struct ToriRS_GLES2* renderer)
      * session walking the world does, and at the wrap `head - serial` of
      * every live serial went huge (evicting the ring) while a serial that
      * happened to sit at 0 read as freshly placed. 2^64 does not happen. */
-    renderer->hot_head = GLES2_HOT_RING_VERTICES;
+    renderer->hot_head = ES2_HOT_RING_VERTICES;
     /* Let the first fragmentation verdict act at once. */
-    renderer->hot_frames_since_compaction = GLES2_HOT_COMPACT_MIN_INTERVAL_FRAMES;
+    renderer->hot_frames_since_compaction = ES2_HOT_COMPACT_MIN_INTERVAL_FRAMES;
     return true;
 }
 
 void
-gles2_painter_batch_reset(
-    struct ToriRS_GLES2* renderer,
-    struct GLES2StaticBatch* batch,
+es2_painter_batch_reset(
+    struct ToriRS_ES2* renderer,
+    struct ES2StaticBatch* batch,
     uint32_t entry_count)
 {
     assert(renderer);
@@ -231,14 +231,14 @@ gles2_painter_batch_reset(
  * span of the ring, so it is one glBufferSubData. Called at the end of the
  * pass and whenever a placement crosses a lap boundary mid-pass. */
 static void
-gles2_painter_send_staged(struct ToriRS_GLES2* renderer)
+es2_painter_send_staged(struct ToriRS_ES2* renderer)
 {
     assert(renderer);
     if( renderer->hot_stage_count == 0u )
         return;
     assert(renderer->hot_vbo);
-    assert(renderer->hot_stage_address + renderer->hot_stage_count <= GLES2_HOT_RING_VERTICES);
-    gles2_bind_array_buffer(renderer, renderer->hot_vbo);
+    assert(renderer->hot_stage_address + renderer->hot_stage_count <= ES2_HOT_RING_VERTICES);
+    es2_bind_array_buffer(renderer, renderer->hot_vbo);
     glBufferSubData(
         GL_ARRAY_BUFFER,
         (GLintptr)((size_t)renderer->hot_stage_address * sizeof(struct TRSPK_VertexGLES2)),
@@ -249,7 +249,7 @@ gles2_painter_send_staged(struct ToriRS_GLES2* renderer)
 }
 
 void
-gles2_painter_flush(struct ToriRS_GLES2* renderer)
+es2_painter_flush(struct ToriRS_ES2* renderer)
 {
     assert(renderer);
     /* Fragmentation check, on the frame that is ending: a long walk places
@@ -261,13 +261,13 @@ gles2_painter_flush(struct ToriRS_GLES2* renderer)
      * test.
      *
      * With hysteresis. A live set that GENUINELY spans more than
-     * GLES2_HOT_COMPACT_DRAWS windows -- one long sight line across models
+     * ES2_HOT_COMPACT_DRAWS windows -- one long sight line across models
      * baked far apart -- is not fragmentation, and re-placing it does not
      * make it smaller; without the interval the verdict fired every frame
      * and the ring was rewritten in full every frame, ~2.5 MB of upload a
      * frame that a camera-still profile never showed (a still frame has few
      * draws). So after a compaction the ring gets at least
-     * GLES2_HOT_COMPACT_MIN_INTERVAL_FRAMES frames to prove itself; the
+     * ES2_HOT_COMPACT_MIN_INTERVAL_FRAMES frames to prove itself; the
      * frames the verdict was held back are counted on the debug line.
      *
      * Only the end-of-pass call judges this; the lap-change send inside a
@@ -276,11 +276,11 @@ gles2_painter_flush(struct ToriRS_GLES2* renderer)
     {
         if( renderer->hot_frames_since_compaction < UINT32_MAX )
             renderer->hot_frames_since_compaction++;
-        if( renderer->draw_item_count > GLES2_HOT_COMPACT_DRAWS )
+        if( renderer->draw_item_count > ES2_HOT_COMPACT_DRAWS )
         {
-            if( renderer->hot_frames_since_compaction >= GLES2_HOT_COMPACT_MIN_INTERVAL_FRAMES )
+            if( renderer->hot_frames_since_compaction >= ES2_HOT_COMPACT_MIN_INTERVAL_FRAMES )
             {
-                renderer->hot_head += GLES2_HOT_RING_VERTICES;
+                renderer->hot_head += ES2_HOT_RING_VERTICES;
                 renderer->hot_frames_since_compaction = 0u;
                 renderer->painter_stat_compactions++;
             }
@@ -288,7 +288,7 @@ gles2_painter_flush(struct ToriRS_GLES2* renderer)
                 renderer->painter_stat_compactions_deferred++;
         }
     }
-    gles2_painter_send_staged(renderer);
+    es2_painter_send_staged(renderer);
 }
 
 /*
@@ -303,9 +303,9 @@ gles2_painter_flush(struct ToriRS_GLES2* renderer)
  * 0 is "never placed" (the head starts one ring in).
  */
 static uint32_t
-gles2_painter_find_resident(
-    struct ToriRS_GLES2* renderer,
-    struct GLES2StaticBatch* batch,
+es2_painter_find_resident(
+    struct ToriRS_ES2* renderer,
+    struct ES2StaticBatch* batch,
     uint32_t entry_index)
 {
     uint64_t serial;
@@ -314,11 +314,11 @@ gles2_painter_find_resident(
     if( !renderer->hot_vbo || entry_index >= batch->hot_serial_capacity )
         return UINT32_MAX;
     serial = batch->hot_serial[entry_index];
-    if( serial == 0u || renderer->hot_head - serial > GLES2_HOT_RING_VERTICES )
+    if( serial == 0u || renderer->hot_head - serial > ES2_HOT_RING_VERTICES )
         return UINT32_MAX;
     if( serial < renderer->hot_frame_oldest_serial )
         renderer->hot_frame_oldest_serial = serial;
-    return (uint32_t)(serial % GLES2_HOT_RING_VERTICES);
+    return (uint32_t)(serial % ES2_HOT_RING_VERTICES);
 }
 
 /*
@@ -331,9 +331,9 @@ gles2_painter_find_resident(
  * still intact while the head has not come a full lap past it.
  */
 static uint32_t
-gles2_painter_place(
-    struct ToriRS_GLES2* renderer,
-    struct GLES2StaticBatch* batch,
+es2_painter_place(
+    struct ToriRS_ES2* renderer,
+    struct ES2StaticBatch* batch,
     uint32_t entry_index,
     const struct TRSPK_VertexGLES2* vertices,
     uint32_t span)
@@ -344,37 +344,37 @@ gles2_painter_place(
     assert(batch);
     assert(vertices);
     /* A model must fit one draw window, not merely the ring. */
-    if( span == 0u || span > GLES2_HOT_WINDOW_VERTICES )
+    if( span == 0u || span > ES2_HOT_WINDOW_VERTICES )
         return UINT32_MAX;
     if( entry_index >= batch->hot_serial_capacity )
         return UINT32_MAX;
-    if( !gles2_painter_hot_ensure(renderer) )
+    if( !es2_painter_hot_ensure(renderer) )
         return UINT32_MAX;
 
-    address = gles2_painter_find_resident(renderer, batch, entry_index);
+    address = es2_painter_find_resident(renderer, batch, entry_index);
     if( address != UINT32_MAX )
         return address;
 
     /* Not resident: place at the head, on a fresh lap if it would not fit
      * the rest of this one. The staging run must stay contiguous in the
      * ring, so a lap change sends what is staged first. */
-    address = (uint32_t)(renderer->hot_head % GLES2_HOT_RING_VERTICES);
+    address = (uint32_t)(renderer->hot_head % ES2_HOT_RING_VERTICES);
     {
         uint64_t head_after = renderer->hot_head + span;
-        if( address + span > GLES2_HOT_RING_VERTICES )
-            head_after = renderer->hot_head + (GLES2_HOT_RING_VERTICES - address) + span;
+        if( address + span > ES2_HOT_RING_VERTICES )
+            head_after = renderer->hot_head + (ES2_HOT_RING_VERTICES - address) + span;
         /* The overwrite guard: this frame's draw reads every resident it
          * has been handed, from the oldest one on, and those bytes must
          * survive until it runs. A frame whose live set outgrows the ring
          * gathers the overflow instead of eating its own tail. */
         if( renderer->hot_frame_oldest_serial != UINT64_MAX &&
-            head_after - renderer->hot_frame_oldest_serial > GLES2_HOT_RING_VERTICES )
+            head_after - renderer->hot_frame_oldest_serial > ES2_HOT_RING_VERTICES )
             return UINT32_MAX;
     }
-    if( address + span > GLES2_HOT_RING_VERTICES )
+    if( address + span > ES2_HOT_RING_VERTICES )
     {
-        gles2_painter_send_staged(renderer);
-        renderer->hot_head += GLES2_HOT_RING_VERTICES - address;
+        es2_painter_send_staged(renderer);
+        renderer->hot_head += ES2_HOT_RING_VERTICES - address;
         address = 0u;
     }
     if( renderer->hot_stage_count == 0u )
@@ -382,7 +382,7 @@ gles2_painter_place(
     if( renderer->hot_stage_count + span > renderer->hot_stage_capacity )
     {
         uint32_t capacity = renderer->hot_stage_capacity ? renderer->hot_stage_capacity
-                                                         : GLES2_HOT_STAGE_INIT_VERTICES;
+                                                         : ES2_HOT_STAGE_INIT_VERTICES;
         struct TRSPK_VertexGLES2* grown;
         while( capacity < renderer->hot_stage_count + span )
             capacity *= 2u;
@@ -412,8 +412,8 @@ gles2_painter_place(
  * supply indexes the model's first vertex three times: a degenerate
  * triangle. */
 static void
-gles2_painter_push_resident(
-    struct ToriRS_GLES2* renderer,
+es2_painter_push_resident(
+    struct ToriRS_ES2* renderer,
     uint32_t address,
     uint32_t source_face_limit,
     const int* faces,
@@ -429,28 +429,28 @@ gles2_painter_push_resident(
         return;
     if( renderer->draw_item_count > 0u )
     {
-        const struct GLES2DrawItem* open = &renderer->draw_items[renderer->draw_item_count - 1u];
-        if( open->indexed && open->binding == GLES2_HOT_BINDING && address >= open->page_base &&
-            address + span <= open->page_base + GLES2_HOT_WINDOW_VERTICES )
+        const struct ES2DrawItem* open = &renderer->draw_items[renderer->draw_item_count - 1u];
+        if( open->indexed && open->binding == ES2_HOT_BINDING && address >= open->page_base &&
+            address + span <= open->page_base + ES2_HOT_WINDOW_VERTICES )
             window = open->page_base;
     }
     renderer->painter_stat_faces_indexed += count;
     /* Written straight into the draw sequence's staging: no scratch, no copy. */
-    indices = gles2_sequence_reserve_indexed(renderer, count * 3u);
+    indices = es2_sequence_reserve_indexed(renderer, count * 3u);
     assert(indices);
-    assert(address - window + span <= GLES2_HOT_WINDOW_VERTICES);
+    assert(address - window + span <= ES2_HOT_WINDOW_VERTICES);
     address -= window;
-    gles2_painter_write_indices(indices, address, source_face_limit, faces, count,
+    es2_painter_write_indices(indices, address, source_face_limit, faces, count,
                                  renderer->lever_triplet_neon);
-    gles2_sequence_commit_indexed(renderer, GLES2_HOT_BINDING, window, true, false, count * 3u);
+    es2_sequence_commit_indexed(renderer, ES2_HOT_BINDING, window, true, false, count * 3u);
 }
 
 /* ---- emission ---------------------------------------------------------------------- */
 
 void
-gles2_painter_emit_model(
-    struct ToriRS_GLES2* renderer,
-    const struct GLES2ModelPlacement* placement)
+es2_painter_emit_model(
+    struct ToriRS_ES2* renderer,
+    const struct ES2ModelPlacement* placement)
 {
     const struct TRSPK_VBO* source_vbo;
     const struct TRSPK_Triangles* source_triangles;
@@ -468,11 +468,11 @@ gles2_painter_emit_model(
 
     /* An actor was baked into the stream in sorted order by the core; its
      * placement already names the stream. */
-    if( placement->binding == GLES2_FRAME_STREAM_BINDING )
+    if( placement->binding == ES2_FRAME_STREAM_BINDING )
     {
         renderer->painter_stat_faces_actor += face_count;
-        gles2_sequence_push_array(
-            renderer, GLES2_FRAME_STREAM_BINDING, placement->absolute_base, face_count * 3u, true,
+        es2_sequence_push_array(
+            renderer, ES2_FRAME_STREAM_BINDING, placement->absolute_base, face_count * 3u, true,
             false);
         return;
     }
@@ -488,23 +488,23 @@ gles2_painter_emit_model(
      * vertex count is the span that was placed (asserted where it is
      * placed, below), so nothing about the CPU bake is needed for the hit.
      * Only a miss resolves the source, and through the page's cached VBO
-     * rather than the page -> batch -> chunk walk of gles2_binding_cpu_source.
+     * rather than the page -> batch -> chunk walk of es2_binding_cpu_source.
      */
-    if( renderer->lever_resident_fast && placement->binding == GLES2_STATIC_PAGE_BINDING &&
+    if( renderer->lever_resident_fast && placement->binding == ES2_STATIC_PAGE_BINDING &&
         placement->batch_slot < renderer->static_batch_count &&
         placement->entry_index != UINT32_MAX && placement->entry_vertex_count > 0u )
     {
-        struct GLES2StaticBatch* batch = &renderer->static_batches[placement->batch_slot];
-        const struct GLES2StaticPageRef* page;
+        struct ES2StaticBatch* batch = &renderer->static_batches[placement->batch_slot];
+        const struct ES2StaticPageRef* page;
         uint32_t entry_faces = placement->entry_vertex_count / 3u;
-        uint32_t address = gles2_painter_find_resident(renderer, batch, placement->entry_index);
+        uint32_t address = es2_painter_find_resident(renderer, batch, placement->entry_index);
         if( address != UINT32_MAX )
         {
             renderer->painter_stat_resident_hits++;
-            gles2_painter_push_resident(renderer, address, entry_faces, face_order, face_count);
+            es2_painter_push_resident(renderer, address, entry_faces, face_order, face_count);
             return;
         }
-        /* A miss. gles2_draw_model validated the page before it built this
+        /* A miss. es2_draw_model validated the page before it built this
          * placement, and a page is only valid with its VBO cached. */
         assert(placement->page_id < renderer->static_page_count);
         page = &renderer->static_pages[placement->page_id];
@@ -518,7 +518,7 @@ gles2_painter_emit_model(
          * cover it (trspk_batch16_reserve_pose), so the entry never runs
          * past its bake. */
         assert(source_base + placement->entry_vertex_count <= source_vbo->vertex_count);
-        address = gles2_painter_place(
+        address = es2_painter_place(
             renderer,
             batch,
             placement->entry_index,
@@ -526,7 +526,7 @@ gles2_painter_emit_model(
             placement->entry_vertex_count);
         if( address != UINT32_MAX )
         {
-            gles2_painter_push_resident(renderer, address, entry_faces, face_order, face_count);
+            es2_painter_push_resident(renderer, address, entry_faces, face_order, face_count);
             return;
         }
         /* The ring refused it (too big for a window, or this frame's live
@@ -536,14 +536,14 @@ gles2_painter_emit_model(
     }
 
     /* A retained model, the control arm: resolve the CPU source first. */
-    if( !gles2_binding_cpu_source(
+    if( !es2_binding_cpu_source(
             renderer, placement->binding, placement->page_id, &source_vbo, &source_triangles) ||
         source_vbo->format != TRSPK_VERTEX_FORMAT_GLES2 )
         return;
     (void)source_triangles;
     /* A Batch16 chunk's CPU copy is the chunk alone and starts at zero; an
      * arena's is the whole buffer. */
-    source_base = placement->binding == GLES2_STATIC_PAGE_BINDING
+    source_base = placement->binding == ES2_STATIC_PAGE_BINDING
         ? placement->local_base
         : placement->page_base + placement->local_base;
     if( source_base > source_vbo->vertex_count )
@@ -556,7 +556,7 @@ gles2_painter_emit_model(
     /* A batch entry lives in the resident window: the entry's whole bake is
      * what gets placed, since any of its faces may be named this frame or
      * the next. */
-    if( placement->binding == GLES2_STATIC_PAGE_BINDING &&
+    if( placement->binding == ES2_STATIC_PAGE_BINDING &&
         placement->batch_slot < renderer->static_batch_count &&
         placement->entry_index != UINT32_MAX && placement->entry_vertex_count > 0u )
     {
@@ -564,7 +564,7 @@ gles2_painter_emit_model(
         uint32_t address;
         if( entry_faces < source_face_limit )
             source_face_limit = entry_faces;
-        address = gles2_painter_place(
+        address = es2_painter_place(
             renderer,
             &renderer->static_batches[placement->batch_slot],
             placement->entry_index,
@@ -572,7 +572,7 @@ gles2_painter_emit_model(
             source_face_limit * 3u);
         if( address != UINT32_MAX )
         {
-            gles2_painter_push_resident(renderer, address, source_face_limit, face_order, face_count);
+            es2_painter_push_resident(renderer, address, source_face_limit, face_order, face_count);
             return;
         }
     }
@@ -580,13 +580,13 @@ gles2_painter_emit_model(
 gather:
     /* Everything else is gathered into the stream in sorted order. */
     renderer->painter_stat_faces_gathered += face_count;
-    first = gles2_frame_stream_reserve(renderer, face_count * 3u);
-    gles2_painter_gather(
-        (struct GLES2FaceVertices*)&renderer->frame_stream_cpu->vertices.as_gles2[first],
-        (const struct GLES2FaceVertices*)(source_vbo->vertices.as_gles2 + source_base),
+    first = es2_frame_stream_reserve(renderer, face_count * 3u);
+    es2_painter_gather(
+        (struct ES2FaceVertices*)&renderer->frame_stream_cpu->vertices.as_gles2[first],
+        (const struct ES2FaceVertices*)(source_vbo->vertices.as_gles2 + source_base),
         source_face_limit,
         face_order,
         face_count);
-    gles2_sequence_push_array(
-        renderer, GLES2_FRAME_STREAM_BINDING, first, face_count * 3u, true, false);
+    es2_sequence_push_array(
+        renderer, ES2_FRAME_STREAM_BINDING, first, face_count * 3u, true, false);
 }

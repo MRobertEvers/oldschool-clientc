@@ -44,17 +44,29 @@ struct ToriRS_GL3;
 #else
 struct ToriRS_D3D9;
 #endif
+/*
+ * The four GPU renderers of the ES family, two per lane, over two shared
+ * cores:
+ *
+ *   core                        Android lane      browser lane
+ *   platform_renderer_es2_*.c   --gles2           --webgl1
+ *   platform_renderer_es3_*.c   --gles3           --webgl2
+ *
+ * A core is not a renderer: it makes the GL calls, and the lane file beside
+ * it names it, picks its context and is what a flag selects. Exactly two of
+ * the four are built for any one lane, which is why every block below is
+ * behind its own TORIRS_HAVE_*.
+ */
 #if defined(TORIRS_HAVE_GLES2)
-/* The GLES2 GPU renderer: OpenGL ES 2.0, no extensions, shared by the Android
- * lane (--gles2 / --gles2-zbuffer) and the browser, where the same API is
- * WebGL1 (--webgl1 / --webgl1-zbuffer). */
+/* Android's OpenGL ES 2.0 renderer (--gles2 / --gles2-zbuffer). */
 #include "platform/platform_renderer_gles2.h"
 #if defined(TORIRS_HAVE_GLES2_DUALCORE)
 #include "platform/platform_renderer_gles2_dualcore.h"
 #endif
 #if defined(TORIRS_HAVE_GLES2_DUALCORE)
-/* NULL unless --gles2-dualcore was passed: the same GLES2 renderer, driven
- * through the dual-core lane (which wraps `gles2` and does not own it).
+/* NULL unless --gles2-dualcore was passed: the ES2 core behind `gles2`,
+ * driven through the dual-core lane (which wraps it and does not own it).
+ * Android-only -- it is the second Krait core, which no browser has.
  * Declared with the includes, above the frame functions that read it. */
 static struct ToriRS_GLES2DualCore* gles2_dualcore_lane;
 #endif
@@ -62,13 +74,26 @@ static struct ToriRS_GLES2DualCore* gles2_dualcore_lane;
 struct ToriRS_GLES2;
 #endif
 #if defined(TORIRS_HAVE_WEBGL2)
-/* The browser's second GPU renderer: OpenGL ES 3.0 on a WebGL2 context
- * (--webgl2 / --webgl2-zbuffer). A separate renderer from the WebGL1 one --
- * its own files, its own type, its own entry in ToriRS_RendererKind -- and
- * not a mode of it; see platform/platform_renderer_webgl2.h for why. */
+/* The browser's OpenGL ES 3.0 renderer, on a WebGL2 context
+ * (--webgl2 / --webgl2-zbuffer). Runs the shared ES3 core, which Android
+ * runs as --gles3. */
 #include "platform/platform_renderer_webgl2.h"
 #else
 struct ToriRS_WebGL2;
+#endif
+#if defined(TORIRS_HAVE_WEBGL1)
+/* The browser's OpenGL ES 2.0 renderer, on a WebGL1 context
+ * (--webgl1 / --webgl1-zbuffer). Runs the shared ES2 core. */
+#include "platform/platform_renderer_webgl1.h"
+#else
+struct ToriRS_WebGL1;
+#endif
+#if defined(TORIRS_HAVE_GLES3)
+/* Android's OpenGL ES 3.0 renderer (--gles3 / --gles3-zbuffer).
+ * Runs the same ES3 core the browser runs as WebGL2. */
+#include "platform/platform_renderer_gles3.h"
+#else
+struct ToriRS_GLES3;
 #endif
 /* GL/WebGL remains opt-in. The XP lane instead defaults to classic fixed-
  * function D3D9; --soft3d explicitly selects its GDI fallback. */
@@ -511,6 +536,30 @@ capture_from_webgl2(
 }
 #endif
 
+#if defined(TORIRS_HAVE_WEBGL1)
+static int
+capture_from_webgl1(
+    void* user,
+    int* pixels,
+    int width,
+    int height)
+{
+    return ToriRS_WebGL1_ReadPixels((struct ToriRS_WebGL1*)user, pixels, width, height) ? 1 : 0;
+}
+#endif
+
+#if defined(TORIRS_HAVE_GLES3)
+static int
+capture_from_gles3(
+    void* user,
+    int* pixels,
+    int width,
+    int height)
+{
+    return ToriRS_GLES3_ReadPixels((struct ToriRS_GLES3*)user, pixels, width, height) ? 1 : 0;
+}
+#endif
+
 static int
 capture_from_software(
     void* user,
@@ -642,7 +691,9 @@ interactive_render_present(
     struct ToriRS_GL3* gl3,
     struct ToriRS_D3D9* d3d9,
     struct ToriRS_GLES2* gles2,
-    struct ToriRS_WebGL2* webgl2)
+    struct ToriRS_WebGL2* webgl2,
+    struct ToriRS_WebGL1* webgl1,
+    struct ToriRS_GLES3* gles3)
 {
     int const interface_scale_mode = RS_CS2Host_UiScaleMode(&app->host);
     struct ClientScaleSettings client_scale;
@@ -879,6 +930,136 @@ interactive_render_present(
     (void)webgl2;
 #endif
 
+#if defined(TORIRS_HAVE_WEBGL1)
+    if( webgl1 )
+    {
+        struct ToriRS_Frame frame;
+        int progress = 0;
+        int pick_armed = 0;
+
+        App_NoteFrameDrawn(app);
+        ToriRS_WebGL1_SetInterfaceScaleMode(webgl1, interface_scale_mode);
+        ToriRS_WebGL1_SetClientScaling(webgl1, &client_scale);
+
+        if( App_IsBooting(app, &progress) )
+        {
+            int caption_font_id = -1;
+            char const* caption = App_BootBarCaption(app, &caption_font_id);
+
+            ToriRS_WebGL1_DrawBootBar(
+                webgl1, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+        }
+        else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
+        {
+            if( app->world_mouse_in_viewport )
+            {
+                ToriRS_WebGL1_SetPick(webgl1, app->world_mouse_x, app->world_mouse_y);
+                pick_armed = 1;
+            }
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
+            {
+                ToriRS_WebGL1_RenderFrame(webgl1, &frame);
+            }
+            if( torirs_env_frame_debug() )
+                TORIRS_LOG(
+                    "frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+                    frame.dbg_emit_element,
+                    frame.dbg_emit_terrain,
+                    frame.dbg_drop_not_live,
+                    frame.dbg_drop_no_model);
+            if( pick_armed )
+            {
+                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
+                {
+                    App_PickFinish(app, ToriRS_WebGL1_PickHits(webgl1));
+                }
+            }
+        }
+        /* BEFORE the swap: the drawable's contents are undefined once it has
+         * been presented, so this is the last instant the finished frame
+         * exists to be read. */
+        App_DrawComplete(app, capture_from_webgl1, webgl1);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
+        {
+#if defined(TORIRS_FRAME_TIMES)
+            uint64_t before_us = PlatformWindow_TicksUs();
+#endif
+            PlatformWindow_PresentGL(platform);
+#if defined(TORIRS_FRAME_TIMES)
+            ToriRS_FrameTimes_Present(before_us, PlatformWindow_TicksUs());
+#endif
+        }
+        return;
+    }
+#else
+    (void)webgl1;
+#endif
+
+#if defined(TORIRS_HAVE_GLES3)
+    if( gles3 )
+    {
+        struct ToriRS_Frame frame;
+        int progress = 0;
+        int pick_armed = 0;
+
+        App_NoteFrameDrawn(app);
+        ToriRS_GLES3_SetInterfaceScaleMode(gles3, interface_scale_mode);
+        ToriRS_GLES3_SetClientScaling(gles3, &client_scale);
+
+        if( App_IsBooting(app, &progress) )
+        {
+            int caption_font_id = -1;
+            char const* caption = App_BootBarCaption(app, &caption_font_id);
+
+            ToriRS_GLES3_DrawBootBar(
+                gles3, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+        }
+        else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
+        {
+            if( app->world_mouse_in_viewport )
+            {
+                ToriRS_GLES3_SetPick(gles3, app->world_mouse_x, app->world_mouse_y);
+                pick_armed = 1;
+            }
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
+            {
+                ToriRS_GLES3_RenderFrame(gles3, &frame);
+            }
+            if( torirs_env_frame_debug() )
+                TORIRS_LOG(
+                    "frame: draws element=%d terrain=%d dropped not_live=%d no_model=%d\n",
+                    frame.dbg_emit_element,
+                    frame.dbg_emit_terrain,
+                    frame.dbg_drop_not_live,
+                    frame.dbg_drop_no_model);
+            if( pick_armed )
+            {
+                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
+                {
+                    App_PickFinish(app, ToriRS_GLES3_PickHits(gles3));
+                }
+            }
+        }
+        /* BEFORE the swap: the drawable's contents are undefined once it has
+         * been presented, so this is the last instant the finished frame
+         * exists to be read. */
+        App_DrawComplete(app, capture_from_gles3, gles3);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
+        {
+#if defined(TORIRS_FRAME_TIMES)
+            uint64_t before_us = PlatformWindow_TicksUs();
+#endif
+            PlatformWindow_PresentGL(platform);
+#if defined(TORIRS_FRAME_TIMES)
+            ToriRS_FrameTimes_Present(before_us, PlatformWindow_TicksUs());
+#endif
+        }
+        return;
+    }
+#else
+    (void)gles3;
+#endif
+
 #if defined(TORIRS_HAVE_GL3)
     if( gl3 )
     {
@@ -1032,7 +1213,9 @@ interactive_present_retained(
     struct ToriRS_GL3* gl3,
     struct ToriRS_D3D9* d3d9,
     struct ToriRS_GLES2* gles2,
-    struct ToriRS_WebGL2* webgl2)
+    struct ToriRS_WebGL2* webgl2,
+    struct ToriRS_WebGL1* webgl1,
+    struct ToriRS_GLES3* gles3)
 {
 #if defined(TORIRS_HAVE_D3D9)
     if( d3d9 )
@@ -1051,6 +1234,18 @@ interactive_present_retained(
         return;
 #else
     (void)webgl2;
+#endif
+#if defined(TORIRS_HAVE_WEBGL1)
+    if( webgl1 )
+        return;
+#else
+    (void)webgl1;
+#endif
+#if defined(TORIRS_HAVE_GLES3)
+    if( gles3 )
+        return;
+#else
+    (void)gles3;
 #endif
 #if defined(TORIRS_HAVE_GL3)
     if( gl3 )
@@ -1150,6 +1345,10 @@ static struct ToriRS_D3D9* d3d9;
 static struct ToriRS_GLES2* gles2;
 /* NULL unless the WebGL2 renderer was built AND --webgl2 was passed. */
 static struct ToriRS_WebGL2* webgl2;
+/* NULL unless the WebGL1 renderer was built AND --webgl1 was passed. */
+static struct ToriRS_WebGL1* webgl1;
+/* NULL unless the GLES3 renderer was built AND --gles3 was passed. */
+static struct ToriRS_GLES3* gles3;
 
 /* --- the renderer, and switching it live ---------------------------------
  *
@@ -1185,6 +1384,10 @@ renderer_present(enum ToriRS_RendererKind kind)
     case TORIRS_RENDERER_KIND_GLES2_DEPTH:
     case TORIRS_RENDERER_KIND_WEBGL2:
     case TORIRS_RENDERER_KIND_WEBGL2_DEPTH:
+    case TORIRS_RENDERER_KIND_WEBGL1:
+    case TORIRS_RENDERER_KIND_WEBGL1_DEPTH:
+    case TORIRS_RENDERER_KIND_GLES3:
+    case TORIRS_RENDERER_KIND_GLES3_DEPTH:
         return PLATFORM_PRESENT_GL;
     case TORIRS_RENDERER_KIND_D3D9:
     case TORIRS_RENDERER_KIND_D3D9_DEPTH:
@@ -1228,6 +1431,20 @@ renderer_built(enum ToriRS_RendererKind kind)
     case TORIRS_RENDERER_KIND_WEBGL2:
     case TORIRS_RENDERER_KIND_WEBGL2_DEPTH:
 #if defined(TORIRS_HAVE_WEBGL2)
+        return true;
+#else
+        return false;
+#endif
+    case TORIRS_RENDERER_KIND_WEBGL1:
+    case TORIRS_RENDERER_KIND_WEBGL1_DEPTH:
+#if defined(TORIRS_HAVE_WEBGL1)
+        return true;
+#else
+        return false;
+#endif
+    case TORIRS_RENDERER_KIND_GLES3:
+    case TORIRS_RENDERER_KIND_GLES3_DEPTH:
+#if defined(TORIRS_HAVE_GLES3)
         return true;
 #else
         return false;
@@ -1290,6 +1507,12 @@ renderer_start(enum ToriRS_RendererKind kind)
 #if defined(TORIRS_HAVE_WEBGL2)
     assert(!webgl2);
 #endif
+#if defined(TORIRS_HAVE_WEBGL1)
+    assert(!webgl1);
+#endif
+#if defined(TORIRS_HAVE_GLES3)
+    assert(!gles3);
+#endif
     switch( kind )
     {
     case TORIRS_RENDERER_KIND_SOFTWARE:
@@ -1341,8 +1564,46 @@ renderer_start(enum ToriRS_RendererKind kind)
         /* The lane wraps the renderer made here and keeps driving through
          * `gles2` for everything but the frame itself. */
         if( renderer_gles2_dualcore )
-            gles2_dualcore_lane = ToriRS_GLES2DualCore_New(gles2);
+            gles2_dualcore_lane = ToriRS_GLES2DualCore_New(ToriRS_GLES2_Core(gles2));
 #endif
+        return true;
+    }
+#endif
+#if defined(TORIRS_HAVE_WEBGL1)
+    case TORIRS_RENDERER_KIND_WEBGL1:
+    case TORIRS_RENDERER_KIND_WEBGL1_DEPTH:
+    {
+        bool const depth = kind == TORIRS_RENDERER_KIND_WEBGL1_DEPTH;
+        webgl1 = ToriRS_WebGL1_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        assert(webgl1);
+        if( !ToriRS_WebGL1_Init(webgl1, PlatformWindow_GLWindow(platform), app.scene, depth) )
+        {
+            TORIRS_ERR("WebGL1 renderer init failed\n");
+            ToriRS_WebGL1_Free(webgl1);
+            webgl1 = NULL;
+            return false;
+        }
+        App_SetWorldRenderMode(&app, depth ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
+        App_SetRendererAnimatesTextures(&app, true);
+        return true;
+    }
+#endif
+#if defined(TORIRS_HAVE_GLES3)
+    case TORIRS_RENDERER_KIND_GLES3:
+    case TORIRS_RENDERER_KIND_GLES3_DEPTH:
+    {
+        bool const depth = kind == TORIRS_RENDERER_KIND_GLES3_DEPTH;
+        gles3 = ToriRS_GLES3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        assert(gles3);
+        if( !ToriRS_GLES3_Init(gles3, PlatformWindow_GLWindow(platform), app.scene, depth) )
+        {
+            TORIRS_ERR("GLES3 renderer init failed\n");
+            ToriRS_GLES3_Free(gles3);
+            gles3 = NULL;
+            return false;
+        }
+        App_SetWorldRenderMode(&app, depth ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
+        App_SetRendererAnimatesTextures(&app, true);
         return true;
     }
 #endif
@@ -1410,6 +1671,14 @@ renderer_stop(void)
 #if defined(TORIRS_HAVE_WEBGL2)
     ToriRS_WebGL2_Free(webgl2);
     webgl2 = NULL;
+#endif
+#if defined(TORIRS_HAVE_WEBGL1)
+    ToriRS_WebGL1_Free(webgl1);
+    webgl1 = NULL;
+#endif
+#if defined(TORIRS_HAVE_GLES3)
+    ToriRS_GLES3_Free(gles3);
+    gles3 = NULL;
 #endif
 #if defined(TORIRS_HAVE_GL3)
     ToriRS_GL3_Free(gl3);
@@ -3729,6 +3998,14 @@ frame_loop_step(void)
         if( webgl2 )
             ToriRS_WebGL2_SetViewport(webgl2, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
+#if defined(TORIRS_HAVE_WEBGL1)
+        if( webgl1 )
+            ToriRS_WebGL1_SetViewport(webgl1, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+#endif
+#if defined(TORIRS_HAVE_GLES3)
+        if( gles3 )
+            ToriRS_GLES3_SetViewport(gles3, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+#endif
     }
 
     app_redraw = 0;
@@ -3890,14 +4167,14 @@ frame_loop_step(void)
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
         {
-            interactive_render_present(&app, platform, gl3, d3d9, gles2, webgl2);
+            interactive_render_present(&app, platform, gl3, d3d9, gles2, webgl2, webgl1, gles3);
         }
     }
     else
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
-            interactive_present_retained(platform, gl3, d3d9, gles2, webgl2);
+            interactive_present_retained(platform, gl3, d3d9, gles2, webgl2, webgl1, gles3);
         }
     }
 
@@ -5232,6 +5509,14 @@ struct MainArgState
      * (--webgl2 / --webgl2-zbuffer). */
     int use_webgl2;
     int webgl2_zbuffer;
+    /* The browser's WebGL1 renderer (--webgl1 / --webgl1-zbuffer): the same
+     * ES2 core Android runs as --gles2, on a WebGL1 context. */
+    int use_webgl1;
+    int webgl1_zbuffer;
+    /* Android's OpenGL ES 3 renderer (--gles3 / --gles3-zbuffer): the same
+     * ES3 core the browser runs as --webgl2, on EGL. */
+    int use_gles3;
+    int gles3_zbuffer;
     /* A renderer flag was given, by the command line or the manifest. The
      * launch then starts with that renderer whatever Client Settings saved. */
     int renderer_flag;
@@ -5250,8 +5535,8 @@ main_print_usage(char const* program)
         "[--pacer gameshell|deadline] "
         "[--windowmode fixed|resizable] [--window WxH] "
         "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|"
-        "--webgl2|--webgl2-zbuffer|--gles2|"
-        "--gles2-zbuffer|--gles2-dualcore|--gles2-dualcore-zbuffer|"
+        "--webgl2|--webgl2-zbuffer|--gles2|--gles2-zbuffer|--gles3|--gles3-zbuffer|"
+        "--gles2-dualcore|--gles2-dualcore-zbuffer|"
         "--d3d9|--d3d9-zbuffer|--soft3d]\n",
         program);
 }
@@ -5500,10 +5785,14 @@ main_parse_argument_layer(
             int const zbuffer = strcmp(argv[argi], "--webgl1-zbuffer") == 0;
             /* Read in every branch below but the "not built here" one. */
             (void)zbuffer;
-#if defined(TORIRS_HAVE_GLES2) && defined(TORIRS_PLATFORM_WEB)
-            state->use_gles2 = 1;
+#if defined(TORIRS_HAVE_WEBGL1)
+            state->use_webgl1 = 1;
             state->renderer_flag = 1;
-            state->gles2_zbuffer = zbuffer;
+            state->webgl1_zbuffer = zbuffer;
+            state->use_gles2 = 0;
+            state->gles2_zbuffer = 0;
+            state->use_gles3 = 0;
+            state->gles3_zbuffer = 0;
             state->use_opengl3 = 0;
             state->gl3_zbuffer = 0;
             state->use_d3d9 = 0;
@@ -5541,6 +5830,10 @@ main_parse_argument_layer(
             state->use_webgl2 = 1;
             state->renderer_flag = 1;
             state->webgl2_zbuffer = zbuffer;
+            state->use_webgl1 = 0;
+            state->webgl1_zbuffer = 0;
+            state->use_gles3 = 0;
+            state->gles3_zbuffer = 0;
             state->use_gles2 = 0;
             state->gles2_zbuffer = 0;
             state->gles2_dualcore = 0;
@@ -5577,6 +5870,39 @@ main_parse_argument_layer(
             state->use_webgl2 = 0;
             state->webgl2_zbuffer = 0;
             continue;
+#else
+            TORIRS_ERR(
+                "torirs: %s is the Android build's flag and is not available here\n", argv[argi]);
+            return 0;
+#endif
+        }
+        if( strcmp(argv[argi], "--gles3") == 0 || strcmp(argv[argi], "--gles3-zbuffer") == 0 )
+        {
+            int const zbuffer = strcmp(argv[argi], "--gles3-zbuffer") == 0;
+            /* Read in every branch below but the "not built here" one. */
+            (void)zbuffer;
+#if defined(TORIRS_HAVE_GLES3)
+            state->use_gles3 = 1;
+            state->renderer_flag = 1;
+            state->gles3_zbuffer = zbuffer;
+            state->use_gles2 = 0;
+            state->gles2_zbuffer = 0;
+            state->gles2_dualcore = 0;
+            state->use_webgl1 = 0;
+            state->webgl1_zbuffer = 0;
+            state->use_webgl2 = 0;
+            state->webgl2_zbuffer = 0;
+            state->use_opengl3 = 0;
+            state->gl3_zbuffer = 0;
+            state->use_d3d9 = 0;
+            state->d3d9_zbuffer = 0;
+            continue;
+#elif defined(TORIRS_HAVE_WEBGL2)
+            TORIRS_ERR(
+                "torirs: %s is the Android build's flag — use --webgl2%s\n",
+                argv[argi],
+                zbuffer ? "-zbuffer" : "");
+            return 0;
 #else
             TORIRS_ERR(
                 "torirs: %s is the Android build's flag and is not available here\n", argv[argi]);
@@ -5731,6 +6057,10 @@ main(
         .gles2_dualcore = 0,
         .use_webgl2 = 0,
         .webgl2_zbuffer = 0,
+        .use_webgl1 = 0,
+        .webgl1_zbuffer = 0,
+        .use_gles3 = 0,
+        .gles3_zbuffer = 0,
         .renderer_flag = 0,
     };
     int argi;
@@ -5810,6 +6140,10 @@ main(
     int const gles2_dualcore = arg_state.gles2_dualcore;
     int const use_webgl2 = arg_state.use_webgl2;
     int const webgl2_zbuffer = arg_state.webgl2_zbuffer;
+    int const use_webgl1 = arg_state.use_webgl1;
+    int const webgl1_zbuffer = arg_state.webgl1_zbuffer;
+    int const use_gles3 = arg_state.use_gles3;
+    int const gles3_zbuffer = arg_state.gles3_zbuffer;
     int const renderer_flag = arg_state.renderer_flag;
 
     /* Cache identity is required. Prefer the manifest; otherwise resolve --rev
@@ -7070,6 +7404,12 @@ main(
         if( use_webgl2 )
             renderer_launch =
                 webgl2_zbuffer ? TORIRS_RENDERER_KIND_WEBGL2_DEPTH : TORIRS_RENDERER_KIND_WEBGL2;
+        else if( use_webgl1 )
+            renderer_launch =
+                webgl1_zbuffer ? TORIRS_RENDERER_KIND_WEBGL1_DEPTH : TORIRS_RENDERER_KIND_WEBGL1;
+        else if( use_gles3 )
+            renderer_launch =
+                gles3_zbuffer ? TORIRS_RENDERER_KIND_GLES3_DEPTH : TORIRS_RENDERER_KIND_GLES3;
         else if( use_gles2 )
             renderer_launch =
                 gles2_zbuffer ? TORIRS_RENDERER_KIND_GLES2_DEPTH : TORIRS_RENDERER_KIND_GLES2;
@@ -7363,7 +7703,7 @@ main(
             }
         }
 
-        interactive_render_present(&app, platform, gl3, d3d9, gles2, webgl2);
+        interactive_render_present(&app, platform, gl3, d3d9, gles2, webgl2, webgl1, gles3);
 
         /* TORIRS_MAX_FRAMES=N: exit after N loop iterations (headless smoke
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */

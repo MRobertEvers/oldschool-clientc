@@ -14,10 +14,10 @@
  * the vertex stream, the actor bakes, the interface, and GL.
  *
  * It is a SEPARATE lane, not a mode of the GLES2 renderer. It owns no GL
- * state: it wraps a ToriRS_GLES2 that main.c created and drives exactly as
+ * state: it wraps a ToriRS_ES2 that main.c created and drives exactly as
  * it drives that renderer, and adds the worker thread, the scene's scratch
  * view (ToriDraw_SceneScratchViewNew), the results arena and the hand-over.
- * The renderer's only knowledge of it is GLES2ModelStageSource, a hook it
+ * The renderer's only knowledge of it is ES2ModelStageSource, a hook it
  * consults when installed and computes past when not; with the hook out,
  * the GLES2 renderer is byte for byte the --gles2 lane.
  *
@@ -25,7 +25,7 @@
  *
  *   draw thread                              worker thread
  *   ------------------------------------     ---------------------------------
- *   gles2_render_frame_begin
+ *   es2_render_frame_begin
  *   ToriRS_FrameBegin(frame)
  *   sync the scratch view
  *   install the stage source
@@ -46,7 +46,7 @@
  *   join the worker <---------------------
  *   remove the stage source
  *   ToriRS_FrameEnd(frame)
- *   gles2_render_frame_end
+ *   es2_render_frame_end
  *
  * The draw runs the frame bus ONCE, for both threads: at each BEGIN_3D it
  * translates the pass's commands into the arena's feed, publishing each as
@@ -100,7 +100,7 @@
 
 struct ToriDraw_Scene;
 struct ToriRS_Frame;
-struct ToriRS_GLES2;
+struct ToriRS_ES2;
 struct ToriRS_GLES2DualCore;
 
 /**
@@ -109,13 +109,13 @@ struct ToriRS_GLES2DualCore;
  * it must outlive this. Starts the worker thread.
  */
 struct ToriRS_GLES2DualCore*
-ToriRS_GLES2DualCore_New(struct ToriRS_GLES2* renderer);
+ToriRS_GLES2DualCore_New(struct ToriRS_ES2* renderer);
 
 /** Stops and joins the worker; does not free the wrapped renderer. */
 void
 ToriRS_GLES2DualCore_Free(struct ToriRS_GLES2DualCore* lane);
 
-/** ToriRS_GLES2_RenderFrame, with the world's model stage on the other core. */
+/** ToriRS_ES2_RenderFrame, with the world's model stage on the other core. */
 void
 ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame);
 

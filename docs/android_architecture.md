@@ -148,7 +148,7 @@ at all: it is not a JVM thread.
               ┌───────────────────┴────────────────────┐
               ▼                                        ▼
    SOFTWARE (default)                        GLES2 (--gles2[-zbuffer], opt-in)
-   toridraw rasterises into                  platform_renderer_gles2_*.c
+   toridraw rasterises into                  platform_renderer_es2_*.c
    the ARGB8888 canvas                       draws into the EGL surface
               │                                        │
    PlatformWindow_Present                      PlatformWindow_PresentGL
@@ -160,7 +160,7 @@ at all: it is not a JVM thread.
 
 ### The GPU path is the GLES2 renderer, shared with the browser
 
-`platform_renderer_gles2_{core,ui,painter,zbuffer}.c` is OpenGL ES 2.0
+`platform_renderer_es2_{core,ui,painter,zbuffer}.c` is OpenGL ES 2.0
 core with **no extensions**, and it is shaped after the Windows D3D9 renderer's
 retained model rather than after either desktop GL renderer. The web lane
 links the same four files against WebGL1 (`--webgl1` / `--webgl1-zbuffer`),

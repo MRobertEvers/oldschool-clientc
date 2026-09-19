@@ -8,7 +8,7 @@
 /* The production painter index packer, shared with the GL-free chain replay.
  * address is relative to the bound U16 window. Invalid faces are degenerate. */
 static inline void
-gles2_painter_write_indices(uint16_t* indices, uint32_t address,
+es2_painter_write_indices(uint16_t* indices, uint32_t address,
     uint32_t source_face_limit, const int* faces, uint32_t count, bool use_neon)
 {
     (void)use_neon;

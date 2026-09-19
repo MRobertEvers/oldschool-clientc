@@ -1,5 +1,5 @@
-#ifndef TORIRS_WEBGL2_INDICES_H
-#define TORIRS_WEBGL2_INDICES_H
+#ifndef TORIRS_ES3_INDICES_H
+#define TORIRS_ES3_INDICES_H
 
 #include <stdint.h>
 
@@ -24,7 +24,7 @@
  * visible world as vertices, so what is left here is six bytes a face.
  */
 static inline void
-webgl2_painter_write_indices(
+es3_painter_write_indices(
     uint32_t* indices,
     uint32_t address,
     uint32_t source_face_limit,

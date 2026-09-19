@@ -252,23 +252,24 @@ does not fit the cache it named now fails that one item.
 ## The WebGL1 renderer
 
 The browser's GPU renderer is the GLES2 renderer, shared with the Android lane:
-[`platform_renderer_gles2_{core,ui,painter,zbuffer}.c`](../src/platform/).
+[`platform_renderer_es2_{core,ui,painter,zbuffer}.c`](../src/platform/).
 WebGL1 is OpenGL ES 2.0 with no extensions, which is exactly the ceiling that
 renderer was written to, so the web lane compiles the same four files unchanged
 against emscripten's `<GLES2/gl2.h>` and reaches its context through the
 `platform_gl_context.h` seam (`platform_gl_context_sdl.c` here, EGL on the
 phone). There is no browser-specific renderer and no preprocessor switch inside
 this one; a fix lands on both hosts at once.
-[`platform_renderer_gles2_core.h`](../src/platform/platform_renderer_gles2_core.h)
+[`platform_renderer_es2_core.h`](../src/platform/platform_renderer_es2_core.h)
 is the contract, and `ANDROID-GLES2-001` / `WEB-GL1-000` in
 [`platform_quirks.md`](platform_quirks.md) register it.
 
-There are two of them. `--webgl1` / `--webgl1-zbuffer` is the renderer shared
-with Android, on a WebGL1 context; `--webgl2` / `--webgl2-zbuffer` is a
-separate renderer written to OpenGL ES 3.0 (WEB-GL2-000 in
-[platform_quirks.md](platform_quirks.md)), which indexes the retained world in
-place instead of copying it through a ring every frame. Either is opt-in, like
-every GPU path in this tree, so `…&arg=--webgl1` in the page's query
+There are two of them, over two cores this lane shares with Android.
+`--webgl1` / `--webgl1-zbuffer` runs the ES 2.0 core (`--gles2` on a phone);
+`--webgl2` / `--webgl2-zbuffer` runs the ES 3.0 core (`--gles3` on a phone),
+which indexes the retained world in place instead of copying it through a ring
+every frame. GPU-FAMILY-001 and WEB-GL2-000 in
+[platform_quirks.md](platform_quirks.md) are the contracts. Either is opt-in,
+like every GPU path in this tree, so `…&arg=--webgl1` in the page's query
 string. Each build accepts only the spelling it can honour and names the right
 one otherwise: the desktop says `--opengl3`, Android says `--gles2`, and the
 browser refuses both by name rather than aliasing them, so a manifest written

@@ -64,7 +64,10 @@ struct PlatformAudioStats
     /** False when no device was opened — the null backend, or a failed open. */
     bool device_open;
 
-    /** Real-time path diagnostics (SDL2 backend only, zero elsewhere). */
+    /** Real-time path diagnostics. The SDL2 backend fills all of these; the
+     *  WebAudio one fills every field but the two callback timings, which have
+     *  no meaning when the schedule is fed from the frame loop. Zero
+     *  elsewhere. */
     int updates;
     int underruns;
     int queue_min_frames;
@@ -115,7 +118,11 @@ PlatformAudio_SubmitAll(
  * Mix and hand the device whatever it needs to stay ahead.
  *
  * Called once per frame. A backend that is behind renders more; one that is
- * comfortably buffered renders nothing.
+ * comfortably buffered renders nothing. "More" is not optional for a backend
+ * whose device is fed from the frame loop rather than from a device callback:
+ * a fixed one block per call caps playback at one block per frame, so the
+ * schedule starves for as long as the frame rate sits below the rate that
+ * block represents. See platform_audio_wasm.c.
  */
 void
 PlatformAudio_Update(struct PlatformAudio* audio);

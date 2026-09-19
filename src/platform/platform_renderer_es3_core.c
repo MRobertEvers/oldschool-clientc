@@ -1,5 +1,5 @@
 /**
- * The GLES2 renderer core: the context, the programs, the world texture atlas,
+ * The WebGL2 renderer core: the context, the programs, the world texture atlas,
  * every retained CPU/GPU vertex buffer, the per-frame index stream and the
  * command dispatch.
  *
@@ -7,13 +7,13 @@
  * There are two implementations of that, they share nothing with each other,
  * and each lives in its own translation unit:
  *
- *   platform_renderer_gles2_painter.c   painter's algorithm
- *   platform_renderer_gles2_zbuffer.c   hardware depth test
+ *   platform_renderer_es3_painter.c   painter's algorithm
+ *   platform_renderer_es3_zbuffer.c   hardware depth test
  *
- * ToriRS_GLES2_Init picks one by creating (or not creating) the depth
+ * ToriRS_ES3_Init picks one by creating (or not creating) the depth
  * implementation's state. ::zbuffer is that state and doubles as the selector.
- * See platform_renderer_gles2_core.h for the contract and for what the
- * GLES2 ceiling turned into here.
+ * See platform_renderer_es3_core.h for the contract and for what the
+ * WebGL2 ceiling turned into here.
  *
  * The retained model is the D3D9 renderer's, kept on purpose (see
  * platform_win32_renderer_d3d9_core.c): two arena groups (STATIC, retained
@@ -21,19 +21,18 @@
  * the scene build, whose pages are the pages the U16 index stream addresses.
  */
 
-#include "platform/platform_renderer_gles2_core.h"
-#include "platform/platform_renderer_gles2_placement.h"
-
-#include "engine/boot_bar.h"
-#include "log/torirs_log.h"
-#include "perf/torirs_perf.h"
-#include "platform/platform_renderer_gles2_shaders.h"
+#include "platform/platform_renderer_es3_core.h"
 
 #include "core/trspk_math.h"
+#include "engine/boot_bar.h"
+#include "log/torirs_log.h"
+#include "painters/painters.h"
+#include "perf/torirs_perf.h"
+#include "platform/platform_renderer_es3_placement.h"
+#include "platform/platform_renderer_es3_shaders.h"
 #include "toridraw.h"
 #include "toridraw_element_id.h"
 #include "toridraw_math.h"
-#include "painters/painters.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -43,61 +42,62 @@
 #include <string.h>
 
 #if defined(TORIRS_BAKE_CHAIN_CAPTURE)
-#include "platform_renderer_gles2_bake_capture.u.c"
+#include "platform_renderer_es3_bake_capture.u.c"
 #elif defined(TORIRS_BAKE_VERIFY)
 #include "../../tools/perf/bake_chain_format.h"
 #endif
 
 #if defined(TORIRS_PLACEMENT_CAPTURE)
-#include "platform_renderer_gles2_placement_capture.u.c"
+#include "platform_renderer_es3_placement_capture.u.c"
 #else
-#define gles2_static_resolve_recorded gles2_static_resolve
+#define es3_static_resolve_recorded es3_static_resolve
 #endif
 
-
-/* One line of the TORIRS_GLES2_DEBUG census. TORIRS_REPORT rather than
+/* One line of the TORIRS_ES3_DEBUG census. TORIRS_REPORT rather than
  * TORIRS_LOG: the reader asked for it by setting the variable, so it must
  * survive an optimized build. The lane decides where stderr goes -- the
  * console on the desktop and in the browser, logcat on Android. */
-#define gles2_report_line(fmt, ...) TORIRS_REPORT(fmt "\n", __VA_ARGS__)
+#define es3_report_line(fmt, ...) TORIRS_REPORT(fmt "\n", __VA_ARGS__)
 
 #if defined(TORIRS_MODEL_CHAIN_CAPTURE)
-#include "platform_renderer_gles2_chain_capture.u.c"
+#include "platform_renderer_es3_chain_capture.u.c"
 #endif
 
 _Static_assert(
-    GLES2_ATLAS_COLS * TRSPK_ATLAS_TILE == GLES2_ATLAS_DIM,
+    ES3_ATLAS_COLS* TRSPK_ATLAS_TILE == ES3_ATLAS_DIM,
     "the atlas grid must tile the atlas exactly");
 _Static_assert(
-    GLES2_ATLAS_COLS * GLES2_ATLAS_COLS == GLES2_ATLAS_SLOTS,
+    ES3_ATLAS_COLS* ES3_ATLAS_COLS == ES3_ATLAS_SLOTS,
     "the slot count is the grid squared");
 _Static_assert(
     sizeof(struct TRSPK_VertexGLES2) == 28u,
     "the world vertex layout is what the attribute pointers describe");
 _Static_assert(
-    sizeof(struct GLES2VertexUI) == 28u,
+    sizeof(struct ES3VertexUI) == 28u,
     "the UI vertex layout is what the attribute pointers describe");
 _Static_assert(
-    sizeof(struct GLES2VertexRotmask) == 32u,
+    sizeof(struct ES3VertexRotmask) == 32u,
     "the rotmask vertex layout is what the attribute pointers describe");
 _Static_assert(
-    GLES2_ATTRIB_TEXINFO == GLES2_ATTRIB_MASK_TEXCOORD,
+    ES3_ATTRIB_TEXINFO == ES3_ATTRIB_MASK_TEXCOORD,
     "the fourth attribute slot is shared: world texinfo or rotmask mask uv");
 
-enum GLES2StreamLayout
+enum ES3StreamLayout
 {
-    GLES2_STREAM_NONE = 0,
-    GLES2_STREAM_WORLD = 1,
-    GLES2_STREAM_UI = 2,
-    GLES2_STREAM_ROTMASK = 3,
+    ES3_STREAM_NONE = 0,
+    ES3_STREAM_WORLD = 1,
+    ES3_STREAM_UI = 2,
+    ES3_STREAM_ROTMASK = 3,
 };
 
-#define GLES2_VERTEX_STRIDE ((GLsizei)sizeof(struct TRSPK_VertexGLES2))
+#define ES3_VERTEX_STRIDE ((GLsizei)sizeof(struct TRSPK_VertexGLES2))
 
 /* ---- cached GL state ------------------------------------------------------ */
 
 void
-gles2_set_blend(struct ToriRS_GLES2* renderer, bool enabled)
+es3_set_blend(
+    struct ToriRS_ES3* renderer,
+    bool enabled)
 {
     assert(renderer);
     if( renderer->blend_on == enabled )
@@ -110,7 +110,10 @@ gles2_set_blend(struct ToriRS_GLES2* renderer, bool enabled)
 }
 
 void
-gles2_set_depth(struct ToriRS_GLES2* renderer, bool test, bool write)
+es3_set_depth(
+    struct ToriRS_ES3* renderer,
+    bool test,
+    bool write)
 {
     assert(renderer);
     if( renderer->depth_test_on != test )
@@ -129,7 +132,9 @@ gles2_set_depth(struct ToriRS_GLES2* renderer, bool test, bool write)
 }
 
 void
-gles2_set_cull(struct ToriRS_GLES2* renderer, bool enabled)
+es3_set_cull(
+    struct ToriRS_ES3* renderer,
+    bool enabled)
 {
     assert(renderer);
     if( renderer->cull_on == enabled )
@@ -142,7 +147,9 @@ gles2_set_cull(struct ToriRS_GLES2* renderer, bool enabled)
 }
 
 void
-gles2_set_scissor(struct ToriRS_GLES2* renderer, const struct GLES2Rect* rect)
+es3_set_scissor(
+    struct ToriRS_ES3* renderer,
+    const struct ES3Rect* rect)
 {
     assert(renderer);
     if( !rect )
@@ -167,7 +174,9 @@ gles2_set_scissor(struct ToriRS_GLES2* renderer, const struct GLES2Rect* rect)
 }
 
 void
-gles2_bind_texture0(struct ToriRS_GLES2* renderer, GLuint texture)
+es3_bind_texture0(
+    struct ToriRS_ES3* renderer,
+    GLuint texture)
 {
     assert(renderer);
     if( renderer->bound_texture0 == texture )
@@ -184,27 +193,31 @@ gles2_bind_texture0(struct ToriRS_GLES2* renderer, GLuint texture)
  * chunk, offset and vertex count) at +1. The frame's emit loop resolves
  * the element ids three commands ahead for its own prefetches; this is the
  * renderer's half of the same pipeline. Measured before it existed: the
- * batch entry read alone was 39% of gles2_dispatch.
+ * batch entry read alone was 39% of es3_dispatch.
  */
 void
-gles2_prefetch_ahead_ids(struct ToriRS_GLES2* renderer,int id_plus1,int id_plus2,int id_plus3)
+es3_prefetch_ahead_ids(
+    struct ToriRS_ES3* renderer,
+    int id_plus1,
+    int id_plus2,
+    int id_plus3)
 {
 #if defined(TORIRS_PLACEMENT_CAPTURE)
-    gles2_placement_prefetch_record(renderer,id_plus1,id_plus2,id_plus3);
+    es3_placement_prefetch_record(renderer, id_plus1, id_plus2, id_plus3);
 #endif
-    gles2_static_prefetch_ids(renderer,id_plus1,id_plus2,id_plus3);
+    es3_static_prefetch_ids(renderer, id_plus1, id_plus2, id_plus3);
 }
 
 static void
-gles2_prefetch_ahead(
-    struct ToriRS_GLES2* renderer,
+es3_prefetch_ahead(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_Frame* frame)
 {
     assert(renderer);
     assert(frame);
     if( !renderer->batch_poses.elements || !renderer->has_3d )
         return;
-    gles2_prefetch_ahead_ids(
+    es3_prefetch_ahead_ids(
         renderer,
         ToriRS_FrameLookaheadElementId(frame, 1),
         ToriRS_FrameLookaheadElementId(frame, 2),
@@ -212,7 +225,9 @@ gles2_prefetch_ahead(
 }
 
 void
-gles2_bind_texture1(struct ToriRS_GLES2* renderer, GLuint texture)
+es3_bind_texture1(
+    struct ToriRS_ES3* renderer,
+    GLuint texture)
 {
     assert(renderer);
     if( renderer->bound_texture1 == texture )
@@ -224,7 +239,9 @@ gles2_bind_texture1(struct ToriRS_GLES2* renderer, GLuint texture)
 }
 
 void
-gles2_use_program(struct ToriRS_GLES2* renderer, const struct GLES2Program* program)
+es3_use_program(
+    struct ToriRS_ES3* renderer,
+    const struct ES3Program* program)
 {
     assert(renderer);
     assert(program);
@@ -235,7 +252,9 @@ gles2_use_program(struct ToriRS_GLES2* renderer, const struct GLES2Program* prog
 }
 
 void
-gles2_bind_array_buffer(struct ToriRS_GLES2* renderer, GLuint buffer)
+es3_bind_array_buffer(
+    struct ToriRS_ES3* renderer,
+    GLuint buffer)
 {
     if( renderer->bound_array_buffer == buffer )
         return;
@@ -247,16 +266,16 @@ gles2_bind_array_buffer(struct ToriRS_GLES2* renderer, GLuint buffer)
  * starts here: the context is shared with nothing, but the cost is a dozen
  * calls and it makes a stale cache impossible rather than unlikely. */
 void
-gles2_blend_func_default(void)
+es3_blend_func_default(void)
 {
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 static void
-gles2_state_reset(struct ToriRS_GLES2* renderer)
+es3_state_reset(struct ToriRS_ES3* renderer)
 {
     glDisable(GL_BLEND);
-    gles2_blend_func_default();
+    es3_blend_func_default();
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_TRUE);
     glDepthFunc(GL_LEQUAL);
@@ -268,6 +287,7 @@ gles2_state_reset(struct ToriRS_GLES2* renderer)
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, 0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
     glUseProgram(0);
     renderer->blend_on = false;
     renderer->depth_test_on = false;
@@ -278,32 +298,53 @@ gles2_state_reset(struct ToriRS_GLES2* renderer)
     renderer->bound_texture0 = 0u;
     renderer->bound_texture1 = 0u;
     renderer->bound_array_buffer = 0u;
+    renderer->bound_element_buffer = 0u;
+    renderer->vao_bound = 0u;
     renderer->current_program = NULL;
     renderer->stream_buffer = 0u;
     renderer->stream_byte_offset = 0u;
-    renderer->stream_layout = GLES2_STREAM_NONE;
+    renderer->stream_layout = ES3_STREAM_NONE;
 }
 
 /* ---- programs --------------------------------------------------------------- */
 
+/*
+ * What this renderer calls itself, for every line the core logs.
+ *
+ * "WebGL2" in a browser, "GLES3" on a phone -- the lane decides, because the
+ * core is neither. A file static for the same reason the ES2 core's is: the
+ * places that log a shader or link failure have no renderer in scope, main.c
+ * starts at most one GPU renderer at a time, and the value is the lane's,
+ * fixed for the build. ToriRS_ES3_New sets it.
+ */
+static char const* g_es3_name = "ES3";
+
+char const*
+es3_log_name(void)
+{
+    return g_es3_name;
+}
+
 bool
-gles2_check_error(const char* where)
+es3_check_error(const char* where)
 {
     GLenum error = glGetError();
     if( error == GL_NO_ERROR )
         return true;
-    TORIRS_ERR("GLES2: %s: glGetError 0x%x\n", where, (unsigned)error);
+    TORIRS_ERR("%s: %s: glGetError 0x%x\n", g_es3_name, where, (unsigned)error);
     return false;
 }
 
 static GLuint
-gles2_compile_shader(GLenum type, const char* source)
+es3_compile_shader(
+    GLenum type,
+    const char* source)
 {
     GLuint shader = glCreateShader(type);
     GLint ok = 0;
     if( shader == 0u )
     {
-        TORIRS_ERR("GLES2: glCreateShader failed\n");
+        TORIRS_ERR("%s: glCreateShader failed\n", g_es3_name);
         return 0u;
     }
     glShaderSource(shader, 1, &source, NULL);
@@ -313,7 +354,7 @@ gles2_compile_shader(GLenum type, const char* source)
     {
         char log[1024];
         glGetShaderInfoLog(shader, (GLsizei)sizeof(log), NULL, log);
-        TORIRS_ERR("GLES2: shader compile failed: %s\n", log);
+        TORIRS_ERR("%s: shader compile failed: %s\n", g_es3_name, log);
         glDeleteShader(shader);
         return 0u;
     }
@@ -321,16 +362,14 @@ gles2_compile_shader(GLenum type, const char* source)
 }
 
 static bool
-gles2_link_program(
-    struct GLES2Program* program,
+es3_link_program(
+    struct ES3Program* program,
     const char* vertex_source,
     const char* fragment_source,
-    bool has_mask_attribute,
-    bool has_texinfo_attribute,
     const char* label)
 {
-    GLuint vertex_shader = gles2_compile_shader(GL_VERTEX_SHADER, vertex_source);
-    GLuint fragment_shader = gles2_compile_shader(GL_FRAGMENT_SHADER, fragment_source);
+    GLuint vertex_shader = es3_compile_shader(GL_VERTEX_SHADER, vertex_source);
+    GLuint fragment_shader = es3_compile_shader(GL_FRAGMENT_SHADER, fragment_source);
     GLint ok = 0;
 
     memset(program, 0, sizeof(*program));
@@ -340,7 +379,7 @@ gles2_link_program(
             glDeleteShader(vertex_shader);
         if( fragment_shader )
             glDeleteShader(fragment_shader);
-        TORIRS_ERR("GLES2: %s: shaders did not compile\n", label);
+        TORIRS_ERR("%s: %s: shaders did not compile\n", g_es3_name, label);
         return false;
     }
     program->id = glCreateProgram();
@@ -348,20 +387,15 @@ gles2_link_program(
     {
         glDeleteShader(vertex_shader);
         glDeleteShader(fragment_shader);
-        TORIRS_ERR("GLES2: %s: glCreateProgram failed\n", label);
+        TORIRS_ERR("%s: %s: glCreateProgram failed\n", g_es3_name, label);
         return false;
     }
     glAttachShader(program->id, vertex_shader);
     glAttachShader(program->id, fragment_shader);
-    /* Before the link, so every program agrees on where each attribute
-     * lives and a program switch never re-enables arrays. */
-    glBindAttribLocation(program->id, GLES2_ATTRIB_POSITION, "a_position");
-    glBindAttribLocation(program->id, GLES2_ATTRIB_TEXCOORD, "a_texcoord");
-    glBindAttribLocation(program->id, GLES2_ATTRIB_COLOR, "a_color");
-    if( has_texinfo_attribute )
-        glBindAttribLocation(program->id, GLES2_ATTRIB_TEXINFO, "a_texinfo");
-    if( has_mask_attribute )
-        glBindAttribLocation(program->id, GLES2_ATTRIB_MASK_TEXCOORD, "a_mask_texcoord");
+    /* No glBindAttribLocation: every shader here declares its own
+     * `layout(location = N) in`, which is the ES 3.00 way and removes the
+     * chance of the C side and the shader disagreeing about a slot. The
+     * two flags the ES2 renderer needed for this are gone with it. */
     glLinkProgram(program->id);
     glDeleteShader(vertex_shader);
     glDeleteShader(fragment_shader);
@@ -370,16 +404,21 @@ gles2_link_program(
     {
         char log[1024];
         glGetProgramInfoLog(program->id, (GLsizei)sizeof(log), NULL, log);
-        TORIRS_ERR("GLES2: %s: link failed: %s\n", label, log);
+        TORIRS_ERR("%s: %s: link failed: %s\n", g_es3_name, label, log);
         glDeleteProgram(program->id);
         program->id = 0u;
         return false;
     }
     program->u_matrix = glGetUniformLocation(program->id, "u_matrix");
-    program->u_clock = glGetUniformLocation(program->id, "u_clock");
     program->u_texture = glGetUniformLocation(program->id, "s_texture");
     program->u_mask = glGetUniformLocation(program->id, "s_mask");
     program->u_mask_invert = glGetUniformLocation(program->id, "u_mask_invert");
+    /* A world program reads its matrix and clock from the shared block
+     * rather than from uniforms of its own; point its block at the binding
+     * the pass uploads to. The 2D programs have no block and skip this. */
+    program->world_block = glGetUniformBlockIndex(program->id, "WorldBlock");
+    if( program->world_block != GL_INVALID_INDEX )
+        glUniformBlockBinding(program->id, program->world_block, ES3_WORLD_BLOCK_BINDING);
     /* Sampler bindings never change: unit 0 is the texture, unit 1 the mask. */
     glUseProgram(program->id);
     if( program->u_texture >= 0 )
@@ -387,11 +426,11 @@ gles2_link_program(
     if( program->u_mask >= 0 )
         glUniform1i(program->u_mask, 1);
     glUseProgram(0);
-    return gles2_check_error(label);
+    return es3_check_error(label);
 }
 
 static void
-gles2_delete_program(struct GLES2Program* program)
+es3_delete_program(struct ES3Program* program)
 {
     if( program->id )
         glDeleteProgram(program->id);
@@ -399,16 +438,14 @@ gles2_delete_program(struct GLES2Program* program)
 }
 
 /* The interface layer's composite: the present's vertex shader, and the
- * two uniforms GLES2Program has no field for. */
+ * two uniforms ES3Program has no field for. */
 static bool
-gles2_link_ui_composite_program(struct ToriRS_GLES2* renderer)
+es3_link_ui_composite_program(struct ToriRS_ES3* renderer)
 {
-    if( !gles2_link_program(
+    if( !es3_link_program(
             &renderer->program_ui_composite,
-            gles2_present_vertex_shader,
-            gles2_ui_composite_fragment_shader,
-            false,
-            false,
+            es3_present_vertex_shader,
+            es3_ui_composite_fragment_shader,
             "ui composite") )
         return false;
     renderer->ui_composite_u_size =
@@ -419,55 +456,56 @@ gles2_link_ui_composite_program(struct ToriRS_GLES2* renderer)
 }
 
 static bool
-gles2_create_programs(struct ToriRS_GLES2* renderer)
+es3_create_programs(struct ToriRS_ES3* renderer)
 {
-    const char* shader_override=getenv("TORIRS_GLES2_FAST_SHADER");
-    const char* gpu=(const char*)glGetString(GL_RENDERER);
-    renderer->world_fast_shader=shader_override ? shader_override[0]!='0'
-        : gpu && strstr(gpu,"Adreno") && strstr(gpu,"320");
+    /* TORIRS_ES3_FAST_SHADER=0 selects the plain sampling shader as the
+     * A/B control arm. The fast one is the default here (the GLES2 renderer
+     * turns it on only for the Adreno 320 it was measured on): it returns
+     * the interpolated colour without a texture fetch for a face whose tile
+     * is slot 0, which is every untextured face -- most of the terrain --
+     * and a dependent texture fetch is the one thing a browser's compiled
+     * shader cannot make cheaper. */
+    const char* shader_override = getenv("TORIRS_ES3_FAST_SHADER");
+    renderer->world_fast_shader = !shader_override || shader_override[0] != '0';
     /* Fresh program objects hold no uniform values yet. */
     renderer->ui_projection_pushed = false;
     renderer->rotmask_projection_pushed = false;
-    return gles2_link_program(
+    return es3_link_program(
                &renderer->program_world_plain,
-               gles2_world_vertex_shader,
-               gles2_world_plain_fragment_shader,
-               false,
-               true,
+               es3_world_vertex_shader,
+               es3_world_plain_fragment_shader,
                "world (plain)") &&
-        gles2_link_program(
+           es3_link_program(
                &renderer->program_world_cutout,
-               gles2_world_vertex_shader,
-               gles2_world_cutout_fragment_shader,
-               false,
-               true,
+               es3_world_vertex_shader,
+               es3_world_cutout_fragment_shader,
                "world (cutout)") &&
-        gles2_link_program(&renderer->program_world_fast_plain,gles2_world_vertex_shader,
-               gles2_world_fast_plain_fragment_shader,false,true,"world fast plain") &&
-        gles2_link_program(&renderer->program_world_fast_cutout,gles2_world_vertex_shader,
-               gles2_world_fast_cutout_fragment_shader,false,true,"world fast cutout") &&
-        gles2_link_program(
+           es3_link_program(
+               &renderer->program_world_fast_plain,
+               es3_world_vertex_shader,
+               es3_world_fast_plain_fragment_shader,
+               "world fast plain") &&
+           es3_link_program(
+               &renderer->program_world_fast_cutout,
+               es3_world_vertex_shader,
+               es3_world_fast_cutout_fragment_shader,
+               "world fast cutout") &&
+           es3_link_program(
                &renderer->program_ui,
-               gles2_ui_vertex_shader,
-               gles2_ui_fragment_shader,
-               true,
-               true,
+               es3_ui_vertex_shader,
+               es3_ui_fragment_shader,
                "ui") &&
-        gles2_link_program(
+           es3_link_program(
                &renderer->program_rotmask,
-               gles2_rotmask_vertex_shader,
-               gles2_rotmask_fragment_shader,
-               true,
-               false,
+               es3_rotmask_vertex_shader,
+               es3_rotmask_fragment_shader,
                "rotmask") &&
-        gles2_link_program(
+           es3_link_program(
                &renderer->program_present,
-               gles2_present_vertex_shader,
-               gles2_present_fragment_shader,
-               false,
-               false,
+               es3_present_vertex_shader,
+               es3_present_fragment_shader,
                "present") &&
-        gles2_link_ui_composite_program(renderer);
+           es3_link_ui_composite_program(renderer);
 }
 
 /* ---- letterbox and rectangles ---------------------------------------------- */
@@ -476,7 +514,9 @@ gles2_create_programs(struct ToriRS_GLES2* renderer)
  * `allow_offscreen` false draws direct even when the render size differs
  * (the boot bar, which has no frame end to present from). */
 static void
-gles2_update_letterbox(struct ToriRS_GLES2* renderer, bool allow_offscreen)
+es3_update_letterbox(
+    struct ToriRS_ES3* renderer,
+    bool allow_offscreen)
 {
     struct ClientScalePresent present;
     if( renderer->width <= 0 || renderer->height <= 0 || renderer->drawable_width <= 0 ||
@@ -508,8 +548,8 @@ gles2_update_letterbox(struct ToriRS_GLES2* renderer, bool allow_offscreen)
     renderer->output_y = renderer->drawable_height - present.output.y - present.output.h;
     renderer->output_width = present.output.w;
     renderer->output_height = present.output.h;
-    renderer->target_offscreen = allow_offscreen &&
-        (present.render_w != present.output.w || present.render_h != present.output.h);
+    renderer->target_offscreen = allow_offscreen && (present.render_w != present.output.w ||
+                                                     present.render_h != present.output.h);
     if( renderer->target_offscreen )
     {
         renderer->target_width = present.render_w;
@@ -541,13 +581,13 @@ gles2_update_letterbox(struct ToriRS_GLES2* renderer, bool allow_offscreen)
  * the D3D9 lane does so a fractional scale never clips a pixel row the
  * software lane would have drawn. */
 bool
-gles2_scissor_rect(
-    const struct ToriRS_GLES2* renderer,
+es3_scissor_rect(
+    const struct ToriRS_ES3* renderer,
     int logical_x,
     int logical_y,
     int logical_width,
     int logical_height,
-    struct GLES2Rect* out)
+    struct ES3Rect* out)
 {
     int x0;
     int y0;
@@ -561,29 +601,27 @@ gles2_scissor_rect(
     assert(renderer);
     assert(out);
     if( logical_width <= 0 || logical_height <= 0 || renderer->width <= 0 ||
-        renderer->height <= 0 || renderer->letterbox_width <= 0 ||
-        renderer->letterbox_height <= 0 )
+        renderer->height <= 0 || renderer->letterbox_width <= 0 || renderer->letterbox_height <= 0 )
         return false;
-    x0 = gles2_clampi(logical_x, 0, renderer->width);
-    y0 = gles2_clampi(logical_y, 0, renderer->height);
-    x1 = gles2_clampi(logical_x + logical_width, 0, renderer->width);
-    y1 = gles2_clampi(logical_y + logical_height, 0, renderer->height);
+    x0 = es3_clampi(logical_x, 0, renderer->width);
+    y0 = es3_clampi(logical_y, 0, renderer->height);
+    x1 = es3_clampi(logical_x + logical_width, 0, renderer->width);
+    y1 = es3_clampi(logical_y + logical_height, 0, renderer->height);
     if( x1 <= x0 || y1 <= y0 )
         return false;
-    left = renderer->letterbox_x +
-        (int)((int64_t)x0 * renderer->letterbox_width / renderer->width);
+    left = renderer->letterbox_x + (int)((int64_t)x0 * renderer->letterbox_width / renderer->width);
     top = renderer->letterbox_top +
-        (int)((int64_t)y0 * renderer->letterbox_height / renderer->height);
-    right = renderer->letterbox_x +
-        (int)(((int64_t)x1 * renderer->letterbox_width + renderer->width - 1) /
-              renderer->width);
-    bottom = renderer->letterbox_top +
-        (int)(((int64_t)y1 * renderer->letterbox_height + renderer->height - 1) /
-              renderer->height);
-    left = gles2_clampi(left, 0, renderer->target_width);
-    right = gles2_clampi(right, left, renderer->target_width);
-    top = gles2_clampi(top, 0, renderer->target_height);
-    bottom = gles2_clampi(bottom, top, renderer->target_height);
+          (int)((int64_t)y0 * renderer->letterbox_height / renderer->height);
+    right =
+        renderer->letterbox_x +
+        (int)(((int64_t)x1 * renderer->letterbox_width + renderer->width - 1) / renderer->width);
+    bottom =
+        renderer->letterbox_top +
+        (int)(((int64_t)y1 * renderer->letterbox_height + renderer->height - 1) / renderer->height);
+    left = es3_clampi(left, 0, renderer->target_width);
+    right = es3_clampi(right, left, renderer->target_width);
+    top = es3_clampi(top, 0, renderer->target_height);
+    bottom = es3_clampi(bottom, top, renderer->target_height);
     if( right <= left || bottom <= top )
         return false;
     out->x = left;
@@ -597,7 +635,7 @@ gles2_scissor_rect(
 /* ---- the world texture atlas ---------------------------------------------- */
 
 static void
-gles2_decode_texture_rgba(
+es3_decode_texture_rgba(
     const struct ToriDraw_Texture* texture,
     uint32_t tile_size,
     uint8_t* rgba)
@@ -627,7 +665,9 @@ gles2_decode_texture_rgba(
 }
 
 void
-gles2_reserve_upload_stage(struct ToriRS_GLES2* renderer, size_t needed)
+es3_reserve_upload_stage(
+    struct ToriRS_ES3* renderer,
+    size_t needed)
 {
     size_t capacity;
     uint8_t* grown;
@@ -646,14 +686,17 @@ gles2_reserve_upload_stage(struct ToriRS_GLES2* renderer, size_t needed)
 /*
  * Push the changed rectangle of a CPU atlas to its GL texture.
  *
- * Only the merged dirty rectangle goes up, and the rows are packed into a
- * tight staging buffer first because GLES2 has no GL_UNPACK_ROW_LENGTH: a
- * sub-rectangle of a wider source cannot be handed to glTexSubImage2D in
- * place. The first upload allocates the texture from the whole CPU atlas.
+ * Only the merged dirty rectangle goes up, and it goes up IN PLACE:
+ * GL_UNPACK_ROW_LENGTH tells GL how wide the source buffer really is, so a
+ * sub-rectangle of the CPU atlas is handed to glTexSubImage2D where it lies.
+ * The ES2 renderer has to pack those rows into a tight staging buffer first
+ * -- a full copy of every dirty rectangle, every time one moves -- because
+ * GL_UNPACK_ROW_LENGTH is GLES3 and above. The first upload allocates the
+ * texture from the whole CPU atlas, with a sized internal format.
  */
 static bool
-gles2_upload_atlas_texture(
-    struct ToriRS_GLES2* renderer,
+es3_upload_atlas_texture(
+    struct ToriRS_ES3* renderer,
     struct TRSPK_Atlas* atlas,
     GLuint texture,
     bool* allocated,
@@ -661,7 +704,6 @@ gles2_upload_atlas_texture(
     int64_t* out_bytes)
 {
     struct TRSPK_AtlasDirtyRect dirty;
-    uint32_t y;
 
     assert(renderer);
     assert(atlas);
@@ -670,7 +712,7 @@ gles2_upload_atlas_texture(
     *out_bytes = 0;
     if( !trspk_atlas_is_initialized(atlas) || !atlas->pixels || texture == 0u )
         return false;
-    gles2_bind_texture0(renderer, texture);
+    es3_bind_texture0(renderer, texture);
     if( !*allocated )
     {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, (GLint)filter);
@@ -680,7 +722,7 @@ gles2_upload_atlas_texture(
         glTexImage2D(
             GL_TEXTURE_2D,
             0,
-            GL_RGBA,
+            GL_RGBA8,
             (GLsizei)atlas->width,
             (GLsizei)atlas->height,
             0,
@@ -697,12 +739,11 @@ gles2_upload_atlas_texture(
         trspk_atlas_clear_dirty(atlas);
         return true;
     }
-    gles2_reserve_upload_stage(renderer, (size_t)dirty.w * dirty.h * 4u);
-    for( y = 0u; y < dirty.h; y++ )
-        memcpy(
-            renderer->upload_stage + (size_t)y * dirty.w * 4u,
-            atlas->pixels + (size_t)(dirty.y + y) * atlas->stride + (size_t)dirty.x * 4u,
-            (size_t)dirty.w * 4u);
+    /* The atlas stride is in bytes and always a whole number of RGBA texels
+     * (trspk_atlas allocates width * 4), which is what GL_UNPACK_ROW_LENGTH
+     * counts in. */
+    assert(atlas->stride % 4u == 0u);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, (GLint)(atlas->stride / 4u));
     glTexSubImage2D(
         GL_TEXTURE_2D,
         0,
@@ -712,14 +753,15 @@ gles2_upload_atlas_texture(
         (GLsizei)dirty.h,
         GL_RGBA,
         GL_UNSIGNED_BYTE,
-        renderer->upload_stage);
+        atlas->pixels + (size_t)dirty.y * atlas->stride + (size_t)dirty.x * 4u);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     *out_bytes = (int64_t)dirty.w * (int64_t)dirty.h * 4;
     trspk_atlas_clear_dirty(atlas);
     return true;
 }
 
 bool
-gles2_upload_atlas(struct ToriRS_GLES2* renderer)
+es3_upload_atlas(struct ToriRS_ES3* renderer)
 {
     int64_t bytes = 0;
     assert(renderer);
@@ -727,7 +769,7 @@ gles2_upload_atlas(struct ToriRS_GLES2* renderer)
         return false;
     if( !trspk_atlas_is_dirty(&renderer->atlas) && renderer->atlas_texture_allocated )
         return true;
-    if( !gles2_upload_atlas_texture(
+    if( !es3_upload_atlas_texture(
             renderer,
             &renderer->atlas,
             renderer->atlas_texture,
@@ -743,14 +785,18 @@ gles2_upload_atlas(struct ToriRS_GLES2* renderer)
     return true;
 }
 
-/** The UI atlas upload lives with the UI, but shares the packed-row path. */
+/** The UI atlas upload lives with the UI, but shares the in-place path. */
 bool
-gles2_upload_ui_atlas_texture(struct ToriRS_GLES2* renderer, int64_t* out_bytes);
+es3_upload_ui_atlas_texture(
+    struct ToriRS_ES3* renderer,
+    int64_t* out_bytes);
 bool
-gles2_upload_ui_atlas_texture(struct ToriRS_GLES2* renderer, int64_t* out_bytes)
+es3_upload_ui_atlas_texture(
+    struct ToriRS_ES3* renderer,
+    int64_t* out_bytes)
 {
     assert(renderer);
-    return gles2_upload_atlas_texture(
+    return es3_upload_atlas_texture(
         renderer,
         &renderer->ui_sprite_atlas,
         renderer->ui_sprite_atlas_texture,
@@ -760,7 +806,9 @@ gles2_upload_ui_atlas_texture(struct ToriRS_GLES2* renderer, int64_t* out_bytes)
 }
 
 int
-gles2_texture_slot(struct ToriRS_GLES2* renderer, int tex_id)
+es3_texture_slot(
+    struct ToriRS_ES3* renderer,
+    int tex_id)
 {
     int slot;
     assert(renderer);
@@ -769,12 +817,12 @@ gles2_texture_slot(struct ToriRS_GLES2* renderer, int tex_id)
     slot = renderer->tex_slot_of_id[tex_id];
     if( slot >= 0 )
         return slot;
-    if( renderer->tex_slot_next >= GLES2_ATLAS_SLOTS )
+    if( renderer->tex_slot_next >= ES3_ATLAS_SLOTS )
     {
         static bool warned;
         if( !warned )
         {
-            TORIRS_LOG("GLES2: the 2048x2048 world texture atlas is full\n");
+            TORIRS_LOG("%s: the 2048x2048 world texture atlas is full\n", g_es3_name);
             warned = true;
         }
         return -1;
@@ -788,7 +836,7 @@ gles2_texture_slot(struct ToriRS_GLES2* renderer, int tex_id)
  * stores. D3D9's texture-matrix signs: DOWN samples from the negative
  * direction, UP from the positive one. */
 static void
-gles2_texture_anim_bytes(
+es3_texture_anim_bytes(
     const struct ToriDraw_Texture* texture,
     uint8_t* out_anim_u,
     uint8_t* out_anim_v)
@@ -800,7 +848,7 @@ gles2_texture_anim_bytes(
     *out_anim_v = TRSPK_VERTEX_GLES2_ANIM_STILL;
     if( !texture )
         return;
-    speed = gles2_clampi(texture->animation_speed, -127, 127);
+    speed = es3_clampi(texture->animation_speed, -127, 127);
     switch( texture->animation_direction )
     {
     case TORIDRAW_TEXANIM_DIRECTION_U_DOWN:
@@ -823,12 +871,13 @@ gles2_texture_anim_bytes(
 }
 
 static struct ToriDraw_Texture*
-gles2_scene_texture(struct ToriRS_GLES2* renderer, int tex_id)
+es3_scene_texture(
+    struct ToriRS_ES3* renderer,
+    int tex_id)
 {
     if( tex_id < 0 || tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY || !renderer->scene )
         return NULL;
-    return ToriDraw_TextureMapGet(
-        &ToriDraw_SceneTexState(renderer->scene)->texture_map, tex_id);
+    return ToriDraw_TextureMapGet(&ToriDraw_SceneTexState(renderer->scene)->texture_map, tex_id);
 }
 
 /*
@@ -842,7 +891,7 @@ gles2_scene_texture(struct ToriRS_GLES2* renderer, int tex_id)
  * vertex depended on knowing the texture.
  */
 static bool
-gles2_refresh_anim_range(
+es3_refresh_anim_range(
     struct TRSPK_VBO* vbo,
     const struct TRSPK_Triangles* triangles,
     uint32_t vertex_base,
@@ -858,8 +907,8 @@ gles2_refresh_anim_range(
 
     assert(vbo);
     assert(triangles);
-    if( vbo->format != TRSPK_VERTEX_FORMAT_GLES2 || !vbo->vertices.as_gles2 ||
-        !triangles->config || vertex_count % 3u != 0u || vertex_base > vbo->vertex_count ||
+    if( vbo->format != TRSPK_VERTEX_FORMAT_GLES2 || !vbo->vertices.as_gles2 || !triangles->config ||
+        vertex_count % 3u != 0u || vertex_base > vbo->vertex_count ||
         vertex_count > vbo->vertex_count - vertex_base )
         return false;
     for( vertex_offset = 0u; vertex_offset < vertex_count; vertex_offset += 3u )
@@ -892,19 +941,21 @@ gles2_refresh_anim_range(
 }
 
 static void
-gles2_refresh_texture_animation(struct ToriRS_GLES2* renderer, int tex_id)
+es3_refresh_texture_animation(
+    struct ToriRS_ES3* renderer,
+    int tex_id)
 {
-    const struct ToriDraw_Texture* texture = gles2_scene_texture(renderer, tex_id);
+    const struct ToriDraw_Texture* texture = es3_scene_texture(renderer, tex_id);
     uint8_t anim_u;
     uint8_t anim_v;
     uint32_t group_index;
     uint32_t batch_slot;
 
     assert(renderer);
-    gles2_texture_anim_bytes(texture, &anim_u, &anim_v);
+    es3_texture_anim_bytes(texture, &anim_u, &anim_v);
     for( group_index = 0u; group_index < TRSPK_VBO_GROUP_COUNT; group_index++ )
     {
-        struct GLES2ModelGroup* group = &renderer->groups[group_index];
+        struct ES3ModelGroup* group = &renderer->groups[group_index];
         uint32_t slot_index;
         if( !group->arena || !group->vbo_cpu )
             continue;
@@ -913,7 +964,7 @@ gles2_refresh_texture_animation(struct ToriRS_GLES2* renderer, int tex_id)
             const struct TRSPK_ModelSlot* model_slot = &group->arena->slots[slot_index];
             if( !trspk_modelslot_is_alive(model_slot) )
                 continue;
-            (void)gles2_refresh_anim_range(
+            (void)es3_refresh_anim_range(
                 group->vbo_cpu,
                 &group->triangles,
                 model_slot->vertex_base,
@@ -925,7 +976,7 @@ gles2_refresh_texture_animation(struct ToriRS_GLES2* renderer, int tex_id)
     }
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
     {
-        struct GLES2StaticBatch* batch = &renderer->static_batches[batch_slot];
+        struct ES3StaticBatch* batch = &renderer->static_batches[batch_slot];
         uint32_t chunk_count;
         uint32_t chunk_index;
         if( !batch->cpu || (!batch->active && !batch->building) )
@@ -935,7 +986,7 @@ gles2_refresh_texture_animation(struct ToriRS_GLES2* renderer, int tex_id)
         {
             struct TRSPK_Batch16Chunk* chunk = trspk_batch16_get_chunk(batch->cpu, chunk_index);
             if( chunk && chunk->vbo &&
-                gles2_refresh_anim_range(
+                es3_refresh_anim_range(
                     chunk->vbo,
                     &chunk->triangles,
                     0u,
@@ -949,8 +1000,8 @@ gles2_refresh_texture_animation(struct ToriRS_GLES2* renderer, int tex_id)
 }
 
 static bool
-gles2_load_texture_object(
-    struct ToriRS_GLES2* renderer,
+es3_load_texture_object(
+    struct ToriRS_ES3* renderer,
     int tex_id,
     const struct ToriDraw_Texture* texture)
 {
@@ -960,10 +1011,10 @@ gles2_load_texture_object(
     assert(texture);
     if( tex_id < 0 || tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY || !texture->texels )
         return false;
-    slot = gles2_texture_slot(renderer, tex_id);
+    slot = es3_texture_slot(renderer, tex_id);
     if( slot < 0 )
         return false;
-    gles2_decode_texture_rgba(texture, TRSPK_ATLAS_TILE, rgba);
+    es3_decode_texture_rgba(texture, TRSPK_ATLAS_TILE, rgba);
     if( !trspk_atlas_grid_insert_at(
             &renderer->atlas,
             (uint32_t)slot,
@@ -975,40 +1026,44 @@ gles2_load_texture_object(
         return false;
     renderer->tex_resident[slot] = 1u;
     if( texture->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE )
-        gles2_refresh_texture_animation(renderer, tex_id);
+        es3_refresh_texture_animation(renderer, tex_id);
     return true;
 }
 
 /** Reserve the slot and, when the scene already holds the texels, upload
  *  them. The slot is what a bake encodes, resident or not. */
 int
-gles2_ensure_texture(struct ToriRS_GLES2* renderer, int tex_id)
+es3_ensure_texture(
+    struct ToriRS_ES3* renderer,
+    int tex_id)
 {
     struct ToriDraw_Texture* texture;
     int slot;
     assert(renderer);
     if( tex_id < 0 )
         return -1;
-    slot = gles2_texture_slot(renderer, tex_id);
+    slot = es3_texture_slot(renderer, tex_id);
     if( slot < 0 )
         return -1;
     if( renderer->tex_resident[slot] )
         return slot;
-    texture = gles2_scene_texture(renderer, tex_id);
+    texture = es3_scene_texture(renderer, tex_id);
     if( texture )
-        (void)gles2_load_texture_object(renderer, tex_id, texture);
+        (void)es3_load_texture_object(renderer, tex_id, texture);
     return slot;
 }
 
 static void
-gles2_unload_texture(struct ToriRS_GLES2* renderer, int tex_id)
+es3_unload_texture(
+    struct ToriRS_ES3* renderer,
+    int tex_id)
 {
     int slot;
     assert(renderer);
     if( tex_id < 0 || tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY )
         return;
     slot = renderer->tex_slot_of_id[tex_id];
-    if( slot >= 0 && (uint32_t)slot < GLES2_ATLAS_SLOTS && renderer->atlas.pixels )
+    if( slot >= 0 && (uint32_t)slot < ES3_ATLAS_SLOTS && renderer->atlas.pixels )
     {
         struct TRSPK_AtlasTile tile;
         /* A deferred widget-model draw samples the world atlas when it is
@@ -1016,7 +1071,7 @@ gles2_unload_texture(struct ToriRS_GLES2* renderer, int tex_id)
          * reach the GPU on the next atlas upload, ahead of that draw. Issue
          * what is recorded first. */
         if( renderer->in2d )
-            gles2_ui_flush(renderer);
+            es3_ui_flush(renderer);
         if( trspk_atlas_grid_tile_for_slot(&renderer->atlas, (uint32_t)slot, &tile) )
         {
             (void)trspk_atlas_clear_rect(&renderer->atlas, tile.x, tile.y, tile.w, tile.h);
@@ -1029,9 +1084,14 @@ gles2_unload_texture(struct ToriRS_GLES2* renderer, int tex_id)
  * go through the UI program and so get no per-fragment wrap. The clamp to the
  * tile interior is the fixed-function D3D9 rule. */
 void
-gles2_map_atlas_uv(int slot, float local_u, float local_v, float* out_u, float* out_v)
+es3_map_atlas_uv(
+    int slot,
+    float local_u,
+    float local_v,
+    float* out_u,
+    float* out_v)
 {
-    const float cell = (float)TRSPK_ATLAS_TILE / (float)GLES2_ATLAS_DIM;
+    const float cell = (float)TRSPK_ATLAS_TILE / (float)ES3_ATLAS_DIM;
     unsigned int index = slot < 0 ? 0u : (unsigned int)slot;
     assert(out_u);
     assert(out_v);
@@ -1048,26 +1108,26 @@ gles2_map_atlas_uv(int slot, float local_u, float local_v, float* out_u, float* 
         local_v = 0.008f;
     else if( local_v > 0.992f )
         local_v = 0.992f;
-    *out_u = (float)(index & (GLES2_ATLAS_COLS - 1u)) * cell + local_u * cell;
-    *out_v = (float)(index / GLES2_ATLAS_COLS) * cell + local_v * cell;
+    *out_u = (float)(index & (ES3_ATLAS_COLS - 1u)) * cell + local_u * cell;
+    *out_v = (float)(index / ES3_ATLAS_COLS) * cell + local_v * cell;
 }
 
 /* ---- per-frame stream sets --------------------------------------------------- */
 
 /* Rotate every stream set onto this frame's buffer. */
 static void
-gles2_stream_sets_begin_frame(struct ToriRS_GLES2* renderer)
+es3_stream_sets_begin_frame(struct ToriRS_ES3* renderer)
 {
-    struct GLES2StreamSet* sets[4];
+    struct ES3StreamSet* sets[4];
     uint32_t set_index;
-    renderer->frame_slot = (renderer->frame_slot + 1u) % GLES2_FRAMES_IN_FLIGHT;
+    renderer->frame_slot = (renderer->frame_slot + 1u) % ES3_FRAMES_IN_FLIGHT;
     sets[0] = &renderer->index_stream;
     sets[1] = &renderer->dynamic_stream;
     sets[2] = &renderer->frame_stream;
     sets[3] = &renderer->ui_stream;
     for( set_index = 0u; set_index < 4u; set_index++ )
     {
-        struct GLES2StreamSet* set = sets[set_index];
+        struct ES3StreamSet* set = sets[set_index];
         set->head = 0u;
         if( !set->buffers[renderer->frame_slot] )
             glGenBuffers(1, &set->buffers[renderer->frame_slot]);
@@ -1081,7 +1141,7 @@ gles2_stream_sets_begin_frame(struct ToriRS_GLES2* renderer)
 
 /*
  * Append `bytes` to this frame's buffer of `set`, bound as `target`. The
- * buffer was last read GLES2_FRAMES_IN_FLIGHT frames ago, so the write
+ * buffer was last read ES3_FRAMES_IN_FLIGHT frames ago, so the write
  * never lands on an outstanding draw. Returns the byte offset the payload
  * landed at.
  *
@@ -1104,8 +1164,8 @@ gles2_stream_sets_begin_frame(struct ToriRS_GLES2* renderer)
  * and is a contract violation here, not a case to handle.
  */
 static uint32_t
-gles2_stream_set_append(
-    struct GLES2StreamSet* set,
+es3_stream_set_append(
+    struct ES3StreamSet* set,
     uint32_t slot,
     GLenum target,
     uint32_t initial_bytes,
@@ -1132,10 +1192,10 @@ gles2_stream_set_append(
 }
 
 static void
-gles2_stream_set_destroy(struct GLES2StreamSet* set)
+es3_stream_set_destroy(struct ES3StreamSet* set)
 {
     uint32_t slot;
-    for( slot = 0u; slot < GLES2_FRAMES_IN_FLIGHT; slot++ )
+    for( slot = 0u; slot < ES3_FRAMES_IN_FLIGHT; slot++ )
         if( set->buffers[slot] )
             glDeleteBuffers(1, &set->buffers[slot]);
     memset(set, 0, sizeof(*set));
@@ -1144,7 +1204,9 @@ gles2_stream_set_destroy(struct GLES2StreamSet* set)
 /* ---- retained groups --------------------------------------------------------- */
 
 static bool
-gles2_upload_group(struct ToriRS_GLES2* renderer, struct GLES2ModelGroup* group)
+es3_upload_group(
+    struct ToriRS_ES3* renderer,
+    struct ES3ModelGroup* group)
 {
     uint32_t vertex_count;
     uint32_t first = 0u;
@@ -1167,27 +1229,27 @@ gles2_upload_group(struct ToriRS_GLES2* renderer, struct GLES2ModelGroup* group)
     {
         if( !group->vbo_gpu )
             glGenBuffers(1, &group->vbo_gpu);
-        gles2_bind_array_buffer(renderer, group->vbo_gpu);
+        es3_bind_array_buffer(renderer, group->vbo_gpu);
     }
 
     if( group->reset_each_frame )
     {
         /* Rebuilt wholesale every frame, so it goes into this frame's buffer
-         * of the dynamic stream set (see GLES2_FRAMES_IN_FLIGHT). */
+         * of the dynamic stream set (see ES3_FRAMES_IN_FLIGHT). */
         uint32_t offset;
         byte_count = (size_t)vertex_count * sizeof(struct TRSPK_VertexGLES2);
-        offset = gles2_stream_set_append(
+        offset = es3_stream_set_append(
             &renderer->dynamic_stream,
             renderer->frame_slot,
             GL_ARRAY_BUFFER,
-            GLES2_DYNAMIC_STREAM_INIT_BYTES,
+            ES3_DYNAMIC_STREAM_INIT_BYTES,
             group->vbo_cpu->vertices.as_gles2,
             (uint32_t)byte_count,
             false);
         renderer->bound_array_buffer = group->vbo_gpu;
         group->gpu_base_vertex = offset / (uint32_t)sizeof(struct TRSPK_VertexGLES2);
         group->gpu_capacity = renderer->dynamic_stream.capacities[renderer->frame_slot] /
-            (uint32_t)sizeof(struct TRSPK_VertexGLES2);
+                              (uint32_t)sizeof(struct TRSPK_VertexGLES2);
         trspk_vbo_clear_dirty(group->vbo_cpu);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DYNAMIC_VBO_UPLOAD_BYTES, (int64_t)byte_count);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DYNAMIC_VBO_UPLOADS, 1);
@@ -1196,7 +1258,7 @@ gles2_upload_group(struct ToriRS_GLES2* renderer, struct GLES2ModelGroup* group)
 
     if( vertex_count > group->gpu_capacity )
     {
-        uint32_t capacity = group->gpu_capacity ? group->gpu_capacity : GLES2_GPU_BUFFER_INIT;
+        uint32_t capacity = group->gpu_capacity ? group->gpu_capacity : ES3_GPU_BUFFER_INIT;
         while( capacity < vertex_count )
             capacity *= 2u;
         glBufferData(
@@ -1237,7 +1299,7 @@ gles2_upload_group(struct ToriRS_GLES2* renderer, struct GLES2ModelGroup* group)
 }
 
 static void
-gles2_reset_group(struct GLES2ModelGroup* group)
+es3_reset_group(struct ES3ModelGroup* group)
 {
     assert(group);
     if( group->arena )
@@ -1247,16 +1309,16 @@ gles2_reset_group(struct GLES2ModelGroup* group)
 /* ---- static batches (Batch16 pages) ------------------------------------------ */
 
 static bool
-gles2_upload_dirty_static_batches(struct ToriRS_GLES2* renderer);
+es3_upload_dirty_static_batches(struct ToriRS_ES3* renderer);
 
 static void
-gles2_mark_active_static_batches_dirty(struct ToriRS_GLES2* renderer)
+es3_mark_active_static_batches_dirty(struct ToriRS_ES3* renderer)
 {
     uint32_t batch_slot;
     assert(renderer);
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
     {
-        struct GLES2StaticBatch* batch = &renderer->static_batches[batch_slot];
+        struct ES3StaticBatch* batch = &renderer->static_batches[batch_slot];
         uint32_t chunk_count;
         uint32_t chunk_index;
         if( !batch->active || !batch->cpu )
@@ -1273,16 +1335,18 @@ gles2_mark_active_static_batches_dirty(struct ToriRS_GLES2* renderer)
 }
 
 static void
-gles2_grow_static_batches(struct ToriRS_GLES2* renderer, uint32_t needed)
+es3_grow_static_batches(
+    struct ToriRS_ES3* renderer,
+    uint32_t needed)
 {
-    struct GLES2StaticBatch* grown;
+    struct ES3StaticBatch* grown;
     uint32_t capacity;
     if( needed <= renderer->static_batch_capacity )
         return;
     capacity = renderer->static_batch_capacity ? renderer->static_batch_capacity : 8u;
     while( capacity < needed )
         capacity *= 2u;
-    grown = (struct GLES2StaticBatch*)realloc(
+    grown = (struct ES3StaticBatch*)realloc(
         renderer->static_batches, (size_t)capacity * sizeof(*grown));
     assert(grown);
     memset(
@@ -1294,7 +1358,10 @@ gles2_grow_static_batches(struct ToriRS_GLES2* renderer, uint32_t needed)
 }
 
 static int
-gles2_static_batch_slot(struct ToriRS_GLES2* renderer, int batch_id, bool create)
+es3_static_batch_slot(
+    struct ToriRS_ES3* renderer,
+    int batch_id,
+    bool create)
 {
     uint32_t slot;
     uint32_t reusable = UINT32_MAX;
@@ -1317,7 +1384,7 @@ gles2_static_batch_slot(struct ToriRS_GLES2* renderer, int batch_id, bool create
         renderer->static_batches[reusable].batch_id = batch_id;
         return (int)reusable;
     }
-    gles2_grow_static_batches(renderer, renderer->static_batch_count + 1u);
+    es3_grow_static_batches(renderer, renderer->static_batch_count + 1u);
     slot = renderer->static_batch_count++;
     renderer->static_batches[slot].batch_id = batch_id;
     renderer->static_batches[slot].cpu = trspk_batch16_create(TRSPK_VERTEX_FORMAT_GLES2);
@@ -1326,14 +1393,14 @@ gles2_static_batch_slot(struct ToriRS_GLES2* renderer, int batch_id, bool create
 }
 
 static void
-gles2_rebuild_batch_pose_table(struct ToriRS_GLES2* renderer)
+es3_rebuild_batch_pose_table(struct ToriRS_ES3* renderer)
 {
     uint32_t batch_slot;
     assert(renderer);
     trspk_pose_table_clear(&renderer->batch_poses);
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
     {
-        const struct GLES2StaticBatch* batch = &renderer->static_batches[batch_slot];
+        const struct ES3StaticBatch* batch = &renderer->static_batches[batch_slot];
         uint32_t entry_count;
         uint32_t entry_index;
         if( !batch->active || !batch->cpu )
@@ -1345,8 +1412,8 @@ gles2_rebuild_batch_pose_table(struct ToriRS_GLES2* renderer)
                 trspk_batch16_get_entry(batch->cpu, entry_index);
             uint32_t page_id;
             if( !entry || entry->element_id < 0 || entry->chunk_index >= batch->page_id_capacity ||
-                entry_index > GLES2_BATCH_POSE_ENTRY_MASK ||
-                batch_slot > GLES2_BATCH_POSE_SLOT_MASK )
+                entry_index > ES3_BATCH_POSE_ENTRY_MASK ||
+                batch_slot > ES3_BATCH_POSE_SLOT_MASK )
                 continue;
             page_id = batch->page_ids[entry->chunk_index];
             if( page_id >= renderer->static_page_count || !renderer->static_pages[page_id].valid )
@@ -1356,32 +1423,35 @@ gles2_rebuild_batch_pose_table(struct ToriRS_GLES2* renderer)
                 entry->element_id,
                 entry->anim_index,
                 entry->pose_id,
-                GLES2_BATCH_POSE_FLAG | (batch_slot << GLES2_BATCH_POSE_SLOT_SHIFT) | entry_index);
+                ES3_BATCH_POSE_FLAG | (batch_slot << ES3_BATCH_POSE_SLOT_SHIFT) |
+                    entry_index);
         }
     }
-    gles2_static_primary_rebuild(renderer);
+    es3_static_primary_rebuild(renderer);
 }
 
 static bool
-gles2_grow_static_pages(struct ToriRS_GLES2* renderer, uint32_t needed)
+es3_grow_static_pages(
+    struct ToriRS_ES3* renderer,
+    uint32_t needed)
 {
-    struct GLES2StaticPageRef* grown;
+    struct ES3StaticPageRef* grown;
     uint32_t capacity;
     if( needed <= renderer->static_page_capacity )
         return true;
-    if( needed > GLES2_BATCH_PAGE_LIMIT )
+    if( needed > ES3_BATCH_PAGE_LIMIT )
         return false;
     capacity = renderer->static_page_capacity ? renderer->static_page_capacity : 32u;
     while( capacity < needed )
     {
-        if( capacity >= GLES2_BATCH_PAGE_LIMIT / 2u )
+        if( capacity >= ES3_BATCH_PAGE_LIMIT / 2u )
         {
-            capacity = GLES2_BATCH_PAGE_LIMIT;
+            capacity = ES3_BATCH_PAGE_LIMIT;
             break;
         }
         capacity *= 2u;
     }
-    grown = (struct GLES2StaticPageRef*)realloc(
+    grown = (struct ES3StaticPageRef*)realloc(
         renderer->static_pages, (size_t)capacity * sizeof(*grown));
     assert(grown);
     memset(
@@ -1394,7 +1464,9 @@ gles2_grow_static_pages(struct ToriRS_GLES2* renderer, uint32_t needed)
 }
 
 static void
-gles2_static_batch_ensure_chunk_storage(struct GLES2StaticBatch* batch, uint32_t chunk_count)
+es3_static_batch_ensure_chunk_storage(
+    struct ES3StaticBatch* batch,
+    uint32_t chunk_count)
 {
     uint32_t* grown;
     uint32_t old_capacity;
@@ -1416,14 +1488,14 @@ gles2_static_batch_ensure_chunk_storage(struct GLES2StaticBatch* batch, uint32_t
 }
 
 static bool
-gles2_static_batch_assign_page(
-    struct ToriRS_GLES2* renderer,
+es3_static_batch_assign_page(
+    struct ToriRS_ES3* renderer,
     uint32_t batch_slot,
     uint32_t chunk_index)
 {
-    struct GLES2StaticBatch* batch = &renderer->static_batches[batch_slot];
+    struct ES3StaticBatch* batch = &renderer->static_batches[batch_slot];
     const struct TRSPK_Batch16Chunk* chunk;
-    struct GLES2StaticPageRef* page;
+    struct ES3StaticPageRef* page;
     uint32_t page_id;
     uint32_t needed;
     assert(chunk_index < batch->page_id_capacity);
@@ -1432,8 +1504,8 @@ gles2_static_batch_assign_page(
     page_id = batch->page_ids[chunk_index];
     if( page_id == UINT32_MAX )
     {
-        if( renderer->static_page_count >= GLES2_BATCH_PAGE_LIMIT ||
-            !gles2_grow_static_pages(renderer, renderer->static_page_count + 1u) )
+        if( renderer->static_page_count >= ES3_BATCH_PAGE_LIMIT ||
+            !es3_grow_static_pages(renderer, renderer->static_page_count + 1u) )
             return false;
         page_id = renderer->static_page_count++;
         batch->page_ids[chunk_index] = page_id;
@@ -1448,7 +1520,7 @@ gles2_static_batch_assign_page(
     page->valid = page->cpu_vbo != NULL;
     /* A range it outgrew is abandoned, not extended: the bump allocator only
      * ever hands out the tail, and the commit compacts when the tail runs
-     * out (gles2_compact_static_pages). */
+     * out (es3_compact_static_pages). */
     if( needed > page->gpu_capacity )
     {
         page->gpu_offset = renderer->static_batch_gpu_vertex_used;
@@ -1461,15 +1533,15 @@ gles2_static_batch_assign_page(
 /* Re-pack every valid page densely, in page order, and re-send them all.
  * Returns the packed high-water mark. */
 static uint32_t
-gles2_compact_static_pages(struct ToriRS_GLES2* renderer)
+es3_compact_static_pages(struct ToriRS_ES3* renderer)
 {
     uint32_t page_id;
     uint32_t used = 0u;
     assert(renderer);
     for( page_id = 0u; page_id < renderer->static_page_count; page_id++ )
     {
-        struct GLES2StaticPageRef* page = &renderer->static_pages[page_id];
-        const struct GLES2StaticBatch* batch;
+        struct ES3StaticPageRef* page = &renderer->static_pages[page_id];
+        const struct ES3StaticBatch* batch;
         const struct TRSPK_Batch16Chunk* chunk;
         if( !page->valid || page->batch_slot >= renderer->static_batch_count )
         {
@@ -1483,12 +1555,14 @@ gles2_compact_static_pages(struct ToriRS_GLES2* renderer)
         used += page->gpu_capacity;
     }
     renderer->static_batch_gpu_vertex_used = used;
-    gles2_mark_active_static_batches_dirty(renderer);
+    es3_mark_active_static_batches_dirty(renderer);
     return used;
 }
 
 static void
-gles2_invalidate_batch_pages(struct ToriRS_GLES2* renderer, const struct GLES2StaticBatch* batch)
+es3_invalidate_batch_pages(
+    struct ToriRS_ES3* renderer,
+    const struct ES3StaticBatch* batch)
 {
     uint32_t chunk;
     for( chunk = 0u; chunk < batch->page_id_capacity; chunk++ )
@@ -1505,8 +1579,8 @@ gles2_invalidate_batch_pages(struct ToriRS_GLES2* renderer, const struct GLES2St
 /* The page buffer holds `capacity` vertices; growing it is a fresh
  * allocation and every page has to be re-sent from its CPU chunk. */
 static bool
-gles2_ensure_static_batch_vbo(
-    struct ToriRS_GLES2* renderer,
+es3_ensure_static_batch_vbo(
+    struct ToriRS_ES3* renderer,
     uint32_t required_vertices,
     bool* out_recreated)
 {
@@ -1523,8 +1597,8 @@ gles2_ensure_static_batch_vbo(
     if( !renderer->gl_context )
         return true;
     capacity = renderer->static_batch_gpu_vertex_capacity
-        ? renderer->static_batch_gpu_vertex_capacity
-        : GLES2_STATIC_BATCH_VBO_INIT_VERTICES;
+                   ? renderer->static_batch_gpu_vertex_capacity
+                   : ES3_STATIC_BATCH_VBO_INIT_VERTICES;
     while( capacity < required_vertices )
     {
         if( capacity > UINT32_MAX / 2u )
@@ -1539,9 +1613,9 @@ gles2_ensure_static_batch_vbo(
         return false;
     if( !renderer->static_batch_vbo )
         glGenBuffers(1, &renderer->static_batch_vbo);
-    gles2_bind_array_buffer(renderer, renderer->static_batch_vbo);
+    es3_bind_array_buffer(renderer, renderer->static_batch_vbo);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)byte_capacity, NULL, GL_STATIC_DRAW);
-    if( !gles2_check_error("static batch page buffer") )
+    if( !es3_check_error("static batch page buffer") )
         return false;
     renderer->static_batch_gpu_vertex_capacity = capacity;
     *out_recreated = true;
@@ -1549,9 +1623,9 @@ gles2_ensure_static_batch_vbo(
 }
 
 static bool
-gles2_upload_static_batch_chunk(
-    struct ToriRS_GLES2* renderer,
-    struct GLES2StaticBatch* batch,
+es3_upload_static_batch_chunk(
+    struct ToriRS_ES3* renderer,
+    struct ES3StaticBatch* batch,
     uint32_t chunk_index)
 {
     struct TRSPK_Batch16Chunk* chunk;
@@ -1597,7 +1671,7 @@ gles2_upload_static_batch_chunk(
     byte_count = (size_t)(end - first) * sizeof(struct TRSPK_VertexGLES2);
     if( byte_count > 0u )
     {
-        gles2_bind_array_buffer(renderer, renderer->static_batch_vbo);
+        es3_bind_array_buffer(renderer, renderer->static_batch_vbo);
         glBufferSubData(
             GL_ARRAY_BUFFER,
             (GLintptr)(((uint64_t)renderer->static_pages[page_id].gpu_offset + first) *
@@ -1612,28 +1686,28 @@ gles2_upload_static_batch_chunk(
 }
 
 static bool
-gles2_upload_dirty_static_batches(struct ToriRS_GLES2* renderer)
+es3_upload_dirty_static_batches(struct ToriRS_ES3* renderer)
 {
     uint32_t batch_slot;
     bool recreated = false;
     assert(renderer);
     if( !renderer->static_batch_upload_pending )
         return true;
-    if( !gles2_ensure_static_batch_vbo(
+    if( !es3_ensure_static_batch_vbo(
             renderer, renderer->static_batch_gpu_vertex_used, &recreated) )
         return false;
     if( recreated )
-        gles2_mark_active_static_batches_dirty(renderer);
+        es3_mark_active_static_batches_dirty(renderer);
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
     {
-        struct GLES2StaticBatch* batch = &renderer->static_batches[batch_slot];
+        struct ES3StaticBatch* batch = &renderer->static_batches[batch_slot];
         uint32_t chunk_count;
         uint32_t chunk;
         if( !batch->active || !batch->cpu )
             continue;
         chunk_count = trspk_batch16_chunk_count(batch->cpu);
         for( chunk = 0u; chunk < chunk_count; chunk++ )
-            if( !gles2_upload_static_batch_chunk(renderer, batch, chunk) )
+            if( !es3_upload_static_batch_chunk(renderer, batch, chunk) )
                 return false;
     }
     renderer->static_batch_upload_pending = false;
@@ -1641,9 +1715,11 @@ gles2_upload_dirty_static_batches(struct ToriRS_GLES2* renderer)
 }
 
 static bool
-gles2_static_batch_commit(struct ToriRS_GLES2* renderer, uint32_t batch_slot)
+es3_static_batch_commit(
+    struct ToriRS_ES3* renderer,
+    uint32_t batch_slot)
 {
-    struct GLES2StaticBatch* batch;
+    struct ES3StaticBatch* batch;
     uint32_t chunk_count;
     uint32_t chunk;
     bool recreated = false;
@@ -1654,47 +1730,47 @@ gles2_static_batch_commit(struct ToriRS_GLES2* renderer, uint32_t batch_slot)
     assert(batch->cpu);
     batch->active = false;
     chunk_count = trspk_batch16_chunk_count(batch->cpu);
-    gles2_static_batch_ensure_chunk_storage(batch, chunk_count);
-    gles2_painter_batch_reset(renderer, batch, trspk_batch16_entry_count(batch->cpu));
-    gles2_invalidate_batch_pages(renderer, batch);
+    es3_static_batch_ensure_chunk_storage(batch, chunk_count);
+    es3_painter_batch_reset(renderer, batch, trspk_batch16_entry_count(batch->cpu));
+    es3_invalidate_batch_pages(renderer, batch);
     for( chunk = 0u; chunk < chunk_count; chunk++ )
-        if( !gles2_static_batch_assign_page(renderer, batch_slot, chunk) )
+        if( !es3_static_batch_assign_page(renderer, batch_slot, chunk) )
             goto fail;
     /* The tail ran past the buffer: pack the holes the rebuilt chunks left
      * before buying a bigger buffer, since either way everything re-sends. */
     if( renderer->static_batch_vbo &&
         renderer->static_batch_gpu_vertex_used > renderer->static_batch_gpu_vertex_capacity )
-        (void)gles2_compact_static_pages(renderer);
-    if( !gles2_ensure_static_batch_vbo(
+        (void)es3_compact_static_pages(renderer);
+    if( !es3_ensure_static_batch_vbo(
             renderer, renderer->static_batch_gpu_vertex_used, &recreated) )
         goto fail;
     if( recreated || renderer->static_batch_upload_pending )
     {
-        gles2_mark_active_static_batches_dirty(renderer);
-        if( !gles2_upload_dirty_static_batches(renderer) )
+        es3_mark_active_static_batches_dirty(renderer);
+        if( !es3_upload_dirty_static_batches(renderer) )
             goto fail;
     }
     for( chunk = 0u; chunk < chunk_count; chunk++ )
-        if( !gles2_upload_static_batch_chunk(renderer, batch, chunk) )
+        if( !es3_upload_static_batch_chunk(renderer, batch, chunk) )
             goto fail;
     batch->active = true;
-    gles2_rebuild_batch_pose_table(renderer);
+    es3_rebuild_batch_pose_table(renderer);
     return true;
 
 fail:
-    gles2_invalidate_batch_pages(renderer, batch);
-    gles2_rebuild_batch_pose_table(renderer);
+    es3_invalidate_batch_pages(renderer, batch);
+    es3_rebuild_batch_pose_table(renderer);
     return false;
 }
 
 static bool
-gles2_resolve_static_page(
-    struct ToriRS_GLES2* renderer,
+es3_resolve_static_page(
+    struct ToriRS_ES3* renderer,
     uint32_t page_id,
     struct TRSPK_Batch16Chunk** out_chunk)
 {
-    const struct GLES2StaticPageRef* ref;
-    struct GLES2StaticBatch* batch;
+    const struct ES3StaticPageRef* ref;
+    struct ES3StaticBatch* batch;
     struct TRSPK_Batch16Chunk* chunk;
     assert(renderer);
     assert(out_chunk);
@@ -1704,8 +1780,7 @@ gles2_resolve_static_page(
     if( ref->batch_slot >= renderer->static_batch_count )
         return false;
     batch = &renderer->static_batches[ref->batch_slot];
-    if( !batch->active || !batch->cpu ||
-        ref->chunk_index >= trspk_batch16_chunk_count(batch->cpu) )
+    if( !batch->active || !batch->cpu || ref->chunk_index >= trspk_batch16_chunk_count(batch->cpu) )
         return false;
     chunk = trspk_batch16_get_chunk(batch->cpu, ref->chunk_index);
     if( !chunk )
@@ -1715,8 +1790,8 @@ gles2_resolve_static_page(
 }
 
 bool
-gles2_binding_cpu_source(
-    struct ToriRS_GLES2* renderer,
+es3_binding_cpu_source(
+    struct ToriRS_ES3* renderer,
     uint32_t binding,
     uint32_t page_id,
     const struct TRSPK_VBO** out_vbo,
@@ -1731,16 +1806,16 @@ gles2_binding_cpu_source(
         *out_triangles = &renderer->groups[binding].triangles;
         return *out_vbo != NULL;
     }
-    if( binding == GLES2_STATIC_PAGE_BINDING )
+    if( binding == ES3_STATIC_PAGE_BINDING )
     {
         struct TRSPK_Batch16Chunk* chunk = NULL;
-        if( !gles2_resolve_static_page(renderer, page_id, &chunk) )
+        if( !es3_resolve_static_page(renderer, page_id, &chunk) )
             return false;
         *out_vbo = chunk->vbo;
         *out_triangles = &chunk->triangles;
         return *out_vbo != NULL;
     }
-    if( binding == GLES2_FRAME_STREAM_BINDING )
+    if( binding == ES3_FRAME_STREAM_BINDING )
     {
         *out_vbo = renderer->frame_stream_cpu;
         *out_triangles = &renderer->frame_stream_triangles;
@@ -1752,7 +1827,7 @@ gles2_binding_cpu_source(
 /* ---- pose tables and the static arena ------------------------------------------ */
 
 static void
-gles2_rebuild_static_pose_table(struct ToriRS_GLES2* renderer)
+es3_rebuild_static_pose_table(struct ToriRS_ES3* renderer)
 {
     struct TRSPK_ModelArena* arena;
     uint32_t slot_index;
@@ -1778,7 +1853,7 @@ gles2_rebuild_static_pose_table(struct ToriRS_GLES2* renderer)
 /* Reclaim unloaded ranges. Without it the arena only grows, and since the
  * draw binding IS the page, growth means more pages and more draws. */
 static void
-gles2_compact_static_group(struct ToriRS_GLES2* renderer)
+es3_compact_static_group(struct ToriRS_ES3* renderer)
 {
     struct TRSPK_ModelArena* arena;
     struct TRSPK_ModelArenaGCResult result;
@@ -1788,11 +1863,13 @@ gles2_compact_static_group(struct ToriRS_GLES2* renderer)
         return;
     result = trspk_modelarena_gc(arena);
     if( result.did_compact )
-        gles2_rebuild_static_pose_table(renderer);
+        es3_rebuild_static_pose_table(renderer);
 }
 
 static bool
-gles2_pose_element_is_retained(const struct ToriRS_GLES2* renderer, int element_id)
+es3_pose_element_is_retained(
+    const struct ToriRS_ES3* renderer,
+    int element_id)
 {
     uint32_t element_index;
     int track;
@@ -1809,8 +1886,8 @@ gles2_pose_element_is_retained(const struct ToriRS_GLES2* renderer, int element_
 }
 
 static bool
-gles2_pose_track_is_retained(
-    const struct ToriRS_GLES2* renderer,
+es3_pose_track_is_retained(
+    const struct ToriRS_ES3* renderer,
     int element_id,
     int anim_index)
 {
@@ -1821,7 +1898,7 @@ gles2_pose_track_is_retained(
         return false;
     element_index = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
     return element_index < renderer->poses.element_count &&
-        renderer->poses.elements[element_index].tracks[anim_index].pose_count > 0u;
+           renderer->poses.elements[element_index].tracks[anim_index].pose_count > 0u;
 }
 
 /* ---- baking ---------------------------------------------------------------------- */
@@ -1836,8 +1913,8 @@ gles2_pose_track_is_retained(
  * clamps it into the tile.
  */
 static bool
-gles2_bake_pose_vertices(
-    struct ToriRS_GLES2* renderer,
+es3_bake_pose_vertices(
+    struct ToriRS_ES3* renderer,
     struct TRSPK_VBO* vbo,
     struct TRSPK_Triangles* triangles,
     uint32_t vertex_base,
@@ -1850,7 +1927,8 @@ gles2_bake_pose_vertices(
     int face_count;
     uint32_t order_index;
     uint32_t written_count;
-    bool const ordered_painter=face_order && !renderer->zbuffer && vbo==renderer->frame_stream_cpu;
+    bool const ordered_painter =
+        face_order && !renderer->zbuffer && vbo == renderer->frame_stream_cpu;
 
     assert(renderer);
     assert(renderer->scene);
@@ -1861,41 +1939,58 @@ gles2_bake_pose_vertices(
         return false;
     /* With a face order the pose is written in THAT order -- the painter
      * path's sorted actors -- and only the faces the order names. */
-    written_count = face_order ? (uint32_t)(order_count > 0 ? order_count : 0) : (uint32_t)face_count;
+    written_count =
+        face_order ? (uint32_t)(order_count > 0 ? order_count : 0) : (uint32_t)face_count;
     trspk_toridraw_placement_init(&placement, world_position);
-    float* world_xyz=NULL;
-    struct ToriDraw_Model* full_model=NULL;
+    float* world_xyz = NULL;
+    struct ToriDraw_Model* full_model = NULL;
     if( renderer->actor_world_cache_enabled && face_order && !renderer->zbuffer &&
         ToriDraw_ModelKindIsFull(model_handle.kind) )
     {
-        full_model=(struct ToriDraw_Model*)ToriDraw_ModelRead(model_handle);
-        if( written_count*3u>(uint32_t)full_model->vertex_count )
+        full_model = (struct ToriDraw_Model*)ToriDraw_ModelRead(model_handle);
+        if( written_count * 3u > (uint32_t)full_model->vertex_count )
         {
-            if( (uint32_t)full_model->vertex_count>renderer->actor_world_capacity )
+            if( (uint32_t)full_model->vertex_count > renderer->actor_world_capacity )
             {
-                float* grown=realloc(renderer->actor_world_xyz,(size_t)full_model->vertex_count*3*sizeof(float));
-                if( grown ) {renderer->actor_world_xyz=grown;renderer->actor_world_capacity=(uint32_t)full_model->vertex_count;}
+                float* grown = realloc(
+                    renderer->actor_world_xyz,
+                    (size_t)full_model->vertex_count * 3 * sizeof(float));
+                if( grown )
+                {
+                    renderer->actor_world_xyz = grown;
+                    renderer->actor_world_capacity = (uint32_t)full_model->vertex_count;
+                }
             }
-            if( (uint32_t)full_model->vertex_count<=renderer->actor_world_capacity )
+            if( (uint32_t)full_model->vertex_count <= renderer->actor_world_capacity )
             {
-                world_xyz=renderer->actor_world_xyz;
-                trspk_toridraw_world_vertices(full_model,&placement,world_xyz);
+                world_xyz = renderer->actor_world_xyz;
+                trspk_toridraw_world_vertices(full_model, &placement, world_xyz);
             }
         }
     }
 #if defined(TORIRS_BAKE_CHAIN_CAPTURE)
-    gles2_bake_capture_begin(renderer,model_handle,world_position,face_order,order_count);
+    es3_bake_capture_begin(renderer, model_handle, world_position, face_order, order_count);
 #endif
 
-    if(renderer->actor_direct_encode && ordered_painter && world_xyz && !full_model->face_textures) {
+    if( renderer->actor_direct_encode && ordered_painter && world_xyz &&
+        !full_model->face_textures )
+    {
 #if !defined(TORIRS_BAKE_CHAIN_CAPTURE) && !defined(TORIRS_BAKE_VERIFY)
         if( renderer->actor_word_encode )
-            trspk_toridraw_gles2_untextured_words(full_model,face_order,written_count,world_xyz,
+            trspk_toridraw_gles2_untextured_words(
+                full_model,
+                face_order,
+                written_count,
+                world_xyz,
                 &vbo->vertices.as_gles2[vertex_base]);
         else
-            trspk_toridraw_gles2_untextured(full_model,face_order,written_count,world_xyz,
+            trspk_toridraw_gles2_untextured(
+                full_model,
+                face_order,
+                written_count,
+                world_xyz,
                 &vbo->vertices.as_gles2[vertex_base]);
-        trspk_vbo_mark_dirty_range(vbo,vertex_base,written_count*3u);
+        trspk_vbo_mark_dirty_range(vbo, vertex_base, written_count * 3u);
         return true;
 #endif
     }
@@ -1915,20 +2010,27 @@ gles2_bake_pose_vertices(
         float vb;
         float uc;
         float vc;
-        int config = GLES2_TRIANGLE_UNTEXTURED;
+        int config = ES3_TRIANGLE_UNTEXTURED;
 
-        bool baked=false;
-        if( face_index<(uint32_t)face_count )
+        bool baked = false;
+        if( face_index < (uint32_t)face_count )
         {
             if( world_xyz )
             {
-                trspk_toridraw_bake_face_cached(full_model,face_index,&placement,NULL,
-                    true,TRSPK_BAKE_COLOR_ARGB,world_xyz,&face);
-                baked=true;
+                trspk_toridraw_bake_face_cached(
+                    full_model,
+                    face_index,
+                    &placement,
+                    NULL,
+                    true,
+                    TRSPK_BAKE_COLOR_ARGB,
+                    world_xyz,
+                    &face);
+                baked = true;
             }
             else
-                baked=trspk_toridraw_bake_face_handle(model_handle,face_index,&placement,
-                    NULL,true,TRSPK_BAKE_COLOR_ARGB,&face);
+                baked = trspk_toridraw_bake_face_handle(
+                    model_handle, face_index, &placement, NULL, true, TRSPK_BAKE_COLOR_ARGB, &face);
         }
         if( !baked )
         {
@@ -1936,43 +2038,90 @@ gles2_bake_pose_vertices(
              * it fully transparent so the alpha test drops it. */
             if( face_order )
             {
-                if( !ordered_painter ) trspk_triangles_set(
-                    triangles, trspk_triangles_index_from_vertex(vertex), GLES2_TRIANGLE_UNTEXTURED);
-                trspk_vbo_write_vertex_gles2(vbo, vertex, 0.0f, 0.0f, 0.0f, 0u, 0.5f, 0.5f, 0u, 0u,
-                    TRSPK_VERTEX_GLES2_ANIM_STILL, TRSPK_VERTEX_GLES2_ANIM_STILL);
-                trspk_vbo_write_vertex_gles2(vbo, vertex + 1u, 0.0f, 0.0f, 0.0f, 0u, 0.5f, 0.5f, 0u,
-                    0u, TRSPK_VERTEX_GLES2_ANIM_STILL, TRSPK_VERTEX_GLES2_ANIM_STILL);
-                trspk_vbo_write_vertex_gles2(vbo, vertex + 2u, 0.0f, 0.0f, 0.0f, 0u, 0.5f, 0.5f, 0u,
-                    0u, TRSPK_VERTEX_GLES2_ANIM_STILL, TRSPK_VERTEX_GLES2_ANIM_STILL);
+                if( !ordered_painter )
+                    trspk_triangles_set(
+                        triangles,
+                        trspk_triangles_index_from_vertex(vertex),
+                        ES3_TRIANGLE_UNTEXTURED);
+                trspk_vbo_write_vertex_gles2(
+                    vbo,
+                    vertex,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    0u,
+                    0.5f,
+                    0.5f,
+                    0u,
+                    0u,
+                    TRSPK_VERTEX_GLES2_ANIM_STILL,
+                    TRSPK_VERTEX_GLES2_ANIM_STILL);
+                trspk_vbo_write_vertex_gles2(
+                    vbo,
+                    vertex + 1u,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    0u,
+                    0.5f,
+                    0.5f,
+                    0u,
+                    0u,
+                    TRSPK_VERTEX_GLES2_ANIM_STILL,
+                    TRSPK_VERTEX_GLES2_ANIM_STILL);
+                trspk_vbo_write_vertex_gles2(
+                    vbo,
+                    vertex + 2u,
+                    0.0f,
+                    0.0f,
+                    0.0f,
+                    0u,
+                    0.5f,
+                    0.5f,
+                    0u,
+                    0u,
+                    TRSPK_VERTEX_GLES2_ANIM_STILL,
+                    TRSPK_VERTEX_GLES2_ANIM_STILL);
             }
             continue;
         }
 
 #if defined(TORIRS_BAKE_CHAIN_CAPTURE)
-        gles2_bake_capture_face(&face);
+        es3_bake_capture_face(&face);
 #endif
 #if defined(TORIRS_BAKE_VERIFY)
         if( world_xyz )
         {
             struct TRSPK_ToriDrawBakeFaceVerts reference;
-            trspk_toridraw_bake_face_handle(model_handle,face_index,&placement,renderer->scene,
-                true,TRSPK_BAKE_COLOR_ARGB,&reference);
-            struct BakeChainFace a=bake_chain_face(&face),b=bake_chain_face(&reference);
-            if( memcmp(&a,&b,sizeof(a)) ){fprintf(stderr,"bake verification FAILED\n");abort();}
-            static unsigned matched=0;
-            if( (++matched%10000)==0 ) fprintf(stderr,"bake verification: %u real faces matched\n",matched);
+            trspk_toridraw_bake_face_handle(
+                model_handle,
+                face_index,
+                &placement,
+                renderer->scene,
+                true,
+                TRSPK_BAKE_COLOR_ARGB,
+                &reference);
+            struct BakeChainFace a = bake_chain_face(&face), b = bake_chain_face(&reference);
+            if( memcmp(&a, &b, sizeof(a)) )
+            {
+                fprintf(stderr, "bake verification FAILED\n");
+                abort();
+            }
+            static unsigned matched = 0;
+            if( (++matched % 10000) == 0 )
+                fprintf(stderr, "bake verification: %u real faces matched\n", matched);
         }
 #endif
         if( face.tex_id >= 0 )
         {
-            int slot = gles2_ensure_texture(renderer, face.tex_id);
+            int slot = es3_ensure_texture(renderer, face.tex_id);
             config = face.tex_id;
             if( slot >= 0 )
             {
-                tile_col = (uint8_t)((uint32_t)slot & (GLES2_ATLAS_COLS - 1u));
-                tile_row = (uint8_t)((uint32_t)slot / GLES2_ATLAS_COLS);
-                gles2_texture_anim_bytes(
-                    gles2_scene_texture(renderer, face.tex_id), &anim_u, &anim_v);
+                tile_col = (uint8_t)((uint32_t)slot & (ES3_ATLAS_COLS - 1u));
+                tile_row = (uint8_t)((uint32_t)slot / ES3_ATLAS_COLS);
+                es3_texture_anim_bytes(
+                    es3_scene_texture(renderer, face.tex_id), &anim_u, &anim_v);
             }
             else
             {
@@ -1997,36 +2146,74 @@ gles2_bake_pose_vertices(
             va = vb = vc = 0.5f;
         }
 
-        if( !ordered_painter ) trspk_triangles_set(triangles, trspk_triangles_index_from_vertex(vertex), config);
+        if( !ordered_painter )
+            trspk_triangles_set(triangles, trspk_triangles_index_from_vertex(vertex), config);
         trspk_vbo_write_vertex_gles2(
-            vbo, vertex, face.wx_a, face.wy_a, face.wz_a,
-            gles2_argb_to_rgba_bytes(face.argb_a), ua, va, tile_col, tile_row, anim_u, anim_v);
+            vbo,
+            vertex,
+            face.wx_a,
+            face.wy_a,
+            face.wz_a,
+            es3_argb_to_rgba_bytes(face.argb_a),
+            ua,
+            va,
+            tile_col,
+            tile_row,
+            anim_u,
+            anim_v);
         trspk_vbo_write_vertex_gles2(
-            vbo, vertex + 1u, face.wx_b, face.wy_b, face.wz_b,
-            gles2_argb_to_rgba_bytes(face.argb_b), ub, vb, tile_col, tile_row, anim_u, anim_v);
+            vbo,
+            vertex + 1u,
+            face.wx_b,
+            face.wy_b,
+            face.wz_b,
+            es3_argb_to_rgba_bytes(face.argb_b),
+            ub,
+            vb,
+            tile_col,
+            tile_row,
+            anim_u,
+            anim_v);
         trspk_vbo_write_vertex_gles2(
-            vbo, vertex + 2u, face.wx_c, face.wy_c, face.wz_c,
-            gles2_argb_to_rgba_bytes(face.argb_c), uc, vc, tile_col, tile_row, anim_u, anim_v);
+            vbo,
+            vertex + 2u,
+            face.wx_c,
+            face.wy_c,
+            face.wz_c,
+            es3_argb_to_rgba_bytes(face.argb_c),
+            uc,
+            vc,
+            tile_col,
+            tile_row,
+            anim_u,
+            anim_v);
     }
     /* Once for the model rather than three times per face -- and as a RANGE,
      * because this model is the only part of a shared retained buffer that
      * changed. */
 #if defined(TORIRS_BAKE_CHAIN_CAPTURE)
-    gles2_bake_capture_end();
+    es3_bake_capture_end();
 #endif
 #if defined(TORIRS_BAKE_VERIFY)
-    if( renderer->actor_direct_encode && ordered_painter && world_xyz && !full_model->face_textures )
+    if( renderer->actor_direct_encode && ordered_painter && world_xyz &&
+        !full_model->face_textures )
     {
         /* Verify the entire ordered direct stream, including placeholders,
          * against the generic final vertex writer above. The normal fast
          * return is suppressed in this diagnostic so both paths execute. */
         size_t bytes = (size_t)written_count * 3u * sizeof(struct TRSPK_VertexGLES2);
         struct TRSPK_VertexGLES2* direct = malloc(bytes ? bytes : 1u);
-        if( !direct ) { fprintf(stderr, "direct bake verification allocation failed\n"); abort(); }
+        if( !direct )
+        {
+            fprintf(stderr, "direct bake verification allocation failed\n");
+            abort();
+        }
         if( renderer->actor_word_encode )
-            trspk_toridraw_gles2_untextured_words(full_model, face_order, written_count, world_xyz, direct);
+            trspk_toridraw_gles2_untextured_words(
+                full_model, face_order, written_count, world_xyz, direct);
         else
-            trspk_toridraw_gles2_untextured(full_model, face_order, written_count, world_xyz, direct);
+            trspk_toridraw_gles2_untextured(
+                full_model, face_order, written_count, world_xyz, direct);
         if( memcmp(direct, &vbo->vertices.as_gles2[vertex_base], bytes) )
         {
             fprintf(stderr, "direct bake verification FAILED: %u ordered faces\n", written_count);
@@ -2037,8 +2224,11 @@ gles2_bake_pose_vertices(
         static unsigned matched_models, matched_faces;
         matched_faces += written_count;
         if( (++matched_models % 100u) == 0u )
-            fprintf(stderr, "direct bake verification: %u models, %u packed faces matched\n",
-                matched_models, matched_faces);
+            fprintf(
+                stderr,
+                "direct bake verification: %u models, %u packed faces matched\n",
+                matched_models,
+                matched_faces);
     }
 #endif
     trspk_vbo_mark_dirty_range(vbo, vertex_base, written_count * 3u);
@@ -2046,9 +2236,9 @@ gles2_bake_pose_vertices(
 }
 
 static uint32_t
-gles2_bake_into_arena(
-    struct ToriRS_GLES2* renderer,
-    struct GLES2ModelGroup* group,
+es3_bake_into_arena(
+    struct ToriRS_ES3* renderer,
+    struct ES3ModelGroup* group,
     int element_id,
     int anim_index,
     int pose_id,
@@ -2074,11 +2264,13 @@ gles2_bake_into_arena(
     vertex_count = (uint32_t)face_count * 3u;
     if( vertex_count > TRSPK_BATCH16_MAX_VERTICES )
     {
-        TORIRS_ERR("GLES2: model has %lu vertices and cannot fit a 16-bit page\n",
+        TORIRS_ERR(
+            "%s: model has %lu vertices and cannot fit a 16-bit page\n",
+            g_es3_name,
             (unsigned long)vertex_count);
         return UINT32_MAX;
     }
-    anim_index = gles2_clampi(anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
+    anim_index = es3_clampi(anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
     if( pose_id < 0 )
         pose_id = 0;
     if( pose_id > (INT_MAX - anim_index) / TRSPK_POSE_TRACK_COUNT )
@@ -2094,48 +2286,52 @@ gles2_bake_into_arena(
         {
             trspk_modelarena_unload(group->arena, old_slot);
             if( group == &renderer->groups[TRSPK_VBO_GROUP_STATIC] )
-                gles2_compact_static_group(renderer);
+                es3_compact_static_group(renderer);
         }
     }
     slot_index = trspk_modelarena_load(group->arena, arena_element_id, arena_pose_id, vertex_count);
     model_slot = trspk_modelarena_get(group->arena, slot_index);
-    if( !model_slot ||
-        !gles2_bake_pose_vertices(
-            renderer,
-            group->vbo_cpu,
-            &group->triangles,
-            model_slot->vertex_base,
-            model_handle,
-            world_position,
-            NULL,
-            0) )
+    if( !model_slot || !es3_bake_pose_vertices(
+                           renderer,
+                           group->vbo_cpu,
+                           &group->triangles,
+                           model_slot->vertex_base,
+                           model_handle,
+                           world_position,
+                           NULL,
+                           0) )
         return UINT32_MAX;
     if( update_pose_table )
     {
         trspk_pose_table_set(
             &renderer->poses, element_id, anim_index, pose_id, model_slot->vertex_base);
-        gles2_zbuffer_pose_baked(renderer, element_id, anim_index, pose_id, model_handle);
+        es3_zbuffer_pose_baked(renderer, element_id, anim_index, pose_id, model_handle);
     }
     return model_slot->vertex_base;
 }
 
 static void
-gles2_model_unload(struct ToriRS_GLES2* renderer, int element_id)
+es3_model_unload(
+    struct ToriRS_ES3* renderer,
+    int element_id)
 {
     assert(renderer);
     /* Individual unloads own only the arena. Batch geometry and its pose map
      * remain immutable until the matching batch rebuild/clear. */
     if( element_id < 0 || !renderer->groups[TRSPK_VBO_GROUP_STATIC].arena ||
-        !gles2_pose_element_is_retained(renderer, element_id) )
+        !es3_pose_element_is_retained(renderer, element_id) )
         return;
     trspk_modelarena_unload_element(renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
     trspk_pose_table_remove_element(&renderer->poses, element_id);
-    gles2_zbuffer_element_dropped(renderer, element_id);
-    gles2_compact_static_group(renderer);
+    es3_zbuffer_element_dropped(renderer, element_id);
+    es3_compact_static_group(renderer);
 }
 
 static void
-gles2_animation_track_unload(struct ToriRS_GLES2* renderer, int element_id, int anim_index)
+es3_animation_track_unload(
+    struct ToriRS_ES3* renderer,
+    int element_id,
+    int anim_index)
 {
     struct TRSPK_ModelArena* arena;
     uint32_t slot_index;
@@ -2143,7 +2339,7 @@ gles2_animation_track_unload(struct ToriRS_GLES2* renderer, int element_id, int 
     if( element_id < 0 || anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT )
         return;
     arena = renderer->groups[TRSPK_VBO_GROUP_STATIC].arena;
-    if( !arena || !gles2_pose_track_is_retained(renderer, element_id, anim_index) )
+    if( !arena || !es3_pose_track_is_retained(renderer, element_id, anim_index) )
         return;
     for( slot_index = 0u; slot_index < arena->slot_count; slot_index++ )
     {
@@ -2153,20 +2349,22 @@ gles2_animation_track_unload(struct ToriRS_GLES2* renderer, int element_id, int 
             trspk_modelarena_unload(arena, slot_index);
     }
     trspk_pose_table_remove_track(&renderer->poses, element_id, anim_index);
-    gles2_zbuffer_track_dropped(renderer, element_id, anim_index);
-    gles2_compact_static_group(renderer);
+    es3_zbuffer_track_dropped(renderer, element_id, anim_index);
+    es3_compact_static_group(renderer);
 }
 
 static void
-gles2_model_load(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand_ModelLoad* command)
+es3_model_load(
+    struct ToriRS_ES3* renderer,
+    const struct ToriRS_RenderCommand_ModelLoad* command)
 {
     assert(renderer);
     assert(command);
     if( command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
         return;
     /* A model replacement invalidates every pose from the old geometry. */
-    gles2_model_unload(renderer, command->element_id);
-    (void)gles2_bake_into_arena(
+    es3_model_unload(renderer, command->element_id);
+    (void)es3_bake_into_arena(
         renderer,
         &renderer->groups[TRSPK_VBO_GROUP_STATIC],
         command->element_id,
@@ -2178,8 +2376,8 @@ gles2_model_load(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
 }
 
 static void
-gles2_animation_load(
-    struct ToriRS_GLES2* renderer,
+es3_animation_load(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_RenderCommand_AnimLoad* command)
 {
     struct ToriDraw_Animation* animation;
@@ -2197,11 +2395,11 @@ gles2_animation_load(
     skeletal = animation->skeletal;
     if( !skeletal && (!animation->base || !animation->frames) )
         return;
-    anim_index = gles2_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
+    anim_index = es3_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
     /* Pose keys do not carry a sequence id. Clear the old track so frame zero
      * cannot keep resolving to MODEL_LOAD's rest pose and a shorter
      * replacement cannot serve stale tail frames. */
-    gles2_animation_track_unload(renderer, command->element_id, anim_index);
+    es3_animation_track_unload(renderer, command->element_id, anim_index);
     source = command->model.u.model.model;
     for( frame = 0; frame < animation->frame_count; frame++ )
     {
@@ -2229,8 +2427,9 @@ gles2_animation_load(
         if( skeletal )
         {
             int skeletal_frame = frame < skeletal->frame_count ? frame : 0;
-            if( skeletal->frame_count > 0 && skeletal->matrices && baked->animaya_vertex_count > 0 &&
-                baked->animaya_group_counts && baked->animaya_groups && baked->animaya_scales )
+            if( skeletal->frame_count > 0 && skeletal->matrices &&
+                baked->animaya_vertex_count > 0 && baked->animaya_group_counts &&
+                baked->animaya_groups && baked->animaya_scales )
             {
                 ToriDraw_ModelAnimateSkeletal(baked, skeletal, skeletal_frame);
                 posed = true;
@@ -2248,7 +2447,7 @@ gles2_animation_load(
         memset(&handle, 0, sizeof(handle));
         handle.kind = TORIDRAWMK_MODEL;
         handle.u.model.model = baked;
-        (void)gles2_bake_into_arena(
+        (void)es3_bake_into_arena(
             renderer,
             &renderer->groups[TRSPK_VBO_GROUP_STATIC],
             command->element_id,
@@ -2262,9 +2461,9 @@ gles2_animation_load(
 }
 
 bool
-gles2_reserve_model_indices(struct ToriRS_GLES2* renderer, uint32_t needed)
+es3_reserve_model_indices(struct ToriRS_ES3* renderer, uint32_t needed)
 {
-    uint16_t* grown;
+    uint32_t* grown;
     uint32_t capacity;
     assert(renderer);
     if( needed <= renderer->model_index_capacity )
@@ -2279,7 +2478,7 @@ gles2_reserve_model_indices(struct ToriRS_GLES2* renderer, uint32_t needed)
         }
         capacity *= 2u;
     }
-    grown = (uint16_t*)realloc(renderer->model_indices, (size_t)capacity * sizeof(*grown));
+    grown = (uint32_t*)realloc(renderer->model_indices, (size_t)capacity * sizeof(*grown));
     assert(grown);
     renderer->model_indices = grown;
     renderer->model_index_capacity = capacity;
@@ -2288,127 +2487,283 @@ gles2_reserve_model_indices(struct ToriRS_GLES2* renderer, uint32_t needed)
 
 /* ---- vertex streams ------------------------------------------------------------- */
 
+/*
+ * The world vertex layout, specified into whatever VAO is bound.
+ *
+ * Offsets are from the start of the buffer and never move: an index is
+ * 32-bit and reaches the whole buffer, so nothing here is re-pointed to
+ * select a page the way the ES2 renderer's binder is. The tile/scroll word
+ * is read with glVertexAttribIPointer -- the shader receives a uvec4 and
+ * does no de-normalising multiply -- which is a GLES3 entry point with no
+ * ES2 equivalent.
+ */
+static void
+es3_specify_world_layout(uint32_t byte_offset)
+{
+    glEnableVertexAttribArray(ES3_ATTRIB_POSITION);
+    glVertexAttribPointer(
+        ES3_ATTRIB_POSITION,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        ES3_VERTEX_STRIDE,
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2, position)));
+    glEnableVertexAttribArray(ES3_ATTRIB_COLOR);
+    glVertexAttribPointer(
+        ES3_ATTRIB_COLOR,
+        4,
+        GL_UNSIGNED_BYTE,
+        GL_TRUE,
+        ES3_VERTEX_STRIDE,
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2, rgba)));
+    glEnableVertexAttribArray(ES3_ATTRIB_TEXCOORD);
+    glVertexAttribPointer(
+        ES3_ATTRIB_TEXCOORD,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        ES3_VERTEX_STRIDE,
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2, texcoord)));
+    glEnableVertexAttribArray(ES3_ATTRIB_TEXINFO);
+    glVertexAttribIPointer(
+        ES3_ATTRIB_TEXINFO,
+        4,
+        GL_UNSIGNED_BYTE,
+        ES3_VERTEX_STRIDE,
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2, tile_col)));
+}
+
+/*
+ * Bind a vertex array object through the state cache.
+ *
+ * GLES3 keeps the ELEMENT array binding inside the VAO, so changing VAO
+ * also changes which index buffer is current. Both caches are invalidated
+ * here and the callers that need either re-establish it.
+ */
+void
+es3_bind_vao(struct ToriRS_ES3* renderer, GLuint vao)
+{
+    assert(renderer);
+    if( renderer->vao_bound == vao )
+        return;
+    glBindVertexArray(vao);
+    renderer->vao_bound = vao;
+    renderer->bound_array_buffer = 0u;
+    renderer->bound_element_buffer = 0u;
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_ATTRIB_REBINDS, 1);
+}
+
+/*
+ * The vertex array object for one world binding.
+ *
+ * Built the first time the binding has a GPU buffer and re-specified only
+ * when that buffer OBJECT changes -- a stream set rotating to the next
+ * frame's buffer, or a retained buffer recreated by a grow. In the steady
+ * state a stream change is one glBindVertexArray instead of the four
+ * glVertexAttribPointer calls the ES2 renderer issues, each of which is a
+ * call across the JavaScript boundary in a browser.
+ */
+/*
+ * The vertex array object for one world binding.
+ *
+ * Built the first time the binding has a GPU buffer and re-specified only
+ * when that buffer object or the binding's per-frame base vertex changes: a
+ * stream set rotating to the next frame's buffer, a retained buffer
+ * recreated by a grow, or a per-frame stream landing at a new offset. Both
+ * are once-a-frame events, so in the steady state a stream change is one
+ * glBindVertexArray -- where the ES2 renderer re-issues four
+ * glVertexAttribPointer calls, each of them a call across the JavaScript
+ * boundary in a browser, hundreds of times a frame.
+ *
+ * Indices are relative to the base this binds at, which for the two
+ * retained bindings is zero: a 32-bit index addresses the whole buffer, so
+ * unlike the ES2 renderer nothing here re-points to reach a page.
+ */
 bool
-gles2_bind_stream(struct ToriRS_GLES2* renderer, uint32_t binding, uint32_t page_base)
+es3_bind_stream(struct ToriRS_ES3* renderer, uint32_t binding)
 {
     GLuint buffer;
-    uint64_t base_vertex = page_base;
+    uint32_t base_vertex;
     uint64_t byte_offset;
     assert(renderer);
+    assert(binding < ES3_BINDING_COUNT);
     if( binding < TRSPK_VBO_GROUP_COUNT )
     {
         buffer = renderer->groups[binding].vbo_gpu;
-        base_vertex += renderer->groups[binding].gpu_base_vertex;
+        base_vertex = renderer->groups[binding].gpu_base_vertex;
     }
-    else if( binding == GLES2_STATIC_PAGE_BINDING )
+    else if( binding == ES3_STATIC_PAGE_BINDING )
+    {
         buffer = renderer->static_batch_vbo;
-    else if( binding == GLES2_FRAME_STREAM_BINDING )
+        base_vertex = 0u;
+    }
+    else if( binding == ES3_FRAME_STREAM_BINDING )
     {
         buffer = renderer->frame_stream_vbo;
-        base_vertex += renderer->frame_stream_gpu_base;
+        base_vertex = renderer->frame_stream_gpu_base;
     }
-    else if( binding == GLES2_HOT_BINDING )
-        buffer = renderer->hot_vbo;
     else
         return false;
     if( !buffer )
         return false;
-    byte_offset = base_vertex * sizeof(struct TRSPK_VertexGLES2);
+    byte_offset = (uint64_t)base_vertex * sizeof(struct TRSPK_VertexGLES2);
     assert(byte_offset <= (uint64_t)INT32_MAX);
-    if( renderer->stream_layout == GLES2_STREAM_WORLD && renderer->stream_buffer == buffer &&
-        renderer->stream_byte_offset == (uint32_t)byte_offset )
-        return true;
-    gles2_bind_array_buffer(renderer, buffer);
-    glVertexAttribPointer(
-        GLES2_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, GLES2_VERTEX_STRIDE,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2, position)));
-    glVertexAttribPointer(
-        GLES2_ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, GLES2_VERTEX_STRIDE,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2, rgba)));
-    glVertexAttribPointer(
-        GLES2_ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, GLES2_VERTEX_STRIDE,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2, texcoord)));
-    glVertexAttribPointer(
-        GLES2_ATTRIB_TEXINFO, 4, GL_UNSIGNED_BYTE, GL_FALSE, GLES2_VERTEX_STRIDE,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct TRSPK_VertexGLES2, tile_col)));
-    if( renderer->stream_layout == GLES2_STREAM_ROTMASK )
-        glEnableVertexAttribArray(GLES2_ATTRIB_TEXINFO);
+    if( !renderer->vao_world[binding] )
+    {
+        glGenVertexArrays(1, &renderer->vao_world[binding]);
+        if( !renderer->vao_world[binding] )
+            return false;
+        renderer->vao_world_buffer[binding] = 0u;
+    }
+    es3_bind_vao(renderer, renderer->vao_world[binding]);
+    if( renderer->vao_world_buffer[binding] != buffer ||
+        renderer->vao_world_base[binding] != (uint32_t)byte_offset )
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, buffer);
+        renderer->bound_array_buffer = buffer;
+        es3_specify_world_layout((uint32_t)byte_offset);
+        renderer->vao_world_buffer[binding] = buffer;
+        renderer->vao_world_base[binding] = (uint32_t)byte_offset;
+    }
     renderer->stream_buffer = buffer;
     renderer->stream_byte_offset = (uint32_t)byte_offset;
-    renderer->stream_layout = GLES2_STREAM_WORLD;
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_ATTRIB_REBINDS, 1);
+    renderer->stream_layout = ES3_STREAM_WORLD;
     return true;
 }
 
-void
-gles2_bind_ui_stream(struct ToriRS_GLES2* renderer, uint32_t byte_offset)
+/*
+ * The 2D stream's two layouts, each in its own vertex array object over this
+ * frame's UI buffer.
+ *
+ * The 2D stream is a RING: a flush appends at a byte offset that moves
+ * through the frame, so unlike the world layouts these attribute pointers
+ * really do have to follow an offset. GLES3 keeps that offset inside the
+ * VAO, so the re-specification happens once per (layout, offset) change into
+ * a VAO that is then bound by name -- and, crucially, switching between the
+ * UI layout and the rotmask layout costs one bind rather than four pointer
+ * calls plus the enable/disable dance the shared fourth attribute slot needs
+ * on ES2.
+ */
+static GLuint
+es3_ui_vao_ensure(GLuint* vao)
 {
-    const GLsizei stride = (GLsizei)sizeof(struct GLES2VertexUI);
-    assert(renderer);
-    if( renderer->stream_layout == GLES2_STREAM_UI && renderer->stream_buffer == renderer->ui_vbo &&
-        renderer->stream_byte_offset == byte_offset )
-        return;
-    gles2_bind_array_buffer(renderer, renderer->ui_vbo);
-    glVertexAttribPointer(
-        GLES2_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, stride,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct GLES2VertexUI, x)));
-    glVertexAttribPointer(
-        GLES2_ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, stride,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct GLES2VertexUI, u)));
-    glVertexAttribPointer(
-        GLES2_ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct GLES2VertexUI, rgba)));
-    glVertexAttribPointer(
-        GLES2_ATTRIB_TEXINFO, 1, GL_FLOAT, GL_FALSE, stride,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct GLES2VertexUI, sel)));
-    if( renderer->stream_layout == GLES2_STREAM_ROTMASK )
-        glEnableVertexAttribArray(GLES2_ATTRIB_TEXINFO);
-    renderer->stream_buffer = renderer->ui_vbo;
-    renderer->stream_byte_offset = byte_offset;
-    renderer->stream_layout = GLES2_STREAM_UI;
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_ATTRIB_REBINDS, 1);
+    if( !*vao )
+        glGenVertexArrays(1, vao);
+    return *vao;
 }
 
 void
-gles2_bind_rotmask_stream(struct ToriRS_GLES2* renderer, uint32_t byte_offset)
+es3_bind_ui_stream(struct ToriRS_ES3* renderer, uint32_t byte_offset)
 {
-    const GLsizei stride = (GLsizei)sizeof(struct GLES2VertexRotmask);
+    const GLsizei stride = (GLsizei)sizeof(struct ES3VertexUI);
     assert(renderer);
-    /* Attribute pointers are context state that outlives the draw (ES 2.0
-     * has no VAO; §2.8 vertex array state persists until re-pointed), so a
-     * second rotmask draw from the same offset needs no re-issue. */
-    if( renderer->stream_layout == GLES2_STREAM_ROTMASK && renderer->stream_buffer == renderer->ui_vbo &&
-        renderer->stream_byte_offset == byte_offset )
+    if( !es3_ui_vao_ensure(&renderer->vao_ui) )
         return;
-    gles2_bind_array_buffer(renderer, renderer->ui_vbo);
+    es3_bind_vao(renderer, renderer->vao_ui);
+    if( renderer->vao_ui_buffer == renderer->ui_vbo && renderer->vao_ui_offset == byte_offset )
+    {
+        renderer->stream_layout = ES3_STREAM_UI;
+        return;
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->ui_vbo);
+    renderer->bound_array_buffer = renderer->ui_vbo;
+    glEnableVertexAttribArray(ES3_ATTRIB_POSITION);
     glVertexAttribPointer(
-        GLES2_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, stride,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct GLES2VertexRotmask, x)));
+        ES3_ATTRIB_POSITION,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        stride,
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct ES3VertexUI, x)));
+    glEnableVertexAttribArray(ES3_ATTRIB_TEXCOORD);
     glVertexAttribPointer(
-        GLES2_ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, stride,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct GLES2VertexRotmask, u)));
+        ES3_ATTRIB_TEXCOORD,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        stride,
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct ES3VertexUI, u)));
+    glEnableVertexAttribArray(ES3_ATTRIB_COLOR);
     glVertexAttribPointer(
-        GLES2_ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct GLES2VertexRotmask, rgba)));
+        ES3_ATTRIB_COLOR,
+        4,
+        GL_UNSIGNED_BYTE,
+        GL_TRUE,
+        stride,
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct ES3VertexUI, rgba)));
+    glEnableVertexAttribArray(ES3_ATTRIB_TEXINFO);
     glVertexAttribPointer(
-        GLES2_ATTRIB_MASK_TEXCOORD, 2, GL_FLOAT, GL_FALSE, stride,
-        (const void*)(uintptr_t)(byte_offset + offsetof(struct GLES2VertexRotmask, mask_u)));
-    /* The fourth slot is shared (the static assert at the top of this
-     * file): the world's texinfo, the UI's sampler select and this
-     * program's a_mask_texcoord are one attribute index, enabled at init
-     * and by every layout, so it stays enabled here. An earlier layout gave
-     * the mask uv its own index and switched the then-unused texinfo array
-     * off for this draw (the Adreno 320 drops a draw with a stray array
-     * enabled); once the slot was shared, that same switch-off disabled the
-     * mask uv itself whenever the previous layout was the world's, the
-     * shader read the constant (0,0) -- an opaque mask corner -- and
-     * discarded every fragment: the minimap and the compass drew nothing,
-     * with no GL error, on the phone. */
-    glEnableVertexAttribArray(GLES2_ATTRIB_MASK_TEXCOORD);
+        ES3_ATTRIB_TEXINFO,
+        1,
+        GL_FLOAT,
+        GL_FALSE,
+        stride,
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct ES3VertexUI, sel)));
+    renderer->vao_ui_buffer = renderer->ui_vbo;
+    renderer->vao_ui_offset = byte_offset;
     renderer->stream_buffer = renderer->ui_vbo;
     renderer->stream_byte_offset = byte_offset;
-    renderer->stream_layout = GLES2_STREAM_ROTMASK;
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_ATTRIB_REBINDS, 1);
+    renderer->stream_layout = ES3_STREAM_UI;
+}
+
+void
+es3_bind_rotmask_stream(struct ToriRS_ES3* renderer, uint32_t byte_offset)
+{
+    const GLsizei stride = (GLsizei)sizeof(struct ES3VertexRotmask);
+    assert(renderer);
+    if( !es3_ui_vao_ensure(&renderer->vao_rotmask) )
+        return;
+    es3_bind_vao(renderer, renderer->vao_rotmask);
+    if( renderer->vao_rotmask_buffer == renderer->ui_vbo &&
+        renderer->vao_rotmask_offset == byte_offset )
+    {
+        renderer->stream_layout = ES3_STREAM_ROTMASK;
+        return;
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->ui_vbo);
+    renderer->bound_array_buffer = renderer->ui_vbo;
+    glEnableVertexAttribArray(ES3_ATTRIB_POSITION);
+    glVertexAttribPointer(
+        ES3_ATTRIB_POSITION,
+        3,
+        GL_FLOAT,
+        GL_FALSE,
+        stride,
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct ES3VertexRotmask, x)));
+    glEnableVertexAttribArray(ES3_ATTRIB_TEXCOORD);
+    glVertexAttribPointer(
+        ES3_ATTRIB_TEXCOORD,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        stride,
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct ES3VertexRotmask, u)));
+    glEnableVertexAttribArray(ES3_ATTRIB_COLOR);
+    glVertexAttribPointer(
+        ES3_ATTRIB_COLOR,
+        4,
+        GL_UNSIGNED_BYTE,
+        GL_TRUE,
+        stride,
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct ES3VertexRotmask, rgba)));
+    /* The mask uv shares the fourth attribute slot with the world's texinfo
+     * and the UI's sampler select. On ES2 that sharing is a hazard -- the
+     * slot is context state, so a layout change has to re-enable it by hand
+     * and a mistake there silently feeds the shader a constant. Here each
+     * layout owns a VAO and the slot is described once per layout. */
+    glEnableVertexAttribArray(ES3_ATTRIB_MASK_TEXCOORD);
+    glVertexAttribPointer(
+        ES3_ATTRIB_MASK_TEXCOORD,
+        2,
+        GL_FLOAT,
+        GL_FALSE,
+        stride,
+        (const void*)(uintptr_t)(byte_offset + offsetof(struct ES3VertexRotmask, mask_u)));
+    renderer->vao_rotmask_buffer = renderer->ui_vbo;
+    renderer->vao_rotmask_offset = byte_offset;
+    renderer->stream_buffer = renderer->ui_vbo;
+    renderer->stream_byte_offset = byte_offset;
+    renderer->stream_layout = ES3_STREAM_ROTMASK;
 }
 
 /*
@@ -2416,11 +2771,11 @@ gles2_bind_rotmask_stream(struct ToriRS_GLES2* renderer, uint32_t byte_offset)
  * 0, so the driver never has to synchronise a write against the draw that is
  * still reading. Wrapping orphans the whole buffer with glBufferData(NULL),
  * which is the ES2 idiom for "give me fresh storage, keep the old for the GPU".
- * `earlier_appends_drawn`: see gles2_stream_set_append.
+ * `earlier_appends_drawn`: see es3_stream_set_append.
  */
 uint32_t
-gles2_ring_upload(
-    struct ToriRS_GLES2* renderer,
+es3_ring_upload(
+    struct ToriRS_ES3* renderer,
     const void* data,
     uint32_t bytes,
     bool earlier_appends_drawn)
@@ -2428,11 +2783,11 @@ gles2_ring_upload(
     uint32_t offset;
     assert(renderer);
     assert(data);
-    offset = gles2_stream_set_append(
+    offset = es3_stream_set_append(
         &renderer->ui_stream,
         renderer->frame_slot,
         GL_ARRAY_BUFFER,
-        GLES2_UI_STREAM_INIT_BYTES,
+        ES3_UI_STREAM_INIT_BYTES,
         data,
         bytes,
         earlier_appends_drawn);
@@ -2442,54 +2797,87 @@ gles2_ring_upload(
 
 /* ---- the world draw ------------------------------------------------------------- */
 
+/*
+ * The world pass's shared uniform block: the matrix and the texture clock.
+ *
+ * Uploaded ONCE per pass, before any world draw. The ES2 renderer cannot do
+ * this -- a uniform there is program state, so it re-sends the matrix every
+ * time the draw loop switches between the plain and the cutout program --
+ * and the block is also what makes those switches cheap enough to stop
+ * thinking about.
+ *
+ * The layout is std140: a mat4 followed by a vec4 whose x is the clock. The
+ * clock is reduced modulo 128 on the CPU because speed / 128 texels per tick
+ * means the scroll repeats every 128 ticks, and a float clock that never
+ * grows past 128 keeps the fract() in the shader exact.
+ */
 void
-gles2_use_world_program(struct ToriRS_GLES2* renderer, bool cutout)
+es3_world_block_upload(struct ToriRS_ES3* renderer)
 {
-    const struct GLES2Program* program;
+    float block[20];
     assert(renderer);
-    program = renderer->world_fast_shader
-        ? (cutout ? &renderer->program_world_fast_cutout : &renderer->program_world_fast_plain)
-        : (cutout ? &renderer->program_world_cutout : &renderer->program_world_plain);
-    gles2_use_program(renderer, program);
-    glUniformMatrix4fv(program->u_matrix, 1, GL_FALSE, renderer->model_view_projection);
-    /* Reduced modulo 128 on the CPU: speed / 128 texels per tick means the
-     * scroll repeats every 128 ticks, and a float clock that never grows past
-     * 128 keeps the fract() in the shader exact. */
-    glUniform1f(program->u_clock, (float)fmod(renderer->frame_clock, 128.0));
-    gles2_bind_texture0(renderer, renderer->atlas_texture);
+    if( !renderer->world_ubo )
+    {
+        glGenBuffers(1, &renderer->world_ubo);
+        assert(renderer->world_ubo);
+        glBindBuffer(GL_UNIFORM_BUFFER, renderer->world_ubo);
+        glBufferData(GL_UNIFORM_BUFFER, (GLsizeiptr)sizeof(block), NULL, GL_DYNAMIC_DRAW);
+        glBindBufferBase(GL_UNIFORM_BUFFER, ES3_WORLD_BLOCK_BINDING, renderer->world_ubo);
+    }
+    memcpy(block, renderer->model_view_projection, 16u * sizeof(float));
+    block[16] = (float)fmod(renderer->frame_clock, 128.0);
+    block[17] = 0.0f;
+    block[18] = 0.0f;
+    block[19] = 0.0f;
+    glBindBuffer(GL_UNIFORM_BUFFER, renderer->world_ubo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, (GLsizeiptr)sizeof(block), block);
+}
+
+void
+es3_use_world_program(
+    struct ToriRS_ES3* renderer,
+    bool cutout)
+{
+    const struct ES3Program* program;
+    assert(renderer);
+    program =
+        renderer->world_fast_shader
+            ? (cutout ? &renderer->program_world_fast_cutout : &renderer->program_world_fast_plain)
+            : (cutout ? &renderer->program_world_cutout : &renderer->program_world_plain);
+    es3_use_program(renderer, program);
+    es3_bind_texture0(renderer, renderer->atlas_texture);
 }
 
 bool
-gles2_upload_geometry(struct ToriRS_GLES2* renderer)
+es3_upload_geometry(struct ToriRS_ES3* renderer)
 {
     uint32_t group;
     assert(renderer);
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
-        if( !gles2_upload_group(renderer, &renderer->groups[group]) )
+        if( !es3_upload_group(renderer, &renderer->groups[group]) )
             return false;
-    return gles2_upload_dirty_static_batches(renderer);
+    return es3_upload_dirty_static_batches(renderer);
 }
 
 /* ---- the draw sequence and the two per-frame rings -------------------------------- */
 
 void
-gles2_sequence_reset(struct ToriRS_GLES2* renderer)
+es3_sequence_reset(struct ToriRS_ES3* renderer)
 {
     assert(renderer);
     renderer->draw_item_count = 0u;
     renderer->ibo_staging_count = 0u;
     renderer->frame_stream_count = 0u;
-    renderer->hot_frame_oldest_serial = UINT64_MAX;
 }
 
-static struct GLES2DrawItem*
-gles2_sequence_append(struct ToriRS_GLES2* renderer)
+static struct ES3DrawItem*
+es3_sequence_append(struct ToriRS_ES3* renderer)
 {
     if( renderer->draw_item_count >= renderer->draw_item_capacity )
     {
         uint32_t capacity = renderer->draw_item_capacity ? renderer->draw_item_capacity * 2u
-                                                         : GLES2_DRAW_ITEM_INIT;
-        struct GLES2DrawItem* grown = (struct GLES2DrawItem*)realloc(
+                                                         : ES3_DRAW_ITEM_INIT;
+        struct ES3DrawItem* grown = (struct ES3DrawItem*)realloc(
             renderer->draw_items, (size_t)capacity * sizeof(*grown));
         assert(grown);
         renderer->draw_items = grown;
@@ -2499,28 +2887,30 @@ gles2_sequence_append(struct ToriRS_GLES2* renderer)
 }
 
 void
-gles2_sequence_push_indexed(
-    struct ToriRS_GLES2* renderer,
+es3_sequence_push_indexed(
+    struct ToriRS_ES3* renderer,
     uint32_t binding,
-    uint32_t page_base,
+    uint32_t index_min,
+    uint32_t index_max,
     bool cutout,
     bool blended,
-    const uint16_t* indices,
+    const uint32_t* indices,
     uint32_t index_count)
 {
-    uint16_t* destination;
+    uint32_t* destination;
     assert(renderer);
     assert(indices);
     if( index_count == 0u )
         return;
-    destination = gles2_sequence_reserve_indexed(renderer, index_count);
+    destination = es3_sequence_reserve_indexed(renderer, index_count);
     memcpy(destination, indices, (size_t)index_count * sizeof(*indices));
-    gles2_sequence_commit_indexed(renderer, binding, page_base, cutout, blended, index_count);
+    es3_sequence_commit_indexed(
+        renderer, binding, index_min, index_max, cutout, blended, index_count);
 }
 
-uint16_t*
-gles2_sequence_reserve_indexed(
-    struct ToriRS_GLES2* renderer,
+uint32_t*
+es3_sequence_reserve_indexed(
+    struct ToriRS_ES3* renderer,
     uint32_t index_count)
 {
     uint32_t needed;
@@ -2529,11 +2919,11 @@ gles2_sequence_reserve_indexed(
     if( needed > renderer->ibo_staging_capacity )
     {
         uint32_t capacity = renderer->ibo_staging_capacity ? renderer->ibo_staging_capacity
-                                                           : GLES2_GPU_BUFFER_INIT;
-        uint16_t* grown;
+                                                           : ES3_GPU_BUFFER_INIT;
+        uint32_t* grown;
         while( capacity < needed )
             capacity *= 2u;
-        grown = (uint16_t*)realloc(renderer->ibo_staging, (size_t)capacity * sizeof(*grown));
+        grown = (uint32_t*)realloc(renderer->ibo_staging, (size_t)capacity * sizeof(*grown));
         assert(grown);
         renderer->ibo_staging = grown;
         renderer->ibo_staging_capacity = capacity;
@@ -2542,33 +2932,46 @@ gles2_sequence_reserve_indexed(
 }
 
 void
-gles2_sequence_commit_indexed(
-    struct ToriRS_GLES2* renderer,
+es3_sequence_commit_indexed(
+    struct ToriRS_ES3* renderer,
     uint32_t binding,
-    uint32_t page_base,
+    uint32_t index_min,
+    uint32_t index_max,
     bool cutout,
     bool blended,
     uint32_t index_count)
 {
-    struct GLES2DrawItem* item;
+    struct ES3DrawItem* item;
     uint32_t needed;
     assert(renderer);
+    assert(index_min <= index_max);
     if( index_count == 0u )
         return;
     needed = renderer->ibo_staging_count + index_count;
     assert(needed <= renderer->ibo_staging_capacity);
-    /* Merge with the item before it when nothing about the draw changed. */
+    /* Merge with the item before it when nothing about the draw changed.
+     * There is no page to compare: an index reaches the whole buffer, so
+     * two indexed runs into the same binding and program are one draw
+     * however far apart in the buffer their geometry lies. The merged item
+     * covers the union of the two vertex ranges. */
     item = renderer->draw_item_count ? &renderer->draw_items[renderer->draw_item_count - 1u]
                                      : NULL;
-    if( item && item->indexed && item->binding == binding && item->page_base == page_base &&
-        item->cutout == (uint8_t)cutout && item->blended == (uint8_t)blended &&
+    if( item && item->indexed && item->binding == binding && item->cutout == (uint8_t)cutout &&
+        item->blended == (uint8_t)blended &&
         item->first + item->count == renderer->ibo_staging_count )
+    {
         item->count += index_count;
+        if( index_min < item->index_min )
+            item->index_min = index_min;
+        if( index_max > item->index_max )
+            item->index_max = index_max;
+    }
     else
     {
-        item = gles2_sequence_append(renderer);
+        item = es3_sequence_append(renderer);
         item->binding = binding;
-        item->page_base = page_base;
+        item->index_min = index_min;
+        item->index_max = index_max;
         item->first = renderer->ibo_staging_count;
         item->count = index_count;
         item->indexed = 1u;
@@ -2579,15 +2982,15 @@ gles2_sequence_commit_indexed(
 }
 
 void
-gles2_sequence_push_array(
-    struct ToriRS_GLES2* renderer,
+es3_sequence_push_array(
+    struct ToriRS_ES3* renderer,
     uint32_t binding,
     uint32_t first,
     uint32_t count,
     bool cutout,
     bool blended)
 {
-    struct GLES2DrawItem* item;
+    struct ES3DrawItem* item;
     assert(renderer);
     if( count == 0u )
         return;
@@ -2599,9 +3002,10 @@ gles2_sequence_push_array(
         item->count += count;
         return;
     }
-    item = gles2_sequence_append(renderer);
+    item = es3_sequence_append(renderer);
     item->binding = binding;
-    item->page_base = 0u;
+    item->index_min = 0u;
+    item->index_max = 0u;
     item->first = first;
     item->count = count;
     item->indexed = 0u;
@@ -2610,7 +3014,9 @@ gles2_sequence_push_array(
 }
 
 uint32_t
-gles2_frame_stream_reserve(struct ToriRS_GLES2* renderer, uint32_t vertex_count)
+es3_frame_stream_reserve(
+    struct ToriRS_ES3* renderer,
+    uint32_t vertex_count)
 {
     uint32_t first;
     assert(renderer);
@@ -2624,59 +3030,89 @@ gles2_frame_stream_reserve(struct ToriRS_GLES2* renderer, uint32_t vertex_count)
 }
 
 static void
-gles2_frame_stream_upload(struct ToriRS_GLES2* renderer)
+es3_frame_stream_upload(struct ToriRS_ES3* renderer)
 {
     uint32_t bytes;
     uint32_t offset;
     if( renderer->frame_stream_count == 0u )
         return;
     bytes = renderer->frame_stream_count * (uint32_t)sizeof(struct TRSPK_VertexGLES2);
-    offset = gles2_stream_set_append(
+    offset = es3_stream_set_append(
         &renderer->frame_stream,
         renderer->frame_slot,
         GL_ARRAY_BUFFER,
-        GLES2_FRAME_STREAM_INIT_BYTES,
+        ES3_FRAME_STREAM_INIT_BYTES,
         renderer->frame_stream_cpu->vertices.as_gles2,
         bytes,
         false);
     renderer->bound_array_buffer = renderer->frame_stream_vbo;
     renderer->frame_stream_gpu_base = offset / (uint32_t)sizeof(struct TRSPK_VertexGLES2);
-    /* The stream just moved; the attribute pointers must follow it. */
+    /* The stream just moved. es3_bind_stream compares the binding's base
+     * against what its VAO holds, so nothing has to be invalidated by hand
+     * -- but the stream cache is kept truthful for the debug readouts. */
     if( renderer->stream_buffer == renderer->frame_stream_vbo )
-        renderer->stream_layout = GLES2_STREAM_NONE;
+        renderer->stream_layout = ES3_STREAM_NONE;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DYNAMIC_VBO_UPLOAD_BYTES, (int64_t)bytes);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DYNAMIC_VBO_UPLOADS, 1);
 }
 
-static void gles2_sequence_issue(struct ToriRS_GLES2* renderer,uint32_t index_base_bytes)
+/*
+ * Issue the frame's draw sequence.
+ *
+ *  is where this frame's indices landed in the rotating
+ * element-buffer set. The element binding is VERTEX ARRAY OBJECT state in
+ * GLES3, not context state, so it is re-attached after each VAO change --
+ * tracked, so a run of draws from one stream attaches it once.
+ *
+ * Indexed draws go through glDrawRangeElements: the range the item's
+ * indices touch is known when it is staged, and handing it to the driver
+ * lets it bound the vertex fetch instead of scanning the index block.
+ */
+static void
+es3_sequence_issue(
+    struct ToriRS_ES3* renderer,
+    uint32_t index_base_bytes)
 {
-    uint32_t item_index,draw_calls=0;int program_cutout=-1,pass_blended=-1;
+    uint32_t item_index, draw_calls = 0;
+    int program_cutout = -1, pass_blended = -1;
+    GLuint element_buffer = renderer->index_stream.buffers[renderer->frame_slot];
+    es3_world_block_upload(renderer);
     if( renderer->zbuffer )
-        gles2_zbuffer_apply_world_states(renderer);
+        es3_zbuffer_apply_world_states(renderer);
     else
-        gles2_painter_apply_world_states(renderer);
+        es3_painter_apply_world_states(renderer);
 
     for( item_index = 0u; item_index < renderer->draw_item_count; item_index++ )
     {
-        const struct GLES2DrawItem* item = &renderer->draw_items[item_index];
+        const struct ES3DrawItem* item = &renderer->draw_items[item_index];
         if( renderer->zbuffer && pass_blended != (int)item->blended )
         {
-            gles2_zbuffer_apply_pass_states(renderer, item->blended != 0u);
+            es3_zbuffer_apply_pass_states(renderer, item->blended != 0u);
             pass_blended = (int)item->blended;
         }
         if( program_cutout != (int)item->cutout )
         {
-            gles2_use_world_program(renderer, item->cutout != 0u);
+            es3_use_world_program(renderer, item->cutout != 0u);
             program_cutout = (int)item->cutout;
         }
-        if( !gles2_bind_stream(renderer, item->binding, item->indexed ? item->page_base : 0u) )
+        if( !es3_bind_stream(renderer, item->binding) )
             continue;
         if( item->indexed )
-            glDrawElements(
+        {
+            if( renderer->bound_element_buffer != element_buffer )
+            {
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer);
+                renderer->bound_element_buffer = element_buffer;
+            }
+            glDrawRangeElements(
                 GL_TRIANGLES,
+                item->index_min,
+                item->index_max,
                 (GLsizei)item->count,
-                GL_UNSIGNED_SHORT,
-                (const void*)(uintptr_t)(index_base_bytes + (size_t)item->first * sizeof(uint16_t)));
+                GL_UNSIGNED_INT,
+                (const void*)(uintptr_t)(index_base_bytes +
+                                         (size_t)item->first * sizeof(uint32_t)));
+        }
         else
             glDrawArrays(GL_TRIANGLES, (GLint)item->first, (GLsizei)item->count);
         draw_calls++;
@@ -2685,12 +3121,8 @@ static void gles2_sequence_issue(struct ToriRS_GLES2* renderer,uint32_t index_ba
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_RANGES, renderer->draw_item_count);
 }
 
-#if defined(TORIRS_SHADER_PROBE)
-#include "../../tools/perf/gles2_shader_probe.u.h"
-#endif
-
 void
-gles2_sequence_draw(struct ToriRS_GLES2* renderer)
+es3_sequence_draw(struct ToriRS_ES3* renderer)
 {
     uint32_t index_base_bytes = 0u;
 
@@ -2699,29 +3131,34 @@ gles2_sequence_draw(struct ToriRS_GLES2* renderer)
         return;
     if( renderer->ibo_staging_count > 0u )
     {
-        uint32_t bytes = renderer->ibo_staging_count * (uint32_t)sizeof(uint16_t);
-        index_base_bytes = gles2_stream_set_append(
+        uint32_t bytes = renderer->ibo_staging_count * (uint32_t)sizeof(uint32_t);
+        /* The element binding belongs to whichever VAO is bound, so the
+         * upload is made against the default one; es3_sequence_issue
+         * attaches the finished buffer to each VAO it draws from. */
+        es3_bind_vao(renderer, 0u);
+        index_base_bytes = es3_stream_set_append(
             &renderer->index_stream,
             renderer->frame_slot,
             GL_ELEMENT_ARRAY_BUFFER,
-            GLES2_INDEX_STREAM_INIT_BYTES,
+            ES3_INDEX_STREAM_INIT_BYTES,
             renderer->ibo_staging,
             bytes,
             false);
+        renderer->bound_element_buffer = 0u;
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)bytes);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOADS, 1);
     }
 
-#if defined(TORIRS_SHADER_PROBE)
-    gles2_shader_probe(renderer,index_base_bytes);
-#endif
-    gles2_sequence_issue(renderer,index_base_bytes);
+    es3_sequence_issue(renderer, index_base_bytes);
 }
 
 /* ---- the 3D pass ------------------------------------------------------------------- */
 
 static void
-gles2_mat4_multiply(const float* a, const float* b, float* out)
+es3_mat4_multiply(
+    const float* a,
+    const float* b,
+    float* out)
 {
     int column;
     int row;
@@ -2737,7 +3174,9 @@ gles2_mat4_multiply(const float* a, const float* b, float* out)
 }
 
 static void
-gles2_begin_3d(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand_Begin3D* command)
+es3_begin_3d(
+    struct ToriRS_ES3* renderer,
+    const struct ToriRS_RenderCommand_Begin3D* command)
 {
     const struct ToriDraw_ViewPort* viewport;
     int pass_w;
@@ -2754,7 +3193,7 @@ gles2_begin_3d(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand_
     assert(command);
     if( !renderer->gl_context )
         return;
-    gles2_sequence_reset(renderer);
+    es3_sequence_reset(renderer);
     renderer->current_3d = *command;
 #if defined(TORIRS_MODEL_CHAIN_CAPTURE)
     g_chain_pass++;
@@ -2779,12 +3218,14 @@ gles2_begin_3d(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand_
     pass_h = viewport->height > 0 ? viewport->height : renderer->height;
     logical_x = viewport->x_center - pass_w / 2;
     logical_y = viewport->y_center - pass_h / 2;
-    left = renderer->letterbox_x + (int)((int64_t)logical_x * renderer->letterbox_width / renderer->width);
-    top = renderer->letterbox_top + (int)((int64_t)logical_y * renderer->letterbox_height / renderer->height);
+    left = renderer->letterbox_x +
+           (int)((int64_t)logical_x * renderer->letterbox_width / renderer->width);
+    top = renderer->letterbox_top +
+          (int)((int64_t)logical_y * renderer->letterbox_height / renderer->height);
     right = renderer->letterbox_x +
-        (int)((int64_t)(logical_x + pass_w) * renderer->letterbox_width / renderer->width);
+            (int)((int64_t)(logical_x + pass_w) * renderer->letterbox_width / renderer->width);
     bottom = renderer->letterbox_top +
-        (int)((int64_t)(logical_y + pass_h) * renderer->letterbox_height / renderer->height);
+             (int)((int64_t)(logical_y + pass_h) * renderer->letterbox_height / renderer->height);
     if( right <= left )
         right = left + 1;
     if( bottom <= top )
@@ -2799,7 +3240,7 @@ gles2_begin_3d(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand_
         renderer->world_viewport.width,
         renderer->world_viewport.height);
     if( renderer->zbuffer )
-        gles2_zbuffer_begin_pass(renderer);
+        es3_zbuffer_begin_pass(renderer);
 
     trspk_compute_pass_matrices(
         renderer->view,
@@ -2816,23 +3257,25 @@ gles2_begin_3d(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand_
         command->camera.fov_rpi2048,
         command->camera.parallel_zoom16);
     if( renderer->zbuffer )
-        gles2_zbuffer_setup_projection(renderer, command);
+        es3_zbuffer_setup_projection(renderer, command);
     else
-        gles2_painter_setup_projection(renderer);
-    gles2_mat4_multiply(renderer->projection, renderer->view, renderer->model_view_projection);
+        es3_painter_setup_projection(renderer);
+    es3_mat4_multiply(renderer->projection, renderer->view, renderer->model_view_projection);
 
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
         if( renderer->groups[group].reset_each_frame )
-            gles2_reset_group(&renderer->groups[group]);
+            es3_reset_group(&renderer->groups[group]);
 }
 
 static void
-gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand_Model* command)
+es3_draw_model(
+    struct ToriRS_ES3* renderer,
+    const struct ToriRS_RenderCommand_Model* command)
 {
     struct ToriDraw_Position projected_position;
-    struct GLES2ModelPlacement placement;
-    struct GLES2ModelStage stage;
-    struct GLES2StaticPrimary static_placement;
+    struct ES3ModelPlacement placement;
+    struct ES3ModelStage stage;
+    struct ES3StaticPrimary static_placement;
     int static_state;
     bool staged = false;
     const int* face_order;
@@ -2844,8 +3287,11 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
     int anim_index;
     int pose_id;
     uint32_t vertex_base;
-    uint32_t page_base = 0u;
-    uint32_t local_base;
+    /* Where the model's bake begins in its binding's CPU copy, and where it
+     * begins in that binding's GPU buffer. Equal for everything but a
+     * Batch16 chunk, whose CPU copy starts at its own zero. */
+    uint32_t chunk_base = 0u;
+    uint32_t absolute_base = 0u;
     uint32_t binding;
     uint32_t group;
 
@@ -2855,12 +3301,12 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
      * command before any early return: it hands results out in dispatch
      * order and pairs them with the asks by count. */
     if( renderer->model_stage_source )
-        staged = renderer->model_stage_source->take(
-            renderer->model_stage_source->user, command, &stage);
+        staged =
+            renderer->model_stage_source->take(renderer->model_stage_source->user, command, &stage);
     if( !renderer->has_3d || !renderer->scene || command->model.kind == TORIDRAWMK_NONE )
         return;
 #if defined(TORIRS_MODEL_CHAIN_CAPTURE)
-    gles2_chain_capture(renderer, command);
+    es3_chain_capture(renderer, command);
 #endif
     placement.page_id = UINT32_MAX;
     placement.batch_slot = UINT32_MAX;
@@ -2909,11 +3355,17 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
         {
             if( renderer->pose_reuse_enabled )
                 ToriDraw_SceneElementApplyAnimationResolved(
-                    ToriDraw_SceneElementGet(renderer->scene,command->element_id),
-                    command->element_id,command->anim_index==0,command->anim_frame,true);
+                    ToriDraw_SceneElementGet(renderer->scene, command->element_id),
+                    command->element_id,
+                    command->anim_index == 0,
+                    command->anim_frame,
+                    true);
             else
-                ToriDraw_SceneElementApplyAnimation(renderer->scene,command->element_id,
-                    command->anim_index==0,command->anim_frame);
+                ToriDraw_SceneElementApplyAnimation(
+                    renderer->scene,
+                    command->element_id,
+                    command->anim_index == 0,
+                    command->anim_frame);
         }
         projected_position = command->position;
         if( ToriDraw_RenderModel1ProjectWithTable(
@@ -2929,19 +3381,18 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
             (command->pick_aabb
                  ? ToriDraw_ProjectedModelContainsAabb(
                        renderer->scene, renderer->pick_mouse_x, renderer->pick_mouse_y)
-                 : command->pick_terrain
-                     ? ToriDraw_ProjectedTileMouseHitTest(
-                           renderer->scene,
-                           command->model,
-                           &renderer->current_3d.view_port,
-                           renderer->pick_mouse_x,
-                           renderer->pick_mouse_y)
-                     : ToriDraw_ProjectedModelMouseHitTest(
-                           renderer->scene,
-                           command->model,
-                           &renderer->current_3d.view_port,
-                           renderer->pick_mouse_x,
-                           renderer->pick_mouse_y)) )
+             : command->pick_terrain ? ToriDraw_ProjectedTileMouseHitTest(
+                                           renderer->scene,
+                                           command->model,
+                                           &renderer->current_3d.view_port,
+                                           renderer->pick_mouse_x,
+                                           renderer->pick_mouse_y)
+                                     : ToriDraw_ProjectedModelMouseHitTest(
+                                           renderer->scene,
+                                           command->model,
+                                           &renderer->current_3d.view_port,
+                                           renderer->pick_mouse_x,
+                                           renderer->pick_mouse_y)) )
             ToriRS_PickHitsAdd(
                 &renderer->pick_hits,
                 command->element_id,
@@ -2956,20 +3407,23 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
         /* The depth path classifies per face during emission and needs no
          * order up front; the painter path must sort before it can count. */
         face_count = renderer->zbuffer
-            ? trspk_toridraw_face_count(command->model)
-            : gles2_painter_sort_faces(renderer, command, &sorted_face_count);
+                         ? trspk_toridraw_face_count(command->model)
+                         : es3_painter_sort_faces(renderer, command, &sorted_face_count);
         face_order = ToriDraw_FaceOrder(renderer->scene);
         projected_depth = renderer->scene->projected_vertex.z;
         projected_in_scene = true;
     }
-    /* The sort census is a debug readout (TORIRS_GLES2_DEBUG); it costs a
+    /* The sort census is a debug readout (TORIRS_ES3_DEBUG); it costs a
      * second trspk_toridraw_face_count per model, so it is gated where it
      * is gathered, not only where it is printed. */
     if( !renderer->zbuffer && renderer->debug )
     {
         int model_faces = trspk_toridraw_face_count(command->model);
-        int bucket = model_faces <= 2 ? 0 : model_faces <= 16 ? 1 : model_faces <= 64 ? 2
-                                                              : model_faces <= 256 ? 3 : 4;
+        int bucket = model_faces <= 2     ? 0
+                     : model_faces <= 16  ? 1
+                     : model_faces <= 64  ? 2
+                     : model_faces <= 256 ? 3
+                                          : 4;
         renderer->painter_stat_sort_models[bucket]++;
         renderer->painter_stat_sort_faces_in += (uint32_t)(model_faces > 0 ? model_faces : 0);
         renderer->painter_stat_sort_faces_out += (uint32_t)(face_count > 0 ? face_count : 0);
@@ -2977,7 +3431,7 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
     if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
         return;
     dynamic = command->dynamic || command->element_id < 0;
-    anim_index = gles2_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
+    anim_index = es3_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
     pose_id = command->animation && command->anim_frame >= 0 ? command->anim_frame : 0;
     if( command->animation && command->animation->frame_count > 0 &&
         pose_id >= command->animation->frame_count )
@@ -2989,8 +3443,8 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
         /* Painter path: an actor is baked straight into the frame stream in
          * its sorted face order, so it needs neither the dynamic arena nor an
          * index. The placement names the stream and the sorted count. */
-        uint32_t first = gles2_frame_stream_reserve(renderer, (uint32_t)sorted_face_count * 3u);
-        if( !gles2_bake_pose_vertices(
+        uint32_t first = es3_frame_stream_reserve(renderer, (uint32_t)sorted_face_count * 3u);
+        if( !es3_bake_pose_vertices(
                 renderer,
                 renderer->frame_stream_cpu,
                 &renderer->frame_stream_triangles,
@@ -3003,21 +3457,20 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
         placement.face_order = face_order;
         placement.projected_in_scene = projected_in_scene;
         placement.projected_depth = projected_depth;
-        placement.binding = GLES2_FRAME_STREAM_BINDING;
-        placement.page_base = 0u;
-        placement.local_base = first;
+        placement.binding = ES3_FRAME_STREAM_BINDING;
+        placement.chunk_base = first;
         placement.absolute_base = first;
         placement.face_count = face_count;
         placement.sorted_face_count = sorted_face_count;
         placement.anim_index = anim_index;
         placement.pose_id = pose_id;
         placement.dynamic = true;
-        gles2_painter_emit_model(renderer, &placement);
+        es3_painter_emit_model(renderer, &placement);
         return;
     }
     if( dynamic )
     {
-        vertex_base = gles2_bake_into_arena(
+        vertex_base = es3_bake_into_arena(
             renderer,
             &renderer->groups[group],
             command->element_id,
@@ -3027,16 +3480,20 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
             &command->world_position,
             false);
     }
-    else if( (static_state=gles2_static_resolve_recorded(renderer,command->element_id,anim_index,pose_id,&static_placement))!=0 )
+    else if(
+        (static_state = es3_static_resolve_recorded(
+             renderer, command->element_id, anim_index, pose_id, &static_placement)) != 0 )
     {
-        if( static_state<0 ) return;
-        binding=GLES2_STATIC_PAGE_BINDING;
-        page_base=static_placement.page_base;
-        placement.page_id=static_placement.page_id;
-        placement.batch_slot=static_placement.batch_slot;
-        placement.entry_index=static_placement.entry_index;
-        placement.entry_vertex_count=static_placement.vertex_count;
-        vertex_base=static_placement.vertex_base;
+        if( static_state < 0 )
+            return;
+        binding = ES3_STATIC_PAGE_BINDING;
+        placement.page_id = static_placement.page_id;
+        placement.batch_slot = static_placement.batch_slot;
+        placement.entry_index = static_placement.entry_index;
+        placement.entry_vertex_count = static_placement.vertex_count;
+        vertex_base = static_placement.vertex_base;
+        chunk_base = static_placement.vertex_base;
+        absolute_base = static_placement.page_base + static_placement.vertex_base;
     }
     else if( !trspk_pose_table_get(
                  &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
@@ -3053,11 +3510,11 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
             load.animation = command->animation;
             load.model = command->model;
             load.world_position = command->world_position;
-            gles2_animation_load(renderer, &load);
+            es3_animation_load(renderer, &load);
         }
         if( !trspk_pose_table_get(
                 &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
-            vertex_base = gles2_bake_into_arena(
+            vertex_base = es3_bake_into_arena(
                 renderer,
                 &renderer->groups[group],
                 command->element_id,
@@ -3070,23 +3527,31 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
     if( vertex_base == UINT32_MAX )
         return;
 
-    if( binding < GLES2_STATIC_PAGE_BINDING )
+    /*
+     * An arena's CPU copy IS its GPU buffer's contents, so the two bases are
+     * the same number. A Batch16 chunk's CPU copy starts at the chunk's own
+     * zero while the GPU buffer packs every chunk of every batch together,
+     * so there the GPU base adds the chunk's page offset -- which the static
+     * branch above has already worked out.
+     *
+     * Neither is split against a 64K page. The GLES2 renderer splits both,
+     * because that is the only way a U16 index can name a vertex; here an
+     * index reaches the whole buffer.
+     */
+    if( binding < ES3_STATIC_PAGE_BINDING )
     {
-        page_base = vertex_base & ~(GLES2_VBO_PAGE - 1u);
-        local_base = vertex_base - page_base;
+        chunk_base = vertex_base;
+        absolute_base = vertex_base;
     }
-    else
-        local_base = vertex_base;
     /* model_indices is the depth path's per-model index scratch; the painter
      * writes its indices straight into the sequence staging and never reads
      * it. */
-    if( renderer->zbuffer && !gles2_reserve_model_indices(renderer, (uint32_t)face_count * 3u) )
+    if( renderer->zbuffer && !es3_reserve_model_indices(renderer, (uint32_t)face_count * 3u) )
         return;
 
     placement.binding = binding;
-    placement.page_base = page_base;
-    placement.local_base = local_base;
-    placement.absolute_base = page_base + local_base;
+    placement.chunk_base = chunk_base;
+    placement.absolute_base = absolute_base;
     placement.face_count = face_count;
     placement.sorted_face_count = sorted_face_count;
     placement.anim_index = anim_index;
@@ -3096,13 +3561,13 @@ gles2_draw_model(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderComman
     placement.projected_in_scene = projected_in_scene;
     placement.projected_depth = projected_depth;
     if( renderer->zbuffer )
-        gles2_zbuffer_emit_model(renderer, command, &placement);
+        es3_zbuffer_emit_model(renderer, command, &placement);
     else
-        gles2_painter_emit_model(renderer, &placement);
+        es3_painter_emit_model(renderer, &placement);
 }
 
 static void
-gles2_set_letterbox_viewport(struct ToriRS_GLES2* renderer)
+es3_set_letterbox_viewport(struct ToriRS_ES3* renderer)
 {
     glViewport(
         renderer->letterbox_x,
@@ -3112,7 +3577,7 @@ gles2_set_letterbox_viewport(struct ToriRS_GLES2* renderer)
 }
 
 static void
-gles2_end_3d(struct ToriRS_GLES2* renderer)
+es3_end_3d(struct ToriRS_ES3* renderer)
 {
     assert(renderer);
     /* The prepared block describes a camera about to go out of scope;
@@ -3121,26 +3586,26 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
         ToriDraw_SceneClearProjectionCamera(renderer->scene);
     if( !renderer->has_3d )
         goto done;
-    if( !gles2_upload_atlas(renderer) )
+    if( !es3_upload_atlas(renderer) )
         goto done;
     if( renderer->zbuffer )
     {
         /* The retained world is drawn from the GPU: push what changed, then
          * the opaque and the blended halves of the sequence. */
-        gles2_zbuffer_flush_opaque(renderer);
-        if( !gles2_upload_geometry(renderer) )
+        es3_zbuffer_flush_opaque(renderer);
+        if( !es3_upload_geometry(renderer) )
             goto done;
-        gles2_zbuffer_end_pass(renderer);
+        es3_zbuffer_end_pass(renderer);
     }
     else
     {
-        /* The painter path draws the static world from its resident window
-         * and everything else from the frame stream; the retained GPU pages
-         * are never read here and never uploaded. */
-        gles2_painter_flush(renderer);
-        gles2_frame_stream_upload(renderer);
+        /* The painter path indexes the retained pages in place and bakes
+         * only the actors into the frame stream, so the frame stream is the
+         * only thing that has to go up here. */
+        es3_painter_flush(renderer);
+        es3_frame_stream_upload(renderer);
     }
-    gles2_sequence_draw(renderer);
+    es3_sequence_draw(renderer);
     if( !renderer->zbuffer )
     {
         bool debug = renderer->debug;
@@ -3148,26 +3613,16 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
         renderer->painter_stat_draws += renderer->draw_item_count;
         if( debug && renderer->painter_stat_frames == 300u )
         {
-            gles2_report_line(
-                "gles2 painter/frame: faces indexed %.0f gathered %.0f actor %.0f; residents "
-                "placed %.1f models %.0f vertices, serial hits %.0f; draws %.1f; compactions %u "
-                "(held back %u frames, %u since last); ring head %llu; "
-                "static pages %u %u vertices",
+            es3_report_line(
+                "webgl2 painter/frame: faces indexed %.0f actor %.0f; "
+                "draws %.1f; static pages %u %u vertices",
                 renderer->painter_stat_faces_indexed / 300.0,
-                renderer->painter_stat_faces_gathered / 300.0,
                 renderer->painter_stat_faces_actor / 300.0,
-                renderer->painter_stat_placed_models / 300.0,
-                renderer->painter_stat_placed_vertices / 300.0,
-                renderer->painter_stat_resident_hits / 300.0,
                 renderer->painter_stat_draws / 300.0,
-                renderer->painter_stat_compactions,
-                renderer->painter_stat_compactions_deferred,
-                renderer->hot_frames_since_compaction,
-                (unsigned long long)renderer->hot_head,
                 renderer->static_page_count,
                 renderer->static_batch_gpu_vertex_used);
-            gles2_report_line(
-                "gles2 sort/frame: models by bake size tile2 %.0f <=16 %.0f <=64 %.0f <=256 %.0f "
+            es3_report_line(
+                "webgl2 sort/frame: models by bake size tile2 %.0f <=16 %.0f <=64 %.0f <=256 %.0f "
                 "larger %.0f; faces in %.0f out %.0f; radix shallow %.1f two-pass %.1f; "
                 "prio uniform %.1f varied %.1f; k16 %.1f declined %.1f",
                 renderer->painter_stat_sort_models[0] / 300.0,
@@ -3183,8 +3638,8 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
                 g_toridraw_prio_varied_models / 300.0,
                 g_toridraw_sort_k16_models / 300.0,
                 g_toridraw_sort_k16_declined / 300.0);
-            gles2_report_line(
-                "gles2 draws/frame: world %.1f; ui batches %.1f (ended by texture %.1f atlas "
+            es3_report_line(
+                "webgl2 draws/frame: world %.1f; ui batches %.1f (ended by texture %.1f atlas "
                 "%.1f scissor %.1f overflow %.1f asked %.1f) rotmask %.1f widget %.1f; ui "
                 "upload %.0f B",
                 renderer->painter_stat_draws / 300.0,
@@ -3200,7 +3655,7 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
                 renderer->ui_stat_draws_rotmask / 300.0,
                 renderer->ui_stat_draws_widget / 300.0,
                 renderer->ui_stat_upload_bytes / 300.0);
-            gles2_report_line(
+            es3_report_line(
                 "project/frame: models %.1f cull_fast %.1f cull_aabb %.1f error %.1f projected "
                 "%.1f vertices %.0f tail_models %.1f",
                 g_toridraw_project_census.calls / 300.0,
@@ -3210,7 +3665,7 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
                 g_toridraw_project_census.projected / 300.0,
                 g_toridraw_project_census.projected_vertices / 300.0,
                 g_toridraw_project_census.tail_models / 300.0);
-            gles2_report_line(
+            es3_report_line(
                 "paint/frame: walks %.2f same_inputs %.2f pops %.0f commands %.0f entities %.1f",
                 g_torirs_paint_census.walks / 300.0,
                 g_torirs_paint_census.same_inputs / 300.0,
@@ -3229,11 +3684,7 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
         {
             renderer->painter_stat_frames = 0u;
             renderer->painter_stat_faces_indexed = 0u;
-            renderer->painter_stat_faces_gathered = 0u;
             renderer->painter_stat_faces_actor = 0u;
-            renderer->painter_stat_placed_models = 0u;
-            renderer->painter_stat_placed_vertices = 0u;
-            renderer->painter_stat_resident_hits = 0u;
             renderer->painter_stat_draws = 0u;
             memset(
                 renderer->painter_stat_sort_models, 0, sizeof(renderer->painter_stat_sort_models));
@@ -3261,49 +3712,51 @@ gles2_end_3d(struct ToriRS_GLES2* renderer)
 done:
     renderer->has_3d = false;
     renderer->in3d = false;
-    gles2_sequence_reset(renderer);
+    es3_sequence_reset(renderer);
     if( renderer->zbuffer )
-        gles2_zbuffer_reset_pass(renderer);
+        es3_zbuffer_reset_pass(renderer);
     /* The world pass leaves a world-sized viewport and depth state; restore
      * so 2D that follows is neither clipped nor occluded. */
-    gles2_set_letterbox_viewport(renderer);
-    gles2_set_depth(renderer, false, false);
-    gles2_set_cull(renderer, false);
-    gles2_set_scissor(renderer, NULL);
+    es3_set_letterbox_viewport(renderer);
+    es3_set_depth(renderer, false, false);
+    es3_set_cull(renderer, false);
+    es3_set_scissor(renderer, NULL);
 }
 
 /* ---- batch commands --------------------------------------------------------------- */
 
 static void
-gles2_batch_begin(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand_Batch* command)
+es3_batch_begin(
+    struct ToriRS_ES3* renderer,
+    const struct ToriRS_RenderCommand_Batch* command)
 {
-    struct GLES2StaticBatch* batch;
+    struct ES3StaticBatch* batch;
     int slot;
     assert(renderer);
     assert(command);
     if( command->batch_id < 0 )
         return;
-    slot = gles2_static_batch_slot(renderer, command->batch_id, true);
+    slot = es3_static_batch_slot(renderer, command->batch_id, true);
     if( slot < 0 )
         return;
     batch = &renderer->static_batches[slot];
-    gles2_zbuffer_batch_dropped(renderer, batch->cpu);
-    gles2_painter_batch_reset(renderer, batch, 0u);
-    gles2_invalidate_batch_pages(renderer, batch);
+    es3_zbuffer_batch_dropped(renderer, batch->cpu);
+    es3_painter_batch_reset(renderer, batch, 0u);
+    es3_invalidate_batch_pages(renderer, batch);
     trspk_batch16_begin(batch->cpu);
     batch->active = false;
     batch->building = true;
-    gles2_rebuild_batch_pose_table(renderer);
+    es3_rebuild_batch_pose_table(renderer);
     renderer->current_batch_slot = slot;
 }
 
 static void
-gles2_batch_add(
-    struct ToriRS_GLES2* renderer,
+es3_batch_add(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_RenderCommand_Batch* command,
     bool animated)
 {
-    struct GLES2StaticBatch* batch;
+    struct ES3StaticBatch* batch;
     struct TRSPK_Batch16Reservation reservation;
     int anim_index;
     int pose_id;
@@ -3321,7 +3774,7 @@ gles2_batch_add(
     face_count = trspk_toridraw_face_count(command->model);
     if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
         return;
-    anim_index = animated ? gles2_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1) : 0;
+    anim_index = animated ? es3_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1) : 0;
     pose_id = command->pose_id >= 0 ? command->pose_id : 0;
     if( !trspk_batch16_reserve_pose(
             batch->cpu,
@@ -3331,7 +3784,7 @@ gles2_batch_add(
             (uint32_t)face_count * 3u,
             &reservation) )
         return;
-    if( gles2_bake_pose_vertices(
+    if( es3_bake_pose_vertices(
             renderer,
             reservation.vbo,
             reservation.triangles,
@@ -3340,14 +3793,16 @@ gles2_batch_add(
             &command->world_position,
             NULL,
             0) )
-        gles2_zbuffer_batch_pose_baked(
+        es3_zbuffer_batch_pose_baked(
             renderer, command->element_id, anim_index, pose_id, command->model);
 }
 
 static void
-gles2_batch_end(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand_Batch* command)
+es3_batch_end(
+    struct ToriRS_ES3* renderer,
+    const struct ToriRS_RenderCommand_Batch* command)
 {
-    struct GLES2StaticBatch* batch;
+    struct ES3StaticBatch* batch;
     int slot;
     assert(renderer);
     assert(command);
@@ -3359,23 +3814,26 @@ gles2_batch_end(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand
         return;
     trspk_batch16_end(batch->cpu);
     batch->building = false;
-    (void)gles2_static_batch_commit(renderer, (uint32_t)slot);
+    (void)es3_static_batch_commit(renderer, (uint32_t)slot);
     renderer->current_batch_slot = -1;
 }
 
 static void
-gles2_batch_clear(struct ToriRS_GLES2* renderer, int batch_id, bool clear_all)
+es3_batch_clear(
+    struct ToriRS_ES3* renderer,
+    int batch_id,
+    bool clear_all)
 {
     uint32_t slot;
     assert(renderer);
     for( slot = 0u; slot < renderer->static_batch_count; slot++ )
     {
-        struct GLES2StaticBatch* batch = &renderer->static_batches[slot];
+        struct ES3StaticBatch* batch = &renderer->static_batches[slot];
         if( !clear_all && batch->batch_id != batch_id )
             continue;
-        gles2_zbuffer_batch_dropped(renderer, batch->cpu);
-        gles2_painter_batch_reset(renderer, batch, 0u);
-        gles2_invalidate_batch_pages(renderer, batch);
+        es3_zbuffer_batch_dropped(renderer, batch->cpu);
+        es3_painter_batch_reset(renderer, batch, 0u);
+        es3_invalidate_batch_pages(renderer, batch);
         trspk_batch16_clear(batch->cpu);
         batch->active = false;
         batch->building = false;
@@ -3389,102 +3847,104 @@ gles2_batch_clear(struct ToriRS_GLES2* renderer, int batch_id, bool clear_all)
             renderer->static_pages[page_id].gpu_capacity = 0u;
         renderer->static_batch_gpu_vertex_used = 0u;
     }
-    gles2_rebuild_batch_pose_table(renderer);
+    es3_rebuild_batch_pose_table(renderer);
     renderer->current_batch_slot = -1;
 }
 
 /* ---- dispatch ---------------------------------------------------------------------- */
 
 static void
-gles2_dispatch(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand* command)
+es3_dispatch(
+    struct ToriRS_ES3* renderer,
+    const struct ToriRS_RenderCommand* command)
 {
     assert(renderer);
     assert(command);
     switch( command->kind )
     {
     case TORIRSRC_BEGIN_3D:
-        gles2_begin_3d(renderer, &command->u.begin_3d);
+        es3_begin_3d(renderer, &command->u.begin_3d);
         break;
     case TORIRSRC_END_3D:
-        gles2_end_3d(renderer);
+        es3_end_3d(renderer);
         break;
     case TORIRSRC_BEGIN_2D:
-        gles2_begin_2d(renderer);
+        es3_begin_2d(renderer);
         break;
     case TORIRSRC_END_2D:
-        gles2_end_2d(renderer);
+        es3_end_2d(renderer);
         break;
     case TORIRSRC_TEX_LOAD:
         if( command->u.tex_load.texture )
-            (void)gles2_load_texture_object(
+            (void)es3_load_texture_object(
                 renderer, command->u.tex_load.texture_id, command->u.tex_load.texture);
         break;
     case TORIRSRC_TEX_UNLOAD:
-        gles2_unload_texture(renderer, command->u.tex_load.texture_id);
+        es3_unload_texture(renderer, command->u.tex_load.texture_id);
         break;
     case TORIRSRC_MODEL_LOAD:
-        gles2_model_load(renderer, &command->u.model_load);
+        es3_model_load(renderer, &command->u.model_load);
         break;
     case TORIRSRC_MODEL_UNLOAD:
-        gles2_model_unload(renderer, command->u.model_load.element_id);
+        es3_model_unload(renderer, command->u.model_load.element_id);
         break;
     case TORIRSRC_ANIM_LOAD:
-        gles2_animation_load(renderer, &command->u.anim_load);
+        es3_animation_load(renderer, &command->u.anim_load);
         break;
     case TORIRSRC_ANIM_UNLOAD:
-        gles2_animation_track_unload(
+        es3_animation_track_unload(
             renderer, command->u.anim_load.element_id, command->u.anim_load.anim_index);
         break;
     case TORIRSRC_BATCH3D_BEGIN:
-        gles2_batch_begin(renderer, &command->u.batch);
+        es3_batch_begin(renderer, &command->u.batch);
         break;
     case TORIRSRC_BATCH3D_MODEL_ADD:
-        gles2_batch_add(renderer, &command->u.batch, false);
+        es3_batch_add(renderer, &command->u.batch, false);
         break;
     case TORIRSRC_BATCH3D_ANIM_ADD:
-        gles2_batch_add(renderer, &command->u.batch, true);
+        es3_batch_add(renderer, &command->u.batch, true);
         break;
     case TORIRSRC_BATCH3D_END:
-        gles2_batch_end(renderer, &command->u.batch);
+        es3_batch_end(renderer, &command->u.batch);
         break;
     case TORIRSRC_BATCH3D_CLEAR:
-        gles2_batch_clear(renderer, command->u.batch.batch_id, command->u.batch.clear_all);
+        es3_batch_clear(renderer, command->u.batch.batch_id, command->u.batch.clear_all);
         if( command->u.batch.clear_all )
         {
             trspk_pose_table_clear(&renderer->poses);
-            gles2_reset_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
+            es3_reset_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
         }
         break;
     case TORIRSRC_DRAW_MODEL:
-        gles2_draw_model(renderer, &command->u.model);
+        es3_draw_model(renderer, &command->u.model);
         break;
 
     case TORIRSRC_CLEAR_RECT:
-        gles2_ui_draw_clear_rect(renderer, &command->u.clear_rect);
+        es3_ui_draw_clear_rect(renderer, &command->u.clear_rect);
         break;
     case TORIRSRC_FILL_RECT:
-        gles2_ui_draw_fill_rect(renderer, &command->u.fill_rect);
+        es3_ui_draw_fill_rect(renderer, &command->u.fill_rect);
         break;
     case TORIRSRC_DRAW_MODEL_WIDGET:
-        gles2_ui_draw_model_widget(renderer, &command->u.model_widget);
+        es3_ui_draw_model_widget(renderer, &command->u.model_widget);
         break;
     case TORIRSRC_SPRITE:
-        gles2_ui_draw_sprite(renderer, &command->u.sprite);
+        es3_ui_draw_sprite(renderer, &command->u.sprite);
         break;
     case TORIRSRC_FONT:
-        gles2_ui_draw_font(renderer, &command->u.font);
+        es3_ui_draw_font(renderer, &command->u.font);
         break;
     case TORIRSRC_LINE:
-        gles2_ui_draw_line(renderer, &command->u.line);
+        es3_ui_draw_line(renderer, &command->u.line);
         break;
     case TORIRSRC_POLYGON_BEGIN:
-        gles2_ui_polygon_begin(renderer, &command->u.polygon_begin);
+        es3_ui_polygon_begin(renderer, &command->u.polygon_begin);
         break;
     case TORIRSRC_POLYGON_POINT:
-        gles2_ui_polygon_point(renderer, &command->u.polygon_point);
+        es3_ui_polygon_point(renderer, &command->u.polygon_point);
         break;
     case TORIRSRC_POLYGON_END:
-        gles2_ui_polygon_end(renderer);
+        es3_ui_polygon_end(renderer);
         break;
     case TORIRSRC_TEX_BEGIN:
     case TORIRSRC_TEX_END:
@@ -3498,13 +3958,13 @@ gles2_dispatch(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand*
          * this backend consume atlas space or transfer bandwidth. */
         break;
     case TORIRSRC_SPRITE_UNLOAD:
-        gles2_ui_sprite_invalidate(renderer, command->u.sprite_load.element_id);
+        es3_ui_sprite_invalidate(renderer, command->u.sprite_load.element_id);
         break;
     case TORIRSRC_FONT_LOAD:
-        gles2_ui_font_load(renderer, command->u.font_load.font_id, command->u.font_load.font);
+        es3_ui_font_load(renderer, command->u.font_load.font_id, command->u.font_load.font);
         break;
     case TORIRSRC_FONT_UNLOAD:
-        gles2_ui_font_unload(renderer, command->u.font_load.font_id);
+        es3_ui_font_unload(renderer, command->u.font_load.font_id);
         break;
     case TORIRSRC_NONE:
         break;
@@ -3514,8 +3974,17 @@ gles2_dispatch(struct ToriRS_GLES2* renderer, const struct ToriRS_RenderCommand*
 /* ---- lifetime ----------------------------------------------------------------------- */
 
 /* A lever's environment switch: unset or anything but "0" is on. */
+/* A lever that is OFF unless NAME is set to something other than 0. The
+ * counterpart of es3_lever_enabled, which is on unless NAME is 0. */
 static bool
-gles2_lever_enabled(const char* name)
+es3_lever_opt_in(const char* name)
+{
+    const char* value = getenv(name);
+    return value && value[0] != '0';
+}
+
+static bool
+es3_lever_enabled(const char* name)
 {
     const char* value;
     assert(name);
@@ -3532,90 +4001,66 @@ gles2_lever_enabled(const char* name)
  * rotmask slot re-uploads on its next draw. Process-wide rather than per
  * renderer because the caller (app.c) holds no renderer.
  */
-static uint32_t g_gles2_rotmask_source_generation = 1u;
+static uint32_t g_es3_rotmask_source_generation = 1u;
 
 void
-ToriRS_GLES2_RotmaskSourceChanged(void)
+ToriRS_ES3_RotmaskSourceChanged(void)
 {
-    g_gles2_rotmask_source_generation++;
-    if( g_gles2_rotmask_source_generation == 0u )
-        g_gles2_rotmask_source_generation = 1u; /* 0 is "never uploaded" in a slot */
+    g_es3_rotmask_source_generation++;
+    if( g_es3_rotmask_source_generation == 0u )
+        g_es3_rotmask_source_generation = 1u; /* 0 is "never uploaded" in a slot */
 }
 
 uint32_t
-gles2_rotmask_source_generation(void)
+es3_rotmask_source_generation(void)
 {
-    return g_gles2_rotmask_source_generation;
+    return g_es3_rotmask_source_generation;
 }
 
-struct ToriRS_GLES2*
-ToriRS_GLES2_New(int width, int height)
+struct ToriRS_ES3*
+ToriRS_ES3_New(
+    int width,
+    int height,
+    char const* name)
 {
-    struct ToriRS_GLES2* renderer;
+    struct ToriRS_ES3* renderer;
     static uint8_t white_tile[TRSPK_ATLAS_TILE * TRSPK_ATLAS_TILE * 4u];
     uint32_t group;
     int texture;
 
     assert(width > 0);
     assert(height > 0);
-    renderer = (struct ToriRS_GLES2*)calloc(1u, sizeof(*renderer));
+    assert(name);
+    renderer = (struct ToriRS_ES3*)calloc(1u, sizeof(*renderer));
     assert(renderer);
+    renderer->name = name;
+    g_es3_name = name;
     renderer->width = width;
     renderer->height = height;
     renderer->interface_scale_mode = 2;
     renderer->tex_slot_next = 1u;
     renderer->current_batch_slot = -1;
-    /* TORIRS_GLES2_DEBUG=1: the 300-frame counters and the debug-only GL
-     * error checks. Read once here; it used to be a getenv in gles2_end_3d. */
-    renderer->debug = getenv("TORIRS_GLES2_DEBUG") != NULL;
+    /* TORIRS_ES3_DEBUG=1: the 300-frame counters and the debug-only GL
+     * error checks. Read once here; it used to be a getenv in es3_end_3d. */
+    renderer->debug = getenv("TORIRS_ES3_DEBUG") != NULL;
     /* The levers (see the struct): each defaults ON; NAME=0 is the control
      * arm. Read once, here, so no frame ever scans the environment. */
-    {
-        const char* v=getenv("TORIRS_GLES2_POSE_REUSE");
-        const char* legacy=getenv("TORIDRAW_ANIM_SKIP_SAME");
-#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
-        renderer->pose_reuse_enabled=v ? v[0]!='0' : !(legacy && legacy[0]=='0');
-#else
-        renderer->pose_reuse_enabled=v && v[0]=='1';
-#endif
-    }
-    {
-        const char* v=getenv("TORIRS_GLES2_ACTOR_WORLD_CACHE");
-#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
-        renderer->actor_world_cache_enabled=!v || v[0]!='0';
-#else
-        renderer->actor_world_cache_enabled=v && v[0]=='1';
-#endif
-    }
-    { const char* v=getenv("TORIRS_GLES2_FAST_SHADER");renderer->world_fast_shader=v && v[0]=='1'; }
-    {
-        const char* v=getenv("TORIRS_GLES2_ACTOR_DIRECT");
-#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
-        renderer->actor_direct_encode=!v || v[0]!='0';
-#else
-        renderer->actor_direct_encode=v && v[0]=='1';
-#endif
-    }
-    {
-        const char* v=getenv("TORIRS_GLES2_ACTOR_WORDS");
-#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
-        renderer->actor_word_encode=!v || v[0]!='0';
-#else
-        renderer->actor_word_encode=v && v[0]=='1';
-#endif
-    }
-    renderer->lever_ui_defer = gles2_lever_enabled("TORIRS_GLES2_UI_DEFER");
-    {
-        const char* v=getenv("TORIRS_GLES2_STATIC_PRIMARY");
-#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
-        renderer->static_primary_enabled=!v || v[0]!='0';
-#else
-        renderer->static_primary_enabled=v && v[0]=='1';
-#endif
-    }
-    renderer->lever_resident_fast = gles2_lever_enabled("TORIRS_GLES2_RESIDENT_FAST");
-    renderer->lever_triplet_neon = gles2_lever_enabled("TORIRS_GLES2_TRIPLET_NEON");
-    renderer->lever_rotmask_gen = gles2_lever_enabled("TORIRS_GLES2_ROTMASK_GEN");
+    /*
+     * Four CPU-side arms the GLES2 renderer carries, each measured on the
+     * 2013 phone it was written for and each defaulting OFF anywhere else --
+     * which includes this lane. They are opt-in by name here for the same
+     * reason: a browser is not that phone, and a default nobody measured is
+     * not a default. The ARM-only enable of the shared renderer collapses to
+     * the off arm at compile time on wasm, so it is spelled out rather than
+     * carried as a dead preprocessor branch.
+     */
+    renderer->pose_reuse_enabled = es3_lever_opt_in("TORIRS_ES3_POSE_REUSE");
+    renderer->actor_world_cache_enabled = es3_lever_opt_in("TORIRS_ES3_ACTOR_WORLD_CACHE");
+    renderer->actor_direct_encode = es3_lever_opt_in("TORIRS_ES3_ACTOR_DIRECT");
+    renderer->actor_word_encode = es3_lever_opt_in("TORIRS_ES3_ACTOR_WORDS");
+    renderer->lever_ui_defer = es3_lever_enabled("TORIRS_ES3_UI_DEFER");
+    renderer->static_primary_enabled = es3_lever_opt_in("TORIRS_ES3_STATIC_PRIMARY");
+    renderer->lever_rotmask_gen = es3_lever_enabled("TORIRS_ES3_ROTMASK_GEN");
     for( texture = 0; texture < TORIDRAW_TEXTURE_ID_CAPACITY; texture++ )
         renderer->tex_slot_of_id[texture] = -1;
     trspk_pose_table_init(&renderer->poses);
@@ -3624,48 +4069,53 @@ ToriRS_GLES2_New(int width, int height)
     assert(renderer->frame_stream_cpu);
     if( !trspk_atlas_init_grid(
             &renderer->atlas,
-            GLES2_ATLAS_DIM,
-            GLES2_ATLAS_DIM,
+            ES3_ATLAS_DIM,
+            ES3_ATLAS_DIM,
             TRSPK_ATLAS_TILE,
             TRSPK_ATLAS_TILE,
             4u) )
     {
-        ToriRS_GLES2_Free(renderer);
+        ToriRS_ES3_Free(renderer);
         return NULL;
     }
     memset(white_tile, 0xff, sizeof(white_tile));
     if( !trspk_atlas_grid_insert_at(
-            &renderer->atlas, 0u, white_tile, TRSPK_ATLAS_TILE * 4u, TRSPK_ATLAS_TILE,
-            TRSPK_ATLAS_TILE, NULL) )
+            &renderer->atlas,
+            0u,
+            white_tile,
+            TRSPK_ATLAS_TILE * 4u,
+            TRSPK_ATLAS_TILE,
+            TRSPK_ATLAS_TILE,
+            NULL) )
     {
-        ToriRS_GLES2_Free(renderer);
+        ToriRS_ES3_Free(renderer);
         return NULL;
     }
     renderer->tex_resident[0] = 1u;
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
     {
-        struct GLES2ModelGroup* model_group = &renderer->groups[group];
+        struct ES3ModelGroup* model_group = &renderer->groups[group];
         model_group->vbo_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_GLES2);
         assert(model_group->vbo_cpu);
         model_group->arena = trspk_modelarena_create(
-            model_group->vbo_cpu, &model_group->triangles, GLES2_VBO_PAGE, 64u);
+            model_group->vbo_cpu, &model_group->triangles, ES3_VBO_PAGE, 64u);
         assert(model_group->arena);
         model_group->reset_each_frame = group == TRSPK_VBO_GROUP_DYNAMIC;
     }
-    gles2_ui_init_state(renderer);
+    es3_ui_init_state(renderer);
     return renderer;
 }
 
 static uint64_t
-gles2_pose_table_bytes(const struct TRSPK_PoseTable* table)
+es3_pose_table_bytes(const struct TRSPK_PoseTable* table)
 {
     uint64_t bytes = (uint64_t)table->element_cap * sizeof(struct TRSPK_PoseElement);
     uint32_t element_index;
     uint32_t track;
     for( element_index = 0u; element_index < table->element_count; element_index++ )
         for( track = 0u; track < TRSPK_POSE_TRACK_COUNT; track++ )
-            bytes += (uint64_t)table->elements[element_index].tracks[track].pose_cap *
-                sizeof(uint32_t);
+            bytes +=
+                (uint64_t)table->elements[element_index].tracks[track].pose_cap * sizeof(uint32_t);
     return bytes;
 }
 
@@ -3673,7 +4123,7 @@ gles2_pose_table_bytes(const struct TRSPK_PoseTable* table)
  * the peer of d3d9_report_retained_memory. GL buffer sizes are what was
  * asked for; the driver's own copy is not visible from here. */
 static void
-gles2_report_retained_memory(struct ToriRS_GLES2* renderer)
+es3_report_retained_memory(struct ToriRS_ES3* renderer)
 {
     uint64_t batch_vbo_cpu = 0u;
     uint64_t batch_tri_cpu = 0u;
@@ -3708,38 +4158,39 @@ gles2_report_retained_memory(struct ToriRS_GLES2* renderer)
     }
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
     {
-        const struct GLES2ModelGroup* model_group = &renderer->groups[group];
-        group_vbo_cpu[group] = model_group->vbo_cpu
-            ? (uint64_t)model_group->vbo_cpu->capacity * sizeof(struct TRSPK_VertexGLES2)
-            : 0u;
+        const struct ES3ModelGroup* model_group = &renderer->groups[group];
+        group_vbo_cpu[group] = model_group->vbo_cpu ? (uint64_t)model_group->vbo_cpu->capacity *
+                                                          sizeof(struct TRSPK_VertexGLES2)
+                                                    : 0u;
         group_tri_cpu[group] = (uint64_t)model_group->triangles.cap * sizeof(int);
-        group_slots_cpu[group] = model_group->arena
-            ? (uint64_t)model_group->arena->slot_capacity * sizeof(struct TRSPK_ModelSlot)
-            : 0u;
+        group_slots_cpu[group] = model_group->arena ? (uint64_t)model_group->arena->slot_capacity *
+                                                          sizeof(struct TRSPK_ModelSlot)
+                                                    : 0u;
         group_vbo_gpu[group] =
             (uint64_t)model_group->gpu_capacity * sizeof(struct TRSPK_VertexGLES2);
     }
-    pose_table_megabytes = ((double)gles2_pose_table_bytes(&renderer->poses) +
-                               (double)gles2_pose_table_bytes(&renderer->batch_poses)) /
-        1048576.0;
+    pose_table_megabytes = ((double)es3_pose_table_bytes(&renderer->poses) +
+                            (double)es3_pose_table_bytes(&renderer->batch_poses)) /
+                           1048576.0;
     /* TORIRS_LOG compiles out of a release build; the figure is still computed
      * so the function that produces it is not dead code there. */
     (void)pose_table_megabytes;
-    TORIRS_LOG("gles2_mem: === retained memory report ===\n"
-               "gles2_mem: batch16_cpu_vertices  %10.2f MB (%u chunks)\n"
-               "gles2_mem: batch16_cpu_configs   %10.2f MB\n"
-               "gles2_mem: static_pages_gpu      %10.2f MB (%u pages)\n"
-               "gles2_mem: group_static_cpu      %10.2f MB (vbo) + %.2f MB (configs) + %.2f MB (slots)\n"
-               "gles2_mem: group_static_gpu      %10.2f MB\n"
-               "gles2_mem: group_dynamic_cpu     %10.2f MB (vbo) + %.2f MB (configs)\n"
-               "gles2_mem: group_dynamic_gpu     %10.2f MB\n"
-               "gles2_mem: index_stream_gpu      %10.2f MB (one of %u)\n"
-               "gles2_mem: frame_stream_gpu      %10.2f MB (one of %u) + %.2f MB (cpu)\n"
-               "gles2_mem: draw_items_cpu        %10.2f MB\n"
-               "gles2_mem: ibo_staging_cpu       %10.2f MB\n"
-               "gles2_mem: model_indices_cpu     %10.2f MB\n"
-               "gles2_mem: atlas_cpu             %10.2f MB world + %.2f MB ui\n"
-               "gles2_mem: pose_tables_cpu       %10.2f MB\n",
+    TORIRS_LOG(
+        "es3_mem: === retained memory report ===\n"
+        "es3_mem: batch16_cpu_vertices  %10.2f MB (%u chunks)\n"
+        "es3_mem: batch16_cpu_configs   %10.2f MB\n"
+        "es3_mem: static_pages_gpu      %10.2f MB (%u pages)\n"
+        "es3_mem: group_static_cpu      %10.2f MB (vbo) + %.2f MB (configs) + %.2f MB (slots)\n"
+        "es3_mem: group_static_gpu      %10.2f MB\n"
+        "es3_mem: group_dynamic_cpu     %10.2f MB (vbo) + %.2f MB (configs)\n"
+        "es3_mem: group_dynamic_gpu     %10.2f MB\n"
+        "es3_mem: index_stream_gpu      %10.2f MB (one of %u)\n"
+        "es3_mem: frame_stream_gpu      %10.2f MB (one of %u) + %.2f MB (cpu)\n"
+        "es3_mem: draw_items_cpu        %10.2f MB\n"
+        "es3_mem: ibo_staging_cpu       %10.2f MB\n"
+        "es3_mem: model_indices_cpu     %10.2f MB\n"
+        "es3_mem: atlas_cpu             %10.2f MB world + %.2f MB ui\n"
+        "es3_mem: pose_tables_cpu       %10.2f MB\n",
         (double)batch_vbo_cpu / 1048576.0,
         batch_chunks,
         (double)batch_tri_cpu / 1048576.0,
@@ -3754,27 +4205,26 @@ gles2_report_retained_memory(struct ToriRS_GLES2* renderer)
         (double)group_tri_cpu[TRSPK_VBO_GROUP_DYNAMIC] / 1048576.0,
         (double)group_vbo_gpu[TRSPK_VBO_GROUP_DYNAMIC] / 1048576.0,
         (double)renderer->index_stream.capacities[renderer->frame_slot] / 1048576.0,
-        GLES2_FRAMES_IN_FLIGHT,
+        ES3_FRAMES_IN_FLIGHT,
         (double)renderer->frame_stream.capacities[renderer->frame_slot] / 1048576.0,
-        GLES2_FRAMES_IN_FLIGHT,
-        renderer->frame_stream_cpu
-            ? (double)renderer->frame_stream_cpu->capacity * sizeof(struct TRSPK_VertexGLES2) /
-                1048576.0
-            : 0.0,
-        (double)renderer->draw_item_capacity * sizeof(struct GLES2DrawItem) / 1048576.0,
+        ES3_FRAMES_IN_FLIGHT,
+        renderer->frame_stream_cpu ? (double)renderer->frame_stream_cpu->capacity *
+                                         sizeof(struct TRSPK_VertexGLES2) / 1048576.0
+                                   : 0.0,
+        (double)renderer->draw_item_capacity * sizeof(struct ES3DrawItem) / 1048576.0,
         (double)renderer->ibo_staging_capacity * sizeof(uint16_t) / 1048576.0,
         (double)renderer->model_index_capacity * sizeof(uint16_t) / 1048576.0,
         (double)renderer->atlas.stride * renderer->atlas.height / 1048576.0,
         (double)renderer->ui_sprite_atlas.stride * renderer->ui_sprite_atlas.height / 1048576.0,
         pose_table_megabytes);
-    gles2_ui_report_memory(renderer);
-    gles2_zbuffer_report_memory(renderer);
+    es3_ui_report_memory(renderer);
+    es3_zbuffer_report_memory(renderer);
 }
 
 /* ---- client scaling's offscreen target --------------------------------------- */
 
 static void
-gles2_scale_target_destroy_buffers(struct ToriRS_GLES2* renderer)
+es3_scale_target_destroy_buffers(struct ToriRS_ES3* renderer)
 {
     assert(renderer);
     if( renderer->scale_fbo )
@@ -3796,21 +4246,29 @@ gles2_scale_target_destroy_buffers(struct ToriRS_GLES2* renderer)
     renderer->scale_texture_filter = 0;
 }
 
+/*
+ * The full-screen quad the present and the interface composite draw with,
+ * in its own VAO. Made once; after that a present is one bind.
+ */
 void
-gles2_bind_present_quad(struct ToriRS_GLES2* renderer)
+es3_bind_present_quad(struct ToriRS_ES3* renderer)
 {
-    const GLsizei stride = (GLsizei)sizeof(struct GLES2VertexUI);
+    const GLsizei stride = (GLsizei)sizeof(struct ES3VertexUI);
 
     assert(renderer);
-    if( !renderer->present_vbo )
+    if( !renderer->vao_present )
     {
         /* Two triangles over clip space; v = 0 is the texture's bottom row,
          * which is GL's bottom row of the frame too. */
         static const float corners[6][4] = {
-            { -1.0f, -1.0f, 0.0f, 0.0f }, { 1.0f, -1.0f, 1.0f, 0.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },
-            { -1.0f, -1.0f, 0.0f, 0.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },  { -1.0f, 1.0f, 0.0f, 1.0f },
+            { -1.0f, -1.0f, 0.0f, 0.0f },
+            { 1.0f,  -1.0f, 1.0f, 0.0f },
+            { 1.0f,  1.0f,  1.0f, 1.0f },
+            { -1.0f, -1.0f, 0.0f, 0.0f },
+            { 1.0f,  1.0f,  1.0f, 1.0f },
+            { -1.0f, 1.0f,  0.0f, 1.0f },
         };
-        struct GLES2VertexUI vertices[6];
+        struct ES3VertexUI vertices[6];
         int i;
         for( i = 0; i < 6; i++ )
         {
@@ -3822,44 +4280,78 @@ gles2_bind_present_quad(struct ToriRS_GLES2* renderer)
             vertices[i].rgba = 0xffffffffu;
             vertices[i].sel = 0.0f;
         }
+        glGenVertexArrays(1, &renderer->vao_present);
+        assert(renderer->vao_present);
         glGenBuffers(1, &renderer->present_vbo);
         assert(renderer->present_vbo);
-        gles2_bind_array_buffer(renderer, renderer->present_vbo);
+        es3_bind_vao(renderer, renderer->vao_present);
+        glBindBuffer(GL_ARRAY_BUFFER, renderer->present_vbo);
+        renderer->bound_array_buffer = renderer->present_vbo;
         glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)sizeof(vertices), vertices, GL_STATIC_DRAW);
+        /* Every enabled array points at valid data, used by the program or
+         * not: a stray enabled array drops the draw on some drivers. */
+        glEnableVertexAttribArray(ES3_ATTRIB_POSITION);
+        glVertexAttribPointer(
+            ES3_ATTRIB_POSITION,
+            3,
+            GL_FLOAT,
+            GL_FALSE,
+            stride,
+            (const void*)(uintptr_t)offsetof(struct ES3VertexUI, x));
+        glEnableVertexAttribArray(ES3_ATTRIB_TEXCOORD);
+        glVertexAttribPointer(
+            ES3_ATTRIB_TEXCOORD,
+            2,
+            GL_FLOAT,
+            GL_FALSE,
+            stride,
+            (const void*)(uintptr_t)offsetof(struct ES3VertexUI, u));
+        glEnableVertexAttribArray(ES3_ATTRIB_COLOR);
+        glVertexAttribPointer(
+            ES3_ATTRIB_COLOR,
+            4,
+            GL_UNSIGNED_BYTE,
+            GL_TRUE,
+            stride,
+            (const void*)(uintptr_t)offsetof(struct ES3VertexUI, rgba));
+        glEnableVertexAttribArray(ES3_ATTRIB_TEXINFO);
+        glVertexAttribPointer(
+            ES3_ATTRIB_TEXINFO,
+            1,
+            GL_FLOAT,
+            GL_FALSE,
+            stride,
+            (const void*)(uintptr_t)offsetof(struct ES3VertexUI, sel));
     }
-    gles2_bind_array_buffer(renderer, renderer->present_vbo);
-    /* Every enabled array points at valid data, used by the program or not:
-     * a stray enabled array drops the draw on some drivers. */
-    glVertexAttribPointer(
-        GLES2_ATTRIB_POSITION, 3, GL_FLOAT, GL_FALSE, stride,
-        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, x));
-    glVertexAttribPointer(
-        GLES2_ATTRIB_TEXCOORD, 2, GL_FLOAT, GL_FALSE, stride,
-        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, u));
-    glVertexAttribPointer(
-        GLES2_ATTRIB_COLOR, 4, GL_UNSIGNED_BYTE, GL_TRUE, stride,
-        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, rgba));
-    glVertexAttribPointer(
-        GLES2_ATTRIB_TEXINFO, 1, GL_FLOAT, GL_FALSE, stride,
-        (const void*)(uintptr_t)offsetof(struct GLES2VertexUI, sel));
+    es3_bind_vao(renderer, renderer->vao_present);
     renderer->stream_buffer = renderer->present_vbo;
     renderer->stream_byte_offset = 0u;
-    renderer->stream_layout = GLES2_STREAM_NONE;
+    renderer->stream_layout = ES3_STREAM_NONE;
 }
 
 static void
-gles2_scale_target_destroy(struct ToriRS_GLES2* renderer)
+es3_scale_target_destroy(struct ToriRS_ES3* renderer)
 {
     assert(renderer);
-    gles2_scale_target_destroy_buffers(renderer);
+    es3_scale_target_destroy_buffers(renderer);
+    if( renderer->vao_present )
+    {
+        if( renderer->vao_bound == renderer->vao_present )
+        {
+            glBindVertexArray(0);
+            renderer->vao_bound = 0u;
+        }
+        glDeleteVertexArrays(1, &renderer->vao_present);
+    }
     if( renderer->present_vbo )
     {
         if( renderer->bound_array_buffer == renderer->present_vbo )
             renderer->bound_array_buffer = 0u;
         if( renderer->stream_buffer == renderer->present_vbo )
-            renderer->stream_layout = GLES2_STREAM_NONE;
+            renderer->stream_layout = ES3_STREAM_NONE;
         glDeleteBuffers(1, &renderer->present_vbo);
     }
+    renderer->vao_present = 0u;
     renderer->present_vbo = 0u;
 }
 
@@ -3867,7 +4359,7 @@ gles2_scale_target_destroy(struct ToriRS_GLES2* renderer)
  * size changes. Colour is an RGBA texture with no mipmaps and clamped edges,
  * which WebGL1 accepts at any size; depth only on the depth-buffered lane. */
 static void
-gles2_scale_target_ensure(struct ToriRS_GLES2* renderer)
+es3_scale_target_ensure(struct ToriRS_ES3* renderer)
 {
     GLint filter;
     GLenum status;
@@ -3876,26 +4368,26 @@ gles2_scale_target_ensure(struct ToriRS_GLES2* renderer)
     assert(renderer->target_width > 0);
     assert(renderer->target_height > 0);
     filter = renderer->client_scale.output_filter == CLIENT_SCALE_FILTER_NEAREST ? GL_NEAREST
-                                                                                  : GL_LINEAR;
+                                                                                 : GL_LINEAR;
     if( renderer->scale_fbo && renderer->scale_fbo_width == renderer->target_width &&
         renderer->scale_fbo_height == renderer->target_height )
     {
         if( renderer->scale_texture_filter != filter )
         {
-            gles2_bind_texture0(renderer, renderer->scale_texture);
+            es3_bind_texture0(renderer, renderer->scale_texture);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
             renderer->scale_texture_filter = filter;
             /* Never left bound while the frame draws into it. */
-            gles2_bind_texture0(renderer, 0u);
+            es3_bind_texture0(renderer, 0u);
         }
         return;
     }
 
-    gles2_scale_target_destroy_buffers(renderer);
+    es3_scale_target_destroy_buffers(renderer);
     glGenTextures(1, &renderer->scale_texture);
     assert(renderer->scale_texture);
-    gles2_bind_texture0(renderer, renderer->scale_texture);
+    es3_bind_texture0(renderer, renderer->scale_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -3903,14 +4395,14 @@ gles2_scale_target_ensure(struct ToriRS_GLES2* renderer)
     glTexImage2D(
         GL_TEXTURE_2D,
         0,
-        GL_RGBA,
+        GL_RGBA8,
         renderer->target_width,
         renderer->target_height,
         0,
         GL_RGBA,
         GL_UNSIGNED_BYTE,
         NULL);
-    gles2_bind_texture0(renderer, 0u);
+    es3_bind_texture0(renderer, 0u);
     renderer->scale_texture_filter = filter;
 
     glGenFramebuffers(1, &renderer->scale_fbo);
@@ -3923,8 +4415,12 @@ gles2_scale_target_ensure(struct ToriRS_GLES2* renderer)
         glGenRenderbuffers(1, &renderer->scale_depth);
         assert(renderer->scale_depth);
         glBindRenderbuffer(GL_RENDERBUFFER, renderer->scale_depth);
+        /* 24-bit, which is what the window itself is asked for. ES2 only
+         * guarantees GL_DEPTH_COMPONENT16 as a renderbuffer format, so the
+         * GLES2 renderer's offscreen path is a bit shallower than its direct
+         * one; ES3 guarantees 24 and the two match here. */
         glRenderbufferStorage(
-            GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, renderer->target_width, renderer->target_height);
+            GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, renderer->target_width, renderer->target_height);
         glFramebufferRenderbuffer(
             GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderer->scale_depth);
         glBindRenderbuffer(GL_RENDERBUFFER, 0);
@@ -3932,7 +4428,8 @@ gles2_scale_target_ensure(struct ToriRS_GLES2* renderer)
     status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if( status != GL_FRAMEBUFFER_COMPLETE )
         TORIRS_ERR(
-            "GLES2: offscreen target %dx%d incomplete: 0x%x\n",
+            "%s: offscreen target %dx%d incomplete: 0x%x\n",
+            g_es3_name,
             renderer->target_width,
             renderer->target_height,
             (unsigned)status);
@@ -3942,45 +4439,107 @@ gles2_scale_target_ensure(struct ToriRS_GLES2* renderer)
 }
 
 /* The finished offscreen frame onto the output rect of the drawable, with
- * the bars cleared black. GLES2 has no blit: one textured quad. */
+ * the bars cleared black. WebGL2 has no blit: one textured quad. */
+/*
+ * The finished offscreen frame onto the output rect of the drawable, with
+ * the bars cleared black.
+ *
+ * Still a textured quad rather than a glBlitFramebuffer, on purpose: the
+ * present shader forces alpha to 1, because what is in the offscreen alpha
+ * channel is blend residue and the canvas this lands on is composited by the
+ * browser. A blit would carry that residue through and show the page behind
+ * the client.
+ *
+ * What ES3 does buy here is the end of it: once the quad has been drawn the
+ * offscreen's contents are finished with, and glInvalidateFramebuffer says
+ * so. A tile-based GPU -- which is most of what a browser runs on now -- can
+ * then skip writing those tiles back to memory entirely, and the next frame
+ * has nothing to restore.
+ */
 static void
-gles2_scale_target_present(struct ToriRS_GLES2* renderer)
+es3_scale_target_present(struct ToriRS_ES3* renderer)
 {
     assert(renderer);
     assert(renderer->scale_fbo);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    gles2_set_scissor(renderer, NULL);
-    gles2_set_blend(renderer, false);
-    gles2_set_cull(renderer, false);
+    es3_set_scissor(renderer, NULL);
+    es3_set_blend(renderer, false);
+    es3_set_cull(renderer, false);
     /* Depth write on so the clear reaches the depth buffer. */
-    gles2_set_depth(renderer, false, true);
+    es3_set_depth(renderer, false, true);
     glViewport(0, 0, renderer->drawable_width, renderer->drawable_height);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glViewport(
         renderer->output_x, renderer->output_y, renderer->output_width, renderer->output_height);
 
-    gles2_use_program(renderer, &renderer->program_present);
-    gles2_bind_texture0(renderer, renderer->scale_texture);
-    gles2_bind_present_quad(renderer);
+    es3_use_program(renderer, &renderer->program_present);
+    es3_bind_texture0(renderer, renderer->scale_texture);
+    es3_bind_present_quad(renderer);
     glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    {
+        GLenum discard[2];
+        GLsizei count = 0;
+        discard[count++] = GL_COLOR_ATTACHMENT0;
+        if( renderer->scale_depth )
+            discard[count++] = GL_DEPTH_ATTACHMENT;
+        /* The texture is still bound on unit 0 above; the invalidate names
+         * the FRAMEBUFFER's attachments, so the binding has to move first. */
+        es3_bind_texture0(renderer, 0u);
+        glBindFramebuffer(GL_FRAMEBUFFER, renderer->scale_fbo);
+        glInvalidateFramebuffer(GL_FRAMEBUFFER, count, discard);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
 }
 
 static void
-gles2_destroy_gl_resources(struct ToriRS_GLES2* renderer)
+es3_destroy_gl_resources(struct ToriRS_ES3* renderer)
 {
     uint32_t group;
     assert(renderer);
-    gles2_ui_destroy_gl(renderer);
-    gles2_delete_program(&renderer->program_world_plain);
-    gles2_delete_program(&renderer->program_world_cutout);
-    gles2_delete_program(&renderer->program_world_fast_plain);
-    gles2_delete_program(&renderer->program_world_fast_cutout);
-    gles2_delete_program(&renderer->program_ui);
-    gles2_delete_program(&renderer->program_rotmask);
-    gles2_delete_program(&renderer->program_present);
-    gles2_delete_program(&renderer->program_ui_composite);
-    gles2_scale_target_destroy(renderer);
+    es3_ui_destroy_gl(renderer);
+    /*
+     * The vertex array objects, before the buffers they name.
+     *
+     * They must go, not merely be forgotten: a renderer switch frees this
+     * renderer and may build another, GL recycles object names, and a VAO
+     * that outlived its buffer would match the recycled name in the
+     * (buffer, base) cache es3_bind_stream keeps and skip re-specifying
+     * the layout -- a stream drawn from whatever the new buffer of that name
+     * holds.
+     */
+    es3_bind_vao(renderer, 0u);
+    for( group = 0u; group < ES3_BINDING_COUNT; group++ )
+    {
+        if( renderer->vao_world[group] )
+            glDeleteVertexArrays(1, &renderer->vao_world[group]);
+        renderer->vao_world[group] = 0u;
+        renderer->vao_world_buffer[group] = 0u;
+        renderer->vao_world_base[group] = 0u;
+    }
+    if( renderer->vao_ui )
+        glDeleteVertexArrays(1, &renderer->vao_ui);
+    if( renderer->vao_rotmask )
+        glDeleteVertexArrays(1, &renderer->vao_rotmask);
+    renderer->vao_ui = 0u;
+    renderer->vao_ui_buffer = 0u;
+    renderer->vao_ui_offset = 0u;
+    renderer->vao_rotmask = 0u;
+    renderer->vao_rotmask_buffer = 0u;
+    renderer->vao_rotmask_offset = 0u;
+    if( renderer->world_ubo )
+        glDeleteBuffers(1, &renderer->world_ubo);
+    renderer->world_ubo = 0u;
+    es3_delete_program(&renderer->program_world_plain);
+    es3_delete_program(&renderer->program_world_cutout);
+    es3_delete_program(&renderer->program_world_fast_plain);
+    es3_delete_program(&renderer->program_world_fast_cutout);
+    es3_delete_program(&renderer->program_ui);
+    es3_delete_program(&renderer->program_rotmask);
+    es3_delete_program(&renderer->program_present);
+    es3_delete_program(&renderer->program_ui_composite);
+    es3_scale_target_destroy(renderer);
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
     {
         /* A per-frame group's buffers belong to the dynamic stream set. */
@@ -3993,13 +4552,10 @@ gles2_destroy_gl_resources(struct ToriRS_GLES2* renderer)
         glDeleteBuffers(1, &renderer->static_batch_vbo);
     renderer->static_batch_vbo = 0u;
     renderer->static_batch_gpu_vertex_capacity = 0u;
-    if( renderer->hot_vbo )
-        glDeleteBuffers(1, &renderer->hot_vbo);
-    renderer->hot_vbo = 0u;
-    gles2_stream_set_destroy(&renderer->index_stream);
-    gles2_stream_set_destroy(&renderer->dynamic_stream);
-    gles2_stream_set_destroy(&renderer->frame_stream);
-    gles2_stream_set_destroy(&renderer->ui_stream);
+    es3_stream_set_destroy(&renderer->index_stream);
+    es3_stream_set_destroy(&renderer->dynamic_stream);
+    es3_stream_set_destroy(&renderer->frame_stream);
+    es3_stream_set_destroy(&renderer->ui_stream);
     renderer->ibo = 0u;
     renderer->frame_stream_vbo = 0u;
     renderer->ui_vbo = 0u;
@@ -4012,17 +4568,17 @@ gles2_destroy_gl_resources(struct ToriRS_GLES2* renderer)
 }
 
 void
-ToriRS_GLES2_Free(struct ToriRS_GLES2* renderer)
+ToriRS_ES3_Free(struct ToriRS_ES3* renderer)
 {
     uint32_t batch;
     uint32_t group;
     if( !renderer )
         return;
-    gles2_report_retained_memory(renderer);
+    es3_report_retained_memory(renderer);
     if( renderer->gl_context )
     {
         ToriRS_GLContext_MakeCurrent(renderer->window, renderer->gl_context);
-        gles2_destroy_gl_resources(renderer);
+        es3_destroy_gl_resources(renderer);
     }
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
     {
@@ -4032,7 +4588,6 @@ ToriRS_GLES2_Free(struct ToriRS_GLES2* renderer)
             trspk_vbo_free(renderer->groups[group].vbo_cpu);
         trspk_triangles_free(&renderer->groups[group].triangles);
     }
-    free(renderer->hot_stage);
     free(renderer->actor_world_xyz);
     if( renderer->frame_stream_cpu )
         trspk_vbo_free(renderer->frame_stream_cpu);
@@ -4042,16 +4597,15 @@ ToriRS_GLES2_Free(struct ToriRS_GLES2* renderer)
     trspk_pose_table_free(&renderer->batch_poses);
     free(renderer->static_primary);
     free(renderer->static_primary_bits);
-    gles2_zbuffer_destroy(renderer);
+    es3_zbuffer_destroy(renderer);
     for( batch = 0u; batch < renderer->static_batch_count; batch++ )
     {
         trspk_batch16_destroy(renderer->static_batches[batch].cpu);
         free(renderer->static_batches[batch].page_ids);
-        free(renderer->static_batches[batch].hot_serial);
     }
     if( trspk_atlas_is_initialized(&renderer->atlas) )
         trspk_atlas_free(&renderer->atlas);
-    gles2_ui_free(renderer);
+    es3_ui_free(renderer);
     free(renderer->upload_stage);
     free(renderer->ibo_staging);
     free(renderer->model_indices);
@@ -4063,8 +4617,8 @@ ToriRS_GLES2_Free(struct ToriRS_GLES2* renderer)
 }
 
 bool
-ToriRS_GLES2_Init(
-    struct ToriRS_GLES2* renderer,
+ToriRS_ES3_Init(
+    struct ToriRS_ES3* renderer,
     ToriRS_GLWindow* window,
     struct ToriDraw_Scene* scene,
     bool z_buffer)
@@ -4077,105 +4631,114 @@ ToriRS_GLES2_Init(
     if( renderer->gl_context )
         return false;
     /* The one place the two world implementations are chosen between. */
-    gles2_zbuffer_destroy(renderer);
-    if( z_buffer && !gles2_zbuffer_create(renderer) )
+    es3_zbuffer_destroy(renderer);
+    if( z_buffer && !es3_zbuffer_create(renderer) )
         return false;
     renderer->scene = scene;
     renderer->kernel = ToriDraw_KernelGetGpu();
     renderer->window = window;
 
     /* Depth is a CREATION attribute -- part of the EGL config -- which is why
-     * it is a parameter of the create call. 16 bits: the format every GLES2
+     * it is a parameter of the create call. 16 bits: the format every WebGL2
      * device offers; EGL treats the request as a floor, so a device with more
      * may hand more back. */
-    renderer->gl_context = ToriRS_GLContext_Create(window, z_buffer ? 16 : 0, TORIRS_GL_CLIENT_ES2);
+    renderer->gl_context = ToriRS_GLContext_Create(window, z_buffer ? 16 : 0, TORIRS_GL_CLIENT_ES3);
     if( !renderer->gl_context )
     {
-        TORIRS_ERR("GLES2: context creation failed: %s\n", ToriRS_GLContext_LastError());
+        TORIRS_ERR("%s: context creation failed: %s\n", g_es3_name, ToriRS_GLContext_LastError());
         return false;
     }
     ToriRS_GLContext_SetSwapInterval(0);
 
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_texture_size);
-    TORIRS_LOG("GLES2: %s | GLSL %s | %s | max texture %d\n",
+    TORIRS_LOG(
+        "%s: %s | GLSL %s | %s | max texture %d\n",
+        g_es3_name,
         (const char*)glGetString(GL_VERSION),
         (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION),
         (const char*)glGetString(GL_RENDERER),
         (int)max_texture_size);
-    if( max_texture_size < (GLint)GLES2_ATLAS_DIM )
+    if( max_texture_size < (GLint)ES3_ATLAS_DIM )
     {
-        TORIRS_ERR("GLES2: GL_MAX_TEXTURE_SIZE %d is below the %u atlas this renderer needs\n",
+        TORIRS_ERR(
+            "%s: GL_MAX_TEXTURE_SIZE %d is below the %u atlas this renderer needs\n",
+            g_es3_name,
             (int)max_texture_size,
-            GLES2_ATLAS_DIM);
+            ES3_ATLAS_DIM);
         goto fail;
     }
-    if( !gles2_create_programs(renderer) )
+    if( !es3_create_programs(renderer) )
         goto fail;
 
     glGenTextures(1, &renderer->atlas_texture);
-    if( !gles2_upload_atlas(renderer) )
+    if( !es3_upload_atlas(renderer) )
         goto fail;
-    if( !gles2_ui_create_gl(renderer) )
+    if( !es3_ui_create_gl(renderer) )
         goto fail;
 
     /* The first four attributes are live for the life of the context (the
      * fourth is the world's texinfo and the UI's sampler select; the rotmask
      * layout keeps it pointed at something valid); the mask uv follows the
      * rotmask layout. */
-    glEnableVertexAttribArray(GLES2_ATTRIB_POSITION);
-    glEnableVertexAttribArray(GLES2_ATTRIB_TEXCOORD);
-    glEnableVertexAttribArray(GLES2_ATTRIB_COLOR);
-    glEnableVertexAttribArray(GLES2_ATTRIB_TEXINFO);
-    gles2_state_reset(renderer);
+    glEnableVertexAttribArray(ES3_ATTRIB_POSITION);
+    glEnableVertexAttribArray(ES3_ATTRIB_TEXCOORD);
+    glEnableVertexAttribArray(ES3_ATTRIB_COLOR);
+    glEnableVertexAttribArray(ES3_ATTRIB_TEXINFO);
+    es3_state_reset(renderer);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    if( !gles2_check_error("init") )
+    if( !es3_check_error("init") )
         goto fail;
 
     if( renderer->static_page_count > 0u )
     {
         bool recreated = false;
-        if( !gles2_ensure_static_batch_vbo(renderer, renderer->static_page_count, &recreated) )
+        if( !es3_ensure_static_batch_vbo(renderer, renderer->static_page_count, &recreated) )
             goto fail;
         if( recreated )
-            gles2_mark_active_static_batches_dirty(renderer);
-        if( !gles2_upload_dirty_static_batches(renderer) )
+            es3_mark_active_static_batches_dirty(renderer);
+        if( !es3_upload_dirty_static_batches(renderer) )
             goto fail;
     }
-    TORIRS_LOG("GLES2: renderer up (%s world pass)\n", z_buffer ? "depth-buffered" : "painter");
+    TORIRS_LOG("%s: renderer up (%s world pass)\n", g_es3_name, z_buffer ? "depth-buffered" : "painter");
     return true;
 
 fail:
-    gles2_destroy_gl_resources(renderer);
+    es3_destroy_gl_resources(renderer);
     ToriRS_GLContext_Delete(renderer->gl_context);
     renderer->gl_context = NULL;
     return false;
 }
 
 void
-ToriRS_GLES2_SetViewport(struct ToriRS_GLES2* renderer, int width, int height)
+ToriRS_ES3_SetViewport(
+    struct ToriRS_ES3* renderer,
+    int width,
+    int height)
 {
     assert(renderer);
     if( width <= 0 || height <= 0 || (renderer->width == width && renderer->height == height) )
         return;
     renderer->width = width;
     renderer->height = height;
-    gles2_update_letterbox(renderer, renderer->target_offscreen);
+    es3_update_letterbox(renderer, renderer->target_offscreen);
     renderer->in2d = false;
-    gles2_ui_batch_reset(renderer);
+    es3_ui_batch_reset(renderer);
 }
 
 void
-ToriRS_GLES2_SetInterfaceScaleMode(struct ToriRS_GLES2* renderer, int mode)
+ToriRS_ES3_SetInterfaceScaleMode(
+    struct ToriRS_ES3* renderer,
+    int mode)
 {
     assert(renderer);
-    /* Read at the next BEGIN_2D (gles2_ui_layer_wanted); interface art is
+    /* Read at the next BEGIN_2D (es3_ui_layer_wanted); interface art is
      * always sampled nearest, so no texture is refiltered. */
-    renderer->interface_scale_mode = gles2_clampi(mode, 0, 2);
+    renderer->interface_scale_mode = es3_clampi(mode, 0, 2);
 }
 
 void
-ToriRS_GLES2_SetClientScaling(
-    struct ToriRS_GLES2* renderer,
+ToriRS_ES3_SetClientScaling(
+    struct ToriRS_ES3* renderer,
     struct ClientScaleSettings const* settings)
 {
     assert(renderer);
@@ -4184,7 +4747,10 @@ ToriRS_GLES2_SetClientScaling(
 }
 
 void
-ToriRS_GLES2_SetPick(struct ToriRS_GLES2* renderer, int mouse_x, int mouse_y)
+ToriRS_ES3_SetPick(
+    struct ToriRS_ES3* renderer,
+    int mouse_x,
+    int mouse_y)
 {
     assert(renderer);
     renderer->pick_enabled = true;
@@ -4194,24 +4760,29 @@ ToriRS_GLES2_SetPick(struct ToriRS_GLES2* renderer, int mouse_x, int mouse_y)
 }
 
 struct ToriRS_PickHits const*
-ToriRS_GLES2_PickHits(struct ToriRS_GLES2 const* renderer)
+ToriRS_ES3_PickHits(struct ToriRS_ES3 const* renderer)
 {
     assert(renderer);
     return &renderer->pick_hits;
 }
 
 void
-ToriRS_GLES2_Execute(struct ToriRS_GLES2* renderer, struct ToriRS_RenderCommand const* command)
+ToriRS_ES3_Execute(
+    struct ToriRS_ES3* renderer,
+    struct ToriRS_RenderCommand const* command)
 {
-    gles2_dispatch(renderer, command);
+    es3_dispatch(renderer, command);
 }
 
 /* Bring the surface up for a frame: current, measured, letterboxed, cleared.
  * False when there is no surface to draw on (a stopped activity). */
 static bool
-gles2_begin_frame(struct ToriRS_GLES2* renderer, bool clear_to_black_only, bool allow_offscreen)
+es3_begin_frame(
+    struct ToriRS_ES3* renderer,
+    bool clear_to_black_only,
+    bool allow_offscreen)
 {
-    struct GLES2Rect letterbox;
+    struct ES3Rect letterbox;
     assert(renderer);
     if( !renderer->gl_context )
         return false;
@@ -4223,18 +4794,18 @@ gles2_begin_frame(struct ToriRS_GLES2* renderer, bool clear_to_black_only, bool 
         return false;
     /* An interface layer is opened and composited inside one 2D segment. */
     assert(!renderer->ui_layer_open);
-    gles2_update_letterbox(renderer, allow_offscreen);
-    gles2_state_reset(renderer);
-    gles2_stream_sets_begin_frame(renderer);
+    es3_update_letterbox(renderer, allow_offscreen);
+    es3_state_reset(renderer);
+    es3_stream_sets_begin_frame(renderer);
     if( renderer->target_offscreen )
     {
-        gles2_scale_target_ensure(renderer);
+        es3_scale_target_ensure(renderer);
         glBindFramebuffer(GL_FRAMEBUFFER, renderer->scale_fbo);
     }
     else
     {
         /* The limit is off or no longer binds: give the memory back now. */
-        gles2_scale_target_destroy_buffers(renderer);
+        es3_scale_target_destroy_buffers(renderer);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
     glViewport(0, 0, renderer->target_width, renderer->target_height);
@@ -4246,23 +4817,26 @@ gles2_begin_frame(struct ToriRS_GLES2* renderer, bool clear_to_black_only, bool 
         letterbox.y = renderer->letterbox_y;
         letterbox.width = renderer->letterbox_width;
         letterbox.height = renderer->letterbox_height;
-        gles2_set_scissor(renderer, &letterbox);
+        es3_set_scissor(renderer, &letterbox);
         glClearColor(
-            (float)((TORIRS_GLES2_BG >> 16) & 0xffu) / 255.0f,
-            (float)((TORIRS_GLES2_BG >> 8) & 0xffu) / 255.0f,
-            (float)(TORIRS_GLES2_BG & 0xffu) / 255.0f,
+            (float)((TORIRS_ES3_BG >> 16) & 0xffu) / 255.0f,
+            (float)((TORIRS_ES3_BG >> 8) & 0xffu) / 255.0f,
+            (float)(TORIRS_ES3_BG & 0xffu) / 255.0f,
             1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
-        gles2_set_scissor(renderer, NULL);
+        es3_set_scissor(renderer, NULL);
     }
-    gles2_set_letterbox_viewport(renderer);
+    es3_set_letterbox_viewport(renderer);
     return true;
 }
 
 /* The bar's caption, through the same font path a frame uses, so a boot
  * sentence is one picture and not one per renderer. */
 static void
-gles2_draw_boot_caption(struct ToriRS_GLES2* renderer, int caption_font_id, char const* caption)
+es3_draw_boot_caption(
+    struct ToriRS_ES3* renderer,
+    int caption_font_id,
+    char const* caption)
 {
     struct ToriRS_RenderCommand_Font font_command;
     assert(renderer);
@@ -4278,14 +4852,14 @@ gles2_draw_boot_caption(struct ToriRS_GLES2* renderer, int caption_font_id, char
     font_command.text = caption;
     font_command.scissor_w = renderer->width;
     font_command.scissor_h = renderer->height;
-    gles2_begin_2d(renderer);
-    gles2_ui_draw_font(renderer, &font_command);
-    gles2_end_2d(renderer);
+    es3_begin_2d(renderer);
+    es3_ui_draw_font(renderer, &font_command);
+    es3_end_2d(renderer);
 }
 
 void
-ToriRS_GLES2_DrawBootBar(
-    struct ToriRS_GLES2* renderer,
+ToriRS_ES3_DrawBootBar(
+    struct ToriRS_ES3* renderer,
     int progress,
     int caption_font_id,
     char const* caption)
@@ -4293,25 +4867,25 @@ ToriRS_GLES2_DrawBootBar(
     assert(renderer);
     /* progress < 0: clear only, no bar -- the post-login loading screen,
      * which is a black screen and the sentence alone on every lane. */
-    if( !gles2_begin_frame(renderer, progress < 0, false) )
+    if( !es3_begin_frame(renderer, progress < 0, false) )
         return;
     if( progress >= 0 )
     {
         int bar_x;
         int bar_y;
         int fill_w;
-        progress = gles2_clampi(progress, 0, 100);
+        progress = es3_clampi(progress, 0, 100);
         /* The references' bar, not one of ours (engine/boot_bar.h): a filled
          * red track, a black inset one pixel in, then the fill two pixels in. */
         bar_x = renderer->width / 2 - BOOT_BAR_W / 2;
         bar_y = renderer->height / 2 - BOOT_BAR_ABOVE_CENTRE;
         fill_w = progress * BOOT_BAR_PX_PER_PERCENT;
-        gles2_draw_solid_rect(
+        es3_draw_solid_rect(
             renderer, bar_x, bar_y, BOOT_BAR_W, BOOT_BAR_H, 0xff000000u | BOOT_BAR_COLOR);
-        gles2_draw_solid_rect(
+        es3_draw_solid_rect(
             renderer, bar_x + 1, bar_y + 1, BOOT_BAR_W - 2, BOOT_BAR_H - 2, 0xff000000u);
         if( fill_w > 0 )
-            gles2_draw_solid_rect(
+            es3_draw_solid_rect(
                 renderer,
                 bar_x + BOOT_BAR_INSET,
                 bar_y + BOOT_BAR_INSET,
@@ -4320,14 +4894,14 @@ ToriRS_GLES2_DrawBootBar(
                 0xff000000u | BOOT_BAR_COLOR);
     }
     if( caption && caption[0] && caption_font_id >= 0 )
-        gles2_draw_boot_caption(renderer, caption_font_id, caption);
+        es3_draw_boot_caption(renderer, caption_font_id, caption);
 }
 
 bool
-gles2_render_frame_begin(struct ToriRS_GLES2* renderer)
+es3_render_frame_begin(struct ToriRS_ES3* renderer)
 {
     assert(renderer);
-    if( !gles2_begin_frame(renderer, false, true) )
+    if( !es3_begin_frame(renderer, false, true) )
         return false;
     renderer->has_3d = false;
     renderer->in3d = false;
@@ -4337,50 +4911,54 @@ gles2_render_frame_begin(struct ToriRS_GLES2* renderer)
 }
 
 void
-gles2_render_frame_commands(struct ToriRS_GLES2* renderer, struct ToriRS_Frame* frame)
+es3_render_frame_commands(
+    struct ToriRS_ES3* renderer,
+    struct ToriRS_Frame* frame)
 {
     struct ToriRS_RenderCommand command;
     assert(renderer);
     assert(frame);
     while( ToriRS_FrameNextCommand(frame, &command) )
     {
-        gles2_prefetch_ahead(renderer, frame);
-        gles2_dispatch(renderer, &command);
+        es3_prefetch_ahead(renderer, frame);
+        es3_dispatch(renderer, &command);
     }
 }
 
 void
-ToriRS_GLES2_RenderFrame(struct ToriRS_GLES2* renderer, struct ToriRS_Frame* frame)
+ToriRS_ES3_RenderFrame(
+    struct ToriRS_ES3* renderer,
+    struct ToriRS_Frame* frame)
 {
     assert(renderer);
     assert(frame);
-    if( !gles2_render_frame_begin(renderer) )
+    if( !es3_render_frame_begin(renderer) )
         return;
     ToriRS_FrameBegin(frame);
-    gles2_render_frame_commands(renderer, frame);
+    es3_render_frame_commands(renderer, frame);
     ToriRS_FrameEnd(frame);
-    gles2_render_frame_end(renderer);
+    es3_render_frame_end(renderer);
 }
 
 void
-gles2_render_frame_end(struct ToriRS_GLES2* renderer)
+es3_render_frame_end(struct ToriRS_ES3* renderer)
 {
     assert(renderer);
 #if defined(TORIRS_ANIM_CHAIN_CAPTURE)
     ToriDraw_AnimCaptureEndPass();
 #endif
 #if defined(TORIRS_PLACEMENT_CAPTURE)
-    gles2_placement_capture_end();
+    es3_placement_capture_end();
 #endif
     if( renderer->in3d )
-        gles2_end_3d(renderer);
+        es3_end_3d(renderer);
     if( renderer->in2d )
-        gles2_end_2d(renderer);
+        es3_end_2d(renderer);
     if( renderer->target_offscreen )
-        gles2_scale_target_present(renderer);
+        es3_scale_target_present(renderer);
 
-    /* TORIRS_GLES2_READBACK=path dumps one frame (after
-     * TORIRS_GLES2_READBACK_FRAME, default 90) through the same readback the
+    /* TORIRS_ES3_READBACK=path dumps one frame (after
+     * TORIRS_ES3_READBACK_FRAME, default 90) through the same readback the
      * app's screenshots use, so a bug in the letterbox arithmetic cannot show
      * in a debug dump and not in a screenshot. */
     {
@@ -4393,22 +4971,23 @@ gles2_render_frame_end(struct ToriRS_GLES2* renderer)
         static int done = 0;
         if( !probed )
         {
-            char const* frame = getenv("TORIRS_GLES2_READBACK_FRAME");
-            path = getenv("TORIRS_GLES2_READBACK");
+            char const* frame = getenv("TORIRS_ES3_READBACK_FRAME");
+            path = getenv("TORIRS_ES3_READBACK");
             if( frame )
                 want = atol(frame);
             probed = 1;
         }
         if( path && path[0] && !done && renderer->frame_clock >= (double)want )
         {
-            int* top = (int*)malloc((size_t)renderer->width * (size_t)renderer->height * sizeof(int));
+            int* top =
+                (int*)malloc((size_t)renderer->width * (size_t)renderer->height * sizeof(int));
             void bmp_write_file(const char* filename, int* px, int w, int h);
             done = 1;
             assert(top);
-            if( ToriRS_GLES2_ReadPixels(renderer, top, renderer->width, renderer->height) )
+            if( ToriRS_ES3_ReadPixels(renderer, top, renderer->width, renderer->height) )
             {
                 bmp_write_file(path, top, renderer->width, renderer->height);
-                TORIRS_LOG("gles2_readback: wrote %s\n", path);
+                TORIRS_LOG("es3_readback: wrote %s\n", path);
             }
             free(top);
         }
@@ -4420,15 +4999,23 @@ gles2_render_frame_end(struct ToriRS_GLES2* renderer)
  *
  * Two conversions: the frame is letterboxed inside the buffer it was drawn
  * into, and GL reports rows bottom-up while the client's buffers are top-down.
- * GLES2 reads GL_RGBA only, so the bytes are repacked into the ARGB words the
+ * WebGL2 reads GL_RGBA only, so the bytes are repacked into the ARGB words the
  * rest of the client thinks in. An offscreen frame is read from its own
  * buffer, at render resolution, not from the scaled copy on the drawable.
  */
 bool
-ToriRS_GLES2_ReadPixels(struct ToriRS_GLES2* renderer, int* pixels, int width, int height)
+ToriRS_ES3_ReadPixels(
+    struct ToriRS_ES3* renderer,
+    int* pixels,
+    int width,
+    int height)
 {
     int framebuffer_w = 0;
     int framebuffer_h = 0;
+    int read_x;
+    int read_y;
+    int read_w;
+    int read_h;
     uint8_t* framebuffer;
     float scale_x;
     float scale_y;
@@ -4452,28 +5039,41 @@ ToriRS_GLES2_ReadPixels(struct ToriRS_GLES2* renderer, int* pixels, int width, i
     if( framebuffer_w <= 0 || framebuffer_h <= 0 || renderer->letterbox_width <= 0 ||
         renderer->letterbox_height <= 0 )
         return false;
-    framebuffer = (uint8_t*)malloc((size_t)framebuffer_w * (size_t)framebuffer_h * 4u);
+    /*
+     * Only the letterbox is read, not the whole drawable. GL_PACK_ROW_LENGTH
+     * would let the rows land inside a full-size buffer, but there is no
+     * reason to want one: every sample below comes out of the letterbox, and
+     * on a large window with a small canvas the bars are most of the pixels.
+     * The ES2 renderer reads the lot because clipping the read without
+     * GL_PACK_ROW_LENGTH means one glReadPixels per row.
+     */
+    read_x = es3_clampi(renderer->letterbox_x, 0, framebuffer_w - 1);
+    read_y = es3_clampi(renderer->letterbox_y, 0, framebuffer_h - 1);
+    read_w = es3_clampi(renderer->letterbox_width, 1, framebuffer_w - read_x);
+    read_h = es3_clampi(renderer->letterbox_height, 1, framebuffer_h - read_y);
+    framebuffer = (uint8_t*)malloc((size_t)read_w * (size_t)read_h * 4u);
     assert(framebuffer);
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     if( offscreen )
         glBindFramebuffer(GL_FRAMEBUFFER, renderer->scale_fbo);
-    glReadPixels(0, 0, framebuffer_w, framebuffer_h, GL_RGBA, GL_UNSIGNED_BYTE, framebuffer);
+    glReadPixels(read_x, read_y, read_w, read_h, GL_RGBA, GL_UNSIGNED_BYTE, framebuffer);
     if( offscreen )
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    scale_x = (float)renderer->letterbox_width / (float)width;
-    scale_y = (float)renderer->letterbox_height / (float)height;
+    scale_x = (float)read_w / (float)width;
+    scale_y = (float)read_h / (float)height;
     for( y = 0; y < height; y++ )
     {
-        int source_y = renderer->letterbox_y + (int)((float)(height - 1 - y) * scale_y);
+        /* GL reports rows bottom-up; the client's buffers are top-down. */
+        int source_y = (int)((float)(height - 1 - y) * scale_y);
         int x;
-        source_y = gles2_clampi(source_y, 0, framebuffer_h - 1);
+        source_y = es3_clampi(source_y, 0, read_h - 1);
         for( x = 0; x < width; x++ )
         {
-            int source_x = renderer->letterbox_x + (int)((float)x * scale_x);
+            int source_x = (int)((float)x * scale_x);
             const uint8_t* source;
             uint32_t alpha;
-            source_x = gles2_clampi(source_x, 0, framebuffer_w - 1);
-            source = framebuffer + ((size_t)source_y * (size_t)framebuffer_w + (size_t)source_x) * 4u;
+            source_x = es3_clampi(source_x, 0, read_w - 1);
+            source = framebuffer + ((size_t)source_y * (size_t)read_w + (size_t)source_x) * 4u;
             /* The offscreen alpha channel is blend residue; the presented
              * picture is opaque (the present shader writes alpha 1). */
             alpha = offscreen ? 0xffu : (uint32_t)source[3];
@@ -4483,4 +5083,11 @@ ToriRS_GLES2_ReadPixels(struct ToriRS_GLES2* renderer, int* pixels, int width, i
     }
     free(framebuffer);
     return true;
+}
+
+char const*
+ToriRS_ES3_Name(struct ToriRS_ES3 const* renderer)
+{
+    assert(renderer);
+    return renderer->name;
 }

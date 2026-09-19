@@ -20,8 +20,8 @@ bc_write(
 }
 
 static void
-webgl2_bake_capture_begin(
-    struct ToriRS_WebGL2* r,
+es3_bake_capture_begin(
+    struct ToriRS_ES3* r,
     struct ToriDraw_ModelHandle handle,
     const struct ToriDraw_Position* pos,
     const int* order,
@@ -86,7 +86,7 @@ webgl2_bake_capture_begin(
     bake_capture.active = true;
 }
 static void
-webgl2_bake_capture_face(const struct TRSPK_ToriDrawBakeFaceVerts* f)
+es3_bake_capture_face(const struct TRSPK_ToriDrawBakeFaceVerts* f)
 {
     if( bake_capture.active )
     {
@@ -95,7 +95,7 @@ webgl2_bake_capture_face(const struct TRSPK_ToriDrawBakeFaceVerts* f)
     }
 }
 static void
-webgl2_bake_capture_end(void)
+es3_bake_capture_end(void)
 {
     if( !bake_capture.active )
         return;

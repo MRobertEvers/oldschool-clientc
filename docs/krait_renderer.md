@@ -197,7 +197,7 @@ macro: ordinary make dependencies do not track arbitrary command-line flags.
 ~~~sh
 make -C src -j8 PLATFORM=android ANDROID_ABI=armeabi-v7a OPT=1 \
   TORIDRAW_PROBE_CFLAGS=-DTORIRS_MODEL_CHAIN_CAPTURE=1 \
-  -W platform/platform_renderer_gles2_core.c all
+  -W platform/platform_renderer_es2_core.c all
 ./android/gradlew -p android -PtorirsAbi=armeabi-v7a installDebug
 
 python3 tools/perf/model_chain.py capture \
@@ -220,7 +220,7 @@ Return to the normal app with:
 
 ~~~sh
 make -C src -j8 PLATFORM=android ANDROID_ABI=armeabi-v7a OPT=1 \
-  -W platform/platform_renderer_gles2_core.c all
+  -W platform/platform_renderer_es2_core.c all
 ./android/gradlew -p android -PtorirsAbi=armeabi-v7a installDebug
 ~~~
 

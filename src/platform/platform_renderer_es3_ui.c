@@ -7,18 +7,18 @@
  * (WINDOWS-D3D9-2D-001): static pixels enter a cache once and a normal frame
  * only resubmits a compact vertex stream. What is GL here:
  *
- *   - the vertex stream is one ring buffer (webgl2_ring_upload), appended at
+ *   - the vertex stream is one ring buffer (es3_ring_upload), appended at
  *     the head so no flush ever waits on the draw before it. With
- *     TORIRS_WEBGL2_UI_DEFER (the default) a 2D pass is ONE append: every
+ *     TORIRS_ES3_UI_DEFER (the default) a 2D pass is ONE append: every
  *     batch is recorded as a range of one CPU array and the whole pass is
- *     uploaded, bound and drawn by webgl2_ui_submit at the end -- see
- *     struct WebGL2UIDrawRecord and the submit for the GL argument;
- *   - fonts are single-channel GL_R8 textures whose swizzle presents them as
- *     (1, 1, 1, coverage), so glyph quads go through the same
+ *     uploaded, bound and drawn by es3_ui_submit at the end -- see
+ *     struct ES3UIDrawRecord and the submit for the GL argument;
+ *   - fonts are single-channel GL_R8 textures that the UI fragment shader
+ *     reads as (1, 1, 1, coverage), so glyph quads go through the same
  *     texture * colour program as everything else with no text mode to
  *     switch. The GLES2 renderer spends two bytes a texel on
- *     GL_LUMINANCE_ALPHA for the same picture, because ES2 has no swizzle
- *     and ES3 dropped the luminance formats in favour of exactly this;
+ *     GL_LUMINANCE_ALPHA for the same picture, because ES2 has no
+ *     single-channel format it could read that way;
  *   - the rotated-masked sprite is one draw with two samplers, the source
  *     through the rotated quad and the mask axis-aligned over the box;
  *   - widget models are transient triangles with the view depth in the
@@ -28,7 +28,7 @@
  * Every draw here alpha-tests at 1/255 and blends, as the D3D9 UI states do.
  */
 
-#include "platform/platform_renderer_webgl2_core.h"
+#include "platform/platform_renderer_es3_core.h"
 
 #include "log/torirs_log.h"
 #include "perf/torirs_perf.h"
@@ -54,46 +54,46 @@
 /* Implemented in the core beside the world atlas upload; it shares the
  * packed-row sub-rectangle path. */
 bool
-webgl2_upload_ui_atlas_texture(struct ToriRS_WebGL2* renderer, int64_t* out_bytes);
+es3_upload_ui_atlas_texture(struct ToriRS_ES3* renderer, int64_t* out_bytes);
 
 /* ---- helpers ------------------------------------------------------------------ */
 
 static bool
-webgl2_ui_rect_equal(const struct WebGL2Rect* a, const struct WebGL2Rect* b)
+es3_ui_rect_equal(const struct ES3Rect* a, const struct ES3Rect* b)
 {
     return a->x == b->x && a->y == b->y && a->width == b->width && a->height == b->height;
 }
 
 /*
  * The logical clip a command's scissor names, clamped to the canvas. False
- * when nothing can show. Twin of webgl2_scissor_rect for the CPU-clipped
+ * when nothing can show. Twin of es3_scissor_rect for the CPU-clipped
  * quad path; the GL-space rect is still built where a scissor state is
  * genuinely needed (rotated sprites, polygons, widget models).
  */
 static bool
-webgl2_ui_clip_from(
-    const struct ToriRS_WebGL2* renderer,
+es3_ui_clip_from(
+    const struct ToriRS_ES3* renderer,
     int scissor_x,
     int scissor_y,
     int scissor_w,
     int scissor_h,
-    struct WebGL2Clip* out)
+    struct ES3Clip* out)
 {
     assert(renderer);
     assert(out);
     if( scissor_w <= 0 || scissor_h <= 0 || renderer->width <= 0 || renderer->height <= 0 )
         return false;
-    out->x0 = webgl2_clampi(scissor_x, 0, renderer->width);
-    out->y0 = webgl2_clampi(scissor_y, 0, renderer->height);
-    out->x1 = webgl2_clampi(scissor_x + scissor_w, 0, renderer->width);
-    out->y1 = webgl2_clampi(scissor_y + scissor_h, 0, renderer->height);
+    out->x0 = es3_clampi(scissor_x, 0, renderer->width);
+    out->y0 = es3_clampi(scissor_y, 0, renderer->height);
+    out->x1 = es3_clampi(scissor_x + scissor_w, 0, renderer->width);
+    out->y1 = es3_clampi(scissor_y + scissor_h, 0, renderer->height);
     return out->x1 > out->x0 && out->y1 > out->y0;
 }
 
 /* The command's scissor cut down to a destination box, as a logical clip. */
 static bool
-webgl2_ui_clip_intersect(
-    const struct ToriRS_WebGL2* renderer,
+es3_ui_clip_intersect(
+    const struct ToriRS_ES3* renderer,
     int scissor_x,
     int scissor_y,
     int scissor_w,
@@ -102,7 +102,7 @@ webgl2_ui_clip_intersect(
     int box_y,
     int box_w,
     int box_h,
-    struct WebGL2Clip* out)
+    struct ES3Clip* out)
 {
     int x;
     int y;
@@ -110,12 +110,12 @@ webgl2_ui_clip_intersect(
     int h;
     trspk_rect_intersect(
         scissor_x, scissor_y, scissor_w, scissor_h, box_x, box_y, box_w, box_h, &x, &y, &w, &h);
-    return webgl2_ui_clip_from(renderer, x, y, w, h, out);
+    return es3_ui_clip_from(renderer, x, y, w, h, out);
 }
 
 static bool
-webgl2_ui_intersect_scissor_rect(
-    const struct ToriRS_WebGL2* renderer,
+es3_ui_intersect_scissor_rect(
+    const struct ToriRS_ES3* renderer,
     int scissor_x,
     int scissor_y,
     int scissor_w,
@@ -124,7 +124,7 @@ webgl2_ui_intersect_scissor_rect(
     int box_y,
     int box_w,
     int box_h,
-    struct WebGL2Rect* out)
+    struct ES3Rect* out)
 {
     int x;
     int y;
@@ -132,22 +132,22 @@ webgl2_ui_intersect_scissor_rect(
     int h;
     trspk_rect_intersect(
         scissor_x, scissor_y, scissor_w, scissor_h, box_x, box_y, box_w, box_h, &x, &y, &w, &h);
-    return webgl2_scissor_rect(renderer, x, y, w, h, out);
+    return es3_scissor_rect(renderer, x, y, w, h, out);
 }
 
 /*
  * Interface art is always sampled nearest. The interface filter is not a
  * property of each texture: a Linear or Bicubic interface is drawn 1:1 into
  * the interface layer and filtered once as a picture
- * (webgl2_ui_layer_composite), and a Nearest one is nearest either way.
+ * (es3_ui_layer_composite), and a Nearest one is nearest either way.
  */
 static GLuint
-webgl2_ui_new_texture(struct ToriRS_WebGL2* renderer)
+es3_ui_new_texture(struct ToriRS_ES3* renderer)
 {
     GLuint texture = 0u;
     glGenTextures(1, &texture);
     assert(texture);
-    webgl2_bind_texture0(renderer, texture);
+    es3_bind_texture0(renderer, texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -156,17 +156,17 @@ webgl2_ui_new_texture(struct ToriRS_WebGL2* renderer)
 }
 
 static void
-webgl2_ui_delete_texture(struct ToriRS_WebGL2* renderer, GLuint* texture)
+es3_ui_delete_texture(struct ToriRS_ES3* renderer, GLuint* texture)
 {
     if( !*texture )
         return;
     if( renderer->bound_texture0 == *texture )
-        webgl2_bind_texture0(renderer, 0u);
+        es3_bind_texture0(renderer, 0u);
     /* Unit 1 too: a deleted name comes back from glGenTextures, and a cache
      * still holding it would skip the bind and sample an incomplete texture
      * (which reads as alpha 0 -- the minimap vanished this way once). */
     if( renderer->bound_texture1 == *texture )
-        webgl2_bind_texture1(renderer, 0u);
+        es3_bind_texture1(renderer, 0u);
     glDeleteTextures(1, texture);
     *texture = 0u;
 }
@@ -174,7 +174,7 @@ webgl2_ui_delete_texture(struct ToriRS_WebGL2* renderer, GLuint* texture)
 /* ---- the batch ------------------------------------------------------------------ */
 
 void
-webgl2_ui_batch_reset(struct ToriRS_WebGL2* renderer)
+es3_ui_batch_reset(struct ToriRS_ES3* renderer)
 {
     assert(renderer);
     renderer->ui_batch.vertex_count = 0u;
@@ -185,22 +185,22 @@ webgl2_ui_batch_reset(struct ToriRS_WebGL2* renderer)
     memset(&renderer->ui_batch.scissor, 0, sizeof(renderer->ui_batch.scissor));
 }
 
-/* ---- the deferred pass (TORIRS_WEBGL2_UI_DEFER) ---------------------------------- */
+/* ---- the deferred pass (TORIRS_ES3_UI_DEFER) ---------------------------------- */
 
 /* Room for `additional` UI vertices at the end of the pass array. */
 static void
-webgl2_ui_pass_reserve_vertices(struct ToriRS_WebGL2* renderer, uint32_t additional)
+es3_ui_pass_reserve_vertices(struct ToriRS_ES3* renderer, uint32_t additional)
 {
     uint32_t needed = renderer->ui_pass_vertex_count + additional;
     uint32_t capacity;
-    struct WebGL2VertexUI* grown;
+    struct ES3VertexUI* grown;
     if( needed <= renderer->ui_pass_vertex_capacity )
         return;
     capacity = renderer->ui_pass_vertex_capacity ? renderer->ui_pass_vertex_capacity
-                                                 : WEBGL2_UI_PASS_INIT_VERTICES;
+                                                 : ES3_UI_PASS_INIT_VERTICES;
     while( capacity < needed )
         capacity *= 2u;
-    grown = (struct WebGL2VertexUI*)realloc(
+    grown = (struct ES3VertexUI*)realloc(
         renderer->ui_pass_vertices, (size_t)capacity * sizeof(*grown));
     assert(grown);
     renderer->ui_pass_vertices = grown;
@@ -208,33 +208,33 @@ webgl2_ui_pass_reserve_vertices(struct ToriRS_WebGL2* renderer, uint32_t additio
 }
 
 static void
-webgl2_ui_pass_reserve_rotmask_vertices(struct ToriRS_WebGL2* renderer, uint32_t additional)
+es3_ui_pass_reserve_rotmask_vertices(struct ToriRS_ES3* renderer, uint32_t additional)
 {
     uint32_t needed = renderer->ui_pass_rotmask_count + additional;
     uint32_t capacity;
-    struct WebGL2VertexRotmask* grown;
+    struct ES3VertexRotmask* grown;
     if( needed <= renderer->ui_pass_rotmask_capacity )
         return;
     capacity = renderer->ui_pass_rotmask_capacity ? renderer->ui_pass_rotmask_capacity : 24u;
     while( capacity < needed )
         capacity *= 2u;
-    grown = (struct WebGL2VertexRotmask*)realloc(
+    grown = (struct ES3VertexRotmask*)realloc(
         renderer->ui_pass_rotmask_vertices, (size_t)capacity * sizeof(*grown));
     assert(grown);
     renderer->ui_pass_rotmask_vertices = grown;
     renderer->ui_pass_rotmask_capacity = capacity;
 }
 
-static struct WebGL2UIDrawRecord*
-webgl2_ui_pass_record_append(struct ToriRS_WebGL2* renderer)
+static struct ES3UIDrawRecord*
+es3_ui_pass_record_append(struct ToriRS_ES3* renderer)
 {
-    struct WebGL2UIDrawRecord* record;
+    struct ES3UIDrawRecord* record;
     if( renderer->ui_pass_record_count >= renderer->ui_pass_record_capacity )
     {
         uint32_t capacity = renderer->ui_pass_record_capacity
             ? renderer->ui_pass_record_capacity * 2u
-            : WEBGL2_UI_PASS_INIT_RECORDS;
-        struct WebGL2UIDrawRecord* grown = (struct WebGL2UIDrawRecord*)realloc(
+            : ES3_UI_PASS_INIT_RECORDS;
+        struct ES3UIDrawRecord* grown = (struct ES3UIDrawRecord*)realloc(
             renderer->ui_pass_records, (size_t)capacity * sizeof(*grown));
         assert(grown);
         renderer->ui_pass_records = grown;
@@ -252,17 +252,17 @@ webgl2_ui_pass_record_append(struct ToriRS_WebGL2* renderer)
  * deferred arm it is pushed only when projection_2d changed; the control arm
  * pushes it every time, as it always did. */
 static void
-webgl2_ui_apply_states(struct ToriRS_WebGL2* renderer)
+es3_ui_apply_states(struct ToriRS_ES3* renderer)
 {
-    webgl2_use_program(renderer, &renderer->program_ui);
+    es3_use_program(renderer, &renderer->program_ui);
     if( !renderer->lever_ui_defer || !renderer->ui_projection_pushed )
     {
         glUniformMatrix4fv(renderer->program_ui.u_matrix, 1, GL_FALSE, renderer->projection_2d);
         renderer->ui_projection_pushed = true;
     }
-    webgl2_set_blend(renderer, true);
-    webgl2_set_depth(renderer, false, false);
-    webgl2_set_cull(renderer, false);
+    es3_set_blend(renderer, true);
+    es3_set_depth(renderer, false, false);
+    es3_set_cull(renderer, false);
 }
 
 /*
@@ -291,17 +291,17 @@ webgl2_ui_apply_states(struct ToriRS_WebGL2* renderer)
  *                   because every record that samples it is issued after that
  *                   point and the atlas only GROWS within a pass -- a sprite
  *                   replaced in place arrives as a SPRITE_UNLOAD command, and
- *                   that path submits (webgl2_ui_flush) before touching the
+ *                   that path submits (es3_ui_flush) before touching the
  *                   tile. The same argument covers the rotmask textures and
  *                   the world atlas, whose writers all flush first.
  *   deletion        glDeleteTextures on a name a RECORDED draw still wants
  *                   would make that draw sample texture 0. Every deleter
  *                   (sprite invalidate, font release, unload) calls
- *                   webgl2_ui_flush, which issues the records first; an
+ *                   es3_ui_flush, which issues the records first; an
  *                   issued draw keeps its texture by GL's own rules.
  */
 static void
-webgl2_ui_submit(struct ToriRS_WebGL2* renderer)
+es3_ui_submit(struct ToriRS_ES3* renderer)
 {
     uint32_t ui_bytes;
     uint32_t rotmask_bytes;
@@ -329,39 +329,39 @@ webgl2_ui_submit(struct ToriRS_WebGL2* renderer)
     {
         int64_t bytes = 0;
         if( !renderer->ui_sprite_atlas_texture )
-            renderer->ui_sprite_atlas_texture = webgl2_ui_new_texture(renderer);
-        sprite_atlas_ok = webgl2_upload_ui_atlas_texture(renderer, &bytes);
+            renderer->ui_sprite_atlas_texture = es3_ui_new_texture(renderer);
+        sprite_atlas_ok = es3_upload_ui_atlas_texture(renderer, &bytes);
     }
 
     /* The rotmask vertices ride in the tail of the same array so the pass is
-     * one append (see webgl2_stream_set_append on why one matters). */
-    ui_bytes = renderer->ui_pass_vertex_count * (uint32_t)sizeof(struct WebGL2VertexUI);
-    rotmask_bytes = renderer->ui_pass_rotmask_count * (uint32_t)sizeof(struct WebGL2VertexRotmask);
+     * one append (see es3_stream_set_append on why one matters). */
+    ui_bytes = renderer->ui_pass_vertex_count * (uint32_t)sizeof(struct ES3VertexUI);
+    rotmask_bytes = renderer->ui_pass_rotmask_count * (uint32_t)sizeof(struct ES3VertexRotmask);
     total_bytes = ui_bytes + rotmask_bytes;
     if( rotmask_bytes )
     {
-        webgl2_ui_pass_reserve_vertices(
-            renderer, rotmask_bytes / (uint32_t)sizeof(struct WebGL2VertexUI) + 1u);
+        es3_ui_pass_reserve_vertices(
+            renderer, rotmask_bytes / (uint32_t)sizeof(struct ES3VertexUI) + 1u);
         memcpy(
             (uint8_t*)renderer->ui_pass_vertices + ui_bytes,
             renderer->ui_pass_rotmask_vertices,
             rotmask_bytes);
     }
-    _Static_assert(sizeof(struct WebGL2VertexUI) % 4u == 0u, "rotmask tail stays 4-byte aligned");
+    _Static_assert(sizeof(struct ES3VertexUI) % 4u == 0u, "rotmask tail stays 4-byte aligned");
     /* Every earlier append into the 2D stream this frame came from an earlier
      * submit (or the immediate boot-bar path), each of which drew before
      * returning: the growth contract holds. */
-    base_offset = webgl2_ring_upload(renderer, renderer->ui_pass_vertices, total_bytes, true);
+    base_offset = es3_ring_upload(renderer, renderer->ui_pass_vertices, total_bytes, true);
     rotmask_offset = base_offset + ui_bytes;
     renderer->ui_stat_upload_bytes += total_bytes;
 
-    webgl2_ui_apply_states(renderer);
+    es3_ui_apply_states(renderer);
     for( record_index = 0u; record_index < renderer->ui_pass_record_count; record_index++ )
     {
-        const struct WebGL2UIDrawRecord* record = &renderer->ui_pass_records[record_index];
-        if( record->layout == WEBGL2_UI_RECORD_LAYOUT_ROTMASK )
+        const struct ES3UIDrawRecord* record = &renderer->ui_pass_records[record_index];
+        if( record->layout == ES3_UI_RECORD_LAYOUT_ROTMASK )
         {
-            webgl2_use_program(renderer, &renderer->program_rotmask);
+            es3_use_program(renderer, &renderer->program_rotmask);
             if( !renderer->rotmask_projection_pushed )
             {
                 glUniformMatrix4fv(
@@ -369,16 +369,16 @@ webgl2_ui_submit(struct ToriRS_WebGL2* renderer)
                 renderer->rotmask_projection_pushed = true;
             }
             glUniform1f(renderer->program_rotmask.u_mask_invert, record->mask_invert);
-            webgl2_set_blend(renderer, true);
-            webgl2_set_depth(renderer, false, false);
-            webgl2_set_scissor(renderer, record->scissor_enabled ? &record->scissor : NULL);
+            es3_set_blend(renderer, true);
+            es3_set_depth(renderer, false, false);
+            es3_set_scissor(renderer, record->scissor_enabled ? &record->scissor : NULL);
             /* Bound outright, not through the cache, as the immediate path
              * does: the two draws a frame do not earn a cache miss's risk. */
             renderer->bound_texture1 = 0u;
-            webgl2_bind_texture1(renderer, record->texture1);
+            es3_bind_texture1(renderer, record->texture1);
             renderer->bound_texture0 = 0u;
-            webgl2_bind_texture0(renderer, record->texture0);
-            webgl2_bind_rotmask_stream(renderer, rotmask_offset);
+            es3_bind_texture0(renderer, record->texture0);
+            es3_bind_rotmask_stream(renderer, rotmask_offset);
             glDrawArrays(GL_TRIANGLES, (GLint)record->first, (GLsizei)record->count);
             renderer->ui_stat_draws_rotmask++;
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
@@ -387,21 +387,21 @@ webgl2_ui_submit(struct ToriRS_WebGL2* renderer)
              * seen to DROP this draw silently when an attribute array its
              * program lacks was left enabled, which is what this catches. */
             if( renderer->debug )
-                (void)webgl2_check_error("rotmask draw");
+                (void)es3_check_error("rotmask draw");
             continue;
         }
         if( record->uses_sprite_atlas && !sprite_atlas_ok )
             continue;
-        webgl2_use_program(renderer, &renderer->program_ui);
-        webgl2_set_scissor(renderer, record->scissor_enabled ? &record->scissor : NULL);
-        webgl2_bind_texture0(
+        es3_use_program(renderer, &renderer->program_ui);
+        es3_set_scissor(renderer, record->scissor_enabled ? &record->scissor : NULL);
+        es3_bind_texture0(
             renderer,
             record->uses_sprite_atlas ? renderer->ui_sprite_atlas_texture
                                       : (record->texture0 ? record->texture0 : renderer->white_texture));
-        webgl2_bind_texture1(renderer, record->texture1 ? record->texture1 : renderer->white_texture);
-        webgl2_bind_ui_stream(renderer, base_offset);
+        es3_bind_texture1(renderer, record->texture1 ? record->texture1 : renderer->white_texture);
+        es3_bind_ui_stream(renderer, base_offset);
         glDrawArrays(GL_TRIANGLES, (GLint)record->first, (GLsizei)record->count);
-        if( record->layout == WEBGL2_UI_RECORD_LAYOUT_WIDGET )
+        if( record->layout == ES3_UI_RECORD_LAYOUT_WIDGET )
             renderer->ui_stat_draws_widget++;
         else
         {
@@ -412,7 +412,7 @@ webgl2_ui_submit(struct ToriRS_WebGL2* renderer)
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
     }
     /* Leave nothing on unit 1 that an unload can delete before the next draw. */
-    webgl2_bind_texture1(renderer, 0u);
+    es3_bind_texture1(renderer, 0u);
 
     renderer->ui_pass_record_count = 0u;
     renderer->ui_pass_vertex_count = 0u;
@@ -423,12 +423,12 @@ webgl2_ui_submit(struct ToriRS_WebGL2* renderer)
 /*
  * End the open batch. Control arm: upload it and draw it now (the flush this
  * was). Deferred arm: record it as a range of the pass array; nothing
- * reaches GL until webgl2_ui_submit.
+ * reaches GL until es3_ui_submit.
  */
 static void
-webgl2_ui_batch_close(struct ToriRS_WebGL2* renderer)
+es3_ui_batch_close(struct ToriRS_ES3* renderer)
 {
-    struct WebGL2UIBatch* batch;
+    struct ES3UIBatch* batch;
     GLuint texture0;
     uint32_t offset;
 
@@ -438,9 +438,9 @@ webgl2_ui_batch_close(struct ToriRS_WebGL2* renderer)
         return;
     if( renderer->lever_ui_defer )
     {
-        struct WebGL2UIDrawRecord* record = webgl2_ui_pass_record_append(renderer);
+        struct ES3UIDrawRecord* record = es3_ui_pass_record_append(renderer);
         assert(batch->first + batch->vertex_count == renderer->ui_pass_vertex_count);
-        record->layout = WEBGL2_UI_RECORD_LAYOUT_UI;
+        record->layout = ES3_UI_RECORD_LAYOUT_UI;
         record->first = batch->first;
         record->count = batch->vertex_count;
         record->texture1 = batch->texture1;
@@ -463,8 +463,8 @@ webgl2_ui_batch_close(struct ToriRS_WebGL2* renderer)
             !renderer->ui_sprite_atlas_allocated )
         {
             if( !renderer->ui_sprite_atlas_texture )
-                renderer->ui_sprite_atlas_texture = webgl2_ui_new_texture(renderer);
-            if( !webgl2_upload_ui_atlas_texture(renderer, &bytes) )
+                renderer->ui_sprite_atlas_texture = es3_ui_new_texture(renderer);
+            if( !es3_upload_ui_atlas_texture(renderer, &bytes) )
             {
                 batch->vertex_count = 0u;
                 return;
@@ -473,18 +473,18 @@ webgl2_ui_batch_close(struct ToriRS_WebGL2* renderer)
         texture0 = renderer->ui_sprite_atlas_texture;
     }
 
-    webgl2_ui_apply_states(renderer);
-    webgl2_set_scissor(renderer, batch->scissor_enabled ? &batch->scissor : NULL);
-    webgl2_bind_texture0(renderer, texture0);
-    webgl2_bind_texture1(renderer, batch->texture1 ? batch->texture1 : renderer->white_texture);
+    es3_ui_apply_states(renderer);
+    es3_set_scissor(renderer, batch->scissor_enabled ? &batch->scissor : NULL);
+    es3_bind_texture0(renderer, texture0);
+    es3_bind_texture1(renderer, batch->texture1 ? batch->texture1 : renderer->white_texture);
     /* Immediate path: the previous batch was drawn before this append. */
-    offset = webgl2_ring_upload(
-        renderer, batch->vertices, batch->vertex_count * (uint32_t)sizeof(struct WebGL2VertexUI),
+    offset = es3_ring_upload(
+        renderer, batch->vertices, batch->vertex_count * (uint32_t)sizeof(struct ES3VertexUI),
         true);
-    webgl2_bind_ui_stream(renderer, offset);
+    es3_bind_ui_stream(renderer, offset);
     glDrawArrays(GL_TRIANGLES, 0, (GLsizei)batch->vertex_count);
     renderer->ui_stat_draws_batch++;
-    renderer->ui_stat_upload_bytes += batch->vertex_count * (uint32_t)sizeof(struct WebGL2VertexUI);
+    renderer->ui_stat_upload_bytes += batch->vertex_count * (uint32_t)sizeof(struct ES3VertexUI);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_UI_BATCH_DRAWS, 1);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_2D_BATCH_FLUSHES, 1);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
@@ -492,12 +492,12 @@ webgl2_ui_batch_close(struct ToriRS_WebGL2* renderer)
 }
 
 void
-webgl2_ui_flush(struct ToriRS_WebGL2* renderer)
+es3_ui_flush(struct ToriRS_ES3* renderer)
 {
     assert(renderer);
-    webgl2_ui_batch_close(renderer);
+    es3_ui_batch_close(renderer);
     if( renderer->lever_ui_defer )
-        webgl2_ui_submit(renderer);
+        es3_ui_submit(renderer);
 }
 
 /*
@@ -507,21 +507,21 @@ webgl2_ui_flush(struct ToriRS_WebGL2* renderer)
  * `texture1` is 0 for a quad that samples the atlas or nothing.
  */
 static bool
-webgl2_ui_prepare_batch(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_prepare_batch(
+    struct ToriRS_ES3* renderer,
     GLuint texture1,
     bool uses_sprite_atlas,
-    const struct WebGL2Rect* scissor,
+    const struct ES3Rect* scissor,
     uint32_t additional_vertices)
 {
-    struct WebGL2UIBatch* batch = &renderer->ui_batch;
+    struct ES3UIBatch* batch = &renderer->ui_batch;
     bool texture_changed =
         batch->vertex_count > 0u && texture1 && batch->texture1 && batch->texture1 != texture1;
     bool scissor_changed = batch->vertex_count > 0u &&
         (batch->scissor_enabled != (scissor != NULL) ||
-         (scissor && !webgl2_ui_rect_equal(&batch->scissor, scissor)));
+         (scissor && !es3_ui_rect_equal(&batch->scissor, scissor)));
     if( texture_changed || scissor_changed ||
-        batch->vertex_count + additional_vertices > WEBGL2_UI_BATCH_MAX_VERTS )
+        batch->vertex_count + additional_vertices > ES3_UI_BATCH_MAX_VERTS )
     {
         if( batch->vertex_count > 0u )
         {
@@ -532,9 +532,9 @@ webgl2_ui_prepare_batch(
             else
                 renderer->ui_stat_break_overflow++;
         }
-        webgl2_ui_batch_close(renderer);
+        es3_ui_batch_close(renderer);
     }
-    if( additional_vertices > WEBGL2_UI_BATCH_MAX_VERTS || !batch->vertices )
+    if( additional_vertices > ES3_UI_BATCH_MAX_VERTS || !batch->vertices )
         return false;
     if( texture1 )
         batch->texture1 = texture1;
@@ -547,23 +547,32 @@ webgl2_ui_prepare_batch(
 }
 
 static void
-webgl2_ui_append_quad_vertices(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_append_quad_vertices(
+    struct ToriRS_ES3* renderer,
     GLuint texture,
     bool uses_sprite_atlas,
-    const struct WebGL2Rect* scissor,
+    const struct ES3Rect* scissor,
     const float positions[4][2],
     const float uv[4][2],
     uint32_t rgba)
 {
     static const uint8_t order[6] = { 0u, 1u, 2u, 0u, 2u, 3u };
-    struct WebGL2VertexUI* dst;
+    struct ES3VertexUI* dst;
     uint32_t corner_index;
     float sel;
     GLuint texture1 = 0u;
-    /* Which sampler the fragment multiplies by (see WebGL2VertexUI.sel). A
+    /*
+     * Which sampler the fragment multiplies by (see ES3VertexUI.sel). A
      * quad with no uv, or the white texture, is a flat fill and joins any
-     * batch; only a real unit-1 texture can end one. */
+     * batch; only a real unit-1 texture can end one.
+     *
+     * Select 1 means A FONT ATLAS, not "some texture on unit 1": the glyph
+     * path is the only caller that reaches this branch, and the shader reads
+     * the coverage out of the single channel such a texture has. A second
+     * kind of unit-1 texture would have to say which it is -- there is a
+     * spare select value for it -- rather than being fed to a fetch that
+     * expects GL_R8.
+     */
     if( uses_sprite_atlas )
         sel = 0.0f;
     else if( !uv || texture == renderer->white_texture || texture == 0u )
@@ -573,12 +582,12 @@ webgl2_ui_append_quad_vertices(
         sel = 1.0f;
         texture1 = texture;
     }
-    if( !webgl2_ui_prepare_batch(renderer, texture1, uses_sprite_atlas, scissor, 6u) )
+    if( !es3_ui_prepare_batch(renderer, texture1, uses_sprite_atlas, scissor, 6u) )
         return;
     if( renderer->lever_ui_defer )
     {
         /* Straight into the pass array; the open batch is its tail. */
-        webgl2_ui_pass_reserve_vertices(renderer, 6u);
+        es3_ui_pass_reserve_vertices(renderer, 6u);
         dst = &renderer->ui_pass_vertices[renderer->ui_pass_vertex_count];
         renderer->ui_pass_vertex_count += 6u;
     }
@@ -599,11 +608,11 @@ webgl2_ui_append_quad_vertices(
 }
 
 static void
-webgl2_ui_append_quad(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_append_quad(
+    struct ToriRS_ES3* renderer,
     GLuint texture,
     bool uses_sprite_atlas,
-    const struct WebGL2Rect* scissor,
+    const struct ES3Rect* scissor,
     float x0,
     float y0,
     float x1,
@@ -616,7 +625,7 @@ webgl2_ui_append_quad(
 {
     const float positions[4][2] = { { x0, y0 }, { x1, y0 }, { x1, y1 }, { x0, y1 } };
     const float uv[4][2] = { { u0, v0 }, { u1, v0 }, { u1, v1 }, { u0, v1 } };
-    webgl2_ui_append_quad_vertices(renderer, texture, uses_sprite_atlas, scissor, positions, uv, rgba);
+    es3_ui_append_quad_vertices(renderer, texture, uses_sprite_atlas, scissor, positions, uv, rgba);
 }
 
 /*
@@ -626,11 +635,11 @@ webgl2_ui_append_quad(
  * A quad wholly outside the clip appends nothing.
  */
 static void
-webgl2_ui_append_quad_clipped(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_append_quad_clipped(
+    struct ToriRS_ES3* renderer,
     GLuint texture,
     bool uses_sprite_atlas,
-    const struct WebGL2Clip* clip,
+    const struct ES3Clip* clip,
     float x0,
     float y0,
     float x1,
@@ -670,7 +679,7 @@ webgl2_ui_append_quad_clipped(
         v0 = nv0;
         v1 = nv1;
     }
-    webgl2_ui_append_quad(
+    es3_ui_append_quad(
         renderer, texture, uses_sprite_atlas, NULL, cx0, cy0, cx1, cy1, u0, v0, u1, v1, rgba);
 }
 
@@ -681,7 +690,7 @@ webgl2_ui_append_quad_clipped(
 /* A layer only where it changes the picture: an interface filter that is not
  * Nearest, on an interface drawn at a size other than its own. */
 static bool
-webgl2_ui_layer_wanted(const struct ToriRS_WebGL2* renderer)
+es3_ui_layer_wanted(const struct ToriRS_ES3* renderer)
 {
     return renderer->interface_scale_mode != 0 && renderer->width > 0 && renderer->height > 0 &&
         renderer->letterbox_width > 0 && renderer->letterbox_height > 0 &&
@@ -694,7 +703,7 @@ webgl2_ui_layer_wanted(const struct ToriRS_WebGL2* renderer)
  * complete colour attachment in core ES2 and in WebGL1 at any (NPOT) size.
  * No depth or stencil: 2D runs with both off, widget models included. */
 static void
-webgl2_ui_layer_ensure(struct ToriRS_WebGL2* renderer)
+es3_ui_layer_ensure(struct ToriRS_ES3* renderer)
 {
     GLenum status;
     int const width = renderer->width;
@@ -713,20 +722,21 @@ webgl2_ui_layer_ensure(struct ToriRS_WebGL2* renderer)
         glGenFramebuffers(1, &renderer->ui_layer_fbo);
         assert(renderer->ui_layer_fbo);
     }
-    webgl2_bind_texture0(renderer, renderer->ui_layer_texture);
+    es3_bind_texture0(renderer, renderer->ui_layer_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     /* Never left bound on a unit while a draw renders into it. */
-    webgl2_bind_texture0(renderer, 0u);
+    es3_bind_texture0(renderer, 0u);
     glBindFramebuffer(GL_FRAMEBUFFER, renderer->ui_layer_fbo);
     glFramebufferTexture2D(
         GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderer->ui_layer_texture, 0);
     status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if( status != GL_FRAMEBUFFER_COMPLETE )
-        TORIRS_ERR("WebGL2: interface layer %dx%d incomplete: 0x%x\n", width, height, (unsigned)status);
+        TORIRS_ERR("%s: interface layer %dx%d incomplete: 0x%x\n", es3_log_name(), width,
+            height, (unsigned)status);
     assert(status == GL_FRAMEBUFFER_COMPLETE);
     renderer->ui_layer_width = width;
     renderer->ui_layer_height = height;
@@ -736,7 +746,7 @@ webgl2_ui_layer_ensure(struct ToriRS_WebGL2* renderer)
  * Redirect the 2D segment into the layer: layout-sized, 1:1, transparent.
  *
  * The letterbox and target fields are swapped for the layer's while it is
- * open, so webgl2_scissor_rect (the rotated sprites, polygons, widget models)
+ * open, so es3_scissor_rect (the rotated sprites, polygons, widget models)
  * and the viewport map logical pixels 1:1 into it. On the deferred arm a
  * record captures its scissor when it is RECORDED and draws when the pass is
  * submitted; both happen inside the segment -- anything recorded before it
@@ -744,16 +754,16 @@ webgl2_ui_layer_ensure(struct ToriRS_WebGL2* renderer)
  * rest before compositing -- so a record never straddles the two targets.
  */
 static void
-webgl2_ui_layer_begin(struct ToriRS_WebGL2* renderer)
+es3_ui_layer_begin(struct ToriRS_ES3* renderer)
 {
     assert(!renderer->ui_layer_open);
     /* Records left over from before this segment belong to the frame, and go
-     * to it now. An open batch is dropped, as webgl2_begin_2d always did. */
-    webgl2_ui_batch_reset(renderer);
-    webgl2_ui_flush(renderer);
-    webgl2_ui_layer_ensure(renderer);
+     * to it now. An open batch is dropped, as es3_begin_2d always did. */
+    es3_ui_batch_reset(renderer);
+    es3_ui_flush(renderer);
+    es3_ui_layer_ensure(renderer);
     glBindFramebuffer(GL_FRAMEBUFFER, renderer->ui_layer_fbo);
-    /* webgl2_begin_frame binds exactly one of these. */
+    /* es3_begin_frame binds exactly one of these. */
     renderer->ui_layer_saved_fbo = renderer->target_offscreen ? renderer->scale_fbo : 0u;
     renderer->ui_layer_saved_letterbox_x = renderer->letterbox_x;
     renderer->ui_layer_saved_letterbox_y = renderer->letterbox_y;
@@ -769,7 +779,7 @@ webgl2_ui_layer_begin(struct ToriRS_WebGL2* renderer)
     renderer->letterbox_height = renderer->height;
     renderer->target_width = renderer->width;
     renderer->target_height = renderer->height;
-    webgl2_set_scissor(renderer, NULL);
+    es3_set_scissor(renderer, NULL);
     glViewport(0, 0, renderer->width, renderer->height);
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -778,7 +788,7 @@ webgl2_ui_layer_begin(struct ToriRS_WebGL2* renderer)
 
 /* Filter the finished segment onto the output rect it would have drawn to. */
 static void
-webgl2_ui_layer_composite(struct ToriRS_WebGL2* renderer)
+es3_ui_layer_composite(struct ToriRS_ES3* renderer)
 {
     GLint const filter = renderer->interface_scale_mode == 1 ? GL_LINEAR : GL_NEAREST;
 
@@ -798,34 +808,34 @@ webgl2_ui_layer_composite(struct ToriRS_WebGL2* renderer)
         renderer->letterbox_width,
         renderer->letterbox_height);
 
-    webgl2_set_scissor(renderer, NULL);
-    webgl2_set_depth(renderer, false, false);
-    webgl2_set_cull(renderer, false);
-    webgl2_set_blend(renderer, true);
+    es3_set_scissor(renderer, NULL);
+    es3_set_depth(renderer, false, false);
+    es3_set_cull(renderer, false);
+    es3_set_blend(renderer, true);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-    webgl2_use_program(renderer, &renderer->program_ui_composite);
+    es3_use_program(renderer, &renderer->program_ui_composite);
     glUniform2f(
         renderer->ui_composite_u_size,
         (float)renderer->ui_layer_width,
         (float)renderer->ui_layer_height);
     glUniform1f(renderer->ui_composite_u_filter, (float)renderer->interface_scale_mode);
-    webgl2_bind_texture0(renderer, renderer->ui_layer_texture);
+    es3_bind_texture0(renderer, renderer->ui_layer_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
     /* A unit the program does not sample still must not hold the target. */
-    webgl2_bind_texture1(renderer, 0u);
-    webgl2_bind_present_quad(renderer);
+    es3_bind_texture1(renderer, 0u);
+    es3_bind_present_quad(renderer);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
     if( renderer->debug )
-        (void)webgl2_check_error("interface layer composite");
-    webgl2_blend_func_default();
+        (void)es3_check_error("interface layer composite");
+    es3_blend_func_default();
     /* The next 2D draw re-binds the layer only through a new segment. */
-    webgl2_bind_texture0(renderer, 0u);
+    es3_bind_texture0(renderer, 0u);
 }
 
 void
-webgl2_begin_2d(struct ToriRS_WebGL2* renderer)
+es3_begin_2d(struct ToriRS_ES3* renderer)
 {
     assert(renderer);
     if( !renderer->scene || !renderer->ui_batch.vertices || !renderer->gl_context )
@@ -833,38 +843,38 @@ webgl2_begin_2d(struct ToriRS_WebGL2* renderer)
         renderer->in2d = false;
         return;
     }
-    if( !renderer->ui_layer_open && webgl2_ui_layer_wanted(renderer) )
-        webgl2_ui_layer_begin(renderer);
+    if( !renderer->ui_layer_open && es3_ui_layer_wanted(renderer) )
+        es3_ui_layer_begin(renderer);
     glViewport(
         renderer->letterbox_x,
         renderer->letterbox_y,
         renderer->letterbox_width,
         renderer->letterbox_height);
-    webgl2_ui_apply_states(renderer);
-    webgl2_set_scissor(renderer, NULL);
-    webgl2_ui_batch_reset(renderer);
+    es3_ui_apply_states(renderer);
+    es3_set_scissor(renderer, NULL);
+    es3_ui_batch_reset(renderer);
     renderer->in2d = true;
 }
 
 void
-webgl2_end_2d(struct ToriRS_WebGL2* renderer)
+es3_end_2d(struct ToriRS_ES3* renderer)
 {
     assert(renderer);
     if( renderer->in2d )
     {
-        webgl2_ui_flush(renderer);
-        webgl2_set_scissor(renderer, NULL);
+        es3_ui_flush(renderer);
+        es3_set_scissor(renderer, NULL);
         renderer->in2d = false;
     }
     /* Outside the in2d test: a segment whose in2d was cleared under it (a
      * canvas resize) must still give the frame its target back. */
     if( renderer->ui_layer_open )
-        webgl2_ui_layer_composite(renderer);
+        es3_ui_layer_composite(renderer);
 }
 
 void
-webgl2_draw_solid_rect(
-    struct ToriRS_WebGL2* renderer,
+es3_draw_solid_rect(
+    struct ToriRS_ES3* renderer,
     int logical_x,
     int logical_y,
     int width,
@@ -874,9 +884,9 @@ webgl2_draw_solid_rect(
     assert(renderer);
     if( width <= 0 || height <= 0 || !renderer->ui_batch.vertices )
         return;
-    webgl2_ui_apply_states(renderer);
-    webgl2_ui_batch_reset(renderer);
-    webgl2_ui_append_quad(
+    es3_ui_apply_states(renderer);
+    es3_ui_batch_reset(renderer);
+    es3_ui_append_quad(
         renderer,
         renderer->white_texture,
         false,
@@ -889,41 +899,41 @@ webgl2_draw_solid_rect(
         0.0f,
         1.0f,
         1.0f,
-        webgl2_argb_to_rgba_bytes(argb));
-    webgl2_ui_flush(renderer);
+        es3_argb_to_rgba_bytes(argb));
+    es3_ui_flush(renderer);
 }
 
 /* ---- sprites --------------------------------------------------------------------- */
 
 static void
-webgl2_ui_rotmask_release_slot(struct ToriRS_WebGL2* renderer, struct WebGL2UIRotmaskSlot* slot)
+es3_ui_rotmask_release_slot(struct ToriRS_ES3* renderer, struct ES3UIRotmaskSlot* slot)
 {
     assert(slot);
-    webgl2_ui_delete_texture(renderer, &slot->source_texture);
-    webgl2_ui_delete_texture(renderer, &slot->mask_texture);
+    es3_ui_delete_texture(renderer, &slot->source_texture);
+    es3_ui_delete_texture(renderer, &slot->mask_texture);
     memset(slot, 0, sizeof(*slot));
 }
 
 static void
-webgl2_ui_rotmask_invalidate(struct ToriRS_WebGL2* renderer, int scene_id)
+es3_ui_rotmask_invalidate(struct ToriRS_ES3* renderer, int scene_id)
 {
     uint32_t slot_index;
     if( scene_id <= 0 )
         return;
     for( slot_index = 0u; slot_index < renderer->ui_rotmask_count; slot_index++ )
     {
-        struct WebGL2UIRotmaskSlot* slot = &renderer->ui_rotmasks[slot_index];
+        struct ES3UIRotmaskSlot* slot = &renderer->ui_rotmasks[slot_index];
         if( slot->used && (slot->scene_id == scene_id || slot->mask_scene_id == scene_id) )
-            webgl2_ui_rotmask_release_slot(renderer, slot);
+            es3_ui_rotmask_release_slot(renderer, slot);
     }
 }
 
 static int
-webgl2_ui_sprite_slot_index(struct ToriRS_WebGL2* renderer, int scene_id, bool create)
+es3_ui_sprite_slot_index(struct ToriRS_ES3* renderer, int scene_id, bool create)
 {
     int free_index = -1;
     int slot;
-    for( slot = 0; slot < WEBGL2_UI_SPRITE_CAP; slot++ )
+    for( slot = 0; slot < ES3_UI_SPRITE_CAP; slot++ )
     {
         if( renderer->ui_sprite_slots[slot].scene_id == scene_id )
             return slot;
@@ -946,27 +956,27 @@ webgl2_ui_sprite_slot_index(struct ToriRS_WebGL2* renderer, int scene_id, bool c
 }
 
 void
-webgl2_ui_sprite_invalidate(struct ToriRS_WebGL2* renderer, int scene_id)
+es3_ui_sprite_invalidate(struct ToriRS_ES3* renderer, int scene_id)
 {
     int slot_index;
     uint32_t variant;
     assert(renderer);
-    webgl2_ui_flush(renderer);
-    slot_index = webgl2_ui_sprite_slot_index(renderer, scene_id, false);
+    es3_ui_flush(renderer);
+    slot_index = es3_ui_sprite_slot_index(renderer, scene_id, false);
     if( slot_index >= 0 )
     {
-        struct WebGL2UISpriteSlot* slot = &renderer->ui_sprite_slots[slot_index];
+        struct ES3UISpriteSlot* slot = &renderer->ui_sprite_slots[slot_index];
         /* Mark the pixels stale; keep the slot and its tiles. The next draw
          * re-uploads into the tile this slot already owns whenever the size is
          * unchanged, which for a sprite replaced in place it always is. */
         if( slot->loaded )
             memset(slot->loaded, 0, (size_t)slot->count * sizeof(*slot->loaded));
     }
-    for( variant = 0u; variant < WEBGL2_UI_VARIANT_CAP; variant++ )
+    for( variant = 0u; variant < ES3_UI_VARIANT_CAP; variant++ )
         if( renderer->ui_variants[variant].valid &&
             renderer->ui_variants[variant].scene_id == scene_id )
             renderer->ui_variants[variant].valid = false;
-    webgl2_ui_rotmask_invalidate(renderer, scene_id);
+    es3_ui_rotmask_invalidate(renderer, scene_id);
 }
 
 /*
@@ -980,13 +990,13 @@ webgl2_ui_sprite_invalidate(struct ToriRS_WebGL2* renderer, int scene_id)
  * key. No per-pixel guessing.
  */
 static bool
-webgl2_ui_upload_sprite_pixels(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_upload_sprite_pixels(
+    struct ToriRS_ES3* renderer,
     const uint32_t* source,
     int width,
     int height,
     int alpha_channel,
-    struct WebGL2UISpriteTile* tile_io,
+    struct ES3UISpriteTile* tile_io,
     float out_uv[4])
 {
     struct TRSPK_AtlasTile tile;
@@ -1011,10 +1021,10 @@ webgl2_ui_upload_sprite_pixels(
     assert(padded);
     for( y = 0; y < (int)padded_height; y++ )
     {
-        int source_y = webgl2_clampi(y - 1, 0, height - 1);
+        int source_y = es3_clampi(y - 1, 0, height - 1);
         for( x = 0; x < (int)padded_width; x++ )
         {
-            int source_x = webgl2_clampi(x - 1, 0, width - 1);
+            int source_x = es3_clampi(x - 1, 0, width - 1);
             padded[(size_t)y * padded_width + (uint32_t)x] =
                 source[(size_t)source_y * (size_t)width + (size_t)source_x];
         }
@@ -1063,8 +1073,8 @@ webgl2_ui_upload_sprite_pixels(
 }
 
 static bool
-webgl2_ui_sprite_ensure_base(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_sprite_ensure_base(
+    struct ToriRS_ES3* renderer,
     int scene_id,
     int atlas_index,
     struct ToriDraw_Sprite** out_sprite,
@@ -1072,7 +1082,7 @@ webgl2_ui_sprite_ensure_base(
 {
     struct ToriDraw_Sprite** sprites;
     struct ToriDraw_Sprite* sprite;
-    struct WebGL2UISpriteSlot* slot;
+    struct ES3UISpriteSlot* slot;
     int count = 0;
     int slot_index;
 
@@ -1086,7 +1096,7 @@ webgl2_ui_sprite_ensure_base(
     sprite = sprites[atlas_index];
     if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
         return false;
-    slot_index = webgl2_ui_sprite_slot_index(renderer, scene_id, true);
+    slot_index = es3_ui_sprite_slot_index(renderer, scene_id, true);
     if( slot_index < 0 )
         return false;
     slot = &renderer->ui_sprite_slots[slot_index];
@@ -1094,8 +1104,8 @@ webgl2_ui_sprite_ensure_base(
     {
         float* uvs = (float*)calloc((size_t)count * 4u, sizeof(float));
         uint8_t* loaded = (uint8_t*)calloc((size_t)count, sizeof(uint8_t));
-        struct WebGL2UISpriteTile* tiles =
-            (struct WebGL2UISpriteTile*)calloc((size_t)count, sizeof(*tiles));
+        struct ES3UISpriteTile* tiles =
+            (struct ES3UISpriteTile*)calloc((size_t)count, sizeof(*tiles));
         assert(uvs);
         assert(loaded);
         assert(tiles);
@@ -1110,7 +1120,7 @@ webgl2_ui_sprite_ensure_base(
     if( !slot->loaded[atlas_index] )
     {
         float uv[4];
-        if( !webgl2_ui_upload_sprite_pixels(
+        if( !es3_ui_upload_sprite_pixels(
                 renderer,
                 sprite->pixels_argb,
                 sprite->width,
@@ -1127,17 +1137,17 @@ webgl2_ui_sprite_ensure_base(
     return true;
 }
 
-static struct WebGL2UISpriteVariant*
-webgl2_ui_sprite_variant(
-    struct ToriRS_WebGL2* renderer,
+static struct ES3UISpriteVariant*
+es3_ui_sprite_variant(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_RenderCommand_Sprite* command,
     bool create)
 {
-    struct WebGL2UISpriteVariant* free_variant = NULL;
+    struct ES3UISpriteVariant* free_variant = NULL;
     uint32_t index;
-    for( index = 0u; index < WEBGL2_UI_VARIANT_CAP; index++ )
+    for( index = 0u; index < ES3_UI_VARIANT_CAP; index++ )
     {
-        struct WebGL2UISpriteVariant* variant = &renderer->ui_variants[index];
+        struct ES3UISpriteVariant* variant = &renderer->ui_variants[index];
         if( !variant->valid )
         {
             if( !free_variant )
@@ -1167,7 +1177,7 @@ webgl2_ui_sprite_variant(
 }
 
 static uint32_t*
-webgl2_ui_clamp_sprite(
+es3_ui_clamp_sprite(
     const uint32_t* source,
     int source_width,
     int source_height,
@@ -1200,8 +1210,8 @@ webgl2_ui_clamp_sprite(
 }
 
 static bool
-webgl2_ui_sprite_ensure_variant(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_sprite_ensure_variant(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_RenderCommand_Sprite* command,
     struct ToriDraw_Sprite** out_sprite,
     float out_uv[4],
@@ -1211,7 +1221,7 @@ webgl2_ui_sprite_ensure_variant(
     int* out_height)
 {
     struct ToriDraw_Sprite* sprite;
-    struct WebGL2UISpriteVariant* variant;
+    struct ES3UISpriteVariant* variant;
     float base_uv[4];
     uint32_t* pixels;
     int width;
@@ -1221,7 +1231,7 @@ webgl2_ui_sprite_ensure_variant(
     int nominal_width;
     int nominal_height;
 
-    if( !webgl2_ui_sprite_ensure_base(
+    if( !es3_ui_sprite_ensure_base(
             renderer, command->scene_id, command->atlas_index, &sprite, base_uv) )
         return false;
     if( command->outline <= 0 && command->graphic_shadow == 0 && !command->flip_h &&
@@ -1235,7 +1245,7 @@ webgl2_ui_sprite_ensure_variant(
         *out_height = sprite->height;
         return true;
     }
-    variant = webgl2_ui_sprite_variant(renderer, command, true);
+    variant = es3_ui_sprite_variant(renderer, command, true);
     if( !variant )
         return false;
     if( variant->valid )
@@ -1293,7 +1303,7 @@ webgl2_ui_sprite_ensure_variant(
         ToriDraw_SpriteTransformPixels(&pixels, &width, &height, command->flip_h, command->flip_v, 0);
         if( offset_x != 0 || offset_y != 0 || width != nominal_width || height != nominal_height )
         {
-            uint32_t* next = webgl2_ui_clamp_sprite(
+            uint32_t* next = es3_ui_clamp_sprite(
                 pixels, width, height, offset_x, offset_y, nominal_width, nominal_height);
             if( next )
             {
@@ -1311,7 +1321,7 @@ webgl2_ui_sprite_ensure_variant(
         ToriDraw_SpriteTransformPixels(
             &pixels, &width, &height, command->flip_h, command->flip_v,
             command->sprite_angle_r2pi65536);
-    if( !webgl2_ui_upload_sprite_pixels(
+    if( !es3_ui_upload_sprite_pixels(
             renderer, pixels, width, height, sprite->alpha_channel, NULL, out_uv) )
     {
         free(pixels);
@@ -1337,9 +1347,9 @@ webgl2_ui_sprite_ensure_variant(
 
 /* ---- rotated + masked chrome ------------------------------------------------------- */
 
-static struct WebGL2UIRotmaskSlot*
-webgl2_ui_rotmask_slot(
-    struct ToriRS_WebGL2* renderer,
+static struct ES3UIRotmaskSlot*
+es3_ui_rotmask_slot(
+    struct ToriRS_ES3* renderer,
     int scene_id,
     int atlas_index,
     int mask_scene_id,
@@ -1353,7 +1363,7 @@ webgl2_ui_rotmask_slot(
     uint32_t slot_index;
     for( slot_index = 0u; slot_index < renderer->ui_rotmask_count; slot_index++ )
     {
-        struct WebGL2UIRotmaskSlot* slot = &renderer->ui_rotmasks[slot_index];
+        struct ES3UIRotmaskSlot* slot = &renderer->ui_rotmasks[slot_index];
         if( slot->used && slot->scene_id == scene_id && slot->atlas_index == atlas_index &&
             slot->mask_scene_id == mask_scene_id && slot->mask_atlas_index == mask_atlas_index &&
             slot->width == width && slot->height == height && slot->source_width == source_width &&
@@ -1367,8 +1377,8 @@ webgl2_ui_rotmask_slot(
         if( renderer->ui_rotmask_count == renderer->ui_rotmask_capacity )
         {
             uint32_t old_capacity = renderer->ui_rotmask_capacity;
-            uint32_t new_capacity = old_capacity ? old_capacity * 2u : WEBGL2_UI_ROTMASK_INIT_CAP;
-            struct WebGL2UIRotmaskSlot* grown = (struct WebGL2UIRotmaskSlot*)realloc(
+            uint32_t new_capacity = old_capacity ? old_capacity * 2u : ES3_UI_ROTMASK_INIT_CAP;
+            struct ES3UIRotmaskSlot* grown = (struct ES3UIRotmaskSlot*)realloc(
                 renderer->ui_rotmasks, (size_t)new_capacity * sizeof(*grown));
             assert(grown);
             memset(grown + old_capacity, 0, (size_t)(new_capacity - old_capacity) * sizeof(*grown));
@@ -1377,7 +1387,7 @@ webgl2_ui_rotmask_slot(
         }
         free_index = renderer->ui_rotmask_count++;
     }
-    webgl2_ui_rotmask_release_slot(renderer, &renderer->ui_rotmasks[free_index]);
+    es3_ui_rotmask_release_slot(renderer, &renderer->ui_rotmasks[free_index]);
     renderer->ui_rotmasks[free_index].scene_id = scene_id;
     renderer->ui_rotmasks[free_index].atlas_index = atlas_index;
     renderer->ui_rotmasks[free_index].mask_scene_id = mask_scene_id;
@@ -1395,7 +1405,7 @@ webgl2_ui_rotmask_slot(
  * place without a generation counter, so content identity is the only way to
  * tell an untouched frame from a real refresh. */
 static uint32_t
-webgl2_ui_rotmask_content_hash(const struct ToriDraw_Sprite* sprite)
+es3_ui_rotmask_content_hash(const struct ToriDraw_Sprite* sprite)
 {
     uint32_t hash = 2166136261u;
     size_t count;
@@ -1434,26 +1444,26 @@ webgl2_ui_rotmask_content_hash(const struct ToriDraw_Sprite* sprite)
 /* Whether this frame is one of the slot's turns to re-hash its sprite.
  * Hashing is a full read of the sprite -- the minimap's is a quarter of a
  * megabyte -- and its pixels change on a region load, not per frame, so each
- * slot checks every WEBGL2_ROTMASK_HASH_PERIOD frames, staggered so two slots
+ * slot checks every ES3_ROTMASK_HASH_PERIOD frames, staggered so two slots
  * never both pay in the same frame. The first upload always hashes. */
 static bool
-webgl2_ui_rotmask_hash_due(
-    const struct ToriRS_WebGL2* renderer,
-    const struct WebGL2UIRotmaskSlot* slot,
+es3_ui_rotmask_hash_due(
+    const struct ToriRS_ES3* renderer,
+    const struct ES3UIRotmaskSlot* slot,
     bool have_texture)
 {
     uint32_t slot_index = (uint32_t)(slot - renderer->ui_rotmasks);
     if( !have_texture )
         return true;
-    return (((uint32_t)renderer->frame_clock + slot_index) % WEBGL2_ROTMASK_HASH_PERIOD) == 0u;
+    return (((uint32_t)renderer->frame_clock + slot_index) % ES3_ROTMASK_HASH_PERIOD) == 0u;
 }
 
 /*
- * Is a rotmask texture up to date? TORIRS_WEBGL2_ROTMASK_GEN (the default):
- * the producer says when it rewrote the pixels (ToriRS_WebGL2_RotmaskSourceChanged
+ * Is a rotmask texture up to date? TORIRS_ES3_ROTMASK_GEN (the default):
+ * the producer says when it rewrote the pixels (ToriRS_ES3_RotmaskSourceChanged
  * from app_rebuild_world_map), so a texture uploaded at the current generation
  * is current, and a frame costs one integer compare instead of a walk over
- * the 512x512 bake. Under TORIRS_WEBGL2_DEBUG the hash still runs on its old
+ * the 512x512 bake. Under TORIRS_ES3_DEBUG the hash still runs on its old
  * schedule as a CROSS-CHECK: a hash that changes while the generation did not
  * names an in-place writer nobody told the renderer about, and is logged.
  * The control arm (=0) is the hash alone, as before.
@@ -1463,9 +1473,9 @@ webgl2_ui_rotmask_hash_due(
  * it.
  */
 static bool
-webgl2_ui_rotmask_needs_upload(
-    struct ToriRS_WebGL2* renderer,
-    struct WebGL2UIRotmaskSlot* slot,
+es3_ui_rotmask_needs_upload(
+    struct ToriRS_ES3* renderer,
+    struct ES3UIRotmaskSlot* slot,
     const struct ToriDraw_Sprite* sprite,
     GLuint texture,
     uint32_t generation_uploaded,
@@ -1477,16 +1487,16 @@ webgl2_ui_rotmask_needs_upload(
     *out_hash = UINT32_MAX;
     if( renderer->lever_rotmask_gen )
     {
-        uint32_t generation = webgl2_rotmask_source_generation();
+        uint32_t generation = es3_rotmask_source_generation();
         if( texture && generation_uploaded == generation )
         {
-            if( renderer->debug && webgl2_ui_rotmask_hash_due(renderer, slot, true) )
+            if( renderer->debug && es3_ui_rotmask_hash_due(renderer, slot, true) )
             {
-                uint32_t hash = webgl2_ui_rotmask_content_hash(sprite);
+                uint32_t hash = es3_ui_rotmask_content_hash(sprite);
                 if( hash_valid && hash != hash_uploaded )
                     TORIRS_ERR(
                         "WebGL2: rotmask %s pixels changed with no generation bump "
-                        "(scene %d): a writer is missing ToriRS_WebGL2_RotmaskSourceChanged\n",
+                        "(scene %d): a writer is missing ToriRS_ES3_RotmaskSourceChanged\n",
                         what,
                         slot->scene_id);
                 *out_hash = hash;
@@ -1494,19 +1504,19 @@ webgl2_ui_rotmask_needs_upload(
             return false;
         }
         if( renderer->debug )
-            *out_hash = webgl2_ui_rotmask_content_hash(sprite);
+            *out_hash = es3_ui_rotmask_content_hash(sprite);
         return true;
     }
-    if( !webgl2_ui_rotmask_hash_due(renderer, slot, texture && hash_valid) )
+    if( !es3_ui_rotmask_hash_due(renderer, slot, texture && hash_valid) )
         return false;
-    *out_hash = webgl2_ui_rotmask_content_hash(sprite);
+    *out_hash = es3_ui_rotmask_content_hash(sprite);
     return !(texture && hash_valid && hash_uploaded == *out_hash);
 }
 
 static bool
-webgl2_ui_rotmask_upload_source(
-    struct ToriRS_WebGL2* renderer,
-    struct WebGL2UIRotmaskSlot* slot,
+es3_ui_rotmask_upload_source(
+    struct ToriRS_ES3* renderer,
+    struct ES3UIRotmaskSlot* slot,
     const struct ToriDraw_Sprite* sprite)
 {
     uint32_t content_hash;
@@ -1519,7 +1529,7 @@ webgl2_ui_rotmask_upload_source(
     assert(sprite);
     if( !sprite->pixels_argb )
         return false;
-    if( !webgl2_ui_rotmask_needs_upload(
+    if( !es3_ui_rotmask_needs_upload(
             renderer,
             slot,
             sprite,
@@ -1540,7 +1550,7 @@ webgl2_ui_rotmask_upload_source(
     /* Staged through the renderer's packed-row buffer, not a calloc per
      * upload; the rows are cleared because the crop can leave a border the
      * loop never writes. */
-    webgl2_reserve_upload_stage(
+    es3_reserve_upload_stage(
         renderer, (size_t)slot->source_width * (size_t)slot->source_height * sizeof(*staged));
     staged = (uint32_t*)renderer->upload_stage;
     memset(staged, 0, (size_t)slot->source_width * (size_t)slot->source_height * sizeof(*staged));
@@ -1562,9 +1572,9 @@ webgl2_ui_rotmask_upload_source(
         sprite->alpha_channel, staged, staged, (size_t)slot->source_width * (size_t)slot->source_height);
     fresh = slot->source_texture == 0u;
     if( fresh )
-        slot->source_texture = webgl2_ui_new_texture(renderer);
+        slot->source_texture = es3_ui_new_texture(renderer);
     else
-        webgl2_bind_texture0(renderer, slot->source_texture);
+        es3_bind_texture0(renderer, slot->source_texture);
     if( fresh )
         glTexImage2D(
             GL_TEXTURE_2D, 0, GL_RGBA8, slot->source_width, slot->source_height, 0, GL_RGBA,
@@ -1573,7 +1583,7 @@ webgl2_ui_rotmask_upload_source(
         glTexSubImage2D(
             GL_TEXTURE_2D, 0, 0, 0, slot->source_width, slot->source_height, GL_RGBA,
             GL_UNSIGNED_BYTE, staged);
-    slot->source_generation = webgl2_rotmask_source_generation();
+    slot->source_generation = es3_rotmask_source_generation();
     if( content_hash != UINT32_MAX )
     {
         slot->source_hash = content_hash;
@@ -1583,9 +1593,9 @@ webgl2_ui_rotmask_upload_source(
 }
 
 static bool
-webgl2_ui_rotmask_upload_mask(
-    struct ToriRS_WebGL2* renderer,
-    struct WebGL2UIRotmaskSlot* slot,
+es3_ui_rotmask_upload_mask(
+    struct ToriRS_ES3* renderer,
+    struct ES3UIRotmaskSlot* slot,
     const struct ToriDraw_Sprite* mask)
 {
     uint32_t content_hash;
@@ -1599,7 +1609,7 @@ webgl2_ui_rotmask_upload_mask(
     assert(mask);
     if( !mask->pixels_argb )
         return false;
-    if( !webgl2_ui_rotmask_needs_upload(
+    if( !es3_ui_rotmask_needs_upload(
             renderer,
             slot,
             mask,
@@ -1617,7 +1627,7 @@ webgl2_ui_rotmask_upload_mask(
         }
         return true;
     }
-    webgl2_reserve_upload_stage(renderer, (size_t)slot->width * (size_t)slot->height);
+    es3_reserve_upload_stage(renderer, (size_t)slot->width * (size_t)slot->height);
     staged = renderer->upload_stage;
     memset(staged, 0, (size_t)slot->width * (size_t)slot->height);
     for( y = 0; y < mask->height; y++ )
@@ -1634,9 +1644,9 @@ webgl2_ui_rotmask_upload_mask(
     }
     fresh = slot->mask_texture == 0u;
     if( fresh )
-        slot->mask_texture = webgl2_ui_new_texture(renderer);
+        slot->mask_texture = es3_ui_new_texture(renderer);
     else
-        webgl2_bind_texture0(renderer, slot->mask_texture);
+        es3_bind_texture0(renderer, slot->mask_texture);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     if( fresh )
         glTexImage2D(
@@ -1646,7 +1656,7 @@ webgl2_ui_rotmask_upload_mask(
         glTexSubImage2D(
             GL_TEXTURE_2D, 0, 0, 0, slot->width, slot->height, GL_RED, GL_UNSIGNED_BYTE, staged);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    slot->mask_generation = webgl2_rotmask_source_generation();
+    slot->mask_generation = es3_rotmask_source_generation();
     if( content_hash != UINT32_MAX )
     {
         slot->mask_hash = content_hash;
@@ -1662,7 +1672,7 @@ webgl2_ui_rotmask_upload_mask(
  * source rectangle, so that rectangle is drawn and scissored to the box. The
  * half-pixel terms are the algebraic inverse of trspk_sprite_local_to_uv(). */
 static void
-webgl2_ui_rotated_sprite_quad(
+es3_ui_rotated_sprite_quad(
     int dst_x,
     int dst_y,
     int dst_anchor_x,
@@ -1706,19 +1716,19 @@ webgl2_ui_rotated_sprite_quad(
 }
 
 static void
-webgl2_ui_draw_rotmask_native(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_draw_rotmask_native(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_RenderCommand_Sprite* command,
-    const struct WebGL2UIRotmaskSlot* slot,
-    const struct WebGL2Rect* scissor,
+    const struct ES3UIRotmaskSlot* slot,
+    const struct ES3Rect* scissor,
     uint32_t rgba)
 {
     static const uint8_t order[6] = { 0u, 1u, 2u, 0u, 2u, 3u };
     static const float source_tile_uv[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
     float positions[4][2];
     float source_uv[4][2];
-    struct WebGL2VertexRotmask corners[4];
-    struct WebGL2VertexRotmask vertices[6];
+    struct ES3VertexRotmask corners[4];
+    struct ES3VertexRotmask vertices[6];
     uint32_t offset;
     int corner;
 
@@ -1728,7 +1738,7 @@ webgl2_ui_draw_rotmask_native(
     assert(scissor);
     if( !slot->source_texture || !slot->mask_texture )
         return;
-    webgl2_ui_rotated_sprite_quad(
+    es3_ui_rotated_sprite_quad(
         command->x,
         command->y,
         command->dst_anchor_x,
@@ -1761,15 +1771,15 @@ webgl2_ui_draw_rotmask_native(
     if( renderer->lever_ui_defer )
     {
         /* Recorded in sequence with the batches around it and issued by
-         * webgl2_ui_submit. The source and mask textures were uploaded above
+         * es3_ui_submit. The source and mask textures were uploaded above
          * (at most once per frame per slot: the generation is constant for
          * the frame and the hash schedule visits a slot once a frame), so
          * the deferred draw samples what this record meant. */
-        struct WebGL2UIDrawRecord* record;
-        webgl2_ui_batch_close(renderer);
-        webgl2_ui_pass_reserve_rotmask_vertices(renderer, 6u);
-        record = webgl2_ui_pass_record_append(renderer);
-        record->layout = WEBGL2_UI_RECORD_LAYOUT_ROTMASK;
+        struct ES3UIDrawRecord* record;
+        es3_ui_batch_close(renderer);
+        es3_ui_pass_reserve_rotmask_vertices(renderer, 6u);
+        record = es3_ui_pass_record_append(renderer);
+        record->layout = ES3_UI_RECORD_LAYOUT_ROTMASK;
         record->first = renderer->ui_pass_rotmask_count;
         record->count = 6u;
         record->texture0 = slot->source_texture;
@@ -1785,47 +1795,47 @@ webgl2_ui_draw_rotmask_native(
         return;
     }
 
-    webgl2_ui_flush(renderer);
-    webgl2_use_program(renderer, &renderer->program_rotmask);
+    es3_ui_flush(renderer);
+    es3_use_program(renderer, &renderer->program_rotmask);
     glUniformMatrix4fv(renderer->program_rotmask.u_matrix, 1, GL_FALSE, renderer->projection_2d);
     glUniform1f(renderer->program_rotmask.u_mask_invert, command->mask_keep_opaque ? 0.0f : 1.0f);
-    webgl2_set_blend(renderer, true);
-    webgl2_set_depth(renderer, false, false);
-    webgl2_set_scissor(renderer, scissor);
+    es3_set_blend(renderer, true);
+    es3_set_depth(renderer, false, false);
+    es3_set_scissor(renderer, scissor);
     /* Bound outright, not through the cache: the mask and source textures
      * are re-uploaded on the active unit above this, and two draws a frame
      * do not earn a cache miss's worth of risk. */
     renderer->bound_texture1 = 0u;
-    webgl2_bind_texture1(renderer, slot->mask_texture);
+    es3_bind_texture1(renderer, slot->mask_texture);
     renderer->bound_texture0 = 0u;
-    webgl2_bind_texture0(renderer, slot->source_texture);
-    offset = webgl2_ring_upload(renderer, vertices, (uint32_t)sizeof(vertices), true);
-    webgl2_bind_rotmask_stream(renderer, offset);
+    es3_bind_texture0(renderer, slot->source_texture);
+    offset = es3_ring_upload(renderer, vertices, (uint32_t)sizeof(vertices), true);
+    es3_bind_rotmask_stream(renderer, offset);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     /* No glGetError in the shipping path. It ran after every rotmask draw
      * once, and on a browser glGetError is a synchronous round trip to the
      * GPU process that drains the command queue -- twice a frame, for the
      * minimap and the compass. The init-time check covers the programs and
      * buffers this draw uses; a draw that fails afterwards is visible on
-     * screen. Under TORIRS_WEBGL2_DEBUG it is worth the drain: the Adreno 320
+     * screen. Under TORIRS_ES3_DEBUG it is worth the drain: the Adreno 320
      * drops this draw silently when an attribute array the program lacks is
      * left enabled. */
     if( renderer->debug )
-        (void)webgl2_check_error("rotmask draw");
+        (void)es3_check_error("rotmask draw");
     renderer->ui_stat_draws_rotmask++;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
     /* Leave nothing on unit 1 that an unload can delete before the next draw. */
-    webgl2_bind_texture1(renderer, 0u);
-    webgl2_ui_apply_states(renderer);
+    es3_bind_texture1(renderer, 0u);
+    es3_ui_apply_states(renderer);
 }
 
 void
-webgl2_ui_draw_sprite(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_draw_sprite(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_RenderCommand_Sprite* command)
 {
     struct ToriDraw_Sprite* sprite = NULL;
-    struct WebGL2Clip clip;
+    struct ES3Clip clip;
     float uv[4];
     int width;
     int height;
@@ -1838,7 +1848,7 @@ webgl2_ui_draw_sprite(
     assert(command);
     if( !renderer->in2d || !renderer->scene || command->scene_id <= 0 )
         return;
-    if( !webgl2_ui_clip_from(
+    if( !es3_ui_clip_from(
             renderer,
             command->scissor_x,
             command->scissor_y,
@@ -1846,15 +1856,15 @@ webgl2_ui_draw_sprite(
             command->scissor_h,
             &clip) )
         return;
-    alpha = webgl2_clampi(255 - command->trans, 0, 255);
+    alpha = es3_clampi(255 - command->trans, 0, 255);
     rgba = 0x00ffffffu | ((uint32_t)alpha << 24);
     if( command->rotated && command->mask_scene_id > 0 )
     {
         struct ToriDraw_Sprite** sprites;
         struct ToriDraw_Sprite** masks;
         struct ToriDraw_Sprite* mask;
-        struct WebGL2UIRotmaskSlot* slot;
-        struct WebGL2Rect box_scissor;
+        struct ES3UIRotmaskSlot* slot;
+        struct ES3Rect box_scissor;
         int sprite_count = 0;
         int mask_count = 0;
         int dst_width;
@@ -1875,7 +1885,7 @@ webgl2_ui_draw_sprite(
         source_width = sprite->crop_width > 0 ? sprite->crop_width : sprite->width;
         source_height = sprite->crop_height > 0 ? sprite->crop_height : sprite->height;
         if( dst_width <= 0 || dst_height <= 0 || source_width <= 0 || source_height <= 0 ||
-            !webgl2_ui_intersect_scissor_rect(
+            !es3_ui_intersect_scissor_rect(
                 renderer,
                 command->scissor_x,
                 command->scissor_y,
@@ -1887,7 +1897,7 @@ webgl2_ui_draw_sprite(
                 dst_height,
                 &box_scissor) )
             return;
-        slot = webgl2_ui_rotmask_slot(
+        slot = es3_ui_rotmask_slot(
             renderer,
             command->scene_id,
             command->atlas_index,
@@ -1897,17 +1907,17 @@ webgl2_ui_draw_sprite(
             dst_height,
             source_width,
             source_height);
-        if( slot && webgl2_ui_rotmask_upload_source(renderer, slot, sprite) &&
-            webgl2_ui_rotmask_upload_mask(renderer, slot, mask) )
-            webgl2_ui_draw_rotmask_native(renderer, command, slot, &box_scissor, rgba);
+        if( slot && es3_ui_rotmask_upload_source(renderer, slot, sprite) &&
+            es3_ui_rotmask_upload_mask(renderer, slot, mask) )
+            es3_ui_draw_rotmask_native(renderer, command, slot, &box_scissor, rgba);
         return;
     }
-    if( !webgl2_ui_sprite_ensure_variant(
+    if( !es3_ui_sprite_ensure_variant(
             renderer, command, &sprite, uv, &offset_x, &offset_y, &width, &height) )
         return;
     if( command->rotated )
     {
-        struct WebGL2Rect box_scissor;
+        struct ES3Rect box_scissor;
         float positions[4][2];
         float rotated_uv[4][2];
         int dst_width = command->w > 0 ? command->w : width;
@@ -1915,7 +1925,7 @@ webgl2_ui_draw_sprite(
         int src_width = sprite->crop_width > 0 ? sprite->crop_width : sprite->width;
         int src_height = sprite->crop_height > 0 ? sprite->crop_height : sprite->height;
         if( dst_width <= 0 || dst_height <= 0 || src_width <= 0 || src_height <= 0 ||
-            !webgl2_ui_intersect_scissor_rect(
+            !es3_ui_intersect_scissor_rect(
                 renderer,
                 command->scissor_x,
                 command->scissor_y,
@@ -1927,7 +1937,7 @@ webgl2_ui_draw_sprite(
                 dst_height,
                 &box_scissor) )
             return;
-        webgl2_ui_rotated_sprite_quad(
+        es3_ui_rotated_sprite_quad(
             command->x,
             command->y,
             command->dst_anchor_x,
@@ -1940,14 +1950,14 @@ webgl2_ui_draw_sprite(
             uv,
             positions,
             rotated_uv);
-        webgl2_ui_append_quad_vertices(
+        es3_ui_append_quad_vertices(
             renderer, renderer->ui_sprite_atlas_texture, true, &box_scissor, positions, rotated_uv,
             rgba);
         return;
     }
     if( command->tiled )
     {
-        struct WebGL2Clip tile_clip;
+        struct ES3Clip tile_clip;
         int tile_width = width > 0 ? width : 1;
         int tile_height = height > 0 ? height : 1;
         int dst_width = command->w > 0 ? command->w : tile_width;
@@ -1956,7 +1966,7 @@ webgl2_ui_draw_sprite(
         int start_y;
         int x;
         int y;
-        if( !webgl2_ui_clip_intersect(
+        if( !es3_ui_clip_intersect(
                 renderer,
                 command->scissor_x,
                 command->scissor_y,
@@ -1979,7 +1989,7 @@ webgl2_ui_draw_sprite(
             &start_y);
         for( y = start_y; y < command->y + dst_height; y += tile_height )
             for( x = start_x; x < command->x + dst_width; x += tile_width )
-                webgl2_ui_append_quad_clipped(
+                es3_ui_append_quad_clipped(
                     renderer,
                     renderer->ui_sprite_atlas_texture,
                     true,
@@ -1997,7 +2007,7 @@ webgl2_ui_draw_sprite(
     }
     if( command->if3 )
     {
-        struct WebGL2Clip box_clip;
+        struct ES3Clip box_clip;
         int nominal_width = sprite->width > 0 ? sprite->width : (width > 0 ? width : 1);
         int nominal_height = sprite->height > 0 ? sprite->height : (height > 0 ? height : 1);
         int box_width = command->w > 0 ? command->w : nominal_width;
@@ -2006,7 +2016,7 @@ webgl2_ui_draw_sprite(
         float scale_y = (float)box_height / (float)nominal_height;
         float x0 = (float)command->x + offset_x * scale_x;
         float y0 = (float)command->y + offset_y * scale_y;
-        if( !webgl2_ui_clip_intersect(
+        if( !es3_ui_clip_intersect(
                 renderer,
                 command->scissor_x,
                 command->scissor_y,
@@ -2018,7 +2028,7 @@ webgl2_ui_draw_sprite(
                 box_height,
                 &box_clip) )
             return;
-        webgl2_ui_append_quad_clipped(
+        es3_ui_append_quad_clipped(
             renderer,
             renderer->ui_sprite_atlas_texture,
             true,
@@ -2034,7 +2044,7 @@ webgl2_ui_draw_sprite(
             rgba);
         return;
     }
-    webgl2_ui_append_quad_clipped(
+    es3_ui_append_quad_clipped(
         renderer,
         renderer->ui_sprite_atlas_texture,
         true,
@@ -2053,17 +2063,17 @@ webgl2_ui_draw_sprite(
 /* ---- rectangles, lines, polygons ---------------------------------------------------- */
 
 void
-webgl2_ui_draw_clear_rect(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_draw_clear_rect(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_RenderCommand_ClearRect* command)
 {
-    struct WebGL2Clip clip;
+    struct ES3Clip clip;
     assert(renderer);
     assert(command);
     if( !renderer->in2d || command->w <= 0 || command->h <= 0 ||
-        !webgl2_ui_clip_from(renderer, 0, 0, renderer->width, renderer->height, &clip) )
+        !es3_ui_clip_from(renderer, 0, 0, renderer->width, renderer->height, &clip) )
         return;
-    webgl2_ui_append_quad_clipped(
+    es3_ui_append_quad_clipped(
         renderer,
         renderer->white_texture,
         false,
@@ -2076,32 +2086,32 @@ webgl2_ui_draw_clear_rect(
         0.0f,
         1.0f,
         1.0f,
-        webgl2_argb_to_rgba_bytes(TORIRS_WEBGL2_BG));
+        es3_argb_to_rgba_bytes(TORIRS_ES3_BG));
 }
 
 static uint32_t
-webgl2_ui_solid_rgba(int argb)
+es3_ui_solid_rgba(int argb)
 {
     uint32_t value = (uint32_t)argb;
     /* An ARGB word without an alpha byte is opaque: the convention every
      * fill-rect emitter in the tree writes against. */
     if( (value & 0xff000000u) == 0u )
         value |= 0xff000000u;
-    return webgl2_argb_to_rgba_bytes(value);
+    return es3_argb_to_rgba_bytes(value);
 }
 
 void
-webgl2_ui_draw_fill_rect(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_draw_fill_rect(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_RenderCommand_FillRect* command)
 {
-    struct WebGL2Clip clip;
+    struct ES3Clip clip;
     uint32_t rgba;
     GLuint white;
     assert(renderer);
     assert(command);
     if( !renderer->in2d || command->w <= 0 || command->h <= 0 ||
-        !webgl2_ui_clip_from(
+        !es3_ui_clip_from(
             renderer,
             command->scissor_x,
             command->scissor_y,
@@ -2109,30 +2119,30 @@ webgl2_ui_draw_fill_rect(
             command->scissor_h,
             &clip) )
         return;
-    rgba = webgl2_ui_solid_rgba(command->argb);
+    rgba = es3_ui_solid_rgba(command->argb);
     white = renderer->white_texture;
     if( command->filled )
     {
-        webgl2_ui_append_quad_clipped(
+        es3_ui_append_quad_clipped(
             renderer, white, false, &clip, (float)command->x, (float)command->y,
             (float)(command->x + command->w), (float)(command->y + command->h), 0, 0, 1, 1, rgba);
         return;
     }
-    webgl2_ui_append_quad_clipped(
+    es3_ui_append_quad_clipped(
         renderer, white, false, &clip, (float)command->x, (float)command->y,
         (float)(command->x + command->w), (float)(command->y + 1), 0, 0, 1, 1, rgba);
     if( command->h > 1 )
-        webgl2_ui_append_quad_clipped(
+        es3_ui_append_quad_clipped(
             renderer, white, false, &clip, (float)command->x,
             (float)(command->y + command->h - 1), (float)(command->x + command->w),
             (float)(command->y + command->h), 0, 0, 1, 1, rgba);
     if( command->h > 2 )
     {
-        webgl2_ui_append_quad_clipped(
+        es3_ui_append_quad_clipped(
             renderer, white, false, &clip, (float)command->x, (float)(command->y + 1),
             (float)(command->x + 1), (float)(command->y + command->h - 1), 0, 0, 1, 1, rgba);
         if( command->w > 1 )
-            webgl2_ui_append_quad_clipped(
+            es3_ui_append_quad_clipped(
                 renderer, white, false, &clip, (float)(command->x + command->w - 1),
                 (float)(command->y + 1), (float)(command->x + command->w),
                 (float)(command->y + command->h - 1), 0, 0, 1, 1, rgba);
@@ -2140,9 +2150,9 @@ webgl2_ui_draw_fill_rect(
 }
 
 void
-webgl2_ui_draw_line(struct ToriRS_WebGL2* renderer, const struct ToriRS_RenderCommand_Line* command)
+es3_ui_draw_line(struct ToriRS_ES3* renderer, const struct ToriRS_RenderCommand_Line* command)
 {
-    struct WebGL2Rect scissor;
+    struct ES3Rect scissor;
     float positions[4][2];
     float dx;
     float dy;
@@ -2160,7 +2170,7 @@ webgl2_ui_draw_line(struct ToriRS_WebGL2* renderer, const struct ToriRS_RenderCo
     assert(renderer);
     assert(command);
     if( !renderer->in2d ||
-        !webgl2_scissor_rect(
+        !es3_scissor_rect(
             renderer,
             command->scissor_x,
             command->scissor_y,
@@ -2168,7 +2178,7 @@ webgl2_ui_draw_line(struct ToriRS_WebGL2* renderer, const struct ToriRS_RenderCo
             command->scissor_h,
             &scissor) )
         return;
-    rgba = webgl2_ui_solid_rgba(command->argb);
+    rgba = es3_ui_solid_rgba(command->argb);
     thickness = command->line_width > 0 ? command->line_width : 1;
     x0 = (float)command->x;
     y0 = (float)(command->line_direction ? command->y + command->h : command->y);
@@ -2180,7 +2190,7 @@ webgl2_ui_draw_line(struct ToriRS_WebGL2* renderer, const struct ToriRS_RenderCo
     half = (float)thickness * 0.5f;
     if( length <= 0.0001f )
     {
-        webgl2_ui_append_quad(
+        es3_ui_append_quad(
             renderer, renderer->white_texture, false, &scissor, x0 - half, y0 - half, x0 + half,
             y0 + half, 0, 0, 1, 1, rgba);
         return;
@@ -2197,13 +2207,13 @@ webgl2_ui_draw_line(struct ToriRS_WebGL2* renderer, const struct ToriRS_RenderCo
     positions[2][1] = y1 - py;
     positions[3][0] = x0 - px;
     positions[3][1] = y0 - py;
-    webgl2_ui_append_quad_vertices(
+    es3_ui_append_quad_vertices(
         renderer, renderer->white_texture, false, &scissor, positions, NULL, rgba);
 }
 
 void
-webgl2_ui_polygon_begin(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_polygon_begin(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_RenderCommand_PolygonBegin* command)
 {
     assert(renderer);
@@ -2214,8 +2224,8 @@ webgl2_ui_polygon_begin(
 }
 
 void
-webgl2_ui_polygon_point(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_polygon_point(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_RenderCommand_PolygonPoint* command)
 {
     assert(renderer);
@@ -2227,10 +2237,10 @@ webgl2_ui_polygon_point(
     renderer->polygon_count++;
 }
 
-struct WebGL2PolygonSpanContext
+struct ES3PolygonSpanContext
 {
-    struct ToriRS_WebGL2* renderer;
-    struct WebGL2Rect scissor;
+    struct ToriRS_ES3* renderer;
+    struct ES3Rect scissor;
     bool scissor_set;
     uint32_t rgba;
 };
@@ -2239,12 +2249,12 @@ struct WebGL2PolygonSpanContext
  * draws each as a one-pixel-tall quad, so all four backends run the SAME
  * geometry for a highlight. */
 static void
-webgl2_ui_polygon_span(void* user_data, int x, int y, int count)
+es3_ui_polygon_span(void* user_data, int x, int y, int count)
 {
-    struct WebGL2PolygonSpanContext* context = (struct WebGL2PolygonSpanContext*)user_data;
+    struct ES3PolygonSpanContext* context = (struct ES3PolygonSpanContext*)user_data;
     if( count <= 0 )
         return;
-    webgl2_ui_append_quad(
+    es3_ui_append_quad(
         context->renderer,
         context->renderer->white_texture,
         false,
@@ -2261,9 +2271,9 @@ webgl2_ui_polygon_span(void* user_data, int x, int y, int count)
 }
 
 void
-webgl2_ui_polygon_end(struct ToriRS_WebGL2* renderer)
+es3_ui_polygon_end(struct ToriRS_ES3* renderer)
 {
-    struct WebGL2PolygonSpanContext context;
+    struct ES3PolygonSpanContext context;
     uint32_t argb;
     int alpha;
     assert(renderer);
@@ -2274,7 +2284,7 @@ webgl2_ui_polygon_end(struct ToriRS_WebGL2* renderer)
         return;
     context.renderer = renderer;
     context.scissor_set = renderer->polygon.scissor_w > 0 && renderer->polygon.scissor_h > 0 &&
-        webgl2_scissor_rect(
+        es3_scissor_rect(
             renderer,
             renderer->polygon.scissor_x,
             renderer->polygon.scissor_y,
@@ -2284,7 +2294,7 @@ webgl2_ui_polygon_end(struct ToriRS_WebGL2* renderer)
     /* `trans` is the sprite path's sense: 0 opaque, 255 invisible. */
     alpha = 255 - (renderer->polygon.trans & 0xff);
     argb = ((uint32_t)renderer->polygon.argb & 0x00ffffffu) | ((uint32_t)alpha << 24);
-    context.rgba = webgl2_argb_to_rgba_bytes(argb);
+    context.rgba = es3_argb_to_rgba_bytes(argb);
     ToriRS_PolygonFillConvex(
         renderer->polygon_x,
         renderer->polygon_y,
@@ -2293,20 +2303,20 @@ webgl2_ui_polygon_end(struct ToriRS_WebGL2* renderer)
         renderer->polygon.scissor_h > 0 ? renderer->polygon.scissor_y : 0,
         renderer->polygon.scissor_w > 0 ? renderer->polygon.scissor_w : 1 << 15,
         renderer->polygon.scissor_h > 0 ? renderer->polygon.scissor_h : 1 << 15,
-        webgl2_ui_polygon_span,
+        es3_ui_polygon_span,
         &context);
 }
 
 /* ---- fonts ------------------------------------------------------------------------------ */
 
 static int
-webgl2_ui_font_slot_index(struct ToriRS_WebGL2* renderer, int font_id, bool create)
+es3_ui_font_slot_index(struct ToriRS_ES3* renderer, int font_id, bool create)
 {
     int free_index = -1;
     int slot;
     if( font_id < 0 )
         return -1;
-    for( slot = 0; slot < WEBGL2_UI_FONT_CAP; slot++ )
+    for( slot = 0; slot < ES3_UI_FONT_CAP; slot++ )
     {
         if( renderer->ui_fonts[slot].font_id == font_id )
             return slot;
@@ -2322,9 +2332,9 @@ webgl2_ui_font_slot_index(struct ToriRS_WebGL2* renderer, int font_id, bool crea
 }
 
 static void
-webgl2_ui_font_release_slot(struct ToriRS_WebGL2* renderer, struct WebGL2UIFontSlot* slot)
+es3_ui_font_release_slot(struct ToriRS_ES3* renderer, struct ES3UIFontSlot* slot)
 {
-    webgl2_ui_delete_texture(renderer, &slot->texture);
+    es3_ui_delete_texture(renderer, &slot->texture);
     slot->texture_width = 0;
     slot->texture_height = 0;
     slot->baked = false;
@@ -2333,20 +2343,26 @@ webgl2_ui_font_release_slot(struct ToriRS_WebGL2* renderer, struct WebGL2UIFontS
 
 /*
  * Bake a font into one single-channel GL_R8 texture holding the glyph
- * coverage, with a texture swizzle that makes a fetch read back as
- * (1, 1, 1, coverage). Sampling it through the texture * colour program then
+ * coverage. The UI fragment shader turns a unit-1 fetch into
+ * (1, 1, 1, coverage), so sampling it through the texture * colour program
  * gives the glyph in the vertex colour with no text mode to switch -- the
  * same result the GLES2 renderer gets from GL_LUMINANCE_ALPHA, at half the
  * bytes and with no 0xff written per texel.
  *
- * The swizzle is per-texture state, so the widget textures that share
- * sampler unit 1 with the fonts are unaffected by it.
+ * That is done in the shader, not with a texture swizzle. ES 3.0 has
+ * GL_TEXTURE_SWIZZLE_*, which would present this texture as
+ * (1, 1, 1, coverage) to any shader; WebGL2 is one of the places that
+ * feature did not survive into, and the four glTexParameteri calls come back
+ * as INVALID_ENUM. The shader can do it instead because sampler unit 1 in
+ * the UI program is a font and nothing else -- the only quad that names a
+ * unit-1 texture is a glyph, and a quad naming a different one ends the
+ * batch.
  *
  * Each glyph gets a one-texel extruded border so linear UI scaling cannot
  * blend the glyph above or below across the quad (the horizontal streak).
  */
 static bool
-webgl2_ui_bake_font(struct ToriRS_WebGL2* renderer, struct WebGL2UIFontSlot* slot)
+es3_ui_bake_font(struct ToriRS_ES3* renderer, struct ES3UIFontSlot* slot)
 {
     struct ToriDraw_Font* font;
     uint8_t* texels;
@@ -2373,8 +2389,8 @@ webgl2_ui_bake_font(struct ToriRS_WebGL2* renderer, struct WebGL2UIFontSlot* slo
     if( atlas_width <= 0 || atlas_height <= 0 )
         return false;
     atlas_width += 2;
-    webgl2_ui_flush(renderer);
-    webgl2_ui_font_release_slot(renderer, slot);
+    es3_ui_flush(renderer);
+    es3_ui_font_release_slot(renderer, slot);
     texels = (uint8_t*)calloc((size_t)atlas_width * (size_t)atlas_height, 1u);
     assert(texels);
     for( glyph = 0; glyph < TORIDRAW_FONT_GLYPH_COUNT; glyph++ )
@@ -2390,10 +2406,10 @@ webgl2_ui_bake_font(struct ToriRS_WebGL2* renderer, struct WebGL2UIFontSlot* slo
         }
         for( y = -1; y <= glyph_height; y++ )
         {
-            int source_y = webgl2_clampi(y, 0, glyph_height - 1);
+            int source_y = es3_clampi(y, 0, glyph_height - 1);
             for( x = -1; x <= glyph_width; x++ )
             {
-                int source_x = webgl2_clampi(x, 0, glyph_width - 1);
+                int source_x = es3_clampi(x, 0, glyph_width - 1);
                 texels[(size_t)(atlas_y + y + 1) * (size_t)atlas_width + (size_t)(x + 1)] =
                     alpha[(size_t)source_y * (size_t)glyph_width + (size_t)source_x];
             }
@@ -2404,11 +2420,7 @@ webgl2_ui_bake_font(struct ToriRS_WebGL2* renderer, struct WebGL2UIFontSlot* slo
         slot->glyph_uv[glyph * 4 + 3] = (float)(atlas_y + glyph_height + 1) / (float)atlas_height;
         atlas_y += glyph_height + 2;
     }
-    slot->texture = webgl2_ui_new_texture(renderer);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_ONE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_ONE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_ONE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_RED);
+    slot->texture = es3_ui_new_texture(renderer);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(
         GL_TEXTURE_2D, 0, GL_R8, atlas_width, atlas_height, 0, GL_RED,
@@ -2421,61 +2433,61 @@ webgl2_ui_bake_font(struct ToriRS_WebGL2* renderer, struct WebGL2UIFontSlot* slo
     return true;
 }
 
-static struct WebGL2UIFontSlot*
-webgl2_ui_ensure_font(struct ToriRS_WebGL2* renderer, int font_id)
+static struct ES3UIFontSlot*
+es3_ui_ensure_font(struct ToriRS_ES3* renderer, int font_id)
 {
-    int slot_index = webgl2_ui_font_slot_index(renderer, font_id, true);
-    struct WebGL2UIFontSlot* slot;
+    int slot_index = es3_ui_font_slot_index(renderer, font_id, true);
+    struct ES3UIFontSlot* slot;
     if( slot_index < 0 )
         return NULL;
     slot = &renderer->ui_fonts[slot_index];
     if( !slot->font && renderer->scene )
         slot->font = ToriDraw_SceneFontGet(renderer->scene, font_id);
-    if( slot->font && !slot->baked && !webgl2_ui_bake_font(renderer, slot) )
+    if( slot->font && !slot->baked && !es3_ui_bake_font(renderer, slot) )
         return NULL;
     return slot;
 }
 
 void
-webgl2_ui_font_load(struct ToriRS_WebGL2* renderer, int font_id, struct ToriDraw_Font* font)
+es3_ui_font_load(struct ToriRS_ES3* renderer, int font_id, struct ToriDraw_Font* font)
 {
     int slot_index;
     assert(renderer);
-    slot_index = webgl2_ui_font_slot_index(renderer, font_id, true);
+    slot_index = es3_ui_font_slot_index(renderer, font_id, true);
     if( slot_index < 0 )
         return;
     if( renderer->ui_fonts[slot_index].font != font )
     {
-        webgl2_ui_flush(renderer);
-        webgl2_ui_font_release_slot(renderer, &renderer->ui_fonts[slot_index]);
+        es3_ui_flush(renderer);
+        es3_ui_font_release_slot(renderer, &renderer->ui_fonts[slot_index]);
         renderer->ui_fonts[slot_index].font = font;
     }
 }
 
 void
-webgl2_ui_font_unload(struct ToriRS_WebGL2* renderer, int font_id)
+es3_ui_font_unload(struct ToriRS_ES3* renderer, int font_id)
 {
     int slot_index;
     assert(renderer);
-    slot_index = webgl2_ui_font_slot_index(renderer, font_id, false);
+    slot_index = es3_ui_font_slot_index(renderer, font_id, false);
     if( slot_index < 0 )
         return;
-    webgl2_ui_flush(renderer);
-    webgl2_ui_font_release_slot(renderer, &renderer->ui_fonts[slot_index]);
+    es3_ui_flush(renderer);
+    es3_ui_font_release_slot(renderer, &renderer->ui_fonts[slot_index]);
     renderer->ui_fonts[slot_index].font = NULL;
     renderer->ui_fonts[slot_index].font_id = -1;
 }
 
-struct WebGL2UIFontGlyphContext
+struct ES3UIFontGlyphContext
 {
-    struct ToriRS_WebGL2* renderer;
-    struct WebGL2UIFontSlot* slot;
-    struct WebGL2Clip clip;
+    struct ToriRS_ES3* renderer;
+    struct ES3UIFontSlot* slot;
+    struct ES3Clip clip;
     bool shadow;
 };
 
 static void
-webgl2_ui_font_glyph(
+es3_ui_font_glyph(
     void* opaque,
     struct ToriDraw_Font* font,
     int glyph_index,
@@ -2483,8 +2495,8 @@ webgl2_ui_font_glyph(
     int y,
     int color_rgb)
 {
-    struct WebGL2UIFontGlyphContext* context = (struct WebGL2UIFontGlyphContext*)opaque;
-    struct WebGL2UIFontSlot* slot = context->slot;
+    struct ES3UIFontGlyphContext* context = (struct ES3UIFontGlyphContext*)opaque;
+    struct ES3UIFontSlot* slot = context->slot;
     int width;
     int height;
     (void)font;
@@ -2496,7 +2508,7 @@ webgl2_ui_font_glyph(
         return;
     if( context->shadow )
         color_rgb = 0;
-    webgl2_ui_append_quad_clipped(
+    es3_ui_append_quad_clipped(
         context->renderer,
         slot->texture,
         false,
@@ -2509,24 +2521,24 @@ webgl2_ui_font_glyph(
         slot->glyph_uv[glyph_index * 4 + 1],
         slot->glyph_uv[glyph_index * 4 + 2],
         slot->glyph_uv[glyph_index * 4 + 3],
-        webgl2_ui_solid_rgba(color_rgb & 0x00ffffff));
+        es3_ui_solid_rgba(color_rgb & 0x00ffffff));
 }
 
 static void
-webgl2_ui_draw_font_rules(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_draw_font_rules(
+    struct ToriRS_ES3* renderer,
     struct ToriDraw_Font* font,
-    const struct WebGL2Clip* clip,
+    const struct ES3Clip* clip,
     const char* text,
     int x,
     int y,
     bool center);
 
 static void
-webgl2_ui_draw_font_text(
-    struct ToriRS_WebGL2* renderer,
-    struct WebGL2UIFontSlot* slot,
-    const struct WebGL2Clip* clip,
+es3_ui_draw_font_text(
+    struct ToriRS_ES3* renderer,
+    struct ES3UIFontSlot* slot,
+    const struct ES3Clip* clip,
     const char* text,
     int x,
     int y,
@@ -2534,7 +2546,7 @@ webgl2_ui_draw_font_text(
     bool shadow,
     bool center)
 {
-    struct WebGL2UIFontGlyphContext context;
+    struct ES3UIFontGlyphContext context;
     if( !text || !text[0] || !slot || !slot->font || !slot->baked || !slot->texture )
         return;
     context.renderer = renderer;
@@ -2542,13 +2554,13 @@ webgl2_ui_draw_font_text(
     context.clip = *clip;
     context.shadow = shadow;
     ToriDraw_FontVisitGlyphsStyled(
-        slot->font, text, x, y, color, center, webgl2_ui_font_glyph, &context);
+        slot->font, text, x, y, color, center, es3_ui_font_glyph, &context);
     if( !shadow )
-        webgl2_ui_draw_font_rules(renderer, slot->font, clip, text, x, y, center);
+        es3_ui_draw_font_rules(renderer, slot->font, clip, text, x, y, center);
 }
 
 static bool
-webgl2_ui_char_equal_ignore_case(char a, char b)
+es3_ui_char_equal_ignore_case(char a, char b)
 {
     if( a >= 'A' && a <= 'Z' )
         a = (char)(a + ('a' - 'A'));
@@ -2558,7 +2570,7 @@ webgl2_ui_char_equal_ignore_case(char a, char b)
 }
 
 static bool
-webgl2_ui_font_line_break(const char* text, int* advance)
+es3_ui_font_line_break(const char* text, int* advance)
 {
     assert(text);
     if( !text[0] )
@@ -2581,15 +2593,15 @@ webgl2_ui_font_line_break(const char* text, int* advance)
     /* Guard each successive byte: this runs at every byte, including a
      * trailing "<" or "<b", so a fixed-index probe must not read past NUL. */
     if( text[0] == '<' && text[1] != '\0' && text[2] != '\0' &&
-        webgl2_ui_char_equal_ignore_case(text[1], 'b') &&
-        webgl2_ui_char_equal_ignore_case(text[2], 'r') && text[3] == '>' )
+        es3_ui_char_equal_ignore_case(text[1], 'b') &&
+        es3_ui_char_equal_ignore_case(text[2], 'r') && text[3] == '>' )
     {
         *advance = 4;
         return true;
     }
     if( text[0] == '<' && text[1] != '\0' && text[2] != '\0' && text[3] != '\0' &&
-        webgl2_ui_char_equal_ignore_case(text[1], 'b') &&
-        webgl2_ui_char_equal_ignore_case(text[2], 'r') && text[3] == '/' && text[4] == '>' )
+        es3_ui_char_equal_ignore_case(text[1], 'b') &&
+        es3_ui_char_equal_ignore_case(text[2], 'r') && text[3] == '/' && text[4] == '>' )
     {
         *advance = 5;
         return true;
@@ -2598,12 +2610,12 @@ webgl2_ui_font_line_break(const char* text, int* advance)
 }
 
 static const char*
-webgl2_ui_font_next_line(const char* text, int* length, int* advance)
+es3_ui_font_next_line(const char* text, int* length, int* advance)
 {
     const char* cursor = text;
     while( cursor[0] )
     {
-        if( webgl2_ui_font_line_break(cursor, advance) )
+        if( es3_ui_font_line_break(cursor, advance) )
         {
             *length = (int)(cursor - text);
             return cursor;
@@ -2616,7 +2628,7 @@ webgl2_ui_font_next_line(const char* text, int* length, int* advance)
 }
 
 static int
-webgl2_ui_font_measure_range(struct ToriDraw_Font* font, const char* text, int length)
+es3_ui_font_measure_range(struct ToriDraw_Font* font, const char* text, int length)
 {
     char buffer[4096];
     if( length <= 0 )
@@ -2629,7 +2641,7 @@ webgl2_ui_font_measure_range(struct ToriDraw_Font* font, const char* text, int l
 }
 
 static int
-webgl2_ui_font_char_advance(const struct ToriDraw_Font* font, unsigned char character)
+es3_ui_font_char_advance(const struct ToriDraw_Font* font, unsigned char character)
 {
     int glyph_index;
     int advance;
@@ -2650,26 +2662,26 @@ webgl2_ui_font_char_advance(const struct ToriDraw_Font* font, unsigned char char
 }
 
 static void
-webgl2_ui_append_rule_quad(
-    struct ToriRS_WebGL2* renderer,
-    const struct WebGL2Clip* clip,
+es3_ui_append_rule_quad(
+    struct ToriRS_ES3* renderer,
+    const struct ES3Clip* clip,
     int x,
     int y,
     int advance,
     int rgb)
 {
-    webgl2_ui_append_quad_clipped(
+    es3_ui_append_quad_clipped(
         renderer, renderer->white_texture, false, clip, (float)x, (float)y, (float)(x + advance),
-        (float)(y + 1), 0, 0, 1, 1, webgl2_ui_solid_rgba(rgb & 0x00ffffff));
+        (float)(y + 1), 0, 0, 1, 1, es3_ui_solid_rgba(rgb & 0x00ffffff));
 }
 
 /* Underline and strikethrough: the glyph pass draws glyphs only, so the rules
  * get their own walk over the same tokens. */
 static void
-webgl2_ui_draw_font_rule_range(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_draw_font_rule_range(
+    struct ToriRS_ES3* renderer,
     struct ToriDraw_Font* font,
-    const struct WebGL2Clip* clip,
+    const struct ES3Clip* clip,
     const char* text,
     int length,
     int x,
@@ -2714,23 +2726,23 @@ webgl2_ui_draw_font_rule_range(
         }
         else
             emit_char = (unsigned char)text[index++];
-        advance = webgl2_ui_font_char_advance(font, emit_char);
+        advance = es3_ui_font_char_advance(font, emit_char);
         if( advance > 0 )
         {
             if( strike_rgb >= 0 )
-                webgl2_ui_append_rule_quad(renderer, clip, x, strike_y, advance, strike_rgb);
+                es3_ui_append_rule_quad(renderer, clip, x, strike_y, advance, strike_rgb);
             if( underline_rgb >= 0 )
-                webgl2_ui_append_rule_quad(renderer, clip, x, underline_y, advance, underline_rgb);
+                es3_ui_append_rule_quad(renderer, clip, x, underline_y, advance, underline_rgb);
         }
         x += advance;
     }
 }
 
 static void
-webgl2_ui_draw_font_rules(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_draw_font_rules(
+    struct ToriRS_ES3* renderer,
     struct ToriDraw_Font* font,
-    const struct WebGL2Clip* clip,
+    const struct ES3Clip* clip,
     const char* text,
     int x,
     int y,
@@ -2743,11 +2755,11 @@ webgl2_ui_draw_font_rules(
         int length = 0;
         int advance = 0;
         int line_x = x;
-        const char* break_at = webgl2_ui_font_next_line(rest, &length, &advance);
+        const char* break_at = es3_ui_font_next_line(rest, &length, &advance);
         if( center && length > 0 )
-            line_x -= webgl2_ui_font_measure_range(font, rest, length) / 2;
+            line_x -= es3_ui_font_measure_range(font, rest, length) / 2;
         if( length > 0 )
-            webgl2_ui_draw_font_rule_range(renderer, font, clip, rest, length, line_x, y);
+            es3_ui_draw_font_rule_range(renderer, font, clip, rest, length, line_x, y);
         if( advance == 0 )
             break;
         y += line_step;
@@ -2756,10 +2768,10 @@ webgl2_ui_draw_font_rules(
 }
 
 static void
-webgl2_ui_draw_font_range(
-    struct ToriRS_WebGL2* renderer,
-    struct WebGL2UIFontSlot* slot,
-    const struct WebGL2Clip* clip,
+es3_ui_draw_font_range(
+    struct ToriRS_ES3* renderer,
+    struct ES3UIFontSlot* slot,
+    const struct ES3Clip* clip,
     const char* text,
     int length,
     int x,
@@ -2774,20 +2786,20 @@ webgl2_ui_draw_font_range(
         length = (int)sizeof(buffer) - 1;
     memcpy(buffer, text, (size_t)length);
     buffer[length] = '\0';
-    webgl2_ui_draw_font_text(renderer, slot, clip, buffer, x, y, color, shadow, false);
+    es3_ui_draw_font_text(renderer, slot, clip, buffer, x, y, color, shadow, false);
 }
 
 void
-webgl2_ui_draw_font(struct ToriRS_WebGL2* renderer, const struct ToriRS_RenderCommand_Font* command)
+es3_ui_draw_font(struct ToriRS_ES3* renderer, const struct ToriRS_RenderCommand_Font* command)
 {
-    struct WebGL2UIFontSlot* slot;
+    struct ES3UIFontSlot* slot;
     struct ToriDraw_Font* font;
-    struct WebGL2Clip clip;
+    struct ES3Clip clip;
 
     assert(renderer);
     assert(command);
     if( !renderer->in2d || command->font_id < 0 || !command->text || !command->text[0] ||
-        !webgl2_ui_clip_from(
+        !es3_ui_clip_from(
             renderer,
             command->scissor_x,
             command->scissor_y,
@@ -2795,7 +2807,7 @@ webgl2_ui_draw_font(struct ToriRS_WebGL2* renderer, const struct ToriRS_RenderCo
             command->scissor_h,
             &clip) )
         return;
-    slot = webgl2_ui_ensure_font(renderer, command->font_id);
+    slot = es3_ui_ensure_font(renderer, command->font_id);
     font = slot ? slot->font : NULL;
     if( !font || !slot->baked || !ToriDraw_FontValidate(font) )
         return;
@@ -2806,11 +2818,11 @@ webgl2_ui_draw_font(struct ToriRS_WebGL2* renderer, const struct ToriRS_RenderCo
         for( int pass=0;pass<ToriDraw_FontShadowPassCount(command->shadowed);++pass )
         {
             int dx,dy;ToriDraw_FontShadowOffset(command->shadowed,pass,&dx,&dy);
-            webgl2_ui_draw_font_text(
+            es3_ui_draw_font_text(
                 renderer, slot, &clip, command->text, command->x + dx, y + dy, command->color,
                 true, center);
         }
-        webgl2_ui_draw_font_text(
+        es3_ui_draw_font_text(
             renderer, slot, &clip, command->text, command->x, y, command->color, false, center);
         return;
     }
@@ -2824,11 +2836,11 @@ webgl2_ui_draw_font(struct ToriRS_WebGL2* renderer, const struct ToriRS_RenderCo
             for( int pass=0;pass<ToriDraw_FontShadowPassCount(command->shadowed);++pass )
             {
                 int dx,dy;ToriDraw_FontShadowOffset(command->shadowed,pass,&dx,&dy);
-                webgl2_ui_draw_font_range(
+                es3_ui_draw_font_range(
                     renderer, slot, &clip, lines[line].text, lines[line].len, lines[line].x + dx,
                     lines[line].y + dy, command->color, true);
             }
-            webgl2_ui_draw_font_range(
+            es3_ui_draw_font_range(
                 renderer, slot, &clip, lines[line].text, lines[line].len, lines[line].x,
                 lines[line].y, command->color, false);
         }
@@ -2837,7 +2849,7 @@ webgl2_ui_draw_font(struct ToriRS_WebGL2* renderer, const struct ToriRS_RenderCo
 
 /* ---- widget models ----------------------------------------------------------------------- */
 
-struct WebGL2WidgetVertex
+struct ES3WidgetVertex
 {
     float cx;
     float cy;
@@ -2848,7 +2860,7 @@ struct WebGL2WidgetVertex
 };
 
 static void
-webgl2_widget_model_transform_vertex(
+es3_widget_model_transform_vertex(
     const struct ToriDraw_WidgetModelTransform* transform,
     int vx,
     int vy,
@@ -2889,8 +2901,8 @@ webgl2_widget_model_transform_vertex(
 /* Populate the same projected arrays the reference widget rasterizer uses, so
  * the scene's bounded face sort can order the faces. */
 static bool
-webgl2_widget_model_project(
-    struct ToriRS_WebGL2* renderer,
+es3_widget_model_project(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_RenderCommand_ModelWidget* command,
     const struct ToriDraw_WidgetModelTransform* transform,
     float* out_origin_x,
@@ -2926,7 +2938,7 @@ webgl2_widget_model_project(
             int cx;
             int cy;
             int cz;
-            webgl2_widget_model_transform_vertex(
+            es3_widget_model_transform_vertex(
                 transform, model->vertices_x[vertex], model->vertices_y[vertex],
                 model->vertices_z[vertex], &cx, &cy, &cz);
             scene->orthographic_vertices_x[vertex] = cx;
@@ -2955,14 +2967,14 @@ webgl2_widget_model_project(
             int cx;
             int cy;
             int cz;
-            webgl2_widget_model_transform_vertex(
+            es3_widget_model_transform_vertex(
                 transform, model->vertices_x[vertex], model->vertices_y[vertex],
                 model->vertices_z[vertex], &cx, &cy, &cz);
             scene->orthographic_vertices_x[vertex] = cx;
             scene->orthographic_vertices_y[vertex] = cy;
             scene->orthographic_vertices_z[vertex] = cz;
             scene->screen_vertices_z[vertex] = cz - depth_mid;
-            if( (float)cz <= WEBGL2_WIDGET_MODEL_NEAR )
+            if( (float)cz <= ES3_WIDGET_MODEL_NEAR )
             {
                 scene->screen_vertices_x[vertex] = -5000;
                 scene->screen_vertices_y[vertex] = 0;
@@ -2978,13 +2990,13 @@ webgl2_widget_model_project(
     }
 }
 
-static struct WebGL2WidgetVertex
-webgl2_widget_vertex_lerp(
-    const struct WebGL2WidgetVertex* a,
-    const struct WebGL2WidgetVertex* b,
+static struct ES3WidgetVertex
+es3_widget_vertex_lerp(
+    const struct ES3WidgetVertex* a,
+    const struct ES3WidgetVertex* b,
     float amount)
 {
-    struct WebGL2WidgetVertex out;
+    struct ES3WidgetVertex out;
     int channel;
     out.cx = a->cx + (b->cx - a->cx) * amount;
     out.cy = a->cy + (b->cy - a->cy) * amount;
@@ -2997,46 +3009,46 @@ webgl2_widget_vertex_lerp(
 }
 
 static int
-webgl2_widget_model_clip_near(
-    const struct WebGL2WidgetVertex input[3],
-    struct WebGL2WidgetVertex output[4])
+es3_widget_model_clip_near(
+    const struct ES3WidgetVertex input[3],
+    struct ES3WidgetVertex output[4])
 {
     int output_count = 0;
     int edge;
     for( edge = 0; edge < 3; edge++ )
     {
-        const struct WebGL2WidgetVertex* a = &input[edge];
-        const struct WebGL2WidgetVertex* b = &input[(edge + 1) % 3];
-        bool a_inside = a->cz > WEBGL2_WIDGET_MODEL_NEAR;
-        bool b_inside = b->cz > WEBGL2_WIDGET_MODEL_NEAR;
+        const struct ES3WidgetVertex* a = &input[edge];
+        const struct ES3WidgetVertex* b = &input[(edge + 1) % 3];
+        bool a_inside = a->cz > ES3_WIDGET_MODEL_NEAR;
+        bool b_inside = b->cz > ES3_WIDGET_MODEL_NEAR;
         if( a_inside )
             output[output_count++] = *a;
         if( a_inside != b_inside )
         {
-            float amount = (WEBGL2_WIDGET_MODEL_NEAR - a->cz) / (b->cz - a->cz);
-            output[output_count++] = webgl2_widget_vertex_lerp(a, b, amount);
+            float amount = (ES3_WIDGET_MODEL_NEAR - a->cz) / (b->cz - a->cz);
+            output[output_count++] = es3_widget_vertex_lerp(a, b, amount);
         }
     }
     return output_count;
 }
 
 static uint32_t
-webgl2_pack_float_rgba(const float color[4])
+es3_pack_float_rgba(const float color[4])
 {
-    uint32_t r = (uint32_t)webgl2_clampi((int)(color[0] * 255.0f + 0.5f), 0, 255);
-    uint32_t g = (uint32_t)webgl2_clampi((int)(color[1] * 255.0f + 0.5f), 0, 255);
-    uint32_t b = (uint32_t)webgl2_clampi((int)(color[2] * 255.0f + 0.5f), 0, 255);
-    uint32_t a = (uint32_t)webgl2_clampi((int)(color[3] * 255.0f + 0.5f), 0, 255);
+    uint32_t r = (uint32_t)es3_clampi((int)(color[0] * 255.0f + 0.5f), 0, 255);
+    uint32_t g = (uint32_t)es3_clampi((int)(color[1] * 255.0f + 0.5f), 0, 255);
+    uint32_t b = (uint32_t)es3_clampi((int)(color[2] * 255.0f + 0.5f), 0, 255);
+    uint32_t a = (uint32_t)es3_clampi((int)(color[3] * 255.0f + 0.5f), 0, 255);
     return r | (g << 8) | (b << 16) | (a << 24);
 }
 
 static void
-webgl2_widget_model_output_vertex(
+es3_widget_model_output_vertex(
     const struct ToriDraw_WidgetModelTransform* transform,
     float origin_x,
     float origin_y,
-    const struct WebGL2WidgetVertex* source,
-    struct WebGL2VertexUI* out)
+    const struct ES3WidgetVertex* source,
+    struct ES3VertexUI* out)
 {
     if( transform->orthographic )
     {
@@ -3056,29 +3068,29 @@ webgl2_widget_model_output_vertex(
     }
     out->u = source->u;
     out->v = source->v;
-    out->rgba = webgl2_pack_float_rgba(source->color);
+    out->rgba = es3_pack_float_rgba(source->color);
 }
 
 static void
-webgl2_reserve_widget_vertices(struct ToriRS_WebGL2* renderer, uint32_t needed)
+es3_reserve_widget_vertices(struct ToriRS_ES3* renderer, uint32_t needed)
 {
     uint32_t capacity;
-    struct WebGL2VertexUI* grown;
+    struct ES3VertexUI* grown;
     if( needed <= renderer->widget_vertex_capacity )
         return;
     capacity = renderer->widget_vertex_capacity ? renderer->widget_vertex_capacity : 1024u;
     while( capacity < needed )
         capacity *= 2u;
-    grown = (struct WebGL2VertexUI*)realloc(renderer->widget_vertices, (size_t)capacity * sizeof(*grown));
+    grown = (struct ES3VertexUI*)realloc(renderer->widget_vertices, (size_t)capacity * sizeof(*grown));
     assert(grown);
     renderer->widget_vertices = grown;
     renderer->widget_vertex_capacity = capacity;
 }
 
 static void
-webgl2_widget_flush_vertices(
-    struct ToriRS_WebGL2* renderer,
-    const struct WebGL2Rect* scissor,
+es3_widget_flush_vertices(
+    struct ToriRS_ES3* renderer,
+    const struct ES3Rect* scissor,
     uint32_t vertex_count)
 {
     uint32_t first = 0u;
@@ -3089,15 +3101,15 @@ webgl2_widget_flush_vertices(
         /* One record over the world atlas, appended to the pass array in
          * sequence; no size cap, since nothing indexes it. The open batch
          * was closed by the caller before the model was built. */
-        struct WebGL2UIDrawRecord* record;
+        struct ES3UIDrawRecord* record;
         assert(renderer->ui_batch.vertex_count == 0u);
-        webgl2_ui_pass_reserve_vertices(renderer, vertex_count);
+        es3_ui_pass_reserve_vertices(renderer, vertex_count);
         memcpy(
             renderer->ui_pass_vertices + renderer->ui_pass_vertex_count,
             renderer->widget_vertices,
-            (size_t)vertex_count * sizeof(struct WebGL2VertexUI));
-        record = webgl2_ui_pass_record_append(renderer);
-        record->layout = WEBGL2_UI_RECORD_LAYOUT_WIDGET;
+            (size_t)vertex_count * sizeof(struct ES3VertexUI));
+        record = es3_ui_pass_record_append(renderer);
+        record->layout = ES3_UI_RECORD_LAYOUT_WIDGET;
         record->first = renderer->ui_pass_vertex_count;
         record->count = vertex_count;
         record->texture0 = renderer->atlas_texture;
@@ -3106,22 +3118,22 @@ webgl2_widget_flush_vertices(
         renderer->ui_pass_vertex_count += vertex_count;
         return;
     }
-    webgl2_ui_apply_states(renderer);
-    webgl2_set_scissor(renderer, scissor);
-    webgl2_bind_texture0(renderer, renderer->atlas_texture);
+    es3_ui_apply_states(renderer);
+    es3_set_scissor(renderer, scissor);
+    es3_bind_texture0(renderer, renderer->atlas_texture);
     /* The ring holds four maximal UI batches; a widget model larger than one
      * batch goes up in pieces. */
     while( first < vertex_count )
     {
         uint32_t count = vertex_count - first;
         uint32_t offset;
-        if( count > WEBGL2_UI_BATCH_MAX_VERTS )
-            count = WEBGL2_UI_BATCH_MAX_VERTS - (WEBGL2_UI_BATCH_MAX_VERTS % 3u);
+        if( count > ES3_UI_BATCH_MAX_VERTS )
+            count = ES3_UI_BATCH_MAX_VERTS - (ES3_UI_BATCH_MAX_VERTS % 3u);
         /* Immediate path: each piece is drawn before the next append. */
-        offset = webgl2_ring_upload(
-            renderer, renderer->widget_vertices + first, count * (uint32_t)sizeof(struct WebGL2VertexUI),
+        offset = es3_ring_upload(
+            renderer, renderer->widget_vertices + first, count * (uint32_t)sizeof(struct ES3VertexUI),
             true);
-        webgl2_bind_ui_stream(renderer, offset);
+        es3_bind_ui_stream(renderer, offset);
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)count);
         renderer->ui_stat_draws_widget++;
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
@@ -3140,13 +3152,13 @@ webgl2_widget_flush_vertices(
  * than a batch, one draw.
  */
 void
-webgl2_ui_draw_model_widget(
-    struct ToriRS_WebGL2* renderer,
+es3_ui_draw_model_widget(
+    struct ToriRS_ES3* renderer,
     const struct ToriRS_RenderCommand_ModelWidget* command)
 {
     struct ToriDraw_WidgetModelTransform transform;
     struct ToriDraw_Model* model;
-    struct WebGL2Rect scissor;
+    struct ES3Rect scissor;
     const int* face_order;
     int sorted_face_count;
     float origin_x;
@@ -3159,7 +3171,7 @@ webgl2_ui_draw_model_widget(
     if( !renderer->in2d || !renderer->scene || !ToriDraw_ModelKindIsFull(command->model.kind) ||
         !(model = command->model.u.model.model) || command->w <= 0 || command->h <= 0 )
         return;
-    if( !webgl2_scissor_rect(
+    if( !es3_scissor_rect(
             renderer,
             command->scissor_x,
             command->scissor_y,
@@ -3178,7 +3190,7 @@ webgl2_ui_draw_model_widget(
         command->model_center_y,
         command->model_orthog != 0,
         command->model_fixed_zoom != 0);
-    if( !webgl2_widget_model_project(renderer, command, &transform, &origin_x, &origin_y) )
+    if( !es3_widget_model_project(renderer, command, &transform, &origin_x, &origin_y) )
         return;
     sorted_face_count =
         ToriDraw_RenderModel2SortFacesWithTable(command->model, renderer->scene, renderer->kernel);
@@ -3187,7 +3199,7 @@ webgl2_ui_draw_model_widget(
     face_order = ToriDraw_FaceOrder(renderer->scene);
     /* The open batch ends here so the model keeps its place in the
      * sequence; on the deferred arm that is a record, not a draw. */
-    webgl2_ui_batch_close(renderer);
+    es3_ui_batch_close(renderer);
     /* Every face's texture is reserved (and uploaded when present) before the
      * loop, so the atlas is pushed once rather than mid-model. */
     if( model->face_textures )
@@ -3195,17 +3207,17 @@ webgl2_ui_draw_model_widget(
         {
             int face = face_order[order_index];
             if( face >= 0 && face < model->face_count )
-                (void)webgl2_ensure_texture(renderer, (int)model->face_textures[face]);
+                (void)es3_ensure_texture(renderer, (int)model->face_textures[face]);
         }
-    if( !webgl2_upload_atlas(renderer) )
+    if( !es3_upload_atlas(renderer) )
         return;
-    webgl2_reserve_widget_vertices(renderer, (uint32_t)sorted_face_count * 6u);
+    es3_reserve_widget_vertices(renderer, (uint32_t)sorted_face_count * 6u);
 
     for( order_index = 0; order_index < sorted_face_count; order_index++ )
     {
         struct TRSPK_ToriDrawBakeFaceVerts face;
-        struct WebGL2WidgetVertex input[3];
-        struct WebGL2WidgetVertex clipped[4];
+        struct ES3WidgetVertex input[3];
+        struct ES3WidgetVertex clipped[4];
         const float* colors[3];
         float uv[3][2];
         int indices[3];
@@ -3242,9 +3254,9 @@ webgl2_ui_draw_model_widget(
         colors[0] = face.color_a;
         colors[1] = face.color_b;
         colors[2] = face.color_c;
-        webgl2_map_atlas_uv(slot, face.uv.u1, face.uv.v1, &uv[0][0], &uv[0][1]);
-        webgl2_map_atlas_uv(slot, face.uv.u2, face.uv.v2, &uv[1][0], &uv[1][1]);
-        webgl2_map_atlas_uv(slot, face.uv.u3, face.uv.v3, &uv[2][0], &uv[2][1]);
+        es3_map_atlas_uv(slot, face.uv.u1, face.uv.v1, &uv[0][0], &uv[0][1]);
+        es3_map_atlas_uv(slot, face.uv.u2, face.uv.v2, &uv[1][0], &uv[1][1]);
+        es3_map_atlas_uv(slot, face.uv.u3, face.uv.v3, &uv[2][0], &uv[2][1]);
         for( corner = 0; corner < 3; corner++ )
         {
             int channel;
@@ -3265,13 +3277,13 @@ webgl2_ui_draw_model_widget(
             clipped_count = 3;
         }
         else
-            clipped_count = webgl2_widget_model_clip_near(input, clipped);
+            clipped_count = es3_widget_model_clip_near(input, clipped);
         for( triangle = 1; triangle + 1 < clipped_count; triangle++ )
         {
             const int polygon_indices[3] = { 0, triangle, triangle + 1 };
-            webgl2_reserve_widget_vertices(renderer, pending_vertices + 3u);
+            es3_reserve_widget_vertices(renderer, pending_vertices + 3u);
             for( corner = 0; corner < 3; corner++ )
-                webgl2_widget_model_output_vertex(
+                es3_widget_model_output_vertex(
                     &transform,
                     origin_x,
                     origin_y,
@@ -3279,34 +3291,34 @@ webgl2_ui_draw_model_widget(
                     &renderer->widget_vertices[pending_vertices++]);
         }
     }
-    webgl2_widget_flush_vertices(renderer, &scissor, pending_vertices);
-    webgl2_ui_batch_reset(renderer);
+    es3_widget_flush_vertices(renderer, &scissor, pending_vertices);
+    es3_ui_batch_reset(renderer);
 }
 
 /* ---- lifetime ------------------------------------------------------------------------ */
 
 void
-webgl2_ui_init_state(struct ToriRS_WebGL2* renderer)
+es3_ui_init_state(struct ToriRS_ES3* renderer)
 {
     int font;
     assert(renderer);
-    for( font = 0; font < WEBGL2_UI_FONT_CAP; font++ )
+    for( font = 0; font < ES3_UI_FONT_CAP; font++ )
         renderer->ui_fonts[font].font_id = -1;
-    renderer->ui_batch.vertices = (struct WebGL2VertexUI*)malloc(
-        WEBGL2_UI_BATCH_MAX_VERTS * sizeof(renderer->ui_batch.vertices[0]));
+    renderer->ui_batch.vertices = (struct ES3VertexUI*)malloc(
+        ES3_UI_BATCH_MAX_VERTS * sizeof(renderer->ui_batch.vertices[0]));
     assert(renderer->ui_batch.vertices);
     if( !trspk_atlas_init_binpack(
-            &renderer->ui_sprite_atlas, WEBGL2_UI_ATLAS_DIM, WEBGL2_UI_ATLAS_DIM, 4u) )
+            &renderer->ui_sprite_atlas, ES3_UI_ATLAS_DIM, ES3_UI_ATLAS_DIM, 4u) )
         assert(!"the UI sprite atlas could not be allocated");
-    webgl2_ui_batch_reset(renderer);
+    es3_ui_batch_reset(renderer);
 }
 
 bool
-webgl2_ui_create_gl(struct ToriRS_WebGL2* renderer)
+es3_ui_create_gl(struct ToriRS_ES3* renderer)
 {
     static const uint32_t white_pixel = 0xffffffffu;
     assert(renderer);
-    renderer->white_texture = webgl2_ui_new_texture(renderer);
+    renderer->white_texture = es3_ui_new_texture(renderer);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &white_pixel);
     /* The 2D stream buffers belong to the core's ui_stream set and rotate per
      * frame; nothing to allocate here. The sprite atlas texture is created by
@@ -3317,35 +3329,35 @@ webgl2_ui_create_gl(struct ToriRS_WebGL2* renderer)
 }
 
 void
-webgl2_ui_destroy_gl(struct ToriRS_WebGL2* renderer)
+es3_ui_destroy_gl(struct ToriRS_ES3* renderer)
 {
     int font;
     uint32_t slot;
     assert(renderer);
-    webgl2_ui_delete_texture(renderer, &renderer->ui_sprite_atlas_texture);
+    es3_ui_delete_texture(renderer, &renderer->ui_sprite_atlas_texture);
     renderer->ui_sprite_atlas_allocated = false;
-    webgl2_ui_delete_texture(renderer, &renderer->white_texture);
-    webgl2_ui_delete_texture(renderer, &renderer->ui_layer_texture);
+    es3_ui_delete_texture(renderer, &renderer->white_texture);
+    es3_ui_delete_texture(renderer, &renderer->ui_layer_texture);
     if( renderer->ui_layer_fbo )
         glDeleteFramebuffers(1, &renderer->ui_layer_fbo);
     renderer->ui_layer_fbo = 0u;
     renderer->ui_layer_width = 0;
     renderer->ui_layer_height = 0;
     renderer->ui_layer_open = false;
-    for( font = 0; font < WEBGL2_UI_FONT_CAP; font++ )
-        webgl2_ui_font_release_slot(renderer, &renderer->ui_fonts[font]);
+    for( font = 0; font < ES3_UI_FONT_CAP; font++ )
+        es3_ui_font_release_slot(renderer, &renderer->ui_fonts[font]);
     for( slot = 0u; slot < renderer->ui_rotmask_count; slot++ )
-        webgl2_ui_rotmask_release_slot(renderer, &renderer->ui_rotmasks[slot]);
+        es3_ui_rotmask_release_slot(renderer, &renderer->ui_rotmasks[slot]);
 }
 
 void
-webgl2_ui_free(struct ToriRS_WebGL2* renderer)
+es3_ui_free(struct ToriRS_ES3* renderer)
 {
     int slot;
     assert(renderer);
     if( trspk_atlas_is_initialized(&renderer->ui_sprite_atlas) )
         trspk_atlas_free(&renderer->ui_sprite_atlas);
-    for( slot = 0; slot < WEBGL2_UI_SPRITE_CAP; slot++ )
+    for( slot = 0; slot < ES3_UI_SPRITE_CAP; slot++ )
     {
         free(renderer->ui_sprite_slots[slot].uvs);
         free(renderer->ui_sprite_slots[slot].loaded);
@@ -3365,26 +3377,26 @@ webgl2_ui_free(struct ToriRS_WebGL2* renderer)
 }
 
 void
-webgl2_ui_report_memory(struct ToriRS_WebGL2* renderer)
+es3_ui_report_memory(struct ToriRS_ES3* renderer)
 {
     int fonts = 0;
     uint64_t font_bytes = 0u;
     int slot;
     assert(renderer);
-    for( slot = 0; slot < WEBGL2_UI_FONT_CAP; slot++ )
+    for( slot = 0; slot < ES3_UI_FONT_CAP; slot++ )
         if( renderer->ui_fonts[slot].baked )
         {
             fonts++;
             font_bytes += (uint64_t)renderer->ui_fonts[slot].texture_width *
                 (uint64_t)renderer->ui_fonts[slot].texture_height * 2u;
         }
-    TORIRS_LOG("webgl2_mem: ui_batch_cpu          %10.2f MB\n"
-               "webgl2_mem: ui_stream_gpu         %10.2f MB (one of %u)\n"
-               "webgl2_mem: ui_fonts_gpu          %10.2f MB (%d baked)\n"
-               "webgl2_mem: ui_rotmask_slots      %10u\n",
-        (double)WEBGL2_UI_BATCH_MAX_VERTS * sizeof(struct WebGL2VertexUI) / 1048576.0,
+    TORIRS_LOG("es3_mem: ui_batch_cpu          %10.2f MB\n"
+               "es3_mem: ui_stream_gpu         %10.2f MB (one of %u)\n"
+               "es3_mem: ui_fonts_gpu          %10.2f MB (%d baked)\n"
+               "es3_mem: ui_rotmask_slots      %10u\n",
+        (double)ES3_UI_BATCH_MAX_VERTS * sizeof(struct ES3VertexUI) / 1048576.0,
         (double)renderer->ui_stream.capacities[renderer->frame_slot] / 1048576.0,
-        WEBGL2_FRAMES_IN_FLIGHT,
+        ES3_FRAMES_IN_FLIGHT,
         (double)font_bytes / 1048576.0,
         fonts,
         renderer->ui_rotmask_count);

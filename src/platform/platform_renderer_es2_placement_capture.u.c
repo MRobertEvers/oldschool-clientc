@@ -19,7 +19,7 @@ placement_write(
     }
 }
 static void
-placement_capture_open(const struct ToriRS_WebGL2* r)
+placement_capture_open(const struct ToriRS_ES2* r)
 {
     placement_capture.file = fopen(placement_capture.path, "wb");
     if( !placement_capture.file )
@@ -43,7 +43,7 @@ placement_capture_open(const struct ToriRS_WebGL2* r)
         }
     for( uint32_t i = 0; i < h.batches; i++ )
     {
-        const struct WebGL2StaticBatch* b = &r->static_batches[i];
+        const struct ES2StaticBatch* b = &r->static_batches[i];
         struct PlacementChainBatch bh = {
             b->active, b->cpu != NULL, trspk_batch16_entry_count(b->cpu), b->page_id_capacity
         };
@@ -60,7 +60,7 @@ placement_capture_open(const struct ToriRS_WebGL2* r)
     }
 }
 static bool
-webgl2_placement_capture_wanted(const struct ToriRS_WebGL2* r)
+es2_placement_capture_wanted(const struct ToriRS_ES2* r)
 {
     if( !placement_capture.initialized )
     {
@@ -82,13 +82,13 @@ webgl2_placement_capture_wanted(const struct ToriRS_WebGL2* r)
     return true;
 }
 static void
-webgl2_placement_prefetch_record(
-    const struct ToriRS_WebGL2* r,
+es2_placement_prefetch_record(
+    const struct ToriRS_ES2* r,
     int a,
     int b,
     int c)
 {
-    if( !r->has_3d || !webgl2_placement_capture_wanted(r) )
+    if( !r->has_3d || !es2_placement_capture_wanted(r) )
         return;
     struct PlacementChainCall call = {
         .magic = PLACEMENT_CHAIN_PREFETCH, .element_id = a, .anim_index = b, .pose_id = c
@@ -97,15 +97,15 @@ webgl2_placement_prefetch_record(
     placement_capture.count++;
 }
 static int
-webgl2_static_resolve_recorded(
-    const struct ToriRS_WebGL2* r,
+es2_static_resolve_recorded(
+    const struct ToriRS_ES2* r,
     int element_id,
     int anim_index,
     int pose_id,
-    struct WebGL2StaticPrimary* out)
+    struct ES2StaticPrimary* out)
 {
-    int result = webgl2_static_resolve(r, element_id, anim_index, pose_id, out);
-    if( !webgl2_placement_capture_wanted(r) )
+    int result = es2_static_resolve(r, element_id, anim_index, pose_id, out);
+    if( !es2_placement_capture_wanted(r) )
         return result;
     struct PlacementChainCall call = { .magic = PLACEMENT_CHAIN_CALL,
                                        .element_id = element_id,
@@ -119,7 +119,7 @@ webgl2_static_resolve_recorded(
     return result;
 }
 static void
-webgl2_placement_capture_end(void)
+es2_placement_capture_end(void)
 {
     if( !placement_capture.file )
         return;

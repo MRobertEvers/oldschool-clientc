@@ -1242,7 +1242,7 @@ endif
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
-.PHONY: bench-trspk-bake test-trspk-color-simd test-trspk-swizzle-simd test-trspk-modelarena-index
+.PHONY: bench-trspk-bake test-trspk-color-simd test-trspk-swizzle-simd test-trspk-modelarena-index test-es3-index-pack
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
 .PHONY: check-design-colours check-design-panel
 .PHONY: torirsserver-scripts-lanes torirsserver-lanes torirsserver-scripts-rs2012
@@ -4256,6 +4256,13 @@ test-trspk-modelarena-index: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_modelarena_index_test \
 		render/test/trspk_modelarena_index_test.c $(TRSPK_UNITY_SRC)
 	./$(OBJ_DIR)/trspk_modelarena_index_test
+
+# The ES 3.0 painter's index packer. Header-only and GL-free, so it builds and
+# runs natively whatever lane the core it belongs to is linked into.
+test-es3-index-pack: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/es3_index_pack_test \
+		platform/test/es3_index_pack_test.c
+	./$(OBJ_DIR)/es3_index_pack_test
 
 # The SSE2 sprite swizzle must reproduce the per-pixel rule bit for bit.
 test-trspk-swizzle-simd: $(OBJ_DIR)

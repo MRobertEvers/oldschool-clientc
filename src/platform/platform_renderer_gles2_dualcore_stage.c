@@ -1,6 +1,6 @@
 /*
  * The dual-core lane's model stage. See the header for the contract; see
- * gles2_draw_model (platform_renderer_gles2_core.c) for the sequence this
+ * es2_draw_model (platform_renderer_es2_core.c) for the sequence this
  * mirrors -- it is that function's first half, with the scene's bench
  * replaced by a scratch view's.
  */
@@ -524,7 +524,7 @@ GLES2DualCoreStage_ComputeModel(
     g_gles2_dualcore_stage_crumb.anim_frame = command->animation ? command->anim_frame : -2;
     g_gles2_dualcore_stage_crumb.slot = (int)arena->result_count;
 
-    /* gles2_draw_model's own early-out, mirrored so the counts stay paired:
+    /* es2_draw_model's own early-out, mirrored so the counts stay paired:
      * such a command yields a result too -- one the draw never reads. */
     if( command->model.kind == TORIDRAWMK_NONE )
     {

@@ -1032,25 +1032,49 @@ enum ToriRS_Renderer
     /** Desktop OpenGL 3. */
     TORIRS_RENDERER_OPENGL3,
     TORIRS_RENDERER_OPENGL3_DEPTH,
-    /** OpenGL ES 2 (WebGL1 in a browser). */
+    /** Android's OpenGL ES 2. */
     TORIRS_RENDERER_GLES2,
     TORIRS_RENDERER_GLES2_DEPTH,
     /** Direct3D 9. */
     TORIRS_RENDERER_D3D9,
     TORIRS_RENDERER_D3D9_DEPTH,
+    /** The browser's OpenGL ES 3.0 renderer, on a WebGL2 context. */
     TORIRS_RENDERER_WEBGL2,
     TORIRS_RENDERER_WEBGL2_DEPTH,
+    /** The browser's OpenGL ES 2.0 renderer, on a WebGL1 context. */
+    TORIRS_RENDERER_WEBGL1,
+    TORIRS_RENDERER_WEBGL1_DEPTH,
+    /** Android's OpenGL ES 3. */
+    TORIRS_RENDERER_GLES3,
+    TORIRS_RENDERER_GLES3_DEPTH,
     TORIRS_RENDERER_COUNT
 };
 
-/** What each TORIRS_RENDERER_* is called to a player, as an initializer for a
- *  `char const* const[TORIRS_RENDERER_COUNT]` -- one spelling for every place
- *  that names the renderer drawing. */
-#define TORIRS_RENDERER_LABELS                                                   \
-    {                                                                            \
-        "Software", "OpenGL", "OpenGL (depth buffer)", "OpenGL ES 2",            \
-        "OpenGL ES 2 (depth buffer)", "Direct3D 9", "Direct3D 9 (depth buffer)", \
-        "WebGL 2", "WebGL 2 (depth buffer)"                                      \
+/*
+ * What each TORIRS_RENDERER_* is called to a player, as an initializer for a
+ * `char const* const[TORIRS_RENDERER_COUNT]` -- one spelling for every place
+ * that names the renderer drawing.
+ *
+ * Unconditional, because every kind has exactly one true name. The two ES 2.0
+ * renderers share a core and the two ES 3.0 renderers share a core, but a
+ * core is not a renderer: "OpenGL ES 2" is Android's and "WebGL 1" is the
+ * browser's, and each lane offers only the kinds it can start
+ * (RS_CS2Host_SetRendererStatus), so no list ever shows a name for a
+ * renderer that is not there.
+ *
+ * The desktop entry stays the bare "OpenGL" on purpose: that lane asks for a
+ * 3.2 core profile on macOS and a 3.3 one everywhere else
+ * (sdl_gl_context_attributes), so a version in the label would be wrong on
+ * one of them, and the lane has only the one GL renderer to confuse it with.
+ */
+#define TORIRS_RENDERER_LABELS                                                 \
+    {                                                                          \
+        "Software", "OpenGL", "OpenGL (depth buffer)",                         \
+        "OpenGL ES 2", "OpenGL ES 2 (depth buffer)",                           \
+        "Direct3D 9", "Direct3D 9 (depth buffer)",                             \
+        "WebGL 2", "WebGL 2 (depth buffer)",                                   \
+        "WebGL 1", "WebGL 1 (depth buffer)",                                   \
+        "OpenGL ES 3", "OpenGL ES 3 (depth buffer)"                            \
     }
 
 /** TORIRS_DISPLAY_SCALE_ADJUSTED bits. */

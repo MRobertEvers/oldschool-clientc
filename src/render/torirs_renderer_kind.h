@@ -23,16 +23,27 @@ enum ToriRS_RendererKind
     /** Desktop GL 3.2 core. */
     TORIRS_RENDERER_KIND_OPENGL3,
     TORIRS_RENDERER_KIND_OPENGL3_DEPTH,
-    /** OpenGL ES 2.0: EGL on Android, WebGL1 in the browser. */
+    /** Android's OpenGL ES 2.0 renderer (platform_renderer_gles2.c). */
     TORIRS_RENDERER_KIND_GLES2,
     TORIRS_RENDERER_KIND_GLES2_DEPTH,
     /** Fixed-function Direct3D 9, the Windows XP lane. */
     TORIRS_RENDERER_KIND_D3D9,
     TORIRS_RENDERER_KIND_D3D9_DEPTH,
-    /** OpenGL ES 3.0: WebGL2 in the browser. A separate renderer from the
-     *  GLES2 one, not a mode of it. */
+    /** The browser's OpenGL ES 3.0 renderer, on a WebGL2 context
+     *  (platform_renderer_webgl2.c). */
     TORIRS_RENDERER_KIND_WEBGL2,
     TORIRS_RENDERER_KIND_WEBGL2_DEPTH,
+    /** The browser's OpenGL ES 2.0 renderer, on a WebGL1 context
+     *  (platform_renderer_webgl1.c). Its own kind rather than sharing the
+     *  GLES2 one, so that every kind has exactly one true name: these two
+     *  run the same core (platform_renderer_es2_*.c) but they are not the
+     *  same renderer to a player choosing between WebGL 1 and WebGL 2. */
+    TORIRS_RENDERER_KIND_WEBGL1,
+    TORIRS_RENDERER_KIND_WEBGL1_DEPTH,
+    /** Android's OpenGL ES 3.0 renderer (platform_renderer_gles3.c), which
+     *  runs the same core the browser runs as WebGL2. */
+    TORIRS_RENDERER_KIND_GLES3,
+    TORIRS_RENDERER_KIND_GLES3_DEPTH,
 
     TORIRS_RENDERER_KIND_COUNT
 };

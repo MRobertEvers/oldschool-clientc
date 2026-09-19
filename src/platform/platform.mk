@@ -399,14 +399,16 @@ else ifeq ($(PLATFORM),web)
   PLATFORM_SRCS     := platform/platform_web_api.c \
                        platform/platform_audio_wasm.c \
                        platform/platform_gl_context_sdl.c \
-                       platform/platform_renderer_gles2_core.c \
-                       platform/platform_renderer_gles2_ui.c \
-                       platform/platform_renderer_gles2_painter.c \
-                       platform/platform_renderer_gles2_zbuffer.c \
-                       platform/platform_renderer_webgl2_core.c \
-                       platform/platform_renderer_webgl2_ui.c \
-                       platform/platform_renderer_webgl2_painter.c \
-                       platform/platform_renderer_webgl2_zbuffer.c
+                       platform/platform_renderer_es2_core.c \
+                       platform/platform_renderer_es2_ui.c \
+                       platform/platform_renderer_es2_painter.c \
+                       platform/platform_renderer_es2_zbuffer.c \
+                       platform/platform_renderer_webgl1.c \
+                       platform/platform_renderer_es3_core.c \
+                       platform/platform_renderer_es3_ui.c \
+                       platform/platform_renderer_es3_painter.c \
+                       platform/platform_renderer_es3_zbuffer.c \
+                       platform/platform_renderer_webgl2.c
   # The queue's ABI reporter. Not in PLATFORM_SRCS because it belongs to the
   # QUEUE, not to any platform: a second non-C executor would need the same
   # numbers, and putting it beside the platform that reads it today would make
@@ -488,7 +490,7 @@ else ifeq ($(PLATFORM),web)
   # a browser that cannot give a WebGL2 context must still be able to run the
   # WebGL1 one.
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -sUSE_SDL=2 \
-                      -DTORIRS_HAVE_GLES2=1 \
+                      -DTORIRS_HAVE_WEBGL1=1 \
                       -DTORIRS_HAVE_WEBGL2=1 \
                       -Wno-unknown-warning-option
 
@@ -692,12 +694,18 @@ else ifeq ($(PLATFORM),android)
                        platform/platform_audio_capture.c \
                        platform/platform_android_jni.c \
                        platform/platform_android_gl.c \
-                       platform/platform_renderer_gles2_core.c \
-                       platform/platform_renderer_gles2_ui.c \
-                       platform/platform_renderer_gles2_painter.c \
-                       platform/platform_renderer_gles2_zbuffer.c \
+                       platform/platform_renderer_es2_core.c \
+                       platform/platform_renderer_es2_ui.c \
+                       platform/platform_renderer_es2_painter.c \
+                       platform/platform_renderer_es2_zbuffer.c \
+                       platform/platform_renderer_gles2.c \
                        platform/platform_renderer_gles2_dualcore.c \
-                       platform/platform_renderer_gles2_dualcore_stage.c
+                       platform/platform_renderer_gles2_dualcore_stage.c \
+                       platform/platform_renderer_es3_core.c \
+                       platform/platform_renderer_es3_ui.c \
+                       platform/platform_renderer_es3_painter.c \
+                       platform/platform_renderer_es3_zbuffer.c \
+                       platform/platform_renderer_gles3.c
   PLATFORM_WINDOW_SRC := platform/platform_android.c
   JS5_SRCS          := $(wildcard js5/*.c)
 
@@ -761,14 +769,25 @@ else ifeq ($(PLATFORM),android)
   # `--gles2-dualcore-zbuffer`): the same GLES2 renderer with the world's
   # per-model CPU stage on a second thread (platform_renderer_gles2_dualcore.c).
   # Android only: the browser has no second thread to give it.
-  PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -DTORIRS_HAVE_GLES2=1 -DTORIRS_HAVE_GLES2_DUALCORE=1
+  PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -DTORIRS_HAVE_GLES2=1 -DTORIRS_HAVE_GLES2_DUALCORE=1 \
+                      -DTORIRS_HAVE_GLES3=1
   # -llog is __android_log_print (this lane's stderr -- see platform_android.c),
   # -landroid is ANativeWindow, -lOpenSLES is the audio device
   # (platform_audio_opensles.c; OpenSL ES rather than AAudio because AAudio does
   # not exist below API 26 and this lane's floor is 21). -shared, and
   # -Wl,--no-undefined so a symbol this library forgot to define fails at link
   # here rather than as an UnsatisfiedLinkError on the device.
-  PLATFORM_LDFLAGS := -shared -Wl,--no-undefined -lm -llog -landroid -lGLESv2 -lEGL \
+  #
+  # -lGLESv3 as well as -lGLESv2: this lane has two GPU renderers, the ES 2.0
+  # one (platform_renderer_gles2.c) and the ES 3.0 one
+  # (platform_renderer_gles3.c), and the ES3 entry points live in libGLESv3.so.
+  # It is present from API 18 and this lane's floor is 21, so linking it costs
+  # nothing on a device that will only ever run the ES2 renderer -- the Adreno
+  # 320 in the phone this targets is an ES 3.0 part, so that is not the usual
+  # case anyway. -Wl,--no-undefined below is what would catch it if it were
+  # missing, at link rather than as an UnsatisfiedLinkError on the device.
+  PLATFORM_LDFLAGS := -shared -Wl,--no-undefined -lm -llog -landroid \
+                      -lGLESv2 -lGLESv3 -lEGL \
                       -lOpenSLES
   # --gc-sections does real work only with -ffunction-sections/-fdata-sections,
   # which this tree does not compile with. Same reasoning as the linux lane.

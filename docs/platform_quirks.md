@@ -39,7 +39,7 @@ the client.
 | Linux | `make -C src all` or `release` | `src/torirs` | SDL2 window/input/audio, stdio cache IO | Soft3D by default; `--opengl3` opts into desktop GL |
 | Modern Windows | `make -C src win64` or `win64-debug`; normally use `build_windows.ps1` | `src/torirs_win64.exe`, staged as `dist/win64/torirs.exe` | raw Win32 window/input, stdio cache IO, null audio | fixed-function D3D9 by default; `--soft3d` opts into GDI presentation |
 | Windows XP | `make -C src winxp` or `winxp-debug`; normally use `build_winxp.ps1` | `src/torirs.exe`, staged as `dist/win32/torirs.exe` | raw Win32 window/input, stdio cache IO, null audio | fixed-function D3D9 by default; `--soft3d` opts into GDI presentation |
-| Web | `make -C src web` or `web-debug` | `build-web/torirs.js` plus Wasm and host assets | browser SDL2, HTTP cache IO, WebAudio | Soft3D by default; `--webgl1` opts into WebGL1, `--webgl2` into the separate WebGL2 renderer |
+| Web | `make -C src web` or `web-debug` | `build-web/torirs.js` plus Wasm and host assets | browser SDL2, HTTP cache IO, WebAudio | Soft3D by default; `--webgl1` (ES2 core) and `--webgl2` (ES3 core) opt into the two GPU renderers |
 
 Every `(PLATFORM, OPT, TORIDRAW_OPT, MEMTRACE, EMBED_SERVER)` flavor has a
 separate object directory. Never share or manually copy object files between
@@ -48,9 +48,86 @@ lanes. Both native optimization levels link the same output name, so
 
 Renderer flags are deliberately host-specific. A build rejects a renderer flag
 it cannot honor instead of silently falling back: desktop SDL accepts
-`--opengl3`, the browser accepts `--webgl1` and `--webgl2`, and Win32 accepts
-`--d3d9` and `--soft3d`. Keep shared manifests platform-neutral unless they are
-intended for one lane only.
+`--opengl3`, the browser accepts `--webgl1` and `--webgl2`, Android accepts
+`--gles2` and `--gles3`, and Win32 accepts `--d3d9` and `--soft3d`. Keep shared
+manifests platform-neutral unless they are intended for one lane only.
+
+### GPU-FAMILY-001 - Two shared ES cores, four named lane renderers
+
+- **Status:** Contract
+- **Applies to:** Android `--gles2` / `--gles3`, Web `--webgl1` / `--webgl2`
+- **Behavior:** The OpenGL ES family is two CORES and four RENDERERS:
+
+  | core | files | Android renderer | browser renderer |
+  |---|---|---|---|
+  | OpenGL ES 2.0 | `platform_renderer_es2_{core,ui,painter,zbuffer}.c` | `platform_renderer_gles2.c` (`--gles2`) | `platform_renderer_webgl1.c` (`--webgl1`) |
+  | OpenGL ES 3.0 | `platform_renderer_es3_{core,ui,painter,zbuffer}.c` | `platform_renderer_gles3.c` (`--gles3`) | `platform_renderer_webgl2.c` (`--webgl2`) |
+
+  A core makes the GL calls and knows nothing about the lane it is in: it has
+  no `TORIRS_PLATFORM_WEB`, no `TORIRS_PLATFORM_ANDROID`, and it is told its
+  own name (`ToriRS_ES2_New`, `ToriRS_ES3_New`) rather than deciding it.
+
+  A lane renderer is a header and a source file of one-line delegations. It is
+  the whole of the difference between two lanes that share a core: the name in
+  every log line, the `ToriRS_GLClient` the context seam is asked for, the
+  flag that selects it, and the `ToriRS_RendererKind` Client Settings offers.
+  Its handle (`struct ToriRS_WebGL1`, `struct ToriRS_GLES3`, …) is an opaque
+  type that is never defined -- it IS the core's, and only the lane file casts
+  -- so a caller cannot reach past the lane into the core by accident.
+
+  Every kind has exactly one true name, so `TORIRS_RENDERER_LABELS` is
+  unconditional: `OpenGL ES 2`, `OpenGL ES 3`, `WebGL 1`, `WebGL 2`. Each lane
+  offers only the kinds it can start, so no list shows a name for a renderer
+  that is not there.
+- **Why:** the ES2 core was one set of files linked by two lanes under one
+  name, and the name it had was Android's. In a browser it logged "GLES2" and
+  Client Settings offered "OpenGL ES 2" for what was running as WebGL1 --
+  merely vague until the lane gained a WebGL 2 renderer to sit beside it in
+  the same list, at which point it was wrong. Splitting the name without
+  splitting the files would have left the same thing one `#if` further in.
+- **What is NOT duplicated:** the cores, the bake pipeline, the 28-byte vertex
+  (`TRSPK_VertexGLES2`), the atlas, the pose tables, every TRSPK helper. A fix
+  to a bake still lands on all four renderers at once.
+- **Verification:** `make -C src lane-check PLATFORM=web` requires the ES2 and
+  ES3 core sources plus `platform_renderer_webgl1.c` and
+  `platform_renderer_webgl2.c`, and FORBIDS `platform_renderer_gles2.c` and
+  `platform_renderer_gles3.c`; `PLATFORM=android` requires the mirror image.
+  That is what keeps a phone's renderer out of a tab under the wrong name.
+  Both lanes run `tools/webgl_lane_audit.py` over the cores.
+- **Sources:** [`src/platform/platform_renderer_es2.h`](../src/platform/platform_renderer_es2.h),
+  [`src/platform/platform_renderer_es3.h`](../src/platform/platform_renderer_es3.h),
+  [`src/platform/platform_renderer_webgl1.h`](../src/platform/platform_renderer_webgl1.h),
+  [`src/platform/platform_renderer_gles3.h`](../src/platform/platform_renderer_gles3.h),
+  [`src/render/torirs_renderer_kind.h`](../src/render/torirs_renderer_kind.h),
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk)
+
+### ANDROID-GLES3-001 - Android can run the ES 3.0 core too
+
+- **Status:** Contract
+- **Applies to:** Android `--gles3` / `--gles3-zbuffer`
+- **Behavior:** The Android lane builds both ES cores and offers both
+  renderers. `--gles2` remains what the lane starts with; `--gles3` is opt-in
+  and selects the same core the browser runs as WebGL2, on an EGL context at
+  client version 3 from an `EGL_OPENGL_ES3_BIT` config.
+- **Why it is possible:** the phone this client targets is a Moto X gen 1
+  (XT1060, Snapdragon S4 Pro MSM8960DT, **Adreno 320**, Android 5.1). The
+  Adreno 320 is an OpenGL ES **3.0** part -- 3.1 first appears on Adreno 4xx,
+  as does Vulkan. ES 2.0 was forced on the BROWSER by Chrome blacklisting the
+  Krait drivers for WebGL2, not by the hardware, so the native lane was never
+  bound by it. Confirm on the device with `adb shell getprop
+  ro.opengles.version`: 196608 is 0x30000, ES 3.0.
+- **Why the ES3 core runs here unchanged:** it is written to ES 3.0 **as
+  WebGL2 exposes it**, which is a subset of what Android offers. The one place
+  the two differ is `GL_TEXTURE_SWIZZLE_*`, which ES 3.0 has and WebGL2 does
+  not; the core does without it (the UI fragment shader builds the font
+  coverage instead), which costs Android nothing.
+- **NOT measured:** whether ES 3.0 is faster than ES 2.0 on a 2013 Adreno.
+  The 32-bit-index win assumes a driver that is not itself the bottleneck, and
+  nobody has run this on the device. `--gles3` must not become the lane's
+  default on anything but a measurement.
+- **Sources:** [`src/platform/platform_renderer_gles3.h`](../src/platform/platform_renderer_gles3.h),
+  [`src/platform/platform_android_gl.c`](../src/platform/platform_android_gl.c),
+  [`src/platform/platform.mk`](../src/platform/platform.mk)
 
 ## Common runtime rules
 
@@ -612,7 +689,7 @@ intended for one lane only.
   vs 48,862 — back faces and hidden faces never enter the stream) and no longer
   sorts them.
 - **Sources:**
-  [`src/platform/platform_renderer_gles2_zbuffer.c`](../src/platform/platform_renderer_gles2_zbuffer.c),
+  [`src/platform/platform_renderer_es2_zbuffer.c`](../src/platform/platform_renderer_es2_zbuffer.c),
   [`src/platform/platform_sdl2_renderer_gl3zb.c`](../src/platform/platform_sdl2_renderer_gl3zb.c)
 
 ### WINDOWS-D3D9-UPLOAD-001 - Retained resources upload only when dirty
@@ -974,10 +1051,11 @@ intended for one lane only.
 
   | | files | lanes |
   |---|---|---|
-  | GLES2 / WebGL1 | `platform_renderer_gles2_{core,ui,painter,zbuffer}.c` | android, web |
+  | ES 2.0 core | `platform_renderer_es2_{core,ui,painter,zbuffer}.c` | android (`--gles2`), web (`--webgl1`) |
   | GL 3.2 | `platform_sdl2_renderer_gl3.c`, `platform_sdl2_renderer_gl3zb.c` | macos, linux |
 
-  The GLES2 renderer is one set of sources linked by two lanes. WebGL1 is
+  The ES2 CORE is one set of sources linked by two lanes; each lane has its
+  own renderer file over it and its own name (GPU-FAMILY-001). WebGL1 is
   OpenGL ES 2.0 with no extensions, which is exactly the ceiling that renderer
   was written to (ANDROID-GLES2-001), so the browser compiles the four files
   unchanged against emscripten's `<GLES2/gl2.h>` and reaches its context through
@@ -985,6 +1063,13 @@ intended for one lane only.
   lane -- `--webgl1` in the browser, `--gles2` on Android -- and each build
   refuses the other's spelling by name rather than aliasing it, so a manifest
   written for one cannot run on the other unnoticed.
+
+  **So is the NAME, and so are the FILES.** See GPU-FAMILY-001: the core is
+  lane-neutral and told its own name, and each lane has a renderer file and a
+  `ToriRS_RendererKind` of its own -- `TORIRS_RENDERER_KIND_GLES2` is now
+  Android's alone and `TORIRS_RENDERER_KIND_WEBGL1` is the browser's. A web
+  client that had saved the old shared kind finds it not offered once, is
+  refused, and falls back to the launch default; picking again re-saves.
 - **Why:** there used to be a third renderer here, a fork of the desktop GL one
   switched at 21 places by `TORIRS_GL_ES2` and later split into its own pair of
   files. It re-expressed 32-bit indices into 16-bit windows every frame, issued
@@ -1000,7 +1085,7 @@ intended for one lane only.
   `*webgl1*`.
 - **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
-  [`src/platform/platform_renderer_gles2.h`](../src/platform/platform_renderer_gles2.h)
+  [`src/platform/platform_renderer_es2.h`](../src/platform/platform_renderer_es2.h)
 
 ### WEB-GL2-000 - The browser has a second, modern GPU renderer
 
@@ -1010,10 +1095,13 @@ intended for one lane only.
   disjoint sets of files, with no preprocessor switch between them and no call
   from one to the other:
 
-  | | files | context | flags |
-  |---|---|---|---|
-  | WebGL1 | `platform_renderer_gles2_{core,ui,painter,zbuffer}.c` | WebGL1 (OpenGL ES 2.0) | `--webgl1`, `--webgl1-zbuffer` |
-  | WebGL2 | `platform_renderer_webgl2_{core,ui,painter,zbuffer}.c` | WebGL2 (OpenGL ES 3.0) | `--webgl2`, `--webgl2-zbuffer` |
+  | | core | lane file | context | flags |
+  |---|---|---|---|---|
+  | WebGL1 | `platform_renderer_es2_*.c` | `platform_renderer_webgl1.c` | WebGL1 (OpenGL ES 2.0) | `--webgl1`, `--webgl1-zbuffer` |
+  | WebGL2 | `platform_renderer_es3_*.c` | `platform_renderer_webgl2.c` | WebGL2 (OpenGL ES 3.0) | `--webgl2`, `--webgl2-zbuffer` |
+
+  Each core is shared with an Android renderer of the same generation
+  (GPU-FAMILY-001); the lane file is what makes it the browser's.
 
   Both are in the module and either can be running: Client Settings switches
   renderer between two frames (device option `RS_CS2_DEVICEOPTION_RENDERER`),
@@ -1044,10 +1132,19 @@ intended for one lane only.
   gone); vertex array objects; a std140 uniform block for the world matrix and
   clock; `glVertexAttribIPointer` for the tile/scroll word;
   `GL_UNPACK_ROW_LENGTH` for in-place sub-rectangle texture uploads; sized
-  internal formats with a `GL_R8` plus swizzle font atlas in place of
+  internal formats, including a single-channel `GL_R8` font atlas in place of
   `GL_LUMINANCE_ALPHA`; `glInvalidateFramebuffer` on the client-scaling
   offscreen; `GL_DEPTH_COMPONENT24` renderbuffers; and a readback clipped to the
   letterbox. Neither renderer queries or requires an extension.
+- **WebGL2 is not all of OpenGL ES 3.0.** `GL_TEXTURE_SWIZZLE_*` is the piece
+  this renderer wanted and cannot have: the font atlas was first written as a
+  swizzled `GL_R8` presenting itself as `(1, 1, 1, coverage)`, which compiles,
+  links and runs, and produces four `INVALID_ENUM: texParameter` warnings and
+  invisible text. Nothing in C catches that -- the swizzle is silently ignored
+  and the texture keeps its default -- so the coverage is built in the UI
+  fragment shader instead, which is sound because sampler unit 1 in that
+  program is a font and nothing else. A GLES3 feature must be checked against
+  the WebGL2 spec, not just against `<GLES3/gl3.h>`, and checked in a browser.
 - **Failure mode this replaces:** the lane used to pin
   `-sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1`, which made "the WebGL1 renderer
   stays inside ES 2.0" a link-time guarantee -- a GLES3 entry point could not
@@ -1061,13 +1158,29 @@ intended for one lane only.
   second pass proves neither renderer reaches for an extension.
 - **Verification:** `make -C src lane-check PLATFORM=web` prints `total 0` from
   both audits and requires `-sMAX_WEBGL_VERSION=2`, `TORIRS_HAVE_GLES2=1` and
-  `TORIRS_HAVE_WEBGL2=1` while forbidding `-sMAX_WEBGL_VERSION=1`. With
-  `TORIRS_WEBGL2_DEBUG=1`, a settled painter frame reports its static world as
-  faces indexed with `gathered` at zero -- the WebGL1 renderer's same readout
-  has the traffic the other way round.
-- **Sources:** [`src/platform/platform_renderer_webgl2.h`](../src/platform/platform_renderer_webgl2.h),
-  [`src/platform/platform_renderer_webgl2_core.h`](../src/platform/platform_renderer_webgl2_core.h),
-  [`src/platform/platform_renderer_webgl2_painter.c`](../src/platform/platform_renderer_webgl2_painter.c),
+  `TORIRS_HAVE_WEBGL2=1` while forbidding `-sMAX_WEBGL_VERSION=1`.
+
+  In a browser: `--webgl2` reaches the world and the performance plugin names
+  the renderer "WebGL 2"; `--webgl2-zbuffer` names "WebGL 2 (depth buffer)".
+  Headless Chrome needs `--enable-unsafe-swiftshader`, because
+  `tools/web/browser_probe.py` launches it with `--disable-gpu` and a page with
+  no GPU has no WebGL2 at all: `getContext('webgl2')` returns null, emscripten's
+  EGL reports `EGL_BAD_MATCH`, and the client falls back to Soft3D. That is a
+  property of the probe, not of the renderer.
+
+  What the census says, measured on a settled Lumbridge scene with
+  `TORIRS_WEBGL2_DEBUG=1` against `TORIRS_GLES2_DEBUG=1`: **the draw count is
+  not where the difference is.** Both index the same 7,187 static faces a frame
+  and issue a similar handful of draws (5.6-7.5 against 3.0-7.0), because the
+  ES2 ring does its job while the camera is still. The difference is the
+  machinery that is not there: the WebGL1 readout also shows ~670 residency
+  lookups a frame and a placement whenever the camera reaches new geometry, and
+  behind it a 4 x 65,536-vertex GPU ring, its CPU staging buffer, and a 64-bit
+  serial per batch entry. A claim that this renderer collapses the world to one
+  draw would be wrong, and the census is what says so.
+- **Sources:** [`src/platform/platform_renderer_es3.h`](../src/platform/platform_renderer_es3.h),
+  [`src/platform/platform_renderer_es3_core.h`](../src/platform/platform_renderer_es3_core.h),
+  [`src/platform/platform_renderer_es3_painter.c`](../src/platform/platform_renderer_es3_painter.c),
   [`src/platform/platform_gl_context.h`](../src/platform/platform_gl_context.h),
   [`src/platform/platform.mk`](../src/platform/platform.mk),
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
@@ -1108,7 +1221,7 @@ intended for one lane only.
   and no `glGetError` runs per frame, because in a browser it is a synchronous
   round trip to the GPU process.
 - **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
-  [`src/platform/platform_renderer_gles2_core.h`](../src/platform/platform_renderer_gles2_core.h),
+  [`src/platform/platform_renderer_es2_core.h`](../src/platform/platform_renderer_es2_core.h),
   [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c),
   [`src/platform/platform_gl_context_sdl.c`](../src/platform/platform_gl_context_sdl.c)
 
@@ -1118,7 +1231,7 @@ intended for one lane only.
 - **Applies to:** Android `--gles2` / `--gles2-zbuffer`; Web `--webgl1` /
   `--webgl1-zbuffer` (WEB-GL1-000)
 - **Behavior:** The GPU path on both lanes is
-  `platform_renderer_gles2_{core,ui,painter,zbuffer}.c` -- OpenGL ES 2.0
+  `platform_renderer_es2_{core,ui,painter,zbuffer}.c` -- OpenGL ES 2.0
   core and nothing else. It is not a build of the GL3 renderer, and it replaced
   the WebGL1 fork of that renderer on both hosts. Its retained model is
   the D3D9 renderer's (WINDOWS-D3D9-CORE-001 / -ZBUFFER-001 / -UPLOAD-001 /
@@ -1159,7 +1272,7 @@ intended for one lane only.
   over the four `.c` files is zero; `TORIRS_PERF=1` on the device reports
   `gl_draw_calls` in the tens for a settled scene under `--gles2-zbuffer` and
   `gl_static_vbo_upload_bytes` at zero once the scene is built.
-- **Sources:** [`src/platform/platform_renderer_gles2_core.h`](../src/platform/platform_renderer_gles2_core.h),
+- **Sources:** [`src/platform/platform_renderer_es2_core.h`](../src/platform/platform_renderer_es2_core.h),
   [`src/platform/platform.mk`](../src/platform/platform.mk),
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
   [`3rd/trspk/gles2/gles2_vertex.h`](../3rd/trspk/gles2/gles2_vertex.h)
@@ -1230,7 +1343,7 @@ intended for one lane only.
 - **Cause or reason:** The enable-once attribute scheme (2ad46de3b, 2026-09-01)
   put the world's texinfo, the UI's sampler select and the rotated-mask
   program's `a_mask_texcoord` on ONE attribute index (the static assert in
-  `platform_renderer_gles2_core.c`). `gles2_bind_rotmask_stream` kept its
+  `platform_renderer_es2_core.c`). `gles2_bind_rotmask_stream` kept its
   older line that switched "the unused texinfo array" off for this draw, and
   re-enabled the mask uv only when arriving from the UI layout. Arriving from
   the world layout -- every frame on the phone, the minimap being the first 2D
@@ -1308,7 +1421,7 @@ intended for one lane only.
 - **Sources:**
   [`src/platform/platform_renderer_gles2_dualcore.c`](../src/platform/platform_renderer_gles2_dualcore.c),
   [`src/platform/platform_renderer_gles2_dualcore_stage.c`](../src/platform/platform_renderer_gles2_dualcore_stage.c),
-  [`src/platform/platform_renderer_gles2_core.h`](../src/platform/platform_renderer_gles2_core.h)
+  [`src/platform/platform_renderer_es2_core.h`](../src/platform/platform_renderer_es2_core.h)
   (`GLES2ModelStageSource`),
   [`3rd/toridraw/toridraw.c`](../3rd/toridraw/toridraw.c) (scratch views),
   [`src/render/torirs_frame.c`](../src/render/torirs_frame.c)
@@ -1380,7 +1493,7 @@ intended for one lane only.
   (`ToriRS_GLES2_SetInterfaceScaleMode`). Android's software present stores it
   in `PlatformWindow_SetInterfaceScaleMode` and its blit samples nearest
   regardless, so a scaled software frame on this lane cannot be smoothed.
-- **Sources:** [`src/platform/platform_renderer_gles2_core.c`](../src/platform/platform_renderer_gles2_core.c),
+- **Sources:** [`src/platform/platform_renderer_es2_core.c`](../src/platform/platform_renderer_es2_core.c),
   [`src/platform/platform_android.c`](../src/platform/platform_android.c),
   [`src/game/rs_cs2_host.c`](../src/game/rs_cs2_host.c)
 
@@ -1481,7 +1594,7 @@ intended for one lane only.
   allocation and one 64 MB static vertex upload; window 1 (steady) carries
   neither, and 120 frames produce 120 index uploads.
 - **Sources:** [`src/platform/platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c),
-  [`src/platform/platform_renderer_gles2_core.c`](../src/platform/platform_renderer_gles2_core.c),
+  [`src/platform/platform_renderer_es2_core.c`](../src/platform/platform_renderer_es2_core.c),
   [`src/perf/torirs_perf.h`](../src/perf/torirs_perf.h)
 
 ### WEB-GL1-002 - 16-bit indices used to cost a draw call per visible model
@@ -1513,8 +1626,8 @@ intended for one lane only.
 - **Verification:** `TORIRS_GLES2_DEBUG=1` prints the census every 300 frames
   (`gles2 draws/frame: world N ...`); `TORIRS_PERF=1` reports
   `gl_draw_calls`. Both should read in the tens for a settled scene.
-- **Sources:** [`src/platform/platform_renderer_gles2_core.h`](../src/platform/platform_renderer_gles2_core.h),
-  [`src/platform/platform_renderer_gles2_painter.c`](../src/platform/platform_renderer_gles2_painter.c),
+- **Sources:** [`src/platform/platform_renderer_es2_core.h`](../src/platform/platform_renderer_es2_core.h),
+  [`src/platform/platform_renderer_es2_painter.c`](../src/platform/platform_renderer_es2_painter.c),
   [`3rd/trspk/core/trspk_batch16.h`](../3rd/trspk/core/trspk_batch16.h)
 
 ### GPU-CAPTURE-001 - The generic BMP dump is a Soft3D image
@@ -1554,6 +1667,30 @@ intended for one lane only.
   memory can grow. Unlike the SDL backend, accepted WebAudio clips can overlap.
 - **Reason:** These are browser autoplay and memory-lifetime constraints, not
   game-thread scheduling choices.
+- **Source:** [`src/platform/platform_audio_wasm.c`](../src/platform/platform_audio_wasm.c)
+
+### WEB-AUDIO-002 - The schedule depth follows the frame rate
+
+- **Status:** Implemented
+- **Applies to:** Web build
+- **Behavior:** This is the only backend whose device is fed from the frame
+  loop instead of a device callback, so `PlatformAudio_Update` refills the
+  WebAudio schedule to a target lead however many blocks that takes, and the
+  lead itself follows a decaying peak of the measured Update interval (floor
+  `WASM_AUDIO_LEAD_MIN` 80 ms, ceiling `WASM_AUDIO_LEAD_MAX` 500 ms). A stall
+  longer than the lead is still audible as a gap, because nothing runs to
+  refill it; `PlatformAudioStats.underruns` counts those.
+- **Reason:** A fixed one block per Update caps playback at one block of audio
+  per frame. With a block of one 50 Hz tick that breaks even at exactly 50 fps
+  and starves below it, so every frame under 50 fps chopped the audio. A fixed
+  lead has the same shape of problem one level up: it is only ever right for
+  one frame rate.
+- **Verification:** with the schedule driven at a fixed rate, frames handed to
+  the device over wall-clock seconds stays at 1.0x from 60 Hz down to 10 Hz
+  (before: 0.80x at 40, 0.61x at 30, 0.20x at 10) and
+  `PlatformAudioStats.underruns` stays at 0. `queue_min_frames` is 0 in any run
+  -- the first Update always finds an empty schedule -- so `underruns` is the
+  metric to read, not that one.
 - **Source:** [`src/platform/platform_audio_wasm.c`](../src/platform/platform_audio_wasm.c)
 
 ### WEB-NET-001 - Browser sockets require a WebSocket endpoint

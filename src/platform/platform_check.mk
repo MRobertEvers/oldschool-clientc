@@ -96,9 +96,12 @@ LANE_FORBID_win64  := -march=i686 -march=pentium4 -mfpmath=387 console:5.01 -dea
 # fork's index-splitting object.
 LANE_REQUIRE_web := -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=2 \
                     GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 \
-                    TORIRS_HAVE_GLES2=1 \
+                    TORIRS_HAVE_WEBGL1=1 \
                     TORIRS_HAVE_WEBGL2=1 \
-                    platform/platform_renderer_webgl2_core.c \
+                    platform/platform_renderer_es2_core.c \
+                    platform/platform_renderer_webgl1.c \
+                    platform/platform_renderer_es3_core.c \
+                    platform/platform_renderer_webgl2.c \
                     TORIRS_CHROME_EXEC_WEB_AVAILABLE=1 \
                     ui/torirs_chrome_exec_web.c
 # -O0 is forbidden here at any OPT level, which is the one lane where that is
@@ -108,6 +111,7 @@ LANE_REQUIRE_web := -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=2 \
 # gets. Check it with: make -C src lane-check PLATFORM=web OPT=0
 LANE_FORBID_web  := ASYNCIFY -dead_strip -O0 TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl1_index16 \
                     -sMAX_WEBGL_VERSION=1 \
+                    platform/platform_renderer_gles2.c platform/platform_renderer_gles3.c \
                     TORIRS_CHROME_EXEC_BROWSER_AVAILABLE \
                     ui/torirs_chrome_exec_winbrowser.c
 
@@ -139,7 +143,12 @@ LANE_FORBID_web  := ASYNCIFY -dead_strip -O0 TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl
 #                     needs it.
 LANE_REQUIRE_android := -DTORIRS_PLATFORM_ANDROID=1 -fPIC -mfpu=neon \
                         TORIRS_HAVE_GLES2=1 \
-                        -shared -llog -landroid -lGLESv2 -lEGL -lOpenSLES \
+                        TORIRS_HAVE_GLES3=1 \
+                        platform/platform_renderer_es2_core.c \
+                        platform/platform_renderer_gles2.c \
+                        platform/platform_renderer_es3_core.c \
+                        platform/platform_renderer_gles3.c \
+                        -shared -llog -landroid -lGLESv2 -lGLESv3 -lEGL -lOpenSLES \
                         platform/platform_audio_opensles.c
 # -lSDL2/-sUSE_SDL=2 are forbidden, not merely absent. "No SDL on Android" is
 # the defining property of this lane, and the way it would be lost is somebody
@@ -150,7 +159,9 @@ LANE_REQUIRE_android := -DTORIRS_PLATFORM_ANDROID=1 -fPIC -mfpu=neon \
 # presence would mean a desktop block's flags leaked into this one.
 LANE_FORBID_android  := -lSDL2 -sUSE_SDL=2 -dead_strip -mfpmath=sse \
                         -march=pentium4 -march=x86-64 -ld3d9 TORIRS_HAVE_D3D9 \
-                        TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl1 \
+                        TORIRS_HAVE_GL3 TORIRS_GL_ES2 \
+                        platform/platform_renderer_webgl1.c \
+                        platform/platform_renderer_webgl2.c \
                         platform/platform_audio_null.c \
                         TORIRS_CHROME_EXEC_WEB_AVAILABLE \
                         TORIRS_CHROME_EXEC_BROWSER_AVAILABLE \
@@ -177,10 +188,11 @@ LANE_EXTRA_CHECKS_win64 := lane-check-toolchain-win64 lane-check-fixed-function-
 # The android lane's flag contract says SDL is not on the command line. This
 # proves it of the ARTIFACT: a linked library with an SDL symbol in it would
 # mean SDL arrived some way the flags do not show.
-LANE_EXTRA_CHECKS_android := lane-check-no-sdl-android
 # The web lane carries both GPU renderers, so the ES2 one's ceiling is no
 # longer guaranteed by the link. It is checked in its sources instead.
 LANE_EXTRA_CHECKS_web := lane-check-webgl1-es2 lane-check-webgl2-no-extensions
+LANE_EXTRA_CHECKS_android := lane-check-no-sdl-android lane-check-webgl1-es2 \
+                             lane-check-webgl2-no-extensions
 
 .PHONY: lane-check lane-check-flags lane-check-all lane-check-artifact \
         lane-check-toolchain-win32 lane-check-toolchain-win64 \
@@ -209,29 +221,35 @@ lane-check-flags:
 lane-check-all:
 	@for p in $(PLATFORM_LIST); do $(MAKE) --no-print-directory PLATFORM=$$p lane-check-flags || exit 1; done
 
-# The WebGL1 renderer must stay inside OpenGL ES 2.0 core, and neither web GPU
-# renderer may reach for an extension. Both are source questions, not flag
-# ones, so they are asked of the files by tools/webgl_lane_audit.py -- which
-# also says, at length, why the link can no longer answer the first.
-WEBGL1_ES2_SRCS := platform/platform_renderer_gles2_core.c \
-                   platform/platform_renderer_gles2_core.h \
-                   platform/platform_renderer_gles2_ui.c \
-                   platform/platform_renderer_gles2_painter.c \
-                   platform/platform_renderer_gles2_zbuffer.c \
-                   platform/platform_renderer_gles2_shaders.h
-WEBGL2_SRCS := platform/platform_renderer_webgl2_core.c \
-               platform/platform_renderer_webgl2_core.h \
-               platform/platform_renderer_webgl2_ui.c \
-               platform/platform_renderer_webgl2_painter.c \
-               platform/platform_renderer_webgl2_zbuffer.c \
-               platform/platform_renderer_webgl2_shaders.h
+# The ES2 core must stay inside OpenGL ES 2.0, and no GPU core may reach for
+# an extension. Both are source questions, not flag ones, so they are asked of
+# the files by tools/webgl_lane_audit.py -- which also says, at length, why
+# the link can no longer answer the first.
+#
+# The question is asked of the CORES, not the lanes: a lane file is a dozen
+# one-line delegations and a name, and the ceiling lives in the code that
+# makes GL calls. The ES2 core is the one with a ceiling to keep -- WebGL1 and
+# a 2013 Adreno both stop at ES 2.0 -- and the ES3 core has only the
+# extension rule, because ES 3.0 is the floor of both lanes that run it.
+ES2_CORE_SRCS := platform/platform_renderer_es2_core.c \
+                 platform/platform_renderer_es2_core.h \
+                 platform/platform_renderer_es2_ui.c \
+                 platform/platform_renderer_es2_painter.c \
+                 platform/platform_renderer_es2_zbuffer.c \
+                 platform/platform_renderer_es2_shaders.h
+ES3_CORE_SRCS := platform/platform_renderer_es3_core.c \
+                 platform/platform_renderer_es3_core.h \
+                 platform/platform_renderer_es3_ui.c \
+                 platform/platform_renderer_es3_painter.c \
+                 platform/platform_renderer_es3_zbuffer.c \
+                 platform/platform_renderer_es3_shaders.h
 
 lane-check-webgl1-es2:
-	@python3 $(REPO_ROOT)/tools/webgl_lane_audit.py --es2 $(WEBGL1_ES2_SRCS)
+	@python3 $(REPO_ROOT)/tools/webgl_lane_audit.py --es2 $(ES2_CORE_SRCS)
 
 lane-check-webgl2-no-extensions:
 	@python3 $(REPO_ROOT)/tools/webgl_lane_audit.py --no-extensions \
-		$(WEBGL2_SRCS) $(WEBGL1_ES2_SRCS)
+		$(ES3_CORE_SRCS) $(ES2_CORE_SRCS)
 
 # 32-bitness is not forced with -m32 (on an x86_64 MinGW without multilib that
 # fails deep in the assembler with nothing pointing at the cause). The triple is

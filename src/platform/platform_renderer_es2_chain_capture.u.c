@@ -2,23 +2,23 @@
  * Run the production GL-free model stage on each real command, snapshot its
  * posed inputs and outputs, then restore the renderer's prepared camera.
  * Capture does extra work and is never used as a performance measurement. */
-#include "platform/platform_renderer_webgl2_dualcore_stage.h"
+#include "platform/platform_renderer_gles2_dualcore_stage.h"
 #include "tools/perf/model_chain_format.h"
 
 static uint32_t g_chain_pass;
 
 static void
-webgl2_chain_capture(struct ToriRS_WebGL2* renderer,
+es2_chain_capture(struct ToriRS_ES2* renderer,
                     const struct ToriRS_RenderCommand_Model* command)
 {
     static int initialized, first_pass, pass_count;
     static uint32_t ordinal;
     static FILE* out;
-    static struct WebGL2DualCoreStageArena arena;
-    static struct WebGL2DualCoreStageContext context;
+    static struct GLES2DualCoreStageArena arena;
+    static struct GLES2DualCoreStageContext context;
     struct ModelChainHeader h = {0};
     const struct ToriDraw_Model* model;
-    const struct WebGL2DualCoreStageResult* result;
+    const struct GLES2DualCoreStageResult* result;
     if( !initialized )
     {
         const char* path = getenv("TORIRS_MODEL_CHAIN_CAPTURE");
@@ -26,7 +26,7 @@ webgl2_chain_capture(struct ToriRS_WebGL2* renderer,
         initialized = 1;
         if( !path || !*path ) return;
         if( renderer->zbuffer || renderer->model_stage_source )
-        { fprintf(stderr, "chain capture requires single-threaded --webgl2\n"); abort(); }
+        { fprintf(stderr, "chain capture requires single-threaded --gles2\n"); abort(); }
         value = getenv("TORIRS_MODEL_CHAIN_FIRST_PASS");
         first_pass = value ? atoi(value) : 120;
         value = getenv("TORIRS_MODEL_CHAIN_PASSES");
@@ -34,7 +34,7 @@ webgl2_chain_capture(struct ToriRS_WebGL2* renderer,
         if( first_pass < 1 || pass_count < 1 ) abort();
         out = fopen(path, "wb");
         if( !out ) { perror("model chain capture"); abort(); }
-        WebGL2DualCoreStageArena_Init(&arena);
+        GLES2DualCoreStageArena_Init(&arena);
         arena.result_capacity = 1;
         arena.results = calloc(1, sizeof(*arena.results));
         arena.order_capacity = renderer->scene->max_faces;
@@ -49,7 +49,7 @@ webgl2_chain_capture(struct ToriRS_WebGL2* renderer,
         if( fwrite(&end, 1, sizeof(end), out) != sizeof(end) ) abort();
         if( fclose(out) ) abort();
         out = NULL;
-        WebGL2DualCoreStageArena_Free(&arena);
+        GLES2DualCoreStageArena_Free(&arena);
         fprintf(stderr, "model chain capture complete: %u commands\n", ordinal);
         return;
     }
@@ -60,10 +60,10 @@ webgl2_chain_capture(struct ToriRS_WebGL2* renderer,
     context.pick_enabled = renderer->pick_enabled;
     context.pick_mouse_x = renderer->pick_mouse_x;
     context.pick_mouse_y = renderer->pick_mouse_y;
-    WebGL2DualCoreStage_BeginPass(&context, &renderer->current_3d);
+    GLES2DualCoreStage_BeginPass(&context, &renderer->current_3d);
     arena.result_count = 0;
     arena.order_count = 0;
-    if( !WebGL2DualCoreStage_ComputeModel(&context, &arena, command) ) abort();
+    if( !GLES2DualCoreStage_ComputeModel(&context, &arena, command) ) abort();
     model = ToriDraw_ModelRead(command->model);
     result = &arena.results[0];
     h.magic = MODEL_CHAIN_MAGIC; h.version = MODEL_CHAIN_VERSION;

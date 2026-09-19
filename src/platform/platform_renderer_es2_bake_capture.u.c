@@ -2,7 +2,7 @@
 static struct { FILE* f; unsigned count,limit,first; bool initialized,active,done; const char* path; } bake_capture;
 static void bc_write(const void* p,size_t n)
 { if(n && fwrite(p,1,n,bake_capture.f)!=n) {perror("bake capture");abort();} }
-static void gles2_bake_capture_begin(struct ToriRS_GLES2* r,struct ToriDraw_ModelHandle handle,
+static void es2_bake_capture_begin(struct ToriRS_ES2* r,struct ToriDraw_ModelHandle handle,
     const struct ToriDraw_Position* pos,const int* order,int count)
 {
     bake_capture.active=false;
@@ -28,9 +28,9 @@ static void gles2_bake_capture_begin(struct ToriRS_GLES2* r,struct ToriDraw_Mode
     if(h.flags&BC_PNM){bc_write(m->textured_p_coordinate,(size_t)h.textures*2);bc_write(m->textured_m_coordinate,(size_t)h.textures*2);bc_write(m->textured_n_coordinate,(size_t)h.textures*2);}
     bc_write(order,(size_t)count*4);bake_capture.active=true;
 }
-static void gles2_bake_capture_face(const struct TRSPK_ToriDrawBakeFaceVerts* f)
+static void es2_bake_capture_face(const struct TRSPK_ToriDrawBakeFaceVerts* f)
 { if(bake_capture.active){struct BakeChainFace face=bake_chain_face(f);bc_write(&face,sizeof(face));} }
-static void gles2_bake_capture_end(void)
+static void es2_bake_capture_end(void)
 {
     if(!bake_capture.active)return;bake_capture.active=false;
     if(++bake_capture.count>=bake_capture.limit){uint32_t end[]={BAKE_CHAIN_END,bake_capture.count};bc_write(end,sizeof(end));if(fclose(bake_capture.f))abort();bake_capture.f=NULL;bake_capture.done=true;fprintf(stderr,"bake capture complete: %u real model bakes\n",bake_capture.count);}
