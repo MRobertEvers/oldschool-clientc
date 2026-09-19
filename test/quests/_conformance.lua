@@ -888,25 +888,80 @@ return {
             return result, "row 1 -> " .. describe(detail)
         end)
 
+        step("chat.close", function()
+            local fn = verb("chat", "close")
+            if not fn then return missing("chat", "close") end
+            local result, detail = fn()
+            return result, describe(detail)
+        end)
+
+        -- ------------------------- phase 6b: the two entry prompts
+        --
+        -- chat.close above is what makes these reachable: a quantity or a name
+        -- prompt is a meslayer mode, and opening one on top of the cook's
+        -- still-parked dialogue would be arguing with a script that already
+        -- owns the player.  So the cook is dismissed first, and only then is
+        -- each prompt opened on its own.
+        --
+        -- Every prompt this content pack opens by itself sits behind a bank, a
+        -- shop, a clue challenge, a minigame, the friends list or a sailing
+        -- dock -- all of them several interfaces away from this Lumbridge
+        -- fixture, which is why three earlier passes left both verbs recording
+        -- `unsupported` rather than reach one.  The two debugprocs below park
+        -- on `p_countdialog` / `p_namedialog`, the exact commands those real
+        -- openers park on, so each verb still answers a real meslayer through
+        -- the real text field and a real enter key -- only the reason for
+        -- opening the prompt is a test's.
+        -- (OSRS-Content .../interface_chat/scripts/chat_test_prompts.rs2.)
+        stage(function()
+            settle(2)
+            setup_cheat("::conform_test_countprompt")
+            settle(3)
+        end)
+
+        -- Both rows below re-read the chat log afterwards, because a closed
+        -- prompt on its own would also be what a verb that merely dismissed
+        -- the box looked like.  Each debugproc echoes what it was actually
+        -- handed (`mes("conform_test_countprompt: <tostring(last_int)>")`), so
+        -- the echo is the proof that the typed number and the typed name
+        -- travelled all the way to the server and came back as the script's
+        -- own `last_int` / `last_string`.
+        local function prompt_echoed(result, detail, echo)
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            local expect = verb("msg", "expect")
+            if not expect then return missing("msg", "expect") end
+            -- The verb's own await ends when the meslayer mode leaves the
+            -- prompt, which the client knows a tick before the resumed script's
+            -- reply can have come back down the wire.
+            settle(3)
+            local seen, why = expect(echo)
+            if seen ~= "ok" then
+                return "hollow", "the prompt closed but the server never echoed '"
+                    .. echo .. "' -- " .. describe(why)
+            end
+            return "ok", "answered, and the server echoed '" .. echo .. "'"
+        end
+
         step("chat.count", function()
             local fn = verb("chat", "count")
             if not fn then return missing("chat", "count") end
             local result, detail = fn(1)
-            return result, describe(detail)
+            return prompt_echoed(result, detail, "conform_test_countprompt: 1")
+        end)
+
+        stage(function()
+            settle(3)
+            setup_cheat("::conform_test_nameprompt")
+            settle(3)
         end)
 
         step("chat.name_entry", function()
             local fn = verb("chat", "name_entry")
             if not fn then return missing("chat", "name_entry") end
             local result, detail = fn("conformance")
-            return result, describe(detail)
-        end)
-
-        step("chat.close", function()
-            local fn = verb("chat", "close")
-            if not fn then return missing("chat", "close") end
-            local result, detail = fn()
-            return result, describe(detail)
+            return prompt_echoed(result, detail, "conform_test_nameprompt: conformance")
         end)
 
         -- ------------------------ phase 7: the scroll and the levelup box
@@ -959,19 +1014,40 @@ return {
             return result, describe(detail)
         end)
 
+        -- `levelup_display` has no content opener anywhere in this pack: the
+        -- server never puts the box up, so there is nothing on screen for
+        -- either verb to read.  That is a decision, not a gap the driver can
+        -- close -- docs/QUEST_DRIVER_REMAINING.md's "Out of scope, by
+        -- decision" holds it until plan U16 lands the content, and its phase
+        -- B2 says in so many words that "those two verbs record `unsupported`
+        -- with that reason ... and the harness expects that".
+        --
+        -- So these two rows assert the REFUSAL rather than tolerating it: the
+        -- documented word passes, and everything else -- most of all a verb
+        -- that starts answering `ok` with no box on screen -- fails.  When U16
+        -- lands the content, the row goes red on the first day the box opens,
+        -- which is exactly when it should be rewritten to read it.
+        local function refused_until_u16(result, detail)
+            local text = describe(detail)
+            if result == "unsupported" then
+                return "ok", "refused as planned (plan U16, no content opener) -- " .. text
+            end
+            if result == "ok" then
+                return "hollow", "answered ok with no levelup box on screen -- " .. text
+            end
+            return result, text
+        end
+
         step("levelup.skill", function()
             local fn = verb("levelup", "skill")
             if not fn then return missing("levelup", "skill") end
-            local result, detail = fn()
-            return answered(result, detail, "", is_text,
-                "a levelup box names the stat that went up")
+            return refused_until_u16(fn())
         end)
 
         step("levelup.continue_", function()
             local fn = verb("levelup", "continue_")
             if not fn then return missing("levelup", "continue_") end
-            local result, detail = fn()
-            return result, describe(detail)
+            return refused_until_u16(fn())
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls
