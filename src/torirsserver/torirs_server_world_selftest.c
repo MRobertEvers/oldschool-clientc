@@ -15526,6 +15526,89 @@ ToriRSServer_WorldSelftest(void)
                             &capture,
                             ToriRSServer_WireOpcode(srv->wire, PKT_NAME_NPC_INFO), 0) >= 0,
                         "the fleeing tick must emit revision-239 NPC_INFO");
+
+                    /*
+                     * AND THE FLIGHT HAS TO END WITH HIM GONE AND THEN BACK.
+                     *
+                     * `playerescape` alone is not the behaviour: it steps him
+                     * away while the player is inside 8 tiles and then stops
+                     * stepping, which leaves Hans standing in a field off his
+                     * route, permanently in escape mode. The branch therefore
+                     * arms `[ai_queue5,hans]` (`^hans_flee_ticks`), which
+                     * `npc_setrespawn`s and `npc_del`s him.
+                     *
+                     * Three separate claims, each able to go red on its own:
+                     * he leaves, he comes back, and he comes back PATROLLING
+                     * from his spawn tile rather than wandering from wherever
+                     * the flight ended. The third is the one with history --
+                     * `ToriRSServer_WorldNpcDefaultMode` exists because the
+                     * escape fallback used to omit the patrol clause and Hans
+                     * came back a wanderer.
+                     */
+                    {
+                        int flee_ticks =
+                            ToriRSServer_ContentConstantInt("hans_flee_ticks", -1);
+                        int respawn_ticks =
+                            ToriRSServer_ContentConstantInt("hans_respawn_ticks", -1);
+                        int spawn_x = srv->npcs[hans_slot].spawn_x;
+                        int spawn_z = srv->npcs[hans_slot].spawn_z;
+
+                        SELFTEST_CHECK(flee_ticks > 0 && respawn_ticks > 0,
+                                       "hans.constant should state both clocks "
+                                       "(flee %d, respawn %d)",
+                                       flee_ticks, respawn_ticks);
+                        /* Two of the flee ticks have already been spent above. */
+                        for( int i = 0; i < flee_ticks; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(!srv->npcs[hans_slot].active,
+                                       "Hans should be gone %d tick(s) after the "
+                                       "flee branch, not standing where the escape "
+                                       "mode ran out of steps",
+                                       flee_ticks);
+                        SELFTEST_CHECK(srv->npcs[hans_slot].respawn_tick >= 0,
+                                       "the despawn must arm a respawn clock -- "
+                                       "`npc_del` on its own retires the slot for "
+                                       "the rest of the run");
+
+                        /*
+                         * Stop on the tick he comes back rather than ticking
+                         * past it. `ToriRSServer_CombatRespawnTick` runs in
+                         * phase_world and the patrol mover runs in phase_npcs
+                         * behind it, so the earliest this can be observed is
+                         * already one step along the route -- measure the
+                         * spawn tile with a tile of slack, and let a longer
+                         * wait fail on `active` instead of on a coordinate
+                         * twenty tiles down the ring.
+                         */
+                        int waited = 0;
+                        int distance_from_spawn;
+
+                        while( waited <= respawn_ticks + 1 &&
+                               !srv->npcs[hans_slot].active )
+                        {
+                            selftest_tick(srv);
+                            waited++;
+                        }
+                        SELFTEST_CHECK(srv->npcs[hans_slot].active,
+                                       "Hans should be back within %d tick(s) of "
+                                       "despawning", respawn_ticks + 1);
+                        distance_from_spawn = abs(srv->npcs[hans_slot].x - spawn_x) >
+                                                      abs(srv->npcs[hans_slot].z - spawn_z)
+                                                  ? abs(srv->npcs[hans_slot].x - spawn_x)
+                                                  : abs(srv->npcs[hans_slot].z - spawn_z);
+                        SELFTEST_CHECK(distance_from_spawn <= 1,
+                                       "the respawn belongs at his spawn tile "
+                                       "(%d,%d), not where the flight ended "
+                                       "(%d,%d is %d tile(s) off)",
+                                       spawn_x, spawn_z, srv->npcs[hans_slot].x,
+                                       srv->npcs[hans_slot].z, distance_from_spawn);
+                        SELFTEST_CHECK(srv->npcs[hans_slot].mode ==
+                                           TORIRSSERVER_NPCMODE_PATROL,
+                                       "a respawned Hans walks his route again; "
+                                       "mode is %d, want patrol (%d)",
+                                       srv->npcs[hans_slot].mode,
+                                       TORIRSSERVER_NPCMODE_PATROL);
+                    }
                     player->resume_button_count = 0;
                     srv->wire = saved_wire;
                 }
