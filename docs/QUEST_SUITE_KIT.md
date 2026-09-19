@@ -159,3 +159,16 @@ new `lint_quest.py`; 3b new `new_quest.py` (extends
 - 3d: regenerate both quests, make them green with NO local helper functions
   (no `talk_to_and_settle`), publish, and have Opus review the diff and the
   shots.
+
+LANDED 2026-09-19: `new_quest.py` is keyed by `<test_id>` (a QUEUE.tsv row,
+not a helper dir -- the old form is `--all --helper <dir>`); QUEUE.tsv is
+eight columns (`quest_dir test_id helper_dir helper_file tier status owner
+last_failure`), 188 rows, with `quest_recipefordisaster` replaced in place by
+`rfd_intro` + its nine subquests; an item Quest Helper marks
+`canBeObtainedDuringQuest()` is no longer a setup `::give` but a `-- CHECK
+gather` marker at the first step whose own args need it; and a `boss_npcs`
+fight stub is emitted AT the fight step (with the unreachable tail
+commented out), not at the end of the file. `tools/quest_gate/queue.py`
+(`next --tier N [--claim OWNER]`, `set`, `show`, `summary`) is the queue's
+front door; every write is atomic. Author-facing docs: `QUEST_AUTHORING.md`
+section 5, `test/quests/README.md`.

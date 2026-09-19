@@ -113,6 +113,10 @@ function QD.chat.continue_()
     end
 
     local sym_res, sym = api_drive.symbol_name("interface", group_id)
+    -- Kept for the detail this verb answers with (trap 12/hollow rule):
+    -- named from the SAME `sym` the continue-seam lookup below already
+    -- resolved, not a second api_drive.symbol_name call.
+    local from_kind = sym_res == "ok" and (QD.chat._kind_by_iface[sym] or "none") or "none"
     local continue_symbol = sym_res == "ok" and QD.chat._continue_symbol_by_iface[sym] or nil
     if not continue_symbol then
         return "unsupported", "chat.continue_: " .. tostring(sym) .. " has no continue seam"
@@ -167,7 +171,42 @@ function QD.chat.continue_()
     if still_res ~= "ok" then
         return "closed", "chat.continue_: modal closed"
     end
-    return "ok", nil
+    return "ok", from_kind .. " -> " .. QD.chat.kind()
+end
+
+-- A page's own identity for a settle check: its text (npc/player/mesbox/
+-- objbox, the same presented-text read chat.text() uses) or its rows
+-- (options) -- so two mounts of the SAME kind in a row (two consecutive
+-- "npc:" lines) are not mistaken for still being the first one. Never
+-- QD.chat.text()/QD.chat.options() themselves: those await their OWN
+-- readiness (chat.text up to 10 ticks; chat.options both rows resolved),
+-- and a settle check wants a read of whatever is presented RIGHT NOW, not
+-- one more wait stacked on top of the caller's own.
+function QD.chat._page_identity(kind)
+    if kind == "options" then
+        local result, options = api_drive.options()
+        return result == "ok" and table.concat(options.rows, "|") or nil
+    end
+    return QD.read._presented_text(QD.read._text_symbols)
+end
+
+-- Waits for the mounted page to actually differ from (before_kind,
+-- before_identity) -- kind, or identity for a same-kind remount -- before
+-- returning. EDGE + LEVEL (api.drive.await): already different resolves
+-- with no yield. A page that never changes just runs out `ticks` -- this is
+-- a best-effort settle whose own (result, detail) the caller ignores, not a
+-- new failure mode drain/play must branch on.
+function QD.chat._settle_change(before_kind, before_identity, ticks)
+    return await({
+        level = function()
+            local kind = QD.chat.kind()
+            if kind ~= before_kind then
+                return true
+            end
+            return QD.chat._page_identity(kind) ~= before_identity
+        end,
+        note = "chat._settle_change",
+    }, ticks or 6)
 end
 
 -- Pure Lua loop over chat.kind + the continue seam (plan 5.4). Stops BEFORE
@@ -175,6 +214,30 @@ end
 -- kinds already, so the loop halts on them with no opt-in required. Any
 -- result chat.continue_ cannot turn into another page (unsupported, refused,
 -- not_visible) propagates straight out.
+--
+-- Each page's shot must be named for the page actually ON SCREEN when it is
+-- taken, not for a stale read that still thinks something else is up. Two
+-- things race that: chat.continue_'s own await (its banner above) can
+-- resolve on resume_answered -- the CLIENT's ack of the click, fired the
+-- same frame -- well before the server's reply actually remounts the next
+-- page, so a `kind` read right after continue_() returns "ok" can still
+-- describe the page that is CLOSING; and QD.shot itself pumps real frames
+-- waiting for its own capture to land (D8/A1: a screenshot is not free),
+-- during which that same pending remount can land and change what is on
+-- screen out from under a name already decided before the call. Measured
+-- 2026-09-19 against real published evidence: drained shots named for the
+-- page a step had just left, or already showing the page after it, in both
+-- directions.
+--
+-- So: settle first, name second. QD.chat._settle_change (above) waits,
+-- content-first the same way chat.choose's own post-await classification
+-- does (its QD-06 banner) and pointer.lua's _settle_after_click does for
+-- clicks generally, for the mounted page to actually differ from the one
+-- that was up before THIS iteration's continue_. Only once that has
+-- resolved (or run out its own clock) does the NEXT iteration read `kind`
+-- and take its shot, so the filename and the pixels agree. Keeps
+-- QD.shot's own frame-pump semantics untouched (ui.lua) -- this settle runs
+-- BEFORE the shot that needs it, not inside QD.shot itself.
 function QD.chat.drain(opts)
     opts = opts or {}
     local max_pages = opts.max_pages or 40
@@ -203,20 +266,18 @@ function QD.chat.drain(opts)
             QD.shot(kind)
         end
 
-        -- QD.shot pumps real frames waiting for the capture (D8/A1: a
-        -- screenshot is not free), and the PREVIOUS iteration's own click can
-        -- land during that pump -- the page mounted here can already be
-        -- stop_at, or a terminal kind, by the time this line runs, even
-        -- though `kind` above (read BEFORE the pump) still said otherwise.
-        -- Calling continue_ against that NEW page is wrong twice over: for
-        -- stop_at it burns a page the caller asked to stop before touching,
-        -- and for chatmenu/levelup_display/questscroll it always answers
-        -- `unsupported` (chat.continue_ has no seam for those on purpose --
-        -- see this file's own banner), which used to end drain right there
-        -- instead of reporting the stop_at it had actually reached.
+        -- The settle below runs out its own clock and is never branched on,
+        -- so a remount that took longer than it can still land DURING the
+        -- QD.shot pump above (a screenshot is not free -- D8/A1). Re-read
+        -- once here before clicking: continue_ against that NEW page is
+        -- wrong twice over -- for stop_at it burns a page the caller asked
+        -- to stop before touching, and for chatmenu/levelup_display/
+        -- questscroll it always answers `unsupported` (chat.continue_ has no
+        -- seam for those on purpose -- this file's own banner), which ends
+        -- drain there instead of reporting the stop_at it had reached.
         -- Measured 2026-09-19: the cook's Talk-to page (~chatnpc_anim) lands
-        -- its reply during exactly this window and drain read "chatmenu has
-        -- no continue seam" on what was really a clean stop at "options".
+        -- its reply in exactly this window and drain read "chatmenu has no
+        -- continue seam" on what was really a clean stop at "options".
         local settled_kind = QD.chat.kind()
         if settled_kind == stop_at then
             return "ok", settled_kind
@@ -226,6 +287,12 @@ function QD.chat.drain(opts)
             return "ok", settled_kind
         end
 
+        -- The settle's own baseline is the page that is up RIGHT NOW --
+        -- read after the shot's pump, not before it, so a remount that
+        -- landed mid-pump does not make the settle below resolve on the
+        -- change it has already seen.
+        local identity = QD.chat._page_identity(settled_kind)
+
         local r, d = QD.chat.continue_()
         if r == "closed" then
             return "ok", "closed"
@@ -233,6 +300,12 @@ function QD.chat.drain(opts)
         if r ~= "ok" then
             return r, d
         end
+
+        -- continue_'s own "ok" can land before the server's reply actually
+        -- remounts anything (this function's own banner above) -- settle on
+        -- the mount really changing before the next iteration trusts `kind`
+        -- again.
+        QD.chat._settle_change(settled_kind, identity, 6)
     end
 end
 
@@ -259,12 +332,20 @@ function QD.chat.close()
         return "ok", "chat.close: already closed"
     end
 
+    -- Named for the hollow rule (trap 12): the caller wants to know what it
+    -- closed, not just that something did.
+    local before_kind = QD.chat.kind()
+
     local close_res, close_detail = api_drive.close_modal()
     if close_res ~= "ok" then
         return close_res, close_detail
     end
 
-    return await({ level = closed_now, note = "chat.close" }, 6)
+    local await_res, await_detail = await({ level = closed_now, note = "chat.close" }, 6)
+    if await_res ~= "ok" then
+        return await_res, await_detail
+    end
+    return "ok", "chat.close: closed " .. tostring(before_kind)
 end
 
 -- The osrs239 "dialog" for a count/name prompt is chat_input
@@ -289,13 +370,17 @@ function QD.chat.count(n)
         return key_res, key_detail
     end
 
-    return await({
+    local await_res, await_detail = await({
         level = function()
             local m2, mode2 = api_drive.meslayer_mode()
             return m2 == "ok" and mode2 ~= 7 and mode2 ~= 19
         end,
         note = "chat.count",
     }, 6)
+    if await_res ~= "ok" then
+        return await_res, await_detail
+    end
+    return "ok", "chat.count: entered " .. tostring(n)
 end
 
 function QD.chat.name_entry(text)
@@ -316,13 +401,17 @@ function QD.chat.name_entry(text)
         return key_res, key_detail
     end
 
-    return await({
+    local await_res, await_detail = await({
         level = function()
             local m2, mode2 = api_drive.meslayer_mode()
             return m2 == "ok" and mode2 ~= 8
         end,
         note = "chat.name_entry",
     }, 6)
+    if await_res ~= "ok" then
+        return await_res, await_detail
+    end
+    return "ok", "chat.name_entry: entered '" .. tostring(text) .. "'"
 end
 
 -- api.drive.options reads dialog_options_title/_row_N directly (verbs-chat's
@@ -494,6 +583,10 @@ end
 --                       kinds continue_ has a seam for); continue_'d with no
 --                       text check. Landing on options/count/name/none is a
 --                       mismatch here -- there is nothing generic to click.
+--   "npc:*"/"player:*"/"mesbox:*"  same wildcard, but pinned to that one
+--                       kind (unlike bare "*", which accepts any of the
+--                       four) -- for a page whose text is not worth spelling
+--                       but whose KIND the author still wants checked.
 --   "count:<n>"        kind must be "count"; chat.count(n).
 --   "name:<text>"      kind must be "name"; chat.name_entry(text).
 --   "end"              kind must be "none" (the dialogue already closed);
@@ -505,6 +598,15 @@ end
 -- something other than "ok" propagates that exact (result, detail) instead
 -- of being reworded into "mismatch" -- the caller sees whichever failure
 -- actually happened.
+--
+-- Succeeds with ("ok", "<N> page(s): kind:fragment, ...") -- one
+-- "kind:fragment" per entry matched, in order, the fragment being the first
+-- ~30 characters of the page's own text where an entry read one (npc/
+-- player/mesbox, tags stripped) or the entry itself otherwise (choose/
+-- count/name/end/any), the whole joined string capped at ~200 characters.
+-- Never ("ok", nil) -- chat.play used to be the hollow rule's own textbook
+-- case (QUEST_AUTHORING.md trap 12): a verb whose successful answer IS
+-- legitimately informative cannot go through t.exec unless it says so.
 --
 -- Screenshots: each entry gets exactly one shot, taken as soon as it starts
 -- (so a mismatch still leaves a picture of the page that did not match),
@@ -583,6 +685,8 @@ function QD.chat._play_describe(kind)
 end
 
 function QD.chat.play(list)
+    local summary = {}
+
     for index, entry in ipairs(list) do
         local parsed, parse_detail = QD.chat._play_parse(entry)
         if not parsed then
@@ -600,6 +704,10 @@ function QD.chat.play(list)
         -- that was still closing, not the one that is actually live.
         QD.shot(parsed.kind .. "-p" .. index)
         local actual_kind = QD.chat.kind()
+        -- Overridden below for a "text" action that actually reads one;
+        -- everything else summarises as the LIST entry it matched, capped
+        -- the same 30 characters (this file's own banner above).
+        local fragment = entry:sub(1, 30)
 
         if parsed.action == "expect" or parsed.action == "text" then
             if actual_kind ~= parsed.kind then
@@ -612,11 +720,17 @@ function QD.chat.play(list)
                     return "mismatch", "chat.play: entry " .. index .. " ('" .. entry
                         .. "') text unread (" .. tostring(text_res) .. "): " .. tostring(text)
                 end
-                if not QD.read._strip_tags(text):find(parsed.arg, 1, true) then
+                local stripped = QD.read._strip_tags(text)
+                -- "npc:*"/"player:*"/"mesbox:*": the same wildcard bare "*"
+                -- is, pinned to one kind (this file's own banner above) --
+                -- kind already checked above, so skip the substring check
+                -- rather than searching the page for a literal "*".
+                if parsed.arg ~= "*" and not stripped:find(parsed.arg, 1, true) then
                     return "mismatch", "chat.play: entry " .. index .. " ('" .. entry .. "') "
                         .. actual_kind .. " text does not contain '" .. parsed.arg
                         .. "' -- text='" .. tostring(text) .. "'"
                 end
+                fragment = stripped:sub(1, 30)
                 local r, d = QD.chat.continue_()
                 if r ~= "ok" then
                     return r, "chat.play: entry " .. index .. " continue_ -- " .. tostring(d)
@@ -670,6 +784,13 @@ function QD.chat.play(list)
                 return r, "chat.play: entry " .. index .. " ('*') continue_ -- " .. tostring(d)
             end
         end
+
+        summary[#summary + 1] = parsed.kind .. ":" .. fragment
     end
-    return "ok", nil
+
+    local joined = table.concat(summary, ", ")
+    if #joined > 200 then
+        joined = joined:sub(1, 200)
+    end
+    return "ok", #summary .. " page(s): " .. joined
 end

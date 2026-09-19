@@ -42,6 +42,35 @@ Rules the runner and the gate depend on:
 
 Fixtures live in `test/quests/fixtures/*.ini` and are server saves.
 
+## `QUEUE.tsv` -- which quest is whose
+
+`test/quests/QUEUE.tsv` is the work queue: 188 rows, one per test, tab
+separated, with a header line. Columns, in order:
+
+`quest_dir` `test_id` `helper_dir` `helper_file` `tier` `status` `owner`
+`last_failure`
+
+- `quest_dir` is the OSRS-Content content directory (`quest_cook`);
+  `test_id` is the file stem this row produces -- `test/quests/<test_id>.lua`
+  -- and the key every tool takes. It is `quest_dir` with its
+  `quest_`/`miniquest_` prefix stripped, except `quest_cook` ->
+  `cooks_assistant`, the one hand-written file that predates the rule.
+- `helper_dir` is the Quest Helper guide directory `new_quest.py` reads
+  (`?` when no guide matches). `helper_file` narrows that to ONE `.java`
+  file and is blank everywhere except the ten Recipe for Disaster rows,
+  which all share `recipefordisaster/` -- `quest_recipefordisaster`'s single
+  row is replaced in place by `rfd_intro` plus its nine kitchen subquests.
+- `tier` is the difficulty tier from `quest_inventory.tsv` (5 = unknown).
+- `status` is one of `todo green blocked content_bug`, plus the
+  `claimed/<owner>` a `queue.py next --claim` writes, which is a hold and
+  not a verdict. `owner`/`last_failure` are free text.
+
+Read and write it with `tools/quest_gate/queue.py` (`next --tier N [--claim
+OWNER]`, `set <test_id> --status ...`, `show`, `summary`) -- every write is
+atomic and preserves the column order. `new_quest.py <test_id>` looks the row
+up here for the guide to scaffold from. `--write-queue` regenerates the whole
+file from `quest_inventory.tsv`, which is how the shape stays checkable.
+
 Artefacts land in `build/quest_gate/<quest>/` (ledger, `shots/NN-name.png`,
 `client.log`), which is deleted on the next run. A run whose ledger SUMMARY
 says PASS is also copied to

@@ -85,6 +85,25 @@ DEFAULT_CONTENT = qhe.DEFAULT_CONTENT
 INVENTORY_TSV = REPO / "tools" / "quest_gate" / "quest_inventory.tsv"
 QUESTS_DIR = REPO / "test" / "quests"
 GEN_DIR = REPO / "build" / "generated_quests"
+QUEUE_TSV = REPO / "test" / "quests" / "QUEUE.tsv"
+QUEUE_COLUMNS = ["quest_dir", "test_id", "helper_dir", "helper_file", "tier", "status", "owner", "last_failure"]
+
+# The one hand-written test whose file stem does not match the mechanical
+# "quest_dir minus quest_/miniquest_" rule -- cooks_assistant.lua predates
+# this tool and QUEUE.tsv keeps its id rather than renaming the file.
+# hans.lua has no row here at all: Hans is not a quest_inventory.tsv quest.
+TEST_ID_OVERRIDES = {"quest_cook": "cooks_assistant"}
+
+
+def compute_test_id(quest_dir: str) -> str:
+    """quest_dir -> the QUEUE.tsv test_id column: the override table first,
+    otherwise quest_dir with its quest_/miniquest_ prefix stripped."""
+    if quest_dir in TEST_ID_OVERRIDES:
+        return TEST_ID_OVERRIDES[quest_dir]
+    for prefix in ("quest_", "miniquest_"):
+        if quest_dir.startswith(prefix):
+            return quest_dir[len(prefix):]
+    return quest_dir
 
 STEP_TYPES = (
     "NpcStep", "ObjectStep", "ItemStep", "WidgetStep",
@@ -582,6 +601,65 @@ ITEM_REQ_RE = re.compile(r"\b(\w+)\s*=\s*new\s+ItemRequirement\s*\(")
 SKILL_REQ_RE = re.compile(r"\bnew\s+SkillRequirement\s*\(\s*Skill\.(\w+)\s*,\s*(-?\d+)")
 QUEST_REQ_RE = re.compile(r"\bnew\s+QuestRequirement\s*\(\s*QuestHelperQuest\.(\w+)")
 
+# An ItemRequirement the guide itself marks `.canBeObtainedDuringQuest()` is
+# not a setup ::give -- Quest Helper's own contract for that flag (see
+# CooksAssistant.java's egg/milk/flour) is "the player gets this while
+# playing", so handing it to the player before run(t) starts erases whatever
+# gather step was meant to prove it. See module banner item 2.
+GATHER_MARK_RE = re.compile(r"\b(\w+)\.canBeObtainedDuringQuest\s*\(\s*\)")
+
+
+def parse_gather_markers(text: str) -> set[str]:
+    return set(GATHER_MARK_RE.findall(text))
+
+
+def step_requirement_vars(args_text: str) -> set[str]:
+    """The bare bound-identifier arguments in a step constructor's own
+    argument list (`pot, grain.highlighted()` -> {"pot", "grain"}) --
+    Requirement objects passed positionally after the step's description,
+    which is how every STEP_TYPES constructor spells "this step needs
+    these". Deliberately narrow (a whole top-level arg must be nothing but
+    an identifier plus optional `.method(...)`/`.CONST` trailers) so a
+    requirement's own display text -- which often repeats the item's name
+    in prose, e.g. getEgg's "Grab an egg..." -- cannot masquerade as a
+    reference to the `egg` variable itself."""
+    ident_trailer = re.compile(
+        r"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*(?:\([^()]*\))?)*$"
+    )
+    reqs: set[str] = set()
+    for part in split_top_level(args_text):
+        part = part.strip()
+        if ident_trailer.match(part):
+            reqs.add(part.split(".", 1)[0])
+    return reqs
+
+
+def gather_check_line(item_info: dict) -> str:
+    sym = item_info["item"]
+    return (
+        f'        -- CHECK gather: {sym} is obtained during the quest (Quest Helper); '
+        f'give it here with t.cheat("::give {sym}") only if the test does not drive the gathering'
+    )
+
+
+def comment_out(text: str) -> str:
+    """Every generated line, comment-prefixed in place (a line that is
+    already a bare `-- ...` comment -- the step's own description -- is
+    left as is) -- used for the route tail that sits behind a fight stub
+    and is unreachable until `::skipboss` lands (module banner item 3)."""
+    out_lines = []
+    for line in text.rstrip("\n").split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            out_lines.append(line)
+            continue
+        indent = line[: len(line) - len(line.lstrip())]
+        if stripped.startswith("--"):
+            out_lines.append(line)
+        else:
+            out_lines.append(indent + "-- " + stripped)
+    return "\n".join(out_lines) + "\n"
+
 
 def parse_item_requirements(text: str) -> dict[str, dict]:
     out: dict[str, dict] = {}
@@ -682,9 +760,24 @@ def format_step_call(var: str, info: dict, dialog: dict, checks: list[str]) -> t
     return "\n".join(lines) + "\n", True
 
 
-def generate(helper_dir: Path, inv_row: dict, qh_root: Path, inventory: list[dict]) -> tuple[str, dict]:
+def generate(
+    helper_dir: Path,
+    inv_row: dict,
+    qh_root: Path,
+    inventory: list[dict],
+    test_id: str | None = None,
+    only_file: str | None = None,
+) -> tuple[str, dict]:
+    """`test_id`, when given, is the emitted file's own `id = ...` field
+    (the QUEUE.tsv-driven flow's test_id, e.g. "cooks_assistant" for
+    quest_cook) -- otherwise `id` falls back to quest_dir with its
+    quest_/miniquest_ prefix stripped, the --all/--helper flow's own
+    long-standing behaviour, unchanged. `only_file`, when given (QUEUE.tsv's
+    helper_file column), reads exactly that one file under `helper_dir`
+    instead of every `*.java` under it -- for a shared helper directory like
+    recipefordisaster/ where each subquest test wants only its own file."""
     helper_name = helper_dir.name
-    text = gather_java(helper_dir)
+    text = (helper_dir / only_file).read_text(errors="replace") if only_file else gather_java(helper_dir)
 
     step_decls = parse_step_decls(text)
     dialog = parse_dialog_steps(text)
@@ -711,6 +804,7 @@ def generate(helper_dir: Path, inv_row: dict, qh_root: Path, inventory: list[dic
 
     dir_name = inv_row["dir"]
     quest_id = dir_name[len("quest_"):] if dir_name.startswith("quest_") else dir_name
+    emitted_id = test_id or quest_id
     display = inv_row["human_name"]
     varp = inv_row["varp"].lstrip("%")
 
@@ -787,14 +881,26 @@ def generate(helper_dir: Path, inv_row: dict, qh_root: Path, inventory: list[dic
         checks.append("setup: no reset debugproc in quest_inventory.tsv -- confirm fixture start state by hand")
 
     item_reqs = parse_item_requirements(text)
+    gather_marked = parse_gather_markers(text)
     itemreq_body = find_method_body(text, r"getItemRequirements\s*\(\s*\)")
     start_item_vars = parse_list_of_identifiers(itemreq_body)
+    # An ItemRequirement the guide marks canBeObtainedDuringQuest() is NOT
+    # handed to the player in setup -- it is left as a "-- CHECK gather"
+    # marker at the first step that requires it (see gather_items below,
+    # placed once the route is walked). Module banner item 2.
+    gather_items: dict[str, dict] = {}
+    given_count = 0
     for var in start_item_vars:
         info = item_reqs.get(var)
-        if info:
-            setup_cheats.append(f"::give {info['item']} {info['qty']}")
-        else:
+        if info is None:
             checks.append(f"setup: getItemRequirements() names '{var}' but its ItemID could not be resolved")
+        elif var in gather_marked:
+            gather_items[var] = info
+        else:
+            setup_cheats.append(f"::give {info['item']} {info['qty']}")
+            given_count += 1
+    gathered_count = len(gather_items)
+    placed_gather: set[str] = set()
 
     for skill, level in parse_skill_requirements(text):
         setup_cheats.append(f"::setlevel {skill} {level}")
@@ -832,9 +938,13 @@ def generate(helper_dir: Path, inv_row: dict, qh_root: Path, inventory: list[dic
     lines.append(f"-- UNREVIEWED: every '-- CHECK' marker below needs a human or a later")
     lines.append(f"-- phase to confirm against a live run before this counts as a passing")
     lines.append(f"-- quest test. Tier (quest_inventory.tsv): {inv_row.get('tier', '?')}.")
+    lines.append(
+        f"-- Items from getItemRequirements(): {given_count} given in setup (::give), "
+        f"{gathered_count} left as '-- CHECK gather' markers (Quest Helper canBeObtainedDuringQuest())."
+    )
     lines.append("")
     lines.append("return {")
-    lines.append(f"    id = {lua_string(quest_id)},")
+    lines.append(f"    id = {lua_string(emitted_id)},")
     lines.append('    fixture = "fresh_lumbridge.ini",')
     if setup_cheats:
         lines.append("    setup = {")
@@ -876,9 +986,30 @@ def generate(helper_dir: Path, inv_row: dict, qh_root: Path, inventory: list[dic
                 checks.append(f"prereq unresolved: {token}")
         lines.append("")
 
+    boss_npc_set = {n.strip() for n in boss_npcs.split(";") if n.strip()}
+
+    # Gather-item CHECKs that no walked step's own args ever reference get
+    # no better anchor than "as soon as we know what this quest needs" --
+    # placed right after bind(), ahead of the whole route, rather than
+    # silently dropped or stranded at the end of the file.
+    def _step_reqs(v: str) -> set[str]:
+        return step_requirement_vars(step_decls[v]["args"]) if v in step_decls else set()
+
+    for gvar in gather_items:
+        if not any(kind == "step" and gvar in _step_reqs(var) for kind, var in route):
+            lines.append(gather_check_line(gather_items[gvar]))
+            lines.append(
+                f"        -- CHECK: {gather_items[gvar]['item']} never appeared in a walked step's "
+                "own requirement args -- placement guessed, confirm by hand"
+            )
+            placed_gather.add(gvar)
+    if any(gvar in placed_gather for gvar in gather_items):
+        lines.append("")
+
     stage_index = 0
     driven_count = 0
     blocked_stubs = 0
+    fight_stub_emitted = False
 
     # Every discoverable route step is walked and emitted REGARDLESS of
     # boss_fight -- a fight the manifest lists does not usually sit at step
@@ -887,24 +1018,28 @@ def generate(helper_dir: Path, inv_row: dict, qh_root: Path, inventory: list[dic
     # stage) to write nothing but a single blocked() call. Whatever the
     # walk found is real, checkable content; only the TAIL -- the part that
     # needs the fight to have actually happened -- is unreachable without
-    # `::skipboss`, so that is the only part this replaces.
+    # `::skipboss`, so that is the only part this replaces, and it is
+    # replaced AT THE FIGHT STEP ITSELF (the first walked step whose own
+    # npc gameval is in the manifest's boss_npcs), not at the end of the
+    # file: docs/QUEST_SUITE_KIT.md phase 3, module banner item 3.
     for kind, var in route:
-        if kind == "step":
-            info = step_decls[var]
-            call_text, driven = format_step_call(var, info, dialog, checks)
-            lines.append(call_text)
-            if driven:
-                driven_count += 1
-                stage_index += 1
-                if stage_index % 3 == 0:
+        if fight_stub_emitted:
+            # Past the fight -- still emitted, so a human/phase-4 pass sees
+            # exactly what would run, just commented out until `::skipboss`
+            # lands (the fight step it depends on cannot happen yet).
+            if kind == "step":
+                info = step_decls[var]
+                call_text, _driven = format_step_call(var, info, dialog, checks)
+                lines.append(comment_out(call_text))
+                for alt in sub_steps.get(var, []):
                     lines.append(
-                        f'        t.check("expect_stage-{stage_index}", '
-                        f'select(1, t.quest.stage()) ~= nil) -- CHECK: bind a real named stage here'
+                        f"        -- CHECK alternative for {var}: {alt} (location/state variant, not walked)"
                     )
-            for alt in sub_steps.get(var, []):
-                checks.append(f"alternative for {var}: {alt} (location/state variant, not walked)")
-                lines.append(f"        -- CHECK alternative for {var}: {alt} (location/state variant, not walked)")
-        else:
+            else:
+                lines.append(f"        -- CHECK unresolved route entry: {var}")
+            continue
+
+        if kind != "step":
             # Counted, not just printed. Review 2026-09-19: these were
             # emitted straight into the file without ever reaching `checks`,
             # so the --all table's `unresolved` column read 0 for a quest
@@ -912,20 +1047,56 @@ def generate(helper_dir: Path, inv_row: dict, qh_root: Path, inventory: list[dic
             # work off that column opened a file that was not resolved.
             checks.append(f"unresolved route entry: {var}")
             lines.append(f"        -- CHECK unresolved route entry: {var}")
+            continue
+
+        info = step_decls[var]
+        gameval = info["gameval"]
+
+        reqs = step_requirement_vars(info["args"])
+        for gvar in gather_items:
+            if gvar not in placed_gather and gvar in reqs:
+                lines.append(gather_check_line(gather_items[gvar]))
+                placed_gather.add(gvar)
+
+        if boss_fight and gameval is not None and gameval[0] == "NpcID" and gameval[1] in boss_npc_set:
+            desc = info["desc"] or var
+            lines.append("        -- " + desc)
+            lines.append(f'        t.blocked("skipboss not landed: {gameval[1]}")')
+            lines.append("        return")
+            lines.append("")
+            lines.append(
+                "        -- Steps below are UNREACHABLE until ::skipboss lands "
+                "(docs/QUEST_SUITE_KIT.md phase 4) -- left commented for that phase to uncomment."
+            )
+            fight_stub_emitted = True
+            blocked_stubs += 1
+            continue
+
+        call_text, driven = format_step_call(var, info, dialog, checks)
+        lines.append(call_text)
+        if driven:
+            driven_count += 1
+            stage_index += 1
+            if stage_index % 3 == 0:
+                lines.append(
+                    f'        t.check("expect_stage-{stage_index}", '
+                    f'select(1, t.quest.stage()) ~= nil) -- CHECK: bind a real named stage here'
+                )
+        for alt in sub_steps.get(var, []):
+            checks.append(f"alternative for {var}: {alt} (location/state variant, not walked)")
+            lines.append(f"        -- CHECK alternative for {var}: {alt} (location/state variant, not walked)")
 
     lines.append("")
-    if boss_fight:
-        # docs/QUEST_SUITE_KIT.md phase 3: "`::skipboss` stubs (as
-        # `t.blocked(...)` until phase 4) where the manifest lists a
-        # fight" -- quest_inventory.tsv's own `boss_fight` column is this
-        # quest's own manifest signal (docs/bosses/quest_combat_manifest.json
-        # is the finer-grained per-encounter catalogue phase 4 reads; this
-        # column is already that signal folded down to yes/no per quest).
-        # Placed after the walked route, not instead of it: everything
-        # above this line is real steps a Haiku agent's run can still prove.
+    if boss_fight and not fight_stub_emitted:
+        # The manifest says this quest has a fight, but the walked route
+        # never reached a step whose own npc gameval matched
+        # quest_inventory.tsv's boss_npcs -- fall back to the old
+        # end-of-file stub rather than silently dropping the BLOCKED verdict.
         lines.append(f'        t.blocked("skipboss not landed: {boss_npcs or quest_id}")')
+        lines.append("        return")
+        checks.append("boss_fight stub: no walked step matched boss_npcs -- placed at end of file, not at the fight")
         blocked_stubs += 1
-    else:
+    elif not fight_stub_emitted:
         lines.append("        t.quest.expect_complete()")
         lines.append("        t.finish(0)")
     lines.append("    end,")
@@ -958,15 +1129,19 @@ def resolve_helper_dir(arg: str, qh_root: Path) -> Path:
 
 
 def run_one(helper_arg: str, out_dir: Path, qh_root: Path, inventory: list[dict]) -> dict:
+    """The old bulk/--all path: one helper DIRECTORY -> one output file
+    named after quest_dir (not QUEUE.tsv's test_id, though `result["test_id"]`
+    now reports what that id would be, for the printed table)."""
     helper_dir = resolve_helper_dir(helper_arg, qh_root)
     inv_row = match_inventory_row(helper_dir.name, inventory)
-    result = {"helper": helper_dir.name, "quest": None, "path": None,
+    result = {"helper": helper_dir.name, "quest": None, "test_id": None, "path": None,
               "steps": 0, "checks": 0, "blocked": 0, "unresolved": 0,
               "checks_todo": 0, "error": None}
     if inv_row is None:
         result["error"] = "no content quest"
         return result
     result["quest"] = inv_row["dir"]
+    result["test_id"] = compute_test_id(inv_row["dir"])
     try:
         lua_text, stats = generate(helper_dir, inv_row, qh_root, inventory)
     except Exception as exc:  # pragma: no cover -- --all must survive one bad helper
@@ -981,41 +1156,48 @@ def run_one(helper_arg: str, out_dir: Path, qh_root: Path, inventory: list[dict]
     return result
 
 
-# The nine Recipe for Disaster subquests: one physical Quest Helper
+# The ten Recipe for Disaster subquests: one physical Quest Helper
 # directory (`helpers/quests/recipefordisaster/`) and one physical content
-# directory (`quest_recipefordisaster`) hold what are, on both sides, ten
+# directory (`quest_recipefordisaster`) hold what are, on both sides, TEN
 # separate quests (dbrow-wise: subquest_rfd_intro + nine subquest_rfd_*
-# rows -- quest_inventory.tsv's own note on the umbrella row). The intro is
-# already the umbrella row itself (helper dir name `recipefordisaster`
-# matches `quest_recipefordisaster` exactly, so it is already one of the
-# 179 via the ordinary path); these nine are the general's own kitchen
-# subquests, keyed here by the varp name quest_inventory.tsv's notes column
-# already names (`%rfd_<name>`) and the single Java file (not a directory)
-# that implements each one under the shared helper dir -- `new_quest.py`'s
-# own --all walks DIRECTORIES, so it cannot generate any of these nine yet
-# (see the open issue this pass reports); QUEUE.tsv still gets a row for
-# each so phase 4 has something to point a future per-file generator at.
+# rows -- quest_inventory.tsv's own note on the umbrella row). Each tuple is
+# (test_id, java_file, quest_dir_suffix) -- suffix None means "the umbrella
+# row itself" (quest_recipefordisaster, the intro/accept stage: RFDStart.java
+# is the guide's own top-level BasicQuestHelper class, which is where the
+# Lumbridge Guide -> Cook -> accept chain lives before the general splits
+# into the nine kitchen subquests). helper_dir stays the shared directory
+# name for all ten; helper_file (new QUEUE.tsv column) narrows generation to
+# just that one file within it, since gathering the whole directory would
+# mix all ten subquests' steps together (new_quest.py's --all still walks
+# whole DIRECTORIES and has no seam for this list -- it is read only by
+# write_queue and by the test_id-driven single-file CLI path).
 RFD_SUBQUESTS = [
-    ("amikvarze", "RFDSirAmikVarze.java"),
-    ("dwarf", "RFDDwarf.java"),
-    ("evildave", "RFDEvilDave.java"),
-    ("finale", "RFDFinal.java"),
-    ("goblins", "RFDGoblins.java"),
-    ("lumbridgeguide", "RFDLumbridgeGuide.java"),
-    ("monkey", "RFDAwowogei.java"),
-    ("ogre", "RFDSkrachUglogwee.java"),
-    ("pirate", "RFDPiratePete.java"),
+    ("rfd_intro", "RFDStart.java", None),
+    ("rfd_amikvarze", "RFDSirAmikVarze.java", "amikvarze"),
+    ("rfd_dwarf", "RFDDwarf.java", "dwarf"),
+    ("rfd_evildave", "RFDEvilDave.java", "evildave"),
+    ("rfd_goblins", "RFDGoblins.java", "goblins"),
+    ("rfd_lumbridgeguide", "RFDLumbridgeGuide.java", "lumbridgeguide"),
+    ("rfd_monkey", "RFDAwowogei.java", "monkey"),
+    ("rfd_ogre", "RFDSkrachUglogwee.java", "ogre"),
+    ("rfd_pirate", "RFDPiratePete.java", "pirate"),
+    ("rfd_finale", "RFDFinal.java", "finale"),
 ]
+RFD_UMBRELLA_DIR = "quest_recipefordisaster"
 
 
 def write_queue(path: Path, inventory: list[dict], qh_root: Path) -> int:
-    """test/quests/QUEUE.tsv: quest_dir helper_dir tier status owner
-    last_failure -- one row per inventory quest (179) plus the nine RFD
-    subquests above. `helper_dir` is this tool's own --all mapping (the
-    inverse of match_inventory_row, computed the same way so the two never
-    disagree), or "?" when no helper matches (quest_inventory.tsv's own
-    rows for fairytalei/fairytaleii-adjacent gaps -- see this pass's
-    report)."""
+    """test/quests/QUEUE.tsv: quest_dir test_id helper_dir helper_file tier
+    status owner last_failure -- one row per inventory quest (179), except
+    quest_recipefordisaster's single row is replaced in place by the ten
+    RFD_SUBQUESTS rows above (179 - 1 + 10 = 188 rows total, same count the
+    old 179 + 9-appended shape produced). `helper_dir` is this tool's own
+    --all mapping (the inverse of match_inventory_row, computed the same
+    way so the two never disagree), or "?" when no helper matches
+    (quest_inventory.tsv's own rows for fairytalei/fairytaleii-adjacent
+    gaps -- see this pass's report). `test_id` is compute_test_id()'s
+    result, so this file and new_quest.py's own id-emission logic can never
+    silently disagree either."""
     helpers = sorted(p.name for p in qh_root.iterdir() if p.is_dir())
     quest_to_helper: dict[str, str] = {}
     for h in helpers:
@@ -1025,38 +1207,72 @@ def write_queue(path: Path, inventory: list[dict], qh_root: Path) -> int:
 
     rows_out = []
     for row in inventory:
-        rows_out.append((row["dir"], quest_to_helper.get(row["dir"], "?"), row["tier"], "todo", "", ""))
-    for name, java_file in RFD_SUBQUESTS:
-        quest_dir = f"quest_recipefordisaster_{name}"
-        helper_dir = f"recipefordisaster/{java_file}"
-        # No per-subquest boss/leftover/cutscene signal exists in
-        # quest_inventory.tsv (only the umbrella row's own aggregate, which
-        # mixes all ten sub-quests together) -- tier 5 ("unknown") is the
-        # honest call until a later pass researches each one individually,
-        # not a guess dressed as a computed tier.
-        rows_out.append((quest_dir, helper_dir, "5", "todo", "", ""))
+        if row["dir"] == RFD_UMBRELLA_DIR:
+            for test_id, java_file, suffix in RFD_SUBQUESTS:
+                quest_dir = RFD_UMBRELLA_DIR if suffix is None else f"{RFD_UMBRELLA_DIR}_{suffix}"
+                # No per-subquest boss/leftover/cutscene signal exists in
+                # quest_inventory.tsv (only the umbrella row's own
+                # aggregate, which mixes all ten sub-quests together) --
+                # tier 5 ("unknown") is the honest call for every one of
+                # the ten, intro included, until a later pass researches
+                # each individually.
+                rows_out.append((quest_dir, test_id, "recipefordisaster", java_file, "5", "todo", "", ""))
+            continue
+        test_id = compute_test_id(row["dir"])
+        rows_out.append((row["dir"], test_id, quest_to_helper.get(row["dir"], "?"), "", row["tier"], "todo", "", ""))
 
     with open(path, "w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
-        writer.writerow(["quest_dir", "helper_dir", "tier", "status", "owner", "last_failure"])
+        writer.writerow(QUEUE_COLUMNS)
         for row in rows_out:
             writer.writerow(row)
     return len(rows_out)
 
 
+def load_queue(path: Path) -> list[dict]:
+    with open(path, "r", encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle, delimiter="\t"))
+
+
+def find_queue_row(rows: list[dict], test_id: str) -> dict | None:
+    for row in rows:
+        if row.get("test_id") == test_id:
+            return row
+    return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("helper", nargs="?", help="helpers/quests/<dir> name or path")
-    ap.add_argument("--all", action="store_true", help="generate every helper that maps to a content quest")
+    ap.add_argument(
+        "test_id", nargs="?",
+        help="a test_id from test/quests/QUEUE.tsv's 2nd column. Looked up there for "
+             "helper_dir/helper_file/quest_dir and written to test/quests/<test_id>.lua "
+             "(or --out's directory). Refuses to overwrite an existing file -- pass --force.",
+    )
+    ap.add_argument(
+        "--all", action="store_true",
+        help="the old bulk scaffold: generate every helper dir that maps to a content quest, "
+             "unchanged by QUEUE.tsv/test_id",
+    )
+    ap.add_argument(
+        "--helper",
+        help="with --all, restrict the bulk walk to this one helper dir -- the old bare "
+             "positional single-helper-dir form, kept under this flag",
+    )
+    ap.add_argument("--force", action="store_true", help="overwrite an existing output file")
     ap.add_argument("--qh-root", type=Path, default=DEFAULT_QH)
     ap.add_argument("--content", type=Path, default=DEFAULT_CONTENT)
+    ap.add_argument("--queue", type=Path, default=QUEUE_TSV, help="QUEUE.tsv path for the test_id lookup")
     ap.add_argument("--out", type=Path, default=None,
-                     help="output dir (default: test/quests for a single helper, "
+                     help="output dir (default: test/quests for the test_id form, "
                           "build/generated_quests for --all)")
     ap.add_argument("--write-queue", type=Path, default=None,
-                     help="write test/quests/QUEUE.tsv (179 inventory rows + 9 RFD "
-                          "subquest rows) to this path and exit")
+                     help="write test/quests/QUEUE.tsv (179 inventory rows, quest_recipefordisaster's "
+                          "replaced in place by its ten RFD_SUBQUESTS rows) to this path and exit")
     args = ap.parse_args()
+
+    if args.helper and not args.all:
+        ap.error("--helper only makes sense with --all (it restricts the bulk walk to one dir)")
 
     inventory = load_inventory()
 
@@ -1065,12 +1281,12 @@ def main() -> int:
         print(f"wrote {count} rows to {args.write_queue}")
         return 0
 
-    if not args.all and not args.helper:
-        ap.error("helper dir required (or --all, or --write-queue)")
-
     if args.all:
         out_dir = args.out or GEN_DIR
-        helpers = sorted(p.name for p in args.qh_root.iterdir() if p.is_dir())
+        if args.helper:
+            helpers = [args.helper]
+        else:
+            helpers = sorted(p.name for p in args.qh_root.iterdir() if p.is_dir())
         results = [run_one(h, out_dir, args.qh_root, inventory) for h in helpers]
 
         no_content = [r for r in results if r["error"] == "no content quest"]
@@ -1082,15 +1298,15 @@ def main() -> int:
         total_todo = sum(r["checks_todo"] for r in written)
         total_blocked = sum(r["blocked"] for r in written)
 
-        header = (f"{'quest':<28} {'steps':>5} {'checks':>6} {'blocked':>7} "
+        header = (f"{'quest':<28} {'test_id':<20} {'steps':>5} {'checks':>6} {'blocked':>7} "
                   f"{'unresolved':>10} {'CHECK lines':>11}")
         print(header)
         print("-" * len(header))
         for r in written:
-            print(f"{r['quest']:<28} {r['steps']:>5} {r['checks']:>6} {r['blocked']:>7} "
+            print(f"{r['quest']:<28} {r['test_id']:<20} {r['steps']:>5} {r['checks']:>6} {r['blocked']:>7} "
                   f"{r['unresolved']:>10} {r['checks_todo']:>11}")
         print("-" * len(header))
-        print(f"{'TOTAL':<28} {sum(r['steps'] for r in written):>5} {total_checks:>6} "
+        print(f"{'TOTAL':<28} {'':<20} {sum(r['steps'] for r in written):>5} {total_checks:>6} "
               f"{total_blocked:>7} {total_unresolved:>10} {total_todo:>11}")
         print()
         print(f"{len(helpers)} quest-helper dirs; {len(written)} generated into {out_dir}; "
@@ -1101,14 +1317,63 @@ def main() -> int:
             print("errored: " + ", ".join(f"{r['helper']} ({r['error']})" for r in errored))
         return 0
 
-    out_dir = args.out or QUESTS_DIR
-    result = run_one(args.helper, out_dir, args.qh_root, inventory)
-    if result["error"]:
-        print(f"FAILED: {args.helper}: {result['error']}", file=sys.stderr)
+    if not args.test_id:
+        ap.error("test_id required (a QUEUE.tsv row) -- or --all, or --write-queue")
+
+    if not args.queue.is_file():
+        print(f"FAILED: no QUEUE.tsv at {args.queue}", file=sys.stderr)
         return 1
-    print(f"wrote {result['path']} (quest={result['quest']} steps={result['steps']} "
-          f"checks={result['checks']} blocked={result['blocked']} "
-          f"unresolved={result['unresolved']} check_lines={result['checks_todo']})")
+    queue_rows = load_queue(args.queue)
+    row = find_queue_row(queue_rows, args.test_id)
+    if row is None:
+        print(f"FAILED: {args.test_id!r} is not a test_id in {args.queue}", file=sys.stderr)
+        return 1
+
+    quest_dir = row.get("quest_dir", "")
+    helper_dir_name = row.get("helper_dir", "")
+    helper_file = (row.get("helper_file") or "").strip()
+    if not helper_dir_name or helper_dir_name == "?":
+        print(f"FAILED: {args.test_id!r}'s QUEUE.tsv row has no usable helper_dir "
+              f"(helper_dir={helper_dir_name!r})", file=sys.stderr)
+        return 1
+
+    inventory_by_dir = {r["dir"]: r for r in inventory}
+    inv_row = inventory_by_dir.get(quest_dir)
+    if inv_row is None and quest_dir.startswith(RFD_UMBRELLA_DIR):
+        # An RFD subquest dir (quest_recipefordisaster_<name>) has no row of
+        # its own in quest_inventory.tsv -- only the umbrella
+        # quest_recipefordisaster does. Borrow its varp/const/tier data (the
+        # closest real thing this tool has) rather than refusing outright.
+        base = inventory_by_dir.get(RFD_UMBRELLA_DIR)
+        if base is not None:
+            inv_row = dict(base)
+            inv_row["dir"] = quest_dir
+    if inv_row is None:
+        print(f"FAILED: {quest_dir!r} (from QUEUE.tsv row {args.test_id!r}) is not in "
+              f"quest_inventory.tsv", file=sys.stderr)
+        return 1
+
+    out_dir = args.out or QUESTS_DIR
+    out_path = out_dir / f"{args.test_id}.lua"
+    if out_path.exists() and not args.force:
+        print(f"FAILED: {out_path} already exists -- pass --force to overwrite", file=sys.stderr)
+        return 1
+
+    helper_dir = resolve_helper_dir(helper_dir_name, args.qh_root)
+    try:
+        lua_text, stats = generate(
+            helper_dir, inv_row, args.qh_root, inventory,
+            test_id=args.test_id, only_file=helper_file or None,
+        )
+    except Exception as exc:
+        print(f"FAILED: {args.test_id}: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(lua_text, encoding="utf-8")
+    print(f"wrote {out_path} (quest={quest_dir} steps={stats['steps']} "
+          f"checks={stats['checks']} blocked={stats['blocked']} "
+          f"unresolved={stats['unresolved']} check_lines={stats['checks_todo']})")
     return 0
 
 

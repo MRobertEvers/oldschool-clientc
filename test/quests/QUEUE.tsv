@@ -1,189 +1,189 @@
-quest_dir	helper_dir	tier	status	owner	last_failure
-quest_animalmagnetism	animalmagnetism	4	todo		
-quest_anothersliceofham	anothersliceofham	4	todo		
-quest_arena	fightarena	3	todo		
-quest_arthur	merlinscrystal	3	todo		
-quest_ascentofarceuus	theascentofarceuus	4	todo		
-quest_atailoftwocats	atailoftwocats	1	todo		
-quest_atfirstlight	atfirstlight	4	todo		
-quest_ball	witchshouse	2	todo		
-quest_bearyoursoul	bearyoursoul	4	todo		
-quest_belowicemountain	belowicemountain	4	todo		
-quest_beneathcursedsands	beneathcursedsands	4	todo		
-quest_betweenarock	betweenarock	1	todo		
-quest_biohazard	biohazard	1	todo		
-quest_blackarmgang	shieldofarrav	1	todo		
-quest_blackknight	blackknightfortress	1	todo		
-quest_bonevoyage	bonevoyage	4	todo		
-quest_cabinfever	cabinfever	4	todo		
-quest_childrenofthesun	childrenofthesun	4	todo		
-quest_chompybird	bigchompybirdhunting	3	todo		
-quest_clientofkourend	clientofkourend	4	todo		
-quest_cog	clocktower	1	todo		
-quest_coldwar	coldwar	4	todo		
-quest_contact	contact	4	todo		
-quest_cook	cooksassistant	1	todo		
-quest_corsaircurse	thecorsaircurse	4	todo		
-quest_crest	familycrest	2	todo		
-quest_currentaffairs	currentaffairs	1	todo		
-quest_curseofarrav	thecurseofarrav	4	todo		
-quest_darknessofhallowvale	darknessofhallowvale	4	todo		
-quest_death	deathplateau	3	todo		
-quest_deathontheisle	deathontheisle	4	todo		
-quest_deathtothedorgeshuun	deathtothedorgeshuun	4	todo		
-quest_defenderofvarrock	defenderofvarrock	4	todo		
-quest_demon	demonslayer	3	todo		
-quest_depthsofdespair	thedepthsofdespair	4	todo		
-quest_desertrescue	thetouristtrap	2	todo		
-quest_deserttreasure	deserttreasure	3	todo		
-quest_deserttreasureii	deserttreasureii	4	todo		
-quest_deviousminds	deviousminds	3	todo		
-quest_doric	doricsquest	1	todo		
-quest_dragon	dragonslayer	3	todo		
-quest_dragonslayer2	dragonslayerii	4	todo		
-quest_dreammentor	dreammentor	4	todo		
-quest_druid	druidicritual	1	todo		
-quest_druidspirit	naturespirit	3	todo		
-quest_drunkmonk	monksfriend	1	todo		
-quest_eadgar	eadgarsruse	1	todo		
-quest_eaglepeak	eaglespeak	4	todo		
-quest_elemental_workshop	elementalworkshopi	1	todo		
-quest_elementalworkshopii	elementalworkshopii	4	todo		
-quest_elena	plaguecity	3	todo		
-quest_enakhraslament	enakhraslament	4	todo		
-quest_enlightenedjourney	enlightenedjourney	4	todo		
-quest_entertheabyss	entertheabyss	1	todo		
-quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	4	todo		
-quest_fenkenstrain	creatureoffenkenstrain	2	todo		
-quest_finaldawn	thefinaldawn	4	todo		
-quest_fishingcompo	fishingcontest	1	todo		
-quest_fluffs	gertrudescat	1	todo		
-quest_forgettabletale	forgettabletale	3	todo		
-quest_forsakentower	theforsakentower	4	todo		
-quest_fremennikexiles	thefremennikexiles	4	todo		
-quest_gardenofdeath	thegardenofdeath	4	todo		
-quest_gardenoftranquility	gardenoftranquility	3	todo		
-quest_gettingahead	gettingahead	4	todo		
-quest_ghostsahoy	ghostsahoy	2	todo		
-quest_giantdwarf	thegiantdwarf	3	todo		
-quest_gobdip	goblindiplomacy	3	todo		
-quest_golem	thegolem	1	todo		
-quest_grail	holygrail	2	todo		
-quest_grandtree	thegrandtree	3	todo		
-quest_grimtales	grimtales	4	todo		
-quest_handinthesand	thehandinthesand	4	todo		
-quest_haunted	ernestthechicken	1	todo		
-quest_hauntedmine	hauntedmine	3	todo		
-quest_hazeelcult	hazeelcult	3	todo		
-quest_heartofdarkness	theheartofdarkness	4	todo		
-quest_hero	heroesquest	1	todo		
-quest_hetty	witchspotion	1	todo		
-quest_horror	horrorfromthedeep	3	todo		
-quest_hunt	piratestreasure	1	todo		
-quest_icthlarin	icthlarinslittlehelper	3	todo		
-quest_idesofmilk	theidesofmilk	2	todo		
-quest_ikov	templeofikov	3	todo		
-quest_imp	impcatcher	3	todo		
-quest_inaidofthemyreque	inaidofthemyreque	4	todo		
-quest_insearchofknowledge	insearchofknowledge	4	todo		
-quest_itexam	thedigsite	3	todo		
-quest_itgronigen	observatoryquest	3	todo		
-quest_itwatchtower	watchtower	2	todo		
-quest_junglepotion	junglepotion	3	todo		
-quest_kingdomdivided	akingdomdivided	4	todo		
-quest_kingsransom	kingsransom	4	todo		
-quest_landofthegoblins	landofthegoblins	4	todo		
-quest_legends	legendsquest	3	todo		
-quest_losttribe	thelosttribe	3	todo		
-quest_lunardiplomacy	lunardiplomacy	4	todo		
-quest_makingfriendswithmyarm	makingfriendswithmyarm	4	todo		
-quest_makinghistory	makinghistory	1	todo		
-quest_mcannon	dwarfcannon	3	todo		
-quest_meatandgreet	meatandgreet	4	todo		
-quest_misc	throneofmiscellania	1	todo		
-quest_misthalinmystery	misthalinmystery	4	todo		
-quest_mm	monkeymadnessi	3	todo		
-quest_monkeymadnessii	monkeymadnessii	4	todo		
-quest_mortton	shadesofmortton	1	todo		
-quest_mountaindaughter	mountaindaughter	2	todo		
-quest_mourningsendparti	mourningsendparti	1	todo		
-quest_mourningsendpartii	mourningsendpartii	1	todo		
-quest_murder	murdermystery	1	todo		
-quest_myarmsbigadventure	myarmsbigadventure	4	todo		
-quest_nightatthetheatre	anightatthetheatre	4	todo		
-quest_olafsquest	olafsquest	4	todo		
-quest_onesmallfavour	onesmallfavour	2	todo		
-quest_pandemonium	pandemonium	4	todo		
-quest_pathofglouphrie	thepathofglouphrie	4	todo		
-quest_perilousmoons	perilousmoon	4	todo		
-quest_porcineofinterest	aporcineofinterest	4	todo		
-quest_priest	therestlessghost	1	todo		
-quest_priestperil	priestinperil	3	todo		
-quest_prince	princealirescue	1	todo		
-quest_pryingtimes	pryingtimes	1	todo		
-quest_queenofthieves	thequeenofthieves	4	todo		
-quest_ragandboneman	ragandboneman	4	todo		
-quest_ratcatchers	ratcatchers	3	todo		
-quest_recipefordisaster	recipefordisaster	4	todo		
-quest_recruitmentdrive	recruitmentdrive	2	todo		
-quest_redreef	theredreef	3	todo		
-quest_regicide	regicide	3	todo		
-quest_ribbitingtale	theribbitingtaleofalilypadlabourdispute	4	todo		
-quest_romeojuliet	romeoandjuliet	1	todo		
-quest_routequest	insearchofthemyreque	3	todo		
-quest_rovingelves	rovingelves	1	todo		
-quest_royaltrouble	royaltrouble	4	todo		
-quest_rumdeal	rumdeal	2	todo		
-quest_runemysteries	runemysteries	1	todo		
-quest_scorpcatcher	scorpioncatcher	1	todo		
-quest_scrambled	scrambled	4	todo		
-quest_seaslug	seaslug	1	todo		
-quest_secretsofthenorth	secretsofthenorth	4	todo		
-quest_shadowsofcustodia	shadowsofcustodia	4	todo		
-quest_shadowstorm	shadowofthestorm	2	todo		
-quest_sheep	sheepshearer	1	todo		
-quest_sheepherder	sheepherder	1	todo		
-quest_sinsofthefather	sinsofthefather	4	todo		
-quest_sleepinggiants	sleepinggiants	4	todo		
-quest_songoftheelves	songoftheelves	4	todo		
-quest_soulsbane	asoulsbane	4	todo		
-quest_spiritsoftheelid	spiritsoftheelid	2	todo		
-quest_squire	theknightssword	1	todo		
-quest_swansong	swansong	4	todo		
-quest_taleoftherighteous	taleoftherighteous	4	todo		
-quest_tasteofhope	atasteofhope	4	todo		
-quest_tbwt	taibwowannaitrio	3	todo		
-quest_tearsofguthix	tearsofguthix	1	todo		
-quest_templeoftheeye	templeoftheeye	4	todo		
-quest_theeyesofglouphrie	theeyesofglouphrie	4	todo		
-quest_thefeud	thefeud	2	todo		
-quest_thefremennikisles	thefremennikisles	4	todo		
-quest_thegreatbrainrobbery	thegreatbrainrobbery	4	todo		
-quest_theslugmenace	theslugmenace	3	todo		
-quest_totem	tribaltotem	3	todo		
-quest_toweroflife	toweroflife	4	todo		
-quest_tree	treegnomevillage	2	todo		
-quest_troll	trollstronghold	3	todo		
-quest_troll_love	trollromance	3	todo		
-quest_troubledtortugans	troubledtortugans	4	todo		
-quest_twilightspromise	twilightspromise	4	todo		
-quest_upass	undergroundpass	3	todo		
-quest_vampire	vampyreslayer	2	todo		
-quest_viking	thefremenniktrials	3	todo		
-quest_wanted	wanted	2	todo		
-quest_waterfall	waterfallquest	3	todo		
-quest_whatliesbelow	whatliesbelow	4	todo		
-quest_whileguthixsleeps	whileguthixsleeps	4	todo		
-quest_xmarksthespot	xmarksthespot	4	todo		
-quest_zanaris	lostcity	3	todo		
-quest_zogreflesheaters	zogreflesheaters	2	todo		
-quest_zombiequeen	shilovillage	3	todo		
-quest_recipefordisaster_amikvarze	recipefordisaster/RFDSirAmikVarze.java	5	todo		
-quest_recipefordisaster_dwarf	recipefordisaster/RFDDwarf.java	5	todo		
-quest_recipefordisaster_evildave	recipefordisaster/RFDEvilDave.java	5	todo		
-quest_recipefordisaster_finale	recipefordisaster/RFDFinal.java	5	todo		
-quest_recipefordisaster_goblins	recipefordisaster/RFDGoblins.java	5	todo		
-quest_recipefordisaster_lumbridgeguide	recipefordisaster/RFDLumbridgeGuide.java	5	todo		
-quest_recipefordisaster_monkey	recipefordisaster/RFDAwowogei.java	5	todo		
-quest_recipefordisaster_ogre	recipefordisaster/RFDSkrachUglogwee.java	5	todo		
-quest_recipefordisaster_pirate	recipefordisaster/RFDPiratePete.java	5	todo		
+quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure
+quest_animalmagnetism	animalmagnetism	animalmagnetism		4	todo		
+quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo		
+quest_arena	arena	fightarena		3	todo		
+quest_arthur	arthur	merlinscrystal		3	todo		
+quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
+quest_atailoftwocats	atailoftwocats	atailoftwocats		1	todo		
+quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
+quest_ball	ball	witchshouse		2	todo		
+quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo		
+quest_belowicemountain	belowicemountain	belowicemountain		4	todo		
+quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo		
+quest_betweenarock	betweenarock	betweenarock		1	todo		
+quest_biohazard	biohazard	biohazard		1	todo		
+quest_blackarmgang	blackarmgang	shieldofarrav		1	todo		
+quest_blackknight	blackknight	blackknightfortress		1	todo		
+quest_bonevoyage	bonevoyage	bonevoyage		4	todo		
+quest_cabinfever	cabinfever	cabinfever		4	todo		
+quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo		
+quest_chompybird	chompybird	bigchompybirdhunting		3	todo		
+quest_clientofkourend	clientofkourend	clientofkourend		4	todo		
+quest_cog	cog	clocktower		1	todo		
+quest_coldwar	coldwar	coldwar		4	todo		
+quest_contact	contact	contact		4	todo		
+quest_cook	cooks_assistant	cooksassistant		1	todo		
+quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
+quest_crest	crest	familycrest		2	todo		
+quest_currentaffairs	currentaffairs	currentaffairs		1	todo		
+quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
+quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
+quest_death	death	deathplateau		3	todo		
+quest_deathontheisle	deathontheisle	deathontheisle		4	todo		
+quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo		
+quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo		
+quest_demon	demon	demonslayer		3	todo		
+quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo		
+quest_desertrescue	desertrescue	thetouristtrap		2	todo		
+quest_deserttreasure	deserttreasure	deserttreasure		3	todo		
+quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
+quest_deviousminds	deviousminds	deviousminds		3	todo		
+quest_doric	doric	doricsquest		1	todo		
+quest_dragon	dragon	dragonslayer		3	todo		
+quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		
+quest_dreammentor	dreammentor	dreammentor		4	todo		
+quest_druid	druid	druidicritual		1	todo		
+quest_druidspirit	druidspirit	naturespirit		3	todo		
+quest_drunkmonk	drunkmonk	monksfriend		1	todo		
+quest_eadgar	eadgar	eadgarsruse		1	todo		
+quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
+quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	todo		
+quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo		
+quest_elena	elena	plaguecity		3	todo		
+quest_enakhraslament	enakhraslament	enakhraslament		4	todo		
+quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	todo		
+quest_entertheabyss	entertheabyss	entertheabyss		1	todo		
+quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
+quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		
+quest_finaldawn	finaldawn	thefinaldawn		4	todo		
+quest_fishingcompo	fishingcompo	fishingcontest		1	todo		
+quest_fluffs	fluffs	gertrudescat		1	todo		
+quest_forgettabletale	forgettabletale	forgettabletale		3	todo		
+quest_forsakentower	forsakentower	theforsakentower		4	todo		
+quest_fremennikexiles	fremennikexiles	thefremennikexiles		4	todo		
+quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo		
+quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	todo		
+quest_gettingahead	gettingahead	gettingahead		4	todo		
+quest_ghostsahoy	ghostsahoy	ghostsahoy		2	todo		
+quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		
+quest_gobdip	gobdip	goblindiplomacy		3	todo		
+quest_golem	golem	thegolem		1	todo		
+quest_grail	grail	holygrail		2	todo		
+quest_grandtree	grandtree	thegrandtree		3	todo		
+quest_grimtales	grimtales	grimtales		4	todo		
+quest_handinthesand	handinthesand	thehandinthesand		4	todo		
+quest_haunted	haunted	ernestthechicken		1	todo		
+quest_hauntedmine	hauntedmine	hauntedmine		3	todo		
+quest_hazeelcult	hazeelcult	hazeelcult		3	todo		
+quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo		
+quest_hero	hero	heroesquest		1	todo		
+quest_hetty	hetty	witchspotion		1	todo		
+quest_horror	horror	horrorfromthedeep		3	todo		
+quest_hunt	hunt	piratestreasure		1	todo		
+quest_icthlarin	icthlarin	icthlarinslittlehelper		3	todo		
+quest_idesofmilk	idesofmilk	theidesofmilk		2	todo		
+quest_ikov	ikov	templeofikov		3	todo		
+quest_imp	imp	impcatcher		3	todo		
+quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo		
+quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo		
+quest_itexam	itexam	thedigsite		3	todo		
+quest_itgronigen	itgronigen	observatoryquest		3	todo		
+quest_itwatchtower	itwatchtower	watchtower		2	todo		
+quest_junglepotion	junglepotion	junglepotion		3	todo		
+quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo		
+quest_kingsransom	kingsransom	kingsransom		4	todo		
+quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo		
+quest_legends	legends	legendsquest		3	todo		
+quest_losttribe	losttribe	thelosttribe		3	todo		
+quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo		
+quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo		
+quest_makinghistory	makinghistory	makinghistory		1	todo		
+quest_mcannon	mcannon	dwarfcannon		3	todo		
+quest_meatandgreet	meatandgreet	meatandgreet		4	todo		
+quest_misc	misc	throneofmiscellania		1	todo		
+quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
+quest_mm	mm	monkeymadnessi		3	todo		
+quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
+quest_mortton	mortton	shadesofmortton		1	todo		
+quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
+quest_mourningsendparti	mourningsendparti	mourningsendparti		1	todo		
+quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	todo		
+quest_murder	murder	murdermystery		1	todo		
+quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
+quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
+quest_olafsquest	olafsquest	olafsquest		4	todo		
+quest_onesmallfavour	onesmallfavour	onesmallfavour		2	todo		
+quest_pandemonium	pandemonium	pandemonium		4	todo		
+quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo		
+quest_perilousmoons	perilousmoons	perilousmoon		4	todo		
+quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo		
+quest_priest	priest	therestlessghost		1	todo		
+quest_priestperil	priestperil	priestinperil		3	todo		
+quest_prince	prince	princealirescue		1	todo		
+quest_pryingtimes	pryingtimes	pryingtimes		1	todo		
+quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo		
+quest_ragandboneman	ragandboneman	ragandboneman		4	todo		
+quest_ratcatchers	ratcatchers	ratcatchers		3	todo		
+quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo		
+quest_recipefordisaster_amikvarze	rfd_amikvarze	recipefordisaster	RFDSirAmikVarze.java	5	todo		
+quest_recipefordisaster_dwarf	rfd_dwarf	recipefordisaster	RFDDwarf.java	5	todo		
+quest_recipefordisaster_evildave	rfd_evildave	recipefordisaster	RFDEvilDave.java	5	todo		
+quest_recipefordisaster_goblins	rfd_goblins	recipefordisaster	RFDGoblins.java	5	todo		
+quest_recipefordisaster_lumbridgeguide	rfd_lumbridgeguide	recipefordisaster	RFDLumbridgeGuide.java	5	todo		
+quest_recipefordisaster_monkey	rfd_monkey	recipefordisaster	RFDAwowogei.java	5	todo		
+quest_recipefordisaster_ogre	rfd_ogre	recipefordisaster	RFDSkrachUglogwee.java	5	todo		
+quest_recipefordisaster_pirate	rfd_pirate	recipefordisaster	RFDPiratePete.java	5	todo		
+quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo		
+quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	todo		
+quest_redreef	redreef	theredreef		3	todo		
+quest_regicide	regicide	regicide		3	todo		
+quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo		
+quest_romeojuliet	romeojuliet	romeoandjuliet		1	todo		
+quest_routequest	routequest	insearchofthemyreque		3	todo		
+quest_rovingelves	rovingelves	rovingelves		1	todo		
+quest_royaltrouble	royaltrouble	royaltrouble		4	todo		
+quest_rumdeal	rumdeal	rumdeal		2	todo		
+quest_runemysteries	runemysteries	runemysteries		1	todo		
+quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	todo		
+quest_scrambled	scrambled	scrambled		4	todo		
+quest_seaslug	seaslug	seaslug		1	todo		
+quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo		
+quest_shadowsofcustodia	shadowsofcustodia	shadowsofcustodia		4	todo		
+quest_shadowstorm	shadowstorm	shadowofthestorm		2	todo		
+quest_sheep	sheep	sheepshearer		1	todo		
+quest_sheepherder	sheepherder	sheepherder		1	todo		
+quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo		
+quest_sleepinggiants	sleepinggiants	sleepinggiants		4	todo		
+quest_songoftheelves	songoftheelves	songoftheelves		4	todo		
+quest_soulsbane	soulsbane	asoulsbane		4	todo		
+quest_spiritsoftheelid	spiritsoftheelid	spiritsoftheelid		2	todo		
+quest_squire	squire	theknightssword		1	todo		
+quest_swansong	swansong	swansong		4	todo		
+quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	todo		
+quest_tasteofhope	tasteofhope	atasteofhope		4	todo		
+quest_tbwt	tbwt	taibwowannaitrio		3	todo		
+quest_tearsofguthix	tearsofguthix	tearsofguthix		1	todo		
+quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo		
+quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo		
+quest_thefeud	thefeud	thefeud		2	todo		
+quest_thefremennikisles	thefremennikisles	thefremennikisles		4	todo		
+quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo		
+quest_theslugmenace	theslugmenace	theslugmenace		3	todo		
+quest_totem	totem	tribaltotem		3	todo		
+quest_toweroflife	toweroflife	toweroflife		4	todo		
+quest_tree	tree	treegnomevillage		2	todo		
+quest_troll	troll	trollstronghold		3	todo		
+quest_troll_love	troll_love	trollromance		3	todo		
+quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo		
+quest_twilightspromise	twilightspromise	twilightspromise		4	todo		
+quest_upass	upass	undergroundpass		3	todo		
+quest_vampire	vampire	vampyreslayer		2	todo		
+quest_viking	viking	thefremenniktrials		3	todo		
+quest_wanted	wanted	wanted		2	todo		
+quest_waterfall	waterfall	waterfallquest		3	todo		
+quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo		
+quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo		
+quest_xmarksthespot	xmarksthespot	xmarksthespot		4	todo		
+quest_zanaris	zanaris	lostcity		3	todo		
+quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	todo		
+quest_zombiequeen	zombiequeen	shilovillage		3	todo		

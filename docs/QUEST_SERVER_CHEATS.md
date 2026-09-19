@@ -22,139 +22,140 @@ Client (typed `::foo`):
 
 Server:
 - Packet table: `{ PKTOUT_NAME_CLIENT_CHEAT, handle_cheat_packet }`
-  (src/torirsserver/torirs_server_world.c:11072) → `handle_cheat_packet`
-  (:9427-9436) → `handle_cheat` (:7751).
-- `handle_cheat` (torirs_server_world.c:7751-9164):
-  1. Reads the newline-terminated body (`::` already stripped by the
-     client); if it starts with `~`, strips that server-side namespace
-     escape too (:7773-7774).
-  2. **Content is tried FIRST**: `ToriRSServer_ScriptsRunDebugproc(srv, text)`
-     (:7803) looks up `[debugproc,<name>]` in the RuneScript tree. TRIGGER_RAN
-     → return (content owned it). TRIGGER_FAILED → `say` an error and return.
-     TRIGGER_NONE (no such debugproc) → falls through.
-  3. **Only then** is the C `strncmp(text, "...", N)` ladder tried
-     (:7819 onward), ending in two bare `sscanf` fallbacks with no strncmp
-     guard at all (`item %d %d`, `tele %d %d`) and an `npc %d` fallback,
-     then "Unknown command" (:9163).
-  - The dispatch order is explicit in a comment (:7776-7785): "exactly as
-    `[if_button]` is dispatched... a cheat writable without touching the
-    engine... LostCity has no C-side cheat that a debugproc could not
-    replace."
+  (src/torirsserver/torirs_server_world.c:11432) -> `handle_cheat_packet`
+  (:9788) -> `handle_cheat` (:9503).
+- `handle_cheat` (:9503) now does two things only: read the
+  newline-terminated body off the wire (`::` already stripped by the client;
+  a leading `~` server-side namespace escape stripped here), then call
+  `cheat_dispatch` (:9406) and say "Unknown command" when it answers NONE
+  (:9521).
+- `cheat_dispatch` (:9406) is THE dispatch, and the only one:
+  1. **Content first**: `ToriRSServer_ScriptsRunDebugproc(srv, text)` (:9444)
+     looks up `[debugproc,<name>]` in the RuneScript tree. RAN -> return
+     (content owned it). FAILED -> `say` an error and return FAILED.
+     NONE (no such debugproc) -> falls through.
+  2. **Then the C ladder**: `ToriRSServer_RunCheatLadder(srv, player, text)`
+     (:9459), defined at :7855 -- the `strncmp`/`sscanf` ladder lifted whole
+     out of the old `handle_cheat` body, now returning a verdict instead of
+     `void`. It ends in three bare `sscanf` fallbacks with no `strncmp` guard
+     (`item %d %d` :9359, `tele %d %d` :9373, `npc %d` :9379) and then
+     TORIRSSERVER_TRIGGER_NONE.
+  - The dispatch order is explicit in `cheat_dispatch`'s own banner
+    (:9416-9426): "content first, exactly as `[if_button]` is dispatched...
+    a cheat writable without touching the engine... LostCity has no C-side
+    cheat that a debugproc could not replace."
+  - `cheat_dispatch` is shared by the packet handler and by
+    `ToriRSServer_RunCheatForTest` (:9477) "so the two can never drift -- a
+    test that reaches a cheat through a different dispatch order is testing a
+    program nobody runs" (:9397-9399). §B below is that path.
 
-### Complete engine (C) ladder — every strncmp/sscanf literal in `handle_cheat`
+### Complete engine (C) ladder -- every strncmp/sscanf literal in `ToriRSServer_RunCheatLadder`
+
+Line numbers are torirs_server_world.c, current as of 2026-09-19; the ladder
+moved out of `handle_cheat` into `ToriRSServer_RunCheatLadder` (:7855) and
+every line below shifted with it.
 
 | literal | line | meaning |
 |---|---|---|
-| `talk` | 7819 | `::talk <slot\|name> [op]` fires `[opnpc<op>]` on an npc without a right-click |
-| `setting ` | 7886 | `::setting <varbit> <value>` mirrors an All Settings row write |
-| `minimap ` | 7926 | `::minimap <0..5>` forces a native minimap state |
-| `ifhide ` | 7935 | `::ifhide <uid> <0|1>` toggles a component's hidden flag |
-| `layout ` | 7945 | `::layout <0|1|2>` Fixed/Resizable Classic/Modern, via a synthesized IF_BUTTON |
-| `style` | 7993 | `::style <0-3>` sets attack style (accurate/aggressive/defensive/controlled) |
-| `setlevel` | 8018 | `::setlevel <stat> <level>` sets a stat's level (base + xp to threshold) |
-| `wield ` | 8047 | `::wield <objid>` runs the real OPHELD-equip path on a backpack item |
-| `equipstats` | 8090 | `::equipstats` opens the equipment bonus screen |
-| `run` | 8098 | `::run [0|1]` toggles the run-energy option |
-| `god` | 8112 | `::god [0|1]` player invulnerability (gates CombatHitPlayer + stat-write drains); heals to full on enable |
-| `bank` | 8137 | `::bank` opens the bank |
-| `fight` | 8146 | `::fight [slot]` engages an npc (nearest attackable if no slot given) |
-| `useon` | 8196 | `::useon <a> <b>` synthesizes OPHELDU on two named items (giving them first if absent) |
-| `give` | 8299 | `::give <name> [count]` adds an item to the backpack by display/gameval name |
-| `spawn` | 8366 | `::spawn <npc_name\|id> [count]` spawns npcs by name (capped at 20), `despawns_on_death=1` |
-| `vesselgoto` | 8459 | `::vesselgoto <x> <z> [level]` — teleport under a name content doesn't own (`::tele` is claimed by `[debugproc,tele]`, see below) |
-| `vesselwater` | 8491 | `::vesselwater [radius]` — ASCII-dump sailable tiles around the caller |
-| `vesselspawnat` | 8545 | spawn a boat at an exact tile |
-| `vesselspawn` | 8671 | find real ocean and build a sailing instance |
-| `vesselsail` | 8809 | crew/sail state debug |
-| `vesselboard` | 8851 | board the lowest live hull |
-| `vesselop` | 8921 | vessel op debug |
-| `vesselseq` | 8968 | vessel animation debug |
-| `helm` | 9005 | take the helm |
-| `sails` | 9045 | sail state |
-| `speedup`/`speeddown` | 9064 | vessel speed debug |
-| `reverse` | 9087 | vessel reverse debug |
-| `vesselstep` | 9109 | `::vesselstep <dx> <dz>` walks the caller a few tiles (deck-rider testing) |
-| `item %d %d` (sscanf, no strncmp) | 9133 | `::item <objid> [count]` — id-keyed twin of `::give` |
-| `tele %d %d` (sscanf) | 9147 | `::tele <x> <z>` — **only reachable when content's `[debugproc,tele]` does NOT claim the word first** (see note below); absolute-tile teleport on the player's current level |
-| `npc %d` (sscanf) | 9153 | `::npc <id>` — id-only ancestor of `::spawn`, spawns onto level 3 (a known long-standing quirk) |
+| `setvar ` | 7878 | `::setvar <varp\|varbit> <int\|^constant>` writes one named var through the same setter the `%var =` opcode uses (transmit + listeners). Resolves the name via the varp pack then the varbit pack (`cheat_varp_from_name` :7526, `cheat_varbit_from_name` :7546, `^constant` :7557); a varp that carries varbits is refused by name (:7929), an unknown name is FAILED (:7953). **First in the ladder on purpose** (:7871-7876): the three bare `sscanf` fallbacks at the bottom match on SHAPE, not on a name, so a branch added after them can be swallowed by a mistyped argument |
+| `kill ` | 7957 | `::kill <npc_symbol> [radius]` -- lethal damage to the nearest matching npc through the normal death path, so `npc_death_step` reaches CORPSE and the npc's `[ai_queue3,...]` fires. A radius, not the whole world (:7973). No match -> FAILED |
+| `talk` | 8045 | `::talk <slot\|name> [op]` fires `[opnpc<op>]` on an npc without a right-click |
+| `setting ` | 8112 | `::setting <varbit> <value>` mirrors an All Settings row write |
+| `minimap ` | 8152 | `::minimap <0..5>` forces a native minimap state |
+| `ifhide ` | 8161 | `::ifhide <uid> <0\|1>` toggles a component's hidden flag |
+| `layout ` | 8171 | `::layout <0\|1\|2>` Fixed/Resizable Classic/Modern, via a synthesized IF_BUTTON |
+| `style` | 8219 | `::style <0-3>` sets attack style (accurate/aggressive/defensive/controlled) |
+| `setlevel` | 8244 | `::setlevel <stat> <level>` sets a stat's level (base + xp to threshold) |
+| `wield ` | 8273 | `::wield <objid>` runs the real OPHELD-equip path on a backpack item |
+| `equipstats` | 8316 | `::equipstats` opens the equipment bonus screen |
+| `run` | 8324 | `::run [0\|1]` toggles the run-energy option |
+| `god` | 8338 | `::god [0\|1]` player invulnerability; heals to full on enable |
+| `bank` | 8363 | `::bank` opens the bank |
+| `fight` | 8372 | `::fight [slot]` engages an npc (nearest attackable if no slot given) |
+| `useon` | 8422 | `::useon <a> <b>` synthesizes OPHELDU on two named items (giving them first if absent) |
+| `give` | 8525 | `::give <name> [count]` adds an item to the backpack by display/gameval name |
+| `spawn` | 8592 | `::spawn <npc_name\|id> [count]` spawns npcs by name (capped at 20), `despawns_on_death=1` |
+| `vesselgoto` | 8685 | teleport under a name content doesn't own (`::tele` is claimed by `[debugproc,tele]`, see below) |
+| `vesselwater` | 8717 | ASCII-dump sailable tiles around the caller |
+| `vesselspawnat` | 8771 | spawn a boat at an exact tile |
+| `vesselspawn` | 8897 | find real ocean and build a sailing instance |
+| `vesselsail` | 9035 | crew/sail state debug |
+| `vesselboard` | 9077 | board the lowest live hull |
+| `vesselop` | 9147 | vessel op debug |
+| `vesselseq` | 9194 | vessel animation debug |
+| `helm` | 9231 | take the helm |
+| `sails` | 9271 | sail state |
+| `speedup`/`speeddown` | 9290 | vessel speed debug |
+| `reverse` | 9313 | vessel reverse debug |
+| `vesselstep` | 9335 | `::vesselstep <dx> <dz>` walks the caller a few tiles (deck-rider testing) |
+| `item %d %d` (sscanf, no strncmp) | 9359 | `::item <objid> [count]` -- id-keyed twin of `::give` |
+| `tele %d %d` (sscanf) | 9373 | `::tele <x> <z>` -- **only reachable when content's `[debugproc,tele]` does NOT claim the word first** (see note below) |
+| `npc %d` (sscanf) | 9379 | `::npc <id>` -- id-only ancestor of `::spawn`, spawns onto level 3 (a known long-standing quirk) |
 
-**Not in the C ladder at all** (confirmed absent by exhaustive grep for
-`strncmp(text,`/`sscanf(text,` in torirs_server_world.c): `die`, `kill`,
-`killall`, `hit`, `heal`, `xp`, `pray`, `setvar`, `varp`, `varbit`, `quest`,
-`stage`, `skip`, `invincible`. All of these (where they exist) are **content
-debugprocs**, resolved via the content-first step above:
-- `[debugproc,tele]`, `[debugproc,telefind]` —
+Verdicts: every branch lifted out of `handle_cheat` answers RAN, including
+the ones that print "Usage: ..." -- the command exists and was understood
+well enough to refuse. Only `::setvar` and `::kill`, the two branches the
+split added, answer FAILED, which is what lets a test tell "no such
+variable" from "it worked" (:7838-7849). Falling off the end is NONE, and
+the caller owns "Unknown command".
+
+**Not in the C ladder at all**: `die`, `killall`, `hit`, `heal`, `xp`,
+`pray`, `quest`, `stage`, `skip`, `invincible`. Where these exist they are
+**content debugprocs**, resolved by `cheat_dispatch`'s content-first step:
+- `[debugproc,tele]`, `[debugproc,telefind]` --
   OSRS-Content/osrs239-content/server/scripts/general/scripts/misc/cheat_tele.rs2:51+
-  — a `string` cheat (coord literal or curated name, see §E) that answers
+  -- a `string` cheat (coord literal or curated name, see §E) that answers
   the packet BEFORE the C ladder's own `tele %d %d`/`vesselgoto` ever see the
-  word "tele" (documented at torirs_server_world.c:8465-8469: "a capture
-  harness driving `[net:boot] cheat=` cannot reach the C `tele` branch at
-  all... the failure is silent").
-- `[debugproc,xp]`, `[debugproc,xpdrop]`, `[debugproc,xpqueue]` —
-  .../general/scripts/misc/cheat_xp.rs2:13+ — `::xp <stat> <amount>` calls
+  word "tele".
+- `[debugproc,xp]`, `[debugproc,xpdrop]`, `[debugproc,xpqueue]` --
+  .../general/scripts/misc/cheat_xp.rs2:13+ -- `::xp <stat> <amount>` calls
   `stat_advance`.
-- `[debugproc,pray]` — .../skill_prayer/scripts/cheat_prayer.rs2:19 —
+- `[debugproc,pray]` -- .../skill_prayer/scripts/cheat_prayer.rs2:19 --
   `::pray <0-N>` toggles a prayer through the same `~prayer_toggle` the
   prayer book uses, auto-granting the required level.
-- `[debugproc,die]` — .../player/death.rs2:419 — `::die` runs the *whole*
-  death sequence via `~player_death_trigger` → `queue(player_death,...)`
-  (not a shortcut).
-- No generic `[debugproc,kill]`, `killall`, `hit`, `heal`, `setvar`,
-  `varp`, `varbit`, `quest`, `stage`, `skip`, `invincible` exists anywhere
-  in OSRS-Content (grepped `^[debugproc,<name>]` for each). Per-quest,
-  narrowly-scoped skip/cheat debugprocs exist instead — see §D/§E.
+- `[debugproc,die]` -- .../player/death.rs2:419 -- `::die` runs the *whole*
+  death sequence via `~player_death_trigger` -> `queue(player_death,...)`.
+- `setvar`/`varp`/`varbit` and `kill` used to be listed here as absent
+  everywhere. They are C ladder branches now (:7878, :7957) -- that was the
+  point of §B's fix. Still absent as debugprocs, which does not matter any
+  more: the ladder is reachable.
 
-## B. `ToriRSServer_RunDebugprocForTest` — confirmed: `t.cheat` cannot reach the engine ladder
 
-- Definition: torirs_server_world.c:7741-7749.
-  ```c
-  int ToriRSServer_RunDebugprocForTest(struct ToriRSServer* srv, const char* line)
-  {
-      assert(srv); assert(line);
-      return ToriRSServer_ScriptsRunDebugproc(srv, line);
-  }
-  ```
-  Its own comment (:7732-7739) says it is exactly the content lookup
-  `handle_cheat` makes at :7803, "kept" for a test that has `srv` in-process
-  and no packet/socket to answer on.
-- Sole caller: `DriveCore_Cheat` in src/plugin/torirs_plugin_drive.c:329-364,
-  which backs the Lua verb `t.cheat` (registered as `{"cheat", lua_drive_cheat}`
-  at torirs_plugin_drive.c:1008, `lua_drive_cheat` at :941). It strips a
-  leading `::` (mirroring what a real client already removed) and calls
-  `ToriRSServer_RunDebugprocForTest` directly — **there is no fallback to
-  the C strncmp ladder anywhere in this path.**
-- Confirmed: `t.cheat("::give scythe_of_vitur")`, `::setlevel`, `::spawn`,
+## B. `t.cheat` reaches the ladder -- FIXED (phase 1)
+
+This section used to read "confirmed: `t.cheat` cannot reach the engine
+ladder". It can now, and the split is what §A above describes.
+
+- `DriveCore_Cheat` (src/plugin/torirs_plugin_drive.c:329-368), which backs
+  the Lua verb `t.cheat`, called `ToriRSServer_RunDebugprocForTest` -- the
+  content half alone. It calls `ToriRSServer_RunCheatForTest(srv, text)`
+  (torirs_plugin_drive.c:367) now, and its own comment at :362 names the
+  reason: the old call "reaches only content".
+- `ToriRSServer_RunCheatForTest` (torirs_server_world.c:9477, declared
+  torirs_server.h:6518) strips the same one `~` the packet path strips, calls
+  the shared `cheat_dispatch` (:9496), and says "Unknown command" itself on
+  NONE (:9497-9498). The dispatch is byte-for-byte the packet path's.
+- `ToriRSServer_RunDebugprocForTest` (:7816, torirs_server.h:6488) still
+  exists and is still the content half alone -- nothing in the quest driver
+  calls it any more. Its banner at :7833 records why: calling it alone "meant
+  every command below -- `::give`, `::setlevel`, `::spawn`, `::wield`,
+  `::tele <x> <z>` -- answered `no_row` and did nothing at all to a test that
+  asked for it".
+- So from `t.cheat`: `::give`, `::setlevel`, `::spawn`, `::setvar`, `::kill`,
   `::wield`, `::god`, `::fight`, `::useon`, `::run`, `::style`, `::bank`,
   `::layout`, `::minimap`, `::ifhide`, `::equipstats`, `::talk`, `::item`,
-  `::tele <x> <z>` (bare sscanf form), `::npc <id>`, all the `::vessel*`
-  commands — **none of these are reachable from `t.cheat`** because none of
-  them is a `[debugproc,...]`; `ToriRSServer_ScriptsRunDebugproc` returns
-  `TRIGGER_NONE` (mapped to `no_row`/`DRIVE_NO_ROW`) and the call stops there.
-  `::tele`, `::xp`, `::pray`, `::die` (the content debugprocs) DO work
-  through `t.cheat`.
-- **Smallest hook to fix this**: add a new C entry point that runs the exact
-  same two-step sequence `handle_cheat` runs (content-first, then the ladder),
-  factored out of `handle_cheat`'s body so both paths share it — e.g.
-  ```c
-  int ToriRSServer_RunCheatForTest(struct ToriRSServer* srv, const char* line)
-  {
-      /* same as handle_cheat(): try [debugproc,line] first, then the
-         strncmp/sscanf ladder, but return instead of writing packets/say() */
-  }
-  ```
-  This requires splitting `handle_cheat`'s ladder body out of the
-  packet-only concerns (it currently reads `payload`/`len` off the wire via
-  `rsab_gjstr` and calls `say(srv, ...)`, which assumes `srv->active_player`
-  and produces chat-line side effects — those are fine to keep for a test
-  client too, since `t.cheat` already runs in-process against the same
-  `srv`). Then register it as `{"cheat_ladder", lua_drive_cheat_ladder}`
-  or make `t.cheat` itself call the combined function instead of
-  `ToriRSServer_RunDebugprocForTest`. Either way, the return contract
-  (`TRIGGER_RAN`/`FAILED`/`NONE`→`ok`/`refused`/`no_row`) already exists and
-  can be reused as-is — the ladder branches currently `return;` with no
-  verdict value, so the smallest structural change is giving the split-out
-  ladder function an `enum ToriRSServerTriggerResult`-shaped return (RAN on
-  any branch taken, NONE on falling through to "Unknown command").
+  `::npc <id>`, every `::vessel*` -- all reachable. The content debugprocs
+  (`::tele`, `::xp`, `::pray`, `::die`, the per-quest reset procs) still
+  answer first, unchanged.
+- Result mapping, unchanged: RAN -> `ok`, FAILED -> `refused`, NONE ->
+  `no_row`. `no_row` now means what it says -- *nothing in the server
+  understood this line* -- so `run.py`'s setup loop turns a `no_row` from a
+  setup cheat into a FAIL row named `setup.<cheat text>` and stops the run.
+  A setup line that silently does nothing is the bug the split exists to kill.
+- Evidence: `test/quests/_cheats.lua` + `make -C src test-quest-cheats` --
+  one row per ladder command reached through `t.cheat` (`::give`,
+  `::setlevel`, `::setvar <varp> ^constant`, `::kill <npc>`, `::tele`), plus
+  a bogus `::nosuchcheat` that must answer `no_row`. Green 2026-09-19.
 
 ## C. Server-side quest selftest harness
 
