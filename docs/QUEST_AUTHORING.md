@@ -57,9 +57,7 @@ this short fails section 7's minimum shape). The complete green file is
 
 ## 2. Where you start, and how to get there
 
-- The fixture (`fresh_lumbridge.ini`) stands you beside Hans at 3206,3233,
-  level 0 -- nothing else moves you closer. Npcs are ALL spawned and live
-  from boot; nothing needs summoning.
+- The fixture (`fresh_lumbridge.ini`) stands you beside Hans at 3206,3233, level 0 -- nothing else moves you closer. Npcs are ALL spawned and live from boot; nothing needs summoning.
 - The scaffold emits `t.exec("goto-...", t.player.goto_tile, x, z, level)`
   -- the engine's `::goto` cheat plus an arrival await -- before every far
   step. `goto_tile`, never `goto`: `goto` is a reserved word in this tree's
@@ -70,18 +68,13 @@ this short fails section 7's minimum shape). The complete green file is
   never the verb** -- Quest Helper's `WorldPoint(x, z, level)`, or the npc's
   spawn tile in `OSRS-Content/osrs239-content/server/scripts/areas/<area>/configs/*.npc`
   (upper floors are level 1/2, never 0).
-- `walk_near(target, ticks)` takes the `{kind=, id=}` table `player.by_symbol`
-  returns: `local n = t.player.by_symbol("npc", "doric")` then `t.exec("walk.doric", t.player.walk_near, n, 10)`.
-- **`outcome blocked` REQUIRES a `t.blocked("<seam>")` row, then `return`
-  right after it** -- anything else is rejected, not blocked.
-- `chat.play` / `chat.choose` / `chat.continue_` act on a dialogue already
-  open, never opening one; `not_visible: no dialogue is open` means the
-  click before them did not land -- fix that click, not the chat call.
+- `walk_near(target, ticks)` takes the `{kind=, id=}` table `player.by_symbol` returns: `local n = t.player.by_symbol("npc", "doric")` then `t.exec("walk.doric", t.player.walk_near, n, 10)`.
+- **`outcome blocked` REQUIRES a `t.blocked("<seam>")` row, then `return` right after it** -- anything else is rejected, not blocked.
+- `chat.play` / `chat.choose` / `chat.continue_` act on a dialogue already open, never opening one; `not_visible: no dialogue is open` means the click before them did not land -- fix that click, not the chat call.
 - Doors: `I can't reach that!` after a click means a door, gate or wall blocks the path -- `click_loc` it (op 1, its symbol from the area's `configs/*.loc`) or `goto_tile` past it; `talk_to` now answers `refused` with that line, not `ok`.
 - Inventory: the fresh character carries fourteen slots of tutorial kit (content's `[proc,newplayer_inv]`, granted a tick after login); every generated file's `setup` starts with `::clearinv` -- add it yourself too when hand-writing `setup`, and never in `run`: the runner waits for that grant before the first setup cheat, nothing waits for you.
-- Floors and ladders: `click_loc` the ladder, then `goto_tile` the destination tile with ITS level; a scene that fails to load after a multi-region jump (`talk_to` answers `screen_position`, npc lookups `no_row`) is a known seam -- `t.blocked` it, naming the tile.
-- Your quest file is the ONLY file you may create or edit -- no fixture,
-  no helper `.lua`, nothing else under `test/`.
+- Floors and ladders: `goto_tile` the destination tile with ITS level is the whole of it -- it climbs stairs and ladders for you, no `click_loc` on the ladder first (druid reaches Sanfew at `2899,3429,1`, runemysteries the Duke at `3209,3222,1`, neither clicking anything); a scene that fails to load after a multi-region jump (`talk_to` answers `screen_position`, npc lookups `no_row`) is a known seam -- `t.blocked` it, naming the tile.
+- Your quest file is the ONLY file you may create or edit -- no fixture, no helper `.lua`, nothing else under `test/`.
 
 ## 3. The verb table
 
@@ -297,3 +290,9 @@ file if this drifts. A quest is green when:
     on, and a `t.expect`/`t.step` row is never asked for one.
 - A `BLOCKED` row with `fail==0` reports `blocked`, not `green`, and still
   exits non-zero unless the check is run with `--allow-blocked`.
+
+## 8. Gaps reported by authors
+
+- `goto_tile` handles stairs and ladders by itself; section 2's Floors-and-ladders rule used to say to `click_loc` the ladder first and has been corrected.
+- Completion is asynchronous. The content defers `queue(<quest>_complete, 0, 0)` a tick past the last dialogue page (quest_druid.rs2 records why in its header), so `t.ticks(3)` between the final `chat.play`/`drain` and `quest.expect_complete()` is load-bearing, not padding -- without it the reward scroll has not landed and the `scroll.*` reads answer `not_visible`.
+- A `choose:` entry is not always followed by a `player:` page. The echo exists only where that branch opens with `~chatplayer*` (Fred's `[label,fred_yes_okay]` does; Kaqemeex's first confirm goes mesbox -> options again with no player page between). Read the branch in its `.rs2` before writing the `chat.play` list.
