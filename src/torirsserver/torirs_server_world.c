@@ -7831,8 +7831,8 @@ ToriRSServer_RunDebugprocForTest(
  * (`t.cheat`, src/plugin/torirs_plugin_drive.c DriveCore_Cheat) already holds
  * `srv` and has no socket to answer on. `t.cheat` used to call
  * `ToriRSServer_RunDebugprocForTest` alone, which meant every command below --
- * `::give`, `::setlevel`, `::spawn`, `::wield`, `::tele <x> <z>` -- answered
- * `no_row` and did nothing at all to a test that asked for it
+ * `::give`, `::setlevel`, `::spawn`, `::wield`, `::goto <x> <z> [level]` --
+ * answered `no_row` and did nothing at all to a test that asked for it
  * (docs/QUEST_SERVER_CHEATS.md §B). A setup line that silently does nothing is
  * the bug this split exists to kill.
  *
@@ -7861,6 +7861,7 @@ ToriRSServer_RunCheatLadder(
     int count = 1;
     int tile_x = 0;
     int tile_z = 0;
+    int tile_level = 0;
     int npc_type = 0;
 
     assert(srv);
@@ -9356,6 +9357,55 @@ ToriRSServer_RunCheatLadder(
         return TORIRSSERVER_TRIGGER_RAN;
     }
 
+    /*
+     * `::goto <x> <z> [level]` — an absolute tile, with the plane as an
+     * optional third integer (0-3, default 0).
+     *
+     * THE NAME IS NOT `tele`, AND THAT IS THE WHOLE POINT. `::tele` is claimed
+     * by the content pack's `[debugproc,tele]` (cheat_tele.rs2), which is
+     * dispatched before this ladder ever sees the line and takes ONE word:
+     * `::tele 2951 3450 0` reads "2951" into its string parameter, fails to
+     * resolve it as a destination name or a `level_mx_mz_lx_lz` literal, and
+     * answers RAN having moved nobody. Measured on this tree 2026-09-19
+     * (build/quest_gate/g1probe): "::tele - nowhere called 2951", player still
+     * on 3206,3233. So the `tele %d %d` fallback below is unreachable in this
+     * content pack -- it is kept, and given the same optional plane, only so
+     * that the two spellings cannot disagree -- and a quest driver that needs
+     * to put the player on a Quest Helper WorldPoint has to call a word
+     * content does not own. `::vesselgoto` chose one for the sailing harness
+     * for exactly this reason and says so; this is the same move, under a name
+     * that is about the tile rather than about a boat.
+     *
+     * A plane outside 0-3 is a TYPO, not a contract violation: it arrives from
+     * a human at a chatbox (or from a generated test's WorldPoint), so it earns
+     * a message and a RAN verdict, never an assert -- the assert would abort a
+     * server because somebody mistyped a cheat.
+     *
+     * The move goes through ToriRSServer_WorldTeleport so the plane change,
+     * the scene rebuild and any instance the player is standing in are the
+     * engine's business, the same call `::vesselgoto` makes.
+     */
+    if( strncmp(text, "goto", 4) == 0 )
+    {
+        int to_x = -1;
+        int to_z = -1;
+        int to_level = 0;
+
+        if( sscanf(text, "goto %d %d %d", &to_x, &to_z, &to_level) < 2 )
+        {
+            say(srv, "Usage: ::goto <x> <z> [level 0-3]");
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+        if( to_level < 0 || to_level > 3 )
+        {
+            say(srv, "::goto - level must be 0-3, not %d.", to_level);
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+        ToriRSServer_WorldTeleport(srv, to_level, to_x, to_z);
+        say(srv, "Teleported to %d,%d,%d.", to_x, to_z, to_level);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
     if( sscanf(text, "item %d %d", &obj_id, &count) >= 1 )
     {
         int slot = inv_first_free(player);
@@ -9370,10 +9420,22 @@ ToriRSServer_RunCheatLadder(
         }
         return TORIRSSERVER_TRIGGER_RAN;
     }
-    if( sscanf(text, "tele %d %d", &tile_x, &tile_z) == 2 )
+    /* The same move as `::goto` above, under the word the content pack claims
+     * first -- see that branch for why this one cannot be reached from a
+     * chatbox or from `t.cheat` while cheat_tele.rs2 exists. `tele_level`
+     * defaults to 0 rather than to the player's current plane so that the two
+     * spellings mean the same thing: a tile pair with no plane is the ground
+     * floor, wherever the typist happens to be standing. */
+    tile_level = 0;
+    if( sscanf(text, "tele %d %d %d", &tile_x, &tile_z, &tile_level) >= 2 )
     {
-        ToriRSServer_WorldTeleport(srv, player->level, tile_x, tile_z);
-        say(srv, "Teleported to %d,%d.", tile_x, tile_z);
+        if( tile_level < 0 || tile_level > 3 )
+        {
+            say(srv, "::tele - level must be 0-3, not %d.", tile_level);
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+        ToriRSServer_WorldTeleport(srv, tile_level, tile_x, tile_z);
+        say(srv, "Teleported to %d,%d,%d.", tile_x, tile_z, tile_level);
         return TORIRSSERVER_TRIGGER_RAN;
     }
     if( sscanf(text, "npc %d", &npc_type) == 1 )

@@ -1,10 +1,9 @@
 # Quest authoring
 
-How to write `test/quests/<quest>.lua` -- the only file you write, plus a
-fixture under `test/quests/fixtures/` if the quest needs one (trap 7). This
-is the page an author reads; `test/quests/README.md` only points here. The
-live verb set with file:line is `tools/quest_gate/verb_list.py` -- read this
-file for the *shape*, that one when a line here goes stale.
+How to write `test/quests/<quest>.lua` -- the ONLY file you write, full
+stop (section 2). `test/quests/README.md` only points here. The live verb
+set with file:line is `tools/quest_gate/verb_list.py` -- read this file for
+the *shape*, that one when a line here goes stale.
 
 ## 1. The test shape
 
@@ -12,15 +11,13 @@ file for the *shape*, that one when a line here goes stale.
 return {
     id = "cooks_assistant",
     fixture = "fresh_lumbridge.ini",
-    -- Setup STAGES a quest; it never finishes one (trap 8). `::cook` is the
-    -- quest's own reset debugproc -- varp to 0, ingredients cleared, the
-    -- player put beside the Cook.
+    -- Setup STAGES a quest, never finishes one (trap 8): `::cook` resets
+    -- the varp, clears ingredients, puts the player beside the Cook.
     setup = { "::cook" },
 
     run = function(t)
         -- bind touches the world not at all: it records varp/constants/
-        -- display/points for a later expect_stage/expect_complete, and
-        -- reads %qp now for that delta.
+        -- display/points for later, and reads %qp now for that delta.
         t.quest.bind({
             varp = "cookquest",
             constants = { not_started = 0, started = 1, complete = 2 },
@@ -30,13 +27,12 @@ return {
         t.ticks(3)  -- a setup cheat's effect is not client-side yet
         t.expect("cook.reset", t.quest.expect_stage("not_started"))
 
-        -- t.exec(name, verb, ...) calls verb(...), writes the row `name`
-        -- from its (result, detail), and SHOOTS it. A plain t.expect row
-        -- does not: photograph the clicks, not the reads.
+        -- t.exec(name, verb, ...) writes row `name` from (result, detail)
+        -- and SHOOTS it; t.expect does not -- photograph clicks, not reads.
         t.exec("cook.greet", t.player.talk_to, "cook")
 
-        -- chat.play answers ("ok", "<N> page(s): kind:fragment, ...") now,
-        -- a real detail, so it goes through t.exec like any other verb.
+        -- chat.play answers ("ok", "<N> page(s): ..."), a real detail, so
+        -- it goes through t.exec like any other verb.
         t.exec("cook.accept", t.chat.play, {
             "npc:What am I to do",
             "choose:What's wrong?",
@@ -55,28 +51,48 @@ return {
 ```
 
 An excerpt, not a whole quest: every line above ran against the real client
-and every row PASSed, `cook.accept` with the detail `6 page(s): npc:What am
-I to do?, options:choose:What's wrong?, player:What's wrong?, npc:Ooh dear,
-I'm in a terrible me, npc:Unfortunately, I've forgotten , options:choose:Yes,
-I'll help you.` (2026-09-19) -- but a file this short fails section 6's
-minimum shape. The complete green file is `test/quests/cooks_assistant.lua`;
-read it next, then `test/quests/hans.lua` (a test with no quest varp).
+and every row PASSed, but a file this short fails section 7's minimum shape.
+The complete green file is `test/quests/cooks_assistant.lua`; read it next,
+then `test/quests/hans.lua` (a test with no quest varp).
 
-## 2. The verb table
+## 2. Where you start, and how to get there
 
-One line per verb, `t.<call>` as a quest file spells it, grouped by
-namespace. `(result, detail)` unless noted. Full banners: the `.lua` file
-named in brackets.
+- The fixture (`fresh_lumbridge.ini`) stands you beside Hans at 3206,3233,
+  level 0 -- nothing else moves you closer. Npcs are ALL spawned and live
+  from boot; nothing needs summoning.
+- The scaffold emits `t.exec("goto-...", t.player.goto_tile, x, z, level)`
+  -- the engine's `::goto` cheat plus an arrival await -- before every far
+  step. `goto_tile`, never `goto`: `goto` is a reserved word in this tree's
+  Lua and does not parse. `level` is the plane, 0-3, default 0; x/z may land
+  a tile out (the world picks the nearest tile it accepts), the plane never
+  does. `screen_position` / `not_visible` / `no_row` from a `talk_to` or npc
+  lookup means you are not standing there: **fix the goto's coordinates,
+  never the verb** -- Quest Helper's `WorldPoint(x, z, level)`, or the npc's
+  spawn tile in `OSRS-Content/osrs239-content/server/scripts/areas/<area>/configs/*.npc`
+  (upper floors are level 1/2, never 0).
+- `walk_near(target, ticks)` takes the `{kind=, id=}` table `player.by_symbol`
+  returns: `local n = t.player.by_symbol("npc", "doric")` then `t.exec("walk.doric", t.player.walk_near, n, 10)`.
+- **`outcome blocked` REQUIRES a `t.blocked("<seam>")` row, then `return`
+  right after it** -- anything else is rejected, not blocked.
+- `chat.play` / `chat.choose` / `chat.continue_` act on a dialogue already
+  open, never opening one; `not_visible: no dialogue is open` means the
+  click before them did not land -- fix that click, not the chat call.
+- Your quest file is the ONLY file you may create or edit -- no fixture,
+  no helper `.lua`, nothing else under `test/`.
+
+## 3. The verb table
+
+One line per verb, `t.<call>` as a quest file spells it, grouped by namespace, `(result, detail)` unless noted; full banners in the `.lua` file named in brackets.
 
 ### the root of `t` -- the test's own controls, on the root table itself, with no second `t` inside it (`core.lua`, `ui.lua`)
 
-- `t.cheat(text, wait_for_reply=true)` -> `ok` `refused` `no_row`. Reaches content debugprocs then the server ladder (`::give ::setlevel ::setvar ::kill ::spawn ::tele`). Awaits any new chat line (<=5 ticks) unless `wait_for_reply=false`.
+- `t.cheat(text, wait_for_reply=true)` -> `ok` `refused` `no_row`. Reaches content debugprocs then the server ladder (`::give ::setlevel ::setvar ::kill ::spawn ::tele ::goto`). Awaits any new chat line (<=5 ticks) unless `wait_for_reply=false`.
 - `t.ticks(n)` -> `ok` `timeout`. Advances the clock exactly `n` SERVER ticks. `t.settle()` -> `ok` `timeout`, waits for `api.drive.settled()`.
-- `t.finish(code)`. Writes SUMMARY, ends the process. Does not stop the Lua script -- `return` right after it.
+- `t.finish(code)`. Writes SUMMARY and ENDS THE RUN: no later row, no later shot, the script parks. A row attempted after it is refused with one stderr line, `quest-driver: row after finish ignored: <name>`. `return` right after it anyway -- what follows is unreachable.
 - `t.step(name, verdict, detail)` -> `(bool, detail)`. Manual ledger row; you already know the verdict. `t.expect(name, result, detail)` -> the pair unchanged, PASS iff `result == "ok"`.
 - `t.check(name, condition_or_result, detail)` -> the pair unchanged. PASS iff `true` or `"ok"`; takes its own shot(s).
 - `t.exec(name, verb, ...)` -> the wrapped verb's own `(result, detail)`. FAIL `hollow` if `ok` with a nil detail; FAIL `bad verb/target` if `verb` is not a function or the first arg is nil. Auto-shoots.
-- `t.blocked(reason)`. Writes `BLOCKED`, shoots, calls `t.finish(0)`. `return` right after it.
+- `t.blocked(reason)`. Writes `BLOCKED`, shoots, then finishes -- same terminal rule, so a tier-4 stub ENDS at its `t.blocked` and the ledger's last row is that one. `return` right after it.
 - `t.key(name)` -> `ok`/press-release error; `t.text(str)` -> `ok`/error.
 - `t.shot(name)` -> `ok` (path) `refused` `timeout`. `t.exec`/`t.check` call this for you; call it yourself only for a bare narrative shot.
 - `t.note(text)`. Free text folded into the NEXT row's detail -- why a verb answered as it did, without a row of its own.
@@ -143,6 +159,7 @@ named in brackets.
 - `t.player.by_symbol(kind, name)` -> `(target, "ok")` or `(nil, result, name)` -- reversed order from every other verb here.
 - `t.player.walk_to(x, z, ticks=distance+10)` / `t.player.walk_near(target, ticks)` / `t.player.idle()` -> `ok` `timeout` (`unsupported` -- walk_near is npc/loc only).
 - `t.player.teleport(name)` -> `(ok, "x,z L<level>")` `timeout` `refused` `no_row`. See trap 1's cousin below.
+- `t.player.goto_tile(x, z, level=0)` -> `(ok, "x,z,level")` `timeout` `no_row`. An ABSOLUTE tile (the WorldPoint Quest Helper prints for every step) through `::goto`; returns only once the tile AND the npc pool around it are visible. Use it before the first `talk_to` of any step the fixture does not already stand at; `teleport(name)` is for destinations that have a NAME in `tele_destinations.rs2`.
 - `t.player.talk_to(npc, op=1)` -> `ok`/click_minimenu's results.
 - `t.player.click_loc(loc, op=1)` -> same, walks into range first.
 - `t.player.click_obj(obj, op=3)` -> same, waits for the backpack count to rise.
@@ -151,14 +168,14 @@ named in brackets.
 - `t.player.drop(item)` -> `ok` `timeout` (backpack falls AND a stack lands on the ground).
 - `t.player.use_on(item, target)` -> `ok` `unsupported` `refused`. Arms the item, then `click_minimenu(target, "select")`.
 
-## 3. Result vocabulary
+## 4. Result vocabulary
 
 `ok timeout not_found refused covered no_row not_visible closed unsupported`
 -- fixed, never add one. `mismatch` and `hollow` are two verbs' own local
 words (`chat.play`, the hollow rule), not part of the fixed set. Ledger
 verdicts are `PASS`, `FAIL`, `BLOCKED`.
 
-## 4. Twelve traps
+## 5. Twelve traps
 
 1. **Server ticks.** `t.ticks(n)`, every `ticks=` argument, every await
    deadline: all SERVER ticks, one tick being 30 client cycles. `t.ticks(10)`
@@ -225,52 +242,35 @@ verdicts are `PASS`, `FAIL`, `BLOCKED`.
     target and `t.exec` refuses a nil first vararg. Pass any non-nil filler,
     `t.exec("name", t.chat.continue_, true)`, which `continue_` ignores.
 
-## 5. Picking one up, scaffolding it, running it
+## 6. Picking one up, scaffolding it, running it
 
 ```sh
 # The queue (test/quests/QUEUE.tsv) hands out the work, one row per test:
 python3 tools/quest_gate/queue.py next --tier 1 --claim <you>   # claims it
 python3 tools/quest_gate/queue.py show <test_id>                # that row
 python3 tools/quest_gate/queue.py summary                       # tier x status
-
-# Scaffold that row's file from its Quest Helper guide -- writes
-# test/quests/<test_id>.lua, refuses to clobber one (--force overrides):
+# Scaffold from the Quest Helper guide (refuses to clobber; --force overrides):
 python3 tools/quest_gate/new_quest.py <test_id>
-
-# First run (or after a C change): builds, runs, publishes on green.
+# Run: first time or after a C change; --no-build for Lua-only iteration
+# (always pass it -- trap 9); --all --no-build --no-publish for every
+# quest without touching OSRS-Content's copy:
 python3 tools/quest_gate/run.py <quest>
-
-# Iterating on the Lua only:
-python3 tools/quest_gate/run.py <quest> --no-build
-
-# Every quest, no publish (leaves OSRS-Content's copy alone):
-python3 tools/quest_gate/run.py --all --no-build --no-publish
-
-# A scratch script, not a quest table (probing one verb):
-python3 tools/quest_gate/run.py --script build/scratch.lua --name scratch --no-build
-
-# The verdict (read this, not run.py's exit code, for WHY):
-python3 tools/quest_gate/gate.py <quest>
-
+python3 tools/quest_gate/gate.py <quest>   # the verdict; read this, not run.py's exit code
 # Report back (status is one of todo green blocked content_bug):
 python3 tools/quest_gate/queue.py set <test_id> --status green --owner <you>
 python3 tools/quest_gate/queue.py set <test_id> --status blocked --failure "<why>"
 ```
 
 The scaffold never `::give`s an item Quest Helper marks
-`canBeObtainedDuringQuest()`: it leaves a `-- CHECK gather` comment at the
-first step that needs it, because handing the ingredients over in setup
-erases the gathering the test exists to prove. Drive the gathering, or
-delete the marker and give it deliberately -- never leave the marker in.
+`canBeObtainedDuringQuest()`; it leaves a `-- CHECK gather` comment at the
+first step that needs it instead -- drive the gathering, or delete the
+marker and give it deliberately, but never leave the marker in.
 
-A non-green run prints a `---- failures ----` block: the last FAIL/BLOCKED
-row's name and detail, its `<name>-FAIL.png` (or `TIMEOUT.png` on a
-wall-clock timeout), and the last few `QUEST ...`/content `mes` lines from
-`client.log`. Start there. Artefacts: `build/quest_gate/<quest>/`
-(`ledger.tsv`, `shots/NN-name.png`, `client.log`), replaced every run.
-`--script` runs the file as-is: its `setup` cheats do NOT run.
+A non-green run prints a `---- failures ----` block (last FAIL/BLOCKED
+row, its `-FAIL.png`/`TIMEOUT.png`, the last `client.log` lines) -- start
+there. Artefacts live in `build/quest_gate/<quest>/`, replaced every run.
 
-## 6. Definition of done
+## 7. Definition of done
 
 From `tools/quest_gate/gate.py`, current as of this writing -- re-read that
 file if this drifts. A quest is green when:

@@ -38,7 +38,7 @@ quest_desertrescue	desertrescue	thetouristtrap		2	todo
 quest_deserttreasure	deserttreasure	deserttreasure		3	todo		
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
 quest_deviousminds	deviousminds	deviousminds		3	todo		
-quest_doric	doric	doricsquest		1	todo		
+quest_doric	doric	doricsquest		1	todo		gate RED, not blocked: doric.greet FAIL(40t) pickset held=false then chat.expect_head FAIL(10t); doric.choose_anvils/doric.accept FAIL 'rows not ready' (dialogue never actually chosen); doricquest stays 0, cascades to quest.varp_complete/scroll_title/points/journal FAIL; no t.blocked row -- author's own ledger already showed this, file removed as not green
 quest_dragon	dragon	dragonslayer		3	todo		
 quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		
 quest_dreammentor	dreammentor	dreammentor		4	todo		
@@ -138,19 +138,19 @@ quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	todo
 quest_redreef	redreef	theredreef		3	todo		
 quest_regicide	regicide	regicide		3	todo		
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo		
-quest_romeojuliet	romeojuliet	romeoandjuliet		1	todo		
+quest_romeojuliet	romeojuliet	romeoandjuliet		1	todo		gate.py RED even with --allow-blocked: t.check('quest_row_correct', 1) always FAILs (1 ~= true in Lua, needs literal true/'ok'); t.check('npc_search_complete', false, ...) is coded to FAIL by construction instead of using t.blocked directly; 2 duplicate-MD5 shot pairs (02/03, 04/05 -- camera never moved); only 7 step rows, minimum shape needs 8. The NPC-spawn blocker itself (romeo/father_lawrence/apothecary/juliet not present after ::tele varrock_south from spoken_juliet) may be real, but the file has authoring bugs on top of it and is not green up to its blocked row -- rewrite before resubmitting.
 quest_routequest	routequest	insearchofthemyreque		3	todo		
 quest_rovingelves	rovingelves	rovingelves		1	todo		
 quest_royaltrouble	royaltrouble	royaltrouble		4	todo		
 quest_rumdeal	rumdeal	rumdeal		2	todo		
-quest_runemysteries	runemysteries	runemysteries		1	todo		
+quest_runemysteries	runemysteries	runemysteries		1	todo		run.py FAIL: no t.blocked row in submitted script; duke_talk/sedridor_talk/aubury_talk all fail screen_position (NPC not on screen from fixture start), and every chat.choose after that fails 'rows not ready'; quest never advances past stage 0. Reported blocker matches but was not declared with t.blocked(), so gate.py --allow-blocked cannot pass it.
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	todo		
 quest_scrambled	scrambled	scrambled		4	todo		
 quest_seaslug	seaslug	seaslug		1	todo		
 quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo		
 quest_shadowsofcustodia	shadowsofcustodia	shadowsofcustodia		4	todo		
 quest_shadowstorm	shadowstorm	shadowofthestorm		2	todo		
-quest_sheep	sheep	sheepshearer		1	todo		
+quest_sheep	sheep	sheepshearer		1	todo		fred_the_farmer (npc 732) not found on screen from fresh_lumbridge start (3206,3233,0); gate RED: no t.blocked row, cascades to 10 FAIL rows (fred.greet screen_position, fred.expect_head, fred.choose_quest, fred.accept, sheep.started, fred.handin screen_position, quest.varp_complete, quest.scroll_title, quest.points, quest.journal)
 quest_sheepherder	sheepherder	sheepherder		1	todo		
 quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo		
 quest_sleepinggiants	sleepinggiants	sleepinggiants		4	todo		

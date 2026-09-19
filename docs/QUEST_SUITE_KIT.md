@@ -171,4 +171,22 @@ fight stub is emitted AT the fight step (with the unreachable tail
 commented out), not at the end of the file. `tools/quest_gate/queue.py`
 (`next --tier N [--claim OWNER]`, `set`, `show`, `summary`) is the queue's
 front door; every write is atomic. Author-facing docs: `QUEST_AUTHORING.md`
-section 5, `test/quests/README.md`.
+section 6, `test/quests/README.md`.
+
+LANDED 2026-09-19 (the pilot pass): the first four tier-1 quests went 0/4,
+every one of them dying at its first `talk_to` with `screen_position` /
+`not_visible` -- the fixture stands the player in Lumbridge and nothing
+moved him. Fixed in four places, each proved by a ledger row:
+`::goto <x> <z> [level]` on the engine ladder (NOT `::tele`, which content's
+`[debugproc,tele]` claims and answers `nowhere called 2951` to);
+`t.player.goto_tile(x, z, level=0)` over it, which returns only once the
+tile AND the npc pool around it are visible (the pool lands a tick later);
+`new_quest.py` spending every step's Quest Helper WorldPoint, emitting a
+`goto-<step>` row before the first step and before any step more than 12
+tiles or a plane away from the last (a `gotos` column in `--all`); and a
+`t.finish`/`t.blocked` that ENDS THE RUN -- `drive_ledger_write` refuses a
+row once finished (one stderr line, `quest-driver: row after finish
+ignored: <name>`) and core.lua parks the script at its next row, shot or
+await, so "reported blocked while the file ran on to expect_complete" is no
+longer possible. The verb is `goto_tile`, never `goto`: `goto` is a reserved
+word in this tree's Lua (3rd/lua/llex.c) and does not parse.

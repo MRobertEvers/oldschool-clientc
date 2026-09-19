@@ -461,6 +461,32 @@ drive_ledger_write(char const* step, char const* verdict, int ticks, char const*
     assert(shots);
     assert(detail);
 
+    /*
+     * THE LEDGER CLOSES AT t.finish, and this is where it closes.
+     *
+     * drive_ledger_write_summary has already appended SUMMARY to the file by
+     * the time g_finished is set (PluginDrive_Finish, above), so a row written
+     * after that point lands BELOW the summary: the counts in that line no
+     * longer describe the rows above it, gate.py reads a file whose last line
+     * is a step rather than a verdict, and a quest that stopped itself at step
+     * three can still publish twenty rows of whatever ran afterwards. Two
+     * authors in the 2026-09-19 pilot reported "blocked" while their file ran
+     * on through expect_complete and appended FAIL rows past its own SUMMARY.
+     *
+     * So the writer refuses, once, out loud. The script-side half of the same
+     * rule -- the coroutine parks at the first row or shot it tries after
+     * finishing, so nothing downstream of it runs at all -- is
+     * quest_driver/core.lua's `park`; this is the floor under it, and it holds
+     * for any caller, including one that reaches api.drive.ledger directly.
+     * (drive_scheduler_handle_status's own "script-error" row is written
+     * before PluginDrive_Finish, so it is never the row being refused here.)
+     */
+    if( g_finished )
+    {
+        fprintf(stderr, "quest-driver: row after finish ignored: %s\n", step);
+        return;
+    }
+
     g_ledger_index++;
     g_ledger_total_ticks += ticks;
     if( strcmp(verdict, "PASS") == 0 )

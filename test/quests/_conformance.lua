@@ -63,16 +63,16 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 97 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 98 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 97
+-- @verb-count 98
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 97
+local VERB_COUNT = 98
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -133,6 +133,17 @@ local XP_CHEAT_GAIN = 50
 -- "this npc is not within five tiles" is a fact, not a race.
 local ABSENT_NPC_SYMBOL = "chicken"
 local STAT_SYMBOL = "cooking"
+-- player.goto_tile's subject: the Duke of Lumbridge's room, upstairs in the
+-- castle (OSRS-Content/.../areas/world/configs/m50_50.spawn:168,
+-- `duke_of_lumbridge 3212 3220 1`).  An UPPER floor on purpose -- the plane
+-- is the half of an absolute-tile teleport a tile read can catch being
+-- wrong, because x/z are allowed to land one tile out (the world puts the
+-- player on the nearest tile it accepts) and the plane is not: 3212,3220 on
+-- level 0 is the castle's ground floor, a different room and a different
+-- quest.
+local GOTO_TILE_X = 3212
+local GOTO_TILE_Z = 3220
+local GOTO_TILE_LEVEL = 1
 local INVENTORY_INTERFACE = "inventory"
 local OBJECTBOX_INTERFACE = "objectbox"
 local INVENTORY_ITEMS_COMPONENT = "inventory:items"
@@ -1469,8 +1480,10 @@ return {
         -- load, and the journal rows that followed it then spent their whole
         -- budget waiting for a client busy building Varrock (the first
         -- ui.journal_open timed out at 15 ticks with no quest-list rows,
-        -- while the same call later in the same run answered in 0).  Nothing
-        -- after this row reads the world.
+        -- while the same call later in the same run answered in 0).  The
+        -- only row after it that reads the world is player.goto_tile, which
+        -- moves the player once more and then reads back the tile it landed
+        -- on -- its own subject, depending on nothing above.
         step("player.teleport", function()
             local fn = verb("player", "teleport")
             if not fn then return missing("player", "teleport") end
@@ -1481,6 +1494,42 @@ return {
             -- has to confirm that a tile came back with the ok.
             return answered(result, detail, "varrock -> ", is_text,
                 "an ok teleport names the tile it landed on")
+        end)
+
+        -- player.goto_tile, next to the teleport and last for the same
+        -- reason: it moves the player again, and nothing below reads the
+        -- world.  It is also the pair's other half -- teleport(name) spends
+        -- a NAME out of tele_destinations.rs2, goto_tile spends an absolute
+        -- tile (the WorldPoint Quest Helper prints for every quest step),
+        -- which is the one Lumbridge's fixture cannot reach on foot.
+        step("player.goto_tile", function()
+            local fn = verb("player", "goto_tile")
+            if not fn then return missing("player", "goto_tile") end
+            local result, detail = fn(GOTO_TILE_X, GOTO_TILE_Z, GOTO_TILE_LEVEL)
+            local wanted = GOTO_TILE_X .. "," .. GOTO_TILE_Z .. "," .. GOTO_TILE_LEVEL
+            if result ~= "ok" then
+                return result, wanted .. " -> " .. describe(detail)
+            end
+            -- The verb's own detail is not the evidence; the TILE is.  A
+            -- goto_tile that answered ok on its own say-so while the player
+            -- never left Varrock is exactly the hollow ok this harness is
+            -- pointed at, so the row reads world.tile back and grades the
+            -- landing itself: Chebyshev 1 on x/z, the plane exact.
+            local read = verb("world", "tile")
+            local state, tile = "missing", nil
+            if read then state, tile = read() end
+            if state ~= "ok" or type(tile) ~= "table" then
+                return "hollow", "answered ok but world.tile answered "
+                    .. describe(state) .. " -- " .. wanted .. " -> " .. describe(detail)
+            end
+            local dx = math.abs((tile.x or -9999) - GOTO_TILE_X)
+            local dz = math.abs((tile.z or -9999) - GOTO_TILE_Z)
+            if math.max(dx, dz) > 1 or tile.level ~= GOTO_TILE_LEVEL then
+                return "hollow", "answered ok but the player stands at "
+                    .. describe(tile.x) .. "," .. describe(tile.z) .. ","
+                    .. describe(tile.level) .. " -- " .. wanted .. " -> " .. describe(detail)
+            end
+            return "ok", wanted .. " -> " .. describe(detail)
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls

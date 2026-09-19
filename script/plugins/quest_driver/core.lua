@@ -56,12 +56,53 @@ function QD.core_bind(api)
     api_drive = api.drive
 end
 
+-- ------------------------------------------------------------ terminal finish
+--
+-- t.finish(code) and t.blocked(reason) END THE RUN. `finished` is how every
+-- other function in this chunk knows that, and `park` is what makes it true
+-- of the Lua script and not only of the ledger file.
+--
+-- The problem it solves, measured in the 2026-09-19 Haiku pilot: t.finish
+-- wrote SUMMARY and returned, so a quest file that called it (or t.blocked,
+-- which calls it) and then carried on -- a missing `return`, a `t.blocked`
+-- in the middle of a script that keeps walking, a generated tail below a
+-- stub -- kept driving the client and kept appending rows BELOW its own
+-- SUMMARY line. Two pilot authors reported "blocked" for a file that ran on
+-- to expect_complete and left 8-21 FAIL rows behind it. "Write SUMMARY" was
+-- never the same thing as "stop", and the only convergence point C has is
+-- main.c's end-of-frame check of PluginDrive_Finished -- which does stop the
+-- process, but not until this frame's Lua has finished running.
+--
+-- So the script stops itself, by parking: an await whose level predicate is
+-- never true, re-armed forever, on a deadline no run reaches (1,000,000
+-- server ticks). It yields, the frame ends, main.c sees the finish flag and
+-- returns the exit code. Nothing after the parking call ever executes, which
+-- is what "ends the run" has to mean in a sandbox with no `error` a test may
+-- raise, no `os.exit`, and no `coroutine` to close.
+--
+-- `park` calls api_drive.await DIRECTLY rather than the `await` wrapper
+-- below, which would park again and recurse.
+local finished = false
+
+local function park(reason)
+    while true do
+        api_drive.await({ level = function() return false end, note = reason }, 1000000)
+    end
+end
+
 -- The await primitive. `descriptor` is { event=, match=, level=, note= } (at
 -- least one of match/level) and the deadline is in SERVER TICKS. EDGE +
 -- LEVEL and the deadline=0 "resolve now, never yield" case both live in
 -- api.drive.await itself (torirs_plugin_drive.c) -- this wrapper only exists
 -- so every other part calls a chunk-local `await`, not `api_drive.await`.
+--
+-- It is also the one seam EVERY verb in all eight files passes through when
+-- it waits for the world, so the finish check sits here: the first thing a
+-- post-finish script tries to wait for is the last thing it does.
 local function await(descriptor, deadline)
+    if finished then
+        park("await after finish")
+    end
     return api_drive.await(descriptor, deadline)
 end
 
@@ -99,6 +140,15 @@ local pending_notes = {}
 -- ordering the numbering exists to give gate.py and a human reading the
 -- directory.
 function QD.core_next_shot(name)
+    -- "No further shot is taken" -- the second half of the terminal-finish
+    -- rule (the `park` banner above). This is the choke point for every
+    -- capture in the suite (t.shot, and t.exec/t.check through it), so a
+    -- post-finish shot never reaches the screenshot request at all: the
+    -- script parks here instead, before a PNG is numbered that no ledger row
+    -- will ever claim.
+    if finished then
+        park("shot after finish: " .. tostring(name))
+    end
     shot_counter = shot_counter + 1
     local numbered = string.format("%02d-%s", shot_counter, name)
     pending_shots[#pending_shots + 1] = numbered
@@ -164,6 +214,18 @@ local function flush(name, verdict, detail)
     local shots = table.concat(pending_shots, ",")
     pending_shots = {}
     api_drive.ledger({ step = name, verdict = verdict, ticks = ticks, shots = shots, detail = detail or "" })
+    -- The row above was REFUSED if the run has already finished: SUMMARY is
+    -- on disk and drive_ledger_write answers a row that arrives after it with
+    -- one stderr line, "quest-driver: row after finish ignored: <name>",
+    -- rather than appending below the summary (torirs_plugin_drive.c). The
+    -- call is still made rather than skipped here, because that refusal --
+    -- named, on stderr, once -- is the evidence a reader needs that a quest
+    -- file kept going after it said it was done. Then the script stops: this
+    -- is the first row it tried to write past its own finish, and it is the
+    -- last thing it does.
+    if finished then
+        park("row after finish: " .. tostring(name))
+    end
     return verdict == "PASS"
 end
 
@@ -276,17 +338,21 @@ QD.exec = function(name, verb, ...)
 end
 
 -- Writes the fixed BLOCKED verdict (docs/QUEST_SUITE_KIT.md phase 1) as row
--- "blocked", shoots it, and calls t.finish(0) -- which, like every other
--- t.finish call site in this tree, writes the ledger's SUMMARY row
--- synchronously but does NOT stop this Lua script from continuing to run:
--- verified live (build/scratch_2a_blocked.lua), a t.step call placed AFTER
--- t.blocked still executed and appended its own row to ledger.tsv AFTER the
--- SUMMARY line already on disk. So a quest file MUST treat `t.blocked(...)`
--- exactly like a bare `t.finish(...)`: `return` immediately after it, same
--- as every existing quest file already does after its own early
--- `t.finish(1); return` calls (hans.lua, several sites). Flagged for
--- lint_quest.py (phase 3) as a checkable rule: a `t.blocked(`/
--- `t.finish(` call not immediately followed by `return` in the same block.
+-- "blocked", shoots it, and calls t.finish(0) -- which ENDS THE RUN: the
+-- BLOCKED row and its shot are written first, in that order, and the finish
+-- is terminal, so nothing the quest file writes after `t.blocked(...)` runs
+-- at all (QD.finish and the `park` banner at the top of this file).
+--
+-- That is a change from the behaviour this banner used to record and the one
+-- the 2026-09-19 pilot ran into: a t.step placed after t.blocked used to
+-- execute and append its own row to ledger.tsv BELOW the SUMMARY line
+-- already on disk, which is how two authors came to report "blocked" for a
+-- file that had in fact run on to expect_complete with 8-21 FAIL rows.
+--
+-- `return` immediately after `t.blocked(...)`/`t.finish(...)` anyway: the
+-- code below it is now unreachable rather than harmful, and unreachable code
+-- that looks live is its own trap for the next reader. lint_quest.py (phase
+-- 3) has that as a checkable rule.
 function QD.blocked(reason)
     QD.shot("blocked")
     flush("blocked", "BLOCKED", reason)
@@ -339,4 +405,22 @@ function QD.settle()
     return await({ level = function() return api_drive.settled() end, note = "t.settle" }, 30)
 end
 
-function QD.finish(code) return api_drive.finish(code) end
+-- t.finish(code): write the ledger's SUMMARY row and END THE RUN.
+--
+-- The SUMMARY is written synchronously inside api_drive.finish
+-- (PluginDrive_Finish -> drive_ledger_write_summary), and main.c stops the
+-- frame loop at the end of this frame and exits with `code`. `finished` is
+-- what makes the Lua half of that true as well: from here, the next ledger
+-- row, the next shot and the next await all park forever instead (see the
+-- `park` banner at the top of this file), so a quest file that forgets its
+-- `return` cannot drive the client for another twenty rows below its own
+-- summary line. A file may still `return` right after t.finish -- that is
+-- clearer to read -- but it is no longer what makes the run stop.
+--
+-- Returns api_drive.finish's own (result, detail) for the one caller that
+-- reads it, QD.blocked below.
+function QD.finish(code)
+    local result, detail = api_drive.finish(code)
+    finished = true
+    return result, detail
+end

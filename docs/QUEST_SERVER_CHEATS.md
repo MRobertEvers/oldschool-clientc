@@ -38,7 +38,7 @@ Server:
      (:9459), defined at :7855 -- the `strncmp`/`sscanf` ladder lifted whole
      out of the old `handle_cheat` body, now returning a verdict instead of
      `void`. It ends in three bare `sscanf` fallbacks with no `strncmp` guard
-     (`item %d %d` :9359, `tele %d %d` :9373, `npc %d` :9379) and then
+     (`item %d %d` :9409, `tele %d %d [%d]` :9430, `npc %d` :9441) and then
      TORIRSSERVER_TRIGGER_NONE.
   - The dispatch order is explicit in `cheat_dispatch`'s own banner
     (:9416-9426): "content first, exactly as `[if_button]` is dispatched...
@@ -88,9 +88,10 @@ every line below shifted with it.
 | `speedup`/`speeddown` | 9290 | vessel speed debug |
 | `reverse` | 9313 | vessel reverse debug |
 | `vesselstep` | 9335 | `::vesselstep <dx> <dz>` walks the caller a few tiles (deck-rider testing) |
-| `item %d %d` (sscanf, no strncmp) | 9359 | `::item <objid> [count]` -- id-keyed twin of `::give` |
-| `tele %d %d` (sscanf) | 9373 | `::tele <x> <z>` -- **only reachable when content's `[debugproc,tele]` does NOT claim the word first** (see note below) |
-| `npc %d` (sscanf) | 9379 | `::npc <id>` -- id-only ancestor of `::spawn`, spawns onto level 3 (a known long-standing quirk) |
+| `goto` | 9388 | `::goto <x> <z> [level 0-3, default 0]` -- an ABSOLUTE tile through `ToriRSServer_WorldTeleport`, under a word content does not own. This is the movement cheat a quest test uses (`t.player.goto_tile`, quest_driver/pointer.lua): a Quest Helper `WorldPoint` has no name in `tele_destinations.rs2`, and `::tele <x> <z>` cannot carry one -- see the `[debugproc,tele]` note below. A level outside 0-3 prints `::goto - level must be 0-3, not N.` and moves nobody (a typo earns a message, never an assert). |
+| `item %d %d` (sscanf, no strncmp) | 9409 | `::item <objid> [count]` -- id-keyed twin of `::give` |
+| `tele %d %d [%d]` (sscanf) | 9430 | `::tele <x> <z> [level]` -- **unreachable in this content pack**: `[debugproc,tele]` claims the word and answers `::tele - nowhere called 2951` for a coordinate (measured 2026-09-19). Kept, and given `::goto`'s optional plane and messages, so the two spellings cannot disagree; the plane defaults to 0, not to the caller's current plane. Use `::goto`. |
+| `npc %d` (sscanf) | 9441 | `::npc <id>` -- id-only ancestor of `::spawn`, spawns onto level 3 (a known long-standing quirk) |
 
 Verdicts: every branch lifted out of `handle_cheat` answers RAN, including
 the ones that print "Usage: ..." -- the command exists and was understood
@@ -144,7 +145,8 @@ ladder". It can now, and the split is what §A above describes.
 - So from `t.cheat`: `::give`, `::setlevel`, `::spawn`, `::setvar`, `::kill`,
   `::wield`, `::god`, `::fight`, `::useon`, `::run`, `::style`, `::bank`,
   `::layout`, `::minimap`, `::ifhide`, `::equipstats`, `::talk`, `::item`,
-  `::npc <id>`, every `::vessel*` -- all reachable. The content debugprocs
+  `::npc <id>`, `::goto <x> <z> [level]`, every `::vessel*` -- all
+  reachable. The content debugprocs
   (`::tele`, `::xp`, `::pray`, `::die`, the per-quest reset procs) still
   answer first, unchanged.
 - Result mapping, unchanged: RAN -> `ok`, FAILED -> `refused`, NONE ->

@@ -63,15 +63,16 @@ const authorCard = (id) => `${COMMON}
 You are writing ONE client-driven quest test: test_id "${id}". Read ${WT}/docs/QUEST_AUTHORING.md once, in full. It is the only page you need; it names every verb, the result words, the traps, the run command, and the definition of done.
 
 Steps:
+0. You start in Lumbridge, beside Hans -- the fixture never moves you closer. The scaffold's generated goto rows (t.player.goto_tile, x/z/level -- never t.player.goto, which is a Lua reserved word and will not parse) put you there. If a talk_to (or npc lookup) answers screen_position, fix the goto's coordinates, never the verb.
 1. python3 ${WT}/tools/quest_gate/queue.py show ${id}   (the quest_dir and helper it maps to)
    python3 ${WT}/tools/quest_gate/new_quest.py ${id}   (writes test/quests/${id}.lua; if the file already exists and is not yours, stop and report outcome gave_up with blocker "file exists")
    python3 ${WT}/tools/quest_gate/lint_quest.py --allow-check test/quests/${id}.lua
 2. Read the generated file. Resolve every "-- CHECK" marker by reading the quest's own scripts under ${WT}/OSRS-Content/osrs239-content/server/scripts/quests/<quest_dir>/ : op numbers come from the [oploc<N>,...] / [opnpc<N>,...] trigger heads, chat row text from the ~p_choice lines VERBATIM, stage values from configs/*.constant. Never guess a symbol; the compack is the truth and lint checks it.
 3. python3 ${WT}/tools/quest_gate/run.py ${id} --no-build ; python3 ${WT}/tools/quest_gate/gate.py ${id}
    Read the failure block run.py prints (the last FAIL row, its detail, its -FAIL.png path, the last chat lines). Open the -FAIL.png with the Read tool. Fix ONE thing, run again. Count your runs. STOP after eight runs.
-4. You may edit ONLY test/quests/${id}.lua. Never script/plugins/, src/, tools/, OSRS-Content/, or another quest's file. Never ::complete the quest under test in its own setup. No local helper functions in the quest file.
+4. You may edit ONLY test/quests/${id}.lua. Never script/plugins/, src/, tools/, OSRS-Content/, or another quest's file. Never ::complete the quest under test in its own setup. No local helper functions in the quest file. Never create any other file -- no fixture, no helper script, nothing else under test/.
 5. Look at your own screenshots (Read tool on build/quest_gate/${id}/shots/*.png): each must show what its name says. A blank frame, a login screen, or the Character Creator is a failure you have not caught yet.
-6. Done when gate.py says green AND lint_quest.py (without --allow-check) is clean. If a verb misbehaves, a cheat does nothing, a symbol will not resolve, or a stage never changes: write t.blocked("<exact seam>") at that point (then return), make the file green up to there, and report outcome blocked. If the quest's own script misbehaves (a dialogue that cannot be reached, a varp the script never writes), report outcome content_bug with the file:line.
+6. Done when gate.py says green AND lint_quest.py (without --allow-check) is clean. If a verb misbehaves, a cheat does nothing, a symbol will not resolve, or a stage never changes: OUTCOME BLOCKED REQUIRES A t.blocked("<exact seam>") ROW AT THAT POINT, THEN return -- ANYTHING ELSE (a stray FAIL, a run that falls through to expect_complete) IS REJECTED, NOT BLOCKED. Make the file green up to there and report outcome blocked. If the quest's own script misbehaves (a dialogue that cannot be reached, a varp the script never writes), report outcome content_bug with the file:line.
 
 Do NOT commit, push, or edit QUEUE.tsv; the reviewer does both. Report exactly the schema; put the final failure block verbatim in last_failure if you did not reach green.`
 

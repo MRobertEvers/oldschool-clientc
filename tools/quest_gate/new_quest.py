@@ -446,8 +446,24 @@ STEP_DECL_RE = re.compile(
 )
 
 
+def parse_step_worldpoint(args_text: str) -> tuple[int, int, int] | None:
+    """The step constructor's own `new WorldPoint(x, z, level)` -- the
+    FIRST one in its argument list (a step with several, e.g. an
+    NpcStep's own position plus one buried inside a Requirement argument,
+    uses the first: the constructor's own position argument is always
+    written before any Requirement argument in every STEP_TYPES
+    constructor this tool parses). None when the step carries no
+    WorldPoint at all (some ObjectStep/NpcStep constructors in these
+    guides omit it)."""
+    m = WORLDPOINT_RE.search(args_text)
+    if not m:
+        return None
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+
+
 def parse_step_decls(text: str) -> dict[str, dict]:
-    """varname -> {kind, args, desc, gameval:(GamevalKind,name)|None}."""
+    """varname -> {kind, args, desc, gameval:(GamevalKind,name)|None,
+    worldpoint:(x,z,level)|None}."""
     steps: dict[str, dict] = {}
     for m in STEP_DECL_RE.finditer(text):
         var, kind = m.group(1), m.group(2)
@@ -458,6 +474,7 @@ def parse_step_decls(text: str) -> dict[str, dict]:
         if gv:
             raw_name = qhe.normalize_gameval_name(gv.group(1), gv.group(2))
             gameval = (gv.group(1), resolve_symbol(gv.group(1), raw_name))
+        worldpoint = parse_step_worldpoint(args)
         # The description is the longest string literal in the constructor
         # call -- every STEP_TYPES constructor takes exactly one `text`
         # (the walkthrough line), and every OTHER string argument these
@@ -467,7 +484,8 @@ def parse_step_decls(text: str) -> dict[str, dict]:
         # "which string is the human sentence" problem.
         literals = re.findall(r'"((?:[^"\\]|\\.)*)"', args)
         desc = max(literals, key=len) if literals else ""
-        steps[var] = {"kind": kind, "args": args, "desc": desc, "gameval": gameval}
+        steps[var] = {"kind": kind, "args": args, "desc": desc, "gameval": gameval,
+                       "worldpoint": worldpoint}
     return steps
 
 
@@ -702,6 +720,72 @@ def resolve_quest_prereq(token: str, inventory: list[dict]) -> str | None:
 
 
 # -------------------------------------------------------------- emission
+
+# `fixture = "fresh_lumbridge.ini"` (the only fixture generate() ever emits,
+# QUEST_AUTHORING.md trap 7 -- an author may add a real one by hand later,
+# but the scaffold itself never does) stands the player at 3206,3233,0 --
+# test/quests/fixtures/fresh_lumbridge.ini's own [player] block, beside
+# Hans' patrol1 waypoint. Every generated route below is walked against
+# this as its starting position, so the FIRST emitted goto always leaves
+# this tile (docs/QUEST_SUITE_KIT.md's WorldPoint-goto pass, 2026-09-19).
+FIXTURE_START_TILE = (3206, 3233, 0)
+
+# A goto is forced before a WorldPoint-bearing step when it is more than
+# this many tiles (Chebyshev -- max(dx, dz), matching how OSRS itself
+# measures "in range") from the previously tracked position, on a
+# different plane, or is the first WorldPoint-bearing step the route
+# reaches (that last case always forces one, regardless of distance, since
+# "12 tiles from the fixture start" is not a meaningful measure of whether
+# the player can actually see or reach the first step's target).
+GOTO_TILE_THRESHOLD = 12
+
+
+def _chebyshev(a: tuple[int, int], b: tuple[int, int]) -> int:
+    return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
+
+
+class RoutePosition:
+    """Tracks the player's assumed position as the generated route is
+    walked, and decides when a step needs a `player.goto_tile` ahead
+    of it (`goto_tile`, never `goto` -- `goto` is a reserved word in
+    this tree's Lua, so the shorter name is a syntax error at every
+    generated call site).
+    A step with no WorldPoint of its own (Quest Helper omitted one)
+    inherits whatever position the last WorldPoint-bearing step left --
+    it does not reset the tracker, and it never forces a goto on its own;
+    it only ever gets a '-- CHECK position' comment, per
+    docs/QUEST_SUITE_KIT.md."""
+
+    def __init__(self) -> None:
+        self.pos: tuple[int, int, int] | None = None  # None until the
+        # first WorldPoint-bearing step -- see docstring.
+
+    def lines_for(self, var: str, info: dict) -> list[str]:
+        wp = info.get("worldpoint")
+        if wp is None:
+            return [f"        -- CHECK position: no WorldPoint in Quest Helper for '{var}' "
+                     "-- confirm the player is already near this step's target"]
+        x, z, level = wp
+        if self.pos is None:
+            reason = "first step -- leaves the fixture's start tile"
+            need_goto = True
+        else:
+            px, pz, plevel = self.pos
+            if level != plevel:
+                need_goto = True
+                reason = f"plane change ({plevel} -> {level})"
+            else:
+                dist = _chebyshev((x, z), (px, pz))
+                need_goto = dist > GOTO_TILE_THRESHOLD
+                reason = f"{dist} tiles from the last tracked position"
+        self.pos = (x, z, level)
+        if not need_goto:
+            return []
+        return [
+            f'        t.exec({lua_string("goto-" + var)}, t.player.goto_tile, {x}, {z}, {level}) '
+            f"-- {reason}"
+        ]
+
 
 def format_step_call(var: str, info: dict, dialog: dict, checks: list[str]) -> tuple[str, bool]:
     """One t.exec(...) line (or an unresolved comment) for a single leaf
@@ -942,6 +1026,35 @@ def generate(
         f"-- Items from getItemRequirements(): {given_count} given in setup (::give), "
         f"{gathered_count} left as '-- CHECK gather' markers (Quest Helper canBeObtainedDuringQuest())."
     )
+    lines.append("--")
+    lines.append(
+        f"-- Fixture start: fresh_lumbridge.ini stands the player at "
+        f"{FIXTURE_START_TILE[0]},{FIXTURE_START_TILE[1]},{FIXTURE_START_TILE[2]} (Lumbridge, beside"
+    )
+    lines.append(
+        "-- Hans). Every step below carries its own Quest Helper WorldPoint; the"
+    )
+    lines.append(
+        "-- FIRST emitted t.player.goto_tile is what actually leaves that tile."
+    )
+    lines.append("--")
+    lines.append("-- Three rules the first pilot pass broke -- read before touching this file:")
+    lines.append(
+        '-- (a) "blocked" means a t.blocked("...") row followed by return -- a file'
+    )
+    lines.append(
+        "--     that runs on to expect_complete() after a failure is rejected."
+    )
+    lines.append(
+        "-- (b) a talk_to/click answering screen_position or not_visible means you"
+    )
+    lines.append(
+        "--     are not standing near the target -- fix the goto, not the verb."
+    )
+    lines.append(
+        "-- (c) never add a fixture or a helper file -- this quest file is the only"
+    )
+    lines.append("--     file you edit.")
     lines.append("")
     lines.append("return {")
     lines.append(f"    id = {lua_string(emitted_id)},")
@@ -1009,7 +1122,9 @@ def generate(
     stage_index = 0
     driven_count = 0
     blocked_stubs = 0
+    goto_count = 0
     fight_stub_emitted = False
+    route_pos = RoutePosition()
 
     # Every discoverable route step is walked and emitted REGARDLESS of
     # boss_fight -- a fight the manifest lists does not usually sit at step
@@ -1029,6 +1144,10 @@ def generate(
             # lands (the fight step it depends on cannot happen yet).
             if kind == "step":
                 info = step_decls[var]
+                pos_lines = route_pos.lines_for(var, info)
+                if pos_lines:
+                    goto_count += sum(1 for pl in pos_lines if "t.player.goto_tile" in pl)
+                    lines.append(comment_out("\n".join(pos_lines) + "\n"))
                 call_text, _driven = format_step_call(var, info, dialog, checks)
                 lines.append(comment_out(call_text))
                 for alt in sub_steps.get(var, []):
@@ -1051,6 +1170,15 @@ def generate(
 
         info = step_decls[var]
         gameval = info["gameval"]
+
+        # Position BEFORE anything else this step emits -- a talk_to/click
+        # against a target the player has not walked to yet is exactly the
+        # screen_position/not_visible failure the pilot pass hit at its very
+        # first step (docs/QUEST_SUITE_KIT.md).
+        pos_lines = route_pos.lines_for(var, info)
+        if pos_lines:
+            goto_count += sum(1 for pl in pos_lines if "t.player.goto_tile" in pl)
+            lines.extend(pos_lines)
 
         reqs = step_requirement_vars(info["args"])
         for gvar in gather_items:
@@ -1107,6 +1235,7 @@ def generate(
         "steps": driven_count,
         "checks": len(checks),
         "blocked": blocked_stubs,
+        "gotos": goto_count,
         "unresolved": len([c for c in checks if c.startswith("unresolved")]),
         # Every `-- CHECK` line actually written into the file -- the size of
         # the human review this skeleton still owes, which `checks` (the
@@ -1135,7 +1264,7 @@ def run_one(helper_arg: str, out_dir: Path, qh_root: Path, inventory: list[dict]
     helper_dir = resolve_helper_dir(helper_arg, qh_root)
     inv_row = match_inventory_row(helper_dir.name, inventory)
     result = {"helper": helper_dir.name, "quest": None, "test_id": None, "path": None,
-              "steps": 0, "checks": 0, "blocked": 0, "unresolved": 0,
+              "steps": 0, "checks": 0, "blocked": 0, "gotos": 0, "unresolved": 0,
               "checks_todo": 0, "error": None}
     if inv_row is None:
         result["error"] = "no content quest"
@@ -1297,17 +1426,18 @@ def main() -> int:
         total_unresolved = sum(r["unresolved"] for r in written)
         total_todo = sum(r["checks_todo"] for r in written)
         total_blocked = sum(r["blocked"] for r in written)
+        total_gotos = sum(r["gotos"] for r in written)
 
         header = (f"{'quest':<28} {'test_id':<20} {'steps':>5} {'checks':>6} {'blocked':>7} "
-                  f"{'unresolved':>10} {'CHECK lines':>11}")
+                  f"{'gotos':>5} {'unresolved':>10} {'CHECK lines':>11}")
         print(header)
         print("-" * len(header))
         for r in written:
             print(f"{r['quest']:<28} {r['test_id']:<20} {r['steps']:>5} {r['checks']:>6} {r['blocked']:>7} "
-                  f"{r['unresolved']:>10} {r['checks_todo']:>11}")
+                  f"{r['gotos']:>5} {r['unresolved']:>10} {r['checks_todo']:>11}")
         print("-" * len(header))
         print(f"{'TOTAL':<28} {'':<20} {sum(r['steps'] for r in written):>5} {total_checks:>6} "
-              f"{total_blocked:>7} {total_unresolved:>10} {total_todo:>11}")
+              f"{total_blocked:>7} {total_gotos:>5} {total_unresolved:>10} {total_todo:>11}")
         print()
         print(f"{len(helpers)} quest-helper dirs; {len(written)} generated into {out_dir}; "
               f"{len(no_content)} had no matching content quest; {len(errored)} errored")
@@ -1372,7 +1502,7 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path.write_text(lua_text, encoding="utf-8")
     print(f"wrote {out_path} (quest={quest_dir} steps={stats['steps']} "
-          f"checks={stats['checks']} blocked={stats['blocked']} "
+          f"checks={stats['checks']} blocked={stats['blocked']} gotos={stats['gotos']} "
           f"unresolved={stats['unresolved']} check_lines={stats['checks_todo']})")
     return 0
 

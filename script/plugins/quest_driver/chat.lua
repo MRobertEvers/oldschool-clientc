@@ -98,6 +98,22 @@ function QD.chat.kind()
     return QD.chat._meslayer_bucket(mode)
 end
 
+-- The one sentence every dialogue verb says when there is no dialogue.
+--
+-- The 2026-09-19 Haiku pilot is the reason it exists. All four quests died at
+-- their first `talk_to` (the npc was 250 tiles away -- see player.goto_tile),
+-- and what the ledger then showed was not that: it was `chat.choose: rows not
+-- ready` and `chat.play: ... expected kind=npc, got none`, three and four rows
+-- deep, each one an internal sentence about a container that had not resolved.
+-- A verb that is asked to hold a conversation nobody started must say THAT,
+-- and point at the step that actually failed -- the talk_to above it -- rather
+-- than describe its own empty hands.
+--
+-- `not_visible` is the result word for it (the fixed vocabulary's "the thing
+-- is not on screen"), never `timeout`: there is nothing to wait for, and a
+-- verb that waits ten ticks to say so costs every cascading row a deadline.
+QD.chat._no_dialogue = "no dialogue is open -- did the talk_to before this succeed?"
+
 -- chat.continue_ -- see docs/QUEST_DRIVER_PLAN.md 5.4 for the five steps this
 -- follows. The await releases on whichever comes first: the client's own ack
 -- of the click (resume_answered, scoped to the exact row -- D6), a fresh
@@ -109,6 +125,13 @@ end
 function QD.chat.continue_()
     local group_res, group_id = api_drive.modal_group()
     if group_res ~= "ok" then
+        -- Nothing modal AND no meslayer page: there is no conversation at
+        -- all, which is a different failure from "the modal that is up has no
+        -- continue seam" (answered further down, still `unsupported`, still
+        -- naming the interface).
+        if QD.chat.kind() == "none" then
+            return "not_visible", "chat.continue_: " .. QD.chat._no_dialogue
+        end
         return group_res, "chat.continue_: nothing mounted under chat_modal_host"
     end
 
@@ -422,7 +445,7 @@ end
 function QD.chat.options()
     local result, options = api_drive.options()
     if result ~= "ok" then
-        return result, "chat.options: rows not ready"
+        return QD.chat._no_options_result(result), "chat.options: " .. QD.chat._why_no_options()
     end
     return "ok", options.rows
 end
@@ -430,9 +453,36 @@ end
 function QD.chat.options_title()
     local result, options = api_drive.options()
     if result ~= "ok" then
-        return result, "chat.options_title: title not ready"
+        return QD.chat._no_options_result(result),
+            "chat.options_title: " .. QD.chat._why_no_options()
     end
     return "ok", options.title
+end
+
+-- "There is no dialogue" is `not_visible`, whatever api.drive.options'
+-- reader happened to answer -- the detail explains, the result word is the
+-- one the fixed vocabulary keeps for "it is not on screen" and the one a
+-- quest file branches on.
+function QD.chat._no_options_result(result)
+    if QD.chat.kind() == "none" then
+        return "not_visible"
+    end
+    return result
+end
+
+-- Why api_drive.options answered nothing, said in terms of the SCREEN rather
+-- than of the reader: no dialogue at all, some other page, or a chatmenu
+-- whose rows really are still mid-rebuild (the one case "rows not ready"
+-- always meant and the only one it describes).
+function QD.chat._why_no_options()
+    local kind = QD.chat.kind()
+    if kind == "none" then
+        return QD.chat._no_dialogue
+    end
+    if kind ~= "options" then
+        return "the page on screen is " .. kind .. ", not an options list"
+    end
+    return "rows not ready"
 end
 
 -- selector is a 1-based row index or an exact row text (plan 5.5). Rows are
@@ -442,7 +492,8 @@ end
 function QD.chat.choose(selector)
     local options_res, options = api_drive.options()
     if options_res ~= "ok" then
-        return options_res, "chat.choose: rows not ready"
+        return QD.chat._no_options_result(options_res),
+            "chat.choose: " .. QD.chat._why_no_options()
     end
     local rows = options.rows
     local title = options.title
@@ -704,6 +755,24 @@ function QD.chat.play(list)
         -- that was still closing, not the one that is actually live.
         QD.shot(parsed.kind .. "-p" .. index)
         local actual_kind = QD.chat.kind()
+
+        -- NOTHING IS ON SCREEN. Every entry but "end" wants a page to read or
+        -- click, so this is `not_visible` -- the page is absent -- and not a
+        -- `mismatch`, which means "a page is up and it is the wrong one".
+        -- The pilot's four quests all died here reading "expected kind=npc,
+        -- got none" while the real failure was the talk_to two rows above
+        -- (see QD.chat._no_dialogue). An entry deeper into the list says
+        -- something else, because by then a conversation DID start and then
+        -- ended early, and pointing at the talk_to would be pointing at the
+        -- one step that worked.
+        if actual_kind == "none" and parsed.action ~= "end" then
+            if index == 1 then
+                return "not_visible", "chat.play: entry 1 ('" .. entry .. "'): "
+                    .. QD.chat._no_dialogue
+            end
+            return "not_visible", "chat.play: entry " .. index .. " ('" .. entry
+                .. "'): the dialogue closed after " .. (index - 1) .. " page(s)"
+        end
         -- Overridden below for a "text" action that actually reads one;
         -- everything else summarises as the LIST entry it matched, capped
         -- the same 30 characters (this file's own banner above).

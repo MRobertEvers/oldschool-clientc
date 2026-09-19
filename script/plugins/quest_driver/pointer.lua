@@ -620,6 +620,121 @@ function QD.player.teleport(name)
     return "ok", where
 end
 
+-- player.goto_tile(x, z, level) -- put the player on an ABSOLUTE tile.
+--
+-- Why this exists at all: Quest Helper gives every step a WorldPoint, the
+-- scaffold (tools/questhelper_extract.py's WORLDPOINT_RE) already parses it,
+-- and the 2026-09-19 pilot went 0/4 because nothing spent it -- the fixture
+-- stands the player beside Hans in Lumbridge, the generated file's first
+-- talk_to named an npc 250 tiles away, and every quest died on the same
+-- `screen_position / not_visible`. player.teleport(name) cannot cover that:
+-- its names come from tele_destinations.rs2, which has a name for Doric but
+-- none for "the third rock south of the anvil".
+--
+-- NOT NAMED `goto`. `goto` is a reserved word in this tree's Lua (3rd/lua/
+-- llex.c's keyword table lists it beside `do` and `end`), so `t.player.goto(
+-- 2951, 3450, 0)` does not parse -- it is a syntax error in the quest file,
+-- at every call site, the same trap core.lua's `t.exec` banner records for
+-- the name `do`. The verb had to be spelled with a word Lua will accept.
+--
+-- WHY THE CHEAT IS `::goto` AND NOT `::tele <x> <z>`: `::tele` belongs to the
+-- content pack (cheat_tele.rs2) and content is dispatched before the engine
+-- ladder, so `::tele 2951 3450 0` reads "2951" into a one-word string
+-- parameter, answers "::tele - nowhere called 2951", and moves nobody --
+-- measured on this tree (build/quest_gate/g1probe, 2026-09-19). `::goto <x>
+-- <z> [level]` is the ladder branch that word cannot swallow
+-- (torirs_server_world.c), and it teleports through
+-- ToriRSServer_WorldTeleport so the plane change and the scene rebuild are
+-- the engine's.
+--
+-- THE FALLBACK IS NOT A CONSOLATION PATH. A binary built before that ladder
+-- branch existed answers `::goto` with `no_row` -- nothing in the server
+-- understood the line -- and on that binary this verb spells the SAME tile as
+-- the coord literal the content debugproc does understand,
+-- `<level>_<x/64>_<z/64>_<x%64>_<z%64>`, which lands on the tile through
+-- p_teleport. Both paths are asserted the same way, by reading the tile back;
+-- neither is believed because a cheat said "ok".
+--
+-- `level` defaults to 0 (the ladder's own default), because a WorldPoint with
+-- no plane is a ground-floor tile.
+--
+-- Chebyshev 1, not equality: a teleport lands the player on the nearest tile
+-- the world will accept, so a WorldPoint that Quest Helper took off a wall,
+-- a stair or a table edge is off by one and that is a success, not a miss.
+-- The plane is exact -- being one floor out is never the same room.
+QD.player._goto_range = 1
+
+function QD.player.goto_tile(x, z, level)
+    level = level or 0
+
+    local cheat_result, cheat_detail = QD.cheat(
+        "::goto " .. tostring(x) .. " " .. tostring(z) .. " " .. tostring(level))
+    local how = "::goto"
+    if cheat_result == "no_row" then
+        -- No ladder branch on this binary: spell the tile the way
+        -- [debugproc,tele] reads one.
+        how = "::tele coord"
+        cheat_result, cheat_detail = QD.cheat(string.format(
+            "::tele %d_%d_%d_%d_%d",
+            level, math.floor(x / 64), math.floor(z / 64), x % 64, z % 64))
+    end
+    if cheat_result ~= "ok" then
+        return cheat_result, string.format(
+            "player.goto_tile %d,%d,%d: %s answered %s%s",
+            x, z, level, how, tostring(cheat_result),
+            cheat_detail and (" -- " .. tostring(cheat_detail)) or "")
+    end
+
+    local arrived = QD.await({
+        level = function()
+            local result, tile = QD.world.tile()
+            if result ~= "ok" or not tile then
+                return false
+            end
+            return tile.level == level
+                and QD.player._tile_distance(tile.x, tile.z, x, z) <= QD.player._goto_range
+        end,
+        note = "goto_tile",
+    }, 10)
+
+    -- THE SCENE IS ONE TICK BEHIND THE TILE, and a verb that returns on the
+    -- tile alone hands its caller a world the client cannot see yet.
+    -- Measured 2026-09-19 (build/quest_gate/g1settle): after a teleport to
+    -- Doric's hut the player's own tile reads 2951,3450 on tick t+1 with the
+    -- npc pool still EMPTY, and Doric appears on t+2. A `goto_tile` that
+    -- stopped at t+1 would answer `ok` and leave the very next
+    -- `npc.by_symbol` at `no_row` and the `talk_to` after it at
+    -- `not_visible` -- the pilot's own failure, moved one row down.
+    --
+    -- Bounded, and its verdict deliberately ignored: a destination with no
+    -- npc near it is a legitimate place to stand, so three ticks with an
+    -- empty pool is a fact about that tile, not a failure of the teleport.
+    if arrived == "ok" then
+        QD.await({
+            level = function()
+                local pool_result, rows = api_drive.npcs(0)
+                return pool_result == "ok" and #rows > 0
+            end,
+            note = "goto_tile scene settle",
+        }, 3)
+    end
+
+    local after_result, after = QD.world.tile()
+    local where = (after_result == "ok" and after)
+        and string.format("%d,%d,%d", after.x, after.z, after.level)
+        or "?"
+    if arrived ~= "ok" then
+        -- The server's own last line comes with it: a plane outside 0-3 is a
+        -- typo the ladder answers with a message rather than a move ("::goto
+        -- - level must be 0-3, not 4."), and a timeout that does not carry
+        -- that sentence sends the author looking for a walking bug instead.
+        return arrived, string.format(
+            "player.goto_tile %d,%d,%d: still at %s ten ticks after %s -- server said '%s'",
+            x, z, level, where, how, QD.player._last_line())
+    end
+    return "ok", "at " .. where
+end
+
 -- Whatever dialogue page is on screen RIGHT NOW: (kind, text).  Synchronous
 -- and total -- "nothing is up" answers ("none", "") rather than failing.
 --
