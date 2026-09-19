@@ -1647,6 +1647,18 @@ app_plugin_capability(void* user, char const* name)
      */
     if( strcmp(name, "input.screen_keyboard") == 0 )
         return app->has_screen_keyboard != 0;
+    /*
+     * There is a plugin WINDOW to open -- for a frame carrying a launcher.
+     *
+     * Constant true in the client, and that is the point: this is what tells a
+     * focused harness apart from a client, not one lane from another. A full
+     * App always has the window (the BUFFER fallback draws it in-canvas when
+     * no executor will start, so "no presentation" is not "no window"); a test
+     * that builds a host with no window answers 0 for every key it does not
+     * know and the launcher stands down instead of pressing into nothing.
+     */
+    if( strcmp(name, "client.plugin_window") == 0 )
+        return 1;
     if( strcmp(name, "web") == 0 )
     {
 #if defined(TORIRS_PLATFORM_WEB)
@@ -2782,25 +2794,31 @@ app_plugin_feature_set(void* user, char const* key, int value)
 #include "render/torirs_renderer_kind.h"
 /* The plugin contract restates the renderer list rather than including the
  * render header; these hold the two spellings, and the store's range, to one
- * list. */
-_Static_assert(TORIRS_RENDERER_SOFTWARE == TORIRS_RENDERER_KIND_SOFTWARE, "renderer ids");
-_Static_assert(TORIRS_RENDERER_OPENGL3 == TORIRS_RENDERER_KIND_OPENGL3, "renderer ids");
-_Static_assert(TORIRS_RENDERER_OPENGL3_DEPTH == TORIRS_RENDERER_KIND_OPENGL3_DEPTH, "renderer ids");
-_Static_assert(TORIRS_RENDERER_GLES2 == TORIRS_RENDERER_KIND_GLES2, "renderer ids");
-_Static_assert(TORIRS_RENDERER_GLES2_DEPTH == TORIRS_RENDERER_KIND_GLES2_DEPTH, "renderer ids");
-_Static_assert(TORIRS_RENDERER_D3D9 == TORIRS_RENDERER_KIND_D3D9, "renderer ids");
-_Static_assert(TORIRS_RENDERER_D3D9_DEPTH == TORIRS_RENDERER_KIND_D3D9_DEPTH, "renderer ids");
-_Static_assert(TORIRS_RENDERER_WEBGL2 == TORIRS_RENDERER_KIND_WEBGL2, "renderer ids");
+ * list.
+ *
+ * Both sides are cast to int because they are two DIFFERENT enum types, which
+ * is the whole point of the assertion and also what -Wenum-compare warns
+ * about. The cast silences the warning without weakening anything: these are
+ * integer constant expressions either way, and a divergence is still a build
+ * failure. */
+_Static_assert((int)TORIRS_RENDERER_SOFTWARE == (int)TORIRS_RENDERER_KIND_SOFTWARE, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_OPENGL3 == (int)TORIRS_RENDERER_KIND_OPENGL3, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_OPENGL3_DEPTH == (int)TORIRS_RENDERER_KIND_OPENGL3_DEPTH, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_GLES2 == (int)TORIRS_RENDERER_KIND_GLES2, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_GLES2_DEPTH == (int)TORIRS_RENDERER_KIND_GLES2_DEPTH, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_D3D9 == (int)TORIRS_RENDERER_KIND_D3D9, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_D3D9_DEPTH == (int)TORIRS_RENDERER_KIND_D3D9_DEPTH, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_WEBGL2 == (int)TORIRS_RENDERER_KIND_WEBGL2, "renderer ids");
 _Static_assert(
-    TORIRS_RENDERER_WEBGL2_DEPTH == TORIRS_RENDERER_KIND_WEBGL2_DEPTH, "renderer ids");
-_Static_assert(TORIRS_RENDERER_WEBGL1 == TORIRS_RENDERER_KIND_WEBGL1, "renderer ids");
+    (int)TORIRS_RENDERER_WEBGL2_DEPTH == (int)TORIRS_RENDERER_KIND_WEBGL2_DEPTH, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_WEBGL1 == (int)TORIRS_RENDERER_KIND_WEBGL1, "renderer ids");
 _Static_assert(
-    TORIRS_RENDERER_WEBGL1_DEPTH == TORIRS_RENDERER_KIND_WEBGL1_DEPTH, "renderer ids");
-_Static_assert(TORIRS_RENDERER_GLES3 == TORIRS_RENDERER_KIND_GLES3, "renderer ids");
+    (int)TORIRS_RENDERER_WEBGL1_DEPTH == (int)TORIRS_RENDERER_KIND_WEBGL1_DEPTH, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_GLES3 == (int)TORIRS_RENDERER_KIND_GLES3, "renderer ids");
 _Static_assert(
-    TORIRS_RENDERER_GLES3_DEPTH == TORIRS_RENDERER_KIND_GLES3_DEPTH, "renderer ids");
-_Static_assert(TORIRS_RENDERER_COUNT == TORIRS_RENDERER_KIND_COUNT, "renderer ids");
-_Static_assert(RS_CS2_RENDERER_MAX == TORIRS_RENDERER_KIND_COUNT, "option 36 stores kind + 1");
+    (int)TORIRS_RENDERER_GLES3_DEPTH == (int)TORIRS_RENDERER_KIND_GLES3_DEPTH, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_COUNT == (int)TORIRS_RENDERER_KIND_COUNT, "renderer ids");
+_Static_assert((int)RS_CS2_RENDERER_MAX == (int)TORIRS_RENDERER_KIND_COUNT, "option 36 stores kind + 1");
 
 static int
 app_plugin_display_setting(
@@ -2961,6 +2979,31 @@ app_plugin_display_setting(
     if( out_max )
         *out_max = max;
     return 1;
+}
+
+/*
+ * The client's plugin window, for a plugin that has taken over the LAUNCHER.
+ *
+ * `plugin_panel_visible` and not the executor's state: what a switch labels
+ * itself from is whether the window is on screen, which is the same thing the
+ * minimenu's "Manage Plugins" row inverts.
+ */
+static int
+app_plugin_window_open_query(void* user)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    return app->plugin_panel_visible ? 1 : 0;
+}
+
+static void
+app_plugin_window_show(void* user, int open)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    app_plugin_window_set_open(app, open ? 1 : 0);
 }
 
 static int
@@ -6111,6 +6154,8 @@ app_plugin_engine(struct App* app)
     engine.feature_set = app_plugin_feature_set;
     engine.display_setting = app_plugin_display_setting;
     engine.display_setting_set = app_plugin_display_setting_set;
+    engine.plugin_window_open = app_plugin_window_open_query;
+    engine.plugin_window_show = app_plugin_window_show;
     engine.frame_preference = app_plugin_frame_preference;
     engine.frame_preference_set = app_plugin_frame_preference_set;
     engine.varbit = app_plugin_varbit;

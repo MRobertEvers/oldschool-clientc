@@ -101,6 +101,8 @@ struct ToriRS_Network;
 struct PktNpcInfoOp;
 struct PktPlayerInfoOp;
 struct Editor;
+/** Placeholder requests waiting for a tick; owned by app/app_placeholder.c. */
+struct AppPlaceholderPark;
 
 /*
  * Application shell: owns every subsystem and the update loop body, with no
@@ -1542,6 +1544,14 @@ struct App
     }* if_heads;
     int if_head_count;
     int if_head_cap;
+
+    /* Placeholder requests a CLIENTSCRIPT asked for, parked until a logic
+     * tick releases them. A script runs inside the settle, and the settle
+     * drains the asset runner, so a placeholder queued from one would be
+     * picked up by the very frame it was meant to leave -- app_placeholder.c
+     * has the measurement. One pointer: the park, its key and its burst bound
+     * all belong to that unit. NULL until the first request. */
+    struct AppPlaceholderPark* placeholder_park;
 
     /* Revision-239 server-driven player-composition widgets. Each component
      * owns a clone of the local PlayerComposition: slots is the effective

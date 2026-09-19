@@ -39,6 +39,22 @@
  *   - npc and player bodies: NpcBodyLand / PlayerBodyLand, game/task_entity_assets.c
  *   - interface models and chatheads: App_SetInterfaceModel, app_if_models.c
  *   - inventory icons: InvIconReconcile, app_ui_host.c
+ * and one that is a kind here rather than a machine of its own:
+ *   - widget obj icons: APP_PLACEHOLDER_WIDGET_ICON, below
+ *
+ * WHO ASKS DECIDES WHEN IT RUNS. `app_placeholder_queue` adds to the ASSET
+ * runner, and a packet handler on the exec runner is not that runner, so a
+ * ground stack's placeholder is genuinely deferred. A CLIENTSCRIPT is not:
+ * `app_settle_cs2_frame` drains `app->runner` to a fixed point, so a
+ * placeholder queued from inside a script is picked up by the settle that is
+ * running the script, in the same frame -- the load never leaves the frame it
+ * was supposed to leave. Measured: taking the skill guide's 82 obj icons off
+ * the script's yield and onto a placeholder each changed its frame by nothing
+ * at all (12.3 -> 12.8 ms, 7.9 -> 7.5, 7.7 -> 8.1). So the widget-icon kind
+ * parks its requests and a LOGIC TICK releases them, a bounded burst at a
+ * time; the park is also what bounds the burst. A future kind asked for by a
+ * script needs the same seam, which is why the park is here and not in the
+ * caller.
  * A new non-critical load belongs here, as a kind: an enum value, the fields
  * its land needs, one await, one land.
  */
@@ -53,6 +69,33 @@
 enum
 {
     APP_PLACEHOLDER_ATTEMPT_MAX = 4,
+    /*
+     * Widget icons released per logic tick.
+     *
+     * Small on purpose. A panel is whatever its script built -- the skill
+     * guide's Attack/Weapons tab is 82 cells of eighty-two DIFFERENT items --
+     * and releasing them all at once only moves the long frame from the
+     * settle to the tick that releases them. Twelve is a slice whose worst
+     * case, every obj a cold group read, is a fraction of a 20 ms frame, and
+     * a column fills over a handful of ticks the way the reference's does.
+     */
+    APP_PLACEHOLDER_WIDGET_ICON_BURST = 12,
+};
+
+/* A widget-icon request waiting for a tick to release it. */
+struct AppPlaceholderIconRequest
+{
+    int com_id;
+    int obj_id;
+    int count;
+};
+
+/* The park. One pointer on `struct App`; everything about it is this unit's. */
+struct AppPlaceholderPark
+{
+    struct AppPlaceholderIconRequest* icons;
+    int count;
+    int cap;
 };
 
 struct Task_AppPlaceholder
@@ -73,6 +116,10 @@ struct Task_AppPlaceholder
     int level;
     int obj_id;
     int count;
+    /* APP_PLACEHOLDER_WIDGET_ICON: the GRAPHIC cell the icon belongs to. The
+     * cell itself carries which obj it currently wants, so the land re-reads
+     * it rather than trusting the id this task set out with. */
+    int component_id;
     int attempt;
 };
 
@@ -254,6 +301,196 @@ app_placeholder_land_obj_stack(struct Task_AppPlaceholder* self)
     }
 }
 
+/*
+ * Park one cell's icon, for the next tick to release. @see the unit comment.
+ *
+ * Keyed by component id, newest wins. A script rewrites a cell -- the
+ * make-menu steps its product through a dozen objs under a held arrow key --
+ * and a park that grew an entry per write would load every item it passed
+ * through. The land would refuse to bind them (it compares against the cell),
+ * so this is not correctness; it is not paying for a dozen model reads to
+ * throw eleven away.
+ */
+void
+app_placeholder_widget_icon(
+    struct App* app,
+    int component_id,
+    int obj_id,
+    int count)
+{
+    struct AppPlaceholderPark* park;
+    struct AppPlaceholderIconRequest* row = NULL;
+
+    assert(app);
+    assert(obj_id > 0);
+
+    if( !app->placeholder_park )
+    {
+        app->placeholder_park = calloc(1, sizeof(*app->placeholder_park));
+        assert(app->placeholder_park);
+    }
+    park = app->placeholder_park;
+
+    for( int i = 0; i < park->count; i++ )
+        if( park->icons[i].com_id == component_id )
+        {
+            row = &park->icons[i];
+            break;
+        }
+    if( !row )
+    {
+        if( park->count == park->cap )
+        {
+            int cap = park->cap ? park->cap * 2 : 32;
+            park->icons = realloc(park->icons, (size_t)cap * sizeof(*park->icons));
+            assert(park->icons);
+            park->cap = cap;
+        }
+        row = &park->icons[park->count++];
+    }
+    row->com_id = component_id;
+    row->obj_id = obj_id;
+    /*
+     * The count VERBATIM, not normalised to 1 like the ground stack's.
+     *
+     * A widget count is not a stack size: `cc_setobject($obj, -1)` is the
+     * icon-only form (the skill guide's rows are all of them), and the tree
+     * stores that -1 as the cell's item_count. The land compares against the
+     * cell, so a normalised 1 here never matches and no icon ever arrives.
+     * The loader is indifferent -- obj_model_resolve_count_obj_id treats
+     * every count <= 1 alike -- and the icon cache keys the same way the
+     * inline bake in exec_set_object does, which is the point.
+     */
+    row->count = count;
+}
+
+/* The CS2 host's hook, reached through the host's world_user. */
+void
+app_cs2_widget_obj_icon_lazy(
+    void* user,
+    int component_id,
+    int obj_id,
+    int count)
+{
+    assert(user);
+    app_placeholder_widget_icon((struct App*)user, component_id, obj_id, count);
+}
+
+/* Release a burst of parked icons onto the asset runner. Called from the
+ * logic tick, which is the frame boundary the park exists to put between the
+ * script and the load. */
+void
+app_placeholder_release_tick(struct App* app)
+{
+    struct AppPlaceholderPark* park;
+    int release;
+
+    assert(app);
+    park = app->placeholder_park;
+    if( !park || park->count == 0 )
+        return;
+
+    release = park->count < APP_PLACEHOLDER_WIDGET_ICON_BURST
+                  ? park->count
+                  : APP_PLACEHOLDER_WIDGET_ICON_BURST;
+    for( int i = 0; i < release; i++ )
+    {
+        struct Task_AppPlaceholder* task = calloc(1, sizeof(*task));
+        assert(task);
+        task->kind = APP_PLACEHOLDER_WIDGET_ICON;
+        task->component_id = park->icons[i].com_id;
+        task->obj_id = park->icons[i].obj_id;
+        task->count = park->icons[i].count;
+        app_placeholder_queue(app, task);
+    }
+    /* Released from the head, so the tail keeps its place in line. */
+    park->count -= release;
+    memmove(park->icons, park->icons + release,
+            (size_t)park->count * sizeof(*park->icons));
+}
+
+void
+app_placeholder_park_free(struct App* app)
+{
+    assert(app);
+    if( !app->placeholder_park )
+        return;
+    free(app->placeholder_park->icons);
+    free(app->placeholder_park);
+    app->placeholder_park = NULL;
+}
+
+/*
+ * The widget icon's land: bake the obj the cell wants NOW and bind it.
+ *
+ * No view and no world -- a widget is not in the scene -- so the guards are
+ * the tree's. The cell may be gone (the panel closed, or a CC_DELETEALL
+ * rebuilt it without this node), may already have an icon (a second
+ * placeholder for the same cell landed first), or may have been set to a
+ * different obj while this one loaded. The last is why the land compares
+ * against the node rather than trusting `self`: a script stepping a cell
+ * through a dozen objs -- the make-menu under a held arrow key -- leaves a
+ * placeholder in flight per step, and only the newest names what the cell
+ * wants. An older one that landed on its own id would put the wrong item in
+ * the cell, which is worse than the blank it replaces.
+ */
+static void
+app_placeholder_land_widget_icon(struct Task_AppPlaceholder* self)
+{
+    struct App* app = self->app;
+    struct UITreeComponent const* cell;
+    int32_t idx;
+    int scene_id;
+
+    if( !app->tree )
+        return;
+    idx = UITree_FindByComponentId(app->tree, self->component_id);
+    if( idx < 0 )
+        return;
+    cell = &app->tree->components[idx];
+    if( cell->item_id != self->obj_id || cell->item_count != self->count )
+        return;
+    if( cell->item_scene_id > 0 )
+        return;
+
+    scene_id = UITreeSceneBridge_EnsureObjIcon(&app->bridge, self->obj_id, self->count);
+    if( scene_id >= 0 )
+    {
+        (void)UITree_ApplyObject(
+            app->tree,
+            self->component_id,
+            self->obj_id,
+            self->count,
+            scene_id,
+            0,
+            cell->item_num_mode);
+        UITree_HostInputsChanged(
+            &app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_ASSETS));
+        app->need_redraw = 1;
+        return;
+    }
+    if( self->attempt + 1 >= APP_PLACEHOLDER_ATTEMPT_MAX )
+    {
+        TORIRS_LOG(
+            "placeholder: obj %d x%d on component 0x%08x has no icon after %d loads\n",
+            self->obj_id,
+            self->count,
+            (unsigned)self->component_id,
+            self->attempt + 1);
+        return;
+    }
+    {
+        struct Task_AppPlaceholder* again = calloc(1, sizeof(*again));
+        assert(again);
+        again->kind = self->kind;
+        again->component_id = self->component_id;
+        again->obj_id = self->obj_id;
+        again->count = self->count;
+        again->attempt = self->attempt + 1;
+        app_placeholder_queue(app, again);
+    }
+}
+
 static int
 Task_AppPlaceholder_Run(
     struct ToriRS_Task* base,
@@ -276,6 +513,12 @@ Task_AppPlaceholder_Run(
         PT_TASK_AWAITSELF_IF(
             CreateTask_ObjModelLoad(app->provider, &self->obj_id, &self->count, 1));
         app_placeholder_land_obj_stack(self);
+    }
+    else if( self->kind == APP_PLACEHOLDER_WIDGET_ICON )
+    {
+        PT_TASK_AWAITSELF_IF(
+            CreateTask_ObjModelLoad(app->provider, &self->obj_id, &self->count, 1));
+        app_placeholder_land_widget_icon(self);
     }
     else
         assert(0 && "unknown placeholder kind");

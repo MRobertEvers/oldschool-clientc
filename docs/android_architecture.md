@@ -1,7 +1,8 @@
 # The Android lane
 
 The client on Android: a raw `ANativeWindow` and EGL with no windowing library,
-the tree's own software rasterizer, and GLES2 as the opt-in GPU path.
+the tree's own software rasterizer, and two opt-in GPU paths -- OpenGL ES 2.0
+and OpenGL ES 3.0.
 
 This is the counterpart of `docs/web_build.md` and of the `win32` block in
 `src/platform/platform.mk`. Read that file first if you have not: it is the only
@@ -36,7 +37,7 @@ Android is a new implementation of an interface that already had three.
             / web            win32 / win64  android
                  │                │               │
             desktop window    Win32+GDI     ANativeWindow
-              library                       + EGL/GLES2
+              library                       + EGL/GLES2/GLES3
 ```
 
 Each backend is one file and owns its windowing entirely; nothing above
@@ -147,9 +148,10 @@ at all: it is not a JVM thread.
                                   │
               ┌───────────────────┴────────────────────┐
               ▼                                        ▼
-   SOFTWARE (default)                        GLES2 (--gles2[-zbuffer], opt-in)
-   toridraw rasterises into                  platform_renderer_es2_*.c
-   the ARGB8888 canvas                       draws into the EGL surface
+   SOFTWARE (default)                        GLES2 (--gles2[-zbuffer])
+   toridraw rasterises into                  GLES3 (--gles3[-zbuffer])
+   the ARGB8888 canvas                       platform_renderer_es{2,3}_*.c
+                                             draw into the EGL surface
               │                                        │
    PlatformWindow_Present                      PlatformWindow_PresentGL
               │                                        │
@@ -158,14 +160,25 @@ at all: it is not a JVM thread.
    ANativeWindow_unlockAndPost
 ```
 
-### The GPU path is the GLES2 renderer, shared with the browser
+### The first GPU path is the ES 2.0 core, shared with the browser
 
 `platform_renderer_es2_{core,ui,painter,zbuffer}.c` is OpenGL ES 2.0
 core with **no extensions**, and it is shaped after the Windows D3D9 renderer's
 retained model rather than after either desktop GL renderer. The web lane
-links the same four files against WebGL1 (`--webgl1` / `--webgl1-zbuffer`),
-which is why nothing in them may say "Android" any more than it may say the
-name of a windowing library:
+links the same four files against WebGL1, which is why nothing in them may say
+"Android" any more than it may say the name of a windowing library.
+
+What names it is the **lane file**: `platform_renderer_gles2.c` here,
+`platform_renderer_webgl1.c` in the browser. Each is a thin translation unit
+whose opaque handle simply *is* the core -- no wrapper object, no indirection
+-- and it does three things the core must not: it gives the core the lane's
+name, so a logcat line says `GLES2` and never `WebGL1`; it asks
+`platform_gl_context.h` for `TORIRS_GL_CLIENT_ES2`; and it is what `--gles2` /
+`--gles2-zbuffer` and the "OpenGL ES 2" entry in Client Settings select. The
+lane check forbids each lane's file on the other lane by name: a core may be
+shared, a lane's name may not.
+
+The core itself:
 
 - geometry is baked once into Batch16 chunks for the scene (packed densely
   into one static buffer) and a paged arena for everything else, and addressed
@@ -193,8 +206,50 @@ name of a windowing library:
   streamed vertex ring; the minimap/compass rotmask is a single two-sampler
   draw.
 
+### The second GPU path is the ES 3.0 core, shared with WebGL2
+
+`platform_renderer_es3_{core,ui,painter,zbuffer}.c` is the same renderer
+rewritten against OpenGL ES 3.00 and GLSL ES 3.00, selected by `--gles3` /
+`--gles3-zbuffer` and offered as "OpenGL ES 3". Its lane file is
+`platform_renderer_gles3.c`; the browser's name for the same core is
+`platform_renderer_webgl2.c`.
+
+The device supports it: the XT1060's Adreno 320 reports `ro.opengles.version`
+196608, which is ES 3.0 exactly -- no 3.1 and no Vulkan, so this is the ceiling
+on this phone, not a step towards a higher one. The EGL config has to follow the
+client version: EGL requires an ES3 context to come from a config advertising
+`EGL_OPENGL_ES3_BIT_KHR`, and a lenient driver hands one back from an ES2
+config anyway -- which is what makes getting it wrong a trap that works on the
+device in front of you and fails on the next one. `platform_android_gl.c` asks
+for
+`EGL_RENDERABLE_TYPE` `0x0040` (`EGL_OPENGL_ES3_BIT_KHR`, spelled out because
+it is an extension token an older header may not define) and client version 3
+when the lane says `TORIRS_GL_CLIENT_ES3`.
+
+What ES 3.0 buys over the ES 2.0 core, and why the core is a rewrite rather
+than a flag:
+
+- **32-bit indices.** The ES 2.0 core's whole resident-ring machinery --
+  placement serials, an overwrite guard, fragmentation compaction -- exists
+  because 16-bit indices cannot reach past 65,536 vertices. With
+  `GL_UNSIGNED_INT` the index is absolute and the ring is simply deleted.
+- VAOs, so a window change is one bind instead of a re-point per attribute;
+- a std140 uniform block for the world matrix and clock;
+- `glVertexAttribIPointer` and `texelFetch`, sized internal formats
+  (`GL_RGBA8`, `GL_R8`), `GL_UNPACK_ROW_LENGTH`, `glDrawRangeElements`,
+  `glInvalidateFramebuffer` and `GL_DEPTH_COMPONENT24`.
+
+One thing the shared core may **not** use, and the reason the audit exists:
+WebGL2 is not all of ES 3.0. `GL_TEXTURE_SWIZZLE_*` is absent there, so the
+font mask is expanded in the fragment shader instead
+(`vec4(1.0, 1.0, 1.0, texture(s_mask, uv).r)`). `tools/webgl_lane_audit.py`
+enforces both directions: ES3-only tokens are forbidden in the ES 2.0 core, and
+extensions are forbidden in both. See WEB-GL2-000 and ANDROID-GLES3-001 in
+[`platform_quirks.md`](platform_quirks.md).
+
 The only thing it needs from the platform is a context, and that seam is
-`platform/platform_gl_context.h` -- nine functions, implemented twice:
+`platform/platform_gl_context.h` -- whose `Create` takes the client version
+(`TORIRS_GL_CLIENT_ES2` or `_ES3`), implemented twice:
 
 | lane | implementation | backing |
 |---|---|---|
@@ -448,7 +503,7 @@ requirements have failed quietly before:
 |---|---|
 | `-mfpu=neon` | armv7 does not enable NEON by default, and the kernels select their SIMD lane with `#if defined(__ARM_NEON)` at **compile** time. Without it every one silently takes the scalar fallback — no symptom but a slower frame. |
 | `-fPIC` | fails, but deep in the linker naming a *tommath* symbol rather than the cause. |
-| `TORIRS_HAVE_GLES2` | the GLES2 renderer (shared with the web lane); `TORIRS_HAVE_GL3` and `TORIRS_GL_ES2` are forbidden, so `main.c` cannot hand this lane a desktop GL renderer or the retired WebGL1 fork's switch. |
+| `TORIRS_HAVE_GLES2`, `TORIRS_HAVE_GLES3` | the two GPU lanes, **by their own source files** -- `platform_renderer_gles2.c` and `platform_renderer_gles3.c`, plus the `platform_renderer_es2_core.c` / `platform_renderer_es3_core.c` they call into. The browser's names for the same cores, `platform_renderer_webgl1.c` and `platform_renderer_webgl2.c`, are **forbidden** here, and vice versa on the web lane: a core may be shared, a lane's name may not. `TORIRS_HAVE_GL3` and `TORIRS_GL_ES2` are forbidden too, so `main.c` cannot hand this lane a desktop GL renderer. |
 | `-lOpenSLES` **and** `platform_audio_opensles.c` | the audio device. Reverting it is a one-word edit — `platform_audio_null.c` defines exactly the same functions — and the result builds, boots and is silent. So the *source* is named too: `LANE_EFFECTIVE` carries `PLATFORM_SRCS`, and the null backend is forbidden here by name. Which implementation of a shared interface a lane picked is invisible in the flags. |
 
 The desktop window library's link flags are **forbidden** by name in
@@ -461,6 +516,13 @@ post-link probe on the artifact itself:
 lane-check: PLATFORM=android ok
 lane-check: android artifact carries no SDL symbol
 ```
+
+Two more checks read the renderer **sources**, because carrying both cores
+means the link no longer proves either one's ceiling:
+`lane-check-webgl1-es2` fails if an ES 3.0-only token appears in the ES 2.0
+core, and `lane-check-webgl2-no-extensions` fails on an extension token in
+either. Both run on the web lane too -- they are properties of the cores, not
+of a host (`tools/webgl_lane_audit.py`).
 
 ---
 
@@ -475,12 +537,116 @@ tools/android_push_data.sh cache.osrs239                          # the data
 adb logcat -s torirs                                              # stdout/stderr
 ```
 
-## Plugin chrome cost (measured 2026-09-02, XT1060 / API 22)
+### Plugins do not have to be pushed
+
+`android_push_data.sh` copies `script/` and `config/` to the data root, and for
+a long time that was the only way a phone got them. It is no longer. The lane's
+IO executor is `platform_x_io.c`, whose `stored_file_read` has **two legs**:
+the data root first, then an io_server over HTTP if one is named. That second
+leg is not browser-only -- it is in the shared executor, and `platform_x_http.c`
+is linked on this lane -- so Android fetches the plugin manifest, the Lua each
+entry names, and each shipped asset *as a plugin asks for it*, exactly the way
+the web lane does through `/boot/<path>`.
+
+Name the server either way:
+
+```sh
+# one-off: environment, in the data root's env.txt (this wins)
+adb shell "run-as com.torirs.client sh -c 'echo TORIRS_IO_SERVER=192.168.1.148:8390 >> files/env.txt'"
+```
+
+```ini
+; permanent: the world's boot manifest states its file server like its game server
+[io]
+host=192.168.1.148
+port=8390
+```
+
+and serve it from the machine that has the tree:
+
+```sh
+src/build/io_server --rev osrs239 cache.osrs239 \
+    --boot-root . --script script --config config --port 8390 -v
+```
+
+Verified on the XT1060 on 2026-09-19 with `script/plugins` renamed away on the
+device: the server logged `200 ./script/plugins/plugins.ini`, then
+`performance_display.lua` and every asset, each fetched exactly once, and the
+overlay drew. Nothing is written back to the data root -- see the
+`stored_file_read` comment in `platform_x_io.c` for why a local copy is a
+liability rather than a cache.
+
+Both sides default to port 8088, so `TORIRS_IO_SERVER=192.168.1.148` alone
+works when `io_server` is left on its default. Name the port on both or on
+neither -- a `host` with no `:port` does not mean "whatever is listening".
+
+## Plugin chrome: there is none on this lane
+
+> **This section described a WebView that no longer exists.** The measurements
+> below are kept because they are real and they are the reason the thing was
+> removed, but `platform.mk` now gives Android an EMPTY
+> `PLATFORM_CHROME_EXEC_SRC`, so `torirs_chrome_exec.c` falls back to its
+> internal BUFFER sink. This is enforced, not merely the current state:
+> `LANE_FORBID_android` names `TORIRS_CHROME_EXEC_WEB_AVAILABLE`,
+> `TORIRS_CHROME_EXEC_BROWSER_AVAILABLE` and both of their sources, and
+> `CHROME_EXEC_FORBID_LEGACY` names `ui/torirs_chrome_exec_android.c` and its
+> define. Every external executor is forbidden on this lane by name, so the
+> deleted WebView cannot come back by accident.
+
+That is not the same as having no plugin window. BUFFER is "an internal sink
+for that stream because the same model already draws itself in the game
+canvas": `app->plugin_ui` is a full `ToriRSChrome` with widgets, dropdowns and
+focus, and `app_chrome.c` emits its primitives into the frame like any other
+chrome. What Android is missing is a **launcher** -- something that calls
+`app_plugin_window_set_open`. There are three, and on this lane all three are
+absent:
+
+| launcher | why not here |
+|---|---|
+| the rail's own destinations | page allocation is presenter-owned (`app->plugin_rail_layout`), and only `torirs_chrome_exec_web.c`, `torirs_chrome_exec_winbrowser.c` and `platform_win32gdi.c` publish a `ToriRSChromeRailIntent`. BUFFER publishes none, so there is no rail to press. |
+| the pop-out nav column | needs `[role:plugin_nav_column]` (interface 728 child 6) **on screen**, and the mobile toplevel mounts 728 hidden. A hidden column hands its destinations back to the rail by design. This is why Linux -- BUFFER chrome too -- is fine: there the column is visible. |
+| a profile-authored button | `option_action=PLUGIN_PANEL` on a component the profile places, which `app_minimenu.c` turns into the toggle. Only `revconfig/rs245_2lc` authors one (`manage_plugins_button`, in the logout tab). The osrs239 dat2 profile authors none, because it has the nav column. |
+
+There is also `TORIRS_CMD_PLUGIN_CHROME_TOGGLE` on the command bus, wired
+straight through to the same call in `app_frame.c` -- with no producer anywhere
+in the tree.
+
+### The Stone Drawer carries one
+
+The mobile gameframe now puts a third switch beside its chat and keyboard
+switches: the OSRS wrench, which opens and closes the plugin window through
+`client.plugin_window_show`. A frame that has replaced the lane's chrome
+inherits the ways into the client's own windows the way it already inherits the
+tab strip and the tutorial's blink, and it is gated on
+`core.capability("client.plugin_window")` so a harness with no window behind it
+gets no button rather than a dead one.
+
+Verified on the XT1060, 2026-09-19: the switch draws, the tap logs `chrome:
+plugin window executor = buffer (default)`, and the roster renders in-canvas
+with working toggles. Two things to know:
+
+- the window covers the switch row on a phone, so the switch cannot close what
+  it opened -- the window's own title-bar X does;
+- **this is the Stone Drawer's switch, and `auto` is not the Stone Drawer.** On
+  an OldSchool cache `auto` deliberately means the cache's own mobile toplevel
+  (601), so the phone's default configuration still has no launcher. Select it
+  with `preferred_frame=mobile-gameframe/stone-drawer` in `preferences.ini` --
+  qualified, or the host rejects it -- and `TORIRS_FRAME_ROLE_AUDIT=1` prints
+  which frame won. Giving the cache's own frame a launcher wants the third kind
+  above: a profile-authored `option_action=PLUGIN_PANEL` component.
+
+A screen-space overlay draws itself and needs none of this, which is why the
+performance display works on the phone and the roster does not. The full
+accounting is ANDROID-CHROME-001 in
+[`platform_quirks.md`](platform_quirks.md).
+
+## Plugin chrome cost (measured 2026-09-02, XT1060 / API 22, WebView since removed)
 
 Whole-process `simpleperf` windows of 10 s in Lumbridge, `--gles2-dualcore`,
 one Lua plugin (Panel Demo) loaded, three arms: the WebView present with the
 rail collapsed, the WebView expanded on the Manage Plugins roster, and no
-WebView at all (`no_plugin_chrome` file in the data root).
+WebView at all (`no_plugin_chrome` file in the data root -- that switch is
+gone too; the third arm is simply what the lane does now).
 
 | Arm | Samples (1 kHz) | WebView threads in sample | Frame | PSS |
 |---|---:|---|---:|---:|

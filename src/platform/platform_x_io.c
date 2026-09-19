@@ -579,12 +579,25 @@ write_client_file_item(struct ToriRS_IOItem* item)
  * browser by construction, however healthy the server -- the plugin was
  * loaded, its data simply had no route.
  *
- * Bytes that arrive are written into the store on the way through, so a path
- * costs at most one round trip per session and the next read is leg 1 again.
+ * NOTHING IS WRITTEN BACK. Leg 2's bytes are handed to the caller and
+ * forgotten, so every miss is a fresh request in the next session. That is
+ * deliberate, and it is the more expensive of the two choices on purpose: a
+ * local copy is exactly how a device ends up running plugins nobody has
+ * looked at in weeks. The Android lane spent 2026-09-19 loading a
+ * performance overlay from a copy pushed on 2026-09-03, whose Lua predated
+ * the V2 plugin definition the client had since started requiring -- it
+ * failed to load, silently, and the only symptom was an overlay that was not
+ * there. A read that always asks the server cannot go stale. The cost is one
+ * round trip per path per session, on a LAN, for files measured in kilobytes.
  *
- * The desktop has no leg 2 and needs none: nothing sits between it and its
- * disk. The read either finds the file or does not, which is exactly what the
- * caller is told.
+ * Every native lane has leg 2, not only the browser. The desktop can be run
+ * from somewhere other than the tree it was built in, and a deployment can
+ * ship the binary without the script/ and config/ trees beside it; Android
+ * cannot put a tree beside the binary at all, because the .so lives inside
+ * an APK and its data root is whatever was last pushed. Off unless a route
+ * is named -- TORIRS_IO_SERVER, or `[io] host=/port=` in the boot manifest --
+ * so a client with a local tree never starts dialling and a client without
+ * one never starts guessing.
  */
 static int
 stored_file_read(

@@ -137,10 +137,10 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
      * <EGL/egl.h> in an NDK sysroot may not declare, while every EGL 1.4
      * implementation that can make an ES3 context understands the value.
      *
-     * No Android renderer asks for ES3 today: the ES 3.0 renderer in this
-     * tree is the browser's (platform_renderer_webgl2_*.c) and the Android
-     * lane does not build it. This is here so that the day one does, the
-     * seam is not the thing that is wrong.
+     * The Android lane asks for ES3 now: platform_renderer_gles3.c names the
+     * shared ES 3.0 core (platform_renderer_es3_*.c, which the browser binds
+     * as WebGL2) and --gles3 selects it. The XT1060's Adreno 320 reports
+     * ro.opengles.version 196608, which is ES 3.0 exactly.
      */
     EGLint const renderable = client == TORIRS_GL_CLIENT_ES3 ? 0x0040 : EGL_OPENGL_ES2_BIT;
     EGLint const attribs[] = {

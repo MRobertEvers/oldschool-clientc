@@ -165,13 +165,44 @@ fake_platform_safe_rect(void* u, int* out_x, int* out_y, int* out_w, int* out_h)
  */
 static int g_has_screen_keyboard = 1;
 
+/*
+ * Is there a plugin window behind the launcher?
+ *
+ * On by default for the same reason the keyboard is: this harness stands in
+ * for a client, and a client always has one. The off case is a focused host
+ * that builds no window, and it is what proves the frame stands the launcher
+ * down instead of offering a button that presses into nothing.
+ */
+static int g_has_plugin_window = 1;
+/** What the launcher did: whether the window is open, and how many times the
+ *  switch asked for it to change. */
+static int g_plugin_window_open = 0;
+static int g_plugin_window_shows = 0;
+
 static int
 fake_capability(void* u, char const* name)
 {
     (void)u;
     if( strcmp(name, "input.screen_keyboard") == 0 )
         return g_has_screen_keyboard;
+    if( strcmp(name, "client.plugin_window") == 0 )
+        return g_has_plugin_window;
     return 0;
+}
+
+static int
+fake_plugin_window_open(void* u)
+{
+    (void)u;
+    return g_plugin_window_open;
+}
+
+static void
+fake_plugin_window_show(void* u, int open)
+{
+    (void)u;
+    g_plugin_window_open = open ? 1 : 0;
+    g_plugin_window_shows++;
 }
 
 static int
@@ -1204,6 +1235,8 @@ main(void)
     e.feature_set = fake_feature_set;
     e.display_setting = fake_display_setting;
     e.display_setting_set = fake_display_setting_set;
+    e.plugin_window_open = fake_plugin_window_open;
+    e.plugin_window_show = fake_plugin_window_show;
     e.frame_preference = fake_frame_preference;
     e.frame_preference_set = fake_frame_preference_set;
     e.varbit = fake_varbit;
@@ -1391,8 +1424,8 @@ main(void)
      * PORCELAIN_EL(NONE) as its `behind`). Red: the next check finds no sheet
      * behind the chat.
      */
-    CHECK(pieces_behind_viewport() == 5,
-          "the rail plates, the two switches and the rail's blocker are the pieces over the scene");
+    CHECK(pieces_behind_viewport() == 6,
+          "the rail plates, the three switches and the rail's blocker are the pieces over the scene");
     CHECK(anchored(owned("piece.sheet"), "chat", TORIRS_WIDGET_RELATION_BEHIND),
           "and the torn sheet is behind the CHAT rather than over the viewport");
     CHECK(owned_at("piece.sheet", 0, 435),
@@ -1482,6 +1515,58 @@ main(void)
     declare(M_W, M_H);
     CHECK(owned("keyboard-toggle") != NULL && owned("piece.switch.keys") != NULL,
           "and the switch comes back on a device that has the keys");
+
+    /*
+     * The PLUGINS switch: this frame's only way into the plugin window.
+     *
+     * The engine has three launchers and a phone has none of them -- the
+     * rail's destinations need a presenter this lane does not build, the
+     * pop-out nav column needs interface 728 on screen and a mobile toplevel
+     * mounts it hidden, and the dat2 profile authors no
+     * `option_action=PLUGIN_PANEL` button because on a desk it has the column.
+     * So a frame that has replaced the lane's chrome carries the launcher,
+     * the way it already carries the tab strip.
+     *
+     * Third in the row and hanging off the KEYBOARD, which is why the x below
+     * is the keyboard's plus a switch and a gap: the row has to close up when
+     * there is no keyboard, or the launcher sits in a hole.
+     *
+     * MUTATION 1: anchor it to toggle_x instead -> it lands on the keyboard.
+     * MUTATION 2: drop the capability gate -> the "no window" case below goes
+     * red and a harness with no window gets a button that presses into
+     * nothing.
+     * MUTATION 3: latch the open state in MobileState instead of reading it
+     * back -> the label check after the press goes red, because the press
+     * below changes the CLIENT's state and nothing tells the frame.
+     */
+    CHECK(owned("plugins-toggle") != NULL && owned_at("plugins-toggle", 84, 406),
+          "the plugins switch is third in the row, after the keyboard");
+    CHECK(owned("plugins-glyph") != NULL && owned("piece.switch.plugins") != NULL,
+          "with its wrench and the plate under it");
+    CHECK(owned("plugins-toggle") && strcmp(owned("plugins-toggle")->op, "Plugins") == 0,
+          "and it reads Plugins while the window is shut");
+    g_plugin_window_shows = 0;
+    press("plugins-toggle");
+    CHECK(g_plugin_window_shows == 1 && g_plugin_window_open == 1,
+          "tapping it opens the client's plugin window, once");
+    declare(M_W, M_H);
+    CHECK(owned("plugins-toggle") && strcmp(owned("plugins-toggle")->op, "Hide plugins") == 0,
+          "and the label reads back the CLIENT's state rather than a copy of it");
+    press("plugins-toggle");
+    CHECK(g_plugin_window_shows == 2 && g_plugin_window_open == 0,
+          "tapping it again puts the window away");
+
+    /* No window behind it -> no switch, and no plate either. A stone with
+     * nothing on it is what the keyboard's gate already refuses. */
+    g_has_plugin_window = 0;
+    declare(M_W, M_H);
+    CHECK(owned("plugins-toggle") == NULL && owned("plugins-glyph") == NULL,
+          "a host with no plugin window is offered no launcher");
+    CHECK(owned("piece.switch.plugins") == NULL, "nor the plate it stood on");
+    CHECK(owned("chat-toggle") != NULL && owned("keyboard-toggle") != NULL,
+          "and the two switches that are this frame's own are untouched");
+    g_has_plugin_window = 1;
+    declare(M_W, M_H);
 
     /* ---- 2. the drawer -------------------------------------------------- */
     /* The two plates, as the layer knows them BEFORE the drawer adds anything

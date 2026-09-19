@@ -5116,6 +5116,27 @@ exec_set_object(
      * once whether anything is missing rather than yielding per piece. */
     if( !provider || ObjModelLoad_NeedsWork(provider, obj_id, count) )
     {
+        /*
+         * An ICON cell does not wait. Store the obj on the node now — the
+         * row's ops, tooltip and stack number all read it, and only the
+         * picture is missing — and let the app bake and bind the icon off the
+         * script's back (see RS_CS2Host.widget_obj_icon_lazy).
+         *
+         * A MODEL widget keeps its yield: there is no 2D bake to land there,
+         * the cell draws the obj in 3D, and the angle/offset composition below
+         * is the only place that knows how. Same line loc models hold.
+         */
+        int32_t const pending_idx =
+            tree ? UITree_FindByComponentId(tree, component_id) : -1;
+        bool const draws_model =
+            pending_idx >= 0 && tree->components[pending_idx].type == UIELEM_RS_MODEL;
+
+        if( provider && !draws_model && host->widget_obj_icon_lazy )
+        {
+            (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
+            host->widget_obj_icon_lazy(host->world_user, component_id, obj_id, count);
+            return CS2VM_EXECNO_OK;
+        }
         if( provider &&
             !rs_cs2_await_spent(thread, exact_request->kind, obj_id, count) )
             return rs_cs2_yield_load(host, thread, exact_request, obj_id, count);

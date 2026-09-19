@@ -783,6 +783,27 @@ struct RS_CS2Host
      */
     void (*widget_model_lazy)(void* user, int component_id, int model_id);
     void (*widget_npc_head_lazy)(void* user, int component_id, int npc_id);
+    /*
+     * The same bargain for an obj ICON a script set on a GRAPHIC cell.
+     *
+     * An icon is a 2D bake of the obj's inventory model, so a cell whose obj
+     * is not resident used to yield the script until the objtype, the model
+     * and its textures had all been read. One cell is one round trip, and a
+     * panel is a column of them: the skill guide's Attack/Weapons tab sets 82
+     * of them in one script, which read 70 model groups and rastered 82 icons
+     * inside a single frame. Nothing on screen needs the icon to be there for
+     * the row to be right -- the level and the text are already set -- and the
+     * reference builds the item sprite lazily and draws nothing until it can.
+     *
+     * The app keeps the request and its per-tick reconcile (a bounded batch,
+     * the same machine the inventory's icons use) bakes and binds the icons as
+     * they land. Optional: with NULL the host yields the script as before.
+     */
+    void (*widget_obj_icon_lazy)(
+        void* user,
+        int component_id,
+        int obj_id,
+        int count);
     /**
      * One player's queued ROUTE, for ACTIVEPLAYER_GETROUTELENGTH and
      * ACTIVEPLAYER_GETROUTECOORD.

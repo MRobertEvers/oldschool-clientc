@@ -568,6 +568,22 @@ mobile_chat_button_x(
  */
 #define MOBILE_KEY_ICON_NUM 3
 #define MOBILE_KEY_ICON_DEN 4
+/*
+ * And how much of its own size the PLUGINS wrench keeps.
+ *
+ * Measured the same way, off sprite 785's own canvas: 33x36 carrying a 24x24
+ * wrench at x5..28, y6..29. HEIGHT is what binds this one, which is what makes
+ * it different from the other two -- the switch is 36 wide and only 25 tall,
+ * and a 24-row glyph in a 25-row button has half a row of stone either side.
+ *
+ * So the fraction comes from the rows: give it the 3 the chat bubble gets
+ * (25 - 2*3 = 19) and 19/24 rounds to 4/5. That takes the ink to 19x19 and
+ * leaves 8 columns of margin across, a little more than the 7 the other two
+ * were fitted to -- which is right for a glyph that is square where they are
+ * wide, and is the difference between "centred" and "cramped".
+ */
+#define MOBILE_PLUGIN_ICON_NUM 4
+#define MOBILE_PLUGIN_ICON_DEN 5
 
 /** What a bank or a dialogue is authored for. The cache's own interfaces are
  *  built against this box, so it is placed and never resized -- only moved. */
@@ -662,6 +678,20 @@ enum MobileImage
      */
     IMG_ICON_KEYBOARD,
     IMG_ICON_CHAT,
+    /**
+     * The PLUGINS glyph: sprite 785, the OSRS wrench.
+     *
+     * The same picture the client's plugin launcher wears everywhere else --
+     * the engine bakes it as TORIRS_CHROME_SKIN_PLUGIN_ICON rather than
+     * resolving 785 at runtime, and this frame ships it rather than reading
+     * it, for the one reason: on any cache that is not OldSchool's, 785 is
+     * some unrelated image, and a launcher wearing the wrong picture is worse
+     * than one wearing none.
+     *
+     * Also a 33x36 canvas, kept whole like the keyboard's, with its ink a
+     * centred 24x24. @see MOBILE_PLUGIN_ICON_NUM.
+     */
+    IMG_ICON_PLUGINS,
     /** The 2004 compass rose. On a 2004 lane the cache's own IS this picture
      *  and the skin keeps it; on an OldSchool lane the cache's rose is
      *  OldSchool's, and a map plate cut for this one wants this one. */
@@ -811,6 +841,7 @@ static char const* const MOBILE_IMAGE_FILE[MOBILE_IMG_COUNT] = {
     [IMG_CHAT_BUTTON] = "chat_button.png",
     [IMG_ICON_KEYBOARD] = "icon_keyboard.png",
     [IMG_ICON_CHAT] = "icon_chat.png",
+    [IMG_ICON_PLUGINS] = "icon_plugins.png",
     [IMG_COMPASS] = "compass.png",
     [IMG_REDSTONE_0] = "highlight1.png",
     [IMG_REDSTONE_1] = "highlight2.png",
@@ -895,6 +926,9 @@ enum MobileComposed
     /** The keyboard glyph, fitted to the switch the same way.
      *  @see MOBILE_KEY_ICON_NUM. */
     ART_ICON_KEYBOARD,
+    /** The plugins wrench, fitted to the switch off its own rows.
+     *  @see MOBILE_PLUGIN_ICON_NUM. */
+    ART_ICON_PLUGINS,
     /** The two backing plates, turned: one whole column each. */
     ART_PLATE_0,
     ART_PLATE_1,
@@ -1154,6 +1188,8 @@ struct MobileRuntime
     int toggle_y;
     int keys_x;
     int keys_y;
+    int plugins_x;
+    int plugins_y;
     struct MobileArt toggle_art;
     int toggle_w;
     int toggle_h;
@@ -1174,6 +1210,7 @@ struct MobileRuntime
     struct ToriRS_Rect housing_rect;
     struct MobileToggle chat_toggle;
     struct MobileToggle keyboard_toggle;
+    struct MobileToggle plugins_toggle;
     /**
      * Where the OldSchool chat pack's filter bar goes, on a root that lays it
      * out ABOVE the messages. Unplaced on every root that already hangs it off
@@ -1593,6 +1630,39 @@ mobile_has_screen_keyboard(struct MobileCall* ctx)
 {
     assert(ctx);
     return ctx->api->core.capability(ctx->api, "input.screen_keyboard");
+}
+
+/*
+ * Is there a plugin WINDOW for a switch to open?
+ *
+ * The same shape as the keyboard question above, and for the same reason: a
+ * dead button is worse than a missing one, so the frame asks the HOST and
+ * places no switch where the answer is no. @see the keyboard's own gate for
+ * why this frame stopped placing KEYS on a desk.
+ *
+ * TWO questions and not one, because they fail differently. The capability is
+ * "is there a window behind this" -- a full client says yes, a focused harness
+ * that builds no window says no. The api check is the minor version: `client`
+ * is a pointer module that an older host may not carry at all, and these two
+ * verbs are newer than the module. Either answer being no means the same
+ * thing to the layout, so they are asked together, once.
+ *
+ * Why this frame carries a launcher at all: a frame that has replaced the
+ * lane's chrome inherits the ways into the client's own windows along with the
+ * stones, exactly as it inherits the tab strip and the tutorial's blink. The
+ * engine's three launchers all stand down here -- the rail wants a presenter,
+ * the pop-out nav column wants interface 728 on screen and a mobile toplevel
+ * mounts it hidden, and the dat2 profile authors no
+ * `option_action=PLUGIN_PANEL` button because on a desk it has the column.
+ * @see ANDROID-CHROME-001 in docs/platform_quirks.md.
+ */
+static bool
+mobile_has_plugin_window(struct MobileCall* ctx)
+{
+    assert(ctx);
+    return ctx->api->core.capability(ctx->api, "client.plugin_window") &&
+           ctx->api->client && ctx->api->client->plugin_window_show &&
+           ctx->api->client->plugin_window_open;
 }
 
 /*
@@ -2875,6 +2945,21 @@ mobile_art(
                 (icon_w * MOBILE_KEY_ICON_NUM) / MOBILE_KEY_ICON_DEN,
                 (icon_h * MOBILE_KEY_ICON_NUM) / MOBILE_KEY_ICON_DEN);
     }
+    else if( which == ART_ICON_PLUGINS )
+    {
+        int icon_w = 0;
+        int icon_h = 0;
+
+        if( g_api->assets.image_size(
+                g_api, mobile_image(ctx, IMG_ICON_PLUGINS), &icon_w, &icon_h) &&
+            icon_w > 0 && icon_h > 0 )
+            art->ref = mobile_compose_scaled(
+                ctx,
+                name,
+                mobile_image(ctx, IMG_ICON_PLUGINS),
+                (icon_w * MOBILE_PLUGIN_ICON_NUM) / MOBILE_PLUGIN_ICON_DEN,
+                (icon_h * MOBILE_PLUGIN_ICON_NUM) / MOBILE_PLUGIN_ICON_DEN);
+    }
     else if( which == ART_CHAT_BUTTON )
         art->ref = mobile_compose_chat_button(ctx, name);
     /*
@@ -3129,15 +3214,35 @@ mobile_ui_node(
         g_frame.housing_rect = bounds;
         return;
     }
-    if( strcmp(name, "chat-toggle") == 0 || strcmp(name, "keyboard-toggle") == 0 )
+    /* The switches, by name. A table and not a first-letter test: that read
+     * `name[0] == 'c'` for "chat, else keyboard", which is not a question that
+     * survives a third switch. */
     {
-        struct MobileToggle* t = name[0] == 'c' ? &g_frame.chat_toggle : &g_frame.keyboard_toggle;
-        t->placed = 1;
-        t->box = bounds;
-        t->face = g_frame.toggle_art;
-        t->glyph =
-            name[0] == 'c' ? mobile_art(ctx, ART_ICON_CHAT) : mobile_art(ctx, ART_ICON_KEYBOARD);
-        return;
+        static struct
+        {
+            char const* name;
+            size_t toggle_offset;
+            int art;
+        } const SWITCH[] = {
+            { "chat-toggle", offsetof(struct MobileRuntime, chat_toggle), ART_ICON_CHAT },
+            { "keyboard-toggle", offsetof(struct MobileRuntime, keyboard_toggle),
+              ART_ICON_KEYBOARD },
+            { "plugins-toggle", offsetof(struct MobileRuntime, plugins_toggle),
+              ART_ICON_PLUGINS },
+        };
+
+        for( size_t i = 0; i < sizeof(SWITCH) / sizeof(SWITCH[0]); i++ )
+            if( strcmp(name, SWITCH[i].name) == 0 )
+            {
+                struct MobileToggle* t =
+                    (struct MobileToggle*)((char*)&g_frame + SWITCH[i].toggle_offset);
+
+                t->placed = 1;
+                t->box = bounds;
+                t->face = g_frame.toggle_art;
+                t->glyph = mobile_art(ctx, SWITCH[i].art);
+                return;
+            }
     }
     if( strcmp(name, "frame.sidebar.rail") == 0 )
     {
@@ -4305,6 +4410,28 @@ mobile_layout(
         g_frame.keys_y = g_frame.toggle_y;
         mobile_blit(ctx, "piece.switch.keys", g_frame.toggle_art, g_frame.keys_x, g_frame.keys_y);
     }
+    /*
+     * And the PLUGINS switch at the end of the row.
+     *
+     * Third and not second: the two before it are about the chat, and the row
+     * reads as "the sheet, its keys, and then a different thing". It hangs off
+     * whichever of them is last, because the keyboard is not always there.
+     *
+     * This row is the only launcher this frame has -- the rail and the pop-out
+     * column both stand down on a phone, @see mobile_has_plugin_window -- so
+     * it is placed wherever the row is rather than being given a corner of its
+     * own. A player who can find the chat switch has found this one.
+     */
+    if( mobile_has_plugin_window(ctx) )
+    {
+        int const last_x = mobile_has_screen_keyboard(ctx) ? g_frame.keys_x : g_frame.toggle_x;
+
+        g_frame.plugins_x = last_x + g_frame.toggle_w + MOBILE_TOGGLE_GAP;
+        g_frame.plugins_y = g_frame.toggle_y;
+        mobile_blit(
+            ctx, "piece.switch.plugins", g_frame.toggle_art, g_frame.plugins_x,
+            g_frame.plugins_y);
+    }
     mobile_ui_node(
         ctx,
         "chat-toggle",
@@ -4317,6 +4444,13 @@ mobile_layout(
             "keyboard-toggle",
             (struct ToriRS_Rect){
                 g_frame.keys_x, g_frame.keys_y, g_frame.toggle_w, g_frame.toggle_h },
+            (struct MobileArt){ NULL, { 0 } });
+    if( mobile_has_plugin_window(ctx) )
+        mobile_ui_node(
+            ctx,
+            "plugins-toggle",
+            (struct ToriRS_Rect){
+                g_frame.plugins_x, g_frame.plugins_y, g_frame.toggle_w, g_frame.toggle_h },
             (struct MobileArt){ NULL, { 0 } });
 
     /*
@@ -4755,6 +4889,35 @@ mobile_keyboard_toggle_pressed(
         api->input.chat_focus(api, false);
 }
 
+/*
+ * The plugins switch: open the client's plugin window, or put it away.
+ *
+ * No state of its own. The chat and keyboard switches latch in MobileState
+ * because the thing they operate is this frame's; the plugin window is the
+ * CLIENT's, and a copy of its state here would be a second answer that goes
+ * stale the moment anything else opens or closes it -- the minimenu's "Manage
+ * Plugins" row, a rail press on a lane that has one, or the window closing
+ * itself. So it is read back every pass, which is also what the label reads.
+ */
+static void
+mobile_plugins_toggle_pressed(
+    struct ToriRS_Api* api,
+    void* user,
+    char const* key)
+{
+    struct MobileState* state = user;
+
+    assert(api);
+    assert(state);
+    assert(key);
+    (void)key;
+    (void)state;
+    assert(api->client);
+    assert(api->client->plugin_window_open);
+    assert(api->client->plugin_window_show);
+    api->client->plugin_window_show(api, !api->client->plugin_window_open(api));
+}
+
 /** A switch and its glyph: an owned control wearing the plate, with the picture
  *  centred on it. @see mobile_describe_switches for why the plate is described
  *  even when its art has not landed. */
@@ -5071,6 +5234,16 @@ mobile_describe_chrome(
         "keyboard-glyph",
         "Keyboard",
         mobile_keyboard_toggle_pressed);
+    mobile_describe_toggle(
+        ctx,
+        describe,
+        &g_frame.plugins_toggle,
+        "plugins-toggle",
+        "plugins-glyph",
+        mobile_has_plugin_window(ctx) && ctx->api->client->plugin_window_open(ctx->api)
+            ? "Hide plugins"
+            : "Plugins",
+        mobile_plugins_toggle_pressed);
 }
 
 /*
@@ -6219,6 +6392,9 @@ mobile_on_start(
             break;
         case ART_ICON_KEYBOARD:
             literal = "icon_keyboard_fit.png";
+            break;
+        case ART_ICON_PLUGINS:
+            literal = "icon_plugins_fit.png";
             break;
         case ART_PLATE_0:
             literal = "plate_l.png";

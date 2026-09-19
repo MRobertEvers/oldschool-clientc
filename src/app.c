@@ -568,6 +568,7 @@ App_Init(
     app->host.npc_by_uid = app_cs2_npc_by_uid;
     app->host.widget_model_lazy = app_cs2_widget_model_lazy;
     app->host.widget_npc_head_lazy = app_cs2_widget_npc_head_lazy;
+    app->host.widget_obj_icon_lazy = app_cs2_widget_obj_icon_lazy;
     app->host.player_slot_by_name = app_cs2_player_slot_by_name;
     app->host.worldentity_config_name = app_cs2_worldentity_config_name;
     app->host.objs_on_coord = app_cs2_objs_on_coord;
@@ -1298,6 +1299,7 @@ App_Shutdown(struct App* app)
      * _Free freeing a pointer this call already returned to the allocator. */
     Task_EntityInfoScratchFree(app);
     free(app->if_heads);
+    app_placeholder_park_free(app);
     free(app->if_player_models);
     /* All three of these were leaked. Only the hide array was freed, and its
      * two siblings -- plus every string the text store strdup'd -- were not.

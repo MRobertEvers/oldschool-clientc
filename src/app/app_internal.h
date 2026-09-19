@@ -704,6 +704,10 @@ enum AppPlaceholderKind
     /* A ground item added before its model was resident: the stack entity
      * exists with element_id -1 and draws nothing until the model lands. */
     APP_PLACEHOLDER_OBJ_STACK = 0,
+    /* An obj a clientscript set on a GRAPHIC cell before its icon could be
+     * baked: the cell carries the obj (its ops, tooltip and stack number all
+     * read it) with item_scene_id -1, and draws no picture until this lands. */
+    APP_PLACEHOLDER_WIDGET_ICON,
 };
 
 void
@@ -722,6 +726,33 @@ void
 app_placeholder_obj_stacks_sweep(
     struct App* app,
     struct World* world);
+
+void
+app_placeholder_widget_icon(
+    struct App* app,
+    int component_id,
+    int obj_id,
+    int count);
+
+/* Release a burst of parked placeholder requests onto the asset runner.
+ * Called from the logic tick; see the unit comment for why a script's
+ * placeholder cannot simply be queued where it is asked for. */
+void
+app_placeholder_release_tick(struct App* app);
+
+/* Drop the park (App teardown). */
+void
+app_placeholder_park_free(struct App* app);
+
+/* The CS2 host's lazy obj-icon hook (RS_CS2Host.widget_obj_icon_lazy): a
+ * GRAPHIC cell whose obj is not resident takes a placeholder instead of
+ * holding the script. */
+void
+app_cs2_widget_obj_icon_lazy(
+    void* user,
+    int component_id,
+    int obj_id,
+    int count);
 
 /* app_world_rebuild.c: give a stack added as a placeholder its model and
  * scene element for the count it has now. 1 if it landed, 0 if the model is

@@ -84,6 +84,11 @@ app_logic_tick(struct App* app)
      * packets that dirtied the slots). */
     app_inv_icon_reconcile_tick(app);
 
+    /* And release a burst of the placeholders a clientscript asked for: the
+     * settle it ran in drains the same runner, so this tick is the frame
+     * boundary between the script and its loads. */
+    app_placeholder_release_tick(app);
+
     if( app->net )
     {
         /* Keepalive while in the game world, to stop the connection idling
