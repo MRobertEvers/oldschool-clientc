@@ -298,7 +298,6 @@ es3_state_reset(struct ToriRS_ES3* renderer)
     renderer->bound_texture0 = 0u;
     renderer->bound_texture1 = 0u;
     renderer->bound_array_buffer = 0u;
-    renderer->bound_element_buffer = 0u;
     renderer->vao_bound = 0u;
     renderer->current_program = NULL;
     renderer->stream_buffer = 0u;
@@ -1145,13 +1144,13 @@ es3_stream_sets_begin_frame(struct ToriRS_ES3* renderer)
  * never lands on an outstanding draw. Returns the byte offset the payload
  * landed at.
  *
- * Growth reallocates the store with glBufferData(NULL) and the bytes already
- * in [0, offset) are GONE from the new store: ES 2.0 has no copy between
- * buffers and no read-back, so nothing here can carry them over. What GL
- * does guarantee is that draws already ISSUED against the old store keep
- * reading the old store (orphaning: a BufferData on a buffer with pending
- * reads leaves those reads their data). So growth is safe in exactly one of
- * two cases, and the caller says which:
+ * Growth has two shapes, and picking the wrong one is invisible until a
+ * model blinks out.
+ *
+ * glBufferData(NULL) -- orphaning -- replaces the store and the bytes already
+ * in [0, offset) are GONE from the new one. What GL guarantees is only that
+ * draws already ISSUED against the old store keep reading it. So orphaning is
+ * right in exactly two cases:
  *
  *   offset == 0                 nothing appended this frame is lost;
  *   earlier_appends_drawn       every earlier append of this frame has had
@@ -1159,9 +1158,27 @@ es3_stream_sets_begin_frame(struct ToriRS_ES3* renderer)
  *                               right after each append), so losing the
  *                               bytes loses nothing a draw still wants.
  *
- * Anything else -- an earlier append still waiting to be drawn when the
- * store is replaced -- would draw from a buffer whose prefix is undefined,
- * and is a contract violation here, not a case to handle.
+ * The third case is real on this lane and used to be a contract violation:
+ * es3_upload_group appends one retained group per dirty group and NOTHING is
+ * drawn until the sequence is issued at end of frame, so the second or later
+ * group to cross the capacity orphaned every group uploaded before it. Their
+ * draws then read a prefix that had been discarded -- which is a model, or a
+ * run of them, missing for exactly the frames on which the stream grew.
+ * Intermittent by construction: growth doubles the capacity, so it does not
+ * recur until the scene grows again.
+ *
+ * It survived because the guard was `assert(offset == 0 || drawn)` and the
+ * shipping build is -DNDEBUG. It was WRITTEN because this reasoning came
+ * across from the ES 2.0 core, whose comment says "ES 2.0 has no copy between
+ * buffers and no read-back, so nothing here can carry them over" -- true
+ * there, and false here. **ES 3.0 has glCopyBufferSubData.** So the third
+ * case is now handled rather than asserted away: grow into a fresh store and
+ * copy the frame's existing prefix across on the GPU, with no read-back and
+ * no CPU copy.
+ *
+ * That replaces the buffer NAME, so a caller that caches it re-reads
+ * set->buffers[slot] afterwards. The VAOs need no help: es3_bind_stream
+ * re-specifies a binding whose buffer object changed.
  */
 static uint32_t
 es3_stream_set_append(
@@ -1175,17 +1192,44 @@ es3_stream_set_append(
 {
     uint32_t offset = set->head;
     assert(set->buffers[slot]);
-    glBindBuffer(target, set->buffers[slot]);
     if( offset + bytes > set->capacities[slot] )
     {
         uint32_t capacity = set->capacities[slot] ? set->capacities[slot] : initial_bytes;
-        assert(offset == 0u || earlier_appends_drawn);
-        (void)earlier_appends_drawn; /* only the assert reads it; NDEBUG builds */
         while( capacity < offset + bytes )
             capacity *= 2u;
-        glBufferData(target, (GLsizeiptr)capacity, NULL, GL_DYNAMIC_DRAW);
+        if( offset == 0u || earlier_appends_drawn )
+        {
+            /* Nothing this frame still needs the old store. */
+            glBindBuffer(target, set->buffers[slot]);
+            glBufferData(target, (GLsizeiptr)capacity, NULL, GL_DYNAMIC_DRAW);
+        }
+        else
+        {
+            /*
+             * Carry this frame's prefix into the bigger store.
+             *
+             * COPY_READ/COPY_WRITE and not `target`: they are plain context
+             * bindings with no other meaning, so nothing the caller set up is
+             * disturbed -- and GL_ELEMENT_ARRAY_BUFFER, which one caller uses,
+             * is VERTEX ARRAY OBJECT state that binding through `target` here
+             * would write into whichever VAO happens to be bound.
+             */
+            GLuint grown = 0u;
+            glGenBuffers(1, &grown);
+            assert(grown);
+            glBindBuffer(GL_COPY_WRITE_BUFFER, grown);
+            glBufferData(GL_COPY_WRITE_BUFFER, (GLsizeiptr)capacity, NULL, GL_DYNAMIC_DRAW);
+            glBindBuffer(GL_COPY_READ_BUFFER, set->buffers[slot]);
+            glCopyBufferSubData(
+                GL_COPY_READ_BUFFER, GL_COPY_WRITE_BUFFER, 0, 0, (GLsizeiptr)offset);
+            glBindBuffer(GL_COPY_READ_BUFFER, 0);
+            glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
+            glDeleteBuffers(1, &set->buffers[slot]);
+            set->buffers[slot] = grown;
+        }
         set->capacities[slot] = capacity;
     }
+    glBindBuffer(target, set->buffers[slot]);
     glBufferSubData(target, (GLintptr)offset, (GLsizeiptr)bytes, data);
     set->head = offset + ((bytes + 3u) & ~3u);
     return offset;
@@ -1246,6 +1290,9 @@ es3_upload_group(
             group->vbo_cpu->vertices.as_gles2,
             (uint32_t)byte_count,
             false);
+        /* Growth may have replaced the store; the group's name is this
+         * frame's slot, whatever it now is. @see es3_stream_set_append. */
+        group->vbo_gpu = renderer->dynamic_stream.buffers[renderer->frame_slot];
         renderer->bound_array_buffer = group->vbo_gpu;
         group->gpu_base_vertex = offset / (uint32_t)sizeof(struct TRSPK_VertexGLES2);
         group->gpu_capacity = renderer->dynamic_stream.capacities[renderer->frame_slot] /
@@ -2548,8 +2595,11 @@ es3_bind_vao(struct ToriRS_ES3* renderer, GLuint vao)
         return;
     glBindVertexArray(vao);
     renderer->vao_bound = vao;
+    /* The array binding is context state that the VAO's attribute setup
+     * overwrites, so it is genuinely unknown after a switch. The ELEMENT
+     * binding is not: it belongs to the VAO now bound, and is tracked per VAO
+     * (vao_element_buffer) precisely so a switch costs nothing. */
     renderer->bound_array_buffer = 0u;
-    renderer->bound_element_buffer = 0u;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_ATTRIB_REBINDS, 1);
 }
 
@@ -2614,6 +2664,7 @@ es3_bind_stream(struct ToriRS_ES3* renderer, uint32_t binding)
         if( !renderer->vao_world[binding] )
             return false;
         renderer->vao_world_buffer[binding] = 0u;
+        renderer->vao_element_buffer[binding] = 0u;
     }
     es3_bind_vao(renderer, renderer->vao_world[binding]);
     if( renderer->vao_world_buffer[binding] != buffer ||
@@ -2791,6 +2842,7 @@ es3_ring_upload(
         data,
         bytes,
         earlier_appends_drawn);
+    renderer->ui_vbo = renderer->ui_stream.buffers[renderer->frame_slot];
     renderer->bound_array_buffer = renderer->ui_vbo;
     return offset;
 }
@@ -3045,6 +3097,7 @@ es3_frame_stream_upload(struct ToriRS_ES3* renderer)
         renderer->frame_stream_cpu->vertices.as_gles2,
         bytes,
         false);
+    renderer->frame_stream_vbo = renderer->frame_stream.buffers[renderer->frame_slot];
     renderer->bound_array_buffer = renderer->frame_stream_vbo;
     renderer->frame_stream_gpu_base = offset / (uint32_t)sizeof(struct TRSPK_VertexGLES2);
     /* The stream just moved. es3_bind_stream compares the binding's base
@@ -3099,10 +3152,16 @@ es3_sequence_issue(
             continue;
         if( item->indexed )
         {
-            if( renderer->bound_element_buffer != element_buffer )
+            /*
+             * The attachment is this VAO's, so it survives every switch away
+             * and back: one glBindBuffer per binding per frame, not one per
+             * draw item. es3_bind_vao must NOT clear this -- that is what made
+             * it a per-item cost. @see ToriRS_ES3::vao_element_buffer.
+             */
+            if( renderer->vao_element_buffer[item->binding] != element_buffer )
             {
                 glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer);
-                renderer->bound_element_buffer = element_buffer;
+                renderer->vao_element_buffer[item->binding] = element_buffer;
             }
             glDrawRangeElements(
                 GL_TRIANGLES,
@@ -3144,7 +3203,7 @@ es3_sequence_draw(struct ToriRS_ES3* renderer)
             renderer->ibo_staging,
             bytes,
             false);
-        renderer->bound_element_buffer = 0u;
+        renderer->ibo = renderer->index_stream.buffers[renderer->frame_slot];
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)bytes);
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOADS, 1);
     }
@@ -4054,6 +4113,7 @@ ToriRS_ES3_New(
      * the off arm at compile time on wasm, so it is spelled out rather than
      * carried as a dead preprocessor branch.
      */
+    renderer->lever_triplet_neon = es3_lever_enabled("TORIRS_ES3_TRIPLET_NEON");
     renderer->pose_reuse_enabled = es3_lever_opt_in("TORIRS_ES3_POSE_REUSE");
     renderer->actor_world_cache_enabled = es3_lever_opt_in("TORIRS_ES3_ACTOR_WORLD_CACHE");
     renderer->actor_direct_encode = es3_lever_opt_in("TORIRS_ES3_ACTOR_DIRECT");

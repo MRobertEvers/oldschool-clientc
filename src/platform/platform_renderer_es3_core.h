@@ -728,6 +728,24 @@ struct ToriRS_ES3
      * landing somewhere new is the only thing that moves the second. */
     GLuint vao_world_buffer[ES3_BINDING_COUNT];
     uint32_t vao_world_base[ES3_BINDING_COUNT];
+    /**
+     * The element buffer each world VAO already has attached.
+     *
+     * Per VAO and not one `bound_element_buffer`, because the attachment IS
+     * VAO state: binding a VAO restores whatever element buffer that VAO
+     * carries, so a single context-wide cache has to be invalidated on every
+     * VAO switch -- and then re-attached on the next draw. In painter order
+     * the bindings alternate constantly (a depth-sorted frame interleaves
+     * world chunks with the actor stream), so that cost is paid per draw
+     * item. Remembering it per VAO makes the attachment happen once per
+     * binding per frame, which is the thing a VAO is for. @see
+     * es3_sequence_issue.
+     */
+    GLuint vao_element_buffer[ES3_BINDING_COUNT];
+    /** TORIRS_ES3_TRIPLET_NEON: vst3q_u32 index triplets, four faces a step.
+     *  On unless the knob says 0, so the scalar loop stays A/B-able.
+     *  @see es3_painter_write_indices_ex. */
+    bool lever_triplet_neon;
     GLuint vao_ui;
     GLuint vao_ui_buffer;
     uint32_t vao_ui_offset;
@@ -736,9 +754,6 @@ struct ToriRS_ES3
     uint32_t vao_rotmask_offset;
     GLuint vao_present;
     GLuint vao_bound;
-    /* The element buffer attached to vao_bound. Invalidated by every VAO
-     * change, because in GLES3 the element binding lives in the VAO. */
-    GLuint bound_element_buffer;
     /*
      * The world pass's std140 uniform block: the matrix and the texture
      * clock, uploaded once per pass and read by all four world programs.

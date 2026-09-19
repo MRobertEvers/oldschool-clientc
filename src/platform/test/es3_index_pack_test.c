@@ -91,6 +91,28 @@ check_run(const char* label, uint32_t address, uint32_t limit, const int* faces,
             fail(where, (unsigned long)want[i], (unsigned long)got[i]);
             return;
         }
+
+    /*
+     * And the NEON arm against the same reference.
+     *
+     * Not "the two arms agree" -- both are checked against the independent
+     * reference above, so a shared misreading of the contract cannot pass.
+     * The arm runs four faces a step and falls into the scalar tail, so every
+     * fixture length matters: the counts here deliberately straddle 4.
+     *
+     * On a host without NEON this is the scalar path twice, which costs a
+     * microsecond and keeps the test honest about what it proved.
+     */
+    memset(got, 0xcd, sizeof(got));
+    es3_painter_write_indices_ex(got, address, limit, faces, count, true);
+    for( i = 0u; i < count * 3u; i++ )
+        if( got[i] != want[i] )
+        {
+            char where[160];
+            snprintf(where, sizeof(where), "%s index %u (NEON arm)", label, i);
+            fail(where, (unsigned long)want[i], (unsigned long)got[i]);
+            return;
+        }
 }
 
 int
@@ -143,6 +165,19 @@ main(void)
         es3_painter_write_indices(got, 100u, 10u, NULL, 0u);
         if( got[0] != 0xcdcdcdcdu )
             fail("empty run wrote something", 0xcdcdcdcdul, (unsigned long)got[0]);
+    }
+
+    /* Lengths straddling the four-lane step, so the vector body and the
+     * scalar tail are both exercised with in- and out-of-range faces. */
+    {
+        static const int run[] = { 0, 3, 1, 9, 2, 7, 4, 11, 5, 6, 8, 10, 12 };
+        uint32_t n;
+        for( n = 1u; n <= (uint32_t)(sizeof(run) / sizeof(run[0])); n++ )
+        {
+            char label[64];
+            snprintf(label, sizeof(label), "step straddle n=%u", n);
+            check_run(label, 4096u, 10u, run, n);
+        }
     }
 
     if( g_failures )

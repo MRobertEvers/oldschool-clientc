@@ -178,10 +178,58 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
         g_error = "eglInitialize failed";
         return NULL;
     }
-    if( !eglChooseConfig(g_display, attribs, &g_config, 1, &config_count) || config_count < 1 )
+    /*
+     * Choose the config BY HAND, because eglChooseConfig cannot be told to
+     * refuse multisampling.
+     *
+     * EGL_SAMPLE_BUFFERS and EGL_SAMPLES are "AtLeast" attributes: leaving
+     * them out defaults both to 0, and a default of 0 still MATCHES a config
+     * with 4x MSAA. The sort is supposed to put fewer samples first, but the
+     * order is the driver's and only the first config was ever read -- so
+     * which config this lane got was the driver's choice, not ours. ES2 and
+     * ES3 ask for different EGL_RENDERABLE_TYPE bits and therefore choose from
+     * different lists, which is how the two lanes can end up on configs that
+     * differ in more than the client version.
+     *
+     * This lane never wants MSAA: the client renders at a fixed canvas and
+     * resolves nothing, so multisampling is pure cost -- and on the Adreno
+     * 320 an unwanted multisampled window is also a correctness risk. So the
+     * list is walked and a single-sample config is taken; config[0] is the
+     * fallback, and the chosen config's real attributes are reported so this
+     * is never again something to guess at.
+     */
     {
-        g_error = "no EGL config with GLES2 and the requested depth size";
-        return NULL;
+        EGLConfig configs[32];
+        EGLint chosen = -1;
+        EGLint i;
+
+        if( !eglChooseConfig(
+                g_display, attribs, configs,
+                (EGLint)(sizeof(configs) / sizeof(configs[0])), &config_count) ||
+            config_count < 1 )
+        {
+            g_error = "no EGL config with the requested client version and depth size";
+            return NULL;
+        }
+        for( i = 0; i < config_count; i++ )
+        {
+            EGLint sample_buffers = 0;
+            EGLint samples = 0;
+            eglGetConfigAttrib(g_display, configs[i], EGL_SAMPLE_BUFFERS, &sample_buffers);
+            eglGetConfigAttrib(g_display, configs[i], EGL_SAMPLES, &samples);
+            if( sample_buffers == 0 && samples == 0 )
+            {
+                chosen = i;
+                break;
+            }
+        }
+        g_config = configs[chosen >= 0 ? chosen : 0];
+        if( chosen < 0 )
+            __android_log_print(
+                ANDROID_LOG_WARN,
+                ANDROID_LOG_TAG,
+                "EGL: no single-sample config among %d; taking the driver's first",
+                config_count);
     }
 
     g_context = eglCreateContext(g_display, g_config, EGL_NO_CONTEXT, context_attribs);
@@ -205,11 +253,27 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
         return NULL;
     }
 
-    __android_log_print(
-        ANDROID_LOG_INFO,
-        ANDROID_LOG_TAG,
-        "EGL/GLES2 context up (depth %d)",
-        depth_bits);
+    {
+        /* What the driver actually gave us, not what was asked for. */
+        EGLint cfg_id = 0, r = 0, g = 0, b = 0, a = 0, d = 0, s = 0;
+        EGLint sample_buffers = 0, samples = 0;
+        eglGetConfigAttrib(g_display, g_config, EGL_CONFIG_ID, &cfg_id);
+        eglGetConfigAttrib(g_display, g_config, EGL_RED_SIZE, &r);
+        eglGetConfigAttrib(g_display, g_config, EGL_GREEN_SIZE, &g);
+        eglGetConfigAttrib(g_display, g_config, EGL_BLUE_SIZE, &b);
+        eglGetConfigAttrib(g_display, g_config, EGL_ALPHA_SIZE, &a);
+        eglGetConfigAttrib(g_display, g_config, EGL_DEPTH_SIZE, &d);
+        eglGetConfigAttrib(g_display, g_config, EGL_STENCIL_SIZE, &s);
+        eglGetConfigAttrib(g_display, g_config, EGL_SAMPLE_BUFFERS, &sample_buffers);
+        eglGetConfigAttrib(g_display, g_config, EGL_SAMPLES, &samples);
+        __android_log_print(
+            ANDROID_LOG_INFO,
+            ANDROID_LOG_TAG,
+            "EGL/ES%d context up: config %d rgba %d%d%d%d depth %d (asked %d) "
+            "stencil %d sample_buffers %d samples %d",
+            client == TORIRS_GL_CLIENT_ES3 ? 3 : 2,
+            cfg_id, r, g, b, a, d, depth_bits, s, sample_buffers, samples);
+    }
     return (ToriRS_GLContext)g_context;
 }
 

@@ -151,7 +151,8 @@ es3_painter_push_indexed(
     /* Written straight into the draw sequence's staging: no scratch, no copy. */
     indices = es3_sequence_reserve_indexed(renderer, count * 3u);
     assert(indices);
-    es3_painter_write_indices(indices, address, source_face_limit, faces, count);
+    es3_painter_write_indices_ex(
+        indices, address, source_face_limit, faces, count, renderer->lever_triplet_neon);
     es3_sequence_commit_indexed(
         renderer, binding, address, address + span - 1u, true, false, count * 3u);
 }
