@@ -153,6 +153,9 @@ static int g_invoked_operation = -1;
 static int g_native_invokes;
 static enum ToriRS_ContractResult g_invoke_result = TORIRS_CONTRACT_OK;
 static char g_last_log[256];
+/** Every MINIMAP_ORBS_SKIP line the run emitted, newest last. @see
+ *  case_a_dropped_orb_says_why. */
+static char g_skips[4096];
 /** The last MINIMAP_ORBS_VALUE line each orb logged, kept per orb because
  *  the covers log a CONTROL line after them and g_last_log is one slot. */
 static char g_value_line[4][256];
@@ -373,6 +376,11 @@ fake_log(struct ToriRS_Api* api, char const* format, ...)
     va_start(arguments, format);
     vsnprintf(g_last_log, sizeof(g_last_log), format, arguments);
     va_end(arguments);
+    if( strncmp(g_last_log, "MINIMAP_ORBS_SKIP ", 18) == 0 )
+    {
+        strncat(g_skips, g_last_log, sizeof(g_skips) - strlen(g_skips) - 2);
+        strncat(g_skips, "\n", sizeof(g_skips) - strlen(g_skips) - 1);
+    }
     if( strncmp(g_last_log, "MINIMAP_ORBS_VALUE ", 19) == 0 )
         for( int i = 0; i < 4; i++ )
         {
@@ -543,6 +551,7 @@ reset(void)
     memset(g_picture, 0, sizeof(g_picture));
     memset(g_value_line, 0, sizeof(g_value_line));
     g_last_log[0] = '\0';
+    g_skips[0] = '\0';
     g_testbed.skill_stated = true;
 }
 
@@ -1676,6 +1685,114 @@ case_covered_orb_keeps_its_op(void)
     stop_plugin();
 }
 
+/* ------------------------------------------------------------------------ */
+/* 19. A dropped orb says which test dropped it                             */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * The symptom this file exists to chase is "sometimes an orb is missing", and
+ * every one of the seven ways orbs_describe declines to describe one used to
+ * be a bare `continue`. A description is one-shot: what it does not state is
+ * reconciled away, so a skipped orb is a REMOVED cover -- and on a lane whose
+ * orbs are claimed it takes the hide of the lane's own orb with it. The
+ * plugin emitted not one word about which test said no, which is why the
+ * report could only ever be "sometimes".
+ *
+ * The rule: an orb that is not described says why, once, on the transition --
+ * and says so again when it comes back, because a log that records the going
+ * and never the returning cannot be read either.
+ *
+ * Mutation: delete any orbs_note_skip call -> the matching CHECK below goes
+ * red. Make the reason a snprintf'd buffer instead of a literal -> the
+ * pointer comparison never matches and the line repeats every frame, which
+ * the "once" check catches.
+ */
+static int
+skip_lines(char const* needle)
+{
+    int found = 0;
+    char const* at = g_skips;
+    while( (at = strstr(at, needle)) != NULL )
+    {
+        found++;
+        at += strlen(needle);
+    }
+    return found;
+}
+
+static void
+case_a_dropped_orb_says_why(void)
+{
+    reset();
+    declare_native_lane();
+    Testbed_SetConfigInt("spec_varp", -1);
+    g_varp[300] = 640;
+    start_plugin();
+    frame(6);
+    CHECK(live_orbs() == 4, "all four stand to begin with");
+    CHECK(g_skips[0] == '\0', "and a described orb says nothing at all");
+
+    /* The two skill orbs lose their reading. Nothing else about the lane
+     * moves, which is the case a bare `continue` made invisible. */
+    g_skips[0] = '\0';
+    g_testbed.skill_stated = false;
+    Testbed_MoveElement("minimap", 575, 10);
+    frame(4);
+    CHECK(live_orbs() == 2, "the two skill orbs are dropped");
+    CHECK(skip_lines("orb=orb_hitpoints why=the orb has no reading to draw") == 1,
+          "and the hitpoints orb says which test dropped it, once");
+    CHECK(skip_lines("orb=orb_prayer why=the orb has no reading to draw") == 1,
+          "as does the prayer orb");
+    CHECK(skip_lines("orb=orb_run ") == 0, "an orb that still draws stays quiet");
+
+    /* Held: the same reason on a later fence is not a second line. */
+    g_skips[0] = '\0';
+    Testbed_MoveElement("minimap", 575, 11);
+    frame(4);
+    CHECK(g_skips[0] == '\0', "a reason that has not changed is not repeated");
+
+    /* And the returning half. */
+    g_skips[0] = '\0';
+    g_testbed.skill_stated = true;
+    Testbed_MoveElement("minimap", 575, 9);
+    frame(4);
+    CHECK(live_orbs() == 4, "the reading comes back and so do the orbs");
+    CHECK(skip_lines("orb=orb_hitpoints why=none") == 1, "and the orb says it is drawing again");
+    CHECK(skip_lines("orb=orb_prayer why=none") == 1, "both of them");
+    stop_plugin();
+}
+
+/*
+ * The whole-column drop has the same duty: the plate guard refuses every orb
+ * at once, and four silent refusals read exactly like a plugin that never
+ * started.
+ */
+static void
+case_the_whole_column_says_why(void)
+{
+    reset();
+    Testbed_DeclareElement("minimap", 575, 9, 146, 151);
+    for( int i = 0; i < 4; i++ )
+        Testbed_DeclareElement(ORB_ROLE[i], 521 + 10 * i, 41 + 34 * i, ORB_W, ORB_H);
+    declare_art(TORIRS_ASSET_PENDING);
+    Testbed_BindElement("minimap");
+    for( int i = 0; i < 4; i++ )
+        Testbed_BindElement(ORB_ROLE[i]);
+
+    start_plugin();
+    frame(6);
+    CHECK(live_orbs() == 0, "no plate, no orb");
+    CHECK(skip_lines("why=the plate art has not decoded") == 4,
+          "and all four say so rather than going quiet");
+
+    g_skips[0] = '\0';
+    Testbed_LandAsset("frame.png");
+    frame(4);
+    CHECK(live_orbs() == 4, "the art lands and all four appear");
+    CHECK(skip_lines("why=none") == 4, "and all four say they are drawing");
+    stop_plugin();
+}
+
 int
 main(void)
 {
@@ -1697,6 +1814,8 @@ main(void)
     case_inactive_orb_keeps_its_reading();
     case_hovered_orb_lights_its_plate();
     case_covered_orb_keeps_its_op();
+    case_a_dropped_orb_says_why();
+    case_the_whole_column_says_why();
 
     printf("minimap orbs v2: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures != 0;

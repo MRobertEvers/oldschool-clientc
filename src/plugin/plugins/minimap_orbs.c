@@ -375,6 +375,23 @@ struct OrbsState
     uint64_t incarnation[ORB_COUNT];
     bool described[ORB_COUNT];
     /**
+     * Why this orb was left out of the last description, or NULL for "it was
+     * not left out".
+     *
+     * Every one of the reasons orbs_describe declines to describe an orb used
+     * to be a bare `continue`. A skipped orb is a cover REMOVED -- the
+     * description is one-shot, so what it does not state this fence is
+     * reconciled away -- and on a lane whose orbs are CLAIMED it takes the
+     * `hide` of the lane's own orb with it. That is the whole visible
+     * symptom, "an orb is missing", and the plugin emitted not one word about
+     * which of the six tests said no.
+     *
+     * A static string, compared by POINTER rather than by content, so the
+     * line is logged on the transition and not once a frame. @see
+     * orbs_note_skip.
+     */
+    char const* skipped[ORB_COUNT];
+    /**
      * A re-create is owed, and it takes TWO fences.
      *
      * "A key not re-described is removed" is a rule of the RECONCILE, so the
@@ -1682,6 +1699,34 @@ orbs_action_available(
     return false;
 }
 
+/**
+ * Say that this orb is, or is no longer, being left out of the description.
+ *
+ * `why` is a string LITERAL or NULL, never a buffer: the transition is
+ * detected by comparing the pointer, so a reason spelled the same way two
+ * fences running logs once. NULL means "described", and is itself worth a
+ * line -- an orb that came back is the other half of the story, and without it
+ * a log says an orb went and never says it returned.
+ */
+static void
+orbs_note_skip(
+    struct OrbsState* state,
+    int orb,
+    char const* why)
+{
+    assert(state);
+    assert(orb >= 0 && orb < ORB_COUNT);
+
+    if( state->skipped[orb] == why )
+        return;
+    state->skipped[orb] = why;
+    state->api->core.log(
+        state->api,
+        "MINIMAP_ORBS_SKIP orb=%s why=%s",
+        ORB_PART[orb].key,
+        why ? why : "none");
+}
+
 static void
 orbs_describe(
     struct ToriRS_PorcelainDescribe* describe,
@@ -1772,6 +1817,8 @@ orbs_describe(
              * this one and threw this description away. @see OrbsState::recreate.
              */
             state->recreate = true;
+            for( int i = 0; i < ORB_COUNT; i++ )
+                orbs_note_skip(state, i, "the tree was rebuilt; the column is dropped for a fence");
             Porcelain_Invalidate(porcelain);
             return;
         }
@@ -1798,7 +1845,11 @@ orbs_describe(
             (void)orbs_pixels(state, image, &width, &height);
         }
         if( !orbs_pixels(state, ORB_IMG_FRAME, &plate_w, &plate_h) )
+        {
+            for( int i = 0; i < ORB_COUNT; i++ )
+                orbs_note_skip(state, i, "the plate art has not decoded");
             return;
+        }
     }
 
     for( int i = 0; i < ORB_COUNT; i++ )
@@ -1817,6 +1868,7 @@ orbs_describe(
         if( !orbs_cfg_bool(api, ORB_PART[i].show_key) )
         {
             state->described[i] = false;
+            orbs_note_skip(state, i, "the config turned this orb off");
             continue;
         }
         if( native_count > 0 )
@@ -1829,21 +1881,36 @@ orbs_describe(
          * "no cutscene", which is the lane's answer and not a failure.
          */
         if( screen_facets & PORCELAIN_FACET_HIDDEN_BY_CUTSCENE )
+        {
+            orbs_note_skip(state, i, "a cutscene has taken the screen");
             continue;
+        }
         /* A native orb the user chose to keep gets no cover at all; it does
          * not fall back to beside-the-map. */
         if( orb_bound && !replace_native )
+        {
+            orbs_note_skip(state, i, "replace_native is off and the lane has its own orb");
             continue;
+        }
         if( !orb_bound && !have_map )
+        {
+            orbs_note_skip(state, i, "no native orb to cover and no minimap to hang off");
             continue;
+        }
         /* @see OrbsState::settled. */
         if( !orb_bound && state->settled < PORCELAIN_ABSENT_FENCES )
+        {
+            orbs_note_skip(state, i, "waiting for the orb question to settle");
             continue;
+        }
 
         available = orbs_action_available(state, i, orb_bound, orb.facets, native_count);
         state->available[i] = available;
         if( !orbs_picture(state, i, orb_bound, orb.facets, available, &picture) )
+        {
+            orbs_note_skip(state, i, "the orb has no reading to draw");
             continue;
+        }
 
         state->painting[i] = picture;
         state->call[i].state = state;
@@ -1860,7 +1927,20 @@ orbs_describe(
             &derived);
         (void)composed;
         if( derived != PORCELAIN_DERIVED_READY )
+        {
+            /*
+             * PENDING is a compose the engine has not finished and it comes
+             * back on its own; FAILED is terminal FOR THIS PICTURE, which is
+             * the one that has to be legible -- the orb then draws at every
+             * other reading and vanishes at this one, which is exactly what
+             * "sometimes an orb is missing" looks like from the outside.
+             */
+            orbs_note_skip(state, i,
+                           derived == PORCELAIN_DERIVED_PENDING
+                               ? "the composed picture is not ready yet"
+                               : "the composed picture FAILED for this reading");
             continue;
+        }
         state->picture[i] = picture;
 
         memset(&item, 0, sizeof(item));
@@ -1978,6 +2058,7 @@ orbs_describe(
         if( orb_bound )
             describe->hide(describe, PORCELAIN_ORB_EL(i));
         state->described[i] = true;
+        orbs_note_skip(state, i, NULL);
     }
 }
 
