@@ -127,6 +127,11 @@ enum PluginWidgetRequestKind
     /* A read: it must stay BELOW PLUGIN_WIDGET_POSITION, which is where the
      * adapter starts refusing another owner's widget. */
     PLUGIN_WIDGET_STATE,
+    /* A read, same rule as PLUGIN_WIDGET_STATE just above: the raw identity
+     * an IF_SETNPCHEAD/IF_SETOBJECT/IF_SETMODEL bound to this component --
+     * struct App::if_heads[], never the composite scene model id. @see
+     * struct ToriRS_WidgetModel. */
+    PLUGIN_WIDGET_MODEL,
     PLUGIN_WIDGET_POSITION, PLUGIN_WIDGET_SIZE,
     PLUGIN_WIDGET_REVALIDATE, PLUGIN_WIDGET_RESET, PLUGIN_WIDGET_RESET_OWNER,
     PLUGIN_WIDGET_CREATE_TEXT, PLUGIN_WIDGET_SET_TEXT, PLUGIN_WIDGET_TEXT_COLOR, PLUGIN_WIDGET_TEXT_ALIGN, PLUGIN_WIDGET_REMOVE,
@@ -144,6 +149,7 @@ struct PluginWidgetRequest
     struct ToriRS_WidgetRef* refs;
     struct ToriRS_WidgetBounds* bounds;
     struct ToriRS_WidgetState* state; /* STATE: filled by the adapter. */
+    struct ToriRS_WidgetModel* model; /* MODEL: filled by the adapter. */
     bool* flag;
     struct ToriRS_WidgetAction* actions;
     struct ToriRS_WidgetActionRef action;

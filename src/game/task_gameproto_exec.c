@@ -437,9 +437,20 @@ Task_GameProtoExec_Run(
          * mutation has landed. Gated on the revision's packet table, not the
          * revision name, so a lane that does carry the fence never fires twice.
          */
-        if( app->plugins && app->net && app->net->rev &&
+        if( app->net && app->net->rev &&
             app->net->rev->packetin_wire(PKT_NAME_SERVER_TICK_END) < 0 )
-            PluginHost_ServerTick(app->plugins, app->world ? app->world->cycle : 0);
+        {
+            /* DRIVE_STAMP: server_tick -- a=world cycle. THE deadline clock:
+             * every await counts its deadline in these. Lanes without a tick
+             * fence packet raise it here instead. Unconditional -- the ring
+             * is present in every build; only the plugin-host dispatch below
+             * stays gated on app->plugins, the same shape as the spawn/despawn/
+             * retype stamps in app_world_spawn.c. */
+            App_DriveEvent(
+                app, DRIVE_EVENT_SERVER_TICK, app->world ? app->world->cycle : 0, 0, 0, 0);
+            if( app->plugins )
+                PluginHost_ServerTick(app->plugins, app->world ? app->world->cycle : 0);
+        }
     }
     else if( self->packet.packet_type == PKT_NAME_NPC_INFO && app->world_active )
     {

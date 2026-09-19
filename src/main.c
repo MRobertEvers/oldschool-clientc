@@ -1800,6 +1800,11 @@ static int sim_ready;
 static int sim_ready_failed;
 static uint64_t sim_ready_start_ms;
 static uint64_t sim_next_frame_ms;
+/* t.finish(code): set the frame max_frames checks stops the loop under.
+ * quest_exit_pending distinguishes "never finished" from "finished with exit
+ * code 0", since 0 is a legitimate verdict. */
+static int quest_exit_pending;
+static int quest_exit_code;
 
 #if defined(TORIRS_PLATFORM_WEB)
 /*
@@ -2288,6 +2293,22 @@ frame_loop_step(void)
         ToriDraw_EipSampleStop("frames");
         ToriDraw_FrameAbDump("frames");
         return 0;
+    }
+    /* t.finish(code): same branch as TORIRS_MAX_FRAMES above, so a quest
+     * script's own verdict stops the loop exactly the way a bounded smoke
+     * run does. PluginDrive_Finished answers 0 (never finished) outside a
+     * quest run and in every build without EMBED_SERVER -- see
+     * torirs_plugin_drive.h. */
+    {
+        int code = 0;
+        if( PluginDrive_Finished(&code) )
+        {
+            quest_exit_pending = 1;
+            quest_exit_code = code;
+            ToriDraw_EipSampleStop("frames");
+            ToriDraw_FrameAbDump("frames");
+            return 0;
+        }
     }
 
     /*
@@ -7897,5 +7918,8 @@ main(
      * on the one lane where it is the only way to see it.
      */
     fflush(stderr);
-    return sim_ready_failed ? 1 : 0;
+    /* t.finish(code) wins over the ordinary sim_ready_failed verdict: a quest
+     * script that called it decided the process's exit code itself, code 0
+     * included. */
+    return quest_exit_pending ? quest_exit_code : (sim_ready_failed ? 1 : 0);
 }

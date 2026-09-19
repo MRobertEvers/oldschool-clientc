@@ -400,7 +400,12 @@ app_inv_ui_host_change(
     int container_id)
 {
     struct App* app = (struct App*)userdata;
-    (void)container_id;
+    assert(app);
+
+    /* DRIVE_STAMP: inv_changed -- a=container_id. inv.await filters by
+     * container, so the id has to make it into the ring, not just get read
+     * and dropped the way it was before this stamp existed. */
+    App_DriveEvent(app, DRIVE_EVENT_INV_CHANGED, container_id, 0, 0, 0);
 
     UITree_HostInputsChanged(&app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY));
     app->need_redraw = 1;

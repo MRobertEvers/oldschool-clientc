@@ -961,17 +961,31 @@ net_out_opheld(
     int slot,
     int component_id)
 {
+    /* Newer revisions have no OPHELD opcode at all: the five ObjType inventory
+     * actions leave as IF_BUTTONX ops on the backpack component. The mapping is
+     * NOT consecutive. Rev 239's backpack is scripted (script_7779 over
+     * enum_4303): generic Use owns op 1, op 5 stays a plain component action,
+     * and the five iop rows land on 2, 3, 4, 6, 7. This table is the exact
+     * inverse of the server's own decoder, mock239_if_button_backpack_op
+     * (src/torirsserver/mock239_interface_inbound.c), which a captured official
+     * packet pins: the Dreadfowl pouch's iop4 Summon arrives as wire op 6
+     * (src/torirsserver/test/mock239_interface_inbound_test.c).
+     *
+     * This used to be a flat `op_num + 1`, which got ops 1..3 right by accident
+     * and both of the others wrong: OPHELD4 went out as op 5 and decoded as no
+     * held action at all, and OPHELD5 -- Drop -- went out as op 6 and arrived
+     * as OPHELD4, so a right-click Drop answered "Nothing interesting happens."
+     * Nothing exercised either op end to end until the quest driver's
+     * player.drop verb did. */
+    static const int OPHELD_IF_BUTTONX_OP[5] = { 2, 3, 4, 6, 7 };
     int collapsed;
 
     if( op_num < 1 || op_num > 5 )
         return -1;
-    /* Newer revisions have no OPHELD opcode at all. IF3's generic Use row is
-     * op 1, so its five ObjType inventory actions are IF_BUTTONX ops 2..6.
-     * (The golden client's default Drop fallback is op 7; either 6 or 7 maps
-     * back to classic OPHELD5 at the server.) Tried first because
-     * `packetout_code` is what decides, not the revision number. */
-    collapsed =
-        out_if_buttonx(rev, random_out, buf, cap, op_num + 1, component_id, slot, obj_id);
+    /* Tried first because `packetout_code` is what decides, not the revision
+     * number. */
+    collapsed = out_if_buttonx(
+        rev, random_out, buf, cap, OPHELD_IF_BUTTONX_OP[op_num - 1], component_id, slot, obj_id);
     if( collapsed >= 0 )
         return collapsed;
     return out_obj_slot_com(

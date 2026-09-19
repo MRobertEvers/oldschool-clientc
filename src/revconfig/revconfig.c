@@ -995,6 +995,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CAMERA_DISTANCE_SCALE";
     case RCFIELD_ROLE_MATCH:
         return "RCFIELD_ROLE_MATCH";
+    case RCFIELD_ROLE_DERIVE:
+        return "RCFIELD_ROLE_DERIVE";
     case RCFIELD_UICOMPONENT_ROLE:
         return "RCFIELD_UICOMPONENT_ROLE";
     case RCFIELD_TABS_ENTRY:
@@ -1214,7 +1216,12 @@ revconfig_item_begin(
     else if( strcmp(type_value, "layout") == 0 )
         item->kind = RCITEM_UILAYOUT;
     else if( strcmp(type_value, "role") == 0 )
+    {
         item->kind = RCITEM_ROLE;
+        /* Unstated is not 0: a derive= argument of 0 (button_type(0)) must
+         * stay distinguishable from "no (<expr>) was written at all". */
+        item->u.role.derive_argument = -1;
+    }
     else if( strcmp(type_value, "string") == 0 )
         item->kind = RCITEM_STRING;
     else if( strcmp(type_value, "preload") == 0 )
@@ -2429,6 +2436,17 @@ revconfig_item_apply_field(
                     value, &item->u.role.matchers[item->u.role.matcher_count]) )
                 item->u.role.matcher_count++;
         }
+        else if( kind == RCFIELD_ROLE_DERIVE )
+        {
+            /* A malformed line has already been reported; leaving the fact
+             * empty is what tells UITreeRoleLoad_AddItems this role has none. */
+            if( !revconfig_parse_role_derive(
+                    value,
+                    item->u.role.derive_fact,
+                    sizeof(item->u.role.derive_fact),
+                    &item->u.role.derive_argument) )
+                item->u.role.derive_fact[0] = '\0';
+        }
         break;
     case RCITEM_TABS:
         revconfig_item_apply_tabs_field(&item->u.tabs, kind, value);
@@ -2693,6 +2711,74 @@ revconfig_role_parse_int(char const* s, size_t len, int* out_value)
     return *revconfig_skip_space(end) == '\0';
 }
 
+/**
+ * Parse `s[0..len)` as either a plain integer expression, filling only
+ * `*out_first` with `*out_extra_count` left 0, or `any(v1,…)`, up to
+ * `1 + extra_cap` values total. `any()` with 0 or more than `1 + extra_cap`
+ * values is rejected, same as any other malformed argument.
+ */
+static int
+revconfig_role_parse_int_list(
+    char const* s,
+    size_t len,
+    int* out_first,
+    int* out_extra,
+    int extra_cap,
+    int* out_extra_count)
+{
+    char text[128];
+    char head[32];
+    char const* body;
+    size_t body_len;
+    char const* p;
+    size_t remain;
+    int count;
+    int const total_cap = 1 + extra_cap;
+
+    assert(s);
+    assert(out_first);
+    assert(out_extra || extra_cap == 0);
+    assert(out_extra_count);
+
+    *out_extra_count = 0;
+
+    if( !revconfig_role_copy_trimmed(text, sizeof(text), s, len) )
+        return 0;
+
+    if( !revconfig_role_split_call(text, head, sizeof(head), &body, &body_len) ||
+        strcmp(head, "any") != 0 )
+        return revconfig_role_parse_int(s, len, out_first);
+
+    p = body;
+    remain = body_len;
+    count = 0;
+    for( ;; )
+    {
+        long comma = revconfig_role_arg_split(p, remain);
+        size_t piece_len = comma < 0 ? remain : (size_t)comma;
+        int value;
+
+        if( count >= total_cap )
+            return 0; /* any() names more than REVCONFIG_ROLE_MAX_ANY_VALUES */
+        if( !revconfig_role_parse_int(p, piece_len, &value) )
+            return 0; /* also catches any() with an empty (0-argument) body */
+
+        if( count == 0 )
+            *out_first = value;
+        else
+            out_extra[count - 1] = value;
+        count++;
+
+        if( comma < 0 )
+            break;
+        p += comma + 1;
+        remain -= (size_t)comma + 1;
+    }
+
+    *out_extra_count = count - 1;
+    return 1;
+}
+
 /** Parse an `id(<expr>)` or `iface(<name>[, <child>])` reference. */
 static int
 revconfig_role_parse_ref(char const* s, size_t len, struct RevConfigRoleRef* out)
@@ -2715,7 +2801,9 @@ revconfig_role_parse_ref(char const* s, size_t len, struct RevConfigRoleRef* out
 
     if( strcmp(head, "id") == 0 )
     {
-        if( !revconfig_role_parse_int(body, body_len, &out->value) )
+        if( !revconfig_role_parse_int_list(
+                body, body_len, &out->value, out->any_value,
+                REVCONFIG_ROLE_MAX_ANY_VALUES - 1, &out->any_count) )
             return 0;
         out->kind = REVCONFIG_ROLE_MATCH_ID;
         return 1;
@@ -2738,8 +2826,9 @@ revconfig_role_parse_ref(char const* s, size_t len, struct RevConfigRoleRef* out
             if( !revconfig_role_copy_trimmed(
                     out->name, sizeof(out->name), body, (size_t)comma) )
                 return 0;
-            if( !revconfig_role_parse_int(
-                    body + comma + 1, body_len - (size_t)comma - 1, &out->value) )
+            if( !revconfig_role_parse_int_list(
+                    body + comma + 1, body_len - (size_t)comma - 1, &out->value,
+                    out->any_value, REVCONFIG_ROLE_MAX_ANY_VALUES - 1, &out->any_count) )
                 return 0;
         }
         if( out->name[0] == '\0' )
@@ -2801,20 +2890,49 @@ revconfig_parse_role_matcher(char const* str, struct RevConfigRoleMatcher* out)
     }
     else if( strcmp(head, "clientcode") == 0 )
     {
-        if( !revconfig_role_parse_int(body, body_len, &matcher.value) )
+        if( !revconfig_role_parse_int_list(
+                body, body_len, &matcher.value, matcher.any_value,
+                REVCONFIG_ROLE_MAX_ANY_VALUES - 1, &matcher.any_count) )
             goto malformed;
         matcher.kind = REVCONFIG_ROLE_MATCH_CLIENTCODE;
     }
     else if( strcmp(head, "cc") == 0 )
     {
+        char const* rest;
+        size_t rest_len;
+        long comma2;
+
         comma = revconfig_role_arg_split(body, body_len);
         if( comma < 0 )
             goto malformed;
         if( !revconfig_role_parse_ref(body, (size_t)comma, &matcher.ref) )
             goto malformed;
-        if( !revconfig_role_parse_int(
-                body + comma + 1, body_len - (size_t)comma - 1, &matcher.value) )
+
+        rest = body + comma + 1;
+        rest_len = body_len - (size_t)comma - 1;
+        comma2 = revconfig_role_arg_split(rest, rest_len);
+
+        if( !revconfig_role_parse_int_list(
+                rest,
+                comma2 < 0 ? rest_len : (size_t)comma2,
+                &matcher.value,
+                matcher.any_value,
+                REVCONFIG_ROLE_MAX_ANY_VALUES - 1,
+                &matcher.any_count) )
             goto malformed;
+
+        /* The optional third argument: a node-type filter name. */
+        if( comma2 >= 0 )
+        {
+            if( !revconfig_role_copy_trimmed(
+                    matcher.cc_type,
+                    sizeof(matcher.cc_type),
+                    rest + comma2 + 1,
+                    rest_len - (size_t)comma2 - 1) )
+                goto malformed;
+            if( matcher.cc_type[0] == '\0' )
+                goto malformed;
+        }
         matcher.kind = REVCONFIG_ROLE_MATCH_CC;
     }
     else
@@ -2831,4 +2949,74 @@ revconfig_parse_role_matcher(char const* str, struct RevConfigRoleMatcher* out)
 malformed:
     TORIRS_LOG("revconfig: unrecognised role matcher '%s'\n", str);
     return 0;
+}
+
+int
+revconfig_parse_role_derive(
+    char const* str, char* out_fact, size_t fact_cap, int* out_argument)
+{
+    char head[32];
+    char const* body;
+    size_t body_len;
+
+    assert(str);
+    assert(out_fact);
+    assert(out_argument);
+
+    *out_argument = -1;
+
+    /* The common case: a bare fact name, no (<expr>) at all. */
+    if( !strchr(str, '(') )
+    {
+        if( !revconfig_role_copy_trimmed(out_fact, fact_cap, str, strlen(str)) ||
+            out_fact[0] == '\0' )
+            goto malformed;
+        return 1;
+    }
+
+    if( !revconfig_role_split_call(str, head, sizeof(head), &body, &body_len) ||
+        head[0] == '\0' || fact_cap <= strlen(head) )
+        goto malformed;
+
+    strcpy(out_fact, head);
+    if( !revconfig_role_parse_int(body, body_len, out_argument) )
+        goto malformed;
+    return 1;
+
+malformed:
+    TORIRS_LOG("revconfig: unrecognised role derive= '%s'\n", str);
+    return 0;
+}
+
+char const*
+revconfig_derive_sibling_path(
+    char const* path,
+    char const* old_suffix,
+    char const* new_suffix,
+    char* out,
+    size_t out_cap)
+{
+    size_t len, old_len, new_len;
+
+    assert(path);
+    assert(old_suffix);
+    assert(new_suffix);
+    assert(out);
+    assert(out_cap);
+
+    if( path[0] == '\0' )
+        return NULL;
+
+    len = strlen(path);
+    old_len = strlen(old_suffix);
+    new_len = strlen(new_suffix);
+
+    if( len < old_len || strcmp(path + len - old_len, old_suffix) != 0 )
+        return NULL;
+    if( len - old_len + new_len >= out_cap )
+        return NULL;
+
+    memcpy(out, path, len - old_len);
+    strcpy(out + (len - old_len), new_suffix);
+    return out;
 }

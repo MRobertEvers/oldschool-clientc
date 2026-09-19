@@ -4108,6 +4108,264 @@ app_plugin_click_node(struct App* app, int32_t node, int op)
     return 1;
 }
 
+/* opnpc/oploc/opobj_action_for_slot, exported by verbs-pointer
+ * (src/game/rs_minimenu_world.h) for app_plugin_world_op below -- not reached
+ * by anything else in this file's existing include chain. */
+#include "game/rs_minimenu_world.h"
+
+/*
+ * The quest driver's engine seam (verbs-pointer, docs/ARCHITECT.md), which
+ * owns this trio of functions inside "the app_plugin_world_op case" of this
+ * shared file (S1/S5). Deliberately NOT `static`: torirs_plugin_drive_pointer.c
+ * is a separate translation unit outside the app/ layer and forward-declares
+ * these three itself (app.h is closed; app/app_internal.h is layer-private --
+ * see that file's own banner comment for the fuller account).
+ *
+ * app_plugin_world_op generalises the app_plugin_click_node scratch-menu
+ * trick above to a world NPC/SCENERY/OBJSTACK pick: it fabricates the same
+ * one-row UIMinimenu a real row would carry -- id = element_id, secondary_id
+ * = the entity's own config type id, tertiary/quaternary = its current SCENE
+ * tile, exactly as add_npc_rows/add_scenery_rows/add_obj_rows build them
+ * (src/game/rs_minimenu_world.c) -- swaps it in and lets
+ * app_minimenu_run_option do everything a real click does: walk, latch,
+ * packet. `option` >= 1 is a numbered op slot (1-based; op*_action_for_slot
+ * wants slot-1); `option` <= 0 is Examine (OP*6). This is the LOGGED BYPASS
+ * behind drive.op and is never the default path -- every call is reported.
+ * Returns 0 when `element_id` does not resolve to a live entity of `kind`,
+ * 1 once the dispatcher has run (which is "dispatched", not "succeeded" --
+ * the same accepted reading docs/QUEST_DRIVER_PLAN.md S7 U5 gives inv_op).
+ */
+int
+app_plugin_world_op(struct App* app, enum DrivePickKind kind, int element_id, int option)
+{
+    struct UIMinimenu scratch;
+    struct UIMinimenu saved;
+    struct UIMinimenuPick pick;
+    int action;
+    int slot;
+
+    assert(app);
+    if( !app->world )
+        return 0;
+    memset(&pick, 0, sizeof(pick));
+    slot = option - 1;
+
+    switch( kind )
+    {
+    case DRIVE_PICK_NPC:
+    {
+        struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, element_id, NULL);
+        if( !npc || npc->server_slot < 0 )
+            return 0;
+        pick.kind = UI_MINIMENU_PICK_NPC;
+        pick.id = element_id;
+        pick.secondary_id = npc->npc_id;
+        pick.tertiary_id = npc->grid_position.x;
+        pick.quaternary_id = npc->grid_position.z;
+        action = option >= 1 ? opnpc_action_for_slot(slot) : REVCONFIG_MINIMENU_OPNPC6;
+        break;
+    }
+    case DRIVE_PICK_LOC:
+    {
+        struct WorldEntity_Scenery* loc = World_SceneryGetByElementId(app->world, element_id);
+        if( !loc )
+            return 0;
+        pick.kind = UI_MINIMENU_PICK_SCENERY;
+        pick.id = element_id;
+        pick.secondary_id = loc->loc_id;
+        pick.tertiary_id = loc->grid_position.x;
+        pick.quaternary_id = loc->grid_position.z;
+        action = option >= 1 ? oploc_action_for_slot(slot) : REVCONFIG_MINIMENU_OPLOC6;
+        break;
+    }
+    case DRIVE_PICK_OBJ:
+    {
+        struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(app->world, element_id);
+        if( !stack )
+            return 0;
+        pick.kind = UI_MINIMENU_PICK_OBJ;
+        pick.id = element_id;
+        pick.secondary_id = stack->obj_id;
+        pick.tertiary_id = stack->grid_position.x;
+        pick.quaternary_id = stack->grid_position.z;
+        action = option >= 1 ? opobj_action_for_slot(slot) : REVCONFIG_MINIMENU_OPOBJ6;
+        break;
+    }
+    default:
+        return 0;
+    }
+
+    TORIRS_REPORT(
+        "quest-driver: drive.op bypass kind=%d element=%d option=%d action=%d\n",
+        (int)kind,
+        element_id,
+        option,
+        action);
+
+    UIMinimenu_Reset(&scratch);
+    scratch.font_id = app->interact.minimenu.font_id;
+    if( !UIMinimenu_AddOption(&scratch, "", action, option >= 1 ? slot : 0, pick) )
+        return 0;
+    saved = app->interact.minimenu;
+    app->interact.minimenu = scratch;
+    app_minimenu_run_option(app, 0, 0, 0);
+    app->interact.minimenu = saved;
+    return 1;
+}
+
+/*
+ * The backpack half of the same bypass (verbs-pointer, ARCHITECT.md S1: this
+ * function sits inside "the app_plugin_world_op case" of this shared file).
+ *
+ * app_plugin_click_node above fabricates a UI_MINIMENU_PICK_UI pick, and
+ * app_minimenu_run_option's UI case sends IF_BUTTON -- which on rev-239's
+ * backpack is the shift-click-drop script, not the item's op. The OPHELD
+ * ladder lives behind app_minimenu_inv_action, and the ONLY branch that
+ * reaches it is the UI_MINIMENU_PICK_INV_SLOT one, so this builds that pick
+ * instead: id = the inv node's component id, secondary = the cell index,
+ * tertiary = the obj in it, quaternary = its stack count, exactly as
+ * pick_inv_slot does (src/game/rs_minimenu_build.c).
+ *
+ * `option` 1..5 is OPHELD1..5, 0 is Examine (OPHELD6) -- the same "<= 0 means
+ * examine" reading app_plugin_world_op gives -- and a NEGATIVE option arms
+ * the held-item selection (OPHELDT_START, the "Use" row), which is use_on's
+ * phase 1 and carries no op number.
+ *
+ * Returns 0 when the component is not in the tree or the option is not one of
+ * those.  It cannot report the dispatcher's own refusal: app_minimenu_run_option
+ * validates the pick itself (app_minimenu_ui_pick_live, which rejects a cell
+ * whose node or ancestor is display-hidden -- the ordinary case while the
+ * container's tab is not the shown one) and then simply returns, and that
+ * helper is static to app_minimenu.c, which is not this translation unit.
+ * The caller's own completion check is what separates "dispatched" from
+ * "happened": see quest_driver/pointer.lua's _inv_op_until_gone, which waits
+ * for the item to leave the backpack rather than trusting this 1.
+ */
+int
+app_plugin_inv_op(
+    struct App* app, int component_id, int slot, int obj_id, int count, int option)
+{
+    /* OPHELD1..5 in op order. app_minimenu_inv_action switches on these five
+     * ids; there is no exported opheld_action_for_slot to borrow, and the
+     * ladder is five entries rather than a formula. */
+    static int const opheld[5] = {
+        REVCONFIG_MINIMENU_OPHELD1,
+        REVCONFIG_MINIMENU_OPHELD2,
+        REVCONFIG_MINIMENU_OPHELD3,
+        REVCONFIG_MINIMENU_OPHELD4,
+        REVCONFIG_MINIMENU_OPHELD5,
+    };
+    struct UIMinimenu scratch;
+    struct UIMinimenu saved;
+    struct UIMinimenuPick pick;
+    int action;
+    int action_index;
+
+    assert(app);
+    if( option > 5 )
+        return 0;
+    if( UITree_FindByComponentId(app->tree, component_id) < 0 )
+        return 0;
+    memset(&pick, 0, sizeof(pick));
+    pick.kind = UI_MINIMENU_PICK_INV_SLOT;
+    pick.id = component_id;
+    pick.secondary_id = slot;
+    pick.tertiary_id = obj_id;
+    pick.quaternary_id = count;
+    if( option < 0 )
+    {
+        action = REVCONFIG_MINIMENU_OPHELDT_START;
+        action_index = 0;
+    }
+    else if( option == 0 )
+    {
+        action = REVCONFIG_MINIMENU_OPHELD6;
+        action_index = 0;
+    }
+    else
+    {
+        action = opheld[option - 1];
+        action_index = option - 1;
+    }
+    TORIRS_REPORT(
+        "quest-driver: inv op bypass com=%d slot=%d obj=%d count=%d option=%d action=%d\n",
+        component_id,
+        slot,
+        obj_id,
+        count,
+        option,
+        action);
+
+    UIMinimenu_Reset(&scratch);
+    scratch.font_id = app->interact.minimenu.font_id;
+    if( !UIMinimenu_AddOption(&scratch, "", action, action_index, pick) )
+        return 0;
+    saved = app->interact.minimenu;
+    app->interact.minimenu = scratch;
+    app_minimenu_run_option(app, 0, 0, 0);
+    app->interact.minimenu = saved;
+    return 1;
+}
+
+/*
+ * player.walk_to's engine seam: app_try_move on an ABSOLUTE tile, converted
+ * scene-local against the world's own base
+ * (docs/QUEST_DRIVER_PLAN.md S5.2). A 0 return is a refusal with no route
+ * registered -- app_try_move's own contract, passed straight through.
+ */
+int
+app_plugin_world_walk_to(struct App* app, int abs_x, int abs_z)
+{
+    assert(app);
+    if( !app->world )
+        return 0;
+    return app_try_move(
+        app,
+        abs_x - app->world->_base_tile_x,
+        abs_z - app->world->_base_tile_z,
+        0,
+        0,
+        0,
+        0,
+        app->ctrl_held);
+}
+
+/*
+ * player.walk_near's engine seam: app_try_move_npc / app_try_move_loc WITHOUT
+ * sending any op packet -- the approach-routing half of the NPC/SCENERY
+ * dispatch cases in app_minimenu_run_option, called standalone. The caller
+ * (script/plugins/quest_driver/pointer.lua) re-issues this only when the
+ * target's tile has changed, because app_try_move_npc/_loc already do the
+ * approach-tile routing and repeating an unchanged request only adds packets.
+ */
+int
+app_plugin_world_walk_near(struct App* app, enum DrivePickKind kind, int element_id)
+{
+    assert(app);
+    if( !app->world )
+        return 0;
+    switch( kind )
+    {
+    case DRIVE_PICK_NPC:
+    {
+        struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, element_id, NULL);
+        if( !npc || npc->server_slot < 0 )
+            return 0;
+        return app_try_move_npc(app, npc, app->ctrl_held);
+    }
+    case DRIVE_PICK_LOC:
+    {
+        struct WorldEntity_Scenery* loc = World_SceneryGetByElementId(app->world, element_id);
+        if( !loc )
+            return 0;
+        return app_try_move_loc(
+            app, element_id, loc->grid_position.x, loc->grid_position.z, app->ctrl_held);
+    }
+    default:
+        return 0;
+    }
+}
+
 static void
 app_plugin_text_input(void* user, int on)
 {
@@ -5040,6 +5298,34 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
         *r->count = strlen(text) + 1;
         if( r->capacity ) snprintf(r->text, r->capacity, "%s", text);
         return *r->count > r->capacity ? TORIRS_CONTRACT_BUDGET_EXCEEDED : TORIRS_CONTRACT_OK;
+    }
+    case PLUGIN_WIDGET_MODEL:
+    {
+        /* struct App::if_heads[].kind stores an `enum AppIfHeadKind`
+         * (src/app/app_if_models.c) declared INSIDE that .c file, so this
+         * translation unit cannot spell its members by name. The four raw
+         * values below are that enum's fixed, ordinary (unnumbered,
+         * sequential) C layout as of app_if_models.c:16-25: 0=npc, 1=player,
+         * 2=obj, 3=model -- the same mapping torirs_plugin_drive_read.c's
+         * DriveRead_WidgetModel uses, independently, for the same reason. */
+        r->model->kind = TORIRS_WIDGET_MODEL_NONE;
+        r->model->id = -1;
+        for( int i = 0; i < app->if_head_count; i++ )
+        {
+            if( app->if_heads[i].com_id != c->component_id )
+                continue;
+            switch( app->if_heads[i].kind )
+            {
+            case 0: r->model->kind = TORIRS_WIDGET_MODEL_NPC; break;
+            case 2: r->model->kind = TORIRS_WIDGET_MODEL_OBJ; break;
+            case 3: r->model->kind = TORIRS_WIDGET_MODEL_MODEL; break;
+            default: break; /* 1 = player: no raw identity to report */
+            }
+            if( r->model->kind != TORIRS_WIDGET_MODEL_NONE )
+                r->model->id = app->if_heads[i].npc_id;
+            break;
+        }
+        return TORIRS_CONTRACT_OK;
     }
     case PLUGIN_WIDGET_CREATE_TEXT:
     {
@@ -6228,4 +6514,31 @@ app_plugin_engine(struct App* app)
     engine.hsl_from_rgb = app_plugin_hsl_from_rgb;
     engine.hsl_to_rgb = app_plugin_hsl_to_rgb;
     return engine;
+}
+
+/*
+ * Test-only seams for the quest driver (src/plugin/torirs_plugin_drive_ui.c).
+ *
+ * `app_plugin_if_click` and `app_plugin_tab_select` are the dispatchers every
+ * real click already agrees on, and the driver must use THOSE rather than a
+ * second copy that could drift. The gated api_* wrappers in
+ * torirs_plugin_host.c cannot serve it: their dispatch_event allow-list has no
+ * entry for "a coroutine resumed on a bare frame tick", which is exactly what
+ * a quest test is, and the owner's decision on that (plan 5.8, U9) is that the
+ * test-only module may call the raw seam. These two wrappers are the whole of
+ * that exception, and they are named App_PluginDrive* so a grep for the
+ * bypass finds every user of it.
+ */
+int
+App_PluginDriveIfClick(struct App* app, int component_id, int op)
+{
+    assert(app);
+    return app_plugin_if_click(app, component_id, op);
+}
+
+int
+App_PluginDriveTabSelect(struct App* app, int tabno)
+{
+    assert(app);
+    return app_plugin_tab_select(app, tabno);
 }

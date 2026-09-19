@@ -210,6 +210,9 @@ app_cs2_flush_notifications(struct App* app)
     {
         int const com_id = app->host.resume_pausebutton_component_id;
         app->host.resume_pausebutton_component_id = -1;
+        /* DRIVE_STAMP: resume_answered -- a=com_id. Scoped to the component
+         * the verb armed (D6), never "a resume happened". */
+        App_DriveEvent(app, DRIVE_EVENT_RESUME_ANSWERED, com_id, 0, 0, 0);
         if( app->button_sink.resume_pausebutton )
             app->button_sink.resume_pausebutton(app->button_sink.user, com_id);
         /* Same latch a minimenu resume sets (RS_IF1_ApplyButtonClick): the

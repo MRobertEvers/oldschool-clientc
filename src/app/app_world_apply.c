@@ -288,6 +288,11 @@ App_WorldApplyNpcType(
             /* The drawn type changed; base_npc_id -- the multinpc shell --
              * did not. A plugin keyed on the shell, which is how anything
              * tagging an npc has to be keyed, keeps its tag across this. */
+            /* DRIVE_STAMP: npc_retype -- a=npc slot b=npc_id c=base_npc_id.
+             * The drawn type changed and the multinpc shell did not, so a
+             * verb keyed on the shell keeps matching. Unconditional, unlike
+             * the plugin-host snapshot below. */
+            App_DriveEvent(app, DRIVE_EVENT_NPC_RETYPE, world_idx, npc_type, base_npc_type, 0);
             if( app->plugins )
             {
                 struct ToriRS_NpcSnapshot retyped;

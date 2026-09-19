@@ -1,5 +1,6 @@
 #include "rs_chat.h"
 
+#include "plugin/torirs_plugin_drive.h"
 #include "rs_social.h"
 #include "input/torirs_keymap.h"
 #include "ui/uitree_host.h"
@@ -33,6 +34,13 @@ RS_Chat_Init(struct RS_Chat* chat, char const* username)
     assert(chat);
     memset(chat, 0, sizeof(*chat));
     snprintf(chat->username, sizeof(chat->username), "%s", username ? username : "Player");
+}
+
+void
+RS_Chat_SetDriveApp(struct RS_Chat* chat, struct App* app)
+{
+    assert(chat);
+    chat->drive_app = app;
 }
 
 /*
@@ -110,10 +118,13 @@ RS_Chat_AddMessage(
     int clock)
 {
     struct RS_ChatNode* node;
+    int serial;
 
     assert(chat);
     assert(type >= 0);
     assert(type < RS_CHAT_TYPE_MAX);
+
+    serial = ++chat->next_message_serial;
 
     if( chat->message_count < RS_CHAT_MESSAGE_MAX )
         chat->message_count++;
@@ -123,6 +134,7 @@ RS_Chat_AddMessage(
         (size_t)(chat->message_count - 1) * sizeof(struct RS_ChatMessage));
     memset(&chat->messages[0], 0, sizeof(chat->messages[0]));
     chat->messages[0].type = type;
+    chat->messages[0].serial = serial;
     if( name )
         snprintf(chat->messages[0].sender, sizeof(chat->messages[0].sender), "%s", name);
     if( text )
@@ -138,6 +150,16 @@ RS_Chat_AddMessage(
         snprintf(node->sender, sizeof(node->sender), "%s", sender);
     if( text )
         snprintf(node->text, sizeof(node->text), "%s", text);
+
+    /* DRIVE_STAMP: chat_message -- a=type b=message serial.
+     * HERE and not App_NotifyChatMessage, which misses clan chat and the
+     * synthetic logout line: this is the one choke point every insertion
+     * (rs_gameproto_exec.c, RS_CS2Host_ChatAdd, a clan-chat line) passes
+     * through. `drive_app` is NULL for a bare unit-test RS_Chat -- a
+     * legitimate topology, not a contract violation, so the stamp is
+     * skipped rather than asserted. */
+    if( chat->drive_app )
+        App_DriveEvent(chat->drive_app, DRIVE_EVENT_CHAT_MESSAGE, type, serial, 0, 0);
 }
 
 void

@@ -7523,6 +7523,80 @@ cheat_npc_from_name(
 }
 
 /*
+ * The varp / varbit a `::setvar` argument means, or -1.
+ *
+ * Two rungs of `cheat_id_from_name`'s four, and that is the whole difference
+ * from `::give`'s resolver: a varp has no display-name table to walk (rung 3
+ * needs a `display_name(id)` accessor and a record count, which objs and npcs
+ * have and vars do not), so this passes 0 and NULL and the loop over it never
+ * runs. Rung 1 (a bare number), rung 2 (the cache/content gameval, which is
+ * how every selftest already spells `cookquest`) and rung 4 (a unique
+ * substring, with the ambiguous set reported in `suggest`) all apply
+ * unchanged.
+ */
+int
+cheat_varp_from_name(
+    const char* arg,
+    char* suggest,
+    size_t suggest_size)
+{
+    return cheat_id_from_name(TORIRSSERVER_PACK_VARP, 0, NULL, arg, suggest, suggest_size);
+}
+
+/** The varbit a `::setvar` argument means, or -1. See cheat_varp_from_name. */
+int
+cheat_varbit_from_name(
+    const char* arg,
+    char* suggest,
+    size_t suggest_size)
+{
+    return cheat_id_from_name(TORIRSSERVER_PACK_VARBIT, 0, NULL, arg, suggest, suggest_size);
+}
+
+/*
+ * A `::setvar` value: a decimal literal, or a `^constant` this tree declares.
+ *
+ * `^name` rather than a number is the point. A quest's stages are named --
+ * `^cook_started`, `^cook_complete` -- and a test that writes 1 instead is
+ * pinning today's numbering, which is exactly the class of literal
+ * test/quests/README.md refuses everywhere else. `ToriRSServer_ContentConstant`
+ * is the same table the .enum and .param loaders expand against, so a constant
+ * that resolves here is the one content itself compiled with.
+ *
+ * `ToriRSServer_ContentConstantInt` is deliberately NOT used: it logs a
+ * CONTENT_ERROR for a name it cannot find, which is right for a tree the engine
+ * is loading and wrong for a word a human just typed. Returns 1 on success.
+ */
+static int
+cheat_var_value_from_text(
+    const char* text,
+    int* out_value)
+{
+    const char* expanded = text;
+    char* end = NULL;
+    long value;
+
+    assert(text);
+    assert(out_value);
+
+    if( text[0] == '^' )
+    {
+        expanded = ToriRSServer_ContentConstant(text);
+        if( !expanded )
+            return 0;
+    }
+    value = strtol(expanded, &end, 10);
+    if( !end || end == expanded )
+        return 0;
+    while( *end == ' ' || *end == '\t' )
+        end++;
+    if( *end )
+        return 0;
+    *out_value = (int)value;
+    return 1;
+}
+
+/*
  * The sailing boat template lives in map square m60_99 -- the off-map staging
  * region this cache authors hulls in, at tiles x 3840..3903, z 6336..6399.
  * A whole three-deck ship (`boatkit_deck_straight01`, `boatkit_shiphull_*`,
@@ -7729,72 +7803,243 @@ ToriRSServer_VesselRecover(struct ToriRSServer* srv, int handle,
  *
  * Full reason this boundary exists: docs/CRYSTAL_SET_COMMAND.md.
  */
-void
-handle_cheat(
+/*
+ * quest-driver: t.cheat, in-process. Owner: core-scheduler
+ * (docs/ARCHITECT.md).
+ *
+ * handle_cheat below already computes exactly this at :7784 and only ever
+ * reports it to stderr before throwing it away. A quest test has no packet to
+ * send and no socket to answer on -- it already holds `srv` -- so this is the
+ * same call, kept.
+ */
+int
+ToriRSServer_RunDebugprocForTest(
     struct ToriRSServer* srv,
-    const uint8_t* payload,
-    int len)
+    const char* line)
 {
-    struct ToriRSServerPlayer* player = srv->active_player;
-    struct RSAreaBuf buf;
-    char text[128];
+    assert(srv);
+    assert(line);
+    return ToriRSServer_ScriptsRunDebugproc(srv, line);
+}
+
+/*
+ * The C diagnostic ladder `handle_cheat` runs once content has declined the
+ * line -- lifted out of it whole, and now with a verdict instead of `void`.
+ *
+ * Two callers need exactly this, and before the split only one of them could
+ * have it: `handle_cheat` answers a CLIENT_CHEAT packet, while a quest test
+ * (`t.cheat`, src/plugin/torirs_plugin_drive.c DriveCore_Cheat) already holds
+ * `srv` and has no socket to answer on. `t.cheat` used to call
+ * `ToriRSServer_RunDebugprocForTest` alone, which meant every command below --
+ * `::give`, `::setlevel`, `::spawn`, `::wield`, `::tele <x> <z>` -- answered
+ * `no_row` and did nothing at all to a test that asked for it
+ * (docs/QUEST_SERVER_CHEATS.md §B). A setup line that silently does nothing is
+ * the bug this split exists to kill.
+ *
+ * The verdict is the debugproc path's own, so one contract covers both halves:
+ *   RAN   a branch below was taken (including one that answered "Usage: ...":
+ *         the command exists and was understood well enough to refuse)
+ *   NONE  nothing matched -- the caller owns "Unknown command", because a
+ *         packet says it to the player and a test records it as `no_row`.
+ *   FAILED a branch understood the command and refused it -- today only the
+ *          two branches this split added, `::setvar` and `::kill`, which is
+ *          what lets a test tell "no such variable" from "it worked". Every
+ *          branch lifted out of handle_cheat keeps its original verdict, RAN,
+ *          including the ones that answer "Usage: ...".
+ *
+ * Behaviour is unchanged from the body this was cut from: every branch that
+ * used to `return;` now returns RAN, and the fall-through that used to `say`
+ * "Unknown command" now returns NONE and lets its caller say it.
+ */
+enum ToriRSServerTriggerResult
+ToriRSServer_RunCheatLadder(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    const char* text)
+{
     int obj_id = 0;
     int count = 1;
     int tile_x = 0;
     int tile_z = 0;
     int npc_type = 0;
 
-    rsab_wrap(&buf, (void*)payload, (size_t)len);
-    /* net_out_client_cheat writes the body newline-terminated, without the
-     * leading "::". */
-    rsab_gjstr(&buf, text, sizeof(text), RSAB_JSTR_NEWLINE);
-
-    /* `::~foo` arrives as `~foo`: the client owns/removes `::`, while `~` is
-     * the explicit server-side namespace escape. memmove includes the NUL. */
-    if( text[0] == '~' )
-        memmove(text, text + 1, strlen(text));
+    assert(srv);
+    assert(player);
+    assert(text);
 
     /*
-     * Content first, exactly as `[if_button]` is dispatched: a `[debugproc,
-     * <name>]` in the tree claims the line before any branch below sees it.
-     *
-     * That order is what makes a cheat writable without touching the engine,
-     * and it is the reference's own — LostCity has no C-side cheat that a
-     * debugproc could not replace, and everything it ships as content is one.
-     * `::pray` used to be a branch here; it is
-     * skill_prayer/scripts/cheat_prayer.rs2 now, and it toggles a prayer
-     * through the same proc the prayer book's button does.
+     * `::setvar` and `::kill`, the quest driver's two missing primitives, are
+     * FIRST for one structural reason: the ladder ends in three bare `sscanf`
+     * fallbacks (`item %d %d`, `tele %d %d`, `npc %d`) that match on SHAPE and
+     * not on a name, so a branch added after them can be swallowed whole by a
+     * mistyped argument. Nothing below claims either word.
      */
-    /*
-     * Always logged, not gated on verbose.
-     *
-     * Once a cheat reaches the server, no matching `[debugproc]`, a completed
-     * one, and an aborted one must be different outcomes. A line the client
-     * consumed locally is a fourth case and deliberately produces no server
-     * log; packet telemetry is what distinguishes that boundary. This result
-     * makes every server-side outcome explicit rather than letting an abort
-     * masquerade as an unknown command.
-     *
-     * If ::crystal_set ever appears to Cry or stays silent, use
-     * ::~crystal_set with a pristine cache; do not start debugging here:
-     * docs/CRYSTAL_SET_COMMAND.md records the client-local interception and the
-     * exact packet boundary that proves whether this function ran.
-     */
+
+    if( strncmp(text, "setvar ", 7) == 0 )
     {
-        enum ToriRSServerTriggerResult result = ToriRSServer_ScriptsRunDebugproc(srv, text);
+        /*
+         * `::setvar <varp|varbit> <value|^constant>` — write one named
+         * variable through the same setter the `%var =` opcode uses, so the
+         * write transmits to the client and runs its listeners exactly as a
+         * script's own assignment does.
+         *
+         * Why the engine needs it at all: there is no generic
+         * `[debugproc,setvar]` in the content tree and there never has been
+         * (docs/QUEST_SERVER_CHEATS.md §D) — quests ship narrow, hand-written
+         * `..._pass_<step>` debugprocs instead, one per quest, each writing
+         * its own varp. A suite of 179 quest tests cannot wait for 179 of
+         * those, and every one of them would be a second copy of the stage
+         * numbering the quest already declares.
+         *
+         * The varp namespace is tried before the varbit one, which is the
+         * order every caller already means: a quest's own progress variable is
+         * a varp, and a varbit's name only ever collides with a varp's by
+         * accident. `^constant` is what makes the command writable in a test —
+         * `::setvar cookquest ^cook_started`, never `::setvar cookquest 1`.
+         */
+        char name[64] = { 0 };
+        char value_text[64] = { 0 };
+        char suggest[256] = { 0 };
+        int value = 0;
+        int id;
 
-        fprintf(stderr, "torirsserver: cheat '%s' -> debugproc %s\n",
-                text,
-                result == TORIRSSERVER_TRIGGER_RAN
-                    ? "ran"
-                    : result == TORIRSSERVER_TRIGGER_FAILED ? "FAILED" : "not found");
-        if( result == TORIRSSERVER_TRIGGER_FAILED )
+        if( sscanf(text, "setvar %63s %63s", name, value_text) != 2 )
         {
-            say(srv, "Command ::~%s failed — see the server log.", text);
-            return;
+            say(srv, "Usage: ::setvar <varp|varbit> <value|^constant>");
+            return TORIRSSERVER_TRIGGER_FAILED;
         }
-        if( result == TORIRSSERVER_TRIGGER_RAN )
-            return;
+        if( !cheat_var_value_from_text(value_text, &value) )
+        {
+            say(srv, "::setvar: '%s' is not a number and no .constant declares it.",
+                value_text);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+
+        id = cheat_varp_from_name(name, suggest, sizeof(suggest));
+        if( id >= 0 )
+        {
+            /*
+             * A varp that carries varbits must not be written whole — the
+             * write would clear every OTHER bit range based on it, which is
+             * the silent corruption `ToriRSServer_VarbitCarrierBits` exists to
+             * report. Refuse and name the carrier rather than doing it.
+             */
+            if( ToriRSServer_VarbitCarrierBits(id) > 0 )
+            {
+                say(srv, "::setvar: varp %s (%d) carries varbits; name the varbit instead.",
+                    name, id);
+                return TORIRSSERVER_TRIGGER_FAILED;
+            }
+            ToriRSServer_WorldSetVarpOn(srv, player, id, value);
+            say(srv, "Set varp %s (%d) = %d.", name, id, value);
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+
+        id = cheat_varbit_from_name(name, suggest, sizeof(suggest));
+        if( id >= 0 )
+        {
+            if( ToriRSServer_VarbitSetOn(srv, player, id, value) < 0 )
+            {
+                say(srv, "::setvar: varbit %s (%d) is not in this cache.", name, id);
+                return TORIRSSERVER_TRIGGER_FAILED;
+            }
+            say(srv, "Set varbit %s (%d) = %d.", name, id, value);
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+
+        if( suggest[0] )
+            say(srv, "Which %s? %s", name, suggest);
+        else
+            say(srv, "::setvar: no varp or varbit is named '%s'.", name);
+        return TORIRSSERVER_TRIGGER_FAILED;
+    }
+
+    if( strncmp(text, "kill ", 5) == 0 )
+    {
+        /*
+         * `::kill <npc_symbol> [radius]` — lethal damage to the nearest
+         * matching npc, through `ToriRSServer_CombatHitNpc` and therefore
+         * through the ordinary death path: hitpoints reach 0, `npc_queue(3)`
+         * is armed, `npc_death_step` walks QUEUED → ARRIVE → CORPSE, and it is
+         * at CORPSE that `ToriRSServer_WorldNpcDied` fires `[ai_queue3,<type>]`
+         * (torirs_server_world.c's own `WorldNpcDied`). That trigger is where
+         * 494 drop tables AND every quest boss's varp advance hang, so a kill
+         * that skipped it would prove nothing a quest test wants to know.
+         *
+         * NOT `npc_del`, and not a direct `hitpoints = 0`: both reach a world
+         * with the npc gone and neither runs a line of the content that was
+         * supposed to notice.
+         *
+         * A radius, not the whole world: `::kill man` in Lumbridge must mean
+         * the man in front of you, the same way `::fight` with no slot does.
+         * The default is deliberately small for that reason.
+         */
+        char arg[64] = { 0 };
+        char suggest[256] = { 0 };
+        int radius = 15;
+        int type;
+        int slot = -1;
+        int best = -1;
+        int splat;
+
+        if( sscanf(text, "kill %63s %d", arg, &radius) < 1 )
+        {
+            say(srv, "Usage: ::kill <npc_name> [radius]");
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( radius < 1 )
+            radius = 1;
+
+        type = cheat_npc_from_name(arg, suggest, sizeof(suggest));
+        if( type < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "Which %s? %s", arg, suggest);
+            else
+                say(srv, "No npc named '%s'.", arg);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+
+        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+        {
+            struct ToriRSServerNpc* npc = &srv->npcs[i];
+            int dx;
+            int dz;
+            int distance;
+
+            if( !npc->active || npc->death_tick >= 0 || npc->level != player->level )
+                continue;
+            if( npc->type != type || npc->hitpoints <= 0 )
+                continue;
+            dx = npc->x > player->x ? npc->x - player->x : player->x - npc->x;
+            dz = npc->z > player->z ? npc->z - player->z : player->z - npc->z;
+            distance = dx > dz ? dx : dz;
+            if( distance > radius )
+                continue;
+            if( best < 0 || distance < best )
+            {
+                best = distance;
+                slot = i;
+            }
+        }
+        if( slot < 0 )
+        {
+            say(srv, "No live %s within %d tiles.", arg, radius);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+
+        /* `CombatHitNpc` clamps the amount to the npc's remaining hitpoints, so
+         * one oversized hit is exactly one killing blow and the splat carries
+         * the real number. The fallback id is rev-230's ordinary damage splat,
+         * the same one the combat selftests assert. */
+        splat = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_damage");
+        if( splat < 0 )
+            splat = 28;
+        ToriRSServer_CombatHitNpc(srv, slot, splat, srv->npcs[slot].hitpoints);
+        say(srv, "Killed %s (slot %d, %d tiles).",
+            ToriRSServer_NpcInfoKnown(type) ? ToriRSServer_NpcInfo(type)->name : arg,
+            slot, best);
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "talk", 4) == 0 )
@@ -7825,7 +8070,7 @@ handle_cheat(
             if( slot < 0 )
             {
                 say(srv, "No `%s` in the world.", name);
-                return;
+                return TORIRSSERVER_TRIGGER_RAN;
             }
             say(srv, "Talking to %s (slot %d).", ToriRSServer_NpcInfo(srv->npcs[slot].type)->name, slot);
         }
@@ -7855,7 +8100,7 @@ handle_cheat(
                 break;
             }
         }
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     /* `::equip <slot>` was here and calling `equip_from_slot`. It is
@@ -7889,38 +8134,38 @@ handle_cheat(
         if( sscanf(text, "setting %d %d", &varbit_id, &value) != 2 || varbit_id < 0 )
         {
             say(srv, "setting: expected ::setting <varbit> <value>.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         if( varbit_id == SAILING_CARGO_PRIVACY_VARBIT && !SailingCargoPrivacy_Valid(value) )
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         if( ToriRSServer_VarbitSet(srv, varbit_id, value) < 0 )
         {
             say(srv, "setting: varbit %d is not in this cache.", varbit_id);
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         if( getenv("TORIRSSERVER_SETTINGS_DEBUG") )
             fprintf(stderr, "setting: varbit %d = %d (player %s)\n", varbit_id, value,
                     srv->active_player ? srv->active_player->display_name : "?");
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "minimap ", 8) == 0 )
     {
         int state = -1;
         if( sscanf(text, "minimap %d", &state) != 1 || state < 0 || state > 5 )
-        { say(srv, "minimap: expected state 0..5."); return; }
+        { say(srv, "minimap: expected state 0..5."); return TORIRSSERVER_TRIGGER_RAN; }
         ToriRSServer_SendMinimapToggle(srv->active_player, state);
         fprintf(stderr, "minimap: requested native state=%d\n", state);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
     if( strncmp(text, "ifhide ", 7) == 0 )
     {
         int uid = -1, hidden = -1;
         if( sscanf(text, "ifhide %i %d", &uid, &hidden) != 2 || uid < 0 || (hidden != 0 && hidden != 1) )
-        { say(srv, "ifhide: expected component uid and 0 or 1."); return; }
+        { say(srv, "ifhide: expected component uid and 0 or 1."); return TORIRSSERVER_TRIGGER_RAN; }
         ToriRSServer_SendIfSethide(srv->active_player, uid, hidden);
         fprintf(stderr, "ifhide: requested native component=(%d|%d) hidden=%d\n", uid >> 16, uid & 65535, hidden);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "layout ", 7) == 0 )
@@ -7952,7 +8197,7 @@ handle_cheat(
         if( sscanf(text, "layout %d", &mode) != 1 || mode < 0 || mode > 2 )
         {
             say(srv, "layout: expected ::layout <0 fixed|1 classic|2 modern>.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         layout_buttons = ToriRSServer_ContentSymbol(
             TORIRSSERVER_PACK_COMPONENT,
@@ -7960,7 +8205,7 @@ handle_cheat(
         if( layout_buttons <= 0 )
         {
             say(srv, "layout: this cache has no Display row to press.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         rsab_wrap(&out, button, sizeof(button));
         rsab_p4(&out, layout_buttons);
@@ -7968,7 +8213,7 @@ handle_cheat(
         handle_if_button_op(
             srv, PKTOUT_NAME_IF_BUTTON1, button, (int)rsab_len(&out));
         fprintf(stderr, "layout: pressed Display row sub %d\n", mode + 1);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "style", 5) == 0 )
@@ -7993,7 +8238,7 @@ handle_cheat(
             : style == TORIRSSERVER_STYLE_AGGRESSIVE  ? "aggressive"
             : style == TORIRSSERVER_STYLE_DEFENSIVE   ? "defensive"
                                                  : "controlled");
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "setlevel", 8) == 0 )
@@ -8022,7 +8267,7 @@ handle_cheat(
             ToriRSServer_CombatSetLevel(player, stat, level);
             say(srv, "Set stat %d to %d.", stat, level);
         }
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "wield ", 6) == 0 )
@@ -8041,7 +8286,7 @@ handle_cheat(
         if( sscanf(text, "wield %d", &obj_id) != 1 || obj_id < 0 )
         {
             say(srv, "Usage: ::wield <objid> (must be in the backpack)");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
             if( player->inv[i].obj_id == obj_id )
@@ -8052,7 +8297,7 @@ handle_cheat(
         if( slot < 0 )
         {
             say(srv, "No obj %d in the backpack.", obj_id);
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         {
             uint8_t held[8];
@@ -8065,7 +8310,7 @@ handle_cheat(
             handle_opheld(srv, 2, held, (int)rsab_len(&out));
         }
         say(srv, "Wielded %d from slot %d.", obj_id, slot);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "equipstats", 10) == 0 )
@@ -8073,7 +8318,7 @@ handle_cheat(
         /* `::equipstats` opens the bonus screen without walking the sidebar —
          * "View equipment stats" is two clicks deep on the worn tab. */
         ToriRSServer_EquipmentOpenStats(srv);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "run", 3) == 0 )
@@ -8087,7 +8332,7 @@ handle_cheat(
         ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("option_run"), player->run_toggle);
         say(srv, "Run %s (%d%%).", player->run_toggle ? "on" : "off",
             player->run_energy * 100 / TORIRSSERVER_RUN_ENERGY_MAX);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "god", 3) == 0 )
@@ -8112,7 +8357,7 @@ handle_cheat(
             player->masks |= TORIRSSERVER_PMASK_DAMAGE;
         }
         say(srv, "God mode %s.", player->godmode ? "on" : "off");
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "bank", 4) == 0 )
@@ -8121,7 +8366,7 @@ handle_cheat(
          * ones are on the castle's top floor, two staircases from the spawn
          * tile, which is a long way to go to check a packet. */
         ToriRSServer_BankOpen(srv);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "fight", 5) == 0 )
@@ -8165,13 +8410,13 @@ handle_cheat(
             if( slot < 0 )
             {
                 say(srv, "No attackable npc in the world.");
-                return;
+                return TORIRSSERVER_TRIGGER_RAN;
             }
             say(srv, "Attacking %s (slot %d, %d tiles).", ToriRSServer_NpcInfo(srv->npcs[slot].type)->name,
                 slot, best);
         }
         ToriRSServer_CombatEngage(srv, slot);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "useon", 5) == 0 )
@@ -8203,7 +8448,7 @@ handle_cheat(
         if( sscanf(text, "useon %63s %63s", arg_a, arg_b) != 2 )
         {
             say(srv, "Usage: ::useon <item_a> <item_b>   (b is the one clicked second)");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         a = cheat_obj_from_name(arg_a, suggest, sizeof(suggest));
         if( a < 0 )
@@ -8212,7 +8457,7 @@ handle_cheat(
                 say(srv, "Which %s? %s", arg_a, suggest);
             else
                 say(srv, "No item named '%s'.", arg_a);
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         suggest[0] = '\0';
         b = cheat_obj_from_name(arg_b, suggest, sizeof(suggest));
@@ -8222,14 +8467,14 @@ handle_cheat(
                 say(srv, "Which %s? %s", arg_b, suggest);
             else
                 say(srv, "No item named '%s'.", arg_b);
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
 
         row = ToriRSServer_ContainerResolve(srv, player, ToriRSServer_Ids()->inv_backpack);
         if( !row )
         {
             say(srv, "No backpack container.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
         {
@@ -8256,7 +8501,7 @@ handle_cheat(
         if( slot_a < 0 || slot_b < 0 )
         {
             say(srv, "No room to hold both items.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
 
         {
@@ -8274,7 +8519,7 @@ handle_cheat(
                     slot_a, arg_b, b, slot_b);
             ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPHELDU, body, (int)rsab_len(&out));
         }
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "give", 4) == 0 )
@@ -8306,7 +8551,7 @@ handle_cheat(
         if( sscanf(text, "give %63s %d", arg, &want) < 1 )
         {
             say(srv, "Usage: ::give <item_name> [count]");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         if( want < 1 )
             want = 1;
@@ -8318,20 +8563,20 @@ handle_cheat(
                 say(srv, "Which %s? %s", arg, suggest);
             else
                 say(srv, "No item named '%s'.", arg);
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         info = ToriRSServer_ObjInfo(obj_id);
         if( !info->known )
         {
             say(srv, "Obj %d ('%s') has no record in this cache.", obj_id, arg);
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
 
         row = ToriRSServer_ContainerResolve(srv, player, ToriRSServer_Ids()->inv_backpack);
         if( !row )
         {
             say(srv, "No backpack container.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         given = ToriRSServer_ContainerAdd(row, obj_id, want, 0);
         if( given <= 0 )
@@ -8341,7 +8586,7 @@ handle_cheat(
                 want - given);
         else
             say(srv, "Gave %d x %s (%d).", given, info->name, obj_id);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "spawn", 5) == 0 )
@@ -8372,7 +8617,7 @@ handle_cheat(
         if( sscanf(text, "spawn %63s %d", arg, &want) < 1 )
         {
             say(srv, "Usage: ::spawn <npc_name> [count]");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         if( want < 1 )
             want = 1;
@@ -8386,7 +8631,7 @@ handle_cheat(
                 say(srv, "Which %s? %s", arg, suggest);
             else
                 say(srv, "No npc named '%s'.", arg);
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         info = ToriRSServer_NpcInfo(type);
         if( !ToriRSServer_NpcInfoKnown(type) )
@@ -8421,7 +8666,7 @@ handle_cheat(
             say(srv, "Spawned %d x %s (%d) at %d,%d.", spawned,
                 ToriRSServer_NpcInfoKnown(type) ? info->name : arg, type, player->x + 1,
                 player->z + 1);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     /*
@@ -8459,14 +8704,14 @@ handle_cheat(
         if( sscanf(text, "vesselgoto %d %d %d", &to_x, &to_z, &to_level) < 2 )
         {
             say(srv, "Usage: ::vesselgoto <x> <z> [level]");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         ToriRSServer_WorldTeleport(srv, to_level, to_x, to_z);
         fprintf(
             stderr, "vesselgoto: player at %d,%d level %d\n", player->x, player->z,
             player->level);
         say(srv, "Teleported to %d,%d level %d.", to_x, to_z, to_level);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "vesselwater", 11) == 0 )
@@ -8515,7 +8760,7 @@ handle_cheat(
             fprintf(stderr, "vesselwater: %5d %s\n", player->z + dz, row);
         }
         say(srv, "Sailability around %d,%d dumped to stderr.", player->x, player->z);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     /*
@@ -8575,7 +8820,7 @@ handle_cheat(
             say(srv,
                 "Usage: ::vesselspawnat <x> <z> [size_x] [size_z] [config] "
                 "[src_x] [src_z] [angle 0-2047] [prio 0-2]");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         if( prio < 0 )
             prio = 0;
@@ -8587,7 +8832,7 @@ handle_cheat(
         if( at_x < 0 || at_z < 0 || config_id < 0 || src_x < 0 || src_z < 0 )
         {
             say(srv, "Coordinates, config and deck source must be non-negative.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         if( size_x < 1 )
             size_x = 1;
@@ -8611,14 +8856,14 @@ handle_cheat(
         if( handle == 0 )
         {
             say(srv, "No deck instance free — the map-instance pool is full.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         vessel = ToriRSServer_VesselGet(srv, handle);
         if( !ToriRSServer_VesselCanOccupy(vessel, vessel->fine_x, vessel->fine_z, vessel->angle) )
         {
             ToriRSServer_VesselFree(srv, handle);
             say(srv, "The entire hull must fit in clear ocean water.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
 
         vessel->priority = prio;
@@ -8627,7 +8872,7 @@ handle_cheat(
             say(srv, "Vessel %d spawned, but all 15 world-view ids are taken; "
                      "it will not appear on any client.",
                 handle);
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
 
         ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
@@ -8646,7 +8891,7 @@ handle_cheat(
         say(srv, "Vessel %d (config %d, view %d) at %d,%d angle %d; deck %d,%d.",
             handle, config_id, vessel->view_id, at_x, at_z, vessel->angle,
             base_tile_x, base_tile_z);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "vesselspawn", 11) == 0 )
@@ -8711,7 +8956,7 @@ handle_cheat(
                 say(srv, "Usage: ::vesselspawn [tier 1-3] — 1 raft, 2 skiff, "
                          "3 sloop; or the long form <size_x> <size_z> <config> "
                          "<src_x> <src_z>.");
-                return;
+                return TORIRSSERVER_TRIGGER_RAN;
             }
             config_id = k_tiers[tier - 1].config_id;
             size_x = k_tiers[tier - 1].size_x;
@@ -8755,14 +9000,14 @@ handle_cheat(
         if( handle == 0 )
         {
             say(srv, "No deck instance free — the map-instance pool is full.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         vessel = ToriRSServer_VesselGet(srv, handle);
         if( !ToriRSServer_VesselCanOccupy(vessel, vessel->fine_x, vessel->fine_z, vessel->angle) )
         {
             ToriRSServer_VesselFree(srv, handle);
             say(srv, "The entire hull must fit in clear ocean water.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
 
 
@@ -8771,7 +9016,7 @@ handle_cheat(
             say(srv, "Vessel %d spawned, but all 15 world-view ids are taken; "
                      "it will not appear on any client.",
                 handle);
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
 
         /* The deck's terrain, one template zone per deck zone. An unset zone
@@ -8784,7 +9029,7 @@ handle_cheat(
 
         say(srv, "Vessel %d (config %d, view %d) at %d,%d; deck %d,%d.", handle,
             config_id, vessel->view_id, tile_x, tile_z, base_tile_x, base_tile_z);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "vesselsail", 10) == 0 )
@@ -8808,7 +9053,7 @@ handle_cheat(
         if( !vessel )
         {
             say(srv, "No such vessel. ::vesselspawn first.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         int old_sail_mode = vessel->sails_set && !vessel->reversing
             ? (vessel->speed_tier > 1 ? 2 : 1) : 0;
@@ -8826,7 +9071,7 @@ handle_cheat(
         }
         say(srv, "Vessel %d sailing heading %d at tier %d.", vessel->index,
             heading & 15, tier);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "vesselboard", 11) == 0 )
@@ -8865,7 +9110,7 @@ handle_cheat(
         if( !vessel )
         {
             say(srv, "No such vessel. ::vesselspawn first.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         /* Default to the config's DECK plane — the walkable planking (plane
          * 1 on every real boat). Plane 0 is the hull SHELL, whose collision
@@ -8878,12 +9123,12 @@ handle_cheat(
             else
                 say(srv, "Boarded vessel %d at %d,%d level %d.", vessel->index,
                     player->x, player->z, player->level);
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         if( !ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z) )
         {
             say(srv, "Vessel %d has no deck instance.", vessel->index);
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         /* The DECK-BOX centre (zone-rounded, the box the client's descent is
          * centred on), not the hull-size half: for a hull smaller than its
@@ -8896,7 +9141,7 @@ handle_cheat(
             ToriRSServer_WorldTeleport(srv, level, cx, cz);
             say(srv, "Boarded vessel %d at %d,%d level %d.", vessel->index, cx, cz, level);
         }
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "vesselop", 8) == 0 )
@@ -8918,13 +9163,13 @@ handle_cheat(
         if( sscanf(text, "vesselop %d %d", &view, &op) != 2 )
         {
             say(srv, "Usage: vesselop <view> <op>");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         vessel = ToriRSServer_VesselByView(srv, view);
         if( !vessel )
         {
             say(srv, "That vessel is gone.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         if( op == 0 &&
             ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z) )
@@ -8940,10 +9185,10 @@ handle_cheat(
                 base_tile_x + ((vessel->size_x_tiles + 7) / 8) * 4,
                 base_tile_z + ((vessel->size_z_tiles + 7) / 8) * 4);
             say(srv, "You board the vessel.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         say(srv, "Nothing interesting happens.");
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "vesselseq", 9) == 0 )
@@ -8963,24 +9208,24 @@ handle_cheat(
         if( sscanf(text, "vesselseq %d %d %d", &view, &seq, &delay) < 2 )
         {
             say(srv, "Usage: ::vesselseq <view> <seq> [delay ticks]");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         if( seq < 0 || seq > 65535 || delay < 0 || delay > 255 )
         {
             say(srv, "Seq must be 0-65535 (65535 clears), delay 0-255.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         vessel = ToriRSServer_VesselByView(srv, view);
         if( !vessel )
         {
             say(srv, "That vessel is gone.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         vessel->seq_id = seq;
         vessel->seq_delay = delay;
         vessel->seq_stamp++;
         say(srv, "Vessel %d plays seq %d (delay %d).", vessel->index, seq, delay);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "helm", 4) == 0 )
@@ -9001,12 +9246,12 @@ handle_cheat(
         {
             player->navigating_vessel = 0;
             say(srv, "You step away from the helm.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         if( !vessel )
         {
             say(srv, "You are not aboard a vessel.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         player->navigating_vessel = vessel->index;
         player->navigating_vessel_serial = vessel->serial;
@@ -9020,7 +9265,7 @@ handle_cheat(
         say(srv, "You take the helm of vessel %d. Click the water to steer; "
                  "::sails, ::speedup, ::speeddown, ::reverse.",
             vessel->index);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "sails", 5) == 0 )
@@ -9031,7 +9276,7 @@ handle_cheat(
         if( !vessel )
         {
             say(srv, "You are not at a helm. ::helm first.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         vessel->sails_set = !vessel->sails_set;
         if( vessel->sails_set )
@@ -9039,7 +9284,7 @@ handle_cheat(
         int32_t visual_handle = vessel->index;
         ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_visual_on]", &visual_handle, 1);
         say(srv, "Sails %s.", vessel->sails_set ? "set" : "un-set");
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "speedup", 7) == 0 || strncmp(text, "speeddown", 9) == 0 )
@@ -9052,7 +9297,7 @@ handle_cheat(
         if( !vessel )
         {
             say(srv, "You are not at a helm. ::helm first.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         if( up && vessel->speed_tier * 64 < vessel->base_speed_fine )
             vessel->speed_tier++;
@@ -9062,7 +9307,7 @@ handle_cheat(
         ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_visual_on]", &visual_handle, 1);
         say(srv, "Speed %d.%d tiles per tick.", vessel->speed_tier / 2,
             (vessel->speed_tier % 2) ? 5 : 0);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "reverse", 7) == 0 )
@@ -9073,18 +9318,18 @@ handle_cheat(
         if( !vessel )
         {
             say(srv, "You are not at a helm. ::helm first.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         if( vessel->sails_set )
         {
             say(srv, "Un-set the sails before reversing.");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         vessel->reversing = !vessel->reversing;
         int32_t visual_handle = vessel->index;
         ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_visual_on]", &visual_handle, 1);
         say(srv, "%s.", vessel->reversing ? "Reversing" : "Holding");
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( strncmp(text, "vesselstep", 10) == 0 )
@@ -9104,11 +9349,11 @@ handle_cheat(
         if( sscanf(text, "vesselstep %d %d", &dx, &dz) < 2 )
         {
             say(srv, "Usage: ::vesselstep <dx> <dz>");
-            return;
+            return TORIRSSERVER_TRIGGER_RAN;
         }
         ToriRSServer_WorldWalkTo(srv, player->x + dx, player->z + dz);
         say(srv, "Stepping to %d,%d.", player->x + dx, player->z + dz);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
 
     if( sscanf(text, "item %d %d", &obj_id, &count) >= 1 )
@@ -9123,13 +9368,13 @@ handle_cheat(
             inv_set(player, slot, obj_id, count);
             say(srv, "Spawned %s.", ToriRSServer_ObjInfo(obj_id)->name);
         }
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
     if( sscanf(text, "tele %d %d", &tile_x, &tile_z) == 2 )
     {
         ToriRSServer_WorldTeleport(srv, player->level, tile_x, tile_z);
         say(srv, "Teleported to %d,%d.", tile_x, tile_z);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
     if( sscanf(text, "npc %d", &npc_type) == 1 )
     {
@@ -9139,10 +9384,144 @@ handle_cheat(
         if( slot >= 0 )
             srv->npcs[slot].despawns_on_death = 1;
         say(srv, "Spawned npc %d.", npc_type);
-        return;
+        return TORIRSSERVER_TRIGGER_RAN;
     }
-    say(srv, "Unknown command: %s", text);
+
+    return TORIRSSERVER_TRIGGER_NONE;
 }
+
+/*
+ * One cheat line, dispatched the way this server has always dispatched one:
+ * content first, then the C ladder.
+ *
+ * Shared by the packet handler and by `ToriRSServer_RunCheatForTest` so the
+ * two can never drift -- a test that reaches a cheat through a different
+ * dispatch order is testing a program nobody runs.
+ *
+ * `text` arrives with the client's leading "::" already removed and with the
+ * server-side "~" namespace escape already stripped (both are the caller's
+ * job, because only the caller knows which of the two it was handed).
+ */
+static enum ToriRSServerTriggerResult
+cheat_dispatch(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    const char* text)
+{
+    enum ToriRSServerTriggerResult result;
+
+    assert(srv);
+    assert(player);
+    assert(text);
+
+    /*
+     * Content first, exactly as `[if_button]` is dispatched: a `[debugproc,
+     * <name>]` in the tree claims the line before any branch of the ladder
+     * sees it.
+     *
+     * That order is what makes a cheat writable without touching the engine,
+     * and it is the reference's own -- LostCity has no C-side cheat that a
+     * debugproc could not replace, and everything it ships as content is one.
+     * `::pray` used to be a branch here; it is
+     * skill_prayer/scripts/cheat_prayer.rs2 now, and it toggles a prayer
+     * through the same proc the prayer book's button does.
+     */
+    /*
+     * Always logged, not gated on verbose.
+     *
+     * Once a cheat reaches the server, no matching `[debugproc]`, a completed
+     * one, and an aborted one must be different outcomes. A line the client
+     * consumed locally is a fourth case and deliberately produces no server
+     * log; packet telemetry is what distinguishes that boundary. This result
+     * makes every server-side outcome explicit rather than letting an abort
+     * masquerade as an unknown command.
+     *
+     * If ::crystal_set ever appears to Cry or stays silent, use
+     * ::~crystal_set with a pristine cache; do not start debugging here:
+     * docs/CRYSTAL_SET_COMMAND.md records the client-local interception and the
+     * exact packet boundary that proves whether this function ran.
+     */
+    result = (enum ToriRSServerTriggerResult)ToriRSServer_ScriptsRunDebugproc(srv, text);
+
+    fprintf(stderr, "torirsserver: cheat '%s' -> debugproc %s\n",
+            text,
+            result == TORIRSSERVER_TRIGGER_RAN
+                ? "ran"
+                : result == TORIRSSERVER_TRIGGER_FAILED ? "FAILED" : "not found");
+    if( result == TORIRSSERVER_TRIGGER_FAILED )
+    {
+        say(srv, "Command ::~%s failed — see the server log.", text);
+        return TORIRSSERVER_TRIGGER_FAILED;
+    }
+    if( result == TORIRSSERVER_TRIGGER_RAN )
+        return TORIRSSERVER_TRIGGER_RAN;
+
+    return ToriRSServer_RunCheatLadder(srv, player, text);
+}
+
+/*
+ * quest-driver: t.cheat, in-process. Owner: core-scheduler (docs/ARCHITECT.md).
+ *
+ * `ToriRSServer_RunDebugprocForTest` above is half of what a cheat is, and the
+ * half a quest test needs least: the engine ladder is where `::give`,
+ * `::setlevel`, `::spawn`, `::setvar` and `::kill` live, and none of them was
+ * reachable from a test until this existed. This is the SAME dispatch
+ * `handle_cheat` performs -- content first, then the ladder -- with the verdict
+ * returned rather than written to a socket.
+ *
+ * NONE is a real answer and the important one: it means nothing in the server
+ * understood the line, which `t.cheat` reports as `no_row` and the quest
+ * runner's setup loop turns into a FAIL row rather than a silent skip.
+ */
+enum ToriRSServerTriggerResult
+ToriRSServer_RunCheatForTest(
+    struct ToriRSServer* srv,
+    const char* line)
+{
+    char text[128];
+    enum ToriRSServerTriggerResult result;
+
+    assert(srv);
+    assert(line);
+    assert(srv->active_player);
+
+    snprintf(text, sizeof(text), "%s", line);
+    /* `::~foo` reaches handle_cheat as `~foo` because the real client strips
+     * only the "::". DriveCore_Cheat strips the "::" for the same reason, so
+     * this sees the same string the packet path sees and strips the same one
+     * thing off it. memmove includes the NUL. */
+    if( text[0] == '~' )
+        memmove(text, text + 1, strlen(text));
+
+    result = cheat_dispatch(srv, srv->active_player, text);
+    if( result == TORIRSSERVER_TRIGGER_NONE )
+        say(srv, "Unknown command: %s", text);
+    return result;
+}
+
+void
+handle_cheat(
+    struct ToriRSServer* srv,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf buf;
+    char text[128];
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    /* net_out_client_cheat writes the body newline-terminated, without the
+     * leading "::". */
+    rsab_gjstr(&buf, text, sizeof(text), RSAB_JSTR_NEWLINE);
+
+    /* `::~foo` arrives as `~foo`: the client owns/removes `::`, while `~` is
+     * the explicit server-side namespace escape. memmove includes the NUL. */
+    if( text[0] == '~' )
+        memmove(text, text + 1, strlen(text));
+
+    if( cheat_dispatch(srv, srv->active_player, text) == TORIRSSERVER_TRIGGER_NONE )
+        say(srv, "Unknown command: %s", text);
+}
+
 
 void
 ToriRSServer_WorldTeleport(

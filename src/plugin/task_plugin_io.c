@@ -25,6 +25,7 @@
 #include "asyncio.h"
 #include "plugin/torirs_plugin_host.h"
 #include "plugin/torirs_plugin_lua.h"
+#include "plugin/torirs_plugin_drive.h"
 #include "log/torirs_log.h"
 
 #include <assert.h>
@@ -80,6 +81,12 @@ struct Task_PluginBoot
     struct PluginBootEntry entries[PLUGIN_BOOT_MAX_SCRIPTS];
     int entry_count;
     int at;
+    /* The quest driver ships as one chunk assembled from several files (the
+     * sandbox has no `require`), so one manifest entry can be several reads.
+     * Every other entry answers zero parts and takes the single-file path
+     * below unchanged. */
+    int part;
+    int part_count;
 };
 
 /*
@@ -233,17 +240,56 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
             continue;
         }
 
+        task->part_count = PluginDrive_ScriptPartCount(task->entries[task->at].name);
+        if( task->part_count > 0 )
+            PluginDrive_ComposeReset();
+        for( task->part = 0; task->part < task->part_count; task->part++ )
+        {
+            char const* const part_path =
+                PluginDrive_ScriptPartPath(task->entries[task->at].name, task->part);
+
+            ToriRS_IO_QueueScript(io, PLUGIN_IO_SLOT, part_path);
+            PT_YIELD(&task->pt);
+
+            item = ToriRS_IO_TaskSlot(io, PLUGIN_IO_SLOT);
+            if( IOITEM_ERROR_CODE(item) == 0 && IOITEM_DATA(item) )
+                PluginDrive_ComposeAppend(
+                    (char const*)IOITEM_DATA(item), IOITEM_DATA_SIZE(item));
+            else
+                /* Loud: a missing part is a driver whose verbs are silently
+                 * absent, which would surface as a quest test failing on a nil
+                 * call thirty steps later. */
+                TORIRS_ERR("plugin: quest driver part '%s' could not be read\n", part_path);
+            ToriRS_IO_ClearItem(item);
+        }
+
         ToriRS_IO_QueueScript(io, PLUGIN_IO_SLOT, task->entries[task->at].source);
         PT_YIELD(&task->pt);
 
         item = ToriRS_IO_TaskSlot(io, PLUGIN_IO_SLOT);
         if( IOITEM_ERROR_CODE(item) == 0 && IOITEM_DATA(item) )
         {
-            int const index = PluginLua_AddScript(
+            /* The entry's own source is LAST: it is the only file with a
+             * top-level `return plugin`, and a top-level return ends the
+             * chunk. */
+            char* composed = NULL;
+            char const* source = (char const*)IOITEM_DATA(item);
+            int source_length = IOITEM_DATA_SIZE(item);
+            int index;
+
+            if( task->part_count > 0 )
+            {
+                PluginDrive_ComposeAppend(source, source_length);
+                composed = PluginDrive_ComposeTake(&source_length);
+                assert(composed);
+                source = composed;
+            }
+            index = PluginLua_AddScript(
                 task->host,
                 task->entries[task->at].name,
-                (char const*)IOITEM_DATA(item),
-                IOITEM_DATA_SIZE(item));
+                source,
+                source_length);
+            free(composed);
             /* The manifest's own enabled=0 is applied here rather than left to
              * the settings file: it is the author's switch, and it has to work
              * for a script that has never been run and so has no saved state

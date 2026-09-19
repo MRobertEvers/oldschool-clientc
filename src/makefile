@@ -636,9 +636,11 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_plugin_api.c \
 	app/app_plugin_assets.c \
 	app/app_plugin_bridge.c \
+	app/app_plugin_drive_events.c \
 	app/app_plugin_object.c \
 	app/app_plugin_panel.c \
 	app/app_render.c \
+	app/app_role_derive.c \
 	app/app_session_resume.c \
 	app/app_textures.c \
 	app/app_tick.c \
@@ -852,6 +854,9 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	$(PORCELAIN_SRCS) \
 	plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
+	plugin/torirs_plugin_drive.c plugin/torirs_plugin_drive_state.c \
+	plugin/torirs_plugin_drive_chat.c plugin/torirs_plugin_drive_read.c \
+	plugin/torirs_plugin_drive_pointer.c plugin/torirs_plugin_drive_ui.c \
 	plugin/plugins/client_settings.c \
 	plugin/plugins/feature_flags.c \
 	plugin/plugins/tileind.c plugin/plugins/widget_demo.c \
@@ -1239,7 +1244,7 @@ $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
 .PHONY: test-toridraw-mini test-toridraw-mini-16bpp test-toridraw-rscache test-toridraw-small toridraw-tables-gen test-toridraw-tables-precomputed toridraw-model-to-ppm
-.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain check-pt-switch test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-design-panel test-mouseover-entry test-logout-wait test-native-layout test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
+.PHONY: test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-drive-event-ring test-walkmerge test-entity-decode check-no-drain check-pt-switch check-revconfig-roles test-quests test-quest-conformance check-quest-verbs test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-design-panel test-mouseover-entry test-logout-wait test-native-layout test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
@@ -1566,7 +1571,11 @@ NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_r
 # rsprot_bridge.c is excluded for the same reason the rev tables are: it has an
 # explicit rule below carrying extra include paths, and letting the generic
 # rule also claim it makes make warn about overriding commands.
-$(foreach src,$(filter-out plugin/torirs_plugin_lua.c painters/painters.c net/rev/rsprot_bridge.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
+DRIVE_LUA_SRCS = plugin/torirs_plugin_drive.c plugin/torirs_plugin_drive_state.c \
+	plugin/torirs_plugin_drive_chat.c plugin/torirs_plugin_drive_read.c \
+	plugin/torirs_plugin_drive_pointer.c plugin/torirs_plugin_drive_ui.c
+
+$(foreach src,$(filter-out plugin/torirs_plugin_lua.c $(DRIVE_LUA_SRCS) painters/painters.c net/rev/rsprot_bridge.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
 $(foreach src,$(PLATFORM_OBJC_SRCS),$(eval $(call make-objc-goal,$(src))))
 
 $(OBJ_DIR)/painters.o: painters/painters.c | $(OBJ_DIR)
@@ -2506,6 +2515,16 @@ $(OBJ_DIR)/lua_unity.o: $(SRC_DIR)/plugin/lua_unity.c | $(OBJ_DIR)
 # against the plugin contract alone and needs no Lua on its include path.
 $(OBJ_DIR)/torirs_plugin_lua.o: $(SRC_DIR)/plugin/torirs_plugin_lua.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(LUA_DIR) -c $(SRC_DIR)/plugin/torirs_plugin_lua.c -o $@
+
+# The quest driver (docs/ARCHITECT.md): six test-only TUs that include BOTH
+# app.h and lua.h. They are the deliberate exception to the comment above --
+# a driver verb is "ask the client something and tell Lua" and splitting each
+# one across a vtable would buy nothing but a second place to get it wrong.
+define make-drive-goal
+$(OBJ_DIR)/$(notdir $(1:.c=.o)): $(SRC_DIR)/$(1) | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(LUA_DIR) -c $(SRC_DIR)/$(1) -o $$@
+endef
+$(foreach src,$(DRIVE_LUA_SRCS),$(eval $(call make-drive-goal,$(src))))
 
 $(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSCACHE_CFLAGS) -w -c $(RSCACHE_UNITY_SRC) -o $@
@@ -3973,6 +3992,65 @@ check-pt-switch:
 		&& echo "check-pt-switch: PASS (no switch inside a protothread)" \
 		|| (python3 $(REPO_ROOT)/tools/pt_switch_audit.py . && echo "check-pt-switch: FAIL" && exit 1)
 
+# Generated revconfig roles must match the cache packs they were generated
+# from, and every derive= fact must be one App_RoleDeriveFallback knows. Shaped
+# like check-pt-switch: the tool is the gate, the makefile only names it.
+.PHONY: check-revconfig-roles
+check-revconfig-roles:
+	python3 $(REPO_ROOT)/tools/revconfig_roles_from_pack.py --check
+
+# The quest driver's Lua/C ABI: every api_drive.<name>(...) call site in
+# script/plugins/quest_driver/*.lua matched against its C registration
+# (arity read, values pushed) in src/plugin/torirs_plugin_drive*.c. Shaped
+# like check-pt-switch and check-revconfig-roles: the tool is the gate, the
+# makefile only names it. A permanent gate (R3) -- it stays after the verbs
+# it currently flags are fixed.
+.PHONY: check-drive-abi
+check-drive-abi:
+	python3 $(REPO_ROOT)/tools/quest_gate/check_drive_abi.py
+
+# The quest gate: one private-session client process per quest test, a ledger
+# and a numbered screenshot per interaction, red on any FAIL row, any missing
+# or undersized shot, and any duplicate shot MD5. QUEST=<name> runs/checks one
+# quest (test/quests/<name>.lua); with no QUEST, every discovered quest runs.
+.PHONY: test-quests
+test-quests:
+	python3 $(REPO_ROOT)/tools/quest_gate/run.py $(if $(QUEST),$(QUEST),--all)
+	python3 $(REPO_ROOT)/tools/quest_gate/gate.py $(if $(QUEST),$(QUEST))
+
+# Verb conformance: call EVERY verb the quest driver exposes on `t`, exactly
+# once, against a live world, and record what each one actually did. This is
+# the gate that replaces "it compiles" -- a driver change is believed only
+# when this table moves. It builds its own binary into its own objdir, ensures
+# the script pack, runs test/quests/_conformance.lua in a private session,
+# prints one row per verb, and is red while ANY verb fails, aborts or is
+# missing a row. tools/quest_gate/verb_list.py --check runs first, so a verb
+# added to the driver with no row in the harness fails here rather than being
+# quietly never called.
+.PHONY: test-quest-conformance check-quest-verbs
+test-quest-conformance:
+	python3 $(REPO_ROOT)/tools/quest_gate/conformance.py
+
+check-quest-verbs:
+	python3 $(REPO_ROOT)/tools/quest_gate/verb_list.py --check
+
+# The cheat ladder, proved from a real client run. test/quests/_cheats.lua is
+# not a quest (the leading underscore keeps it out of `run.py --all`): it is
+# one ledger row per command `t.cheat` now has to be able to reach --
+# ::give, ::setlevel, ::setvar, ::spawn, ::kill, ::tele, and a bogus line that
+# must answer `no_row`. Before ToriRSServer_RunCheatForTest existed, every one
+# of those but ::tele answered `no_row` and did nothing at all to the test that
+# asked for it, which is a setup that silently states nothing
+# (docs/QUEST_SERVER_CHEATS.md B).
+#
+# Red twice over, deliberately: the script itself finishes non-zero on any
+# failed row, and the ledger is re-read afterwards so a run that died before it
+# could write its own verdict cannot pass by leaving no evidence.
+.PHONY: test-quest-cheats
+test-quest-cheats:
+	python3 $(REPO_ROOT)/tools/quest_gate/run.py --script $(REPO_ROOT)/test/quests/_cheats.lua --name cheats --no-publish
+	python3 -c 'import sys; sys.path.insert(0, "$(REPO_ROOT)/tools/quest_gate"); import ledger; rows, summary = ledger.read("$(REPO_ROOT)/build/quest_gate/cheats/ledger.tsv"); bad = [r for r in (rows or []) if r["verdict"] != "PASS"]; [print("FAIL row:", r["step"], r["detail"]) for r in bad]; print("no ledger.tsv") if rows is None else None; sys.exit(1 if (bad or not rows or summary is None) else 0)'
+
 # Walkmerge blend (Model.maskAnimate port) + seq-meta plumbing.
 test-walkmerge: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/walkmerge_test \
@@ -4447,9 +4525,21 @@ test-ui-slots: $(OBJ_DIR) $(OBJS)
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/rs_ui_slots_test $(DAT1_CACHE)
 
-# End-to-end dat1 RevConfig build against a dat1 cache (default ../cache254).
+# quest-driver events-core gate (docs/QUEST_DRIVER_PLAN.md 5.1): the drive
+# event ring's stamp order, a stale-cursor wraparound refusal, and the
+# chat_opened/slot_mounted stamps against a real dat1 cache.
+test-drive-event-ring: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/app_drive_event_ring_test \
+		app/test/app_drive_event_ring_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/app_drive_event_ring_test $(DAT1_CACHE)
+
+# End-to-end dat1 RevConfig build against a dat1 cache (default
+# ../cache254.lostcity, the name this tree actually ships -- test-ui-slots
+# and test-drive-event-ring were red by default under the old ../cache254
+# spelling, which does not exist here).
 # Links the app objects (minus main) since the build task reaches CS2/game code.
-DAT1_CACHE ?= ../cache254
+DAT1_CACHE ?= ../cache254.lostcity
 test-uitree-builder-dat1: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_builder_dat1_test \
 		engine/uitree_builder/test/uitree_builder_test_dat1.c \

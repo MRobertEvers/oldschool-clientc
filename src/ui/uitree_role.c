@@ -35,6 +35,38 @@ static char const* const ROLE_CHAT_FILTER_NAME[4] = {
     "report",
 };
 
+/* cc()'s optional third-argument type filter. Only the handful of types a
+ * CS2 script actually cc_creates -- widening this is adding a row, not a
+ * grammar change. */
+static struct
+{
+    char const* name;
+    int type;
+} const ROLE_CC_TYPE_NAME[] = {
+    { "text", UIELEM_RS_TEXT },
+    { "graphic", UIELEM_RS_GRAPHIC },
+    { "model", UIELEM_RS_MODEL },
+    { "inv", UIELEM_RS_INV },
+    { "inv_text", UIELEM_RS_INV_TEXT },
+    { "layer", UIELEM_RS_LAYER },
+    { "rect", UIELEM_RS_RECT },
+    { "line", UIELEM_RS_LINE },
+    { "obj", UIELEM_CC_OBJ },
+    { "arc", UIELEM_RS_ARC },
+};
+
+int
+UITree_RoleCcTypeFromName(char const* name)
+{
+    assert(name);
+    for( size_t i = 0; i < sizeof(ROLE_CC_TYPE_NAME) / sizeof(ROLE_CC_TYPE_NAME[0]); i++ )
+    {
+        if( strcmp(name, ROLE_CC_TYPE_NAME[i].name) == 0 )
+            return ROLE_CC_TYPE_NAME[i].type;
+    }
+    return -1;
+}
+
 int
 UITree_RoleSlotFromName(char const* name)
 {
@@ -236,6 +268,49 @@ UITree_RoleMarkAuthored(struct UITreeRoleTable* table, uint16_t role_id)
 }
 
 void
+UITree_RoleSetDerive(
+    struct UITreeRoleTable* table,
+    uint16_t role_id,
+    char const* fact,
+    int argument)
+{
+    struct UITreeRoleEntry* entry;
+
+    assert(table);
+    assert(fact);
+    assert(role_id > 0);
+    assert((int)role_id <= table->count);
+
+    entry = &table->entries[role_id - 1];
+    strncpy(entry->derive_fact, fact, sizeof(entry->derive_fact) - 1);
+    entry->derive_fact[sizeof(entry->derive_fact) - 1] = '\0';
+    entry->derive_argument = argument;
+    entry->memo_valid = 0;
+}
+
+char const*
+UITree_RoleDeriveFact(
+    struct UITreeRoleTable const* table,
+    uint16_t role_id,
+    int* out_argument)
+{
+    struct UITreeRoleEntry const* entry;
+
+    assert(table);
+    assert(out_argument);
+
+    if( role_id == 0 || (int)role_id > table->count )
+        return NULL;
+
+    entry = &table->entries[role_id - 1];
+    if( entry->derive_fact[0] == '\0' )
+        return NULL;
+
+    *out_argument = entry->derive_argument;
+    return entry->derive_fact;
+}
+
+void
 UITree_RoleTableFree(struct UITreeRoleTable* table)
 {
     if( !table )
@@ -351,7 +426,11 @@ role_resolve_matcher(
         if( !role_node_alive(tree, parent) )
             return -1;
         idx = UITree_FindChildBySubid(tree, parent, m->uid, m->value);
-        return role_node_alive(tree, idx) ? idx : -1;
+        if( !role_node_alive(tree, idx) )
+            return -1;
+        if( m->cc_type != 0 && tree->components[idx].type != (enum UITreeComponentType)m->cc_type )
+            return -1;
+        return idx;
     }
 
     default:
@@ -391,7 +470,16 @@ UITree_RoleNode(
      * on it would re-walk the tree every frame to reach the same answer, so
      * those key on `generation` alone.
      */
-    if( entry->memo_valid && entry->memo_generation == tree->generation &&
+    /*
+     * A derive= role is never memoised: `pause_pending` and `dialog_continue`
+     * can change with neither `generation` nor `id_generation` moving at all
+     * -- a resume being answered, or a page's continue row losing its arm,
+     * touches no id and rebuilds nothing. The fallback that answers these is
+     * O(a table lookup) or a short bounded walk, so re-asking it every call
+     * costs nothing worth caching against.
+     */
+    if( entry->derive_fact[0] == '\0' && entry->memo_valid &&
+        entry->memo_generation == tree->generation &&
         (!entry->id_sensitive || entry->memo_id_generation == tree->id_generation) )
     {
         /* A remembered node can still have been freed without either counter
@@ -412,10 +500,13 @@ UITree_RoleNode(
     else
         for( int i = 0; node < 0 && i < entry->matcher_count; i++ )
         { PA_INC(role_matcher_calls); node = role_resolve_matcher(tree, &entry->matchers[i]); }
-    entry->memo_node = node;
-    entry->memo_generation = tree->generation;
-    entry->memo_id_generation = tree->id_generation;
-    entry->memo_valid = 1;
+    if( entry->derive_fact[0] == '\0' )
+    {
+        entry->memo_node = node;
+        entry->memo_generation = tree->generation;
+        entry->memo_id_generation = tree->id_generation;
+        entry->memo_valid = 1;
+    }
     PA_INC(role_memo_misses);
     PA_ADD(role_ns, PerfAudit_Now() - pa_t0);
     return node;

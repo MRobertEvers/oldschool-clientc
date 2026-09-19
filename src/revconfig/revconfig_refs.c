@@ -320,12 +320,35 @@ RevConfigRefs_LoadSources(
     char const* cache_ini,
     char const* inline_ini)
 {
+    char generated_roles[512];
+
     assert(refs);
     /* Same order as UIBuilderManifestSources: shared files first, the boot
      * manifest's own inline sections last, so a lane can override one id
      * without copying the whole profile. */
     refs_load_one(refs, ui_ini, NULL);
     refs_load_one(refs, cache_ini, NULL);
+    /*
+     * The generated companion to a dat2 lane's cache ini -- tools/
+     * revconfig_roles_from_pack.py's [iface:] output, chained here rather
+     * than into the hand-edited file it sits beside (osrs239's
+     * osrs239_dat2_cache.ini -> osrs239_dat2_roles.gen.ini). Loaded right
+     * after cache_ini so a role in either file can reference one of its
+     * [iface:] sections through this same refs table.
+     *
+     * UITreeRoleLoad_LoadSources chains the matching [role:] half the same
+     * way, from the same derived path. A lane with no generated sibling
+     * (dat1, or a dat2 lane this generator has not run for) derives nothing
+     * here and refs_load_one's own missing-file handling no-ops on it.
+     */
+    if( cache_ini &&
+        revconfig_derive_sibling_path(
+            cache_ini,
+            "_dat2_cache.ini",
+            "_dat2_roles.gen.ini",
+            generated_roles,
+            sizeof(generated_roles)) )
+        refs_load_one(refs, generated_roles, NULL);
     refs_load_one(refs, inline_ini, "revconfig");
     return refs->count;
 }

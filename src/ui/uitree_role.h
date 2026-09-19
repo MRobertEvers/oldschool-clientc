@@ -98,6 +98,14 @@ struct UITreeRoleMatcher
     int32_t uid;
     /** _CLIENTCODE: the code. _CC: the sub id. */
     int32_t value;
+    /** _CC only: the resolved child's required enum UITreeComponentType, or
+     *  0 for no filter (the plain two-argument cc() form -- and, deliberately,
+     *  what a plain `= {0}`/memset construction already gives every existing
+     *  and future caller that never heard of this field: the enum has no
+     *  zero member). Guards against a reused dynamic sub id landing on the
+     *  wrong kind of node after a CC_DELETEALL rebuild built something else
+     *  there under the same id -- @see UITree_RoleCcTypeFromName. */
+    int32_t cc_type;
 };
 
 /** One role: its name, its chain, and where the last answer came from. */
@@ -134,6 +142,12 @@ struct UITreeRoleEntry
     uint32_t memo_generation;
     uint32_t memo_id_generation;
     uint8_t memo_valid;
+
+    /** `derive=<fact>[(<argument>)]` -- answered by UITreeRoleTable.fallback
+     *  instead of the chain above. Empty for an ordinary role. `derive_argument`
+     *  is -1 when the ini stated no (<expr>). @see UITree_RoleSetDerive. */
+    char derive_fact[32];
+    int derive_argument;
 };
 
 /**
@@ -221,6 +235,30 @@ UITree_RoleNodeByName(
     struct UITreeRoleTable* table,
     char const* name);
 
+/**
+ * Record that `role_id` is answered by `fact`[(`argument`)] rather than by
+ * its (empty) matcher chain. Called once per role while loading a `derive=`
+ * line, the same way UITree_RoleMarkAuthored is called from a `role=` line.
+ */
+void
+UITree_RoleSetDerive(
+    struct UITreeRoleTable* table,
+    uint16_t role_id,
+    char const* fact,
+    int argument);
+
+/**
+ * `role_id`'s derive= fact and `*out_argument`, or NULL for an ordinary role.
+ * The function installed as UITreeRoleTable.fallback calls this first, to
+ * turn a role id back into the fact name it was declared with -- and to
+ * decline (return -2) when this role has none.
+ */
+char const*
+UITree_RoleDeriveFact(
+    struct UITreeRoleTable const* table,
+    uint16_t role_id,
+    int* out_argument);
+
 /** Drop every entry. */
 void
 UITree_RoleTableFree(struct UITreeRoleTable* table);
@@ -249,5 +287,17 @@ UITree_RoleSlotName(int slot);
  */
 int
 UITree_RoleSlotMemberFromName(int slot, char const* name);
+
+/**
+ * enum UITreeComponentType for a `cc(<anchor>, <sub_id>, <type>)` type-filter
+ * name ("text", "graphic", "model", "inv", "inv_text", "layer", "rect",
+ * "line", "obj", "arc"), or -1 when `name` names none of them.
+ *
+ * Here rather than in uitree.c for the same reason UITree_RoleSlotFromName
+ * is: it is the ROLE grammar's own spelling of the type enum, read only where
+ * a match= line is translated into a matcher.
+ */
+int
+UITree_RoleCcTypeFromName(char const* name);
 
 #endif /* SRC_UITREE_ROLE_H */
